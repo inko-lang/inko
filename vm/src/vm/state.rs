@@ -104,6 +104,9 @@ pub struct State {
     /// The singleton "false" object.
     pub false_object: ObjectPointer,
 
+    /// The prototype for the "nil" object.
+    pub nil_prototype: ObjectPointer,
+
     /// The singleton "nil" object.
     pub nil_object: ObjectPointer,
 
@@ -145,6 +148,7 @@ impl State {
         let boolean_proto = perm_alloc.allocate_empty();
         let true_obj = perm_alloc.allocate_empty();
         let false_obj = perm_alloc.allocate_empty();
+        let nil_proto = perm_alloc.allocate_empty();
         let nil_obj = perm_alloc.allocate_empty();
         let byte_array_prototype = perm_alloc.allocate_empty();
 
@@ -155,9 +159,10 @@ impl State {
             string_proto.set_prototype(object_proto);
             array_proto.set_prototype(object_proto);
             block_proto.set_prototype(object_proto);
-
+            nil_proto.set_prototype(object_proto);
             boolean_proto.set_prototype(object_proto);
-            nil_obj.set_prototype(object_proto);
+
+            nil_obj.set_prototype(nil_proto);
             true_obj.set_prototype(boolean_proto);
             false_obj.set_prototype(boolean_proto);
 
@@ -189,6 +194,7 @@ impl State {
             boolean_prototype: boolean_proto,
             true_object: true_obj,
             false_object: false_obj,
+            nil_prototype: nil_proto,
             nil_object: nil_obj,
             arguments: Vec::with_capacity(arguments.len()),
             default_panic_handler: ObjectPointer::null(),

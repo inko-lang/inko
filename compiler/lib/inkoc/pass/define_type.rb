@@ -1083,6 +1083,10 @@ module Inkoc
         typedb.nil_type.new_instance
       end
 
+      def on_raw_get_nil_prototype(*)
+        typedb.nil_type.new_instance
+      end
+
       def on_raw_run_block(*)
         TypeSystem::Dynamic.new
       end

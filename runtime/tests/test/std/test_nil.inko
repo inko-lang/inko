@@ -1,37 +1,37 @@
 import std::test
 import std::test::assert
 
-test.group('std::nil::Nil.to_integer') do (g) {
+test.group('std::nil::NilType.to_integer') do (g) {
   g.test('Converting Nil to an Integer') {
     assert.equal(Nil.to_integer, 0)
   }
 }
 
-test.group('std::nil::Nil.to_float') do (g) {
+test.group('std::nil::NilType.to_float') do (g) {
   g.test('Converting Nil to a Float') {
     assert.equal(Nil.to_float, 0.0)
   }
 }
 
-test.group('std::nil::Nil.to_string') do (g) {
+test.group('std::nil::NilType.to_string') do (g) {
   g.test('Converting Nil to an empty String') {
     assert.equal(Nil.to_string, '')
   }
 }
 
-test.group('std::nil::Nil.if_true') do (g) {
+test.group('std::nil::NilType.if_true') do (g) {
   g.test('The supplied block is never called') {
     assert.equal(Nil.if_true({ 42 }), Nil)
   }
 }
 
-test.group('std::nil::Nil.if_false') do (g) {
+test.group('std::nil::NilType.if_false') do (g) {
   g.test('The supplied block is always called') {
     assert.equal(Nil.if_false({ 42 }), 42)
   }
 }
 
-test.group('std::nil::Nil.if') do (g) {
+test.group('std::nil::NilType.if') do (g) {
   g.test('The block passed to the "false" argument is called') {
     let actual = Nil.if(true: { 1729 }, false: { 42 })
 
@@ -39,19 +39,19 @@ test.group('std::nil::Nil.if') do (g) {
   }
 }
 
-test.group('std::nil::Nil.and') do (g) {
+test.group('std::nil::NilType.and') do (g) {
   g.test('The supplied block is never called') {
     assert.false(Nil.and { True })
   }
 }
 
-test.group('std::nil::Nil.or') do (g) {
+test.group('std::nil::NilType.or') do (g) {
   g.test('The supplied block is always called') {
     assert.true(Nil.or { True })
   }
 }
 
-test.group('std::nil::Nil.an_unknown_message') do (g) {
+test.group('std::nil::NilType.unknown_message') do (g) {
   g.test('Sending an unknown message to Nil produces another Nil') {
     assert.equal(Nil.an_unknown_message, Nil)
   }

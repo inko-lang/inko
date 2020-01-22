@@ -16,20 +16,23 @@ import std::hash::(Hasher, Hash)
 import std::marker::Optional
 import std::unknown_message::UnknownMessage
 
-impl Nil {
+impl NilType {
   # Always returns `Nil` itself.
   #
   # # Examples
   #
-  # Sending `new` to a `Nil` produces a new `Nil`:
+  # Obtaining a new `Nil`:
   #
-  #     Nil.new # => Nil
+  #     NilType.new # => Nil
+  #
+  # You should not have to do this though, as `Nil` is already an instance of
+  # `NilType`.
   static def new -> Self {
     self
   }
 }
 
-impl ToInteger for Nil {
+impl ToInteger for NilType {
   # Always return `0`.
   #
   # # Examples
@@ -42,7 +45,7 @@ impl ToInteger for Nil {
   }
 }
 
-impl ToFloat for Nil {
+impl ToFloat for NilType {
   # Always returns `0.0`.
   #
   # # Examples
@@ -55,14 +58,14 @@ impl ToFloat for Nil {
   }
 }
 
-impl ToString for Nil {
+impl ToString for NilType {
   # Always returns an empty string.
   def to_string -> String {
     ''
   }
 }
 
-impl Conditional for Nil {
+impl Conditional for NilType {
   # Always returns `Nil`.
   def if_true!(R)(block: do -> R) -> ?R {
     Nil
@@ -90,7 +93,7 @@ impl Conditional for Nil {
   }
 }
 
-impl UnknownMessage for Nil {
+impl UnknownMessage for NilType {
   # Always returns `Nil`.
   #
   # By always returning `Nil` we can safely work with methods that produce
@@ -107,11 +110,4 @@ impl UnknownMessage for Nil {
   }
 }
 
-impl Optional for Nil {}
-
-impl Hash for Nil {
-  def hash(hasher: Hasher) -> Nil {
-    _INKOC.hasher_write(hasher, self)
-    Nil
-  }
-}
+impl Optional for NilType {}

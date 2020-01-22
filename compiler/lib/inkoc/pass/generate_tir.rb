@@ -1288,6 +1288,10 @@ module Inkoc
         builtin_prototype_instruction(PrototypeID::BOOLEAN, node, body)
       end
 
+      def on_raw_get_nil_prototype(node, body)
+        builtin_prototype_instruction(PrototypeID::NIL, node, body)
+      end
+
       def on_raw_get_byte_array_prototype(node, body)
         builtin_prototype_instruction(PrototypeID::BYTE_ARRAY, node, body)
       end

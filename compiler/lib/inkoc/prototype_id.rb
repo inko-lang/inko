@@ -10,5 +10,6 @@ module Inkoc
     BLOCK = 5
     BOOLEAN = 6
     BYTE_ARRAY = 7
+    NIL = 8
   end
 end

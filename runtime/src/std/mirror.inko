@@ -991,7 +991,7 @@ impl Mirrored for Boolean {
   }
 }
 
-impl Mirrored for Nil {
+impl Mirrored for NilType {
   def mirror -> NilMirror {
     NilMirror.new(self)
   }

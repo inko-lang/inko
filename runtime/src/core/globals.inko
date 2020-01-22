@@ -7,6 +7,7 @@ let Boolean = _INKOC.get_boolean_prototype
 let True = _INKOC.get_true
 let False = _INKOC.get_false
 let Nil = _INKOC.get_nil
+let NilType = _INKOC.get_nil_prototype
 
 let Object = _INKOC.get_object_prototype
 let String = _INKOC.get_string_prototype
