@@ -4,6 +4,19 @@ module Inkoc
   module TypeSystem
     class Error
       include Type
+      include TypeWithAttributes
+
+      def attributes(name)
+        SymbolTable.new
+      end
+
+      def lookup_attribute(name)
+        NullSymbol.new(name)
+      end
+
+      def define_attribute(name, *)
+        NullSymbol.new(name)
+      end
 
       def error?
         true

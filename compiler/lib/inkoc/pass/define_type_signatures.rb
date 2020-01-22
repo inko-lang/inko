@@ -28,7 +28,14 @@ module Inkoc
             .redefine_existing_constant_error(existing, node.location)
         end
 
-        type = typedb.new_trait_type(node.name)
+        trait_proto = @module.globals[Config::TRAIT_CONST].type
+
+        unless trait_proto
+          raise "Trait's can't be defined until std::trait::Trait is defined." \
+            " This is likely a bootstrapping/compiler bug"
+        end
+
+        type = typedb.new_trait_type(node.name, trait_proto)
 
         define_object_name_attribute(type)
         define_required_traits(node, type, scope)

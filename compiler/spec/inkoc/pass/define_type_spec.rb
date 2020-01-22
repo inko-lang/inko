@@ -1709,23 +1709,11 @@ describe Inkoc::Pass::DefineType do
   end
 
   describe '#on_trait' do
-    before do
-      trait_type = state
-        .typedb
-        .new_object_type(Inkoc::Config::TRAIT_CONST)
-
-      state
-        .typedb
-        .top_level
-        .define_attribute(Inkoc::Config::TRAIT_CONST, trait_type)
-    end
-
     it 'defines a trait using its name' do
       type = expression_type('trait Person {}')
 
       expect(type).to be_instance_of(Inkoc::TypeSystem::Trait)
       expect(type.name).to eq('Person')
-      expect(type.prototype).to eq(state.typedb.trait_type)
     end
 
     it 'produces a type error when using a reserved constant' do
@@ -2620,14 +2608,6 @@ describe Inkoc::Pass::DefineType do
     end
   end
 
-  describe '#on_raw_get_toplevel' do
-    it 'returns the top-level type' do
-      type = expression_type('_INKOC.get_toplevel')
-
-      expect(type).to be_type_instance_of(state.typedb.top_level)
-    end
-  end
-
   describe '#on_raw_set_prototype' do
     it 'returns the type of the prototype' do
       object = Inkoc::TypeSystem::Object.new
@@ -2653,14 +2633,6 @@ describe Inkoc::Pass::DefineType do
       type = expression_type('_INKOC.set_attribute(obj, "name", value)')
 
       expect(type).to eq(value)
-    end
-  end
-
-  describe '#on_raw_set_attribute_to_object' do
-    it 'returns a new empty object' do
-      type = expression_type('_INKOC.set_attribute_to_object')
-
-      expect(type).to be_object
     end
   end
 

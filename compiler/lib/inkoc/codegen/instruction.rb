@@ -65,7 +65,7 @@ module Inkoc
         FileFlush
         FileSize
         FileSeek
-        LoadModule
+        ModuleLoad
         SetAttribute
         GetAttribute
         SetPrototype
@@ -78,7 +78,6 @@ module Inkoc
         SetParentLocal
         GetParentLocal
         ObjectEquals
-        GetToplevel
         GetNil
         AttributeExists
         RemoveAttribute
@@ -95,7 +94,6 @@ module Inkoc
         FloatGreaterOrEqual
         FloatSmallerOrEqual
         CopyBlocks
-        SetAttributeToObject
         FloatIsNan
         FloatIsInfinite
         FloatFloor
@@ -185,6 +183,10 @@ module Inkoc
         RandomRange
         RandomBytes
         StringByte
+        ModuleList
+        ModuleGet
+        ModuleInfo
+        GetAttributeInSelf
       ]
         .each_with_index
         .each_with_object({}) { |(value, index), hash| hash[value] = index }

@@ -11,5 +11,6 @@ module Inkoc
     BOOLEAN = 6
     BYTE_ARRAY = 7
     NIL = 8
+    MODULE = 9
   end
 end

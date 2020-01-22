@@ -3,13 +3,13 @@
 module Inkoc
   module TypeSystem
     class Database
-      attr_reader :top_level, :true_type, :false_type, :nil_type, :block_type,
+      attr_reader :true_type, :false_type, :nil_type, :block_type,
                   :integer_type, :float_type, :string_type, :array_type,
-                  :object_type, :boolean_type, :file_type, :byte_array_type
+                  :object_type, :boolean_type, :file_type, :byte_array_type,
+                  :module_type
 
       def initialize
         @object_type = new_object_type(Config::OBJECT_CONST, nil)
-        @top_level = new_object_type(Config::INKO_CONST)
         @boolean_type = new_object_type(Config::BOOLEAN_CONST)
         @true_type = @boolean_type.new_instance
         @false_type = @boolean_type.new_instance
@@ -21,11 +21,8 @@ module Inkoc
         @file_type = new_object_type(Config::FILE_CONST)
         @byte_array_type = new_object_type(Config::BYTE_ARRAY_CONST)
         @array_type = initialize_array_type
+        @module_type = new_object_type(Config::MODULE_TYPE)
         @trait_id = -1
-      end
-
-      def trait_type
-        top_level.lookup_attribute(Config::TRAIT_CONST).type
       end
 
       def new_array_of_type(type)
@@ -40,7 +37,7 @@ module Inkoc
         Object.new(prototype: prototype)
       end
 
-      def new_trait_type(name, proto = trait_type)
+      def new_trait_type(name, proto = nil)
         Trait.new(name: name, prototype: proto, unique_id: @trait_id += 1)
       end
 

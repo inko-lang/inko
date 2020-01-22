@@ -13,18 +13,10 @@ module Inkoc
       end
 
       def run(ast)
-        @module.type =
-          if @module.define_module?
-            define_module_type
-          else
-            typedb.top_level
-          end
+        @module.type = Inkoc::TypeSystem::Object
+          .new(name: @module.name.to_s, prototype: @state.typedb.module_type)
 
         [ast]
-      end
-
-      def define_module_type
-        Inkoc::TypeSystem::Object.new(name: @module.name.to_s)
       end
     end
   end

@@ -1,20 +1,26 @@
 //! Modules containing bytecode objects and global variables.
-
 use crate::compiled_code::{CompiledCode, CompiledCodePointer};
 use crate::deref_pointer::DerefPointer;
 use crate::global_scope::{GlobalScope, GlobalScopePointer};
+use crate::object_pointer::ObjectPointer;
 
 /// A module is a single file containing bytecode and an associated global
 /// scope.
 pub struct Module {
+    /// The name of the module, as a String object.
+    name: ObjectPointer,
+
+    /// The full path to the bytecode file, as a String object.
+    path: ObjectPointer,
+
     /// The code to execute for this module.
-    pub code: Box<CompiledCode>,
+    code: Box<CompiledCode>,
 
     /// The global scope of this module.
     ///
     /// The scope is stored as a Box so that moving around a Module won't
     /// invalidate any GlobalScopePointer instances.
-    pub global_scope: Box<GlobalScope>,
+    global_scope: Box<GlobalScope>,
 }
 
 // A module is immutable once created. The lines below ensure we can store a
@@ -23,11 +29,29 @@ unsafe impl Sync for Module {}
 unsafe impl Send for Module {}
 
 impl Module {
-    pub fn new(code: CompiledCode) -> Self {
+    pub fn new(
+        name: ObjectPointer,
+        path: ObjectPointer,
+        code: CompiledCode,
+    ) -> Self {
         Module {
+            name,
+            path,
             code: Box::new(code),
             global_scope: Box::new(GlobalScope::new()),
         }
+    }
+
+    pub fn name(&self) -> ObjectPointer {
+        self.name
+    }
+
+    pub fn path(&self) -> ObjectPointer {
+        self.path
+    }
+
+    pub fn source_path(&self) -> ObjectPointer {
+        self.code.file
     }
 
     pub fn code(&self) -> CompiledCodePointer {

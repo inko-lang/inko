@@ -59,7 +59,7 @@ macro_rules! read_instruction_vector {
 const SIGNATURE_BYTES: [u8; 4] = [105, 110, 107, 111]; // "inko"
 
 /// The current version of the bytecode format.
-const VERSION: u8 = 2;
+const VERSION: u8 = 3;
 
 /// The tag that marks the start of an integer literal.
 const LITERAL_INTEGER: u8 = 0;

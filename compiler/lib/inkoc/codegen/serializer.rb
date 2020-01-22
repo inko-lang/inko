@@ -4,7 +4,7 @@ module Inkoc
   module Codegen
     class Serializer
       SIGNATURE = 'inko'.bytes
-      VERSION = 2
+      VERSION = 3
 
       INTEGER_LITERAL = 0
       FLOAT_LITERAL = 1

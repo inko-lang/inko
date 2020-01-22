@@ -14,7 +14,6 @@ module Inkoc
       Pass::AddImplicitImportSymbols,
       Pass::CompileImportedModules,
       Pass::SetupSymbolTables,
-      Pass::RefineModuleType,
       Pass::DefineThisModuleType,
       Pass::DefineImportTypes,
       Pass::DefineTypeSignatures,

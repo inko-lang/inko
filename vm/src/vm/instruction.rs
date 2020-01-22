@@ -63,7 +63,7 @@ pub enum InstructionType {
     FileFlush,
     FileSize,
     FileSeek,
-    LoadModule,
+    ModuleLoad,
     SetAttribute,
     GetAttribute,
     SetPrototype,
@@ -76,7 +76,6 @@ pub enum InstructionType {
     SetParentLocal,
     GetParentLocal,
     ObjectEquals,
-    GetToplevel,
     GetNil,
     AttributeExists,
     RemoveAttribute,
@@ -93,7 +92,6 @@ pub enum InstructionType {
     FloatGreaterOrEqual,
     FloatSmallerOrEqual,
     CopyBlocks,
-    SetAttributeToObject,
     FloatIsNan,
     FloatIsInfinite,
     FloatFloor,
@@ -183,6 +181,10 @@ pub enum InstructionType {
     RandomRange,
     RandomBytes,
     StringByte,
+    ModuleList,
+    ModuleGet,
+    ModuleInfo,
+    GetAttributeInSelf,
 }
 
 /// Struct for storing information about a single instruction.

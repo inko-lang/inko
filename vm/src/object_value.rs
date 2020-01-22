@@ -9,6 +9,7 @@ use crate::block::Block;
 use crate::ffi::{Pointer, RcFunction, RcLibrary};
 use crate::hasher::Hasher;
 use crate::immutable_string::ImmutableString;
+use crate::module::Module;
 use crate::object_pointer::ObjectPointer;
 use crate::process::RcProcess;
 use crate::socket::Socket;
@@ -61,6 +62,9 @@ pub enum ObjectValue {
 
     /// A nonblocking socket.
     Socket(Box<Socket>),
+
+    /// An Inko module.
+    Module(ArcWithoutWeak<Module>),
 }
 
 impl ObjectValue {
@@ -323,6 +327,16 @@ impl ObjectValue {
         }
     }
 
+    pub fn as_module(&self) -> Result<&ArcWithoutWeak<Module>, String> {
+        match *self {
+            ObjectValue::Module(ref module) => Ok(module),
+            _ => {
+                Err("ObjectValue::as_module() called on a non module"
+                    .to_string())
+            }
+        }
+    }
+
     pub fn take(&mut self) -> ObjectValue {
         mem::replace(self, ObjectValue::None)
     }
@@ -364,6 +378,7 @@ impl ObjectValue {
             ObjectValue::Pointer(_) => "Pointer",
             ObjectValue::Process(_) => "Process",
             ObjectValue::Socket(_) => "Socket",
+            ObjectValue::Module(_) => "Module",
         }
     }
 }
@@ -438,6 +453,10 @@ pub fn process(value: RcProcess) -> ObjectValue {
 
 pub fn socket(value: Socket) -> ObjectValue {
     ObjectValue::Socket(Box::new(value))
+}
+
+pub fn module(value: ArcWithoutWeak<Module>) -> ObjectValue {
+    ObjectValue::Module(value)
 }
 
 #[cfg(test)]

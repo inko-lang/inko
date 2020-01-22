@@ -1,20 +1,18 @@
-# Importing of both the prelude and the bootstrap modules will not yet work at
-# this point, hence these are disabled.
+# A module for setting up the basic building blocks other modules depend on.
 #
-# Implicit module definitions will not yet work since we haven't defined the
-# required objects just yet.
-#
-# As a result of this setting all constants and methods defined in this module
-# are defined directly on the top-level object.
+# This module is the very first module imported and executed. Common constructs
+# such as `object` and `trait` are not yet available at this point.
 
-# Set up the various built-in objects that Inko comes with. These objects need
-# to be set manually since the "object" keyword can not yet be used at this
-# point.
+# Set the object names for the various built-in objects. Normally this is done
+# automatically when creating an object using the `object` keyword. Since these
+# built-ins are set up in the VM we must do this manually.
+
+# All these constants will be available as globals to all other modules.
 let Boolean = _INKOC.get_boolean_prototype
 let True = _INKOC.get_true
 let False = _INKOC.get_false
+let Nil = _INKOC.get_nil
 let NilType = _INKOC.get_nil_prototype
-
 let Object = _INKOC.get_object_prototype
 let String = _INKOC.get_string_prototype
 let Integer = _INKOC.get_integer_prototype
@@ -23,13 +21,10 @@ let Block = _INKOC.get_block_prototype
 let Array = _INKOC.get_array_prototype
 let ByteArray = _INKOC.get_byte_array_prototype
 
-_INKOC.set_object_name(self, 'Inko')
-_INKOC.set_object_name(Boolean, 'Boolean')
-_INKOC.set_object_name(True, 'True')
-_INKOC.set_object_name(False, 'False')
-_INKOC.set_object_name(NilType, 'NilType')
 _INKOC.set_object_name(Object, 'Object')
+_INKOC.set_object_name(Boolean, 'Boolean')
 _INKOC.set_object_name(String, 'String')
+_INKOC.set_object_name(NilType, 'NilType')
 _INKOC.set_object_name(Integer, 'Integer')
 _INKOC.set_object_name(Float, 'Float')
 _INKOC.set_object_name(Array, 'Array')
@@ -61,42 +56,7 @@ impl Object {
 #
 # A trait can contain both required methods and default implementations of
 # methods.
-object Trait {}
-
-# An object to use for storing all modules created from source files.
-object Modules {}
-
-# An object containing methods and types defined in a source file.
 #
-# This object does not define any meaningful methods on its own, as those could
-# conflict with the methods defined in a module by the user. Instead, use the
-# `std::mirror` module to obtain module information such as its name or file
-# path.
-object Module {
-  # The full name of the module.
-  @name: String
-
-  # The file path of the module.
-  @path: String
-
-  static def new(name: String, path: String) -> Self {
-    # Modules are always global objects, so we create them as such right away.
-    let obj = _INKOC.set_object(True, self)
-
-    obj.init(name: name, path: path)
-
-    obj
-  }
-
-  def init(name: String, path: String) {
-    @name = name
-    @path = path
-  }
-}
-
-# Now we can define the object for the bootstrap module.
-_INKOC.set_attribute(
-  Modules,
-  'core::bootstrap',
-  Module.new(name: 'core::bootstrap', path: _INKOC.current_file_path),
-)
+# This type is defined in `core::bootstrap` as it's needed very early on in the
+# runtime bootstrapping process.
+object Trait {}

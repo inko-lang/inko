@@ -79,6 +79,9 @@ pub trait CopyObject: Sized {
             ObjectValue::Socket(ref socket) => {
                 ObjectValue::Socket(socket.clone())
             }
+            ObjectValue::Module(ref module) => {
+                ObjectValue::Module(module.clone())
+            }
         };
 
         let mut copy = if let Some(proto_ptr) = to_copy.prototype() {

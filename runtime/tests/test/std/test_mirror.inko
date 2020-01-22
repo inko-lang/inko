@@ -8,9 +8,8 @@ import std::pair::(Triple, Pair)
 import std::set::Set
 import std::test
 import std::test::assert
-import std::trait::(self as trait_mod)
 
-let CURRENT_FILE = ModuleMirror.new(ThisModule).path
+let CURRENT_FILE = ModuleMirror.new(ThisModule).source_path
 
 trait Trait1 {}
 trait Trait2 {}
@@ -128,17 +127,6 @@ test.group('std::mirror::Mirror.implements_trait?') do (g) {
 
     assert.true(mirror.implements_trait?(Trait1))
     assert.false(mirror.implements_trait?(Trait2))
-  }
-
-  g.test('Checking if a parent implements a trait for a child with custom implementations') {
-    let obj = Dummy.new
-    let mirror = ObjectMirror.new(obj)
-
-    Trait2.implement(obj)
-
-    assert.true(mirror.implements_trait?(Trait1))
-    assert.true(mirror.implements_trait?(Trait2))
-    assert.false(ObjectMirror.new(Dummy).implements_trait?(Trait2))
   }
 
   g.test('Checking if Nil implements a trait') {
@@ -339,12 +327,20 @@ test.group('std::mirror::ModuleMirror.name') do (g) {
   }
 }
 
-test.group('std::mirror::ModuleMirror.path') do (g) {
+test.group('std::mirror::ModuleMirror.source_path') do (g) {
   g.test('Obtaining the file path of a module') {
     let mirror = ModuleMirror.new(ThisModule)
 
-    assert.equal(mirror.path, CURRENT_FILE)
-    assert.true(fs.file?(mirror.path))
+    assert.equal(mirror.source_path, CURRENT_FILE)
+    assert.true(fs.file?(mirror.source_path))
+  }
+}
+
+test.group('std::mirror::ModuleMirror.bytecode_path') do (g) {
+  g.test('Obtaining the bytecode file path of a module') {
+    let mirror = ModuleMirror.new(ThisModule)
+
+    assert.true(fs.file?(mirror.bytecode_path))
   }
 }
 

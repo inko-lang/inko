@@ -886,20 +886,12 @@ module Inkoc
         end
       end
 
-      def on_raw_get_toplevel(*)
-        typedb.top_level.new_instance
-      end
-
       def on_raw_set_prototype(node, _)
         node.arguments.fetch(1).type
       end
 
       def on_raw_set_attribute(node, *)
         node.arguments.fetch(2).type
-      end
-
-      def on_raw_set_attribute_to_object(*)
-        typedb.new_empty_object.new_instance
       end
 
       def on_raw_get_attribute(node, *)
@@ -912,6 +904,7 @@ module Inkoc
           TypeSystem::Dynamic.new
         end
       end
+      alias on_raw_get_attribute_in_self on_raw_get_attribute
 
       def on_raw_set_object(node, *)
         if (proto = node.arguments[1]&.type)
@@ -1085,6 +1078,10 @@ module Inkoc
 
       def on_raw_get_nil_prototype(*)
         typedb.nil_type.new_instance
+      end
+
+      def on_raw_get_module_prototype(*)
+        typedb.module_type
       end
 
       def on_raw_run_block(*)
@@ -1589,6 +1586,22 @@ module Inkoc
 
       def on_raw_if(node, _)
         node.arguments.fetch(1).type.new_instance
+      end
+
+      def on_raw_module_load(*)
+        typedb.module_type.new_instance
+      end
+
+      def on_raw_module_get(*)
+        TypeSystem::Optional.new(typedb.module_type.new_instance)
+      end
+
+      def on_raw_module_list(*)
+        typedb.new_array_of_type(typedb.module_type.new_instance)
+      end
+
+      def on_raw_module_info(*)
+        typedb.string_type.new_instance
       end
 
       def define_block_signature(node, scope, expected_block = nil)

@@ -25,17 +25,8 @@ module Inkoc
     # The path to the prelude module.
     PRELUDE_MODULE = 'prelude'
 
-    # The path to the module that defines the default globals exposed to every
-    # module.
-    GLOBALS_MODULE = 'globals'
-
-    TRAIT_MODULE = 'trait'
-
-    INTERNAL_TRAIT_IMPORT = '_inkoc_std_trait'
-
     MARKER_MODULE = 'std::marker'
 
-    INKO_CONST = 'Inko'
     OBJECT_CONST = 'Object'
     TRAIT_CONST = 'Trait'
     ARRAY_CONST = 'Array'
@@ -77,8 +68,8 @@ module Inkoc
     TRY_BLOCK_NAME = '<try>'
     ELSE_BLOCK_NAME = '<else>'
     IMPL_NAME = '<impl>'
-    IMPLEMENT_TRAIT_MESSAGE = 'implement'
     OBJECT_NAME_INSTANCE_ATTRIBUTE = '@_object_name'
+    IMPLEMENTED_TRAITS_INSTANCE_ATTRIBUTE = '@_implemented_traits'
     INIT_MESSAGE = 'init'
 
     RESERVED_CONSTANTS = Set.new(

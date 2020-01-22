@@ -19,6 +19,7 @@ use std::u64;
 use std::u8;
 use std::usize;
 
+use crate::arc_without_weak::ArcWithoutWeak;
 use crate::binding::RcBinding;
 use crate::block::Block;
 use crate::ffi::{Pointer, RcFunction, RcLibrary};
@@ -28,6 +29,7 @@ use crate::immix::bucket::{MAILBOX, MATURE, PERMANENT};
 use crate::immix::bytemap::Bytemap;
 use crate::immix::local_allocator::YOUNG_MAX_AGE;
 use crate::immutable_string::ImmutableString;
+use crate::module::Module;
 use crate::object::{Object, ObjectStatus, FORWARDED_BIT};
 use crate::object_value::ObjectValue;
 use crate::process::RcProcess;
@@ -634,6 +636,7 @@ impl ObjectPointer {
     def_value_getter!(socket_value, get, as_socket, &Socket);
 
     def_value_getter!(socket_value_mut, get_mut, as_socket_mut, &mut Socket);
+    def_value_getter!(module_value, get, as_module, &ArcWithoutWeak<Module>);
 
     /// Atomically loads the underlying pointer, returning a new ObjectPointer.
     pub fn atomic_load(&self) -> Self {

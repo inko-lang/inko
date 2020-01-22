@@ -6,4 +6,8 @@
 # contains data such as the methods defined in the module.
 #
 # Modules are permanent objects, and are never garbage collected.
-let Module = _INKOC.get_attribute(Inko, 'Module')
+#
+# The `Module` type does not define any methods on its own, as these would
+# conflict with the methods defined when writing a module. Instead, module
+# information can be obtained using `std::mirror::ModuleMirror`.
+let Module = _INKOC.get_module_prototype

@@ -38,6 +38,9 @@ use std::ops::{Add, Mul, Sub};
 use std::panic;
 use std::thread;
 
+/// The name of the module that acts as the entry point in an Inko program.
+const MAIN_MODULE_NAME: &str = "main";
+
 macro_rules! reset_context {
     ($process:expr, $context:ident, $index:ident) => {{
         $context = $process.context_mut();
@@ -176,7 +179,7 @@ impl Machine {
     /// This method returns true if the VM terminated successfully, false
     /// otherwise.
     pub fn start(&self, file: &str) {
-        self.schedule_main_process(file);
+        self.schedule_main_process(MAIN_MODULE_NAME, file);
 
         let gc_pool_guard = self.start_gc_threads();
         let secondary_guard = self.start_blocking_threads();
@@ -244,11 +247,10 @@ impl Machine {
         self.state.timeout_worker.terminate();
     }
 
-    pub fn schedule_main_process(&self, file: &str) {
+    pub fn schedule_main_process(&self, name: &str, file: &str) {
         let process = {
-            let (block, _) =
-                module::load_string(&self.state, &self.module_registry, file)
-                    .unwrap();
+            let (_, block, _) =
+                module::load_string(&self.module_registry, name, file).unwrap();
 
             process::allocate(&self.state, &block)
         };
@@ -859,26 +861,49 @@ impl Machine {
 
                     context.set_register(reg, cursor);
                 }
-                InstructionType::LoadModule => {
+                InstructionType::ModuleLoad => {
                     let reg = instruction.arg(0);
-                    let path = context.get_register(instruction.arg(1));
+                    let name = context.get_register(instruction.arg(1));
+                    let path = context.get_register(instruction.arg(2));
 
-                    let (block, execute) = {
-                        module::load(&self.state, &self.module_registry, path)?
-                    };
+                    let (module_ptr, block, execute) =
+                        { module::load(&self.module_registry, name, path)? };
+
+                    context.set_register(reg, module_ptr);
 
                     if execute {
-                        let new_context = ExecutionContext::from_block(
-                            &block,
-                            Some(reg as u16),
-                        );
-
-                        process.push_context(new_context);
+                        process.push_context(ExecutionContext::from_block(
+                            &block, None,
+                        ));
 
                         enter_context!(process, context, index);
-                    } else {
-                        context.set_register(reg, self.state.nil_object);
                     }
+                }
+                InstructionType::ModuleList => {
+                    let reg = instruction.arg(0);
+                    let result = module::list(
+                        &self.state,
+                        &self.module_registry,
+                        process,
+                    );
+
+                    context.set_register(reg, result);
+                }
+                InstructionType::ModuleGet => {
+                    let reg = instruction.arg(0);
+                    let name = context.get_register(instruction.arg(1));
+                    let result =
+                        module::get(&self.state, &self.module_registry, name)?;
+
+                    context.set_register(reg, result);
+                }
+                InstructionType::ModuleInfo => {
+                    let reg = instruction.arg(0);
+                    let module = context.get_register(instruction.arg(1));
+                    let field = context.get_register(instruction.arg(2));
+                    let result = module::info(module, field)?;
+
+                    context.set_register(reg, result);
                 }
                 InstructionType::SetAttribute => {
                     let reg = instruction.arg(0);
@@ -896,25 +921,20 @@ impl Machine {
 
                     context.set_register(reg, obj);
                 }
-                InstructionType::SetAttributeToObject => {
-                    let reg = instruction.arg(0);
-                    let obj = context.get_register(instruction.arg(1));
-                    let name = context.get_register(instruction.arg(2));
-
-                    let attr = object::set_attribute_to_object(
-                        &self.state,
-                        process,
-                        obj,
-                        name,
-                    );
-
-                    context.set_register(reg, attr);
-                }
                 InstructionType::GetAttribute => {
                     let reg = instruction.arg(0);
                     let rec = context.get_register(instruction.arg(1));
                     let name = context.get_register(instruction.arg(2));
                     let attr = object::get_attribute(&self.state, rec, name);
+
+                    context.set_register(reg, attr);
+                }
+                InstructionType::GetAttributeInSelf => {
+                    let reg = instruction.arg(0);
+                    let rec = context.get_register(instruction.arg(1));
+                    let name = context.get_register(instruction.arg(2));
+                    let attr =
+                        object::get_attribute_in_self(&self.state, rec, name);
 
                     context.set_register(reg, attr);
                 }
@@ -1027,10 +1047,6 @@ impl Machine {
                     let res = object::equal(&self.state, comp, comp_with);
 
                     context.set_register(reg, res);
-                }
-                InstructionType::GetToplevel => {
-                    context
-                        .set_register(instruction.arg(0), self.state.top_level);
                 }
                 InstructionType::GetNil => {
                     context.set_register(

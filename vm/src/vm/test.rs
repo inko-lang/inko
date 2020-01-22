@@ -2,7 +2,6 @@
 use crate::block::Block;
 use crate::compiled_code::CompiledCode;
 use crate::config::Config;
-use crate::module::Module;
 use crate::process::RcProcess;
 use crate::vm::instruction::{Instruction, InstructionType};
 use crate::vm::machine::Machine;
@@ -34,21 +33,11 @@ pub fn setup() -> (Machine, Block, RcProcess) {
 
     let (block, process) = {
         let mut registry = machine.module_registry.lock();
-        let module_name = if cfg!(windows) { "C:\\test" } else { "/test" };
-
-        // To ensure the module sticks around long enough we'll manually store in
-        // in the module registry.
-        registry.add_module(module_name, Module::new(code));
-
-        let lookup = registry
-            .get_or_set(&module_name)
-            .map_err(|err| err.message())
-            .unwrap();
-
-        let module = lookup.module;
+        let module_path = if cfg!(windows) { "C:\\test" } else { "/test" };
+        let module_ptr = registry.define_module("test", module_path, code);
+        let module = module_ptr.module_value().unwrap();
         let scope = module.global_scope_ref();
-        let block =
-            Block::new(module.code(), None, machine.state.top_level, scope);
+        let block = Block::new(module.code(), None, module_ptr, scope);
         let process = process::allocate(&machine.state, &block);
 
         process.set_main();

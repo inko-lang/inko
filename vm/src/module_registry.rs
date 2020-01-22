@@ -1,12 +1,14 @@
 //! Parsing and caching of bytecode modules.
 use crate::arc_without_weak::ArcWithoutWeak;
+use crate::bytecode_parser;
+use crate::compiled_code::CompiledCode;
+use crate::module::Module;
+use crate::object_pointer::ObjectPointer;
+use crate::object_value;
+use crate::vm::state::RcState;
 use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::path::PathBuf;
-
-use crate::bytecode_parser;
-use crate::module::Module;
-use crate::vm::state::RcState;
 
 pub type RcModuleRegistry = ArcWithoutWeak<Mutex<ModuleRegistry>>;
 
@@ -20,14 +22,9 @@ pub enum ModuleError {
 
 pub struct ModuleRegistry {
     state: RcState,
-    parsed: HashMap<String, Module>,
-}
 
-pub struct LookupResult<'a> {
-    pub module: &'a Module,
-
-    /// Set to true when the module was parsed for the first time.
-    pub parsed: bool,
+    /// Mapping of the module names parsed thus far and their Module objects.
+    parsed: HashMap<String, ObjectPointer>,
 }
 
 impl ModuleError {
@@ -41,12 +38,6 @@ impl ModuleError {
                 format!("Module does not exist: {}", path)
             }
         }
-    }
-}
-
-impl<'a> LookupResult<'a> {
-    pub fn new(module: &'a Module, parsed: bool) -> Self {
-        LookupResult { module, parsed }
     }
 }
 
@@ -64,22 +55,33 @@ impl ModuleRegistry {
 
     /// Returns true if the given module has been parsed.
     #[cfg_attr(feature = "cargo-clippy", allow(ptr_arg))]
-    pub fn contains_path(&self, path: &String) -> bool {
-        self.parsed.contains_key(path)
+    pub fn contains(&self, name: &str) -> bool {
+        self.parsed.contains_key(name)
     }
 
-    /// Gets or parses a bytecode file for the given path.
-    pub fn get_or_set(
-        &mut self,
-        path: &str,
-    ) -> Result<LookupResult, ModuleError> {
-        let full_path = self.find_path(path)?;
+    /// Returns all parsed modules.
+    pub fn parsed(&self) -> Vec<ObjectPointer> {
+        self.parsed.values().copied().collect()
+    }
 
-        if !self.parsed.contains_key(&full_path) {
-            self.parse_module(&full_path)
-                .map(|module| LookupResult::new(module, true))
+    /// Obtains a parsed module by its name.
+    pub fn get(&self, name: &str) -> Option<ObjectPointer> {
+        self.parsed.get(name).copied()
+    }
+
+    /// Loads and defines a module with the given name and path.
+    pub fn load(
+        &mut self,
+        name: &str,
+        path: &str,
+    ) -> Result<(ObjectPointer, bool), ModuleError> {
+        if !self.parsed.contains_key(name) {
+            let full_path = self.find_path(path)?;
+
+            self.parse_module(name, &full_path)
+                .map(|module| (module, true))
         } else {
-            Ok(LookupResult::new(&self.parsed[&full_path], false))
+            Ok((self.parsed[name], false))
         }
     }
 
@@ -110,17 +112,40 @@ impl ModuleRegistry {
     }
 
     /// Parses a full file path pointing to a module.
-    pub fn parse_module(&mut self, path: &str) -> Result<&Module, ModuleError> {
+    pub fn parse_module(
+        &mut self,
+        name: &str,
+        path: &str,
+    ) -> Result<ObjectPointer, ModuleError> {
         let code = bytecode_parser::parse_file(&self.state, path)
             .map_err(|err| ModuleError::FailedToParse(path.to_string(), err))?;
 
-        self.add_module(path, Module::new(code));
-
-        Ok(&self.parsed[path])
+        Ok(self.define_module(name, path, code))
     }
 
-    pub fn add_module(&mut self, path: &str, module: Module) {
-        self.parsed.insert(path.to_string(), module);
+    pub fn define_module(
+        &mut self,
+        name: &str,
+        path: &str,
+        code: CompiledCode,
+    ) -> ObjectPointer {
+        let name_obj = self.state.intern_string(name.to_string());
+        let path_obj = self.state.intern_string(path.to_string());
+
+        let module_val = object_value::module(ArcWithoutWeak::new(
+            Module::new(name_obj, path_obj, code),
+        ));
+
+        let prototype = self.state.module_prototype;
+        let module = self
+            .state
+            .permanent_allocator
+            .lock()
+            .allocate_with_prototype(module_val, prototype);
+
+        self.parsed.insert(name.to_string(), module);
+
+        module
     }
 }
 

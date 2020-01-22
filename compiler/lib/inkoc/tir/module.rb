@@ -66,19 +66,7 @@ module Inkoc
         name = self.name.to_s
 
         name != Config.core_module_name(Config::BOOTSTRAP_MODULE) &&
-          name != Config.core_module_name(Config::GLOBALS_MODULE) &&
           name != Config.core_module_name(Config::PRELUDE_MODULE)
-      end
-
-      def import_globals?
-        name = self.name.to_s
-
-        name != Config.core_module_name(Config::BOOTSTRAP_MODULE) &&
-          name != Config.core_module_name(Config::GLOBALS_MODULE)
-      end
-
-      def define_module?
-        name.to_s != Config.core_module_name(Config::BOOTSTRAP_MODULE)
       end
 
       def source_code

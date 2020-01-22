@@ -53,6 +53,7 @@ pub fn prototype_for_identifier(
         6 => state.boolean_prototype,
         7 => state.byte_array_prototype,
         8 => state.nil_prototype,
+        9 => state.module_prototype,
         _ => return Err(format!("Invalid prototype identifier: {}", id_int)),
     };
 
@@ -68,6 +69,18 @@ pub fn get_attribute(
 
     rec_ptr
         .lookup_attribute(&state, name)
+        .unwrap_or_else(|| state.nil_object)
+}
+
+pub fn get_attribute_in_self(
+    state: &RcState,
+    rec_ptr: ObjectPointer,
+    name_ptr: ObjectPointer,
+) -> ObjectPointer {
+    let name = state.intern_pointer(name_ptr).unwrap_or_else(|_| name_ptr);
+
+    rec_ptr
+        .lookup_attribute_in_self(&state, name)
         .unwrap_or_else(|| state.nil_object)
 }
 
@@ -92,41 +105,6 @@ pub fn set_attribute(
     target_ptr.add_attribute(&process, name, value);
 
     value
-}
-
-pub fn set_attribute_to_object(
-    state: &RcState,
-    process: &RcProcess,
-    obj_ptr: ObjectPointer,
-    name_ptr: ObjectPointer,
-) -> ObjectPointer {
-    if obj_ptr.is_immutable() {
-        return state.nil_object;
-    }
-
-    let name = state.intern_pointer(name_ptr).unwrap_or_else(|_| {
-        copy_if_permanent!(state.permanent_allocator, name_ptr, obj_ptr)
-    });
-
-    if let Some(ptr) = obj_ptr.get().lookup_attribute_in_self(name) {
-        ptr
-    } else {
-        let value = object_value::none();
-        let proto = state.object_prototype;
-
-        let ptr = if obj_ptr.is_permanent() {
-            state
-                .permanent_allocator
-                .lock()
-                .allocate_with_prototype(value, proto)
-        } else {
-            process.allocate(value, proto)
-        };
-
-        obj_ptr.add_attribute(&process, name, ptr);
-
-        ptr
-    }
 }
 
 pub fn set_prototype(

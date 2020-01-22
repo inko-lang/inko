@@ -36,7 +36,7 @@ test.group('std::debug.stacktrace') do (g) {
     assert.true(trace.length > 0)
     assert.equal(last.name, '<block>')
     assert.equal(last.line, 32)
-    assert.equal(last.path, mirror.path)
+    assert.equal(last.path, mirror.source_path)
   }
 
   g.test('Limiting the number of call frames in a stacktrace') {
@@ -50,17 +50,17 @@ test.group('std::debug.stacktrace') do (g) {
     let mirror = ModuleMirror.new(ThisModule)
 
     assert.true(trace.length > 0)
-    assert.not_equal(trace[-1].path, mirror.path)
+    assert.not_equal(trace[-1].path, mirror.source_path)
   }
 }
 
 test.group('std::debug.last_call_frame_in') do (g) {
   g.test('Obtaining the last call frame of a file') {
     let mirror = ModuleMirror.new(ThisModule)
-    let frame = debug.last_call_frame_in(mirror.path)
+    let frame = debug.last_call_frame_in(mirror.source_path)
 
     assert.equal(frame.name, '<block>')
-    assert.equal(frame.path, mirror.path)
+    assert.equal(frame.path, mirror.source_path)
     assert.equal(frame.line, 60)
   }
 }

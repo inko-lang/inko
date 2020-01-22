@@ -38,10 +38,7 @@ module Inkoc
 
           next if imported.include?(qname.to_s)
 
-          load_module(qname, body, import.location)
-
-          registers[qname.to_s] =
-            set_module_register(qname, body, import.location)
+          registers[qname.to_s] = load_module(qname, body, import.location)
 
           imported << qname.to_s
         end
@@ -52,18 +49,12 @@ module Inkoc
       def load_module(qname, body, location)
         imported_mod = @state.module(qname)
         import_path = imported_mod.bytecode_import_path
+
+        name_reg = set_string(qname.to_s, body, location)
         path_reg = set_string(import_path, body, location)
-        reg = body.register_dynamic
+        reg = body.register(@module.type)
 
-        body.instruct(:Unary, :LoadModule, reg, path_reg, location)
-      end
-
-      def set_module_register(qname, body, location)
-        top_reg = get_toplevel(body, location)
-        mods_reg =
-          get_attribute(top_reg, Config::MODULES_ATTRIBUTE, body, location)
-
-        get_attribute(mods_reg, qname.to_s, body, location)
+        body.instruct(:Binary, :ModuleLoad, reg, name_reg, path_reg, location)
       end
 
       def on_module_body(node, body)
@@ -79,51 +70,12 @@ module Inkoc
 
         loc = @module.location
 
-        mod_reg = value_for_module_self(body)
-        mod_reg = set_global(Config::MODULE_GLOBAL, mod_reg, body, loc)
+        mod_reg = body.register(@module.type)
+        mod_name_reg = set_string(@module.name.to_s, body, loc)
 
-        set_block_receiver(mod_reg, body, loc)
-      end
+        body.instruct(:Unary, :ModuleGet, mod_reg, mod_name_reg, loc)
 
-      def value_for_module_self(body)
-        if @module.define_module?
-          define_module_object(body)
-        else
-          get_toplevel(body, @module.location)
-        end
-      end
-
-      def define_module_object(body)
-        loc = @module.location
-        top = get_toplevel(body, loc)
-
-        # Get the object containing all modules (Inko::modules).
-        modules = get_attribute(top, Config::MODULES_ATTRIBUTE, body, loc)
-
-        # Get the prototype for the new module (Inko::Module)
-        proto = get_attribute(top, Config::MODULE_TYPE, body, loc)
-
-        # Create the new module and store it in the modules list.
-        mod = initialize_module_type(body.type, proto, body, loc)
-
-        set_literal_attribute(modules, @module.name.to_s, mod, body, loc)
-      end
-
-      def initialize_module_type(type, receiver, body, location)
-        new_method = receiver.type.lookup_method(Config::NEW_MESSAGE)
-        module_name = set_string(@module.name.to_s, body, location)
-        file_path = set_current_file_path(body, location)
-
-        send_object_message(
-          receiver,
-          new_method.name,
-          [module_name, file_path],
-          [],
-          new_method,
-          type,
-          body,
-          location
-        )
+        set_global(Config::MODULE_GLOBAL, mod_reg, body, loc)
       end
 
       def set_current_file_path(body, location)
@@ -407,8 +359,7 @@ module Inkoc
 
         object =
           if type.prototype
-            top = get_toplevel(body, loc)
-            proto = get_attribute(top, proto_name, body, loc)
+            proto = get_global(proto_name, body, loc)
 
             set_object_with_prototype(type, true_reg, proto, body, loc)
           else
@@ -458,20 +409,30 @@ module Inkoc
         trait
       end
 
-      def implement_trait(object, trait, body, location)
-        message = Config::IMPLEMENT_TRAIT_MESSAGE
-        method = trait.type.lookup_method(message).type
+      def implement_trait(object, trait, body, loc)
+        name_reg =
+          set_string(Config::IMPLEMENTED_TRAITS_INSTANCE_ATTRIBUTE, body, loc)
 
-        send_object_message(
-          trait,
-          message,
-          [object],
-          [],
-          method,
-          method.return_type,
-          body,
-          location
-        )
+        traits_reg = body.register(typedb.new_empty_object.new_instance)
+
+        body.add_connected_basic_block
+
+        true_reg = get_true(body, loc)
+
+        body.instruct(:Binary, :GetAttributeInSelf, traits_reg, object, name_reg, loc)
+        body.instruct(:GotoNextBlockIfTrue, traits_reg, loc)
+
+        # traits object does not yet exist, create it.
+        proto_reg = get_global(Config::OBJECT_CONST, body, loc)
+
+        # create and store the "map" back in the object implementing the trait.
+        body.instruct(:SetObject, traits_reg, true_reg, proto_reg, loc)
+        body.instruct(:SetAttribute, traits_reg, object, name_reg, traits_reg, loc)
+
+        # register the trait and copy its blocks.
+        body.add_connected_basic_block
+        body.instruct(:CopyBlocks, object, trait, loc)
+        set_attribute(traits_reg, trait, true_reg, body, loc)
       end
 
       def on_reopen_object(node, body)
@@ -753,10 +714,6 @@ module Inkoc
         body.instruct(:Unary, :GetBuiltinPrototype, reg, id_reg, node.location)
       end
 
-      def on_raw_get_toplevel(node, body)
-        get_toplevel(body, node.location)
-      end
-
       def on_raw_set_prototype(node, body)
         raw_binary_instruction(:SetPrototype, node, body)
       end
@@ -770,12 +727,12 @@ module Inkoc
         set_attribute(receiver, name, value, body, node.location)
       end
 
-      def on_raw_set_attribute_to_object(node, body)
-        raw_binary_instruction(:SetAttributeToObject, node, body)
-      end
-
       def on_raw_get_attribute(node, body)
         raw_binary_instruction(:GetAttribute, node, body)
+      end
+
+      def on_raw_get_attribute_in_self(node, body)
+        raw_binary_instruction(:GetAttributeInSelf, node, body)
       end
 
       def on_raw_set_object(node, body)
@@ -1292,6 +1249,10 @@ module Inkoc
         builtin_prototype_instruction(PrototypeID::NIL, node, body)
       end
 
+      def on_raw_get_module_prototype(node, body)
+        builtin_prototype_instruction(PrototypeID::MODULE, node, body)
+      end
+
       def on_raw_get_byte_array_prototype(node, body)
         builtin_prototype_instruction(PrototypeID::BYTE_ARRAY, node, body)
       end
@@ -1512,6 +1473,22 @@ module Inkoc
         result
       end
 
+      def on_raw_module_load(node, body)
+        raw_binary_instruction(:ModuleLoad, node, body)
+      end
+
+      def on_raw_module_list(node, body)
+        raw_nullary_instruction(:ModuleList, node, body)
+      end
+
+      def on_raw_module_get(node, body)
+        raw_unary_instruction(:ModuleGet, node, body)
+      end
+
+      def on_raw_module_info(node, body)
+        raw_binary_instruction(:ModuleInfo, node, body)
+      end
+
       def on_return(node, body)
         location = node.location
         register =
@@ -1729,20 +1706,8 @@ module Inkoc
         )
       end
 
-      def get_toplevel(body, location)
-        register = body.register(typedb.top_level)
-
-        body.instruct(:Nullary, :GetToplevel, register, location)
-      end
-
       def get_self(body, location)
         get_block_receiver(body, location)
-      end
-
-      def set_block_receiver(receiver, body, location)
-        register = body.register(receiver.type)
-
-        body.instruct(:Unary, :BlockSetReceiver, register, receiver, location)
       end
 
       def get_block_receiver(body, location)

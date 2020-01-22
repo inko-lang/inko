@@ -6,7 +6,7 @@ import std::string_buffer::StringBuffer
 import std::time::SystemTime
 
 # A `Path` to an existing file.
-let VALID_FILE = ModuleMirror.new(ThisModule).path
+let VALID_FILE = ModuleMirror.new(ThisModule).source_path
 
 # A `Path` to an existing directory.
 let VALID_DIRECTORY = env.temporary_directory

@@ -102,13 +102,15 @@ import std::module::Module
 import std::operators::Equal
 import std::pair::(Triple, Pair)
 import std::set::Set
-import std::trait::(IMPLEMENTED_TRAITS_ATTRIBUTE, Trait)
 
 # The default name to use for objects that don't have an explicit name.
 let DEFAULT_OBJECT_NAME = 'Object'
 
 # The name of the attribute that contains the name of an object.
 let OBJECT_NAME_ATTRIBUTE = '@_object_name'
+
+# The name of the attribute that stores all the implemented traits.
+let IMPLEMENTED_TRAITS_ATTRIBUTE = '@_implemented_traits'
 
 # An object for reflecting upon another object.
 trait Mirror: Format {
@@ -523,23 +525,28 @@ impl Mirror for BlockMirror {
 
 # A mirror for a `Module`.
 object ModuleMirror {
-  # The mirror to use for obtaining generic object information.
-  @mirror: ObjectMirror
+  @subject: Module
 
   def init(subject: Module) {
-    @mirror = ObjectMirror.new(subject)
+    @subject = subject
   }
 
   # Returns the name of the module.
   def name -> String {
-    @mirror.get_attribute('@name') as String
+    _INKOC.module_info(@subject, 0)
+  }
+
+  # Returns the path of the bytecode file that defined the module.
+  def bytecode_path -> Path {
+    Path.new(_INKOC.module_info(@subject, 1))
   }
 
   # Returns the path of the source file that defined the module.
-  def path -> Path {
-    let raw_path = @mirror.get_attribute('@path') as String
-
-    Path.new(raw_path)
+  #
+  # If the bytecode is moved without its source code, this path may point to a
+  # non-existing file.
+  def source_path -> Path {
+    Path.new(_INKOC.module_info(@subject, 2))
   }
 }
 
@@ -554,7 +561,7 @@ impl Format for ModuleMirror {
 
 impl Mirror for ModuleMirror {
   def subject -> Module {
-    @mirror.subject as Module
+    @subject
   }
 }
 

@@ -77,9 +77,6 @@ pub struct State {
     /// prototypes.
     pub object_prototype: ObjectPointer,
 
-    /// The global top-level object.
-    pub top_level: ObjectPointer,
-
     /// The prototype for integer objects.
     pub integer_prototype: ObjectPointer,
 
@@ -113,6 +110,9 @@ pub struct State {
     /// The prototype for byte arrays.
     pub byte_array_prototype: ObjectPointer,
 
+    /// The prototype to use for modules.
+    pub module_prototype: ObjectPointer,
+
     /// The commandline arguments passed to an Inko program.
     pub arguments: Vec<ObjectPointer>,
 
@@ -138,7 +138,6 @@ impl State {
             Box::new(PermanentAllocator::new(global_alloc.clone()));
 
         let object_proto = perm_alloc.allocate_empty();
-        let top_level = perm_alloc.allocate_empty();
         let integer_proto = perm_alloc.allocate_empty();
         let float_proto = perm_alloc.allocate_empty();
         let string_proto = perm_alloc.allocate_empty();
@@ -150,10 +149,10 @@ impl State {
         let false_obj = perm_alloc.allocate_empty();
         let nil_proto = perm_alloc.allocate_empty();
         let nil_obj = perm_alloc.allocate_empty();
-        let byte_array_prototype = perm_alloc.allocate_empty();
+        let byte_array_proto = perm_alloc.allocate_empty();
+        let module_proto = perm_alloc.allocate_empty();
 
         {
-            top_level.set_prototype(object_proto);
             integer_proto.set_prototype(object_proto);
             float_proto.set_prototype(object_proto);
             string_proto.set_prototype(object_proto);
@@ -166,7 +165,8 @@ impl State {
             true_obj.set_prototype(boolean_proto);
             false_obj.set_prototype(boolean_proto);
 
-            byte_array_prototype.set_prototype(object_proto);
+            byte_array_proto.set_prototype(object_proto);
+            module_proto.set_prototype(object_proto)
         }
 
         let gc_pool = GcPool::new(config.gc_threads);
@@ -184,7 +184,6 @@ impl State {
             start_time: time::Instant::now(),
             exit_status: Mutex::new(0),
             timeout_worker: TimeoutWorker::new(),
-            top_level,
             object_prototype: object_proto,
             integer_prototype: integer_proto,
             float_prototype: float_proto,
@@ -198,7 +197,8 @@ impl State {
             nil_object: nil_obj,
             arguments: Vec::with_capacity(arguments.len()),
             default_panic_handler: ObjectPointer::null(),
-            byte_array_prototype,
+            byte_array_prototype: byte_array_proto,
+            module_prototype: module_proto,
             network_poller: NetworkPoller::new(),
         };
 
