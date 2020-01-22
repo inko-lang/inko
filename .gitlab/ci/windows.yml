@@ -9,6 +9,7 @@ test:compiler:windows:
   stage: test
   tags:
     - windows
+    - inko
   before_script:
     - cd compiler
     - ruby --version
@@ -24,10 +25,10 @@ test:compiler:windows:
 
 test:ivm:windows:
   extends: .only-source-repository
-  image: windows:1809
   stage: test
   tags:
     - windows
+    - inko
   before_script:
     - cd vm
     - rustc --version
@@ -45,6 +46,7 @@ test:runtime:windows:
   stage: test-runtime
   tags:
     - windows
+    - inko
   before_script:
     - ruby --version
     - rustc --version
@@ -66,6 +68,7 @@ release:compiled:windows:
   stage: release
   tags:
     - windows
+    - inko
   before_script:
     - ruby --version
     - rustc --version
