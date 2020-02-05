@@ -513,7 +513,7 @@ object Map!(K: Hash + Equal, V) {
   }
 }
 
-impl Equal for Map!(K, V) {
+impl Equal for Map {
   # Returns `True` if `self` and the given `Map` are identical to each
   # other.
   #
@@ -547,7 +547,7 @@ impl Equal for Map!(K, V) {
   }
 }
 
-impl Index!(K, V) for Map!(K, V) {
+impl Index!(K, V) for Map {
   # Returns the value for the given key, if any.
   #
   # # Examples
@@ -572,7 +572,7 @@ impl Index!(K, V) for Map!(K, V) {
   }
 }
 
-impl SetIndex!(K, V) for Map!(K, V) {
+impl SetIndex!(K, V) for Map {
   # Inserts the key and value in this `Map`, returning the inserted value.
   #
   # # Examples
@@ -588,7 +588,7 @@ impl SetIndex!(K, V) for Map!(K, V) {
   }
 }
 
-impl Length for Map!(K, V) {
+impl Length for Map {
   # Returns the number of key-value pairs in this map.
   #
   # # Examples

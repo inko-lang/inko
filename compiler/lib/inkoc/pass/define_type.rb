@@ -505,7 +505,7 @@ module Inkoc
       end
 
       def on_reopen_object(node, scope)
-        type = on_type_name_reference(node.name, scope)
+        type = define_type(node.name, scope)
 
         return type if type.error?
 
@@ -531,7 +531,7 @@ module Inkoc
       end
 
       def on_trait_implementation(node, scope)
-        object = on_type_name_reference(node.object_name, scope)
+        object = define_type(node.object_name, scope)
 
         return object if object.error?
 

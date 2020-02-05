@@ -18,7 +18,7 @@ import std::index::(Index, SetIndex)
 import std::length::Length
 import std::operators::Equal
 
-impl Array!(T) {
+impl Array {
   # Returns a new Array containing the given values.
   #
   # # Examples
@@ -202,7 +202,7 @@ impl Array!(T) {
   }
 }
 
-impl Length for Array!(T) {
+impl Length for Array {
   # Returns the number of values in this Array.
   #
   # # Examples
@@ -219,7 +219,7 @@ impl Length for Array!(T) {
   }
 }
 
-impl Index!(Integer, T) for Array!(T) {
+impl Index!(Integer, T) for Array {
   # Returns the value at the given index, or Nil if no value was found.
   #
   # # Examples
@@ -247,7 +247,7 @@ impl Index!(Integer, T) for Array!(T) {
   }
 }
 
-impl SetIndex!(Integer, T) for Array!(T) {
+impl SetIndex!(Integer, T) for Array {
   # Stores a value at the given index, then returns it.
   #
   # If the index is out of bounds then all preceding indexes that are not set
@@ -282,7 +282,7 @@ impl SetIndex!(Integer, T) for Array!(T) {
   }
 }
 
-impl ToArray!(T) for Array!(T) {
+impl ToArray!(T) for Array {
   # Always returns `self`.
   #
   # # Examples
@@ -295,7 +295,7 @@ impl ToArray!(T) for Array!(T) {
   }
 }
 
-impl Equal for Array!(T) {
+impl Equal for Array {
   # Returns `True` if `self` and the given `Array` are identical.
   #
   # # Examples

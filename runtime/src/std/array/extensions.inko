@@ -8,7 +8,7 @@ import std::conversion::ToString
 import std::iterator::(self, Iterator)
 import std::string_buffer::StringBuffer
 
-impl Array!(T) {
+impl Array {
   # Returns an `Iterator` that iterates over all values in `self`.
   #
   # # Examples

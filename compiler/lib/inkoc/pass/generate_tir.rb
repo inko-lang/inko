@@ -389,7 +389,7 @@ module Inkoc
       def on_trait_implementation(node, body)
         loc = node.location
         trait = get_global(node.trait_name.type_name, body, loc)
-        object = get_global(node.object_name.type_name, body, loc)
+        object = get_global(node.object_name.name, body, loc)
 
         implement_trait(object, trait, body, loc)
 
@@ -437,7 +437,7 @@ module Inkoc
 
       def on_reopen_object(node, body)
         loc = node.location
-        object = get_global(node.name.type_name, body, loc)
+        object = get_global(node.name.name, body, loc)
 
         block = define_block(
           Config::IMPL_NAME,

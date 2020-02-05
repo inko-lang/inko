@@ -106,30 +106,6 @@ module Inkoc
       )
     end
 
-    def on_type_name_reference(node, scope)
-      type = define_type(node.name, scope)
-
-      return type if type.error?
-
-      if same_type_parameters?(node, type)
-        wrap_optional_type(node, type)
-      else
-        TypeSystem::Error.new
-      end
-    end
-
-    def same_type_parameters?(node, type)
-      node_names = node.type_parameters.map(&:type_name)
-      type_names = type.type_parameters.map(&:name)
-
-      if node_names == type_names
-        true
-      else
-        diagnostics.invalid_type_parameters(type, node_names, node.location)
-        false
-      end
-    end
-
     def define_type(node, scope, *extra)
       type = process_node(node, scope, *extra)
 

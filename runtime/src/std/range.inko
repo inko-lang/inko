@@ -50,7 +50,7 @@ object Range!(T: Successor + SmallerOrEqual) {
   }
 }
 
-impl Equal for Range!(T) {
+impl Equal for Range {
   # Returns `True` if `self` and `other` are identical.
   #
   # # Examples
@@ -67,7 +67,7 @@ impl Equal for Range!(T) {
   }
 }
 
-impl ToArray!(T) for Range!(T) {
+impl ToArray!(T) for Range {
   # Converts `self` to an `Array`.
   #
   # # Examples

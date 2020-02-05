@@ -123,7 +123,7 @@ object Set!(V: Hash + Equal) {
   }
 }
 
-impl Equal for Set!(V) {
+impl Equal for Set {
   # Returns `True` if `self` and the given `Set` are identical to each
   # other.
   #
@@ -155,7 +155,7 @@ impl Equal for Set!(V) {
   }
 }
 
-impl Length for Set!(V) {
+impl Length for Set {
   # Returns the number of values in this `Set`.
   #
   # # Examples

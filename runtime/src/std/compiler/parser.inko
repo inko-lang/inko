@@ -253,23 +253,36 @@ object Parser {
   }
 
   def implement_or_reopen(token: Token) !! ParseError -> Node {
-    let trait_or_object_name = try next_as_constant
+    let first_name = try token_of_type('constant')
+    let peeked = peek_token.type
 
-    (peek_token.type == 'for').if_true {
+    (peeked == 'type_args_open').if_true {
+      let trait_name = try constant(first_name)
+
+      try token_of_type('for')
+
+      return try implement_trait(token: token, trait_name: trait_name)
+    }
+
+    (peeked == 'for').if_true {
       # Skip the "for"
       next_token
 
-      return try implement_trait(token: token, trait_name: trait_or_object_name)
+      let trait_name = constant_from_token(first_name)
+
+      return try implement_trait(token: token, trait_name: trait_name)
     }
 
-    try reopen_object(token: token, object_name: trait_or_object_name)
+    let object_name = constant_from_token(first_name)
+
+    try reopen_object(token: token, object_name: object_name)
   }
 
   def implement_trait(
     token: Token,
     trait_name: Constant
   ) !! ParseError -> ImplementTrait {
-    let object_name = try next_as_constant
+    let object_name = constant_from_token(try token_of_type('constant'))
     let trait_bounds = try trait_bounds
     let body = try next_as_restricted_body
 
@@ -855,7 +868,7 @@ object Parser {
   }
 
   def constant(token: Token) !! ParseError -> Constant {
-    let node = Constant.new(name: token.value, location: token.location)
+    let node = constant_from_token(token)
 
     (peek_token.type == 'type_args_open').if_true {
       # Skip the "!("
@@ -1200,6 +1213,10 @@ object Parser {
 
   def next_as_constant !! ParseError -> Constant {
     try constant(try token_of_type('constant'))
+  }
+
+  def constant_from_token(token: Token) -> Constant {
+    Constant.new(name: token.value, location: token.location)
   }
 
   def next_as_body !! ParseError -> Body {

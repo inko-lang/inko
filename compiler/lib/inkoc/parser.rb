@@ -1087,26 +1087,42 @@ module Inkoc
     #       ...
     #     }
     def implement_trait(start)
-      trait_or_object_name = type_name(advance_and_expect!(:constant))
+      first_name = advance_and_expect!(:constant)
 
-      if @lexer.next_type_is?(:for)
-        advance_and_expect!(:for)
-
-        object_name = type_name(advance_and_expect!(:constant))
-        body = block_body(advance_and_expect!(:curly_open))
-
-        AST::TraitImplementation.new(
-          trait_or_object_name,
-          object_name,
-          body,
+      if @lexer.next_type_is?(:type_args_open)
+        implement_trait_for_object(type_name(first_name), start.location)
+      elsif @lexer.next_type_is?(:for)
+        implement_trait_for_object(
+          AST::TypeName.new(
+            constant_from_token(first_name),
+            [],
+            first_name.location
+          ),
           start.location
         )
       else
-        body = block_body(advance_and_expect!(:curly_open))
-
-        AST::ReopenObject
-          .new(trait_or_object_name, body, start.location)
+        reopen_object(constant_from_token(first_name), start.location)
       end
+    end
+
+    def implement_trait_for_object(trait_name, location)
+      advance_and_expect!(:for)
+
+      object_name = constant_from_token(advance_and_expect!(:constant))
+      body = block_body(advance_and_expect!(:curly_open))
+
+      AST::TraitImplementation.new(
+        trait_name,
+        object_name,
+        body,
+        location
+      )
+    end
+
+    def reopen_object(name, location)
+      body = block_body(advance_and_expect!(:curly_open))
+
+      AST::ReopenObject.new(name, body, location)
     end
 
     # Parses a return statement.

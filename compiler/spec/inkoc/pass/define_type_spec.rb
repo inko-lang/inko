@@ -2282,7 +2282,7 @@ describe Inkoc::Pass::DefineType do
         .self_type
         .define_attribute('Foo', object)
 
-      type = expression_type('impl Foo!(T) { def foo {} }')
+      type = expression_type('impl Foo { def foo {} }')
 
       expect(type).to eq(object)
       expect(object.lookup_method('foo')).to be_any
@@ -2294,21 +2294,6 @@ describe Inkoc::Pass::DefineType do
       type_scope
         .self_type
         .define_attribute('Foo', trait)
-
-      type = expression_type('impl Foo {}')
-
-      expect(type).to be_error
-      expect(state.diagnostics.errors?).to eq(true)
-    end
-
-    it 'errors when not using the same type parameters' do
-      object = Inkoc::TypeSystem::Object.new(name: 'Foo')
-
-      object.define_type_parameter('T')
-
-      type_scope
-        .self_type
-        .define_attribute('Foo', object)
 
       type = expression_type('impl Foo {}')
 
@@ -2396,24 +2381,6 @@ describe Inkoc::Pass::DefineType do
       type_scope
         .module_type
         .define_attribute(trait.name, trait)
-    end
-
-    it 'errors if the object type parameters do not match' do
-      object.define_type_parameter('T')
-
-      type = expression_type('impl Inspect for List {}')
-
-      expect(type).to be_error
-      expect(state.diagnostics.errors?).to eq(true)
-    end
-
-    it 'errors if the trait type parameters do not match' do
-      trait.define_type_parameter('T')
-
-      type = expression_type('impl Inspect for List {}')
-
-      expect(type).to be_error
-      expect(state.diagnostics.errors?).to eq(true)
     end
 
     it 'errors if a required method is not implemented' do

@@ -575,7 +575,7 @@ object ArrayMirror!(T) {
   }
 }
 
-impl Format for ArrayMirror!(T) {
+impl Format for ArrayMirror {
   def format!(F: Formatter)(formatter: F) -> F where T: Mirrored {
     formatter.push('Array')
 
@@ -600,7 +600,7 @@ impl Format for ArrayMirror!(T) {
   }
 }
 
-impl Mirror for ArrayMirror!(T) {
+impl Mirror for ArrayMirror {
   def subject -> Array!(T) {
     @subject
   }
@@ -641,7 +641,7 @@ object MapMirror!(K: Hash + Equal, V) {
   }
 }
 
-impl Format for MapMirror!(K, V) {
+impl Format for MapMirror {
   def format!(F: Formatter)(formatter: F) -> F where K: Mirrored, V: Mirrored {
     let mut index = 0
 
@@ -676,7 +676,7 @@ impl Format for MapMirror!(K, V) {
   }
 }
 
-impl Mirror for MapMirror!(K, V) {
+impl Mirror for MapMirror {
   def subject -> Map!(K, V) {
     @subject
   }
@@ -692,7 +692,7 @@ object SetMirror!(V: Hash + Equal) {
   }
 }
 
-impl Format for SetMirror!(V) {
+impl Format for SetMirror {
   def format!(F: Formatter)(formatter: F) -> F where V: Mirrored {
     let mut index = 0
 
@@ -721,7 +721,7 @@ impl Format for SetMirror!(V) {
   }
 }
 
-impl Mirror for SetMirror!(V) {
+impl Mirror for SetMirror {
   def subject -> Set!(V) {
     @subject
   }
@@ -737,7 +737,7 @@ object PairMirror!(A, B) {
   }
 }
 
-impl Format for PairMirror!(A, B) {
+impl Format for PairMirror {
   def format!(F: Formatter)(formatter: F) -> F where A: Mirrored, B: Mirrored {
     formatter.push('Pair { ')
 
@@ -756,7 +756,7 @@ impl Format for PairMirror!(A, B) {
   }
 }
 
-impl Mirror for PairMirror!(A, B) {
+impl Mirror for PairMirror {
   def subject -> Pair!(A, B) {
     @subject
   }
@@ -772,7 +772,7 @@ object TripleMirror!(A, B, C) {
   }
 }
 
-impl Format for TripleMirror!(A, B, C) {
+impl Format for TripleMirror {
   def format!(F: Formatter)(
     formatter: F
   ) -> F where A: Mirrored, B: Mirrored, C: Mirrored {
@@ -799,7 +799,7 @@ impl Format for TripleMirror!(A, B, C) {
   }
 }
 
-impl Mirror for TripleMirror!(A, B, C) {
+impl Mirror for TripleMirror {
   def subject -> Triple!(A, B, C) {
     @subject
   }
@@ -926,7 +926,7 @@ impl Mirrored for Object {
   }
 }
 
-impl Mirrored for Array!(T) {
+impl Mirrored for Array {
   def mirror -> ArrayMirror!(T) {
     ArrayMirror.new(self)
   }
@@ -938,13 +938,13 @@ impl Mirrored for ByteArray {
   }
 }
 
-impl Mirrored for Map!(K, V) {
+impl Mirrored for Map {
   def mirror -> MapMirror!(K, V) {
     MapMirror.new(self)
   }
 }
 
-impl Mirrored for Set!(V) {
+impl Mirrored for Set {
   def mirror -> SetMirror!(V) {
     SetMirror.new(self)
   }
@@ -980,13 +980,13 @@ impl Mirrored for Block {
   }
 }
 
-impl Mirrored for Pair!(A, B) {
+impl Mirrored for Pair {
   def mirror -> PairMirror!(A, B) {
     PairMirror.new(self)
   }
 }
 
-impl Mirrored for Triple!(A, B, C) {
+impl Mirrored for Triple {
   def mirror -> TripleMirror!(A, B, C) {
     TripleMirror.new(self)
   }

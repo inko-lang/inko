@@ -417,15 +417,6 @@ test.group('Parsing implementation blocks') do (g) {
     assert.true(node.body.children.empty?)
   }
 
-  g.test('Reopening an object with type arguments') {
-    let node = parse_as(input: 'impl A!(B, C) {}', type: ReopenObject)
-    let params = node.name.type_arguments
-
-    assert.equal(params.length, 2)
-    assert.equal((params[0] as Constant).name, 'B')
-    assert.equal((params[1] as Constant).name, 'C')
-  }
-
   g.test('Implementing a trait') {
     let node = parse_as(input: 'impl A for B {}', type: ImplementTrait)
 
@@ -437,18 +428,18 @@ test.group('Parsing implementation blocks') do (g) {
   }
 
   g.test('Implementing a trait with type arguments') {
-    let node = parse_as(input: 'impl A!(C) for B!(D) {}', type: ImplementTrait)
+    let node = parse_as(input: 'impl A!(C) for B {}', type: ImplementTrait)
 
     assert.equal(node.trait_name.name, 'A')
     assert.equal((node.trait_name.type_arguments[0] as Constant).name, 'C')
 
     assert.equal(node.object_name.name, 'B')
-    assert.equal((node.object_name.type_arguments[0] as Constant).name, 'D')
+    assert.true(node.object_name.type_arguments.empty?)
   }
 
   g.test('Implementing a trait with trait bounds') {
     let node =
-      parse_as(input: 'impl A for B!(C) where C: D, E: F {}', type: ImplementTrait)
+      parse_as(input: 'impl A for B where C: D, E: F {}', type: ImplementTrait)
 
     let bounds = node.trait_bounds
 
@@ -457,6 +448,18 @@ test.group('Parsing implementation blocks') do (g) {
 
     assert.equal(bounds[1].name, 'E')
     assert.equal(bounds[1].required_traits[0].name, 'F')
+  }
+
+  g.test('Reopening an object while specifying type parameters') {
+    assert.panic {
+      parse('impl Foo!(A) {}')
+    }
+  }
+
+  g.test('Specifying object type parameters when implementing a trait') {
+    assert.panic {
+      parse('impl Foo for Bar!(A) {}')
+    }
   }
 
   g.test('Reopening an object without closing the body') {

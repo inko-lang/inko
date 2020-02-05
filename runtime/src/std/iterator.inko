@@ -62,7 +62,7 @@
 #     }
 #
 #     # Next up we need to implement the Iterator trait.
-#     impl Iterator!(T) for LimitedIterator!(T) {
+#     impl Iterator!(T) for LimitedIterator {
 #       def next? -> Boolean {
 #         @index < 5
 #       }
@@ -382,7 +382,7 @@ object Enumerator!(T) {
   }
 }
 
-impl Iterator!(T) for Enumerator!(T) {
+impl Iterator!(T) for Enumerator {
   # Advances the iterator and returns the next value.
   #
   # See the documentation of `Iterator.next` for more information.

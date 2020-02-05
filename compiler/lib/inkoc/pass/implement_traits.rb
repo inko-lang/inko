@@ -17,7 +17,7 @@ module Inkoc
       end
 
       def on_trait_implementation(node, scope)
-        object = on_type_name_reference(node.object_name, scope)
+        object = define_type(node.object_name, scope)
 
         return object if object.error?
 
