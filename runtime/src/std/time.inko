@@ -5,17 +5,6 @@ import std::operators::(
 )
 import std::time::constants::*
 
-# Returns the UTC offset of the system's local time.
-def utc_offset -> Integer {
-  _INKOC.time_system_offset
-}
-
-# Returns `True` if Daylight Saving SystemTime is in effect in the system's
-# timezone.
-def dst? -> Boolean {
-  _INKOC.time_system_dst
-}
-
 # A span of time measured in seconds.
 #
 # A `Duration` can be used to measure the span of time without having to worry
@@ -278,11 +267,8 @@ object SystemTime {
   # The sub seconds of this `SystemTime`.
   @sub_second: Float
 
-  # The UTC offset (in hours) of this `SystemTime`.
+  # The UTC offset (in seconds) of this `SystemTime`.
   @utc_offset: Integer
-
-  # A boolean indicating that Daylight Saving Time (DST) is active.
-  @dst: Boolean
 
   # Returns a new `SystemTime` representing the current time using the local
   # timezone.
@@ -295,7 +281,9 @@ object SystemTime {
   #
   #     SystemTime.now
   static def now -> SystemTime {
-    from_timestamp(_INKOC.time_system)
+    let time = _INKOC.time_system
+
+    from_timestamp(time: time[0] as Float, utc_offset: time[1] as Integer)
   }
 
   # Returns a new `SystemTime` representing the current time using UTC as the
@@ -303,25 +291,21 @@ object SystemTime {
   #
   # # Examples
   #
-  # Getting the current time:
+  # Getting the current time in UTC:
   #
   #     import std::time::SystemTime
   #
   #     SystemTime.utc
   static def utc -> SystemTime {
-    from_utc_timestamp(_INKOC.time_system)
+    let time = _INKOC.time_system
+
+    from_utc_timestamp(time[0] as Float)
   }
 
-  # Returns a new `SystemTime` from a Unix timestamp.
-  #
-  # This method defaults to using the system's local timezone unless an
-  # explicit offset is given. When specifying a custom offset also make sure to
-  # explicitly specify if DST is in effect, otherwise this will be based on the
-  # system's local time.
+  # Returns a new `SystemTime` from a Unix timestamp and UTC offset.
   static def from_timestamp(
     time: ToFloat,
-    utc_offset = ThisModule.utc_offset,
-    dst = ThisModule.dst?
+    utc_offset: Integer,
   ) -> SystemTime {
     # The algorithm below is based on the following code from the musl standard
     # library: http://git.musl-libc.org/cgit/musl/tree/src/time/__secs_to_tm.c.
@@ -453,14 +437,13 @@ object SystemTime {
       minute: minute,
       second: second,
       sub_second: sub_second,
-      utc_offset: utc_offset,
-      dst: dst
+      utc_offset: utc_offset
     )
   }
 
   # Returns a new `SystemTime` from a Unix timestamp using UTC as the timezone.
   static def from_utc_timestamp(time: ToFloat) -> SystemTime {
-    from_timestamp(time, utc_offset: 0, dst: False)
+    from_timestamp(time, utc_offset: 0)
   }
 
   def init(
@@ -471,8 +454,7 @@ object SystemTime {
     minute = 0,
     second = 0,
     sub_second = 0.0,
-    utc_offset = 0,
-    dst = False,
+    utc_offset = 0
   ) {
     @year = year
     @month = month
@@ -482,7 +464,6 @@ object SystemTime {
     @second = second
     @sub_second = sub_second
     @utc_offset = utc_offset
-    @dst = dst
   }
 
   # Returns the hour of the day from 0 to 23.
@@ -608,11 +589,6 @@ object SystemTime {
     (year % 4).zero?.and { (year % 100).positive?.or { (year % 400).zero? } }
   }
 
-  # Returns `True` if DST is active.
-  def dst? -> Boolean {
-    @dst
-  }
-
   # Returns the offset in seconds relative to UTC.
   def utc_offset -> Integer {
     @utc_offset
@@ -677,7 +653,9 @@ impl Add!(Duration) for SystemTime {
 
     utc?.if(
       true: { SystemTime.from_utc_timestamp(timestamp) },
-      false: { SystemTime.from_timestamp(timestamp) }
+      false: {
+        SystemTime.from_timestamp(time: timestamp, utc_offset: utc_offset)
+      }
     )
   }
 }
@@ -698,7 +676,9 @@ impl Subtract!(Duration) for SystemTime {
 
     utc?.if(
       true: { SystemTime.from_utc_timestamp(timestamp) },
-      false: { SystemTime.from_timestamp(timestamp) }
+      false: {
+        SystemTime.from_timestamp(time: timestamp, utc_offset: utc_offset)
+      }
     )
   }
 }

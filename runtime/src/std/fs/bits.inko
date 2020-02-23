@@ -84,13 +84,14 @@ def exists?(path: String) -> Boolean {
 # Returns the creation, modification or access time of a file path.
 def file_time(path: String, kind: Integer) !! IOError -> SystemTime {
   process.blocking {
-    let timestamp = try {
+    let time = try {
       _INKOC.file_time(path, kind)
     } else (error) {
       throw IOError.new(error as String)
     }
 
-    SystemTime.from_timestamp(timestamp)
+    SystemTime
+      .from_timestamp(time: time[0] as Float, utc_offset: time[1] as Integer)
   }
 }
 

@@ -14,19 +14,14 @@ pub fn monotonic(state: &RcState, process: &RcProcess) -> ObjectPointer {
 }
 
 pub fn system(state: &RcState, process: &RcProcess) -> ObjectPointer {
-    let timestamp = DateTime::now().timestamp();
+    let dt = DateTime::now();
+    let timestamp = process
+        .allocate(object_value::float(dt.timestamp()), state.float_prototype);
 
-    process.allocate(object_value::float(timestamp), state.float_prototype)
-}
+    let offset = ObjectPointer::integer(dt.utc_offset());
 
-pub fn system_offset() -> ObjectPointer {
-    ObjectPointer::integer(DateTime::now().utc_offset())
-}
-
-pub fn system_dst(state: &RcState) -> ObjectPointer {
-    if DateTime::now().dst_active() {
-        state.true_object
-    } else {
-        state.false_object
-    }
+    process.allocate(
+        object_value::array(vec![timestamp, offset]),
+        state.array_prototype,
+    )
 }

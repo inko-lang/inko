@@ -266,9 +266,16 @@ pub fn file_time(
     let path = path_ptr.string_value()?;
     let kind = kind_ptr.integer_value()?;
     let dt = filesystem::date_time_for_path(path, kind)?;
+    let timestamp = process
+        .allocate(object_value::float(dt.timestamp()), state.float_prototype);
 
-    Ok(process
-        .allocate(object_value::float(dt.timestamp()), state.float_prototype))
+    let offset = ObjectPointer::integer(dt.utc_offset());
+    let tuple = process.allocate(
+        object_value::array(vec![timestamp, offset]),
+        state.array_prototype,
+    );
+
+    Ok(tuple)
 }
 
 pub fn options_for_integer(mode: i64) -> Result<OpenOptions, String> {

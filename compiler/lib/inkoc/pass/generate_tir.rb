@@ -995,14 +995,6 @@ module Inkoc
         raw_nullary_instruction(:TimeSystem, node, body)
       end
 
-      def on_raw_time_system_offset(node, body)
-        raw_nullary_instruction(:TimeSystemOffset, node, body)
-      end
-
-      def on_raw_time_system_dst(node, body)
-        raw_nullary_instruction(:TimeSystemDst, node, body)
-      end
-
       def on_raw_string_to_upper(node, body)
         raw_unary_instruction(:StringToUpper, node, body)
       end
