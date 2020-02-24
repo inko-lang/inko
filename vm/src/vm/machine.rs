@@ -1324,18 +1324,6 @@ impl Machine {
 
                     context.set_register(reg, res);
                 }
-                InstructionType::TimeSystemOffset => {
-                    let reg = instruction.arg(0);
-                    let res = time::system_offset();
-
-                    context.set_register(reg, res);
-                }
-                InstructionType::TimeSystemDst => {
-                    let reg = instruction.arg(0);
-                    let res = time::system_dst(&self.state);
-
-                    context.set_register(reg, res);
-                }
                 InstructionType::DirectoryCreate => {
                     let reg = instruction.arg(0);
                     let path = context.get_register(instruction.arg(1));

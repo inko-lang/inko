@@ -111,8 +111,6 @@ module Inkoc
         FileType
         FileTime
         TimeSystem
-        TimeSystemOffset
-        TimeSystemDst
         DirectoryCreate
         DirectoryRemove
         DirectoryList

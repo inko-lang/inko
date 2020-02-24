@@ -1144,15 +1144,7 @@ module Inkoc
       end
 
       def on_raw_time_system(*)
-        typedb.float_type.new_instance
-      end
-
-      def on_raw_time_system_offset(*)
-        typedb.integer_type.new_instance
-      end
-
-      def on_raw_time_system_dst(*)
-        typedb.boolean_type.new_instance
+        typedb.new_array_of_type(TypeSystem::Dynamic.new)
       end
 
       def on_raw_string_to_upper(*)
@@ -1291,7 +1283,7 @@ module Inkoc
       end
 
       def on_raw_file_time(*)
-        typedb.integer_type.new_instance
+        typedb.new_array_of_type(TypeSystem::Dynamic.new)
       end
 
       def on_raw_directory_create(*)

@@ -109,8 +109,6 @@ pub enum InstructionType {
     FileType,
     FileTime,
     TimeSystem,
-    TimeSystemOffset,
-    TimeSystemDst,
     DirectoryCreate,
     DirectoryRemove,
     DirectoryList,

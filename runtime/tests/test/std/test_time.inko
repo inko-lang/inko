@@ -122,12 +122,6 @@ test.group('std::time::SystemTime.utc') do (g) {
 }
 
 test.group('std::time::SystemTime.from_timestamp') do (g) {
-  g.test("Creating a SystemTime using the local clock's UTC offset") {
-    assert.equal(SystemTime.from_timestamp(0).utc_offset, time.utc_offset)
-  }
-
-  # For all the following tests we use a fixed UTC offset of 0, ensuring the
-  # tests do not fail if the test environment uses a different UTC offset.
   g.test('Creating a SystemTime using the Unix timestamp 0') {
     assert.equal(
       SystemTime.from_timestamp(time: 0, utc_offset: 0),
@@ -352,13 +346,6 @@ test.group('std::time::SystemTime.leap_year?') do (g) {
     assert.false(SystemTime.new(year: 2018).leap_year?)
     assert.false(SystemTime.new(year: 2019).leap_year?)
     assert.false(SystemTime.new(year: 2100).leap_year?)
-  }
-}
-
-test.group('std::time::SystemTime.dst?') do (g) {
-  g.test('Checking if Daylight Savings Time is active') {
-    assert.false(SystemTime.new.dst?)
-    assert.true(SystemTime.new(dst: True).dst?)
   }
 }
 
@@ -682,22 +669,5 @@ test.group('std::time::Instant.==') do (g) {
 
   g.test('Comparing two different Instant objects') {
     assert.not_equal(Instant.new(1.0), Instant.new(2.0))
-  }
-}
-
-test.group('std::time.utc_offset') do (g) {
-  g.test('Obtaining the UTC offset of the system clock') {
-    let offset = time.utc_offset
-
-    assert.true(offset >= MIN_UTC_OFFSET)
-    assert.true(offset <= MAX_UTC_OFFSET)
-  }
-}
-
-test.group('std::time.dst?') do (g) {
-  g.test('Checking if Daylight Savings Time is active') {
-    # There is no consistent, platform independent way of testing the DST flag.
-    # As a resutl, we'll just check if it actually returns a proper boolean.
-    assert.true(Array.new(True, False).contains?(time.dst?))
   }
 }

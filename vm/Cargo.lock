@@ -564,6 +564,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05da548ad6865900e60eaba7f589cc0783590a92e940c26953ff81ddbab2d677"
 
 [[package]]
+name = "proc-macro-hack"
+version = "0.5.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ecd45702f76d6d3c75a80564378ae228a85f0b59d2f3ed43c91b4a69eb2ebfc5"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -781,6 +792,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustversion"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b3bba175698996010c4f6dce5e7f173b6eb781fce25d2cfc45e27091ce0b79f6"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "scopeguard"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -838,6 +860,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ea5119cdb4c55b55d432abb513a0429384878c15dde60cc77b1c99de1a95a6a"
 
 [[package]]
+name = "syn"
+version = "1.0.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a0294dc449adc58bb6592fff1a23d3e5e6e235afc6a0ffca2657d19e7bbffe5"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-xid",
+]
+
+[[package]]
 name = "termcolor"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -866,13 +899,36 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.1.42"
+version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db8dcfca086c1143c9270ac42a2bbd8a7ee477b78ac8e45b19abfb0cbede4b6f"
+checksum = "3043ac959c44dccc548a57417876c8fe241502aed69d880efc91166c02717a93"
 dependencies = [
  "libc",
- "redox_syscall",
+ "rustversion",
+ "time-macros",
  "winapi",
+]
+
+[[package]]
+name = "time-macros"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ae9b6e9f095bc105e183e3cd493d72579be3181ad4004fceb01adbe9eecab2d"
+dependencies = [
+ "proc-macro-hack",
+ "time-macros-impl",
+]
+
+[[package]]
+name = "time-macros-impl"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e987cfe0537f575b5fc99909de6185f6c19c3ad8889e2275e686a873d0869ba1"
+dependencies = [
+ "proc-macro-hack",
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
