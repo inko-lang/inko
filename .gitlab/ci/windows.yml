@@ -1,61 +1,60 @@
 ---
-.only-source-repository:
-  only:
-    - branches@inko-lang/inko
-    - tags@inko-lang/inko
-
-test:compiler:windows:
-  extends: .only-source-repository
-  stage: test
+.windows-tags:
   tags:
     - windows
     - inko
+    - vbox
+
+test:compiler:windows:
+  extends:
+    - .only-source-repository
+    - .windows-tags
+  stage: test
   before_script:
     - cd compiler
     - ruby --version
     - gem --version
     - bundle --version
-    - bundle install --path vendor --retry=3
+    - bundle config set path vendor
+    - bundle install --retry=3
   script:
-    - C:/msys make test
+    - make test
   cache:
-    key: windows
+    key: windows-compiler
     paths:
       - compiler/vendor/ruby
 
 test:ivm:windows:
-  extends: .only-source-repository
+  extends:
+    - .only-source-repository
+    - .windows-tags
   stage: test
-  tags:
-    - windows
-    - inko
   before_script:
     - cd vm
     - rustc --version
     - cargo --version
   script:
-    - C:/msys make test
+    - make test
   cache:
-    key: windows
+    key: windows-vm
     paths:
       - .cargo
       - vm/target
 
 test:runtime:windows:
-  extends: .only-source-repository
+  extends:
+    - .only-source-repository
+    - .windows-tags
   stage: test-runtime
-  tags:
-    - windows
-    - inko
   before_script:
     - ruby --version
     - rustc --version
     - cargo --version
   script:
-    - C:/msys make -C vm release
+    - make -C vm release
     - ruby -I ./compiler/lib ./compiler/bin/inko-test -d runtime --vm ./vm/target/release/ivm.exe
   cache:
-    key: windows
+    key: windows-vm
     paths:
       - .cargo
       - vm/target
@@ -64,22 +63,21 @@ test:runtime:windows:
     - test:ivm:windows
 
 release:compiled:windows:
-  extends: .only-source-repository
+  extends:
+    - .only-source-repository
+    - .windows-tags
   stage: release
-  tags:
-    - windows
-    - inko
   before_script:
     - ruby --version
     - rustc --version
     - cargo --version
-    - C:/msys aws --version
+    - aws --version
   script:
-    - C:/msys make release-compiled
+    - make release-compiled
   only:
     - tags
   cache:
-    key: windows
+    key: windows-vm
     paths:
       - .cargo
       - vm/target
