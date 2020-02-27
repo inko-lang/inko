@@ -13,6 +13,11 @@ stages:
   - release
   - post-release
 
+.only-source-repository:
+  only:
+    - branches@inko-lang/inko
+    - tags@inko-lang/inko
+
 include:
   - local: .gitlab/ci/windows.yml
   - local: .gitlab/ci/macos.yml
