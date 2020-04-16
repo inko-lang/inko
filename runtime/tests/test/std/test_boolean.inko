@@ -2,65 +2,96 @@ import std::map::DefaultHasher
 import std::test
 import std::test::assert
 
-test.group('std::boolean::True.not') do (g) {
-  g.test('Returning the opposite of True') {
-    assert.false(True.not)
+test.group('std::boolean::Boolean.true?') do (g) {
+  g.test('Checking if a Boolean is True') {
+    assert.true(True.true?)
+    assert.false(False.true?)
   }
 }
 
-
-test.group('std::boolean::True.if_true') do (g) {
-  g.test('The supplied Block is always executed') {
-    let number = True.if_true { 10 }
-
-    assert.equal(number, 10)
+test.group('std::boolean::Boolean.false?') do (g) {
+  g.test('Checking if a Boolean is False') {
+    assert.false(True.false?)
+    assert.true(False.false?)
   }
 }
 
-test.group('std::boolean::True.if_false') do (g) {
-  g.test('The supplied Block is never executed') {
-    let number = True.if_false { 10 }
+test.group('std::boolean::Boolean.if_true') do (g) {
+  g.test('Sending "if_true" to True') {
+    assert.equal(True.if_true({ 10 }), 10)
+  }
 
-    assert.equal(number, Nil)
+  g.test('Sending "if_true" to False') {
+    assert.equal(False.if_true({ 10 }), Nil)
   }
 }
 
-test.group('std::boolean::True.if') do (g) {
-  g.test('The Block passed to the "true" argument is always executed') {
-    let number = True.if(true: { 10 }, false: { 20 })
+test.group('std::boolean::Boolean.if_false') do (g) {
+  g.test('Sending "if_false" to True') {
+    assert.equal(True.if_false({ 10 }), Nil)
+  }
 
-    assert.equal(number, 10)
+  g.test('Sending "if_false" to False') {
+    assert.equal(False.if_false({ 10 }), 10)
   }
 }
 
-test.group('std::boolean::True.and') do (g) {
-  g.test('The supplied Block is always executed') {
+test.group('std::boolean::Boolean.if') do (g) {
+  g.test('Sending "if" to True') {
+    assert.equal(True.if(true: { 10 }, false: { 20 }), 10)
+  }
+
+  g.test('Sending "if" to False') {
+    assert.equal(False.if(true: { 10 }, false: { 20 }), 20)
+  }
+}
+
+test.group('std::boolean::Boolean.and') do (g) {
+  g.test('Sending "and" to True') {
     assert.equal(True.and({ True }), True)
   }
-}
 
-test.group('std::boolean::True.or') do (g) {
-  g.test('The return value is always True') {
-    assert.equal(True.or({ False }), True)
+  g.test('Sending "and" to False') {
+    assert.equal(False.and({ True }), False)
   }
 }
 
-test.group('std::boolean::True.==') do (g) {
-  g.test('Comparing True with other booleans') {
+test.group('std::boolean::Boolean.or') do (g) {
+  g.test('Sending "or" to True') {
+    assert.equal(True.or({ False }), True)
+  }
+
+  g.test('Sending "or" to False') {
+    assert.equal(False.or({ True }), True)
+  }
+}
+
+test.group('std::boolean::Boolean.==') do (g) {
+  g.test('Comparing True with another Boolean') {
     assert.equal(True, True)
     assert.not_equal(True, Boolean)
     assert.not_equal(True, False)
   }
-}
 
-test.group('std::boolean::True.to_string') do (g) {
-  g.test('Converting True to a String') {
-    assert.equal(True.to_string, 'True')
+  g.test('Comparing False with another Boolean') {
+    assert.equal(False, False)
+    assert.not_equal(False, Boolean)
+    assert.not_equal(False, True)
   }
 }
 
-test.group('std::boolean::True.hash') do (g) {
-  g.test('Hashing a True') {
+test.group('std::boolean::Boolean.to_string') do (g) {
+  g.test('Converting True to a String') {
+    assert.equal(True.to_string, 'True')
+  }
+
+  g.test('Converting False to a String') {
+    assert.equal(False.to_string, 'False')
+  }
+}
+
+test.group('std::boolean::Boolean.hash') do (g) {
+  g.test('Hashing True') {
     let hasher1 = DefaultHasher.new(1, 2)
     let hasher2 = DefaultHasher.new(1, 2)
 
@@ -72,67 +103,8 @@ test.group('std::boolean::True.hash') do (g) {
     # to `True`.
     assert.equal(hasher1.to_hash, hasher2.to_hash)
   }
-}
 
-test.group('std::boolean::False.not') do (g) {
-  g.test('Returning the opposite of False') {
-    assert.equal(False.not, True)
-  }
-}
-
-
-test.group('std::boolean::False.if_true') do (g) {
-  g.test('The supplied Block is never executed') {
-    let number = False.if_true { 10 }
-
-    assert.equal(number, Nil)
-  }
-}
-
-test.group('std::boolean::False.if_false') do (g) {
-  g.test('The supplied Block is always executed') {
-    let number = False.if_false { 10 }
-
-    assert.equal(number, 10)
-  }
-}
-
-test.group('std::boolean::False.if') do (g) {
-  g.test('The Block passed to the "false" argument is always executed') {
-    let number = False.if(true: { 10 }, false: { 20 })
-
-    assert.equal(number, 20)
-  }
-}
-
-test.group('std::boolean::False.and') do (g) {
-  g.test('The supplied Block is never executed') {
-    assert.equal(False.and({ True }), False)
-  }
-}
-
-test.group('std::boolean::False.or') do (g) {
-  g.test('The supplied Block is always executed') {
-    assert.equal(False.or({ True }), True)
-  }
-}
-
-test.group('std::boolean::False.==') do (g) {
-  g.test('Comparing False with other booleans') {
-    assert.equal(False, False)
-    assert.not_equal(False, Boolean)
-    assert.not_equal(False, True)
-  }
-}
-
-test.group('std::boolean::False.to_string') do (g) {
-  g.test('Converting False to a String') {
-    assert.equal(False.to_string, 'False')
-  }
-}
-
-test.group('std::boolean::False.hash') do (g) {
-  g.test('Hashing a False') {
+  g.test('Hashing False') {
     let hasher1 = DefaultHasher.new(1, 2)
     let hasher2 = DefaultHasher.new(1, 2)
 

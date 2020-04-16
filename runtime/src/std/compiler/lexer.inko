@@ -355,7 +355,7 @@ object Lexer {
     let start = @position
 
     {
-      next?.and { newline?.not }
+      next?.and { newline?.false? }
     }.while_true {
       @position += 1
     }
@@ -854,10 +854,6 @@ object Lexer {
       .or { current == SPACE }
       .or { current == TAB }
       .or { current == CARRIAGE_RETURN }
-  }
-
-  def end_of_input? -> Boolean {
-    next?.not
   }
 }
 

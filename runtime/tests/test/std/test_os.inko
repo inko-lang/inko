@@ -37,7 +37,7 @@ test.group('std::os.linux?') do (g) {
 
 test.group('std::os.unix?') do (g) {
   g.test('Checking if the underlying platform is Unix') {
-    assert.equal(os.unix?, os.windows?.not)
+    assert.equal(os.unix?, os.windows?.false?)
   }
 }
 

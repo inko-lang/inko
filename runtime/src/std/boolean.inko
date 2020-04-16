@@ -6,8 +6,13 @@ import std::conditional::Conditional
 import std::conversion::ToString
 
 impl Boolean {
-  # Returns the `Boolean` that is the opposite of `self`.
-  def not -> Boolean {
+  # Returns `True` if `self` is also `True`.
+  def true? -> Boolean {
+    _INKOC.if(self, True, False)
+  }
+
+  # Returns `True` if `self` is `False`.
+  def false? -> Boolean {
     _INKOC.if(self, False, True)
   }
 }

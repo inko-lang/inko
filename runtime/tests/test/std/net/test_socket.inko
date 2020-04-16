@@ -405,7 +405,7 @@ test.group('std::net::socket::Socket.ipv6_multicast_interface') do (g) {
     # around this we just try the first 10 interfaces, and error if none could
     # be found.
     {
-      found.not.and { interface < 10 }
+      found.false?.and { interface < 10 }
     }.while_true {
       found = True
 

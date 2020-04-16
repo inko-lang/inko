@@ -165,7 +165,7 @@ object Path {
   #     Path.new('../').relative?  # => True
   #     Path.new('/foo').relative? # => False
   def relative? -> Boolean {
-    absolute?.not
+    absolute?.false?
   }
 
   # Joins `self` and the given path together to form a new `Path`.

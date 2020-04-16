@@ -292,7 +292,7 @@ impl IpAddress for Ipv6Address {
       # mode until we reach the end of the input, as embedded IPv4 addresses
       # must be at the end of an IPv6 address.
       ipv4_mode
-        .not
+        .false?
         .and { bytes[cursor] == _DOT_BYTE }
         .if_true {
           ipv4_mode = True
@@ -353,7 +353,7 @@ impl IpAddress for Ipv6Address {
           # ":" that preceeds the IPv4 address, we only reduce the padding by
           # one.
           ipv4_padded
-            .not
+            .false?
             .and { byte == _DOT_BYTE }
             .if_true {
               ipv4_padded = True
