@@ -184,9 +184,7 @@ def blocking!(R)(block: do -> R) -> R {
     #
     # Using the `if_true` below, we ensure that we only move the process back
     # once we return from the outer most call to this method.
-    moved.if_true {
-      _INKOC.set_blocking(False)
-    }
+    moved.if_true { _INKOC.set_blocking(False) }
   }
 
   block.call
@@ -376,9 +374,7 @@ def pinned!(T)(block: do -> T) -> T {
     #
     # Using the `if_true` below, we ensure that we only unpin the process once
     # we return from the outer most call to this method.
-    pinned.if_true {
-      _INKOC.process_unpin_thread
-    }
+    pinned.if_true { _INKOC.process_unpin_thread }
   }
 
   block.call

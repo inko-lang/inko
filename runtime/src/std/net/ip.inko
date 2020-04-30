@@ -149,13 +149,8 @@ impl ToString for Ipv6Address {
   #     Ipv6Address.new.to_string # => '::'
   #     Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1) # => '::1'
   def to_string -> String {
-    unspecified?.if_true {
-      return '::'
-    }
-
-    loopback?.if_true {
-      return '::1'
-    }
+    unspecified?.if_true { return '::' }
+    loopback?.if_true { return '::1' }
 
     let ipv4_compatible = ipv4_compatible?
     let ipv4_mapped = ipv4_mapped?
@@ -178,9 +173,7 @@ impl ToString for Ipv6Address {
         )
         .to_string
 
-      ipv4_compatible.if_true {
-        return '::' + ipv4_address
-      }
+      ipv4_compatible.if_true { return '::' + ipv4_address }
 
       return '::ffff:' + ipv4_address
     }
@@ -195,9 +188,7 @@ impl ToString for Ipv6Address {
     @segments.each_with_index do (hextet, index) {
       hextet.zero?.if(
         true: {
-          current_len.zero?.if_true {
-            current_at = index
-          }
+          current_len.zero?.if_true { current_at = index }
 
           current_len += 1
 
@@ -220,14 +211,10 @@ impl ToString for Ipv6Address {
         let compression_end = compression_start + compression_len
 
         @segments.each_with_index do (hextet, index) {
-          (index == compression_start).if_true {
-            buffer.push(':')
-          }
+          (index == compression_start).if_true { buffer.push(':') }
 
           (index < compression_start).or { index >= compression_end }.if_true {
-            index.positive?.if_true {
-              buffer.push(':')
-            }
+            index.positive?.if_true { buffer.push(':') }
 
             buffer.push(hextet.format(radix: 16))
           }
@@ -239,9 +226,7 @@ impl ToString for Ipv6Address {
         @segments.each_with_index do (hextet, index) {
           buffer.push(hextet.format(radix: 16))
 
-          (index < 7).if_true {
-            buffer.push(':')
-          }
+          (index < 7).if_true { buffer.push(':') }
         }
       }
     )
@@ -361,9 +346,7 @@ impl IpAddress for Ipv6Address {
         }.while_true {
           let byte = bytes[pad_cursor]
 
-          (byte == _COLON_BYTE).if_true {
-            pad -= 1
-          }
+          (byte == _COLON_BYTE).if_true { pad -= 1 }
 
           # Two IPv4 octets can be stored in a single IPv6 hextet, meaning we'd
           # have to reduce padding by two. Since we already skip padding for the
@@ -614,9 +597,7 @@ impl IpAddress for Ipv4Address {
     let segment_bytes = ByteArray.new
 
     # No IPv4 address can be longer than 15 characters (255.255.255.255).
-    (max > 15).if_true {
-      throw AddressParseError.new(bytes)
-    }
+    (max > 15).if_true { throw AddressParseError.new(bytes) }
 
     { cursor < max }.while_true {
       {
@@ -699,16 +680,12 @@ impl IpAddress for Ipv4Address {
     (@segments[0] == 192)
       .and { @segments[1] == 0 }
       .and { @segments[2] == 2 }
-      .if_true {
-        return True
-      }
+      .if_true { return True }
 
     (@segments[0] == 198)
       .and { @segments[1] == 51 }
       .and { @segments[2] == 100 }
-      .if_true {
-        return True
-      }
+      .if_true { return True }
 
     (@segments[0] == 203)
       .and { @segments[1] == 0 }
@@ -778,16 +755,12 @@ impl IpAddress for Ipv4Address {
   #     Ipv4Address.new(10, 0, 0, 1).private? # => True
   #     Ipv4Address.new(127, 0, 0, 1).private? # => False
   def private? -> Boolean {
-    (@segments[0] == 10).if_true {
-      return True
-    }
+    (@segments[0] == 10).if_true { return True }
 
     (@segments[0] == 172)
       .and { @segments[1]! >= 16 }
       .and { @segments[1]! <= 31 }
-      .if_true {
-        return True
-      }
+      .if_true { return True }
 
     (@segments[0] == 192).and { @segments[1] == 168 }
   }
@@ -880,13 +853,9 @@ def parse(address: String) !! AddressParseError -> IpAddress {
   }
 
   bytes.each do (byte) {
-    (byte == _DOT_BYTE).if_true {
-      return try Ipv4Address.parse(bytes)
-    }
+    (byte == _DOT_BYTE).if_true { return try Ipv4Address.parse(bytes) }
 
-    (byte == _COLON_BYTE).if_true {
-      return try Ipv6Address.parse(bytes)
-    }
+    (byte == _COLON_BYTE).if_true { return try Ipv6Address.parse(bytes) }
   }
 
   throw AddressParseError.new(address)

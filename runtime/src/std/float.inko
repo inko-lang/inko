@@ -84,25 +84,15 @@ impl Numeric for Float {
   }
 
   def absolute -> Self {
-    negative?.if_false {
-      return self
-    }
-
-    infinite?.if_true {
-      return INFINITY
-    }
+    negative?.if_false { return self }
+    infinite?.if_true { return INFINITY }
 
     self - (self * 2.0)
   }
 
   def opposite -> Self {
-    positive?.if_true {
-      return 0.0 - self
-    }
-
-    infinite?.if_true {
-      return INFINITY
-    }
+    positive?.if_true { return 0.0 - self }
+    infinite?.if_true { return INFINITY }
 
     self - (self * 2.0)
   }
@@ -272,13 +262,8 @@ impl Float {
   #
   #     try! Float.parse('1.2e1') # => 12.0
   static def parse(string: String) !! StandardError -> Float {
-    (string == INFINITY_LABEL).if_true {
-      return INFINITY
-    }
-
-    (string == NEGATIVE_INFINITY_LABEL).if_true {
-      return NEGATIVE_INFINITY
-    }
+    (string == INFINITY_LABEL).if_true { return INFINITY }
+    (string == NEGATIVE_INFINITY_LABEL).if_true { return NEGATIVE_INFINITY }
 
     try {
       _INKOC.string_to_float(string)
@@ -330,16 +315,12 @@ impl ToString for Float {
   #     INFINITY.to_string # => 'INFINITY'
   def to_string -> String {
     infinite?.if_true {
-      positive?.if_true {
-        return INFINITY_LABEL
-      }
+      positive?.if_true { return INFINITY_LABEL }
 
       return NEGATIVE_INFINITY_LABEL
     }
 
-    not_a_number?.if_true {
-      return 'NaN'
-    }
+    not_a_number?.if_true { return 'NaN' }
 
     _INKOC.float_to_string(self)
   }

@@ -33,16 +33,12 @@ impl Integer {
       process.panic('The radix argument must be between 2 and 36')
     }
 
-    zero?.if_true {
-      return '0'
-    }
+    zero?.if_true { return '0' }
 
     let characters = Array.new
     let mut integer = absolute
 
-    negative?.if_true {
-      characters.push('-')
-    }
+    negative?.if_true { characters.push('-') }
 
     { integer.positive? }.while_true {
       characters.push(INTEGER_RADIX_DIGITS[integer % radix]!)

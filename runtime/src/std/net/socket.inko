@@ -741,9 +741,7 @@ object TcpListener {
     @socket = try Socket.new(domain: domain, kind: STREAM)
 
     # The IPV6_V6ONLY can't be set at all (even to False) for IPv4 sockets.
-    ip_addr.v6?.and { only_ipv6 }.if_true {
-      try @socket.only_ipv6 = True
-    }
+    ip_addr.v6?.and { only_ipv6 }.if_true { try @socket.only_ipv6 = True }
 
     try @socket.reuse_address = True
     try @socket.reuse_port = True

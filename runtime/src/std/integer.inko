@@ -128,17 +128,13 @@ impl Numeric for Integer {
   }
 
   def absolute -> Self {
-    negative?.if_false {
-      return self
-    }
+    negative?.if_false { return self }
 
     self - (self * 2)
   }
 
   def opposite -> Self {
-    positive?.if_true {
-      return 0 - self
-    }
+    positive?.if_true { return 0 - self }
 
     self - (self * 2)
   }

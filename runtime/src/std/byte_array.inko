@@ -207,9 +207,7 @@ impl ByteArray {
 
     let mut until = index + length
 
-    (until >= self.length).if_true {
-      until = self.length
-    }
+    (until >= self.length).if_true { until = self.length }
 
     { index < until }.while_true {
       new_array.push(self[index]!)
@@ -238,9 +236,7 @@ impl Index!(Integer, Integer) for ByteArray {
   #
   #     bytes[5] # => Nil
   def [](index: Integer) -> ?Integer {
-    (index >= length).if_true {
-      return Nil
-    }
+    (index >= length).if_true { return }
 
     _INKOC.byte_array_at(self, index)
   }

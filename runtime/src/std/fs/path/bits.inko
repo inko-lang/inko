@@ -33,9 +33,7 @@ let COLON_BYTE = 58
 def starts_with_windows_drive_name?(path: String) -> Boolean {
   let first_byte = path.byte(index: 0)
 
-  (path.length < 3).if_true {
-    return False
-  }
+  (path.length < 3).if_true { return False }
 
   WINDOWS_LOWER_DRIVE_LETTERS.cover?(first_byte)
     .or { WINDOWS_UPPER_DRIVE_LETTERS.cover?(first_byte) }
@@ -52,9 +50,7 @@ def path_separator?(byte: Integer) -> Boolean {
 #
 # If no separator could be found, `-1` is returned.
 def bytes_before_last_separator(path: String) -> Integer {
-  path.empty?.if_true {
-    return -1
-  }
+  path.empty?.if_true { return -1 }
 
   let windows_drive_path =
     os.windows?.and { starts_with_windows_drive_name?(path) }
@@ -82,12 +78,9 @@ def bytes_before_last_separator(path: String) -> Integer {
       true: { in_separator = True },
       false: {
         in_separator.if_true {
-          windows_drive_path.and { index == 1 }.if_true {
-            # We have reached the ":" in a drive name such as "C:\". In this
-            # case we want to include the "\" since it's part of the drive
-            # name.
-            return 3
-          }
+          # We have reached the ":" in a drive name such as "C:\". In this case
+          # we want to include the "\" since it's part of the drive name.
+          windows_drive_path.and { index == 1 }.if_true { return 3 }
 
           return index + 1
         }

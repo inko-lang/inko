@@ -112,9 +112,7 @@ def last_call_frame_in(file: ToPath) -> CallFrame {
   { index >= 0 }.while_true {
     let frame = frames[index]!
 
-    (frame.path == path).if_true {
-      return frame
-    }
+    (frame.path == path).if_true { return frame }
 
     index -= 1
   }

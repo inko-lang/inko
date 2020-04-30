@@ -112,9 +112,7 @@ impl String {
   #     'test_starts_with'.starts_with?('test_') # => True
   #     'hello'.starts_with?('test_')            # => False
   def starts_with?(prefix: String) -> Boolean {
-    (prefix.length > length).if_true {
-      return False
-    }
+    (prefix.length > length).if_true { return False }
 
     slice(0, prefix.length) == prefix
   }
@@ -133,9 +131,7 @@ impl String {
 
     # if "suffix" is longer than "self" we produce a negative index. In this
     # case "self" will never start with "suffix".
-    start.negative?.if_true {
-      return False
-    }
+    start.negative?.if_true { return False }
 
     slice(start, suffix_len) == suffix
   }

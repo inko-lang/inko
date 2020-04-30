@@ -141,14 +141,10 @@ impl Equal for Set {
   #
   #     set1 == set2 # => True
   def ==(other: Self) -> Boolean {
-    (length == other.length).if_false {
-      return False
-    }
+    (length == other.length).if_false { return False }
 
     each do (value) {
-      other.contains?(value).if_false {
-        return False
-      }
+      other.contains?(value).if_false { return False }
     }
 
     True

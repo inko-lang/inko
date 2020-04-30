@@ -198,15 +198,11 @@ trait Mirror: Format {
     let mut proto = _INKOC.get_prototype(subject)
 
     {
-      proto.equal?(other).if_true {
-        return True
-      }
+      proto.equal?(other).if_true { return True }
 
       proto = _INKOC.get_prototype(proto) as Object
 
-      proto.nil?.if_true {
-        return False
-      }
+      proto.nil?.if_true { return False }
     }.loop
   }
 
@@ -234,9 +230,7 @@ trait Mirror: Format {
       let traits = _INKOC.get_attribute(subject, IMPLEMENTED_TRAITS_ATTRIBUTE)
 
       traits.if_true {
-        _INKOC.get_attribute(traits, find).if_true {
-          return True
-        }
+        _INKOC.get_attribute(traits, find).if_true { return True }
       }
 
       subject = _INKOC.get_prototype(subject) as Object
@@ -246,9 +240,7 @@ trait Mirror: Format {
       # and "the prototype is Nil", we will just bail out once we hit Nil as the
       # prototype. This works fine for Nil itself, because there is only a
       # single instance of it.
-      subject.nil?.if_true {
-        return False
-      }
+      subject.nil?.if_true { return False }
     }.loop
   }
 
@@ -271,9 +263,7 @@ trait Mirror: Format {
   def implemented_traits -> Array!(Trait) {
     let impl_set = get_attribute(IMPLEMENTED_TRAITS_ATTRIBUTE) as Object
 
-    impl_set.if_false {
-      return Array.new
-    }
+    impl_set.if_false { return Array.new }
 
     _INKOC.get_attribute_names(impl_set) as Dynamic as Array!(Trait)
   }
@@ -371,16 +361,12 @@ impl Format for ObjectMirror {
 
     formatter.push(name)
 
-    attributes.empty?.if_true {
-      return formatter
-    }
+    attributes.empty?.if_true { return formatter }
 
     formatter.push(' {')
 
     attributes.each_with_index do (attr_name, index) {
-      index.positive?.if_true {
-        formatter.push(',')
-      }
+      index.positive?.if_true { formatter.push(',') }
 
       formatter.push(' ')
       formatter.push(attr_name)
@@ -579,16 +565,12 @@ impl Format for ArrayMirror {
   def format!(F: Formatter)(formatter: F) -> F where T: Mirrored {
     formatter.push('Array')
 
-    @subject.empty?.if_true {
-      return formatter
-    }
+    @subject.empty?.if_true { return formatter }
 
     formatter.push(' { ')
 
     @subject.each_with_index do (value, index) {
-      index.positive?.if_true {
-        formatter.push(', ')
-      }
+      index.positive?.if_true { formatter.push(', ') }
 
       formatter.descend {
         value.mirror.format(formatter)
@@ -647,16 +629,12 @@ impl Format for MapMirror {
 
     formatter.push('Map')
 
-    @subject.empty?.if_true {
-      return formatter
-    }
+    @subject.empty?.if_true { return formatter }
 
     formatter.push(' { ')
 
     @subject.each do (key, value) {
-      index.positive?.if_true {
-        formatter.push(', ')
-      }
+      index.positive?.if_true { formatter.push(', ') }
 
       formatter.descend {
         key.mirror.format(formatter)
@@ -698,16 +676,12 @@ impl Format for SetMirror {
 
     formatter.push('Set')
 
-    @subject.empty?.if_true {
-      return formatter
-    }
+    @subject.empty?.if_true { return formatter }
 
     formatter.push(' { ')
 
     @subject.each do (value) {
-      index.positive?.if_true {
-        formatter.push(', ')
-      }
+      index.positive?.if_true { formatter.push(', ') }
 
       formatter.descend {
         value.mirror.format(formatter)

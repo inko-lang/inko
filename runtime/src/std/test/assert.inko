@@ -67,9 +67,7 @@ object PanicTest {
 
 # Asserts that the given arguments are equal to each other.
 def equal!(T: Mirrored + Equal)(given: T, expected: T) -> Nil {
-  (given == expected).if_true {
-    return
-  }
+  (given == expected).if_true { return }
 
   let error = StringBuffer.new(
     'Expected ',
@@ -83,9 +81,7 @@ def equal!(T: Mirrored + Equal)(given: T, expected: T) -> Nil {
 
 # Asserts that the given arguments are not equal to each other.
 def not_equal!(T: Mirrored + Equal)(given: T, expected: T) -> Nil {
-  (given == expected).if_false {
-    return
-  }
+  (given == expected).if_false { return }
 
   let error = StringBuffer.new(
     'Expected ',
@@ -99,9 +95,7 @@ def not_equal!(T: Mirrored + Equal)(given: T, expected: T) -> Nil {
 
 # Asserts that the first argument is greater than the second argument.
 def greater!(T: Mirrored + Greater)(given: T, minimum: T) -> Nil {
-  (given > minimum).if_true {
-    return
-  }
+  (given > minimum).if_true { return }
 
   let error = StringBuffer.new(
     'Expected ',
@@ -125,9 +119,7 @@ def panic(block: lambda) -> Nil {
 
   let result = process.receive as PanicResult
 
-  result.panicked?.if_true {
-    return
-  }
+  result.panicked?.if_true { return }
 
   process.panic('The provided block did not panic')
 }
@@ -144,9 +136,7 @@ def no_panic(block: lambda) -> Nil {
 
   let result = process.receive as PanicResult
 
-  result.panicked?.if_false {
-    return
-  }
+  result.panicked?.if_false { return }
 
   process.panic('The provided block panicked: ' + result.error.to_string)
 }
@@ -156,9 +146,7 @@ def no_panic(block: lambda) -> Nil {
 # Something is considered to be truthy when its implementation of `if_true`
 # calls the supplied block.
 def true!(T: Mirrored + Conditional)(value: T) -> Nil {
-  value.if_true {
-    return
-  }
+  value.if_true { return }
 
   let error =
     StringBuffer.new('Expected ', value.mirror.inspect, ' to be truthy')
@@ -171,9 +159,7 @@ def true!(T: Mirrored + Conditional)(value: T) -> Nil {
 # Something is considered to be falsy when its implementation of `if_false`
 # calls the supplied block.
 def false!(T: Mirrored + Conditional)(value: T) -> Nil {
-  value.if_false {
-    return
-  }
+  value.if_false { return }
 
   let error =
     StringBuffer.new('Expected ', value.mirror.inspect, ' to be falsy')

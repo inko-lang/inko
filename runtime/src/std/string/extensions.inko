@@ -15,14 +15,10 @@ def split_at?(
   separator: ByteArray,
   start: Integer
 ) -> Boolean {
-  (string.bytesize - start < separator.length).if_true {
-    return False
-  }
+  (string.bytesize - start < separator.length).if_true { return False }
 
   separator.each_with_index do (byte, index) {
-    (byte == string.byte(start + index)).if_false {
-      return False
-    }
+    (byte == string.byte(start + index)).if_false { return False }
   }
 
   True
@@ -68,9 +64,7 @@ impl String {
     let mut end_at = index + length
     let max_index = total_bytes
 
-    (end_at > total_bytes).if_true {
-      end_at = total_bytes
-    }
+    (end_at > total_bytes).if_true { end_at = total_bytes }
 
     { index < end_at }.while_true {
       bytes.push(byte(index))
@@ -93,9 +87,7 @@ impl String {
   #
   #     'foo::bar::baz'.split('::') # => Array.new('foo', 'bar', 'baz')
   def split(separator: String) -> Array!(String) {
-    empty?.if_true {
-      return Array.new
-    }
+    empty?.if_true { return Array.new }
 
     separator.empty?.or { separator.length >= length }.if_true {
       return Array.new(self)
@@ -125,9 +117,7 @@ impl String {
         )
     }
 
-    buffer.empty?.if_false {
-      segments.push(buffer.drain_to_string)
-    }
+    buffer.empty?.if_false { segments.push(buffer.drain_to_string) }
 
     segments
   }

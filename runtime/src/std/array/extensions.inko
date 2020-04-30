@@ -63,9 +63,7 @@ impl Array {
     let buffer = StringBuffer.new
 
     each_with_index do (value, index) {
-      index.positive?.if_true {
-        buffer.push(separator)
-      }
+      index.positive?.if_true { buffer.push(separator) }
 
       buffer.push(value.to_string)
     }

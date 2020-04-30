@@ -61,9 +61,7 @@ object SocketAddress {
   #
   # If the address is unnamed or an abstract address, Nil is returned.
   def to_path -> ?Path {
-    unnamed?.or { abstract? }.if_true {
-      return Nil
-    }
+    unnamed?.or { abstract? }.if_true { return Nil }
 
     @address.to_path
   }

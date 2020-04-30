@@ -193,9 +193,7 @@ impl Array {
   #     Array.new(10, 20, 30).contains?(10) # => True
   def contains?(value: T) -> Boolean where T: Equal {
     each do (val) {
-      (val == value).if_true {
-        return True
-      }
+      (val == value).if_true { return True }
     }
 
     False
@@ -312,16 +310,12 @@ impl Equal for Array {
   #
   #     Array.new(10, 20) == Array.new(20, 10) # => False
   def ==(other: Self) -> Boolean where T: Equal {
-    (length == other.length).if_false {
-      return False
-    }
+    (length == other.length).if_false { return False }
 
     each_with_index do (ours: T, index: Integer) {
       let theirs = other[index]!
 
-      (ours == theirs).if_false {
-        return False
-      }
+      (ours == theirs).if_false { return False }
     }
 
     True

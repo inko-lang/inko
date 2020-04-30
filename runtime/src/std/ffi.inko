@@ -334,9 +334,7 @@ object Layout {
   def [](name: String) -> Member {
     let member = @members[name]
 
-    member.if_false {
-      process.panic('Undefined struct member: ' + name)
-    }
+    member.if_false { process.panic('Undefined struct member: ' + name) }
 
     member!
   }
@@ -433,9 +431,7 @@ object LayoutBuilder {
 
   # Creates a new `Layout` based on the current state of this builder.
   def to_layout -> Layout {
-    @padding.if_true {
-      return layout_with_padding
-    }
+    @padding.if_true { return layout_with_padding }
 
     layout_without_padding
   }
@@ -469,9 +465,7 @@ object LayoutBuilder {
       size += type_align
       offset += type_align
 
-      remaining_in_hole.zero?.if_true {
-        remaining_in_hole = @alignment
-      }
+      remaining_in_hole.zero?.if_true { remaining_in_hole = @alignment }
     }
 
     Layout.new(members: members, alignment: @alignment, size: size)
@@ -515,9 +509,7 @@ impl SetIndex!(String, Type) for LayoutBuilder {
     # alignment of the largest field.
     @padding
       .and { type.alignment > @alignment }
-      .if_true {
-        @alignment = type.alignment
-      }
+      .if_true { @alignment = type.alignment }
 
     type
   }

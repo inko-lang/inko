@@ -158,9 +158,7 @@ impl Command for RunTests {
 
           state.formatter.test(finished_test)
 
-          finished_test.passed?.if_false {
-            failed.push(finished_test)
-          }
+          finished_test.passed?.if_false { failed.push(finished_test) }
 
           executed.push(finished_test)
 
@@ -171,9 +169,7 @@ impl Command for RunTests {
 
     let duration = start_time.elapsed
 
-    failed.length.positive?.if_true {
-      state.formatter.failures(failed)
-    }
+    failed.length.positive?.if_true { state.formatter.failures(failed) }
 
     state.formatter.summary(tests: executed, duration: duration)
 
@@ -288,9 +284,7 @@ object Client {
   def wait_for_tests -> Nil {
     let message = process.receive as RunnerFinished
 
-    message.failures?.if_true {
-      vm.exit(FAILURE_EXIT_STATUS)
-    }
+    message.failures?.if_true { vm.exit(FAILURE_EXIT_STATUS) }
 
     Nil
   }

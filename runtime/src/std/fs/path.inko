@@ -187,15 +187,11 @@ object Path {
     let path_str = path.to_string
     let join_with = Path.new(path_str)
 
-    join_with.absolute?.if_true {
-      return join_with
-    }
+    join_with.absolute?.if_true { return join_with }
 
     let buffer = StringBuffer.new(@path)
 
-    @path.ends_with?(SEPARATOR).if_false {
-      buffer.push(SEPARATOR)
-    }
+    @path.ends_with?(SEPARATOR).if_false { buffer.push(SEPARATOR) }
 
     buffer.push(path_str)
 
@@ -223,9 +219,7 @@ object Path {
   def directory -> Path {
     let length = bits.bytes_before_last_separator(@path)
 
-    length.negative?.if_true {
-      return Path.new('.')
-    }
+    length.negative?.if_true { return Path.new('.') }
 
     Path.new(@path.slice_bytes(start: 0, length: length).drain_to_string)
   }

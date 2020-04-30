@@ -242,9 +242,7 @@ trait Iterator!(T) {
   #     numbers.iter.find do (number) { number > 50 } # => 80
   def find(block: do (T) -> Boolean) -> ?T {
     each do (value) {
-      block.call(value).if_true {
-        return value
-      }
+      block.call(value).if_true { return value }
     }
 
     Nil
@@ -262,9 +260,7 @@ trait Iterator!(T) {
   #     Array.new(10, 20, 30).iter.any? do (value) { value >= 20 } # => True
   def any?(block: do (T) -> Boolean) -> Boolean {
     each do (value) {
-      block.call(value).if_true {
-        return True
-      }
+      block.call(value).if_true { return True }
     }
 
     False
@@ -291,9 +287,7 @@ trait Iterator!(T) {
         { next?.and { (found as ?Object).nil? } }.while_true {
           let value = next
 
-          block.call(value).if_true {
-            found = value
-          }
+          block.call(value).if_true { found = value }
         }
 
         (found as ?Object).not_nil?
