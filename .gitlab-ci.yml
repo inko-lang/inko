@@ -24,4 +24,4 @@ include:
   - local: .gitlab/ci/linux.yml
   - local: .gitlab/ci/lints.yml
   - local: .gitlab/ci/releases.yml
-  - template: License-Management.gitlab-ci.yml
+  - template: License-Scanning.gitlab-ci.yml
