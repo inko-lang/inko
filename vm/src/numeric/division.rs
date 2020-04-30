@@ -1,7 +1,5 @@
 //! Floored integer divisions.
-
 use num_bigint::BigInt;
-use num_integer;
 use num_integer::Integer;
 
 pub trait FlooredDiv<RHS = Self> {

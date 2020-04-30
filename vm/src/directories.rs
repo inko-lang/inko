@@ -1,5 +1,4 @@
 //! Module for obtaining paths to directories, such as the home directory.
-use dirs;
 use std::env;
 use std::io;
 

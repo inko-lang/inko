@@ -31,7 +31,7 @@ macro_rules! socket_setter {
 
             Ok(())
         }
-    }
+    };
 }
 
 macro_rules! socket_getter {
@@ -39,7 +39,7 @@ macro_rules! socket_getter {
         pub fn $getter(&self) -> Result<$type, RuntimeError> {
             Ok(self.socket.$getter()?)
         }
-    }
+    };
 }
 
 macro_rules! socket_u32_getter {
@@ -47,7 +47,7 @@ macro_rules! socket_u32_getter {
         pub fn $getter(&self) -> Result<usize, RuntimeError> {
             Ok(self.socket.$getter()? as usize)
         }
-    }
+    };
 }
 
 macro_rules! socket_duration_setter {
@@ -59,7 +59,7 @@ macro_rules! socket_duration_setter {
 
             Ok(())
         }
-    }
+    };
 }
 
 macro_rules! socket_duration_getter {
@@ -69,7 +69,7 @@ macro_rules! socket_duration_getter {
 
             Ok(duration::to_f64(dur))
         }
-    }
+    };
 }
 
 const DOMAIN_IPV4: u8 = 0;

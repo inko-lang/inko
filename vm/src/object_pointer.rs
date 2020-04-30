@@ -39,34 +39,37 @@ use crate::vm::state::RcState;
 
 /// Defines a method for getting the value of an object as a given type.
 macro_rules! def_value_getter {
-    ($name: ident, $getter: ident, $as_type: ident, $ok_type: ty) => (
+    ($name: ident, $getter: ident, $as_type: ident, $ok_type: ty) => {
         pub fn $name(&self) -> Result<$ok_type, String> {
             if self.is_tagged_integer() {
-                Err(format!("ObjectPointer::{}() called on a tagged integer",
-                            stringify!($as_type)))
+                Err(format!(
+                    "ObjectPointer::{}() called on a tagged integer",
+                    stringify!($as_type)
+                ))
             } else {
                 self.$getter().value.$as_type()
             }
         }
-    )
+    };
 }
 
 macro_rules! def_integer_value_getter {
-    ($name: ident, $kind: ident, $error_name: expr) => (
+    ($name: ident, $kind: ident, $error_name: expr) => {
         pub fn $name(&self) -> Result<$kind, String> {
             let int_val = self.integer_value()?;
 
-            if int_val < i64::from($kind::MIN) || int_val > i64::from($kind::MAX) {
+            if int_val < i64::from($kind::MIN)
+                || int_val > i64::from($kind::MAX)
+            {
                 Err(format!(
                     "{} can not be converted to a {}",
-                    int_val,
-                    $error_name
+                    int_val, $error_name
                 ))
             } else {
                 Ok(int_val as $kind)
             }
         }
-    )
+    };
 }
 
 /// The minimum integer value that can be stored as a tagged integer.

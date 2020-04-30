@@ -58,7 +58,6 @@ use libffi::low::{
     call as ffi_call, ffi_abi_FFI_DEFAULT_ABI as ABI, ffi_cif, ffi_type,
     prep_cif, types, CodePtr, Error as FFIError,
 };
-use libloading;
 use std::convert::Into;
 use std::ffi::{CStr, OsStr};
 use std::fmt::{Debug, Display};
