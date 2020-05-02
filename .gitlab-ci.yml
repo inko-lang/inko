@@ -5,7 +5,7 @@ variables:
   AWS_REGION: eu-west-1
   # Ensure Windows builds fail when Powershell detects an error.
   ErrorActionPreference: 'STOP'
-  LICENSE_FINDER_CLI_OPTS: '--aggregate-paths=". vm compiler"'
+  LICENSE_FINDER_CLI_OPTS: '--aggregate-paths=vm compiler'
 
 stages:
   - test
@@ -25,3 +25,13 @@ include:
   - local: .gitlab/ci/lints.yml
   - local: .gitlab/ci/releases.yml
   - template: License-Scanning.gitlab-ci.yml
+
+license_scanning:
+  variables:
+    CARGO_HOME: $HOME/.cargo
+  before_script:
+    - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs |
+      sh -s -- --default-toolchain stable --profile minimal -y
+    - source $CARGO_HOME/env
+    - rustc --version
+    - cargo --version
