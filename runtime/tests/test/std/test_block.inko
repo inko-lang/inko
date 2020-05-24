@@ -16,12 +16,7 @@ def test_loop -> Integer {
 
 test.group('std::block::Block.call') do (g) {
   g.test('Running a Block') {
-    # Without casting the Block to Dynamic, the compiler might optimise the
-    # "call" message, resulting in the underlying "call" method never being
-    # called.
-    let block = { 10 } as Dynamic
-
-    assert.equal(block.call as Integer, 10)
+    assert.equal({ 10 }.call, 10)
   }
 }
 

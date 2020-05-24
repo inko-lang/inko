@@ -70,10 +70,15 @@ module Inkoc
 
         return true if other.dynamic? || self == other
         return true if other.trait? && implements_trait?(other, state)
+
         return compatible_with_type_parameter?(other, state) if other.type_parameter?
 
         if other.generic_object?
           return true if compatible_with_generic_type?(other, state)
+        end
+
+        if other.trait? && state.typedb.object_type.type_compatible?(other, state)
+          return true
         end
 
         prototype_chain_compatible?(other)

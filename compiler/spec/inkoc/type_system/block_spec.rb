@@ -104,15 +104,6 @@ describe Inkoc::TypeSystem::Block do
       end
     end
 
-    context 'when comparing with a dynamic type' do
-      it 'returns true' do
-        block = described_class.new
-        other = Inkoc::TypeSystem::Dynamic.new
-
-        expect(block.type_compatible?(other, state)).to eq(true)
-      end
-    end
-
     context 'when comparing with any other object' do
       it 'returns true if the object is in the prototype chain' do
         object = Inkoc::TypeSystem::Object.new
@@ -686,9 +677,9 @@ describe Inkoc::TypeSystem::Block do
       block = described_class
         .new(name: 'foo', block_type: described_class::METHOD)
 
-      block.define_required_argument('foo', Inkoc::TypeSystem::Dynamic.new)
-      block.define_required_argument('bar', Inkoc::TypeSystem::Dynamic.new)
-      block.define_optional_argument('baz', Inkoc::TypeSystem::Dynamic.new)
+      block.define_required_argument('foo', Inkoc::TypeSystem::Object.new('A'))
+      block.define_required_argument('bar', Inkoc::TypeSystem::Object.new('B'))
+      block.define_optional_argument('baz', Inkoc::TypeSystem::Object.new('C'))
 
       expect(block.argument_count_range).to eq(2..3)
     end

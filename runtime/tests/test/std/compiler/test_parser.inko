@@ -21,7 +21,7 @@ def instance_of(node: Node, instance_of: Node) -> Boolean {
   ObjectMirror.new(node).instance_of?(instance_of)
 }
 
-def assert_instance_of(node: Node, instance_of: Node) -> Nil {
+def assert_instance_of(node: Node, instance_of: Node) {
   assert.true(instance_of(node, instance_of))
 }
 
@@ -41,7 +41,7 @@ def parse_as!(T: Node)(input: ToString, type: T) -> T {
   node as T
 }
 
-def binary_send(operator: String) -> Nil {
+def binary_send(operator: String) {
   let node = parse_as(input: StringBuffer.new('1 ', operator, ' 2'), type: Send)
 
   assert.equal(node.message, operator)
@@ -54,7 +54,7 @@ def binary_send(operator: String) -> Nil {
   assert.equal(arg.value, '2')
 }
 
-def binary_assign_local(operator: String, message: String) -> Nil {
+def binary_assign_local(operator: String, message: String) {
   let input = StringBuffer.new('foo', operator, '10').to_string
   let node = parse_as(input: input, type: Assign)
 
@@ -72,7 +72,7 @@ def binary_assign_local(operator: String, message: String) -> Nil {
   assert.equal((send.arguments[0] as IntegerLiteral).value, '10')
 }
 
-def binary_assign_attribute(operator: String, message: String) -> Nil {
+def binary_assign_attribute(operator: String, message: String) {
   let input = StringBuffer.new('@foo', operator, '10').to_string
   let node = parse_as(input: input, type: Assign)
 

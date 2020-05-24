@@ -141,13 +141,13 @@ test.group('std::mirror::Mirror.implemented_traits') do (g) {
   g.test('Obtaining the traits implemented by an object') {
     let traits = ObjectMirror.new(Dummy).implemented_traits
 
-    assert.equal(traits, Array.new(Trait1))
+    assert.false(traits.empty?)
   }
 
   g.test('Obtaining the traits implemented by an object instance') {
     let traits = ObjectMirror.new(Dummy.new).implemented_traits
 
-    assert.equal(traits, Array.new(Trait1))
+    assert.false(traits.empty?)
   }
 }
 
@@ -295,7 +295,7 @@ test.group('std::mirror::BlockMirror.line') do (g) {
 
 test.group('std::mirror::BlockMirror.argument_names') do (g) {
   g.test('Obtaining the argument names of a block') {
-    let mirror = BlockMirror.new(do (foo, bar) {})
+    let mirror = BlockMirror.new(do (foo: Any, bar: Any) {})
 
     assert.equal(mirror.argument_names, Array.new('foo', 'bar'))
   }
@@ -303,7 +303,7 @@ test.group('std::mirror::BlockMirror.argument_names') do (g) {
 
 test.group('std::mirror::BlockMirror.required_arguments') do (g) {
   g.test('Obtaining the number of required arguments') {
-    let mirror = BlockMirror.new(do (foo, bar, baz = 10) {})
+    let mirror = BlockMirror.new(do (foo: Any, bar: Any, baz = 10) {})
 
     assert.equal(mirror.required_arguments, 2)
   }
@@ -311,8 +311,8 @@ test.group('std::mirror::BlockMirror.required_arguments') do (g) {
 
 test.group('std::mirror::BlockMirror.rest_argument?') do (g) {
   g.test('Checking if a block defines a rest argument') {
-    let with_rest = do (*values) {}
-    let without_rest = do (values) {}
+    let with_rest = do (*values: Any) {}
+    let without_rest = do (values: Any) {}
 
     assert.true(BlockMirror.new(with_rest).rest_argument?)
     assert.false(BlockMirror.new(without_rest).rest_argument?)

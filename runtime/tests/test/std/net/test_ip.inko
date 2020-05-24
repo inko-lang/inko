@@ -1,6 +1,7 @@
 import std::net::ip::(self, Ipv4Address, Ipv6Address)
 import std::test
 import std::test::assert
+import std::process
 
 test.group('std::net::ip.parse') do (g) {
   g.test('Parsing an IPv4 address') {

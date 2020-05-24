@@ -112,7 +112,7 @@ object Process {
 #     import std::process
 #
 #     process.receive(5) # => Nil
-def receive(timeout: ToFloat = 0.0) {
+def receive(timeout: ToFloat = 0.0) -> Any {
   _INKOC.process_receive_message(timeout.to_float)
 }
 
@@ -209,9 +209,8 @@ def blocking!(R)(block: do -> R) -> R {
 #     import std::process
 #
 #     process.suspend(5) # => Nil
-def suspend(minimum: ToFloat = 0.0) -> Nil {
+def suspend(minimum: ToFloat = 0.0) {
   _INKOC.process_suspend_current(minimum.to_float)
-  Nil
 }
 
 # Immediately terminates the current process.
@@ -259,9 +258,8 @@ def terminate -> Never {
 #     }
 #
 #     process.panic('This will run the above panick handler')
-def panicking(block: do (String)) -> Nil {
+def panicking(block: do (String)) {
   _INKOC.process_set_panic_handler(block)
-  Nil
 }
 
 # Defers execution of the provided block, executing it when the block this
@@ -328,9 +326,8 @@ def panicking(block: do (String)) -> Nil {
 #     process.defer {
 #       readme.close
 #     }
-def defer(block: do) -> Nil {
+def defer(block: do) {
   _INKOC.process_add_defer_to_caller(block)
-  Nil
 }
 
 # Pins the current process to the current OS thread, then runs the supplied

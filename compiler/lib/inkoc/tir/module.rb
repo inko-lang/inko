@@ -80,6 +80,10 @@ module Inkoc
       def bytecode_import_path
         File.join(bytecode_directory, bytecode_file)
       end
+
+      def lookup_any_type
+        lookup_global(Config::ANY_TRAIT_CONST)
+      end
     end
   end
 end

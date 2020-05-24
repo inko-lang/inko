@@ -17,7 +17,30 @@ module Inkoc
       end
 
       def on_body(node)
-        process_nodes(node.expressions)
+        impls = []
+
+        node.expressions.each do |expr|
+          next unless expr.object?
+
+          on_object(expr)
+
+          impls.push(add_any_implementation(expr)) if @module.import_bootstrap?
+        end
+
+        node.expressions.concat(impls)
+      end
+
+      def add_any_implementation(node)
+        AST::TraitImplementation.new(
+          AST::TypeName.new(
+            AST::Constant.new(Config::ANY_TRAIT_CONST, node.location),
+            [],
+            node.location
+          ),
+          AST::Constant.new(node.name, node.location),
+          AST::Body.new([], node.location),
+          node.location
+        )
       end
 
       def on_object(node)

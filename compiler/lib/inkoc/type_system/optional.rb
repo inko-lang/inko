@@ -57,6 +57,11 @@ module Inkoc
       end
 
       def type_compatible?(other, state)
+        if other.trait?
+          return state.typedb.nil_type.type_compatible?(other, state) &&
+            type.type_compatible?(other, state)
+        end
+
         if other.optional? || other.type_parameter? || other.dynamic?
           type.type_compatible?(other, state)
         else

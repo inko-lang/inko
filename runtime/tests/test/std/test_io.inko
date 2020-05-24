@@ -38,9 +38,7 @@ impl Write for Writer {
     0
   }
 
-  def flush -> Nil {
-    Nil
-  }
+  def flush {}
 
   def write_string(string: String) -> Integer {
     @buffer.push(string)

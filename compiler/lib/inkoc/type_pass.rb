@@ -40,10 +40,6 @@ module Inkoc
       @constant_resolver.resolve(node, scope)
     end
 
-    def on_dynamic_type(node, _)
-      wrap_optional_type(node, TypeSystem::Dynamic.new)
-    end
-
     def on_never_type(node, _)
       wrap_optional_type(node, TypeSystem::Never.new)
     end
@@ -162,6 +158,10 @@ module Inkoc
 
         trait.add_required_trait(req) unless req.error?
       end
+    end
+
+    def new_any_type
+      @module.lookup_any_type.new_instance
     end
   end
 end

@@ -10,6 +10,12 @@ trait SocketValue {}
 impl SocketValue for ByteArray {}
 impl SocketValue for String {}
 
+# A raw socket.
+#
+# This trait is a marker trait not meant to be used directly. Instead, you
+# should use socket types such as `std::net::socket::Socket`.
+trait Socket {}
+
 # The domain for IPv4 sockets.
 let AF_INET = 0
 
@@ -68,7 +74,7 @@ let SHUTDOWN_BOTH = 2
 #
 # The allowed value `value` differs based on the value passed to `option`.
 def set_socket_option!(T)(
-  socket,
+  socket: Socket,
   option: Integer,
   value: T
 ) !! IoError -> T {
@@ -82,7 +88,7 @@ def set_socket_option!(T)(
 # Retrieves the value of a socket option.
 #
 # The type of the returned value depends on the `option` argument.
-def get_socket_option!(T)(socket, option: Integer) !! IoError -> T {
+def get_socket_option!(T)(socket: Socket, option: Integer) !! IoError -> T {
   try {
     _INKOC.socket_get_option(socket, option) as T
   } else (error) {
@@ -91,7 +97,7 @@ def get_socket_option!(T)(socket, option: Integer) !! IoError -> T {
 }
 
 # Obtains the local or peer address of a socket.
-def address(socket, peer = False) !! IoError -> Array!(Dynamic) {
+def address(socket: Socket, peer = False) !! IoError -> Array!(Any) {
   let kind = peer.if(true: { PEER_ADDRESS }, false: { LOCAL_ADDRESS })
 
   try {
@@ -101,27 +107,23 @@ def address(socket, peer = False) !! IoError -> Array!(Dynamic) {
   }
 }
 
-def bind(socket, address: String, port: Integer) !! IoError -> Nil {
+def bind(socket: Socket, address: String, port: Integer) !! IoError {
   try {
     _INKOC.socket_bind(socket, address, port)
   } else (error) {
     throw IoError.new(error as String)
   }
-
-  Nil
 }
 
-def connect(socket, address: String, port: Integer) !! IoError -> Nil {
+def connect(socket: Socket, address: String, port: Integer) !! IoError {
   try {
     _INKOC.socket_connect(socket, address, port)
   } else (error) {
     throw IoError.new(error as String)
   }
-
-  Nil
 }
 
-def listen(socket, backlog: Integer) !! IoError -> Integer {
+def listen(socket: Socket, backlog: Integer) !! IoError -> Integer {
   try {
     _INKOC.socket_listen(socket, backlog)
   } else (error) {
@@ -130,7 +132,7 @@ def listen(socket, backlog: Integer) !! IoError -> Integer {
 }
 
 def send_to(
-  socket,
+  socket: Socket,
   message: SocketValue,
   address: String,
   port: Integer
@@ -143,10 +145,10 @@ def send_to(
 }
 
 def receive_from(
-  socket,
+  socket: Socket,
   bytes: ByteArray,
   size: Integer
-) !! IoError -> Array!(Dynamic) {
+) !! IoError -> Array!(Any) {
   try {
     _INKOC.socket_receive_from(socket, bytes, size)
   } else (error) {
@@ -155,7 +157,7 @@ def receive_from(
 }
 
 def read_bytes(
-  socket,
+  socket: Socket,
   bytes: ByteArray,
   size: ?Integer = Nil
 ) !! IoError -> Integer {
@@ -166,7 +168,7 @@ def read_bytes(
   }
 }
 
-def write_bytes(socket, bytes: ByteArray) !! IoError -> Integer {
+def write_bytes(socket: Socket, bytes: ByteArray) !! IoError -> Integer {
   try {
     _INKOC.socket_write(socket, bytes)
   } else (error) {
@@ -174,7 +176,7 @@ def write_bytes(socket, bytes: ByteArray) !! IoError -> Integer {
   }
 }
 
-def write_string(socket, string: String) !! IoError -> Integer {
+def write_string(socket: Socket, string: String) !! IoError -> Integer {
   try {
     _INKOC.socket_write(socket, string)
   } else (error) {
@@ -182,11 +184,11 @@ def write_string(socket, string: String) !! IoError -> Integer {
   }
 }
 
-def close(socket) -> Nil {
+def close(socket: Socket) {
   _INKOC.drop(socket)
 }
 
-def to_stream(socket, prototype) {
+def to_stream(socket: Socket, prototype: Any) -> Any {
   let stream = _INKOC.set_object(False, prototype)
 
   # Currently Inko does not support multiple constructors (e.g. via overloading)
@@ -197,7 +199,7 @@ def to_stream(socket, prototype) {
   stream
 }
 
-def shutdown_read(socket) !! IoError -> Nil {
+def shutdown_read(socket: Socket) !! IoError {
   try {
     _INKOC.socket_shutdown(socket, SHUTDOWN_READ)
   } else (error) {
@@ -205,7 +207,7 @@ def shutdown_read(socket) !! IoError -> Nil {
   }
 }
 
-def shutdown_write(socket) !! IoError -> Nil {
+def shutdown_write(socket: Socket) !! IoError {
   try {
     _INKOC.socket_shutdown(socket, SHUTDOWN_WRITE)
   } else (error) {
@@ -213,7 +215,7 @@ def shutdown_write(socket) !! IoError -> Nil {
   }
 }
 
-def shutdown(socket) !! IoError -> Nil {
+def shutdown(socket: Socket) !! IoError {
   try {
     _INKOC.socket_shutdown(socket, SHUTDOWN_BOTH)
   } else (error) {
