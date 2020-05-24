@@ -24,10 +24,6 @@ module Inkoc
         name == Config::SELF_TYPE
       end
 
-      def dynamic_type?
-        name == Config::DYNAMIC_TYPE
-      end
-
       def never_type?
         name == Config::NEVER_TYPE
       end

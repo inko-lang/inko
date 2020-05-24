@@ -1195,7 +1195,7 @@ object Parser {
     True
   }
 
-  def require_token_type(token: Token, expected: String) !! ParseError -> Nil {
+  def require_token_type(token: Token, expected: String) !! ParseError {
     (token.type == expected).if_true {
       return
     }
@@ -1317,23 +1317,19 @@ object Parser {
     values
   }
 
-  def greedy_list(stop: String, block: do !! ParseError) !! ParseError -> Nil {
+  def greedy_list(stop: String, block: do !! ParseError) !! ParseError {
     try list(stop: stop, block: block)
     try token_of_type(stop)
-
-    Nil
   }
 
-  def list(stop: String, block: do !! ParseError) !! ParseError -> Nil {
+  def list(stop: String, block: do !! ParseError) !! ParseError {
     { peek_token.type == stop }.while_false {
       try block.call
       try list_separator_or_terminal(stop)
     }
-
-    Nil
   }
 
-  def list_separator_or_terminal(type: String) !! ParseError -> Nil {
+  def list_separator_or_terminal(type: String) !! ParseError {
     let peeked = peek_token
 
     (peeked.type == 'comma').if_true {

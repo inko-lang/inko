@@ -32,11 +32,12 @@ module Inkoc
         )
       end
 
-      def self.lambda(prototype)
+      def self.lambda(prototype, return_type: nil)
         new(
           name: Config::LAMBDA_TYPE_NAME,
           prototype: prototype,
-          block_type: LAMBDA
+          block_type: LAMBDA,
+          return_type: return_type
         )
       end
 

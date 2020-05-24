@@ -582,7 +582,7 @@ module Inkoc
       end
 
       def local_exists(symbol, body, location)
-        register = body.register(TypeSystem::Dynamic.new)
+        register = body.register(typedb.boolean_type.new_instance)
 
         body.instruct(:LocalExists, register, symbol, location)
       end
@@ -1633,8 +1633,9 @@ module Inkoc
       )
         block_reg = body.register(block_type)
         ret_reg = body.register(return_type)
-        args_reg = body
-          .register(typedb.new_array_of_type(TypeSystem::Dynamic.new))
+        args_reg = body.register(
+          typedb.new_array_of_type(@module.lookup_any_type.new_instance)
+        )
 
         name_reg = set_string(name, body, loc)
         alt_name_reg = set_string(Config::UNKNOWN_MESSAGE_MESSAGE, body, loc)

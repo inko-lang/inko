@@ -77,13 +77,6 @@ describe Inkoc::TypeSystem::TypeParameter do
       expect(ours.type_compatible?(trait, state)).to eq(true)
     end
 
-    it 'returns true when comparing with a dynamic type' do
-      ours = described_class.new(name: 'A')
-      theirs = Inkoc::TypeSystem::Dynamic.new
-
-      expect(ours.type_compatible?(theirs, state)).to eq(true)
-    end
-
     it 'returns false when we are not compatible with another type' do
       ours = described_class.new(name: 'A')
       theirs = Inkoc::TypeSystem::Object.new

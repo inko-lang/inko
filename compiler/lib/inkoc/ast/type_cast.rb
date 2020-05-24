@@ -18,6 +18,10 @@ module Inkoc
       def visitor_method
         :on_type_cast
       end
+
+      def cast?
+        true
+      end
     end
   end
 end

@@ -83,10 +83,6 @@ module Inkoc
         false
       end
 
-      def dynamic_type?
-        false
-      end
-
       def never_type?
         false
       end
@@ -120,6 +116,10 @@ module Inkoc
       end
 
       def trait_implementation?
+        false
+      end
+
+      def cast?
         false
       end
     end

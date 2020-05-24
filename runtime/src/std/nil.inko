@@ -105,9 +105,7 @@ impl UnknownMessage for NilType {
   # Sending a message to `Nil` produces another `Nil`:
   #
   #     Nil.hello # => Nil
-  def unknown_message(name: String, *arguments) -> Nil {
-    Nil
-  }
+  def unknown_message(name: String, *arguments: Any) {}
 }
 
 impl Optional for NilType {}

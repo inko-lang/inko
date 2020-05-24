@@ -20,6 +20,12 @@ let CREATED_AT = 0
 let MODIFIED_AT = 1
 let ACCESSED_AT = 2
 
+# A raw file.
+#
+# This trait is a marker trait not meant to be used directly. Instead, you
+# should use file types such as `std::fs::file::ReadOnlyFile`.
+trait File {}
+
 # Opens a file in the given mode, returning a raw file object.
 def open!(T)(type: T, path: String, mode: Integer) !! IOError -> T {
   process.blocking {
@@ -54,7 +60,7 @@ def size(path: String) !! IOError -> Integer {
 }
 
 # Removes the file for the given path.
-def remove(path: String) !! IOError -> Nil {
+def remove(path: String) !! IOError {
   process.blocking {
     try _INKOC.file_remove(path) else (err) throw IOError.new(err as String)
   }
@@ -112,7 +118,7 @@ def accessed_at(path: String) !! IOError -> SystemTime {
 
 # Reads a number of bytes from a file into the buffer.
 def read_bytes(
-  file,
+  file: File,
   bytes: ByteArray,
   size: ?Integer = Nil,
 ) !! IOError -> Integer {
@@ -126,7 +132,7 @@ def read_bytes(
 }
 
 # Writes a String to a raw file.
-def write_string(file, data: String) !! IOError -> Integer {
+def write_string(file: File, data: String) !! IOError -> Integer {
   process.blocking {
     try {
       _INKOC.file_write(file, data)
@@ -137,7 +143,7 @@ def write_string(file, data: String) !! IOError -> Integer {
 }
 
 # Writes a `ByteArray` to a raw file object.
-def write_bytes(file, bytes: ByteArray) !! IOError -> Integer {
+def write_bytes(file: File, bytes: ByteArray) !! IOError -> Integer {
   process.blocking {
     try {
       _INKOC.file_write(file, bytes)
@@ -148,14 +154,14 @@ def write_bytes(file, bytes: ByteArray) !! IOError -> Integer {
 }
 
 # Flushes the contents of a file to disk.
-def flush(file) !! IOError -> Nil {
+def flush(file: File) !! IOError {
   process.blocking {
     try _INKOC.file_flush(file) else (err) throw IOError.new(err as String)
   }
 }
 
 # Seeks to a given position.
-def seek(file, position: Integer) !! IOError -> Integer {
+def seek(file: File, position: Integer) !! IOError -> Integer {
   process.blocking {
     try {
       _INKOC.file_seek(file, position)

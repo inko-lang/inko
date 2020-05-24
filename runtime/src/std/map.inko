@@ -124,9 +124,9 @@ object Pair!(K: Hash + Equal, V) {
 
 # An unordered hash map using linear probing and Robin Hood bucket stealing.
 #
-# The keys in a `Map` can be any object that implements the `Hash` and
-# `Equal` traits. The values can be of any type. It's possible to store keys
-# (or values) of different types but this will require the use of `Dynamic`.
+# The keys in a `Map` can be any object that implements the `Hash` and `Equal`
+# traits. The values can be of any type. It's possible to store keys (or values)
+# of different types but this will require the use of the `Any` trait.
 #
 # A `Map` is unordered, meaning that keys can be returned in a (seemingly)
 # random order.
@@ -366,7 +366,7 @@ object Map!(K: Hash + Equal, V) {
   }
 
   # Resizes and rehashes `self`.
-  def rehash -> Nil {
+  def rehash {
     let old_buckets = @buckets
 
     @capacity = @capacity * 2
@@ -380,8 +380,6 @@ object Map!(K: Hash + Equal, V) {
         rehash_pair(pair!)
       }
     }
-
-    Nil
   }
 
   # Hashes the supplied key using the internal hasher of this `Map`.
@@ -397,7 +395,7 @@ object Map!(K: Hash + Equal, V) {
   #
   # The `Pair` to insert must be pre-hashed using the `Hasher` used internally
   # by this `Map`, otherwise it might not be retrieved later.
-  def insert_pair(mut pair: Pair!(K, V)) -> Nil {
+  def insert_pair(mut pair: Pair!(K, V)) {
     let mut index = desired_bucket(pair.hash)
 
     {
@@ -427,7 +425,7 @@ object Map!(K: Hash + Equal, V) {
   }
 
   # Rehashes an existing pair into the list of buckets.
-  def rehash_pair(mut pair: Pair!(K, V)) -> Nil {
+  def rehash_pair(mut pair: Pair!(K, V)) {
     let mut index = desired_bucket(pair.hash)
 
     {
@@ -486,7 +484,7 @@ object Map!(K: Hash + Equal, V) {
   }
 
   # Shifts all pairs to the left starting at the given bucket index.
-  def backwards_shift(mut index: Integer) -> Nil {
+  def backwards_shift(mut index: Integer) {
     let mut pair = @buckets[index]
 
     { pair.and { pair!.distance.positive? } }.while_true {
@@ -498,8 +496,6 @@ object Map!(K: Hash + Equal, V) {
       index += 1
       pair = @buckets[index]
     }
-
-    Nil
   }
 }
 

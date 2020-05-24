@@ -40,14 +40,16 @@ module Inkoc
       end
 
       def throw_type
-        if expression.throw?
-          expression.type
-        elsif expression.send?
-          expression.block_type&.throw_type
-        elsif expression.identifier?
+        compare_with = expression.cast? ? expression.expression : expression
+
+        if compare_with.throw?
+          compare_with.type
+        elsif compare_with.send?
+          compare_with.block_type&.throw_type
+        elsif compare_with.identifier?
           # The identifier might be a local variable, in which case "block_type"
           # is not set.
-          expression.block_type&.throw_type
+          compare_with.block_type&.throw_type
         end
       end
     end

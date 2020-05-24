@@ -42,10 +42,10 @@ module Inkoc
     BYTE_ARRAY_CONST = 'ByteArray'
     ARRAY_TYPE_PARAMETER = 'T'
     OPTIONAL_CONST = 'Optional'
+    ANY_TRAIT_CONST = 'Any'
 
     MODULE_TYPE = 'Module'
     SELF_TYPE = 'Self'
-    DYNAMIC_TYPE = 'Dynamic'
     NEVER_TYPE = 'Never'
     MODULES_ATTRIBUTE = 'Modules'
 
@@ -78,7 +78,6 @@ module Inkoc
         RAW_INSTRUCTION_RECEIVER,
         SELF_TYPE,
         NEVER_TYPE,
-        DYNAMIC_TYPE
       ]
     ).freeze
 

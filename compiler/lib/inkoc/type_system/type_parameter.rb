@@ -71,7 +71,8 @@ module Inkoc
         elsif other.type_parameter?
           compatible_with_type_parameter?(other, state)
         elsif other.trait?
-          compatible_with_trait?(other, state)
+          compatible_with_trait?(other, state) ||
+            state.typedb.object_type.type_compatible?(other, state)
         else
           compatible_with_object?(other)
         end

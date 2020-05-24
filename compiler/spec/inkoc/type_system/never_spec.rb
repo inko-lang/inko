@@ -8,12 +8,6 @@ describe Inkoc::TypeSystem::Never do
   describe '#type_compatible?' do
     let(:ours) { described_class.new }
 
-    it 'returns true when comparing with a dynamic type' do
-      theirs = Inkoc::TypeSystem::Dynamic.new
-
-      expect(ours.type_compatible?(theirs, state)).to eq(true)
-    end
-
     it 'returns true when comparing with another never type' do
       theirs = described_class.new
 
@@ -28,12 +22,6 @@ describe Inkoc::TypeSystem::Never do
 
     it 'returns true when comparing with an optional never type' do
       theirs = Inkoc::TypeSystem::Optional.new(described_class.new)
-
-      expect(ours.type_compatible?(theirs, state)).to eq(true)
-    end
-
-    it 'returns true when comparing with an optional dynamic type' do
-      theirs = Inkoc::TypeSystem::Optional.new(Inkoc::TypeSystem::Dynamic.new)
 
       expect(ours.type_compatible?(theirs, state)).to eq(true)
     end

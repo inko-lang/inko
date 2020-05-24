@@ -11,7 +11,7 @@ import std::test
 import std::test::assert
 import test::fixtures
 
-def with_path(block: do (Path)) -> Nil {
+def with_path(block: do (Path)) {
   let path = fixtures.temporary_file_path
 
   process.defer {
@@ -19,10 +19,9 @@ def with_path(block: do (Path)) -> Nil {
   }
 
   block.call(path)
-  Nil
 }
 
-def with_paths(block: do (Path, Path)) -> Nil {
+def with_paths(block: do (Path, Path)) {
   let path1 = fixtures.temporary_file_path
   let path2 = (path1.to_string + '2').to_path
 
@@ -32,7 +31,6 @@ def with_paths(block: do (Path, Path)) -> Nil {
   }
 
   block.call(path1, path2)
-  Nil
 }
 
 def abstract_socket_address -> String {
@@ -385,7 +383,7 @@ os.unix?.if_true {
 
       try! socket.receive_buffer_size = 256
 
-      assert.true(try! socket.receive_buffer_size >= 256)
+      assert.true(try! { socket.receive_buffer_size } >= 256)
     }
   }
 
@@ -395,7 +393,7 @@ os.unix?.if_true {
 
       try! socket.send_buffer_size = 256
 
-      assert.true(try! socket.send_buffer_size >= 256)
+      assert.true(try! { socket.send_buffer_size } >= 256)
     }
   }
 

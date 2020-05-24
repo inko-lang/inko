@@ -61,6 +61,8 @@ module Inkoc
 
         if node.returns
           type.return_type = define_type_instance(node.returns, scope)
+        else
+          type.return_type = new_any_type
         end
 
         if node.throws
@@ -121,21 +123,13 @@ module Inkoc
       def on_send(node, scope)
         node.receiver_type = source = type_of_receiver(node, scope)
 
-        if source.dynamic?
-          send_to_dynamic_type(node, scope)
-        elsif source.error?
+        if source.error?
           source
         elsif source.optional?
           send_to_optional_type(node, source, scope)
         else
           send_to_known_type(node, source, scope)
         end
-      end
-
-      def send_to_dynamic_type(node, scope)
-        define_types(node.arguments, scope)
-
-        TypeSystem::Dynamic.new
       end
 
       def send_to_optional_type(node, source, scope)
@@ -436,7 +430,7 @@ module Inkoc
 
       def on_try_with_else(node, scope)
         try_type = node.expression.type
-        throw_type = node.throw_type || TypeSystem::Dynamic.new
+        throw_type = node.throw_type || new_any_type
 
         node.else_block_type = TypeSystem::Block.new(
           name: Config::ELSE_BLOCK_NAME,
@@ -516,7 +510,8 @@ module Inkoc
           )
         end
 
-        block_type = TypeSystem::Block.closure(typedb.block_type)
+        block_type = TypeSystem::Block
+          .closure(typedb.block_type, return_type: new_any_type)
 
         new_scope = TypeScope
           .new(type, block_type, @module, locals: node.body.locals)
@@ -539,7 +534,9 @@ module Inkoc
         # implementation. This ensures that a Self type refers to the type
         # that the trait is implemented for, instead of referring to the type of
         # the outer scope.
-        impl_block = TypeSystem::Block.closure(typedb.block_type)
+        impl_block = TypeSystem::Block
+          .closure(typedb.block_type, return_type: new_any_type)
+
         impl_scope = TypeScope
           .new(object, impl_block, @module, locals: node.body.locals)
 
@@ -654,7 +651,9 @@ module Inkoc
       end
 
       def on_block(node, scope, expected_block = nil)
-        block_type = TypeSystem::Block.closure(typedb.block_type)
+        block_type = TypeSystem::Block
+          .closure(typedb.block_type, return_type: new_any_type)
+
         locals = node.body.locals
 
         new_scope = TypeScope.new(
@@ -672,7 +671,9 @@ module Inkoc
       end
 
       def on_lambda(node, scope, expected_block = nil)
-        block_type = TypeSystem::Block.lambda(typedb.block_type)
+        block_type = TypeSystem::Block
+          .lambda(typedb.block_type, return_type: new_any_type)
+
         new_scope = TypeScope.new(
           @module.type,
           block_type,
@@ -901,7 +902,7 @@ module Inkoc
         if name.string?
           object.lookup_attribute(name.value).type
         else
-          TypeSystem::Dynamic.new
+          new_any_type
         end
       end
       alias on_raw_get_attribute_in_self on_raw_get_attribute
@@ -1085,7 +1086,7 @@ module Inkoc
       end
 
       def on_raw_run_block(*)
-        TypeSystem::Dynamic.new
+        new_any_type
       end
 
       def on_raw_get_string_prototype(*)
@@ -1144,7 +1145,7 @@ module Inkoc
       end
 
       def on_raw_time_system(*)
-        typedb.new_array_of_type(TypeSystem::Dynamic.new)
+        typedb.new_array_of_type(new_any_type)
       end
 
       def on_raw_string_to_upper(*)
@@ -1156,7 +1157,7 @@ module Inkoc
       end
 
       def on_raw_string_to_byte_array(*)
-        TypeSystem::Dynamic.new
+        typedb.byte_array_type.new_instance
       end
 
       def on_raw_string_size(*)
@@ -1199,8 +1200,8 @@ module Inkoc
         node.arguments.fetch(1).type
       end
 
-      def on_raw_process_receive_message(*)
-        TypeSystem::Dynamic.new
+      def on_raw_process_receive_message(node, *)
+        new_any_type
       end
 
       def on_raw_process_current(node, _)
@@ -1222,7 +1223,7 @@ module Inkoc
         if name.string?
           object.lookup_attribute(name.value).type
         else
-          TypeSystem::Dynamic.new
+          new_any_type
         end
       end
 
@@ -1231,7 +1232,7 @@ module Inkoc
       end
 
       def on_raw_get_attribute_names(*)
-        typedb.new_array_of_type(typedb.string_type.new_instance)
+        new_any_type
       end
 
       def on_raw_attribute_exists(*)
@@ -1283,7 +1284,7 @@ module Inkoc
       end
 
       def on_raw_file_time(*)
-        typedb.new_array_of_type(TypeSystem::Dynamic.new)
+        typedb.new_array_of_type(new_any_type)
       end
 
       def on_raw_directory_create(*)
@@ -1335,13 +1336,13 @@ module Inkoc
       end
 
       def on_raw_stacktrace(*)
-        tuple = typedb.new_array_of_type(TypeSystem::Dynamic.new)
+        tuple = typedb.new_array_of_type(new_any_type)
 
         typedb.new_array_of_type(tuple)
       end
 
       def on_raw_block_metadata(*)
-        TypeSystem::Dynamic.new
+        new_any_type
       end
 
       def on_raw_string_format_debug(*)
@@ -1441,11 +1442,11 @@ module Inkoc
       end
 
       def on_raw_process_add_defer_to_caller(*)
-        TypeSystem::Block.closure(typedb.block_type)
+        TypeSystem::Block.closure(typedb.block_type, return_type: new_any_type)
       end
 
       def on_raw_set_default_panic_handler(*)
-        TypeSystem::Block.lambda(typedb.block_type)
+        TypeSystem::Block.lambda(typedb.block_type, return_type: new_any_type)
       end
 
       def on_raw_process_pin_thread(*)
@@ -1469,7 +1470,7 @@ module Inkoc
       end
 
       def on_raw_function_call(*)
-        TypeSystem::Dynamic.new
+        new_any_type
       end
 
       def on_raw_pointer_attach(node, _)
@@ -1477,11 +1478,11 @@ module Inkoc
       end
 
       def on_raw_pointer_read(*)
-        TypeSystem::Dynamic.new
+        new_any_type
       end
 
       def on_raw_pointer_write(*)
-        TypeSystem::Dynamic.new
+        new_any_type
       end
 
       def on_raw_pointer_from_address(node, _)
@@ -1529,7 +1530,7 @@ module Inkoc
       end
 
       def on_raw_socket_receive_from(*)
-        typedb.new_array_of_type(TypeSystem::Dynamic.new)
+        typedb.new_array_of_type(new_any_type)
       end
 
       def on_raw_socket_send_to(*)
@@ -1537,15 +1538,15 @@ module Inkoc
       end
 
       def on_raw_socket_address(*)
-        typedb.new_array_of_type(TypeSystem::Dynamic.new)
+        typedb.new_array_of_type(new_any_type)
       end
 
       def on_raw_socket_get_option(*)
-        TypeSystem::Dynamic.new
+        new_any_type
       end
 
       def on_raw_socket_set_option(*)
-        TypeSystem::Dynamic.new
+        new_any_type
       end
 
       def on_raw_socket_bind(*)
@@ -1565,11 +1566,11 @@ module Inkoc
       end
 
       def on_raw_random_number(*)
-        TypeSystem::Dynamic.new
+        new_any_type
       end
 
       def on_raw_random_range(*)
-        TypeSystem::Dynamic.new
+        new_any_type
       end
 
       def on_raw_random_bytes(*)
@@ -1687,14 +1688,15 @@ module Inkoc
       end
 
       def define_return_type(node, scope)
-        return unless node.returns
-
-        scope.block_type.infer_return_type = false
-
-        node.returns.late_binding = true
-
         scope.block_type.return_type =
-          define_type_instance(node.returns, scope)
+          if node.returns
+            scope.block_type.infer_return_type = false
+            node.returns.late_binding = true
+
+            define_type_instance(node.returns, scope)
+          else
+            new_any_type
+          end
       end
 
       # Returns the type of an argument's default value, if any.
@@ -1708,10 +1710,6 @@ module Inkoc
       end
 
       # Determines which type to use for an argument.
-      #
-      # Given the explicitly defined type (if any) and the type of the default
-      # value (if any) this method will determine which of the two should be
-      # used. If neither are given the Dynamic type is used.
       #
       # rubocop: disable Metrics/CyclomaticComplexity
       # rubocop: disable Metrics/PerceivedComplexity
@@ -1735,7 +1733,12 @@ module Inkoc
           elsif value_type
             value_type
           else
-            default_type || TypeSystem::Dynamic.new
+            if default_type
+              default_type
+            else
+              diagnostics.argument_type_missing(node.location)
+              TypeSystem::Error.new
+            end
           end
 
         type.remap_using_method_bounds(block_type)

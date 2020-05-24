@@ -59,14 +59,6 @@ describe Inkoc::TypeSystem::Trait do
     let(:ours) { described_class.new }
     let(:state) { Inkoc::State.new(Inkoc::Config.new) }
 
-    context 'when comparing with a Dynamic' do
-      it 'returns true' do
-        dynamic = Inkoc::TypeSystem::Dynamic.new
-
-        expect(ours.type_compatible?(dynamic, state)).to eq(true)
-      end
-    end
-
     context 'when comparing with the trait itself' do
       it 'returns true' do
         expect(ours.type_compatible?(ours, state)).to eq(true)

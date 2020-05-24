@@ -57,11 +57,9 @@ impl Equal for Pair {
 }
 
 impl Hash for Pair {
-  def hash(hasher: Hasher) -> Nil where A: Hash, B: Hash {
+  def hash(hasher: Hasher) where A: Hash, B: Hash {
     @first.hash(hasher)
     @second.hash(hasher)
-
-    Nil
   }
 }
 
@@ -137,11 +135,9 @@ impl Equal for Triple {
 }
 
 impl Hash for Triple {
-  def hash(hasher: Hasher) -> Nil where A: Hash, B: Hash, C: Hash {
+  def hash(hasher: Hasher) where A: Hash, B: Hash, C: Hash {
     @first.hash(hasher)
     @second.hash(hasher)
     @third.hash(hasher)
-
-    Nil
   }
 }

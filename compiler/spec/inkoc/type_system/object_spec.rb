@@ -12,15 +12,6 @@ describe Inkoc::TypeSystem::Object do
   end
 
   describe '#type_compatible?' do
-    context 'when comparing with a Dynamic' do
-      it 'returns true' do
-        ours = described_class.new
-        theirs = Inkoc::TypeSystem::Dynamic.new
-
-        expect(ours.type_compatible?(theirs, state)).to eq(true)
-      end
-    end
-
     context 'when comparing with an Optional' do
       it 'returns true if we are compatible with the wrapped type' do
         proto = described_class.new
