@@ -1,7 +1,8 @@
 import std::conversion::ToString
 import std::fs::path::Path
 import std::fs::bits::(
-  self, APPEND_ONLY, MODIFIED_AT, READ_APPEND, READ_ONLY, READ_WRITE, WRITE_ONLY
+  self, APPEND_ONLY, MODIFIED_AT, READ_APPEND, READ_ONLY, READ_WRITE,
+  WRITE_ONLY, File as RawFile
 )
 import std::process
 import std::test
@@ -12,7 +13,9 @@ import test::fixtures::(self, INVALID_TIME, INVALID_DIRECTORY, INVALID_FILE)
 
 object DummyFile {}
 
-def remove(path: ToString) -> Nil {
+impl RawFile for DummyFile {}
+
+def remove(path: ToString) {
   try bits.remove(path.to_string) else Nil
 }
 

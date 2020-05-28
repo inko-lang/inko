@@ -110,11 +110,11 @@ def group(name: String, body: do (TestGroup)) -> TestGroup {
 }
 
 # Sets a configuration option of the default `Client` to the given value.
-def configure!(T)(option: String, value: T) -> T {
+def configure!(T: Any)(option: String, value: T) -> T {
   DEFAULT_CLIENT.configure(option, value)
 }
 
 # Runs all the tests registered with the default `Client`.
-def run -> Nil {
+def run {
   DEFAULT_CLIENT.run
 }

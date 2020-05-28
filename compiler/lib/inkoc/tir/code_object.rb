@@ -94,10 +94,6 @@ module Inkoc
         @registers.allocate(type)
       end
 
-      def register_dynamic
-        register(TypeSystem::Dynamic.new)
-      end
-
       def instruct(*args)
         instruction = current_block.instruct(*args)
         instruction.register

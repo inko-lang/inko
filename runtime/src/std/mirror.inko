@@ -154,7 +154,7 @@ trait Mirror: Format {
   #
   #     mirror.set_attribute('name', 'Alice')
   #     mirror.get_attribute('name') # => 'Alice'
-  def get_attribute(name: String) {
+  def get_attribute(name: String) -> Any {
     _INKOC.get_attribute(subject, name)
   }
 
@@ -179,7 +179,7 @@ trait Mirror: Format {
   #
   #     mirror.attributes # => Array.new('@name')
   def attributes -> Array!(String) {
-    _INKOC.get_attribute_names(subject)
+    _INKOC.get_attribute_names(subject) as Array!(String)
   }
 
   # Returns `True` if the subject is an instance of the given object.
@@ -265,7 +265,7 @@ trait Mirror: Format {
 
     impl_set.if_false { return Array.new }
 
-    _INKOC.get_attribute_names(impl_set) as Dynamic as Array!(Trait)
+    _INKOC.get_attribute_names(impl_set) as Array!(Trait)
   }
 
   # Returns the names of all instance attributes defined directly on the

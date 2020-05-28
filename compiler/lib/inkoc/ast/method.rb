@@ -7,10 +7,10 @@ module Inkoc
       include Predicates
       include Inspect
 
-      attr_reader :name, :arguments, :type_parameters, :returns, :throws,
-                  :method_bounds, :body, :location
+      attr_reader :name, :arguments, :type_parameters, :throws, :method_bounds,
+                  :body, :location
 
-      attr_accessor :static
+      attr_accessor :static, :returns
 
       # name - The name of the method.
       # args - The arguments of the method.

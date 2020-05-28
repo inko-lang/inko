@@ -306,7 +306,7 @@ test.group('std::net::socket::Socket.linger') do (g) {
 
     try! socket.linger = 5
 
-    assert.equal(try! socket.linger.as_seconds.to_integer, 5)
+    assert.equal(try! { socket.linger }.as_seconds.to_integer, 5)
   }
 }
 
@@ -316,7 +316,7 @@ test.group('std::net::socket::Socket.receive_buffer_size') do (g) {
 
     try! socket.receive_buffer_size = 256
 
-    assert.true(try! socket.receive_buffer_size >= 256)
+    assert.true(try! { socket.receive_buffer_size } >= 256)
   }
 }
 
@@ -326,7 +326,7 @@ test.group('std::net::socket::Socket.send_buffer_size') do (g) {
 
     try! socket.send_buffer_size = 256
 
-    assert.true(try! socket.send_buffer_size >= 256)
+    assert.true(try! { socket.send_buffer_size } >= 256)
   }
 }
 
@@ -339,7 +339,7 @@ os.windows?.if_false {
 
       try! socket.keepalive = 5
 
-      assert.equal(try! socket.keepalive.as_seconds.to_integer, 5)
+      assert.equal(try! { socket.keepalive }.as_seconds.to_integer, 5)
     }
   }
 }
@@ -390,7 +390,10 @@ test.group('std::net::socket::Socket.ipv4_multicast_interface') do (g) {
 
     try! socket.ipv4_multicast_interface = '127.0.0.1'
 
-    assert.equal(try! socket.ipv4_multicast_interface.to_string, '127.0.0.1')
+    assert.equal(
+      try! { socket.ipv4_multicast_interface }.to_string,
+      '127.0.0.1'
+    )
   }
 }
 

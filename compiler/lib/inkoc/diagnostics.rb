@@ -392,5 +392,12 @@ module Inkoc
         location
       )
     end
+
+    def argument_type_missing(location)
+      error(
+        'You must provide an explicit type or default value for this argument',
+        location
+      )
+    end
   end
 end

@@ -774,7 +774,7 @@ object Lexer {
   }
 
   # Consumes any whitespace, until reaching the first non-whitespace character.
-  def consume_whitespace -> Nil {
+  def consume_whitespace {
     whitespace?.if_false {
       return
     }
@@ -790,19 +790,15 @@ object Lexer {
     consume_whitespace
   }
 
-  def advance_line -> Nil {
+  def advance_line {
     @position += 1
     @column = 1
     @line += 1
-
-    Nil
   }
 
-  def advance_one_byte -> Nil {
+  def advance_one_byte {
     @position += 1
     @column += 1
-
-    Nil
   }
 
   def slice_string(start: Integer, stop: Integer) -> String {

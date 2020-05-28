@@ -81,14 +81,6 @@ describe Inkoc::TypeSystem::Optional do
       expect(ours.type_compatible?(theirs, state)).to eq(false)
     end
 
-    it 'returns true when passing to a dynamic type' do
-      type = Inkoc::TypeSystem::Object.new
-      ours = described_class.new(type)
-      theirs = Inkoc::TypeSystem::Dynamic.new
-
-      expect(ours.type_compatible?(theirs, state)).to eq(true)
-    end
-
     it 'returns true when passing to a type parameter' do
       type = Inkoc::TypeSystem::Object.new
       ours = described_class.new(type)

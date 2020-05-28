@@ -137,7 +137,7 @@ object Pointer {
   # The `type` argument specifies the `Type` of data that is being read. The
   # `offset` argument can be used to specify an offset in bytes (relative to
   # the pointer) to read from.
-  def read(type: Type, offset = 0) {
+  def read(type: Type, offset = 0) -> Any {
     _INKOC.pointer_read(Pointer, self, type.to_integer, offset)
   }
 
@@ -181,7 +181,7 @@ object Library {
 
 impl Close for Library {
   # Disposes of the current library.
-  def close -> Nil {
+  def close {
     _INKOC.drop(self)
   }
 }
@@ -241,7 +241,7 @@ object Function {
   # Calls the function with the given arguments.
   #
   # This method will panic if any of the arguments are invalid.
-  def call(*arguments) {
+  def call(*arguments: Any) -> Any {
     _INKOC.function_call(self, arguments, Pointer)
   }
 }
@@ -371,7 +371,7 @@ object Struct {
   # Reads the value of the given struct member.
   #
   # This method will panic if the given member does not exist.
-  def [](name: String) {
+  def [](name: String) -> Any {
     let member = @layout[name]
 
     @pointer.read(type: member.type, offset: member.offset)
@@ -422,11 +422,9 @@ object LayoutBuilder {
   }
 
   # Disables the padding of members.
-  def disable_padding -> Nil {
+  def disable_padding {
     @padding = False
     @alignment = 1
-
-    Nil
   }
 
   # Creates a new `Layout` based on the current state of this builder.

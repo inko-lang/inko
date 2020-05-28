@@ -95,30 +95,8 @@
 #       'Hello'
 #     }
 #
-# Unlike closures the argument, return, and throw types of methods _are not_
-# inferred. Argument and return types default to `Dynamic`, the throw type is
-# not set unless specified explicitly.
-#
-# By defaulting argument and return types to `Dynamic` you can write dynamic
-# methods without having to explicitly annotate types as `Dynamic`. This means
-# that the following code is perfectly valid:
-#
-#     def number_or_string(number) {
-#       (number > 0).if(true: { 'Hello!' }, false: { 42 })
-#     }
-#
-#     number_or_string(10) # => 'Hello'
-#     number_or_string(-5) # => 42
-#
-# If we don't want `Dynamic` types we can instead explicitly specify the types
-# we want instead:
-#
-#     def only_numbers(number: Integer) -> Integer {
-#       (number > 0).if(true: { number }, false: { 42 })
-#     }
-#
-#     only_numbers(10) # => 10
-#     only_numbers(-5) # => -42
+# Unlike closures, argument types are not inferred based on usage. Instead, they
+# must be specified, or a default value must be specified.
 #
 # Just like closures we can specify the throw type using `!!`:
 #
@@ -129,10 +107,10 @@
 impl Block {
   # Executes the current block, passing the given arguments to the block.
   #
-  # The return type of this method is `Dynamic` because it can not be inferred
-  # when this method gets compiled. To work around this the compiler will
-  # optimise sending `call` to a `Block` in such a way that it is able to
-  # figure out what arguments the `Block` takes and what its return type is.
+  # The return type of this method is `Any` because it can not be inferred when
+  # this method gets compiled. To work around this the compiler will optimise
+  # sending `call` to a `Block` in such a way that it is able to figure out what
+  # arguments the `Block` takes and what its return type is.
   #
   # # Examples
   #
@@ -147,7 +125,7 @@ impl Block {
   #     let block = do (number) { number }
   #
   #     block.call(10) # => 10
-  def call {
+  def call -> Any {
     _INKOC.run_block(self)
   }
 
@@ -165,7 +143,7 @@ impl Block {
   #     }
   #
   #     number # => 0
-  def while_false(block: do) -> Nil {
+  def while_false(block: do) {
     call.if_true { return }
     block.call
     while_false(block)
@@ -185,7 +163,7 @@ impl Block {
   #     }
   #
   #     number # => 10
-  def while_true(block: do) -> Nil {
+  def while_true(block: do) {
     call.if_false { return }
     block.call
     while_true(block)

@@ -5,7 +5,7 @@ import std::io::(Close, Error as IoError, Read, Write)
 import std::net::bits::(
   self,
  AF_UNIX, MAXIMUM_LISTEN_BACKLOG, RECV_SIZE, SEND_SIZE, SOCK_DGRAM, SOCK_RAW,
- SOCK_SEQPACKET, SOCK_STREAM, SocketValue
+ SOCK_SEQPACKET, SOCK_STREAM, Socket as RawSocket, SocketValue
 )
 import std::operators::Equal
 
@@ -161,7 +161,7 @@ object Socket {
   #     let socket = try! Socket.new(DGRAM)
   #
   #     try! socket.bind('/tmp/test.sock')
-  def bind(path: ToString) !! IoError -> Nil {
+  def bind(path: ToString) !! IoError {
     try bits.bind(socket: self, address: path.to_string, port: 0)
   }
 
@@ -180,7 +180,7 @@ object Socket {
   #     try! listener.listen
   #
   #     try! stream.connect('/tmp/test.sock')
-  def connect(path: ToString) !! IoError -> Nil {
+  def connect(path: ToString) !! IoError {
     try bits.connect(socket: self, address: path.to_string, port: 0)
   }
 
@@ -321,20 +321,22 @@ object Socket {
   }
 
   # Shuts down the reading half of this socket.
-  def shutdown_read !! IoError -> Nil {
+  def shutdown_read !! IoError {
     try bits.shutdown_read(self)
   }
 
   # Shuts down the writing half of this socket.
-  def shutdown_write !! IoError -> Nil {
+  def shutdown_write !! IoError {
     try bits.shutdown_write(self)
   }
 
   # Shuts down both the reading and writing half of this socket.
-  def shutdown !! IoError -> Nil {
+  def shutdown !! IoError {
     try bits.shutdown(self)
   }
 }
+
+impl RawSocket for Socket {}
 
 impl Read for Socket {
   def read_bytes(bytes: ByteArray, size: ?Integer = Nil) !! IoError -> Integer {
@@ -351,14 +353,13 @@ impl Write for Socket {
     try bits.write_string(socket: self, string: string)
   }
 
-  def flush -> Nil {
+  def flush {
     # Sockets can't be flushed, so this method is just a noop.
-    Nil
   }
 }
 
 impl Close for Socket {
-  def close -> Nil {
+  def close {
     bits.close(self)
   }
 }
@@ -399,7 +400,7 @@ object UnixDatagram {
   #     let socket2 = try! UnixDatagram.new('/tmp/test2.sock')
   #
   #     try! socket1.connect('/tmp/test2.sock')
-  def connect(address: ToString) !! IoError -> Nil {
+  def connect(address: ToString) !! IoError {
     try @socket.connect(address)
   }
 
@@ -462,13 +463,13 @@ impl Write for UnixDatagram {
     try @socket.write_string(string)
   }
 
-  def flush -> Nil {
+  def flush {
     @socket.flush
   }
 }
 
 impl Close for UnixDatagram {
-  def close -> Nil {
+  def close {
     @socket.close
   }
 }
@@ -518,17 +519,17 @@ object UnixStream {
   }
 
   # Shuts down the reading half of this socket.
-  def shutdown_read !! IoError -> Nil {
+  def shutdown_read !! IoError {
     try @socket.shutdown_read
   }
 
   # Shuts down the writing half of this socket.
-  def shutdown_write !! IoError -> Nil {
+  def shutdown_write !! IoError {
     try @socket.shutdown_write
   }
 
   # Shuts down both the reading and writing half of this socket.
-  def shutdown !! IoError -> Nil {
+  def shutdown !! IoError {
     try @socket.shutdown
   }
 }
@@ -548,13 +549,13 @@ impl Write for UnixStream {
     try @socket.write_string(string)
   }
 
-  def flush -> Nil {
+  def flush {
     @socket.flush
   }
 }
 
 impl Close for UnixStream {
-  def close -> Nil {
+  def close {
     @socket.close
   }
 }
@@ -630,7 +631,7 @@ object UnixListener {
 }
 
 impl Close for UnixListener {
-  def close -> Nil {
+  def close {
     @socket.close
   }
 }

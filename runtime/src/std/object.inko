@@ -45,8 +45,7 @@ impl Object {
 }
 
 impl Hash for Object {
-  def hash(hasher: Hasher) -> Nil {
+  def hash(hasher: Hasher) {
     hasher.write(self)
-    Nil
   }
 }

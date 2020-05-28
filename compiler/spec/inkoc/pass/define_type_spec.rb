@@ -3,6 +3,13 @@
 require 'spec_helper'
 
 describe Inkoc::Pass::DefineType do
+  before do
+    any_trait = state.typedb.new_trait_type(Inkoc::Config::ANY_TRAIT_CONST)
+
+    tir_module.globals.define(Inkoc::Config::ANY_TRAIT_CONST, any_trait )
+    state.typedb.object_type.implement_trait(any_trait)
+  end
+
   shared_examples 'a Block type' do
     it 'returns a Block' do
       type = expression_type("#{header} {}")
@@ -70,12 +77,12 @@ describe Inkoc::Pass::DefineType do
     end
 
     context 'when defining arguments without types or default values' do
-      it 'defines the arguments using a default type' do
+      it 'defines the arguments using an error type' do
         type = expression_type("#{header} (number) {}")
         symbol = type.arguments['number']
 
         expect(symbol).to be_any
-        expect(symbol.type).to be_dynamic
+        expect(symbol.type).to be_error
       end
     end
 
@@ -175,7 +182,8 @@ describe Inkoc::Pass::DefineType do
       type = expression_type("#{header} {}")
 
       if type.method?
-        expect(type.return_type).to be_dynamic
+        expect(type.return_type)
+          .to be_type_instance_of(tir_module.lookup_any_type)
       else
         expect(type.return_type).to be_type_instance_of(state.typedb.nil_type)
       end
@@ -216,12 +224,12 @@ describe Inkoc::Pass::DefineType do
 
   shared_examples 'an anonymous block' do
     context 'when including arguments without explicit types' do
-      it 'defines the argument types as Dynamic types' do
+      it 'produces an error' do
         type = expression_type("#{header} (number) {}")
 
         arg_type = type.arguments['number'].type
 
-        expect(arg_type).to be_dynamic
+        expect(arg_type).to be_error
       end
 
       it 'does not overwrite any explicitly defined types' do
@@ -241,9 +249,9 @@ describe Inkoc::Pass::DefineType do
     end
 
     it 'does not overwrite an explicitly defined return type' do
-      type = expression_type("#{header} -> Dynamic { 10 }")
+      type = expression_type("#{header} -> Any { 10 }")
 
-      expect(type.return_type).to be_dynamic
+      expect(type.return_type).to be_type_instance_of(tir_module.lookup_any_type)
     end
 
     context 'when the block includes a try statement without an else' do
@@ -265,9 +273,10 @@ describe Inkoc::Pass::DefineType do
       end
 
       it 'does not overwrite an explicitly defined throw type' do
-        type = expression_type("#{header} !! Dynamic { try foo }")
+        type = expression_type("#{header} !! Any { try foo }")
 
-        expect(type.throw_type).to be_dynamic
+        expect(type.throw_type)
+          .to be_type_instance_of(tir_module.lookup_any_type)
       end
     end
 
@@ -301,9 +310,10 @@ describe Inkoc::Pass::DefineType do
       end
 
       it 'does not overwrite an explicitly defined throw type' do
-        type = expression_type("#{header} !! Dynamic { throw Error }")
+        type = expression_type("#{header} !! Any { throw Error }")
 
-        expect(type.throw_type).to be_dynamic
+        expect(type.throw_type)
+          .to be_type_instance_of(tir_module.lookup_any_type)
       end
     end
   end
@@ -737,7 +747,10 @@ describe Inkoc::Pass::DefineType do
         rtype = Inkoc::TypeSystem::Object.new(name: 'A')
 
         method.return_type = rtype
-        method.define_required_argument('thing', Inkoc::TypeSystem::Dynamic.new)
+        method.define_required_argument(
+          'thing',
+          state.typedb.integer_type.new_instance
+        )
 
         type_scope.self_type.define_attribute('foo', method)
 
@@ -916,7 +929,10 @@ describe Inkoc::Pass::DefineType do
     end
 
     context 'when the method defines a rest argument' do
-      let(:block) { Inkoc::TypeSystem::Block.new(name: 'foo') }
+      let(:block) do
+        Inkoc::TypeSystem::Block
+          .new(name: 'foo', return_type: tir_module.lookup_any_type.new_instance)
+      end
 
       before do
         type_scope.self_type.define_attribute('foo', block)
@@ -929,7 +945,7 @@ describe Inkoc::Pass::DefineType do
 
         type = expression_type('foo(10, 20, 30)')
 
-        expect(type).to be_an_instance_of(Inkoc::TypeSystem::Dynamic)
+        expect(type).to be_type_instance_of(tir_module.lookup_any_type)
         expect(state.diagnostics.errors?).to eq(false)
       end
 
@@ -975,8 +991,15 @@ describe Inkoc::Pass::DefineType do
       end
 
       let(:integer_type) { state.typedb.integer_type }
-      let(:expected_block) { Inkoc::TypeSystem::Block.new }
-      let(:method) { Inkoc::TypeSystem::Block.new(name: 'foo') }
+      let(:expected_block) do
+        Inkoc::TypeSystem::Block
+          .new(return_type: tir_module.lookup_any_type.new_instance)
+      end
+
+      let(:method) do
+        Inkoc::TypeSystem::Block
+          .new(name: 'foo', return_type: tir_module.lookup_any_type.new_instance)
+      end
 
       before do
         method.define_required_argument('callback', expected_block)
@@ -1009,7 +1032,7 @@ describe Inkoc::Pass::DefineType do
 
         type, closure = parse_closure_argument('foo do (thing) { }')
 
-        expect(type).to be_dynamic
+        expect(type).to be_type_instance_of(tir_module.lookup_any_type)
 
         expect(closure).to be_instance_of(Inkoc::TypeSystem::Block)
 
@@ -1038,7 +1061,7 @@ describe Inkoc::Pass::DefineType do
 
         type, closure = parse_closure_argument('foo do (thing) { thing }')
 
-        expect(type).to be_dynamic
+        expect(type).to be_type_instance_of(tir_module.lookup_any_type)
 
         expect(closure.return_type)
           .to be_type_instance_of(state.typedb.integer_type)
@@ -1049,7 +1072,7 @@ describe Inkoc::Pass::DefineType do
 
         type, closure = parse_closure_argument('foo do (thing) { throw thing }')
 
-        expect(type).to be_dynamic
+        expect(type).to be_type_instance_of(tir_module.lookup_any_type)
 
         expect(closure.throw_type)
           .to be_type_instance_of(state.typedb.integer_type)
@@ -1060,7 +1083,7 @@ describe Inkoc::Pass::DefineType do
 
         type, closure = parse_closure_argument('foo {}')
 
-        expect(type).to be_dynamic
+        expect(type).to be_type_instance_of(tir_module.lookup_any_type)
         expect(closure).to be_lambda
       end
 
@@ -1071,7 +1094,7 @@ describe Inkoc::Pass::DefineType do
 
         type, closure = parse_closure_argument('foo { let a = 10 }')
 
-        expect(type).to be_dynamic
+        expect(type).to be_type_instance_of(tir_module.lookup_any_type)
         expect(closure).to be_lambda
         expect(state.diagnostics.errors?).to eq(false)
       end
@@ -1100,22 +1123,29 @@ describe Inkoc::Pass::DefineType do
     end
 
     it 'supports the use of keyword arguments' do
-      method = Inkoc::TypeSystem::Block.new(name: 'foo')
+      method = Inkoc::TypeSystem::Block
+        .new(name: 'foo', return_type: tir_module.lookup_any_type.new_instance)
 
-      method.define_required_argument('thing', Inkoc::TypeSystem::Dynamic.new)
+      method.define_required_argument(
+        'thing',
+        state.typedb.integer_type.new_instance
+      )
 
       type_scope.self_type.define_attribute('foo', method)
 
       type = expression_type('foo(thing: 10)')
 
-      expect(type).to be_an_instance_of(Inkoc::TypeSystem::Dynamic)
+      expect(type).to be_type_instance_of(tir_module.lookup_any_type)
       expect(state.diagnostics.errors?).to eq(false)
     end
 
     it 'produces a type error when using an invalid keyword argument' do
       method = Inkoc::TypeSystem::Block.new(name: 'foo')
 
-      method.define_required_argument('thing', Inkoc::TypeSystem::Dynamic.new)
+      method.define_required_argument(
+        'thing',
+        state.typedb.integer_type.new_instance
+      )
 
       type_scope.self_type.define_attribute('foo', method)
 
@@ -1158,32 +1188,6 @@ describe Inkoc::Pass::DefineType do
 
         expect(type.lookup_type_parameter_instance(param))
           .to be_type_instance_of(state.typedb.integer_type)
-      end
-    end
-
-    context 'when sending a message to a Dynamic type' do
-      before do
-        type_scope.locals.define('foo', Inkoc::TypeSystem::Dynamic.new)
-      end
-
-      it 'returns a Dynamic type' do
-        type = expression_type('foo.bar')
-
-        expect(type).to be_dynamic
-      end
-
-      it 'defines the types for the arguments passed' do
-        node = parse_source('foo.bar(10)')
-
-        Inkoc::Pass::SetupSymbolTables
-          .new(tir_module, state)
-          .run(node)
-
-        pass.on_module_body(node, type_scope)
-
-        args = node.expressions[0].arguments
-
-        expect(args[0].type).to be_type_instance_of(state.typedb.integer_type)
       end
     end
 
@@ -1373,9 +1377,10 @@ describe Inkoc::Pass::DefineType do
       end
 
       it 'does not overwrite explicitly defined return types' do
-        type = expression_type("#{keyword} -> Dynamic { 10 }")
+        type = expression_type("#{keyword} -> Any { 10 }")
 
-        expect(type.return_type).to be_dynamic
+        expect(type.return_type)
+          .to be_type_instance_of(tir_module.lookup_any_type)
       end
 
       it 'produces a type error if the expression is not compatible' do
@@ -1535,7 +1540,7 @@ describe Inkoc::Pass::DefineType do
           .to be_type_instance_of(state.typedb.integer_type)
       end
 
-      it 'defines the error argument as a dynamic type if no error is thrown' do
+      it 'defines the error argument as a Any type if no error is thrown' do
         body = parse_source('do { try 10 else (error) error }')
 
         Inkoc::Pass::SetupSymbolTables
@@ -1547,7 +1552,8 @@ describe Inkoc::Pass::DefineType do
         try_node = body.expressions[0].body.expressions[0]
         error_local = try_node.else_body.locals['error']
 
-        expect(error_local.type).to be_dynamic
+        expect(error_local.type)
+          .to be_type_instance_of(tir_module.lookup_any_type)
       end
 
       it 'allows referencing of outer local variables in the else block' do
@@ -2086,9 +2092,13 @@ describe Inkoc::Pass::DefineType do
   describe '#on_define_variable_with_explicit_type' do
     context 'with a local variable' do
       it 'defines the local variable' do
-        type = expression_type('let x: Dynamic = 10')
+        type_scope
+          .self_type
+          .define_attribute('Integer', state.typedb.integer_type)
 
-        expect(type).to be_dynamic
+        type = expression_type('let x: Integer = 10')
+
+        expect(type).to be_type_instance_of(state.typedb.integer_type)
 
         local = type_scope.locals['x']
 
@@ -2132,9 +2142,13 @@ describe Inkoc::Pass::DefineType do
 
     context 'with a constant' do
       it 'defines the constant' do
-        type = expression_type('let X: Dynamic = 10')
+        type_scope
+          .self_type
+          .define_attribute('Integer', state.typedb.integer_type)
 
-        expect(type).to be_dynamic
+        type = expression_type('let X: Integer = 10')
+
+        expect(type).to be_type_instance_of(state.typedb.integer_type)
 
         attr = type_scope.self_type.attributes['X']
 
@@ -2171,11 +2185,11 @@ describe Inkoc::Pass::DefineType do
       it 'errors if the local variable is not mutable' do
         type_scope
           .locals
-          .define('number', Inkoc::TypeSystem::Dynamic.new, false)
+          .define('number', state.typedb.integer_type.new_instance, false)
 
         type = expression_type('number = 10')
 
-        expect(type).to be_dynamic
+        expect(type).to be_type_instance_of(state.typedb.integer_type)
         expect(state.diagnostics.errors?).to eq(true)
       end
 
@@ -2219,11 +2233,10 @@ describe Inkoc::Pass::DefineType do
         type_scope
           .self_type
           .attributes
-          .define('@number', Inkoc::TypeSystem::Dynamic.new, false)
+          .define('@number', state.typedb.integer_type.new_instance, false)
 
         type = expression_type('@number = 10')
 
-        expect(type).to be_dynamic
         expect(state.diagnostics.errors?).to eq(true)
       end
 
@@ -2303,30 +2316,10 @@ describe Inkoc::Pass::DefineType do
   end
 
   describe '#on_type_cast' do
-    it 'casts a type to a compatible alternative' do
-      type = expression_type('10 as Dynamic')
-
-      expect(type).to be_dynamic
-    end
-
-    it 'supports casting a Dynamic to a static type' do
-      type_scope
-        .locals
-        .define('number', Inkoc::TypeSystem::Dynamic.new)
-
-      type_scope
-        .self_type
-        .define_attribute('Integer', state.typedb.integer_type)
-
-      type = expression_type('number as Integer')
-
-      expect(type).to be_type_instance_of(state.typedb.integer_type)
-    end
-
     it 'supports casting to an optional type' do
       type_scope
         .locals
-        .define('number', Inkoc::TypeSystem::Dynamic.new)
+        .define('number', state.typedb.integer_type.new_instance)
 
       type_scope
         .self_type
@@ -2343,29 +2336,6 @@ describe Inkoc::Pass::DefineType do
 
       expect(type).to be_error
       expect(state.diagnostics.errors?).to eq(true)
-    end
-
-    it 'supports casting to a generic type' do
-      type_scope
-        .locals
-        .define('numbers', Inkoc::TypeSystem::Dynamic.new)
-
-      type_scope
-        .self_type
-        .define_attribute('Array', state.typedb.array_type)
-
-      type_scope
-        .self_type
-        .define_attribute('Integer', state.typedb.integer_type)
-
-      type = expression_type('numbers as Array!(Integer)')
-
-      expect(type).to be_type_instance_of(state.typedb.array_type)
-
-      param = type.lookup_type_parameter('T')
-
-      expect(type.lookup_type_parameter_instance(param))
-        .to be_type_instance_of(state.typedb.integer_type)
     end
   end
 
@@ -2620,14 +2590,14 @@ describe Inkoc::Pass::DefineType do
       expect(type).to eq(attribute)
     end
 
-    it 'returns a dynamic type when not using a string literal' do
+    it 'returns a Any type when not using a string literal' do
       type_scope
         .locals
         .define('attribute', state.typedb.string_type.new_instance)
 
       type = expression_type('_INKOC.get_attribute(obj, attribute)')
 
-      expect(type).to be_dynamic
+      expect(type).to be_type_instance_of(tir_module.lookup_any_type)
     end
   end
 

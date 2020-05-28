@@ -60,3 +60,14 @@ impl Object {
 # This type is defined in `core::bootstrap` as it's needed very early on in the
 # runtime bootstrapping process.
 object Trait {}
+
+# A trait implemented by all objects, to be used when no more meaningful type is
+# known.
+#
+# Object's (e.g. `Object`) can't be casted into another objects. The `Any` trait
+# is implemented by all objects, and thus can be casted into any type.
+#
+# The trait `Any` is defined here as it's needed early on in the bootstrapping
+# process, before constants defined in `std::prelude` are available. The trait
+# is implemented for core types in `std::any`.
+trait Any {}

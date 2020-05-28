@@ -77,11 +77,11 @@ object ConfigureRunner {
   # The name of the option to set.
   @option: String
 
-  # The value to set the option to. The type of this value is Dynamic and can
-  # vary based on the name of the option.
-  @value: Dynamic
+  # The value to set the option to. The type of this this varies based on the
+  # name of the option.
+  @value: Any
 
-  def init(option: String, value) {
+  def init(option: String, value: Any) {
     @option = option
     @value = value
   }
@@ -104,9 +104,8 @@ object AddTest {
 }
 
 impl Command for AddTest {
-  def run(state: RunnerState) -> Nil {
+  def run(state: RunnerState) {
     state.add_test(@test)
-    Nil
   }
 }
 
@@ -119,13 +118,11 @@ object RunTests {
     @notify = notify
   }
 
-  def notify_client(failures: Boolean) -> Nil {
+  def notify_client(failures: Boolean) {
     let finished_message = RunnerFinished
       .new(runner: process.current, failures: failures)
 
     @notify.send(finished_message)
-
-    Nil
   }
 }
 
@@ -134,7 +131,7 @@ impl Command for RunTests {
   # completed.
   #
   # Once this method has been called, no new tests can be registered.
-  def run(state: RunnerState) -> Nil {
+  def run(state: RunnerState) {
     let mut pending = 0
     let start_time = Instant.new
     let last_index = state.tests.length - 1
@@ -174,8 +171,6 @@ impl Command for RunTests {
     state.formatter.summary(tests: executed, duration: duration)
 
     notify_client(failed.length.positive?)
-
-    Nil
   }
 }
 
@@ -247,7 +242,7 @@ object Client {
   }
 
   # Sets a configuration option to the given value.
-  def configure!(T)(option: String, value: T) -> T {
+  def configure!(T: Any)(option: String, value: T) -> T {
     running?.if_true {
       process.panic(
         'Configuration settings can not be changed for a running test suite'
@@ -258,18 +253,16 @@ object Client {
   }
 
   # Adds a new test to the `Runner`.
-  def add_test(test: Test) -> Nil {
+  def add_test(test: Test) {
     running?.if_true {
       process.panic('New tests can not be added to a running test suite')
     }
 
     @runner.send(AddTest.new(test))
-
-    Nil
   }
 
   # Schedules all tests for execution and waits for them to complete.
-  def run -> Nil {
+  def run {
     mark_as_running
 
     @runner.send(RunTests.new(process.current))
@@ -281,12 +274,10 @@ object Client {
   #
   # If any tests failed to run, this method will terminate the VM with exit
   # status code 1.
-  def wait_for_tests -> Nil {
+  def wait_for_tests {
     let message = process.receive as RunnerFinished
 
     message.failures?.if_true { vm.exit(FAILURE_EXIT_STATUS) }
-
-    Nil
   }
 
   def running? -> Boolean {

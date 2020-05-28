@@ -35,8 +35,6 @@ module Inkoc
         case name.name
         when Config::SELF_TYPE
           late_binding? ? :on_self_type_with_late_binding : :on_self_type
-        when Config::DYNAMIC_TYPE
-          :on_dynamic_type
         when Config::NEVER_TYPE
           :on_never_type
         else
