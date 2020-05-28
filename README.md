@@ -1,6 +1,6 @@
 # Inko
 
-**Inko** is a gradually-typed, safe, object-oriented programming languages for
+**Inko** is a statically-typed, safe, object-oriented programming languages for
 writing concurrent programs. By using lightweight isolated processes, data race
 conditions can not occur. The syntax is easy to learn and remember, and thanks
 to its error handling model you will never have to worry about unexpected
@@ -13,7 +13,7 @@ For more information, see the [Inko website](https://inko-lang.org/).
 * A bytecode interpreter that is easy to build across different platforms
 * Parallel garbage collection based on [Immix][immix]
 * Lightweight, isolated processes that communicate using message passing
-* Gradual typing
+* Statically typed
 * Explicit handling of exceptions, making it impossible for unexpected
   exceptions to occur
 * Tail call optimisation
