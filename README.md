@@ -50,7 +50,7 @@ For Unix systems or MSYS2 on Windows you also need the following software:
 ## Installation
 
 Detailed installation instructions about the installation process can be found
-at [Installing Inko](https://inko-lang.org/install/) on the Inko website.
+at [Installing Inko](https://inko-lang.org/manual/install/) on the Inko website.
 
 ### For users
 
