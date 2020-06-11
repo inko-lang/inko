@@ -108,7 +108,7 @@ impl Binding {
                 }
             }
 
-            current = binding.parent.as_ref().map(|b| &**b);
+            current = binding.parent.as_deref();
         }
     }
 
