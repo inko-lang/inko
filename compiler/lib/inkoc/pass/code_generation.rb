@@ -98,6 +98,13 @@ module Inkoc
         compiled_code.instruct(:GotoIfTrue, [index, register], tir_ins.location)
       end
 
+      def on_goto_block_if_true(tir_ins, compiled_code, basic_block)
+        index = tir_ins.block.instruction_offset
+        register = tir_ins.register.id
+
+        compiled_code.instruct(:GotoIfTrue, [index, register], tir_ins.location)
+      end
+
       def on_skip_next_block(tir_ins, compiled_code, basic_block)
         index = basic_block.next.next.instruction_offset
 
