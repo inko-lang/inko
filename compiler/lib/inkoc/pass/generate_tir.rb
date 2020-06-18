@@ -1645,7 +1645,9 @@ module Inkoc
 
         # Look up the "unknown_message" block if the initial block was not
         # found.
-        body.instruct(:GotoNextBlockIfTrue, block_reg, loc)
+        goto_block = body.new_basic_block
+        body.instruct(:GotoBlockIfTrue, block_reg, goto_block, loc)
+
         body.instruct(:Binary, :GetAttribute, block_reg, rec, alt_name_reg, loc)
 
         # Store all the arguments passed in the array and execute the
@@ -1666,7 +1668,7 @@ module Inkoc
         body.instruct(:SkipNextBlock, loc)
 
         # The code we'd run if the method _is_ defined.
-        body.add_connected_basic_block
+        body.push_connected_basic_block(goto_block)
 
         body.instruct(
           :RunBlockWithReceiver,

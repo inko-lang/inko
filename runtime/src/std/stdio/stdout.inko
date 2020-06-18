@@ -57,10 +57,11 @@ impl Write for ThisModule {
   #     import std::stdio::stdout
   #
   #     stdout.print # => Nil
-  def print(data: ?ToString = Nil) -> Integer {
+  def print(data: ToString = '') -> Integer {
     process.blocking {
       let written = try _INKOC.stdout_write(data.to_string) else return 0
-      written + _INKOC.stdout_write(NEWLINE)
+
+      written + try _INKOC.stdout_write(NEWLINE) else 0
     }
   }
 

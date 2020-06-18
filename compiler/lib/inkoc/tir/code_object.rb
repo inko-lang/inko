@@ -111,13 +111,18 @@ module Inkoc
       end
 
       def add_connected_basic_block(*args)
-        block = new_basic_block(*args)
-        current_block&.next = block
-
-        push_basic_block(block)
+        push_connected_basic_block(new_basic_block(*args))
       end
 
       def push_basic_block(block)
+        @blocks << block
+
+        block
+      end
+
+      def push_connected_basic_block(block)
+        current_block&.next = block
+
         @blocks << block
 
         block
