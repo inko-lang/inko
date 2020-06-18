@@ -74,7 +74,6 @@ ${SOURCE_TAR}: ${TMP_DIR} ${REPO_DIR}
 		vm/Cargo.lock \
 		vm/Makefile \
 		vm/README.md \
-		vm/scripts \
 		LICENSE \
 		Makefile \
 		README.md \
