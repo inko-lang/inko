@@ -8,6 +8,22 @@ use crate::immix::copy_object::CopyObject;
 use crate::object_pointer::{ObjectPointer, ObjectPointerPointer};
 use std::cell::UnsafeCell;
 
+macro_rules! find_parent {
+    ($self: expr, $depth: expr, $method: ident) => {{
+        let mut found = $self.parent.$method();
+
+        for _ in 0..$depth {
+            if let Some(binding) = found {
+                found = binding.parent.$method();
+            } else {
+                return None;
+            }
+        }
+
+        found
+    }};
+}
+
 pub struct Binding {
     /// The local variables in the current binding.
     ///
@@ -65,20 +81,16 @@ impl Binding {
         self.parent.clone()
     }
 
-    /// Tries to find a parent binding while limiting the amount of bindings to
-    /// traverse.
-    pub fn find_parent(&self, depth: usize) -> Option<RcBinding> {
-        let mut found = self.parent();
+    /// Returns an immutable reference to the parent binding, `depth` steps up
+    /// from the current binding.
+    pub fn find_parent(&self, depth: usize) -> Option<&RcBinding> {
+        find_parent!(self, depth, as_ref)
+    }
 
-        for _ in 0..depth {
-            if let Some(unwrapped) = found {
-                found = unwrapped.parent();
-            } else {
-                return None;
-            }
-        }
-
-        found
+    /// Returns a mutable reference to the parent binding, `depth` steps up from
+    /// the current binding.
+    pub fn find_parent_mut(&mut self, depth: usize) -> Option<&mut RcBinding> {
+        find_parent!(self, depth, as_mut)
     }
 
     /// Returns an immutable reference to this binding's local variables.

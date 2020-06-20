@@ -124,7 +124,7 @@ pub fn set_parent_local(
     depth: usize,
     value: ObjectPointer,
 ) -> Result<(), String> {
-    if let Some(mut binding) = process.context_mut().binding.find_parent(depth)
+    if let Some(binding) = process.context_mut().binding.find_parent_mut(depth)
     {
         binding.set_local(local, value);
 
