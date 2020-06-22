@@ -4,7 +4,7 @@ use std::io;
 
 /// Returns the path to the home directory.
 pub fn home() -> Option<String> {
-    dirs::home_dir().map(|path| path.to_string_lossy().into_owned())
+    dirs_next::home_dir().map(|path| path.to_string_lossy().into_owned())
 }
 
 /// Returns the path to the temporary directory.

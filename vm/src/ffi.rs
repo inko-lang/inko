@@ -49,7 +49,6 @@
 //!     sym.write_as(kind, val);
 //!
 use crate::arc_without_weak::ArcWithoutWeak;
-use crate::error_messages::from_io_error;
 use crate::object_pointer::ObjectPointer;
 use crate::object_value::{self, ObjectValue};
 use crate::process::RcProcess;
@@ -472,7 +471,7 @@ impl Library {
         self.inner
             .get(name.as_bytes())
             .map(|sym: libloading::Symbol<RawPointer>| Pointer::new(*sym))
-            .map_err(|err| from_io_error(&err))
+            .map_err(|err| err.to_string())
     }
 }
 
