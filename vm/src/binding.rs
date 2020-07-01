@@ -77,8 +77,8 @@ impl Binding {
     }
 
     /// Returns the parent binding.
-    pub fn parent(&self) -> Option<RcBinding> {
-        self.parent.clone()
+    pub fn parent(&self) -> Option<&RcBinding> {
+        self.parent.as_ref()
     }
 
     /// Returns an immutable reference to the parent binding, `depth` steps up

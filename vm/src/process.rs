@@ -1,5 +1,4 @@
 use crate::arc_without_weak::ArcWithoutWeak;
-use crate::binding::RcBinding;
 use crate::block::Block;
 use crate::compiled_code::CompiledCodePointer;
 use crate::config::Config;
@@ -412,10 +411,6 @@ impl Process {
 
     pub fn receive_message(&self) -> Option<ObjectPointer> {
         self.local_data_mut().mailbox.lock().receive()
-    }
-
-    pub fn binding(&self) -> RcBinding {
-        self.context().binding()
     }
 
     pub fn global_scope(&self) -> &GlobalScopePointer {

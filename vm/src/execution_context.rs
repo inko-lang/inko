@@ -136,8 +136,8 @@ impl ExecutionContext {
         self.global_scope.set(index, value);
     }
 
-    pub fn binding(&self) -> RcBinding {
-        self.binding.clone()
+    pub fn binding(&self) -> &RcBinding {
+        &self.binding
     }
 
     /// Finds a parent context at most `depth` contexts up the ancestor chain.
@@ -187,7 +187,7 @@ impl ExecutionContext {
             current = parent;
         }
 
-        &*current as *const Binding
+        &**current as *const Binding
     }
 
     pub fn binding_pointer(&self) -> *const Binding {
