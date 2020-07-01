@@ -1490,9 +1490,9 @@ module Inkoc
             get_nil(body, location)
           end
 
-        block_return = body.type.closure?
+        method_return = body.type.closure?
 
-        body.instruct(:Return, block_return, register, location)
+        body.instruct(:Return, method_return, register, location)
         body.add_basic_block
       end
 

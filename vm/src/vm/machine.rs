@@ -396,14 +396,14 @@ impl Machine {
                         break 'exec_loop;
                     }
 
-                    let block_return = instruction.arg(0) == 1;
+                    let method_return = instruction.arg(0) == 1;
 
                     let object = instruction
                         .arg_opt(1)
                         .map(|r| context.get_register(r))
                         .unwrap_or(self.state.nil_object);
 
-                    if block_return {
+                    if method_return {
                         process::unwind_until_defining_scope(process);
 
                         context = process.context_mut();

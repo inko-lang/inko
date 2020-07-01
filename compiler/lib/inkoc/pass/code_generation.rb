@@ -120,11 +120,11 @@ module Inkoc
       end
 
       def on_return(tir_ins, compiled_code, *)
-        block_return = tir_ins.block_return ? 1 : 0
+        method_return = tir_ins.method_return ? 1 : 0
         register = tir_ins.register.id
 
         compiled_code
-          .instruct(:Return, [block_return, register], tir_ins.location)
+          .instruct(:Return, [method_return, register], tir_ins.location)
       end
 
       def on_run_block(tir_ins, compiled_code, *)
