@@ -1085,8 +1085,6 @@ impl Machine {
                     context.set_register(reg, res);
                 }
                 InstructionType::RunBlock => {
-                    context.line = instruction.line;
-
                     let register = instruction.arg(0);
                     let block_ptr = context.get_register(instruction.arg(1));
                     let block = block_ptr.block_value()?;
@@ -1250,8 +1248,6 @@ impl Machine {
                 }
                 InstructionType::Panic => {
                     let msg = context.get_register(instruction.arg(0));
-
-                    context.line = instruction.line;
 
                     return Err(msg.string_value()?.to_owned_string());
                 }
@@ -1607,8 +1603,6 @@ impl Machine {
                     context.set_register(reg, rec);
                 }
                 InstructionType::RunBlockWithReceiver => {
-                    context.line = instruction.line;
-
                     let register = instruction.arg(0);
                     let block_ptr = context.get_register(instruction.arg(1));
                     let rec_ptr = context.get_register(instruction.arg(2));

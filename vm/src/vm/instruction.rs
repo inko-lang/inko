@@ -230,6 +230,7 @@ impl Instruction {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::mem::size_of;
 
     fn new_instruction() -> Instruction {
         Instruction::new(InstructionType::SetLiteral, vec![1, 2], 3)
@@ -272,5 +273,10 @@ mod tests {
         let ins = new_instruction();
 
         assert!(ins.boolean(0));
+    }
+
+    #[test]
+    fn test_type_size() {
+        assert_eq!(size_of::<Instruction>(), 32);
     }
 }

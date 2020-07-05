@@ -29,9 +29,6 @@ pub struct ExecutionContext {
     /// The register to store this context's return value in.
     pub return_register: Option<u16>,
 
-    /// The current line that is being executed.
-    pub line: u16,
-
     /// The current global scope.
     pub global_scope: GlobalScopePointer,
 
@@ -69,7 +66,6 @@ impl ExecutionContext {
             parent: None,
             instruction_index: 0,
             return_register,
-            line: block.code.line,
             global_scope: block.global_scope,
             terminate_upon_return: false,
         }
@@ -84,7 +80,6 @@ impl ExecutionContext {
             parent: None,
             instruction_index: 0,
             return_register: None,
-            line: block.code.line,
             global_scope: block.global_scope,
             terminate_upon_return: false,
         }
@@ -92,6 +87,19 @@ impl ExecutionContext {
 
     pub fn file(&self) -> ObjectPointer {
         self.code.file
+    }
+
+    pub fn line(&self) -> u16 {
+        let mut index = self.instruction_index;
+
+        // When entering a new call frame, the instruction index stored points
+        // to the instruction to run _after_ returning; not the one that is
+        // being run.
+        if index > 0 {
+            index -= 1;
+        }
+
+        self.code.instructions[index].line as u16
     }
 
     pub fn name(&self) -> ObjectPointer {

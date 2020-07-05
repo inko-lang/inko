@@ -15,7 +15,7 @@ pub struct CompiledCode {
     /// The full file path.
     pub file: ObjectPointer,
 
-    /// The starting line number.
+    /// The line number the code object is defined on.
     pub line: u16,
 
     /// The names of the arguments, as interned string pointers.

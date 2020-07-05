@@ -9,7 +9,7 @@ pub fn display_panic(process: &RcProcess, message: &str) {
         frames.push(format!(
             "\"{}\" line {}, in \"{}\"",
             context.code.file.string_value().unwrap(),
-            context.line.to_string(),
+            context.line().to_string(),
             context.code.name.string_value().unwrap()
         ));
     }

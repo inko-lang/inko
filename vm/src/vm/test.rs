@@ -24,7 +24,7 @@ pub fn setup() -> (Machine, Block, RcProcess) {
         name,
         name,
         1,
-        vec![new_instruction(InstructionType::Return, vec![0])],
+        vec![Instruction::new(InstructionType::Return, vec![0], 1)],
     );
 
     // Reserve enough space for registers/locals for most tests.
@@ -46,27 +46,4 @@ pub fn setup() -> (Machine, Block, RcProcess) {
     };
 
     (machine, block, process)
-}
-
-/// Creates a new instruction.
-pub fn new_instruction(
-    ins_type: InstructionType,
-    args: Vec<u16>,
-) -> Instruction {
-    Instruction::new(ins_type, args, 1)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::vm::instruction::InstructionType;
-
-    #[test]
-    fn test_new_instruction() {
-        let ins = new_instruction(InstructionType::SetLiteral, vec![1, 2]);
-
-        assert_eq!(ins.instruction_type, InstructionType::SetLiteral);
-        assert_eq!(ins.arguments, vec![1, 2]);
-        assert_eq!(ins.line, 1);
-    }
 }

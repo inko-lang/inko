@@ -4,7 +4,6 @@ use crate::object_pointer::ObjectPointer;
 use crate::object_value;
 use crate::process::RcProcess;
 use crate::vm::state::RcState;
-use std::i64;
 
 /// Produces a stacktrace containing up to N stack frames.
 pub fn allocate_stacktrace(
@@ -34,8 +33,7 @@ pub fn allocate_stacktrace(
     for context in contexts {
         let file = context.code.file;
         let name = context.code.name;
-        let line = ObjectPointer::integer(i64::from(context.line));
-
+        let line = ObjectPointer::integer(i64::from(context.line()));
         let tuple = process.allocate(
             object_value::array(vec![file, name, line]),
             state.array_prototype,
