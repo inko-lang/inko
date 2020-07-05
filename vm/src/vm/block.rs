@@ -1,6 +1,6 @@
 //! VM functions for working with Inko blocks.
 use crate::block::Block;
-use crate::compiled_code::CompiledCodePointer;
+use crate::execution_context::ExecutionContext;
 use crate::object_pointer::ObjectPointer;
 use crate::object_value;
 use crate::process::RcProcess;
@@ -10,11 +10,11 @@ use crate::vm::state::RcState;
 pub fn create(
     state: &RcState,
     process: &RcProcess,
-    code: CompiledCodePointer,
+    context: &ExecutionContext,
+    code_index: usize,
     receiver_opt: Option<ObjectPointer>,
 ) -> ObjectPointer {
-    let context = process.context();
-
+    let code = context.code.code_object(code_index);
     let captures_from = if code.captures {
         Some(context.binding.clone())
     } else {
@@ -23,8 +23,7 @@ pub fn create(
 
     let receiver = receiver_opt.unwrap_or(context.binding.receiver);
 
-    let block =
-        Block::new(code, captures_from, receiver, *process.global_scope());
+    let block = Block::new(code, captures_from, receiver, context.global_scope);
 
     process.allocate(object_value::block(block), state.block_prototype)
 }

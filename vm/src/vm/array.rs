@@ -1,4 +1,5 @@
 //! VM functions for working with Inko arrays.
+use crate::execution_context::ExecutionContext;
 use crate::immix::copy_object::CopyObject;
 use crate::object_pointer::ObjectPointer;
 use crate::object_value;
@@ -10,11 +11,12 @@ use crate::vm::state::RcState;
 pub fn create(
     state: &RcState,
     process: &RcProcess,
+    context: &ExecutionContext,
     registers: &[u16],
 ) -> ObjectPointer {
     let values = registers
         .iter()
-        .map(|reg| process.get_register(*reg as usize))
+        .map(|reg| context.get_register(*reg as usize))
         .collect();
 
     process.allocate(object_value::array(values), state.array_prototype)

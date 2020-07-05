@@ -136,7 +136,7 @@ mod tests {
         let pointer = process.allocate_empty();
         let collection = Collection::new(process.clone());
 
-        process.set_register(0, pointer);
+        process.context_mut().set_register(0, pointer);
 
         let stats = collection.perform(&state);
 
@@ -159,8 +159,8 @@ mod tests {
 
         mature.mark();
 
-        process.set_register(0, young);
-        process.set_register(1, mature);
+        process.context_mut().set_register(0, young);
+        process.context_mut().set_register(1, mature);
 
         let stats = collection.trace(
             &mut process.local_data_mut().mailbox.lock(),
@@ -184,8 +184,8 @@ mod tests {
             .allocator
             .allocate_mature(Object::new(object_value::none()));
 
-        process.set_register(0, young);
-        process.set_register(1, mature);
+        process.context_mut().set_register(0, young);
+        process.context_mut().set_register(1, mature);
 
         let stats = collection.trace(
             &mut process.local_data_mut().mailbox.lock(),
@@ -213,8 +213,8 @@ mod tests {
 
         young.block_mut().set_fragmented();
 
-        process.set_register(0, young);
-        process.set_register(1, mature);
+        process.context_mut().set_register(0, young);
+        process.context_mut().set_register(1, mature);
 
         let stats = collection.trace(
             &mut process.local_data_mut().mailbox.lock(),
@@ -241,8 +241,8 @@ mod tests {
         young.block_mut().set_fragmented();
         mature.block_mut().set_fragmented();
 
-        process.set_register(0, young);
-        process.set_register(1, mature);
+        process.context_mut().set_register(0, young);
+        process.context_mut().set_register(1, mature);
 
         let stats = collection.trace(
             &mut process.local_data_mut().mailbox.lock(),
@@ -334,7 +334,7 @@ mod tests {
             .allocator
             .allocate_mature(Object::new(object_value::none()));
 
-        process.set_register(0, pointer2);
+        process.context_mut().set_register(0, pointer2);
 
         local_data.allocator.remember_object(pointer1);
         local_data.allocator.remember_object(pointer2);

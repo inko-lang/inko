@@ -1,9 +1,7 @@
 use crate::arc_without_weak::ArcWithoutWeak;
 use crate::block::Block;
-use crate::compiled_code::CompiledCodePointer;
 use crate::config::Config;
 use crate::execution_context::ExecutionContext;
-use crate::global_scope::GlobalScopePointer;
 use crate::immix::block_list::BlockList;
 use crate::immix::copy_object::CopyObject;
 use crate::immix::global_allocator::RcGlobalAllocator;
@@ -267,36 +265,6 @@ impl Process {
         }
     }
 
-    pub fn get_register(&self, register: usize) -> ObjectPointer {
-        self.local_data().context.get_register(register)
-    }
-
-    pub fn set_register(&self, register: usize, value: ObjectPointer) {
-        self.local_data_mut().context.set_register(register, value);
-    }
-
-    pub fn set_local(&self, index: usize, value: ObjectPointer) {
-        self.local_data_mut().context.set_local(index, value);
-    }
-
-    pub fn get_local(&self, index: usize) -> ObjectPointer {
-        self.local_data().context.get_local(index)
-    }
-
-    pub fn local_exists(&self, index: usize) -> bool {
-        let local_data = self.local_data();
-
-        local_data.context.binding.local_exists(index)
-    }
-
-    pub fn set_global(&self, index: usize, value: ObjectPointer) {
-        self.local_data_mut().context.set_global(index, value);
-    }
-
-    pub fn get_global(&self, index: usize) -> ObjectPointer {
-        self.local_data().context.get_global(index)
-    }
-
     pub fn allocate_empty(&self) -> ObjectPointer {
         self.local_data_mut().allocator.allocate_empty()
     }
@@ -413,10 +381,6 @@ impl Process {
         self.local_data_mut().mailbox.lock().receive()
     }
 
-    pub fn global_scope(&self) -> &GlobalScopePointer {
-        &self.context().global_scope
-    }
-
     pub fn context(&self) -> &ExecutionContext {
         &self.local_data().context
     }
@@ -424,10 +388,6 @@ impl Process {
     #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
     pub fn context_mut(&self) -> &mut ExecutionContext {
         &mut *self.local_data_mut().context
-    }
-
-    pub fn compiled_code(&self) -> CompiledCodePointer {
-        self.context().code
     }
 
     pub fn has_messages(&self) -> bool {

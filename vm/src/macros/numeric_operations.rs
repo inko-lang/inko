@@ -250,10 +250,10 @@ macro_rules! integer_bool_op {
 }
 
 macro_rules! float_op {
-    ($state:expr, $process:expr, $ins:expr, $op:tt) => {{
+    ($state:expr, $process:expr, $context:expr, $ins:expr, $op:tt) => {{
         let register = $ins.arg(0);
-        let rec_ptr = $process.get_register($ins.arg(1));
-        let arg_ptr = $process.get_register($ins.arg(2));
+        let rec_ptr = $context.get_register($ins.arg(1));
+        let arg_ptr = $context.get_register($ins.arg(2));
         let rec = rec_ptr.float_value()?;
         let arg = arg_ptr.float_value()?;
         let result = to_expr!(rec $op arg);
@@ -261,7 +261,7 @@ macro_rules! float_op {
         let obj = $process
             .allocate(object_value::float(result), $state.float_prototype);
 
-        $process.set_register(register, obj);
+        $context.set_register(register, obj);
     }};
 }
 

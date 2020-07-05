@@ -1,6 +1,7 @@
 //! VM functions for working with Inko processes.
 use crate::block::Block;
 use crate::duration;
+use crate::execution_context::ExecutionContext;
 use crate::immix::copy_object::CopyObject;
 use crate::object_pointer::ObjectPointer;
 use crate::object_value;
@@ -12,10 +13,10 @@ use std::time::Duration;
 
 pub fn local_exists(
     state: &RcState,
-    process: &RcProcess,
+    context: &ExecutionContext,
     local: usize,
 ) -> ObjectPointer {
-    if process.local_exists(local) {
+    if context.binding.local_exists(local) {
         state.true_object
     } else {
         state.false_object
@@ -119,13 +120,12 @@ pub fn suspend(
 }
 
 pub fn set_parent_local(
-    process: &RcProcess,
+    context: &mut ExecutionContext,
     local: usize,
     depth: usize,
     value: ObjectPointer,
 ) -> Result<(), String> {
-    if let Some(binding) = process.context_mut().binding.find_parent_mut(depth)
-    {
+    if let Some(binding) = context.binding.find_parent_mut(depth) {
         binding.set_local(local, value);
 
         Ok(())
@@ -135,11 +135,11 @@ pub fn set_parent_local(
 }
 
 pub fn get_parent_local(
-    process: &RcProcess,
+    context: &ExecutionContext,
     local: usize,
     depth: usize,
 ) -> Result<ObjectPointer, String> {
-    if let Some(binding) = process.context().binding.find_parent(depth) {
+    if let Some(binding) = context.binding.find_parent(depth) {
         Ok(binding.get_local(local))
     } else {
         Err(format!("No binding for depth {}", depth))
@@ -148,7 +148,7 @@ pub fn get_parent_local(
 
 pub fn set_global(
     state: &RcState,
-    process: &RcProcess,
+    context: &mut ExecutionContext,
     global: usize,
     object: ObjectPointer,
 ) -> ObjectPointer {
@@ -158,7 +158,7 @@ pub fn set_global(
         state.permanent_allocator.lock().copy_object(object)
     };
 
-    process.set_global(global, value);
+    context.set_global(global, value);
 
     value
 }

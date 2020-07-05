@@ -334,6 +334,7 @@ impl Machine {
                     let obj = array::create(
                         &self.state,
                         process,
+                        context,
                         &instruction.arguments[1..=val_count],
                     );
 
@@ -375,11 +376,11 @@ impl Machine {
                 InstructionType::SetBlock => {
                     let register = instruction.arg(0);
                     let cc_index = instruction.arg(1);
-                    let cc = context.code.code_object(cc_index);
                     let obj = block::create(
                         &self.state,
                         process,
-                        cc,
+                        context,
+                        cc_index,
                         instruction.arg_opt(2).map(|r| context.get_register(r)),
                     );
 
@@ -580,19 +581,19 @@ impl Machine {
                     integer_bool_op!(self.state, context, instruction, <=);
                 }
                 InstructionType::FloatAdd => {
-                    float_op!(self.state, process, instruction, +);
+                    float_op!(self.state, process, context, instruction, +);
                 }
                 InstructionType::FloatMul => {
-                    float_op!(self.state, process, instruction, *);
+                    float_op!(self.state, process, context, instruction, *);
                 }
                 InstructionType::FloatDiv => {
-                    float_op!(self.state, process, instruction, /);
+                    float_op!(self.state, process, context, instruction, /);
                 }
                 InstructionType::FloatSub => {
-                    float_op!(self.state, process, instruction, -);
+                    float_op!(self.state, process, context, instruction, -);
                 }
                 InstructionType::FloatMod => {
-                    float_op!(self.state, process, instruction, %);
+                    float_op!(self.state, process, context, instruction, %);
                 }
                 InstructionType::FloatToInteger => {
                     let reg = instruction.arg(0);
@@ -957,7 +958,7 @@ impl Machine {
                 InstructionType::LocalExists => {
                     let reg = instruction.arg(0);
                     let idx = instruction.arg(1);
-                    let res = process::local_exists(&self.state, process, idx);
+                    let res = process::local_exists(&self.state, context, idx);
 
                     context.set_register(reg, res);
                 }
@@ -1030,13 +1031,13 @@ impl Machine {
                     let depth = instruction.arg(1);
                     let value = context.get_register(instruction.arg(2));
 
-                    process::set_parent_local(process, local, depth, value)?;
+                    process::set_parent_local(context, local, depth, value)?;
                 }
                 InstructionType::GetParentLocal => {
                     let reg = instruction.arg(0);
                     let depth = instruction.arg(1);
                     let local = instruction.arg(2);
-                    let val = process::get_parent_local(process, local, depth)?;
+                    let val = process::get_parent_local(context, local, depth)?;
 
                     context.set_register(reg, val)
                 }
@@ -1097,6 +1098,7 @@ impl Machine {
                     self.prepare_new_context(
                         process,
                         &instruction,
+                        &context,
                         &mut new_ctx,
                         instruction.arg(2),
                         instruction.arg(3),
@@ -1112,14 +1114,14 @@ impl Machine {
                     let idx = instruction.arg(1);
                     let val = context.get_register(instruction.arg(2));
                     let res =
-                        process::set_global(&self.state, process, idx, val);
+                        process::set_global(&self.state, context, idx, val);
 
                     context.set_register(reg, res);
                 }
                 InstructionType::GetGlobal => {
                     let reg = instruction.arg(0);
                     let idx = instruction.arg(1);
-                    let val = process.get_global(idx);
+                    let val = context.get_global(idx);
 
                     context.set_register(reg, val);
                 }
@@ -1139,6 +1141,7 @@ impl Machine {
                     self.prepare_new_context(
                         process,
                         &instruction,
+                        process.context(),
                         context,
                         instruction.arg(0),
                         instruction.arg(1),
@@ -1618,6 +1621,7 @@ impl Machine {
                     self.prepare_new_context(
                         process,
                         &instruction,
+                        context,
                         &mut new_ctx,
                         instruction.arg(3),
                         instruction.arg(4),
@@ -2101,29 +2105,33 @@ impl Machine {
 
     fn set_positional_arguments(
         &self,
-        process: &RcProcess,
-        context: &mut ExecutionContext,
+        current_context: &ExecutionContext,
+        new_context: &mut ExecutionContext,
         registers: &[u16],
     ) {
-        let locals = context.binding.locals_mut();
+        let locals = new_context.binding.locals_mut();
 
         for (index, register) in registers.iter().enumerate() {
-            locals[index] = process.get_register(usize::from(*register));
+            locals[index] =
+                current_context.get_register(usize::from(*register));
         }
     }
 
     fn pack_excessive_arguments(
         &self,
         process: &RcProcess,
-        context: &mut ExecutionContext,
+        current_context: &ExecutionContext,
+        new_context: &mut ExecutionContext,
         pack_local: usize,
         registers: &[u16],
     ) {
-        let locals = context.binding.locals_mut();
+        let locals = new_context.binding.locals_mut();
 
         let pointers = registers
             .iter()
-            .map(|register| process.get_register(usize::from(*register)))
+            .map(|register| {
+                current_context.get_register(usize::from(*register))
+            })
             .collect::<Vec<ObjectPointer>>();
 
         locals[pack_local] = process.allocate(
@@ -2132,45 +2140,54 @@ impl Machine {
         );
     }
 
+    #[cfg_attr(feature = "cargo-clippy", allow(too_many_arguments))]
     fn prepare_new_context(
         &self,
         process: &RcProcess,
         instruction: &Instruction,
-        context: &mut ExecutionContext,
+        current_context: &ExecutionContext,
+        new_context: &mut ExecutionContext,
         given_positional: usize,
         given_keyword: usize,
         pos_start: usize,
     ) -> Result<(), String> {
         self.validate_number_of_arguments(
-            context.code,
+            new_context.code,
             given_positional,
             given_keyword,
         )?;
 
-        let (excessive, pos_args) =
-            context.code.number_of_arguments_to_set(given_positional);
+        let (excessive, pos_args) = new_context
+            .code
+            .number_of_arguments_to_set(given_positional);
 
         let pos_end = pos_start + pos_args;
         let key_start = pos_start + given_positional;
 
         self.set_positional_arguments(
-            process,
-            context,
+            current_context,
+            new_context,
             &instruction.arguments[pos_start..pos_end],
         );
 
         if excessive {
-            let local_index = context.code.rest_argument_index();
+            let local_index = new_context.code.rest_argument_index();
             let extra = &instruction.arguments[pos_end..key_start];
 
-            self.pack_excessive_arguments(process, context, local_index, extra);
+            self.pack_excessive_arguments(
+                process,
+                current_context,
+                new_context,
+                local_index,
+                extra,
+            );
         }
 
         if given_keyword > 0 {
             self.prepare_keyword_arguments(
-                process,
                 instruction,
-                context,
+                current_context,
+                new_context,
                 key_start,
             );
         }
@@ -2180,19 +2197,19 @@ impl Machine {
 
     fn prepare_keyword_arguments(
         &self,
-        process: &RcProcess,
         instruction: &Instruction,
-        context: &mut ExecutionContext,
+        current_context: &ExecutionContext,
+        new_context: &mut ExecutionContext,
         keyword_start: usize,
     ) {
         let keyword_args = &instruction.arguments[keyword_start..];
-        let locals = context.binding.locals_mut();
+        let locals = new_context.binding.locals_mut();
 
         for slice in keyword_args.chunks(2) {
-            let key = process.get_register(usize::from(slice[0]));
-            let val = process.get_register(usize::from(slice[1]));
+            let key = current_context.get_register(usize::from(slice[0]));
+            let val = current_context.get_register(usize::from(slice[1]));
 
-            if let Some(index) = context.code.argument_position(key) {
+            if let Some(index) = new_context.code.argument_position(key) {
                 locals[index] = val;
             }
         }
@@ -2206,8 +2223,8 @@ impl Machine {
         let mut deferred = Vec::new();
 
         loop {
-            let code = process.compiled_code();
             let context = process.context_mut();
+            let code = context.code;
             let index = context.instruction_index;
 
             for entry in &code.catch_table.entries {
