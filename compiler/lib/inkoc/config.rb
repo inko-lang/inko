@@ -85,6 +85,8 @@ module Inkoc
 
     RUNTIME_DIRECTORY = 'runtime'
 
+    MAXIMUM_METHOD_ARGUMENTS = 255
+
     attr_reader :source_directories, :mode, :target
 
     def self.core_module_name(name)

@@ -591,6 +591,10 @@ module Inkoc
       end
 
       def on_method(node, scope)
+        if node.arguments.length > Config::MAXIMUM_METHOD_ARGUMENTS
+          diagnostics.too_many_arguments(node.location)
+        end
+
         type = TypeSystem::Block.named_method(node.name, typedb.block_type)
 
         new_scope = TypeScope.new(

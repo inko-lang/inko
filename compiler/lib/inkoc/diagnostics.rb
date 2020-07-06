@@ -399,5 +399,12 @@ module Inkoc
         location
       )
     end
+
+    def too_many_arguments(location)
+      error(
+        "Methods are limited to a maximum of #{Config::MAXIMUM_METHOD_ARGUMENTS} arguments",
+        location
+      )
+    end
   end
 end
