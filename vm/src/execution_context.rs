@@ -8,11 +8,11 @@ use crate::compiled_code::CompiledCodePointer;
 use crate::global_scope::GlobalScopePointer;
 use crate::object_pointer::{ObjectPointer, ObjectPointerPointer};
 use crate::process::RcProcess;
-use crate::register::Register;
+use crate::registers::Registers;
 
 pub struct ExecutionContext {
     /// The registers for this context.
-    pub register: Register,
+    pub registers: Registers,
 
     /// The binding to evaluate this context in.
     pub binding: RcBinding,
@@ -59,7 +59,7 @@ impl ExecutionContext {
         return_register: Option<u16>,
     ) -> ExecutionContext {
         ExecutionContext {
-            register: Register::new(block.code.registers as usize),
+            registers: Registers::new(block.code.registers as usize),
             binding: Binding::from_block(block),
             deferred_blocks: Vec::new(),
             code: block.code,
@@ -73,7 +73,7 @@ impl ExecutionContext {
 
     pub fn from_isolated_block(block: &Block) -> ExecutionContext {
         ExecutionContext {
-            register: Register::new(block.code.registers as usize),
+            registers: Registers::new(block.code.registers as usize),
             binding: Binding::with_rc(block.locals(), block.receiver),
             code: block.code,
             deferred_blocks: Vec::new(),
@@ -121,11 +121,11 @@ impl ExecutionContext {
     }
 
     pub fn get_register(&self, register: usize) -> ObjectPointer {
-        self.register.get(register)
+        self.registers.get(register)
     }
 
     pub fn set_register(&mut self, register: usize, value: ObjectPointer) {
-        self.register.set(register, value);
+        self.registers.set(register, value);
     }
 
     pub fn get_local(&self, index: usize) -> ObjectPointer {
@@ -180,7 +180,7 @@ impl ExecutionContext {
         F: FnMut(ObjectPointerPointer),
     {
         self.binding.each_pointer(|ptr| callback(ptr));
-        self.register.each_pointer(|ptr| callback(ptr));
+        self.registers.each_pointer(|ptr| callback(ptr));
 
         for pointer in &self.deferred_blocks {
             callback(pointer.pointer());
@@ -381,7 +381,7 @@ mod tests {
         let pointer = ObjectPointer::new(0x1 as RawObjectPointer);
         let deferred = ObjectPointer::integer(5);
 
-        context.register.set(0, pointer);
+        context.registers.set(0, pointer);
         context.binding.set_local(0, pointer);
         context.add_defer(deferred);
 

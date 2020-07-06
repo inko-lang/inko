@@ -40,7 +40,7 @@ pub mod object_value;
 pub mod platform;
 pub mod process;
 pub mod process_status;
-pub mod register;
+pub mod registers;
 pub mod runtime_error;
 pub mod runtime_panic;
 pub mod scheduler;

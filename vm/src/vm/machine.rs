@@ -1148,7 +1148,7 @@ impl Machine {
                         2,
                     )?;
 
-                    context.register.values.reset();
+                    context.registers.values.reset();
 
                     context.instruction_index = 0;
 

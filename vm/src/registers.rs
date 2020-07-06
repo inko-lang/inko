@@ -6,14 +6,14 @@ use crate::chunk::Chunk;
 use crate::object_pointer::{ObjectPointer, ObjectPointerPointer};
 
 /// Structure used for storing temporary values of a scope.
-pub struct Register {
+pub struct Registers {
     pub values: Chunk<ObjectPointer>,
 }
 
-impl Register {
-    /// Creates a new Register.
-    pub fn new(amount: usize) -> Register {
-        Register {
+impl Registers {
+    /// Creates a new Registers.
+    pub fn new(amount: usize) -> Registers {
+        Registers {
             values: Chunk::new(amount),
         }
     }
@@ -49,7 +49,7 @@ mod tests {
 
     #[test]
     fn test_set_get() {
-        let mut register = Register::new(6);
+        let mut register = Registers::new(6);
         let pointer = ObjectPointer::new(0x4 as RawObjectPointer);
 
         register.set(0, pointer);
@@ -61,7 +61,7 @@ mod tests {
 
     #[test]
     fn test_each_pointer() {
-        let mut register = Register::new(2);
+        let mut register = Registers::new(2);
 
         let pointer1 = ObjectPointer::new(0x1 as RawObjectPointer);
         let pointer2 = ObjectPointer::new(0x2 as RawObjectPointer);
