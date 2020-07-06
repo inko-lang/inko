@@ -1450,7 +1450,7 @@ module Inkoc
         # The block used for the "false" argument.
         if_false = process_node(node.arguments.fetch(2), body)
 
-        body.instruct(:Unary, :SetRegister, result, if_false, loc)
+        body.instruct(:Unary, :CopyRegister, result, if_false, loc)
         body.instruct(:SkipNextBlock, loc)
 
         # The block used for the "true" argument.
@@ -1458,7 +1458,7 @@ module Inkoc
 
         if_true = process_node(node.arguments.fetch(1), body)
 
-        body.instruct(:Unary, :SetRegister, result, if_true, loc)
+        body.instruct(:Unary, :CopyRegister, result, if_true, loc)
 
         body.add_connected_basic_block
 
@@ -1517,14 +1517,14 @@ module Inkoc
         try_block = body.add_connected_basic_block
         try_reg = process_node(node.expression, body)
 
-        body.instruct(:Unary, :SetRegister, ret_reg, try_reg, node.location)
+        body.instruct(:Unary, :CopyRegister, ret_reg, try_reg, node.location)
         body.instruct(:SkipNextBlock, node.location)
 
         # Block for error handling
         else_block = body.add_connected_basic_block
         else_reg = register_for_else_block(node, body, catch_reg)
 
-        body.instruct(:Unary, :SetRegister, ret_reg, else_reg, node.location)
+        body.instruct(:Unary, :CopyRegister, ret_reg, else_reg, node.location)
 
         # Block for everything that comes after our "try" expression.
         body.add_connected_basic_block

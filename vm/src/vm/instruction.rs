@@ -84,7 +84,7 @@ pub enum InstructionType {
     GetGlobal,
     SetGlobal,
     Throw,
-    SetRegister,
+    CopyRegister,
     TailCall,
     ProcessSuspendCurrent,
     IntegerGreaterOrEqual,

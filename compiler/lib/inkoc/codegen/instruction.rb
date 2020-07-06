@@ -86,7 +86,7 @@ module Inkoc
         GetGlobal
         SetGlobal
         Throw
-        SetRegister
+        CopyRegister
         TailCall
         ProcessSuspendCurrent
         IntegerGreaterOrEqual

@@ -1130,7 +1130,7 @@ impl Machine {
 
                     throw_value!(self, process, value, context, index);
                 }
-                InstructionType::SetRegister => {
+                InstructionType::CopyRegister => {
                     let value = context.get_register(instruction.arg(1));
 
                     context.set_register(instruction.arg(0), value);
