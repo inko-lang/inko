@@ -5,7 +5,8 @@ use crate::process::RcProcess;
 use crate::vm::state::RcState;
 use num_traits::ToPrimitive;
 
-pub fn to_float(
+#[inline(always)]
+pub fn integer_to_float(
     state: &RcState,
     process: &RcProcess,
     integer: ObjectPointer,
@@ -25,7 +26,8 @@ pub fn to_float(
     Ok(process.allocate(object_value::float(result), state.float_prototype))
 }
 
-pub fn to_string(
+#[inline(always)]
+pub fn integer_to_string(
     state: &RcState,
     process: &RcProcess,
     integer: ObjectPointer,

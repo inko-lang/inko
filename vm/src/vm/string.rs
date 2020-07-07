@@ -7,7 +7,8 @@ use crate::slicing;
 use crate::vm::state::RcState;
 use num_bigint::BigInt;
 
-pub fn to_lower(
+#[inline(always)]
+pub fn string_to_lower(
     state: &RcState,
     process: &RcProcess,
     string_ptr: ObjectPointer,
@@ -20,7 +21,8 @@ pub fn to_lower(
     ))
 }
 
-pub fn to_upper(
+#[inline(always)]
+pub fn string_to_upper(
     state: &RcState,
     process: &RcProcess,
     string_ptr: ObjectPointer,
@@ -33,7 +35,8 @@ pub fn to_upper(
     ))
 }
 
-pub fn equal(
+#[inline(always)]
+pub fn string_equals(
     state: &RcState,
     compare: ObjectPointer,
     compare_with: ObjectPointer,
@@ -54,7 +57,8 @@ pub fn equal(
     Ok(boolean)
 }
 
-pub fn to_byte_array(
+#[inline(always)]
+pub fn string_to_byte_array(
     state: &RcState,
     process: &RcProcess,
     string: ObjectPointer,
@@ -65,7 +69,8 @@ pub fn to_byte_array(
     Ok(process.allocate(value, state.byte_array_prototype))
 }
 
-pub fn length(
+#[inline(always)]
+pub fn string_length(
     state: &RcState,
     process: &RcProcess,
     string: ObjectPointer,
@@ -78,7 +83,8 @@ pub fn length(
     Ok(length)
 }
 
-pub fn byte_size(
+#[inline(always)]
+pub fn string_size(
     state: &RcState,
     process: &RcProcess,
     string: ObjectPointer,
@@ -89,7 +95,8 @@ pub fn byte_size(
     Ok(size)
 }
 
-pub fn concat(
+#[inline(always)]
+pub fn string_concat(
     state: &RcState,
     process: &RcProcess,
     concat: ObjectPointer,
@@ -105,7 +112,8 @@ pub fn concat(
     Ok(result)
 }
 
-pub fn concat_multiple(
+#[inline(always)]
+pub fn string_concat_multiple(
     state: &RcState,
     process: &RcProcess,
     array_ptr: ObjectPointer,
@@ -120,7 +128,8 @@ pub fn concat_multiple(
     Ok(process.allocate(object_value::string(buffer), state.string_prototype))
 }
 
-pub fn slice(
+#[inline(always)]
+pub fn string_slice(
     state: &RcState,
     process: &RcProcess,
     str_ptr: ObjectPointer,
@@ -129,7 +138,6 @@ pub fn slice(
 ) -> Result<ObjectPointer, String> {
     let string = str_ptr.string_value()?;
     let amount = amount_ptr.usize_value()?;
-
     let start = slicing::index_for_slice(
         string.chars().count(),
         start_ptr.integer_value()?,
@@ -144,7 +152,8 @@ pub fn slice(
     Ok(new_string_ptr)
 }
 
-pub fn format_debug(
+#[inline(always)]
+pub fn string_format_debug(
     state: &RcState,
     process: &RcProcess,
     str_ptr: ObjectPointer,
@@ -154,8 +163,8 @@ pub fn format_debug(
     Ok(process.allocate(object_value::string(new_str), state.string_prototype))
 }
 
-/// Converts a string to an integer.
-pub fn to_integer(
+#[inline(always)]
+pub fn string_to_integer(
     state: &RcState,
     process: &RcProcess,
     str_ptr: ObjectPointer,
@@ -184,8 +193,8 @@ pub fn to_integer(
     Ok(int_ptr)
 }
 
-/// Converts a string to a float.
-pub fn to_float(
+#[inline(always)]
+pub fn string_to_float(
     state: &RcState,
     process: &RcProcess,
     str_ptr: ObjectPointer,
@@ -205,7 +214,8 @@ pub fn to_float(
     }
 }
 
-pub fn byte(
+#[inline(always)]
+pub fn string_byte(
     str_ptr: ObjectPointer,
     index_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, String> {

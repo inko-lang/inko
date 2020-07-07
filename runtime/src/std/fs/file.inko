@@ -82,7 +82,7 @@ impl FilePath for ReadOnlyFile {
 
 impl Close for ReadOnlyFile {
   def close {
-    _INKOC.drop(self)
+    _INKOC.drop_value(self)
   }
 }
 
@@ -151,7 +151,7 @@ impl FilePath for WriteOnlyFile {
 
 impl Close for WriteOnlyFile {
   def close {
-    _INKOC.drop(self)
+    _INKOC.drop_value(self)
   }
 }
 
@@ -232,7 +232,7 @@ impl FilePath for ReadWriteFile {
 
 impl Close for ReadWriteFile {
   def close {
-    _INKOC.drop(self)
+    _INKOC.drop_value(self)
   }
 }
 

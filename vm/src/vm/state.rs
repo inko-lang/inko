@@ -6,7 +6,6 @@
 use crate::arc_without_weak::ArcWithoutWeak;
 use crate::config::Config;
 use crate::gc::coordinator::Pool as GcPool;
-use crate::immix::copy_object::CopyObject;
 use crate::immix::global_allocator::{GlobalAllocator, RcGlobalAllocator};
 use crate::immix::permanent_allocator::PermanentAllocator;
 use crate::immutable_string::ImmutableString;
@@ -260,34 +259,19 @@ impl State {
         alloc.allocate_with_prototype(value, self.integer_prototype)
     }
 
+    pub fn terminate(&self, status: i32) {
+        self.set_exit_status(status);
+        self.scheduler.terminate();
+        self.gc_pool.terminate();
+        self.timeout_worker.terminate();
+    }
+
     pub fn set_exit_status(&self, new_status: i32) {
         *self.exit_status.lock() = new_status;
     }
 
     pub fn current_exit_status(&self) -> i32 {
         *self.exit_status.lock()
-    }
-
-    pub fn set_default_panic_handler(
-        &self,
-        handler: ObjectPointer,
-    ) -> Result<ObjectPointer, String> {
-        if handler.block_value()?.captures_from.is_some() {
-            return Err("default panic handlers can not capture any variables"
-                .to_string());
-        }
-
-        let handler_to_use = if handler.is_permanent() {
-            handler
-        } else {
-            self.permanent_allocator.lock().copy_object(handler)
-        };
-
-        self.default_panic_handler
-            .raw
-            .atomic_store(handler_to_use.raw.raw);
-
-        Ok(handler_to_use)
     }
 
     pub fn default_panic_handler(&self) -> Option<ObjectPointer> {

@@ -5,7 +5,8 @@ use crate::object_value;
 use crate::process::RcProcess;
 use crate::vm::state::RcState;
 
-pub fn open_library(
+#[inline(always)]
+pub fn ffi_library_open(
     process: &RcProcess,
     names_ptr: ObjectPointer,
     proto_ptr: ObjectPointer,
@@ -16,7 +17,8 @@ pub fn open_library(
     Ok(process.allocate(object_value::library(lib), proto_ptr))
 }
 
-pub fn attach_function(
+#[inline(always)]
+pub fn ffi_function_attach(
     process: &RcProcess,
     lib: ObjectPointer,
     name: ObjectPointer,
@@ -37,7 +39,8 @@ pub fn attach_function(
     Ok(result)
 }
 
-pub fn call_function(
+#[inline(always)]
+pub fn ffi_function_call(
     state: &RcState,
     process: &RcProcess,
     func_ptr: ObjectPointer,
@@ -50,7 +53,8 @@ pub fn call_function(
     Ok(unsafe { func.call(&state, &process, pointer_proto_ptr, args)? })
 }
 
-pub fn attach_pointer(
+#[inline(always)]
+pub fn ffi_pointer_attach(
     process: &RcProcess,
     lib: ObjectPointer,
     name: ObjectPointer,
@@ -64,7 +68,8 @@ pub fn attach_pointer(
     Ok(result)
 }
 
-pub fn read_pointer(
+#[inline(always)]
+pub fn ffi_pointer_read(
     state: &RcState,
     process: &RcProcess,
     pointer_proto_ptr: ObjectPointer,
@@ -86,7 +91,8 @@ pub fn read_pointer(
     Ok(result)
 }
 
-pub fn write_pointer(
+#[inline(always)]
+pub fn ffi_pointer_write(
     ptr: ObjectPointer,
     write_as: ObjectPointer,
     value: ObjectPointer,
@@ -103,7 +109,8 @@ pub fn write_pointer(
     Ok(value)
 }
 
-pub fn pointer_from_address(
+#[inline(always)]
+pub fn ffi_pointer_from_address(
     process: &RcProcess,
     addr: ObjectPointer,
     proto: ObjectPointer,
@@ -116,7 +123,8 @@ pub fn pointer_from_address(
     Ok(result)
 }
 
-pub fn pointer_address(
+#[inline(always)]
+pub fn ffi_pointer_address(
     state: &RcState,
     process: &RcProcess,
     ptr: ObjectPointer,
@@ -129,10 +137,14 @@ pub fn pointer_address(
     Ok(result)
 }
 
-pub fn type_size(kind: ObjectPointer) -> Result<ObjectPointer, String> {
+#[inline(always)]
+pub fn ffi_type_size(kind: ObjectPointer) -> Result<ObjectPointer, String> {
     ffi::type_size(kind.integer_value()?)
 }
 
-pub fn type_alignment(kind: ObjectPointer) -> Result<ObjectPointer, String> {
+#[inline(always)]
+pub fn ffi_type_alignment(
+    kind: ObjectPointer,
+) -> Result<ObjectPointer, String> {
     ffi::type_alignment(kind.integer_value()?)
 }

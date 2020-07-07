@@ -7,6 +7,12 @@ module Inkoc
 
       attr_reader :id, :type
 
+      def self.reserved
+        # Register 0 is reserved and used for padding missing optional
+        # arguments.
+        new(0, TypeSystem::Dynamic.new)
+      end
+
       def initialize(id, type)
         @id = id
         @type = type

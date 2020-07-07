@@ -25,37 +25,6 @@ const READ_WRITE: i64 = 3;
 /// File opened for reading and appending, equal to fopen's "a+" mode.
 const READ_APPEND: i64 = 4;
 
-macro_rules! file_mode_error {
-    ($mode: expr) => {
-        return Err(format!("Invalid file open mode: {}", $mode));
-    };
-}
-
-/// Reads a number of bytes from a stream into a byte array.
-pub fn io_read(
-    state: &RcState,
-    process: &RcProcess,
-    stream: &mut dyn Read,
-    buffer: &mut Vec<u8>,
-    amount: ObjectPointer,
-) -> Result<ObjectPointer, RuntimeError> {
-    let result = if amount.is_integer() {
-        let amount_bytes = amount.usize_value()?;
-
-        stream.take(amount_bytes as u64).read_to_end(buffer)?
-    } else {
-        stream.read_to_end(buffer)?
-    };
-
-    // When reading into a buffer, the Vec type may decide to grow it beyond the
-    // necessary size. This can lead to a waste of memory, especially when the
-    // buffer only sticks around for a short amount of time. To work around this
-    // we manually shrink the buffer once we're done writing.
-    buffer.shrink_to_fit();
-
-    Ok(process.allocate_usize(result, state.integer_prototype))
-}
-
 #[cfg_attr(feature = "cargo-clippy", allow(trivially_copy_pass_by_ref))]
 pub fn buffer_to_write(buffer: &ObjectPointer) -> Result<&[u8], RuntimeError> {
     let buff = if buffer.is_string() {
@@ -78,13 +47,7 @@ pub fn io_write<W: Write>(
     Ok(process.allocate_usize(written, state.integer_prototype))
 }
 
-pub fn io_flush<W: Write>(
-    state: &RcState,
-    output: &mut W,
-) -> Result<ObjectPointer, RuntimeError> {
-    Ok(output.flush().map(|_| state.nil_object)?)
-}
-
+#[inline(always)]
 pub fn stdout_write(
     state: &RcState,
     process: &RcProcess,
@@ -95,12 +58,13 @@ pub fn stdout_write(
     io_write(state, process, &mut output, to_write)
 }
 
-pub fn stdout_flush(state: &RcState) -> Result<ObjectPointer, RuntimeError> {
-    let mut output = io::stdout();
-
-    io_flush(state, &mut output)
+#[inline(always)]
+pub fn stdout_flush() -> Result<(), RuntimeError> {
+    io::stdout().flush()?;
+    Ok(())
 }
 
+#[inline(always)]
 pub fn stderr_write(
     state: &RcState,
     process: &RcProcess,
@@ -111,12 +75,13 @@ pub fn stderr_write(
     io_write(state, process, &mut output, to_write)
 }
 
-pub fn stderr_flush(state: &RcState) -> Result<ObjectPointer, RuntimeError> {
-    let mut output = io::stdout();
-
-    io_flush(state, &mut output)
+#[inline(always)]
+pub fn stderr_flush() -> Result<(), RuntimeError> {
+    io::stdout().flush()?;
+    Ok(())
 }
 
+#[inline(always)]
 pub fn stdin_read(
     state: &RcState,
     process: &RcProcess,
@@ -129,7 +94,8 @@ pub fn stdin_read(
     io_read(state, process, &mut input, buffer, amount)
 }
 
-pub fn write_file(
+#[inline(always)]
+pub fn file_write(
     state: &RcState,
     process: &RcProcess,
     file_ptr: ObjectPointer,
@@ -140,16 +106,16 @@ pub fn write_file(
     io_write(state, process, file, to_write)
 }
 
-pub fn flush_file(
-    state: &RcState,
-    file_ptr: ObjectPointer,
-) -> Result<ObjectPointer, RuntimeError> {
+#[inline(always)]
+pub fn file_flush(file_ptr: ObjectPointer) -> Result<(), RuntimeError> {
     let file = file_ptr.file_value_mut()?;
 
-    io_flush(state, file)
+    file.flush()?;
+    Ok(())
 }
 
-pub fn read_file(
+#[inline(always)]
+pub fn file_read(
     state: &RcState,
     process: &RcProcess,
     file_ptr: ObjectPointer,
@@ -162,7 +128,8 @@ pub fn read_file(
     io_read(state, process, &mut input, buffer, amount)
 }
 
-pub fn open_file(
+#[inline(always)]
+pub fn file_open(
     process: &RcProcess,
     proto_ptr: ObjectPointer,
     path_ptr: ObjectPointer,
@@ -176,6 +143,7 @@ pub fn open_file(
     Ok(process.allocate(object_value::file(file), proto_ptr))
 }
 
+#[inline(always)]
 pub fn file_size(
     state: &RcState,
     process: &RcProcess,
@@ -187,7 +155,8 @@ pub fn file_size(
     Ok(process.allocate_u64(meta.len(), state.integer_prototype))
 }
 
-pub fn seek_file(
+#[inline(always)]
+pub fn file_seek(
     state: &RcState,
     process: &RcProcess,
     file_ptr: ObjectPointer,
@@ -224,7 +193,8 @@ pub fn seek_file(
     Ok(process.allocate_u64(cursor, state.integer_prototype))
 }
 
-pub fn remove_file(
+#[inline(always)]
+pub fn file_remove(
     state: &RcState,
     path_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, RuntimeError> {
@@ -235,7 +205,8 @@ pub fn remove_file(
     Ok(state.nil_object)
 }
 
-pub fn copy_file(
+#[inline(always)]
+pub fn file_copy(
     state: &RcState,
     process: &RcProcess,
     src_ptr: ObjectPointer,
@@ -248,6 +219,7 @@ pub fn copy_file(
     Ok(process.allocate_u64(bytes_copied, state.integer_prototype))
 }
 
+#[inline(always)]
 pub fn file_type(
     path_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, RuntimeError> {
@@ -257,6 +229,7 @@ pub fn file_type(
     Ok(ObjectPointer::integer(file_type))
 }
 
+#[inline(always)]
 pub fn file_time(
     state: &RcState,
     process: &RcProcess,
@@ -278,22 +251,8 @@ pub fn file_time(
     Ok(tuple)
 }
 
-pub fn options_for_integer(mode: i64) -> Result<OpenOptions, String> {
-    let mut open_opts = OpenOptions::new();
-
-    match mode {
-        READ => open_opts.read(true),
-        WRITE => open_opts.write(true).truncate(true).create(true),
-        APPEND => open_opts.append(true).create(true),
-        READ_WRITE => open_opts.read(true).write(true).create(true),
-        READ_APPEND => open_opts.read(true).append(true).create(true),
-        _ => file_mode_error!(mode),
-    };
-
-    Ok(open_opts)
-}
-
-pub fn create_directory(
+#[inline(always)]
+pub fn directory_create(
     state: &RcState,
     path_ptr: ObjectPointer,
     recursive_ptr: ObjectPointer,
@@ -309,7 +268,8 @@ pub fn create_directory(
     Ok(state.nil_object)
 }
 
-pub fn remove_directory(
+#[inline(always)]
+pub fn directory_remove(
     state: &RcState,
     path_ptr: ObjectPointer,
     recursive_ptr: ObjectPointer,
@@ -325,7 +285,8 @@ pub fn remove_directory(
     Ok(state.nil_object)
 }
 
-pub fn list_directory(
+#[inline(always)]
+pub fn directory_list(
     state: &RcState,
     process: &RcProcess,
     path_ptr: ObjectPointer,
@@ -334,4 +295,44 @@ pub fn list_directory(
     let files = filesystem::list_directory_as_pointers(&state, process, path)?;
 
     Ok(files)
+}
+
+/// Reads a number of bytes from a stream into a byte array.
+fn io_read(
+    state: &RcState,
+    process: &RcProcess,
+    stream: &mut dyn Read,
+    buffer: &mut Vec<u8>,
+    amount: ObjectPointer,
+) -> Result<ObjectPointer, RuntimeError> {
+    let result = if amount.is_integer() {
+        let amount_bytes = amount.usize_value()?;
+
+        stream.take(amount_bytes as u64).read_to_end(buffer)?
+    } else {
+        stream.read_to_end(buffer)?
+    };
+
+    // When reading into a buffer, the Vec type may decide to grow it beyond the
+    // necessary size. This can lead to a waste of memory, especially when the
+    // buffer only sticks around for a short amount of time. To work around this
+    // we manually shrink the buffer once we're done writing.
+    buffer.shrink_to_fit();
+
+    Ok(process.allocate_usize(result, state.integer_prototype))
+}
+
+fn options_for_integer(mode: i64) -> Result<OpenOptions, String> {
+    let mut open_opts = OpenOptions::new();
+
+    match mode {
+        READ => open_opts.read(true),
+        WRITE => open_opts.write(true).truncate(true).create(true),
+        APPEND => open_opts.append(true).create(true),
+        READ_WRITE => open_opts.read(true).write(true).create(true),
+        READ_APPEND => open_opts.read(true).append(true).create(true),
+        _ => return Err(format!("Invalid file open mode: {}", mode)),
+    };
+
+    Ok(open_opts)
 }

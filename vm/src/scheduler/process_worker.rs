@@ -205,7 +205,7 @@ impl Worker<RcProcess> for ProcessWorker {
         // since we know exactly how this code is used (it's only the lines
         // below that depend on this) the runtime reference counting is not
         // needed.
-        let machine = unsafe { &*self.machine.get() };
+        let machine = unsafe { &mut *self.machine.get() };
 
         machine.run_with_error_handling(self, &job);
     }
@@ -261,7 +261,7 @@ mod tests {
     #[test]
     fn test_run_work_and_steal() {
         let (machine, block, process) = setup();
-        let process2 = process::allocate(&machine.state, &block);
+        let process2 = process::process_allocate(&machine.state, &block);
         let mut worker = worker(machine.clone());
 
         worker.queue.push_internal(process2);
@@ -281,7 +281,7 @@ mod tests {
     #[test]
     fn test_run_work_then_terminate_steal_loop() {
         let (machine, block, process) = setup();
-        let process2 = process::allocate(&machine.state, &block);
+        let process2 = process::process_allocate(&machine.state, &block);
         let mut worker = worker(machine.clone());
 
         worker.state.queues[0].push_internal(process);
@@ -307,7 +307,7 @@ mod tests {
     #[test]
     fn test_enter_exclusive_mode() {
         let (machine, block, process) = setup();
-        let process2 = process::allocate(&machine.state, &block);
+        let process2 = process::process_allocate(&machine.state, &block);
         let mut worker = worker(machine.clone());
 
         worker.queue.push_internal(process);

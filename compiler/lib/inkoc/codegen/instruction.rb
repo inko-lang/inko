@@ -68,7 +68,6 @@ module Inkoc
         ModuleLoad
         SetAttribute
         GetAttribute
-        SetPrototype
         GetPrototype
         LocalExists
         ProcessSpawn
@@ -80,7 +79,6 @@ module Inkoc
         ObjectEquals
         GetNil
         AttributeExists
-        RemoveAttribute
         GetAttributeNames
         TimeMonotonic
         GetGlobal
@@ -99,8 +97,8 @@ module Inkoc
         FloatFloor
         FloatCeil
         FloatRound
-        Drop
-        SetBlocking
+        DropValue
+        ProcessSetBlocking
         StdoutFlush
         StderrFlush
         FileRemove
@@ -142,23 +140,21 @@ module Inkoc
         EnvArguments
         EnvRemove
         BlockGetReceiver
-        BlockSetReceiver
         RunBlockWithReceiver
         ProcessSetPanicHandler
         ProcessAddDeferToCaller
         SetDefaultPanicHandler
-        ProcessPinThread
-        ProcessUnpinThread
-        LibraryOpen
-        FunctionAttach
-        FunctionCall
-        PointerAttach
-        PointerRead
-        PointerWrite
-        PointerFromAddress
-        PointerAddress
-        ForeignTypeSize
-        ForeignTypeAlignment
+        ProcessSetPinned
+        FFILibraryOpen
+        FFIFunctionAttach
+        FFIFunctionCall
+        FFIPointerAttach
+        FFIPointerRead
+        FFIPointerWrite
+        FFIPointerFromAddress
+        FFIPointerAddress
+        FFITypeSize
+        FFITypeAlignment
         StringToInteger
         StringToFloat
         FloatToBits
@@ -185,6 +181,7 @@ module Inkoc
         ModuleGet
         ModuleInfo
         GetAttributeInSelf
+        MoveResult
       ]
         .each_with_index
         .each_with_object({}) { |(value, index), hash| hash[value] = index }

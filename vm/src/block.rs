@@ -37,7 +37,7 @@ impl Block {
         }
     }
 
-    pub fn locals(&self) -> usize {
-        self.code.locals as usize
+    pub fn locals(&self) -> u16 {
+        self.code.locals
     }
 }

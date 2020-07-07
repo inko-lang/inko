@@ -11,6 +11,10 @@ module Inkoc
         def run_block?
           false
         end
+
+        def move_result?
+          false
+        end
       end
     end
   end

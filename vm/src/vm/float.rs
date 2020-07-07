@@ -7,7 +7,8 @@ use float_cmp::ApproxEqUlps;
 use std::i32;
 use std::i64;
 
-pub fn to_integer(
+#[inline(always)]
+pub fn float_to_integer(
     state: &RcState,
     process: &RcProcess,
     float: ObjectPointer,
@@ -17,7 +18,8 @@ pub fn to_integer(
     process.allocate_f64_as_i64(float_val, state.integer_prototype)
 }
 
-pub fn to_string(
+#[inline(always)]
+pub fn float_to_string(
     state: &RcState,
     process: &RcProcess,
     float: ObjectPointer,
@@ -27,7 +29,8 @@ pub fn to_string(
     Ok(process.allocate(object_value::string(result), state.string_prototype))
 }
 
-pub fn equal(
+#[inline(always)]
+pub fn float_equals(
     state: &RcState,
     compare_ptr: ObjectPointer,
     compare_with_ptr: ObjectPointer,
@@ -47,7 +50,8 @@ pub fn equal(
     Ok(boolean)
 }
 
-pub fn is_nan(state: &RcState, pointer: ObjectPointer) -> ObjectPointer {
+#[inline(always)]
+pub fn float_is_nan(state: &RcState, pointer: ObjectPointer) -> ObjectPointer {
     let is_nan = match pointer.float_value() {
         Ok(float) => float.is_nan(),
         Err(_) => false,
@@ -60,7 +64,11 @@ pub fn is_nan(state: &RcState, pointer: ObjectPointer) -> ObjectPointer {
     }
 }
 
-pub fn is_infinite(state: &RcState, pointer: ObjectPointer) -> ObjectPointer {
+#[inline(always)]
+pub fn float_is_infinite(
+    state: &RcState,
+    pointer: ObjectPointer,
+) -> ObjectPointer {
     let is_inf = match pointer.float_value() {
         Ok(float) => float.is_infinite(),
         Err(_) => false,
@@ -73,7 +81,8 @@ pub fn is_infinite(state: &RcState, pointer: ObjectPointer) -> ObjectPointer {
     }
 }
 
-pub fn floor(
+#[inline(always)]
+pub fn float_floor(
     state: &RcState,
     process: &RcProcess,
     pointer: ObjectPointer,
@@ -83,7 +92,8 @@ pub fn floor(
     Ok(process.allocate(object_value::float(float), state.float_prototype))
 }
 
-pub fn ceil(
+#[inline(always)]
+pub fn float_ceil(
     state: &RcState,
     process: &RcProcess,
     pointer: ObjectPointer,
@@ -93,7 +103,8 @@ pub fn ceil(
     Ok(process.allocate(object_value::float(float), state.float_prototype))
 }
 
-pub fn round(
+#[inline(always)]
+pub fn float_round(
     state: &RcState,
     process: &RcProcess,
     pointer: ObjectPointer,
@@ -125,7 +136,8 @@ pub fn round(
     Ok(process.allocate(object_value::float(result), state.float_prototype))
 }
 
-pub fn to_bits(
+#[inline(always)]
+pub fn float_to_bits(
     state: &RcState,
     process: &RcProcess,
     float_ptr: ObjectPointer,

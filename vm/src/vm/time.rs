@@ -6,14 +6,16 @@ use crate::object_value;
 use crate::process::RcProcess;
 use crate::vm::state::RcState;
 
-pub fn monotonic(state: &RcState, process: &RcProcess) -> ObjectPointer {
+#[inline(always)]
+pub fn time_monotonic(state: &RcState, process: &RcProcess) -> ObjectPointer {
     let duration = state.start_time.elapsed();
     let seconds = duration::to_f64(Some(duration));
 
     process.allocate(object_value::float(seconds), state.float_prototype)
 }
 
-pub fn system(state: &RcState, process: &RcProcess) -> ObjectPointer {
+#[inline(always)]
+pub fn time_system(state: &RcState, process: &RcProcess) -> ObjectPointer {
     let dt = DateTime::now();
     let timestamp = process
         .allocate(object_value::float(dt.timestamp()), state.float_prototype);

@@ -7,22 +7,25 @@ use crate::process::RcProcess;
 use crate::slicing;
 use crate::vm::state::RcState;
 
-// Creates a new array, populated with the values of the given registers.
-pub fn create(
+#[inline(always)]
+pub fn set_array(
     state: &RcState,
     process: &RcProcess,
     context: &ExecutionContext,
-    registers: &[u16],
+    start_reg: u16,
+    amount: u16,
 ) -> ObjectPointer {
-    let values = registers
-        .iter()
-        .map(|reg| context.get_register(*reg as usize))
-        .collect();
+    let mut values = Vec::with_capacity(amount as usize);
+
+    for register in start_reg..(start_reg + amount) {
+        values.push(context.get_register(register));
+    }
 
     process.allocate(object_value::array(values), state.array_prototype)
 }
 
-pub fn set(
+#[inline(always)]
+pub fn array_set(
     state: &RcState,
     process: &RcProcess,
     array_ptr: ObjectPointer,
@@ -47,13 +50,13 @@ pub fn set(
     Ok(value)
 }
 
-pub fn get(
+#[inline(always)]
+pub fn array_get(
     state: &RcState,
     array_ptr: ObjectPointer,
     index_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
     let vector = array_ptr.array_value()?;
-
     let index =
         slicing::index_for_slice(vector.len(), index_ptr.integer_value()?);
 
@@ -65,7 +68,8 @@ pub fn get(
     Ok(value)
 }
 
-pub fn remove(
+#[inline(always)]
+pub fn array_remove(
     state: &RcState,
     array_ptr: ObjectPointer,
     index_ptr: ObjectPointer,
@@ -84,7 +88,8 @@ pub fn remove(
     Ok(value)
 }
 
-pub fn length(
+#[inline(always)]
+pub fn array_length(
     state: &RcState,
     process: &RcProcess,
     array_ptr: ObjectPointer,
@@ -94,8 +99,8 @@ pub fn length(
     Ok(process.allocate_usize(vector.len(), state.integer_prototype))
 }
 
+#[inline(always)]
 pub fn clear(array_ptr: ObjectPointer) -> Result<(), String> {
     array_ptr.array_value_mut()?.clear();
-
     Ok(())
 }

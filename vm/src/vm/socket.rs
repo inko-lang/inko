@@ -53,7 +53,8 @@ const UNICAST_HOPS_V6: i64 = 14;
 const REUSE_ADDRESS: i64 = 15;
 const REUSE_PORT: i64 = 16;
 
-pub fn create(
+#[inline(always)]
+pub fn socket_create(
     process: &RcProcess,
     domain_ptr: ObjectPointer,
     kind_ptr: ObjectPointer,
@@ -67,7 +68,8 @@ pub fn create(
     Ok(socket_ptr)
 }
 
-pub fn write(
+#[inline(always)]
+pub fn socket_write(
     state: &RcState,
     process: &RcProcess,
     socket_ptr: ObjectPointer,
@@ -84,7 +86,8 @@ pub fn write(
     )
 }
 
-pub fn read(
+#[inline(always)]
+pub fn socket_read(
     state: &RcState,
     process: &RcProcess,
     socket_ptr: ObjectPointer,
@@ -106,7 +109,8 @@ pub fn read(
     socket_result(result, state, process, sock, Interest::Read)
 }
 
-pub fn listen(
+#[inline(always)]
+pub fn socket_listen(
     socket_ptr: ObjectPointer,
     backlog_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, RuntimeError> {
@@ -118,7 +122,8 @@ pub fn listen(
     Ok(backlog_ptr)
 }
 
-pub fn bind(
+#[inline(always)]
+pub fn socket_bind(
     state: &RcState,
     process: &RcProcess,
     socket_ptr: ObjectPointer,
@@ -133,7 +138,8 @@ pub fn bind(
     socket_result(result, state, process, sock, Interest::Read)
 }
 
-pub fn connect(
+#[inline(always)]
+pub fn socket_connect(
     state: &RcState,
     process: &RcProcess,
     socket_ptr: ObjectPointer,
@@ -148,7 +154,8 @@ pub fn connect(
     socket_result(result, state, process, sock, Interest::Write)
 }
 
-pub fn accept(
+#[inline(always)]
+pub fn socket_accept(
     state: &RcState,
     process: &RcProcess,
     socket_ptr: ObjectPointer,
@@ -162,7 +169,8 @@ pub fn accept(
     socket_result(result, state, process, sock, Interest::Read)
 }
 
-pub fn receive_from(
+#[inline(always)]
+pub fn socket_receive_from(
     state: &RcState,
     process: &RcProcess,
     socket_ptr: ObjectPointer,
@@ -179,7 +187,8 @@ pub fn receive_from(
     socket_result(result, state, process, sock, Interest::Read)
 }
 
-pub fn send_to(
+#[inline(always)]
+pub fn socket_send_to(
     state: &RcState,
     process: &RcProcess,
     socket_pointer: ObjectPointer,
@@ -198,7 +207,8 @@ pub fn send_to(
     socket_result(result, state, process, sock, Interest::Write)
 }
 
-pub fn address(
+#[inline(always)]
+pub fn socket_address(
     state: &RcState,
     process: &RcProcess,
     socket_pointer: ObjectPointer,
@@ -218,7 +228,8 @@ pub fn address(
     .map(|(addr, port)| allocate_address_pair(state, process, addr, port))
 }
 
-pub fn set_option(
+#[inline(always)]
+pub fn socket_set_option(
     state: &RcState,
     socket_pointer: ObjectPointer,
     option_pointer: ObjectPointer,
@@ -266,7 +277,8 @@ pub fn set_option(
     Ok(val_pointer)
 }
 
-pub fn get_option(
+#[inline(always)]
+pub fn socket_get_option(
     state: &RcState,
     process: &RcProcess,
     socket_pointer: ObjectPointer,
@@ -314,7 +326,8 @@ pub fn get_option(
     Ok(result)
 }
 
-pub fn shutdown(
+#[inline(always)]
+pub fn socket_shutdown(
     state: &RcState,
     socket_ptr: ObjectPointer,
     mode_ptr: ObjectPointer,

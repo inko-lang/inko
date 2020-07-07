@@ -8,8 +8,8 @@ use crate::runtime_error::RuntimeError;
 use crate::vm::state::RcState;
 use std::env;
 
-/// Returns the value of an environment variable.
-pub fn get(
+#[inline(always)]
+pub fn env_get(
     state: &RcState,
     process: &RcProcess,
     var_ptr: ObjectPointer,
@@ -27,8 +27,8 @@ pub fn get(
     Ok(val)
 }
 
-/// Sets the value of an environment variable.
-pub fn set(
+#[inline(always)]
+pub fn env_set(
     var_ptr: ObjectPointer,
     val_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
@@ -37,8 +37,8 @@ pub fn set(
     Ok(val_ptr)
 }
 
-/// Removes an environment variable entirely.
-pub fn remove(
+#[inline(always)]
+pub fn env_remove(
     state: &RcState,
     var_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
@@ -47,8 +47,8 @@ pub fn remove(
     Ok(state.nil_object)
 }
 
-/// Returns an array containing all environment variable names.
-pub fn names(
+#[inline(always)]
+pub fn env_variables(
     state: &RcState,
     process: &RcProcess,
 ) -> Result<ObjectPointer, String> {
@@ -67,8 +67,8 @@ pub fn names(
     Ok(array)
 }
 
-/// Returns the home directory of the current user.
-pub fn home_directory(
+#[inline(always)]
+pub fn env_home_directory(
     state: &RcState,
     process: &RcProcess,
 ) -> Result<ObjectPointer, String> {
@@ -81,16 +81,19 @@ pub fn home_directory(
     Ok(path)
 }
 
-/// Returns the temporary directory of the system.
-pub fn tmp_directory(state: &RcState, process: &RcProcess) -> ObjectPointer {
+#[inline(always)]
+pub fn env_temp_directory(
+    state: &RcState,
+    process: &RcProcess,
+) -> ObjectPointer {
     process.allocate(
         object_value::string(directories::temp()),
         state.string_prototype,
     )
 }
 
-/// Returns the current working directory.
-pub fn working_directory(
+#[inline(always)]
+pub fn env_get_working_directory(
     state: &RcState,
     process: &RcProcess,
 ) -> Result<ObjectPointer, RuntimeError> {
@@ -99,8 +102,8 @@ pub fn working_directory(
     Ok(process.allocate(object_value::string(path), state.string_prototype))
 }
 
-/// Sets the working directory of the current process.
-pub fn set_working_directory(
+#[inline(always)]
+pub fn env_set_working_directory(
     dir_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, RuntimeError> {
     let dir = dir_ptr.string_value()?;
@@ -110,14 +113,15 @@ pub fn set_working_directory(
     Ok(dir_ptr)
 }
 
-/// Returns all the commandline arguments.
-pub fn arguments(state: &RcState, process: &RcProcess) -> ObjectPointer {
+#[inline(always)]
+pub fn env_arguments(state: &RcState, process: &RcProcess) -> ObjectPointer {
     process.allocate(
         object_value::array(state.arguments.clone()),
         state.array_prototype,
     )
 }
 
-pub fn operating_system(state: &RcState) -> ObjectPointer {
+#[inline(always)]
+pub fn platform(state: &RcState) -> ObjectPointer {
     state.intern_string(platform::operating_system().to_string())
 }

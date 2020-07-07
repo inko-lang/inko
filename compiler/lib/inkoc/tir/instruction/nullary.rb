@@ -18,6 +18,10 @@ module Inkoc
         def visitor_method
           :on_nullary
         end
+
+        def move_result?
+          @name == :MoveResult
+        end
       end
     end
   end

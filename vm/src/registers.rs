@@ -12,20 +12,20 @@ pub struct Registers {
 
 impl Registers {
     /// Creates a new Registers.
-    pub fn new(amount: usize) -> Registers {
+    pub fn new(amount: u16) -> Registers {
         Registers {
-            values: Chunk::new(amount),
+            values: Chunk::new(amount as usize),
         }
     }
 
     /// Sets the value of the given register.
-    pub fn set(&mut self, register: usize, value: ObjectPointer) {
-        self.values[register] = value;
+    pub fn set(&mut self, register: u16, value: ObjectPointer) {
+        self.values[register as usize] = value;
     }
 
     /// Returns the value of a register.
-    pub fn get(&self, register: usize) -> ObjectPointer {
-        self.values[register]
+    pub fn get(&self, register: u16) -> ObjectPointer {
+        self.values[register as usize]
     }
 
     pub fn each_pointer<F>(&self, mut callback: F)

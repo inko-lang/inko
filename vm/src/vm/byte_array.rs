@@ -10,21 +10,8 @@ use std::u8;
 const MIN_BYTE: i64 = u8::MIN as i64;
 const MAX_BYTE: i64 = u8::MAX as i64;
 
-/// Converts a tagged integer to a u8, if possible.
-pub fn integer_to_byte(pointer: ObjectPointer) -> Result<u8, String> {
-    let value = pointer.integer_value()?;
-
-    if value >= MIN_BYTE && value <= MAX_BYTE {
-        Ok(value as u8)
-    } else {
-        Err(format!(
-            "The value {} is not within the range 0..256",
-            value
-        ))
-    }
-}
-
-pub fn create(
+#[inline(always)]
+pub fn byte_array_from_array(
     state: &RcState,
     process: &RcProcess,
     array_ptr: ObjectPointer,
@@ -40,7 +27,8 @@ pub fn create(
         .allocate(object_value::byte_array(bytes), state.byte_array_prototype))
 }
 
-pub fn set(
+#[inline(always)]
+pub fn byte_array_set(
     array_ptr: ObjectPointer,
     index_ptr: ObjectPointer,
     value_ptr: ObjectPointer,
@@ -64,13 +52,13 @@ pub fn set(
     Ok(value_ptr)
 }
 
-pub fn get(
+#[inline(always)]
+pub fn byte_array_get(
     state: &RcState,
     array_ptr: ObjectPointer,
     index_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
     let bytes = array_ptr.byte_array_value()?;
-
     let index =
         slicing::index_for_slice(bytes.len(), index_ptr.integer_value()?);
 
@@ -82,7 +70,8 @@ pub fn get(
     Ok(value)
 }
 
-pub fn remove(
+#[inline(always)]
+pub fn byte_array_remove(
     state: &RcState,
     array_ptr: ObjectPointer,
     index_ptr: ObjectPointer,
@@ -100,7 +89,8 @@ pub fn remove(
     Ok(value)
 }
 
-pub fn length(
+#[inline(always)]
+pub fn byte_array_length(
     state: &RcState,
     process: &RcProcess,
     array_ptr: ObjectPointer,
@@ -110,13 +100,15 @@ pub fn length(
     Ok(process.allocate_usize(bytes.len(), state.integer_prototype))
 }
 
-pub fn clear(array_ptr: ObjectPointer) -> Result<(), String> {
+#[inline(always)]
+pub fn byte_array_clear(array_ptr: ObjectPointer) -> Result<(), String> {
     array_ptr.byte_array_value_mut()?.clear();
 
     Ok(())
 }
 
-pub fn equals(
+#[inline(always)]
+pub fn byte_array_equals(
     state: &RcState,
     compare_ptr: ObjectPointer,
     compare_with_ptr: ObjectPointer,
@@ -132,7 +124,8 @@ pub fn equals(
     Ok(result)
 }
 
-pub fn to_string(
+#[inline(always)]
+pub fn byte_array_to_string(
     state: &RcState,
     process: &RcProcess,
     array_ptr: ObjectPointer,
@@ -152,4 +145,17 @@ pub fn to_string(
         object_value::immutable_string(string),
         state.string_prototype,
     ))
+}
+
+fn integer_to_byte(pointer: ObjectPointer) -> Result<u8, String> {
+    let value = pointer.integer_value()?;
+
+    if value >= MIN_BYTE && value <= MAX_BYTE {
+        Ok(value as u8)
+    } else {
+        Err(format!(
+            "The value {} is not within the range 0..256",
+            value
+        ))
+    }
 }

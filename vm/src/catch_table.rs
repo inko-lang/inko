@@ -12,9 +12,6 @@ pub struct CatchEntry {
 
     /// The instruction index to jump to.
     pub jump_to: usize,
-
-    /// The register to store the caught value in.
-    pub register: usize,
 }
 
 pub struct CatchTable {
@@ -22,17 +19,11 @@ pub struct CatchTable {
 }
 
 impl CatchEntry {
-    pub fn new(
-        start: usize,
-        end: usize,
-        jump_to: usize,
-        register: usize,
-    ) -> Self {
+    pub fn new(start: usize, end: usize, jump_to: usize) -> Self {
         CatchEntry {
             start,
             end,
             jump_to,
-            register,
         }
     }
 }

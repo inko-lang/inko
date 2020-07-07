@@ -463,22 +463,6 @@ object BlockMirror {
     _INKOC.block_metadata(@subject, 4) as Integer
   }
 
-  # Returns `True` if this block defines a rest argument.
-  #
-  # # Examples
-  #
-  # Checking if a block defines a rest argument:
-  #
-  #     import std::mirror::BlockMirror
-  #
-  #     let method = def example(*rest) {}
-  #     let mirror = BlockMirror.new(method)
-  #
-  #     mirror.rest_argument? # => True
-  def rest_argument? -> Boolean {
-    _INKOC.block_metadata(@subject, 5) as Boolean
-  }
-
   # Returns the name of the block.
   #
   # # Examples

@@ -185,7 +185,7 @@ def write_string(socket: Socket, string: String) !! IoError -> Integer {
 }
 
 def close(socket: Socket) {
-  _INKOC.drop(socket)
+  _INKOC.drop_value(socket)
 }
 
 def to_stream(socket: Socket, prototype: Any) -> Any {

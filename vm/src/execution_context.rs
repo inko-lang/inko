@@ -26,9 +26,6 @@ pub struct ExecutionContext {
     /// The index of the instruction to store prior to suspending a process.
     pub instruction_index: usize,
 
-    /// The register to store this context's return value in.
-    pub return_register: Option<u16>,
-
     /// The current global scope.
     pub global_scope: GlobalScopePointer,
 
@@ -54,18 +51,14 @@ pub struct ExecutionContextIterator<'a> {
 impl ExecutionContext {
     /// Creates a new execution context using an existing bock.
     #[inline(always)]
-    pub fn from_block(
-        block: &Block,
-        return_register: Option<u16>,
-    ) -> ExecutionContext {
+    pub fn from_block(block: &Block) -> ExecutionContext {
         ExecutionContext {
-            registers: Registers::new(block.code.registers as usize),
+            registers: Registers::new(block.code.registers),
             binding: Binding::from_block(block),
             deferred_blocks: Vec::new(),
             code: block.code,
             parent: None,
             instruction_index: 0,
-            return_register,
             global_scope: block.global_scope,
             terminate_upon_return: false,
         }
@@ -73,13 +66,12 @@ impl ExecutionContext {
 
     pub fn from_isolated_block(block: &Block) -> ExecutionContext {
         ExecutionContext {
-            registers: Registers::new(block.code.registers as usize),
+            registers: Registers::new(block.code.registers),
             binding: Binding::with_rc(block.locals(), block.receiver),
             code: block.code,
             deferred_blocks: Vec::new(),
             parent: None,
             instruction_index: 0,
-            return_register: None,
             global_scope: block.global_scope,
             terminate_upon_return: false,
         }
@@ -120,27 +112,27 @@ impl ExecutionContext {
         self.parent.as_mut()
     }
 
-    pub fn get_register(&self, register: usize) -> ObjectPointer {
+    pub fn get_register(&self, register: u16) -> ObjectPointer {
         self.registers.get(register)
     }
 
-    pub fn set_register(&mut self, register: usize, value: ObjectPointer) {
+    pub fn set_register(&mut self, register: u16, value: ObjectPointer) {
         self.registers.set(register, value);
     }
 
-    pub fn get_local(&self, index: usize) -> ObjectPointer {
+    pub fn get_local(&self, index: u16) -> ObjectPointer {
         self.binding.get_local(index)
     }
 
-    pub fn set_local(&mut self, index: usize, value: ObjectPointer) {
+    pub fn set_local(&mut self, index: u16, value: ObjectPointer) {
         self.binding.set_local(index, value);
     }
 
-    pub fn get_global(&self, index: usize) -> ObjectPointer {
+    pub fn get_global(&self, index: u16) -> ObjectPointer {
         self.global_scope.get(index)
     }
 
-    pub fn set_global(&mut self, index: usize, value: ObjectPointer) {
+    pub fn set_global(&mut self, index: u16, value: ObjectPointer) {
         self.global_scope.set(index, value);
     }
 
@@ -225,7 +217,7 @@ impl ExecutionContext {
         for pointer in self.deferred_blocks.drain(0..) {
             let block = pointer.block_value()?;
 
-            process.push_context(Self::from_block(block, None));
+            process.push_context(Self::from_block(block));
         }
 
         Ok(true)
@@ -298,8 +290,8 @@ mod tests {
     #[test]
     fn test_set_parent() {
         let (_machine, block, _) = setup();
-        let context1 = ExecutionContext::from_block(&block, None);
-        let mut context2 = ExecutionContext::from_block(&block, None);
+        let context1 = ExecutionContext::from_block(&block);
+        let mut context2 = ExecutionContext::from_block(&block);
 
         context2.set_parent(Box::new(context1));
 
@@ -309,7 +301,7 @@ mod tests {
     #[test]
     fn test_parent_without_parent() {
         let (_machine, block, _) = setup();
-        let mut context = ExecutionContext::from_block(&block, None);
+        let mut context = ExecutionContext::from_block(&block);
 
         assert!(context.parent().is_none());
         assert!(context.parent_mut().is_none());
@@ -318,7 +310,7 @@ mod tests {
     #[test]
     fn test_get_set_register_valid() {
         let (_machine, block, _) = setup();
-        let mut context = ExecutionContext::from_block(&block, None);
+        let mut context = ExecutionContext::from_block(&block);
         let pointer = ObjectPointer::new(0x4 as RawObjectPointer);
 
         context.set_register(0, pointer);
@@ -329,7 +321,7 @@ mod tests {
     #[test]
     fn test_get_set_local_valid() {
         let (_machine, block, _) = setup();
-        let mut context = ExecutionContext::from_block(&block, None);
+        let mut context = ExecutionContext::from_block(&block);
         let pointer = ObjectPointer::null();
 
         context.set_local(0, pointer);
@@ -341,9 +333,9 @@ mod tests {
     fn test_find_parent() {
         let (_machine, block, _) = setup();
 
-        let context1 = ExecutionContext::from_block(&block, None);
-        let mut context2 = ExecutionContext::from_block(&block, None);
-        let mut context3 = ExecutionContext::from_block(&block, None);
+        let context1 = ExecutionContext::from_block(&block);
+        let mut context2 = ExecutionContext::from_block(&block);
+        let mut context3 = ExecutionContext::from_block(&block);
 
         context2.set_parent(Box::new(context1));
         context3.set_parent(Box::new(context2));
@@ -359,9 +351,9 @@ mod tests {
     fn test_contexts() {
         let (_machine, block, _) = setup();
 
-        let context1 = ExecutionContext::from_block(&block, None);
-        let mut context2 = ExecutionContext::from_block(&block, None);
-        let mut context3 = ExecutionContext::from_block(&block, None);
+        let context1 = ExecutionContext::from_block(&block);
+        let mut context2 = ExecutionContext::from_block(&block);
+        let mut context3 = ExecutionContext::from_block(&block);
 
         context2.set_parent(Box::new(context1));
         context3.set_parent(Box::new(context2));
@@ -377,7 +369,7 @@ mod tests {
     #[test]
     fn test_each_pointer() {
         let (_machine, block, _) = setup();
-        let mut context = ExecutionContext::from_block(&block, None);
+        let mut context = ExecutionContext::from_block(&block);
         let pointer = ObjectPointer::new(0x1 as RawObjectPointer);
         let deferred = ObjectPointer::integer(5);
 
@@ -412,7 +404,7 @@ mod tests {
     fn test_append_deferred_blocks() {
         let (_machine, block, _) = setup();
         let pointer = ObjectPointer::integer(5);
-        let mut context = ExecutionContext::from_block(&block, None);
+        let mut context = ExecutionContext::from_block(&block);
         let mut pointers = vec![pointer];
 
         context.append_deferred_blocks(&mut pointers);
@@ -425,7 +417,7 @@ mod tests {
     fn test_move_deferred_blocks_to() {
         let (_machine, block, _) = setup();
         let pointer = ObjectPointer::integer(5);
-        let mut context = ExecutionContext::from_block(&block, None);
+        let mut context = ExecutionContext::from_block(&block);
         let mut pointers = Vec::new();
 
         context.deferred_blocks.push(pointer);

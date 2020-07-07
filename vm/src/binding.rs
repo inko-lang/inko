@@ -42,9 +42,9 @@ pub type RcBinding = ArcWithoutWeak<Binding>;
 
 impl Binding {
     /// Returns a new binding.
-    pub fn with_rc(locals: usize, receiver: ObjectPointer) -> RcBinding {
+    pub fn with_rc(locals: u16, receiver: ObjectPointer) -> RcBinding {
         let bind = Binding {
-            locals: UnsafeCell::new(Chunk::new(locals)),
+            locals: UnsafeCell::new(Chunk::new(locals as usize)),
             receiver,
             parent: None,
         };
@@ -55,24 +55,24 @@ impl Binding {
     #[inline(always)]
     pub fn from_block(block: &Block) -> RcBinding {
         ArcWithoutWeak::new(Binding {
-            locals: UnsafeCell::new(Chunk::new(block.locals())),
+            locals: UnsafeCell::new(Chunk::new(block.locals() as usize)),
             receiver: block.receiver,
             parent: block.captures_from.clone(),
         })
     }
 
     /// Returns the value of a local variable.
-    pub fn get_local(&self, index: usize) -> ObjectPointer {
-        self.locals()[index]
+    pub fn get_local(&self, index: u16) -> ObjectPointer {
+        self.locals()[index as usize]
     }
 
     /// Sets a local variable.
-    pub fn set_local(&mut self, index: usize, value: ObjectPointer) {
-        self.locals_mut()[index] = value;
+    pub fn set_local(&mut self, index: u16, value: ObjectPointer) {
+        self.locals_mut()[index as usize] = value;
     }
 
     /// Returns true if the local variable exists.
-    pub fn local_exists(&self, index: usize) -> bool {
+    pub fn local_exists(&self, index: u16) -> bool {
         !self.get_local(index).is_null()
     }
 
@@ -163,7 +163,7 @@ mod tests {
     use crate::object_pointer::ObjectPointer;
     use crate::object_value;
 
-    fn binding_with_parent(parent: RcBinding, locals: usize) -> RcBinding {
+    fn binding_with_parent(parent: RcBinding, locals: u16) -> RcBinding {
         let mut binding = Binding::with_rc(locals, ObjectPointer::integer(1));
 
         binding.parent = Some(parent.clone());

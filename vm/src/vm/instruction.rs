@@ -3,7 +3,7 @@
 /// Enum containing all possible instruction types.
 #[derive(Debug, PartialEq, Eq)]
 #[repr(u8)]
-pub enum InstructionType {
+pub enum Opcode {
     SetLiteral,
     SetObject,
     SetArray,
@@ -66,7 +66,6 @@ pub enum InstructionType {
     ModuleLoad,
     SetAttribute,
     GetAttribute,
-    SetPrototype,
     GetPrototype,
     LocalExists,
     ProcessSpawn,
@@ -78,7 +77,6 @@ pub enum InstructionType {
     ObjectEquals,
     GetNil,
     AttributeExists,
-    RemoveAttribute,
     GetAttributeNames,
     TimeMonotonic,
     GetGlobal,
@@ -97,7 +95,7 @@ pub enum InstructionType {
     FloatFloor,
     FloatCeil,
     FloatRound,
-    Drop,
+    DropValue,
     ProcessSetBlocking,
     StdoutFlush,
     StderrFlush,
@@ -140,23 +138,21 @@ pub enum InstructionType {
     EnvArguments,
     EnvRemove,
     BlockGetReceiver,
-    BlockSetReceiver,
     RunBlockWithReceiver,
     ProcessSetPanicHandler,
     ProcessAddDeferToCaller,
     SetDefaultPanicHandler,
-    ProcessPinThread,
-    ProcessUnpinThread,
-    LibraryOpen,
-    FunctionAttach,
-    FunctionCall,
-    PointerAttach,
-    PointerRead,
-    PointerWrite,
-    PointerFromAddress,
-    PointerAddress,
-    ForeignTypeSize,
-    ForeignTypeAlignment,
+    ProcessSetPinned,
+    FFILibraryOpen,
+    FFIFunctionAttach,
+    FFIFunctionCall,
+    FFIPointerAttach,
+    FFIPointerRead,
+    FFIPointerWrite,
+    FFIPointerFromAddress,
+    FFIPointerAddress,
+    FFITypeSize,
+    FFITypeAlignment,
     StringToInteger,
     StringToFloat,
     FloatToBits,
@@ -183,67 +179,50 @@ pub enum InstructionType {
     ModuleGet,
     ModuleInfo,
     GetAttributeInSelf,
+    MoveResult,
 }
 
-/// Struct for storing information about a single instruction.
-#[derive(Debug)]
+/// A fixed-width VM instruction.
 pub struct Instruction {
-    /// The type of instruction.
-    pub instruction_type: InstructionType,
+    /// The instruction opcode/type.
+    pub opcode: Opcode,
 
-    /// The arguments of the instruction.
-    pub arguments: Vec<u16>,
-
-    /// The line from which the instruction originated.
+    /// The line number of the instruction.
     pub line: u16,
+
+    /// The arguments/operands of the instruction.
+    ///
+    /// This field is private so other code won't depend on this field having a
+    /// particular shape.
+    arguments: [u16; 6],
 }
 
 impl Instruction {
-    /// Returns a new Instruction.
-    pub fn new(
-        instruction_type: InstructionType,
-        arguments: Vec<u16>,
-        line: u16,
-    ) -> Instruction {
+    pub fn new(opcode: Opcode, arguments: [u16; 6], line: u16) -> Self {
         Instruction {
-            instruction_type,
+            opcode,
             arguments,
             line,
         }
     }
 
-    /// Returns the value of an argument without performing any bounds checking.
-    pub fn arg(&self, index: usize) -> usize {
-        unsafe { *self.arguments.get_unchecked(index) as usize }
-    }
-
-    /// Returns the value of an argument as an Option.
-    pub fn arg_opt(&self, index: usize) -> Option<usize> {
-        self.arguments.get(index).map(|val| *val as usize)
-    }
-
-    pub fn boolean(&self, index: usize) -> bool {
-        self.arg(index) == 1
+    /// Returns the value of the given instruction argument.
+    ///
+    /// This method is always inlined to ensure bounds checking is optimised
+    /// away when using literal index values.
+    #[inline(always)]
+    pub fn arg(&self, index: usize) -> u16 {
+        self.arguments[index]
     }
 }
 
 #[cfg(test)]
-mod tests {
+mod tests2 {
     use super::*;
     use std::mem::size_of;
 
     fn new_instruction() -> Instruction {
-        Instruction::new(InstructionType::SetLiteral, vec![1, 2], 3)
-    }
-
-    #[test]
-    fn test_new() {
-        let ins = new_instruction();
-
-        assert_eq!(ins.instruction_type, InstructionType::SetLiteral);
-        assert_eq!(ins.arguments[0], 1);
-        assert_eq!(ins.arguments[1], 2);
-        assert_eq!(ins.line, 3);
+        Instruction::new(Opcode::SetLiteral, [1, 2, 0, 0, 0, 0], 3)
     }
 
     #[test]
@@ -254,29 +233,7 @@ mod tests {
     }
 
     #[test]
-    fn test_arg_opt_invalid() {
-        let ins = new_instruction();
-
-        assert!(ins.arg_opt(5).is_none());
-    }
-
-    #[test]
-    fn test_arg_opt_valid() {
-        let ins = new_instruction();
-
-        assert!(ins.arg_opt(0).is_some());
-        assert_eq!(ins.arg_opt(0).unwrap(), 1);
-    }
-
-    #[test]
-    fn test_boolean() {
-        let ins = new_instruction();
-
-        assert!(ins.boolean(0));
-    }
-
-    #[test]
     fn test_type_size() {
-        assert_eq!(size_of::<Instruction>(), 32);
+        assert_eq!(size_of::<Instruction>(), 16);
     }
 }

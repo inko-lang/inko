@@ -4,7 +4,7 @@ module Inkoc
   module Codegen
     class Serializer
       SIGNATURE = 'inko'.bytes
-      VERSION = 3
+      VERSION = 1
 
       INTEGER_LITERAL = 0
       FLOAT_LITERAL = 1
@@ -90,16 +90,19 @@ module Inkoc
       end
 
       def instruction(ins)
-        u8(ins.index) +
-          array(ins.arguments, :u16) +
-          u16(ins.line)
+        output = u8(ins.index) + u8(ins.arguments.length)
+
+        ins.arguments.each do |arg|
+          output += u16(arg)
+        end
+
+        output + u16(ins.line)
       end
 
       def catch_entry(entry)
         u16(entry.start) +
           u16(entry.stop) +
-          u16(entry.jump_to) +
-          u16(entry.register)
+          u16(entry.jump_to)
       end
 
       def integer_literal(value)
@@ -142,7 +145,6 @@ module Inkoc
           u16(code.line) +
           array(code.arguments, :literal) +
           u8(code.required_arguments) +
-          boolean(code.rest_argument) +
           u16(code.locals) +
           u16(code.registers) +
           boolean(code.captures) +

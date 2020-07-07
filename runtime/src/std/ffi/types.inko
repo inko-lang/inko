@@ -16,12 +16,12 @@ object Type {
 
   # Returns the size of this type in bytes.
   def size -> Integer {
-    _INKOC.foreign_type_size(@id)
+    _INKOC.ffi_type_size(@id)
   }
 
   # Returns the alignment of this type in bytes.
   def alignment -> Integer {
-    _INKOC.foreign_type_alignment(@id)
+    _INKOC.ffi_type_alignment(@id)
   }
 }
 

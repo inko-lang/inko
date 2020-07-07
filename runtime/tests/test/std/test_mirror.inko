@@ -309,16 +309,6 @@ test.group('std::mirror::BlockMirror.required_arguments') do (g) {
   }
 }
 
-test.group('std::mirror::BlockMirror.rest_argument?') do (g) {
-  g.test('Checking if a block defines a rest argument') {
-    let with_rest = do (*values: Any) {}
-    let without_rest = do (values: Any) {}
-
-    assert.true(BlockMirror.new(with_rest).rest_argument?)
-    assert.false(BlockMirror.new(without_rest).rest_argument?)
-  }
-}
-
 test.group('std::mirror::ModuleMirror.name') do (g) {
   g.test('Obtaining the name of a module') {
     let mirror = ModuleMirror.new(ThisModule)

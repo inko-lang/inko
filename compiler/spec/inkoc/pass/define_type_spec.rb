@@ -2545,20 +2545,6 @@ describe Inkoc::Pass::DefineType do
     end
   end
 
-  describe '#on_raw_set_prototype' do
-    it 'returns the type of the prototype' do
-      object = Inkoc::TypeSystem::Object.new
-      proto = Inkoc::TypeSystem::Object.new(name: 'Prototype')
-
-      type_scope.locals.define('proto', proto)
-      type_scope.locals.define('obj', object)
-
-      type = expression_type('_INKOC.set_prototype(obj, proto)')
-
-      expect(type).to eq(proto)
-    end
-  end
-
   describe '#on_raw_set_attribute' do
     it 'returns the type of the value' do
       object = Inkoc::TypeSystem::Object.new

@@ -86,10 +86,6 @@ def stacktrace(skip = 1, limit: ?Integer = Nil) -> Array!(CallFrame) {
     )
   }
 
-  # We no longer need the raw list of frames and keeping the memory around is a
-  # waste, hence we drop it immediately.
-  _INKOC.drop(raw_frames)
-
   frames
 }
 

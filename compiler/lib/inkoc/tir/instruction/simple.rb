@@ -3,23 +3,23 @@
 module Inkoc
   module TIR
     module Instruction
-      class Drop
-        include Inspect
+      class Simple
         include Predicates
+        include Inspect
 
-        attr_reader :object, :location
+        attr_reader :name, :location
 
-        def initialize(object, location)
-          @object = object
+        def initialize(name, location)
+          @name = name
           @location = location
         end
 
         def register
-          object
+          nil
         end
 
         def visitor_method
-          :on_drop
+          :on_simple
         end
       end
     end
