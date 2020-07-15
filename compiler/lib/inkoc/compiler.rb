@@ -21,7 +21,6 @@ module Inkoc
       Pass::ImplementTraits,
       Pass::DefineType,
       Pass::ValidateThrow,
-      Pass::OptimizeKeywordArguments,
       Pass::GenerateTir,
       Pass::TailCallElimination,
       Pass::CodeGeneration,

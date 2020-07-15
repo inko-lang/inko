@@ -1,23 +1,32 @@
 //! VM functions for working with Inko modules.
 use crate::block::Block;
+use crate::execution_context::ExecutionContext;
 use crate::module_registry::RcModuleRegistry;
 use crate::object_pointer::ObjectPointer;
 use crate::object_value;
 use crate::process::RcProcess;
 use crate::vm::state::RcState;
 
-pub fn load(
+#[inline(always)]
+pub fn module_load(
+    process: &RcProcess,
     registry: &RcModuleRegistry,
     name_ptr: ObjectPointer,
     path_ptr: ObjectPointer,
-) -> Result<(ObjectPointer, Block, bool), String> {
+) -> Result<ObjectPointer, String> {
     let name = name_ptr.string_value()?;
     let path = path_ptr.string_value()?;
+    let (res, block, execute) = module_load_string(registry, name, path)?;
 
-    load_string(registry, name, path)
+    if execute {
+        process.push_context(ExecutionContext::from_block(&block));
+    }
+
+    Ok(res)
 }
 
-pub fn load_string(
+#[inline(always)]
+pub fn module_load_string(
     registry: &RcModuleRegistry,
     name: &str,
     path: &str,
@@ -34,7 +43,8 @@ pub fn load_string(
     Ok((module_ptr, block, parsed))
 }
 
-pub fn list(
+#[inline(always)]
+pub fn module_list(
     state: &RcState,
     registry: &RcModuleRegistry,
     process: &RcProcess,
@@ -44,7 +54,8 @@ pub fn list(
     process.allocate(object_value::array(modules), state.array_prototype)
 }
 
-pub fn get(
+#[inline(always)]
+pub fn module_get(
     state: &RcState,
     registry: &RcModuleRegistry,
     name_ptr: ObjectPointer,
@@ -59,7 +70,8 @@ pub fn get(
     }
 }
 
-pub fn info(
+#[inline(always)]
+pub fn module_info(
     module_ptr: ObjectPointer,
     field_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, String> {

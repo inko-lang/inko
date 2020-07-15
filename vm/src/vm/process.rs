@@ -1,40 +1,44 @@
 //! VM functions for working with Inko processes.
 use crate::block::Block;
 use crate::duration;
-use crate::execution_context::ExecutionContext;
-use crate::immix::copy_object::CopyObject;
 use crate::object_pointer::ObjectPointer;
 use crate::object_value;
 use crate::process::{Process, RcProcess, RescheduleRights};
 use crate::scheduler::process_worker::ProcessWorker;
 use crate::stacktrace;
 use crate::vm::state::RcState;
-use std::time::Duration;
 
-pub fn local_exists(
-    state: &RcState,
-    context: &ExecutionContext,
-    local: usize,
-) -> ObjectPointer {
-    if context.binding.local_exists(local) {
-        state.true_object
-    } else {
-        state.false_object
-    }
-}
-
-pub fn allocate(state: &RcState, block: &Block) -> RcProcess {
+#[inline(always)]
+pub fn process_allocate(state: &RcState, block: &Block) -> RcProcess {
     Process::from_block(block, state.global_allocator.clone(), &state.config)
 }
 
-pub fn spawn(
+#[inline(always)]
+pub fn process_set_panic_handler(
+    process: &RcProcess,
+    handler: ObjectPointer,
+) -> ObjectPointer {
+    process.set_panic_handler(handler);
+    handler
+}
+
+#[inline(always)]
+pub fn process_current(
+    process: &RcProcess,
+    proto: ObjectPointer,
+) -> ObjectPointer {
+    process.allocate(object_value::process(process.clone()), proto)
+}
+
+#[inline(always)]
+pub fn process_spawn(
     state: &RcState,
     current_process: &RcProcess,
     block_ptr: ObjectPointer,
     proto_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
     let block = block_ptr.block_value()?;
-    let new_proc = allocate(&state, &block);
+    let new_proc = process_allocate(&state, &block);
 
     // We schedule the process right away so we don't have to wait for the
     // allocation below (which may require requesting a new block) to finish.
@@ -46,7 +50,8 @@ pub fn spawn(
     Ok(new_proc_ptr)
 }
 
-pub fn send_message(
+#[inline(always)]
+pub fn process_send_message(
     state: &RcState,
     sender: &RcProcess,
     receiver_ptr: ObjectPointer,
@@ -64,7 +69,8 @@ pub fn send_message(
     Ok(msg)
 }
 
-pub fn receive_message(
+#[inline(always)]
+pub fn process_receive_message(
     state: &RcState,
     process: &RcProcess,
 ) -> Option<ObjectPointer> {
@@ -82,11 +88,14 @@ pub fn receive_message(
     }
 }
 
+#[inline(always)]
 pub fn wait_for_message(
     state: &RcState,
     process: &RcProcess,
-    wait_for: Option<Duration>,
-) {
+    timeout_ptr: ObjectPointer,
+) -> Result<(), String> {
+    let wait_for = duration::from_f64(timeout_ptr.float_value()?)?;
+
     process.waiting_for_message();
 
     if let Some(duration) = wait_for {
@@ -101,68 +110,50 @@ pub fn wait_for_message(
         // our process may be suspended until it is sent another message.
         attempt_to_reschedule_process(state, process);
     }
+
+    Ok(())
 }
 
-pub fn current_pid(state: &RcState, process: &RcProcess) -> ObjectPointer {
-    process.allocate_usize(process.identifier(), state.integer_prototype)
-}
-
-pub fn suspend(
+#[inline(always)]
+pub fn process_suspend_current(
     state: &RcState,
     process: &RcProcess,
-    wait_for: Option<Duration>,
-) {
+    timeout_ptr: ObjectPointer,
+) -> Result<(), String> {
+    let wait_for = duration::from_f64(timeout_ptr.float_value()?)?;
+
     if let Some(duration) = wait_for {
         state.timeout_worker.suspend(process.clone(), duration);
     } else {
         state.scheduler.schedule(process.clone());
     }
+
+    Ok(())
 }
 
-pub fn set_parent_local(
-    context: &mut ExecutionContext,
-    local: usize,
-    depth: usize,
-    value: ObjectPointer,
-) -> Result<(), String> {
-    if let Some(binding) = context.binding.find_parent_mut(depth) {
-        binding.set_local(local, value);
-
-        Ok(())
-    } else {
-        Err(format!("No binding for depth {}", depth))
-    }
-}
-
-pub fn get_parent_local(
-    context: &ExecutionContext,
-    local: usize,
-    depth: usize,
-) -> Result<ObjectPointer, String> {
-    if let Some(binding) = context.binding.find_parent(depth) {
-        Ok(binding.get_local(local))
-    } else {
-        Err(format!("No binding for depth {}", depth))
-    }
-}
-
-pub fn set_global(
+#[inline(always)]
+pub fn process_set_blocking(
     state: &RcState,
-    context: &mut ExecutionContext,
-    global: usize,
-    object: ObjectPointer,
+    process: &RcProcess,
+    blocking_ptr: ObjectPointer,
 ) -> ObjectPointer {
-    let value = if object.is_permanent() {
-        object
+    let is_blocking = blocking_ptr == state.true_object;
+
+    if process.is_pinned() || is_blocking == process.is_blocking() {
+        // If a process is pinned we can't move it to another pool. We can't
+        // panic in this case, since it would prevent code from using certain IO
+        // operations that may try to move the process to another pool.
+        //
+        // Instead, we simply ignore the request and continue running on the
+        // current thread.
+        state.false_object
     } else {
-        state.permanent_allocator.lock().copy_object(object)
-    };
-
-    context.set_global(global, value);
-
-    value
+        process.set_blocking(is_blocking);
+        state.true_object
+    }
 }
 
+#[inline(always)]
 pub fn stacktrace(
     state: &RcState,
     process: &RcProcess,
@@ -180,7 +171,8 @@ pub fn stacktrace(
     Ok(stacktrace::allocate_stacktrace(process, state, limit, skip))
 }
 
-pub fn add_defer_to_caller(
+#[inline(always)]
+pub fn process_add_defer_to_caller(
     process: &RcProcess,
     block: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
@@ -202,36 +194,32 @@ pub fn add_defer_to_caller(
     Ok(block)
 }
 
-pub fn pin_thread(
+#[inline(always)]
+pub fn process_set_pinned(
     state: &RcState,
     process: &RcProcess,
     worker: &mut ProcessWorker,
+    pinned: ObjectPointer,
 ) -> ObjectPointer {
-    let result = if process.thread_id().is_some() {
-        state.false_object
+    if pinned == state.true_object {
+        let result = if process.thread_id().is_some() {
+            state.false_object
+        } else {
+            process.set_thread_id(worker.id as u8);
+            state.true_object
+        };
+
+        worker.enter_exclusive_mode();
+        result
     } else {
-        process.set_thread_id(worker.id as u8);
-
-        state.true_object
-    };
-
-    worker.enter_exclusive_mode();
-
-    result
+        process.unset_thread_id();
+        worker.leave_exclusive_mode();
+        state.false_object
+    }
 }
 
-pub fn unpin_thread(
-    state: &RcState,
-    process: &RcProcess,
-    worker: &mut ProcessWorker,
-) -> ObjectPointer {
-    process.unset_thread_id();
-    worker.leave_exclusive_mode();
-
-    state.nil_object
-}
-
-pub fn identifier(
+#[inline(always)]
+pub fn process_identifier(
     state: &RcState,
     current_process: &RcProcess,
     process_ptr: ObjectPointer,
@@ -243,7 +231,8 @@ pub fn identifier(
     Ok(identifier)
 }
 
-pub fn unwind_until_defining_scope(process: &RcProcess) {
+#[inline(always)]
+pub fn process_unwind_until_defining_scope(process: &RcProcess) {
     let top_binding = process.context().top_binding_pointer();
 
     loop {
@@ -255,12 +244,6 @@ pub fn unwind_until_defining_scope(process: &RcProcess) {
             process.pop_context();
         }
     }
-}
-
-pub fn optional_timeout(
-    pointer: ObjectPointer,
-) -> Result<Option<Duration>, String> {
-    duration::from_f64(pointer.float_value()?)
 }
 
 /// Attempts to reschedule the given process after it was sent a message.

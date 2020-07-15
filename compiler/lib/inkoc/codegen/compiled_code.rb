@@ -7,14 +7,13 @@ module Inkoc
 
       attr_reader :name, :instructions, :literals, :code_objects
 
-      attr_accessor :arguments, :required_arguments, :rest_argument, :locals,
+      attr_accessor :arguments, :required_arguments, :locals,
                     :registers, :captures, :catch_table
 
       def initialize(name, location)
         @name = name
         @location = location
         @arguments = []
-        @required_arguments = 0
         @rest_argument = false
         @locals = 0
         @registers = 0

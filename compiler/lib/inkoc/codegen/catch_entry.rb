@@ -3,13 +3,12 @@
 module Inkoc
   module Codegen
     class CatchEntry
-      attr_reader :start, :stop, :jump_to, :register
+      attr_reader :start, :stop, :jump_to
 
-      def initialize(start, stop, jump_to, register)
+      def initialize(start, stop, jump_to)
         @start = start
         @stop = stop
         @jump_to = jump_to
-        @register = register
       end
     end
   end

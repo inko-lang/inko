@@ -5,44 +5,41 @@ use crate::object_value;
 use crate::process::RcProcess;
 use crate::vm::state::RcState;
 
-/// Creates a new object.
-pub fn create(
+#[inline(always)]
+pub fn set_object(
     state: &RcState,
     process: &RcProcess,
     perm_ptr: ObjectPointer,
-    proto_ptr: Option<ObjectPointer>,
+    proto_ptr: ObjectPointer,
 ) -> ObjectPointer {
     let is_permanent = perm_ptr != state.false_object;
 
-    let obj = if is_permanent {
-        state.permanent_allocator.lock().allocate_empty()
+    let proto_to_use = if is_permanent && !proto_ptr.is_permanent() {
+        state.permanent_allocator.lock().copy_object(proto_ptr)
     } else {
-        process.allocate_empty()
+        proto_ptr
     };
 
-    if let Some(proto) = proto_ptr {
-        let proto_to_use = if is_permanent && !proto.is_permanent() {
-            state.permanent_allocator.lock().copy_object(proto)
-        } else {
-            proto
-        };
-
-        obj.get_mut().set_prototype(proto_to_use);
+    if is_permanent {
+        state
+            .permanent_allocator
+            .lock()
+            .allocate_with_prototype(object_value::none(), proto_to_use)
+    } else {
+        process.allocate(object_value::none(), proto_to_use)
     }
-
-    obj
 }
 
 /// Returns a prototype for the given numeric ID.
 ///
 /// This method operates on an i64 instead of some sort of enum, as enums
 /// can not be represented in Inko code.
-pub fn prototype_for_identifier(
+#[inline(always)]
+pub fn get_builtin_prototype(
     state: &RcState,
     id: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
     let id_int = id.integer_value()?;
-
     let proto = match id_int {
         0 => state.object_prototype,
         1 => state.integer_prototype,
@@ -60,6 +57,7 @@ pub fn prototype_for_identifier(
     Ok(proto)
 }
 
+#[inline(always)]
 pub fn get_attribute(
     state: &RcState,
     rec_ptr: ObjectPointer,
@@ -72,6 +70,7 @@ pub fn get_attribute(
         .unwrap_or_else(|| state.nil_object)
 }
 
+#[inline(always)]
 pub fn get_attribute_in_self(
     state: &RcState,
     rec_ptr: ObjectPointer,
@@ -84,6 +83,7 @@ pub fn get_attribute_in_self(
         .unwrap_or_else(|| state.nil_object)
 }
 
+#[inline(always)]
 pub fn set_attribute(
     state: &RcState,
     process: &RcProcess,
@@ -107,33 +107,15 @@ pub fn set_attribute(
     value
 }
 
-pub fn set_prototype(
-    state: &RcState,
-    process: &RcProcess,
-    src_ptr: ObjectPointer,
-    proto_ptr: ObjectPointer,
-) -> ObjectPointer {
-    if src_ptr.is_immutable() {
-        return state.nil_object;
-    }
-
-    let prototype =
-        copy_if_permanent!(state.permanent_allocator, proto_ptr, src_ptr);
-
-    src_ptr.set_prototype(prototype);
-
-    process.write_barrier(src_ptr, prototype);
-
-    prototype
-}
-
+#[inline(always)]
 pub fn get_prototype(state: &RcState, src_ptr: ObjectPointer) -> ObjectPointer {
     src_ptr
         .prototype(&state)
         .unwrap_or_else(|| state.nil_object)
 }
 
-pub fn equal(
+#[inline(always)]
+pub fn object_equals(
     state: &RcState,
     compare: ObjectPointer,
     compare_with: ObjectPointer,
@@ -145,18 +127,7 @@ pub fn equal(
     }
 }
 
-pub fn kind_of(
-    state: &RcState,
-    compare: ObjectPointer,
-    compare_with: ObjectPointer,
-) -> ObjectPointer {
-    if compare.is_kind_of(&state, compare_with) {
-        state.true_object
-    } else {
-        state.false_object
-    }
-}
-
+#[inline(always)]
 pub fn attribute_exists(
     state: &RcState,
     source_ptr: ObjectPointer,
@@ -171,25 +142,8 @@ pub fn attribute_exists(
     }
 }
 
-pub fn remove_attribute(
-    state: &RcState,
-    rec_ptr: ObjectPointer,
-    name_ptr: ObjectPointer,
-) -> ObjectPointer {
-    if rec_ptr.is_immutable() {
-        return state.nil_object;
-    }
-
-    let name = state.intern_pointer(name_ptr).unwrap_or_else(|_| name_ptr);
-
-    if let Some(attribute) = rec_ptr.get_mut().remove_attribute(name) {
-        attribute
-    } else {
-        state.nil_object
-    }
-}
-
-pub fn attribute_names(
+#[inline(always)]
+pub fn get_attribute_names(
     state: &RcState,
     process: &RcProcess,
     rec_ptr: ObjectPointer,
@@ -199,6 +153,7 @@ pub fn attribute_names(
     process.allocate(object_value::array(attributes), state.array_prototype)
 }
 
+#[inline(always)]
 pub fn copy_blocks(
     state: &RcState,
     target_ptr: ObjectPointer,
@@ -225,6 +180,7 @@ pub fn copy_blocks(
     }
 }
 
+#[inline(always)]
 pub fn drop_value(pointer: ObjectPointer) {
     let object = pointer.get_mut();
 
@@ -240,22 +196,21 @@ mod tests {
     use crate::vm::state::State;
 
     #[test]
-    fn test_prototype_for_identifier() {
+    fn test_get_builtin_prototype() {
         let state = State::with_rc(Config::new(), &[]);
 
         assert!(
-            prototype_for_identifier(&state, ObjectPointer::integer(2))
-                .unwrap()
+            get_builtin_prototype(&state, ObjectPointer::integer(2)).unwrap()
                 == state.float_prototype
         );
 
         assert!(
-            prototype_for_identifier(&state, ObjectPointer::integer(5))
-                .unwrap()
+            get_builtin_prototype(&state, ObjectPointer::integer(5)).unwrap()
                 == state.block_prototype
         );
 
-        assert!(prototype_for_identifier(&state, ObjectPointer::integer(-1))
-            .is_err());
+        assert!(
+            get_builtin_prototype(&state, ObjectPointer::integer(-1)).is_err()
+        );
     }
 }

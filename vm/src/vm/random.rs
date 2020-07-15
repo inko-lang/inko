@@ -21,7 +21,8 @@ macro_rules! verify_min_max {
     };
 }
 
-pub fn number(
+#[inline(always)]
+pub fn random_number(
     state: &RcState,
     process: &RcProcess,
     worker: &mut ProcessWorker,
@@ -45,7 +46,8 @@ pub fn number(
     }
 }
 
-pub fn range(
+#[inline(always)]
+pub fn random_range(
     state: &RcState,
     process: &RcProcess,
     worker: &mut ProcessWorker,
@@ -90,7 +92,8 @@ pub fn range(
     }
 }
 
-pub fn bytes(
+#[inline(always)]
+pub fn random_bytes(
     state: &RcState,
     process: &RcProcess,
     worker: &mut ProcessWorker,

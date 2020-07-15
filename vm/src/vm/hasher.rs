@@ -5,7 +5,8 @@ use crate::object_value;
 use crate::process::RcProcess;
 use crate::vm::state::RcState;
 
-pub fn create(
+#[inline(always)]
+pub fn hasher_new(
     process: &RcProcess,
     key0_ptr: ObjectPointer,
     key1_ptr: ObjectPointer,
@@ -18,7 +19,8 @@ pub fn create(
     Ok(process.allocate(object_value::hasher(hasher), proto_ptr))
 }
 
-pub fn write(
+#[inline(always)]
+pub fn hasher_write(
     hasher: ObjectPointer,
     value: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
@@ -27,7 +29,8 @@ pub fn write(
     Ok(hasher)
 }
 
-pub fn to_hash(
+#[inline(always)]
+pub fn hasher_to_hash(
     state: &RcState,
     process: &RcProcess,
     hasher: ObjectPointer,
@@ -37,7 +40,8 @@ pub fn to_hash(
     Ok(process.allocate_i64(result, state.integer_prototype))
 }
 
-pub fn reset(hasher: ObjectPointer) -> Result<ObjectPointer, String> {
+#[inline(always)]
+pub fn hasher_reset(hasher: ObjectPointer) -> Result<ObjectPointer, String> {
     hasher.hasher_value_mut()?.reset();
 
     Ok(hasher)

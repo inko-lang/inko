@@ -4,6 +4,7 @@ pub mod byte_array;
 pub mod env;
 pub mod ffi;
 pub mod float;
+pub mod general;
 pub mod hasher;
 pub mod instruction;
 pub mod integer;

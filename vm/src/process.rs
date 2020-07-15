@@ -80,6 +80,13 @@ pub struct LocalData {
 
     /// The status of the process.
     status: ProcessStatus,
+
+    /// The result produced by a method call, throw, or another instruction that
+    /// may trigger the unwinding of call frames.
+    ///
+    /// This data is saved on a per-process basis, as processes may be suspended
+    /// between a return and the use of this value.
+    result: ObjectPointer,
 }
 
 pub struct Process {
@@ -127,6 +134,7 @@ impl Process {
             thread_id: None,
             mailbox: Mutex::new(Mailbox::new()),
             status: ProcessStatus::new(),
+            result: ObjectPointer::null(),
         };
 
         ArcWithoutWeak::new(Process {
@@ -488,6 +496,12 @@ impl Process {
         if let Some(handler) = self.panic_handler() {
             callback(handler.pointer());
         }
+
+        let local_data = self.local_data_mut();
+
+        if !local_data.result.is_null() {
+            callback(local_data.result.pointer());
+        }
     }
 
     pub fn each_remembered_pointer<F>(&self, callback: F)
@@ -517,6 +531,19 @@ impl Process {
 
     pub fn is_waiting_for_message(&self) -> bool {
         self.waiting_for_message.load(Ordering::Acquire)
+    }
+
+    pub fn set_result(&self, result: ObjectPointer) {
+        self.local_data_mut().result = result;
+    }
+
+    pub fn take_result(&self) -> ObjectPointer {
+        let mut local_data = self.local_data_mut();
+        let res = local_data.result;
+
+        local_data.result = ObjectPointer::null();
+
+        res
     }
 }
 
@@ -707,7 +734,7 @@ mod tests {
     fn test_process_type_size() {
         // This test is put in place to ensure the type size doesn't change
         // unintentionally.
-        assert_eq!(mem::size_of::<Process>(), 360);
+        assert_eq!(mem::size_of::<Process>(), 368);
     }
 
     #[test]
@@ -737,11 +764,12 @@ mod tests {
         let (_machine, _block, process) = setup();
 
         process.set_panic_handler(ObjectPointer::integer(5));
+        process.set_result(ObjectPointer::integer(7));
 
         let mut pointers = Vec::new();
 
         process.each_global_pointer(|ptr| pointers.push(ptr));
 
-        assert_eq!(pointers.len(), 1);
+        assert_eq!(pointers.len(), 2);
     }
 }

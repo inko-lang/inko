@@ -429,20 +429,6 @@ impl ObjectPointer {
         }
     }
 
-    pub fn is_kind_of(&self, state: &RcState, other: ObjectPointer) -> bool {
-        let mut prototype = self.prototype(state);
-
-        while let Some(proto) = prototype {
-            if proto == other {
-                return true;
-            }
-
-            prototype = proto.prototype(state);
-        }
-
-        false
-    }
-
     /// Returns a pointer to this pointer.
     pub fn pointer(&self) -> ObjectPointerPointer {
         ObjectPointerPointer::new(self)

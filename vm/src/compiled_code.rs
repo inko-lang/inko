@@ -24,9 +24,6 @@ pub struct CompiledCode {
     /// The amount of required arguments.
     pub required_arguments: u8,
 
-    /// Whether a rest argument is defined.
-    pub rest_argument: bool,
-
     /// The number of local variables defined.
     pub locals: u16,
 
@@ -66,7 +63,6 @@ impl CompiledCode {
             line,
             arguments: Vec::new(),
             required_arguments: 0,
-            rest_argument: false,
             locals: 0,
             registers: 0,
             captures: false,
@@ -82,8 +78,8 @@ impl CompiledCode {
     }
 
     #[inline(always)]
-    pub unsafe fn literal(&self, index: usize) -> ObjectPointer {
-        *self.literals.get_unchecked(index)
+    pub unsafe fn literal(&self, index: u16) -> ObjectPointer {
+        *self.literals.get_unchecked(index as usize)
     }
 
     #[inline(always)]
@@ -112,55 +108,6 @@ impl CompiledCode {
     pub fn required_arguments(&self) -> usize {
         self.required_arguments as usize
     }
-
-    pub fn label_for_number_of_arguments(&self) -> String {
-        if self.rest_argument {
-            format!("{}+", self.arguments_count())
-        } else {
-            format!("{}", self.arguments_count())
-        }
-    }
-
-    pub fn valid_number_of_arguments(&self, given: usize) -> bool {
-        let total = self.arguments_count();
-        let required = self.required_arguments();
-
-        if given < required {
-            return false;
-        }
-
-        if given > total && !self.rest_argument {
-            return false;
-        }
-
-        true
-    }
-
-    pub fn number_of_arguments_to_set(&self, given: usize) -> (bool, usize) {
-        let total = self.arguments_count();
-
-        let mut to_set = if given <= total { given } else { total };
-
-        if self.rest_argument && to_set > 0 {
-            to_set -= 1;
-        }
-
-        (self.rest_argument, to_set)
-    }
-
-    pub fn argument_position(&self, name: ObjectPointer) -> Option<usize> {
-        for (index, arg) in self.arguments.iter().enumerate() {
-            if name == *arg {
-                return Some(index);
-            }
-        }
-
-        None
-    }
-
-    pub fn rest_argument_index(&self) -> usize {
-        self.arguments_count() - 1
-    }
 }
 
 #[cfg(test)]
@@ -168,7 +115,7 @@ mod tests {
     use super::*;
     use crate::config::Config;
     use crate::object_pointer::ObjectPointer;
-    use crate::vm::instruction::{Instruction, InstructionType};
+    use crate::vm::instruction::{Instruction, Opcode};
     use crate::vm::state::{RcState, State};
     use std::mem;
 
@@ -177,7 +124,7 @@ mod tests {
     }
 
     fn new_compiled_code(state: &RcState) -> CompiledCode {
-        let ins = Instruction::new(InstructionType::Return, vec![0], 1);
+        let ins = Instruction::new(Opcode::Return, [0, 0, 0, 0, 0, 0], 1);
 
         CompiledCode::new(
             state.intern_string("foo".to_string()),
@@ -232,53 +179,7 @@ mod tests {
     }
 
     #[test]
-    fn test_number_of_arguments_to_set_without_rest() {
-        let state = state();
-        let arg = state.intern_string("foo".to_string());
-        let mut code = new_compiled_code(&state);
-
-        code.arguments = vec![arg];
-
-        assert_eq!(code.number_of_arguments_to_set(1), (false, 1));
-    }
-
-    #[test]
-    fn test_number_of_arguments_to_set_without_rest_with_multiple_arguments() {
-        let state = state();
-        let arg = state.intern_string("foo".to_string());
-        let mut code = new_compiled_code(&state);
-
-        code.arguments = vec![arg, arg];
-
-        assert_eq!(code.number_of_arguments_to_set(2), (false, 2));
-    }
-
-    #[test]
-    fn test_number_of_arguments_to_set_with_rest() {
-        let state = state();
-        let arg = state.intern_string("foo".to_string());
-        let mut code = new_compiled_code(&state);
-
-        code.rest_argument = true;
-        code.arguments = vec![arg];
-
-        assert_eq!(code.number_of_arguments_to_set(1), (true, 0));
-    }
-
-    #[test]
-    fn test_number_of_arguments_to_set_with_rest_and_multiple_arguments() {
-        let state = state();
-        let arg = state.intern_string("foo".to_string());
-        let mut code = new_compiled_code(&state);
-
-        code.rest_argument = true;
-        code.arguments = vec![arg];
-
-        assert_eq!(code.number_of_arguments_to_set(2), (true, 0));
-    }
-
-    #[test]
     fn test_compiled_code_size() {
-        assert_eq!(mem::size_of::<CompiledCode>(), 152);
+        assert_eq!(mem::size_of::<CompiledCode>(), 144);
     }
 }

@@ -166,7 +166,7 @@ def current -> Process {
 #
 #     result # => 12
 def blocking!(R)(block: do -> R) -> R {
-  let moved = _INKOC.set_blocking(True)
+  let moved = _INKOC.process_set_blocking(True)
 
   defer {
     # "moved" will be set to true the first time we try to mark a process as
@@ -184,7 +184,7 @@ def blocking!(R)(block: do -> R) -> R {
     #
     # Using the `if_true` below, we ensure that we only move the process back
     # once we return from the outer most call to this method.
-    moved.if_true { _INKOC.set_blocking(False) }
+    moved.if_true { _INKOC.process_set_blocking(False) }
   }
 
   block.call
@@ -351,7 +351,7 @@ def defer(block: do) {
 #       10
 #     } # => 10
 def pinned!(T)(block: do -> T) -> T {
-  let pinned = _INKOC.process_pin_thread
+  let pinned = _INKOC.process_set_pinned(True)
 
   # We use `process.defer` to ensure a process is unpinned even in the event of
   # a throw or a panic.
@@ -371,7 +371,7 @@ def pinned!(T)(block: do -> T) -> T {
     #
     # Using the `if_true` below, we ensure that we only unpin the process once
     # we return from the outer most call to this method.
-    pinned.if_true { _INKOC.process_unpin_thread }
+    pinned.if_true { _INKOC.process_set_pinned(False) }
   }
 
   block.call

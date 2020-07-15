@@ -3,7 +3,7 @@ use crate::block::Block;
 use crate::compiled_code::CompiledCode;
 use crate::config::Config;
 use crate::process::RcProcess;
-use crate::vm::instruction::{Instruction, InstructionType};
+use crate::vm::instruction::{Instruction, Opcode};
 use crate::vm::machine::Machine;
 use crate::vm::process;
 use crate::vm::state::State;
@@ -24,7 +24,7 @@ pub fn setup() -> (Machine, Block, RcProcess) {
         name,
         name,
         1,
-        vec![Instruction::new(InstructionType::Return, vec![0], 1)],
+        vec![Instruction::new(Opcode::Return, [0, 0, 0, 0, 0, 0], 1)],
     );
 
     // Reserve enough space for registers/locals for most tests.
@@ -38,7 +38,7 @@ pub fn setup() -> (Machine, Block, RcProcess) {
         let module = module_ptr.module_value().unwrap();
         let scope = module.global_scope_ref();
         let block = Block::new(module.code(), None, module_ptr, scope);
-        let process = process::allocate(&machine.state, &block);
+        let process = process::process_allocate(&machine.state, &block);
 
         process.set_main();
 

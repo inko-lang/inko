@@ -891,10 +891,6 @@ module Inkoc
         end
       end
 
-      def on_raw_set_prototype(node, _)
-        node.arguments.fetch(1).type
-      end
-
       def on_raw_set_attribute(node, *)
         node.arguments.fetch(2).type
       end
@@ -1220,17 +1216,6 @@ module Inkoc
         TypeSystem::Never.new
       end
 
-      def on_raw_remove_attribute(node, _)
-        object = node.arguments.fetch(0).type
-        name = node.arguments.fetch(1)
-
-        if name.string?
-          object.lookup_attribute(name.value).type
-        else
-          new_any_type
-        end
-      end
-
       def on_raw_get_prototype(*)
         typedb.object_type.new_instance
       end
@@ -1303,11 +1288,11 @@ module Inkoc
         typedb.new_array_of_type(typedb.string_type.new_instance)
       end
 
-      def on_raw_drop(*)
+      def on_raw_drop_value(*)
         typedb.nil_type.new_instance
       end
 
-      def on_raw_set_blocking(*)
+      def on_raw_process_set_blocking(*)
         typedb.boolean_type.new_instance
       end
 
@@ -1453,55 +1438,51 @@ module Inkoc
         TypeSystem::Block.lambda(typedb.block_type, return_type: new_any_type)
       end
 
-      def on_raw_process_pin_thread(*)
+      def on_raw_process_set_pinned(*)
         typedb.boolean_type.new_instance
-      end
-
-      def on_raw_process_unpin_thread(*)
-        typedb.nil_type.new_instance
       end
 
       def on_raw_process_identifier(*)
         typedb.integer_type.new_instance
       end
 
-      def on_raw_library_open(node, _)
+      def on_raw_ffi_library_open(node, _)
         node.arguments.fetch(0).type.new_instance
       end
 
-      def on_raw_function_attach(node, _)
+      def on_raw_ffi_function_attach(node, _)
         node.arguments.fetch(0).type.new_instance
       end
 
-      def on_raw_function_call(*)
+      def on_raw_ffi_function_call(*)
         new_any_type
       end
 
-      def on_raw_pointer_attach(node, _)
+      def on_raw_ffi_pointer_attach(node, _)
         node.arguments.fetch(0).type.new_instance
       end
 
-      def on_raw_pointer_read(*)
+      def on_raw_ffi_pointer_read(*)
         new_any_type
       end
 
-      def on_raw_pointer_write(*)
+      def on_raw_ffi_pointer_write(*)
         new_any_type
       end
 
-      def on_raw_pointer_from_address(node, _)
+      def on_raw_ffi_pointer_from_address(node, _)
         node.arguments.fetch(0).type.new_instance
       end
 
-      def on_raw_pointer_address(*)
+      def on_raw_ffi_pointer_address(*)
         typedb.integer_type.new_instance
       end
 
-      def on_raw_foreign_type_size(*)
+      def on_raw_ffi_type_size(*)
         typedb.integer_type.new_instance
       end
 
-      def on_raw_foreign_type_alignment(*)
+      def on_raw_ffi_type_alignment(*)
         typedb.integer_type.new_instance
       end
 

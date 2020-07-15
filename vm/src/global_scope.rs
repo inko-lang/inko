@@ -29,23 +29,24 @@ impl GlobalScope {
     ///
     /// This method will panic when attempting to retrieve a non-existing global
     /// variable.
-    pub fn get(&self, index: usize) -> ObjectPointer {
-        self.locals()[index]
+    pub fn get(&self, index: u16) -> ObjectPointer {
+        self.locals()[index as usize]
     }
 
     /// Sets a global variable.
-    pub fn set(&mut self, index: usize, value: ObjectPointer) {
+    pub fn set(&mut self, index: u16, value: ObjectPointer) {
         if !value.is_permanent() {
             panic!("Only permanent objects can be stored in a global scope");
         }
 
         let locals = self.locals_mut();
+        let index_usize = index as usize;
 
-        if index >= locals.len() {
-            locals.resize(index + 1, ObjectPointer::null());
+        if index_usize >= locals.len() {
+            locals.resize(index_usize + 1, ObjectPointer::null());
         }
 
-        locals[index] = value;
+        locals[index_usize] = value;
     }
 
     fn locals(&self) -> &Vec<ObjectPointer> {

@@ -35,7 +35,6 @@ module Inkoc
       def assign_compiled_code_metadata(compiled_code, code_object)
         compiled_code.arguments = code_object.argument_names
         compiled_code.required_arguments = code_object.required_arguments_count
-        compiled_code.rest_argument = code_object.rest_argument?
         compiled_code.locals = code_object.local_variables_count
         compiled_code.registers = code_object.registers_count
         compiled_code.captures = code_object.captures?
@@ -51,7 +50,7 @@ module Inkoc
           stop = entry.try_block.instruction_end
           jump_to = entry.else_block.instruction_offset
 
-          Codegen::CatchEntry.new(start, stop, jump_to, entry.register.id)
+          Codegen::CatchEntry.new(start, stop, jump_to)
         end
       end
 
@@ -128,56 +127,39 @@ module Inkoc
       end
 
       def on_run_block(tir_ins, compiled_code, *)
-        register = tir_ins.register.id
         block = tir_ins.block.id
-        args = tir_ins.arguments.map(&:id)
-        kwargs = tir_ins.keyword_arguments.map(&:id)
-        ins_args = [
-          register,
-          block,
-          args.length,
-          kwargs.length / 2,
-          *args,
-          *kwargs
-        ]
+        start = tir_ins.start.id
+        amount = tir_ins.amount
 
-        compiled_code.instruct(:RunBlock, ins_args, tir_ins.location)
+        compiled_code
+          .instruct(:RunBlock, [block, start, amount], tir_ins.location)
       end
 
       def on_run_block_with_receiver(tir_ins, compiled_code, *)
-        register = tir_ins.register.id
         block = tir_ins.block.id
-        receiver = tir_ins.receiver.id
-        args = tir_ins.arguments.map(&:id)
-        kwargs = tir_ins.keyword_arguments.map(&:id)
-        ins_args = [
-          register,
-          block,
-          receiver,
-          args.length,
-          kwargs.length / 2,
-          *args,
-          *kwargs
-        ]
+        rec = tir_ins.receiver.id
+        start = tir_ins.start.id
+        amount = tir_ins.amount
+        loc = tir_ins.location
 
         compiled_code
-          .instruct(:RunBlockWithReceiver, ins_args, tir_ins.location)
+          .instruct(:RunBlockWithReceiver, [block, rec, start, amount], loc)
       end
 
       def on_tail_call(tir_ins, compiled_code, *)
-        args = tir_ins.arguments.map(&:id)
-        kwargs = tir_ins.keyword_arguments.map(&:id)
-        ins_args = [args.length, kwargs.length / 2, *args, *kwargs]
+        start = tir_ins.start.id
+        amount = tir_ins.amount
 
-        compiled_code
-          .instruct(:TailCall, ins_args, tir_ins.location)
+        compiled_code.instruct(:TailCall, [start, amount], tir_ins.location)
       end
 
       def on_set_array(tir_ins, compiled_code, *)
         register = tir_ins.register.id
-        values = tir_ins.values.map(&:id)
+        start = tir_ins.start.id
+        len = tir_ins.length
 
-        compiled_code.instruct(:SetArray, [register, *values], tir_ins.location)
+        compiled_code
+          .instruct(:SetArray, [register, start, len], tir_ins.location)
       end
 
       def on_set_attribute(tir_ins, compiled_code, *)
@@ -191,15 +173,13 @@ module Inkoc
       end
 
       def on_set_block(tir_ins, compiled_code, *)
-        register = tir_ins.register.id
-        block_code = process_node(tir_ins.code_object)
-        code_index = compiled_code.code_objects.add(block_code)
-        arguments = [register, code_index]
-
-        arguments << tir_ins.receiver.id if tir_ins.receiver
+        reg = tir_ins.register.id
+        code = process_node(tir_ins.code_object)
+        index = compiled_code.code_objects.add(code)
+        receiver = tir_ins.receiver.id
 
         compiled_code
-          .instruct(:SetBlock, arguments, tir_ins.location)
+          .instruct(:SetBlock, [reg, index, receiver], tir_ins.location)
       end
 
       def on_set_literal(tir_ins, compiled_code, *)
@@ -235,6 +215,10 @@ module Inkoc
         val = tir_ins.value.id
 
         compiled_code.instruct(:SetGlobal, [reg, var, val], tir_ins.location)
+      end
+
+      def on_simple(tir_ins, compiled_code, *)
+        compiled_code.instruct(tir_ins.name, [], tir_ins.location)
       end
 
       def on_nullary(tir_ins, compiled_code, *)
@@ -320,12 +304,6 @@ module Inkoc
         from = tir_ins.from.id
 
         compiled_code.instruct(:CopyBlocks, [to, from], tir_ins.location)
-      end
-
-      def on_drop(tir_ins, compiled_code, *)
-        object = tir_ins.object.id
-
-        compiled_code.instruct(:Drop, [object], tir_ins.location)
       end
 
       def on_panic(tir_ins, compiled_code, *)

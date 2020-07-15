@@ -25,13 +25,19 @@ module Inkoc
       def on_basic_block(code, block)
         # The last instruction is always a Return instruction, so we check the
         # instruction that preceeds it.
-        ins = block.instructions[-2]
+        index = -2
+        ins = block.instructions[index]
 
         return unless ins
+
+        if ins.move_result?
+          ins = block.instructions[index = -3]
+        end
+
         return unless tail_call?(code, ins)
 
-        block.instructions[-2] = TIR::Instruction::TailCall
-          .new(ins.arguments, ins.keyword_arguments, ins.location)
+        block.instructions[index] =
+          TIR::Instruction::TailCall.new(ins.start, ins.amount, ins.location)
       end
 
       def diagnostics

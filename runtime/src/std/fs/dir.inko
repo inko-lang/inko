@@ -105,14 +105,8 @@ def list(path: ToPath) !! IOError -> Array!(Path) {
     }
   }
 
-  let paths = raw_paths
+  raw_paths
     .iter
     .map do (path) { Path.new(path) }
     .to_array
-
-  # We know for a fact that the old Array won't be used any more at this point,
-  # so we get rid of it right away.
-  _INKOC.drop(raw_paths)
-
-  paths
 }

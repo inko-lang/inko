@@ -15,7 +15,7 @@
 use crate::catch_table::{CatchEntry, CatchTable};
 use crate::compiled_code::CompiledCode;
 use crate::object_pointer::ObjectPointer;
-use crate::vm::instruction::{Instruction, InstructionType};
+use crate::vm::instruction::{Instruction, Opcode};
 use crate::vm::state::RcState;
 use num_bigint::BigInt;
 use std::f64;
@@ -43,23 +43,11 @@ macro_rules! try_byte {
     };
 }
 
-macro_rules! read_u16_vector {
-    ($byte_type:ident, $bytes:expr) => {
-        read_vector::<u16, $byte_type>($bytes, read_u16)?;
-    };
-}
-
-macro_rules! read_instruction_vector {
-    ($byte_type:ident, $bytes:expr) => {
-        read_vector::<Instruction, $byte_type>($bytes, read_instruction)?;
-    };
-}
-
 /// The bytes that every bytecode file must start with.
 const SIGNATURE_BYTES: [u8; 4] = [105, 110, 107, 111]; // "inko"
 
 /// The current version of the bytecode format.
-const VERSION: u8 = 3;
+const VERSION: u8 = 1;
 
 /// The tag that marks the start of an integer literal.
 const LITERAL_INTEGER: u8 = 0;
@@ -76,18 +64,6 @@ const LITERAL_BIGINT: u8 = 3;
 /// The maximum size of vector literals, in bytes.
 const VECTOR_LITERAL_SIZE_LIMIT: u64 = 100 * (1024 * 1024);
 
-/// The maximum number of CompiledCode objects per bytecode file.
-const COMPILED_CODE_LIMIT: u64 =
-    VECTOR_LITERAL_SIZE_LIMIT / mem::size_of::<CompiledCode>() as u64;
-
-/// The maximum number of object literals that can reside in a single vector.
-const OBJECT_LITERALS_LIMIT: u64 =
-    VECTOR_LITERAL_SIZE_LIMIT / mem::size_of::<ObjectPointer>() as u64;
-
-/// The maximum number of CatchEntry values in a single CatchTable.
-const CATCH_ENTRIES_LIMIT: u64 =
-    VECTOR_LITERAL_SIZE_LIMIT / mem::size_of::<CatchEntry>() as u64;
-
 /// The number of bytes to buffer for every read from a bytecode file.
 const BUFFER_SIZE: usize = 32 * 1024;
 
@@ -103,9 +79,8 @@ pub enum ParserError {
     InvalidFloat,
     MissingByte,
     InvalidLiteralType(u8),
-    MissingReturnInstruction(String, u16),
-    MissingInstructions(String, u16),
     SizeTooLarge,
+    TooManyInstructionArguments,
 }
 
 pub type ParserResult<T> = Result<T, ParserError>;
@@ -256,26 +231,11 @@ fn read_f64<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<f64> {
     Ok(f64::from_bits(int))
 }
 
-fn read_vector<V, T: Read>(
-    bytes: &mut Bytes<T>,
-    reader: fn(&mut Bytes<T>) -> ParserResult<V>,
-) -> ParserResult<Vec<V>> {
-    let limit = VECTOR_LITERAL_SIZE_LIMIT / mem::size_of::<V>() as u64;
-    let amount = read_u64_with_limit(bytes, limit)? as usize;
-    let mut buff: Vec<V> = Vec::with_capacity(amount);
-
-    for _ in 0..amount {
-        buff.push(reader(bytes)? as V);
-    }
-
-    Ok(buff)
-}
-
 fn read_code_vector<T: Read>(
     state: &RcState,
     bytes: &mut Bytes<T>,
 ) -> ParserResult<Vec<CompiledCode>> {
-    let amount = read_u64_with_limit(bytes, COMPILED_CODE_LIMIT)? as usize;
+    let amount = read_u64_with_limit(bytes, u16::MAX as u64)? as usize;
     let mut buff = Vec::with_capacity(amount);
 
     for _ in 0..amount {
@@ -288,13 +248,35 @@ fn read_code_vector<T: Read>(
 fn read_instruction<T: Read>(
     bytes: &mut Bytes<T>,
 ) -> ParserResult<Instruction> {
-    let ins_type: InstructionType = unsafe { mem::transmute(read_u8(bytes)?) };
+    let ins_type: Opcode = unsafe { mem::transmute(read_u8(bytes)?) };
+    let amount = read_u8(bytes)? as usize;
+    let mut args = [0, 0, 0, 0, 0, 0];
 
-    let args = read_u16_vector!(T, bytes);
+    if amount > 6 {
+        return Err(ParserError::TooManyInstructionArguments);
+    }
+
+    for index in 0..amount {
+        args[index] = read_u16(bytes)?;
+    }
+
     let line = read_u16(bytes)?;
     let ins = Instruction::new(ins_type, args, line);
 
     Ok(ins)
+}
+
+fn read_instructions<T: Read>(
+    bytes: &mut Bytes<T>,
+) -> ParserResult<Vec<Instruction>> {
+    let amount = read_u64_with_limit(bytes, u16::MAX as u64)? as usize;
+    let mut buff: Vec<Instruction> = Vec::with_capacity(amount);
+
+    for _ in 0..amount {
+        buff.push(read_instruction(bytes)?);
+    }
+
+    Ok(buff)
 }
 
 fn read_compiled_code<T: Read>(
@@ -306,27 +288,10 @@ fn read_compiled_code<T: Read>(
     let line = read_u16(bytes)?;
     let args = read_literals_vector(state, bytes)?;
     let req_args = read_u8(bytes)?;
-    let rest_arg = read_bool(bytes)?;
     let locals = read_u16(bytes)?;
     let registers = read_u16(bytes)?;
     let captures = read_bool(bytes)?;
-    let instructions = read_instruction_vector!(T, bytes);
-
-    // Make sure we always have a return at the end.
-    if let Some(ins) = instructions.last() {
-        match ins.instruction_type {
-            InstructionType::Return | InstructionType::Throw => {}
-            _ => {
-                return Err(ParserError::MissingReturnInstruction(
-                    file_string,
-                    line,
-                ));
-            }
-        };
-    } else {
-        return Err(ParserError::MissingInstructions(file_string, line));
-    }
-
+    let instructions = read_instructions(bytes)?;
     let literals = read_literals_vector(state, bytes)?;
     let code_objects = read_code_vector(state, bytes)?;
     let catch_table = read_catch_table(bytes)?;
@@ -337,7 +302,6 @@ fn read_compiled_code<T: Read>(
         line,
         arguments: args,
         required_arguments: req_args,
-        rest_argument: rest_arg,
         locals,
         registers,
         captures,
@@ -352,7 +316,7 @@ fn read_literals_vector<T: Read>(
     state: &RcState,
     bytes: &mut Bytes<T>,
 ) -> ParserResult<Vec<ObjectPointer>> {
-    let amount = read_u64_with_limit(bytes, OBJECT_LITERALS_LIMIT)?;
+    let amount = read_u64_with_limit(bytes, u16::MAX as u64)?;
     let mut buff = Vec::with_capacity(amount as usize);
 
     for _ in 0..amount {
@@ -398,7 +362,7 @@ fn read_literal<T: Read>(
 }
 
 fn read_catch_table<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<CatchTable> {
-    let amount = read_u64_with_limit(bytes, CATCH_ENTRIES_LIMIT)? as usize;
+    let amount = read_u64_with_limit(bytes, u16::MAX as u64)? as usize;
     let mut entries = Vec::with_capacity(amount);
 
     for _ in 0..amount {
@@ -412,16 +376,15 @@ fn read_catch_entry<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<CatchEntry> {
     let start = read_u16_as_usize(bytes)?;
     let end = read_u16_as_usize(bytes)?;
     let jump_to = read_u16_as_usize(bytes)?;
-    let register = read_u16_as_usize(bytes)?;
 
-    Ok(CatchEntry::new(start, end, jump_to, register))
+    Ok(CatchEntry::new(start, end, jump_to))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::config::Config;
-    use crate::vm::instruction::InstructionType;
+    use crate::vm::instruction::Opcode;
     use crate::vm::state::{RcState, State};
     use std::mem;
     use std::u64;
@@ -543,15 +506,14 @@ mod tests {
         pack_u16!(4, buffer); // line
         pack_u64!(0, buffer); // arguments
         pack_u8!(0, buffer); // required arguments
-        pack_u8!(0, buffer); // rest argument
         pack_u16!(0, buffer); // locals
         pack_u16!(0, buffer); // registers
         pack_u8!(0, buffer); // captures
 
         pack_u64!(1, buffer); // instructions
 
-        pack_u8!(InstructionType::Return as u8, buffer);
-        pack_u64!(1, buffer); // args count
+        pack_u8!(Opcode::Return as u8, buffer);
+        pack_u8!(1, buffer); // args count
         pack_u16!(6, buffer); // arg 1
         pack_u16!(2, buffer); // line number
 
@@ -740,57 +702,39 @@ mod tests {
     }
 
     #[test]
-    fn test_read_vector() {
-        let mut buffer = Vec::new();
-
-        pack_u64!(2, buffer);
-        pack_string!("hello", buffer);
-        pack_string!("world", buffer);
-
-        let output = unwrap!(read_vector::<String, &[u8]>(
-            &mut buffer.bytes(),
-            read_string,
-        ));
-
-        assert_eq!(output.len(), 2);
-        assert_eq!(output[0], "hello".to_string());
-        assert_eq!(output[1], "world".to_string());
-    }
-
-    #[test]
-    fn test_read_vector_too_large() {
-        let mut buffer = Vec::new();
-
-        pack_u64!(u64::MAX, buffer);
-
-        let output =
-            read_vector::<String, &[u8]>(&mut buffer.bytes(), read_string);
-
-        assert!(output.is_err());
-    }
-
-    #[test]
-    fn test_read_vector_empty() {
-        let buffer = Vec::new();
-        let output =
-            read_vector::<String, &[u8]>(&mut buffer.bytes(), read_string);
-
-        assert!(output.is_err());
-    }
-
-    #[test]
     fn test_read_instruction() {
         let mut buffer = Vec::new();
 
         pack_u8!(0, buffer); // type
-        pack_u64!(1, buffer); // args
+        pack_u8!(1, buffer); // args
         pack_u16!(6, buffer);
         pack_u16!(2, buffer); // line
 
         let ins = unwrap!(read_instruction(&mut buffer.bytes()));
 
-        assert_eq!(ins.instruction_type, InstructionType::SetLiteral);
-        assert_eq!(ins.arguments[0], 6);
+        assert_eq!(ins.opcode, Opcode::SetLiteral);
+        assert_eq!(ins.arg(0), 6);
+        assert_eq!(ins.line, 2);
+    }
+
+    #[test]
+    fn test_read_instructions() {
+        let mut buffer = Vec::new();
+
+        pack_u64!(1, buffer);
+        pack_u8!(0, buffer); // type
+        pack_u8!(1, buffer); // args
+        pack_u16!(6, buffer);
+        pack_u16!(2, buffer); // line
+
+        let instructions = unwrap!(read_instructions(&mut buffer.bytes()));
+
+        assert_eq!(instructions.len(), 1);
+
+        let ins = &instructions[0];
+
+        assert_eq!(ins.opcode, Opcode::SetLiteral);
+        assert_eq!(ins.arg(0), 6);
         assert_eq!(ins.line, 2);
     }
 
@@ -815,20 +759,19 @@ mod tests {
         pack_string!("baz", buffer);
 
         pack_u8!(2, buffer); // required args
-        pack_u8!(1, buffer); // rest argument
         pack_u16!(1, buffer); // locals
         pack_u16!(2, buffer); // registers
         pack_u8!(1, buffer); // captures
 
         // instructions
         pack_u64!(2, buffer);
-        pack_u8!(InstructionType::SetLiteral as u8, buffer); // type
-        pack_u64!(1, buffer); // args count
+        pack_u8!(Opcode::SetLiteral as u8, buffer); // type
+        pack_u8!(1, buffer); // args count
         pack_u16!(6, buffer); // arg 1
         pack_u16!(2, buffer); // line number
 
-        pack_u8!(InstructionType::Return as u8, buffer); // type
-        pack_u64!(1, buffer); // args count
+        pack_u8!(Opcode::Return as u8, buffer); // type
+        pack_u8!(1, buffer); // args count
         pack_u16!(6, buffer); // arg 1
         pack_u16!(2, buffer); // line number
 
@@ -870,14 +813,13 @@ mod tests {
         assert_eq!(object.registers, 2);
         assert_eq!(object.arguments.len(), 3);
         assert_eq!(object.required_arguments, 2);
-        assert_eq!(object.rest_argument, true);
         assert_eq!(object.instructions.len(), 2);
         assert!(object.captures);
 
         let ref ins = object.instructions[0];
 
-        assert_eq!(ins.instruction_type, InstructionType::SetLiteral);
-        assert_eq!(ins.arguments[0], 6);
+        assert_eq!(ins.opcode, Opcode::SetLiteral);
+        assert_eq!(ins.arg(0), 6);
         assert_eq!(ins.line, 2);
 
         assert_eq!(object.literals.len(), 4);
@@ -900,7 +842,6 @@ mod tests {
         assert_eq!(entry.start, 4);
         assert_eq!(entry.end, 6);
         assert_eq!(entry.jump_to, 8);
-        assert_eq!(entry.register, 10);
     }
 
     #[test]
@@ -913,47 +854,16 @@ mod tests {
         pack_u16!(4, buffer); // line
         pack_u64!(0, buffer); // arguments
         pack_u8!(2, buffer); // required args
-        pack_u8!(1, buffer); // rest argument
         pack_u16!(1, buffer); // locals
         pack_u16!(2, buffer); // registers
         pack_u8!(1, buffer); // captures
 
         // instructions
         pack_u64!(1, buffer);
-        pack_u8!(InstructionType::SetLiteral as u8, buffer); // type
+        pack_u8!(Opcode::SetLiteral as u8, buffer); // type
         pack_u64!(1, buffer); // args count
         pack_u16!(6, buffer); // arg 1
         pack_u16!(2, buffer); // line number
-
-        // literals
-        pack_u64!(0, buffer);
-
-        // code objects
-        pack_u64!(0, buffer);
-
-        // catch table entries
-        pack_u64!(0, buffer);
-
-        assert!(read_compiled_code(&state, &mut buffer.bytes()).is_err());
-    }
-
-    #[test]
-    fn test_read_compiled_code_without_instructions() {
-        let mut buffer = Vec::new();
-        let state = state();
-
-        pack_string!("main", buffer); // name
-        pack_string!("test.inko", buffer); // file
-        pack_u16!(4, buffer); // line
-        pack_u64!(0, buffer); // arguments
-        pack_u8!(2, buffer); // required args
-        pack_u8!(1, buffer); // rest argument
-        pack_u16!(1, buffer); // locals
-        pack_u16!(2, buffer); // registers
-        pack_u8!(1, buffer); // captures
-
-        // instructions
-        pack_u64!(0, buffer);
 
         // literals
         pack_u64!(0, buffer);
