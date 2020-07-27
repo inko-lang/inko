@@ -4,7 +4,7 @@ use crate::object_value;
 use crate::process::RcProcess;
 use crate::runtime_error::RuntimeError;
 use crate::socket::Socket;
-use crate::vm::io;
+use crate::vm::instructions::io;
 use crate::vm::state::RcState;
 
 macro_rules! allocate_bool {

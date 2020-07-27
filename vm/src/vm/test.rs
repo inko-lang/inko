@@ -4,8 +4,8 @@ use crate::compiled_code::CompiledCode;
 use crate::config::Config;
 use crate::process::RcProcess;
 use crate::vm::instruction::{Instruction, Opcode};
+use crate::vm::instructions::process;
 use crate::vm::machine::Machine;
-use crate::vm::process;
 use crate::vm::state::State;
 
 /// Sets up a VM with a single process.

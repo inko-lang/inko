@@ -214,7 +214,7 @@ impl Worker<RcProcess> for ProcessWorker {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::vm::process;
+    use crate::vm::instructions::process;
     use crate::vm::test::setup;
 
     fn worker(machine: Machine) -> ProcessWorker {
