@@ -1,6 +1,6 @@
 [package]
 name = "inko"
-version = "0.6.0" # VERSION
+version = "0.7.0" # VERSION
 authors = ["Yorick Peterse <yorickpeterse@gmail.com>"]
 edition = "2018"
 build = "build.rs"

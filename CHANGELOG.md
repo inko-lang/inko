@@ -1,5 +1,68 @@
 # Changelog
 
+## 0.7.0 - August 04, 2020
+
+* 35fb0ee7: Move instruction handlers to a separate directory
+* 0619de82: Refactor various aspects of VM instructions
+* a215a691: Rename Register to Registers
+* b241834e: Limit methods to 255 arguments
+* a1d6c210: Rename SetRegister to CopyRegister
+* 0fdaf451: Remove various methods from the VM Process type
+* d78ebee2: Don't store line numbers in ExecutionContext
+* e1472acd: Rename "block return" to "method return"
+* 7f3364b3: Remove some excessive RcBinding cloning
+* e62a4f8c: Update various VM dependencies
+* 5276839b: Don't clone when finding binding parents
+* baf6d686: Fix generating of release tarballs
+* 4868f9a9: Fix stdout.print/stderr.print panicking
+* cc20ee2a: Fix clippy warning about using as_deref()
+* 08385683: Replace the Dynamic type with the "Any" trait
+* 3ca999ab: Fix clippy and rustfmt warnings
+* 715aff37: Add Boolean.true? and .false?, and remove .not
+* f71a1e72: Use single-line if_true/if_false where possible
+* 5352ec7f: Upgrade the "time" crate to 0.2.x
+* d5c10f8b: Remove type parameters when re-opening objects
+* 278a1652: First-class modules and remove top-level object
+* a97f10be: Clean up Nil by splitting it into NilType and Nil
+* ddedead0: Restore Boolean "if" instruction cleanup
+* f46694ef: Remove support for constant receivers
+* 1102c455: Use String for DefineObject and DefineTrait names
+* 42bc9b0b: Don't define a panic handler in std::vm
+* 2e49e503: Clean up std::prelude a little bit
+* f6bf5de0: Add Array.reverse_iter
+* 4af9354f: Remove support for extending traits
+* 9f152024: Remove forward trait declaration from std::net::ip
+* 679ccf7b: Rename a few AST nodes to use the pattern DefineX
+* 81a8fd1e: Support circular types in the Ruby compiler
+* def89e1f: Allow hashing of any object
+* 22328acc: Revert Boolean and Nil cleanup
+* 8f9109a4: Split Nil into Nil and NilType
+* ecd11a07: Clean up Boolean using an "if" instruction
+* bbffd1f3: Updated various VM dependencies
+* f668bbe2: Fix Clippy warnings introduced with Rust 1.40
+* 87fc0364: Fix kqueue network poller deprecation
+* dcc7798b: Added tests for std::fs::path::bits
+* 977f0740: Rename std::fs::raw to std::fs::bits
+* 46dc7ddf: Add Path.directory
+* a65c52d0: Add String.slice_bytes() and String.split()
+* 510e6d0c: Change Process.identifier to return an Integer
+* d3841771: Refactor std::mirror
+* b59f2f72: Remove CallFrame.to_string
+* e10bee15: Add ByteArray to the prelude
+* 7a990558: Rename Void to Never
+* 98544de7: Use keywords for all use of Pair and Triple
+* 12346150: Tag return types where Dynamic is not needed
+* 6c4ec92a: Lower collection thresholds from 8/16 to 2/4
+* 9cf7f6e6: Return self in implementations of "each"
+* ba9df4f1: Added std::set::Set
+* 1a65f83f: Add Array.join for joining Array values
+* a64f2e70: Remove left-over prefetch code
+* 725dd097: Use bit flags for tracking a process' status
+* 9be61a04: Stop using underscores for "private" methods
+* e0a458d4: Simplify tracing code to improve performance
+* f2f7283e: Use a Vec for BlockList
+* a4ab6e07: Fix parsing of block arguments without parentheses
+
 ## 0.6.0 - November 17, 2019
 
 * bdd32f5a: Upgrade some code and dependencies for Rus 1.39
