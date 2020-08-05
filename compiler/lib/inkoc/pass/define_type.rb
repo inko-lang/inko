@@ -1320,10 +1320,6 @@ module Inkoc
         typedb.integer_type.new_instance
       end
 
-      def on_raw_hasher_reset(node, _)
-        node.arguments.fetch(0).type
-      end
-
       def on_raw_stacktrace(*)
         tuple = typedb.new_array_of_type(new_any_type)
 

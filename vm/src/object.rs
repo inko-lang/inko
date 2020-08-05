@@ -3,7 +3,7 @@
 //! The Object struct is used to represent an object created during runtime. It
 //! can be used to wrap native values (e.g. an integer or a string), look up
 //! methods, add attributes, etc.
-use fnv::FnvHashMap;
+use ahash::AHashMap;
 use std::ops::Drop;
 use std::ptr;
 
@@ -43,7 +43,7 @@ pub enum ObjectStatus {
     PendingMove,
 }
 
-pub type AttributesMap = FnvHashMap<ObjectPointer, ObjectPointer>;
+pub type AttributesMap = AHashMap<ObjectPointer, ObjectPointer>;
 
 /// The bit to set for objects that are being forwarded.
 pub const PENDING_FORWARD_BIT: usize = 0;

@@ -172,7 +172,6 @@ module Inkoc
         SocketListen
         SocketConnect
         SocketShutdown
-        HasherReset
         RandomNumber
         RandomRange
         RandomBytes

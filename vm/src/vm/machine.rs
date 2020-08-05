@@ -1329,13 +1329,6 @@ impl Machine {
 
                     context.set_register(reg, res);
                 }
-                Opcode::HasherReset => {
-                    let reg = instruction.arg(0);
-                    let hasher = context.get_register(instruction.arg(1));
-                    let res = hasher::hasher_reset(hasher)?;
-
-                    context.set_register(reg, res);
-                }
                 Opcode::Stacktrace => {
                     let reg = instruction.arg(0);
                     let limit = context.get_register(instruction.arg(1));

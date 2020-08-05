@@ -39,10 +39,3 @@ pub fn hasher_to_hash(
 
     Ok(process.allocate_i64(result, state.integer_prototype))
 }
-
-#[inline(always)]
-pub fn hasher_reset(hasher: ObjectPointer) -> Result<ObjectPointer, String> {
-    hasher.hasher_value_mut()?.reset();
-
-    Ok(hasher)
-}

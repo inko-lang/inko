@@ -1323,10 +1323,6 @@ module Inkoc
         raw_unary_instruction(:HasherToHash, node, body)
       end
 
-      def on_raw_hasher_reset(node, body)
-        raw_unary_instruction(:HasherReset, node, body)
-      end
-
       def on_raw_stacktrace(node, body)
         raw_binary_instruction(:Stacktrace, node, body)
       end

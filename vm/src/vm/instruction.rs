@@ -170,7 +170,6 @@ pub enum Opcode {
     SocketListen,
     SocketConnect,
     SocketShutdown,
-    HasherReset,
     RandomNumber,
     RandomRange,
     RandomBytes,

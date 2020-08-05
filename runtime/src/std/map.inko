@@ -17,7 +17,7 @@ let LOAD_FACTOR = 0.75
 # the exact hash values should not be relied upon.
 #
 # Internally this hasher uses the hashing instructions provided by IVM, which
-# currently uses SipHash 1-3.
+# currently uses aHash (https://github.com/tkaitchuck/ahash).
 object DefaultHasher {
   # Returns a new `DefaultHasher`.
   #
@@ -38,10 +38,6 @@ impl Hasher for DefaultHasher {
 
   def to_hash -> Integer {
     _INKOC.hasher_to_hash(self)
-  }
-
-  def reset -> Self {
-    _INKOC.hasher_reset(self)
   }
 }
 

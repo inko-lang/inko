@@ -22,7 +22,6 @@ test = false
 getopts = "^0.2"
 num_cpus = "^1.13"
 parking_lot = "^0.10"
-fnv = "^1.0"
 time = "^0.2"
 num-integer = "^0.1"
 float-cmp = "^0.8"
@@ -34,7 +33,7 @@ crossbeam-deque = "^0.7"
 crossbeam-channel = "^0.4"
 libc = "^0.2"
 jemallocator = { version = "^0.3", optional = true }
-siphasher = "^0.3"
+ahash = "^0.4"
 rand = "^0.6"
 
 [dependencies.num-bigint]

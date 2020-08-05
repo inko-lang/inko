@@ -16,9 +16,6 @@ trait Hasher {
   #
   # This method should not reset the internal state of the `Hasher`.
   def to_hash -> Integer
-
-  # Resets the internal state of `self`.
-  def reset -> Self
 }
 
 # A value that can be hashed.
