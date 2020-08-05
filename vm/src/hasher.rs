@@ -11,16 +11,12 @@ const U64_I64_DIFF: u64 = u64::MAX - i64::MAX as u64;
 #[derive(Clone)]
 pub struct Hasher {
     hasher: SipHasher13,
-    key0: u64,
-    key1: u64,
 }
 
 impl Hasher {
     pub fn new(key0: u64, key1: u64) -> Self {
         Hasher {
             hasher: SipHasher13::new_with_keys(key0, key1),
-            key0,
-            key1,
         }
     }
 
@@ -53,7 +49,9 @@ impl Hasher {
     }
 
     pub fn reset(&mut self) {
-        self.hasher = SipHasher13::new_with_keys(self.key0, self.key1);
+        let (key0, key1) = self.hasher.keys();
+
+        self.hasher = SipHasher13::new_with_keys(key0, key1);
     }
 
     fn convert_hash(&self, raw_hash: u64) -> i64 {
@@ -73,6 +71,7 @@ impl Hasher {
 mod tests {
     use super::*;
     use std::i64;
+    use std::mem::size_of;
     use std::u64;
 
     #[test]
@@ -131,5 +130,10 @@ mod tests {
         assert_eq!(hasher.convert_hash(0_u64), -9223372036854775807);
         assert_eq!(hasher.convert_hash(1_u64), -9223372036854775806);
         assert_eq!(hasher.convert_hash(2_u64), -9223372036854775805);
+    }
+
+    #[test]
+    fn test_mem_size() {
+        assert_eq!(size_of::<Hasher>(), 72);
     }
 }
