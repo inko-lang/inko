@@ -1,30 +1,65 @@
 //! Tracing and marking of live objects.
 use crate::arc_without_weak::ArcWithoutWeak;
+use crate::broadcast::Broadcast;
 use crate::gc::statistics::TraceStatistics;
 use crate::object::ObjectStatus;
 use crate::object_pointer::{ObjectPointer, ObjectPointerPointer};
 use crate::process::RcProcess;
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use crossbeam_deque::{Injector, Steal, Stealer, Worker};
+use std::thread;
 
-/// A pool of Tracers all tracing the same process.
-pub struct Pool {
-    /// The process of which objects are being traced.
+#[derive(Clone)]
+struct TraceJob {
+    /// The process that is traced.
     process: RcProcess,
 
+    /// If objects need to be moved around.
+    moving: bool,
+}
+
+/// The shared inner state of a pool.
+struct PoolState {
     /// A global queue to steal jobs from.
     global_queue: Injector<ObjectPointerPointer>,
 
     /// The list of queues we can steal work from.
     stealers: Vec<Stealer<ObjectPointerPointer>>,
+
+    /// The sending end up the results channel.
+    result_sender: Sender<TraceStatistics>,
+
+    /// The receiving end up the results channel.
+    result_receiver: Receiver<TraceStatistics>,
+
+    /// A channel for broadcasting jobs to tracers.
+    broadcast: Broadcast<TraceJob>,
+}
+
+impl PoolState {
+    pub fn new(stealers: Vec<Stealer<ObjectPointerPointer>>) -> Self {
+        let (result_sender, result_receiver) = unbounded();
+
+        PoolState {
+            global_queue: Injector::new(),
+            stealers,
+            result_sender,
+            result_receiver,
+            broadcast: Broadcast::new(),
+        }
+    }
+}
+
+/// A pool of Tracers all tracing the same process.
+pub struct Pool {
+    /// The internal state available to all tracers.
+    state: ArcWithoutWeak<PoolState>,
 }
 
 impl Pool {
-    pub fn new(
-        process: RcProcess,
-        threads: usize,
-    ) -> (ArcWithoutWeak<Pool>, Vec<Tracer>) {
-        let mut workers = Vec::new();
-        let mut stealers = Vec::new();
+    pub fn new(threads: usize) -> Pool {
+        let mut workers = Vec::with_capacity(threads);
+        let mut stealers = Vec::with_capacity(threads);
 
         for _ in 0..threads {
             let worker = Worker::new_fifo();
@@ -34,22 +69,50 @@ impl Pool {
             stealers.push(stealer);
         }
 
-        let state = ArcWithoutWeak::new(Self {
-            process,
-            global_queue: Injector::new(),
-            stealers,
-        });
+        let state = ArcWithoutWeak::new(PoolState::new(stealers));
 
-        let tracers = workers
-            .into_iter()
-            .map(|worker| Tracer::new(worker, state.clone()))
-            .collect();
+        for worker in workers.into_iter() {
+            let state = state.clone();
 
-        (state, tracers)
+            thread::spawn(move || {
+                Tracer::new(worker, state).run();
+            });
+        }
+
+        Pool { state }
     }
 
     pub fn schedule(&self, pointer: ObjectPointerPointer) {
-        self.global_queue.push(pointer);
+        self.state.global_queue.push(pointer);
+    }
+
+    pub fn trace(&self, process: &RcProcess, moving: bool) -> TraceStatistics {
+        let mut result = TraceStatistics::new();
+        let mut pending = self.state.stealers.len();
+        let trace_job = TraceJob {
+            process: process.clone(),
+            moving,
+        };
+
+        self.state.broadcast.send(pending, trace_job);
+
+        while pending > 0 {
+            if let Ok(received) = self.state.result_receiver.recv() {
+                result += received;
+            } else {
+                break;
+            }
+
+            pending -= 1;
+        }
+
+        result
+    }
+}
+
+impl Drop for Pool {
+    fn drop(&mut self) {
+        self.state.broadcast.shutdown();
     }
 }
 
@@ -68,28 +131,42 @@ impl Pool {
 /// across CPU cores. Due to the inherent racy nature of work-stealing its
 /// possible one or more tracers don't perform any work. This can happen if
 /// other Tracers steal all work before our Tracer can even begin.
-///
-/// Tracers terminate when they run out of work and can't steal work from other
-/// tracers. Any attempt at implementing a retry mechanism of sorts lead to
-/// worse tracing performance, so we instead just let tracers terminate.
-pub struct Tracer {
+struct Tracer {
     /// The local queue of objects to trace.
     queue: Worker<ObjectPointerPointer>,
 
-    /// The pool of tracers this Tracer belongs to.
-    pool: ArcWithoutWeak<Pool>,
+    /// The inner state of the tracer pool.
+    state: ArcWithoutWeak<PoolState>,
 }
 
 impl Tracer {
     pub fn new(
         queue: Worker<ObjectPointerPointer>,
-        pool: ArcWithoutWeak<Pool>,
+        state: ArcWithoutWeak<PoolState>,
     ) -> Self {
-        Self { queue, pool }
+        Self { queue, state }
+    }
+
+    pub fn run(&self) {
+        loop {
+            if let Some(job) = self.state.broadcast.recv() {
+                let result = if job.moving {
+                    self.trace_with_moving(&job.process)
+                } else {
+                    self.trace_without_moving()
+                };
+
+                if self.state.result_sender.send(result).is_err() {
+                    return;
+                }
+            } else {
+                return;
+            }
+        }
     }
 
     /// Traces through all live objects, without moving any objects.
-    pub fn trace_without_moving(&self) -> TraceStatistics {
+    fn trace_without_moving(&self) -> TraceStatistics {
         let mut stats = TraceStatistics::new();
 
         while let Some(pointer_pointer) = self.pop_job() {
@@ -110,7 +187,7 @@ impl Tracer {
     }
 
     /// Traces through all live objects, moving them if needed.
-    pub fn trace_with_moving(&self) -> TraceStatistics {
+    fn trace_with_moving(&self, process: &RcProcess) -> TraceStatistics {
         let mut stats = TraceStatistics::new();
 
         while let Some(pointer_pointer) = self.pop_job() {
@@ -123,7 +200,7 @@ impl Tracer {
             match pointer.status() {
                 ObjectStatus::Resolve => pointer.resolve_forwarding_pointer(),
                 ObjectStatus::Promote => {
-                    self.promote_mature(pointer);
+                    self.promote_mature(process, pointer);
 
                     stats.promoted += 1;
                     stats.marked += 1;
@@ -135,7 +212,7 @@ impl Tracer {
                     continue;
                 }
                 ObjectStatus::Evacuate => {
-                    self.evacuate(pointer);
+                    self.evacuate(process, pointer);
 
                     stats.evacuated += 1;
                 }
@@ -163,12 +240,16 @@ impl Tracer {
 
     /// Traces a promoted object to see if it should be remembered in the
     /// remembered set.
-    fn trace_promoted_object(&self, promoted: ObjectPointer) {
+    fn trace_promoted_object(
+        &self,
+        process: &RcProcess,
+        promoted: ObjectPointer,
+    ) {
         let mut remember = false;
 
         promoted.get().each_pointer(|child| {
             if !remember && child.get().is_young() {
-                self.pool.process.remember_object(promoted);
+                process.remember_object(promoted);
 
                 remember = true;
             }
@@ -180,8 +261,8 @@ impl Tracer {
     /// Promotes an object to the mature generation.
     ///
     /// The pointer to promote is updated to point to the new location.
-    fn promote_mature(&self, pointer: &mut ObjectPointer) {
-        let local_data = self.pool.process.local_data_mut();
+    fn promote_mature(&self, process: &RcProcess, pointer: &mut ObjectPointer) {
+        let local_data = process.local_data_mut();
         let old_obj = pointer.get_mut();
         let new_pointer = local_data.allocator.allocate_mature(old_obj.take());
 
@@ -189,16 +270,16 @@ impl Tracer {
 
         pointer.resolve_forwarding_pointer();
 
-        self.trace_promoted_object(*pointer);
+        self.trace_promoted_object(process, *pointer);
     }
 
     // Evacuates a pointer.
     //
     // The pointer to evacuate is updated to point to the new location.
-    fn evacuate(&self, pointer: &mut ObjectPointer) {
+    fn evacuate(&self, process: &RcProcess, pointer: &mut ObjectPointer) {
         // When evacuating an object we must ensure we evacuate the object into
         // the same bucket.
-        let local_data = self.pool.process.local_data_mut();
+        let local_data = process.local_data_mut();
         let bucket = pointer.block_mut().bucket_mut().unwrap();
         let old_obj = pointer.get_mut();
         let new_obj = old_obj.take();
@@ -227,7 +308,7 @@ impl Tracer {
         }
 
         loop {
-            match self.pool.global_queue.steal_batch_and_pop(&self.queue) {
+            match self.state.global_queue.steal_batch_and_pop(&self.queue) {
                 Steal::Retry => {}
                 Steal::Empty => break,
                 Steal::Success(job) => return Some(job),
@@ -236,7 +317,7 @@ impl Tracer {
 
         // We don't steal in random order, as we found that stealing in-order
         // performs better.
-        for stealer in self.pool.stealers.iter() {
+        for stealer in self.state.stealers.iter() {
             loop {
                 match stealer.steal_batch_and_pop(&self.queue) {
                     Steal::Retry => {}
@@ -257,22 +338,22 @@ mod tests {
     use crate::object_value;
     use crate::vm::test::setup;
 
-    fn prepare(process: RcProcess) -> (ArcWithoutWeak<Pool>, Tracer) {
-        let (pool, mut tracers) = Pool::new(process, 1);
+    fn tracer() -> Tracer {
+        let state = ArcWithoutWeak::new(PoolState::new(Vec::new()));
 
-        (pool, tracers.pop().unwrap())
+        Tracer::new(Worker::new_fifo(), state)
     }
 
     #[test]
     fn test_promote_mature() {
         let (_machine, _block, process) = setup();
-        let (_pool, tracer) = prepare(process.clone());
+        let tracer = tracer();
         let mut pointer =
             process.allocate_without_prototype(object_value::float(15.0));
 
         let old_address = pointer.raw.raw as usize;
 
-        tracer.promote_mature(&mut pointer);
+        tracer.promote_mature(&process, &mut pointer);
 
         let new_address = pointer.raw.raw as usize;
 
@@ -284,13 +365,13 @@ mod tests {
     #[test]
     fn test_evacuate() {
         let (_machine, _block, process) = setup();
-        let (_pool, tracer) = prepare(process.clone());
+        let tracer = tracer();
         let mut pointer =
             process.allocate_without_prototype(object_value::float(15.0));
 
         let old_address = pointer.raw.raw as usize;
 
-        tracer.evacuate(&mut pointer);
+        tracer.evacuate(&process, &mut pointer);
 
         let new_address = pointer.raw.raw as usize;
 
@@ -301,7 +382,7 @@ mod tests {
     #[test]
     fn test_trace_with_moving_with_marked_mature() {
         let (_machine, _block, process) = setup();
-        let (pool, tracer) = prepare(process.clone());
+        let pool = Pool::new(1);
         let young_parent = process.allocate_empty();
         let young_child = process.allocate_empty();
 
@@ -319,7 +400,7 @@ mod tests {
         pool.schedule(young_parent.pointer());
         pool.schedule(mature.pointer());
 
-        let stats = tracer.trace_with_moving();
+        let stats = pool.trace(&process, true);
 
         assert_eq!(stats.marked, 2);
         assert_eq!(stats.evacuated, 2);
@@ -329,7 +410,7 @@ mod tests {
     #[test]
     fn test_trace_with_moving_with_unmarked_mature() {
         let (_machine, _block, process) = setup();
-        let (pool, tracer) = prepare(process.clone());
+        let pool = Pool::new(1);
         let young_parent = process.allocate_empty();
         let young_child = process.allocate_empty();
 
@@ -346,7 +427,7 @@ mod tests {
         pool.schedule(young_parent.pointer());
         pool.schedule(mature.pointer());
 
-        let stats = tracer.trace_with_moving();
+        let stats = pool.trace(&process, true);
 
         assert_eq!(stats.marked, 3);
         assert_eq!(stats.evacuated, 3);
@@ -356,7 +437,7 @@ mod tests {
     #[test]
     fn test_trace_without_moving_with_marked_mature() {
         let (_machine, _block, process) = setup();
-        let (pool, tracer) = prepare(process.clone());
+        let pool = Pool::new(1);
         let young_parent = process.allocate_empty();
         let young_child = process.allocate_empty();
 
@@ -372,7 +453,7 @@ mod tests {
         pool.schedule(young_parent.pointer());
         pool.schedule(mature.pointer());
 
-        let stats = tracer.trace_without_moving();
+        let stats = pool.trace(&process, false);
 
         assert!(young_parent.is_marked());
         assert!(young_child.is_marked());
@@ -385,7 +466,7 @@ mod tests {
     #[test]
     fn test_trace_without_moving_with_unmarked_mature() {
         let (_machine, _block, process) = setup();
-        let (pool, tracer) = prepare(process.clone());
+        let pool = Pool::new(1);
         let young_parent = process.allocate_empty();
         let young_child = process.allocate_empty();
 
@@ -399,7 +480,7 @@ mod tests {
         pool.schedule(young_parent.pointer());
         pool.schedule(mature.pointer());
 
-        let stats = tracer.trace_without_moving();
+        let stats = pool.trace(&process, false);
 
         assert!(young_parent.is_marked());
         assert!(young_child.is_marked());

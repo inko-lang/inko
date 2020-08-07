@@ -9,6 +9,7 @@ static A: jemallocator::Jemalloc = jemallocator::Jemalloc;
 pub mod arc_without_weak;
 pub mod binding;
 pub mod block;
+pub mod broadcast;
 pub mod bytecode_parser;
 pub mod catch_table;
 pub mod chunk;

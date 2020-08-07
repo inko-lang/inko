@@ -7,7 +7,6 @@
 //! These settings are all stored in the Config struct, allowing various parts
 //! of the VM to easily access these configuration details.
 use crate::immix::block::BLOCK_SIZE;
-use std::cmp::max;
 use std::env;
 use std::path::PathBuf;
 
@@ -81,20 +80,12 @@ impl Config {
     pub fn new() -> Config {
         let cpu_count = num_cpus::get();
 
-        // GC threads may consume a lot of CPU as they trace through objects. If
-        // we have N cores and spawn N threads, we would end up with many
-        // threads competing over CPU time.
-        //
-        // To keep this somewhat under control we limit both GC control and
-        // tracer threads to half the number of CPU cores.
-        let cpu_half = max(cpu_count / 2, 1);
-
         Config {
             directories: Vec::new(),
             primary_threads: cpu_count,
             blocking_threads: cpu_count,
-            gc_threads: cpu_half,
-            tracer_threads: cpu_half,
+            gc_threads: cpu_count,
+            tracer_threads: cpu_count,
             reductions: DEFAULT_REDUCTIONS,
             young_threshold: DEFAULT_YOUNG_THRESHOLD,
             mature_threshold: DEFAULT_MATURE_THRESHOLD,

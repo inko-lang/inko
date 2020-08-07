@@ -1,6 +1,7 @@
 //! Types for starting and coordinating garbage collecting of a process.
 use crate::arc_without_weak::ArcWithoutWeak;
 use crate::gc::collection::Collection;
+use crate::gc::tracer::Pool as TracerPool;
 use crate::scheduler::join_list::JoinList;
 use crate::scheduler::pool_state::PoolState;
 use crate::scheduler::queue::RcQueue;
@@ -18,6 +19,9 @@ pub struct Worker {
 
     /// The VM state this worker belongs to.
     vm_state: RcState,
+
+    /// The pool of tracer threads to use.
+    tracers: TracerPool,
 }
 
 impl Worker {
@@ -26,10 +30,13 @@ impl Worker {
         state: ArcWithoutWeak<PoolState<Collection>>,
         vm_state: RcState,
     ) -> Self {
+        let tracers = vm_state.config.tracer_threads;
+
         Worker {
             queue,
             state,
             vm_state,
+            tracers: TracerPool::new(tracers),
         }
     }
 }
@@ -44,7 +51,7 @@ impl WorkerTrait<Collection> for Worker {
     }
 
     fn process_job(&mut self, job: Collection) {
-        job.perform(&self.vm_state);
+        job.perform(&self.vm_state, &self.tracers);
     }
 }
 
