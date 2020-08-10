@@ -1,7 +1,7 @@
 //! Modules containing bytecode objects and global variables.
 use crate::compiled_code::{CompiledCode, CompiledCodePointer};
 use crate::deref_pointer::DerefPointer;
-use crate::global_scope::{GlobalScope, GlobalScopePointer};
+use crate::global_scope::GlobalScope;
 use crate::object_pointer::ObjectPointer;
 
 /// A module is a single file containing bytecode and an associated global
@@ -58,7 +58,11 @@ impl Module {
         DerefPointer::new(&*self.code)
     }
 
-    pub fn global_scope_ref(&self) -> GlobalScopePointer {
-        GlobalScopePointer::new(&self.global_scope)
+    pub fn global_scope(&self) -> &GlobalScope {
+        &self.global_scope
+    }
+
+    pub fn global_scope_mut(&mut self) -> &mut GlobalScope {
+        &mut self.global_scope
     }
 }

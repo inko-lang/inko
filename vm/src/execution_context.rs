@@ -5,7 +5,8 @@
 use crate::binding::{Binding, RcBinding};
 use crate::block::Block;
 use crate::compiled_code::CompiledCodePointer;
-use crate::global_scope::GlobalScopePointer;
+use crate::deref_pointer::DerefPointer;
+use crate::module::Module;
 use crate::object_pointer::{ObjectPointer, ObjectPointerPointer};
 use crate::process::RcProcess;
 use crate::registers::Registers;
@@ -26,8 +27,8 @@ pub struct ExecutionContext {
     /// The index of the instruction to store prior to suspending a process.
     pub instruction_index: usize,
 
-    /// The current global scope.
-    pub global_scope: GlobalScopePointer,
+    /// The current module.
+    pub module: DerefPointer<Module>,
 
     /// If a process should terminate once it returns from this context.
     pub terminate_upon_return: bool,
@@ -59,7 +60,7 @@ impl ExecutionContext {
             code: block.code,
             parent: None,
             instruction_index: 0,
-            global_scope: block.global_scope,
+            module: block.module,
             terminate_upon_return: false,
         }
     }
@@ -72,7 +73,7 @@ impl ExecutionContext {
             deferred_blocks: Vec::new(),
             parent: None,
             instruction_index: 0,
-            global_scope: block.global_scope,
+            module: block.module,
             terminate_upon_return: false,
         }
     }
@@ -129,11 +130,11 @@ impl ExecutionContext {
     }
 
     pub fn get_global(&self, index: u16) -> ObjectPointer {
-        self.global_scope.get(index)
+        self.module.global_scope().get(index)
     }
 
     pub fn set_global(&mut self, index: u16, value: ObjectPointer) {
-        self.global_scope.set(index, value);
+        self.module.global_scope_mut().set(index, value);
     }
 
     pub fn binding(&self) -> &RcBinding {

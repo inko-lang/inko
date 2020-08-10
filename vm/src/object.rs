@@ -401,9 +401,8 @@ mod tests {
     use crate::block::Block as CodeBlock;
     use crate::compiled_code::CompiledCode;
     use crate::config::Config;
-    use crate::deref_pointer::DerefPointer;
-    use crate::global_scope::{GlobalScope, GlobalScopePointer};
     use crate::immix::block::Block;
+    use crate::module::Module;
     use crate::object_pointer::{ObjectPointer, RawObjectPointer};
     use crate::object_value::ObjectValue;
     use crate::vm::state::State;
@@ -641,19 +640,15 @@ mod tests {
     fn test_object_each_pointer_with_block() {
         let state = State::with_rc(Config::new(), &[]);
         let binding = Binding::with_rc(0, fake_pointer());
-        let code = CompiledCode::new(
-            state.intern_string("a".to_string()),
-            state.intern_string("a.inko".to_string()),
-            1,
-            Vec::new(),
-        );
-
-        let scope = GlobalScope::new();
+        let name = state.intern_string("a".to_string());
+        let path = state.intern_string("a.inko".to_string());
+        let code = CompiledCode::new(name, path, 1, Vec::new());
+        let module = Module::new(name, path, code);
         let block = CodeBlock::new(
-            DerefPointer::new(&code),
+            module.code(),
             Some(binding.clone()),
             fake_pointer(),
-            GlobalScopePointer::new(&scope),
+            &module,
         );
 
         let obj = Object::new(ObjectValue::Block(Box::new(block)));

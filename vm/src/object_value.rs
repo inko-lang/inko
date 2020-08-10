@@ -466,9 +466,7 @@ mod tests {
     use crate::block::Block;
     use crate::compiled_code::CompiledCode;
     use crate::config::Config;
-    use crate::deref_pointer::DerefPointer;
     use crate::ffi::Library;
-    use crate::global_scope::{GlobalScope, GlobalScopePointer};
     use crate::object_pointer::ObjectPointer;
     use crate::vm::state::{RcState, State};
     use std::fs::File;
@@ -558,20 +556,12 @@ mod tests {
     #[test]
     fn test_is_block() {
         let state = state();
-        let code = CompiledCode::new(
-            state.intern_string("a".to_string()),
-            state.intern_string("a.inko".to_string()),
-            1,
-            Vec::new(),
-        );
-
-        let scope = GlobalScope::new();
-        let block = Block::new(
-            DerefPointer::new(&code),
-            None,
-            ObjectPointer::integer(1),
-            GlobalScopePointer::new(&scope),
-        );
+        let name = state.intern_string("a".to_string());
+        let path = state.intern_string("a.inko".to_string());
+        let code = CompiledCode::new(name, path, 1, Vec::new());
+        let module = Module::new(name, path, code);
+        let block =
+            Block::new(module.code(), None, ObjectPointer::integer(1), &module);
 
         assert!(ObjectValue::Block(Box::new(block)).is_block());
         assert_eq!(ObjectValue::None.is_block(), false);
@@ -678,20 +668,12 @@ mod tests {
     #[test]
     fn test_as_block_with_block() {
         let state = state();
-        let code = CompiledCode::new(
-            state.intern_string("a".to_string()),
-            state.intern_string("a.inko".to_string()),
-            1,
-            Vec::new(),
-        );
-
-        let scope = GlobalScope::new();
-        let block = Block::new(
-            DerefPointer::new(&code),
-            None,
-            ObjectPointer::integer(1),
-            GlobalScopePointer::new(&scope),
-        );
+        let name = state.intern_string("a".to_string());
+        let path = state.intern_string("a.inko".to_string());
+        let code = CompiledCode::new(name, path, 1, Vec::new());
+        let module = Module::new(name, path, code);
+        let block =
+            Block::new(module.code(), None, ObjectPointer::integer(1), &module);
 
         let value = ObjectValue::Block(Box::new(block));
 
@@ -756,21 +738,12 @@ mod tests {
     #[test]
     fn test_block() {
         let state = state();
-        let code = CompiledCode::new(
-            state.intern_string("a".to_string()),
-            state.intern_string("a.inko".to_string()),
-            1,
-            Vec::new(),
-        );
-
-        let scope = GlobalScope::new();
-
-        let blk = Block::new(
-            DerefPointer::new(&code),
-            None,
-            ObjectPointer::null(),
-            GlobalScopePointer::new(&scope),
-        );
+        let name = state.intern_string("a".to_string());
+        let path = state.intern_string("a.inko".to_string());
+        let code = CompiledCode::new(name, path, 1, Vec::new());
+        let module = Module::new(name, path, code);
+        let blk =
+            Block::new(module.code(), None, ObjectPointer::null(), &module);
 
         assert!(block(blk).is_block());
     }

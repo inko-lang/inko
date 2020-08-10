@@ -36,8 +36,7 @@ pub fn setup() -> (Machine, Block, RcProcess) {
         let module_path = if cfg!(windows) { "C:\\test" } else { "/test" };
         let module_ptr = registry.define_module("test", module_path, code);
         let module = module_ptr.module_value().unwrap();
-        let scope = module.global_scope_ref();
-        let block = Block::new(module.code(), None, module_ptr, scope);
+        let block = Block::new(module.code(), None, module_ptr, module);
         let process = process::process_allocate(&machine.state, &block);
 
         process.set_main();

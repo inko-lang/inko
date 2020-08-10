@@ -470,7 +470,7 @@ mod tests {
         binding.set_local(0, local);
 
         let new_block =
-            Block::new(code, Some(binding), receiver, block.global_scope);
+            Block::new(code, Some(binding), receiver, &block.module);
 
         let panic_handler =
             process.allocate_without_prototype(object_value::block(new_block));

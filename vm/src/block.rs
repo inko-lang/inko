@@ -4,7 +4,8 @@
 //! with binding of the scope the block was created in.
 use crate::binding::RcBinding;
 use crate::compiled_code::CompiledCodePointer;
-use crate::global_scope::GlobalScopePointer;
+use crate::deref_pointer::DerefPointer;
+use crate::module::Module;
 use crate::object_pointer::ObjectPointer;
 
 #[derive(Clone)]
@@ -18,8 +19,13 @@ pub struct Block {
     /// The receiver of the block.
     pub receiver: ObjectPointer,
 
-    /// The global scope this block belongs to.
-    pub global_scope: GlobalScopePointer,
+    /// A pointer to the module this block belongs to.
+    ///
+    /// Since blocks are created frequently, we don't want the overhead of
+    /// atomic reference counting that comes with using an
+    /// `ArcWithoutWeak<Module>`. Since modules are not dropped at runtime, we
+    /// can safely use a pointer instead.
+    pub module: DerefPointer<Module>,
 }
 
 impl Block {
@@ -27,13 +33,13 @@ impl Block {
         code: CompiledCodePointer,
         captures_from: Option<RcBinding>,
         receiver: ObjectPointer,
-        global_scope: GlobalScopePointer,
+        module: &Module,
     ) -> Self {
         Block {
             code,
             captures_from,
             receiver,
-            global_scope,
+            module: DerefPointer::new(module),
         }
     }
 

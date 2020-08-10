@@ -50,10 +50,13 @@ pub trait CopyObject: Sized {
                 let captures_from =
                     block.captures_from.as_ref().map(|b| b.clone_to(self));
 
-                let scope = block.global_scope;
                 let receiver = self.copy_object(block.receiver);
-                let new_block =
-                    Block::new(block.code, captures_from, receiver, scope);
+                let new_block = Block::new(
+                    block.code,
+                    captures_from,
+                    receiver,
+                    &block.module,
+                );
 
                 object_value::block(new_block)
             }
@@ -115,10 +118,9 @@ mod tests {
     use crate::binding::Binding;
     use crate::compiled_code::CompiledCode;
     use crate::config::Config;
-    use crate::deref_pointer::DerefPointer;
-    use crate::global_scope::{GlobalScope, GlobalScopePointer};
     use crate::immix::global_allocator::GlobalAllocator;
     use crate::immix::local_allocator::LocalAllocator;
+    use crate::module::Module;
     use crate::object::Object;
     use crate::object_pointer::ObjectPointer;
     use crate::object_value;
@@ -243,21 +245,12 @@ mod tests {
     fn test_copy_block() {
         let mut dummy = DummyAllocator::new();
         let state = state();
-        let cc = CompiledCode::new(
-            state.intern_string("a".to_string()),
-            state.intern_string("a".to_string()),
-            1,
-            Vec::new(),
-        );
-
-        let scope = GlobalScope::new();
-
-        let block = Block::new(
-            DerefPointer::new(&cc),
-            None,
-            ObjectPointer::integer(1),
-            GlobalScopePointer::new(&scope),
-        );
+        let name = state.intern_string("a".to_string());
+        let path = state.intern_string("a.inko".to_string());
+        let cc = CompiledCode::new(name, path, 1, Vec::new());
+        let module = Module::new(name, path, cc);
+        let block =
+            Block::new(module.code(), None, ObjectPointer::integer(1), &module);
 
         let ptr = dummy
             .allocator

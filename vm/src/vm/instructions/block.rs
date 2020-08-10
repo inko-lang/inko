@@ -93,7 +93,7 @@ pub fn set_block(
         receiver_ptr
     };
 
-    let block = Block::new(code, captures_from, receiver, context.global_scope);
+    let block = Block::new(code, captures_from, receiver, &context.module);
 
     process.allocate(object_value::block(block), state.block_prototype)
 }

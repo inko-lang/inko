@@ -36,9 +36,7 @@ pub fn module_load_string(
         registry.load(name, path).map_err(|err| err.message())?;
 
     let module = module_ptr.module_value()?;
-
-    let block =
-        Block::new(module.code(), None, module_ptr, module.global_scope_ref());
+    let block = Block::new(module.code(), None, module_ptr, module);
 
     Ok((module_ptr, block, parsed))
 }
