@@ -316,6 +316,14 @@ impl Machine {
 
                     context.set_register(reg, res);
                 }
+                Opcode::SetLiteralWide => {
+                    let reg = instruction.arg(0);
+                    let arg1 = instruction.arg(1);
+                    let arg2 = instruction.arg(2);
+                    let res = general::set_literal_wide(context, arg1, arg2);
+
+                    context.set_register(reg, res);
+                }
                 Opcode::SetObject => {
                     let reg = instruction.arg(0);
                     let perm = context.get_register(instruction.arg(1));

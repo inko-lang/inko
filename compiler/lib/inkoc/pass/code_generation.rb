@@ -5,6 +5,8 @@ module Inkoc
     class CodeGeneration
       include VisitorMethods
 
+      MAX_ARGUMENT_VALUE = 65535
+
       def initialize(mod, state)
         @module = mod
         @state = state
@@ -186,7 +188,15 @@ module Inkoc
         lit = compiled_code.literals.get_or_set(tir_ins.value)
         reg = tir_ins.register.id
 
-        compiled_code.instruct(:SetLiteral, [reg, lit], tir_ins.location)
+        if lit > MAX_ARGUMENT_VALUE
+          high = lit >> 16
+          low = lit & 0xFFFF
+
+          compiled_code
+            .instruct(:SetLiteralWide, [reg, high, low], tir_ins.location)
+        else
+          compiled_code.instruct(:SetLiteral, [reg, lit], tir_ins.location)
+        end
       end
 
       def on_set_object(tir_ins, compiled_code, *)

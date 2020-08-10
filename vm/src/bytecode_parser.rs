@@ -269,7 +269,7 @@ fn read_instruction<T: Read>(
 fn read_instructions<T: Read>(
     bytes: &mut Bytes<T>,
 ) -> ParserResult<Vec<Instruction>> {
-    let amount = read_u64_with_limit(bytes, u16::MAX as u64)? as usize;
+    let amount = read_u64_with_limit(bytes, u32::MAX as u64)? as usize;
     let mut buff: Vec<Instruction> = Vec::with_capacity(amount);
 
     for _ in 0..amount {
@@ -316,7 +316,7 @@ fn read_literals_vector<T: Read>(
     state: &RcState,
     bytes: &mut Bytes<T>,
 ) -> ParserResult<Vec<ObjectPointer>> {
-    let amount = read_u64_with_limit(bytes, u16::MAX as u64)?;
+    let amount = read_u64_with_limit(bytes, u32::MAX as u64)?;
     let mut buff = Vec::with_capacity(amount as usize);
 
     for _ in 0..amount {

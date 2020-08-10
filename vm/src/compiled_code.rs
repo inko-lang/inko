@@ -78,8 +78,8 @@ impl CompiledCode {
     }
 
     #[inline(always)]
-    pub unsafe fn literal(&self, index: u16) -> ObjectPointer {
-        *self.literals.get_unchecked(index as usize)
+    pub unsafe fn literal(&self, index: usize) -> ObjectPointer {
+        *self.literals.get_unchecked(index)
     }
 
     #[inline(always)]

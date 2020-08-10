@@ -5,6 +5,7 @@
 #[repr(u8)]
 pub enum Opcode {
     SetLiteral,
+    SetLiteralWide,
     SetObject,
     SetArray,
     GetBuiltinPrototype,
