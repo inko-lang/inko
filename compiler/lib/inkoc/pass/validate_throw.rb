@@ -5,9 +5,9 @@ module Inkoc
     class ValidateThrow
       include VisitorMethods
 
-      def initialize(mod, state)
+      def initialize(compiler, mod)
         @module = mod
-        @state = state
+        @state = compiler.state
         @try_nesting = 0
         @block_nesting = []
       end

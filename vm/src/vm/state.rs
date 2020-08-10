@@ -9,6 +9,7 @@ use crate::gc::coordinator::Pool as GcPool;
 use crate::immix::global_allocator::{GlobalAllocator, RcGlobalAllocator};
 use crate::immix::permanent_allocator::PermanentAllocator;
 use crate::immutable_string::ImmutableString;
+use crate::modules::Modules;
 use crate::network_poller::NetworkPoller;
 use crate::object_pointer::ObjectPointer;
 use crate::object_value;
@@ -123,6 +124,9 @@ pub struct State {
 
     /// The system polling mechanism to use for polling non-blocking sockets.
     pub network_poller: NetworkPoller,
+
+    /// All modules that are available to the current program.
+    pub modules: Mutex<Modules>,
 }
 
 impl RefUnwindSafe for State {}
@@ -199,6 +203,7 @@ impl State {
             byte_array_prototype: byte_array_proto,
             module_prototype: module_proto,
             network_poller: NetworkPoller::new(),
+            modules: Mutex::new(Modules::new()),
         };
 
         for argument in arguments {
@@ -282,6 +287,10 @@ impl State {
         } else {
             Some(handler)
         }
+    }
+
+    pub fn parse_image(&self, path: &str) -> Result<(), String> {
+        self.modules.lock().parse_image(&self, path)
     }
 }
 

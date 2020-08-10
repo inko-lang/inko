@@ -32,7 +32,7 @@ pub mod integer_operations;
 pub mod macros;
 pub mod mailbox;
 pub mod module;
-pub mod module_registry;
+pub mod modules;
 pub mod network_poller;
 pub mod numeric;
 pub mod object;

@@ -21,6 +21,13 @@ pub struct Module {
     /// The scope is stored as a Box so that moving around a Module won't
     /// invalidate any GlobalScopePointer instances.
     global_scope: Box<GlobalScope>,
+
+    /// The literals (e.g. string literals) stored in this module. All these
+    /// literals must be permanent objects.
+    literals: Vec<ObjectPointer>,
+
+    /// A boolean indicating if this module has been executed or not.
+    executed: bool,
 }
 
 // A module is immutable once created. The lines below ensure we can store a
@@ -33,12 +40,15 @@ impl Module {
         name: ObjectPointer,
         path: ObjectPointer,
         code: CompiledCode,
+        literals: Vec<ObjectPointer>,
     ) -> Self {
         Module {
             name,
             path,
             code: Box::new(code),
             global_scope: Box::new(GlobalScope::new()),
+            literals,
+            executed: false,
         }
     }
 
@@ -64,5 +74,35 @@ impl Module {
 
     pub fn global_scope_mut(&mut self) -> &mut GlobalScope {
         &mut self.global_scope
+    }
+
+    pub fn mark_as_executed(&mut self) -> bool {
+        if self.executed {
+            return false;
+        }
+
+        self.executed = true;
+        true
+    }
+
+    #[inline(always)]
+    pub unsafe fn literal(&self, index: usize) -> ObjectPointer {
+        *self.literals.get_unchecked(index)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_mark_as_executed() {
+        let name = ObjectPointer::null();
+        let path = ObjectPointer::null();
+        let code = CompiledCode::new(name, path, 1, Vec::new());
+        let mut module = Module::new(name, path, code, Vec::new());
+
+        assert_eq!(module.mark_as_executed(), true);
+        assert_eq!(module.mark_as_executed(), false);
     }
 }

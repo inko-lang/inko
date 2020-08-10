@@ -24,32 +24,37 @@ module Inkoc
       Pass::GenerateTir,
       Pass::TailCallElimination,
       Pass::CodeGeneration,
-      Pass::CodeWriter
     ].freeze
 
-    attr_reader :state
+    attr_reader :state, :modules
 
     def initialize(state)
       @state = state
+      @modules = []
     end
 
     def compile_main(path)
       name = TIR::QualifiedName.new(%w[main])
-      compile(name, path)
+      main_mod = compile(name, path)
+
+      Codegen::Serializer.new(self, main_mod).serialize_to_file
+
+      main_mod
     end
 
     # name - The QualifiedName of the module.
     # path - The absolute file path of the module to compile, as a Pathname.
     def compile(name, path)
       mod = module_for_name_and_path(name, path)
-
-      passes.reduce([]) do |input, klass|
-        out = klass.new(mod, @state).run(*input)
+      output = passes.reduce([]) do |input, klass|
+        out = klass.new(self, mod).run(*input)
 
         break if out.nil? || state.diagnostics.errors?
 
         out
       end
+
+      @modules.push(output.first)
 
       mod
     end

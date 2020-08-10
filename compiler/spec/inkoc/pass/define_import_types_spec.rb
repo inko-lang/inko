@@ -5,7 +5,7 @@ require 'spec_helper'
 describe Inkoc::Pass::DefineImportTypes do
   let(:state) { Inkoc::State.new(Inkoc::Config.new) }
   let(:tir_module) { new_tir_module }
-  let(:pass) { described_class.new(tir_module, state) }
+  let(:pass) { described_class.new(Inkoc::Compiler.new(state), tir_module) }
   let(:ast) { Inkoc::AST::Body.new([], tir_module.location) }
 
   describe '#run' do

@@ -6,9 +6,9 @@ module Inkoc
     class GenerateTir
       include VisitorMethods
 
-      def initialize(mod, state)
+      def initialize(compiler, mod)
         @module = mod
-        @state = state
+        @state = compiler.state
       end
 
       def run(ast)

@@ -5,7 +5,7 @@ module Inkoc
     class DefineThisModuleType
       include VisitorMethods
 
-      def initialize(mod, *)
+      def initialize(_, mod)
         @module = mod
       end
 

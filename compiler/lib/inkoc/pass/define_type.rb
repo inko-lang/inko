@@ -9,8 +9,8 @@ module Inkoc
 
       DeferredMethod = Struct.new(:node, :scope)
 
-      def initialize(mod, state)
-        super
+      def initialize(compiler, mod)
+        super(compiler, mod)
 
         @deferred_methods = []
       end

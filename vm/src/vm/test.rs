@@ -2,6 +2,7 @@
 use crate::block::Block;
 use crate::compiled_code::CompiledCode;
 use crate::config::Config;
+use crate::module::Module;
 use crate::process::RcProcess;
 use crate::vm::instruction::{Instruction, Opcode};
 use crate::vm::instructions::process;
@@ -19,7 +20,7 @@ pub fn setup() -> (Machine, Block, RcProcess) {
 
     let state = State::with_rc(config, &[]);
     let name = state.intern_string("a".to_string());
-    let machine = Machine::default(state);
+    let machine = Machine::new(state);
     let mut code = CompiledCode::new(
         name,
         name,
@@ -32,9 +33,18 @@ pub fn setup() -> (Machine, Block, RcProcess) {
     code.registers = 1024;
 
     let (block, process) = {
-        let mut registry = machine.module_registry.lock();
-        let module_path = if cfg!(windows) { "C:\\test" } else { "/test" };
-        let module_ptr = registry.define_module("test", module_path, code);
+        let mut modules = machine.state.modules.lock();
+        let mod_name = machine.state.intern_string("test".to_string());
+        let mod_path = machine.state.intern_string(
+            if cfg!(windows) { "C:\\test" } else { "/test" }.to_string(),
+        );
+
+        modules.add(
+            &machine.state,
+            vec![Module::new(mod_name, mod_path, code, Vec::new())],
+        );
+
+        let module_ptr = modules.get(&"test").unwrap();
         let module = module_ptr.module_value().unwrap();
         let block = Block::new(module.code(), None, module_ptr, module);
         let process = process::process_allocate(&machine.state, &block);

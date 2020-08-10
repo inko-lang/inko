@@ -368,6 +368,7 @@ dependencies = [
  "ahash",
  "crossbeam-channel",
  "crossbeam-deque",
+ "crossbeam-utils",
  "dirs-next",
  "float-cmp",
  "getopts",

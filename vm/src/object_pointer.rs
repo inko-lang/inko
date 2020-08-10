@@ -626,6 +626,12 @@ impl ObjectPointer {
 
     def_value_getter!(socket_value_mut, get_mut, as_socket_mut, &mut Socket);
     def_value_getter!(module_value, get, as_module, &ArcWithoutWeak<Module>);
+    def_value_getter!(
+        module_value_mut,
+        get_mut,
+        as_module_mut,
+        &mut ArcWithoutWeak<Module>
+    );
 
     /// Atomically loads the underlying pointer, returning a new ObjectPointer.
     pub fn atomic_load(&self) -> Self {

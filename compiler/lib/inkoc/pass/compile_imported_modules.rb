@@ -3,9 +3,13 @@
 module Inkoc
   module Pass
     class CompileImportedModules
-      def initialize(mod, state)
+      def initialize(compiler, mod)
+        @compiler = compiler
         @module = mod
-        @state = state
+      end
+
+      def state
+        @compiler.state
       end
 
       def run(ast)
@@ -18,16 +22,16 @@ module Inkoc
         qname = node.qualified_name
         loc = node.location
 
-        compile_module(qname, loc) unless @state.module_exists?(qname.to_s)
+        compile_module(qname, loc) unless state.module_exists?(qname.to_s)
       end
 
       def compile_module(qname, location)
         rel_path = qname.source_path_with_extension
 
-        if (full_path = @state.find_module_path(rel_path))
-          Compiler.new(@state).compile(qname, full_path)
+        if (full_path = state.find_module_path(rel_path))
+          @compiler.compile(qname, full_path)
         else
-          @state.diagnostics.module_not_found_error(qname.to_s, location)
+          state.diagnostics.module_not_found_error(qname.to_s, location)
         end
       end
     end

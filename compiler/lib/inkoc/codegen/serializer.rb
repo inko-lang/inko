@@ -24,10 +24,49 @@ module Inkoc
       # These values are based on Rust's `std::i64::MIN` and `std::i64::MAX`.
       INTEGER_RANGE = -9_223_372_036_854_775_808..9_223_372_036_854_775_807
 
-      def generate(code)
+      def initialize(compiler, mod)
+        @compiler = compiler
+        @module = mod
+      end
+
+      def serialize_to_file
+        bytecode_directory =
+          @compiler.state.config.target.join(@module.bytecode_directory)
+
+        bytecode_file = bytecode_directory.join(@module.bytecode_file)
+        output = serialize
+
+        bytecode_directory.mkpath
+
+        File.open(bytecode_file, 'wb') do |handle|
+          handle.write(output)
+        end
+
+        nil
+      end
+
+      def serialize
+        mods = @compiler.modules
+        header = SIGNATURE.map { |num| u8(num) }.join('') + u8(VERSION)
+        output = u64(mods.length)
+
+        mods.each do |mod|
+          output += code_module(mod)
+        end
+
+        header + output
+      end
+
+      def generate(mod, code)
         sig = SIGNATURE.map { |num| u8(num) }.join('')
 
         sig + u8(VERSION) + compiled_code(code)
+      end
+
+      def code_module(mod)
+        body = array(mod.literals.to_a, :literal) + compiled_code(mod.body)
+
+        u64(body.bytesize) + body
       end
 
       def string(str)
@@ -47,35 +86,35 @@ module Inkoc
       def u16(num)
         validate_range!(num, U16_RANGE)
 
-        [num].pack('S>')
+        [num].pack('S<')
       end
 
       def u32(num)
         validate_range!(num, U32_RANGE)
 
-        [num].pack('L>')
+        [num].pack('L<')
       end
 
       def u64(num)
         validate_range!(num, U64_RANGE)
 
-        [num].pack('Q>')
+        [num].pack('Q<')
       end
 
       def i32(num)
         validate_range!(num, I32_RANGE)
 
-        [num].pack('l>')
+        [num].pack('l<')
       end
 
       def i64(num)
         validate_range!(num, I64_RANGE)
 
-        [num].pack('q>')
+        [num].pack('q<')
       end
 
       def f64(num)
-        [num].pack('G')
+        [num].pack('E')
       end
 
       def boolean(val)
@@ -140,16 +179,15 @@ module Inkoc
 
       # rubocop: disable Metrics/AbcSize
       def compiled_code(code)
-        string(code.name) +
-          string(code.file.to_s) +
+        u32(code.name) +
+          u32(code.file) +
           u16(code.line) +
-          array(code.arguments, :literal) +
+          array(code.arguments, :u32) +
           u8(code.required_arguments) +
           u16(code.locals) +
           u16(code.registers) +
           boolean(code.captures) +
           array(code.instructions, :instruction) +
-          array(code.literals.to_a, :literal) +
           array(code.code_objects.to_a, :compiled_code) +
           array(code.catch_table.to_a, :catch_entry)
       end

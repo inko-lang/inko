@@ -8,7 +8,7 @@ module Inkoc
     BYTECODE_DIR = 'bytecode'
 
     # The file extension of bytecode files.
-    BYTECODE_EXT = '.inkoc'
+    BYTECODE_EXT = '.ibi'
 
     # The file extension of source files.
     SOURCE_EXT = '.inko'

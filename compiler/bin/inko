@@ -90,4 +90,4 @@ end
 
 main_mod_path = File.join(config.target, mod.bytecode_import_path)
 
-exec(options[:vm], '-I', config.target.to_s, main_mod_path.to_s, *ARGV)
+exec(options[:vm], main_mod_path.to_s, *ARGV)

@@ -325,7 +325,8 @@ describe Inkoc::Pass::DefineType do
   end
 
   let(:state) { Inkoc::State.new(Inkoc::Config.new) }
-  let(:pass) { described_class.new(tir_module, state) }
+  let(:compiler) { Inkoc::Compiler.new(state) }
+  let(:pass) { described_class.new(compiler, tir_module) }
   let(:self_type) { tir_module.type }
 
   let(:type_scope) do
@@ -345,16 +346,16 @@ describe Inkoc::Pass::DefineType do
     node = parse_source(expression)
 
     Inkoc::Pass::SetupSymbolTables
-      .new(tir_module, state)
+      .new(compiler, tir_module)
       .run(node)
 
     Inkoc::Pass::DefineTypeSignatures
-      .new(tir_module, state)
+      .new(compiler, tir_module)
       .run(node)
 
     unless state.diagnostics.errors?
       Inkoc::Pass::ImplementTraits
-        .new(tir_module, state)
+        .new(compiler, tir_module)
         .run(node)
 
       pass.on_module_body(node, scope)
@@ -979,7 +980,7 @@ describe Inkoc::Pass::DefineType do
         body = parse_source(expr)
 
         Inkoc::Pass::SetupSymbolTables
-          .new(tir_module, state)
+          .new(compiler, tir_module)
           .run(body)
 
         send_node = body.expressions[0]
@@ -1432,7 +1433,7 @@ describe Inkoc::Pass::DefineType do
         ret_node = body.expressions[0].body.expressions.last
 
         Inkoc::Pass::SetupSymbolTables
-          .new(tir_module, state)
+          .new(compiler, tir_module)
           .run(body)
 
         pass.define_type(body, type_scope)
@@ -1524,7 +1525,7 @@ describe Inkoc::Pass::DefineType do
         body = parse_source('do { try throws else (error) error }')
 
         Inkoc::Pass::SetupSymbolTables
-          .new(tir_module, state)
+          .new(compiler, tir_module)
           .run(body)
 
         pass.define_type(body, type_scope)
@@ -1544,7 +1545,7 @@ describe Inkoc::Pass::DefineType do
         body = parse_source('do { try 10 else (error) error }')
 
         Inkoc::Pass::SetupSymbolTables
-          .new(tir_module, state)
+          .new(compiler, tir_module)
           .run(body)
 
         pass.define_type(body, type_scope)
@@ -1564,7 +1565,7 @@ describe Inkoc::Pass::DefineType do
         SOURCE
 
         Inkoc::Pass::SetupSymbolTables
-          .new(tir_module, state)
+          .new(compiler, tir_module)
           .run(body)
 
         type_scope = Inkoc::TypeScope.new(
@@ -1966,7 +1967,7 @@ describe Inkoc::Pass::DefineType do
       node = parse_source('def bar where T: Inspect { foo.inspect }')
 
       Inkoc::Pass::SetupSymbolTables
-        .new(tir_module, state)
+        .new(compiler, tir_module)
         .run(node)
 
       pass.on_module_body(node, type_scope)

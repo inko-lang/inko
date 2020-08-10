@@ -31,6 +31,7 @@ libloading = "^0.6"
 libffi = "^0.9"
 crossbeam-deque = "^0.7"
 crossbeam-channel = "^0.4"
+crossbeam-utils = "^0.7"
 libc = "^0.2"
 jemallocator = { version = "^0.3", optional = true }
 ahash = "^0.4"

@@ -3,9 +3,9 @@
 module Inkoc
   module Pass
     class TailCallElimination
-      def initialize(mod, state)
+      def initialize(compiler, mod)
         @module = mod
-        @state = state
+        @state = compiler.state
       end
 
       def run

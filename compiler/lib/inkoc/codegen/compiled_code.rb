@@ -5,31 +5,23 @@ module Inkoc
     class CompiledCode
       include Inspect
 
-      attr_reader :name, :instructions, :literals, :code_objects
+      attr_reader :name, :instructions, :code_objects
 
       attr_accessor :arguments, :required_arguments, :locals,
-                    :registers, :captures, :catch_table
+                    :registers, :captures, :catch_table, :file, :line
 
-      def initialize(name, location)
+      def initialize(name, file, line)
         @name = name
-        @location = location
+        @file = file
+        @line = line
         @arguments = []
         @rest_argument = false
         @locals = 0
         @registers = 0
         @captures = false
         @instructions = []
-        @literals = Literals.new
         @code_objects = Literals.new
         @catch_table = []
-      end
-
-      def file
-        @location.file.path
-      end
-
-      def line
-        @location.line
       end
 
       def instruct(*args)

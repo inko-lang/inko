@@ -30,13 +30,6 @@ fn run() -> i32 {
     options.optflag("h", "help", "Shows this help message");
     options.optflag("v", "version", "Prints the version number");
 
-    options.optmulti(
-        "I",
-        "include",
-        "A directory to search for bytecode files",
-        "DIR",
-    );
-
     let matches = match options.parse(&args[1..]) {
         Ok(matches) => matches,
         Err(err) => {
@@ -64,16 +57,9 @@ fn run() -> i32 {
         let mut config = Config::new();
         let path = &matches.free[0];
 
-        if matches.opt_present("I") {
-            for dir in matches.opt_strs("I") {
-                config.add_directory(dir);
-            }
-        }
-
         config.populate_from_env();
 
-        let machine =
-            Machine::default(State::with_rc(config, &matches.free[1..]));
+        let machine = Machine::new(State::with_rc(config, &matches.free[1..]));
 
         machine.start(path);
         machine.state.current_exit_status()

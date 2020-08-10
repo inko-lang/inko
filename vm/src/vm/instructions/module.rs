@@ -1,7 +1,6 @@
 //! VM functions for working with Inko modules.
 use crate::block::Block;
 use crate::execution_context::ExecutionContext;
-use crate::module_registry::RcModuleRegistry;
 use crate::object_pointer::ObjectPointer;
 use crate::object_value;
 use crate::process::RcProcess;
@@ -9,14 +8,12 @@ use crate::vm::state::RcState;
 
 #[inline(always)]
 pub fn module_load(
+    state: &RcState,
     process: &RcProcess,
-    registry: &RcModuleRegistry,
     name_ptr: ObjectPointer,
-    path_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
     let name = name_ptr.string_value()?;
-    let path = path_ptr.string_value()?;
-    let (res, block, execute) = module_load_string(registry, name, path)?;
+    let (res, block, execute) = module_load_string(state, name)?;
 
     if execute {
         process.push_context(ExecutionContext::from_block(&block));
@@ -27,27 +24,19 @@ pub fn module_load(
 
 #[inline(always)]
 pub fn module_load_string(
-    registry: &RcModuleRegistry,
+    state: &RcState,
     name: &str,
-    path: &str,
 ) -> Result<(ObjectPointer, Block, bool), String> {
-    let mut registry = registry.lock();
-    let (module_ptr, parsed) =
-        registry.load(name, path).map_err(|err| err.message())?;
+    let (mod_ptr, exec) = state.modules.lock().get_for_execution(name)?;
+    let module = mod_ptr.module_value()?;
+    let block = Block::new(module.code(), None, mod_ptr, module);
 
-    let module = module_ptr.module_value()?;
-    let block = Block::new(module.code(), None, module_ptr, module);
-
-    Ok((module_ptr, block, parsed))
+    Ok((mod_ptr, block, exec))
 }
 
 #[inline(always)]
-pub fn module_list(
-    state: &RcState,
-    registry: &RcModuleRegistry,
-    process: &RcProcess,
-) -> ObjectPointer {
-    let modules = registry.lock().parsed();
+pub fn module_list(state: &RcState, process: &RcProcess) -> ObjectPointer {
+    let modules = state.modules.lock().list();
 
     process.allocate(object_value::array(modules), state.array_prototype)
 }
@@ -55,11 +44,10 @@ pub fn module_list(
 #[inline(always)]
 pub fn module_get(
     state: &RcState,
-    registry: &RcModuleRegistry,
     name_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
     let name = name_ptr.string_value()?;
-    let module = registry.lock().get(name);
+    let module = state.modules.lock().get(name);
 
     if let Some(pointer) = module {
         Ok(pointer)

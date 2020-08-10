@@ -2,7 +2,6 @@
 use crate::execution_context::ExecutionContext;
 use crate::gc::collection::Collection;
 use crate::integer_operations;
-use crate::module_registry::{ModuleRegistry, RcModuleRegistry};
 use crate::network_poller::worker::Worker as NetworkPollerWorker;
 use crate::numeric::division::{FlooredDiv, OverflowingFlooredDiv};
 use crate::numeric::modulo::{Modulo, OverflowingModulo};
@@ -156,34 +155,19 @@ pub struct Machine {
     /// The shared virtual machine state, such as the process pools and built-in
     /// types.
     pub state: RcState,
-
-    /// A registry of all modules parsed thus far.
-    pub module_registry: RcModuleRegistry,
 }
 
 impl Machine {
-    /// Creates a new Machine with various fields set to their defaults.
-    pub fn default(state: RcState) -> Self {
-        let module_registry = ModuleRegistry::with_rc(state.clone());
-
-        Machine::new(state, module_registry)
-    }
-
-    pub fn new(state: RcState, module_registry: RcModuleRegistry) -> Self {
-        Machine {
-            state,
-            module_registry,
-        }
+    pub fn new(state: RcState) -> Self {
+        Machine { state }
     }
 
     /// Starts the VM
     ///
-    /// This method will block the calling thread until it returns.
-    ///
-    /// This method returns true if the VM terminated successfully, false
-    /// otherwise.
-    pub fn start(&self, file: &str) {
-        self.schedule_main_process(MAIN_MODULE_NAME, file);
+    /// This method will block the calling thread until the program finishes.
+    pub fn start(&self, path: &str) {
+        self.parse_image(path);
+        self.schedule_main_process(MAIN_MODULE_NAME);
 
         let gc_pool_guard = self.start_gc_threads();
         let secondary_guard = self.start_blocking_threads();
@@ -245,11 +229,14 @@ impl Machine {
             .unwrap();
     }
 
-    pub fn schedule_main_process(&self, name: &str, file: &str) {
+    fn parse_image(&self, path: &str) {
+        self.state.parse_image(path).unwrap();
+    }
+
+    fn schedule_main_process(&self, name: &str) {
         let process = {
             let (_, block, _) =
-                module::module_load_string(&self.module_registry, name, file)
-                    .unwrap();
+                module::module_load_string(&self.state, name).unwrap();
 
             process::process_allocate(&self.state, &block)
         };
@@ -857,35 +844,21 @@ impl Machine {
                 Opcode::ModuleLoad => {
                     let reg = instruction.arg(0);
                     let name = context.get_register(instruction.arg(1));
-                    let path = context.get_register(instruction.arg(2));
-                    let res = module::module_load(
-                        process,
-                        &self.module_registry,
-                        name,
-                        path,
-                    )?;
+                    let res = module::module_load(&self.state, process, name)?;
 
                     context.set_register(reg, res);
                     enter_context!(process, context, index);
                 }
                 Opcode::ModuleList => {
                     let reg = instruction.arg(0);
-                    let res = module::module_list(
-                        &self.state,
-                        &self.module_registry,
-                        process,
-                    );
+                    let res = module::module_list(&self.state, process);
 
                     context.set_register(reg, res);
                 }
                 Opcode::ModuleGet => {
                     let reg = instruction.arg(0);
                     let name = context.get_register(instruction.arg(1));
-                    let res = module::module_get(
-                        &self.state,
-                        &self.module_registry,
-                        name,
-                    )?;
+                    let res = module::module_get(&self.state, name)?;
 
                     context.set_register(reg, res);
                 }

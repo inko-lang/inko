@@ -2,9 +2,9 @@
 
 module Inkoc
   module TypePass
-    def initialize(mod, state)
+    def initialize(compiler, mod)
       @module = mod
-      @state = state
+      @state = compiler.state
       @constant_resolver = ConstantResolver.new(diagnostics)
     end
 

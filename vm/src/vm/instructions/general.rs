@@ -7,7 +7,7 @@ use crate::vm::state::RcState;
 
 #[inline(always)]
 pub fn set_literal(context: &ExecutionContext, index: u16) -> ObjectPointer {
-    unsafe { context.code.literal(index as usize) }
+    unsafe { context.module.literal(index as usize) }
 }
 
 #[inline(always)]
@@ -18,7 +18,7 @@ pub fn set_literal_wide(
 ) -> ObjectPointer {
     let index = (u32::from(arg1) << 16) | (u32::from(arg2) & 0xFFFF);
 
-    unsafe { context.code.literal(index as usize) }
+    unsafe { context.module.literal(index as usize) }
 }
 
 #[inline(always)]

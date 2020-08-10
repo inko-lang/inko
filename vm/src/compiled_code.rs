@@ -37,10 +37,6 @@ pub struct CompiledCode {
     /// The instructions to execute.
     pub instructions: Vec<Instruction>,
 
-    /// The literals (e.g. integers or floats) defined in this compiled code
-    /// object.
-    pub literals: Vec<ObjectPointer>,
-
     /// Any compiled code objects stored directly inside the current one.
     pub code_objects: Vec<CompiledCode>,
 
@@ -49,8 +45,7 @@ pub struct CompiledCode {
 }
 
 impl CompiledCode {
-    /// Creates a basic CompiledCode with a set of instructions. Other data such
-    /// as the required arguments and any literals can be added later on.
+    /// Creates a basic CompiledCode with a set of instructions.
     pub fn new(
         name: ObjectPointer,
         file: ObjectPointer,
@@ -67,7 +62,6 @@ impl CompiledCode {
             registers: 0,
             captures: false,
             instructions,
-            literals: Vec::new(),
             code_objects: Vec::new(),
             catch_table: CatchTable::new(),
         }
@@ -75,11 +69,6 @@ impl CompiledCode {
 
     pub fn locals(&self) -> usize {
         self.locals as usize
-    }
-
-    #[inline(always)]
-    pub unsafe fn literal(&self, index: usize) -> ObjectPointer {
-        *self.literals.get_unchecked(index)
     }
 
     #[inline(always)]
@@ -114,7 +103,6 @@ impl CompiledCode {
 mod tests {
     use super::*;
     use crate::config::Config;
-    use crate::object_pointer::ObjectPointer;
     use crate::vm::instruction::{Instruction, Opcode};
     use crate::vm::state::{RcState, State};
     use std::mem;
@@ -148,17 +136,6 @@ mod tests {
     }
 
     #[test]
-    fn test_literal() {
-        let state = state();
-        let mut code = new_compiled_code(&state);
-        let pointer = ObjectPointer::integer(5);
-
-        code.literals.push(pointer);
-
-        assert!(unsafe { code.literal(0) } == pointer);
-    }
-
-    #[test]
     #[should_panic]
     fn test_code_object_invalid() {
         let state = state();
@@ -180,6 +157,6 @@ mod tests {
 
     #[test]
     fn test_compiled_code_size() {
-        assert_eq!(mem::size_of::<CompiledCode>(), 144);
+        assert_eq!(mem::size_of::<CompiledCode>(), 120);
     }
 }

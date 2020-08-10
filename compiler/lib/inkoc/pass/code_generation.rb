@@ -7,35 +7,57 @@ module Inkoc
 
       MAX_ARGUMENT_VALUE = 65535
 
-      def initialize(mod, state)
+      def initialize(compiler, mod)
         @module = mod
-        @state = state
+        @state = compiler.state
       end
 
       def run
-        [process_node(@module.body)]
+        mod = on_module(@module.body)
+
+        [mod]
       end
 
-      def on_code_object(code_object)
-        compiled_code = Codegen::CompiledCode
-          .new(code_object.name.to_s, code_object.location)
+      def on_module(code_object)
+        loc = @module.location
+        literals = Codegen::Literals.new
+        name = literals.get_or_set(@module.body.name.to_s)
+        file = literals.get_or_set(loc.file.path.to_s)
+        body = Codegen::CompiledCode.new(name, file, loc.line)
 
-        process_instructions(compiled_code, code_object)
-        assign_compiled_code_metadata(compiled_code, code_object)
+        mod = Codegen::Module.new(@module.name, body, literals)
+
+        process_instructions(mod.body, code_object, mod)
+        assign_compiled_code_metadata(mod.body, code_object, mod)
+
+        mod
+      end
+
+      def on_code_object(code_object, mod)
+        loc = code_object.location
+        name = mod.literals.get_or_set(code_object.name.to_s)
+        file = mod.literals.get_or_set(loc.file.path.to_s)
+        compiled_code = Codegen::CompiledCode.new(name, file, loc.line)
+
+        process_instructions(compiled_code, code_object, mod)
+        assign_compiled_code_metadata(compiled_code, code_object, mod)
 
         compiled_code
       end
 
-      def process_instructions(compiled_code, code_object)
+      def process_instructions(compiled_code, code_object, mod)
         code_object.blocks.each do |basic_block|
           basic_block.instructions.each do |tir_ins|
-            process_node(tir_ins, compiled_code, basic_block)
+            process_node(tir_ins, compiled_code, basic_block, mod)
           end
         end
       end
 
-      def assign_compiled_code_metadata(compiled_code, code_object)
-        compiled_code.arguments = code_object.argument_names
+      def assign_compiled_code_metadata(compiled_code, code_object, mod)
+        compiled_code.arguments = code_object.argument_names.map do |name|
+          mod.literals.get_or_set(name)
+        end
+
         compiled_code.required_arguments = code_object.required_arguments_count
         compiled_code.locals = code_object.local_variables_count
         compiled_code.registers = code_object.registers_count
@@ -92,21 +114,21 @@ module Inkoc
           .instruct(:SetParentLocal, [variable, depth, value], location)
       end
 
-      def on_goto_next_block_if_true(tir_ins, compiled_code, basic_block)
+      def on_goto_next_block_if_true(tir_ins, compiled_code, basic_block, _)
         index = basic_block.next.instruction_offset
         register = tir_ins.register.id
 
         compiled_code.instruct(:GotoIfTrue, [index, register], tir_ins.location)
       end
 
-      def on_goto_block_if_true(tir_ins, compiled_code, basic_block)
+      def on_goto_block_if_true(tir_ins, compiled_code, basic_block, _)
         index = tir_ins.block.instruction_offset
         register = tir_ins.register.id
 
         compiled_code.instruct(:GotoIfTrue, [index, register], tir_ins.location)
       end
 
-      def on_skip_next_block(tir_ins, compiled_code, basic_block)
+      def on_skip_next_block(tir_ins, compiled_code, basic_block, _)
         index = basic_block.next.next.instruction_offset
 
         compiled_code.instruct(:Goto, [index], tir_ins.location)
@@ -174,9 +196,9 @@ module Inkoc
           .instruct(:SetAttribute, [reg, rec, name, val], tir_ins.location)
       end
 
-      def on_set_block(tir_ins, compiled_code, *)
+      def on_set_block(tir_ins, compiled_code, _, mod)
         reg = tir_ins.register.id
-        code = process_node(tir_ins.code_object)
+        code = on_code_object(tir_ins.code_object, mod)
         index = compiled_code.code_objects.add(code)
         receiver = tir_ins.receiver.id
 
@@ -184,8 +206,8 @@ module Inkoc
           .instruct(:SetBlock, [reg, index, receiver], tir_ins.location)
       end
 
-      def on_set_literal(tir_ins, compiled_code, *)
-        lit = compiled_code.literals.get_or_set(tir_ins.value)
+      def on_set_literal(tir_ins, compiled_code, _, mod)
+        lit = mod.literals.get_or_set(tir_ins.value)
         reg = tir_ins.register.id
 
         if lit > MAX_ARGUMENT_VALUE
