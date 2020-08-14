@@ -54,7 +54,7 @@ module Inkoc
         out
       end
 
-      @modules.push(output.first)
+      @modules.push(output.first) if output
 
       mod
     end
