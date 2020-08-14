@@ -24,14 +24,8 @@ include:
   - local: .gitlab/ci/linux.yml
   - local: .gitlab/ci/lints.yml
   - local: .gitlab/ci/releases.yml
-  - template: License-Scanning.gitlab-ci.yml
+  - template: Security/License-Scanning.gitlab-ci.yml
 
 license_scanning:
   variables:
     CARGO_HOME: $HOME/.cargo
-  before_script:
-    - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs |
-      sh -s -- --default-toolchain stable --profile minimal -y
-    - source $CARGO_HOME/env
-    - rustc --version
-    - cargo --version
