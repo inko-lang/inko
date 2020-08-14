@@ -47,7 +47,6 @@ pub mod runtime_panic;
 pub mod scheduler;
 pub mod slicing;
 pub mod socket;
-pub mod stacktrace;
 pub mod string_pool;
 pub mod tagged_pointer;
 pub mod vm;
