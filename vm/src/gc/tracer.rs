@@ -71,12 +71,15 @@ impl Pool {
 
         let state = ArcWithoutWeak::new(PoolState::new(stealers));
 
-        for worker in workers.into_iter() {
+        for (index, worker) in workers.into_iter().enumerate() {
             let state = state.clone();
 
-            thread::spawn(move || {
-                Tracer::new(worker, state).run();
-            });
+            thread::Builder::new()
+                .name(format!("Tracer {}", index))
+                .spawn(move || {
+                    Tracer::new(worker, state).run();
+                })
+                .expect("Failed to start tracer thread");
         }
 
         Pool { state }
