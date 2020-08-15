@@ -47,6 +47,17 @@ For Unix systems or MSYS2 on Windows you also need the following software:
 * clang
 * libtool
 
+### AES-NI
+
+By default the VM is built with AES-NI support to speed up various hashing
+operations. If your CPU does not support AES-NI, build the VM using either:
+
+1. `cargo build --release` in the `vm/` directory
+1. `make release RUSTFLAGS=""` in the `vm/` directory
+
+Fortunately, pretty much all Intel and AMD x86-64 CPUs since 2010 have AES-NI
+support, so disabling this is rarely necessary.
+
 ## Installation
 
 Detailed installation instructions about the installation process can be found
