@@ -189,7 +189,7 @@ def close(socket: Socket) {
 }
 
 def to_stream(socket: Socket, prototype: Any) -> Any {
-  let stream = _INKOC.allocate(False, prototype)
+  let stream = _INKOC.allocate(prototype)
 
   # Currently Inko does not support multiple constructors (e.g. via overloading)
   # or directly initialising an object with its attributes.  Using `std::mirror`

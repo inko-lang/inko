@@ -313,10 +313,15 @@ impl Machine {
                 }
                 Opcode::Allocate => {
                     let reg = instruction.arg(0);
-                    let perm = context.get_register(instruction.arg(1));
-                    let proto = context.get_register(instruction.arg(2));
-                    let res =
-                        object::allocate(&self.state, process, perm, proto);
+                    let proto = context.get_register(instruction.arg(1));
+                    let res = object::allocate(process, proto);
+
+                    context.set_register(reg, res);
+                }
+                Opcode::AllocatePermanent => {
+                    let reg = instruction.arg(0);
+                    let proto = context.get_register(instruction.arg(1));
+                    let res = object::allocate_permanent(&self.state, proto);
 
                     context.set_register(reg, res);
                 }

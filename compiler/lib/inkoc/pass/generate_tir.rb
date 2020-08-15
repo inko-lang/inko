@@ -398,10 +398,10 @@ module Inkoc
         name = node.name
         loc = node.location
         type = body.self_type.lookup_attribute(name).type
-        true_reg = get_true(body, loc)
 
         proto = get_global(proto_name, body, loc)
-        object = allocate_with_prototype(type, true_reg, proto, body, loc)
+        object_reg = body.register(type)
+        object = body.instruct(:AllocatePermanent, object_reg, proto, loc)
         object = store_object_literal(object, name, body, loc)
 
         set_object_literal_name(object, name, body, loc)
@@ -419,7 +419,6 @@ module Inkoc
 
         run_block(block, [], node.type, body, loc)
 
-        body.registers.release(true_reg)
         body.registers.release(block)
         body.registers.release(proto)
 
@@ -469,7 +468,7 @@ module Inkoc
         proto_reg = get_global(Config::OBJECT_CONST, body, loc)
 
         # create and store the "map" back in the object implementing the trait.
-        body.instruct(:Allocate, traits_reg, true_reg, proto_reg, loc)
+        body.instruct(:AllocatePermanent, traits_reg, proto_reg, loc)
         body.instruct(:SetAttribute, traits_reg, object, name_reg, traits_reg, loc)
 
         # register the trait and copy its blocks.
@@ -871,12 +870,25 @@ module Inkoc
       def on_raw_allocate(node, body)
         args = node.arguments
         loc = node.location
-        permanent = process_node(args.fetch(0), body)
-        proto = process_node(args.fetch(1), body)
-        result = allocate_with_prototype(node.type, permanent, proto, body, loc)
+        proto = process_node(args.fetch(0), body)
+        register = body.register(node.type)
+        result = body.instruct(:Allocate, register, proto, loc)
 
         body.registers.release(proto)
-        body.registers.release(permanent)
+        body.registers.release(register)
+
+        result
+      end
+
+      def on_raw_allocate_permanent(node, body)
+        args = node.arguments
+        loc = node.location
+        proto = process_node(args.fetch(0), body)
+        register = body.register(node.type)
+        result = body.instruct(:AllocatePermanent, register, proto, loc)
+
+        body.registers.release(proto)
+        body.registers.release(register)
 
         result
       end
@@ -1989,12 +2001,6 @@ module Inkoc
         name_reg = set_string(name, body, location)
 
         set_attribute(receiver, name_reg, value, body, location)
-      end
-
-      def allocate_with_prototype(type, permanent, prototype, body, location)
-        register = body.register(type)
-
-        body.instruct(:Allocate, register, permanent, prototype, location)
       end
 
       def set_array(register, values, body, location)

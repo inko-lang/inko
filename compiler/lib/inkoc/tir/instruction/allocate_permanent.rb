@@ -3,7 +3,7 @@
 module Inkoc
   module TIR
     module Instruction
-      class Allocate
+      class AllocatePermanent
         include Predicates
         include Inspect
 
@@ -16,7 +16,7 @@ module Inkoc
         end
 
         def visitor_method
-          :on_allocate
+          :on_allocate_permanent
         end
       end
     end

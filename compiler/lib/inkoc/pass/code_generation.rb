@@ -223,15 +223,26 @@ module Inkoc
 
       def on_allocate(tir_ins, compiled_code, *)
         reg = tir_ins.register.id
-        perm = tir_ins.permanent.id
         args =
           if (proto = tir_ins.prototype)
-            [reg, perm, proto.id]
+            [reg, proto.id]
           else
-            [reg, perm]
+            [reg]
           end
 
         compiled_code.instruct(:Allocate, args, tir_ins.location)
+      end
+
+      def on_allocate_permanent(tir_ins, compiled_code, *)
+        reg = tir_ins.register.id
+        args =
+          if (proto = tir_ins.prototype)
+            [reg, proto.id]
+          else
+            [reg]
+          end
+
+        compiled_code.instruct(:AllocatePermanent, args, tir_ins.location)
       end
 
       def on_set_local(tir_ins, compiled_code, *)

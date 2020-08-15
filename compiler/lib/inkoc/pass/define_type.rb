@@ -908,7 +908,7 @@ module Inkoc
       alias on_raw_get_attribute_in_self on_raw_get_attribute
 
       def on_raw_allocate(node, *)
-        if (proto = node.arguments[1]&.type)
+        if (proto = node.arguments[0]&.type)
           proto = proto.type if proto.optional?
 
           proto.new_instance

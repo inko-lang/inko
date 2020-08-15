@@ -9,6 +9,7 @@ module Inkoc
         SetLiteral
         SetLiteralWide
         Allocate
+        AllocatePermanent
         SetArray
         GetBuiltinPrototype
         GetTrue

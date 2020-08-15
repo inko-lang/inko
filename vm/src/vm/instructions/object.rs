@@ -7,27 +7,27 @@ use crate::vm::state::RcState;
 
 #[inline(always)]
 pub fn allocate(
-    state: &RcState,
     process: &RcProcess,
-    perm_ptr: ObjectPointer,
     proto_ptr: ObjectPointer,
 ) -> ObjectPointer {
-    let is_permanent = perm_ptr != state.false_object;
+    process.allocate(object_value::none(), proto_ptr)
+}
 
-    let proto_to_use = if is_permanent && !proto_ptr.is_permanent() {
-        state.permanent_allocator.lock().copy_object(proto_ptr)
-    } else {
+#[inline(always)]
+pub fn allocate_permanent(
+    state: &RcState,
+    proto_ptr: ObjectPointer,
+) -> ObjectPointer {
+    let proto_to_use = if proto_ptr.is_permanent() {
         proto_ptr
+    } else {
+        state.permanent_allocator.lock().copy_object(proto_ptr)
     };
 
-    if is_permanent {
-        state
-            .permanent_allocator
-            .lock()
-            .allocate_with_prototype(object_value::none(), proto_to_use)
-    } else {
-        process.allocate(object_value::none(), proto_to_use)
-    }
+    state
+        .permanent_allocator
+        .lock()
+        .allocate_with_prototype(object_value::none(), proto_to_use)
 }
 
 /// Returns a prototype for the given numeric ID.

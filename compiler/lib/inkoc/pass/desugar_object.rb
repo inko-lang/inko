@@ -143,17 +143,14 @@ module Inkoc
       end
 
       def allocate_and_assign_object(loc)
-        # var obj = _INKOC.allocate(FalseObject, self)
+        # var obj = _INKOC.allocate(self)
         AST::DefineVariable.new(
           AST::Identifier.new('obj', loc),
           AST::Send.new(
             'allocate',
             AST::Constant.new(Config::RAW_INSTRUCTION_RECEIVER, loc),
             [],
-            [
-              AST::Constant.new(Config::FALSE_CONST, loc),
-              AST::Self.new(loc)
-            ],
+            [AST::Self.new(loc)],
             loc
           ),
           nil,

@@ -2600,7 +2600,7 @@ describe Inkoc::Pass::DefineType do
 
       type_scope.locals.define('proto', proto)
 
-      type = expression_type('_INKOC.allocate(_INKOC.get_false, proto)')
+      type = expression_type('_INKOC.allocate(proto)')
 
       expect(type.prototype).to eq(proto)
       expect(type).to be_type_instance_of(proto)
