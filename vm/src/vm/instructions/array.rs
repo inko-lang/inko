@@ -8,7 +8,7 @@ use crate::slicing;
 use crate::vm::state::RcState;
 
 #[inline(always)]
-pub fn set_array(
+pub fn allocate(
     state: &RcState,
     process: &RcProcess,
     context: &ExecutionContext,

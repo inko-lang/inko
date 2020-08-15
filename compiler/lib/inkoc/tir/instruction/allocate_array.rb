@@ -3,7 +3,7 @@
 module Inkoc
   module TIR
     module Instruction
-      class SetArray
+      class AllocateArray
         include Predicates
         include Inspect
 
@@ -17,7 +17,7 @@ module Inkoc
         end
 
         def visitor_method
-          :on_set_array
+          :on_allocate_array
         end
       end
     end

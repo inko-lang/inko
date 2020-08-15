@@ -177,13 +177,13 @@ module Inkoc
         compiled_code.instruct(:TailCall, [start, amount], tir_ins.location)
       end
 
-      def on_set_array(tir_ins, compiled_code, *)
+      def on_allocate_array(tir_ins, compiled_code, *)
         register = tir_ins.register.id
         start = tir_ins.start.id
         len = tir_ins.length
 
         compiled_code
-          .instruct(:SetArray, [register, start, len], tir_ins.location)
+          .instruct(:AllocateArray, [register, start, len], tir_ins.location)
       end
 
       def on_set_attribute(tir_ins, compiled_code, *)

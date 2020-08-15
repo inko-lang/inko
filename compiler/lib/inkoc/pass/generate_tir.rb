@@ -346,7 +346,7 @@ module Inkoc
         generate_argument_default(body, local, arg.location) do
           array_reg = body.register(typedb.new_array_of_type(arg.type))
 
-          set_array(array_reg, [], body, arg.location)
+          allocate_array(array_reg, [], body, arg.location)
         end
       end
 
@@ -582,7 +582,7 @@ module Inkoc
             typedb.new_array_of_type(@module.lookup_any_type.new_instance)
           )
 
-          set_array(varargs_reg, varargs, body, location)
+          allocate_array(varargs_reg, varargs, body, location)
           args.push(varargs_reg)
         end
 
@@ -1819,7 +1819,7 @@ module Inkoc
 
         # Store all the arguments passed in the array and execute the
         # "unknown_message" method.
-        set_array(args_reg, args, body, loc)
+        allocate_array(args_reg, args, body, loc)
 
         body.instruct(
           :RunBlockWithReceiver,
@@ -1939,7 +1939,7 @@ module Inkoc
       def send_sets_array(arguments, return_type, body, location)
         register = body.register(return_type)
 
-        set_array(register, arguments, body, location)
+        allocate_array(register, arguments, body, location)
       end
 
       def lookup_and_run_block(
@@ -2003,13 +2003,13 @@ module Inkoc
         set_attribute(receiver, name_reg, value, body, location)
       end
 
-      def set_array(register, values, body, location)
+      def allocate_array(register, values, body, location)
         length = values.length
         args = make_registers_contiguous(values, body, location)
         start = args.first || register
 
         body.registers.release_all(args)
-        body.instruct(:SetArray, register, start, length, location)
+        body.instruct(:AllocateArray, register, start, length, location)
       end
 
       def make_registers_contiguous(registers, body, location)
