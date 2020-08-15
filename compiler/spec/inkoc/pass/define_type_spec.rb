@@ -2588,9 +2588,9 @@ describe Inkoc::Pass::DefineType do
     end
   end
 
-  describe '#on_raw_set_object' do
+  describe '#on_raw_allocate' do
     it 'returns a new object' do
-      type = expression_type('_INKOC.set_object')
+      type = expression_type('_INKOC.allocate')
 
       expect(type).to be_object
     end
@@ -2600,7 +2600,7 @@ describe Inkoc::Pass::DefineType do
 
       type_scope.locals.define('proto', proto)
 
-      type = expression_type('_INKOC.set_object(_INKOC.get_false, proto)')
+      type = expression_type('_INKOC.allocate(_INKOC.get_false, proto)')
 
       expect(type.prototype).to eq(proto)
       expect(type).to be_type_instance_of(proto)

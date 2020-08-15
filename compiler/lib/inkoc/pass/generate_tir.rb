@@ -401,7 +401,7 @@ module Inkoc
         true_reg = get_true(body, loc)
 
         proto = get_global(proto_name, body, loc)
-        object = set_object_with_prototype(type, true_reg, proto, body, loc)
+        object = allocate_with_prototype(type, true_reg, proto, body, loc)
         object = store_object_literal(object, name, body, loc)
 
         set_object_literal_name(object, name, body, loc)
@@ -469,7 +469,7 @@ module Inkoc
         proto_reg = get_global(Config::OBJECT_CONST, body, loc)
 
         # create and store the "map" back in the object implementing the trait.
-        body.instruct(:SetObject, traits_reg, true_reg, proto_reg, loc)
+        body.instruct(:Allocate, traits_reg, true_reg, proto_reg, loc)
         body.instruct(:SetAttribute, traits_reg, object, name_reg, traits_reg, loc)
 
         # register the trait and copy its blocks.
@@ -868,12 +868,12 @@ module Inkoc
         raw_binary_instruction(:GetAttributeInSelf, node, body)
       end
 
-      def on_raw_set_object(node, body)
+      def on_raw_allocate(node, body)
         args = node.arguments
         loc = node.location
         permanent = process_node(args.fetch(0), body)
         proto = process_node(args.fetch(1), body)
-        result = set_object_with_prototype(node.type, permanent, proto, body, loc)
+        result = allocate_with_prototype(node.type, permanent, proto, body, loc)
 
         body.registers.release(proto)
         body.registers.release(permanent)
@@ -1991,18 +1991,10 @@ module Inkoc
         set_attribute(receiver, name_reg, value, body, location)
       end
 
-      def set_object(type, permanent, body, location)
-        prototype = body.register(typedb.object_type)
-
-        body.instruct(:Nullary, :GetObjectPrototype, prototype, location)
-
-        set_object_with_prototype(type, permanent, prototype, body, location)
-      end
-
-      def set_object_with_prototype(type, permanent, prototype, body, location)
+      def allocate_with_prototype(type, permanent, prototype, body, location)
         register = body.register(type)
 
-        body.instruct(:SetObject, register, permanent, prototype, location)
+        body.instruct(:Allocate, register, permanent, prototype, location)
       end
 
       def set_array(register, values, body, location)

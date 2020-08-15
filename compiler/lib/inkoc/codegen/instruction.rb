@@ -8,7 +8,7 @@ module Inkoc
       NAME_MAPPING = %i[
         SetLiteral
         SetLiteralWide
-        SetObject
+        Allocate
         SetArray
         GetBuiltinPrototype
         GetTrue

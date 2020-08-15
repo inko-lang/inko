@@ -3,7 +3,7 @@
 module Inkoc
   module TIR
     module Instruction
-      class SetObject
+      class Allocate
         include Predicates
         include Inspect
 
@@ -17,7 +17,7 @@ module Inkoc
         end
 
         def visitor_method
-          :on_set_object
+          :on_allocate
         end
       end
     end

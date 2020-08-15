@@ -6,7 +6,7 @@ use crate::process::RcProcess;
 use crate::vm::state::RcState;
 
 #[inline(always)]
-pub fn set_object(
+pub fn allocate(
     state: &RcState,
     process: &RcProcess,
     perm_ptr: ObjectPointer,

@@ -37,7 +37,7 @@ _INKOC.set_object_name(ByteArray, 'ByteArray')
 impl Object {
   # Creates a new instance of `self`, without sending `init` to the instance.
   static def allocate -> Self {
-    _INKOC.set_object(False, self)
+    _INKOC.allocate(False, self)
   }
 
   # Creates a new instance of `self` and sends `init` to the instance.

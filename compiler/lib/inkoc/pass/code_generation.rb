@@ -221,7 +221,7 @@ module Inkoc
         end
       end
 
-      def on_set_object(tir_ins, compiled_code, *)
+      def on_allocate(tir_ins, compiled_code, *)
         reg = tir_ins.register.id
         perm = tir_ins.permanent.id
         args =
@@ -231,7 +231,7 @@ module Inkoc
             [reg, perm]
           end
 
-        compiled_code.instruct(:SetObject, args, tir_ins.location)
+        compiled_code.instruct(:Allocate, args, tir_ins.location)
       end
 
       def on_set_local(tir_ins, compiled_code, *)

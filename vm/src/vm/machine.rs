@@ -311,12 +311,12 @@ impl Machine {
 
                     context.set_register(reg, res);
                 }
-                Opcode::SetObject => {
+                Opcode::Allocate => {
                     let reg = instruction.arg(0);
                     let perm = context.get_register(instruction.arg(1));
                     let proto = context.get_register(instruction.arg(2));
                     let res =
-                        object::set_object(&self.state, process, perm, proto);
+                        object::allocate(&self.state, process, perm, proto);
 
                     context.set_register(reg, res);
                 }
