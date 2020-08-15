@@ -29,6 +29,7 @@ fn run() -> i32 {
     options.parsing_style(ParsingStyle::StopAtFirstFree);
     options.optflag("h", "help", "Shows this help message");
     options.optflag("v", "version", "Prints the version number");
+    options.optflag("f", "features", "Prints various enabled VM features");
 
     let matches = match options.parse(&args[1..]) {
         Ok(matches) => matches,
@@ -46,6 +47,12 @@ fn run() -> i32 {
 
     if matches.opt_present("v") {
         println!("ivm {}", env!("CARGO_PKG_VERSION"));
+        return 0;
+    }
+
+    if matches.opt_present("f") {
+        println!("AES-NI: {}", cfg!(target_feature = "aes"));
+        println!("jemalloc: {}", cfg!(feature = "jemalloc"));
         return 0;
     }
 

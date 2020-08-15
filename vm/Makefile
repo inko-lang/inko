@@ -15,6 +15,12 @@ TARGET :=
 # The list of features to enable when building the VM.
 FEATURES :=
 
+# Additional flags to pass to rustc.
+RUSTFLAGS :=
+
+# The architecture to use for building the VM.
+ARCH != ../scripts/arch.sh
+
 ifneq (${TARGET},)
 	TARGET_OPTION=--target ${TARGET}
 	TARGET_BINARY=target/${TARGET}/release/ivm
@@ -27,6 +33,15 @@ ifneq (${FEATURES},)
 	FEATURES_OPTION=--features ${FEATURES}
 else
 	FEATURES_OPTION=
+endif
+
+# Add any default RUSTFLAGS variables, unless we a custom RUSTFLAGS is
+# specified.
+ifeq (${RUSTFLAGS},)
+# On x86-64 we want to enable AES-NI support.
+ifneq (,$(findstring x86_64,$(ARCH)))
+	RUSTFLAGS += -C target-feature=+aes
+endif
 endif
 
 debug:
@@ -53,16 +68,15 @@ rustfmt:
 	rustfmt --emit files src/lib.rs src/bin/ivm.rs
 
 release:
-	${CARGO_CMD} build --release ${TARGET_OPTION} ${FEATURES_OPTION}
+	RUSTFLAGS="${RUSTFLAGS}" ${CARGO_CMD} build --release ${TARGET_OPTION} ${FEATURES_OPTION}
 
 profile:
-	RUSTFLAGS="-g" ${CARGO_CMD} build --release ${TARGET_OPTION} ${FEATURES_OPTION}
+	RUSTFLAGS="-g ${RUSTFLAGS}" ${CARGO_CMD} build --release ${TARGET_OPTION} ${FEATURES_OPTION}
 
 clean:
 	${CARGO_CMD} clean
 
-install:
-	${CARGO_CMD} build --release ${TARGET_OPTION} ${TARGET_OPTION}
+install: release
 	mkdir -p "${BINDIR}"
 	install -m755 "${TARGET_BINARY}" "${BINDIR}/ivm"
 
