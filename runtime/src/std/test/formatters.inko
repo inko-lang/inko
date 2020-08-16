@@ -44,7 +44,7 @@ object ProgressFormatter {
   # Returns the unit of time to use for displaying the test suite execution
   # time.
   def test_suite_duration_unit(duration: Duration) -> String {
-    (duration.as_seconds > TIME_IN_SECONDS_THRESHOLD)
+    (duration.to_seconds > TIME_IN_SECONDS_THRESHOLD)
       .if(true: { 'seconds' }, false: { 'milliseconds' })
   }
 
@@ -54,10 +54,10 @@ object ProgressFormatter {
   # value is in seconds. If the suite took less than 1 second, then the value
   # is in milliseconds instead.
   def test_suite_duration_time(duration: Duration) -> Float {
-    let time = duration.as_seconds
+    let time = duration.to_seconds
 
     (time > TIME_IN_SECONDS_THRESHOLD)
-      .if(true: { time }, false: { duration.as_milliseconds })
+      .if(true: { time }, false: { duration.to_milliseconds })
   }
 
   # Returns a `String` containing some statistics about the test suite.

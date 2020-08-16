@@ -83,8 +83,8 @@ object Duration {
   #
   #     import std::time::Duration
   #
-  #     Duration.from_seconds(5).as_seconds # => 5.0
-  def as_seconds -> Float {
+  #     Duration.from_seconds(5).to_seconds # => 5.0
+  def to_seconds -> Float {
     @seconds
   }
 
@@ -96,8 +96,8 @@ object Duration {
   #
   #     import std::time::Duration
   #
-  #     Duration.from_seconds(5).as_milliseconds # => 5000.0
-  def as_milliseconds -> Float {
+  #     Duration.from_seconds(5).to_milliseconds # => 5000.0
+  def to_milliseconds -> Float {
     @seconds * MILLISEC_TO_SEC
   }
 
@@ -109,8 +109,8 @@ object Duration {
   #
   #     import std::time::Duration
   #
-  #     Duration.from_seconds(5).as_microseconds # => 5000000.0
-  def as_microseconds -> Float {
+  #     Duration.from_seconds(5).to_microseconds # => 5000000.0
+  def to_microseconds -> Float {
     @seconds * MICROSEC_TO_SEC
   }
 
@@ -122,8 +122,8 @@ object Duration {
   #
   #     import std::time::Duration
   #
-  #     Duration.from_seconds(5).as_nanoseconds # => 5000000000.0
-  def as_nanoseconds -> Float {
+  #     Duration.from_seconds(5).to_nanoseconds # => 5000000000.0
+  def to_nanoseconds -> Float {
     @seconds * NANOSEC_TO_SEC
   }
 }
@@ -153,9 +153,9 @@ impl Add!(Self) for Duration {
   #
   #     let sum = Duration.from_seconds(5) + Duration.from_seconds(2)
   #
-  #     sum.as_seconds # => 7.0
+  #     sum.to_seconds # => 7.0
   def +(other: Self) -> Self {
-    Duration.new(@seconds + other.as_seconds)
+    Duration.new(@seconds + other.to_seconds)
   }
 }
 
@@ -170,9 +170,9 @@ impl Subtract!(Self) for Duration {
   #
   #     let diff = Duration.from_seconds(5) - Duration.from_seconds(2)
   #
-  #     diff.as_seconds # => 3.0
+  #     diff.to_seconds # => 3.0
   def -(other: Self) -> Self {
-    Duration.new(@seconds - other.as_seconds)
+    Duration.new(@seconds - other.to_seconds)
   }
 }
 
@@ -187,7 +187,7 @@ impl Smaller for Duration {
   #
   #     Duration.from_seconds(5) < Duration.from_seconds(10) # => True
   def <(other: Self) -> Boolean {
-    @seconds < other.as_seconds
+    @seconds < other.to_seconds
   }
 }
 
@@ -202,7 +202,7 @@ impl Greater for Duration {
   #
   #     Duration.from_seconds(5) > Duration.from_seconds(10) # => False
   def >(other: Self) -> Boolean {
-    @seconds > other.as_seconds
+    @seconds > other.to_seconds
   }
 }
 
@@ -218,7 +218,7 @@ impl SmallerOrEqual for Duration {
   #     Duration.from_seconds(5) <= Duration.from_seconds(10) # => True
   #     Duration.from_seconds(5) <= Duration.from_seconds(5)  # => True
   def <=(other: Self) -> Boolean {
-    @seconds <= other.as_seconds
+    @seconds <= other.to_seconds
   }
 }
 
@@ -234,7 +234,7 @@ impl GreaterOrEqual for Duration {
   #     Duration.from_seconds(5) >= Duration.from_seconds(10) # => False
   #     Duration.from_seconds(5) >= Duration.from_seconds(5)  # => True
   def >=(other: Self) -> Boolean {
-    @seconds >= other.as_seconds
+    @seconds >= other.to_seconds
   }
 }
 

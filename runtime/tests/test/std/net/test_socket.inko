@@ -306,7 +306,7 @@ test.group('std::net::socket::Socket.linger') do (g) {
 
     try! socket.linger = 5
 
-    assert.equal(try! { socket.linger }.as_seconds.to_integer, 5)
+    assert.equal(try! { socket.linger }.to_seconds.to_integer, 5)
   }
 }
 
@@ -339,7 +339,7 @@ os.windows?.if_false {
 
       try! socket.keepalive = 5
 
-      assert.equal(try! { socket.keepalive }.as_seconds.to_integer, 5)
+      assert.equal(try! { socket.keepalive }.to_seconds.to_integer, 5)
     }
   }
 }
