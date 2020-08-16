@@ -378,10 +378,19 @@ object UnixDatagram {
   #     import std::net::unix::UnixDatagram
   #
   #     try! UnixDatagram.new('/tmp/test.sock')
-  def init(address: ToString) !! IoError {
-    @socket = try Socket.new(DGRAM)
+  static def new(address: ToString) !! IoError -> Self {
+    let socket = try Socket.new(DGRAM)
 
-    try @socket.bind(address)
+    try socket.bind(address)
+
+    let instance = allocate
+
+    instance.init(socket)
+    instance
+  }
+
+  def init(socket: Socket) {
+    @socket = socket
   }
 
   # Connects `self` to the remote addres.s
@@ -490,10 +499,24 @@ object UnixStream {
   #     let listener = try! UnixListener.new('/tmp/test.sock')
   #
   #     try! UnixStream.new('/tmp/test.sock')
-  def init(address: ToString) !! IoError {
-    @socket = try Socket.new(STREAM)
+  static def new(address: ToString) !! IoError -> Self {
+    let socket = try Socket.new(STREAM)
 
-    try @socket.connect(address)
+    try socket.connect(address)
+
+    from_socket(socket)
+  }
+
+  # Creates a new `UnixStream` from an existing `Socket`.
+  static def from_socket(socket: Socket) -> Self {
+    let instance = allocate
+
+    instance.init(socket)
+    instance
+  }
+
+  def init(socket: Socket) {
+    @socket = socket
   }
 
   # Returns the local address of this socket.
@@ -582,11 +605,23 @@ object UnixListener {
   #     import std::net::unix::UnixListener
   #
   #     try! TcpListener.new('/tmp/test.sock')
-  def init(address: ToString, backlog = MAXIMUM_LISTEN_BACKLOG) !! IoError {
-    @socket = try Socket.new(STREAM)
+  static def new(
+    address: ToString,
+    backlog = MAXIMUM_LISTEN_BACKLOG
+  ) !! IoError -> Self {
+    let socket = try Socket.new(STREAM)
 
-    try @socket.bind(address)
-    try @socket.listen(backlog)
+    try socket.bind(address)
+    try socket.listen(backlog)
+
+    let instance = allocate
+
+    instance.init(socket)
+    instance
+  }
+
+  def init(socket: Socket) {
+    @socket = socket
   }
 
   # Accepts a new incoming connection from `self`.
@@ -608,10 +643,7 @@ object UnixListener {
   #
   #     try! connection.read_string(4) # => 'ping'
   def accept !! IoError -> UnixStream {
-    bits.to_stream(
-      socket: try @socket.accept,
-      prototype: UnixStream
-    ) as UnixStream
+    UnixStream.from_socket(try @socket.accept)
   }
 
   # Returns the local address of this socket.

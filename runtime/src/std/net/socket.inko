@@ -501,13 +501,21 @@ object UdpSocket {
   #     import std::net::ip::Ipv4Address
   #
   #     try! UdpSocket.new(ip: Ipv4Address.new(0, 0, 0, 0), port: 0)
-  def init(ip: ToIpAddress, port: Integer) !! IoError {
+  static def new(ip: ToIpAddress, port: Integer) !! IoError -> Self {
     let ip_addr = try to_ip_address(ip)
     let domain = domain_for_ip(ip_addr)
+    let socket = try Socket.new(domain: domain, kind: DGRAM)
 
-    @socket = try Socket.new(domain: domain, kind: DGRAM)
+    try socket.bind(ip: ip_addr, port: port)
 
-    try @socket.bind(ip: ip_addr, port: port)
+    let instance = allocate
+
+    instance.init(socket)
+    instance
+  }
+
+  def init(socket: Socket) {
+    @socket = socket
   }
 
   # Connects `self` to the remote addres.s
@@ -621,13 +629,26 @@ object TcpStream {
   #     let listener = try! TcpListener.new(ip: '127.0.0.1', port: 40_000)
   #
   #     try! TcpStream.new(ip: '127.0.0.1', port: 40_000)
-  def init(ip: ToIpAddress, port: Integer) !! IoError {
+  static def new(ip: ToIpAddress, port: Integer) !! IoError -> Self {
     let ip_addr = try to_ip_address(ip)
     let domain = domain_for_ip(ip_addr)
+    let socket = try Socket.new(domain: domain, kind: STREAM)
 
-    @socket = try Socket.new(domain: domain, kind: STREAM)
+    try socket.connect(ip: ip_addr, port: port)
 
-    try @socket.connect(ip: ip_addr, port: port)
+    from_socket(socket)
+  }
+
+  # Creates a new `TcpStream` from an existing `Socket`.
+  static def from_socket(socket: Socket) -> Self {
+    let instance = allocate
+
+    instance.init(socket)
+    instance
+  }
+
+  def init(socket: Socket) {
+    @socket = socket
   }
 
   # Returns the local address of this socket.
@@ -730,25 +751,33 @@ object TcpListener {
   #     import std::net::socket::TcpListener
   #
   #     try! TcpListener.new(ip: '::1', port: 40_000, only_ipv6: True)
-  def init(
+  static def new(
     ip: ToIpAddress,
     port: Integer,
     backlog = MAXIMUM_LISTEN_BACKLOG,
     only_ipv6 = False
-  ) !! IoError {
+  ) !! IoError -> Self {
     let ip_addr = try to_ip_address(ip)
     let domain = domain_for_ip(ip_addr)
-
-    @socket = try Socket.new(domain: domain, kind: STREAM)
+    let socket = try Socket.new(domain: domain, kind: STREAM)
 
     # The IPV6_V6ONLY can't be set at all (even to False) for IPv4 sockets.
-    ip_addr.v6?.and { only_ipv6 }.if_true { try @socket.only_ipv6 = True }
+    ip_addr.v6?.and { only_ipv6 }.if_true { try socket.only_ipv6 = True }
 
-    try @socket.reuse_address = True
-    try @socket.reuse_port = True
+    try socket.reuse_address = True
+    try socket.reuse_port = True
 
-    try @socket.bind(ip: ip_addr, port: port)
-    try @socket.listen(backlog)
+    try socket.bind(ip: ip_addr, port: port)
+    try socket.listen(backlog)
+
+    let instance = allocate
+
+    instance.init(socket)
+    instance
+  }
+
+  def init(socket: Socket) {
+    @socket = socket
   }
 
   # Accepts a new incoming connection from `self`.
@@ -770,10 +799,7 @@ object TcpListener {
   #
   #     try! connection.read_string(4) # => 'ping'
   def accept !! IoError -> TcpStream {
-    bits.to_stream(
-      socket: try @socket.accept,
-      prototype: TcpStream
-    ) as TcpStream
+    TcpStream.from_socket(try @socket.accept)
   }
 
   # Returns the local address of this socket.

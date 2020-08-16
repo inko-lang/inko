@@ -188,17 +188,6 @@ def close(socket: Socket) {
   _INKOC.drop_value(socket)
 }
 
-def to_stream(socket: Socket, prototype: Any) -> Any {
-  let stream = _INKOC.allocate(prototype)
-
-  # Currently Inko does not support multiple constructors (e.g. via overloading)
-  # or directly initialising an object with its attributes.  Using `std::mirror`
-  # would not be very efficient, so we use raw VM instructions directly.
-  _INKOC.set_attribute(stream, '@socket', socket)
-
-  stream
-}
-
 def shutdown_read(socket: Socket) !! IoError {
   try {
     _INKOC.socket_shutdown(socket, SHUTDOWN_READ)
