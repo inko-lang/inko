@@ -103,8 +103,6 @@ macro_rules! safepoint_and_reduce {
             return Ok(());
         }
 
-        // Reduce once we've exhausted all the instructions in a
-        // context.
         if $reductions > 0 {
             $reductions -= 1;
         } else {
@@ -202,7 +200,6 @@ impl Machine {
         self.state.scheduler.blocking_pool.start(self.clone())
     }
 
-    /// Starts the garbage collection threads.
     fn start_gc_threads(&self) -> JoinList<()> {
         self.state.gc_pool.start(self.state.clone())
     }
