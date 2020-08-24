@@ -87,8 +87,6 @@ pub enum ParserError {
 pub type ParserResult<T> = Result<T, ParserError>;
 pub type BytecodeResult = ParserResult<Vec<Module>>;
 
-// TODO: parse modules in parallel if necessary
-
 /// Parses a bytecode image stored in a file.
 pub fn parse_file(state: &State, path: &str) -> Result<Vec<Module>, String> {
     let file = File::open(path).map_err(|e| e.to_string())?;
