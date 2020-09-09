@@ -3,10 +3,6 @@
 # This module is the very first module imported and executed. Common constructs
 # such as `object` and `trait` are not yet available at this point.
 
-# Set the object names for the various built-in objects. Normally this is done
-# automatically when creating an object using the `object` keyword. Since these
-# built-ins are set up in the VM we must do this manually.
-
 # All these constants will be available as globals to all other modules.
 let Boolean = _INKOC.get_boolean_prototype
 let True = _INKOC.get_true
@@ -21,6 +17,9 @@ let Block = _INKOC.get_block_prototype
 let Array = _INKOC.get_array_prototype
 let ByteArray = _INKOC.get_byte_array_prototype
 
+# Set the object names for the various built-in objects. Normally this is done
+# automatically when creating an object using the `object` keyword. Since these
+# built-ins are set up in the VM we must do this manually.
 _INKOC.set_object_name(Object, 'Object')
 _INKOC.set_object_name(Boolean, 'Boolean')
 _INKOC.set_object_name(String, 'String')
