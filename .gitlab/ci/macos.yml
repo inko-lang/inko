@@ -34,7 +34,7 @@ test:ivm:macos:
     - rustc --version
     - cargo --version
   script:
-    - gmake test
+    - env LLVM_CONFIG_PATH="$(brew --prefix llvm)/bin/llvm-config" gmake test
   cache:
     key: macos-vm
     paths:
@@ -51,7 +51,7 @@ test:runtime:macos:
     - rustc --version
     - cargo --version
   script:
-    - gmake -C vm release
+    - env LLVM_CONFIG_PATH="$(brew --prefix llvm)/bin/llvm-config" gmake -C vm release
     - env RUBYLIB=./compiler/lib ./compiler/bin/inko-test -d runtime --vm ./vm/target/release/ivm
   cache:
     key: macos-vm
@@ -73,7 +73,8 @@ release:compiled:macos:
     - cargo --version
     - aws --version
   script:
-    - gmake release-compiled SHA256SUM=gsha256sum
+    - env LLVM_CONFIG_PATH="$(brew --prefix llvm)/bin/llvm-config"
+      gmake release-compiled SHA256SUM=gsha256sum
   only:
     - tags
   cache:
