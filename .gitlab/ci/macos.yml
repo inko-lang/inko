@@ -8,6 +8,7 @@
 test:compiler:macos:
   extends:
     - .only-source-repository
+    - .only-compiler-changes
     - .macos-tags
   stage: test
   before_script:
@@ -28,6 +29,7 @@ test:compiler:macos:
 test:ivm:macos:
   extends:
     - .only-source-repository
+    - .only-vm-changes
     - .macos-tags
   stage: test
   before_script:
@@ -44,6 +46,7 @@ test:ivm:macos:
 test:runtime:macos:
   extends:
     - .only-source-repository
+    - .only-runtime-changes
     - .macos-tags
   stage: test-runtime
   before_script:

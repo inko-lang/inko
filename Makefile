@@ -81,10 +81,20 @@ endif
 VERSION != cargo pkgid -p inko | cut -d\# -f2 | cut -d: -f2
 
 # The name of the S3 bucket that contains all releases.
-S3_BUCKET := releases.inko-lang.org
+RELEASES_S3_BUCKET := releases.inko-lang.org
 
 # The ID of the cloudfront distribution that serves all packages.
-CLOUDFRONT_ID := E3SFQ1OG1H5PCN
+RELEASES_CLOUDFRONT_ID := E3SFQ1OG1H5PCN
+
+# The name of the S3 bucket for uploading documentation.
+DOCS_S3_BUCKET := docs.inko-lang.org
+
+# The ID of the cloudfront distribution that serves the documentation.
+DOCS_CLOUDFRONT_ID := E3S16BR117BJOL
+
+# The folder to put the documentation in, allowing for branch specific
+# documentation.
+DOCS_FOLDER := master
 
 # The directory to store temporary files in.
 TMP_DIR := tmp
@@ -142,17 +152,17 @@ ${SOURCE_TAR_CHECKSUM}: ${SOURCE_TAR}
 	${SHA256SUM} "${SOURCE_TAR}" | awk '{print $$1}' > "${SOURCE_TAR_CHECKSUM}"
 
 release/source: ${SOURCE_TAR} ${SOURCE_TAR_CHECKSUM}
-	aws s3 cp --acl public-read "${SOURCE_TAR}" s3://${S3_BUCKET}/
-	aws s3 cp --acl public-read "${SOURCE_TAR_CHECKSUM}" s3://${S3_BUCKET}/
+	aws s3 cp --acl public-read "${SOURCE_TAR}" s3://${RELEASES_S3_BUCKET}/
+	aws s3 cp --acl public-read "${SOURCE_TAR_CHECKSUM}" s3://${RELEASES_S3_BUCKET}/
 
 release/manifest: ${TMP_DIR}
-	aws s3 ls s3://${S3_BUCKET}/ | \
+	aws s3 ls s3://${RELEASES_S3_BUCKET}/ | \
 		grep -oP '(\d+\.\d+\.\d+\.tar.gz)$$' | \
 		grep -oP '(\d+\.\d+\.\d+)' | \
 		sort > "${MANIFEST}"
-	aws s3 cp --acl public-read "${MANIFEST}" s3://${S3_BUCKET}/
-	aws cloudfront create-invalidation --distribution-id ${CLOUDFRONT_ID} \
-		--paths "/*"
+	aws s3 cp --acl public-read "${MANIFEST}" s3://${RELEASES_S3_BUCKET}/
+	aws cloudfront create-invalidation \
+		--distribution-id ${RELEASES_CLOUDFRONT_ID} --paths "/*"
 
 release/changelog:
 	ruby scripts/changelog.rb "${VERSION}"
@@ -207,6 +217,21 @@ clean:
 	rm -rf "${TMP_DIR}"
 	cd vm && ${CARGO_CMD} clean
 
+docs/install:
+	cd docs && poetry install
+
+docs/build:
+	cd docs && poetry run mkdocs build
+
+docs/server:
+	cd docs && poetry run mkdocs serve
+
+docs/publish: docs/install docs/build
+	aws s3 sync docs/build s3://${DOCS_S3_BUCKET}/manual/${DOCS_FOLDER} \
+		--acl=public-read --delete --cache-control max-age=86400
+	aws cloudfront create-invalidation \
+		--distribution-id ${DOCS_CLOUDFRONT_ID} --paths "/*"
+
 compiler/test:
 	cd compiler && bundle exec rspec spec
 
@@ -245,3 +270,4 @@ vm/profile:
 .PHONY: release/commit release/publish release/tag
 .PHONY: build install uninstall clean
 .PHONY: vm/debug vm/check vm/clippy vm/rustfmt-check vm/rustfmt vm/release vm/profile
+.PHONY: docs/install docs/build docs/server docs/publish

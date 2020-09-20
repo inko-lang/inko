@@ -10,13 +10,46 @@ variables:
 stages:
   - test
   - test-runtime
+  - docs
   - release
   - post-release
 
 .only-source-repository:
   only:
-    - branches@inko-lang/inko
-    - tags@inko-lang/inko
+    refs:
+      - branches@inko-lang/inko
+      - tags@inko-lang/inko
+
+.only-vm-changes:
+  only:
+    changes:
+      - vm/**/*
+      - cli/**/*
+      - Cargo.toml
+      - Cargo.lock
+
+.only-runtime-changes:
+  only:
+    changes:
+      - runtime/**/*
+      - compiler/**/*
+      # If the VM changes this may affect the runtime, so we also run runtime
+      # tests.
+      - vm/**/*
+      - cli/**/*
+      - Cargo.toml
+      - Cargo.lock
+
+.only-compiler-changes:
+  only:
+    changes:
+      - compiler/**/*
+
+.only-docs-changes:
+  only:
+    changes:
+      - docs/**/*
+      - .vale.ini
 
 include:
   - local: .gitlab/ci/windows.yml
@@ -24,6 +57,7 @@ include:
   - local: .gitlab/ci/linux.yml
   - local: .gitlab/ci/lints.yml
   - local: .gitlab/ci/releases.yml
+  - local: .gitlab/ci/docs.yml
   - template: Security/License-Scanning.gitlab-ci.yml
 
 license_scanning:

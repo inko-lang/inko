@@ -1,0 +1,36 @@
+site_name: The Inko manual
+site_description: The Inko programming language manual
+site_author: The Inko programming language developers
+docs_dir: source
+site_dir: build
+use_directory_urls: true
+repo_url: https://gitlab.com/inko-lang/inko
+repo_name: Inko
+edit_uri: -/tree/master/docs
+theme:
+  name: material
+  favicon: images/favicon.ico
+  logo: images/logo.png
+  font: false
+  features:
+    - search.highlight
+  palette:
+    primary: white
+    accent: blue
+extra_css:
+  - stylesheets/extra.css
+markdown_extensions:
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.tabbed
+  - admonition
+nav:
+  - index.md
+  - inko-compared-to-other-languages.md
+  - Getting started:
+    - getting-started/installation.md
+    - getting-started/ivm.md
+    - getting-started/text-editor-setup.md
+    - getting-started/our-first-program.md
+    - getting-started/basic-types.md
+  - style-guide.md

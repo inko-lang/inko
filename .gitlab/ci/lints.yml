@@ -20,6 +20,8 @@ dependency_scanning:
     - tags
 
 lint:clippy:
+  extends:
+    - .only-vm-changes
   image: registry.gitlab.com/inko-lang/development-docker-images:rust-stable
   stage: test
   before_script:
@@ -35,6 +37,8 @@ lint:clippy:
     - tags
 
 lint:rustfmt:
+  extends:
+    - .only-vm-changes
   image: registry.gitlab.com/inko-lang/development-docker-images:rust-stable
   stage: test
   before_script:
@@ -51,3 +55,13 @@ lint:versions:
   stage: test
   script:
     - bash scripts/versions.sh
+
+lint:docs:
+  extends:
+    - .only-docs-changes
+  image: registry.gitlab.com/inko-lang/development-docker-images:vale
+  stage: test
+  before_script:
+    - vale --version
+  script:
+    - vale --no-wrap --sort docs/source

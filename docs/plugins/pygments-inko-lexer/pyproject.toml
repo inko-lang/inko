@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "pygments-inko-lexer"
+version = "1.0.0"
+description = "Pygments lexer for Inko"
+authors = ["Yorick Peterse <yorick@yorickpeterse.com>"]
+license = "MPL-2.0"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+pygments = "^2.7"
+
+[tool.poetry.plugins."pygments.lexers"]
+"inko" = "pygments_inko_lexer:InkoLexer"
+
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"

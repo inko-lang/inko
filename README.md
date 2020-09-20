@@ -54,8 +54,8 @@ operations. If your CPU does not support AES-NI, build the VM using either:
 1. `cargo build --release` in the `vm/` directory
 1. `make release RUSTFLAGS=""` in the `vm/` directory
 
-Fortunately, pretty much all Intel and AMD x86-64 CPUs since 2010 have AES-NI
-support, so disabling this is rarely necessary.
+Pretty much all Intel and AMD x86-64 CPUs since 2010 have AES-NI support, so
+it's unlikely you'll need to disable AES-NI support.
 
 ## Installation
 

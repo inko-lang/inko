@@ -8,6 +8,7 @@
 test:compiler:windows:
   extends:
     - .only-source-repository
+    - .only-compiler-changes
     - .windows-tags
   stage: test
   before_script:
@@ -28,6 +29,7 @@ test:compiler:windows:
 test:ivm:windows:
   extends:
     - .only-source-repository
+    - .only-vm-changes
     - .windows-tags
   stage: test
   before_script:
@@ -44,6 +46,7 @@ test:ivm:windows:
 test:runtime:windows:
   extends:
     - .only-source-repository
+    - .only-runtime-changes
     - .windows-tags
   stage: test-runtime
   before_script:

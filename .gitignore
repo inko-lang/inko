@@ -3,3 +3,7 @@
 .*.rustfmt
 /tmp
 /target
+/docs/build
+*.egg-info/
+__pycache__
+/docs/plugins/pygments-inko-lexer/poetry.lock

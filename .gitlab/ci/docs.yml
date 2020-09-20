@@ -1,0 +1,12 @@
+docs:master:
+  extends:
+    - .only-docs-changes
+  image: registry.gitlab.com/inko-lang/development-docker-images:vale
+  stage: docs
+  before_script:
+    - vale --version
+  script:
+    - make docs/publish
+  only:
+    refs:
+      - master@inko-lang/inko

@@ -1,5 +1,7 @@
 ---
 test:compiler:linux:
+  extends:
+    - .only-compiler-changes
   image: registry.gitlab.com/inko-lang/development-docker-images:alpine
   stage: test
   before_script:
@@ -18,6 +20,8 @@ test:compiler:linux:
       - compiler/vendor/ruby
 
 test:ivm:linux:
+  extends:
+    - .only-vm-changes
   image: registry.gitlab.com/inko-lang/development-docker-images:alpine
   stage: test
   before_script:
@@ -32,6 +36,8 @@ test:ivm:linux:
       - vm/target
 
 test:runtime:linux:
+  extends:
+    - .only-runtime-changes
   image: registry.gitlab.com/inko-lang/development-docker-images:alpine
   stage: test-runtime
   before_script:
