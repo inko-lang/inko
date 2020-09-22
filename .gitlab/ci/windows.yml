@@ -11,14 +11,15 @@ test:compiler:windows:
     - .windows-tags
   stage: test
   before_script:
-    - cd compiler
     - ruby --version
     - gem --version
     - bundle --version
+    - cd compiler
     - bundle config set path vendor
     - bundle install --retry=3
+    - cd ..
   script:
-    - make test
+    - make compiler/test
   cache:
     key: windows-compiler
     paths:
@@ -30,11 +31,10 @@ test:ivm:windows:
     - .windows-tags
   stage: test
   before_script:
-    - cd vm
     - rustc --version
     - cargo --version
   script:
-    - make test
+    - make vm/test
   cache:
     key: windows-vm
     paths:
@@ -51,8 +51,7 @@ test:runtime:windows:
     - rustc --version
     - cargo --version
   script:
-    - make -C vm release
-    - ruby -I ./compiler/lib ./compiler/bin/inko-test -d runtime --vm ./vm/target/release/ivm.exe
+    - make runtime/test
   cache:
     key: windows-vm
     paths:
@@ -61,25 +60,3 @@ test:runtime:windows:
   needs:
     - test:compiler:windows
     - test:ivm:windows
-
-release:compiled:windows:
-  extends:
-    - .only-source-repository
-    - .windows-tags
-  stage: release
-  before_script:
-    - ruby --version
-    - rustc --version
-    - cargo --version
-    - aws --version
-  script:
-    - make release-compiled
-  only:
-    - tags
-  cache:
-    key: windows-vm
-    paths:
-      - .cargo
-      - vm/target
-  needs:
-    - test:runtime:windows

@@ -1,0 +1,15 @@
+[package]
+name = "inko"
+version = "0.7.0" # VERSION
+authors = ["Yorick Peterse <yorick@yorickpeterse.com>"]
+edition = "2018"
+license = "MPL-2.0"
+
+[features]
+default = []
+jemalloc = ["jemallocator"]
+
+[dependencies]
+getopts = "^0.2"
+jemallocator = { version = "^0.3", optional = true }
+libinko = { path = "../vm" }

@@ -6,26 +6,19 @@
 require 'inkoc'
 require 'optparse'
 
-options = {
-  include: [],
-  mode: :debug
-}
+options = { include: [] }
 
 parser = OptionParser.new do |o|
-  o.banner = 'Usage: inkoc [OPTIONS] [FILE FILE ...]'
+  o.banner = 'Usage: inko build [OPTIONS] [FILE]'
 
   o.separator("\nOptions:")
 
-  o.on('-i', '--include [DIR]', 'Path to search for source files') do |path|
+  o.on('-i', '--include [DIR]', 'Adds the directory to the list of source directories') do |path|
     options[:include] << path
   end
 
-  o.on('-t', '--target [DIR]', 'The path to store bytecode files in') do |path|
-    options[:target] = path
-  end
-
-  o.on('-r', '--release', 'Compiles a release build') do
-    options[:mode] = :release
+  o.on('-o', '--output [FILE]', 'The file path of the output bytecode') do |path|
+    options[:output] = path
   end
 
   o.on('-v', '--version', 'Shows the current version') do
@@ -46,20 +39,16 @@ if ARGV.empty?
   abort(parser.to_s)
 end
 
-config = Inkoc::Config.new(options[:mode])
+input = Pathname.new(ARGV[0])
+config = Inkoc::Config.new
 
-config.target = options[:target] if options[:target]
 config.add_source_directories(options[:include])
 
-config.create_directories
-
 state = Inkoc::State.new(config)
-compiler = Inkoc::Compiler.new(state)
-mod = compiler.compile_main(Pathname.new(ARGV[0]))
+
+Inkoc::Compiler.new(state).compile_main(input, options[:output])
 
 if state.diagnostics?
   state.display_diagnostics
   exit(1)
-else
-  puts File.join(config.target, mod.bytecode_import_path)
 end

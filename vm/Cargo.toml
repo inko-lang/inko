@@ -1,26 +1,18 @@
 [package]
-name = "inko"
+name = "libinko"
 version = "0.7.0" # VERSION
-authors = ["Yorick Peterse <yorickpeterse@gmail.com>"]
+authors = ["Yorick Peterse <yorick@yorickpeterse.com>"]
 edition = "2018"
 build = "build.rs"
 license = "MPL-2.0"
 
-[features]
-default = []
-jemalloc = ["jemallocator"]
-libffi-system = ["libffi/system"]
-
 [lib]
-name = "libinko"
 doctest = false
 
-[[bin]]
-name = "ivm"
-test = false
+[features]
+libffi-system = ["libffi/system"]
 
 [dependencies]
-getopts = "^0.2"
 num_cpus = "^1.13"
 parking_lot = "^0.10"
 time = "^0.2"
@@ -34,7 +26,6 @@ crossbeam-deque = "^0.7"
 crossbeam-channel = "^0.4"
 crossbeam-utils = "^0.7"
 libc = "^0.2"
-jemallocator = { version = "^0.3", optional = true }
 ahash = "^0.4"
 rand = "^0.6"
 

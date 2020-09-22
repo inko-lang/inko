@@ -29,17 +29,9 @@ module Inkoc
         @module = mod
       end
 
-      def serialize_to_file
-        bytecode_directory =
-          @compiler.state.config.target.join(@module.bytecode_directory)
-
-        bytecode_file = bytecode_directory.join(@module.bytecode_file)
-        output = serialize
-
-        bytecode_directory.mkpath
-
-        File.open(bytecode_file, 'wb') do |handle|
-          handle.write(output)
+      def serialize_to_file(path)
+        File.open(path, 'wb') do |handle|
+          handle.write(serialize)
         end
 
         nil

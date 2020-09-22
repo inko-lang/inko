@@ -3,7 +3,7 @@
 module Inkoc
   # Compiler for translating Inko source files into IVM bytecode.
   class Compiler
-    BASE_PASSES = [
+    PASSES = [
       Pass::PathToSource,
       Pass::SourceToAst,
       Pass::DesugarObject,
@@ -33,20 +33,24 @@ module Inkoc
       @modules = []
     end
 
-    def compile_main(path)
+    def compile_main(path, output = nil)
+      output ||= begin
+        out_name = File.basename(path, '.*') + Config::BYTECODE_EXT
+        File.join(Dir.pwd, out_name)
+      end
+
       name = TIR::QualifiedName.new(%w[main])
       main_mod = compile(name, path)
 
-      Codegen::Serializer.new(self, main_mod).serialize_to_file
-
-      main_mod
+      Codegen::Serializer.new(self, main_mod).serialize_to_file(output)
+      output
     end
 
     # name - The QualifiedName of the module.
     # path - The absolute file path of the module to compile, as a Pathname.
     def compile(name, path)
       mod = module_for_name_and_path(name, path)
-      output = passes.reduce([]) do |input, klass|
+      output = PASSES.reduce([]) do |input, klass|
         out = klass.new(self, mod).run(*input)
 
         break if out.nil? || state.diagnostics.errors?
@@ -57,22 +61,6 @@ module Inkoc
       @modules.push(output.first) if output
 
       mod
-    end
-
-    def passes
-      if @state.config.release_mode?
-        passes_for_release_mode
-      else
-        passes_for_debug_mode
-      end
-    end
-
-    def passes_for_debug_mode
-      BASE_PASSES
-    end
-
-    def passes_for_release_mode
-      BASE_PASSES
     end
 
     def module_for_name_and_path(name, path)

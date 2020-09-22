@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# rubocop: disable all
 # frozen_string_literal: true
 
 require 'English'
@@ -11,7 +12,7 @@ end
 
 version_file = File.expand_path('../VERSION', __dir__)
 compiler_version = File.expand_path('../compiler/lib/inkoc/version.rb', __dir__)
-cargo_toml = File.expand_path('../vm/Cargo.toml', __dir__)
+cargo_files = Dir['./{vm,cli}/Cargo.toml']
 
 File.open(version_file, 'w') do |handle|
   handle.puts(new_version)
@@ -27,21 +28,21 @@ File.open(compiler_version, 'w') do |handle|
   RUBY
 end
 
-old_toml = File.read(cargo_toml)
-new_toml = old_toml.gsub(
-  /version.+# VERSION/,
-  %(version = "#{new_version}" # VERSION)
-)
+cargo_files.each do |cargo_toml|
+  old_toml = File.read(cargo_toml)
+  new_toml = old_toml.gsub(
+    /version.+# VERSION/,
+    %(version = "#{new_version}" # VERSION)
+  )
 
-File.open(cargo_toml, 'w') do |handle|
-  handle.write(new_toml)
+  File.open(cargo_toml, 'w') do |handle|
+    handle.write(new_toml)
+  end
 end
 
 # Make sure that Cargo.lock is also updated
-Dir.chdir(File.expand_path('../vm', __dir__)) do
-  output = `make check 2>&1`
+output = `make vm/check 2>&1`
 
-  unless $CHILD_STATUS.success?
-    abort "Failed to update vm/Cargo.lock: #{output}"
-  end
+unless $CHILD_STATUS.success?
+  abort "Failed to update Cargo.lock files: #{output}"
 end

@@ -81,62 +81,18 @@ module Inkoc
       ]
     ).freeze
 
-    DEFAULT_SOURCE_DIRECTORY = '/usr/lib/inko'
-
-    RUNTIME_DIRECTORY = 'runtime'
+    DEFAULT_RUNTIME_PATH = '/usr/lib/inko/runtime'
 
     MAXIMUM_METHOD_ARGUMENTS = 255
 
-    attr_reader :source_directories, :mode, :target
+    attr_reader :source_directories
 
     def self.core_module_name(name)
       "#{CORE_MODULE}#{MODULE_SEPARATOR}#{name}"
     end
 
-    def initialize(mode = :debug)
-      @source_directories = Set.new
-      @mode = mode
-      @target = nil
-
-      set_default_target_directory
-      add_default_source_directories
-    end
-
-    def set_default_target_directory
-      self.target = File.join(cache_directory, BYTECODE_DIR, mode.to_s)
-    end
-
-    def cache_directory
-      if (env = ENV['INKOC_CACHE'])
-        env
-      else
-        xdg_home = ENV['XDG_CACHE_HOME']
-
-        cache_home =
-          if xdg_home && !xdg_home.empty?
-            xdg_home
-          else
-            File.join(Dir.home, '.cache')
-          end
-
-        File.join(cache_home, CACHE_NAME)
-      end
-    end
-
-    def add_default_source_directories
-      directory = ENV['INKOC_HOME']
-      directory = DEFAULT_SOURCE_DIRECTORY if directory.nil? || directory.empty?
-      source = File.join(directory, RUNTIME_DIRECTORY)
-
-      add_source_directories([source])
-    end
-
-    def target=(path)
-      @target = Pathname.new(path).expand_path
-    end
-
-    def release_mode?
-      @mode == :release
+    def initialize
+      @source_directories = Set.new([runtime_directory])
     end
 
     def add_source_directories(directories)
@@ -145,8 +101,14 @@ module Inkoc
       end
     end
 
-    def create_directories
-      @target.mkpath
+    def runtime_directory
+      dir = ENV['INKO_RUNTIME_PATH']
+
+      if dir.nil? || dir.empty?
+        dir = DEFAULT_RUNTIME_PATH
+      end
+
+      Pathname.new(dir)
     end
   end
 end

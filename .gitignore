@@ -1,6 +1,5 @@
 /compiler/target
 /compiler/pkg
-/vm/target
-/runtime/target
 .*.rustfmt
 /tmp
+/target

@@ -11,14 +11,15 @@ test:compiler:macos:
     - .macos-tags
   stage: test
   before_script:
-    - cd compiler
     - ruby --version
     - gem --version
     - bundle --version
+    - cd compiler
     - bundle config set path vendor
     - bundle install --retry=3
+    - cd ..
   script:
-    - gmake test
+    - gmake compiler/test
   cache:
     key: macos-compiler
     paths:
@@ -30,11 +31,10 @@ test:ivm:macos:
     - .macos-tags
   stage: test
   before_script:
-    - cd vm
     - rustc --version
     - cargo --version
   script:
-    - env LLVM_CONFIG_PATH="$(brew --prefix llvm)/bin/llvm-config" gmake test
+    - env LLVM_CONFIG_PATH="$(brew --prefix llvm)/bin/llvm-config" gmake vm/test
   cache:
     key: macos-vm
     paths:
@@ -51,8 +51,7 @@ test:runtime:macos:
     - rustc --version
     - cargo --version
   script:
-    - env LLVM_CONFIG_PATH="$(brew --prefix llvm)/bin/llvm-config" gmake -C vm release
-    - env RUBYLIB=./compiler/lib ./compiler/bin/inko-test -d runtime --vm ./vm/target/release/ivm
+    - env LLVM_CONFIG_PATH="$(brew --prefix llvm)/bin/llvm-config" gmake runtime/test
   cache:
     key: macos-vm
     paths:
@@ -61,26 +60,3 @@ test:runtime:macos:
   needs:
     - test:compiler:macos
     - test:ivm:macos
-
-release:compiled:macos:
-  extends:
-    - .only-source-repository
-    - .macos-tags
-  stage: release
-  before_script:
-    - ruby --version
-    - rustc --version
-    - cargo --version
-    - aws --version
-  script:
-    - env LLVM_CONFIG_PATH="$(brew --prefix llvm)/bin/llvm-config"
-      gmake release-compiled SHA256SUM=gsha256sum
-  only:
-    - tags
-  cache:
-    key: macos-vm
-    paths:
-      - .cargo
-      - vm/target
-  needs:
-    - test:runtime:macos

@@ -23,11 +23,10 @@ lint:clippy:
   image: registry.gitlab.com/inko-lang/development-docker-images:rust-stable
   stage: test
   before_script:
-    - cd vm
     - rustc --version
     - cargo --version
   script:
-    - make clippy
+    - make vm/clippy
   cache:
     paths:
       - .cargo
@@ -39,12 +38,11 @@ lint:rustfmt:
   image: registry.gitlab.com/inko-lang/development-docker-images:rust-stable
   stage: test
   before_script:
-    - cd vm
     - rustc --version
     - cargo --version
     - rustfmt --version
   script:
-    - make rustfmt-check
+    - make vm/rustfmt-check
   except:
     - tags
 

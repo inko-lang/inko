@@ -1,10 +1,7 @@
-#[cfg(not(feature = "jemalloc"))]
-#[global_allocator]
-static A: std::alloc::System = std::alloc::System;
-
-#[cfg(feature = "jemalloc")]
-#[global_allocator]
-static A: jemallocator::Jemalloc = jemallocator::Jemalloc;
+#![cfg_attr(feature = "cargo-clippy", allow(renamed_and_removed_lints))]
+#![cfg_attr(feature = "cargo-clippy", allow(new_without_default))]
+#![cfg_attr(feature = "cargo-clippy", allow(needless_range_loop))]
+#![cfg_attr(feature = "cargo-clippy", allow(missing_safety_doc))]
 
 pub mod arc_without_weak;
 pub mod binding;

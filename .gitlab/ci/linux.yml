@@ -3,14 +3,15 @@ test:compiler:linux:
   image: registry.gitlab.com/inko-lang/development-docker-images:alpine
   stage: test
   before_script:
-    - cd compiler
     - ruby --version
     - gem --version
     - bundle --version
+    - cd compiler
     - bundle config set path vendor
     - bundle install --retry=3
+    - cd ..
   script:
-    - make test
+    - make compiler/test
   cache:
     key: linux-compiler
     paths:
@@ -20,11 +21,10 @@ test:ivm:linux:
   image: registry.gitlab.com/inko-lang/development-docker-images:alpine
   stage: test
   before_script:
-    - cd vm
     - rustc --version
     - cargo --version
   script:
-    - make test
+    - make vm/test
   cache:
     key: linux-vm
     paths:
@@ -39,8 +39,7 @@ test:runtime:linux:
     - rustc --version
     - cargo --version
   script:
-    - make -C vm release
-    - env RUBYLIB=./compiler/lib ./compiler/bin/inko-test -d runtime --vm ./vm/target/release/ivm
+    - make runtime/test
   cache:
     key: linux-vm
     paths:
@@ -49,23 +48,3 @@ test:runtime:linux:
   needs:
     - test:compiler:linux
     - test:ivm:linux
-
-release:compiled:linux-gnu:
-  image: registry.gitlab.com/inko-lang/development-docker-images:rust-stable
-  stage: release
-  before_script:
-    - ruby --version
-    - rustc --version
-    - cargo --version
-    - aws --version
-  script:
-    - make release-compiled
-  only:
-    - tags
-  cache:
-    key: linux-vm
-    paths:
-      - .cargo
-      - vm/target
-  needs:
-    - test:runtime:linux

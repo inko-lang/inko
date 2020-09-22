@@ -63,55 +63,6 @@ support, so disabling this is rarely necessary.
 Detailed installation instructions about the installation process can be found
 at [Installing Inko](https://inko-lang.org/manual/install/) on the Inko website.
 
-### For users
-
-If you want to install Inko from source and just use it (instead of hacking on
-the code), follow the steps outlined below.
-
-Installing all components can be done as follows:
-
-    make install
-
-You can uninstall all of them by running:
-
-    make uninstall
-
-By default everything is installed into directories relative to `/usr`. To
-change this, pass the `PREFIX` variable to Make:
-
-    make install PREFIX=$HOME/.local/share/inko
-
-Individual components can be (un)installed by simply changing into the
-appropriate directory (e.g. `cd compiler`), followed by running `make install`
-or a similar command.
-
-**NOTE:** The Makefile quotes the `PREFIX` variable in various places in order
-to properly support spaces in file paths. This means that the tilde (`~`) in a
-path is _not_ expanded. This means that commands like this won't work:
-
-    make install PREFIX=~/.local/share/inko
-
-Instead, use either the full path or use the `$HOME` variable:
-
-    make install PREFIX=$HOME/.local/share/inko
-    make install PREFIX=/home/alice/.local/share/inko
-
-### For developers
-
-Assuming you have cloned the repository, run the following:
-
-    make -C vm profile
-
-This will compile the VM in release mode, with debugging symbols included. You
-can then run Inko programs as follows:
-
-    env RUBYLIB=./compiler/lib ./compiler/bin/inko \
-        --vm vm/target/release/ivm \
-        -i runtime/src/ \
-        PATH/TO/FILE.inko
-
-Here `PATH/TO/FILE.inko` would be the program to run.
-
 ## License
 
 All source code in this repository is licensed under the Mozilla Public License
