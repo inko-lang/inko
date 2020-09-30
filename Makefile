@@ -8,26 +8,35 @@ PREFIX := /usr
 ifneq (${DESTDIR},)
 	INSTALL_PREFIX = ${DESTDIR}${PREFIX}
 else
-	INSTALL_DIR = ${PREFIX}
+	INSTALL_PREFIX = ${PREFIX}
 endif
 
-# The directory to place executable files in.
-BIN_DIR := ${INSTALL_PREFIX}/bin
+# The directory to place the VM executable in.
+INSTALL_VM_BIN := ${INSTALL_PREFIX}/bin/inko
 
 # The base directory to place all library files (e.g. the runtime source) in.
-LIB_DIR := ${INSTALL_PREFIX}/lib/inko
+INSTALL_LIB_DIR := ${INSTALL_PREFIX}/lib/inko
 
 # The directory to place the compiler source code in.
-COMPILER_LIB_DIR := ${LIB_DIR}/compiler
+INSTALL_COMPILER_DIR := ${INSTALL_LIB_DIR}/compiler/lib
 
-# The directory to load compiler source files from at runtime.
-COMPILER_RUNTIME_LIB_DIR := ${PREFIX}/lib/inko/compiler
+# The install path of the Ruby Inko compiler's executable
+INSTALL_COMPILER_BIN := ${INSTALL_LIB_DIR}/compiler/bin/inkoc
 
 # The directory to place the runtime source code in.
-RUNTIME_LIB_DIR := ${LIB_DIR}/runtime
+INSTALL_RUNTIME_DIR := ${INSTALL_LIB_DIR}/runtime
 
-# The directory to place the license in.
-LICENSE_DIR := ${INSTALL_PREFIX}/share/licenses/inko
+# The install path of the license file.
+INSTALL_LICENSE := ${INSTALL_PREFIX}/share/licenses/inko/LICENSE
+
+# The directory to load compiler source files from at runtime.
+LOAD_COMPILER_DIR := ${PREFIX}/lib/inko/compiler/lib
+
+# The path to the inkoc executable at runtime.
+LOAD_COMPILER_BIN := ${PREFIX}/lib/inko/compiler/bin/inkoc
+
+# The directory to load the runtime source code from.
+LOAD_RUNTIME_DIR := ${PREFIX}/lib/inko/runtime
 
 # The cargo command to use for building the VM.
 CARGO_CMD := cargo
@@ -101,6 +110,10 @@ ifneq (${DEV},)
 	export INKO_COMPILER_BIN = $(realpath compiler/bin/inkoc)
 	export INKO_COMPILER_LIB = $(realpath compiler/lib)
 	export INKO_RUNTIME_LIB = $(realpath runtime/src)
+else
+	export INKO_COMPILER_BIN = ${LOAD_COMPILER_BIN}
+	export INKO_COMPILER_LIB = ${LOAD_COMPILER_DIR}
+	export INKO_RUNTIME_LIB = ${LOAD_RUNTIME_DIR}
 endif
 
 ${TMP_DIR}:
@@ -110,11 +123,11 @@ ${SOURCE_TAR}: ${TMP_DIR}
 	git archive --format tar HEAD \
 		compiler/bin \
 		compiler/lib \
-		compiler/install.rb \
 		runtime/src \
-		vm/src \
-		vm/Cargo.toml \
-		vm/Cargo.lock \
+		cli \
+		vm \
+		Cargo.toml \
+		Cargo.lock \
 		LICENSE \
 		Makefile \
 		VERSION \
@@ -144,7 +157,7 @@ release/versions:
 
 release/commit:
 	git commit VERSION compiler/lib/inkoc/version.rb vm/Cargo.toml \
-		vm/Cargo.lock CHANGELOG.md -m "Release v${VERSION}"
+		cli/Cargo.toml Cargo.lock CHANGELOG.md -m "Release v${VERSION}"
 	git push origin "$(git rev-parse --abbrev-ref HEAD)"
 
 release/tag:
@@ -153,22 +166,21 @@ release/tag:
 
 release/publish: release/versions release/changelog release/commit release/tag
 
-${BIN_DIR}/inkoc:
+${INSTALL_COMPILER_BIN}:
 	install -D -m755 compiler/bin/inkoc "${@}"
-	ruby compiler/install.rb "${COMPILER_RUNTIME_LIB_DIR}" "${@}"
 
-${COMPILER_LIB_DIR}:
+${INSTALL_COMPILER_DIR}:
 	mkdir -p "${@}"
 	cp -r compiler/lib/* "${@}"
 
-${RUNTIME_LIB_DIR}:
+${INSTALL_RUNTIME_DIR}:
 	mkdir -p "${@}"
 	cp -r runtime/src/* "${@}"
 
-${BIN_DIR}/inko:
+${INSTALL_VM_BIN}:
 	install -D -m755 ${TARGET_BINARY} "${@}"
 
-${LICENSE_DIR}/LICENSE:
+${INSTALL_LICENSE}:
 	install -D -m 644 LICENSE "${@}"
 
 # Building is a separate step so that environment variables such as DESTDIR are
@@ -176,16 +188,17 @@ ${LICENSE_DIR}/LICENSE:
 # of that (example: https://github.com/tov/libffi-sys-rs/issues/35).
 build: vm/release
 
-install: ${BIN_DIR}/inko ${BIN_DIR}/inko-test ${BIN_DIR}/inkoc \
-	${COMPILER_LIB_DIR} ${RUNTIME_LIB_DIR} ${BIN_DIR}/inko ${LICENSE_DIR}/LICENSE
+install: ${INSTALL_COMPILER_BIN} \
+	${INSTALL_COMPILER_DIR} \
+	${INSTALL_RUNTIME_DIR} \
+	${INSTALL_VM_BIN} \
+	${INSTALL_LICENSE}
 
 uninstall:
-	rm -f "${BIN_DIR}/inko"
-	rm -f "${BIN_DIR}/inkoc"
-	rm -f "${BIN_DIR}/inko"
-	rm -f "${BIN_DIR}/inko-test"
-	rm -rf "${LICENSE_DIR}"
-	rm -rf "${LIB_DIR}"
+	rm -rf ${INSTALL_LIB_DIR}
+	rm -f ${INSTALL_VM_BIN}
+	rm -f ${INSTALL_LICENSE}
+	rm -rf ${INSTALL_PREFIX}/share/licenses/inko
 
 clean:
 	rm -rf "${TMP_DIR}"
