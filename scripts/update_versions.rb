@@ -10,15 +10,11 @@ if !new_version || new_version.empty?
   abort 'You must specify a new version as the first argument'
 end
 
-version_file = File.expand_path('../VERSION', __dir__)
-compiler_version = File.expand_path('../compiler/lib/inkoc/version.rb', __dir__)
-cargo_files = Dir['./{vm,cli}/Cargo.toml']
-
-File.open(version_file, 'w') do |handle|
+File.open('VERSION', 'w') do |handle|
   handle.puts(new_version)
 end
 
-File.open(compiler_version, 'w') do |handle|
+File.open('compiler/lib/inkoc/version.rb', 'w') do |handle|
   handle.write(<<~RUBY)
     # frozen_string_literal: true
 
@@ -28,7 +24,7 @@ File.open(compiler_version, 'w') do |handle|
   RUBY
 end
 
-cargo_files.each do |cargo_toml|
+Dir['./{vm,cli}/Cargo.toml'].each do |cargo_toml|
   old_toml = File.read(cargo_toml)
   new_toml = old_toml.gsub(
     /version.+# VERSION/,
