@@ -242,5 +242,4 @@ vm/profile:
 .PHONY: release/commit release/publish release/tag
 .PHONY: build install uninstall clean
 .PHONY: vm/debug vm/check vm/clippy vm/rustfmt-check vm/rustfmt vm/release vm/profile
-.PHONY: test/vm test/runtime test/compiler
 .DEFAULT: build
