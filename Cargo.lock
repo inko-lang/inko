@@ -424,8 +424,7 @@ checksum = "f2f96b10ec2560088a8e76961b00d47107b3a625fecb76dedb29ee7ccbf98235"
 [[package]]
 name = "libffi"
 version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c18efe55925cc7f83bf60a61394696a734ae90e668d1f2bbd954354416fec6f2"
+source = "git+https://github.com/YorickPeterse/libffi-rs.git?branch=no-bindgen-patch#ea926b4e641c33e8a7d1e097a877c7fc8a4d78d0"
 dependencies = [
  "abort_on_panic",
  "libc",
@@ -435,13 +434,10 @@ dependencies = [
 [[package]]
 name = "libffi-sys"
 version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f00e48ce437c5741a4da3b51738498343b5158c37bfa02bcb969efcc44e4e06"
+source = "git+https://github.com/YorickPeterse/libffi-sys-rs.git?branch=no-bindgen-patch#68ca287f300fc2ed6eb9625638e3addd92fb4648"
 dependencies = [
- "bindgen",
  "cc",
  "make-cmd",
- "pkg-config",
 ]
 
 [[package]]
@@ -628,12 +624,6 @@ name = "peeking_take_while"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19b17cddbe7ec3f8bc800887bab5e717348c95ea2ca0b1bf0837fb964dc67099"
-
-[[package]]
-name = "pkg-config"
-version = "0.3.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d36492546b6af1463394d46f0c834346f31548646f6ba10849802c9c9a27ac33"
 
 [[package]]
 name = "proc-macro-hack"

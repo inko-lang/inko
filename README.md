@@ -44,7 +44,6 @@ For Unix systems or MSYS2 on Windows you also need the following software:
 
 * autoconf
 * automake
-* clang
 * libtool
 
 ### AES-NI
