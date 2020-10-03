@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.8.0 - October 03, 2020
+
+* 3c260f85: Escape Make subcommand for tagging
+* c34a9116: Update wepoll-binding to 3.0
+* 9b6738c3: Patch libffi to use unreleased bindgen changes
+* f5acdb2e: Remove outdated PHONY entries
+* 5f9bf6e0: Fix Makefile for building/installing
+* b64323fe: Overhaul the build process and the CLI
+* b7011125: Allow using of the system libffi installation
+* 890b3896: Move comment in core::bootstrap to the right place
+* 1d1677d8: Remove outdated TODO from the bytecode parser
+* 695ddbf3: Rename various Duration as_X methods to to_X
+* edc6a48e: Remove std::net::bits.to_stream
+* 3aa3a3e1: Remove some outdated VM comments
+* 2b3f9b61: Rename SetArray to AllocateArray
+* ed44bf67: Split Allocate into Allocate and AllocatePermanent
+* 8504e68c: Rename SetObject to Allocate
+* 1e9aef76: Enable AES-NI using RUSTFLAGS
+* 9e36965f: Give tracer threads a name
+* b23d4cbb: Relocate the allocate_stacktrace() function
+* bf1c5d39: Fix a NoMethodError when there are diagnostics
+* 5268c5e0: Replace bytecode files with a bytecode image
+* 6930068a: Add support for literal indexes beyond than 65 535
+* 133600aa: Store the current module in a ExecutionContext
+* 34ca7972: Reuse thread pools for GC tracer threads
+* 0b55d1e2: Use aHash instead of SipHasher and FNV
+* 76276999: Don't store keys in a Hasher
+
 ## 0.7.0 - August 04, 2020
 
 * 35fb0ee7: Move instruction handlers to a separate directory
