@@ -53,12 +53,14 @@ to = options[:to]
 commits = commits_in(
   [
     'Makefile',
-    'compiler/Makefile',
-    'runtime/Makefile',
-    'vm/Makefile',
+    'compiler/bin',
     'compiler/lib',
     'runtime/src',
-    'vm/src'
+    'vm/src',
+    'vm/Cargo.toml',
+    'cli/src',
+    'cli/Cargo.toml',
+    'Cargo.toml'
   ],
   from,
   to
