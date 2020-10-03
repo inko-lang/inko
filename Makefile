@@ -158,7 +158,7 @@ release/versions:
 release/commit:
 	git commit VERSION compiler/lib/inkoc/version.rb vm/Cargo.toml \
 		cli/Cargo.toml Cargo.lock CHANGELOG.md -m "Release v${VERSION}"
-	git push origin "$(git rev-parse --abbrev-ref HEAD)"
+	git push origin "$$(git rev-parse --abbrev-ref HEAD)"
 
 release/tag:
 	git tag -a -m "Release v${VERSION}" "v${VERSION}"
