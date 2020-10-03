@@ -90,12 +90,12 @@ CLOUDFRONT_ID := E3SFQ1OG1H5PCN
 TMP_DIR := tmp
 
 # The path of the archive to build for source releases.
-SOURCE_TAR := ${TMP_DIR}/inko-${VERSION}-source.tar.gz
+SOURCE_TAR := ${TMP_DIR}/${VERSION}.tar.gz
 
 # The path of the checksum for the source tar archive.
 SOURCE_TAR_CHECKSUM := ${SOURCE_TAR}.sha256
 
-# The path to the manifest file.
+# The path to the versions file.
 MANIFEST := ${TMP_DIR}/manifest.txt
 
 # The program to use for generating SHA256 checksums.
@@ -142,12 +142,13 @@ release/source: ${SOURCE_TAR} ${SOURCE_TAR_CHECKSUM}
 	aws s3 cp --acl public-read "${SOURCE_TAR_CHECKSUM}" s3://${S3_BUCKET}/inko/
 
 release/manifest: ${TMP_DIR}
-	aws s3 ls s3://${S3_BUCKET}/inko/ | \
-		grep -oP '(inko-.+tar\.gz$$)' | \
+	aws s3 ls s3://${S3_BUCKET}/ | \
+		grep -oP '(\d+\.\d+\.\d+\.tar.gz)$$' | \
+		grep -oP '(\d+\.\d+\.\d+)' | \
 		sort > "${MANIFEST}"
-	aws s3 cp --acl public-read "${MANIFEST}" s3://${S3_BUCKET}/inko/
+	aws s3 cp --acl public-read "${MANIFEST}" s3://${S3_BUCKET}/
 	aws cloudfront create-invalidation --distribution-id ${CLOUDFRONT_ID} \
-		--paths "/inko/*"
+		--paths "/*"
 
 release/changelog:
 	ruby scripts/changelog.rb
