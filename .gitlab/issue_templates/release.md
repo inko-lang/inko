@@ -4,7 +4,7 @@ This issue tracks the work necessary to release version NEW_VERSION.
 
 ## General checklist
 
-1. [ ] Run `make release VERSION=NEW_VERSION` on the `master` branch.
+1. [ ] Run `make release/publish VERSION=NEW_VERSION` on the `master` branch.
 1. [ ] Make sure the pipeline for the tag passed.
 1. [ ] Install the latest version using [ienv](https://gitlab.com/inko-lang/ienv)
    to make sure this works.
