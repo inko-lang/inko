@@ -168,7 +168,8 @@ release/tag:
 release/publish: release/versions release/changelog release/commit release/tag
 
 ${INSTALL_COMPILER_BIN}:
-	install -D -m755 compiler/bin/inkoc "${@}"
+	mkdir -p "$$(dirname ${@})"
+	install -m755 compiler/bin/inkoc "${@}"
 
 ${INSTALL_COMPILER_DIR}:
 	mkdir -p "${@}"
@@ -179,10 +180,12 @@ ${INSTALL_RUNTIME_DIR}:
 	cp -r runtime/src/* "${@}"
 
 ${INSTALL_VM_BIN}:
-	install -D -m755 ${TARGET_BINARY} "${@}"
+	mkdir -p "$$(dirname ${@})"
+	install -m755 ${TARGET_BINARY} "${@}"
 
 ${INSTALL_LICENSE}:
-	install -D -m 644 LICENSE "${@}"
+	mkdir -p "$$(dirname ${@})"
+	install -m644 LICENSE "${@}"
 
 # Building is a separate step so that environment variables such as DESTDIR are
 # not passed to any crates we need to build, ensuring they don't break because
