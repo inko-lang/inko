@@ -138,8 +138,8 @@ ${SOURCE_TAR_CHECKSUM}: ${SOURCE_TAR}
 	${SHA256SUM} "${SOURCE_TAR}" | awk '{print $$1}' > "${SOURCE_TAR_CHECKSUM}"
 
 release/source: ${SOURCE_TAR} ${SOURCE_TAR_CHECKSUM}
-	aws s3 cp --acl public-read "${SOURCE_TAR}" s3://${S3_BUCKET}/inko/
-	aws s3 cp --acl public-read "${SOURCE_TAR_CHECKSUM}" s3://${S3_BUCKET}/inko/
+	aws s3 cp --acl public-read "${SOURCE_TAR}" s3://${S3_BUCKET}/
+	aws s3 cp --acl public-read "${SOURCE_TAR_CHECKSUM}" s3://${S3_BUCKET}/
 
 release/manifest: ${TMP_DIR}
 	aws s3 ls s3://${S3_BUCKET}/ | \
