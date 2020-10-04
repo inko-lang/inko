@@ -1,6 +1,6 @@
 [package]
 name = "libinko"
-version = "0.8.0" # VERSION
+version = "0.8.1" # VERSION
 authors = ["Yorick Peterse <yorick@yorickpeterse.com>"]
 edition = "2018"
 build = "build.rs"

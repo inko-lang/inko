@@ -253,7 +253,7 @@ dependencies = [
 
 [[package]]
 name = "inko"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "getopts",
  "jemallocator",
@@ -320,7 +320,7 @@ dependencies = [
 
 [[package]]
 name = "libinko"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "ahash",
  "crossbeam-channel",

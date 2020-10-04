@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.1 - October 04, 2020
+
+* 1dc211c0: Fix make install for macOS/BSD
+* 5440b4e4: Write new manifest to the root of the S3 bucket
+
 ## 0.8.0 - October 03, 2020
 
 * 3c260f85: Escape Make subcommand for tagging
