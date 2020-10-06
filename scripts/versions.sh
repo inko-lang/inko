@@ -3,21 +3,21 @@
 set -e
 
 function check() {
-    local compiler_version repo_version vm_version
+    local compiler_version cli_version vm_version
 
-    repo_version="$(cat VERSION)"
+    cli_version="$(cargo pkgid -p inko | cut -d# -f2 | cut -d: -f2)"
     compiler_version="$(grep -oP "VERSION\\s*=\\s*'(\\K[^']+)" compiler/lib/inkoc/version.rb)"
-    vm_version="$(grep VERSION vm/Cargo.toml | grep -oP 'version\s*=\s*"(\K[\d\.]+)')"
+    vm_version="$(cargo pkgid -p libinko | cut -d# -f2 | cut -d: -f2)"
 
-    if [[ "${compiler_version}" != "${repo_version}" ]]
+    if [[ "${compiler_version}" != "${cli_version}" ]]
     then
-        echo "Incorrect compiler version, expected ${repo_version} but got ${compiler_version}"
+        echo "Incorrect compiler version, expected ${cli_version} but got ${compiler_version}"
         exit 1
     fi
 
-    if [[ "${vm_version}" != "${repo_version}" ]]
+    if [[ "${vm_version}" != "${cli_version}" ]]
     then
-        echo "Incorrect VM version, expected ${repo_version} but got ${vm_version}"
+        echo "Incorrect VM version, expected ${cli_version} but got ${vm_version}"
         exit 1
     fi
 

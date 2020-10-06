@@ -4,14 +4,10 @@
 
 require 'English'
 
-new_version = ARGV[0]
+new_version = ARGV.fetch(0)
 
 if !new_version || new_version.empty?
   abort 'You must specify a new version as the first argument'
-end
-
-File.open('VERSION', 'w') do |handle|
-  handle.puts(new_version)
 end
 
 File.open('compiler/lib/inkoc/version.rb', 'w') do |handle|

@@ -78,7 +78,7 @@ endif
 endif
 
 # The version to build.
-VERSION != cat VERSION
+VERSION != cargo pkgid -p inko | cut -d\# -f2 | cut -d: -f2
 
 # The name of the S3 bucket that contains all releases.
 S3_BUCKET := releases.inko-lang.org
@@ -130,7 +130,6 @@ ${SOURCE_TAR}: ${TMP_DIR}
 		Cargo.lock \
 		LICENSE \
 		Makefile \
-		VERSION \
 		scripts \
 		| gzip > "${@}"
 
@@ -157,7 +156,7 @@ release/versions:
 	ruby scripts/update_versions.rb ${VERSION}
 
 release/commit:
-	git commit VERSION compiler/lib/inkoc/version.rb vm/Cargo.toml \
+	git commit compiler/lib/inkoc/version.rb vm/Cargo.toml \
 		cli/Cargo.toml Cargo.lock CHANGELOG.md -m "Release v${VERSION}"
 	git push origin "$$(git rev-parse --abbrev-ref HEAD)"
 
