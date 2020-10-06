@@ -17,7 +17,7 @@ changelog = File.expand_path('../CHANGELOG.md', __dir__)
 options = {
   from: `git tag --sort taggerdate`.lines.last&.strip,
   to: 'HEAD',
-  version: File.read(File.expand_path('../VERSION', __dir__)).strip
+  version: ARGV.fetch(0)
 }
 
 parser = OptionParser.new do |o|
@@ -35,13 +35,6 @@ parser = OptionParser.new do |o|
 
   o.on('-t', '--to SHA', 'The last commit or tag for the changelog') do |val|
     options[:to] = val unless val.empty?
-  end
-
-  o.on(
-    '-v',
-    '--version VERSION', 'The version to generate the changelog for'
-  ) do |val|
-    options[:version] = val unless val.empty?
   end
 end
 

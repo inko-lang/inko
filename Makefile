@@ -151,7 +151,7 @@ release/manifest: ${TMP_DIR}
 		--paths "/*"
 
 release/changelog:
-	ruby scripts/changelog.rb
+	ruby scripts/changelog.rb "${VERSION}"
 
 release/versions:
 	ruby scripts/update_versions.rb ${VERSION}
