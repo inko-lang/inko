@@ -116,6 +116,11 @@ else
 	export INKO_RUNTIME_LIB = ${LOAD_RUNTIME_DIR}
 endif
 
+# Building is a separate step so that environment variables such as DESTDIR are
+# not passed to any crates we need to build, ensuring they don't break because
+# of that (example: https://github.com/tov/libffi-sys-rs/issues/35).
+build: vm/release
+
 ${TMP_DIR}:
 	mkdir -p "${@}"
 
@@ -186,11 +191,6 @@ ${INSTALL_LICENSE}:
 	mkdir -p "$$(dirname ${@})"
 	install -m644 LICENSE "${@}"
 
-# Building is a separate step so that environment variables such as DESTDIR are
-# not passed to any crates we need to build, ensuring they don't break because
-# of that (example: https://github.com/tov/libffi-sys-rs/issues/35).
-build: vm/release
-
 install: ${INSTALL_COMPILER_BIN} \
 	${INSTALL_COMPILER_DIR} \
 	${INSTALL_RUNTIME_DIR} \
@@ -245,4 +245,3 @@ vm/profile:
 .PHONY: release/commit release/publish release/tag
 .PHONY: build install uninstall clean
 .PHONY: vm/debug vm/check vm/clippy vm/rustfmt-check vm/rustfmt vm/release vm/profile
-.DEFAULT: build
