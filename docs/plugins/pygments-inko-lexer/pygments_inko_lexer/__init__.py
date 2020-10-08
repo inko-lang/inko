@@ -21,6 +21,9 @@ class InkoLexer(RegexLexer):
             ('"', token.String.Double, 'dstring'),
             ("'", token.String.Single, 'sstring'),
 
+            (r'_?[A-Z]\w*', token.Name.Constant),
+            (r'@_?\w+', token.Name.Variable.Instance),
+
             (r'(?i)-?0x[0-9a-f_]+', token.Number.Integer),
             (r'(?i)-?[\d_]+\.\d+(e[+-]?\d+)?', token.Number.Float),
             (r'(?i)-?[\d_]+(e[+-]?\d+)?', token.Number.Integer),
@@ -38,7 +41,6 @@ class InkoLexer(RegexLexer):
 
             (r'!|\?|\}|\{|\[|\]|\.|,|:|\(|\)|=', token.Punctuation),
 
-            (r'@[\w][\w]+', token.Name.Variable.Instance),
             (r'\w+\b', token.Text),
             (r'\s+', token.Whitespace)
         ],

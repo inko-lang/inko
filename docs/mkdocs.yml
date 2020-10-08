@@ -36,4 +36,5 @@ nav:
     - getting-started/blocks.md
     - getting-started/objects.md
     - getting-started/traits.md
+    - getting-started/variables.md
   - style-guide.md
