@@ -5,7 +5,7 @@ variables:
   AWS_REGION: eu-west-1
   # Ensure Windows builds fail when Powershell detects an error.
   ErrorActionPreference: 'STOP'
-  LICENSE_FINDER_CLI_OPTS: '--aggregate-paths=. compiler'
+  LICENSE_FINDER_CLI_OPTS: '--aggregate-paths=. compiler vm cli'
 
 stages:
   - test
