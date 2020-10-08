@@ -51,8 +51,8 @@ FEATURES :=
 # Additional flags to pass to rustc.
 RUSTFLAGS :=
 
-# The architecture to use for building the VM.
-ARCH != scripts/arch.sh
+# Rust configuration options, used to detect the CPU architecture.
+RUST_CFG != rustc --print cfg
 
 ifneq (${TARGET},)
 	TARGET_OPTION=--target ${TARGET}
@@ -72,7 +72,7 @@ endif
 # specified.
 ifeq (${RUSTFLAGS},)
 # On x86-64 we want to enable AES-NI support.
-ifneq (,$(findstring x86_64,$(ARCH)))
+ifneq (,$(findstring x86_64,$(RUST_CFG)))
 	RUSTFLAGS += -C target-feature=+aes
 endif
 endif
@@ -145,7 +145,6 @@ ${SOURCE_TAR}: ${TMP_DIR}
 		Cargo.lock \
 		LICENSE \
 		Makefile \
-		scripts \
 		| gzip > "${@}"
 
 ${SOURCE_TAR_CHECKSUM}: ${SOURCE_TAR}
