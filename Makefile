@@ -51,8 +51,12 @@ FEATURES :=
 # Additional flags to pass to rustc.
 RUSTFLAGS :=
 
-# Rust configuration options, used to detect the CPU architecture.
-RUST_CFG != rustc --print cfg
+ifeq (, $(shell command -v rustc 2> /dev/null))
+$(warning "rustc could not be found in your PATH")
+else
+	# Rust configuration options, used to detect the CPU architecture.
+	RUST_CFG != rustc --print cfg
+endif
 
 ifneq (${TARGET},)
 	TARGET_OPTION=--target ${TARGET}
@@ -77,8 +81,16 @@ ifneq (,$(findstring x86_64,$(RUST_CFG)))
 endif
 endif
 
-# The version to build.
-VERSION != cargo pkgid -p inko | cut -d\# -f2 | cut -d: -f2
+# We export RUSTFLAGS here so it's available to all commands, instead of having
+# to pass it explicitly everywhere.
+export RUSTFLAGS
+
+ifeq (, $(shell command -v cargo 2> /dev/null))
+$(warning "The Inko version couldn't be determined, releasing won't be possible")
+else
+	# The version to build.
+	VERSION != cargo pkgid -p inko | cut -d\# -f2 | cut -d: -f2
+endif
 
 # The name of the S3 bucket that contains all releases.
 RELEASES_S3_BUCKET := releases.inko-lang.org
@@ -258,12 +270,10 @@ vm/rustfmt:
 	rustfmt --emit files vm/src/lib.rs cli/src/main.rs
 
 vm/release:
-	cd cli && env RUSTFLAGS="${RUSTFLAGS}" \
-		${CARGO_CMD} build --release ${TARGET_OPTION} ${FEATURES_OPTION}
+	cd cli && ${CARGO_CMD} build --release ${TARGET_OPTION} ${FEATURES_OPTION}
 
 vm/profile:
-	cd cli && env RUSTFLAGS="-g ${RUSTFLAGS}" \
-		${CARGO_CMD} build --release ${TARGET_OPTION} ${FEATURES_OPTION}
+	cd cli && ${CARGO_CMD} build --release ${TARGET_OPTION} ${FEATURES_OPTION}
 
 .PHONY: release/source release/manifest release/changelog release/versions
 .PHONY: release/commit release/publish release/tag
