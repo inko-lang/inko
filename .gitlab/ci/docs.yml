@@ -1,10 +1,15 @@
 docs:master:
   extends:
     - .only-docs-changes
-  image: registry.gitlab.com/inko-lang/development-docker-images:alpine
+  image: registry.gitlab.com/inko-lang/development-docker-images:python
   stage: docs
+  before_script:
+    - poetry config virtualenvs.in-project true
   script:
     - make docs/publish
   only:
     refs:
       - master@inko-lang/inko
+  cache:
+    paths:
+      - .venv
