@@ -104,6 +104,6 @@ mod tests {
 
     #[test]
     fn test_mem_size() {
-        assert_eq!(size_of::<Hasher>(), 32);
+        assert!(size_of::<Hasher>() <= 48);
     }
 }
