@@ -9,7 +9,6 @@ variables:
 
 stages:
   - test
-  - test-runtime
   - docs
   - release
   - post-release

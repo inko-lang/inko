@@ -48,7 +48,7 @@ test:runtime:windows:
     - .only-source-repository
     - .only-runtime-changes
     - .windows-tags
-  stage: test-runtime
+  stage: test
   before_script:
     - ruby --version
     - rustc --version
@@ -60,6 +60,3 @@ test:runtime:windows:
     paths:
       - .cargo
       - vm/target
-  needs:
-    - test:compiler:windows
-    - test:ivm:windows

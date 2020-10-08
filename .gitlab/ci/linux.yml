@@ -39,7 +39,7 @@ test:runtime:linux:
   extends:
     - .only-runtime-changes
   image: registry.gitlab.com/inko-lang/development-docker-images:alpine
-  stage: test-runtime
+  stage: test
   before_script:
     - ruby --version
     - rustc --version
@@ -51,6 +51,3 @@ test:runtime:linux:
     paths:
       - .cargo
       - vm/target
-  needs:
-    - test:compiler:linux
-    - test:ivm:linux

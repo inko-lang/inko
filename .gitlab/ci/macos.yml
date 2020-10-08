@@ -48,7 +48,7 @@ test:runtime:macos:
     - .only-source-repository
     - .only-runtime-changes
     - .macos-tags
-  stage: test-runtime
+  stage: test
   before_script:
     - ruby --version
     - rustc --version
@@ -60,6 +60,3 @@ test:runtime:macos:
     paths:
       - .cargo
       - vm/target
-  needs:
-    - test:compiler:macos
-    - test:ivm:macos
