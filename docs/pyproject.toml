@@ -8,7 +8,7 @@ license = "MPL-2.0"
 [tool.poetry.dependencies]
 python = "^3.8"
 mkdocs = "^1.1"
-mkdocs-material = "^5.5"
+mkdocs-material = "^6.0"
 pygments-inko-lexer = { path = "./plugins/pygments-inko-lexer/" }
 
 # pyinotify is used so `mkdocs serve` doesn't need to poll for changes, reducing

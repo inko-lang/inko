@@ -561,7 +561,7 @@ try {
 In this case `else` is placed on the same line as the closing curly brace of the
 `try` expression.
 
-If `else` argument goes on the same line as `else`:
+The `else` argument goes on the same line as the `else` keyword:
 
 ```inko
 try {
