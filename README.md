@@ -27,40 +27,16 @@ website](https://inko-lang.org/about/).
 
 [![CI sponsored by MacStadium](macstadium.png)](https://www.macstadium.com/)
 
-Inko officially supports Linux, Mac OS, and Windows (when compiled with a MingW
-toolchain such as [MSYS2](http://www.msys2.org/)). Other Unix-like platforms
+Inko officially supports Linux, Mac OS, and Windows. Other Unix-like platforms
 such as the various BSDs should also work, but are not officially supported at
 this time. Inko only supports 64-bits architectures.
 
-## Requirements
+## Installing
 
-Building from source requires the following software to be available:
-
-* Ruby 2.3 or newer and RubyGems, for the compiler
-* Rust 1.34 or newer, using the 2018 edition
-* Make 4.0 or newer
-
-For Unix systems or MSYS2 on Windows you also need the following software:
-
-* autoconf
-* automake
-* libtool
-
-### AES-NI
-
-By default the VM is built with AES-NI support to speed up various hashing
-operations. If your CPU does not support AES-NI, build the VM using either:
-
-1. `cargo build --release` in the `vm/` directory
-1. `make release RUSTFLAGS=""` in the `vm/` directory
-
-Pretty much all Intel and AMD x86-64 CPUs since 2010 have AES-NI support, so
-it's unlikely you'll need to disable AES-NI support.
-
-## Installation
-
-Detailed installation instructions about the installation process can be found
-at [Installing Inko](https://inko-lang.org/manual/install/) on the Inko website.
+Details about how to install Inko and its requirements can be found in the
+["Installing
+Inko"](https://docs.inko-lang.org/manual/master/getting-started/installation/)
+guide in the Inko manual.
 
 ## License
 
