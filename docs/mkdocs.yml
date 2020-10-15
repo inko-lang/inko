@@ -32,6 +32,7 @@ nav:
     - getting-started/ivm.md
     - getting-started/text-editor-setup.md
     - getting-started/our-first-program.md
+    - getting-started/static-typing.md
     - getting-started/basic-types.md
     - getting-started/blocks.md
     - getting-started/objects.md
