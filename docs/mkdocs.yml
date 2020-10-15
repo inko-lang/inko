@@ -40,6 +40,7 @@ nav:
     - getting-started/objects.md
     - getting-started/traits.md
     - getting-started/variables.md
+    - getting-started/operators.md
     - getting-started/modules.md
 extra:
   social:
