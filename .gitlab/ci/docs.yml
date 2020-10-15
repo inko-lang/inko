@@ -14,3 +14,7 @@ docs:master:
     key: docs-master
     paths:
       - docs/.venv
+  retry:
+    max: 2
+    when:
+      - script_failure
