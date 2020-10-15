@@ -41,3 +41,17 @@ nav:
     - getting-started/traits.md
     - getting-started/variables.md
     - getting-started/modules.md
+extra:
+  social:
+    - icon: fontawesome/brands/gitlab
+      link: https://gitlab.com/inko-lang/inko
+      name: View on GitLab
+    - icon: fontawesome/regular/comment
+      link: https://matrix.to/#/+inko:matrix.org
+      name: Chat using Matrix
+    - icon: fontawesome/brands/twitter
+      link: https://twitter.com/yorickpeterse
+      name: Follow on Twitter
+    - icon: fontawesome/brands/reddit
+      link: https://reddit.com/r/inko
+      name: Join the /r/inko subreddit
