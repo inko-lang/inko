@@ -43,6 +43,7 @@ nav:
     - getting-started/variables.md
     - getting-started/operators.md
     - getting-started/control-flow.md
+    - getting-started/optional-values.md
 extra:
   social:
     - icon: fontawesome/brands/gitlab
