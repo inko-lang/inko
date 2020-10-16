@@ -48,6 +48,44 @@ keyword:
 lambda { 10 }.call
 ```
 
+## Returning from blocks
+
+The return value of a block is the last expression evaluated:
+
+```inko
+{
+  10
+  20
+}.call # => 20
+```
+
+If a method doesn't define a return type, it always returns `Nil`.
+
+The `return` keyword is used to return from the surrounding method, and can only
+be used in blocks used in a method:
+
+```inko
+def example -> Integer {
+  Array.new(10, 20, 30).each do (number) {
+    return number
+  }
+}
+
+example # => 10
+```
+
+A `return` at the module-level is invalid:
+
+```inko
+def foo {}
+
+return # This is invalid, because we are not inside a method
+```
+
+If you use `return` without a value, it will return `Nil`. If the surrounding
+method specifies a return type, the returned value must be compatible with this
+type. If a method doesn't define a return type, you can only `return` a `Nil`.
+
 ## Arguments
 
 Methods can take zero or more arguments. Arguments can be required or optional.
@@ -114,6 +152,20 @@ explicit argument type.
     Support for inferring closure/lambda arguments types is limited, and only
     works when the block is directly passed as an argument. This may be improved
     upon in the future.
+
+## Mutable arguments
+
+A mutable argument is an argument that can be assigned a new value, provided
+this value is compatible with the argument type. To make an argument mutable,
+add the `mut` keyword before the argument name:
+
+```inko
+def foo(mut number = 10) {
+  number = 20
+}
+```
+
+This works for all argument types.
 
 ## Keyword arguments
 
