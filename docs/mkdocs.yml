@@ -46,6 +46,7 @@ nav:
     - getting-started/type-casts.md
     - getting-started/optional-values.md
     - getting-started/error-handling.md
+    - getting-started/concurrency.md
 extra:
   social:
     - icon: fontawesome/brands/gitlab

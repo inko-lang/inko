@@ -3,7 +3,7 @@ message: "'%s' may be passive voice. Use active voice if you can."
 ignorecase: true
 level: error
 raw:
-  - \b(am|are|were|being|been|was)\b\s*
+  - \b(am|were|being|been|was)\b\s*
 tokens:
   - '[\w]+ed'
   - awoken
