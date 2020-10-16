@@ -99,7 +99,7 @@ This results in Inko running `1 + '2'`, producing a compile-time error.
 
 ## Not-nil operator
 
-There exists on special operator: the postfix `!` operator, also known as the
+There exists one special postfix operator: the `!` operator, also known as the
 not-nil operator. This operator is only available to optional types, and only
 exists at compile-time. This operator is used to convert a `?T` to a `T`,
 without any runtime checks. For example:
@@ -112,4 +112,81 @@ def foo(value: ?Thing) {
 }
 
 def bar(value: Thing) {}
+```
+
+## Indexing operators
+
+There are two operators used for indexing/slicing: `[]` and `[]=`. The `[]`
+operator is used for accessing an index, while `[]=` is used for assigning a
+value to an index. You use these as follows:
+
+```inko
+values[0]
+values[0] = 42
+```
+
+These operators are just messages, meaning the above example translates to the
+following:
+
+```inko
+values.[](0)
+values.[]=(0, 42)
+```
+
+Objects can support these operators by implementing the following methods:
+
+* `def [](index: K) -> R`
+* `def []=(index: K, value: V) -> R`
+
+Here `K` is the type of the index, such as an `Integer` or a `String`. `R` is
+the return type, and `V` is the type of the value to set.
+
+Instead of implementing these methods manually, you should implement the traits
+`std::index::Index` and `std::index::SetIndex`. This ensures types providing
+these operators do so using a consistent interface. Let's say we have a type for
+storing single characters, defined like so:
+
+```inko
+object Chars {
+  @chars: Array!(String)
+
+  def init(chars: Array!(String)) {
+    @chars = chars
+  }
+}
+```
+
+We want to use it like so:
+
+```inko
+let chars = Chars.new(Array.new('a', 'b', 'c'))
+
+chars[0]       # => 'a'
+chars[1] = 'd' # => 'd'
+```
+
+To achieve this, we implement the traits from `std::index` as follows:
+
+```inko
+import std::index::(Index, SetIndex)
+
+object Chars {
+  @chars: Array!(String)
+
+  def init(chars: Array!(String)) {
+    @chars = chars
+  }
+}
+
+impl Index!(Integer, String) for Chars {
+  def [](index: Integer) -> ?String {
+    @chars[index]
+  }
+}
+
+impl SetIndex!(Integer, String) for Chars {
+  def []=(index: Integer, value: String) -> String {
+    @chars[index] = value
+  }
+}
 ```

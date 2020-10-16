@@ -99,7 +99,8 @@ This also works for double quotes:
 ## Booleans
 
 The boolean types are `True` and `False`, which are instances of the `Boolean`
-type.
+type. Most languages use dedicated keywords for booleans, such as `true` and
+`false` in Ruby. In Inko, booleans are just constants.
 
 ## Arrays
 
@@ -198,6 +199,20 @@ To create a method, use the `def` keyword:
 def hello {
   # ...
 }
+```
+
+Method names are alphanumerical, can contain underscores, and may end in a
+single question mark (`?`). Method names can also be single binary operators
+such as `+` and `/`, and the special indexing operators `[]` and `[]=`. Here are
+just a few examples:
+
+```inko
+def [](index: Integer) {}
+def []=(index: Integer, value: Integer) {}
+def /(value: Integer) {}
+def foo {}
+def foo_bar {}
+def valid? {}
 ```
 
 To create a closure, use the `do` keyword:
