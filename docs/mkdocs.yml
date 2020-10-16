@@ -39,9 +39,10 @@ nav:
     - getting-started/blocks.md
     - getting-started/objects.md
     - getting-started/traits.md
+    - getting-started/modules.md
     - getting-started/variables.md
     - getting-started/operators.md
-    - getting-started/modules.md
+    - getting-started/control-flow.md
 extra:
   social:
     - icon: fontawesome/brands/gitlab
