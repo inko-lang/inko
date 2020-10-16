@@ -1,0 +1,19 @@
+# See https://jorisroovers.com/gitlint/rules/ for all the available rules.
+[general]
+extra-path=gitlint
+ignore=title-trailing-punctuation,body-min-length,body-is-missing,
+       body-changed-file-mention,body-max-line-length
+
+ignore-merge-commits=true
+ignore-revert-commits=true
+ignore-fixup-commits=true
+ignore-squash-commits=true
+
+[title-max-length]
+line-length=50
+
+[inko-body-line-length]
+line-length=72
+
+[title-must-not-contain-word]
+words=wip

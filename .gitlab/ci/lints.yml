@@ -65,3 +65,11 @@ lint:docs:
     - vale --version
   script:
     - vale --no-wrap --sort docs/source
+
+lint:gitlint:
+  image: registry.gitlab.com/inko-lang/development-docker-images:python
+  stage: test
+  before_script:
+    - gitlint --version
+  script:
+    - gitlint --commits "HEAD~$((GIT_DEPTH - 1))..HEAD"
