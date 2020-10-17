@@ -51,6 +51,7 @@ nav:
   - Guides:
     - guides/index.md
     - guides/iterators.md
+    - guides/sockets.md
 extra:
   social:
     - icon: fontawesome/brands/gitlab
