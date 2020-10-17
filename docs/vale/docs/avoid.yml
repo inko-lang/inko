@@ -1,7 +1,8 @@
 extends: substitution
-message: Avoid using '%s', instead use '%s'
+message: Use '%s' instead of '%s'
 level: error
 ignorecase: true
 swap:
   Some of the: Some
   as following: as follows
+  can not: "can't"

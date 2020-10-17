@@ -250,7 +250,7 @@ vm.panicking {
 }
 ```
 
-Note that you can not restore the global panic handler after you have redefined
+Note that you can't restore the global panic handler after you have redefined
 it. Also keep in mind that if you overwrite the global panic handler, Inko will
 _not_ stop the program for you, as this is done by the default global handler.
 This means that if you still want to stop the program, you have to do so
