@@ -45,6 +45,7 @@ nav:
     - getting-started/control-flow.md
     - getting-started/type-casts.md
     - getting-started/optional-values.md
+    - getting-started/generics.md
     - getting-started/error-handling.md
     - getting-started/concurrency.md
 extra:
