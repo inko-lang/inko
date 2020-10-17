@@ -212,3 +212,30 @@ object Person {
 
 Sometimes you _do_ need to use `self`. For example, if a method takes an
 argument with the same name as another method.
+
+## Reopening objects
+
+An object can be reopened in any module, allowing you to add new methods after
+its initial definition. This is done as follows:
+
+```inko
+object Person {
+  @name: String
+
+  def init(name: String) {
+    @name = name
+  }
+}
+
+impl Person {
+  def name -> String {
+    @name
+  }
+}
+```
+
+Here we reopen `Person`, and add the `name` instance method to it.
+
+!!! note
+    If you want to define a custom `init` constructor method, you must do so
+    when defining the object for the first time.
