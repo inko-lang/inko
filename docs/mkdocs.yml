@@ -48,6 +48,9 @@ nav:
     - getting-started/generics.md
     - getting-started/error-handling.md
     - getting-started/concurrency.md
+  - Guides:
+    - guides/index.md
+    - guides/iterators.md
 extra:
   social:
     - icon: fontawesome/brands/gitlab
