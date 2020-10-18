@@ -52,6 +52,12 @@ nav:
     - guides/index.md
     - guides/iterators.md
     - guides/sockets.md
+  - Virtual machine:
+    - virtual-machine/introduction.md
+    - virtual-machine/configuration.md
+    - virtual-machine/bytecode.md
+    - virtual-machine/memory-management.md
+    - virtual-machine/scheduling.md
 extra:
   social:
     - icon: fontawesome/brands/gitlab
