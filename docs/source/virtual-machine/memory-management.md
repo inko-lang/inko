@@ -74,10 +74,10 @@ memory. This greatly speeds up garbage collection performance, but also poses a
 bit of a problem: if an object wraps a certain structure (e.g. a socket), we
 would leak that structure.
 
-IVM solves this by finalising such structures when reusing their memory. When we
-are about to allocate a new object, we first check if the memory contains an
-object that has yet to be finalised. If so, we finalise it before overwriting
-the memory.
+Inko's VM solves this by finalising such structures when reusing their memory.
+When we are about to allocate a new object, we first check if the memory
+contains an object that has yet to be finalised. If so, we finalise it before
+overwriting the memory.
 
 Finalisation is not exposed to the language, instead it's a system used to
 reclaim memory of certain data structures (sockets, file handles, and so on),
@@ -158,7 +158,7 @@ garbage collector, as all objects are of an identical size.
 ## Allocation optimisations
 
 Integers that fit in a 62 bits signed integer are not heap allocated, instead
-IVM uses [tagged pointers][tagged-pointers]. 64 bits integers are heap
+the VM uses [tagged pointers][tagged-pointers]. 64 bits integers are heap
 allocated, while integers larger than 64 bits are allocated as arbitrary
 precision integers. When an integer is tagged, the first lower bit of the
 pointer is set to `1`.
