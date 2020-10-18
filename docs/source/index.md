@@ -1,9 +1,5 @@
 # Introduction
 
-!!! note
-    We are still working on porting content from our old manual into this new
-    one. Until this work is complete, some documentation may be missing.
-
 Welcome to the Inko manual. The manual contains a wide range of topics, such as
 guides for beginners, the internals of the virtual machine, how to contribute to
 Inko, and more. The manual assumes you have prior experience working with
