@@ -29,6 +29,7 @@ nav:
     - index.md
     - inko-compared-to-other-languages.md
     - style-guide.md
+    - contributing.md
   - Getting started:
     - getting-started/installation.md
     - getting-started/ivm.md

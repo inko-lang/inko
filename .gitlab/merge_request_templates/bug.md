@@ -1,20 +1,11 @@
-<!--
-This template contains various comments (like this). These should be replaced
-with the content they ask for (e.g. a summary). Once done, make sure all are
-removed, including this one.
--->
-
-## Details
-
 <!-- Provide a detailed description of this merge request here. -->
 
-## Corresponding issue
+## Related issues
 
-<!-- Add a link to the issue describing the bug. -->
+<!-- Add links to the issues related to this bug. -->
 
 ## Checklist
 
 * [ ] Added tests
-* [ ] Inko source code follows the [Inko style guide](https://inko-lang.org/manual/style-guide/)
 
 /label ~type::Bug

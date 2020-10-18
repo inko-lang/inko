@@ -1,47 +1,25 @@
-<!--
-This template contains various comments (like this). These should be replaced
-with the content they ask for (e.g. a summary). Once done, make sure all are
-removed, including this one.
--->
-
 ## Details
 
-<!-- Provide a detailed description of the bug you encountered. -->
+<!--
+Provide a detailed description of the bug you encountered, what you expected to
+happen, etc. Please provide as many details as possible.
+-->
 
-## Expected behaviour
+## How to reproduce the bug
 
-<!-- Describe what you expected to happen. -->
-
-## Actual behaviour
-
-<!-- Describe what actually happened. -->
+<!--
+Include a list of steps that reproduce the bug. Please reduce this list of steps
+to the essentials, as this makes it easier for maintainers to help you.
+-->
 
 ## System information
 
-Operating system and version used: ADD HERE
+<!-- Replace XXX with the value, such as the Inko version -->
 
-Output of `ivm --version`
-
-```
-ADD HERE
-```
-
-Output of `inko --version`:
-
-```
-ADD HERE
-```
-
-Output of `uname -a`:
-
-```
-ADD HERE
-```
-
-Output of `cargo --version`:
-
-```
-cargo --version
-```
+* Operating system (Linux, macOS, etc): XXX
+* Inko version (see `inko --version`): XXX
+* Rust version (see `rustc --version`): XXX
+* cargo version (see `cargo --version`): XXX
+* How did you install Inko (from source, using ivm, etc): XXX
 
 /label ~type::Bug
