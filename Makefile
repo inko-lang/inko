@@ -48,16 +48,6 @@ TARGET :=
 # The list of features to enable when building the VM.
 FEATURES :=
 
-# Additional flags to pass to rustc.
-RUSTFLAGS :=
-
-ifeq (, $(shell command -v rustc 2> /dev/null))
-$(warning "rustc could not be found in your PATH")
-else
-	# Rust configuration options, used to detect the CPU architecture.
-	RUST_CFG != rustc --print cfg
-endif
-
 ifneq (${TARGET},)
 	TARGET_OPTION=--target ${TARGET}
 	TARGET_BINARY=target/${TARGET}/release/inko
@@ -71,19 +61,6 @@ ifneq (${FEATURES},)
 else
 	FEATURES_OPTION=
 endif
-
-# Add any default RUSTFLAGS variables, unless we a custom RUSTFLAGS is
-# specified.
-ifeq (${RUSTFLAGS},)
-# On x86-64 we want to enable AES-NI support.
-ifneq (,$(findstring x86_64,$(RUST_CFG)))
-	RUSTFLAGS += -C target-feature=+aes
-endif
-endif
-
-# We export RUSTFLAGS here so it's available to all commands, instead of having
-# to pass it explicitly everywhere.
-export RUSTFLAGS
 
 ifeq (, $(shell command -v cargo 2> /dev/null))
 $(warning "The Inko version couldn't be determined, releasing won't be possible")
@@ -158,6 +135,7 @@ ${SOURCE_TAR}: ${TMP_DIR}
 		runtime/src \
 		cli \
 		vm \
+		.cargo \
 		Cargo.toml \
 		Cargo.lock \
 		LICENSE \
