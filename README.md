@@ -2,11 +2,13 @@
 
 **Inko** is a statically-typed, safe, object-oriented programming languages for
 writing concurrent programs. By using lightweight isolated processes, data race
-conditions can not occur. The syntax is easy to learn and remember, and thanks
-to its error handling model you will never have to worry about unexpected
-runtime errors.
+conditions can't occur. The syntax is easy to learn and remember, and thanks to
+its error handling model you will never have to worry about unexpected runtime
+errors.
 
-For more information, see the [Inko website](https://inko-lang.org/).
+For more information, see the [Inko website](https://inko-lang.org/). If you'd
+like to follow this project but don't have a GitLab account, please consider
+starring our [GitHub mirror](https://github.com/YorickPeterse/inko).
 
 ## Features
 
