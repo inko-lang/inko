@@ -1,24 +1,24 @@
 ---
 .windows-tags:
   tags:
+    - shared-windows
     - windows
-    - inko
-    - vbox
+    - windows-1809
 
 test:compiler:windows:
   extends:
-    - .only-source-repository
     - .only-compiler-changes
     - .windows-tags
   stage: test
   before_script:
-    - ruby --version
-    - gem --version
-    - bundle --version
+    - ./scripts/run.ps1 choco install make --yes
     - cd compiler
     - bundle config set path vendor
     - bundle install --retry=3
     - cd ..
+    - ruby --version
+    - gem --version
+    - bundle --version
   script:
     - make compiler/test
   cache:
@@ -28,11 +28,11 @@ test:compiler:windows:
 
 test:ivm:windows:
   extends:
-    - .only-source-repository
     - .only-vm-changes
     - .windows-tags
   stage: test
   before_script:
+    - ./scripts/run.ps1 choco install rust-ms make --yes
     - rustc --version
     - cargo --version
   script:
@@ -45,11 +45,11 @@ test:ivm:windows:
 
 test:runtime:windows:
   extends:
-    - .only-source-repository
     - .only-runtime-changes
     - .windows-tags
   stage: test
   before_script:
+    - ./scripts/run.ps1 choco install rust-ms make --yes
     - ruby --version
     - rustc --version
     - cargo --version
