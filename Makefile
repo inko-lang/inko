@@ -132,6 +132,11 @@ ifneq (${DEV},)
 	export INKO_COMPILER_BIN = $(realpath compiler/bin/inkoc)
 	export INKO_COMPILER_LIB = $(realpath compiler/lib)
 	export INKO_RUNTIME_LIB = $(realpath runtime/src)
+
+	# Enable incremental compilation for dev builds. This slows down the final
+	# binaries a bit, but for development builds this is worth the reduction in
+	# compile times.
+	export CARGO_INCREMENTAL = 1
 else
 	export INKO_COMPILER_BIN = ${LOAD_COMPILER_BIN}
 	export INKO_COMPILER_LIB = ${LOAD_COMPILER_DIR}
