@@ -269,6 +269,7 @@ impl State {
         self.scheduler.terminate();
         self.gc_pool.terminate();
         self.timeout_worker.terminate();
+        self.network_poller.terminate();
     }
 
     pub fn set_exit_status(&self, new_status: i32) {

@@ -1,4 +1,4 @@
-use crate::network_poller::interest::Interest;
+use crate::network_poller::Interest;
 use crate::object_pointer::ObjectPointer;
 use crate::object_value;
 use crate::process::RcProcess;
@@ -6,34 +6,6 @@ use crate::runtime_error::RuntimeError;
 use crate::socket::Socket;
 use crate::vm::instructions::io;
 use crate::vm::state::RcState;
-
-macro_rules! allocate_bool {
-    ($state: expr, $expr:expr) => {
-        if $expr {
-            $state.true_object
-        } else {
-            $state.false_object
-        }
-    };
-}
-
-macro_rules! allocate_usize {
-    ($state:expr, $process:expr, $expr:expr) => {
-        $process.allocate_usize($expr, $state.integer_prototype)
-    };
-}
-
-macro_rules! allocate_f64 {
-    ($state:expr, $process:expr, $expr:expr) => {
-        $process.allocate(object_value::float($expr), $state.float_prototype)
-    };
-}
-
-macro_rules! to_u32 {
-    ($expr:expr) => {
-        $expr.u32_value()?
-    };
-}
 
 const TTL: i64 = 0;
 const ONLY_V6: i64 = 1;
@@ -52,6 +24,18 @@ const MULTICAST_IF_V6: i64 = 13;
 const UNICAST_HOPS_V6: i64 = 14;
 const REUSE_ADDRESS: i64 = 15;
 const REUSE_PORT: i64 = 16;
+
+macro_rules! ret {
+    ($result:expr, $state:expr, $proc:expr, $sock:expr, $interest:expr) => {{
+        if let Err(ref err) = $result {
+            if err.should_poll() {
+                $sock.register($proc, &$state.network_poller, $interest)?;
+            }
+        }
+
+        $result
+    }};
+}
 
 #[inline(always)]
 pub fn socket_create(
@@ -76,14 +60,9 @@ pub fn socket_write(
     input_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, RuntimeError> {
     let sock = socket_ptr.socket_value_mut()?;
+    let res = io::io_write(state, process, sock, input_ptr);
 
-    socket_result(
-        io::io_write(state, process, sock, input_ptr),
-        state,
-        process,
-        sock,
-        Interest::Write,
-    )
+    ret!(res, state, process, sock, Interest::Write)
 }
 
 #[inline(always)]
@@ -106,7 +85,7 @@ pub fn socket_read(
         .read(buffer, amount)
         .map(|read| process.allocate_usize(read, state.integer_prototype));
 
-    socket_result(result, state, process, sock, Interest::Read)
+    ret!(result, state, process, sock, Interest::Read)
 }
 
 #[inline(always)]
@@ -135,7 +114,7 @@ pub fn socket_bind(
     let port = port_ptr.u16_value()?;
     let result = sock.bind(addr, port).map(|_| state.nil_object);
 
-    socket_result(result, state, process, sock, Interest::Read)
+    ret!(result, state, process, sock, Interest::Read)
 }
 
 #[inline(always)]
@@ -151,7 +130,7 @@ pub fn socket_connect(
     let port = port_ptr.u16_value()?;
     let result = sock.connect(addr, port).map(|_| state.nil_object);
 
-    socket_result(result, state, process, sock, Interest::Write)
+    ret!(result, state, process, sock, Interest::Write)
 }
 
 #[inline(always)]
@@ -166,7 +145,7 @@ pub fn socket_accept(
         .accept()
         .map(|sock| process.allocate(object_value::socket(sock), proto_ptr));
 
-    socket_result(result, state, process, sock, Interest::Read)
+    ret!(result, state, process, sock, Interest::Read)
 }
 
 #[inline(always)]
@@ -184,7 +163,7 @@ pub fn socket_receive_from(
         .recv_from(&mut buffer, amount)
         .map(|(addr, port)| allocate_address_pair(state, process, addr, port));
 
-    socket_result(result, state, process, sock, Interest::Read)
+    ret!(result, state, process, sock, Interest::Read)
 }
 
 #[inline(always)]
@@ -204,7 +183,7 @@ pub fn socket_send_to(
         .send_to(buffer, address, port)
         .map(|bytes| process.allocate_usize(bytes, state.integer_prototype));
 
-    socket_result(result, state, process, sock, Interest::Write)
+    ret!(result, state, process, sock, Interest::Write)
 }
 
 #[inline(always)]
@@ -239,7 +218,7 @@ pub fn socket_set_option(
     let option = option_pointer.integer_value()?;
 
     match option {
-        TTL => sock.set_ttl(to_u32!(val_pointer))?,
+        TTL => sock.set_ttl(val_pointer.u32_value()?)?,
         ONLY_V6 => sock.set_only_v6(is_true!(state, val_pointer))?,
         NODELAY => sock.set_nodelay(is_true!(state, val_pointer))?,
         BROADCAST => sock.set_broadcast(is_true!(state, val_pointer))?,
@@ -253,15 +232,21 @@ pub fn socket_set_option(
         MULTICAST_LOOP_V6 => {
             sock.set_multicast_loop_v6(is_true!(state, val_pointer))?
         }
-        MULTICAST_TTL_V4 => sock.set_multicast_ttl_v4(to_u32!(val_pointer))?,
+        MULTICAST_TTL_V4 => {
+            sock.set_multicast_ttl_v4(val_pointer.u32_value()?)?
+        }
         MULTICAST_HOPS_V6 => {
-            sock.set_multicast_hops_v6(to_u32!(val_pointer))?
+            sock.set_multicast_hops_v6(val_pointer.u32_value()?)?
         }
         MULTICAST_IF_V4 => {
             sock.set_multicast_if_v4(val_pointer.string_value()?)?
         }
-        MULTICAST_IF_V6 => sock.set_multicast_if_v6(to_u32!(val_pointer))?,
-        UNICAST_HOPS_V6 => sock.set_unicast_hops_v6(to_u32!(val_pointer))?,
+        MULTICAST_IF_V6 => {
+            sock.set_multicast_if_v6(val_pointer.u32_value()?)?
+        }
+        UNICAST_HOPS_V6 => {
+            sock.set_unicast_hops_v6(val_pointer.u32_value()?)?
+        }
         REUSE_ADDRESS => {
             sock.set_reuse_address(is_true!(state, val_pointer))?
         }
@@ -287,34 +272,30 @@ pub fn socket_get_option(
     let sock = socket_pointer.socket_value()?;
     let option = option_pointer.integer_value()?;
     let result = match option {
-        TTL => allocate_usize!(state, process, sock.ttl()?),
-        ONLY_V6 => allocate_bool!(state, sock.only_v6()?),
-        NODELAY => allocate_bool!(state, sock.nodelay()?),
-        BROADCAST => allocate_bool!(state, sock.broadcast()?),
-        LINGER => allocate_f64!(state, process, sock.linger()?),
-        RECV_SIZE => allocate_usize!(state, process, sock.recv_buffer_size()?),
-        SEND_SIZE => allocate_usize!(state, process, sock.send_buffer_size()?),
-        KEEPALIVE => allocate_f64!(state, process, sock.keepalive()?),
-        MULTICAST_LOOP_V4 => allocate_bool!(state, sock.multicast_loop_v4()?),
-        MULTICAST_LOOP_V6 => allocate_bool!(state, sock.multicast_loop_v6()?),
+        TTL => alloc_usize(state, process, sock.ttl()?),
+        ONLY_V6 => alloc_bool(state, sock.only_v6()?),
+        NODELAY => alloc_bool(state, sock.nodelay()?),
+        BROADCAST => alloc_bool(state, sock.broadcast()?),
+        LINGER => alloc_f64(state, process, sock.linger()?),
+        RECV_SIZE => alloc_usize(state, process, sock.recv_buffer_size()?),
+        SEND_SIZE => alloc_usize(state, process, sock.send_buffer_size()?),
+        KEEPALIVE => alloc_f64(state, process, sock.keepalive()?),
+        MULTICAST_LOOP_V4 => alloc_bool(state, sock.multicast_loop_v4()?),
+        MULTICAST_LOOP_V6 => alloc_bool(state, sock.multicast_loop_v6()?),
         MULTICAST_TTL_V4 => {
-            allocate_usize!(state, process, sock.multicast_ttl_v4()?)
+            alloc_usize(state, process, sock.multicast_ttl_v4()?)
         }
         MULTICAST_HOPS_V6 => {
-            allocate_usize!(state, process, sock.multicast_hops_v6()?)
+            alloc_usize(state, process, sock.multicast_hops_v6()?)
         }
         MULTICAST_IF_V4 => process.allocate(
             object_value::string(sock.multicast_if_v4()?),
             state.string_prototype,
         ),
-        MULTICAST_IF_V6 => {
-            allocate_usize!(state, process, sock.multicast_if_v6()?)
-        }
-        UNICAST_HOPS_V6 => {
-            allocate_usize!(state, process, sock.unicast_hops_v6()?)
-        }
-        REUSE_ADDRESS => allocate_bool!(state, sock.reuse_address()?),
-        REUSE_PORT => allocate_bool!(state, sock.reuse_port()?),
+        MULTICAST_IF_V6 => alloc_usize(state, process, sock.multicast_if_v6()?),
+        UNICAST_HOPS_V6 => alloc_usize(state, process, sock.unicast_hops_v6()?),
+        REUSE_ADDRESS => alloc_bool(state, sock.reuse_address()?),
+        REUSE_PORT => alloc_bool(state, sock.reuse_port()?),
         _ => {
             return Err(RuntimeError::Panic(format!(
                 "The sock option {} is not valid",
@@ -355,18 +336,26 @@ fn allocate_address_pair(
     )
 }
 
-fn socket_result(
-    result: Result<ObjectPointer, RuntimeError>,
+fn alloc_usize(
     state: &RcState,
     process: &RcProcess,
-    socket: &mut Socket,
-    interest: Interest,
-) -> Result<ObjectPointer, RuntimeError> {
-    if let Err(ref err) = result {
-        if err.should_poll() {
-            socket.register(process, &state.network_poller, interest)?;
-        }
-    }
+    value: usize,
+) -> ObjectPointer {
+    process.allocate_usize(value, state.integer_prototype)
+}
 
-    result
+fn alloc_f64(
+    state: &RcState,
+    process: &RcProcess,
+    value: f64,
+) -> ObjectPointer {
+    process.allocate(object_value::float(value), state.float_prototype)
+}
+
+fn alloc_bool(state: &RcState, value: bool) -> ObjectPointer {
+    if value {
+        state.true_object
+    } else {
+        state.false_object
+    }
 }

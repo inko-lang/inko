@@ -1,9 +1,7 @@
 pub mod socket_address;
 
-use crate::arc_without_weak::ArcWithoutWeak;
 use crate::duration;
-use crate::network_poller::event_id::EventId;
-use crate::network_poller::interest::Interest;
+use crate::network_poller::Interest;
 use crate::network_poller::NetworkPoller;
 use crate::process::RcProcess;
 use crate::runtime_error::RuntimeError;
@@ -15,6 +13,7 @@ use std::net::Ipv4Addr;
 use std::net::Shutdown;
 use std::net::{IpAddr, SocketAddr};
 use std::slice;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 #[cfg(unix)]
 use libc::{EINPROGRESS, EISCONN};
@@ -159,7 +158,7 @@ pub struct Socket {
     /// flags. For example, epoll requires the use of EPOLL_CTL_MOD when
     /// overwriting a registration, as using EPOLL_CTL_ADD will produce an error
     /// if a file descriptor is already registered.
-    registered: bool,
+    registered: AtomicBool,
 
     /// A flag indicating if we're dealing with a UNIX socket or not.
     unix: bool,
@@ -201,7 +200,7 @@ impl Socket {
 
         Ok(Socket {
             socket,
-            registered: false,
+            registered: AtomicBool::new(false),
             unix: domain_int == DOMAIN_UNIX,
         })
     }
@@ -264,9 +263,6 @@ impl Socket {
         poller: &NetworkPoller,
         interest: Interest,
     ) -> Result<(), RuntimeError> {
-        let event_id =
-            EventId(ArcWithoutWeak::into_raw(process.clone()) as u64);
-
         // Once registered, the process might be rescheduled immediately if
         // there is data available. This means that once we (re)register the
         // socket, it is not safe to use "self" anymore.
@@ -274,15 +270,12 @@ impl Socket {
         // To deal with this we:
         //
         // 1. Set "registered" _first_ (if necessary)
-        //
-        // 2. Return the value of register/reregister directly, ensuring that
-        //    any code after it triggers a compilation error.
-        if self.registered {
-            Ok(poller.reregister(&self.socket, event_id, interest)?)
+        // 2. Add the socket to the poller
+        if self.registered.load(Ordering::Acquire) {
+            Ok(poller.modify(process, &self.socket, interest)?)
         } else {
-            self.registered = true;
-
-            Ok(poller.register(&self.socket, event_id, interest)?)
+            self.registered.store(true, Ordering::Release);
+            Ok(poller.add(process, &self.socket, interest)?)
         }
 
         // *DO NOT* use "self" from here on.
@@ -297,7 +290,7 @@ impl Socket {
 
         Ok(Socket {
             socket,
-            registered: false,
+            registered: AtomicBool::new(false),
             unix: self.unix,
         })
     }
@@ -469,7 +462,7 @@ impl Clone for Socket {
                 .socket
                 .try_clone()
                 .expect("Failed to clone the socket"),
-            registered: false,
+            registered: AtomicBool::new(false),
             unix: self.unix,
         }
     }
@@ -481,13 +474,13 @@ mod tests {
 
     #[test]
     fn test_clone() {
-        let mut socket1 = Socket::new(0, 0).unwrap();
+        let socket1 = Socket::new(0, 0).unwrap();
 
-        socket1.registered = true;
+        socket1.registered.store(true, Ordering::Release);
 
         let socket2 = socket1.clone();
 
-        assert_eq!(socket2.registered, false);
+        assert_eq!(socket2.registered.load(Ordering::Acquire), false);
         assert_eq!(socket2.unix, false);
     }
 }

@@ -1,111 +1,155 @@
 //! Polling of non-blocking sockets using the system's polling mechanism.
-pub mod event_id;
-pub mod interest;
-pub mod worker;
+use crate::arc_without_weak::ArcWithoutWeak;
+use crate::process::RcProcess;
+use crate::vm::state::RcState;
+use polling::{Event, Poller, Source};
+use std::io;
+use std::sync::atomic::{AtomicBool, Ordering};
 
-#[cfg(unix)]
-pub mod unix;
+/// The type of event a poller should wait for.
+pub enum Interest {
+    /// We're only interested in read operations.
+    Read,
 
-#[cfg(target_os = "linux")]
-pub mod epoll;
+    /// We're only interested in write operations.
+    Write,
+}
 
-#[cfg(any(
-    target_os = "freebsd",
-    target_os = "openbsd",
-    target_os = "netbsd",
-    target_os = "dragonfly",
-    target_os = "macos"
-))]
-pub mod kqueue;
+/// A poller for non-blocking sockets.
+pub struct NetworkPoller {
+    poller: Poller,
+    alive: AtomicBool,
+}
 
-#[cfg(windows)]
-pub mod wepoll;
+impl NetworkPoller {
+    pub fn new() -> Self {
+        NetworkPoller {
+            poller: Poller::new().expect("Failed to set up the network poller"),
+            alive: AtomicBool::new(true),
+        }
+    }
 
-#[cfg(target_os = "linux")]
-use crate::network_poller::epoll as sys;
+    pub fn poll(&self, events: &mut Vec<Event>) -> io::Result<bool> {
+        self.poller.wait(events, None)?;
+        Ok(self.is_alive())
+    }
 
-#[cfg(any(
-    target_os = "freebsd",
-    target_os = "openbsd",
-    target_os = "netbsd",
-    target_os = "dragonfly",
-    target_os = "macos"
-))]
-use crate::network_poller::kqueue as sys;
+    pub fn add(
+        &self,
+        process: &RcProcess,
+        source: impl Source,
+        interest: Interest,
+    ) -> io::Result<()> {
+        self.poller.add(source, self.event(process, interest))
+    }
 
-#[cfg(windows)]
-use crate::network_poller::wepoll as sys;
+    pub fn modify(
+        &self,
+        process: &RcProcess,
+        source: impl Source,
+        interest: Interest,
+    ) -> io::Result<()> {
+        self.poller.modify(source, self.event(process, interest))
+    }
 
-/// A type for polling non-blocking sockets.
-pub type NetworkPoller = sys::NetworkPoller;
+    pub fn terminate(&self) {
+        self.alive.store(false, Ordering::Release);
+        self.poller
+            .notify()
+            .expect("Failed to notify the poller to terminate");
+    }
 
-/// A collection of events produced by a `NetworkPoller`.
-pub type Events = sys::Events;
+    pub fn is_alive(&self) -> bool {
+        self.alive.load(Ordering::Acquire)
+    }
+
+    fn event(&self, process: &RcProcess, interest: Interest) -> Event {
+        let key = ArcWithoutWeak::into_raw(process.clone()) as usize;
+
+        match interest {
+            Interest::Read => Event::readable(key),
+            Interest::Write => Event::writable(key),
+        }
+    }
+}
+
+/// A thread that polls a poller and reschedules processes.
+pub struct Worker {
+    state: RcState,
+}
+
+impl Worker {
+    pub fn new(state: RcState) -> Self {
+        Worker { state }
+    }
+
+    pub fn run(&self) {
+        let mut events = Vec::new();
+
+        loop {
+            if !self
+                .state
+                .network_poller
+                .poll(&mut events)
+                .expect("Failed to wait for new IO events")
+            {
+                // The poller is no longer alive, so we should shut down.
+                return;
+            }
+
+            for event in &events {
+                let process =
+                    unsafe { ArcWithoutWeak::from_raw(event.key as *mut _) };
+
+                self.state.scheduler.schedule(process);
+            }
+
+            events.clear();
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::network_poller::event_id::EventId;
-    use crate::network_poller::interest::Interest;
+    use crate::vm::test::setup;
     use std::net::UdpSocket;
 
     #[test]
-    fn test_register() {
+    fn test_add() {
         let output = UdpSocket::bind("0.0.0.0:0").unwrap();
         let poller = NetworkPoller::new();
+        let (_machine, _block, process) = setup();
 
-        assert!(poller.register(&output, EventId(0), Interest::Read).is_ok());
+        assert!(poller.add(&process, &output, Interest::Read).is_ok());
     }
 
     #[test]
-    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
-    fn test_reregister_invalid() {
+    fn test_modity() {
         let output = UdpSocket::bind("0.0.0.0:0").unwrap();
         let poller = NetworkPoller::new();
+        let (_machine, _block, process) = setup();
 
-        assert!(poller
-            .reregister(&output, EventId(0), Interest::Read)
-            .is_ok());
-    }
-
-    #[test]
-    #[cfg(any(target_os = "windows", target_os = "linux"))]
-    fn test_reregister_invalid() {
-        let output = UdpSocket::bind("0.0.0.0:0").unwrap();
-        let poller = NetworkPoller::new();
-
-        assert!(poller
-            .reregister(&output, EventId(0), Interest::Read)
-            .is_err());
-    }
-
-    #[test]
-    fn test_reregister_valid() {
-        let output = UdpSocket::bind("0.0.0.0:0").unwrap();
-        let poller = NetworkPoller::new();
-
-        assert!(poller.register(&output, EventId(0), Interest::Read).is_ok());
-
-        assert!(poller
-            .reregister(&output, EventId(0), Interest::Write)
-            .is_ok());
+        assert!(poller.add(&process, &output, Interest::Read).is_ok());
+        assert!(poller.modify(&process, &output, Interest::Write).is_ok());
     }
 
     #[test]
     fn test_poll() {
         let output = UdpSocket::bind("0.0.0.0:0").unwrap();
         let poller = NetworkPoller::new();
-        let mut events = Events::with_capacity(1);
+        let (_machine, _block, process) = setup();
+        let mut events = Vec::with_capacity(1);
 
-        poller
-            .register(&output, EventId(1), Interest::Write)
-            .unwrap();
+        poller.add(&process, &output, Interest::Write).unwrap();
 
         assert!(poller.poll(&mut events).is_ok());
-
         assert_eq!(events.capacity(), 1);
         assert_eq!(events.len(), 1);
-        assert_eq!(events.event_ids().next().unwrap(), EventId(1));
+        assert_eq!(
+            events[0].key,
+            ArcWithoutWeak::into_raw(process.clone()) as usize
+        );
     }
 
     #[test]
@@ -113,45 +157,29 @@ mod tests {
         let sock1 = UdpSocket::bind("0.0.0.0:0").unwrap();
         let sock2 = UdpSocket::bind("0.0.0.0:0").unwrap();
         let poller = NetworkPoller::new();
-        let mut events = Events::with_capacity(1);
+        let (_machine, _block, process) = setup();
+        let mut events = Vec::with_capacity(1);
 
-        poller
-            .register(&sock1, EventId(0), Interest::Write)
-            .unwrap();
-
-        poller
-            .register(&sock2, EventId(1), Interest::Write)
-            .unwrap();
-
+        poller.add(&process, &sock1, Interest::Write).unwrap();
+        poller.add(&process, &sock2, Interest::Write).unwrap();
         poller.poll(&mut events).unwrap();
 
-        assert_eq!(events.capacity(), 1);
-        assert_eq!(events.len(), 1);
+        assert!(events.capacity() >= 2);
+        assert_eq!(events.len(), 2);
     }
 
     #[test]
-    fn test_poll_with_enough_capacity() {
-        let sock1 = UdpSocket::bind("0.0.0.0:0").unwrap();
-        let sock2 = UdpSocket::bind("0.0.0.0:0").unwrap();
+    fn test_terminate() {
         let poller = NetworkPoller::new();
-        let mut events = Events::with_capacity(2);
+        let mut events = Vec::with_capacity(1);
 
-        poller
-            .register(&sock1, EventId(0), Interest::Write)
-            .unwrap();
+        assert!(poller.is_alive());
 
-        poller
-            .register(&sock2, EventId(1), Interest::Write)
-            .unwrap();
+        poller.terminate();
 
-        poller.poll(&mut events).unwrap();
-
-        assert_eq!(events.capacity(), 2);
-        assert_eq!(events.len(), 2);
-
-        let event_ids = events.event_ids().collect::<Vec<_>>();
-
-        assert!(event_ids.contains(&EventId(0)));
-        assert!(event_ids.contains(&EventId(1)));
+        assert_eq!(poller.poll(&mut events).unwrap(), false);
+        assert_eq!(events.capacity(), 1);
+        assert_eq!(events.len(), 0);
+        assert_eq!(poller.is_alive(), false);
     }
 }

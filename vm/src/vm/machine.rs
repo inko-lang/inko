@@ -2,7 +2,7 @@
 use crate::execution_context::ExecutionContext;
 use crate::gc::collection::Collection;
 use crate::integer_operations;
-use crate::network_poller::worker::Worker as NetworkPollerWorker;
+use crate::network_poller::Worker as NetworkPollerWorker;
 use crate::numeric::division::{FlooredDiv, OverflowingFlooredDiv};
 use crate::numeric::modulo::{Modulo, OverflowingModulo};
 use crate::object_pointer::ObjectPointer;
@@ -174,7 +174,7 @@ impl Machine {
         // The network poller doesn't produce a guard, because there's no
         // cross-platform way of waking up the system poller, so we just don't
         // wait for it to finish when terminating.
-        self.start_network_poller_thread();
+        let poller_guard = self.start_network_poller_thread();
 
         // Starting the primary threads will block this thread, as the main
         // worker will run directly onto the current thread. As such, we must
@@ -187,6 +187,7 @@ impl Machine {
             || secondary_guard.join().is_err()
             || gc_pool_guard.join().is_err()
             || timeout_guard.join().is_err()
+            || poller_guard.join().is_err()
         {
             self.state.set_exit_status(1);
         }
@@ -215,7 +216,7 @@ impl Machine {
             .unwrap()
     }
 
-    fn start_network_poller_thread(&self) {
+    fn start_network_poller_thread(&self) -> thread::JoinHandle<()> {
         let state = self.state.clone();
 
         thread::Builder::new()
@@ -223,7 +224,7 @@ impl Machine {
             .spawn(move || {
                 NetworkPollerWorker::new(state).run();
             })
-            .unwrap();
+            .unwrap()
     }
 
     fn parse_image(&self, path: &str) {
