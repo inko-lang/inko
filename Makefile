@@ -259,10 +259,10 @@ vm/debug:
 	cd cli && ${CARGO_CMD} build ${TARGET_OPTION} ${FEATURES_OPTION}
 
 vm/check:
-	cd cli && ${CARGO_CMD} check ${TARGET_OPTION} ${FEATURES_OPTION}
+	${CARGO_CMD} check
 
 vm/test:
-	cd vm && env CARGO_INCREMENTAL=1 ${CARGO_CMD} test ${FEATURES_OPTION}
+	${CARGO_CMD} test
 
 vm/clippy:
 	touch vm/src/lib.rs cli/src/lib.rs
