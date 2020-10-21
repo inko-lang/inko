@@ -36,4 +36,4 @@ Provide links and other resources that are related to this feature, such as
 implementations of other programming languages, or scientific papers.
 -->
 
-/label ~type::Feature
+/label ~"type::Feature"

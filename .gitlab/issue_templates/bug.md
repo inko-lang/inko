@@ -22,4 +22,4 @@ to the essentials, as this makes it easier for maintainers to help you.
 * cargo version (see `cargo --version`): XXX
 * How did you install Inko (from source, using ivm, etc): XXX
 
-/label ~type::Bug
+/label ~"type::Bug"
