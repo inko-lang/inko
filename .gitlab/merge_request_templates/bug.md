@@ -8,4 +8,4 @@
 
 * [ ] Added tests
 
-/label ~type::Bug
+/label ~"type::Bug"

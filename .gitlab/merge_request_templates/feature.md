@@ -9,4 +9,4 @@
 * [ ] Added tests
 * [ ] Added documentation
 
-/label ~type::Feature
+/label ~"type::Feature"
