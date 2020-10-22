@@ -240,7 +240,7 @@ vm/check:
 	${CARGO_CMD} check
 
 vm/test:
-	${CARGO_CMD} test
+	${CARGO_CMD} test -p inko
 
 vm/clippy:
 	touch vm/src/lib.rs cli/src/lib.rs
