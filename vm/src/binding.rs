@@ -1,63 +1,41 @@
-//! Variable Bindings
-//!
-//! A binding contains the local variables available to a certain scope.
-use crate::arc_without_weak::ArcWithoutWeak;
-use crate::block::Block;
 use crate::chunk::Chunk;
 use crate::immix::copy_object::CopyObject;
 use crate::object_pointer::{ObjectPointer, ObjectPointerPointer};
 use std::cell::UnsafeCell;
+use std::rc::Rc;
 
-macro_rules! find_parent {
-    ($self: expr, $depth: expr, $method: ident) => {{
-        let mut found = $self.parent.$method();
-
-        for _ in 0..$depth {
-            if let Some(binding) = found {
-                found = binding.parent.$method();
-            } else {
-                return None;
-            }
-        }
-
-        found
-    }};
-}
-
+/// A collection of local variables, a receiver, and an optional parent binding.
+///
+/// Every scope has a binding, and can be captured by one or more closures.
+///
+/// Bindings use interior mutability for local variables, and are exposed using
+/// a reference counting wrapper. The local variables are not modified
+/// concurrently, and the data is managed by the garbage collector; meaning
+/// writes won't invalidate them. Thus, using this type should be sound in
+/// practise.
 pub struct Binding {
     /// The local variables in the current binding.
-    ///
-    /// Local variables must **not** be modified concurrently as access is not
-    /// synchronized due to 99% of all operations being process-local.
-    pub locals: UnsafeCell<Chunk<ObjectPointer>>,
+    locals: UnsafeCell<Chunk<ObjectPointer>>,
 
-    /// The receiver to use when sending messages without an explicit receiver.
-    pub receiver: ObjectPointer,
+    /// The receiver (= the type of `self`) of the binding.
+    receiver: ObjectPointer,
 
     /// The parent binding, if any.
-    pub parent: Option<RcBinding>,
+    parent: Option<RcBinding>,
 }
 
-pub type RcBinding = ArcWithoutWeak<Binding>;
+pub type RcBinding = Rc<Binding>;
 
 impl Binding {
-    /// Returns a new binding.
-    pub fn with_rc(locals: u16, receiver: ObjectPointer) -> RcBinding {
-        let bind = Binding {
+    pub fn new(
+        locals: u16,
+        receiver: ObjectPointer,
+        parent: Option<RcBinding>,
+    ) -> RcBinding {
+        Rc::new(Binding {
             locals: UnsafeCell::new(Chunk::new(locals as usize)),
             receiver,
-            parent: None,
-        };
-
-        ArcWithoutWeak::new(bind)
-    }
-
-    #[inline(always)]
-    pub fn from_block(block: &Block) -> RcBinding {
-        ArcWithoutWeak::new(Binding {
-            locals: UnsafeCell::new(Chunk::new(block.locals() as usize)),
-            receiver: block.receiver,
-            parent: block.captures_from.clone(),
+            parent,
         })
     }
 
@@ -67,13 +45,21 @@ impl Binding {
     }
 
     /// Sets a local variable.
-    pub fn set_local(&mut self, index: u16, value: ObjectPointer) {
+    pub fn set_local(&self, index: u16, value: ObjectPointer) {
         self.locals_mut()[index as usize] = value;
     }
 
     /// Returns true if the local variable exists.
     pub fn local_exists(&self, index: u16) -> bool {
         !self.get_local(index).is_null()
+    }
+
+    pub fn reset_locals(&self) {
+        self.locals_mut().reset();
+    }
+
+    pub fn receiver(&self) -> &ObjectPointer {
+        &self.receiver
     }
 
     /// Returns the parent binding.
@@ -84,13 +70,17 @@ impl Binding {
     /// Returns an immutable reference to the parent binding, `depth` steps up
     /// from the current binding.
     pub fn find_parent(&self, depth: usize) -> Option<&RcBinding> {
-        find_parent!(self, depth, as_ref)
-    }
+        let mut found = self.parent.as_ref();
 
-    /// Returns a mutable reference to the parent binding, `depth` steps up from
-    /// the current binding.
-    pub fn find_parent_mut(&mut self, depth: usize) -> Option<&mut RcBinding> {
-        find_parent!(self, depth, as_mut)
+        for _ in 0..depth {
+            if let Some(binding) = found {
+                found = binding.parent.as_ref();
+            } else {
+                return None;
+            }
+        }
+
+        found
     }
 
     /// Returns an immutable reference to this binding's local variables.
@@ -99,7 +89,8 @@ impl Binding {
     }
 
     /// Returns a mutable reference to this binding's local variables.
-    pub fn locals_mut(&mut self) -> &mut Chunk<ObjectPointer> {
+    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
+    pub fn locals_mut(&self) -> &mut Chunk<ObjectPointer> {
         unsafe { &mut *self.locals.get() }
     }
 
@@ -110,7 +101,7 @@ impl Binding {
         let mut current = Some(self);
 
         while let Some(binding) = current {
-            callback(binding.receiver.pointer());
+            callback(binding.receiver().pointer());
 
             for index in 0..binding.locals().len() {
                 let local = &binding.locals()[index];
@@ -144,9 +135,9 @@ impl Binding {
             }
         }
 
-        let receiver_copy = heap.copy_object(self.receiver);
+        let receiver_copy = heap.copy_object(*self.receiver());
 
-        ArcWithoutWeak::new(Binding {
+        Rc::new(Binding {
             locals: UnsafeCell::new(new_locals),
             receiver: receiver_copy,
             parent,
@@ -164,23 +155,19 @@ mod tests {
     use crate::object_value;
 
     fn binding_with_parent(parent: RcBinding, locals: u16) -> RcBinding {
-        let mut binding = Binding::with_rc(locals, ObjectPointer::integer(1));
-
-        binding.parent = Some(parent.clone());
-
-        binding
+        Binding::new(locals, ObjectPointer::integer(1), Some(parent.clone()))
     }
 
     #[test]
     fn test_new() {
-        let binding = Binding::with_rc(2, ObjectPointer::integer(1));
+        let binding = Binding::new(2, ObjectPointer::integer(1), None);
 
         assert_eq!(binding.locals().len(), 2);
     }
 
     #[test]
     fn test_with_parent() {
-        let binding1 = Binding::with_rc(0, ObjectPointer::integer(1));
+        let binding1 = Binding::new(0, ObjectPointer::integer(1), None);
         let binding2 = binding_with_parent(binding1.clone(), 1);
 
         assert!(binding2.parent.is_some());
@@ -190,7 +177,7 @@ mod tests {
     #[test]
     fn test_get_local_valid() {
         let ptr = ObjectPointer::integer(5);
-        let mut binding = Binding::with_rc(1, ObjectPointer::integer(1));
+        let binding = Binding::new(1, ObjectPointer::integer(1), None);
 
         binding.set_local(0, ptr);
 
@@ -200,7 +187,7 @@ mod tests {
     #[test]
     fn test_set_local() {
         let ptr = ObjectPointer::integer(5);
-        let mut binding = Binding::with_rc(1, ObjectPointer::integer(1));
+        let binding = Binding::new(1, ObjectPointer::integer(1), None);
 
         binding.set_local(0, ptr);
 
@@ -209,7 +196,7 @@ mod tests {
 
     #[test]
     fn test_local_exists_non_existing_local() {
-        let binding = Binding::with_rc(1, ObjectPointer::integer(1));
+        let binding = Binding::new(1, ObjectPointer::integer(1), None);
 
         assert_eq!(binding.local_exists(0), false);
     }
@@ -217,7 +204,7 @@ mod tests {
     #[test]
     fn test_local_exists_existing_local() {
         let ptr = ObjectPointer::integer(5);
-        let mut binding = Binding::with_rc(1, ObjectPointer::integer(1));
+        let binding = Binding::new(1, ObjectPointer::integer(1), None);
 
         binding.set_local(0, ptr);
 
@@ -226,14 +213,14 @@ mod tests {
 
     #[test]
     fn test_parent_without_parent() {
-        let binding = Binding::with_rc(0, ObjectPointer::integer(1));
+        let binding = Binding::new(0, ObjectPointer::integer(1), None);
 
         assert!(binding.parent().is_none());
     }
 
     #[test]
     fn test_parent_with_parent() {
-        let binding1 = Binding::with_rc(0, ObjectPointer::integer(1));
+        let binding1 = Binding::new(0, ObjectPointer::integer(1), None);
         let binding2 = binding_with_parent(binding1, 0);
 
         assert!(binding2.parent().is_some());
@@ -241,14 +228,14 @@ mod tests {
 
     #[test]
     fn test_find_parent_without_parent() {
-        let binding = Binding::with_rc(0, ObjectPointer::integer(1));
+        let binding = Binding::new(0, ObjectPointer::integer(1), None);
 
         assert!(binding.find_parent(0).is_none());
     }
 
     #[test]
     fn test_find_parent_with_parent() {
-        let binding1 = Binding::with_rc(0, ObjectPointer::integer(1));
+        let binding1 = Binding::new(0, ObjectPointer::integer(1), None);
         let binding2 = binding_with_parent(binding1, 0);
         let binding3 = binding_with_parent(binding2, 0);
         let binding4 = binding_with_parent(binding3, 0);
@@ -268,7 +255,7 @@ mod tests {
     #[test]
     fn test_locals() {
         let ptr = ObjectPointer::integer(5);
-        let mut binding = Binding::with_rc(1, ObjectPointer::integer(1));
+        let binding = Binding::new(1, ObjectPointer::integer(1), None);
 
         binding.set_local(0, ptr);
 
@@ -278,7 +265,7 @@ mod tests {
     #[test]
     fn test_locals_mut() {
         let ptr = ObjectPointer::integer(5);
-        let mut binding = Binding::with_rc(1, ObjectPointer::integer(1));
+        let binding = Binding::new(1, ObjectPointer::integer(1), None);
 
         binding.set_local(0, ptr);
 
@@ -292,14 +279,13 @@ mod tests {
 
         let local1 = alloc.allocate_empty();
         let receiver = alloc.allocate_empty();
-        let mut binding1 = Binding::with_rc(1, receiver);
+        let binding1 = Binding::new(1, receiver, None);
 
         binding1.set_local(0, local1);
 
         let local2 = alloc.allocate_empty();
-        let mut binding2 = Binding::with_rc(1, receiver);
+        let binding2 = Binding::new(1, receiver, Some(binding1.clone()));
 
-        binding2.parent = Some(binding1.clone());
         binding2.set_local(0, local2);
 
         let mut pointer_pointers = Vec::new();
@@ -319,7 +305,7 @@ mod tests {
         let mut alloc =
             LocalAllocator::new(GlobalAllocator::with_rc(), &Config::new());
 
-        let mut binding = Binding::with_rc(1, alloc.allocate_empty());
+        let binding = Binding::new(1, alloc.allocate_empty(), None);
         let mut pointers = Vec::new();
 
         binding.set_local(0, alloc.allocate_empty());
@@ -333,7 +319,7 @@ mod tests {
         }
 
         assert_eq!(binding.get_local(0).raw.raw as usize, 0x4);
-        assert_eq!(binding.receiver.raw.raw as usize, 0x4);
+        assert_eq!(binding.receiver().raw.raw as usize, 0x4);
     }
 
     #[test]
@@ -347,10 +333,9 @@ mod tests {
         let ptr2 = alloc1.allocate_without_prototype(object_value::float(2.0));
         let ptr3 = alloc1.allocate_without_prototype(object_value::float(8.0));
 
-        let mut src_bind1 = Binding::with_rc(1, ptr3);
-        let mut src_bind2 = Binding::with_rc(1, ptr3);
+        let src_bind1 = Binding::new(1, ptr3, None);
+        let src_bind2 = Binding::new(1, ptr3, Some(src_bind1.clone()));
 
-        src_bind2.parent = Some(src_bind1.clone());
         src_bind1.set_local(0, ptr1);
         src_bind2.set_local(0, ptr2);
 
@@ -367,14 +352,14 @@ mod tests {
         assert!(bind_copy_parent.parent.is_none());
 
         assert_eq!(bind_copy_parent.get_local(0).float_value().unwrap(), 5.0);
-        assert_eq!(bind_copy_parent.receiver.float_value().unwrap(), 8.0);
+        assert_eq!(bind_copy_parent.receiver().float_value().unwrap(), 8.0);
     }
 
     #[test]
     fn test_receiver_with_receiver() {
         let pointer = ObjectPointer::integer(5);
-        let binding = Binding::with_rc(1, pointer);
+        let binding = Binding::new(1, pointer, None);
 
-        assert!(binding.receiver == pointer);
+        assert!(*binding.receiver() == pointer);
     }
 }

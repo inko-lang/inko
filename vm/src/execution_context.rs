@@ -50,12 +50,11 @@ pub struct ExecutionContextIterator<'a> {
 }
 
 impl ExecutionContext {
-    /// Creates a new execution context using an existing bock.
     #[inline(always)]
-    pub fn from_block(block: &Block) -> ExecutionContext {
+    pub fn new(block: &Block, binding: RcBinding) -> Self {
         ExecutionContext {
             registers: Registers::new(block.code.registers),
-            binding: Binding::from_block(block),
+            binding,
             deferred_blocks: Vec::new(),
             code: block.code,
             parent: None,
@@ -65,17 +64,23 @@ impl ExecutionContext {
         }
     }
 
-    pub fn from_isolated_block(block: &Block) -> ExecutionContext {
-        ExecutionContext {
-            registers: Registers::new(block.code.registers),
-            binding: Binding::with_rc(block.locals(), block.receiver),
-            code: block.code,
-            deferred_blocks: Vec::new(),
-            parent: None,
-            instruction_index: 0,
-            module: block.module,
-            terminate_upon_return: false,
-        }
+    #[inline(always)]
+    pub fn from_block(block: &Block) -> Self {
+        let captures = block.captures_from.clone();
+        let binding = Binding::new(block.locals(), block.receiver, captures);
+
+        Self::new(block, binding)
+    }
+
+    #[inline(always)]
+    pub fn from_block_with_receiver(
+        block: &Block,
+        receiver: ObjectPointer,
+    ) -> Self {
+        let binding =
+            Binding::new(block.locals(), receiver, block.captures_from.clone());
+
+        Self::new(block, binding)
     }
 
     pub fn file(&self) -> ObjectPointer {
@@ -388,7 +393,7 @@ mod tests {
         assert_eq!(pointers.len(), 4);
         assert_eq!(pointers.iter().filter(|x| **x == pointer).count(), 2);
 
-        assert!(pointers.contains(&context.binding.receiver));
+        assert!(pointers.contains(&context.binding.receiver()));
         assert!(pointers.contains(&deferred));
     }
 

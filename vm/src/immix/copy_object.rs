@@ -277,10 +277,8 @@ mod tests {
             .allocator
             .allocate_without_prototype(object_value::float(12.0));
 
-        let mut binding1 = Binding::with_rc(1, ObjectPointer::integer(1));
-        let mut binding2 = Binding::with_rc(1, receiver);
-
-        binding2.parent = Some(binding1.clone());
+        let binding1 = Binding::new(1, ObjectPointer::integer(1), None);
+        let binding2 = Binding::new(1, receiver, Some(binding1.clone()));
 
         binding1.set_local(0, local1);
         binding2.set_local(0, local2);
@@ -293,10 +291,10 @@ mod tests {
         let binding_copy_obj = binding_copy_ptr.get();
 
         let binding_copy = binding_copy_obj.value.as_binding().unwrap();
-        let parent_copy = binding_copy.parent.clone().unwrap();
+        let parent_copy = binding_copy.parent().clone().unwrap();
 
-        assert!(binding_copy.parent.is_some());
-        assert_eq!(binding_copy.receiver.float_value().unwrap(), 12.0);
+        assert!(binding_copy.parent().is_some());
+        assert_eq!(binding_copy.receiver().float_value().unwrap(), 12.0);
 
         let local1_copy = binding_copy.get_local(0);
         let local2_copy = parent_copy.get_local(0);

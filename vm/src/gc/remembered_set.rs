@@ -231,6 +231,7 @@ mod tests {
     use crate::arc_without_weak::ArcWithoutWeak;
     use crate::immix::block::Block;
     use crate::object_pointer::ObjectPointer;
+    use parking_lot::Mutex;
     use std::mem;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::thread;
@@ -278,7 +279,7 @@ mod tests {
         // be timing sensitive. However, it's the least we can do without
         // relying on (potentially large) third-party libraries.
         for _ in 0..128 {
-            let mut rem_set = ArcWithoutWeak::new(RememberedSet::new());
+            let rem_set = ArcWithoutWeak::new(Mutex::new(RememberedSet::new()));
             let mut threads = Vec::with_capacity(2);
             let wait = ArcWithoutWeak::new(AtomicBool::new(true));
 
@@ -292,7 +293,7 @@ mod tests {
                     }
 
                     for i in 0..4 {
-                        rem_set_clone.remember(ObjectPointer::integer(i))
+                        rem_set_clone.lock().remember(ObjectPointer::integer(i))
                     }
                 }));
             }
@@ -303,12 +304,12 @@ mod tests {
                 thread.join().unwrap();
             }
 
-            assert_eq!(rem_set.iter().count(), 8);
+            assert_eq!(rem_set.lock().iter().count(), 8);
 
             // 8 values fit in two chunks, and we only allocate the third chunk
             // when reaching value 9.
-            assert!(rem_set.head.next.is_some());
-            assert!(rem_set.head.next.as_ref().unwrap().next.is_none());
+            assert!(rem_set.lock().head.next.is_some());
+            assert!(rem_set.lock().head.next.as_ref().unwrap().next.is_none());
         }
     }
 

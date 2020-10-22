@@ -579,7 +579,7 @@ mod tests {
 
     #[test]
     fn test_is_binding() {
-        let binding = Binding::with_rc(0, ObjectPointer::integer(10));
+        let binding = Binding::new(0, ObjectPointer::integer(10), None);
 
         assert!(ObjectValue::Binding(binding).is_binding());
         assert_eq!(ObjectValue::None.is_binding(), false);
@@ -698,7 +698,7 @@ mod tests {
     #[test]
     fn test_as_binding_with_binding() {
         let pointer = ObjectPointer::integer(5);
-        let mut binding = Binding::with_rc(1, ObjectPointer::integer(10));
+        let binding = Binding::new(1, ObjectPointer::integer(10), None);
 
         binding.set_local(0, pointer);
 
@@ -760,7 +760,7 @@ mod tests {
 
     #[test]
     fn test_binding() {
-        let b = Binding::with_rc(0, ObjectPointer::integer(10));
+        let b = Binding::new(0, ObjectPointer::integer(10), None);
 
         assert!(binding(b).is_binding());
     }

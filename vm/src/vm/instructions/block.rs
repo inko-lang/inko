@@ -23,7 +23,7 @@ macro_rules! prepare_block_arguments {
 
 #[inline(always)]
 pub fn block_get_receiver(context: &ExecutionContext) -> ObjectPointer {
-    context.binding.receiver
+    *context.binding.receiver()
 }
 
 #[inline(always)]
@@ -53,9 +53,8 @@ pub fn run_block_with_receiver(
     amount: u16,
 ) -> Result<(), String> {
     let block = block_ptr.block_value()?;
-    let mut new_context = ExecutionContext::from_block(&block);
-
-    new_context.binding.receiver = receiver_ptr;
+    let mut new_context =
+        ExecutionContext::from_block_with_receiver(&block, receiver_ptr);
 
     prepare_block_arguments!(context, new_context, start_reg, amount);
     process.push_context(new_context);
@@ -65,7 +64,7 @@ pub fn run_block_with_receiver(
 
 #[inline(always)]
 pub fn tail_call(context: &mut ExecutionContext, start_reg: u16, amount: u16) {
-    context.binding.locals_mut().reset();
+    context.binding.reset_locals();
     prepare_block_arguments!(context, context, start_reg, amount);
     context.registers.values.reset();
 
@@ -88,7 +87,7 @@ pub fn set_block(
     };
 
     let receiver = if receiver_ptr.is_null() {
-        context.binding.receiver
+        *context.binding.receiver()
     } else {
         receiver_ptr
     };

@@ -5,7 +5,7 @@
 //! sensitive code where weak references are not needed.
 use std::cmp;
 use std::mem;
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -84,12 +84,6 @@ impl<T> Deref for ArcWithoutWeak<T> {
 
     fn deref(&self) -> &T {
         &self.inner().value
-    }
-}
-
-impl<T> DerefMut for ArcWithoutWeak<T> {
-    fn deref_mut(&mut self) -> &mut T {
-        unsafe { &mut self.inner.as_mut().value }
     }
 }
 

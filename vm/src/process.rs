@@ -149,7 +149,7 @@ impl Process {
         global_allocator: RcGlobalAllocator,
         config: &Config,
     ) -> RcProcess {
-        let context = ExecutionContext::from_isolated_block(block);
+        let context = ExecutionContext::from_block(block);
 
         Process::with_rc(context, global_allocator, config)
     }

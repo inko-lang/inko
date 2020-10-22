@@ -639,7 +639,7 @@ mod tests {
     #[test]
     fn test_object_each_pointer_with_block() {
         let state = State::with_rc(Config::new(), &[]);
-        let binding = Binding::with_rc(0, fake_pointer());
+        let binding = Binding::new(0, fake_pointer(), None);
         let name = state.intern_string("a".to_string());
         let path = state.intern_string("a.inko".to_string());
         let code = CompiledCode::new(name, path, 1, Vec::new());
@@ -665,12 +665,12 @@ mod tests {
             0x5
         );
 
-        assert_eq!(binding.receiver.raw.raw as usize, 0x5);
+        assert_eq!(binding.receiver().raw.raw as usize, 0x5);
     }
 
     #[test]
     fn test_object_each_pointer_with_binding() {
-        let mut binding = Binding::with_rc(1, fake_pointer());
+        let binding = Binding::new(1, fake_pointer(), None);
 
         binding.set_local(0, fake_pointer());
 
@@ -684,7 +684,7 @@ mod tests {
         }
 
         assert_eq!(binding.get_local(0).raw.raw as usize, 0x5);
-        assert_eq!(binding.receiver.raw.raw as usize, 0x5);
+        assert_eq!(binding.receiver().raw.raw as usize, 0x5);
     }
 
     #[test]

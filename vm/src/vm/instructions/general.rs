@@ -55,7 +55,7 @@ pub fn set_parent_local(
     depth: u16,
     value: ObjectPointer,
 ) -> Result<(), String> {
-    if let Some(binding) = context.binding.find_parent_mut(depth as usize) {
+    if let Some(binding) = context.binding.find_parent(depth as usize) {
         binding.set_local(local, value);
 
         Ok(())

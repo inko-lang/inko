@@ -465,7 +465,7 @@ mod tests {
         let receiver = process.allocate_empty();
 
         let code = process.context().code.clone();
-        let mut binding = Binding::with_rc(1, ObjectPointer::integer(1));
+        let binding = Binding::new(1, ObjectPointer::integer(1), None);
 
         binding.set_local(0, local);
 

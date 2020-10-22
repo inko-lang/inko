@@ -3,6 +3,7 @@ use crate::compiled_code::{CompiledCode, CompiledCodePointer};
 use crate::deref_pointer::DerefPointer;
 use crate::global_scope::GlobalScope;
 use crate::object_pointer::ObjectPointer;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 /// A module is a single file containing bytecode and an associated global
 /// scope.
@@ -27,7 +28,11 @@ pub struct Module {
     literals: Vec<ObjectPointer>,
 
     /// A boolean indicating if this module has been executed or not.
-    executed: bool,
+    ///
+    /// This value is atomic so it can be modified through a
+    /// ArcWithoutWeak<Module>, even though this value is not modified
+    /// concurrently.
+    executed: AtomicBool,
 }
 
 // A module is immutable once created. The lines below ensure we can store a
@@ -48,7 +53,7 @@ impl Module {
             code: Box::new(code),
             global_scope: Box::new(GlobalScope::new()),
             literals,
-            executed: false,
+            executed: AtomicBool::new(false),
         }
     }
 
@@ -76,12 +81,12 @@ impl Module {
         &mut self.global_scope
     }
 
-    pub fn mark_as_executed(&mut self) -> bool {
-        if self.executed {
+    pub fn mark_as_executed(&self) -> bool {
+        if self.executed.load(Ordering::Acquire) {
             return false;
         }
 
-        self.executed = true;
+        self.executed.store(true, Ordering::Release);
         true
     }
 
@@ -100,7 +105,7 @@ mod tests {
         let name = ObjectPointer::null();
         let path = ObjectPointer::null();
         let code = CompiledCode::new(name, path, 1, Vec::new());
-        let mut module = Module::new(name, path, code, Vec::new());
+        let module = Module::new(name, path, code, Vec::new());
 
         assert_eq!(module.mark_as_executed(), true);
         assert_eq!(module.mark_as_executed(), false);
