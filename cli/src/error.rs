@@ -12,10 +12,10 @@ pub struct Error {
 }
 
 impl Error {
-    pub fn generic(message: String) -> Self {
+    pub fn generic<Str: Into<String>>(message: Str) -> Self {
         Error {
             status: 1,
-            message: Some(message),
+            message: Some(message.into()),
         }
     }
 
@@ -42,5 +42,11 @@ impl From<io::Error> for Error {
 impl From<String> for Error {
     fn from(message: String) -> Self {
         Self::generic(message)
+    }
+}
+
+impl From<git2::Error> for Error {
+    fn from(error: git2::Error) -> Error {
+        Self::generic(error.to_string())
     }
 }

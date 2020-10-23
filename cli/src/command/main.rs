@@ -1,5 +1,6 @@
 //! The main entry point for the CLI.
 use crate::command::build;
+use crate::command::install;
 use crate::command::run;
 use crate::command::test;
 use crate::config;
@@ -8,12 +9,13 @@ use crate::options::print_usage;
 use getopts::{Options, ParsingStyle};
 use std::env;
 
-const USAGE: &str = "Usage: inko [OPTIONS] [COMMAND | FILE]
+const USAGE: &str = "Usage: inko [OPTIONS] [COMMAND | FILE | PACKAGE]
 
 Commands:
 
     run      Compiles and runs FILE
     build    Compiles FILE
+    install  Installs PACKAGE
     test     Runs Inko unit tests
 
 If no explicit command is given, the run command is implied. Each command takes
@@ -21,10 +23,12 @@ its own set of options.
 
 Examples:
 
-    inko hello.inko          # Runs the file hello.inko
-    inko run hello.inko      # Same
-    inko build hello.inko    # Merely compiles the file into bytecode
-    inko run --help          # Prints the help message for the run command";
+    inko hello.inko                                     # Runs the file hello.inko
+    inko run hello.inko                                 # Same
+    inko build hello.inko                               # Merely compiles the file into bytecode
+    inko run --help                                     # Prints the help message for the run command
+    inko install \"gitlab.com/inko-lang/http==1.0.0\"   # Installs version 1.0.0 of the `http` package
+                                                        #   from gitlab.com/inko-lang/http";
 
 /// Runs the default CLI command.
 pub fn run() -> Result<i32, Error> {
@@ -55,6 +59,7 @@ pub fn run() -> Result<i32, Error> {
         Some("run") => run::run(&matches.free[1..]),
         Some("build") => build::run(&matches.free[1..]),
         Some("test") => test::run(&matches.free[1..]),
+        Some("install") => install::install(&matches.free[1..]),
         Some(_) => run::run(&matches.free),
         None => Err(Error::generic(
             "You must specify a command or input file to run".to_string(),

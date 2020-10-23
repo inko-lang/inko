@@ -14,6 +14,12 @@ jemalloc = ["jemallocator"]
 libffi-system = ["libinko/libffi-system"]
 
 [dependencies]
+dircpy = "^0.3"
+dirs-next = "^1.0"
 getopts = "^0.2"
 jemallocator = { version = "^0.3", optional = true }
 libinko = { path = "../vm" }
+
+[dependencies.git2]
+version = "^0.13"
+default-features = false
