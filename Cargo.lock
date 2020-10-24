@@ -283,8 +283,9 @@ checksum = "2448f6066e80e3bfc792e9c98bf705b4b0fc6e8ef5b43e5889aff0eaa9c58743"
 
 [[package]]
 name = "libffi"
-version = "0.9.0"
-source = "git+https://github.com/YorickPeterse/libffi-rs.git?branch=no-bindgen-patch#ea926b4e641c33e8a7d1e097a877c7fc8a4d78d0"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bafef83ee22d51c27348aaf6b2da007a32b9f5004809d09271432e5ea2a795dd"
 dependencies = [
  "abort_on_panic",
  "libc",
@@ -293,8 +294,9 @@ dependencies = [
 
 [[package]]
 name = "libffi-sys"
-version = "0.9.1"
-source = "git+https://github.com/YorickPeterse/libffi-sys-rs.git?branch=no-bindgen-patch#68ca287f300fc2ed6eb9625638e3addd92fb4648"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1fc883521808e1cb81d33683f44b97cefcd3045f265fb73366f418dcd20fe7ec"
 dependencies = [
  "cc",
  "make-cmd",

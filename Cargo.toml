@@ -1,6 +1,2 @@
 [workspace]
 members = ["cli", "vm"]
-
-[patch.crates-io]
-libffi-sys = { git = "https://github.com/YorickPeterse/libffi-sys-rs.git", branch = "no-bindgen-patch" }
-libffi = { git = "https://github.com/YorickPeterse/libffi-rs.git", branch = "no-bindgen-patch" }
