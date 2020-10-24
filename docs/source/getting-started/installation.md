@@ -171,6 +171,42 @@ version to install. For example:
 ivm install 0.8.1
 ```
 
+## Docker
+
+If you are using [Docker](https://www.docker.com/) or
+[Podman](https://podman.io/), you can use our official Docker images. These
+images are published on Docker Hub in the [inkolang/inko
+repository](https://hub.docker.com/r/inkolang/inko).
+
+!!! tip
+    If you are using Linux we recommend using Podman, as Podman can be set up to
+    not require root access.
+
+To install Inko 0.8.1, run the following:
+
+=== "Docker"
+    ```bash
+    docker pull inkolang/inko:0.8.1
+    ```
+=== "Podman"
+    ```bash
+    podman pull inkolang/inko:0.8.1
+    ```
+
+You can then run Inko as follows:
+
+=== "Docker"
+    ```bash
+    docker run inkolang/inko:0.8.1 inko --version
+    ```
+=== "Podman"
+    ```bash
+    podman run inkolang/inko:0.8.1 inko --version
+    ```
+
+A full list of all available tags [is found
+here](https://hub.docker.com/r/inkolang/inko/tags).
+
 ## Building from source
 
 We recommend users only build from source if they want to contribute to Inko. If

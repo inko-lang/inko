@@ -7,6 +7,15 @@ release:source:
   only:
     - tags
 
+release:docker:
+  image: docker:git
+  services:
+    - docker:dind
+  only:
+    - tags
+  script:
+    - ./scripts/docker.sh "$CI_COMMIT_REF_NAME"
+
 post-release:manifest:
   image: registry.gitlab.com/inko-lang/development-docker-images:alpine
   stage: post-release
