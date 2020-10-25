@@ -31,157 +31,204 @@ module Inkoc
 
       def serialize_to_file(path)
         File.open(path, 'wb') do |handle|
-          handle.write(serialize)
+          output = []
+
+          serialize(output)
+          handle.write(output.pack('C*'))
         end
 
         nil
       end
 
-      def serialize
+      def serialize(output)
         mods = @compiler.modules
-        header = SIGNATURE.map { |num| u8(num) }.join('') + u8(VERSION)
-        output = u64(mods.length)
+
+        SIGNATURE.each do |byte|
+          u8(byte, output)
+        end
+
+        u8(VERSION, output)
+        u64(mods.length, output)
 
         mods.each do |mod|
-          output += code_module(mod)
+          code_module(mod, output)
         end
 
-        header + output
+        output
       end
 
-      def generate(mod, code)
-        sig = SIGNATURE.map { |num| u8(num) }.join('')
+      def code_module(mod, output)
+        start = output.length
 
-        sig + u8(VERSION) + compiled_code(code)
+        # This is the placeholder for the body size, which we'll update below.
+        u64(0, output)
+
+        size_before = output.length
+
+        array(mod.literals.to_a, :literal, output)
+        compiled_code(mod.body, output)
+
+        size = output.length - size_before
+
+        # Having to duplicate u64() here is unfortunate, but it's the most
+        # memory/CPU efficient way to update the size placeholder.
+        output[start] = (size & 0xFF)
+        output[start + 1] = ((size >> 8) & 0xFF)
+        output[start + 2] = ((size >> 16) & 0xFF)
+        output[start + 3] = ((size >> 24) & 0xFF)
+
+        output[start + 4] = ((size >> 32) & 0xFF)
+        output[start + 5] = ((size >> 40) & 0xFF)
+        output[start + 6] = ((size >> 48) & 0xFF)
+        output[start + 7] = ((size >> 56) & 0xFF)
       end
 
-      def code_module(mod)
-        body = array(mod.literals.to_a, :literal) + compiled_code(mod.body)
-
-        u64(body.bytesize) + body
-      end
-
-      def string(str)
+      def string(str, output)
         str = str.to_s
-        size  = u64(str.bytesize)
-        bytes = str.bytes.pack('C*')
 
-        size + bytes
+        u64(str.bytesize, output)
+        str.each_byte { |byte| u8(byte, output) }
       end
 
-      def u8(num)
+      def u8(num, output)
         validate_range!(num, U8_RANGE)
 
-        [num].pack('C')
+        output << num
       end
 
-      def u16(num)
+      def u16(num, output)
         validate_range!(num, U16_RANGE)
 
-        [num].pack('S<')
+        output << (num & 0xFF)
+        output << ((num >> 8) & 0xFF)
       end
 
-      def u32(num)
+      def u32(num, output)
         validate_range!(num, U32_RANGE)
 
-        [num].pack('L<')
+        output << (num & 0xFF)
+        output << ((num >> 8) & 0xFF)
+        output << ((num >> 16) & 0xFF)
+        output << ((num >> 24) & 0xFF)
       end
 
-      def u64(num)
+      def u64(num, output)
         validate_range!(num, U64_RANGE)
 
-        [num].pack('Q<')
+        output << (num & 0xFF)
+        output << ((num >> 8) & 0xFF)
+        output << ((num >> 16) & 0xFF)
+        output << ((num >> 24) & 0xFF)
+
+        output << ((num >> 32) & 0xFF)
+        output << ((num >> 40) & 0xFF)
+        output << ((num >> 48) & 0xFF)
+        output << ((num >> 56) & 0xFF)
       end
 
-      def i32(num)
+      def i32(num, output)
         validate_range!(num, I32_RANGE)
 
-        [num].pack('l<')
+        output << (num & 0xFF)
+        output << ((num >> 8) & 0xFF)
+        output << ((num >> 16) & 0xFF)
+        output << ((num >> 24) & 0xFF)
       end
 
-      def i64(num)
+      def i64(num, output)
         validate_range!(num, I64_RANGE)
 
-        [num].pack('q<')
+        output << (num & 0xFF)
+        output << ((num >> 8) & 0xFF)
+        output << ((num >> 16) & 0xFF)
+        output << ((num >> 24) & 0xFF)
+
+        output << ((num >> 32) & 0xFF)
+        output << ((num >> 40) & 0xFF)
+        output << ((num >> 48) & 0xFF)
+        output << ((num >> 56) & 0xFF)
       end
 
-      def f64(num)
-        [num].pack('E')
-      end
-
-      def boolean(val)
-        u8(val ? 1 : 0)
-      end
-
-      def array(values, encoder)
-        values = values.map { |value| send(encoder, value) }
-        size = u64(values.length)
-
-        size + values.join('')
-      end
-
-      def instruction(ins)
-        output = u8(ins.index) + u8(ins.arguments.length)
-
-        ins.arguments.each do |arg|
-          output += u16(arg)
+      def f64(num, output)
+        # Ruby doesn't offer a better way for packing a Float :<
+        [num].pack('E').each_byte do |byte|
+          output << byte
         end
-
-        output + u16(ins.line)
       end
 
-      def catch_entry(entry)
-        u16(entry.start) +
-          u16(entry.stop) +
-          u16(entry.jump_to)
+      def boolean(val, output)
+        u8(val ? 1 : 0, output)
       end
 
-      def integer_literal(value)
+      def array(values, encoder, output)
+        u64(values.length, output)
+
+        values.each { |value| send(encoder, value, output) }
+      end
+
+      def instruction(ins, output)
+        u8(ins.index, output)
+        u8(ins.arguments.length, output)
+        ins.arguments.each { |arg| u16(arg, output) }
+        u16(ins.line, output)
+      end
+
+      def catch_entry(entry, output)
+        u16(entry.start, output)
+        u16(entry.stop, output)
+        u16(entry.jump_to, output)
+      end
+
+      def integer_literal(value, output)
         if INTEGER_RANGE.cover?(value)
-          u8(INTEGER_LITERAL) + i64(value)
+          u8(INTEGER_LITERAL, output)
+          i64(value, output)
         else
-          bigint_literal(value)
+          bigint_literal(value, output)
         end
       end
 
-      def bigint_literal(value)
-        u8(BIGINT_LITERAL) + string(value.to_s(16))
+      def bigint_literal(value, output)
+        u8(BIGINT_LITERAL, output)
+        string(value.to_s(16), output)
       end
 
-      def float_literal(value)
-        u8(FLOAT_LITERAL) + f64(value)
+      def float_literal(value, output)
+        u8(FLOAT_LITERAL, output)
+        f64(value, output)
       end
 
-      def string_literal(value)
-        u8(STRING_LITERAL) + string(value)
+      def string_literal(value, output)
+        u8(STRING_LITERAL, output)
+        string(value, output)
       end
 
-      def literal(value)
+      def literal(value, output)
         case value
         when Integer
-          integer_literal(value)
+          integer_literal(value, output)
         when Float
-          float_literal(value)
+          float_literal(value, output)
         when String, Symbol
-          string_literal(value)
+          string_literal(value, output)
         else
           raise TypeError, "Unsupported literal type: #{value.inspect}"
         end
       end
 
       # rubocop: disable Metrics/AbcSize
-      def compiled_code(code)
-        u32(code.name) +
-          u32(code.file) +
-          u16(code.line) +
-          array(code.arguments, :u32) +
-          u8(code.required_arguments) +
-          u16(code.locals) +
-          u16(code.registers) +
-          boolean(code.captures) +
-          array(code.instructions, :instruction) +
-          array(code.code_objects.to_a, :compiled_code) +
-          array(code.catch_table.to_a, :catch_entry)
+      def compiled_code(code, output)
+        u32(code.name, output)
+        u32(code.file, output)
+        u16(code.line, output)
+        array(code.arguments, :u32, output)
+        u8(code.required_arguments, output)
+        u16(code.locals, output)
+        u16(code.registers, output)
+        boolean(code.captures, output)
+        array(code.instructions, :instruction, output)
+        array(code.code_objects.to_a, :compiled_code, output)
+        array(code.catch_table.to_a, :catch_entry, output)
       end
 
       def validate_range!(value, range)

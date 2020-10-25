@@ -69,7 +69,7 @@ module Inkoc
         @prototype = prototype
         @arguments = SymbolTable.new
         @throw_type = throw_type
-        @return_type = return_type || Dynamic.new
+        @return_type = return_type || Dynamic.singleton
         @required_arguments = 0
         @type_parameters = TypeParameterTable.new
         @type_parameter_instances = TypeParameterInstances.new
@@ -81,7 +81,7 @@ module Inkoc
         @infer_throw_type = infer_throw_type
         @method_bounds = TypeParameterTable.new
         @thrown_types = []
-        @self_type = Dynamic.new
+        @self_type = Dynamic.singleton
       end
 
       def block?
@@ -170,14 +170,14 @@ module Inkoc
       def compatible_arguments?(other, state)
         return false unless arguments.length == other.arguments.length
 
-        args = arguments.zip(other.arguments)
-
-        args.all? do |our, their|
+        arguments.zip(other.arguments) do |our, their|
           our_type = resolve_type_parameter(our.type)
           their_type = other.resolve_type_parameter(their.type)
 
-          our_type.type_compatible?(their_type, state)
+          return false unless our_type.type_compatible?(their_type, state)
         end
+
+        true
       end
 
       # other - An instance of `Inkoc::TypeSystem::Block` to compare with.

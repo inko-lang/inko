@@ -86,7 +86,7 @@ module Inkoc
         if trait && implements_trait?(trait, state)
           lookup_method(method_name)
         else
-          NullSymbol.new(method_name)
+          NullSymbol.singleton
         end
       end
 

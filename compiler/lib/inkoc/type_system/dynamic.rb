@@ -10,6 +10,12 @@ module Inkoc
       include GenericType
       include NewInstance
 
+      SINGLETON = new.freeze
+
+      def self.singleton
+        SINGLETON
+      end
+
       def new_instance(*)
         self
       end
@@ -47,11 +53,11 @@ module Inkoc
       end
 
       def define_attribute(name, *)
-        NullSymbol.new(name)
+        NullSymbol.singleton
       end
 
       def lookup_attribute(name)
-        NullSymbol.new(name)
+        NullSymbol.singleton
       end
 
       def type_compatible?(other, *)

@@ -42,7 +42,7 @@ module Inkoc
     NULL_TOKEN = NullToken.new.freeze
 
     def initialize(input, file_path = Pathname.new('(eval)'))
-      @input = input.chars
+      @input = input.is_a?(Array) ? input : input.chars
       @position = 0
       @line = 1
       @column = 1
@@ -584,8 +584,17 @@ module Inkoc
 
     def new_token(type, start, stop)
       location = current_location
-      token = Token.new(type, @input[start...stop].join(''), location)
+      value = String.new
+      index = start
 
+      # Using this approach instead of slicing @input removes the need for
+      # allocating an intermediate array.
+      while index < stop
+        value << @input[index]
+        index += 1
+      end
+
+      token = Token.new(type, value, location)
       @column += token.value.length
 
       token

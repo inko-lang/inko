@@ -31,7 +31,7 @@ module Inkoc
       end
 
       def lookup_method(name)
-        NullSymbol.new(name)
+        NullSymbol.singleton
       end
     end
   end

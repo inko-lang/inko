@@ -104,7 +104,7 @@ module Inkoc
       def initialize_as(type, method_type, self_type)
         return unless type.generic_type?
 
-        type_parameters.zip(type.type_parameters).each do |ours, theirs|
+        type_parameters.zip(type.type_parameters) do |ours, theirs|
           to_init = lookup_type_parameter_instance(ours)
           init_as = type.lookup_type_parameter_instance(theirs)
 
@@ -123,7 +123,7 @@ module Inkoc
           return symbol if symbol.any?
         end
 
-        NullSymbol.new(name)
+        NullSymbol.singleton
       end
 
       def implement_trait(trait)

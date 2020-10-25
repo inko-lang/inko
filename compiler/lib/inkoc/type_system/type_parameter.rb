@@ -43,7 +43,7 @@ module Inkoc
           end
         end
 
-        NullSymbol.new(name)
+        NullSymbol.singleton
       end
       alias lookup_attribute lookup_method
 

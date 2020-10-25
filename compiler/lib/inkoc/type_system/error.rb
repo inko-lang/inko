@@ -11,11 +11,11 @@ module Inkoc
       end
 
       def lookup_attribute(name)
-        NullSymbol.new(name)
+        NullSymbol.singleton
       end
 
       def define_attribute(name, *)
-        NullSymbol.new(name)
+        NullSymbol.singleton
       end
 
       def error?

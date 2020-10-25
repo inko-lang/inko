@@ -57,7 +57,7 @@ module Inkoc
           end
         end
 
-        NullSymbol.new(name)
+        NullSymbol.singleton
       end
 
       # Returns `true` if `self` is type compatible with `other`.

@@ -16,7 +16,7 @@ module Inkoc
       end
 
       def initialize_type_parameters_in_order(instances)
-        type_parameters.zip(instances).each do |param, instance|
+        type_parameters.zip(instances) do |param, instance|
           initialize_type_parameter(param, instance) if instance
         end
       end

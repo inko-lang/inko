@@ -44,9 +44,13 @@ module Inkoc
 
     attr_reader :name, :type, :index
 
+    def self.singleton
+      NULL_SYMBOL_SINGLETON
+    end
+
     def initialize(name)
       @name = name
-      @type = TypeSystem::Dynamic.new
+      @type = TypeSystem::Dynamic.singleton
       @index = -1
     end
 
@@ -70,4 +74,6 @@ module Inkoc
       yield
     end
   end
+
+  NULL_SYMBOL_SINGLETON = NullSymbol.new('<unknown>')
 end

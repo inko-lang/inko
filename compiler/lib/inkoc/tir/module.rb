@@ -70,7 +70,9 @@ module Inkoc
       end
 
       def source_code
-        location.file.path.read
+        location.file.path.open('r') do |file|
+          file.each_char.to_a
+        end
       end
 
       def file_path_as_string

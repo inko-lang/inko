@@ -69,19 +69,18 @@ module Inkoc
 
       # When our type is a generic type we need to initialise it according to
       # the passed type parameters.
-      type_arguments = node
-        .type_parameters
-        .zip(type.type_parameters)
-        .map do |param_node, param|
-          param_instance = define_type_instance(param_node, scope)
+      type_arguments = []
 
-          if param && !param_instance.type_compatible?(param, @state)
-            return diagnostics
-                .type_error(param, param_instance, param_node.location)
-          end
+      node.type_parameters.zip(type.type_parameters) do |param_node, param|
+        param_instance = define_type_instance(param_node, scope)
 
-          param_instance
+        if param && !param_instance.type_compatible?(param, @state)
+          return diagnostics
+            .type_error(param, param_instance, param_node.location)
         end
+
+        type_arguments << param_instance
+      end
 
       num_given = type_arguments.length
       num_expected = type.type_parameters.length

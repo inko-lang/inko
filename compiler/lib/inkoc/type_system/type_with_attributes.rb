@@ -21,7 +21,7 @@ module Inkoc
           source = source.prototype
         end
 
-        NullSymbol.new(name)
+        NullSymbol.singleton
       end
 
       alias lookup_method lookup_attribute

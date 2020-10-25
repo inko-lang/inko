@@ -37,8 +37,6 @@ module Inkoc
     end
 
     def each
-      return to_enum(__method__) unless block_given?
-
       @symbols.each do |value|
         yield value
       end
@@ -47,7 +45,7 @@ module Inkoc
     def [](name_or_index)
       source = name_or_index.is_a?(Integer) ? @symbols : @mapping
 
-      source[name_or_index] || NullSymbol.new(name_or_index)
+      source[name_or_index] || NullSymbol.singleton
     end
 
     def slice(range)
@@ -67,7 +65,7 @@ module Inkoc
         source = source.parent
       end
 
-      [-1, NullSymbol.new(name_or_index)]
+      [-1, NullSymbol.singleton]
     end
 
     def lookup_in_root(name_or_index)
