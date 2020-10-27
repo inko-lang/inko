@@ -23,3 +23,8 @@ Plug 'https://gitlab.com/inko-lang/inko.vim.git'
 ```
 
 Then restart Vim, and run `:PlugInstall` to install the plugin.
+
+## ctags
+
+[Universal Ctags](https://ctags.io/) has built-in support for Inko, allowing tag
+generation for Inko source code.
