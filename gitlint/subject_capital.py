@@ -3,7 +3,7 @@ from gitlint.rules import LineRule, RuleViolation, CommitMessageTitle
 
 class SubjectCapital(LineRule):
     name = 'inko-subject-capital'
-    id = 'INKO3'
+    id = 'U3'
     target = CommitMessageTitle
     violation_message = 'Commit subjects must start with a capital letter'
 

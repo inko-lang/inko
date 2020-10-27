@@ -3,7 +3,7 @@ from gitlint.rules import LineRule, RuleViolation, CommitMessageBody, IntOption
 
 class BodyLineLength(LineRule):
     name = 'inko-body-line-length'
-    id = 'INKO2'
+    id = 'U2'
     target = CommitMessageBody
     options_spec = [IntOption('line-length', 72, "Max line length")]
     violation_message = "This line is too long ({0}>{1})"

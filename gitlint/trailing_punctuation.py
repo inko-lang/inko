@@ -3,7 +3,7 @@ from gitlint.rules import LineRule, RuleViolation, CommitMessageTitle
 
 class TrailingPunctuation(LineRule):
     name = 'inko-subject-trailing-punctuation'
-    id = 'INKO1'
+    id = 'U1'
     target = CommitMessageTitle
     violation_message = "Commit subjects can't have trailing punctuation ({0})"
 
