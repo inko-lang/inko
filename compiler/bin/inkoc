@@ -4,7 +4,7 @@
 require 'inkoc'
 require 'optparse'
 
-options = { include: [] }
+options = { include: [], check: false, format: 'pretty' }
 
 parser = OptionParser.new do |o|
   o.banner = 'Usage: inko build [OPTIONS] [FILE]'
@@ -17,6 +17,19 @@ parser = OptionParser.new do |o|
 
   o.on('-o', '--output [FILE]', 'The file path of the output bytecode') do |path|
     options[:output] = path
+  end
+
+  o.on('-c', '--check', 'Only check the source code instead of compiling it') do
+    options[:check] = true
+  end
+
+  o.on('-f', '--format [FORMAT]', 'The output format to use for diagnostics') do |f|
+    case f
+    when 'pretty', 'json'
+      options[:format] = f
+    else
+      abort "The output format #{f.inspect} is not supported"
+    end
   end
 
   o.on('-v', '--version', 'Shows the current version') do
@@ -38,7 +51,7 @@ if ARGV.empty?
 end
 
 input = Pathname.new(ARGV[0])
-config = Inkoc::Config.new
+config = Inkoc::Config.new(compile: !options[:check])
 
 config.add_source_directories(options[:include])
 
@@ -47,6 +60,6 @@ state = Inkoc::State.new(config)
 Inkoc::Compiler.new(state).compile_main(input, options[:output])
 
 if state.diagnostics?
-  state.display_diagnostics
+  state.display_diagnostics(options[:format])
   exit(1)
 end

@@ -46,11 +46,11 @@ First install the necessary dependencies:
     ```
 === "Ubuntu 20.04"
     ```bash
-    sudo apt install rust ruby libffi7 libffi-dev build-essential
+    sudo apt install rust ruby ruby-json libffi7 libffi-dev build-essential
     ```
 === "Alpine"
     ```bash
-    sudo apk add rust ruby libffi libffi-dev build-base
+    sudo apk add rust ruby ruby-json libffi libffi-dev build-base
     ```
 
 You can then install Inko using `ivm install VERSION`, with "VERSION" being the
@@ -225,11 +225,11 @@ can be installed as follows:
     ```
 === "Ubuntu"
     ```bash
-    sudo apt install coreutils autoconf automake libtool rust ruby git make build-essential
+    sudo apt install coreutils autoconf automake libtool rust ruby ruby-json git make build-essential
     ```
 === "Alpine"
     ```bash
-    sudo apk add coreutils autoconf automake libtool rust ruby git make build-base
+    sudo apk add coreutils autoconf automake libtool rust ruby ruby-json git make build-base
     ```
 === "macOS"
     ```bash
@@ -250,11 +250,11 @@ only need the following dependencies:
     ```
 === "Ubuntu"
     ```bash
-    sudo apt install coreutils rust ruby git make build-essential
+    sudo apt install coreutils rust ruby ruby-json git make build-essential
     ```
 === "Alpine"
     ```bash
-    sudo apk add coreutils rust ruby git make build-base
+    sudo apk add coreutils rust ruby ruby-json git make build-base
     ```
 === "macOS"
     ```bash

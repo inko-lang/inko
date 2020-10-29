@@ -91,8 +91,13 @@ module Inkoc
       "#{CORE_MODULE}#{MODULE_SEPARATOR}#{name}"
     end
 
-    def initialize
+    def initialize(compile: true)
       @source_directories = Set.new([runtime_directory])
+      @compile = compile
+    end
+
+    def compile?
+      @compile
     end
 
     def add_source_directories(directories)

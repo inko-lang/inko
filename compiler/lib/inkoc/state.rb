@@ -45,9 +45,18 @@ module Inkoc
       @diagnostics.any?
     end
 
-    def display_diagnostics
-      formatter = Formatter::Pretty.new
-      output = formatter.format(@diagnostics)
+    def display_diagnostics(format = 'pretty')
+      formatter =
+      case format
+      when 'pretty'
+        Formatter::Pretty
+      when 'json'
+        Formatter::Json
+      else
+        raise ArgumentError, "The format #{format.inspect} is not supported"
+      end
+
+      output = formatter.new.format(@diagnostics)
 
       STDERR.puts(output) unless output.empty?
     end

@@ -1,5 +1,6 @@
 //! The main entry point for the CLI.
 use crate::command::build;
+use crate::command::check;
 use crate::command::run;
 use crate::command::test;
 use crate::config;
@@ -14,6 +15,7 @@ Commands:
 
     run      Compiles and runs FILE
     build    Compiles FILE
+    check    Checks FILE for any compile-time errors
     test     Runs Inko unit tests
 
 If no explicit command is given, the run command is implied. Each command takes
@@ -55,6 +57,7 @@ pub fn run() -> Result<i32, Error> {
         Some("run") => run::run(&matches.free[1..]),
         Some("build") => build::run(&matches.free[1..]),
         Some("test") => test::run(&matches.free[1..]),
+        Some("check") => check::run(&matches.free[1..]),
         Some(_) => run::run(&matches.free),
         None => Err(Error::generic(
             "You must specify a command or input file to run".to_string(),

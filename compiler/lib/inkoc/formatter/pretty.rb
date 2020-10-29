@@ -39,7 +39,6 @@ module Inkoc
         if source_line && !source_line.empty?
           line_num = ansi(:cyan, diag.line.to_s)
 
-          # TODO: clean up this garbage
           output += '|'.rjust(padding)
           output += "\n #{line_num} | #{source_line.chomp}\n"
           output += '|'.rjust(padding)
@@ -60,6 +59,8 @@ module Inkoc
       end
 
       def ansi(kind, string)
+        return string unless STDIN.tty?
+
         case kind
         when :bold
           Kernel.format(BOLD, string)

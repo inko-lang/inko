@@ -21,7 +21,7 @@ RUN make install PREFIX='/usr'
 FROM alpine:3
 
 # libgcc is needed because libgcc is dynamically linked to the executable.
-RUN apk add --update libffi libffi-dev ruby libgcc
+RUN apk add --update libffi libffi-dev ruby ruby-json libgcc
 
 COPY --from=builder ["/usr/bin/inko", "/usr/bin/inko"]
 COPY --from=builder ["/usr/lib/inko", "/usr/lib/inko/"]

@@ -28,7 +28,12 @@ recommended to compile and run your program separately. For example:
 Examples:
 
     inko run hello.inko    # Compiles and runs the file hello.inko
-    inko run hello.ibi     # Runs the bytecode image directly";
+    inko run hello.ibi     # Runs the bytecode image directly
+
+Output formats:
+
+    pretty (default)
+    json";
 
 /// Compiles and runs Inko source code or a bytecode image.
 pub fn run(arguments: &[String]) -> Result<i32, Error> {
@@ -43,6 +48,13 @@ pub fn run(arguments: &[String]) -> Result<i32, Error> {
         "DIR",
     );
 
+    options.optopt(
+        "f",
+        "format",
+        "The output format to use for diagnostics",
+        "FORMAT",
+    );
+
     let matches = options.parse(arguments)?;
 
     if matches.opt_present("h") {
@@ -51,9 +63,19 @@ pub fn run(arguments: &[String]) -> Result<i32, Error> {
     }
 
     if let Some(input) = matches.free.get(0) {
-        run_file(input, matches.opt_strs("i"), &matches.free[1..])
+        run_file(
+            input,
+            matches.opt_strs("i"),
+            matches.opt_str("f"),
+            &matches.free[1..],
+        )
     } else if let Some(source) = matches.opt_str("e") {
-        run_eval(&source, matches.opt_strs("i"), &matches.free)
+        run_eval(
+            &source,
+            matches.opt_strs("i"),
+            matches.opt_str("f"),
+            &matches.free,
+        )
     } else {
         Err(Error::generic(
             "You must specify an input file or the --eval option".to_string(),
@@ -65,6 +87,7 @@ pub fn run(arguments: &[String]) -> Result<i32, Error> {
 fn run_file(
     input: &str,
     include: Vec<String>,
+    format: Option<String>,
     arguments: &[String],
 ) -> Result<i32, Error> {
     let status = if input.ends_with(BYTECODE_IMAGE_EXT) {
@@ -72,7 +95,7 @@ fn run_file(
     } else {
         let image = Tempfile::new(BYTECODE_IMAGE_EXT)?;
 
-        compile(input, image.path(), include)?;
+        compile(input, image.path(), include, format)?;
         vm::start(image.path(), arguments)
     };
 
@@ -85,6 +108,7 @@ fn run_file(
 pub fn run_eval(
     source: &str,
     include: Vec<String>,
+    format: Option<String>,
     arguments: &[String],
 ) -> Result<i32, Error> {
     let mut input = Tempfile::new(SOURCE_FILE_EXT)?;
@@ -93,7 +117,7 @@ pub fn run_eval(
     input.write(source.as_bytes())?;
     input.flush();
 
-    compile(input.path(), image.path(), include)?;
+    compile(input.path(), image.path(), include, format)?;
     Ok(vm::start(image.path(), arguments))
 }
 
@@ -103,9 +127,15 @@ fn compile(
     input: &str,
     output: &str,
     include: Vec<String>,
+    format: Option<String>,
 ) -> Result<i32, Error> {
     let mut args =
         vec!["-o".to_string(), output.to_string(), input.to_string()];
+
+    if let Some(format) = format {
+        args.push("--format".to_string());
+        args.push(format);
+    }
 
     for directory in include {
         args.push("-i".to_string());

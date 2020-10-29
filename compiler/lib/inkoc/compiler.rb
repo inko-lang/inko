@@ -21,6 +21,10 @@ module Inkoc
       Pass::ImplementTraits,
       Pass::DefineType,
       Pass::ValidateThrow,
+    ].freeze
+
+    COMPILE_PASSES = [
+      *PASSES,
       Pass::GenerateTir,
       Pass::TailCallElimination,
       Pass::CodeGeneration,
@@ -42,15 +46,19 @@ module Inkoc
       name = TIR::QualifiedName.new(%w[main])
       main_mod = compile(name, path)
 
-      Codegen::Serializer.new(self, main_mod).serialize_to_file(output)
+      if @state.config.compile?
+        Codegen::Serializer.new(self, main_mod).serialize_to_file(output)
+      end
+
       output
     end
 
     # name - The QualifiedName of the module.
     # path - The absolute file path of the module to compile, as a Pathname.
     def compile(name, path)
+      passes = @state.config.compile? ? COMPILE_PASSES : PASSES
       mod = module_for_name_and_path(name, path)
-      output = PASSES.reduce([]) do |input, klass|
+      output = passes.reduce([]) do |input, klass|
         out = klass.new(self, mod).run(*input)
 
         break if out.nil? || state.diagnostics.errors?
@@ -58,7 +66,7 @@ module Inkoc
         out
       end
 
-      @modules.push(output.first) if output
+      @modules.push(output.first) if output && @state.config.compile?
 
       mod
     end

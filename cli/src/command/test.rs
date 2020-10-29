@@ -20,7 +20,12 @@ provided the directory contains a test/ directory.
 Examples:
 
     inko test           # Runs all unit tests in ./tests/test
-    inko test -d foo    # Runs all unit tests in ./foo/test";
+    inko test -d foo    # Runs all unit tests in ./foo/test
+
+Output formats:
+
+    pretty (default)
+    json";
 
 /// The default root directory (relative to the current working directory) for
 /// running unit tests.
@@ -39,6 +44,13 @@ pub fn run(arguments: &[String]) -> Result<i32, Error> {
         "directory",
         "The path to the directory containing all unit tests",
         "DIR",
+    );
+
+    options.optopt(
+        "f",
+        "format",
+        "The output format to use for diagnostics",
+        "FORMAT",
     );
 
     let matches = options.parse(arguments)?;
@@ -71,6 +83,7 @@ pub fn run(arguments: &[String]) -> Result<i32, Error> {
     run::run_eval(
         &source,
         vec![root_dir.to_string_lossy().to_string()],
+        matches.opt_str("f"),
         &matches.free,
     )
 }
