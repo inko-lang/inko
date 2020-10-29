@@ -506,17 +506,9 @@ object ModuleMirror {
     _INKOC.module_info(@subject, 0)
   }
 
-  # Returns the path of the bytecode file that defined the module.
-  def bytecode_path -> Path {
-    Path.new(_INKOC.module_info(@subject, 1))
-  }
-
   # Returns the path of the source file that defined the module.
-  #
-  # If the bytecode is moved without its source code, this path may point to a
-  # non-existing file.
   def source_path -> Path {
-    Path.new(_INKOC.module_info(@subject, 2))
+    Path.new(_INKOC.module_info(@subject, 1))
   }
 }
 

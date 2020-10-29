@@ -168,12 +168,7 @@ fn read_modules(
 fn read_module(state: &State, stream: &mut dyn Read) -> Result<Module, String> {
     let literals = read_literals_vector(state, stream)?;
     let compiled_code = read_compiled_code(state, stream, &literals)?;
-    let module = Module::new(
-        compiled_code.name,
-        compiled_code.file,
-        compiled_code,
-        literals,
-    );
+    let module = Module::new(compiled_code.name, compiled_code, literals);
 
     Ok(module)
 }
@@ -601,7 +596,7 @@ mod tests {
 
         assert_eq!(module.name().string_value().unwrap().as_slice(), "main");
         assert_eq!(
-            module.path().string_value().unwrap().as_slice(),
+            module.source_path().string_value().unwrap().as_slice(),
             "test.inko"
         );
     }

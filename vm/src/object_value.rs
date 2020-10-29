@@ -569,7 +569,7 @@ mod tests {
         let name = state.intern_string("a".to_string());
         let path = state.intern_string("a.inko".to_string());
         let code = CompiledCode::new(name, path, 1, Vec::new());
-        let module = Module::new(name, path, code, Vec::new());
+        let module = Module::new(name, code, Vec::new());
         let block =
             Block::new(module.code(), None, ObjectPointer::integer(1), &module);
 
@@ -681,7 +681,7 @@ mod tests {
         let name = state.intern_string("a".to_string());
         let path = state.intern_string("a.inko".to_string());
         let code = CompiledCode::new(name, path, 1, Vec::new());
-        let module = Module::new(name, path, code, Vec::new());
+        let module = Module::new(name, code, Vec::new());
         let block =
             Block::new(module.code(), None, ObjectPointer::integer(1), &module);
 
@@ -751,7 +751,7 @@ mod tests {
         let name = state.intern_string("a".to_string());
         let path = state.intern_string("a.inko".to_string());
         let code = CompiledCode::new(name, path, 1, Vec::new());
-        let module = Module::new(name, path, code, Vec::new());
+        let module = Module::new(name, code, Vec::new());
         let blk =
             Block::new(module.code(), None, ObjectPointer::null(), &module);
 

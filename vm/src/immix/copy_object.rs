@@ -248,7 +248,7 @@ mod tests {
         let name = state.intern_string("a".to_string());
         let path = state.intern_string("a.inko".to_string());
         let cc = CompiledCode::new(name, path, 1, Vec::new());
-        let module = Module::new(name, path, cc, Vec::new());
+        let module = Module::new(name, cc, Vec::new());
         let block =
             Block::new(module.code(), None, ObjectPointer::integer(1), &module);
 

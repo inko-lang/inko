@@ -49,17 +49,11 @@ module Inkoc
       end
 
       def load_module(qname, body, location)
-        imported_mod = @state.module(qname)
-        import_path = imported_mod.bytecode_import_path
-
         name_reg = set_string(qname.to_s, body, location)
-        path_reg = set_string(import_path, body, location)
         reg = body.register(@module.type)
-        result =
-          body.instruct(:Binary, :ModuleLoad, reg, name_reg, path_reg, location)
+        result = body.instruct(:Unary, :ModuleLoad, reg, name_reg, location)
 
         body.registers.release(name_reg)
-        body.registers.release(path_reg)
 
         result
       end
@@ -1621,7 +1615,7 @@ module Inkoc
       end
 
       def on_raw_module_load(node, body)
-        raw_binary_instruction(:ModuleLoad, node, body)
+        raw_unary_instruction(:ModuleLoad, node, body)
       end
 
       def on_raw_module_list(node, body)

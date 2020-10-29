@@ -3,7 +3,6 @@
 require 'set'
 require 'pathname'
 require 'forwardable'
-require 'digest/sha1'
 
 require 'inkoc/version'
 require 'inkoc/inspect'

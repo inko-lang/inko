@@ -66,8 +66,7 @@ pub fn module_info(
 
     match field {
         0 => Ok(module.name()),
-        1 => Ok(module.path()),
-        2 => Ok(module.source_path()),
+        1 => Ok(module.source_path()),
         _ => Err(format!("{} is not a valid module info type", field)),
     }
 }

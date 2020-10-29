@@ -35,13 +35,10 @@ pub fn setup() -> (Machine, Block, RcProcess) {
     let (block, process) = {
         let mut modules = machine.state.modules.lock();
         let mod_name = machine.state.intern_string("test".to_string());
-        let mod_path = machine.state.intern_string(
-            if cfg!(windows) { "C:\\test" } else { "/test" }.to_string(),
-        );
 
         modules.add(
             &machine.state,
-            vec![Module::new(mod_name, mod_path, code, Vec::new())],
+            vec![Module::new(mod_name, code, Vec::new())],
         );
 
         let module_ptr = modules.get(&"test").unwrap();

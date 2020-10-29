@@ -5,8 +5,7 @@ module Inkoc
     class Module
       include Inspect
 
-      attr_reader :name, :location, :body, :globals, :config,
-                  :bytecode_directory, :bytecode_file, :imports, :type
+      attr_reader :name, :location, :body, :globals, :config, :imports, :type
 
       def initialize(name, location)
         @name = name
@@ -19,11 +18,6 @@ module Inkoc
         )
 
         @globals = SymbolTable.new
-
-        hash = Digest::SHA1.hexdigest(file_path_as_string)
-
-        @bytecode_directory = hash[0..1]
-        @bytecode_file = hash[1..-1] + Config::BYTECODE_EXT
         @imports = []
       end
 
@@ -77,10 +71,6 @@ module Inkoc
 
       def file_path_as_string
         location.file.path.to_s
-      end
-
-      def bytecode_import_path
-        File.join(bytecode_directory, bytecode_file)
       end
 
       def lookup_any_type

@@ -11,9 +11,6 @@ pub struct Module {
     /// The name of the module, as a String object.
     name: ObjectPointer,
 
-    /// The full path to the bytecode file, as a String object.
-    path: ObjectPointer,
-
     /// The code to execute for this module.
     code: Box<CompiledCode>,
 
@@ -43,13 +40,11 @@ unsafe impl Send for Module {}
 impl Module {
     pub fn new(
         name: ObjectPointer,
-        path: ObjectPointer,
         code: CompiledCode,
         literals: Vec<ObjectPointer>,
     ) -> Self {
         Module {
             name,
-            path,
             code: Box::new(code),
             global_scope: Box::new(GlobalScope::new()),
             literals,
@@ -59,10 +54,6 @@ impl Module {
 
     pub fn name(&self) -> ObjectPointer {
         self.name
-    }
-
-    pub fn path(&self) -> ObjectPointer {
-        self.path
     }
 
     pub fn source_path(&self) -> ObjectPointer {
@@ -105,7 +96,7 @@ mod tests {
         let name = ObjectPointer::null();
         let path = ObjectPointer::null();
         let code = CompiledCode::new(name, path, 1, Vec::new());
-        let module = Module::new(name, path, code, Vec::new());
+        let module = Module::new(name, code, Vec::new());
 
         assert_eq!(module.mark_as_executed(), true);
         assert_eq!(module.mark_as_executed(), false);

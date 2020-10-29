@@ -643,7 +643,7 @@ mod tests {
         let name = state.intern_string("a".to_string());
         let path = state.intern_string("a.inko".to_string());
         let code = CompiledCode::new(name, path, 1, Vec::new());
-        let module = Module::new(name, path, code, Vec::new());
+        let module = Module::new(name, code, Vec::new());
         let block = CodeBlock::new(
             module.code(),
             Some(binding.clone()),

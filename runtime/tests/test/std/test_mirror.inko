@@ -326,14 +326,6 @@ test.group('std::mirror::ModuleMirror.source_path') do (g) {
   }
 }
 
-test.group('std::mirror::ModuleMirror.bytecode_path') do (g) {
-  g.test('Obtaining the bytecode file path of a module') {
-    let mirror = ModuleMirror.new(ThisModule)
-
-    assert.true(fs.file?(mirror.bytecode_path))
-  }
-}
-
 test.group('std::mirror::ArrayMirror.format') do (g) {
   g.test('Formatting an empty Array') {
     assert.equal(format(ArrayMirror.new(Array.new)), 'Array')
