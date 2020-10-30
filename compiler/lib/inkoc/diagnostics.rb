@@ -406,5 +406,9 @@ module Inkoc
         location
       )
     end
+
+    def unused_local_variable(name, location)
+      warn("The local variable #{name.inspect} is unused", location)
+    end
   end
 end

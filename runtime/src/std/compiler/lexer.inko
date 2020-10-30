@@ -447,7 +447,6 @@ object Lexer {
     # Advance 1 for the opening quote.
     @position += 1
 
-    let start = @position
     let start_line = @line
     let buffer = ByteArray.new
     let line_buffer = ByteArray.new
@@ -686,7 +685,6 @@ object Lexer {
 
   def identifier_or_keyword -> Token {
     let start = @position
-    let mut keyword = False
 
     { valid_identifier_byte? }.while_true {
       @position += 1

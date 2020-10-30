@@ -492,6 +492,9 @@ os.unix?.if_true {
           let socket2 = try! UnixDatagram.new(path2)
 
           try! socket1.connect(path2)
+
+          socket1.close
+          socket2.close
         }
       }
     }
@@ -500,7 +503,6 @@ os.unix?.if_true {
       with_paths do (path1, path2) {
         let socket1 = try! UnixDatagram.new(path1)
         let socket2 = try! UnixDatagram.new(path2)
-        let address = try! socket2.local_address
 
         try! socket1.connect(path2)
         try! socket1.write_string('ping')

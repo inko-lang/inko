@@ -62,7 +62,6 @@ impl String {
       start.negative?.if(true: { start % total_bytes }, false: { start })
 
     let mut end_at = index + length
-    let max_index = total_bytes
 
     (end_at > total_bytes).if_true { end_at = total_bytes }
 

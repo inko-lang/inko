@@ -252,8 +252,7 @@ test.group('std::fs::bits.read_bytes') do (g) {
         mode: READ_ONLY
       )
 
-      let bytes = ByteArray.new
-      let read = try! bits.read_bytes(file: file, bytes: bytes, size: -1)
+      try! bits.read_bytes(file: file, bytes: ByteArray.new, size: -1)
     }
   }
 }

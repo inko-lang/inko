@@ -45,6 +45,10 @@ module Inkoc
       @diagnostics.any?
     end
 
+    def errors?
+      @diagnostics.errors?
+    end
+
     def display_diagnostics(format = 'pretty')
       formatter =
       case format

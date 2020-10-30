@@ -611,6 +611,9 @@ test.group('std::net::socket::UdpSocket.connect') do (g) {
       let socket2 = try! UdpSocket.new(ip: '127.0.0.1', port: 41_000)
 
       try! socket1.connect(ip: '127.0.0.1', port: 41_000)
+
+      socket1.close
+      socket2.close
     }
   }
 

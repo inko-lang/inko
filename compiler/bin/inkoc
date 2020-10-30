@@ -61,5 +61,6 @@ Inkoc::Compiler.new(state).compile_main(input, options[:output])
 
 if state.diagnostics?
   state.display_diagnostics(options[:format])
-  exit(1)
 end
+
+exit(1) if state.errors?

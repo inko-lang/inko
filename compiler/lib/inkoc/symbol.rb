@@ -4,7 +4,7 @@ module Inkoc
   class Symbol
     include Inspect
 
-    attr_reader :name, :index
+    attr_reader :name, :index, :references
     attr_accessor :type
 
     def initialize(name, type, index = -1, mutable = false)
@@ -12,10 +12,19 @@ module Inkoc
       @type = type
       @index = index
       @mutable = mutable
+      @references = 0
     end
 
     def any?
       true
+    end
+
+    def used?
+      @references.positive?
+    end
+
+    def increment_references
+      @references += 1
     end
 
     def mutable?

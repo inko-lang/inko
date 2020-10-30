@@ -34,6 +34,10 @@ module Inkoc
         end
       end
 
+      def local_variable?
+        @variable.identifier?
+      end
+
       def variable_definition?
         true
       end

@@ -96,6 +96,7 @@ module Inkoc
           node.depth = depth_sym[0]
           node.symbol = depth_sym[1]
 
+          node.symbol.increment_references
           remap_send_return_type(node.symbol.type, scope)
         elsif self_type.responds_to_message?(name)
           identifier_send(node, scope.self_type, name, scope)
@@ -365,6 +366,8 @@ module Inkoc
         type =
           define_types(node.expressions, scope).last ||
           typedb.nil_type.new_instance
+
+        check_unused_locals(node.expressions)
 
         block_type = scope.block_type
 
@@ -721,7 +724,7 @@ module Inkoc
           value_type = diagnostics
             .redefine_existing_local_error(name, node.location)
         else
-          scope.locals.define(name, value_type, mutable)
+          node.symbol = scope.locals.define(name, value_type, mutable)
         end
 
         value_type
@@ -1688,6 +1691,20 @@ module Inkoc
       # Returns the type for an explicitly defined argument type, if any.
       def defined_type_for_argument(arg_node, scope)
         define_type_instance(arg_node.value_type, scope) if arg_node.value_type
+      end
+
+      def check_unused_locals(nodes)
+        nodes.each do |node|
+          next unless node.variable_definition?
+          next unless node.local_variable?
+
+          var = node.variable
+
+          next unless var.symbol
+          next if var.symbol.used?
+
+          diagnostics.unused_local_variable(var.name, node.location)
+        end
       end
 
       # Determines which type to use for an argument.
