@@ -17,5 +17,6 @@ module Inkoc
     FFI_POINTER = 12
     IP_SOCKET = 13
     UNIX_SOCKET = 14
+    PROCESS = 15
   end
 end

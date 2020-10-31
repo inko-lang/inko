@@ -50,6 +50,7 @@ module Inkoc
     FFI_POINTER_TYPE = 'Pointer'
     IP_SOCKET_TYPE = 'Socket'
     UNIX_SOCKET_TYPE = 'Socket'
+    PROCESS_TYPE = 'Process'
     SELF_TYPE = 'Self'
     NEVER_TYPE = 'Never'
     MODULES_ATTRIBUTE = 'Modules'

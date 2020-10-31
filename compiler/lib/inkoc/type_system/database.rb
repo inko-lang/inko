@@ -7,7 +7,8 @@ module Inkoc
                   :integer_type, :float_type, :string_type, :array_type,
                   :object_type, :boolean_type, :file_type, :byte_array_type,
                   :module_type, :ffi_library_type, :ffi_function_type,
-                  :ffi_pointer_type, :ip_socket_type, :unix_socket_type
+                  :ffi_pointer_type, :ip_socket_type, :unix_socket_type,
+                  :process_type
 
       def initialize
         @object_type = new_object_type(Config::OBJECT_CONST, nil)
@@ -28,6 +29,7 @@ module Inkoc
         @ffi_pointer_type = new_object_type(Config::FFI_POINTER_TYPE)
         @ip_socket_type = new_object_type(Config::IP_SOCKET_TYPE)
         @unix_socket_type = new_object_type(Config::UNIX_SOCKET_TYPE)
+        @process_type = new_object_type(Config::PROCESS_TYPE)
         @trait_id = -1
       end
 

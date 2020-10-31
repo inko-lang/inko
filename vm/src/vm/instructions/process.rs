@@ -23,11 +23,11 @@ pub fn process_set_panic_handler(
 }
 
 #[inline(always)]
-pub fn process_current(
-    process: &RcProcess,
-    proto: ObjectPointer,
-) -> ObjectPointer {
-    process.allocate(object_value::process(process.clone()), proto)
+pub fn process_current(state: &RcState, process: &RcProcess) -> ObjectPointer {
+    process.allocate(
+        object_value::process(process.clone()),
+        state.process_prototype,
+    )
 }
 
 #[inline(always)]
@@ -35,7 +35,6 @@ pub fn process_spawn(
     state: &RcState,
     current_process: &RcProcess,
     block_ptr: ObjectPointer,
-    proto_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
     let block = block_ptr.block_value()?;
     let new_proc = process_allocate(&state, &block);
@@ -44,8 +43,8 @@ pub fn process_spawn(
     // allocation below (which may require requesting a new block) to finish.
     state.scheduler.schedule(new_proc.clone());
 
-    let new_proc_ptr =
-        current_process.allocate(object_value::process(new_proc), proto_ptr);
+    let new_proc_ptr = current_process
+        .allocate(object_value::process(new_proc), state.process_prototype);
 
     Ok(new_proc_ptr)
 }

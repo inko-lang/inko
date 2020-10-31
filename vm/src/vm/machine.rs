@@ -921,14 +921,9 @@ impl Machine {
                 }
                 Opcode::ProcessSpawn => {
                     let reg = instruction.arg(0);
-                    let proto = context.get_register(instruction.arg(1));
-                    let block = context.get_register(instruction.arg(2));
-                    let res = process::process_spawn(
-                        &self.state,
-                        process,
-                        block,
-                        proto,
-                    )?;
+                    let block = context.get_register(instruction.arg(1));
+                    let res =
+                        process::process_spawn(&self.state, process, block)?;
 
                     context.set_register(reg, res);
                 }
@@ -969,8 +964,7 @@ impl Machine {
                 }
                 Opcode::ProcessCurrent => {
                     let reg = instruction.arg(0);
-                    let proto = context.get_register(instruction.arg(1));
-                    let obj = process::process_current(process, proto);
+                    let obj = process::process_current(&self.state, process);
 
                     context.set_register(reg, obj);
                 }

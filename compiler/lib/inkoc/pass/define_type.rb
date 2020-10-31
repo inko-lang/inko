@@ -1111,6 +1111,10 @@ module Inkoc
         typedb.unix_socket_type
       end
 
+      def on_raw_get_process_prototype(*)
+        typedb.process_type
+      end
+
       def on_raw_run_block(*)
         new_any_type
       end
@@ -1219,7 +1223,7 @@ module Inkoc
       end
 
       def on_raw_process_spawn(node, _)
-        node.arguments.fetch(0).type.new_instance
+        typedb.process_type.new_instance
       end
 
       def on_raw_process_send_message(node, _)
@@ -1231,7 +1235,7 @@ module Inkoc
       end
 
       def on_raw_process_current(node, _)
-        node.arguments.fetch(0).type.new_instance
+        typedb.process_type.new_instance
       end
 
       def on_raw_process_suspend_current(*)

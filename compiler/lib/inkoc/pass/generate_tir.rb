@@ -1189,7 +1189,7 @@ module Inkoc
       end
 
       def on_raw_process_spawn(node, body)
-        raw_binary_instruction(:ProcessSpawn, node, body)
+        raw_unary_instruction(:ProcessSpawn, node, body)
       end
 
       def on_raw_process_send_message(node, body)
@@ -1201,7 +1201,7 @@ module Inkoc
       end
 
       def on_raw_process_current(node, body)
-        raw_unary_instruction(:ProcessCurrent, node, body)
+        raw_nullary_instruction(:ProcessCurrent, node, body)
       end
 
       def on_raw_process_suspend_current(node, body)
@@ -1405,6 +1405,10 @@ module Inkoc
 
       def on_raw_get_ip_socket_prototype(node, body)
         builtin_prototype_instruction(PrototypeID::IP_SOCKET, node, body)
+      end
+
+      def on_raw_get_process_prototype(node, body)
+        builtin_prototype_instruction(PrototypeID::PROCESS, node, body)
       end
 
       def on_raw_get_unix_socket_prototype(node, body)
