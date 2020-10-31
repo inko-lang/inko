@@ -437,6 +437,10 @@ impl Socket {
     pub fn reuse_port(&self) -> Result<bool, RuntimeError> {
         Ok(false)
     }
+
+    pub fn is_unix(&self) -> bool {
+        self.unix
+    }
 }
 
 impl io::Write for Socket {

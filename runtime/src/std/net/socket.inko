@@ -12,6 +12,15 @@ import std::net::ip::(self, IpAddress, Ipv4Address, ToIpAddress)
 import std::operators::Equal
 import std::time::Duration
 
+# A low-level, non-blocking IPv4 or IPv6 socket.
+#
+# Low-level sockets allow for more fine-grained control over how sockets should
+# be constructed and used, at the cost of a slightly less ergonomic API
+# compared to more high-level types such as `UdpSocket`.
+let Socket = _INKOC.get_ip_socket_prototype
+
+_INKOC.set_object_name(Socket, 'Socket')
+
 # The domain for IPv4 sockets.
 let IPV4 = AF_INET
 
@@ -61,12 +70,7 @@ impl Equal for SocketAddress {
   }
 }
 
-# A low-level, non-blocking IPv4 or IPv6 socket.
-#
-# Low-level sockets allow for more fine-grained control over how sockets should
-# be constructed and used, at the cost of a slightly less ergonomic API
-# compared to more high-level types such as `UdpSocket`.
-object Socket {
+impl Socket {
   # Creates a new socket.
   #
   # # Examples
@@ -78,7 +82,7 @@ object Socket {
   #     try! Socket.new(domain: IPV4, kind: DGRAM)
   static def new(domain: Integer, kind: Integer) !! IoError -> Self {
     try {
-      _INKOC.socket_create(Socket, domain, kind)
+      _INKOC.socket_create(domain, kind) as Socket
     } else (error) {
       throw IoError.new(error as String)
     }
@@ -162,7 +166,7 @@ object Socket {
   #     try! client.read_string(4) # => 'ping'
   def accept !! IoError -> Socket {
     try {
-      _INKOC.socket_accept(Socket, self)
+      _INKOC.socket_accept(self) as Socket
     } else (error) {
       throw IoError.new(error as String)
     }

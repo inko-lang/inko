@@ -9,6 +9,15 @@ import std::net::bits::(
 )
 import std::operators::Equal
 
+# A low-level, non-blocking Unix domain socket.
+#
+# Low-level Unix domain sockets allow for more fine-grained control over how
+# sockets should be constructed and used, at the cost of a slightly less
+# ergonomic API compared to more high-level types such as `UnixDatagram`.
+let Socket = _INKOC.get_unix_socket_prototype
+
+_INKOC.set_object_name(Socket, 'Socket')
+
 # The domain for Unix sockets.
 let UNIX = AF_UNIX
 
@@ -127,12 +136,7 @@ impl ToString for SocketAddress {
   }
 }
 
-# A low-level, non-blocking Unix domain socket.
-#
-# Low-level Unix domain sockets allow for more fine-grained control over how
-# sockets should be constructed and used, at the cost of a slightly less
-# ergonomic API compared to more high-level types such as `UnixDatagram`.
-object Socket {
+impl Socket {
   # Creates a new Unix domain socket.
   #
   # # Examples
@@ -144,7 +148,7 @@ object Socket {
   #     try! Socket.new(DGRAM)
   static def new(kind: Integer) !! IoError -> Socket {
     try {
-      _INKOC.socket_create(Socket, UNIX, kind)
+      _INKOC.socket_create(UNIX, kind) as Socket
     } else (error) {
       throw IoError.new(error as String)
     }
@@ -225,7 +229,7 @@ object Socket {
   #     try! client.read_string(4) # => 'ping'
   def accept !! IoError -> Socket {
     try {
-      _INKOC.socket_accept(Socket, self)
+      _INKOC.socket_accept(self) as Socket
     } else (error) {
       throw IoError.new(error as String)
     }

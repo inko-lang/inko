@@ -48,6 +48,8 @@ module Inkoc
     FFI_LIBRARY_TYPE = 'Library'
     FFI_FUNCTION_TYPE = 'Function'
     FFI_POINTER_TYPE = 'Pointer'
+    IP_SOCKET_TYPE = 'Socket'
+    UNIX_SOCKET_TYPE = 'Socket'
     SELF_TYPE = 'Self'
     NEVER_TYPE = 'Never'
     MODULES_ATTRIBUTE = 'Modules'

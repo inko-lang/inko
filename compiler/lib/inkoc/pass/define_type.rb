@@ -1103,6 +1103,14 @@ module Inkoc
         typedb.ffi_pointer_type
       end
 
+      def on_raw_get_ip_socket_prototype(*)
+        typedb.ip_socket_type
+      end
+
+      def on_raw_get_unix_socket_prototype(*)
+        typedb.unix_socket_type
+      end
+
       def on_raw_run_block(*)
         new_any_type
       end
@@ -1513,7 +1521,7 @@ module Inkoc
       end
 
       def on_raw_socket_create(node, _)
-        node.arguments.fetch(0).type.new_instance
+        new_any_type
       end
 
       def on_raw_socket_write(*)
@@ -1525,7 +1533,7 @@ module Inkoc
       end
 
       def on_raw_socket_accept(node, _)
-        node.arguments.fetch(0).type.new_instance
+        new_any_type
       end
 
       def on_raw_socket_receive_from(*)

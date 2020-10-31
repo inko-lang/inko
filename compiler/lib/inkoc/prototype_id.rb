@@ -15,5 +15,7 @@ module Inkoc
     FFI_LIBRARY = 10
     FFI_FUNCTION = 11
     FFI_POINTER = 12
+    IP_SOCKET = 13
+    UNIX_SOCKET = 14
   end
 end

@@ -39,14 +39,16 @@ macro_rules! ret {
 
 #[inline(always)]
 pub fn socket_create(
+    state: &RcState,
     process: &RcProcess,
     domain_ptr: ObjectPointer,
     kind_ptr: ObjectPointer,
-    proto_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, RuntimeError> {
     let domain = domain_ptr.u8_value()?;
     let kind = kind_ptr.u8_value()?;
     let socket = Socket::new(domain, kind)?;
+    let proto_ptr = socket_prototype(state, &socket);
+
     let socket_ptr = process.allocate(object_value::socket(socket), proto_ptr);
 
     Ok(socket_ptr)
@@ -138,9 +140,10 @@ pub fn socket_accept(
     state: &RcState,
     process: &RcProcess,
     socket_ptr: ObjectPointer,
-    proto_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, RuntimeError> {
     let sock = socket_ptr.socket_value_mut()?;
+    let proto_ptr = socket_prototype(state, &sock);
+
     let result = sock
         .accept()
         .map(|sock| process.allocate(object_value::socket(sock), proto_ptr));
@@ -357,5 +360,13 @@ fn alloc_bool(state: &RcState, value: bool) -> ObjectPointer {
         state.true_object
     } else {
         state.false_object
+    }
+}
+
+fn socket_prototype(state: &RcState, socket: &Socket) -> ObjectPointer {
+    if socket.is_unix() {
+        state.unix_socket_prototype
+    } else {
+        state.ip_socket_prototype
     }
 }

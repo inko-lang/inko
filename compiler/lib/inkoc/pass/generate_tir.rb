@@ -1403,6 +1403,14 @@ module Inkoc
         builtin_prototype_instruction(PrototypeID::FFI_POINTER, node, body)
       end
 
+      def on_raw_get_ip_socket_prototype(node, body)
+        builtin_prototype_instruction(PrototypeID::IP_SOCKET, node, body)
+      end
+
+      def on_raw_get_unix_socket_prototype(node, body)
+        builtin_prototype_instruction(PrototypeID::UNIX_SOCKET, node, body)
+      end
+
       def on_raw_get_byte_array_prototype(node, body)
         builtin_prototype_instruction(PrototypeID::BYTE_ARRAY, node, body)
       end
@@ -1534,7 +1542,7 @@ module Inkoc
       end
 
       def on_raw_socket_create(node, body)
-        raw_ternary_instruction(:SocketCreate, node, body)
+        raw_binary_instruction(:SocketCreate, node, body)
       end
 
       def on_raw_socket_write(node, body)
@@ -1546,7 +1554,7 @@ module Inkoc
       end
 
       def on_raw_socket_accept(node, body)
-        raw_binary_instruction(:SocketAccept, node, body)
+        raw_unary_instruction(:SocketAccept, node, body)
       end
 
       def on_raw_socket_receive_from(node, body)

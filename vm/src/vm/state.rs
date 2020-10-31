@@ -122,6 +122,12 @@ pub struct State {
     /// The prototype to use for FFI pointers.
     pub ffi_pointer_prototype: ObjectPointer,
 
+    /// The prototype to use for IP sockets.
+    pub ip_socket_prototype: ObjectPointer,
+
+    /// The prototype to use for Unix sockets.
+    pub unix_socket_prototype: ObjectPointer,
+
     /// The commandline arguments passed to an Inko program.
     pub arguments: Vec<ObjectPointer>,
 
@@ -166,6 +172,8 @@ impl State {
         let ffi_library_prototype = perm_alloc.allocate_empty();
         let ffi_function_prototype = perm_alloc.allocate_empty();
         let ffi_pointer_prototype = perm_alloc.allocate_empty();
+        let ip_socket_prototype = perm_alloc.allocate_empty();
+        let unix_socket_prototype = perm_alloc.allocate_empty();
 
         {
             integer_proto.set_prototype(object_proto);
@@ -186,6 +194,9 @@ impl State {
             ffi_library_prototype.set_prototype(object_proto);
             ffi_function_prototype.set_prototype(object_proto);
             ffi_pointer_prototype.set_prototype(object_proto);
+
+            ip_socket_prototype.set_prototype(object_proto);
+            unix_socket_prototype.set_prototype(object_proto);
         }
 
         let gc_pool = GcPool::new(config.gc_threads);
@@ -221,6 +232,8 @@ impl State {
             ffi_library_prototype,
             ffi_function_prototype,
             ffi_pointer_prototype,
+            ip_socket_prototype,
+            unix_socket_prototype,
             network_poller: NetworkPoller::new(),
             modules: Mutex::new(Modules::new()),
         };

@@ -1748,11 +1748,15 @@ impl Machine {
                 }
                 Opcode::SocketCreate => {
                     let reg = instruction.arg(0);
-                    let proto = context.get_register(instruction.arg(1));
-                    let domain = context.get_register(instruction.arg(2));
-                    let kind = context.get_register(instruction.arg(3));
+                    let domain = context.get_register(instruction.arg(1));
+                    let kind = context.get_register(instruction.arg(2));
                     let res = try_runtime_error!(
-                        socket::socket_create(process, domain, kind, proto),
+                        socket::socket_create(
+                            &self.state,
+                            process,
+                            domain,
+                            kind
+                        ),
                         self,
                         process,
                         context,
@@ -1798,15 +1802,9 @@ impl Machine {
                 }
                 Opcode::SocketAccept => {
                     let reg = instruction.arg(0);
-                    let proto = context.get_register(instruction.arg(1));
-                    let sock = context.get_register(instruction.arg(2));
+                    let sock = context.get_register(instruction.arg(1));
                     let res = try_runtime_error!(
-                        socket::socket_accept(
-                            &self.state,
-                            process,
-                            sock,
-                            proto
-                        ),
+                        socket::socket_accept(&self.state, process, sock),
                         self,
                         process,
                         context,
