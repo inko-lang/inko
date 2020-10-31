@@ -1391,6 +1391,18 @@ module Inkoc
         builtin_prototype_instruction(PrototypeID::MODULE, node, body)
       end
 
+      def on_raw_get_ffi_library_prototype(node, body)
+        builtin_prototype_instruction(PrototypeID::FFI_LIBRARY, node, body)
+      end
+
+      def on_raw_get_ffi_function_prototype(node, body)
+        builtin_prototype_instruction(PrototypeID::FFI_FUNCTION, node, body)
+      end
+
+      def on_raw_get_ffi_pointer_prototype(node, body)
+        builtin_prototype_instruction(PrototypeID::FFI_POINTER, node, body)
+      end
+
       def on_raw_get_byte_array_prototype(node, body)
         builtin_prototype_instruction(PrototypeID::BYTE_ARRAY, node, body)
       end
@@ -1470,23 +1482,23 @@ module Inkoc
       end
 
       def on_raw_ffi_library_open(node, body)
-        raw_binary_instruction(:FFILibraryOpen, node, body)
+        raw_unary_instruction(:FFILibraryOpen, node, body)
       end
 
       def on_raw_ffi_function_attach(node, body)
-        raw_quinary_instruction(:FFIFunctionAttach, node, body)
+        raw_quaternary_instruction(:FFIFunctionAttach, node, body)
       end
 
       def on_raw_ffi_function_call(node, body)
-        raw_ternary_instruction(:FFIFunctionCall, node, body)
+        raw_binary_instruction(:FFIFunctionCall, node, body)
       end
 
       def on_raw_ffi_pointer_attach(node, body)
-        raw_ternary_instruction(:FFIPointerAttach, node, body)
+        raw_binary_instruction(:FFIPointerAttach, node, body)
       end
 
       def on_raw_ffi_pointer_read(node, body)
-        raw_quaternary_instruction(:FFIPointerRead, node, body)
+        raw_ternary_instruction(:FFIPointerRead, node, body)
       end
 
       def on_raw_ffi_pointer_write(node, body)
@@ -1494,7 +1506,7 @@ module Inkoc
       end
 
       def on_raw_ffi_pointer_from_address(node, body)
-        raw_binary_instruction(:FFIPointerFromAddress, node, body)
+        raw_unary_instruction(:FFIPointerFromAddress, node, body)
       end
 
       def on_raw_ffi_pointer_address(node, body)

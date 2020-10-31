@@ -51,6 +51,9 @@ pub fn get_builtin_prototype(
         7 => state.byte_array_prototype,
         8 => state.nil_prototype,
         9 => state.module_prototype,
+        10 => state.ffi_library_prototype,
+        11 => state.ffi_function_prototype,
+        12 => state.ffi_pointer_prototype,
         _ => return Err(format!("Invalid prototype identifier: {}", id_int)),
     };
 

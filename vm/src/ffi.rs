@@ -496,7 +496,6 @@ impl Pointer {
         self,
         state: &RcState,
         process: &RcProcess,
-        pointer_proto: ObjectPointer,
         kind: ObjectPointer,
     ) -> Result<ObjectPointer, String> {
         let int = kind.integer_value()?;
@@ -504,7 +503,10 @@ impl Pointer {
             TYPE_POINTER => {
                 let pointer = Pointer::new(self.read());
 
-                process.allocate(object_value::pointer(pointer), pointer_proto)
+                process.allocate(
+                    object_value::pointer(pointer),
+                    state.ffi_pointer_prototype,
+                )
             }
             TYPE_STRING => {
                 let string = self.read_cstr().to_string_lossy().into_owned();
@@ -703,7 +705,6 @@ impl Function {
         &self,
         state: &RcState,
         process: &RcProcess,
-        pointer_proto: ObjectPointer,
         arg_ptrs: &[ObjectPointer],
     ) -> Result<ObjectPointer, String> {
         if arg_ptrs.len() != self.arguments.len() {
@@ -746,7 +747,7 @@ impl Function {
 
                 process.allocate(
                     object_value::pointer(Pointer::new(result)),
-                    pointer_proto
+                    state.ffi_pointer_prototype
                 )
             }
             void => {
@@ -854,8 +855,7 @@ mod tests {
             )
             .unwrap();
 
-            let pointer_proto = process.allocate_empty();
-            let res = fun.call(&machine.state, &process, pointer_proto, &[arg]);
+            let res = fun.call(&machine.state, &process, &[arg]);
 
             assert!(res.is_ok());
             assert_eq!(res.unwrap().float_value().unwrap(), 3.0);
@@ -876,9 +876,7 @@ mod tests {
 
             ptr.write_as(kind, val).unwrap();
 
-            let pointer_proto = process.allocate_empty();
-            let result =
-                ptr.read_as(&machine.state, &process, pointer_proto, kind);
+            let result = ptr.read_as(&machine.state, &process, kind);
 
             free(ptr.as_c_pointer());
 

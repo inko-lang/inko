@@ -353,13 +353,7 @@ describe Inkoc::Pass::DefineType do
       .new(compiler, tir_module)
       .run(node)
 
-    unless state.diagnostics.errors?
-      Inkoc::Pass::ImplementTraits
-        .new(compiler, tir_module)
-        .run(node)
-
-      pass.on_module_body(node, scope)
-    end
+    pass.on_module_body(node, scope) unless state.diagnostics.errors?
 
     node.expressions[0].type
   end
@@ -2236,7 +2230,7 @@ describe Inkoc::Pass::DefineType do
           .attributes
           .define('@number', state.typedb.integer_type.new_instance, false)
 
-        type = expression_type('@number = 10')
+        expression_type('@number = 10')
 
         expect(state.diagnostics.errors?).to eq(true)
       end

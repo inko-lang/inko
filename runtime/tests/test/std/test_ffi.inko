@@ -349,45 +349,6 @@ test.group('std::ffi::Function.new') do (g) {
   }
 }
 
-test.group('std::ffi::Function.name') do (g) {
-  g.test('Obtaining the name of a Function') {
-    let func = Function.new(
-      library: LIBC,
-      name: 'malloc',
-      arguments: Array.new(types.size_t),
-      returns: types.pointer
-    )
-
-    assert.equal(func.name, 'malloc')
-  }
-}
-
-test.group('std::ffi::Function.arguments') do (g) {
-  g.test('Obtaining the argument types of a Function') {
-    let func = Function.new(
-      library: LIBC,
-      name: 'malloc',
-      arguments: Array.new(types.size_t),
-      returns: types.pointer
-    )
-
-    assert.equal(func.arguments, Array.new(types.size_t))
-  }
-}
-
-test.group('std::ffi::Function.returns') do (g) {
-  g.test('Obtaining the return type of a Function') {
-    let func = Function.new(
-      library: LIBC,
-      name: 'malloc',
-      arguments: Array.new(types.size_t),
-      returns: types.pointer
-    )
-
-    assert.equal(func.returns, types.pointer)
-  }
-}
-
 test.group('std::ffi::Function.call') do (g) {
   g.test('Calling a function with a valid number of arguments') {
     let time_func = LIBC.function('time', Array.new(types.pointer), types.i64)

@@ -45,6 +45,9 @@ module Inkoc
     ANY_TRAIT_CONST = 'Any'
 
     MODULE_TYPE = 'Module'
+    FFI_LIBRARY_TYPE = 'Library'
+    FFI_FUNCTION_TYPE = 'Function'
+    FFI_POINTER_TYPE = 'Pointer'
     SELF_TYPE = 'Self'
     NEVER_TYPE = 'Never'
     MODULES_ATTRIBUTE = 'Modules'

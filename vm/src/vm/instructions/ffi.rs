@@ -7,24 +7,25 @@ use crate::vm::state::RcState;
 
 #[inline(always)]
 pub fn ffi_library_open(
+    state: &RcState,
     process: &RcProcess,
     names_ptr: ObjectPointer,
-    proto_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
     let names = names_ptr.array_value()?;
     let lib = ffi::Library::from_pointers(names)?;
 
-    Ok(process.allocate(object_value::library(lib), proto_ptr))
+    Ok(process
+        .allocate(object_value::library(lib), state.ffi_library_prototype))
 }
 
 #[inline(always)]
 pub fn ffi_function_attach(
+    state: &RcState,
     process: &RcProcess,
     lib: ObjectPointer,
     name: ObjectPointer,
     arg_types: ObjectPointer,
     rtype: ObjectPointer,
-    proto: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
     let func = unsafe {
         let lib = lib.library_value()?;
@@ -34,7 +35,8 @@ pub fn ffi_function_attach(
         ffi::Function::attach(lib, name, args, rtype)?
     };
 
-    let result = process.allocate(object_value::function(func), proto);
+    let result = process
+        .allocate(object_value::function(func), state.ffi_function_prototype);
 
     Ok(result)
 }
@@ -45,25 +47,25 @@ pub fn ffi_function_call(
     process: &RcProcess,
     func_ptr: ObjectPointer,
     args_ptr: ObjectPointer,
-    pointer_proto_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
     let func = func_ptr.function_value()?;
     let args = args_ptr.array_value()?;
 
-    Ok(unsafe { func.call(&state, &process, pointer_proto_ptr, args)? })
+    Ok(unsafe { func.call(&state, &process, args)? })
 }
 
 #[inline(always)]
 pub fn ffi_pointer_attach(
+    state: &RcState,
     process: &RcProcess,
     lib: ObjectPointer,
     name: ObjectPointer,
-    proto: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
     let raw_ptr =
         unsafe { lib.library_value()?.get(name.string_value()?.as_slice())? };
 
-    let result = process.allocate(object_value::pointer(raw_ptr), proto);
+    let result = process
+        .allocate(object_value::pointer(raw_ptr), state.ffi_pointer_prototype);
 
     Ok(result)
 }
@@ -72,7 +74,6 @@ pub fn ffi_pointer_attach(
 pub fn ffi_pointer_read(
     state: &RcState,
     process: &RcProcess,
-    pointer_proto_ptr: ObjectPointer,
     ptr: ObjectPointer,
     read_as: ObjectPointer,
     offset_ptr: ObjectPointer,
@@ -80,12 +81,9 @@ pub fn ffi_pointer_read(
     let offset = offset_ptr.usize_value()?;
 
     let result = unsafe {
-        ptr.pointer_value()?.with_offset(offset).read_as(
-            &state,
-            process,
-            pointer_proto_ptr,
-            read_as,
-        )?
+        ptr.pointer_value()?
+            .with_offset(offset)
+            .read_as(&state, process, read_as)?
     };
 
     Ok(result)
@@ -111,13 +109,13 @@ pub fn ffi_pointer_write(
 
 #[inline(always)]
 pub fn ffi_pointer_from_address(
+    state: &RcState,
     process: &RcProcess,
     addr: ObjectPointer,
-    proto: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
     let result = process.allocate(
         object_value::pointer(unsafe { ffi::Pointer::from_address(addr)? }),
-        proto,
+        state.ffi_pointer_prototype,
     );
 
     Ok(result)

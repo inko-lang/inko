@@ -6,7 +6,8 @@ module Inkoc
       attr_reader :true_type, :false_type, :nil_type, :block_type,
                   :integer_type, :float_type, :string_type, :array_type,
                   :object_type, :boolean_type, :file_type, :byte_array_type,
-                  :module_type
+                  :module_type, :ffi_library_type, :ffi_function_type,
+                  :ffi_pointer_type
 
       def initialize
         @object_type = new_object_type(Config::OBJECT_CONST, nil)
@@ -22,6 +23,9 @@ module Inkoc
         @byte_array_type = new_object_type(Config::BYTE_ARRAY_CONST)
         @array_type = initialize_array_type
         @module_type = new_object_type(Config::MODULE_TYPE)
+        @ffi_library_type = new_object_type(Config::FFI_LIBRARY_TYPE)
+        @ffi_function_type = new_object_type(Config::FFI_FUNCTION_TYPE)
+        @ffi_pointer_type = new_object_type(Config::FFI_POINTER_TYPE)
         @trait_id = -1
       end
 

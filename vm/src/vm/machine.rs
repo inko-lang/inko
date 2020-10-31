@@ -1592,21 +1592,25 @@ impl Machine {
                 }
                 Opcode::FFILibraryOpen => {
                     let reg = instruction.arg(0);
-                    let proto = context.get_register(instruction.arg(1));
-                    let names = context.get_register(instruction.arg(2));
-                    let res = ffi::ffi_library_open(process, names, proto)?;
+                    let names = context.get_register(instruction.arg(1));
+                    let res =
+                        ffi::ffi_library_open(&self.state, process, names)?;
 
                     context.set_register(reg, res);
                 }
                 Opcode::FFIFunctionAttach => {
                     let reg = instruction.arg(0);
-                    let proto = context.get_register(instruction.arg(1));
-                    let lib = context.get_register(instruction.arg(2));
-                    let name = context.get_register(instruction.arg(3));
-                    let args = context.get_register(instruction.arg(4));
-                    let rtype = context.get_register(instruction.arg(5));
+                    let lib = context.get_register(instruction.arg(1));
+                    let name = context.get_register(instruction.arg(2));
+                    let args = context.get_register(instruction.arg(3));
+                    let rtype = context.get_register(instruction.arg(4));
                     let res = ffi::ffi_function_attach(
-                        process, lib, name, args, rtype, proto,
+                        &self.state,
+                        process,
+                        lib,
+                        name,
+                        args,
+                        rtype,
                     )?;
 
                     context.set_register(reg, res);
@@ -1615,37 +1619,36 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let func = context.get_register(instruction.arg(1));
                     let args = context.get_register(instruction.arg(2));
-                    let proto = context.get_register(instruction.arg(3));
                     let res = ffi::ffi_function_call(
                         &self.state,
                         process,
                         func,
                         args,
-                        proto,
                     )?;
 
                     context.set_register(reg, res);
                 }
                 Opcode::FFIPointerAttach => {
                     let reg = instruction.arg(0);
-                    let proto = context.get_register(instruction.arg(1));
-                    let lib = context.get_register(instruction.arg(2));
-                    let name = context.get_register(instruction.arg(3));
-                    let res =
-                        ffi::ffi_pointer_attach(process, lib, name, proto)?;
+                    let lib = context.get_register(instruction.arg(1));
+                    let name = context.get_register(instruction.arg(2));
+                    let res = ffi::ffi_pointer_attach(
+                        &self.state,
+                        process,
+                        lib,
+                        name,
+                    )?;
 
                     context.set_register(reg, res);
                 }
                 Opcode::FFIPointerRead => {
                     let reg = instruction.arg(0);
-                    let ptr_proto = context.get_register(instruction.arg(1));
-                    let ptr = context.get_register(instruction.arg(2));
-                    let kind = context.get_register(instruction.arg(3));
-                    let offset = context.get_register(instruction.arg(4));
+                    let ptr = context.get_register(instruction.arg(1));
+                    let kind = context.get_register(instruction.arg(2));
+                    let offset = context.get_register(instruction.arg(3));
                     let res = ffi::ffi_pointer_read(
                         &self.state,
                         process,
-                        ptr_proto,
                         ptr,
                         kind,
                         offset,
@@ -1665,10 +1668,12 @@ impl Machine {
                 }
                 Opcode::FFIPointerFromAddress => {
                     let reg = instruction.arg(0);
-                    let proto = context.get_register(instruction.arg(1));
-                    let addr = context.get_register(instruction.arg(2));
-                    let res =
-                        ffi::ffi_pointer_from_address(process, addr, proto)?;
+                    let addr = context.get_register(instruction.arg(1));
+                    let res = ffi::ffi_pointer_from_address(
+                        &self.state,
+                        process,
+                        addr,
+                    )?;
 
                     context.set_register(reg, res);
                 }

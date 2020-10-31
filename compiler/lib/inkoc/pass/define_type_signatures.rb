@@ -25,7 +25,7 @@ module Inkoc
       def on_trait(node, scope)
         if (existing = scope.lookup_type(node.name))
           return diagnostics
-            .redefine_existing_constant_error(existing, node.location)
+            .redefine_existing_constant_error(existing.name, node.location)
         end
 
         trait_proto = @module.globals[Config::TRAIT_CONST].type

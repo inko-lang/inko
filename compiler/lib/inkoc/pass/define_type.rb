@@ -549,6 +549,9 @@ module Inkoc
 
         return trait if trait.error?
 
+        object.implement_trait(trait)
+        node.block_type = impl_block
+
         define_type(node.body, impl_scope)
 
         if trait_requirements_met?(object, trait, node.location)
@@ -1088,6 +1091,18 @@ module Inkoc
         typedb.module_type
       end
 
+      def on_raw_get_ffi_library_prototype(*)
+        typedb.ffi_library_type
+      end
+
+      def on_raw_get_ffi_function_prototype(*)
+        typedb.ffi_function_type
+      end
+
+      def on_raw_get_ffi_pointer_prototype(*)
+        typedb.ffi_pointer_type
+      end
+
       def on_raw_run_block(*)
         new_any_type
       end
@@ -1446,11 +1461,11 @@ module Inkoc
       end
 
       def on_raw_ffi_library_open(node, _)
-        node.arguments.fetch(0).type.new_instance
+        typedb.ffi_library_type.new_instance
       end
 
       def on_raw_ffi_function_attach(node, _)
-        node.arguments.fetch(0).type.new_instance
+        typedb.ffi_function_type.new_instance
       end
 
       def on_raw_ffi_function_call(*)
@@ -1458,7 +1473,7 @@ module Inkoc
       end
 
       def on_raw_ffi_pointer_attach(node, _)
-        node.arguments.fetch(0).type.new_instance
+        typedb.ffi_pointer_type.new_instance
       end
 
       def on_raw_ffi_pointer_read(*)
@@ -1470,7 +1485,7 @@ module Inkoc
       end
 
       def on_raw_ffi_pointer_from_address(node, _)
-        node.arguments.fetch(0).type.new_instance
+        typedb.ffi_pointer_type.new_instance
       end
 
       def on_raw_ffi_pointer_address(*)

@@ -12,5 +12,8 @@ module Inkoc
     BYTE_ARRAY = 7
     NIL = 8
     MODULE = 9
+    FFI_LIBRARY = 10
+    FFI_FUNCTION = 11
+    FFI_POINTER = 12
   end
 end

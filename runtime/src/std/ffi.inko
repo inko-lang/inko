@@ -107,14 +107,22 @@ import std::operators::Equal
 import std::process
 import std::string_buffer::StringBuffer
 
+let Library = _INKOC.get_ffi_library_prototype
+let Function = _INKOC.get_ffi_function_prototype
+let Pointer = _INKOC.get_ffi_pointer_prototype
+
+_INKOC.set_object_name(Library, 'Library')
+_INKOC.set_object_name(Function, 'Function')
+_INKOC.set_object_name(Pointer, 'Pointer')
+
 # The address used for NULL pointers.
 let NULL_ADDRESS = 0x0
 
 # A pointer to a value in C.
-object Pointer {
+impl Pointer {
   # Creates a pointer using the given memory address.
   static def new(address: Integer) -> Self {
-    _INKOC.ffi_pointer_from_address(Pointer, address)
+    _INKOC.ffi_pointer_from_address(address)
   }
 
   # Returns a NULL `Pointer`.
@@ -138,7 +146,7 @@ object Pointer {
   # `offset` argument can be used to specify an offset in bytes (relative to
   # the pointer) to read from.
   def read(type: Type, offset = 0) -> Any {
-    _INKOC.ffi_pointer_read(Pointer, self, type.to_integer, offset)
+    _INKOC.ffi_pointer_read(self, type.to_integer, offset)
   }
 
   # Writes a value to the pointer.
@@ -160,7 +168,7 @@ impl Equal for Pointer {
 }
 
 # A dynamically loaded C library.
-object Library {
+impl Library {
   # Dynamically loads a C library.
   #
   # The `names` argument is an `Array` of library names to use for loading the
@@ -170,12 +178,12 @@ object Library {
   # The names in this `Array` can either be the library name with extension,
   # such as `'libc.so.6'`, or absolute paths such as `'/usr/lib/libc.so.6'`.
   static def new(names: Array!(String)) -> Self {
-    _INKOC.ffi_library_open(Library, names)
+    _INKOC.ffi_library_open(names)
   }
 
   # Returns a `Pointer` pointing to the address of the given variable.
   def variable(name: String) -> Pointer {
-    _INKOC.ffi_pointer_attach(Pointer, self, name)
+    _INKOC.ffi_pointer_attach(self, name)
   }
 }
 
@@ -187,16 +195,7 @@ impl Close for Library {
 }
 
 # A C function that can be called from Inko.
-object Function {
-  # The name of this function.
-  @name: String
-
-  # The argument types of this function.
-  @arguments: Array!(Type)
-
-  # The return type of this function.
-  @returns: Type
-
+impl Function {
   # Attaches a C function to Inko.
   static def new(
     library: Library,
@@ -204,45 +203,19 @@ object Function {
     arguments: Array!(Type),
     returns: Type
   ) -> Self {
-    let func = _INKOC.ffi_function_attach(
-      Function,
+    _INKOC.ffi_function_attach(
       library,
       name,
       arguments.iter.map do (type: Type) { type.to_integer }.to_array,
       returns.to_integer
     )
-
-    func.init(name: name, arguments: arguments, returns: returns)
-
-    func
-  }
-
-  def init(name: String, arguments: Array!(Type), returns: Type) {
-    @name = name
-    @arguments = arguments
-    @returns = returns
-  }
-
-  # Returns the name of this function.
-  def name -> String {
-    @name
-  }
-
-  # Returns the argument types of this function.
-  def arguments -> Array!(Type) {
-    @arguments
-  }
-
-  # Returns the return type of this function.
-  def returns -> Type {
-    @returns
   }
 
   # Calls the function with the given arguments.
   #
   # This method will panic if any of the arguments are invalid.
   def call(*arguments: Any) -> Any {
-    _INKOC.ffi_function_call(self, arguments, Pointer)
+    _INKOC.ffi_function_call(self, arguments)
   }
 }
 
