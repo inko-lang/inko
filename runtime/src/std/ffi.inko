@@ -190,7 +190,7 @@ impl Library {
 impl Close for Library {
   # Disposes of the current library.
   def close {
-    _INKOC.drop_value(self)
+    _INKOC.close(self)
   }
 }
 

@@ -1241,7 +1241,11 @@ module Inkoc
       end
 
       def on_raw_file_open(node, body)
-        raw_ternary_instruction(:FileOpen, node, body)
+        raw_binary_instruction(:FileOpen, node, body)
+      end
+
+      def on_raw_file_path(node, body)
+        raw_unary_instruction(:FilePath, node, body)
       end
 
       def on_raw_file_read(node, body)
@@ -1288,10 +1292,10 @@ module Inkoc
         raw_unary_instruction(:DirectoryList, node, body)
       end
 
-      def on_raw_drop_value(node, body)
+      def on_raw_close(node, body)
         object = process_node(node.arguments.fetch(0), body)
 
-        body.instruct(:Nullary, :DropValue, object, node.location)
+        body.instruct(:Nullary, :Close, object, node.location)
         body.registers.release(object)
 
         get_nil(body, node.location)
@@ -1413,6 +1417,18 @@ module Inkoc
 
       def on_raw_get_unix_socket_prototype(node, body)
         builtin_prototype_instruction(PrototypeID::UNIX_SOCKET, node, body)
+      end
+
+      def on_raw_get_read_only_file_prototype(node, body)
+        builtin_prototype_instruction(PrototypeID::READ_ONLY_FILE, node, body)
+      end
+
+      def on_raw_get_write_only_file_prototype(node, body)
+        builtin_prototype_instruction(PrototypeID::WRITE_ONLY_FILE, node, body)
+      end
+
+      def on_raw_get_read_write_file_prototype(node, body)
+        builtin_prototype_instruction(PrototypeID::READ_WRITE_FILE, node, body)
       end
 
       def on_raw_get_byte_array_prototype(node, body)

@@ -1,5 +1,6 @@
 pub mod socket_address;
 
+use crate::closable::ClosableSocket;
 use crate::duration;
 use crate::network_poller::Interest;
 use crate::network_poller::NetworkPoller;
@@ -16,7 +17,7 @@ use std::slice;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 #[cfg(unix)]
-use libc::{EINPROGRESS, EISCONN};
+use nix::errno::Errno::{EINPROGRESS, EISCONN};
 
 #[cfg(windows)]
 use winapi::shared::winerror::{
@@ -26,7 +27,7 @@ use winapi::shared::winerror::{
 macro_rules! socket_setter {
     ($setter:ident, $type:ty) => {
         pub fn $setter(&self, value: $type) -> Result<(), RuntimeError> {
-            self.socket.$setter(value)?;
+            self.inner.$setter(value)?;
 
             Ok(())
         }
@@ -36,7 +37,7 @@ macro_rules! socket_setter {
 macro_rules! socket_getter {
     ($getter:ident, $type:ty) => {
         pub fn $getter(&self) -> Result<$type, RuntimeError> {
-            Ok(self.socket.$getter()?)
+            Ok(self.inner.$getter()?)
         }
     };
 }
@@ -44,7 +45,7 @@ macro_rules! socket_getter {
 macro_rules! socket_u32_getter {
     ($getter:ident) => {
         pub fn $getter(&self) -> Result<usize, RuntimeError> {
-            Ok(self.socket.$getter()? as usize)
+            Ok(self.inner.$getter()? as usize)
         }
     };
 }
@@ -54,7 +55,7 @@ macro_rules! socket_duration_setter {
         pub fn $setter(&self, value: f64) -> Result<(), RuntimeError> {
             let dur = duration::from_f64(value)?;
 
-            self.socket.$setter(dur)?;
+            self.inner.$setter(dur)?;
 
             Ok(())
         }
@@ -64,7 +65,7 @@ macro_rules! socket_duration_setter {
 macro_rules! socket_duration_getter {
     ($getter:ident) => {
         pub fn $getter(&self) -> Result<f64, RuntimeError> {
-            let dur = self.socket.$getter()?;
+            let dur = self.inner.$getter()?;
 
             Ok(duration::to_f64(dur))
         }
@@ -149,7 +150,7 @@ fn update_buffer_length_and_capacity(buffer: &mut Vec<u8>, read: usize) {
 /// A nonblocking socket that can be registered with a `NetworkPoller`.
 pub struct Socket {
     /// The raw socket.
-    socket: RawSocket,
+    inner: ClosableSocket,
 
     /// A flag indicating that this socket has been registered with a poller.
     ///
@@ -199,7 +200,7 @@ impl Socket {
         socket.set_nonblocking(true)?;
 
         Ok(Socket {
-            socket,
+            inner: ClosableSocket::new(socket),
             registered: AtomicBool::new(false),
             unix: domain_int == DOMAIN_UNIX,
         })
@@ -208,13 +209,13 @@ impl Socket {
     pub fn bind(&self, address: &str, port: u16) -> Result<(), RuntimeError> {
         let sockaddr = encode_sockaddr(address, port, self.unix)?;
 
-        self.socket.bind(&sockaddr)?;
+        self.inner.bind(&sockaddr)?;
 
         Ok(())
     }
 
     pub fn listen(&self, backlog: i32) -> Result<(), RuntimeError> {
-        self.socket.listen(backlog)?;
+        self.inner.listen(backlog)?;
 
         Ok(())
     }
@@ -226,13 +227,13 @@ impl Socket {
     ) -> Result<(), RuntimeError> {
         let sockaddr = encode_sockaddr(address, port, self.unix)?;
 
-        match self.socket.connect(&sockaddr) {
+        match self.inner.connect(&sockaddr) {
             Ok(_) => {}
             Err(ref e)
                 if e.kind() == io::ErrorKind::WouldBlock
                     || e.raw_os_error() == Some(EINPROGRESS as i32) =>
             {
-                if let Ok(Some(err)) = self.socket.take_error() {
+                if let Ok(Some(err)) = self.inner.take_error() {
                     // When performing a connect(), the error returned may be
                     // WouldBlock, with the actual error being stored in
                     // SO_ERROR on the socket. Windows in particular seems to
@@ -272,24 +273,24 @@ impl Socket {
         // 1. Set "registered" _first_ (if necessary)
         // 2. Add the socket to the poller
         if self.registered.load(Ordering::Acquire) {
-            Ok(poller.modify(process, &self.socket, interest)?)
+            Ok(poller.modify(process, &*self.inner, interest)?)
         } else {
             self.registered.store(true, Ordering::Release);
-            Ok(poller.add(process, &self.socket, interest)?)
+            Ok(poller.add(process, &*self.inner, interest)?)
         }
 
         // *DO NOT* use "self" from here on.
     }
 
     pub fn accept(&self) -> Result<Self, RuntimeError> {
-        let (socket, _) = self.socket.accept()?;
+        let (socket, _) = self.inner.accept()?;
 
         // Accepted sockets don't inherit the non-blocking status of the
         // listener, so we need to manually mark them as non-blocking.
         socket.set_nonblocking(true)?;
 
         Ok(Socket {
-            socket,
+            inner: ClosableSocket::new(socket),
             registered: AtomicBool::new(false),
             unix: self.unix,
         })
@@ -309,13 +310,13 @@ impl Socket {
             // For files this is fine, but for sockets EOF is not triggered
             // until the socket is closed; which is almost always too late.
             let slice = socket_output_slice(buffer, bytes);
-            let read = self.socket.recv(slice)?;
+            let read = self.inner.recv(slice)?;
 
             update_buffer_length_and_capacity(buffer, read);
 
             Ok(read)
         } else {
-            Ok((&self.socket).read_to_end(buffer)?)
+            Ok((&*self.inner).read_to_end(buffer)?)
         }
     }
 
@@ -325,7 +326,7 @@ impl Socket {
         bytes: usize,
     ) -> Result<(String, i64), RuntimeError> {
         let slice = socket_output_slice(buffer, bytes);
-        let (read, sockaddr) = self.socket.recv_from(slice)?;
+        let (read, sockaddr) = self.inner.recv_from(slice)?;
 
         update_buffer_length_and_capacity(buffer, read);
 
@@ -340,17 +341,17 @@ impl Socket {
     ) -> Result<usize, RuntimeError> {
         let sockaddr = encode_sockaddr(address, port, self.unix)?;
 
-        Ok(self.socket.send_to(buffer, &sockaddr)?)
+        Ok(self.inner.send_to(buffer, &sockaddr)?)
     }
 
     pub fn local_address(&self) -> Result<(String, i64), RuntimeError> {
-        let sockaddr = self.socket.local_addr()?;
+        let sockaddr = self.inner.local_addr()?;
 
         Ok(decode_sockaddr(sockaddr, self.unix)?)
     }
 
     pub fn peer_address(&self) -> Result<(String, i64), RuntimeError> {
-        let sockaddr = self.socket.peer_addr()?;
+        let sockaddr = self.inner.peer_addr()?;
 
         Ok(decode_sockaddr(sockaddr, self.unix)?)
     }
@@ -368,7 +369,7 @@ impl Socket {
             }
         };
 
-        Ok(self.socket.shutdown(shutdown)?)
+        Ok(self.inner.shutdown(shutdown)?)
     }
 
     socket_setter!(set_ttl, u32);
@@ -411,16 +412,16 @@ impl Socket {
     pub fn set_multicast_if_v4(&self, addr: &str) -> Result<(), RuntimeError> {
         let ip_addr = addr.parse::<Ipv4Addr>()?;
 
-        Ok(self.socket.set_multicast_if_v4(&ip_addr)?)
+        Ok(self.inner.set_multicast_if_v4(&ip_addr)?)
     }
 
     pub fn multicast_if_v4(&self) -> Result<String, RuntimeError> {
-        Ok(self.socket.multicast_if_v4().map(|addr| addr.to_string())?)
+        Ok(self.inner.multicast_if_v4().map(|addr| addr.to_string())?)
     }
 
     #[cfg(unix)]
     pub fn set_reuse_port(&self, reuse: bool) -> Result<(), RuntimeError> {
-        Ok(self.socket.set_reuse_port(reuse)?)
+        Ok(self.inner.set_reuse_port(reuse)?)
     }
 
     #[cfg(not(unix))]
@@ -430,7 +431,7 @@ impl Socket {
 
     #[cfg(unix)]
     pub fn reuse_port(&self) -> Result<bool, RuntimeError> {
-        Ok(self.socket.reuse_port()?)
+        Ok(self.inner.reuse_port()?)
     }
 
     #[cfg(not(unix))]
@@ -441,31 +442,34 @@ impl Socket {
     pub fn is_unix(&self) -> bool {
         self.unix
     }
+
+    pub fn close(&mut self) {
+        self.inner.close()
+    }
 }
 
 impl io::Write for Socket {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.socket.write(buf)
+        self.inner.write(buf)
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        self.socket.flush()
+        self.inner.flush()
     }
 }
 
 impl io::Read for Socket {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.socket.recv(buf)
+        self.inner.recv(buf)
     }
 }
 
 impl Clone for Socket {
     fn clone(&self) -> Self {
         Socket {
-            socket: self
-                .socket
-                .try_clone()
-                .expect("Failed to clone the socket"),
+            inner: ClosableSocket::new(
+                self.inner.try_clone().expect("Failed to clone the socket"),
+            ),
             registered: AtomicBool::new(false),
             unix: self.unix,
         }

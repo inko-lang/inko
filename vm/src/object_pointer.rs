@@ -6,7 +6,6 @@ use num_bigint::BigInt;
 use num_traits::{ToPrimitive, Zero};
 use std::f32;
 use std::f64;
-use std::fs;
 use std::hash::{Hash, Hasher as HasherTrait};
 use std::i16;
 use std::i32;
@@ -22,7 +21,8 @@ use std::usize;
 use crate::arc_without_weak::ArcWithoutWeak;
 use crate::binding::RcBinding;
 use crate::block::Block;
-use crate::ffi::{Pointer, RcFunction, RcLibrary};
+use crate::ffi::{Library, Pointer, RcFunction};
+use crate::file::File;
 use crate::hasher::Hasher;
 use crate::immix::block;
 use crate::immix::bucket::{MAILBOX, MATURE, PERMANENT};
@@ -601,8 +601,8 @@ impl ObjectPointer {
         &mut Vec<ObjectPointer>
     );
 
-    def_value_getter!(file_value, get, as_file, &fs::File);
-    def_value_getter!(file_value_mut, get_mut, as_file_mut, &mut fs::File);
+    def_value_getter!(file_value, get, as_file, &File);
+    def_value_getter!(file_value_mut, get_mut, as_file_mut, &mut File);
 
     def_value_getter!(block_value, get, as_block, &Block);
     def_value_getter!(binding_value, get, as_binding, RcBinding);
@@ -618,7 +618,7 @@ impl ObjectPointer {
         &mut Vec<u8>
     );
 
-    def_value_getter!(library_value, get, as_library, &RcLibrary);
+    def_value_getter!(library_value, get, as_library, &Library);
     def_value_getter!(function_value, get, as_function, &RcFunction);
     def_value_getter!(pointer_value, get, as_pointer, Pointer);
     def_value_getter!(process_value, get, as_process, &RcProcess);

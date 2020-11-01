@@ -1115,6 +1115,18 @@ module Inkoc
         typedb.process_type
       end
 
+      def on_raw_get_read_only_file_prototype(*)
+        typedb.read_only_file_type
+      end
+
+      def on_raw_get_write_only_file_prototype(*)
+        typedb.write_only_file_type
+      end
+
+      def on_raw_get_read_write_file_prototype(*)
+        typedb.read_write_file_type
+      end
+
       def on_raw_run_block(*)
         new_any_type
       end
@@ -1270,8 +1282,12 @@ module Inkoc
         typedb.nil_type.new_instance
       end
 
-      def on_raw_file_open(node, _)
-        node.arguments.fetch(0).type.new_instance
+      def on_raw_file_open(*)
+        new_any_type
+      end
+
+      def on_raw_file_path(*)
+        typedb.string_type.new_instance
       end
 
       def on_raw_file_read(*)
@@ -1318,7 +1334,7 @@ module Inkoc
         typedb.new_array_of_type(typedb.string_type.new_instance)
       end
 
-      def on_raw_drop_value(*)
+      def on_raw_close(*)
         typedb.nil_type.new_instance
       end
 

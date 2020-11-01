@@ -44,6 +44,12 @@ impl From<String> for RuntimeError {
     }
 }
 
+impl From<&str> for RuntimeError {
+    fn from(result: &str) -> Self {
+        RuntimeError::Panic(result.to_string())
+    }
+}
+
 impl From<AddrParseError> for RuntimeError {
     fn from(result: AddrParseError) -> Self {
         RuntimeError::Exception(result.to_string())

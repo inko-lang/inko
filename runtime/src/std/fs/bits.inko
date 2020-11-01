@@ -27,10 +27,10 @@ let ACCESSED_AT = 2
 trait File {}
 
 # Opens a file in the given mode, returning a raw file object.
-def open!(T)(type: T, path: String, mode: Integer) !! IOError -> T {
+def open(path: String, mode: Integer) !! IOError -> File {
   process.blocking {
     try {
-      _INKOC.file_open(type, path, mode)
+      _INKOC.file_open(path, mode) as File
     } else (err) {
       throw IOError.new(err as String)
     }

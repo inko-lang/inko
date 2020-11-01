@@ -131,6 +131,15 @@ pub struct State {
     /// The prototype to use for processes.
     pub process_prototype: ObjectPointer,
 
+    /// The prototype to use for read-only files.
+    pub read_only_file_prototype: ObjectPointer,
+
+    /// The prototype to use for write-only files.
+    pub write_only_file_prototype: ObjectPointer,
+
+    /// The prototype to use for read-write files.
+    pub read_write_file_prototype: ObjectPointer,
+
     /// The commandline arguments passed to an Inko program.
     pub arguments: Vec<ObjectPointer>,
 
@@ -178,35 +187,33 @@ impl State {
         let ip_socket_prototype = perm_alloc.allocate_empty();
         let unix_socket_prototype = perm_alloc.allocate_empty();
         let process_prototype = perm_alloc.allocate_empty();
+        let read_only_file_prototype = perm_alloc.allocate_empty();
+        let write_only_file_prototype = perm_alloc.allocate_empty();
+        let read_write_file_prototype = perm_alloc.allocate_empty();
 
-        {
-            integer_proto.set_prototype(object_proto);
-            float_proto.set_prototype(object_proto);
-            string_proto.set_prototype(object_proto);
-            array_proto.set_prototype(object_proto);
-            block_proto.set_prototype(object_proto);
-            nil_proto.set_prototype(object_proto);
-            boolean_proto.set_prototype(object_proto);
-
-            nil_obj.set_prototype(nil_proto);
-            true_obj.set_prototype(boolean_proto);
-            false_obj.set_prototype(boolean_proto);
-
-            byte_array_proto.set_prototype(object_proto);
-            module_proto.set_prototype(object_proto);
-
-            ffi_library_prototype.set_prototype(object_proto);
-            ffi_function_prototype.set_prototype(object_proto);
-            ffi_pointer_prototype.set_prototype(object_proto);
-
-            ip_socket_prototype.set_prototype(object_proto);
-            unix_socket_prototype.set_prototype(object_proto);
-
-            process_prototype.set_prototype(object_proto);
-        }
+        integer_proto.set_prototype(object_proto);
+        float_proto.set_prototype(object_proto);
+        string_proto.set_prototype(object_proto);
+        array_proto.set_prototype(object_proto);
+        block_proto.set_prototype(object_proto);
+        nil_proto.set_prototype(object_proto);
+        boolean_proto.set_prototype(object_proto);
+        nil_obj.set_prototype(nil_proto);
+        true_obj.set_prototype(boolean_proto);
+        false_obj.set_prototype(boolean_proto);
+        byte_array_proto.set_prototype(object_proto);
+        module_proto.set_prototype(object_proto);
+        ffi_library_prototype.set_prototype(object_proto);
+        ffi_function_prototype.set_prototype(object_proto);
+        ffi_pointer_prototype.set_prototype(object_proto);
+        ip_socket_prototype.set_prototype(object_proto);
+        unix_socket_prototype.set_prototype(object_proto);
+        process_prototype.set_prototype(object_proto);
+        read_only_file_prototype.set_prototype(object_proto);
+        write_only_file_prototype.set_prototype(object_proto);
+        read_write_file_prototype.set_prototype(object_proto);
 
         let gc_pool = GcPool::new(config.gc_threads);
-
         let mut state = State {
             scheduler: ProcessScheduler::new(
                 config.primary_threads,
@@ -241,6 +248,9 @@ impl State {
             ip_socket_prototype,
             unix_socket_prototype,
             process_prototype,
+            read_only_file_prototype,
+            write_only_file_prototype,
+            read_write_file_prototype,
             network_poller: NetworkPoller::new(),
             modules: Mutex::new(Modules::new()),
         };

@@ -195,13 +195,15 @@ const TYPE_SIZE_T: i64 = 14;
 ///
 /// This is currently a thin wrapper around libloading's Library structure,
 /// allowing us to decouple the rest of the VM code from libloading.
+///
+/// The library is reference counted, allowing it to be shared between
+/// processes. We reference count the inner data so that copies in different
+/// processes can each close their own copy, instead of closing the shared inner
+/// structure.
+#[derive(Clone)]
 pub struct Library {
-    inner: libloading::Library,
+    inner: Option<ArcWithoutWeak<libloading::Library>>,
 }
-
-/// A reference counted C library, allowing processes to cheaply share a library
-/// between each other.
-pub type RcLibrary = ArcWithoutWeak<Library>;
 
 /// A pointer to an FFI type.
 pub type TypePointer = *mut ffi_type;
@@ -426,7 +428,7 @@ impl Library {
     /// heap allocated objects.
     pub fn from_pointers(
         search_for: &[ObjectPointer],
-    ) -> Result<RcLibrary, String> {
+    ) -> Result<Library, String> {
         let mut names = Vec::with_capacity(search_for.len());
 
         for name in search_for {
@@ -439,13 +441,13 @@ impl Library {
     /// Opens a library using one or more possible names.
     pub fn open<P: AsRef<OsStr> + Debug + Display>(
         search_for: &[P],
-    ) -> Result<RcLibrary, String> {
+    ) -> Result<Library, String> {
         let mut errors = Vec::new();
 
         for name in search_for {
-            match libloading::Library::new(name)
-                .map(|inner| ArcWithoutWeak::new(Library { inner }))
-            {
+            match libloading::Library::new(name).map(|raw| Library {
+                inner: Some(ArcWithoutWeak::new(raw)),
+            }) {
                 Ok(library) => return Ok(library),
                 Err(err) => {
                     errors.push(format!("\n{}: {}", name, err));
@@ -468,10 +470,20 @@ impl Library {
     /// This method is unsafe because the pointer could be of any type, thus it
     /// is up to the caller to make sure the result is used appropriately.
     pub unsafe fn get(&self, name: &str) -> Result<Pointer, String> {
-        self.inner
+        let inner = if let Some(ref inner) = self.inner {
+            inner
+        } else {
+            return Err("The library has been closed".to_string());
+        };
+
+        inner
             .get(name.as_bytes())
             .map(|sym: libloading::Symbol<RawPointer>| Pointer::new(*sym))
             .map_err(|err| err.to_string())
+    }
+
+    pub fn close(&mut self) {
+        drop(self.inner.take());
     }
 }
 
@@ -650,7 +662,7 @@ impl Pointer {
 impl Function {
     /// Creates a new function using object pointers.
     pub unsafe fn attach(
-        library: &RcLibrary,
+        library: &Library,
         name: &str,
         arguments: &[ObjectPointer],
         return_type: ObjectPointer,

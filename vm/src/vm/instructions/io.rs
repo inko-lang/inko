@@ -1,4 +1,5 @@
 //! VM functions for working with IO.
+use crate::file::{File, APPEND, READ, READ_APPEND, READ_WRITE, WRITE};
 use crate::filesystem;
 use crate::object_pointer::ObjectPointer;
 use crate::object_value;
@@ -7,23 +8,7 @@ use crate::runtime_error::RuntimeError;
 use crate::vm::state::RcState;
 use num_traits::ToPrimitive;
 use std::fs;
-use std::fs::OpenOptions;
 use std::io::{self, Read, Seek, SeekFrom, Write};
-
-/// File opened for reading, equal to fopen's "r" mode.
-const READ: i64 = 0;
-
-/// File opened for writing, equal to fopen's "w" mode.
-const WRITE: i64 = 1;
-
-/// File opened for appending, equal to fopen's "a" mode.
-const APPEND: i64 = 2;
-
-/// File opened for both reading and writing, equal to fopen's "w+" mode.
-const READ_WRITE: i64 = 3;
-
-/// File opened for reading and appending, equal to fopen's "a+" mode.
-const READ_APPEND: i64 = 4;
 
 #[cfg_attr(feature = "cargo-clippy", allow(trivially_copy_pass_by_ref))]
 pub fn buffer_to_write(buffer: &ObjectPointer) -> Result<&[u8], RuntimeError> {
@@ -103,14 +88,12 @@ pub fn file_write(
 ) -> Result<ObjectPointer, RuntimeError> {
     let file = file_ptr.file_value_mut()?;
 
-    io_write(state, process, file, to_write)
+    io_write(state, process, file.get_mut(), to_write)
 }
 
 #[inline(always)]
 pub fn file_flush(file_ptr: ObjectPointer) -> Result<(), RuntimeError> {
-    let file = file_ptr.file_value_mut()?;
-
-    file.flush()?;
+    file_ptr.file_value_mut()?.get_mut().flush()?;
     Ok(())
 }
 
@@ -122,23 +105,32 @@ pub fn file_read(
     buffer_ptr: ObjectPointer,
     amount: ObjectPointer,
 ) -> Result<ObjectPointer, RuntimeError> {
-    let mut input = file_ptr.file_value_mut()?;
+    let input = file_ptr.file_value_mut()?;
     let buffer = buffer_ptr.byte_array_value_mut()?;
 
-    io_read(state, process, &mut input, buffer, amount)
+    io_read(state, process, input.get_mut(), buffer, amount)
 }
 
 #[inline(always)]
 pub fn file_open(
+    state: &RcState,
     process: &RcProcess,
-    proto_ptr: ObjectPointer,
     path_ptr: ObjectPointer,
     mode_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, RuntimeError> {
-    let path = path_ptr.string_value()?;
     let mode = mode_ptr.integer_value()?;
-    let open_opts = options_for_integer(mode)?;
-    let file = open_opts.open(path)?;
+    let file = File::open(path_ptr, mode)?;
+    let proto_ptr = match mode {
+        READ => state.read_only_file_prototype,
+        WRITE => state.write_only_file_prototype,
+        APPEND => state.write_only_file_prototype,
+        READ_WRITE => state.read_write_file_prototype,
+        READ_APPEND => state.read_write_file_prototype,
+        // This condition is already handled when opening the file.
+        _ => unreachable!(
+            "File::open() doesn't handle unknown open modes, this is a bug"
+        ),
+    };
 
     Ok(process.allocate(object_value::file(file), proto_ptr))
 }
@@ -188,7 +180,7 @@ pub fn file_seek(
         offset as u64
     };
 
-    let cursor = file.seek(SeekFrom::Start(offset))?;
+    let cursor = file.get_mut().seek(SeekFrom::Start(offset))?;
 
     Ok(process.allocate_u64(cursor, state.integer_prototype))
 }
@@ -249,6 +241,11 @@ pub fn file_time(
     );
 
     Ok(tuple)
+}
+
+#[inline(always)]
+pub fn file_path(file_ptr: ObjectPointer) -> Result<ObjectPointer, String> {
+    Ok(*file_ptr.file_value()?.path())
 }
 
 #[inline(always)]
@@ -320,19 +317,4 @@ fn io_read(
     buffer.shrink_to_fit();
 
     Ok(process.allocate_usize(result, state.integer_prototype))
-}
-
-fn options_for_integer(mode: i64) -> Result<OpenOptions, String> {
-    let mut open_opts = OpenOptions::new();
-
-    match mode {
-        READ => open_opts.read(true),
-        WRITE => open_opts.write(true).truncate(true).create(true),
-        APPEND => open_opts.append(true).create(true),
-        READ_WRITE => open_opts.read(true).write(true).create(true),
-        READ_APPEND => open_opts.read(true).append(true).create(true),
-        _ => return Err(format!("Invalid file open mode: {}", mode)),
-    };
-
-    Ok(open_opts)
 }

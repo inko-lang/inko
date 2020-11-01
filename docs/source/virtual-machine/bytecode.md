@@ -284,7 +284,7 @@ The following instruction types and their `u8` values are available:
 | FloatFloor              | 90
 | FloatCeil               | 91
 | FloatRound              | 92
-| DropValue               | 93
+| Close                   | 93
 | ProcessSetBlocking      | 94
 | StdoutFlush             | 95
 | StderrFlush             | 96
@@ -368,6 +368,7 @@ The following instruction types and their `u8` values are available:
 | ModuleInfo              | 174
 | GetAttributeInSelf      | 175
 | MoveResult              | 176
+| FilePath                | 177
 
 ### Variable-length arguments
 

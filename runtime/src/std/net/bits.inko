@@ -185,7 +185,7 @@ def write_string(socket: Socket, string: String) !! IoError -> Integer {
 }
 
 def close(socket: Socket) {
-  _INKOC.drop_value(socket)
+  _INKOC.close(socket)
 }
 
 def shutdown_read(socket: Socket) !! IoError {

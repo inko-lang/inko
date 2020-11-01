@@ -1,8 +1,7 @@
 import std::conversion::ToString
 import std::fs::path::Path
 import std::fs::bits::(
-  self, APPEND_ONLY, MODIFIED_AT, READ_APPEND, READ_ONLY, READ_WRITE,
-  WRITE_ONLY, File as RawFile
+  self, APPEND_ONLY, MODIFIED_AT, READ_APPEND, READ_ONLY, READ_WRITE, WRITE_ONLY
 )
 import std::process
 import std::test
@@ -10,10 +9,6 @@ import std::test::assert
 import test::features
 import test::fixtures::(VALID_DIRECTORY, VALID_FILE)
 import test::fixtures::(self, INVALID_TIME, INVALID_DIRECTORY, INVALID_FILE)
-
-object DummyFile {}
-
-impl RawFile for DummyFile {}
 
 def remove(path: ToString) {
   try bits.remove(path.to_string) else Nil
@@ -23,7 +18,6 @@ test.group('std::fs::bits.open') do (g) {
   g.test('Opening a valid file') {
     assert.no_panic {
       try! bits.open(
-        type: DummyFile,
         path: VALID_FILE.to_string,
         mode: READ_ONLY
       )
@@ -33,7 +27,6 @@ test.group('std::fs::bits.open') do (g) {
   g.test('Opening an invalid file') {
     assert.panic {
       try! bits.open(
-        type: DummyFile,
         path: INVALID_FILE.to_string,
         mode: READ_ONLY
       )
@@ -102,7 +95,7 @@ test.group('std::fs::bits.remove') do (g) {
   g.test('Removing a valid file') {
     let path = fixtures.temporary_file_path.to_string
 
-    try! bits.open(type: DummyFile, path: path, mode: WRITE_ONLY)
+    try! bits.open(path: path, mode: WRITE_ONLY)
     try! bits.remove(path)
 
     assert.false(bits.file?(path))
@@ -231,12 +224,7 @@ features.access_time?.if_true {
 
 test.group('std::fs::bits.read_bytes') do (g) {
   g.test('Reading a valid number of bytes from a file') {
-    let file = try! bits.open(
-      type: DummyFile,
-      path: VALID_FILE.to_string,
-      mode: READ_ONLY
-    )
-
+    let file = try! bits.open(path: VALID_FILE.to_string, mode: READ_ONLY)
     let bytes = ByteArray.new
     let read = try! bits.read_bytes(file: file, bytes: bytes, size: 2)
 
@@ -246,11 +234,7 @@ test.group('std::fs::bits.read_bytes') do (g) {
 
   g.test('Reading an invalid number of bytes from a file') {
     assert.panic {
-      let file = try! bits.open(
-        type: DummyFile,
-        path: VALID_FILE.to_string,
-        mode: READ_ONLY
-      )
+      let file = try! bits.open(path: VALID_FILE.to_string, mode: READ_ONLY)
 
       try! bits.read_bytes(file: file, bytes: ByteArray.new, size: -1)
     }
@@ -265,19 +249,14 @@ test.group('std::fs::bits.write_string') do (g) {
       remove(path)
     }
 
-    let file = try! bits.open(type: DummyFile, path: path, mode: WRITE_ONLY)
+    let file = try! bits.open(path: path, mode: WRITE_ONLY)
     let written = try! bits.write_string(file: file, data: 'abc')
 
     assert.equal(written, 3)
   }
 
   g.test('Writing a String to a file that is opened in read-only mode') {
-    let file = try! bits.open(
-      type: DummyFile,
-      path: VALID_FILE.to_string,
-      mode: READ_ONLY
-    )
-
+    let file = try! bits.open(path: VALID_FILE.to_string, mode: READ_ONLY)
     let written = try bits.write_string(file: file, data: 'abc') else -1
 
     assert.equal(written, -1)
@@ -292,19 +271,14 @@ test.group('std::fs::bits.write_bytes') do (g) {
       remove(path)
     }
 
-    let file = try! bits.open(type: DummyFile, path: path, mode: WRITE_ONLY)
+    let file = try! bits.open(path: path, mode: WRITE_ONLY)
     let written = try! bits.write_bytes(file: file, bytes: 'abc'.to_byte_array)
 
     assert.equal(written, 3)
   }
 
   g.test('Writing a ByteArray to a file that is opened in read-only mode') {
-    let file = try! bits.open(
-      type: DummyFile,
-      path: VALID_FILE.to_string,
-      mode: READ_ONLY
-    )
-
+    let file = try! bits.open(path: VALID_FILE.to_string, mode: READ_ONLY)
     let written = try {
       bits.write_bytes(file: file, bytes: 'abc'.to_byte_array)
     } else {
@@ -324,7 +298,7 @@ test.group('std::fs::bits.flush') do (g) {
         remove(path)
       }
 
-      let file = try! bits.open(type: DummyFile, path: path, mode: WRITE_ONLY)
+      let file = try! bits.open(path: path, mode: WRITE_ONLY)
 
       try! bits.flush(file)
     }
@@ -333,12 +307,7 @@ test.group('std::fs::bits.flush') do (g) {
 
 test.group('std::fs::bits.seek') do (g) {
   g.test('Seeking to a valid position') {
-    let file = try! bits.open(
-      type: DummyFile,
-      path: VALID_FILE.to_string,
-      mode: READ_ONLY
-    )
-
+    let file = try! bits.open(path: VALID_FILE.to_string, mode: READ_ONLY)
     let pos = try! bits.seek(file: file, position: 4)
 
     assert.equal(pos, 4)

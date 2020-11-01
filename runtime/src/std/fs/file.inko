@@ -10,9 +10,22 @@
 # produces a `WriteOnlyFile` object.
 import std::conversion::ToString
 import std::fs::bits::(self, READ_ONLY, File as RawFile)
-import std::fs::path::(Path, ToPath)
+import std::fs::path::Path
 import std::io::(Close, Error as IOError, Read, Seek, Size, Write)
 import std::process
+
+# A file that can only be used for read operations.
+let ReadOnlyFile = _INKOC.get_read_only_file_prototype
+
+# A file that can only be used for write (or append) operations.
+let WriteOnlyFile = _INKOC.get_write_only_file_prototype
+
+# A file that can be used for both read and write operations.
+let ReadWriteFile = _INKOC.get_read_write_file_prototype
+
+_INKOC.set_object_name(ReadOnlyFile, 'ReadOnlyFile')
+_INKOC.set_object_name(WriteOnlyFile, 'WriteOnlyFile')
+_INKOC.set_object_name(ReadWriteFile, 'ReadWriteFile')
 
 # Trait for returning the file path of a file object.
 trait FilePath {
@@ -26,11 +39,7 @@ trait Remove {
   def remove !! IOError
 }
 
-# A file that can only be used for read operations.
-object ReadOnlyFile {
-  # The path of the opened file.
-  @path: Path
-
+impl ReadOnlyFile {
   # Returns a new `ReadOnlyFile`.
   #
   # # Examples
@@ -40,17 +49,10 @@ object ReadOnlyFile {
   #     import std::fs::file::ReadOnlyFile
   #
   #     let handle = try! ReadOnlyFile.new('/dev/null')
-  static def new(path: ToPath) !! IOError -> Self {
-    let conv_path = path.to_path
-    let instance =
-      try bits.open(type: self, path: conv_path.to_string, mode: READ_ONLY)
+  static def new(path: ToString) !! IOError -> Self {
+    let file = try bits.open(path: path.to_string, mode: READ_ONLY)
 
-    instance.init(conv_path)
-    instance
-  }
-
-  def init(path: Path) {
-    @path = path
+    file as ReadOnlyFile
   }
 }
 
@@ -70,27 +72,23 @@ impl Seek for ReadOnlyFile {
 
 impl Size for ReadOnlyFile {
   def size !! IOError -> Integer {
-    try bits.size(@path.to_string)
+    try bits.size(_INKOC.file_path(self))
   }
 }
 
 impl FilePath for ReadOnlyFile {
   def path -> Path {
-    @path
+    Path.new(_INKOC.file_path(self))
   }
 }
 
 impl Close for ReadOnlyFile {
   def close {
-    _INKOC.drop_value(self)
+    _INKOC.close(self)
   }
 }
 
-# A file that can only be used for write (or append) operations.
-object WriteOnlyFile {
-  # The path of the opened file.
-  @path: Path
-
+impl WriteOnlyFile {
   # Returns a new `WriteOnlyFile`.
   #
   # # Examples
@@ -100,18 +98,11 @@ object WriteOnlyFile {
   #     import std::fs::file::WriteOnlyFile
   #
   #     let handle = try! WriteOnlyFile.new('/dev/null')
-  static def new(path: ToPath, append = False) !! IOError -> Self {
+  static def new(path: ToString, append = False) !! IOError -> Self {
     let mode = bits.mode_for_write(append)
-    let conv_path = path.to_path
-    let instance =
-      try bits.open(type: self, path: conv_path.to_string, mode: mode)
+    let file = try bits.open(path: path.to_string, mode: mode)
 
-    instance.init(conv_path)
-    instance
-  }
-
-  def init(path: Path) {
-    @path = path
+    file as WriteOnlyFile
   }
 }
 
@@ -139,33 +130,29 @@ impl Seek for WriteOnlyFile {
 
 impl Size for WriteOnlyFile {
   def size !! IOError -> Integer {
-    try bits.size(@path.to_string)
+    try bits.size(_INKOC.file_path(self))
   }
 }
 
 impl FilePath for WriteOnlyFile {
   def path -> Path {
-    @path
+    Path.new(_INKOC.file_path(self))
   }
 }
 
 impl Close for WriteOnlyFile {
   def close {
-    _INKOC.drop_value(self)
+    _INKOC.close(self)
   }
 }
 
 impl Remove for WriteOnlyFile {
   def remove !! IOError {
-    try ThisModule.remove(@path)
+    try ThisModule.remove(_INKOC.file_path(self))
   }
 }
 
-# A file that can be used for both read and write operations.
-object ReadWriteFile {
-  # The path of the opened file.
-  @path: Path
-
+impl ReadWriteFile {
   # Returns a new `ReadWriteFile`.
   #
   # # Examples
@@ -175,18 +162,11 @@ object ReadWriteFile {
   #     import std::fs::file::ReadWriteFile
   #
   #     let handle = try! ReadWriteFile.new('/dev/null')
-  static def new(path: ToPath, append = False) !! IOError -> Self {
+  static def new(path: ToString, append = False) !! IOError -> Self {
     let mode = bits.mode_for_read_write(append)
-    let conv_path = path.to_path
-    let instance =
-      try bits.open(type: self, path: conv_path.to_string, mode: mode)
+    let file = try bits.open(path: path.to_string, mode: mode)
 
-    instance.init(conv_path)
-    instance
-  }
-
-  def init(path: Path) {
-    @path = path
+    file as ReadWriteFile
   }
 }
 
@@ -220,25 +200,25 @@ impl Seek for ReadWriteFile {
 
 impl Size for ReadWriteFile {
   def size !! IOError -> Integer {
-    try bits.size(@path.to_string)
+    try bits.size(_INKOC.file_path(self))
   }
 }
 
 impl FilePath for ReadWriteFile {
   def path -> Path {
-    @path
+    Path.new(_INKOC.file_path(self))
   }
 }
 
 impl Close for ReadWriteFile {
   def close {
-    _INKOC.drop_value(self)
+    _INKOC.close(self)
   }
 }
 
 impl Remove for ReadWriteFile {
   def remove !! IOError {
-    try ThisModule.remove(@path)
+    try ThisModule.remove(_INKOC.file_path(self))
   }
 }
 
@@ -254,8 +234,8 @@ impl Remove for ReadWriteFile {
 #
 #     try! handle.write('hello')
 #     try! file.remove('/tmp/test.txt') # => Nil
-def remove(path: ToPath) !! IOError {
-  try bits.remove(path.to_path.to_string)
+def remove(path: ToString) !! IOError {
+  try bits.remove(path.to_string)
 }
 
 # Copies a file from the source destination to the target destination,
@@ -271,31 +251,31 @@ def remove(path: ToPath) !! IOError {
 #
 #     try! handle.write('hello')
 #     try! file.copy(from: '/tmp/test.txt', to: '/tmp/test2.txt')
-def copy(from: ToPath, to: ToPath) !! IOError -> Integer {
-  try bits.copy(from: from.to_path.to_string, to: to.to_path.to_string)
+def copy(from: ToString, to: ToString) !! IOError -> Integer {
+  try bits.copy(from: from.to_string, to: to.to_string)
 }
 
 # Opens a file that can only be used for reading data.
-def read_only(path: ToPath) !! IOError -> ReadOnlyFile {
+def read_only(path: ToString) !! IOError -> ReadOnlyFile {
   try ReadOnlyFile.new(path)
 }
 
 # Opens a file that can only be used for writing data.
-def write_only(path: ToPath) !! IOError -> WriteOnlyFile {
+def write_only(path: ToString) !! IOError -> WriteOnlyFile {
   try WriteOnlyFile.new(path)
 }
 
 # Opens a file that can only be used for appending data.
-def append_only(path: ToPath) !! IOError -> WriteOnlyFile {
+def append_only(path: ToString) !! IOError -> WriteOnlyFile {
   try WriteOnlyFile.new(path: path, append: True)
 }
 
 # Opens a file that can be used for both reading and writing data.
-def read_write(path: ToPath) !! IOError -> ReadWriteFile {
+def read_write(path: ToString) !! IOError -> ReadWriteFile {
   try ReadWriteFile.new(path: path)
 }
 
 # Opens a file that can be used for both reading and appending data.
-def read_append(path: ToPath) !! IOError -> ReadWriteFile {
+def read_append(path: ToString) !! IOError -> ReadWriteFile {
   try ReadWriteFile.new(path: path, append: True)
 }

@@ -266,6 +266,9 @@ impl Object {
             ObjectValue::Binding(ref binding) => {
                 binding.each_pointer(|v| callback(v));
             }
+            ObjectValue::File(ref file) => {
+                callback(file.path().pointer());
+            }
             _ => {}
         }
     }
@@ -401,12 +404,15 @@ mod tests {
     use crate::block::Block as CodeBlock;
     use crate::compiled_code::CompiledCode;
     use crate::config::Config;
+    use crate::file::File;
+    use crate::file::READ;
     use crate::immix::block::Block;
     use crate::module::Module;
     use crate::object_pointer::{ObjectPointer, RawObjectPointer};
     use crate::object_value::ObjectValue;
     use crate::vm::state::State;
     use std::mem;
+    use std::path::PathBuf;
 
     fn fake_pointer() -> ObjectPointer {
         ObjectPointer::new(0x4 as RawObjectPointer)
@@ -700,6 +706,28 @@ mod tests {
         }
 
         assert_eq!(obj.prototype.raw.raw as usize, 0x5);
+    }
+
+    #[test]
+    fn test_object_each_pointer_with_file() {
+        let readme = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("Cargo.toml")
+            .to_string_lossy()
+            .to_string();
+
+        let state = State::with_rc(Config::new(), &[]);
+        let path = state.intern_string(readme);
+        let file = File::open(path, READ).unwrap();
+        let obj = Object::new(ObjectValue::File(Box::new(file)));
+        let mut pointers = Vec::new();
+
+        obj.each_pointer(|ptr| pointers.push(ptr));
+
+        while let Some(pointer_pointer) = pointers.pop() {
+            pointer_pointer.get_mut().raw.raw = 0x5 as _;
+        }
+
+        assert_eq!(obj.value.as_file().unwrap().path().raw.raw as usize, 0x5);
     }
 
     #[test]

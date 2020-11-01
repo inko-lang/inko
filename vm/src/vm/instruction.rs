@@ -97,7 +97,7 @@ pub enum Opcode {
     FloatFloor,
     FloatCeil,
     FloatRound,
-    DropValue,
+    Close,
     ProcessSetBlocking,
     StdoutFlush,
     StderrFlush,
@@ -181,6 +181,7 @@ pub enum Opcode {
     ModuleInfo,
     GetAttributeInSelf,
     MoveResult,
+    FilePath,
 }
 
 /// A fixed-width VM instruction.

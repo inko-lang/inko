@@ -6,7 +6,8 @@
 use crate::arc_without_weak::ArcWithoutWeak;
 use crate::binding::RcBinding;
 use crate::block::Block;
-use crate::ffi::{Pointer, RcFunction, RcLibrary};
+use crate::ffi::{Library, Pointer, RcFunction};
+use crate::file::File;
 use crate::hasher::Hasher;
 use crate::immutable_string::ImmutableString;
 use crate::module::Module;
@@ -14,7 +15,6 @@ use crate::object_pointer::ObjectPointer;
 use crate::process::RcProcess;
 use crate::socket::Socket;
 use num_bigint::BigInt;
-use std::fs;
 use std::mem;
 
 /// Enum for storing different values in an Object.
@@ -31,7 +31,7 @@ pub enum ObjectValue {
     /// every unique interned string there is only one object allocated.
     InternedString(ArcWithoutWeak<ImmutableString>),
     Array(Box<Vec<ObjectPointer>>),
-    File(Box<fs::File>),
+    File(Box<File>),
     Block(Box<Block>),
     Binding(RcBinding),
 
@@ -49,7 +49,7 @@ pub enum ObjectValue {
     ByteArray(Box<Vec<u8>>),
 
     /// A C library opened using the FFI.
-    Library(RcLibrary),
+    Library(Library),
 
     /// A C function to call using the FFI.
     Function(RcFunction),
@@ -200,14 +200,14 @@ impl ObjectValue {
         }
     }
 
-    pub fn as_file(&self) -> Result<&fs::File, String> {
+    pub fn as_file(&self) -> Result<&File, String> {
         match *self {
             ObjectValue::File(ref val) => Ok(val),
             _ => Err("ObjectValue::as_file() called on a non file".to_string()),
         }
     }
 
-    pub fn as_file_mut(&mut self) -> Result<&mut fs::File, String> {
+    pub fn as_file_mut(&mut self) -> Result<&mut File, String> {
         match *self {
             ObjectValue::File(ref mut val) => Ok(val),
             _ => {
@@ -271,7 +271,7 @@ impl ObjectValue {
         }
     }
 
-    pub fn as_library(&self) -> Result<&RcLibrary, String> {
+    pub fn as_library(&self) -> Result<&Library, String> {
         match *self {
             ObjectValue::Library(ref lib) => Ok(lib),
             _ => {
@@ -391,6 +391,15 @@ impl ObjectValue {
             ObjectValue::Module(_) => "Module",
         }
     }
+
+    pub fn close(&mut self) {
+        match *self {
+            ObjectValue::File(ref mut thing) => thing.close(),
+            ObjectValue::Library(ref mut thing) => thing.close(),
+            ObjectValue::Socket(ref mut thing) => thing.close(),
+            _ => {}
+        }
+    }
 }
 
 pub fn none() -> ObjectValue {
@@ -417,7 +426,7 @@ pub fn array(value: Vec<ObjectPointer>) -> ObjectValue {
     ObjectValue::Array(Box::new(value))
 }
 
-pub fn file(value: fs::File) -> ObjectValue {
+pub fn file(value: File) -> ObjectValue {
     ObjectValue::File(Box::new(value))
 }
 
@@ -445,7 +454,7 @@ pub fn byte_array(value: Vec<u8>) -> ObjectValue {
     ObjectValue::ByteArray(Box::new(value))
 }
 
-pub fn library(value: RcLibrary) -> ObjectValue {
+pub fn library(value: Library) -> ObjectValue {
     ObjectValue::Library(value)
 }
 
@@ -477,9 +486,9 @@ mod tests {
     use crate::compiled_code::CompiledCode;
     use crate::config::Config;
     use crate::ffi::Library;
+    use crate::file::READ;
     use crate::object_pointer::ObjectPointer;
     use crate::vm::state::{RcState, State};
-    use std::fs::File;
 
     #[cfg(target_os = "macos")]
     const LIBM: &'static str = "libm.dylib";
@@ -557,7 +566,9 @@ mod tests {
 
     #[test]
     fn test_is_file() {
-        let file = Box::new(File::open(null_device_path()).unwrap());
+        let state = state();
+        let path = state.intern_string(null_device_path().to_string());
+        let file = Box::new(File::open(path, READ).unwrap());
 
         assert!(ObjectValue::File(file).is_file());
         assert_eq!(ObjectValue::None.is_file(), false);
@@ -649,7 +660,9 @@ mod tests {
 
     #[test]
     fn test_as_file_with_file() {
-        let file = Box::new(File::open(null_device_path()).unwrap());
+        let state = state();
+        let path = state.intern_string(null_device_path().to_string());
+        let file = Box::new(File::open(path, READ).unwrap());
         let value = ObjectValue::File(file);
         let result = value.as_file();
 
@@ -663,7 +676,9 @@ mod tests {
 
     #[test]
     fn test_as_file_mut_with_file() {
-        let file = Box::new(File::open(null_device_path()).unwrap());
+        let state = state();
+        let path = state.intern_string(null_device_path().to_string());
+        let file = Box::new(File::open(path, READ).unwrap());
         let mut value = ObjectValue::File(file);
         let result = value.as_file_mut();
 
@@ -740,7 +755,9 @@ mod tests {
 
     #[test]
     fn test_file() {
-        let f = File::open(null_device_path()).unwrap();
+        let state = state();
+        let path = state.intern_string(null_device_path().to_string());
+        let f = File::open(path, READ).unwrap();
 
         assert!(file(f).is_file());
     }

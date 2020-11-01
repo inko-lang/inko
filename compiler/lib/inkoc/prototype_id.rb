@@ -18,5 +18,8 @@ module Inkoc
     IP_SOCKET = 13
     UNIX_SOCKET = 14
     PROCESS = 15
+    READ_ONLY_FILE = 16
+    WRITE_ONLY_FILE = 17
+    READ_WRITE_FILE = 18
   end
 end

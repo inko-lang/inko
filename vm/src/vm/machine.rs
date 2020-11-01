@@ -764,11 +764,10 @@ impl Machine {
                 }
                 Opcode::FileOpen => {
                     let reg = instruction.arg(0);
-                    let proto = context.get_register(instruction.arg(1));
-                    let path = context.get_register(instruction.arg(2));
-                    let mode = context.get_register(instruction.arg(3));
+                    let path = context.get_register(instruction.arg(1));
+                    let mode = context.get_register(instruction.arg(2));
                     let res = try_runtime_error!(
-                        io::file_open(process, proto, path, mode),
+                        io::file_open(&self.state, process, path, mode),
                         self,
                         process,
                         context,
@@ -1118,10 +1117,10 @@ impl Machine {
 
                     context.set_register(reg, res);
                 }
-                Opcode::DropValue => {
+                Opcode::Close => {
                     let ptr = context.get_register(instruction.arg(0));
 
-                    object::drop_value(ptr);
+                    object::close(ptr);
                 }
                 Opcode::ProcessSetBlocking => {
                     let reg = instruction.arg(0);
@@ -1223,6 +1222,13 @@ impl Machine {
                         context,
                         index
                     );
+
+                    context.set_register(reg, res);
+                }
+                Opcode::FilePath => {
+                    let reg = instruction.arg(0);
+                    let file = context.get_register(instruction.arg(1));
+                    let res = io::file_path(file)?;
 
                     context.set_register(reg, res);
                 }

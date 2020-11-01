@@ -57,6 +57,9 @@ pub fn get_builtin_prototype(
         13 => state.ip_socket_prototype,
         14 => state.unix_socket_prototype,
         15 => state.process_prototype,
+        16 => state.read_only_file_prototype,
+        17 => state.write_only_file_prototype,
+        18 => state.read_write_file_prototype,
         _ => return Err(format!("Invalid prototype identifier: {}", id_int)),
     };
 
@@ -187,12 +190,8 @@ pub fn copy_blocks(
 }
 
 #[inline(always)]
-pub fn drop_value(pointer: ObjectPointer) {
-    let object = pointer.get_mut();
-
-    if object.value.is_some() {
-        drop(object.value.take());
-    }
+pub fn close(pointer: ObjectPointer) {
+    pointer.get_mut().value.close();
 }
 
 #[cfg(test)]
