@@ -162,5 +162,746 @@ module Inkoc
     def new_any_type
       @module.lookup_any_type.new_instance
     end
+
+    def on_raw_instruction(node, scope)
+      callback = node.raw_instruction_visitor_method
+
+      define_types(node.arguments, scope)
+
+      if respond_to?(callback)
+        public_send(callback, node, scope)
+      else
+        diagnostics.unknown_raw_instruction_error(node.name, node.location)
+
+        TypeSystem::Error.new
+      end
+    end
+
+    def on_raw_set_attribute(node, *)
+      node.arguments.fetch(2).type
+    end
+
+    def on_raw_get_attribute(node, *)
+      object = node.arguments.fetch(0).type
+      name = node.arguments.fetch(1)
+
+      if name.string?
+        object.lookup_attribute(name.value).type
+      else
+        new_any_type
+      end
+    end
+    alias on_raw_get_attribute_in_self on_raw_get_attribute
+
+    def on_raw_allocate(node, *)
+      if (proto = node.arguments[0]&.type)
+        proto = proto.type if proto.optional?
+
+        proto.new_instance
+      else
+        typedb.new_empty_object
+      end
+    end
+
+    def on_raw_object_equals(*)
+      typedb.boolean_type.new_instance
+    end
+
+    def on_raw_copy_blocks(*)
+      TypeSystem::Never.new
+    end
+
+    def on_raw_integer_to_string(*)
+      typedb.string_type.new_instance
+    end
+
+    def on_raw_integer_to_float(*)
+      typedb.float_type.new_instance
+    end
+
+    def on_raw_integer_add(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_integer_div(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_integer_mul(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_integer_sub(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_integer_mod(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_integer_bitwise_and(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_integer_bitwise_or(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_integer_bitwise_xor(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_integer_shift_left(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_integer_shift_right(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_integer_smaller(*)
+      typedb.boolean_type.new_instance
+    end
+
+    def on_raw_integer_greater(*)
+      typedb.boolean_type.new_instance
+    end
+
+    def on_raw_integer_equals(*)
+      typedb.boolean_type.new_instance
+    end
+
+    def on_raw_integer_greater_or_equal(*)
+      typedb.boolean_type.new_instance
+    end
+
+    def on_raw_integer_smaller_or_equal(*)
+      typedb.boolean_type.new_instance
+    end
+
+    def on_raw_float_to_string(*)
+      typedb.string_type.new_instance
+    end
+
+    def on_raw_float_to_integer(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_float_add(*)
+      typedb.float_type.new_instance
+    end
+
+    def on_raw_float_div(*)
+      typedb.float_type.new_instance
+    end
+
+    def on_raw_float_mul(*)
+      typedb.float_type.new_instance
+    end
+
+    def on_raw_float_sub(*)
+      typedb.float_type.new_instance
+    end
+
+    def on_raw_float_mod(*)
+      typedb.float_type.new_instance
+    end
+
+    def on_raw_float_smaller(*)
+      typedb.boolean_type.new_instance
+    end
+
+    def on_raw_float_greater(*)
+      typedb.boolean_type.new_instance
+    end
+
+    def on_raw_float_equals(*)
+      typedb.boolean_type.new_instance
+    end
+
+    def on_raw_float_greater_or_equal(*)
+      typedb.boolean_type.new_instance
+    end
+
+    def on_raw_float_smaller_or_equal(*)
+      typedb.boolean_type.new_instance
+    end
+
+    def on_raw_float_is_nan(*)
+      typedb.boolean_type.new_instance
+    end
+
+    def on_raw_float_is_infinite(*)
+      typedb.boolean_type.new_instance
+    end
+
+    def on_raw_float_ceil(*)
+      typedb.float_type.new_instance
+    end
+
+    def on_raw_float_floor(*)
+      typedb.float_type.new_instance
+    end
+
+    def on_raw_float_round(*)
+      typedb.float_type.new_instance
+    end
+
+    def on_raw_stdout_write(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_get_true(*)
+      typedb.true_type.new_instance
+    end
+
+    def on_raw_get_false(*)
+      typedb.false_type.new_instance
+    end
+
+    def on_raw_get_nil(*)
+      typedb.nil_type.new_instance
+    end
+
+    def on_raw_get_nil_prototype(*)
+      typedb.nil_type.new_instance
+    end
+
+    def on_raw_get_module_prototype(*)
+      typedb.module_type
+    end
+
+    def on_raw_get_ffi_library_prototype(*)
+      typedb.ffi_library_type
+    end
+
+    def on_raw_get_ffi_function_prototype(*)
+      typedb.ffi_function_type
+    end
+
+    def on_raw_get_ffi_pointer_prototype(*)
+      typedb.ffi_pointer_type
+    end
+
+    def on_raw_get_ip_socket_prototype(*)
+      typedb.ip_socket_type
+    end
+
+    def on_raw_get_unix_socket_prototype(*)
+      typedb.unix_socket_type
+    end
+
+    def on_raw_get_process_prototype(*)
+      typedb.process_type
+    end
+
+    def on_raw_get_read_only_file_prototype(*)
+      typedb.read_only_file_type
+    end
+
+    def on_raw_get_write_only_file_prototype(*)
+      typedb.write_only_file_type
+    end
+
+    def on_raw_get_read_write_file_prototype(*)
+      typedb.read_write_file_type
+    end
+
+    def on_raw_run_block(*)
+      new_any_type
+    end
+
+    def on_raw_get_string_prototype(*)
+      typedb.string_type.new_instance
+    end
+
+    def on_raw_get_integer_prototype(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_get_float_prototype(*)
+      typedb.float_type.new_instance
+    end
+
+    def on_raw_get_object_prototype(*)
+      typedb.object_type.new_instance
+    end
+
+    def on_raw_get_array_prototype(*)
+      typedb.array_type.new_instance
+    end
+
+    def on_raw_get_block_prototype(*)
+      typedb.block_type.new_instance
+    end
+
+    def optional_array_element_value(array)
+      param = array.lookup_type_parameter(Config::ARRAY_TYPE_PARAMETER)
+      type = array.lookup_type_parameter_instance(param) || param
+
+      TypeSystem::Optional.wrap(type)
+    end
+
+    def on_raw_array_length(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_array_at(node, _)
+      optional_array_element_value(node.arguments.fetch(0).type)
+    end
+
+    def on_raw_array_set(node, _)
+      node.arguments.fetch(2).type
+    end
+
+    def on_raw_array_clear(*)
+      TypeSystem::Never.new
+    end
+
+    def on_raw_array_remove(node, _)
+      optional_array_element_value(node.arguments.fetch(0).type)
+    end
+
+    def on_raw_time_monotonic(*)
+      typedb.float_type.new_instance
+    end
+
+    def on_raw_time_system(*)
+      typedb.new_array_of_type(new_any_type)
+    end
+
+    def on_raw_string_to_upper(*)
+      typedb.string_type.new_instance
+    end
+
+    def on_raw_string_to_lower(*)
+      typedb.string_type.new_instance
+    end
+
+    def on_raw_string_to_byte_array(*)
+      typedb.byte_array_type.new_instance
+    end
+
+    def on_raw_string_size(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_string_length(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_string_equals(*)
+      typedb.boolean_type.new_instance
+    end
+
+    def on_raw_string_concat(*)
+      typedb.string_type.new_instance
+    end
+
+    def on_raw_string_slice(*)
+      typedb.string_type.new_instance
+    end
+
+    def on_raw_string_byte(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_stdin_read(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_stderr_write(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_process_spawn(node, _)
+      typedb.process_type.new_instance
+    end
+
+    def on_raw_process_send_message(node, _)
+      node.arguments.fetch(1).type
+    end
+
+    def on_raw_process_receive_message(node, *)
+      new_any_type
+    end
+
+    def on_raw_process_current(node, _)
+      typedb.process_type.new_instance
+    end
+
+    def on_raw_process_suspend_current(*)
+      TypeSystem::Never.new
+    end
+
+    def on_raw_process_terminate_current(*)
+      TypeSystem::Never.new
+    end
+
+    def on_raw_get_prototype(*)
+      typedb.object_type.new_instance
+    end
+
+    def on_raw_get_attribute_names(*)
+      new_any_type
+    end
+
+    def on_raw_attribute_exists(*)
+      typedb.boolean_type.new_instance
+    end
+
+    def on_raw_file_flush(*)
+      typedb.nil_type.new_instance
+    end
+
+    def on_raw_stdout_flush(*)
+      typedb.nil_type.new_instance
+    end
+
+    def on_raw_stderr_flush(*)
+      typedb.nil_type.new_instance
+    end
+
+    def on_raw_file_open(*)
+      new_any_type
+    end
+
+    def on_raw_file_path(*)
+      typedb.string_type.new_instance
+    end
+
+    def on_raw_file_read(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_file_seek(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_file_size(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_file_write(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_file_remove(*)
+      typedb.nil_type.new_instance
+    end
+
+    def on_raw_file_copy(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_file_type(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_file_time(*)
+      typedb.new_array_of_type(new_any_type)
+    end
+
+    def on_raw_directory_create(*)
+      typedb.nil_type.new_instance
+    end
+
+    def on_raw_directory_remove(*)
+      typedb.nil_type.new_instance
+    end
+
+    def on_raw_directory_list(*)
+      typedb.new_array_of_type(typedb.string_type.new_instance)
+    end
+
+    def on_raw_close(*)
+      typedb.nil_type.new_instance
+    end
+
+    def on_raw_process_set_blocking(*)
+      typedb.boolean_type.new_instance
+    end
+
+    def on_raw_panic(*)
+      TypeSystem::Never.new
+    end
+
+    def on_raw_exit(*)
+      TypeSystem::Never.new
+    end
+
+    def on_raw_platform(*)
+      typedb.string_type.new_instance
+    end
+
+    def on_raw_hasher_new(node, _)
+      node.arguments.fetch(0).type.new_instance
+    end
+
+    def on_raw_hasher_write(node, _)
+      node.arguments.fetch(0).type
+    end
+
+    def on_raw_hasher_to_hash(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_stacktrace(*)
+      tuple = typedb.new_array_of_type(new_any_type)
+
+      typedb.new_array_of_type(tuple)
+    end
+
+    def on_raw_block_metadata(*)
+      new_any_type
+    end
+
+    def on_raw_string_format_debug(*)
+      typedb.string_type.new_instance
+    end
+
+    def on_raw_string_concat_multiple(*)
+      typedb.string_type.new_instance
+    end
+
+    def on_raw_byte_array_from_array(*)
+      typedb.byte_array_type.new_instance
+    end
+
+    def on_raw_byte_array_set(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_byte_array_at(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_byte_array_remove(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_byte_array_length(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_byte_array_clear(*)
+      TypeSystem::Never.new
+    end
+
+    def on_raw_byte_array_equals(*)
+      typedb.boolean_type.new_instance
+    end
+
+    def on_raw_byte_array_to_string(*)
+      typedb.string_type.new_instance
+    end
+
+    def on_raw_get_boolean_prototype(*)
+      typedb.boolean_type.new_instance
+    end
+
+    def on_raw_get_byte_array_prototype(*)
+      typedb.byte_array_type.new_instance
+    end
+
+    def on_raw_set_object_name(*)
+      typedb.string_type.new_instance
+    end
+
+    def on_raw_current_file_path(*)
+      typedb.string_type.new_instance
+    end
+
+    def on_raw_env_get(*)
+      TypeSystem::Optional.new(typedb.string_type.new_instance)
+    end
+
+    def on_raw_env_set(*)
+      typedb.string_type.new_instance
+    end
+
+    def on_raw_env_remove(*)
+      typedb.nil_type.new_instance
+    end
+
+    def on_raw_env_variables(*)
+      typedb.new_array_of_type(typedb.string_type.new_instance)
+    end
+
+    def on_raw_env_home_directory(*)
+      TypeSystem::Optional.new(typedb.string_type.new_instance)
+    end
+
+    def on_raw_env_temp_directory(*)
+      typedb.string_type.new_instance
+    end
+
+    def on_raw_env_get_working_directory(*)
+      typedb.string_type.new_instance
+    end
+
+    def on_raw_env_set_working_directory(*)
+      typedb.string_type.new_instance
+    end
+
+    def on_raw_env_arguments(*)
+      typedb.new_array_of_type(typedb.string_type.new_instance)
+    end
+
+    def on_raw_process_set_panic_handler(*)
+      typedb.block_type.new_instance
+    end
+
+    def on_raw_process_add_defer_to_caller(*)
+      TypeSystem::Block.closure(typedb.block_type, return_type: new_any_type)
+    end
+
+    def on_raw_set_default_panic_handler(*)
+      TypeSystem::Block.lambda(typedb.block_type, return_type: new_any_type)
+    end
+
+    def on_raw_process_set_pinned(*)
+      typedb.boolean_type.new_instance
+    end
+
+    def on_raw_process_identifier(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_ffi_library_open(node, _)
+      typedb.ffi_library_type.new_instance
+    end
+
+    def on_raw_ffi_function_attach(node, _)
+      typedb.ffi_function_type.new_instance
+    end
+
+    def on_raw_ffi_function_call(*)
+      new_any_type
+    end
+
+    def on_raw_ffi_pointer_attach(node, _)
+      typedb.ffi_pointer_type.new_instance
+    end
+
+    def on_raw_ffi_pointer_read(*)
+      new_any_type
+    end
+
+    def on_raw_ffi_pointer_write(*)
+      new_any_type
+    end
+
+    def on_raw_ffi_pointer_from_address(node, _)
+      typedb.ffi_pointer_type.new_instance
+    end
+
+    def on_raw_ffi_pointer_address(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_ffi_type_size(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_ffi_type_alignment(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_string_to_integer(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_string_to_float(*)
+      typedb.float_type.new_instance
+    end
+
+    def on_raw_float_to_bits(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_socket_create(node, _)
+      new_any_type
+    end
+
+    def on_raw_socket_write(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_socket_read(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_socket_accept(node, _)
+      new_any_type
+    end
+
+    def on_raw_socket_receive_from(*)
+      typedb.new_array_of_type(new_any_type)
+    end
+
+    def on_raw_socket_send_to(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_socket_address(*)
+      typedb.new_array_of_type(new_any_type)
+    end
+
+    def on_raw_socket_get_option(*)
+      new_any_type
+    end
+
+    def on_raw_socket_set_option(*)
+      new_any_type
+    end
+
+    def on_raw_socket_bind(*)
+      typedb.nil_type.new_instance
+    end
+
+    def on_raw_socket_connect(*)
+      typedb.nil_type.new_instance
+    end
+
+    def on_raw_socket_shutdown(*)
+      typedb.nil_type.new_instance
+    end
+
+    def on_raw_socket_listen(*)
+      typedb.integer_type.new_instance
+    end
+
+    def on_raw_random_number(*)
+      new_any_type
+    end
+
+    def on_raw_random_range(*)
+      new_any_type
+    end
+
+    def on_raw_random_bytes(*)
+      typedb.byte_array_type.new_instance
+    end
+
+    def on_raw_if(node, _)
+      node.arguments.fetch(1).type.new_instance
+    end
+
+    def on_raw_module_load(*)
+      typedb.module_type.new_instance
+    end
+
+    def on_raw_module_get(*)
+      TypeSystem::Optional.new(typedb.module_type.new_instance)
+    end
+
+    def on_raw_module_list(*)
+      typedb.new_array_of_type(typedb.module_type.new_instance)
+    end
+
+    def on_raw_module_info(*)
+      typedb.string_type.new_instance
+    end
   end
 end
