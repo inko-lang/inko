@@ -353,7 +353,13 @@ describe Inkoc::Pass::DefineType do
       .new(compiler, tir_module)
       .run(node)
 
-    pass.on_module_body(node, scope) unless state.diagnostics.errors?
+    unless state.diagnostics.errors?
+      Inkoc::Pass::ImplementTraits
+        .new(compiler, tir_module)
+        .run(node)
+
+      pass.on_module_body(node, scope)
+    end
 
     node.expressions[0].type
   end
