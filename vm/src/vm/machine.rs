@@ -1290,10 +1290,10 @@ impl Machine {
                 }
                 Opcode::HasherNew => {
                     let reg = instruction.arg(0);
-                    let proto = context.get_register(instruction.arg(1));
-                    let key0 = context.get_register(instruction.arg(2));
-                    let key1 = context.get_register(instruction.arg(3));
-                    let res = hasher::hasher_new(process, key0, key1, proto)?;
+                    let key0 = context.get_register(instruction.arg(1));
+                    let key1 = context.get_register(instruction.arg(2));
+                    let res =
+                        hasher::hasher_new(&self.state, process, key0, key1)?;
 
                     context.set_register(reg, res);
                 }

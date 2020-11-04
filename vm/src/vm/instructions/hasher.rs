@@ -7,16 +7,16 @@ use crate::vm::state::RcState;
 
 #[inline(always)]
 pub fn hasher_new(
+    state: &RcState,
     process: &RcProcess,
     key0_ptr: ObjectPointer,
     key1_ptr: ObjectPointer,
-    proto_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
     let key0 = key0_ptr.u64_value()?;
     let key1 = key1_ptr.u64_value()?;
     let hasher = Hasher::new(key0, key1);
 
-    Ok(process.allocate(object_value::hasher(hasher), proto_ptr))
+    Ok(process.allocate(object_value::hasher(hasher), state.hasher_prototype))
 }
 
 #[inline(always)]

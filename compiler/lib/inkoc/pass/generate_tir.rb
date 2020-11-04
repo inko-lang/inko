@@ -1322,7 +1322,7 @@ module Inkoc
       end
 
       def on_raw_hasher_new(node, body)
-        raw_ternary_instruction(:HasherNew, node, body)
+        raw_binary_instruction(:HasherNew, node, body)
       end
 
       def on_raw_hasher_write(node, body)
@@ -1429,6 +1429,10 @@ module Inkoc
 
       def on_raw_get_read_write_file_prototype(node, body)
         builtin_prototype_instruction(PrototypeID::READ_WRITE_FILE, node, body)
+      end
+
+      def on_raw_get_hasher_prototype(node, body)
+        builtin_prototype_instruction(PrototypeID::HASHER, node, body)
       end
 
       def on_raw_get_byte_array_prototype(node, body)

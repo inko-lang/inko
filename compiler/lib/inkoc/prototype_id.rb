@@ -21,5 +21,6 @@ module Inkoc
     READ_ONLY_FILE = 16
     WRITE_ONLY_FILE = 17
     READ_WRITE_FILE = 18
+    HASHER = 19
   end
 end

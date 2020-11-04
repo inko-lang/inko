@@ -407,6 +407,10 @@ module Inkoc
       typedb.read_write_file_type
     end
 
+    def on_raw_get_hasher_prototype(*)
+      typedb.hasher_type
+    end
+
     def on_raw_run_block(*)
       new_any_type
     end
@@ -634,8 +638,8 @@ module Inkoc
       typedb.string_type.new_instance
     end
 
-    def on_raw_hasher_new(node, _)
-      node.arguments.fetch(0).type.new_instance
+    def on_raw_hasher_new(*)
+      typedb.hasher_type.new_instance
     end
 
     def on_raw_hasher_write(node, _)

@@ -140,6 +140,9 @@ pub struct State {
     /// The prototype to use for read-write files.
     pub read_write_file_prototype: ObjectPointer,
 
+    /// The prototype to use for hashers.
+    pub hasher_prototype: ObjectPointer,
+
     /// The commandline arguments passed to an Inko program.
     pub arguments: Vec<ObjectPointer>,
 
@@ -190,6 +193,7 @@ impl State {
         let read_only_file_prototype = perm_alloc.allocate_empty();
         let write_only_file_prototype = perm_alloc.allocate_empty();
         let read_write_file_prototype = perm_alloc.allocate_empty();
+        let hasher_prototype = perm_alloc.allocate_empty();
 
         integer_proto.set_prototype(object_proto);
         float_proto.set_prototype(object_proto);
@@ -212,6 +216,7 @@ impl State {
         read_only_file_prototype.set_prototype(object_proto);
         write_only_file_prototype.set_prototype(object_proto);
         read_write_file_prototype.set_prototype(object_proto);
+        hasher_prototype.set_prototype(object_proto);
 
         let gc_pool = GcPool::new(config.gc_threads);
         let mut state = State {
@@ -251,6 +256,7 @@ impl State {
             read_only_file_prototype,
             write_only_file_prototype,
             read_write_file_prototype,
+            hasher_prototype,
             network_poller: NetworkPoller::new(),
             modules: Mutex::new(Modules::new()),
         };

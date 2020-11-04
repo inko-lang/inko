@@ -18,7 +18,11 @@ let LOAD_FACTOR = 0.75
 #
 # Internally this hasher uses the hashing instructions provided by IVM, which
 # currently uses aHash (https://github.com/tkaitchuck/ahash).
-object DefaultHasher {
+let DefaultHasher = _INKOC.get_hasher_prototype
+
+_INKOC.set_object_name(DefaultHasher, 'DefaultHasher')
+
+impl DefaultHasher {
   # Returns a new `DefaultHasher`.
   #
   # The given keys will be used as secrets for the hasher.
@@ -27,7 +31,7 @@ object DefaultHasher {
   #
   # This method will panic if any of the provided keys are below zero.
   static def new(key0: Integer, key1: Integer) -> Self {
-    _INKOC.hasher_new(DefaultHasher, key0, key1)
+    _INKOC.hasher_new(key0, key1)
   }
 }
 
