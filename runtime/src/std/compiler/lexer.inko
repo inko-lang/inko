@@ -9,6 +9,7 @@ import std::compiler::token::*
 import std::conversion::ToString
 import std::fs::path::(ToPath, Path)
 import std::iterator::Iterator
+import std::stdio::stdout
 
 let INTEGER_DIGIT_RANGE = 48..57
 let HEX_LOWER_DIGIT_RANGE = 97..102
@@ -113,13 +114,17 @@ object Lexer {
   # The current column number.
   @column: Integer
 
-  def init(input: ToByteArray, file: ToPath) {
-    @input = input.to_byte_array
-    @file = file.to_path
-    @max_position = @input.length
-    @position = 0
-    @line = 1
-    @column = 1
+  static def new(input: ToByteArray, file: ToPath) -> Self {
+    let bytes = input.to_byte_array
+
+    Self {
+      @input = bytes,
+      @file = file.to_path,
+      @max_position = bytes.length,
+      @position = 0,
+      @line = 1,
+      @column = 1
+    }
   }
 
   def next_non_whitespace_token -> ?Token {

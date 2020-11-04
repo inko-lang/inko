@@ -73,8 +73,8 @@ object Path {
   # The raw file path.
   @path: String
 
-  def init(path: String) {
-    @path = path
+  static def new(path: String) -> Self {
+    Self { @path = path }
   }
 
   # Returns `True` if the path points to a file.

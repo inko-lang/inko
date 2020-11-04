@@ -18,9 +18,8 @@ object SimpleIterator {
   @values: Array!(Integer)
   @index: Integer
 
-  def init {
-    @values = Array.new(10, 20, 30)
-    @index = 0
+  static def new -> Self {
+    Self { @values = Array.new(10, 20, 30), @index = 0 }
   }
 }
 

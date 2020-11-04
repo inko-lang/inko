@@ -34,21 +34,10 @@ _INKOC.set_object_name(ByteArray, 'ByteArray')
 # building blocks of Inko, such as "Object.new" and the bits necessary to allow
 # creating of modules.
 impl Object {
-  # Creates a new instance of `self`, without sending `init` to the instance.
-  static def allocate -> Self {
+  # Creates a new instance of `self`.
+  static def new -> Self {
     _INKOC.allocate(self)
   }
-
-  # Creates a new instance of `self` and sends `init` to the instance.
-  static def new -> Self {
-    let obj = allocate
-
-    obj.init
-
-    obj
-  }
-
-  def init {}
 }
 
 # A trait.

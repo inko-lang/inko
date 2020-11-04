@@ -14,14 +14,16 @@ object TypeParameter {
   # The source location of the type parameter.
   @location: SourceLocation
 
-  def init(
+  static def new(
     name: String,
     required_traits: Array!(Constant),
     location: SourceLocation
-  ) {
-    @name = name
-    @required_traits = required_traits
-    @location = location
+  ) -> Self {
+    Self {
+      @name = name,
+      @required_traits = required_traits,
+      @location = location
+    }
   }
 
   # Returns the name of the type parameter.

@@ -21,6 +21,10 @@ module Inkoc
       def visitor_method
         :on_define_attribute
       end
+
+      def define_attribute?
+        true
+      end
     end
   end
 end

@@ -56,11 +56,17 @@ object Parser {
   #     try! parser.parse
   #
   #     parser.comments.length # => 1
-  def init(input: ToByteArray, file: ToPath, parse_comments = False) {
-    @lexer = Lexer.new(input: input, file: file)
-    @peeked_token = Nil
-    @comments = Array.new
-    @parse_comments = parse_comments
+  static def new(
+    input: ToByteArray,
+    file: ToPath,
+    parse_comments = False
+  ) -> Self {
+    Self {
+      @lexer = Lexer.new(input: input, file: file),
+      @peeked_token = Nil,
+      @comments = Array.new,
+      @parse_comments = parse_comments
+    }
   }
 
   # Returns all comments that have been parsed so far.

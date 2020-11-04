@@ -24,8 +24,8 @@ impl Read for Reader {
 object Writer {
   @buffer: Array!(String)
 
-  def init {
-    @buffer = Array.new
+  static def new -> Self {
+    Self { @buffer = Array.new }
   }
 
   def buffer -> Array!(String) {

@@ -10,9 +10,8 @@ object Comment {
   # The source location of the comment.
   @location: SourceLocation
 
-  def init(text: String, location: SourceLocation) {
-    @text = text
-    @location = location
+  static def new(text: String, location: SourceLocation) -> Self {
+    Self { @text = text, @location = location }
   }
 
   # Returns the text of the comment.

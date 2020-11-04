@@ -13,14 +13,12 @@ object SourceLocation {
   # The start column of the expression.
   @column: Integer
 
-  def init(
+  static def new(
     file: ToPath,
     line_range: Range!(Integer),
     column: Integer
-  ) {
-    @file = file.to_path
-    @line_range = line_range
-    @column = column
+  ) -> Self {
+    Self { @file = file.to_path, @line_range = line_range, @column = column }
   }
 
   # Returns the file path of the expression.

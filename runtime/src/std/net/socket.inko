@@ -47,9 +47,8 @@ object SocketAddress {
   # The port number of this socket address.
   @port: Integer
 
-  def init(ip: IpAddress, port: Integer) {
-    @ip = ip
-    @port = port
+  static def new(ip: IpAddress, port: Integer) -> Self {
+    Self { @ip = ip, @port = port }
   }
 
   # Returns the IPv4/IPv6 address associated with `self`.
@@ -512,14 +511,7 @@ object UdpSocket {
 
     try socket.bind(ip: ip_addr, port: port)
 
-    let instance = allocate
-
-    instance.init(socket)
-    instance
-  }
-
-  def init(socket: Socket) {
-    @socket = socket
+    Self { @socket = socket }
   }
 
   # Connects `self` to the remote addres.s
@@ -640,19 +632,7 @@ object TcpStream {
 
     try socket.connect(ip: ip_addr, port: port)
 
-    from_socket(socket)
-  }
-
-  # Creates a new `TcpStream` from an existing `Socket`.
-  static def from_socket(socket: Socket) -> Self {
-    let instance = allocate
-
-    instance.init(socket)
-    instance
-  }
-
-  def init(socket: Socket) {
-    @socket = socket
+    Self { @socket = socket }
   }
 
   # Returns the local address of this socket.
@@ -774,14 +754,7 @@ object TcpListener {
     try socket.bind(ip: ip_addr, port: port)
     try socket.listen(backlog)
 
-    let instance = allocate
-
-    instance.init(socket)
-    instance
-  }
-
-  def init(socket: Socket) {
-    @socket = socket
+    Self { @socket = socket }
   }
 
   # Accepts a new incoming connection from `self`.
@@ -803,7 +776,7 @@ object TcpListener {
   #
   #     try! connection.read_string(4) # => 'ping'
   def accept !! IoError -> TcpStream {
-    TcpStream.from_socket(try @socket.accept)
+    TcpStream { @socket = try @socket.accept }
   }
 
   # Returns the local address of this socket.

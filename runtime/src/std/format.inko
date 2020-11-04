@@ -32,9 +32,8 @@ object DefaultFormatter {
   # Integer keeping track of how many nested objects we are formatting.
   @nesting: Integer
 
-  def init {
-    @buffer = StringBuffer.new
-    @nesting = 0
+  static def new -> Self {
+    Self { @buffer = StringBuffer.new, @nesting = 0 }
   }
 }
 

@@ -57,14 +57,12 @@ object RegularToken {
   # The location of the token.
   @location: SourceLocation
 
-  def init(
+  static def new(
     type: String,
     value: String,
     location: SourceLocation,
-  ) {
-    @type = type
-    @value = value
-    @location = location
+  ) -> Self {
+    Self { @type = type, @value = value, @location = location }
   }
 }
 
@@ -90,9 +88,8 @@ object KeywordToken {
   # The location of the token.
   @location: SourceLocation
 
-  def init(keyword: String, location: SourceLocation) {
-    @keyword = keyword
-    @location = location
+  static def new(keyword: String, location: SourceLocation) -> Self {
+    Self { @keyword = keyword, @location = location }
   }
 }
 
@@ -122,9 +119,8 @@ object InvalidToken {
   # The location of the token.
   @location: SourceLocation
 
-  def init(value: String, location: SourceLocation) {
-    @value = value
-    @location = location
+  static def new(value: String, location: SourceLocation) -> Self {
+    Self { @value = value, @location = location }
   }
 }
 
@@ -155,8 +151,8 @@ object NullToken {
   # The location of the token.
   @location: SourceLocation
 
-  def init(location: SourceLocation) {
-    @location = location
+  static def new(location: SourceLocation) -> Self {
+    Self { @location = location }
   }
 }
 
@@ -197,14 +193,16 @@ object BinaryToken {
   # The location of the token.
   @location: SourceLocation
 
-  def init(
+  static def new(
     type: String,
     value: String,
     location: SourceLocation,
-  ) {
-    @type = type
-    @value = value
-    @location = location
+  ) -> Self {
+    Self {
+      @type = type,
+      @value = value,
+      @location = location
+    }
   }
 }
 
@@ -237,14 +235,16 @@ object BinaryAssignToken {
   # The location of the token.
   @location: SourceLocation
 
-  def init(
+  static def new(
     type: String,
     value: String,
     location: SourceLocation,
-  ) {
-    @type = type
-    @value = value
-    @location = location
+  ) -> Self {
+    Self {
+      @type = type,
+      @value = value,
+      @location = location
+    }
   }
 }
 

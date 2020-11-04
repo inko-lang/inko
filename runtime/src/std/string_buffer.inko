@@ -58,7 +58,7 @@ object StringBuffer {
   #
   #     StringBuffer.new('foo', 'bar').to_string # => 'foobar'
   static def new(*strings: String) -> Self {
-    from_array(strings)
+    Self { @strings = strings }
   }
 
   # Creates a new `StringBuffer` from an existing `Array`.
@@ -73,15 +73,7 @@ object StringBuffer {
   #
   #     StringBuffer.from_array(strings).to_string # => 'foobar'
   static def from_array(strings: Array!(String)) -> Self {
-    let buffer = allocate
-
-    buffer.init(strings)
-
-    buffer
-  }
-
-  def init(strings = Array.new!(String)) {
-    @strings = strings
+    Self { @strings = strings }
   }
 
   # Adds the given `String` to the buffer.

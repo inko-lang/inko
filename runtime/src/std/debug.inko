@@ -16,10 +16,8 @@ object CallFrame {
   # The line number the call frame originates from.
   @line: Integer
 
-  def init(path: ToPath, name: String, line: Integer) {
-    @path = path.to_path
-    @name = name
-    @line = line
+  static def new(path: ToPath, name: String, line: Integer) -> Self {
+    Self { @path = path.to_path, @name = name, @line = line }
   }
 
   # Returns the path of the file the frame belongs to.

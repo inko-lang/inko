@@ -57,9 +57,11 @@ object RandomState {
   # The second randomly generated key to use for the hashing algorithm.
   @key1: Integer
 
-  def init {
-    @key0 = random.incremental_integer
-    @key1 = random.incremental_integer
+  static def new -> Self {
+    Self {
+      @key0 = random.incremental_integer,
+      @key1 = random.incremental_integer
+    }
   }
 
   # Creates a new `DefaultHasher`.
@@ -82,11 +84,17 @@ object Pair!(K: Hash + Equal, V) {
   # The distance of this pair relative to its desired index.
   @distance: Integer
 
-  def init(key: K, value: V, hash: Integer) {
-    @key = key
-    @value = value
-    @hash = hash
-    @distance = 0
+  static def new!(KK: Hash + Equal, VV)(
+    key: KK,
+    value: VV,
+    hash: Integer
+  ) -> Pair!(KK, VV) {
+    Self {
+      @key = key,
+      @value = value,
+      @hash = hash,
+      @distance = 0
+    }
   }
 
   def distance -> Integer {
@@ -157,6 +165,23 @@ object Map!(K: Hash + Equal, V) {
   # time we want to check if we need to resize.
   @resize_threshold: Integer
 
+  # Returns a new empty Map.
+  #
+  # # Examples
+  #
+  # Creating a new Map:
+  #
+  #     Map.new
+  static def new -> Self {
+    Self {
+      @random_state = RandomState.new,
+      @buckets = Array.new,
+      @length = 0,
+      @capacity = 1,
+      @resize_threshold = 1
+    }
+  }
+
   # Returns a `Map` using two arrays: one containing the keys and one
   # containing the values.
   #
@@ -183,14 +208,6 @@ object Map!(K: Hash + Equal, V) {
     }
 
     map
-  }
-
-  def init {
-    @random_state = RandomState.new
-    @buckets = Array.new
-    @length = 0
-    @capacity = 1
-    @resize_threshold = 1
   }
 
   # Returns the buckets of this `Map`.

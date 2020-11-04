@@ -46,9 +46,11 @@ object Configuration {
   # The formatter to use.
   @formatter: Formatter
 
-  def init {
-    @concurrency = DEFAULT_CONCURRENCY
-    @formatter = ProgressFormatter.new
+  static def new -> Self {
+    Self {
+      @concurrency = DEFAULT_CONCURRENCY,
+      @formatter = ProgressFormatter.new
+    }
   }
 
   # Returns the number of tests to execute concurrently.

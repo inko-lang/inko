@@ -10,9 +10,8 @@ object Identifier {
   # The source location of the identifier.
   @location: SourceLocation
 
-  def init(name: String, location: SourceLocation) {
-    @name = name
-    @location = location
+  static def new(name: String, location: SourceLocation) -> Self {
+    Self { @name = name, @location = location }
   }
 
   # Returns the name of the identifier.
@@ -41,11 +40,13 @@ object Constant {
   # A boolean indicating if the constant is an optional type or not.
   @optional: Boolean
 
-  def init(name: String, location: SourceLocation,) {
-    @name = name
-    @location = location
-    @type_arguments = Array.new
-    @optional = False
+  static def new(name: String, location: SourceLocation) -> Self {
+    Self {
+      @name = name,
+      @location = location,
+      @type_arguments = Array.new,
+      @optional = False
+    }
   }
 
   # Returns the name of the constant.
@@ -73,9 +74,8 @@ object Attribute {
   # The source location of the attribute.
   @location: SourceLocation
 
-  def init(name: String, location: SourceLocation) {
-    @name = name
-    @location = location
+  static def new(name: String, location: SourceLocation) -> Self {
+    Self { @name = name, @location = location }
   }
 
   # Returns the name of the attribute.
@@ -98,9 +98,8 @@ object Global {
   # The source location of the global.
   @location: SourceLocation
 
-  def init(name: String, location: SourceLocation) {
-    @name = name
-    @location = location
+  static def new(name: String, location: SourceLocation) -> Self {
+    Self { @name = name, @location = location }
   }
 
   # Returns the name of the global.
@@ -119,8 +118,8 @@ impl Node for Global {
 object SelfObject {
   @location: SourceLocation
 
-  def init(location: SourceLocation) {
-    @location = location
+  static def new(location: SourceLocation) -> Self {
+    Self { @location = location }
   }
 }
 
@@ -138,9 +137,8 @@ object Assign {
   # The value to assign to the variable.
   @value: Node
 
-  def init(variable: Node, value: Node) {
-    @variable = variable
-    @value = value
+  static def new(variable: Node, value: Node) -> Self {
+    Self { @variable = variable, @value = value }
   }
 
   # Returns the variable that the value is assigned to.
@@ -179,18 +177,20 @@ object DefineVariable {
   # The source location of the variable definition.
   @location: SourceLocation
 
-  def init(
+  static def new(
     name: Node,
     value_type: ?Node,
     value: Node,
     mutable: Boolean,
     location: SourceLocation
-  ) {
-    @name = name
-    @value_type = value_type
-    @value = value
-    @mutable = mutable
-    @location = location
+  ) -> Self {
+    Self {
+      @name = name,
+      @value_type = value_type,
+      @value = value,
+      @mutable = mutable,
+      @location = location
+    }
   }
 
   # Returns the name of the variable that is defined.

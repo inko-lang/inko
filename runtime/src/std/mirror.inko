@@ -54,8 +54,8 @@
 #     object Person {
 #       @name: String
 #
-#       def init(name: String) {
-#         @name = name
+#       static def new(name: String) -> Self {
+#         Self { @name = name }
 #       }
 #     }
 #
@@ -81,8 +81,8 @@
 #     object Person {
 #       @name: String
 #
-#       def init(name: String) {
-#         @name = name
+#       static def new(name: String) -> Self {
+#         Self { @name = name }
 #       }
 #     }
 #
@@ -169,8 +169,8 @@ trait Mirror: Format {
   #     object Person {
   #       @name: String
   #
-  #       def init(name: String) {
-  #         @name = name
+  #       static def new(name: String) -> Self {
+  #         Self { @name = name }
   #       }
   #     }
   #
@@ -278,8 +278,8 @@ trait Mirror: Format {
   #     object Person {
   #       @name: String
   #
-  #       def init(name: String) {
-  #         @name = name
+  #       static def new(name: String) -> Self {
+  #         Self { @name = name }
   #       }
   #     }
   #
@@ -317,8 +317,8 @@ object ObjectMirror {
   # The object that is being mirrored.
   @subject: Object
 
-  def init(subject: Object) {
-    @subject = subject
+  static def new(subject: Object) -> Self {
+    Self { @subject = subject }
   }
 
   # Sets the attribute of an object to the given value, returning the stored
@@ -393,8 +393,8 @@ object BlockMirror {
   # The block that is being mirrored.
   @subject: Block
 
-  def init(subject: Block) {
-    @subject = subject
+  static def new(subject: Block) -> Self {
+    Self { @subject = subject }
   }
 
   # Returns the file path of the file the block is defined in.
@@ -497,8 +497,8 @@ impl Mirror for BlockMirror {
 object ModuleMirror {
   @subject: Module
 
-  def init(subject: Module) {
-    @subject = subject
+  static def new(subject: Module) -> Self {
+    Self { @subject = subject }
   }
 
   # Returns the name of the module.
@@ -532,8 +532,8 @@ object ArrayMirror!(T) {
   # The `Array` that is mirrored.
   @subject: Array!(T)
 
-  def init(subject: Array!(T)) {
-    @subject = subject
+  static def new(subject: Array!(T)) -> Self {
+    Self { @subject = subject }
   }
 }
 
@@ -569,8 +569,8 @@ object ByteArrayMirror {
   # The `ByteArray` that is mirrored.
   @subject: ByteArray
 
-  def init(subject: ByteArray) {
-    @subject = subject
+  static def new(subject: ByteArray) -> Self {
+    Self { @subject = subject }
   }
 }
 
@@ -594,8 +594,8 @@ object MapMirror!(K: Hash + Equal, V) {
   # The `Map` that is mirrored.
   @subject: Map!(K, V)
 
-  def init(subject: Map!(K, V)) {
-    @subject = subject
+  static def new!(K: Hash + Equal, V)(subject: Map!(K, V)) -> MapMirror!(K, V) {
+    Self { @subject = subject }
   }
 }
 
@@ -641,8 +641,8 @@ object SetMirror!(V: Hash + Equal) {
   # The `Set` that is mirrored.
   @subject: Set!(V)
 
-  def init(subject: Set!(V)) {
-    @subject = subject
+  static def new!(V: Hash + Equal)(subject: Set!(V)) -> SetMirror!(V) {
+    Self { @subject = subject }
   }
 }
 
@@ -682,8 +682,8 @@ object PairMirror!(A, B) {
   # The `Pair` that is mirrored
   @subject: Pair!(A, B)
 
-  def init(subject: Pair!(A, B)) {
-    @subject = subject
+  static def new!(A, B)(subject: Pair!(A, B)) -> PairMirror!(A, B) {
+    Self { @subject = subject }
   }
 }
 
@@ -717,8 +717,10 @@ object TripleMirror!(A, B, C) {
   # The `Triple` that is mirrored
   @subject: Triple!(A, B, C)
 
-  def init(subject: Triple!(A, B, C)) {
-    @subject = subject
+  static def new!(A, B, C)(
+    subject: Triple!(A, B, C)
+  ) -> TripleMirror!(A, B, C) {
+    Self { @subject = subject }
   }
 }
 
@@ -760,8 +762,8 @@ object IntegerMirror {
   # The `Integer` that is mirrored.
   @subject: Integer
 
-  def init(subject: Integer) {
-    @subject = subject
+  static def new(subject: Integer) -> Self {
+    Self { @subject = subject }
   }
 }
 
@@ -783,8 +785,8 @@ object FloatMirror {
   # The `Float` that is mirrored.
   @subject: Float
 
-  def init(subject: Float) {
-    @subject = subject
+  static def new(subject: Float) -> Self {
+    Self { @subject = subject }
   }
 }
 
@@ -806,8 +808,8 @@ object StringMirror {
   # The `String` that is mirrored.
   @subject: String
 
-  def init(subject: String) {
-    @subject = subject
+  static def new(subject: String) -> Self {
+    Self { @subject = subject }
   }
 }
 
@@ -829,8 +831,8 @@ object BooleanMirror {
   # The `Boolean` that is mirrored.
   @subject: Boolean
 
-  def init(subject: Boolean) {
-    @subject = subject
+  static def new(subject: Boolean) -> Self {
+    Self { @subject = subject }
   }
 }
 
@@ -852,8 +854,8 @@ object NilMirror {
   # The `Nil` that is mirrored.
   @subject: Nil
 
-  def init(subject: Nil) {
-    @subject = subject
+  static def new(subject: Nil) -> Self {
+    Self { @subject = subject }
   }
 }
 

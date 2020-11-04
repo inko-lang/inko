@@ -11,9 +11,8 @@ object Return {
   # The source location of the return expression.
   @location: SourceLocation
 
-  def init(expression: ?Node, location: SourceLocation) {
-    @expression = expression
-    @location = location
+  static def new(expression: ?Node, location: SourceLocation) -> Self {
+    Self { @expression = expression, @location = location }
   }
 
   # Returns the expression to return.
@@ -35,9 +34,8 @@ object Throw {
   # The source location of the throw expression.
   @location: SourceLocation
 
-  def init(expression: Node, location: SourceLocation) {
-    @expression = expression
-    @location = location
+  static def new(expression: Node, location: SourceLocation) -> Self {
+    Self { @expression = expression, @location = location }
   }
 
   # Returns the expression to throw.
@@ -66,16 +64,18 @@ object Try {
   # The source location of the throw expression.
   @location: SourceLocation
 
-  def init(
+  static def new(
     expression: Node,
     error_variable: ?String,
     else_body: Body,
     location: SourceLocation
-  ) {
-    @expression = expression
-    @error_variable = error_variable
-    @else_body = else_body
-    @location = location
+  ) -> Self {
+    Self {
+      @expression = expression,
+      @error_variable = error_variable,
+      @else_body = else_body,
+      @location = location
+    }
   }
 
   # Returns the expression to try to run.
@@ -108,9 +108,8 @@ object TryPanic {
   # The source location of the throw expression.
   @location: SourceLocation
 
-  def init(expression: Node, location: SourceLocation) {
-    @expression = expression
-    @location = location
+  static def new(expression: Node, location: SourceLocation) -> Self {
+    Self { @expression = expression, @location = location }
   }
 
   # Returns the expression to try to run.

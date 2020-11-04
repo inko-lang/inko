@@ -43,8 +43,10 @@ object AddressParseError {
   # The address that could not be parsed.
   @address: String
 
-  def init(address: ToString) {
-    @address = address.to_string
+  static def new(address: ToString) -> Self {
+    Self {
+      @address = address.to_string
+    }
   }
 }
 
@@ -100,7 +102,7 @@ object Ipv6Address {
   # The segments/hextets of this IPv6 address.
   @segments: Array!(Integer)
 
-  def init(
+  static def new(
     a = 0,
     b = 0,
     c = 0,
@@ -109,8 +111,8 @@ object Ipv6Address {
     f = 0,
     g = 0,
     h = 0
-  ) {
-    @segments = Array.new(a, b, c, d, e, f, g, h)
+  ) -> Self {
+    Self { @segments = Array.new(a, b, c, d, e, f, g, h) }
   }
 }
 
@@ -519,8 +521,8 @@ object Ipv4Address {
   # The segments/octets of this IPv4 address.
   @segments: Array!(Integer)
 
-  def init(a = 0, b = 0, c = 0, d = 0) {
-    @segments = Array.new(a, b, c, d)
+  static def new(a = 0, b = 0, c = 0, d = 0) -> Self {
+    Self { @segments = Array.new(a, b, c, d) }
   }
 }
 

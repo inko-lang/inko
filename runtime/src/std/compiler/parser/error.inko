@@ -18,15 +18,16 @@ object TokenError {
   # The source location of the error.
   @location: SourceLocation
 
-  def init(token: Token) {
-    @message = token.null?.if(
-      true: { 'More input was expected, but we ran out of input' },
-      false: {
-        'The following unexpected input was encountered: ' + token.value
-      }
-    )
-
-    @location = token.location
+  static def new(token: Token) -> Self {
+    Self {
+      @message = token.null?.if(
+        true: { 'More input was expected, but we ran out of input' },
+        false: {
+          'The following unexpected input was encountered: ' + token.value
+        }
+      ),
+      @location = token.location
+    }
   }
 }
 
@@ -54,8 +55,8 @@ object MissingInputError {
   # The source location of the error.
   @location: SourceLocation
 
-  def init(location: SourceLocation) {
-    @location = location
+  static def new(location: SourceLocation) -> Self {
+    Self { @location = location }
   }
 }
 

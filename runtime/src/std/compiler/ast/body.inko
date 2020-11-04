@@ -10,9 +10,8 @@ object Body {
   # The source location of the start of the collection of expressions.
   @location: SourceLocation
 
-  def init(children: Array!(Node), location: SourceLocation) {
-    @children = children
-    @location = location
+  static def new(children: Array!(Node), location: SourceLocation) -> Self {
+    Self { @children = children, @location = location }
   }
 
   # Returns the nodes stored in this collection.

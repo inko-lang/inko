@@ -14,9 +14,8 @@ object TestGroup {
   # The `Client` to use for communicating with a `Runner`.
   @client: Client
 
-  def init(name: String, client: Client) {
-    @name = name
-    @client = client
+  static def new(name: String, client: Client) -> Self {
+    Self { @name = name, @client = client }
   }
 
   # Registers a new test with a runner.

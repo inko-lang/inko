@@ -122,6 +122,10 @@ module Inkoc
       def cast?
         false
       end
+
+      def define_attribute?
+        false
+      end
     end
   end
 end

@@ -18,10 +18,11 @@ object Dummy {
   @name: String
   @age: Integer
 
-  def init {
-    @name = 'Alice'
-    @age = 28
+  static def new -> Self {
+    Self { @name = 'Alice', @age = 28 }
   }
+
+  def foo {}
 }
 
 impl Trait1 for Dummy {}
@@ -31,8 +32,8 @@ object EmptyObject {}
 object OneAttribute {
   @number: Integer
 
-  def init {
-    @number = 10
+  static def new -> Self {
+    Self { @number = 10 }
   }
 }
 
@@ -40,17 +41,16 @@ object TwoAttributes {
   @first: String
   @second: Integer
 
-  def init {
-    @first = 'first'
-    @second = 10
+  static def new -> Self {
+    Self { @first = 'first', @second = 10 }
   }
 }
 
 object NestedObject {
   @child: OneAttribute
 
-  def init {
-    @child = OneAttribute.new
+  static def new -> Self {
+    Self { @child = OneAttribute.new }
   }
 }
 
@@ -76,7 +76,7 @@ test.group('std::mirror::Mirror.get_attribute') do (g) {
   g.test('Obtaining the value of a non existing attribute') {
     let obj = Dummy.new
 
-    assert.equal(ObjectMirror.new(obj).get_attribute('foo') as Object, Nil)
+    assert.equal(ObjectMirror.new(obj).get_attribute('bar') as Object, Nil)
   }
 
   g.test('Obtaining the value of an existing attribute') {
@@ -270,9 +270,9 @@ test.group('std::mirror::BlockMirror.name') do (g) {
 
   g.test('Obtaining the name of a method') {
     let mirror = ObjectMirror.new(Dummy)
-    let init = mirror.get_attribute('init') as Block
+    let foo = mirror.get_attribute('foo') as Block
 
-    assert.equal(BlockMirror.new(init).name, 'init')
+    assert.equal(BlockMirror.new(foo).name, 'foo')
   }
 }
 

@@ -29,9 +29,8 @@ object ProgressFormatter {
   # escape sequences.
   @colors: Boolean
 
-  def init(colors = True) {
-    @failed = 0
-    @colors = colors
+  static def new(colors = True) -> Self {
+    Self { @failed = 0, @colors = colors }
   }
 
   # Returns the location of a test failure.

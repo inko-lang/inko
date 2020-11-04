@@ -16,9 +16,8 @@ object IntegerLiteral {
   # The source location of the literal.
   @location: SourceLocation
 
-  def init(value: String, location: SourceLocation) {
-    @value = value
-    @location = location
+  static def new(value: String, location: SourceLocation) -> Self {
+    Self { @value = value, @location = location }
   }
 }
 
@@ -42,9 +41,8 @@ object FloatLiteral {
   # The source location of the literal.
   @location: SourceLocation
 
-  def init(value: String, location: SourceLocation) {
-    @value = value
-    @location = location
+  static def new(value: String, location: SourceLocation) -> Self {
+    Self { @value = value, @location = location }
   }
 }
 
@@ -68,9 +66,8 @@ object StringLiteral {
   # The source location of the literal.
   @location: SourceLocation
 
-  def init(value: String, location: SourceLocation) {
-    @value = value
-    @location = location
+  static def new(value: String, location: SourceLocation) -> Self {
+    Self { @value = value, @location = location }
   }
 }
 

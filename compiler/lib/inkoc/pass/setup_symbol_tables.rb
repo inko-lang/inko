@@ -100,6 +100,12 @@ module Inkoc
       def on_dereference(node, outer)
         process_node(node.expression, outer)
       end
+
+      def on_new_instance(node, outer)
+        node.attributes.each do |attr|
+          process_node(attr.value, outer)
+        end
+      end
     end
   end
 end

@@ -20,13 +20,18 @@ module Inkoc
 
       # name - The name of the object as a String.
       # prototype - The prototype of the object, if any.
-      def initialize(name: Config::OBJECT_CONST, prototype: nil)
+      def initialize(name: Config::OBJECT_CONST, prototype: nil, builtin: false)
         @name = name
         @prototype = prototype
         @attributes = SymbolTable.new
         @type_parameters = TypeParameterTable.new
         @type_parameter_instances = TypeParameterInstances.new
         @implemented_traits = {}
+        @builtin = builtin
+      end
+
+      def builtin?
+        @builtin
       end
 
       def object?

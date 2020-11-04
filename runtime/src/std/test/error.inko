@@ -14,9 +14,8 @@ object TestFailure {
   # The location of the assertion failure.
   @location: CallFrame
 
-  def init(message: String, location: CallFrame) {
-    @message = message
-    @location = location
+  static def new(message: String, location: CallFrame) -> Self {
+    Self { @message = message, @location = location }
   }
 
   # Returns the location of the failure.

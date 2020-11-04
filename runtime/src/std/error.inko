@@ -15,8 +15,8 @@ object StandardError {
   # The error message of this error.
   @message: String
 
-  def init(message: String) {
-    @message = message
+  static def new(message: String) -> Self {
+    Self { @message = message }
   }
 }
 

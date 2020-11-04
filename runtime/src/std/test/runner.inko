@@ -35,9 +35,8 @@ object RunnerState {
   # The configuration details for this runner.
   @configuration: Configuration
 
-  def init {
-    @tests = Array.new
-    @configuration = Configuration.new
+  static def new -> Self {
+    Self { @tests = Array.new, @configuration = Configuration.new }
   }
 
   # Adds a new `Test` to this `Runner`.
@@ -81,9 +80,8 @@ object ConfigureRunner {
   # name of the option.
   @value: Any
 
-  def init(option: String, value: Any) {
-    @option = option
-    @value = value
+  static def new(option: String, value: Any) -> Self {
+    Self { @option = option, @value = value }
   }
 }
 
@@ -98,8 +96,8 @@ object AddTest {
   # The test to add.
   @test: Test
 
-  def init(test: Test) {
-    @test = test
+  static def new(test: Test) -> Self {
+    Self { @test = test }
   }
 }
 
@@ -114,8 +112,8 @@ object RunTests {
   # The `Process` to notify once all tests have been completed.
   @notify: Process
 
-  def init(notify: Process) {
-    @notify = notify
+  static def new(notify: Process) -> Self {
+    Self { @notify = notify }
   }
 
   def notify_client(failures: Boolean) {
@@ -183,9 +181,8 @@ object RunnerFinished {
   # A boolean indicating if there were any test failures.
   @failures: Boolean
 
-  def init(runner: Process, failures: Boolean) {
-    @runner = runner
-    @failures = failures
+  static def new(runner: Process, failures: Boolean) -> Self {
+    Self { @runner = runner, @failures = failures }
   }
 
   # Returns the `Process` of the `Runner` that sent the message.
@@ -209,8 +206,8 @@ object Runner {
   # The internal state of a Runner.
   @state: RunnerState
 
-  def init {
-    @state = RunnerState.new
+  static def new -> Self {
+    Self { @state = RunnerState.new }
   }
 
   # Starts the runner, blocking the calling process.
@@ -231,9 +228,8 @@ object Client {
   # A boolean indicating if the test suite is running or not.
   @running: Boolean
 
-  def init(runner: Process) {
-    @runner = runner
-    @running = False
+  static def new(runner: Process) -> Self {
+    Self { @runner = runner, @running = False }
   }
 
   # Returns the jrocess of the `Runner`.

@@ -14,9 +14,8 @@ object Pair!(A, B) {
   # The second value of this `Pair`.
   @second: B
 
-  def init(first: A, second: B) {
-    @first = first
-    @second = second
+  static def new(first: A, second: B) -> Self {
+    Self { @first = first, @second = second }
   }
 
   # Returns the first value of this `Pair`.
@@ -74,10 +73,8 @@ object Triple!(A, B, C) {
   # The third value of this `Pair`.
   @third: C
 
-  def init(first: A, second: B, third: C) {
-    @first = first
-    @second = second
-    @third = third
+  static def new(first: A, second: B, third: C) -> Self {
+    Self { @first = first, @second = second, @third = third }
   }
 
   # Returns the first value of this `Triple`.

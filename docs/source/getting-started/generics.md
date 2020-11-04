@@ -52,8 +52,8 @@ values:
 object List!(T) {
   @values: Array!(T)
 
-  def init {
-    @values = Array.new
+  static def new -> Self {
+    Self { @values = Array.new }
   }
 
   def push(value: T) {

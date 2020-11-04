@@ -75,13 +75,8 @@ object Node {
   @value: Integer
   @next: ?Node
 
-  def init(value: Integer) {
-    @value = value
-
-    # The next node can either be a Node, or Nil, hence we use `?Node` as the
-    # type. We specify the type explicitly, otherwise the compiler will infer
-    # the type of `@next` as `Nil`.
-    @next = Nil
+  static def new(value: Integer) -> Self {
+    Self { @value = value, @next = Nil }
   }
 
   def next -> ?Node {
@@ -105,9 +100,8 @@ object LinkedList {
   @head: ?Node
   @tail: ?Node
 
-  def init {
-    @head = Nil
-    @tail = Nil
+  static def new -> Self {
+    Self { @head = Nil, @tail = Nil }
   }
 
   def head -> ?Node {
@@ -147,8 +141,8 @@ and define an `iter` method for our `LinkedList` object:
 object LinkedListIterator {
   @node: ?Node
 
-  def init(list: LinkedList) {
-    @node = list.head
+  static def new(list: LinkedList) -> Self {
+    Self { @node = list.head }
   }
 }
 
@@ -237,9 +231,8 @@ object Node {
   @value: Integer
   @next: ?Node
 
-  def init(value: Integer) {
-    @value = value
-    @next = Nil
+  static def new(value: Integer) -> Self {
+    Self { @value = value, @next = Nil }
   }
 
   def next -> ?Node {
@@ -259,9 +252,8 @@ object LinkedList {
   @head: ?Node
   @tail: ?Node
 
-  def init {
-    @head = Nil
-    @tail = Nil
+  static def new -> Self {
+    Self { @head = Nil, @tail = Nil }
   }
 
   def head -> ?Node {

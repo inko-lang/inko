@@ -11,9 +11,8 @@ object OptionalType {
   # The type that is made optional.
   @type: Node
 
-  def init(type: Node, location: SourceLocation) {
-    @type = type
-    @location = location
+  static def new(type: Node, location: SourceLocation) -> Self {
+    Self { @type = type, @location = location }
   }
 
   def type -> Node {
@@ -44,18 +43,20 @@ object ClosureType {
   # The source location of the constant.
   @location: SourceLocation
 
-  def init(
+  static def new(
     type_parameters: Array!(TypeParameter),
     arguments: Array!(Node),
     throw_type: ?Node,
     return_type: ?Node,
     location: SourceLocation
-  ) {
-    @type_parameters = type_parameters
-    @arguments = arguments
-    @throw_type = throw_type
-    @return_type = return_type
-    @location = location
+  ) -> Self {
+    Self {
+      @type_parameters = type_parameters,
+      @arguments = arguments,
+      @throw_type = throw_type,
+      @return_type = return_type,
+      @location = location
+    }
   }
 
   # Returns the argument types of this closure.
@@ -102,18 +103,20 @@ object LambdaType {
   # The source location of the constant.
   @location: SourceLocation
 
-  def init(
+  static def new(
     type_parameters: Array!(TypeParameter),
     arguments: Array!(Node),
     throw_type: ?Node,
     return_type: ?Node,
     location: SourceLocation
-  ) {
-    @type_parameters = type_parameters
-    @arguments = arguments
-    @throw_type = throw_type
-    @return_type = return_type
-    @location = location
+  ) -> Self {
+    Self {
+      @type_parameters = type_parameters,
+      @arguments = arguments,
+      @throw_type = throw_type,
+      @return_type = return_type,
+      @location = location
+    }
   }
 
   # Returns the argument types of this lambda.

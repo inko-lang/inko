@@ -477,14 +477,10 @@ Example:
 ```inko
 object Person {
   @name: String
-
-  def init(name: String) {
-    @name = name
-  }
 }
 
 def create_person(name: String) -> Person {
-  Person.new(name)
+  Person { @name = name }
 }
 
 let person = create_person('Alice')
@@ -536,6 +532,35 @@ explicitly:
 
 ```inko
 let block = do (number: Integer) { number }
+```
+
+## Constructors
+
+Constructing a type uses the following syntax:
+
+```inko
+TypeName { @attribute = 'value' }
+```
+
+When constructing a type, place the expression on a single line if it fits:
+
+```inko
+Person { @name = 'Alice', @age = 32 }
+```
+
+If it doesn't fit, put every attribute assignment on a separate line:
+
+```inko
+Person {
+  @name = 'Alice',
+  @age = 32
+}
+```
+
+If an object doesn't define any attributes, construct your object as follows:
+
+```inko
+Person {}
 ```
 
 ## Error handling

@@ -22,9 +22,8 @@ object Range!(T: Successor + SmallerOrEqual) {
   # The (inclusive) end value of the range.
   @end: T
 
-  def init(start: T, end: T) {
-    @start = start
-    @end = end
+  static def new!(A: Successor + SmallerOrEqual)(start: A, end: A) -> Range!(A) {
+    Self { @start = start, @end = end }
   }
 
   # Returns the start value of the range.

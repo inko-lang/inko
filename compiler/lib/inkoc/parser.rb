@@ -560,7 +560,7 @@ module Inkoc
       when :integer then integer(start)
       when :float then float(start)
       when :identifier then identifier_or_reassign(start)
-      when :constant then constant(start)
+      when :constant then constant_value(start)
       when :curly_open then block_without_arguments(start)
       when :define then def_method(start)
       when :static then def_static_method(start)
@@ -639,6 +639,42 @@ module Inkoc
     #     Foo::Bar
     def constant(start)
       constant_from_token(start)
+    end
+
+    def constant_value(start)
+      peeked = @lexer.peek
+
+      if peeked.type == :curly_open && peeked.line == start.line
+        new_instance(start)
+      else
+        constant_from_token(start)
+      end
+    end
+
+    def new_instance(start)
+      # Skip the opening {
+      advance!
+
+      attrs = []
+
+      loop do
+        if @lexer.next_type_is?(:curly_close)
+          advance!
+          break
+        end
+
+        name = advance_and_expect!(:attribute)
+
+        advance_and_expect!(:assign)
+
+        value = expression(advance!)
+
+        attrs << AST::AssignAttribute.new(name.value, value, name.location)
+
+        break if comma_or_break_on(:curly_close)
+      end
+
+      AST::NewInstance.new(start.value, attrs, start.location)
     end
 
     # Parses a reference to a module global.

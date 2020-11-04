@@ -19,16 +19,18 @@ object DefineObject {
   # The source location of the definition.
   @location: SourceLocation
 
-  def init(
+  static def new(
     name: String,
     type_parameters: Array!(TypeParameter),
     body: Body,
     location: SourceLocation
-  ) {
-    @name = name
-    @type_parameters = type_parameters
-    @body = body
-    @location = location
+  ) -> Self {
+    Self {
+      @name = name,
+      @type_parameters = type_parameters,
+      @body = body,
+      @location = location
+    }
   }
 
   # Returns the name of this object.
@@ -64,10 +66,8 @@ object DefineAttribute {
   # The source location of the definition.
   @location: SourceLocation
 
-  def init(name: String, type: Node, location: SourceLocation) {
-    @name = name
-    @type = type
-    @location = location
+  static def new(name: String, type: Node, location: SourceLocation) -> Self {
+    Self { @name = name, @type = type, @location = location }
   }
 
   # Returns the name of the attribute.
@@ -104,18 +104,20 @@ object DefineTrait {
   # The source location of the trait definition.
   @location: SourceLocation
 
-  def init(
+  static def new(
     name: String,
     type_parameters: Array!(TypeParameter),
     required_traits: Array!(Constant),
     body: Body,
     location: SourceLocation
-  ) {
-    @name = name
-    @type_parameters = type_parameters
-    @required_traits = required_traits
-    @body = body
-    @location = location
+  ) -> Self {
+    Self {
+      @name = name,
+      @type_parameters = type_parameters,
+      @required_traits = required_traits,
+      @body = body,
+      @location = location
+    }
   }
 
   # Returns the name of this object.
@@ -163,18 +165,20 @@ object ImplementTrait {
   # The source location of the implementation.
   @location: SourceLocation
 
-  def init(
+  static def new(
     trait_name: Constant,
     object_name: Constant,
     trait_bounds: Array!(TypeParameter),
     body: Body,
     location: SourceLocation
-  ) {
-    @trait_name = trait_name
-    @object_name = object_name
-    @trait_bounds = trait_bounds
-    @body = body
-    @location = location
+  ) -> Self {
+    Self {
+      @trait_name = trait_name,
+      @object_name = object_name,
+      @trait_bounds = trait_bounds,
+      @body = body,
+      @location = location
+    }
   }
 
   # Returns the name of the trait being implemented.
@@ -215,10 +219,8 @@ object ReopenObject {
   # The source location of the implementation.
   @location: SourceLocation
 
-  def init(name: Constant, body: Body, location: SourceLocation) {
-    @name = name
-    @body = body
-    @location = location
+  static def new(name: Constant, body: Body, location: SourceLocation) -> Self {
+    Self { @name = name, @body = body, @location = location }
   }
 
   # Returns the name of the object that is reopened.

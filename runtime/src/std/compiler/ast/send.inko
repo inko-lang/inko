@@ -14,10 +14,16 @@ object KeywordArgument {
   # The source location of the send operation.
   @location: SourceLocation
 
-  def init(name: Identifier, value: Node, location: SourceLocation) {
-    @name = name
-    @value = value
-    @location = location
+  static def new(
+    name: Identifier,
+    value: Node,
+    location: SourceLocation
+  ) -> Self {
+    Self {
+      @name = name,
+      @value = value,
+      @location = location
+    }
   }
 
   # Returns the name of the keyword argument.
@@ -54,18 +60,20 @@ object Send {
   # The source location of the send operation.
   @location: SourceLocation
 
-  def init(
+  static def new(
     message: String,
     receiver: Node,
     arguments: Array!(Node),
     type_arguments: Array!(Node),
     location: SourceLocation
-  ) {
-    @message = message
-    @receiver = receiver
-    @arguments = arguments
-    @type_arguments = type_arguments
-    @location = location
+  ) -> Self {
+    Self {
+      @message = message,
+      @receiver = receiver,
+      @arguments = arguments,
+      @type_arguments = type_arguments,
+      @location = location
+    }
   }
 
   # Returns the message that is sent.

@@ -866,12 +866,11 @@ module Inkoc
         loc = node.location
         proto = process_node(args.fetch(0), body)
         register = body.register(node.type)
-        result = body.instruct(:Allocate, register, proto, loc)
 
+        body.instruct(:Allocate, register, proto, loc)
         body.registers.release(proto)
-        body.registers.release(register)
 
-        result
+        register
       end
 
       def on_raw_allocate_permanent(node, body)
@@ -1731,6 +1730,37 @@ module Inkoc
 
       def on_dereference(node, body)
         process_node(node.expression, body)
+      end
+
+      def on_new_instance(node, body)
+        proto_name =
+          if node.self_type?
+            node.type.base_type.name
+          else
+            node.name
+          end
+
+        proto = get_global(proto_name, body, node.location)
+        instance = body.register(node.type)
+
+        body.instruct(:Allocate, instance, proto, node.location)
+        body.registers.release(proto)
+
+        node.attributes.each do |attr|
+          name = set_string(attr.name, body, attr.location)
+          value = process_node(attr.value, body)
+
+          set_attribute(instance, name, value, body, attr.location)
+
+          body.registers.release(name)
+          body.registers.release(value)
+        end
+
+        # This hack is necessary because so the last instruction is the one that
+        # produces a value we can return. Without this, methods such as
+        # add_explicit_return() would operate on the last set attribute, not the
+        # newly created instance.
+        body.instruct(:Unary, :CopyRegister, instance, instance, node.location)
       end
 
       def register_for_else_block(node, body, catch_reg)

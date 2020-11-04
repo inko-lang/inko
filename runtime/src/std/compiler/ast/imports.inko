@@ -11,9 +11,8 @@ object ImportAlias {
   # The source location of the import alias.
   @location: SourceLocation
 
-  def init(name: String, location: SourceLocation) {
-    @name = name
-    @location = location
+  static def new(name: String, location: SourceLocation) -> Self {
+    Self { @name = name, @location = location }
   }
 
   # Returns the name of the alias.
@@ -37,10 +36,16 @@ object ImportSymbol {
   # The source location of the symbol that is imported.
   @location: SourceLocation
 
-  def init(name: String, location: SourceLocation, alias: ?ImportAlias = Nil) {
-    @name = name
-    @location = location
-    @alias = alias
+  static def new(
+    name: String,
+    location: SourceLocation,
+    alias: ?ImportAlias = Nil
+  ) -> Self {
+    Self {
+      @name = name,
+      @location = location,
+      @alias = alias
+    }
   }
 
   # Returns the alias of the imported symbol.
@@ -78,16 +83,18 @@ object Import {
   # specific list.
   @import_all: Boolean
 
-  def init(
+  static def new(
     path: Array!(Identifier),
     symbols: Array!(ImportSymbol),
     import_all: Boolean,
     location: SourceLocation
-  ) {
-    @path = path
-    @symbols = symbols
-    @import_all = import_all
-    @location = location
+  ) -> Self {
+    Self {
+      @path = path,
+      @symbols = symbols,
+      @import_all = import_all,
+      @location = location
+    }
   }
 
   # Returns the import path, consisting out of one or more identifiers.

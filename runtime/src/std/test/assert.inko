@@ -21,9 +21,8 @@ object PanicResult {
   # A `String` containing the panic error message, if a panic happened.
   @error: ?String
 
-  def init(panicked: Boolean, error: ?String = Nil) {
-    @panicked = panicked
-    @error = error
+  static def new(panicked: Boolean, error: ?String = Nil) -> Self {
+    Self { @panicked = panicked, @error = error }
   }
 
   def panicked? -> Boolean {
@@ -43,9 +42,8 @@ object PanicTest {
   # The `Block` to run.
   @block: lambda
 
-  def init(owner: Process, block: lambda) {
-    @owner = owner
-    @block = block
+  static def new(owner: Process, block: lambda) -> Self {
+    Self { @owner = owner, @block = block }
   }
 
   def run {

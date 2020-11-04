@@ -150,8 +150,8 @@ storing single characters, defined like so:
 object Chars {
   @chars: Array!(String)
 
-  def init(chars: Array!(String)) {
-    @chars = chars
+  static def new(chars: Array!(String)) -> Self {
+    Self { @chars = chars }
   }
 }
 ```
@@ -173,8 +173,8 @@ import std::index::(Index, SetIndex)
 object Chars {
   @chars: Array!(String)
 
-  def init(chars: Array!(String)) {
-    @chars = chars
+  static def new(chars: Array!(String)) -> Self {
+    Self { @chars = chars }
   }
 }
 

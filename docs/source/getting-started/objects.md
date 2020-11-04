@@ -18,11 +18,14 @@ object Person {
 }
 ```
 
-To create a new instance of an object, we send the `new` message to it:
+Instances of objects are created as follows:
 
 ```inko
-Person.new
+Person {}
 ```
+
+We refer to this pattern as a "constructor", because it's used to create a new
+instance of an object.
 
 ## Attributes
 
@@ -46,50 +49,21 @@ directly. Instead, you must define a method that returns the attribute, which
 we'll cover below.
 
 When defining an attribute as done above, we can't specify a default value for
-the attribute; that's up to the object's constructor method. Each object has a
-single constructor method called `init`, which we can define as follows:
+the attribute; instead it's up to the user of our type to assign a value to all
+attributes. For our `Person` example above, this is done as follows:
 
 ```inko
-object Person {
-  @name: String
-  @age: Integer
-
-  def init {
-    @name = 'Alice'
-    @age = 42
-  }
-}
+Person { @name = 'Alice', @age = 32 }
 ```
 
-Like any other method, this method can also take arguments. Any arguments
-defined on the `init` method are also available when creating a new object
-instance using the `new` message. For example:
-
-```inko
-object Person {
-  @name: String
-  @age: Integer
-
-  def init(name: String, age: Integer) {
-    @name = name
-    @age = age
-  }
-}
-```
-
-We can now create our instance as follows:
-
-```inko
-Person.new(name: 'Alice', age: 42)
-```
+When creating an object instance, all attributes must be assigned. If an
+attribute is not assigned, a compile-time error is produced.
 
 ## Methods
 
 Objects can have two types of methods: instance methods, and static methods.
 Instance methods are only available to instances of the object, while static
-methods are available to the object itself. When we send the `new` message to
-our `Person` object, it ends up calling the static method `new`. This method in
-turn calls the instance method `init`.
+methods are available to the object itself.
 
 To define an instance method, use the `def` keyword:
 
@@ -97,11 +71,6 @@ To define an instance method, use the `def` keyword:
 object Person {
   @name: String
   @age: Integer
-
-  def init(name: String, age: Integer) {
-    @name = name
-    @age = age
-  }
 
   def name -> String {
     @name
@@ -113,7 +82,7 @@ Here we define the instance method `name`, which returns the `@name` attribute.
 We can use this method like so:
 
 ```inko
-Person.new(name: 'Alice', age: 42).name # => 'Alice'
+Person { @name = 'Alice', @age = 42 }.name # => 'Alice'
 ```
 
 To define a static method, use `static def`:
@@ -124,12 +93,7 @@ object Person {
   @age: Integer
 
   static def anonymous(age: Integer) -> Person {
-    new(name: 'Anonymous', age: age)
-  }
-
-  def init(name: String, age: Integer) {
-    @name = name
-    @age = age
+    Person { @name = 'Anonymous', @age = age }
   }
 
   def name -> String {
@@ -154,11 +118,6 @@ object Person {
   static def oops -> String {
     @name
   }
-
-  def init(name: String, age: Integer) {
-    @name = name
-    @age = age
-  }
 }
 ```
 
@@ -172,11 +131,6 @@ you want to send a message to the current receiver. This means that this:
 object Person {
   @name: String
   @age: Integer
-
-  def init(name: String, age: Integer) {
-    @name = name
-    @age = age
-  }
 
   def nickname -> String {
     self.name
@@ -195,11 +149,6 @@ object Person {
   @name: String
   @age: Integer
 
-  def init(name: String, age: Integer) {
-    @name = name
-    @age = age
-  }
-
   def nickname -> String {
     name
   }
@@ -213,6 +162,81 @@ object Person {
 Sometimes you _do_ need to use `self`. For example, if a method takes an
 argument with the same name as another method.
 
+## Constructor methods
+
+Having to specify all attributes when creating object instances is tedious. To
+make it easier to create instances, you can use what's known as a constructor
+method. A constructor method is a static method used to create a new instance of
+the object it's defined on. We saw such an example earlier: the static
+`anonymous` method used to create a new `Person`.
+
+Various types come with at least one constructor method: `new`. For example,
+instances of `Array` are created using such a method:
+
+```inko
+Array.new(10, 20, 30)
+```
+
+For our `Person` example shown earlier, we can define a `new` method like so:
+
+```inko
+object Person {
+  @name: String
+  @age: Integer
+
+  static def new(name: String, age: Integer) -> Self {
+    Person { @name = name, @age = age }
+  }
+}
+```
+
+We can then create an instance as follows:
+
+```inko
+Person.new(name: 'Alice', age: 32)
+```
+
+Having to repeat the type name in our constructor method is a bit tedious.
+Instead of doing this, we can use the `Self` type when constructing an object:
+
+```inko
+object Person {
+  @name: String
+  @age: Integer
+
+  static def new(name: String, age: Integer) -> Self {
+    Self { @name = name, @age = age }
+  }
+}
+```
+
+The use of `Self` for a constructor is only valid in a static method.
+
+When defining objects, we recommend defining at least a static `new` method for
+the object. Various built-in types even require the use of `new` to create an
+instance, and don't support the use of the constructor syntax. These types are
+as follows:
+
+* `Array`
+* `Block`
+* `Boolean`
+* `ByteArray`
+* `Float`
+* `Integer`
+* `Module`
+* `NilType`
+* `String`
+* `std::ffi::Function`
+* `std::ffi::Library`
+* `std::ffi::Pointer`
+* `std::fs::file::ReadOnlyFile`
+* `std::fs::file::ReadWriteFile`
+* `std::fs::file::WriteOnlyFile`
+* `std::map::DefaultHasher`
+* `std::net::Socket`
+* `std::process::Process`
+* `std::unix::Socket`
+
 ## Reopening objects
 
 An object can be reopened in any module, allowing you to add new methods after
@@ -221,10 +245,6 @@ its initial definition. This is done as follows:
 ```inko
 object Person {
   @name: String
-
-  def init(name: String) {
-    @name = name
-  }
 }
 
 impl Person {
@@ -235,7 +255,3 @@ impl Person {
 ```
 
 Here we reopen `Person`, and add the `name` instance method to it.
-
-!!! note
-    If you want to define a custom `init` constructor method, you must do so
-    when defining the object for the first time.

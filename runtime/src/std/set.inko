@@ -15,8 +15,8 @@ object Set!(V: Hash + Equal) {
   # `True`.
   @map: Map!(V, Boolean)
 
-  def init {
-    @map = Map.new
+  static def new -> Self {
+    Self { @map = Map.new }
   }
 
   # Inserts a new value into the `Set`.

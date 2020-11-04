@@ -29,19 +29,21 @@ object Test {
   # The test body to execute.
   @body: lambda
 
-  def init(
+  static def new(
     name: String,
     group_name: String,
     runner: Process,
     location: CallFrame,
     body: lambda,
-  ) {
-    @name = name
-    @group_name = group_name
-    @location = location
-    @runner = runner
-    @failure = Nil
-    @body = body
+  ) -> Self {
+    Self {
+      @name = name,
+      @group_name = group_name,
+      @location = location,
+      @runner = runner,
+      @failure = Nil,
+      @body = body
+    }
   }
 
   # Returns the name of this test.

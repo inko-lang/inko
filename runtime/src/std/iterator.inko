@@ -55,9 +55,8 @@
 #       @array: Array!(T)
 #       @index: Integer
 #
-#       def init(array: Array!(T)) {
-#         @array = array
-#         @index = 0
+#       static def new!(T)(array: Array!(T)) -> LimitedIterator!(T) {
+#         Self { @array = array, @index = 0 }
 #       }
 #     }
 #
@@ -370,9 +369,8 @@ object Enumerator!(T) {
   #
   # The `yield` block must return a value the iterator has produced, or `Nil`
   # if there are no more values.
-  def init(while: do -> Boolean, yield: do -> ?T) {
-    @while = while
-    @yield = yield
+  static def new!(T)(while: do -> Boolean, yield: do -> ?T) -> Enumerator!(T) {
+    Self { @while = while, @yield = yield }
   }
 }
 

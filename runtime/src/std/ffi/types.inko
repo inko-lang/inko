@@ -10,8 +10,8 @@ object Type {
   # The numeric identifier of this type.
   @id: Integer
 
-  def init(id: Integer) {
-    @id = id
+  static def new(id: Integer) -> Self {
+    Self { @id = id }
   }
 
   # Returns the size of this type in bytes.

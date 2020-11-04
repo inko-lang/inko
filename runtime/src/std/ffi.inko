@@ -246,10 +246,8 @@ object Member {
   # The offset of this `Member`, relative to the start of the struct.
   @offset: Integer
 
-  def init(name: String, type: Type, offset: Integer) {
-    @name = name
-    @type = type
-    @offset = offset
+  static def new(name: String, type: Type, offset: Integer) -> Self {
+    Self { @name = name, @type = type, @offset = offset }
   }
 
   # Returns the name of this `Member`.
@@ -281,14 +279,12 @@ object Layout {
   # largest field.
   @alignment: Integer
 
-  def init(
+  static def new(
     members: Map!(String, Member),
     alignment: Integer,
     size: Integer
-  ) {
-    @members = members
-    @size = size
-    @alignment = alignment
+  ) -> Self {
+    Self { @members = members, @size = size, @alignment = alignment }
   }
 
   # Returns the alignment of the members in this `Struct`.
@@ -321,9 +317,8 @@ object Struct {
   # The `Layout` of this structure.
   @layout: Layout
 
-  def init(pointer: Pointer, layout: Layout) {
-    @pointer = pointer
-    @layout = layout
+  static def new(pointer: Pointer, layout: Layout) -> Self {
+    Self { @pointer = pointer, @layout = layout }
   }
 
   # Returns the size in bytes of this `Struct`.
@@ -386,12 +381,14 @@ object LayoutBuilder {
   # A boolean indicating if members should be padded or not.
   @padding: Boolean
 
-  def init {
-    @members = Array.new
-    @types = Array.new
-    @existing = Map.new
-    @alignment = 0
-    @padding = True
+  static def new -> Self {
+    Self {
+      @members = Array.new,
+      @types = Array.new,
+      @existing = Map.new,
+      @alignment = 0,
+      @padding = True
+    }
   }
 
   # Disables the padding of members.

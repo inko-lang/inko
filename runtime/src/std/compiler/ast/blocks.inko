@@ -25,20 +25,22 @@ object Argument {
   # The source location of the argument.
   @location: SourceLocation
 
-  def init(
+  static def new(
     name: String,
     value_type: ?Node,
     default_value: ?Node,
     mutable: Boolean,
     rest: Boolean,
     location: SourceLocation
-  ) {
-    @name = name
-    @value_type = value_type
-    @default_value = default_value
-    @mutable = Boolean
-    @rest = rest
-    @location = location
+  ) -> Self {
+    Self {
+      @name = name,
+      @value_type = value_type,
+      @default_value = default_value,
+      @mutable = Boolean,
+      @rest = rest,
+      @location = location
+    }
   }
 
   # Returns the name of the argument.
@@ -81,9 +83,8 @@ object BasicClosure {
   # The source location of the block.
   @location: SourceLocation
 
-  def init(body: Body, location: SourceLocation) {
-    @body = body
-    @location = location
+  static def new(body: Body, location: SourceLocation) -> Self {
+    Self { @body = body, @location = location }
   }
 
   # Returns the expressions in the block's body.
@@ -118,20 +119,22 @@ object Closure {
   # The source location of the closure.
   @location: SourceLocation
 
-  def init(
+  static def new(
     type_parameters: Array!(TypeParameter),
     arguments: Array!(Argument),
     body: Body,
     throw_type: ?Node,
     return_type: ?Node,
     location: SourceLocation
-  ) {
-    @type_parameters = type_parameters
-    @arguments = arguments
-    @body = body
-    @throw_type = throw_type
-    @return_type = return_type
-    @location = location
+  ) -> Self {
+    Self {
+      @type_parameters = type_parameters,
+      @arguments = arguments,
+      @body = body,
+      @throw_type = throw_type,
+      @return_type = return_type,
+      @location = location
+    }
   }
 
   # Returns the type parameters of the closure.
@@ -186,20 +189,22 @@ object Lambda {
   # The source location of the lambda.
   @location: SourceLocation
 
-  def init(
+  static def new(
     type_parameters: Array!(TypeParameter),
     arguments: Array!(Argument),
     body: Body,
     throw_type: ?Node,
     return_type: ?Node,
     location: SourceLocation
-  ) {
-    @type_parameters = type_parameters
-    @arguments = arguments
-    @body = body
-    @throw_type = throw_type
-    @return_type = return_type
-    @location = location
+  ) -> Self {
+    Self {
+      @type_parameters = type_parameters,
+      @arguments = arguments,
+      @body = body,
+      @throw_type = throw_type,
+      @return_type = return_type,
+      @location = location
+    }
   }
 
   # Returns the type parameters of the lambda.
@@ -261,7 +266,7 @@ object DefineMethod {
   # (False).
   @static_method: Boolean
 
-  def init(
+  static def new(
     name: String,
     type_parameters: Array!(TypeParameter),
     arguments: Array!(Argument),
@@ -270,15 +275,17 @@ object DefineMethod {
     static_method: Boolean,
     body: Body,
     location: SourceLocation
-  ) {
-    @name = name
-    @type_parameters = type_parameters
-    @arguments = arguments
-    @body = body
-    @throw_type = throw_type
-    @return_type = return_type
-    @static_method = static_method
-    @location = location
+  ) -> Self {
+    Self {
+      @name = name,
+      @type_parameters = type_parameters,
+      @arguments = arguments,
+      @body = body,
+      @throw_type = throw_type,
+      @return_type = return_type,
+      @static_method = static_method,
+      @location = location
+    }
   }
 
   # Returns the name of the method.
@@ -347,7 +354,7 @@ object DefineRequiredMethod {
   # (False).
   @static_method: Boolean
 
-  def init(
+  static def new(
     name: String,
     type_parameters: Array!(TypeParameter),
     arguments: Array!(Argument),
@@ -355,14 +362,16 @@ object DefineRequiredMethod {
     return_type: ?Node,
     static_method: Boolean,
     location: SourceLocation
-  ) {
-    @name = name
-    @type_parameters = type_parameters
-    @arguments = arguments
-    @throw_type = throw_type
-    @return_type = return_type
-    @static_method = static_method
-    @location = location
+  ) -> Self {
+    Self {
+      @name = name,
+      @type_parameters = type_parameters,
+      @arguments = arguments,
+      @throw_type = throw_type,
+      @return_type = return_type,
+      @static_method = static_method,
+      @location = location
+    }
   }
 
   # Returns the name of the method.

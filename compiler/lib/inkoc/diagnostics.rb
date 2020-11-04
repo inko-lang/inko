@@ -388,7 +388,14 @@ module Inkoc
 
     def unassigned_attribute(name, location)
       error(
-        "The #{name.inspect} attribute must be assigned a value in this method",
+        "The #{name.inspect} attribute must be assigned a value",
+        location
+      )
+    end
+
+    def already_assigned_attribute(name, location)
+      error(
+        "The #{name.inspect} attribute is already assigned",
         location
       )
     end
@@ -409,6 +416,23 @@ module Inkoc
 
     def unused_local_variable(name, location)
       warn("The local variable #{name.inspect} is unused", location)
+    end
+
+    def not_an_object(name, type, location)
+      error(
+        "The type #{name.inspect} isn't an object, but a #{type.type_name.inspect}",
+        location
+      )
+    end
+
+    def invalid_new_instance(type, location)
+      tname = type.type_name.inspect
+
+      error(
+        "You can only create new instances of #{tname} " \
+          'by sending the `new` message to this type',
+        location
+      )
     end
   end
 end

@@ -882,6 +882,71 @@ module Inkoc
         end
       end
 
+      def on_new_instance(node, scope)
+        object =
+          if node.self_type?
+            scope.self_type.base_type
+          else
+            scope.lookup_type(node.name)
+          end
+
+        unless object
+          diagnostics.undefined_constant_error(node.name, node.location)
+          return TypeSystem::Error.new
+        end
+
+        unless object.object?
+          diagnostics.not_an_object(node.name, object, node.location)
+          return TypeSystem::Error.new
+        end
+
+        instance = object.new_instance
+        set = Set.new
+
+        if object.builtin?
+          diagnostics.invalid_new_instance(object, node.location)
+          return instance
+        end
+
+        node.attributes.each do |attr|
+          name = attr.name
+          defined = object.lookup_attribute(name)
+          given = define_type(attr.value, scope)
+
+          if defined.nil?
+            diagnostics.undefined_attribute_error(object, name, attr.location)
+            next
+          end
+
+          if set.include?(name)
+            diagnostics.already_assigned_attribute(name, attr.location)
+            next
+          end
+
+          set << name
+
+          unless given.type_compatible?(defined.type, @state)
+            diagnostics.type_error(defined.type, given, attr.value.location)
+            next
+          end
+
+          if defined.type.type_parameter? &&
+              instance.initialize_type_parameter?(defined.type)
+            instance.initialize_type_parameter(defined.type, given)
+          end
+        end
+
+        object.attributes.each do |sym|
+          next if set.include?(sym.name)
+          next unless sym.name.start_with?('@')
+          next if sym.name.start_with?('@_')
+
+          diagnostics.unassigned_attribute(sym.name, node.location)
+        end
+
+        instance
+      end
+
       def define_block_signature(node, scope, expected_block = nil)
         define_type_parameters(node, scope)
         define_argument_types(node, scope, expected_block)

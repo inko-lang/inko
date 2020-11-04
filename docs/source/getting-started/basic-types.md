@@ -264,19 +264,21 @@ object Person {
 }
 ```
 
-You can create an instance of such objects by sending the `new` message to the
-object. For example:
+You can create instances of objects like so:
+
+```inko
+Person {} # This creates a new Person instance
+```
+
+If an object defines one or more attributes, you must specify them:
 
 ```inko
 object Person {
-  # ...
+  @name: String
 }
 
-Person.new # Creates a new Person instance
+Person { @name = 'Alice' }
 ```
-
-Unlike classes found in other languages, Inko objects do not support
-inheritance.
 
 ## Traits
 

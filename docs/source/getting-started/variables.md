@@ -186,8 +186,8 @@ chapter. Attributes can always be assigned new values:
 object Person {
   @name: String
 
-  def init(name: String) {
-    @name = name
+  static def new(name: String) -> Self {
+    Self { @name = name }
   }
 
   def remove_name {
@@ -208,8 +208,8 @@ invalid:
 object Person {
   @name
 
-  def init(name: String) {
-    @name = name
+  static def new(name: String) -> Self {
+    Self { @name = name }
   }
 
   def remove_name {

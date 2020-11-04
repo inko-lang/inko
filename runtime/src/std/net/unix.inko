@@ -62,8 +62,8 @@ object SocketAddress {
   #     import std::net::unix::SocketAddress
   #
   #     SocketAddress.new("\0example")
-  def init(address: ToString = '') {
-    @address = address.to_string
+  static def new(address: ToString = '') -> Self {
+    Self { @address = address.to_string }
   }
 
   # Returns the path of this address.
@@ -387,14 +387,7 @@ object UnixDatagram {
 
     try socket.bind(address)
 
-    let instance = allocate
-
-    instance.init(socket)
-    instance
-  }
-
-  def init(socket: Socket) {
-    @socket = socket
+    Self { @socket = socket }
   }
 
   # Connects `self` to the remote addres.s
@@ -508,19 +501,7 @@ object UnixStream {
 
     try socket.connect(address)
 
-    from_socket(socket)
-  }
-
-  # Creates a new `UnixStream` from an existing `Socket`.
-  static def from_socket(socket: Socket) -> Self {
-    let instance = allocate
-
-    instance.init(socket)
-    instance
-  }
-
-  def init(socket: Socket) {
-    @socket = socket
+    Self { @socket = socket }
   }
 
   # Returns the local address of this socket.
@@ -618,14 +599,7 @@ object UnixListener {
     try socket.bind(address)
     try socket.listen(backlog)
 
-    let instance = allocate
-
-    instance.init(socket)
-    instance
-  }
-
-  def init(socket: Socket) {
-    @socket = socket
+    Self { @socket = socket }
   }
 
   # Accepts a new incoming connection from `self`.
@@ -647,7 +621,7 @@ object UnixListener {
   #
   #     try! connection.read_string(4) # => 'ping'
   def accept !! IoError -> UnixStream {
-    UnixStream.from_socket(try @socket.accept)
+    UnixStream { @socket = try @socket.accept }
   }
 
   # Returns the local address of this socket.

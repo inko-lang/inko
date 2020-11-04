@@ -11,9 +11,8 @@ object NotNil {
   # The source location of the cast.
   @location: SourceLocation
 
-  def init(expression: Node, location: SourceLocation) {
-    @expression = expression
-    @location = location
+  static def new(expression: Node, location: SourceLocation) -> Self {
+    Self { @expression = expression, @location = location }
   }
 
   # Returns the expression to convert.
@@ -39,10 +38,16 @@ object TypeCast {
   # The source location of the type cast.
   @location: SourceLocation
 
-  def init(expression: Node, cast_to: Node, location: SourceLocation) {
-    @expression = expression
-    @cast_to = cast_to
-    @location = location
+  static def new(
+    expression: Node,
+    cast_to: Node,
+    location: SourceLocation
+  ) -> Self {
+    Self {
+      @expression = expression,
+      @cast_to = cast_to,
+      @location = location
+    }
   }
 
   # Returns the expression to type cast.
