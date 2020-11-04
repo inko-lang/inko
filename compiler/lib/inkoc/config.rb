@@ -54,7 +54,7 @@ module Inkoc
     READ_ONLY_FILE_TYPE = 'ReadOnlyFile'
     WRITE_ONLY_FILE_TYPE = 'WriteOnlyFile'
     READ_WRITE_FILE_TYPE = 'ReadWriteFile'
-    HASHER_TYPE = 'Hasher'
+    HASHER_TYPE = 'DefaultHasher'
     SELF_TYPE = 'Self'
     NEVER_TYPE = 'Never'
     MODULES_ATTRIBUTE = 'Modules'
