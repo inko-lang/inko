@@ -351,7 +351,7 @@ object ObjectMirror {
   def name -> String {
     let name = get_attribute(OBJECT_NAME_ATTRIBUTE) as ?String
 
-    name.if(true: { name! }, false: { DEFAULT_OBJECT_NAME })
+    name ?? DEFAULT_OBJECT_NAME
   }
 }
 

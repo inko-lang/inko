@@ -397,6 +397,9 @@ module Inkoc
           node = AST::Send.new(name, node, [], args, bracket.location)
         when :exclamation
           node = AST::Dereference.new(node, advance!.location)
+        when :question_question
+          op_loc = advance!.location
+          node = AST::CoalesceNil.new(node, expression(advance!), op_loc)
         else
           break
         end

@@ -114,6 +114,38 @@ def foo(value: ?Thing) {
 def bar(value: Thing) {}
 ```
 
+## Nil coalescing operator
+
+Sometimes you have an optional type and want to unwrap it, with a default value
+in case the optional value is `Nil`. One way of writing such a piece of code is
+the following:
+
+```inko
+optional_value.if(true: { optional_value! }, false: { some_default })
+```
+
+The `??` operator, known as the "Nil coalescing" operator, makes this easier:
+
+```inko
+optional_value ?? some_default
+```
+
+If `optional_value` is anything but `Nil`, its value is returned. If the value
+was `Nil`, the value of `some_default` is returned instead. The right-hand side
+of the operator (`some_default`) is only evaluated if the left-hand side
+(`optional_value`) is `Nil`.
+
+You can also use this operator to return from a method if a value is absent:
+
+```inko
+def example(value: ?Thing) {
+  let thing = value ?? return
+
+  # Here `thing` is typed as a `Thing`.
+  # ...
+}
+```
+
 ## Indexing operators
 
 There are two operators used for indexing/slicing: `[]` and `[]=`. The `[]`

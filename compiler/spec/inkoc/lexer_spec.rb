@@ -816,6 +816,14 @@ describe Inkoc::Lexer do
       expect(token.value).to eq('?')
     end
 
+    it 'tokenizes the nil coalescing operator' do
+      lexer = described_class.new('??')
+      token = lexer.question_mark
+
+      expect(token.type).to eq(:question_question)
+      expect(token.value).to eq('??')
+    end
+
     it 'tokenizes a question mark separately at the start of an identifier' do
       lexer = described_class.new('?Foo')
 

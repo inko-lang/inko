@@ -107,8 +107,13 @@ import std::operators::Equal
 import std::process
 import std::string_buffer::StringBuffer
 
+# A dynamically loaded C library.
 let Library = _INKOC.get_ffi_library_prototype
+
+# A C function that can be called from Inko.
 let Function = _INKOC.get_ffi_function_prototype
+
+# A pointer to a value in C.
 let Pointer = _INKOC.get_ffi_pointer_prototype
 
 _INKOC.set_object_name(Library, 'Library')
@@ -118,7 +123,6 @@ _INKOC.set_object_name(Pointer, 'Pointer')
 # The address used for NULL pointers.
 let NULL_ADDRESS = 0x0
 
-# A pointer to a value in C.
 impl Pointer {
   # Creates a pointer using the given memory address.
   static def new(address: Integer) -> Self {
@@ -167,7 +171,6 @@ impl Equal for Pointer {
   }
 }
 
-# A dynamically loaded C library.
 impl Library {
   # Dynamically loads a C library.
   #
@@ -194,7 +197,6 @@ impl Close for Library {
   }
 }
 
-# A C function that can be called from Inko.
 impl Function {
   # Attaches a C function to Inko.
   static def new(
@@ -301,11 +303,7 @@ object Layout {
   #
   # This method will panic if no member is defined for the given name.
   def [](name: String) -> Member {
-    let member = @members[name]
-
-    member.if_false { process.panic('Undefined struct member: ' + name) }
-
-    member!
+    @members[name] ?? process.panic('Undefined struct member: ' + name)
   }
 }
 

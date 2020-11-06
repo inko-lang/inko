@@ -877,9 +877,27 @@ module Inkoc
         if type.dereference?
           type.dereferenced_type
         else
-          diagnostics.dereference_error(type, node.location)
+          diagnostics.not_an_optional_error(type, node.location)
           type
         end
+      end
+
+      def on_coalesce_nil(node, scope)
+        expr = define_type(node.expression, scope)
+        default = define_type(node.default, scope)
+        rtype =
+          if expr.optional?
+            expr.type
+          else
+            diagnostics.not_an_optional_error(expr, node.expression.location)
+            expr
+          end
+
+        unless default.type_compatible?(rtype, @state)
+          diagnostics.type_error(rtype, default, node.default.location)
+        end
+
+        rtype
       end
 
       def on_new_instance(node, scope)

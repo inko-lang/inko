@@ -546,7 +546,11 @@ module Inkoc
     end
 
     def question_mark
-      new_token(:question, @position, @position += 1)
+      if @input[@position + 1] == '?'
+        operator(2, :question_question)
+      else
+        new_token(:question, @position, @position += 1)
+      end
     end
 
     def advance_line

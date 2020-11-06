@@ -1732,6 +1732,20 @@ module Inkoc
         process_node(node.expression, body)
       end
 
+      def on_coalesce_nil(node, body)
+        expr = process_node(node.expression, body)
+
+        body.instruct(:GotoNextBlockIfTrue, expr, node.location)
+
+        default = process_node(node.default, body)
+
+        body.instruct(:Unary, :CopyRegister, expr, default, node.location)
+        body.add_connected_basic_block
+        body.registers.release(default)
+
+        expr
+      end
+
       def on_new_instance(node, body)
         proto_name =
           if node.self_type?

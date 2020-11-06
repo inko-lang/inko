@@ -156,6 +156,11 @@ module Inkoc
         process_node(node.expression, block_type)
       end
 
+      def on_coalesce_nil(node, block_type)
+        process_node(node.expression, block_type)
+        process_node(node.default, block_type)
+      end
+
       def on_new_instance(node, block_type)
         node.attributes.each do |attr|
           process_node(attr.value, block_type)

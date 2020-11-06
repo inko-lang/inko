@@ -319,7 +319,7 @@ module Inkoc
       )
     end
 
-    def dereference_error(type, location)
+    def not_an_optional_error(type, location)
       tname = type.type_name
 
       error("The type #{tname} is not an optional type", location)

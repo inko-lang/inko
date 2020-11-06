@@ -234,17 +234,13 @@ object Map!(K: Hash + Equal, V) {
   #
   #     map.remove('name') # => 'Alice'
   def remove(key: K) -> ?V {
-    let index = bucket_index(key)
+    let index = bucket_index(key) ?? return
+    let pair = @buckets[index]
 
-    index.if_false { return }
-
-    let pair = @buckets[index!]
-
-    @buckets[index!] = Nil
+    @buckets[index] = Nil
     @length -= 1
 
-    backwards_shift(index! + 1)
-
+    backwards_shift(index + 1)
     pair.value
   }
 
@@ -563,9 +559,7 @@ impl Index!(K, V) for Map {
   #
   #     map['name'] # => 'Alice'
   def [](key: K) -> ?V {
-    let index = bucket_index(key)
-
-    index.if(true: { @buckets[index!].value }, false: { Nil })
+    @buckets[bucket_index(key) ?? return].value
   }
 }
 
