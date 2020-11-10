@@ -2091,7 +2091,7 @@ module Inkoc
         start = args.first || register
 
         body.registers.release_all(args)
-        body.instruct(:AllocateArray, register, start, length, location)
+        body.instruct(:ArrayAllocate, register, start, length, location)
       end
 
       def make_registers_contiguous(registers, body, location)

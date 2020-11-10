@@ -195,7 +195,7 @@ The following instruction types and their `u8` values are available:
 | SetLiteralWide          | 1
 | Allocate                | 2
 | AllocatePermanent       | 3
-| AllocateArray           | 4
+| ArrayAllocate           | 4
 | GetBuiltinPrototype     | 5
 | GetTrue                 | 6
 | GetFalse                | 7
@@ -388,7 +388,7 @@ Array.new('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j')
 ```
 
 This array has 10 values, which don't fit in a single instruction. The resulting
-`AllocateArray` bytecode would look something like this:
+`ArrayAllocate` bytecode would look something like this:
 
     %a = 'a'
     %b = 'b'
@@ -400,7 +400,7 @@ This array has 10 values, which don't fit in a single instruction. The resulting
     %h = 'h'
     %i = 'i'
     %j = 'j'
-    %result = AllocateArray(%a, 10)
+    %result = ArrayAllocate(%a, 10)
 
 Here `%result` is the register to store the resulting array in. `%a` is the
 first register, followed by the registers containing the other values.

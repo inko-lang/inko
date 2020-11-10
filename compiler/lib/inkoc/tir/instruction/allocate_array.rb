@@ -3,7 +3,7 @@
 module Inkoc
   module TIR
     module Instruction
-      class AllocateArray
+      class ArrayAllocate
         include Predicates
         include Inspect
 

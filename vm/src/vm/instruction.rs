@@ -8,7 +8,7 @@ pub enum Opcode {
     SetLiteralWide,
     Allocate,
     AllocatePermanent,
-    AllocateArray,
+    ArrayAllocate,
     GetBuiltinPrototype,
     GetTrue,
     GetFalse,

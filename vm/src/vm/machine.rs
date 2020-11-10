@@ -323,7 +323,7 @@ impl Machine {
 
                     context.set_register(reg, res);
                 }
-                Opcode::AllocateArray => {
+                Opcode::ArrayAllocate => {
                     let reg = instruction.arg(0);
                     let start = instruction.arg(1);
                     let len = instruction.arg(2);

@@ -183,7 +183,7 @@ module Inkoc
         len = tir_ins.length
 
         compiled_code
-          .instruct(:AllocateArray, [register, start, len], tir_ins.location)
+          .instruct(:ArrayAllocate, [register, start, len], tir_ins.location)
       end
 
       def on_set_attribute(tir_ins, compiled_code, *)
