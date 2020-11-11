@@ -26,10 +26,6 @@ object NotNil {
   def expression -> Node {
     @expression
   }
-
-  def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
-  }
 }
 
 impl Node for NotNil {
@@ -39,6 +35,10 @@ impl Node for NotNil {
 
   def resolved_type -> ?Type {
     @resolved_type
+  }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
   }
 }
 
@@ -76,10 +76,6 @@ object TypeCast {
   def cast_to -> TypeNode {
     @cast_to
   }
-
-  def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
-  }
 }
 
 impl Node for TypeCast {
@@ -89,6 +85,10 @@ impl Node for TypeCast {
 
   def resolved_type -> ?Type {
     @resolved_type
+  }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
   }
 }
 
@@ -126,10 +126,6 @@ object CoalesceNil {
   def default -> Node {
     @default
   }
-
-  def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
-  }
 }
 
 impl Node for CoalesceNil {
@@ -139,5 +135,9 @@ impl Node for CoalesceNil {
 
   def resolved_type -> ?Type {
     @resolved_type
+  }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
   }
 }

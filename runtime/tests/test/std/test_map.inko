@@ -348,8 +348,8 @@ test.group('std::map::Map.iter') do (g) {
     let map = Map.new
     let iter = map.iter
 
-    assert.false(iter.next?)
-    assert.equal(iter.next, Nil)
+    assert.false(iter.advance)
+    assert.equal(iter.current, Nil)
   }
 
   g.test('Creating an Iterator for a Map with key-value pairs') {
@@ -359,9 +359,9 @@ test.group('std::map::Map.iter') do (g) {
 
     let iter = map.iter
 
-    assert.true(iter.next?)
+    assert.true(iter.advance)
 
-    let pair = iter.next
+    let pair = iter.current
 
     assert.equal(pair.key, 'name')
     assert.equal(pair.value, 'Alice')
@@ -380,14 +380,14 @@ test.group('std::map::Map.iter') do (g) {
     # At this point the bucket layout is: [pair, pair, Nil, Nil]
     let iter = map.iter
 
-    assert.true(iter.next?)
-    assert.equal(iter.next, pair1)
+    assert.true(iter.advance)
+    assert.equal(iter.current, pair1)
 
-    assert.true(iter.next?)
-    assert.equal(iter.next, pair2)
+    assert.true(iter.advance)
+    assert.equal(iter.current, pair2)
 
-    assert.false(iter.next?)
-    assert.equal(iter.next, Nil)
+    assert.false(iter.advance)
+    assert.equal(iter.current, Nil)
   }
 }
 
@@ -396,8 +396,8 @@ test.group('std::map::Map.keys') do (g) {
     let map: Map!(String, String) = Map.new
     let iter = map.keys
 
-    assert.false(iter.next?)
-    assert.equal(iter.next, Nil)
+    assert.false(iter.advance)
+    assert.equal(iter.current, Nil)
   }
 
   g.test('Creating a Keys Iterator for a Map with key-value pairs') {
@@ -407,9 +407,9 @@ test.group('std::map::Map.keys') do (g) {
 
     let iter = map.keys
 
-    assert.true(iter.next?)
-    assert.equal(iter.next, 'name')
-    assert.false(iter.next?)
+    assert.true(iter.advance)
+    assert.equal(iter.current, 'name')
+    assert.false(iter.advance)
   }
 }
 
@@ -418,8 +418,8 @@ test.group('std::map::Map.values') do (g) {
     let map: Map!(String, String) = Map.new
     let iter = map.values
 
-    assert.false(iter.next?)
-    assert.equal(iter.next, Nil)
+    assert.false(iter.advance)
+    assert.equal(iter.current, Nil)
   }
 
   g.test('Creating a Values Iterator for a Map with key-value pairs') {
@@ -429,9 +429,9 @@ test.group('std::map::Map.values') do (g) {
 
     let iter = map.values
 
-    assert.true(iter.next?)
-    assert.equal(iter.next, 'Alice')
-    assert.false(iter.next?)
+    assert.true(iter.advance)
+    assert.equal(iter.current, 'Alice')
+    assert.false(iter.advance)
   }
 }
 

@@ -9,7 +9,7 @@ module Inkoc
 
       attr_reader :name, :receiver, :arguments, :type_arguments, :location
 
-      attr_accessor :receiver_type, :block_type
+      attr_accessor :receiver_type, :block_type, :throw_type
 
       # name - The name of the message as a String.
       # receiver - The object to send the message to.
@@ -24,6 +24,7 @@ module Inkoc
         @location = location
         @receiver_type = nil
         @method_type = nil
+        @throw_type = nil
       end
 
       def send?

@@ -506,6 +506,10 @@ object Lexer {
         @position += 2
         binary_token(type: 'match', start: start, line: @line)
       }
+      GREATER -> {
+        @position += 2
+        token(type: 'double_arrow', start: start, line: @line)
+      }
       else -> {
         @position += 1
         token(type: 'assign', start: start, line: @line)

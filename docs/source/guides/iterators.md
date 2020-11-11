@@ -1,315 +1,226 @@
 # Iterators
 
-An Iterator is a type used for iterating over the values of a collection, such
-as an `Array` or `Map`. Typically a programming language will use one of two
-iterator types:
+Iterators are objects that can be used to traverse collections such as an
+`Array` or a `Map`. Typically iterators are implemented in one of two
+ways:
 
-1. Internal iterators: iterators where the iteration is controlled by a method,
-   calling a closure for every value.
-2. External iterators: mutable data structures from which you "pull" the next
-   value, until you run out of values.
+1. Internal iterators: these kind of iterators take care of the iteration
+   process and operate using some kind of closure.
+2. External iterators: these iterators use some kind of cursor stored
+   somewhere and require you to manually advance the iterator.
 
-Both have their benefits and drawbacks. Internal iterators are easy to implement
-and offer good performance. Internal iterators can't be composed together, they
-are eager (the method only returns after consuming all values), and make it
-harder to pause and resume iteration later on.
+Both have their benefits and drawbacks. Internal iterators are easy to
+implement and typically faster, as they don't require the allocation of
+additional data structures.
 
-External iterators do not suffer from these problems, as control of iteration is
-given to the user of the iterator. This does come at the cost of having to
-allocate and mutate an iterator, which may be less efficient compared to
-internal iteration.
+External iterators can be composed together, suspended, and later resumed.
+External iterators can also be turned into internal iterators, while the inverse
+is not possible unless a language supports some form of coroutines or
+generators.
 
-## Iterators in Inko
+Inko supports both internal and external iteration. When all you need is to
+iterate over some values, you can use internal iteration. If you need to
+compose iterators together, you can use external iteration.
 
-Inko primarily uses external iterators, but types may also allow you to use
-internal iteration for simple use cases, such as just traversing the values in a
-collection. For example, we can iterate over the values of an `Array` by sending
-`each` to the `Array`:
-
-```inko
-import std::stdio::stdout
-
-Array.new(10, 20, 30).each do (number) {
-  stdout.print(number)
-}
-```
-
-We can also do this using external iteration:
+When an iterator is created, it's positioned before the first value. To access
+the first and any following elements, you _must_ send `advance` to the
+iterator, followed by sending `current`. For example:
 
 ```inko
-import std::stdio::stdout
+let numbers = Array.new(10, 20, 30)
+let iter = numbers.iter
 
-Array.new(10, 20, 30).iter.each do (number) {
-  stdout.print(number)
-}
+iter.advance # => true
+iter.current # => 10
 ```
 
-Using external iterators gives us more control. For example, we can consume the
-first value then stop iteration as follows:
+## Creating iterators manually
 
-```inko
-let array = Array.new(10, 20, 30)
+Creating an iterator manually requires:
 
-array.iter.next # => 10
-```
+1. A object that tracks the state of the iteration process.
+2. An implementation of the `Iterator` trait for this object.
 
-Because external iterators are lazy, this would not iterate over the values `20`
-and `30`.
+The `Iterator` trait requires that you implement two methods: `advance` and
+`current`. The method `advance` advances the iterator and returns a boolean
+indicating if a value is produced. The method `current` returns that value.
 
-## Implementing iterators
-
-Implementing your own iterators is done in two steps:
-
-1. Create a separate object for your iterator, and implement the
-   `std::iterator::Iterator` trait for it.
-2. Define a method called `iter` on your object, and return the iterator created
-   in the previous step. If an object provides multiple iterators, use a more
-   meaningful name instead (e.g. `keys` or `values`).
-
-To illustrate this, let's say we have a simple `LinkedList` type that (for the
-sake of simplicity) only supports `Integer` values. First we define an object to
-store a single value, called a `Node`:
-
-```inko
-object Node {
-  @value: Integer
-  @next: ?Node
-
-  static def new(value: Integer) -> Self {
-    Self { @value = value, @next = Nil }
-  }
-
-  def next -> ?Node {
-    @next
-  }
-
-  def next=(node: Node) {
-    @next = node
-  }
-
-  def value -> Integer {
-    @value
-  }
-}
-```
-
-Next, let's define our `LinkedList` object that stores these `Node` objects:
-
-```inko
-object LinkedList {
-  @head: ?Node
-  @tail: ?Node
-
-  static def new -> Self {
-    Self { @head = Nil, @tail = Nil }
-  }
-
-  def head -> ?Node {
-    @head
-  }
-
-  def push(value: Integer) {
-    let node = Node.new(value)
-
-    @tail.if(
-      true: {
-        @tail.next = node
-        @tail = node
-      },
-      false: {
-        @head = node
-        @tail = node
-      }
-    )
-  }
-}
-```
-
-With our linked list implemented, let's import the `Iterator` trait:
+Let's say we want to create an iterator that yields the first 5 values in an
+`Array`, then terminates. We can do so as follows:
 
 ```inko
 import std::iterator::Iterator
-```
 
-Now we can create our iterator object, implement the `Iterator` trait for it,
-and define an `iter` method for our `LinkedList` object:
+object LimitedIterator!(T) {
+  @array: Array!(T)
+  @value: ?T
+  @index: Integer
 
-```inko
-# Iterator is a generic type, and defines a single type parameter: the type of
-# the values returned by the iterator. In this case our type of the values is
-# `Integer`.
-object LinkedListIterator {
-  @node: ?Node
-
-  static def new(list: LinkedList) -> Self {
-    Self { @node = list.head }
+  static def new!(T)(array: Array!(T)) -> LimitedIterator!(T) {
+    Self { @array = array, @value = Nil, @index = 0 }
   }
 }
 
-impl Iterator!(Integer) for LinkedListIterator {
-  # This will return the next value from the iterator, if any.
-  def next -> ?Node {
-    let node = @node
-
-    @node.if_true {
-      @node = @node.next
-    }
-
-    node
+impl Iterator!(T, Never) for LimitedIterator {
+  def advance -> Boolean {
+    (@index < 5).if(
+      true: {
+        @value = @values[@index]
+        @index += 1
+        True
+      },
+      false: {
+        @value = Nil
+        False
+      }
+    )
   }
 
-  # This will return True if a value is available, False otherwise.
-  def next? -> Boolean {
-    @node.if(true: { True }, false: { False })
-  }
-}
-
-# Now that our iterator object is in place, let's reopen LinkedList and add the
-# `iter` method to it.
-impl LinkedList {
-  def iter -> LinkedListIterator {
-    LinkedListIterator.new(self)
-  }
-}
-```
-
-With all this in place, we can use our iterator like so:
-
-```inko
-let list = LinkedList.new
-
-list.push(10)
-list.push(20)
-
-let iter = list.iter
-
-stdout.print(iter.next.value) # => 10
-stdout.print(iter.next.value) # => 20
-```
-
-If we want to (manually) cycle through all values, we can do so as well:
-
-```inko
-let list = LinkedList.new
-
-list.push(10)
-list.push(20)
-
-let iter = list.iter
-
-{ iter.next? }.while_true {
-  stdout.print(iter.next.value) # => 10, 20
-}
-```
-
-Since the above pattern is so common, iterators respond to `each` to make this
-easier:
-
-```inko
-let list = LinkedList.new
-
-list.push(10)
-list.push(20)
-
-let iter = list.iter
-
-iter.each do (node) {
-  stdout.print(node.value) # => 10, 20
-}
-```
-
-## Implementing iterators the easy way
-
-Creating an iterator using the Iterator trait is a bit verbose. To make this
-easier, Inko provides the `Enumerator` type in the `std::iterator` module. Using
-this type we can implement our linked list iterator as follows:
-
-```inko
-import std::iterator::(Enumerator, Iterator)
-
-object Node {
-  @value: Integer
-  @next: ?Node
-
-  static def new(value: Integer) -> Self {
-    Self { @value = value, @next = Nil }
-  }
-
-  def next -> ?Node {
-    @next
-  }
-
-  def next=(node: Node) {
-    @next = node
-  }
-
-  def value -> Integer {
+  def current -> ?T {
     @value
   }
 }
-
-object LinkedList {
-  @head: ?Node
-  @tail: ?Node
-
-  static def new -> Self {
-    Self { @head = Nil, @tail = Nil }
-  }
-
-  def head -> ?Node {
-    @head
-  }
-
-  def push(value: Integer) {
-    let node = Node.new(value)
-
-    @tail.if(
-      true: {
-        @tail.next = node
-        @tail = node
-      },
-      false: {
-        @head = node
-        @tail = node
-      }
-    )
-  }
-
-  def iter -> Iterator!(Node) {
-    let mut node = @head
-
-    Enumerator.new(
-      while: { node.if(true: { True }, false: { False }) },
-      yield: {
-        let current = node
-
-        node = node.next
-
-        current
-      }
-    )
-  }
-}
 ```
 
-Here the iterator code has is reduced to just the following:
+The iterator type is defined as `Iterator!(T, E)` with `T` being the type of
+values to produce, and `E` being the type to throw; if any. If your iterator
+doesn't throw, as is the case above, you can assign `E` to the `Never` type.
+
+The method `advance` advances the iterator, so long the index is less than 5. We
+start with an index of `-1` so the first call to `advance` advances the iterator
+to the first value; not the second value.
+
+With our iterator defined, we can use it like so:
 
 ```inko
-def iter -> Iterator!(Node) {
-  let mut node = @head
+let mut iterator = LimitedIterator.new(Array.new(1, 2, 3, 4, 5, 6, 7, 8))
 
-  Enumerator.new(
-    while: { node.if(true: { True }, false: { False }) },
-    yield: {
-      let current = node
+iterator.advance # => True
+iterator.current # => 1
 
-      node = node.next
+iterator.advance # => True
+iterator.current # => 2
 
-      current
-    }
-  )
+iterator.advance # => True
+iterator.current # => 3
+
+iterator.advance # => True
+iterator.current # => 4
+
+iterator.advance # => True
+iterator.current # => 5
+
+iterator.advance # => False
+iterator.current # => Nil
+```
+
+## Creating iterators using generators
+
+Creating an iterator requires quite a bit of boilerplate code. For non-linear
+collections such as graphs, implementing an iterator can also be tricky.
+
+To make this easier, we can use what is called a "generator". A generator is a
+method that can be suspended, and resumed later on. We can use generators to
+create iterators, without the boilerplate. Using a generator, we can implement
+our `LimitedIterator` as follows:
+
+```inko
+def limited_iterator!(T)(values: Array!(T)) => T {
+  let mut index = 0
+
+  { index < 5 }.while_true {
+    yield values[index]
+    index += 1
+  }
 }
 ```
 
-We recommend that you use the `Enumerator` type when implementing types, instead
-of implementing the `Iterator` trait yourself.
+Here the `=> T` signals that the method `limited_iterator` is a generator,
+yielding values of type `T`.
+
+Generator methods can't specify an explicit return type, and can't return values
+using the `return` keyword. Thus, the following is invalid:
+
+```inko
+def limited_iterator!(T)(values: Array!(T)) => T {
+  let mut index = 0
+
+  { index < 5 }.while_true {
+    yield values[index]
+    index += 1
+  }
+
+  return 10
+}
+```
+
+You _can_ use `return` without providing a value. This is useful if you wish to
+stop the generator:
+
+```inko
+def limited_iterator!(T)(values: Array!(T)) => T {
+  let mut index = 0
+
+  { index < 5 }.while_true {
+    yield values[index]
+    return
+    index += 1
+  }
+}
+```
+
+The last expression of the generator is also ignored. Instead, generator methods
+always return an instance of `Generator`.
+
+We can use our generator like so:
+
+```inko
+let gen = limited_iterator(Array.new(1, 2, 3, 4, 5, 6, 7, 8))
+
+gen.resume # => True
+gen.value  # => 1
+
+gen.resume # => True
+gen.value  # => 2
+```
+
+If the generator method throws, the `resume` method re-throws that error. This
+means you need to handle it. For example:
+
+```inko
+def limited_iterator!(T)(values: Array!(T)) !! String => T {
+  let mut index = 0
+
+  { index < 5 }.while_true {
+    yield values[index]
+    throw 'oops'
+    index += 1
+  }
+}
+
+let gen = limited_iterator(Array.new(1, 2, 3, 4, 5, 6, 7, 8))
+
+try! gen.resume # => True
+try! gen.resume # => panic
+```
+
+## Generators as iterators
+
+Generators themselves are also iterators. So instead of using `resume` and
+`value`, we can also use `advance` and `current`:
+
+```inko
+def limited_iterator!(T)(values: Array!(T)) => T {
+  let mut index = 0
+
+  { index < 5 }.while_true {
+    yield values[index]
+    index += 1
+  }
+}
+
+let iter = limited_iterator(Array.new(1, 2, 3))
+
+iter.advance # => True
+iter.current # => 1
+```

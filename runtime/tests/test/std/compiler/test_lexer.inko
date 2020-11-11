@@ -817,6 +817,16 @@ world\n" "hello"'
     assert.equal(token.location.line_range, 1..1)
   }
 
+  g.test('Lexing the double arrow operator') {
+    let token = lex('=>')
+
+    assert.equal(token.type, 'double_arrow')
+    assert.equal(token.value, '=>')
+
+    assert.equal(token.location.column, 1)
+    assert.equal(token.location.line_range, 1..1)
+  }
+
   g.test('Lexing the subtraction operator') {
     let token = lex('-')
 
@@ -1525,6 +1535,17 @@ world\n" "hello"'
 
     assert.equal(token.type, 'local')
     assert.equal(token.value, 'local')
+    assert.true(token.keyword?)
+
+    assert.equal(token.location.column, 1)
+    assert.equal(token.location.line_range, 1..1)
+  }
+
+  g.test('Lexing the yield keyword') {
+    let token = lex('yield')
+
+    assert.equal(token.type, 'yield')
+    assert.equal(token.value, 'yield')
     assert.true(token.keyword?)
 
     assert.equal(token.location.column, 1)

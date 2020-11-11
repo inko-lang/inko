@@ -1,6 +1,5 @@
 # Extensions for the `Integer` type that can only be defined later on in the
 # bootstrapping process.
-import std::iterator::(Enumerator, Iterator)
 import std::process
 import std::range::(Range, ToRange)
 import std::string_buffer::StringBuffer
@@ -74,11 +73,13 @@ impl Integer {
   # Iterating from `0` to `10`:
   #
   #     4.times.to_array # => Array.new(0, 1, 2, 3)
-  def times -> Iterator!(Integer) {
-    let mut index = -1
-    let max = self - 1
+  def times => Integer {
+    let mut index = 0
 
-    Enumerator.new(while: { index < max }, yield: { index += 1 })
+    { index < self }.while_true {
+      yield index
+      index += 1
+    }
   }
 }
 

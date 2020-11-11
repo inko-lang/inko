@@ -8,6 +8,7 @@ use crate::binding::RcBinding;
 use crate::block::Block;
 use crate::ffi::{Library, Pointer, RcFunction};
 use crate::file::File;
+use crate::generator::RcGenerator;
 use crate::hasher::Hasher;
 use crate::immutable_string::ImmutableString;
 use crate::module::Module;
@@ -65,6 +66,9 @@ pub enum ObjectValue {
 
     /// An Inko module.
     Module(ArcWithoutWeak<Module>),
+
+    /// A generator that can be resumed.
+    Generator(RcGenerator),
 }
 
 impl ObjectValue {
@@ -347,6 +351,14 @@ impl ObjectValue {
         }
     }
 
+    pub fn as_generator(&self) -> Result<&RcGenerator, String> {
+        match *self {
+            ObjectValue::Generator(ref gen) => Ok(gen),
+            _ => Err("ObjectValue::as_generator() called on a non generator"
+                .to_string()),
+        }
+    }
+
     pub fn take(&mut self) -> ObjectValue {
         mem::replace(self, ObjectValue::None)
     }
@@ -365,7 +377,15 @@ impl ObjectValue {
             | ObjectValue::Integer(_)
             | ObjectValue::String(_)
             | ObjectValue::BigInt(_)
-            | ObjectValue::InternedString(_) => true,
+            | ObjectValue::InternedString(_)
+            | ObjectValue::Hasher(_)
+            | ObjectValue::ByteArray(_)
+            | ObjectValue::Library(_)
+            | ObjectValue::Function(_)
+            | ObjectValue::Pointer(_)
+            | ObjectValue::Process(_)
+            | ObjectValue::Socket(_)
+            | ObjectValue::Generator(_) => true,
             _ => false,
         }
     }
@@ -389,6 +409,7 @@ impl ObjectValue {
             ObjectValue::Process(_) => "Process",
             ObjectValue::Socket(_) => "Socket",
             ObjectValue::Module(_) => "Module",
+            ObjectValue::Generator(_) => "Generator",
         }
     }
 
@@ -476,6 +497,10 @@ pub fn socket(value: Socket) -> ObjectValue {
 
 pub fn module(value: ArcWithoutWeak<Module>) -> ObjectValue {
     ObjectValue::Module(value)
+}
+
+pub fn generator(value: RcGenerator) -> ObjectValue {
+    ObjectValue::Generator(value)
 }
 
 #[cfg(test)]

@@ -182,7 +182,7 @@ pub fn string_to_integer(
     } else if let Ok(val) = string.parse::<BigInt>() {
         process.allocate(object_value::bigint(val), state.integer_prototype)
     } else {
-        return Err(RuntimeError::Exception(format!(
+        return Err(RuntimeError::ErrorMessage(format!(
             "{:?} can not be converted to an Integer",
             string
         )));
@@ -205,7 +205,7 @@ pub fn string_to_float(
 
         Ok(pointer)
     } else {
-        Err(RuntimeError::Exception(format!(
+        Err(RuntimeError::ErrorMessage(format!(
             "{:?} can not be converted to a Float",
             string
         )))

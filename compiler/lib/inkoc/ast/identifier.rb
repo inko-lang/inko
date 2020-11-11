@@ -9,7 +9,7 @@ module Inkoc
 
       attr_reader :name, :location
 
-      attr_accessor :block_type, :symbol, :depth
+      attr_accessor :block_type, :symbol, :depth, :throw_type
 
       # name - The name of the identifier.
       # location - The SourceLocation of the identifier.
@@ -19,6 +19,7 @@ module Inkoc
         @method_type = nil
         @symbol = nil
         @depth = nil
+        @throw_type = nil
       end
 
       def identifier?

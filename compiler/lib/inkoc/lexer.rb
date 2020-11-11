@@ -25,7 +25,8 @@ module Inkoc
       'static' => :static,
       'match' => :match,
       'when' => :when,
-      'local' => :local
+      'local' => :local,
+      'yield' => :yield
     }.freeze
 
     SPECIALS = Set.new(
@@ -487,6 +488,9 @@ module Inkoc
         when '~'
           advance = 2
           :match_equal
+        when '>'
+          advance = 2
+          :darrow
         else
           :assign
         end

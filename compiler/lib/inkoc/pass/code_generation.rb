@@ -209,6 +209,18 @@ module Inkoc
           .instruct(:RunBlockWithReceiver, [block, rec, start, amount], loc)
       end
 
+      def on_generator_allocate(tir_ins, compiled_code, *)
+        reg = tir_ins.register.id
+        block = tir_ins.block.id
+        rec = tir_ins.receiver.id
+        start = tir_ins.start.id
+        amount = tir_ins.amount
+        loc = tir_ins.location
+
+        compiled_code
+          .instruct(:GeneratorAllocate, [reg, block, rec, start, amount], loc)
+      end
+
       def on_tail_call(tir_ins, compiled_code, *)
         start = tir_ins.start.id
         amount = tir_ins.amount

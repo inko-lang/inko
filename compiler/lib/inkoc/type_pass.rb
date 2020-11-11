@@ -411,6 +411,10 @@ module Inkoc
       typedb.hasher_type
     end
 
+    def on_raw_get_generator_prototype(*)
+      typedb.generator_type
+    end
+
     def on_raw_run_block(*)
       new_any_type
     end
@@ -906,6 +910,18 @@ module Inkoc
 
     def on_raw_module_info(*)
       typedb.string_type.new_instance
+    end
+
+    def on_raw_generator_resume(*)
+      TypeSystem::Never.new
+    end
+
+    def on_raw_generator_value(*)
+      new_any_type
+    end
+
+    def on_raw_generator_yielded(*)
+      typedb.boolean_type.new_instance
     end
   end
 end

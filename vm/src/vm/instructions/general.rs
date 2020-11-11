@@ -133,6 +133,8 @@ pub fn set_default_panic_handler(
 }
 
 #[inline(always)]
-pub fn move_result(process: &RcProcess) -> ObjectPointer {
-    process.take_result()
+pub fn move_result(process: &RcProcess) -> Result<ObjectPointer, String> {
+    process.take_result().ok_or_else(|| {
+        "The last instruction didn't produce a result".to_string()
+    })
 }

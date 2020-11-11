@@ -112,8 +112,13 @@ module Inkoc
       end
 
       def identifier_send(node, source, name, scope)
-        node.block_type = source.lookup_method(name).type
-        return_type = source.message_return_type(name, scope.self_type)
+        method = source.lookup_method(name).type
+        node.block_type = method
+        return_type = method.resolved_return_type(scope.self_type)
+
+        if method.throw_type
+          node.throw_type = method.resolved_throw_type(scope.self_type)
+        end
 
         remap_send_return_type(return_type, scope)
       end
@@ -308,6 +313,11 @@ module Inkoc
         node.block_type = method
         return_type = method.resolved_return_type(source)
 
+        if method.throw_type
+          throw_type = method.resolved_throw_type(source)
+          node.throw_type = remap_send_return_type(throw_type, scope)
+        end
+
         remap_send_return_type(return_type, scope)
       end
       # rubocop: enable Metrics/AbcSize
@@ -376,10 +386,12 @@ module Inkoc
         expected_type =
           block_type.return_type.resolve_self_type(scope.self_type)
 
-        if !type.never? && !type.type_compatible?(expected_type, @state)
-          loc = node.location_of_last_expression
+        unless block_type.yield_type
+          if !type.never? && !type.type_compatible?(expected_type, @state)
+            loc = node.location_of_last_expression
 
-          diagnostics.return_type_error(expected_type, type, loc)
+            diagnostics.return_type_error(expected_type, type, loc)
+          end
         end
 
         type
@@ -393,6 +405,7 @@ module Inkoc
       end
 
       def on_return(node, scope)
+        never = TypeSystem::Never.new
         rtype =
           if node.value
             define_type(node.value, scope)
@@ -405,6 +418,14 @@ module Inkoc
         if block
           expected = block.return_type.resolve_self_type(scope.self_type)
 
+          if block.yield_type
+            if node.value
+              diagnostics.return_value_in_generator(node.location)
+            end
+
+            return never
+          end
+
           unless rtype.type_compatible?(expected, @state)
             diagnostics
               .return_type_error(expected, rtype, node.value_location)
@@ -415,7 +436,37 @@ module Inkoc
           diagnostics.return_outside_of_method_error(node.location)
         end
 
-        TypeSystem::Never.new
+        # A "return" statement itself will never return a value. For example,
+        # `let x = return 10` would never assign a value to `x`.
+        never
+      end
+
+      def on_yield(node, scope)
+        vtype =
+          if node.value
+            define_type(node.value, scope)
+          else
+            typedb.nil_type.new_instance
+          end
+
+        method = scope.enclosing_method
+
+        unless method
+          diagnostics.yield_outside_method(node.location)
+          return vtype
+        end
+
+        unless method.yield_type
+          diagnostics.yield_without_yield_defined(node.location)
+          return vtype
+        end
+
+        unless vtype.type_compatible?(method.yield_type, @state)
+          diagnostics.type_error(method.yield_type, vtype, node.value_location)
+        end
+
+        method.yields = true
+        vtype
       end
 
       def on_try(node, scope)
@@ -630,6 +681,7 @@ module Inkoc
 
         define_method_bounds(node, new_scope)
         define_block_signature(node, new_scope)
+        define_generator_signature(node, new_scope) if node.yields
 
         store_type(type, scope, node.location)
 
@@ -658,7 +710,11 @@ module Inkoc
       def on_deferred_method(node, scope)
         define_type(node.body, scope)
 
-        verify_unassigned_attributes(node, scope) if node.name == 'init'
+        method = scope.block_type
+
+        if method.yield_type && !method.yields
+          diagnostics.missing_yield(method.yield_type, node.location)
+        end
       end
 
       def on_match(node, scope)
@@ -783,24 +839,7 @@ module Inkoc
         guard_type = define_type(node, scope)
 
         unless guard_type.type_instance_of?(typedb.boolean_type)
-          return diagnostics.guard_return_type_error(guard_type, node.location)
-        end
-      end
-
-      def verify_unassigned_attributes(node, scope)
-        assigned = node
-          .body
-          .expressions
-          .select(&:reassign_attribute?)
-          .map { |node| node.variable.name }
-          .to_set
-
-        scope.self_type.attributes.each do |attr|
-          next unless attr.name.start_with?('@')
-          next if attr.name.start_with?('@_')
-          next if assigned.include?(attr.name)
-
-          diagnostics.unassigned_attribute(attr.name, node.location)
+          return diagnostics.invalid_boolean_match_pattern(node.location)
         end
       end
 
@@ -1123,6 +1162,24 @@ module Inkoc
 
         scope.define_receiver_type
         scope.block_type.define_call_method
+      end
+
+      def define_generator_signature(node, scope)
+        if node.explicit_return_type?
+          diagnostics.return_and_yield(node.location)
+          return
+        end
+
+        yield_type = define_type(node.yields, scope)
+        throw_type = node.throws&.type || TypeSystem::Never.new
+
+        return if yield_type.error?
+
+        scope.block_type.yield_type = yield_type
+        scope.block_type.return_type = @state
+          .typedb
+          .generator_type
+          .new_instance([yield_type, throw_type])
       end
 
       def define_method_bounds(node, scope)

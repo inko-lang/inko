@@ -5,7 +5,7 @@ pub fn display_panic(process: &RcProcess, message: &str) {
     let mut frames = Vec::new();
     let mut buffer = String::new();
 
-    for context in process.context().contexts() {
+    for context in process.contexts() {
         frames.push(format!(
             "\"{}\" line {}, in \"{}\"",
             context.code.file.string_value().unwrap(),

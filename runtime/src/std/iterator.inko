@@ -3,142 +3,28 @@
 # Iterators are objects that can be used to traverse collections such as an
 # `Array` or a `Map`. Typically iterators are implemented in one of two
 # ways:
-#
+
 # 1. Internal iterators: these kind of iterators take care of the iteration
-#    process and usually operate using some kind of closure.
+#    process and operate using some kind of closure.
 # 2. External iterators: these iterators use some kind of cursor stored
 #    somewhere and require you to manually advance the iterator.
-#
+
 # Both have their benefits and drawbacks. Internal iterators are easy to
 # implement and typically faster, as they don't require the allocation of
-# additional data structures. External iterators on the other hand can be
-# composed together, suspended, and later resumed. External iterators can also
-# be easily turned into internal iterators, while the inverse is not possible
-# unless a language supports some form of coroutines or generators.
-#
-# Inko uses external iterators for the following reasons:
-#
-# 1. They are lazy by default.
-# 2. Composing different iterators together is possible, without immediately
-#    processing the entire input collection.
-# 3. They do not require additional functionality such as continuations,
-#    coroutines, or generators.
-#
-# Certain types such as `Array` may provide methods for internal iteration
-# (e.g.  `Array.each`) to optimise common use cases. This provides a nice
-# balance between the flexibility and power of external iterators with the
-# performance of internal iterators.
-#
-# # Creating iterators manually
-#
-# Creating your own iterator is fairly straightforward and requires the
-# two building blocks:
-#
-# 1. A object that tracks the state of the iteration process.
-# 2. An implementation of the `Iterator` trait for this object.
-#
-# The `Iterator` trait requires that you implement two methods: `next?` and
-# `next`. The method `next?` is used to determine if there is a value available
-# for iteration while `next` returns this value (or `Nil` if no value is
-# present).
-#
-# Let's say we want to create an iterator that yields the first 5 values in an
-# `Array`, then terminates. We can do so as follows:
-#
-#     import std::iterator::Iterator
-#
-#     # This is our iterator. Most iterators typically store at least two
-#     # values: the collection or iterator that we are iterating over, and some
-#     # kind of cursor that we can use to determine where we are in this
-#     # process.
-#     object LimitedIterator!(T) {
-#       @array: Array!(T)
-#       @index: Integer
-#
-#       static def new!(T)(array: Array!(T)) -> LimitedIterator!(T) {
-#         Self { @array = array, @index = 0 }
-#       }
-#     }
-#
-#     # Next up we need to implement the Iterator trait.
-#     impl Iterator!(T) for LimitedIterator {
-#       def next? -> Boolean {
-#         @index < 5
-#       }
-#
-#       def next -> ?T {
-#         let value = @array[@index]
-#
-#         @index += 1
-#
-#         value
-#       }
-#     }
-#
-#     # With the iterator in place we can use it as follows:
-#     let mut iterator = LimitedIterator.new(Array.new(1, 2, 3, 4, 5, 6, 7, 8, 9, 10))
-#
-#     iterator.next? # => True
-#     iterator.next  # => 1
-#
-#     iterator.next? # => True
-#     iterator.next  # => 2
-#
-#     iterator.next? # => True
-#     iterator.next  # => 3
-#
-#     iterator.next? # => True
-#     iterator.next  # => 4
-#
-#     iterator.next? # => True
-#     iterator.next  # => 5
-#
-#     iterator.next? # => False
-#     iterator.next  # => Nil
-#
-# # Creating iterators using Enumerator
-#
-# Creating a separate object for every type of iteration requires quite a bit
-# of boilerplate. Fortunately, the `Enumerator` type can be used to make it
-# much easier to create an iterator. Using the `Enumerator` type we can convert
-# the above iterator code to the following:
-#
-#     import std::iterator::Enumerator
-#
-#     def to_enum(array: Array!(Integer)) -> Iterator!(Integer) {
-#       let mut index = 0
-#
-#       Enumerator.new(
-#         while: { index < 5 },
-#         yield: {
-#           let value = array[index]
-#
-#           index += 1
-#
-#           value
-#         }
-#       )
-#     }
-#
-#     let enum = to_enum(Array.new(1, 2, 3, 4, 5, 6, 7))
-#
-#     enum.next # => 1
-#     enum.next # => 2
-#     enum.next # => 3
-#     enum.next # => 4
-#     enum.next # => 5
-#     enum.next # => Nil
-#
-# Here we use the method `to_enum` to generate a `Enumerator` for a given
-# `Array`.
-#
-# When returning a `Enumerator!(T)` from a method, it's recommended to specify
-# the return type as `Iterator!(T)`. This allows you to change the type in the
-# future, without having to change the method's return type and possibly
-# breaking code using it.
-#
-# It is recommended to use `Enumerator` instead of manually creating `Iterator`
-# types, unless manually creating the iterator type is truly necessary.
+# additional data structures.
+
+# External iterators can be composed together, suspended, and later resumed.
+# External iterators can also be turned into internal iterators, while the inverse
+# is not possible unless a language supports some form of coroutines or
+# generators.
+
+# Inko supports both internal and external iteration. When all you need is to
+# iterate over some values, you can use internal iteration. If you need to
+# compose iterators together, you can use external iteration.
+
+# When an iterator is created, it's positioned before the first value. To access
+# the first and any following elements, you _must_ send `advance` to the
+# iterator, followed by sending `current`.
 #
 # # Exposing Iterators
 #
@@ -147,66 +33,62 @@
 # should use more descriptive method names such as `lines` for an `Iterator`
 # that yields the lines in a file, or `characters` for an `Iterator` that
 # returns the characters in a `String`.
-
-# A generic iterator over a sequence of values of type `T`.
 import std::conversion::ToString
 import std::pair::Pair
 import std::string_buffer::StringBuffer
 
-trait Iterator!(T) {
-  # Advances the iterator and returns the next value.
-  #
-  # If no values are available, this method must return `Nil`. Since `Nil`
-  # itself is a valid value to be returned, you should not check for `Nil` to
-  # determine if the iterator has reached the end. Instead, check the result of
-  # `next?` to determine if the iterator has any values left to produce.
-  #
-  # # Examples
-  #
-  # Returning the next value in an `Iterator`:
-  #
-  #     let numbers = Array.new(10, 20, 30)
-  #     let mut iter = numbers.iter
-  #
-  #     iter.next # => 10
-  #     iter.next # => 20
-  #     iter.next # => 30
-  def next -> ?T
+# A generator/semicoroutine that can be suspended and resumed.
+let Generator = _INKOC.get_generator_prototype
 
-  # Returns `True` if there are values available, `False` otherwise.
+impl Generator {
+  # Resumes the generator where it last left off.
   #
-  # This method _must not_ advance the iterator.
+  # If a generator hasn't started yet, it will instead be started from the
+  # beginning. If the generator method throws, `resume` will also throw;
+  # requiring you to handle the error accordingly.
   #
-  # # Examples
+  # The return value is `True` if a value is yielded, `False` otherwise.
   #
-  # Checking if there are any remaining values in an iterator:
+  # # Panics
   #
-  #     let numbers = Array.new(10)
-  #     let mut iter = numbers.iter
-  #
-  #     iter.next? # => True
-  #     iter.next  # => 10
-  #     iter.next? # => False
-  def next? -> Boolean
+  # This method will panic if the generator has finished.
+  def resume !! E -> Boolean {
+    # The generator itself may throw an error, which we re-throw here.
+    # Technically the explicit throw isn't necessary, but the explicit throw
+    # should make it more clear an error may occur.
+    try _INKOC.generator_resume(self) else (error) { throw error as E }
 
-  # Returns an `Iterator` that transforms values of type `T` to values of type
-  # `R`.
-  #
-  # # Examples
-  #
-  # Multiplying the numbers in an `Array`:
-  #
-  #     let mut iter = Array.new(1, 2, 3)
-  #       .iter
-  #       .map do (number) { number * 2 }
-  #
-  #     iter.to_array # => Array.new(2, 4, 6)
-  def map!(R)(block: do (T) -> R) -> Iterator!(R) {
-    Enumerator.new(
-      while: { next? },
-      yield: { block.call(next!) }
-    )
+    _INKOC.generator_yielded(self)
   }
+
+  # Obtains the value last yielded by the generator.
+  #
+  # If no value is yielded, `Nil` is returned.
+  def value -> ?T {
+    # Obtaining the value throws when there is no value, which happens when a
+    # generator finishes.
+    try _INKOC.generator_value(self) as ?T else Nil
+  }
+}
+
+# A generic iterator over a sequence of values of type `T`.
+#
+# The type parameter `T` is the type of values that is produced.
+#
+# The type parameter `E` is the error type that may be thrown. If an iterator
+# doesn't throw, you can set this to `Never`.
+trait Iterator!(T, E) {
+  # Advances the iterator, returning a boolean indicating if a value is
+  # produced.
+  #
+  # If a value is produced, this method must return `True`, otherwise it must
+  # return `False`.
+  def advance !! E -> Boolean
+
+  # Returns the current value of the iterator.
+  #
+  # If no value is present, this method must return `Nil`.
+  def current -> ?T
 
   # Yields all the values in this iterator to the supplied `Block`.
   #
@@ -221,10 +103,8 @@ trait Iterator!(T) {
   #     Array.new(10, 20, 30).iter.each do (number) {
   #       stdout.print(number)
   #     }
-  def each(block: do (T)) {
-    { next? }.while_true {
-      block.call(next!)
-    }
+  def each(block: do (T)) !! E {
+    { try advance }.while_true { block.call(current!) }
   }
 
   # Yields all the values and their indexes in this `Iterator` to the supplied
@@ -241,13 +121,29 @@ trait Iterator!(T) {
   #     iter.each_with_index do (number, index) {
   #       stdout.print(index) # => 0, 1, 2
   #     }
-  def each_with_index(block: do (T, Integer)) {
+  def each_with_index(block: do (T, Integer)) !! E {
     let mut index = 0
 
-    each do (value: T) {
+    try each do (value: T) {
       block.call(value, index)
       index += 1
     }
+  }
+
+  # Returns an `Iterator` that transforms values of type `T` to values of type
+  # `R`.
+  #
+  # # Examples
+  #
+  # Multiplying the numbers in an `Array`:
+  #
+  #     let mut iter = Array.new(1, 2, 3)
+  #       .iter
+  #       .map do (number) { number * 2 }
+  #
+  #     iter.to_array # => Array.new(2, 4, 6)
+  def map!(R)(block: do (T) -> R) !! E => R {
+    try each do (value) { yield block.call(value) }
   }
 
   # Returns the first value for which the supplied `Block` returns `True`.
@@ -262,8 +158,8 @@ trait Iterator!(T) {
   #     let numbers = Array.new(10, 20, 50, 80)
   #
   #     numbers.iter.find do (number) { number > 50 } # => 80
-  def find(block: do (T) -> Boolean) -> ?T {
-    each do (value) {
+  def find(block: do (T) -> Boolean) !! E -> ?T {
+    try each do (value) {
       block.call(value).if_true { return value }
     }
 
@@ -280,8 +176,8 @@ trait Iterator!(T) {
   # Checking if an `Iterator` contains a value:
   #
   #     Array.new(10, 20, 30).iter.any? do (value) { value >= 20 } # => True
-  def any?(block: do (T) -> Boolean) -> Boolean {
-    each do (value) {
+  def any?(block: do (T) -> Boolean) !! E -> Boolean {
+    try each do (value) {
       block.call(value).if_true { return True }
     }
 
@@ -299,29 +195,10 @@ trait Iterator!(T) {
   #       .iter
   #       .select do (value) { value > 10 }
   #       .to_array # => Array.new(20, 30)
-  def select(block: do (T) -> Boolean) -> Iterator!(T) {
-    let mut found: ?T = Nil
-
-    # The casts to ?Object here are needed until
-    # https://gitlab.com/inko-lang/inko/issues/177 has been implemented.
-    Enumerator.new(
-      while: {
-        { next?.and { (found as ?Object).nil? } }.while_true {
-          let value = next
-
-          block.call(value).if_true { found = value }
-        }
-
-        (found as ?Object).not_nil?
-      },
-      yield: {
-        let yield = found!
-
-        found = Nil
-
-        yield
-      }
-    )
+  def select(block: do (T) -> Boolean) !! E => T {
+    try each do (value) {
+      block.call(value).if_true { yield value }
+    }
   }
 
   # Partitions the `Iterator` into a `Pair` of two `Array` objects.
@@ -339,11 +216,11 @@ trait Iterator!(T) {
   #
   #     pair.first  # => Array.new(30, 40, 50)
   #     pair.second # => Array.new(10, 20)
-  def partition(block: do (T) -> Boolean) -> Pair!(Array!(T), Array!(T)) {
+  def partition(block: do (T) -> Boolean) !! E -> Pair!(Array!(T), Array!(T)) {
     let true = Array.new
     let false = Array.new
 
-    each do (value) {
+    try each do (value) {
       block
         .call(value)
         .if(true: { true.push(value) }, false: { false.push(value) })
@@ -364,8 +241,8 @@ trait Iterator!(T) {
   #
   #     Array.new(10, 20).iter.all? do (value) { value.positive? } # => True
   #     Array.new(-1, 20).iter.all? do (value) { value.positive? } # => False
-  def all?(block: do (T) -> Boolean) -> Boolean {
-    each do (value) {
+  def all?(block: do (T) -> Boolean) !! E -> Boolean {
+    try each do (value) {
       block.call(value).if_false {
         return False
       }
@@ -388,9 +265,8 @@ trait Iterator!(T) {
   #     let b = Array.new(40, 50, 60)
   #     let zip = a.iter.zip(b.iter)
   #
-  #     zip.next # => Pair.new(10, 40)
-  #     zip.next # => Pair.new(20, 50)
-  #     zip.next # => Pair.new(30, 60)
+  #     zip.advance
+  #     zip.current # => Pair.new(10, 40)
   #
   # Zipping two `Iterator` objects with a different number of values:
   #
@@ -398,14 +274,12 @@ trait Iterator!(T) {
   #     let b = Array.new(40, 50)
   #     let zip = a.iter.zip(b.iter)
   #
-  #     zip.next # => Pair.new(10, 40)
-  #     zip.next # => Pair.new(20, 50)
-  #     zip.next # => Nil
-  def zip!(U)(other: Iterator!(U)) -> Iterator!(Pair!(T, U)) {
-    Enumerator.new(
-      while: { next?.and { other.next? } },
-      yield: { Pair.new(first: next!, second: other.next!) }
-    )
+  #     zip.advance
+  #     zip.current # => Pair.new(10, 40)
+  def zip!(U)(other: Iterator!(U, E)) !! E => Pair!(T, U) {
+    { try { advance }.and { try other.advance } }.while_true {
+      yield Pair.new(first: current!, second: other.current!)
+    }
   }
 
   # Joins the values produced by this `Iterator` together using the separator.
@@ -419,10 +293,10 @@ trait Iterator!(T) {
   # Joining an `Iterator` with multiple values:
   #
   #     Array.new(10, 20, 30).iter.join(',') # => '10,20,30'
-  def join(separator: String) -> String when T: ToString {
+  def join(separator: String) !! E -> String when T: ToString {
     let buffer = StringBuffer.new
 
-    each_with_index do (value, index) {
+    try each_with_index do (value, index) {
       index.positive?.if_true {
         buffer.push(separator)
       }
@@ -467,16 +341,15 @@ trait Iterator!(T) {
   #
   # For the last element the return value is `6`, so the return value of the
   # reduce method is also `6`.
-  def reduce!(A)(accumulator: A, block: do (A, T) -> A) -> A {
+  def reduce!(A)(accumulator: A, block: do (A, T) -> A) !! E -> A {
     let mut result = accumulator
 
-    each do (value) {
+    try each do (value) {
       result = block.call(result, value)
     }
 
     result
   }
-
   # Transforms the `Iterator` into an `Array`.
   #
   # This method will advance the iterator to the end.
@@ -486,135 +359,21 @@ trait Iterator!(T) {
   # Transforming an `Iterator` back into an `Array`:
   #
   #     Array.new(1, 2, 3).iter.to_array # => Array.new(1, 2, 3)
-  def to_array -> Array!(T) {
+  def to_array !! E -> Array!(T) {
     let mut values = Array.new
 
-    each do (value) {
-      values.push(value)
-    }
+    try each do (value) { values.push(value) }
 
     values
   }
 }
 
-# A type for easily creating external iterators, without having to define your
-# own `Iterator` objects.
-#
-# An `Enumerator` is typically created inside a method. This allows you to
-# capture any variables you may need for the iterator's internal state, without
-# having to expose these using methods.
-object Enumerator!(T) {
-  # The block to call to determine if a new value should be produced.
-  @while: do -> Boolean
-
-  # The block to call to produce a new value.
-  @yield: do -> ?T
-
-  # Returns a new `Enumerator` that produces values of type `T`.
-  #
-  # The `while` block must return a `Boolean` that indicates if the iterator
-  # has any values left to produce.
-  #
-  # The `yield` block must return a value the iterator has produced, or `Nil`
-  # if there are no more values.
-  static def new!(T)(while: do -> Boolean, yield: do -> ?T) -> Enumerator!(T) {
-    Self { @while = while, @yield = yield }
-  }
-}
-
-impl Iterator!(T) for Enumerator {
-  # Advances the iterator and returns the next value.
-  #
-  # See the documentation of `Iterator.next` for more information.
-  def next -> ?T {
-    next?.if(true: { @yield.call }, false: { Nil })
+impl Iterator!(T, E) for Generator {
+  def advance !! E -> Boolean {
+    try resume
   }
 
-  # Returns `True` if there are values available, `False` otherwise.
-  #
-  # See the documentation of `Iterator.next?` for more information.
-  def next? -> Boolean {
-    @while.call
+  def current -> ?T {
+    value
   }
-}
-
-# Returns an `Enumerator` that can be used to easily enumerate over an index
-# based collection.
-#
-# This `Enumerator` will start at index 0, and increment the index until
-# reaching the limit specified with the `max` argument. For every value, the
-# supplied block is called and its return value will be the value produced by
-# the `Enumerator`.
-#
-# # Examples
-#
-# Iterating over an `Array`:
-#
-#     import std::iterator::(self, Enumerator)
-#
-#     let numbers = Array.new(10, 20, 30)
-#     let enum: Enumerator!(Integer) =
-#       iterator.index_enumerator(numbers.length) do (index) {
-#         numbers[index]
-#       }
-#
-#     enum.next # => 10
-#     enum.next # => 20
-#     enum.next # => 30
-def index_enumerator!(T)(
-  max: Integer,
-  block: do (Integer) -> ?T
-) -> Enumerator!(T) {
-  let mut index = 0
-
-  Enumerator.new(
-    while: { index < max },
-    yield: {
-      let value = block.call(index)
-
-      index += 1
-
-      value
-    }
-  )
-}
-
-# Returns an `Enumerator` that can be used to easily enumerate over an index
-# based collection in reverse order.
-#
-# This `Enumerator` will start the maximum index, and reduce the index until
-# reaching the start of the collection. For every value, the supplied block is
-# called and its return value will be the value produced by the `Enumerator`.
-#
-# # Examples
-#
-# Iterating over an `Array`:
-#
-#     import std::iterator::(self, Enumerator)
-#
-#     let numbers = Array.new(10, 20, 30)
-#     let enum: Enumerator!(Integer) =
-#       iterator.reverse_index_enumerator(numbers.length) do (index) {
-#         numbers[index]
-#       }
-#
-#     enum.next # => 30
-#     enum.next # => 20
-#     enum.next # => 10
-def reverse_index_enumerator!(T)(
-  length: Integer,
-  block: do (Integer) -> ?T
-) -> Enumerator!(T) {
-  let mut index = length - 1
-
-  Enumerator.new(
-    while: { index > -1 },
-    yield: {
-      let value = block.call(index)
-
-      index -= 1
-
-      value
-    }
-  )
 }

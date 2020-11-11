@@ -1,4 +1,4 @@
-import std::iterator::(self, Enumerator, Iterator)
+import std::iterator::Iterator
 import std::pair::Pair
 import std::test
 import std::test::assert
@@ -9,53 +9,54 @@ object EmptyIterator {
   }
 }
 
-impl Iterator!(Integer) for EmptyIterator {
-  def next? -> Boolean {
+impl Iterator!(Integer, Never) for EmptyIterator {
+  def advance -> Boolean {
     False
   }
 
-  def next -> ?Integer {
+  def current -> ?Integer {
     Nil
   }
 }
 
 object SimpleIterator {
   @values: Array!(Integer)
+  @value: ?Integer
   @index: Integer
 
   static def new -> Self {
-    Self { @values = Array.new(10, 20, 30), @index = 0 }
+    Self { @values = Array.new(10, 20, 30), @value = Nil, @index = 0 }
   }
 }
 
-impl Iterator!(Integer) for SimpleIterator {
-  def next -> ?Integer {
-    let value = @values[@index]
-
-    @index += 1
-
-    value
+impl Iterator!(Integer, Never) for SimpleIterator {
+  def advance -> Boolean {
+    (@index < @values.length).if(
+      true: {
+        @value = @values[@index]
+        @index += 1
+        True
+      },
+      false: {
+        @value = Nil
+        False
+      }
+    )
   }
 
-  def next? -> Boolean {
-    @index < @values.length
+  def current -> ?Integer {
+    @value
   }
 }
 
-def integer_enumerator -> Iterator!(Integer) {
-  let array = Array.new(10, 20, 30)
-  let mut index = 0
+def gen => Integer {
+  yield 10
+  yield 20
+}
 
-  Enumerator.new(
-    while: { index < array.length },
-    yield: {
-      let value = array[index]
-
-      index += 1
-
-      value
-    }
-  )
+def gen_with_error !! String => Integer {
+  yield 10
+  throw 'foo'
 }
 
 test.group('std::iterator::Iterator.each') do (g) {
@@ -168,34 +169,6 @@ test.group('std::iterator::Iterator.to_array') do (g) {
   }
 }
 
-test.group('std::iterator::Enumerator.next') do (g) {
-  g.test('Obtaining the next value in an Enumerator') {
-    let enum = integer_enumerator
-
-    assert.equal(enum.next, 10)
-    assert.equal(enum.next, 20)
-    assert.equal(enum.next, 30)
-    assert.equal(enum.next, Nil)
-  }
-}
-
-test.group('std::iterator::Enumerator.next?') do (g) {
-  g.test('Checking if there are remaining values in an Enumerator') {
-    let enum = integer_enumerator
-
-    assert.true(enum.next?)
-    enum.next
-
-    assert.true(enum.next?)
-    enum.next
-
-    assert.true(enum.next?)
-    enum.next
-
-    assert.false(enum.next?)
-  }
-}
-
 test.group('std::iterator::Iterator.all?') do (g) {
   g.test('Checking if all values in an Iterator meet a condition') {
     let a = Array.new(10, 20, 30)
@@ -214,10 +187,16 @@ test.group('std::iterator::Iterator.zip') do (g) {
     let b = Array.new(40, 50, 60)
     let zip = a.iter.zip(b.iter)
 
-    assert.equal(zip.next, Pair.new(10, 40))
-    assert.equal(zip.next, Pair.new(20, 50))
-    assert.equal(zip.next, Pair.new(30, 60))
-    assert.true(zip.next.nil?)
+    assert.true(zip.advance)
+    assert.equal(zip.current, Pair.new(10, 40))
+
+    assert.true(zip.advance)
+    assert.equal(zip.current, Pair.new(20, 50))
+
+    assert.true(zip.advance)
+    assert.equal(zip.current, Pair.new(30, 60))
+
+    assert.false(zip.advance)
   }
 
   g.test('Zipping two Iterators with a different number of values') {
@@ -226,13 +205,21 @@ test.group('std::iterator::Iterator.zip') do (g) {
     let zip1 = a.iter.zip(b.iter)
     let zip2 = b.iter.zip(a.iter)
 
-    assert.equal(zip1.next, Pair.new(10, 40))
-    assert.equal(zip1.next, Pair.new(20, 50))
-    assert.true(zip1.next.nil?)
+    assert.true(zip1.advance)
+    assert.equal(zip1.current, Pair.new(10, 40))
 
-    assert.equal(zip2.next, Pair.new(40, 10))
-    assert.equal(zip2.next, Pair.new(50, 20))
-    assert.true(zip2.next.nil?)
+    assert.true(zip1.advance)
+    assert.equal(zip1.current, Pair.new(20, 50))
+
+    assert.false(zip1.advance)
+
+    assert.true(zip2.advance)
+    assert.equal(zip2.current, Pair.new(40, 10))
+
+    assert.true(zip2.advance)
+    assert.equal(zip2.current, Pair.new(50, 20))
+
+    assert.false(zip2.advance)
   }
 }
 
@@ -267,32 +254,56 @@ test.group('std::iterator::Iterator.reduce') do (g) {
   }
 }
 
-test.group('std::iterator.index_enumerator') do (g) {
-  g.test('Iterating over an Array') {
-    let numbers = Array.new(10, 20, 30)
-    let enum: Enumerator!(Integer) =
-      iterator.index_enumerator(numbers.length) do (index) {
-        numbers[index]
-      }
+test.group('std::iterator::Generator.resume') do (g) {
+  g.test("Resuming a generator that doesn't throw") {
+    let iter = gen
 
-    assert.equal(enum.next, 10)
-    assert.equal(enum.next, 20)
-    assert.equal(enum.next, 30)
-    assert.equal(enum.next, Nil)
+    assert.true(iter.resume)
+    assert.true(iter.resume)
+    assert.false(iter.resume)
+  }
+
+  g.test('Resuming a generator that throws') {
+    let iter = gen_with_error
+
+    assert.true(try iter.resume else False)
+    assert.false(try iter.resume else False)
   }
 }
 
-test.group('std::iterator.reverse_index_enumerator') do (g) {
-  g.test('Iterating over an Array in reverse order') {
-    let numbers = Array.new(10, 20, 30)
-    let enum: Enumerator!(Integer) =
-      iterator.reverse_index_enumerator(numbers.length) do (index) {
-        numbers[index]
-      }
+test.group('std::iterator::Generator.value') do (g) {
+  g.test('Obtaining a yielded value') {
+    let iter = gen
 
-    assert.equal(enum.next, 30)
-    assert.equal(enum.next, 20)
-    assert.equal(enum.next, 10)
-    assert.equal(enum.next, Nil)
+    assert.true(iter.resume)
+    assert.equal(iter.value, 10)
+
+    assert.true(iter.resume)
+    assert.equal(iter.value, 20)
+  }
+
+  g.test("Obtaining the value of a generator that didn't yield") {
+    let iter = gen
+
+    assert.true(iter.value.nil?)
+  }
+}
+
+test.group('std::iterator::Generator.advance') do (g) {
+  g.test('Resuming a generator') {
+    let iter = gen
+
+    assert.true(iter.advance)
+    assert.true(iter.advance)
+    assert.false(iter.advance)
+  }
+}
+
+test.group('std::iterator::Generator.current') do (g) {
+  g.test('Obtaining a yielded value') {
+    let iter = gen
+
+    assert.true(iter.advance)
+    assert.equal(iter.current, 10)
   }
 }

@@ -182,6 +182,11 @@ pub enum Opcode {
     GetAttributeInSelf,
     MoveResult,
     FilePath,
+    GeneratorAllocate,
+    GeneratorResume,
+    GeneratorYield,
+    GeneratorValue,
+    GeneratorYielded,
 }
 
 /// A fixed-width VM instruction.

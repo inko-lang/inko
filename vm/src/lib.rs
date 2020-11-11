@@ -23,6 +23,7 @@ pub mod ffi;
 pub mod file;
 pub mod filesystem;
 pub mod gc;
+pub mod generator;
 pub mod global_scope;
 pub mod hasher;
 pub mod immix;

@@ -1,5 +1,6 @@
 //! Errors that can be produced at VM runtime.
 use crate::error_messages;
+use crate::object_pointer::ObjectPointer;
 use std::convert::From;
 use std::io;
 use std::net::AddrParseError;
@@ -7,9 +8,12 @@ use std::net::AddrParseError;
 /// An error that can be raised in the VM at runtime.]
 #[derive(Debug)]
 pub enum RuntimeError {
-    /// An error that should be turned into an exception, allowing code to
-    /// handle it.
-    Exception(String),
+    /// An error message that should be turned into an exception, allowing code
+    /// to handle it.
+    ErrorMessage(String),
+
+    /// An error to throw as-is.
+    Error(ObjectPointer),
 
     /// A fatal error that should result in the VM terminating.
     Panic(String),
@@ -21,7 +25,10 @@ pub enum RuntimeError {
 
 impl RuntimeError {
     pub fn out_of_bounds(index: usize) -> Self {
-        RuntimeError::Exception(format!("The index {} is out of bounds", index))
+        RuntimeError::ErrorMessage(format!(
+            "The index {} is out of bounds",
+            index
+        ))
     }
 
     pub fn should_poll(&self) -> bool {
@@ -37,7 +44,7 @@ impl From<io::Error> for RuntimeError {
         if error.kind() == io::ErrorKind::WouldBlock {
             RuntimeError::WouldBlock
         } else {
-            RuntimeError::Exception(error_messages::from_io_error(&error))
+            RuntimeError::ErrorMessage(error_messages::from_io_error(&error))
         }
     }
 }
@@ -56,6 +63,6 @@ impl From<&str> for RuntimeError {
 
 impl From<AddrParseError> for RuntimeError {
     fn from(result: AddrParseError) -> Self {
-        RuntimeError::Exception(result.to_string())
+        RuntimeError::ErrorMessage(result.to_string())
     }
 }

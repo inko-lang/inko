@@ -137,3 +137,15 @@ test.group('std::compiler::symbol_table::SymbolTable.defines?') do (g) {
     assert.false(table.defines?('bar'))
   }
 }
+
+test.group('std::compiler::symbol_table::SymbolTable.contains?') do (g) {
+  g.test('Checking if a symbol table contains a symbol') {
+    let table = SymbolTable.new
+    let sym1 = table.define(name: 'foo', type: DummyType.new)
+    let sym2 =
+      Symbol.new(name: 'foo', id: 42, type: DummyType.new, mutable: False)
+
+    assert.true(table.contains?(sym1))
+    assert.false(table.contains?(sym2))
+  }
+}

@@ -21,7 +21,8 @@ module Inkoc
 
       attr_accessor :prototype, :captures, :last_argument_is_rest, :throw_type,
                     :return_type, :type_parameter_instances, :infer_return_type,
-                    :infer_throw_type, :block_type, :self_type
+                    :infer_throw_type, :block_type, :self_type, :yield_type,
+                    :yields
 
       def self.closure(prototype, return_type: nil)
         new(
@@ -70,6 +71,7 @@ module Inkoc
         @arguments = SymbolTable.new
         @throw_type = throw_type
         @return_type = return_type || Dynamic.singleton
+        @yield_type = nil
         @required_arguments = 0
         @type_parameters = TypeParameterTable.new
         @type_parameter_instances = TypeParameterInstances.new
@@ -82,6 +84,7 @@ module Inkoc
         @method_bounds = TypeParameterTable.new
         @thrown_types = []
         @self_type = Dynamic.singleton
+        @yields = false
       end
 
       def block?
@@ -221,6 +224,10 @@ module Inkoc
           type_name += " -> #{resolve_type_parameter(return_type).type_name}"
         end
 
+        if yield_type
+          type_name += " => #{resolve_type_parameter(yield_type).type_name}"
+        end
+
         type_name
       end
 
@@ -271,6 +278,13 @@ module Inkoc
       # any other types (e.g. `Array!(Self)`) we still use early binding.
       def resolved_return_type(self_type)
         return_type
+          .resolve_self_type(self_type)
+          .resolve_type_parameters(self_type, self)
+          .without_empty_type_parameters(self_type, self)
+      end
+
+      def resolved_throw_type(self_type)
+        throw_type
           .resolve_self_type(self_type)
           .resolve_type_parameters(self_type, self)
           .without_empty_type_parameters(self_type, self)

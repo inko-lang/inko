@@ -6,6 +6,7 @@ use num_bigint::BigInt;
 use num_traits::{ToPrimitive, Zero};
 use std::f32;
 use std::f64;
+use std::fmt;
 use std::hash::{Hash, Hasher as HasherTrait};
 use std::i16;
 use std::i32;
@@ -23,6 +24,7 @@ use crate::binding::RcBinding;
 use crate::block::Block;
 use crate::ffi::{Library, Pointer, RcFunction};
 use crate::file::File;
+use crate::generator::RcGenerator;
 use crate::hasher::Hasher;
 use crate::immix::block;
 use crate::immix::bucket::{MAILBOX, MATURE, PERMANENT};
@@ -633,6 +635,8 @@ impl ObjectPointer {
         &mut ArcWithoutWeak<Module>
     );
 
+    def_value_getter!(generator_value, get, as_generator, &RcGenerator);
+
     /// Atomically loads the underlying pointer, returning a new ObjectPointer.
     pub fn atomic_load(&self) -> Self {
         ObjectPointer {
@@ -682,6 +686,12 @@ impl Eq for ObjectPointer {}
 impl Hash for ObjectPointer {
     fn hash<H: HasherTrait>(&self, state: &mut H) {
         self.raw.hash(state);
+    }
+}
+
+impl fmt::Debug for ObjectPointer {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "ObjectPointer({:?})", self.raw.raw)
     }
 }
 

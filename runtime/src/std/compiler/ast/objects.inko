@@ -52,15 +52,15 @@ object DefineObject {
   def body -> Body {
     @body
   }
-
-  def resolved_type=(type: ObjectType) -> ObjectType {
-    @resolved_type = type
-  }
 }
 
 impl Node for DefineObject {
   def resolved_type -> ?ObjectType {
     @resolved_type
+  }
+
+  def resolved_type=(type: ObjectType) -> ObjectType {
+    @resolved_type = type
   }
 
   def location -> SourceLocation {
@@ -104,15 +104,15 @@ object DefineAttribute {
   def value_type -> TypeNode {
     @value_type
   }
-
-  def resolved_type=(type: Type) -> Type {
-    @resolved_type = type
-  }
 }
 
 impl Node for DefineAttribute {
   def resolved_type -> ?Type {
     @resolved_type
+  }
+
+  def resolved_type=(type: Type) -> Type {
+    @resolved_type = type
   }
 
   def location -> SourceLocation {
@@ -176,15 +176,15 @@ object DefineTrait {
   def body -> Body {
     @body
   }
-
-  def resolved_type=(type: TraitType) -> TraitType {
-    @resolved_type = type
-  }
 }
 
 impl Node for DefineTrait {
   def resolved_type -> ?TraitType {
     @resolved_type
+  }
+
+  def resolved_type=(type: TraitType) -> TraitType {
+    @resolved_type = type
   }
 
   def location -> SourceLocation {
@@ -298,15 +298,15 @@ object ReopenObject {
   def body -> Body {
     @body
   }
-
-  def resolved_type=(type: ObjectType) -> ObjectType {
-    @resolved_type = type
-  }
 }
 
 impl Node for ReopenObject {
   def resolved_type -> ?ObjectType {
     @resolved_type
+  }
+
+  def resolved_type=(type: ObjectType) -> ObjectType {
+    @resolved_type = type
   }
 
   def location -> SourceLocation {
@@ -382,15 +382,15 @@ object Constructor {
   def attributes -> Array!(ConstructorAttribute) {
     @attributes
   }
-
-  def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
-  }
 }
 
 impl Node for Constructor {
   def resolved_type -> ?Type {
     @resolved_type
+  }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
   }
 
   def location -> SourceLocation {

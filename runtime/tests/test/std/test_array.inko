@@ -246,10 +246,17 @@ test.group('std::array::Array.iter') do (g) {
     let numbers = Array.new(10, 20, 30)
     let iter = numbers.iter
 
-    assert.equal(iter.next, 10)
-    assert.equal(iter.next, 20)
-    assert.equal(iter.next, 30)
-    assert.equal(iter.next, Nil)
+    assert.true(iter.advance)
+    assert.equal(iter.current, 10)
+
+    assert.true(iter.advance)
+    assert.equal(iter.current, 20)
+
+    assert.true(iter.advance)
+    assert.equal(iter.current, 30)
+
+    assert.false(iter.advance)
+    assert.equal(iter.current, Nil)
   }
 }
 
@@ -258,10 +265,17 @@ test.group('std::array::Array.reverse_iter') do (g) {
     let numbers = Array.new(10, 20, 30)
     let iter = numbers.reverse_iter
 
-    assert.equal(iter.next, 30)
-    assert.equal(iter.next, 20)
-    assert.equal(iter.next, 10)
-    assert.equal(iter.next, Nil)
+    assert.true(iter.advance)
+    assert.equal(iter.current, 30)
+
+    assert.true(iter.advance)
+    assert.equal(iter.current, 20)
+
+    assert.true(iter.advance)
+    assert.equal(iter.current, 10)
+
+    assert.false(iter.advance)
+    assert.true(iter.current.nil?)
   }
 }
 

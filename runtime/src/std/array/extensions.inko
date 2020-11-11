@@ -5,7 +5,6 @@
 # would depend on `std::array` while `std::array` would depend on
 # `std::iterator`.
 import std::conversion::ToString
-import std::iterator::(self, Iterator)
 import std::string_buffer::StringBuffer
 
 impl Array {
@@ -22,10 +21,8 @@ impl Array {
   #     iter.next # => 20
   #     iter.next # => 30
   #     iter.next # => Nil
-  def iter -> Iterator!(T) {
-    iterator.index_enumerator(length) do (index) {
-      self[index]
-    }
+  def iter => T {
+    each do (value) { yield value }
   }
 
   # Returns an `Iterator` that iterates over all values in `self` in reverse
@@ -36,15 +33,18 @@ impl Array {
   # Iterating over an `Array` in reverse order:
   #
   #     let numbers = Array.new(10, 20, 30)
-  #     let iter = numbers.iter
+  #     let iter = numbers.reverse_iter
   #
   #     iter.next # => 30
   #     iter.next # => 20
   #     iter.next # => 10
   #     iter.next # => Nil
-  def reverse_iter -> Iterator!(T) {
-    iterator.reverse_index_enumerator(length) do (index) {
-      self[index]
+  def reverse_iter => T {
+    let mut index = length - 1
+
+    { index > -1 }.while_true {
+      yield self[index]
+      index -= 1
     }
   }
 }

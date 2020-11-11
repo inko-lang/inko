@@ -443,7 +443,7 @@ trait ExpressionTypePass: TypePass {
         visit_expression(node: child, types: types, variables: variables)
     }
 
-    return_type
+    node.resolved_type = return_type
   }
 
   def visit_optional_expression(
@@ -514,6 +514,9 @@ trait ExpressionTypePass: TypePass {
       as Constructor -> {
         visit_constructor(node: matched, types: types, variables: variables)
       }
+      as Yield -> {
+        visit_yield(node: matched, types: types, variables: variables)
+      }
       as NotNil -> {
         visit_not_nil(node: matched, types: types, variables: variables)
       }
@@ -548,40 +551,26 @@ trait ExpressionTypePass: TypePass {
     types: TypeScope,
     variables: VariableScope
   ) -> Type {
-    let self_type = types.self_type
     let name = node.name
+    let lvar = variables.lookup_with_parents(name)
 
-    node
-      .resolve_as_local(variables.lookup(name))
-      .if_true { return node.resolved_type! }
+    lvar.if_true {
+      variables.symbols.contains?(lvar!).if_false { types.block.captures }
 
-    node
-      .resolve_as_local(variables.lookup_in_parents(name))
-      .if_true {
-        types.block.captures
-        return node.resolved_type!
-      }
+      return resolve_symbol_as_variable(node: node, symbol: lvar!)
+    }
 
-    node
-      .resolve_as_method(symbol: self_type.lookup_method(name), scope: types)
-      .or {
-        node.resolve_as_method(symbol: module.lookup_method(name), scope: types)
-      }
-      .if_true {
-        let throws = node.throw_type
+    let method = types.lookup_method(name)
 
-        node.inside_try?.false?.and { throws.not_nil? }.if_true {
-          type_checker
-            .diagnostics
-            .missing_try(type: throws!.type_name, location: node.location)
-        }
+    method.if_true {
+      return resolve_symbol_as_method(node: node, symbol: method!, types: types)
+    }
 
-        return node.resolved_type!
-      }
+    let gvar = module.globals.get(name)
 
-    node
-      .resolve_as_global(module.globals.get(name))
-      .if_true { return node.resolved_type! }
+    gvar.if_true {
+      return resolve_symbol_as_variable(node: node, symbol: gvar!)
+    }
 
     type_checker
       .diagnostics
@@ -646,6 +635,7 @@ trait ExpressionTypePass: TypePass {
       'get_read_only_file_prototype' -> { builtins.read_only_file_type }
       'get_write_only_file_prototype' -> { builtins.write_only_file_type }
       'get_read_write_file_prototype' -> { builtins.read_write_file_type }
+      'get_generator_prototype' -> { builtins.generator_type }
       'object_equals' -> { builtins.boolean_type.new_instance }
       'copy_blocks' -> { NeverType.new }
       'run_block' -> { type_checker.any_trait.new_instance }
@@ -811,6 +801,9 @@ trait ExpressionTypePass: TypePass {
           .new_instance(Array.new(builtins.module_type.new_instance))
       }
       'module_info' -> { builtins.string_type.new_instance }
+      'generator_resume' -> { NeverType.new }
+      'generator_value' -> { type_checker.any_trait.new_instance }
+      'generator_yielded' -> { builtins.boolean_type.new_instance }
       else -> {
         type_checker.diagnostics.unknown_instruction(name: name, location: loc)
         ErrorType.new
@@ -855,6 +848,8 @@ trait ExpressionTypePass: TypePass {
         type! as BlockType
       }
     )
+
+    node.block_type = block
 
     let message = Message.new(receiver: receiver, block: block)
 
@@ -936,16 +931,7 @@ trait ExpressionTypePass: TypePass {
         return node.resolved_type = ErrorType.new
       }
 
-    let throw_type = block.throw_type.substitute(message)
-
-    node.inside_try?.false?.and { throw_type.not_nil? }.if_true {
-      type_checker
-        .diagnostics
-        .missing_try(type: throw_type!.type_name, location: node.location)
-    }
-
-    node.throw_type = throw_type
-    node.resolved_type = block.return_type.substitute(message)
+    assign_throw_and_return_type(node: node, block: block, types: message)
   }
 
   def visit_keyword_argument(
@@ -1029,7 +1015,13 @@ trait ExpressionTypePass: TypePass {
   }
 
   def visit_try(node: Try, types: TypeScope, variables: VariableScope) -> Type {
-    visit_try_expression(node: node, types: types, variables: variables)
+    node.resolved_type = visit_expression(
+      node: node.expression,
+      types: types,
+      variables: variables
+    )
+
+    node.resolved_throw_type = try_expression_throw_type(node.expression)
 
     node.local_throw?.if(
       true: { visit_local_try(node: node, types: types, variables: variables) },
@@ -1039,34 +1031,12 @@ trait ExpressionTypePass: TypePass {
     node.resolved_type!
   }
 
-  def visit_try_expression(
-    node: TryNode,
-    types: TypeScope,
-    variables: VariableScope
-  ) {
-    let expr_node = node.expression
-
-    node.resolved_type = visit_expression(
-      node: expr_node,
-      types: types,
-      variables: variables
-    )
-
-    node.throw_type = match(let expr = expr_node) {
-      as ThrowingNode when expr.throw_type.not_nil? -> { expr.throw_type!  }
-      else -> {
-        type_checker.diagnostics.expression_never_throws(expr.location)
-        ErrorType.new
-      }
-    }
-  }
-
   def visit_local_try(
     node: Try,
     types: TypeScope,
     variables: VariableScope
   ) {
-    let throw_type = node.throw_type!
+    let throw_type = node.resolved_throw_type!
     let block = types.block
 
     block.if_false {
@@ -1075,7 +1045,7 @@ trait ExpressionTypePass: TypePass {
     }
 
     node.with_else?.if_false {
-      block.increment_throws
+      block.throws
 
       block.throw_type.infer?.if_true {
         block!.throw_type = throw_type
@@ -1100,7 +1070,7 @@ trait ExpressionTypePass: TypePass {
     types: TypeScope,
     variables: VariableScope
   ) {
-    let throw_type = node.throw_type!
+    let throw_type = node.resolved_throw_type!
     let block = types.method
 
     block.if_false {
@@ -1109,7 +1079,7 @@ trait ExpressionTypePass: TypePass {
     }
 
     node.with_else?.if_false {
-      block.increment_throws
+      block.throws
 
       block.throw_type.if_false {
         type_checker.diagnostics.unexpected_method_throw(
@@ -1139,7 +1109,7 @@ trait ExpressionTypePass: TypePass {
     variables: VariableScope
   ) {
     let try_type = node.resolved_type!
-    let throw_type = node.throw_type!
+    let throw_type = node.resolved_throw_type!
     let else_vars = node.else_body.variable_scope.with_parent(variables)
 
     node.error_variable.if_true {
@@ -1162,7 +1132,13 @@ trait ExpressionTypePass: TypePass {
     types: TypeScope,
     variables: VariableScope
   ) -> Type {
-    visit_try_expression(node: node, types: types, variables: variables)
+    node.resolved_type = visit_expression(
+      node: node.expression,
+      types: types,
+      variables: variables
+    )
+
+    node.resolved_throw_type = try_expression_throw_type(node.expression)
 
     node.resolved_type!
   }
@@ -1194,14 +1170,17 @@ trait ExpressionTypePass: TypePass {
 
   def visit_global(node: Global, types: TypeScope) -> Type {
     let name = node.name
+    let method = module.lookup_method(name)
 
-    node
-      .resolve_as_method(symbol: module.lookup_method(name), scope: types)
-      .if_true { return node.resolved_type! }
+    method.if_true {
+      return resolve_symbol_as_method(node: node, symbol: method!, types: types)
+    }
 
-    node
-      .resolve_as_global(module.lookup_type(name))
-      .if_true { return node.resolved_type! }
+    let global = module.lookup_type(name)
+
+    global.if_true {
+      return resolve_symbol_as_variable(node: node, symbol: global!)
+    }
 
     type_checker
       .diagnostics
@@ -1245,10 +1224,7 @@ trait ExpressionTypePass: TypePass {
     variables: VariableScope
   ) -> Type {
     let name = node.name.name
-    let mut existing = variables.lookup(name)
-
-    existing.if_false { existing = variables.lookup_in_parents(name) }
-
+    let existing = variables.lookup_with_parents(name)
     let value_type =
       visit_expression(node: node.value, types: types, variables: variables)
 
@@ -2042,7 +2018,7 @@ trait ExpressionTypePass: TypePass {
       return
     }
 
-    block.increment_throws
+    block.throws
 
     block.throw_type.infer?.if_true {
       block!.throw_type = type
@@ -2073,7 +2049,7 @@ trait ExpressionTypePass: TypePass {
       return
     }
 
-    block.increment_throws
+    block.throws
 
     type_compatible?(
       type: type,
@@ -2081,6 +2057,42 @@ trait ExpressionTypePass: TypePass {
       scope: types,
       location: node.location
     )
+  }
+
+  def visit_yield(
+    node: Yield,
+    types: TypeScope,
+    variables: VariableScope
+  ) -> Type {
+    let block = types.method
+    let type =
+      visit_expression(node: node.expression, types: types, variables: variables)
+
+    node.resolved_type = type
+
+    block.if_false {
+      type_checker.diagnostics.invalid_yield(node.location)
+      return type
+    }
+
+    block.yield_type.if_false {
+      type_checker
+        .diagnostics
+        .unexpected_yield(type: type.type_name, location: node.location)
+
+      return type
+    }
+
+    block.yields
+
+    type_compatible?(
+      type: type,
+      with: block.yield_type!,
+      scope: types,
+      location: node.location
+    )
+
+    type
   }
 
   def define_anonymous_block_type(
@@ -2124,7 +2136,7 @@ trait ExpressionTypePass: TypePass {
       block.throw_type = Nil
     }
 
-    block.throw_type.not_nil?.and { block.throws.zero? }.if_true {
+    block.throw_type.not_nil?.and { block.throws?.false? }.if_true {
       type_checker.diagnostics.missing_local_throw(
         type: block.throw_type!.type_name,
         location: location
@@ -2289,6 +2301,83 @@ trait ExpressionTypePass: TypePass {
     let targs = Array.new(type_checker.any_trait.new_instance)
 
     type_checker.builtins.array_type.new_instance(targs)
+  }
+
+  def resolve_symbol_as_variable(
+    node: SymbolNode,
+    symbol: Symbol!(Type)
+  ) -> Type {
+    node.resolved_type = symbol.type
+    node.symbol = symbol
+
+    symbol.type
+  }
+
+  def resolve_symbol_as_method!(N: TryExpressionNode + SymbolNode)(
+    node: N,
+    symbol: Symbol!(MethodType),
+    types: TypeCheckScope
+  ) -> Type {
+    node.symbol = symbol
+
+    assign_throw_and_return_type(node: node, block: symbol.type, types: types)
+  }
+
+  def assign_throw_and_return_type(
+    node: TryExpressionNode,
+    block: BlockType,
+    types: TypeCheckScope
+  ) -> Type {
+    let builtins = type_checker.builtins
+    let throws = block.throw_type.substitute(types)
+    let returns = block
+      .resolve_return_type( throw_type: throws, builtins: builtins, scope: types)
+
+    block
+      .yield_type
+      .nil?
+      .and { throws.not_nil? }
+      .if_true { node.resolved_throw_type = throws! }
+
+    check_error_handling(node: node, block: block, throw_type: throws)
+
+    node.resolved_type = returns
+  }
+
+  def try_expression_throw_type(expression: Node) -> Type {
+    match(let expr = expression) {
+      as TryExpressionNode when expr.resolved_throw_type.not_nil? -> {
+        expr.resolved_throw_type!
+      }
+      else -> {
+        type_checker.diagnostics.expression_never_throws(expr.location)
+        ErrorType.new
+      }
+    }
+  }
+
+  def check_error_handling(
+    node: TryExpressionNode,
+    block: BlockType,
+    throw_type: ?Type
+  ) {
+    # If the throw type is explicitly set to Never, we treat it the same as
+    # there not being a throw type. We support this so generic types can define
+    # a type parameter as the throw type, which the user can then set to Never;
+    # removing the need for error handling where desired.
+    #
+    # Generator methods don't throw themselves, it's the resume method that
+    # throws. As such we'll allow the omission of `try` for generator methods.
+    node
+      .inside_try?
+      .or { throw_type.nil? }
+      .or { throw_type!.never? }
+      .or { block.yield_type.not_nil? }
+      .if_true { return }
+
+    type_checker
+      .diagnostics
+      .missing_try(type: throw_type!.type_name, location: node.location)
   }
 }
 
@@ -2772,6 +2861,7 @@ object TypeCheck {
       type_parameter_bounds: node.type_parameter_bounds,
       throw_type: node.throw_type,
       return_type: node.return_type,
+      yield_type: node.yield_type,
       types: method_type_scope,
       variables: node.body.variable_scope
     )
@@ -2800,6 +2890,7 @@ object TypeCheck {
       type_parameter_bounds: node.type_parameter_bounds,
       throw_type: node.throw_type,
       return_type: node.return_type,
+      yield_type: node.yield_type,
       types: method_type_scope,
       variables: node.body.variable_scope
     )
@@ -2842,6 +2933,7 @@ object TypeCheck {
       type_parameter_bounds: node.type_parameter_bounds,
       throw_type: node.throw_type,
       return_type: node.return_type,
+      yield_type: node.yield_type,
       types: method_type_scope,
       variables: temp_scope
     )
@@ -3182,6 +3274,7 @@ object TypeCheck {
     type_parameter_bounds: Array!(DefineTypeParameter),
     throw_type: ?TypeNode,
     return_type: ?TypeNode,
+    yield_type: ?TypeNode,
     types: TypeScope,
     variables: VariableScope
   ) -> MethodType {
@@ -3205,6 +3298,8 @@ object TypeCheck {
     return_type.if_true {
       method.return_type = visit_type_node(node: return_type!, types: types)
     }
+
+    method.yield_type = visit_optional_type_node(node: yield_type, types: types)
 
     visit_method_bounds(
       nodes: type_parameter_bounds,
@@ -3442,9 +3537,16 @@ object TypeCheckMethods {
     let returned =
       visit_expressions(node: body, types: body_types, variables: body_vars)
 
-    method.throw_type.not_nil?.and { method.throws.zero? }.if_true {
+    method.throw_type.not_nil?.and { method.throws?.false? }.if_true {
       type_checker.diagnostics.missing_method_throw(
         type: method.throw_type!.type_name,
+        location: node.location
+      )
+    }
+
+    method.yield_type.not_nil?.and { method.yields?.false? }.if_true {
+      type_checker.diagnostics.missing_yield(
+        type: method.yield_type!.type_name,
         location: node.location
       )
     }
@@ -3454,6 +3556,10 @@ object TypeCheckMethods {
     # type-checked separately.
     node.return_type.nil?.or { last_expression_is_return?(body) }.if_true {
       return method
+    }
+
+    method.yield_type.not_nil?.and { method.return_type.not_nil? }.if_true {
+      type_checker.diagnostics.cant_yield_and_return(node.location)
     }
 
     type_compatible?(

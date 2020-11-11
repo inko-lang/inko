@@ -269,6 +269,9 @@ impl Object {
             ObjectValue::File(ref file) => {
                 callback(file.path().pointer());
             }
+            ObjectValue::Generator(ref gen) => {
+                gen.each_pointer(|v| callback(v));
+            }
             _ => {}
         }
     }
@@ -404,13 +407,16 @@ mod tests {
     use crate::block::Block as CodeBlock;
     use crate::compiled_code::CompiledCode;
     use crate::config::Config;
+    use crate::execution_context::ExecutionContext;
     use crate::file::File;
     use crate::file::READ;
+    use crate::generator::Generator;
     use crate::immix::block::Block;
     use crate::module::Module;
     use crate::object_pointer::{ObjectPointer, RawObjectPointer};
     use crate::object_value::ObjectValue;
     use crate::vm::state::State;
+    use crate::vm::test::*;
     use std::mem;
     use std::path::PathBuf;
 
@@ -728,6 +734,32 @@ mod tests {
         }
 
         assert_eq!(obj.value.as_file().unwrap().path().raw.raw as usize, 0x5);
+    }
+
+    #[test]
+    fn test_object_each_pointer_with_generator() {
+        let (_machine, block, proc) = setup();
+        let context = Box::new(ExecutionContext::from_block(&block));
+
+        context.binding().set_local(0, fake_pointer());
+
+        let gen = Generator::running(context);
+
+        gen.yield_value(fake_pointer());
+
+        let obj = proc.allocate_without_prototype(ObjectValue::Generator(gen));
+        let mut pointers = Vec::new();
+
+        obj.get().each_pointer(|ptr| pointers.push(ptr));
+
+        while let Some(pointer_pointer) = pointers.pop() {
+            pointer_pointer.get_mut().raw.raw = 0x5 as _;
+        }
+
+        let gen = obj.generator_value().unwrap();
+
+        assert_eq!(gen.context().binding().get_local(0).raw.raw as usize, 0x5);
+        assert_eq!(gen.take_result().unwrap().raw.raw as usize, 0x5);
     }
 
     #[test]

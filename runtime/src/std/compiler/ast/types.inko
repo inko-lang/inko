@@ -24,15 +24,15 @@ object OptionalType {
   def node -> TypeNode {
     @node
   }
-
-  def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
-  }
 }
 
 impl Node for OptionalType {
   def resolved_type -> ?Type {
     @resolved_type
+  }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
   }
 
   def location -> SourceLocation {
@@ -98,15 +98,15 @@ object ClosureType {
   def throw_type -> ?TypeNode {
     @throw_type
   }
-
-  def resolved_type=(value: ResolvedClosureType) -> ResolvedClosureType {
-    @resolved_type = value
-  }
 }
 
 impl Node for ClosureType {
   def resolved_type -> ?ResolvedClosureType {
     @resolved_type
+  }
+
+  def resolved_type=(value: ResolvedClosureType) -> ResolvedClosureType {
+    @resolved_type = value
   }
 
   def location -> SourceLocation {
@@ -172,15 +172,15 @@ object LambdaType {
   def throw_type -> ?TypeNode {
     @throw_type
   }
-
-  def resolved_type=(value: ResolvedLambdaType) -> ResolvedLambdaType {
-    @resolved_type = value
-  }
 }
 
 impl Node for LambdaType {
   def resolved_type -> ?ResolvedLambdaType {
     @resolved_type
+  }
+
+  def resolved_type=(value: ResolvedLambdaType) -> ResolvedLambdaType {
+    @resolved_type = value
   }
 
   def location -> SourceLocation {

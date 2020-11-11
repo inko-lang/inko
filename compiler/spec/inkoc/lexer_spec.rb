@@ -638,6 +638,14 @@ describe Inkoc::Lexer do
       expect(token.type).to eq(:equal)
       expect(token.value).to eq('==')
     end
+
+    it 'tokenizes the double arrow sign' do
+      lexer = described_class.new('=>')
+      token = lexer.assign_or_equal
+
+      expect(token.type).to eq(:darrow)
+      expect(token.value).to eq('=>')
+    end
   end
 
   describe '#not_equal_or_type_args_open_or_throws' do

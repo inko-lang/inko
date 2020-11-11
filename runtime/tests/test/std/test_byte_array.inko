@@ -222,9 +222,14 @@ test.group('std::byte_array::ByteArray.iter') do (g) {
     let bytes = ByteArray.new(10, 20)
     let iter = bytes.iter
 
-    assert.equal(iter.next, 10)
-    assert.equal(iter.next, 20)
-    assert.equal(iter.next, Nil)
+    assert.true(iter.advance)
+    assert.equal(iter.current, 10)
+
+    assert.true(iter.advance)
+    assert.equal(iter.current, 20)
+
+    assert.false(iter.advance)
+    assert.equal(iter.current, Nil)
   }
 }
 

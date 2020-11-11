@@ -99,7 +99,7 @@ object Set!(V: Hash + Equal) {
   #     set.insert(20)
   #
   #     set.iter.next # => 10
-  def iter -> Iterator!(V) {
+  def iter -> Iterator!(V, Never) {
     @map.keys
   }
 

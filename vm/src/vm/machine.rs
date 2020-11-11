@@ -20,6 +20,7 @@ use crate::vm::instructions::env;
 use crate::vm::instructions::ffi;
 use crate::vm::instructions::float;
 use crate::vm::instructions::general;
+use crate::vm::instructions::generator;
 use crate::vm::instructions::hasher;
 use crate::vm::instructions::integer;
 use crate::vm::instructions::io;
@@ -69,6 +70,7 @@ macro_rules! throw_value {
         $machine.throw($process, $value)?;
 
         reset_context!($process, $context, $index);
+        continue;
     }};
 }
 
@@ -112,7 +114,8 @@ macro_rules! safepoint_and_reduce {
     }};
 }
 
-macro_rules! try_runtime_error {
+/// Handles an operation that may produce IO errors.
+macro_rules! try_io_error {
     ($expr:expr, $vm:expr, $proc:expr, $context:ident, $index:ident) => {{
         // When an operation would block, the socket is already registered, and
         // the process may already be running again in another thread. This
@@ -130,13 +133,13 @@ macro_rules! try_runtime_error {
                 thing
             }
             Err(RuntimeError::Panic(msg)) => {
-                $context.instruction_index = $index;
-
-                return Err(msg);
+                vm_panic!(msg, $context, $index);
             }
-            Err(RuntimeError::Exception(msg)) => {
+            Err(RuntimeError::ErrorMessage(msg)) => {
                 throw_error_message!($vm, $proc, msg, $context, $index);
-                continue;
+            }
+            Err(RuntimeError::Error(err)) => {
+                throw_value!($vm, $proc, err, $context, $index);
             }
             Err(RuntimeError::WouldBlock) => {
                 // *DO NOT* use "$context" at this point, as it may have been
@@ -145,6 +148,33 @@ macro_rules! try_runtime_error {
                 return Ok(());
             }
         }
+    }};
+}
+
+/// Handles a regular runtime error.
+macro_rules! try_error {
+    ($expr:expr, $vm:expr, $proc:expr, $context:ident, $index:ident) => {{
+        match $expr {
+            Ok(thing) => thing,
+            Err(RuntimeError::Panic(msg)) => {
+                vm_panic!(msg, $context, $index);
+            }
+            Err(RuntimeError::ErrorMessage(msg)) => {
+                throw_error_message!($vm, $proc, msg, $context, $index);
+            }
+            Err(RuntimeError::Error(err)) => {
+                throw_value!($vm, $proc, err, $context, $index);
+            }
+            _ => unreachable!(),
+        }
+    }};
+}
+
+macro_rules! vm_panic {
+    ($message:expr, $context:expr, $index:expr) => {{
+        $context.instruction_index = $index;
+
+        return Err($message);
     }};
 }
 
@@ -443,8 +473,10 @@ impl Machine {
                         .get_register(instruction.arg(2))
                         .is_zero_integer()
                     {
-                        return Err(
-                            "Can not divide an Integer by 0".to_string()
+                        vm_panic!(
+                            "Can not divide an Integer by 0".to_string(),
+                            context,
+                            index
                         );
                     }
 
@@ -621,7 +653,7 @@ impl Machine {
                     let ary = context.get_register(instruction.arg(1));
                     let idx = context.get_register(instruction.arg(2));
                     let val = context.get_register(instruction.arg(3));
-                    let res = try_runtime_error!(
+                    let res = try_error!(
                         array::array_set(&self.state, process, ary, idx, val),
                         self,
                         process,
@@ -635,7 +667,7 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let ary = context.get_register(instruction.arg(1));
                     let idx = context.get_register(instruction.arg(2));
-                    let res = try_runtime_error!(
+                    let res = try_error!(
                         array::array_get(ary, idx),
                         self,
                         process,
@@ -649,7 +681,7 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let ary = context.get_register(instruction.arg(1));
                     let idx = context.get_register(instruction.arg(2));
-                    let res = try_runtime_error!(
+                    let res = try_error!(
                         array::array_remove(ary, idx),
                         self,
                         process,
@@ -724,7 +756,7 @@ impl Machine {
                 Opcode::StdoutWrite => {
                     let reg = instruction.arg(0);
                     let val = context.get_register(instruction.arg(1));
-                    let res = try_runtime_error!(
+                    let res = try_io_error!(
                         io::stdout_write(&self.state, process, val),
                         self,
                         process,
@@ -737,7 +769,7 @@ impl Machine {
                 Opcode::StderrWrite => {
                     let reg = instruction.arg(0);
                     let val = context.get_register(instruction.arg(1));
-                    let res = try_runtime_error!(
+                    let res = try_io_error!(
                         io::stderr_write(&self.state, process, val),
                         self,
                         process,
@@ -748,7 +780,7 @@ impl Machine {
                     context.set_register(reg, res);
                 }
                 Opcode::StdoutFlush => {
-                    try_runtime_error!(
+                    try_io_error!(
                         io::stdout_flush(),
                         self,
                         process,
@@ -757,7 +789,7 @@ impl Machine {
                     );
                 }
                 Opcode::StderrFlush => {
-                    try_runtime_error!(
+                    try_io_error!(
                         io::stderr_flush(),
                         self,
                         process,
@@ -769,7 +801,7 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let buf = context.get_register(instruction.arg(1));
                     let max = context.get_register(instruction.arg(2));
-                    let res = try_runtime_error!(
+                    let res = try_io_error!(
                         io::stdin_read(&self.state, process, buf, max),
                         self,
                         process,
@@ -783,7 +815,7 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let path = context.get_register(instruction.arg(1));
                     let mode = context.get_register(instruction.arg(2));
-                    let res = try_runtime_error!(
+                    let res = try_io_error!(
                         io::file_open(&self.state, process, path, mode),
                         self,
                         process,
@@ -797,7 +829,7 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let file = context.get_register(instruction.arg(1));
                     let input = context.get_register(instruction.arg(2));
-                    let res = try_runtime_error!(
+                    let res = try_io_error!(
                         io::file_write(&self.state, process, file, input),
                         self,
                         process,
@@ -812,7 +844,7 @@ impl Machine {
                     let file = context.get_register(instruction.arg(1));
                     let buf = context.get_register(instruction.arg(2));
                     let max = context.get_register(instruction.arg(3));
-                    let res = try_runtime_error!(
+                    let res = try_io_error!(
                         io::file_read(&self.state, process, file, buf, max),
                         self,
                         process,
@@ -825,7 +857,7 @@ impl Machine {
                 Opcode::FileFlush => {
                     let file = context.get_register(instruction.arg(0));
 
-                    try_runtime_error!(
+                    try_io_error!(
                         io::file_flush(file),
                         self,
                         process,
@@ -836,7 +868,7 @@ impl Machine {
                 Opcode::FileSize => {
                     let reg = instruction.arg(0);
                     let path = context.get_register(instruction.arg(1));
-                    let res = try_runtime_error!(
+                    let res = try_io_error!(
                         io::file_size(&self.state, process, path),
                         self,
                         process,
@@ -850,7 +882,7 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let file = context.get_register(instruction.arg(1));
                     let pos = context.get_register(instruction.arg(2));
-                    let res = try_runtime_error!(
+                    let res = try_io_error!(
                         io::file_seek(&self.state, process, file, pos),
                         self,
                         process,
@@ -969,7 +1001,6 @@ impl Machine {
                         Ok(None) => {}
                         Err(err) => {
                             throw_value!(self, process, err, context, index);
-                            continue;
                         }
                     }
 
@@ -1177,7 +1208,7 @@ impl Machine {
                 Opcode::FileRemove => {
                     let path = context.get_register(instruction.arg(0));
 
-                    try_runtime_error!(
+                    try_io_error!(
                         io::file_remove(path),
                         self,
                         process,
@@ -1188,7 +1219,11 @@ impl Machine {
                 Opcode::Panic => {
                     let msg = context.get_register(instruction.arg(0));
 
-                    return Err(msg.string_value()?.to_owned_string());
+                    vm_panic!(
+                        msg.string_value()?.to_owned_string(),
+                        context,
+                        index
+                    );
                 }
                 Opcode::Exit => {
                     // Any pending deferred blocks should be executed first.
@@ -1214,7 +1249,7 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let src = context.get_register(instruction.arg(1));
                     let dst = context.get_register(instruction.arg(2));
-                    let res = try_runtime_error!(
+                    let res = try_io_error!(
                         io::file_copy(&self.state, process, src, dst),
                         self,
                         process,
@@ -1227,7 +1262,7 @@ impl Machine {
                 Opcode::FileType => {
                     let reg = instruction.arg(0);
                     let path = context.get_register(instruction.arg(1));
-                    let res = try_runtime_error!(
+                    let res = try_io_error!(
                         io::file_type(path),
                         self,
                         process,
@@ -1241,7 +1276,7 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let path = context.get_register(instruction.arg(1));
                     let kind = context.get_register(instruction.arg(2));
-                    let res = try_runtime_error!(
+                    let res = try_io_error!(
                         io::file_time(&self.state, process, path, kind),
                         self,
                         process,
@@ -1268,7 +1303,7 @@ impl Machine {
                     let path = context.get_register(instruction.arg(0));
                     let recurse = context.get_register(instruction.arg(1));
 
-                    try_runtime_error!(
+                    try_io_error!(
                         io::directory_create(&self.state, path, recurse),
                         self,
                         process,
@@ -1280,7 +1315,7 @@ impl Machine {
                     let path = context.get_register(instruction.arg(0));
                     let recurse = context.get_register(instruction.arg(1));
 
-                    try_runtime_error!(
+                    try_io_error!(
                         io::directory_remove(&self.state, path, recurse),
                         self,
                         process,
@@ -1291,7 +1326,7 @@ impl Machine {
                 Opcode::DirectoryList => {
                     let reg = instruction.arg(0);
                     let path = context.get_register(instruction.arg(1));
-                    let res = try_runtime_error!(
+                    let res = try_io_error!(
                         io::directory_list(&self.state, process, path),
                         self,
                         process,
@@ -1413,7 +1448,7 @@ impl Machine {
                     let ary = context.get_register(instruction.arg(1));
                     let idx = context.get_register(instruction.arg(2));
                     let val = context.get_register(instruction.arg(3));
-                    let res = try_runtime_error!(
+                    let res = try_error!(
                         byte_array::byte_array_set(ary, idx, val),
                         self,
                         process,
@@ -1427,7 +1462,7 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let ary = context.get_register(instruction.arg(1));
                     let idx = context.get_register(instruction.arg(2));
-                    let res = try_runtime_error!(
+                    let res = try_error!(
                         byte_array::byte_array_get(ary, idx),
                         self,
                         process,
@@ -1441,7 +1476,7 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let ary = context.get_register(instruction.arg(1));
                     let idx = context.get_register(instruction.arg(2));
-                    let res = try_runtime_error!(
+                    let res = try_error!(
                         byte_array::byte_array_remove(ary, idx),
                         self,
                         process,
@@ -1495,7 +1530,7 @@ impl Machine {
                 Opcode::EnvGet => {
                     let reg = instruction.arg(0);
                     let var = context.get_register(instruction.arg(1));
-                    let val = try_runtime_error!(
+                    let val = try_error!(
                         env::env_get(&self.state, process, var),
                         self,
                         process,
@@ -1521,7 +1556,7 @@ impl Machine {
                 }
                 Opcode::EnvHomeDirectory => {
                     let reg = instruction.arg(0);
-                    let res = try_runtime_error!(
+                    let res = try_error!(
                         env::env_home_directory(&self.state, process),
                         self,
                         process,
@@ -1539,7 +1574,7 @@ impl Machine {
                 }
                 Opcode::EnvGetWorkingDirectory => {
                     let reg = instruction.arg(0);
-                    let res = try_runtime_error!(
+                    let res = try_error!(
                         env::env_get_working_directory(&self.state, process),
                         self,
                         process,
@@ -1552,7 +1587,7 @@ impl Machine {
                 Opcode::EnvSetWorkingDirectory => {
                     let reg = instruction.arg(0);
                     let dir = context.get_register(instruction.arg(1));
-                    let res = try_runtime_error!(
+                    let res = try_error!(
                         env::env_set_working_directory(dir),
                         self,
                         process,
@@ -1751,7 +1786,7 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let val = context.get_register(instruction.arg(1));
                     let rdx = context.get_register(instruction.arg(2));
-                    let res = try_runtime_error!(
+                    let res = try_error!(
                         string::string_to_integer(
                             &self.state,
                             process,
@@ -1769,7 +1804,7 @@ impl Machine {
                 Opcode::StringToFloat => {
                     let reg = instruction.arg(0);
                     let val = context.get_register(instruction.arg(1));
-                    let res = try_runtime_error!(
+                    let res = try_error!(
                         string::string_to_float(&self.state, process, val),
                         self,
                         process,
@@ -1798,7 +1833,7 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let domain = context.get_register(instruction.arg(1));
                     let kind = context.get_register(instruction.arg(2));
-                    let res = try_runtime_error!(
+                    let res = try_io_error!(
                         socket::socket_create(
                             &self.state,
                             process,
@@ -1817,7 +1852,7 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let sock = context.get_register(instruction.arg(1));
                     let data = context.get_register(instruction.arg(2));
-                    let res = try_runtime_error!(
+                    let res = try_io_error!(
                         socket::socket_write(&self.state, process, sock, data),
                         self,
                         process,
@@ -1832,7 +1867,7 @@ impl Machine {
                     let sock = context.get_register(instruction.arg(1));
                     let buff = context.get_register(instruction.arg(2));
                     let len = context.get_register(instruction.arg(3));
-                    let res = try_runtime_error!(
+                    let res = try_io_error!(
                         socket::socket_read(
                             &self.state,
                             process,
@@ -1851,7 +1886,7 @@ impl Machine {
                 Opcode::SocketAccept => {
                     let reg = instruction.arg(0);
                     let sock = context.get_register(instruction.arg(1));
-                    let res = try_runtime_error!(
+                    let res = try_io_error!(
                         socket::socket_accept(&self.state, process, sock),
                         self,
                         process,
@@ -1866,7 +1901,7 @@ impl Machine {
                     let sock = context.get_register(instruction.arg(1));
                     let buff = context.get_register(instruction.arg(2));
                     let len = context.get_register(instruction.arg(3));
-                    let res = try_runtime_error!(
+                    let res = try_io_error!(
                         socket::socket_receive_from(
                             &self.state,
                             process,
@@ -1888,7 +1923,7 @@ impl Machine {
                     let buff = context.get_register(instruction.arg(2));
                     let addr = context.get_register(instruction.arg(3));
                     let port = context.get_register(instruction.arg(4));
-                    let res = try_runtime_error!(
+                    let res = try_io_error!(
                         socket::socket_send_to(
                             &self.state,
                             process,
@@ -1909,7 +1944,7 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let sock = context.get_register(instruction.arg(1));
                     let kind = context.get_register(instruction.arg(2));
-                    let res = try_runtime_error!(
+                    let res = try_io_error!(
                         socket::socket_address(
                             &self.state,
                             process,
@@ -1928,7 +1963,7 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let sock = context.get_register(instruction.arg(1));
                     let opt = context.get_register(instruction.arg(2));
-                    let res = try_runtime_error!(
+                    let res = try_io_error!(
                         socket::socket_get_option(
                             &self.state,
                             process,
@@ -1948,7 +1983,7 @@ impl Machine {
                     let sock = context.get_register(instruction.arg(1));
                     let opt = context.get_register(instruction.arg(2));
                     let val = context.get_register(instruction.arg(3));
-                    let res = try_runtime_error!(
+                    let res = try_io_error!(
                         socket::socket_set_option(&self.state, sock, opt, val),
                         self,
                         process,
@@ -1963,7 +1998,7 @@ impl Machine {
                     let addr = context.get_register(instruction.arg(1));
                     let port = context.get_register(instruction.arg(2));
 
-                    try_runtime_error!(
+                    try_io_error!(
                         socket::socket_bind(
                             &self.state,
                             process,
@@ -1981,7 +2016,7 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let sock = context.get_register(instruction.arg(1));
                     let backlog = context.get_register(instruction.arg(2));
-                    let res = try_runtime_error!(
+                    let res = try_io_error!(
                         socket::socket_listen(sock, backlog),
                         self,
                         process,
@@ -1996,7 +2031,7 @@ impl Machine {
                     let addr = context.get_register(instruction.arg(1));
                     let port = context.get_register(instruction.arg(2));
 
-                    try_runtime_error!(
+                    try_io_error!(
                         socket::socket_connect(
                             &self.state,
                             process,
@@ -2014,7 +2049,7 @@ impl Machine {
                     let sock = context.get_register(instruction.arg(0));
                     let mode = context.get_register(instruction.arg(1));
 
-                    try_runtime_error!(
+                    try_io_error!(
                         socket::socket_shutdown(sock, mode),
                         self,
                         process,
@@ -2062,7 +2097,74 @@ impl Machine {
                 }
                 Opcode::MoveResult => {
                     let reg = instruction.arg(0);
-                    let res = general::move_result(process);
+                    let res = general::move_result(process)?;
+
+                    context.set_register(reg, res);
+                }
+                Opcode::GeneratorAllocate => {
+                    let reg = instruction.arg(0);
+                    let block = context.get_register(instruction.arg(1));
+                    let rec = context.get_register(instruction.arg(2));
+                    let start = instruction.arg(3);
+                    let args = instruction.arg(4);
+                    let res = generator::allocate(
+                        &self.state,
+                        process,
+                        context,
+                        block,
+                        rec,
+                        start,
+                        args,
+                    )?;
+
+                    context.set_register(reg, res);
+                }
+                Opcode::GeneratorResume => {
+                    let gen = context.get_register(instruction.arg(0));
+
+                    generator::resume(process, gen)?;
+                    enter_context!(process, context, index);
+                }
+                Opcode::GeneratorYield => {
+                    if context.schedule_deferred_blocks(process)? {
+                        remember_and_reset!(process, context, index);
+                    }
+
+                    if context.terminate_upon_return {
+                        break 'exec_loop;
+                    }
+
+                    let val = context.get_register(instruction.arg(0));
+
+                    if !process.yield_value(val) {
+                        vm_panic!(
+                            "Can't yield from the top-level generator"
+                                .to_string(),
+                            context,
+                            index
+                        );
+                    }
+
+                    enter_context!(process, context, index);
+                    safepoint_and_reduce!(self, process, reductions);
+                }
+                Opcode::GeneratorValue => {
+                    let reg = instruction.arg(0);
+                    let gen = context.get_register(instruction.arg(1));
+                    let res = try_error!(
+                        generator::value(&self.state, gen),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
+
+                    context.set_register(reg, res);
+                }
+                Opcode::GeneratorYielded => {
+                    let reg = instruction.arg(0);
+                    let gen = context.get_register(instruction.arg(1));
+                    let res = generator::yielded(&self.state, gen)?;
 
                     context.set_register(reg, res);
                 }
@@ -2110,8 +2212,6 @@ impl Machine {
     ) -> Result<(), String> {
         let mut deferred = Vec::new();
 
-        process.set_result(value);
-
         loop {
             let context = process.context_mut();
             let code = context.code;
@@ -2126,6 +2226,7 @@ impl Machine {
                     // the cost of making a return from this context slightly
                     // more expensive.
                     context.append_deferred_blocks(&mut deferred);
+                    process.set_result(value);
 
                     return Ok(());
                 }

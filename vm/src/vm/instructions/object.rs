@@ -61,6 +61,7 @@ pub fn get_builtin_prototype(
         17 => state.write_only_file_prototype,
         18 => state.read_write_file_prototype,
         19 => state.hasher_prototype,
+        20 => state.generator_prototype,
         _ => return Err(format!("Invalid prototype identifier: {}", id_int)),
     };
 

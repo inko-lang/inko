@@ -87,7 +87,7 @@ object Diagnostics {
   }
 
   # Returns an `Iterator` over all the values in this collection.
-  def iter -> Iterator!(Diagnostic) {
+  def iter -> Iterator!(Diagnostic, Never) {
     @values.iter
   }
 
@@ -597,6 +597,23 @@ object Diagnostics {
     error(message: message, location: location)
   }
 
+  def missing_yield(type: String, location: SourceLocation) {
+    let message = StringBuffer.new(
+      'This method is expected to yield a value of type "',
+      type,
+      '", but no value is ever yielded'
+    )
+
+    error(message: message, location: location)
+  }
+
+  def cant_yield_and_return(location: SourceLocation) {
+    error(
+      message: "A method can't specify both a yield and return type",
+      location: location
+    )
+  }
+
   def invalid_method_throw(location: SourceLocation) {
     error(
       message: 'The `throw` keyword can only be used in methods',
@@ -625,6 +642,13 @@ object Diagnostics {
     )
   }
 
+  def invalid_yield(location: SourceLocation) {
+    error(
+      message: 'The `yield` keyword can only be used in a method',
+      location: location
+    )
+  }
+
   def expression_never_throws(location: SourceLocation) {
     error(message: 'This expression never throws', location: location)
   }
@@ -632,6 +656,16 @@ object Diagnostics {
   def unexpected_method_throw(type: String, location: SourceLocation) {
     let message = StringBuffer.new(
       'You can\'t throw a value of type "',
+      type,
+      '", as the surrounding method does not define a type to throw'
+    )
+
+    error(message: message, location: location)
+  }
+
+  def unexpected_yield(type: String, location: SourceLocation) {
+    let message = StringBuffer.new(
+      'You can\'t yield a value of type "',
       type,
       '", as the surrounding method does not define a type to throw'
     )

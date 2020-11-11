@@ -5,7 +5,8 @@ __version__ = '1.0.0'
 
 KEYWORDS = (
     'as', 'def', 'do', 'else', 'for', 'impl', 'lambda', 'mut', 'object',
-    'return', 'self', 'static', 'throw', 'trait', 'try', 'when', 'match'
+    'return', 'self', 'static', 'throw', 'trait', 'try', 'when', 'match',
+    'yield'
 )
 
 
@@ -31,7 +32,7 @@ class InkoLexer(RegexLexer):
             (r'(\w+)(::)', bygroups(token.Name.Namespace, token.Text)),
             (r'\w+:', token.String.Symbol),
 
-            (r'(->|!!)', token.Keyword),
+            (r'(->|!!|=>)', token.Keyword),
             (r'((<|>|\+|-|\/|\*)=?|==)', token.Operator),
 
             ('try!', token.Keyword),

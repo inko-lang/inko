@@ -2,6 +2,7 @@ use crate::arc_without_weak::ArcWithoutWeak;
 use crate::block::Block;
 use crate::config::Config;
 use crate::execution_context::ExecutionContext;
+use crate::generator::{Generator, RcGenerator};
 use crate::immix::block_list::BlockList;
 use crate::immix::copy_object::CopyObject;
 use crate::immix::global_allocator::RcGlobalAllocator;
@@ -69,24 +70,17 @@ pub struct LocalData {
     /// while also borrowing the mailbox.
     pub mailbox: Mutex<Mailbox>,
 
-    // A block to execute in the event of a panic.
+    /// A block to execute in the event of a panic.
     pub panic_handler: ObjectPointer,
 
-    /// The current execution context of this process.
-    pub context: Box<ExecutionContext>,
+    /// The currently running generator.
+    pub generator: RcGenerator,
 
     /// The ID of the thread this process is pinned to.
     pub thread_id: Option<u8>,
 
     /// The status of the process.
     status: ProcessStatus,
-
-    /// The result produced by a method call, throw, or another instruction that
-    /// may trigger the unwinding of call frames.
-    ///
-    /// This data is saved on a per-process basis, as processes may be suspended
-    /// between a return and the use of this value.
-    result: ObjectPointer,
 }
 
 pub struct Process {
@@ -129,12 +123,11 @@ impl Process {
     ) -> RcProcess {
         let local_data = LocalData {
             allocator: LocalAllocator::new(global_allocator, config),
-            context: Box::new(context),
+            generator: Generator::running(Box::new(context)),
             panic_handler: ObjectPointer::null(),
             thread_id: None,
             mailbox: Mutex::new(Mailbox::new()),
             status: ProcessStatus::new(),
-            result: ObjectPointer::null(),
         };
 
         ArcWithoutWeak::new(Process {
@@ -248,13 +241,15 @@ impl Process {
     }
 
     pub fn push_context(&self, context: ExecutionContext) {
-        let mut boxed = Box::new(context);
+        self.local_data_mut().generator.push_context(context);
+    }
+
+    pub fn resume_generator(&self, mut generator: RcGenerator) {
         let local_data = self.local_data_mut();
-        let target = &mut local_data.context;
+        let target = &mut local_data.generator;
 
-        mem::swap(target, &mut boxed);
-
-        target.set_parent(boxed);
+        mem::swap(target, &mut generator);
+        target.set_parent(generator);
     }
 
     /// Pops an execution context.
@@ -263,13 +258,34 @@ impl Process {
     /// stack.
     pub fn pop_context(&self) -> bool {
         let local_data = self.local_data_mut();
+        let gen = &mut local_data.generator;
 
-        if let Some(parent) = local_data.context.parent.take() {
-            local_data.context = parent;
+        if gen.pop_context() {
+            gen.set_finished();
 
-            false
+            if let Some(parent) = gen.take_parent() {
+                local_data.generator = parent;
+                false
+            } else {
+                true
+            }
         } else {
+            false
+        }
+    }
+
+    pub fn yield_value(&self, value: ObjectPointer) -> bool {
+        let local_data = self.local_data_mut();
+        let gen = &mut local_data.generator;
+
+        gen.yield_value(value);
+
+        if let Some(parent) = gen.take_parent() {
+            local_data.generator = parent;
+
             true
+        } else {
+            false
         }
     }
 
@@ -390,12 +406,12 @@ impl Process {
     }
 
     pub fn context(&self) -> &ExecutionContext {
-        &self.local_data().context
+        self.local_data().generator.context()
     }
 
     #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
     pub fn context_mut(&self) -> &mut ExecutionContext {
-        &mut *self.local_data_mut().context
+        self.local_data_mut().generator.context_mut()
     }
 
     pub fn has_messages(&self) -> bool {
@@ -411,7 +427,7 @@ impl Process {
     }
 
     pub fn contexts(&self) -> Vec<&ExecutionContext> {
-        self.context().contexts().collect()
+        self.local_data().generator.contexts()
     }
 
     /// Write barrier for tracking cross generation writes.
@@ -497,10 +513,9 @@ impl Process {
             callback(handler.pointer());
         }
 
-        let local_data = self.local_data_mut();
-
-        if !local_data.result.is_null() {
-            callback(local_data.result.pointer());
+        if let Some(ptr) = self.local_data().generator.result_pointer_pointer()
+        {
+            callback(ptr);
         }
     }
 
@@ -534,16 +549,11 @@ impl Process {
     }
 
     pub fn set_result(&self, result: ObjectPointer) {
-        self.local_data_mut().result = result;
+        self.local_data().generator.set_result(result);
     }
 
-    pub fn take_result(&self) -> ObjectPointer {
-        let mut local_data = self.local_data_mut();
-        let res = local_data.result;
-
-        local_data.result = ObjectPointer::null();
-
-        res
+    pub fn take_result(&self) -> Option<ObjectPointer> {
+        self.local_data().generator.take_result()
     }
 }
 
@@ -734,7 +744,7 @@ mod tests {
     fn test_process_type_size() {
         // This test is put in place to ensure the type size doesn't change
         // unintentionally.
-        assert_eq!(mem::size_of::<Process>(), 368);
+        assert_eq!(mem::size_of::<Process>(), 360);
     }
 
     #[test]

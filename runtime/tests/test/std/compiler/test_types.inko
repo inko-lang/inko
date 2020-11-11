@@ -1231,11 +1231,11 @@ test.group('std::compiler::types::BlockLayout.increment_throws') do (g) {
   g.test('Incrementing the number of throws') {
     let layout = BlockLayout.new(NeverType.new)
 
-    assert.equal(layout.throws, 0)
+    assert.false(layout.throws?)
 
-    layout.increment_throws
+    layout.throws
 
-    assert.equal(layout.throws, 1)
+    assert.true(layout.throws?)
   }
 }
 
@@ -1323,11 +1323,11 @@ test.group('std::compiler::types::BlockLayout.substitute') do (g) {
     let self_type = ObjectType.new('Foo').new_instance
     let layout = BlockLayout.new(NeverType.new)
 
-    layout.increment_throws
+    layout.throws
 
     let new_layout = layout.substitute(type_scope(self_type))
 
-    assert.equal(new_layout.throws, layout.throws)
+    assert.equal(new_layout.throws?, layout.throws?)
   }
 }
 
@@ -1374,11 +1374,11 @@ test.group('std::compiler::types::BlockType.increment_throws') do (g) {
   g.test('Incrementing the number of throws') {
     let block = DummyBlock.new
 
-    assert.equal(block.throws, 0)
+    assert.false(block.throws?)
 
-    block.increment_throws
+    block.throws
 
-    assert.equal(block.throws, 1)
+    assert.true(block.throws?)
   }
 }
 

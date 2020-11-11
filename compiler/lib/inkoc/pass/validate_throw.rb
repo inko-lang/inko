@@ -218,10 +218,15 @@ module Inkoc
       end
 
       def error_for_missing_try(node)
-        return unless (throw_type = node.block_type&.throw_type)
-        return if throw_type.optional?
+        return if in_try?
+        return unless (throw_type = node.throw_type)
+        return if throw_type.never?
 
-        diagnostics.missing_try_error(throw_type, node.location) unless in_try?
+        # A generator itself won't throw until its resumed, so a `try` is not
+        # needed when creating the generator.
+        return if node.block_type.yield_type
+
+        diagnostics.missing_try_error(throw_type, node.location)
       end
 
       def error_for_undefined_throw(throw_type, block_type, location)

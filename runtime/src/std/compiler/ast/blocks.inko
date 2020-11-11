@@ -56,10 +56,6 @@ object DefineUntypedArgument {
   def mutable? -> Boolean {
     @mutable
   }
-
-  def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
-  }
 }
 
 impl Node for DefineUntypedArgument {
@@ -69,6 +65,10 @@ impl Node for DefineUntypedArgument {
 
   def resolved_type -> ?Type {
     @resolved_type
+  }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
   }
 }
 
@@ -117,10 +117,6 @@ object DefineRequiredArgument {
   def mutable? -> Boolean {
     @mutable
   }
-
-  def resolved_type=(type: Type) -> Type {
-    @resolved_type = type
-  }
 }
 
 impl Node for DefineRequiredArgument {
@@ -130,6 +126,10 @@ impl Node for DefineRequiredArgument {
 
   def resolved_type -> ?Type {
     @resolved_type
+  }
+
+  def resolved_type=(type: Type) -> Type {
+    @resolved_type = type
   }
 }
 
@@ -178,10 +178,6 @@ object DefineRestArgument {
   def mutable? -> Boolean {
     @mutable
   }
-
-  def resolved_type=(type: Type) -> Type {
-    @resolved_type = type
-  }
 }
 
 impl Node for DefineRestArgument {
@@ -191,6 +187,10 @@ impl Node for DefineRestArgument {
 
   def resolved_type -> ?Type {
     @resolved_type
+  }
+
+  def resolved_type=(type: Type) -> Type {
+    @resolved_type = type
   }
 }
 
@@ -248,10 +248,6 @@ object DefineOptionalArgument {
   def mutable? -> Boolean {
     @mutable
   }
-
-  def resolved_type=(type: Type) -> Type {
-    @resolved_type = type
-  }
 }
 
 impl Node for DefineOptionalArgument {
@@ -261,6 +257,10 @@ impl Node for DefineOptionalArgument {
 
   def resolved_type -> ?Type {
     @resolved_type
+  }
+
+  def resolved_type=(type: Type) -> Type {
+    @resolved_type = type
   }
 }
 
@@ -289,10 +289,6 @@ object BasicClosure {
   def body -> Body {
     @body
   }
-
-  def resolved_type=(value: ClosureType) -> ClosureType {
-    @resolved_type = value
-  }
 }
 
 impl Node for BasicClosure {
@@ -302,6 +298,10 @@ impl Node for BasicClosure {
 
   def resolved_type -> ?ClosureType {
     @resolved_type
+  }
+
+  def resolved_type=(value: ClosureType) -> ClosureType {
+    @resolved_type = value
   }
 }
 
@@ -366,10 +366,6 @@ object Closure {
   def throw_type -> ?TypeNode {
     @throw_type
   }
-
-  def resolved_type=(value: ClosureType) -> ClosureType {
-    @resolved_type = value
-  }
 }
 
 impl Node for Closure {
@@ -379,6 +375,10 @@ impl Node for Closure {
 
   def resolved_type -> ?ClosureType {
     @resolved_type
+  }
+
+  def resolved_type=(value: ClosureType) -> ClosureType {
+    @resolved_type = value
   }
 }
 
@@ -443,10 +443,6 @@ object Lambda {
   def throw_type -> ?TypeNode {
     @throw_type
   }
-
-  def resolved_type=(value: LambdaType) -> LambdaType {
-    @resolved_type = value
-  }
 }
 
 impl Node for Lambda {
@@ -456,6 +452,10 @@ impl Node for Lambda {
 
   def resolved_type -> ?LambdaType {
     @resolved_type
+  }
+
+  def resolved_type=(value: LambdaType) -> LambdaType {
+    @resolved_type = value
   }
 }
 
@@ -483,6 +483,9 @@ object DefineMethod {
   # The return type of this method.
   @return_type: ?TypeNode
 
+  # The type of value this method might yield.
+  @yield_type: ?TypeNode
+
   # The source location of the method.
   @location: SourceLocation
 
@@ -500,6 +503,7 @@ object DefineMethod {
     arguments: Array!(DefineArgument),
     throw_type: ?TypeNode,
     return_type: ?TypeNode,
+    yield_type: ?TypeNode,
     static_method: Boolean,
     body: Body,
     location: SourceLocation
@@ -512,6 +516,7 @@ object DefineMethod {
       @body = body,
       @throw_type = throw_type,
       @return_type = return_type,
+      @yield_type = yield_type,
       @static_method = static_method,
       @location = location,
       @resolved_type = Nil
@@ -547,6 +552,10 @@ object DefineMethod {
     @throw_type
   }
 
+  def yield_type -> ?TypeNode {
+    @yield_type
+  }
+
   def static_method? -> Boolean {
     @static_method
   }
@@ -554,15 +563,15 @@ object DefineMethod {
   def instance_method? -> Boolean {
     @static_method.false?
   }
-
-  def resolved_type=(value: MethodType) -> MethodType {
-    @resolved_type = value
-  }
 }
 
 impl Node for DefineMethod {
   def resolved_type -> ?MethodType {
     @resolved_type
+  }
+
+  def resolved_type=(value: MethodType) -> MethodType {
+    @resolved_type = value
   }
 
   def location -> SourceLocation {
@@ -591,6 +600,9 @@ object DefineRequiredMethod {
   # The return type of this method.
   @return_type: ?TypeNode
 
+  # The type of value this method might yield.
+  @yield_type: ?TypeNode
+
   # The source location of the method.
   @location: SourceLocation
 
@@ -608,6 +620,7 @@ object DefineRequiredMethod {
     arguments: Array!(DefineArgument),
     throw_type: ?TypeNode,
     return_type: ?TypeNode,
+    yield_type: ?TypeNode,
     location: SourceLocation
   ) -> Self {
     Self {
@@ -617,6 +630,7 @@ object DefineRequiredMethod {
       @arguments = arguments,
       @throw_type = throw_type,
       @return_type = return_type,
+      @yield_type = yield_type,
       @location = location,
       @resolved_type = Nil,
       @type_scope = Nil
@@ -647,8 +661,8 @@ object DefineRequiredMethod {
     @throw_type
   }
 
-  def resolved_type=(value: MethodType) -> MethodType {
-    @resolved_type = value
+  def yield_type -> ?TypeNode {
+    @yield_type
   }
 
   def type_scope -> ?TypeScope {
@@ -663,6 +677,10 @@ object DefineRequiredMethod {
 impl Node for DefineRequiredMethod {
   def resolved_type -> ?MethodType {
     @resolved_type
+  }
+
+  def resolved_type=(value: MethodType) -> MethodType {
+    @resolved_type = value
   }
 
   def location -> SourceLocation {

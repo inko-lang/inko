@@ -60,10 +60,6 @@ object Match {
   def else_branch -> ?MatchElse {
     @else_branch
   }
-
-  def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
-  }
 }
 
 impl Node for Match {
@@ -73,6 +69,10 @@ impl Node for Match {
 
   def resolved_type -> ?Type {
     @resolved_type
+  }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
   }
 }
 
@@ -119,10 +119,6 @@ object MatchType {
   def body -> Body {
     @body
   }
-
-  def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
-  }
 }
 
 impl Node for MatchType {
@@ -132,6 +128,10 @@ impl Node for MatchType {
 
   def resolved_type -> ?Type {
     @resolved_type
+  }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
   }
 }
 
@@ -180,10 +180,6 @@ object MatchExpressions {
   def body -> Body {
     @body
   }
-
-  def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
-  }
 }
 
 impl Node for MatchExpressions {
@@ -193,6 +189,10 @@ impl Node for MatchExpressions {
 
   def resolved_type -> ?Type {
     @resolved_type
+  }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
   }
 }
 
@@ -216,10 +216,6 @@ object MatchElse {
   def body -> Body {
     @body
   }
-
-  def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
-  }
 }
 
 impl Node for MatchElse {
@@ -229,5 +225,9 @@ impl Node for MatchElse {
 
   def resolved_type -> ?Type {
     @resolved_type
+  }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
   }
 }

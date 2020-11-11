@@ -85,6 +85,9 @@ pub trait CopyObject: Sized {
             ObjectValue::Module(ref module) => {
                 ObjectValue::Module(module.clone())
             }
+            ObjectValue::Generator(_) => {
+                panic!("Generators can't be cloned");
+            }
         };
 
         let mut copy = if let Some(proto_ptr) = to_copy.prototype() {

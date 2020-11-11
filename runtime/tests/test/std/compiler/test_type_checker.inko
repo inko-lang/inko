@@ -2177,6 +2177,119 @@ test.group('Type-checking method definitions') do (g) {
 
     assert.false(type_checker.diagnostics.errors?)
   }
+
+  g.test('Defining a method that yields') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let int_type = type_checker.builtins.integer_type
+    let body = parse('def foo => Integer { yield 10 }')
+    let node = body.children[0] as DefineMethod
+
+    module.define_constant(name: 'Integer', type: int_type)
+    type_checker.check_module(module: module, ast: body)
+
+    let method = module.methods['foo'].type as MethodType
+
+    assert.false(type_checker.diagnostics.errors?)
+    assert_object_instance(method.yield_type, int_type)
+    assert_object_instance(node.body.children[0].resolved_type, int_type)
+  }
+
+  g.test('Defining a required method with a yield type') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let int_type = type_checker.builtins.integer_type
+    let body = parse('trait A { def foo => Integer }')
+
+    module.define_constant(name: 'Integer', type: int_type)
+    type_checker.check_module(module: module, ast: body)
+
+    let ttype = module.constants['A'].type as TraitType
+    let mtype = ttype.required_methods['foo'].type
+
+    assert.false(type_checker.diagnostics.errors?)
+    assert_object_instance(mtype.yield_type, int_type)
+  }
+
+  g.test('Defining a method with a yield type that never yields') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let int_type = type_checker.builtins.integer_type
+    let body = parse('def foo => Integer {}')
+
+    module.define_constant(name: 'Integer', type: int_type)
+    type_checker.check_module(module: module, ast: body)
+
+    assert.true(type_checker.diagnostics.errors?)
+  }
+
+  g.test('Defining a method that yields without a yield type') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let body = parse('def foo { yield 10 }')
+
+    type_checker.check_module(module: module, ast: body)
+
+    assert.true(type_checker.diagnostics.errors?)
+  }
+
+  g.test('Defining a method that yields an invalid type') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let int_type = type_checker.builtins.integer_type
+    let body = parse('def foo => Integer { yield 10.5 }')
+
+    module.define_constant(name: 'Integer', type: int_type)
+    type_checker.check_module(module: module, ast: body)
+
+    assert.true(type_checker.diagnostics.errors?)
+  }
+
+  g.test('Defining a method with a yield type that returns a value') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let int_type = type_checker.builtins.integer_type
+    let body = parse(
+      'def foo => Integer {
+        yield 10
+        return 10
+      }'
+    )
+
+    module.define_constant(name: 'Integer', type: int_type)
+    type_checker.check_module(module: module, ast: body)
+
+    assert.true(type_checker.diagnostics.errors?)
+  }
+
+  g.test('Defining a method with a yield type that returns without a value') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let int_type = type_checker.builtins.integer_type
+    let body = parse(
+      'def foo => Integer {
+        yield 10
+        return
+      }'
+    )
+
+    module.define_constant(name: 'Integer', type: int_type)
+    type_checker.check_module(module: module, ast: body)
+
+    assert.false(type_checker.diagnostics.errors?)
+  }
+
+  g.test('Defining a method with both a return and yield type') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let int_type = type_checker.builtins.integer_type
+    let body = parse('def foo -> Integer => Integer { yield 10 }')
+
+    module.define_constant(name: 'Integer', type: int_type)
+    type_checker.check_module(module: module, ast: body)
+
+    assert.true(type_checker.diagnostics.errors?)
+  }
 }
 
 test.group('Type-checking constant definitions') do (g) {
@@ -2987,7 +3100,6 @@ test.group('Type-checking identifier references') do (g) {
       type_checker.builtins.integer_type
     )
 
-    assert.true(node.local?)
     assert.true(node.symbol.type! == node.resolved_type!)
   }
 
@@ -3010,7 +3122,6 @@ test.group('Type-checking identifier references') do (g) {
       type_checker.builtins.integer_type
     )
 
-    assert.true(node.global?)
     assert.true(node.symbol.type! == node.resolved_type!)
   }
 }
@@ -3035,7 +3146,6 @@ test.group('Type-checking method calls without explicit receivers') do (g) {
       type_checker.builtins.integer_type
     )
 
-    assert.true(node.method?)
     assert_instance_of(node.symbol.type, MethodType)
   }
 
@@ -3147,7 +3257,6 @@ test.group('Type-checking method calls without explicit receivers') do (g) {
 
     assert_object_instance(type, type_checker.builtins.array_type)
     assert.true(type.type_parameter_types[param] == module)
-    assert.true(node.method?)
   }
 }
 
@@ -3173,7 +3282,6 @@ test.group('Type-checking global references using ::') do (g) {
     )
 
     assert.true(node.symbol.type! == node.resolved_type!)
-    assert.true(node.global?)
   }
 
   g.test('Referring to an imported global variable') {
@@ -3196,7 +3304,6 @@ test.group('Type-checking global references using ::') do (g) {
     )
 
     assert.true(node.symbol.type! == node.resolved_type!)
-    assert.true(node.global?)
   }
 
   g.test('Calling a module method with no arguments using ::') {
@@ -3217,8 +3324,6 @@ test.group('Type-checking global references using ::') do (g) {
       node.resolved_type,
       type_checker.builtins.integer_type
     )
-
-    assert.true(node.method?)
   }
 
   g.test('Calling an imported module method with no arguments using ::') {
@@ -3239,8 +3344,22 @@ test.group('Type-checking global references using ::') do (g) {
       node.resolved_type,
       type_checker.builtins.integer_type
     )
+  }
 
-    assert.true(node.method?)
+  g.test('Calling an imported module method that throws an unhandled error') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let int_type = type_checker.builtins.integer_type
+    let body = parse('::foo')
+    let layout = BlockLayout
+      .new(return_type: int_type.new_instance, throw_type: int_type.new_instance)
+
+    let type = MethodType.new(name: 'foo', layout: layout)
+
+    module.globals.define(name: type.name, type: type)
+    type_checker.check_module(module: module, ast: body)
+
+    assert.true(type_checker.diagnostics.errors?)
   }
 }
 
@@ -4987,6 +5106,18 @@ test.group('Type-checking local throws') do (g) {
   }
 }
 
+test.group('Type-checking yields') do (g) {
+  g.test('Yielding at the module-level') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let body = parse('yield 10')
+
+    type_checker.check_module(module: module, ast: body)
+
+    assert.true(type_checker.diagnostics.errors?)
+  }
+}
+
 test.group('Type-checking sending messages') do (g) {
   g.test('Not passing any arguments when none are required') {
     let module = new_module('foo')
@@ -5709,6 +5840,44 @@ test.group('Type-checking sending messages') do (g) {
     assert.false(type_checker.diagnostics.errors?)
     assert_object_instance(node.resolved_type, int_type)
   }
+
+  g.test('Sending an identifier message of which the error type is Never') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let int_type = type_checker.builtins.integer_type
+    let body = parse('foo')
+    let node = body.children[0]
+
+    let layout = BlockLayout
+      .new(return_type: int_type.new_instance, throw_type: NeverType.new)
+
+    let foo = MethodType.new(name: 'foo', layout: layout)
+
+    module.define_method(name: foo.name, type: foo)
+    type_checker.check_module(module: module, ast: body)
+
+    assert.false(type_checker.diagnostics.errors?)
+    assert_object_instance(node.resolved_type, int_type)
+  }
+
+  g.test('Sending a message of which the error type is Never') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let int_type = type_checker.builtins.integer_type
+    let body = parse('foo()')
+    let node = body.children[0]
+
+    let layout = BlockLayout
+      .new(return_type: int_type.new_instance, throw_type: NeverType.new)
+
+    let foo = MethodType.new(name: 'foo', layout: layout)
+
+    module.define_method(name: foo.name, type: foo)
+    type_checker.check_module(module: module, ast: body)
+
+    assert.false(type_checker.diagnostics.errors?)
+    assert_object_instance(node.resolved_type, int_type)
+  }
 }
 
 test.group('Type-checking sending messages with method bounds') do (g) {
@@ -5879,9 +6048,9 @@ test.group('Type-checking the `local try` keyword') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.true(type_checker.diagnostics.errors?)
-    assert_object_instance(node.throw_type, float_type)
+    assert_object_instance(node.resolved_throw_type, float_type)
     assert_object_instance(node.resolved_type, int_type)
-    assert_object_instance(ident.throw_type, float_type)
+    assert_object_instance(ident.resolved_throw_type, float_type)
   }
 
   g.test('Re-throwing outside of a block using a message send') {
@@ -5906,7 +6075,7 @@ test.group('Type-checking the `local try` keyword') do (g) {
 
     assert.true(type_checker.diagnostics.errors?)
     assert_object_instance(node.resolved_type, int_type)
-    assert_object_instance(send.throw_type, float_type)
+    assert_object_instance(send.resolved_throw_type, float_type)
   }
 
   g.test("Re-throwing an error with an expression that doesn't throw") {
@@ -5919,7 +6088,7 @@ test.group('Type-checking the `local try` keyword') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.true(type_checker.diagnostics.errors?)
-    assert.true(node.throw_type.error?)
+    assert.true(node.resolved_throw_type.error?)
     assert_object_instance(
       node.resolved_type,
       type_checker.builtins.integer_type
@@ -6271,9 +6440,9 @@ test.group('Type-checking the `try` keyword') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.true(type_checker.diagnostics.errors?)
-    assert_object_instance(node.throw_type, float_type)
+    assert_object_instance(node.resolved_throw_type, float_type)
     assert_object_instance(node.resolved_type, int_type)
-    assert_object_instance(ident.throw_type, float_type)
+    assert_object_instance(ident.resolved_throw_type, float_type)
   }
 
   g.test('Re-throwing outside of a block using a message send') {
@@ -6298,7 +6467,7 @@ test.group('Type-checking the `try` keyword') do (g) {
 
     assert.true(type_checker.diagnostics.errors?)
     assert_object_instance(node.resolved_type, int_type)
-    assert_object_instance(send.throw_type, float_type)
+    assert_object_instance(send.resolved_throw_type, float_type)
   }
 
   g.test("Re-throwing an error with an expression that doesn't throw") {
@@ -6311,7 +6480,7 @@ test.group('Type-checking the `try` keyword') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.true(type_checker.diagnostics.errors?)
-    assert.true(node.throw_type.error?)
+    assert.true(node.resolved_throw_type.error?)
     assert_object_instance(
       node.resolved_type,
       type_checker.builtins.integer_type
@@ -6601,7 +6770,7 @@ test.group('Type-checking the `try!` keyword') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.true(type_checker.diagnostics.errors?)
-    assert.true(node.throw_type.error?)
+    assert.true(node.resolved_throw_type.error?)
     assert_object_instance(
       node.resolved_type,
       type_checker.builtins.integer_type
@@ -6627,7 +6796,7 @@ test.group('Type-checking the `try!` keyword') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(node.throw_type, float_type)
+    assert_object_instance(node.resolved_throw_type, float_type)
     assert_object_instance(node.resolved_type, int_type)
   }
 }
@@ -8494,6 +8663,18 @@ test.group('Type-checking VM instructions') do (g) {
     assert.true(node.resolved_type == type_checker.builtins.read_write_file_type)
   }
 
+  g.test('Using generator_prototype()') {
+    let module = new_std_module('foo')
+    let type_checker = TypeChecker.new
+    let body = parse('_INKOC.get_generator_prototype')
+    let node = body.children[0]
+
+    type_checker.check_module(module: module, ast: body)
+
+    assert.false(type_checker.diagnostics.errors?)
+    assert.true(node.resolved_type == type_checker.builtins.generator_type)
+  }
+
   g.test('Using set_object_name()') {
     let module = new_std_module('foo')
     let type_checker = TypeChecker.new
@@ -9191,6 +9372,48 @@ test.group('Type-checking VM instructions') do (g) {
     assert.false(type_checker.diagnostics.errors?)
     assert_object_instance(node.resolved_type, type_checker.builtins.string_type)
   }
+
+  g.test('Using generator_resume()') {
+    let module = new_std_module('foo')
+    let type_checker = TypeChecker.new
+    let body = parse('_INKOC.generator_resume')
+    let node = body.children[0]
+
+    setup_bootstrap_module(type_checker)
+    type_checker.check_module(module: module, ast: body)
+
+    assert.false(type_checker.diagnostics.errors?)
+    assert_instance_of(node.resolved_type, NeverType)
+  }
+
+  g.test('Using generator_value()') {
+    let module = new_std_module('foo')
+    let type_checker = TypeChecker.new
+    let body = parse('_INKOC.generator_value')
+    let node = body.children[0]
+
+    setup_bootstrap_module(type_checker)
+    type_checker.check_module(module: module, ast: body)
+
+    assert.false(type_checker.diagnostics.errors?)
+    assert_trait_instance(node.resolved_type, type_checker.any_trait!)
+  }
+
+  g.test('Using generator_yielded()') {
+    let module = new_std_module('foo')
+    let type_checker = TypeChecker.new
+    let body = parse('_INKOC.generator_yielded')
+    let node = body.children[0]
+
+    setup_bootstrap_module(type_checker)
+    type_checker.check_module(module: module, ast: body)
+
+    assert.false(type_checker.diagnostics.errors?)
+    assert_object_instance(
+      node.resolved_type,
+      type_checker.builtins.boolean_type
+    )
+  }
 }
 
 test.group('Type-checking object constructors') do (g) {
@@ -9345,5 +9568,151 @@ test.group('Type-checking object constructors') do (g) {
 
     assert.false(type_checker.diagnostics.errors?)
     assert_object_instance(node.resolved_type, obj_type)
+  }
+}
+
+test.group('Type-checking generators') do (g) {
+  g.test('Creating a generator without parentheses') {
+    let module = new_std_module('foo')
+    let type_checker = TypeChecker.new
+    let int_type = type_checker.builtins.integer_type
+    let gen_type = type_checker.builtins.generator_type
+    let body = parse(
+      'def gen => Integer { yield 10 }
+      gen'
+    )
+    let node = body.children[1] as Identifier
+
+    module.globals.define(name: 'Integer', int_type)
+    type_checker.check_module(module: module, ast: body)
+
+    let type = node.resolved_type
+
+    assert.false(type_checker.diagnostics.errors?)
+    assert_object_instance(type, gen_type)
+
+    let vparam = type.lookup_type_parameter(GENERATOR_VALUE_TYPE_PARAMETER).type!
+    let eparam = type.lookup_type_parameter(GENERATOR_ERROR_TYPE_PARAMETER).type!
+
+    assert_object_instance(type.lookup_type_parameter_type(vparam), int_type)
+    assert_instance_of(type.lookup_type_parameter_type(eparam), NeverType)
+  }
+
+  g.test('Creating a generator using parentheses') {
+    let module = new_std_module('foo')
+    let type_checker = TypeChecker.new
+    let int_type = type_checker.builtins.integer_type
+    let gen_type = type_checker.builtins.generator_type
+    let body = parse(
+      'def gen => Integer { yield 10 }
+      gen()'
+    )
+    let node = body.children[1] as Send
+
+    module.globals.define(name: 'Integer', int_type)
+    type_checker.check_module(module: module, ast: body)
+
+    let type = node.resolved_type
+
+    assert.false(type_checker.diagnostics.errors?)
+    assert_object_instance(type, gen_type)
+
+    let vparam = type.lookup_type_parameter(GENERATOR_VALUE_TYPE_PARAMETER).type!
+    let eparam = type.lookup_type_parameter(GENERATOR_ERROR_TYPE_PARAMETER).type!
+
+    assert_object_instance(type.lookup_type_parameter_type(vparam), int_type)
+    assert_instance_of(type.lookup_type_parameter_type(eparam), NeverType)
+  }
+
+  g.test('Creating a generator that throws without parentheses') {
+    let module = new_std_module('foo')
+    let type_checker = TypeChecker.new
+    let int_type = type_checker.builtins.integer_type
+    let gen_type = type_checker.builtins.generator_type
+    let body = parse(
+      'def gen !! Integer => Integer {
+        yield 10
+        throw 20
+      }
+      gen'
+    )
+    let node = body.children[1] as Identifier
+
+    module.globals.define(name: 'Integer', int_type)
+    type_checker.check_module(module: module, ast: body)
+
+    let type = node.resolved_type
+
+    assert.false(type_checker.diagnostics.errors?)
+    assert_object_instance(type, gen_type)
+    assert.true(node.resolved_throw_type.nil?)
+
+    let vparam = type.lookup_type_parameter(GENERATOR_VALUE_TYPE_PARAMETER).type!
+    let eparam = type.lookup_type_parameter(GENERATOR_ERROR_TYPE_PARAMETER).type!
+
+    assert_object_instance(type.lookup_type_parameter_type(vparam), int_type)
+    assert_object_instance(type.lookup_type_parameter_type(eparam), int_type)
+  }
+
+  g.test('Creating a generator that throws with parentheses') {
+    let module = new_std_module('foo')
+    let type_checker = TypeChecker.new
+    let int_type = type_checker.builtins.integer_type
+    let gen_type = type_checker.builtins.generator_type
+    let body = parse(
+      'def gen !! Integer => Integer {
+        yield 10
+        throw 20
+      }
+      gen()'
+    )
+
+    let node = body.children[1] as Send
+
+    module.globals.define(name: 'Integer', int_type)
+    type_checker.check_module(module: module, ast: body)
+
+    let type = node.resolved_type
+
+    assert.false(type_checker.diagnostics.errors?)
+    assert_object_instance(type, gen_type)
+    assert.true(node.resolved_throw_type.nil?)
+
+    let vparam = type.lookup_type_parameter(GENERATOR_VALUE_TYPE_PARAMETER).type!
+    let eparam = type.lookup_type_parameter(GENERATOR_ERROR_TYPE_PARAMETER).type!
+
+    assert_object_instance(type.lookup_type_parameter_type(vparam), int_type)
+    assert_object_instance(type.lookup_type_parameter_type(eparam), int_type)
+  }
+
+  g.test('Creating a generator using a global') {
+    let module = new_std_module('foo')
+    let type_checker = TypeChecker.new
+    let int_type = type_checker.builtins.integer_type
+    let gen_type = type_checker.builtins.generator_type
+    let body = parse(
+      'def gen !! Integer => Integer {
+        yield 10
+        throw 20
+      }
+      ::gen'
+    )
+
+    let node = body.children[1] as Global
+
+    module.globals.define(name: 'Integer', int_type)
+    type_checker.check_module(module: module, ast: body)
+
+    let type = node.resolved_type
+
+    assert.false(type_checker.diagnostics.errors?)
+    assert_object_instance(type, gen_type)
+    assert.true(node.resolved_throw_type.nil?)
+
+    let vparam = type.lookup_type_parameter(GENERATOR_VALUE_TYPE_PARAMETER).type!
+    let eparam = type.lookup_type_parameter(GENERATOR_ERROR_TYPE_PARAMETER).type!
+
+    assert_object_instance(type.lookup_type_parameter_type(vparam), int_type)
+    assert_object_instance(type.lookup_type_parameter_type(eparam), int_type)
   }
 }

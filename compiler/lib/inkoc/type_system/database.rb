@@ -9,7 +9,7 @@ module Inkoc
                   :module_type, :ffi_library_type, :ffi_function_type,
                   :ffi_pointer_type, :ip_socket_type, :unix_socket_type,
                   :process_type, :read_only_file_type, :write_only_file_type,
-                  :read_write_file_type, :hasher_type
+                  :read_write_file_type, :hasher_type, :generator_type
 
       def initialize
         @object_type = new_builtin_object(Config::OBJECT_CONST, nil)
@@ -34,6 +34,7 @@ module Inkoc
         @write_only_file_type = new_builtin_object(Config::WRITE_ONLY_FILE_TYPE)
         @read_write_file_type = new_builtin_object(Config::READ_WRITE_FILE_TYPE)
         @hasher_type = new_builtin_object(Config::HASHER_TYPE)
+        @generator_type = initialize_generator_type
         @trait_id = -1
       end
 
@@ -58,8 +59,15 @@ module Inkoc
       end
 
       def initialize_array_type
-        new_object_type(Config::ARRAY_CONST).tap do |array|
+        new_builtin_object(Config::ARRAY_CONST).tap do |array|
           array.define_type_parameter(Config::ARRAY_TYPE_PARAMETER)
+        end
+      end
+
+      def initialize_generator_type
+        new_builtin_object(Config::GENERATOR_TYPE).tap do |gen|
+          gen.define_type_parameter(Config::GENERATOR_YIELD_TYPE_PARAMETER)
+          gen.define_type_parameter(Config::GENERATOR_THROW_TYPE_PARAMETER)
         end
       end
     end

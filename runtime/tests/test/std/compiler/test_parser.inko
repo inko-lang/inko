@@ -397,7 +397,7 @@ test.group('Parsing trait definitions') do (g) {
 
   g.test('Parsing a trait with a required method') {
     let node = parse_as(
-      input: 'trait A { def foo(a: A) !! B -> C }',
+      input: 'trait A { def foo(a: A) !! B -> C => D }',
       type: DefineTrait
     )
 
@@ -415,6 +415,7 @@ test.group('Parsing trait definitions') do (g) {
 
     assert.equal((method.throw_type as Constant).name, 'B')
     assert.equal((method.return_type as Constant).name, 'C')
+    assert.equal((method.yield_type as Constant).name, 'D')
   }
 
   g.test('Parsing a trait containing a static method') {
@@ -1373,6 +1374,12 @@ test.group('Parsing method definitions') do (g) {
     assert.equal((node.return_type as Constant).name, 'A')
   }
 
+  g.test('Parsing a method with a yield type') {
+    let node = parse_as(input: 'def foo => A {}', type: DefineMethod)
+
+    assert.equal((node.yield_type as Constant).name, 'A')
+  }
+
   g.test('Parsing a method with a throw and return type') {
     let node = parse_as(input: 'def foo !! A -> B {}', type: DefineMethod)
 
@@ -2269,5 +2276,17 @@ test.group('Parsing object constructors') do (g) {
 
   g.test('Parsing an object constructor without a closing curly brace') {
     assert.panic { parse('A { @a = 10') }
+  }
+}
+
+test.group('Parsing yield expressions') do (g) {
+  g.test('Parsing a yield expression') {
+    let node = parse_as(input: 'yield 10', type: Yield)
+
+    assert.equal((node.expression as IntegerLiteral).value, '10')
+  }
+
+  g.test('Parsing a yield expression without a value') {
+    assert.panic { parse('yield') }
   }
 }

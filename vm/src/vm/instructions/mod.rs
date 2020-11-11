@@ -5,6 +5,7 @@ pub mod env;
 pub mod ffi;
 pub mod float;
 pub mod general;
+pub mod generator;
 pub mod hasher;
 pub mod integer;
 pub mod io;

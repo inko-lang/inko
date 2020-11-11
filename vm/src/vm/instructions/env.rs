@@ -22,7 +22,7 @@ pub fn env_get(
         Ok(process
             .allocate(object_value::string(string), state.string_prototype))
     } else {
-        Err(RuntimeError::Exception(format!(
+        Err(RuntimeError::ErrorMessage(format!(
             "The environment variable {:?} isn't set",
             var_name
         )))
@@ -76,7 +76,7 @@ pub fn env_home_directory(
                 .allocate(object_value::string(path), state.string_prototype),
         )
     } else {
-        Err(RuntimeError::Exception(
+        Err(RuntimeError::ErrorMessage(
             "The user's home directory isn't set".to_string(),
         ))
     }

@@ -79,13 +79,18 @@ object SymbolTable!(T) {
     @mapping.key?(name)
   }
 
+  # Returns `True` if the symbol table contains the given symbol.
+  def contains?(symbol: Symbol!(T)) -> Boolean {
+    @symbols.get(symbol.id).equal?(symbol)
+  }
+
   # Returns all the symbols defined.
   def symbols -> Array!(Symbol!(T)) {
     @symbols
   }
 
   # Returns an `Iterator` over the symbols in this table.
-  def iter -> Iterator!(Symbol!(T)) {
+  def iter -> Iterator!(Symbol!(T), Never) {
     @symbols.iter
   }
 

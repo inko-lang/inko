@@ -3,7 +3,7 @@ import std::compiler::ast::imports::Import
 import std::compiler::ast::node::*
 import std::compiler::variable_scope::VariableScope
 import std::compiler::source_location::SourceLocation
-import std::compiler::types::TypeScope
+import std::compiler::types::(Type, TypeScope)
 
 # A collection of different expressions.
 object Body {
@@ -22,12 +22,16 @@ object Body {
   # passes will populate this data as they process the AST.
   @type_scope: ?TypeScope
 
+  # The return type of the body.
+  @resolved_type: ?Type
+
   static def new(children: Array!(Node), location: SourceLocation) -> Self {
     Self {
       @children = children,
       @location = location,
       @variable_scope = VariableScope.new,
-      @type_scope = Nil
+      @type_scope = Nil,
+      @resolved_type = Nil
     }
   }
 
@@ -74,5 +78,13 @@ object Body {
 impl Node for Body {
   def location -> SourceLocation {
     @location
+  }
+
+  def resolved_type -> ?Type {
+    @resolved_type
+  }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
   }
 }

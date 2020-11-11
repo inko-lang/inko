@@ -23,15 +23,15 @@ object IntegerLiteral {
   static def new(value: String, location: SourceLocation) -> Self {
     Self { @value = value, @location = location, @resolved_type = Nil }
   }
-
-  def resolved_type=(value: ObjectInstance) -> ObjectInstance {
-    @resolved_type = value
-  }
 }
 
 impl Node for IntegerLiteral {
   def resolved_type -> ?ObjectInstance {
     @resolved_type
+  }
+
+  def resolved_type=(value: ObjectInstance) -> ObjectInstance {
+    @resolved_type = value
   }
 
   def location -> SourceLocation {
@@ -59,13 +59,13 @@ object FloatLiteral {
   static def new(value: String, location: SourceLocation) -> Self {
     Self { @value = value, @location = location, @resolved_type = Nil }
   }
-
-  def resolved_type=(value: ObjectInstance) -> ObjectInstance {
-    @resolved_type = value
-  }
 }
 
 impl Node for FloatLiteral {
+  def resolved_type=(value: ObjectInstance) -> ObjectInstance {
+    @resolved_type = value
+  }
+
   def resolved_type -> ?ObjectInstance {
     @resolved_type
   }
@@ -95,15 +95,15 @@ object StringLiteral {
   static def new(value: String, location: SourceLocation) -> Self {
     Self { @value = value, @location = location, @resolved_type = Nil }
   }
-
-  def resolved_type=(value: ObjectInstance) -> ObjectInstance {
-    @resolved_type = value
-  }
 }
 
 impl Node for StringLiteral {
   def resolved_type -> ?ObjectInstance {
     @resolved_type
+  }
+
+  def resolved_type=(value: ObjectInstance) -> ObjectInstance {
+    @resolved_type = value
   }
 
   def location -> SourceLocation {

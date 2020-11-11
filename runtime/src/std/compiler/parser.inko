@@ -346,6 +346,7 @@ object Parser {
     let arguments = try argument_definitions
     let throw_type = try optional_throw_type
     let return_type = try optional_return_type
+    let yield_type = try optional_yield_type
     let bounds = try type_parameter_bounds
 
     DefineMethod.new(
@@ -355,6 +356,7 @@ object Parser {
       arguments: arguments,
       throw_type: throw_type,
       return_type: return_type,
+      yield_type: yield_type,
       static_method: static_method,
       body: try body,
       location: token.location
@@ -369,6 +371,7 @@ object Parser {
     let arguments = try argument_definitions
     let throw_type = try optional_throw_type
     let return_type = try optional_return_type
+    let yield_type = try optional_yield_type
     let bounds = try type_parameter_bounds
 
     (peek_token.type == 'curly_open').if_false {
@@ -379,6 +382,7 @@ object Parser {
         arguments: arguments,
         throw_type: throw_type,
         return_type: return_type,
+        yield_type: yield_type,
         location: token.location
       )
     }
@@ -390,6 +394,7 @@ object Parser {
       arguments: arguments,
       throw_type: throw_type,
       return_type: return_type,
+      yield_type: yield_type,
       static_method: False,
       body: try body,
       location: token.location
@@ -787,6 +792,12 @@ object Parser {
     Throw.new(expression: expr, local_throw: local_throw, location: location)
   }
 
+  def yield_value(token: Token) !! ParseError -> Node {
+    let expr = try expression(next_token)
+
+    Yield.new(expression: expr, location: token.location)
+  }
+
   def local_expression(token: Token) !! ParseError -> Node {
     let next = next_token
     let loc = token.location
@@ -817,7 +828,7 @@ object Parser {
     let expr = try try_expression_value
 
     match(let matched = expr) {
-      as ThrowingNode -> { matched.inside_try }
+      as TryExpressionNode -> { matched.inside_try }
       else -> {}
     }
 
@@ -913,7 +924,7 @@ object Parser {
     let expr = try expression(next_token)
 
     match(let matched = expr) {
-      as ThrowingNode -> { matched.inside_try }
+      as TryExpressionNode -> { matched.inside_try }
       else -> {}
     }
 
@@ -1007,6 +1018,7 @@ object Parser {
       'return' -> { try return_value(token) }
       'throw' -> { try throw_value(token) }
       'try' -> { try try_expression(token) }
+      'yield' -> { try yield_value(token) }
       'local' -> { try local_expression(token) }
       'colon_colon' -> { try global(token) }
       else -> { throw ParseError.unexpected_token(token) }
@@ -1334,10 +1346,17 @@ object Parser {
     }
   }
 
+  def optional_yield_type !! ParseError -> ?TypeNode {
+    (peek_token.type == 'double_arrow').if_false { return }
+
+    # Skip the "=>"
+    next_token
+
+    try type(next_token)
+  }
+
   def optional_throw_type !! ParseError -> ?TypeNode {
-    (peek_token.type == 'throws').if_false {
-      return
-    }
+    (peek_token.type == 'throws').if_false { return }
 
     # Skip the "!!"
     next_token
@@ -1346,9 +1365,7 @@ object Parser {
   }
 
   def optional_return_type !! ParseError -> ?TypeNode {
-    (peek_token.type == 'arrow').if_false {
-      return
-    }
+    (peek_token.type == 'arrow').if_false { return }
 
     # Skip the "->"
     next_token

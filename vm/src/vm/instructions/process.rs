@@ -323,7 +323,7 @@ fn allocate_stacktrace(
     };
 
     let mut contexts: Vec<&ExecutionContext> = {
-        let iter = process.context().contexts().skip(skip);
+        let iter = process.contexts().into_iter().skip(skip);
 
         if limit > 0 {
             iter.take(limit).collect()

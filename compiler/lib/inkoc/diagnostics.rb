@@ -494,5 +494,31 @@ module Inkoc
 
       TypeSystem::Error.new
     end
+
+    def return_and_yield(location)
+      error('Methods can either yield or return, but not both', location)
+    end
+
+    def return_value_in_generator(location)
+      error("Generators can't return values using the return keyword", location)
+    end
+
+    def yield_outside_method(location)
+      error('You can only yield inside a method', location)
+    end
+
+    def yield_without_yield_defined(location)
+      error("The surrounding method doesn't define a type to yield", location)
+    end
+
+    def missing_yield(type, location)
+      tname = type.type_name.inspect
+
+      error(
+        "This method is expected to yield values of type #{tname}, " \
+          "but no value is ever yielded",
+        location
+      )
+    end
   end
 end

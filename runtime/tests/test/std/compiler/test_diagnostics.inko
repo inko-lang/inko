@@ -80,7 +80,10 @@ test.group('std::compiler::diagnostics::Diagnostics.iter') do (g) {
 
     collection.error(message: 'testing', location: location)
 
-    assert.equal(collection.iter.next.message, 'testing')
+    let iter = collection.iter
+
+    assert.true(iter.advance)
+    assert.equal(iter.current.message, 'testing')
   }
 }
 
@@ -92,7 +95,10 @@ test.group('std::compiler::diagnostics::Diagnostics.error') do (g) {
 
     collection.error(message: 'testing', location: location)
 
-    assert.equal(collection.iter.next.level, 'error')
+    let iter = collection.iter
+
+    assert.true(iter.advance)
+    assert.equal(iter.current.level, 'error')
     assert.true(collection.errors?)
   }
 }
@@ -103,6 +109,9 @@ test.group('std::compiler::diagnostics::Diagnostics.warning') do (g) {
 
     collection.warning(message: 'testing', location: location)
 
-    assert.equal(collection.iter.next.level, 'warning')
+    let iter = collection.iter
+
+    assert.true(iter.advance)
+    assert.equal(iter.current.level, 'warning')
   }
 }

@@ -3,7 +3,8 @@ import std::compiler::ast::node::*
 import std::compiler::ast::variables::*
 import std::compiler::config::INSTRUCTION_RECEIVER_NAME
 import std::compiler::source_location::SourceLocation
-import std::compiler::types::Type
+import std::compiler::symbol_table::Symbol
+import std::compiler::types::(BlockType, Type)
 
 # A keyword argument and its value.
 object KeywordArgument {
@@ -39,6 +40,10 @@ impl Node for KeywordArgument {
   def location -> SourceLocation {
     @location
   }
+
+  def resolved_type -> ?Type {
+    @value.resolved_type
+  }
 }
 
 # A message sent to a receiver.
@@ -62,7 +67,10 @@ object Send {
   @resolved_type: ?Type
 
   # The type thrown by this message.
-  @throw_type: ?Type
+  @resolved_throw_type: ?Type
+
+  # The block type of this message.
+  @block_type: ?BlockType
 
   # A boolean indicating that this node resides in a `try` expression.
   @inside_try: Boolean
@@ -81,7 +89,8 @@ object Send {
       @type_arguments = type_arguments,
       @location = location,
       @resolved_type = Nil,
-      @throw_type = Nil,
+      @resolved_throw_type = Nil,
+      @block_type = Nil,
       @inside_try = False
     }
   }
@@ -102,15 +111,19 @@ object Send {
     @type_arguments
   }
 
-  def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
-  }
-
   def instruction? -> Boolean {
     match(let matched = @receiver) {
       as Constant when matched.name == INSTRUCTION_RECEIVER_NAME -> { True }
       else -> { False }
     }
+  }
+
+  def block_type -> ?BlockType {
+    @block_type
+  }
+
+  def block_type=(value: ?BlockType) -> ?BlockType {
+    @block_type = value
   }
 }
 
@@ -122,17 +135,21 @@ impl Node for Send {
   def resolved_type -> ?Type {
     @resolved_type
   }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
+  }
+
+  def resolved_throw_type -> ?Type {
+    @resolved_throw_type
+  }
+
+  def resolved_throw_type=(value: Type) -> Type {
+    @resolved_throw_type = value
+  }
 }
 
-impl ThrowingNode for Send {
-  def throw_type -> ?Type {
-    @throw_type
-  }
-
-  def throw_type=(value: ?Type) -> ?Type {
-    @throw_type = value
-  }
-
+impl TryExpressionNode for Send {
   def inside_try {
     @inside_try = True
   }

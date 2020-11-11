@@ -1,5 +1,6 @@
 # Types for Abstract Syntax Trees produced by the parser.
 import std::compiler::source_location::SourceLocation
+import std::compiler::symbol_table::Symbol
 import std::compiler::types::Type
 import std::operators::Equal
 
@@ -12,19 +13,37 @@ trait Node: Equal {
   def resolved_type -> ?Type {
     Nil
   }
+
+  # Sets the type of this node, if any.
+  def resolved_type=(value: Type) -> Type {
+    value
+  }
+
+  # The type this node may throw.
+  def resolved_throw_type -> ?Type {
+    Nil
+  }
+
+  # Sets the type this node may throw.
+  def resolved_throw_type=(value: Type) -> Type {
+    value
+  }
 }
 
 # A type of node that can be used in type signatures.
 trait TypeNode: Node {}
 
-# A node that may throw a value.
-trait ThrowingNode: Node {
-  # The type this node may throw.
-  def throw_type -> ?Type
+# A node that maps to a symbol, such as a local variable.
+trait SymbolNode: Node {
+  # Returns the symbol of this node.
+  def symbol -> ?Symbol!(Type)
 
-  # Sets the type this node may throw.
-  def throw_type=(value: ?Type) -> ?Type
+  # Sets the symbol of this node.
+  def symbol=(value: Symbol!(Type)) -> Symbol!(Type)
+}
 
+# A node that can appear as the expression for a try/try!.
+trait TryExpressionNode: Node {
   # Marks this node as residing in a `try` expression.
   def inside_try
 

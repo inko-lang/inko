@@ -1454,6 +1454,10 @@ module Inkoc
         builtin_prototype_instruction(PrototypeID::BYTE_ARRAY, node, body)
       end
 
+      def on_raw_get_generator_prototype(node, body)
+        builtin_prototype_instruction(PrototypeID::GENERATOR, node, body)
+      end
+
       def on_raw_set_object_name(node, body)
         loc = node.location
         obj = process_node(node.arguments.fetch(0), body)
@@ -1727,6 +1731,20 @@ module Inkoc
         raw_binary_instruction(:ModuleInfo, node, body)
       end
 
+      def on_raw_generator_resume(node, body)
+        register = process_node(node.arguments.fetch(0), body)
+
+        body.instruct(:Nullary, :GeneratorResume, register, node.location)
+      end
+
+      def on_raw_generator_value(node, body)
+        raw_unary_instruction(:GeneratorValue, node, body)
+      end
+
+      def on_raw_generator_yielded(node, body)
+        raw_unary_instruction(:GeneratorYielded, node, body)
+      end
+
       def on_return(node, body)
         location = node.location
         register =
@@ -1746,6 +1764,15 @@ module Inkoc
         body.registers.release(register)
 
         get_nil(body, node.location)
+      end
+
+      def on_yield(node, body)
+        register = process_node(node.value, body)
+
+        body.instruct(:Nullary, :GeneratorYield, register, node.location)
+        body.registers.release(register)
+
+        register
       end
 
       def on_try(node, body)
@@ -2124,6 +2151,32 @@ module Inkoc
         body.instruct(:Nullary, :MoveResult, register, location)
       end
 
+      def allocate_generator(rec, name, args, btype, rtype, body, loc)
+        block = body.register(btype)
+        name_reg = set_string(name, body, loc)
+        register = body.register(rtype)
+        args = make_registers_contiguous(args, body, loc)
+        start = args.first || register
+
+        body.instruct(:Binary, :GetAttribute, block, rec, name_reg, loc)
+
+        body.instruct(
+          :GeneratorAllocate,
+          register,
+          block,
+          rec,
+          start,
+          args.length,
+          loc
+        )
+
+        body.registers.release(block)
+        body.registers.release(name_reg)
+        body.registers.release_all(args)
+
+        register
+      end
+
       # Gets and executes a block, without using a fallback.
       #
       # rec - The register containing the receiver a message is sent to.
@@ -2312,6 +2365,16 @@ module Inkoc
           send_sets_array(arguments, return_type, body, loc)
         elsif send_runs_block?(rec_type, name)
           run_block(rec, arguments, return_type, body, loc)
+        elsif block_type&.yield_type
+          allocate_generator(
+            rec,
+            name,
+            arguments,
+            block_type,
+            return_type,
+            body,
+            loc
+          )
         else
           lookup_and_run_block(
             rec,

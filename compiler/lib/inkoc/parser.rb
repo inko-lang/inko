@@ -76,6 +76,7 @@ module Inkoc
         try
         try_bang
         match
+        yield
       ]
     ).freeze
 
@@ -585,6 +586,7 @@ module Inkoc
       when :colon_colon then global(start)
       when :paren_open then grouped_expression
       when :match then pattern_match(start)
+      when :yield then yield_value(start)
       else
         raise ParseError, "A value can not start with a #{start.type.inspect}"
       end
@@ -779,6 +781,7 @@ module Inkoc
       arguments = optional_arguments
       throw_type = optional_throw_type
       ret_type = optional_return_type
+      yield_type = optional_yield_type
       required = false
       requirements = optional_method_requirements
 
@@ -795,6 +798,7 @@ module Inkoc
         arguments,
         targs,
         ret_type,
+        yield_type,
         throw_type,
         required,
         requirements,
@@ -926,6 +930,13 @@ module Inkoc
 
       skip_one
 
+      type(advance!)
+    end
+
+    def optional_yield_type
+      return unless @lexer.next_type_is?(:darrow)
+
+      skip_one
       type(advance!)
     end
 
@@ -1181,6 +1192,12 @@ module Inkoc
       else
         raise ParseError, 'expected `throw`, `return`, or `try`'
       end
+    end
+
+    def yield_value(start)
+      value = expression(advance!) if next_expression_is_argument?(start)
+
+      AST::Yield.new(value, start.location)
     end
 
     def attribute_or_reassign(start)

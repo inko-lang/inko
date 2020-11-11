@@ -25,6 +25,12 @@ let OBJECT_NAME_ATTRIBUTE = '@_object_name'
 # The name of the single type parameter used for the `Array` type.
 let ARRAY_TYPE_PARAMETER = 'T'
 
+# The name of the value type parameter used for the `Generator` type.
+let GENERATOR_VALUE_TYPE_PARAMETER = 'T'
+
+# The name of the error type parameter used for the `Generator` type.
+let GENERATOR_ERROR_TYPE_PARAMETER = 'E'
+
 # The name of the module used for bootstrapping the runtime.
 let BOOTSTRAP_MODULE = ModuleName.new(Array.new('std', 'bootstrap'))
 
@@ -115,6 +121,12 @@ object TypeScope {
 
     found
   }
+
+  def lookup_method(name: String) -> ?Symbol!(MethodType) {
+    let method = @self_type.lookup_method(name)
+
+    method.if(true: { method }, false: { @module.lookup_method(name) })
+  }
 }
 
 impl TypeCheckScope for TypeScope {
@@ -155,6 +167,11 @@ trait Type {
 
   # Returns `True` if `self` is a `Error` type.
   def error? -> Boolean {
+    False
+  }
+
+  # Returns `True` if `self` is a `Never` type.
+  def never? -> Boolean {
     False
   }
 
@@ -434,6 +451,7 @@ object Builtins {
   @write_only_file_type: ObjectType
   @read_write_file_type: ObjectType
   @hasher_type: ObjectType
+  @generator_type: ObjectType
 
   static def new -> Self {
     let array_type = ObjectType.new('Array')
@@ -443,6 +461,18 @@ object Builtins {
     array_type.type_parameters.define(
       name: ARRAY_TYPE_PARAMETER,
       type: TypeParameterType.new(ARRAY_TYPE_PARAMETER)
+    )
+
+    let generator_type = ObjectType.new('Generator')
+
+    generator_type.type_parameters.define(
+      name: GENERATOR_VALUE_TYPE_PARAMETER,
+      type: TypeParameterType.new(GENERATOR_VALUE_TYPE_PARAMETER)
+    )
+
+    generator_type.type_parameters.define(
+      name: GENERATOR_ERROR_TYPE_PARAMETER,
+      type: TypeParameterType.new(GENERATOR_ERROR_TYPE_PARAMETER)
     )
 
     Self {
@@ -468,7 +498,8 @@ object Builtins {
       @read_only_file_type = ObjectType.new('ReadOnlyFile'),
       @write_only_file_type = ObjectType.new('WriteOnlyFile'),
       @read_write_file_type = ObjectType.new('ReadWriteFile'),
-      @hasher_type = ObjectType.new('Hasher')
+      @hasher_type = ObjectType.new('Hasher'),
+      @generator_type = generator_type
     }
   }
 
@@ -563,6 +594,10 @@ object Builtins {
   def hasher_type -> ObjectType {
     @hasher_type
   }
+
+  def generator_type -> ObjectType {
+    @generator_type
+  }
 }
 
 # A type that signals something will never happen.
@@ -578,6 +613,10 @@ object NeverType {
 impl Type for NeverType {
   def type_name -> String {
     NEVER_TYPE
+  }
+
+  def never? -> Boolean {
+    True
   }
 
   def type_compatible?(
@@ -954,14 +993,14 @@ trait BlockType: Type {
     layout.throw_type = type
   }
 
-  # Returns the number of times this block throws a value.
-  def throws -> Integer {
-    layout.throws
+  # Returns a boolean indicating if this block throws.
+  def throws? -> Boolean {
+    layout.throws?
   }
 
-  # Increases the number of times this block throws a value.
-  def increment_throws {
-    layout.increment_throws
+  # Marks this block as throwing a value.
+  def throws {
+    layout.throws
   }
 
   # Returns the type returned, if any.
@@ -1098,6 +1137,22 @@ trait BlockType: Type {
   ) -> Boolean {
     True
   }
+
+  def resolve_return_type(
+    throw_type: ?Type,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Type {
+    return_type.substitute(scope)
+  }
+
+  def yields? -> Boolean {
+    False
+  }
+
+  def yield_type -> ?Type {
+    Nil
+  }
 }
 
 # An object used for building the type name of a block type, such as a
@@ -1205,8 +1260,8 @@ object BlockLayout {
   # The type of error this block will throw.
   @throw_type: ?Type
 
-  # The number of times this block throws.
-  @throws: Integer
+  # A boolean indicating if this block throws or not.
+  @throws: Boolean
 
   # The return type of the block.
   @return_type: Type
@@ -1217,7 +1272,7 @@ object BlockLayout {
     type_parameters: SymbolTable!(TypeParameterType) = SymbolTable.new,
     required_arguments = 0,
     rest_argument = False,
-    throws = 0
+    throws = False
   ) -> Self {
     Self {
       @type_parameters = type_parameters,
@@ -1272,12 +1327,12 @@ object BlockLayout {
     @throw_type = type
   }
 
-  def throws -> Integer {
+  def throws? -> Boolean {
     @throws
   }
 
-  def increment_throws {
-    @throws += 1
+  def throws {
+    @throws = True
   }
 
   def return_type -> Type {
@@ -1325,6 +1380,12 @@ object MethodType {
   # be available.
   @type_parameter_bounds: TypeParameterBounds
 
+  # The type of value this method yields.
+  @yield_type: ?Type
+
+  # A boolean indicating this method yields a value.
+  @yields: Boolean
+
   static def new(
     name: String,
     layout: BlockLayout,
@@ -1334,7 +1395,9 @@ object MethodType {
       @layout = layout,
       @name = name,
       @static_method = static_method,
-      @type_parameter_bounds = TypeParameterBounds.new
+      @type_parameter_bounds = TypeParameterBounds.new,
+      @yield_type = Nil,
+      @yields = False
     }
   }
 
@@ -1348,6 +1411,14 @@ object MethodType {
 
   def name -> String {
     @name
+  }
+
+  def yield_type=(value: ?Type) -> ?Type {
+    @yield_type = value
+  }
+
+  def yields {
+    @yields = True
   }
 }
 
@@ -1430,6 +1501,27 @@ impl BlockType for MethodType {
       builtins: builtins,
       scope: scope
     )
+  }
+
+  def resolve_return_type(
+    throw_type: ?Type,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Type {
+    yield_type.nil?.if_true { return return_type.substitute(scope) }
+
+    let vtype = yield_type!.substitute(scope)
+    let etype = throw_type ?? NeverType.new
+
+    builtins.generator_type.new_instance(Array.new(vtype, etype))
+  }
+
+  def yields? -> Boolean {
+    @yields
+  }
+
+  def yield_type -> ?Type {
+    @yield_type
   }
 }
 

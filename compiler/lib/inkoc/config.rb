@@ -54,6 +54,7 @@ module Inkoc
     WRITE_ONLY_FILE_TYPE = 'WriteOnlyFile'
     READ_WRITE_FILE_TYPE = 'ReadWriteFile'
     HASHER_TYPE = 'DefaultHasher'
+    GENERATOR_TYPE = 'Generator'
     SELF_TYPE = 'Self'
     NEVER_TYPE = 'Never'
     MODULES_ATTRIBUTE = 'Modules'
@@ -81,6 +82,9 @@ module Inkoc
     IMPLEMENTED_TRAITS_INSTANCE_ATTRIBUTE = '@_implemented_traits'
     INIT_MESSAGE = 'init'
     MATCH_MESSAGE = '=~'
+
+    GENERATOR_YIELD_TYPE_PARAMETER = 'T'
+    GENERATOR_THROW_TYPE_PARAMETER = 'E'
 
     RESERVED_CONSTANTS = Set.new(
       [

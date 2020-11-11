@@ -1,6 +1,7 @@
 # Types for looking up local variables.
 import std::compiler::symbol_table::*
 import std::compiler::types::Type
+import std::pair::Pair
 
 # A scope to use for looking up local variables.
 object VariableScope {
@@ -35,8 +36,8 @@ object VariableScope {
     @symbols.get(name)
   }
 
-  def lookup_in_parents(name: String) -> ?Symbol!(Type) {
-    let mut scope: ?VariableScope = @parent
+  def lookup_with_parents(name: String) -> ?Symbol!(Type) {
+    let mut scope: ?VariableScope = self
 
     { scope.not_nil? }.while_true {
       let symbol = scope.lookup(name)

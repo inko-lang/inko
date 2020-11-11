@@ -42,11 +42,11 @@ module Inkoc
         if compare_with.throw?
           compare_with.type
         elsif compare_with.send?
-          compare_with.block_type&.throw_type
+          compare_with.throw_type
         elsif compare_with.identifier?
           # The identifier might be a local variable, in which case "block_type"
           # is not set.
-          compare_with.block_type&.throw_type
+          compare_with.throw_type
         end
       end
     end
