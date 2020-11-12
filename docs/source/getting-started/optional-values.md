@@ -39,13 +39,13 @@ say our array looks like this:
 let numbers = Array.new(Array.new(Array.new(1, 2, 3)))
 ```
 
-When sending `[]` to an `Array`, the return value is `Nil` if the index is out
-of bounds. `Nil` in turn doesn't implement the `[]` method, meaning that sending
-`[]` to `Nil` produces another `Nil`. Thus, we can access a value from the above
-array like so:
+When sending `get` to an `Array`, the return value is `Nil` if the index is out
+of bounds. `Nil` in turn doesn't implement the `get` method, meaning that
+sending `get` to `Nil` produces another `Nil`. Thus, we can access a value from
+the above array like so:
 
 ```inko
-numbers[0][0][1] # => 2
+numbers.get(0).get(0).get(1) # => 2
 ```
 
 In other languages, you'd have to write something like this:
@@ -75,13 +75,13 @@ Using the above array example, we can convert our `?Integer` to a `Integer`
 using the postfix operator like so:
 
 ```inko
-numbers[0][0][1]!
+numbers.get(0).get(0).get(1)!
 ```
 
 Using an explicit type cast, it looks like this:
 
 ```inko
-numbers[0][0][1] as Integer
+numbers.get(0).get(0).get(1) as Integer
 ```
 
 Inko doesn't perform runtime checks when casting types like this, so you should

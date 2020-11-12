@@ -211,7 +211,7 @@ object Chars {
 }
 
 impl Index!(Integer, String) for Chars {
-  def [](index: Integer) -> ?String {
+  def [](index: Integer) -> String {
     @chars[index]
   }
 }
@@ -222,3 +222,7 @@ impl SetIndex!(Integer, String) for Chars {
   }
 }
 ```
+
+!!! tip
+    When implementing the [] method, it's expected for this method to panic when
+    used with a key/index that doesn't exist.
