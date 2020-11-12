@@ -58,6 +58,7 @@
 # with a given number of reductions, and will be suspended once this value
 # reaches zero.
 import std::conversion::(ToFloat, ToString)
+import std::error::StandardError
 
 # A lightweight, isolated process.
 let Process = _INKOC.get_process_prototype
@@ -96,9 +97,6 @@ impl Process {
 # Calling this method will block the current process until a message is
 # received.
 #
-# The argument of this method can be used to set a timeout (in seconds). If no
-# message is received and the timeout expires this method will return `Nil`.
-#
 # Messages are received in the same order in which they are sent.
 #
 # # Examples
@@ -110,14 +108,31 @@ impl Process {
 #     process.send(process.current, 'hello')
 #
 #     process.receive # => 'hello'
+def receive -> Any {
+  _INKOC.process_receive_message(0.0)
+}
+
+# Receives a process message with a timeout.
+#
+# Calling this method will block the current process until a message is
+# received, or until the timeout expires. If the timeout expires, an error is
+# thrown.
+#
+# The `timeout` argument specifies hte timeout in seconds.
+#
+# # Examples
 #
 # Receiving a message with a timeout:
 #
 #     import std::process
 #
-#     process.receive(5) # => Nil
-def receive(timeout: ToFloat = 0.0) -> Any {
-  _INKOC.process_receive_message(timeout.to_float)
+#     try! process.receive_timeout(5) # => panic
+def receive_timeout(timeout: ToFloat) !! StandardError -> Any {
+  try {
+    _INKOC.process_receive_message(timeout.to_float)
+  } else (msg) {
+    throw StandardError.new(msg as String)
+  }
 }
 
 # Spawns a new process that will execute the given lambda.

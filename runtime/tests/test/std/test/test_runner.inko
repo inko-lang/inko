@@ -186,7 +186,11 @@ test.group('std::test::runner::Client.wait_for_tests') do (g) {
 
     # If the client never stops waiting for tests, this receive will time out
     # causing the below assertion to fail.
-    let finished = process.receive(Duration.from_seconds(5)) as ?Boolean
+    let finished = try {
+      process.receive_timeout(Duration.from_seconds(5)) as Boolean
+    } else {
+      False
+    }
 
     assert.true(finished)
   }

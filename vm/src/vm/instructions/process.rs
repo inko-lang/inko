@@ -72,18 +72,18 @@ pub fn process_send_message(
 pub fn process_receive_message(
     state: &RcState,
     process: &RcProcess,
-) -> Option<ObjectPointer> {
+) -> Result<Option<ObjectPointer>, ObjectPointer> {
     if let Some(msg) = process.receive_message() {
         process.no_longer_waiting_for_message();
 
-        Some(msg)
+        Ok(Some(msg))
     } else if process.is_waiting_for_message() {
         // A timeout expired, but no message was received.
         process.no_longer_waiting_for_message();
 
-        Some(state.nil_object)
+        Err(state.intern_string("The timeout expired".to_string()))
     } else {
-        None
+        Ok(None)
     }
 }
 

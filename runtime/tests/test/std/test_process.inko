@@ -27,26 +27,28 @@ test.group('std::process::Process.identifier') do (g) {
 }
 
 test.group('std::process.receive') do (g) {
-  g.test('Receiving a message without a timeout') {
+  g.test('Receiving a message') {
     process.current.send('testing')
 
     let received = process.receive as String
 
     assert.equal(received, 'testing')
   }
+}
 
-  g.test('Receiving a message with a timeout when there is a message') {
+test.group('std::process.receive_timeout') do (g) {
+  g.test('Receiving a message when there is a message') {
     process.current.send('testing')
 
-    let received = process.receive(0.001) as String
+    let received = try process.receive_timeout(0.001) as String else 'nope'
 
     assert.equal(received, 'testing')
   }
 
-  g.test('Receiving a message with a timeout when there is no message') {
-    let received = process.receive(0.001) as ?String
+  g.test('Receiving a message when there is no message') {
+    let received = try process.receive_timeout(0.001) as String else 'nope'
 
-    assert.equal(received, Nil)
+    assert.equal(received, 'nope')
   }
 }
 
@@ -99,9 +101,9 @@ test.group('std::process.terminate') do (g) {
 
     # Only if `process.terminate` _does not_ terminate the process will we
     # receive a message.
-    let message = process.receive(0.01) as ?Boolean
+    let message = try process.receive_timeout(0.01) as Boolean else False
 
-    assert.equal(message, Nil)
+    assert.true(message.false?)
   }
 }
 

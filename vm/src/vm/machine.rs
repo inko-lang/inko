@@ -943,11 +943,17 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let time = context.get_register(instruction.arg(1));
 
-                    if let Some(message) =
-                        process::process_receive_message(&self.state, process)
+                    match process::process_receive_message(&self.state, process)
                     {
-                        context.set_register(reg, message);
-                        continue;
+                        Ok(Some(message)) => {
+                            context.set_register(reg, message);
+                            continue;
+                        }
+                        Ok(None) => {}
+                        Err(err) => {
+                            throw_value!(self, process, err, context, index);
+                            continue;
+                        }
                     }
 
                     // We *must* save the instruction index first. If we save
