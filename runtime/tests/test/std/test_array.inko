@@ -151,6 +151,37 @@ test.group('std::array::Array.[]') do (g) {
   }
 }
 
+test.group('std::array::Array.get') do (g) {
+  g.test('Returning the value of an existing index') {
+    let numbers = Array.new(10, 20, 30)
+
+    assert.equal(numbers.get(0), 10)
+    assert.equal(numbers.get(1), 20)
+    assert.equal(numbers.get(2), 30)
+  }
+
+  g.test('Returning the value of a non-existing index') {
+    assert.true(Array.new(10).get(1).nil?)
+  }
+
+  g.test('Returning the value of a non-existing negative index') {
+    let array: Array!(Integer) = Array.new
+
+    assert.true(array.get(-2).nil?)
+  }
+
+  g.test('Returning the value of an existing negative index') {
+    let numbers = Array.new(10, 20, 30)
+
+    assert.equal(numbers.get(-1), 30)
+    assert.equal(numbers.get(-2), 20)
+    assert.equal(numbers.get(-3), 10)
+    assert.equal(numbers.get(-4), 30)
+    assert.equal(numbers.get(-5), 20)
+    assert.equal(numbers.get(-6), 10)
+  }
+}
+
 test.group('std::array::Array.[]=') do (g) {
   g.test('Setting the value of non-existing index') {
     let numbers = Array.new

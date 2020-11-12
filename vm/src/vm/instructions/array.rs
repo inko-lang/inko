@@ -4,6 +4,7 @@ use crate::immix::copy_object::CopyObject;
 use crate::object_pointer::ObjectPointer;
 use crate::object_value;
 use crate::process::RcProcess;
+use crate::runtime_error::RuntimeError;
 use crate::slicing;
 use crate::vm::state::RcState;
 
@@ -31,13 +32,13 @@ pub fn array_set(
     array_ptr: ObjectPointer,
     index_ptr: ObjectPointer,
     value_ptr: ObjectPointer,
-) -> Result<ObjectPointer, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     let vector = array_ptr.array_value_mut()?;
     let index =
         slicing::index_for_slice(vector.len(), index_ptr.integer_value()?);
 
     if index > vector.len() {
-        return Err(format!("The index {} is out of bounds", index));
+        return Err(RuntimeError::out_of_bounds(index));
     }
 
     let value =
@@ -59,7 +60,7 @@ pub fn array_set(
 pub fn array_get(
     array_ptr: ObjectPointer,
     index_ptr: ObjectPointer,
-) -> Result<ObjectPointer, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     let vector = array_ptr.array_value()?;
     let index =
         slicing::index_for_slice(vector.len(), index_ptr.integer_value()?);
@@ -67,21 +68,21 @@ pub fn array_get(
     vector
         .get(index)
         .cloned()
-        .ok_or_else(|| format!("The index {} is out of bounds", index))
+        .ok_or_else(|| RuntimeError::out_of_bounds(index))
 }
 
 #[inline(always)]
 pub fn array_remove(
     array_ptr: ObjectPointer,
     index_ptr: ObjectPointer,
-) -> Result<ObjectPointer, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     let vector = array_ptr.array_value_mut()?;
 
     let index =
         slicing::index_for_slice(vector.len(), index_ptr.integer_value()?);
 
     if index >= vector.len() {
-        Err(format!("The index {} is out of bounds", index))
+        Err(RuntimeError::out_of_bounds(index))
     } else {
         Ok(vector.remove(index))
     }

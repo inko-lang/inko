@@ -717,7 +717,7 @@ module Inkoc
     end
 
     def on_raw_env_get(*)
-      TypeSystem::Optional.new(typedb.string_type.new_instance)
+      typedb.string_type.new_instance
     end
 
     def on_raw_env_set(*)

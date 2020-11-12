@@ -621,8 +621,13 @@ impl Machine {
                     let ary = context.get_register(instruction.arg(1));
                     let idx = context.get_register(instruction.arg(2));
                     let val = context.get_register(instruction.arg(3));
-                    let res =
-                        array::array_set(&self.state, process, ary, idx, val)?;
+                    let res = try_runtime_error!(
+                        array::array_set(&self.state, process, ary, idx, val),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
                     context.set_register(reg, res);
                 }
@@ -630,7 +635,13 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let ary = context.get_register(instruction.arg(1));
                     let idx = context.get_register(instruction.arg(2));
-                    let res = array::array_get(ary, idx)?;
+                    let res = try_runtime_error!(
+                        array::array_get(ary, idx),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
                     context.set_register(reg, res);
                 }
@@ -638,7 +649,13 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let ary = context.get_register(instruction.arg(1));
                     let idx = context.get_register(instruction.arg(2));
-                    let res = array::array_remove(ary, idx)?;
+                    let res = try_runtime_error!(
+                        array::array_remove(ary, idx),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
                     context.set_register(reg, res);
                 }
@@ -1391,7 +1408,13 @@ impl Machine {
                     let ary = context.get_register(instruction.arg(1));
                     let idx = context.get_register(instruction.arg(2));
                     let val = context.get_register(instruction.arg(3));
-                    let res = byte_array::byte_array_set(ary, idx, val)?;
+                    let res = try_runtime_error!(
+                        byte_array::byte_array_set(ary, idx, val),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
                     context.set_register(reg, res);
                 }
@@ -1399,7 +1422,13 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let ary = context.get_register(instruction.arg(1));
                     let idx = context.get_register(instruction.arg(2));
-                    let res = byte_array::byte_array_get(ary, idx)?;
+                    let res = try_runtime_error!(
+                        byte_array::byte_array_get(ary, idx),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
                     context.set_register(reg, res);
                 }
@@ -1407,7 +1436,13 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let ary = context.get_register(instruction.arg(1));
                     let idx = context.get_register(instruction.arg(2));
-                    let res = byte_array::byte_array_remove(ary, idx)?;
+                    let res = try_runtime_error!(
+                        byte_array::byte_array_remove(ary, idx),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
                     context.set_register(reg, res);
                 }
@@ -1455,7 +1490,13 @@ impl Machine {
                 Opcode::EnvGet => {
                     let reg = instruction.arg(0);
                     let var = context.get_register(instruction.arg(1));
-                    let val = env::env_get(&self.state, process, var)?;
+                    let val = try_runtime_error!(
+                        env::env_get(&self.state, process, var),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
                     context.set_register(reg, val);
                 }
@@ -1475,7 +1516,13 @@ impl Machine {
                 }
                 Opcode::EnvHomeDirectory => {
                     let reg = instruction.arg(0);
-                    let res = env::env_home_directory(&self.state, process)?;
+                    let res = try_runtime_error!(
+                        env::env_home_directory(&self.state, process),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
                     context.set_register(reg, res);
                 }

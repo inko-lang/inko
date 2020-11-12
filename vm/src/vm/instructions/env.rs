@@ -13,18 +13,20 @@ pub fn env_get(
     state: &RcState,
     process: &RcProcess,
     var_ptr: ObjectPointer,
-) -> Result<ObjectPointer, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     let var_name = var_ptr.string_value()?;
 
-    let val = if let Some(val) = env::var_os(var_name) {
+    if let Some(val) = env::var_os(var_name) {
         let string = val.to_string_lossy().into_owned();
 
-        process.allocate(object_value::string(string), state.string_prototype)
+        Ok(process
+            .allocate(object_value::string(string), state.string_prototype))
     } else {
-        state.nil_object
-    };
-
-    Ok(val)
+        Err(RuntimeError::Exception(format!(
+            "The environment variable {:?} isn't set",
+            var_name
+        )))
+    }
 }
 
 #[inline(always)]
@@ -67,14 +69,17 @@ pub fn env_variables(
 pub fn env_home_directory(
     state: &RcState,
     process: &RcProcess,
-) -> Result<ObjectPointer, String> {
-    let path = if let Some(path) = directories::home() {
-        process.allocate(object_value::string(path), state.string_prototype)
+) -> Result<ObjectPointer, RuntimeError> {
+    if let Some(path) = directories::home() {
+        Ok(
+            process
+                .allocate(object_value::string(path), state.string_prototype),
+        )
     } else {
-        state.nil_object
-    };
-
-    Ok(path)
+        Err(RuntimeError::Exception(
+            "The user's home directory isn't set".to_string(),
+        ))
+    }
 }
 
 #[inline(always)]

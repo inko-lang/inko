@@ -20,6 +20,10 @@ pub enum RuntimeError {
 }
 
 impl RuntimeError {
+    pub fn out_of_bounds(index: usize) -> Self {
+        RuntimeError::Exception(format!("The index {} is out of bounds", index))
+    }
+
     pub fn should_poll(&self) -> bool {
         match self {
             RuntimeError::WouldBlock => true,

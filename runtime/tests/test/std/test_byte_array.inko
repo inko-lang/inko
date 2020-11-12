@@ -131,6 +131,12 @@ test.group('std::byte_array::ByteArray.get') do (g) {
     assert.equal(bytes.get(4), Nil)
   }
 
+  g.test('Returning the value of a non-existing negative index') {
+    let bytes = ByteArray.new
+
+    assert.true(bytes.get(-2).nil?)
+  }
+
   g.test('Returning the value of a negative index') {
     let bytes = ByteArray.new(10, 20)
 

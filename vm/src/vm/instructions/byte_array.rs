@@ -3,6 +3,7 @@ use crate::immutable_string::ImmutableString;
 use crate::object_pointer::ObjectPointer;
 use crate::object_value;
 use crate::process::RcProcess;
+use crate::runtime_error::RuntimeError;
 use crate::slicing;
 use crate::vm::state::RcState;
 use std::u8;
@@ -32,7 +33,7 @@ pub fn byte_array_set(
     array_ptr: ObjectPointer,
     index_ptr: ObjectPointer,
     value_ptr: ObjectPointer,
-) -> Result<ObjectPointer, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     let bytes = array_ptr.byte_array_value_mut()?;
     let index =
         slicing::index_for_slice(bytes.len(), index_ptr.integer_value()?);
@@ -40,7 +41,7 @@ pub fn byte_array_set(
     let value = integer_to_byte(value_ptr)?;
 
     if index > bytes.len() {
-        return Err(format!("Byte array index {} is out of bounds", index));
+        return Err(RuntimeError::out_of_bounds(index));
     }
 
     if index == bytes.len() {
@@ -58,7 +59,7 @@ pub fn byte_array_set(
 pub fn byte_array_get(
     array_ptr: ObjectPointer,
     index_ptr: ObjectPointer,
-) -> Result<ObjectPointer, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     let bytes = array_ptr.byte_array_value()?;
     let index =
         slicing::index_for_slice(bytes.len(), index_ptr.integer_value()?);
@@ -66,20 +67,20 @@ pub fn byte_array_get(
     bytes
         .get(index)
         .map(|byte| ObjectPointer::byte(*byte))
-        .ok_or_else(|| format!("The index {} is out of bounds", index))
+        .ok_or_else(|| RuntimeError::out_of_bounds(index))
 }
 
 #[inline(always)]
 pub fn byte_array_remove(
     array_ptr: ObjectPointer,
     index_ptr: ObjectPointer,
-) -> Result<ObjectPointer, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     let bytes = array_ptr.byte_array_value_mut()?;
     let index =
         slicing::index_for_slice(bytes.len(), index_ptr.integer_value()?);
 
     if index >= bytes.len() {
-        Err(format!("The index {} is out of bounds", index))
+        Err(RuntimeError::out_of_bounds(index))
     } else {
         Ok(ObjectPointer::byte(bytes.remove(index)))
     }

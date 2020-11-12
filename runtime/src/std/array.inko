@@ -235,7 +235,7 @@ impl Array {
   #
   #     numbers.get(5) # => Nil
   def get(index: Integer) -> ?T {
-    (index < length).if_true { self[index] }
+    try _INKOC.array_at(self, index) else Nil
   }
 }
 
@@ -278,7 +278,7 @@ impl Index!(Integer, T) for Array {
   #
   # This method panics when the index is out of bounds.
   def [](index: Integer) -> T {
-    _INKOC.array_at(self, index)
+    try _INKOC.array_at(self, index) else (err) _INKOC.panic(err as String)
   }
 }
 

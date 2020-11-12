@@ -227,7 +227,7 @@ impl ByteArray {
   #
   #     bytes.get(5) # => Nil
   def get(index: Integer) -> ?Integer {
-    (index < length).if_true { self[index] }
+    try _INKOC.byte_array_at(self, index) else Nil
   }
 }
 
@@ -246,7 +246,7 @@ impl Index!(Integer, Integer) for ByteArray {
   #
   # This method panics if the index is out of bounds.
   def [](index: Integer) -> Integer {
-    _INKOC.byte_array_at(self, index)
+    try _INKOC.byte_array_at(self, index) else (err) _INKOC.panic(err as String)
   }
 }
 
