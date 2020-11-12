@@ -150,7 +150,7 @@ test.group('std::map::Map.rehash') do (g) {
   g.test('Rehashing an empty Map') {
     let map = Map.new
 
-    assert.equal(map.buckets, Array.new)
+    assert.equal(map.buckets, Array.new(Nil))
 
     map.rehash
 
@@ -487,11 +487,7 @@ test.group('std::map::Map.set') do (g) {
 
 test.group('std::map::Map.[]') do (g) {
   g.test('Obtaining the value of a non-existing key') {
-    let map = Map.new
-
-    map['name'] = 'Alice'
-
-    assert.equal(map['city'], Nil)
+    assert.panic { Map.new['name'] }
   }
 
   g.test('Obtaining the value of an existing key') {
@@ -500,6 +496,22 @@ test.group('std::map::Map.[]') do (g) {
     map['name'] = 'Alice'
 
     assert.equal(map['name'], 'Alice')
+  }
+}
+
+test.group('std::map::Map.get') do (g) {
+  g.test('Obtaining the value of a non-existing key') {
+    let map: Map!(String, String) = Map.new
+
+    assert.true(map.get('name').nil?)
+  }
+
+  g.test('Obtaining the value of an existing key') {
+    let map = Map.new
+
+    map['name'] = 'Alice'
+
+    assert.equal(map.get('name'), 'Alice')
   }
 }
 

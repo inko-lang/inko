@@ -34,7 +34,7 @@ def parse(input: String) -> Body {
 def parse_as!(T: Node)(input: ToString, type: T) -> T {
   let parser = Parser.new(input: input.to_string, file: 'test.inko')
   let nodes = try! parser.parse
-  let node = nodes.children[0]!
+  let node = nodes.children[0]
 
   assert_instance_of(node, type)
 
@@ -48,7 +48,7 @@ def binary_send(operator: String) {
   assert.equal(node.arguments.length, 1)
 
   let rec = node.receiver as IntegerLiteral
-  let arg = node.arguments[0]! as IntegerLiteral
+  let arg = node.arguments[0] as IntegerLiteral
 
   assert.equal(rec.value, '1')
   assert.equal(arg.value, '2')
@@ -68,7 +68,7 @@ def binary_assign_local(operator: String, message: String) {
   assert_instance_of(send.receiver, Identifier)
   assert.equal((send.receiver as Identifier).name, 'foo')
 
-  assert_instance_of(send.arguments[0]!, IntegerLiteral)
+  assert_instance_of(send.arguments[0], IntegerLiteral)
   assert.equal((send.arguments[0] as IntegerLiteral).value, '10')
 }
 
@@ -86,7 +86,7 @@ def binary_assign_attribute(operator: String, message: String) {
   assert_instance_of(send.receiver, Attribute)
   assert.equal((send.receiver as Attribute).name, '@foo')
 
-  assert_instance_of(send.arguments[0]!, IntegerLiteral)
+  assert_instance_of(send.arguments[0], IntegerLiteral)
   assert.equal((send.arguments[0] as IntegerLiteral).value, '10')
 }
 
@@ -287,7 +287,7 @@ test.group('Parsing object definitions') do (g) {
     let node =
       parse_as(input: 'object A { def foo {} }', type: DefineObject)
 
-    assert_instance_of(node.body.children[0]!, DefineMethod)
+    assert_instance_of(node.body.children[0], DefineMethod)
   }
 
   g.test('Parsing an object containing attribute definitions') {
@@ -384,7 +384,7 @@ test.group('Parsing trait definitions') do (g) {
     let node =
       parse_as(input: 'trait A { def foo {} }', type: DefineTrait)
 
-    assert_instance_of(node.body.children[0]!, DefineMethod)
+    assert_instance_of(node.body.children[0], DefineMethod)
   }
 
   g.test('Parsing a trait with a required method') {
@@ -393,7 +393,7 @@ test.group('Parsing trait definitions') do (g) {
       type: DefineTrait
     )
 
-    let method = node.body.children[0]! as DefineRequiredMethod
+    let method = node.body.children[0] as DefineRequiredMethod
 
     assert_instance_of(method, DefineRequiredMethod)
     assert.equal(method.name, 'foo')
@@ -502,7 +502,7 @@ test.group('Parsing implementation blocks') do (g) {
     let node =
       parse_as(input: 'impl A { def foo {} }', type: ReopenObject)
 
-    assert_instance_of(node.body.children[0]!, DefineMethod)
+    assert_instance_of(node.body.children[0], DefineMethod)
   }
 }
 
@@ -524,7 +524,7 @@ test.group('Parsing comments') do (g) {
     assert.true(node.children.empty?)
     assert.equal(parser.comments.length, 1)
 
-    let comment = parser.comments[0]!
+    let comment = parser.comments[0]
 
     assert.equal(comment.text, ' Foo')
     assert.equal(comment.location.column, 1)
@@ -542,10 +542,10 @@ test.group('Parsing comments') do (g) {
     let send = exprs.children[0] as Send
 
     assert_instance_of(send, Send)
-    assert_instance_of(send.arguments[0]!, IntegerLiteral)
+    assert_instance_of(send.arguments[0], IntegerLiteral)
     assert.equal(send.arguments.length, 1)
 
-    let comment = parser.comments[0]!
+    let comment = parser.comments[0]
 
     assert.equal(comment.text, ' bar')
     assert.equal(comment.location.column, 1)
@@ -827,14 +827,14 @@ test.group('Parsing message send chains') do (g) {
     let node = parse_as(input: '10.foo() {}', type: Send)
 
     assert.equal(node.arguments.length, 1)
-    assert_instance_of(node.arguments[0]!, BasicClosure)
+    assert_instance_of(node.arguments[0], BasicClosure)
   }
 
   g.test('Parsing a message chain with a closure outside parentheses') {
     let node = parse_as(input: '10.foo() do {}', type: Send)
 
     assert.equal(node.arguments.length, 1)
-    assert_instance_of(node.arguments[0]!, Closure)
+    assert_instance_of(node.arguments[0], Closure)
   }
 
   g.test('Parsing a message chain using a closure as a receiver') {
@@ -851,7 +851,7 @@ test.group('Parsing message send chains') do (g) {
     let node = parse_as(input: '10.foo() lambda {}', type: Send)
 
     assert.equal(node.arguments.length, 1)
-    assert_instance_of(node.arguments[0]!, Lambda)
+    assert_instance_of(node.arguments[0], Lambda)
   }
 
   g.test('Parsing a message chain with parenthesis followed by a closure on a separate line') {
@@ -1423,7 +1423,7 @@ test.group('Reading and writing the index of of a value') do (g) {
 
     assert.equal(node.message, '[]=')
 
-    assert_instance_of(node.arguments[1]!, Send)
+    assert_instance_of(node.arguments[1], Send)
 
     assert.equal((node.arguments[1] as Send).message, 'foo')
   }
@@ -1454,7 +1454,7 @@ test.group('Parsing return expressions') do (g) {
     let node = parse_as(input: '{ return }', type: BasicClosure)
 
     assert.equal(node.body.children.length, 1)
-    assert_instance_of(node.body.children[0]!, Return)
+    assert_instance_of(node.body.children[0], Return)
   }
 
   g.test('Parsing a return followed by a closing parenthesis') {
@@ -1482,7 +1482,7 @@ test.group('Parsing return expressions') do (g) {
 
     assert.equal(node.message, '[]')
 
-    assert_instance_of(node.arguments[0]!, Return)
+    assert_instance_of(node.arguments[0], Return)
 
     assert.true((node.arguments[0] as Return).expression.nil?)
   }
@@ -1651,7 +1651,7 @@ test.group('Parsing identifiers') do (g) {
 
     assert.equal(node.message, 'foo')
     assert.equal(node.arguments.length, 1)
-    assert_instance_of(node.arguments[0]!, BasicClosure)
+    assert_instance_of(node.arguments[0], BasicClosure)
   }
 
   g.test('Parsing an identifier with a closure argument outside parentheses') {
@@ -1659,7 +1659,7 @@ test.group('Parsing identifiers') do (g) {
 
     assert.equal(node.message, 'foo')
     assert.equal(node.arguments.length, 1)
-    assert_instance_of(node.arguments[0]!, Closure)
+    assert_instance_of(node.arguments[0], Closure)
   }
 
   g.test('Parsing an identifier with a lambda argument outside parentheses') {
@@ -1667,7 +1667,7 @@ test.group('Parsing identifiers') do (g) {
 
     assert.equal(node.message, 'foo')
     assert.equal(node.arguments.length, 1)
-    assert_instance_of(node.arguments[0]!, Lambda)
+    assert_instance_of(node.arguments[0], Lambda)
   }
 
   g.test('Parsing an identifier with parenthesis followed by a closure on a separate line') {

@@ -83,7 +83,7 @@ def keyword?(bytes: ByteArray) -> Boolean {
   WORD_LENGTH.cover?(length).if_false { return False }
 
   let hash =
-    length + ASSOCIATED_VALUES[bytes[1]]! + ASSOCIATED_VALUES[bytes[0]]!
+    length + ASSOCIATED_VALUES[bytes[1]] + ASSOCIATED_VALUES[bytes[0]]
 
   (hash > MAX_HASH_VALUE).if_true { return False }
 

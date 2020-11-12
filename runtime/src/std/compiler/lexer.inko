@@ -503,7 +503,7 @@ object Lexer {
     let current = current_byte
 
     (current == BACKSLASH).if_true {
-      let replace_with = replacements[next_byte]
+      let replace_with = replacements.get(next_byte)
 
       replace_with.if_true {
         buffer.push(replace_with!)

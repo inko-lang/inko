@@ -8,7 +8,7 @@ use crate::slicing;
 use crate::vm::state::RcState;
 
 #[inline(always)]
-pub fn allocate(
+pub fn array_allocate(
     state: &RcState,
     process: &RcProcess,
     context: &ExecutionContext,
@@ -36,23 +36,27 @@ pub fn array_set(
     let index =
         slicing::index_for_slice(vector.len(), index_ptr.integer_value()?);
 
+    if index > vector.len() {
+        return Err(format!("The index {} is out of bounds", index));
+    }
+
     let value =
         copy_if_permanent!(state.permanent_allocator, value_ptr, array_ptr);
 
-    if index >= vector.len() {
-        vector.resize(index + 1, state.nil_object);
+    if index == vector.len() {
+        vector.push(value);
+    } else {
+        unsafe {
+            *vector.get_unchecked_mut(index) = value;
+        }
     }
 
-    vector[index] = value;
-
     process.write_barrier(array_ptr, value);
-
     Ok(value)
 }
 
 #[inline(always)]
 pub fn array_get(
-    state: &RcState,
     array_ptr: ObjectPointer,
     index_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
@@ -60,17 +64,14 @@ pub fn array_get(
     let index =
         slicing::index_for_slice(vector.len(), index_ptr.integer_value()?);
 
-    let value = vector
+    vector
         .get(index)
         .cloned()
-        .unwrap_or_else(|| state.nil_object);
-
-    Ok(value)
+        .ok_or_else(|| format!("The index {} is out of bounds", index))
 }
 
 #[inline(always)]
 pub fn array_remove(
-    state: &RcState,
     array_ptr: ObjectPointer,
     index_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
@@ -79,13 +80,11 @@ pub fn array_remove(
     let index =
         slicing::index_for_slice(vector.len(), index_ptr.integer_value()?);
 
-    let value = if index >= vector.len() {
-        state.nil_object
+    if index >= vector.len() {
+        Err(format!("The index {} is out of bounds", index))
     } else {
-        vector.remove(index)
-    };
-
-    Ok(value)
+        Ok(vector.remove(index))
+    }
 }
 
 #[inline(always)]

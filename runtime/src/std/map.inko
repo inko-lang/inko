@@ -175,7 +175,7 @@ object Map!(K: Hash + Equal, V) {
   static def new -> Self {
     Self {
       @random_state = RandomState.new,
-      @buckets = Array.new,
+      @buckets = Array.filled(1, Nil),
       @length = 0,
       @capacity = 1,
       @resize_threshold = 1
@@ -204,7 +204,7 @@ object Map!(K: Hash + Equal, V) {
     keys.each_with_index do (key: K, index: Integer) {
       (index > max_index).if_true { return map }
 
-      map[key] = values[index]!
+      map[key] = values[index]
     }
 
     map
@@ -384,8 +384,7 @@ object Map!(K: Hash + Equal, V) {
 
     @capacity = @capacity * 2
     @resize_threshold = (LOAD_FACTOR * @capacity.to_float).to_integer
-    @buckets = Array.new
-    @buckets[@capacity - 1] = Nil
+    @buckets = Array.filled(@capacity, Nil)
 
     old_buckets.each_with_index do (pair, index) {
       pair.if_true {
@@ -498,7 +497,7 @@ object Map!(K: Hash + Equal, V) {
 
   # Shifts all pairs to the left starting at the given bucket index.
   def backwards_shift(mut index: Integer) {
-    let mut pair = @buckets[index]
+    let mut pair = @buckets.get(index)
 
     { pair.and { pair!.distance.positive? } }.while_true {
       @buckets[index - 1] = pair
@@ -507,8 +506,29 @@ object Map!(K: Hash + Equal, V) {
       pair.reduce_distance
 
       index += 1
-      pair = @buckets[index]
+      pair = @buckets.get(index)
     }
+  }
+
+  # Returns the value for the given key, or Nil if it doesn't exist.
+  #
+  # # Examples
+  #
+  # Getting the value of a non-existing key:
+  #
+  #     let map = Map.new
+  #
+  #     map.get('name') # => Nil
+  #
+  # Getting the value of an existing key:
+  #
+  #     let mut map = Map.new
+  #
+  #     map['name'] = 'Alice'
+  #
+  #     map.get('name') # => 'Alice'
+  def get(key: K) -> ?V {
+    @buckets[bucket_index(key) ?? return].value
   }
 }
 
@@ -533,7 +553,7 @@ impl Equal for Map {
     each do (key, value) {
       other.key?(key).if_false { return False }
 
-      (value == other[key]!).if_false { return False }
+      (value == other[key]).if_false { return False }
     }
 
     True
@@ -541,15 +561,9 @@ impl Equal for Map {
 }
 
 impl Index!(K, V) for Map {
-  # Returns the value for the given key, if any.
+  # Returns the value for the given key
   #
   # # Examples
-  #
-  # Getting the value of a non-existing key:
-  #
-  #     let map = Map.new
-  #
-  #     map['name'] # => Nil
   #
   # Getting the value of an existing key:
   #
@@ -558,8 +572,14 @@ impl Index!(K, V) for Map {
   #     map['name'] = 'Alice'
   #
   #     map['name'] # => 'Alice'
-  def [](key: K) -> ?V {
-    @buckets[bucket_index(key) ?? return].value
+  #
+  # # Panics
+  #
+  # This method panics if the key doesn't exist.
+  def [](key: K) -> V {
+    let index = bucket_index(key) ?? process.panic("The key doesn't exist")
+
+    @buckets[index].value
   }
 }
 

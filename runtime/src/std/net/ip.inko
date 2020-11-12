@@ -373,8 +373,8 @@ impl IpAddress for Ipv6Address {
     }
 
     (ipv4_segments.length == _IPV4_OCTETS).if_true {
-      segments[6] = octets_to_hextet(ipv4_segments[0]!, ipv4_segments[1]!)
-      segments[7] = octets_to_hextet(ipv4_segments[2]!, ipv4_segments[3]!)
+      segments[6] = octets_to_hextet(ipv4_segments[0], ipv4_segments[1])
+      segments[7] = octets_to_hextet(ipv4_segments[2], ipv4_segments[3])
     }
 
     (segments.length == _IPV6_HEXTETS).if_false {
@@ -382,14 +382,14 @@ impl IpAddress for Ipv6Address {
     }
 
     Ipv6Address.new(
-      segments[0]!,
-      segments[1]!,
-      segments[2]!,
-      segments[3]!,
-      segments[4]!,
-      segments[5]!,
-      segments[6]!,
-      segments[7]!,
+      segments[0],
+      segments[1],
+      segments[2],
+      segments[3],
+      segments[4],
+      segments[5],
+      segments[6],
+      segments[7],
     )
   }
 
@@ -456,7 +456,7 @@ impl IpAddress for Ipv6Address {
   #     Ipv6Address.new(0xff01).multicast? # => True
   #     Ipv6Address.new(0, 1).multicast? # => False
   def multicast? -> Boolean {
-    @segments[0]! & 0xff00 == 0xff00
+    @segments[0] & 0xff00 == 0xff00
   }
 
   # Returns `True` if `self` is the special "unspecified" address (::).
@@ -626,7 +626,7 @@ impl IpAddress for Ipv4Address {
       throw AddressParseError.new(bytes)
     }
 
-    Ipv4Address.new(segments[0]!, segments[1]!, segments[2]!, segments[3]!)
+    Ipv4Address.new(segments[0], segments[1], segments[2], segments[3])
   }
   # Returns `True` if `self` is an IPv4 address.
   def v4? -> Boolean {
@@ -733,7 +733,7 @@ impl IpAddress for Ipv4Address {
   #     Ipv4Address.new(244, 254, 0, 0).multicast? # => True
   #     Ipv4Address.new(127, 0, 0, 1).multicast? # => False
   def multicast? -> Boolean {
-    let first = @segments[0]!
+    let first = @segments[0]
 
     (first >= 224).and { first <= 239 }
   }
@@ -758,8 +758,8 @@ impl IpAddress for Ipv4Address {
     (@segments[0] == 10).if_true { return True }
 
     (@segments[0] == 172)
-      .and { @segments[1]! >= 16 }
-      .and { @segments[1]! <= 31 }
+      .and { @segments[1] >= 16 }
+      .and { @segments[1] <= 31 }
       .if_true { return True }
 
     (@segments[0] == 192).and { @segments[1] == 168 }
@@ -800,8 +800,8 @@ impl IpAddress for Ipv4Address {
       0,
       0,
       0,
-      octets_to_hextet(@segments[0]!, @segments[1]!),
-      octets_to_hextet(@segments[2]!, @segments[3]!),
+      octets_to_hextet(@segments[0], @segments[1]),
+      octets_to_hextet(@segments[2], @segments[3]),
     )
   }
 
@@ -814,8 +814,8 @@ impl IpAddress for Ipv4Address {
       0,
       0,
       _IPV6_HEXTET_MAXIMUM,
-      octets_to_hextet(@segments[0]!, @segments[1]!),
-      octets_to_hextet(@segments[2]!, @segments[3]!),
+      octets_to_hextet(@segments[0], @segments[1]),
+      octets_to_hextet(@segments[2], @segments[3]),
     )
   }
 }

@@ -31,7 +31,7 @@ test.group('std::debug.stacktrace') do (g) {
   g.test('Obtaining a stacktrace to the caller') {
     let trace = debug.stacktrace
     let mirror = ModuleMirror.new(ThisModule)
-    let last = trace[-1]!
+    let last = trace[-1]
 
     assert.true(trace.length > 0)
     assert.equal(last.name, '<block>')

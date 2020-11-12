@@ -41,7 +41,7 @@ impl Integer {
     negative?.if_true { characters.push('-') }
 
     { integer.positive? }.while_true {
-      characters.push(INTEGER_RADIX_DIGITS[integer % radix]!)
+      characters.push(INTEGER_RADIX_DIGITS[integer % radix])
       integer /= radix
     }
 
@@ -54,8 +54,8 @@ impl Integer {
     let mut new_index = start_at
 
     { old_index > new_index }.while_true {
-      let old = characters[old_index]!
-      let new = characters[new_index]!
+      let old = characters[old_index]
+      let new = characters[new_index]
 
       characters[new_index] = old
       characters[old_index] = new

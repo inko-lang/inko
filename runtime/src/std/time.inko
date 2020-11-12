@@ -399,7 +399,7 @@ object SystemTime {
     let mut months = 0
 
     { DAYS_IN_MONTH[months] <= rem_days }.while_true {
-      rem_days -= DAYS_IN_MONTH[months]!
+      rem_days -= DAYS_IN_MONTH[months]
       months += 1
     }
 
@@ -544,7 +544,7 @@ object SystemTime {
       false: { DAYS_SINCE_JANUARY_NORMAL }
     )
 
-    table[month - 1]! + day
+    table[month - 1] + day
   }
 
   # Returns the number of days between `self` and the Unix epoch.

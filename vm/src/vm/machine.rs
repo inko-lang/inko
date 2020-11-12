@@ -327,7 +327,7 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let start = instruction.arg(1);
                     let len = instruction.arg(2);
-                    let res = array::allocate(
+                    let res = array::array_allocate(
                         &self.state,
                         process,
                         context,
@@ -630,7 +630,7 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let ary = context.get_register(instruction.arg(1));
                     let idx = context.get_register(instruction.arg(2));
-                    let res = array::array_get(&self.state, ary, idx)?;
+                    let res = array::array_get(ary, idx)?;
 
                     context.set_register(reg, res);
                 }
@@ -638,7 +638,7 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let ary = context.get_register(instruction.arg(1));
                     let idx = context.get_register(instruction.arg(2));
-                    let res = array::array_remove(&self.state, ary, idx)?;
+                    let res = array::array_remove(ary, idx)?;
 
                     context.set_register(reg, res);
                 }

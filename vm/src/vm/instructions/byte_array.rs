@@ -46,7 +46,9 @@ pub fn byte_array_set(
     if index == bytes.len() {
         bytes.push(value);
     } else {
-        bytes[index] = value;
+        unsafe {
+            *bytes.get_unchecked_mut(index) = value;
+        }
     }
 
     Ok(value_ptr)

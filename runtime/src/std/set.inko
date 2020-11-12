@@ -33,7 +33,7 @@ object Set!(V: Hash + Equal) {
   #
   #     set.insert(10)
   def insert(value: V) -> Boolean {
-    @map[value].if(true: { False }, false: { @map[value] = True })
+    @map.get(value).if(true: { False }, false: { @map[value] = True })
   }
 
   # Removes a value from this `Set`.

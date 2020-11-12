@@ -23,8 +23,24 @@ test.group('std::env.[]') do (g) {
   }
 
   g.test('Obtaining the value of a non-existing environment variable') {
+    assert.panic {
+      temporary_environment_variable do (name) { env[name] }
+    }
+  }
+}
+
+test.group('std::env.get') do (g) {
+  g.test('Obtaining the value of an existing environment variable') {
     temporary_environment_variable do (name) {
-      assert.equal(env[name], Nil)
+      env[name] = 'foo'
+
+      assert.equal(env.get(name), 'foo')
+    }
+  }
+
+  g.test('Obtaining the value of a non-existing environment variable') {
+    temporary_environment_variable do (name) {
+      assert.equal(env.get(name), Nil)
     }
   }
 }
@@ -50,7 +66,7 @@ test.group('std::env.remove') do (g) {
 
       env.remove(name)
 
-      assert.equal(env[name], Nil)
+      assert.equal(env.get(name), Nil)
     }
   }
 
@@ -58,7 +74,7 @@ test.group('std::env.remove') do (g) {
     temporary_environment_variable do (name) {
       env.remove(name)
 
-      assert.equal(env[name], Nil)
+      assert.equal(env.get(name), Nil)
     }
   }
 }

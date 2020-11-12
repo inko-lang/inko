@@ -303,7 +303,7 @@ object Layout {
   #
   # This method will panic if no member is defined for the given name.
   def [](name: String) -> Member {
-    @members[name] ?? process.panic('Undefined struct member: ' + name)
+    @members[name]
   }
 }
 
@@ -410,7 +410,7 @@ object LayoutBuilder {
     let mut remaining_in_hole = @alignment
 
     @members.each_with_index do (name, index) {
-      let type = @types[index]!
+      let type = @types[index]
       let type_align = type.alignment
 
       # If the value is too great to fit into the current hole, we need to add
@@ -443,7 +443,7 @@ object LayoutBuilder {
     let mut offset = 0
 
     @members.each_with_index do (name, index) {
-      let type = @types[index]!
+      let type = @types[index]
 
       members[name] = Member.new(name: name, type: type, offset: offset)
 
@@ -459,7 +459,7 @@ impl SetIndex!(String, Type) for LayoutBuilder {
   #
   # Trying to redefine a member will result in a panic.
   def []=(name: String, type: Type) -> Type {
-    @existing[name].if_true {
+    @existing.get(name).if_true {
       let error =
         StringBuffer.new('The member ', name, ' has already been defined')
 

@@ -97,7 +97,7 @@ def stacktrace(skip = 1, limit = 0) -> Array!(CallFrame) {
 #     import std::debug
 def last_call_frame_in(file: ToPath) -> CallFrame {
   let frames = stacktrace(skip: 1)
-  let default = frames[-1]!
+  let default = frames[-1]
   let path = file.to_path
 
   # The last CallFrame is the default, and will point to this method itself.
@@ -105,7 +105,7 @@ def last_call_frame_in(file: ToPath) -> CallFrame {
   let mut index = frames.length - 2
 
   { index >= 0 }.while_true {
-    let frame = frames[index]!
+    let frame = frames[index]
 
     (frame.path == path).if_true { return frame }
 

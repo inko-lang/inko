@@ -3,11 +3,20 @@
 # Trait for accessing values of an object by an index.
 trait Index!(K, R) {
   # Returns the value for the given index.
-  def [](index: K) -> ?R
+  #
+  # # Panics
+  #
+  # This method may panic if the index doesn't exist.
+  def [](index: K) -> R
 }
 
 # Trait for setting values in an object using an index.
 trait SetIndex!(K, V) {
   # Sets the given index to the given value, returning the value set.
+  #
+  # # Panics
+  #
+  # This method may panic if the index is out of bounds, though this depends on
+  # the type that implements this method.
   def []=(index: K, value: V) -> V
 }

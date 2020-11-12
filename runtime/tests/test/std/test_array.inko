@@ -15,6 +15,20 @@ test.group('std::array::Array.new') do (g) {
   }
 }
 
+test.group('std::array::Array.filled') do (g) {
+  g.test('Creating an Array filled with no values') {
+    assert.equal(Array.filled(amount: 0, value: 1), Array.new)
+  }
+
+  g.test('Creating an Array filled with values') {
+    assert.equal(Array.filled(amount: 2, value: 1), Array.new(1, 1))
+  }
+
+  g.test('Creating an Array with a negative fill amount') {
+    assert.panic { Array.filled(amount: -2, value: 1) }
+  }
+}
+
 test.group('std::array::Array.clear') do (g) {
   g.test('Removing all values from an Array') {
     let numbers = Array.new(10, 20, 30)
@@ -53,10 +67,7 @@ test.group('std::array::Array.remove_at') do (g) {
   }
 
   g.test('Removing a value using a non-existing index') {
-    let numbers = Array.new(10)
-
-    assert.equal(numbers.remove_at(1), Nil)
-    assert.equal(numbers, Array.new(10))
+    assert.panic { Array.new(10).remove_at(1) }
   }
 }
 
@@ -115,7 +126,7 @@ test.group('std::array::Array.empty?') do (g) {
   }
 }
 
-test.group('std::array::Array.Array.new') do (g) {
+test.group('std::array::Array.[]') do (g) {
   g.test('Returning the value of an existing index') {
     let numbers = Array.new(10, 20, 30)
 
@@ -125,10 +136,7 @@ test.group('std::array::Array.Array.new') do (g) {
   }
 
   g.test('Returning the value of a non-existing index') {
-    let numbers = Array.new(10)
-
-    assert.equal(numbers[1], Nil)
-    assert.equal(numbers[2], Nil)
+    assert.panic { Array.new(10)[1] }
   }
 
   g.test('Returning the value of an existing negative index') {
@@ -152,12 +160,7 @@ test.group('std::array::Array.[]=') do (g) {
   }
 
   g.test('Setting the value of an out-of-bounds index') {
-    let numbers = Array.new
-
-    assert.equal(numbers[2] = 1, 1)
-    assert.equal(numbers[0], Nil)
-    assert.equal(numbers[1], Nil)
-    assert.equal(numbers[2], 1)
+    assert.panic { Array.new[2] = 1 }
   }
 
   g.test('Setting the value of a negative index using an empty Array') {

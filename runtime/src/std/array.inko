@@ -34,6 +34,32 @@ impl Array {
     values
   }
 
+  # Returns an array filled with a certain amount of values.
+  #
+  # The `amount` argument specifies how many times the `value` argument must
+  # exist in the array.
+  #
+  # # Examples
+  #
+  # Creating an `Array` with four integers:
+  #
+  #     Array.filled(amount: 4, value: 0) # => Array.new(0, 0, 0, 0)
+  #
+  # # Panics
+  #
+  # This method panics if the amount is a negative number.
+  static def filled!(V)(amount: Integer, value: V) -> Array!(V) {
+    let array = new
+
+    amount.negative?.if_true {
+      _INKOC.panic('The fill amount must be equal to or greater than zero')
+    }
+
+    { array.length < amount }.while_true { array.push(value) }
+
+    array
+  }
+
   # Removes all values of this Array, then returns self.
   #
   # # Examples
@@ -103,14 +129,10 @@ impl Array {
   #     array.remove_at(0) # => 10
   #     array.empty?       # => True
   #
-  # When removing a non-existing value the Array won't be modified, and the
-  # returned value will be Nil:
+  # # Panics
   #
-  #     let array = Array.new(10)
-  #
-  #     array.remove_at(1) # => Nil
-  #     array.empty?       # => False
-  def remove_at(index: Integer) -> ?T {
+  # This method panics when the index is out of bounds.
+  def remove_at(index: Integer) -> T {
     _INKOC.array_remove(self, index)
   }
 
@@ -134,10 +156,7 @@ impl Array {
     let max = length
 
     { index < max }.while_true {
-      let value = self[index]
-
-      block.call(value!)
-
+      block.call(self[index])
       index += 1
     }
 
@@ -198,6 +217,26 @@ impl Array {
 
     False
   }
+
+  # Returns the value at the given index, returning Nil if the index is out of
+  # bounds.
+  #
+  # # Examples
+  #
+  # Retrieving an existing value:
+  #
+  #     let numbers = Array.new(10, 20)
+  #
+  #     numbers.get(0) # => 10
+  #
+  # Retrieving a value from a non-existing index:
+  #
+  #     let numbers = Array.new(10, 20)
+  #
+  #     numbers.get(5) # => Nil
+  def get(index: Integer) -> ?T {
+    (index < length).if_true { self[index] }
+  }
 }
 
 impl Length for Array {
@@ -218,7 +257,7 @@ impl Length for Array {
 }
 
 impl Index!(Integer, T) for Array {
-  # Returns the value at the given index, or Nil if no value was found.
+  # Returns the value at the given index.
   #
   # # Examples
   #
@@ -235,12 +274,10 @@ impl Index!(Integer, T) for Array {
   #
   #     array[-2] # => 20
   #
-  # Accessing an out-of-bounds index will produce a Nil:
+  # # Panics
   #
-  #     let array = Array.new
-  #
-  #     array[0] # => Nil
-  def [](index: Integer) -> ?T {
+  # This method panics when the index is out of bounds.
+  def [](index: Integer) -> T {
     _INKOC.array_at(self, index)
   }
 }
@@ -313,7 +350,7 @@ impl Equal for Array {
     (length == other.length).if_false { return False }
 
     each_with_index do (ours: T, index: Integer) {
-      let theirs = other[index]!
+      let theirs = other[index]
 
       (ours == theirs).if_false { return False }
     }

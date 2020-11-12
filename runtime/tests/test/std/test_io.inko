@@ -12,8 +12,7 @@ impl Read for Reader {
     let mut index = 0
 
     { index < max }.while_true {
-      bytes.push(input[index]!)
-
+      bytes.push(input[index])
       index += 1
     }
 
