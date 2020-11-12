@@ -47,13 +47,8 @@ pub fn module_get(
     name_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
     let name = name_ptr.string_value()?;
-    let module = state.modules.lock().get(name);
 
-    if let Some(pointer) = module {
-        Ok(pointer)
-    } else {
-        Ok(state.nil_object)
-    }
+    state.modules.lock().get(name)
 }
 
 #[inline(always)]

@@ -186,15 +186,11 @@ pub fn file_seek(
 }
 
 #[inline(always)]
-pub fn file_remove(
-    state: &RcState,
-    path_ptr: ObjectPointer,
-) -> Result<ObjectPointer, RuntimeError> {
+pub fn file_remove(path_ptr: ObjectPointer) -> Result<(), RuntimeError> {
     let path_str = path_ptr.string_value()?;
 
     fs::remove_file(path_str)?;
-
-    Ok(state.nil_object)
+    Ok(())
 }
 
 #[inline(always)]
@@ -253,7 +249,7 @@ pub fn directory_create(
     state: &RcState,
     path_ptr: ObjectPointer,
     recursive_ptr: ObjectPointer,
-) -> Result<ObjectPointer, RuntimeError> {
+) -> Result<(), RuntimeError> {
     let path = path_ptr.string_value()?;
 
     if is_false!(state, recursive_ptr) {
@@ -262,7 +258,7 @@ pub fn directory_create(
         fs::create_dir_all(path)?;
     }
 
-    Ok(state.nil_object)
+    Ok(())
 }
 
 #[inline(always)]
@@ -270,7 +266,7 @@ pub fn directory_remove(
     state: &RcState,
     path_ptr: ObjectPointer,
     recursive_ptr: ObjectPointer,
-) -> Result<ObjectPointer, RuntimeError> {
+) -> Result<(), RuntimeError> {
     let path = path_ptr.string_value()?;
 
     if is_false!(state, recursive_ptr) {
@@ -279,7 +275,7 @@ pub fn directory_remove(
         fs::remove_dir_all(path)?;
     }
 
-    Ok(state.nil_object)
+    Ok(())
 }
 
 #[inline(always)]

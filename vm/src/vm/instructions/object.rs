@@ -77,7 +77,7 @@ pub fn get_attribute(
 
     rec_ptr
         .lookup_attribute(&state, name)
-        .unwrap_or_else(|| state.nil_object)
+        .unwrap_or(state.nil_object)
 }
 
 #[inline(always)]
@@ -90,7 +90,7 @@ pub fn get_attribute_in_self(
 
     rec_ptr
         .lookup_attribute_in_self(&state, name)
-        .unwrap_or_else(|| state.nil_object)
+        .unwrap_or(state.nil_object)
 }
 
 #[inline(always)]
@@ -100,9 +100,9 @@ pub fn set_attribute(
     target_ptr: ObjectPointer,
     name_ptr: ObjectPointer,
     value_ptr: ObjectPointer,
-) -> ObjectPointer {
+) -> Result<ObjectPointer, String> {
     if target_ptr.is_immutable() {
-        return state.nil_object;
+        return Err("Attributes can't be set for immutable objects".to_string());
     }
 
     let name = state.intern_pointer(name_ptr).unwrap_or_else(|_| {
@@ -114,14 +114,12 @@ pub fn set_attribute(
 
     target_ptr.add_attribute(&process, name, value);
 
-    value
+    Ok(value)
 }
 
 #[inline(always)]
 pub fn get_prototype(state: &RcState, src_ptr: ObjectPointer) -> ObjectPointer {
-    src_ptr
-        .prototype(&state)
-        .unwrap_or_else(|| state.nil_object)
+    src_ptr.prototype(&state).unwrap_or(state.nil_object)
 }
 
 #[inline(always)]

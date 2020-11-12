@@ -1264,7 +1264,14 @@ module Inkoc
       end
 
       def on_raw_file_remove(node, body)
-        raw_unary_instruction(:FileRemove, node, body)
+        path = process_node(node.arguments.fetch(0), body)
+
+        result =
+          body.instruct(:Nullary, :FileRemove, path, node.location)
+
+        body.registers.release(path)
+
+        result
       end
 
       def on_raw_file_copy(node, body)
@@ -1280,11 +1287,29 @@ module Inkoc
       end
 
       def on_raw_directory_create(node, body)
-        raw_binary_instruction(:DirectoryCreate, node, body)
+        path = process_node(node.arguments.fetch(0), body)
+        recurse = process_node(node.arguments.fetch(1), body)
+
+        result =
+          body.instruct(:Unary, :DirectoryCreate, path, recurse, node.location)
+
+        body.registers.release(path)
+        body.registers.release(recurse)
+
+        result
       end
 
       def on_raw_directory_remove(node, body)
-        raw_binary_instruction(:DirectoryRemove, node, body)
+        path = process_node(node.arguments.fetch(0), body)
+        recurse = process_node(node.arguments.fetch(1), body)
+
+        result =
+          body.instruct(:Unary, :DirectoryRemove, path, recurse, node.location)
+
+        body.registers.release(path)
+        body.registers.release(recurse)
+
+        result
       end
 
       def on_raw_directory_list(node, body)
@@ -1465,7 +1490,14 @@ module Inkoc
       end
 
       def on_raw_env_remove(node, body)
-        raw_unary_instruction(:EnvRemove, node, body)
+        name = process_node(node.arguments.fetch(0), body)
+
+        result =
+          body.instruct(:Nullary, :EnvRemove, name, node.location)
+
+        body.registers.release(name)
+
+        result
       end
 
       def on_raw_env_variables(node, body)
@@ -1601,15 +1633,46 @@ module Inkoc
       end
 
       def on_raw_socket_bind(node, body)
-        raw_ternary_instruction(:SocketBind, node, body)
+        sock = process_node(node.arguments.fetch(0), body)
+        addr = process_node(node.arguments.fetch(1), body)
+        port = process_node(node.arguments.fetch(2), body)
+
+        result =
+          body.instruct(:Binary, :SocketBind, sock, addr, port, node.location)
+
+        body.registers.release(sock)
+        body.registers.release(addr)
+        body.registers.release(port)
+
+        result
       end
 
       def on_raw_socket_connect(node, body)
-        raw_ternary_instruction(:SocketConnect, node, body)
+        sock = process_node(node.arguments.fetch(0), body)
+        addr = process_node(node.arguments.fetch(1), body)
+        port = process_node(node.arguments.fetch(2), body)
+
+        result =
+          body.instruct(:Binary, :SocketConnect, sock, addr, port, node.location)
+
+        body.registers.release(sock)
+        body.registers.release(addr)
+        body.registers.release(port)
+
+        result
       end
 
       def on_raw_socket_shutdown(node, body)
-        raw_binary_instruction(:SocketShutdown, node, body)
+        sock = process_node(node.arguments.fetch(0), body)
+        mode = process_node(node.arguments.fetch(1), body)
+
+        result =
+          body.instruct(:Unary, :SocketShutdown, sock, mode, node.location)
+
+        body.registers.release(sock)
+        body.registers.release(mode)
+
+        result
       end
 
       def on_raw_socket_listen(node, body)

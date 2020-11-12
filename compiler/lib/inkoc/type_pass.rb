@@ -591,7 +591,7 @@ module Inkoc
     end
 
     def on_raw_file_remove(*)
-      typedb.nil_type.new_instance
+      TypeSystem::Never.new
     end
 
     def on_raw_file_copy(*)
@@ -607,11 +607,11 @@ module Inkoc
     end
 
     def on_raw_directory_create(*)
-      typedb.nil_type.new_instance
+      TypeSystem::Never.new
     end
 
     def on_raw_directory_remove(*)
-      typedb.nil_type.new_instance
+      TypeSystem::Never.new
     end
 
     def on_raw_directory_list(*)
@@ -725,7 +725,7 @@ module Inkoc
     end
 
     def on_raw_env_remove(*)
-      typedb.nil_type.new_instance
+      TypeSystem::Never.new
     end
 
     def on_raw_env_variables(*)
@@ -861,15 +861,15 @@ module Inkoc
     end
 
     def on_raw_socket_bind(*)
-      typedb.nil_type.new_instance
+      TypeSystem::Never.new
     end
 
     def on_raw_socket_connect(*)
-      typedb.nil_type.new_instance
+      TypeSystem::Never.new
     end
 
     def on_raw_socket_shutdown(*)
-      typedb.nil_type.new_instance
+      TypeSystem::Never.new
     end
 
     def on_raw_socket_listen(*)

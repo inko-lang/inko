@@ -52,8 +52,11 @@ impl Modules {
         }
     }
 
-    pub fn get(&self, name: &str) -> Option<ObjectPointer> {
-        self.map.get(name).cloned()
+    pub fn get(&self, name: &str) -> Result<ObjectPointer, String> {
+        self.map
+            .get(name)
+            .cloned()
+            .ok_or_else(|| format!("The module {} doesn't exist", name))
     }
 
     pub fn list(&self) -> Vec<ObjectPointer> {
@@ -64,12 +67,10 @@ impl Modules {
         &mut self,
         name: &str,
     ) -> Result<(ObjectPointer, bool), String> {
-        if let Some(ptr) = self.get(name) {
+        self.get(name).and_then(|ptr| {
             let module = ptr.module_value_mut()?;
 
             Ok((ptr, module.mark_as_executed()))
-        } else {
-            Err(format!("The module {} does not exist", name))
-        }
+        })
     }
 }

@@ -159,12 +159,7 @@ pub fn stacktrace(
     limit_ptr: ObjectPointer,
     skip_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
-    let limit = if limit_ptr == state.nil_object {
-        None
-    } else {
-        Some(limit_ptr.usize_value()?)
-    };
-
+    let limit = limit_ptr.usize_value()?;
     let skip = skip_ptr.usize_value()?;
 
     Ok(allocate_stacktrace(process, state, limit, skip))
@@ -320,10 +315,10 @@ fn attempt_to_reschedule_process(state: &RcState, process: &RcProcess) {
 fn allocate_stacktrace(
     process: &RcProcess,
     state: &RcState,
-    limit: Option<usize>,
+    limit: usize,
     skip: usize,
 ) -> ObjectPointer {
-    let mut trace = if let Some(limit) = limit {
+    let mut trace = if limit > 0 {
         Vec::with_capacity(limit)
     } else {
         Vec::new()
@@ -332,7 +327,7 @@ fn allocate_stacktrace(
     let mut contexts: Vec<&ExecutionContext> = {
         let iter = process.context().contexts().skip(skip);
 
-        if let Some(limit) = limit {
+        if limit > 0 {
             iter.take(limit).collect()
         } else {
             iter.collect()

@@ -52,7 +52,8 @@ object CallFrame {
 # # Limit
 #
 # An optional limit can be specified to limit the number of call frames to the
-# given number, starting with the most recent call frame.
+# given number, starting with the most recent call frame. If this limit is 0,
+# all frames are included.
 #
 # # Example
 #
@@ -70,7 +71,7 @@ object CallFrame {
 #
 #     first.name # => 'second'
 #     first.line # => 8
-def stacktrace(skip = 1, limit: ?Integer = Nil) -> Array!(CallFrame) {
+def stacktrace(skip = 1, limit = 0) -> Array!(CallFrame) {
   let mut raw_frames = _INKOC.stacktrace(limit, skip)
   let mut frames = Array.new
 

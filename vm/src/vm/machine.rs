@@ -883,7 +883,7 @@ impl Machine {
                         rec,
                         name,
                         val,
-                    );
+                    )?;
 
                     context.set_register(reg, res);
                 }
@@ -1147,17 +1147,15 @@ impl Machine {
                     return Ok(());
                 }
                 Opcode::FileRemove => {
-                    let reg = instruction.arg(0);
-                    let path = context.get_register(instruction.arg(1));
-                    let res = try_runtime_error!(
-                        io::file_remove(&self.state, path),
+                    let path = context.get_register(instruction.arg(0));
+
+                    try_runtime_error!(
+                        io::file_remove(path),
                         self,
                         process,
                         context,
                         index
                     );
-
-                    context.set_register(reg, res);
                 }
                 Opcode::Panic => {
                     let msg = context.get_register(instruction.arg(0));
@@ -1239,32 +1237,28 @@ impl Machine {
                     context.set_register(reg, res);
                 }
                 Opcode::DirectoryCreate => {
-                    let reg = instruction.arg(0);
-                    let path = context.get_register(instruction.arg(1));
-                    let recurse = context.get_register(instruction.arg(2));
-                    let res = try_runtime_error!(
+                    let path = context.get_register(instruction.arg(0));
+                    let recurse = context.get_register(instruction.arg(1));
+
+                    try_runtime_error!(
                         io::directory_create(&self.state, path, recurse),
                         self,
                         process,
                         context,
                         index
                     );
-
-                    context.set_register(reg, res);
                 }
                 Opcode::DirectoryRemove => {
-                    let reg = instruction.arg(0);
-                    let path = context.get_register(instruction.arg(1));
-                    let recurse = context.get_register(instruction.arg(2));
-                    let res = try_runtime_error!(
+                    let path = context.get_register(instruction.arg(0));
+                    let recurse = context.get_register(instruction.arg(1));
+
+                    try_runtime_error!(
                         io::directory_remove(&self.state, path, recurse),
                         self,
                         process,
                         context,
                         index
                     );
-
-                    context.set_register(reg, res);
                 }
                 Opcode::DirectoryList => {
                     let reg = instruction.arg(0);
@@ -1519,11 +1513,9 @@ impl Machine {
                     context.set_register(reg, res);
                 }
                 Opcode::EnvRemove => {
-                    let reg = instruction.arg(0);
-                    let var = context.get_register(instruction.arg(1));
-                    let res = env::env_remove(&self.state, var)?;
+                    let var = context.get_register(instruction.arg(0));
 
-                    context.set_register(reg, res);
+                    env::env_remove(var)?;
                 }
                 Opcode::BlockGetReceiver => {
                     let reg = instruction.arg(0);
@@ -1911,11 +1903,11 @@ impl Machine {
                     context.set_register(reg, res);
                 }
                 Opcode::SocketBind => {
-                    let reg = instruction.arg(0);
-                    let sock = context.get_register(instruction.arg(1));
-                    let addr = context.get_register(instruction.arg(2));
-                    let port = context.get_register(instruction.arg(3));
-                    let res = try_runtime_error!(
+                    let sock = context.get_register(instruction.arg(0));
+                    let addr = context.get_register(instruction.arg(1));
+                    let port = context.get_register(instruction.arg(2));
+
+                    try_runtime_error!(
                         socket::socket_bind(
                             &self.state,
                             process,
@@ -1928,8 +1920,6 @@ impl Machine {
                         context,
                         index
                     );
-
-                    context.set_register(reg, res);
                 }
                 Opcode::SocketListen => {
                     let reg = instruction.arg(0);
@@ -1946,11 +1936,11 @@ impl Machine {
                     context.set_register(reg, res);
                 }
                 Opcode::SocketConnect => {
-                    let reg = instruction.arg(0);
-                    let sock = context.get_register(instruction.arg(1));
-                    let addr = context.get_register(instruction.arg(2));
-                    let port = context.get_register(instruction.arg(3));
-                    let res = try_runtime_error!(
+                    let sock = context.get_register(instruction.arg(0));
+                    let addr = context.get_register(instruction.arg(1));
+                    let port = context.get_register(instruction.arg(2));
+
+                    try_runtime_error!(
                         socket::socket_connect(
                             &self.state,
                             process,
@@ -1963,22 +1953,18 @@ impl Machine {
                         context,
                         index
                     );
-
-                    context.set_register(reg, res);
                 }
                 Opcode::SocketShutdown => {
-                    let reg = instruction.arg(0);
-                    let sock = context.get_register(instruction.arg(1));
-                    let mode = context.get_register(instruction.arg(2));
-                    let res = try_runtime_error!(
-                        socket::socket_shutdown(&self.state, sock, mode),
+                    let sock = context.get_register(instruction.arg(0));
+                    let mode = context.get_register(instruction.arg(1));
+
+                    try_runtime_error!(
+                        socket::socket_shutdown(sock, mode),
                         self,
                         process,
                         context,
                         index
                     );
-
-                    context.set_register(reg, res);
                 }
                 Opcode::RandomNumber => {
                     let reg = instruction.arg(0);

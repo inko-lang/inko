@@ -65,7 +65,7 @@ pub fn byte_array_get(
     let value = bytes
         .get(index)
         .map(|byte| ObjectPointer::byte(*byte))
-        .unwrap_or_else(|| state.nil_object);
+        .unwrap_or(state.nil_object);
 
     Ok(value)
 }

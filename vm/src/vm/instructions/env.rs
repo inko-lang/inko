@@ -38,13 +38,9 @@ pub fn env_set(
 }
 
 #[inline(always)]
-pub fn env_remove(
-    state: &RcState,
-    var_ptr: ObjectPointer,
-) -> Result<ObjectPointer, String> {
+pub fn env_remove(var_ptr: ObjectPointer) -> Result<(), String> {
     env::remove_var(var_ptr.string_value()?);
-
-    Ok(state.nil_object)
+    Ok(())
 }
 
 #[inline(always)]

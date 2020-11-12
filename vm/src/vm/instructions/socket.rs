@@ -110,11 +110,11 @@ pub fn socket_bind(
     socket_ptr: ObjectPointer,
     addr_ptr: ObjectPointer,
     port_ptr: ObjectPointer,
-) -> Result<ObjectPointer, RuntimeError> {
+) -> Result<(), RuntimeError> {
     let sock = socket_ptr.socket_value_mut()?;
     let addr = addr_ptr.string_value()?;
     let port = port_ptr.u16_value()?;
-    let result = sock.bind(addr, port).map(|_| state.nil_object);
+    let result = sock.bind(addr, port);
 
     ret!(result, state, process, sock, Interest::Read)
 }
@@ -126,11 +126,11 @@ pub fn socket_connect(
     socket_ptr: ObjectPointer,
     addr_ptr: ObjectPointer,
     port_ptr: ObjectPointer,
-) -> Result<ObjectPointer, RuntimeError> {
+) -> Result<(), RuntimeError> {
     let sock = socket_ptr.socket_value_mut()?;
     let addr = addr_ptr.string_value()?;
     let port = port_ptr.u16_value()?;
-    let result = sock.connect(addr, port).map(|_| state.nil_object);
+    let result = sock.connect(addr, port);
 
     ret!(result, state, process, sock, Interest::Write)
 }
@@ -312,14 +312,13 @@ pub fn socket_get_option(
 
 #[inline(always)]
 pub fn socket_shutdown(
-    state: &RcState,
     socket_ptr: ObjectPointer,
     mode_ptr: ObjectPointer,
-) -> Result<ObjectPointer, RuntimeError> {
+) -> Result<(), RuntimeError> {
     let sock = socket_ptr.socket_value()?;
     let mode = mode_ptr.u8_value()?;
 
-    sock.shutdown(mode).map(|_| state.nil_object)
+    sock.shutdown(mode)
 }
 
 fn allocate_address_pair(
