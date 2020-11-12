@@ -105,7 +105,7 @@ impl Formatter for ProgressFormatter {
     stdout.write_string("\n\nFailures:")
 
     tests.each_with_index do (test, index) {
-      let failure = test.failure!
+      let failure = test.failure.get
       let output = `
 
   Group:            {test.group_name}

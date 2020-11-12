@@ -28,7 +28,7 @@ object Return {
       @expression = expression,
       @local_return = local_return,
       @location = location,
-      @resolved_type = Nil
+      @resolved_type = Option.none
     }
   }
 
@@ -51,7 +51,8 @@ impl Node for Return {
   }
 
   def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
+    @resolved_type = Option.some(value)
+    value
   }
 }
 
@@ -79,7 +80,7 @@ object Throw {
       @expression = expression,
       @local_throw = local_throw,
       @location = location,
-      @resolved_type = Nil
+      @resolved_type = Option.none
     }
   }
 
@@ -102,7 +103,8 @@ impl Node for Throw {
   }
 
   def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
+    @resolved_type = Option.some(value)
+    value
   }
 }
 
@@ -146,9 +148,9 @@ object Try {
       @else_body = else_body,
       @local_throw = local_throw,
       @location = location,
-      @resolved_type = Nil,
-      @else_type = Nil,
-      @resolved_throw_type = Nil
+      @resolved_type = Option.none,
+      @else_type = Option.none,
+      @resolved_throw_type = Option.none
     }
   }
 
@@ -173,7 +175,8 @@ object Try {
   }
 
   def else_type=(value: Type) -> Type {
-    @else_type = value
+    @else_type = Option.some(value)
+    value
   }
 }
 
@@ -187,7 +190,8 @@ impl Node for Try {
   }
 
   def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
+    @resolved_type = Option.some(value)
+    value
   }
 
   def resolved_throw_type -> ?Type {
@@ -195,7 +199,8 @@ impl Node for Try {
   }
 
   def resolved_throw_type=(value: Type) -> Type {
-    @resolved_throw_type = value
+    @resolved_throw_type = Option.some(value)
+    value
   }
 }
 
@@ -217,8 +222,8 @@ object TryPanic {
     Self {
       @expression = expression,
       @location = location,
-      @resolved_type = Nil,
-      @resolved_throw_type = Nil
+      @resolved_type = Option.none,
+      @resolved_throw_type = Option.none
     }
   }
 
@@ -237,7 +242,8 @@ impl Node for TryPanic {
   }
 
   def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
+    @resolved_type = Option.some(value)
+    value
   }
 
   def resolved_throw_type -> ?Type {
@@ -245,7 +251,8 @@ impl Node for TryPanic {
   }
 
   def resolved_throw_type=(value: Type) -> Type {
-    @resolved_throw_type = value
+    @resolved_throw_type = Option.some(value)
+    value
   }
 }
 
@@ -264,7 +271,7 @@ object Yield {
     Self {
       @expression = expression,
       @location = location,
-      @resolved_type = Nil
+      @resolved_type = Option.none
     }
   }
 
@@ -283,6 +290,7 @@ impl Node for Yield {
   }
 
   def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
+    @resolved_type = Option.some(value)
+    value
   }
 }

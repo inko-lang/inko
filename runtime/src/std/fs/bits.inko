@@ -120,7 +120,7 @@ def accessed_at(path: String) !! IOError -> SystemTime {
 def read_bytes(
   file: File,
   bytes: ByteArray,
-  size: ?Integer = Nil,
+  size = 0,
 ) !! IOError -> Integer {
   process.blocking {
     try {

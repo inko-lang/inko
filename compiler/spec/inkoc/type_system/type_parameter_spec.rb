@@ -84,13 +84,6 @@ describe Inkoc::TypeSystem::TypeParameter do
       expect(ours.type_compatible?(theirs, state)).to eq(false)
     end
 
-    it 'returns true when comparing with an optional type parameter' do
-      ours = described_class.new(name: 'A')
-      theirs = Inkoc::TypeSystem::Optional.new(ours)
-
-      expect(ours.type_compatible?(theirs, state)).to eq(true)
-    end
-
     # rubocop: disable Metrics/LineLength
     it 'returns true when using an object that is in the prototype chain of all traits' do
       object = Inkoc::TypeSystem::Object.new(name: 'Root')

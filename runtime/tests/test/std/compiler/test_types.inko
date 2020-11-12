@@ -167,34 +167,34 @@ test.group('std::compiler::types::Type.number_of_type_parameters') do (g) {
 }
 
 test.group('std::compiler::types::Type.lookup_attribute') do (g) {
-  g.test('Looking up attributes returns Nil') {
-    assert.true(DummyType.new.lookup_attribute('foo').nil?)
+  g.test('Looking up attributes returns a None') {
+    assert.true(DummyType.new.lookup_attribute('foo').none?)
   }
 }
 
 test.group('std::compiler::types::Type.lookup_method') do (g) {
-  g.test('Looking up methods returns Nil') {
-    assert.true(DummyType.new.lookup_method('foo').nil?)
+  g.test('Looking up methods returns a None') {
+    assert.true(DummyType.new.lookup_method('foo').none?)
   }
 }
 
 test.group('std::compiler::types::Type.lookup_type') do (g) {
-  g.test('Looking up types returns Nil') {
-    assert.true(DummyType.new.lookup_type('Foo').nil?)
+  g.test('Looking up types returns a None') {
+    assert.true(DummyType.new.lookup_type('Foo').none?)
   }
 }
 
 test.group('std::compiler::types::Type.lookup_type_parameter') do (g) {
-  g.test('Looking up type parameters returns Nil') {
-    assert.true(DummyType.new.lookup_type_parameter('T').nil?)
+  g.test('Looking up type parameters returns a None') {
+    assert.true(DummyType.new.lookup_type_parameter('T').none?)
   }
 }
 
 test.group('std::compiler::types::Type.lookup_type_parameter_type') do (g) {
-  g.test('Looking up type parameter types returns Nil') {
+  g.test('Looking up type parameter types returns a None') {
     let param = TypeParameterType.new('T')
 
-    assert.true(DummyType.new.lookup_type_parameter_type(param).nil?)
+    assert.true(DummyType.new.lookup_type_parameter_type(param).none?)
   }
 }
 
@@ -444,7 +444,7 @@ test.group('std::compiler::types::TypeParameterTypes.[]') do (g) {
     let param = TypeParameterType.new('A')
     let type = NeverType.new
 
-    assert.true(types.get(param).nil?)
+    assert.true(types.get(param).none?)
 
     types[param] = type
 
@@ -526,7 +526,6 @@ test.group('std::compiler::types::Builtins.array_type') do (g) {
 
     assert.equal(array.name, 'Array')
     assert.equal(array.number_of_type_parameters, 1)
-    assert.false(param.nil?)
     assert.true(param.required_traits.empty?)
   }
 }
@@ -581,7 +580,7 @@ test.group('std::compiler::types::NeverType.type_compatible?') do (g) {
       let never = NeverType.new
 
       assert_compatible(compare: never, with: param, self_type: type)
-      assert.same_object(type.lookup_type_parameter_type(param), never)
+      assert.same_object(type.lookup_type_parameter_type(param).get, never)
     }
   }
 
@@ -592,14 +591,8 @@ test.group('std::compiler::types::NeverType.type_compatible?') do (g) {
       type.assign_type_parameter(parameter: param, type: assigned)
 
       assert_compatible(compare: NeverType.new, with: param, self_type: type)
-      assert.same_object(type.lookup_type_parameter_type(param), assigned)
+      assert.same_object(type.lookup_type_parameter_type(param).get, assigned)
     }
-  }
-
-  g.test('Comparing a NeverType with an OptionalType') {
-    let opt_type = OptionalType.new(ObjectType.new('String'))
-
-    assert_compatible(NeverType.new, opt_type)
   }
 
   g.test('Comparing a NeverType with a ModuleType') {
@@ -671,14 +664,8 @@ test.group('std::compiler::types::InferType.type_compatible?') do (g) {
       type.assign_type_parameter(parameter: param, type: assigned)
 
       assert_not_compatible(compare: InferType.new, with: param, self_type: type)
-      assert.same_object(type.lookup_type_parameter_type(param), assigned)
+      assert.same_object(type.lookup_type_parameter_type(param).get, assigned)
     }
-  }
-
-  g.test('Comparing an InferType with an OptionalType') {
-    let opt_type = OptionalType.new(ObjectType.new('String'))
-
-    assert_not_compatible(InferType.new, opt_type)
   }
 
   g.test('Comparing an InferType with a ModuleType') {
@@ -740,7 +727,7 @@ test.group('std::compiler::types::AnyType.type_compatible?') do (g) {
       let any = AnyType.new
 
       assert_compatible(compare: any, with: param, self_type: type)
-      assert.same_object(type.lookup_type_parameter_type(param), any)
+      assert.same_object(type.lookup_type_parameter_type(param).get, any)
     }
   }
 
@@ -751,14 +738,8 @@ test.group('std::compiler::types::AnyType.type_compatible?') do (g) {
       type.assign_type_parameter(parameter: param, type: assigned)
 
       assert_not_compatible(compare: AnyType.new, with: param, self_type: type)
-      assert.same_object(type.lookup_type_parameter_type(param), assigned)
+      assert.same_object(type.lookup_type_parameter_type(param).get, assigned)
     }
-  }
-
-  g.test('Comparing an AnyType with an OptionalType') {
-    let opt_type = OptionalType.new(ObjectType.new('String'))
-
-    assert_not_compatible(AnyType.new, opt_type)
   }
 
   g.test('Comparing an AnyType with a ModuleType') {
@@ -903,12 +884,6 @@ test.group('std::compiler::types::ErrorType.type_compatible?') do (g) {
     assert_compatible(ErrorType.new, TypeParameterType.new('T'))
   }
 
-  g.test('Comparing a ErrorType with an OptionalType') {
-    let opt_type = OptionalType.new(ObjectType.new('String'))
-
-    assert_compatible(ErrorType.new, opt_type)
-  }
-
   g.test('Comparing a ErrorType with a ModuleType') {
     let mod_type = new_module
 
@@ -1009,7 +984,7 @@ test.group('std::compiler::types::TypeParameterType.type_compatible?') do (g) {
       let xparam = TypeParameterType.new('X')
 
       assert_compatible(compare: xparam, with: param, self_type: type)
-      assert.same_object(type.lookup_type_parameter_type(param), xparam)
+      assert.same_object(type.lookup_type_parameter_type(param).get, xparam)
     }
   }
 
@@ -1035,15 +1010,8 @@ test.group('std::compiler::types::TypeParameterType.type_compatible?') do (g) {
       type.assign_type_parameter(parameter: param, type: assigned)
 
       assert_not_compatible(compare: aparam, with: param, self_type: type)
-      assert.same_object(type.lookup_type_parameter_type(param), assigned)
+      assert.same_object(type.lookup_type_parameter_type(param).get, assigned)
     }
-  }
-
-  g.test('Comparing a TypeParameterType with an OptionalType') {
-    let param = TypeParameterType.new('T')
-
-    assert_not_compatible(param, OptionalType.new(ObjectType.new('String')))
-    assert_compatible(param, OptionalType.new(param))
   }
 
   g.test('Comparing a TypeParameterType with a ModuleType') {
@@ -1152,7 +1120,7 @@ test.group('std::compiler::types::TypeParameterBounds.merge') do (g) {
     assert.same_object(bounds1[param1], req1)
     assert.same_object(bounds1[param2], req2)
 
-    assert.true(bounds2.get(param1).nil?)
+    assert.true(bounds2.get(param1).none?)
     assert.same_object(bounds2[param2], req2)
   }
 }
@@ -1172,7 +1140,7 @@ test.group('std::compiler::types::TypeParameterBounds.[]') do (g) {
     let bounds = TypeParameterBounds.new
     let param = TypeParameterType.new('T')
 
-    assert.true(bounds.get(param).nil?)
+    assert.true(bounds.get(param).none?)
   }
 }
 
@@ -1187,153 +1155,6 @@ test.group('std::compiler::types::TypeParameterBounds.length') do (g) {
     bounds.define(parameter: param, requirements: req)
 
     assert.equal(bounds.length, 1)
-  }
-}
-
-test.group('std::compiler::types::OptionalType.wrap') do (g) {
-  g.test('Wrapping a regular type') {
-    let any = AnyType.new
-    let type = OptionalType.wrap(any)
-
-    assert.same_object(type.type, any)
-  }
-
-  g.test('Wrapping an optional type') {
-    let opt1 = OptionalType.wrap(AnyType.new)
-    let opt2 = OptionalType.wrap(opt1)
-
-    assert.same_object(opt2, opt1)
-  }
-}
-
-test.group('std::compiler::types::OptionalType.type') do (g) {
-  g.test('Obtaining the type wrapped by an OptionalType') {
-    let type = NeverType.new
-
-    assert.same_object(OptionalType.new(type).type, type)
-  }
-}
-
-test.group('std::compiler::types::OptionalType.type_name') do (g) {
-  g.test('Obtaining the type name of an OptionalType') {
-    let trait_type = TraitType.new('ToString')
-    let param = TypeParameterType
-      .new(name: 'T', required_traits: Array.new(TraitInstance.new(trait_type)))
-
-    let opt_type = OptionalType.new(param)
-
-    assert.equal(opt_type.type_name, '?ToString')
-  }
-}
-
-test.group('std::compiler::types::OptionalType.type_compatible?') do (g) {
-  g.test('Comparing an OptionalType with an ErrorType') {
-    let opt_type = OptionalType.new(ObjectType.new('String'))
-
-    assert_compatible(opt_type, ErrorType.new)
-  }
-
-  g.test('Comparing an OptionalType with an AnyType') {
-    let opt_type = OptionalType.new(ObjectType.new('String'))
-
-    assert_compatible(opt_type, AnyType.new)
-  }
-
-  g.test('Comparing an OptionalType with a NeverType') {
-    let opt_type = OptionalType.new(ObjectType.new('String'))
-
-    assert_not_compatible(opt_type, NeverType.new)
-  }
-
-  g.test('Comparing a OptionalType with an ObjectType') {
-    let obj_type = ObjectType.new('String')
-    let opt_type = OptionalType.new(obj_type)
-
-    assert_not_compatible(opt_type, obj_type)
-  }
-
-  g.test('Comparing a OptionalType with an ObjectInstance') {
-    let obj_type = ObjectType.new('String')
-    let opt_type = OptionalType.new(obj_type)
-
-    assert_not_compatible(opt_type, ObjectInstance.new(obj_type))
-  }
-
-  g.test('Comparing an OptionalType with a TraitType') {
-    let opt_type = OptionalType.new(ObjectType.new('String'))
-
-    assert_not_compatible(opt_type, TraitType.new('ToString'))
-  }
-
-  g.test('Comparing an OptionalType with an unimplemented TraitInstance') {
-    let opt_type = OptionalType.new(ObjectType.new('String'))
-    let instance = TraitInstance.new(TraitType.new('ToString'))
-
-    assert_not_compatible(opt_type, instance)
-  }
-
-  g.test('Comparing an OptionalType with an implemented TraitInstance') {
-    let trait_type = TraitType.new('ToString')
-    let obj_type = ObjectInstance.new(ObjectType.new('String'))
-    let opt_type = OptionalType.new(obj_type)
-    let builtins = Builtins.new
-
-    obj_type.instance_of.add_trait_implementation(
-      TraitImplementation.new(TraitInstance.new(trait_type))
-    )
-
-    assert_not_compatible(
-      compare: opt_type,
-      with: TraitInstance.new(trait_type),
-      builtins: builtins
-    )
-
-    builtins.nil_type.add_trait_implementation(
-      TraitImplementation.new(TraitInstance.new(trait_type))
-    )
-
-    assert_compatible(
-      compare: opt_type,
-      with: TraitInstance.new(trait_type),
-      builtins: builtins
-    )
-  }
-
-  g.test('Comparing an OptionalType with a TypeParameterType') {
-    let opt_type = OptionalType.new(ObjectType.new('String'))
-
-    assert_not_compatible(opt_type, TypeParameterType.new('T'))
-  }
-
-  g.test('Comparing an OptionalType with another OptionalType') {
-    let obj1 = ObjectType.new('String')
-    let obj2 = ObjectType.new('Integer')
-
-    assert_not_compatible(OptionalType.new(obj1), OptionalType.new(obj2))
-    assert_not_compatible(OptionalType.new(obj2), OptionalType.new(obj1))
-
-    assert_compatible(OptionalType.new(obj1), OptionalType.new(obj1))
-  }
-
-  g.test('Comparing an OptionalType with a ModuleType') {
-    let mod_type = new_module
-    let opt_type = OptionalType.new(ObjectType.new('String'))
-
-    assert_not_compatible(opt_type, mod_type)
-  }
-
-  g.test('Comparing an OptionalType with a SelfType') {
-    # Optional types are not defined using the "trait" or "object" keywords, and
-    # thus can never be the type of `self`.
-    let obj_type = ObjectType.new('String')
-    let opt_type = OptionalType.new(obj_type)
-
-    assert_not_compatible(
-      compare: opt_type,
-      with: SelfType.new,
-      builtins: Builtins.new,
-      self_type: obj_type
-    )
   }
 }
 
@@ -1393,11 +1214,11 @@ test.group('std::compiler::types::BlockLayout.throw_type') do (g) {
     let layout = BlockLayout.new(NeverType.new)
     let type = NeverType.new
 
-    assert.true(layout.throw_type.nil?)
+    assert.true(layout.throw_type.none?)
 
     layout.throw_type = type
 
-    assert.same_object(layout.throw_type, type)
+    assert.same_object(layout.throw_type.get, type)
   }
 }
 
@@ -1430,12 +1251,12 @@ test.group('std::compiler::types::BlockLayout.return_type') do (g) {
 test.group('std::compiler::types::BlockLayout.substitute') do (g) {
   g.test('Substituting a Self type used as a throw type') {
     let self_type = ObjectType.new('Foo').new_instance
-    let layout =
-      BlockLayout.new(return_type: NeverType.new, throw_type: SelfType.new)
+    let layout = BlockLayout
+      .new(return_type: NeverType.new, throw_type: Option.some(SelfType.new))
 
     let new_layout = layout.substitute(type_scope(self_type))
 
-    assert.same_object(new_layout.throw_type, self_type)
+    assert.same_object(new_layout.throw_type.get, self_type)
   }
 
   g.test('Substituting a Self type used as a throw type') {
@@ -1536,11 +1357,11 @@ test.group('std::compiler::types::BlockType.throw_type') do (g) {
     let block = DummyBlock.new
     let type = NeverType.new
 
-    assert.true(block.throw_type.nil?)
+    assert.true(block.throw_type.none?)
 
     block.throw_type = type
 
-    assert.same_object(block.throw_type, type)
+    assert.same_object(block.throw_type.get, type)
   }
 }
 
@@ -1755,7 +1576,7 @@ test.group('std::compiler::types::MethodType.type_name') do (g) {
       layout: BlockLayout.new(builtins.nil_type.new_instance)
     )
 
-    method.yield_type = builtins.integer_type.new_instance
+    method.yield_type = Option.some(builtins.integer_type.new_instance)
 
     assert.equal(method.type_name, 'def foo => Integer')
   }
@@ -1863,7 +1684,7 @@ test.group('std::compiler::types::MethodType.type_compatible?') do (g) {
         MethodType.new(name: 'foo', layout: BlockLayout.new(NeverType.new))
 
       assert_compatible(compare: method_type, with: param, self_type: type)
-      assert.same_object(type.lookup_type_parameter_type(param), method_type)
+      assert.same_object(type.lookup_type_parameter_type(param).get, method_type)
     }
   }
 
@@ -1876,24 +1697,8 @@ test.group('std::compiler::types::MethodType.type_compatible?') do (g) {
       type.assign_type_parameter(parameter: param, type: assigned)
 
       assert_not_compatible(compare: method_type, with: param, self_type: type)
-      assert.same_object(type.lookup_type_parameter_type(param), assigned)
+      assert.same_object(type.lookup_type_parameter_type(param).get, assigned)
     }
-  }
-
-  g.test('Comparing a MethodType with an OptionalType') {
-    let method =
-      MethodType.new(name: 'to_string', layout: BlockLayout.new(NeverType.new))
-
-    let builtins = Builtins.new
-
-    assert_not_compatible(method, OptionalType.new(ObjectType.new('A')))
-    assert_compatible(method, OptionalType.new(method))
-
-    assert_compatible(
-      compare: method,
-      with: OptionalType.new(ObjectInstance.new(builtins.block_type)),
-      builtins: builtins
-    )
   }
 
   g.test('Comparing a MethodType with a ModuleType') {
@@ -2078,7 +1883,7 @@ test.group('std::compiler::types::MethodType.type_compatible?') do (g) {
     let foo2 =
       MethodType.new(name: 'foo', layout: BlockLayout.new(nil_type.new_instance))
 
-    foo1.yield_type = builtins.integer_type.new_instance
+    foo1.yield_type = Option.some(builtins.integer_type.new_instance)
 
     assert_not_compatible(compare: foo1, with: foo2, builtins: builtins)
   }
@@ -2091,7 +1896,7 @@ test.group('std::compiler::types::MethodType.type_compatible?') do (g) {
     let foo2 =
       MethodType.new(name: 'foo', layout: BlockLayout.new(nil_type.new_instance))
 
-    foo2.yield_type = builtins.integer_type.new_instance
+    foo2.yield_type = Option.some(builtins.integer_type.new_instance)
 
     assert_not_compatible(compare: foo1, with: foo2, builtins: builtins)
   }
@@ -2104,8 +1909,8 @@ test.group('std::compiler::types::MethodType.type_compatible?') do (g) {
     let foo2 =
       MethodType.new(name: 'foo', layout: BlockLayout.new(nil_type.new_instance))
 
-    foo1.yield_type = builtins.float_type.new_instance
-    foo2.yield_type = builtins.integer_type.new_instance
+    foo1.yield_type = Option.some(builtins.float_type.new_instance)
+    foo2.yield_type = Option.some(builtins.integer_type.new_instance)
 
     assert_not_compatible(compare: foo1, with: foo2, builtins: builtins)
   }
@@ -2118,8 +1923,8 @@ test.group('std::compiler::types::MethodType.type_compatible?') do (g) {
     let foo2 =
       MethodType.new(name: 'foo', layout: BlockLayout.new(nil_type.new_instance))
 
-    foo1.yield_type = builtins.integer_type.new_instance
-    foo2.yield_type = builtins.integer_type.new_instance
+    foo1.yield_type = Option.some(builtins.integer_type.new_instance)
+    foo2.yield_type = Option.some(builtins.integer_type.new_instance)
 
     assert_compatible(compare: foo1, with: foo2, builtins: builtins)
   }
@@ -2133,8 +1938,8 @@ test.group('std::compiler:types::MethodType.lookup_type') do (g) {
     let param = TypeParameterType.new('T')
     let symbol = method.type_parameters.define(name: param.name, type: param)
 
-    assert.true(method.lookup_type('Foo').nil?)
-    assert.true(method.lookup_type(param.name).same_object?(symbol))
+    assert.true(method.lookup_type('Foo').none?)
+    assert.true(method.lookup_type(param.name).get.same_object?(symbol))
   }
 }
 
@@ -2146,8 +1951,8 @@ test.group('std::compiler:types::MethodType.lookup_type_parameter') do (g) {
     let param = TypeParameterType.new('T')
     let symbol = method.type_parameters.define(name: param.name, type: param)
 
-    assert.true(method.lookup_type_parameter('A').nil?)
-    assert.true(method.lookup_type_parameter(param.name).same_object?(symbol))
+    assert.true(method.lookup_type_parameter('A').none?)
+    assert.true(method.lookup_type_parameter(param.name).get.same_object?(symbol))
   }
 }
 
@@ -2296,7 +2101,7 @@ test.group('std::compiler::types::ClosureType.type_compatible?') do (g) {
       let block_type = ClosureType.new(BlockLayout.new(NeverType.new))
 
       assert_compatible(compare: block_type, with: param, self_type: type)
-      assert.same_object(type.lookup_type_parameter_type(param), block_type)
+      assert.same_object(type.lookup_type_parameter_type(param).get, block_type)
     }
   }
 
@@ -2308,22 +2113,8 @@ test.group('std::compiler::types::ClosureType.type_compatible?') do (g) {
       type.assign_type_parameter(parameter: param, type: assigned)
 
       assert_not_compatible(compare: block_type, with: param, self_type: type)
-      assert.same_object(type.lookup_type_parameter_type(param), assigned)
+      assert.same_object(type.lookup_type_parameter_type(param).get, assigned)
     }
-  }
-
-  g.test('Comparing a ClosureType with an OptionalType') {
-    let block = ClosureType.new(BlockLayout.new(NeverType.new))
-    let builtins = Builtins.new
-
-    assert_not_compatible(block, OptionalType.new(ObjectType.new('A')))
-    assert_compatible(block, OptionalType.new(block))
-
-    assert_compatible(
-      compare: block,
-      with: OptionalType.new(ObjectInstance.new(builtins.block_type)),
-      builtins: builtins
-    )
   }
 
   g.test('Comparing a ClosureType with a ModuleType') {
@@ -2483,8 +2274,8 @@ test.group('std::compiler:types::ClosureType.lookup_type') do (g) {
     let param = TypeParameterType.new('T')
     let symbol = block.type_parameters.define(name: param.name, type: param)
 
-    assert.true(block.lookup_type('Foo').nil?)
-    assert.true(block.lookup_type(param.name).same_object?(symbol))
+    assert.true(block.lookup_type('Foo').none?)
+    assert.true(block.lookup_type(param.name).get.same_object?(symbol))
   }
 }
 
@@ -2494,8 +2285,8 @@ test.group('std::compiler:types::ClosureType.lookup_type_parameter') do (g) {
     let param = TypeParameterType.new('T')
     let symbol = block.type_parameters.define(name: param.name, type: param)
 
-    assert.true(block.lookup_type_parameter('A').nil?)
-    assert.true(block.lookup_type_parameter(param.name).same_object?(symbol))
+    assert.true(block.lookup_type_parameter('A').none?)
+    assert.true(block.lookup_type_parameter(param.name).get.same_object?(symbol))
   }
 }
 
@@ -2657,7 +2448,7 @@ test.group('std::compiler::types::LambdaType.type_compatible?') do (g) {
       let block_type = LambdaType.new(BlockLayout.new(NeverType.new))
 
       assert_compatible(compare: block_type, with: param, self_type: type)
-      assert.same_object(type.lookup_type_parameter_type(param), block_type)
+      assert.same_object(type.lookup_type_parameter_type(param).get, block_type)
     }
   }
 
@@ -2669,22 +2460,8 @@ test.group('std::compiler::types::LambdaType.type_compatible?') do (g) {
       type.assign_type_parameter(parameter: param, type: assigned)
 
       assert_not_compatible(compare: block_type, with: param, self_type: type)
-      assert.same_object(type.lookup_type_parameter_type(param), assigned)
+      assert.same_object(type.lookup_type_parameter_type(param).get, assigned)
     }
-  }
-
-  g.test('Comparing a LambdaType with an OptionalType') {
-    let block = LambdaType.new(BlockLayout.new(NeverType.new))
-    let builtins = Builtins.new
-
-    assert_not_compatible(block, OptionalType.new(ObjectType.new('A')))
-    assert_compatible(block, OptionalType.new(block))
-
-    assert_compatible(
-      compare: block,
-      with: OptionalType.new(ObjectInstance.new(builtins.block_type)),
-      builtins: builtins
-    )
   }
 
   g.test('Comparing a LambdaType with a ModuleType') {
@@ -2833,8 +2610,8 @@ test.group('std::compiler:types::LambdaType.lookup_type') do (g) {
     let param = TypeParameterType.new('T')
     let symbol = block.type_parameters.define(name: param.name, type: param)
 
-    assert.true(block.lookup_type('Foo').nil?)
-    assert.true(block.lookup_type(param.name).same_object?(symbol))
+    assert.true(block.lookup_type('Foo').none?)
+    assert.true(block.lookup_type(param.name).get.same_object?(symbol))
   }
 }
 
@@ -2844,8 +2621,8 @@ test.group('std::compiler:types::LambdaType.lookup_type_parameter') do (g) {
     let param = TypeParameterType.new('T')
     let symbol = block.type_parameters.define(name: param.name, type: param)
 
-    assert.true(block.lookup_type_parameter('A').nil?)
-    assert.true(block.lookup_type_parameter(param.name).same_object?(symbol))
+    assert.true(block.lookup_type_parameter('A').none?)
+    assert.true(block.lookup_type_parameter(param.name).get.same_object?(symbol))
   }
 }
 
@@ -2950,8 +2727,8 @@ test.group('std::compiler::types::TraitType.lookup_type') do (g) {
 
     type.type_parameters.define(name: 'A', type: param)
 
-    assert.equal(type.lookup_type('A').type, param)
-    assert.true(type.lookup_type('B').nil?)
+    assert.equal(type.lookup_type('A').get.type, param)
+    assert.true(type.lookup_type('B').none?)
   }
 }
 
@@ -2962,8 +2739,8 @@ test.group('std::compiler::types::TraitType.lookup_type_parameter') do (g) {
 
     type.type_parameters.define(name: 'A', type: param)
 
-    assert.equal(type.lookup_type_parameter('A').type, param)
-    assert.true(type.lookup_type_parameter('B').nil?)
+    assert.equal(type.lookup_type_parameter('A').get.type, param)
+    assert.true(type.lookup_type_parameter('B').none?)
   }
 }
 
@@ -3070,7 +2847,7 @@ test.group('std::compiler::types::TraitType.type_compatible?') do (g) {
       let trait_type = TraitType.new('ToFoo')
 
       assert_compatible(compare: trait_type, with: param, self_type: type)
-      assert.same_object(type.lookup_type_parameter_type(param), trait_type)
+      assert.same_object(type.lookup_type_parameter_type(param).get, trait_type)
     }
   }
 
@@ -3082,16 +2859,8 @@ test.group('std::compiler::types::TraitType.type_compatible?') do (g) {
       type.assign_type_parameter(parameter: param, type: assigned)
 
       assert_not_compatible(compare: trait_type, with: param, self_type: type)
-      assert.same_object(type.lookup_type_parameter_type(param), assigned)
+      assert.same_object(type.lookup_type_parameter_type(param).get, assigned)
     }
-  }
-
-  g.test('Comparing a TraitType with an OptionalType') {
-    let trait1 = TraitType.new('ToString')
-    let trait2 = TraitType.new('ToInteger')
-
-    assert_compatible(trait1, OptionalType.new(trait1))
-    assert_not_compatible(trait1, OptionalType.new(trait2))
   }
 
   g.test('Comparing an TraitType with a SelfType') {
@@ -3190,7 +2959,7 @@ test.group('std::compiler::types::TraitInstance.lookup_method') do (g) {
 
     let instance = trait_type.new_instance
 
-    assert.same_object(instance.lookup_method(method.name).type, method)
+    assert.same_object(instance.lookup_method(method.name).get.type, method)
   }
 
   g.test('Looking up a required method') {
@@ -3202,14 +2971,14 @@ test.group('std::compiler::types::TraitInstance.lookup_method') do (g) {
 
     let instance = trait_type.new_instance
 
-    assert.same_object(instance.lookup_method(method.name).type, method)
+    assert.same_object(instance.lookup_method(method.name).get.type, method)
   }
 
   g.test('Looking up an undefined method') {
     let trait_type = TraitType.new('A')
     let instance = trait_type.new_instance
 
-    assert.true(instance.lookup_method('foo').nil?)
+    assert.true(instance.lookup_method('foo').none?)
   }
 
   g.test('Looking up a default method from a required trait') {
@@ -3223,7 +2992,7 @@ test.group('std::compiler::types::TraitInstance.lookup_method') do (g) {
 
     let instance = trait2.new_instance
 
-    assert.same_object(instance.lookup_method(method.name).type, method)
+    assert.same_object(instance.lookup_method(method.name).get.type, method)
   }
 
   g.test('Looking up a required method from a required trait') {
@@ -3237,7 +3006,7 @@ test.group('std::compiler::types::TraitInstance.lookup_method') do (g) {
 
     let instance = trait2.new_instance
 
-    assert.same_object(instance.lookup_method(method.name).type, method)
+    assert.same_object(instance.lookup_method(method.name).get.type, method)
   }
 
   g.test('Looking up a default method from a default trait') {
@@ -3251,7 +3020,7 @@ test.group('std::compiler::types::TraitInstance.lookup_method') do (g) {
 
     let instance = trait2.new_instance
 
-    assert.same_object(instance.lookup_method(method.name).type, method)
+    assert.same_object(instance.lookup_method(method.name).get.type, method)
   }
 
   g.test('Looking up a required method from a default trait') {
@@ -3265,7 +3034,7 @@ test.group('std::compiler::types::TraitInstance.lookup_method') do (g) {
 
     let instance = trait2.new_instance
 
-    assert.same_object(instance.lookup_method(method.name).type, method)
+    assert.same_object(instance.lookup_method(method.name).get.type, method)
   }
 }
 
@@ -3278,7 +3047,10 @@ test.group('std::compiler::types::TraitInstance.lookup_type') do (g) {
 
     let instance = trait_type.new_instance
 
-    assert.true(instance.lookup_type('T').same_object?(trait_type.lookup_type('T')))
+    assert.same_object(
+      instance.lookup_type('T').get,
+      trait_type.lookup_type('T').get
+    )
   }
 }
 
@@ -3291,10 +3063,9 @@ test.group('std::compiler::types::TraitInstance.lookup_type_parameter') do (g) {
 
     let instance = trait_type.new_instance
 
-    assert.true(
-      instance
-        .lookup_type_parameter('T')
-        .same_object?(trait_type.lookup_type_parameter('T'))
+    assert.same_object(
+      instance.lookup_type_parameter('T').get,
+      trait_type.lookup_type_parameter('T').get
     )
   }
 }
@@ -3310,8 +3081,11 @@ test.group('std::compiler::types::TraitInstance.lookup_type_parameter_type') do 
     let instance1 = trait_type.new_instance
     let instance2 = trait_type.new_instance(Array.new(object_type))
 
-    assert.true(instance1.lookup_type_parameter_type(param).nil?)
-    assert.same_object(instance2.lookup_type_parameter_type(param)!, object_type)
+    assert.true(instance1.lookup_type_parameter_type(param).none?)
+    assert.same_object(
+      instance2.lookup_type_parameter_type(param).get,
+      object_type
+    )
   }
 }
 
@@ -3418,7 +3192,7 @@ test.group('std::compiler::types::TraitInstance.type_compatible?') do (g) {
       let compare = TraitType.new('ToFoo').new_instance
 
       assert_compatible(compare: compare, with: param, self_type: type)
-      assert.same_object(type.lookup_type_parameter_type(param), compare)
+      assert.same_object(type.lookup_type_parameter_type(param).get, compare)
     }
   }
 
@@ -3430,23 +3204,8 @@ test.group('std::compiler::types::TraitInstance.type_compatible?') do (g) {
       type.assign_type_parameter(parameter: param, type: assigned)
 
       assert_not_compatible(compare: compare, with: param, self_type: type)
-      assert.same_object(type.lookup_type_parameter_type(param), assigned)
+      assert.same_object(type.lookup_type_parameter_type(param).get, assigned)
     }
-  }
-
-  g.test('Comparing a TraitInstance with an OptionalType') {
-    let trait1 = TraitType.new('ToString')
-    let trait2 = TraitType.new('ToInteger')
-
-    assert_compatible(
-      TraitInstance.new(trait1),
-      OptionalType.new(TraitInstance.new(trait1)),
-    )
-
-    assert_not_compatible(
-      TraitInstance.new(trait1),
-      OptionalType.new(TraitInstance.new(trait2)),
-    )
   }
 
   g.test('Comparing a TraitInstance with a ModuleType') {
@@ -3650,8 +3409,8 @@ test.group('std::compiler::types::ObjectType.lookup_type') do (g) {
 
     object_type.type_parameters.define(name: param.name, type: param)
 
-    assert.equal(object_type.lookup_type(param.name).type, param)
-    assert.true(object_type.lookup_type('B').nil?)
+    assert.equal(object_type.lookup_type(param.name).get.type, param)
+    assert.true(object_type.lookup_type('B').none?)
   }
 }
 
@@ -3662,8 +3421,8 @@ test.group('std::compiler::types::ObjectType.lookup_type_parameter') do (g) {
 
     object_type.type_parameters.define(name: param.name, type: param)
 
-    assert.equal(object_type.lookup_type_parameter(param.name).type, param)
-    assert.true(object_type.lookup_type_parameter('B').nil?)
+    assert.equal(object_type.lookup_type_parameter(param.name).get.type, param)
+    assert.true(object_type.lookup_type_parameter('B').none?)
   }
 }
 
@@ -3679,8 +3438,8 @@ test.group('std::compiler::types::ObjectType.lookup_method') do (g) {
     object_type.static_methods.define(name: 'a', type: a_method)
     object_type.instance_methods.define(name: 'b', type: b_method)
 
-    assert.same_object(object_type.lookup_method('a').type, a_method)
-    assert.true(object_type.lookup_method('b').nil?)
+    assert.same_object(object_type.lookup_method('a').get.type, a_method)
+    assert.true(object_type.lookup_method('b').none?)
   }
 }
 
@@ -3847,7 +3606,7 @@ test.group('std::compiler::types::ObjectType.type_compatible?') do (g) {
       let compare = ObjectType.new('Foo')
 
       assert_compatible(compare: compare, with: param, self_type: type)
-      assert.same_object(type.lookup_type_parameter_type(param), compare)
+      assert.same_object(type.lookup_type_parameter_type(param).get, compare)
     }
   }
 
@@ -3859,18 +3618,8 @@ test.group('std::compiler::types::ObjectType.type_compatible?') do (g) {
       type.assign_type_parameter(parameter: param, type: assigned)
 
       assert_not_compatible(compare: compare, with: param, self_type: type)
-      assert.same_object(type.lookup_type_parameter_type(param), assigned)
+      assert.same_object(type.lookup_type_parameter_type(param).get, assigned)
     }
-  }
-
-  g.test('Comparing an ObjectType with an OptionalType') {
-    let obj1 = ObjectType.new('String')
-    let obj2 = ObjectType.new('Integer')
-    let opt1 = OptionalType.new(obj1)
-    let opt2 = OptionalType.new(obj2)
-
-    assert_compatible(obj1, opt1)
-    assert_not_compatible(obj1, opt2)
   }
 
   g.test('Comparing an ObjectType with a ModuleType') {
@@ -3959,8 +3708,12 @@ test.group('std::compiler::types::ObjectInstance.lookup_attribute') do (g) {
 
     object_type.attributes.define(name: '@a', type: type)
 
-    assert.same_object(object_type.new_instance.lookup_attribute('@a').type!, type)
-    assert.true(object_type.new_instance.lookup_attribute('@b').nil?)
+    assert.same_object(
+      object_type.new_instance.lookup_attribute('@a').get.type,
+      type
+    )
+
+    assert.true(object_type.new_instance.lookup_attribute('@b').none?)
   }
 }
 
@@ -3977,8 +3730,8 @@ test.group('std::compiler::types::ObjectInstance.lookup_method') do (g) {
     object_type.instance_methods.define(name: 'a', type: a_method)
     object_type.static_methods.define(name: 'b', type: b_method)
 
-    assert.same_object(instance.lookup_method('a').type, a_method)
-    assert.true(instance.lookup_method('b').nil?)
+    assert.same_object(instance.lookup_method('a').get.type, a_method)
+    assert.true(instance.lookup_method('b').none?)
   }
 }
 
@@ -3990,8 +3743,8 @@ test.group('std::compiler::types::ObjectInstance.lookup_type') do (g) {
 
     object_type.type_parameters.define(name: param.name, type: param)
 
-    assert.equal(instance.lookup_type(param.name).type, param)
-    assert.true(instance.lookup_type('B').nil?)
+    assert.equal(instance.lookup_type(param.name).get.type, param)
+    assert.true(instance.lookup_type('B').none?)
   }
 }
 
@@ -4003,8 +3756,8 @@ test.group('std::compiler::types::ObjectInstance.lookup_type_parameter') do (g) 
 
     object_type.type_parameters.define(name: param.name, type: param)
 
-    assert.equal(instance.lookup_type_parameter(param.name).type, param)
-    assert.true(instance.lookup_type_parameter('B').nil?)
+    assert.equal(instance.lookup_type_parameter(param.name).get.type, param)
+    assert.true(instance.lookup_type_parameter('B').none?)
   }
 }
 
@@ -4016,8 +3769,8 @@ test.group('std::compiler::types::ObjectInstance.lookup_type_parameter') do (g) 
 
     object_type.type_parameters.define(name: param.name, type: param)
 
-    assert.equal(instance.lookup_type_parameter(param.name).type, param)
-    assert.true(instance.lookup_type_parameter('B').nil?)
+    assert.equal(instance.lookup_type_parameter(param.name).get.type, param)
+    assert.true(instance.lookup_type_parameter('B').none?)
   }
 }
 
@@ -4218,7 +3971,7 @@ test.group('std::compiler::types::ObjectInstance.type_compatible?') do (g) {
       let compare = ObjectType.new('Foo').new_instance
 
       assert_compatible(compare: compare, with: param, self_type: type)
-      assert.same_object(type.lookup_type_parameter_type(param), compare)
+      assert.same_object(type.lookup_type_parameter_type(param).get, compare)
     }
   }
 
@@ -4230,35 +3983,8 @@ test.group('std::compiler::types::ObjectInstance.type_compatible?') do (g) {
       type.assign_type_parameter(parameter: param, type: assigned)
 
       assert_not_compatible(compare: compare, with: param, self_type: type)
-      assert.same_object(type.lookup_type_parameter_type(param), assigned)
+      assert.same_object(type.lookup_type_parameter_type(param).get, assigned)
     }
-  }
-
-  g.test('Comparing an ObjectInstance with an OptionalType') {
-    let obj1 = ObjectType.new('String')
-    let obj2 = ObjectType.new('Integer')
-
-    assert_compatible(
-      ObjectInstance.new(obj1),
-      OptionalType.new(ObjectInstance.new(obj1)),
-    )
-
-    assert_not_compatible(
-      ObjectInstance.new(obj1),
-      OptionalType.new(ObjectInstance.new(obj2)),
-    )
-  }
-
-  g.test('Comparing Nil with an OptionalType') {
-    let builtins = Builtins.new
-    let string_type = ObjectType.new('String')
-    let string = ObjectInstance.new(string_type)
-
-    assert_compatible(
-      compare: builtins.nil_singleton,
-      with: OptionalType.new(string),
-      builtins: builtins
-    )
   }
 
   g.test('Comparing an ObjectInstance with a ModuleType') {
@@ -4322,7 +4048,7 @@ test.group('std::compiler::types::ObjectInstance.substitute') do (g) {
     let list2 = list_type.new_instance(Array.new(assigned))
     let list3 = list1.substitute(type_scope(list2))
 
-    assert.same_object(list3.lookup_type_parameter_type(param), assigned)
+    assert.same_object(list3.lookup_type_parameter_type(param).get, assigned)
   }
 }
 
@@ -4382,8 +4108,8 @@ test.group('std::compiler::types::ModuleType.lookup_type') do (g) {
 
     mod.define_constant(name: 'A', type: type)
 
-    assert.same_object(mod.lookup_type('A').type, type)
-    assert.true(mod.lookup_type('B').nil?)
+    assert.same_object(mod.lookup_type('A').get.type, type)
+    assert.true(mod.lookup_type('B').none?)
   }
 }
 
@@ -4395,8 +4121,8 @@ test.group('std::compiler::types::ModuleType.lookup_method') do (g) {
 
     mod.define_method(name: method.name, type: method)
 
-    assert.same_object(mod.lookup_method(method.name).type, method)
-    assert.true(mod.lookup_method('baz').nil?)
+    assert.same_object(mod.lookup_method(method.name).get.type, method)
+    assert.true(mod.lookup_method('baz').none?)
   }
 }
 
@@ -4501,7 +4227,7 @@ test.group('std::compiler::types::ModuleType.type_compatible?') do (g) {
       let compare = new_module
 
       assert_compatible(compare: compare, with: param, self_type: type)
-      assert.same_object(type.lookup_type_parameter_type(param), compare)
+      assert.same_object(type.lookup_type_parameter_type(param).get, compare)
     }
   }
 
@@ -4512,26 +4238,8 @@ test.group('std::compiler::types::ModuleType.type_compatible?') do (g) {
       type.assign_type_parameter(parameter: param, type: assigned)
 
       assert_not_compatible(compare: new_module, with: param, self_type: type)
-      assert.same_object(type.lookup_type_parameter_type(param), assigned)
+      assert.same_object(type.lookup_type_parameter_type(param).get, assigned)
     }
-  }
-
-  g.test('Comparing a ModuleType with an OptionalType') {
-    let obj_type = ObjectType.new('String')
-    let mod_type = new_module
-    let builtins = Builtins.new
-
-    assert_compatible(
-      compare: mod_type,
-      with: OptionalType.new(ObjectInstance.new(builtins.module_type)),
-      builtins: builtins
-    )
-
-    assert_not_compatible(
-      compare: mod_type,
-      with: OptionalType.new(ObjectInstance.new(obj_type)),
-      builtins: builtins
-    )
   }
 
   g.test('Comparing a ModuleType with a SelfType') {

@@ -6,42 +6,6 @@ import std::compiler::types::(
   ClosureType as ResolvedClosureType, LambdaType as ResolvedLambdaType, Type
 )
 
-# A type that is either `T` or `Nil`.
-object OptionalType {
-  # The source location of the constant.
-  @location: SourceLocation
-
-  # The node that is made optional.
-  @node: TypeNode
-
-  # The type of this optional type.
-  @resolved_type: ?Type
-
-  static def new(node: TypeNode, location: SourceLocation) -> Self {
-    Self { @node = node, @location = location, @resolved_type = Nil }
-  }
-
-  def node -> TypeNode {
-    @node
-  }
-}
-
-impl Node for OptionalType {
-  def resolved_type -> ?Type {
-    @resolved_type
-  }
-
-  def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
-  }
-
-  def location -> SourceLocation {
-    @location
-  }
-}
-
-impl TypeNode for OptionalType {}
-
 # A closure type created using the `do` keyword.
 object ClosureType {
   # The argument types of this closure.
@@ -75,7 +39,7 @@ object ClosureType {
       @throw_type = throw_type,
       @return_type = return_type,
       @location = location,
-      @resolved_type = Nil
+      @resolved_type = Option.none
     }
   }
 
@@ -106,7 +70,8 @@ impl Node for ClosureType {
   }
 
   def resolved_type=(value: ResolvedClosureType) -> ResolvedClosureType {
-    @resolved_type = value
+    @resolved_type = Option.some(value)
+    value
   }
 
   def location -> SourceLocation {
@@ -149,7 +114,7 @@ object LambdaType {
       @throw_type = throw_type,
       @return_type = return_type,
       @location = location,
-      @resolved_type = Nil
+      @resolved_type = Option.none
     }
   }
 
@@ -180,7 +145,8 @@ impl Node for LambdaType {
   }
 
   def resolved_type=(value: ResolvedLambdaType) -> ResolvedLambdaType {
-    @resolved_type = value
+    @resolved_type = Option.some(value)
+    value
   }
 
   def location -> SourceLocation {

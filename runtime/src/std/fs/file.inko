@@ -63,7 +63,7 @@ impl ReadOnlyFile {
 impl RawFile for ReadOnlyFile {}
 
 impl Read for ReadOnlyFile {
-  def read_bytes(bytes: ByteArray, size: ?Integer = Nil) !! IOError -> Integer {
+  def read_bytes(bytes: ByteArray, size = 0) !! IOError -> Integer {
     try bits.read_bytes(file: self, bytes: bytes, size: size)
   }
 }
@@ -177,7 +177,7 @@ impl ReadWriteFile {
 impl RawFile for ReadWriteFile {}
 
 impl Read for ReadWriteFile {
-  def read_bytes(bytes: ByteArray, size: ?Integer = Nil) !! IOError -> Integer {
+  def read_bytes(bytes: ByteArray, size = 0) !! IOError -> Integer {
     try bits.read_bytes(file: self, bytes: bytes, size: size)
   }
 }
@@ -237,7 +237,7 @@ impl Remove for ReadWriteFile {
 #     let handle = try! file.write_only('/tmp/test.txt')
 #
 #     try! handle.write('hello')
-#     try! file.remove('/tmp/test.txt') # => Nil
+#     try! file.remove('/tmp/test.txt')
 def remove(path: ToString) !! IOError {
   try bits.remove(path.to_string)
 }

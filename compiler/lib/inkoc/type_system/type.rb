@@ -37,10 +37,6 @@ module Inkoc
         false
       end
 
-      def optional?
-        false
-      end
-
       def error?
         false
       end
@@ -81,10 +77,6 @@ module Inkoc
         false
       end
 
-      def guard_unknown_message?(name)
-        optional? || lookup_method(name).nil?
-      end
-
       def type_compatible?(_other, _state)
         false
       end
@@ -97,8 +89,6 @@ module Inkoc
       end
 
       def cast_to?(cast_to, state)
-        return cast_to?(cast_to.type, state) if cast_to.optional?
-
         cast_to.type_compatible?(self, state) || type_compatible?(cast_to, state)
       end
 

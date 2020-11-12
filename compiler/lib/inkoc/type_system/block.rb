@@ -126,8 +126,6 @@ module Inkoc
       # other - The type to compare with.
       # state - An instance of `Inkoc::State`.
       def type_compatible?(other, state)
-        other = other.type if other.optional?
-
         if other.any?
           true
         elsif other.trait?

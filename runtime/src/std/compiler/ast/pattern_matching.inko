@@ -41,7 +41,7 @@ object Match {
       @cases = cases,
       @else_branch = else_branch,
       @location = location,
-      @resolved_type = Nil
+      @resolved_type = Option.none
     }
   }
 
@@ -72,7 +72,8 @@ impl Node for Match {
   }
 
   def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
+    @resolved_type = Option.some(value)
+    value
   }
 }
 
@@ -104,7 +105,7 @@ object MatchType {
       @guard = guard,
       @body = body,
       @location = location,
-      @resolved_type = Nil
+      @resolved_type = Option.none
     }
   }
 
@@ -131,7 +132,8 @@ impl Node for MatchType {
   }
 
   def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
+    @resolved_type = Option.some(value)
+    value
   }
 }
 
@@ -165,7 +167,7 @@ object MatchExpressions {
       @guard = guard,
       @body = body,
       @location = location,
-      @resolved_type = Nil
+      @resolved_type = Option.none
     }
   }
 
@@ -192,7 +194,8 @@ impl Node for MatchExpressions {
   }
 
   def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
+    @resolved_type = Option.some(value)
+    value
   }
 }
 
@@ -210,7 +213,7 @@ object MatchElse {
   @resolved_type: ?Type
 
   static def new(body: Body, location: SourceLocation) -> Self {
-    Self { @body = body, @location = location, @resolved_type = Nil }
+    Self { @body = body, @location = location, @resolved_type = Option.none }
   }
 
   def body -> Body {
@@ -228,6 +231,7 @@ impl Node for MatchElse {
   }
 
   def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
+    @resolved_type = Option.some(value)
+    value
   }
 }

@@ -257,14 +257,14 @@ object ModuleParser {
       return False
     }
 
-    let path = name.absolute_source_path(@config.source_directories)
+    let path = name
+      .absolute_source_path(@config.source_directories)
+      .get_or_else {
+        @diagnostics.module_not_found(name: name.to_string, location: location)
+        return False
+      }
 
-    path.if_false {
-      @diagnostics.module_not_found(name: name.to_string, location: location)
-      return False
-    }
-
-    ParseFile.new(name: name, path: path!).schedule
+    ParseFile.new(name: name, path: path).schedule
     True
   }
 }

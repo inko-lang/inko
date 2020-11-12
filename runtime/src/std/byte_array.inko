@@ -14,6 +14,7 @@ import std::hash::Hash
 import std::index::(Index, SetIndex)
 import std::length::Length
 import std::operators::Equal
+import std::option::Option
 
 # A type that can be converted to a `ByteArray`.
 trait ToByteArray {
@@ -72,7 +73,7 @@ impl ByteArray {
   # Removes a value from the back of the `ByteArray`, returning the removed
   # value.
   #
-  # If no value was found, `Nil` is returned instead.
+  # If no value was found, a None is returned instead.
   #
   # # Examples
   #
@@ -80,16 +81,17 @@ impl ByteArray {
   #
   #     let bytes = ByteArray.new(10)
   #
-  #     bytes.pop    # => 10
+  #     bytes.pop    # => Option.some(10)
   #     bytes.length # => 0
   #
   # Popping a value when the `ByteArray` is empty:
   #
   #     let bytes = ByteArray.new
   #
-  #     bytes.pop # => Nil
+  #     bytes.pop # => Option.none
   def pop -> ?Integer {
-    (length > 0).if(true: { remove_at(length - 1) }, false: { Nil })
+    (length > 0)
+      .if(true: { Option.some(remove_at(length - 1)) }, false: { Option.none })
   }
 
   # Removes the value at the given index, returning the removed value.
@@ -213,7 +215,7 @@ impl ByteArray {
     new_array
   }
 
-  # Returns the byte at the given index, returning Nil if the index is out of
+  # Returns the byte at the given index, returning None if the index is out of
   # bounds.
   #
   # # Examples
@@ -222,15 +224,15 @@ impl ByteArray {
   #
   #     let bytes = ByteArray.new(10, 20)
   #
-  #     bytes.get(0) # => 10
+  #     bytes.get(0) # => Option.some(10)
   #
   # Retrieving a non-existing byte:
   #
   #     let bytes = ByteArray.new(10, 20)
   #
-  #     bytes.get(5) # => Nil
+  #     bytes.get(5) # => Option.none
   def get(index: Integer) -> ?Integer {
-    try _INKOC.byte_array_at(self, index) else Nil
+    try Option.some(_INKOC.byte_array_at(self, index)) else Option.none
   }
 }
 

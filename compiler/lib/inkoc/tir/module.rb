@@ -76,6 +76,10 @@ module Inkoc
       def lookup_object_type
         lookup_global(Config::OBJECT_CONST)
       end
+
+      def lookup_option_type
+        lookup_global(Config::OPTION_CONST)
+      end
     end
   end
 end

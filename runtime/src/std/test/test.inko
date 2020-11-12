@@ -41,7 +41,7 @@ object Test {
       @group_name = group_name,
       @location = location,
       @runner = runner,
-      @failure = Nil,
+      @failure = Option.none,
       @body = body
     }
   }
@@ -68,7 +68,7 @@ object Test {
 
   # Returns `True` if the test passed, `False` otherwise.
   def passed? -> Boolean {
-    @failure.if(true: { False }, false: { True })
+    @failure.none?
   }
 
   # Runs the test, and notifies a `Runner` of the result.
@@ -76,10 +76,12 @@ object Test {
   # The message sent to a `Runner` is this `Test` itself.
   def run {
     process.panicking do (error) {
-      @failure = TestFailure.new(
+      let failure = TestFailure.new(
         message: error,
         location: debug.last_call_frame_in(location.path),
       )
+
+      @failure = Option.some(failure)
 
       notify_runner
     }

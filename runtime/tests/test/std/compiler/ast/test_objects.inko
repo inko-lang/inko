@@ -11,7 +11,7 @@ test.group('std::compiler::ast::objects::ImplementTrait.method_node') do (g) {
     let ast = try! parser.parse
     let node = ast.children[0] as ImplementTrait
 
-    assert.equal(node.method_node('foo').name, 'foo')
-    assert.true(node.method_node('bar').nil?)
+    assert.equal(node.method_node('foo').get.name, 'foo')
+    assert.true(node.method_node('bar').none?)
   }
 }

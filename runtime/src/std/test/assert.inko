@@ -13,18 +13,11 @@ import std::process::(self, Process)
 
 # The result of a PanicTest.
 object PanicResult {
-  # A `Boolean` that indicates if a block panicked or not.
-  @panicked: Boolean
-
   # A `String` containing the panic error message, if a panic happened.
   @error: ?String
 
-  static def new(panicked: Boolean, error: ?String = Nil) -> Self {
-    Self { @panicked = panicked, @error = error }
-  }
-
-  def panicked? -> Boolean {
-    @panicked
+  static def new(error: ?String = Option.none) -> Self {
+    Self { @error = error }
   }
 
   def error -> ?String {
@@ -46,12 +39,12 @@ object PanicTest {
 
   def run {
     process.panicking do (error) {
-      notify_owner(PanicResult.new(panicked: True, error: error))
+      notify_owner(PanicResult.new(Option.some(error)))
     }
 
     @block.call
 
-    notify_owner(PanicResult.new(panicked: False))
+    notify_owner(PanicResult.new)
   }
 
   def notify_owner(result: PanicResult) {
@@ -111,7 +104,7 @@ def panic(block: lambda) {
 
   let result = process.receive as PanicResult
 
-  result.panicked?.if_true { return }
+  result.error.some?.if_true { return }
 
   process.panic('The provided block did not panic')
 }
@@ -127,17 +120,16 @@ def no_panic(block: lambda) {
   proc.send(PanicTest.new(owner: process.current, block: block))
 
   let result = process.receive as PanicResult
+  let error = result.error.get_or_else { return }
 
-  result.panicked?.if_false { return }
-
-  process.panic('The provided block panicked: ' + result.error.to_string)
+  process.panic(`The provided block panicked: {error}`)
 }
 
 # Asserts that the given value is something that evaluates to be truthy.
 #
 # Something is considered to be truthy when its implementation of `if_true`
 # calls the supplied block.
-def true(value: ?Object) {
+def true(value: Boolean) {
   value.if_true { return }
 
   let error = `Expected {mirror.reflect(value).inspect} to be truthy`
@@ -149,7 +141,7 @@ def true(value: ?Object) {
 #
 # Something is considered to be falsy when its implementation of `if_false`
 # calls the supplied block.
-def false(value: ?Object) {
+def false(value: Boolean) {
   value.if_false { return }
 
   let error = `Expected {mirror.reflect(value).inspect} to be falsy`

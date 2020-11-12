@@ -175,16 +175,16 @@ wait for the child process to reply.
 ## Timeouts
 
 Sometimes we want to only wait for a certain period of time when receiving a
-message. We can do so by providing a timeout to `process.receive`:
+message. We can do so by using `process.receive_timeout`:
 
 ```inko
 import std::process
 
-process.receive(1)
+try! process.receive_timeout(1)
 ```
 
 When running this, our program will wait one second for a message to arrive. If
-no message is received in time, `Nil` is returned and our program will continue.
+no message is received in time, an error is thrown.
 
 ## Blocking operations
 

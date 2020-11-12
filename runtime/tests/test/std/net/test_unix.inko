@@ -40,20 +40,22 @@ def abstract_socket_address -> String {
 test.group('std::net::unix::SocketAddress.to_path') do (g) {
   g.test('Converting a path based SocketAddress to a Path') {
     let addr = SocketAddress.new('foo.sock')
+    let path = addr.to_path
 
-    assert.equal(addr.to_path, 'foo.sock'.to_path)
+    assert.true(path.some?)
+    assert.equal(addr.to_path.get, 'foo.sock'.to_path)
   }
 
   g.test('Converting an abstract SocketAddress to a Path') {
     let addr = SocketAddress.new("\0foo")
 
-    assert.equal(addr.to_path, Nil)
+    assert.true(addr.to_path.none?)
   }
 
   g.test('Converting an unnamed SocketAddress to a Path') {
     let addr = SocketAddress.new
 
-    assert.equal(addr.to_path, Nil)
+    assert.true(addr.to_path.none?)
   }
 }
 

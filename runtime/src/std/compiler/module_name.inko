@@ -36,11 +36,11 @@ object ModuleName {
       let source_path = directory.join(rel_path)
 
       source_path.file?.if_true {
-        return source_path
+        return Option.some(source_path)
       }
     }
 
-    Nil
+    Option.none
   }
 
   def bootstrap? -> Boolean {
@@ -52,12 +52,12 @@ object ModuleName {
   }
 
   def allow_instructions? -> Boolean {
-    @components.get(0) == 'std'
+    @components.get(0).get_or_else { return False } == 'std'
   }
 
   # Returns the last component of the module name, such as `foo` in `std::foo`.
   def tail -> String {
-    @components.get(-1).to_string
+    @components[-1]
   }
 }
 

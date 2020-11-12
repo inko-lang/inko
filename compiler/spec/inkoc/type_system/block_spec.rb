@@ -150,28 +150,6 @@ describe Inkoc::TypeSystem::Block do
         expect(ours.type_compatible?(theirs, state)).to eq(false)
       end
     end
-
-    context 'when comparing with an optional' do
-      it 'returns true when the types are compatible' do
-        ours = described_class.new(prototype: state.typedb.block_type)
-        theirs = Inkoc::TypeSystem::Optional
-          .new(described_class.new(prototype: state.typedb.block_type))
-
-        expect(ours.type_compatible?(theirs, state)).to eq(true)
-      end
-
-      it 'returns false when the types are not compatible' do
-        their_block = described_class.new(
-          prototype: state.typedb.block_type,
-          return_type: state.typedb.integer_type.new_instance
-        )
-
-        ours = described_class.new(prototype: state.typedb.block_type)
-        theirs = Inkoc::TypeSystem::Optional.new(their_block)
-
-        expect(ours.type_compatible?(theirs, state)).to eq(false)
-      end
-    end
   end
 
   describe '#compatible_with_block?' do
@@ -606,45 +584,6 @@ describe Inkoc::TypeSystem::Block do
       # In this case the return type should be A!(Integer).
       expect(type).to be_type_instance_of(return_type)
       expect(type.lookup_type_parameter_instance(param_b)).to eq(instance)
-    end
-
-    it 'supports resolving of optional types' do
-      method = described_class.new(name: 'foo')
-      self_type = Inkoc::TypeSystem::Object.new(name: 'B')
-      return_type = Inkoc::TypeSystem::Object.new(name: 'C')
-      instance = Inkoc::TypeSystem::Object.new(name: 'D')
-
-      param_a = self_type.define_type_parameter('ParamA')
-      param_b = return_type.define_type_parameter('ParamB')
-
-      return_type.initialize_type_parameter(param_b, param_a)
-      self_type.initialize_type_parameter(param_a, instance)
-
-      method.return_type = Inkoc::TypeSystem::Optional.new(return_type)
-
-      type = method.resolved_return_type(self_type)
-
-      expect(type).to be_optional
-      expect(type.type).to be_type_instance_of(return_type)
-      expect(type.type.lookup_type_parameter_instance(param_b)).to eq(instance)
-    end
-
-    it 'supports resolving optional type parameters' do
-      self_type = Inkoc::TypeSystem::Object.new(name: 'SelfType')
-      instance = Inkoc::TypeSystem::Object.new(name: 'Instance')
-      param = self_type.define_type_parameter('R')
-
-      method = described_class.new(
-        name: 'foo',
-        return_type: Inkoc::TypeSystem::Optional.new(param)
-      )
-
-      self_type.initialize_type_parameter(param, instance)
-
-      resolved = method.resolved_return_type(self_type)
-
-      expect(resolved).to be_optional
-      expect(resolved.type).to eq(instance)
     end
 
     it 'does not mutate the original return type' do

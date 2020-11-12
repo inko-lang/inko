@@ -299,9 +299,9 @@ impl Socket {
     pub fn read(
         &self,
         buffer: &mut Vec<u8>,
-        bytes_opt: Option<usize>,
+        amount: usize,
     ) -> Result<usize, RuntimeError> {
-        if let Some(bytes) = bytes_opt {
+        if amount > 0 {
             // We don't use take(), because that only terminates if:
             //
             // 1. We hit EOF, or
@@ -309,11 +309,10 @@ impl Socket {
             //
             // For files this is fine, but for sockets EOF is not triggered
             // until the socket is closed; which is almost always too late.
-            let slice = socket_output_slice(buffer, bytes);
+            let slice = socket_output_slice(buffer, amount);
             let read = self.inner.recv(slice)?;
 
             update_buffer_length_and_capacity(buffer, read);
-
             Ok(read)
         } else {
             Ok((&*self.inner).read_to_end(buffer)?)

@@ -16,10 +16,10 @@ impl Array {
   #     let numbers = Array.new(10, 20, 30)
   #     let iter = numbers.iter
   #
-  #     iter.next # => 10
-  #     iter.next # => 20
-  #     iter.next # => 30
-  #     iter.next # => Nil
+  #     iter.next # => Option.some(10)
+  #     iter.next # => Option.some(20)
+  #     iter.next # => Option.some(30)
+  #     iter.next # => Option.none
   def iter => T {
     each do (value) { yield value }
   }
@@ -34,10 +34,10 @@ impl Array {
   #     let numbers = Array.new(10, 20, 30)
   #     let iter = numbers.reverse_iter
   #
-  #     iter.next # => 30
-  #     iter.next # => 20
-  #     iter.next # => 10
-  #     iter.next # => Nil
+  #     iter.next # => Option.some(30)
+  #     iter.next # => Option.some(20)
+  #     iter.next # => Option.some(10)
+  #     iter.next # => Option.none
   def reverse_iter => T {
     let mut index = length - 1
 

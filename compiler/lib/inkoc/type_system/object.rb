@@ -50,7 +50,6 @@ module Inkoc
       # rubocop: disable Metrics/PerceivedComplexity
       def type_compatible?(other, state)
         return true if other.any? || self == other
-        return compatible_with_optional?(other, state) if other.optional?
         return compatible_with_trait?(other) if other.trait?
 
         if other.type_parameter?
@@ -65,18 +64,6 @@ module Inkoc
       end
       # rubocop: enable Metrics/CyclomaticComplexity
       # rubocop: enable Metrics/PerceivedComplexity
-
-      # Returns `true` if we are compatible with the given optional type.
-      #
-      # other - The optional object to compare with.
-      # state - An instance of `Inkoc::State`.
-      def compatible_with_optional?(other, state)
-        if type_compatible?(other.type, state)
-          true
-        else
-          type_instance_of?(state.typedb.nil_type)
-        end
-      end
 
       # Returns `true` if we are compatible with the given trait.
       #
@@ -115,13 +102,6 @@ module Inkoc
       end
 
       def implement_trait(trait)
-        # This is a hack due to trait lookups being messy and leading to stack
-        # overflows. In the new Inko compiler we'll have to come up with a sane
-        # way of looking up default methods from a parent object.
-        trait.attributes.each do |symbol|
-          define_attribute(symbol.name, symbol.type) if symbol.type.method?
-        end
-
         implemented_traits[trait.unique_id] = trait
       end
 

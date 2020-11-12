@@ -18,6 +18,7 @@ import std::hash::*
 import std::index::(Index, SetIndex)
 import std::length::Length
 import std::operators::Equal
+import std::option::Option
 
 impl Array {
   # Returns a new Array containing the given values.
@@ -89,7 +90,7 @@ impl Array {
 
   # Removes a value from the back of the Array, returning the removed value.
   #
-  # If no value was found, `Nil` is returned instead.
+  # If no value was found, a None is returned instead.
   #
   # # Examples
   #
@@ -97,16 +98,17 @@ impl Array {
   #
   #     let array = Array.new(10)
   #
-  #     array.pop    # => 10
+  #     array.pop    # => Option.some(10)
   #     array.empty? # => True
   #
   # Popping a value when the Array is empty:
   #
   #     let array = Array.new
   #
-  #     array.pop # => Nil
+  #     array.pop # => Option.none
   def pop -> ?T {
-    (length > 0).if(true: { remove_at(length - 1) }, false: { Nil })
+    (length > 0)
+      .if(true: { Option.some(remove_at(length - 1)) }, false: { Option.none })
   }
 
   # Removes the value at the given index, returning the removed value.
@@ -125,7 +127,7 @@ impl Array {
   #
   # This method panics when the index is out of bounds.
   def remove_at(index: Integer) -> T {
-    _INKOC.array_remove(self, index)
+    _INKOC.array_remove(self, index) as T
   }
 
   # Yields all the values in this `Array` to the supplied `Block`.
@@ -204,7 +206,7 @@ impl Array {
     False
   }
 
-  # Returns the value at the given index, returning Nil if the index is out of
+  # Returns the value at the given index, returning None if the index is out of
   # bounds.
   #
   # # Examples
@@ -213,15 +215,15 @@ impl Array {
   #
   #     let numbers = Array.new(10, 20)
   #
-  #     numbers.get(0) # => 10
+  #     numbers.get(0) # => Option.some(10)
   #
   # Retrieving a value from a non-existing index:
   #
   #     let numbers = Array.new(10, 20)
   #
-  #     numbers.get(5) # => Nil
+  #     numbers.get(5) # => Option.none
   def get(index: Integer) -> ?T {
-    try _INKOC.array_at(self, index) else Nil
+    try Option.some(_INKOC.array_at(self, index) as T) else Option.none
   }
 }
 
@@ -264,17 +266,16 @@ impl Index!(Integer, T) for Array {
   #
   # This method panics when the index is out of bounds.
   def [](index: Integer) -> T {
-    try _INKOC.array_at(self, index) else (err) _INKOC.panic(err as String)
+    try {
+      _INKOC.array_at(self, index) as T
+    } else (err) {
+      _INKOC.panic(err as String)
+    }
   }
 }
 
 impl SetIndex!(Integer, T) for Array {
   # Stores a value at the given index, then returns it.
-  #
-  # If the index is out of bounds then all preceding indexes that are not set
-  # will be filled with Nil values.
-  #
-  # This method will return the value that was added to the Array.
   #
   # # Examples
   #
@@ -285,21 +286,18 @@ impl SetIndex!(Integer, T) for Array {
   #     array[0] = 10 # => 10
   #     array         # => Array.new(10)
   #
-  # Setting an out-of-bounds index:
-  #
-  #     let array = Array.new
-  #
-  #     array[2] = 10 # => 10
-  #     array         # => Array.new(Nil, Nil, 10)
-  #
   # We can also use negative indexes:
   #
   #     let array = Array.new(10)
   #
   #     array[-1] = 20 # => 20
   #     array          # => Array.new(20)
+  #
+  # # Panics
+  #
+  # This method panics if the index is out of bounds.
   def []=(index: Integer, value: T) -> T {
-    _INKOC.array_set(self, index, value)
+    _INKOC.array_set(self, index, value) as T
   }
 }
 

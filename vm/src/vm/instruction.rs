@@ -186,7 +186,6 @@ pub enum Opcode {
     GeneratorResume,
     GeneratorYield,
     GeneratorValue,
-    GeneratorYielded,
 }
 
 /// A fixed-width VM instruction.

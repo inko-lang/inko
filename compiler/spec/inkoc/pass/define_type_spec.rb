@@ -170,17 +170,6 @@ describe Inkoc::Pass::DefineType do
       expect(type.return_type).to be_type_instance
     end
 
-    it 'supports the use of optional return types' do
-      int_type = state.typedb.integer_type
-
-      tir_module.type.define_attribute('Integer', int_type)
-
-      type = expression_type("#{header} -> ?Integer {}")
-
-      expect(type.return_type).to be_optional
-      expect(type.return_type.type).to be_type_instance_of(int_type)
-    end
-
     it 'defines the default return type when no return type is given' do
       type = expression_type("#{header} {}")
 
@@ -508,19 +497,6 @@ describe Inkoc::Pass::DefineType do
 
         expect(type).to be_error
         expect(state.diagnostics.errors?).to eq(true)
-      end
-    end
-
-    context 'when using an optional constant' do
-      it 'produces an optional type' do
-        type_scope
-          .self_type
-          .define_attribute('A', state.typedb.integer_type)
-
-        type = constant_type('?A')
-
-        expect(type).to be_optional
-        expect(type.type).to be_type_instance_of(state.typedb.integer_type)
       end
     end
   end
@@ -1253,85 +1229,6 @@ describe Inkoc::Pass::DefineType do
       expect(node.block_type).to be_type_instance_of(method)
     end
 
-    context 'when sending a message to an optional type' do
-      it 'returns an optional if Nil does not implement the message' do
-        int_type = state.typedb.integer_type
-        str_type = state.typedb.string_type
-
-        to_string = Inkoc::TypeSystem::Block
-          .named_method('to_string', state.typedb.block_type)
-
-        to_string.return_type = str_type.new_instance
-
-        type_scope.locals.define(
-          'number',
-          Inkoc::TypeSystem::Optional.new(int_type.new_instance)
-        )
-
-        int_type.define_attribute(to_string.name, to_string)
-
-        type = expression_type('number.to_string')
-
-        expect(type).to be_optional
-        expect(type.type).to be_type_instance_of(str_type)
-      end
-
-      it 'returns the return type if Nil implements the message' do
-        int_type = state.typedb.integer_type
-        str_type = state.typedb.string_type
-        nil_type = state.typedb.nil_type
-
-        int_to_string = Inkoc::TypeSystem::Block
-          .named_method('to_string', state.typedb.block_type)
-
-        nil_to_string = Inkoc::TypeSystem::Block
-          .named_method('to_string', state.typedb.block_type)
-
-        int_to_string.return_type = str_type.new_instance
-        nil_to_string.return_type = str_type.new_instance
-
-        int_type.define_attribute('to_string', int_to_string)
-        nil_type.define_attribute('to_String', nil_to_string)
-
-        type_scope.locals.define(
-          'number',
-          Inkoc::TypeSystem::Optional.new(int_type.new_instance)
-        )
-
-        type = expression_type('number.to_string')
-
-        expect(type).to be_type_instance_of(str_type)
-      end
-
-      it 'errors if the method is not compatible with the Nil implementation' do
-        int_type = state.typedb.integer_type
-        str_type = state.typedb.string_type
-        nil_type = state.typedb.nil_type
-
-        int_to_string = Inkoc::TypeSystem::Block
-          .named_method('to_string', state.typedb.block_type)
-
-        nil_to_string = Inkoc::TypeSystem::Block
-          .named_method('to_string', state.typedb.block_type)
-
-        int_to_string.return_type = str_type.new_instance
-        nil_to_string.return_type = int_type.new_instance
-
-        nil_type.define_attribute('to_string', nil_to_string)
-        int_type.define_attribute('to_string', int_to_string)
-
-        type_scope.locals.define(
-          'number',
-          Inkoc::TypeSystem::Optional.new(int_type.new_instance)
-        )
-
-        type = expression_type('number.to_string')
-
-        expect(type).to be_error
-        expect(state.diagnostics.errors?).to eq(true)
-      end
-    end
-
     context 'when passing explicit type arguments' do
       it 'initialises the type arguments when valid' do
         method = Inkoc::TypeSystem::Block
@@ -1495,32 +1392,6 @@ describe Inkoc::Pass::DefineType do
 
         expect(type.return_type).to be_error
         expect(state.diagnostics.errors?).to eq(true)
-      end
-
-      it 'infers the return type as an Optional if else returns nil' do
-        method.return_type = state.typedb.integer_type
-
-        type_scope.self_type.define_attribute('Nil', state.typedb.nil_type)
-
-        type = expression_type('do { try throws else Nil }')
-        rtype = type.return_type
-
-        expect(rtype).to be_optional
-        expect(rtype.type).to be_type_instance_of(state.typedb.integer_type)
-      end
-
-      it 'does not infer the return type as optional if both types are Nil' do
-        method.return_type = state.typedb.nil_type.new_instance
-
-        type_scope
-          .self_type
-          .define_attribute('Nil', state.typedb.nil_type.new_instance)
-
-        type = expression_type('do { try throws else Nil }')
-        rtype = type.return_type
-
-        expect(rtype).not_to be_optional
-        expect(rtype).to be_type_instance_of(state.typedb.nil_type)
       end
 
       it 'defines the type of the error argument' do
@@ -1995,15 +1866,6 @@ describe Inkoc::Pass::DefineType do
       expect(type.return_type).to be_self_type
     end
 
-    it 'supports returning ?Self in a generic object' do
-      type_scope.self_type.define_type_parameter('T')
-
-      type = expression_type('def foo -> ?Self {}')
-
-      expect(type.return_type).to be_optional
-      expect(type.return_type.type).to be_self_type
-    end
-
     it 'supports returning Never' do
       type = expression_type('def foo -> Never {}')
 
@@ -2318,21 +2180,6 @@ describe Inkoc::Pass::DefineType do
   end
 
   describe '#on_type_cast' do
-    it 'supports casting to an optional type' do
-      type_scope
-        .locals
-        .define('number', state.typedb.integer_type.new_instance)
-
-      type_scope
-        .self_type
-        .define_attribute('Integer', state.typedb.integer_type)
-
-      type = expression_type('number as ?Integer')
-
-      expect(type).to be_optional
-      expect(type.type).to be_type_instance_of(state.typedb.integer_type)
-    end
-
     it 'errors when using an invalid cast' do
       type = expression_type('10 as Float')
 
@@ -2498,40 +2345,6 @@ describe Inkoc::Pass::DefineType do
     end
   end
 
-  describe '#on_dereference' do
-    it 'returns the wrapped type when using an optional type' do
-      int_type = state
-        .typedb
-        .integer_type
-
-      optional_type = Inkoc::TypeSystem::Optional.new(int_type.new_instance)
-
-      type_scope
-        .locals
-        .define('number', optional_type)
-
-      type = expression_type('number!')
-
-      expect(type).to be_type_instance_of(int_type)
-      expect(state.diagnostics.errors?).to eq(false)
-    end
-
-    it 'errors when using a non-optional type' do
-      int_type = state
-        .typedb
-        .integer_type
-
-      type_scope
-        .locals
-        .define('number', int_type.new_instance)
-
-      type = expression_type('number!')
-
-      expect(type).to be_type_instance_of(int_type)
-      expect(state.diagnostics.errors?).to eq(true)
-    end
-  end
-
   describe '#on_raw_instruction' do
     it 'returns the type of a raw instruction' do
       type = expression_type('_INKOC.get_true')
@@ -2608,59 +2421,6 @@ describe Inkoc::Pass::DefineType do
     end
   end
 
-  describe '#on_raw_array_at' do
-    it 'returns the type of an array index' do
-      int_instance = state.typedb.integer_type.new_instance
-      array_type = state.typedb.new_array_of_type(int_instance)
-
-      type_scope.locals.define('numbers', array_type)
-
-      type = expression_type('_INKOC.array_at(numbers, 0)')
-
-      expect(type).to be_optional
-      expect(type.type).to eq(int_instance)
-    end
-  end
-
-  describe '#on_raw_array_set' do
-    it 'returns the type of the value' do
-      int_instance = state.typedb.integer_type.new_instance
-      array_type = state.typedb.new_array_of_type(int_instance)
-
-      type_scope.locals.define('numbers', array_type)
-
-      type = expression_type('_INKOC.array_set(numbers, 0, 10)')
-
-      expect(type).to be_type_instance_of(state.typedb.integer_type)
-    end
-  end
-
-  describe '#on_raw_array_remove' do
-    it 'returns the type of the removed value' do
-      int_instance = state.typedb.integer_type.new_instance
-      array_type = state.typedb.new_array_of_type(int_instance)
-
-      type_scope.locals.define('numbers', array_type)
-
-      type = expression_type('_INKOC.array_remove(numbers, 0)')
-
-      expect(type).to be_optional
-      expect(type.type).to eq(int_instance)
-    end
-
-    it 'returns the type parameter of Array for an uninitialised array' do
-      array_type = state.typedb.array_type
-      param_name = Inkoc::Config::ARRAY_TYPE_PARAMETER
-
-      type_scope.locals.define('numbers', array_type)
-
-      type = expression_type('_INKOC.array_remove(numbers, 0)')
-
-      expect(type).to be_optional
-      expect(type.type).to eq(array_type.lookup_type_parameter(param_name))
-    end
-  end
-
   describe '#on_self' do
     it 'returns the type of self' do
       type = expression_type('self')
@@ -2693,13 +2453,6 @@ describe Inkoc::Pass::DefineType do
       expect(type.arguments['0'].type).to be_type_instance_of(integer)
       expect(type.throw_type).to be_type_instance_of(float)
       expect(type.return_type).to be_type_instance_of(string)
-    end
-
-    it 'supports the use of optional blocks' do
-      type = constant_type('?do (Integer) !! Float -> String')
-
-      expect(type).to be_optional
-      expect(type.type).to be_closure
     end
 
     it 'returns a new lambda type' do

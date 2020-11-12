@@ -213,13 +213,9 @@ test.group('std::string::String.split') do (g) {
   g.test('Splitting a string lazily') {
     let iter = 'foo/bar'.split('/')
 
-    assert.true(iter.advance)
-    assert.equal(iter.current, 'foo')
-
-    assert.true(iter.advance)
-    assert.equal(iter.current, 'bar')
-
-    assert.false(iter.advance)
+    assert.equal(iter.next, Option.some('foo'))
+    assert.equal(iter.next, Option.some('bar'))
+    assert.true(iter.next.none?)
   }
 
   g.test('Splitting a String using a single character separator') {

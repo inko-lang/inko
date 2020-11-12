@@ -53,12 +53,11 @@ test.group('std::test::test::Test.failure') do (g) {
   g.test('Obtaining the failure reason of a test that failed') {
     let failed_test = run_example_test
 
-    assert.equal(failed_test.failure.to_string, 'This is a failure!')
-    assert.equal(failed_test.failure.message.to_string, 'This is a failure!')
+    assert.equal(failed_test.failure.get.message, 'This is a failure!')
   }
 
   g.test('Obtaining the failure reason of a test that passed') {
-    assert.true(example_test.failure.nil?)
+    assert.true(example_test.failure.none?)
   }
 }
 

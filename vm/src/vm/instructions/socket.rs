@@ -77,11 +77,7 @@ pub fn socket_read(
 ) -> Result<ObjectPointer, RuntimeError> {
     let sock = socket_ptr.socket_value_mut()?;
     let buffer = buff_ptr.byte_array_value_mut()?;
-    let amount = if amount_ptr.is_integer() {
-        Some(amount_ptr.usize_value()?)
-    } else {
-        None
-    };
+    let amount = amount_ptr.usize_value()?;
 
     let result = sock
         .read(buffer, amount)

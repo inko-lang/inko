@@ -23,6 +23,9 @@ import std::conversion::ToString
 import std::error::Error
 import std::fs::path::ToPath
 
+# The name of the type to desugar ?T types into.
+let OPTION_TYPE = 'Option'
+
 # An error produced by the parser.
 object ParseError {
   # The error message to display.
@@ -110,7 +113,7 @@ object Parser {
   ) -> Self {
     Self {
       @lexer = Lexer.new(input: input, file: file),
-      @peeked_token = Nil,
+      @peeked_token = Option.none,
       @comments = Array.new,
       @parse_comments = parse_comments
     }
@@ -232,9 +235,7 @@ object Parser {
   }
 
   def import_alias(expected: String) !! ParseError -> ?ImportAlias {
-    (peek_token.type == 'as').if_false {
-      return
-    }
+    (peek_token.type == 'as').if_false { return Option.none }
 
     # Skip the "as"
     next_token
@@ -245,7 +246,7 @@ object Parser {
       throw ParseError.unexpected_token(token)
     }
 
-    ImportAlias.new(name: token.value, location: token.location)
+    Option.some(ImportAlias.new(name: token.value, location: token.location))
   }
 
   def object_definition(token: Token) !! ParseError -> DefineObject {
@@ -494,20 +495,15 @@ object Parser {
   }
 
   def optional_identifier_type !! ParseError -> ?TypeNode {
-    (peek_token.type == 'colon').if_false {
-      return
-    }
+    (peek_token.type == 'colon').if_false { return Option.none }
 
     # Skip the ":"
     next_token
-
-    try type(next_token)
+    Option.some(try type(next_token))
   }
 
   def default_value(rest: Boolean) !! ParseError -> ?Node {
-    (peek_token.type == 'assign').if_false {
-      return
-    }
+    (peek_token.type == 'assign').if_false { return Option.none }
 
     # Skip the "="
     let assign = next_token
@@ -518,7 +514,7 @@ object Parser {
       throw ParseError.unexpected_token(assign)
     }
 
-    try expression(next_token)
+    Option.some(try expression(next_token))
   }
 
   def type_parameter_definitions !! ParseError -> Array!(DefineTypeParameter) {
@@ -571,22 +567,22 @@ object Parser {
 
           DefineRestArgument.new(
             name: token.value,
-            value_type: type!,
+            value_type: type.get,
             location: token.location
           )
         }
-        default.not_nil? -> {
+        default.some? -> {
           DefineOptionalArgument.new(
             name: token.value,
             value_type: type,
-            default_value: default!,
+            default_value: default.get,
             location: token.location
           )
         }
-        type.not_nil? -> {
+        type.some? -> {
           DefineRequiredArgument.new(
             name: token.value,
-            value_type: type!,
+            value_type: type.get,
             location: token.location
           )
         }
@@ -694,13 +690,7 @@ object Parser {
         next_token
         try send_with_receiver(node)
       }
-      'exclamation' -> {
-        NotNil.new(expression: node, location: next_token.location)
-      }
       'bracket_open' -> { try bracket_send(start: next_token, receiver: node) }
-      'question_question' -> {
-        try coalesce_nil(start: next_token, expression: node)
-      }
       else -> { node }
     } as Node
   }
@@ -731,16 +721,6 @@ object Parser {
     )
   }
 
-  def coalesce_nil(start: Token, expression: Node) !! ParseError -> CoalesceNil {
-    let default = try expression(next_token)
-
-    CoalesceNil.new(
-      expression: expression,
-      default: default,
-      location: start.location
-    )
-  }
-
   def return_value(
     token: Token,
     local_return = False,
@@ -766,8 +746,10 @@ object Parser {
       'try',
       'local',
       'colon_colon'
-      when peeked.same_line?(token) -> { try expression(next_token) }
-      else -> {}
+      when peeked.same_line?(token) -> {
+        Option.some(try expression(next_token))
+      }
+      else -> { Option.none }
     }
 
     Return.new(expression: expr, local_return: local_return, location: location)
@@ -869,10 +851,9 @@ object Parser {
         let var = try token_of_type('identifier')
 
         try token_of_type('paren_close')
-
-        var.value
+        Option.some(var.value)
       },
-      false: { Nil }
+      false: { Option.none }
     )
 
     let else_body = (peek_token.type == 'curly_open').if(
@@ -904,7 +885,7 @@ object Parser {
 
     Try.new(
       expression: expression,
-      error_variable: Nil,
+      error_variable: Option.none,
       else_body: else_expr,
       local_throw: local_throw,
       location: location
@@ -1297,15 +1278,18 @@ object Parser {
   def type(token: Token) !! ParseError -> TypeNode {
     match(token.type) {
       'constant' -> { try constant(token) }
-      'question' -> { try optional_type(token) }
+      'question' -> { try option_type(token) }
       'do' -> { try closure_type(token) }
       'lambda' -> { try lambda_type(token) }
       else -> { throw ParseError.unexpected_token(token) }
     } as TypeNode
   }
 
-  def optional_type(token: Token) !! ParseError -> OptionalType {
-    OptionalType.new(node: try type(next_token), location: token.location)
+  def option_type(token: Token) !! ParseError -> Constant {
+    let node = Constant.new(name: OPTION_TYPE, location: token.location)
+
+    node.type_arguments.push(try type(next_token))
+    node
   }
 
   def closure_type(token: Token) !! ParseError -> ClosureType {
@@ -1338,30 +1322,30 @@ object Parser {
   }
 
   def optional_yield_type !! ParseError -> ?TypeNode {
-    (peek_token.type == 'double_arrow').if_false { return }
+    (peek_token.type == 'double_arrow').if_false { return Option.none }
 
     # Skip the "=>"
     next_token
 
-    try type(next_token)
+    Option.some(try type(next_token))
   }
 
   def optional_throw_type !! ParseError -> ?TypeNode {
-    (peek_token.type == 'throws').if_false { return }
+    (peek_token.type == 'throws').if_false { return Option.none }
 
     # Skip the "!!"
     next_token
 
-    try type(next_token)
+    Option.some(try type(next_token))
   }
 
   def optional_return_type !! ParseError -> ?TypeNode {
-    (peek_token.type == 'arrow').if_false { return }
+    (peek_token.type == 'arrow').if_false { return Option.none }
 
     # Skip the "->"
     next_token
 
-    try type(next_token)
+    Option.some(try type(next_token))
   }
 
   def attribute(token: Token) !! ParseError -> Node {
@@ -1475,9 +1459,9 @@ object Parser {
 
   def pattern_match(start: Token) !! ParseError -> Match {
     let cases: Array!(MatchCase) = Array.new
-    let mut else_branch: ?MatchElse = Nil
-    let mut binding: ?Identifier = Nil
-    let mut match_expr: ?Node = Nil
+    let mut else_branch: ?MatchElse = Option.none
+    let mut binding: ?Identifier = Option.none
+    let mut match_expr: ?Node = Option.none
 
     # For the sake of keeping this code's complexity under control we require
     # that when a "(" is given, an expression (and optional binding) is also
@@ -1494,12 +1478,13 @@ object Parser {
       (peek_token.type == 'let').if_true {
         next_token
 
-        binding = identifier_from_token(try token_of_type('identifier'))
+        binding =
+          Option.some(identifier_from_token(try token_of_type('identifier')))
 
         try token_of_type('assign')
       }
 
-      match_expr = try expression(next_token)
+      match_expr = Option.some(try expression(next_token))
 
       try token_of_type('paren_close')
     }
@@ -1532,9 +1517,11 @@ object Parser {
 
           try token_of_type('arrow')
 
-          else_branch = MatchElse.new(
-            body: try block_body(try token_of_type('curly_open')),
-            location: token.location
+          else_branch = Option.some(
+            MatchElse.new(
+              body: try block_body(try token_of_type('curly_open')),
+              location: token.location
+            )
           )
         }
         else -> {
@@ -1571,27 +1558,26 @@ object Parser {
   }
 
   def optional_pattern_match_guard !! ParseError -> ?Node {
-    (peek_token.type == 'when').if_false { return }
+    (peek_token.type == 'when').if_false { return Option.none }
 
     # Skip the "when" keyword.
     next_token
-
-    try expression(next_token)
+    Option.some(try expression(next_token))
   }
 
   def next_token -> Token {
-    @peeked_token.if_false { return next_token_from_lexer }
+    @peeked_token.let do (token) {
+      @peeked_token = Option.none
+      return token
+    }
 
-    let token = @peeked_token!
-
-    @peeked_token = Nil
-
-    token
+    next_token_from_lexer
   }
 
   def peek_token -> Token {
-    @peeked_token.if_false { @peeked_token = next_token_from_lexer }
-    @peeked_token!
+    @peeked_token
+      .else { @peeked_token = Option.some(next_token_from_lexer) }
+      .get
   }
 
   def next_token_from_lexer -> Token {

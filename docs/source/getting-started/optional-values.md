@@ -1,89 +1,93 @@
 # Optional values
 
-In the section [Optional types](basic-types.md#optional-types) we briefly
-covered optional types and values. We'll cover these in greater detail below.
-
-When using an optional type `?T`, you can pass both an instance of a `T` and
-`Nil` to it. For example:
-
-```inko
-let number: ?Integer = Nil
-```
-
-Here `number` is of type `?Integer`, so we can assign both `Nil` and a `Integer`
-to it.
-
-## Sending messages
-
-When sending a message to an optional type `?T`, you can only send messages that
-are supported by `T`. If the value happens to be `Nil`, another `Nil` is
-produced. For example:
+Option values are created using the `Option` type, defined in the `std::option`
+module. The `Option` type is an object that can either wrap a value, in which
+case it's called a "Some", or signal the lack of a value, in which case it's
+called a "None". You can create such values as follows:
 
 ```inko
-let x: ?Integer = Nil
-
-x + 1 # => Nil
+Option.some(10)
+Option.none
 ```
 
-If `Nil` does implement a method for a message it receives, that method gets
-called instead of returning `Nil`. For example:
+The type signature of an `Option` is `Option!(T)` where `T` is the type that's
+wrapped when present. Since the `Option` type is such a commonly used type, Inko
+provides syntax sugar to safe you some typing: `?T`. It's recommended that you
+use `?T` instead of `Option!(T)`.
+
+## Getting Option values
+
+An `Option` is its own object that wraps a value (if present). To use that
+value, you must explicitly get it from the wrapping `Option`. You can do this
+using `Option.get`:
 
 ```inko
-let x: ?Integer = Nil
+let x = Option.some(10)
 
-x.to_integer # => 0
+x.get # => 10
 ```
 
-A more realistic example is that of accessing a value from a nested array. Let's
-say our array looks like this:
+This method panics when used on a "None". There are two methods you can use to
+provide a default value, in case the `Option` is a "none":
+
+* `Option.get_or`
+* `Option.get_or_else`
+
+The method `get_or` takes an argument, evaluates it, and returns it if the
+`Option` is a "None". The method `get_or_else` takes a closure, and evaluates it
+when the `Option` is a "None":
 
 ```inko
-let numbers = Array.new(Array.new(Array.new(1, 2, 3)))
+Option.none.get_or(0)         # => 0
+Option.none.get_or_else { 0 } # => 0
 ```
 
-We can use `Array.get` to get a value from a potentially out of bounds index.
-The return type of this method is `?Integer` for the above `numbers` Array. This
-allows us to access nested values like so:
+If the default value is already defined (e.g. it's just a variable), it's
+recommended to use `get_or`. If the default should only be evaluated if the
+`Option` is a "None", the use of `get_or_else` is recommended. For example, if
+the default value is the contents of a file that has yet to be read, it's best
+to use `get_or_else` instead of `get`.
+
+## Mapping Option values
+
+Sometimes an `Option` needs to be converted into another `Option`, such as
+converting a `Option!(Integer)` into an `Option!(String)`. This can be done
+using `Option.map` and `Option.then`.
+
+`Option.map` takes a closure that returns a value. If the `Option` is a "Some",
+`Option.map` returns a new `Option` wrapping the returned value. If the `Option`
+is a "None", another "None" is returned:
 
 ```inko
-numbers.get(0).get(0).get(1) # => 2
+Option.some(10).map do (num) { num * 2 }      # => Option.some(20)
+Option.none.map do (num: Integer) { num * 2 } # => Option.none
 ```
 
-In other languages, you'd have to write something like this:
-
-```ruby
-numbers = [[[1, 2, 3]]]
-
-if numbers[0]
-  if numbers[0][0]
-    numbers[0][0][1]
-  end
-end
-```
-
-Inko's approach means that we don't have to explicitly check for a lack of a
-value every time an optional value is produced. Instead, we can do so at the
-end.
-
-## Converting optional types
-
-An optional type `?T` can be converted to a `T` in one of two ways:
-
-1. Using the postfix `!` operator
-1. Using an explicit type cast
-
-Using the above array example, we can convert our `?Integer` to a `Integer`
-using the postfix operator like so:
+`Option.then` is similar, except its closure returns an `Option`. For a "Some",
+that `Option` is returned, otherwise a "None" is returned:
 
 ```inko
-numbers.get(0).get(0).get(1)!
+Option.some(10).then do (num) { Option.some(num * 2) }      # => Option.some(20)
+Option.none.then do (num: Integer) { Option.some(num * 2) } # => Option.none
 ```
 
-Using an explicit type cast, it looks like this:
+## Comparing Option values
+
+The `Option` type implements the `Equal` trait, allowing you to compare it to
+other `Option` objects that wrap a value of the same type:
 
 ```inko
-numbers.get(0).get(0).get(1) as Integer
+Option.some(10) == Option.some(10) # => True
+Option.some(10) == Option.some(20) # => False
+Option.some(10) == Option.none     # => False
 ```
 
-Inko doesn't perform runtime checks when casting types like this, so you should
-use this with caution.
+## Option truthyness
+
+An `Option` is considered to be True if it's a "Some", otherwise it's considered
+as False:
+
+```inko
+Option.some(10).if(true: { 10 }, false: { 20 }) # => 10
+Option.none.if(true: { 10 }, false: { 20 })     # => 20
+```

@@ -34,13 +34,13 @@ test.group('std::env.get') do (g) {
     temporary_environment_variable do (name) {
       env[name] = 'foo'
 
-      assert.equal(env.get(name), 'foo')
+      assert.equal(env.get(name), Option.some('foo'))
     }
   }
 
   g.test('Obtaining the value of a non-existing environment variable') {
     temporary_environment_variable do (name) {
-      assert.equal(env.get(name), Nil)
+      assert.true(env.get(name).none?)
     }
   }
 }
@@ -66,7 +66,7 @@ test.group('std::env.remove') do (g) {
 
       env.remove(name)
 
-      assert.equal(env.get(name), Nil)
+      assert.true(env.get(name).none?)
     }
   }
 
@@ -74,7 +74,7 @@ test.group('std::env.remove') do (g) {
     temporary_environment_variable do (name) {
       env.remove(name)
 
-      assert.equal(env.get(name), Nil)
+      assert.true(env.get(name).none?)
     }
   }
 }
@@ -94,12 +94,9 @@ test.group('std::env.variables') do (g) {
 
 test.group('std::env.home_directory') do (g) {
   g.test('Obtaining the home directory of the current user') {
-    # For the time being we'll assume that the user executing the tests has a
-    # home directory set.
-    let home_dir = env.home_directory
-
-    assert.true(home_dir.exists?)
-    assert.greater(home_dir.to_string.length, 0)
+    env.home_directory.let do (home_dir) {
+      assert.greater(home_dir.to_string.length, 0)
+    }
   }
 }
 

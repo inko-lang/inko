@@ -30,8 +30,8 @@ object Body {
       @children = children,
       @location = location,
       @variable_scope = VariableScope.new,
-      @type_scope = Nil,
-      @resolved_type = Nil
+      @type_scope = Option.none,
+      @resolved_type = Option.none
     }
   }
 
@@ -48,7 +48,8 @@ object Body {
   }
 
   def type_scope=(value: TypeScope) -> TypeScope {
-    @type_scope = value
+    @type_scope = Option.some(value)
+    value
   }
 
   def imports -> Array!(Import) {
@@ -69,9 +70,7 @@ object Body {
   }
 
   def location_of_last_expression -> SourceLocation {
-    let last_loc = @children.get(-1).location
-
-    last_loc.if(true: { last_loc! }, false: { @location })
+    @children.get(-1).map do (node) { node.location }.get_or(@location)
   }
 }
 
@@ -85,6 +84,7 @@ impl Node for Body {
   }
 
   def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
+    @resolved_type = Option.some(value)
+    value
   }
 }

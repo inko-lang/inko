@@ -34,7 +34,7 @@ object DefineObject {
       @type_parameters = type_parameters,
       @body = body,
       @location = location,
-      @resolved_type = Nil
+      @resolved_type = Option.none
     }
   }
 
@@ -60,7 +60,8 @@ impl Node for DefineObject {
   }
 
   def resolved_type=(type: ObjectType) -> ObjectType {
-    @resolved_type = type
+    @resolved_type = Option.some(type)
+    type
   }
 
   def location -> SourceLocation {
@@ -91,7 +92,7 @@ object DefineAttribute {
       @name = name,
       @value_type = value_type,
       @location = location,
-      @resolved_type = Nil
+      @resolved_type = Option.none
     }
   }
 
@@ -112,7 +113,8 @@ impl Node for DefineAttribute {
   }
 
   def resolved_type=(type: Type) -> Type {
-    @resolved_type = type
+    @resolved_type = Option.some(type)
+    type
   }
 
   def location -> SourceLocation {
@@ -153,7 +155,7 @@ object DefineTrait {
       @required_traits = required_traits,
       @body = body,
       @location = location,
-      @resolved_type = Nil
+      @resolved_type = Option.none
     }
   }
 
@@ -184,7 +186,8 @@ impl Node for DefineTrait {
   }
 
   def resolved_type=(type: TraitType) -> TraitType {
-    @resolved_type = type
+    @resolved_type = Option.some(type)
+    type
   }
 
   def location -> SourceLocation {
@@ -249,14 +252,12 @@ object ImplementTrait {
 
   # Returns the node that defines the required method, if any.
   def method_node(name: String) -> ?DefineMethod {
-    @body.children.each do (node) {
+    @body.children.iter.find_some do (node) {
       match(let matched = node) {
-        as DefineMethod when matched.name == name -> { return matched }
-        else -> {}
+        as DefineMethod when matched.name == name -> { Option.some(matched) }
+        else -> { Option.none }
       }
     }
-
-    Nil
   }
 }
 
@@ -285,7 +286,7 @@ object ReopenObject {
       @name = name,
       @body = body,
       @location = location,
-      @resolved_type = Nil
+      @resolved_type = Option.none
     }
   }
 
@@ -306,7 +307,8 @@ impl Node for ReopenObject {
   }
 
   def resolved_type=(type: ObjectType) -> ObjectType {
-    @resolved_type = type
+    @resolved_type = Option.some(type)
+    type
   }
 
   def location -> SourceLocation {
@@ -371,7 +373,7 @@ object Constructor {
       @name = name,
       @attributes = attributes,
       @location = location,
-      @resolved_type = Nil
+      @resolved_type = Option.none
     }
   }
 
@@ -390,7 +392,8 @@ impl Node for Constructor {
   }
 
   def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
+    @resolved_type = Option.some(value)
+    value
   }
 
   def location -> SourceLocation {

@@ -109,14 +109,16 @@ test.group('std::compiler::symbol_table::SymbolTable.get') do (g) {
   g.test('Looking up a non-existing Symbol by its name') {
     let table = SymbolTable.new
 
-    assert.true(table.get('foo').nil?)
+    assert.true(table.get('foo').none?)
   }
 
   g.test('Looking up an existing Symbol by its name') {
     let table = SymbolTable.new
     let symbol = table.define(name: 'foo', type: DummyType.new, mutable: True)
+    let found = table.get('foo')
 
-    assert.true(table.get('foo').same_object?(symbol))
+    assert.true(found.some?)
+    assert.true(found.get.same_object?(symbol))
   }
 }
 

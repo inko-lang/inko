@@ -3,28 +3,24 @@
 # Iterators are objects that can be used to traverse collections such as an
 # `Array` or a `Map`. Typically iterators are implemented in one of two
 # ways:
-
+#
 # 1. Internal iterators: these kind of iterators take care of the iteration
 #    process and operate using some kind of closure.
 # 2. External iterators: these iterators use some kind of cursor stored
 #    somewhere and require you to manually advance the iterator.
-
+#
 # Both have their benefits and drawbacks. Internal iterators are easy to
 # implement and typically faster, as they don't require the allocation of
 # additional data structures.
-
+#
 # External iterators can be composed together, suspended, and later resumed.
 # External iterators can also be turned into internal iterators, while the inverse
 # is not possible unless a language supports some form of coroutines or
 # generators.
-
+#
 # Inko supports both internal and external iteration. When all you need is to
 # iterate over some values, you can use internal iteration. If you need to
 # compose iterators together, you can use external iteration.
-
-# When an iterator is created, it's positioned before the first value. To access
-# the first and any following elements, you _must_ send `advance` to the
-# iterator, followed by sending `current`.
 #
 # # Exposing Iterators
 #
@@ -36,6 +32,7 @@
 import std::conversion::ToString
 import std::hash::Hash
 import std::operators::Equal
+import std::option::Option
 import std::pair::Pair
 import std::string_buffer::StringBuffer
 
@@ -51,27 +48,21 @@ impl Generator {
   # beginning. If the generator method throws, `resume` will also throw;
   # requiring you to handle the error accordingly.
   #
-  # The return value is `True` if a value is yielded, `False` otherwise.
+  # The return value is the value produced by the generator wrapped in a Some.
+  # If no value is produced, a None is returned instead.
   #
   # # Panics
   #
-  # This method will panic if the generator has finished.
-  def resume !! E -> Boolean {
+  # This method will panic if the generator has already finished.
+  def resume !! E -> ?T {
     # The generator itself may throw an error, which we re-throw here.
     # Technically the explicit throw isn't necessary, but the explicit throw
     # should make it more clear an error may occur.
     try _INKOC.generator_resume(self) else (error) { throw error as E }
 
-    _INKOC.generator_yielded(self)
-  }
-
-  # Obtains the value last yielded by the generator.
-  #
-  # If no value is yielded, `Nil` is returned.
-  def value -> ?T {
     # Obtaining the value throws when there is no value, which happens when a
     # generator finishes.
-    try _INKOC.generator_value(self) as ?T else Nil
+    try Option.some(_INKOC.generator_value(self) as T) else Option.none
   }
 }
 
@@ -85,17 +76,11 @@ impl Hash for Generator {}
 # The type parameter `E` is the error type that may be thrown. If an iterator
 # doesn't throw, you can set this to `Never`.
 trait Iterator!(T, E) {
-  # Advances the iterator, returning a boolean indicating if a value is
-  # produced.
+  # Returns the next value in the iterator.
   #
-  # If a value is produced, this method must return `True`, otherwise it must
-  # return `False`.
-  def advance !! E -> Boolean
-
-  # Returns the current value of the iterator.
-  #
-  # If no value is present, this method must return `Nil`.
-  def current -> ?T
+  # If a value is produced, it must be wrapped in a Some; otherwise a None is to
+  # be returned.
+  def next !! E -> ?T
 
   # Yields all the values in this iterator to the supplied `Block`.
   #
@@ -111,7 +96,14 @@ trait Iterator!(T, E) {
   #       stdout.print(number)
   #     }
   def each(block: do (T)) !! E {
-    { try advance }.while_true { block.call(current as T) }
+    let value = try { next }
+
+    match {
+      value.some? -> { block.call(value.get) }
+      else -> { return }
+    }
+
+    try each(block)
   }
 
   # Yields all the values and their indexes in this `Iterator` to the supplied
@@ -167,10 +159,28 @@ trait Iterator!(T, E) {
   #     numbers.iter.find do (number) { number > 50 } # => 80
   def find(block: do (T) -> Boolean) !! E -> ?T {
     try each do (value) {
-      block.call(value).if_true { return value }
+      block.call(value).if_true { return Option.some(value) }
     }
 
-    Nil
+    Option.none
+  }
+
+  # Calls the block for every value in the iterator, returning the first Some
+  # value returned by the block.
+  #
+  # # Examples
+  #
+  #     let numbers = Array.new(10, 20, 30)
+  #
+  #     numbers.iter.find_some do (num) { Option.some(num) } # => Option.some(10)
+  def find_some!(R)(block: do (T) -> ?R) !! E -> ?R {
+    try each do (value) {
+      let opt = block.call(value)
+
+      opt.if_true { return opt }
+    }
+
+    Option.none
   }
 
   # Returns `True` if `self` contains any value for which the `block` argument
@@ -272,8 +282,7 @@ trait Iterator!(T, E) {
   #     let b = Array.new(40, 50, 60)
   #     let zip = a.iter.zip(b.iter)
   #
-  #     zip.advance
-  #     zip.current # => Pair.new(10, 40)
+  #     zip.next # => Pair.new(10, 40)
   #
   # Zipping two `Iterator` objects with a different number of values:
   #
@@ -281,11 +290,12 @@ trait Iterator!(T, E) {
   #     let b = Array.new(40, 50)
   #     let zip = a.iter.zip(b.iter)
   #
-  #     zip.advance
-  #     zip.current # => Pair.new(10, 40)
+  #     zip.next # => Pair.new(10, 40)
   def zip!(U)(other: Iterator!(U, E)) !! E => Pair!(T, U) {
-    { try { advance }.and { try other.advance } }.while_true {
-      yield Pair.new(first: current as T, second: other.current as U)
+    try each do (ours) {
+      try { other.next }
+        .let do (theirs) { yield Pair.new(ours, theirs) }
+        .else { return }
     }
   }
 
@@ -376,11 +386,7 @@ trait Iterator!(T, E) {
 }
 
 impl Iterator!(T, E) for Generator {
-  def advance !! E -> Boolean {
+  def next !! E -> ?T {
     try resume
-  }
-
-  def current -> ?T {
-    value
   }
 }

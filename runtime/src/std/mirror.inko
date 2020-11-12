@@ -357,9 +357,10 @@ object ObjectMirror {
   #
   #     ObjectMirror.new(Person).name # => 'Person'
   def name -> String {
-    let name = get_attribute(OBJECT_NAME_ATTRIBUTE) as ?String
-
-    name ?? DEFAULT_OBJECT_NAME
+    match(let name = get_attribute(OBJECT_NAME_ATTRIBUTE)) {
+      as String -> { name }
+      else -> { DEFAULT_OBJECT_NAME }
+    }
   }
 }
 
@@ -878,6 +879,36 @@ impl Mirror for NilMirror {
   }
 }
 
+# A mirror for an `Option`.
+object OptionMirror!(T) {
+  @subject: ?T
+
+  static def new!(T)(subject: ?T) -> OptionMirror!(T) {
+    Self { @subject = subject }
+  }
+}
+
+impl Format for OptionMirror {
+  def format!(F: Formatter)(formatter: F) -> F {
+    @subject.some?.if(
+      true: {
+        formatter.push('Some(')
+        formatter.descend { reflect(@subject.get).format(formatter) }
+        formatter.push(')')
+      },
+      false: { formatter.push('None') }
+    )
+
+    formatter
+  }
+}
+
+impl Mirror for OptionMirror {
+  def subject -> ?T {
+    @subject
+  }
+}
+
 # Returns a mirror for the given object.
 #
 # If an object implements the `Mirrored` trait, the implementation is used to
@@ -898,6 +929,7 @@ def reflect(subject: Any) -> Mirror {
     as Triple -> { TripleMirror.new(matched) }
     as Block -> { BlockMirror.new(matched) }
     as Module -> { ModuleMirror.new(matched) }
+    as Option -> { OptionMirror.new(matched) }
     as Mirrored -> { matched.mirror }
     else -> { ObjectMirror.new(subject) }
   } as Mirror

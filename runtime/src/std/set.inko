@@ -60,7 +60,7 @@ object Set!(V: Hash + Equal) {
   #
   #     set.remove(10) # => False
   def remove(value: V) -> Boolean {
-    @map.remove(value).not_nil?
+    @map.remove(value).some?
   }
 
   # Calls the supplied `Block` for every value in this `Set`.

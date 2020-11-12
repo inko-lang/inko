@@ -4,8 +4,13 @@ Inko doesn't use keywords such as `if` and `while` for control flow. Instead,
 this is done by sending messages.
 
 An object is considered to be truthy when it evaluates to `true` in a boolean
-context. An object is falsy when it evaluates to `false`. By default, all
-objects are truthy _except_ for `Nil` and `False`.
+context. An object is falsy when it evaluates to `false`. Most objects are
+truthy, such as empty Strings, the Integer `0`, empty Arrays, etc. The following
+objects are falsy:
+
+* `Nil`
+* `False`
+* A "None" as returned by `Option.none`
 
 ## Conditional branching
 

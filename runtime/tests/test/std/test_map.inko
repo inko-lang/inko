@@ -95,11 +95,11 @@ test.group('std::map::Map.rehash') do (g) {
   g.test('Rehashing an empty Map') {
     let map = Map.new
 
-    assert.equal(map.buckets, Array.new(Nil))
+    assert.equal(map.buckets, Array.new(Option.none))
 
     map.rehash
 
-    assert.equal(map.buckets, Array.new(Nil, Nil))
+    assert.equal(map.buckets, Array.new(Option.none, Option.none))
   }
 
   g.test('Rehashing a Map with pairs') {
@@ -115,17 +115,17 @@ test.group('std::map::Map.rehash') do (g) {
     # `resize` ends up moving pairs or not.
     pair2.increase_distance
 
-    map.buckets[1] = Nil
-    map.buckets[2] = pair2
+    map.buckets[1] = Option.none
+    map.buckets[2] = Option.some(pair2)
 
     map.rehash
 
     assert.equal(pair1.distance, 0)
     assert.equal(pair2.distance, 0)
 
-    assert.equal(map.buckets[0], pair1)
-    assert.equal(map.buckets[1], pair2)
-    assert.equal(map.buckets[2], Nil)
+    assert.equal(map.buckets[0], Option.some(pair1))
+    assert.equal(map.buckets[1], Option.some(pair2))
+    assert.equal(map.buckets[2], Option.none)
   }
 }
 
@@ -137,7 +137,7 @@ test.group('std::map::Map.insert_pair') do (g) {
     map.insert_pair(pair)
 
     assert.equal(map.length, 1)
-    assert.equal(map.buckets[0], pair)
+    assert.equal(map.buckets[0], Option.some(pair))
   }
 
   g.test('Inserting a Pair into an existing bucket in a Map') {
@@ -149,8 +149,8 @@ test.group('std::map::Map.insert_pair') do (g) {
     map.insert_pair(pair1)
     map.insert_pair(pair2)
 
-    assert.equal(map.buckets[0], pair1)
-    assert.equal(map.buckets[1], pair2)
+    assert.equal(map.buckets[0], Option.some(pair1))
+    assert.equal(map.buckets[1], Option.some(pair2))
 
     assert.equal(pair1.distance, 0)
     assert.equal(pair2.distance, 1)
@@ -165,7 +165,7 @@ test.group('std::map::Map.insert_pair') do (g) {
     map.insert_pair(pair1)
     map.insert_pair(pair2)
 
-    assert.equal(map.buckets[0], pair2)
+    assert.equal(map.buckets[0], Option.some(pair2))
   }
 
   g.test('Inserting a Pair after an unused bucket') {
@@ -182,10 +182,10 @@ test.group('std::map::Map.insert_pair') do (g) {
 
     map.insert_pair(pair3)
 
-    assert.equal(map.buckets[0], pair3)
-    assert.equal(map.buckets[1], pair2)
-    assert.equal(map.buckets[2], Nil)
-    assert.equal(map.buckets[3], pair1)
+    assert.equal(map.buckets[0], Option.some(pair3))
+    assert.equal(map.buckets[1], Option.some(pair2))
+    assert.equal(map.buckets[2], Option.none)
+    assert.equal(map.buckets[3], Option.some(pair1))
   }
 }
 
@@ -195,14 +195,14 @@ test.group('std::map::Map.remove') do (g) {
 
     map['a'] = 'b'
 
-    assert.equal(map.remove('a'), 'b')
-    assert.equal(map.buckets[0], Nil)
+    assert.equal(map.remove('a'), Option.some('b'))
+    assert.equal(map.buckets[0], Option.none)
   }
 
   g.test('Removing a non-existing key from a Map') {
     let map: Map!(String, String) = Map.new
 
-    assert.equal(map.remove('a'), Nil)
+    assert.true(map.remove('a').none?)
   }
 
   g.test('Backwards shifting Pairs that follow the removed Pair') {
@@ -215,7 +215,7 @@ test.group('std::map::Map.remove') do (g) {
     map.insert_pair(pair2)
     map.remove(pair1.key)
 
-    assert.equal(map.buckets[0], pair2)
+    assert.equal(map.buckets[0], Option.some(pair2))
     assert.equal(pair2.distance, 0)
   }
 }
@@ -241,12 +241,6 @@ test.group('std::map::Map.from_array') do (g) {
 
     assert.equal(map['name'], 'Alice')
     assert.equal(map['city'], 'Amsterdam')
-  }
-
-  g.test('Creating a Map from an Array with explicit Nil values') {
-    let map = Map.from_array(keys: Array.new('foo'), values: Array.new(Nil))
-
-    assert.equal(map['foo'], Nil)
   }
 }
 
@@ -295,8 +289,7 @@ test.group('std::map::Map.iter') do (g) {
     let map = Map.new
     let iter = map.iter
 
-    assert.false(iter.advance)
-    assert.equal(iter.current, Nil)
+    assert.true(iter.next.none?)
   }
 
   g.test('Creating an Iterator for a Map with key-value pairs') {
@@ -305,13 +298,11 @@ test.group('std::map::Map.iter') do (g) {
     map['name'] = 'Alice'
 
     let iter = map.iter
+    let pair = iter.next
 
-    assert.true(iter.advance)
-
-    let pair = iter.current
-
-    assert.equal(pair.key, 'name')
-    assert.equal(pair.value, 'Alice')
+    assert.true(pair.some?)
+    assert.equal(pair.get.key, 'name')
+    assert.equal(pair.get.value, 'Alice')
   }
 
   g.test('Iterators will skip trailing empty buckets') {
@@ -324,17 +315,11 @@ test.group('std::map::Map.iter') do (g) {
     map.insert_pair(pair: pair2)
     map.rehash
 
-    # At this point the bucket layout is: [pair, pair, Nil, Nil]
     let iter = map.iter
 
-    assert.true(iter.advance)
-    assert.equal(iter.current, pair1)
-
-    assert.true(iter.advance)
-    assert.equal(iter.current, pair2)
-
-    assert.false(iter.advance)
-    assert.equal(iter.current, Nil)
+    assert.equal(iter.next, Option.some(pair1))
+    assert.equal(iter.next, Option.some(pair2))
+    assert.true(iter.next.none?)
   }
 }
 
@@ -343,8 +328,7 @@ test.group('std::map::Map.keys') do (g) {
     let map: Map!(String, String) = Map.new
     let iter = map.keys
 
-    assert.false(iter.advance)
-    assert.equal(iter.current, Nil)
+    assert.true(iter.next.none?)
   }
 
   g.test('Creating a Keys Iterator for a Map with key-value pairs') {
@@ -354,9 +338,8 @@ test.group('std::map::Map.keys') do (g) {
 
     let iter = map.keys
 
-    assert.true(iter.advance)
-    assert.equal(iter.current, 'name')
-    assert.false(iter.advance)
+    assert.equal(iter.next, Option.some('name'))
+    assert.true(iter.next.none?)
   }
 }
 
@@ -365,8 +348,7 @@ test.group('std::map::Map.values') do (g) {
     let map: Map!(String, String) = Map.new
     let iter = map.values
 
-    assert.false(iter.advance)
-    assert.equal(iter.current, Nil)
+    assert.true(iter.next.none?)
   }
 
   g.test('Creating a Values Iterator for a Map with key-value pairs') {
@@ -376,9 +358,8 @@ test.group('std::map::Map.values') do (g) {
 
     let iter = map.values
 
-    assert.true(iter.advance)
-    assert.equal(iter.current, 'Alice')
-    assert.false(iter.advance)
+    assert.equal(iter.next, Option.some('Alice'))
+    assert.true(iter.next.none?)
   }
 }
 
@@ -403,16 +384,6 @@ test.group('std::map::Map.==') do (g) {
 
     assert.not_equal(map1, map2)
     assert.not_equal(map2, map3)
-  }
-
-  g.test('Comparing a Map with explicit Nil values') {
-    let map1 = Map.new
-    let map2 = Map.new
-
-    map1['foo'] = Nil
-    map2['foo'] = Nil
-
-    assert.equal(map1, map2)
   }
 }
 
@@ -463,7 +434,7 @@ test.group('std::map::Map.get') do (g) {
   g.test('Obtaining the value of a non-existing key') {
     let map: Map!(String, String) = Map.new
 
-    assert.true(map.get('name').nil?)
+    assert.true(map.get('name').none?)
   }
 
   g.test('Obtaining the value of an existing key') {
@@ -471,7 +442,7 @@ test.group('std::map::Map.get') do (g) {
 
     map['name'] = 'Alice'
 
-    assert.equal(map.get('name'), 'Alice')
+    assert.equal(map.get('name'), Option.some('Alice'))
   }
 }
 

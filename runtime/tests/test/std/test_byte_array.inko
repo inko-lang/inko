@@ -37,10 +37,10 @@ test.group('std::byte_array::ByteArray.pop') do (g) {
   g.test('Removing a value from the end of a ByteArray') {
     let bytes = ByteArray.new(10, 20)
 
-    assert.equal(bytes.pop, 20)
+    assert.equal(bytes.pop, Option.some(20))
     assert.equal(bytes, ByteArray.new(10))
 
-    assert.equal(bytes.pop, 10)
+    assert.equal(bytes.pop, Option.some(10))
     assert.equal(bytes, ByteArray.new)
   }
 }
@@ -119,20 +119,20 @@ test.group('std::byte_array::ByteArray.get') do (g) {
   g.test('Returning the value of an existing index') {
     let bytes = ByteArray.new(10, 20)
 
-    assert.equal(bytes.get(0), 10)
-    assert.equal(bytes.get(1), 20)
+    assert.equal(bytes.get(0), Option.some(10))
+    assert.equal(bytes.get(1), Option.some(20))
   }
 
   g.test('Returning the value of a non-existing index') {
     let bytes = ByteArray.new(10, 20)
 
-    assert.equal(bytes.get(4), Nil)
+    assert.true(bytes.get(4).none?)
   }
 
   g.test('Returning the value of a non-existing negative index') {
     let bytes = ByteArray.new
 
-    assert.true(bytes.get(-2).nil?)
+    assert.true(bytes.get(-2).none?)
   }
 
   g.test('Returning the value of a non-existing very large index') {
@@ -146,9 +146,9 @@ test.group('std::byte_array::ByteArray.get') do (g) {
   g.test('Returning the value of a negative index') {
     let bytes = ByteArray.new(10, 20)
 
-    assert.equal(bytes.get(-1), 20)
-    assert.equal(bytes.get(-2), 10)
-    assert.equal(bytes.get(-3), 20)
+    assert.equal(bytes.get(-1), Option.some(20))
+    assert.equal(bytes.get(-2), Option.some(10))
+    assert.equal(bytes.get(-3), Option.some(20))
   }
 }
 
@@ -222,14 +222,9 @@ test.group('std::byte_array::ByteArray.iter') do (g) {
     let bytes = ByteArray.new(10, 20)
     let iter = bytes.iter
 
-    assert.true(iter.advance)
-    assert.equal(iter.current, 10)
-
-    assert.true(iter.advance)
-    assert.equal(iter.current, 20)
-
-    assert.false(iter.advance)
-    assert.equal(iter.current, Nil)
+    assert.equal(iter.next, Option.some(10))
+    assert.equal(iter.next, Option.some(20))
+    assert.true(iter.next.none?)
   }
 }
 

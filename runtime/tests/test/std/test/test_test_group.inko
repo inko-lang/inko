@@ -6,7 +6,7 @@ import std::test::runner::(AddTest, Client, RunnerState)
 import std::test::test::Test
 import std::test::test_group::TestGroup
 
-def add_test -> ?Test {
+def add_test -> Test {
   let client = Client.new(process.current)
   let state = RunnerState.new
   let group = TestGroup.new(name: 'group', client: client)
@@ -19,10 +19,6 @@ def add_test -> ?Test {
 }
 
 test.group('std::test::test_group::TestGroup.test') do (g) {
-  g.test('Registering a new test') {
-    assert.true(add_test)
-  }
-
   g.test('Setting the name of the test') {
     assert.equal(add_test.name, 'Test name')
   }

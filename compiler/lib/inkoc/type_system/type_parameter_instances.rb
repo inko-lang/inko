@@ -9,6 +9,10 @@ module Inkoc
         @mapping = {}
       end
 
+      def values
+        @mapping.values
+      end
+
       def [](param)
         @mapping[param]
       end

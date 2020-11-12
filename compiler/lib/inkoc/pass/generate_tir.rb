@@ -1783,10 +1783,6 @@ module Inkoc
         raw_unary_instruction(:GeneratorValue, node, body)
       end
 
-      def on_raw_generator_yielded(node, body)
-        raw_unary_instruction(:GeneratorYielded, node, body)
-      end
-
       def on_return(node, body)
         location = node.location
         register =
@@ -1847,47 +1843,6 @@ module Inkoc
         body.catch_table.add_entry(try_block, else_block)
 
         ret_reg
-      end
-
-      def on_dereference(node, body)
-        expr = process_node(node.expression, body)
-        loc = node.location
-
-        eq_reg = body.register(typedb.boolean_type.new_instance)
-        nil_reg = get_nil(body, loc)
-
-        body.instruct(:Binary, :ObjectEquals, eq_reg, expr, nil_reg, loc)
-        body.instruct(:GotoNextBlockIfFalse, eq_reg, loc)
-
-        msg_reg =
-          set_string("The value the ! operator is used on is Nil", body, loc)
-
-        body.instruct(:Panic, msg_reg, loc)
-        body.add_connected_basic_block
-
-        body.registers.release(eq_reg)
-        body.registers.release(nil_reg)
-        body.registers.release(msg_reg)
-
-        # Similar to on_new_instance(), we need to make sure the last
-        # instruction is one that produces the value to return.
-        body.instruct(:Unary, :CopyRegister, expr, expr, node.location)
-
-        expr
-      end
-
-      def on_coalesce_nil(node, body)
-        expr = process_node(node.expression, body)
-
-        body.instruct(:GotoNextBlockIfTrue, expr, node.location)
-
-        default = process_node(node.default, body)
-
-        body.instruct(:Unary, :CopyRegister, expr, default, node.location)
-        body.add_connected_basic_block
-        body.registers.release(default)
-
-        expr
       end
 
       def on_new_instance(node, body)
@@ -2047,9 +2002,8 @@ module Inkoc
           pattern_reg = process_node(pattern, body)
           rec_type = pattern_reg.type
           method = rec_type.lookup_method(Config::MATCH_MESSAGE).type
-          test_reg = lookup_and_run_block(
+          test_reg = run_method(
             pattern_reg,
-            rec_type,
             method.name,
             [match_reg],
             method,
@@ -2251,7 +2205,7 @@ module Inkoc
       # return_type - The type being returned.
       # body - The CompiledCode object to generate the instructions in.
       # loc - The SourceLocation of the operation.
-      def run_block_without_unknown_message(
+      def run_method(
         rec,
         name,
         args,
@@ -2279,63 +2233,6 @@ module Inkoc
         )
 
         body.instruct(:Nullary, :MoveResult, register, loc)
-      end
-
-      # Gets and executes a block, using a fallback if the block could not be
-      # found.
-      #
-      # rec - The register containing the receiver a message is sent to.
-      # name - The name of the message being sent.
-      # args - The arguments passed to the block.
-      # block_type - The type of the block being executed.
-      # return_type - The type being returned.
-      # body - The CompiledCode object to generate the instructions in.
-      # loc - The SourceLocation of the operation.
-      def run_block_with_unknown_message(
-        rec,
-        name,
-        args,
-        block_type,
-        return_type,
-        body,
-        loc
-      )
-        ret_reg = body.register(return_type)
-        block_reg = body.register(block_type)
-
-        args = make_registers_contiguous(args, body, loc)
-        start_arg = args.first || ret_reg
-
-        # Re-ordering these two instructions will break the RunBlockWithReceiver
-        # below, so don't.
-        name_reg = set_string(name, body, loc)
-
-        # Look up the block we're supposed to run.
-        body.instruct(:Binary, :GetAttribute, block_reg, rec, name_reg, loc)
-
-        goto_block_name = body.new_basic_block_name
-
-        body.instruct(:GotoBlockIfTrue, goto_block_name, block_reg, loc)
-        body.instruct(:Nullary, :GetNil, ret_reg, loc)
-        body.instruct(:SkipNextBlock, loc)
-
-        # The code we'd run if the method _is_ defined.
-        body.add_connected_basic_block(goto_block_name)
-
-        body.instruct(
-          :RunBlockWithReceiver,
-          block_reg,
-          rec,
-          start_arg,
-          args.length,
-          block_reg.type,
-          loc
-        )
-
-        body.instruct(:Nullary, :MoveResult, ret_reg, loc)
-        body.add_connected_basic_block
-
-        ret_reg
       end
 
       def send_to_self(name, block_type, return_type, body, location)
@@ -2418,9 +2315,8 @@ module Inkoc
             loc
           )
         else
-          lookup_and_run_block(
+          run_method(
             rec,
-            rec_type,
             name,
             arguments,
             block_type,
@@ -2435,35 +2331,6 @@ module Inkoc
         register = body.register(return_type)
 
         allocate_array(register, arguments, body, location)
-      end
-
-      def lookup_and_run_block(
-        receiver,
-        receiver_type,
-        name,
-        args,
-        block_type,
-        return_type,
-        body,
-        loc
-      )
-        message =
-          if receiver_type.guard_unknown_message?(name)
-            :run_block_with_unknown_message
-          else
-            :run_block_without_unknown_message
-          end
-
-        public_send(
-          message,
-          receiver,
-          name,
-          args,
-          block_type,
-          return_type,
-          body,
-          loc
-        )
       end
 
       def send_initializes_array?(receiver, name)

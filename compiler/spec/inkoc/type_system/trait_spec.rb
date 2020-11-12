@@ -65,14 +65,6 @@ describe Inkoc::TypeSystem::Trait do
       end
     end
 
-    context 'when comparing with an optional type' do
-      it 'returns true if the types are copmatible' do
-        theirs = Inkoc::TypeSystem::Optional.new(ours)
-
-        expect(ours.type_compatible?(theirs, state)).to eq(true)
-      end
-    end
-
     context 'when comparing with another trait' do
       let(:theirs) { described_class.new(unique_id: 2) }
 

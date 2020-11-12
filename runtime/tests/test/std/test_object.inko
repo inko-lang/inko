@@ -66,7 +66,8 @@ test.group('std::object::Object.if_true') do (g) {
     let obj = Dummy.new
     let mut num = 0
 
-    assert.equal(obj.if_true({ num = 10 }), 10)
+    obj.if_true { num = 10 }
+
     assert.equal(num, 10)
   }
 }
@@ -76,7 +77,8 @@ test.group('std::object::Object.if_false') do (g) {
     let obj = Dummy.new
     let mut num = 0
 
-    assert.equal(obj.if_false({ num = 10 }), Nil)
+    obj.if_false { num = 10 }
+
     assert.equal(num, 0)
   }
 }
@@ -103,21 +105,5 @@ test.group('std::object::Object.or') do (g) {
     let obj = Dummy.new
 
     assert.true(obj.or({ False }))
-  }
-}
-
-test.group('std::object::Object.nil?') do (g) {
-  g.test('Checking if an object is Nil') {
-    assert.true(Nil.nil?)
-    assert.false(10.nil?)
-    assert.false(Dummy.new.nil?)
-  }
-}
-
-test.group('std::object::Object.not_nil?') do (g) {
-  g.test('Checking if an object is Nil') {
-    assert.false(Nil.not_nil?)
-    assert.true(10.not_nil?)
-    assert.true(Dummy.new.not_nil?)
   }
 }

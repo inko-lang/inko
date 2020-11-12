@@ -16,14 +16,16 @@ test.group('std::compiler::ast::imports::ImportSymbol.expose?') do (g) {
 
   g.test('Checking if a symbol with an alias should be exposed') {
     let alias = ImportAlias.new(name: 'bar', location: location)
-    let symbol = ImportSymbol.new(name: 'foo', location: location, alias: alias)
+    let symbol = ImportSymbol
+      .new(name: 'foo', location: location, alias: Option.some(alias))
 
     assert.true(symbol.expose?)
   }
 
   g.test('Checking if a symbol aliased as _ should be exposed') {
     let alias = ImportAlias.new(name: '_', location: location)
-    let symbol = ImportSymbol.new(name: 'foo', location: location, alias: alias)
+    let symbol = ImportSymbol
+      .new(name: 'foo', location: location, alias: Option.some(alias))
 
     assert.false(symbol.expose?)
   }

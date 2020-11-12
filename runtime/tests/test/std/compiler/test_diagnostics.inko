@@ -82,8 +82,7 @@ test.group('std::compiler::diagnostics::Diagnostics.iter') do (g) {
 
     let iter = collection.iter
 
-    assert.true(iter.advance)
-    assert.equal(iter.current.message, 'testing')
+    assert.equal(iter.next.get.message, 'testing')
   }
 }
 
@@ -97,8 +96,7 @@ test.group('std::compiler::diagnostics::Diagnostics.error') do (g) {
 
     let iter = collection.iter
 
-    assert.true(iter.advance)
-    assert.equal(iter.current.level, 'error')
+    assert.equal(iter.next.get.level, 'error')
     assert.true(collection.errors?)
   }
 }
@@ -111,7 +109,6 @@ test.group('std::compiler::diagnostics::Diagnostics.warning') do (g) {
 
     let iter = collection.iter
 
-    assert.true(iter.advance)
-    assert.equal(iter.current.level, 'warning')
+    assert.equal(iter.next.get.level, 'warning')
   }
 }

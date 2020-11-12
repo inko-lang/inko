@@ -12,30 +12,6 @@ describe Inkoc::TypeSystem::Object do
   end
 
   describe '#type_compatible?' do
-    context 'when comparing with an Optional' do
-      it 'returns true if we are compatible with the wrapped type' do
-        proto = described_class.new
-        ours = described_class.new(prototype: proto)
-        theirs = Inkoc::TypeSystem::Optional.new(proto)
-
-        expect(ours.type_compatible?(theirs, state)).to eq(true)
-      end
-
-      it 'returns true when passing Nil' do
-        ours = state.typedb.nil_type.new_instance
-        theirs = Inkoc::TypeSystem::Optional.new(described_class.new)
-
-        expect(ours.type_compatible?(theirs, state)).to eq(true)
-      end
-
-      it 'returns false when the objects are not compatible' do
-        ours = described_class.new
-        theirs = Inkoc::TypeSystem::Optional.new(described_class.new)
-
-        expect(ours.type_compatible?(theirs, state)).to eq(false)
-      end
-    end
-
     context 'when comparing with a Trait' do
       it 'returns true if the trait has been implemented' do
         ours = described_class.new
@@ -145,30 +121,6 @@ describe Inkoc::TypeSystem::Object do
 
         expect(ours.type_compatible?(theirs, state)).to eq(false)
       end
-    end
-  end
-
-  describe '#compatible_with_optional?' do
-    it 'returns true if we are compatible with the wrapped type' do
-      proto = described_class.new
-      ours = described_class.new(prototype: proto)
-      theirs = Inkoc::TypeSystem::Optional.new(proto)
-
-      expect(ours.compatible_with_optional?(theirs, state)).to eq(true)
-    end
-
-    it 'returns true when passing Nil' do
-      ours = state.typedb.nil_type.new_instance
-      theirs = Inkoc::TypeSystem::Optional.new(described_class.new)
-
-      expect(ours.compatible_with_optional?(theirs, state)).to eq(true)
-    end
-
-    it 'returns false when the objects are not compatible' do
-      ours = described_class.new
-      theirs = Inkoc::TypeSystem::Optional.new(described_class.new)
-
-      expect(ours.compatible_with_optional?(theirs, state)).to eq(false)
     end
   end
 
@@ -592,23 +544,6 @@ describe Inkoc::TypeSystem::Object do
       type = rtype.without_empty_type_parameters(self_type, block_type)
 
       expect(type.type_parameter_instances).to be_empty
-    end
-  end
-
-  describe '#guard_unknown_message?' do
-    it 'returns true for an undefined message' do
-      object = described_class.new
-
-      expect(object.guard_unknown_message?('foo')).to eq(true)
-    end
-
-    it 'returns false for a defined message' do
-      object = described_class.new
-      method = Inkoc::TypeSystem::Block.new(name: 'foo')
-
-      object.attributes.define(method.name, method)
-
-      expect(object.guard_unknown_message?('foo')).to eq(false)
     end
   end
 

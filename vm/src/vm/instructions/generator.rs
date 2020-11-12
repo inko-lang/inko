@@ -46,21 +46,6 @@ pub fn resume(
 }
 
 #[inline(always)]
-pub fn yielded(
-    state: &RcState,
-    gen_ptr: ObjectPointer,
-) -> Result<ObjectPointer, String> {
-    let gen = gen_ptr.generator_value()?;
-    let res = if gen.yielded() {
-        state.true_object
-    } else {
-        state.false_object
-    };
-
-    Ok(res)
-}
-
-#[inline(always)]
 pub fn value(
     state: &RcState,
     gen_ptr: ObjectPointer,

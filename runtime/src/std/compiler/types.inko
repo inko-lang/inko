@@ -89,7 +89,7 @@ object TypeScope {
   static def new(
     module: ModuleType,
     self_type: Type = module,
-    method: ?MethodType = Nil,
+    method: ?MethodType = Option.none,
     block: ?BlockType = method
   ) -> Self {
     Self {
@@ -118,13 +118,11 @@ object TypeScope {
 
   # Looks up a type by its name.
   def lookup_type(name: String) -> ?Symbol!(Type) {
-    let mut found = @block.lookup_type(name)
-
-    found.if_false { found = @method.lookup_type(name) }
-    found.if_false { found = @self_type.lookup_type(name) }
-    found.if_false { found = @module.lookup_type(name) }
-
-    found
+    @block
+      .then do (block) { block.lookup_type(name) }
+      .else { @method.then do (method) { method.lookup_type(name) } }
+      .else { @self_type.lookup_type(name) }
+      .else { @module.lookup_type(name) }
   }
 
   def lookup_method(name: String) -> ?Symbol!(MethodType) {
@@ -205,11 +203,6 @@ trait Type {
     False
   }
 
-  # Returns `True` if this type is an optional type.
-  def optional? -> Boolean {
-    False
-  }
-
   # Returns `True` if this type is a method.
   def method? -> Boolean {
     False
@@ -222,38 +215,39 @@ trait Type {
 
   # Looks up an attribute by its name.
   def lookup_attribute(name: String) -> ?Symbol!(Type) {
-    Nil
+    Option.none
   }
 
   # Looks up a method by its name.
   def lookup_method(name: String) -> ?Symbol!(MethodType) {
-    Nil
+    Option.none
   }
 
   # Looks up a type (a constant, type parameter, etc) by its name.
   def lookup_type(name: String) -> ?Symbol!(Type) {
-    Nil
+    Option.none
   }
 
   # Looks up a type parameter by its name.
   def lookup_type_parameter(name: String) -> ?Symbol!(TypeParameterType) {
-    Nil
+    Option.none
   }
 
   # Returns `True` if the given type parameter is defined by the current type.
   def defines_type_parameter?(parameter: TypeParameterType) -> Boolean {
-    lookup_type_parameter(parameter.name).type.same_object?(parameter)
+    lookup_type_parameter(parameter.name)
+      .get_or_else { return False }
+      .type
+      .same_object?(parameter)
   }
 
   # Looks up the type a type parameter is assigned to.
   def lookup_type_parameter_type(parameter: TypeParameterType) -> ?Type {
-    Nil
+    Option.none
   }
 
   # Assigns the given type parameter to a type.
-  def assign_type_parameter(parameter: TypeParameterType, type: Type) {
-    Nil
-  }
+  def assign_type_parameter(parameter: TypeParameterType, type: Type) {}
 
   # Returns a new instance of the current type.
   def new_instance(type_arguments = Array.new) -> Self {
@@ -288,8 +282,10 @@ trait Type {
     #
     # To prevent this from happening, if parameter P is not assigned or assigned
     # to itself, we just compare ourselves with the required traits.
-    let compatible = type.not_nil?.and { type.same_object?(parameter).false? }.if(
-      true: { type_compatible?(with: type!, builtins: builtins, scope: scope) },
+    let compatible = type.some?.and { type.same_object?(parameter).false? }.if(
+      true: {
+        type_compatible?(with: type.get, builtins: builtins, scope: scope)
+      },
       false: {
         type_compatible_with_all?(
           types: parameter.required_traits,
@@ -300,7 +296,7 @@ trait Type {
     )
 
     compatible
-      .and { type.nil? }
+      .and { type.none? }
       .if_true { scope.assign_type_parameter(parameter: parameter, type: self) }
 
     compatible
@@ -363,15 +359,18 @@ object TypeParameterTypes {
   ) -> Boolean {
     (length == with.length).if_false { return False }
 
-    @map.iter.all? do (pair) {
-      let their_type = with.get(pair.key)
-
-      their_type.not_nil?.and {
-        pair
-          .value
-          .type_compatible?(with: their_type!, builtins: builtins, scope: scope)
-      }
+    @map.each do (key, value) {
+      with
+        .get(key)
+        .let do (theirs) {
+          value
+            .type_compatible?(with: theirs, builtins: builtins, scope: scope)
+            .if_false { return False }
+        }
+        .else { return False }
     }
+
+    True
   }
 
   def each(block: do (TypeParameterType, Type)) -> Self {
@@ -407,14 +406,20 @@ object TypeParameterTypes {
     @map.each do (param, type) {
       # We only want to copy the parameter assignment if the target type owns
       # the parameter, and if the parameter isn't already assigned a value.
-      arguments.get(param).nil?
-        .and { parameters.get(param.name).type.same_object?(param) }
-        .if_true { arguments[param] = type }
+      arguments.defines?(param).if_false {
+        parameters.get(param.name).let do (sym) {
+          sym.type.same_object?(param).if_true { arguments[param] = type }
+        }
+      }
     }
   }
 
-  def get(index: TypeParameterType) -> ?Type {
-    @map.get(index)
+  def defines?(parameter: TypeParameterType) -> Boolean {
+    @map.key?(parameter)
+  }
+
+  def get(parameter: TypeParameterType) -> ?Type {
+    @map.get(parameter)
   }
 }
 
@@ -852,9 +857,6 @@ impl Type for TypeParameterType {
           scope: scope
         )
       }
-      as OptionalType -> {
-        type_compatible?(with: expected.type, builtins: builtins, scope: scope)
-      }
       as ErrorType -> { True }
       as AnyType -> { True }
       else -> { False }
@@ -862,12 +864,11 @@ impl Type for TypeParameterType {
   }
 
   def substitute(scope: TypeCheckScope) -> Type {
-    let assigned = scope.lookup_type_parameter_type(self)
+    scope.lookup_type_parameter_type(self).let do (assigned) {
+      assigned.same_object?(self).if_false { return assigned.substitute(scope) }
+    }
 
-    assigned.not_nil?.and { assigned.same_object?(self).false? }.if(
-      true: { assigned!.substitute(scope) },
-      false: { self }
-    )
+    self
   }
 
   def type_parameter? -> Boolean {
@@ -918,8 +919,7 @@ object TypeParameterBounds {
     scope: TypeCheckScope
   ) -> Boolean {
     @mapping.each do (param, requirements) {
-      let param_type = type_parameter_types.get(param)
-      let compare = param_type.if(true: { param_type! }, false: { param })
+      let compare = type_parameter_types.get(param).get_or(param)
 
       requirements.each do (req) {
         compare
@@ -945,71 +945,6 @@ impl Index!(TypeParameterType, Array!(TraitInstance)) for TypeParameterBounds {
 impl Length for TypeParameterBounds {
   def length -> Integer {
     @parameters.length
-  }
-}
-
-# Type information about an optional type.
-object OptionalType {
-  # The type that is optional (e.g. the `T` in `?T`).
-  @type: Type
-
-  static def new(type: Type) -> Self {
-    Self { @type = type }
-  }
-
-  static def wrap(type: Type) -> Self {
-    match(let matched = type) {
-      as OptionalType -> { matched }
-      else -> { new(matched) }
-    }
-  }
-
-  def type -> Type {
-    @type
-  }
-}
-
-impl Type for OptionalType {
-  def type_name -> String {
-    '?' + @type.type_name
-  }
-
-  def lookup_method(name: String) -> ?Symbol!(MethodType) {
-    @type.lookup_method(name)
-  }
-
-  def type_compatible?(
-    with: Type,
-    builtins: Builtins,
-    scope: TypeCheckScope
-  ) -> Boolean {
-    match(let expected = with) {
-      as OptionalType -> {
-        @type.type_compatible?(
-          with: expected.type,
-          builtins: builtins,
-          scope: scope
-        )
-      }
-      as TraitInstance -> {
-        # For a ?T we require that both T and Nil implement the trait, otherwise
-        # it would not be safe to pass a Nil instead of a T.
-        @type
-          .type_compatible?(with: expected, builtins: builtins, scope: scope)
-          .and {
-            builtins
-              .nil_singleton
-              .type_compatible?(with: expected, builtins: builtins, scope: scope)
-          }
-      }
-      as ErrorType -> { True }
-      as AnyType -> { True }
-      else -> { False }
-    }
-  }
-
-  def optional? -> Boolean {
-    True
   }
 }
 
@@ -1052,15 +987,18 @@ trait BlockType: Type {
   }
 
   # Returns the type thrown, if any.
-  #
-  # This returns `Nil` if no explicit throw type is specified.
   def throw_type -> ?Type {
     layout.throw_type
   }
 
   # Sets the throw type to the given type.
-  def throw_type=(type: ?Type) -> ?Type {
+  def throw_type=(type: Type) -> Type {
     layout.throw_type = type
+  }
+
+  # Removes the throw type of this block.
+  def unset_throw_type {
+    layout.unset_throw_type
   }
 
   # Returns a boolean indicating if this block throws.
@@ -1074,8 +1012,6 @@ trait BlockType: Type {
   }
 
   # Returns the type returned, if any.
-  #
-  # This returns `Nil` if no explicit return type is specified.
   def return_type -> Type {
     layout.return_type
   }
@@ -1175,14 +1111,22 @@ trait BlockType: Type {
     builtins: Builtins,
     scope: TypeCheckScope
   ) -> Boolean {
-    # A block that doesn't throw can safely substitute a block that does throw.
-    throw_type.if_false { return True }
+    let ours = throw_type
+    let theirs = with.throw_type
 
-    # A block that throws (= ours) can't safely substitute a block that doesn't.
-    with.throw_type.if_false { return False }
-
-    throw_type!
-      .type_compatible?(with: with.throw_type!, builtins: builtins, scope: scope)
+    match {
+      # A block that doesn't throw can safely substitute a block that does
+      # throw.
+      ours.none? -> { True }
+      # A block that throws (= ours) can't safely substitute a block that
+      # doesn't.
+      theirs.none? -> { False }
+      else -> {
+        ours
+          .get
+          .type_compatible?(with: theirs.get, builtins: builtins, scope: scope)
+      }
+    }
   }
 
   # Signals that this block captures one or more local variables.
@@ -1216,7 +1160,7 @@ trait BlockType: Type {
   }
 
   def yield_type -> ?Type {
-    Nil
+    Option.none
   }
 }
 
@@ -1263,9 +1207,9 @@ object BlockNameBuilder {
   }
 
   def format_throw_type(type: ?Type) -> Self {
-    type.if_true {
+    type.let do (type) {
       push(' !! ')
-      push(type!.type_name)
+      push(type.type_name)
     }
 
     self
@@ -1333,7 +1277,7 @@ object BlockLayout {
 
   static def new(
     return_type: Type,
-    throw_type: ?Type = Nil,
+    throw_type: ?Type = Option.none,
     type_parameters: SymbolTable!(TypeParameterType) = SymbolTable.new,
     required_arguments = 0,
     rest_argument = False,
@@ -1388,8 +1332,13 @@ object BlockLayout {
     @throw_type
   }
 
-  def throw_type=(type: ?Type) -> ?Type {
-    @throw_type = type
+  def throw_type=(type: Type) -> Type {
+    @throw_type = Option.some(type)
+    type
+  }
+
+  def unset_throw_type {
+    @throw_type = Option.none
   }
 
   def throws? -> Boolean {
@@ -1411,7 +1360,7 @@ object BlockLayout {
   def substitute(scope: TypeCheckScope) -> Self {
     let new_layout = BlockLayout.new(
       return_type: @return_type.substitute(scope),
-      throw_type: @throw_type.substitute(scope),
+      throw_type: @throw_type.map(do (type) { type.substitute(scope) }),
       type_parameters: @type_parameters,
       required_arguments: @required_arguments,
       rest_argument: @rest_argument,
@@ -1461,7 +1410,7 @@ object MethodType {
       @name = name,
       @static_method = static_method,
       @type_parameter_bounds = TypeParameterBounds.new,
-      @yield_type = Nil,
+      @yield_type = Option.none,
       @yields = False
     }
   }
@@ -1499,9 +1448,11 @@ object MethodType {
     let theirs = with.yield_type
 
     match {
-      ours.nil? when theirs.nil? -> { True }
-      ours.not_nil? when theirs.not_nil? -> {
-        ours!.type_compatible?(with: theirs!, builtins: builtins, scope: scope)
+      ours.none? when theirs.none? -> { True }
+      ours.some? when theirs.some? -> {
+        ours
+          .get
+          .type_compatible?(with: theirs.get, builtins: builtins, scope: scope)
       }
       # A method that yields can't safely substitute one that doesn't, and
       # vice versa.
@@ -1523,7 +1474,7 @@ impl Type for MethodType {
     yield_type.if(
       true: {
         builder.push(' => ')
-        builder.push(yield_type!.type_name)
+        builder.push(yield_type.get.type_name)
       },
       false: { builder.format_return_type(return_type) }
     )
@@ -1562,9 +1513,6 @@ impl Type for MethodType {
           builtins: builtins,
           scope: scope
         )
-      }
-      as OptionalType -> {
-        type_compatible?(with: expected.type, builtins: builtins, scope: scope)
       }
       as ErrorType -> { True }
       as AnyType -> { True }
@@ -1613,12 +1561,14 @@ impl BlockType for MethodType {
     builtins: Builtins,
     scope: TypeCheckScope
   ) -> Type {
-    yield_type.nil?.if_true { return return_type.substitute(scope) }
+    yield_type.let do (type) {
+      let vtype = type.substitute(scope)
+      let etype = throw_type.get_or(NeverType.new)
 
-    let vtype = yield_type!.substitute(scope)
-    let etype = throw_type ?? NeverType.new
+      return builtins.generator_type.new_instance(Array.new(vtype, etype))
+    }
 
-    builtins.generator_type.new_instance(Array.new(vtype, etype))
+    return_type.substitute(scope)
   }
 
   def yields? -> Boolean {
@@ -1693,9 +1643,6 @@ impl Type for ClosureType {
           builtins: builtins,
           scope: scope
         )
-      }
-      as OptionalType -> {
-        type_compatible?(with: expected.type, builtins: builtins, scope: scope)
       }
       as ErrorType -> { True }
       as AnyType -> { True }
@@ -1782,9 +1729,6 @@ impl Type for LambdaType {
           builtins: builtins,
           scope: scope
         )
-      }
-      as OptionalType -> {
-        type_compatible?(with: expected.type, builtins: builtins, scope: scope)
       }
       as ErrorType -> { True }
       as AnyType -> { True }
@@ -1926,9 +1870,6 @@ impl Type for TraitType {
           scope: scope
         )
       }
-      as OptionalType -> {
-        type_compatible?(with: expected.type, builtins: builtins, scope: scope)
-      }
       as ErrorType -> { True }
       as AnyType -> { True }
       else -> { False }
@@ -2002,27 +1943,14 @@ impl Type for TraitInstance {
   }
 
   def lookup_method(name: String) -> ?Symbol!(MethodType) {
-    let default = @instance_of.default_methods.get(name)
+    let src = @instance_of
 
-    default.if_true { return default! }
-
-    let required = @instance_of.required_methods.get(name)
-
-    required.if_true { return required! }
-
-    @instance_of.required_traits.each do (required) {
-      let symbol = required.lookup_method(name)
-
-      symbol.if_true { return symbol! }
-    }
-
-    @instance_of.default_traits.each do (default) {
-      let symbol = default.lookup_method(name)
-
-      symbol.if_true { return symbol! }
-    }
-
-    Nil
+    src
+      .default_methods
+      .get(name)
+      .else { src.required_methods.get(name) }
+      .else { src.required_traits.iter.find_some do (t) { t.lookup_method(name) } }
+      .else { src.default_traits.iter.find_some do (t) { t.lookup_method(name) } }
   }
 
   def lookup_type(name: String) -> ?Symbol!(Type) {
@@ -2056,9 +1984,6 @@ impl Type for TraitInstance {
           builtins: builtins,
           scope: scope
         )
-      }
-      as OptionalType -> {
-        type_compatible?(with: expected.type, builtins: builtins, scope: scope)
       }
       as SelfType -> {
         type_compatible?(
@@ -2182,13 +2107,12 @@ object ObjectType {
     builtins: Builtins,
     scope: TypeCheckScope
   ) -> Boolean {
-    let trait_impl = implemented_traits.get(type.instance_of)
-
-    trait_impl.if_false { return False }
+    let trait_impl =
+      implemented_traits.get(type.instance_of).get_or_else { return False }
 
     # ObjectType types can never be generic (e.g. Array itself is not generic,
     # but instances of Array are), so we don't need to check any bounds.
-    trait_impl.type!.type_parameter_types.type_compatible?(
+    trait_impl.type.type_parameter_types.type_compatible?(
       with: type.type_parameter_types,
       builtins: builtins,
       scope: scope
@@ -2251,9 +2175,6 @@ impl Type for ObjectType {
           builtins: builtins,
           scope: scope
         )
-      }
-      as OptionalType -> {
-        type_compatible?(with: expected.type, builtins: builtins, scope: scope)
       }
       as ErrorType -> { True }
       as AnyType -> { True }
@@ -2335,7 +2256,10 @@ impl Type for ObjectInstance {
     builtins: Builtins,
     scope: TypeCheckScope
   ) -> Boolean {
-    let trait_impl = @instance_of.implemented_traits.get(type.instance_of)
+    let trait_impl = @instance_of
+      .implemented_traits
+      .get(type.instance_of)
+      .get_or_else { return False }
 
     trait_impl
       .bounds
@@ -2346,7 +2270,7 @@ impl Type for ObjectInstance {
       )
       .if_false { return False }
 
-    trait_impl!.type.type_parameter_types.type_compatible?(
+    trait_impl.type.type_parameter_types.type_compatible?(
       with: type.type_parameter_types,
       builtins: builtins,
       scope: scope
@@ -2379,15 +2303,6 @@ impl Type for ObjectInstance {
           builtins: builtins,
           scope: scope
         )
-      }
-      as OptionalType -> {
-        # While Nil is just a an object like any other, it _is_ special in one
-        # way: it can be safely passed to any ?T. We don't use marker traits as
-        # these would allow other objects to implement them, and passing those
-        # objects to a ?T may not always be safe.
-        @instance_of.same_object?(builtins.nil_type).if_true { return True }
-
-        type_compatible?(with: expected.type, builtins: builtins, scope: scope)
       }
       as SelfType -> {
         type_compatible?(
@@ -2452,7 +2367,7 @@ object ModuleType {
   }
 
   def defines?(name: String) -> Boolean {
-    @globals.get(name).not_nil?.or { @methods.get(name).not_nil? }
+    @globals.get(name).else { @methods.get(name) }.some?
   }
 
   def define_constant(name: String, type: Type) {
@@ -2476,9 +2391,14 @@ impl Type for ModuleType {
   }
 
   def lookup_method(name: String) -> ?Symbol!(MethodType) {
-    let method = @globals.get(name)
+    let sym = @globals.get(name)
 
-    method.type.method?.if_true { return method as Symbol!(MethodType) }
+    sym
+      .some?
+      .and { sym.get.type.method? }
+      .if_true { return sym as ?Symbol!(MethodType) }
+
+    Option.none
   }
 
   def type_compatible?(
@@ -2501,9 +2421,6 @@ impl Type for ModuleType {
           builtins: builtins,
           scope: scope
         )
-      }
-      as OptionalType -> {
-        type_compatible?(with: expected.type, builtins: builtins, scope: scope)
       }
       as SelfType -> {
         type_compatible?(
@@ -2534,8 +2451,9 @@ def format_type_name(
 
     let type = type_parameter_types.get(param.type)
 
-    buffer
-      .push(type.if(true: { type!.type_name }, false: { param.type.type_name }))
+    buffer.push(
+      type.if(true: { type.get.type_name }, false: { param.type.type_name })
+    )
   }
 
   buffer.push(')')

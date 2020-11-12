@@ -122,7 +122,7 @@ module Inkoc
         process_node(node.expression, outer)
       end
 
-      def on_coalesce_nil(node, outer)
+      def on_coalesce_option(node, outer)
         process_node(node.expression, outer)
         process_node(node.default, outer)
       end

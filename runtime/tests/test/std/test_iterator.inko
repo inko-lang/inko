@@ -10,42 +10,23 @@ object EmptyIterator {
 }
 
 impl Iterator!(Integer, Never) for EmptyIterator {
-  def advance -> Boolean {
-    False
-  }
-
-  def current -> ?Integer {
-    Nil
+  def next -> ?Integer {
+    Option.none
   }
 }
 
 object SimpleIterator {
   @values: Array!(Integer)
-  @value: ?Integer
   @index: Integer
 
   static def new -> Self {
-    Self { @values = Array.new(10, 20, 30), @value = Nil, @index = 0 }
+    Self { @values = Array.new(10, 20, 30), @index = 0 }
   }
 }
 
 impl Iterator!(Integer, Never) for SimpleIterator {
-  def advance -> Boolean {
-    (@index < @values.length).if(
-      true: {
-        @value = @values[@index]
-        @index += 1
-        True
-      },
-      false: {
-        @value = Nil
-        False
-      }
-    )
-  }
-
-  def current -> ?Integer {
-    @value
+  def next -> ?Integer {
+    @values.get(@index).let do (_) { @index += 1 }
   }
 }
 
@@ -86,14 +67,30 @@ test.group('std::iterator::Iterator.find') do (g) {
     let iter = SimpleIterator.new
     let val = iter.find do (value) { value == 20 }
 
-    assert.equal(val, 20)
+    assert.equal(val, Option.some(20))
   }
 
   g.test('Finding the first occurrence of a value in an empty Iterator') {
     let iter = EmptyIterator.new
     let val = iter.find do (value) { value == 20 }
 
-    assert.equal(val, Nil)
+    assert.true(val.none?)
+  }
+}
+
+test.group('std::iterator::Iterator.find_some') do (g) {
+  g.test('Finding the first Some value') {
+    let iter = SimpleIterator.new
+    let opt = iter.find_some do (value) { Option.some(value) }
+
+    assert.equal(opt, Option.some(10))
+  }
+
+  g.test('Not finding a value') {
+    let iter = SimpleIterator.new
+    let opt = iter.find_some do (value) { Option.none }
+
+    assert.true(opt.none?)
   }
 }
 
@@ -187,16 +184,10 @@ test.group('std::iterator::Iterator.zip') do (g) {
     let b = Array.new(40, 50, 60)
     let zip = a.iter.zip(b.iter)
 
-    assert.true(zip.advance)
-    assert.equal(zip.current, Pair.new(10, 40))
-
-    assert.true(zip.advance)
-    assert.equal(zip.current, Pair.new(20, 50))
-
-    assert.true(zip.advance)
-    assert.equal(zip.current, Pair.new(30, 60))
-
-    assert.false(zip.advance)
+    assert.equal(zip.next, Option.some(Pair.new(10, 40)))
+    assert.equal(zip.next, Option.some(Pair.new(20, 50)))
+    assert.equal(zip.next, Option.some(Pair.new(30, 60)))
+    assert.true(zip.next.none?)
   }
 
   g.test('Zipping two Iterators with a different number of values') {
@@ -205,21 +196,11 @@ test.group('std::iterator::Iterator.zip') do (g) {
     let zip1 = a.iter.zip(b.iter)
     let zip2 = b.iter.zip(a.iter)
 
-    assert.true(zip1.advance)
-    assert.equal(zip1.current, Pair.new(10, 40))
-
-    assert.true(zip1.advance)
-    assert.equal(zip1.current, Pair.new(20, 50))
-
-    assert.false(zip1.advance)
-
-    assert.true(zip2.advance)
-    assert.equal(zip2.current, Pair.new(40, 10))
-
-    assert.true(zip2.advance)
-    assert.equal(zip2.current, Pair.new(50, 20))
-
-    assert.false(zip2.advance)
+    assert.equal(zip1.next, Option.some(Pair.new(10, 40)))
+    assert.equal(zip1.next, Option.some(Pair.new(20, 50)))
+    assert.equal(zip2.next, Option.some(Pair.new(40, 10)))
+    assert.equal(zip2.next, Option.some(Pair.new(50, 20)))
+    assert.true(zip2.next.none?)
   }
 }
 
@@ -258,52 +239,25 @@ test.group('std::iterator::Generator.resume') do (g) {
   g.test("Resuming a generator that doesn't throw") {
     let iter = gen
 
-    assert.true(iter.resume)
-    assert.true(iter.resume)
-    assert.false(iter.resume)
+    assert.equal(iter.resume, Option.some(10))
+    assert.equal(iter.resume, Option.some(20))
+    assert.true(iter.resume.none?)
   }
 
   g.test('Resuming a generator that throws') {
     let iter = gen_with_error
 
-    assert.true(try iter.resume else False)
-    assert.false(try iter.resume else False)
+    assert.true(try iter.resume.some? else False)
+    assert.false(try iter.resume.some? else False)
   }
 }
 
-test.group('std::iterator::Generator.value') do (g) {
-  g.test('Obtaining a yielded value') {
-    let iter = gen
-
-    assert.true(iter.resume)
-    assert.equal(iter.value, 10)
-
-    assert.true(iter.resume)
-    assert.equal(iter.value, 20)
-  }
-
-  g.test("Obtaining the value of a generator that didn't yield") {
-    let iter = gen
-
-    assert.true(iter.value.nil?)
-  }
-}
-
-test.group('std::iterator::Generator.advance') do (g) {
+test.group('std::iterator::Generator.next') do (g) {
   g.test('Resuming a generator') {
     let iter = gen
 
-    assert.true(iter.advance)
-    assert.true(iter.advance)
-    assert.false(iter.advance)
-  }
-}
-
-test.group('std::iterator::Generator.current') do (g) {
-  g.test('Obtaining a yielded value') {
-    let iter = gen
-
-    assert.true(iter.advance)
-    assert.equal(iter.current, 10)
+    assert.equal(iter.next, Option.some(10))
+    assert.equal(iter.next, Option.some(20))
+    assert.true(iter.next.none?)
   }
 }

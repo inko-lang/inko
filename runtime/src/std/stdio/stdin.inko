@@ -6,7 +6,7 @@ import std::io::(Read, Error as IOError)
 import std::process
 
 impl Read for ThisModule {
-  def read_bytes(bytes: ByteArray, size: ?Integer = Nil) !! IOError -> Integer {
+  def read_bytes(bytes: ByteArray, size = 0) !! IOError -> Integer {
     process.blocking {
       try {
         _INKOC.stdin_read(bytes, size)

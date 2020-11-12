@@ -1,24 +1,6 @@
 import std::test
 import std::test::assert
 
-test.group('std::nil::NilType.to_integer') do (g) {
-  g.test('Converting Nil to an Integer') {
-    assert.equal(Nil.to_integer, 0)
-  }
-}
-
-test.group('std::nil::NilType.to_float') do (g) {
-  g.test('Converting Nil to a Float') {
-    assert.equal(Nil.to_float, 0.0)
-  }
-}
-
-test.group('std::nil::NilType.to_string') do (g) {
-  g.test('Converting Nil to an empty String') {
-    assert.equal(Nil.to_string, '')
-  }
-}
-
 test.group('std::nil::NilType.truthy?') do (g) {
   g.test('Checking if a Nil is truthy') {
     assert.false(Nil.truthy?)
@@ -27,13 +9,21 @@ test.group('std::nil::NilType.truthy?') do (g) {
 
 test.group('std::nil::NilType.if_true') do (g) {
   g.test('The supplied block is never called') {
-    assert.equal(Nil.if_true({ 42 }), Nil)
+    let mut num = 0
+
+    Nil.if_true { num = 42 }
+
+    assert.equal(num, 0)
   }
 }
 
 test.group('std::nil::NilType.if_false') do (g) {
   g.test('The supplied block is always called') {
-    assert.equal(Nil.if_false({ 42 }), 42)
+    let mut num = 0
+
+    Nil.if_false { num = 42 }
+
+    assert.equal(num, 42)
   }
 }
 

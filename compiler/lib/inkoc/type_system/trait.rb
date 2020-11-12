@@ -42,6 +42,10 @@ module Inkoc
         type_parameters.any?
       end
 
+      def default_methods
+        @attributes.symbols.select { |sym| sym.type.method? }
+      end
+
       # Returns the method for the given name.
       #
       # name - The name of a method.
@@ -78,8 +82,6 @@ module Inkoc
       # rubocop: disable Metrics/CyclomaticComplexity
       # rubocop: disable Metrics/PerceivedComplexity
       def type_compatible?(other, state)
-        other = other.type if other.optional?
-
         return true if other.any? || self == other
         return true if other.trait? && implements_trait?(other, state)
 

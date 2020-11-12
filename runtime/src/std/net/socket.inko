@@ -453,7 +453,7 @@ impl Socket {
 impl RawSocket for Socket {}
 
 impl Read for Socket {
-  def read_bytes(bytes: ByteArray, size: ?Integer = Nil) !! IoError -> Integer {
+  def read_bytes(bytes: ByteArray, size = 0) !! IoError -> Integer {
     try bits.read_bytes(socket: self, bytes: bytes, size: size)
   }
 }
@@ -585,7 +585,7 @@ object UdpSocket {
 }
 
 impl Read for UdpSocket {
-  def read_bytes(bytes: ByteArray, size: ?Integer = Nil) !! IoError -> Integer {
+  def read_bytes(bytes: ByteArray, size = 0) !! IoError -> Integer {
     try @socket.read_bytes(bytes: bytes, size: size)
   }
 }
@@ -676,7 +676,7 @@ object TcpStream {
 }
 
 impl Read for TcpStream {
-  def read_bytes(bytes: ByteArray, size: ?Integer = Nil) !! IoError -> Integer {
+  def read_bytes(bytes: ByteArray, size = 0) !! IoError -> Integer {
     try @socket.read_bytes(bytes: bytes, size: size)
   }
 }

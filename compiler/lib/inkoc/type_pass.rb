@@ -41,15 +41,15 @@ module Inkoc
     end
 
     def on_never_type(node, _)
-      wrap_optional_type(node, TypeSystem::Never.new)
+      wrap_option_type(node, TypeSystem::Never.new)
     end
 
     def on_any_type(node, _)
-      wrap_optional_type(node, TypeSystem::Any.singleton)
+      wrap_option_type(node, TypeSystem::Any.singleton)
     end
 
     def on_self_type_with_late_binding(node, _)
-      wrap_optional_type(node, TypeSystem::SelfType.new)
+      wrap_option_type(node, TypeSystem::SelfType.new)
     end
 
     def on_self_type(node, scope)
@@ -62,14 +62,17 @@ module Inkoc
       type_arguments =
         self_type.generic_type? ? self_type.type_parameters.to_a : []
 
-      wrap_optional_type(node, self_type.new_instance(type_arguments))
+      wrap_option_type(node, self_type.new_instance(type_arguments))
     end
 
     def on_type_name(node, scope)
       type = define_type(node.name, scope)
 
       return type if type.error?
-      return wrap_optional_type(node, type) unless type.generic_type?
+
+      unless type.generic_type?
+        return wrap_option_type(node, type.new_instance)
+      end
 
       # When our type is a generic type we need to initialise it according to
       # the passed type parameters.
@@ -99,7 +102,7 @@ module Inkoc
 
       # Simply referencing a constant should not lead to it being initialised,
       # unless there are any type parameters to initialise.
-      wrap_optional_type(
+      wrap_option_type(
         node,
         type.new_instance_for_reference(type_arguments)
       )
@@ -126,12 +129,17 @@ module Inkoc
       type
     end
 
-    def wrap_optional_type(node, type)
-      if node.optional?
-        TypeSystem::Optional.wrap(type)
-      else
-        type
-      end
+    def wrap_option_type(node, type)
+      return type unless node.optional?
+
+      wrapped =
+        if type.type_instance?
+          type
+        else
+          type.new_instance
+        end
+
+      new_option_type_of(wrapped, node.location)
     end
 
     def store_type(type, scope, location)
@@ -167,6 +175,14 @@ module Inkoc
       @module.lookup_object_type&.new_instance
     end
 
+    def new_option_type_of(type, location)
+      if (type = @module.lookup_option_type&.new_instance([type]))
+        type
+      else
+        diagnostics.undefined_constant_error(Config::OPTION_CONST, location)
+      end
+    end
+
     def on_raw_instruction(node, scope)
       callback = node.raw_instruction_visitor_method
 
@@ -199,8 +215,6 @@ module Inkoc
 
     def on_raw_allocate(node, *)
       if (proto = node.arguments[0]&.type)
-        proto = proto.type if proto.optional?
-
         proto.new_instance
       else
         typedb.new_empty_object
@@ -447,23 +461,16 @@ module Inkoc
       typedb.block_type
     end
 
-    def optional_array_element_value(array)
-      param = array.lookup_type_parameter(Config::ARRAY_TYPE_PARAMETER)
-      type = array.lookup_type_parameter_instance(param) || param
-
-      TypeSystem::Optional.wrap(type)
-    end
-
     def on_raw_array_length(*)
       typedb.integer_type.new_instance
     end
 
     def on_raw_array_at(node, _)
-      optional_array_element_value(node.arguments.fetch(0).type)
+      TypeSystem::Any.new
     end
 
     def on_raw_array_set(node, _)
-      node.arguments.fetch(2).type
+      TypeSystem::Any.new
     end
 
     def on_raw_array_clear(*)
@@ -471,7 +478,7 @@ module Inkoc
     end
 
     def on_raw_array_remove(node, _)
-      optional_array_element_value(node.arguments.fetch(0).type)
+      TypeSystem::Any.new
     end
 
     def on_raw_time_monotonic(*)
@@ -741,7 +748,7 @@ module Inkoc
     end
 
     def on_raw_env_home_directory(*)
-      TypeSystem::Optional.new(typedb.string_type.new_instance)
+      typedb.string_type.new_instance
     end
 
     def on_raw_env_temp_directory(*)
@@ -905,7 +912,7 @@ module Inkoc
     end
 
     def on_raw_module_get(*)
-      TypeSystem::Optional.new(typedb.module_type.new_instance)
+      typedb.module_type.new_instance
     end
 
     def on_raw_module_list(*)
@@ -922,10 +929,6 @@ module Inkoc
 
     def on_raw_generator_value(*)
       new_object_type
-    end
-
-    def on_raw_generator_yielded(*)
-      typedb.boolean_type.new_instance
     end
   end
 end

@@ -96,7 +96,7 @@ module Inkoc
           type.throw_type = define_type_instance(node.throws, scope)
         end
 
-        wrap_optional_type(node, type)
+        wrap_option_type(node, type)
       end
       alias on_lambda_type on_block_type
 
@@ -159,42 +159,8 @@ module Inkoc
 
         if source.error?
           source
-        elsif source.optional?
-          send_to_optional_type(node, source, scope)
         else
           send_to_known_type(node, source, scope)
-        end
-      end
-
-      def send_to_optional_type(node, source, scope)
-        nil_type = typedb.nil_type
-        rtype = send_to_known_type(node, source, scope)
-        name = node.name
-
-        return rtype if rtype.error?
-
-        if (nil_impl = nil_type.lookup_method(name)) && nil_impl.any?
-          rec_impl = source.lookup_method(name).type
-
-          # Only if the receiver and Nil implement the message in a compatible
-          # way can we return the message's return type directly.
-          if rec_impl.type_compatible?(nil_impl.type, @state)
-            rtype
-          else
-            # Nil and the receiver have different implementations of the same
-            # message. For example, type T implements "foo -> Integer" while Nil
-            # implements it as "foo -> String". In this case the compiler can
-            # not make a reasonable guess as to what the type will be, so we
-            # just error instead.
-            diagnostics.incompatible_optional_method(
-              source,
-              nil_type,
-              name,
-              node.location
-            )
-          end
-        else
-          TypeSystem::Optional.wrap(rtype)
         end
       end
 
@@ -539,28 +505,11 @@ module Inkoc
 
         else_type = define_type(node.else_body, else_scope)
 
-        # If "try" returns X and "else" returns Nil then we want to infer the
-        # type to a `?X`.
-        if infer_try_as_optional?(try_type, else_type)
-          node.type = try_type = TypeSystem::Optional.wrap(try_type)
-        end
-
         if else_type.type_compatible?(try_type, @state)
           try_type
         else
           diagnostics.type_error(try_type, else_type, node.else_body.location)
         end
-      end
-
-      def infer_try_as_optional?(try_type, else_type)
-        nil_type = typedb.nil_type
-
-        if try_type.type_instance_of?(nil_type) &&
-           else_type.type_instance_of?(nil_type)
-          return false
-        end
-
-        !try_type.optional? && else_type.type_instance_of?(nil_type)
       end
 
       def on_throw(node, scope)
@@ -636,8 +585,19 @@ module Inkoc
         # This ensures that the default methods of the trait are available on
         # the object directly. This prevents looking up the wrong type based on
         # the order in which traits are implemented.
-        trait.attributes.each do |symbol|
-          object.attributes.define(symbol.name, symbol.type, symbol.mutable?)
+        trait.default_methods.each do |symbol|
+          if (existing = object.attributes[symbol.name]) && existing.any?
+            unless existing.type.type_compatible?(symbol.type, @state)
+              diagnostics.redefine_incompatible_default_method(
+                trait,
+                existing.type,
+                symbol.type,
+                node.location
+              )
+            end
+          else
+            object.attributes.define(symbol.name, symbol.type, symbol.mutable?)
+          end
         end
 
         define_type(node.body, impl_scope)
@@ -778,25 +738,13 @@ module Inkoc
           return_type = arm_types[0] || else_type
           check_types = arm_types[1..-1] || []
 
-          else_type_is_nil = else_type.type_instance_of?(typedb.nil_type)
-
-          if node.match_else && !else_type_is_nil
-            check_types << else_type
-          end
+          check_types << else_type
 
           all_compatible = check_types.all? do |type|
             type.type_compatible?(return_type, @state)
           end
 
-          if all_compatible
-            if return_type &&
-                !return_type.type_instance_of?(typedb.nil_type) &&
-                else_type.type_instance_of?(typedb.nil_type)
-              return_type = TypeSystem::Optional.new(return_type)
-            end
-          else
-            return_type = TypeSystem::Any.singleton
-          end
+          return_type = TypeSystem::Any.singleton unless all_compatible
 
           return_type || else_type
         end
@@ -1072,43 +1020,6 @@ module Inkoc
         else
           diagnostics.undefined_constant_error(node.name, node.location)
         end
-      end
-
-      def on_dereference(node, scope)
-        type = define_type(node.expression, scope)
-
-        rtype =
-          if type.dereference?
-            type.dereferenced_type
-          else
-            diagnostics.not_an_optional_error(type, node.location)
-            type
-          end
-
-        if rtype.type_parameter?
-          diagnostics
-            .not_nil_with_type_parameter(rtype, node.expression.location)
-        end
-
-        rtype
-      end
-
-      def on_coalesce_nil(node, scope)
-        expr = define_type(node.expression, scope)
-        default = define_type(node.default, scope)
-        rtype =
-          if expr.optional?
-            expr.type
-          else
-            diagnostics.not_an_optional_error(expr, node.expression.location)
-            expr
-          end
-
-        unless default.type_compatible?(rtype, @state)
-          diagnostics.type_error(rtype, default, node.default.location)
-        end
-
-        rtype
       end
 
       def on_new_instance(node, scope)

@@ -435,30 +435,6 @@ object Diagnostics {
     )
   }
 
-  def invalid_not_nil_operator(type: String, location: SourceLocation) {
-    let message = `The ! operator can only be used with an optional type, \
-      and "{type}" isn't an optional type`
-
-    error(message: message, location: location)
-  }
-
-  def not_nil_operator_with_optional_type_parameter(
-    type: String,
-    location: SourceLocation
-  ) {
-    let message = `The type "{type}" is an optional type parameter that \
-      may be Nil at runtime, which could lead to an unexpected panic`
-
-    error(message: message, location: location)
-  }
-
-  def invalid_coalesce_nil_operator(type: String, location: SourceLocation) {
-    let message = `The ?? operator can only be used with an optional type, \
-      and "{type}" isn't an optional type`
-
-    error(message: message, location: location)
-  }
-
   def invalid_cast(type: String, cast_to: String, location: SourceLocation) {
     error(
       message: `The type "{type}" can't be casted to the type "{cast_to}"`,
@@ -604,27 +580,11 @@ object Diagnostics {
     error(message: `The instruction "{name}" doesn't exist`, location: location)
   }
 
-  def invalid_instruction(name: String, location: SourceLocation) {
-    error(message: `The instruction "{name}" is invalid`, location: location)
-  }
-
   def instructions_not_available(location: SourceLocation) {
     error(
       message: 'VM instructions can only be used in the standard library',
       location: location
     )
-  }
-
-  def incompatible_optional_method(
-    receiver_method: String,
-    nil_method: String,
-    location: SourceLocation
-  ) {
-    let message = `The method "{receiver_method}" is unavailable because \
-      it's incompatible with the implementation for the NilType type \
-      ("{nil_method}")`
-
-    error(message: message, location: location)
   }
 }
 

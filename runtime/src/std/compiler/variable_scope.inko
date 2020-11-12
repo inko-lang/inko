@@ -1,7 +1,6 @@
 # Types for looking up local variables.
 import std::compiler::symbol_table::*
 import std::compiler::types::Type
-import std::pair::Pair
 
 # A scope to use for looking up local variables.
 object VariableScope {
@@ -11,7 +10,7 @@ object VariableScope {
   # The parent scope we can capture variables from, if any.
   @parent: ?VariableScope
 
-  static def new(parent: ?VariableScope = Nil) -> Self {
+  static def new(parent: ?VariableScope = Option.none) -> Self {
     Self { @symbols = SymbolTable.new, @parent = parent }
   }
 
@@ -23,8 +22,8 @@ object VariableScope {
     @parent
   }
 
-  def parent=(value: VariableScope) -> VariableScope {
-    @parent = value
+  def parent=(value: VariableScope) {
+    @parent = Option.some(value)
   }
 
   def with_parent(scope: Self) -> Self {
@@ -37,16 +36,16 @@ object VariableScope {
   }
 
   def lookup_with_parents(name: String) -> ?Symbol!(Type) {
-    let mut scope: ?VariableScope = self
+    let mut scope = Option.some(self)
 
-    { scope.not_nil? }.while_true {
-      let symbol = scope.lookup(name)
+    { scope.some? }.while_true {
+      let symbol = scope.get.lookup(name)
 
       symbol.if_true { return symbol }
 
-      scope = scope.parent
+      scope = scope.get.parent
     }
 
-    Nil
+    Option.none
   }
 }

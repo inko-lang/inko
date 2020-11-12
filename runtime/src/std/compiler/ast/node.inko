@@ -11,7 +11,7 @@ trait Node {
 
   # Returns the type of this node, if any.
   def resolved_type -> ?Type {
-    Nil
+    Option.none
   }
 
   # Sets the type of this node, if any.
@@ -21,7 +21,7 @@ trait Node {
 
   # The type this node may throw.
   def resolved_throw_type -> ?Type {
-    Nil
+    Option.none
   }
 
   # Sets the type this node may throw.

@@ -3,7 +3,7 @@ import std::compiler::token::Token
 import std::test
 import std::test::assert
 
-def lex(input: String) -> ?Token {
+def lex(input: String) -> Token {
   Lexer.new(input: input, file: 'test.inko').next
 }
 
@@ -1119,17 +1119,6 @@ world\n" "hello"'
     assert.true(token.binary?)
     assert.equal(token.type, 'exclusive_range')
     assert.equal(token.value, '...')
-
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
-
-  g.test('Lexing the ?? operator') {
-    let token = lex('??')
-
-    assert.true(token.binary?)
-    assert.equal(token.type, 'question_question')
-    assert.equal(token.value, '??')
 
     assert.equal(token.location.column, 1)
     assert.equal(token.location.line_range, 1..1)

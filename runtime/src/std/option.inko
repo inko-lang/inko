@@ -1,0 +1,271 @@
+# Optional values that can be nested.
+#
+# Optional values are used whenever a value may be present or not. For example,
+# we may want to retrieve a value from an `Array` using an index that may be out
+# of bounds, without triggering a panic.
+#
+# Optional values differ from nullable/nilable types in that they can be nested.
+# That is, `Option!(Option!(T))` and `Option!(T)` are two different types, but
+# `T | null` and `T | null | null` are the same.
+#
+# Imagine for a moment we have a `find()` method that finds a value in an
+# `Array`. If the value is not present, nil is returned. Thus the return type is
+# `?T`:
+#
+#     def find!(T)(values: Array!(T), value: T) -> ?T {
+#       # ...
+#     }
+#
+# Now let's say we use it like this:
+#
+#     def example(values: Array!(?Integer)) {
+#       let nil = find(values: values, value: Nil)
+#     }
+#
+# If `nil` is assigned to `Nil`, how do we know that is because the value is
+# present, versus the value not being present? Working around this usually
+# requires that we use a different approach, such as finding the index of a
+# value. The problem with this is that this isn't always clear to the developer,
+# and can lead to unexpected and difficult to debug bugs.
+#
+# When using an Option, this is not a problem:
+#
+#     def find!(T)(values: Array!(T), value: T) -> Option!(T) {
+#       # ...
+#     }
+#
+#     def example(values: Array!(Option!(Integer))) {
+#       let none = find(values: values, value: None)
+#     }
+#
+# Here `none` is of type `Option!(Option!(Integer))`. If a `None` isn't present,
+# we'll be given a `None`. But if a `None` is present, we'd instead be given a
+# `Some(None)`.
+#
+# While nesting `Option` types isn't something you'd make use of yourself
+# directly, it makes it easier to implement iterators and collections; or really
+# any kind of data type that may operate on optional data.
+import std::operators::Equal
+
+# A generic optional value.
+#
+# An Option can wrap a value, in which case we call it a Some. An Option that
+# doesn't contain a value is called a None.
+object Option!(T) {
+  # The wrapped value.
+  #
+  # For a None, this is a special value that signals we're dealing with a None
+  # and not a Some value.
+  @value: T
+
+  # Returns an Option wrapping the given value.
+  #
+  # # Examples
+  #
+  # Wrapping an `Integer`:
+  #
+  #     Option.some(10) # => Option.some(10)
+  static def some!(T)(value: T) -> ?T {
+    Self { @value = value }
+  }
+
+  # Returns a None.
+  #
+  # A None signals the lack of a value.
+  #
+  # # Examples
+  #
+  # Obtaining a None:
+  #
+  #     Option.none
+  static def none -> Self {
+    # None is defined as Option!(Any), but we want to return an uninitialised
+    # Option, so it can be inferred based on how it's used.
+    None as Self
+  }
+
+  # Returns `True` if `self` is a Some value.
+  def truthy? -> Boolean {
+    # TODO: the implicit Object implementation overwrites this
+    #
+    # Step 1: require that existing default methods match the signature
+    # Step 2: don't overwrite existing methods
+    some?
+  }
+
+  # Calls the supplied block if `self` if a Some, passing the wrapped value to
+  # the block.
+  #
+  # The return value is `self`.
+  #
+  # This method is useful if you want to act upon a Some value, but don't want
+  # the block's return value to be wrapped in a new Option.
+  def let(block: do (T)) -> Self {
+    some?.if_true { block.call(@value) }
+    self
+  }
+
+  # Calls the supplied block if `self` is a None, returning the Option provided
+  # by the `block` argument.
+  #
+  # If `self` is a Some, the Some itself is returned.
+  def else!(R)(block: do -> ?R) -> ?R {
+    match {
+      some? -> { self }
+      else -> { block.call }
+    }
+  }
+
+  # Returns the wrapped value.
+  #
+  # This method will panic if used on a `None`.
+  #
+  # # Examples
+  #
+  # Getting the value of a Some:
+  #
+  #     Option.some(10).get # => 10
+  def get -> T {
+    match {
+      some? -> { @value }
+      else -> { _INKOC.panic("Option.get can't be used for a None") }
+    }
+  }
+
+  # Returns the wrapped value, or the argument value if used on a `None`.
+  #
+  # The default value is eagerly evaluated. If you need lazy evaluation, use
+  # `get_or_else` instead.
+  #
+  # # Examples
+  #
+  # Getting the value of a Some, with a default value:
+  #
+  #     Option.some(10).get_or(0) # => 10
+  #     Option.none.get_or(0)     # => 0
+  def get_or(default: T) -> T {
+    match {
+      some? -> { @value }
+      else -> { default }
+    }
+  }
+
+  # Returns the wrapped value, or the return value of the closure if used on a
+  # `None`.
+  #
+  # # Examples
+  #
+  # Getting the value of a Some, with a default value:
+  #
+  #     Option.some(10).get_or_else { 0 } # => 10
+  #     Option.none.get_or_else { 0 }     # => 0
+  def get_or_else(block: do -> T) -> T {
+    match {
+      some? -> { @value }
+      else -> { block.call }
+    }
+  }
+
+  # Maps an `Option!(T)` to an `Option!(U)` by wrapping the value returned by
+  # the provided closure.
+  #
+  # The closure is to return a value to be wrapped in a Some. If used on a
+  # `None`, `None` itself is returned.
+  #
+  # # Examples
+  #
+  # Mapping an Option to a new Option:
+  #
+  #     Option.some(10).map do (num) { num * 2 } # => Option.some(20)
+  #
+  # Mapping a None:
+  #
+  #     let option: Option!(Integer) = Option.none
+  #
+  #     option.map do (x) { x * 2 } # => Option.none
+  def map!(R)(block: do (T) -> R) -> ?R {
+    match {
+      some? -> { Option.some(block.call(@value)) }
+      else -> { Option.none }
+    }
+  }
+
+  # Maps an `Option!(T)` to an `Option!(U)` using the `Option` returned by the
+  # provided closure.
+  #
+  # The closure is to return a new `Option`. If used on a `None`, `None` itself
+  # is returned.
+  #
+  # This process is sometimes referred to as a "flat map". Inko uses the name
+  # "then" because this reads more nicely when chaining multiple instances of
+  # this method together.
+  def then!(R)(block: do (T) -> ?R) -> ?R {
+    match {
+      some? -> { block.call(@value) }
+      else -> { Option.none }
+    }
+  }
+
+  # Returns `True` for a Some, `False` otherwise.
+  #
+  # # Examples
+  #
+  #     Option.some(10).some? # => True
+  #     Option.none.some?     # => False
+  def some? -> Boolean {
+    _INKOC.object_equals(none?, False)
+  }
+
+  # Returns `True` for a `None`, `False` otherwise.
+  #
+  # # Examples
+  #
+  #     Option.some(10).none? # => False
+  #     Option.none.none?     # => True
+  def none? -> Boolean {
+    _INKOC.object_equals(self, None)
+  }
+}
+
+impl Equal for Option {
+  # Returns `True` if `self` and the given `Option` are equal.
+  #
+  # Two options are considered equal to each other if:
+  #
+  # 1. They are both None
+  # 2. They are both some, and the wrapped values are equal to each other
+  #
+  # # Examples
+  #
+  # Comparing two Some values:
+  #
+  #     Option.some(10) == Option.some(10) # => True
+  #     Option.some(10) == Option.some(20) # => False
+  #
+  # Comparing a Some and a None:
+  #
+  #     Option.some(10) == Option.none # => False
+  #
+  # Comparing two None values:
+  #
+  #     Option.none == Option.none # => True
+  def ==(other: Self) -> Boolean when T: Equal {
+    match {
+      some? when other.some? -> { get == other.get }
+      none? when other.none? -> { True }
+      else -> { False }
+    }
+  }
+}
+
+# A type used to signal that an Option doesn't contain a value.
+object NoneMarker {}
+
+# A singleton Option used to indicate a None value.
+#
+# The use of a singleton removes the need for allocating a new object for every
+# None value.
+#
+# The value of this option doesn't really matter. We use NoneMarker so we don't
+# (somehow) confuse the value for something provided by the user.
+let None: ?Any = Option { @value = NoneMarker {} }

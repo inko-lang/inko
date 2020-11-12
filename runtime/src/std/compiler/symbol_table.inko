@@ -55,23 +55,18 @@ object SymbolTable!(T) {
   #
   # Defining an already existing symbol will result in a panic.
   def define(name: String, type: T, mutable = False) -> Symbol!(T) {
-    let existing = @mapping.get(name)
+    @mapping.get(name).let do (existing) {
+      let id = existing.id
+      let symbol =
+        Symbol.new(name: name, id: id, type: type, mutable: mutable)
 
-    existing.if(
-      true: {
-        let id = existing!.id
-        let symbol =
-          Symbol.new(name: name, id: id, type: type, mutable: mutable)
+      return @mapping[name] = @symbols[id] = symbol
+    }
 
-        @mapping[name] = @symbols[id] = symbol
-      },
-      false: {
-        let symbol = Symbol
-          .new(name: name, id: @mapping.length, type: type, mutable: mutable)
+    let symbol =
+      Symbol.new(name: name, id: @mapping.length, type: type, mutable: mutable)
 
-        @mapping[name] = @symbols.push(symbol)
-      }
-    )
+    @mapping[name] = @symbols.push(symbol)
   }
 
   # Returns `True` if a symbol is defined for the given name.
@@ -81,7 +76,7 @@ object SymbolTable!(T) {
 
   # Returns `True` if the symbol table contains the given symbol.
   def contains?(symbol: Symbol!(T)) -> Boolean {
-    @symbols.get(symbol.id).same_object?(symbol)
+    @symbols.get(symbol.id).get_or_else { return False }.same_object?(symbol)
   }
 
   # Returns all the symbols defined.
@@ -94,8 +89,8 @@ object SymbolTable!(T) {
     @symbols.iter
   }
 
-  def get(index: String) -> ?Symbol!(T) {
-    @mapping.get(index)
+  def get(name: String) -> ?Symbol!(T) {
+    @mapping.get(name)
   }
 }
 

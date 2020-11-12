@@ -5,7 +5,7 @@
 #
 #     import std::stdio::stderr
 #
-#     stderr.print('Hello world!') # => Nil
+#     stderr.print('Hello world!')
 #
 # Unlike other IO methods the methods in this module will not throw any errors,
 # instead they will swallow them silently. This is done to make writing to
@@ -48,14 +48,14 @@ impl Write for ThisModule {
   #
   #     import std::stdio::stderr
   #
-  #     stderr.print('hello') # => Nil
+  #     stderr.print('hello')
   #
   # You can also leave out a message to write, in which case only a newline is
   # written:
   #
   #     import std::stdio::stderr
   #
-  #     stderr.print # => Nil
+  #     stderr.print
   def print(data: ToString = '') -> Integer {
     process.blocking {
       let written = try _INKOC.stderr_write(data.to_string) else return 0

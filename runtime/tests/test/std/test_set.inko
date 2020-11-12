@@ -51,11 +51,8 @@ test.group('std::set::Set.iter') do (g) {
 
     let iter = set.iter
 
-    assert.true(iter.advance)
-    assert.equal(iter.current, 1)
-
-    assert.false(iter.advance)
-    assert.equal(iter.current, Nil)
+    assert.equal(iter.next, Option.some(1))
+    assert.true(iter.next.none?)
   }
 }
 

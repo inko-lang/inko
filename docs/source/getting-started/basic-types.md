@@ -327,15 +327,6 @@ Inko uses nominal typing, meaning a trait is only implemented for an object when
 the developer implements it explicitly. How to do this will be covered
 separately.
 
-## Optional types
-
-An optional type `T` is a type that can be either `T` or `Nil`. The syntax for
-these types is `?T`, with `T` being the type name. For example, an optional
-`String` would be `?String`.
-
-Optional types are only valid in a few places, such as type signatures. How to
-effectively use these will be discussed separately.
-
 ## Self types
 
 The type `Self` is a special type that can be used in a few places, such as type
@@ -358,9 +349,16 @@ that implements the trait, and you just want something that is of that same
 type. For example, most operators specify that their argument is of type `Self`,
 ensuring that `10 + 5` is valid but `10 + "foo"` is not.
 
-## Never types
+## Never
 
 The type `Never` is used to signal that something will never happen, such as
 when a method will never return (because it terminates the program for example).
 This type can only be used in type signatures, such as when defining a method's
 return type.
+
+## Any
+
+The `Any` type is a special type that signals something can be a value of any
+type. You can't send messages to an `Any` type, nor can you pass it to something
+that expects a type other than `Any`. This type is used by the compiler in
+certain cases when a more specific type can't be inferred.

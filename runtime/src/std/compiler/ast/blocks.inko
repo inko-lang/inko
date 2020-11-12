@@ -34,7 +34,7 @@ object DefineUntypedArgument {
   @resolved_type: ?Type
 
   static def new(name: String, location: SourceLocation) -> Self {
-    Self { @name = name, @location = location, @resolved_type = Nil }
+    Self { @name = name, @location = location, @resolved_type = Option.none }
   }
 
   def name -> String {
@@ -52,7 +52,8 @@ impl Node for DefineUntypedArgument {
   }
 
   def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
+    @resolved_type = Option.some(value)
+    value
   }
 }
 
@@ -81,7 +82,7 @@ object DefineRequiredArgument {
       @name = name,
       @value_type = value_type,
       @location = location,
-      @resolved_type = Nil
+      @resolved_type = Option.none
     }
   }
 
@@ -104,7 +105,8 @@ impl Node for DefineRequiredArgument {
   }
 
   def resolved_type=(type: Type) -> Type {
-    @resolved_type = type
+    @resolved_type = Option.some(type)
+    type
   }
 }
 
@@ -133,7 +135,7 @@ object DefineRestArgument {
       @name = name,
       @value_type = value_type,
       @location = location,
-      @resolved_type = Nil
+      @resolved_type = Option.none
     }
   }
 
@@ -156,7 +158,8 @@ impl Node for DefineRestArgument {
   }
 
   def resolved_type=(type: Type) -> Type {
-    @resolved_type = type
+    @resolved_type = Option.some(type)
+    type
   }
 }
 
@@ -190,7 +193,7 @@ object DefineOptionalArgument {
       @value_type = value_type,
       @default_value = default_value,
       @location = location,
-      @resolved_type = Nil
+      @resolved_type = Option.none
     }
   }
 
@@ -217,7 +220,8 @@ impl Node for DefineOptionalArgument {
   }
 
   def resolved_type=(type: Type) -> Type {
-    @resolved_type = type
+    @resolved_type = Option.some(type)
+    type
   }
 }
 
@@ -239,7 +243,7 @@ object BasicClosure {
   @resolved_type: ?ClosureType
 
   static def new(body: Body, location: SourceLocation) -> Self {
-    Self { @body = body, @location = location, @resolved_type = Nil }
+    Self { @body = body, @location = location, @resolved_type = Option.none }
   }
 
   # Returns the expressions in the block's body.
@@ -258,7 +262,8 @@ impl Node for BasicClosure {
   }
 
   def resolved_type=(value: ClosureType) -> ClosureType {
-    @resolved_type = value
+    @resolved_type = Option.some(value)
+    value
   }
 }
 
@@ -300,7 +305,7 @@ object Closure {
       @throw_type = throw_type,
       @return_type = return_type,
       @location = location,
-      @resolved_type = Nil
+      @resolved_type = Option.none
     }
   }
 
@@ -335,7 +340,8 @@ impl Node for Closure {
   }
 
   def resolved_type=(value: ClosureType) -> ClosureType {
-    @resolved_type = value
+    @resolved_type = Option.some(value)
+    value
   }
 }
 
@@ -377,7 +383,7 @@ object Lambda {
       @throw_type = throw_type,
       @return_type = return_type,
       @location = location,
-      @resolved_type = Nil
+      @resolved_type = Option.none
     }
   }
 
@@ -412,7 +418,8 @@ impl Node for Lambda {
   }
 
   def resolved_type=(value: LambdaType) -> LambdaType {
-    @resolved_type = value
+    @resolved_type = Option.some(value)
+    value
   }
 }
 
@@ -476,7 +483,7 @@ object DefineMethod {
       @yield_type = yield_type,
       @static_method = static_method,
       @location = location,
-      @resolved_type = Nil
+      @resolved_type = Option.none
     }
   }
 
@@ -528,7 +535,8 @@ impl Node for DefineMethod {
   }
 
   def resolved_type=(value: MethodType) -> MethodType {
-    @resolved_type = value
+    @resolved_type = Option.some(value)
+    value
   }
 
   def location -> SourceLocation {
@@ -589,8 +597,8 @@ object DefineRequiredMethod {
       @return_type = return_type,
       @yield_type = yield_type,
       @location = location,
-      @resolved_type = Nil,
-      @type_scope = Nil
+      @resolved_type = Option.none,
+      @type_scope = Option.none
     }
   }
 
@@ -627,7 +635,8 @@ object DefineRequiredMethod {
   }
 
   def type_scope=(value: TypeScope) -> TypeScope {
-    @type_scope = value
+    @type_scope = Option.some(value)
+    value
   }
 }
 
@@ -637,7 +646,8 @@ impl Node for DefineRequiredMethod {
   }
 
   def resolved_type=(value: MethodType) -> MethodType {
-    @resolved_type = value
+    @resolved_type = Option.some(value)
+    value
   }
 
   def location -> SourceLocation {

@@ -179,7 +179,7 @@ test.group('std::mirror::Mirror.implements_trait?') do (g) {
   g.test('Checking if Nil implements a trait') {
     let mirror = ObjectMirror.new(Nil)
 
-    assert.true(mirror.implements_trait?(ToString))
+    assert.true(mirror.implements_trait?(Object))
     assert.false(mirror.implements_trait?(Trait1))
   }
 }
@@ -377,7 +377,7 @@ test.group('std::mirror::ByteArrayMirror.format') do (g) {
 
 test.group('std::mirror::MapMirror.format') do (g) {
   g.test('Formatting an empty Map') {
-    let map: Map!(Nil, Nil) = Map.new
+    let map: Map!(String, String) = Map.new
 
     assert.equal(format(MapMirror.new(map)), 'Map')
   }
@@ -399,7 +399,7 @@ test.group('std::mirror::MapMirror.format') do (g) {
 
 test.group('std::mirror::SetMirror.format') do (g) {
   g.test('Formatting an empty Set') {
-    let set: Set!(Nil) = Set.new
+    let set: Set!(String) = Set.new
 
     assert.equal(format(SetMirror.new(set)), 'Set')
   }
@@ -498,6 +498,16 @@ test.group('std::mirror::BooleanMirror.format') do (g) {
 test.group('std::mirror::NilMirror.format') do (g) {
   g.test('Formatting Nil') {
     assert.equal(format(NilMirror.new(Nil)), 'Nil')
+  }
+}
+
+test.group('std::mirror::OptionMirror.format') do (g) {
+  g.test('Formatting a Some') {
+    assert.equal(format(OptionMirror.new(Option.some(10))), 'Some(10)')
+  }
+
+  g.test('Formatting a None') {
+    assert.equal(format(OptionMirror.new(Option.none)), 'None')
   }
 }
 

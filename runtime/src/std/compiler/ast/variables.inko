@@ -31,9 +31,9 @@ object Identifier {
     Self {
       @name = name,
       @location = location,
-      @resolved_type = Nil,
-      @resolved_throw_type = Nil,
-      @symbol = Nil,
+      @resolved_type = Option.none,
+      @resolved_throw_type = Option.none,
+      @symbol = Option.none,
       @inside_try = False
     }
   }
@@ -49,7 +49,8 @@ impl Node for Identifier {
   }
 
   def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
+    @resolved_type = Option.some(value)
+    value
   }
 
   def resolved_throw_type -> ?Type {
@@ -57,7 +58,8 @@ impl Node for Identifier {
   }
 
   def resolved_throw_type=(value: Type) -> Type {
-    @resolved_throw_type = value
+    @resolved_throw_type = Option.some(value)
+    value
   }
 
   def location -> SourceLocation {
@@ -71,7 +73,8 @@ impl SymbolNode for Identifier {
   }
 
   def symbol=(value: Symbol!(Type)) -> Symbol!(Type) {
-    @symbol = value
+    @symbol = Option.some(value)
+    value
   }
 }
 
@@ -112,8 +115,8 @@ object Constant {
       @location = location,
       @type_arguments = Array.new,
       @optional = False,
-      @resolved_type = Nil,
-      @symbol = Nil
+      @resolved_type = Option.none,
+      @symbol = Option.none
     }
   }
 
@@ -134,7 +137,8 @@ impl Node for Constant {
   }
 
   def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
+    @resolved_type = Option.some(value)
+    value
   }
 
   def location -> SourceLocation {
@@ -148,7 +152,8 @@ impl SymbolNode for Constant {
   }
 
   def symbol=(value: Symbol!(Type)) -> Symbol!(Type) {
-    @symbol = value
+    @symbol = Option.some(value)
+    value
   }
 }
 
@@ -172,8 +177,8 @@ object Attribute {
     Self {
       @name = name,
       @location = location,
-      @resolved_type = Nil,
-      @symbol = Nil
+      @resolved_type = Option.none,
+      @symbol = Option.none
     }
   }
 
@@ -193,7 +198,8 @@ impl Node for Attribute {
   }
 
   def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
+    @resolved_type = Option.some(value)
+    value
   }
 }
 
@@ -203,7 +209,8 @@ impl SymbolNode for Attribute {
   }
 
   def symbol=(value: Symbol!(Type)) -> Symbol!(Type) {
-    @symbol = value
+    @symbol = Option.some(value)
+    value
   }
 }
 
@@ -234,9 +241,9 @@ object Global {
     Self {
       @name = name,
       @location = location,
-      @symbol = Nil,
-      @resolved_type = Nil,
-      @resolved_throw_type = Nil,
+      @symbol = Option.none,
+      @resolved_type = Option.none,
+      @resolved_throw_type = Option.none,
       @inside_try = False
     }
   }
@@ -257,7 +264,8 @@ impl Node for Global {
   }
 
   def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
+    @resolved_type = Option.some(value)
+    value
   }
 
   def resolved_throw_type -> ?Type {
@@ -265,7 +273,8 @@ impl Node for Global {
   }
 
   def resolved_throw_type=(value: Type) -> Type {
-    @resolved_throw_type = value
+    @resolved_throw_type = Option.some(value)
+    value
   }
 }
 
@@ -275,7 +284,8 @@ impl SymbolNode for Global {
   }
 
   def symbol=(value: Symbol!(Type)) -> Symbol!(Type) {
-    @symbol = value
+    @symbol = Option.some(value)
+    value
   }
 }
 
@@ -298,7 +308,7 @@ object SelfObject {
   @resolved_type: ?Type
 
   static def new(location: SourceLocation) -> Self {
-    Self { @location = location, @resolved_type = Nil }
+    Self { @location = location, @resolved_type = Option.none }
   }
 }
 
@@ -308,7 +318,8 @@ impl Node for SelfObject {
   }
 
   def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
+    @resolved_type = Option.some(value)
+    value
   }
 
   def location -> SourceLocation {
@@ -331,7 +342,12 @@ object AssignLocal {
   @symbol: ?Symbol!(Type)
 
   static def new(name: Identifier, value: Node) -> Self {
-    Self { @name = name, @value = value, @resolved_type = Nil, @symbol = Nil }
+    Self {
+      @name = name,
+      @value = value,
+      @resolved_type = Option.none,
+      @symbol = Option.none
+    }
   }
 
   # Returns the name of the local that the value is assigned to.
@@ -355,7 +371,8 @@ impl Node for AssignLocal {
   }
 
   def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
+    @resolved_type = Option.some(value)
+    value
   }
 }
 
@@ -365,7 +382,8 @@ impl SymbolNode for AssignLocal {
   }
 
   def symbol=(value: Symbol!(Type)) -> Symbol!(Type) {
-    @symbol = value
+    @symbol = Option.some(value)
+    value
   }
 }
 
@@ -384,7 +402,12 @@ object AssignAttribute {
   @symbol: ?Symbol!(Type)
 
   static def new(name: Attribute, value: Node) -> Self {
-    Self { @name = name, @value = value, @resolved_type = Nil, @symbol = Nil }
+    Self {
+      @name = name,
+      @value = value,
+      @resolved_type = Option.none,
+      @symbol = Option.none
+    }
   }
 
   # Returns the attribute assigned to.
@@ -408,7 +431,8 @@ impl Node for AssignAttribute {
   }
 
   def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
+    @resolved_type = Option.some(value)
+    value
   }
 }
 
@@ -418,7 +442,8 @@ impl SymbolNode for AssignAttribute {
   }
 
   def symbol=(value: Symbol!(Type)) -> Symbol!(Type) {
-    @symbol = value
+    @symbol = Option.some(value)
+    value
   }
 }
 
@@ -456,7 +481,7 @@ object DefineLocalVariable {
       @value = value,
       @mutable = mutable,
       @location = location,
-      @resolved_type = Nil
+      @resolved_type = Option.none
     }
   }
 
@@ -487,7 +512,8 @@ impl Node for DefineLocalVariable {
   }
 
   def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
+    @resolved_type = Option.some(value)
+    value
   }
 
   def location -> SourceLocation {
@@ -523,7 +549,7 @@ object DefineConstant {
       @value_type = value_type,
       @value = value,
       @location = location,
-      @resolved_type = Nil
+      @resolved_type = Option.none
     }
   }
 
@@ -549,7 +575,8 @@ impl Node for DefineConstant {
   }
 
   def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
+    @resolved_type = Option.some(value)
+    value
   }
 
   def location -> SourceLocation {
@@ -580,7 +607,7 @@ object DefineTypeParameter {
       @name = name,
       @required_traits = required_traits,
       @location = location,
-      @resolved_type = Nil
+      @resolved_type = Option.none
     }
   }
 
@@ -601,7 +628,8 @@ impl Node for DefineTypeParameter {
   }
 
   def resolved_type=(value: TypeParameterType) -> TypeParameterType {
-    @resolved_type = value
+    @resolved_type = Option.some(value)
+    value
   }
 
   def location -> SourceLocation {

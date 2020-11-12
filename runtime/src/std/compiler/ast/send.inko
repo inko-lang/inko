@@ -88,9 +88,9 @@ object Send {
       @arguments = arguments,
       @type_arguments = type_arguments,
       @location = location,
-      @resolved_type = Nil,
-      @resolved_throw_type = Nil,
-      @block_type = Nil,
+      @resolved_type = Option.none,
+      @resolved_throw_type = Option.none,
+      @block_type = Option.none,
       @inside_try = False
     }
   }
@@ -122,8 +122,9 @@ object Send {
     @block_type
   }
 
-  def block_type=(value: ?BlockType) -> ?BlockType {
-    @block_type = value
+  def block_type=(value: BlockType) -> BlockType {
+    @block_type = Option.some(value)
+    value
   }
 }
 
@@ -137,7 +138,8 @@ impl Node for Send {
   }
 
   def resolved_type=(value: Type) -> Type {
-    @resolved_type = value
+    @resolved_type = Option.some(value)
+    value
   }
 
   def resolved_throw_type -> ?Type {
@@ -145,7 +147,8 @@ impl Node for Send {
   }
 
   def resolved_throw_type=(value: Type) -> Type {
-    @resolved_throw_type = value
+    @resolved_throw_type = Option.some(value)
+    value
   }
 }
 

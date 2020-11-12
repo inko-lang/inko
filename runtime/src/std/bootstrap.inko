@@ -39,7 +39,7 @@ _INKOC.set_object_name(ByteArray, 'ByteArray')
 # 1. There is no common behaviour between traits and objects, each one is unique
 #    (e.g. objects aren't required to all respond to `new`).
 # 2. If simplifies method lookups, leading to better method call performance.
-# 3. It simply isn't useful. For example, what's the point of `Object.not_nil?`?
+# 3. It simply isn't useful. For example, what's the point of `Object.truthy?`?
 #    It's always going to be true anyway.
 #
 # This type is defined in `std::bootstrap` as it's needed early on in the
@@ -66,20 +66,12 @@ trait Object {
   }
 
   # Calls the supplied block if the receiver evaluates to `True`.
-  #
-  # When the receiver evaluates to `True` the return value will be whatever the
-  # supplied block returned. When evaluating to `False` this method will instead
-  # return Nil.
-  def if_true!(R)(block: do -> R) -> ?R {
+  def if_true!(R)(block: do -> R) {
     _INKOC.if(truthy?, block.call, Nil)
   }
 
   # Calls the supplied block if the receiver evaluates to `False`.
-  #
-  # When the receiver evaluates to `False` the return value will be whatever the
-  # supplied block returned. When evaluating to `True` this method will instead
-  # return Nil.
-  def if_false!(R)(block: do -> R) -> ?R {
+  def if_false!(R)(block: do -> R) {
     _INKOC.if(truthy?, Nil, block.call)
   }
 
@@ -111,30 +103,6 @@ trait Object {
   #     Object.new.or { False } # => True
   def or(other: do -> Boolean) -> Boolean {
     _INKOC.if(truthy?, True, other.call)
-  }
-
-  # Returns `True` if `self` is `Nil`.`
-  #
-  # # Examples
-  #
-  # Checking if an object is `Nil`:
-  #
-  #     10.nil?  # => False
-  #     Nil.nil? # => True
-  def nil? -> Boolean {
-    _INKOC.object_equals(self, Nil)
-  }
-
-  # Returns `True` if `self` is any object other than `Nil`.
-  #
-  # # Examples
-  #
-  # Checking if an object is not `Nil`:
-  #
-  #     10.not_nil?  # => True
-  #     Nil.not_nil? # => False
-  def not_nil? -> Boolean {
-    _INKOC.object_equals(nil?, False)
   }
 
   # Returns `True` if `self` and the given object are the exact same objects.

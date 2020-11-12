@@ -10,9 +10,9 @@ object Reader {
 }
 
 impl Read for Reader {
-  def read_bytes(bytes: ByteArray, size: ?Integer = Nil) -> Integer {
+  def read_bytes(bytes: ByteArray, size = 0) -> Integer {
     let input = Array.new(105, 110, 107, 111)
-    let max = size ?? input.length
+    let max = size.positive?.if(true: { size }, false: { input.length })
     let mut index = 0
 
     { index < max }.while_true {

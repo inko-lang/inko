@@ -296,12 +296,11 @@ fn io_read(
     process: &RcProcess,
     stream: &mut dyn Read,
     buffer: &mut Vec<u8>,
-    amount: ObjectPointer,
+    amount_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, RuntimeError> {
-    let result = if amount.is_integer() {
-        let amount_bytes = amount.usize_value()?;
-
-        stream.take(amount_bytes as u64).read_to_end(buffer)?
+    let amount = amount_ptr.u64_value()?;
+    let result = if amount > 0 {
+        stream.take(amount).read_to_end(buffer)?
     } else {
         stream.read_to_end(buffer)?
     };

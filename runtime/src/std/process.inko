@@ -82,7 +82,7 @@ impl Process {
   #
   #     proc.send('hello') # => 'hello'
   def send!(T)(message: T) -> T {
-    _INKOC.process_send_message(self, message)
+    _INKOC.process_send_message(self, message) as T
   }
 
   # Returns the identifier associated with this process.
@@ -223,13 +223,13 @@ def blocking!(R)(block: do -> R) -> R {
 #
 #     import std::process
 #
-#     process.suspend # => Nil
+#     process.suspend
 #
 # Suspending a process for a minimum amount of time:
 #
 #     import std::process
 #
-#     process.suspend(5) # => Nil
+#     process.suspend(5)
 def suspend(minimum: ToFloat = 0.0) {
   _INKOC.process_suspend_current(minimum.to_float)
 }

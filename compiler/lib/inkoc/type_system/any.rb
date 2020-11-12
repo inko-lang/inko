@@ -56,7 +56,7 @@ module Inkoc
       end
 
       def type_compatible?(other, *)
-        other.is_a?(Any)
+        other.is_a?(Any) || compatible_with_type_parameter?(other)
       end
 
       def compatible_with_type_parameter?(other)

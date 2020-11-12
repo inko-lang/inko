@@ -16,17 +16,10 @@ def run_panic_test(block: lambda) -> PanicResult {
   process.receive as PanicResult
 }
 
-test.group('std::test::assert::PanicResult.panicked?') do (g) {
-  g.test('Checking if a test panicked') {
-    assert.false(PanicResult.new(panicked: False).panicked?)
-    assert.true(PanicResult.new(panicked: True).panicked?)
-  }
-}
-
 test.group('std::test::assert::PanicResult.error') do (g) {
   g.test('Obtaining the message of a panic') {
-    assert.equal(PanicResult.new(panicked: False).error, Nil)
-    assert.equal(PanicResult.new(panicked: True, error: 'oops').error, 'oops')
+    assert.true(PanicResult.new.error.none?)
+    assert.true(PanicResult.new(Option.some('oops')).error.some?)
   }
 }
 
@@ -34,14 +27,14 @@ test.group('std::test::assert::PanicTest.run') do (g) {
   g.test('Running a panic test that panics') {
     let result = run_panic_test lambda { process.panic('oops') }
 
-    assert.true(result.panicked?)
-    assert.equal(result.error, 'oops')
+    assert.true(result.error.some?)
+    assert.equal(result.error.get, 'oops')
   }
 
   g.test('Running a panic test that does not panic') {
     let result = run_panic_test lambda { 0 }
 
-    assert.false(result.panicked?)
+    assert.true(result.error.none?)
   }
 }
 

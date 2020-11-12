@@ -76,9 +76,7 @@ pub fn env_home_directory(
                 .allocate(object_value::string(path), state.string_prototype),
         )
     } else {
-        Err(RuntimeError::ErrorMessage(
-            "The user's home directory isn't set".to_string(),
-        ))
+        Err(RuntimeError::Error(state.nil_object))
     }
 }
 

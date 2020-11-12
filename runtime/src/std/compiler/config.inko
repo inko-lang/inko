@@ -31,9 +31,6 @@ object Config {
   }
 
   def default_source_directory -> Path {
-    let from_env = env.get('INKO_RUNTIME_PATH')
-    let path = from_env.if(true: { from_env! }, false: { DEFAULT_RUNTIME_PATH })
-
-    Path.new(path)
+    Path.new(env.get('INKO_RUNTIME_PATH').get_or(DEFAULT_RUNTIME_PATH))
   }
 }

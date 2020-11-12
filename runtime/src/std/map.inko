@@ -4,6 +4,7 @@ import std::index::(Index, SetIndex)
 import std::length::Length
 import std::operators::Equal
 import std::process
+import std::option::Option
 import std::random
 
 # The load factor of a `Map` before it should be resized.
@@ -141,7 +142,7 @@ object Map!(K: Hash + Equal, V) {
   static def new -> Self {
     Self {
       @random_state = RandomState.new,
-      @buckets = Array.filled(1, Nil),
+      @buckets = Array.filled(1, Option.none),
       @length = 0,
       @capacity = 1,
       @resize_threshold = 1
@@ -190,7 +191,7 @@ object Map!(K: Hash + Equal, V) {
   #
   #     let mut map = Map.new
   #
-  #     map.remove('name') # => Nil
+  #     map.remove('name') # => Option.none
   #
   # Removing an existing key:
   #
@@ -198,16 +199,17 @@ object Map!(K: Hash + Equal, V) {
   #
   #     map['name'] = 'Alice'
   #
-  #     map.remove('name') # => 'Alice'
+  #     map.remove('name') # => Option.some('Alice')
   def remove(key: K) -> ?V {
-    let index = bucket_index(key) ?? return
-    let pair = @buckets[index]
+    bucket_index(key).then do (index) {
+      @buckets[index].map do (pair) {
+        @buckets[index] = Option.none
+        @length -= 1
 
-    @buckets[index] = Nil
-    @length -= 1
-
-    backwards_shift(index + 1)
-    pair.value
+        backwards_shift(index + 1)
+        pair.value
+      }
+    }
   }
 
   # Calls the supplied `Block` for every key value pair in this map.
@@ -228,8 +230,8 @@ object Map!(K: Hash + Equal, V) {
   #       value # => 'Alice'
   #     }
   def each(block: do (K, V)) {
-    @buckets.each do (pair) {
-      pair.if_true { block.call(pair.key as K, pair.value as V) }
+    @buckets.each do (pair_opt) {
+      pair_opt.let do (pair) { block.call(pair.key, pair.value) }
     }
   }
 
@@ -249,8 +251,8 @@ object Map!(K: Hash + Equal, V) {
   #       pair.value # => 'Alice'
   #     }
   def iter => Pair!(K, V) {
-    @buckets.each do (pair) {
-      pair.if_true { yield pair!  }
+    @buckets.each do (pair_opt) {
+      pair_opt.let do (pair) { yield pair }
     }
   }
 
@@ -301,7 +303,7 @@ object Map!(K: Hash + Equal, V) {
   #     map.key?('name') # => True
   #     map.key?('city') # => False
   def key?(key: K) -> Boolean {
-    bucket_index(key).if(true: { True }, false: { False })
+    bucket_index(key).some?
   }
 
   # Inserts the key and value in this `Map`, returning the `Map` itself.
@@ -328,12 +330,12 @@ object Map!(K: Hash + Equal, V) {
 
     @capacity = @capacity * 2
     @resize_threshold = (LOAD_FACTOR * @capacity.to_float).to_integer
-    @buckets = Array.filled(@capacity, Nil)
+    @buckets = Array.filled(@capacity, Option.none)
 
-    old_buckets.each_with_index do (pair, index) {
-      pair.if_true {
+    old_buckets.each_with_index do (pair_opt, index) {
+      pair_opt.let do (pair) {
         pair.reset_distance
-        rehash_pair(pair!)
+        rehash_pair(pair)
       }
     }
   }
@@ -356,24 +358,20 @@ object Map!(K: Hash + Equal, V) {
     let mut current = pair
 
     {
-      let existing = @buckets[index]
-
-      existing.if_false {
+      let existing = @buckets[index].get_or_else {
         @length += 1
-        @buckets[index] = current
-
+        @buckets[index] = Option.some(current)
         return
       }
 
       (existing.key == current.key).if_true {
-        @buckets[index] = current
-
+        @buckets[index] = Option.some(current)
         return
       }
 
       existing.replace_with?(current).if_true {
-        @buckets[index] = current
-        current = existing!
+        @buckets[index] = Option.some(current)
+        current = existing
       }
 
       index = desired_bucket(index + 1)
@@ -387,17 +385,14 @@ object Map!(K: Hash + Equal, V) {
     let mut current = pair
 
     {
-      let existing = @buckets[index]
-
-      existing.if_false {
-        @buckets[index] = current
-
+      let existing = @buckets[index].get_or_else {
+        @buckets[index] = Option.some(current)
         return
       }
 
       existing.replace_with?(current).if_true {
-        @buckets[index] = current
-        current = existing!
+        @buckets[index] = Option.some(current)
+        current = existing
       }
 
       index = desired_bucket(index + 1)
@@ -412,52 +407,45 @@ object Map!(K: Hash + Equal, V) {
 
   # Returns the index of the bucket the key resides in.
   def bucket_index(key: K) -> ?Integer {
-    let hash = hash_key(key)
-    let mut index = desired_bucket(hash)
-    let desired = index
-    let mut pair = @buckets[index]
+    let start_at = desired_bucket(hash_key(key))
+    let mut index = start_at
 
-    { pair.key != key }.while_true {
-      # Finding an empty bucket can mean two things:
-      #
-      # 1. The initial desired bucket is not used, meaning our key definitely
-      #    does not exist.
-      # 2. The initial desired bucket is used, and we ran into the next
-      #    available bucket. This means the key also does not exist, because it
-      #    would otherwise use this available bucket.
-      #
-      # This early return ensures we don't iterate over all buckets if we are
-      # certain we won't be able to find the key.
-      pair.nil?.if_true { return }
+    {
+      @buckets[index]
+        .let do (pair) {
+          (pair.key == key).if_true { return Option.some(index) }
 
-      index = desired_bucket(index + 1)
+          index = desired_bucket(index + 1)
 
-      # We cycled through all buckets but didn't find a matching pair.
-      (index == desired).if_true { return }
-
-      pair = @buckets[index]
-    }
-
-    index
+          # We wrapped around, meaning the key doesn't exist.
+          (index == start_at).if_true { return Option.none }
+        }
+        .else { return Option.none }
+    }.loop
   }
 
   # Shifts all pairs to the left starting at the given bucket index.
   def backwards_shift(start_at: Integer) {
     let mut index = start_at
-    let mut pair = @buckets.get(index)
+    let max = @buckets.length
 
-    { pair.and { pair!.distance.positive? } }.while_true {
-      @buckets[index - 1] = pair
-      @buckets[index] = Nil
+    { index < max }.while_true {
+      let pair = @buckets[index]
 
-      pair.reduce_distance
+      pair.some?.and { pair.get.distance.positive? }.if(
+        true: {
+          pair.get.reduce_distance
 
-      index += 1
-      pair = @buckets.get(index)
+          @buckets[index - 1] = pair
+          @buckets[index] = Option.none
+          index += 1
+        },
+        false: { return }
+      )
     }
   }
 
-  # Returns the value for the given key, or Nil if it doesn't exist.
+  # Returns the value for the given key.
   #
   # # Examples
   #
@@ -465,7 +453,7 @@ object Map!(K: Hash + Equal, V) {
   #
   #     let map = Map.new
   #
-  #     map.get('name') # => Nil
+  #     map.get('name') # => Option.none
   #
   # Getting the value of an existing key:
   #
@@ -473,9 +461,10 @@ object Map!(K: Hash + Equal, V) {
   #
   #     map['name'] = 'Alice'
   #
-  #     map.get('name') # => 'Alice'
+  #     map.get('name') # => Option.some('Alice')
   def get(key: K) -> ?V {
-    @buckets[bucket_index(key) ?? return].value
+    bucket_index(key)
+      .then do (index) { @buckets[index].map do (pair) { pair.value } }
   }
 }
 
@@ -524,9 +513,7 @@ impl Index!(K, V) for Map {
   #
   # This method panics if the key doesn't exist.
   def [](key: K) -> V {
-    let index = bucket_index(key) ?? process.panic("The key doesn't exist")
-
-    @buckets[index].value
+    get(key).get_or_else { process.panic("The key doesn't exist") }
   }
 }
 

@@ -179,7 +179,9 @@ macro_rules! try_error {
 
 macro_rules! vm_panic {
     ($message:expr, $context:expr, $index:expr) => {{
-        $context.instruction_index = $index;
+        // We subtract one so the instruction pointer points to the current
+        // instruction (= the panic), not the one we'd run after that.
+        $context.instruction_index = $index - 1;
 
         return Err($message);
     }};
@@ -2207,13 +2209,6 @@ impl Machine {
                         context,
                         index
                     );
-
-                    context.set_register(reg, res);
-                }
-                Opcode::GeneratorYielded => {
-                    let reg = instruction.arg(0);
-                    let gen = context.get_register(instruction.arg(1));
-                    let res = generator::yielded(&self.state, gen)?;
 
                     context.set_register(reg, res);
                 }

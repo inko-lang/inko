@@ -9,6 +9,7 @@ import std::float
 import std::nil
 import std::block
 import std::process
+import std::option::(Option as _Option)
 import std::string
 import std::array
 import std::iterator
@@ -31,3 +32,4 @@ import std::range::(Range as _Range)
 # default. Core types such as String should be exposed in std::globals instead.
 let Map = _Map
 let Range = _Range
+let Option = _Option

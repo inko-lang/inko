@@ -323,22 +323,6 @@ module Inkoc
       )
     end
 
-    def not_an_optional_error(type, location)
-      tname = type.type_name.inspect
-
-      error("The type #{tname} is not an optional type", location)
-    end
-
-    def not_nil_with_type_parameter(type, location)
-      tname = type.type_name.inspect
-
-      error(
-        "The type #{tname} is a type parameter that may be Nil, which could " \
-          "lead to a panic at runtime",
-        location
-      )
-    end
-
     def method_requirement_error(receiver, block_type, value_type, bound, loc)
       rname = receiver.type_name.inspect
       bname = block_type.type_name.inspect
@@ -387,22 +371,6 @@ module Inkoc
       tname = to.type_name.inspect
 
       error("The type #{fname} can not be casted to #{tname}", location)
-
-      TypeSystem::Error.new
-    end
-
-    def incompatible_optional_method(rec_type, nil_type, name, location)
-      rec_impl = rec_type.lookup_method(name).type.type_name.inspect
-      nil_impl = nil_type.lookup_method(name).type.type_name.inspect
-      nname = nil_type.type_name.inspect
-      rname = rec_type.type_name.inspect
-
-      error(
-        "The message #{name.inspect} can not be sent to a #{rname} " \
-          "because its implementation (#{rec_impl}) is not compatible with " \
-          "the implementation of #{nname} (#{nil_impl})",
-        location
-      )
 
       TypeSystem::Error.new
     end
@@ -534,6 +502,16 @@ module Inkoc
     def template_strings_unavailable(location)
       error(
         "Template strings are unavailable as std::conversion hasn't been defined yet",
+        location
+      )
+    end
+
+    def redefine_incompatible_default_method(trait, existing, new, location)
+      error(
+        "The trait #{trait.type_name.inspect} can't be implemented, as it " \
+          "defines the default method #{new.type_name.inspect} that the " \
+          "existing implementation #{existing.type_name.inspect} isn't " \
+          "compatible with",
         location
       )
     end

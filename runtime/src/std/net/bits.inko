@@ -159,7 +159,7 @@ def receive_from(
 def read_bytes(
   socket: Socket,
   bytes: ByteArray,
-  size: ?Integer = Nil
+  size = 0
 ) !! IoError -> Integer {
   try {
     _INKOC.socket_read(socket, bytes, size)

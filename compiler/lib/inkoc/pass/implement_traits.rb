@@ -23,6 +23,16 @@ module Inkoc
 
         return object if object.error?
 
+        unless object.object?
+          diagnostics.not_an_object(
+            node.object_name.name,
+            object,
+            node.location
+          )
+
+          return TypeSystem::Error.new
+        end
+
         # The trait name has to be looked up in the context of the
         # implementation. This ensures that a Self type refers to the type
         # that the trait is implemented for, instead of referring to the type of

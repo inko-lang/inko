@@ -70,11 +70,11 @@ object SocketAddress {
 
   # Returns the path of this address.
   #
-  # If the address is unnamed or an abstract address, Nil is returned.
+  # If the address is unnamed or an abstract address, None is returned.
   def to_path -> ?Path {
-    unnamed?.or { abstract? }.if_true { return Nil }
+    unnamed?.or { abstract? }.if_true { return Option.none }
 
-    @address.to_path
+    Option.some(@address.to_path)
   }
 
   # Returns `True` if `self` is an abstract address.
@@ -345,7 +345,7 @@ impl Socket {
 impl RawSocket for Socket {}
 
 impl Read for Socket {
-  def read_bytes(bytes: ByteArray, size: ?Integer = Nil) !! IoError -> Integer {
+  def read_bytes(bytes: ByteArray, size = 0) !! IoError -> Integer {
     try bits.read_bytes(socket: self, bytes: bytes, size: size)
   }
 }
@@ -457,7 +457,7 @@ object UnixDatagram {
 }
 
 impl Read for UnixDatagram {
-  def read_bytes(bytes: ByteArray, size: ?Integer = Nil) !! IoError -> Integer {
+  def read_bytes(bytes: ByteArray, size = 0) !! IoError -> Integer {
     try @socket.read_bytes(bytes: bytes, size: size)
   }
 }
@@ -545,7 +545,7 @@ object UnixStream {
 }
 
 impl Read for UnixStream {
-  def read_bytes(bytes: ByteArray, size: ?Integer = Nil) !! IoError -> Integer {
+  def read_bytes(bytes: ByteArray, size = 0) !! IoError -> Integer {
     try @socket.read_bytes(bytes: bytes, size: size)
   }
 }

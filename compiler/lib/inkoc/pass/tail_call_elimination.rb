@@ -34,6 +34,10 @@ module Inkoc
           ins = block.instructions[index = -3]
         end
 
+        if ins.location.file.path.to_s.end_with?('iterator.inko') && block.name == 'each'
+          p 'wat'
+        end
+
         return unless tail_call?(code, ins)
 
         block.instructions[index] =

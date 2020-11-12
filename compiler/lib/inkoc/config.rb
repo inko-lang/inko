@@ -26,6 +26,7 @@ module Inkoc
     CONVERSION_MODULE = 'std::conversion'
 
     OBJECT_CONST = 'Object'
+    OPTION_CONST = 'Option'
     TRAIT_CONST = 'Trait'
     ARRAY_CONST = 'Array'
     BLOCK_CONST = 'Block'

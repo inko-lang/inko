@@ -54,7 +54,7 @@ test.group('std::array::Array.pop') do (g) {
   g.test('Removing a value from the end of an Array') {
     let numbers = Array.new(10, 20)
 
-    assert.equal(numbers.pop, 20)
+    assert.equal(numbers.pop, Option.some(20))
     assert.equal(numbers, Array.new(10))
   }
 }
@@ -156,19 +156,19 @@ test.group('std::array::Array.get') do (g) {
   g.test('Returning the value of an existing index') {
     let numbers = Array.new(10, 20, 30)
 
-    assert.equal(numbers.get(0), 10)
-    assert.equal(numbers.get(1), 20)
-    assert.equal(numbers.get(2), 30)
+    assert.equal(numbers.get(0), Option.some(10))
+    assert.equal(numbers.get(1), Option.some(20))
+    assert.equal(numbers.get(2), Option.some(30))
   }
 
   g.test('Returning the value of a non-existing index') {
-    assert.true(Array.new(10).get(1).nil?)
+    assert.true(Array.new(10).get(1).none?)
   }
 
   g.test('Returning the value of a non-existing negative index') {
     let array: Array!(Integer) = Array.new
 
-    assert.true(array.get(-2).nil?)
+    assert.true(array.get(-2).none?)
   }
 
   g.test('Returning the value of a non-existing very large index') {
@@ -182,12 +182,12 @@ test.group('std::array::Array.get') do (g) {
   g.test('Returning the value of an existing negative index') {
     let numbers = Array.new(10, 20, 30)
 
-    assert.equal(numbers.get(-1), 30)
-    assert.equal(numbers.get(-2), 20)
-    assert.equal(numbers.get(-3), 10)
-    assert.equal(numbers.get(-4), 30)
-    assert.equal(numbers.get(-5), 20)
-    assert.equal(numbers.get(-6), 10)
+    assert.equal(numbers.get(-1), Option.some(30))
+    assert.equal(numbers.get(-2), Option.some(20))
+    assert.equal(numbers.get(-3), Option.some(10))
+    assert.equal(numbers.get(-4), Option.some(30))
+    assert.equal(numbers.get(-5), Option.some(20))
+    assert.equal(numbers.get(-6), Option.some(10))
   }
 }
 
@@ -247,17 +247,10 @@ test.group('std::array::Array.iter') do (g) {
     let numbers = Array.new(10, 20, 30)
     let iter = numbers.iter
 
-    assert.true(iter.advance)
-    assert.equal(iter.current, 10)
-
-    assert.true(iter.advance)
-    assert.equal(iter.current, 20)
-
-    assert.true(iter.advance)
-    assert.equal(iter.current, 30)
-
-    assert.false(iter.advance)
-    assert.equal(iter.current, Nil)
+    assert.equal(iter.next, Option.some(10))
+    assert.equal(iter.next, Option.some(20))
+    assert.equal(iter.next, Option.some(30))
+    assert.true(iter.next.none?)
   }
 }
 
@@ -266,17 +259,10 @@ test.group('std::array::Array.reverse_iter') do (g) {
     let numbers = Array.new(10, 20, 30)
     let iter = numbers.reverse_iter
 
-    assert.true(iter.advance)
-    assert.equal(iter.current, 30)
-
-    assert.true(iter.advance)
-    assert.equal(iter.current, 20)
-
-    assert.true(iter.advance)
-    assert.equal(iter.current, 10)
-
-    assert.false(iter.advance)
-    assert.true(iter.current.nil?)
+    assert.equal(iter.next, Option.some(30))
+    assert.equal(iter.next, Option.some(20))
+    assert.equal(iter.next, Option.some(10))
+    assert.true(iter.next.none?)
   }
 }
 

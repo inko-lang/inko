@@ -46,14 +46,17 @@ test.group('std::compiler::module_name::ModuleName.absolute_source_path') do (g)
       handle.close
     }
 
-    assert.equal(name.absolute_source_path(Array.new(directory)), source_path)
+    assert.equal(
+      name.absolute_source_path(Array.new(directory)),
+      Option.some(source_path)
+    )
   }
 
   g.test('Obtaining the absolute paht of a non-existing module') {
     let name = ModuleName.new(Array.new('foo'))
     let directory = fixtures.temporary_file_path
 
-    assert.equal(name.absolute_source_path(Array.new(directory)), Nil)
+    assert.true(name.absolute_source_path(Array.new(directory)).none?)
   }
 }
 
@@ -127,6 +130,6 @@ test.group('std::compiler::module_name::ModuleName.tail') do (g) {
   g.test('Obtaining the tail of a module name') {
     assert.equal(ModuleName.new(Array.new('std', 'foo')).tail, 'foo')
     assert.equal(ModuleName.new(Array.new('std')).tail, 'std')
-    assert.equal(ModuleName.new(Array.new).tail, '')
+    assert.panic { ModuleName.new(Array.new).tail }
   }
 }

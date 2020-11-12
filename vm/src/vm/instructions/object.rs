@@ -191,7 +191,9 @@ pub fn copy_blocks(
             let block =
                 copy_if_permanent!(state.permanent_allocator, *val, target_ptr);
 
-            object.add_attribute(*key, block);
+            if object.lookup_attribute_in_self(*key).is_none() {
+                object.add_attribute(*key, block);
+            }
         }
     }
 

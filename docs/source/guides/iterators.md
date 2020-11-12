@@ -41,9 +41,8 @@ Creating an iterator manually requires:
 1. A object that tracks the state of the iteration process.
 2. An implementation of the `Iterator` trait for this object.
 
-The `Iterator` trait requires that you implement two methods: `advance` and
-`current`. The method `advance` advances the iterator and returns a boolean
-indicating if a value is produced. The method `current` returns that value.
+The `Iterator` trait requires that you implement one method: `next`. This method
+returns an `Option` to signal the presence or lack of a value.
 
 Let's say we want to create an iterator that yields the first 5 values in an
 `Array`, then terminates. We can do so as follows:
@@ -53,31 +52,21 @@ import std::iterator::Iterator
 
 object LimitedIterator!(T) {
   @array: Array!(T)
-  @value: ?T
   @index: Integer
 
   static def new!(T)(array: Array!(T)) -> LimitedIterator!(T) {
-    Self { @array = array, @value = Nil, @index = 0 }
+    Self { @array = array, @index = 0 }
   }
 }
 
-impl Iterator!(T, Never) for LimitedIterator {
-  def advance -> Boolean {
-    (@index < 5).if(
-      true: {
-        @value = @values[@index]
-        @index += 1
-        True
-      },
-      false: {
-        @value = Nil
-        False
-      }
-    )
-  }
 
-  def current -> ?T {
-    @value
+impl Iterator!(T, Never) for LimitedIterator {
+  def next -> ?T {
+    (@index == 5).if_true { return Option.none }
+
+    let value = @array.get(@index)
+    @index += 1
+    value
   }
 }
 ```
@@ -86,32 +75,17 @@ The iterator type is defined as `Iterator!(T, E)` with `T` being the type of
 values to produce, and `E` being the type to throw; if any. If your iterator
 doesn't throw, as is the case above, you can assign `E` to the `Never` type.
 
-The method `advance` advances the iterator, so long the index is less than 5. We
-start with an index of `-1` so the first call to `advance` advances the iterator
-to the first value; not the second value.
-
 With our iterator defined, we can use it like so:
 
 ```inko
 let mut iterator = LimitedIterator.new(Array.new(1, 2, 3, 4, 5, 6, 7, 8))
 
-iterator.advance # => True
-iterator.current # => 1
-
-iterator.advance # => True
-iterator.current # => 2
-
-iterator.advance # => True
-iterator.current # => 3
-
-iterator.advance # => True
-iterator.current # => 4
-
-iterator.advance # => True
-iterator.current # => 5
-
-iterator.advance # => False
-iterator.current # => Nil
+iterator.next # => Option.some(1)
+iterator.next # => Option.some(2)
+iterator.next # => Option.some(3)
+iterator.next # => Option.some(4)
+iterator.next # => Option.some(5)
+iterator.next # => Option.none
 ```
 
 ## Creating iterators using generators
@@ -177,11 +151,8 @@ We can use our generator like so:
 ```inko
 let gen = limited_iterator(Array.new(1, 2, 3, 4, 5, 6, 7, 8))
 
-gen.resume # => True
-gen.value  # => 1
-
-gen.resume # => True
-gen.value  # => 2
+gen.resume # => Option.some(1)
+gen.resume # => Option.some(2)
 ```
 
 If the generator method throws, the `resume` method re-throws that error. This
@@ -200,14 +171,14 @@ def limited_iterator!(T)(values: Array!(T)) !! String => T {
 
 let gen = limited_iterator(Array.new(1, 2, 3, 4, 5, 6, 7, 8))
 
-try! gen.resume # => True
+try! gen.resume # => Option.some(1)
 try! gen.resume # => panic
 ```
 
 ## Generators as iterators
 
-Generators themselves are also iterators. So instead of using `resume` and
-`value`, we can also use `advance` and `current`:
+Generators themselves are also iterators. So instead of using `resume`, we can
+also use `next`:
 
 ```inko
 def limited_iterator!(T)(values: Array!(T)) => T {
@@ -221,6 +192,5 @@ def limited_iterator!(T)(values: Array!(T)) => T {
 
 let iter = limited_iterator(Array.new(1, 2, 3))
 
-iter.advance # => True
-iter.current # => 1
+iter.next # => Option.some(1)
 ```

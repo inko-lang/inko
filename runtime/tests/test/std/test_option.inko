@@ -1,0 +1,131 @@
+import std::test
+import std::test::assert
+
+test.group('std::option::Option.truthy?') do (g) {
+  g.test('Using a Some') {
+    assert.true(Option.some(10).truthy?)
+  }
+
+  g.test('Using a None') {
+    assert.false(Option.none.truthy?)
+  }
+}
+
+test.group('std::option::Option.if_let') do (g) {
+  g.test('Using a Some') {
+    let mut num = 0
+
+    Option.some(10).let do (n) { num = n }
+
+    assert.equal(num, 10)
+  }
+
+  g.test('Using a None') {
+    let mut num = 0
+
+    Option.none.let do (n: Integer) { num = n }
+
+    assert.equal(num, 0)
+  }
+}
+
+test.group('std::option::Option.else') do (g) {
+  g.test('Using a Some') {
+    let num = Option.some(10).else { Option.some(20) }
+
+    assert.equal(num, Option.some(10))
+  }
+
+  g.test('Using a None') {
+    let num = Option.none.else { Option.some(20) }
+
+    assert.equal(num, Option.some(20))
+  }
+}
+
+test.group('std::option::Option.get') do (g) {
+  g.test('Using a Some') {
+    assert.equal(Option.some(10).get, 10)
+  }
+
+  g.test('Using a None') {
+    assert.panic { Option.none.get }
+  }
+}
+
+test.group('std::option::Option.get_or') do (g) {
+  g.test('Using a Some') {
+    assert.equal(Option.some(10).get_or(20), 10)
+  }
+
+  g.test('Using a None') {
+    assert.equal(Option.none.get_or(10), 10)
+  }
+}
+
+test.group('std::option::Option.get_or_else') do (g) {
+  g.test('Using a Some') {
+    assert.equal(Option.some(10).get_or_else({ 20 }), 10)
+  }
+
+  g.test('Using a None') {
+    assert.equal(Option.none.get_or_else({ 10 }), 10)
+  }
+}
+
+test.group('std::option::Option.map') do (g) {
+  g.test('Using a Some') {
+    assert.equal(Option.some(10).map(do (_) { 20 }).get, 20)
+  }
+
+  g.test('Using a None') {
+    assert.true(Option.none.map(do (_) { 20 }).none?)
+  }
+}
+
+test.group('std::option::Option.then') do (g) {
+  g.test('Using a Some') {
+    let option = Option.some(10).then do (_) { Option.some(20) }
+
+    assert.equal(option.get, 20)
+  }
+
+  g.test('Using a None') {
+    let option = Option.none.then do (_) { Option.some(20) }
+
+    assert.true(option.none?)
+  }
+}
+
+test.group('std::option::Option.some?') do (g) {
+  g.test('Using a Some') {
+    assert.true(Option.some(10).some?)
+  }
+
+  g.test('Using a None') {
+    assert.false(Option.none.some?)
+  }
+}
+
+test.group('std::option::Option.none?') do (g) {
+  g.test('Using a Some') {
+    assert.false(Option.some(10).none?)
+  }
+
+  g.test('Using a None') {
+    assert.false(Option.none.some?)
+  }
+}
+
+test.group('std::option::Option.==') do (g) {
+  g.test('Comparing a Some') {
+    assert.equal(Option.some(10), Option.some(10))
+    assert.not_equal(Option.some(10), Option.some(20))
+    assert.not_equal(Option.some(10), Option.none)
+  }
+
+  g.test('Comparing a None') {
+    assert.equal(Option.none, Option.none)
+    assert.not_equal(Option.none, Option.some(10))
+  }
+}
