@@ -278,15 +278,13 @@ impl IpAddress for Ipv6Address {
 
     { cursor < max }.while_true {
       {
-        let byte = bytes[cursor]
-
         # IPv6 addresses can embed IPv4 addresses, so instead of reading until
         # we encounter a ":" we will also stop reading when running into a ".".
         (cursor < max)
-          .and { byte != _COLON_BYTE }
-          .and { byte != _DOT_BYTE }
+          .and { bytes[cursor] != _COLON_BYTE }
+          .and { bytes[cursor] != _DOT_BYTE }
       }.while_true {
-        segment_bytes.push(bytes[cursor]!)
+        segment_bytes.push(bytes[cursor])
         cursor += 1
       }
 
@@ -295,7 +293,7 @@ impl IpAddress for Ipv6Address {
       # must be at the end of an IPv6 address.
       ipv4_mode
         .false?
-        .and { bytes[cursor] == _DOT_BYTE }
+        .and { (cursor < max).and { bytes[cursor] == _DOT_BYTE } }
         .if_true {
           ipv4_mode = True
           radix = 10
@@ -325,7 +323,7 @@ impl IpAddress for Ipv6Address {
 
       # We have reached another ":", which is used to compress one or more empty
       # groups together.
-      (bytes[cursor] == _COLON_BYTE).if_true {
+      (cursor < max).and { bytes[cursor] == _COLON_BYTE }.if_true {
         # Zero compression can only be applied once.
         compressed.if_true {
           throw AddressParseError.new(bytes)
@@ -605,7 +603,7 @@ impl IpAddress for Ipv4Address {
       {
         (cursor < max).and { bytes[cursor] != _DOT_BYTE }
       }.while_true {
-        segment_bytes.push(bytes[cursor]!)
+        segment_bytes.push(bytes[cursor])
         cursor += 1
       }
 

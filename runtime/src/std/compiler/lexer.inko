@@ -813,7 +813,7 @@ object Lexer {
   }
 
   def current_byte -> Integer {
-    @input[@position].to_integer
+    @input.get(@position).to_integer
   }
 
   def next_byte -> Integer {
@@ -821,7 +821,7 @@ object Lexer {
   }
 
   def peek(offset: Integer) -> Integer {
-    @input[@position + offset].to_integer
+    @input.get(@position + offset).to_integer
   }
 
   def valid_identifier_byte? -> Boolean {

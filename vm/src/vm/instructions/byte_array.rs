@@ -54,7 +54,6 @@ pub fn byte_array_set(
 
 #[inline(always)]
 pub fn byte_array_get(
-    state: &RcState,
     array_ptr: ObjectPointer,
     index_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
@@ -62,17 +61,14 @@ pub fn byte_array_get(
     let index =
         slicing::index_for_slice(bytes.len(), index_ptr.integer_value()?);
 
-    let value = bytes
+    bytes
         .get(index)
         .map(|byte| ObjectPointer::byte(*byte))
-        .unwrap_or(state.nil_object);
-
-    Ok(value)
+        .ok_or_else(|| format!("The index {} is out of bounds", index))
 }
 
 #[inline(always)]
 pub fn byte_array_remove(
-    state: &RcState,
     array_ptr: ObjectPointer,
     index_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
@@ -80,13 +76,11 @@ pub fn byte_array_remove(
     let index =
         slicing::index_for_slice(bytes.len(), index_ptr.integer_value()?);
 
-    let value = if index >= bytes.len() {
-        state.nil_object
+    if index >= bytes.len() {
+        Err(format!("The index {} is out of bounds", index))
     } else {
-        ObjectPointer::byte(bytes.remove(index))
-    };
-
-    Ok(value)
+        Ok(ObjectPointer::byte(bytes.remove(index)))
+    }
 }
 
 #[inline(always)]

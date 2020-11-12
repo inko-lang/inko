@@ -94,8 +94,6 @@ impl ByteArray {
 
   # Removes the value at the given index, returning the removed value.
   #
-  # This method will return `Nil` if no value was removed.
-  #
   # # Examples
   #
   # Removing an existing value:
@@ -105,12 +103,10 @@ impl ByteArray {
   #     bytes.remove_at(0) # => 10
   #     bytes.length       # => 0
   #
-  # Removing a non-existing value:
+  # # Panics
   #
-  #     let bytes = ByteArray.new
-  #
-  #     bytes.remove_at(0) # => Nil
-  def remove_at(index: Integer) -> ?Integer {
+  # This method panics if the index is out of bounds.
+  def remove_at(index: Integer) -> Integer {
     _INKOC.byte_array_remove(self, index)
   }
 
@@ -135,10 +131,7 @@ impl ByteArray {
     let max = length
 
     { index < max }.while_true {
-      let value = self[index]
-
-      block.call(value!)
-
+      block.call(self[index])
       index += 1
     }
 
@@ -210,17 +203,36 @@ impl ByteArray {
     (until >= self.length).if_true { until = self.length }
 
     { index < until }.while_true {
-      new_array.push(self[index]!)
-
+      new_array.push(self[index])
       index += 1
     }
 
     new_array
   }
+
+  # Returns the byte at the given index, returning Nil if the index is out of
+  # bounds.
+  #
+  # # Examples
+  #
+  # Retrieving an existing byte:
+  #
+  #     let bytes = ByteArray.new(10, 20)
+  #
+  #     bytes.get(0) # => 10
+  #
+  # Retrieving a non-existing byte:
+  #
+  #     let bytes = ByteArray.new(10, 20)
+  #
+  #     bytes.get(5) # => Nil
+  def get(index: Integer) -> ?Integer {
+    (index < length).if_true { self[index] }
+  }
 }
 
 impl Index!(Integer, Integer) for ByteArray {
-  # Returns the byte at the given index, or Nil if no value was found.
+  # Returns the byte at the given index.
   #
   # # Examples
   #
@@ -230,24 +242,16 @@ impl Index!(Integer, Integer) for ByteArray {
   #
   #     bytes[0] # => 10
   #
-  # Using an out of bounds index:
+  # # Panics
   #
-  #     let bytes = ByteArray.new(10, 20)
-  #
-  #     bytes[5] # => Nil
-  def [](index: Integer) -> ?Integer {
-    (index >= length).if_true { return }
-
+  # This method panics if the index is out of bounds.
+  def [](index: Integer) -> Integer {
     _INKOC.byte_array_at(self, index)
   }
 }
 
 impl SetIndex!(Integer, Integer) for ByteArray {
   # Stores a byte at the given index, then returns it.
-  #
-  # Because there are no sensible values that can be used for padding a
-  # `ByteArray` (unlike a regular `Array`, where we can use a `Nil`), this
-  # method will panic if the supplied index is out of bounds.
   #
   # # Examples
   #
@@ -257,6 +261,10 @@ impl SetIndex!(Integer, Integer) for ByteArray {
   #
   #     bytes[0] = 30 # => 30
   #     bytes[0]      # => 30
+  #
+  # # Panics
+  #
+  # This method panics if the index is out of bounds.
   def []=(index: Integer, value: Integer) -> Integer {
     _INKOC.byte_array_set(self, index, value)
   }

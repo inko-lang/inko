@@ -1393,8 +1393,7 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let ary = context.get_register(instruction.arg(1));
                     let idx = context.get_register(instruction.arg(2));
-                    let res =
-                        byte_array::byte_array_get(&self.state, ary, idx)?;
+                    let res = byte_array::byte_array_get(ary, idx)?;
 
                     context.set_register(reg, res);
                 }
@@ -1402,8 +1401,7 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let ary = context.get_register(instruction.arg(1));
                     let idx = context.get_register(instruction.arg(2));
-                    let res =
-                        byte_array::byte_array_remove(&self.state, ary, idx)?;
+                    let res = byte_array::byte_array_remove(ary, idx)?;
 
                     context.set_register(reg, res);
                 }

@@ -42,8 +42,6 @@ test.group('std::byte_array::ByteArray.pop') do (g) {
 
     assert.equal(bytes.pop, 10)
     assert.equal(bytes, ByteArray.new)
-
-    assert.equal(bytes.pop, Nil)
   }
 }
 
@@ -56,10 +54,7 @@ test.group('std::byte_array::ByteArray.remove_at') do (g) {
   }
 
   g.test('Removing the value of an out-of-bounds index') {
-    let bytes = ByteArray.new(10)
-
-    assert.equal(bytes.remove_at(5), Nil)
-    assert.equal(bytes, ByteArray.new(10))
+    assert.panic { ByteArray.new(10).remove_at(5) }
   }
 
   g.test('Removing the value of a negative index') {
@@ -110,9 +105,7 @@ test.group('std::byte_array::ByteArray.[]') do (g) {
   }
 
   g.test('Returning the value of a non-existing index') {
-    let bytes = ByteArray.new(10, 20)
-
-    assert.equal(bytes[3], Nil)
+    assert.panic { ByteArray.new(10, 20)[3] }
   }
 
   g.test('Returning the value of a negative index') {
@@ -121,6 +114,29 @@ test.group('std::byte_array::ByteArray.[]') do (g) {
     assert.equal(bytes[-1], 20)
     assert.equal(bytes[-2], 10)
     assert.equal(bytes[-3], 20)
+  }
+}
+
+test.group('std::byte_array::ByteArray.get') do (g) {
+  g.test('Returning the value of an existing index') {
+    let bytes = ByteArray.new(10, 20)
+
+    assert.equal(bytes.get(0), 10)
+    assert.equal(bytes.get(1), 20)
+  }
+
+  g.test('Returning the value of a non-existing index') {
+    let bytes = ByteArray.new(10, 20)
+
+    assert.equal(bytes.get(4), Nil)
+  }
+
+  g.test('Returning the value of a negative index') {
+    let bytes = ByteArray.new(10, 20)
+
+    assert.equal(bytes.get(-1), 20)
+    assert.equal(bytes.get(-2), 10)
+    assert.equal(bytes.get(-3), 20)
   }
 }
 

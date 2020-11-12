@@ -95,7 +95,7 @@ impl String {
     let segments = Array.new
     let buffer = ByteArray.new
     let sep_bytes = separator.to_byte_array
-    let sep_start = sep_bytes[0]!
+    let sep_start = sep_bytes[0]
     let mut index = 0
     let max = bytesize
 
