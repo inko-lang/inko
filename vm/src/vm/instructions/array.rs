@@ -34,8 +34,7 @@ pub fn array_set(
     value_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, RuntimeError> {
     let vector = array_ptr.array_value_mut()?;
-    let index =
-        slicing::index_for_slice(vector.len(), index_ptr.integer_value()?);
+    let index = slicing::slice_index_to_usize(index_ptr, vector.len())?;
 
     if index > vector.len() {
         return Err(RuntimeError::out_of_bounds(index));
@@ -62,8 +61,7 @@ pub fn array_get(
     index_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, RuntimeError> {
     let vector = array_ptr.array_value()?;
-    let index =
-        slicing::index_for_slice(vector.len(), index_ptr.integer_value()?);
+    let index = slicing::slice_index_to_usize(index_ptr, vector.len())?;
 
     vector
         .get(index)
@@ -77,9 +75,7 @@ pub fn array_remove(
     index_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, RuntimeError> {
     let vector = array_ptr.array_value_mut()?;
-
-    let index =
-        slicing::index_for_slice(vector.len(), index_ptr.integer_value()?);
+    let index = slicing::slice_index_to_usize(index_ptr, vector.len())?;
 
     if index >= vector.len() {
         Err(RuntimeError::out_of_bounds(index))

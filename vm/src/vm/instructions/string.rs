@@ -138,10 +138,8 @@ pub fn string_slice(
 ) -> Result<ObjectPointer, String> {
     let string = str_ptr.string_value()?;
     let amount = amount_ptr.usize_value()?;
-    let start = slicing::index_for_slice(
-        string.chars().count(),
-        start_ptr.integer_value()?,
-    );
+    let start =
+        slicing::slice_index_to_usize(start_ptr, string.chars().count())?;
 
     let new_string =
         string.chars().skip(start).take(amount).collect::<String>();
@@ -220,9 +218,7 @@ pub fn string_byte(
     index_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
     let string = str_ptr.string_value()?;
-    let index =
-        slicing::index_for_slice(string.len(), index_ptr.integer_value()?);
-
+    let index = slicing::slice_index_to_usize(index_ptr, string.len())?;
     let byte = i64::from(string.as_bytes()[index]);
 
     Ok(ObjectPointer::integer(byte))

@@ -35,9 +35,7 @@ pub fn byte_array_set(
     value_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, RuntimeError> {
     let bytes = array_ptr.byte_array_value_mut()?;
-    let index =
-        slicing::index_for_slice(bytes.len(), index_ptr.integer_value()?);
-
+    let index = slicing::slice_index_to_usize(index_ptr, bytes.len())?;
     let value = integer_to_byte(value_ptr)?;
 
     if index > bytes.len() {
@@ -61,8 +59,7 @@ pub fn byte_array_get(
     index_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, RuntimeError> {
     let bytes = array_ptr.byte_array_value()?;
-    let index =
-        slicing::index_for_slice(bytes.len(), index_ptr.integer_value()?);
+    let index = slicing::slice_index_to_usize(index_ptr, bytes.len())?;
 
     bytes
         .get(index)
@@ -76,8 +73,7 @@ pub fn byte_array_remove(
     index_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, RuntimeError> {
     let bytes = array_ptr.byte_array_value_mut()?;
-    let index =
-        slicing::index_for_slice(bytes.len(), index_ptr.integer_value()?);
+    let index = slicing::slice_index_to_usize(index_ptr, bytes.len())?;
 
     if index >= bytes.len() {
         Err(RuntimeError::out_of_bounds(index))
