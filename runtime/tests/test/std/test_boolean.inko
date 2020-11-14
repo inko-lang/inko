@@ -18,21 +18,37 @@ test.group('std::boolean::Boolean.false?') do (g) {
 
 test.group('std::boolean::Boolean.if_true') do (g) {
   g.test('Sending "if_true" to True') {
-    assert.equal(True.if_true({ 10 }), 10)
+    let mut num = 0
+
+    True.if_true { num = 10 }
+
+    assert.equal(num, 10)
   }
 
   g.test('Sending "if_true" to False') {
-    assert.equal(False.if_true({ 10 }), Nil)
+    let mut num = 0
+
+    False.if_true { num = 10 }
+
+    assert.equal(num, 0)
   }
 }
 
 test.group('std::boolean::Boolean.if_false') do (g) {
   g.test('Sending "if_false" to True') {
-    assert.equal(True.if_false({ 10 }), Nil)
+    let mut num = 0
+
+    True.if_false { num = 10 }
+
+    assert.equal(num, 0)
   }
 
   g.test('Sending "if_false" to False') {
-    assert.equal(False.if_false({ 10 }), 10)
+    let mut num = 0
+
+    False.if_false { num = 10 }
+
+    assert.equal(num, 10)
   }
 }
 

@@ -22,11 +22,11 @@ impl Conditional for Boolean {
     _INKOC.if(self, true, false).call
   }
 
-  def if_true!(R)(block: do -> R) -> ?R {
+  def if_true!(R)(block: do -> R) {
     _INKOC.if(self, block.call, Nil)
   }
 
-  def if_false!(R)(block: do -> R) -> ?R {
+  def if_false!(R)(block: do -> R) {
     _INKOC.if(self, Nil, block.call)
   }
 

@@ -13,23 +13,23 @@ Conditional branching is done by sending `if_true`, `if_false` or `if` to an
 object. This is what you'd use `if` statements for in other languages.
 
 `if_true` and `if_false` both require a single argument: a closure they will
-evaluate if needed. `if_true` will call the closure if the receiver is truthy,
-otherwise it returns `Nil`. `if_false` does the opposite: it calls the closure
-if the receiver is falsy:
+evaluate if needed. `if_true` will call the closure if the receiver is truthy.
+`if_false` does the opposite: it calls the closure if the receiver is falsy.
+Both always return `Nil`:
 
 ```inko
-True.if_true { 10 }  # => 10
+True.if_true { 10 }  # => Nil
 False.if_true { 10 } # => Nil
 
 True.if_false { 10 } # => Nil
-True.if_false { 10 } # => 10
+True.if_false { 10 } # => Nil
 ```
 
 You can also use these messages for types other than the `Boolean` type:
 
 ```inko
-'hello'.if_true { 10 }   # => 10
-Array.new.if_true { 10 } # => 10
+'hello'.if_true { 10 }   # => Nil
+Array.new.if_true { 10 } # => Nil
 ```
 
 The signature of `if` is as follows:

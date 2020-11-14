@@ -21,13 +21,21 @@ test.group('std::nil::NilType.to_string') do (g) {
 
 test.group('std::nil::NilType.if_true') do (g) {
   g.test('The supplied block is never called') {
-    assert.equal(Nil.if_true({ 42 }), Nil)
+    let mut num = 0
+
+    Nil.if_true { num = 42 }
+
+    assert.equal(num, 0)
   }
 }
 
 test.group('std::nil::NilType.if_false') do (g) {
   g.test('The supplied block is always called') {
-    assert.equal(Nil.if_false({ 42 }), 42)
+    let mut num = 0
+
+    Nil.if_false { num = 42 }
+
+    assert.equal(num, 42)
   }
 }
 
