@@ -261,12 +261,10 @@ object Map!(K: Hash + Equal, V) {
   #       key   # => 'name'
   #       value # => 'Alice'
   #     }
-  def each(block: do (K, V)) -> Self {
+  def each(block: do (K, V)) {
     iter.each do (pair) {
       block.call(pair.key, pair.value)
     }
-
-    self
   }
 
   # Returns an `Iterator` that iterates over all key-value pairs in this

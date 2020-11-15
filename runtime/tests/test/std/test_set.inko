@@ -35,11 +35,10 @@ test.group('std::set::Set.each') do (g) {
     set.insert(1)
     set.insert(2)
 
-    let returned = set.each do (value) {
+    set.each do (value) {
       total += value
     }
 
-    assert.equal(returned, set)
     assert.equal(total, 3)
   }
 }

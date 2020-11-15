@@ -315,9 +315,9 @@ test.group('std::map::Map.each') do (g) {
   g.test('Iterating over the key-value pairs of an empty Map') {
     let mut iters = 0
     let map = Map.new
-    let returned = map.each do (_, _) { iters += 1 }
 
-    assert.equal(returned, map)
+    map.each do (_, _) { iters += 1 }
+
     assert.equal(iters, 0)
   }
 
@@ -329,12 +329,11 @@ test.group('std::map::Map.each') do (g) {
     map[1] = 10
     map[2] = 20
 
-    let returned = map.each do (key, val) {
+    map.each do (key, val) {
       key_total += key
       val_total += val
     }
 
-    assert.equal(returned, map)
     assert.equal(key_total, 3)
     assert.equal(val_total, 30)
   }

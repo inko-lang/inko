@@ -79,12 +79,10 @@ object Set!(V: Hash + Equal) {
   #     set.each do (value) {
   #       value # => 10, 20
   #     }
-  def each(block: do (V)) -> Self {
+  def each(block: do (V)) {
     @map.each do (key, _) {
       block.call(key)
     }
-
-    self
   }
 
   # Returns an `Iterator` over the values in this `Set`.

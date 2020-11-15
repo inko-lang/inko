@@ -70,11 +70,10 @@ test.group('std::byte_array::ByteArray.each') do (g) {
     let input = ByteArray.new(10, 20, 30)
     let output = Array.new
 
-    let returned = input.each do (byte) {
+    input.each do (byte) {
       output.push(byte)
     }
 
-    assert.equal(returned, input)
     assert.equal(output, Array.new(10, 20, 30))
   }
 }
@@ -85,12 +84,11 @@ test.group('std::byte_array::ByteArray.each_with_index') do (g) {
     let values = Array.new
     let indexes = Array.new
 
-    let returned = input.each_with_index do (byte, index) {
+    input.each_with_index do (byte, index) {
       values.push(byte)
       indexes.push(index)
     }
 
-    assert.equal(returned, input)
     assert.equal(values, Array.new(10, 20, 30))
     assert.equal(indexes, Array.new(0, 1, 2))
   }
