@@ -1,9 +1,33 @@
 # Types for Abstract Syntax Trees produced by the parser.
 import std::compiler::source_location::SourceLocation
+import std::compiler::types::Type
 import std::operators::Equal
 
 # A trait for providing and adhering to common behaviour across AST nodes.
 trait Node: Equal {
   # Returns the location of the AST node.
   def location -> SourceLocation
+
+  # Returns the type of this node, if any.
+  def resolved_type -> ?Type {
+    Nil
+  }
+}
+
+# A type of node that can be used in type signatures.
+trait TypeNode: Node {}
+
+# A node that may throw a value.
+trait ThrowingNode: Node {
+  # The type this node may throw.
+  def throw_type -> ?Type
+
+  # Sets the type this node may throw.
+  def throw_type=(value: ?Type) -> ?Type
+
+  # Marks this node as residing in a `try` expression.
+  def inside_try
+
+  # Returns `True` is this node resides in a `try` expression.
+  def inside_try? -> Boolean
 }

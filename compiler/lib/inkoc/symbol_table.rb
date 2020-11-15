@@ -12,6 +12,17 @@ module Inkoc
       @symbols = []
       @mapping = {}
       @parent = parent
+      @unique_names = false
+      @remapped_names = {}
+    end
+
+    def with_unique_names
+      @unique_names = true
+      return_value = yield
+      @unique_names = false
+      @remapped_names = {}
+
+      return_value
     end
 
     def add_symbol(symbol)
@@ -20,10 +31,20 @@ module Inkoc
     end
 
     def define(name, type, mutable = false)
-      symbol = Symbol.new(name, type, @symbols.length, mutable)
+      if @unique_names
+        symbol_name = name + object_id.to_s
+      else
+        symbol_name = name
+      end
+
+      symbol = Symbol.new(symbol_name, type, @symbols.length, mutable)
 
       @symbols << symbol
-      @mapping[name] = symbol
+      @mapping[symbol_name] = symbol
+
+      if @unique_names
+        @remapped_names[name] = symbol
+      end
 
       symbol
     end
@@ -43,9 +64,14 @@ module Inkoc
     end
 
     def [](name_or_index)
-      source = name_or_index.is_a?(Integer) ? @symbols : @mapping
+      symbol =
+        if name_or_index.is_a?(Integer)
+          @symbols[name_or_index]
+        else
+          @mapping[name_or_index] || @remapped_names[name_or_index]
+        end
 
-      source[name_or_index] || NullSymbol.singleton
+      symbol || NullSymbol.singleton
     end
 
     def slice(range)

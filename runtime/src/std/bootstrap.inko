@@ -30,16 +30,6 @@ _INKOC.set_object_name(Array, 'Array')
 _INKOC.set_object_name(Block, 'Block')
 _INKOC.set_object_name(ByteArray, 'ByteArray')
 
-# Now that our core objects are set up we can start defining more of the
-# building blocks of Inko, such as "Object.new" and the bits necessary to allow
-# creating of modules.
-impl Object {
-  # Creates a new instance of `self`.
-  static def new -> Self {
-    _INKOC.allocate(self)
-  }
-}
-
 # A trait.
 #
 # A trait can contain both required methods and default implementations of

@@ -53,14 +53,14 @@ module Inkoc
       end
 
       def import_bootstrap?
-        name.to_s != Config.core_module_name(Config::BOOTSTRAP_MODULE)
+        name.to_s != Config.std_module_name(Config::BOOTSTRAP_MODULE)
       end
 
       def import_prelude?
         name = self.name.to_s
 
-        name != Config.core_module_name(Config::BOOTSTRAP_MODULE) &&
-          name != Config.core_module_name(Config::PRELUDE_MODULE)
+        name != Config.std_module_name(Config::BOOTSTRAP_MODULE) &&
+          name != Config.std_module_name(Config::PRELUDE_MODULE)
       end
 
       def source_code

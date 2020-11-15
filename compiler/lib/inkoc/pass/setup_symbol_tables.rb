@@ -42,6 +42,27 @@ module Inkoc
         process_nodes(node.body.expressions, node.body)
       end
 
+      def on_match(node, outer)
+        process_node(node.expression, outer) if node.expression
+        process_nodes(node.arms, outer)
+        process_node(node.match_else, outer) if node.match_else
+      end
+
+      def on_match_else(node, outer)
+        process_node(node.body, outer)
+      end
+
+      def on_match_type(node, outer)
+        process_nodes(node.body.expressions, outer)
+        process_node(node.guard, outer) if node.guard
+      end
+
+      def on_match_expression(node, outer)
+        process_nodes(node.body.expressions, outer)
+        process_nodes(node.patterns, outer)
+        process_node(node.guard, outer) if node.guard
+      end
+
       def on_method(node, _)
         node.body.locals = SymbolTable.new
 

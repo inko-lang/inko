@@ -1,6 +1,6 @@
 # Range data types and methods.
 import std::conversion::ToArray
-import std::operators::(Equal, SmallerOrEqual)
+import std::operators::(Equal, Match, SmallerOrEqual)
 import std::successor::Successor
 
 # An inclusive range of values of a fixed type.
@@ -86,6 +86,13 @@ impl ToArray!(T) for Range {
     }
 
     values
+  }
+}
+
+impl Match!(T) for Range {
+  # Returns `True` if the given value falls in the range of `self`.
+  def =~(other: T) -> Boolean {
+    cover?(other)
   }
 }
 

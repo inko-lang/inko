@@ -1,6 +1,7 @@
 # AST types for import statements.
-import std::compiler::ast::node::Node
+import std::compiler::ast::node::*
 import std::compiler::ast::variables::Identifier
+import std::compiler::module_name::ModuleName
 import std::compiler::source_location::SourceLocation
 
 # The alias to import a symbol under.
@@ -41,11 +42,7 @@ object ImportSymbol {
     location: SourceLocation,
     alias: ?ImportAlias = Nil
   ) -> Self {
-    Self {
-      @name = name,
-      @location = location,
-      @alias = alias
-    }
+    Self { @name = name, @location = location, @alias = alias }
   }
 
   # Returns the alias of the imported symbol.
@@ -63,6 +60,12 @@ object ImportSymbol {
     @name == 'self'
   }
 
+  # Returns `True` if the name of this symbol should be exposed in the module
+  # that imports it.
+  def expose? -> Boolean {
+    @alias.name != '_'
+  }
+
   def location -> SourceLocation {
     @location
   }
@@ -70,7 +73,7 @@ object ImportSymbol {
 
 # A single import statement, containing a list of symbols to import.
 object Import {
-  # The path to the module to import.
+  # The nodes that make up the name of the module to import.
   @path: Array!(Identifier)
 
   # The symbols to import.
@@ -83,6 +86,9 @@ object Import {
   # specific list.
   @import_all: Boolean
 
+  # The name of the module to import.
+  @module_name: ModuleName
+
   static def new(
     path: Array!(Identifier),
     symbols: Array!(ImportSymbol),
@@ -93,7 +99,11 @@ object Import {
       @path = path,
       @symbols = symbols,
       @import_all = import_all,
-      @location = location
+      @location = location,
+      # During compilation this may be accessed frequently, so instead of
+      # generating it on the fly we do so once.
+      @module_name =
+        ModuleName.new(path.iter.map do (ident) { ident.name }.to_array)
     }
   }
 
@@ -107,9 +117,14 @@ object Import {
     @symbols
   }
 
-  ## Returns `True` if all symbols should be imported from the module.
+  # Returns `True` if all symbols should be imported from the module.
   def import_all? -> Boolean {
     @import_all
+  }
+
+  # Returns a `ModuleName` for the module that is imported.
+  def module_name -> ModuleName {
+    @module_name
   }
 }
 

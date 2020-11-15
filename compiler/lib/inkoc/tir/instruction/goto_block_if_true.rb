@@ -7,14 +7,11 @@ module Inkoc
         include Predicates
         include Inspect
 
-        attr_reader :register, :block, :location
+        attr_reader :block_name, :register, :location
 
-        # register - The virtual register containing the condition to evaluate.
-        # block - The block to jump to.
-        # location - The SourceLocation of this instruction.
-        def initialize(register, block, location)
+        def initialize(block_name, register, location)
+          @block_name = block_name
           @register = register
-          @block = block
           @location = location
         end
 

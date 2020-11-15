@@ -9,11 +9,11 @@
 # `Nil` will return another `Nil`. This makes it easy to work with methods that
 # may return `Nil` without having to include checks for `Nil` values all over
 # the place.
-
 import std::conditional::Conditional
 import std::conversion::(ToString, ToFloat, ToInteger)
 import std::hash::(Hasher, Hash)
 import std::marker::Optional
+import std::operators::Match
 import std::unknown_message::UnknownMessage
 
 impl NilType {
@@ -106,6 +106,13 @@ impl UnknownMessage for NilType {
   #
   #     Nil.hello # => Nil
   def unknown_message(name: String, *arguments: Any) {}
+}
+
+impl Match!(Object) for NilType {
+  # Returns `True` if the given argument is `Nil`.
+  def =~(other: Object) -> Boolean {
+    _INKOC.object_equals(Nil, other)
+  }
 }
 
 impl Optional for NilType {}

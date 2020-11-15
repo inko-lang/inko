@@ -47,8 +47,8 @@ test.group('std::compiler::keywords.keyword?') do (g) {
     assert.true(keywords.keyword?('throw'.to_byte_array))
   }
 
-  g.test('Checking if "where" is a keyword') {
-    assert.true(keywords.keyword?('where'.to_byte_array))
+  g.test('Checking if "when" is a keyword') {
+    assert.true(keywords.keyword?('when'.to_byte_array))
   }
 
   g.test('Checking if "mut" is a keyword') {
@@ -73,6 +73,14 @@ test.group('std::compiler::keywords.keyword?') do (g) {
 
   g.test('Checking if "static" is a keyword') {
     assert.true(keywords.keyword?('static'.to_byte_array))
+  }
+
+  g.test('Checking if "match" is a keyword') {
+    assert.true(keywords.keyword?('match'.to_byte_array))
+  }
+
+  g.test('Checking if "local" is a keyword') {
+    assert.true(keywords.keyword?('local'.to_byte_array))
   }
 
   g.test('Checking if an invalid identifier is a keyword') {

@@ -149,7 +149,9 @@
 # returns the characters in a `String`.
 
 # A generic iterator over a sequence of values of type `T`.
+import std::conversion::ToString
 import std::pair::Pair
+import std::string_buffer::StringBuffer
 
 trait Iterator!(T) {
   # Advances the iterator and returns the next value.
@@ -222,6 +224,29 @@ trait Iterator!(T) {
   def each(block: do (T)) {
     { next? }.while_true {
       block.call(next!)
+    }
+  }
+
+  # Yields all the values and their indexes in this `Iterator` to the supplied
+  # `Block`.
+  #
+  # # Examples
+  #
+  # Iterating over the values of an `Iterator` and their indexes:
+  #
+  #     import std::stdio::stdout
+  #
+  #     let iter = Array.new(10, 20, 30).iter
+  #
+  #     iter.each_with_index do (number, index) {
+  #       stdout.print(index) # => 0, 1, 2
+  #     }
+  def each_with_index(block: do (T, Integer)) {
+    let mut index = 0
+
+    each do (value: T) {
+      block.call(value, index)
+      index += 1
     }
   }
 
@@ -325,6 +350,131 @@ trait Iterator!(T) {
     }
 
     Pair.new(first: true, second: false)
+  }
+
+  # Returns `True` if the supplied block returns `True` for _all_ values in
+  # `self`.
+  #
+  # This method stops iterating over the values after the first value for which
+  # the block returns `False`.
+  #
+  # # Examples
+  #
+  # Checking if all values in an `Iterator` match a condition:
+  #
+  #     Array.new(10, 20).iter.all? do (value) { value.positive? } # => True
+  #     Array.new(-1, 20).iter.all? do (value) { value.positive? } # => False
+  def all?(block: do (T) -> Boolean) -> Boolean {
+    each do (value) {
+      block.call(value).if_false {
+        return False
+      }
+    }
+
+    True
+  }
+
+  # Zips two `Iterator` objects together, producing a new `Iterator` that
+  # produces a `Pair` containing the values of both `Iterator` objects.
+  #
+  # The returned `Iterator` stops iterating when one of the two zipped
+  # `Iterator` objects runs out of values.
+  #
+  # # Examples
+  #
+  # Zipping two `Iterator` objects together:
+  #
+  #     let a = Array.new(10, 20, 30)
+  #     let b = Array.new(40, 50, 60)
+  #     let zip = a.iter.zip(b.iter)
+  #
+  #     zip.next # => Pair.new(10, 40)
+  #     zip.next # => Pair.new(20, 50)
+  #     zip.next # => Pair.new(30, 60)
+  #
+  # Zipping two `Iterator` objects with a different number of values:
+  #
+  #     let a = Array.new(10, 20, 30)
+  #     let b = Array.new(40, 50)
+  #     let zip = a.iter.zip(b.iter)
+  #
+  #     zip.next # => Pair.new(10, 40)
+  #     zip.next # => Pair.new(20, 50)
+  #     zip.next # => Nil
+  def zip!(U)(other: Iterator!(U)) -> Iterator!(Pair!(T, U)) {
+    Enumerator.new(
+      while: { next?.and { other.next? } },
+      yield: { Pair.new(first: next!, second: other.next!) }
+    )
+  }
+
+  # Joins the values produced by this `Iterator` together using the separator.
+  #
+  # # Examples
+  #
+  # Joining an empty `Iterator`:
+  #
+  #     Array.new.iter.join(',') # => ''
+  #
+  # Joining an `Iterator` with multiple values:
+  #
+  #     Array.new(10, 20, 30).iter.join(',') # => '10,20,30'
+  def join(separator: String) -> String when T: ToString {
+    let buffer = StringBuffer.new
+
+    each_with_index do (value, index) {
+      index.positive?.if_true {
+        buffer.push(separator)
+      }
+
+      buffer.push(value.to_string)
+    }
+
+    buffer.to_string
+  }
+
+  # Combines all values in the iterator into the specified accumulator.
+  #
+  # This method takes two arguments:
+  #
+  # 1. An accumulator to combine all values into.
+  # 2. A closure that accepts two arguments: the accumulator and the current
+  #    value.
+  #
+  # The closure returns the accumulator to return for the next value. The return
+  # value of this method is the final accumulator.
+  #
+  # This method is called `inject` or `fold` in other languages.
+  #
+  # # Examples
+  #
+  # Summing all integers in an iterator:
+  #
+  #     let total = Array.new(1, 2, 3).iter.reduce(0) do (total, current) {
+  #       total + current
+  #     }
+  #
+  #     total # => 6
+  #
+  # At each step of the iteration, the `total` and `current` closure arguments
+  # are set to the following values:
+  #
+  # | Element | total | current | return value
+  # |:--------|:------|:--------|:-----------
+  # | 0       | 0     | 1       | 1
+  # | 1       | 1     | 2       | 3
+  # | 2       | 3     | 3       | 6
+  #
+  # For the last element the return value is `6`, so the return value of the
+  # reduce method is also `6`.
+  def reduce!(A)(accumulator: A, block: do (A, T) -> A) -> A {
+    let mut result = accumulator
+
+    each do (value) {
+      result = block.call(result, value)
+    }
+
+    result
   }
 
   # Transforms the `Iterator` into an `Array`.

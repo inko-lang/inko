@@ -124,3 +124,14 @@ trait ShiftRight {
   # given object.
   def >>(other: Self) -> Self
 }
+
+# The binary `=~` operator.
+#
+# This operator is used for pattern matching.
+trait Match!(T) {
+  # Pattern matches `self` with the given type.
+  #
+  # If matched successfully, `True` must be returned; otherwise `False` is to be
+  # returned.
+  def =~(other: T) -> Boolean
+}

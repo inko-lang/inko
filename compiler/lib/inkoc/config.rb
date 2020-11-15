@@ -16,9 +16,6 @@ module Inkoc
     # The name of the root module for the standard library.
     STD_MODULE = 'std'
 
-    # The name of the root module for the core library.
-    CORE_MODULE = 'core'
-
     # The path to the bootstrap module.
     BOOTSTRAP_MODULE = 'bootstrap'
 
@@ -26,6 +23,7 @@ module Inkoc
     PRELUDE_MODULE = 'prelude'
 
     MARKER_MODULE = 'std::marker'
+    OPERATORS_MODULE = 'std::operators'
 
     OBJECT_CONST = 'Object'
     TRAIT_CONST = 'Trait'
@@ -43,6 +41,7 @@ module Inkoc
     ARRAY_TYPE_PARAMETER = 'T'
     OPTIONAL_CONST = 'Optional'
     ANY_TRAIT_CONST = 'Any'
+    MATCH_CONST = 'Match'
 
     MODULE_TYPE = 'Module'
     FFI_LIBRARY_TYPE = 'Library'
@@ -81,6 +80,7 @@ module Inkoc
     OBJECT_NAME_INSTANCE_ATTRIBUTE = '@_object_name'
     IMPLEMENTED_TRAITS_INSTANCE_ATTRIBUTE = '@_implemented_traits'
     INIT_MESSAGE = 'init'
+    MATCH_MESSAGE = '=~'
 
     RESERVED_CONSTANTS = Set.new(
       [
@@ -97,8 +97,8 @@ module Inkoc
 
     attr_reader :source_directories
 
-    def self.core_module_name(name)
-      "#{CORE_MODULE}#{MODULE_SEPARATOR}#{name}"
+    def self.std_module_name(name)
+      "#{STD_MODULE}#{MODULE_SEPARATOR}#{name}"
     end
 
     def initialize(compile: true)

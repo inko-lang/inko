@@ -267,7 +267,7 @@ describe Inkoc::Pass::DefineType do
       end
 
       it 'infers the throw type according to the try statement' do
-        type = expression_type("#{header} { try foo }")
+        type = expression_type("#{header} { local try foo }")
 
         expect(type.throw_type).to be_type_instance_of(throw_type)
       end
@@ -304,13 +304,13 @@ describe Inkoc::Pass::DefineType do
       end
 
       it 'infers the throw type according to the throw statement' do
-        type = expression_type("#{header} { throw Error }")
+        type = expression_type("#{header} { local throw Error }")
 
         expect(type.throw_type).to be_type_instance_of(throw_type)
       end
 
       it 'does not overwrite an explicitly defined throw type' do
-        type = expression_type("#{header} !! Any { throw Error }")
+        type = expression_type("#{header} !! Any { local throw Error }")
 
         expect(type.throw_type)
           .to be_type_instance_of(tir_module.lookup_any_type)
@@ -993,8 +993,10 @@ describe Inkoc::Pass::DefineType do
 
       let(:integer_type) { state.typedb.integer_type }
       let(:expected_block) do
-        Inkoc::TypeSystem::Block
-          .new(return_type: tir_module.lookup_any_type.new_instance)
+        Inkoc::TypeSystem::Block.new(
+          return_type: tir_module.lookup_any_type.new_instance,
+          throw_type: tir_module.lookup_any_type.new_instance
+        )
       end
 
       let(:method) do
@@ -1071,7 +1073,8 @@ describe Inkoc::Pass::DefineType do
       it 'infers the throw type' do
         expected_block.define_required_argument('foo', integer_type)
 
-        type, closure = parse_closure_argument('foo do (thing) { throw thing }')
+        type, closure =
+          parse_closure_argument('foo do (thing) { local throw thing }')
 
         expect(type).to be_type_instance_of(tir_module.lookup_any_type)
 
@@ -1583,14 +1586,14 @@ describe Inkoc::Pass::DefineType do
 
     context 'without an else statement' do
       it 'produces a warning if the expression never throws' do
-        type = expression_type('try 10')
+        type = expression_type('local try 10')
 
         expect(type).to be_type_instance_of(state.typedb.integer_type)
         expect(state.diagnostics.warnings?).to eq(true)
       end
 
       it 'infers the throw type of a surrounding closure' do
-        type = expression_type('do { try throws }')
+        type = expression_type('do { local try throws }')
 
         expect(type.throw_type)
           .to be_type_instance_of(state.typedb.integer_type)
@@ -1615,7 +1618,7 @@ describe Inkoc::Pass::DefineType do
     end
 
     it 'infers the throw type of the surrounding closure' do
-      type = expression_type('do { throw 10 }')
+      type = expression_type('do { local throw 10 }')
 
       expect(type.throw_type).to be_type_instance_of(state.typedb.integer_type)
     end
@@ -1894,7 +1897,7 @@ describe Inkoc::Pass::DefineType do
         .self_type
         .define_type_parameter('T', [to_string])
 
-      type = expression_type('def foo(value: T) where T: Inspect {}')
+      type = expression_type('def foo(value: T) when T: Inspect {}')
 
       bound = type.method_bounds['T']
 
@@ -1909,7 +1912,7 @@ describe Inkoc::Pass::DefineType do
         .self_type
         .define_attribute(inspect.name, inspect)
 
-      expression_type('def foo!(T)(value: T) where T: Inspect {}')
+      expression_type('def foo!(T)(value: T) when T: Inspect {}')
 
       expect(state.diagnostics.errors?).to eq(true)
     end
@@ -1925,7 +1928,7 @@ describe Inkoc::Pass::DefineType do
         .self_type
         .define_type_parameter('T')
 
-      type = expression_type('def foo(value: T) where T: Inspect { value }')
+      type = expression_type('def foo(value: T) when T: Inspect { value }')
       arg = type.arguments['value'].type
 
       expect(arg).to be_type_parameter
@@ -1964,7 +1967,7 @@ describe Inkoc::Pass::DefineType do
         .self_type
         .define_attribute(foo.name, foo)
 
-      node = parse_source('def bar where T: Inspect { foo.inspect }')
+      node = parse_source('def bar when T: Inspect { foo.inspect }')
 
       Inkoc::Pass::SetupSymbolTables
         .new(compiler, tir_module)
@@ -2256,7 +2259,7 @@ describe Inkoc::Pass::DefineType do
 
         type = expression_type('@number = 10')
 
-        expect(type).to be_type_instance_of(state.typedb.float_type)
+        expect(type).to be_type_instance_of(state.typedb.integer_type)
 
         expect(type_scope.self_type.attributes['@number'].type)
           .to be_type_instance_of(state.typedb.float_type)

@@ -1079,7 +1079,12 @@ impl Machine {
                     context.set_register(reg, res);
                 }
                 Opcode::Throw => {
-                    let value = context.get_register(instruction.arg(0));
+                    let method_throw = instruction.arg(0) == 1;
+                    let value = context.get_register(instruction.arg(1));
+
+                    if method_throw {
+                        process::process_unwind_until_defining_scope(process);
+                    }
 
                     throw_value!(self, process, value, context, index);
                 }

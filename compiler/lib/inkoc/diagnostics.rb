@@ -255,6 +255,10 @@ module Inkoc
       error("cannot throw a value of type #{tname} at the top-level", location)
     end
 
+    def invalid_method_throw_error(location)
+      error('The "throw" keyword can only be used in a method', location)
+    end
+
     def missing_throw_error(throw_type, location)
       tname = throw_type.type_name.inspect
 
@@ -361,6 +365,13 @@ module Inkoc
       error('The "return" keyword can only be used inside a method', location)
     end
 
+    def invalid_local_return_error(location)
+      error(
+        'The "local return" keyword can only be used inside a method, closure, or lambda',
+        location
+      )
+    end
+
     def invalid_cast_error(from, to, location)
       fname = from.type_name.inspect
       tname = to.type_name.inspect
@@ -433,6 +444,55 @@ module Inkoc
           'by sending the `new` message to this type',
         location
       )
+
+      TypeSystem::Error.new
+    end
+
+    def pattern_match_dynamic(location)
+      error(
+        "The type #{name.inspect} isn't an object, but a #{type.type_name.inspect}",
+        location
+      )
+    end
+
+    def pattern_matching_unavailable(location)
+      error(
+        'Pattern matching requires that std::operators is compiled first',
+        location
+      )
+
+      TypeSystem::Error.new
+    end
+
+    def invalid_match_pattern(type, location)
+      error(
+        "The type #{type.type_name.inspect} can't be used for pattern matching," \
+          " as it does not implement std::operators::Match",
+        location
+      )
+
+      TypeSystem::Error.new
+    end
+
+    def invalid_boolean_match_pattern(location)
+      error('This expression must produce a Boolean', location)
+
+      TypeSystem::Error.new
+    end
+
+    def match_type_test_unavailable(location)
+      error(
+        'Type tests are only available when match() is given an argument',
+        location
+      )
+
+      TypeSystem::Error.new
+    end
+
+    def generic_match_type(location)
+      error("Generic types can't be used when pattern matching", location)
+
+      TypeSystem::Error.new
     end
   end
 end

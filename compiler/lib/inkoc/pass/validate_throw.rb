@@ -98,41 +98,80 @@ module Inkoc
         error_for_missing_try(node)
       end
 
+      def on_match(node, block_type)
+        process_nodes(node.arms, block_type)
+        process_node(node.match_else, block_type) if node.match_else
+      end
+
+      def on_match_else(node, block_type)
+        inside_block(block_type) do
+          process_node(node.body, block_type)
+        end
+      end
+
+      def on_match_type(node, block_type)
+        inside_block(block_type) do
+          process_nodes(node.body.expressions, block_type)
+        end
+
+        process_node(node.guard, block_type) if node.guard
+      end
+
+      def on_match_expression(node, block_type)
+        inside_block(block_type) do
+          process_nodes(node.body.expressions, block_type)
+        end
+
+        process_node(node.guard, block_type) if node.guard
+      end
+
       def on_throw(node, block_type)
         process_node(node.value, block_type)
 
         thrown = node.value.type
-
-        every_nested_block do |block|
-          break unless track_throw_type(thrown, block, node.location)
-        end
+        block = node.local ? @block_nesting.last : @block_nesting.first
 
         return if in_try?
 
-        error_for_undefined_throw(thrown, block_type, node.location)
+        if !node.local && !block.method?
+          diagnostics.invalid_method_throw_error(node.location)
+          return
+        end
+
+        unless block
+          diagnostics.throw_at_top_level_error(thrown, node.location)
+          return
+        end
+
+        unless block.throw_type
+          diagnostics.throw_without_throw_defined_error(thrown, node.location)
+          return
+        end
+
+        track_throw_type(thrown, block, node.location)
       end
 
       def on_try(node, block_type)
         @try_nesting += 1
-
         loc = node.location
 
         process_node(node.expression, block_type)
-        process_node(node.else_body, block_type)
-
-        unless node.explicit_block_for_else_body?
-          if block_type == @module.body.type
-            diagnostics.throw_at_top_level_error(node.throw_type, loc)
-          else
-            error_for_undefined_throw(node.throw_type, block_type, loc)
-          end
-
-          every_nested_block do |block|
-            track_throw_type(node.throw_type, block, node.location)
-          end
-        end
 
         @try_nesting -= 1
+
+        process_node(node.else_body, block_type)
+
+        return if node.explicit_block_for_else_body?
+
+        track_in = node.local ? @block_nesting.last : @block_nesting.first
+
+        if track_in == @module.body.type
+          diagnostics.throw_at_top_level_error(node.throw_type, loc)
+        else
+          error_for_undefined_throw(node.throw_type, track_in, loc)
+        end
+
+        track_throw_type(node.throw_type, track_in, node.location)
       end
 
       def track_throw_type(thrown, block_type, location)

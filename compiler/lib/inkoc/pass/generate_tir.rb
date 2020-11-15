@@ -609,20 +609,11 @@ module Inkoc
       alias on_define_variable_with_explicit_type on_define_variable
 
       def on_define_local(variable, value, body)
-        name = variable.name
-        symbol = body.locals[name]
-
-        set_local(symbol, value, body, variable.location)
+        set_local(variable.symbol, value, body, variable.location)
       end
 
       def set_local(symbol, value, body, location)
         body.instruct(:SetLocal, symbol, value, location)
-      end
-
-      def get_local(name, body, location)
-        depth, symbol = body.locals.lookup_with_parent(name)
-
-        get_local_symbol(depth, symbol, body, location)
       end
 
       def get_local_symbol(depth, symbol, body, location)
@@ -711,9 +702,9 @@ module Inkoc
       end
 
       def on_reassign_local(variable, value, body)
-        name = variable.name
         loc = variable.location
-        depth, symbol = body.locals.lookup_with_parent(name)
+        depth = variable.depth
+        symbol = variable.symbol
 
         if depth >= 0
           body.instruct(:SetParentLocal, symbol, depth, value, loc)
@@ -1745,15 +1736,13 @@ module Inkoc
             get_nil(body, location)
           end
 
-        method_return = body.type.closure?
-
-        body.instruct(:Return, method_return, register, location)
+        body.instruct(:Return, !node.local, register, location)
       end
 
       def on_throw(node, body)
         register = process_node(node.value, body)
 
-        body.instruct(:Nullary, :Throw, register, node.location)
+        body.instruct(:Throw, !node.local, register, node.location)
         body.registers.release(register)
 
         get_nil(body, node.location)
@@ -1840,20 +1829,276 @@ module Inkoc
         body.instruct(:Unary, :CopyRegister, instance, instance, node.location)
       end
 
+      def on_match(node, body)
+        location = node.location
+        match_expr = process_node(node.expression, body) if node.expression
+        output_reg = body.register(node.type)
+
+        body.instruct(:Nullary, :GetNil, output_reg, location)
+
+        if node.bind_to_symbol && match_expr
+          set_local(node.bind_to_symbol, match_expr, body, location)
+        end
+
+        else_block = body.new_basic_block_name
+        finished_block = body.new_basic_block_name
+        arm_names = node.arms.map { body.new_basic_block_name }
+        last_arm_block = node.match_else ? else_block : finished_block
+
+        node.arms.each_with_index do |arm, index|
+          block_name = arm_names[index]
+          next_block_name = arm_names[index + 1] || last_arm_block
+
+          body.add_connected_basic_block(block_name)
+
+          arm_reg = process_node(arm, body, match_expr, next_block_name)
+
+          body.instruct(:Unary, :CopyRegister, output_reg, arm_reg, arm.location)
+          body.instruct(:GotoBlock, finished_block, arm.location)
+
+          body.registers.release(arm_reg)
+        end
+
+        if node.match_else
+          body.add_connected_basic_block(else_block)
+
+          else_reg = process_node(node.match_else, body)
+
+          body.instruct(
+            :Unary,
+            :CopyRegister,
+            output_reg,
+            else_reg,
+            node.match_else.location
+          )
+
+          body.registers.release(else_reg)
+        end
+
+        body.add_connected_basic_block(finished_block)
+
+        output_reg
+      end
+
+      def on_match_type(node, body, match_reg, next_block_name)
+        location = node.location
+        body_block_name = body.new_basic_block_name
+        guard_block_name = body.new_basic_block_name
+        pattern_reg = process_node(node.pattern.name, body)
+        proto_reg = body.register(new_any_type)
+
+        if node.pattern.type.trait?
+          generate_implements_trait_loop(match_reg, pattern_reg, body, location)
+        else
+          type_test_reg = body.register(new_any_type)
+
+          body.instruct(:Unary, :GetPrototype, proto_reg, match_reg, location)
+
+          body.instruct(
+            :Binary,
+            :ObjectEquals,
+            type_test_reg,
+            proto_reg,
+            pattern_reg,
+            location
+          )
+
+          body.instruct(:GotoNextBlockIfTrue, type_test_reg, location)
+          body.registers.release(type_test_reg)
+          body.registers.release(proto_reg)
+        end
+
+        if (guard = node.guard)
+          match_guard(
+            guard,
+            body,
+            body_block_name,
+            guard_block_name,
+            next_block_name
+          )
+        end
+
+        match_case_body(node, body, body_block_name, next_block_name)
+      end
+
+      def match_guard(
+        node,
+        body,
+        body_block_name,
+        guard_block_name,
+        next_block_name
+      )
+        location = node.location
+
+        body.instruct(:GotoBlock, next_block_name, location)
+        body.add_connected_basic_block(guard_block_name)
+
+        guard_reg = process_node(node, body)
+
+        body.instruct(:GotoBlockIfTrue, body_block_name, guard_reg, location)
+      end
+
+      def on_match_expression(node, body, match_reg, next_block_name)
+        unless match_reg
+          return on_match_expression_without_input(
+            node,
+            body,
+            next_block_name
+          )
+        end
+
+        body_block_name = body.new_basic_block_name
+        guard_block_name = body.new_basic_block_name
+        after_pattern_block = node.guard ? guard_block_name : body_block_name
+
+        node.patterns.each do |pattern|
+          pattern_reg = process_node(pattern, body)
+          rec_type = pattern_reg.type
+          method = rec_type.lookup_method(Config::MATCH_MESSAGE).type
+          test_reg = lookup_and_run_block(
+            pattern_reg,
+            rec_type,
+            method.name,
+            [match_reg],
+            method,
+            method.resolved_return_type(rec_type),
+            body,
+            pattern.location
+          )
+
+          body.instruct(
+            :GotoBlockIfTrue,
+            after_pattern_block,
+            test_reg,
+            pattern.location
+          )
+
+          body.registers.release(pattern_reg)
+          body.registers.release(test_reg)
+        end
+
+        if (guard = node.guard)
+          match_guard(
+            guard,
+            body,
+            body_block_name,
+            guard_block_name,
+            next_block_name
+          )
+        end
+
+        match_case_body(node, body, body_block_name, next_block_name)
+      end
+
+      def on_match_expression_without_input(node, body, next_block_name)
+        body_block_name = body.new_basic_block_name
+        guard_block_name = body.new_basic_block_name
+        after_pattern_block = node.guard ? guard_block_name : body_block_name
+
+        node.patterns.each do |pattern|
+          pattern_reg = process_node(pattern, body)
+
+          body.instruct(
+            :GotoBlockIfTrue,
+            after_pattern_block,
+            pattern_reg,
+            pattern.location
+          )
+
+          body.registers.release(pattern_reg)
+        end
+
+        if (guard = node.guard)
+          match_guard(
+            guard,
+            body,
+            body_block_name,
+            guard_block_name,
+            next_block_name
+          )
+        end
+
+        match_case_body(node, body, body_block_name, next_block_name)
+      end
+
+      def on_match_else(node, body)
+        process_nodes(node.body.expressions, body).last ||
+          get_nil(body, node.location)
+      end
+
+      def match_case_body(node, body, body_block_name, next_block_name)
+        body.instruct(:GotoBlock, next_block_name, node.location)
+        body.add_connected_basic_block(body_block_name)
+
+        process_nodes(node.body.expressions, body).last ||
+          get_nil(body, node.location)
+      end
+
+      def generate_implements_trait_loop(object_reg, trait_reg, body, location)
+        source_reg = body.register(new_any_type)
+        traits_reg = body.register(new_any_type)
+        exists_reg = body.register(new_any_type)
+        name_reg = set_string(
+          Config::IMPLEMENTED_TRAITS_INSTANCE_ATTRIBUTE,
+          body,
+          location
+        )
+
+        body.instruct(:Unary, :CopyRegister, source_reg, object_reg, location)
+
+        loop_block = body.add_connected_basic_block
+
+        body.instruct(
+          :Binary,
+          :GetAttribute,
+          traits_reg,
+          source_reg,
+          name_reg,
+          location
+        )
+
+        body.instruct(
+          :Binary,
+          :GetAttribute,
+          exists_reg,
+          traits_reg,
+          trait_reg,
+          location
+        )
+
+        body.instruct(:GotoNextBlockIfTrue, exists_reg, location)
+        body.instruct(:Unary, :GetPrototype, source_reg, source_reg, location)
+
+        # The prototype is something other than Nil, jump back to the start of
+        # the loop and try again.
+        res =
+          body.instruct(:GotoBlockIfTrue, loop_block.name, source_reg, location)
+
+        body.registers.release(source_reg)
+        body.registers.release(traits_reg)
+        body.registers.release(exists_reg)
+        body.registers.release(name_reg)
+
+        res
+      end
+
       def register_for_else_block(node, body, catch_reg)
         self_reg = get_self(body, node.else_body.location)
         block_reg = define_block_for_else(node, self_reg, body)
         else_loc = node.else_body.location
         arguments = node.else_argument ? [catch_reg] : []
         return_type = block_reg.type.return_type
+        result = run_block(block_reg, arguments, return_type, body, else_loc)
 
-        run_block(block_reg, arguments, return_type, body, else_loc)
+        body.registers.release(self_reg)
+        body.registers.release(block_reg)
+
+        result
       end
 
       def define_block_for_else(node, receiver, body)
         loc = node.else_body.location
         block_type = node.else_block_type
-
         else_code = body.add_code_object(
           block_type.name,
           block_type,
@@ -1957,8 +2202,8 @@ module Inkoc
 
         # Look up the "unknown_message" block if the initial block was not
         # found.
-        goto_block = body.new_basic_block
-        body.instruct(:GotoBlockIfTrue, block_reg, goto_block, loc)
+        goto_block_name = body.new_basic_block_name
+        body.instruct(:GotoBlockIfTrue, goto_block_name, block_reg, loc)
 
         body.instruct(:Binary, :GetAttribute, block_reg, rec, alt_name_reg, loc)
 
@@ -1980,7 +2225,7 @@ module Inkoc
         body.instruct(:SkipNextBlock, loc)
 
         # The code we'd run if the method _is_ defined.
-        body.push_connected_basic_block(goto_block)
+        body.add_connected_basic_block(goto_block_name)
 
         body.instruct(
           :RunBlockWithReceiver,
@@ -2209,6 +2454,10 @@ module Inkoc
         # The default inspect is very slow, slowing down the rendering of any
         # runtime errors.
         '#<Pass::GenerateTir>'
+      end
+
+      def new_any_type
+        @module.lookup_any_type.new_instance
       end
     end
     # rubocop: enable Metrics/ClassLength

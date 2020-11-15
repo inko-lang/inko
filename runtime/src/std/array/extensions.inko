@@ -47,27 +47,4 @@ impl Array {
       self[index]
     }
   }
-
-  # Joins the values of `self` together using the separator.
-  #
-  # # Examples
-  #
-  # Joining an empty `Array`:
-  #
-  #     Array.new.join(',') # => ''
-  #
-  # Joining an `Array` with multiple values:
-  #
-  #     Array.new(10, 20, 30).join(',') # => '10,20,30'
-  def join(separator: String) -> String where T: ToString {
-    let buffer = StringBuffer.new
-
-    each_with_index do (value, index) {
-      index.positive?.if_true { buffer.push(separator) }
-
-      buffer.push(value.to_string)
-    }
-
-    buffer.to_string
-  }
 }

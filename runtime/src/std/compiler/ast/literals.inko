@@ -1,6 +1,7 @@
 # AST types for literal values, such as integers and strings.
-import std::compiler::ast::node::Node
+import std::compiler::ast::node::*
 import std::compiler::source_location::SourceLocation
+import std::compiler::types::ObjectInstance
 
 # A simple literal value, such as an integer or a float.
 trait Literal: Node {
@@ -16,12 +17,23 @@ object IntegerLiteral {
   # The source location of the literal.
   @location: SourceLocation
 
+  # The type of this AST node.
+  @resolved_type: ?ObjectInstance
+
   static def new(value: String, location: SourceLocation) -> Self {
-    Self { @value = value, @location = location }
+    Self { @value = value, @location = location, @resolved_type = Nil }
+  }
+
+  def resolved_type=(value: ObjectInstance) -> ObjectInstance {
+    @resolved_type = value
   }
 }
 
 impl Node for IntegerLiteral {
+  def resolved_type -> ?ObjectInstance {
+    @resolved_type
+  }
+
   def location -> SourceLocation {
     @location
   }
@@ -41,12 +53,23 @@ object FloatLiteral {
   # The source location of the literal.
   @location: SourceLocation
 
+  # The type of this AST node.
+  @resolved_type: ?ObjectInstance
+
   static def new(value: String, location: SourceLocation) -> Self {
-    Self { @value = value, @location = location }
+    Self { @value = value, @location = location, @resolved_type = Nil }
+  }
+
+  def resolved_type=(value: ObjectInstance) -> ObjectInstance {
+    @resolved_type = value
   }
 }
 
 impl Node for FloatLiteral {
+  def resolved_type -> ?ObjectInstance {
+    @resolved_type
+  }
+
   def location -> SourceLocation {
     @location
   }
@@ -66,12 +89,23 @@ object StringLiteral {
   # The source location of the literal.
   @location: SourceLocation
 
+  # The type of this AST node.
+  @resolved_type: ?ObjectInstance
+
   static def new(value: String, location: SourceLocation) -> Self {
-    Self { @value = value, @location = location }
+    Self { @value = value, @location = location, @resolved_type = Nil }
+  }
+
+  def resolved_type=(value: ObjectInstance) -> ObjectInstance {
+    @resolved_type = value
   }
 }
 
 impl Node for StringLiteral {
+  def resolved_type -> ?ObjectInstance {
+    @resolved_type
+  }
+
   def location -> SourceLocation {
     @location
   }

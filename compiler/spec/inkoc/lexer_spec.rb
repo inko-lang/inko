@@ -210,15 +210,6 @@ describe Inkoc::Lexer do
     end
   end
 
-  describe '#comment' do
-    it 'skips over the comment' do
-      lexer = described_class.new('# hello')
-
-      expect(lexer.comment).to be_nil
-      expect(lexer.column).to eq(8)
-    end
-  end
-
   describe '#number' do
     it 'tokenizes an integer' do
       lexer = described_class.new('10')
@@ -845,26 +836,11 @@ describe Inkoc::Lexer do
   end
 
   describe '#comment' do
-    it 'ignores regular comments' do
+    it 'tokenizes comments' do
       lexer = described_class.new('# foo')
       token = lexer.comment
 
-      expect(token).to be_nil
-    end
-
-    it 'tokenizes documentation comments' do
-      lexer = described_class.new('## foo')
-      token = lexer.comment
-
-      expect(token.type).to eq(:documentation)
-      expect(token.value).to eq('foo')
-    end
-
-    it 'tokenizes module documentation comments' do
-      lexer = described_class.new('#! foo')
-      token = lexer.comment
-
-      expect(token.type).to eq(:module_documentation)
+      expect(token.type).to eq(:comment)
       expect(token.value).to eq('foo')
     end
   end

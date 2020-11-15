@@ -1,7 +1,8 @@
 # AST types for operators.
-import std::compiler::ast::node::Node
+import std::compiler::ast::node::*
 import std::compiler::ast::variables::Constant
 import std::compiler::source_location::SourceLocation
+import std::compiler::types::Type
 
 # An expression to cast from `?T` to `T`.
 object NotNil {
@@ -11,19 +12,33 @@ object NotNil {
   # The source location of the cast.
   @location: SourceLocation
 
+  # The type of the expression.
+  @resolved_type: ?Type
+
   static def new(expression: Node, location: SourceLocation) -> Self {
-    Self { @expression = expression, @location = location }
+    Self {
+      @expression = expression,
+      @location = location,
+      @resolved_type = Nil
+    }
   }
 
-  # Returns the expression to convert.
   def expression -> Node {
     @expression
+  }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
   }
 }
 
 impl Node for NotNil {
   def location -> SourceLocation {
     @location
+  }
+
+  def resolved_type -> ?Type {
+    @resolved_type
   }
 }
 
@@ -33,36 +48,96 @@ object TypeCast {
   @expression: Node
 
   # The type to cast the expression to.
-  @cast_to: Node
+  @cast_to: TypeNode
 
   # The source location of the type cast.
   @location: SourceLocation
 
+  # The type of the expression.
+  @resolved_type: ?Type
+
   static def new(
     expression: Node,
-    cast_to: Node,
+    cast_to: TypeNode,
     location: SourceLocation
   ) -> Self {
     Self {
       @expression = expression,
       @cast_to = cast_to,
-      @location = location
+      @location = location,
+      @resolved_type = Nil
     }
   }
 
-  # Returns the expression to type cast.
   def expression -> Node {
     @expression
   }
 
-  # Returns the type to cast to.
-  def cast_to -> Node {
+  def cast_to -> TypeNode {
     @cast_to
+  }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
   }
 }
 
 impl Node for TypeCast {
   def location -> SourceLocation {
     @location
+  }
+
+  def resolved_type -> ?Type {
+    @resolved_type
+  }
+}
+
+# The Nil coalescing operator.
+object CoalesceNil {
+  # The expression producing an optional value.
+  @expression: Node
+
+  # The default expression to evaluate.
+  @default: Node
+
+  # The source location of this operator.
+  @location: SourceLocation
+
+  # The return type of the operation.
+  @resolved_type: ?Type
+
+  static def new(
+    expression: Node,
+    default: Node,
+    location: SourceLocation
+  ) -> Self {
+    Self {
+      @expression = expression,
+      @default = default,
+      @location = location,
+      @resolved_type = Nil
+    }
+  }
+
+  def expression -> Node {
+    @expression
+  }
+
+  def default -> Node {
+    @default
+  }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
+  }
+}
+
+impl Node for CoalesceNil {
+  def location -> SourceLocation {
+    @location
+  }
+
+  def resolved_type -> ?Type {
+    @resolved_type
   }
 }

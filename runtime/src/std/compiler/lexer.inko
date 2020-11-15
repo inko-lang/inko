@@ -59,6 +59,7 @@ let LOWER_X = 120
 let CURLY_OPEN = 123
 let PIPE = 124
 let CURLY_CLOSE = 125
+let TILDE = 126
 
 # The escape sequence literals supported by a single quoted string, and their
 # replacement bytes.
@@ -127,140 +128,74 @@ object Lexer {
     }
   }
 
-  def next_non_whitespace_token -> ?Token {
-    let current = current_byte
+  # Returns `True` if there is input left to process.
+  def next? -> Boolean {
+    @position < @max_position
+  }
 
-    INTEGER_DIGIT_RANGE.cover?(current).if_true {
-      return number
+  # Returns the next `Token` available, if any.
+  def next -> Token {
+    consume_whitespace
+
+    let token = next_non_whitespace_token
+
+    # We have to consume trailing whitespace. Not doing so may result in a
+    # consumer of the iterator thinking there are tokens left to produce, when
+    # this might not be the case.
+    consume_whitespace
+
+    token
+  }
+
+  def next_non_whitespace_token -> Token {
+    match(current_byte) {
+      INTEGER_DIGIT_RANGE -> { number }
+      AT_SIGN -> { attribute }
+      HASH -> { comment }
+      CURLY_OPEN -> { single_character_token('curly_open') }
+      CURLY_CLOSE -> { single_character_token('curly_close') }
+      PAREN_OPEN -> { single_character_token('paren_open') }
+      PAREN_CLOSE -> { single_character_token('paren_close') }
+      SINGLE_QUOTE -> {
+        string(
+          quote: SINGLE_QUOTE,
+          replacements: SINGLE_QUOTED_STRING_ESCAPE_SEQUENCES
+        )
+      }
+      DOUBLE_QUOTE -> {
+        string(
+          quote: DOUBLE_QUOTE,
+          replacements: DOUBLE_QUOTED_STRING_ESCAPE_SEQUENCES
+        )
+      }
+      COLON -> { colon }
+      SLASH -> { operator(type: 'div', assign_type: 'div_assign') }
+      PERCENT -> { percent }
+      CARET -> { operator(type: 'xor', assign_type: 'xor_assign') }
+      AMPERSAND -> { operator(type: 'and', assign_type: 'and_assign') }
+      PIPE -> { operator(type: 'or', assign_type: 'or_assign') }
+      STAR -> { star }
+      MINUS -> { minus }
+      PLUS -> { operator(type: 'add', assign_type: 'add_assign') }
+      EQUAL -> { assign }
+      LOWER -> { lower }
+      GREATER -> { greater }
+      BRACKET_OPEN -> { single_character_token('bracket_open') }
+      BRACKET_CLOSE -> { single_character_token('bracket_close') }
+      EXCLAMATION -> { exclamation }
+      DOT -> { dot }
+      COMMA -> { single_character_token('comma') }
+      QUESTION -> { question }
+      UNDERSCORE -> { underscore }
+      LOWER_AZ_RANGE -> { identifier_or_keyword }
+      UPPER_AZ_RANGE -> { constant }
+      else -> {
+        next?.if(
+          true: { invalid },
+          false: { NullToken.new(current_location) }
+        )
+      }
     }
-
-    (current == AT_SIGN).if_true {
-      return attribute
-    }
-
-    (current == HASH).if_true {
-      return comment
-    }
-
-    (current == CURLY_OPEN).if_true {
-      return single_character_token('curly_open')
-    }
-
-    (current == CURLY_CLOSE).if_true {
-      return single_character_token('curly_close')
-    }
-
-    (current == PAREN_OPEN).if_true {
-      return single_character_token('paren_open')
-    }
-
-    (current == PAREN_CLOSE).if_true {
-      return single_character_token('paren_close')
-    }
-
-    (current == SINGLE_QUOTE).if_true {
-      return string(
-        quote: SINGLE_QUOTE,
-        replacements: SINGLE_QUOTED_STRING_ESCAPE_SEQUENCES
-      )
-    }
-
-    (current == DOUBLE_QUOTE).if_true {
-      return string(
-        quote: DOUBLE_QUOTE,
-        replacements: DOUBLE_QUOTED_STRING_ESCAPE_SEQUENCES
-      )
-    }
-
-    (current == COLON).if_true {
-      return colon
-    }
-
-    (current == SLASH).if_true {
-      return operator(type: 'div', assign_type: 'div_assign')
-    }
-
-    (current == PERCENT).if_true {
-      return percent
-    }
-
-    (current == CARET).if_true {
-      return operator(type: 'xor', assign_type: 'xor_assign')
-    }
-
-    (current == AMPERSAND).if_true {
-      return operator(type: 'and', assign_type: 'and_assign')
-    }
-
-    (current == PIPE).if_true {
-      return operator(type: 'or', assign_type: 'or_assign')
-    }
-
-    (current == STAR).if_true {
-      return star
-    }
-
-    (current == MINUS).if_true {
-      return minus
-    }
-
-    (current == PLUS).if_true {
-      return operator(type: 'add', assign_type: 'add_assign')
-    }
-
-    (current == EQUAL).if_true {
-      return assign
-    }
-
-    (current == LOWER).if_true {
-      return lower
-    }
-
-    (current == GREATER).if_true {
-      return greater
-    }
-
-    (current == BRACKET_OPEN).if_true {
-      return single_character_token('bracket_open')
-    }
-
-    (current == BRACKET_CLOSE).if_true {
-      return single_character_token('bracket_close')
-    }
-
-    (current == EXCLAMATION).if_true {
-      return exclamation
-    }
-
-    (current == DOT).if_true {
-      return dot
-    }
-
-    (current == COMMA).if_true {
-      return single_character_token('comma')
-    }
-
-    (current == QUESTION).if_true {
-      return single_character_token('question')
-    }
-
-    lowercase?.if_true {
-      return identifier_or_keyword
-    }
-
-    uppercase?.if_true {
-      return constant
-    }
-
-    (current == UNDERSCORE).if_true {
-      return underscore
-    }
-
-    next?.if_true {
-      return invalid
-    }
-
-    NullToken.new(current_location)
   }
 
   def number(skip_after_start = False) -> Token {
@@ -294,34 +229,31 @@ object Lexer {
     }
 
     {
-      let byte = current_byte
-
-      INTEGER_DIGIT_RANGE.cover?(byte)
-        .or { byte == UNDERSCORE }
-        .or {
-          let float_digit = (byte == LOWER_E).or { byte == UPPER_E }.if(
-            true: {
-              let next = next_byte
-
-              # '-' and '+' are only allowed directly after the exponent sign
-              # (e/E).
-              (next == PLUS).or { next == MINUS }.if_true {
-                @position += 1
-              }
-
-              True
-            },
-            false: {
-              (byte == DOT).and { INTEGER_DIGIT_RANGE.cover?(next_byte) }
-            }
-          )
-
-          float_digit.if_true {
-            type = 'float'
-          }
-
-          float_digit
+      match(let byte = current_byte) {
+        INTEGER_DIGIT_RANGE, UNDERSCORE -> { True }
+        LOWER_E, UPPER_E when INTEGER_DIGIT_RANGE =~ next_byte -> {
+          type = 'float'
+          True
         }
+        # If there is an exponent followed by "+" or "-", it's only valid if
+        # also followed by a digit. This means "10e+" is invalid, and "10e+2" is
+        # valid.
+        LOWER_E, UPPER_E
+        when
+          (next_byte == PLUS)
+            .or { next_byte == MINUS }
+            .and { INTEGER_DIGIT_RANGE =~ peek(offset: 2) }
+        -> {
+          @position += 1
+          type = 'float'
+          True
+        }
+        DOT when INTEGER_DIGIT_RANGE =~ next_byte -> {
+          type = 'float'
+          True
+        }
+        else -> { False }
+      }
     }.while_true {
       @position += 1
     }
@@ -341,12 +273,11 @@ object Lexer {
     @position += 2
 
     {
-      let byte = current_byte
-
-      INTEGER_DIGIT_RANGE.cover?(byte)
-        .or { HEX_LOWER_DIGIT_RANGE.cover?(byte) }
-        .or { HEX_UPPER_DIGIT_RANGE.cover?(byte) }
-        .or { byte == UNDERSCORE }
+      match(current_byte) {
+        INTEGER_DIGIT_RANGE, HEX_LOWER_DIGIT_RANGE,
+          HEX_UPPER_DIGIT_RANGE, UNDERSCORE -> { True }
+        else -> { False }
+      }
     }.while_true {
       @position += 1
     }
@@ -390,7 +321,6 @@ object Lexer {
     let start = @position
 
     @position += 1
-
     token(type: type, start: start, line: @line)
   }
 
@@ -398,7 +328,6 @@ object Lexer {
     let start = @position
 
     @position += 2
-
     token(type: type, start: start, line: @line)
   }
 
@@ -416,12 +345,10 @@ object Lexer {
     (next_byte == EQUAL).if(
       true: {
         @position += 2
-
         binary_assign_token(type: assign_type, start: start, line: @line)
       },
       false: {
         @position += 1
-
         binary_token(type: type, start: start, line: @line)
       }
     )
@@ -432,12 +359,10 @@ object Lexer {
     let token_type = (next_byte == EQUAL).if(
       true: {
         @position += 2
-
         equality_type
       },
       false: {
         @position += 1
-
         type
       }
     )
@@ -523,9 +448,7 @@ object Lexer {
         advance_line
         line_buffer.clear
       },
-      false: {
-        @position += 1
-      }
+      false: { @position += 1 }
     )
 
     False
@@ -536,12 +459,10 @@ object Lexer {
     let type = (next_byte == COLON).if(
       true: {
         @position += 2
-
         'colon_colon'
       },
       false: {
         @position += 1
-
         'colon'
       }
     )
@@ -554,70 +475,66 @@ object Lexer {
   }
 
   def star -> Token {
-    (next_byte == STAR).if(
-      true: {
-        operator(type: 'pow', assign_type: 'pow_assign', skip_after_start: True)
-      },
-      false: { operator(type: 'mul', assign_type: 'mul_assign') }
-    )
+    (next_byte == STAR).if_true {
+      return operator(
+        type: 'pow',
+        assign_type: 'pow_assign',
+        skip_after_start: True
+      )
+    }
+
+    operator(type: 'mul', assign_type: 'mul_assign')
   }
 
   def minus -> Token {
-    let next = next_byte
-
-    INTEGER_DIGIT_RANGE.cover?(next).if_true {
-      return number(skip_after_start: True)
+    match(next_byte) {
+      INTEGER_DIGIT_RANGE -> { number(skip_after_start: True) }
+      GREATER -> { arrow }
+      else -> { operator(type: 'sub', assign_type: 'sub_assign') }
     }
-
-    (next == GREATER).if(
-      true: { arrow },
-      false: { operator(type: 'sub', assign_type: 'sub_assign') }
-    )
   }
 
   def assign -> Token {
     let start = @position
 
-    (next_byte == EQUAL).if(
-      true: {
+    match(next_byte) {
+      EQUAL -> {
         @position += 2
-
         binary_token(type: 'equal', start: start, line: @line)
-      },
-      false: {
+      }
+      TILDE -> {
+        @position += 2
+        binary_token(type: 'match', start: start, line: @line)
+      }
+      else -> {
         @position += 1
-
         token(type: 'assign', start: start, line: @line)
       }
-    )
+    }
   }
 
   def lower -> Token {
-    (next_byte == LOWER).if(
-      true: {
-        operator(
-          type: 'shift_left',
-          assign_type: 'shift_left_assign',
-          skip_after_start: True
-        )
-      },
-      false: { binary_operator(type: 'lower', equality_type: 'lower_equal') }
-    )
+    (next_byte == LOWER).if_true {
+      return operator(
+        type: 'shift_left',
+        assign_type: 'shift_left_assign',
+        skip_after_start: True
+      )
+    }
+
+    binary_operator(type: 'lower', equality_type: 'lower_equal')
   }
 
   def greater -> Token {
-    (next_byte == GREATER).if(
-      true: {
-        operator(
-          type: 'shift_right',
-          assign_type: 'shift_right_assign',
-          skip_after_start: True
-        )
-      },
-      false: {
-        binary_operator(type: 'greater', equality_type: 'greater_equal')
-      }
-    )
+    (next_byte == GREATER).if_true {
+      return operator(
+        type: 'shift_right',
+        assign_type: 'shift_right_assign',
+        skip_after_start: True
+      )
+    }
+
+    binary_operator(type: 'greater', equality_type: 'greater_equal')
   }
 
   def not_equal -> Token {
@@ -637,21 +554,12 @@ object Lexer {
   }
 
   def exclamation -> Token {
-    let next = next_byte
-
-    (next == EQUAL).if_true {
-      return not_equal
+    match(next_byte) {
+      EQUAL -> { not_equal }
+      PAREN_OPEN -> { two_character_token('type_args_open') }
+      EXCLAMATION -> { two_character_token('throws') }
+      else -> { single_character_token('exclamation') }
     }
-
-    (next == PAREN_OPEN).if_true {
-      return two_character_token('type_args_open')
-    }
-
-    (next == EXCLAMATION).if_true {
-      return two_character_token('throws')
-    }
-
-    single_character_token('exclamation')
   }
 
   def dot -> Token {
@@ -674,6 +582,20 @@ object Lexer {
     token(type: 'dot', start: start, line: @line)
   }
 
+  def question -> Token {
+    let start = @position
+
+    @position += 1
+
+    (current_byte == QUESTION).if_true {
+      @position += 1
+
+      return binary_token(type: 'question_question', start: start, line: @line)
+    }
+
+    token(type: 'question', start: start, line: @line)
+  }
+
   def underscore -> Token {
     let start = @position
 
@@ -681,7 +603,7 @@ object Lexer {
       @position += 1
     }
 
-    uppercase?.if_true {
+    UPPER_AZ_RANGE.cover?(current_byte).if_true {
       return identifier_or_constant(type: 'constant', start: start)
     }
 
@@ -778,17 +700,14 @@ object Lexer {
 
   # Consumes any whitespace, until reaching the first non-whitespace character.
   def consume_whitespace {
-    whitespace?.if_false {
-      return
-    }
-
-    newline?.if(
-      true: { advance_line },
-      false: {
+    match(current_byte) {
+      SPACE, TAB, CARRIAGE_RETURN -> {
         @position += 1
         @column += 1
       }
-    )
+      NEWLINE -> { advance_line }
+      else -> { return }
+    }
 
     consume_whitespace
   }
@@ -825,54 +744,14 @@ object Lexer {
   }
 
   def valid_identifier_byte? -> Boolean {
-    let current = current_byte
-
-    lowercase?
-      .or { uppercase? }
-      .or { INTEGER_DIGIT_RANGE.cover?(current) }
-      .or { current == UNDERSCORE }
-      .or { current == QUESTION }
-  }
-
-  def lowercase? -> Boolean {
-    LOWER_AZ_RANGE.cover?(current_byte)
-  }
-
-  def uppercase? -> Boolean {
-    UPPER_AZ_RANGE.cover?(current_byte)
+    match(current_byte) {
+      INTEGER_DIGIT_RANGE, LOWER_AZ_RANGE, UPPER_AZ_RANGE -> { True }
+      UNDERSCORE, QUESTION -> { True }
+      else -> { False }
+    }
   }
 
   def newline? -> Boolean {
     current_byte == NEWLINE
-  }
-
-  def whitespace? -> Boolean {
-    let current = current_byte
-
-    (current == NEWLINE)
-      .or { current == SPACE }
-      .or { current == TAB }
-      .or { current == CARRIAGE_RETURN }
-  }
-}
-
-impl Iterator!(Token) for Lexer {
-  # Returns `True` if there is remaining input to lex.
-  def next? -> Boolean {
-    @position < @max_position
-  }
-
-  # Returns the next `Token` available, if any.
-  def next -> ?Token {
-    consume_whitespace
-
-    let token = next_non_whitespace_token
-
-    # We have to consume trailing whitespace. Not doing so may result in a
-    # consumer of the iterator thinking there are tokens left to produce, when
-    # this might not be the case.
-    consume_whitespace
-
-    token
   }
 }

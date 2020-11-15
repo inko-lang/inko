@@ -1,0 +1,132 @@
+import std::compiler::module_name::ModuleName
+import std::fs::dir
+import std::fs::file
+import std::map::DefaultHasher
+import std::os
+import std::process
+import std::test
+import std::test::assert
+import test::fixtures
+
+test.group('std::compiler::module_name::ModuleName.components') do (g) {
+  g.test('Obtaining the components of a module name') {
+    let name = ModuleName.new(Array.new('std', 'foo'))
+
+    assert.equal(name.components, Array.new('std', 'foo'))
+  }
+}
+
+test.group('std::compiler::module_name::ModuleName.relative_source_path') do (g) {
+  g.test('Obtaining the source path of a module') {
+    let name = ModuleName.new(Array.new('std', 'foo'))
+    let expected = os
+      .windows?
+      .if(true: { 'std\\foo.inko' }, false: { 'std/foo.inko' })
+      .to_path
+
+    assert.equal(name.relative_source_path, expected)
+  }
+}
+
+test.group('std::compiler::module_name::ModuleName.absolute_source_path') do (g) {
+  g.test('Obtaining the absolute source path of an existing module') {
+    let name = ModuleName.new(Array.new('foo'))
+    let directory = fixtures.temporary_file_path
+    let source_path = directory.join('foo.inko')
+
+    process.defer {
+      try dir.remove(path: directory, recursive: True) else Nil
+    }
+
+    try! dir.create(path: directory)
+
+    let handle = try! file.write_only(source_path)
+
+    process.defer {
+      handle.close
+    }
+
+    assert.equal(name.absolute_source_path(Array.new(directory)), source_path)
+  }
+
+  g.test('Obtaining the absolute paht of a non-existing module') {
+    let name = ModuleName.new(Array.new('foo'))
+    let directory = fixtures.temporary_file_path
+
+    assert.equal(name.absolute_source_path(Array.new(directory)), Nil)
+  }
+}
+
+test.group('std::compiler::module_name::ModuleName.==') do (g) {
+  g.test('Comparing two equal ModuleName objects') {
+    let name1 = ModuleName.new(Array.new('std', 'foo'))
+    let name2 = ModuleName.new(Array.new('std', 'foo'))
+
+    assert.equal(name1, name2)
+  }
+
+  g.test('Comparing two different ModuleName objects') {
+    let name1 = ModuleName.new(Array.new('std', 'foo'))
+    let name2 = ModuleName.new(Array.new('std', 'bar'))
+
+    assert.not_equal(name1, name2)
+  }
+}
+
+test.group('std::compiler::module_name::ModuleName.hash') do (g) {
+  g.test('Hashing a ModuleName') {
+    let name = ModuleName.new(Array.new('std', 'foo'))
+    let hasher1 = DefaultHasher.new(1, 2)
+    let hasher2 = DefaultHasher.new(1, 2)
+
+    name.hash(hasher1)
+    name.hash(hasher2)
+
+    assert.equal(hasher1.to_hash, hasher2.to_hash)
+  }
+
+  g.test('Looking up a HashMap value using a ModuleName as the key') {
+    let map = Map.new
+    let name = ModuleName.new(Array.new('std', 'foo'))
+
+    map[name] = 10
+
+    assert.equal(map[name], 10)
+  }
+}
+
+test.group('std::compiler::module_name::ModuleName.to_string') do (g) {
+  g.test('Converting an empty ModuleName to a String') {
+    assert.equal(ModuleName.new(Array.new).to_string, '')
+  }
+
+  g.test('Converting a ModuleName with a single component to a String') {
+    assert.equal(ModuleName.new(Array.new('std')).to_string, 'std')
+  }
+
+  g.test('Converting a non-empty ModuleName to a String') {
+    assert.equal(ModuleName.new(Array.new('std', 'foo')).to_string, 'std::foo')
+  }
+}
+
+test.group('std::compiler::module_name::ModuleName.bootstrap?') do (g) {
+  g.test('Checking if a module name is std::bootstrap') {
+    assert.true(ModuleName.new(Array.new('std', 'bootstrap')).bootstrap?)
+    assert.false(ModuleName.new(Array.new('std', 'foo')).bootstrap?)
+  }
+}
+
+test.group('std::compiler::module_name::ModuleName.prelude?') do (g) {
+  g.test('Checking if a module name is std::prelude') {
+    assert.true(ModuleName.new(Array.new('std', 'prelude')).prelude?)
+    assert.false(ModuleName.new(Array.new('std', 'foo')).prelude?)
+  }
+}
+
+test.group('std::compiler::module_name::ModuleName.tail') do (g) {
+  g.test('Obtaining the tail of a module name') {
+    assert.equal(ModuleName.new(Array.new('std', 'foo')).tail, 'foo')
+    assert.equal(ModuleName.new(Array.new('std')).tail, 'std')
+    assert.equal(ModuleName.new(Array.new).tail, '')
+  }
+}

@@ -3,7 +3,11 @@ import std::os::NEWLINE
 import std::test
 import std::test::assert
 
-object Reader {}
+object Reader {
+  static def new -> Self {
+    Self {}
+  }
+}
 
 impl Read for Reader {
   def read_bytes(bytes: ByteArray, size: ?Integer = Nil) -> Integer {

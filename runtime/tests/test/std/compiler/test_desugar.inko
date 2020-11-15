@@ -1,0 +1,144 @@
+import std::compiler::ast::body::Body
+import std::compiler::ast::imports::Import
+import std::compiler::ast::literals::IntegerLiteral
+import std::compiler::ast::node::Node
+import std::compiler::ast::send::Send
+import std::compiler::desugar
+import std::compiler::module_name::ModuleName
+import std::compiler::parser::Parser
+import std::mirror::ObjectMirror
+import std::test
+import std::test::assert
+
+def parse(input: String) -> Body {
+  let parser = Parser.new(input: input, file: 'test.inko')
+
+  try! parser.parse
+}
+
+def imports_in(body: Body) -> Array!(ModuleName) {
+  body
+    .children
+    .iter
+    .map do (node) { (node as Import).module_name }
+    .to_array as Array!(ModuleName)
+}
+
+def module_name(*components: String) -> ModuleName {
+  ModuleName.new(components)
+}
+
+def assert_instance_of(node: Node, instance_of: Node) {
+  assert.true(ObjectMirror.new(node).instance_of?(instance_of))
+}
+
+test.group('std::compiler::desugar.hoist_imports') do (g) {
+  g.test('Hosting imports to the start of the module') {
+    let input = parse("import foo\n10\nimport bar")
+    let body = desugar.hoist_imports(input)
+
+    assert_instance_of(body.children[0], Import)
+    assert_instance_of(body.children[1], Import)
+    assert_instance_of(body.children[2], IntegerLiteral)
+
+    assert.equal(
+      (body.children[0] as Import).module_name,
+      ModuleName.new(Array.new('foo'))
+    )
+
+    assert.equal(
+      (body.children[1] as Import).module_name,
+      ModuleName.new(Array.new('bar'))
+    )
+  }
+
+  g.test('Hoisting imports when there are no imports to hoist_imports') {
+    let input = parse('10')
+    let body = desugar.hoist_imports(input)
+
+    assert.equal(body.children.length, 1)
+    assert_instance_of(body.children[0], IntegerLiteral)
+  }
+}
+
+test.group('std::compiler::desugar.add_implicit_symbols') do (g) {
+  g.test('Adding implicit symbols to an import without symbols') {
+    let input = parse('import std')
+    let body = desugar.add_implicit_symbols(input)
+    let imp = body.children[0] as Import
+
+    assert.equal(imp.symbols.length, 1)
+    assert.true(imp.symbols[0].import_self?)
+  }
+
+  g.test('Adding implicit symbols to an import with symbols') {
+    let input = parse('import std::(foo)')
+    let body = desugar.add_implicit_symbols(input)
+    let imp = body.children[0] as Import
+
+    assert.equal(imp.symbols.length, 1)
+    assert.equal(imp.symbols[0].name, 'foo')
+  }
+}
+
+test.group('std::compiler::desugar.add_implicit_imports') do (g) {
+  g.test('Inserting implicit imports when compiling a module without imports') {
+    let input = parse('')
+    let body = desugar
+      .add_implicit_imports(name: module_name('std', 'foo'), body: input)
+
+    let imports = imports_in(body)
+
+    assert.equal(
+      imports,
+      Array.new(
+        ModuleName.new(Array.new('std', 'bootstrap')),
+        ModuleName.new(Array.new('std', 'prelude')),
+      )
+    )
+  }
+
+  g.test('Inserting implicit imports when compiling a module with imports') {
+    let input = parse('import foo')
+    let body = desugar
+      .add_implicit_imports(name: module_name('std', 'foo'), body: input)
+
+    let imports = imports_in(body)
+
+    assert.equal(
+      imports,
+      Array.new(
+        ModuleName.new(Array.new('std', 'bootstrap')),
+        ModuleName.new(Array.new('std', 'prelude')),
+        ModuleName.new(Array.new('foo'))
+      )
+    )
+  }
+
+  g.test('Inserting implicit imports when compiling std::prelude') {
+    let input = parse('')
+    let body = desugar.add_implicit_imports(
+      name: module_name('std', 'prelude'),
+      body: input
+    )
+
+    let imports = imports_in(body)
+
+    assert.equal(
+      imports,
+      Array.new(
+        ModuleName.new(Array.new('std', 'bootstrap')),
+      )
+    )
+  }
+
+  g.test('Inserting implicit imports when compiling std::bootstrap') {
+    let input = parse('')
+    let body = desugar.add_implicit_imports(
+      name: module_name('std', 'bootstrap'),
+      body: input
+    )
+
+    assert.true(body.children.empty?)
+  }
+}

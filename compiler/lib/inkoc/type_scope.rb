@@ -2,7 +2,8 @@
 
 module Inkoc
   class TypeScope
-    attr_reader :self_type, :block_type, :module, :locals, :parent
+    attr_reader :self_type, :block_type, :module, :locals, :parent,
+                :remapped_local_types
 
     def initialize(
       self_type,

@@ -4,7 +4,7 @@
 # UTF-8.
 import std::conversion::(ToFloat, ToInteger, ToString)
 import std::length::Length
-import std::operators::(Equal, Add)
+import std::operators::(Add, Equal, Match)
 import std::process
 
 impl String {
@@ -228,5 +228,12 @@ impl Add!(String) for String {
   #     'hello ' + 'world' # => 'hello world'
   def +(other: String) -> Self {
     _INKOC.string_concat(self, other)
+  }
+}
+
+impl Match!(String) for String {
+  # Returns `True` if `self` and the given `String` are equal to each other.
+  def =~(other: String) -> Boolean {
+    _INKOC.string_equals(self, other)
   }
 }

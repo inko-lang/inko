@@ -1,8 +1,13 @@
 import std::iterator::(self, Enumerator, Iterator)
+import std::pair::Pair
 import std::test
 import std::test::assert
 
-object EmptyIterator {}
+object EmptyIterator {
+  static def new -> Self {
+    Self {}
+  }
+}
 
 impl Iterator!(Integer) for EmptyIterator {
   def next? -> Boolean {
@@ -188,6 +193,77 @@ test.group('std::iterator::Enumerator.next?') do (g) {
     enum.next
 
     assert.false(enum.next?)
+  }
+}
+
+test.group('std::iterator::Iterator.all?') do (g) {
+  g.test('Checking if all values in an Iterator meet a condition') {
+    let a = Array.new(10, 20, 30)
+    let b = Array.new(-1, 20, 30)
+    let c = Array.new(10, -2, 30)
+
+    assert.true(a.iter.all? do (value) { value.positive? })
+    assert.false(b.iter.all? do (value) { value.positive? })
+    assert.false(c.iter.all? do (value) { value.positive? })
+  }
+}
+
+test.group('std::iterator::Iterator.zip') do (g) {
+  g.test('Zipping two Iterators with an identical number of values') {
+    let a = Array.new(10, 20, 30)
+    let b = Array.new(40, 50, 60)
+    let zip = a.iter.zip(b.iter)
+
+    assert.equal(zip.next, Pair.new(10, 40))
+    assert.equal(zip.next, Pair.new(20, 50))
+    assert.equal(zip.next, Pair.new(30, 60))
+    assert.true(zip.next.nil?)
+  }
+
+  g.test('Zipping two Iterators with a different number of values') {
+    let a = Array.new(10, 20, 30)
+    let b = Array.new(40, 50)
+    let zip1 = a.iter.zip(b.iter)
+    let zip2 = b.iter.zip(a.iter)
+
+    assert.equal(zip1.next, Pair.new(10, 40))
+    assert.equal(zip1.next, Pair.new(20, 50))
+    assert.true(zip1.next.nil?)
+
+    assert.equal(zip2.next, Pair.new(40, 10))
+    assert.equal(zip2.next, Pair.new(50, 20))
+    assert.true(zip2.next.nil?)
+  }
+}
+
+test.group('std::iterator::Iterator.join') do (g) {
+  g.test('Joining values in an empty Iterator') {
+    assert.equal(Array.new.iter.join(','), '')
+  }
+
+  g.test('Joining a single value') {
+    assert.equal(Array.new(10).iter.join(','), '10')
+  }
+
+  g.test('Joining multiple values') {
+    assert.equal(Array.new(10, 20, 30).iter.join(','), '10,20,30')
+  }
+
+  g.test('Joining multiple values using multiple characters as the separator') {
+    assert.equal(Array.new(10, 20, 30).iter.join('::'), '10::20::30')
+  }
+
+  g.test('Joining multiple values using an empty separator') {
+    assert.equal(Array.new(10, 20, 30).iter.join(''), '102030')
+  }
+}
+
+test.group('std::iterator::Iterator.reduce') do (g) {
+  g.test('Reducing an Iterator to a single value') {
+    let total =
+      Array.new(1, 2, 3).iter.reduce(0) do (total, current) { total + current }
+
+    assert.equal(total, 6)
   }
 }
 

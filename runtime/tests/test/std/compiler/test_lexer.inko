@@ -8,7 +8,11 @@ def lex(input: String) -> ?Token {
 }
 
 def lex_all(input: String) -> Array!(Token) {
-  Lexer.new(input: input, file: 'test.inko').to_array
+  let tokens = Array.new
+  let lexer = Lexer.new(input: input, file: 'test.inko')
+
+  { lexer.next? }.while_true { tokens.push(lexer.next) }
+  tokens
 }
 
 test.group('std::compiler::lexer::Lexer.next') do (g) {
@@ -149,6 +153,66 @@ test.group('std::compiler::lexer::Lexer.next') do (g) {
     assert.equal(token.location.column, 1)
   }
 
+  g.test('Lexing a float with an exponent without trailings digits') {
+    let tokens = lex_all('10e')
+
+    assert.equal(tokens.length, 2)
+
+    assert.equal(tokens[0].type, 'integer')
+    assert.equal(tokens[0].value, '10')
+    assert.equal(tokens[0].location.line_range, 1..1)
+    assert.equal(tokens[0].location.column, 1)
+
+    assert.equal(tokens[1].type, 'identifier')
+    assert.equal(tokens[1].value, 'e')
+    assert.equal(tokens[1].location.line_range, 1..1)
+    assert.equal(tokens[1].location.column, 3)
+  }
+
+  g.test('Lexing a float with a positive exponent without trailings digits') {
+    let tokens = lex_all('10e+')
+
+    assert.equal(tokens.length, 3)
+
+    assert.equal(tokens[0].type, 'integer')
+    assert.equal(tokens[0].value, '10')
+    assert.equal(tokens[0].location.line_range, 1..1)
+    assert.equal(tokens[0].location.column, 1)
+
+    assert.equal(tokens[1].type, 'identifier')
+    assert.equal(tokens[1].value, 'e')
+    assert.equal(tokens[1].location.line_range, 1..1)
+    assert.equal(tokens[1].location.column, 3)
+
+    assert.true(tokens[2].binary?)
+    assert.equal(tokens[2].type, 'add')
+    assert.equal(tokens[2].value, '+')
+    assert.equal(tokens[2].location.line_range, 1..1)
+    assert.equal(tokens[2].location.column, 4)
+  }
+
+  g.test('Lexing a float with a negative exponent without trailings digits') {
+    let tokens = lex_all('10e-')
+
+    assert.equal(tokens.length, 3)
+
+    assert.equal(tokens[0].type, 'integer')
+    assert.equal(tokens[0].value, '10')
+    assert.equal(tokens[0].location.line_range, 1..1)
+    assert.equal(tokens[0].location.column, 1)
+
+    assert.equal(tokens[1].type, 'identifier')
+    assert.equal(tokens[1].value, 'e')
+    assert.equal(tokens[1].location.line_range, 1..1)
+    assert.equal(tokens[1].location.column, 3)
+
+    assert.true(tokens[2].binary?)
+    assert.equal(tokens[2].type, 'sub')
+    assert.equal(tokens[2].value, '-')
+    assert.equal(tokens[2].location.line_range, 1..1)
+    assert.equal(tokens[2].location.column, 4)
+  }
+
   g.test('Lexing a float containing underscores') {
     let tokens = lex_all('1_0.2_0 1e+2_3 1_2e+2')
 
@@ -198,7 +262,7 @@ test.group('std::compiler::lexer::Lexer.next') do (g) {
     assert.equal(tokens[1].location.column, 1)
   }
 
-  g.test('Lexing an identifier') {
+  g.test('Lexing an attribute') {
     let token = lex('@foo')
 
     assert.equal(token.type, 'attribute')
@@ -822,6 +886,18 @@ world\n" "hello"'
     assert.equal(token.location.line_range, 1..1)
   }
 
+  g.test('Lexing the match operator') {
+    let token = lex('=~')
+
+    assert.true(token.binary?)
+    assert.false(token.binary_assign?)
+    assert.equal(token.type, 'match')
+    assert.equal(token.value, '=~')
+
+    assert.equal(token.location.column, 1)
+    assert.equal(token.location.line_range, 1..1)
+  }
+
   g.test('Lexing the lower operator') {
     let token = lex('<')
 
@@ -1003,6 +1079,17 @@ world\n" "hello"'
     assert.true(token.binary?)
     assert.equal(token.type, 'exclusive_range')
     assert.equal(token.value, '...')
+
+    assert.equal(token.location.column, 1)
+    assert.equal(token.location.line_range, 1..1)
+  }
+
+  g.test('Lexing the ?? operator') {
+    let token = lex('??')
+
+    assert.true(token.binary?)
+    assert.equal(token.type, 'question_question')
+    assert.equal(token.value, '??')
 
     assert.equal(token.location.column, 1)
     assert.equal(token.location.line_range, 1..1)
@@ -1411,11 +1498,33 @@ world\n" "hello"'
     assert.equal(token.location.line_range, 1..1)
   }
 
-  g.test('Lexing the where keyword') {
-    let token = lex('where')
+  g.test('Lexing the when keyword') {
+    let token = lex('when')
 
-    assert.equal(token.type, 'where')
-    assert.equal(token.value, 'where')
+    assert.equal(token.type, 'when')
+    assert.equal(token.value, 'when')
+    assert.true(token.keyword?)
+
+    assert.equal(token.location.column, 1)
+    assert.equal(token.location.line_range, 1..1)
+  }
+
+  g.test('Lexing the match keyword') {
+    let token = lex('match')
+
+    assert.equal(token.type, 'match')
+    assert.equal(token.value, 'match')
+    assert.true(token.keyword?)
+
+    assert.equal(token.location.column, 1)
+    assert.equal(token.location.line_range, 1..1)
+  }
+
+  g.test('Lexing the local keyword') {
+    let token = lex('local')
+
+    assert.equal(token.type, 'local')
+    assert.equal(token.value, 'local')
     assert.true(token.keyword?)
 
     assert.equal(token.location.column, 1)

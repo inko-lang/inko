@@ -50,13 +50,13 @@ object Pair!(A, B) {
 }
 
 impl Equal for Pair {
-  def ==(other: Self) -> Boolean where A: Equal, B: Equal {
+  def ==(other: Self) -> Boolean when A: Equal, B: Equal {
     (@first == other.first).and { @second == other.second }
   }
 }
 
 impl Hash for Pair {
-  def hash(hasher: Hasher) where A: Hash, B: Hash {
+  def hash(hasher: Hasher) when A: Hash, B: Hash {
     @first.hash(hasher)
     @second.hash(hasher)
   }
@@ -124,7 +124,7 @@ object Triple!(A, B, C) {
 }
 
 impl Equal for Triple {
-  def ==(other: Self) -> Boolean where A: Equal, B: Equal, C: Equal {
+  def ==(other: Self) -> Boolean when A: Equal, B: Equal, C: Equal {
     (@first == other.first)
       .and { @second == other.second }
       .and { @third == other.third }
@@ -132,7 +132,7 @@ impl Equal for Triple {
 }
 
 impl Hash for Triple {
-  def hash(hasher: Hasher) where A: Hash, B: Hash, C: Hash {
+  def hash(hasher: Hasher) when A: Hash, B: Hash, C: Hash {
     @first.hash(hasher)
     @second.hash(hasher)
     @third.hash(hasher)

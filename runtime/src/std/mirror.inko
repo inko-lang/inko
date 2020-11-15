@@ -538,7 +538,7 @@ object ArrayMirror!(T) {
 }
 
 impl Format for ArrayMirror {
-  def format!(F: Formatter)(formatter: F) -> F where T: Mirrored {
+  def format!(F: Formatter)(formatter: F) -> F when T: Mirrored {
     formatter.push('Array')
 
     @subject.empty?.if_true { return formatter }
@@ -600,7 +600,7 @@ object MapMirror!(K: Hash + Equal, V) {
 }
 
 impl Format for MapMirror {
-  def format!(F: Formatter)(formatter: F) -> F where K: Mirrored, V: Mirrored {
+  def format!(F: Formatter)(formatter: F) -> F when K: Mirrored, V: Mirrored {
     let mut index = 0
 
     formatter.push('Map')
@@ -647,7 +647,7 @@ object SetMirror!(V: Hash + Equal) {
 }
 
 impl Format for SetMirror {
-  def format!(F: Formatter)(formatter: F) -> F where V: Mirrored {
+  def format!(F: Formatter)(formatter: F) -> F when V: Mirrored {
     let mut index = 0
 
     formatter.push('Set')
@@ -688,7 +688,7 @@ object PairMirror!(A, B) {
 }
 
 impl Format for PairMirror {
-  def format!(F: Formatter)(formatter: F) -> F where A: Mirrored, B: Mirrored {
+  def format!(F: Formatter)(formatter: F) -> F when A: Mirrored, B: Mirrored {
     formatter.push('Pair { ')
 
     formatter.descend {
@@ -727,7 +727,7 @@ object TripleMirror!(A, B, C) {
 impl Format for TripleMirror {
   def format!(F: Formatter)(
     formatter: F
-  ) -> F where A: Mirrored, B: Mirrored, C: Mirrored {
+  ) -> F when A: Mirrored, B: Mirrored, C: Mirrored {
     formatter.push('Triple { ')
 
     formatter.descend {

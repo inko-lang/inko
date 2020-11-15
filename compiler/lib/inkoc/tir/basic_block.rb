@@ -71,6 +71,23 @@ module Inkoc
       def empty?
         instructions.empty?
       end
+
+      def first_block
+        if previous
+          previous.first_block
+        else
+          self
+        end
+      end
+
+      def each_block
+        block = self
+
+        while block
+          yield block
+          block = block.next
+        end
+      end
     end
   end
 end

@@ -1,6 +1,9 @@
 # AST types for collections of expressions.
-import std::compiler::ast::node::Node
+import std::compiler::ast::imports::Import
+import std::compiler::ast::node::*
+import std::compiler::variable_scope::VariableScope
 import std::compiler::source_location::SourceLocation
+import std::compiler::types::TypeScope
 
 # A collection of different expressions.
 object Body {
@@ -10,13 +13,61 @@ object Body {
   # The source location of the start of the collection of expressions.
   @location: SourceLocation
 
+  # The local variables defined in/available to this body.
+  @variable_scope: VariableScope
+
+  # The type scope to use for nodes inside this Body.
+  #
+  # Type scopes require data not yet known when producing an AST. Compiler
+  # passes will populate this data as they process the AST.
+  @type_scope: ?TypeScope
+
   static def new(children: Array!(Node), location: SourceLocation) -> Self {
-    Self { @children = children, @location = location }
+    Self {
+      @children = children,
+      @location = location,
+      @variable_scope = VariableScope.new,
+      @type_scope = Nil
+    }
   }
 
-  # Returns the nodes stored in this collection.
   def children -> Array!(Node) {
     @children
+  }
+
+  def children=(nodes: Array!(Node)) -> Array!(Node) {
+    @children = nodes
+  }
+
+  def type_scope -> ?TypeScope {
+    @type_scope
+  }
+
+  def type_scope=(value: TypeScope) -> TypeScope {
+    @type_scope = value
+  }
+
+  def imports -> Array!(Import) {
+    let imports = Array.new
+
+    @children.each do (node) {
+      match(let matched = node) {
+        as Import -> { imports.push(matched) }
+        else -> {}
+      }
+    }
+
+    imports
+  }
+
+  def variable_scope -> VariableScope {
+    @variable_scope
+  }
+
+  def location_of_last_expression -> SourceLocation {
+    let last_loc = @children.get(-1).location
+
+    last_loc.if(true: { last_loc! }, false: { @location })
   }
 }
 

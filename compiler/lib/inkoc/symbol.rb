@@ -46,6 +46,15 @@ module Inkoc
         index == other.index &&
         mutable? == other.mutable?
     end
+
+    def with_temporary_type(type)
+      old_type = @type
+      @type = type
+
+      yield
+    ensure
+      @type = old_type
+    end
   end
 
   class NullSymbol

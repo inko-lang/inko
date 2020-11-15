@@ -1,0 +1,139 @@
+import std::compiler::symbol_table::*
+import std::compiler::types::(Builtins, Type, TypeScope)
+import std::test
+import std::test::assert
+
+object DummyType {
+  static def new -> Self {
+    Self {}
+  }
+}
+
+impl Type for DummyType {
+  def type_name -> String {
+    'DummyType'
+  }
+
+  def type_compatible?(
+    compare_with: Type,
+    builtins: Builtins,
+    scope: TypeScope
+  ) -> Boolean {
+    False
+  }
+}
+
+test.group('std::compiler::symbol_table::Symbol.name') do (g) {
+  g.test('Obtaining the name of a Symbol') {
+    let symbol =
+      Symbol.new(name: 'foo', id: 0, type: DummyType.new, mutable: False)
+
+    assert.equal(symbol.name, 'foo')
+  }
+}
+
+test.group('std::compiler::symbol_table::Symbol.type') do (g) {
+  g.test('Obtaining the type of a symbol') {
+    let type = DummyType.new
+    let symbol = Symbol.new(name: 'foo', id: 0, type: type, mutable: False)
+
+    assert.equal(symbol.type, type)
+  }
+}
+
+test.group('std::compiler::symbol_table::Symbol.mutable?') do (g) {
+  g.test('Checking if a Symbol is mutable') {
+    let immutable =
+      Symbol.new(name: 'foo', id: 0, type: DummyType.new, mutable: False)
+
+    let mutable =
+      Symbol.new(name: 'foo', id: 0, type: DummyType.new, mutable: True)
+
+    assert.false(immutable.mutable?)
+    assert.true(mutable.mutable?)
+  }
+}
+
+test.group('std::compiler::symbol_table::Symbol.id') do (g) {
+  g.test('Obtaining the ID of a symbol') {
+    let symbol =
+      Symbol.new(name: 'foo', id: 2, type: DummyType.new, mutable: False)
+
+    assert.equal(symbol.id, 2)
+  }
+}
+
+test.group('std::compiler::symbol_table::SymbolTable.define') do (g) {
+  g.test('Defining a new symbol') {
+    let table = SymbolTable.new
+    let type = DummyType.new
+    let symbol = table.define(name: 'foo', type: type, mutable: True)
+
+    assert.equal(symbol.name, 'foo')
+    assert.equal(symbol.type, type)
+    assert.true(symbol.mutable?)
+  }
+
+  g.test('Redefining an existing symbol') {
+    let table = SymbolTable.new
+    let type1 = DummyType.new
+    let type2 = DummyType.new
+    let symbol1 = table.define(name: 'foo', type: type1, mutable: True)
+    let symbol2 = table.define(name: 'foo', type: type2, mutable: False)
+
+    assert.equal(symbol1.type, type1)
+    assert.true(symbol1.mutable?)
+
+    assert.equal(symbol2.type, type2)
+    assert.false(symbol2.mutable?)
+
+    assert.equal(table.symbols.length, 1)
+  }
+}
+
+test.group('std::compiler::symbol_table::SymbolTable.[]') do (g) {
+  g.test('Looking up an existing Symbol by its name') {
+    let table = SymbolTable.new
+    let symbol = table.define(name: 'foo', type: DummyType.new, mutable: True)
+
+    assert.equal(table['foo'], symbol)
+  }
+}
+
+test.group('std::compiler::symbol_table::SymbolTable.get') do (g) {
+  g.test('Looking up a non-existing Symbol by its name') {
+    let table = SymbolTable.new
+
+    assert.true(table.get('foo').nil?)
+  }
+
+  g.test('Looking up an existing Symbol by its name') {
+    let table = SymbolTable.new
+    let symbol = table.define(name: 'foo', type: DummyType.new, mutable: True)
+
+    assert.equal(table.get('foo'), symbol)
+  }
+}
+
+test.group('std::compiler::symbol_table::SymbolTable.symbols') do (g) {
+  g.test('Obtaining all the symbols defined in a table') {
+    let table = SymbolTable.new
+
+    assert.true(table.symbols.empty?)
+
+    let symbol = table.define(name: 'foo', type: DummyType.new, mutable: True)
+
+    assert.equal(table.symbols, Array.new(symbol))
+  }
+}
+
+test.group('std::compiler::symbol_table::SymbolTable.defines?') do (g) {
+  g.test('Checking if a symbol is defined') {
+    let table = SymbolTable.new
+
+    table.define(name: 'foo', type: DummyType.new)
+
+    assert.true(table.defines?('foo'))
+    assert.false(table.defines?('bar'))
+  }
+}

@@ -2,9 +2,10 @@
 
 module Inkoc
   module AST
-    class Documentation
-      include Inspect
+    class MatchElse
       include Predicates
+      include Inspect
+      include TypeOperations
 
       attr_reader :body, :location
 
@@ -14,7 +15,7 @@ module Inkoc
       end
 
       def visitor_method
-        :on_documentation
+        :on_match_else
       end
     end
   end

@@ -1,8 +1,10 @@
 # AST types for comments.
-import std::compiler::ast::node::Node
 import std::compiler::source_location::SourceLocation
 
 # A source code comment.
+#
+# Comments are not stored in the AST but separately, and thus are also not
+# treated as AST nodes.
 object Comment {
   # The text of the comment, excluding the comment character (`#`).
   @text: String
@@ -18,9 +20,8 @@ object Comment {
   def text -> String {
     @text
   }
-}
 
-impl Node for Comment {
+  # Returns the source location of this comment.
   def location -> SourceLocation {
     @location
   }

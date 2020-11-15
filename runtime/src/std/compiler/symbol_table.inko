@@ -1,0 +1,107 @@
+# Symbols and symbol tables for mapping names to types and other information.
+import std::index::Index
+import std::iterator::Iterator
+import std::length::Length
+
+# Information of a single symbol, such as an identifier or a constant.
+object Symbol!(T) {
+  # The name of the symbol.
+  @name: String
+
+  # The ID of the symbol, unique to the table it is defined in.
+  @id: Integer
+
+  # The type of the symbol.
+  @type: T
+
+  # If the symbol is mutable or not.
+  @mutable: Boolean
+
+  static def new(name: String, id: Integer, type: T, mutable: Boolean) -> Self {
+    Self { @name = name, @id = id, @type = type, @mutable = mutable }
+  }
+
+  def name -> String {
+    @name
+  }
+
+  def id -> Integer {
+    @id
+  }
+
+  def type -> T {
+    @type
+  }
+
+  def mutable? -> Boolean {
+    @mutable
+  }
+}
+
+# A collection of symbols and associated information such as their types, mapped
+# to their names.
+object SymbolTable!(T) {
+  # The names of the symbols and their corresponding Symbol objects.
+  @mapping: Map!(String, Symbol!(T))
+
+  # An array of the symbols in the order they are defined in.
+  @symbols: Array!(Symbol!(T))
+
+  static def new -> Self {
+    Self { @mapping = Map.new, @symbols = Array.new }
+  }
+
+  # Defines a new symbol with the given type.
+  #
+  # Defining an already existing symbol will result in a panic.
+  def define(name: String, type: T, mutable = False) -> Symbol!(T) {
+    let existing = @mapping.get(name)
+
+    existing.if(
+      true: {
+        let id = existing!.id
+        let symbol =
+          Symbol.new(name: name, id: id, type: type, mutable: mutable)
+
+        @mapping[name] = @symbols[id] = symbol
+      },
+      false: {
+        let symbol = Symbol
+          .new(name: name, id: @mapping.length, type: type, mutable: mutable)
+
+        @mapping[name] = @symbols.push(symbol)
+      }
+    )
+  }
+
+  # Returns `True` if a symbol is defined for the given name.
+  def defines?(name: String) -> Boolean {
+    @mapping.key?(name)
+  }
+
+  # Returns all the symbols defined.
+  def symbols -> Array!(Symbol!(T)) {
+    @symbols
+  }
+
+  # Returns an `Iterator` over the symbols in this table.
+  def iter -> Iterator!(Symbol!(T)) {
+    @symbols.iter
+  }
+
+  def get(index: String) -> ?Symbol!(T) {
+    @mapping.get(index)
+  }
+}
+
+impl Index!(String, Symbol!(T)) for SymbolTable {
+  def [](index: String) -> Symbol!(T) {
+    @mapping[index]
+  }
+}
+
+impl Length for SymbolTable {
+  def length -> Integer {
+    @symbols.length
+  }
+}

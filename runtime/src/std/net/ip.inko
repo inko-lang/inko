@@ -44,9 +44,7 @@ object AddressParseError {
   @address: String
 
   static def new(address: ToString) -> Self {
-    Self {
-      @address = address.to_string
-    }
+    Self { @address = address.to_string }
   }
 }
 
@@ -73,9 +71,6 @@ trait ToIpAddress {
 
 # An IPv4 or IPv6 address.
 trait IpAddress: Equal + ToString + ToIpAddress {
-  # Parses an IP address.
-  static def parse(input: ToByteArray) !! AddressParseError -> Self
-
   # Returns `True` if `self` is an IPv4 address.
   def v4? -> Boolean
 
@@ -102,149 +97,6 @@ object Ipv6Address {
   # The segments/hextets of this IPv6 address.
   @segments: Array!(Integer)
 
-  static def new(
-    a = 0,
-    b = 0,
-    c = 0,
-    d = 0,
-    e = 0,
-    f = 0,
-    g = 0,
-    h = 0
-  ) -> Self {
-    Self { @segments = Array.new(a, b, c, d, e, f, g, h) }
-  }
-}
-
-impl Equal for Ipv6Address {
-  # Returns `True` if `self` and the given IP address are the same.
-  #
-  # # Examples
-  #
-  # Comparing two IPv6 addresses:
-  #
-  #     import std::net::ip::Ipv6Address
-  #
-  #     let addr1 = Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)
-  #     let addr2 = Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)
-  #     let addr3 = Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 2)
-  #
-  #     addr1 == addr2 # => True
-  #     addr1 == addr3 # => False
-  def ==(other: Self) -> Boolean {
-    @segments == other.segments
-  }
-}
-
-impl ToString for Ipv6Address {
-  # Converts `self` to a `String`.
-  #
-  # Zero compression is applied to the longest sequence of empty hextets, if
-  # there are any.
-  #
-  # # Examples
-  #
-  # Converting an IPv6 address to a `String`:
-  #
-  #     import std::net::ip::Ipv6Address
-  #
-  #     Ipv6Address.new.to_string # => '::'
-  #     Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1) # => '::1'
-  def to_string -> String {
-    unspecified?.if_true { return '::' }
-    loopback?.if_true { return '::1' }
-
-    let ipv4_compatible = ipv4_compatible?
-    let ipv4_mapped = ipv4_mapped?
-
-    ipv4_compatible.or { ipv4_mapped }.if_true {
-      # This value (256) is used to convert a hextet to the second and fourth
-      # octet in an IPv4 address. For example, for a hextet 0x2ff this produces
-      # an octet of 255.
-      let hextet_to_octet_modulo = _IPV4_OCTET_MAXIMUM + 1
-
-      let ipv4_address = StringBuffer
-        .new(
-          (@segments[6] >> _IPV4_TO_IPV6_SHIFT).to_string,
-          '.',
-          (@segments[6] % hextet_to_octet_modulo).to_string,
-          '.',
-          (@segments[7] >> _IPV4_TO_IPV6_SHIFT).to_string,
-          '.',
-          (@segments[7] % hextet_to_octet_modulo).to_string
-        )
-        .to_string
-
-      ipv4_compatible.if_true { return '::' + ipv4_address }
-
-      return '::ffff:' + ipv4_address
-    }
-
-    let mut compression_start = 0
-    let mut compression_len = 0
-    let mut current_at = 0
-    let mut current_len = 0
-
-    # Find the longest sequence of empty hextets, which we will compress
-    # together.
-    @segments.each_with_index do (hextet, index) {
-      hextet.zero?.if(
-        true: {
-          current_len.zero?.if_true { current_at = index }
-
-          current_len += 1
-
-          (current_len > compression_len).if_true {
-            compression_len = current_len
-            compression_start = current_at
-          }
-        },
-        false: {
-          current_at = 0
-          current_len = 0
-        }
-      )
-    }
-
-    let buffer = StringBuffer.new
-
-    compression_len.positive?.if(
-      true: {
-        let compression_end = compression_start + compression_len
-
-        @segments.each_with_index do (hextet, index) {
-          (index == compression_start).if_true { buffer.push(':') }
-
-          (index < compression_start).or { index >= compression_end }.if_true {
-            index.positive?.if_true { buffer.push(':') }
-
-            buffer.push(hextet.format(radix: 16))
-          }
-        }
-
-        buffer.to_string
-      },
-      false: {
-        @segments.each_with_index do (hextet, index) {
-          buffer.push(hextet.format(radix: 16))
-
-          (index < 7).if_true { buffer.push(':') }
-        }
-      }
-    )
-
-    buffer.to_string
-  }
-}
-
-impl ToIpAddress for Ipv6Address {
-  # Always returns `self`.
-  def to_ip_address -> IpAddress {
-    self
-  }
-}
-
-impl IpAddress for Ipv6Address {
   # Parses an IPv6 address literal.
   #
   # This method _only_ supports IPv6 _addresses_. Port numbers, zones, and CIDR
@@ -393,6 +245,149 @@ impl IpAddress for Ipv6Address {
     )
   }
 
+  static def new(
+    a = 0,
+    b = 0,
+    c = 0,
+    d = 0,
+    e = 0,
+    f = 0,
+    g = 0,
+    h = 0
+  ) -> Self {
+    Self { @segments = Array.new(a, b, c, d, e, f, g, h) }
+  }
+}
+
+impl Equal for Ipv6Address {
+  # Returns `True` if `self` and the given IP address are the same.
+  #
+  # # Examples
+  #
+  # Comparing two IPv6 addresses:
+  #
+  #     import std::net::ip::Ipv6Address
+  #
+  #     let addr1 = Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)
+  #     let addr2 = Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)
+  #     let addr3 = Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 2)
+  #
+  #     addr1 == addr2 # => True
+  #     addr1 == addr3 # => False
+  def ==(other: Self) -> Boolean {
+    @segments == other.segments
+  }
+}
+
+impl ToString for Ipv6Address {
+  # Converts `self` to a `String`.
+  #
+  # Zero compression is applied to the longest sequence of empty hextets, if
+  # there are any.
+  #
+  # # Examples
+  #
+  # Converting an IPv6 address to a `String`:
+  #
+  #     import std::net::ip::Ipv6Address
+  #
+  #     Ipv6Address.new.to_string # => '::'
+  #     Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1) # => '::1'
+  def to_string -> String {
+    unspecified?.if_true { return '::' }
+    loopback?.if_true { return '::1' }
+
+    let ipv4_compatible = ipv4_compatible?
+    let ipv4_mapped = ipv4_mapped?
+
+    ipv4_compatible.or { ipv4_mapped }.if_true {
+      # This value (256) is used to convert a hextet to the second and fourth
+      # octet in an IPv4 address. For example, for a hextet 0x2ff this produces
+      # an octet of 255.
+      let hextet_to_octet_modulo = _IPV4_OCTET_MAXIMUM + 1
+
+      let ipv4_address = StringBuffer
+        .new(
+          (@segments[6] >> _IPV4_TO_IPV6_SHIFT).to_string,
+          '.',
+          (@segments[6] % hextet_to_octet_modulo).to_string,
+          '.',
+          (@segments[7] >> _IPV4_TO_IPV6_SHIFT).to_string,
+          '.',
+          (@segments[7] % hextet_to_octet_modulo).to_string
+        )
+        .to_string
+
+      ipv4_compatible.if_true { return '::' + ipv4_address }
+
+      return '::ffff:' + ipv4_address
+    }
+
+    let mut compression_start = 0
+    let mut compression_len = 0
+    let mut current_at = 0
+    let mut current_len = 0
+
+    # Find the longest sequence of empty hextets, which we will compress
+    # together.
+    @segments.each_with_index do (hextet, index) {
+      hextet.zero?.if(
+        true: {
+          current_len.zero?.if_true { current_at = index }
+
+          current_len += 1
+
+          (current_len > compression_len).if_true {
+            compression_len = current_len
+            compression_start = current_at
+          }
+        },
+        false: {
+          current_at = 0
+          current_len = 0
+        }
+      )
+    }
+
+    let buffer = StringBuffer.new
+
+    compression_len.positive?.if(
+      true: {
+        let compression_end = compression_start + compression_len
+
+        @segments.each_with_index do (hextet, index) {
+          (index == compression_start).if_true { buffer.push(':') }
+
+          (index < compression_start).or { index >= compression_end }.if_true {
+            index.positive?.if_true { buffer.push(':') }
+
+            buffer.push(hextet.format(radix: 16))
+          }
+        }
+
+        buffer.to_string
+      },
+      false: {
+        @segments.each_with_index do (hextet, index) {
+          buffer.push(hextet.format(radix: 16))
+
+          (index < 7).if_true { buffer.push(':') }
+        }
+      }
+    )
+
+    buffer.to_string
+  }
+}
+
+impl ToIpAddress for Ipv6Address {
+  # Always returns `self`.
+  def to_ip_address -> IpAddress {
+    self
+  }
+}
+
+impl IpAddress for Ipv6Address {
   # Returns `True` if `self` is an IPv4 address.
   def v4? -> Boolean {
     False
@@ -519,6 +514,57 @@ object Ipv4Address {
   # The segments/octets of this IPv4 address.
   @segments: Array!(Integer)
 
+  # Parses an IPv4 address literal (e.g. 1.2.3.4).
+  #
+  # # Examples
+  #
+  # Parsing an IPv4 address:
+  #
+  #     import std::net::ip::Ipv4Address
+  #
+  #     let addr = try! Ipv4Address.parse('1.2.3.4')
+  #
+  #     addr.v4? # => True
+  static def parse(input: ToByteArray) !! AddressParseError -> Self {
+    let bytes = input.to_byte_array
+    let mut cursor = 0
+    let max = bytes.length
+    let segments = Array.new
+    let segment_bytes = ByteArray.new
+
+    # No IPv4 address can be longer than 15 characters (255.255.255.255).
+    (max > 15).if_true { throw AddressParseError.new(bytes) }
+
+    { cursor < max }.while_true {
+      {
+        (cursor < max).and { bytes[cursor] != _DOT_BYTE }
+      }.while_true {
+        segment_bytes.push(bytes[cursor])
+        cursor += 1
+      }
+
+      let int = try {
+        Integer.parse(segment_bytes.drain_to_string)
+      } else (error) {
+        throw AddressParseError.new(bytes)
+      }
+
+      (int < _IP_MINIMUM_VALUE).or { int > _IPV4_OCTET_MAXIMUM }.if_true {
+        throw AddressParseError.new(bytes)
+      }
+
+      segments.push(int)
+
+      cursor += 1
+    }
+
+    (segments.length == _IPV4_OCTETS).if_false {
+      throw AddressParseError.new(bytes)
+    }
+
+    Ipv4Address.new(segments[0], segments[1], segments[2], segments[3])
+  }
+
   static def new(a = 0, b = 0, c = 0, d = 0) -> Self {
     Self { @segments = Array.new(a, b, c, d) }
   }
@@ -578,56 +624,6 @@ impl ToIpAddress for Ipv4Address {
 }
 
 impl IpAddress for Ipv4Address {
-  # Parses an IPv4 address literal (e.g. 1.2.3.4).
-  #
-  # # Examples
-  #
-  # Parsing an IPv4 address:
-  #
-  #     import std::net::ip::Ipv4Address
-  #
-  #     let addr = try! Ipv4Address.parse('1.2.3.4')
-  #
-  #     addr.v4? # => True
-  static def parse(input: ToByteArray) !! AddressParseError -> Self {
-    let bytes = input.to_byte_array
-    let mut cursor = 0
-    let max = bytes.length
-    let segments = Array.new
-    let segment_bytes = ByteArray.new
-
-    # No IPv4 address can be longer than 15 characters (255.255.255.255).
-    (max > 15).if_true { throw AddressParseError.new(bytes) }
-
-    { cursor < max }.while_true {
-      {
-        (cursor < max).and { bytes[cursor] != _DOT_BYTE }
-      }.while_true {
-        segment_bytes.push(bytes[cursor])
-        cursor += 1
-      }
-
-      let int = try {
-        Integer.parse(segment_bytes.drain_to_string)
-      } else (error) {
-        throw AddressParseError.new(bytes)
-      }
-
-      (int < _IP_MINIMUM_VALUE).or { int > _IPV4_OCTET_MAXIMUM }.if_true {
-        throw AddressParseError.new(bytes)
-      }
-
-      segments.push(int)
-
-      cursor += 1
-    }
-
-    (segments.length == _IPV4_OCTETS).if_false {
-      throw AddressParseError.new(bytes)
-    }
-
-    Ipv4Address.new(segments[0], segments[1], segments[2], segments[3])
-  }
   # Returns `True` if `self` is an IPv4 address.
   def v4? -> Boolean {
     True
@@ -848,9 +844,8 @@ def parse(address: String) !! AddressParseError -> IpAddress {
   let bytes = address.to_byte_array
 
   # The address is definetely not an IPv4 or IPv6 address.
-  (bytes.length > _IPV6_STRING_MAXIMUM_LENGTH).if_true {
-    throw AddressParseError.new(bytes)
-  }
+  (bytes.length > _IPV6_STRING_MAXIMUM_LENGTH)
+    .if_true { throw AddressParseError.new(bytes) }
 
   bytes.each do (byte) {
     (byte == _DOT_BYTE).if_true { return try Ipv4Address.parse(bytes) }

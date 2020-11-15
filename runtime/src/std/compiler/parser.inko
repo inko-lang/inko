@@ -4,23 +4,70 @@
 # time, meaning they can change at any time.
 import std::byte_array::ToByteArray
 import std::compiler::ast::blocks::*
+import std::compiler::ast::body::Body
 import std::compiler::ast::comments::*
 import std::compiler::ast::control_flow::*
-import std::compiler::ast::body::Body
 import std::compiler::ast::imports::*
 import std::compiler::ast::literals::*
-import std::compiler::ast::node::Node
+import std::compiler::ast::node::*
 import std::compiler::ast::objects::*
 import std::compiler::ast::operators::*
+import std::compiler::ast::pattern_matching::*
 import std::compiler::ast::send::*
-import std::compiler::ast::type_parameter::TypeParameter
 import std::compiler::ast::types::*
 import std::compiler::ast::variables::*
 import std::compiler::lexer::Lexer
-import std::compiler::parser::error::*
 import std::compiler::source_location::SourceLocation
 import std::compiler::token::Token
+import std::conversion::ToString
+import std::error::Error
 import std::fs::path::ToPath
+
+# An error produced by the parser.
+object ParseError {
+  # The error message to display.
+  @message: String
+
+  # The source location of the error.
+  @location: SourceLocation
+
+  static def unexpected_token(token: Token) -> Self {
+    let message = token.null?.if(
+      true: { 'More input was expected, but we ran out of input' },
+      false: {
+        'The following unexpected input was encountered: ' + token.value
+      }
+    )
+
+    new(message: message, location: token.location)
+  }
+
+  static def missing_argument_type(location: SourceLocation) -> Self {
+    let message = 'An explicit type or default value is required for this argument'
+
+    new(message: message, location: location)
+  }
+
+  static def new(message: String, location: SourceLocation) -> Self {
+    Self { @message = message, @location = location }
+  }
+
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+impl ToString for ParseError {
+  def to_string -> String {
+    @message
+  }
+}
+
+impl Error for ParseError {
+  def message -> String {
+    @message
+  }
+}
 
 # An LL(1) recursive descent parser for parsing Inko source code into an AST.
 object Parser {
@@ -100,27 +147,15 @@ object Parser {
   }
 
   def top_level_expression(token: Token) !! ParseError -> Node {
-    (token.type == 'import').if_true {
-      return try import_module(token)
-    }
-
-    (token.type == 'object').if_true {
-      return try object_definition(token)
-    }
-
-    (token.type == 'trait').if_true {
-      return try trait_definition(token)
-    }
-
-    (token.type == 'impl').if_true {
-      return try implement_or_reopen(token)
-    }
-
-    (token.type == 'def').or { token.type == 'static' }.if_true {
-      return try method_definition(token)
-    }
-
-    try expression(token)
+    match(token.type) {
+      'import' -> { try import_module(token) }
+      'object' -> { try object_definition(token) }
+      'trait' -> { try trait_definition(token) }
+      'impl' -> { try implement_or_reopen(token) }
+      'def' -> { try method_definition(token) }
+      'let' -> { try define_local_variable_or_constant(token) }
+      else -> { try expression(token) }
+    } as Node
   }
 
   def import_module(token: Token) !! ParseError -> Import {
@@ -153,7 +188,7 @@ object Parser {
       let token = next_token
 
       token.keyword?.or { token.type == 'identifier' }.if_false {
-        throw TokenError.new(token)
+        throw ParseError.unexpected_token(token)
       }
 
       steps.push(identifier_from_token(token))
@@ -164,14 +199,10 @@ object Parser {
 
       next_token
 
-      let peeked_type = peek_token.type
-
-      (peeked_type == 'constant')
-        .or { peeked_type == 'paren_open' }
-        .or { peeked_type == 'mul' }
-        .if_true {
-          return steps
-        }
+      match(peek_token.type) {
+        'constant', 'paren_open', 'mul' -> { return steps }
+        else -> {}
+      }
     }.loop
   }
 
@@ -189,22 +220,18 @@ object Parser {
       start: 'paren_open',
       stop: 'paren_close'
     ) do (token) {
-      (token.type == 'identifier')
-        .or { token.type == 'constant' }
-        .or { token.type == 'self' }
-        .if_false {
-          throw TokenError.new(token)
-        }
+      let alias = match(token.type) {
+        'identifier', 'constant' -> { try import_alias(token.type) }
+        'self' -> { try import_alias('identifier') }
+        else -> { throw ParseError.unexpected_token(token) }
+      }
 
-      ImportSymbol.new(
-        name: token.value,
-        location: token.location,
-        alias: try import_alias
-      )
+      ImportSymbol
+        .new(name: token.value, location: token.location, alias: alias)
     }
   }
 
-  def import_alias !! ParseError -> ?ImportAlias {
+  def import_alias(expected: String) !! ParseError -> ?ImportAlias {
     (peek_token.type == 'as').if_false {
       return
     }
@@ -214,8 +241,8 @@ object Parser {
 
     let token = next_token
 
-    (token.type == 'identifier').or { token.type == 'constant' }.if_false {
-      throw TokenError.new(token)
+    (token.type == expected).if_false {
+      throw ParseError.unexpected_token(token)
     }
 
     ImportAlias.new(name: token.value, location: token.location)
@@ -224,7 +251,7 @@ object Parser {
   def object_definition(token: Token) !! ParseError -> DefineObject {
     let name = try token_of_type('constant')
     let params = try type_parameter_definitions
-    let body = try next_as_restricted_body
+    let body = try object_body
 
     DefineObject.new(
       name: name.value,
@@ -240,14 +267,14 @@ object Parser {
     let type = try type(next_token)
 
     DefineAttribute
-      .new(name: token.value, type: type, location: token.location)
+      .new(name: token.value, value_type: type, location: token.location)
   }
 
   def trait_definition(token: Token) !! ParseError -> DefineTrait {
     let name = try token_of_type('constant')
     let params = try type_parameter_definitions
     let required_traits = try required_traits
-    let body = try next_as_restricted_body
+    let body = try trait_body
 
     DefineTrait.new(
       name: name.value,
@@ -289,13 +316,13 @@ object Parser {
     trait_name: Constant
   ) !! ParseError -> ImplementTrait {
     let object_name = constant_from_token(try token_of_type('constant'))
-    let trait_bounds = try trait_bounds
-    let body = try next_as_restricted_body
+    let bounds = try type_parameter_bounds
+    let body = try trait_implementation_body
 
     ImplementTrait.new(
       trait_name: trait_name,
       object_name: object_name,
-      trait_bounds: trait_bounds,
+      type_parameter_bounds: bounds,
       body: body,
       location: token.location
     )
@@ -305,7 +332,7 @@ object Parser {
     token: Token,
     object_name: Constant
   ) !! ParseError -> ReopenObject {
-    let body = try next_as_restricted_body
+    let body = try reopen_object_body
 
     ReopenObject.new(name: object_name, body: body, location: token.location)
   }
@@ -319,15 +346,39 @@ object Parser {
     let arguments = try argument_definitions
     let throw_type = try optional_throw_type
     let return_type = try optional_return_type
+    let bounds = try type_parameter_bounds
+
+    DefineMethod.new(
+      name: name,
+      type_parameters: type_params,
+      type_parameter_bounds: bounds,
+      arguments: arguments,
+      throw_type: throw_type,
+      return_type: return_type,
+      static_method: static_method,
+      body: try body,
+      location: token.location
+    )
+  }
+
+  def trait_method_definition(token: Token) !! ParseError -> Node {
+    let name =
+      try message_name_from_token(token: next_token, consume_assign: True)
+
+    let type_params = try type_parameter_definitions
+    let arguments = try argument_definitions
+    let throw_type = try optional_throw_type
+    let return_type = try optional_return_type
+    let bounds = try type_parameter_bounds
 
     (peek_token.type == 'curly_open').if_false {
       return DefineRequiredMethod.new(
         name: name,
         type_parameters: type_params,
+        type_parameter_bounds: bounds,
         arguments: arguments,
         throw_type: throw_type,
         return_type: return_type,
-        static_method: static_method,
         location: token.location
       )
     }
@@ -335,11 +386,12 @@ object Parser {
     DefineMethod.new(
       name: name,
       type_parameters: type_params,
+      type_parameter_bounds: bounds,
       arguments: arguments,
       throw_type: throw_type,
       return_type: return_type,
-      static_method: static_method,
-      body: try next_as_body,
+      static_method: False,
+      body: try body,
       location: token.location
     )
   }
@@ -367,13 +419,14 @@ object Parser {
   }
 
   def closure(token: Token) !! ParseError -> Closure {
-    let arguments = try argument_definitions
+    let type_params = try type_parameter_definitions
+    let arguments = try argument_definitions(require_types: False)
     let throw_type = try optional_throw_type
     let return_type = try optional_return_type
-    let body = try next_as_body
+    let body = try body
 
     Closure.new(
-      type_parameters: Array.new,
+      type_parameters: type_params,
       arguments: arguments,
       body: body,
       throw_type: throw_type,
@@ -383,13 +436,14 @@ object Parser {
   }
 
   def lambda(token: Token) !! ParseError -> Lambda {
-    let arguments = try argument_definitions
+    let type_params = try type_parameter_definitions
+    let arguments = try argument_definitions(require_types: False)
     let throw_type = try optional_throw_type
     let return_type = try optional_return_type
-    let body = try next_as_body
+    let body = try body
 
     Lambda.new(
-      type_parameters: Array.new,
+      type_parameters: type_params,
       arguments: arguments,
       body: body,
       throw_type: throw_type,
@@ -405,25 +459,36 @@ object Parser {
     }
   }
 
-  def restricted_block_body(start: Token) !! ParseError -> Body {
-    try collect_block_body_nodes(start.location) do (token) {
-      try restricted_block_body_node(token)
+  def restricted_object_body_node(token: Token) !! ParseError -> Node {
+    match(token.type) {
+      'def', 'static' -> { try method_definition(token) }
+      'attribute' -> { try attribute_definition(token) }
+      else -> { throw ParseError.unexpected_token(token) }
     }
   }
 
-  def restricted_block_body_node(token: Token) !! ParseError -> Node {
-    (token.type == 'def').or { token.type == 'static' }.if_true {
-      return try method_definition(token)
+  def restricted_trait_body_node(token: Token) !! ParseError -> Node {
+    match(token.type) {
+      'def' -> { try trait_method_definition(token) }
+      else -> { throw ParseError.unexpected_token(token) }
     }
-
-    (token.type == 'attribute').if_true {
-      return try attribute_definition(token)
-    }
-
-    throw TokenError.new(token)
   }
 
-  def optional_identifier_type !! ParseError -> ?Node {
+  def restricted_trait_implementation_body_node(token: Token) !! ParseError -> Node {
+    match(token.type) {
+      'def' -> { try method_definition(token) }
+      else -> { throw ParseError.unexpected_token(token) }
+    }
+  }
+
+  def restricted_reopen_object_body_node(token: Token) !! ParseError -> Node {
+    match(token.type) {
+      'def', 'static' -> { try method_definition(token) }
+      else -> { throw ParseError.unexpected_token(token) }
+    }
+  }
+
+  def optional_identifier_type !! ParseError -> ?TypeNode {
     (peek_token.type == 'colon').if_false {
       return
     }
@@ -434,18 +499,24 @@ object Parser {
     try type(next_token)
   }
 
-  def default_value !! ParseError -> ?Node {
+  def default_value(rest: Boolean) !! ParseError -> ?Node {
     (peek_token.type == 'assign').if_false {
       return
     }
 
     # Skip the "="
-    next_token
+    let assign = next_token
+
+    rest.if_true {
+      # Default values for rest arguments make no sense, as the default value
+      # will already be set to an empty Array.
+      throw ParseError.unexpected_token(assign)
+    }
 
     try expression(next_token)
   }
 
-  def type_parameter_definitions !! ParseError -> Array!(TypeParameter) {
+  def type_parameter_definitions !! ParseError -> Array!(DefineTypeParameter) {
     try collect_optional_greedy_list(
       start: 'type_args_open',
       stop: 'paren_close'
@@ -454,18 +525,22 @@ object Parser {
     }
   }
 
-  def type_parameter_definition(name: Token) !! ParseError -> TypeParameter {
+  def type_parameter_definition(
+    name: Token
+  ) !! ParseError -> DefineTypeParameter {
     (name.type == 'constant').if_false {
-      throw TokenError.new(name)
+      throw ParseError.unexpected_token(name)
     }
 
     let traits = try required_traits
 
-    TypeParameter
+    DefineTypeParameter
       .new(name: name.value, required_traits: traits, location: name.location)
   }
 
-  def argument_definitions !! ParseError -> Array!(Argument) {
+  def argument_definitions(
+    require_types = True
+  ) !! ParseError -> Array!(DefineArgument) {
     try collect_optional_greedy_list(
       start: 'paren_open',
       stop: 'paren_close'
@@ -486,16 +561,49 @@ object Parser {
       try require_token_type(token: token, expected: 'identifier')
 
       let type = try optional_identifier_type
-      let default = try default_value
+      let default = try default_value(rest: rest)
 
-      Argument.new(
-        name: token.value,
-        value_type: type,
-        default_value: default,
-        mutable: mutable,
-        rest: rest,
-        location: token.location
-      )
+      match {
+        rest -> {
+          type.if_false {
+            throw ParseError.missing_argument_type(token.location)
+          }
+
+          DefineRestArgument.new(
+            name: token.value,
+            value_type: type!,
+            mutable: mutable,
+            location: token.location
+          )
+        }
+        default.not_nil? -> {
+          DefineOptionalArgument.new(
+            name: token.value,
+            value_type: type,
+            default_value: default!,
+            mutable: mutable,
+            location: token.location
+          )
+        }
+        type.not_nil? -> {
+          DefineRequiredArgument.new(
+            name: token.value,
+            value_type: type!,
+            mutable: mutable,
+            location: token.location
+          )
+        }
+        require_types -> {
+          throw ParseError.missing_argument_type(token.location)
+        }
+        else -> {
+          DefineUntypedArgument.new(
+            name: token.value,
+            mutable: mutable,
+            location: token.location
+          )
+        }
+      } as DefineArgument
     }
   }
 
@@ -522,12 +630,12 @@ object Parser {
     }.loop
   }
 
-  def trait_bounds !! ParseError -> Array!(TypeParameter) {
-    (peek_token.type == 'where').if_false {
+  def type_parameter_bounds !! ParseError -> Array!(DefineTypeParameter) {
+    (peek_token.type == 'when').if_false {
       return Array.new
     }
 
-    # Skip the "where"
+    # Skip the "when"
     next_token
 
     try collect_list(stop: 'curly_open') do (token) {
@@ -585,21 +693,20 @@ object Parser {
   def postfix_step(node: Node) !! ParseError -> Node {
     let peeked = peek_token
 
-    (peeked.type == 'dot').if_true {
-      next_token
-
-      return try send_with_receiver(node)
-    }
-
-    (peeked.type == 'exclamation').if_true {
-      return NotNil.new(expression: node, location: next_token.location)
-    }
-
-    (peeked.type == 'bracket_open').if_true {
-      return try bracket_send(start: next_token, receiver: node)
-    }
-
-    node
+    match(peeked.type) {
+      'dot' -> {
+        next_token
+        try send_with_receiver(node)
+      }
+      'exclamation' -> {
+        NotNil.new(expression: node, location: next_token.location)
+      }
+      'bracket_open' -> { try bracket_send(start: next_token, receiver: node) }
+      'question_question' -> {
+        try coalesce_nil(start: next_token, expression: node)
+      }
+      else -> { node }
+    } as Node
   }
 
   def bracket_send(start: Token, receiver: Node) !! ParseError -> Node {
@@ -628,46 +735,109 @@ object Parser {
     )
   }
 
-  def return_value(token: Token) !! ParseError -> Node {
+  def coalesce_nil(start: Token, expression: Node) !! ParseError -> CoalesceNil {
+    let default = try expression(next_token)
+
+    CoalesceNil.new(
+      expression: expression,
+      default: default,
+      location: start.location
+    )
+  }
+
+  def return_value(
+    token: Token,
+    local_return = False,
+    location = token.location
+  ) !! ParseError -> Node {
     let peeked = peek_token
+    let expr = match(peeked.type) {
+      'identifier',
+      'attribute',
+      'constant',
+      'curly_open',
+      'do',
+      'lambda',
+      'integer',
+      'float',
+      'string',
+      'self',
+      'match',
+      'paren_open',
+      'let',
+      'return',
+      'throw',
+      'try',
+      'local',
+      'colon_colon'
+      when peeked.same_line?(token) -> { try expression(next_token) }
+      else -> {}
+    }
 
-    let expr =
-      peeked.valid?
-        .and { peeked.same_line?(token) }
-        .and {
-          (peeked.type == 'attribute')
-            .or { peeked.type == 'colon_colon' }
-            .or { peeked.type == 'constant' }
-            .or { peeked.type == 'curly_open' }
-            .or { peeked.type == 'do' }
-            .or { peeked.type == 'float' }
-            .or { peeked.type == 'integer' }
-            .or { peeked.type == 'lambda' }
-            .or { peeked.type == 'let' }
-            .or { peeked.type == 'paren_open' }
-            .or { peeked.type == 'return' }
-            .or { peeked.type == 'string' }
-            .or { peeked.type == 'self' }
-        }
-        .if(true: { try expression(next_token) }, false: { Nil })
-
-    Return.new(expression: expr, location: token.location)
+    Return.new(expression: expr, local_return: local_return, location: location)
   }
 
-  def throw_value(token: Token) !! ParseError -> Throw {
-    Throw.new(expression: try expression(next_token), location: token.location)
+  def throw_value(
+    token: Token,
+    local_throw = False,
+    location = token.location
+  ) !! ParseError -> Node {
+    let expr = try expression(next_token)
+
+    Throw.new(expression: expr, local_throw: local_throw, location: location)
   }
 
-  def try_expression(token: Token) !! ParseError -> Node {
+  def local_expression(token: Token) !! ParseError -> Node {
+    let next = next_token
+    let loc = token.location
+
+    match(next.type) {
+      'return' -> {
+        try return_value(token: next, local_return: True, location: loc)
+      }
+      'throw' -> {
+        try throw_value(token: next, local_throw: True, location: loc)
+      }
+      'try' -> {
+        try try_expression(token: next, local_throw: True, location: loc)
+      }
+      else -> { throw ParseError.unexpected_token(next_token) }
+    }
+  }
+
+  def try_expression(
+    token: Token,
+    local_throw = False,
+    location = token.location
+  ) !! ParseError -> Node {
     (peek_token.type == 'exclamation').if_true {
       return try try_panic(token)
     }
 
-    let expr = try expression(next_token)
+    let expr = try try_expression_value
+
+    match(let matched = expr) {
+      as ThrowingNode -> { matched.inside_try }
+      else -> {}
+    }
 
     (peek_token.type == 'else').if(
-      true: { try try_with_else(token: token, expression: expr) },
-      false: { try_without_else(token: token, expression: expr) },
+      true: {
+        try try_with_else(
+          token: token,
+          expression: expr,
+          local_throw: local_throw,
+          location: location
+        )
+      },
+      false: {
+        try_without_else(
+          token: token,
+          expression: expr,
+          local_throw: local_throw,
+          location: location
+        )
+      }
     )
   }
 
@@ -675,12 +845,17 @@ object Parser {
     # Skip the "!"
     next_token
 
-    let expr = try expression(next_token)
+    let expr = try try_expression_value
 
     TryPanic.new(expression: expr, location: token.location)
   }
 
-  def try_with_else(token: Token, expression: Node) !! ParseError -> Try {
+  def try_with_else(
+    token: Token,
+    expression: Node,
+    local_throw = False,
+    location = token.location
+  ) !! ParseError -> Try {
     # Skip the "else" keyword
     next_token
 
@@ -699,7 +874,7 @@ object Parser {
     )
 
     let else_body = (peek_token.type == 'curly_open').if(
-      true: { try next_as_body },
+      true: { try body },
       false: {
         let body = try expression(next_token)
 
@@ -711,11 +886,17 @@ object Parser {
       expression: expression,
       error_variable: else_var,
       else_body: else_body,
-      location: token.location
+      local_throw: local_throw,
+      location: location
     )
   }
 
-  def try_without_else(token: Token, expression: Node) -> Try {
+  def try_without_else(
+    token: Token,
+    expression: Node,
+    local_throw = False,
+    location = token.location
+  ) -> Try {
     let else_expr =
       Body.new(children: Array.new, location: token.location)
 
@@ -723,8 +904,20 @@ object Parser {
       expression: expression,
       error_variable: Nil,
       else_body: else_expr,
-      location: token.location
+      local_throw: local_throw,
+      location: location
     )
+  }
+
+  def try_expression_value !! ParseError -> Node {
+    let expr = try expression(next_token)
+
+    match(let matched = expr) {
+      as ThrowingNode -> { matched.inside_try }
+      else -> {}
+    }
+
+    expr
   }
 
   def self_object(token: Token) -> SelfObject {
@@ -749,7 +942,7 @@ object Parser {
     }
 
     peeked.binary_assign?.if_true {
-      return try binary_assign(ident)
+      return AssignLocal.new(name: ident, value: try binary_assign(ident))
     }
 
     ident
@@ -769,96 +962,55 @@ object Parser {
     )
   }
 
-  def assign_local(identifier: Identifier) !! ParseError -> Assign {
+  def assign_local(identifier: Identifier) !! ParseError -> AssignLocal {
     # Skip the "="
     next_token
 
-    Assign.new(variable: identifier, value: try expression(next_token))
+    AssignLocal.new(name: identifier, value: try expression(next_token))
   }
 
-  def binary_assign(variable: Node) !! ParseError -> Assign {
+  def binary_assign(variable: Node) !! ParseError -> Send {
     let operator = next_token
     let message =
       operator.value.slice(start: 0, length: operator.value.length - 1)
 
     let operand = try expression(next_token)
-    let assign_to = Send.new(
+
+    Send.new(
       message: message,
       receiver: variable,
       arguments: Array.new(operand),
       type_arguments: Array.new,
       location: operator.location
     )
-
-    Assign.new(variable: variable, value: assign_to)
   }
 
   def value(token: Token) !! ParseError -> Node {
-    (token.type == 'integer').if_true {
-      return integer(token)
-    }
-
-    (token.type == 'float').if_true {
-      return float(token)
-    }
-
-    (token.type == 'string').if_true {
-      return string(token)
-    }
-
-    (token.type == 'paren_open').if_true {
-      return try grouped_expression
-    }
-
-    (token.type == 'curly_open').if_true {
-      return try basic_closure(token)
-    }
-
-    (token.type == 'do').if_true {
-      return try closure(token)
-    }
-
-    (token.type == 'lambda').if_true {
-      return try self.lambda(token)
-    }
-
-    (token.type == 'attribute').if_true {
-      return try attribute(token)
-    }
-
-    (token.type == 'constant').if_true {
-      return try constant(token)
-    }
-
-    (token.type == 'let').if_true {
-      return try define_variable(token)
-    }
-
-    (token.type == 'return').if_true {
-      return try return_value(token)
-    }
-
-    (token.type == 'self').if_true {
-      return self_object(token)
-    }
-
-    (token.type == 'throw').if_true {
-      return try throw_value(token)
-    }
-
-    (token.type == 'try').if_true {
-      return try try_expression(token)
-    }
-
-    (token.type == 'identifier').if_true {
-      return try identifier(token)
-    }
-
-    (token.type == 'colon_colon').if_true {
-      return try global(token)
-    }
-
-    throw TokenError.new(token)
+    # When adding a new token to the "match" below, make sure to also update the
+    # "match" in the return_value() method.
+    match(token.type) {
+      'identifier' -> { try identifier(token) }
+      'attribute' -> { try attribute(token) }
+      'constant' -> { try constant_or_constructor(token) }
+      'curly_open' -> { try basic_closure(token) }
+      'do' -> { try closure(token) }
+      'lambda' -> { try self.lambda(token) }
+      'integer' -> { integer(token) }
+      'float' -> { float(token) }
+      'string' -> { string(token) }
+      'self' -> { self_object(token) }
+      'match' -> { try pattern_match(token) }
+      'paren_open' -> { try grouped_expression }
+      'let' -> {
+        try define_local_variable(token: token, mutable: next_token_is_mutable?)
+      }
+      'return' -> { try return_value(token) }
+      'throw' -> { try throw_value(token) }
+      'try' -> { try try_expression(token) }
+      'local' -> { try local_expression(token) }
+      'colon_colon' -> { try global(token) }
+      else -> { throw ParseError.unexpected_token(token) }
+    } as Node
   }
 
   def integer(token: Token) -> IntegerLiteral {
@@ -888,28 +1040,73 @@ object Parser {
     node
   }
 
+  def constant_or_constructor(token: Token) !! ParseError -> Node {
+    let peeked = peek_token
+
+    (peeked.type == 'curly_open')
+      .and { peeked.same_line?(token) }
+      .if_true { return try constructor(token) }
+
+    try constant(token)
+  }
+
+  def constructor(token: Token) !! ParseError -> Constructor {
+    try token_of_type('curly_open')
+
+    let attrs = try collect_list(stop: 'curly_close') do (attr) {
+      require_token_type(token: attr, expected: 'attribute')
+
+      try token_of_type('assign')
+
+      let value = try expression(next_token)
+
+      ConstructorAttribute
+        .new(name: attr.value, value: value, location: attr.location)
+    }
+
+    try token_of_type('curly_close')
+
+    Constructor
+      .new(name: token.value, attributes: attrs, location: token.location)
+  }
+
   def global(token: Token) !! ParseError -> Global {
     let name_token = next_token
 
     (name_token.type == 'identifier')
       .or { name_token.type == 'constant' }
       .if_false {
-        throw TokenError.new(name_token)
+        throw ParseError.unexpected_token(name_token)
       }
 
     Global.new(name: name_token.value, location: token.location)
   }
 
-  def define_variable(token: Token) !! ParseError -> DefineVariable {
+  def define_local_variable_or_constant(token: Token) !! ParseError -> Node {
     let mutable = next_token_is_mutable?
-    let name = try variable_name
+
+    mutable.if_true {
+      return try define_local_variable(token: token, mutable: True)
+    }
+
+    (peek_token.type == 'constant').if_true {
+      return try define_constant(token)
+    }
+
+    try define_local_variable(token: token, mutable: False)
+  }
+
+  def define_local_variable(
+    token: Token, mutable: Boolean
+  ) !! ParseError -> DefineLocalVariable {
+    let name = identifier_from_token(try token_of_type('identifier'))
     let type = try optional_identifier_type
 
     try token_of_type('assign')
 
     let value = try expression(next_token)
 
-    DefineVariable.new(
+    DefineLocalVariable.new(
       name: name,
       value_type: type,
       value: value,
@@ -918,18 +1115,20 @@ object Parser {
     )
   }
 
-  def variable_name !! ParseError -> Node {
-    let token = next_token
+  def define_constant(token: Token) !! ParseError -> DefineConstant {
+    let name = constant_from_token(try token_of_type('constant'))
+    let type = try optional_identifier_type
 
-    (token.type == 'identifier').if_true {
-      return identifier_from_token(token)
-    }
+    try token_of_type('assign')
 
-    (token.type == 'constant').if_true {
-      return Constant.new(name: token.value, location: token.location)
-    }
+    let value = try expression(next_token)
 
-    throw TokenError.new(token)
+    DefineConstant.new(
+      name: name,
+      value_type: type,
+      value: value,
+      location: token.location
+    )
   }
 
   def send_with_receiver(receiver: Node) !! ParseError -> Node {
@@ -966,7 +1165,10 @@ object Parser {
     consume_assign: Boolean
   ) !! ParseError -> String {
     token.valid?.if_false {
-      throw MissingInputError.new(token.location)
+      throw ParseError.new(
+        message: 'More input was expected, but we ran out of input',
+        location: token.location
+      )
     }
 
     (token.type == 'identifier')
@@ -978,7 +1180,7 @@ object Parser {
           .and { peek_token.type == 'bracket_close' }
       }
       .if_false {
-        throw TokenError.new(token)
+        throw ParseError.unexpected_token(token)
       }
 
     let mut name = token.value
@@ -1024,14 +1226,26 @@ object Parser {
   }
 
   def message_arguments_with_parentheses !! ParseError -> Array!(Node) {
+    let mut allow_positional = True
+
     # Skip the opening "("
     next_token
 
     let arguments = try collect_list(stop: 'paren_close') do (token) {
-      (token.type == 'identifier').and { peek_token.type == 'colon' }.if(
-        true: { try keyword_argument(token) },
-        false: { try expression(token) }
-      )
+      match {
+        token.type == 'identifier' when peek_token.type == 'colon' -> {
+          allow_positional = False
+
+          try keyword_argument(token)
+        }
+        allow_positional -> { try expression(token) }
+        else -> {
+          throw ParseError.new(
+            message: 'Positional arguments must come before any keyword arguments',
+            location: token.location
+          )
+        }
+      }
     }
 
     let closing_paren = try token_of_type('paren_close')
@@ -1068,7 +1282,7 @@ object Parser {
     KeywordArgument.new(name: name, value: value, location: name.location)
   }
 
-  def type_arguments !! ParseError -> Array!(Node) {
+  def type_arguments !! ParseError -> Array!(TypeNode) {
     try collect_optional_greedy_list(
       start: 'type_args_open',
       stop: 'paren_close'
@@ -1077,31 +1291,21 @@ object Parser {
     }
   }
 
-  def type(token: Token) !! ParseError -> Node {
-    (token.type == 'constant').if_true {
-      return try constant(token)
-    }
-
-    (token.type == 'question').if_true {
-      return try optional_type(token)
-    }
-
-    (token.type == 'do').if_true {
-      return try closure_type(token)
-    }
-
-    (token.type == 'lambda').if_true {
-      return try lambda_type(token)
-    }
-
-    throw TokenError.new(token)
+  def type(token: Token) !! ParseError -> TypeNode {
+    match(token.type) {
+      'constant' -> { try constant(token) }
+      'question' -> { try optional_type(token) }
+      'do' -> { try closure_type(token) }
+      'lambda' -> { try lambda_type(token) }
+      else -> { throw ParseError.unexpected_token(token) }
+    } as TypeNode
   }
 
-  def optional_type(token: Token) !! ParseError -> Node {
-    OptionalType.new(type: try type(next_token), location: token.location)
+  def optional_type(token: Token) !! ParseError -> OptionalType {
+    OptionalType.new(node: try type(next_token), location: token.location)
   }
 
-  def closure_type(token: Token) !! ParseError -> Node {
+  def closure_type(token: Token) !! ParseError -> ClosureType {
     ClosureType.new(
       type_parameters: try type_parameter_definitions,
       arguments: try block_argument_types,
@@ -1111,7 +1315,7 @@ object Parser {
     )
   }
 
-  def lambda_type(token: Token) !! ParseError -> Node {
+  def lambda_type(token: Token) !! ParseError -> LambdaType {
     LambdaType.new(
       type_parameters: try type_parameter_definitions,
       arguments: try block_argument_types,
@@ -1121,7 +1325,7 @@ object Parser {
     )
   }
 
-  def block_argument_types !! ParseError -> Array!(Node) {
+  def block_argument_types !! ParseError -> Array!(TypeNode) {
     try collect_optional_greedy_list(
       start: 'paren_open',
       stop: 'paren_close'
@@ -1130,7 +1334,7 @@ object Parser {
     }
   }
 
-  def optional_throw_type !! ParseError -> ?Node {
+  def optional_throw_type !! ParseError -> ?TypeNode {
     (peek_token.type == 'throws').if_false {
       return
     }
@@ -1141,7 +1345,7 @@ object Parser {
     try type(next_token)
   }
 
-  def optional_return_type !! ParseError -> ?Node {
+  def optional_return_type !! ParseError -> ?TypeNode {
     (peek_token.type == 'arrow').if_false {
       return
     }
@@ -1161,17 +1365,17 @@ object Parser {
     }
 
     peeked.binary_assign?.if_true {
-      return try binary_assign(attr)
+      return AssignAttribute.new(name: attr, value: try binary_assign(attr))
     }
 
     attr
   }
 
-  def assign_attribute(attribute: Attribute) !! ParseError -> Assign {
+  def assign_attribute(attribute: Attribute) !! ParseError -> AssignAttribute {
     # Skip the "="
     next_token
 
-    Assign.new(variable: attribute, value: try expression(next_token))
+    AssignAttribute.new(name: attribute, value: try expression(next_token))
   }
 
   def identifier_from_token(token: Token) -> Identifier {
@@ -1206,7 +1410,7 @@ object Parser {
       return
     }
 
-    throw TokenError.new(token)
+    throw ParseError.unexpected_token(token)
   }
 
   def token_of_type(type: String) !! ParseError -> Token {
@@ -1225,18 +1429,150 @@ object Parser {
     Constant.new(name: token.value, location: token.location)
   }
 
-  def next_as_body !! ParseError -> Body {
+  def body !! ParseError -> Body {
     try block_body(try token_of_type('curly_open'))
   }
 
-  def next_as_restricted_body !! ParseError -> Body {
-    try restricted_block_body(try token_of_type('curly_open'))
+  def object_body !! ParseError -> Body {
+    let start = try token_of_type('curly_open')
+
+    try collect_block_body_nodes(start.location) do (token) {
+      try restricted_object_body_node(token)
+    }
+  }
+
+  def trait_body !! ParseError -> Body {
+    let start = try token_of_type('curly_open')
+
+    try collect_block_body_nodes(start.location) do (token) {
+      try restricted_trait_body_node(token)
+    }
+  }
+
+  def reopen_object_body !! ParseError -> Body {
+    let start = try token_of_type('curly_open')
+
+    try collect_block_body_nodes(start.location) do (token) {
+      try restricted_reopen_object_body_node(token)
+    }
+  }
+
+  def trait_implementation_body !! ParseError -> Body {
+    let start = try token_of_type('curly_open')
+
+    try collect_block_body_nodes(start.location) do (token) {
+      try restricted_trait_implementation_body_node(token)
+    }
+  }
+
+  def pattern_match(start: Token) !! ParseError -> Match {
+    let cases: Array!(MatchCase) = Array.new
+    let mut else_branch: ?MatchElse = Nil
+    let mut binding: ?Identifier = Nil
+    let mut match_expr: ?Node = Nil
+
+    # For the sake of keeping this code's complexity under control we require
+    # that when a "(" is given, an expression (and optional binding) is also
+    # given. In other words, this is valid:
+    #
+    #     match { ...  }
+    #
+    # But this is not:
+    #
+    #     match() { ... }
+    (peek_token.type == 'paren_open').if_true {
+      try token_of_type('paren_open')
+
+      (peek_token.type == 'let').if_true {
+        next_token
+
+        binding = identifier_from_token(try token_of_type('identifier'))
+
+        try token_of_type('assign')
+      }
+
+      match_expr = try expression(next_token)
+
+      try token_of_type('paren_close')
+    }
+
+    try token_of_type('curly_open')
+
+    {
+      let peeked = peek_token
+
+      peeked.valid?.and { peeked.type != 'curly_close' }
+    }.while_true {
+      let token = next_token
+
+      match(token.type) {
+        'as' -> {
+          let pattern = constant_from_token(try token_of_type('constant'))
+          let type_guard = try optional_pattern_match_guard
+
+          try token_of_type('arrow')
+
+          cases.push(MatchType.new(
+            pattern: pattern,
+            guard: type_guard,
+            body: try body,
+            location: token.location
+          ))
+        }
+        'else' -> {
+          else_branch.if_true { throw ParseError.unexpected_token(token) }
+
+          try token_of_type('arrow')
+
+          else_branch = MatchElse.new(
+            body: try block_body(try token_of_type('curly_open')),
+            location: token.location
+          )
+        }
+        else -> {
+          let patterns = Array.new(try expression(token))
+
+          { peek_token.type == 'comma' }.while_true {
+            next_token
+            patterns.push(try expression(next_token))
+          }
+
+          let expr_guard = try optional_pattern_match_guard
+
+          try token_of_type('arrow')
+
+          cases.push(MatchExpressions.new(
+            patterns: patterns,
+            guard: expr_guard,
+            body: try body,
+            location: token.location
+          ))
+        }
+      }
+    }
+
+    try token_of_type('curly_close')
+
+    Match.new(
+      expression: match_expr,
+      binding: binding,
+      cases: cases,
+      else_branch: else_branch,
+      location: start.location
+    )
+  }
+
+  def optional_pattern_match_guard !! ParseError -> ?Node {
+    (peek_token.type == 'when').if_false { return }
+
+    # Skip the "when" keyword.
+    next_token
+
+    try expression(next_token)
   }
 
   def next_token -> Token {
-    @peeked_token.if_false {
-      return next_token_from_lexer
-    }
+    @peeked_token.if_false { return next_token_from_lexer }
 
     let token = @peeked_token!
 
@@ -1246,15 +1582,12 @@ object Parser {
   }
 
   def peek_token -> Token {
-    @peeked_token.if_false {
-      @peeked_token = next_token_from_lexer
-    }
-
+    @peeked_token.if_false { @peeked_token = next_token_from_lexer }
     @peeked_token!
   }
 
   def next_token_from_lexer -> Token {
-    let token = @lexer.next!
+    let token = @lexer.next
 
     (token.type == 'comment').if_false {
       return token
@@ -1338,15 +1671,13 @@ object Parser {
   def list_separator_or_terminal(type: String) !! ParseError {
     let peeked = peek_token
 
-    (peeked.type == 'comma').if_true {
-      next_token
-      return
+    match(peeked.type) {
+      'comma' -> {
+        next_token
+        return
+      }
+      type -> { return }
+      else -> { throw ParseError.unexpected_token(peeked) }
     }
-
-    (peeked.type == type).if_true {
-      return
-    }
-
-    throw TokenError.new(peeked)
   }
 }

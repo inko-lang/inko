@@ -1,36 +1,226 @@
-# AST types for closures and lambdas.
+# AST types for methods, closures, and lambdas.
 import std::compiler::ast::body::Body
-import std::compiler::ast::node::Node
-import std::compiler::ast::type_parameter::TypeParameter
+import std::compiler::ast::node::*
+import std::compiler::ast::variables::DefineTypeParameter
 import std::compiler::source_location::SourceLocation
+import std::compiler::types::(
+  ClosureType, LambdaType, MethodType, TypeScope, Type
+)
 
-# An argument as defined in a closure, lambda, or method..
-object Argument {
+# A AST node that defines an argument.
+trait DefineArgument: Node {
+  # Returns the name of the arguments.
+  def name -> String
+
+  # Returns `True` if this argument defines a default value.
+  def default_value? -> Boolean {
+    False
+  }
+}
+
+# The definition of an argument that has neither a default value, nor an
+# explicit type.
+#
+# Untyped arguments are only valid for closures and lambdas, and their types are
+# inferred based on the use of the block.
+object DefineUntypedArgument {
   # The name of the argument.
   @name: String
-
-  # The explicit type of the argument, if specified.
-  @value_type: ?Node
-
-  # The default value of the argument, if any.
-  @default_value: ?Node
 
   # A boolean indicating if the argument is mutable (True) or immutable (False).
   @mutable: Boolean
 
-  # A boolean indicating if the argument is a rest argument (True) or a regular
-  # argument (False).
-  @rest: Boolean
+  # The source location of the argument.
+  @location: SourceLocation
+
+  # The type of this argument.
+  @resolved_type: ?Type
+
+  static def new(
+    name: String,
+    mutable: Boolean,
+    location: SourceLocation
+  ) -> Self {
+    Self {
+      @name = name,
+      @mutable = mutable,
+      @location = location,
+      @resolved_type = Nil
+    }
+  }
+
+  def name -> String {
+    @name
+  }
+
+  def mutable? -> Boolean {
+    @mutable
+  }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
+  }
+}
+
+impl Node for DefineUntypedArgument {
+  def location -> SourceLocation {
+    @location
+  }
+
+  def resolved_type -> ?Type {
+    @resolved_type
+  }
+}
+
+impl DefineArgument for DefineUntypedArgument {}
+
+# The definition of a required argument.
+object DefineRequiredArgument {
+  # The name of the argument.
+  @name: String
+
+  # The explicit type of the argument.
+  @value_type: TypeNode
+
+  # A boolean indicating if the argument is mutable (True) or immutable (False).
+  @mutable: Boolean
 
   # The source location of the argument.
   @location: SourceLocation
 
+  # The type of this argument.
+  @resolved_type: ?Type
+
   static def new(
     name: String,
-    value_type: ?Node,
-    default_value: ?Node,
+    value_type: TypeNode,
     mutable: Boolean,
-    rest: Boolean,
+    location: SourceLocation
+  ) -> Self {
+    Self {
+      @name = name,
+      @value_type = value_type,
+      @mutable = Boolean,
+      @location = location,
+      @resolved_type = Nil
+    }
+  }
+
+  def name -> String {
+    @name
+  }
+
+  def value_type -> TypeNode {
+    @value_type
+  }
+
+  def mutable? -> Boolean {
+    @mutable
+  }
+
+  def resolved_type=(type: Type) -> Type {
+    @resolved_type = type
+  }
+}
+
+impl Node for DefineRequiredArgument {
+  def location -> SourceLocation {
+    @location
+  }
+
+  def resolved_type -> ?Type {
+    @resolved_type
+  }
+}
+
+impl DefineArgument for DefineRequiredArgument {}
+
+# The definition of a rest argument
+object DefineRestArgument {
+  # The name of the argument.
+  @name: String
+
+  # The explicit type of the argument.
+  @value_type: TypeNode
+
+  # A boolean indicating if the argument is mutable (True) or immutable (False).
+  @mutable: Boolean
+
+  # The source location of the argument.
+  @location: SourceLocation
+
+  # The type of this argument.
+  @resolved_type: ?Type
+
+  static def new(
+    name: String,
+    value_type: TypeNode,
+    mutable: Boolean,
+    location: SourceLocation
+  ) -> Self {
+    Self {
+      @name = name,
+      @value_type = value_type,
+      @mutable = mutable,
+      @location = location,
+      @resolved_type = Nil
+    }
+  }
+
+  def name -> String {
+    @name
+  }
+
+  def value_type -> TypeNode {
+    @value_type
+  }
+
+  def mutable? -> Boolean {
+    @mutable
+  }
+
+  def resolved_type=(type: Type) -> Type {
+    @resolved_type = type
+  }
+}
+
+impl Node for DefineRestArgument {
+  def location -> SourceLocation {
+    @location
+  }
+
+  def resolved_type -> ?Type {
+    @resolved_type
+  }
+}
+
+impl DefineArgument for DefineRestArgument {}
+
+# An argument definition with a default value.
+object DefineOptionalArgument {
+  # The name of the argument.
+  @name: String
+
+  # The explicit type of the argument, if specified.
+  @value_type: ?TypeNode
+
+  # The default value of the argument.
+  @default_value: Node
+
+  # A boolean indicating if the argument is mutable (True) or immutable (False).
+  @mutable: Boolean
+
+  # The source location of the argument.
+  @location: SourceLocation
+
+  # The type of this argument.
+  @resolved_type: ?Type
+
+  static def new(
+    name: String,
+    value_type: ?TypeNode,
+    default_value: Node,
+    mutable: Boolean,
     location: SourceLocation
   ) -> Self {
     Self {
@@ -38,40 +228,45 @@ object Argument {
       @value_type = value_type,
       @default_value = default_value,
       @mutable = Boolean,
-      @rest = rest,
-      @location = location
+      @location = location,
+      @resolved_type = Nil
     }
   }
 
-  # Returns the name of the argument.
   def name -> String {
     @name
   }
 
-  # Returns the default value of the argument.
-  def default_value -> ?Node {
-    @default_value
-  }
-
-  # Returns the explicit type of the argument.
-  def value_type -> ?Node {
+  def value_type -> ?TypeNode {
     @value_type
   }
 
-  ## Returns `True` if the argument is mutable.
+  def default_value -> Node {
+    @default_value
+  }
+
   def mutable? -> Boolean {
     @mutable
   }
 
-  ## Returns `True` if the argument is a rest argument.
-  def rest? -> Boolean {
-    @rest
+  def resolved_type=(type: Type) -> Type {
+    @resolved_type = type
   }
 }
 
-impl Node for Argument {
+impl Node for DefineOptionalArgument {
   def location -> SourceLocation {
     @location
+  }
+
+  def resolved_type -> ?Type {
+    @resolved_type
+  }
+}
+
+impl DefineArgument for DefineOptionalArgument {
+  def default_value? -> Boolean {
+    True
   }
 }
 
@@ -83,13 +278,20 @@ object BasicClosure {
   # The source location of the block.
   @location: SourceLocation
 
+  # The type of this closure.
+  @resolved_type: ?ClosureType
+
   static def new(body: Body, location: SourceLocation) -> Self {
-    Self { @body = body, @location = location }
+    Self { @body = body, @location = location, @resolved_type = Nil }
   }
 
   # Returns the expressions in the block's body.
   def body -> Body {
     @body
+  }
+
+  def resolved_type=(value: ClosureType) -> ClosureType {
+    @resolved_type = value
   }
 }
 
@@ -97,34 +299,41 @@ impl Node for BasicClosure {
   def location -> SourceLocation {
     @location
   }
+
+  def resolved_type -> ?ClosureType {
+    @resolved_type
+  }
 }
 
 # A closure created with the `do` keyword.
 object Closure {
   # The type parameters of the closure.
-  @type_parameters: Array!(TypeParameter)
+  @type_parameters: Array!(DefineTypeParameter)
 
   # The arguments of the closure.
-  @arguments: Array!(Argument)
+  @arguments: Array!(DefineArgument)
 
   # The expressions in the closure's body.
   @body: Body
 
   # The type of the value this closure might throw.
-  @throw_type: ?Node
+  @throw_type: ?TypeNode
 
   # The return type of this closure.
-  @return_type: ?Node
+  @return_type: ?TypeNode
 
   # The source location of the closure.
   @location: SourceLocation
 
+  # The type of this closure.
+  @resolved_type: ?ClosureType
+
   static def new(
-    type_parameters: Array!(TypeParameter),
-    arguments: Array!(Argument),
+    type_parameters: Array!(DefineTypeParameter),
+    arguments: Array!(DefineArgument),
     body: Body,
-    throw_type: ?Node,
-    return_type: ?Node,
+    throw_type: ?TypeNode,
+    return_type: ?TypeNode,
     location: SourceLocation
   ) -> Self {
     Self {
@@ -133,33 +342,33 @@ object Closure {
       @body = body,
       @throw_type = throw_type,
       @return_type = return_type,
-      @location = location
+      @location = location,
+      @resolved_type = Nil
     }
   }
 
-  # Returns the type parameters of the closure.
-  def type_parameters -> Array!(TypeParameter) {
+  def type_parameters -> Array!(DefineTypeParameter) {
     @type_parameters
   }
 
-  # Returns the arguments of the closure.
-  def arguments -> Array!(Argument) {
+  def arguments -> Array!(DefineArgument) {
     @arguments
   }
 
-  # Returns the expressions in the block's body.
   def body -> Body {
     @body
   }
 
-  # Returns the return type of this lambda.
-  def return_type -> ?Node {
+  def return_type -> ?TypeNode {
     @return_type
   }
 
-  # Returns the throw type of this lambda.
-  def throw_type -> ?Node {
+  def throw_type -> ?TypeNode {
     @throw_type
+  }
+
+  def resolved_type=(value: ClosureType) -> ClosureType {
+    @resolved_type = value
   }
 }
 
@@ -167,34 +376,41 @@ impl Node for Closure {
   def location -> SourceLocation {
     @location
   }
+
+  def resolved_type -> ?ClosureType {
+    @resolved_type
+  }
 }
 
 # A lambda created with the `do` keyword.
 object Lambda {
   # The type parameters of the lambda.
-  @type_parameters: Array!(TypeParameter)
+  @type_parameters: Array!(DefineTypeParameter)
 
   # The arguments of the lambda.
-  @arguments: Array!(Argument)
+  @arguments: Array!(DefineArgument)
 
   # The expressions in the lambda's body.
   @body: Body
 
   # The type of the value this lambda might throw.
-  @throw_type: ?Node
+  @throw_type: ?TypeNode
 
   # The return type of this lambda.
-  @return_type: ?Node
+  @return_type: ?TypeNode
 
   # The source location of the lambda.
   @location: SourceLocation
 
+  # The type of this lambda.
+  @resolved_type: ?LambdaType
+
   static def new(
-    type_parameters: Array!(TypeParameter),
-    arguments: Array!(Argument),
+    type_parameters: Array!(DefineTypeParameter),
+    arguments: Array!(DefineArgument),
     body: Body,
-    throw_type: ?Node,
-    return_type: ?Node,
+    throw_type: ?TypeNode,
+    return_type: ?TypeNode,
     location: SourceLocation
   ) -> Self {
     Self {
@@ -203,39 +419,43 @@ object Lambda {
       @body = body,
       @throw_type = throw_type,
       @return_type = return_type,
-      @location = location
+      @location = location,
+      @resolved_type = Nil
     }
   }
 
-  # Returns the type parameters of the lambda.
-  def type_parameters -> Array!(TypeParameter) {
+  def type_parameters -> Array!(DefineTypeParameter) {
     @type_parameters
   }
 
-  # Returns the arguments of the lambda.
-  def arguments -> Array!(Argument) {
+  def arguments -> Array!(DefineArgument) {
     @arguments
   }
 
-  # Returns the expressions in the block's body.
   def body -> Body {
     @body
   }
 
-  # Returns the return type of this lambda.
-  def return_type -> ?Node {
+  def return_type -> ?TypeNode {
     @return_type
   }
 
-  # Returns the throw type of this lambda.
-  def throw_type -> ?Node {
+  def throw_type -> ?TypeNode {
     @throw_type
+  }
+
+  def resolved_type=(value: LambdaType) -> LambdaType {
+    @resolved_type = value
   }
 }
 
 impl Node for Lambda {
   def location -> SourceLocation {
     @location
+  }
+
+  def resolved_type -> ?LambdaType {
+    @resolved_type
   }
 }
 
@@ -245,19 +465,23 @@ object DefineMethod {
   @name: String
 
   # The type parameters of the method.
-  @type_parameters: Array!(TypeParameter)
+  @type_parameters: Array!(DefineTypeParameter)
+
+  # Additional type parameter bounds that a concrete type must implement for
+  # this method to be available.
+  @type_parameter_bounds: Array!(DefineTypeParameter)
 
   # The arguments of the method.
-  @arguments: Array!(Argument)
+  @arguments: Array!(DefineArgument)
 
   # The expressions in the method's body.
   @body: Body
 
   # The type of the value this method might throw.
-  @throw_type: ?Node
+  @throw_type: ?TypeNode
 
   # The return type of this method.
-  @return_type: ?Node
+  @return_type: ?TypeNode
 
   # The source location of the method.
   @location: SourceLocation
@@ -266,12 +490,16 @@ object DefineMethod {
   # (False).
   @static_method: Boolean
 
+  # The type of this method.
+  @resolved_type: ?MethodType
+
   static def new(
     name: String,
-    type_parameters: Array!(TypeParameter),
-    arguments: Array!(Argument),
-    throw_type: ?Node,
-    return_type: ?Node,
+    type_parameters: Array!(DefineTypeParameter),
+    type_parameter_bounds: Array!(DefineTypeParameter),
+    arguments: Array!(DefineArgument),
+    throw_type: ?TypeNode,
+    return_type: ?TypeNode,
     static_method: Boolean,
     body: Body,
     location: SourceLocation
@@ -279,12 +507,14 @@ object DefineMethod {
     Self {
       @name = name,
       @type_parameters = type_parameters,
+      @type_parameter_bounds = type_parameter_bounds,
       @arguments = arguments,
       @body = body,
       @throw_type = throw_type,
       @return_type = return_type,
       @static_method = static_method,
-      @location = location
+      @location = location,
+      @resolved_type = Nil
     }
   }
 
@@ -293,38 +523,48 @@ object DefineMethod {
     @name
   }
 
-  # Returns the type parameters of the method.
-  def type_parameters -> Array!(TypeParameter) {
+  def type_parameters -> Array!(DefineTypeParameter) {
     @type_parameters
   }
 
-  # Returns the arguments of the method.
-  def arguments -> Array!(Argument) {
+  def type_parameter_bounds -> Array!(DefineTypeParameter) {
+    @type_parameter_bounds
+  }
+
+  def arguments -> Array!(DefineArgument) {
     @arguments
   }
 
-  # Returns the expressions in the block's body.
   def body -> Body {
     @body
   }
 
-  # Returns the return type of this lambda.
-  def return_type -> ?Node {
+  def return_type -> ?TypeNode {
     @return_type
   }
 
-  # Returns the throw type of this lambda.
-  def throw_type -> ?Node {
+  def throw_type -> ?TypeNode {
     @throw_type
   }
 
-  # Returns `True` if this method is a static method.
   def static_method? -> Boolean {
     @static_method
+  }
+
+  def instance_method? -> Boolean {
+    @static_method.false?
+  }
+
+  def resolved_type=(value: MethodType) -> MethodType {
+    @resolved_type = value
   }
 }
 
 impl Node for DefineMethod {
+  def resolved_type -> ?MethodType {
+    @resolved_type
+  }
+
   def location -> SourceLocation {
     @location
   }
@@ -336,76 +576,95 @@ object DefineRequiredMethod {
   @name: String
 
   # The type parameters of the method.
-  @type_parameters: Array!(TypeParameter)
+  @type_parameters: Array!(DefineTypeParameter)
+
+  # Additional type parameter bounds that a concrete type must implement for
+  # this method to be available.
+  @type_parameter_bounds: Array!(DefineTypeParameter)
 
   # The arguments of the method.
-  @arguments: Array!(Argument)
+  @arguments: Array!(DefineArgument)
 
   # The type of the value this method might throw.
-  @throw_type: ?Node
+  @throw_type: ?TypeNode
 
   # The return type of this method.
-  @return_type: ?Node
+  @return_type: ?TypeNode
 
   # The source location of the method.
   @location: SourceLocation
 
-  # A boolean indicating if the method is a static method (True) or not
-  # (False).
-  @static_method: Boolean
+  # The type of this method.
+  @resolved_type: ?MethodType
+
+  # The type scope to use for this method. This is stored directly in this node,
+  # as it doesn't have a Body node.
+  @type_scope: ?TypeScope
 
   static def new(
     name: String,
-    type_parameters: Array!(TypeParameter),
-    arguments: Array!(Argument),
-    throw_type: ?Node,
-    return_type: ?Node,
-    static_method: Boolean,
+    type_parameters: Array!(DefineTypeParameter),
+    type_parameter_bounds: Array!(DefineTypeParameter),
+    arguments: Array!(DefineArgument),
+    throw_type: ?TypeNode,
+    return_type: ?TypeNode,
     location: SourceLocation
   ) -> Self {
     Self {
       @name = name,
       @type_parameters = type_parameters,
+      @type_parameter_bounds = type_parameter_bounds,
       @arguments = arguments,
       @throw_type = throw_type,
       @return_type = return_type,
-      @static_method = static_method,
-      @location = location
+      @location = location,
+      @resolved_type = Nil,
+      @type_scope = Nil
     }
   }
 
-  # Returns the name of the method.
   def name -> String {
     @name
   }
 
-  # Returns the type parameters of the method.
-  def type_parameters -> Array!(TypeParameter) {
+  def type_parameters -> Array!(DefineTypeParameter) {
     @type_parameters
   }
 
-  # Returns the arguments of the method.
-  def arguments -> Array!(Argument) {
+  def type_parameter_bounds -> Array!(DefineTypeParameter) {
+    @type_parameter_bounds
+  }
+
+  def arguments -> Array!(DefineArgument) {
     @arguments
   }
 
-  # Returns the return type of this lambda.
-  def return_type -> ?Node {
+  def return_type -> ?TypeNode {
     @return_type
   }
 
-  # Returns the throw type of this lambda.
-  def throw_type -> ?Node {
+  def throw_type -> ?TypeNode {
     @throw_type
   }
 
-  # Returns `True` if this method is a static method.
-  def static_method? -> Boolean {
-    @static_method
+  def resolved_type=(value: MethodType) -> MethodType {
+    @resolved_type = value
+  }
+
+  def type_scope -> ?TypeScope {
+    @type_scope
+  }
+
+  def type_scope=(value: TypeScope) -> TypeScope {
+    @type_scope = value
   }
 }
 
 impl Node for DefineRequiredMethod {
+  def resolved_type -> ?MethodType {
+    @resolved_type
+  }
+
   def location -> SourceLocation {
     @location
   }

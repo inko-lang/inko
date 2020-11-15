@@ -5,8 +5,17 @@ import std::process
 import std::string_buffer::StringBuffer
 import std::time::SystemTime
 
+# A `Path` pointing to the runtime directory.
+let RUNTIME_DIRECTORY = ModuleMirror
+  .new(ThisModule)
+  .source_path
+  .directory
+  .join('..')
+  .join('..')
+  .join('src')
+
 # A `Path` to an existing file.
-let VALID_FILE = ModuleMirror.new(ThisModule).source_path
+let VALID_FILE = RUNTIME_DIRECTORY.join('std').join('bootstrap.inko')
 
 # A `Path` to an existing directory.
 let VALID_DIRECTORY = env.temporary_directory

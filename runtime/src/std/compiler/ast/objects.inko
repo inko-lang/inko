@@ -1,9 +1,10 @@
 # AST types for objects and traits.
+import std::compiler::ast::blocks::DefineMethod
 import std::compiler::ast::body::Body
-import std::compiler::ast::node::Node
-import std::compiler::ast::type_parameter::TypeParameter
-import std::compiler::ast::variables::Constant
+import std::compiler::ast::node::*
+import std::compiler::ast::variables::(Constant, DefineTypeParameter)
 import std::compiler::source_location::SourceLocation
+import std::compiler::types::(ObjectInstance, ObjectType, Type, TraitType)
 
 # A named object defined using the "object" keyword.
 object DefineObject {
@@ -11,7 +12,7 @@ object DefineObject {
   @name: String
 
   # The type parameters of the defined object.
-  @type_parameters: Array!(TypeParameter)
+  @type_parameters: Array!(DefineTypeParameter)
 
   # The expressions inside the object body.
   @body: Body
@@ -19,9 +20,12 @@ object DefineObject {
   # The source location of the definition.
   @location: SourceLocation
 
+  # The type of this AST node.
+  @resolved_type: ?ObjectType
+
   static def new(
     name: String,
-    type_parameters: Array!(TypeParameter),
+    type_parameters: Array!(DefineTypeParameter),
     body: Body,
     location: SourceLocation
   ) -> Self {
@@ -29,7 +33,8 @@ object DefineObject {
       @name = name,
       @type_parameters = type_parameters,
       @body = body,
-      @location = location
+      @location = location,
+      @resolved_type = Nil
     }
   }
 
@@ -39,7 +44,7 @@ object DefineObject {
   }
 
   # Returns the type parameters of this object.
-  def type_parameters -> Array!(TypeParameter) {
+  def type_parameters -> Array!(DefineTypeParameter) {
     @type_parameters
   }
 
@@ -47,9 +52,17 @@ object DefineObject {
   def body -> Body {
     @body
   }
+
+  def resolved_type=(type: ObjectType) -> ObjectType {
+    @resolved_type = type
+  }
 }
 
 impl Node for DefineObject {
+  def resolved_type -> ?ObjectType {
+    @resolved_type
+  }
+
   def location -> SourceLocation {
     @location
   }
@@ -60,14 +73,26 @@ object DefineAttribute {
   # The name of the attribute.
   @name: String
 
-  # The type of the attribute.
-  @type: Node
+  # The type node of the attribute.
+  @value_type: TypeNode
 
   # The source location of the definition.
   @location: SourceLocation
 
-  static def new(name: String, type: Node, location: SourceLocation) -> Self {
-    Self { @name = name, @type = type, @location = location }
+  # The type of this attribute.
+  @resolved_type: ?Type
+
+  static def new(
+    name: String,
+    value_type: TypeNode,
+    location: SourceLocation
+  ) -> Self {
+    Self {
+      @name = name,
+      @value_type = value_type,
+      @location = location,
+      @resolved_type = Nil
+    }
   }
 
   # Returns the name of the attribute.
@@ -75,13 +100,21 @@ object DefineAttribute {
     @name
   }
 
-  # Returns the type of the attribute
-  def type -> Node {
-    @type
+  # Returns the value type node of the attribute.
+  def value_type -> TypeNode {
+    @value_type
+  }
+
+  def resolved_type=(type: Type) -> Type {
+    @resolved_type = type
   }
 }
 
 impl Node for DefineAttribute {
+  def resolved_type -> ?Type {
+    @resolved_type
+  }
+
   def location -> SourceLocation {
     @location
   }
@@ -93,7 +126,7 @@ object DefineTrait {
   @name: String
 
   # The type parameters of the trait.
-  @type_parameters: Array!(TypeParameter)
+  @type_parameters: Array!(DefineTypeParameter)
 
   # The list of traits that must be implemented before implementing this trait.
   @required_traits: Array!(Constant)
@@ -104,9 +137,12 @@ object DefineTrait {
   # The source location of the trait definition.
   @location: SourceLocation
 
+  # The type of this AST node.
+  @resolved_type: ?TraitType
+
   static def new(
     name: String,
-    type_parameters: Array!(TypeParameter),
+    type_parameters: Array!(DefineTypeParameter),
     required_traits: Array!(Constant),
     body: Body,
     location: SourceLocation
@@ -116,7 +152,8 @@ object DefineTrait {
       @type_parameters = type_parameters,
       @required_traits = required_traits,
       @body = body,
-      @location = location
+      @location = location,
+      @resolved_type = Nil
     }
   }
 
@@ -126,7 +163,7 @@ object DefineTrait {
   }
 
   # Returns the type parameters of this object.
-  def type_parameters -> Array!(TypeParameter) {
+  def type_parameters -> Array!(DefineTypeParameter) {
     @type_parameters
   }
 
@@ -139,9 +176,17 @@ object DefineTrait {
   def body -> Body {
     @body
   }
+
+  def resolved_type=(type: TraitType) -> TraitType {
+    @resolved_type = type
+  }
 }
 
 impl Node for DefineTrait {
+  def resolved_type -> ?TraitType {
+    @resolved_type
+  }
+
   def location -> SourceLocation {
     @location
   }
@@ -156,8 +201,9 @@ object ImplementTrait {
   # The name of the object to implement the trait for.
   @object_name: Constant
 
-  # The trait bounds that must be met for the trait to be available.
-  @trait_bounds: Array!(TypeParameter)
+  # Additional type parameter bounds that a concrete type must implement for
+  # this trait to be available.
+  @type_parameter_bounds: Array!(DefineTypeParameter)
 
   # The expressions contained in the body of the implementation.
   @body: Body
@@ -168,14 +214,14 @@ object ImplementTrait {
   static def new(
     trait_name: Constant,
     object_name: Constant,
-    trait_bounds: Array!(TypeParameter),
+    type_parameter_bounds: Array!(DefineTypeParameter),
     body: Body,
     location: SourceLocation
   ) -> Self {
     Self {
       @trait_name = trait_name,
       @object_name = object_name,
-      @trait_bounds = trait_bounds,
+      @type_parameter_bounds = type_parameter_bounds,
       @body = body,
       @location = location
     }
@@ -191,14 +237,26 @@ object ImplementTrait {
     @object_name
   }
 
-  # Returns the trait bounds of the implementation.
-  def trait_bounds -> Array!(TypeParameter) {
-    @trait_bounds
+  # Returns the type parameter bounds of the implementation.
+  def type_parameter_bounds -> Array!(DefineTypeParameter) {
+    @type_parameter_bounds
   }
 
   # Returns the expressions contained in this implementation.
   def body -> Body {
     @body
+  }
+
+  # Returns the node that defines the required method, if any.
+  def method_node(name: String) -> ?DefineMethod {
+    @body.children.each do (node) {
+      match(let matched = node) {
+        as DefineMethod when matched.name == name -> { return matched }
+        else -> {}
+      }
+    }
+
+    Nil
   }
 }
 
@@ -219,8 +277,16 @@ object ReopenObject {
   # The source location of the implementation.
   @location: SourceLocation
 
+  # The type of this AST node.
+  @resolved_type: ?ObjectType
+
   static def new(name: Constant, body: Body, location: SourceLocation) -> Self {
-    Self { @name = name, @body = body, @location = location }
+    Self {
+      @name = name,
+      @body = body,
+      @location = location,
+      @resolved_type = Nil
+    }
   }
 
   # Returns the name of the object that is reopened.
@@ -232,9 +298,101 @@ object ReopenObject {
   def body -> Body {
     @body
   }
+
+  def resolved_type=(type: ObjectType) -> ObjectType {
+    @resolved_type = type
+  }
 }
 
 impl Node for ReopenObject {
+  def resolved_type -> ?ObjectType {
+    @resolved_type
+  }
+
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+# An attribute that is assigned in a constructor.
+object ConstructorAttribute {
+  # The name of the attribute.
+  @name: String
+
+  # The value assigned to the attribute.
+  @value: Node
+
+  # The location of the assignment.
+  @location: SourceLocation
+
+  static def new(name: String, value: Node, location: SourceLocation) -> Self {
+    Self { @name = name, @value = value, @location = location }
+  }
+
+  def name -> String {
+    @name
+  }
+
+  def value -> Node {
+    @value
+  }
+}
+
+impl Node for ConstructorAttribute {
+  def resolved_type -> ?Type {
+    @value.resolved_type
+  }
+
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+# An object constructor.
+object Constructor {
+  # The name of the type to create an instance of.
+  @name: String
+
+  # The attributes to assign.
+  @attributes: Array!(ConstructorAttribute)
+
+  # The location of the constructor.
+  @location: SourceLocation
+
+  # The type that is constructed.
+  @resolved_type: ?Type
+
+  static def new(
+    name: String,
+    attributes: Array!(ConstructorAttribute),
+    location: SourceLocation
+  ) -> Self {
+    Self {
+      @name = name,
+      @attributes = attributes,
+      @location = location,
+      @resolved_type = Nil
+    }
+  }
+
+  def name -> String {
+    @name
+  }
+
+  def attributes -> Array!(ConstructorAttribute) {
+    @attributes
+  }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
+  }
+}
+
+impl Node for Constructor {
+  def resolved_type -> ?Type {
+    @resolved_type
+  }
+
   def location -> SourceLocation {
     @location
   }

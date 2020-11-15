@@ -2,7 +2,11 @@ import std::map::(self, DefaultHasher, Pair, RandomState)
 import std::test
 import std::test::assert
 
-object Dummy {}
+object Dummy {
+  static def new -> Self {
+    Self {}
+  }
+}
 
 test.group('std::map::DefaultHasher.write') do (g) {
   g.test('Hashing an Integer') {

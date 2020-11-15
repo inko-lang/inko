@@ -1,0 +1,51 @@
+# Types for looking up local variables.
+import std::compiler::symbol_table::*
+import std::compiler::types::Type
+
+# A scope to use for looking up local variables.
+object VariableScope {
+  # The symbol table that contains all local variables defined in this scope.
+  @symbols: SymbolTable!(Type)
+
+  # The parent scope we can capture variables from, if any.
+  @parent: ?VariableScope
+
+  static def new(parent: ?VariableScope = Nil) -> Self {
+    Self { @symbols = SymbolTable.new, @parent = parent }
+  }
+
+  def symbols -> SymbolTable!(Type) {
+    @symbols
+  }
+
+  def parent -> ?VariableScope {
+    @parent
+  }
+
+  def parent=(value: VariableScope) -> VariableScope {
+    @parent = value
+  }
+
+  def with_parent(scope: Self) -> Self {
+    self.parent = scope
+    self
+  }
+
+  def lookup(name: String) -> ?Symbol!(Type) {
+    @symbols.get(name)
+  }
+
+  def lookup_in_parents(name: String) -> ?Symbol!(Type) {
+    let mut scope: ?VariableScope = @parent
+
+    { scope.not_nil? }.while_true {
+      let symbol = scope.lookup(name)
+
+      symbol.if_true { return symbol }
+
+      scope = scope.parent
+    }
+
+    Nil
+  }
+}

@@ -232,10 +232,8 @@ pub fn process_unwind_until_defining_scope(process: &RcProcess) {
     loop {
         let context = process.context();
 
-        if context.binding_pointer() == top_binding {
+        if context.binding_pointer() == top_binding || process.pop_context() {
             return;
-        } else {
-            process.pop_context();
         }
     }
 }

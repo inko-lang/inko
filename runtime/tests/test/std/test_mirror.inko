@@ -27,7 +27,11 @@ object Dummy {
 
 impl Trait1 for Dummy {}
 
-object EmptyObject {}
+object EmptyObject {
+  static def new -> Self {
+    Self {}
+  }
+}
 
 object OneAttribute {
   @number: Integer
@@ -158,27 +162,11 @@ test.group('std::mirror::Mirror.inspect') do (g) {
 }
 
 test.group('std::mirror::ObjectMirror.name') do (g) {
-  g.test('Obtaining the name of a named object') {
+  g.test('Obtaining the name of an object') {
     let obj = Dummy.new
     let mirror = ObjectMirror.new(obj)
 
     assert.equal(mirror.name, 'Dummy')
-  }
-
-  g.test('Obtaining the name of an anonymous object') {
-    let obj = Object.new
-    let mirror = ObjectMirror.new(obj)
-
-    assert.equal(mirror.name, 'Object')
-  }
-
-  g.test('Obtaining the name of an unnamed object without a prototype') {
-    let obj = Object.new
-    let mirror = ObjectMirror.new(obj)
-
-    mirror.set_attribute(OBJECT_NAME_ATTRIBUTE, Nil)
-
-    assert.equal(mirror.name, 'Object')
   }
 
   g.test('Obtaining the name of a built-in object') {

@@ -91,13 +91,14 @@ module Inkoc
         name = node.name
         loc = node.location
         self_type = scope.self_type
+        depth, local = scope.depth_and_symbol_for_local(name)
 
-        if (depth_sym = scope.depth_and_symbol_for_local(name))
-          node.depth = depth_sym[0]
-          node.symbol = depth_sym[1]
+        if local
+          node.depth = depth
+          node.symbol = local
 
-          node.symbol.increment_references
-          remap_send_return_type(node.symbol.type, scope)
+          local.increment_references
+          remap_send_return_type(local.type, scope)
         elsif self_type.responds_to_message?(name)
           identifier_send(node, scope.self_type, name, scope)
         elsif scope.module_type.responds_to_message?(name)
@@ -384,6 +385,13 @@ module Inkoc
         type
       end
 
+      def on_inline_body(node, scope)
+        type = define_types(node.expressions, scope).last ||
+          typedb.nil_type.new_instance
+
+        node.type ||= type
+      end
+
       def on_return(node, scope)
         rtype =
           if node.value
@@ -392,19 +400,21 @@ module Inkoc
             typedb.nil_type.new_instance
           end
 
-        if (method = scope.enclosing_method)
-          expected = method.return_type.resolve_self_type(scope.self_type)
+        block = node.local ? scope.block_type : scope.enclosing_method
+
+        if block
+          expected = block.return_type.resolve_self_type(scope.self_type)
 
           unless rtype.type_compatible?(expected, @state)
             diagnostics
               .return_type_error(expected, rtype, node.value_location)
           end
+        elsif node.local
+          diagnostics.invalid_local_return_error(node.location)
         else
           diagnostics.return_outside_of_method_error(node.location)
         end
 
-        # A "return" statement itself will never return a value. For example,
-        # `let x = return 10` would never assign a value to `x`.
         TypeSystem::Never.new
       end
 
@@ -423,7 +433,9 @@ module Inkoc
         curr_block = scope.block_type
 
         if (throw_type = node.throw_type)
-          curr_block.throw_type = throw_type if curr_block.infer_throw_type?
+          if curr_block.infer_throw_type? && node.local
+            curr_block.throw_type = throw_type
+          end
         else
           diagnostics.redundant_try_warning(node.location)
         end
@@ -484,7 +496,9 @@ module Inkoc
       def on_throw(node, scope)
         type = define_type(node.value, scope)
 
-        scope.block_type.throw_type = type if scope.block_type.infer_throw_type?
+        if node.local && scope.block_type.infer_throw_type?
+          scope.block_type.throw_type = type
+        end
 
         TypeSystem::Never.new
       end
@@ -548,6 +562,13 @@ module Inkoc
         trait = define_type(node.trait_name, impl_scope)
 
         return trait if trait.error?
+
+        # This ensures that the default methods of the trait are available on
+        # the object directly. This prevents looking up the wrong type based on
+        # the order in which traits are implemented.
+        trait.attributes.each do |symbol|
+          object.attributes.define(symbol.name, symbol.type, symbol.mutable?)
+        end
 
         define_type(node.body, impl_scope)
 
@@ -638,6 +659,132 @@ module Inkoc
         define_type(node.body, scope)
 
         verify_unassigned_attributes(node, scope) if node.name == 'init'
+      end
+
+      def on_match(node, scope)
+        location = node.location
+        expr_type = define_type(node.expression, scope) if node.expression
+
+        bind_to = node.bind_to&.name || '__inkoc_match'
+
+        operators_mod = @state.module(Config::OPERATORS_MODULE)
+
+        unless operators_mod
+          return @state.diagnostics.pattern_matching_unavailable(location)
+        end
+
+        unless operators_mod.lookup_type(Config::MATCH_CONST)
+          return @state.diagnostics.pattern_matching_unavailable(location)
+        end
+
+        scope.locals.with_unique_names do
+          if expr_type
+            node.bind_to_symbol = scope.locals.define(bind_to, expr_type)
+          end
+
+          arm_types = []
+
+          node.arms.each do |arm|
+            arm_type = define_type(arm, scope, expr_type, node.bind_to_symbol)
+
+            return arm_type if arm_type.error?
+
+            arm_types << arm_type
+          end
+
+          else_type =
+            if node.match_else
+              define_type(node.match_else, scope)
+            else
+              typedb.nil_type.new_instance
+            end
+
+          return_type = arm_types[0] || else_type
+          check_types = arm_types[1..-1] || []
+
+          else_type_is_nil = else_type.type_instance_of?(typedb.nil_type)
+
+          if node.match_else && !else_type_is_nil
+            check_types << else_type
+          end
+
+          all_compatible = check_types.all? do |type|
+            type.type_compatible?(return_type, @state)
+          end
+
+          if all_compatible
+            if return_type &&
+                !return_type.type_instance_of?(typedb.nil_type) &&
+                else_type.type_instance_of?(typedb.nil_type)
+              return_type = TypeSystem::Optional.new(return_type)
+            end
+          else
+            return_type = new_any_type
+          end
+
+          return_type || else_type
+        end
+      end
+
+      def on_match_else(node, scope)
+        on_inline_body(node.body, scope)
+      end
+
+      def on_match_type(node, scope, matching_type, bind_to_symbol)
+        unless matching_type
+          return @state.diagnostics.match_type_test_unavailable(node.location)
+        end
+
+        pattern_type = define_type_instance(node.pattern, scope)
+
+        return pattern_type if pattern_type.error?
+
+        unless pattern_type.type_parameter_instances.empty?
+          return @state.diagnostics.generic_match_type(node.pattern.location)
+        end
+
+        bind_to_symbol.with_temporary_type(pattern_type) do
+          match_guard(node.guard, scope) if node.guard
+          on_inline_body(node.body, scope)
+        end
+      end
+
+      def on_match_expression(node, scope, matching_type, _)
+        location = node.location
+
+        if matching_type&.dynamic?
+          return @state.diagnostics.pattern_match_dynamic(location)
+        end
+
+        operators_mod = @state.module(Config::OPERATORS_MODULE)
+        match_trait = operators_mod.lookup_type(Config::MATCH_CONST)
+
+        node.patterns.each do |pattern|
+          type = define_type(pattern, scope)
+
+          return type if type.error?
+
+          if matching_type
+            unless type.implements_trait?(match_trait)
+              return @state.diagnostics.invalid_match_pattern(type, location)
+            end
+          else
+            unless type.type_compatible?(typedb.boolean_type, @state)
+              return @state.diagnostics.invalid_boolean_match_pattern(location)
+            end
+          end
+        end
+
+        match_guard(node.guard, scope) if node.guard
+        on_inline_body(node.body, scope)
+      end
+
+      def match_guard(node, scope)
+        guard_type = define_type(node, scope)
+
+        unless guard_type.type_instance_of?(typedb.boolean_type)
+          return diagnostics.guard_return_type_error(guard_type, node.location)
+        end
       end
 
       def verify_unassigned_attributes(node, scope)
@@ -770,7 +917,7 @@ module Inkoc
 
       def on_reassign_local(node, value_type, scope)
         name = node.name
-        _, existing = scope.locals.lookup_with_parent(name)
+        depth, existing = scope.locals.lookup_with_parent(name)
 
         unless existing.any?
           return diagnostics.reassign_undefined_local_error(name, node.location)
@@ -784,6 +931,9 @@ module Inkoc
         unless value_type.type_compatible?(existing.type, @state)
           diagnostics.type_error(existing.type, value_type, node.location)
         end
+
+        node.symbol = existing
+        node.depth = depth
 
         existing.type
       end
@@ -806,7 +956,7 @@ module Inkoc
           diagnostics.type_error(existing.type, value_type, node.location)
         end
 
-        existing.type
+        value_type
       end
 
       def on_define_argument(arg_node, scope, default_type = nil)

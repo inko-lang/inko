@@ -17,6 +17,7 @@ module Inkoc
         @blocks = []
         @code_objects = []
         @catch_table = CatchTable.new
+        @basic_block_id = 0
       end
 
       def self_type
@@ -99,8 +100,8 @@ module Inkoc
         instruction.register
       end
 
-      def add_code_object(*args)
-        object = CodeObject.new(*args)
+      def add_code_object(*args, **kwargs)
+        object = CodeObject.new(*args, **kwargs)
         @code_objects << object
 
         object
@@ -128,8 +129,15 @@ module Inkoc
         block
       end
 
-      def new_basic_block(name = @blocks.length.to_s, *args)
+      def new_basic_block(name = new_basic_block_name, *args)
         BasicBlock.new(name, *args)
+      end
+
+      def new_basic_block_name
+        id = @basic_block_id.to_s
+        @basic_block_id += 1
+
+        id
       end
 
       def return_type

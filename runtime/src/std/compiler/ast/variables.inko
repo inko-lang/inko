@@ -1,28 +1,145 @@
 # AST types for variables, such as identifiers and constants.
-import std::compiler::ast::node::Node
+import std::compiler::ast::node::*
 import std::compiler::source_location::SourceLocation
+import std::compiler::symbol_table::Symbol
+import std::compiler::types::(MethodType, Type, TypeCheckScope, TypeParameterType)
+
+# The identifier kind is not yet known.
+let KIND_UNKNOWN = 0
+
+# The identifier is a local variable.
+let KIND_LOCAL = 1
+
+# The identifier is a global variable.
+let KIND_GLOBAL = 2
+
+# The identifier is a method.
+let KIND_METHOD = 3
 
 # An identifier, such as a local variable or global variable.
 object Identifier {
   # The name of the identifier.
   @name: String
 
+  # The kind of identifier we're dealing with, such as a local variable.
+  @kind: Integer
+
   # The source location of the identifier.
   @location: SourceLocation
 
+  # The return/result type of this identifier.
+  #
+  # If the identifier points to a method, this will be the return type of the
+  # method.
+  @resolved_type: ?Type
+
+  # The type this identfier may throw, if it resolves to a method.
+  @throw_type: ?Type
+
+  # The symbol this identifier is resolved to, if any.
+  @symbol: ?Symbol!(Type)
+
+  # A boolean indicating that this node resides in a `try` expression.
+  @inside_try: Boolean
+
   static def new(name: String, location: SourceLocation) -> Self {
-    Self { @name = name, @location = location }
+    Self {
+      @name = name,
+      @kind = KIND_UNKNOWN,
+      @location = location,
+      @resolved_type = Nil,
+      @throw_type = Nil,
+      @symbol = Nil,
+      @inside_try = False
+    }
   }
 
-  # Returns the name of the identifier.
   def name -> String {
     @name
+  }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
+  }
+
+  def resolve_as(
+    kind: Integer,
+    symbol: ?Symbol!(Type),
+    type: ?Type,
+    throw_type: ?Type = Nil
+  ) -> Boolean {
+    symbol.if_false { return False }
+
+    @kind = kind
+    @symbol = symbol
+    @resolved_type = type
+    @throw_type = throw_type
+
+    True
+  }
+
+  def resolve_as_local(symbol: ?Symbol!(Type)) -> Boolean {
+    resolve_as(kind: KIND_LOCAL, symbol: symbol, type: symbol.type)
+  }
+
+  def resolve_as_global(symbol: ?Symbol!(Type)) -> Boolean {
+    resolve_as(kind: KIND_GLOBAL, symbol: symbol, type: symbol.type)
+  }
+
+  def resolve_as_method(
+    symbol: ?Symbol!(MethodType),
+    scope: TypeCheckScope,
+  ) -> Boolean {
+    resolve_as(
+      kind: KIND_METHOD,
+      symbol: symbol,
+      type: symbol.type.return_type.substitute(scope),
+      throw_type: symbol.type.throw_type.substitute(scope)
+    )
+  }
+
+  def symbol -> ?Symbol!(Type) {
+    @symbol
+  }
+
+  def local? -> Boolean {
+    @kind == KIND_LOCAL
+  }
+
+  def global? -> Boolean {
+    @kind == KIND_GLOBAL
+  }
+
+  def method? -> Boolean {
+    @kind == KIND_METHOD
   }
 }
 
 impl Node for Identifier {
+  def resolved_type -> ?Type {
+    @resolved_type
+  }
+
   def location -> SourceLocation {
     @location
+  }
+}
+
+impl ThrowingNode for Identifier {
+  def throw_type -> ?Type {
+    @throw_type
+  }
+
+  def throw_type=(value: ?Type) -> ?Type {
+    @throw_type = value
+  }
+
+  def inside_try {
+    @inside_try = True
+  }
+
+  def inside_try? -> Boolean {
+    @inside_try
   }
 }
 
@@ -35,17 +152,26 @@ object Constant {
   @location: SourceLocation
 
   # The type arguments passed to the constant.
-  @type_arguments: Array!(Node)
+  @type_arguments: Array!(TypeNode)
 
   # A boolean indicating if the constant is an optional type or not.
   @optional: Boolean
+
+  # The type of this constant.
+  @resolved_type: ?Type
+
+  # The symbol of this constant, if it refers to a physical type or constant
+  # (so not a `Never` for example.)
+  @symbol: ?Symbol!(Type)
 
   static def new(name: String, location: SourceLocation) -> Self {
     Self {
       @name = name,
       @location = location,
       @type_arguments = Array.new,
-      @optional = False
+      @optional = False,
+      @resolved_type = Nil,
+      @symbol = Nil
     }
   }
 
@@ -55,16 +181,34 @@ object Constant {
   }
 
   # Returns the type arguments to use for initialising the constant.
-  def type_arguments -> Array!(Node) {
+  def type_arguments -> Array!(TypeNode) {
     @type_arguments
+  }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
+  }
+
+  def symbol -> ?Symbol!(Type) {
+    @symbol
+  }
+
+  def symbol=(value: Symbol!(Type)) -> Symbol!(Type) {
+    @symbol = value
   }
 }
 
 impl Node for Constant {
+  def resolved_type -> ?Type {
+    @resolved_type
+  }
+
   def location -> SourceLocation {
     @location
   }
 }
+
+impl TypeNode for Constant {}
 
 # An instance attribute.
 object Attribute {
@@ -74,19 +218,46 @@ object Attribute {
   # The source location of the attribute.
   @location: SourceLocation
 
+  # The type of this attribute.
+  @resolved_type: ?Type
+
+  # The symbol of the attribute that is referred.
+  @symbol: ?Symbol!(Type)
+
   static def new(name: String, location: SourceLocation) -> Self {
-    Self { @name = name, @location = location }
+    Self {
+      @name = name,
+      @location = location,
+      @resolved_type = Nil,
+      @symbol = Nil
+    }
   }
 
   # Returns the name of the attribute.
   def name -> String {
     @name
   }
+
+  def symbol -> ?Symbol!(Type) {
+    @symbol
+  }
+
+  def symbol=(value: Symbol!(Type)) -> Symbol!(Type) {
+    @symbol = value
+  }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
+  }
 }
 
 impl Node for Attribute {
   def location -> SourceLocation {
     @location
+  }
+
+  def resolved_type -> ?Type {
+    @resolved_type
   }
 }
 
@@ -95,16 +266,91 @@ object Global {
   # The name of the global.
   @name: String
 
+  # The kind of global we're dealing with, such as a regular global variable or
+  # a module method.
+  @kind: Integer
+
   # The source location of the global.
   @location: SourceLocation
 
+  # The symbol of this globabl variable.
+  @symbol: ?Symbol!(Type)
+
+  # The return/result type of this identifier.
+  #
+  # If the symbol points to a method, this will be the return type of the
+  # method.
+  @resolved_type: ?Type
+
+  # The type this global may throw, if it resolves to a method.
+  @throw_type: ?Type
+
+  # A boolean indicating that this node resides in a `try` expression.
+  @inside_try: Boolean
+
   static def new(name: String, location: SourceLocation) -> Self {
-    Self { @name = name, @location = location }
+    Self {
+      @name = name,
+      @kind = KIND_UNKNOWN,
+      @location = location,
+      @symbol = Nil,
+      @resolved_type = Nil,
+      @throw_type = Nil,
+      @inside_try = False
+    }
   }
 
   # Returns the name of the global.
   def name -> String {
     @name
+  }
+
+  def resolve_as(
+    kind: Integer,
+    symbol: ?Symbol!(Type),
+    type: ?Type,
+    throw_type: ?Type = Nil
+  ) -> Boolean {
+    symbol.if_false { return False }
+
+    @kind = kind
+    @symbol = symbol
+    @resolved_type = type
+    @throw_type = throw_type
+
+    True
+  }
+
+  def resolve_as_global(symbol: ?Symbol!(Type)) -> Boolean {
+    resolve_as(kind: KIND_GLOBAL, symbol: symbol, type: symbol.type)
+  }
+
+  def resolve_as_method(
+    symbol: ?Symbol!(MethodType),
+    scope: TypeCheckScope
+  ) -> Boolean {
+    resolve_as(
+      kind: KIND_METHOD,
+      symbol: symbol,
+      type: symbol.type.return_type.substitute(scope),
+      throw_type: symbol.type.throw_type.substitute(scope)
+    )
+  }
+
+  def symbol -> ?Symbol!(Type) {
+    @symbol
+  }
+
+  def global? -> Boolean {
+    @kind == KIND_GLOBAL
+  }
+
+  def method? -> Boolean {
+    @kind == KIND_METHOD
+  }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
   }
 }
 
@@ -112,60 +358,166 @@ impl Node for Global {
   def location -> SourceLocation {
     @location
   }
+
+  def resolved_type -> ?Type {
+    @resolved_type
+  }
+}
+
+impl ThrowingNode for Global {
+  def throw_type -> ?Type {
+    @throw_type
+  }
+
+  def throw_type=(value: ?Type) -> ?Type {
+    @throw_type = value
+  }
+
+  def inside_try {
+    @inside_try = True
+  }
+
+  def inside_try? -> Boolean {
+    @inside_try
+  }
 }
 
 # The object `self` returns.
 object SelfObject {
+  # The source location of the `self` keyword.
   @location: SourceLocation
 
+  # The type of `self`.
+  @resolved_type: ?Type
+
   static def new(location: SourceLocation) -> Self {
-    Self { @location = location }
+    Self { @location = location, @resolved_type = Nil }
+  }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
   }
 }
 
 impl Node for SelfObject {
+  def resolved_type -> ?Type {
+    @resolved_type
+  }
+
   def location -> SourceLocation {
     @location
   }
 }
 
-# The assignment of a variable, such as an attribute.
-object Assign {
+# Assigning of a new value to a local variable.
+object AssignLocal {
   # The variable to assign the value to.
-  @variable: Node
+  @name: Identifier
 
-  # The value to assign to the variable.
+  # The value to assign to the local variable.
   @value: Node
 
-  static def new(variable: Node, value: Node) -> Self {
-    Self { @variable = variable, @value = value }
+  # The type of the value that is assigned.
+  @resolved_type: ?Type
+
+  # The symbol of the variable that is assigned.
+  @symbol: ?Symbol!(Type)
+
+  static def new(name: Identifier, value: Node) -> Self {
+    Self { @name = name, @value = value, @resolved_type = Nil, @symbol = Nil }
   }
 
-  # Returns the variable that the value is assigned to.
-  def variable -> Node {
-    @variable
+  # Returns the name of the local that the value is assigned to.
+  def name -> Identifier {
+    @name
   }
 
   # Returns the value to assign to the variable.
   def value -> Node {
     @value
   }
-}
 
-impl Node for Assign {
-  def location -> SourceLocation {
-    @variable.location
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
+  }
+
+  def symbol -> ?Symbol!(Type) {
+    @symbol
+  }
+
+  def symbol=(value: Symbol!(Type)) -> Symbol!(Type) {
+    @symbol = value
   }
 }
 
-# Defining of a local variable or constant.
-object DefineVariable {
-  # The name of the variable to define, which can either be a constant or an
-  # identifier.
-  @name: Node
+impl Node for AssignLocal {
+  def location -> SourceLocation {
+    @name.location
+  }
+
+  def resolved_type -> ?Type {
+    @resolved_type
+  }
+}
+
+# Assigning of a new value to an attribute.
+object AssignAttribute {
+  # The attribute to assign the value to.
+  @name: Attribute
+
+  # The value to assign to the attribute.
+  @value: Node
+
+  # The type of the value that is assigned.
+  @resolved_type: ?Type
+
+  # The symbol of the attribute that is assigned.
+  @symbol: ?Symbol!(Type)
+
+  static def new(name: Attribute, value: Node) -> Self {
+    Self { @name = name, @value = value, @resolved_type = Nil, @symbol = Nil }
+  }
+
+  # Returns the attribute assigned to.
+  def name -> Attribute {
+    @name
+  }
+
+  # Returns the value to assign to the variable.
+  def value -> Node {
+    @value
+  }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
+  }
+
+  def symbol -> ?Symbol!(Type) {
+    @symbol
+  }
+
+  def symbol=(value: Symbol!(Type)) -> Symbol!(Type) {
+    @symbol = value
+  }
+}
+
+impl Node for AssignAttribute {
+  def location -> SourceLocation {
+    @name.location
+  }
+
+  def resolved_type -> ?Type {
+    @resolved_type
+  }
+}
+
+# The definition of a local variable.
+object DefineLocalVariable {
+  # The name of the local variable to define.
+  @name: Identifier
 
   # The explicitly specified variable type, if any.
-  @value_type: ?Node
+  @value_type: ?TypeNode
 
   # The value to assign to the variable.
   @value: Node
@@ -177,9 +529,12 @@ object DefineVariable {
   # The source location of the variable definition.
   @location: SourceLocation
 
+  # The type of the AST node.
+  @resolved_type: ?Type
+
   static def new(
-    name: Node,
-    value_type: ?Node,
+    name: Identifier,
+    value_type: ?TypeNode,
     value: Node,
     mutable: Boolean,
     location: SourceLocation
@@ -189,17 +544,18 @@ object DefineVariable {
       @value_type = value_type,
       @value = value,
       @mutable = mutable,
-      @location = location
+      @location = location,
+      @resolved_type = Nil
     }
   }
 
   # Returns the name of the variable that is defined.
-  def name -> Node {
+  def name -> Identifier {
     @name
   }
 
   # Returns the explicitly defined variable type.
-  def value_type -> ?Node {
+  def value_type -> ?TypeNode {
     @value_type
   }
 
@@ -212,9 +568,131 @@ object DefineVariable {
   def mutable? -> Boolean {
     @mutable
   }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
+  }
 }
 
-impl Node for DefineVariable {
+impl Node for DefineLocalVariable {
+  def resolved_type -> ?Type {
+    @resolved_type
+  }
+
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+# The definition of a constant.
+object DefineConstant {
+  # The name of the local variable to define.
+  @name: Constant
+
+  # The explicitly specified variable type, if any.
+  @value_type: ?TypeNode
+
+  # The value to assign to the variable.
+  @value: Node
+
+  # The source location of the variable definition.
+  @location: SourceLocation
+
+  # The type of this node.
+  @resolved_type: ?Type
+
+  static def new(
+    name: Constant,
+    value_type: ?TypeNode,
+    value: Node,
+    location: SourceLocation
+  ) -> Self {
+    Self {
+      @name = name,
+      @value_type = value_type,
+      @value = value,
+      @location = location,
+      @resolved_type = Nil
+    }
+  }
+
+  # Returns the name of the constant that is defined.
+  def name -> Constant {
+    @name
+  }
+
+  # Returns the explicitly defined variable type.
+  def value_type -> ?TypeNode {
+    @value_type
+  }
+
+  # Returns the value to assign to the variable.
+  def value -> Node {
+    @value
+  }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
+  }
+}
+
+impl Node for DefineConstant {
+  def resolved_type -> ?Type {
+    @resolved_type
+  }
+
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+# A type parameter and its required traits.
+object DefineTypeParameter {
+  # The name of the type parameter.
+  @name: String
+
+  # The traits required by this type parameter.
+  @required_traits: Array!(Constant)
+
+  # The source location of the type parameter.
+  @location: SourceLocation
+
+  # The type of this type parameter.
+  @resolved_type: ?TypeParameterType
+
+  static def new(
+    name: String,
+    required_traits: Array!(Constant),
+    location: SourceLocation
+  ) -> Self {
+    Self {
+      @name = name,
+      @required_traits = required_traits,
+      @location = location,
+      @resolved_type = Nil
+    }
+  }
+
+  # Returns the name of the type parameter.
+  def name -> String {
+    @name
+  }
+
+  # Returns the traits required by the type parameter.
+  def required_traits -> Array!(Constant) {
+    @required_traits
+  }
+
+  def resolved_type=(value: TypeParameterType) -> TypeParameterType {
+    @resolved_type = value
+  }
+}
+
+impl Node for DefineTypeParameter {
+  def resolved_type -> ?TypeParameterType {
+    @resolved_type
+  }
+
   def location -> SourceLocation {
     @location
   }

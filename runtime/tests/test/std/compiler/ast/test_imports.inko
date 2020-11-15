@@ -1,0 +1,30 @@
+import std::compiler::ast::imports::(ImportAlias, ImportSymbol)
+import std::compiler::source_location::SourceLocation
+import std::test
+import std::test::assert
+
+def location -> SourceLocation {
+  SourceLocation.new(file: 'test.inko', line_range: 1..1, column: 1)
+}
+
+test.group('std::compiler::ast::imports::ImportSymbol.expose?') do (g) {
+  g.test('Checking if a symbol without an alias should be exposed') {
+    let symbol = ImportSymbol.new(name: 'foo', location: location)
+
+    assert.true(symbol.expose?)
+  }
+
+  g.test('Checking if a symbol with an alias should be exposed') {
+    let alias = ImportAlias.new(name: 'bar', location: location)
+    let symbol = ImportSymbol.new(name: 'foo', location: location, alias: alias)
+
+    assert.true(symbol.expose?)
+  }
+
+  g.test('Checking if a symbol aliased as _ should be exposed') {
+    let alias = ImportAlias.new(name: '_', location: location)
+    let symbol = ImportSymbol.new(name: 'foo', location: location, alias: alias)
+
+    assert.false(symbol.expose?)
+  }
+}

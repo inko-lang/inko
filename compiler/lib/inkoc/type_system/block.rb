@@ -189,7 +189,7 @@ module Inkoc
 
             resolve_type_parameter(throw_type).type_compatible?(theirs, state)
           else
-            lambda_or_closure?
+            false
           end
         else
           true

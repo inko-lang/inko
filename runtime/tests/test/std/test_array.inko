@@ -1,3 +1,4 @@
+import std::map::DefaultHasher
 import std::test
 import std::test::assert
 
@@ -272,24 +273,14 @@ test.group('std::array::Array.contains?') do (g) {
   }
 }
 
-test.group('std::array::Array.join') do (g) {
-  g.test('Joining values in an empty Array') {
-    assert.equal(Array.new.join(','), '')
-  }
+test.group('std::array::Array.hash') do (g) {
+  g.test('Hashing an Array') {
+    let hasher1 = DefaultHasher.new(1, 2)
+    let hasher2 = DefaultHasher.new(1, 2)
 
-  g.test('Joining a single value') {
-    assert.equal(Array.new(10).join(','), '10')
-  }
+    Array.new('foo').hash(hasher1)
+    Array.new('foo').hash(hasher2)
 
-  g.test('Joining multiple values') {
-    assert.equal(Array.new(10, 20, 30).join(','), '10,20,30')
-  }
-
-  g.test('Joining multiple values using multiple characters as the separator') {
-    assert.equal(Array.new(10, 20, 30).join('::'), '10::20::30')
-  }
-
-  g.test('Joining multiple values using an empty separator') {
-    assert.equal(Array.new(10, 20, 30).join(''), '102030')
+    assert.equal(hasher1.to_hash, hasher2.to_hash)
   }
 }

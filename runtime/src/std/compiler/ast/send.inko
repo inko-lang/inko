@@ -1,7 +1,9 @@
 # AST types message sends.
-import std::compiler::ast::node::Node
+import std::compiler::ast::node::*
 import std::compiler::ast::variables::*
+import std::compiler::config::INSTRUCTION_RECEIVER_NAME
 import std::compiler::source_location::SourceLocation
+import std::compiler::types::Type
 
 # A keyword argument and its value.
 object KeywordArgument {
@@ -19,11 +21,7 @@ object KeywordArgument {
     value: Node,
     location: SourceLocation
   ) -> Self {
-    Self {
-      @name = name,
-      @value = value,
-      @location = location
-    }
+    Self { @name = name, @value = value, @location = location }
   }
 
   # Returns the name of the keyword argument.
@@ -54,17 +52,26 @@ object Send {
   # The arguments passed with the message.
   @arguments: Array!(Node)
 
-  # Any type arguments used to initialise type parameters.
-  @type_arguments: Array!(Node)
+  # Any type arguments to assign to type parameters.
+  @type_arguments: Array!(TypeNode)
 
   # The source location of the send operation.
   @location: SourceLocation
+
+  # The type returned by this message.
+  @resolved_type: ?Type
+
+  # The type thrown by this message.
+  @throw_type: ?Type
+
+  # A boolean indicating that this node resides in a `try` expression.
+  @inside_try: Boolean
 
   static def new(
     message: String,
     receiver: Node,
     arguments: Array!(Node),
-    type_arguments: Array!(Node),
+    type_arguments: Array!(TypeNode),
     location: SourceLocation
   ) -> Self {
     Self {
@@ -72,33 +79,65 @@ object Send {
       @receiver = receiver,
       @arguments = arguments,
       @type_arguments = type_arguments,
-      @location = location
+      @location = location,
+      @resolved_type = Nil,
+      @throw_type = Nil,
+      @inside_try = False
     }
   }
 
-  # Returns the message that is sent.
   def message -> String {
     @message
   }
 
-  # Returns the receiver the message is sent to.
   def receiver -> Node {
     @receiver
   }
 
-  # Returns the arguments for the message.
   def arguments -> Array!(Node) {
     @arguments
   }
 
-  # Returns the type arguments used to initialise any type parameters.
-  def type_arguments -> Array!(Node) {
+  def type_arguments -> Array!(TypeNode) {
     @type_arguments
+  }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
+  }
+
+  def instruction? -> Boolean {
+    match(let matched = @receiver) {
+      as Constant when matched.name == INSTRUCTION_RECEIVER_NAME -> { True }
+      else -> { False }
+    }
   }
 }
 
 impl Node for Send {
   def location -> SourceLocation {
     @location
+  }
+
+  def resolved_type -> ?Type {
+    @resolved_type
+  }
+}
+
+impl ThrowingNode for Send {
+  def throw_type -> ?Type {
+    @throw_type
+  }
+
+  def throw_type=(value: ?Type) -> ?Type {
+    @throw_type = value
+  }
+
+  def inside_try {
+    @inside_try = True
+  }
+
+  def inside_try? -> Boolean {
+    @inside_try
   }
 }

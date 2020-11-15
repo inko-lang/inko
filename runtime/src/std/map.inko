@@ -545,7 +545,7 @@ impl Equal for Map {
   #     map2['name'] = 'Alice'
   #
   #     map1 == map2 # => True
-  def ==(other: Self) -> Boolean where V: Equal {
+  def ==(other: Self) -> Boolean when V: Equal {
     (length == other.length).if_false { return False }
 
     each do (key, value) {

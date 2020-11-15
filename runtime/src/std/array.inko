@@ -14,6 +14,7 @@
 # Array. This means that -1 will access the last value, -2 the value before
 # that, etc.
 import std::conversion::ToArray
+import std::hash::*
 import std::index::(Index, SetIndex)
 import std::length::Length
 import std::operators::Equal
@@ -208,7 +209,7 @@ impl Array {
   # Checking if an `Array` contains a value:
   #
   #     Array.new(10, 20, 30).contains?(10) # => True
-  def contains?(value: T) -> Boolean where T: Equal {
+  def contains?(value: T) -> Boolean when T: Equal {
     each do (val) {
       (val == value).if_true { return True }
     }
@@ -344,7 +345,7 @@ impl Equal for Array {
   # Comparing two arrays with the same length but with different values:
   #
   #     Array.new(10, 20) == Array.new(20, 10) # => False
-  def ==(other: Self) -> Boolean where T: Equal {
+  def ==(other: Self) -> Boolean when T: Equal {
     (length == other.length).if_false { return False }
 
     each_with_index do (ours: T, index: Integer) {
@@ -354,5 +355,13 @@ impl Equal for Array {
     }
 
     True
+  }
+}
+
+impl Hash for Array {
+  def hash(hasher: Hasher) when T: Hash {
+    each do (value) {
+      value.hash(hasher)
+    }
   }
 }

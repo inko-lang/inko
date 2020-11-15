@@ -1,9 +1,10 @@
 # AST types for control flow constructs.
 import std::compiler::ast::body::Body
-import std::compiler::ast::node::Node
+import std::compiler::ast::node::*
 import std::compiler::source_location::SourceLocation
+import std::compiler::types::Type
 
-# A return expression, with an optional value to return.
+# A return from a surrounding method or closure.
 object Return {
   # An expression to return, if any.
   @expression: ?Node
@@ -11,13 +12,36 @@ object Return {
   # The source location of the return expression.
   @location: SourceLocation
 
-  static def new(expression: ?Node, location: SourceLocation) -> Self {
-    Self { @expression = expression, @location = location }
+  # The type of value returned.
+  @resolved_type: ?Type
+
+  # If the return is from the surrounding closure instead of the surrounding
+  # method.
+  @local_return: Boolean
+
+  static def new(
+    expression: ?Node,
+    local_return: Boolean,
+    location: SourceLocation
+  ) -> Self {
+    Self {
+      @expression = expression,
+      @local_return = local_return,
+      @location = location,
+      @resolved_type = Nil
+    }
   }
 
-  # Returns the expression to return.
   def expression -> ?Node {
     @expression
+  }
+
+  def local_return? -> Boolean {
+    @local_return
+  }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
   }
 }
 
@@ -25,8 +49,13 @@ impl Node for Return {
   def location -> SourceLocation {
     @location
   }
+
+  def resolved_type -> ?Type {
+    @resolved_type
+  }
 }
 
+# A throw from a surrounding method.
 object Throw {
   # The expression to throw.
   @expression: Node
@@ -34,13 +63,36 @@ object Throw {
   # The source location of the throw expression.
   @location: SourceLocation
 
-  static def new(expression: Node, location: SourceLocation) -> Self {
-    Self { @expression = expression, @location = location }
+  # The type of value thrown.
+  @resolved_type: ?Type
+
+  # If the throw is from the surrounding closure instead of the surrounding
+  # method.
+  @local_throw: Boolean
+
+  static def new(
+    expression: Node,
+    local_throw: Boolean,
+    location: SourceLocation
+  ) -> Self {
+    Self {
+      @expression = expression,
+      @local_throw = local_throw,
+      @location = location,
+      @resolved_type = Nil
+    }
   }
 
-  # Returns the expression to throw.
   def expression -> Node {
     @expression
+  }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
+  }
+
+  def local_throw? -> Boolean {
+    @local_throw
   }
 }
 
@@ -48,6 +100,25 @@ impl Node for Throw {
   def location -> SourceLocation {
     @location
   }
+
+  def resolved_type -> ?Type {
+    @resolved_type
+  }
+}
+
+# A node used for handling errors.
+trait TryNode: Node {
+  # The expression that may throw an error.
+  def expression -> Node
+
+  # Sets the type of the value the expression may throw.
+  def throw_type=(value: Type) -> Type
+
+  # Returns the type of the value the expression may throw.
+  def throw_type -> ?Type
+
+  # Sets the return type of the node.
+  def resolved_type=(value: Type) -> Type
 }
 
 # An expression that might throw.
@@ -64,39 +135,84 @@ object Try {
   # The source location of the throw expression.
   @location: SourceLocation
 
+  # If `True`, re-throwing is to happen from the surrounding closure instead of
+  # the surrounding method.
+  @local_throw: Boolean
+
+  # The type returned by this expression.
+  @resolved_type: ?Type
+
+  # The type thrown by the expression.
+  @throw_type: ?Type
+
+  # The type returned by the `else` expression.
+  @else_type: ?Type
+
   static def new(
     expression: Node,
     error_variable: ?String,
     else_body: Body,
+    local_throw: Boolean,
     location: SourceLocation
   ) -> Self {
     Self {
       @expression = expression,
       @error_variable = error_variable,
       @else_body = else_body,
-      @location = location
+      @local_throw = local_throw,
+      @location = location,
+      @resolved_type = Nil,
+      @else_type = Nil,
+      @throw_type = Nil
     }
   }
 
-  # Returns the expression to try to run.
-  def expression -> Node {
-    @expression
-  }
-
-  # Returns the name of the error variable.
   def error_variable -> ?String {
     @error_variable
   }
 
-  # Returns the expression to run when an error is thrown.
   def else_body -> Body {
     @else_body
+  }
+
+  def local_throw? -> Boolean {
+    @local_throw
+  }
+
+  def with_else? -> Boolean {
+    @else_body.children.length.positive?
+  }
+
+  def else_type=(value: Type) -> Type {
+    @else_type = value
   }
 }
 
 impl Node for Try {
   def location -> SourceLocation {
     @location
+  }
+
+  def resolved_type -> ?Type {
+    @resolved_type
+  }
+}
+
+impl TryNode for Try {
+  def expression -> Node {
+    @expression
+  }
+
+  def throw_type=(value: Type) -> Type {
+    @throw_type = value
+  }
+
+  def throw_type -> ?Type {
+    @throw_type
+  }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
   }
 }
 
@@ -108,18 +224,46 @@ object TryPanic {
   # The source location of the throw expression.
   @location: SourceLocation
 
-  static def new(expression: Node, location: SourceLocation) -> Self {
-    Self { @expression = expression, @location = location }
-  }
+  # The type returned by this expression.
+  @resolved_type: ?Type
 
-  # Returns the expression to try to run.
-  def expression -> Node {
-    @expression
+  # The type thrown by the expression.
+  @throw_type: ?Type
+
+  static def new(expression: Node, location: SourceLocation) -> Self {
+    Self {
+      @expression = expression,
+      @location = location,
+      @resolved_type = Nil,
+      @throw_type = Nil
+    }
   }
 }
 
 impl Node for TryPanic {
   def location -> SourceLocation {
     @location
+  }
+
+  def resolved_type -> ?Type {
+    @resolved_type
+  }
+}
+
+impl TryNode for TryPanic {
+  def expression -> Node {
+    @expression
+  }
+
+  def throw_type=(value: Type) -> Type {
+    @throw_type = value
+  }
+
+  def throw_type -> ?Type {
+    @throw_type
+  }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = value
   }
 }

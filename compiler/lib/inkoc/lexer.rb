@@ -3,7 +3,7 @@
 module Inkoc
   # Lexer that breaks up Inko source code into a series of tokens.
   class Lexer
-    attr_reader :line, :column, :file
+    attr_reader :line, :column, :file, :comments
 
     IDENTIFIERS = {
       'let' => :let,
@@ -22,8 +22,10 @@ module Inkoc
       'impl' => :impl,
       'for' => :for,
       'lambda' => :lambda,
-      'where' => :where,
-      'static' => :static
+      'static' => :static,
+      'match' => :match,
+      'when' => :when,
+      'local' => :local
     }.freeze
 
     SPECIALS = Set.new(
@@ -41,13 +43,15 @@ module Inkoc
     # consume a peeked value.
     NULL_TOKEN = NullToken.new.freeze
 
-    def initialize(input, file_path = Pathname.new('(eval)'))
+    def initialize(input, file_path = Pathname.new('(eval)'), parse_comments: false)
       @input = input.is_a?(Array) ? input : input.chars
       @position = 0
       @line = 1
       @column = 1
       @peeked = NULL_TOKEN
       @file = SourceFile.new(file_path)
+      @comments = []
+      @parse_comments = parse_comments
     end
 
     # Returns the next available token, if any.
@@ -94,8 +98,8 @@ module Inkoc
         case char
         when '@' then return attribute
         when '#'
-          if (token = comment)
-            return token
+          if (token = comment) && token.valid? && @parse_comments
+            @comments << token
           end
         when NUMBER_RANGE then return number
         when '{' then return curly_open
@@ -210,55 +214,41 @@ module Inkoc
     end
 
     def comment
-      case @input[@position + 1]
-      when '#'
-        doc_comment
-      when '!'
-        module_comment
-      else
-        consume_comment_line
+      lines = []
+      start = current_location
+
+      while (line = read_comment_line)
+        lines << line
       end
+
+      Token.new(:comment, lines.join, start)
     end
 
-    def doc_comment
-      consume_doc_comment(:documentation)
-    end
+    def read_comment_line
+      return unless @input[@position] == '#'
 
-    def module_comment
-      consume_doc_comment(:module_documentation)
-    end
-
-    def consume_doc_comment(type)
-      @position += 2
-      @column += 2
+      @position += 1
+      @column += 1
 
       ignore_spaces
 
       start = @position
 
-      consume_comment_line(advance_newline: false)
-
-      token = new_token_or_null_token(type, start, @position)
-
-      advance_line
-
-      token
-    end
-
-    def consume_comment_line(advance_newline: true)
       loop do
         char = @input[@position]
 
-        return unless char
+        break unless char
 
         if char == "\n"
-          advance_line if advance_newline
-          return
+          advance_line
+          break
         end
 
         @position += 1
         @column += 1
       end
+
+      @input[start...@position].join('')
     end
 
     def ignore_spaces
@@ -373,6 +363,9 @@ module Inkoc
           end
 
           next
+        elsif char == "\n"
+          @line += 1
+          @column = 1
         end
 
         in_escape = false if in_escape
@@ -485,7 +478,20 @@ module Inkoc
     end
 
     def assign_or_equal
-      operator(1, :assign, :equal)
+      advance = 1
+      token_type =
+        case @input[@position + 1]
+        when '='
+          advance = 2
+          :equal
+        when '~'
+          advance = 2
+          :match_equal
+        else
+          :assign
+        end
+
+      new_token(token_type, @position, @position += advance)
     end
 
     def not_equal_or_type_args_open_or_throws

@@ -74,8 +74,8 @@ module Inkoc
         end
 
         # Insert a `return` at the end, unless the last expression already is a
-        # `return` of some sort..
-        node.body.expressions.push(AST::Return.new(nil, ret_loc))
+        # `return` of some sort.
+        node.body.expressions.push(AST::Return.new(nil, false, ret_loc))
       end
     end
   end

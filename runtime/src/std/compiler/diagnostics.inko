@@ -1,0 +1,763 @@
+# Diagnostics produced by the compiler, such as warnings and errors.
+import std::compiler::module_name::ModuleName
+import std::compiler::source_location::SourceLocation
+import std::conversion::ToString
+import std::fs::path::Path
+import std::iterator::Iterator
+import std::length::Length
+import std::string_buffer::StringBuffer
+
+# The level identifier to use for errors.
+let ERROR = 'error'
+
+# The level identifier to use for warnings.
+let WARNING = 'warning'
+
+# A single warning or error produced by the compiler.
+object Diagnostic {
+  # The level of the diagnostic.
+  @level: String
+
+  # The message of the diagnostic.
+  #
+  # Messages are unique to the diagnostics. For looking up more details about a
+  # diagnostic, one should use the identifier.
+  @message: String
+
+  # The source location that triggered the creation of this diagnostic.
+  @location: SourceLocation
+
+  static def new(
+    level: String,
+    message: String,
+    location: SourceLocation
+  ) -> Self {
+    Self { @level = level, @message = message, @location = location }
+  }
+
+  # Returns the level of this diagnostic.
+  def level -> String {
+    @level
+  }
+
+  # Returns the message of this diagnostic.
+  def message -> String {
+    @message
+  }
+
+  # Returns the location this diagnostic was triggered on.
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+# A collection of Diagnostic objects produced by the compiler.
+object Diagnostics {
+  # The collection of diagnostics produced so far.
+  @values: Array!(Diagnostic)
+
+  # A boolean indicating that one or more errors have been produced.
+  @errors: Boolean
+
+  static def new -> Self {
+    Self { @values = Array.new, @errors = False }
+  }
+
+  # Returns `True` if there are one or more error diagnostics.
+  def errors? -> Boolean {
+    @errors
+  }
+
+  # Returns `True` if any diagnostics have been recorded.
+  def any? -> Boolean {
+    @values.length.positive?
+  }
+
+  # Appends the `Diagnostics` to `self`.
+  def append(other: Diagnostics) -> Self {
+    other.iter.each do (diag) {
+      (diag.level == ERROR).if_true {
+        @errors = True
+      }
+
+      @values.push(diag)
+    }
+
+    self
+  }
+
+  # Returns an `Iterator` over all the values in this collection.
+  def iter -> Iterator!(Diagnostic) {
+    @values.iter
+  }
+
+  # Records a new error diagnostic.
+  def error(message: ToString, location: SourceLocation) -> Diagnostic {
+    let diag = Diagnostic
+      .new(level: ERROR, message: message.to_string, location: location)
+
+    @errors = True
+
+    @values.push(diag)
+  }
+
+  # Records a new warning diagnostic.
+  def warning(message: ToString, location: SourceLocation) -> Diagnostic {
+    let diag = Diagnostic.new(
+      level: WARNING,
+      message: message.to_string,
+      location: location
+    )
+
+    @values.push(diag)
+  }
+
+  def failed_to_read_source(message: String, path: Path) {
+    let loc = SourceLocation.new(file: path, line_range: 1..1, column: 1)
+    let msg = StringBuffer.new('Failed to read ', path.to_string, ': ', message)
+
+    error(message: msg, location: loc)
+  }
+
+  def failed_to_parse(message: String, location: SourceLocation) {
+    let msg = StringBuffer
+      .new('Failed to parse ', location.file.to_string, ': ', message)
+
+    error(message: msg, location: location)
+  }
+
+  def undefined_constant(name: String, location: SourceLocation) {
+    let message = StringBuffer.new('The constant "', name, '" is not defined')
+
+    error(message: message, location: location)
+  }
+
+  def undefined_identifier(name: String, location: SourceLocation) {
+    let message = StringBuffer.new(
+      'There is no local variable, global variable, or method with the name "',
+      name,
+      '"'
+    )
+
+    error(message: message, location: location)
+  }
+
+  def undefined_message(type: String, name: String, location: SourceLocation) {
+    let message = StringBuffer.new(
+      'The type "',
+      type,
+      '" does not respond to the message "',
+      name,
+      '"'
+    )
+
+    error(message: message, location: location)
+  }
+
+  def undefined_local_variable(name: String, location: SourceLocation) {
+    let message = StringBuffer.new(
+      'There is no local variable with the name "',
+      name,
+      '"'
+    )
+
+    error(message: message, location: location)
+  }
+
+  def undefined_attribute(
+    type: String,
+    attribute: String,
+    location: SourceLocation
+  ) {
+    let message = StringBuffer.new(
+      'The type "',
+      type,
+      '" does not define the attribute "',
+      attribute,
+      '"'
+    )
+
+    error(message: message, location: location)
+  }
+
+  def already_assigned_attribute(name: String, location: SourceLocation) {
+    let message = StringBuffer.new(
+      'The attribute "',
+      name,
+      '" is already assigned'
+    )
+
+    error(message: message, location: location)
+  }
+
+  def unassigned_attribute(name: String, location: SourceLocation) {
+    let message = StringBuffer.new(
+      'The attribute "',
+      name,
+      '" must be assigned a value'
+    )
+
+    error(message: message, location: location)
+  }
+
+  def assign_immutable_local_variable(name: String, location: SourceLocation) {
+    let message = StringBuffer.new(
+      'The local variable "',
+      name,
+      "\" is immutable, and can't be assigned a new value"
+    )
+
+    error(message: message, location: location)
+  }
+
+  def import_existing_symbol(name: String, location: SourceLocation) {
+    let message = StringBuffer
+      .new(
+        'The symbol "',
+        name,
+        "\" can't be imported as it has already been defined in this module"
+      )
+
+    error(message: message, location: location)
+  }
+
+  def not_a_trait(name: String, location: SourceLocation) {
+    let message = StringBuffer.new('The type "', name, '" is not a trait')
+
+    error(message: message, location: location)
+  }
+
+  def not_an_object(name: String, location: SourceLocation) {
+    let message = StringBuffer.new('The type "', name, '" is not an object type')
+
+    error(message: message, location: location)
+  }
+
+  def invalid_initialise(name: String, location: SourceLocation) {
+    let message = StringBuffer.new(
+      'The type "',
+      name,
+      "\" can't be initialised because it's not a generic type, or because ",
+      " it's already initialised"
+    )
+
+    error(message: message, location: location)
+  }
+
+  def invalid_number_of_type_arguments(
+    expected: Integer,
+    given: Integer,
+    location: SourceLocation
+  ) {
+    let message = StringBuffer.new(
+      'Incorrect number of type arguments: expected ',
+      expected.to_string,
+      ', found ',
+      given.to_string
+    )
+
+    error(message: message, location: location)
+  }
+
+  def module_not_found(name: String, location: SourceLocation) {
+    let message = StringBuffer.new('The module "', name, '" could not be found')
+
+    error(message: message, location: location)
+  }
+
+  def undefined_import_symbol(
+    module: String,
+    name: String,
+    location: SourceLocation
+  ) {
+    let message = StringBuffer.new(
+      'The module "',
+      module,
+      '" does not define a method, constant, or module with the name "',
+      name,
+      '"'
+    )
+
+    error(message: message, location: location)
+  }
+
+  def invalid_trait_implementation(name: String, location: SourceLocation) {
+    let message = StringBuffer.new(
+      'Traits can only be implemented for objects, and "',
+      name,
+      '" is not an object'
+    )
+
+    error(message: message, location: location)
+  }
+
+  def undefined_type_parameter(name: String, location: SourceLocation) {
+    let message =
+      StringBuffer.new('The type parameter "', name, '" does not exist')
+
+    error(message: message, location: location)
+  }
+
+  def duplicate_bound(name: String, location: SourceLocation) {
+    let message = StringBuffer.new(
+      'Type parameter bounds for type parameter "',
+      name,
+      '" have already been defined'
+    )
+
+    error(message: message, location: location)
+  }
+
+  def useless_method_bound(location: SourceLocation) {
+    error(
+      message: "Method type parameters can't be used for type parameter bounds",
+      location: location
+    )
+  }
+
+  def invalid_self_type(location: SourceLocation) {
+    error(
+      message: 'Self types can only be used when defining a method for an object or trait',
+      location: location
+    )
+  }
+
+  def redefine_local_variable(name: String, location: SourceLocation) {
+    let message = StringBuffer.new(
+      'The local variable "',
+      name,
+      '" has already been defined'
+    )
+
+    error(message: message, location: location)
+  }
+
+  def redefine_constant(name: String, location: SourceLocation) {
+    let message =
+      StringBuffer.new('The constant "', name, '" has already been defined')
+
+    error(message: message, location: location)
+  }
+
+  def wrong_type(expected: String, given: String, location: SourceLocation) {
+    let message = StringBuffer.new(
+      'A value of type "',
+      expected,
+      '" was expected, but a value of type "',
+      given,
+      '" is provided instead'
+    )
+
+    error(message: message, location: location)
+  }
+
+  def redefine_static_method(name: String, location: SourceLocation) {
+    let message = StringBuffer.new(
+      'The method "',
+      name,
+      '" has already been defined as a static method'
+    )
+
+    error(message: message, location: location)
+  }
+
+  def redefine_instance_method(name: String, location: SourceLocation) {
+    let message = StringBuffer.new(
+      'The method "',
+      name,
+      '" has already been defined as an instance method'
+    )
+
+    error(message: message, location: location)
+  }
+
+  def redefine_required_method(name: String, location: SourceLocation) {
+    let message = StringBuffer.new(
+      'The method "',
+      name,
+      '" has already been defined as a required method'
+    )
+
+    error(message: message, location: location)
+  }
+
+  def redefine_default_method(name: String, location: SourceLocation) {
+    let message = StringBuffer.new(
+      'The method "',
+      name,
+      '" has already been defined as a default method'
+    )
+
+    error(message: message, location: location)
+  }
+
+  def redefine_module_method(name: String, location: SourceLocation) {
+    let message = StringBuffer.new(
+      'The method "',
+      name,
+      '" has already been defined as a module method'
+    )
+
+    error(message: message, location: location)
+  }
+
+  def required_method_with_default_argument(location: SourceLocation) {
+    error(
+      message: 'Default arguments are not avaiable for required methods',
+      location: location
+    )
+  }
+
+  def required_method_not_implemented(method: String, location: SourceLocation) {
+    let message =
+      StringBuffer.new('The method "', method, '" must be implemented')
+
+    error(message: message, location: location)
+  }
+
+  def required_method_not_compatible(
+    expected: String,
+    given: String,
+    location: SourceLocation
+  ) {
+    let message = StringBuffer.new(
+      'The implementation "',
+      given,
+      '" is not compatible with the required method "',
+      expected,
+      '"'
+    )
+
+    error(message: message, location: location)
+  }
+
+  def default_method_not_compatible(
+    expected: String,
+    given: String,
+    location: SourceLocation
+  ) {
+    let message = StringBuffer.new(
+      'The implementation "',
+      given,
+      '" is not compatible with the default implementation "',
+      expected,
+      '"'
+    )
+
+    error(message: message, location: location)
+  }
+
+  def required_trait_not_implemented(
+    required: String,
+    depending: String,
+    location: SourceLocation
+  ) {
+    let message = StringBuffer.new(
+      'The trait "',
+      required,
+      '" must be implemented before the trait "',
+      depending,
+      '" can be implemented'
+    )
+
+    error(message: message, location: location)
+  }
+
+  def invalid_return(location: SourceLocation) {
+    error(
+      message: 'The "return" keyword can only be used in a method',
+      location: location
+    )
+  }
+
+  def invalid_local_return(location: SourceLocation) {
+    error(
+      message: 'The "local return" keyword can only be used in a method, closure, or lambda',
+      location: location
+    )
+  }
+
+  def match_not_exhaustive(location: SourceLocation) {
+    error(
+      message: 'You must add an "else" branch to make this match exhaustive',
+      location: location
+    )
+  }
+
+  def match_without_cases(location: SourceLocation) {
+    error(
+      message: 'At least a single pattern matching case is required',
+      location: location
+    )
+  }
+
+  def unavailable_type_match(location: SourceLocation) {
+    error(
+      message: 'This pattern can only be used when using match() with an argument',
+      location: location
+    )
+  }
+
+  def match_trait_not_implemented(
+    type: String,
+    match_trait: String,
+    location: SourceLocation
+  ) {
+    let message = StringBuffer.new(
+      'This pattern is invalid because its type ("',
+      type,
+      '") does not implement the trait "',
+      match_trait,
+      '"'
+    )
+
+    error(message: message, location: location)
+  }
+
+  def match_trait_not_found(location: SourceLocation) {
+    error(
+      message: 'Pattern matching is not available as the Match trait is not yet defined',
+      location: location
+    )
+  }
+
+  def any_trait_not_found(location: SourceLocation) {
+    error(
+      message: 'Pattern matching is not available as the Any trait is not yet defined',
+      location: location
+    )
+  }
+
+  def invalid_not_nil_operator(type: String, location: SourceLocation) {
+    let message = StringBuffer.new(
+      'The ! operator can only be used on optional types, and "',
+      type,
+      '" is not an optional type'
+    )
+
+    error(message: message, location: location)
+  }
+
+  def invalid_coalesce_nil_operator(type: String, location: SourceLocation) {
+    let message = StringBuffer.new(
+      'The ?? operator can only be used on optional types, and "',
+      type,
+      '" is not an optional type'
+    )
+
+    error(message: message, location: location)
+  }
+
+  def invalid_cast(type: String, cast_to: String, location: SourceLocation) {
+    let message = StringBuffer.new(
+      'The type "',
+      type,
+      '" can\'t be casted to the type "',
+      cast_to,
+      '"'
+    )
+
+    error(message: message, location: location)
+  }
+
+  def missing_argument_type(location: SourceLocation) {
+    error(
+      message: 'An explicit type or default value is required for this argument',
+      location: location
+    )
+  }
+
+  def missing_method_throw(type: String, location: SourceLocation) {
+    let message = StringBuffer.new(
+      'This method is expected to throw a value of type "',
+      type,
+      '", but no value is ever thrown using the `throw` keyword'
+    )
+
+    error(message: message, location: location)
+  }
+
+  def missing_local_throw(type: String, location: SourceLocation) {
+    let message = StringBuffer.new(
+      'This block is expected to throw a value of type "',
+      type,
+      '", but no value is ever thrown using the `local throw` keyword'
+    )
+
+    error(message: message, location: location)
+  }
+
+  def missing_try(type: String, location: SourceLocation) {
+    let message = StringBuffer.new(
+      'This message will throw a value of type "',
+      type,
+      '", and requires the use of `try`, `local try`, or `try!`'
+    )
+
+    error(message: message, location: location)
+  }
+
+  def invalid_method_throw(location: SourceLocation) {
+    error(
+      message: 'The `throw` keyword can only be used in methods',
+      location: location
+    )
+  }
+
+  def invalid_local_throw(location: SourceLocation) {
+    error(
+      message: 'The `local throw` keyword can only be used in methods, closures, or lambdas',
+      location: location
+    )
+  }
+
+  def invalid_method_try(location: SourceLocation) {
+    error(
+      message: 'The `try` keyword without the `else` keyword can only be used in methods',
+      location: location
+    )
+  }
+
+  def invalid_local_try(location: SourceLocation) {
+    error(
+      message: 'The `local try` keyword without the `else` keyword can only be used in methods, closures, or lambdas',
+      location: location
+    )
+  }
+
+  def expression_never_throws(location: SourceLocation) {
+    error(message: 'This expression never throws', location: location)
+  }
+
+  def unexpected_method_throw(type: String, location: SourceLocation) {
+    let message = StringBuffer.new(
+      'You can\'t throw a value of type "',
+      type,
+      '", as the surrounding method does not define a type to throw'
+    )
+
+    error(message: message, location: location)
+  }
+
+  def not_enough_arguments(
+    given: Integer,
+    minimum: Integer,
+    location: SourceLocation
+  ) {
+    let message = StringBuffer.new
+
+    match(minimum) {
+      1 -> { message.push('This message defines one required argument') }
+      else -> {
+        message.push('This message defines ')
+        message.push(minimum.to_string)
+        message.push(' required arguments')
+      }
+    }
+
+    match(given) {
+      0 -> { message.push(', but none were specified') }
+      1 -> { message.push(', but only one was specified') }
+      else -> {
+        message.push(', but only ')
+        message.push(given.to_string)
+        message.push(' were specified')
+      }
+    }
+
+    error(message: message, location: location)
+  }
+
+  def too_many_arguments(
+    given: Integer,
+    maximum: Integer,
+    location: SourceLocation
+  ) {
+    let message = StringBuffer.new
+
+    match(maximum) {
+      0 -> { message.push('This message does not accept any arguments') }
+      1 -> { message.push('This message accepts only one argument') }
+      else -> {
+        message.push('This message accepts up to ')
+        message.push(maximum.to_string)
+        message.push(' arguments')
+      }
+    }
+
+    match(given) {
+      0 -> { message.push(', but no arguments were specified') }
+      1 -> { message.push(', but one argument was specified') }
+      else -> {
+        message.push(', but ')
+        message.push(given.to_string)
+        message.push(' arguments were specified')
+      }
+    }
+
+    error(message: message, location: location)
+  }
+
+  def undefined_keyword_argument(argument: String, location: SourceLocation) {
+    let error = StringBuffer.new(
+      'This message does not accept an argument called "',
+      argument,
+      '"'
+    )
+
+    error(message: error, location: location)
+  }
+
+  def duplicate_keyword_argument(
+    argument: String,
+    location: SourceLocation
+  ) {
+    let message = StringBuffer
+      .new('The argument "', argument, '" is already specified')
+
+    error(message: message, location: location)
+  }
+
+  def method_not_available(
+    receiver: String,
+    method: String,
+    location: SourceLocation
+  ) {
+    let message = StringBuffer.new(
+      'The method "',
+      method,
+      '" exists, but is not available to "',
+      receiver,
+      '" due to one or more method type parameter bounds not being met'
+    )
+
+    error(message: message, location: location)
+  }
+
+  def unknown_instruction(name: String, location: SourceLocation) {
+    let message =
+      StringBuffer.new('The instruction "', name, '" does not exist')
+
+    error(message: message, location: location)
+  }
+
+  def invalid_instruction(name: String, location: SourceLocation) {
+    let message = StringBuffer
+      .new('The instruction "', name, '" is not valid')
+
+    error(message: message, location: location)
+  }
+
+  def instructions_not_available(location: SourceLocation) {
+    error(
+      message: 'VM instructions can only be used in the standard library',
+      location: location
+    )
+  }
+}
+
+impl Length for Diagnostics {
+  def length -> Integer {
+    @values.length
+  }
+}

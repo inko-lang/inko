@@ -1,0 +1,126 @@
+# Methods for desugaring an AST.
+import std::compiler::ast::body::Body
+import std::compiler::ast::imports::(Import, ImportAlias, ImportSymbol)
+import std::compiler::ast::node::Node
+import std::compiler::ast::send::Send
+import std::compiler::ast::variables::Identifier
+import std::compiler::module_name::(STD_BOOTSTRAP, STD_PRELUDE, ModuleName)
+import std::compiler::source_location::SourceLocation
+
+# Hoists imports to the start of the body node.
+#
+# While `import` expressions can only appear at the top-level of a module, they
+# can follow non-import code. For example, the following is valid Inko code:
+#
+#     import std::stdio::stdout
+#
+#     stdout.print('foo')
+#
+#     import std::stdio::stderr
+#
+# This compiler pass hoists all imports to the start of a module, retaining the
+# order in which the `import` expressions appeared in the module. This means the
+# above example would be turned into the following:
+#
+#     import std::stdio::stdout
+#     import std::stdio::stderr
+#
+#     stdout.print('foo')
+#
+# Hosting imports is done so we can process (e.g. type check) dependencies
+# first.
+def hoist_imports(body: Body) -> Body {
+  let pair = body.children.iter.partition do (node) {
+    match(node) {
+      as Import -> { True }
+      else -> { False }
+    }
+  }
+
+  body.children = pair.first.append(pair.second)
+  body
+}
+
+# Inserts implicit imports in the AST node, if needed.
+#
+# Some imports are inserted implicit, such as the importing of
+# `core::bootstrap`. This method inserts these imports where needed.
+def add_implicit_imports(name: ModuleName, body: Body) -> Body {
+  let nodes = Array.new
+  let location = body.location
+
+  import_bootstrap(name: name, nodes: nodes, location: location)
+  import_prelude(name: name, nodes: nodes, location: location)
+
+  nodes.empty?.if_true {
+    return body
+  }
+
+  body.children = nodes.append(body.children)
+  body
+}
+
+# Adds implicit `self` symbols to import.
+#
+# This pass desugars this:
+#
+#     import std::stdio::stdout
+#
+# Into this:
+#
+#     import std::stdio::stdout::(self)
+def add_implicit_symbols(body: Body) -> Body {
+  body.imports.each do (node) {
+    node.symbols.empty?.if_true {
+      let mod = node.path[-1]
+
+      node.symbols.push(ImportSymbol.new(name: 'self', location: mod.location))
+    }
+  }
+
+  body
+}
+
+def import_bootstrap(
+  name: ModuleName,
+  nodes: Array!(Import),
+  location: SourceLocation
+) {
+  name.bootstrap?.if_true {
+    return
+  }
+
+  nodes.push(import_all(module: STD_BOOTSTRAP, location: location))
+}
+
+def import_prelude(
+  name: ModuleName,
+  nodes: Array!(Import),
+  location: SourceLocation
+) {
+  name.bootstrap?.or { name.prelude? }.if_true {
+    return
+  }
+
+  nodes.push(import_all(module: STD_PRELUDE, location: location))
+}
+
+def import_path_for_module(
+  module: ModuleName,
+  location: SourceLocation
+) -> Array!(Identifier) {
+  module
+    .components
+    .iter
+    .map do (name) { Identifier.new(name: name, location: location) }
+    .to_array
+}
+
+def import_all(module: ModuleName, location: SourceLocation) -> Import {
+  Import.new(
+    path: import_path_for_module(module: module, location: location),
+    symbols: Array.new,
+    import_all: True,
+    location: location
+  )
+}

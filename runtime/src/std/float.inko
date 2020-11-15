@@ -1,7 +1,6 @@
 # The float type.
 #
 # Floats are implemented as IEEE 754 floats.
-
 import std::conversion::(ToInteger, ToString, ToFloat)
 import std::error::StandardError
 import std::numeric::Numeric
@@ -67,6 +66,13 @@ impl GreaterOrEqual for Float {
 impl SmallerOrEqual for Float {
   def <=(other: Self) -> Boolean {
     _INKOC.float_smaller_or_equal(self, other)
+  }
+}
+
+impl Match!(Float) for Float {
+  # Returns `True` if `self` and the given `Float` are equal to each other.
+  def =~(other: Float) -> Boolean {
+    _INKOC.float_equals(self, other)
   }
 }
 

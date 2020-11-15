@@ -47,6 +47,8 @@ module Inkoc
         try
         do
         lambda
+        match
+        match_equal
       ]
     ).freeze
 
@@ -73,6 +75,7 @@ module Inkoc
         trait
         try
         try_bang
+        match
       ]
     ).freeze
 
@@ -99,6 +102,7 @@ module Inkoc
         pow
         inclusive_range
         exclusive_range
+        match_equal
       ]
     ).freeze
 
@@ -118,8 +122,12 @@ module Inkoc
       ]
     ).freeze
 
-    def initialize(input, file_path = Pathname.new('(eval)'))
-      @lexer = Lexer.new(input, file_path)
+    def initialize(input, file_path = Pathname.new('(eval)'), parse_comments: false)
+      @lexer = Lexer.new(input, file_path, parse_comments: parse_comments)
+    end
+
+    def comments
+      @lexer.comments
     end
 
     def location
@@ -160,8 +168,6 @@ module Inkoc
         def_trait(start)
       when :impl
         implement_trait(start)
-      when :module_documentation
-        module_documentation(start)
       else
         expression(start)
       end
@@ -570,6 +576,7 @@ module Inkoc
       when :do, :lambda then block(start, start.type)
       when :let then let_define(start)
       when :return then return_value(start)
+      when :local then local_return_or_throw(start)
       when :attribute then attribute_or_reassign(start)
       when :self then self_object(start)
       when :throw then throw_value(start)
@@ -577,7 +584,7 @@ module Inkoc
       when :try_bang then try_bang(start)
       when :colon_colon then global(start)
       when :paren_open then grouped_expression
-      when :documentation then documentation(start)
+      when :match then pattern_match(start)
       else
         raise ParseError, "A value can not start with a #{start.type.inspect}"
       end
@@ -931,7 +938,7 @@ module Inkoc
     end
 
     def optional_method_requirements
-      return [] unless @lexer.next_type_is?(:where)
+      return [] unless @lexer.next_type_is?(:when)
 
       skip_one
 
@@ -961,7 +968,7 @@ module Inkoc
       required = []
 
       loop do
-        required << type_name(advance_and_expect!(:constant))
+        required << type(advance!)
 
         break unless @lexer.next_type_is?(:add)
 
@@ -1081,17 +1088,17 @@ module Inkoc
       name = advance_and_expect!(:constant)
       targs = optional_type_parameter_definitions
 
-      required_traits =
+      required =
         if @lexer.next_type_is?(:colon)
           skip_one
-          trait_requirements
+          required_traits
         else
           []
         end
 
       body = trait_body(advance_and_expect!(:curly_open))
 
-      AST::Trait.new(name.value, targs, required_traits, body, start.location)
+      AST::Trait.new(name.value, targs, required, body, start.location)
     end
 
     def trait_body(start)
@@ -1102,20 +1109,6 @@ module Inkoc
       end
 
       AST::Body.new(nodes, start.location)
-    end
-
-    # Parses a list of traits that must be implemented by whatever implements
-    # the current trait.
-    def trait_requirements
-      required = []
-
-      while @lexer.next_type_is?(:constant)
-        required << constant(advance!)
-
-        advance! if @lexer.next_type_is?(:add)
-      end
-
-      required
     end
 
     # Parses the implementation of a trait or re-opening of an object.
@@ -1169,10 +1162,25 @@ module Inkoc
     # Example:
     #
     #     return 10
-    def return_value(start)
+    def return_value(start, local = false, location = start.location)
       value = expression(advance!) if next_expression_is_argument?(start)
 
-      AST::Return.new(value, start.location)
+      AST::Return.new(value, local, location)
+    end
+
+    def local_return_or_throw(start)
+      next_token = advance!
+
+      case next_token.type
+      when :return
+        return_value(next_token, true, start.location)
+      when :throw
+        throw_value(next_token, true, start.location)
+      when :try
+        try(next_token, true, start.location)
+      else
+        raise ParseError, 'expected `throw`, `return`, or `try`'
+      end
     end
 
     def attribute_or_reassign(start)
@@ -1261,10 +1269,8 @@ module Inkoc
     # Example:
     #
     #     throw Foo
-    def throw_value(start)
-      value = expression(advance!)
-
-      AST::Throw.new(value, start.location)
+    def throw_value(start, local = false, location = start.location)
+      AST::Throw.new(expression(advance!), local, location)
     end
 
     # Parses a "try" statement.
@@ -1274,7 +1280,7 @@ module Inkoc
     #     try foo
     #     try foo else bar
     #     try foo else (error) { error }
-    def try(start)
+    def try(start, local = false, location = start.location)
       expression = try_expression
       else_arg = nil
 
@@ -1289,7 +1295,7 @@ module Inkoc
           AST::Body.new([], start.location)
         end
 
-      AST::Try.new(expression, else_body, else_arg, start.location)
+      AST::Try.new(expression, else_body, else_arg, local, location)
     end
 
     # Parses a "try!" statement
@@ -1297,7 +1303,7 @@ module Inkoc
       expression = try_expression
       else_arg, else_body = try_bang_else(start)
 
-      AST::Try.new(expression, else_body, else_arg, start.location)
+      AST::Try.new(expression, else_body, else_arg, false, start.location)
     end
 
     def try_expression
@@ -1393,30 +1399,80 @@ module Inkoc
       type
     end
 
-    def documentation(start)
-      documentation_comment_of_type(start, :documentation, AST::Documentation)
-    end
+    def pattern_match(start)
+      bind_to = nil
+      to_match = nil
+      match_arms = []
+      match_else = nil
 
-    def module_documentation(start)
-      documentation_comment_of_type(
-        start,
-        :module_documentation,
-        AST::ModuleDocumentation
-      )
-    end
+      if @lexer.next_type_is?(:paren_open)
+        advance_and_expect!(:paren_open)
 
-    def documentation_comment_of_type(start, type, klass)
-      values = [start.value] + token_sequence_values(type)
+        if @lexer.next_type_is?(:let)
+          skip_one
+          bind_to = identifier_from_token(advance_and_expect!(:identifier))
+          advance_and_expect!(:assign)
+        end
 
-      klass.new(values.join("\n"), start.location)
-    end
+        to_match = expression(advance!)
 
-    def token_sequence_values(type)
-      values = []
+        advance_and_expect!(:paren_close)
+      end
 
-      values << advance!.value while @lexer.next_type_is?(type)
+      advance_and_expect!(:curly_open)
 
-      values
+      while @lexer.peek.valid_but_not?(:curly_close)
+        token = @lexer.advance
+
+        case token.type
+        when :as
+          type = type_name(advance_and_expect!(:constant))
+          guard =
+            if @lexer.next_type_is?(:when)
+              skip_one
+              expression(advance!)
+            end
+
+          advance_and_expect!(:arrow)
+
+          body = block_body(advance_and_expect!(:curly_open))
+
+          match_arms << AST::MatchType.new(type, guard, body, token.location)
+        when :else
+          advance_and_expect!(:arrow)
+
+          else_body = block_body(advance_and_expect!(:curly_open))
+          match_else = AST::MatchElse.new(else_body, token.location)
+
+          # "else" must be last
+          break
+        else
+          tests = []
+
+          tests << expression(token)
+
+          while @lexer.next_type_is?(:comma)
+            skip_one
+            tests << expression(advance!)
+          end
+
+          guard =
+            if @lexer.next_type_is?(:when)
+              skip_one
+              expression(advance!)
+            end
+
+          advance_and_expect!(:arrow)
+
+          body = block_body(advance_and_expect!(:curly_open))
+
+          match_arms << AST::MatchExpression.new(tests, guard, body, token.location)
+        end
+      end
+
+      advance_and_expect!(:curly_close)
+
+      AST::Match.new(to_match, bind_to, match_arms, match_else, start.location)
     end
 
     def constant_from_token(token)

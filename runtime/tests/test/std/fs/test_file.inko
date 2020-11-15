@@ -132,11 +132,12 @@ test.group('std::fs::file::ReadOnlyFile.read_string') do (g) {
 test.group('std::fs::file::ReadOnlyFile.seek') do (g) {
   g.test('Seeking to a valid offset') {
     read_only_file do (file) {
-      let position = try! file.seek(3)
-      let data = try! file.read_string(3)
+      let first_chunk = try! file.read_string(3)
+      let position = try! file.seek(0)
+      let second_chunk = try! file.read_string(3)
 
-      assert.equal(position, 3)
-      assert.equal(data, 'ort')
+      assert.equal(position, 0)
+      assert.equal(first_chunk, second_chunk)
     }
   }
 

@@ -1,5 +1,4 @@
 # The integer type.
-
 import std::conversion::(ToInteger, ToString, ToFloat)
 import std::error::StandardError
 import std::numeric::Numeric
@@ -111,6 +110,13 @@ impl ShiftLeft for Integer {
 impl ShiftRight for Integer {
   def >>(other: Self) -> Self {
     _INKOC.integer_shift_right(self, other)
+  }
+}
+
+impl Match!(Integer) for Integer {
+  # Returns `True` if `self` and the given `Integer` are equal to each other.
+  def =~(other: Integer) -> Boolean {
+    _INKOC.integer_equals(self, other)
   }
 }
 

@@ -1,0 +1,108 @@
+import std::compiler::diagnostics::*
+import std::compiler::source_location::SourceLocation
+import std::test
+import std::test::assert
+
+def location -> SourceLocation {
+  SourceLocation.new(file: 'test.inko', line_range: 1..2, column: 4)
+}
+
+def error -> Diagnostic {
+  Diagnostic.new(level: ERROR, message: 'testing', location: location)
+}
+
+test.group('std::compiler::diagnostics::Diagnostic.level') do (g) {
+  g.test('Obtaining the level of a diagnostic') {
+    assert.equal(error.level, 'error')
+  }
+}
+
+test.group('std::compiler::diagnostics::Diagnostic.level') do (g) {
+  g.test('Obtaining the level of a diagnostic') {
+    assert.equal(error.level, 'error')
+  }
+}
+
+test.group('std::compiler::diagnostics::Diagnostic.message') do (g) {
+  g.test('Obtaining the message of a diagnostic') {
+    assert.equal(error.message, 'testing')
+  }
+}
+
+test.group('std::compiler::diagnostics::Diagnostic.location') do (g) {
+  g.test('Obtaining the source location of a diagnostic') {
+    assert.equal(error.location.column, 4)
+  }
+}
+
+test.group('std::compiler::diagnostics::Diagnostics.any?') do (g) {
+  g.test('Checking if there are any diagnostics') {
+    let collection = Diagnostics.new
+
+    assert.false(collection.any?)
+
+    collection.error(message: 'testing', location: location)
+
+    assert.true(collection.any?)
+  }
+}
+
+test.group('std::compiler::diagnostics::Diagnostics.append') do (g) {
+  g.test('Appending one Diagnostics to another Diagnostics') {
+    let diag1 = Diagnostics.new
+    let diag2 = Diagnostics.new
+
+    diag1.warning(message: 'testing', location: location)
+    diag2.error(message: 'testing', location: location)
+
+    diag1.append(diag2)
+
+    assert.equal(diag1.length, 2)
+    assert.true(diag1.errors?)
+  }
+}
+
+test.group('std::compiler::diagnostics::Diagnostics.length') do (g) {
+  g.test('Obtaining the number of diagnostics') {
+    let collection = Diagnostics.new
+
+    assert.equal(collection.length, 0)
+
+    collection.error(message: 'testing', location: location)
+
+    assert.equal(collection.length, 1)
+  }
+}
+
+test.group('std::compiler::diagnostics::Diagnostics.iter') do (g) {
+  g.test('Iterating over the diagnostics') {
+    let collection = Diagnostics.new
+
+    collection.error(message: 'testing', location: location)
+
+    assert.equal(collection.iter.next.message, 'testing')
+  }
+}
+
+test.group('std::compiler::diagnostics::Diagnostics.error') do (g) {
+  g.test('Adding an error') {
+    let collection = Diagnostics.new
+
+    assert.false(collection.errors?)
+
+    collection.error(message: 'testing', location: location)
+
+    assert.equal(collection.iter.next.level, 'error')
+    assert.true(collection.errors?)
+  }
+}
+
+test.group('std::compiler::diagnostics::Diagnostics.warning') do (g) {
+  g.test('Adding an warning') {
+    let collection = Diagnostics.new
+
+    collection.warning(message: 'testing', location: location)
+
+    assert.equal(collection.iter.next.level, 'warning')
+  }
+}

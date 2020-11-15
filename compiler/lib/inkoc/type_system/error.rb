@@ -49,6 +49,18 @@ module Inkoc
       def base_type
         self
       end
+
+      def cast_to?(*)
+        true
+      end
+
+      def dereference?
+        true
+      end
+
+      def dereferenced_type
+        self
+      end
     end
   end
 end

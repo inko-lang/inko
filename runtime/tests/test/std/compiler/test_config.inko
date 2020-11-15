@@ -1,0 +1,34 @@
+import std::compiler::config::Config
+import std::test
+import std::test::assert
+
+test.group('std::compiler::config::Config.new') do (g) {
+  g.test('Setting the default source directories') {
+    let config = Config.new
+
+    assert.equal(
+      config.source_directories,
+      Array.new(config.default_source_directory)
+    )
+  }
+}
+
+test.group('std::compiler::config::Config.default_source_directory') do (g) {
+  g.test('Obtaining the default source directory') {
+    let config = Config.new
+    let path = config.default_source_directory.to_string
+
+    assert.true(path.ends_with?('runtime'))
+  }
+}
+
+test.group('std::compiler::config::Config.add_source_directory') do (g) {
+  g.test('Adding a source directory') {
+    let config = Config.new
+
+    config.add_source_directory('foobar')
+
+    assert.equal(config.source_directories.length, 2)
+    assert.equal(config.source_directories[-1].to_string, 'foobar')
+  }
+}

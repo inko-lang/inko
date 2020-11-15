@@ -122,10 +122,41 @@ module Inkoc
       end
 
       def on_goto_block_if_true(tir_ins, compiled_code, basic_block, _)
-        index = tir_ins.block.instruction_offset
+        name = tir_ins.block_name
+        index = nil
+
+        basic_block.first_block.each_block do |block|
+          if block.name == name
+            index = block.instruction_offset
+            break
+          end
+        end
+
+        unless index
+          raise "No basic block with the name #{name} could be found"
+        end
+
         register = tir_ins.register.id
 
         compiled_code.instruct(:GotoIfTrue, [index, register], tir_ins.location)
+      end
+
+      def on_goto_block(tir_ins, compiled_code, basic_block, _)
+        name = tir_ins.block_name
+        index = nil
+
+        basic_block.first_block.each_block do |block|
+          if block.name == name
+            index = block.instruction_offset
+            break
+          end
+        end
+
+        unless index
+          raise "No basic block with the name #{name} could be found"
+        end
+
+        compiled_code.instruct(:Goto, [index], tir_ins.location)
       end
 
       def on_skip_next_block(tir_ins, compiled_code, basic_block, _)
@@ -148,6 +179,14 @@ module Inkoc
 
         compiled_code
           .instruct(:Return, [method_return, register], tir_ins.location)
+      end
+
+      def on_throw(tir_ins, compiled_code, *)
+        method_throw = tir_ins.method_throw ? 1 : 0
+        register = tir_ins.register.id
+
+        compiled_code
+          .instruct(:Throw, [method_throw, register], tir_ins.location)
       end
 
       def on_run_block(tir_ins, compiled_code, *)

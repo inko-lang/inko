@@ -30,7 +30,7 @@ module Inkoc
       #
       # Equivalent:
       #
-      #     import core::prelude::*
+      #     import std::prelude::*
       def import_prelude(location)
         import_everything_from(Config::PRELUDE_MODULE, location)
       end
@@ -40,11 +40,11 @@ module Inkoc
       end
 
       def import_everything_from(module_name, location)
-        core = identifier_for(Config::CORE_MODULE, location)
+        std = identifier_for(Config::STD_MODULE, location)
         prelude = identifier_for(module_name, location)
         symbol = AST::GlobImport.new(location)
 
-        AST::Import.new([core, prelude], [symbol], location)
+        AST::Import.new([std, prelude], [symbol], location)
       end
     end
   end

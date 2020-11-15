@@ -1,0 +1,2330 @@
+# Types for representing Inko types.
+import std::compiler::module_name::ModuleName
+import std::compiler::symbol_table::(Symbol, SymbolTable)
+import std::conversion::ToString
+import std::index::*
+import std::iterator::Iterator
+import std::length::Length
+import std::pair::Pair
+import std::set::Set
+import std::string_buffer::StringBuffer
+import std::stdio::stdout
+
+# The name of a constant to signal the use of the `Never` type.
+let NEVER_TYPE = 'Never'
+
+# The name of a constant to signal the use of the `Self` type.
+let SELF_TYPE = 'Self'
+
+# The name of the constant that refers to the current module.
+let THIS_MODULE = 'ThisModule'
+
+# The name of the instance attribute to store object names in.
+let OBJECT_NAME_ATTRIBUTE = '@_object_name'
+
+# The name of the single type parameter used for the `Array` type.
+let ARRAY_TYPE_PARAMETER = 'T'
+
+# The name of the module used for bootstrapping the runtime.
+let BOOTSTRAP_MODULE = ModuleName.new(Array.new('std', 'bootstrap'))
+
+# The name of the module defining the Match trait.
+let OPERATORS_MODULE = ModuleName.new(Array.new('std', 'operators'))
+
+# The name of the trait that must be implemented by types to be used as
+# expression match cases.
+let MATCH_TRAIT = 'Match'
+
+# The name of the method to use for pattern matching expressions.
+let MATCH_METHOD = '=~'
+
+# The name of the Any trait, implemented by all objects.
+let ANY_TRAIT = 'Any'
+
+# The name of the message used for running blocks.
+let CALL_MESSAGE = 'call'
+
+# A type used when type-checking to look up types and assign type parameters.
+trait TypeCheckScope {
+  # Returns the type of self/Self.
+  def self_type -> Type
+
+  # Looks up a type parameter's type.
+  def lookup_type_parameter_type(parameter: TypeParameterType) -> ?Type
+
+  # Assigns a type parameter to the given type.
+  def assign_type_parameter(parameter: TypeParameterType, type: Type)
+
+  def assign_unassigned_type_parameter(parameter: TypeParameterType, type: Type) {
+    lookup_type_parameter_type(parameter).if_true { return }
+    assign_type_parameter(parameter: parameter, type: type)
+  }
+}
+
+# A (lexical) scope to use for looking up types.
+object TypeScope {
+  # The module that surrounds the scope.
+  @module: ModuleType
+
+  # The type of `self`.
+  @self_type: Type
+
+  # The method that surrounds this scope, if any.
+  @method: ?MethodType
+
+  # The block (a method, closure, or lambda) that surrounds this scope, if any.
+  @block: ?BlockType
+
+  static def new(
+    module: ModuleType,
+    self_type: Type = module,
+    method: ?MethodType = Nil,
+    block: ?BlockType = method
+  ) -> Self {
+    Self {
+      @module = module,
+      @self_type = self_type,
+      @method = method,
+      @block = block
+    }
+  }
+
+  def module -> ModuleType {
+    @module
+  }
+
+  def self_type -> Type {
+    @self_type
+  }
+
+  def method -> ?MethodType {
+    @method
+  }
+
+  def block -> ?BlockType {
+    @block
+  }
+
+  # Looks up a type by its name.
+  def lookup_type(name: String) -> ?Symbol!(Type) {
+    let mut found = @block.lookup_type(name)
+
+    found.if_false { found = @method.lookup_type(name) }
+    found.if_false { found = @self_type.lookup_type(name) }
+    found.if_false { found = @module.lookup_type(name) }
+
+    found
+  }
+}
+
+impl TypeCheckScope for TypeScope {
+  def self_type -> Type {
+    @self_type
+  }
+
+  def lookup_type_parameter_type(parameter: TypeParameterType) -> ?Type {
+    # A TypeScope is used for a lexical scope, not when sending messages. Block
+    # type parameters can only be assigned when sending messages, and only live
+    # for the duration of the message.
+    #
+    # Because of this, a TypeScope doesn't need to look for parameter
+    # assignments.
+    @self_type.lookup_type_parameter_type(parameter)
+  }
+
+  def assign_type_parameter(parameter: TypeParameterType, type: Type) {
+    @self_type.assign_type_parameter(parameter: parameter, type: type)
+  }
+}
+
+# An Inko type.
+trait Type {
+  # Returns a human-readable name of this type.
+  def type_name -> String
+
+  # Returns `True` if the current type is compatible with the given type.
+  #
+  # When comparing with a type parameter that isn't assigned a type, it will be
+  # assigned the type that is compared with the parameter; if they are
+  # compatible.
+  def type_compatible?(
+    with: Type,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean
+
+  # Returns `True` if `self` is a `Error` type.
+  def error? -> Boolean {
+    False
+  }
+
+  # Returns `True` if `self` is a `Self` type.
+  def self_type? -> Boolean {
+    False
+  }
+
+  # Returns `True` if this type is a closure or lambda.
+  def closure_or_lambda? -> Boolean {
+    False
+  }
+
+  # Returns `True` if `self` is a generic type that can be initialised.
+  def initialise? -> Boolean {
+    False
+  }
+
+  # Returns `True` if this type should be inferred to a real type.
+  def infer? -> Boolean {
+    False
+  }
+
+  # Returns `True` if this type is an optional type.
+  def optional? -> Boolean {
+    False
+  }
+
+  # Returns `True` if this type is a method.
+  def method? -> Boolean {
+    False
+  }
+
+  # Returns the number of type parameters defined on `self`.
+  def number_of_type_parameters -> Integer {
+    0
+  }
+
+  # Looks up an attribute by its name.
+  def lookup_attribute(name: String) -> ?Symbol!(Type) {
+    Nil
+  }
+
+  # Looks up a method by its name.
+  def lookup_method(name: String) -> ?Symbol!(MethodType) {
+    Nil
+  }
+
+  # Looks up a type (a constant, type parameter, etc) by its name.
+  def lookup_type(name: String) -> ?Symbol!(Type) {
+    Nil
+  }
+
+  # Looks up a type parameter by its name.
+  def lookup_type_parameter(name: String) -> ?Symbol!(TypeParameterType) {
+    Nil
+  }
+
+  # Returns `True` if the given type parameter is defined by the current type.
+  def defines_type_parameter?(parameter: TypeParameterType) -> Boolean {
+    lookup_type_parameter(parameter.name).type == parameter
+  }
+
+  # Looks up the type a type parameter is assigned to.
+  def lookup_type_parameter_type(parameter: TypeParameterType) -> ?Type {
+    Nil
+  }
+
+  # Assigns the given type parameter to a type.
+  def assign_type_parameter(parameter: TypeParameterType, type: Type) {
+    Nil
+  }
+
+  # Returns a new instance of the current type.
+  def new_instance(type_arguments = Array.new) -> Self {
+    self
+  }
+
+  # Returns `True` if `self` is an object and an instance of the given object.
+  def object_instance_of?(type: ObjectType) -> Boolean {
+    False
+  }
+
+  # Returns `True` if the current type is compatible with _all_ the given types.
+  def type_compatible_with_all?(
+    types: Array!(Type),
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean {
+    types.iter.all? do (type) {
+      type_compatible?(with: type, builtins: builtins, scope: scope)
+    }
+  }
+
+  def type_compatible_with_type_parameter?(
+    parameter: TypeParameterType,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean {
+    let type = scope.lookup_type_parameter_type(parameter)
+
+    # A type parameter may be assigned to itself. In such a case, the type-check
+    # below would keep recursing back into this method.
+    #
+    # To prevent this from happening, if parameter P is not assigned or assigned
+    # to itself, we just compare ourselves with the required traits.
+    let compatible = type.not_nil?.and { type != parameter }.if(
+      true: { type_compatible?(with: type!, builtins: builtins, scope: scope) },
+      false: {
+        type_compatible_with_all?(
+          types: parameter.required_traits,
+          builtins: builtins,
+          scope: scope
+        )
+      }
+    )
+
+    compatible
+      .and { type.nil? }
+      .if_true { scope.assign_type_parameter(parameter: parameter, type: self) }
+
+    compatible
+  }
+
+  # Substitutes Self types and type parameters for their concrete types.
+  def substitute(scope: TypeCheckScope) -> Type {
+    self
+  }
+}
+
+# A collection of type parameters and the types assigned to them.
+object TypeParameterTypes {
+  # The type parameters and the types assigned to these parameters.
+  #
+  # We use a Map as type parameters can be assigned to out of order. This can
+  # happen when one or more type parameters are assigned after creating an
+  # instance of the object they belong to.
+  @map: Map!(TypeParameterType, Type)
+
+  static def copied_from(type: Type) -> Self {
+    let copy = new
+    let from = match(let matched = type) {
+      as TraitInstance -> { matched.type_parameter_types }
+      as ObjectInstance -> { matched.type_parameter_types }
+      else -> { return copy }
+    }
+
+    from.each do (param, type) { copy[param] = type }
+    copy
+  }
+
+  static def new -> Self {
+    Self { @map = Map.new }
+  }
+
+  def assign_in_order(
+    table: SymbolTable!(TypeParameterType),
+    arguments: Array!(Type)
+  ) {
+    table
+      .iter
+      .zip(arguments.iter)
+      .each do (pair: Pair!(Symbol!(TypeParameterType), Type)) {
+        @map[pair.first.type] = pair.second
+      }
+  }
+
+  def substitute(scope: TypeCheckScope) -> Self {
+    let types = TypeParameterTypes.new
+
+    @map.each do (param, type) { types[param] = type.substitute(scope) }
+    types
+  }
+
+  def type_compatible?(
+    with: TypeParameterTypes,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean {
+    (length == with.length).if_false { return False }
+
+    @map.iter.all? do (pair) {
+      let their_type = with.get(pair.key)
+
+      their_type.not_nil?.and {
+        pair
+          .value
+          .type_compatible?(with: their_type!, builtins: builtins, scope: scope)
+      }
+    }
+  }
+
+  def each(block: do (TypeParameterType, Type)) -> Self {
+    @map.each(block)
+    self
+  }
+
+  def copy_into_type(type: Type) {
+    match(let matched = type) {
+      as ObjectInstance -> {
+        copy_into_type_parameter_types(
+          parameters: matched.instance_of.type_parameters,
+          arguments: matched.type_parameter_types
+        )
+      }
+      as TraitInstance -> {
+        copy_into_type_parameter_types(
+          parameters: matched.instance_of.type_parameters,
+          arguments: matched.type_parameter_types
+        )
+      }
+      else -> {
+        # Object and trait instances are the only generic types that should
+        # persist their type arguments.
+      }
+    }
+  }
+
+  def copy_into_type_parameter_types(
+    parameters: SymbolTable!(TypeParameterType),
+    arguments: TypeParameterTypes
+  ) {
+    @map.each do (param, type) {
+      # We only want to copy the parameter assignment if the target type owns
+      # the parameter, and if the parameter isn't already assigned a value.
+      arguments.get(param).nil?
+        .and { parameters.get(param.name).type == param }
+        .if_true { arguments[param] = type }
+    }
+  }
+
+  def get(index: TypeParameterType) -> ?Type {
+    @map.get(index)
+  }
+}
+
+impl Length for TypeParameterTypes {
+  def length -> Integer {
+    @map.length
+  }
+}
+
+impl Index!(TypeParameterType, Type) for TypeParameterTypes {
+  def [](index: TypeParameterType) -> Type {
+    @map[index]
+  }
+}
+
+impl SetIndex!(TypeParameterType, Type) for TypeParameterTypes {
+  def []=(index: TypeParameterType, value: Type) -> Type {
+    @map[index] = value
+  }
+}
+
+# A collection of built-in types.
+object Builtins {
+  @object_type: ObjectType
+  @boolean_type: ObjectType
+  @true_singleton: ObjectInstance
+  @false_singleton: ObjectInstance
+  @nil_type: ObjectType
+  @nil_singleton: ObjectInstance
+  @block_type: ObjectType
+  @integer_type: ObjectType
+  @float_type: ObjectType
+  @string_type: ObjectType
+  @module_type: ObjectType
+  @array_type: ObjectType
+  @byte_array_type: ObjectType
+  @ffi_library_type: ObjectType
+  @ffi_function_type: ObjectType
+  @ffi_pointer_type: ObjectType
+  @ip_socket_type: ObjectType
+  @unix_socket_type: ObjectType
+  @process_type: ObjectType
+  @read_only_file_type: ObjectType
+  @write_only_file_type: ObjectType
+  @read_write_file_type: ObjectType
+  @hasher_type: ObjectType
+
+  static def new -> Self {
+    let array_type = ObjectType.new('Array')
+    let boolean_type = ObjectType.new('Boolean')
+    let nil_type = ObjectType.new('NilType')
+
+    array_type.type_parameters.define(
+      name: ARRAY_TYPE_PARAMETER,
+      type: TypeParameterType.new(ARRAY_TYPE_PARAMETER)
+    )
+
+    Self {
+      @object_type = ObjectType.new('Object'),
+      @boolean_type = boolean_type,
+      @true_singleton = ObjectInstance.new(boolean_type),
+      @false_singleton = ObjectInstance.new(boolean_type),
+      @nil_type = nil_type,
+      @nil_singleton = ObjectInstance.new(nil_type),
+      @block_type = ObjectType.new('Block'),
+      @integer_type = ObjectType.new('Integer'),
+      @float_type = ObjectType.new('Float'),
+      @string_type = ObjectType.new('String'),
+      @module_type = ObjectType.new('Module'),
+      @byte_array_type = ObjectType.new('ByteArray'),
+      @array_type = array_type,
+      @ffi_library_type = ObjectType.new('Library'),
+      @ffi_function_type = ObjectType.new('Function'),
+      @ffi_pointer_type = ObjectType.new('Pointer'),
+      @ip_socket_type = ObjectType.new('Socket'),
+      @unix_socket_type = ObjectType.new('Socket'),
+      @process_type = ObjectType.new('Process'),
+      @read_only_file_type = ObjectType.new('ReadOnlyFile'),
+      @write_only_file_type = ObjectType.new('WriteOnlyFile'),
+      @read_write_file_type = ObjectType.new('ReadWriteFile'),
+      @hasher_type = ObjectType.new('Hasher')
+    }
+  }
+
+  def object_type -> ObjectType {
+    @object_type
+  }
+
+  def boolean_type -> ObjectType {
+    @boolean_type
+  }
+
+  def true_singleton -> ObjectInstance {
+    @true_singleton
+  }
+
+  def false_singleton -> ObjectInstance {
+    @false_singleton
+  }
+
+  def nil_type -> ObjectType {
+    @nil_type
+  }
+
+  def nil_singleton -> ObjectInstance {
+    @nil_singleton
+  }
+
+  def block_type -> ObjectType {
+    @block_type
+  }
+
+  def integer_type -> ObjectType {
+    @integer_type
+  }
+
+  def float_type -> ObjectType {
+    @float_type
+  }
+
+  def string_type -> ObjectType {
+    @string_type
+  }
+
+  def module_type -> ObjectType {
+    @module_type
+  }
+
+  def array_type -> ObjectType {
+    @array_type
+  }
+
+  def byte_array_type -> ObjectType {
+    @byte_array_type
+  }
+
+  def ffi_library_type -> ObjectType {
+    @ffi_library_type
+  }
+
+  def ffi_function_type -> ObjectType {
+    @ffi_function_type
+  }
+
+  def ffi_pointer_type -> ObjectType {
+    @ffi_pointer_type
+  }
+
+  def ip_socket_type -> ObjectType {
+    @ip_socket_type
+  }
+
+  def unix_socket_type -> ObjectType {
+    @unix_socket_type
+  }
+
+  def process_type -> ObjectType {
+    @process_type
+  }
+
+  def read_only_file_type -> ObjectType {
+    @read_only_file_type
+  }
+
+  def write_only_file_type -> ObjectType {
+    @write_only_file_type
+  }
+
+  def read_write_file_type -> ObjectType {
+    @read_write_file_type
+  }
+
+  def hasher_type -> ObjectType {
+    @hasher_type
+  }
+}
+
+# A type that signals something will never happen.
+#
+# A Never type used as for example a return type means a method will never
+# return.
+object NeverType {
+  static def new -> Self {
+    Self {}
+  }
+}
+
+impl Type for NeverType {
+  def type_name -> String {
+    NEVER_TYPE
+  }
+
+  def type_compatible?(
+    with: Type,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean {
+    match(let type = with) {
+      as TypeParameterType -> {
+        scope.assign_unassigned_type_parameter(parameter: type, type: self)
+        True
+      }
+      else -> { True }
+    }
+  }
+}
+
+# A type that signals a real type has to be inferred somehow.
+object InferType {
+  static def new -> Self {
+    Self {}
+  }
+}
+
+impl Type for InferType {
+  def type_name -> String {
+    '?'
+  }
+
+  def type_compatible?(
+    with: Type,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean {
+    False
+  }
+
+  def infer? -> Boolean {
+    True
+  }
+}
+
+# A type that will resolve to the type of `self` when used.
+#
+# `Self` types are essentially placeholders for types that should be resolved to
+# the type of `self` when they are used. Take this method for example:
+#
+#     object Thing {
+#       def example(thing: Self) {}
+#     }
+#
+# When used, the type of `thing` will be resolved to `Thing`.
+#
+# Self types are mostly useful in traits, as this allows them to be inferred to
+# the type of the object that implements the trait.
+object SelfType {
+  static def new -> Self {
+    Self {}
+  }
+}
+
+impl Type for SelfType {
+  def type_name -> String {
+    SELF_TYPE
+  }
+
+  def self_type? -> Boolean {
+    True
+  }
+
+  def type_compatible?(
+    with: Type,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean {
+    let self_type = scope.self_type
+
+    # In practise this should never happen, but without an explicit check this
+    # method will keep recursing into itself. To make it clear a SelfType is not
+    # to be compared with another SelfType, we treat them as being incompatible
+    # with each other.
+    self_type.self_type?.if_true { return False }
+
+    self_type
+      .new_instance
+      .type_compatible?(with: with, builtins: builtins, scope: scope)
+  }
+
+  def substitute(scope: TypeCheckScope) -> Type {
+    # A Self type always refers to an instance of a type. So if `self` is an
+    # object itself (e.g. the String type), then the Self type refers to
+    # instances of String.
+    scope.self_type.new_instance
+  }
+}
+
+# A type that signals a concrete type could not be determined.
+#
+# Error types can only be created by the compiler. These types are compatible
+# with all other types to prevent cascading errors. This is safe, because the
+# compiler will not continue the compilation process when errors are present.
+object ErrorType {
+  static def new -> Self {
+    Self {}
+  }
+}
+
+impl Type for ErrorType {
+  def type_name -> String {
+    '<type error>'
+  }
+
+  def error? -> Boolean {
+    True
+  }
+
+  def type_compatible?(
+    with: Type,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean {
+    True
+  }
+}
+
+# A type parameter used in a generic type.
+object TypeParameterType {
+  # The name of the type parameter.
+  @name: String
+
+  # The traits required by this type parameter.
+  @required_traits: Array!(TraitInstance)
+
+  static def new(
+    name: String,
+    required_traits: Array!(TraitInstance) = Array.new
+  ) -> Self {
+    Self { @name = name, @required_traits = required_traits }
+  }
+
+  def name -> String {
+    @name
+  }
+
+  def required_traits -> Array!(TraitInstance) {
+    @required_traits
+  }
+}
+
+impl Type for TypeParameterType {
+  def type_name -> String {
+    @required_traits.empty?.if(
+      true: { @name },
+      false: { @required_traits.iter.map do (t) { t.type_name }.join(' + ') }
+    )
+  }
+
+  def type_compatible?(
+    with: Type,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean {
+    match(let expected = with) {
+      as TraitInstance -> {
+        @required_traits.iter.any? do (required) {
+          required
+            .type_compatible?(with: expected, builtins: builtins, scope: scope)
+        }
+      }
+      as TypeParameterType -> {
+        type_compatible_with_type_parameter?(
+          parameter: expected,
+          builtins: builtins,
+          scope: scope
+        )
+      }
+      as OptionalType -> {
+        type_compatible?(with: expected.type, builtins: builtins, scope: scope)
+      }
+      as ObjectInstance -> {
+        expected.object_instance_of?(builtins.object_type)
+      }
+      as ErrorType -> { True }
+      else -> { False }
+    }
+  }
+
+  def substitute(scope: TypeCheckScope) -> Type {
+    let assigned = scope.lookup_type_parameter_type(self)
+
+    assigned.not_nil?.and { assigned != self }.if(
+      true: { assigned!.substitute(scope) },
+      false: { self }
+    )
+  }
+}
+
+# Additional type parameter bounds to apply to a trait implementation or method.
+object TypeParameterBounds {
+  # All type parameters that have additional bounds, in the order they are
+  # defined in.
+  @parameters: Array!(TypeParameterType)
+
+  # A mapping of type parameters and their additional requirements.
+  @mapping: Map!(TypeParameterType, Array!(TraitInstance))
+
+  static def new -> Self {
+    Self { @parameters = Array.new, @mapping = Map.new }
+  }
+
+  def parameters -> Array!(TypeParameterType) {
+    @parameters
+  }
+
+  def define(
+    parameter: TypeParameterType,
+    requirements: Array!(TraitInstance)
+  ) -> Boolean {
+    @mapping.get(parameter).if_true { return False }
+
+    @mapping[parameter] = requirements
+
+    @parameters.push(parameter)
+    True
+  }
+
+  def merge(other: TypeParameterBounds) -> Self {
+    other.parameters.each do (param) {
+      define(parameter: param, requirements: other[param])
+    }
+
+    self
+  }
+
+  def met_by?(
+    type_parameter_types: TypeParameterTypes,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean {
+    @mapping.each do (param, requirements) {
+      let param_type = type_parameter_types.get(param)
+      let compare = param_type.if(true: { param_type! }, false: { param })
+
+      requirements.each do (req) {
+        compare
+          .type_compatible?(with: req, builtins: builtins, scope: scope)
+          .if_false { return False }
+      }
+    }
+
+    True
+  }
+
+  def get(index: TypeParameterType) -> ?Array!(TraitInstance) {
+    @mapping.get(index)
+  }
+}
+
+impl Index!(TypeParameterType, Array!(TraitInstance)) for TypeParameterBounds {
+  def [](index: TypeParameterType) -> Array!(TraitInstance) {
+    @mapping[index]
+  }
+}
+
+impl Length for TypeParameterBounds {
+  def length -> Integer {
+    @parameters.length
+  }
+}
+
+# Type information about an optional type.
+object OptionalType {
+  # The type that is optional (e.g. the `T` in `?T`).
+  @type: Type
+
+  static def new(type: Type) -> Self {
+    Self { @type = type }
+  }
+
+  def type -> Type {
+    @type
+  }
+}
+
+impl Type for OptionalType {
+  def type_name -> String {
+    '?' + @type.type_name
+  }
+
+  def type_compatible?(
+    with: Type,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean {
+    match(let expected = with) {
+      as OptionalType -> {
+        @type.type_compatible?(
+          with: expected.type,
+          builtins: builtins,
+          scope: scope
+        )
+      }
+      as TraitInstance -> {
+        # For a ?T we require that both T and Nil implement the trait, otherwise
+        # it would not be safe to pass a Nil instead of a T.
+        @type
+          .type_compatible?(with: expected, builtins: builtins, scope: scope)
+          .and {
+            builtins
+              .nil_singleton
+              .type_compatible?(with: expected, builtins: builtins, scope: scope)
+          }
+      }
+      as ObjectInstance -> {
+        expected.object_instance_of?(builtins.object_type)
+      }
+      as ErrorType -> { True }
+      else -> { False }
+    }
+  }
+
+  def optional? -> Boolean {
+    True
+  }
+}
+
+# A block, such as a method or closure.
+trait BlockType: Type {
+  # Returns the BlockLayout of this block.
+  def layout -> BlockLayout
+
+  # Returns the arguments and their types.
+  def arguments -> SymbolTable!(Type) {
+    layout.arguments
+  }
+
+  # Returns the number of required arguments.
+  def required_arguments -> Integer {
+    layout.required_arguments
+  }
+
+  # Returns `True` if the last argument is a rest argument.
+  def rest_argument? -> Boolean {
+    layout.rest_argument?
+  }
+
+  # Defines a new required argument.
+  def define_required_argument(
+    name: String,
+    type: Type,
+    mutable = False
+  ) -> Symbol!(Type) {
+    layout.define_required_argument(name: name, type: type, mutable: mutable)
+  }
+
+  # Defines a new rest argument.
+  def define_rest_argument(
+    name: String,
+    type: Type,
+    mutable = False
+  ) -> Symbol!(Type) {
+    layout.define_rest_argument(name: name, type: type, mutable: mutable)
+  }
+
+  # Returns the type thrown, if any.
+  #
+  # This returns `Nil` if no explicit throw type is specified.
+  def throw_type -> ?Type {
+    layout.throw_type
+  }
+
+  # Sets the throw type to the given type.
+  def throw_type=(type: ?Type) -> ?Type {
+    layout.throw_type = type
+  }
+
+  # Returns the number of times this block throws a value.
+  def throws -> Integer {
+    layout.throws
+  }
+
+  # Increases the number of times this block throws a value.
+  def increment_throws {
+    layout.increment_throws
+  }
+
+  # Returns the type returned, if any.
+  #
+  # This returns `Nil` if no explicit return type is specified.
+  def return_type -> Type {
+    layout.return_type
+  }
+
+  # Sets the return type to the given type.
+  def return_type=(type: Type) -> Type {
+    layout.return_type = type
+  }
+
+  # Returns the type parameters defined for this block.
+  def type_parameters -> SymbolTable!(TypeParameterType) {
+    layout.type_parameters
+  }
+
+  # Returns `True` if `self` is an instance of the given type.
+  def instance_of?(type: ObjectType, builtins: Builtins) -> Boolean {
+    (type == builtins.block_type).or { type == builtins.object_type }
+  }
+
+  # Returns `True` if `self` implements the given trait.
+  def implements_trait?(
+    type: TraitInstance,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean {
+    builtins
+      .block_type
+      .implements_trait?(type: type, builtins: builtins, scope: scope)
+      .or {
+        builtins
+          .object_type
+          .implements_trait?(type: type, builtins: builtins, scope: scope)
+      }
+  }
+
+  # Returns `True` if `self` is compatible with the given `BlockType`.
+  def block_compatible?(
+    with: BlockType,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean {
+    type_parameters_compatible?(with: with, builtins: builtins, scope: scope)
+      .if_false { return False }
+
+    arguments_compatible?(with: with, builtins: builtins, scope: scope)
+      .if_false { return False }
+
+    throw_type_compatible?(with: with, builtins: builtins, scope: scope)
+      .if_false { return False }
+
+    return_type
+      .type_compatible?(with: with.return_type, builtins: builtins, scope: scope)
+  }
+
+  def type_parameters_compatible?(
+    with: BlockType,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean {
+    let their_params = with.type_parameters
+
+    (type_parameters.length == their_params.length).if_false { return False }
+
+    type_parameters.symbols.each_with_index do (ours, index) {
+      let theirs = their_params.symbols[index]
+
+      ours
+        .type
+        .type_compatible?(with: theirs.type, builtins: builtins, scope: scope)
+        .if_false { return False }
+    }
+
+    True
+  }
+
+  def arguments_compatible?(
+    with: BlockType,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean {
+    let their_args = with.arguments
+
+    (arguments.length == their_args.length).if_false { return False }
+
+    arguments.symbols.each_with_index do (ours, index) {
+      let theirs = their_args.symbols[index]
+
+      (ours.name == theirs.name)
+        .and {
+          ours
+            .type
+            .type_compatible?(with: theirs.type, builtins: builtins, scope: scope)
+        }
+        .if_false { return False }
+    }
+
+    True
+  }
+
+  def throw_type_compatible?(
+    with: BlockType,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean {
+    # A block that doesn't throw can safely substitute a block that does throw.
+    throw_type.if_false { return True }
+
+    # A block that throws (= ours) can't safely substitute a block that doesn't.
+    with.throw_type.if_false { return False }
+
+    throw_type!
+      .type_compatible?(with: with.throw_type!, builtins: builtins, scope: scope)
+  }
+
+  # Signals that this block captures one or more local variables.
+  def captures -> Boolean {
+    False
+  }
+
+  # Returns `True` if this block captures one or more local variables.
+  def captures? -> Boolean {
+    False
+  }
+
+  def available_to?(
+    type: Type,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean {
+    True
+  }
+}
+
+# An object used for building the type name of a block type, such as a
+# MethodType.
+#
+# Generating the type name of a block is a bit complex, as much of the data used
+# for this is optional (e.g. a block may be defined without any arguments).
+# Since the logic is the same for all block types (methods, closures, etc), we
+# use this separate object for building type names.
+object BlockNameBuilder {
+  # The buffer to use for building the type name.
+  @buffer: StringBuffer
+
+  static def new(keyword: String) -> Self {
+    Self { @buffer = StringBuffer.new(keyword) }
+  }
+
+  def buffer -> StringBuffer {
+    @buffer
+  }
+
+  def push(value: String) -> Self {
+    @buffer.push(value)
+    self
+  }
+
+  def format_type_list(table: SymbolTable!(Type), mark: String) -> Self {
+    table.empty?.if_true { return self }
+
+    push(mark)
+    push(table.symbols.iter.map do (s) { s.type.type_name }.join(', '))
+    push(')')
+  }
+
+  def format_type_parameters(table: SymbolTable!(TypeParameterType)) -> Self {
+    format_type_list(table: table, mark: '!(')
+    self
+  }
+
+  def format_arguments(table: SymbolTable!(Type)) -> Self {
+    format_type_list(table: table, mark: '(')
+    self
+  }
+
+  def format_throw_type(type: ?Type) -> Self {
+    type.if_true {
+      push(' !! ')
+      push(type!.type_name)
+    }
+
+    self
+  }
+
+  def format_return_type(type: Type) -> Self {
+    push(' -> ')
+    push(type.type_name)
+    self
+  }
+
+  def format_bounds(bounds: TypeParameterBounds) -> Self {
+    bounds.empty?.if_true { return self }
+
+    push(' when ')
+
+    bounds.parameters.each_with_index do (param, index) {
+      let requirements = bounds[param]
+
+      index.positive?.if_true {
+        push(', ')
+      }
+
+      push(param.name)
+      push(': ')
+      push(requirements.iter.map do (r) { r.type_name }.join(' + '))
+    }
+
+    self
+  }
+}
+
+impl ToString for BlockNameBuilder {
+  def to_string -> String {
+    @buffer.to_string
+  }
+}
+
+# Data available to all block types, such as the arguments symbol table.
+#
+# Methods, closures and lambdas all need these fields. Instead of duplicating
+# these fields and methods for every block type, we provide them through this
+# `BlockLayout` type.
+object BlockLayout {
+  # The type parameters this block defines.
+  @type_parameters: SymbolTable!(TypeParameterType)
+
+  # The arguments and their types.
+  @arguments: SymbolTable!(Type)
+
+  # The number of required arguments.
+  @required_arguments: Integer
+
+  # A boolean indicating the last argument is a rest argument.
+  @rest_argument: Boolean
+
+  # The type of error this block will throw.
+  @throw_type: ?Type
+
+  # The number of times this block throws.
+  @throws: Integer
+
+  # The return type of the block.
+  @return_type: Type
+
+  static def new(
+    return_type: Type,
+    throw_type: ?Type = Nil,
+    type_parameters: SymbolTable!(TypeParameterType) = SymbolTable.new,
+    required_arguments = 0,
+    rest_argument = False,
+    throws = 0
+  ) -> Self {
+    Self {
+      @type_parameters = type_parameters,
+      @arguments = SymbolTable.new,
+      @required_arguments = required_arguments,
+      @rest_argument = rest_argument,
+      @throws = throws,
+      @return_type = return_type,
+      @throw_type = throw_type
+    }
+  }
+
+  def type_parameters -> SymbolTable!(TypeParameterType) {
+    @type_parameters
+  }
+
+  def arguments -> SymbolTable!(Type) {
+    @arguments
+  }
+
+  def required_arguments -> Integer {
+    @required_arguments
+  }
+
+  def define_required_argument(
+    name: String,
+    type: Type,
+    mutable = False
+  ) -> Symbol!(Type) {
+    @required_arguments += 1
+    @arguments.define(name: name, type: type, mutable: mutable)
+  }
+
+  def define_rest_argument(
+    name: String,
+    type: Type,
+    mutable = False
+  ) -> Symbol!(Type) {
+    @rest_argument = True
+    @arguments.define(name: name, type: type, mutable: mutable)
+  }
+
+  def rest_argument? -> Boolean {
+    @rest_argument
+  }
+
+  def throw_type -> ?Type {
+    @throw_type
+  }
+
+  def throw_type=(type: ?Type) -> ?Type {
+    @throw_type = type
+  }
+
+  def throws -> Integer {
+    @throws
+  }
+
+  def increment_throws {
+    @throws += 1
+  }
+
+  def return_type -> Type {
+    @return_type
+  }
+
+  def return_type=(type: Type) -> Type {
+    @return_type = type
+  }
+
+  def substitute(scope: TypeCheckScope) -> Self {
+    let new_layout = BlockLayout.new(
+      return_type: @return_type.substitute(scope),
+      throw_type: @throw_type.substitute(scope),
+      type_parameters: @type_parameters,
+      required_arguments: @required_arguments,
+      rest_argument: @rest_argument,
+      throws: @throws
+    )
+
+    @arguments.symbols.each do (arg) {
+      let new_type = arg.type.substitute(scope)
+
+      new_layout
+        .arguments
+        .define(name: arg.name, type: new_type, mutable: arg.mutable?)
+    }
+
+    new_layout
+  }
+}
+
+# A method bound to a type.
+object MethodType {
+  # The basic data of this method, such as its arguments.
+  @layout: BlockLayout
+
+  # The name of the method.
+  @name: String
+
+  # A boolean indicating if this is a static method or an instance method.
+  @static_method: Boolean
+
+  # Additional type parameter requirements that must be met for this method to
+  # be available.
+  @type_parameter_bounds: TypeParameterBounds
+
+  static def new(
+    name: String,
+    layout: BlockLayout,
+    static_method = False,
+  ) -> Self {
+    Self {
+      @layout = layout,
+      @name = name,
+      @static_method = static_method,
+      @type_parameter_bounds = TypeParameterBounds.new
+    }
+  }
+
+  def static_method? -> Boolean {
+    @static_method
+  }
+
+  def type_parameter_bounds -> TypeParameterBounds {
+    @type_parameter_bounds
+  }
+
+  def name -> String {
+    @name
+  }
+}
+
+impl Type for MethodType {
+  def type_name -> String {
+    BlockNameBuilder
+      .new('def ')
+      .push(@name)
+      .format_type_parameters(type_parameters)
+      .format_arguments(arguments)
+      .format_throw_type(throw_type)
+      .format_return_type(return_type)
+      .format_bounds(@type_parameter_bounds)
+      .to_string
+  }
+
+  def type_compatible?(
+    with: Type,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean {
+    match(let expected = with) {
+      as MethodType -> {
+        (@name == expected.name).and {
+          block_compatible?(with: expected, builtins: builtins, scope: scope)
+        }
+      }
+      as ObjectInstance -> {
+        instance_of?(type: expected.instance_of, builtins: builtins)
+      }
+      as TraitInstance -> {
+        implements_trait?(type: expected, builtins: builtins, scope: scope)
+      }
+      as TypeParameterType -> {
+        type_compatible_with_type_parameter?(
+          parameter: expected,
+          builtins: builtins,
+          scope: scope
+        )
+      }
+      as OptionalType -> {
+        type_compatible?(with: expected.type, builtins: builtins, scope: scope)
+      }
+      as ErrorType -> { True }
+      else -> { False }
+    }
+  }
+
+  def method? -> Boolean {
+    True
+  }
+
+  def lookup_type(name: String) -> ?Symbol!(Type) {
+    lookup_type_parameter(name)
+  }
+
+  def lookup_type_parameter(name: String) -> ?Symbol!(TypeParameterType) {
+    type_parameters.get(name)
+  }
+}
+
+impl BlockType for MethodType {
+  def layout -> BlockLayout {
+    @layout
+  }
+
+  def available_to?(
+    type: Type,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean {
+    let type_parameter_types = match(let matched = type) {
+      as TraitInstance -> { matched.type_parameter_types }
+      as ObjectInstance -> { matched.type_parameter_types }
+      else -> { return True }
+    }
+
+    type_parameter_bounds.met_by?(
+      type_parameter_types: type_parameter_types,
+      builtins: builtins,
+      scope: scope
+    )
+  }
+}
+
+# Type information about closures.
+object ClosureType {
+  # The basic data of this closure, such as its arguments.
+  @layout: BlockLayout
+
+  # Type parameters and the types assigned to these parameters.
+  @type_parameter_types: TypeParameterTypes
+
+  # A boolean that indicates if this closure captures one or more variables.
+  @captures: Boolean
+
+  static def new(layout: BlockLayout, captures = False) -> Self {
+    Self {
+      @layout = layout,
+      @type_parameter_types = TypeParameterTypes.new,
+      @captures = captures
+    }
+  }
+}
+
+impl Type for ClosureType {
+  def closure_or_lambda? -> Boolean {
+    True
+  }
+
+  def type_name -> String {
+    BlockNameBuilder
+      .new('do')
+      .format_type_parameters(type_parameters)
+      .format_arguments(arguments)
+      .format_throw_type(throw_type)
+      .format_return_type(return_type)
+      .to_string
+  }
+
+  def type_compatible?(
+    with: Type,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean {
+    # TODO: handle passing `do -> T` to `do -> NilType`, which should be
+    # inferred to `do -> ?T`.
+    match(let expected = with) {
+      as ClosureType -> {
+        block_compatible?(with: expected, builtins: builtins, scope: scope)
+      }
+      as LambdaType -> {
+        captures?.false?.and {
+          block_compatible?(with: expected, builtins: builtins, scope: scope)
+        }
+      }
+      as ObjectInstance -> {
+        instance_of?(type: expected.instance_of, builtins: builtins)
+      }
+      as TraitInstance -> {
+        implements_trait?(type: expected, builtins: builtins, scope: scope)
+      }
+      as TypeParameterType -> {
+        type_compatible_with_type_parameter?(
+          parameter: expected,
+          builtins: builtins,
+          scope: scope
+        )
+      }
+      as OptionalType -> {
+        type_compatible?(with: expected.type, builtins: builtins, scope: scope)
+      }
+      as ErrorType -> { True }
+      else -> { False }
+    }
+  }
+
+  def lookup_type(name: String) -> ?Symbol!(Type) {
+    lookup_type_parameter(name)
+  }
+
+  def lookup_type_parameter(name: String) -> ?Symbol!(TypeParameterType) {
+    type_parameters.get(name)
+  }
+
+  def substitute(scope: TypeCheckScope) -> Self {
+    ClosureType.new(layout: @layout.substitute(scope), captures: @captures)
+  }
+}
+
+impl BlockType for ClosureType {
+  def layout -> BlockLayout {
+    @layout
+  }
+
+  def captures? -> Boolean {
+    @captures
+  }
+
+  def captures -> Boolean {
+    @captures = True
+  }
+}
+
+# Type information about lambdas.
+object LambdaType {
+  # The basic data of this lambda, such as its arguments.
+  @layout: BlockLayout
+
+  static def new(layout: BlockLayout) -> Self {
+    Self { @layout = layout }
+  }
+}
+
+impl Type for LambdaType {
+  def closure_or_lambda? -> Boolean {
+    True
+  }
+
+  def type_name -> String {
+    BlockNameBuilder
+      .new('lambda')
+      .format_type_parameters(type_parameters)
+      .format_arguments(arguments)
+      .format_throw_type(throw_type)
+      .format_return_type(return_type)
+      .to_string
+  }
+
+  def type_compatible?(
+    with: Type,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean {
+    match(let expected = with) {
+      as LambdaType -> {
+        block_compatible?(with: expected, builtins: builtins, scope: scope)
+      }
+      # Lambdas can safely substitute a closure, but not the other way around.
+      # This is because when we expect a lambda, we may not be able to handle a
+      # closure that captures any variables.
+      as ClosureType -> {
+        block_compatible?(with: expected, builtins: builtins, scope: scope)
+      }
+      as ObjectInstance -> {
+        instance_of?(type: expected.instance_of, builtins: builtins)
+      }
+      as TraitInstance -> {
+        implements_trait?(type: expected, builtins: builtins, scope: scope)
+      }
+      as TypeParameterType -> {
+        type_compatible_with_type_parameter?(
+          parameter: expected,
+          builtins: builtins,
+          scope: scope
+        )
+      }
+      as OptionalType -> {
+        type_compatible?(with: expected.type, builtins: builtins, scope: scope)
+      }
+      as ErrorType -> { True }
+      else -> { False }
+    }
+  }
+
+  def lookup_type(name: String) -> ?Symbol!(Type) {
+    lookup_type_parameter(name)
+  }
+
+  def lookup_type_parameter(name: String) -> ?Symbol!(TypeParameterType) {
+    type_parameters.get(name)
+  }
+
+  def substitute(scope: TypeCheckScope) -> Self {
+    LambdaType.new(@layout.substitute(scope))
+  }
+}
+
+impl BlockType for LambdaType {
+  def layout -> BlockLayout {
+    @layout
+  }
+}
+
+# Type information of an Inko trait.
+object TraitType {
+  # The name of the trait.
+  @name: String
+
+  # The required methods objects must implement.
+  @required_methods: SymbolTable!(MethodType)
+
+  # The default methods provided by this trait.
+  @default_methods: SymbolTable!(MethodType)
+
+  # The type parameters this trait defines.
+  @type_parameters: SymbolTable!(TypeParameterType)
+
+  # The traits this trait requires to be implemented first.
+  @required_traits: Array!(TraitInstance)
+
+  static def new(
+    name: String,
+    required_traits: Array!(TraitInstance) = Array.new
+  ) -> Self {
+    Self {
+      @name = name,
+      @required_methods = SymbolTable.new,
+      @default_methods = SymbolTable.new,
+      @type_parameters = SymbolTable.new,
+      @required_traits = required_traits
+    }
+  }
+
+  def name -> String {
+    @name
+  }
+
+  def type_parameters -> SymbolTable!(TypeParameterType) {
+    @type_parameters
+  }
+
+  def default_methods -> SymbolTable!(MethodType) {
+    @default_methods
+  }
+
+  def required_methods -> SymbolTable!(MethodType) {
+    @required_methods
+  }
+
+  def required_traits -> Array!(TraitInstance) {
+    @required_traits
+  }
+}
+
+impl Type for TraitType {
+  def type_name -> String {
+    format_type_name(name: @name, type_parameters: @type_parameters)
+  }
+
+  def lookup_type(name: String) -> ?Symbol!(TypeParameterType) {
+    lookup_type_parameter(name)
+  }
+
+  def lookup_type_parameter(name: String) -> ?Symbol!(TypeParameterType) {
+    @type_parameters.get(name)
+  }
+
+  def initialise? -> Boolean {
+    @type_parameters.length.positive?
+  }
+
+  def number_of_type_parameters -> Integer {
+    @type_parameters.length
+  }
+
+  def new_instance(type_arguments = Array.new) -> TraitInstance {
+    let instance = TraitInstance.new(self)
+
+    instance
+      .type_parameter_types
+      .assign_in_order(table: @type_parameters, arguments: type_arguments)
+
+    instance
+  }
+
+  def type_compatible?(
+    with: Type,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean {
+    match(let expected = with) {
+      as TraitType -> { self == expected }
+      as ObjectInstance -> {
+        expected.object_instance_of?(builtins.object_type)
+      }
+      as SelfType -> {
+        type_compatible?(
+          with: scope.self_type.new_instance,
+          builtins: builtins,
+          scope: scope
+        )
+      }
+      as TypeParameterType -> {
+        type_compatible_with_type_parameter?(
+          parameter: expected,
+          builtins: builtins,
+          scope: scope
+        )
+      }
+      as OptionalType -> {
+        type_compatible?(with: expected.type, builtins: builtins, scope: scope)
+      }
+      as ErrorType -> { True }
+      else -> { False }
+    }
+  }
+}
+
+# An instance of an Inko trait.
+object TraitInstance {
+  # The trait `self` is an instance of.
+  @instance_of: TraitType
+
+  # Type parameters and the types assigned to these parameters.
+  @type_parameter_types: TypeParameterTypes
+
+  static def new(instance_of: TraitType) -> Self {
+    Self {
+      @instance_of = instance_of,
+      @type_parameter_types = TypeParameterTypes.new
+    }
+  }
+
+  def instance_of -> TraitType {
+    @instance_of
+  }
+
+  def type_parameter_types -> TypeParameterTypes {
+    @type_parameter_types
+  }
+
+  def required_traits_compatible?(
+    with: TraitInstance,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean {
+    @instance_of.required_traits.iter.any? do (instance) {
+      instance.type_compatible?(with: with, builtins: builtins, scope: scope)
+    }
+  }
+}
+
+impl Type for TraitInstance {
+  def type_name -> String {
+    format_type_name(
+      name: @instance_of.name,
+      type_parameters: @instance_of.type_parameters,
+      type_parameter_types: @type_parameter_types
+    )
+  }
+
+  def number_of_type_parameters -> Integer {
+    @instance_of.type_parameters.length
+  }
+
+  def lookup_method(name: String) -> ?Symbol!(MethodType) {
+    let found = @instance_of.default_methods.get(name)
+
+    found
+      .if(true: { found }, false: { @instance_of.required_methods.get(name) })
+  }
+
+  def lookup_type(name: String) -> ?Symbol!(Type) {
+    @instance_of.lookup_type(name)
+  }
+
+  def lookup_type_parameter(name: String) -> ?Symbol!(TypeParameterType) {
+    @instance_of.lookup_type_parameter(name)
+  }
+
+  def lookup_type_parameter_type(parameter: TypeParameterType) -> ?Type {
+    @type_parameter_types.get(parameter)
+  }
+
+  def type_compatible?(
+    with: Type,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean {
+    match(let expected = with) {
+      as TraitInstance -> {
+        (@instance_of == expected.instance_of).if(
+          true: {
+            @type_parameter_types.type_compatible?(
+              with: expected.type_parameter_types,
+              builtins: builtins,
+              scope: scope
+            )
+          },
+          false: {
+            required_traits_compatible?(
+              with: expected,
+              builtins: builtins,
+              scope: scope
+            )
+          }
+        )
+      }
+      as TypeParameterType -> {
+        type_compatible_with_type_parameter?(
+          parameter: expected,
+          builtins: builtins,
+          scope: scope
+        )
+      }
+      as OptionalType -> {
+        type_compatible?(with: expected.type, builtins: builtins, scope: scope)
+      }
+      as SelfType -> {
+        type_compatible?(
+          with: scope.self_type.new_instance,
+          builtins: builtins,
+          scope: scope
+        )
+      }
+      as ErrorType -> { True }
+      else -> { False }
+    }
+  }
+}
+
+# A trait implemented for an object.
+object TraitImplementation {
+  # The trait type that is implemented.
+  @type: TraitInstance
+
+  # Additional type parameter requirements that must be met for this trait to be
+  # available.
+  #
+  # Type parameter bounds are evaluated against an initialised trait. Consider
+  # this example:
+  #
+  #     impl Equal for Array when T: Equal {
+  #       # ...
+  #     }
+  #
+  # Here the `Equal` trait would only be available to `Array` whenever `T` is
+  # assigned any type that also implements `Equal`.
+  @bounds: TypeParameterBounds
+
+  static def new(type: TraitInstance) -> Self {
+    Self { @type = type, @bounds = TypeParameterBounds.new }
+  }
+
+  def type -> TraitInstance {
+    @type
+  }
+
+  def bounds -> TypeParameterBounds {
+    @bounds
+  }
+}
+
+# An Inko object.
+object ObjectType {
+  # The name of the object.
+  @name: String
+
+  # The instance attributes defined on this object.
+  @attributes: SymbolTable!(Type)
+
+  # The static methods defined on this object.
+  @static_methods: SymbolTable!(MethodType)
+
+  # The instance methods defined on this object.
+  @instance_methods: SymbolTable!(MethodType)
+
+  # The type parameters this object defines.
+  @type_parameters: SymbolTable!(TypeParameterType)
+
+  # The traits this object implements.
+  @implemented_traits: Map!(TraitType, TraitImplementation)
+
+  static def new(name: String) -> Self {
+    Self {
+      @name = name,
+      @attributes = SymbolTable.new,
+      @static_methods = SymbolTable.new,
+      @instance_methods = SymbolTable.new,
+      @type_parameters = SymbolTable.new,
+      @implemented_traits = Map.new
+    }
+  }
+
+  def name -> String {
+    @name
+  }
+
+  def attributes -> SymbolTable!(Type) {
+    @attributes
+  }
+
+  def static_methods -> SymbolTable!(MethodType) {
+    @static_methods
+  }
+
+  def instance_methods -> SymbolTable!(MethodType) {
+    @instance_methods
+  }
+
+  def type_parameters -> SymbolTable!(TypeParameterType) {
+    @type_parameters
+  }
+
+  def implemented_traits -> Map!(TraitType, TraitImplementation) {
+    @implemented_traits
+  }
+
+  def add_trait_implementation(
+    implementation: TraitImplementation
+  ) -> TraitImplementation {
+    @implemented_traits[implementation.type.instance_of] = implementation
+  }
+
+  def remove_trait_implementation(
+    implementation: TraitImplementation
+  ) -> ?TraitImplementation {
+    @implemented_traits.remove(implementation.type.instance_of)
+  }
+
+  def define_attribute(name: String, type: Type) -> Symbol!(Type) {
+    @attributes.define(name: name, type: type)
+  }
+
+  def implements_trait?(
+    type: TraitInstance,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean {
+    let trait_impl = implemented_traits.get(type.instance_of)
+
+    trait_impl.if_false { return False }
+
+    # ObjectType types can never be generic (e.g. Array itself is not generic,
+    # but instances of Array are), so we don't need to check any bounds.
+    trait_impl.type!.type_parameter_types.type_compatible?(
+      with: type.type_parameter_types,
+      builtins: builtins,
+      scope: scope
+    )
+  }
+}
+
+impl Type for ObjectType {
+  def type_name -> String {
+    format_type_name(name: @name, type_parameters: @type_parameters)
+  }
+
+  def lookup_type(name: String) -> ?Symbol!(TypeParameterType) {
+    lookup_type_parameter(name)
+  }
+
+  def lookup_type_parameter(name: String) -> ?Symbol!(TypeParameterType) {
+    @type_parameters.get(name)
+  }
+
+  def lookup_method(name: String) -> ?Symbol!(MethodType) {
+    @static_methods.get(name)
+  }
+
+  def initialise? -> Boolean {
+    @type_parameters.length.positive?
+  }
+
+  def number_of_type_parameters -> Integer {
+    @type_parameters.length
+  }
+
+  def new_instance(type_arguments = Array.new) -> ObjectInstance {
+    let instance = ObjectInstance.new(self)
+
+    instance
+      .type_parameter_types
+      .assign_in_order(table: @type_parameters, arguments: type_arguments)
+
+    instance
+  }
+
+  def type_compatible?(
+    with: Type,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean {
+    match(let expected = with) {
+      as ObjectType -> {
+        # Each ObjectType (e.g. String) is only compatible with itself, or with
+        # the "Object" type.
+        (self == expected).or { expected == builtins.object_type }
+      }
+      as TraitInstance -> {
+        # Object is not a generic type, so we don't have any trait bounds that
+        # need to be validated.
+        builtins
+          .object_type
+          .implements_trait?(type: expected, builtins: builtins, scope: scope)
+      }
+      as SelfType -> {
+        type_compatible?(
+          with: scope.self_type.new_instance,
+          builtins: builtins,
+          scope: scope
+        )
+      }
+      as TypeParameterType -> {
+        type_compatible_with_type_parameter?(
+          parameter: expected,
+          builtins: builtins,
+          scope: scope
+        )
+      }
+      as OptionalType -> {
+        type_compatible?(with: expected.type, builtins: builtins, scope: scope)
+      }
+      as ErrorType -> { True }
+      else -> { False }
+    }
+  }
+}
+
+# An instance of an Inko object.
+object ObjectInstance {
+  # The object `self` is an instance of.
+  @instance_of: ObjectType
+
+  # Type parameters and the types assigned to these parameters.
+  @type_parameter_types: TypeParameterTypes
+
+  static def new(
+    instance_of: ObjectType,
+    type_parameter_types = TypeParameterTypes.new
+  ) -> Self {
+    Self {
+      @instance_of = instance_of,
+      @type_parameter_types = type_parameter_types
+    }
+  }
+
+  def instance_of -> ObjectType {
+    @instance_of
+  }
+
+  def type_parameter_types -> TypeParameterTypes {
+    @type_parameter_types
+  }
+}
+
+impl Type for ObjectInstance {
+  def type_name -> String {
+    format_type_name(
+      name: @instance_of.name,
+      type_parameters: @instance_of.type_parameters,
+      type_parameter_types: @type_parameter_types
+    )
+  }
+
+  def number_of_type_parameters -> Integer {
+    @instance_of.type_parameters.length
+  }
+
+  def lookup_attribute(name: String) -> ?Symbol!(Type) {
+    @instance_of.attributes.get(name)
+  }
+
+  def lookup_method(name: String) -> ?Symbol!(MethodType) {
+    @instance_of.instance_methods.get(name)
+  }
+
+  def lookup_type(name: String) -> ?Symbol!(TypeParameterType) {
+    @instance_of.lookup_type(name)
+  }
+
+  def lookup_type_parameter(name: String) -> ?Symbol!(TypeParameterType) {
+    @instance_of.lookup_type_parameter(name)
+  }
+
+  def lookup_type_parameter_type(parameter: TypeParameterType) -> ?Type {
+    @type_parameter_types.get(parameter)
+  }
+
+  def assign_type_parameter(parameter: TypeParameterType, type: Type) {
+    @type_parameter_types[parameter] = type
+  }
+
+  def object_instance_of?(type: ObjectType) -> Boolean {
+    @instance_of == type
+  }
+
+  def implements_trait?(
+    type: TraitInstance,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean {
+    let trait_impl = @instance_of.implemented_traits.get(type.instance_of)
+
+    trait_impl
+      .bounds
+      .met_by?(
+        type_parameter_types: @type_parameter_types,
+        builtins: builtins,
+        scope: scope
+      )
+      .if_false { return False }
+
+    trait_impl!.type.type_parameter_types.type_compatible?(
+      with: type.type_parameter_types,
+      builtins: builtins,
+      scope: scope
+    )
+  }
+
+  def type_compatible?(
+    with: Type,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean {
+    match(let expected = with) {
+      as ObjectInstance -> {
+        (@instance_of == expected.instance_of).if(
+          true: {
+            @type_parameter_types.type_compatible?(
+              with: expected.type_parameter_types,
+              builtins: builtins,
+              scope: scope
+            )
+          },
+          false: { expected.object_instance_of?(builtins.object_type) }
+        )
+      }
+      as TraitInstance -> {
+        implements_trait?(type: expected, builtins: builtins, scope: scope)
+          .or {
+            builtins
+              .object_type
+              .implements_trait?(type: expected, builtins: builtins, scope: scope)
+          }
+      }
+      as TypeParameterType -> {
+        type_compatible_with_type_parameter?(
+          parameter: expected,
+          builtins: builtins,
+          scope: scope
+        )
+      }
+      as OptionalType -> {
+        # While Nil is just a an object like any other, it _is_ special in one
+        # way: it can be safely passed to any ?T. We don't use marker traits as
+        # these would allow other objects to implement them, and passing those
+        # objects to a ?T may not always be safe.
+        (@instance_of == builtins.nil_type).if_true { return True }
+
+        type_compatible?(with: expected.type, builtins: builtins, scope: scope)
+      }
+      as SelfType -> {
+        type_compatible?(
+          with: scope.self_type.new_instance,
+          builtins: builtins,
+          scope: scope
+        )
+      }
+      as ErrorType -> { True }
+      else -> { False }
+    }
+  }
+
+  def substitute(scope: TypeCheckScope) -> Self {
+    number_of_type_parameters.zero?.if_true { return self }
+
+    ObjectInstance.new(
+      instance_of: @instance_of,
+      type_parameter_types: @type_parameter_types.substitute(scope)
+    )
+  }
+}
+
+# Type information for an Inko module.
+object ModuleType {
+  # The name of the module.
+  @name: ModuleName
+
+  # The methods defined in this module.
+  @methods: SymbolTable!(MethodType)
+
+  # The types and constants defined in this module.
+  @constants: SymbolTable!(Type)
+
+  # The symbols available to this module, including imported ones.
+  @globals: SymbolTable!(Type)
+
+  static def new(name: ModuleName) -> Self {
+    Self {
+      @name = name,
+      @methods = SymbolTable.new,
+      @constants = SymbolTable.new,
+      @globals = SymbolTable.new
+    }
+  }
+
+  def name -> ModuleName {
+    @name
+  }
+
+  def constants -> SymbolTable!(Type) {
+    @constants
+  }
+
+  def methods -> SymbolTable!(MethodType) {
+    @methods
+  }
+
+  def globals -> SymbolTable!(Type) {
+    @globals
+  }
+
+  def defines?(name: String) -> Boolean {
+    @globals.get(name).not_nil?.or { @methods.get(name).not_nil? }
+  }
+
+  def define_constant(name: String, type: Type) {
+    @constants.define(name: name, type: type)
+    @globals.define(name: name, type: type)
+  }
+
+  def define_method(name: String, type: MethodType) {
+    @methods.define(name: name, type: type)
+    @globals.define(name: name, type: type)
+  }
+}
+
+impl Type for ModuleType {
+  def type_name -> String {
+    @name.to_string
+  }
+
+  def lookup_type(name: String) -> ?Symbol!(Type) {
+    @globals.get(name)
+  }
+
+  def lookup_method(name: String) -> ?Symbol!(MethodType) {
+    let method = @globals.get(name)
+
+    method.type.method?.if_true { return method as Symbol!(MethodType) }
+  }
+
+  def type_compatible?(
+    with: Type,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean {
+    match(let expected = with) {
+      as ModuleType -> { expected == self }
+      as ObjectInstance -> {
+        expected
+          .object_instance_of?(builtins.module_type)
+          .or { expected.object_instance_of?(builtins.object_type) }
+      }
+      as TraitInstance -> {
+        builtins.module_type
+          .implements_trait?(type: expected, builtins: builtins, scope: scope)
+          .or {
+            builtins
+              .object_type
+              .implements_trait?(type: expected, builtins: builtins, scope: scope)
+          }
+      }
+      as TypeParameterType -> {
+        type_compatible_with_type_parameter?(
+          parameter: expected,
+          builtins: builtins,
+          scope: scope
+        )
+      }
+      as OptionalType -> {
+        type_compatible?(with: expected.type, builtins: builtins, scope: scope)
+      }
+      as SelfType -> {
+        type_compatible?(
+          with: scope.self_type.new_instance,
+          builtins: builtins,
+          scope: scope
+        )
+      }
+      as ErrorType -> { True }
+      else -> { False }
+    }
+  }
+}
+
+# Returns a type name for an object or trait type.
+def format_type_name(
+  name: String,
+  type_parameters: SymbolTable!(TypeParameterType),
+  type_parameter_types = TypeParameterTypes.new
+) -> String {
+  type_parameters.empty?.if_true { return name }
+
+  let buffer = StringBuffer.new(name, '!(')
+
+  type_parameters.symbols.each_with_index do (param, index) {
+    index.positive?.if_true { buffer.push(', ') }
+
+    let type = type_parameter_types.get(param.type)
+
+    buffer
+      .push(type.if(true: { type!.type_name }, false: { param.type.type_name }))
+  }
+
+  buffer.push(')')
+  buffer.to_string
+}

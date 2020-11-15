@@ -112,8 +112,7 @@ module Inkoc
       def cast_to?(cast_to, state)
         return cast_to?(cast_to.type, state) if cast_to.optional?
 
-        cast_to.type_compatible?(self, state) ||
-          state.typedb.object_type.type_compatible?(self, state)
+        cast_to.type_compatible?(self, state) || type_compatible?(cast_to, state)
       end
 
       def resolve_self_type(_self_type)

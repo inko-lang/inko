@@ -425,19 +425,19 @@ describe Inkoc::TypeSystem::Block do
     end
 
     context 'when comparing a closure that throws' do
-      it 'returns true if the other block does not throw' do
+      it 'returns false if the other block does not throw' do
         ours.throw_type = Inkoc::TypeSystem::Object.new
 
-        expect(ours.compatible_throw_type?(theirs, state)).to eq(true)
+        expect(ours.compatible_throw_type?(theirs, state)).to eq(false)
       end
     end
 
     context 'when comparing a lambda that throws' do
-      it 'returns true if the other block does not throw' do
+      it 'returns false if the other block does not throw' do
         ours = described_class.new(block_type: described_class::LAMBDA)
         ours.throw_type = Inkoc::TypeSystem::Object.new
 
-        expect(ours.compatible_throw_type?(theirs, state)).to eq(true)
+        expect(ours.compatible_throw_type?(theirs, state)).to eq(false)
       end
     end
   end

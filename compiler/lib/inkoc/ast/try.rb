@@ -7,17 +7,14 @@ module Inkoc
       include Predicates
       include Inspect
 
-      attr_reader :expression, :else_argument, :else_body, :location
+      attr_reader :expression, :else_argument, :else_body, :location, :local
       attr_accessor :try_block_type, :else_block_type
 
-      # expr - The expression that may throw an error.
-      # else_body - The body of the "else" statement.
-      # else_arg - The argument to store the error in, if any.
-      # location - The SourceLocation of the "try" statement.
-      def initialize(expr, else_body, else_arg, location)
+      def initialize(expr, else_body, else_arg, local, location)
         @expression = expr
         @else_argument = else_arg
         @else_body = else_body
+        @local = local
         @location = location
         @try_block_type = nil
         @else_block_type = nil
