@@ -301,6 +301,12 @@ test.group('std::map::Map.from_array') do (g) {
     assert.equal(map['name'], 'Alice')
     assert.equal(map['city'], 'Amsterdam')
   }
+
+  g.test('Creating a Map from an Array with explicit Nil values') {
+    let map = Map.from_array(keys: Array.new('foo'), values: Array.new(Nil))
+
+    assert.equal(map['foo'], Nil)
+  }
 }
 
 test.group('std::map::Map.empty?') do (g) {
@@ -456,6 +462,16 @@ test.group('std::map::Map.==') do (g) {
 
     assert.not_equal(map1, map2)
     assert.not_equal(map2, map3)
+  }
+
+  g.test('Comparing a Map with explicit Nil values') {
+    let map1 = Map.new
+    let map2 = Map.new
+
+    map1['foo'] = Nil
+    map2['foo'] = Nil
+
+    assert.equal(map1, map2)
   }
 }
 

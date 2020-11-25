@@ -262,7 +262,7 @@ object Map!(K: Hash + Equal, V) {
   #     }
   def each(block: do (K, V)) {
     @buckets.each do (pair) {
-      pair.if_true { block.call(pair.key!, pair.value!) }
+      pair.if_true { block.call(pair.key as K, pair.value as V) }
     }
   }
 

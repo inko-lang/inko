@@ -1808,7 +1808,30 @@ module Inkoc
       end
 
       def on_dereference(node, body)
-        process_node(node.expression, body)
+        expr = process_node(node.expression, body)
+        loc = node.location
+
+        eq_reg = body.register(typedb.boolean_type.new_instance)
+        nil_reg = get_nil(body, loc)
+
+        body.instruct(:Binary, :ObjectEquals, eq_reg, expr, nil_reg, loc)
+        body.instruct(:GotoNextBlockIfFalse, eq_reg, loc)
+
+        msg_reg =
+          set_string("The value the ! operator is used on is Nil", body, loc)
+
+        body.instruct(:Panic, msg_reg, loc)
+        body.add_connected_basic_block
+
+        body.registers.release(eq_reg)
+        body.registers.release(nil_reg)
+        body.registers.release(msg_reg)
+
+        # Similar to on_new_instance(), we need to make sure the last
+        # instruction is one that produces the value to return.
+        body.instruct(:Unary, :CopyRegister, expr, expr, node.location)
+
+        expr
       end
 
       def on_coalesce_nil(node, body)

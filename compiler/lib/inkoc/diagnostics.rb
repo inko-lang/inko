@@ -324,9 +324,19 @@ module Inkoc
     end
 
     def not_an_optional_error(type, location)
-      tname = type.type_name
+      tname = type.type_name.inspect
 
       error("The type #{tname} is not an optional type", location)
+    end
+
+    def not_nil_with_type_parameter(type, location)
+      tname = type.type_name.inspect
+
+      error(
+        "The type #{tname} is a type parameter that may be Nil, which could " \
+          "lead to a panic at runtime",
+        location
+      )
     end
 
     def method_requirement_error(receiver, block_type, value_type, bound, loc)

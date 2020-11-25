@@ -4169,8 +4169,8 @@ test.group('Type-checking pattern-matching expressions') do (g) {
   }
 }
 
-test.group('Type-checking the not-nil postfix operator') do (g) {
-  g.test('Using the not-nil operator on an optional type') {
+test.group('Type-checking the not Nil postfix operator') do (g) {
+  g.test('Using the not Nil operator on an optional type') {
     let type_checker = TypeChecker.new
     let int_type = type_checker.builtins.integer_type
     let module = new_module('foo')
@@ -4188,7 +4188,25 @@ test.group('Type-checking the not-nil postfix operator') do (g) {
     assert_object_instance(node.resolved_type, int_type)
   }
 
-  g.test('Using the not-nil operator on a regular type') {
+  g.test('Using the not Nil operator on an optional type parameter') {
+    let type_checker = TypeChecker.new
+    let module = new_module('foo')
+    let body = parse('x!')
+    let param = TypeParameterType.new('T')
+    let node = body.children[0] as NotNil
+
+    body
+      .variable_scope
+      .symbols
+      .define(name: 'x', type: OptionalType.new(param))
+
+    type_checker.check_module(module: module, ast: body)
+
+    assert.true(type_checker.diagnostics.errors?)
+    assert.true(node.resolved_type == param)
+  }
+
+  g.test('Using the not Nil operator on a regular type') {
     let type_checker = TypeChecker.new
     let int_type = type_checker.builtins.integer_type
     let module = new_module('foo')

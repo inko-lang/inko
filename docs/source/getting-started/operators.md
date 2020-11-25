@@ -97,12 +97,13 @@ right:
 
 This results in Inko running `1 + '2'`, producing a compile-time error.
 
-## Not-nil operator
+## Not nil operator
 
-There exists one special postfix operator: the `!` operator, also known as the
-not-nil operator. This operator is only available to optional types, and only
-exists at compile-time. This operator is used to convert a `?T` to a `T`,
-without any runtime checks. For example:
+The `!` postfix operator, also known as the not Nil operator, is used to assert
+that an optional value (e.g. `?User`) is not Nil. At runtime, this operator
+checks if its receiver is `Nil`. If this is the case, the program will panic.
+
+Here's an example of using this operator:
 
 ```inko
 def foo(value: ?Thing) {
@@ -113,6 +114,22 @@ def foo(value: ?Thing) {
 
 def bar(value: Thing) {}
 ```
+
+Because of the runtime check, the following will panic:
+
+```inko
+def foo(value: ?Integer) {
+  value!
+}
+
+foo(Nil)
+```
+
+When using the `!` operator on an optional type parameter (e.g. a `?T`), the `T`
+may be assigned to `Nil`. This could result in an unexpected runtime panic. To
+prevent this from happening, the compiler produces an error when `!` is used on
+an optional type parameter. To work around this, you must use an explicit cast
+using the `as` keyword.
 
 ## Nil coalescing operator
 

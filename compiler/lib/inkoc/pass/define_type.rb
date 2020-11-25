@@ -1063,12 +1063,20 @@ module Inkoc
       def on_dereference(node, scope)
         type = define_type(node.expression, scope)
 
-        if type.dereference?
-          type.dereferenced_type
-        else
-          diagnostics.not_an_optional_error(type, node.location)
-          type
+        rtype =
+          if type.dereference?
+            type.dereferenced_type
+          else
+            diagnostics.not_an_optional_error(type, node.location)
+            type
+          end
+
+        if rtype.type_parameter?
+          diagnostics
+            .not_nil_with_type_parameter(rtype, node.expression.location)
         end
+
+        rtype
       end
 
       def on_coalesce_nil(node, scope)

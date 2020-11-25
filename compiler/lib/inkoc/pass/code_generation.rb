@@ -121,6 +121,13 @@ module Inkoc
         compiled_code.instruct(:GotoIfTrue, [index, register], tir_ins.location)
       end
 
+      def on_goto_next_block_if_false(tir_ins, compiled_code, basic_block, _)
+        index = basic_block.next.instruction_offset
+        register = tir_ins.register.id
+
+        compiled_code.instruct(:GotoIfFalse, [index, register], tir_ins.location)
+      end
+
       def on_goto_block_if_true(tir_ins, compiled_code, basic_block, _)
         name = tir_ins.block_name
         index = nil

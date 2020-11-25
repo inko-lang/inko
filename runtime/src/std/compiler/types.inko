@@ -185,6 +185,11 @@ trait Type {
     False
   }
 
+  # Returns `True` if this type is a type parameter.
+  def type_parameter? -> Boolean {
+    False
+  }
+
   # Returns `True` if `self` is a generic type that can be initialised.
   def initialise? -> Boolean {
     False
@@ -811,6 +816,10 @@ impl Type for TypeParameterType {
       true: { assigned!.substitute(scope) },
       false: { self }
     )
+  }
+
+  def type_parameter? -> Boolean {
+    True
   }
 }
 

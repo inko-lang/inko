@@ -1642,7 +1642,16 @@ trait ExpressionTypePass: TypePass {
     match(
       let type = visit_expression(node: expr, types: types, variables: variables)
     ) {
-      as OptionalType -> { node.resolved_type = type.type }
+      as OptionalType -> {
+        type.type.type_parameter?.if_true {
+          type_checker.diagnostics.not_nil_operator_with_optional_type_parameter(
+            type: type.type_name,
+            location: node.location
+          )
+        }
+
+        node.resolved_type = type.type
+      }
       else -> {
         type_checker.diagnostics.invalid_not_nil_operator(
           type: type.type_name,
@@ -3508,27 +3517,23 @@ object TypeCheckMethods {
     Self { @module = module, @type_checker = type_checker }
   }
 
-  def visit_define_object(node: DefineObject, types: TypeScope) -> Type {
+  def visit_define_object(node: DefineObject, types: TypeScope) {
     visit_define_method_nodes(node.body)
-    node.resolved_type!
   }
 
-  def visit_define_trait(node: DefineTrait, types: TypeScope) -> Type {
+  def visit_define_trait(node: DefineTrait, types: TypeScope) {
     visit_define_method_nodes(node.body)
-    node.resolved_type!
   }
 
-  def visit_reopen_object(node: ReopenObject, types: TypeScope) -> Type {
+  def visit_reopen_object(node: ReopenObject, types: TypeScope) {
     visit_define_method_nodes(node.body)
-    node.resolved_type!
   }
 
-  def visit_implement_trait(node: ImplementTrait, types: TypeScope) -> Type {
+  def visit_implement_trait(node: ImplementTrait, types: TypeScope) {
     visit_define_method_nodes(node.body)
-    node.resolved_type!
   }
 
-  def visit_define_method(node: DefineMethod, types: TypeScope) -> Type {
+  def visit_define_method(node: DefineMethod, types: TypeScope) {
     let method = node.resolved_type!
     let body_types = node.body.type_scope!
     let body_vars = node.body.variable_scope
@@ -3555,7 +3560,7 @@ object TypeCheckMethods {
     # type-checking is necessary. And if the last expression is a return, it's
     # type-checked separately.
     node.return_type.nil?.or { last_expression_is_return?(body) }.if_true {
-      return method
+      return
     }
 
     method.yield_type.not_nil?.and { method.return_type.not_nil? }.if_true {
@@ -3568,8 +3573,6 @@ object TypeCheckMethods {
       scope: body_types,
       location: body.location_of_last_expression
     )
-
-    method
   }
 
   def visit_define_method_nodes(node: Body) {

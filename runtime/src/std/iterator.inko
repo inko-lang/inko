@@ -104,7 +104,7 @@ trait Iterator!(T, E) {
   #       stdout.print(number)
   #     }
   def each(block: do (T)) !! E {
-    { try advance }.while_true { block.call(current!) }
+    { try advance }.while_true { block.call(current as T) }
   }
 
   # Yields all the values and their indexes in this `Iterator` to the supplied
@@ -278,7 +278,7 @@ trait Iterator!(T, E) {
   #     zip.current # => Pair.new(10, 40)
   def zip!(U)(other: Iterator!(U, E)) !! E => Pair!(T, U) {
     { try { advance }.and { try other.advance } }.while_true {
-      yield Pair.new(first: current!, second: other.current!)
+      yield Pair.new(first: current as T, second: other.current as U)
     }
   }
 
