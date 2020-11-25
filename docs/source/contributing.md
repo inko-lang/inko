@@ -33,13 +33,13 @@ label. Duplicate issues may be closed without warning. If you found an existing
 issue, please don't reply with comments such as "Me too!" and "+1". Instead,
 click on the thumbs up Emoji displayed when viewing the issue:
 
-![Upvote an existing bug](../images/contributing/existing_bug.jpg)
+![Upvote an existing bug](images/contributing/existing_bug.jpg)
 
 If no issue exists for the bug, please create a new issue. When reporting an
 issue, please use the "bug" issue template. You can find this template in the
 "Description" dropdown:
 
-![Report a new bug](../images/contributing/new_bug.jpg)
+![Report a new bug](images/contributing/new_bug.jpg)
 
 When selected, the issue description will be filled in with the template. Please
 fill in all the necessary fields and sections. The more information you provide,
