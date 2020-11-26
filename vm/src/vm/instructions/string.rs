@@ -113,7 +113,7 @@ pub fn string_concat(
 }
 
 #[inline(always)]
-pub fn string_concat_multiple(
+pub fn string_concat_array(
     state: &RcState,
     process: &RcProcess,
     array_ptr: ObjectPointer,

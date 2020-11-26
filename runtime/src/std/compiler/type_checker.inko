@@ -692,7 +692,7 @@ trait ExpressionTypePass: TypePass {
       'string_slice' -> { builtins.string_type.new_instance }
       'string_byte' -> { builtins.integer_type.new_instance }
       'string_format_debug' -> { builtins.string_type.new_instance }
-      'string_concat_multiple' -> { builtins.string_type.new_instance }
+      'string_concat_array' -> { builtins.string_type.new_instance }
       'string_to_integer' -> { builtins.integer_type.new_instance }
       'string_to_float' -> { builtins.float_type.new_instance }
       'stdout_write' -> { builtins.integer_type.new_instance }

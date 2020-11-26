@@ -1421,10 +1421,10 @@ impl Machine {
 
                     context.set_register(reg, res);
                 }
-                Opcode::StringConcatMultiple => {
+                Opcode::StringConcatArray => {
                     let reg = instruction.arg(0);
                     let strings = context.get_register(instruction.arg(1));
-                    let res = string::string_concat_multiple(
+                    let res = string::string_concat_array(
                         &self.state,
                         process,
                         strings,

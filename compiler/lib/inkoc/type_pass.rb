@@ -668,7 +668,7 @@ module Inkoc
       typedb.string_type.new_instance
     end
 
-    def on_raw_string_concat_multiple(*)
+    def on_raw_string_concat_array(*)
       typedb.string_type.new_instance
     end
 

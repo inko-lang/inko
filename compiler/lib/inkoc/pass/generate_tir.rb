@@ -1360,8 +1360,8 @@ module Inkoc
         raw_unary_instruction(:StringFormatDebug, node, body)
       end
 
-      def on_raw_string_concat_multiple(node, body)
-        raw_unary_instruction(:StringConcatMultiple, node, body)
+      def on_raw_string_concat_array(node, body)
+        raw_unary_instruction(:StringConcatArray, node, body)
       end
 
       def on_raw_byte_array_from_array(node, body)

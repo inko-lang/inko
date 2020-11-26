@@ -8423,10 +8423,10 @@ test.group('Type-checking VM instructions') do (g) {
     assert_object_instance(node.resolved_type, type_checker.builtins.string_type)
   }
 
-  g.test('Using string_concat_multiple()') {
+  g.test('Using string_concat_array()') {
     let module = new_std_module('foo')
     let type_checker = TypeChecker.new
-    let body = parse('_INKOC.string_concat_multiple')
+    let body = parse('_INKOC.string_concat_array')
     let node = body.children[0]
 
     type_checker.check_module(module: module, ast: body)

@@ -108,7 +108,7 @@ impl ToString for StringBuffer {
   #
   #     buffer.to_string # => 'hello world'
   def to_string -> String {
-    _INKOC.string_concat_multiple(@strings)
+    _INKOC.string_concat_array(@strings)
   }
 }
 

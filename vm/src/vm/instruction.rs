@@ -121,7 +121,7 @@ pub enum Opcode {
     StringSlice,
     BlockMetadata,
     StringFormatDebug,
-    StringConcatMultiple,
+    StringConcatArray,
     ByteArrayFromArray,
     ByteArraySet,
     ByteArrayAt,

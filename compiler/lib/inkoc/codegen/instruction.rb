@@ -123,7 +123,7 @@ module Inkoc
         StringSlice
         BlockMetadata
         StringFormatDebug
-        StringConcatMultiple
+        StringConcatArray
         ByteArrayFromArray
         ByteArraySet
         ByteArrayAt
