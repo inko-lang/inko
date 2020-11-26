@@ -37,13 +37,21 @@ trait Conditional {
   def if!(R)(true: do -> R, false: do -> R) -> R
 
   # Calls the supplied block if the receiver evaluates to `True`.
-  def if_true!(R)(block: do -> R) {
-    if(true: block, false: {})
+  #
+  # When the receiver evaluates to `True` the return value will be whatever the
+  # supplied block returned. When evaluating to `False` this method will instead
+  # return Nil.
+  def if_true!(R)(block: do -> R) -> ?R {
+    if(true: block, false: { Nil })
   }
 
   # Calls the supplied block if the receiver evaluates to `False`.
-  def if_false!(R)(block: do -> R) {
-    if(true: {}, false: block)
+  #
+  # When the receiver evaluates to `False` the return value will be whatever the
+  # supplied block returned. When evaluating to `True` this method will instead
+  # return Nil.
+  def if_false!(R)(block: do -> R) -> ?R {
+    if(true: { Nil }, false: block)
   }
 
   # Returns `True` if `self` and the given object evaluate to `True`.

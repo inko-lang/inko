@@ -67,12 +67,12 @@ impl ToString for NilType {
 
 impl Conditional for NilType {
   # Always returns `Nil`.
-  def if_true!(R)(block: do -> R) {
+  def if_true!(R)(block: do -> R) -> ?R {
     Nil
   }
 
   # Always calls the supplied block.
-  def if_false!(R)(block: do -> R) {
+  def if_false!(R)(block: do -> R) -> ?R {
     block.call
   }
 
