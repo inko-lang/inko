@@ -57,17 +57,22 @@ and is a double-precision floating point type. Here are a few examples:
 ## Strings
 
 For text there is the `String` type, which is an immutable UTF-8 encoded string
-type. You can create a `String` using single quotes (`'`) or double quotes
-(`"`):
+type. You can create a `String` using single quotes (`'`), double quotes
+(`"`), or backticks (`\``):
 
 ```inko
 'hello'
 "hello"
+`hello`
 ```
+
+### Single quoted strings
 
 When using single quotes, escape sequences such as `\n` and `\t` are literal
 characters. In other words, `'\t'` is a `String` containing two bytes: 92 (`\`)
 and 116 (`t`).
+
+### Double quoted strings
 
 When using double quotes, Inko translates these sequences into other characters.
 For example, the `String` `"\t"` is a `String` containing only a single byte: 9,
@@ -95,6 +100,32 @@ This also works for double quotes:
 ```inko
 "hello\"world"
 ```
+
+### Template strings
+
+Inko also supports template strings. Template strings can contain escape
+sequences like double-quoted strings, and also support embedded expressions. For
+example:
+
+```inko
+let number = 42
+
+`The number is: {number}`
+```
+
+Here `{number}` is an embedded expression, and its result will be converted to a
+String. For this to work, the return value of the expression must implement the
+trait `std::conversion::ToString`.
+
+If you want to include a literal `{`, you must escape it like so:
+
+```inko
+let number = 42
+
+`The number is: \{number}`
+```
+
+You don't need to escape the closing `}`.
 
 ## Booleans
 

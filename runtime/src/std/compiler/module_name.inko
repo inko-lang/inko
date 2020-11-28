@@ -5,7 +5,6 @@ import std::conversion::ToString
 import std::fs::path::(Path, ToPath, SEPARATOR)
 import std::hash::*
 import std::operators::Equal
-import std::string_buffer::StringBuffer
 
 # The name of a module.
 object ModuleName {

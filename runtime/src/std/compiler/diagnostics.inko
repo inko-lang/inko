@@ -5,7 +5,6 @@ import std::conversion::ToString
 import std::fs::path::Path
 import std::iterator::Iterator
 import std::length::Length
-import std::string_buffer::StringBuffer
 
 # The level identifier to use for errors.
 let ERROR = 'error'
@@ -113,55 +112,42 @@ object Diagnostics {
   }
 
   def failed_to_read_source(message: String, path: Path) {
-    let loc = SourceLocation.new(file: path, line_range: 1..1, column: 1)
-    let msg = StringBuffer.new('Failed to read ', path.to_string, ': ', message)
-
-    error(message: msg, location: loc)
+    error(
+      message: `Failed to read {path}: {message}`,
+      location: SourceLocation.new(file: path, line_range: 1..1, column: 1)
+    )
   }
 
   def failed_to_parse(message: String, location: SourceLocation) {
-    let msg = StringBuffer
-      .new('Failed to parse ', location.file.to_string, ': ', message)
-
-    error(message: msg, location: location)
+    error(
+      message: `Failed to parse {location.file}: {message}`,
+      location: location
+    )
   }
 
   def undefined_constant(name: String, location: SourceLocation) {
-    let message = StringBuffer.new('The constant "', name, '" is not defined')
-
-    error(message: message, location: location)
+    error(message: `The constant "{name}" isn't defined`, location: location)
   }
 
   def undefined_identifier(name: String, location: SourceLocation) {
-    let message = StringBuffer.new(
-      'There is no local variable, global variable, or method with the name "',
-      name,
-      '"'
-    )
+    let message = `There is no local variable, global variable, \
+      or method with the name "{name}"`
 
     error(message: message, location: location)
   }
 
   def undefined_message(type: String, name: String, location: SourceLocation) {
-    let message = StringBuffer.new(
-      'The type "',
-      type,
-      '" does not respond to the message "',
-      name,
-      '"'
+    error(
+      message: `The type "{type}" doesn't respond to the message "{name}"`,
+      location: location
     )
-
-    error(message: message, location: location)
   }
 
   def undefined_local_variable(name: String, location: SourceLocation) {
-    let message = StringBuffer.new(
-      'There is no local variable with the name "',
-      name,
-      '"'
+    error(
+      message: `The local variable "{name}" is undefined`,
+      location: location
     )
-
-    error(message: message, location: location)
   }
 
   def undefined_attribute(
@@ -169,79 +155,53 @@ object Diagnostics {
     attribute: String,
     location: SourceLocation
   ) {
-    let message = StringBuffer.new(
-      'The type "',
-      type,
-      '" does not define the attribute "',
-      attribute,
-      '"'
+    error(
+      message: `The type "{type}" doesn't define the attribute "{attribute}"`,
+      location: location
     )
-
-    error(message: message, location: location)
   }
 
   def already_assigned_attribute(name: String, location: SourceLocation) {
-    let message = StringBuffer.new(
-      'The attribute "',
-      name,
-      '" is already assigned'
+    error(
+      message: `The attribute "{}" is already assigned`,
+      location: location
     )
-
-    error(message: message, location: location)
   }
 
   def unassigned_attribute(name: String, location: SourceLocation) {
-    let message = StringBuffer.new(
-      'The attribute "',
-      name,
-      '" must be assigned a value'
+    error(
+      message: `The attribute "{name}" must be assigned a value`,
+      location: location
     )
-
-    error(message: message, location: location)
   }
 
   def assign_immutable_local_variable(name: String, location: SourceLocation) {
-    let message = StringBuffer.new(
-      'The local variable "',
-      name,
-      "\" is immutable, and can't be assigned a new value"
+    error(
+      message: `The local variable "{name}" can't be reassigned`,
+      location: location
     )
-
-    error(message: message, location: location)
   }
 
   def import_existing_symbol(name: String, location: SourceLocation) {
-    let message = StringBuffer
-      .new(
-        'The symbol "',
-        name,
-        "\" can't be imported as it has already been defined in this module"
-      )
+    let message = `The symbol "{name}" can't be imported, \
+      as it's already defined in this module`
 
     error(message: message, location: location)
   }
 
   def not_a_trait(name: String, location: SourceLocation) {
-    let message = StringBuffer.new('The type "', name, '" is not a trait')
-
-    error(message: message, location: location)
+    error(message: `The type "{name}" must be a trait`, location: location)
   }
 
   def not_an_object(name: String, location: SourceLocation) {
-    let message = StringBuffer.new('The type "', name, '" is not an object type')
-
-    error(message: message, location: location)
+    error(message: `The type "{name}" must be an object`, location: location)
   }
 
   def invalid_initialise(name: String, location: SourceLocation) {
-    let message = StringBuffer.new(
-      'The type "',
-      name,
-      "\" can't be initialised because it's not a generic type, or because ",
-      " it's already initialised"
+    error(
+      message: `The type "{name}" can't be initialised using type arguments`,
+      location: location
     )
-
-    error(message: message, location: location)
   }
 
   def invalid_number_of_type_arguments(
@@ -249,20 +209,17 @@ object Diagnostics {
     given: Integer,
     location: SourceLocation
   ) {
-    let message = StringBuffer.new(
-      'Incorrect number of type arguments: expected ',
-      expected.to_string,
-      ', found ',
-      given.to_string
-    )
+    let message = `Incorrect number of type arguments: \
+      expected {expected}, found {given}`
 
     error(message: message, location: location)
   }
 
   def module_not_found(name: String, location: SourceLocation) {
-    let message = StringBuffer.new('The module "', name, '" could not be found')
-
-    error(message: message, location: location)
+    error(
+      message: `The module "{name}" doesn't exist`,
+      location: location
+    )
   }
 
   def undefined_import_symbol(
@@ -270,40 +227,29 @@ object Diagnostics {
     name: String,
     location: SourceLocation
   ) {
-    let message = StringBuffer.new(
-      'The module "',
-      module,
-      '" does not define a method, constant, or module with the name "',
-      name,
-      '"'
+    error(
+      message: `The module "{module}" doesn't define the symbol "{name}"`,
+      location: location
     )
-
-    error(message: message, location: location)
   }
 
   def invalid_trait_implementation(name: String, location: SourceLocation) {
-    let message = StringBuffer.new(
-      'Traits can only be implemented for objects, and "',
-      name,
-      '" is not an object'
-    )
+    let message = `Traits can only be implemented for objects, \
+      and "{name}" isn't an object`
 
     error(message: message, location: location)
   }
 
   def undefined_type_parameter(name: String, location: SourceLocation) {
-    let message =
-      StringBuffer.new('The type parameter "', name, '" does not exist')
-
-    error(message: message, location: location)
+    error(
+      message: `The type parameter "{name}" is undefined`,
+      location: location
+    )
   }
 
   def duplicate_bound(name: String, location: SourceLocation) {
-    let message = StringBuffer.new(
-      'Type parameter bounds for type parameter "',
-      name,
-      '" have already been defined'
-    )
+    let message = `Type parameter bounds for type parameter "{name}" \
+      have already been defined`
 
     error(message: message, location: location)
   }
@@ -323,82 +269,59 @@ object Diagnostics {
   }
 
   def redefine_local_variable(name: String, location: SourceLocation) {
-    let message = StringBuffer.new(
-      'The local variable "',
-      name,
-      '" has already been defined'
+    error(
+      message: `The local variable "{name}" has already been defined`,
+      location: location
     )
-
-    error(message: message, location: location)
   }
 
   def redefine_constant(name: String, location: SourceLocation) {
-    let message =
-      StringBuffer.new('The constant "', name, '" has already been defined')
-
-    error(message: message, location: location)
+    error(
+      message: `The constant "{name}" has already been defined`,
+      location: location
+    )
   }
 
   def wrong_type(expected: String, given: String, location: SourceLocation) {
-    let message = StringBuffer.new(
-      'A value of type "',
-      expected,
-      '" was expected, but a value of type "',
-      given,
-      '" is provided instead'
-    )
+    let message = `Expected a value of type "{expected}", \
+      instead of a value of type "{given}"`
 
     error(message: message, location: location)
   }
 
   def redefine_static_method(name: String, location: SourceLocation) {
-    let message = StringBuffer.new(
-      'The method "',
-      name,
-      '" has already been defined as a static method'
+    error(
+      message: `The method "{name}" is already defined as a static method`,
+      location: location
     )
-
-    error(message: message, location: location)
   }
 
   def redefine_instance_method(name: String, location: SourceLocation) {
-    let message = StringBuffer.new(
-      'The method "',
-      name,
-      '" has already been defined as an instance method'
+    error(
+      message: `The method "{name}" is already defined as an instance method`,
+      location: location
     )
-
-    error(message: message, location: location)
   }
 
   def redefine_required_method(name: String, location: SourceLocation) {
-    let message = StringBuffer.new(
-      'The method "',
-      name,
-      '" has already been defined as a required method'
+    error(
+      message: `The method "{name}" is already defined as a required method`,
+      location: location
     )
-
-    error(message: message, location: location)
   }
 
   def redefine_default_method(name: String, location: SourceLocation) {
-    let message = StringBuffer.new(
-      'The method "',
-      name,
-      '" has already been defined as a default method'
+    error(
+      message: `The method "{name}" is already defined as a default method`,
+      location: location
     )
-
-    error(message: message, location: location)
   }
 
   def redefine_module_method(name: String, location: SourceLocation) {
-    let message = StringBuffer.new(
-      'The method "',
-      name,
-      '" has already been defined as a module method'
+    error(
+      message: `The method "{name}" is already defined as a module method`,
+      location: location
     )
-
-    error(message: message, location: location)
   }
 
   def required_method_with_default_argument(location: SourceLocation) {
@@ -409,10 +332,10 @@ object Diagnostics {
   }
 
   def required_method_not_implemented(method: String, location: SourceLocation) {
-    let message =
-      StringBuffer.new('The method "', method, '" must be implemented')
-
-    error(message: message, location: location)
+    error(
+      message: `The method "{method}" must be implemented`,
+      location: location
+    )
   }
 
   def required_method_not_compatible(
@@ -420,13 +343,8 @@ object Diagnostics {
     given: String,
     location: SourceLocation
   ) {
-    let message = StringBuffer.new(
-      'The implementation "',
-      given,
-      '" is not compatible with the required method "',
-      expected,
-      '"'
-    )
+    let message = `The implementation "{given}" isn't compatible with the \
+      required method "{expected}"`
 
     error(message: message, location: location)
   }
@@ -436,13 +354,8 @@ object Diagnostics {
     given: String,
     location: SourceLocation
   ) {
-    let message = StringBuffer.new(
-      'The implementation "',
-      given,
-      '" is not compatible with the default implementation "',
-      expected,
-      '"'
-    )
+    let message = `The implementation "{given}" isn't compatible with the \
+      default method "{expected}"`
 
     error(message: message, location: location)
   }
@@ -452,13 +365,8 @@ object Diagnostics {
     depending: String,
     location: SourceLocation
   ) {
-    let message = StringBuffer.new(
-      'The trait "',
-      required,
-      '" must be implemented before the trait "',
-      depending,
-      '" can be implemented'
-    )
+    let message = `The trait "{required}" must be implemented before the \
+      trait "{depending}" can be implemented`
 
     error(message: message, location: location)
   }
@@ -503,13 +411,8 @@ object Diagnostics {
     match_trait: String,
     location: SourceLocation
   ) {
-    let message = StringBuffer.new(
-      'This pattern is invalid because its type ("',
-      type,
-      '") does not implement the trait "',
-      match_trait,
-      '"'
-    )
+    let message = `This pattern is invalid because its type ("{type}") \
+      doesn't implement the trait "{match_trait}"`
 
     error(message: message, location: location)
   }
@@ -529,11 +432,8 @@ object Diagnostics {
   }
 
   def invalid_not_nil_operator(type: String, location: SourceLocation) {
-    let message = StringBuffer.new(
-      'The ! operator can only be used on optional types, and "',
-      type,
-      '" is not an optional type'
-    )
+    let message = `The ! operator can only be used with an optional type, \
+      and "{type}" isn't an optional type`
 
     error(message: message, location: location)
   }
@@ -542,35 +442,24 @@ object Diagnostics {
     type: String,
     location: SourceLocation
   ) {
-    let message = StringBuffer.new(
-      'The type "',
-      type,
-      '" is an optional type parameter that may be Nil at runtime'
-    )
+    let message = `The type "{type}" is an optional type parameter that \
+      may be Nil at runtime, which could lead to an unexpected panic`
 
     error(message: message, location: location)
   }
 
   def invalid_coalesce_nil_operator(type: String, location: SourceLocation) {
-    let message = StringBuffer.new(
-      'The ?? operator can only be used on optional types, and "',
-      type,
-      '" is not an optional type'
-    )
+    let message = `The ?? operator can only be used with an optional type, \
+      and "{type}" isn't an optional type`
 
     error(message: message, location: location)
   }
 
   def invalid_cast(type: String, cast_to: String, location: SourceLocation) {
-    let message = StringBuffer.new(
-      'The type "',
-      type,
-      '" can\'t be casted to the type "',
-      cast_to,
-      '"'
+    error(
+      message: `The type "{type}" can't be casted to the type "{cast_to}"`,
+      location: location
     )
-
-    error(message: message, location: location)
   }
 
   def missing_argument_type(location: SourceLocation) {
@@ -581,41 +470,29 @@ object Diagnostics {
   }
 
   def missing_method_throw(type: String, location: SourceLocation) {
-    let message = StringBuffer.new(
-      'This method is expected to throw a value of type "',
-      type,
-      '", but no value is ever thrown using the `throw` keyword'
-    )
+    let message = `This method is expected to throw a value of type "{type}", \
+      but no value is ever thrown`
 
     error(message: message, location: location)
   }
 
   def missing_local_throw(type: String, location: SourceLocation) {
-    let message = StringBuffer.new(
-      'This block is expected to throw a value of type "',
-      type,
-      '", but no value is ever thrown using the `local throw` keyword'
-    )
+    let message = `This block is expected to throw a value of type "{type}", \
+      but no value is ever thrown`
 
     error(message: message, location: location)
   }
 
   def missing_try(type: String, location: SourceLocation) {
-    let message = StringBuffer.new(
-      'This message will throw a value of type "',
-      type,
-      '", and requires the use of `try`, `local try`, or `try!`'
-    )
+    let message = `This message will throw a value of type "{type}", \
+      and requires explicit error handling`
 
     error(message: message, location: location)
   }
 
   def missing_yield(type: String, location: SourceLocation) {
-    let message = StringBuffer.new(
-      'This method is expected to yield a value of type "',
-      type,
-      '", but no value is ever yielded'
-    )
+    let message = `This method is expected to yield a value of type "{type}", \
+      but no value is ever yielded`
 
     error(message: message, location: location)
   }
@@ -667,102 +544,45 @@ object Diagnostics {
   }
 
   def unexpected_method_throw(type: String, location: SourceLocation) {
-    let message = StringBuffer.new(
-      'You can\'t throw a value of type "',
-      type,
-      '", as the surrounding method does not define a type to throw'
-    )
+    let message = `You can't throw a value of type "{type}", \
+      as the surrounding method doesn't define a type to throw`
 
     error(message: message, location: location)
   }
 
   def unexpected_yield(type: String, location: SourceLocation) {
-    let message = StringBuffer.new(
-      'You can\'t yield a value of type "',
-      type,
-      '", as the surrounding method does not define a type to throw'
-    )
+    let message = `You can't yield a value of type "{type}", as the \
+      surrounding method doesn't define a type to throw`
 
     error(message: message, location: location)
   }
 
-  def not_enough_arguments(
+  def invalid_number_of_arguments(
     given: Integer,
-    minimum: Integer,
+    expected: Integer,
     location: SourceLocation
   ) {
-    let message = StringBuffer.new
-
-    match(minimum) {
-      1 -> { message.push('This message defines one required argument') }
-      else -> {
-        message.push('This message defines ')
-        message.push(minimum.to_string)
-        message.push(' required arguments')
-      }
-    }
-
-    match(given) {
-      0 -> { message.push(', but none were specified') }
-      1 -> { message.push(', but only one was specified') }
-      else -> {
-        message.push(', but only ')
-        message.push(given.to_string)
-        message.push(' were specified')
-      }
-    }
-
-    error(message: message, location: location)
-  }
-
-  def too_many_arguments(
-    given: Integer,
-    maximum: Integer,
-    location: SourceLocation
-  ) {
-    let message = StringBuffer.new
-
-    match(maximum) {
-      0 -> { message.push('This message does not accept any arguments') }
-      1 -> { message.push('This message accepts only one argument') }
-      else -> {
-        message.push('This message accepts up to ')
-        message.push(maximum.to_string)
-        message.push(' arguments')
-      }
-    }
-
-    match(given) {
-      0 -> { message.push(', but no arguments were specified') }
-      1 -> { message.push(', but one argument was specified') }
-      else -> {
-        message.push(', but ')
-        message.push(given.to_string)
-        message.push(' arguments were specified')
-      }
-    }
+    let message = `Incorrect number of arguments: expected "{expected}", \
+      found "{given}"`
 
     error(message: message, location: location)
   }
 
   def undefined_keyword_argument(argument: String, location: SourceLocation) {
-    let error = StringBuffer.new(
-      'This message does not accept an argument called "',
-      argument,
-      '"'
+    error(
+      message: `This message doesn't accept the argument "{argument}"`,
+      location: location
     )
-
-    error(message: error, location: location)
   }
 
   def duplicate_keyword_argument(
     argument: String,
     location: SourceLocation
   ) {
-    let message = StringBuffer
-      .new('The argument "', argument, '" is already specified')
-
-    error(message: message, location: location)
+    error(
+      message: `The argument "{argument}" is already given`,
+      location: location
+    )
   }
 
   def method_not_available(
@@ -770,29 +590,18 @@ object Diagnostics {
     method: String,
     location: SourceLocation
   ) {
-    let message = StringBuffer.new(
-      'The method "',
-      method,
-      '" exists, but is not available to "',
-      receiver,
-      '" due to one or more method type parameter bounds not being met'
-    )
+    let message = `The method "{method}" exists, but isn't available to \
+      "{receiver}" as one or more type parameter bounds are not satistifed`
 
     error(message: message, location: location)
   }
 
   def unknown_instruction(name: String, location: SourceLocation) {
-    let message =
-      StringBuffer.new('The instruction "', name, '" does not exist')
-
-    error(message: message, location: location)
+    error(message: `The instruction "{name}" doesn't exist`, location: location)
   }
 
   def invalid_instruction(name: String, location: SourceLocation) {
-    let message = StringBuffer
-      .new('The instruction "', name, '" is not valid')
-
-    error(message: message, location: location)
+    error(message: `The instruction "{name}" is invalid`, location: location)
   }
 
   def instructions_not_available(location: SourceLocation) {

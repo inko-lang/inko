@@ -11,7 +11,6 @@
 #
 #     ansi.green('hello world') # => "\e[32mhello world\e[0m"
 import std::conversion::ToString
-import std::string_buffer::StringBuffer
 
 # The start of every ANSI escape sequence.
 let START = "\e["
@@ -36,7 +35,7 @@ let YELLOW = '33'
 
 # Wraps a `ToString` in an ANSI escape sequence.
 def wrap(string: ToString, code: String) -> String {
-  StringBuffer.new(START, code, 'm', string.to_string, RESET).to_string
+  `{START}{code}m{string}{RESET}`
 }
 
 # Makes the `ToString` bold.

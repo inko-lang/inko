@@ -14,7 +14,6 @@ import std::compiler::ast::variables::*
 import std::compiler::parser::Parser
 import std::conversion::ToString
 import std::mirror::ObjectMirror
-import std::string_buffer::StringBuffer
 import std::test
 import std::test::assert
 
@@ -43,7 +42,7 @@ def parse_as!(T: Node)(input: ToString, type: T) -> T {
 }
 
 def binary_send(operator: String) {
-  let node = parse_as(input: StringBuffer.new('1 ', operator, ' 2'), type: Send)
+  let node = parse_as(input: `1 {operator} 2`, type: Send)
 
   assert.equal(node.message, operator)
   assert.equal(node.arguments.length, 1)
@@ -56,8 +55,7 @@ def binary_send(operator: String) {
 }
 
 def binary_assign_local(operator: String, message: String) {
-  let input = StringBuffer.new('foo', operator, '10').to_string
-  let node = parse_as(input: input, type: AssignLocal)
+  let node = parse_as(input: `foo {operator} 10`, type: AssignLocal)
 
   assert_instance_of(node.value, Send)
 
@@ -74,8 +72,7 @@ def binary_assign_local(operator: String, message: String) {
 }
 
 def binary_assign_attribute(operator: String, message: String) {
-  let input = StringBuffer.new('@foo', operator, '10').to_string
-  let node = parse_as(input: input, type: AssignAttribute)
+  let node = parse_as(input: `@foo {operator} 10`, type: AssignAttribute)
 
   assert_instance_of(node.value, Send)
 

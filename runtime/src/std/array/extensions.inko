@@ -5,7 +5,6 @@
 # would depend on `std::array` while `std::array` would depend on
 # `std::iterator`.
 import std::conversion::ToString
-import std::string_buffer::StringBuffer
 
 impl Array {
   # Returns an `Iterator` that iterates over all values in `self`.

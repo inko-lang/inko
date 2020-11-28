@@ -400,6 +400,30 @@ describe Inkoc::Lexer do
     end
   end
 
+  describe 'template strings' do
+    it 'tokenizes a template string' do
+      lexer = described_class.new('`Hello \n {10} world`')
+
+      tok1 = lexer.advance
+      tok2 = lexer.advance
+      tok3 = lexer.advance
+      tok4 = lexer.advance
+      tok5 = lexer.advance
+      tok6 = lexer.advance
+      tok7 = lexer.advance
+
+      expect(tok1.type).to eq(:tstring_open)
+      expect(tok2.type).to eq(:tstring_body)
+      expect(tok2.value).to eq("Hello \n ")
+      expect(tok3.type).to eq(:tstring_expr_open)
+      expect(tok4.type).to eq(:integer)
+      expect(tok5.type).to eq(:tstring_expr_close)
+      expect(tok6.type).to eq(:tstring_body)
+      expect(tok6.value).to eq(' world')
+      expect(tok7.type).to eq(:tstring_close)
+    end
+  end
+
   describe '#colons' do
     it 'tokenizes a single colon' do
       lexer = described_class.new(':')

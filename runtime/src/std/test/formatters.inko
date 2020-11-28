@@ -3,7 +3,6 @@ import std::ansi::(self, BOLD, CYAN, GREEN, RED)
 import std::conversion::ToString
 import std::debug::CallFrame
 import std::stdio::stdout
-import std::string_buffer::StringBuffer
 import std::test::error::TestFailure
 import std::test::formatter::Formatter
 import std::test::test::Test
@@ -35,9 +34,7 @@ object ProgressFormatter {
 
   # Returns the location of a test failure.
   def format_location(location: CallFrame) -> String {
-    StringBuffer
-      .new(location.path.to_string, ':', location.line.to_string)
-      .to_string
+    `{location.path}:{location.line}`
   }
 
   # Returns the unit of time to use for displaying the test suite execution
@@ -61,12 +58,7 @@ object ProgressFormatter {
 
   # Returns a `String` containing some statistics about the test suite.
   def test_suite_statistics(tests: Array!(Test)) -> String {
-    let statistics = StringBuffer.new(
-      tests.length.to_string,
-      ' tests, ',
-      @failed.to_string,
-      ' failures ',
-    )
+    let statistics = `{tests.length} tests, {@failed} failures`
 
     @failed
       .positive?
@@ -114,40 +106,25 @@ impl Formatter for ProgressFormatter {
 
     tests.each_with_index do (test, index) {
       let failure = test.failure!
+      let output = `
 
-      let buffer = StringBuffer.new(
-        "\n\n",
-        '  Group:            ',
-        test.group_name,
-        "\n",
-        '  Test:             ',
-        bold(test.name),
-        "\n",
-        '  Test location:    ',
-        cyan(format_location(test.location)),
-        "\n",
-        '  Failure location: ',
-        cyan(format_location(failure.location)),
-        "\n",
-        '  Failure:          ',
-        red(failure.message),
-      )
+  Group:            {test.group_name}
+  Test:             {bold(test.name)}
+  Test location:    {cyan(format_location(test.location))}
+  Failure location: {cyan(format_location(failure.location))}
+  Failure:          {red(failure.message)}`
 
-      stdout.write_string(buffer)
+      stdout.write_string(output)
     }
   }
 
   # Displays a summary of the test suite, once the suite has finished running.
   def summary(tests: Array!(Test), duration: Duration) {
-    let buffer = StringBuffer.new(
-      "\n\nFinished running in ",
-      test_suite_duration_time(duration).to_string,
-      ' ',
-      test_suite_duration_unit(duration),
-      " \n",
-      test_suite_statistics(tests),
-    )
+    let output = `
 
-    stdout.print(buffer.to_string)
+Finished running in {test_suite_duration_time(duration)} {test_suite_duration_unit(duration)}
+{test_suite_statistics(tests)}`
+
+    stdout.print(output)
   }
 }

@@ -6,7 +6,6 @@ import std::fs::path::(SEPARATOR)
 import std::io::Close
 import std::mirror
 import std::process
-import std::string_buffer::StringBuffer
 import std::test
 import std::test::assert
 import test::fixtures::(self, VALID_FILE)

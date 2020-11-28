@@ -530,5 +530,18 @@ module Inkoc
         location
       )
     end
+
+    def missing_to_string_trait(type, location)
+      tname = type.type_name.inspect
+
+      error("The type #{tname} doesn't implement the ToString trait", location)
+    end
+
+    def template_strings_unavailable(location)
+      error(
+        "Template strings are unavailable as std::conversion hasn't been defined yet",
+        location
+      )
+    end
   end
 end

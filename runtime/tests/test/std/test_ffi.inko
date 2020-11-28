@@ -3,7 +3,6 @@ import std::ffi::(
 )
 import std::ffi::types
 import std::process
-import std::string_buffer::StringBuffer
 import std::test
 import std::test::assert
 
@@ -56,8 +55,7 @@ def allocate!(R)(size: Integer, block: do (Pointer) -> R) -> R {
   let pointer = CALLOC.call(1, size) as Pointer
 
   pointer.null?.if_true {
-    let error = StringBuffer
-      .new('calloc() failed to allocate ', size.to_string, ' bytes of memory')
+    let error = `calloc() failed to allocate {size} bytes of memory`
 
     process.panic(error)
   }

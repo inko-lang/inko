@@ -8,7 +8,6 @@ import std::compiler::source_location::SourceLocation
 import std::compiler::token::*
 import std::conversion::ToString
 import std::fs::path::(ToPath, Path)
-import std::iterator::Iterator
 import std::stdio::stdout
 
 let INTEGER_DIGIT_RANGE = 48..57
@@ -51,6 +50,7 @@ let BACKSLASH = 92
 let BRACKET_CLOSE = 93
 let CARET = 94
 let UNDERSCORE = 95
+let BACKTICK = 96
 let LOWER_E = 101
 let LOWER_N = 110
 let LOWER_R = 114
@@ -82,20 +82,30 @@ let DOUBLE_QUOTED_STRING_ESCAPE_SEQUENCES =
     .set(LOWER_R, CARRIAGE_RETURN)
     .set(BACKSLASH, BACKSLASH)
 
+# The escape sequence literals supported by a template string string, and their
+# replacement bytes.
+let TEMPLATE_STRING_ESCAPE_SEQUENCES =
+  Map
+    .new
+    .set(DOUBLE_QUOTE, DOUBLE_QUOTE)
+    .set(LOWER_N, NEWLINE)
+    .set(LOWER_T, TAB)
+    .set(ZERO, NULL)
+    .set(LOWER_E, ESCAPE)
+    .set(LOWER_R, CARRIAGE_RETURN)
+    .set(BACKSLASH, BACKSLASH)
+    .set(CURLY_OPEN, CURLY_OPEN)
+    .set(BACKTICK, BACKTICK)
+
+# The default state of the lexer. In this state, code is lexer as you'd expect.
+let STATE_DEFAULT = 0
+
+# The state used when lexing a template string.
+let STATE_TEMPLATE_STRING = 1
+
 # A `Lexer` is used for turning Inko source code into a sequence of tokens.
 # These tokens in turn can be used by a parser to produce an Abstract Syntax
 # Tree.
-#
-# A `Lexer` is an `Iterator`, and tokens are obtained by sending `next` to a
-# `Lexer`:
-#
-#     import std::compiler::lexer::Lexer
-#
-#     let lexer = Lexer.new('10')
-#     let token = lexer.next
-#
-#     token.type  # => 'integer'
-#     token.value # => '10'
 object Lexer {
   # The byte stream to lex.
   @input: ByteArray
@@ -108,6 +118,16 @@ object Lexer {
 
   # The current byte position in the input stream.
   @position: Integer
+
+  # The number of opening curly braces that have yet to be closed.
+  @curly_braces: Integer
+
+  # The stack of curly brace counts to use for determining when a template
+  # string expression should be closed.
+  @curly_brace_stack: Array!(Integer)
+
+  # The stack of lexing states.
+  @states: Array!(Integer)
 
   # The current line number.
   @line: Integer
@@ -123,6 +143,9 @@ object Lexer {
       @file = file.to_path,
       @max_position = bytes.length,
       @position = 0,
+      @curly_braces = 0,
+      @curly_brace_stack = Array.new,
+      @states = Array.new(STATE_DEFAULT),
       @line = 1,
       @column = 1
     }
@@ -137,7 +160,10 @@ object Lexer {
   def next -> Token {
     consume_whitespace
 
-    let token = next_non_whitespace_token
+    let token = match(@states[-1]) {
+      STATE_TEMPLATE_STRING -> { next_template_string_token }
+      else -> { next_non_whitespace_token }
+    }
 
     # We have to consume trailing whitespace. Not doing so may result in a
     # consumer of the iterator thinking there are tokens left to produce, when
@@ -152,8 +178,8 @@ object Lexer {
       INTEGER_DIGIT_RANGE -> { number }
       AT_SIGN -> { attribute }
       HASH -> { comment }
-      CURLY_OPEN -> { single_character_token('curly_open') }
-      CURLY_CLOSE -> { single_character_token('curly_close') }
+      CURLY_OPEN -> { curly_open }
+      CURLY_CLOSE -> { curly_close }
       PAREN_OPEN -> { single_character_token('paren_open') }
       PAREN_CLOSE -> { single_character_token('paren_close') }
       SINGLE_QUOTE -> {
@@ -189,6 +215,7 @@ object Lexer {
       UNDERSCORE -> { underscore }
       LOWER_AZ_RANGE -> { identifier_or_keyword }
       UPPER_AZ_RANGE -> { constant }
+      BACKTICK -> { template_string_open }
       else -> {
         next?.if(
           true: { invalid },
@@ -196,6 +223,17 @@ object Lexer {
         )
       }
     }
+  }
+
+  def next_template_string_token -> Token {
+    match(current_byte) {
+      BACKTICK -> { return template_string_close }
+      CURLY_OPEN -> { return template_string_expression_open }
+      NULL -> { return NullToken.new(current_location) }
+      else -> { return template_string_text }
+    }
+
+    next_template_string_token
   }
 
   def number(skip_after_start = False) -> Token {
@@ -286,7 +324,9 @@ object Lexer {
   }
 
   def comment -> Token {
-    @position += 1
+    let column = @column
+
+    advance_one_byte
 
     let start = @position
 
@@ -296,10 +336,10 @@ object Lexer {
       @position += 1
     }
 
-    let comment = token(type: 'comment', start: start, line: @line, padding: 1)
+    let comment =
+      token(type: 'comment', start: start, line: @line, column: column)
 
     advance_line
-
     comment
   }
 
@@ -374,16 +414,13 @@ object Lexer {
     quote: Integer,
     replacements: Map!(Integer, Integer)
   ) -> Token {
-    # Advance 1 for the opening quote.
-    @position += 1
-
-    let start_line = @line
+    let column = @column
+    let line = @line
     let buffer = ByteArray.new
     let line_buffer = ByteArray.new
 
-    # We start with a padding of two: one for the opening quote, and one for the
-    # closing quote.
-    let mut padding = 2
+    # Advance for the opening quote.
+    advance_one_byte
 
     {
       next?.and { current_byte != quote }
@@ -392,30 +429,15 @@ object Lexer {
         buffer: buffer,
         line_buffer: line_buffer,
         replacements: replacements
-      ).if_true {
-        padding += 1
-      }
+      )
     }
 
-    # Advance 1 for the closing quote.
-    @position += 1
+    # Advance for the closing quote.
+    advance_one_byte
 
-    let value = buffer.drain_to_string
-    let location = source_location(start_line)
-
-    # If a string contains newlines, we only want to increment the column by the
-    # length of the last line.
-    #
-    # To prevent allocating an additional String, we only use the line buffer is
-    # needed.
-    let advance_column_by = (@line > start_line).if(
-      # We subtract 1 for the opening quote padding, since that only applies to
-      # the first line.
-      true: { line_buffer.drain_to_string.length - 1 },
-      false: { value.length }
-    )
-
-    @column += advance_column_by + padding
+    let location = source_location(line: line, column: column)
+    let value =
+      string_value(buffer: buffer, line_buffer: line_buffer, start_line: line)
 
     RegularToken.new(type: 'string', value: value, location: location)
   }
@@ -435,6 +457,7 @@ object Lexer {
         line_buffer.push(replace_with!)
 
         @position += 2
+        @column += 1
 
         return True
       }
@@ -452,6 +475,107 @@ object Lexer {
     )
 
     False
+  }
+
+  def string_value(
+    buffer: ByteArray,
+    line_buffer: ByteArray,
+    start_line: Integer
+  ) -> String {
+    let value = buffer.drain_to_string
+
+    # If a string contains newlines, we only want to increment the column by the
+    # length of the last line.
+    #
+    # To prevent allocating an additional String, we only use the line buffer if
+    # needed.
+    let advance_column_by = (@line > start_line).if(
+      true: { line_buffer.drain_to_string.length },
+      false: { value.length }
+    )
+
+    @column += advance_column_by
+
+    value
+  }
+
+  def curly_open -> Token {
+    @curly_braces += 1
+    single_character_token('curly_open')
+  }
+
+  def curly_close -> Token {
+    @curly_braces -= 1
+
+    (@curly_brace_stack.get(-1) == @curly_braces).if(
+      true: {
+        @curly_brace_stack.pop
+        @states.pop
+        single_character_token('tstring_expr_close')
+      },
+      false: { single_character_token('curly_close') }
+    )
+  }
+
+  def template_string_open -> Token {
+    @states.push(STATE_TEMPLATE_STRING)
+    single_character_token('tstring_open')
+  }
+
+  def template_string_close -> Token {
+    @states.pop
+    single_character_token('tstring_close')
+  }
+
+  def template_string_expression_open -> Token {
+    @states.push(STATE_DEFAULT)
+    @curly_brace_stack.push(@curly_braces)
+
+    @curly_braces += 1
+
+    single_character_token('tstring_expr_open')
+  }
+
+  def template_string_text -> Token {
+    let column = @column
+    let line = @line
+    let buffer = ByteArray.new
+    let line_buffer = ByteArray.new
+
+    {
+      # Template strings may be wrapped across lines with a backslash, like so:
+      #
+      #     `foo \
+      #       bar`
+      #
+      # In this case, the backslash and all whitespace that follows it should be
+      # skipped. This means the above is equivalent to:
+      #
+      #     `foo bar`
+      (current_byte == BACKSLASH)
+        .and { next_is_whitespace? }
+        .if_true {
+          advance_one_byte
+          consume_whitespace
+        }
+
+      match(current_byte) {
+        NULL, BACKTICK, CURLY_OPEN -> { False }
+        else -> { True }
+      }
+    }.while_true {
+      append_string_byte(
+        buffer: buffer,
+        line_buffer: line_buffer,
+        replacements: TEMPLATE_STRING_ESCAPE_SEQUENCES
+      )
+    }
+
+    let location = source_location(line: line, column: column)
+    let value =
+      string_value(buffer: buffer, line_buffer: line_buffer, start_line: line)
+
+    RegularToken.new(type: 'tstring_text', value: value, location: location)
   }
 
   def colon -> Token {
@@ -650,17 +774,12 @@ object Lexer {
     type: String,
     start: Integer,
     line: Integer,
-    padding = 0
+    column = @column
   ) -> Token {
     let value = slice_string(start: start, stop: @position)
+    let location = source_location(line: line, column: column)
 
-    # Padding is applied for cases where an expression starts with a set of
-    # characters we don't want to include in the value, but _do_ want to use to
-    # advance the column number.
-    let length = value.length + padding
-    let location = source_location(line)
-
-    @column += length
+    @column += value.length
 
     RegularToken.new(type: type, value: value, location: location)
   }
@@ -694,8 +813,8 @@ object Lexer {
     InvalidToken.new(value: value, location: location)
   }
 
-  def source_location(line: Integer) -> SourceLocation {
-    SourceLocation.new(file: @file, line_range: line..@line, column: @column)
+  def source_location(line: Integer, column = @column) -> SourceLocation {
+    SourceLocation.new(file: @file, line_range: line..@line, column: column)
   }
 
   def current_location -> SourceLocation {
@@ -714,6 +833,13 @@ object Lexer {
     }
 
     consume_whitespace
+  }
+
+  def next_is_whitespace? -> Boolean {
+    match(next_byte) {
+      SPACE, TAB, CARRIAGE_RETURN, NEWLINE -> { True }
+      else -> { False }
+    }
   }
 
   def advance_line {

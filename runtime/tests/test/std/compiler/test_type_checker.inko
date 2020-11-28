@@ -22,7 +22,6 @@ import std::compiler::type_checker::*
 import std::compiler::types::*
 import std::mirror::ObjectMirror
 import std::process
-import std::string_buffer::StringBuffer
 import std::test
 import std::test::assert
 
@@ -35,8 +34,7 @@ def parse(input: String) -> Body {
 }
 
 def parse_type(type: String) -> Node {
-  let input = StringBuffer.new('let x: ', type, '= 10').to_string
-  let node = parse(input).children[0] as DefineLocalVariable
+  let node = parse(`let x: {type} = 10`).children[0] as DefineLocalVariable
 
   node.value_type!
 }
@@ -58,12 +56,7 @@ def assert_object_instance(type: ?Type, instance_of: ObjectType) {
     as ObjectInstance when matched.instance_of == instance_of -> {}
     as Type -> {
       process.panic(
-        StringBuffer.new(
-          'Expected ',
-          matched.type_name,
-          ' to be an object instance of ',
-          instance_of.type_name
-        )
+        `Expected {matched.type_name} to be an object instance of {instance_of.type_name}`
       )
     }
     else -> { process.panic('Expected a Type instead of Nil') }

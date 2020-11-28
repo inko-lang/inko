@@ -23,7 +23,6 @@ import std::compiler::types::*
 import std::compiler::variable_scope::VariableScope
 import std::process
 import std::set::Set
-import std::string_buffer::StringBuffer
 
 # A message sent to an object that needs to be validated.
 object Message {
@@ -889,9 +888,9 @@ trait ExpressionTypePass: TypePass {
     message.type_parameter_types.copy_into_type(receiver)
 
     message.not_enough_arguments?.if_true {
-      type_checker.diagnostics.not_enough_arguments(
+      type_checker.diagnostics.invalid_number_of_arguments(
         given: message.required_arguments,
-        minimum: message.minimum_arguments,
+        expected: message.minimum_arguments,
         location: node.location
       )
 
@@ -899,9 +898,9 @@ trait ExpressionTypePass: TypePass {
     }
 
     message.too_many_arguments?.if_true {
-      type_checker.diagnostics.too_many_arguments(
+      type_checker.diagnostics.invalid_number_of_arguments(
         given: message.total_arguments,
-        maximum: message.maximum_arguments,
+        expected: message.maximum_arguments,
         location: node.location
       )
 
@@ -2278,17 +2277,21 @@ trait ExpressionTypePass: TypePass {
     let loc = node.location
 
     (given < required).if_true {
-      type_checker
-        .diagnostics
-        .not_enough_arguments(given: given, minimum: required, location: loc)
+      type_checker.diagnostics.invalid_number_of_arguments(
+        given: given,
+        expected: required,
+        location: loc
+      )
 
       return False
     }
 
     (given > required).if_true {
-      type_checker
-        .diagnostics
-        .too_many_arguments(given: given, maximum: required, location: loc)
+      type_checker.diagnostics.invalid_number_of_arguments(
+        given: given,
+        expected: required,
+        location: loc
+      )
 
       return False
     }
@@ -2444,11 +2447,10 @@ object TypeCheckImports {
       # diagnostics before running type checking. Not doing so will break this
       # code if it tries to type check a module dependency that hasn't been
       # parsed.
-      process.panic(StringBuffer.new(
-        'The module "',
-        name.to_string,
-        '" needs to be type checked, but has not been parsed into an AST'
-      ))
+      process.panic(
+        `The module "{name}" needs to be type checked, but has not been \
+          parsed into an AST`
+      )
     }
 
     @type_checker.check(name: name, ast: ast!)

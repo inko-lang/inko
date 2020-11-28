@@ -77,6 +77,7 @@ module Inkoc
         try_bang
         match
         yield
+        tstring_open
       ]
     ).freeze
 
@@ -587,6 +588,7 @@ module Inkoc
       when :paren_open then grouped_expression
       when :match then pattern_match(start)
       when :yield then yield_value(start)
+      when :tstring_open then template_string(start)
       else
         raise ParseError, "A value can not start with a #{start.type.inspect}"
       end
@@ -596,6 +598,24 @@ module Inkoc
 
     def string(start)
       AST::String.new(start.value, start.location)
+    end
+
+    def template_string(start)
+      members = []
+
+      while (token = @lexer.advance) && token.valid_but_not?(:tstring_close)
+        if token.type == :tstring_expr_open
+          unless @lexer.next_type_is?(:tstring_expr_close)
+            members << expression(advance!)
+          end
+
+          advance_and_expect!(:tstring_expr_close)
+        else
+          members << string(token)
+        end
+      end
+
+      AST::TemplateString.new(members, start.location)
     end
 
     def integer(start)

@@ -33,7 +33,7 @@ module Inkoc
       [
         '!', '@', '#', '$', '%', '^', '&', '*', '(', ')',
         '-', '+', '=', '\\', ':', ';', '"', '\'', '<', '>', '/',
-        ',', '.', ' ', "\r", "\n", '|', '[', ']'
+        ',', '.', ' ', "\r", "\n", '|', '[', ']', '{', '}'
       ]
     ).freeze
 
@@ -44,6 +44,9 @@ module Inkoc
     # consume a peeked value.
     NULL_TOKEN = NullToken.new.freeze
 
+    STATE_DEFAULT = 0
+    STATE_TSTRING_BODY = 1
+
     def initialize(input, file_path = Pathname.new('(eval)'), parse_comments: false)
       @input = input.is_a?(Array) ? input : input.chars
       @position = 0
@@ -53,6 +56,23 @@ module Inkoc
       @file = SourceFile.new(file_path)
       @comments = []
       @parse_comments = parse_comments
+      @states = []
+      @tstring_body_start = 0
+      @tstring_expr_close_at = -1
+      @curly_braces = 0
+      @curly_brace_stack = []
+    end
+
+    def state
+      @states[-1] || STATE_DEFAULT
+    end
+
+    def push_state(state)
+      @states.push(state)
+    end
+
+    def pop_state
+      @states.pop
     end
 
     # Returns the next available token, if any.
@@ -88,11 +108,19 @@ module Inkoc
       peek.type == type
     end
 
+    def advance_raw
+      if state == STATE_TSTRING_BODY
+        advance_tstring_body
+      else
+        advance_normal
+      end
+    end
+
     # rubocop: disable Metrics/AbcSize
     # rubocop: disable Metrics/CyclomaticComplexity
     # rubocop: disable Metrics/BlockLength
     # rubocop: disable Metrics/PerceivedComplexity
-    def advance_raw
+    def advance_normal
       loop do
         char = @input[@position]
 
@@ -131,6 +159,7 @@ module Inkoc
         when ' ', "\t" then advance_one
         when '_' then return starts_with_underscore
         when '?' then return question_mark
+        when '`' then return tstring_open
         else
           return NULL_TOKEN if SPECIALS.include?(char)
           return identifier_or_keyword if char && char == char.downcase
@@ -144,6 +173,78 @@ module Inkoc
     # rubocop: enable Metrics/CyclomaticComplexity
     # rubocop: enable Metrics/BlockLength
     # rubocop: enable Metrics/PerceivedComplexity
+
+    def advance_tstring_body
+      loop do
+        case @input[@position]
+        when '`' then return tstring_close
+        when '{' then return tstring_expr_open
+        when '\\' then tstring_escape
+        when nil then return NULL_TOKEN
+        else
+          @position += 1
+        end
+      end
+    end
+
+    def tstring_open
+      push_state(STATE_TSTRING_BODY)
+
+      token = new_token(:tstring_open, @position, @position += 1)
+      @tstring_body_start = @position
+
+      token
+    end
+
+    def tstring_close
+      return flush_tstring_body if flush_tstring_body?
+
+      pop_state
+      new_token(:tstring_close, @position, @position += 1)
+    end
+
+    def tstring_expr_open
+      return flush_tstring_body if flush_tstring_body?
+
+      push_state(STATE_DEFAULT)
+      @curly_brace_stack.push(@curly_braces)
+
+      @curly_braces += 1
+
+      new_token(:tstring_expr_open, @position, @position += 1)
+    end
+
+    def tstring_escape
+      case @input[@position + 1]
+      when '{', '`'
+        @position += 2
+      else
+        @position += 1
+      end
+    end
+
+    def flush_tstring_body
+      token = new_token(:tstring_body, @tstring_body_start, @position)
+
+      # This isn't efficient at all. Then again, this applies to pretty much the
+      # entire Ruby compiler, so instead we just focus on getting things done.
+      unescape_string(token.value)
+      unescape_backslash(token.value)
+      token.value.gsub!('\\`', '`')
+
+      # If a \ is followed by a newline and additional whitespace, we strip all
+      # of it. This makes it possible to wrap template strings across multiple
+      # lines, without introducing extra whitespace.
+      token.value.gsub!(/\\\s*\n\s*/m, '')
+
+      @tstring_body_start = 0
+
+      token
+    end
+
+    def flush_tstring_body?
+      @tstring_body_start.positive? && (@position > @tstring_body_start)
+    end
 
     def carriage_return
       advance_line
@@ -307,11 +408,25 @@ module Inkoc
     # rubocop: enable Metrics/CyclomaticComplexity
 
     def curly_open
+      @curly_braces += 1
       new_token(:curly_open, @position, @position += 1)
     end
 
     def curly_close
-      new_token(:curly_close, @position, @position += 1)
+      @curly_braces -= 1
+
+      type =
+        if @curly_brace_stack[-1] && @curly_brace_stack[-1] == @curly_braces
+          @tstring_body_start = @position + 1
+
+          @curly_brace_stack.pop
+          @states.pop
+          :tstring_expr_close
+        else
+          :curly_close
+        end
+
+      new_token(type, @position, @position += 1)
     end
 
     def paren_open
@@ -379,22 +494,10 @@ module Inkoc
       token.value.gsub!(escaped, quote) if has_escape
 
       if has_special && unescape_special
-        token.value.gsub!(
-          /\\?\\(t|r|n|e|0)/,
-          '\t' => "\t",
-          '\n' => "\n",
-          '\r' => "\r",
-          '\e' => "\e",
-          '\0' => "\0",
-          '\\\t' => '\t',
-          '\\\n' => '\n',
-          '\\\r' => '\r',
-          '\\\e' => '\e',
-          '\\\0' => '\0',
-        )
+        unescape_string(token.value)
       end
 
-      token.value.gsub!('\\\\', '\\') if replace_backslash
+      unescape_backslash(token.value) if replace_backslash
 
       @column += 2
 
@@ -402,6 +505,26 @@ module Inkoc
     end
     # rubocop: enable Metrics/PerceivedComplexity
     # rubocop: enable Metrics/CyclomaticComplexity
+
+    def unescape_string(string)
+      string.gsub!(
+        /\\?\\(t|r|n|e|0)/,
+        '\t' => "\t",
+        '\n' => "\n",
+        '\r' => "\r",
+        '\e' => "\e",
+        '\0' => "\0",
+        '\\\t' => '\t',
+        '\\\n' => '\n',
+        '\\\r' => '\r',
+        '\\\e' => '\e',
+        '\\\0' => '\0',
+      )
+    end
+
+    def unescape_backslash(string)
+      string.gsub!('\\\\', '\\')
+    end
 
     def colons
       start = @position

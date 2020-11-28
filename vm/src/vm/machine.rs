@@ -1338,10 +1338,15 @@ impl Machine {
                 }
                 Opcode::StringConcat => {
                     let reg = instruction.arg(0);
-                    let rec = context.get_register(instruction.arg(1));
-                    let arg = context.get_register(instruction.arg(2));
-                    let res =
-                        string::string_concat(&self.state, process, rec, arg)?;
+                    let start = instruction.arg(1);
+                    let len = instruction.arg(2);
+                    let res = string::string_concat(
+                        &self.state,
+                        process,
+                        context,
+                        start,
+                        len,
+                    )?;
 
                     context.set_register(reg, res);
                 }

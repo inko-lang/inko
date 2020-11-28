@@ -11,8 +11,11 @@ def lex_all(input: String) -> Array!(Token) {
   let tokens = Array.new
   let lexer = Lexer.new(input: input, file: 'test.inko')
 
-  { lexer.next? }.while_true { tokens.push(lexer.next) }
-  tokens
+  {
+    let token = lexer.next
+
+    token.null?.if(true: { return tokens }, false: { tokens.push(token) })
+  }.loop
 }
 
 test.group('std::compiler::lexer::Lexer.next') do (g) {
@@ -454,6 +457,19 @@ test.group('std::compiler::lexer::Lexer.next') do (g) {
     assert.equal(token.location.column, 1)
   }
 
+  g.test('Lexing a double quoted string containing a newline literal followed by an integer') {
+    let tokens = lex_all('"hello\nworld"10')
+
+    assert.equal(tokens[0].type, 'string')
+    assert.equal(tokens[0].value, "hello\nworld")
+    assert.equal(tokens[0].location.line_range, 1..1)
+    assert.equal(tokens[0].location.column, 1)
+
+    assert.equal(tokens[1].type, 'integer')
+    assert.equal(tokens[1].location.line_range, 1..1)
+    assert.equal(tokens[1].location.column, 15)
+  }
+
   g.test('Lexing a double quoted string containing a tab literal') {
     let token = lex('"hello\tworld"')
 
@@ -563,6 +579,20 @@ world\n" "hello"'
     assert.equal(tokens[1].value, 'hello')
     assert.equal(tokens[1].location.column, 10)
     assert.equal(tokens[1].location.line_range, 2..2)
+  }
+
+  g.test('Lexing a multi-line double quoted string followed by an integer') {
+    let tokens = lex_all("\"\nfoobar\"10")
+
+    assert.equal(tokens[0].type, 'string')
+    assert.equal(tokens[0].value, "\nfoobar")
+    assert.equal(tokens[0].location.line_range, 1..2)
+    assert.equal(tokens[0].location.column, 1)
+
+    assert.equal(tokens[1].type, 'integer')
+    assert.equal(tokens[1].value, '10')
+    assert.equal(tokens[1].location.line_range, 2..2)
+    assert.equal(tokens[1].location.column, 8)
   }
 
   g.test('Lexing a single colon') {
@@ -1583,6 +1613,198 @@ world\n" "hello"'
     assert.equal(token.type, 'identifier')
     assert.equal(token.value, 'foo')
     assert.false(lexer.next?)
+  }
+
+  g.test('Lexing an empty template string') {
+    let tokens = lex_all('``')
+
+    assert.equal(tokens[0].type, 'tstring_open')
+    assert.equal(tokens[0].value, '`')
+    assert.equal(tokens[0].location.line_range, 1..1)
+    assert.equal(tokens[0].location.column, 1)
+
+    assert.equal(tokens[1].type, 'tstring_close')
+    assert.equal(tokens[1].value, '`')
+    assert.equal(tokens[1].location.line_range, 1..1)
+    assert.equal(tokens[1].location.column, 2)
+  }
+
+  g.test('Lexing a template string with text') {
+    let tokens = lex_all('`hello`')
+
+    assert.equal(tokens[0].type, 'tstring_open')
+    assert.equal(tokens[0].value, '`')
+    assert.equal(tokens[0].location.line_range, 1..1)
+    assert.equal(tokens[0].location.column, 1)
+
+    assert.equal(tokens[1].type, 'tstring_text')
+    assert.equal(tokens[1].value, 'hello')
+    assert.equal(tokens[1].location.line_range, 1..1)
+    assert.equal(tokens[1].location.column, 2)
+
+    assert.equal(tokens[2].type, 'tstring_close')
+    assert.equal(tokens[2].value, '`')
+    assert.equal(tokens[2].location.line_range, 1..1)
+    assert.equal(tokens[2].location.column, 7)
+  }
+
+  g.test('Lexing a template string containing an expression') {
+    let tokens = lex_all('`foo{10}bar`')
+
+    assert.equal(tokens[0].type, 'tstring_open')
+    assert.equal(tokens[0].location.column, 1)
+
+    assert.equal(tokens[1].type, 'tstring_text')
+    assert.equal(tokens[1].value, 'foo')
+    assert.equal(tokens[1].location.column, 2)
+
+    assert.equal(tokens[2].type, 'tstring_expr_open')
+    assert.equal(tokens[2].value, '{')
+    assert.equal(tokens[2].location.column, 5)
+
+    assert.equal(tokens[3].type, 'integer')
+    assert.equal(tokens[3].value, '10')
+    assert.equal(tokens[3].location.column, 6)
+
+    assert.equal(tokens[4].type, 'tstring_expr_close')
+    assert.equal(tokens[4].value, '}')
+    assert.equal(tokens[4].location.column, 8)
+
+    assert.equal(tokens[5].type, 'tstring_text')
+    assert.equal(tokens[5].value, 'bar')
+    assert.equal(tokens[5].location.column, 9)
+
+    assert.equal(tokens[6].type, 'tstring_close')
+    assert.equal(tokens[6].value, '`')
+    assert.equal(tokens[6].location.column, 12)
+  }
+
+  g.test('Lexing a template string containing an expression with curly braces') {
+    let tokens = lex_all('`{{}}`')
+
+    assert.equal(tokens[0].type, 'tstring_open')
+    assert.equal(tokens[1].type, 'tstring_expr_open')
+    assert.equal(tokens[2].type, 'curly_open')
+    assert.equal(tokens[3].type, 'curly_close')
+    assert.equal(tokens[4].type, 'tstring_expr_close')
+    assert.equal(tokens[5].type, 'tstring_close')
+  }
+
+  g.test('Lexing a template string containing an escaped backtick') {
+    let tokens = lex_all('`\\``')
+
+    assert.equal(tokens[0].type, 'tstring_open')
+    assert.equal(tokens[1].type, 'tstring_text')
+    assert.equal(tokens[1].value, '`')
+    assert.equal(tokens[2].type, 'tstring_close')
+  }
+
+  g.test('Lexing a template string containing an escaped escape sequence') {
+    let tokens = lex_all('`\\\n`')
+
+    assert.equal(tokens[0].type, 'tstring_open')
+    assert.equal(tokens[1].type, 'tstring_text')
+    assert.equal(tokens[1].value, '\n')
+    assert.equal(tokens[2].type, 'tstring_close')
+  }
+
+  g.test('Lexing a template string in curly braces containing an expression with curly braces') {
+    let tokens = lex_all('{`{{}}`}')
+
+    assert.equal(tokens[0].type, 'curly_open')
+    assert.equal(tokens[1].type, 'tstring_open')
+    assert.equal(tokens[2].type, 'tstring_expr_open')
+    assert.equal(tokens[3].type, 'curly_open')
+    assert.equal(tokens[4].type, 'curly_close')
+    assert.equal(tokens[5].type, 'tstring_expr_close')
+    assert.equal(tokens[6].type, 'tstring_close')
+    assert.equal(tokens[7].type, 'curly_close')
+  }
+
+  g.test('Lexing a template string containing escape sequences') {
+    let tokens = lex_all('`\n\r\t\e`10')
+
+    assert.equal(tokens[0].type, 'tstring_open')
+    assert.equal(tokens[1].type, 'tstring_text')
+    assert.equal(tokens[1].value, "\n\r\t\e")
+    assert.equal(tokens[2].type, 'tstring_close')
+    assert.equal(tokens[3].type, 'integer')
+    assert.equal(tokens[3].location.column, 11)
+  }
+
+  g.test('Lexing a template string wrapped across lines') {
+    let tokens = lex_all(
+      '`foo \
+        bar`'
+    )
+
+    assert.equal(tokens[0].type, 'tstring_open')
+
+    assert.equal(tokens[1].type, 'tstring_text')
+    assert.equal(tokens[1].value, 'foo bar')
+    assert.equal(tokens[1].location.line_range, 1..2)
+
+    assert.equal(tokens[2].type, 'tstring_close')
+    assert.equal(tokens[2].location.line_range, 2..2)
+  }
+
+  g.test('Lexing a template string containing newlines') {
+    let tokens = lex_all("`foo\nbar`")
+
+    assert.equal(tokens[0].type, 'tstring_open')
+
+    assert.equal(tokens[1].type, 'tstring_text')
+    assert.equal(tokens[1].value, "foo\nbar")
+    assert.equal(tokens[1].location.line_range, 1..2)
+
+    assert.equal(tokens[2].type, 'tstring_close')
+    assert.equal(tokens[2].location.line_range, 2..2)
+  }
+
+  g.test('Lexing nested template strings with expressions') {
+    let tokens = lex_all('`foo{`a{10}b`}bar`')
+
+    # `foo{
+    assert.equal(tokens[0].type, 'tstring_open')
+    assert.equal(tokens[1].type, 'tstring_text')
+    assert.equal(tokens[1].value, 'foo')
+    assert.equal(tokens[2].type, 'tstring_expr_open')
+
+    # `a{10}b`
+    assert.equal(tokens[3].type, 'tstring_open')
+    assert.equal(tokens[4].type, 'tstring_text')
+    assert.equal(tokens[4].value, 'a')
+    assert.equal(tokens[5].type, 'tstring_expr_open')
+    assert.equal(tokens[6].type, 'integer')
+    assert.equal(tokens[7].type, 'tstring_expr_close')
+    assert.equal(tokens[8].type, 'tstring_text')
+    assert.equal(tokens[8].value, 'b')
+    assert.equal(tokens[9].type, 'tstring_close')
+
+    # }bar`
+    assert.equal(tokens[10].type, 'tstring_expr_close')
+    assert.equal(tokens[11].type, 'tstring_text')
+    assert.equal(tokens[11].value, 'bar')
+    assert.equal(tokens[12].type, 'tstring_close')
+  }
+
+  g.test('Lexing a multi-line template string followed by an integer') {
+    let tokens = lex_all("`foo\nbar`10")
+
+    assert.equal(tokens[0].type, 'tstring_open')
+
+    assert.equal(tokens[1].type, 'tstring_text')
+    assert.equal(tokens[1].value, "foo\nbar")
+    assert.equal(tokens[1].location.column, 2)
+    assert.equal(tokens[1].location.line_range, 1..2)
+
+    assert.equal(tokens[2].type, 'tstring_close')
+    assert.equal(tokens[2].location.line_range, 2..2)
+    assert.equal(tokens[2].location.column, 4)
+
+    assert.equal(tokens[3].type, 'integer')
+    assert.equal(tokens[3].location.line_range, 2..2)
+    assert.equal(tokens[3].location.column, 5)
   }
 }
 

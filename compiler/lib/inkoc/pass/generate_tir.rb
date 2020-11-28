@@ -172,6 +172,45 @@ module Inkoc
         set_string(node.value, body, node.location)
       end
 
+      def on_template_string(node, body)
+        registers = node.members.map do |member|
+          register = process_node(member, body)
+          type = register.type
+
+          if type.type_instance_of?(typedb.string_type)
+            register
+          else
+            to_string = type.lookup_method('to_string').type
+
+            send_object_message(
+              register,
+              to_string.name,
+              [],
+              to_string,
+              member.type,
+              body,
+              member.location
+            )
+          end
+        end
+
+        string_concat(registers, body, node.location)
+      end
+
+      def string_concat(registers, body, location)
+        result = body.register(typedb.string_type.new_instance)
+        aligned = make_registers_contiguous(registers, body, location)
+        first = aligned.first || result
+        length = registers.length
+
+        body.instruct(:StringConcat, result, first, length, location)
+
+        body.registers.release_all(registers)
+        body.registers.release_all(aligned)
+
+        result
+      end
+
       def on_self(node, body)
         get_self(body, node.location)
       end
@@ -1159,7 +1198,10 @@ module Inkoc
       end
 
       def on_raw_string_concat(node, body)
-        raw_binary_instruction(:StringConcat, node, body)
+        rec = process_node(node.arguments.fetch(0), body)
+        arg = process_node(node.arguments.fetch(1), body)
+
+        string_concat([rec, arg], body, node.location)
       end
 
       def on_raw_string_slice(node, body)

@@ -105,7 +105,6 @@ import std::index::(Index, SetIndex)
 import std::io::Close
 import std::operators::Equal
 import std::process
-import std::string_buffer::StringBuffer
 
 # A dynamically loaded C library.
 let Library = _INKOC.get_ffi_library_prototype
@@ -460,10 +459,7 @@ impl SetIndex!(String, Type) for LayoutBuilder {
   # Trying to redefine a member will result in a panic.
   def []=(name: String, type: Type) -> Type {
     @existing.get(name).if_true {
-      let error =
-        StringBuffer.new('The member ', name, ' has already been defined')
-
-      process.panic(error)
+      process.panic(`The member {name} has already been defined`)
     }
 
     @existing[name] = True

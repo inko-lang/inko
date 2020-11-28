@@ -3,7 +3,6 @@
 # This module provides various facilities for debugging programs during
 # runtime, such as obtaining stack traces.
 import std::fs::path::(Path, ToPath)
-import std::string_buffer::StringBuffer
 
 # Details of a single call frame in a call stack.
 object CallFrame {

@@ -244,6 +244,15 @@ module Inkoc
           .instruct(:ArrayAllocate, [register, start, len], tir_ins.location)
       end
 
+      def on_string_concat(tir_ins, compiled_code, *)
+        register = tir_ins.register.id
+        start = tir_ins.start.id
+        len = tir_ins.length
+
+        compiled_code
+          .instruct(:StringConcat, [register, start, len], tir_ins.location)
+      end
+
       def on_set_attribute(tir_ins, compiled_code, *)
         reg = tir_ins.register.id
         rec = tir_ins.receiver.id

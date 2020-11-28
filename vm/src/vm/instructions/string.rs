@@ -1,4 +1,5 @@
 //! VM functions for working with Inko strings.
+use crate::execution_context::ExecutionContext;
 use crate::object_pointer::ObjectPointer;
 use crate::object_value;
 use crate::process::RcProcess;
@@ -99,13 +100,20 @@ pub fn string_size(
 pub fn string_concat(
     state: &RcState,
     process: &RcProcess,
-    concat: ObjectPointer,
-    concat_with: ObjectPointer,
+    context: &ExecutionContext,
+    start_reg: u16,
+    amount: u16,
 ) -> Result<ObjectPointer, String> {
-    let new_string = concat.string_value()? + concat_with.string_value()?;
+    let mut buffer = String::new();
+
+    for register in start_reg..(start_reg + amount) {
+        let ptr = context.get_register(register);
+
+        buffer.push_str(ptr.string_value()?.as_slice());
+    }
 
     let result = process.allocate(
-        object_value::immutable_string(new_string),
+        object_value::immutable_string(buffer.into()),
         state.string_prototype,
     );
 

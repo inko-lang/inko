@@ -21,6 +21,7 @@ class InkoLexer(RegexLexer):
 
             ('"', token.String.Double, 'dstring'),
             ("'", token.String.Single, 'sstring'),
+            ("`", token.String.Double, 'tstring'),
 
             (r'_?[A-Z]\w*', token.Name.Constant),
             (r'@_?\w+', token.Name.Variable.Instance),
@@ -54,5 +55,10 @@ class InkoLexer(RegexLexer):
             (r"[^'\\]+", token.String.Single),
             (r"\\.", token.String.Escape),
             ("'", token.String.Single, '#pop')
+        ],
+        'tstring': [
+            (r'[^`\\]+', token.String.Double),
+            (r'\\.', token.String.Escape),
+            ('`', token.String.Double, '#pop'),
         ]
     }

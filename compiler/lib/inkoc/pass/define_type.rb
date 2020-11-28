@@ -41,6 +41,32 @@ module Inkoc
         typedb.string_type.new_instance
       end
 
+      def on_template_string(node, scope)
+        conv_mod = @state.module(Config::CONVERSION_MODULE)
+
+        unless conv_mod
+          diagnostics.template_strings_unavailable(node.location)
+          return TypeSystem::Error.new
+        end
+
+        trait = conv_mod.lookup_type(Config::TO_STRING_CONST)
+
+        unless trait
+          diagnostics.template_strings_unavailable(node.location)
+          return TypeSystem::Error.new
+        end
+
+        node.members.each do |member|
+          type = define_type(member, scope)
+
+          if !type.error? && !type.type_compatible?(trait, @state)
+            diagnostics.missing_to_string_trait(type, member.location)
+          end
+        end
+
+        typedb.string_type.new_instance
+      end
+
       def on_block_type(node, scope)
         proto = @state.typedb.block_type
         type =

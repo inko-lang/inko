@@ -11,7 +11,6 @@ import std::conditional::Conditional
 import std::mirror::Mirrored
 import std::operators::(Equal, Greater)
 import std::process::(self, Process)
-import std::string_buffer::StringBuffer
 
 # The result of a PanicTest.
 object PanicResult {
@@ -65,12 +64,7 @@ object PanicTest {
 def equal!(T: Mirrored + Equal)(given: T, expected: T) {
   (given == expected).if_true { return }
 
-  let error = StringBuffer.new(
-    'Expected ',
-    given.mirror.inspect,
-    ' to equal ',
-    expected.mirror.inspect,
-  )
+  let error = `Expected {given.mirror.inspect} to equal {expected.mirror.inspect}`
 
   process.panic(error)
 }
@@ -79,12 +73,8 @@ def equal!(T: Mirrored + Equal)(given: T, expected: T) {
 def not_equal!(T: Mirrored + Equal)(given: T, expected: T) {
   (given == expected).if_false { return }
 
-  let error = StringBuffer.new(
-    'Expected ',
-    given.mirror.inspect,
-    ' not to equal ',
-    expected.mirror.inspect,
-  )
+  let error = `Expected {given.mirror.inspect} not to equal \
+    {expected.mirror.inspect}`
 
   process.panic(error)
 }
@@ -93,12 +83,8 @@ def not_equal!(T: Mirrored + Equal)(given: T, expected: T) {
 def greater!(T: Mirrored + Greater)(given: T, minimum: T) {
   (given > minimum).if_true { return }
 
-  let error = StringBuffer.new(
-    'Expected ',
-    given.mirror.inspect,
-    ' to be greater than ',
-    minimum.mirror.inspect,
-  )
+  let error = `Expected {given.mirror.inspect} to be greater than \
+    {minimum.mirror.inspect}`
 
   process.panic(error)
 }
@@ -144,8 +130,7 @@ def no_panic(block: lambda) {
 def true!(T: Mirrored + Conditional)(value: T) {
   value.if_true { return }
 
-  let error =
-    StringBuffer.new('Expected ', value.mirror.inspect, ' to be truthy')
+  let error = `Expected {value.mirror.inspect} to be truthy`
 
   process.panic(error)
 }
@@ -157,8 +142,7 @@ def true!(T: Mirrored + Conditional)(value: T) {
 def false!(T: Mirrored + Conditional)(value: T) {
   value.if_false { return }
 
-  let error =
-    StringBuffer.new('Expected ', value.mirror.inspect, ' to be falsy')
+  let error = `Expected {value.mirror.inspect} to be falsy`
 
   process.panic(error)
 }

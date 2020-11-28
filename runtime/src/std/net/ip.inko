@@ -305,22 +305,12 @@ impl ToString for Ipv6Address {
       # octet in an IPv4 address. For example, for a hextet 0x2ff this produces
       # an octet of 255.
       let hextet_to_octet_modulo = _IPV4_OCTET_MAXIMUM + 1
+      let prefix = ipv4_compatible.if(true: { '::' }, false: { '::ffff:' })
 
-      let ipv4_address = StringBuffer
-        .new(
-          (@segments[6] >> _IPV4_TO_IPV6_SHIFT).to_string,
-          '.',
-          (@segments[6] % hextet_to_octet_modulo).to_string,
-          '.',
-          (@segments[7] >> _IPV4_TO_IPV6_SHIFT).to_string,
-          '.',
-          (@segments[7] % hextet_to_octet_modulo).to_string
-        )
-        .to_string
-
-      ipv4_compatible.if_true { return '::' + ipv4_address }
-
-      return '::ffff:' + ipv4_address
+      return `{prefix}{@segments[6] >> _IPV4_TO_IPV6_SHIFT}\
+        .{@segments[6] % hextet_to_octet_modulo}\
+        .{@segments[7] >> _IPV4_TO_IPV6_SHIFT}\
+        .{@segments[7] % hextet_to_octet_modulo}`
     }
 
     let mut compression_start = 0
@@ -602,17 +592,7 @@ impl ToString for Ipv4Address {
   #     Ipv4Address.new.to_string # => '0.0.0.0'
   #     Ipv4Address.new(127, 0, 0, 1) # => '127.0.0.1'
   def to_string -> String {
-    StringBuffer
-      .new(
-        @segments[0].to_string,
-        '.',
-        @segments[1].to_string,
-        '.',
-        @segments[2].to_string,
-        '.',
-        @segments[3].to_string
-      )
-      .to_string
+    `{@segments[0]}.{@segments[1]}.{@segments[2]}.{@segments[3]}`
   }
 }
 

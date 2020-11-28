@@ -24,6 +24,7 @@ module Inkoc
 
     MARKER_MODULE = 'std::marker'
     OPERATORS_MODULE = 'std::operators'
+    CONVERSION_MODULE = 'std::conversion'
 
     OBJECT_CONST = 'Object'
     TRAIT_CONST = 'Trait'
@@ -42,6 +43,7 @@ module Inkoc
     OPTIONAL_CONST = 'Optional'
     ANY_TRAIT_CONST = 'Any'
     MATCH_CONST = 'Match'
+    TO_STRING_CONST = 'ToString'
 
     MODULE_TYPE = 'Module'
     FFI_LIBRARY_TYPE = 'Library'
