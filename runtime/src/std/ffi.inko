@@ -129,7 +129,7 @@ impl Pointer {
   }
 
   # Returns a NULL `Pointer`.
-  def null -> Self {
+  static def null -> Self {
     new(NULL_ADDRESS)
   }
 
