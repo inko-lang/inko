@@ -52,6 +52,7 @@ use crate::arc_without_weak::ArcWithoutWeak;
 use crate::object_pointer::ObjectPointer;
 use crate::object_value::{self, ObjectValue};
 use crate::process::RcProcess;
+use crate::runtime_error::RuntimeError;
 use crate::vm::state::RcState;
 use libffi::low::{
     call as ffi_call, ffi_abi_FFI_DEFAULT_ABI as ABI, ffi_cif, ffi_type,
@@ -666,8 +667,8 @@ impl Function {
         name: &str,
         arguments: &[ObjectPointer],
         return_type: ObjectPointer,
-    ) -> Result<RcFunction, String> {
-        let func_ptr = library.get(name)?;
+    ) -> Result<RcFunction, RuntimeError> {
+        let func_ptr = library.get(name).map_err(RuntimeError::ErrorMessage)?;
         let ffi_rtype = ffi_type_for(return_type)?;
         let mut ffi_arg_types = Vec::with_capacity(arguments.len());
 
@@ -675,11 +676,11 @@ impl Function {
             ffi_arg_types.push(ffi_type_for(*ptr)?);
         }
 
-        Self::create(func_ptr, ffi_arg_types, ffi_rtype)
+        Self::create(func_ptr, ffi_arg_types, ffi_rtype).map_err(|e| e.into())
     }
 
     /// Creates a new prepared function.
-    pub unsafe fn create(
+    unsafe fn create(
         pointer: Pointer,
         arguments: Vec<TypePointer>,
         return_type: TypePointer,

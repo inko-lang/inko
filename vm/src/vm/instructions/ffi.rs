@@ -3,6 +3,7 @@ use crate::ffi;
 use crate::object_pointer::ObjectPointer;
 use crate::object_value;
 use crate::process::RcProcess;
+use crate::runtime_error::RuntimeError;
 use crate::vm::state::RcState;
 
 #[inline(always)]
@@ -10,9 +11,10 @@ pub fn ffi_library_open(
     state: &RcState,
     process: &RcProcess,
     names_ptr: ObjectPointer,
-) -> Result<ObjectPointer, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     let names = names_ptr.array_value()?;
-    let lib = ffi::Library::from_pointers(names)?;
+    let lib = ffi::Library::from_pointers(names)
+        .map_err(RuntimeError::ErrorMessage)?;
 
     Ok(process
         .allocate(object_value::library(lib), state.ffi_library_prototype))
@@ -26,7 +28,7 @@ pub fn ffi_function_attach(
     name: ObjectPointer,
     arg_types: ObjectPointer,
     rtype: ObjectPointer,
-) -> Result<ObjectPointer, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     let func = unsafe {
         let lib = lib.library_value()?;
         let name = name.string_value()?.as_slice();
@@ -59,10 +61,14 @@ pub fn ffi_pointer_attach(
     state: &RcState,
     process: &RcProcess,
     lib: ObjectPointer,
-    name: ObjectPointer,
-) -> Result<ObjectPointer, String> {
-    let raw_ptr =
-        unsafe { lib.library_value()?.get(name.string_value()?.as_slice())? };
+    name_ptr: ObjectPointer,
+) -> Result<ObjectPointer, RuntimeError> {
+    let name = name_ptr.string_value()?.as_slice();
+    let raw_ptr = unsafe {
+        lib.library_value()?
+            .get(name)
+            .map_err(RuntimeError::ErrorMessage)?
+    };
 
     let result = process
         .allocate(object_value::pointer(raw_ptr), state.ffi_pointer_prototype);

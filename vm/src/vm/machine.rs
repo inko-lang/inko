@@ -1681,8 +1681,13 @@ impl Machine {
                 Opcode::FFILibraryOpen => {
                     let reg = instruction.arg(0);
                     let names = context.get_register(instruction.arg(1));
-                    let res =
-                        ffi::ffi_library_open(&self.state, process, names)?;
+                    let res = try_error!(
+                        ffi::ffi_library_open(&self.state, process, names),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
                     context.set_register(reg, res);
                 }
@@ -1692,14 +1697,20 @@ impl Machine {
                     let name = context.get_register(instruction.arg(2));
                     let args = context.get_register(instruction.arg(3));
                     let rtype = context.get_register(instruction.arg(4));
-                    let res = ffi::ffi_function_attach(
-                        &self.state,
+                    let res = try_error!(
+                        ffi::ffi_function_attach(
+                            &self.state,
+                            process,
+                            lib,
+                            name,
+                            args,
+                            rtype,
+                        ),
+                        self,
                         process,
-                        lib,
-                        name,
-                        args,
-                        rtype,
-                    )?;
+                        context,
+                        index
+                    );
 
                     context.set_register(reg, res);
                 }
@@ -1720,12 +1731,18 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let lib = context.get_register(instruction.arg(1));
                     let name = context.get_register(instruction.arg(2));
-                    let res = ffi::ffi_pointer_attach(
-                        &self.state,
+                    let res = try_error!(
+                        ffi::ffi_pointer_attach(
+                            &self.state,
+                            process,
+                            lib,
+                            name,
+                        ),
+                        self,
                         process,
-                        lib,
-                        name,
-                    )?;
+                        context,
+                        index
+                    );
 
                     context.set_register(reg, res);
                 }

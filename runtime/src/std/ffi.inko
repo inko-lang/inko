@@ -100,6 +100,7 @@
 #     let errno = libc.variable('errno')
 #
 #     errno.read(types.i32) # => 0
+import std::error::StandardError
 import std::ffi::types::Type
 import std::index::(Index, SetIndex)
 import std::io::Close
@@ -175,17 +176,28 @@ impl Library {
   #
   # The `names` argument is an `Array` of library names to use for loading the
   # library. These names are used in order to find the corresponding library.
-  # This method will panic if the library could not be found.
   #
   # The names in this `Array` can either be the library name with extension,
   # such as `'libc.so.6'`, or absolute paths such as `'/usr/lib/libc.so.6'`.
-  static def new(names: Array!(String)) -> Self {
-    _INKOC.ffi_library_open(names)
+  #
+  # This method throws if the library can't be loaded.
+  static def new(names: Array!(String)) !! StandardError -> Self {
+    try {
+      _INKOC.ffi_library_open(names)
+    } else (error) {
+      throw StandardError.new(error as String)
+    }
   }
 
   # Returns a `Pointer` pointing to the address of the given variable.
-  def variable(name: String) -> Pointer {
-    _INKOC.ffi_pointer_attach(self, name)
+  #
+  # This method throws if there is no symbol with the given name.
+  def variable(name: String) !! StandardError -> Pointer {
+    try {
+      _INKOC.ffi_pointer_attach(self, name)
+    } else (error) {
+      throw StandardError.new(error as String)
+    }
   }
 }
 
@@ -197,19 +209,30 @@ impl Close for Library {
 }
 
 impl Function {
-  # Attaches a C function to Inko.
+  # Loads a C function from the given library.
+  #
+  # This method throws if there is no function with the given name.
+  #
+  # # Panics
+  #
+  # This method will panic if the argument types or return type are invalid
+  # values.
   static def new(
     library: Library,
     name: String,
     arguments: Array!(Type),
     returns: Type
-  ) -> Self {
-    _INKOC.ffi_function_attach(
-      library,
-      name,
-      arguments.iter.map do (type: Type) { type.to_integer }.to_array,
-      returns.to_integer
-    )
+  ) !! StandardError -> Self {
+    try {
+      _INKOC.ffi_function_attach(
+        library,
+        name,
+        arguments.iter.map do (type: Type) { type.to_integer }.to_array,
+        returns.to_integer
+      )
+    } else (error) {
+      throw StandardError.new(error as String)
+    }
   }
 
   # Calls the function with the given arguments.
@@ -223,15 +246,15 @@ impl Function {
 # Now that `Function` has been defined, we can define `Library.function` to make
 # it a bit easier to attach functions.
 impl Library {
-  # Attaches a function from the current library to Inko.
+  # Loads a C function from the given library.
   #
   # See `Function.new` for more information.
   def function(
     name: String,
     arguments: Array!(Type),
     returns: Type
-  ) -> Function {
-    Function
+  ) !! StandardError -> Function {
+    try Function
       .new(library: self, name: name, arguments: arguments, returns: returns)
   }
 }

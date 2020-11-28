@@ -23,12 +23,12 @@ let LIBC_PATHS = Array.new(
   'msvcrt.dll'
 )
 
-let LIBC = Library.new(LIBC_PATHS)
+let LIBC = try! Library.new(LIBC_PATHS)
 
-let CALLOC =
-  LIBC.function('calloc', Array.new(types.size_t, types.size_t), types.pointer)
+let CALLOC = try! LIBC
+  .function('calloc', Array.new(types.size_t, types.size_t), types.pointer)
 
-let FREE = LIBC.function('free', Array.new(types.pointer), types.void)
+let FREE = try! LIBC.function('free', Array.new(types.pointer), types.void)
 
 # The C `tm` structure, see `man ctime` for more information about this
 # structure.
@@ -260,7 +260,7 @@ test.group('std::ffi::Pointer.==') do (g) {
 test.group('std::ffi::Library.new') do (g) {
   g.test('Opening a non existing library') {
     assert.panic {
-      Library.new(Array.new('does-not-exist.so'))
+      try! Library.new(Array.new('does-not-exist.so'))
     }
   }
 
@@ -268,13 +268,13 @@ test.group('std::ffi::Library.new') do (g) {
     assert.no_panic {
       let paths = Array.new('does-not-exist.so').append(LIBC_PATHS)
 
-      Library.new(paths)
+      try! Library.new(paths)
     }
   }
 
   g.test('Opening an existing library') {
     assert.no_panic {
-      Library.new(LIBC_PATHS)
+      try! Library.new(LIBC_PATHS)
     }
   }
 }
@@ -282,13 +282,13 @@ test.group('std::ffi::Library.new') do (g) {
 test.group('std::ffi::Library.variable') do (g) {
   g.test('Obtaining a Pointer to an existing variable') {
     assert.no_panic {
-      LIBC.variable('malloc')
+      try! LIBC.variable('malloc')
     }
   }
 
   g.test('Obtaining a Pointer using a non existing variable') {
     assert.panic {
-      LIBC.variable('kittens')
+      try! LIBC.variable('kittens')
     }
   }
 }
@@ -296,7 +296,7 @@ test.group('std::ffi::Library.variable') do (g) {
 test.group('std::ffi::Library.close') do (g) {
   g.test('Closing a Library') {
     assert.no_panic {
-      Library.new(LIBC_PATHS).close
+      try! { Library.new(LIBC_PATHS) }.close
     }
   }
 }
@@ -304,7 +304,7 @@ test.group('std::ffi::Library.close') do (g) {
 test.group('std::ffi::Library.function') do (g) {
   g.test('Obtaining a Function using an existing function name') {
     assert.no_panic {
-      LIBC.function(
+      try! LIBC.function(
         name: 'malloc',
         arguments: Array.new(types.size_t),
         returns: types.pointer
@@ -314,7 +314,7 @@ test.group('std::ffi::Library.function') do (g) {
 
   g.test('Obtaining a Function using a non existing function name') {
     assert.panic {
-      LIBC.function(
+      try! LIBC.function(
         name: 'kittens',
         arguments: Array.new,
         returns: types.pointer
@@ -326,7 +326,7 @@ test.group('std::ffi::Library.function') do (g) {
 test.group('std::ffi::Function.new') do (g) {
   g.test('Obtaining a Function using an existing function name') {
     assert.no_panic {
-      Function.new(
+      try! Function.new(
         library: LIBC,
         name: 'malloc',
         arguments: Array.new(types.size_t),
@@ -337,7 +337,7 @@ test.group('std::ffi::Function.new') do (g) {
 
   g.test('Obtaining a Function using a non existing function name') {
     assert.panic {
-      Function.new(
+      try! Function.new(
         library: LIBC,
         name: 'kittens',
         arguments: Array.new,
@@ -349,7 +349,8 @@ test.group('std::ffi::Function.new') do (g) {
 
 test.group('std::ffi::Function.call') do (g) {
   g.test('Calling a function with a valid number of arguments') {
-    let time_func = LIBC.function('time', Array.new(types.pointer), types.i64)
+    let time_func =
+      try! LIBC.function('time', Array.new(types.pointer), types.i64)
     let timestamp = time_func.call(Pointer.null) as Integer
 
     assert.true(timestamp.positive?)
@@ -357,7 +358,8 @@ test.group('std::ffi::Function.call') do (g) {
 
   g.test('Calling a Function with an invalid number of arguments') {
     assert.panic {
-      let time_func = LIBC.function('time', Array.new(types.pointer), types.i64)
+      let time_func =
+        try! LIBC.function('time', Array.new(types.pointer), types.i64)
 
       time_func.call
     }
