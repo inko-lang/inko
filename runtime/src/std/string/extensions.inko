@@ -76,23 +76,36 @@ impl String {
   # Splits `self` into an `Array` of `Strings`, each separated by the given
   # separator.
   #
+  # This method yields the segments, instead of returning them as an `Array`.
+  #
   # # Examples
   #
   # Splitting a `String` using a single character as the separator:
   #
-  #     'foo/bar/baz'.split('/') # => Array.new('foo', 'bar', 'baz')
+  #     let iter = 'foo/bar/baz'.split('/')
+  #
+  #     iter.advance
+  #     iter.current # => 'foo'
+  #
+  #     iter.advance
+  #     iter.current # => 'bar'
   #
   # Splitting a `String` using multiple characters as the separator:
   #
-  #     'foo::bar::baz'.split('::') # => Array.new('foo', 'bar', 'baz')
-  def split(separator: String) -> Array!(String) {
-    empty?.if_true { return Array.new }
-
+  #     let iter = 'foo::bar::baz'.split('::')
+  #
+  #     iter.advance
+  #     iter.current # => 'foo'
+  #
+  #     iter.advance
+  #     iter.current # => 'bar'
+  def split(separator: String) => String {
+    empty?.if_true { return }
     separator.empty?.or { separator.length >= length }.if_true {
-      return Array.new(self)
+      yield self
+      return
     }
 
-    let segments = Array.new
     let buffer = ByteArray.new
     let sep_bytes = separator.to_byte_array
     let sep_start = sep_bytes[0]
@@ -106,7 +119,7 @@ impl String {
         .and { split_at?(string: self, separator: sep_bytes, start: index) }
         .if(
           true: {
-            segments.push(buffer.drain_to_string)
+            yield buffer.drain_to_string
             index += sep_bytes.length
           },
           false: {
@@ -116,8 +129,6 @@ impl String {
         )
     }
 
-    buffer.empty?.if_false { segments.push(buffer.drain_to_string) }
-
-    segments
+    buffer.empty?.if_false { yield buffer.drain_to_string }
   }
 }

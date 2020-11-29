@@ -210,51 +210,75 @@ test.group('std::string::String.slice_bytes') do (g) {
 }
 
 test.group('std::string::String.split') do (g) {
+  g.test('Splitting a string lazily') {
+    let iter = 'foo/bar'.split('/')
+
+    assert.true(iter.advance)
+    assert.equal(iter.current, 'foo')
+
+    assert.true(iter.advance)
+    assert.equal(iter.current, 'bar')
+
+    assert.false(iter.advance)
+  }
+
   g.test('Splitting a String using a single character separator') {
-    assert.equal('foo/bar/baz'.split('/'), Array.new('foo', 'bar', 'baz'))
+    let segments = 'foo/bar/baz'.split('/').to_array
+
+    assert.equal(segments, Array.new('foo', 'bar', 'baz'))
   }
 
   g.test('Splitting a String using multiple characters as the separator') {
-    assert.equal('foo::bar::baz'.split('::'), Array.new('foo', 'bar', 'baz'))
+    let segments = 'foo::bar::baz'.split('::').to_array
+
+    assert.equal(segments, Array.new('foo', 'bar', 'baz'))
   }
 
   g.test('Splitting a String that does not contain the separator') {
-    assert.equal('foo'.split('/'), Array.new('foo'))
+    let segments = 'foo'.split('/').to_array
+
+    assert.equal(segments, Array.new('foo'))
   }
 
   g.test('Splitting a String using a multibyte separator') {
-    assert.equal('foo→bar→baz'.split('→'), Array.new('foo', 'bar', 'baz'))
+    let segments = 'foo→bar→baz'.split('→').to_array
+
+    assert.equal(segments, Array.new('foo', 'bar', 'baz'))
   }
 
   g.test('Splitting a String containing multibyte characters') {
-    assert.equal('foo→bar→baz'.split('bar'), Array.new('foo→', '→baz'))
+    assert.equal('foo→bar→baz'.split('bar').to_array, Array.new('foo→', '→baz'))
   }
 
   g.test('Splitting a String containing multiple separators in a row') {
-    assert.equal('foo//bar/baz'.split('/'), Array.new('foo', '', 'bar', 'baz'))
+    let segments = 'foo//bar/baz'.split('/').to_array
+
+    assert.equal(segments, Array.new('foo', '', 'bar', 'baz'))
   }
 
   g.test('Splitting a String with an empty String as the separator') {
-    assert.equal('foo/bar/baz'.split(''), Array.new('foo/bar/baz'))
+    assert.equal('foo/bar/baz'.split('').to_array, Array.new('foo/bar/baz'))
   }
 
   g.test('Splitting a String with a separator longer than the String') {
-    assert.equal('foo/bar'.split('///////////////'), Array.new('foo/bar'))
+    let segments = 'foo/bar'.split('///////////////').to_array
+
+    assert.equal(segments, Array.new('foo/bar'))
   }
 
   g.test('Splitting a String that ends with the separator') {
-    assert.equal('foo/'.split('/'), Array.new('foo'))
+    assert.equal('foo/'.split('/').to_array, Array.new('foo'))
   }
 
   g.test('Splitting a String that ends with the separator multiple times') {
-    assert.equal('foo//'.split('/'), Array.new('foo', ''))
-    assert.equal('foo///'.split('/'), Array.new('foo', '', ''))
+    assert.equal('foo//'.split('/').to_array, Array.new('foo', ''))
+    assert.equal('foo///'.split('/').to_array, Array.new('foo', '', ''))
 
-    assert.equal('foo//'.split('//'), Array.new('foo'))
-    assert.equal('foo///'.split('//'), Array.new('foo', '/'))
+    assert.equal('foo//'.split('//').to_array, Array.new('foo'))
+    assert.equal('foo///'.split('//').to_array, Array.new('foo', '/'))
   }
 
   g.test('Splitting an empty String') {
-    assert.equal(''.split('/'), Array.new)
+    assert.equal(''.split('/').to_array, Array.new)
   }
 }
