@@ -723,6 +723,7 @@ module Inkoc
           .new(scope.self_type, type, @module, locals: node.body.locals)
 
         define_block_signature(node, new_scope)
+        define_generator_signature(node, new_scope) if node.yields
 
         if scope.self_type.trait?
           scope.self_type.define_required_method(type)

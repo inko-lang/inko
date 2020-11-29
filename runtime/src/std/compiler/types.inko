@@ -1429,19 +1429,45 @@ object MethodType {
   def yields {
     @yields = True
   }
+
+  def yield_type_compatible?(
+    with: BlockType,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean {
+    let ours = yield_type
+    let theirs = with.yield_type
+
+    match {
+      ours.nil? when theirs.nil? -> { True }
+      ours.not_nil? when theirs.not_nil? -> {
+        ours!.type_compatible?(with: theirs!, builtins: builtins, scope: scope)
+      }
+      # A method that yields can't safely substitute one that doesn't, and
+      # vice versa.
+      else -> { False }
+    }
+  }
 }
 
 impl Type for MethodType {
   def type_name -> String {
-    BlockNameBuilder
+    let builder = BlockNameBuilder
       .new('def ')
       .push(@name)
       .format_type_parameters(type_parameters)
       .format_arguments(arguments)
       .format_throw_type(throw_type)
-      .format_return_type(return_type)
-      .format_bounds(@type_parameter_bounds)
-      .to_string
+
+    yield_type.if(
+      true: {
+        builder.push(' => ')
+        builder.push(yield_type!.type_name)
+      },
+      false: { builder.format_return_type(return_type) }
+    )
+
+    builder.format_bounds(@type_parameter_bounds).to_string
   }
 
   def type_compatible?(
@@ -1451,9 +1477,17 @@ impl Type for MethodType {
   ) -> Boolean {
     match(let expected = with) {
       as MethodType -> {
-        (@name == expected.name).and {
-          block_compatible?(with: expected, builtins: builtins, scope: scope)
-        }
+        (@name == expected.name)
+          .and {
+            block_compatible?(with: expected, builtins: builtins, scope: scope)
+          }
+          .and {
+            yield_type_compatible?(
+              with: expected,
+              builtins: builtins,
+              scope: scope
+            )
+          }
       }
       as ObjectInstance -> {
         instance_of?(type: expected.instance_of, builtins: builtins)

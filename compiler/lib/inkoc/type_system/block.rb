@@ -149,7 +149,8 @@ module Inkoc
           compatible_rest_argument?(other) &&
           compatible_arguments?(other, state) &&
           compatible_throw_type?(other, state) &&
-          compatible_return_type?(other, state)
+          compatible_return_type?(other, state) &&
+          compatible_yield_type?(other, state)
       end
 
       # other - An instance of `Inkoc::TypeSystem::Block` to compare with.
@@ -207,6 +208,18 @@ module Inkoc
         resolve_type_parameter(return_type).type_compatible?(theirs, state)
       end
 
+      def compatible_yield_type?(other, state)
+        if yield_type && other.yield_type
+          theirs = other.resolve_type_parameter(other.yield_type)
+
+          resolve_type_parameter(yield_type).type_compatible?(theirs, state)
+        elsif yield_type.nil? && other.yield_type.nil?
+          true
+        else
+          false
+        end
+      end
+
       def type_name
         type_name = name
 
@@ -220,7 +233,7 @@ module Inkoc
           type_name += " !! #{resolve_type_parameter(throw_type).type_name}"
         end
 
-        if return_type
+        if return_type && !yield_type
           type_name += " -> #{resolve_type_parameter(return_type).type_name}"
         end
 

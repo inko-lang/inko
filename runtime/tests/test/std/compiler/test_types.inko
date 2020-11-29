@@ -1567,6 +1567,18 @@ test.group('std::compiler::types::MethodType.type_name') do (g) {
         ' when A: ToString, B: ToInteger + ToFloat, C: ToFoo'
     )
   }
+
+  g.test('Obtaining the type name of a MethodType that yields') {
+    let builtins = Builtins.new
+    let method = MethodType.new(
+      name: 'foo',
+      layout: BlockLayout.new(builtins.nil_type.new_instance)
+    )
+
+    method.yield_type = builtins.integer_type.new_instance
+
+    assert.equal(method.type_name, 'def foo => Integer')
+  }
 }
 
 test.group('std::compiler::types::MethodType.type_compatible?') do (g) {
@@ -1902,6 +1914,60 @@ test.group('std::compiler::types::MethodType.type_compatible?') do (g) {
       MethodType.new(name: 'foo', layout: BlockLayout.new(NeverType.new)),
       LambdaType.new(BlockLayout.new(NeverType.new))
     )
+  }
+
+  g.test("Comparing a MethodType that yields with a MethodType that doesn't yield") {
+    let builtins = Builtins.new
+    let nil_type = builtins.nil_type
+    let foo1 =
+      MethodType.new(name: 'foo', layout: BlockLayout.new(nil_type.new_instance))
+    let foo2 =
+      MethodType.new(name: 'foo', layout: BlockLayout.new(nil_type.new_instance))
+
+    foo1.yield_type = builtins.integer_type.new_instance
+
+    assert_not_compatible(compare: foo1, with: foo2, builtins: builtins)
+  }
+
+  g.test('Comparing a MethodType with a MethodType that yields') {
+    let builtins = Builtins.new
+    let nil_type = builtins.nil_type
+    let foo1 =
+      MethodType.new(name: 'foo', layout: BlockLayout.new(nil_type.new_instance))
+    let foo2 =
+      MethodType.new(name: 'foo', layout: BlockLayout.new(nil_type.new_instance))
+
+    foo2.yield_type = builtins.integer_type.new_instance
+
+    assert_not_compatible(compare: foo1, with: foo2, builtins: builtins)
+  }
+
+  g.test('Comparing two methods that yield an incompatible type') {
+    let builtins = Builtins.new
+    let nil_type = builtins.nil_type
+    let foo1 =
+      MethodType.new(name: 'foo', layout: BlockLayout.new(nil_type.new_instance))
+    let foo2 =
+      MethodType.new(name: 'foo', layout: BlockLayout.new(nil_type.new_instance))
+
+    foo1.yield_type = builtins.float_type.new_instance
+    foo2.yield_type = builtins.integer_type.new_instance
+
+    assert_not_compatible(compare: foo1, with: foo2, builtins: builtins)
+  }
+
+  g.test('Comparing two methods that yield compatible types') {
+    let builtins = Builtins.new
+    let nil_type = builtins.nil_type
+    let foo1 =
+      MethodType.new(name: 'foo', layout: BlockLayout.new(nil_type.new_instance))
+    let foo2 =
+      MethodType.new(name: 'foo', layout: BlockLayout.new(nil_type.new_instance))
+
+    foo1.yield_type = builtins.integer_type.new_instance
+    foo2.yield_type = builtins.integer_type.new_instance
+
+    assert_compatible(compare: foo1, with: foo2, builtins: builtins)
   }
 }
 
