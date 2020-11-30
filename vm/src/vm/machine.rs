@@ -2148,14 +2148,6 @@ impl Machine {
                     enter_context!(process, context, index);
                 }
                 Opcode::GeneratorYield => {
-                    if context.schedule_deferred_blocks(process)? {
-                        remember_and_reset!(process, context, index);
-                    }
-
-                    if context.terminate_upon_return {
-                        break 'exec_loop;
-                    }
-
                     let val = context.get_register(instruction.arg(0));
 
                     if !process.yield_value(val) {
