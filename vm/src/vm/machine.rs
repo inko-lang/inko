@@ -1,6 +1,6 @@
 //! Virtual Machine for running instructions
 use crate::execution_context::ExecutionContext;
-use crate::gc::collection::Collection;
+use crate::gc::collection::collect as collect_garbage;
 use crate::integer_operations;
 use crate::network_poller::Worker as NetworkPollerWorker;
 use crate::numeric::division::{FlooredDiv, OverflowingFlooredDiv};
@@ -40,6 +40,15 @@ use std::thread;
 
 /// The name of the module that acts as the entry point in an Inko program.
 const MAIN_MODULE_NAME: &str = "main";
+
+/// The number of reductions to apply for a method call.
+const METHOD_REDUCTION_COST: usize = 1;
+
+/// The base number of reductions to apply for a garbage collection cycle.
+///
+/// This value is chosen because GC cycles are more expensive than method calls.
+/// Other than that, it's entirely arbitrary.
+const GC_REDUCTION_COST: usize = 100;
 
 macro_rules! reset_context {
     ($process:expr, $context:ident, $index:ident) => {{
@@ -100,13 +109,11 @@ macro_rules! enter_context {
 }
 
 macro_rules! safepoint_and_reduce {
-    ($vm:expr, $process:expr, $reductions:expr) => {{
-        if $vm.gc_safepoint(&$process) {
-            return Ok(());
-        }
+    ($vm:expr, $worker:expr, $process:expr, $reductions:expr) => {{
+        let reduce_by = $vm.gc_safepoint(&$process, $worker);
 
-        if $reductions > 0 {
-            $reductions -= 1;
+        if $reductions >= reduce_by {
+            $reductions -= reduce_by;
         } else {
             $vm.state.scheduler.schedule($process.clone());
             return Ok(());
@@ -197,7 +204,6 @@ impl Machine {
         self.parse_image(path);
         self.schedule_main_process(MAIN_MODULE_NAME);
 
-        let gc_pool_guard = self.start_gc_threads();
         let secondary_guard = self.start_blocking_threads();
         let timeout_guard = self.start_timeout_worker_thread();
 
@@ -215,7 +221,6 @@ impl Machine {
         // don't want to re-panic as this clutters the error output.
         if primary_guard.join().is_err()
             || secondary_guard.join().is_err()
-            || gc_pool_guard.join().is_err()
             || timeout_guard.join().is_err()
             || poller_guard.join().is_err()
         {
@@ -229,10 +234,6 @@ impl Machine {
 
     fn start_blocking_threads(&self) -> JoinList<()> {
         self.state.scheduler.blocking_pool.start(self.clone())
-    }
-
-    fn start_gc_threads(&self) -> JoinList<()> {
-        self.state.gc_pool.start(self.state.clone())
     }
 
     fn start_timeout_worker_thread(&self) -> thread::JoinHandle<()> {
@@ -439,7 +440,7 @@ impl Machine {
                     }
 
                     reset_context!(process, context, index);
-                    safepoint_and_reduce!(self, process, reductions);
+                    safepoint_and_reduce!(self, worker, process, reductions);
                 }
                 Opcode::GotoIfFalse => {
                     let val = context.get_register(instruction.arg(1));
@@ -1131,7 +1132,7 @@ impl Machine {
 
                     block::tail_call(context, start, args);
                     reset_context!(process, context, index);
-                    safepoint_and_reduce!(self, process, reductions);
+                    safepoint_and_reduce!(self, worker, process, reductions);
                 }
                 Opcode::CopyBlocks => {
                     let to = context.get_register(instruction.arg(0));
@@ -2160,7 +2161,7 @@ impl Machine {
                     }
 
                     enter_context!(process, context, index);
-                    safepoint_and_reduce!(self, process, reductions);
+                    safepoint_and_reduce!(self, worker, process, reductions);
                 }
                 Opcode::GeneratorValue => {
                     let reg = instruction.arg(0);
@@ -2203,20 +2204,21 @@ impl Machine {
         Ok(())
     }
 
-    /// Checks if a garbage collection run should be scheduled for the given
+    /// Checks if a garbage collection run should be performed for the given
     /// process.
     ///
-    /// Returns true if a process should be suspended for garbage collection.
-    fn gc_safepoint(&self, process: &RcProcess) -> bool {
-        if !process.should_collect_young_generation() {
-            return false;
+    /// This method returns the number of reductions to apply.
+    fn gc_safepoint(
+        &self,
+        process: &RcProcess,
+        worker: &ProcessWorker,
+    ) -> usize {
+        if process.should_collect_young_generation() {
+            collect_garbage(&self.state, &process, &worker.tracers);
+            GC_REDUCTION_COST
+        } else {
+            METHOD_REDUCTION_COST
         }
-
-        self.state
-            .gc_pool
-            .schedule(Collection::new(process.clone()));
-
-        true
     }
 
     fn throw(

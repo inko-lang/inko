@@ -1,5 +1,6 @@
 //! Executing of lightweight Inko processes in a single thread.
 use crate::arc_without_weak::ArcWithoutWeak;
+use crate::gc::tracer::Pool as TracerPool;
 use crate::process::RcProcess;
 use crate::scheduler::pool_state::PoolState;
 use crate::scheduler::queue::RcQueue;
@@ -39,6 +40,9 @@ pub struct ProcessWorker {
     /// The random number generator for this thread.
     pub rng: ThreadRng,
 
+    /// The thread pool used for tracing live objects during garbage collection.
+    pub tracers: TracerPool,
+
     /// The queue owned by this worker.
     queue: RcQueue<RcProcess>,
 
@@ -60,6 +64,8 @@ impl ProcessWorker {
         state: ArcWithoutWeak<PoolState<RcProcess>>,
         machine: Machine,
     ) -> Self {
+        let tracers = machine.state.config.tracer_threads;
+
         ProcessWorker {
             id,
             random_number: rand::random(),
@@ -68,6 +74,7 @@ impl ProcessWorker {
             state,
             mode: Mode::Normal,
             machine: UnsafeCell::new(machine),
+            tracers: TracerPool::new(tracers),
         }
     }
 

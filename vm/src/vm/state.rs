@@ -5,7 +5,6 @@
 //! etc.
 use crate::arc_without_weak::ArcWithoutWeak;
 use crate::config::Config;
-use crate::gc::coordinator::Pool as GcPool;
 use crate::immix::global_allocator::{GlobalAllocator, RcGlobalAllocator};
 use crate::immix::permanent_allocator::PermanentAllocator;
 use crate::immutable_string::ImmutableString;
@@ -52,9 +51,6 @@ pub struct State {
 
     /// The scheduler to use for executing Inko processes.
     pub scheduler: ProcessScheduler,
-
-    /// The pool to use for garbage collection.
-    pub gc_pool: GcPool,
 
     /// The permanent memory allocator, used for global data.
     pub permanent_allocator: Mutex<Box<PermanentAllocator>>,
@@ -223,14 +219,12 @@ impl State {
         hasher_prototype.set_prototype(object_proto);
         generator_prototype.set_prototype(object_proto);
 
-        let gc_pool = GcPool::new(config.gc_threads);
         let mut state = State {
             scheduler: ProcessScheduler::new(
                 config.primary_threads,
                 config.blocking_threads,
             ),
             config,
-            gc_pool,
             permanent_allocator: Mutex::new(perm_alloc),
             global_allocator: global_alloc,
             string_pool: Mutex::new(StringPool::new()),
@@ -328,7 +322,6 @@ impl State {
     pub fn terminate(&self, status: i32) {
         self.set_exit_status(status);
         self.scheduler.terminate();
-        self.gc_pool.terminate();
         self.timeout_worker.terminate();
         self.network_poller.terminate();
     }
