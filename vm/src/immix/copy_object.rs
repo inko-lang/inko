@@ -2,12 +2,12 @@
 //!
 //! The CopyObject trait can be implemented by allocators to support copying of
 //! objects into a heap.
-
 use crate::block::Block;
 use crate::object::{AttributesMap, Object};
 use crate::object_pointer::ObjectPointer;
 use crate::object_value;
 use crate::object_value::ObjectValue;
+use crate::runtime_error::RuntimeError;
 
 pub trait CopyObject: Sized {
     /// Allocates a copied object.
@@ -16,9 +16,12 @@ pub trait CopyObject: Sized {
     /// Performs a deep copy of the given pointer.
     ///
     /// The copy of the input object is allocated on the current heap.
-    fn copy_object(&mut self, to_copy_ptr: ObjectPointer) -> ObjectPointer {
+    fn copy_object(
+        &mut self,
+        to_copy_ptr: ObjectPointer,
+    ) -> Result<ObjectPointer, RuntimeError> {
         if to_copy_ptr.is_permanent() {
-            return to_copy_ptr;
+            return Ok(to_copy_ptr);
         }
 
         let to_copy = to_copy_ptr.get();
@@ -38,19 +41,26 @@ pub trait CopyObject: Sized {
                 ObjectValue::InternedString(string.clone())
             }
             ObjectValue::Array(ref raw_vec) => {
-                let new_map =
-                    raw_vec.iter().map(|val_ptr| self.copy_object(*val_ptr));
+                let mut new_map = Vec::with_capacity(raw_vec.len());
 
-                object_value::array(new_map.collect::<Vec<_>>())
+                for value in raw_vec.iter() {
+                    new_map.push(self.copy_object(*value)?);
+                }
+
+                object_value::array(new_map)
             }
-            ObjectValue::File(_) => {
-                panic!("ObjectValue::File can not be cloned");
+            ObjectValue::File(ref file) => {
+                object_value::file(file.clone_to(self)?)
             }
             ObjectValue::Block(ref block) => {
                 let captures_from =
-                    block.captures_from.as_ref().map(|b| b.clone_to(self));
+                    if let Some(bind) = block.captures_from.as_ref() {
+                        Some(bind.clone_to(self)?)
+                    } else {
+                        None
+                    };
 
-                let receiver = self.copy_object(block.receiver);
+                let receiver = self.copy_object(block.receiver)?;
                 let new_block = Block::new(
                     block.code,
                     captures_from,
@@ -61,9 +71,7 @@ pub trait CopyObject: Sized {
                 object_value::block(new_block)
             }
             ObjectValue::Binding(ref binding) => {
-                let new_binding = binding.clone_to(self);
-
-                object_value::binding(new_binding)
+                object_value::binding(binding.clone_to(self)?)
             }
             ObjectValue::Hasher(ref hasher) => {
                 ObjectValue::Hasher((*hasher).clone())
@@ -86,12 +94,14 @@ pub trait CopyObject: Sized {
                 ObjectValue::Module(module.clone())
             }
             ObjectValue::Generator(_) => {
-                panic!("Generators can't be cloned");
+                return Err(RuntimeError::from(
+                    "Generator objects can't be copied",
+                ));
             }
         };
 
         let mut copy = if let Some(proto_ptr) = to_copy.prototype() {
-            let proto_copy = self.copy_object(proto_ptr);
+            let proto_copy = self.copy_object(proto_ptr)?;
 
             Object::with_prototype(value_copy, proto_copy)
         } else {
@@ -102,8 +112,8 @@ pub trait CopyObject: Sized {
             let mut map_copy = AttributesMap::default();
 
             for (key, val) in map.iter() {
-                let key_copy = self.copy_object(*key);
-                let val_copy = self.copy_object(*val);
+                let key_copy = self.copy_object(*key)?;
+                let val_copy = self.copy_object(*val)?;
 
                 map_copy.insert(key_copy, val_copy);
             }
@@ -111,7 +121,7 @@ pub trait CopyObject: Sized {
             copy.set_attributes_map(map_copy);
         }
 
-        self.allocate_copy(copy)
+        Ok(self.allocate_copy(copy))
     }
 }
 
@@ -157,7 +167,7 @@ mod tests {
     fn test_copy_none() {
         let mut dummy = DummyAllocator::new();
         let pointer = dummy.allocator.allocate_empty();
-        let copy = dummy.copy_object(pointer);
+        let copy = dummy.copy_object(pointer).unwrap();
 
         assert!(copy.get().value.is_none());
     }
@@ -170,7 +180,7 @@ mod tests {
 
         pointer.get_mut().set_prototype(proto);
 
-        let copy = dummy.copy_object(pointer);
+        let copy = dummy.copy_object(pointer).unwrap();
 
         assert!(copy.get().prototype().is_some());
     }
@@ -184,7 +194,7 @@ mod tests {
 
         ptr1.get_mut().add_attribute(name, ptr2);
 
-        let copy = dummy.copy_object(ptr1);
+        let copy = dummy.copy_object(ptr1).unwrap();
 
         assert!(copy.is_finalizable());
         assert!(copy.get().attributes_map().is_some());
@@ -197,7 +207,7 @@ mod tests {
             .allocator
             .allocate_without_prototype(object_value::integer(5));
 
-        let copy = dummy.copy_object(pointer);
+        let copy = dummy.copy_object(pointer).unwrap();
 
         assert!(copy.get().value.is_integer());
         assert_eq!(copy.integer_value().unwrap(), 5);
@@ -210,7 +220,7 @@ mod tests {
             .allocator
             .allocate_without_prototype(object_value::float(2.5));
 
-        let copy = dummy.copy_object(pointer);
+        let copy = dummy.copy_object(pointer).unwrap();
 
         assert!(copy.get().value.is_float());
         assert_eq!(copy.get().value.as_float().unwrap(), 2.5);
@@ -223,7 +233,7 @@ mod tests {
             .allocator
             .allocate_without_prototype(object_value::string("a".to_string()));
 
-        let copy = dummy.copy_object(pointer);
+        let copy = dummy.copy_object(pointer).unwrap();
 
         assert!(copy.get().value.is_string());
         assert_eq!(copy.string_value().unwrap().as_slice(), "a");
@@ -238,7 +248,7 @@ mod tests {
             .allocator
             .allocate_without_prototype(object_value::array(vec![ptr1, ptr2]));
 
-        let copy = dummy.copy_object(array);
+        let copy = dummy.copy_object(array).unwrap();
 
         assert!(copy.get().value.is_array());
         assert_eq!(copy.get().value.as_array().unwrap().len(), 2);
@@ -259,7 +269,7 @@ mod tests {
             .allocator
             .allocate_without_prototype(object_value::block(block));
 
-        let copy = dummy.copy_object(ptr);
+        let copy = dummy.copy_object(ptr).unwrap();
 
         assert!(copy.get().value.is_block());
     }
@@ -290,7 +300,7 @@ mod tests {
             .allocator
             .allocate_without_prototype(object_value::binding(binding2));
 
-        let binding_copy_ptr = dummy.copy_object(binding_ptr);
+        let binding_copy_ptr = dummy.copy_object(binding_ptr).unwrap();
         let binding_copy_obj = binding_copy_ptr.get();
 
         let binding_copy = binding_copy_obj.value.as_binding().unwrap();

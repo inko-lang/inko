@@ -3,6 +3,7 @@ use crate::immix::copy_object::CopyObject;
 use crate::object_pointer::ObjectPointer;
 use crate::object_value;
 use crate::process::RcProcess;
+use crate::runtime_error::RuntimeError;
 use crate::vm::state::RcState;
 
 #[inline(always)]
@@ -17,17 +18,19 @@ pub fn allocate(
 pub fn allocate_permanent(
     state: &RcState,
     proto_ptr: ObjectPointer,
-) -> ObjectPointer {
+) -> Result<ObjectPointer, RuntimeError> {
     let proto_to_use = if proto_ptr.is_permanent() {
         proto_ptr
     } else {
-        state.permanent_allocator.lock().copy_object(proto_ptr)
+        state.permanent_allocator.lock().copy_object(proto_ptr)?
     };
 
-    state
+    let new_ptr = state
         .permanent_allocator
         .lock()
-        .allocate_with_prototype(object_value::none(), proto_to_use)
+        .allocate_with_prototype(object_value::none(), proto_to_use);
+
+    Ok(new_ptr)
 }
 
 /// Returns a prototype for the given numeric ID.
@@ -101,14 +104,18 @@ pub fn set_attribute(
     target_ptr: ObjectPointer,
     name_ptr: ObjectPointer,
     value_ptr: ObjectPointer,
-) -> Result<ObjectPointer, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     if target_ptr.is_immutable() {
-        return Err("Attributes can't be set for immutable objects".to_string());
+        return Err(RuntimeError::from(
+            "Attributes can't be set for immutable objects",
+        ));
     }
 
-    let name = state.intern_pointer(name_ptr).unwrap_or_else(|_| {
+    let name = if let Ok(ptr) = state.intern_pointer(name_ptr) {
+        ptr
+    } else {
         copy_if_permanent!(state.permanent_allocator, name_ptr, target_ptr)
-    });
+    };
 
     let value =
         copy_if_permanent!(state.permanent_allocator, value_ptr, target_ptr);
@@ -167,9 +174,9 @@ pub fn copy_blocks(
     state: &RcState,
     target_ptr: ObjectPointer,
     source_ptr: ObjectPointer,
-) {
+) -> Result<(), RuntimeError> {
     if target_ptr.is_immutable() || source_ptr.is_immutable() {
-        return;
+        return Ok(());
     }
 
     let object = target_ptr.get_mut();
@@ -187,6 +194,8 @@ pub fn copy_blocks(
             object.add_attribute(*key, block);
         }
     }
+
+    Ok(())
 }
 
 #[inline(always)]

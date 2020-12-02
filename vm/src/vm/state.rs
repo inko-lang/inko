@@ -276,7 +276,7 @@ impl State {
     pub fn intern_pointer(
         &self,
         pointer: ObjectPointer,
-    ) -> Result<ObjectPointer, ImmutableString> {
+    ) -> Result<ObjectPointer, String> {
         if pointer.is_interned_string() {
             Ok(pointer)
         } else {

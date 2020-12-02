@@ -3,6 +3,7 @@ use crate::execution_context::ExecutionContext;
 use crate::immix::copy_object::CopyObject;
 use crate::object_pointer::ObjectPointer;
 use crate::process::RcProcess;
+use crate::runtime_error::RuntimeError;
 use crate::vm::state::RcState;
 
 #[inline(always)]
@@ -83,15 +84,15 @@ pub fn set_global(
     context: &mut ExecutionContext,
     index: u16,
     object: ObjectPointer,
-) -> ObjectPointer {
+) -> Result<ObjectPointer, RuntimeError> {
     let value = if object.is_permanent() {
         object
     } else {
-        state.permanent_allocator.lock().copy_object(object)
+        state.permanent_allocator.lock().copy_object(object)?
     };
 
     context.set_global(index, value);
-    value
+    Ok(value)
 }
 
 #[inline(always)]
@@ -111,17 +112,17 @@ pub fn exit(state: &RcState, status_ptr: ObjectPointer) -> Result<(), String> {
 pub fn set_default_panic_handler(
     state: &RcState,
     handler: ObjectPointer,
-) -> Result<ObjectPointer, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     if handler.block_value()?.captures_from.is_some() {
-        return Err(
-            "Default panic handlers can't capture any variables".to_string()
-        );
+        return Err(RuntimeError::from(
+            "Default panic handlers can't capture any variables",
+        ));
     }
 
     let handler_to_use = if handler.is_permanent() {
         handler
     } else {
-        state.permanent_allocator.lock().copy_object(handler)
+        state.permanent_allocator.lock().copy_object(handler)?
     };
 
     state

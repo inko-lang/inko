@@ -350,7 +350,13 @@ impl Machine {
                 Opcode::AllocatePermanent => {
                     let reg = instruction.arg(0);
                     let proto = context.get_register(instruction.arg(1));
-                    let res = object::allocate_permanent(&self.state, proto);
+                    let res = try_error!(
+                        object::allocate_permanent(&self.state, proto),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
                     context.set_register(reg, res);
                 }
@@ -927,13 +933,19 @@ impl Machine {
                     let rec = context.get_register(instruction.arg(1));
                     let name = context.get_register(instruction.arg(2));
                     let val = context.get_register(instruction.arg(3));
-                    let res = object::set_attribute(
-                        &self.state,
+                    let res = try_error!(
+                        object::set_attribute(
+                            &self.state,
+                            process,
+                            rec,
+                            name,
+                            val,
+                        ),
+                        self,
                         process,
-                        rec,
-                        name,
-                        val,
-                    )?;
+                        context,
+                        index
+                    );
 
                     context.set_register(reg, res);
                 }
@@ -980,12 +992,18 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let rec = context.get_register(instruction.arg(1));
                     let msg = context.get_register(instruction.arg(2));
-                    let res = process::process_send_message(
-                        &self.state,
+                    let res = try_error!(
+                        process::process_send_message(
+                            &self.state,
+                            process,
+                            rec,
+                            msg,
+                        ),
+                        self,
                         process,
-                        rec,
-                        msg,
-                    )?;
+                        context,
+                        index
+                    );
 
                     context.set_register(reg, res);
                 }
@@ -1098,8 +1116,13 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let idx = instruction.arg(1);
                     let val = context.get_register(instruction.arg(2));
-                    let res =
-                        general::set_global(&self.state, context, idx, val);
+                    let res = try_error!(
+                        general::set_global(&self.state, context, idx, val),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
                     context.set_register(reg, res);
                 }
@@ -1138,7 +1161,13 @@ impl Machine {
                     let to = context.get_register(instruction.arg(0));
                     let from = context.get_register(instruction.arg(1));
 
-                    object::copy_blocks(&self.state, to, from);
+                    try_error!(
+                        object::copy_blocks(&self.state, to, from),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
                 }
                 Opcode::FloatIsNan => {
                     let reg = instruction.arg(0);
@@ -1651,8 +1680,13 @@ impl Machine {
                 Opcode::SetDefaultPanicHandler => {
                     let reg = instruction.arg(0);
                     let block = context.get_register(instruction.arg(1));
-                    let res =
-                        general::set_default_panic_handler(&self.state, block)?;
+                    let res = try_error!(
+                        general::set_default_panic_handler(&self.state, block),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
                     context.set_register(reg, res);
                 }

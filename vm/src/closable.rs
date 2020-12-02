@@ -13,6 +13,7 @@
 //! The way we handle double closes is simple: when a file descriptor is closed,
 //! it's swapped with an invalid one. This ensures that future closes don't end
 //! up closing a recycled file descriptor.
+use crate::runtime_error::RuntimeError;
 use socket2::Socket;
 use std::fs::File;
 use std::mem::ManuallyDrop;
@@ -118,6 +119,10 @@ impl ClosableFile {
             // this pattern.
             self.inner = ManuallyDrop::new(file);
         }
+    }
+
+    pub fn try_clone(&self) -> Result<Self, RuntimeError> {
+        Ok(Self::new(self.inner.try_clone()?))
     }
 }
 

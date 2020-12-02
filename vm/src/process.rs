@@ -11,6 +11,7 @@ use crate::mailbox::Mailbox;
 use crate::object_pointer::{ObjectPointer, ObjectPointerPointer};
 use crate::object_value;
 use crate::process_status::ProcessStatus;
+use crate::runtime_error::RuntimeError;
 use crate::scheduler::timeouts::Timeout;
 use crate::tagged_pointer::{self, TaggedPointer};
 use crate::vm::state::State;
@@ -380,7 +381,7 @@ impl Process {
     pub fn send_message_from_external_process(
         &self,
         message_to_copy: ObjectPointer,
-    ) {
+    ) -> Result<(), RuntimeError> {
         let local_data = self.local_data_mut();
 
         // The lock must be acquired first, as the receiving process may be
@@ -391,10 +392,11 @@ impl Process {
         // Checking the status after acquiring the lock allows us to obtain a
         // stable view of the status.
         if self.is_terminated() {
-            return;
+            return Ok(());
         }
 
-        mailbox.send(local_data.allocator.copy_object(message_to_copy));
+        mailbox.send(local_data.allocator.copy_object(message_to_copy)?);
+        Ok(())
     }
 
     pub fn send_message_from_self(&self, message: ObjectPointer) {
@@ -647,7 +649,9 @@ mod tests {
 
         input_message.add_attribute(&process, attr, attr);
 
-        process.send_message_from_external_process(input_message);
+        process
+            .send_message_from_external_process(input_message)
+            .unwrap();
 
         let received = process.receive_message().unwrap();
 
@@ -667,7 +671,7 @@ mod tests {
             .allocate(object_value::integer(14), process.allocate_empty());
 
         process.set_terminated();
-        process.send_message_from_external_process(message);
+        process.send_message_from_external_process(message).unwrap();
 
         assert!(process.receive_message().is_none());
     }

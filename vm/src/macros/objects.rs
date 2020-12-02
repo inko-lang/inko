@@ -3,7 +3,7 @@
 macro_rules! copy_if_permanent {
     ($heap:expr, $source:expr, $dest:expr) => {{
         if $dest.is_permanent() {
-            $heap.lock().copy_object($source)
+            $heap.lock().copy_object($source)?
         } else {
             $source
         }

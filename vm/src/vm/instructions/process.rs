@@ -5,6 +5,7 @@ use crate::execution_context::ExecutionContext;
 use crate::object_pointer::ObjectPointer;
 use crate::object_value;
 use crate::process::{Process, RcProcess, RescheduleRights};
+use crate::runtime_error::RuntimeError;
 use crate::scheduler::process_worker::ProcessWorker;
 use crate::vm::state::RcState;
 
@@ -55,13 +56,13 @@ pub fn process_send_message(
     sender: &RcProcess,
     receiver_ptr: ObjectPointer,
     msg: ObjectPointer,
-) -> Result<ObjectPointer, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     let receiver = receiver_ptr.process_value()?;
 
     if receiver == sender {
         receiver.send_message_from_self(msg);
     } else {
-        receiver.send_message_from_external_process(msg);
+        receiver.send_message_from_external_process(msg)?;
         attempt_to_reschedule_process(state, &receiver);
     }
 

@@ -484,7 +484,7 @@ mod tests {
         let pointer =
             alloc.allocate_without_prototype(object_value::float(5.0));
 
-        let copy = alloc.copy_object(pointer);
+        let copy = alloc.copy_object(pointer).unwrap();
 
         assert!(copy.is_young());
         assert!(copy.get().value.is_float());

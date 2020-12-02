@@ -1,4 +1,5 @@
 use crate::closable::ClosableFile;
+use crate::immix::copy_object::CopyObject;
 use crate::object_pointer::ObjectPointer;
 use crate::runtime_error::RuntimeError;
 use std::fs;
@@ -59,6 +60,16 @@ impl File {
 
     pub fn close(&mut self) {
         self.inner.close();
+    }
+
+    pub fn clone_to<H: CopyObject>(
+        &self,
+        heap: &mut H,
+    ) -> Result<Self, RuntimeError> {
+        Ok(File {
+            inner: self.inner.try_clone()?,
+            path: heap.copy_object(self.path)?,
+        })
     }
 }
 

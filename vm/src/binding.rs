@@ -1,6 +1,7 @@
 use crate::chunk::Chunk;
 use crate::immix::copy_object::CopyObject;
 use crate::object_pointer::{ObjectPointer, ObjectPointerPointer};
+use crate::runtime_error::RuntimeError;
 use std::cell::UnsafeCell;
 use std::rc::Rc;
 
@@ -117,9 +118,12 @@ impl Binding {
 
     /// Creates a new binding and recursively copies over all pointers to the
     /// target heap.
-    pub fn clone_to<H: CopyObject>(&self, heap: &mut H) -> RcBinding {
+    pub fn clone_to<H: CopyObject>(
+        &self,
+        heap: &mut H,
+    ) -> Result<RcBinding, RuntimeError> {
         let parent = if let Some(ref bind) = self.parent {
-            Some(bind.clone_to(heap))
+            Some(bind.clone_to(heap)?)
         } else {
             None
         };
@@ -131,17 +135,19 @@ impl Binding {
             let pointer = locals[index];
 
             if !pointer.is_null() {
-                new_locals[index] = heap.copy_object(pointer);
+                new_locals[index] = heap.copy_object(pointer)?;
             }
         }
 
-        let receiver_copy = heap.copy_object(*self.receiver());
+        let receiver_copy = heap.copy_object(*self.receiver())?;
 
-        Rc::new(Binding {
+        let new_binding = Rc::new(Binding {
             locals: UnsafeCell::new(new_locals),
             receiver: receiver_copy,
             parent,
-        })
+        });
+
+        Ok(new_binding)
     }
 }
 
@@ -339,7 +345,7 @@ mod tests {
         src_bind1.set_local(0, ptr1);
         src_bind2.set_local(0, ptr2);
 
-        let bind_copy = src_bind2.clone_to(&mut alloc2);
+        let bind_copy = src_bind2.clone_to(&mut alloc2).unwrap();
 
         assert_eq!(bind_copy.locals().len(), 1);
         assert!(bind_copy.parent.is_some());
