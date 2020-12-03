@@ -364,7 +364,7 @@ module Inkoc
     end
 
     def on_raw_get_nil_prototype(*)
-      typedb.nil_type.new_instance
+      typedb.nil_type
     end
 
     def on_raw_get_module_prototype(*)
@@ -420,15 +420,15 @@ module Inkoc
     end
 
     def on_raw_get_string_prototype(*)
-      typedb.string_type.new_instance
+      typedb.string_type
     end
 
     def on_raw_get_integer_prototype(*)
-      typedb.integer_type.new_instance
+      typedb.integer_type
     end
 
     def on_raw_get_float_prototype(*)
-      typedb.float_type.new_instance
+      typedb.float_type
     end
 
     def on_raw_get_object_prototype(*)
@@ -436,11 +436,11 @@ module Inkoc
     end
 
     def on_raw_get_array_prototype(*)
-      typedb.array_type.new_instance
+      typedb.array_type
     end
 
     def on_raw_get_block_prototype(*)
-      typedb.block_type.new_instance
+      typedb.block_type
     end
 
     def optional_array_element_value(array)
@@ -705,11 +705,11 @@ module Inkoc
     end
 
     def on_raw_get_boolean_prototype(*)
-      typedb.boolean_type.new_instance
+      typedb.boolean_type
     end
 
     def on_raw_get_byte_array_prototype(*)
-      typedb.byte_array_type.new_instance
+      typedb.byte_array_type
     end
 
     def on_raw_set_object_name(*)
