@@ -1976,7 +1976,7 @@ module Inkoc
         location = node.location
         body_block_name = body.new_basic_block_name
         guard_block_name = body.new_basic_block_name
-        pattern_reg = process_node(node.pattern.name, body)
+        pattern_reg = process_node(node.pattern, body)
         proto_reg = body.register(new_any_type)
 
         if node.pattern.type.trait?

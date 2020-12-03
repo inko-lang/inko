@@ -20,7 +20,7 @@ import std::compiler::source_location::SourceLocation
 import std::compiler::symbol_table::SymbolTable
 import std::compiler::type_checker::*
 import std::compiler::types::*
-import std::mirror::ObjectMirror
+import std::mirror
 import std::process
 import std::test
 import std::test::assert
@@ -48,7 +48,7 @@ def new_std_module(name: String) -> ModuleType {
 }
 
 def assert_instance_of(type: ?Type, instance_of: Type) {
-  assert.true(ObjectMirror.new(type!).instance_of?(instance_of))
+  assert.true(mirror.reflect(type).instance_of?(instance_of))
 }
 
 def assert_object_instance(type: ?Type, instance_of: ObjectType) {
@@ -4159,6 +4159,25 @@ test.group('Type-checking pattern-matching expressions') do (g) {
     assert_object_instance(node.cases[0].resolved_type, int_type)
     assert_object_instance(node.cases[1].resolved_type, int_type)
     assert_object_instance(node.else_branch.resolved_type, int_type)
+  }
+
+  g.test('Defining a match with a type case matching a generic type') {
+    let type_checker = TypeChecker.new
+    let module = new_module('foo')
+    let ary_type = type_checker.builtins.array_type
+    let trait_type = TraitType.new('Foo')
+    let body = parse('match(x) { as Array -> {} else -> {} }')
+
+    setup_match_types(type_checker: type_checker, module: module)
+    module.define_constant(name: 'Array', type: ary_type)
+    body.variable_scope.symbols.define(name: 'x', type: trait_type.new_instance)
+    type_checker.check_module(module: module, ast: body)
+
+    let node = body.children[0] as Match
+    let case = node.cases[0] as MatchType
+
+    assert.false(type_checker.diagnostics.errors?)
+    assert_object_instance(case.pattern.resolved_type, ary_type)
   }
 }
 

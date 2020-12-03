@@ -499,12 +499,6 @@ module Inkoc
       TypeSystem::Error.new
     end
 
-    def generic_match_type(location)
-      error("Generic types can't be used when pattern matching", location)
-
-      TypeSystem::Error.new
-    end
-
     def return_and_yield(location)
       error('Methods can either yield or return, but not both', location)
     end

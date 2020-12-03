@@ -1,7 +1,7 @@
 # AST types for pattern matching expressions.
 import std::compiler::ast::body::Body
 import std::compiler::ast::node::*
-import std::compiler::ast::variables::Identifier
+import std::compiler::ast::variables::(Constant, Identifier)
 import std::compiler::source_location::SourceLocation
 import std::compiler::types::Type
 
@@ -79,7 +79,7 @@ impl Node for Match {
 # A pattern matching case for matching a type.
 object MatchType {
   # The type that is expected by this case.
-  @pattern: TypeNode
+  @pattern: Constant
 
   # An additional guard to apply before running the body.
   @guard: ?Node
@@ -94,7 +94,7 @@ object MatchType {
   @resolved_type: ?Type
 
   static def new(
-    pattern: TypeNode,
+    pattern: Constant,
     guard: ?Node,
     body: Body,
     location: SourceLocation
@@ -108,7 +108,7 @@ object MatchType {
     }
   }
 
-  def pattern -> TypeNode {
+  def pattern -> Constant {
     @pattern
   }
 

@@ -36,20 +36,20 @@
 # For our first example this means we'd end up with code along the lines of the
 # following:
 #
-#     reflect_object(some_object).class
+#     reflect(some_object).class
 #
 # Here the `reflect` method would return some kind of mirror and the `class`
 # message would return the class of the object reflected upon. Translating the
 # second example to a mirror based approach results in similar code:
 #
-#     reflect_object(some_object).get_attribute('my_attribute')
+#     reflect(some_object).get_attribute('my_attribute')
 #
 # # Using Mirrors
 #
-# Using mirrors in Inko is very straightforward. Let's say we want to obtain
-# the value of an attribute using the mirror API. We can do so as follows:
+# Using mirrors in Inko is straightforward. Let's say we want to obtain the
+# value of an attribute using the mirror API. We can do so as follows:
 #
-#     import std::mirror::ObjectMirror
+#     import std::mirror
 #
 #     object Person {
 #       @name: String
@@ -60,18 +60,8 @@
 #     }
 #
 #     let person = Person.new('alice')
-#     let mirror = ObjectMirror.new(person)
 #
-#     mirror.get_attribute('@name') # => 'Alice'
-#
-# Importing the `std::mirror` module also exposes a `mirror` method on a variety
-# of objects. This method can be used to obtain a mirror for an object, without
-# you having to remember what mirror to use for the object:
-#
-#     import std::mirror
-#
-#     10.mirror   # => IntegerMirror
-#     10.5.mirror # => FloatMirror
+#     mirror.reflect(person).get_attribute('@name') # => 'Alice'
 #
 # You can also use mirrors to format objects in a human-readable way. This is
 # useful when debugging or using a REPL:
@@ -88,12 +78,12 @@
 #
 #     let person = Person.new('alice')
 #
-#     person.mirror.inspect # => 'Person { @name = "Alice" }'
+#     reflect(person).inspect # => 'Person { @name = "Alice" }'
 #
 # # Performance
 #
-# Like most reflection systems mirrors do come with some overhead. In particular
-# a mirror has to be allocated every time you need one. As such we recommend
+# Like most reflection systems mirrors do come with overhead. In particular, a
+# mirror has to be allocated every time you need one. As such we recommend
 # against using mirrors/reflection in performance critical code.
 import std::format::(DefaultFormatter, Format, Formatter)
 import std::fs::path::Path
@@ -307,6 +297,8 @@ trait Mirror: Format {
 }
 
 # An object that can be mirrored.
+#
+# This trait can be implemented by objects wishing to provide a custom mirror.
 trait Mirrored {
   # Returns a mirror for `self`.
   def mirror -> Mirror
@@ -373,7 +365,7 @@ impl Format for ObjectMirror {
       formatter.push(' = ')
 
       formatter.descend {
-        (get_attribute(attr_name) as Mirrored).mirror.format(formatter)
+        reflect(get_attribute(attr_name)).format(formatter)
       }
     }
 
@@ -538,7 +530,7 @@ object ArrayMirror!(T) {
 }
 
 impl Format for ArrayMirror {
-  def format!(F: Formatter)(formatter: F) -> F when T: Mirrored {
+  def format!(F: Formatter)(formatter: F) -> F {
     formatter.push('Array')
 
     @subject.empty?.if_true { return formatter }
@@ -549,7 +541,7 @@ impl Format for ArrayMirror {
       index.positive?.if_true { formatter.push(', ') }
 
       formatter.descend {
-        value.mirror.format(formatter)
+        reflect(value).format(formatter)
       }
     }
 
@@ -600,7 +592,7 @@ object MapMirror!(K: Hash + Equal, V) {
 }
 
 impl Format for MapMirror {
-  def format!(F: Formatter)(formatter: F) -> F when K: Mirrored, V: Mirrored {
+  def format!(F: Formatter)(formatter: F) -> F {
     let mut index = 0
 
     formatter.push('Map')
@@ -613,13 +605,13 @@ impl Format for MapMirror {
       index.positive?.if_true { formatter.push(', ') }
 
       formatter.descend {
-        key.mirror.format(formatter)
+        reflect(key).format(formatter)
       }
 
       formatter.push(': ')
 
       formatter.descend {
-        value.mirror.format(formatter)
+        reflect(value).format(formatter)
       }
 
       index += 1
@@ -647,7 +639,7 @@ object SetMirror!(V: Hash + Equal) {
 }
 
 impl Format for SetMirror {
-  def format!(F: Formatter)(formatter: F) -> F when V: Mirrored {
+  def format!(F: Formatter)(formatter: F) -> F {
     let mut index = 0
 
     formatter.push('Set')
@@ -660,7 +652,7 @@ impl Format for SetMirror {
       index.positive?.if_true { formatter.push(', ') }
 
       formatter.descend {
-        value.mirror.format(formatter)
+        reflect(value).format(formatter)
       }
 
       index += 1
@@ -688,17 +680,17 @@ object PairMirror!(A, B) {
 }
 
 impl Format for PairMirror {
-  def format!(F: Formatter)(formatter: F) -> F when A: Mirrored, B: Mirrored {
+  def format!(F: Formatter)(formatter: F) -> F {
     formatter.push('Pair { ')
 
     formatter.descend {
-      @subject.first.mirror.format(formatter)
+      reflect(@subject.first).format(formatter)
     }
 
     formatter.push(', ')
 
     formatter.descend {
-      @subject.second.mirror.format(formatter)
+      reflect(@subject.second).format(formatter)
     }
 
     formatter.push(' }')
@@ -725,25 +717,23 @@ object TripleMirror!(A, B, C) {
 }
 
 impl Format for TripleMirror {
-  def format!(F: Formatter)(
-    formatter: F
-  ) -> F when A: Mirrored, B: Mirrored, C: Mirrored {
+  def format!(F: Formatter)(formatter: F) -> F {
     formatter.push('Triple { ')
 
     formatter.descend {
-      @subject.first.mirror.format(formatter)
+      reflect(@subject.first).format(formatter)
     }
 
     formatter.push(', ')
 
     formatter.descend {
-      @subject.second.mirror.format(formatter)
+      reflect(@subject.second).format(formatter)
     }
 
     formatter.push(', ')
 
     formatter.descend {
-      @subject.third.mirror.format(formatter)
+      reflect(@subject.third).format(formatter)
     }
 
     formatter.push(' }')
@@ -872,86 +862,27 @@ impl Mirror for NilMirror {
   }
 }
 
-impl Mirrored for Object {
-  def mirror -> ObjectMirror {
-    ObjectMirror.new(self)
-  }
-}
-
-impl Mirrored for Array {
-  def mirror -> ArrayMirror!(T) {
-    ArrayMirror.new(self)
-  }
-}
-
-impl Mirrored for ByteArray {
-  def mirror -> ByteArrayMirror {
-    ByteArrayMirror.new(self)
-  }
-}
-
-impl Mirrored for Map {
-  def mirror -> MapMirror!(K, V) {
-    MapMirror.new(self)
-  }
-}
-
-impl Mirrored for Set {
-  def mirror -> SetMirror!(V) {
-    SetMirror.new(self)
-  }
-}
-
-impl Mirrored for Module {
-  def mirror -> ModuleMirror {
-    ModuleMirror.new(self)
-  }
-}
-
-impl Mirrored for Integer {
-  def mirror -> IntegerMirror {
-    IntegerMirror.new(self)
-  }
-}
-
-impl Mirrored for Float {
-  def mirror -> FloatMirror {
-    FloatMirror.new(self)
-  }
-}
-
-impl Mirrored for String {
-  def mirror -> StringMirror {
-    StringMirror.new(self)
-  }
-}
-
-impl Mirrored for Block {
-  def mirror -> BlockMirror {
-    BlockMirror.new(self)
-  }
-}
-
-impl Mirrored for Pair {
-  def mirror -> PairMirror!(A, B) {
-    PairMirror.new(self)
-  }
-}
-
-impl Mirrored for Triple {
-  def mirror -> TripleMirror!(A, B, C) {
-    TripleMirror.new(self)
-  }
-}
-
-impl Mirrored for Boolean {
-  def mirror -> BooleanMirror {
-    BooleanMirror.new(self)
-  }
-}
-
-impl Mirrored for NilType {
-  def mirror -> NilMirror {
-    NilMirror.new(self)
-  }
+# Returns a mirror for the given object.
+#
+# If an object implements the `Mirrored` trait, the implementation is used to
+# determine what mirror to return. If the trait isn't implemented, a mirror is
+# returned based on the `subject` argument type.
+def reflect(subject: Any) -> Mirror {
+  match(let matched = subject) {
+    as Integer -> { IntegerMirror.new(matched) }
+    as Float -> { FloatMirror.new(matched) }
+    as String -> { StringMirror.new(matched) }
+    as Boolean -> { BooleanMirror.new(matched) }
+    as NilType -> { NilMirror.new(matched) }
+    as Array -> { ArrayMirror.new(matched) }
+    as ByteArray -> { ByteArrayMirror.new(matched) }
+    as Map -> { MapMirror.new(matched) }
+    as Set -> { SetMirror.new(matched) }
+    as Pair -> { PairMirror.new(matched) }
+    as Triple -> { TripleMirror.new(matched) }
+    as Block -> { BlockMirror.new(matched) }
+    as Module -> { ModuleMirror.new(matched) }
+    as Mirrored -> { matched.mirror }
+    else -> { ObjectMirror.new(subject) }
+  } as Mirror
 }

@@ -8,7 +8,7 @@
 # `try` keyword. The use of `try!` is discouraged as it will result in the
 # entire test suite terminating in the event of an assertion failing.
 import std::conditional::Conditional
-import std::mirror::Mirrored
+import std::mirror
 import std::operators::(Equal, Greater)
 import std::process::(self, Process)
 
@@ -61,30 +61,31 @@ object PanicTest {
 }
 
 # Asserts that the given arguments are equal to each other.
-def equal!(T: Mirrored + Equal)(given: T, expected: T) {
+def equal!(T: Equal)(given: T, expected: T) {
   (given == expected).if_true { return }
 
-  let error = `Expected {given.mirror.inspect} to equal {expected.mirror.inspect}`
+  let error = `Expected {mirror.reflect(given).inspect} to equal \
+    {mirror.reflect(expected).inspect}`
 
   process.panic(error)
 }
 
 # Asserts that the given arguments are not equal to each other.
-def not_equal!(T: Mirrored + Equal)(given: T, expected: T) {
+def not_equal!(T: Equal)(given: T, expected: T) {
   (given == expected).if_false { return }
 
-  let error = `Expected {given.mirror.inspect} not to equal \
-    {expected.mirror.inspect}`
+  let error = `Expected {mirror.reflect(given).inspect} not to equal \
+    {mirror.reflect(expected).inspect}`
 
   process.panic(error)
 }
 
 # Asserts that the first argument is greater than the second argument.
-def greater!(T: Mirrored + Greater)(given: T, minimum: T) {
+def greater!(T: Greater)(given: T, minimum: T) {
   (given > minimum).if_true { return }
 
-  let error = `Expected {given.mirror.inspect} to be greater than \
-    {minimum.mirror.inspect}`
+  let error = `Expected {mirror.reflect(given).inspect} to be greater than \
+    {mirror.reflect(minimum).inspect}`
 
   process.panic(error)
 }
@@ -127,10 +128,10 @@ def no_panic(block: lambda) {
 #
 # Something is considered to be truthy when its implementation of `if_true`
 # calls the supplied block.
-def true!(T: Mirrored + Conditional)(value: T) {
+def true(value: Conditional) {
   value.if_true { return }
 
-  let error = `Expected {value.mirror.inspect} to be truthy`
+  let error = `Expected {mirror.reflect(value).inspect} to be truthy`
 
   process.panic(error)
 }
@@ -139,10 +140,10 @@ def true!(T: Mirrored + Conditional)(value: T) {
 #
 # Something is considered to be falsy when its implementation of `if_false`
 # calls the supplied block.
-def false!(T: Mirrored + Conditional)(value: T) {
+def false(value: Conditional) {
   value.if_false { return }
 
-  let error = `Expected {value.mirror.inspect} to be falsy`
+  let error = `Expected {mirror.reflect(value).inspect} to be falsy`
 
   process.panic(error)
 }

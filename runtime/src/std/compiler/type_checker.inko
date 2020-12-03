@@ -1497,7 +1497,24 @@ trait ExpressionTypePass: TypePass {
     types: TypeScope,
     variables: VariableScope
   ) -> Type {
-    let match_type = visit_type_node(node: node.pattern, types: types)
+    let pattern = node.pattern
+    let match_type_sym = types.lookup_type(pattern.name)
+    let match_type = match_type_sym.if(
+      true: {
+        pattern.symbol = match_type_sym!
+        match_type_sym.type!.new_instance
+      },
+      false: {
+        type_checker
+          .diagnostics
+          .undefined_constant(name: pattern.name, location: pattern.location)
+
+        ErrorType.new
+      }
+    )
+
+    pattern.resolved_type = match_type
+
     let body_vars = node.body.variable_scope.with_parent(variables)
 
     node.body.type_scope = types

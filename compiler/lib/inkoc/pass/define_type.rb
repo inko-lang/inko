@@ -822,10 +822,6 @@ module Inkoc
 
         return pattern_type if pattern_type.error?
 
-        unless pattern_type.type_parameter_instances.empty?
-          return @state.diagnostics.generic_match_type(node.pattern.location)
-        end
-
         bind_to_symbol.with_temporary_type(pattern_type) do
           match_guard(node.guard, scope) if node.guard
           on_inline_body(node.body, scope)

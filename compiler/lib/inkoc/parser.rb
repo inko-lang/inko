@@ -1463,7 +1463,7 @@ module Inkoc
 
         case token.type
         when :as
-          type = type_name(advance_and_expect!(:constant))
+          type = constant(advance_and_expect!(:constant))
           guard =
             if @lexer.next_type_is?(:when)
               skip_one

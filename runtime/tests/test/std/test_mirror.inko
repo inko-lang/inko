@@ -1,8 +1,10 @@
 import std::conversion::ToString
 import std::debug
 import std::float::(NAN, INFINITY, NEGATIVE_INFINITY)
+import std::format::(Format, Formatter)
 import std::format::DefaultFormatter
 import std::fs
+import std::mirror
 import std::mirror::*
 import std::pair::(Triple, Pair)
 import std::set::Set
@@ -55,6 +57,39 @@ object NestedObject {
 
   static def new -> Self {
     Self { @child = OneAttribute.new }
+  }
+}
+
+object Foo {
+  static def new -> Self {
+    Self {}
+  }
+}
+
+object FooMirror {
+  @subject: Foo
+
+  static def new(subject: Foo) -> Self {
+    Self { @subject = subject }
+  }
+}
+
+impl Format for FooMirror {
+  def format!(F: Formatter)(formatter: F) -> F {
+    formatter.push('Foo')
+    formatter
+  }
+}
+
+impl Mirror for FooMirror {
+  def subject -> Foo {
+    @subject
+  }
+}
+
+impl Mirrored for Foo {
+  def mirror -> FooMirror {
+    FooMirror.new(self)
   }
 }
 
@@ -456,5 +491,22 @@ test.group('std::mirror::BooleanMirror.format') do (g) {
 test.group('std::mirror::NilMirror.format') do (g) {
   g.test('Formatting Nil') {
     assert.equal(format(NilMirror.new(Nil)), 'Nil')
+  }
+}
+
+test.group('std::mirror.reflect') do (g) {
+  g.test('Obtaining a default mirror') {
+    let mirror1 = mirror.reflect(Dummy.new)
+    let mirror2 = mirror.reflect(Nil)
+
+    assert.true(ObjectMirror.new(mirror1).instance_of?(ObjectMirror))
+    assert.true(ObjectMirror.new(mirror2).instance_of?(NilMirror))
+  }
+
+  g.test('Obtaining a custom mirror') {
+    let foo = Foo.new
+    let mirror = mirror.reflect(foo)
+
+    assert.true(ObjectMirror.new(mirror).instance_of?(FooMirror))
   }
 }
