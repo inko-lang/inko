@@ -7,7 +7,6 @@
 # Assertions will throw in the event of a failure, requiring the use of the
 # `try` keyword. The use of `try!` is discouraged as it will result in the
 # entire test suite terminating in the event of an assertion failing.
-import std::conditional::Conditional
 import std::mirror
 import std::operators::(Equal, Greater)
 import std::process::(self, Process)
@@ -128,7 +127,7 @@ def no_panic(block: lambda) {
 #
 # Something is considered to be truthy when its implementation of `if_true`
 # calls the supplied block.
-def true(value: Conditional) {
+def true(value: ?Object) {
   value.if_true { return }
 
   let error = `Expected {mirror.reflect(value).inspect} to be truthy`
@@ -140,7 +139,7 @@ def true(value: Conditional) {
 #
 # Something is considered to be falsy when its implementation of `if_false`
 # calls the supplied block.
-def false(value: Conditional) {
+def false(value: ?Object) {
   value.if_false { return }
 
   let error = `Expected {mirror.reflect(value).inspect} to be falsy`

@@ -9,7 +9,6 @@
 # `Nil` will return another `Nil`. This makes it easy to work with methods that
 # may return `Nil` without having to include checks for `Nil` values all over
 # the place.
-import std::conditional::Conditional
 import std::conversion::(ToString, ToFloat, ToInteger)
 import std::hash::(Hasher, Hash)
 import std::marker::Optional
@@ -29,6 +28,32 @@ impl NilType {
   # `NilType`.
   static def new -> Self {
     self
+  }
+
+  # Always returns `Nil`.
+  def if_true!(R)(block: do -> R) -> ?R {
+    Nil
+  }
+
+  # Always calls the supplied block.
+  def if_false!(R)(block: do -> R) -> ?R {
+    block.call
+  }
+
+  # Always calls the block provided in the `false` argument.
+  def if!(R)(true: do -> R, false: do -> R) -> R {
+    false.call
+  }
+
+  # Always returns `False`.
+  def and(other: do -> Boolean) -> Boolean {
+    False
+  }
+
+  # Returns `True` if the given object evaluates to `True`, otherwise returns
+  # `False`.
+  def or(other: do -> Boolean) -> Boolean {
+    other.call
   }
 }
 
@@ -62,34 +87,6 @@ impl ToString for NilType {
   # Always returns an empty string.
   def to_string -> String {
     ''
-  }
-}
-
-impl Conditional for NilType {
-  # Always returns `Nil`.
-  def if_true!(R)(block: do -> R) -> ?R {
-    Nil
-  }
-
-  # Always calls the supplied block.
-  def if_false!(R)(block: do -> R) -> ?R {
-    block.call
-  }
-
-  # Always calls the block provided in the `false` argument.
-  def if!(R)(true: do -> R, false: do -> R) -> R {
-    false.call
-  }
-
-  # Always returns `False`.
-  def and(other: do -> Boolean) -> Boolean {
-    False
-  }
-
-  # Returns `True` if the given object evaluates to `True`, otherwise returns
-  # `False`.
-  def or(other: do -> Boolean) -> Boolean {
-    other.call
   }
 }
 

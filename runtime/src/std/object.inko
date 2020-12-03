@@ -2,15 +2,8 @@
 #
 # All objects in Inko are an instance of `Object`, and thus all its methods are
 # available to all objects.
-import std::conditional::Conditional
 import std::hash::(Hasher, Hash)
 import std::operators::Equal
-
-impl Conditional for Object {
-  def if!(R)(true: do -> R, false: do -> R) -> R {
-    true.call
-  }
-}
 
 impl Equal for Object {
   def ==(other: Self) -> Boolean {
@@ -19,6 +12,63 @@ impl Equal for Object {
 }
 
 impl Object {
+  # Calls the `true` block if the receiver evaluates to `True`, otherwise the
+  # `false` block is called.
+  #
+  # The return value is whatever the block returned. Both the blocks must
+  # return a value of the same type.
+  def if!(R)(true: do -> R, false: do -> R) -> R {
+    true.call
+  }
+
+  # Calls the supplied block if the receiver evaluates to `True`.
+  #
+  # When the receiver evaluates to `True` the return value will be whatever the
+  # supplied block returned. When evaluating to `False` this method will instead
+  # return Nil.
+  def if_true!(R)(block: do -> R) -> ?R {
+    if(true: block, false: { Nil })
+  }
+
+  # Calls the supplied block if the receiver evaluates to `False`.
+  #
+  # When the receiver evaluates to `False` the return value will be whatever the
+  # supplied block returned. When evaluating to `True` this method will instead
+  # return Nil.
+  def if_false!(R)(block: do -> R) -> ?R {
+    if(true: { Nil }, false: block)
+  }
+
+  # Returns `True` if `self` and the given object evaluate to `True`.
+  #
+  # # Examples
+  #
+  # Using two objects:
+  #
+  #     Object.new.and { Object.new } # => True
+  #
+  # Using and object and `False`:
+  #
+  #     Object.new.and { False } # => False
+  def and(other: do -> Boolean) -> Boolean {
+    if(true: { other.call }, false: { False })
+  }
+
+  # Returns `True` if `self` or the given object evaluates to `True`.
+  #
+  # # Examples
+  #
+  # Using two objects:
+  #
+  #     Object.new.or { Object.new } # => True
+  #
+  # Using an object and `False`:
+  #
+  #     Object.new.or { False } # => True
+  def or(other: do -> Boolean) -> Boolean {
+    if(true: { True }, false: { other.call })
+  }
+
   # Returns `True` if `self` is `Nil`.`
   #
   # # Examples
