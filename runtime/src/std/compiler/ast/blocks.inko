@@ -100,7 +100,7 @@ object DefineRequiredArgument {
     Self {
       @name = name,
       @value_type = value_type,
-      @mutable = Boolean,
+      @mutable = mutable,
       @location = location,
       @resolved_type = Nil
     }
@@ -227,7 +227,7 @@ object DefineOptionalArgument {
       @name = name,
       @value_type = value_type,
       @default_value = default_value,
-      @mutable = Boolean,
+      @mutable = mutable,
       @location = location,
       @resolved_type = Nil
     }

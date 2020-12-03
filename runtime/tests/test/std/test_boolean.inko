@@ -76,13 +76,11 @@ test.group('std::boolean::Boolean.or') do (g) {
 test.group('std::boolean::Boolean.==') do (g) {
   g.test('Comparing True with another Boolean') {
     assert.equal(True, True)
-    assert.not_equal(True, Boolean)
     assert.not_equal(True, False)
   }
 
   g.test('Comparing False with another Boolean') {
     assert.equal(False, False)
-    assert.not_equal(False, Boolean)
     assert.not_equal(False, True)
   }
 }
