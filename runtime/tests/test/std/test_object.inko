@@ -7,18 +7,18 @@ object Dummy {
   }
 }
 
-test.group('std::object::Object.equal?') do (g) {
+test.group('std::object::Object.same_object?') do (g) {
   g.test('Comparing two objects that do not reside at the same address') {
     let obj1 = Dummy.new
     let obj2 = Dummy.new
 
-    assert.false(obj1.equal?(obj2))
+    assert.false(obj1.same_object?(obj2))
   }
 
   g.test('Comparing two objects that reside at the same address') {
     let obj = Dummy.new
 
-    assert.true(obj.equal?(obj))
+    assert.true(obj.same_object?(obj))
   }
 }
 
@@ -49,6 +49,12 @@ test.group('std::object::Object.!=') do (g) {
     let obj = Dummy.new
 
     assert.false(obj != obj)
+  }
+}
+
+test.group('std::object::Object.truthy?') do (g) {
+  g.test('Checking if an object is truthy') {
+    assert.true(Dummy.new.truthy?)
   }
 }
 

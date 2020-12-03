@@ -81,7 +81,7 @@ object SymbolTable!(T) {
 
   # Returns `True` if the symbol table contains the given symbol.
   def contains?(symbol: Symbol!(T)) -> Boolean {
-    @symbols.get(symbol.id).equal?(symbol)
+    @symbols.get(symbol.id).same_object?(symbol)
   }
 
   # Returns all the symbols defined.

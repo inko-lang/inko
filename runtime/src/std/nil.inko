@@ -30,30 +30,8 @@ impl NilType {
     self
   }
 
-  # Always returns `Nil`.
-  def if_true!(R)(block: do -> R) -> ?R {
-    Nil
-  }
-
-  # Always calls the supplied block.
-  def if_false!(R)(block: do -> R) -> ?R {
-    block.call
-  }
-
-  # Always calls the block provided in the `false` argument.
-  def if!(R)(true: do -> R, false: do -> R) -> R {
-    false.call
-  }
-
-  # Always returns `False`.
-  def and(other: do -> Boolean) -> Boolean {
+  def truthy? -> Boolean {
     False
-  }
-
-  # Returns `True` if the given object evaluates to `True`, otherwise returns
-  # `False`.
-  def or(other: do -> Boolean) -> Boolean {
-    other.call
   }
 }
 

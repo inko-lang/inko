@@ -19,6 +19,12 @@ test.group('std::nil::NilType.to_string') do (g) {
   }
 }
 
+test.group('std::nil::NilType.truthy?') do (g) {
+  g.test('Checking if a Nil is truthy') {
+    assert.false(Nil.truthy?)
+  }
+}
+
 test.group('std::nil::NilType.if_true') do (g) {
   g.test('The supplied block is never called') {
     assert.equal(Nil.if_true({ 42 }), Nil)

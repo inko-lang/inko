@@ -16,6 +16,13 @@ test.group('std::boolean::Boolean.false?') do (g) {
   }
 }
 
+test.group('std::boolean::Boolean.truthy?') do (g) {
+  g.test('Checking if a Boolean is truthy') {
+    assert.true(True.truthy?)
+    assert.false(False.truthy?)
+  }
+}
+
 test.group('std::boolean::Boolean.if_true') do (g) {
   g.test('Sending "if_true" to True') {
     assert.equal(True.if_true({ 10 }), 10)

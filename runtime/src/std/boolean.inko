@@ -5,6 +5,10 @@
 import std::conversion::ToString
 
 impl Boolean {
+  def truthy? -> Boolean {
+    _INKOC.if(self, True, False)
+  }
+
   # Returns `True` if `self` is also `True`.
   def true? -> Boolean {
     _INKOC.if(self, True, False)
@@ -13,26 +17,6 @@ impl Boolean {
   # Returns `True` if `self` is `False`.
   def false? -> Boolean {
     _INKOC.if(self, False, True)
-  }
-
-  def if!(R)(true: do -> R, false: do -> R) -> R {
-    _INKOC.if(self, true, false).call
-  }
-
-  def if_true!(R)(block: do -> R) -> ?R {
-    _INKOC.if(self, block.call, Nil)
-  }
-
-  def if_false!(R)(block: do -> R) -> ?R {
-    _INKOC.if(self, Nil, block.call)
-  }
-
-  def and(other: do -> Boolean) -> Boolean {
-    _INKOC.if(self, other.call, False)
-  }
-
-  def or(other: do -> Boolean) -> Boolean {
-    _INKOC.if(self, True, other.call)
   }
 }
 

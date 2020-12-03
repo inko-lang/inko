@@ -152,7 +152,7 @@ test.group('std::env.arguments') do (g) {
     let args1 = env.arguments
     let args2 = env.arguments
 
-    assert.false(args1.equal?(args2))
+    assert.false(args1.same_object?(args2))
   }
 
   g.test('Modifying the arguments Array does not affect other calls') {

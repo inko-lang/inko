@@ -2,23 +2,28 @@
 #
 # All objects in Inko are an instance of `Object`, and thus all its methods are
 # available to all objects.
-import std::hash::(Hasher, Hash)
+import std::hash::(Hash, Hasher)
 import std::operators::Equal
 
-impl Equal for Object {
-  def ==(other: Self) -> Boolean {
-    equal?(other)
-  }
-}
-
 impl Object {
+  # Returns a boolean indicating if this object evaluates to True in a boolean
+  # context.
+  #
+  # # Examples
+  #
+  #     10.truthy?    # => True
+  #     False.truthy? # => False
+  def truthy? -> Boolean {
+    True
+  }
+
   # Calls the `true` block if the receiver evaluates to `True`, otherwise the
   # `false` block is called.
   #
   # The return value is whatever the block returned. Both the blocks must
   # return a value of the same type.
   def if!(R)(true: do -> R, false: do -> R) -> R {
-    true.call
+    _INKOC.if(truthy?, true.call, false.call)
   }
 
   # Calls the supplied block if the receiver evaluates to `True`.
@@ -27,7 +32,7 @@ impl Object {
   # supplied block returned. When evaluating to `False` this method will instead
   # return Nil.
   def if_true!(R)(block: do -> R) -> ?R {
-    if(true: block, false: { Nil })
+    _INKOC.if(truthy?, block.call, Nil)
   }
 
   # Calls the supplied block if the receiver evaluates to `False`.
@@ -36,7 +41,7 @@ impl Object {
   # supplied block returned. When evaluating to `True` this method will instead
   # return Nil.
   def if_false!(R)(block: do -> R) -> ?R {
-    if(true: { Nil }, false: block)
+    _INKOC.if(truthy?, Nil, block.call)
   }
 
   # Returns `True` if `self` and the given object evaluate to `True`.
@@ -51,7 +56,7 @@ impl Object {
   #
   #     Object.new.and { False } # => False
   def and(other: do -> Boolean) -> Boolean {
-    if(true: { other.call }, false: { False })
+    _INKOC.if(truthy?, other.call, False)
   }
 
   # Returns `True` if `self` or the given object evaluates to `True`.
@@ -66,7 +71,7 @@ impl Object {
   #
   #     Object.new.or { False } # => True
   def or(other: do -> Boolean) -> Boolean {
-    if(true: { True }, false: { other.call })
+    _INKOC.if(truthy?, True, other.call)
   }
 
   # Returns `True` if `self` is `Nil`.`
@@ -91,6 +96,23 @@ impl Object {
   #     Nil.not_nil? # => False
   def not_nil? -> Boolean {
     _INKOC.object_equals(nil?, False)
+  }
+
+  # Returns `True` if `self` and the given object are the exact same objects.
+  #
+  # Two objects are considered identical if they reside at the exact same
+  # memory address. This is also known as referential equality.
+  #
+  # This method should not be redefined by other objects, as doing so can break
+  # various parts of the Inko runtime.
+  def same_object?(other: Self) -> Boolean {
+    _INKOC.object_equals(self, other)
+  }
+}
+
+impl Equal for Object {
+  def ==(other: Self) -> Boolean {
+    _INKOC.object_equals(self, other)
   }
 }
 

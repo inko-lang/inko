@@ -49,33 +49,9 @@ trait Greater {
 # The binary `==` operator.
 trait Equal {
   # Returns `True` if `self` and the given object are equal to each other.
-  #
-  # By default this method simply uses `Equal.equal?`, but objects can freely
-  # redefine `Equal.==` to change this behaviour.
   def ==(other: Self) -> Boolean
 
-  # Returns `True` if `self` and the given object are identical.
-  #
-  # Two objects are considered identical if they reside at the exact same
-  # memory address. This is also known as referential equality.
-  #
-  # This method should not be redefined by other objects, as doing so can break
-  # various parts of the Inko runtime.
-  def equal?(other: Self) -> Boolean {
-    _INKOC.object_equals(self, other)
-  }
-
-  # Returns `True` if `self` and the given object are not equal.
-  #
-  # # Examples
-  #
-  # Comparing two objects that are not identical:
-  #
-  #     10 != 20 # => True
-  #
-  # Comparing two objects that are identical:
-  #
-  #     10 != 10 # => False
+  # Returns `True` if `self` and the given object are not equal to each other.
   def !=(other: Self) -> Boolean {
     _INKOC.object_equals(self == other, False)
   }

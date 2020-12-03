@@ -188,7 +188,7 @@ trait Mirror: Format {
     let mut proto = _INKOC.get_prototype(subject)
 
     {
-      proto.equal?(other).if_true { return True }
+      proto.same_object?(other).if_true { return True }
 
       proto = _INKOC.get_prototype(proto) as Object
 

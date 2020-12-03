@@ -691,7 +691,7 @@ object Parser {
     {
       let step = try postfix_step(node)
 
-      step.equal?(node).if(true: { return node }, false: { node = step })
+      step.same_object?(node).if(true: { return node }, false: { node = step })
     }.loop
   }
 
