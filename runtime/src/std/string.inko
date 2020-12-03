@@ -5,7 +5,6 @@
 import std::conversion::(ToFloat, ToInteger, ToString)
 import std::length::Length
 import std::operators::(Add, Equal, Match)
-import std::process
 
 impl String {
   # Returns the uppercase equivalent of the current `String`.
@@ -97,7 +96,7 @@ impl String {
   #     'hello_world'.slice(start: -1, length: 5) # => 'world'
   def slice(start: Integer, length: Integer) -> String {
     length.negative?.if_true {
-      process.panic('The slice length must be zero or greater')
+      _INKOC.panic('The slice length must be zero or greater')
     }
 
     _INKOC.string_slice(self, start, length)
