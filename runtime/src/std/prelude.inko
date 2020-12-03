@@ -23,6 +23,7 @@ import std::module
 # `self` as `_` we ensure no globals are created in this module, as the names of
 # these globals would conflict.
 import std::integer::extensions::(self as _)
+import std::float::extensions::(self as _)
 import std::string::extensions::(self as _)
 import std::array::extensions::(self as _)
 

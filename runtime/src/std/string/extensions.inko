@@ -1,6 +1,7 @@
 # Extensions for the `String` type that can only be defined later on in the
 # bootstrapping process.
 import std::byte_array::ToByteArray
+import std::conversion::(ToFloat, ToInteger)
 import std::process
 
 # Returns `True` if a string separator starts at the given byte position.
@@ -28,6 +29,40 @@ impl ToByteArray for String {
   # Returns a `ByteArray` containing the bytes of this `String`.
   def to_byte_array -> ByteArray {
     _INKOC.string_to_byte_array(self) as ByteArray
+  }
+}
+
+impl ToInteger for String {
+  # Converts `self` to an `Integer`.
+  #
+  # The string is parsed in base 10. If the `String` can not be converted to
+  # an `Integer`, `0` is returned instead.
+  #
+  # # Examples
+  #
+  # Converting a `String` to an `Integer`:
+  #
+  #     '10'.to_integer # => 10
+  #     'a'.to_integer  # => 0
+  def to_integer -> Integer {
+    try Integer.parse(self, 10) else (_) 0
+  }
+}
+
+impl ToFloat for String {
+  # Converts `self` to a `Float`.
+  #
+  # If the `String` can not be converted to a `Float`, `0.0` is returned
+  # instead.
+  #
+  # # Examples
+  #
+  # Converting a `String` to a `Float`:
+  #
+  #     '10.5'.to_float # => 10.5
+  #     'a'.to_float    # => 0.0
+  def to_float -> Float {
+    try Float.parse(self) else (_) 0.0
   }
 }
 

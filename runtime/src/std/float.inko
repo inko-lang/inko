@@ -1,8 +1,7 @@
-# The float type.
+# The Float type.
 #
 # Floats are implemented as IEEE 754 floats.
 import std::conversion::(ToInteger, ToString, ToFloat)
-import std::error::StandardError
 import std::numeric::Numeric
 import std::operators::*
 
@@ -244,38 +243,6 @@ impl Float {
   #     1.0.to_bits # => 4607182418800017408
   def to_bits -> Integer {
     _INKOC.float_to_bits(self)
-  }
-
-  # Parses a `Float` from a `String`.
-  #
-  # # Error handling
-  #
-  # This method will throw if the input `String` is not in the right format.
-  #
-  # # Format
-  #
-  # The input `String` is expected to be in base 10. Leading and/or trailing
-  # whitespace is considered to be invalid, and will result in an error being
-  # thrown.
-  #
-  # # Examples
-  #
-  # Parsing a `Float` from a `String`:
-  #
-  #     try! Float.parse('10.5') # => 10.5
-  #
-  # Parsing a `Float` with an exponent:
-  #
-  #     try! Float.parse('1.2e1') # => 12.0
-  static def parse(string: String) !! StandardError -> Float {
-    (string == INFINITY_LABEL).if_true { return INFINITY }
-    (string == NEGATIVE_INFINITY_LABEL).if_true { return NEGATIVE_INFINITY }
-
-    try {
-      _INKOC.string_to_float(string)
-    } else (error) {
-      throw StandardError.new(error as String)
-    }
   }
 }
 
