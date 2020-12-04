@@ -1,4 +1,4 @@
-import std::map::DefaultHasher
+import std::hash::DefaultHasher
 import std::pair::*
 import std::test
 import std::test::assert

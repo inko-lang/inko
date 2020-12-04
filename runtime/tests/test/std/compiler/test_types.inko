@@ -2,7 +2,7 @@ import std::compiler::module_name::ModuleName
 import std::compiler::symbol_table::SymbolTable
 import std::compiler::types
 import std::compiler::types::*
-import std::map::DefaultHasher
+import std::hash::DefaultHasher
 import std::test
 import std::test::assert
 

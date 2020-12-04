@@ -1,7 +1,7 @@
 import std::compiler::module_name::ModuleName
 import std::fs::dir
 import std::fs::file
-import std::map::DefaultHasher
+import std::hash::DefaultHasher
 import std::os
 import std::process
 import std::test

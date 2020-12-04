@@ -1,5 +1,5 @@
 # A hash map using linear probing and Robin Hood bucket stealing.
-import std::hash::(Hash, Hasher)
+import std::hash::(DefaultHasher, Hash, Hasher)
 import std::index::(Index, SetIndex)
 import std::length::Length
 import std::operators::Equal
@@ -8,41 +8,6 @@ import std::random
 
 # The load factor of a `Map` before it should be resized.
 let LOAD_FACTOR = 0.75
-
-# The default `Hasher` used for a `Map`.
-#
-# Different instances of a `DefaultHasher` may produce different hash values
-# for the same object. The internal hashing algorithm may also change, and so
-# the exact hash values should not be relied upon.
-#
-# Internally this hasher uses the hashing instructions provided by IVM, which
-# currently uses aHash (https://github.com/tkaitchuck/ahash).
-let DefaultHasher = _INKOC.get_hasher_prototype
-
-_INKOC.set_object_name(DefaultHasher, 'DefaultHasher')
-
-impl DefaultHasher {
-  # Returns a new `DefaultHasher`.
-  #
-  # The given keys will be used as secrets for the hasher.
-  #
-  # # Panics
-  #
-  # This method will panic if any of the provided keys are below zero.
-  static def new(key0: Integer, key1: Integer) -> Self {
-    _INKOC.hasher_new(key0, key1)
-  }
-}
-
-impl Hasher for DefaultHasher {
-  def write(value: Object) -> Self {
-    _INKOC.hasher_write(self, value)
-  }
-
-  def to_hash -> Integer {
-    _INKOC.hasher_to_hash(self)
-  }
-}
 
 # The state used for creating a `DefaultHasher`.
 #

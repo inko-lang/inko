@@ -1,5 +1,14 @@
 # Types and methods for hashing data.
 
+# A default hasher suitable for all Inko types.
+#
+# Different instances of a `DefaultHasher` may produce different hash values
+# for the same object. The internal hashing algorithm may also change, and so
+# the exact hash values should not be relied upon.
+let DefaultHasher = _INKOC.get_hasher_prototype
+
+_INKOC.set_object_name(DefaultHasher, 'DefaultHasher')
+
 # Trait for hashing objects.
 #
 # A `Hasher` is a streaming hasher: instead of feeding it a single value and
@@ -21,4 +30,27 @@ trait Hasher {
 trait Hash {
   # Writes the hash for `self` into the given `Hasher`.
   def hash(hasher: Hasher)
+}
+
+impl DefaultHasher {
+  # Returns a new `DefaultHasher`.
+  #
+  # The given keys will be used as secrets for the hasher.
+  #
+  # # Panics
+  #
+  # This method will panic if any of the provided keys are below zero.
+  static def new(key0: Integer, key1: Integer) -> Self {
+    _INKOC.hasher_new(key0, key1)
+  }
+}
+
+impl Hasher for DefaultHasher {
+  def write(value: Object) -> Self {
+    _INKOC.hasher_write(self, value)
+  }
+
+  def to_hash -> Integer {
+    _INKOC.hasher_to_hash(self)
+  }
 }

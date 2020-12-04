@@ -1,5 +1,5 @@
 import std::float::(NAN, INFINITY, NEGATIVE_INFINITY)
-import std::map::DefaultHasher
+import std::hash::DefaultHasher
 import std::test
 import std::test::assert
 
