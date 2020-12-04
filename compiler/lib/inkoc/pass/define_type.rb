@@ -1024,7 +1024,6 @@ module Inkoc
       def on_define_argument(arg_node, scope, default_type = nil)
         block_type = scope.block_type
         name = arg_node.name
-        mutable = arg_node.mutable?
 
         vtype = type_for_argument_value(arg_node, scope)
         def_type = defined_type_for_argument(arg_node, scope)
@@ -1038,15 +1037,14 @@ module Inkoc
 
         symbol =
           if arg_node.default
-            block_type.define_optional_argument(name, arg_type, mutable)
+            block_type.define_optional_argument(name, arg_type)
           elsif arg_node.rest?
             block_type.define_rest_argument(
               name,
-              @state.typedb.new_array_of_type(arg_type),
-              mutable
+              @state.typedb.new_array_of_type(arg_type)
             )
           else
-            block_type.define_required_argument(name, arg_type, mutable)
+            block_type.define_required_argument(name, arg_type)
           end
 
         scope.locals.add_symbol(symbol)

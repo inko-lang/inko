@@ -400,8 +400,7 @@ trait TypePass {
     nodes.each_with_index do (node, index) {
       block.define_required_argument(
         name: index.to_string,
-        type: visit_type_node(node: node, types: types),
-        mutable: False
+        type: visit_type_node(node: node, types: types)
       )
     }
   }
@@ -1895,11 +1894,10 @@ trait ExpressionTypePass: TypePass {
     variables: VariableScope
   ) -> Type {
     let name = node.name
-    let mutable = node.mutable?
     let type = visit_type_node(node: node.value_type, types: types)
 
-    block.define_required_argument(name: name, type: type, mutable: mutable)
-    variables.symbols.define(name: name, type: type, mutable: mutable)
+    block.define_required_argument(name: name, type: type)
+    variables.symbols.define(name: name, type: type)
 
     node.resolved_type = type
   }
@@ -1911,7 +1909,6 @@ trait ExpressionTypePass: TypePass {
     variables: VariableScope
   ) -> Type {
     let name = node.name
-    let mutable = node.mutable?
     let defined_type =
       visit_optional_type_node(node: node.value_type, types: types)
 
@@ -1935,8 +1932,8 @@ trait ExpressionTypePass: TypePass {
       false: { default_type }
     )
 
-    block.arguments.define(name: name, type: type, mutable: mutable)
-    variables.symbols.define(name: name, type: type, mutable: mutable)
+    block.arguments.define(name: name, type: type)
+    variables.symbols.define(name: name, type: type)
 
     node.resolved_type = type
   }
@@ -1948,13 +1945,12 @@ trait ExpressionTypePass: TypePass {
     variables: VariableScope
   ) -> Type {
     let name = node.name
-    let mutable = node.mutable?
     let val_type = visit_type_node(node: node.value_type, types: types)
     let lvar_type =
       type_checker.builtins.array_type.new_instance(Array.new(val_type))
 
-    block.define_rest_argument(name: name, type: val_type, mutable: mutable)
-    variables.symbols.define(name: name, type: lvar_type, mutable: mutable)
+    block.define_rest_argument(name: name, type: val_type)
+    variables.symbols.define(name: name, type: lvar_type)
 
     node.resolved_type = lvar_type
   }
@@ -1966,14 +1962,13 @@ trait ExpressionTypePass: TypePass {
     variables: VariableScope
   ) -> Type {
     let name = node.name
-    let mutable = node.mutable?
     let type = ErrorType.new
 
     # TODO: handle inferring when passing closures/lambdas as arguments
     type_checker.diagnostics.missing_argument_type(node.location)
 
-    block.arguments.define(name: name, type: type, mutable: mutable)
-    variables.symbols.define(name: name, type: type, mutable: mutable)
+    block.arguments.define(name: name, type: type)
+    variables.symbols.define(name: name, type: type)
 
     node.resolved_type = type
   }

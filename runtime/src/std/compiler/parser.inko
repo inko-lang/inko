@@ -549,14 +549,9 @@ object Parser {
     try collect_optional_greedy_list(
       start: 'paren_open',
       stop: 'paren_close'
-    ) do (mut token) {
-      let mut mutable = False
+    ) do (current) {
+      let mut token = current
       let mut rest = False
-
-      (token.type == 'mut').if_true {
-        token = next_token
-        mutable = True
-      }
 
       (token.type == 'mul').if_true {
         token = next_token
@@ -577,7 +572,6 @@ object Parser {
           DefineRestArgument.new(
             name: token.value,
             value_type: type!,
-            mutable: mutable,
             location: token.location
           )
         }
@@ -586,7 +580,6 @@ object Parser {
             name: token.value,
             value_type: type,
             default_value: default!,
-            mutable: mutable,
             location: token.location
           )
         }
@@ -594,7 +587,6 @@ object Parser {
           DefineRequiredArgument.new(
             name: token.value,
             value_type: type!,
-            mutable: mutable,
             location: token.location
           )
         }
@@ -604,7 +596,6 @@ object Parser {
         else -> {
           DefineUntypedArgument.new(
             name: token.value,
-            mutable: mutable,
             location: token.location
           )
         }

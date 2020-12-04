@@ -27,34 +27,18 @@ object DefineUntypedArgument {
   # The name of the argument.
   @name: String
 
-  # A boolean indicating if the argument is mutable (True) or immutable (False).
-  @mutable: Boolean
-
   # The source location of the argument.
   @location: SourceLocation
 
   # The type of this argument.
   @resolved_type: ?Type
 
-  static def new(
-    name: String,
-    mutable: Boolean,
-    location: SourceLocation
-  ) -> Self {
-    Self {
-      @name = name,
-      @mutable = mutable,
-      @location = location,
-      @resolved_type = Nil
-    }
+  static def new(name: String, location: SourceLocation) -> Self {
+    Self { @name = name, @location = location, @resolved_type = Nil }
   }
 
   def name -> String {
     @name
-  }
-
-  def mutable? -> Boolean {
-    @mutable
   }
 }
 
@@ -82,9 +66,6 @@ object DefineRequiredArgument {
   # The explicit type of the argument.
   @value_type: TypeNode
 
-  # A boolean indicating if the argument is mutable (True) or immutable (False).
-  @mutable: Boolean
-
   # The source location of the argument.
   @location: SourceLocation
 
@@ -94,13 +75,11 @@ object DefineRequiredArgument {
   static def new(
     name: String,
     value_type: TypeNode,
-    mutable: Boolean,
     location: SourceLocation
   ) -> Self {
     Self {
       @name = name,
       @value_type = value_type,
-      @mutable = mutable,
       @location = location,
       @resolved_type = Nil
     }
@@ -112,10 +91,6 @@ object DefineRequiredArgument {
 
   def value_type -> TypeNode {
     @value_type
-  }
-
-  def mutable? -> Boolean {
-    @mutable
   }
 }
 
@@ -143,9 +118,6 @@ object DefineRestArgument {
   # The explicit type of the argument.
   @value_type: TypeNode
 
-  # A boolean indicating if the argument is mutable (True) or immutable (False).
-  @mutable: Boolean
-
   # The source location of the argument.
   @location: SourceLocation
 
@@ -155,13 +127,11 @@ object DefineRestArgument {
   static def new(
     name: String,
     value_type: TypeNode,
-    mutable: Boolean,
     location: SourceLocation
   ) -> Self {
     Self {
       @name = name,
       @value_type = value_type,
-      @mutable = mutable,
       @location = location,
       @resolved_type = Nil
     }
@@ -173,10 +143,6 @@ object DefineRestArgument {
 
   def value_type -> TypeNode {
     @value_type
-  }
-
-  def mutable? -> Boolean {
-    @mutable
   }
 }
 
@@ -207,9 +173,6 @@ object DefineOptionalArgument {
   # The default value of the argument.
   @default_value: Node
 
-  # A boolean indicating if the argument is mutable (True) or immutable (False).
-  @mutable: Boolean
-
   # The source location of the argument.
   @location: SourceLocation
 
@@ -220,14 +183,12 @@ object DefineOptionalArgument {
     name: String,
     value_type: ?TypeNode,
     default_value: Node,
-    mutable: Boolean,
     location: SourceLocation
   ) -> Self {
     Self {
       @name = name,
       @value_type = value_type,
       @default_value = default_value,
-      @mutable = mutable,
       @location = location,
       @resolved_type = Nil
     }
@@ -243,10 +204,6 @@ object DefineOptionalArgument {
 
   def default_value -> Node {
     @default_value
-  }
-
-  def mutable? -> Boolean {
-    @mutable
   }
 }
 

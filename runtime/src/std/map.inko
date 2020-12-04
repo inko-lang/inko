@@ -384,55 +384,57 @@ object Map!(K: Hash + Equal, V) {
   #
   # The `Pair` to insert must be pre-hashed using the `Hasher` used internally
   # by this `Map`, otherwise it might not be retrieved later.
-  def insert_pair(mut pair: Pair!(K, V)) {
+  def insert_pair(pair: Pair!(K, V)) {
     let mut index = desired_bucket(pair.hash)
+    let mut current = pair
 
     {
       let existing = @buckets[index]
 
       existing.if_false {
         @length += 1
-        @buckets[index] = pair
+        @buckets[index] = current
 
         return
       }
 
-      (existing.key == pair.key).if_true {
-        @buckets[index] = pair
+      (existing.key == current.key).if_true {
+        @buckets[index] = current
 
         return
       }
 
-      existing.replace_with?(pair).if_true {
-        @buckets[index] = pair
-        pair = existing!
+      existing.replace_with?(current).if_true {
+        @buckets[index] = current
+        current = existing!
       }
 
       index = desired_bucket(index + 1)
-      pair.increase_distance
+      current.increase_distance
     }.loop
   }
 
   # Rehashes an existing pair into the list of buckets.
-  def rehash_pair(mut pair: Pair!(K, V)) {
+  def rehash_pair(pair: Pair!(K, V)) {
     let mut index = desired_bucket(pair.hash)
+    let mut current = pair
 
     {
       let existing = @buckets[index]
 
       existing.if_false {
-        @buckets[index] = pair
+        @buckets[index] = current
 
         return
       }
 
-      existing.replace_with?(pair).if_true {
-        @buckets[index] = pair
-        pair = existing!
+      existing.replace_with?(current).if_true {
+        @buckets[index] = current
+        current = existing!
       }
 
       index = desired_bucket(index + 1)
-      pair.increase_distance
+      current.increase_distance
     }.loop
   }
 
@@ -473,7 +475,8 @@ object Map!(K: Hash + Equal, V) {
   }
 
   # Shifts all pairs to the left starting at the given bucket index.
-  def backwards_shift(mut index: Integer) {
+  def backwards_shift(start_at: Integer) {
+    let mut index = start_at
     let mut pair = @buckets.get(index)
 
     { pair.and { pair!.distance.positive? } }.while_true {

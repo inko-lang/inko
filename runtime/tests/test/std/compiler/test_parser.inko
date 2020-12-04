@@ -1025,9 +1025,6 @@ test.group('Parsing closures') do (g) {
 
     assert.equal(arg1.name, 'a')
     assert.equal(arg2.name, 'b')
-
-    assert.false(arg1.mutable?)
-    assert.false(arg2.mutable?)
   }
 
   g.test('Parsing a closure with statically typed arguments') {
@@ -1111,9 +1108,6 @@ test.group('Parsing lambdas') do (g) {
 
     assert.equal(arg1.name, 'a')
     assert.equal(arg2.name, 'b')
-
-    assert.false(arg1.mutable?)
-    assert.false(arg2.mutable?)
   }
 
   g.test('Parsing a lambda with statically typed arguments') {
@@ -1412,15 +1406,6 @@ test.group('Parsing method definitions') do (g) {
     assert.true(method.static_method?)
   }
 
-  g.test('Parsing a method with a mutable argument') {
-    let node = parse_as(input: 'def foo(mut a: A) {}', type: DefineMethod)
-    let arg = node.arguments[0] as DefineRequiredArgument
-
-    assert.equal(arg.name, 'a')
-    assert.equal((arg.value_type as Constant).name, 'A')
-    assert.true(arg.mutable?)
-  }
-
   g.test('Parsing a method with a rest argument') {
     let node = parse_as(input: 'def foo(*a: A) {}', type: DefineMethod)
     let arg = node.arguments[0] as DefineRestArgument
@@ -1429,18 +1414,6 @@ test.group('Parsing method definitions') do (g) {
 
     assert.equal(arg.name, 'a')
     assert.equal((arg.value_type as Constant).name, 'A')
-    assert.false(arg.mutable?)
-  }
-
-  g.test('Parsing a method with a mutable rest argument') {
-    let node = parse_as(input: 'def foo(mut *a: A) {}', type: DefineMethod)
-    let arg = node.arguments[0] as DefineRestArgument
-
-    assert_instance_of(arg, DefineRestArgument)
-
-    assert.equal(arg.name, 'a')
-    assert.equal((arg.value_type as Constant).name, 'A')
-    assert.true(arg.mutable?)
   }
 
   g.test('Parsing a method with an untyped rest argument') {

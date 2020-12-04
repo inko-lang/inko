@@ -842,7 +842,6 @@ module Inkoc
 
       while (token = advance!) && token.valid_but_not?(:paren_close)
         token, rest = advance_if_rest_argument(token)
-        token, mutable = advance_if_mutable_argument(token)
 
         if token.type != :identifier
           raise(ParseError, "Expected an identifier, not #{token.type}")
@@ -852,7 +851,7 @@ module Inkoc
         default = optional_argument_default unless rest
 
         args << AST::DefineArgument
-          .new(token.value, type, default, rest, mutable, token.location)
+          .new(token.value, type, default, rest, token.location)
 
         break if comma_or_break_on(:paren_close) || rest
       end
@@ -863,14 +862,6 @@ module Inkoc
 
     def advance_if_rest_argument(token)
       if token.type == :mul
-        [advance!, true]
-      else
-        [token, false]
-      end
-    end
-
-    def advance_if_mutable_argument(token)
-      if token.type == :mut
         [advance!, true]
       else
         [token, false]

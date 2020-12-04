@@ -2051,58 +2051,6 @@ test.group('Type-checking method definitions') do (g) {
     assert_trait_instance(method.arguments['a'].type, trait_type)
   }
 
-  g.test('Defining a method with mutable required arguments') {
-    let module = new_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('def foo(mut a: Integer, mut b: Integer) {}')
-
-    module
-      .define_constant(name: 'Integer', type: type_checker.builtins.integer_type)
-
-    type_checker.check_module(module: module, ast: body)
-
-    let method = module.methods['foo'].type as MethodType
-    let method_node = body.children[0] as DefineMethod
-
-    assert.true(method.arguments['a'].mutable?)
-    assert.true(method.arguments['b'].mutable?)
-    assert.true(method_node.body.variable_scope.symbols['a'].mutable?)
-    assert.true(method_node.body.variable_scope.symbols['b'].mutable?)
-  }
-
-  g.test('Defining a method with mutable optional arguments') {
-    let module = new_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('def foo(mut a = 10, mut b = 20) {}')
-
-    type_checker.check_module(module: module, ast: body)
-
-    let method = module.methods['foo'].type as MethodType
-    let method_node = body.children[0] as DefineMethod
-
-    assert.true(method.arguments['a'].mutable?)
-    assert.true(method.arguments['b'].mutable?)
-    assert.true(method_node.body.variable_scope.symbols['a'].mutable?)
-    assert.true(method_node.body.variable_scope.symbols['b'].mutable?)
-  }
-
-  g.test('Defining a method with a mutable rest argument') {
-    let module = new_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('def foo(mut *a: Integer) {}')
-
-    module
-      .define_constant(name: 'Integer', type: type_checker.builtins.integer_type)
-
-    type_checker.check_module(module: module, ast: body)
-
-    let method = module.methods['foo'].type as MethodType
-    let method_node = body.children[0] as DefineMethod
-
-    assert.true(method.arguments['a'].mutable?)
-    assert.true(method_node.body.variable_scope.symbols['a'].mutable?)
-  }
-
   g.test('Referring to a method argument in its body') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
@@ -4701,24 +4649,6 @@ test.group('Type-checking closures') do (g) {
     assert.true(type.arguments['b'].type.error?)
   }
 
-  g.test('Defining a closure without mutable untyped arguments') {
-    let type_checker = TypeChecker.new
-    let module = new_module('foo')
-    let body = parse('do (mut a, mut b) {}')
-    let node = body.children[0] as Closure
-
-    type_checker.check_module(module: module, ast: body)
-
-    let type = node.resolved_type!
-
-    assert.true(type_checker.diagnostics.errors?)
-    assert.true(type.arguments['a'].type.error?)
-    assert.true(type.arguments['b'].type.error?)
-
-    assert.true(type.arguments['a'].mutable?)
-    assert.true(type.arguments['b'].mutable?)
-  }
-
   g.test('Defining a closure with an optional argument') {
     let type_checker = TypeChecker.new
     let int_type = type_checker.builtins.integer_type
@@ -5016,24 +4946,6 @@ test.group('Type-checking lambdas') do (g) {
     assert.true(type_checker.diagnostics.errors?)
     assert.true(type.arguments['a'].type.error?)
     assert.true(type.arguments['b'].type.error?)
-  }
-
-  g.test('Defining a lambda without mutable untyped arguments') {
-    let type_checker = TypeChecker.new
-    let module = new_module('foo')
-    let body = parse('lambda (mut a, mut b) {}')
-    let node = body.children[0] as Lambda
-
-    type_checker.check_module(module: module, ast: body)
-
-    let type = node.resolved_type!
-
-    assert.true(type_checker.diagnostics.errors?)
-    assert.true(type.arguments['a'].type.error?)
-    assert.true(type.arguments['b'].type.error?)
-
-    assert.true(type.arguments['a'].mutable?)
-    assert.true(type.arguments['b'].mutable?)
   }
 
   g.test('Defining a lambda with an optional argument') {
