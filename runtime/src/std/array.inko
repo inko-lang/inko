@@ -65,21 +65,12 @@ impl Array {
   #
   # # Examples
   #
-  # Sending `clear` to an Array will remove all of its elements:
-  #
   #     let array = Array.new(10, 20, 30)
   #
   #     array.clear
   #     array.empty? # => True
-  #
-  # Clear will return the Array itself so you can chain message sends:
-  #
-  #     let array = Array.new(10, 20, 30)
-  #
-  #     array.clear.length # => 0
-  def clear -> Self {
+  def clear {
     _INKOC.array_clear(self)
-    self
   }
 
   # Pushes a value to the back of the Array, returning the pushed value.
@@ -194,12 +185,8 @@ impl Array {
   #     numbers.append(Array.new(40, 50))
   #
   #     numbers.length # => 5
-  def append(other: Self) -> Self {
-    other.each do (value: T) {
-      push(value)
-    }
-
-    self
+  def append(other: Self) {
+    other.each do (value: T) { push(value) }
   }
 
   # Returns `True` if `self` contains the given value.

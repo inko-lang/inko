@@ -37,7 +37,9 @@ def hoist_imports(body: Body) -> Body {
     }
   }
 
-  body.children = pair.first.append(pair.second)
+  pair.first.append(pair.second)
+
+  body.children = pair.first
   body
 }
 
@@ -56,7 +58,9 @@ def add_implicit_imports(name: ModuleName, body: Body) -> Body {
     return body
   }
 
-  body.children = nodes.append(body.children)
+  nodes.append(body.children)
+
+  body.children = nodes
   body
 }
 

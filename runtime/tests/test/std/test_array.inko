@@ -34,7 +34,7 @@ test.group('std::array::Array.clear') do (g) {
   g.test('Removing all values from an Array') {
     let numbers = Array.new(10, 20, 30)
 
-    assert.equal(numbers.clear, Array.new)
+    numbers.clear
     assert.equal(numbers, Array.new)
   }
 }
@@ -106,7 +106,8 @@ test.group('std::array::Array.append') do (g) {
     let first = Array.new(10, 20, 30)
     let second = Array.new(40, 50, 60)
 
-    assert.equal(first.append(second), Array.new(10, 20, 30, 40, 50, 60))
+    first.append(second)
+
     assert.equal(first, Array.new(10, 20, 30, 40, 50, 60))
   }
 }

@@ -266,7 +266,9 @@ test.group('std::ffi::Library.new') do (g) {
 
   g.test('Opening a non existing library, with an existing as a fallback') {
     assert.no_panic {
-      let paths = Array.new('does-not-exist.so').append(LIBC_PATHS)
+      let paths = Array.new('does-not-exist.so')
+
+      paths.append(LIBC_PATHS)
 
       try! Library.new(paths)
     }
