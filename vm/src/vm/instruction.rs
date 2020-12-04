@@ -224,7 +224,7 @@ impl Instruction {
 }
 
 #[cfg(test)]
-mod tests2 {
+mod tests {
     use super::*;
     use std::mem::size_of;
 
