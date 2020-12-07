@@ -34,11 +34,15 @@
 # that yields the lines in a file, or `characters` for an `Iterator` that
 # returns the characters in a `String`.
 import std::conversion::ToString
+import std::hash::Hash
+import std::operators::Equal
 import std::pair::Pair
 import std::string_buffer::StringBuffer
 
 # A generator/semicoroutine that can be suspended and resumed.
 let Generator = _INKOC.get_generator_prototype
+
+impl Object for Generator {}
 
 impl Generator {
   # Resumes the generator where it last left off.
@@ -70,6 +74,9 @@ impl Generator {
     try _INKOC.generator_value(self) as ?T else Nil
   }
 }
+
+impl Equal for Generator {}
+impl Hash for Generator {}
 
 # A generic iterator over a sequence of values of type `T`.
 #

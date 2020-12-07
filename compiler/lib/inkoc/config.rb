@@ -41,7 +41,6 @@ module Inkoc
     BYTE_ARRAY_CONST = 'ByteArray'
     ARRAY_TYPE_PARAMETER = 'T'
     OPTIONAL_CONST = 'Optional'
-    ANY_TRAIT_CONST = 'Any'
     MATCH_CONST = 'Match'
     TO_STRING_CONST = 'ToString'
 
@@ -59,6 +58,7 @@ module Inkoc
     GENERATOR_TYPE = 'Generator'
     SELF_TYPE = 'Self'
     NEVER_TYPE = 'Never'
+    ANY_TYPE = 'Any'
     MODULES_ATTRIBUTE = 'Modules'
 
     # The name of the constant to use as the receiver for raw instructions.

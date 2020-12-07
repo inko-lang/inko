@@ -612,7 +612,7 @@ module Inkoc
 
         if varargs.any?
           varargs_reg = body.register(
-            typedb.new_array_of_type(@module.lookup_any_type.new_instance)
+            typedb.new_array_of_type(@module.lookup_object_type.new_instance)
           )
 
           allocate_array(varargs_reg, varargs, body, location)
@@ -1121,12 +1121,12 @@ module Inkoc
         builtin_prototype_instruction(PrototypeID::FLOAT, node, body)
       end
 
-      def on_raw_get_object_prototype(node, body)
-        builtin_prototype_instruction(PrototypeID::OBJECT, node, body)
-      end
-
       def on_raw_get_array_prototype(node, body)
         builtin_prototype_instruction(PrototypeID::ARRAY, node, body)
+      end
+
+      def on_raw_get_trait_prototype(node, body)
+        builtin_prototype_instruction(PrototypeID::TRAIT, node, body)
       end
 
       def on_raw_get_block_prototype(node, body)
@@ -1977,12 +1977,12 @@ module Inkoc
         body_block_name = body.new_basic_block_name
         guard_block_name = body.new_basic_block_name
         pattern_reg = process_node(node.pattern, body)
-        proto_reg = body.register(new_any_type)
+        proto_reg = body.register(new_object_type)
 
         if node.pattern.type.trait?
           generate_implements_trait_loop(match_reg, pattern_reg, body, location)
         else
-          type_test_reg = body.register(new_any_type)
+          type_test_reg = body.register(new_object_type)
 
           body.instruct(:Unary, :GetPrototype, proto_reg, match_reg, location)
 
@@ -2127,9 +2127,9 @@ module Inkoc
       end
 
       def generate_implements_trait_loop(object_reg, trait_reg, body, location)
-        source_reg = body.register(new_any_type)
-        traits_reg = body.register(new_any_type)
-        exists_reg = body.register(new_any_type)
+        source_reg = body.register(new_object_type)
+        traits_reg = body.register(new_object_type)
+        exists_reg = body.register(new_object_type)
         name_reg = set_string(
           Config::IMPLEMENTED_TRAITS_INSTANCE_ATTRIBUTE,
           body,
@@ -2310,7 +2310,7 @@ module Inkoc
         # below, so don't.
         name_reg = set_string(name, body, loc)
         args_reg = body.register(
-          typedb.new_array_of_type(@module.lookup_any_type.new_instance)
+          typedb.new_array_of_type(@module.lookup_object_type.new_instance)
         )
 
         alt_name_reg = set_string(Config::UNKNOWN_MESSAGE_MESSAGE, body, loc)
@@ -2584,8 +2584,8 @@ module Inkoc
         '#<Pass::GenerateTir>'
       end
 
-      def new_any_type
-        @module.lookup_any_type.new_instance
+      def new_object_type
+        @module.lookup_object_type.new_instance
       end
     end
     # rubocop: enable Metrics/ClassLength

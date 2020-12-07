@@ -59,6 +59,8 @@
 # reaches zero.
 import std::conversion::(ToFloat, ToString)
 import std::error::StandardError
+import std::hash::Hash
+import std::operators::Equal
 
 # A lightweight, isolated process.
 let Process = _INKOC.get_process_prototype
@@ -420,3 +422,7 @@ def pinned!(T)(block: do -> T) -> T {
 def panic(message: ToString) -> Never {
   _INKOC.panic(message.to_string)
 }
+
+impl Object for Process {}
+impl Equal for Process {}
+impl Hash for Process {}

@@ -3,6 +3,7 @@
 # Strings are UTF-8 encoded and immutable. A String must _always_ contain valid
 # UTF-8.
 import std::conversion::(ToFloat, ToInteger, ToString)
+import std::hash::Hash
 import std::length::Length
 import std::operators::(Add, Equal, Match)
 
@@ -182,6 +183,8 @@ impl Equal for String {
     _INKOC.string_equals(self, other)
   }
 }
+
+impl Hash for String {}
 
 impl Add!(String) for String {
   # Concatenates `self` and the given `String`, returning a new `String`.

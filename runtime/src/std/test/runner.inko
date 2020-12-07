@@ -78,9 +78,9 @@ object ConfigureRunner {
 
   # The value to set the option to. The type of this this varies based on the
   # name of the option.
-  @value: Any
+  @value: Object
 
-  static def new(option: String, value: Any) -> Self {
+  static def new(option: String, value: Object) -> Self {
     Self { @option = option, @value = value }
   }
 }
@@ -238,7 +238,7 @@ object Client {
   }
 
   # Sets a configuration option to the given value.
-  def configure!(T: Any)(option: String, value: T) -> T {
+  def configure!(T: Object)(option: String, value: T) -> T {
     running?.if_true {
       process.panic(
         'Configuration settings can not be changed for a running test suite'

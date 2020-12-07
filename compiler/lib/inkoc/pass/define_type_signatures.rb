@@ -31,11 +31,14 @@ module Inkoc
         trait_proto = @module.globals[Config::TRAIT_CONST].type
 
         unless trait_proto
-          raise "Trait's can't be defined until std::trait::Trait is defined." \
-            " This is likely a bootstrapping/compiler bug"
+          raise "Trait's can't be defined yet"
         end
 
-        type = typedb.new_trait_type(node.name, trait_proto)
+        type = typedb.new_trait_type(node.name)
+
+        if (default = new_object_type)
+          type.add_default_trait(default)
+        end
 
         define_object_name_attribute(type)
         define_required_traits(node, type, scope)

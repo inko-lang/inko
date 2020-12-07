@@ -458,7 +458,7 @@ module Inkoc
       TypeSystem::Error.new
     end
 
-    def pattern_match_dynamic(location)
+    def pattern_match_any(location)
       error(
         "The type #{name.inspect} isn't an object, but a #{type.type_name.inspect}",
         location

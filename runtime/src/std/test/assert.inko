@@ -69,6 +69,16 @@ def equal!(T: Equal)(given: T, expected: T) {
   process.panic(error)
 }
 
+# Asserts that the given arguments are the exact same objects.
+def same_object!(T: Object)(given: T, expected: T) {
+  given.same_object?(expected).if_true { return }
+
+  let error = `Expected {mirror.reflect(given).inspect} to be the exact same \
+    object as {mirror.reflect(expected).inspect}`
+
+  process.panic(error)
+}
+
 # Asserts that the given arguments are not equal to each other.
 def not_equal!(T: Equal)(given: T, expected: T) {
   (given == expected).if_false { return }

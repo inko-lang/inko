@@ -97,7 +97,7 @@ def get_socket_option!(T)(socket: Socket, option: Integer) !! IoError -> T {
 }
 
 # Obtains the local or peer address of a socket.
-def address(socket: Socket, peer = False) !! IoError -> Array!(Any) {
+def address(socket: Socket, peer = False) !! IoError -> Array!(Object) {
   let kind = peer.if(true: { PEER_ADDRESS }, false: { LOCAL_ADDRESS })
 
   try {
@@ -148,7 +148,7 @@ def receive_from(
   socket: Socket,
   bytes: ByteArray,
   size: Integer
-) !! IoError -> Array!(Any) {
+) !! IoError -> Array!(Object) {
   try {
     _INKOC.socket_receive_from(socket, bytes, size)
   } else (error) {

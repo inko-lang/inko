@@ -3,6 +3,8 @@
 # This module provides various facilities for debugging programs during
 # runtime, such as obtaining stack traces.
 import std::fs::path::(Path, ToPath)
+import std::hash::Hash
+import std::operators::Equal
 
 # Details of a single call frame in a call stack.
 object CallFrame {
@@ -113,3 +115,6 @@ def last_call_frame_in(file: ToPath) -> CallFrame {
 
   default
 }
+
+impl Equal for CallFrame {}
+impl Hash for CallFrame {}

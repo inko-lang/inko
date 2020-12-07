@@ -53,7 +53,7 @@ def assert_instance_of(type: ?Type, instance_of: Type) {
 
 def assert_object_instance(type: ?Type, instance_of: ObjectType) {
   match(let matched = type) {
-    as ObjectInstance when matched.instance_of == instance_of -> {}
+    as ObjectInstance when matched.instance_of.same_object?(instance_of) -> {}
     as Type -> {
       process.panic(
         `Expected {matched.type_name} to be an object instance of {instance_of.type_name}`
@@ -68,20 +68,10 @@ def assert_trait_instance(type: ?Type, instance_of: TraitType) {
   assert.equal((type as TraitInstance).instance_of, instance_of)
 }
 
-def setup_bootstrap_module(type_checker: TypeChecker) {
-  let bootstrap_mod = ModuleType.new(BOOTSTRAP_MODULE)
-  let trait_type = TraitType.new(ANY_TRAIT)
-
-  bootstrap_mod.define_constant(name: trait_type.name, type: trait_type)
-  type_checker.add_module(bootstrap_mod)
-}
-
 def setup_match_types(type_checker: TypeChecker, module: ModuleType) {
   let builtins = type_checker.builtins
   let op_mod = ModuleType.new(OPERATORS_MODULE)
-  let any_trait = TraitType.new(ANY_TRAIT)
 
-  setup_bootstrap_module(type_checker)
   type_checker.add_module(op_mod)
 
   op_mod.define_constant(name: 'Boolean', type: builtins.boolean_type)
@@ -89,7 +79,6 @@ def setup_match_types(type_checker: TypeChecker, module: ModuleType) {
   module.define_constant(name: 'Integer', type: builtins.integer_type)
   module.define_constant(name: 'True', type: builtins.true_singleton)
   module.define_constant(name: 'Nil', type: builtins.nil_singleton)
-  module.globals.define(name: any_trait.name, type: any_trait)
 
   type_checker.check_module(
     module: op_mod,
@@ -151,8 +140,8 @@ test.group('std::compiler::type_checker::TypePass.visit_constant') do (g) {
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_constant(node: node, types: scope)
 
-    assert.true(type == foo_type)
-    assert.true(node.resolved_type == type)
+    assert.same_object(type, foo_type)
+    assert.same_object(node.resolved_type, type)
     assert.false(pass.type_checker.diagnostics.errors?)
   }
 
@@ -163,7 +152,7 @@ test.group('std::compiler::type_checker::TypePass.visit_constant') do (g) {
     let type = pass.visit_constant(node: node, types: scope)
 
     assert_instance_of(type, NeverType)
-    assert.true(node.resolved_type == type)
+    assert.same_object(node.resolved_type, type)
     assert.false(pass.type_checker.diagnostics.errors?)
   }
 
@@ -174,7 +163,7 @@ test.group('std::compiler::type_checker::TypePass.visit_constant') do (g) {
     let type = pass.visit_constant(node: node, types: scope)
 
     assert_instance_of(type, SelfType)
-    assert.true(node.resolved_type == type)
+    assert.same_object(node.resolved_type, type)
     assert.false(pass.type_checker.diagnostics.errors?)
   }
 
@@ -232,12 +221,12 @@ test.group('std::compiler::type_checker::TypePass.visit_constant') do (g) {
     let type = pass.visit_constant(node: node, types: scope)
 
     assert_instance_of(type, ObjectInstance)
-    assert.true(node.resolved_type == type)
+    assert.same_object(node.resolved_type, type)
     assert.false(pass.type_checker.diagnostics.errors?)
 
     let obj_type = type as ObjectInstance
 
-    assert.equal(obj_type.instance_of, foo_type)
+    assert.same_object(obj_type.instance_of, foo_type)
     assert.equal(obj_type.type_parameter_types.length, 1)
     assert_object_instance(obj_type.type_parameter_types[param], bar_type)
   }
@@ -288,11 +277,11 @@ test.group('std::compiler::type_checker::TypePass.visit_closure_type') do (g) {
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_closure_type(node: node, types: scope)
 
-    assert.true(node.resolved_type == type)
+    assert.same_object(node.resolved_type, type)
     assert.true(type.arguments.empty?)
     assert.true(type.type_parameters.empty?)
     assert.true(type.throw_type.nil?)
-    assert.true(type.return_type == pass.type_checker.builtins.nil_singleton)
+    assert.same_object(type.return_type, pass.type_checker.builtins.nil_singleton)
   }
 
   g.test('Defining a closure type with valid argument types') {
@@ -307,7 +296,7 @@ test.group('std::compiler::type_checker::TypePass.visit_closure_type') do (g) {
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_closure_type(node: node, types: scope)
 
-    assert.true(node.resolved_type == type)
+    assert.same_object(node.resolved_type, type)
     assert.equal(type.arguments.length, 2)
 
     let args = type.arguments.symbols
@@ -330,7 +319,7 @@ test.group('std::compiler::type_checker::TypePass.visit_closure_type') do (g) {
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_closure_type(node: node, types: scope)
 
-    assert.true(node.resolved_type == type)
+    assert.same_object(node.resolved_type, type)
     assert.equal(type.arguments.length, 2)
 
     let args = type.arguments.symbols
@@ -355,9 +344,9 @@ test.group('std::compiler::type_checker::TypePass.visit_closure_type') do (g) {
     let type = pass.visit_closure_type(node: node, types: scope)
     let throws = type.throw_type
 
-    assert.true(node.resolved_type == type)
+    assert.same_object(node.resolved_type, type)
     assert_instance_of(throws, ObjectInstance)
-    assert.equal((throws as ObjectInstance).instance_of, foo_type)
+    assert.same_object((throws as ObjectInstance).instance_of, foo_type)
   }
 
   g.test('Defining a closure with an invalid throw type') {
@@ -366,7 +355,7 @@ test.group('std::compiler::type_checker::TypePass.visit_closure_type') do (g) {
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_closure_type(node: node, types: scope)
 
-    assert.true(node.resolved_type == type)
+    assert.same_object(node.resolved_type, type)
     assert.true(type.throw_type.error?)
   }
 
@@ -381,9 +370,9 @@ test.group('std::compiler::type_checker::TypePass.visit_closure_type') do (g) {
     let type = pass.visit_closure_type(node: node, types: scope)
     let returns = type.return_type
 
-    assert.true(node.resolved_type == type)
+    assert.same_object(node.resolved_type, type)
     assert_instance_of(returns, ObjectInstance)
-    assert.equal((returns as ObjectInstance).instance_of, foo_type)
+    assert.same_object((returns as ObjectInstance).instance_of, foo_type)
   }
 
   g.test('Defining a closure with an invalid return type') {
@@ -392,7 +381,7 @@ test.group('std::compiler::type_checker::TypePass.visit_closure_type') do (g) {
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_closure_type(node: node, types: scope)
 
-    assert.true(node.resolved_type == type)
+    assert.same_object(node.resolved_type, type)
     assert.true(type.return_type.error?)
   }
 
@@ -406,7 +395,7 @@ test.group('std::compiler::type_checker::TypePass.visit_closure_type') do (g) {
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_closure_type(node: node, types: scope)
 
-    assert.true(node.resolved_type == type)
+    assert.same_object(node.resolved_type, type)
 
     let params = type.type_parameters.symbols
     let param0 = params[0]
@@ -434,7 +423,7 @@ test.group('std::compiler::type_checker::TypePass.visit_closure_type') do (g) {
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_closure_type(node: node, types: scope)
 
-    assert.true(node.resolved_type == type)
+    assert.same_object(node.resolved_type, type)
     assert.true(type.arguments.symbols[0].type.error?)
   }
 
@@ -448,7 +437,7 @@ test.group('std::compiler::type_checker::TypePass.visit_closure_type') do (g) {
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_closure_type(node: node, types: scope)
 
-    assert.true(node.resolved_type == type)
+    assert.same_object(node.resolved_type, type)
 
     let arg = type.arguments.symbols[0]
 
@@ -468,11 +457,11 @@ test.group('std::compiler::type_checker::TypePass.visit_lambda_type') do (g) {
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_lambda_type(node: node, types: scope)
 
-    assert.true(node.resolved_type == type)
+    assert.same_object(node.resolved_type, type)
     assert.true(type.arguments.empty?)
     assert.true(type.type_parameters.empty?)
     assert.true(type.throw_type.nil?)
-    assert.true(type.return_type == pass.type_checker.builtins.nil_singleton)
+    assert.same_object(type.return_type, pass.type_checker.builtins.nil_singleton)
   }
 
   g.test('Defining a lambda type with valid argument types') {
@@ -487,7 +476,7 @@ test.group('std::compiler::type_checker::TypePass.visit_lambda_type') do (g) {
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_lambda_type(node: node, types: scope)
 
-    assert.true(node.resolved_type == type)
+    assert.same_object(node.resolved_type, type)
     assert.equal(type.arguments.length, 2)
 
     let args = type.arguments.symbols
@@ -510,7 +499,7 @@ test.group('std::compiler::type_checker::TypePass.visit_lambda_type') do (g) {
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_lambda_type(node: node, types: scope)
 
-    assert.true(node.resolved_type == type)
+    assert.same_object(node.resolved_type, type)
     assert.equal(type.arguments.length, 2)
 
     let args = type.arguments.symbols
@@ -534,12 +523,12 @@ test.group('std::compiler::type_checker::TypePass.visit_lambda_type') do (g) {
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_lambda_type(node: node, types: scope)
 
-    assert.true(node.resolved_type == type)
+    assert.same_object(node.resolved_type, type)
 
     let throws = type.throw_type
 
     assert_instance_of(throws, ObjectInstance)
-    assert.equal((throws as ObjectInstance).instance_of, foo_type)
+    assert.same_object((throws as ObjectInstance).instance_of, foo_type)
   }
 
   g.test('Defining a lambda with an invalid throw type') {
@@ -548,7 +537,7 @@ test.group('std::compiler::type_checker::TypePass.visit_lambda_type') do (g) {
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_lambda_type(node: node, types: scope)
 
-    assert.true(node.resolved_type == type)
+    assert.same_object(node.resolved_type, type)
     assert.true(type.throw_type.error?)
   }
 
@@ -562,12 +551,12 @@ test.group('std::compiler::type_checker::TypePass.visit_lambda_type') do (g) {
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_lambda_type(node: node, types: scope)
 
-    assert.true(node.resolved_type == type)
+    assert.same_object(node.resolved_type, type)
 
     let returns = type.return_type
 
     assert_instance_of(returns, ObjectInstance)
-    assert.equal((returns as ObjectInstance).instance_of, foo_type)
+    assert.same_object((returns as ObjectInstance).instance_of, foo_type)
   }
 
   g.test('Defining a lambda with an invalid return type') {
@@ -576,7 +565,7 @@ test.group('std::compiler::type_checker::TypePass.visit_lambda_type') do (g) {
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_lambda_type(node: node, types: scope)
 
-    assert.true(node.resolved_type == type)
+    assert.same_object(node.resolved_type, type)
     assert.true(type.return_type.error?)
   }
 
@@ -590,7 +579,7 @@ test.group('std::compiler::type_checker::TypePass.visit_lambda_type') do (g) {
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_lambda_type(node: node, types: scope)
 
-    assert.true(node.resolved_type == type)
+    assert.same_object(node.resolved_type, type)
 
     let params = type.type_parameters.symbols
     let param0 = params[0]
@@ -618,7 +607,7 @@ test.group('std::compiler::type_checker::TypePass.visit_lambda_type') do (g) {
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_lambda_type(node: node, types: scope)
 
-    assert.true(node.resolved_type == type)
+    assert.same_object(node.resolved_type, type)
     assert.true(type.arguments.symbols[0].type.error?)
   }
 
@@ -632,7 +621,7 @@ test.group('std::compiler::type_checker::TypePass.visit_lambda_type') do (g) {
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_lambda_type(node: node, types: scope)
 
-    assert.true(node.resolved_type == type)
+    assert.same_object(node.resolved_type, type)
 
     let arg = type.arguments.symbols[0]
 
@@ -656,13 +645,13 @@ test.group('std::compiler::type_checker::TypePass.visit_optional_type') do (g) {
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_optional_type(node: node, types: scope)
 
-    assert.true(node.resolved_type == type)
+    assert.same_object(node.resolved_type, type)
     assert_instance_of(type, OptionalType)
 
     let opt_type = type as OptionalType
 
     assert_instance_of(opt_type.type, ObjectInstance)
-    assert.equal((opt_type.type as ObjectInstance).instance_of, foo_type)
+    assert.same_object((opt_type.type as ObjectInstance).instance_of, foo_type)
   }
 
   g.test('Defining a valid generic optional type') {
@@ -676,7 +665,7 @@ test.group('std::compiler::type_checker::TypePass.visit_optional_type') do (g) {
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_optional_type(node: node, types: scope)
 
-    assert.true(node.resolved_type == type)
+    assert.same_object(node.resolved_type, type)
     assert_instance_of(type, OptionalType)
 
     let opt_type = type as OptionalType
@@ -734,7 +723,7 @@ test.group('std::compiler::type_checker::TypePass.visit_define_type_parameter') 
     )
 
     assert_instance_of(type, TypeParameterType)
-    assert.true(node.resolved_type == type!)
+    assert.same_object(node.resolved_type, type!)
     assert.equal(type.required_traits[0].instance_of, foo_type)
     assert.equal(table['T'].type, type!)
   }
@@ -768,7 +757,7 @@ test.group('std::compiler::type_checker::TypeChecker.add_module') do (g) {
 
     type_checker.add_module(module)
 
-    assert.equal(type_checker.module(module.name), module)
+    assert.same_object(type_checker.module(module.name), module)
   }
 }
 
@@ -814,7 +803,7 @@ test.group('Type-checking imports') do (g) {
 
     assert.false(imported.nil?)
     assert.false(type_checker.diagnostics.errors?)
-    assert.equal(imported as ObjectType, bar_type)
+    assert.same_object(imported as ObjectType, bar_type)
   }
 
   g.test('Importing a non-existing symbol') {
@@ -847,7 +836,7 @@ test.group('Type-checking imports') do (g) {
 
     assert.false(imported.nil?)
     assert.true(type_checker.diagnostics.errors?)
-    assert.equal(imported as ObjectType, bar_type)
+    assert.same_object(imported as ObjectType, bar_type)
   }
 
   g.test('Importing two different symbols') {
@@ -869,8 +858,8 @@ test.group('Type-checking imports') do (g) {
 
     assert.false(bar.nil?)
     assert.false(baz.nil?)
-    assert.equal(bar as ObjectType, bar_type)
-    assert.equal(baz as ObjectType, baz_type)
+    assert.same_object(bar as ObjectType, bar_type)
+    assert.same_object(baz as ObjectType, baz_type)
   }
 
   g.test('Importing a symbol with an alias') {
@@ -900,7 +889,7 @@ test.group('Type-checking imports') do (g) {
     let foo = bar_mod.globals['foo'].type
 
     assert.false(foo.nil?)
-    assert.equal(foo as ModuleType, foo_mod)
+    assert.same_object(foo as ModuleType, foo_mod)
   }
 
   g.test('Importing a module using an alias') {
@@ -935,8 +924,8 @@ test.group('Type-checking imports') do (g) {
 
     assert.false(bar.nil?)
     assert.false(baz.nil?)
-    assert.equal(bar as ObjectType, bar_type)
-    assert.equal(baz as ObjectType, baz_type)
+    assert.same_object(bar as ObjectType, bar_type)
+    assert.same_object(baz as ObjectType, baz_type)
   }
 
   g.test('Importing a symbol from a non-existing module') {
@@ -1014,7 +1003,7 @@ test.group('Type-checking object definitions') do (g) {
     type_checker.check_module(module: module, ast: node)
 
     assert.true(type_checker.diagnostics.errors?)
-    assert.true(module.constants['A'].type == a_type)
+    assert.same_object(module.constants['A'].type, a_type)
     assert_instance_of(node.children[0].resolved_type, ObjectType)
   }
 }
@@ -1066,7 +1055,7 @@ test.group('Type-checking trait definitions') do (g) {
 
     assert.true(type_checker.diagnostics.errors?)
     assert_instance_of(type, TraitType)
-    assert.true(node.children[0].resolved_type == type)
+    assert.same_object(node.children[0].resolved_type, type)
     assert.true((type as TraitType).type_parameters.get('T').nil?)
   }
 
@@ -1080,7 +1069,7 @@ test.group('Type-checking trait definitions') do (g) {
     type_checker.check_module(module: module, ast: node)
 
     assert.true(type_checker.diagnostics.errors?)
-    assert.true(module.constants['A'].type == a_type)
+    assert.same_object(module.constants['A'].type, a_type)
     assert_instance_of(node.children[0].resolved_type, TraitType)
   }
 }
@@ -1101,8 +1090,8 @@ test.group('Type-checking attribute definitions') do (g) {
     let attr = obj.attributes['@foo'].type
 
     assert_instance_of(attr, ObjectInstance)
-    assert.true(attr_node.resolved_type == attr)
-    assert.equal((attr as ObjectInstance).instance_of, foo_type)
+    assert.same_object(attr_node.resolved_type, attr)
+    assert.same_object((attr as ObjectInstance).instance_of, foo_type)
   }
 
   g.test('Defining an attribute as a type parameter') {
@@ -1119,7 +1108,7 @@ test.group('Type-checking attribute definitions') do (g) {
 
     assert.false(type_checker.diagnostics.errors?)
     assert_instance_of(attr, TypeParameterType)
-    assert.true(attr_node.resolved_type == attr)
+    assert.same_object(attr_node.resolved_type, attr)
   }
 
   g.test('Defining an attribute with an invalid type') {
@@ -1157,8 +1146,8 @@ test.group('Type-checking local variable definitions') do (g) {
     assert.false(symbol.mutable?)
     assert.false(symbol.type.error?)
 
-    assert.true(let_node.resolved_type == symbol.type)
-    assert.true(let_node.resolved_type == let_node.value.resolved_type!)
+    assert.same_object(let_node.resolved_type, symbol.type)
+    assert.same_object(let_node.resolved_type, let_node.value.resolved_type!)
   }
 
   g.test('Defining a local variable with an invalid value') {
@@ -1177,17 +1166,14 @@ test.group('Type-checking local variable definitions') do (g) {
     assert.false(symbol.mutable?)
     assert.true(symbol.type.error?)
 
-    assert.true(let_node.resolved_type == symbol.type)
-    assert.true(let_node.resolved_type == let_node.value.resolved_type!)
+    assert.same_object(let_node.resolved_type, symbol.type)
+    assert.same_object(let_node.resolved_type, let_node.value.resolved_type!)
   }
 
   g.test('Defining a local variable with an explicit type') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let body = parse('let a: Object = 10')
-
-    module
-      .define_constant(name: 'Object', type: type_checker.builtins.object_type)
+    let body = parse('let a: Any = 10')
 
     type_checker.check_module(module: module, ast: body)
 
@@ -1200,13 +1186,10 @@ test.group('Type-checking local variable definitions') do (g) {
     assert.false(symbol.mutable?)
     assert.false(symbol.type.error?)
 
-    assert.true(let_node.resolved_type == symbol.type)
-    assert.true(let_node.resolved_type == let_node.value_type.resolved_type!)
+    assert.same_object(let_node.resolved_type, symbol.type)
+    assert.same_object(let_node.resolved_type, let_node.value_type.resolved_type!)
 
-    assert_object_instance(
-      let_node.resolved_type,
-      type_checker.builtins.object_type
-    )
+    assert_instance_of(let_node.resolved_type, AnyType)
   }
 
   g.test('Defining a local variable with an incompatible value') {
@@ -1228,8 +1211,8 @@ test.group('Type-checking local variable definitions') do (g) {
     assert.false(symbol.mutable?)
     assert.false(symbol.type.error?)
 
-    assert.true(let_node.resolved_type == symbol.type)
-    assert.true(let_node.resolved_type == let_node.value_type.resolved_type!)
+    assert.same_object(let_node.resolved_type, symbol.type)
+    assert.same_object(let_node.resolved_type, let_node.value_type.resolved_type!)
 
     assert_object_instance(
       let_node.resolved_type,
@@ -1253,8 +1236,8 @@ test.group('Type-checking local variable definitions') do (g) {
     assert.false(symbol.mutable?)
     assert.true(symbol.type.error?)
 
-    assert.true(let_node.resolved_type == symbol.type)
-    assert.true(let_node.resolved_type == let_node.value_type.resolved_type!)
+    assert.same_object(let_node.resolved_type, symbol.type)
+    assert.same_object(let_node.resolved_type, let_node.value_type.resolved_type!)
   }
 
   g.test('Defining a local variable with Self as the explicit type') {
@@ -1273,7 +1256,7 @@ test.group('Type-checking local variable definitions') do (g) {
     assert.false(symbol.mutable?)
     assert.true(symbol.type.error?)
 
-    assert.true(let_node.resolved_type == symbol.type)
+    assert.same_object(let_node.resolved_type, symbol.type)
     assert.true(let_node.resolved_type.error?)
   }
 
@@ -1291,10 +1274,10 @@ test.group('Type-checking local variable definitions') do (g) {
     let let_node = body.children[0] as DefineLocalVariable
 
     assert.true(type_checker.diagnostics.errors?)
-    assert.true(symbol.type == a_type)
+    assert.same_object(symbol.type, a_type)
 
-    assert.false(let_node.resolved_type == symbol.type)
-    assert.true(let_node.resolved_type == let_node.value.resolved_type!)
+    assert.false(let_node.resolved_type.same_object?(symbol.type))
+    assert.same_object(let_node.resolved_type, let_node.value.resolved_type!)
   }
 }
 
@@ -1364,8 +1347,8 @@ test.group('Type-checking constant references') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.true(node.symbol.type == foo_type)
-    assert.true(body.children[0].resolved_type == foo_type)
+    assert.same_object(node.symbol.type, foo_type)
+    assert.same_object(body.children[0].resolved_type, foo_type)
   }
 }
 
@@ -1382,7 +1365,7 @@ test.group('Type-checking method definitions') do (g) {
     let method = module.methods['foo'].type as MethodType
 
     assert_instance_of(method, MethodType)
-    assert.true(body.children[0].resolved_type! == method)
+    assert.same_object(body.children[0].resolved_type!, method)
     assert.true(method.arguments.empty?)
   }
 
@@ -1440,9 +1423,7 @@ test.group('Type-checking method definitions') do (g) {
   g.test('Defining a method with a default argument value and a compatible explicit type') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let body = parse('def foo(a: Object = 10) {}')
-
-    module.define_constant(name: 'Object', type_checker.builtins.object_type)
+    let body = parse('def foo(a: Any = 10) {}')
 
     type_checker.check_module(module: module, ast: body)
 
@@ -1450,7 +1431,7 @@ test.group('Type-checking method definitions') do (g) {
     let a_type = method.arguments['a'].type
 
     assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(a_type, type_checker.builtins.object_type)
+    assert_instance_of(a_type, AnyType)
   }
 
   g.test('Defining a method with a default argument value and an incompatible explicit type') {
@@ -1805,7 +1786,7 @@ test.group('Type-checking method definitions') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.true(type_checker.diagnostics.errors?)
-    assert.true(module.methods['foo'].type == method_type)
+    assert.same_object(module.methods['foo'].type, method_type)
   }
 
   g.test('Defining a module method with the same name as an imported constant') {
@@ -2018,7 +1999,7 @@ test.group('Type-checking method definitions') do (g) {
 
     assert.false(type_checker.diagnostics.errors?)
     assert.false(method.nil?)
-    assert.true(method.arguments['a'].type == obj_type)
+    assert.same_object(method.arguments['a'].type, obj_type)
   }
 
   g.test('Defining a method inside a trait') {
@@ -2307,7 +2288,7 @@ test.group('Type-checking trait implementations') do (g) {
     assert_instance_of(impl_node.object_name.resolved_type, ObjectType)
     assert_instance_of(impl_node.trait_name.resolved_type, TraitInstance)
 
-    assert.true(impl_node.object_name.resolved_type == obj_type)
+    assert.same_object(impl_node.object_name.resolved_type, obj_type)
     assert.true(
       (impl_node.trait_name.resolved_type as TraitInstance)
         .instance_of == trait_type
@@ -2576,7 +2557,7 @@ test.group('Type-checking trait implementations') do (g) {
     let obj_type = ObjectType.new('Integer')
     let method_type = MethodType.new(
       name: '+',
-      layout: BlockLayout.new(type_checker.builtins.object_type.new_instance)
+      layout: BlockLayout.new(type_checker.builtins.nil_type.new_instance)
     )
 
     trait_type.required_methods.define(name: '+', type: method_type)
@@ -2627,7 +2608,7 @@ test.group('Type-checking trait implementations') do (g) {
     let obj_type = ObjectType.new('Integer')
     let plus = MethodType.new(
       name: '+',
-      layout: BlockLayout.new(type_checker.builtins.object_type.new_instance)
+      layout: BlockLayout.new(type_checker.builtins.nil_type.new_instance)
     )
 
     plus.define_required_argument(
@@ -2664,7 +2645,7 @@ test.group('Type-checking trait implementations') do (g) {
 
     type_checker.check_module(module: module, ast: node)
 
-    assert.equal(obj_type.instance_methods['+'].type, plus)
+    assert.same_object(obj_type.instance_methods['+'].type, plus)
   }
 
   g.test('Redefining a default method') {
@@ -2674,7 +2655,7 @@ test.group('Type-checking trait implementations') do (g) {
     let obj_type = ObjectType.new('Integer')
     let plus = MethodType.new(
       name: '+',
-      layout: BlockLayout.new(type_checker.builtins.object_type.new_instance)
+      layout: BlockLayout.new(type_checker.builtins.nil_type.new_instance)
     )
 
     trait_type.default_methods.define(name: '+', type: plus)
@@ -2690,7 +2671,7 @@ test.group('Type-checking trait implementations') do (g) {
 
     assert.false(type_checker.diagnostics.errors?)
     assert.false(custom_plus.nil?)
-    assert.not_equal(custom_plus, plus)
+    assert.false(custom_plus.same_object?(plus))
   }
 
   g.test('Incorrectly redefining a default method') {
@@ -2700,7 +2681,7 @@ test.group('Type-checking trait implementations') do (g) {
     let obj_type = ObjectType.new('Integer')
     let plus = MethodType.new(
       name: '+',
-      layout: BlockLayout.new(type_checker.builtins.object_type.new_instance)
+      layout: BlockLayout.new(type_checker.builtins.nil_type.new_instance)
     )
 
     trait_type.default_methods.define(name: '+', type: plus)
@@ -2725,12 +2706,12 @@ test.group('Type-checking trait implementations') do (g) {
     let obj_type = ObjectType.new('Integer')
     let trait_plus = MethodType.new(
       name: '+',
-      layout: BlockLayout.new(type_checker.builtins.object_type.new_instance)
+      layout: BlockLayout.new(type_checker.builtins.nil_type.new_instance)
     )
 
     let obj_plus = MethodType.new(
       name: '+',
-      layout: BlockLayout.new(type_checker.builtins.object_type.new_instance)
+      layout: BlockLayout.new(type_checker.builtins.nil_type.new_instance)
     )
 
     trait_type.required_methods.define(name: '+', type: trait_plus)
@@ -2745,7 +2726,7 @@ test.group('Type-checking trait implementations') do (g) {
 
     assert.true(type_checker.diagnostics.errors?)
     assert.true(obj_type.implemented_traits.empty?)
-    assert.equal(obj_type.instance_methods['+'].type, obj_plus)
+    assert.same_object(obj_type.instance_methods['+'].type, obj_plus)
   }
 
   g.test('Implementing a trait that provides a duplicate default method') {
@@ -2771,7 +2752,7 @@ test.group('Type-checking trait implementations') do (g) {
 
     assert.true(type_checker.diagnostics.errors?)
     assert.true(obj_type.implemented_traits.empty?)
-    assert.equal(obj_type.instance_methods['+'].type, obj_plus)
+    assert.same_object(obj_type.instance_methods['+'].type, obj_plus)
   }
 
   g.test('Defining a method with an argument depending on a required method') {
@@ -2831,7 +2812,7 @@ test.group('Type-checking trait implementations') do (g) {
     let bar = obj_type.instance_methods['bar'].type
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.equal(obj_type.instance_methods['foo'].type, foo)
+    assert.same_object(obj_type.instance_methods['foo'].type, foo)
     assert.false(bar.nil?)
     assert_object_instance(
       bar.arguments['a'].type,
@@ -2863,7 +2844,7 @@ test.group('Type-checking trait implementations') do (g) {
     let bar = obj_type.instance_methods['bar'].type
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.equal(obj_type.instance_methods['foo'].type, foo)
+    assert.same_object(obj_type.instance_methods['foo'].type, foo)
     assert.false(bar.nil?)
     assert_object_instance(bar.arguments['a'].type, obj_type)
   }
@@ -2885,7 +2866,7 @@ test.group('Type-checking trait implementations') do (g) {
     type_checker.check_module(module: module, ast: node)
 
     assert.true(type_checker.diagnostics.errors?)
-    assert.equal(obj_type.static_methods['foo'].type, foo)
+    assert.same_object(obj_type.static_methods['foo'].type, foo)
     assert.true(obj_type.instance_methods.empty?)
     assert.true(obj_type.implemented_traits.empty?)
   }
@@ -2984,8 +2965,8 @@ test.group('Type-checking reopened types') do (g) {
 
     type_checker.check_module(module: module, ast: node)
 
-    assert.true(type_checker.diagnostics.errors?)
-    assert.equal(a_type.instance_methods['foo'].type, foo_method)
+    assert.false(type_checker.diagnostics.errors?)
+    assert.false(a_type.instance_methods['foo'].type.same_object?(foo_method))
   }
 
   g.test('Defining an existing static method when reopening an object') {
@@ -3003,7 +2984,7 @@ test.group('Type-checking reopened types') do (g) {
     type_checker.check_module(module: module, ast: node)
 
     assert.true(type_checker.diagnostics.errors?)
-    assert.equal(a_type.static_methods['foo'].type, foo_method)
+    assert.same_object(a_type.static_methods['foo'].type, foo_method)
   }
 }
 
@@ -3041,7 +3022,7 @@ test.group('Type-checking identifier references') do (g) {
       type_checker.builtins.integer_type
     )
 
-    assert.true(node.symbol.type! == node.resolved_type!)
+    assert.same_object(node.symbol.type!, node.resolved_type!)
   }
 
   g.test('Referring to an imported module') {
@@ -3063,7 +3044,7 @@ test.group('Type-checking identifier references') do (g) {
       type_checker.builtins.integer_type
     )
 
-    assert.true(node.symbol.type! == node.resolved_type!)
+    assert.same_object(node.symbol.type!, node.resolved_type!)
   }
 }
 
@@ -3197,7 +3178,7 @@ test.group('Type-checking method calls without explicit receivers') do (g) {
       .type!
 
     assert_object_instance(type, type_checker.builtins.array_type)
-    assert.true(type.type_parameter_types[param] == module)
+    assert.same_object(type.type_parameter_types[param], module)
   }
 }
 
@@ -3222,7 +3203,7 @@ test.group('Type-checking global references using ::') do (g) {
       type_checker.builtins.integer_type
     )
 
-    assert.true(node.symbol.type! == node.resolved_type!)
+    assert.same_object(node.symbol.type!, node.resolved_type!)
   }
 
   g.test('Referring to an imported global variable') {
@@ -3244,7 +3225,7 @@ test.group('Type-checking global references using ::') do (g) {
       type_checker.builtins.integer_type
     )
 
-    assert.true(node.symbol.type! == node.resolved_type!)
+    assert.same_object(node.symbol.type!, node.resolved_type!)
   }
 
   g.test('Calling a module method with no arguments using ::') {
@@ -3314,7 +3295,7 @@ test.group('Type-checking constants defined by the compiler') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.true(node.resolved_type! == module)
+    assert.same_object(node.resolved_type!, module)
   }
 }
 
@@ -3359,7 +3340,7 @@ test.group('Type-checking variable reassignments') do (g) {
     let method = obj_type.instance_methods['foo'].type
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.equal(assign_node.symbol, attr)
+    assert.true(assign_node.symbol.same_object?(attr))
     assert_object_instance(method.arguments['arg'].type, int_type)
   }
 
@@ -3369,7 +3350,7 @@ test.group('Type-checking variable reassignments') do (g) {
     let body = parse('foo = 10')
     let node = body.children[0] as AssignLocal
     let int_type = type_checker.builtins.integer_type
-    let initial_type = type_checker.builtins.object_type.new_instance
+    let initial_type = AnyType.new
 
     let lvar = body
       .variable_scope
@@ -3379,8 +3360,8 @@ test.group('Type-checking variable reassignments') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.true(body.variable_scope.symbols['foo'].type == initial_type)
-    assert.equal(node.symbol, lvar)
+    assert.same_object(body.variable_scope.symbols['foo'].type, initial_type)
+    assert.true(node.symbol.same_object?(lvar))
     assert_object_instance(node.resolved_type, int_type)
   }
 
@@ -3491,7 +3472,7 @@ test.group('Type-checking attribute reference') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.equal(attr_node.symbol, attr)
+    assert.true(attr_node.symbol.same_object?(attr))
     assert_object_instance(attr_node.resolved_type!, int_type)
   }
 
@@ -3806,7 +3787,6 @@ test.group('Type-checking pattern-matching expressions') do (g) {
     let body = parse('match(10) { 10 -> { 10 } else -> { 20 } }')
     let node = body.children[0] as Match
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     assert.true(type_checker.diagnostics.errors?)
@@ -4015,11 +3995,7 @@ test.group('Type-checking pattern-matching expressions') do (g) {
     let node = body.children[0] as Match
     let case = node.cases[0] as MatchExpressions
 
-    assert_trait_instance(
-      node.resolved_type!,
-      type_checker.any_trait as TraitType
-    )
-
+    assert_instance_of(node.resolved_type, AnyType)
     assert_object_instance(case.resolved_type!, builtins.float_type)
     assert_object_instance(
       node.else_branch.resolved_type!,
@@ -4163,7 +4139,7 @@ test.group('Type-checking the not Nil postfix operator') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.true(type_checker.diagnostics.errors?)
-    assert.true(node.resolved_type == param)
+    assert.same_object(node.resolved_type, param)
   }
 
   g.test('Using the not Nil operator on a regular type') {
@@ -4397,7 +4373,7 @@ test.group('Type-checking closures') do (g) {
     assert.true(type.throw_type.nil?)
 
     assert.false(node.body.type_scope.nil?)
-    assert.equal(node.body.type_scope.block, type)
+    assert.same_object(node.body.type_scope.block, type)
 
     assert_object_instance(type.return_type, type_checker.builtins.nil_type)
   }
@@ -4440,7 +4416,7 @@ test.group('Type-checking closures') do (g) {
     assert.true(type.throw_type.nil?)
 
     assert.false(node.body.type_scope.nil?)
-    assert.equal(node.body.type_scope.block, type)
+    assert.same_object(node.body.type_scope.block, type)
 
     assert_object_instance(type.return_type, type_checker.builtins.nil_type)
   }
@@ -4599,7 +4575,7 @@ test.group('Type-checking closures') do (g) {
 
     assert.false(type_checker.diagnostics.errors?)
     assert.false(param.nil?)
-    assert.true(type.return_type == param!)
+    assert.same_object(type.return_type, param!)
   }
 
   g.test('Defining a closure with a type parameter and explicit return type') {
@@ -4615,7 +4591,7 @@ test.group('Type-checking closures') do (g) {
 
     assert.false(type_checker.diagnostics.errors?)
     assert.false(param.nil?)
-    assert.true(type.return_type == param!)
+    assert.same_object(type.return_type, param!)
   }
 
   g.test('Defining a closure with a type parameter and explicit throw type') {
@@ -4631,7 +4607,7 @@ test.group('Type-checking closures') do (g) {
 
     assert.false(type_checker.diagnostics.errors?)
     assert.false(param.nil?)
-    assert.true(type.throw_type == param!)
+    assert.same_object(type.throw_type, param!)
   }
 
   g.test('Defining a closure with immutable untyped arguments') {
@@ -4742,7 +4718,7 @@ test.group('Type-checking lambdas') do (g) {
     assert.true(type.throw_type.nil?)
 
     assert.false(node.body.type_scope.nil?)
-    assert.equal(node.body.type_scope.block, type)
+    assert.same_object(node.body.type_scope.block, type)
 
     assert_object_instance(type.return_type, type_checker.builtins.nil_type)
   }
@@ -4898,7 +4874,7 @@ test.group('Type-checking lambdas') do (g) {
 
     assert.false(type_checker.diagnostics.errors?)
     assert.false(param.nil?)
-    assert.true(type.return_type == param!)
+    assert.same_object(type.return_type, param!)
   }
 
   g.test('Defining a lambda with a type parameter and explicit return type') {
@@ -4914,7 +4890,7 @@ test.group('Type-checking lambdas') do (g) {
 
     assert.false(type_checker.diagnostics.errors?)
     assert.false(param.nil?)
-    assert.true(type.return_type == param!)
+    assert.same_object(type.return_type, param!)
   }
 
   g.test('Defining a lambda with a type parameter and explicit throw type') {
@@ -4930,7 +4906,7 @@ test.group('Type-checking lambdas') do (g) {
 
     assert.false(type_checker.diagnostics.errors?)
     assert.false(param.nil?)
-    assert.true(type.throw_type == param!)
+    assert.same_object(type.throw_type, param!)
   }
 
   g.test('Defining a lambda with immutable untyped arguments') {
@@ -5615,7 +5591,7 @@ test.group('Type-checking sending messages') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.true(node.resolved_type == module)
+    assert.same_object(node.resolved_type, module)
   }
 
   g.test('Returning a generic type containing a Self type') {
@@ -5640,7 +5616,7 @@ test.group('Type-checking sending messages') do (g) {
 
     assert.false(type_checker.diagnostics.errors?)
     assert_object_instance(type, ary_type)
-    assert.true(type.lookup_type_parameter_type(param) == module)
+    assert.same_object(type.lookup_type_parameter_type(param), module)
   }
 
   g.test('Method type parameters are not assigned in the receiver type') {
@@ -5819,6 +5795,24 @@ test.group('Type-checking sending messages') do (g) {
 
     assert.false(type_checker.diagnostics.errors?)
     assert_object_instance(node.resolved_type, int_type)
+  }
+
+  g.test('Sending a message defined in the Object trait while in a trait instance') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let body = parse('trait A { def foo { bar } }')
+
+    let bootstrap = ModuleType.new(BOOTSTRAP_MODULE)
+    let object_trait = TraitType.new(OBJECT_TRAIT)
+    let bar = MethodType.new(name: 'bar', layout: BlockLayout.new(AnyType.new))
+
+    bootstrap.constants.define(name: object_trait.name, type: object_trait)
+    object_trait.default_methods.define(name: bar.name, type: bar)
+    type_checker.add_module(bootstrap)
+
+    type_checker.check_module(module: module, ast: body)
+
+    assert.false(type_checker.diagnostics.errors?)
   }
 }
 
@@ -6260,7 +6254,7 @@ test.group('Type-checking the `local try` keyword') do (g) {
     assert.true(block.body.variable_scope.lookup('a').nil?)
 
     assert_object_instance(else_vars.lookup('a').type, int_type)
-    assert.equal(else_vars.parent, block.body.variable_scope)
+    assert.true(else_vars.parent.same_object?(block.body.variable_scope))
   }
 
   g.test('Defining a variable to store the thrown error in') {
@@ -6600,7 +6594,7 @@ test.group('Type-checking the `try` keyword') do (g) {
     assert.true(block.body.variable_scope.lookup('a').nil?)
 
     assert_object_instance(else_vars.lookup('a').type, int_type)
-    assert.equal(else_vars.parent, block.body.variable_scope)
+    assert.true(else_vars.parent.same_object?(block.body.variable_scope))
   }
 
   g.test('Defining a variable to store the thrown error in') {
@@ -6809,7 +6803,7 @@ test.group('Type-checking VM instructions') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.true(node.resolved_type! == type_checker.builtins.true_singleton)
+    assert.same_object(node.resolved_type!, type_checker.builtins.true_singleton)
   }
 
   g.test('Using get_false()') {
@@ -6821,7 +6815,7 @@ test.group('Type-checking VM instructions') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.true(node.resolved_type! == type_checker.builtins.false_singleton)
+    assert.same_object(node.resolved_type!, type_checker.builtins.false_singleton)
   }
 
   g.test('Using set_attribute() with the correct arguments') {
@@ -6860,14 +6854,12 @@ test.group('Type-checking VM instructions') do (g) {
     let node = body.children[0]
     let foo_type = ObjectType.new('Foo')
 
-    setup_bootstrap_module(type_checker)
-
     body.variable_scope.symbols.define(name: 'a', type: foo_type.new_instance)
     module.define_constant(name: int_type.name, type: int_type)
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert_trait_instance(node.resolved_type, type_checker.any_trait!)
+    assert_instance_of(node.resolved_type, AnyType)
   }
 
   g.test('Using object_equals()') {
@@ -7402,7 +7394,7 @@ test.group('Type-checking VM instructions') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.true(node.resolved_type! == type_checker.builtins.nil_singleton)
+    assert.same_object(node.resolved_type!, type_checker.builtins.nil_singleton)
   }
 
   g.test('Using get_nil_prototype()') {
@@ -7414,7 +7406,7 @@ test.group('Type-checking VM instructions') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.true(node.resolved_type! == type_checker.builtins.nil_type)
+    assert.same_object(node.resolved_type!, type_checker.builtins.nil_type)
   }
 
   g.test('Using get_module_prototype()') {
@@ -7426,7 +7418,7 @@ test.group('Type-checking VM instructions') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.true(node.resolved_type! == type_checker.builtins.module_type)
+    assert.same_object(node.resolved_type!, type_checker.builtins.module_type)
   }
 
   g.test('Using get_string_prototype()') {
@@ -7438,7 +7430,7 @@ test.group('Type-checking VM instructions') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.true(node.resolved_type! == type_checker.builtins.string_type)
+    assert.same_object(node.resolved_type!, type_checker.builtins.string_type)
   }
 
   g.test('Using get_integer_prototype()') {
@@ -7450,7 +7442,7 @@ test.group('Type-checking VM instructions') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.true(node.resolved_type! == type_checker.builtins.integer_type)
+    assert.same_object(node.resolved_type!, type_checker.builtins.integer_type)
   }
 
   g.test('Using get_float_prototype()') {
@@ -7462,19 +7454,31 @@ test.group('Type-checking VM instructions') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.true(node.resolved_type! == type_checker.builtins.float_type)
+    assert.same_object(node.resolved_type!, type_checker.builtins.float_type)
   }
 
-  g.test('Using get_object_prototype()') {
+  g.test('Using get_trait_prototype()') {
     let module = new_std_module('foo')
     let type_checker = TypeChecker.new
-    let body = parse('_INKOC.get_object_prototype')
+    let body = parse('_INKOC.get_trait_prototype')
     let node = body.children[0]
 
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.true(node.resolved_type! == type_checker.builtins.object_type)
+    assert.same_object(node.resolved_type!, type_checker.builtins.trait_type)
+  }
+
+  g.test('Using get_hasher_prototype()') {
+    let module = new_std_module('foo')
+    let type_checker = TypeChecker.new
+    let body = parse('_INKOC.get_hasher_prototype')
+    let node = body.children[0]
+
+    type_checker.check_module(module: module, ast: body)
+
+    assert.false(type_checker.diagnostics.errors?)
+    assert.same_object(node.resolved_type!, type_checker.builtins.hasher_type)
   }
 
   g.test('Using get_array_prototype()') {
@@ -7486,7 +7490,7 @@ test.group('Type-checking VM instructions') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.true(node.resolved_type! == type_checker.builtins.array_type)
+    assert.same_object(node.resolved_type!, type_checker.builtins.array_type)
   }
 
   g.test('Using get_block_prototype()') {
@@ -7498,7 +7502,7 @@ test.group('Type-checking VM instructions') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.true(node.resolved_type! == type_checker.builtins.block_type)
+    assert.same_object(node.resolved_type!, type_checker.builtins.block_type)
   }
 
   g.test('Using run_block()') {
@@ -7509,13 +7513,11 @@ test.group('Type-checking VM instructions') do (g) {
     let block = ClosureType
       .new(BlockLayout.new(type_checker.builtins.integer_type.new_instance))
 
-    setup_bootstrap_module(type_checker)
-
     body.variable_scope.symbols.define(name: 'block', type: block)
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert_trait_instance(node.resolved_type!, type_checker.any_trait!)
+    assert_instance_of(node.resolved_type, AnyType)
   }
 
   g.test('Using array_length()') {
@@ -7662,7 +7664,6 @@ test.group('Type-checking VM instructions') do (g) {
     let array_type = type_checker.builtins.array_type
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     let type = node.resolved_type
@@ -7670,10 +7671,7 @@ test.group('Type-checking VM instructions') do (g) {
 
     assert.false(type_checker.diagnostics.errors?)
     assert_object_instance(type, array_type)
-    assert_trait_instance(
-      type.lookup_type_parameter_type(param),
-      type_checker.any_trait!
-    )
+    assert_instance_of(type.lookup_type_parameter_type(param), AnyType)
   }
 
   g.test('Using string_to_upper()') {
@@ -7865,11 +7863,10 @@ test.group('Type-checking VM instructions') do (g) {
     let body = parse('_INKOC.process_receive_message')
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert_trait_instance(node.resolved_type, type_checker.any_trait!)
+    assert_instance_of(node.resolved_type, AnyType)
   }
 
   g.test('Using process_current()') {
@@ -7915,11 +7912,10 @@ test.group('Type-checking VM instructions') do (g) {
     let body = parse('_INKOC.get_prototype')
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert_trait_instance(node.resolved_type, type_checker.any_trait!)
+    assert_instance_of(node.resolved_type, AnyType)
   }
 
   g.test('Using get_attribute_names()') {
@@ -7929,7 +7925,6 @@ test.group('Type-checking VM instructions') do (g) {
     let array_type = type_checker.builtins.array_type
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     let type = node.resolved_type
@@ -7937,10 +7932,7 @@ test.group('Type-checking VM instructions') do (g) {
 
     assert.false(type_checker.diagnostics.errors?)
     assert_object_instance(type, array_type)
-    assert_trait_instance(
-      type.lookup_type_parameter_type(param),
-      type_checker.any_trait!
-    )
+    assert_instance_of(type.lookup_type_parameter_type(param), AnyType)
   }
 
   g.test('Using file_flush()') {
@@ -7985,11 +7977,10 @@ test.group('Type-checking VM instructions') do (g) {
     let body = parse('_INKOC.file_open')
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert_trait_instance(node.resolved_type, type_checker.any_trait!)
+    assert_instance_of(node.resolved_type, AnyType)
   }
 
   g.test('Using file_read()') {
@@ -8113,7 +8104,6 @@ test.group('Type-checking VM instructions') do (g) {
     let node = body.children[0]
     let file_type = ObjectType.new('File')
 
-    setup_bootstrap_module(type_checker)
     body.variable_scope.symbols.define(name: 'f', type: file_type.new_instance)
     type_checker.check_module(module: module, ast: body)
 
@@ -8122,10 +8112,7 @@ test.group('Type-checking VM instructions') do (g) {
 
     assert.false(type_checker.diagnostics.errors?)
     assert_object_instance(type, array_type)
-    assert_trait_instance(
-      type.lookup_type_parameter_type(param),
-      type_checker.any_trait!
-    )
+    assert_instance_of(type.lookup_type_parameter_type(param), AnyType)
   }
 
   g.test('Using file_path()') {
@@ -8304,7 +8291,6 @@ test.group('Type-checking VM instructions') do (g) {
     let array_type = type_checker.builtins.array_type
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     let type = node.resolved_type
@@ -8316,10 +8302,7 @@ test.group('Type-checking VM instructions') do (g) {
     let param_type = type.lookup_type_parameter_type(param)
 
     assert_object_instance(param_type, array_type)
-    assert_trait_instance(
-      param_type.lookup_type_parameter_type(param),
-      type_checker.any_trait!
-    )
+    assert_instance_of(param_type.lookup_type_parameter_type(param), AnyType)
   }
 
   g.test('Using block_metadata()') {
@@ -8328,11 +8311,10 @@ test.group('Type-checking VM instructions') do (g) {
     let body = parse('_INKOC.block_metadata({})')
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert_trait_instance(node.resolved_type, type_checker.any_trait!)
+    assert_instance_of(node.resolved_type, AnyType)
   }
 
   g.test('Using string_format_debug()') {
@@ -8482,7 +8464,7 @@ test.group('Type-checking VM instructions') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.true(node.resolved_type == type_checker.builtins.boolean_type)
+    assert.same_object(node.resolved_type, type_checker.builtins.boolean_type)
   }
 
   g.test('Using get_byte_array_prototype()') {
@@ -8494,7 +8476,7 @@ test.group('Type-checking VM instructions') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.true(node.resolved_type == type_checker.builtins.byte_array_type)
+    assert.same_object(node.resolved_type, type_checker.builtins.byte_array_type)
   }
 
   g.test('Using get_ffi_library_prototype()') {
@@ -8506,7 +8488,7 @@ test.group('Type-checking VM instructions') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.true(node.resolved_type == type_checker.builtins.ffi_library_type)
+    assert.same_object(node.resolved_type, type_checker.builtins.ffi_library_type)
   }
 
   g.test('Using get_ffi_function_prototype()') {
@@ -8518,7 +8500,7 @@ test.group('Type-checking VM instructions') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.true(node.resolved_type == type_checker.builtins.ffi_function_type)
+    assert.same_object(node.resolved_type, type_checker.builtins.ffi_function_type)
   }
 
   g.test('Using get_ffi_pointer_prototype()') {
@@ -8530,7 +8512,7 @@ test.group('Type-checking VM instructions') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.true(node.resolved_type == type_checker.builtins.ffi_pointer_type)
+    assert.same_object(node.resolved_type, type_checker.builtins.ffi_pointer_type)
   }
 
   g.test('Using get_ip_socket_prototype()') {
@@ -8542,7 +8524,7 @@ test.group('Type-checking VM instructions') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.true(node.resolved_type == type_checker.builtins.ip_socket_type)
+    assert.same_object(node.resolved_type, type_checker.builtins.ip_socket_type)
   }
 
   g.test('Using get_unix_socket_prototype()') {
@@ -8554,7 +8536,7 @@ test.group('Type-checking VM instructions') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.true(node.resolved_type == type_checker.builtins.unix_socket_type)
+    assert.same_object(node.resolved_type, type_checker.builtins.unix_socket_type)
   }
 
   g.test('Using get_process_prototype()') {
@@ -8566,7 +8548,7 @@ test.group('Type-checking VM instructions') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.true(node.resolved_type == type_checker.builtins.process_type)
+    assert.same_object(node.resolved_type, type_checker.builtins.process_type)
   }
 
   g.test('Using get_read_only_file_prototype()') {
@@ -8578,7 +8560,7 @@ test.group('Type-checking VM instructions') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.true(node.resolved_type == type_checker.builtins.read_only_file_type)
+    assert.same_object(node.resolved_type, type_checker.builtins.read_only_file_type)
   }
 
   g.test('Using get_write_only_file_prototype()') {
@@ -8590,7 +8572,7 @@ test.group('Type-checking VM instructions') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.true(node.resolved_type == type_checker.builtins.write_only_file_type)
+    assert.same_object(node.resolved_type, type_checker.builtins.write_only_file_type)
   }
 
   g.test('Using get_read_write_file_prototype()') {
@@ -8602,7 +8584,7 @@ test.group('Type-checking VM instructions') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.true(node.resolved_type == type_checker.builtins.read_write_file_type)
+    assert.same_object(node.resolved_type, type_checker.builtins.read_write_file_type)
   }
 
   g.test('Using generator_prototype()') {
@@ -8614,7 +8596,7 @@ test.group('Type-checking VM instructions') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.true(node.resolved_type == type_checker.builtins.generator_type)
+    assert.same_object(node.resolved_type, type_checker.builtins.generator_type)
   }
 
   g.test('Using set_object_name()') {
@@ -8858,11 +8840,10 @@ test.group('Type-checking VM instructions') do (g) {
     let body = parse('_INKOC.ffi_call')
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert_trait_instance(node.resolved_type, type_checker.any_trait!)
+    assert_instance_of(node.resolved_type, AnyType)
   }
 
   g.test('Using ffi_pointer_attach()') {
@@ -8884,11 +8865,10 @@ test.group('Type-checking VM instructions') do (g) {
     let body = parse('_INKOC.ffi_pointer_read')
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert_trait_instance(node.resolved_type, type_checker.any_trait!)
+    assert_instance_of(node.resolved_type, AnyType)
   }
 
   g.test('Using ffi_pointer_write()') {
@@ -8897,11 +8877,10 @@ test.group('Type-checking VM instructions') do (g) {
     let body = parse('_INKOC.ffi_pointer_write')
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert_trait_instance(node.resolved_type, type_checker.any_trait!)
+    assert_instance_of(node.resolved_type, AnyType)
   }
 
   g.test('Using ffi_pointer_from_address()') {
@@ -9010,11 +8989,10 @@ test.group('Type-checking VM instructions') do (g) {
     let body = parse('_INKOC.socket_create')
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert_trait_instance(node.resolved_type, type_checker.any_trait!)
+    assert_instance_of(node.resolved_type, AnyType)
   }
 
   g.test('Using socket_write()') {
@@ -9053,11 +9031,10 @@ test.group('Type-checking VM instructions') do (g) {
     let body = parse('_INKOC.socket_accept')
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert_trait_instance(node.resolved_type, type_checker.any_trait!)
+    assert_instance_of(node.resolved_type, AnyType)
   }
 
   g.test('Using socket_receive_from()') {
@@ -9067,7 +9044,6 @@ test.group('Type-checking VM instructions') do (g) {
     let array_type = type_checker.builtins.array_type
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     let type = node.resolved_type
@@ -9075,10 +9051,7 @@ test.group('Type-checking VM instructions') do (g) {
 
     assert.false(type_checker.diagnostics.errors?)
     assert_object_instance(type, array_type)
-    assert_trait_instance(
-      type.lookup_type_parameter_type(param),
-      type_checker.any_trait!
-    )
+    assert_instance_of(type.lookup_type_parameter_type(param), AnyType)
   }
 
   g.test('Using socket_send_to()') {
@@ -9103,7 +9076,6 @@ test.group('Type-checking VM instructions') do (g) {
     let array_type = type_checker.builtins.array_type
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     let type = node.resolved_type
@@ -9111,10 +9083,7 @@ test.group('Type-checking VM instructions') do (g) {
 
     assert.false(type_checker.diagnostics.errors?)
     assert_object_instance(type, array_type)
-    assert_trait_instance(
-      type.lookup_type_parameter_type(param),
-      type_checker.any_trait!
-    )
+    assert_instance_of(type.lookup_type_parameter_type(param), AnyType)
   }
 
   g.test('Using socket_get_option()') {
@@ -9123,11 +9092,10 @@ test.group('Type-checking VM instructions') do (g) {
     let body = parse('_INKOC.socket_get_option')
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert_trait_instance(node.resolved_type, type_checker.any_trait!)
+    assert_instance_of(node.resolved_type, AnyType)
   }
 
   g.test('Using socket_set_option()') {
@@ -9136,11 +9104,10 @@ test.group('Type-checking VM instructions') do (g) {
     let body = parse('_INKOC.socket_set_option')
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert_trait_instance(node.resolved_type, type_checker.any_trait!)
+    assert_instance_of(node.resolved_type, AnyType)
   }
 
   g.test('Using socket_bind()') {
@@ -9149,7 +9116,6 @@ test.group('Type-checking VM instructions') do (g) {
     let body = parse('_INKOC.socket_bind')
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
@@ -9162,7 +9128,6 @@ test.group('Type-checking VM instructions') do (g) {
     let body = parse('_INKOC.socket_connect')
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
@@ -9175,7 +9140,6 @@ test.group('Type-checking VM instructions') do (g) {
     let body = parse('_INKOC.socket_shutdown')
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
@@ -9188,7 +9152,6 @@ test.group('Type-checking VM instructions') do (g) {
     let body = parse('_INKOC.socket_listen')
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
@@ -9204,11 +9167,10 @@ test.group('Type-checking VM instructions') do (g) {
     let body = parse('_INKOC.random_number')
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert_trait_instance(node.resolved_type, type_checker.any_trait!)
+    assert_instance_of(node.resolved_type, AnyType)
   }
 
   g.test('Using random_range()') {
@@ -9217,11 +9179,10 @@ test.group('Type-checking VM instructions') do (g) {
     let body = parse('_INKOC.random_range')
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert_trait_instance(node.resolved_type, type_checker.any_trait!)
+    assert_instance_of(node.resolved_type, AnyType)
   }
 
   g.test('Using random_bytes()') {
@@ -9230,7 +9191,6 @@ test.group('Type-checking VM instructions') do (g) {
     let body = parse('_INKOC.random_bytes')
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
@@ -9246,7 +9206,6 @@ test.group('Type-checking VM instructions') do (g) {
     let body = parse('_INKOC.if(1, "foo", 20.5)')
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
@@ -9259,7 +9218,6 @@ test.group('Type-checking VM instructions') do (g) {
     let body = parse('_INKOC.module_load')
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
@@ -9272,7 +9230,6 @@ test.group('Type-checking VM instructions') do (g) {
     let body = parse('_INKOC.module_get')
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     let type = node.resolved_type
@@ -9288,7 +9245,6 @@ test.group('Type-checking VM instructions') do (g) {
     let array_type = type_checker.builtins.array_type
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     let type = node.resolved_type
@@ -9308,7 +9264,6 @@ test.group('Type-checking VM instructions') do (g) {
     let body = parse('_INKOC.module_info')
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
@@ -9321,7 +9276,6 @@ test.group('Type-checking VM instructions') do (g) {
     let body = parse('_INKOC.generator_resume')
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
@@ -9334,11 +9288,10 @@ test.group('Type-checking VM instructions') do (g) {
     let body = parse('_INKOC.generator_value')
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
-    assert_trait_instance(node.resolved_type, type_checker.any_trait!)
+    assert_instance_of(node.resolved_type, AnyType)
   }
 
   g.test('Using generator_yielded()') {
@@ -9347,7 +9300,6 @@ test.group('Type-checking VM instructions') do (g) {
     let body = parse('_INKOC.generator_yielded')
     let node = body.children[0]
 
-    setup_bootstrap_module(type_checker)
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)

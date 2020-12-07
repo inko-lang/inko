@@ -102,6 +102,7 @@
 #     errno.read(types.i32) # => 0
 import std::error::StandardError
 import std::ffi::types::Type
+import std::hash::Hash
 import std::index::(Index, SetIndex)
 import std::io::Close
 import std::operators::Equal
@@ -149,7 +150,7 @@ impl Pointer {
   # The `type` argument specifies the `Type` of data that is being read. The
   # `offset` argument can be used to specify an offset in bytes (relative to
   # the pointer) to read from.
-  def read(type: Type, offset = 0) -> Any {
+  def read(type: Type, offset = 0) -> Object {
     _INKOC.ffi_pointer_read(self, type.to_integer, offset)
   }
 
@@ -163,6 +164,8 @@ impl Pointer {
   }
 }
 
+impl Object for Pointer {}
+
 impl Equal for Pointer {
   # Returns `True` if `self` and the given `Pointer` point to the same memory
   # address.
@@ -170,6 +173,8 @@ impl Equal for Pointer {
     address == other.address
   }
 }
+
+impl Hash for Pointer {}
 
 impl Library {
   # Dynamically loads a C library.
@@ -200,6 +205,8 @@ impl Library {
     }
   }
 }
+
+impl Object for Library {}
 
 impl Close for Library {
   # Disposes of the current library.
@@ -238,10 +245,12 @@ impl Function {
   # Calls the function with the given arguments.
   #
   # This method will panic if any of the arguments are invalid.
-  def call(*arguments: Any) -> Any {
+  def call(*arguments: Object) -> Object {
     _INKOC.ffi_function_call(self, arguments)
   }
 }
+
+impl Object for Function {}
 
 # Now that `Function` has been defined, we can define `Library.function` to make
 # it a bit easier to attach functions.
@@ -359,7 +368,7 @@ object Struct {
   # Reads the value of the given struct member.
   #
   # This method will panic if the given member does not exist.
-  def [](name: String) -> Any {
+  def [](name: String) -> Object {
     let member = @layout[name]
 
     @pointer.read(type: member.type, offset: member.offset)

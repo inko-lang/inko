@@ -64,15 +64,14 @@ module Inkoc
       end
 
       def type_compatible?(other, state)
-        return true if other.dynamic? || self == other
+        return true if other.any? || self == other
 
         if other.optional?
           type_compatible?(other.type, state)
         elsif other.type_parameter?
           compatible_with_type_parameter?(other, state)
         elsif other.trait?
-          compatible_with_trait?(other, state) ||
-            state.typedb.object_type.type_compatible?(other, state)
+          compatible_with_trait?(other, state)
         else
           compatible_with_object?(other)
         end

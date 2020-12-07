@@ -1,5 +1,6 @@
 # The Integer type.
 import std::conversion::(ToInteger, ToString, ToFloat)
+import std::hash::Hash
 import std::numeric::Numeric
 import std::operators::*
 import std::successor::Successor
@@ -162,3 +163,5 @@ impl Successor for Integer {
     self + 1
   }
 }
+
+impl Hash for Integer {}

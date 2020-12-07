@@ -73,8 +73,8 @@ module Inkoc
         location.file.path.to_s
       end
 
-      def lookup_any_type
-        lookup_global(Config::ANY_TRAIT_CONST)
+      def lookup_object_type
+        lookup_global(Config::OBJECT_CONST)
       end
     end
   end

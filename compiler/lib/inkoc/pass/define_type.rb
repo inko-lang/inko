@@ -88,7 +88,8 @@ module Inkoc
         if node.returns
           type.return_type = define_type_instance(node.returns, scope)
         else
-          type.return_type = new_any_type
+          type.return_type = @state.typedb.nil_type.new_instance
+          type.ignore_return = true
         end
 
         if node.throws
@@ -412,7 +413,7 @@ module Inkoc
         expected_type =
           block_type.return_type.resolve_self_type(scope.self_type)
 
-        unless block_type.yield_type
+        if !block_type.yield_type && !block_type.ignore_return
           if !type.never? && !type.type_compatible?(expected_type, @state)
             loc = node.location_of_last_expression
 
@@ -522,7 +523,7 @@ module Inkoc
 
       def on_try_with_else(node, scope)
         try_type = node.expression.type
-        throw_type = node.throw_type || new_any_type
+        throw_type = node.throw_type || TypeSystem::Any.singleton
 
         node.else_block_type = TypeSystem::Block.new(
           name: Config::ELSE_BLOCK_NAME,
@@ -605,7 +606,7 @@ module Inkoc
         end
 
         block_type = TypeSystem::Block
-          .closure(typedb.block_type, return_type: new_any_type)
+          .closure(typedb.block_type, return_type: TypeSystem::Any.singleton)
 
         new_scope = TypeScope
           .new(type, block_type, @module, locals: node.body.locals)
@@ -629,7 +630,7 @@ module Inkoc
         # that the trait is implemented for, instead of referring to the type of
         # the outer scope.
         impl_block = TypeSystem::Block
-          .closure(typedb.block_type, return_type: new_any_type)
+          .closure(typedb.block_type, return_type: TypeSystem::Any.singleton)
 
         impl_scope = TypeScope
           .new(object, impl_block, @module, locals: node.body.locals)
@@ -802,7 +803,7 @@ module Inkoc
               return_type = TypeSystem::Optional.new(return_type)
             end
           else
-            return_type = new_any_type
+            return_type = TypeSystem::Any.singleton
           end
 
           return_type || else_type
@@ -831,8 +832,8 @@ module Inkoc
       def on_match_expression(node, scope, matching_type, _)
         location = node.location
 
-        if matching_type&.dynamic?
-          return @state.diagnostics.pattern_match_dynamic(location)
+        if matching_type&.any?
+          return @state.diagnostics.pattern_match_any(location)
         end
 
         operators_mod = @state.module(Config::OPERATORS_MODULE)
@@ -868,7 +869,7 @@ module Inkoc
 
       def on_block(node, scope, expected_block = nil)
         block_type = TypeSystem::Block
-          .closure(typedb.block_type, return_type: new_any_type)
+          .closure(typedb.block_type, return_type: TypeSystem::Any.singleton)
 
         locals = node.body.locals
 
@@ -888,7 +889,7 @@ module Inkoc
 
       def on_lambda(node, scope, expected_block = nil)
         block_type = TypeSystem::Block
-          .lambda(typedb.block_type, return_type: new_any_type)
+          .lambda(typedb.block_type, return_type: TypeSystem::Any.singleton)
 
         new_scope = TypeScope.new(
           @module.type,
@@ -1298,8 +1299,11 @@ module Inkoc
             node.returns.late_binding = true
 
             define_type_instance(node.returns, scope)
+          elsif scope.block_type.method?
+            scope.block_type.ignore_return = true
+            @state.typedb.nil_type.new_instance
           else
-            new_any_type
+            TypeSystem::Any.singleton
           end
       end
 

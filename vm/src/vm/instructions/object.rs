@@ -44,27 +44,27 @@ pub fn get_builtin_prototype(
 ) -> Result<ObjectPointer, String> {
     let id_int = id.integer_value()?;
     let proto = match id_int {
-        0 => state.object_prototype,
-        1 => state.integer_prototype,
-        2 => state.float_prototype,
-        3 => state.string_prototype,
-        4 => state.array_prototype,
-        5 => state.block_prototype,
-        6 => state.boolean_prototype,
-        7 => state.byte_array_prototype,
-        8 => state.nil_prototype,
-        9 => state.module_prototype,
-        10 => state.ffi_library_prototype,
-        11 => state.ffi_function_prototype,
-        12 => state.ffi_pointer_prototype,
-        13 => state.ip_socket_prototype,
-        14 => state.unix_socket_prototype,
-        15 => state.process_prototype,
-        16 => state.read_only_file_prototype,
-        17 => state.write_only_file_prototype,
-        18 => state.read_write_file_prototype,
-        19 => state.hasher_prototype,
-        20 => state.generator_prototype,
+        0 => state.integer_prototype,
+        1 => state.float_prototype,
+        2 => state.string_prototype,
+        3 => state.array_prototype,
+        4 => state.block_prototype,
+        5 => state.boolean_prototype,
+        6 => state.byte_array_prototype,
+        7 => state.nil_prototype,
+        8 => state.module_prototype,
+        9 => state.ffi_library_prototype,
+        10 => state.ffi_function_prototype,
+        11 => state.ffi_pointer_prototype,
+        12 => state.ip_socket_prototype,
+        13 => state.unix_socket_prototype,
+        14 => state.process_prototype,
+        15 => state.read_only_file_prototype,
+        16 => state.write_only_file_prototype,
+        17 => state.read_write_file_prototype,
+        18 => state.hasher_prototype,
+        19 => state.generator_prototype,
+        20 => state.trait_prototype,
         _ => return Err(format!("Invalid prototype identifier: {}", id_int)),
     };
 
@@ -77,7 +77,7 @@ pub fn get_attribute(
     rec_ptr: ObjectPointer,
     name_ptr: ObjectPointer,
 ) -> ObjectPointer {
-    let name = state.intern_pointer(name_ptr).unwrap_or_else(|_| name_ptr);
+    let name = state.intern_pointer(name_ptr).unwrap_or(name_ptr);
 
     rec_ptr
         .lookup_attribute(&state, name)
@@ -90,7 +90,7 @@ pub fn get_attribute_in_self(
     rec_ptr: ObjectPointer,
     name_ptr: ObjectPointer,
 ) -> ObjectPointer {
-    let name = state.intern_pointer(name_ptr).unwrap_or_else(|_| name_ptr);
+    let name = state.intern_pointer(name_ptr).unwrap_or(name_ptr);
 
     rec_ptr
         .lookup_attribute_in_self(&state, name)
@@ -149,7 +149,7 @@ pub fn attribute_exists(
     source_ptr: ObjectPointer,
     name_ptr: ObjectPointer,
 ) -> ObjectPointer {
-    let name = state.intern_pointer(name_ptr).unwrap_or_else(|_| name_ptr);
+    let name = state.intern_pointer(name_ptr).unwrap_or(name_ptr);
 
     if source_ptr.lookup_attribute(&state, name).is_some() {
         state.true_object
@@ -215,12 +215,12 @@ mod tests {
 
         assert!(
             get_builtin_prototype(&state, ObjectPointer::integer(2)).unwrap()
-                == state.float_prototype
+                == state.string_prototype
         );
 
         assert!(
             get_builtin_prototype(&state, ObjectPointer::integer(5)).unwrap()
-                == state.block_prototype
+                == state.boolean_prototype
         );
 
         assert!(

@@ -27,7 +27,7 @@ module Inkoc
       def_delegator :type, :resolved_return_type
       def_delegator :type, :initialize_type_parameter?
       def_delegator :type, :lookup_type_parameter_instance
-      def_delegator :type, :dynamic?
+      def_delegator :type, :any?
 
       # Wraps a type in an Optional if necessary.
       def self.wrap(type)
@@ -62,7 +62,7 @@ module Inkoc
             type.type_compatible?(other, state)
         end
 
-        if other.optional? || other.type_parameter? || other.dynamic?
+        if other.optional? || other.type_parameter? || other.any?
           type.type_compatible?(other, state)
         else
           false

@@ -2,8 +2,7 @@
 
 module Inkoc
   module TypeSystem
-    # A dynamic type that responds to every message.
-    class Dynamic
+    class Any
       include Type
       include TypeWithPrototype
       include TypeWithAttributes
@@ -32,10 +31,6 @@ module Inkoc
         nil
       end
 
-      def dynamic?
-        true
-      end
-
       def attributes
         SymbolTable.new
       end
@@ -61,15 +56,7 @@ module Inkoc
       end
 
       def type_compatible?(other, *)
-        other = other.type if other.optional?
-
-        if other.dynamic?
-          true
-        elsif other.type_parameter?
-          compatible_with_type_parameter?(other)
-        else
-          false
-        end
+        other.is_a?(Any)
       end
 
       def compatible_with_type_parameter?(other)
@@ -77,11 +64,19 @@ module Inkoc
       end
 
       def type_name
-        'Dynamic'
+        Config::ANY_TYPE
       end
 
       def resolved_return_type(*)
         self
+      end
+
+      def cast_to?(*)
+        true
+      end
+
+      def any?
+        true
       end
     end
   end

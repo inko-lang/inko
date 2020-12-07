@@ -4,10 +4,13 @@ require 'spec_helper'
 
 describe Inkoc::Pass::DefineType do
   before do
-    any_trait = state.typedb.new_trait_type(Inkoc::Config::ANY_TRAIT_CONST)
+    object_trait = state.typedb.new_trait_type(Inkoc::Config::OBJECT_CONST)
 
-    tir_module.globals.define(Inkoc::Config::ANY_TRAIT_CONST, any_trait )
-    state.typedb.object_type.implement_trait(any_trait)
+    tir_module.globals.define(Inkoc::Config::OBJECT_CONST, object_trait)
+
+    state.typedb.nil_type.implement_trait(object_trait)
+    state.typedb.integer_type.implement_trait(object_trait)
+    state.typedb.string_type.implement_trait(object_trait)
   end
 
   shared_examples 'a Block type' do
@@ -181,12 +184,7 @@ describe Inkoc::Pass::DefineType do
     it 'defines the default return type when no return type is given' do
       type = expression_type("#{header} {}")
 
-      if type.method?
-        expect(type.return_type)
-          .to be_type_instance_of(tir_module.lookup_any_type)
-      else
-        expect(type.return_type).to be_type_instance_of(state.typedb.nil_type)
-      end
+      expect(type.return_type).to be_type_instance_of(state.typedb.nil_type)
     end
 
     it 'defines a "call" method for the defined method' do
@@ -249,9 +247,9 @@ describe Inkoc::Pass::DefineType do
     end
 
     it 'does not overwrite an explicitly defined return type' do
-      type = expression_type("#{header} -> Any { 10 }")
+      type = expression_type("#{header} -> Object { 10 }")
 
-      expect(type.return_type).to be_type_instance_of(tir_module.lookup_any_type)
+      expect(type.return_type).to be_type_instance_of(tir_module.lookup_object_type)
     end
 
     context 'when the block includes a try statement without an else' do
@@ -273,10 +271,10 @@ describe Inkoc::Pass::DefineType do
       end
 
       it 'does not overwrite an explicitly defined throw type' do
-        type = expression_type("#{header} !! Any { try foo }")
+        type = expression_type("#{header} !! Object { try foo }")
 
         expect(type.throw_type)
-          .to be_type_instance_of(tir_module.lookup_any_type)
+          .to be_type_instance_of(tir_module.lookup_object_type)
       end
     end
 
@@ -310,10 +308,10 @@ describe Inkoc::Pass::DefineType do
       end
 
       it 'does not overwrite an explicitly defined throw type' do
-        type = expression_type("#{header} !! Any { local throw Error }")
+        type = expression_type("#{header} !! Object { local throw Error }")
 
         expect(type.throw_type)
-          .to be_type_instance_of(tir_module.lookup_any_type)
+          .to be_type_instance_of(tir_module.lookup_object_type)
       end
     end
   end
@@ -932,7 +930,7 @@ describe Inkoc::Pass::DefineType do
     context 'when the method defines a rest argument' do
       let(:block) do
         Inkoc::TypeSystem::Block
-          .new(name: 'foo', return_type: tir_module.lookup_any_type.new_instance)
+          .new(name: 'foo', return_type: tir_module.lookup_object_type.new_instance)
       end
 
       before do
@@ -946,7 +944,7 @@ describe Inkoc::Pass::DefineType do
 
         type = expression_type('foo(10, 20, 30)')
 
-        expect(type).to be_type_instance_of(tir_module.lookup_any_type)
+        expect(type).to be_type_instance_of(tir_module.lookup_object_type)
         expect(state.diagnostics.errors?).to eq(false)
       end
 
@@ -994,14 +992,14 @@ describe Inkoc::Pass::DefineType do
       let(:integer_type) { state.typedb.integer_type }
       let(:expected_block) do
         Inkoc::TypeSystem::Block.new(
-          return_type: tir_module.lookup_any_type.new_instance,
-          throw_type: tir_module.lookup_any_type.new_instance
+          return_type: tir_module.lookup_object_type.new_instance,
+          throw_type: tir_module.lookup_object_type.new_instance
         )
       end
 
       let(:method) do
         Inkoc::TypeSystem::Block
-          .new(name: 'foo', return_type: tir_module.lookup_any_type.new_instance)
+          .new(name: 'foo', return_type: tir_module.lookup_object_type.new_instance)
       end
 
       before do
@@ -1035,7 +1033,7 @@ describe Inkoc::Pass::DefineType do
 
         type, closure = parse_closure_argument('foo do (thing) { }')
 
-        expect(type).to be_type_instance_of(tir_module.lookup_any_type)
+        expect(type).to be_type_instance_of(tir_module.lookup_object_type)
 
         expect(closure).to be_instance_of(Inkoc::TypeSystem::Block)
 
@@ -1064,7 +1062,7 @@ describe Inkoc::Pass::DefineType do
 
         type, closure = parse_closure_argument('foo do (thing) { thing }')
 
-        expect(type).to be_type_instance_of(tir_module.lookup_any_type)
+        expect(type).to be_type_instance_of(tir_module.lookup_object_type)
 
         expect(closure.return_type)
           .to be_type_instance_of(state.typedb.integer_type)
@@ -1076,7 +1074,7 @@ describe Inkoc::Pass::DefineType do
         type, closure =
           parse_closure_argument('foo do (thing) { local throw thing }')
 
-        expect(type).to be_type_instance_of(tir_module.lookup_any_type)
+        expect(type).to be_type_instance_of(tir_module.lookup_object_type)
 
         expect(closure.throw_type)
           .to be_type_instance_of(state.typedb.integer_type)
@@ -1087,7 +1085,7 @@ describe Inkoc::Pass::DefineType do
 
         type, closure = parse_closure_argument('foo {}')
 
-        expect(type).to be_type_instance_of(tir_module.lookup_any_type)
+        expect(type).to be_type_instance_of(tir_module.lookup_object_type)
         expect(closure).to be_lambda
       end
 
@@ -1098,7 +1096,7 @@ describe Inkoc::Pass::DefineType do
 
         type, closure = parse_closure_argument('foo { let a = 10 }')
 
-        expect(type).to be_type_instance_of(tir_module.lookup_any_type)
+        expect(type).to be_type_instance_of(tir_module.lookup_object_type)
         expect(closure).to be_lambda
         expect(state.diagnostics.errors?).to eq(false)
       end
@@ -1128,7 +1126,7 @@ describe Inkoc::Pass::DefineType do
 
     it 'supports the use of keyword arguments' do
       method = Inkoc::TypeSystem::Block
-        .new(name: 'foo', return_type: tir_module.lookup_any_type.new_instance)
+        .new(name: 'foo', return_type: tir_module.lookup_object_type.new_instance)
 
       method.define_required_argument(
         'thing',
@@ -1139,7 +1137,7 @@ describe Inkoc::Pass::DefineType do
 
       type = expression_type('foo(thing: 10)')
 
-      expect(type).to be_type_instance_of(tir_module.lookup_any_type)
+      expect(type).to be_type_instance_of(tir_module.lookup_object_type)
       expect(state.diagnostics.errors?).to eq(false)
     end
 
@@ -1381,10 +1379,10 @@ describe Inkoc::Pass::DefineType do
       end
 
       it 'does not overwrite explicitly defined return types' do
-        type = expression_type("#{keyword} -> Any { 10 }")
+        type = expression_type("#{keyword} -> Object { 10 }")
 
         expect(type.return_type)
-          .to be_type_instance_of(tir_module.lookup_any_type)
+          .to be_type_instance_of(tir_module.lookup_object_type)
       end
 
       it 'produces a type error if the expression is not compatible' do
@@ -1446,7 +1444,8 @@ describe Inkoc::Pass::DefineType do
       end
 
       it 'does not produce any errors when the return type is compatible' do
-        expression_type('def foo { return 10 }')
+        tir_module.globals.define('Integer', state.typedb.integer_type)
+        expression_type('def foo -> Integer { return 10 }')
 
         expect(state.diagnostics.errors?).to eq(false)
       end
@@ -1544,7 +1543,7 @@ describe Inkoc::Pass::DefineType do
           .to be_type_instance_of(state.typedb.integer_type)
       end
 
-      it 'defines the error argument as a Any type if no error is thrown' do
+      it 'defines the error argument as a Object type if no error is thrown' do
         body = parse_source('do { try 10 else (error) error }')
 
         Inkoc::Pass::SetupSymbolTables
@@ -1556,8 +1555,7 @@ describe Inkoc::Pass::DefineType do
         try_node = body.expressions[0].body.expressions[0]
         error_local = try_node.else_body.locals['error']
 
-        expect(error_local.type)
-          .to be_type_instance_of(tir_module.lookup_any_type)
+        expect(error_local.type).to be_instance_of(Inkoc::TypeSystem::Any)
       end
 
       it 'allows referencing of outer local variables in the else block' do
@@ -1636,7 +1634,7 @@ describe Inkoc::Pass::DefineType do
 
       expect(type).to be_instance_of(Inkoc::TypeSystem::Object)
       expect(type.name).to eq('Person')
-      expect(type.prototype).to eq(state.typedb.object_type)
+      expect(type.prototype).to be_nil
     end
 
     it 'produces a type error when using a reserved constant' do
@@ -2580,14 +2578,14 @@ describe Inkoc::Pass::DefineType do
       expect(type).to eq(attribute)
     end
 
-    it 'returns a Any type when not using a string literal' do
+    it 'returns a Object type when not using a string literal' do
       type_scope
         .locals
         .define('attribute', state.typedb.string_type.new_instance)
 
       type = expression_type('_INKOC.get_attribute(obj, attribute)')
 
-      expect(type).to be_type_instance_of(tir_module.lookup_any_type)
+      expect(type).to be_type_instance_of(tir_module.lookup_object_type)
     end
   end
 

@@ -1,3 +1,4 @@
+import std::operators::Equal
 import std::test
 import std::test::assert
 
@@ -6,6 +7,8 @@ object Dummy {
     Self {}
   }
 }
+
+impl Equal for Dummy {}
 
 test.group('std::object::Object.same_object?') do (g) {
   g.test('Comparing two objects that do not reside at the same address') {

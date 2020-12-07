@@ -9,6 +9,8 @@ let DefaultHasher = _INKOC.get_hasher_prototype
 
 _INKOC.set_object_name(DefaultHasher, 'DefaultHasher')
 
+impl Object for DefaultHasher {}
+
 # Trait for hashing objects.
 #
 # A `Hasher` is a streaming hasher: instead of feeding it a single value and
@@ -29,7 +31,9 @@ trait Hasher {
 # A value that can be hashed.
 trait Hash {
   # Writes the hash for `self` into the given `Hasher`.
-  def hash(hasher: Hasher)
+  def hash(hasher: Hasher) {
+    hasher.write(self)
+  }
 }
 
 impl DefaultHasher {

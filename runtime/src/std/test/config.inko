@@ -64,7 +64,7 @@ object Configuration {
   }
 }
 
-impl SetIndex!(String, Any) for Configuration {
+impl SetIndex!(String, Object) for Configuration {
   # Sets an option by its name.
   #
   # Setting an unknown option will result in a panic.
@@ -78,7 +78,7 @@ impl SetIndex!(String, Any) for Configuration {
   #     let config = Configuration.new
   #
   #     config['concurrency'] = 64 # => 64
-  def []=(key: String, value: Any) -> Any {
+  def []=(key: String, value: Object) -> Object {
     (key == 'concurrency').if_true {
       @concurrency = value as Integer
       return

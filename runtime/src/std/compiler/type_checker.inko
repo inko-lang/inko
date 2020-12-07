@@ -23,6 +23,7 @@ import std::compiler::types::*
 import std::compiler::variable_scope::VariableScope
 import std::process
 import std::set::Set
+import std::stdio::stdout
 
 # A message sent to an object that needs to be validated.
 object Message {
@@ -309,6 +310,7 @@ trait TypePass {
     match(node.name) {
       NEVER_TYPE -> { return NeverType.new }
       SELF_TYPE -> { return SelfType.new }
+      ANY_TYPE -> { return AnyType.new }
       else -> {}
     }
 
@@ -607,8 +609,8 @@ trait ExpressionTypePass: TypePass {
     # truly necessary.
     let rtype = match(name) {
       'set_attribute' -> { node.arguments.get(2).resolved_type.new_instance }
-      'get_attribute' -> { type_checker.any_trait.new_instance }
-      'get_attribute_names' -> { any_trait_array }
+      'get_attribute' -> { AnyType.new }
+      'get_attribute_names' -> { any_type_array }
       'allocate' -> { node.arguments.get(0).resolved_type.new_instance }
       'get_true' -> { builtins.true_singleton }
       'get_false' -> { builtins.false_singleton }
@@ -618,10 +620,11 @@ trait ExpressionTypePass: TypePass {
       'get_string_prototype' -> { builtins.string_type }
       'get_integer_prototype' -> { builtins.integer_type }
       'get_float_prototype' -> { builtins.float_type }
-      'get_object_prototype' -> { builtins.object_type }
+      'get_trait_prototype' -> { builtins.trait_type }
       'get_array_prototype' -> { builtins.array_type }
       'get_block_prototype' -> { builtins.block_type }
-      'get_prototype' -> { type_checker.any_trait.new_instance }
+      'get_hasher_prototype' -> { builtins.hasher_type }
+      'get_prototype' -> { AnyType.new }
       'get_boolean_prototype' -> { builtins.boolean_type }
       'get_byte_array_prototype' -> { builtins.byte_array_type }
       'get_ffi_library_prototype' -> { builtins.ffi_library_type }
@@ -636,8 +639,8 @@ trait ExpressionTypePass: TypePass {
       'get_generator_prototype' -> { builtins.generator_type }
       'object_equals' -> { builtins.boolean_type.new_instance }
       'copy_blocks' -> { NeverType.new }
-      'run_block' -> { type_checker.any_trait.new_instance }
-      'block_metadata' -> { type_checker.any_trait.new_instance }
+      'run_block' -> { AnyType.new }
+      'block_metadata' -> { AnyType.new }
       'integer_to_string' -> { builtins.string_type.new_instance }
       'integer_to_float' -> { builtins.float_type.new_instance }
       'integer_add' -> { builtins.integer_type.new_instance }
@@ -679,7 +682,7 @@ trait ExpressionTypePass: TypePass {
       'array_clear' -> { NeverType.new }
       'array_remove' -> { array_value(node.arguments.get(0).resolved_type) }
       'time_monotonic' -> { builtins.float_type.new_instance }
-      'time_system' -> { any_trait_array }
+      'time_system' -> { any_type_array }
       'string_to_upper' -> { builtins.string_type.new_instance }
       'string_to_lower' -> { builtins.string_type.new_instance }
       'string_to_byte_array' -> { builtins.byte_array_type.new_instance }
@@ -700,7 +703,7 @@ trait ExpressionTypePass: TypePass {
       'stdin_read' -> { builtins.integer_type.new_instance }
       'process_spawn' -> { builtins.process_type.new_instance }
       'process_send_message' -> { node.arguments[1].resolved_type.new_instance }
-      'process_receive_message' -> { type_checker.any_trait.new_instance }
+      'process_receive_message' -> { AnyType.new }
       'process_current' -> { builtins.process_type.new_instance }
       'process_suspend_current' -> { NeverType.new }
       'process_terminate_current' -> { NeverType.new }
@@ -710,7 +713,7 @@ trait ExpressionTypePass: TypePass {
       'set_default_panic_handler' -> { node.arguments.get(0).resolved_type }
       'process_set_pinned' -> { builtins.boolean_type.new_instance }
       'process_identifier' -> { builtins.integer_type.new_instance }
-      'file_open' -> { type_checker.any_trait.new_instance }
+      'file_open' -> { AnyType.new }
       'file_flush' -> { NeverType.new }
       'file_read' -> { builtins.integer_type.new_instance }
       'file_seek' -> { builtins.integer_type.new_instance }
@@ -719,7 +722,7 @@ trait ExpressionTypePass: TypePass {
       'file_remove' -> { NeverType.new }
       'file_copy' -> { builtins.integer_type.new_instance }
       'file_type' -> { builtins.integer_type.new_instance }
-      'file_time' -> { any_trait_array }
+      'file_time' -> { any_type_array }
       'file_path' -> { builtins.string_type.new_instance }
       'directory_create' -> { NeverType.new }
       'directory_remove' -> { NeverType.new }
@@ -736,7 +739,7 @@ trait ExpressionTypePass: TypePass {
       'hasher_write' -> { node.arguments.get(0).resolved_type.new_instance }
       'hasher_to_hash' -> { builtins.integer_type.new_instance }
       'stacktrace' -> {
-        builtins.array_type.new_instance(Array.new(any_trait_array))
+        builtins.array_type.new_instance(Array.new(any_type_array))
       }
       'byte_array_from_array' -> { builtins.byte_array_type.new_instance }
       'byte_array_set' -> { builtins.integer_type.new_instance }
@@ -766,29 +769,29 @@ trait ExpressionTypePass: TypePass {
       }
       'ffi_library_open' -> { builtins.ffi_library_type.new_instance }
       'ffi_function_attach' -> { builtins.ffi_function_type.new_instance }
-      'ffi_call' -> { type_checker.any_trait.new_instance }
+      'ffi_call' -> { AnyType.new }
       'ffi_pointer_attach' -> { builtins.ffi_pointer_type.new_instance }
-      'ffi_pointer_read' -> { type_checker.any_trait.new_instance }
-      'ffi_pointer_write' -> { type_checker.any_trait.new_instance }
+      'ffi_pointer_read' -> { AnyType.new }
+      'ffi_pointer_write' -> { AnyType.new }
       'ffi_pointer_from_address' -> { builtins.ffi_pointer_type.new_instance }
       'ffi_pointer_address' -> { builtins.integer_type.new_instance }
       'ffi_type_size' -> { builtins.integer_type.new_instance }
       'ffi_type_alignment' -> { builtins.integer_type.new_instance }
-      'socket_create' -> { type_checker.any_trait.new_instance }
+      'socket_create' -> { AnyType.new }
       'socket_write' -> { builtins.integer_type.new_instance }
       'socket_read' -> { builtins.integer_type.new_instance }
-      'socket_accept' -> { type_checker.any_trait.new_instance }
-      'socket_receive_from' -> { any_trait_array }
+      'socket_accept' -> { AnyType.new }
+      'socket_receive_from' -> { any_type_array }
       'socket_send_to' -> { builtins.integer_type.new_instance }
-      'socket_address' -> { any_trait_array }
-      'socket_get_option' -> { type_checker.any_trait.new_instance }
-      'socket_set_option' -> { type_checker.any_trait.new_instance }
+      'socket_address' -> { any_type_array }
+      'socket_get_option' -> { AnyType.new }
+      'socket_set_option' -> { AnyType.new }
       'socket_bind' -> { NeverType.new }
       'socket_connect' -> { NeverType.new }
       'socket_shutdown' -> { NeverType.new }
       'socket_listen' -> { builtins.integer_type.new_instance }
-      'random_number' -> { type_checker.any_trait.new_instance }
-      'random_range' -> { type_checker.any_trait.new_instance }
+      'random_number' -> { AnyType.new }
+      'random_range' -> { AnyType.new }
       'random_bytes' -> { builtins.byte_array_type.new_instance }
       'if' -> { node.arguments[1].resolved_type.new_instance }
       'module_load' -> { builtins.module_type.new_instance }
@@ -800,7 +803,7 @@ trait ExpressionTypePass: TypePass {
       }
       'module_info' -> { builtins.string_type.new_instance }
       'generator_resume' -> { NeverType.new }
-      'generator_value' -> { type_checker.any_trait.new_instance }
+      'generator_value' -> { AnyType.new }
       'generator_yielded' -> { builtins.boolean_type.new_instance }
       else -> {
         type_checker.diagnostics.unknown_instruction(name: name, location: loc)
@@ -1704,7 +1707,7 @@ trait ExpressionTypePass: TypePass {
     # | String      | ToString    | OK     | String implements ToString
     # | ToString    | String      | OK     | Unsafe without a runtime check
     # | String      | Integer     | not OK | Both are different objects
-    # | Any         | String      | OK     | All objects implement Any
+    # | Object      | String      | OK     | All objects implement Object
     # | ToString    | ToInteger   | not OK | The traits have nothing in common
     from
       .type_compatible?(with: to, builtins: builtins, scope: types)
@@ -2206,22 +2209,13 @@ trait ExpressionTypePass: TypePass {
     scope: TypeScope,
     location: SourceLocation
   ) -> Type {
-    let any_trait = match(let type = type_checker.any_trait) {
-      as TraitType -> { type }
-      else -> {
-        type_checker.diagnostics.any_trait_not_found(location)
-
-        return ErrorType.new
-      }
-    }
-
     let first = case_types[0]
     let builtins = type_checker.builtins
 
     case_types.each do (type) {
       type
         .type_compatible?(with: first, builtins: builtins, scope: scope)
-        .if_false { return any_trait.new_instance }
+        .if_false { return AnyType.new }
     }
 
     else_type
@@ -2230,7 +2224,7 @@ trait ExpressionTypePass: TypePass {
 
     else_type
       .type_compatible?(with: first, builtins: builtins, scope: scope)
-      .if(true: { first }, false: { any_trait.new_instance })
+      .if(true: { first }, false: { AnyType.new })
   }
 
   def try_else_return_type(
@@ -2321,10 +2315,8 @@ trait ExpressionTypePass: TypePass {
     assigned.if(true: { assigned! }, false: { param })
   }
 
-  def any_trait_array -> ObjectInstance {
-    let targs = Array.new(type_checker.any_trait.new_instance)
-
-    type_checker.builtins.array_type.new_instance(targs)
+  def any_type_array -> ObjectInstance {
+    type_checker.builtins.array_type.new_instance(Array.new(AnyType.new))
   }
 
   def resolve_symbol_as_variable(
@@ -2652,6 +2644,12 @@ object DefineTypeSignatures {
   def visit_define_trait(node: DefineTrait, types: TypeScope) -> TraitType {
     let type = TraitType.new(node.name)
 
+    # The Object trait is available to all object instances, so we add it as a
+    # default trait for our newly defined trait type.
+    let obj_trait = type_checker.object_trait
+
+    obj_trait.if_true { type.default_traits.push(obj_trait.new_instance!) }
+
     define_type_parameters(
       nodes: node.type_parameters,
       table: type.type_parameters,
@@ -2821,6 +2819,7 @@ object TypeCheck {
           store_method_in_object(
             type: type,
             method: visit_define_method(node: matched, types: new_scope),
+            types: types,
             location: child.location
           )
         }
@@ -3136,6 +3135,7 @@ object TypeCheck {
           store_method_in_object(
             type: type,
             method: visit_define_method(node: matched, types: new_scope),
+            types: types,
             location: child.location
           )
         }
@@ -3390,32 +3390,55 @@ object TypeCheck {
   def store_method_in_object(
     type: ObjectType,
     method: MethodType,
+    types: TypeCheckScope,
     location: SourceLocation
   ) -> Boolean {
     let name = method.name
-
-    type.instance_methods.get(name).if_true {
-      type_checker
-        .diagnostics
-        .redefine_instance_method(name: name, location: location)
-
-      return False
-    }
-
-    type.static_methods.get(name).if_true {
-      type_checker
-        .diagnostics
-        .redefine_static_method(name: name, location: location)
-
-      return False
-    }
-
-    method
+    let table = method
       .static_method?
       .if(true: { type.static_methods }, false: { type.instance_methods })
-      .define(name: name, type: method)
 
-    True
+    let existing = table.get(name).type
+
+    match {
+      method.static_method? when type.instance_methods.defines?(name) -> {
+        type_checker
+          .diagnostics
+          .redefine_instance_method(name: name, location: location)
+
+        False
+      }
+      method.instance_method? when type.static_methods.defines?(name) -> {
+        type_checker
+          .diagnostics
+          .redefine_static_method(name: name, location: location)
+
+        False
+      }
+      # Existing methods can only be redefined if the new definition is
+      # compatible with the existing one.
+      existing.not_nil?
+      when
+        method.type_compatible?(
+          with: existing!,
+          builtins: type_checker.builtins,
+          scope: types
+        )
+        .false?
+      -> {
+        type_checker.diagnostics.invalid_redefined_method(
+          expected: existing!.type_name,
+          given: method.type_name,
+          location: location
+        )
+
+        False
+      }
+      else -> {
+        table.define(name: name, type: method)
+        True
+      }
+    }
   }
 
   def store_implemented_method_in_object(
@@ -3427,7 +3450,7 @@ object TypeCheck {
   ) -> Boolean {
     let name = method.name
 
-    type.static_methods.get(name).if_true {
+    type.static_methods.defines?(name).if_true {
       type_checker
         .diagnostics
         .redefine_static_method(name: name, location: location)
@@ -3685,8 +3708,8 @@ object TypeChecker {
     @modules.get(name)
   }
 
-  def pattern_match_trait -> ?TraitType {
-    let symbol = @modules.get(OPERATORS_MODULE).constants.get(MATCH_TRAIT)
+  def object_trait -> ?TraitType {
+    let symbol = @modules.get(BOOTSTRAP_MODULE).constants.get(OBJECT_TRAIT)
 
     match(let type = symbol.type) {
       as TraitType -> { type }
@@ -3694,8 +3717,8 @@ object TypeChecker {
     }
   }
 
-  def any_trait -> ?TraitType {
-    let symbol = @modules.get(BOOTSTRAP_MODULE).constants.get(ANY_TRAIT)
+  def pattern_match_trait -> ?TraitType {
+    let symbol = @modules.get(OPERATORS_MODULE).constants.get(MATCH_TRAIT)
 
     match(let type = symbol.type) {
       as TraitType -> { type }

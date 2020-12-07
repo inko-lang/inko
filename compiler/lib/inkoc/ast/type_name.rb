@@ -37,6 +37,8 @@ module Inkoc
           late_binding? ? :on_self_type_with_late_binding : :on_self_type
         when Config::NEVER_TYPE
           :on_never_type
+        when Config::ANY_TYPE
+          :on_any_type
         else
           :on_type_name
         end

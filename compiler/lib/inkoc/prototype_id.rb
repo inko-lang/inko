@@ -2,26 +2,26 @@
 
 module Inkoc
   module PrototypeID
-    OBJECT = 0
-    INTEGER = 1
-    FLOAT = 2
-    STRING = 3
-    ARRAY = 4
-    BLOCK = 5
-    BOOLEAN = 6
-    BYTE_ARRAY = 7
-    NIL = 8
-    MODULE = 9
-    FFI_LIBRARY = 10
-    FFI_FUNCTION = 11
-    FFI_POINTER = 12
-    IP_SOCKET = 13
-    UNIX_SOCKET = 14
-    PROCESS = 15
-    READ_ONLY_FILE = 16
-    WRITE_ONLY_FILE = 17
-    READ_WRITE_FILE = 18
-    HASHER = 19
-    GENERATOR = 20
+    INTEGER = 0
+    FLOAT = 1
+    STRING = 2
+    ARRAY = 3
+    BLOCK = 4
+    BOOLEAN = 5
+    BYTE_ARRAY = 6
+    NIL = 7
+    MODULE = 8
+    FFI_LIBRARY = 9
+    FFI_FUNCTION = 10
+    FFI_POINTER = 11
+    IP_SOCKET = 12
+    UNIX_SOCKET = 13
+    PROCESS = 14
+    READ_ONLY_FILE = 15
+    WRITE_ONLY_FILE = 16
+    READ_WRITE_FILE = 17
+    HASHER = 18
+    GENERATOR = 19
+    TRAIT = 20
   end
 end

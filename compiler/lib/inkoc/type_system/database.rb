@@ -5,14 +5,14 @@ module Inkoc
     class Database
       attr_reader :true_type, :false_type, :nil_type, :block_type,
                   :integer_type, :float_type, :string_type, :array_type,
-                  :object_type, :boolean_type, :byte_array_type,
+                  :trait_type, :boolean_type, :byte_array_type,
                   :module_type, :ffi_library_type, :ffi_function_type,
                   :ffi_pointer_type, :ip_socket_type, :unix_socket_type,
                   :process_type, :read_only_file_type, :write_only_file_type,
                   :read_write_file_type, :hasher_type, :generator_type
 
       def initialize
-        @object_type = new_builtin_object(Config::OBJECT_CONST, nil)
+        @trait_type = new_builtin_object(Config::TRAIT_CONST)
         @boolean_type = new_builtin_object(Config::BOOLEAN_CONST)
         @true_type = @boolean_type.new_instance
         @false_type = @boolean_type.new_instance
@@ -42,19 +42,19 @@ module Inkoc
         array_type.new_instance([type])
       end
 
-      def new_builtin_object(name, proto = object_type)
-        Object.new(name: name, prototype: proto, builtin: true)
+      def new_builtin_object(name)
+        Object.new(name: name, builtin: true)
       end
 
-      def new_object_type(name, proto = object_type)
-        Object.new(name: name, prototype: proto)
+      def new_object_type(name)
+        Object.new(name: name)
       end
 
-      def new_empty_object(prototype = object_type)
-        Object.new(prototype: prototype)
+      def new_empty_object
+        Object.new
       end
 
-      def new_trait_type(name, proto = nil)
+      def new_trait_type(name, proto = trait_type)
         Trait.new(name: name, prototype: proto, unique_id: @trait_id += 1)
       end
 

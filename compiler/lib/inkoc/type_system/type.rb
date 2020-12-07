@@ -29,7 +29,7 @@ module Inkoc
         false
       end
 
-      def dynamic?
+      def any?
         false
       end
 
@@ -95,7 +95,7 @@ module Inkoc
       end
 
       def guard_unknown_message?(name)
-        optional? || dynamic? || lookup_method(name).nil?
+        optional? || lookup_method(name).nil?
       end
 
       def type_compatible?(_other, _state)

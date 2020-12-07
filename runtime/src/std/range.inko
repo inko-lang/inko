@@ -1,5 +1,6 @@
 # Range data types and methods.
 import std::conversion::ToArray
+import std::hash::Hash
 import std::operators::(Equal, Match, SmallerOrEqual)
 import std::successor::Successor
 
@@ -61,7 +62,7 @@ impl Equal for Range {
   # Comparing two different ranges:
   #
   #     1..10 == 1..5 # => False
-  def ==(other: Self) -> Boolean {
+  def ==(other: Self) -> Boolean when T: Equal {
     (start == other.start).and { end == other.end }
   }
 }
@@ -100,3 +101,5 @@ trait ToRange!(T: Successor + SmallerOrEqual) {
   # Returns a `Range` starting at `self` up to (and including) `other`.
   def ..(other: T) -> Range!(T)
 }
+
+impl Hash for Range {}

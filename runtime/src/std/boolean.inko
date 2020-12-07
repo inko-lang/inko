@@ -3,6 +3,8 @@
 # In Inko boolean true is the object `True` and boolean false is the object
 # `False`. Both are regular objects that are instances of the `Boolean` object.
 import std::conversion::ToString
+import std::hash::Hash
+import std::operators::Equal
 
 impl Boolean {
   def truthy? -> Boolean {
@@ -25,3 +27,6 @@ impl ToString for Boolean {
     _INKOC.if(self, 'True', 'False')
   }
 }
+
+impl Equal for Boolean {}
+impl Hash for Boolean {}

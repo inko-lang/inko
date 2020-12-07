@@ -94,11 +94,13 @@ object Pair!(K: Hash + Equal, V) {
   }
 }
 
+impl Equal for Pair {}
+
 # An unordered hash map using linear probing and Robin Hood bucket stealing.
 #
 # The keys in a `Map` can be any object that implements the `Hash` and `Equal`
-# traits. The values can be of any type. It's possible to store keys (or values)
-# of different types but this will require the use of the `Any` trait.
+# traits. The values can be of any type, as long as all values are of the same
+# type.
 #
 # A `Map` is unordered, meaning that keys can be returned in a (seemingly)
 # random order.
@@ -566,3 +568,5 @@ impl Length for Map {
     @length
   }
 }
+
+impl Hash for Map {}

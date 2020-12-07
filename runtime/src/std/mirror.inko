@@ -105,7 +105,16 @@ let IMPLEMENTED_TRAITS_ATTRIBUTE = '@_implemented_traits'
 # An object for reflecting upon another object.
 trait Mirror: Format {
   # Returns the object reflected upon.
-  def subject -> Object
+  def subject -> Any
+
+  # Returns `True` if the subject is the exact same object as the given
+  # argument.
+  #
+  # This method works for any two objects, and doesn't depend on the
+  # `same_object?` and `==` methods.
+  def subject_same_object?(other: Any) -> Boolean {
+    _INKOC.object_equals(subject, other)
+  }
 
   # Returns the object the subject is an instance of.
   #
@@ -116,7 +125,7 @@ trait Mirror: Format {
   #     import std::mirror::ObjectMirror
   #
   #     ObjectMirror.new('hello').instance_of # => String
-  def instance_of -> Object {
+  def instance_of -> Any {
     _INKOC.get_prototype(subject)
   }
 
@@ -130,7 +139,9 @@ trait Mirror: Format {
   #
   #     import std::mirror::ObjectMirror
   #
-  #     let obj = Object.new
+  #     object Dummy {}
+  #
+  #     let obj = Dummy {}
   #     let mirror = ObjectMirror.new(obj)
   #
   #     mirror.get_attribute(obj, 'name') # => Nil
@@ -139,10 +150,13 @@ trait Mirror: Format {
   #
   #     import std::mirror::ObjectMirror
   #
-  #     let mut obj = Object.new
+  #     object Dummy {
+  #       @name: String
+  #     }
+  #
+  #     let obj = Dummy { @name = 'Alice' }
   #     let mirror = ObjectMirror.new(obj)
   #
-  #     mirror.set_attribute('name', 'Alice')
   #     mirror.get_attribute('name') # => 'Alice'
   def get_attribute(name: String) -> Any {
     _INKOC.get_attribute(subject, name)
@@ -184,15 +198,15 @@ trait Mirror: Format {
   #
   #     string_mirror.instance_of?(String) # => True
   #     string_mirror.instance_of?(Integer) # => False
-  def instance_of?(other: Object) -> Boolean {
+  def instance_of?(other: Any) -> Boolean {
     let mut proto = _INKOC.get_prototype(subject)
 
     {
-      proto.same_object?(other).if_true { return True }
+      _INKOC.object_equals(proto, other).if_true { return True }
 
       proto = _INKOC.get_prototype(proto) as Object
 
-      proto.nil?.if_true { return False }
+      _INKOC.object_equals(proto, Nil).if_true { return False }
     }.loop
   }
 
@@ -220,17 +234,19 @@ trait Mirror: Format {
       let traits = _INKOC.get_attribute(subject, IMPLEMENTED_TRAITS_ATTRIBUTE)
 
       traits.if_true {
-        _INKOC.get_attribute(traits, find).if_true { return True }
+        let exists = _INKOC.get_attribute(traits, find)
+
+        _INKOC.object_equals(exists, True).if_true { return True }
       }
 
-      subject = _INKOC.get_prototype(subject) as Object
+      subject = _INKOC.get_prototype(subject)
 
       # If an object does not have a prototype (e.g. Object), Nil will be
       # returned. Since we don't know the difference between "has no prototype"
       # and "the prototype is Nil", we will just bail out once we hit Nil as the
       # prototype. This works fine for Nil itself, because there is only a
       # single instance of it.
-      subject.nil?.if_true { return False }
+      _INKOC.object_equals(subject, Nil).if_true { return False }
     }.loop
   }
 
@@ -251,9 +267,9 @@ trait Mirror: Format {
   #
   #     ObjectMirror.new(Person).implemented_traits # => Array.new(ToString)
   def implemented_traits -> Array!(Trait) {
-    let impl_set = get_attribute(IMPLEMENTED_TRAITS_ATTRIBUTE) as Object
+    let impl_set = get_attribute(IMPLEMENTED_TRAITS_ATTRIBUTE) as Any
 
-    impl_set.if_false { return Array.new }
+    _INKOC.object_equals(impl_set, Nil).if_true { return Array.new }
 
     _INKOC.get_attribute_names(impl_set) as Array!(Trait)
   }
@@ -307,9 +323,9 @@ trait Mirrored {
 # A generic mirror for a regular object.
 object ObjectMirror {
   # The object that is being mirrored.
-  @subject: Object
+  @subject: Any
 
-  static def new(subject: Object) -> Self {
+  static def new(subject: Any) -> Self {
     Self { @subject = subject }
   }
 
@@ -375,7 +391,7 @@ impl Format for ObjectMirror {
 }
 
 impl Mirror for ObjectMirror {
-  def subject -> Object {
+  def subject -> Any {
     @subject
   }
 }

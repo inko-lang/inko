@@ -69,9 +69,8 @@ pub struct State {
 
     pub timeout_worker: TimeoutWorker,
 
-    /// The prototype of the base object, used as the prototype for all other
-    /// prototypes.
-    pub object_prototype: ObjectPointer,
+    /// The prototype for traits.
+    pub trait_prototype: ObjectPointer,
 
     /// The prototype for integer objects.
     pub integer_prototype: ObjectPointer,
@@ -169,13 +168,11 @@ impl State {
         let mut perm_alloc =
             Box::new(PermanentAllocator::new(global_alloc.clone()));
 
-        let object_proto = perm_alloc.allocate_empty();
         let integer_proto = perm_alloc.allocate_empty();
         let float_proto = perm_alloc.allocate_empty();
         let string_proto = perm_alloc.allocate_empty();
         let array_proto = perm_alloc.allocate_empty();
         let block_proto = perm_alloc.allocate_empty();
-
         let boolean_proto = perm_alloc.allocate_empty();
         let true_obj = perm_alloc.allocate_empty();
         let false_obj = perm_alloc.allocate_empty();
@@ -194,30 +191,11 @@ impl State {
         let read_write_file_prototype = perm_alloc.allocate_empty();
         let hasher_prototype = perm_alloc.allocate_empty();
         let generator_prototype = perm_alloc.allocate_empty();
+        let trait_prototype = perm_alloc.allocate_empty();
 
-        integer_proto.set_prototype(object_proto);
-        float_proto.set_prototype(object_proto);
-        string_proto.set_prototype(object_proto);
-        array_proto.set_prototype(object_proto);
-        block_proto.set_prototype(object_proto);
-        nil_proto.set_prototype(object_proto);
-        boolean_proto.set_prototype(object_proto);
         nil_obj.set_prototype(nil_proto);
         true_obj.set_prototype(boolean_proto);
         false_obj.set_prototype(boolean_proto);
-        byte_array_proto.set_prototype(object_proto);
-        module_proto.set_prototype(object_proto);
-        ffi_library_prototype.set_prototype(object_proto);
-        ffi_function_prototype.set_prototype(object_proto);
-        ffi_pointer_prototype.set_prototype(object_proto);
-        ip_socket_prototype.set_prototype(object_proto);
-        unix_socket_prototype.set_prototype(object_proto);
-        process_prototype.set_prototype(object_proto);
-        read_only_file_prototype.set_prototype(object_proto);
-        write_only_file_prototype.set_prototype(object_proto);
-        read_write_file_prototype.set_prototype(object_proto);
-        hasher_prototype.set_prototype(object_proto);
-        generator_prototype.set_prototype(object_proto);
 
         let mut state = State {
             scheduler: ProcessScheduler::new(
@@ -231,7 +209,6 @@ impl State {
             start_time: time::Instant::now(),
             exit_status: Mutex::new(0),
             timeout_worker: TimeoutWorker::new(),
-            object_prototype: object_proto,
             integer_prototype: integer_proto,
             float_prototype: float_proto,
             string_prototype: string_proto,
@@ -257,6 +234,7 @@ impl State {
             read_write_file_prototype,
             hasher_prototype,
             generator_prototype,
+            trait_prototype,
             network_poller: NetworkPoller::new(),
             modules: Mutex::new(Modules::new()),
         };

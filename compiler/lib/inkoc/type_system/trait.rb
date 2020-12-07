@@ -14,7 +14,7 @@ module Inkoc
       include WithoutEmptyTypeParameters
 
       attr_reader :name, :attributes, :type_parameters, :required_traits,
-                  :unique_id
+                  :unique_id, :default_traits
 
       attr_accessor :prototype, :type_parameter_instances, :required_methods
 
@@ -25,6 +25,7 @@ module Inkoc
         @type_parameters = TypeParameterTable.new
         @type_parameter_instances = TypeParameterInstances.new
         @required_traits = {}
+        @default_traits = {}
         @required_methods = SymbolTable.new
 
         # A trait's unique ID is used by objects to quickly check if they
@@ -48,10 +49,21 @@ module Inkoc
         lookup_attribute(name)
           .or_else { required_methods[name] }
           .or_else { lookup_method_in_required_traits(name) }
+          .or_else { lookup_method_in_default_traits(name) }
       end
 
       def lookup_method_in_required_traits(name)
         required_traits.each_value do |trait|
+          if (sym = trait.lookup_method(name)) && sym.any?
+            return sym
+          end
+        end
+
+        NullSymbol.singleton
+      end
+
+      def lookup_method_in_default_traits(name)
+        default_traits.each_value do |trait|
           if (sym = trait.lookup_method(name)) && sym.any?
             return sym
           end
@@ -68,17 +80,15 @@ module Inkoc
       def type_compatible?(other, state)
         other = other.type if other.optional?
 
-        return true if other.dynamic? || self == other
+        return true if other.any? || self == other
         return true if other.trait? && implements_trait?(other, state)
 
-        return compatible_with_type_parameter?(other, state) if other.type_parameter?
+        if other.type_parameter?
+          return compatible_with_type_parameter?(other, state)
+        end
 
         if other.generic_object?
           return true if compatible_with_generic_type?(other, state)
-        end
-
-        if other.trait? && state.typedb.object_type.type_compatible?(other, state)
-          return true
         end
 
         prototype_chain_compatible?(other)
@@ -105,6 +115,8 @@ module Inkoc
       def implements_trait?(trait, state)
         if required_traits[trait.unique_id]
           true
+        elsif default_traits[trait.unique_id]
+          true
         elsif self == trait
           true
         else
@@ -118,6 +130,10 @@ module Inkoc
 
       def add_required_trait(trait)
         required_traits[trait.unique_id] = trait
+      end
+
+      def add_default_trait(trait)
+        default_traits[trait.unique_id] = trait
       end
 
       def required_trait_types

@@ -18,6 +18,8 @@ let Socket = _INKOC.get_unix_socket_prototype
 
 _INKOC.set_object_name(Socket, 'Socket')
 
+impl Object for Socket {}
+
 # The domain for Unix sockets.
 let UNIX = AF_UNIX
 

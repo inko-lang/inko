@@ -57,6 +57,18 @@ test.group('std::test::assert.equal') do (g) {
   }
 }
 
+test.group('std::test::assert.same_object') do (g) {
+  g.test('Comparing two identical objects') {
+    let a = Array.new
+
+    assert.same_object(a, a)
+  }
+
+  g.test('Comparing two different objects') {
+    assert.panic { assert.same_object(Array.new, Array.new) }
+  }
+}
+
 test.group('std::test::assert.not_equal') do (g) {
   g.test('Comparing two equal values') {
     assert.panic {

@@ -22,7 +22,7 @@ module Inkoc
       attr_accessor :prototype, :captures, :last_argument_is_rest, :throw_type,
                     :return_type, :type_parameter_instances, :infer_return_type,
                     :infer_throw_type, :block_type, :self_type, :yield_type,
-                    :yields
+                    :yields, :ignore_return
 
       def self.closure(prototype, return_type: nil)
         new(
@@ -70,7 +70,7 @@ module Inkoc
         @prototype = prototype
         @arguments = SymbolTable.new
         @throw_type = throw_type
-        @return_type = return_type || Dynamic.singleton
+        @return_type = return_type || Any.singleton
         @yield_type = nil
         @required_arguments = 0
         @type_parameters = TypeParameterTable.new
@@ -83,8 +83,9 @@ module Inkoc
         @infer_throw_type = infer_throw_type
         @method_bounds = TypeParameterTable.new
         @thrown_types = []
-        @self_type = Dynamic.singleton
+        @self_type = Any.singleton
         @yields = false
+        @ignore_return = false
       end
 
       def block?
@@ -127,7 +128,7 @@ module Inkoc
       def type_compatible?(other, state)
         other = other.type if other.optional?
 
-        if other.dynamic?
+        if other.any?
           true
         elsif other.trait?
           implemented_traits.key?(other.unique_id)
@@ -203,6 +204,8 @@ module Inkoc
       # other - An instance of `Inkoc::TypeSystem::Block` to compare with.
       # state - An instance of `Inkoc::State`.
       def compatible_return_type?(other, state)
+        return true if other.ignore_return
+
         theirs = other.resolve_type_parameter(other.return_type)
 
         resolve_type_parameter(return_type).type_compatible?(theirs, state)

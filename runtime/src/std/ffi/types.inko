@@ -1,5 +1,6 @@
 # C data types used for the Foreign Function Interface.
 import std::conversion::ToInteger
+import std::operators::Equal
 
 # An identifier for a C type.
 #
@@ -24,6 +25,8 @@ object Type {
     _INKOC.ffi_type_alignment(@id)
   }
 }
+
+impl Equal for Type {}
 
 impl ToInteger for Type {
   # Returns the numeric identifier of this type.

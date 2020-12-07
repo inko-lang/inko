@@ -49,7 +49,19 @@ trait Greater {
 # The binary `==` operator.
 trait Equal {
   # Returns `True` if `self` and the given object are equal to each other.
-  def ==(other: Self) -> Boolean
+  #
+  # This operator is used to perform structural equality. This means two objects
+  # residing in different memory locations may be considered equal, provided
+  # their structure is equal. For example, two different Arrays may be
+  # considered to have structural equality if they contain the exact same
+  # values.
+  #
+  # The default implementation of this method is to perform referential
+  # equality, but objects implementing this trait are free to redefine this
+  # method to change this behaviour.
+  def ==(other: Self) -> Boolean {
+    _INKOC.object_equals(self, other)
+  }
 
   # Returns `True` if `self` and the given object are not equal to each other.
   def !=(other: Self) -> Boolean {

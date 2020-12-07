@@ -27,6 +27,10 @@ _INKOC.set_object_name(ReadOnlyFile, 'ReadOnlyFile')
 _INKOC.set_object_name(WriteOnlyFile, 'WriteOnlyFile')
 _INKOC.set_object_name(ReadWriteFile, 'ReadWriteFile')
 
+impl Object for ReadOnlyFile {}
+impl Object for WriteOnlyFile {}
+impl Object for ReadWriteFile {}
+
 # Trait for returning the file path of a file object.
 trait FilePath {
   # Returns the `Path` of the file.

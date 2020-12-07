@@ -6,6 +6,7 @@ import std::format::DefaultFormatter
 import std::fs
 import std::mirror
 import std::mirror::*
+import std::operators::Equal
 import std::pair::(Triple, Pair)
 import std::set::Set
 import std::test
@@ -27,6 +28,7 @@ object Dummy {
   def foo {}
 }
 
+impl Equal for Dummy {}
 impl Trait1 for Dummy {}
 
 object EmptyObject {
@@ -101,13 +103,25 @@ test.group('std::mirror::Mirror.subject') do (g) {
   g.test('Obtaining the subject of a mirror') {
     let obj = Dummy.new
 
-    assert.equal(ObjectMirror.new(obj).subject, obj)
+    assert.equal(ObjectMirror.new(obj).subject as Dummy, obj)
+  }
+}
+
+test.group('std::mirror::Mirror.subject_same_object?') do (g) {
+  g.test('Checking if a subject is the same object as another object') {
+    let dummy = Dummy.new
+    let mirror = ObjectMirror.new(dummy)
+
+    assert.true(mirror.subject_same_object?(dummy))
   }
 }
 
 test.group('std::mirror::Mirror.instance_of') do (g) {
   g.test('Obtaining the object an object is an instance of') {
-    assert.equal(ObjectMirror.new(Dummy.new).instance_of, Dummy)
+    let mirr1 = ObjectMirror.new(Dummy.new)
+    let mirr2 = ObjectMirror.new(mirr1.instance_of)
+
+    assert.true(mirr2.subject_same_object?(Dummy))
   }
 }
 
@@ -115,7 +129,7 @@ test.group('std::mirror::Mirror.get_attribute') do (g) {
   g.test('Obtaining the value of a non existing attribute') {
     let obj = Dummy.new
 
-    assert.equal(ObjectMirror.new(obj).get_attribute('bar') as Object, Nil)
+    assert.equal(ObjectMirror.new(obj).get_attribute('bar') as Nil, Nil)
   }
 
   g.test('Obtaining the value of an existing attribute') {
@@ -150,12 +164,6 @@ test.group('std::mirror::Mirror.instance_of?') do (g) {
     let mirror = ObjectMirror.new(Nil)
 
     assert.false(mirror.instance_of?(Nil))
-  }
-
-  g.test('Checking if Nil is an instance of Object') {
-    let mirror = ObjectMirror.new(Nil)
-
-    assert.true(mirror.instance_of?(Object))
   }
 }
 
@@ -205,7 +213,6 @@ test.group('std::mirror::ObjectMirror.name') do (g) {
   }
 
   g.test('Obtaining the name of a built-in object') {
-    assert.equal(ObjectMirror.new(Object).name, 'Object')
     assert.equal(ObjectMirror.new(String).name, 'String')
   }
 }
@@ -318,7 +325,7 @@ test.group('std::mirror::BlockMirror.line') do (g) {
 
 test.group('std::mirror::BlockMirror.argument_names') do (g) {
   g.test('Obtaining the argument names of a block') {
-    let mirror = BlockMirror.new(do (foo: Any, bar: Any) {})
+    let mirror = BlockMirror.new(do (foo: Object, bar: Object) {})
 
     assert.equal(mirror.argument_names, Array.new('foo', 'bar'))
   }
@@ -326,7 +333,7 @@ test.group('std::mirror::BlockMirror.argument_names') do (g) {
 
 test.group('std::mirror::BlockMirror.required_arguments') do (g) {
   g.test('Obtaining the number of required arguments') {
-    let mirror = BlockMirror.new(do (foo: Any, bar: Any, baz = 10) {})
+    let mirror = BlockMirror.new(do (foo: Object, bar: Object, baz = 10) {})
 
     assert.equal(mirror.required_arguments, 2)
   }

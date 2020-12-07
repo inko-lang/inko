@@ -58,7 +58,7 @@ test.group('std::test::test::Test.failure') do (g) {
   }
 
   g.test('Obtaining the failure reason of a test that passed') {
-    assert.equal(example_test.failure, Nil)
+    assert.true(example_test.failure.nil?)
   }
 }
 

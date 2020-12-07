@@ -417,7 +417,7 @@ test.group('std::ffi::Layout.[]') do (g) {
 
     let layout = Layout.new(members: members, alignment: 8, size: 4)
 
-    assert.equal(layout['tm_sec'], member)
+    assert.true(layout['tm_sec'].same_object?(member))
   }
 
   g.test('Obtaining a Member using an invalid name') {

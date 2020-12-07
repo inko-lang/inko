@@ -25,5 +25,5 @@ trait UnknownMessage {
   #     let thing = Thing.new
   #
   #     thing.example # => 10
-  def unknown_message(name: String, *arguments: Any) -> Any
+  def unknown_message(name: String, *arguments: Object) -> Object
 }

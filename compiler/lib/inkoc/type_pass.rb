@@ -44,6 +44,10 @@ module Inkoc
       wrap_optional_type(node, TypeSystem::Never.new)
     end
 
+    def on_any_type(node, _)
+      wrap_optional_type(node, TypeSystem::Any.singleton)
+    end
+
     def on_self_type_with_late_binding(node, _)
       wrap_optional_type(node, TypeSystem::SelfType.new)
     end
@@ -159,8 +163,8 @@ module Inkoc
       end
     end
 
-    def new_any_type
-      @module.lookup_any_type.new_instance
+    def new_object_type
+      @module.lookup_object_type&.new_instance
     end
 
     def on_raw_instruction(node, scope)
@@ -188,7 +192,7 @@ module Inkoc
       if name.string?
         object.lookup_attribute(name.value).type
       else
-        new_any_type
+        new_object_type
       end
     end
     alias on_raw_get_attribute_in_self on_raw_get_attribute
@@ -416,7 +420,7 @@ module Inkoc
     end
 
     def on_raw_run_block(*)
-      new_any_type
+      new_object_type
     end
 
     def on_raw_get_string_prototype(*)
@@ -431,8 +435,8 @@ module Inkoc
       typedb.float_type
     end
 
-    def on_raw_get_object_prototype(*)
-      typedb.object_type.new_instance
+    def on_raw_get_trait_prototype(*)
+      typedb.trait_type
     end
 
     def on_raw_get_array_prototype(*)
@@ -475,7 +479,7 @@ module Inkoc
     end
 
     def on_raw_time_system(*)
-      typedb.new_array_of_type(new_any_type)
+      typedb.new_array_of_type(new_object_type)
     end
 
     def on_raw_string_to_upper(*)
@@ -531,7 +535,7 @@ module Inkoc
     end
 
     def on_raw_process_receive_message(node, *)
-      new_any_type
+      new_object_type
     end
 
     def on_raw_process_current(node, _)
@@ -547,11 +551,11 @@ module Inkoc
     end
 
     def on_raw_get_prototype(*)
-      typedb.object_type.new_instance
+      new_object_type
     end
 
     def on_raw_get_attribute_names(*)
-      new_any_type
+      new_object_type
     end
 
     def on_raw_attribute_exists(*)
@@ -571,7 +575,7 @@ module Inkoc
     end
 
     def on_raw_file_open(*)
-      new_any_type
+      new_object_type
     end
 
     def on_raw_file_path(*)
@@ -607,7 +611,7 @@ module Inkoc
     end
 
     def on_raw_file_time(*)
-      typedb.new_array_of_type(new_any_type)
+      typedb.new_array_of_type(new_object_type)
     end
 
     def on_raw_directory_create(*)
@@ -655,13 +659,13 @@ module Inkoc
     end
 
     def on_raw_stacktrace(*)
-      tuple = typedb.new_array_of_type(new_any_type)
+      tuple = typedb.new_array_of_type(new_object_type)
 
       typedb.new_array_of_type(tuple)
     end
 
     def on_raw_block_metadata(*)
-      new_any_type
+      new_object_type
     end
 
     def on_raw_string_format_debug(*)
@@ -761,11 +765,11 @@ module Inkoc
     end
 
     def on_raw_process_add_defer_to_caller(*)
-      TypeSystem::Block.closure(typedb.block_type, return_type: new_any_type)
+      TypeSystem::Block.closure(typedb.block_type, return_type: new_object_type)
     end
 
     def on_raw_set_default_panic_handler(*)
-      TypeSystem::Block.lambda(typedb.block_type, return_type: new_any_type)
+      TypeSystem::Block.lambda(typedb.block_type, return_type: new_object_type)
     end
 
     def on_raw_process_set_pinned(*)
@@ -785,7 +789,7 @@ module Inkoc
     end
 
     def on_raw_ffi_function_call(*)
-      new_any_type
+      new_object_type
     end
 
     def on_raw_ffi_pointer_attach(node, _)
@@ -793,11 +797,11 @@ module Inkoc
     end
 
     def on_raw_ffi_pointer_read(*)
-      new_any_type
+      new_object_type
     end
 
     def on_raw_ffi_pointer_write(*)
-      new_any_type
+      new_object_type
     end
 
     def on_raw_ffi_pointer_from_address(node, _)
@@ -829,7 +833,7 @@ module Inkoc
     end
 
     def on_raw_socket_create(node, _)
-      new_any_type
+      new_object_type
     end
 
     def on_raw_socket_write(*)
@@ -841,11 +845,11 @@ module Inkoc
     end
 
     def on_raw_socket_accept(node, _)
-      new_any_type
+      new_object_type
     end
 
     def on_raw_socket_receive_from(*)
-      typedb.new_array_of_type(new_any_type)
+      typedb.new_array_of_type(new_object_type)
     end
 
     def on_raw_socket_send_to(*)
@@ -853,15 +857,15 @@ module Inkoc
     end
 
     def on_raw_socket_address(*)
-      typedb.new_array_of_type(new_any_type)
+      typedb.new_array_of_type(new_object_type)
     end
 
     def on_raw_socket_get_option(*)
-      new_any_type
+      new_object_type
     end
 
     def on_raw_socket_set_option(*)
-      new_any_type
+      new_object_type
     end
 
     def on_raw_socket_bind(*)
@@ -881,11 +885,11 @@ module Inkoc
     end
 
     def on_raw_random_number(*)
-      new_any_type
+      new_object_type
     end
 
     def on_raw_random_range(*)
-      new_any_type
+      new_object_type
     end
 
     def on_raw_random_bytes(*)
@@ -917,7 +921,7 @@ module Inkoc
     end
 
     def on_raw_generator_value(*)
-      new_any_type
+      new_object_type
     end
 
     def on_raw_generator_yielded(*)

@@ -110,7 +110,7 @@ def group(name: String, body: do (TestGroup)) -> TestGroup {
 }
 
 # Sets a configuration option of the default `Client` to the given value.
-def configure!(T: Any)(option: String, value: T) -> T {
+def configure!(T: Object)(option: String, value: T) -> T {
   DEFAULT_CLIENT.configure(option, value)
 }
 

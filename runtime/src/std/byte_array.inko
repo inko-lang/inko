@@ -10,6 +10,7 @@
 # numbers, you're better off using the `Array` object.
 import std::conversion::ToArray
 import std::conversion::ToString
+import std::hash::Hash
 import std::index::(Index, SetIndex)
 import std::length::Length
 import std::operators::Equal
@@ -154,6 +155,11 @@ impl ByteArray {
       block.call(value, index)
       index += 1
     }
+  }
+
+  # Returns an `Iterator` that iterates over all values in `self`.
+  def iter => Integer {
+    each do (byte) { yield byte }
   }
 
   # Returns a new `String` using the bytes in this `ByteArray`, draining it in
@@ -346,9 +352,4 @@ impl ToByteArray for ByteArray {
   }
 }
 
-impl ByteArray {
-  # Returns an `Iterator` that iterates over all values in `self`.
-  def iter => Integer {
-    each do (byte) { yield byte }
-  }
-}
+impl Hash for ByteArray {}

@@ -2,6 +2,7 @@
 #
 # Floats are implemented as IEEE 754 floats.
 import std::conversion::(ToInteger, ToString, ToFloat)
+import std::hash::Hash
 import std::numeric::Numeric
 import std::operators::*
 
@@ -298,6 +299,8 @@ impl ToString for Float {
     _INKOC.float_to_string(self)
   }
 }
+
+impl Hash for Float {}
 
 # The NAN (Not A Number) value.
 let NAN = 0.0 / 0.0

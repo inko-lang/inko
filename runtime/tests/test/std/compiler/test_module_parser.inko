@@ -39,7 +39,7 @@ test.group('std::compiler::module_parser::ParsedModule.ast') do (g) {
     let name = ModuleName.new(Array.new('foo'))
     let module = ParsedModule.new(name: name, ast: body)
 
-    assert.equal(module.ast, body)
+    assert.true(module.ast.same_object?(body))
   }
 }
 
@@ -49,7 +49,7 @@ test.group('std::compiler::module_parser::ParsedModule.location') do (g) {
     let name = ModuleName.new(Array.new('foo'))
     let module = ParsedModule.new(name: name, ast: body)
 
-    assert.equal(module.location, body.location)
+    assert.true(module.location.same_object?(body.location))
   }
 }
 

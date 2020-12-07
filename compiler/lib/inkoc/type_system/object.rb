@@ -49,7 +49,7 @@ module Inkoc
       # rubocop: disable Metrics/CyclomaticComplexity
       # rubocop: disable Metrics/PerceivedComplexity
       def type_compatible?(other, state)
-        return true if other.dynamic? || self == other
+        return true if other.any? || self == other
         return compatible_with_optional?(other, state) if other.optional?
         return compatible_with_trait?(other) if other.trait?
 

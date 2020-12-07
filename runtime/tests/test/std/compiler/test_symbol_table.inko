@@ -1,5 +1,7 @@
 import std::compiler::symbol_table::*
 import std::compiler::types::(Builtins, Type, TypeScope)
+import std::hash::Hash
+import std::operators::Equal
 import std::test
 import std::test::assert
 
@@ -8,6 +10,9 @@ object DummyType {
     Self {}
   }
 }
+
+impl Equal for DummyType {}
+impl Hash for DummyType {}
 
 impl Type for DummyType {
   def type_name -> String {
@@ -96,7 +101,7 @@ test.group('std::compiler::symbol_table::SymbolTable.[]') do (g) {
     let table = SymbolTable.new
     let symbol = table.define(name: 'foo', type: DummyType.new, mutable: True)
 
-    assert.equal(table['foo'], symbol)
+    assert.true(table['foo'].same_object?(symbol))
   }
 }
 
@@ -111,7 +116,7 @@ test.group('std::compiler::symbol_table::SymbolTable.get') do (g) {
     let table = SymbolTable.new
     let symbol = table.define(name: 'foo', type: DummyType.new, mutable: True)
 
-    assert.equal(table.get('foo'), symbol)
+    assert.true(table.get('foo').same_object?(symbol))
   }
 }
 
@@ -123,7 +128,8 @@ test.group('std::compiler::symbol_table::SymbolTable.symbols') do (g) {
 
     let symbol = table.define(name: 'foo', type: DummyType.new, mutable: True)
 
-    assert.equal(table.symbols, Array.new(symbol))
+    assert.equal(table.symbols.length, 1)
+    assert.true(table.symbols[0].same_object?(symbol))
   }
 }
 

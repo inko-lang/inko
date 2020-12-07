@@ -1,4 +1,5 @@
 import std::mirror::ObjectMirror
+import std::operators::Equal
 import std::test
 import std::test::assert
 import std::test::config::(Configuration, DEFAULT_CONCURRENCY)
@@ -12,6 +13,8 @@ object DummyFormatter {
     Self {}
   }
 }
+
+impl Equal for DummyFormatter {}
 
 impl Formatter for DummyFormatter {
   def passed(test: Test) {}

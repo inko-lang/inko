@@ -10,9 +10,9 @@
 # may return `Nil` without having to include checks for `Nil` values all over
 # the place.
 import std::conversion::(ToString, ToFloat, ToInteger)
-import std::hash::(Hasher, Hash)
+import std::hash::Hash
 import std::marker::Optional
-import std::operators::Match
+import std::operators::(Equal, Match)
 import std::unknown_message::UnknownMessage
 
 impl NilType {
@@ -68,6 +68,14 @@ impl ToString for NilType {
   }
 }
 
+impl Equal for NilType {
+  def ==(other: Any) -> Boolean {
+    _INKOC.object_equals(self, other)
+  }
+}
+
+impl Hash for NilType {}
+
 impl UnknownMessage for NilType {
   # Always returns `Nil`.
   #
@@ -80,7 +88,7 @@ impl UnknownMessage for NilType {
   # Sending a message to `Nil` produces another `Nil`:
   #
   #     Nil.hello # => Nil
-  def unknown_message(name: String, *arguments: Any) {}
+  def unknown_message(name: String, *arguments: Object) {}
 }
 
 impl Match!(Object) for NilType {

@@ -103,14 +103,16 @@
 #     def this_may_throw !! Integer {
 #       throw 10
 #     }
+import std::hash::Hash
+import std::operators::Equal
 
 impl Block {
   # Executes the current block, passing the given arguments to the block.
   #
-  # The return type of this method is `Any` because it can not be inferred when
-  # this method gets compiled. To work around this the compiler will optimise
-  # sending `call` to a `Block` in such a way that it is able to figure out what
-  # arguments the `Block` takes and what its return type is.
+  # The return type of this method is `Object` because it can not be inferred
+  # when this method gets compiled. To work around this the compiler will
+  # optimise sending `call` to a `Block` in such a way that it is able to figure
+  # out what arguments the `Block` takes and what its return type is.
   #
   # # Examples
   #
@@ -125,7 +127,7 @@ impl Block {
   #     let block = do (number) { number }
   #
   #     block.call(10) # => 10
-  def call -> Any {
+  def call -> Object {
     _INKOC.run_block(self)
   }
 
@@ -189,3 +191,6 @@ impl Block {
     loop
   }
 }
+
+impl Equal for Block {}
+impl Hash for Block {}

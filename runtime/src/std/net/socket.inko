@@ -21,6 +21,8 @@ let Socket = _INKOC.get_ip_socket_prototype
 
 _INKOC.set_object_name(Socket, 'Socket')
 
+impl Object for Socket {}
+
 # The domain for IPv4 sockets.
 let IPV4 = AF_INET
 

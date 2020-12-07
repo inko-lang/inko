@@ -30,13 +30,13 @@ test.group('std::compiler::ast::body::Body.location_of_last_expression') do (g) 
     let expr = IntegerLiteral.new(value: '10', location: expr_loc)
     let body = Body.new(children: Array.new(expr), location: body_loc)
 
-    assert.equal(body.location_of_last_expression, expr_loc)
+    assert.true(body.location_of_last_expression.same_object?(expr_loc))
   }
 
   g.test('Obtaining the location of the last expression when there are no expressions') {
     let body_loc = location
     let body = Body.new(children: Array.new, location: body_loc)
 
-    assert.equal(body.location_of_last_expression, body_loc)
+    assert.true(body.location_of_last_expression.same_object?(body_loc))
   }
 }

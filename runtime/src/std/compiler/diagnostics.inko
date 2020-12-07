@@ -360,6 +360,17 @@ object Diagnostics {
     error(message: message, location: location)
   }
 
+  def invalid_redefined_method(
+    expected: String,
+    given: String,
+    location: SourceLocation
+  ) {
+    let message = `The method "{given}" isn't compatible with the original \
+      definition "{expected}"`
+
+    error(message: message, location: location)
+  }
+
   def required_trait_not_implemented(
     required: String,
     depending: String,
@@ -420,13 +431,6 @@ object Diagnostics {
   def match_trait_not_found(location: SourceLocation) {
     error(
       message: 'Pattern matching is not available as the Match trait is not yet defined',
-      location: location
-    )
-  }
-
-  def any_trait_not_found(location: SourceLocation) {
-    error(
-      message: 'Pattern matching is not available as the Any trait is not yet defined',
       location: location
     )
   }
