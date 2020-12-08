@@ -23,7 +23,6 @@ import std::compiler::types::*
 import std::compiler::variable_scope::VariableScope
 import std::process
 import std::set::Set
-import std::stdio::stdout
 
 # A message sent to an object that needs to be validated.
 object Message {
