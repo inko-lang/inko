@@ -950,6 +950,13 @@ object OptionalType {
     Self { @type = type }
   }
 
+  static def wrap(type: Type) -> Self {
+    match(let matched = type) {
+      as OptionalType -> { matched }
+      else -> { new(matched) }
+    }
+  }
+
   def type -> Type {
     @type
   }
@@ -958,6 +965,10 @@ object OptionalType {
 impl Type for OptionalType {
   def type_name -> String {
     '?' + @type.type_name
+  }
+
+  def lookup_method(name: String) -> ?Symbol!(MethodType) {
+    @type.lookup_method(name)
   }
 
   def type_compatible?(

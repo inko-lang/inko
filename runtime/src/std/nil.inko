@@ -11,9 +11,7 @@
 # the place.
 import std::conversion::(ToString, ToFloat, ToInteger)
 import std::hash::Hash
-import std::marker::Optional
 import std::operators::(Equal, Match)
-import std::unknown_message::UnknownMessage
 
 impl NilType {
   # Always returns `Nil` itself.
@@ -76,26 +74,9 @@ impl Equal for NilType {
 
 impl Hash for NilType {}
 
-impl UnknownMessage for NilType {
-  # Always returns `Nil`.
-  #
-  # By always returning `Nil` we can safely work with methods that produce
-  # `Nil` values without having to explicitly check for them every time (though
-  # we're of course free to still do so where necessary).
-  #
-  # # Examples
-  #
-  # Sending a message to `Nil` produces another `Nil`:
-  #
-  #     Nil.hello # => Nil
-  def unknown_message(name: String, *arguments: Object) {}
-}
-
 impl Match!(Object) for NilType {
   # Returns `True` if the given argument is `Nil`.
   def =~(other: Object) -> Boolean {
     _INKOC.object_equals(Nil, other)
   }
 }
-
-impl Optional for NilType {}

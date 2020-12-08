@@ -21,14 +21,9 @@ describe Inkoc::TypeSystem::Object do
         expect(ours.type_compatible?(theirs, state)).to eq(true)
       end
 
-      it 'returns true when not compatible but we implement marker::Optional' do
-        ours = described_class.new
+      it 'returns true when passing Nil' do
+        ours = state.typedb.nil_type.new_instance
         theirs = Inkoc::TypeSystem::Optional.new(described_class.new)
-
-        allow(ours)
-          .to receive(:optional_marker_implemented?)
-          .with(state)
-          .and_return(true)
 
         expect(ours.type_compatible?(theirs, state)).to eq(true)
       end
@@ -162,14 +157,9 @@ describe Inkoc::TypeSystem::Object do
       expect(ours.compatible_with_optional?(theirs, state)).to eq(true)
     end
 
-    it 'returns true when not compatible but we implement marker::Optional' do
-      ours = described_class.new
+    it 'returns true when passing Nil' do
+      ours = state.typedb.nil_type.new_instance
       theirs = Inkoc::TypeSystem::Optional.new(described_class.new)
-
-      allow(ours)
-        .to receive(:optional_marker_implemented?)
-        .with(state)
-        .and_return(true)
 
       expect(ours.compatible_with_optional?(theirs, state)).to eq(true)
     end
@@ -179,62 +169,6 @@ describe Inkoc::TypeSystem::Object do
       theirs = Inkoc::TypeSystem::Optional.new(described_class.new)
 
       expect(ours.compatible_with_optional?(theirs, state)).to eq(false)
-    end
-  end
-
-  describe '#optional_marker_implemented?' do
-    let(:object) { described_class.new }
-
-    it 'returns true when the Optional marker is implemented' do
-      allow(object)
-        .to receive(:marker_implemented?)
-        .with(Inkoc::Config::OPTIONAL_CONST, state)
-        .and_return(true)
-
-      expect(object.optional_marker_implemented?(state)).to eq(true)
-    end
-
-    it 'returns false when the Optional marker is not implemented' do
-      allow(object)
-        .to receive(:marker_implemented?)
-        .with(Inkoc::Config::OPTIONAL_CONST, state)
-        .and_return(false)
-
-      expect(object.optional_marker_implemented?(state)).to eq(false)
-    end
-  end
-
-  describe '#marker_implemented?' do
-    let(:object) { described_class.new }
-    let(:marker) { Inkoc::TypeSystem::Trait.new }
-
-    it 'returns true if a marker is implemented' do
-      allow(state)
-        .to receive(:type_of_module_global)
-        .with(Inkoc::Config::MARKER_MODULE, 'foo')
-        .and_return(marker)
-
-      object.implement_trait(marker)
-
-      expect(object.marker_implemented?('foo', state)).to eq(true)
-    end
-
-    it 'returns false if a marker is not implemented' do
-      allow(state)
-        .to receive(:type_of_module_global)
-        .with(Inkoc::Config::MARKER_MODULE, 'foo')
-        .and_return(marker)
-
-      expect(object.marker_implemented?('foo', state)).to eq(false)
-    end
-
-    it 'returns false if a marker does not exist' do
-      allow(state)
-        .to receive(:type_of_module_global)
-        .with(Inkoc::Config::MARKER_MODULE, 'foo')
-        .and_return(nil)
-
-      expect(object.marker_implemented?('foo', state)).to eq(false)
     end
   end
 

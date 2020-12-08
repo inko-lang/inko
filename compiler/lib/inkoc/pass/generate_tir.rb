@@ -2309,37 +2309,14 @@ module Inkoc
         # Re-ordering these two instructions will break the RunBlockWithReceiver
         # below, so don't.
         name_reg = set_string(name, body, loc)
-        args_reg = body.register(
-          typedb.new_array_of_type(@module.lookup_object_type.new_instance)
-        )
-
-        alt_name_reg = set_string(Config::UNKNOWN_MESSAGE_MESSAGE, body, loc)
 
         # Look up the block we're supposed to run.
         body.instruct(:Binary, :GetAttribute, block_reg, rec, name_reg, loc)
 
-        # Look up the "unknown_message" block if the initial block was not
-        # found.
         goto_block_name = body.new_basic_block_name
+
         body.instruct(:GotoBlockIfTrue, goto_block_name, block_reg, loc)
-
-        body.instruct(:Binary, :GetAttribute, block_reg, rec, alt_name_reg, loc)
-
-        # Store all the arguments passed in the array and execute the
-        # "unknown_message" method.
-        allocate_array(args_reg, args, body, loc)
-
-        body.instruct(
-          :RunBlockWithReceiver,
-          block_reg,
-          rec,
-          name_reg,
-          2,
-          block_reg.type,
-          loc
-        )
-
-        body.instruct(:Nullary, :MoveResult, ret_reg, loc)
+        body.instruct(:Nullary, :GetNil, ret_reg, loc)
         body.instruct(:SkipNextBlock, loc)
 
         # The code we'd run if the method _is_ defined.

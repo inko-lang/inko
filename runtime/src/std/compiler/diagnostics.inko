@@ -614,6 +614,18 @@ object Diagnostics {
       location: location
     )
   }
+
+  def incompatible_optional_method(
+    receiver_method: String,
+    nil_method: String,
+    location: SourceLocation
+  ) {
+    let message = `The method "{receiver_method}" is unavailable because \
+      it's incompatible with the implementation for the NilType type \
+      ("{nil_method}")`
+
+    error(message: message, location: location)
+  }
 }
 
 impl Length for Diagnostics {

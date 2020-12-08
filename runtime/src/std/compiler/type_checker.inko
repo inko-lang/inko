@@ -850,6 +850,11 @@ trait ExpressionTypePass: TypePass {
       }
     )
 
+    let wrap_as_optional = receiver.optional?.and {
+      method_available_to_optional?(node: node, method: block, types: types)
+    }
+
+    node.resolved_type.error?.if_true { return node.resolved_type! }
     node.block_type = block
 
     let message = Message.new(receiver: receiver, block: block)
@@ -932,7 +937,11 @@ trait ExpressionTypePass: TypePass {
         return node.resolved_type = ErrorType.new
       }
 
-    assign_throw_and_return_type(node: node, block: block, types: message)
+    let rtype =
+      assign_throw_and_return_type(node: node, block: block, types: message)
+
+    wrap_as_optional.if_true { node.resolved_type = OptionalType.wrap(rtype) }
+    node.resolved_type!
   }
 
   def visit_keyword_argument(
@@ -2347,7 +2356,7 @@ trait ExpressionTypePass: TypePass {
     let builtins = type_checker.builtins
     let throws = block.throw_type.substitute(types)
     let returns = block
-      .resolve_return_type( throw_type: throws, builtins: builtins, scope: types)
+      .resolve_return_type(throw_type: throws, builtins: builtins, scope: types)
 
     block
       .yield_type
@@ -2394,6 +2403,34 @@ trait ExpressionTypePass: TypePass {
     type_checker
       .diagnostics
       .missing_try(type: throw_type!.type_name, location: node.location)
+  }
+
+  def method_available_to_optional?(
+    node: Send,
+    method: BlockType,
+    types: TypeCheckScope
+  ) -> Boolean {
+    let builtins = type_checker.builtins
+    let nil_method = builtins.nil_type.instance_methods.get(node.message).type
+
+    # Nil not implementing the method is fine, as we won't actually send the
+    # message when an optional is set to Nil.
+    nil_method.nil?.if_true { return True }
+
+    # If for a ?T both T and Nil implement the same method, the implementations
+    # must be compatible; otherwise the expression can't be safely executed.
+    method
+      .type_compatible?(with: nil_method!, builtins: builtins, scope: types)
+      .if_true { return False }
+
+    type_checker.diagnostics.incompatible_optional_method(
+      receiver_method: method.type_name,
+      nil_method: nil_method!.type_name,
+      location: node.location
+    )
+
+    node.resolved_type = ErrorType.new
+    False
   }
 }
 

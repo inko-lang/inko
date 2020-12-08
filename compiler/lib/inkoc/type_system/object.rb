@@ -74,24 +74,7 @@ module Inkoc
         if type_compatible?(other.type, state)
           true
         else
-          optional_marker_implemented?(state)
-        end
-      end
-
-      # Returns `true` if we implement the marker `std::marker::Optional`.
-      def optional_marker_implemented?(state)
-        marker_implemented?(Config::OPTIONAL_CONST, state)
-      end
-
-      # Returns `true` if we implement the marker with the given name.
-      #
-      # name - The name of the marker as defined in `std::marker`
-      # state - An instance of `Inkoc::State`.
-      def marker_implemented?(name, state)
-        if (marker = state.type_of_module_global(Config::MARKER_MODULE, name))
-          implements_trait?(marker)
-        else
-          false
+          type_instance_of?(state.typedb.nil_type)
         end
       end
 

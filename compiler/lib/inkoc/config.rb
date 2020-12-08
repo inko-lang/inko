@@ -22,7 +22,6 @@ module Inkoc
     # The path to the prelude module.
     PRELUDE_MODULE = 'prelude'
 
-    MARKER_MODULE = 'std::marker'
     OPERATORS_MODULE = 'std::operators'
     CONVERSION_MODULE = 'std::conversion'
 
@@ -64,9 +63,6 @@ module Inkoc
     # The name of the constant to use as the receiver for raw instructions.
     RAW_INSTRUCTION_RECEIVER = '_INKOC'
     NEW_MESSAGE = 'new'
-    UNKNOWN_MESSAGE_MESSAGE = 'unknown_message'
-    UNKNOWN_MESSAGE_TRAIT = 'UnknownMessage'
-    UNKNOWN_MESSAGE_MODULE = 'std::unknown_message'
     SET_INDEX_MESSAGE = '[]='
     MODULE_GLOBAL = 'ThisModule'
     CALL_MESSAGE = 'call'

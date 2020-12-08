@@ -15,21 +15,23 @@ to it.
 
 ## Sending messages
 
-When sending a message to an optional type `?T`, only messages supported by both
-instances of `T` and `Nil` are available. `Nil` supports receiving any message,
-and will return another `Nil` if there is no method for the message sent. For
-example:
+When sending a message to an optional type `?T`, you can only send messages that
+are supported by `T`. If the value happens to be `Nil`, another `Nil` is
+produced. For example:
 
 ```inko
-Nil.foo # => Nil
+let x: ?Integer = Nil
+
+x + 1 # => Nil
 ```
 
 If `Nil` does implement a method for a message it receives, that method gets
 called instead of returning `Nil`. For example:
 
 ```inko
-Nil.to_integer # => 0
-Nil.to_string  # => ''
+let x: ?Integer = Nil
+
+x.to_integer # => 0
 ```
 
 A more realistic example is that of accessing a value from a nested array. Let's
@@ -39,10 +41,9 @@ say our array looks like this:
 let numbers = Array.new(Array.new(Array.new(1, 2, 3)))
 ```
 
-When sending `get` to an `Array`, the return value is `Nil` if the index is out
-of bounds. `Nil` in turn doesn't implement the `get` method, meaning that
-sending `get` to `Nil` produces another `Nil`. Thus, we can access a value from
-the above array like so:
+We can use `Array.get` to get a value from a potentially out of bounds index.
+The return type of this method is `?Integer` for the above `numbers` Array. This
+allows us to access nested values like so:
 
 ```inko
 numbers.get(0).get(0).get(1) # => 2

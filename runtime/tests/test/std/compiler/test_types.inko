@@ -1190,6 +1190,22 @@ test.group('std::compiler::types::TypeParameterBounds.length') do (g) {
   }
 }
 
+test.group('std::compiler::types::OptionalType.wrap') do (g) {
+  g.test('Wrapping a regular type') {
+    let any = AnyType.new
+    let type = OptionalType.wrap(any)
+
+    assert.same_object(type.type, any)
+  }
+
+  g.test('Wrapping an optional type') {
+    let opt1 = OptionalType.wrap(AnyType.new)
+    let opt2 = OptionalType.wrap(opt1)
+
+    assert.same_object(opt2, opt1)
+  }
+}
+
 test.group('std::compiler::types::OptionalType.type') do (g) {
   g.test('Obtaining the type wrapped by an OptionalType') {
     let type = NeverType.new
