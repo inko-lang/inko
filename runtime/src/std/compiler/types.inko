@@ -690,9 +690,16 @@ impl Type for AnyType {
     builtins: Builtins,
     scope: TypeCheckScope
   ) -> Boolean {
-    match(with) {
+    match(let matched = with) {
       as SelfType -> {
         type_compatible?(with: scope.self_type, builtins: builtins, scope: scope)
+      }
+      as TypeParameterType -> {
+        type_compatible_with_type_parameter?(
+          parameter: matched,
+          builtins: builtins,
+          scope: scope
+        )
       }
       as AnyType -> { True }
       as InferType -> { True }

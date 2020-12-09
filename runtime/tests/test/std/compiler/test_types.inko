@@ -739,8 +739,8 @@ test.group('std::compiler::types::AnyType.type_compatible?') do (g) {
     with_generic_type do (type, param) {
       let any = AnyType.new
 
-      assert_not_compatible(compare: any, with: param, self_type: type)
-      assert.true(type.lookup_type_parameter_type(param).nil?)
+      assert_compatible(compare: any, with: param, self_type: type)
+      assert.same_object(type.lookup_type_parameter_type(param), any)
     }
   }
 
