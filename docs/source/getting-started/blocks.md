@@ -217,7 +217,7 @@ def bake(ingredient: String, celcius = 200, minutes = 60) {}
 bake(ingredient: 'Bread', minutes: 120)
 ```
 
-When using keyword arguments, two things should be kept in min. First, they must
+When using keyword arguments, two things should be kept in mind. First, they must
 come after any positional arguments. This means the following is not valid:
 
 ```inko
