@@ -22,7 +22,7 @@ True.if_true { 10 }  # => 10
 False.if_true { 10 } # => Nil
 
 True.if_false { 10 } # => Nil
-True.if_false { 10 } # => 10
+False.if_false { 10 } # => 10
 ```
 
 You can also use these messages for types other than the `Boolean` type:
