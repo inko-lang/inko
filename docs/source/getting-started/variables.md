@@ -141,7 +141,7 @@ let A = 10
 let _A = 10
 ```
 
-Because constants, well, constant, you can't declare them as mutable using `let
+Because constants are, well, constant, you can't declare them as mutable using `let
 mut`:
 
 ```inko
