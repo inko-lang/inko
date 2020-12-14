@@ -14,14 +14,14 @@ def read_string(path: ToString) -> String {
   let file = try! ReadOnlyFile.new(path)
 
   process.defer {
-    #file.close
+    file.close
   }
 
   try! file.read_string
 }
 
 def close_and_remove_file!(T: Close + Remove)(file: T) {
-  #file.close
+  file.close
 
   # If the removal fails that's OK, because in the worst case we just leave the
   # file behind in /tmp.
@@ -32,7 +32,7 @@ def read_only_file(block: do (ReadOnlyFile), path: ToString = VALID_FILE) {
   let file = try! ::file.read_only(path)
 
   process.defer {
-    #file.close
+    file.close
   }
 
   block.call(file)
