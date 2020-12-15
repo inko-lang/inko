@@ -73,6 +73,7 @@ trait ParseRequest {
       desugar.hoist_imports(ast)
       desugar.add_implicit_imports(name: name, body: ast)
       desugar.add_implicit_symbols(ast)
+      desugar.add_object_implementation(name: name, body: ast)
     }
 
     let module = ParsedModule.new(name: name, ast: ast)

@@ -2,10 +2,40 @@
 import std::compiler::ast::body::Body
 import std::compiler::ast::imports::(Import, ImportAlias, ImportSymbol)
 import std::compiler::ast::node::Node
+import std::compiler::ast::objects::(DefineObject, ImplementTrait)
 import std::compiler::ast::send::Send
-import std::compiler::ast::variables::Identifier
+import std::compiler::ast::variables::(Constant, Identifier)
 import std::compiler::module_name::(STD_BOOTSTRAP, STD_PRELUDE, ModuleName)
 import std::compiler::source_location::SourceLocation
+import std::compiler::types::OBJECT_TRAIT
+
+# Adds implicit implementations of the `Object` trait for any object
+# definitions.
+def add_object_implementation(name: ModuleName, body: Body) {
+  name.bootstrap?.if_true { return }
+
+  let impls = Array.new
+
+  body.children.each do (node) {
+    match(let matched = node) {
+      as DefineObject -> {
+        let loc = matched.location
+        let obj_impl = ImplementTrait.new(
+          trait_name: Constant.new(name: OBJECT_TRAIT, location: loc),
+          object_name: Constant.new(name: matched.name, location: loc),
+          type_parameter_bounds: Array.new,
+          body: Body.new(children: Array.new, location: loc),
+          location: loc
+        )
+
+        impls.push(obj_impl)
+      }
+      else -> {}
+    }
+  }
+
+  body.children.append(impls)
+}
 
 # Hoists imports to the start of the body node.
 #
@@ -29,7 +59,7 @@ import std::compiler::source_location::SourceLocation
 #
 # Hosting imports is done so we can process (e.g. type check) dependencies
 # first.
-def hoist_imports(body: Body) -> Body {
+def hoist_imports(body: Body) {
   let pair = body.children.iter.partition do (node) {
     match(node) {
       as Import -> { True }
@@ -40,28 +70,23 @@ def hoist_imports(body: Body) -> Body {
   pair.first.append(pair.second)
 
   body.children = pair.first
-  body
 }
 
 # Inserts implicit imports in the AST node, if needed.
 #
 # Some imports are inserted implicit, such as the importing of
 # `core::bootstrap`. This method inserts these imports where needed.
-def add_implicit_imports(name: ModuleName, body: Body) -> Body {
+def add_implicit_imports(name: ModuleName, body: Body) {
   let nodes = Array.new
   let location = body.location
 
   import_bootstrap(name: name, nodes: nodes, location: location)
   import_prelude(name: name, nodes: nodes, location: location)
 
-  nodes.empty?.if_true {
-    return body
-  }
-
+  nodes.empty?.if_true { return }
   nodes.append(body.children)
 
   body.children = nodes
-  body
 }
 
 # Adds implicit `self` symbols to import.
@@ -73,7 +98,7 @@ def add_implicit_imports(name: ModuleName, body: Body) -> Body {
 # Into this:
 #
 #     import std::stdio::stdout::(self)
-def add_implicit_symbols(body: Body) -> Body {
+def add_implicit_symbols(body: Body) {
   body.imports.each do (node) {
     node.symbols.empty?.if_true {
       let mod = node.path[-1]
@@ -81,8 +106,6 @@ def add_implicit_symbols(body: Body) -> Body {
       node.symbols.push(ImportSymbol.new(name: 'self', location: mod.location))
     }
   }
-
-  body
 }
 
 def import_bootstrap(
@@ -90,10 +113,7 @@ def import_bootstrap(
   nodes: Array!(Import),
   location: SourceLocation
 ) {
-  name.bootstrap?.if_true {
-    return
-  }
-
+  name.bootstrap?.if_true { return }
   nodes.push(import_all(module: STD_BOOTSTRAP, location: location))
 }
 
@@ -102,10 +122,7 @@ def import_prelude(
   nodes: Array!(Import),
   location: SourceLocation
 ) {
-  name.bootstrap?.or { name.prelude? }.if_true {
-    return
-  }
-
+  name.bootstrap?.or { name.prelude? }.if_true { return }
   nodes.push(import_all(module: STD_PRELUDE, location: location))
 }
 

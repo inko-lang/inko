@@ -99,9 +99,6 @@ object Constant {
   # The type arguments passed to the constant.
   @type_arguments: Array!(TypeNode)
 
-  # A boolean indicating if the constant is an optional type or not.
-  @optional: Boolean
-
   # The type of this constant.
   @resolved_type: ?Type
 
@@ -114,7 +111,6 @@ object Constant {
       @name = name,
       @location = location,
       @type_arguments = Array.new,
-      @optional = False,
       @resolved_type = Option.none,
       @symbol = Option.none
     }
