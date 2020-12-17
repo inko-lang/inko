@@ -33,8 +33,10 @@ pub fn random_number(
     match kind {
         INTEGER => Ok(process
             .allocate_i64(worker.random_number(), state.integer_prototype)),
-        INCREMENTAL_INTEGER => Ok(process
-            .allocate_u64(worker.random_number(), state.integer_prototype)),
+        INCREMENTAL_INTEGER => Ok(process.allocate_u64(
+            worker.random_incremental_number(),
+            state.integer_prototype,
+        )),
         FLOAT => Ok(process.allocate(
             object_value::float(worker.random_number()),
             state.float_prototype,

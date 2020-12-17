@@ -24,7 +24,7 @@ test.group('std::random.incremental_integer') do (g) {
       let one = random.incremental_integer
       let two = random.incremental_integer
 
-      assert.not_equal(one, two)
+      assert.equal(two - one, 1)
     }
   }
 }
