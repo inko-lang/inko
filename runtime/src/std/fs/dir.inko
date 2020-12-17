@@ -1,8 +1,7 @@
 # Types and methods for manipulating directories on a filesystem.
-
 import std::fs::path::(Path, ToPath)
 import std::io::(Error as IOError)
-import std::process
+import std::process::(blocking)
 
 # Creates a new empty directory at the given path.
 #
@@ -33,7 +32,7 @@ import std::process
 #
 #     try! dir.create(path: '/tmp/test/hello/world', recursive: True)
 def create(path: ToPath, recursive = False) !! IOError {
-  process.blocking {
+  blocking {
     try {
       _INKOC.directory_create(path.to_path.to_string, recursive)
     } else (error) {
@@ -68,7 +67,7 @@ def create(path: ToPath, recursive = False) !! IOError {
 #     try! dir.create(path: '/tmp/foo/bar', recursive: True)
 #     try! dir.remove(path: '/tmp/foo', recursive: True)
 def remove(path: ToPath, recursive = False) !! IOError {
-  process.blocking {
+  blocking {
     try {
       _INKOC.directory_remove(path.to_path.to_string, recursive)
     } else (error) {
@@ -97,7 +96,7 @@ def remove(path: ToPath, recursive = False) !! IOError {
 #
 #     paths[0].to_string # => 'README.md'
 def list(path: ToPath) !! IOError -> Array!(Path) {
-  let raw_paths = process.blocking {
+  let raw_paths = blocking {
     try {
       _INKOC.directory_list(path.to_path.to_string)
     } else (error) {

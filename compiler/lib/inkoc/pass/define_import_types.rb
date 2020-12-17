@@ -54,8 +54,8 @@ module Inkoc
       def on_import_glob(symbol, source_mod)
         location = symbol.location_for_name
 
-        source_mod.attributes.each do |attribute|
-          import_symbol(attribute.name, attribute.type, location)
+        source_mod.attributes.mapping.each do |name, attribute|
+          import_symbol(name, attribute.type, location)
         end
       end
 

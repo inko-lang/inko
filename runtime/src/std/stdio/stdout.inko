@@ -15,15 +15,13 @@
 import std::conversion::ToString
 import std::io::Write
 import std::os::NEWLINE
-import std::process
+import std::process::(blocking)
 
 impl Write for ThisModule {
   # Writes a `ByteArray` of bytes to STDOUT, returning the number of bytes
   # written.
   def write_bytes(bytes: ByteArray) -> Integer {
-    process.blocking {
-      try _INKOC.stdout_write(bytes) else 0
-    }
+    blocking { try _INKOC.stdout_write(bytes) else 0 }
   }
 
   # Writes a `ToString` to STDOUT, returning the number of bytes written.
@@ -36,9 +34,7 @@ impl Write for ThisModule {
   #
   #     stdout.write_string('hello') # => 5
   def write_string(data: ToString) -> Integer {
-    process.blocking {
-      try _INKOC.stdout_write(data.to_string) else 0
-    }
+    blocking { try _INKOC.stdout_write(data.to_string) else 0 }
   }
 
   # Writes the given string-like object to STDOUT, followed by a newline.
@@ -58,7 +54,7 @@ impl Write for ThisModule {
   #
   #     stdout.print
   def print(data: ToString = '') -> Integer {
-    process.blocking {
+    blocking {
       let written = try _INKOC.stdout_write(data.to_string) else return 0
 
       written + try _INKOC.stdout_write(NEWLINE) else 0
@@ -66,8 +62,6 @@ impl Write for ThisModule {
   }
 
   def flush {
-    process.blocking {
-      try _INKOC.stdout_flush else Nil
-    }
+    blocking { try _INKOC.stdout_flush else Nil }
   }
 }

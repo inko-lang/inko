@@ -5756,6 +5756,41 @@ test.group('Type-checking sending "call" to blocks') do (g) {
   }
 }
 
+test.group('Type-checking imported methods') do (g) {
+  g.test('Calling an imported method without arguments') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let int_type = type_checker.builtins.integer_type
+    let body = parse('foo')
+    let node = body.children[0]
+    let foo = MethodType
+      .new(name: 'foo', layout: BlockLayout.new(int_type.new_instance))
+
+    module.globals.define(name: foo.name, type: foo)
+    type_checker.check_module(module: module, ast: body)
+
+    assert.false(type_checker.diagnostics.errors?)
+    assert_object_instance(node.resolved_type.get, int_type)
+  }
+
+  g.test('Calling an imported method with arguments') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let int_type = type_checker.builtins.integer_type
+    let body = parse('foo(10)')
+    let node = body.children[0]
+    let foo = MethodType
+      .new(name: 'foo', layout: BlockLayout.new(int_type.new_instance))
+
+    foo.define_required_argument(name: 'a', type: int_type.new_instance)
+    module.globals.define(name: foo.name, type: foo)
+    type_checker.check_module(module: module, ast: body)
+
+    assert.false(type_checker.diagnostics.errors?)
+    assert_object_instance(node.resolved_type.get, int_type)
+  }
+}
+
 test.group('Type-checking the `local try` keyword') do (g) {
   g.test('Re-throwing outside of a block using an identifier') {
     let module = new_module('foo')

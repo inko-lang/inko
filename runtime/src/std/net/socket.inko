@@ -8,7 +8,7 @@ import std::net::bits::(
   REUSE_ADDRESS, REUSE_PORT, SEND_SIZE, SOCK_DGRAM, SOCK_RAW, SOCK_SEQPACKET,
   SOCK_STREAM, Socket as RawSocket, SocketValue, TTL, UNICAST_HOPS_V6
 )
-import std::net::ip::(self, IpAddress, Ipv4Address, ToIpAddress)
+import std::net::ip::(IpAddress, Ipv4Address, ToIpAddress, parse as parse_ip)
 import std::operators::Equal
 import std::time::Duration
 
@@ -229,7 +229,7 @@ impl Socket {
     size: Integer
   ) !! IoError -> SocketAddress {
     let addr = try bits.receive_from(socket: self, bytes: bytes, size: size)
-    let ip = try! ip.parse(addr[0] as String)
+    let ip = try! parse_ip(addr[0] as String)
 
     SocketAddress.new(ip: ip, port: addr[1] as Integer)
   }
@@ -806,7 +806,7 @@ impl Close for TcpListener {
 # Obtains the local or peer address of a socket.
 def socket_address(socket: Socket, peer = False) !! IoError -> SocketAddress {
   let addr = try bits.address(socket: socket, peer: peer)
-  let ip = try! ip.parse(addr[0] as String)
+  let ip = try! parse_ip(addr[0] as String)
 
   SocketAddress.new(ip: ip, port: addr[1] as Integer)
 }

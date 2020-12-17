@@ -3,7 +3,7 @@
 # The methods in this module should not be used directly, instead they serve as
 # building blocks for other modules such as `std::fs::file`.
 import std::io::(Error as IOError)
-import std::process
+import std::process::(blocking)
 import std::time::SystemTime
 
 let MISSING_TYPE = 0
@@ -28,7 +28,7 @@ trait File {}
 
 # Opens a file in the given mode, returning a raw file object.
 def open(path: String, mode: Integer) !! IOError -> File {
-  process.blocking {
+  blocking {
     try {
       _INKOC.file_open(path, mode) as File
     } else (err) {
@@ -47,49 +47,49 @@ def mode_for_read_write(append = False) -> Integer {
 
 # Copies a file from the source destination to the target destination
 def copy(from: String, to: String) !! IOError -> Integer {
-  process.blocking {
+  blocking {
     try _INKOC.file_copy(from, to) else (err) throw IOError.new(err as String)
   }
 }
 
 # Returns the size (in bytes) of the given path.
 def size(path: String) !! IOError -> Integer {
-  process.blocking {
+  blocking {
     try _INKOC.file_size(path) else (err) throw IOError.new(err as String)
   }
 }
 
 # Removes the file for the given path.
 def remove(path: String) !! IOError {
-  process.blocking {
+  blocking {
     try _INKOC.file_remove(path) else (err) throw IOError.new(err as String)
   }
 }
 
 # Returns `True` if the path points to a file.
 def file?(path: String) -> Boolean {
-  process.blocking {
+  blocking {
     _INKOC.file_type(path) == FILE_TYPE
   }
 }
 
 # Returns `True` if the path points to a directory.
 def directory?(path: String) -> Boolean {
-  process.blocking {
+  blocking {
     _INKOC.file_type(path) == DIRECTORY_TYPE
   }
 }
 
 # Returns `True` if the path points to an existing file or directory.
 def exists?(path: String) -> Boolean {
-  process.blocking {
+  blocking {
     _INKOC.file_type(path) > MISSING_TYPE
   }
 }
 
 # Returns the creation, modification or access time of a file path.
 def file_time(path: String, kind: Integer) !! IOError -> SystemTime {
-  process.blocking {
+  blocking {
     let time = try {
       _INKOC.file_time(path, kind)
     } else (error) {
@@ -122,7 +122,7 @@ def read_bytes(
   bytes: ByteArray,
   size = 0,
 ) !! IOError -> Integer {
-  process.blocking {
+  blocking {
     try {
       _INKOC.file_read(file, bytes, size)
     } else (err) {
@@ -133,7 +133,7 @@ def read_bytes(
 
 # Writes a String to a raw file.
 def write_string(file: File, data: String) !! IOError -> Integer {
-  process.blocking {
+  blocking {
     try {
       _INKOC.file_write(file, data)
     } else (err) {
@@ -144,7 +144,7 @@ def write_string(file: File, data: String) !! IOError -> Integer {
 
 # Writes a `ByteArray` to a raw file object.
 def write_bytes(file: File, bytes: ByteArray) !! IOError -> Integer {
-  process.blocking {
+  blocking {
     try {
       _INKOC.file_write(file, bytes)
     } else (err) {
@@ -155,14 +155,14 @@ def write_bytes(file: File, bytes: ByteArray) !! IOError -> Integer {
 
 # Flushes the contents of a file to disk.
 def flush(file: File) !! IOError {
-  process.blocking {
+  blocking {
     try _INKOC.file_flush(file) else (err) throw IOError.new(err as String)
   }
 }
 
 # Seeks to a given position.
 def seek(file: File, position: Integer) !! IOError -> Integer {
-  process.blocking {
+  blocking {
     try {
       _INKOC.file_seek(file, position)
     } else (err) {

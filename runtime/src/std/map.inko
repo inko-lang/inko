@@ -3,9 +3,9 @@ import std::hash::(DefaultHasher, Hash, Hasher)
 import std::index::(Index, SetIndex)
 import std::length::Length
 import std::operators::Equal
-import std::process
+import std::process::(panic)
 import std::option::Option
-import std::random
+import std::random::(incremental_integer)
 
 # The load factor of a `Map` before it should be resized.
 let LOAD_FACTOR = 0.75
@@ -24,8 +24,8 @@ object RandomState {
 
   static def new -> Self {
     Self {
-      @key0 = random.incremental_integer,
-      @key1 = random.incremental_integer
+      @key0 = incremental_integer,
+      @key1 = incremental_integer
     }
   }
 
@@ -165,7 +165,7 @@ object Map!(K: Hash + Equal, V) {
     let max_index = values.length - 1
 
     (keys.length == values.length).if_false {
-      process.panic('An equal number of keys and values must be specified')
+      panic('An equal number of keys and values must be specified')
     }
 
     keys.each_with_index do (key: K, index: Integer) {
@@ -513,7 +513,7 @@ impl Index!(K, V) for Map {
   #
   # This method panics if the key doesn't exist.
   def [](key: K) -> V {
-    get(key).get_or_else { process.panic("The key doesn't exist") }
+    get(key).get_or_else { panic("The key doesn't exist") }
   }
 }
 

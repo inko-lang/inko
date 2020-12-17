@@ -20,10 +20,8 @@ import std::compiler::source_location::SourceLocation
 import std::compiler::symbol_table::(Symbol, SymbolTable)
 import std::compiler::types::*
 import std::compiler::variable_scope::VariableScope
-import std::process
+import std::process::(panic)
 import std::set::Set
-import std::stdio::stdout
-import std::mirror
 
 # A message sent to an object that needs to be validated.
 object Message {
@@ -161,7 +159,7 @@ trait TypePass {
       as Constant -> { visit_constant_as_type(node: matched, types: types) }
       as ClosureTypeNode -> { visit_closure_type(node: matched, types: types) }
       as LambdaTypeNode -> { visit_lambda_type(node: matched, types: types) }
-      else -> { process.panic('The given TypeNode is not supported') }
+      else -> { panic('The given TypeNode is not supported') }
     }
 
     return_type as Type
@@ -494,7 +492,7 @@ trait ExpressionTypePass: TypePass {
       as TypeCast -> {
         visit_type_cast(node: matched, types: types, variables: variables)
       }
-      else -> { process.panic('The AST node is not supported in expressions') }
+      else -> { panic('The AST node is not supported in expressions') }
     } as Type
   }
 
@@ -1355,7 +1353,7 @@ trait ExpressionTypePass: TypePass {
             variables: variables
           )
         }
-        else -> { process.panic('This MatchCase node is not supported') }
+        else -> { panic('This MatchCase node is not supported') }
       }
 
       type.error?.if_true { return node.resolved_type = type }
@@ -1801,7 +1799,7 @@ trait ExpressionTypePass: TypePass {
           variables: variables
         )
       }
-      else -> { process.panic('This DefineArgument node is not supported') }
+      else -> { panic('This DefineArgument node is not supported') }
     }
   }
 
@@ -2290,7 +2288,7 @@ object TypeCheckImports {
       # diagnostics before running type checking. Not doing so will break this
       # code if it tries to type check a module dependency that hasn't been
       # parsed.
-      process.panic(
+      panic(
         `The module "{name}" needs to be type checked, but has not been parsed`
       )
     }

@@ -6,7 +6,7 @@
 # change individual settings without having to maintain their own instances of
 # the `Configuration` object.
 import std::index::SetIndex
-import std::process
+import std::process::(panic)
 import std::test::formatter::Formatter
 import std::test::formatters::ProgressFormatter
 
@@ -89,6 +89,6 @@ impl SetIndex!(String, Object) for Configuration {
       return
     }
 
-    process.panic(key + ' is not a valid configuration option')
+    panic(key + ' is not a valid configuration option')
   }
 }

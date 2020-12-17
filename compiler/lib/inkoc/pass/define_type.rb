@@ -131,7 +131,11 @@ module Inkoc
         elsif scope.module_type.responds_to_message?(name)
           identifier_send(node, scope.module_type, name, scope)
         elsif (global = @module.lookup_global(name))
-          global
+          if global.method?
+            global_send(node, global, scope)
+          else
+            global
+          end
         else
           diagnostics.undefined_method_error(self_type, name, loc)
           TypeSystem::Error.new
@@ -150,17 +154,43 @@ module Inkoc
         remap_send_return_type(return_type, scope)
       end
 
+      def global_send(node, method, scope)
+        node.block_type = method
+        return_type = method.resolved_return_type(scope.self_type)
+
+        if method.throw_type
+          node.throw_type = method.resolved_throw_type(scope.self_type)
+        end
+
+        remap_send_return_type(return_type, scope)
+      end
+
       def on_self(_, scope)
         scope.self_type.new_instance
       end
 
       def on_send(node, scope)
-        node.receiver_type = source = type_of_receiver(node, scope)
+        receiver =
+          if node.receiver
+            receiver_type_for_send_with_receiver(node, scope)
+          elsif scope.self_type.responds_to_message?(node.name)
+            scope.self_type
+          elsif scope.module_type.responds_to_message?(node.name)
+            scope.module_type
+          else
+            TypeSystem::Error.new
+          end
 
-        if source.error?
-          source
+        if receiver.error? && @module.globals[node.name].any?
+          return call_imported_method(node, scope)
+        end
+
+        node.receiver_type = receiver
+
+        if receiver.error?
+          receiver
         else
-          send_to_known_type(node, source, scope)
+          send_to_known_type(node, receiver, scope)
         end
       end
 
@@ -175,6 +205,27 @@ module Inkoc
           return TypeSystem::Error.new
         end
 
+        exp_args = method.argument_count_range
+
+        unless exp_args.cover?(node.arguments.length)
+          return diagnostics.argument_count_error(
+            node.arguments.length,
+            exp_args,
+            node.location
+          )
+        end
+
+        method = initialize_method_for_send(node, method, scope)
+
+        return method if method.error?
+
+        verify_argument_types_and_initialize(node, source, method, scope)
+      end
+
+      def call_imported_method(node, scope)
+        node.imported = true
+        node.receiver_type = source = scope.module_type
+        method = @module.globals[node.name].type
         exp_args = method.argument_count_range
 
         unless exp_args.cover?(node.arguments.length)
@@ -330,16 +381,6 @@ module Inkoc
           type.remap_using_method_bounds(surrounding_method)
         else
           type
-        end
-      end
-
-      def type_of_receiver(node, scope)
-        if node.receiver
-          receiver_type_for_send_with_receiver(node, scope)
-        elsif scope.self_type.responds_to_message?(node.name)
-          scope.self_type
-        else
-          scope.module_type
         end
       end
 

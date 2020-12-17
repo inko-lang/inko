@@ -9,7 +9,7 @@ module Inkoc
 
       attr_reader :name, :receiver, :arguments, :type_arguments, :location
 
-      attr_accessor :receiver_type, :block_type, :throw_type
+      attr_accessor :receiver_type, :block_type, :throw_type, :imported
 
       # name - The name of the message as a String.
       # receiver - The object to send the message to.

@@ -50,7 +50,7 @@ module Inkoc
     end
 
     def reassign(name, type)
-      self[name].type = type
+      @symbols[name].type = type
     end
 
     def names

@@ -2,7 +2,7 @@
 # bootstrapping process.
 import std::byte_array::ToByteArray
 import std::conversion::(ToFloat, ToInteger)
-import std::process
+import std::process::(panic)
 
 # Returns `True` if a string separator starts at the given byte position.
 #
@@ -88,7 +88,7 @@ impl String {
   #     'inko'.slice_bytes(start: -4, length: 4).to_string # => 'inko'
   def slice_bytes(start: Integer, length: Integer) -> ByteArray {
     length.negative?.if_true {
-      process.panic('The slice length must be zero or greater')
+      panic('The slice length must be zero or greater')
     }
 
     let bytes = ByteArray.new

@@ -233,8 +233,12 @@ module Inkoc
             body,
             loc
           )
-        elsif @module.global_defined?(name)
-          get_global(name, body, loc)
+        elsif (global = @module.lookup_global(name))
+          if global.method?
+            call_imported_method(name, node.block_type, [], body, loc)
+          else
+            get_global(name, body, loc)
+          end
         else
           get_nil(body, loc)
         end
@@ -563,6 +567,8 @@ module Inkoc
       end
 
       def on_send(node, body)
+        return on_imported_method(node, body) if node.imported
+
         receiver = receiver_for_send(node, body)
 
         args =
@@ -586,6 +592,29 @@ module Inkoc
         body.registers.release(receiver)
 
         result
+      end
+
+      def on_imported_method(node, body)
+        type = node.block_type
+        args = node.arguments
+
+        call_imported_method(node.name, type, args, body, node.location)
+      end
+
+      def call_imported_method(name, type, arguments, body, location)
+        method = get_global(name, body, location)
+        register = body.register(type.return_type)
+        args = send_arguments(type, arguments, body, location)
+        args = make_registers_contiguous(args, body, location)
+        start = args.first || register
+
+        body.instruct(:RunBlock, method, start, args.length, type, location)
+        body.instruct(:Nullary, :MoveResult, register, location)
+
+        body.registers.release_all(args)
+        body.registers.release(method)
+
+        register
       end
 
       def send_arguments(block, arg_nodes, body, location)
