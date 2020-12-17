@@ -178,11 +178,16 @@ module Inkoc
           elsif scope.module_type.responds_to_message?(node.name)
             scope.module_type
           else
-            TypeSystem::Error.new
+            nil
           end
 
-        if receiver.error? && @module.globals[node.name].any?
-          return call_imported_method(node, scope)
+        if receiver.nil?
+          if @module.globals[node.name].any?
+            return call_imported_method(node, scope)
+          else
+            receiver = diagnostics
+              .undefined_method_error(scope.self_type, node.name, node.location)
+          end
         end
 
         node.receiver_type = receiver
