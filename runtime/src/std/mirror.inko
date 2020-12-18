@@ -88,6 +88,7 @@
 import std::format::(DefaultFormatter, Format, Formatter)
 import std::fs::path::Path
 import std::hash::Hash
+import std::loop::(loop)
 import std::module::Module
 import std::operators::Equal
 import std::pair::(Triple, Pair)
@@ -201,13 +202,13 @@ trait Mirror: Format {
   def instance_of?(other: Any) -> Boolean {
     let mut proto = _INKOC.get_prototype(subject)
 
-    {
+    loop {
       _INKOC.object_equals(proto, other).if_true { return True }
 
       proto = _INKOC.get_prototype(proto) as Object
 
       _INKOC.object_equals(proto, Nil).if_true { return False }
-    }.loop
+    }
   }
 
   # Returns `True` if the subject implements the given trait.
@@ -230,7 +231,7 @@ trait Mirror: Format {
   def implements_trait?(find: Trait) -> Boolean {
     let mut subject = subject
 
-    {
+    loop {
       let traits = _INKOC.get_attribute(subject, IMPLEMENTED_TRAITS_ATTRIBUTE)
 
       traits.if_true {
@@ -247,7 +248,7 @@ trait Mirror: Format {
       # prototype. This works fine for Nil itself, because there is only a
       # single instance of it.
       _INKOC.object_equals(subject, Nil).if_true { return False }
-    }.loop
+    }
   }
 
   # Returns the traits implemented by the subject.

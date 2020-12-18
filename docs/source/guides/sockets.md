@@ -176,27 +176,23 @@ separate processes. This allows us to write a simple HTTP server that uses
 separate processes for accepting requests and writing a response:
 
 ```inko
+import std::loop::loop
 import std::net::socket::(TcpListener, TcpStream)
 import std::process
-import std::string_buffer::StringBuffer
 
 let listener = try! TcpListener.new(ip: '127.0.0.1', port: 8080)
 
-{
+loop {
   let client = try! listener.accept
   let proc = process.spawn {
     let client = process.receive as TcpStream
     let reply = 'Hello, HTTP!'
-    let output = StringBuffer.new(
-      "HTTP/1.1 200 OK\r\n",
-      "Content-Type: text/plain\r\n",
-      'Content-Length: ',
-      reply.bytesize.to_string,
-      "\r\n",
-      "Connection: close\r\n",
-      "\r\n",
-      reply
-    )
+    let output = `HTTP/1.1 200 OK\r
+Content-Type: text/plain\r
+Content-Length: {reply.bytesize}\r
+Connection: close\r
+\r
+{reply}`
 
     try! client.write_string(output.to_string)
     try! client.shutdown
@@ -211,7 +207,7 @@ let listener = try! TcpListener.new(ip: '127.0.0.1', port: 8080)
   # Since the socket is copied, we need to close it here so we don't run out of
   # file descriptors.
   client.close
-}.loop
+}
 ```
 
 You can then send requests to it using curl like so:
@@ -224,36 +220,32 @@ We can also send the `TcpListener` to different processes, allowing different
 processes to accept incoming connections in parallel:
 
 ```inko
+import std::loop::(loop, while)
 import std::net::socket::(TcpListener, TcpStream)
 import std::process
-import std::string_buffer::StringBuffer
 
 let listener = try! TcpListener.new(ip: '127.0.0.1', port: 8080)
 let mut to_start = 4
 
-{ to_start.positive? }.while_true {
+while({ to_start.positive? }) {
   let proc = process.spawn {
     let listener = process.receive as TcpListener
     let reply = 'Hello, HTTP!'
 
-    {
+    loop {
       let client = try! listener.accept
-      let output = StringBuffer.new(
-        "HTTP/1.1 200 OK\r\n",
-        "Content-Type: text/plain\r\n",
-        'Content-Length: ',
-        reply.bytesize.to_string,
-        "\r\n",
-        "Connection: close\r\n",
-        "\r\n",
-        reply
-      )
+      let output = `HTTP/1.1 200 OK\r
+Content-Type: text/plain\r
+Content-Length: {reply.bytesize}\r
+Connection: close\r
+\r
+{reply}`
 
-      try! client.write_string(output.to_string)
+      try! client.write_string(output)
       try! client.shutdown
 
       client.close
-    }.loop
+    }
   }
 
   proc.send(listener)

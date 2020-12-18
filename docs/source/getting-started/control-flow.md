@@ -57,45 +57,43 @@ True.if(true: { 10 }, false: { 'foo' }) # => compile error!
 
 ## Conditional loops
 
-For conditional loops, send the message `while_true` or `while_false` to a
-closure. Both messages also take a closure argument. `while_true` will call the
-closure as long as the receiver is truthy, while `while_false` does the
-opposite. Take this Ruby code for example:
-
-```ruby
-while number < 10
-  number += 1
-end
-```
-
-This translates to the following Inko code:
+Conditional loops are created using the method `std::loop.while`. This method
+takes two closures: one for the condition, and one for the body of the loop:
 
 ```inko
-{ number < 10 }.while_true {
-  number += 1
-}
+import std::loop::(while)
+
+let mut x = 0
+
+while({ x < 4 }) { x += 1 }
+
+x # => 4
 ```
 
-Here `{ number < 10 }` is a closure that specifies the condition, while the
-closure `{ number += 1 }` specifies what to call when the condition is truthy.
-If you want to run the loop while the condition is falsy, replace `while_true`
-with `while_false`:
+Here `{ x < 4 }` is the condition, and `{ x += 1 }` is the loop body. You can
+also write this using keyword arguments:
 
 ```inko
-{ number < 10 }.while_false {
-  number += 1
-}
+import std::loop::(while)
+
+let mut x = 0
+
+while(true: { x < 4 }, then: { x += 1 })
+
+x # => 4
 ```
 
 ## Infinite loops
 
-To create an infinite loop, send `loop` to a closure and pass a closure to call
-as an argument:
+To create an infinite loop, use the method `std::loop.loop`. This method takes a
+closure that it will call indefinitely:
 
 ```inko
-{
+import std::loop::(loop)
+
+loop {
   # This will run forever!
-}.loop
+}
 ```
 
 ## Tail recursion
@@ -153,15 +151,15 @@ def loop_with_number(number = 0) {
 ```
 
 This results in the loop internals leaking into the method signature. Using
-`while_true` this is not the case:
+`std::loop.while` this is not the case:
 
 ```inko
+import std::loop::(while)
+
 def loop_with_number {
   let mut number = 0
 
-  { number < 100 }.while_true {
-    number += 1
-  }
+  while({ number < 100 }) { number += 1 }
 }
 ```
 
@@ -174,11 +172,13 @@ keywords don't exist in Inko.
 One technique for skipping iterations is to wrap the loop body in a conditional:
 
 ```inko
-{
+import std::loop::(loop)
+
+loop {
   something_else.if_true {
     # ...
   }
-}.loop
+}
 ```
 
 An alternative approach is to encode this logic into the loop condition, though
@@ -188,10 +188,12 @@ To break out of a loop entirely, you can `return` from the surrounding method.
 For example:
 
 ```inko
+import std::loop::(loop)
+
 def example {
   let mut number = 0
 
-  {
+  loop {
     (number == 10).if_true {
       # This terminates the loop by returning from the surrounding `example`
       # method.
@@ -199,6 +201,6 @@ def example {
     }
 
     number += 1
-  }.loop
+  }
 }
 ```

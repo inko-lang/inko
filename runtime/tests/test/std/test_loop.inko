@@ -1,0 +1,35 @@
+import std::loop
+import std::test
+import std::test::assert
+
+def loop_forever -> Integer {
+  let mut i = 0
+
+  loop.loop { (i < 3).if(true: { i += 1 }, false: { return i }) }
+}
+
+test.group('std::loop.while') do (g) {
+  g.test('Looping while a condition is truthy') {
+    let mut iters = 0
+
+    loop.while({ iters < 3 }) { iters += 1 }
+
+    assert.equal(iters, 3)
+  }
+}
+
+test.group('std::loop.loop') do (g) {
+  g.test('Looping infinitely') {
+    assert.equal(loop_forever, 3)
+  }
+}
+
+test.group('std::loop.repeat') do (g) {
+  g.test('Repeating a loop a fixed number of times') {
+    let mut iters = 0
+
+    loop.repeat(4) do (index) { iters = index }
+
+    assert.equal(iters, 3)
+  }
+}

@@ -1,5 +1,6 @@
 # Types and methods for dealing with time.
 import std::conversion::(ToFloat, ToInteger)
+import std::loop::(while)
 import std::operators::(
   Add, Equal, Greater, GreaterOrEqual, Smaller, SmallerOrEqual, Subtract
 )
@@ -398,7 +399,7 @@ object SystemTime {
 
     let mut months = 0
 
-    { DAYS_IN_MONTH[months] <= rem_days }.while_true {
+    while({ DAYS_IN_MONTH[months] <= rem_days }) {
       rem_days -= DAYS_IN_MONTH[months]
       months += 1
     }

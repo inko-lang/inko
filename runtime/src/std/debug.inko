@@ -4,6 +4,7 @@
 # runtime, such as obtaining stack traces.
 import std::fs::path::(Path, ToPath)
 import std::hash::Hash
+import std::loop::(while)
 import std::operators::Equal
 
 # Details of a single call frame in a call stack.
@@ -105,7 +106,7 @@ def last_call_frame_in(file: ToPath) -> CallFrame {
   # This means we don't need to check that frame.
   let mut index = frames.length - 2
 
-  { index >= 0 }.while_true {
+  while({ index >= 0 }) {
     let frame = frames[index]
 
     (frame.path == path).if_true { return frame }

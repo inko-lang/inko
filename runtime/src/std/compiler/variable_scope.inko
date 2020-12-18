@@ -1,6 +1,7 @@
 # Types for looking up local variables.
 import std::compiler::symbol_table::*
 import std::compiler::types::Type
+import std::loop::(while)
 
 # A scope to use for looking up local variables.
 object VariableScope {
@@ -38,7 +39,7 @@ object VariableScope {
   def lookup_with_parents(name: String) -> ?Symbol!(Type) {
     let mut scope = Option.some(self)
 
-    { scope.some? }.while_true {
+    while({ scope.some? }) {
       let symbol = scope.get.lookup(name)
 
       symbol.if_true { return symbol }

@@ -1,4 +1,5 @@
 import std::io::(Read, Write)
+import std::loop::(while)
 import std::os::NEWLINE
 import std::test
 import std::test::assert
@@ -15,7 +16,7 @@ impl Read for Reader {
     let max = size.positive?.if(true: { size }, false: { input.length })
     let mut index = 0
 
-    { index < max }.while_true {
+    while({ index < max }) {
       bytes.push(input[index])
       index += 1
     }

@@ -17,6 +17,7 @@
 # the `Command` trait. A `Runner` in turn will send the `run` message to these
 # objects, passing its instance of `RunnerState`. This allows for type-safe
 # message passing, without the need for pattern matching.
+import std::loop::(while)
 import std::process::(self, Process)
 import std::test::config::Configuration
 import std::test::formatter::Formatter
@@ -148,7 +149,7 @@ impl Command for RunTests {
       pending += 1
 
       (pending == state.concurrency).or { index == last_index }.if_true {
-        { pending > 0 }.while_true {
+        while({ pending > 0 }) {
           let finished_test = process.receive as Test
 
           state.formatter.test(finished_test)

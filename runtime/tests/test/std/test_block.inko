@@ -1,51 +1,26 @@
+import std::hash::DefaultHasher
 import std::test
 import std::test::assert
 
-# The only way to break out of an infinite loop is to use a block return. Doing
-# this directly in a test would abort the entire test, so we perform this work
-# in a separate method instead.
-def test_loop -> Integer {
-  let mut number = 0
+test.group('std::block::Block.==') do (g) {
+  g.test('Comparing two blocks') {
+    let a = { 10 }
+    let b = { 10 }
 
-  {
-    (number == 100).if_true { return number }
-
-    number += 1
-  }.loop
-}
-
-test.group('std::block::Block.call') do (g) {
-  g.test('Running a Block') {
-    assert.equal({ 10 }.call, 10)
+    assert.equal(a, a)
+    assert.not_equal(a, b)
   }
 }
 
-test.group('std::block::Block.while_false') do (g) {
-  g.test('Calling a Block as long as a condition returns False') {
-    let mut number = 0
+test.group('std::block::Block.hash') do (g) {
+  g.test('Hashing a block') {
+    let block = { 10 }
+    let hasher1 = DefaultHasher.new(1, 2)
+    let hasher2 = DefaultHasher.new(1, 2)
 
-    { number == 10 }.while_false {
-      number += 1
-    }
+    block.hash(hasher1)
+    block.hash(hasher2)
 
-    assert.equal(number, 10)
-  }
-}
-
-test.group('std::block::Block.while_true') do (g) {
-  g.test('Calling a Block as long as a condition returns True') {
-    let mut number = 0
-
-    { number < 10 }.while_true {
-      number += 1
-    }
-
-    assert.equal(number, 10)
-  }
-}
-
-test.group('std::block::Block.loop') do (g) {
-  g.test('Calling a Block indefinitely') {
-    assert.equal(test_loop, 100)
+    assert.equal(hasher1.to_hash, hasher2.to_hash)
   }
 }

@@ -5,6 +5,7 @@
 # would depend on `std::array` while `std::array` would depend on
 # `std::iterator`.
 import std::conversion::ToString
+import std::loop::(while)
 
 impl Array {
   # Returns an `Iterator` that iterates over all values in `self`.
@@ -41,7 +42,7 @@ impl Array {
   def reverse_iter => T {
     let mut index = length - 1
 
-    { index > -1 }.while_true {
+    while({ index > -1 }) {
       yield self[index]
       index -= 1
     }

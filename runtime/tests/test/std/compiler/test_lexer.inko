@@ -1,5 +1,6 @@
 import std::compiler::lexer::Lexer
 import std::compiler::token::Token
+import std::loop::(loop)
 import std::test
 import std::test::assert
 
@@ -11,11 +12,11 @@ def lex_all(input: String) -> Array!(Token) {
   let tokens = Array.new
   let lexer = Lexer.new(input: input, file: 'test.inko')
 
-  {
+  loop {
     let token = lexer.next
 
     token.null?.if(true: { return tokens }, false: { tokens.push(token) })
-  }.loop
+  }
 }
 
 test.group('std::compiler::lexer::Lexer.next') do (g) {

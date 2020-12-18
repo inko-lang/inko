@@ -1,6 +1,7 @@
 # Functionality used by `std::fs::path` to implement bits of the `Path` type.
 #
 # This module is not part of the public API and should not be used directly.
+import std::loop::(while)
 import std::os::(windows?)
 
 # The separator to use for Unix path components.
@@ -63,15 +64,13 @@ def bytes_before_last_separator(path: String) -> Integer {
 
   # Trailing separators should be ignored, so we'll skip over them until the
   # first non-separator byte.
-  {
-    path_separator?(path.byte(index)).and { index > trim_until }
-  }.while_true {
+  while({ path_separator?(path.byte(index)).and { index > trim_until } }) {
     index -= 1
   }
 
   let mut in_separator = False
 
-  { index > -1 }.while_true {
+  while({ index > -1 }) {
     let byte = path.byte(index)
 
     path_separator?(byte).if(

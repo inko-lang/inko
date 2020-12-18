@@ -1,6 +1,7 @@
 # Range data types and methods.
 import std::conversion::ToArray
 import std::hash::Hash
+import std::loop::(while)
 import std::operators::(Equal, Match, SmallerOrEqual)
 import std::successor::Successor
 
@@ -80,7 +81,7 @@ impl ToArray!(T) for Range {
     let mut current = @start
     let max = @end
 
-    { current <= max }.while_true {
+    while({ current <= max }) {
       values.push(current)
 
       current = current.successor

@@ -1,5 +1,6 @@
-import std::net::ip::Ipv4Address
+import std::loop::(while)
 import std::net::bits::MAXIMUM_LISTEN_BACKLOG
+import std::net::ip::Ipv4Address
 import std::net::socket::(
   DGRAM, IPV4, IPV6, STREAM, Socket, SocketAddress, TcpListener, TcpStream,
   UdpSocket
@@ -407,9 +408,7 @@ test.group('std::net::socket::Socket.ipv6_multicast_interface') do (g) {
     # cross-platform way of figuring out which interface is valid. To work
     # around this we just try the first 10 interfaces, and error if none could
     # be found.
-    {
-      found.false?.and { interface < 10 }
-    }.while_true {
+    while({ found.false?.and { interface < 10 } }) {
       found = True
 
       try {

@@ -8,6 +8,7 @@ import std::compiler::source_location::SourceLocation
 import std::compiler::token::*
 import std::conversion::ToString
 import std::fs::path::(ToPath, Path)
+import std::loop::(while)
 
 let INTEGER_DIGIT_RANGE = 48..57
 let HEX_LOWER_DIGIT_RANGE = 97..102
@@ -265,35 +266,36 @@ object Lexer {
       @position += 1
     }
 
-    {
-      match(let byte = current_byte) {
-        INTEGER_DIGIT_RANGE, UNDERSCORE -> { True }
-        LOWER_E, UPPER_E when INTEGER_DIGIT_RANGE =~ next_byte -> {
-          type = 'float'
-          True
+    while(
+      true: {
+        match(let byte = current_byte) {
+          INTEGER_DIGIT_RANGE, UNDERSCORE -> { True }
+          LOWER_E, UPPER_E when INTEGER_DIGIT_RANGE =~ next_byte -> {
+            type = 'float'
+            True
+          }
+          # If there is an exponent followed by "+" or "-", it's only valid if
+          # also followed by a digit. This means "10e+" is invalid, and "10e+2"
+          # is valid.
+          LOWER_E, UPPER_E
+          when
+            (next_byte == PLUS)
+              .or { next_byte == MINUS }
+              .and { INTEGER_DIGIT_RANGE =~ peek(offset: 2) }
+          -> {
+            @position += 1
+            type = 'float'
+            True
+          }
+          DOT when INTEGER_DIGIT_RANGE =~ next_byte -> {
+            type = 'float'
+            True
+          }
+          else -> { False }
         }
-        # If there is an exponent followed by "+" or "-", it's only valid if
-        # also followed by a digit. This means "10e+" is invalid, and "10e+2" is
-        # valid.
-        LOWER_E, UPPER_E
-        when
-          (next_byte == PLUS)
-            .or { next_byte == MINUS }
-            .and { INTEGER_DIGIT_RANGE =~ peek(offset: 2) }
-        -> {
-          @position += 1
-          type = 'float'
-          True
-        }
-        DOT when INTEGER_DIGIT_RANGE =~ next_byte -> {
-          type = 'float'
-          True
-        }
-        else -> { False }
-      }
-    }.while_true {
-      @position += 1
-    }
+      },
+      then: { @position += 1 }
+    )
 
     token(type: type, start: start, line: line)
   }
@@ -309,15 +311,16 @@ object Lexer {
     # Advance 2 for "0x"
     @position += 2
 
-    {
-      match(current_byte) {
-        INTEGER_DIGIT_RANGE, HEX_LOWER_DIGIT_RANGE,
+    while(
+      true: {
+        match(current_byte) {
+          INTEGER_DIGIT_RANGE, HEX_LOWER_DIGIT_RANGE,
           HEX_UPPER_DIGIT_RANGE, UNDERSCORE -> { True }
-        else -> { False }
-      }
-    }.while_true {
-      @position += 1
-    }
+          else -> { False }
+        }
+      },
+      then: { @position += 1 }
+    )
 
     token(type: 'integer', start: start, line: line)
   }
@@ -329,11 +332,7 @@ object Lexer {
 
     let start = @position
 
-    {
-      next?.and { newline?.false? }
-    }.while_true {
-      @position += 1
-    }
+    while({ next?.and { newline?.false? } }) { @position += 1 }
 
     let comment =
       token(type: 'comment', start: start, line: @line, column: column)
@@ -349,10 +348,7 @@ object Lexer {
     # Advance 1 for the @ sign itself.
     @position += 1
 
-    { valid_identifier_byte? }.while_true {
-      @position += 1
-    }
-
+    while({ valid_identifier_byte? }) { @position += 1 }
     token(type: 'attribute', start: start, line: line)
   }
 
@@ -421,9 +417,7 @@ object Lexer {
     # Advance for the opening quote.
     advance_one_byte
 
-    {
-      next?.and { current_byte != quote }
-    }.while_true {
+    while({ next?.and { current_byte != quote } }) {
       append_string_byte(
         buffer: buffer,
         line_buffer: line_buffer,
@@ -539,34 +533,38 @@ object Lexer {
     let buffer = ByteArray.new
     let line_buffer = ByteArray.new
 
-    {
-      # Template strings may be wrapped across lines with a backslash, like so:
-      #
-      #     `foo \
-      #       bar`
-      #
-      # In this case, the backslash and all whitespace that follows it should be
-      # skipped. This means the above is equivalent to:
-      #
-      #     `foo bar`
-      (current_byte == BACKSLASH)
-        .and { next_is_whitespace? }
-        .if_true {
-          advance_one_byte
-          consume_whitespace
-        }
+    while(
+      true: {
+        # Template strings may be wrapped across lines with a backslash, like
+        # so:
+        #
+        #     `foo \
+        #       bar`
+        #
+        # In this case, the backslash and all whitespace that follows it should
+        # be skipped. This means the above is equivalent to:
+        #
+        #     `foo bar`
+        (current_byte == BACKSLASH)
+          .and { next_is_whitespace? }
+          .if_true {
+            advance_one_byte
+            consume_whitespace
+          }
 
-      match(current_byte) {
-        NULL, BACKTICK, CURLY_OPEN -> { False }
-        else -> { True }
+        match(current_byte) {
+          NULL, BACKTICK, CURLY_OPEN -> { False }
+          else -> { True }
+        }
+      },
+      then: {
+        append_string_byte(
+          buffer: buffer,
+          line_buffer: line_buffer,
+          replacements: TEMPLATE_STRING_ESCAPE_SEQUENCES
+        )
       }
-    }.while_true {
-      append_string_byte(
-        buffer: buffer,
-        line_buffer: line_buffer,
-        replacements: TEMPLATE_STRING_ESCAPE_SEQUENCES
-      )
-    }
+    )
 
     let location = source_location(line: line, column: column)
     let value =
@@ -724,9 +722,7 @@ object Lexer {
   def underscore -> Token {
     let start = @position
 
-    { current_byte == UNDERSCORE }.while_true {
-      @position += 1
-    }
+    while({ current_byte == UNDERSCORE }) { @position += 1 }
 
     UPPER_AZ_RANGE.cover?(current_byte).if_true {
       return identifier_or_constant(type: 'constant', start: start)
@@ -738,9 +734,7 @@ object Lexer {
   def identifier_or_keyword -> Token {
     let start = @position
 
-    { valid_identifier_byte? }.while_true {
-      @position += 1
-    }
+    while({ valid_identifier_byte? }) { @position += 1 }
 
     let bytes = slice_bytes(start: start, stop: @position)
     let string = bytes.to_string
@@ -760,10 +754,7 @@ object Lexer {
   }
 
   def identifier_or_constant(type: String, start: Integer) -> Token {
-    { valid_identifier_byte? }.while_true {
-      @position += 1
-    }
-
+    while({ valid_identifier_byte? }) { @position += 1 }
     token(type: type, start: start, line: @line)
   }
 

@@ -1,6 +1,7 @@
 import std::byte_array::ToByteArray
 import std::conversion::ToString
 import std::error::Error
+import std::loop::(while)
 import std::operators::Equal
 import std::string_buffer::StringBuffer
 
@@ -128,17 +129,20 @@ object Ipv6Address {
       throw AddressParseError.new(bytes)
     }
 
-    { cursor < max }.while_true {
-      {
-        # IPv6 addresses can embed IPv4 addresses, so instead of reading until
-        # we encounter a ":" we will also stop reading when running into a ".".
-        (cursor < max)
-          .and { bytes[cursor] != _COLON_BYTE }
-          .and { bytes[cursor] != _DOT_BYTE }
-      }.while_true {
-        segment_bytes.push(bytes[cursor])
-        cursor += 1
-      }
+    while({ cursor < max }) {
+      while(
+        true: {
+          # IPv6 addresses can embed IPv4 addresses, so instead of reading until
+          # we encounter a ":" we will also stop reading when running into a ".".
+          (cursor < max)
+            .and { bytes[cursor] != _COLON_BYTE }
+            .and { bytes[cursor] != _DOT_BYTE }
+        },
+        then: {
+          segment_bytes.push(bytes[cursor])
+          cursor += 1
+        }
+      )
 
       # The moment we encounter a dot we'll enter IPv4 mode, and remain in this
       # mode until we reach the end of the input, as embedded IPv4 addresses
@@ -193,9 +197,7 @@ object Ipv6Address {
         #
         # When the compression is at the end of the input (e.g. "1::") there is
         # no point in looking ahead, so we don't.
-        {
-          look_ahead.and { pad_cursor < max }
-        }.while_true {
+        while({ look_ahead.and { pad_cursor < max } }) {
           let byte = bytes[pad_cursor]
 
           (byte == _COLON_BYTE).if_true { pad -= 1 }
@@ -215,7 +217,7 @@ object Ipv6Address {
           pad_cursor += 1
         }
 
-        { pad.positive? }.while_true {
+        while({ pad.positive? }) {
           segments.push(0)
           pad -= 1
         }
@@ -525,10 +527,8 @@ object Ipv4Address {
     # No IPv4 address can be longer than 15 characters (255.255.255.255).
     (max > 15).if_true { throw AddressParseError.new(bytes) }
 
-    { cursor < max }.while_true {
-      {
-        (cursor < max).and { bytes[cursor] != _DOT_BYTE }
-      }.while_true {
+    while({ cursor < max }) {
+      while({ (cursor < max).and { bytes[cursor] != _DOT_BYTE } }) {
         segment_bytes.push(bytes[cursor])
         cursor += 1
       }

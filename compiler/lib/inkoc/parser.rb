@@ -49,6 +49,8 @@ module Inkoc
         lambda
         match
         match_equal
+        when
+        yield
       ]
     ).freeze
 

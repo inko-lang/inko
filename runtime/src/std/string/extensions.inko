@@ -2,6 +2,7 @@
 # bootstrapping process.
 import std::byte_array::ToByteArray
 import std::conversion::(ToFloat, ToInteger)
+import std::loop::(while)
 import std::process::(panic)
 
 # Returns `True` if a string separator starts at the given byte position.
@@ -100,7 +101,7 @@ impl String {
 
     (end_at > total_bytes).if_true { end_at = total_bytes }
 
-    { index < end_at }.while_true {
+    while({ index < end_at }) {
       bytes.push(byte(index))
       index += 1
     }
@@ -147,7 +148,7 @@ impl String {
     let mut index = 0
     let max = bytesize
 
-    { index < max }.while_true {
+    while({ index < max }) {
       let byte = byte(index)
 
       (byte == sep_start)

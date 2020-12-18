@@ -99,10 +99,12 @@ create iterators, without the boilerplate. Using a generator, we can implement
 our `LimitedIterator` as follows:
 
 ```inko
+import std::loop::(while)
+
 def limited_iterator!(T)(values: Array!(T)) => T {
   let mut index = 0
 
-  { index < 5 }.while_true {
+  while({ index < 5 }) {
     yield values[index]
     index += 1
   }
@@ -116,10 +118,12 @@ Generator methods can't specify an explicit return type, and can't return values
 using the `return` keyword. Thus, the following is invalid:
 
 ```inko
+import std::loop::(while)
+
 def limited_iterator!(T)(values: Array!(T)) => T {
   let mut index = 0
 
-  { index < 5 }.while_true {
+  while({ index < 5 }) {
     yield values[index]
     index += 1
   }
@@ -132,10 +136,12 @@ You _can_ use `return` without providing a value. This is useful if you wish to
 stop the generator:
 
 ```inko
+import std::loop::(while)
+
 def limited_iterator!(T)(values: Array!(T)) => T {
   let mut index = 0
 
-  { index < 5 }.while_true {
+  while({ index < 5 }) {
     yield values[index]
     return
     index += 1
@@ -159,10 +165,12 @@ If the generator method throws, the `resume` method re-throws that error. This
 means you need to handle it. For example:
 
 ```inko
+import std::loop::(while)
+
 def limited_iterator!(T)(values: Array!(T)) !! String => T {
   let mut index = 0
 
-  { index < 5 }.while_true {
+  while({ index < 5 }) {
     yield values[index]
     throw 'oops'
     index += 1
@@ -181,10 +189,12 @@ Generators themselves are also iterators. So instead of using `resume`, we can
 also use `next`:
 
 ```inko
+import std::loop::(while)
+
 def limited_iterator!(T)(values: Array!(T)) => T {
   let mut index = 0
 
-  { index < 5 }.while_true {
+  while({ index < 5 }) {
     yield values[index]
     index += 1
   }

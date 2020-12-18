@@ -13,6 +13,7 @@ import std::conversion::ToString
 import std::hash::Hash
 import std::index::(Index, SetIndex)
 import std::length::Length
+import std::loop::(while)
 import std::operators::Equal
 import std::option::Option
 
@@ -132,7 +133,7 @@ impl ByteArray {
     let mut index = 0
     let max = length
 
-    { index < max }.while_true {
+    while({ index < max }) {
       block.call(self[index])
       index += 1
     }
@@ -207,7 +208,7 @@ impl ByteArray {
 
     (until >= self.length).if_true { until = self.length }
 
-    { index < until }.while_true {
+    while({ index < until }) {
       new_array.push(self[index])
       index += 1
     }

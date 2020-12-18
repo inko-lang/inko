@@ -22,6 +22,7 @@ import std::compiler::token::Token
 import std::conversion::ToString
 import std::error::Error
 import std::fs::path::ToPath
+import std::loop::(loop, while)
 
 # The name of the type to desugar ?T types into.
 let OPTION_TYPE = 'Option'
@@ -142,7 +143,7 @@ object Parser {
     let location = @lexer.current_location
     let children = Array.new
 
-    { peek_token.valid? }.while_true {
+    while({ peek_token.valid? }) {
       children.push(try top_level_expression(next_token))
     }
 
@@ -187,7 +188,7 @@ object Parser {
   def import_path !! ParseError -> Array!(Identifier) {
     let steps = Array.new
 
-    {
+    loop {
       let token = next_token
 
       token.keyword?.or { token.type == 'identifier' }.if_false {
@@ -206,7 +207,7 @@ object Parser {
         'constant', 'paren_open', 'mul' -> { return steps }
         else -> {}
       }
-    }.loop
+    }
   }
 
   def import_symbols !! ParseError -> Array!(ImportSymbol) {
@@ -609,7 +610,7 @@ object Parser {
     # Skip the ":"
     next_token
 
-    {
+    loop {
       let constant = try next_as_constant
 
       traits.push(constant)
@@ -619,7 +620,7 @@ object Parser {
       }
 
       next_token
-    }.loop
+    }
   }
 
   def type_parameter_bounds !! ParseError -> Array!(DefineTypeParameter) {
@@ -642,7 +643,7 @@ object Parser {
   def binary(token: Token) !! ParseError -> Node {
     let mut node = try type_cast(token)
 
-    { peek_token.binary? }.while_true {
+    while({ peek_token.binary? }) {
       let operator = next_token
       let operand = try type_cast(next_token)
 
@@ -661,7 +662,7 @@ object Parser {
   def type_cast(token: Token) !! ParseError -> Node {
     let mut node = try postfix(token: token)
 
-    { peek_token.type == 'as' }.while_true {
+    while({ peek_token.type == 'as' }) {
       let as_token = next_token
       let cast_to = try type(next_token)
 
@@ -675,11 +676,11 @@ object Parser {
   def postfix(token: Token) !! ParseError -> Node {
     let mut node = try value(token)
 
-    {
+    loop {
       let step = try postfix_step(node)
 
       step.same_object?(node).if(true: { return node }, false: { node = step })
-    }.loop
+    }
   }
 
   def postfix_step(node: Node) !! ParseError -> Node {
@@ -1244,7 +1245,7 @@ object Parser {
   def message_arguments_without_parentheses !! ParseError -> Array!(Node) {
     let arguments = Array.new
 
-    {
+    loop {
       let token = next_token
 
       arguments.push(try value(token))
@@ -1253,7 +1254,7 @@ object Parser {
         true: { next_token },
         false: { return arguments }
       )
-    }.loop
+    }
   }
 
   def keyword_argument(token: Token) !! ParseError -> Node {
@@ -1491,11 +1492,7 @@ object Parser {
 
     try token_of_type('curly_open')
 
-    {
-      let peeked = peek_token
-
-      peeked.valid?.and { peeked.type != 'curly_close' }
-    }.while_true {
+    while({ peek_token.valid?.and { peek_token.type != 'curly_close' } }) {
       let token = next_token
 
       match(token.type) {
@@ -1527,7 +1524,7 @@ object Parser {
         else -> {
           let patterns = Array.new(try expression(token))
 
-          { peek_token.type == 'comma' }.while_true {
+          while({ peek_token.type == 'comma' }) {
             next_token
             patterns.push(try expression(next_token))
           }
@@ -1600,7 +1597,7 @@ object Parser {
   ) !! ParseError -> Body {
     let nodes = Array.new
 
-    {
+    loop {
       let token = next_token
 
       (token.type == 'curly_close').if_true {
@@ -1608,7 +1605,7 @@ object Parser {
       }
 
       nodes.push(try block.call(token))
-    }.loop
+    }
   }
 
   def collect_optional_greedy_list!(T)(
@@ -1656,7 +1653,7 @@ object Parser {
   }
 
   def list(stop: String, block: do !! ParseError) !! ParseError {
-    { peek_token.type == stop }.while_false {
+    while({ peek_token.type != stop }) {
       try block.call
       try list_separator_or_terminal(stop)
     }

@@ -1,6 +1,7 @@
 # Extensions for the `Integer` type that can only be defined later on in the
 # bootstrapping process.
 import std::error::StandardError
+import std::loop::(repeat, while)
 import std::process::(panic)
 import std::range::(Range, ToRange)
 import std::string_buffer::StringBuffer
@@ -85,7 +86,7 @@ impl Integer {
 
     negative?.if_true { characters.push('-') }
 
-    { integer.positive? }.while_true {
+    while({ integer.positive? }) {
       characters.push(INTEGER_RADIX_DIGITS[integer % radix])
       integer /= radix
     }
@@ -98,7 +99,7 @@ impl Integer {
     let mut old_index = characters.length - 1
     let mut new_index = start_at
 
-    { old_index > new_index }.while_true {
+    while({ old_index > new_index }) {
       let old = characters[old_index]
       let new = characters[new_index]
 
@@ -120,12 +121,7 @@ impl Integer {
   #
   #     4.times.to_array # => Array.new(0, 1, 2, 3)
   def times => Integer {
-    let mut index = 0
-
-    { index < self }.while_true {
-      yield index
-      index += 1
-    }
+    repeat(self) do (index) { yield index }
   }
 }
 
