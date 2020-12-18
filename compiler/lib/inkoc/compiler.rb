@@ -38,12 +38,14 @@ module Inkoc
     end
 
     def compile_main(path, output = nil)
+      path = path.expand_path
+
       output ||= begin
         out_name = File.basename(path, '.*') + Config::BYTECODE_EXT
         File.join(Dir.pwd, out_name)
       end
 
-      name = TIR::QualifiedName.new(%w[main])
+      name = @state.main_module_name_from_path(path)
       main_mod = compile(name, path)
 
       if @state.config.compile?

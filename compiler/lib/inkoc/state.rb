@@ -69,6 +69,21 @@ module Inkoc
       @module_paths_cache.absolute_path_for(path)
     end
 
+    def main_module_name_from_path(path)
+      full_path, dir = find_module_path(path)
+
+      return TIR::QualifiedName.new(%w[main]) unless full_path
+
+      # This turns "runtime/std/env.inko" into "std::env".
+      parts = full_path
+        .to_s
+        .gsub("#{dir.to_s.chomp(File::SEPARATOR)}#{File::SEPARATOR}", '')
+        .gsub(Config::SOURCE_EXT, '')
+        .split(File::SEPARATOR)
+
+      TIR::QualifiedName.new(parts)
+    end
+
     def inspect
       "Inkoc::State(modules: [#{modules.keys.join(', ')}])"
     end

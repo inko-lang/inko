@@ -15,7 +15,13 @@ module Inkoc
       @config.source_directories.each do |dir|
         full_path = dir.join(path).expand_path
 
-        return @cache[path] = full_path if full_path.file?
+        # If the path is outside one of the load directories, it either can't be
+        # loaded or is the main module.
+        next unless full_path.to_s.start_with?(dir.to_s)
+
+        if full_path.file?
+          return @cache[path] = [full_path, dir]
+        end
       end
 
       nil

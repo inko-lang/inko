@@ -87,18 +87,24 @@ pub enum ParserError {
 pub type ParserResult<T> = Result<T, ParserError>;
 pub type BytecodeResult = ParserResult<Vec<Module>>;
 
+/// A parsed bytecode image.
+pub struct Image {
+    /// The first module to run.
+    pub entry_point: String,
+
+    /// All the modules that have been parsed.
+    pub modules: Vec<Module>,
+}
+
 /// Parses a bytecode image stored in a file.
-pub fn parse_file(state: &State, path: &str) -> Result<Vec<Module>, String> {
+pub fn parse_file(state: &State, path: &str) -> Result<Image, String> {
     let file = File::open(path).map_err(|e| e.to_string())?;
 
     parse(state, &mut BufReader::with_capacity(BUFFER_SIZE, file))
 }
 
 /// Parses a bytecode image as a stream of bytes.
-pub fn parse(
-    state: &State,
-    stream: &mut dyn Read,
-) -> Result<Vec<Module>, String> {
+pub fn parse(state: &State, stream: &mut dyn Read) -> Result<Image, String> {
     if read_slice!(stream, 4) != SIGNATURE_BYTES {
         return Err("The bytecode signature is invalid".to_string());
     }
@@ -112,7 +118,13 @@ pub fn parse(
         ));
     }
 
-    read_modules(state, stream)
+    let entry_point = read_string(stream)?;
+    let modules = read_modules(state, stream)?;
+
+    Ok(Image {
+        entry_point,
+        modules,
+    })
 }
 
 fn read_modules(
@@ -560,6 +572,8 @@ mod tests {
 
         buffer.push(VERSION);
 
+        pack_string!("main", buffer); // entry point
+
         pack_u64!(1, buffer); // 1 module
         pack_u64!(93, buffer); // number of bytes beyond this point
         pack_u64!(2, buffer); // literals
@@ -589,11 +603,12 @@ mod tests {
         pack_u64!(0, buffer); // code objects
         pack_u64!(0, buffer); // catch table entries
 
-        let modules =
+        let image =
             unwrap!(parse(&state, &mut BufReader::new(buffer.as_slice())));
 
-        let module = &modules[0];
+        let module = &image.modules[0];
 
+        assert_eq!(&image.entry_point, "main");
         assert_eq!(module.name().string_value().unwrap().as_slice(), "main");
         assert_eq!(
             module.source_path().string_value().unwrap().as_slice(),

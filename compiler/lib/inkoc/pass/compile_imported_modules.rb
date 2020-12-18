@@ -27,8 +27,9 @@ module Inkoc
 
       def compile_module(qname, location)
         rel_path = qname.source_path_with_extension
+        full_path, _ = state.find_module_path(rel_path)
 
-        if (full_path = state.find_module_path(rel_path))
+        if full_path
           @compiler.compile(qname, full_path)
         else
           state.diagnostics.module_not_found_error(qname.to_s, location)

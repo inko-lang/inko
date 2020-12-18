@@ -48,6 +48,7 @@ module Inkoc
         end
 
         u8(VERSION, output)
+        entry_point(output)
         u64(mods.length, output)
 
         mods.each do |mod|
@@ -55,6 +56,10 @@ module Inkoc
         end
 
         output
+      end
+
+      def entry_point(output)
+        string(@module.name.to_s, output)
       end
 
       def code_module(mod, output)

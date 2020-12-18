@@ -38,9 +38,6 @@ use std::ops::{Add, Mul, Sub};
 use std::panic;
 use std::thread;
 
-/// The name of the module that acts as the entry point in an Inko program.
-const MAIN_MODULE_NAME: &str = "main";
-
 /// The number of reductions to apply for a method call.
 const METHOD_REDUCTION_COST: usize = 1;
 
@@ -204,7 +201,7 @@ impl Machine {
     /// This method will block the calling thread until the program finishes.
     pub fn start(&self, path: &str) {
         self.parse_image(path);
-        self.schedule_main_process(MAIN_MODULE_NAME);
+        self.schedule_main_process();
 
         let secondary_guard = self.start_blocking_threads();
         let timeout_guard = self.start_timeout_worker_thread();
@@ -264,16 +261,23 @@ impl Machine {
         self.state.parse_image(path).unwrap();
     }
 
-    fn schedule_main_process(&self, name: &str) {
+    fn schedule_main_process(&self) {
+        let entry = self
+            .state
+            .modules
+            .lock()
+            .entry_point()
+            .expect("The module entry point is undefined")
+            .clone();
+
         let process = {
             let (_, block, _) =
-                module::module_load_string(&self.state, name).unwrap();
+                module::module_load_string(&self.state, &entry).unwrap();
 
             process::process_allocate(&self.state, &block)
         };
 
         process.set_main();
-
         self.state.scheduler.schedule_on_main_thread(process);
     }
 

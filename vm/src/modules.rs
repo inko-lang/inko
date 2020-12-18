@@ -9,12 +9,14 @@ use ahash::AHashMap;
 
 /// A collection of all Inko modules for the current program.
 pub struct Modules {
+    entry_point: Option<String>,
     map: AHashMap<String, ObjectPointer>,
 }
 
 impl Modules {
     pub fn new() -> Self {
         Modules {
+            entry_point: None,
             map: AHashMap::default(),
         }
     }
@@ -24,14 +26,19 @@ impl Modules {
         state: &State,
         path: &str,
     ) -> Result<(), String> {
-        let modules =
+        let image =
             bytecode_parser::parse_file(state, path).map_err(|err| {
                 format!("The bytecode image {} is invalid: {}", path, err)
             })?;
 
-        self.add(state, modules);
+        self.entry_point = Some(image.entry_point);
+        self.add(state, image.modules);
 
         Ok(())
+    }
+
+    pub fn entry_point(&self) -> Option<&String> {
+        self.entry_point.as_ref()
     }
 
     pub fn add(&mut self, state: &State, modules: Vec<Module>) {

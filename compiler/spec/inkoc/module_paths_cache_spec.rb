@@ -17,7 +17,7 @@ describe Inkoc::ModulePathsCache do
         expected_path = Pathname.new(directory).join('foo.inko')
 
         expect(cache.absolute_path_for('foo.inko'))
-          .to eq(expected_path)
+          .to eq([expected_path, Pathname.new(directory)])
       end
 
       it 'caches the path' do

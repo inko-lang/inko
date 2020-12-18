@@ -32,11 +32,12 @@ referring to an array containing the values `1, 2, 3` in the given order.
 
 ## Header
 
-Every bytecode image must start with a header. The header consists out of two
+Every bytecode image must start with a header. The header consists out of three
 parts:
 
-1. A signature.
-1. The version of the bytecode format.
+1. A signature
+1. The version of the bytecode format
+1. The module entry point
 
 The signature is a `[u8; 4]` containing the following `u8` values:
 
@@ -50,6 +51,10 @@ backwards incompatible bytecode changes are made. The version byte comes
 directly after the signature.
 
 If the signature or version is not recognised, the VM will exit with an error.
+
+The entry point is a string that specifies what module acts as the entry point
+(= the first module to run) for the program. It's an error to not specify an
+entry point.
 
 ## Modules
 
