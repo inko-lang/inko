@@ -119,10 +119,17 @@ test.group('std::compiler::module_name::ModuleName.bootstrap?') do (g) {
   }
 }
 
-test.group('std::compiler::module_name::ModuleName.prelude?') do (g) {
-  g.test('Checking if a module name is std::prelude') {
-    assert.true(ModuleName.new(Array.new('std', 'prelude')).prelude?)
-    assert.false(ModuleName.new(Array.new('std', 'foo')).prelude?)
+test.group('std::compiler::module_name::ModuleName.init?') do (g) {
+  g.test('Checking if a module name is std::init') {
+    assert.true(ModuleName.new(Array.new('std', 'init')).init?)
+    assert.false(ModuleName.new(Array.new('std', 'foo')).init?)
+  }
+}
+
+test.group('std::compiler::module_name::ModuleName.std?') do (g) {
+  g.test('Checking if a module is in the standard library') {
+    assert.true(ModuleName.new(Array.new('std', 'init')).std?)
+    assert.false(ModuleName.new(Array.new('foo', 'foo')).std?)
   }
 }
 
@@ -131,5 +138,12 @@ test.group('std::compiler::module_name::ModuleName.tail') do (g) {
     assert.equal(ModuleName.new(Array.new('std', 'foo')).tail, 'foo')
     assert.equal(ModuleName.new(Array.new('std')).tail, 'std')
     assert.panic { ModuleName.new(Array.new).tail }
+  }
+}
+
+test.group('std::compiler::module_name::ModuleName.head') do (g) {
+  g.test('Obtaining the head of a module name') {
+    assert.equal(ModuleName.new(Array.new('std', 'foo')).head, 'std')
+    assert.panic { ModuleName.new(Array.new).head }
   }
 }

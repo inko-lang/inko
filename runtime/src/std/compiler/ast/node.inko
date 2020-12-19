@@ -3,6 +3,7 @@ import std::compiler::source_location::SourceLocation
 import std::compiler::symbol_table::Symbol
 import std::compiler::types::Type
 import std::operators::Equal
+import std::option::Option
 
 # A trait for providing and adhering to common behaviour across AST nodes.
 trait Node {

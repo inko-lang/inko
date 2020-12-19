@@ -1,9 +1,10 @@
 # AST types for collections of expressions.
 import std::compiler::ast::imports::Import
 import std::compiler::ast::node::*
-import std::compiler::variable_scope::VariableScope
 import std::compiler::source_location::SourceLocation
 import std::compiler::types::(Type, TypeScope)
+import std::compiler::variable_scope::VariableScope
+import std::option::Option
 
 # A collection of different expressions.
 object Body {

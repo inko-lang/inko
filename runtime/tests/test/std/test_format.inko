@@ -1,5 +1,4 @@
 import std::format::(DefaultFormatter, MAX_DEPTH, PLACEHOLDER)
-import std::loop::(while)
 import std::test
 import std::test::assert
 

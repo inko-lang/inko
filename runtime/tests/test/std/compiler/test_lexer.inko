@@ -1,6 +1,5 @@
 import std::compiler::lexer::Lexer
 import std::compiler::token::Token
-import std::loop::(loop)
 import std::test
 import std::test::assert
 

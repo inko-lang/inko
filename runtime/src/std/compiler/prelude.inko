@@ -1,0 +1,14 @@
+# Types and methods made available to Inko modules.
+import std::pair::Pair
+
+# Returns the types and symbols to make available, and the modules to import
+# them from.
+def prelude -> Array!(Pair!(String, String)) {
+  Array.new(
+    Pair.new('option', 'Option'),
+    Pair.new('map', 'Map'),
+    Pair.new('range', 'Range'),
+    Pair.new('loop', 'loop'),
+    Pair.new('loop', 'while'),
+  )
+}

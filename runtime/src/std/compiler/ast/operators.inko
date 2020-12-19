@@ -3,6 +3,7 @@ import std::compiler::ast::node::*
 import std::compiler::ast::variables::Constant
 import std::compiler::source_location::SourceLocation
 import std::compiler::types::Type
+import std::option::Option
 
 # An expression that should be casted to a different type.
 object TypeCast {

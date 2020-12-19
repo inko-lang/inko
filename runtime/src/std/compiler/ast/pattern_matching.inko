@@ -4,6 +4,7 @@ import std::compiler::ast::node::*
 import std::compiler::ast::variables::(Constant, Identifier)
 import std::compiler::source_location::SourceLocation
 import std::compiler::types::Type
+import std::option::Option
 
 # A node that can be used as a pattern matching case.
 trait MatchCase: Node {}

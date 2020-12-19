@@ -1,0 +1,16 @@
+import std::compiler::prelude::(prelude)
+import std::pair::Pair
+import std::test
+import std::test::assert
+
+test.group('std::compiler::prelude.prelude') do (g) {
+  g.test('Getting the symbols included in the prelude') {
+    let syms = prelude
+
+    assert.equal(syms[0], Pair.new('option', 'Option'))
+    assert.equal(syms[1], Pair.new('map', 'Map'))
+    assert.equal(syms[2], Pair.new('range', 'Range'))
+    assert.equal(syms[3], Pair.new('loop', 'loop'))
+    assert.equal(syms[4], Pair.new('loop', 'while'))
+  }
+}

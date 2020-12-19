@@ -1,5 +1,4 @@
 import std::io::(Read, Write)
-import std::loop::(while)
 import std::os::NEWLINE
 import std::test
 import std::test::assert

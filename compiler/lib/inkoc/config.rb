@@ -19,9 +19,7 @@ module Inkoc
     # The path to the bootstrap module.
     BOOTSTRAP_MODULE = 'bootstrap'
 
-    # The path to the prelude module.
-    PRELUDE_MODULE = 'prelude'
-
+    INIT_MODULE = 'init'
     OPERATORS_MODULE = 'std::operators'
     CONVERSION_MODULE = 'std::conversion'
 
@@ -97,6 +95,13 @@ module Inkoc
     DEFAULT_RUNTIME_PATH = '/usr/lib/inko/runtime'
 
     MAXIMUM_METHOD_ARGUMENTS = 255
+
+    PRELUDE_SYMBOLS = {
+      'option' => %w[Option],
+      'map' => %w[Map],
+      'range' => %w[Range],
+      'loop' => %w[loop while]
+    }.freeze
 
     attr_reader :source_directories
 

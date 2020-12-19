@@ -5,6 +5,7 @@ import std::conversion::ToString
 import std::fs::path::(Path, ToPath, SEPARATOR)
 import std::hash::*
 import std::operators::Equal
+import std::option::Option
 
 # The name of a module.
 object ModuleName {
@@ -47,15 +48,18 @@ object ModuleName {
     self == STD_BOOTSTRAP
   }
 
-  def prelude? -> Boolean {
-    self == STD_PRELUDE
+  def init? -> Boolean {
+    self == STD_INIT
   }
 
-  def allow_instructions? -> Boolean {
-    @components.get(0).get_or_else { return False } == 'std'
+  def std? -> Boolean {
+    head == STD_NAMESPACE
   }
 
-  # Returns the last component of the module name, such as `foo` in `std::foo`.
+  def head -> String {
+    @components[0]
+  }
+
   def tail -> String {
     @components[-1]
   }
@@ -79,8 +83,11 @@ impl Hash for ModuleName {
   }
 }
 
-# The name of the bootstrap module.
-let STD_BOOTSTRAP = ModuleName.new(Array.new('std', 'bootstrap'))
+# The namespace for the standard library.
+let STD_NAMESPACE = 'std'
 
-# The name of the prelude module.
-let STD_PRELUDE = ModuleName.new(Array.new('std', 'prelude'))
+# The name of the bootstrap module.
+let STD_BOOTSTRAP = ModuleName.new(Array.new(STD_NAMESPACE, 'bootstrap'))
+
+# The name of the init module.
+let STD_INIT = ModuleName.new(Array.new(STD_NAMESPACE, 'init'))

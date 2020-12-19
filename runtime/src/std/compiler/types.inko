@@ -6,7 +6,9 @@ import std::hash::Hash
 import std::index::*
 import std::iterator::Iterator
 import std::length::Length
+import std::map::Map
 import std::operators::Equal
+import std::option::Option
 import std::pair::Pair
 import std::set::Set
 import std::stdio::stdout

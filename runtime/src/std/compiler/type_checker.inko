@@ -20,6 +20,8 @@ import std::compiler::source_location::SourceLocation
 import std::compiler::symbol_table::(Symbol, SymbolTable)
 import std::compiler::types::*
 import std::compiler::variable_scope::VariableScope
+import std::map::Map
+import std::option::Option
 import std::process::(panic)
 import std::set::Set
 
@@ -570,7 +572,7 @@ trait ExpressionTypePass: TypePass {
     # VM instructions are not part of the public API, and are an implementation
     # detail. To prevent users from using/abusing them, we only allow them to be
     # used in a limited number of places.
-    module.name.allow_instructions?.if_false {
+    module.name.std?.if_false {
       type_checker.diagnostics.instructions_not_available(node.location)
 
       return node.resolved_type = ErrorType.new

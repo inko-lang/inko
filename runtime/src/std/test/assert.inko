@@ -9,6 +9,7 @@
 # entire test suite terminating in the event of an assertion failing.
 import std::mirror
 import std::operators::(Equal, Greater)
+import std::option::Option
 import std::process::(self, Process)
 
 # The result of a PanicTest.

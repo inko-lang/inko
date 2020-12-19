@@ -3,6 +3,7 @@ import std::compiler::ast::body::Body
 import std::compiler::ast::node::*
 import std::compiler::source_location::SourceLocation
 import std::compiler::types::Type
+import std::option::Option
 
 # A return from a surrounding method or closure.
 object Return {

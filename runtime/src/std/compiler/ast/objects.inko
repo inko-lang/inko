@@ -5,6 +5,7 @@ import std::compiler::ast::node::*
 import std::compiler::ast::variables::(Constant, DefineTypeParameter)
 import std::compiler::source_location::SourceLocation
 import std::compiler::types::(ObjectInstance, ObjectType, Type, TraitType)
+import std::option::Option
 
 # A named object defined using the "object" keyword.
 object DefineObject {

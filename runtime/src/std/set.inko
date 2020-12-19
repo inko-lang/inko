@@ -2,6 +2,7 @@
 import std::hash::Hash
 import std::iterator::Iterator
 import std::length::Length
+import std::map::Map
 import std::operators::Equal
 
 # A hash set implemented using a Map.

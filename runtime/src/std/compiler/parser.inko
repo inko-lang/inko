@@ -23,6 +23,7 @@ import std::conversion::ToString
 import std::error::Error
 import std::fs::path::ToPath
 import std::loop::(loop, while)
+import std::option::Option
 
 # The name of the type to desugar ?T types into.
 let OPTION_TYPE = 'Option'

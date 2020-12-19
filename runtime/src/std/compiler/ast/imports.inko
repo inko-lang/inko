@@ -3,6 +3,7 @@ import std::compiler::ast::node::*
 import std::compiler::ast::variables::Identifier
 import std::compiler::module_name::ModuleName
 import std::compiler::source_location::SourceLocation
+import std::option::Option
 
 # The alias to import a symbol under.
 object ImportAlias {

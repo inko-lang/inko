@@ -2,6 +2,8 @@
 import std::index::Index
 import std::iterator::Iterator
 import std::length::Length
+import std::map::Map
+import std::option::Option
 
 # Information of a single symbol, such as an identifier or a constant.
 object Symbol!(T) {

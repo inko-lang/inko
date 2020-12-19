@@ -5,9 +5,13 @@ import std::compiler::ast::node::Node
 import std::compiler::ast::objects::(DefineObject, ImplementTrait)
 import std::compiler::ast::send::Send
 import std::compiler::ast::variables::(Constant, Identifier)
-import std::compiler::module_name::(STD_BOOTSTRAP, STD_PRELUDE, ModuleName)
+import std::compiler::module_name::(
+  STD_BOOTSTRAP, STD_INIT, STD_NAMESPACE, ModuleName
+)
+import std::compiler::prelude::(prelude)
 import std::compiler::source_location::SourceLocation
 import std::compiler::types::OBJECT_TRAIT
+import std::pair::Pair
 
 # Adds implicit implementations of the `Object` trait for any object
 # definitions.
@@ -73,14 +77,12 @@ def hoist_imports(body: Body) {
 }
 
 # Inserts implicit imports in the AST node, if needed.
-#
-# Some imports are inserted implicit, such as the importing of
-# `core::bootstrap`. This method inserts these imports where needed.
 def add_implicit_imports(name: ModuleName, body: Body) {
   let nodes = Array.new
   let location = body.location
 
   import_bootstrap(name: name, nodes: nodes, location: location)
+  import_init(name: name, nodes: nodes, location: location)
   import_prelude(name: name, nodes: nodes, location: location)
 
   nodes.empty?.if_true { return }
@@ -117,13 +119,43 @@ def import_bootstrap(
   nodes.push(import_all(module: STD_BOOTSTRAP, location: location))
 }
 
+def import_init(
+  name: ModuleName,
+  nodes: Array!(Import),
+  location: SourceLocation
+) {
+  name.bootstrap?.or { name.init? }.if_true { return }
+
+  let node = Import.new(
+    path: import_path_for_module(module: STD_INIT, location: location),
+    symbols: Array.new,
+    import_all: False,
+    location: location
+  )
+
+  nodes.push(node)
+}
+
 def import_prelude(
   name: ModuleName,
   nodes: Array!(Import),
   location: SourceLocation
 ) {
-  name.bootstrap?.or { name.prelude? }.if_true { return }
-  nodes.push(import_all(module: STD_PRELUDE, location: location))
+  name.std?.if_true { return }
+
+  prelude.each do (pair) {
+    let mod_name = ModuleName.new(Array.new(STD_NAMESPACE, pair.first))
+    let imp = Import.new(
+      path: import_path_for_module(module: mod_name, location: location),
+      symbols: Array.new(
+        ImportSymbol.new(name: pair.second, location: location)
+      ),
+      import_all: False,
+      location: location
+    )
+
+    nodes.push(imp)
+  }
 }
 
 def import_path_for_module(

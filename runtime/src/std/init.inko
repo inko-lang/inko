@@ -1,5 +1,4 @@
-# The prelude module imports various modules of which the contents (e.g. types
-# and type extensions) should be available to every other module.
+# A module that imports all the core modules necessary for an Inko program.
 #
 # The order in which modules are imported is important, as some modules may
 # depend on types/methods defined in other modules.
@@ -9,7 +8,7 @@ import std::float
 import std::nil
 import std::block
 import std::process
-import std::option::(Option as _Option)
+import std::option
 import std::string
 import std::array
 import std::iterator
@@ -25,11 +24,5 @@ import std::float::extensions::(self as _)
 import std::string::extensions::(self as _)
 import std::array::extensions::(self as _)
 
-import std::map::(Map as _Map)
-import std::range::(Range as _Range)
-
-# These constants are re-exported so they're available to all modules by
-# default. Core types such as String should be exposed in std::globals instead.
-let Map = _Map
-let Range = _Range
-let Option = _Option
+import std::map
+import std::range

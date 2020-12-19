@@ -249,3 +249,8 @@ mention `@inko-lang` in the comment. For example:
 
 The maintainers will then take a look at your changes, make sure the merge
 request has the appropriate labels, and provide feedback on your changes.
+
+## Working on the standard library
+
+The standard library doesn't have access to the prelude. As such, the types and
+methods exposed by the prelude must be imported explicitly.

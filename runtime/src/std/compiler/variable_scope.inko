@@ -2,6 +2,7 @@
 import std::compiler::symbol_table::*
 import std::compiler::types::Type
 import std::loop::(while)
+import std::option::Option
 
 # A scope to use for looking up local variables.
 object VariableScope {

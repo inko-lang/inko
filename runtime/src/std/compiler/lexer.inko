@@ -9,6 +9,7 @@ import std::compiler::token::*
 import std::conversion::ToString
 import std::fs::path::(ToPath, Path)
 import std::loop::(while)
+import std::map::Map
 
 let INTEGER_DIGIT_RANGE = 48..57
 let HEX_LOWER_DIGIT_RANGE = 97..102

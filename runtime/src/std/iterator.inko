@@ -31,6 +31,7 @@
 # returns the characters in a `String`.
 import std::conversion::ToString
 import std::hash::Hash
+import std::map::Map
 import std::operators::Equal
 import std::option::Option
 import std::pair::Pair

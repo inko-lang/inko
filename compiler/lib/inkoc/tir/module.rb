@@ -56,11 +56,15 @@ module Inkoc
         name.to_s != Config.std_module_name(Config::BOOTSTRAP_MODULE)
       end
 
-      def import_prelude?
+      def import_init?
         name = self.name.to_s
 
         name != Config.std_module_name(Config::BOOTSTRAP_MODULE) &&
-          name != Config.std_module_name(Config::PRELUDE_MODULE)
+          name != Config.std_module_name(Config::INIT_MODULE)
+      end
+
+      def import_implicits?
+        @name.parts.first != Config::STD_MODULE
       end
 
       def source_code

@@ -17,22 +17,36 @@ module Inkoc
       def prepend_imports(ast)
         loc = ast.location
 
-        @module.imports << import_bootstrap(loc) if @module.import_bootstrap?
-        @module.imports << import_prelude(loc) if @module.import_prelude?
+        import_bootstrap(loc) if @module.import_bootstrap?
+        import_init(loc) if @module.import_init?
+        import_implicits(loc) if @module.import_implicits?
       end
 
-      # Generates the import statement for importing the bootstrap module.
       def import_bootstrap(location)
-        import_everything_from(Config::BOOTSTRAP_MODULE, location)
+        import = import_everything_from(Config::BOOTSTRAP_MODULE, location)
+
+        @module.imports << import
       end
 
-      # Generates the import statement for the prelude module.
-      #
-      # Equivalent:
-      #
-      #     import std::prelude::*
-      def import_prelude(location)
-        import_everything_from(Config::PRELUDE_MODULE, location)
+      def import_init(location)
+        std = identifier_for(Config::STD_MODULE, location)
+        init = identifier_for(Config::INIT_MODULE, location)
+
+        @module.imports << AST::Import.new([std, init], [], location)
+      end
+
+      def import_implicits(location)
+        std = identifier_for(Config::STD_MODULE, location)
+
+        Config::PRELUDE_SYMBOLS.each do |modname, symbol_names|
+          mod = identifier_for(modname, location)
+          symbols = symbol_names.map do |name|
+            AST::ImportSymbol
+              .new(AST::Constant.new(name, location), nil, location)
+          end
+
+          @module.imports << AST::Import.new([std, mod], symbols, location)
+        end
       end
 
       def identifier_for(name, location)
@@ -41,10 +55,10 @@ module Inkoc
 
       def import_everything_from(module_name, location)
         std = identifier_for(Config::STD_MODULE, location)
-        prelude = identifier_for(module_name, location)
+        mod = identifier_for(module_name, location)
         symbol = AST::GlobImport.new(location)
 
-        AST::Import.new([std, prelude], [symbol], location)
+        AST::Import.new([std, mod], [symbol], location)
       end
     end
   end

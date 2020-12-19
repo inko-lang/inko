@@ -89,8 +89,10 @@ import std::format::(DefaultFormatter, Format, Formatter)
 import std::fs::path::Path
 import std::hash::Hash
 import std::loop::(loop)
+import std::map::Map
 import std::module::Module
 import std::operators::Equal
+import std::option::Option
 import std::pair::(Triple, Pair)
 import std::set::Set
 

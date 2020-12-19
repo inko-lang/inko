@@ -105,6 +105,7 @@ import std::ffi::types::Type
 import std::hash::Hash
 import std::index::(Index, SetIndex)
 import std::io::Close
+import std::map::Map
 import std::operators::Equal
 import std::process::(panic)
 import std::set::Set

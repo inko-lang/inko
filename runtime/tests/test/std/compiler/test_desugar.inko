@@ -20,10 +20,10 @@ def parse(input: String) -> Body {
 
 def imports_in(body: Body) -> Array!(ModuleName) {
   body
-    .children
+    .imports
     .iter
-    .map do (node) { (node as Import).module_name }
-    .to_array as Array!(ModuleName)
+    .map do (node) { node.module_name }
+    .to_array
 }
 
 def module_name(*components: String) -> ModuleName {
@@ -125,10 +125,7 @@ test.group('std::compiler::desugar.add_implicit_imports') do (g) {
 
     assert.equal(
       imports,
-      Array.new(
-        ModuleName.new(Array.new('std', 'bootstrap')),
-        ModuleName.new(Array.new('std', 'prelude')),
-      )
+      Array.new(module_name('std', 'bootstrap'), module_name('std', 'init'))
     )
   }
 
@@ -142,26 +139,24 @@ test.group('std::compiler::desugar.add_implicit_imports') do (g) {
     assert.equal(
       imports,
       Array.new(
-        ModuleName.new(Array.new('std', 'bootstrap')),
-        ModuleName.new(Array.new('std', 'prelude')),
-        ModuleName.new(Array.new('foo'))
+        module_name('std', 'bootstrap'),
+        module_name('std', 'init'),
+        module_name('foo')
       )
     )
   }
 
-  g.test('Inserting implicit imports when compiling std::prelude') {
+  g.test('Inserting implicit imports when compiling std::init') {
     let body = parse('')
 
     desugar
-      .add_implicit_imports(name: module_name('std', 'prelude'), body: body)
+      .add_implicit_imports(name: module_name('std', 'init'), body: body)
 
     let imports = imports_in(body)
 
     assert.equal(
       imports,
-      Array.new(
-        ModuleName.new(Array.new('std', 'bootstrap')),
-      )
+      Array.new(ModuleName.new(Array.new('std', 'bootstrap')))
     )
   }
 
@@ -172,5 +167,31 @@ test.group('std::compiler::desugar.add_implicit_imports') do (g) {
       .add_implicit_imports(name: module_name('std', 'bootstrap'), body: body)
 
     assert.true(body.children.empty?)
+  }
+
+  g.test('Inserting implicit imports into a non standard library module') {
+    let body = parse('')
+
+    desugar.add_implicit_imports(name: module_name('foo', 'bar'), body: body)
+
+    let imports = body.imports
+
+    assert.equal(imports[0].module_name, module_name('std', 'bootstrap'))
+    assert.equal(imports[1].module_name, module_name('std', 'init'))
+
+    assert.equal(imports[2].module_name, module_name('std', 'option'))
+    assert.equal(imports[2].symbols[0].name, 'Option')
+
+    assert.equal(imports[3].module_name, module_name('std', 'map'))
+    assert.equal(imports[3].symbols[0].name, 'Map')
+
+    assert.equal(imports[4].module_name, module_name('std', 'range'))
+    assert.equal(imports[4].symbols[0].name, 'Range')
+
+    assert.equal(imports[5].module_name, module_name('std', 'loop'))
+    assert.equal(imports[5].symbols[0].name, 'loop')
+
+    assert.equal(imports[6].module_name, module_name('std', 'loop'))
+    assert.equal(imports[6].symbols[0].name, 'while')
   }
 }

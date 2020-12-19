@@ -1,6 +1,7 @@
 # Source location information for tokens and AST trees produced by the
 # compiler.
 import std::fs::path::(Path, ToPath)
+import std::range::Range
 
 # The location of a single Inko expression.
 object SourceLocation {

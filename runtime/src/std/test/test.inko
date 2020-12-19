@@ -4,6 +4,7 @@
 # source location and the `Block` to run. Tests are typically defined by
 # sending `test` to an instance of `std::test::test_group::TestGroup`.
 import std::debug::(self, CallFrame)
+import std::option::Option
 import std::process::(self, Process)
 import std::stdio::stdout
 import std::test::error::TestFailure

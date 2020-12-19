@@ -2,6 +2,7 @@
 import std::compiler::ast::node::*
 import std::compiler::source_location::SourceLocation
 import std::compiler::types::ObjectInstance
+import std::option::Option
 
 # A simple literal value, such as an integer or a float.
 trait Literal: Node {

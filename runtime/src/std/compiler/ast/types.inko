@@ -5,6 +5,7 @@ import std::compiler::source_location::SourceLocation
 import std::compiler::types::(
   ClosureType as ResolvedClosureType, LambdaType as ResolvedLambdaType, Type
 )
+import std::option::Option
 
 # A closure type created using the `do` keyword.
 object ClosureType {

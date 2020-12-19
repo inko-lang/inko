@@ -1,4 +1,3 @@
-import std::loop::(while)
 import std::net::bits::MAXIMUM_LISTEN_BACKLOG
 import std::net::ip::Ipv4Address
 import std::net::socket::(

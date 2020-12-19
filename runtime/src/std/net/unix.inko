@@ -4,10 +4,11 @@ import std::fs::path::(Path, ToPath)
 import std::io::(Close, Error as IoError, Read, Write)
 import std::net::bits::(
   self,
- AF_UNIX, MAXIMUM_LISTEN_BACKLOG, RECV_SIZE, SEND_SIZE, SOCK_DGRAM, SOCK_RAW,
- SOCK_SEQPACKET, SOCK_STREAM, Socket as RawSocket, SocketValue
+  AF_UNIX, MAXIMUM_LISTEN_BACKLOG, RECV_SIZE, SEND_SIZE, SOCK_DGRAM, SOCK_RAW,
+  SOCK_SEQPACKET, SOCK_STREAM, Socket as RawSocket, SocketValue
 )
 import std::operators::Equal
+import std::option::Option
 
 # A low-level, non-blocking Unix domain socket.
 #

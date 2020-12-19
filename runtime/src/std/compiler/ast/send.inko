@@ -5,6 +5,7 @@ import std::compiler::config::INSTRUCTION_RECEIVER_NAME
 import std::compiler::source_location::SourceLocation
 import std::compiler::symbol_table::Symbol
 import std::compiler::types::(BlockType, Type)
+import std::option::Option
 
 # A keyword argument and its value.
 object KeywordArgument {
