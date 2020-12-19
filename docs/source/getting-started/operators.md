@@ -30,6 +30,7 @@ The following operators are available:
 | `^`      | `a ^ b`  | `BitwiseXor`
 | `<<`     | `a << b` | `ShiftLeft`
 | `>>`     | `a >> b` | `ShiftRight`
+| `=~`     | `a =~ b` | `Match`
 
 You can find these traits in the `std::operators` module, and must import them
 if you want to implement them for your type(s).
