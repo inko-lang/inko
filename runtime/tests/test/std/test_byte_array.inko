@@ -13,6 +13,20 @@ test.group('std::byte_array::ByteArray.new') do (g) {
   }
 }
 
+test.group('std::byte_array::ByteArray.filled') do (g) {
+  g.test('Creating a ByteArray filled with no values') {
+    assert.equal(ByteArray.filled(amount: 0, value: 1), ByteArray.new)
+  }
+
+  g.test('Creating a ByteArray filled with values') {
+    assert.equal(ByteArray.filled(amount: 2, value: 1), ByteArray.new(1, 1))
+  }
+
+  g.test('Creating a ByteArray with a negative fill amount') {
+    assert.panic { ByteArray.filled(amount: -2, value: 1) }
+  }
+}
+
 test.group('std::byte_array::ByteArray.clear') do (g) {
   g.test('Removing all values from a ByteArray') {
     let bytes = ByteArray.new(10, 20, 30)

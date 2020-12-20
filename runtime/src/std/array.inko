@@ -17,7 +17,7 @@ import std::conversion::ToArray
 import std::hash::*
 import std::index::(Index, SetIndex)
 import std::length::Length
-import std::loop::(while)
+import std::loop::(repeat, while)
 import std::operators::Equal
 import std::option::Option
 
@@ -52,14 +52,13 @@ impl Array {
   #
   # This method panics if the amount is a negative number.
   static def filled!(V)(amount: Integer, value: V) -> Array!(V) {
-    let array = new
-
     amount.negative?.if_true {
       _INKOC.panic('The fill amount must be equal to or greater than zero')
     }
 
-    while({ array.length < amount }) { array.push(value) }
+    let array = new
 
+    repeat(amount) do (_) { array.push(value) }
     array
   }
 
