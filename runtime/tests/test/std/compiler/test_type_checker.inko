@@ -9429,3 +9429,48 @@ test.group('Type-checking generators') do (g) {
     )
   }
 }
+
+test.group('Type-checking Option types created using ?T') do (g) {
+  g.test('Creating an Option type when Option is undefined') {
+    let module = new_std_module('foo')
+    let type_checker = TypeChecker.new
+    let int_type = type_checker.builtins.integer_type
+    let body = parse('def foo(arg: ?Integer) {}')
+    let node = body.children[0] as DefineMethod
+
+    module.globals.define(name: int_type.name, type: int_type)
+    type_checker.check_module(module: module, ast: body)
+
+    assert.true(type_checker.diagnostics.errors?)
+    assert.true(node.arguments[0].resolved_type.get.error?)
+  }
+
+  g.test('Creating an Option type when Option is defined') {
+    let module = new_std_module('foo')
+    let type_checker = TypeChecker.new
+    let opt_mod = ModuleType.new(OPTION_MODULE)
+    let opt_type = ObjectType.new('Option')
+    let opt_param = TypeParameterType.new('T')
+
+    opt_type.type_parameters.define(name: opt_param.name, type: opt_param)
+    opt_mod.define_constant(name: opt_type.name, type: opt_type)
+    type_checker.add_module(opt_mod)
+
+    let int_type = type_checker.builtins.integer_type
+    let body = parse('def foo(arg: ?Integer) {}')
+    let node = body.children[0] as DefineMethod
+
+    module.globals.define(name: int_type.name, type: int_type)
+    type_checker.check_module(module: module, ast: body)
+
+    let arg_type = node.arguments[0].resolved_type.get
+
+    assert.false(type_checker.diagnostics.errors?)
+    assert_object_instance(arg_type, opt_type)
+
+    assert_object_instance(
+      arg_type.lookup_type_parameter_type(opt_param).get,
+      int_type
+    )
+  }
+}

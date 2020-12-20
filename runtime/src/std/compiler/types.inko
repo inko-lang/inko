@@ -23,6 +23,9 @@ let NEVER_TYPE = 'Never'
 # The name of a constant to signal the use of the `Self` type.
 let SELF_TYPE = 'Self'
 
+# The name of Inko's option type.
+let OPTION_TYPE = 'Option'
+
 # The name of the constant that refers to the current module.
 let THIS_MODULE = 'ThisModule'
 
@@ -43,6 +46,9 @@ let BOOTSTRAP_MODULE = ModuleName.new(Array.new('std', 'bootstrap'))
 
 # The name of the module defining the Match trait.
 let OPERATORS_MODULE = ModuleName.new(Array.new('std', 'operators'))
+
+# The name of the module defining the Option object.
+let OPTION_MODULE = ModuleName.new(Array.new('std', 'option'))
 
 # The name of the trait that must be implemented by types to be used as
 # expression match cases.

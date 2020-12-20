@@ -10,7 +10,8 @@ import std::compiler::ast::operators::*
 import std::compiler::ast::pattern_matching::*
 import std::compiler::ast::send::*
 import std::compiler::ast::types::(
-  ClosureType as ClosureTypeNode, LambdaType as LambdaTypeNode
+  ClosureType as ClosureTypeNode, OptionType as OptionTypeNode,
+  LambdaType as LambdaTypeNode
 )
 import std::compiler::ast::variables::*
 import std::compiler::diagnostics::Diagnostics
@@ -161,6 +162,7 @@ trait TypePass {
       as Constant -> { visit_constant_as_type(node: matched, types: types) }
       as ClosureTypeNode -> { visit_closure_type(node: matched, types: types) }
       as LambdaTypeNode -> { visit_lambda_type(node: matched, types: types) }
+      as OptionTypeNode -> { visit_option_type(node: matched, types: types) }
       else -> { panic('The given TypeNode is not supported') }
     }
 
@@ -184,6 +186,17 @@ trait TypePass {
       type_for_constant(node: node, require_type_arguments: True, types: types)
 
     node.resolved_type = type
+  }
+
+  def visit_option_type(node: OptionTypeNode, types: TypeScope) -> Type {
+    let wrapped = visit_type_node(node: node.type, types: types)
+    let opt_type = type_checker.option_object.get_or_else {
+      type_checker.diagnostics.option_type_not_found(node.location)
+
+      return node.resolved_type = ErrorType.new
+    }
+
+    node.resolved_type = opt_type.new_instance(Array.new(wrapped))
   }
 
   def visit_closure_type(
@@ -1393,32 +1406,29 @@ trait ExpressionTypePass: TypePass {
       body_vars.symbols.define(name: binding, type: input_type)
     }
 
-    type_checker
-      .pattern_match_trait
-      .let do (match_type) {
-        let match_ins = match_type.new_instance(Array.new(input_type))
+    let match_type = type_checker.pattern_match_trait.get_or_else {
+      type_checker.diagnostics.match_trait_not_found(node.location)
 
-        node.patterns.each do (node) {
-          let builtins = type_checker.builtins
-          let pattern_type =
-            visit_expression(node: node, types: types, variables: body_vars)
+      return node.resolved_type = ErrorType.new
+    }
 
-          pattern_type
-            .type_compatible?(with: match_ins, builtins: builtins, scope: types)
-            .if_false {
-              type_checker.diagnostics.match_trait_not_implemented(
-                type: pattern_type.type_name,
-                match_trait: match_ins.type_name,
-                location: node.location
-              )
-            }
+    let match_ins = match_type.new_instance(Array.new(input_type))
+
+    node.patterns.each do (node) {
+      let builtins = type_checker.builtins
+      let pattern_type =
+        visit_expression(node: node, types: types, variables: body_vars)
+
+      pattern_type
+        .type_compatible?(with: match_ins, builtins: builtins, scope: types)
+        .if_false {
+          type_checker.diagnostics.match_trait_not_implemented(
+            type: pattern_type.type_name,
+            match_trait: match_ins.type_name,
+            location: node.location
+          )
         }
-      }
-      .else {
-        type_checker.diagnostics.match_trait_not_found(node.location)
-
-        return node.resolved_type = ErrorType.new
-      }
+    }
 
     node.guard.let do (guard) {
       visit_match_guard(node: guard, types: types, variables: body_vars)
@@ -3582,6 +3592,17 @@ object TypeChecker {
 
   def pattern_match_trait -> ?TraitType {
     trait_from_module(module: OPERATORS_MODULE, constant: MATCH_TRAIT)
+  }
+
+  def option_object -> ?ObjectType {
+    module(OPTION_MODULE)
+      .then do (mod) { mod.constants.get(OPTION_TYPE) }
+      .then do (sym) {
+        match(let matched = sym.type) {
+          as ObjectType -> { Option.some(matched) }
+          else -> { Option.none }
+        }
+      }
   }
 
   def diagnostics -> Diagnostics {

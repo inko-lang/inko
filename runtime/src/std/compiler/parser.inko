@@ -25,9 +25,6 @@ import std::fs::path::ToPath
 import std::loop::(loop, while)
 import std::option::Option
 
-# The name of the type to desugar ?T types into.
-let OPTION_TYPE = 'Option'
-
 # An error produced by the parser.
 object ParseError {
   # The error message to display.
@@ -1287,11 +1284,8 @@ object Parser {
     } as TypeNode
   }
 
-  def option_type(token: Token) !! ParseError -> Constant {
-    let node = Constant.new(name: OPTION_TYPE, location: token.location)
-
-    node.type_arguments.push(try type(next_token))
-    node
+  def option_type(token: Token) !! ParseError -> OptionType {
+    OptionType.new(type: try type(next_token), location: token.location)
   }
 
   def closure_type(token: Token) !! ParseError -> ClosureType {

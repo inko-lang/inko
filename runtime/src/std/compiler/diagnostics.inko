@@ -586,6 +586,13 @@ object Diagnostics {
       location: location
     )
   }
+
+  def option_type_not_found(location: SourceLocation) {
+    error(
+      message: "The Option type hasn't been defined yet",
+      location: location
+    )
+  }
 }
 
 impl Length for Diagnostics {

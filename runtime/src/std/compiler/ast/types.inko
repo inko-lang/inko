@@ -156,3 +156,40 @@ impl Node for LambdaType {
 }
 
 impl TypeNode for LambdaType {}
+
+# An Option type created using the `?T` syntax.
+object OptionType {
+  # The wrapped type.
+  @type: TypeNode
+
+  # The source location of the type.
+  @location: SourceLocation
+
+  # The return of this node.
+  @resolved_type: ?Type
+
+  static def new(type: TypeNode, location: SourceLocation) -> Self {
+    Self { @type = type, @location = location, @resolved_type = Option.none }
+  }
+
+  def type -> TypeNode {
+    @type
+  }
+}
+
+impl Node for OptionType {
+  def resolved_type -> ?Type {
+    @resolved_type
+  }
+
+  def resolved_type=(value: Type) -> Type {
+    @resolved_type = Option.some(value)
+    value
+  }
+
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+impl TypeNode for OptionType {}

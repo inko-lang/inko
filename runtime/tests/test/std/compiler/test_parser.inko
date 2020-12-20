@@ -11,7 +11,7 @@ import std::compiler::ast::pattern_matching::*
 import std::compiler::ast::send::*
 import std::compiler::ast::types::*
 import std::compiler::ast::variables::*
-import std::compiler::parser::(OPTION_TYPE, Parser)
+import std::compiler::parser::Parser
 import std::conversion::ToString
 import std::mirror::ObjectMirror
 import std::test
@@ -749,14 +749,12 @@ test.group('Parsing message send chains') do (g) {
 
     assert.equal(node.type_arguments.length, 1)
 
-    let arg = node.type_arguments[0] as Constant
-    let targ = arg.type_arguments[0] as Constant
+    let arg = node.type_arguments[0] as OptionType
+    let wrapped = arg.type as Constant
 
-    assert.equal(arg.name, OPTION_TYPE)
     assert.equal(arg.location.column, 9)
-
-    assert.equal(targ.name, 'A')
-    assert.equal(targ.location.column, 10)
+    assert.equal(wrapped.name, 'A')
+    assert.equal(wrapped.location.column, 10)
   }
 
   g.test('Sending a message with type arguments and normal arguments') {
@@ -1033,11 +1031,12 @@ test.group('Parsing closures') do (g) {
 
   g.test('Parsing a closure with an optional type as the return type') {
     let node = parse_as(input: 'do -> ?A {}', type: Closure)
-    let rtype = node.return_type.get as Constant
-    let targ = rtype.type_arguments[0] as Constant
+    let type = node.return_type.get as OptionType
+    let wrapped = type.type as Constant
 
-    assert.equal(rtype.name, OPTION_TYPE)
-    assert.equal(targ.name, 'A')
+    assert.equal(type.location.column, 7)
+    assert.equal(wrapped.name, 'A')
+    assert.equal(wrapped.location.column, 8)
   }
 
   g.test('Parsing a closure with a constant as the throw type') {
@@ -1055,11 +1054,12 @@ test.group('Parsing closures') do (g) {
 
   g.test('Parsing a closure with an optional type as the throw type') {
     let node = parse_as(input: 'do !! ?A {}', type: Closure)
-    let type = node.throw_type.get as Constant
-    let targ = type.type_arguments[0] as Constant
+    let type = node.throw_type.get as OptionType
+    let wrapped = type.type as Constant
 
-    assert.equal(type.name, OPTION_TYPE)
-    assert.equal(targ.name, 'A')
+    assert.equal(type.location.column, 7)
+    assert.equal(wrapped.name, 'A')
+    assert.equal(wrapped.location.column, 8)
   }
 
   g.test('Parsing a closure with type parameters') {
@@ -1120,11 +1120,12 @@ test.group('Parsing lambdas') do (g) {
 
   g.test('Parsing a lambda with an optional type as the return type') {
     let node = parse_as(input: 'lambda -> ?A {}', type: Lambda)
-    let rtype = node.return_type.get as Constant
-    let targ = rtype.type_arguments[0] as Constant
+    let type = node.return_type.get as OptionType
+    let wrapped = type.type as Constant
 
-    assert.equal(rtype.name, OPTION_TYPE)
-    assert.equal(targ.name, 'A')
+    assert.equal(type.location.column, 11)
+    assert.equal(wrapped.name, 'A')
+    assert.equal(wrapped.location.column, 12)
   }
 
   g.test('Parsing a lambda with a constant as the throw type') {
@@ -1142,11 +1143,12 @@ test.group('Parsing lambdas') do (g) {
 
   g.test('Parsing a lambda with an optional type as the throw type') {
     let node = parse_as(input: 'lambda !! ?A {}', type: Lambda)
-    let type = node.throw_type.get as Constant
-    let targ = type.type_arguments[0] as Constant
+    let type = node.throw_type.get as OptionType
+    let wrapped = type.type as Constant
 
-    assert.equal(type.name, OPTION_TYPE)
-    assert.equal(targ.name, 'A')
+    assert.equal(type.location.column, 11)
+    assert.equal(wrapped.name, 'A')
+    assert.equal(wrapped.location.column, 12)
   }
 
   g.test('Parsing a lambda with type parameters') {
