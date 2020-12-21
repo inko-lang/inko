@@ -3,13 +3,14 @@
 # The types and methods of this module are not part of the public API at this
 # time, meaning they can change at any time.
 import std::byte_array::ToByteArray
-import std::compiler::keywords::(keyword?)
 import std::compiler::source_location::SourceLocation
 import std::compiler::token::*
 import std::conversion::ToString
 import std::fs::path::(ToPath, Path)
 import std::loop::(while)
 import std::map::Map
+import std::option::Option
+import std::range::Range
 
 let INTEGER_DIGIT_RANGE = 48..57
 let HEX_LOWER_DIGIT_RANGE = 97..102
@@ -62,47 +63,146 @@ let PIPE = 124
 let CURLY_CLOSE = 125
 let TILDE = 126
 
-# The escape sequence literals supported by a single quoted string, and their
-# replacement bytes.
-let SINGLE_QUOTED_STRING_ESCAPE_SEQUENCES =
-  Map
-    .new
-    .set(SINGLE_QUOTE, SINGLE_QUOTE)
-    .set(BACKSLASH, BACKSLASH)
-
-# The escape sequence literals supported by a double quoted string, and their
-# replacement bytes.
-let DOUBLE_QUOTED_STRING_ESCAPE_SEQUENCES =
-  Map
-    .new
-    .set(DOUBLE_QUOTE, DOUBLE_QUOTE)
-    .set(LOWER_N, NEWLINE)
-    .set(LOWER_T, TAB)
-    .set(ZERO, NULL)
-    .set(LOWER_E, ESCAPE)
-    .set(LOWER_R, CARRIAGE_RETURN)
-    .set(BACKSLASH, BACKSLASH)
-
-# The escape sequence literals supported by a template string string, and their
-# replacement bytes.
-let TEMPLATE_STRING_ESCAPE_SEQUENCES =
-  Map
-    .new
-    .set(DOUBLE_QUOTE, DOUBLE_QUOTE)
-    .set(LOWER_N, NEWLINE)
-    .set(LOWER_T, TAB)
-    .set(ZERO, NULL)
-    .set(LOWER_E, ESCAPE)
-    .set(LOWER_R, CARRIAGE_RETURN)
-    .set(BACKSLASH, BACKSLASH)
-    .set(CURLY_OPEN, CURLY_OPEN)
-    .set(BACKTICK, BACKTICK)
-
 # The default state of the lexer. In this state, code is lexer as you'd expect.
 let STATE_DEFAULT = 0
 
 # The state used when lexing a template string.
 let STATE_TEMPLATE_STRING = 1
+
+# The maximum value in a `ByteArray`.
+let MAX_BYTE = 255
+
+# A type used to map bytes used in escape sequences to the bytes that replace
+# them.
+#
+# An `EscapeMap` can only map bytes up to byte 128.
+object EscapeMap {
+  # A ByteArray that maps bytes to the ones they should be replaced with.
+  #
+  # Since NULL bytes are valid replacements, the value 255 is used to signal no
+  # replacement exists.
+  @mapping: ByteArray
+
+  static def new -> Self {
+    Self { @mapping = ByteArray.filled(amount: 128, value: MAX_BYTE) }
+  }
+
+  def map(byte: Integer, to: Integer) -> Self {
+    @mapping[byte] = to
+    self
+  }
+
+  def get(input: Integer) -> ?Integer {
+    let replacement = @mapping[input]
+
+    (replacement < MAX_BYTE)
+      .if(true: { Option.some(replacement) }, false: { Option.none })
+  }
+}
+
+# Detecting Inko keywords using perfect hashing.
+#
+# The code for this type was originally generated using gperf using the
+# following command:
+#
+#     gperf -m100 keywords.txt
+#
+# Here `keywords.txt` contains a sorted list of all the keywords of Inko. The
+# generated C code was then ported to Inko by hand.
+#
+# Since this code is based on generated code, changing it may produce unexpected
+# results. For example, the various lookup tables in this type should not have
+# their order changed.
+object Keywords {
+  # The associated values for the first and second bytes in a keyword.
+  @associated_values: Array!(Integer)
+
+  # All available keywords, as ByteArray instances.
+  @word_list: Array!(ByteArray)
+
+  # Input values with a length outside of this `Range` definitely can't be a
+  # keyword.
+  @word_length: Range!(Integer)
+
+  # The maximum possible hash value. If a hash value is greater, the input is
+  # definitely not a keyword.
+  @max_hash_value: Integer
+
+  static def new -> Self {
+    Self {
+      @associated_values = Array.new(
+        24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
+        24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
+        24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
+        24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
+        24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
+        24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
+        24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
+        24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
+        24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
+        24, 24, 24, 24, 24, 24, 24,  0, 14, 24,
+        13,  0, 16, 24, 12,  3, 24, 24,  6,  6,
+        24,  3, 24, 24,  0,  0,  2, 12, 24,  4,
+        24,  9, 24, 24, 24, 24, 24, 24, 24, 24,
+        24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
+        24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
+        24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
+        24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
+        24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
+        24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
+        24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
+        24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
+        24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
+        24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
+        24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
+        24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
+        24, 24, 24, 24, 24, 24
+      ),
+      @word_list = Array.new(
+        ''.to_byte_array,
+        ''.to_byte_array,
+        'as'.to_byte_array,
+        ''.to_byte_array,
+        'self'.to_byte_array,
+        'try'.to_byte_array,
+        'return'.to_byte_array,
+        'trait'.to_byte_array,
+        'static'.to_byte_array,
+        'let'.to_byte_array,
+        'else'.to_byte_array,
+        'match'.to_byte_array,
+        'lambda'.to_byte_array,
+        'impl'.to_byte_array,
+        'local'.to_byte_array,
+        'import'.to_byte_array,
+        'def'.to_byte_array,
+        'yield'.to_byte_array,
+        'do'.to_byte_array,
+        'throw'.to_byte_array,
+        'when'.to_byte_array,
+        'mut'.to_byte_array,
+        'for'.to_byte_array,
+        'object'.to_byte_array
+      ),
+      @word_length = 2..6,
+      @max_hash_value = 23
+    }
+  }
+
+  # Returns `True` if the given `ByteArray` is a valid Inko keyword.
+  def keyword?(bytes: ByteArray) -> Boolean {
+    let length = bytes.length
+
+    @word_length.cover?(length).if_false { return False }
+
+    let assoc = @associated_values
+    let hash = length + assoc[bytes[1]] + assoc[bytes[0]]
+
+    (hash > @max_hash_value).if_true { return False }
+
+    @word_list[hash] == bytes
+  }
+}
 
 # A `Lexer` is used for turning Inko source code into a sequence of tokens.
 # These tokens in turn can be used by a parser to produce an Abstract Syntax
@@ -136,6 +236,21 @@ object Lexer {
   # The current column number.
   @column: Integer
 
+  # A type used for detecting keywords.
+  @keywords: Keywords
+
+  # The escape sequence literals supported by a single quoted string, and their
+  # replacement bytes.
+  @single_quoted_string_escapes: EscapeMap
+
+  # The escape sequence literals supported by a double quoted string, and their
+  # replacement bytes.
+  @double_quoted_string_escapes: EscapeMap
+
+  # The escape sequence literals supported by a template string string, and
+  # their replacement bytes.
+  @template_string_escapes: EscapeMap
+
   static def new(input: ToByteArray, file: ToPath) -> Self {
     let bytes = input.to_byte_array
 
@@ -148,7 +263,34 @@ object Lexer {
       @curly_brace_stack = Array.new,
       @states = Array.new(STATE_DEFAULT),
       @line = 1,
-      @column = 1
+      @column = 1,
+      @keywords = Keywords.new,
+      @single_quoted_string_escapes = EscapeMap
+        .new
+        .map(byte: SINGLE_QUOTE, to: SINGLE_QUOTE)
+        .map(byte: BACKSLASH, to: BACKSLASH),
+      @double_quoted_string_escapes = EscapeMap
+        .new
+        .map(byte: DOUBLE_QUOTE, to: DOUBLE_QUOTE)
+        .map(byte: SINGLE_QUOTE, to: SINGLE_QUOTE)
+        .map(byte: ZERO, to: NULL)
+        .map(byte: BACKSLASH, to: BACKSLASH)
+        .map(byte: LOWER_E, to: ESCAPE)
+        .map(byte: LOWER_N, to: NEWLINE)
+        .map(byte: LOWER_R, to: CARRIAGE_RETURN)
+        .map(byte: LOWER_T, to: TAB),
+      @template_string_escapes = EscapeMap
+        .new
+        .map(byte: DOUBLE_QUOTE, to: DOUBLE_QUOTE)
+        .map(byte: SINGLE_QUOTE, to: SINGLE_QUOTE)
+        .map(byte: ZERO, to: NULL)
+        .map(byte: BACKSLASH, to: BACKSLASH)
+        .map(byte: BACKTICK, to: BACKTICK)
+        .map(byte: LOWER_E, to: ESCAPE)
+        .map(byte: LOWER_N, to: NEWLINE)
+        .map(byte: LOWER_T, to: TAB)
+        .map(byte: LOWER_R, to: CARRIAGE_RETURN)
+        .map(byte: CURLY_OPEN, to: CURLY_OPEN)
     }
   }
 
@@ -186,13 +328,13 @@ object Lexer {
       SINGLE_QUOTE -> {
         string(
           quote: SINGLE_QUOTE,
-          replacements: SINGLE_QUOTED_STRING_ESCAPE_SEQUENCES
+          replacements: @single_quoted_string_escapes
         )
       }
       DOUBLE_QUOTE -> {
         string(
           quote: DOUBLE_QUOTE,
-          replacements: DOUBLE_QUOTED_STRING_ESCAPE_SEQUENCES
+          replacements: @double_quoted_string_escapes
         )
       }
       COLON -> { colon }
@@ -406,10 +548,7 @@ object Lexer {
     binary_token(type: token_type, start: start, line: @line)
   }
 
-  def string(
-    quote: Integer,
-    replacements: Map!(Integer, Integer)
-  ) -> Token {
+  def string(quote: Integer, replacements: EscapeMap) -> Token {
     let column = @column
     let line = @line
     let buffer = ByteArray.new
@@ -439,7 +578,7 @@ object Lexer {
   def append_string_byte(
     buffer: ByteArray,
     line_buffer: ByteArray,
-    replacements: Map!(Integer, Integer)
+    replacements: EscapeMap
   ) -> Boolean {
     let current = current_byte
 
@@ -562,7 +701,7 @@ object Lexer {
         append_string_byte(
           buffer: buffer,
           line_buffer: line_buffer,
-          replacements: TEMPLATE_STRING_ESCAPE_SEQUENCES
+          replacements: @template_string_escapes
         )
       }
     )
@@ -743,7 +882,7 @@ object Lexer {
 
     @column += string.length
 
-    keyword?(bytes).if_true {
+    @keywords.keyword?(bytes).if_true {
       return KeywordToken.new(keyword: string, location: location)
     }
 

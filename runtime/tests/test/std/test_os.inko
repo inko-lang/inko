@@ -2,24 +2,24 @@ import std::os::(self, NEWLINE)
 import std::test
 import std::test::assert
 
-let VALID_PLATFORMS = Array.new(
-  'android',
-  'bitrig',
-  'dragonfly',
-  'freebsd',
-  'ios',
-  'linux',
-  'macos',
-  'netbsd',
-  'openbsd',
-  'unix',
-  'unknown',
-  'windows'
-)
-
 test.group('std::os.platform') do (g) {
   g.test('Obtaining the name of the underlying platform') {
-    assert.true(VALID_PLATFORMS.contains?(os.platform))
+    let valid_platforms = Array.new(
+      'android',
+      'bitrig',
+      'dragonfly',
+      'freebsd',
+      'ios',
+      'linux',
+      'macos',
+      'netbsd',
+      'openbsd',
+      'unix',
+      'unknown',
+      'windows'
+    )
+
+    assert.true(valid_platforms.contains?(os.platform))
   }
 }
 

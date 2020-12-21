@@ -7,21 +7,23 @@ import std::time::SystemTime
 import test::features
 import test::fixtures::(INVALID_TIME, VALID_DIRECTORY, VALID_FILE)
 
-let WINDOWS_DRIVES = Array.new(
-  'a:\\', 'b:\\', 'c:\\', 'd:\\', 'e:\\', 'f:\\', 'g:\\', 'h:\\', 'i:\\',
-  'j:\\', 'k:\\', 'l:\\', 'm:\\', 'n:\\', 'o:\\', 'p:\\', 'q:\\', 'r:\\',
-  's:\\', 't:\\', 'u:\\', 'v:\\', 'w:\\', 'x:\\', 'y:\\', 'z:\\',
-  'A:\\', 'B:\\', 'C:\\', 'D:\\', 'E:\\', 'F:\\', 'G:\\', 'H:\\', 'I:\\',
-  'J:\\', 'K:\\', 'L:\\', 'M:\\', 'N:\\', 'O:\\', 'P:\\', 'Q:\\', 'R:\\',
-  'S:\\', 'T:\\', 'U:\\', 'V:\\', 'W:\\', 'X:\\', 'Y:\\', 'Z:\\',
+def windows_drives -> Array!(String) {
+  Array.new(
+    'a:\\', 'b:\\', 'c:\\', 'd:\\', 'e:\\', 'f:\\', 'g:\\', 'h:\\', 'i:\\',
+    'j:\\', 'k:\\', 'l:\\', 'm:\\', 'n:\\', 'o:\\', 'p:\\', 'q:\\', 'r:\\',
+    's:\\', 't:\\', 'u:\\', 'v:\\', 'w:\\', 'x:\\', 'y:\\', 'z:\\',
+    'A:\\', 'B:\\', 'C:\\', 'D:\\', 'E:\\', 'F:\\', 'G:\\', 'H:\\', 'I:\\',
+    'J:\\', 'K:\\', 'L:\\', 'M:\\', 'N:\\', 'O:\\', 'P:\\', 'Q:\\', 'R:\\',
+    'S:\\', 'T:\\', 'U:\\', 'V:\\', 'W:\\', 'X:\\', 'Y:\\', 'Z:\\',
 
-  'a:/', 'b:/', 'c:/', 'd:/', 'e:/', 'f:/', 'g:/', 'h:/', 'i:/',
-  'j:/', 'k:/', 'l:/', 'm:/', 'n:/', 'o:/', 'p:/', 'q:/', 'r:/',
-  's:/', 't:/', 'u:/', 'v:/', 'w:/', 'x:/', 'y:/', 'z:/',
-  'A:/', 'B:/', 'C:/', 'D:/', 'E:/', 'F:/', 'G:/', 'H:/', 'I:/',
-  'J:/', 'K:/', 'L:/', 'M:/', 'N:/', 'O:/', 'P:/', 'Q:/', 'R:/',
-  'S:/', 'T:/', 'U:/', 'V:/', 'W:/', 'X:/', 'Y:/', 'Z:/',
-)
+    'a:/', 'b:/', 'c:/', 'd:/', 'e:/', 'f:/', 'g:/', 'h:/', 'i:/',
+    'j:/', 'k:/', 'l:/', 'm:/', 'n:/', 'o:/', 'p:/', 'q:/', 'r:/',
+    's:/', 't:/', 'u:/', 'v:/', 'w:/', 'x:/', 'y:/', 'z:/',
+    'A:/', 'B:/', 'C:/', 'D:/', 'E:/', 'F:/', 'G:/', 'H:/', 'I:/',
+    'J:/', 'K:/', 'L:/', 'M:/', 'N:/', 'O:/', 'P:/', 'Q:/', 'R:/',
+    'S:/', 'T:/', 'U:/', 'V:/', 'W:/', 'X:/', 'Y:/', 'Z:/',
+  )
+}
 
 test.group('std::fs::Path.file?') do (g) {
   g.test('Checking if a Path points to a file') {
@@ -112,7 +114,7 @@ test.group('std::fs::path::Path.absolute?') do (g) {
 
   os.windows?.if_true {
     g.test('Checking if a Path with a Windows drive letter is absolute') {
-      WINDOWS_DRIVES.each do (drive) {
+      windows_drives.each do (drive) {
         assert.true(Path.new(drive + 'foo').absolute?)
       }
     }
@@ -128,7 +130,7 @@ test.group('std::fs::path::Path.relative?') do (g) {
 
   os.windows?.if_true {
     g.test('Checking if a Path with a Windows drive letter is relative') {
-      WINDOWS_DRIVES.each do (drive) {
+      windows_drives.each do (drive) {
         assert.false(Path.new(drive + 'foo').relative?)
       }
     }
@@ -160,7 +162,7 @@ test.group('std::fs::path::Path.join') do (g) {
     g.test('Joining a Path with an absolute path including a drive letter') {
       let path = Path.new('foo')
 
-      WINDOWS_DRIVES.each do (drive) {
+      windows_drives.each do (drive) {
         assert.equal(path.join(drive + 'foo'), Path.new(drive + 'foo'))
       }
     }

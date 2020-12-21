@@ -1,4 +1,5 @@
-# Internal constants for the "std::time" module.
+# Internal constants and methods used by std::time.
+import std::process::(panic)
 
 # The number to divide a value in nanoseconds by to convert it to seconds.
 let NANOSEC_TO_SEC = 1_000_000_000.0
@@ -45,14 +46,46 @@ let EPOCH_YEAR = 2000
 # The year of the Unix epoch.
 let UNIX_EPOCH_YEAR = 1970
 
-# The number of days in every month of our internal calendar. The first entry
-# is for March.
-let DAYS_IN_MONTH = Array.new(31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 31, 29)
+# Returns the number of days since January 1st.
+#
+# The `month` argument starts at `0`, not `1`.
+def days_since_january(month: Integer, leap: Boolean) -> Integer {
+  let leap_days = leap.if(true: { 1 }, false: { 0 })
 
-# The number of days since January 1st in a regular year.
-let DAYS_SINCE_JANUARY_NORMAL =
-  Array.new(0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365)
+  match(month) {
+    0 -> { 0 }
+    1 -> { 31 }
+    2 -> { 59 + leap_days }
+    3 -> { 90 + leap_days }
+    4 -> { 120 + leap_days }
+    5 -> { 151 + leap_days }
+    6 -> { 181 + leap_days }
+    7 -> { 212 + leap_days }
+    8 -> { 243 + leap_days }
+    9 -> { 273 + leap_days }
+    10 -> { 304 + leap_days }
+    11 -> { 334 + leap_days }
+    else -> { panic(`{month} isn't a valid month`) }
+  }
+}
 
-# The number of days since January 1st in a leap year.
-let DAYS_SINCE_JANUARY_LEAP =
-  Array.new(0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335, 366)
+# Returns the number of days in every month of our internal calendar.
+#
+# The first entry is for March, not January.
+def days_in_month(month: Integer) -> Integer {
+  match(month) {
+    0 -> { 31 }
+    1 -> { 30 }
+    2 -> { 31 }
+    3 -> { 30 }
+    4 -> { 31 }
+    5 -> { 31 }
+    6 -> { 30 }
+    7 -> { 31 }
+    8 -> { 30 }
+    9 -> { 31 }
+    10 -> { 31 }
+    11 -> { 29 }
+    else -> { panic(`{month} isn't a valid month`) }
+  }
+}

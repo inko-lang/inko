@@ -4,7 +4,8 @@ import std::loop::(while)
 import std::operators::(
   Add, Equal, Greater, GreaterOrEqual, Smaller, SmallerOrEqual, Subtract
 )
-import std::time::constants::*
+import std::process::(panic)
+import std::time::bits::*
 
 # A span of time measured in seconds.
 #
@@ -399,8 +400,8 @@ object SystemTime {
 
     let mut months = 0
 
-    while({ DAYS_IN_MONTH[months] <= rem_days }) {
-      rem_days -= DAYS_IN_MONTH[months]
+    while({ days_in_month(months) <= rem_days }) {
+      rem_days -= days_in_month(months)
       months += 1
     }
 
@@ -540,12 +541,7 @@ object SystemTime {
   # Returns the day of the year from 1 to 366 for leap years, and from 1 to 365
   # for regular years.
   def day_of_year -> Integer {
-    let table = leap_year?.if(
-      true: { DAYS_SINCE_JANUARY_LEAP },
-      false: { DAYS_SINCE_JANUARY_NORMAL }
-    )
-
-    table[month - 1] + day
+    days_since_january(month: month - 1, leap: leap_year?) + day
   }
 
   # Returns the number of days between `self` and the Unix epoch.
