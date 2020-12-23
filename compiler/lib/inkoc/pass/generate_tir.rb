@@ -1821,7 +1821,7 @@ module Inkoc
             get_nil(body, location)
           end
 
-        body.instruct(:Return, !node.local, register, location)
+        body.instruct(:Return, true, register, location)
       end
 
       def on_throw(node, body)

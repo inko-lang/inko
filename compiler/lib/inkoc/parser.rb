@@ -1183,18 +1183,16 @@ module Inkoc
     # Example:
     #
     #     return 10
-    def return_value(start, local = false, location = start.location)
+    def return_value(start, location = start.location)
       value = expression(advance!) if next_expression_is_argument?(start)
 
-      AST::Return.new(value, local, location)
+      AST::Return.new(value, location)
     end
 
     def local_return_or_throw(start)
       next_token = advance!
 
       case next_token.type
-      when :return
-        return_value(next_token, true, start.location)
       when :throw
         throw_value(next_token, true, start.location)
       when :try

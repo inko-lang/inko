@@ -722,7 +722,6 @@ object Parser {
 
   def return_value(
     token: Token,
-    local_return = False,
     location = token.location
   ) !! ParseError -> Node {
     let peeked = peek_token
@@ -751,7 +750,7 @@ object Parser {
       else -> { Option.none }
     }
 
-    Return.new(expression: expr, local_return: local_return, location: location)
+    Return.new(expression: expr, location: location)
   }
 
   def throw_value(
@@ -775,9 +774,6 @@ object Parser {
     let loc = token.location
 
     match(next.type) {
-      'return' -> {
-        try return_value(token: next, local_return: True, location: loc)
-      }
       'throw' -> {
         try throw_value(token: next, local_throw: True, location: loc)
       }

@@ -359,13 +359,6 @@ module Inkoc
       error('The "return" keyword can only be used inside a method', location)
     end
 
-    def invalid_local_return_error(location)
-      error(
-        'The "local return" keyword can only be used inside a method, closure, or lambda',
-        location
-      )
-    end
-
     def invalid_cast_error(from, to, location)
       fname = from.type_name.inspect
       tname = to.type_name.inspect

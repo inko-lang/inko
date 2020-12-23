@@ -1913,14 +1913,9 @@ trait ExpressionTypePass: TypePass {
       }
       .get_or(type_checker.builtins.nil_singleton)
 
-    let surrounding_block =
-      node.local_return?.if(true: { types.block }, false: { types.method })
-
+    let surrounding_block = types.method
     let block = surrounding_block.get_or_else {
-      node.local_return?.if(
-        true: { type_checker.diagnostics.invalid_local_return(node.location) },
-        false: { type_checker.diagnostics.invalid_return(node.location) }
-      )
+      type_checker.diagnostics.invalid_return(node.location)
 
       return node.resolved_type = ErrorType.new
     }

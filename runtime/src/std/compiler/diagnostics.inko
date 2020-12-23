@@ -389,13 +389,6 @@ object Diagnostics {
     )
   }
 
-  def invalid_local_return(location: SourceLocation) {
-    error(
-      message: 'The "local return" keyword can only be used in a method, closure, or lambda',
-      location: location
-    )
-  }
-
   def match_not_exhaustive(location: SourceLocation) {
     error(
       message: 'You must add an "else" branch to make this match exhaustive',

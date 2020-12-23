@@ -444,7 +444,7 @@ module Inkoc
             typedb.nil_type.new_instance
           end
 
-        block = node.local ? scope.block_type : scope.enclosing_method
+        block = scope.enclosing_method
 
         if block
           expected = block.return_type.resolve_self_type(scope.self_type)
@@ -461,8 +461,6 @@ module Inkoc
             diagnostics
               .return_type_error(expected, rtype, node.value_location)
           end
-        elsif node.local
-          diagnostics.invalid_local_return_error(node.location)
         else
           diagnostics.return_outside_of_method_error(node.location)
         end

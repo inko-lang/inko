@@ -16,18 +16,9 @@ object Return {
   # The type of value returned.
   @resolved_type: ?Type
 
-  # If the return is from the surrounding closure instead of the surrounding
-  # method.
-  @local_return: Boolean
-
-  static def new(
-    expression: ?Node,
-    local_return: Boolean,
-    location: SourceLocation
-  ) -> Self {
+  static def new(expression: ?Node, location: SourceLocation) -> Self {
     Self {
       @expression = expression,
-      @local_return = local_return,
       @location = location,
       @resolved_type = Option.none
     }
@@ -35,10 +26,6 @@ object Return {
 
   def expression -> ?Node {
     @expression
-  }
-
-  def local_return? -> Boolean {
-    @local_return
   }
 }
 
