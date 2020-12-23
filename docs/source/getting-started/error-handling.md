@@ -49,6 +49,27 @@ If `amount` is greater than zero, we just return the value, otherwise we throw a
 Note that the `throw` keyword will throw from the surrounding method, much like
 how the `return` keyword returns from the surrounding method.
 
+## Throwing in a closure or lambda
+
+If you want to throw from just a closure or lambda, instead of the surrounding
+method, you need to use `local throw`. For example:
+
+```inko
+let example = do (number: Integer) { local throw number }
+
+try! example.call(10)
+```
+
+You can also scope the `try` keyword to the surrounding closure using `local
+try`:
+
+```inko
+let foo = do (number: Integer) { local throw number }
+let bar = { local try foo.call(10) }
+
+try! bar.call
+```
+
 ## Sending messages that may throw
 
 To send a message that throws, you must use the `try` or `try!` keyword. Both
