@@ -1,5 +1,89 @@
 # Changelog
 
+## 0.9.0 - December 23, 2020
+
+* 814d8e9d: Merge ffi::types into ffi and remove constants
+* bf5c6b62: Refactor constants containing non-primitive values
+* c7f4e904: Add ByteArray.filled()
+* 9ea8b1e5: Don't desugar ?T at the parser level
+* 68b50ea5: Refactor how the prelude is set up
+* f96616bf: Make module entry points explicit
+* e68cce48: Use std::loop for creating loops, instead of Block
+* 2d6a334b: Fix producing errors for undefined methods
+* 897d73b8: Allow importing of methods from modules
+* fec32984: Fix random.incremental_integer not incrementing
+* b60132c9: Implement Object when desugaring
+* a276a68c: Replace optional typing with an Option type
+* 14682224: Make Any compatible with empty type parameters
+* 2e183324: Removed stray stdout import from the type checker
+* 96c6888c: Remove std::marker and std::unknown_message
+* ca4090aa: Turn Object into a trait
+* cbaeb71e: Move DefaultHasher from std::map to std::hash
+* 8b3bc600: Clean up some Array return types
+* f3f459af: Remove support for mutable block arguments
+* c64a2a3d: Rename tests2 test module to tests
+* 9c629164: Fix return types of a few prototype instructions
+* 30a074c9: Remove std::process import from std::string
+* 2bdc5de9: Fix incorrect use/assignment of the Boolean type
+* 16d05f21: Fix the return type of Set.remove
+* 1257f04e: Move Integer/Float parsing to extension modules
+* 3c7f8b71: Reorganise Hash, Equal, and Object
+* ea865b76: Merge Conditional into Object
+* 8bc3889c: Remove custom implementations of Mirrored
+* 91f203e3: Don't panic when copying objects
+* b0d472b3: Perform garbage collection in process threads
+* 3580c7b4: Don't run deferred blocks when yielding
+* 9a37333c: Turn String.split into a generator method
+* 424d3c08: Fix type compatibility rules for generator methods
+* 15a0185f: Change various FFI methods to throw
+* a3df260e: Make Pointer.null a static method
+* 4da8fa60: Add support for template strings
+* e21f10ae: Rename StringConcatMultiple to StringConcatArray
+* 16a61528: Restore the return types of if_true/if_false
+* 545e9b4b: Insert a runtime Nil check for the ! operator
+* 7158984a: Add support for writing iterators using generators
+* 8f0f5d18: First steps towards a self-hosting Inko compiler
+* 267d09e3: Remove the return type from each/each_with_index
+* 9d0b5eeb: Remove the return type of if_true/if_false
+* 539fa907: Fix slicing with very large indexes
+* ea0b247a: Optimise bounds handling using errors
+* fecf1431: Split process.receive into two separate methods
+* 49c1d6ff: Index#[] panics when using a non-existing index
+* 7277847b: Make ByteArray panic for out of bounds operations
+* 7a42ca6c: Reduce the amount of places where Nil is produced
+* 1141bf6d: Rename AllocateArray to ArrayAllocate
+* d92799e3: Add a nil coalescing operator
+* e075d18c: Replace initializer methods with constructors
+* 5e357a26: Fix the DefaultHasher type name
+* b88b3e16: Make DefaultHasher a VM primitive
+* 9d342e18: Restore ImplementTraits pass in the Ruby compiler
+* d513e09b: Make files VM primitives and refactor closing IO
+* b2eb44ab: Make the Process type a VM primitive
+* ec20914b: Make socket types VM primitives
+* 4bc680d7: Make FFI types VM primitives (again)
+* 4332fda5: Check for unused local variables
+* 76e9721f: Merge "inko check" into "inko build"
+* 6ffce01e: Add "inko check" command
+* daef5f45: Remove dead code related to module bytecode paths
+* fb80d419: Reduce the Ruby compiler's memory usage
+* 184da5d1: Use libffi 1.0.0 instead of a Git patch
+* e1ceb8d2: Make ArcWithoutWeak and Binding sound
+* e0b132d1: Revert "Only test the CLI in vm/test"
+* 7d285b7c: Only test the CLI in vm/test
+* bf39dbc4: Use the polling crate for the network poller
+* 87b36927: Set Rust flags using .cargo/config
+* 4f895e46: Run cargo test/check from the root workspace
+* 991ab3c8: Enable incremental compilation for dev builds
+* 08042954: Handle carg/rustc not existing in Makefile
+* 6f68bb79: Handle Hasher size differences in tests
+* 6c96ba58: Remove arch.sh and realpath.sh
+* 565b3d0a: Use mkdocs for documentation
+* 226fbd1d: Fix setting the default Make target
+* b58bd166: Remove the VERSION file
+* 639a67ab: Pass the version to the changelog script
+* 055b80da: Add libffi-system feature flag to the CLI
+* 873c9b74: Fix S3 path for uploading source archives
+
 ## 0.8.1 - October 04, 2020
 
 * 1dc211c0: Fix make install for macOS/BSD
