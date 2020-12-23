@@ -9,6 +9,7 @@ release:source:
 
 release:docker:
   image: docker:git
+  stage: release
   services:
     - docker:dind
   only:

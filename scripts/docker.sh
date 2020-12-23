@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 
 set -e
 
@@ -10,7 +10,7 @@ then
     exit 1
 fi
 
-version="${tag/v/}"
+version=$(echo "$tag" | cut -c 2-)
 
 echo "$DOCKER_HUB_TOKEN" | \
     docker login --password-stdin --username "$DOCKER_HUB_USER" \
