@@ -19,7 +19,7 @@ describe Inkoc::TypeSystem::TypeParameter do
         trait = Inkoc::TypeSystem::Trait.new(name: 'Foo', unique_id: 1)
         param = described_class.new(name: 'T', required_traits: [trait])
 
-        expect(param.type_name).to eq('Foo')
+        expect(param.type_name).to eq('T: Foo')
       end
     end
 
@@ -30,7 +30,7 @@ describe Inkoc::TypeSystem::TypeParameter do
         param = described_class
           .new(name: 'T', required_traits: [trait1, trait2])
 
-        expect(param.type_name).to eq('Foo + Bar')
+        expect(param.type_name).to eq('T: Foo + Bar')
       end
     end
   end

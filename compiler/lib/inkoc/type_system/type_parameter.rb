@@ -57,7 +57,7 @@ module Inkoc
 
       def type_name
         if @required_traits.any?
-          @required_traits.each_value.map(&:type_name).join(' + ')
+          "#{name}: #{@required_traits.each_value.map(&:type_name).join(' + ')}"
         else
           name
         end

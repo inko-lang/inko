@@ -24,7 +24,7 @@ describe Inkoc::TypeSystem::TypeName do
         object.define_type_parameter('A', [trait1])
         object.define_type_parameter('B', [trait1, trait2])
 
-        expect(object.type_name).to eq('Foo!(T1, T1 + T2)')
+        expect(object.type_name).to eq('Foo!(A: T1, B: T1 + T2)')
       end
     end
 

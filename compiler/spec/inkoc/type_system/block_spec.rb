@@ -463,7 +463,7 @@ describe Inkoc::TypeSystem::Block do
       block.return_type = Inkoc::TypeSystem::Object.new(name: 'ReturnType')
 
       expect(block.type_name)
-        .to eq('do !(Equal) (Integer) !! Error -> ReturnType')
+        .to eq('do !(T: Equal) (Integer) !! Error -> ReturnType')
     end
 
     it 'replaces type parameters with their instances' do
@@ -475,7 +475,7 @@ describe Inkoc::TypeSystem::Block do
       block.initialize_type_parameter(param, state.typedb.integer_type)
       block.return_type = param
 
-      expect(block.type_name).to eq('do !(Trait1) -> Integer')
+      expect(block.type_name).to eq('do !(A: Trait1) -> Integer')
     end
   end
 
@@ -489,7 +489,7 @@ describe Inkoc::TypeSystem::Block do
       block.define_type_parameter('A', [trait1])
       block.define_type_parameter('B', [trait2])
 
-      expect(block.formatted_type_parameter_names).to eq('Trait1, Trait2')
+      expect(block.formatted_type_parameter_names).to eq('A: Trait1, B: Trait2')
     end
   end
 

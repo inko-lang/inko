@@ -937,7 +937,7 @@ test.group('std::compiler::types::TypeParameterType.type_name') do (g) {
     let param =
       TypeParameterType.new(name: 'T', required_traits: Array.new(instance))
 
-    assert.equal(param.type_name, 'ToString')
+    assert.equal(param.type_name, 'T: ToString')
   }
 
   g.test('Obtaining the type name of a TypeParameterType with multiple required traits') {
@@ -946,7 +946,7 @@ test.group('std::compiler::types::TypeParameterType.type_name') do (g) {
     let param = TypeParameterType
       .new(name: 'T', required_traits: Array.new(instance1, instance2))
 
-    assert.equal(param.type_name, 'ToString + ToInteger')
+    assert.equal(param.type_name, 'T: ToString + ToInteger')
   }
 }
 

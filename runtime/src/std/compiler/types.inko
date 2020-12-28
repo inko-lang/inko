@@ -842,7 +842,11 @@ impl Type for TypeParameterType {
   def type_name -> String {
     @required_traits.empty?.if(
       true: { @name },
-      false: { @required_traits.iter.map do (t) { t.type_name }.join(' + ') }
+      false: {
+        let reqs = @required_traits.iter.map do (t) { t.type_name }.join(' + ')
+
+        `{@name}: {reqs}`
+      }
     )
   }
 
