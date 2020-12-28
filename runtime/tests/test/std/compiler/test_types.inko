@@ -1081,6 +1081,115 @@ test.group('std::compiler::types::TypeParameterType.substitute') do (g) {
 
     assert.same_object(param.substitute(type_scope(instance)), param)
   }
+
+  g.test('Substituting a type parameter with a rigid type parameter') {
+    let obj_type = ObjectType.new('Array')
+    let param = TypeParameterType.new('T')
+    let rigid = RigidTypeParameterType.new(param)
+
+    obj_type.type_parameters.define(name: param.name, type: param)
+
+    let instance = obj_type.new_instance(Array.new(rigid))
+
+    assert.same_object(param.substitute(type_scope(instance)), rigid)
+  }
+}
+
+test.group('std::compiler::types::RigidTypeParamter.type') do (g) {
+  g.test('Obtaining the wrapped type parameter') {
+    let param = TypeParameterType.new('A')
+    let rigid = RigidTypeParameterType.new(param)
+
+    assert.same_object(rigid.type, param)
+  }
+}
+
+test.group('std::compiler::types::RigidTypeParameterType.type_name') do (g) {
+  g.test('Obtaining the type name of a rigid type parameter') {
+    let to_string = TraitType.new('ToString')
+    let param = TypeParameterType
+      .new(name: 'A', required_traits: Array.new(to_string.new_instance))
+
+    let rigid = RigidTypeParameterType.new(param)
+
+    assert.equal(rigid.type_name, param.type_name)
+  }
+}
+
+test.group('std::compiler::types::RigidTypeParameterType.lookup_method') do (g) {
+  g.test('Looking up a method from a required trait') {
+    let to_string_trait = TraitType.new('ToString')
+    let to_string = MethodType
+      .new(name: 'to_string', layout: BlockLayout.new(AnyType.new))
+
+    to_string_trait
+      .default_methods
+      .define(name: to_string.name, type: to_string)
+
+    let required = Array.new(to_string_trait.new_instance)
+    let param = TypeParameterType.new(name: 'T', required_traits: required)
+    let rigid = RigidTypeParameterType.new(param)
+
+    assert.same_object(
+      rigid.lookup_method(to_string.name).get.type,
+      param.lookup_method(to_string.name).get.type
+    )
+  }
+}
+
+test.group('std::compiler::types::RigidTypeParameterType.type_compatible?') do (g) {
+  g.test('Comparing a RigidTypeParameterType with another RigidTypeParameterType') {
+    let param1 = TypeParameterType.new('A')
+    let param2 = TypeParameterType.new('B')
+    let rigid1 = RigidTypeParameterType.new(param1)
+    let rigid2 = RigidTypeParameterType.new(param2)
+
+    assert_compatible(rigid1, rigid1)
+    assert_not_compatible(rigid1, rigid2)
+  }
+
+  g.test('Comparing a RigidTypeParameterType with a TypeParameterType') {
+    let param1 = TypeParameterType.new('A')
+    let param2 = TypeParameterType.new('B')
+    let rigid = RigidTypeParameterType.new(param1)
+
+    assert_compatible(rigid, param2)
+  }
+}
+
+test.group('std::compiler::types::RigidTypeParameterType.substitute') do (g) {
+  g.test('Substituting a rigid type parameter with a type') {
+    let obj_type = ObjectType.new('Array')
+    let param = TypeParameterType.new('T')
+    let rigid = RigidTypeParameterType.new(param)
+
+    obj_type.type_parameters.define(name: param.name, type: param)
+
+    let assigned = NeverType.new
+    let instance = obj_type.new_instance(Array.new(assigned))
+
+    assert.same_object(rigid.substitute(type_scope(instance)), rigid)
+  }
+
+  g.test('Substituting a rigid type parameter without a type') {
+    let obj_type = ObjectType.new('Array')
+    let param = TypeParameterType.new('T')
+    let rigid = RigidTypeParameterType.new(param)
+
+    assert.same_object(rigid.substitute(type_scope(obj_type)), rigid)
+  }
+
+  g.test('Substituting a rigid type parameter assigned to itself') {
+    let obj_type = ObjectType.new('Array')
+    let param = TypeParameterType.new('T')
+    let rigid = RigidTypeParameterType.new(param)
+
+    obj_type.type_parameters.define(name: param.name, type: param)
+
+    let instance = obj_type.new_instance(Array.new(param))
+
+    assert.same_object(rigid.substitute(type_scope(instance)), rigid)
+  }
 }
 
 test.group('std::compiler::types::TypeParameterBounds.parameters') do (g) {
@@ -1945,6 +2054,22 @@ test.group('std::compiler::types::MethodType.type_compatible?') do (g) {
 
     assert_compatible(compare: foo1, with: foo2, builtins: builtins)
   }
+
+  g.test('Comparing a method that returns with a method that ignores its return type') {
+    let builtins = Builtins.new
+    let block1 = MethodType
+      .new(name: 'foo', layout: BlockLayout.new(AnyType.new))
+
+    let block2 = MethodType.new(
+      name: 'foo',
+      layout: BlockLayout.new(
+        return_type: builtins.nil_type.new_instance,
+        ignore_return_type: True
+      )
+    )
+
+    assert_compatible(block1, block2)
+  }
 }
 
 test.group('std::compiler:types::MethodType.lookup_type') do (g) {
@@ -2283,6 +2408,19 @@ test.group('std::compiler::types::ClosureType.type_compatible?') do (g) {
 
     assert_compatible(block1, block2)
   }
+
+  g.test('Comparing a closure that returns with a closure that ignores its return type') {
+    let builtins = Builtins.new
+    let block1 = ClosureType.new(BlockLayout.new(AnyType.new))
+    let block2 = ClosureType.new(
+      BlockLayout.new(
+        return_type: builtins.nil_type.new_instance,
+        ignore_return_type: True
+      )
+    )
+
+    assert_compatible(block1, block2)
+  }
 }
 
 test.group('std::compiler:types::ClosureType.lookup_type') do (g) {
@@ -2616,6 +2754,19 @@ test.group('std::compiler::types::LambdaType.type_compatible?') do (g) {
     let param2 = TypeParameterType.new('B')
     let block1 = LambdaType.new(BlockLayout.new(param1))
     let block2 = LambdaType.new(BlockLayout.new(param2))
+
+    assert_compatible(block1, block2)
+  }
+
+  g.test('Comparing a lambda that returns with a lambda that ignores its return type') {
+    let builtins = Builtins.new
+    let block1 = LambdaType.new(BlockLayout.new(AnyType.new))
+    let block2 = LambdaType.new(
+      BlockLayout.new(
+        return_type: builtins.nil_type.new_instance,
+        ignore_return_type: True
+      )
+    )
 
     assert_compatible(block1, block2)
   }
@@ -3369,7 +3520,10 @@ test.group('std::compiler::types::ObjectType.define_attribute') do (g) {
 
     object_type.define_attribute(name: '@a', type: type)
 
-    assert.same_object(object_type.attributes['@a'].type, type)
+    let attr = object_type.attributes['@a'].type
+
+    assert.same_object(attr.public_type, type)
+    assert.same_object(attr.internal_type, type)
   }
 }
 
@@ -3723,13 +3877,12 @@ test.group('std::compiler::types::ObjectInstance.lookup_attribute') do (g) {
     let object_type = ObjectType.new('A')
     let type = NeverType.new
 
-    object_type.attributes.define(name: '@a', type: type)
+    object_type.define_attribute(name: '@a', type: type)
 
-    assert.same_object(
-      object_type.new_instance.lookup_attribute('@a').get.type,
-      type
-    )
+    let attr = object_type.new_instance.lookup_attribute('@a').get.type
 
+    assert.same_object(attr.public_type, type)
+    assert.same_object(attr.internal_type, type)
     assert.true(object_type.new_instance.lookup_attribute('@b').none?)
   }
 }

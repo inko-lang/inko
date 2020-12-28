@@ -57,6 +57,10 @@ module Inkoc
         false
       end
 
+      def rigid_type_parameter?
+        false
+      end
+
       def dereference?
         false
       end
@@ -125,6 +129,10 @@ module Inkoc
       end
 
       def resolve_type_parameter_with_self(_self_type, _method_type)
+        self
+      end
+
+      def with_rigid_type_parameters
         self
       end
     end

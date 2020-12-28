@@ -123,6 +123,10 @@ module Inkoc
       def resolve_type_parameters(self_type, method_type)
         resolve_type_parameter_with_self(self_type, method_type)
       end
+
+      def with_rigid_type_parameters
+        RigidTypeParameter.new(self)
+      end
     end
   end
 end

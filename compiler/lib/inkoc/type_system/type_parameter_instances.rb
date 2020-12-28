@@ -37,6 +37,14 @@ module Inkoc
       def dup
         self.class.new.merge!(self)
       end
+
+      def with_rigid_type_parameters
+        self.class.new.tap do |copy|
+          @mapping.each do |param, instance|
+            copy.define(param, instance.with_rigid_type_parameters)
+          end
+        end
+      end
     end
   end
 end

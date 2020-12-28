@@ -124,13 +124,16 @@ object TypeScope {
     @block
   }
 
-  # Looks up a type by its name.
   def lookup_type(name: String) -> ?Symbol!(Type) {
     @block
       .then do (block) { block.lookup_type(name) }
       .else { @method.then do (method) { method.lookup_type(name) } }
       .else { @self_type.lookup_type(name) }
       .else { @module.lookup_type(name) }
+  }
+
+  def lookup_type_as_value(name: String) -> ?Symbol!(Type) {
+    @module.lookup_type(name)
   }
 
   def lookup_method(name: String) -> ?Symbol!(MethodType) {
@@ -157,6 +160,86 @@ impl TypeCheckScope for TypeScope {
 
   def assign_type_parameter(parameter: TypeParameterType, type: Type) {
     @self_type.assign_type_parameter(parameter: parameter, type: type)
+  }
+}
+
+# A type scope used for assigning type parameters to their rigid counterparts.
+#
+# Certain symbols have two (context specific) types. Take this method for
+# example:
+#
+#     def push!(A)(values: Array!(A)) {
+#       values.push(values[0])
+#     }
+#
+# The public/outside type of `values` is `Array!(A)`, and any type is compatible
+# with `A`. In the method body however, `values` is a `Array!(rigid A)`, where
+# `rigid A` signals a rigid type parameter A.
+#
+# This difference is necessary to ensure the body of the method doesn't produce
+# unsound behaviour. For example, the method doesn't know what the actual type
+# of `A` is at runtime. As such, it can't substitute it with other types (e.g.
+# the `Integer`) type. This means this is invalid:
+#
+#     def push!(A)(values: Array!(A)) {
+#       values.push(10)
+#     }
+#
+#     push(Array.new('foo', 'bar'))
+#
+# A RigidTypeScope is used to assign type parameters to their rigid counterparts
+# whenever this is necessary, removing the need for visiting AST nodes multiple
+# times just to produce the right types for the right contexts.
+object RigidTypeScope {
+  # The type of `self`/`Self`.
+  @self_type: Type
+
+  # Type parameters and their rigid type parameters.
+  @type_parameter_types: TypeParameterTypes
+
+  static def new(self_type: Type) -> Self {
+    Self {
+      @self_type = self_type,
+      @type_parameter_types = TypeParameterTypes.new
+    }
+  }
+
+  static def from_type_scope(scope: TypeScope) -> Self {
+    let types = TypeParameterTypes.new
+
+    scope.block.let do (block) {
+      types.assign_rigid_type_parameters(block.type_parameters)
+    }
+
+    scope.method.let do (block) {
+      types.assign_rigid_type_parameters(block.type_parameters)
+    }
+
+    match(let type = scope.self_type) {
+      as TraitInstance -> {
+        types.assign_rigid_type_parameters(type.instance_of.type_parameters)
+      }
+      as ObjectInstance -> {
+        types.assign_rigid_type_parameters(type.instance_of.type_parameters)
+      }
+      else -> {}
+    }
+
+    Self { @self_type = scope.self_type, @type_parameter_types = types }
+  }
+}
+
+impl TypeCheckScope for RigidTypeScope {
+  def self_type -> Type {
+    @self_type
+  }
+
+  def lookup_type_parameter_type(parameter: TypeParameterType) -> ?Type {
+    @type_parameter_types.get(parameter)
+  }
+
+  def assign_type_parameter(parameter: TypeParameterType, type: Type) {
+    @type_parameter_types[parameter] = type
   }
 }
 
@@ -222,7 +305,7 @@ trait Type {
   }
 
   # Looks up an attribute by its name.
-  def lookup_attribute(name: String) -> ?Symbol!(Type) {
+  def lookup_attribute(name: String) -> ?Symbol!(AttributeType) {
     Option.none
   }
 
@@ -428,6 +511,12 @@ object TypeParameterTypes {
 
   def get(parameter: TypeParameterType) -> ?Type {
     @map.get(parameter)
+  }
+
+  def assign_rigid_type_parameters(parameters: SymbolTable!(TypeParameterType)) {
+    parameters.symbols.each do (symbol) {
+      self[symbol.type] = RigidTypeParameterType.new(symbol.type)
+    }
   }
 }
 
@@ -892,6 +981,72 @@ impl Type for TypeParameterType {
   }
 }
 
+# A type parameter that can't be assigned/inferred a new type.
+#
+# Rigid type parameters are used inside methods. These can't be assigned new
+# types, as those types may not be compatible with the type assigned by the
+# user. Take this method for example:
+#
+#     def unsound!(T)(values: Array!(T)) {
+#       values.push(10)
+#     }
+#
+# Inside this method, `T` is a rigid type parameter. The `Integer` type can't be
+# assigned to a rigid type parameter, and thus this code doesn't compile.
+# Without rigid type parameters, the above code could result in unsound
+# behaviour. For example:
+#
+#     unsound(Array.new('foo'))
+#
+# Here the input is of type `Array!(String)`, but due to the soundness hole the
+# Array would end up containing an integer value.
+#
+# The term "rigid type parameter" originates from Haskell, and is sometimes
+# referred to as a "skolem type parameter". A type parameter is best seen as a
+# type placeholder that has certain requirements, but isn't an actual type (at
+# runtime). A rigid type parameter is _some type_ that happens to meet the type
+# parameter requirements, we just don't know what the actual type is.
+object RigidTypeParameterType {
+  # The type parameter we belong to.
+  @type: TypeParameterType
+
+  static def new(type: TypeParameterType) -> Self {
+    Self { @type = type }
+  }
+
+  def type -> TypeParameterType {
+    @type
+  }
+}
+
+impl Type for RigidTypeParameterType {
+  def type_name -> String {
+    @type.type_name
+  }
+
+  def lookup_method(name: String) -> ?Symbol!(MethodType) {
+    @type.lookup_method(name)
+  }
+
+  def type_compatible?(
+    with: Type,
+    builtins: Builtins,
+    scope: TypeCheckScope
+  ) -> Boolean {
+    match(let exp = with) {
+      as RigidTypeParameterType -> { @type == exp.type }
+      else -> {
+        @type.type_compatible?(with: exp, builtins: builtins, scope: scope)
+      }
+    }
+  }
+
+  def substitute(scope: TypeCheckScope) -> Type {
+    # Rigid type parameter's can't be substituted with another type.
+    self
+  }
+}
+
 # Additional type parameter bounds to apply to a trait implementation or method.
 object TypeParameterBounds {
   # All type parameters that have additional bounds, in the order they are
@@ -1073,6 +1228,8 @@ trait BlockType: Type {
     throw_type_compatible?(with: with, builtins: builtins, scope: scope)
       .if_false { return False }
 
+    with.ignore_return_type?.if_true { return True }
+
     return_type
       .type_compatible?(with: with.return_type, builtins: builtins, scope: scope)
   }
@@ -1177,6 +1334,10 @@ trait BlockType: Type {
 
   def yield_type -> ?Type {
     Option.none
+  }
+
+  def ignore_return_type? -> Boolean {
+    layout.ignore_return_type?
   }
 }
 
@@ -1291,13 +1452,17 @@ object BlockLayout {
   # The return type of the block.
   @return_type: Type
 
+  # If this block's return type is to be ignored.
+  @ignore_return_type: Boolean
+
   static def new(
     return_type: Type,
     throw_type: ?Type = Option.none,
     type_parameters: SymbolTable!(TypeParameterType) = SymbolTable.new,
     required_arguments = 0,
     rest_argument = False,
-    throws = False
+    throws = False,
+    ignore_return_type = False
   ) -> Self {
     Self {
       @type_parameters = type_parameters,
@@ -1306,7 +1471,8 @@ object BlockLayout {
       @rest_argument = rest_argument,
       @throws = throws,
       @return_type = return_type,
-      @throw_type = throw_type
+      @throw_type = throw_type,
+      @ignore_return_type = ignore_return_type
     }
   }
 
@@ -1392,6 +1558,10 @@ object BlockLayout {
     }
 
     new_layout
+  }
+
+  def ignore_return_type? -> Boolean {
+    @ignore_return_type
   }
 }
 
@@ -1636,8 +1806,6 @@ impl Type for ClosureType {
     builtins: Builtins,
     scope: TypeCheckScope
   ) -> Boolean {
-    # TODO: handle passing `do -> T` to `do -> NilType`, which should be
-    # inferred to `do -> ?T`.
     match(let expected = with) {
       as ClosureType -> {
         block_compatible?(with: expected, builtins: builtins, scope: scope)
@@ -2047,13 +2215,39 @@ object TraitImplementation {
   }
 }
 
+# An attribute defined for an object.
+object AttributeType {
+  # The public type of the attribute.
+  #
+  # This is the type as defined by the user.
+  @public_type: Type
+
+  # The internal type of the attribute, used when referring to an attribute.
+  #
+  # If the attribute is or contains a type parameter, those type parameters are
+  # turned into rigid type parameters.
+  @internal_type: Type
+
+  static def new(public_type: Type, internal_type: Type) -> Self {
+    Self { @public_type = public_type, @internal_type = internal_type }
+  }
+
+  def public_type -> Type {
+    @public_type
+  }
+
+  def internal_type -> Type {
+    @internal_type
+  }
+}
+
 # An Inko object.
 object ObjectType {
   # The name of the object.
   @name: String
 
   # The instance attributes defined on this object.
-  @attributes: SymbolTable!(Type)
+  @attributes: SymbolTable!(AttributeType)
 
   # The static methods defined on this object.
   @static_methods: SymbolTable!(MethodType)
@@ -2082,7 +2276,7 @@ object ObjectType {
     @name
   }
 
-  def attributes -> SymbolTable!(Type) {
+  def attributes -> SymbolTable!(AttributeType) {
     @attributes
   }
 
@@ -2114,8 +2308,25 @@ object ObjectType {
     @implemented_traits.remove(implementation.type.instance_of)
   }
 
-  def define_attribute(name: String, type: Type) -> Symbol!(Type) {
-    @attributes.define(name: name, type: type)
+  def define_attribute(name: String, type: Type) -> Symbol!(AttributeType) {
+    let internal = initialise?.if(
+      true: {
+        let scope = RigidTypeScope.new(self)
+
+        type_parameters.symbols.each do (sym) {
+          let param = sym.type
+
+          scope.assign_type_parameter(param, RigidTypeParameterType.new(param))
+        }
+
+        type.substitute(scope)
+      },
+      false: { type }
+    )
+
+    let attr = AttributeType.new(public_type: type, internal_type: internal)
+
+    @attributes.define(name: name, type: attr)
   }
 
   def implements_trait?(
@@ -2239,7 +2450,7 @@ impl Type for ObjectInstance {
     @instance_of.type_parameters.length
   }
 
-  def lookup_attribute(name: String) -> ?Symbol!(Type) {
+  def lookup_attribute(name: String) -> ?Symbol!(AttributeType) {
     @instance_of.attributes.get(name)
   }
 

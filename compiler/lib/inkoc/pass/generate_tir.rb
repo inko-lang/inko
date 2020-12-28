@@ -707,6 +707,13 @@ module Inkoc
         symbol = @module.globals[name]
         register = body.register(symbol.type)
 
+        if symbol.index.negative?
+          raise(
+            ArgumentError,
+            "Global #{name.inspect} does not exist in module #{@module.name}"
+          )
+        end
+
         body.instruct(:SetGlobal, register, symbol, value, location)
       end
 

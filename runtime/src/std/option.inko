@@ -86,10 +86,6 @@ object Option!(T) {
 
   # Returns `True` if `self` is a Some value.
   def truthy? -> Boolean {
-    # TODO: the implicit Object implementation overwrites this
-    #
-    # Step 1: require that existing default methods match the signature
-    # Step 2: don't overwrite existing methods
     some?
   }
 
@@ -109,7 +105,7 @@ object Option!(T) {
   # by the `block` argument.
   #
   # If `self` is a Some, the Some itself is returned.
-  def else!(R)(block: do -> ?R) -> ?R {
+  def else(block: do -> ?T) -> ?T {
     match {
       some? -> { self }
       else -> { block.call }

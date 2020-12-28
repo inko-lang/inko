@@ -2,7 +2,9 @@
 import std::compiler::ast::node::*
 import std::compiler::source_location::SourceLocation
 import std::compiler::symbol_table::Symbol
-import std::compiler::types::(MethodType, Type, TypeCheckScope, TypeParameterType)
+import std::compiler::types::(
+  AttributeType, MethodType, Type, TypeCheckScope, TypeParameterType
+)
 import std::option::Option
 
 # An identifier, such as a local variable or global variable.
@@ -68,7 +70,7 @@ impl Node for Identifier {
   }
 }
 
-impl SymbolNode for Identifier {
+impl SymbolNode!(Type) for Identifier {
   def symbol -> ?Symbol!(Type) {
     @symbol
   }
@@ -143,7 +145,7 @@ impl Node for Constant {
   }
 }
 
-impl SymbolNode for Constant {
+impl SymbolNode!(Type) for Constant {
   def symbol -> ?Symbol!(Type) {
     @symbol
   }
@@ -168,7 +170,7 @@ object Attribute {
   @resolved_type: ?Type
 
   # The symbol of the attribute that is referred.
-  @symbol: ?Symbol!(Type)
+  @symbol: ?Symbol!(AttributeType)
 
   static def new(name: String, location: SourceLocation) -> Self {
     Self {
@@ -200,12 +202,12 @@ impl Node for Attribute {
   }
 }
 
-impl SymbolNode for Attribute {
-  def symbol -> ?Symbol!(Type) {
+impl SymbolNode!(AttributeType) for Attribute {
+  def symbol -> ?Symbol!(AttributeType) {
     @symbol
   }
 
-  def symbol=(value: Symbol!(Type)) -> Symbol!(Type) {
+  def symbol=(value: Symbol!(AttributeType)) -> Symbol!(AttributeType) {
     @symbol = Option.some(value)
     value
   }
@@ -275,7 +277,7 @@ impl Node for Global {
   }
 }
 
-impl SymbolNode for Global {
+impl SymbolNode!(Type) for Global {
   def symbol -> ?Symbol!(Type) {
     @symbol
   }
@@ -373,7 +375,7 @@ impl Node for AssignLocal {
   }
 }
 
-impl SymbolNode for AssignLocal {
+impl SymbolNode!(Type) for AssignLocal {
   def symbol -> ?Symbol!(Type) {
     @symbol
   }
@@ -396,7 +398,7 @@ object AssignAttribute {
   @resolved_type: ?Type
 
   # The symbol of the attribute that is assigned.
-  @symbol: ?Symbol!(Type)
+  @symbol: ?Symbol!(AttributeType)
 
   static def new(name: Attribute, value: Node) -> Self {
     Self {
@@ -433,12 +435,12 @@ impl Node for AssignAttribute {
   }
 }
 
-impl SymbolNode for AssignAttribute {
-  def symbol -> ?Symbol!(Type) {
+impl SymbolNode!(AttributeType) for AssignAttribute {
+  def symbol -> ?Symbol!(AttributeType) {
     @symbol
   }
 
-  def symbol=(value: Symbol!(Type)) -> Symbol!(Type) {
+  def symbol=(value: Symbol!(AttributeType)) -> Symbol!(AttributeType) {
     @symbol = Option.some(value)
     value
   }

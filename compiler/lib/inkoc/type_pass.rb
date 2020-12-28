@@ -143,10 +143,8 @@ module Inkoc
     end
 
     def store_type(type, scope, location)
-      scope.self_type.define_attribute(type.name, type)
-
+      scope.self_type.base_type.define_attribute(type.name, type)
       store_type_as_global(type.name, type, scope, location)
-
       type
     end
 
@@ -159,8 +157,10 @@ module Inkoc
     end
 
     def scope_for_object_body(node)
+      self_type = node.type.new_instance_with_rigid_type_parameters
+
       TypeScope
-        .new(node.type, node.block_type, @module, locals: node.body.locals)
+        .new(self_type, node.block_type, @module, locals: node.body.locals)
     end
 
     def define_required_traits(node, trait, scope)

@@ -77,7 +77,6 @@ module Inkoc
           end
 
         type.self_type = scope.self_type
-        type.define_call_method
 
         arg_types = node.arguments.map do |arg|
           define_type_instance(arg, scope)
@@ -96,6 +95,8 @@ module Inkoc
           type.throw_type = define_type_instance(node.throws, scope)
         end
 
+        type.define_call_method
+
         wrap_option_type(node, type)
       end
       alias on_lambda_type on_block_type
@@ -110,7 +111,7 @@ module Inkoc
 
           TypeSystem::Error.new
         else
-          remap_send_return_type(symbol.type, scope)
+          remap_send_return_type(symbol.type.with_rigid_type_parameters, scope)
         end
       end
 
@@ -165,8 +166,8 @@ module Inkoc
         remap_send_return_type(return_type, scope)
       end
 
-      def on_self(_, scope)
-        scope.self_type.new_instance
+      def on_self(node, scope)
+        scope.self_type
       end
 
       def on_send(node, scope)
@@ -593,8 +594,9 @@ module Inkoc
         block_type = TypeSystem::Block
           .closure(typedb.block_type, return_type: TypeSystem::Any.singleton)
 
+        self_type = type.new_instance_with_rigid_type_parameters
         new_scope = TypeScope
-          .new(type, block_type, @module, locals: node.body.locals)
+          .new(self_type, block_type, @module, locals: node.body.locals)
 
         new_scope.define_receiver_type
 
@@ -617,8 +619,9 @@ module Inkoc
         impl_block = TypeSystem::Block
           .closure(typedb.block_type, return_type: TypeSystem::Any.singleton)
 
+        self_type = object.new_instance_with_rigid_type_parameters
         impl_scope = TypeScope
-          .new(object, impl_block, @module, locals: node.body.locals)
+          .new(self_type, impl_block, @module, locals: node.body.locals)
 
         impl_scope.define_receiver_type
 
@@ -696,7 +699,7 @@ module Inkoc
         type = TypeSystem::Block.named_method(node.name, typedb.block_type)
 
         new_scope = TypeScope.new(
-          scope.self_type.new_instance,
+          scope.self_type,
           type,
           @module,
           locals: node.body.locals
@@ -868,6 +871,10 @@ module Inkoc
         define_block_signature(node, new_scope, expected_block)
         define_type(node.body, new_scope)
 
+        block_type.arguments.each do |arg|
+          arg.type = arg.type.with_rigid_type_parameters
+        end
+
         block_type
       end
 
@@ -1032,8 +1039,7 @@ module Inkoc
             block_type.define_required_argument(name, arg_type)
           end
 
-        scope.locals.define(symbol.name, symbol.type)
-
+        scope.locals.define(symbol.name, symbol.type.with_rigid_type_parameters)
         arg_type
       end
 

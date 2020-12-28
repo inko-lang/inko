@@ -175,17 +175,47 @@ trait TypePass {
   }
 
   def visit_constant(node: Constant, types: TypeScope) -> Type {
-    let type =
-      type_for_constant(node: node, require_type_arguments: False, types: types)
+    let symbol = types.lookup_type_as_value(node.name).get_or_else {
+      type_checker
+        .diagnostics
+        .undefined_constant(name: node.name, location: node.location)
 
-    node.resolved_type = type
+      return node.resolved_type = ErrorType.new
+    }
+
+    node.symbol = symbol
+
+    let type = symbol.type
+
+    # When no type arguments are given, we want to keep the type as-is. For
+    # example, referring to `Array` should return that exact type, instead of
+    # returning a type instance of `Array`.
+    node.type_arguments.empty?.if_true { return node.resolved_type = type }
+
+    constant_as_type_instance(type: type, node: node, types: types)
   }
 
   def visit_constant_as_type(node: Constant, types: TypeScope) -> Type {
-    let type =
-      type_for_constant(node: node, require_type_arguments: True, types: types)
+    let type = match(node.name) {
+      NEVER_TYPE -> { NeverType.new }
+      SELF_TYPE -> { SelfType.new }
+      ANY_TYPE -> { AnyType.new }
+      else -> {
+        let symbol = types.lookup_type(node.name).get_or_else {
+          type_checker
+            .diagnostics
+            .undefined_constant(name: node.name, location: node.location)
 
-    node.resolved_type = type
+          return node.resolved_type = ErrorType.new
+        }
+
+        node.symbol = symbol
+
+        symbol.type
+      }
+    } as Type
+
+    constant_as_type_instance(type: type, node: node, types: types)
   }
 
   def visit_option_type(node: OptionTypeNode, types: TypeScope) -> Type {
@@ -304,59 +334,25 @@ trait TypePass {
     Option.some(required)
   }
 
-  # Returns the base type of a constant, without passing it any type arguments.
-  def base_type_for_constant(node: Constant, types: TypeScope) -> Type {
-    match(node.name) {
-      NEVER_TYPE -> { return NeverType.new }
-      SELF_TYPE -> { return SelfType.new }
-      ANY_TYPE -> { return AnyType.new }
-      else -> {}
-    }
-
-    let symbol = types.lookup_type(node.name).get_or_else {
-      type_checker
-        .diagnostics
-        .undefined_constant(name: node.name, location: node.location)
-
-      return ErrorType.new
-    }
-
-    node.symbol = symbol
-
-    symbol.type
-  }
-
-  # Returns the type of a constant node, initialising it with its type arguments
-  # (if there are any).
-  #
-  # When the `require_type_arguments` argument is `True`, all type parameters of
-  # the constant's type must be assigned.
-  def type_for_constant(
+  def constant_as_type_instance(
+    type: Type,
     node: Constant,
-    require_type_arguments: Boolean,
     types: TypeScope
   ) -> Type {
-    let type = base_type_for_constant(node: node, types: types)
-
-    type.error?.if_true { return type }
-
-    let has_type_args = node.type_arguments.length.positive?
-
-    # If type arguments are not required and none are given, we can just return
-    # the type directly and skip all the validation further down.
-    require_type_arguments.false?.and { has_type_args.false? }.if_true {
-      return type
-    }
-
     # Not all types can be initialised, such as Never or an already initialised
     # type.
-    has_type_args.and { type.initialise?.false? }.if_true {
-      type_checker
-        .diagnostics
-        .invalid_initialise(name: type.type_name, location: node.location)
+    node
+      .type_arguments
+      .length
+      .positive?
+      .and { type.initialise?.false? }
+      .if_true {
+        type_checker
+          .diagnostics
+          .invalid_initialise(name: type.type_name, location: node.location)
 
-      return ErrorType.new
-    }
+        return node.resolved_type = ErrorType.new
+      }
 
     (type.number_of_type_parameters != node.type_arguments.length).if_true {
       type_checker.diagnostics.invalid_number_of_type_arguments(
@@ -365,7 +361,7 @@ trait TypePass {
         location: node.location
       )
 
-      return ErrorType.new
+      return node.resolved_type = ErrorType.new
     }
 
     let type_arguments = node
@@ -374,7 +370,7 @@ trait TypePass {
       .map do (node) { visit_type_node(node: node, types: types) }
       .to_array
 
-    type.new_instance(type_arguments)
+    node.resolved_type = type.new_instance(type_arguments)
   }
 
   def define_type_parameters(
@@ -1148,7 +1144,7 @@ trait ExpressionTypePass: TypePass {
     }
 
     node.symbol = symbol
-    node.resolved_type = symbol.type
+    node.resolved_type = symbol.type.internal_type
   }
 
   def visit_global(node: Global, types: TypeScope) -> Type {
@@ -1270,7 +1266,7 @@ trait ExpressionTypePass: TypePass {
 
     type_compatible?(
       type: value_type,
-      with: existing.type,
+      with: existing.type.internal_type,
       scope: types,
       location: node.location
     )
@@ -1615,7 +1611,7 @@ trait ExpressionTypePass: TypePass {
         else -> {
           type_compatible?(
             type: vtype,
-            with: sym.get.type,
+            with: sym.get.type.public_type,
             scope: scope,
             location: loc
           )
@@ -1675,7 +1671,7 @@ trait ExpressionTypePass: TypePass {
         )
       }
 
-    node.resolved_type = to
+    node.resolved_type = to.substitute(RigidTypeScope.from_type_scope(types))
   }
 
   def visit_basic_closure(
@@ -1776,6 +1772,7 @@ trait ExpressionTypePass: TypePass {
     node: DefineArgument,
     block: BlockType,
     types: TypeScope,
+    rigid_types: RigidTypeScope,
     variables: VariableScope
   ) -> Type {
     match(let matched = node) {
@@ -1784,6 +1781,7 @@ trait ExpressionTypePass: TypePass {
           node: matched,
           block: block,
           types: types,
+          rigid_types: rigid_types,
           variables: variables
         )
       }
@@ -1792,6 +1790,7 @@ trait ExpressionTypePass: TypePass {
           node: matched,
           block: block,
           types: types,
+          rigid_types: rigid_types,
           variables: variables
         )
       }
@@ -1808,6 +1807,7 @@ trait ExpressionTypePass: TypePass {
           node: matched,
           block: block,
           types: types,
+          rigid_types: rigid_types,
           variables: variables
         )
       }
@@ -1819,21 +1819,24 @@ trait ExpressionTypePass: TypePass {
     node: DefineRequiredArgument,
     block: BlockType,
     types: TypeScope,
+    rigid_types: RigidTypeScope,
     variables: VariableScope
   ) -> Type {
     let name = node.name
-    let type = visit_type_node(node: node.value_type, types: types)
+    let arg_type = visit_type_node(node: node.value_type, types: types)
+    let var_type = arg_type.substitute(rigid_types)
 
-    block.define_required_argument(name: name, type: type)
-    variables.symbols.define(name: name, type: type)
+    block.define_required_argument(name: name, type: arg_type)
+    variables.symbols.define(name: name, type: var_type)
 
-    node.resolved_type = type
+    node.resolved_type = arg_type
   }
 
   def visit_define_optional_argument(
     node: DefineOptionalArgument,
     block: BlockType,
     types: TypeScope,
+    rigid_types: RigidTypeScope,
     variables: VariableScope
   ) -> Type {
     let name = node.name
@@ -1846,7 +1849,7 @@ trait ExpressionTypePass: TypePass {
       variables: variables
     )
 
-    let type = defined_type.if(
+    let arg_type = defined_type.if(
       true: {
         type_compatible?(
           type: default_type,
@@ -1860,27 +1863,32 @@ trait ExpressionTypePass: TypePass {
       false: { default_type }
     )
 
-    block.arguments.define(name: name, type: type)
-    variables.symbols.define(name: name, type: type)
+    let var_type = arg_type.substitute(rigid_types)
 
-    node.resolved_type = type
+    block.arguments.define(name: name, type: arg_type)
+    variables.symbols.define(name: name, type: var_type)
+
+    node.resolved_type = arg_type
   }
 
   def visit_define_rest_argument(
     node: DefineRestArgument,
     block: BlockType,
     types: TypeScope,
+    rigid_types: RigidTypeScope,
     variables: VariableScope
   ) -> Type {
     let name = node.name
     let val_type = visit_type_node(node: node.value_type, types: types)
-    let lvar_type =
-      type_checker.builtins.array_type.new_instance(Array.new(val_type))
+    let lvar_type = type_checker
+      .builtins
+      .array_type
+      .new_instance(Array.new(val_type.substitute(rigid_types)))
 
     block.define_rest_argument(name: name, type: val_type)
     variables.symbols.define(name: name, type: lvar_type)
 
-    node.resolved_type = lvar_type
+    node.resolved_type = val_type
   }
 
   def visit_define_untyped_argument(
@@ -2050,11 +2058,14 @@ trait ExpressionTypePass: TypePass {
       types: types
     )
 
+    let rigid_types = RigidTypeScope.from_type_scope(types)
+
     arguments.each do (arg) {
       visit_define_argument(
         node: arg,
         block: block,
         types: types,
+        rigid_types: rigid_types,
         variables: variables
       )
     }
@@ -2575,10 +2586,9 @@ object DefineAttributeTypes {
     types: TypeScope
   ) -> Type {
     let type = visit_type_node(node: node.value_type, types: types)
+    let attr = object_type.define_attribute(name: node.name, type: type)
 
-    object_type.define_attribute(name: node.name, type: type)
-
-    node.resolved_type = type
+    node.resolved_type = attr.type.internal_type
   }
 }
 
@@ -3160,11 +3170,14 @@ object TypeCheck {
       types: types
     )
 
+    let rigid_types = RigidTypeScope.from_type_scope(types)
+
     arguments.each do (arg) {
       visit_define_argument(
         node: arg,
         block: method,
         types: types,
+        rigid_types: rigid_types,
         variables: variables
       )
     }

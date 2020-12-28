@@ -87,6 +87,15 @@ module Inkoc
 
         rtype.resolve_type_parameter_with_self(self_type, method_type)
       end
+
+      def with_rigid_type_parameters
+        return self unless generic_type?
+
+        dup.tap do |copy|
+          copy.type_parameter_instances =
+            type_parameter_instances.with_rigid_type_parameters
+        end
+      end
     end
   end
 end

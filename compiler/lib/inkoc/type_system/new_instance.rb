@@ -35,6 +35,10 @@ module Inkoc
         end
       end
 
+      def new_instance_with_rigid_type_parameters
+        new_instance(type_parameters.map(&:with_rigid_type_parameters))
+      end
+
       def type_instance?
         base_type != self
       end

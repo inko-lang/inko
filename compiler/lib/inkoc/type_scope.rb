@@ -54,7 +54,7 @@ module Inkoc
     end
 
     def module_scope?
-      self_type == module_type
+      self_type.base_type == module_type
     end
 
     def constructor?

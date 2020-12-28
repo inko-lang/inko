@@ -35,12 +35,12 @@ trait Node {
 trait TypeNode: Node {}
 
 # A node that maps to a symbol, such as a local variable.
-trait SymbolNode: Node {
+trait SymbolNode!(T): Node {
   # Returns the symbol of this node.
-  def symbol -> ?Symbol!(Type)
+  def symbol -> ?Symbol!(T)
 
   # Sets the symbol of this node.
-  def symbol=(value: Symbol!(Type)) -> Symbol!(Type)
+  def symbol=(value: Symbol!(T)) -> Symbol!(T)
 }
 
 # A node that can appear as the expression for a try/try!.

@@ -16,13 +16,13 @@ module Inkoc
       CLOSURE = :closure
       METHOD = :method
 
-      attr_reader :name, :arguments, :required_arguments, :type_parameters,
-                  :attributes, :method_bounds, :thrown_types
+      attr_reader :name, :required_arguments, :type_parameters, :attributes,
+                  :method_bounds, :thrown_types
 
       attr_accessor :prototype, :captures, :last_argument_is_rest, :throw_type,
                     :return_type, :type_parameter_instances, :infer_return_type,
                     :infer_throw_type, :block_type, :self_type, :yield_type,
-                    :yields, :ignore_return
+                    :yields, :ignore_return, :arguments
 
       def self.closure(prototype, return_type: nil)
         new(
@@ -279,7 +279,10 @@ module Inkoc
       end
 
       def define_call_method
-        define_attribute(Config::CALL_MESSAGE, self)
+        define_attribute(
+          Config::CALL_MESSAGE,
+          self.with_rigid_type_parameters
+        )
       end
 
       def lookup_type(name)
@@ -422,6 +425,27 @@ module Inkoc
           lookup_type_parameter_instance(instance)
         else
           instance
+        end
+      end
+
+      def with_rigid_type_parameters
+        super.tap do |copy|
+          copy.arguments = SymbolTable.new
+
+          arguments.symbols.each do |symbol|
+            new_arg_type = symbol.type.with_rigid_type_parameters
+
+            copy.arguments.define(symbol.name, new_arg_type, symbol.mutable?)
+          end
+
+          copy.throw_type =
+            copy.throw_type&.with_rigid_type_parameters
+
+          copy.return_type =
+            copy.return_type.with_rigid_type_parameters
+
+          copy.yield_type =
+            copy.yield_type&.with_rigid_type_parameters
         end
       end
     end

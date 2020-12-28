@@ -143,39 +143,6 @@ test.group('std::compiler::type_checker::TypePass.visit_constant') do (g) {
     assert.false(pass.type_checker.diagnostics.errors?)
   }
 
-  g.test('Resolving the Never type') {
-    let pass = DummyPass.new
-    let node = parse_type('Never') as Constant
-    let scope = TypeScope.new(pass.module)
-    let type = pass.visit_constant(node: node, types: scope)
-
-    assert_instance_of(type, NeverType)
-    assert.same_object(node.resolved_type.get, type)
-    assert.false(pass.type_checker.diagnostics.errors?)
-  }
-
-  g.test('Resolving the Self type') {
-    let pass = DummyPass.new
-    let node = parse_type('Self') as Constant
-    let scope = TypeScope.new(pass.module)
-    let type = pass.visit_constant(node: node, types: scope)
-
-    assert_instance_of(type, SelfType)
-    assert.same_object(node.resolved_type.get, type)
-    assert.false(pass.type_checker.diagnostics.errors?)
-  }
-
-  g.test('Resolving the Never type with type arguments') {
-    let pass = DummyPass.new
-    let node = parse_type('Never!(Bar)') as Constant
-    let scope = TypeScope.new(pass.module)
-    let type = pass.visit_constant(node: node, types: scope)
-
-    assert.true(type.error?)
-    assert.true(node.resolved_type.get.error?)
-    assert.true(pass.type_checker.diagnostics.errors?)
-  }
-
   g.test('Resolving a non-existing constant with type arguments') {
     let pass = DummyPass.new
     let node = parse_type('Foo!(Bar)') as Constant
@@ -251,6 +218,39 @@ test.group('std::compiler::type_checker::TypePass.visit_constant') do (g) {
 }
 
 test.group('std::compiler::type_checker::TypePass.visit_constant_as_type') do (g) {
+  g.test('Resolving the Never type') {
+    let pass = DummyPass.new
+    let node = parse_type('Never') as Constant
+    let scope = TypeScope.new(pass.module)
+    let type = pass.visit_constant_as_type(node: node, types: scope)
+
+    assert_instance_of(type, NeverType)
+    assert.same_object(node.resolved_type.get, type)
+    assert.false(pass.type_checker.diagnostics.errors?)
+  }
+
+  g.test('Resolving the Self type') {
+    let pass = DummyPass.new
+    let node = parse_type('Self') as Constant
+    let scope = TypeScope.new(pass.module)
+    let type = pass.visit_constant_as_type(node: node, types: scope)
+
+    assert_instance_of(type, SelfType)
+    assert.same_object(node.resolved_type.get, type)
+    assert.false(pass.type_checker.diagnostics.errors?)
+  }
+
+  g.test('Resolving the Never type with type arguments') {
+    let pass = DummyPass.new
+    let node = parse_type('Never!(Bar)') as Constant
+    let scope = TypeScope.new(pass.module)
+    let type = pass.visit_constant_as_type(node: node, types: scope)
+
+    assert.true(type.error?)
+    assert.true(node.resolved_type.get.error?)
+    assert.true(pass.type_checker.diagnostics.errors?)
+  }
+
   g.test('Resolving an existing generic constant without type arguments') {
     let pass = DummyPass.new
     let foo_type = ObjectType.new('Foo')
@@ -971,9 +971,13 @@ test.group('Type-checking attribute definitions') do (g) {
     let obj = module.constants['A'].type as ObjectType
     let attr = obj.attributes['@foo'].type
 
-    assert_instance_of(attr, ObjectInstance)
-    assert.same_object(attr_node.resolved_type.get, attr)
-    assert.same_object((attr as ObjectInstance).instance_of, foo_type)
+    assert_instance_of(attr.public_type, ObjectInstance)
+    assert_instance_of(attr.internal_type, ObjectInstance)
+    assert.same_object(attr_node.resolved_type.get, attr.internal_type)
+    assert.same_object(
+      (attr.internal_type as ObjectInstance).instance_of,
+      foo_type
+    )
   }
 
   g.test('Defining an attribute as a type parameter') {
@@ -989,8 +993,36 @@ test.group('Type-checking attribute definitions') do (g) {
     let attr = obj.attributes['@foo'].type
 
     assert.false(type_checker.diagnostics.errors?)
-    assert_instance_of(attr, TypeParameterType)
-    assert.same_object(attr_node.resolved_type.get, attr)
+    assert_instance_of(attr.internal_type, RigidTypeParameterType)
+    assert_instance_of(attr.public_type, TypeParameterType)
+    assert.same_object(attr_node.resolved_type.get, attr.internal_type)
+  }
+
+  g.test('Defining an attribute as a generic type containing a type parameter') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let node = parse('object A!(T) { @foo: List!(T) }')
+    let list_type = ObjectType.new('List')
+    let list_param = TypeParameterType.new('A')
+
+    list_type.type_parameters.define(name: 'A', type: list_param)
+    module.globals.define(name: list_type.name, type: list_type)
+    type_checker.check_module(module: module, ast: node)
+
+    let obj = module.constants['A'].type as ObjectType
+    let attr = obj.attributes['@foo'].type.internal_type as ObjectInstance
+
+    assert.false(type_checker.diagnostics.errors?)
+    assert_instance_of(attr, ObjectInstance)
+
+    let list_param_type = attr.lookup_type_parameter_type(list_param).get
+    let obj_param = obj.lookup_type_parameter('T').get.type
+
+    assert_instance_of(list_param_type, RigidTypeParameterType)
+    assert.same_object(
+      (list_param_type as RigidTypeParameterType).type,
+      obj_param
+    )
   }
 
   g.test('Defining an attribute with an invalid type') {
@@ -1006,7 +1038,8 @@ test.group('Type-checking attribute definitions') do (g) {
     let attr = obj.attributes['@foo'].type
 
     assert.true(type_checker.diagnostics.errors?)
-    assert.true(attr.error?)
+    assert.true(attr.public_type.error?)
+    assert.true(attr.internal_type.error?)
     assert.true(attr_node.resolved_type.get.error?)
   }
 }
@@ -2084,12 +2117,7 @@ test.group('Type-checking method definitions') do (g) {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
     let int_type = type_checker.builtins.integer_type
-    let body = parse(
-      'def foo => Integer {
-        yield 10
-        return
-      }'
-    )
+    let body = parse('def foo => Integer { yield 10 return }')
 
     module.define_constant(name: 'Integer', type: int_type)
     type_checker.check_module(module: module, ast: body)
@@ -2107,6 +2135,166 @@ test.group('Type-checking method definitions') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     assert.true(type_checker.diagnostics.errors?)
+  }
+
+  g.test('Defining a method using a required object type parameter argument') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let body = parse('object A!(T) { def foo(arg: T) {} }')
+    let obj_node = body.children[0] as DefineObject
+    let meth_node = obj_node.body.children[0] as DefineMethod
+    let arg_node = meth_node.arguments[0] as DefineRequiredArgument
+
+    type_checker.check_module(module: module, ast: body)
+
+    let body_vars = meth_node.body.variable_scope
+    let obj_type = module.constants['A'].type
+    let param = obj_type.lookup_type_parameter('T').get.type
+    let lvar = body_vars.symbols['arg'].type
+
+    assert.same_object(arg_node.resolved_type.get, param)
+    assert_instance_of(lvar, RigidTypeParameterType)
+    assert.same_object((lvar as RigidTypeParameterType).type, param)
+  }
+
+  g.test('Defining a method using a required method type parameter argument') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let body = parse('def foo!(T)(arg: T) {}')
+    let meth_node = body.children[0] as DefineMethod
+    let arg_node = meth_node.arguments[0] as DefineRequiredArgument
+
+    type_checker.check_module(module: module, ast: body)
+
+    let body_vars = meth_node.body.variable_scope
+    let meth_type = module.methods['foo'].type
+    let param = meth_type.lookup_type_parameter('T').get.type
+    let lvar = body_vars.symbols['arg'].type
+
+    assert.same_object(arg_node.resolved_type.get, param)
+    assert_instance_of(lvar, RigidTypeParameterType)
+    assert.same_object((lvar as RigidTypeParameterType).type, param)
+  }
+
+  g.test('Defining a method using an optional method type parameter argument') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let body = parse('def foo!(T)(arg: T = 10) {}')
+    let meth_node = body.children[0] as DefineMethod
+    let arg_node = meth_node.arguments[0] as DefineOptionalArgument
+
+    type_checker.check_module(module: module, ast: body)
+
+    let body_vars = meth_node.body.variable_scope
+    let meth_type = module.methods['foo'].type
+    let param = meth_type.lookup_type_parameter('T').get.type
+    let lvar = body_vars.symbols['arg'].type
+
+    assert.same_object(arg_node.resolved_type.get, param)
+    assert_instance_of(lvar, RigidTypeParameterType)
+    assert.same_object((lvar as RigidTypeParameterType).type, param)
+  }
+
+  g.test('Defining a method using a rest method type parameter argument') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let body = parse('def foo!(T)(*arg: T) {}')
+    let meth_node = body.children[0] as DefineMethod
+    let arg_node = meth_node.arguments[0] as DefineRestArgument
+
+    type_checker.check_module(module: module, ast: body)
+
+    let body_vars = meth_node.body.variable_scope
+    let meth_type = module.methods['foo'].type
+    let param = meth_type.lookup_type_parameter('T').get.type
+    let lvar = body_vars.symbols['arg'].type
+
+    let arg_node_type = arg_node.resolved_type.get
+    let ary_param = type_checker
+      .builtins
+      .array_type
+      .lookup_type_parameter(ARRAY_TYPE_PARAMETER)
+      .get
+      .type
+
+    let lvar_param_type = lvar.lookup_type_parameter_type(ary_param).get
+
+    assert.same_object(arg_node_type, param)
+    assert_object_instance(lvar, type_checker.builtins.array_type)
+    assert_instance_of(lvar_param_type, RigidTypeParameterType)
+    assert.same_object((lvar_param_type as RigidTypeParameterType).type, param)
+  }
+
+  g.test('Referring to an object type parameter in a method body') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let body = parse('object A!(T) { def foo { T } }')
+
+    type_checker.check_module(module: module, ast: body)
+
+    assert.true(type_checker.diagnostics.errors?)
+  }
+
+  g.test('Referring to a trait type parameter in a method body') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let body = parse('trait A!(T) { def foo { T } }')
+
+    type_checker.check_module(module: module, ast: body)
+
+    assert.true(type_checker.diagnostics.errors?)
+  }
+
+  g.test('Referring to a method type parameter in a method body') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let body = parse('def foo!(T) { T }')
+
+    type_checker.check_module(module: module, ast: body)
+
+    assert.true(type_checker.diagnostics.errors?)
+  }
+
+  g.test('Referring to a type in a method body') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let ary_type = ObjectType.new('Array')
+    let body = parse('def foo { Array }')
+    let meth_node = body.children[0] as DefineMethod
+    let const_node = meth_node.body.children[0] as Constant
+
+    module.define_constant(name: ary_type.name, type: ary_type)
+    type_checker.check_module(module: module, ast: body)
+
+    assert.false(type_checker.diagnostics.errors?)
+    assert.same_object(const_node.resolved_type.get, ary_type)
+  }
+
+  g.test('Referring to a generic type using type arguments in a method body') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let foo_type = ObjectType.new('Foo')
+    let ary_type = ObjectType.new('Array')
+    let ary_param = TypeParameterType.new('T')
+
+    ary_type.type_parameters.define(name: ary_param.name, type: ary_param)
+
+    let body = parse('def foo { Array!(Foo) }')
+    let meth_node = body.children[0] as DefineMethod
+    let const_node = meth_node.body.children[0] as Constant
+
+    module.define_constant(name: ary_type.name, type: ary_type)
+    module.define_constant(name: foo_type.name, type: foo_type)
+    type_checker.check_module(module: module, ast: body)
+
+    let const_type = const_node.resolved_type.get
+
+    assert.false(type_checker.diagnostics.errors?)
+    assert_object_instance(const_type, ary_type)
+    assert_object_instance(
+      const_type.lookup_type_parameter_type(ary_param).get,
+      foo_type
+    )
   }
 }
 
@@ -3368,7 +3556,7 @@ test.group('Type-checking variable reassignments') do (g) {
   }
 }
 
-test.group('Type-checking attribute reference') do (g) {
+test.group('Type-checking attribute references') do (g) {
   g.test('Referring to a defined attribute') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
@@ -3412,6 +3600,29 @@ test.group('Type-checking attribute reference') do (g) {
     assert.true(type_checker.diagnostics.errors?)
     assert.true(attr_node.symbol.none?)
     assert.true(attr_node.resolved_type.get.error?)
+  }
+
+  g.test('Referring to a type parameter attribute') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let body = parse('impl A { def foo { @a } }')
+    let impl_node = body.children[0] as ReopenObject
+    let meth_node = impl_node.body.children[0] as DefineMethod
+    let attr_node = meth_node.body.children[0] as Attribute
+    let obj_type = ObjectType.new(name: 'A')
+    let param = TypeParameterType.new('T')
+
+    obj_type.type_parameters.define(name: param.name, type: param)
+    obj_type.define_attribute(name: '@a', type: param)
+
+    module.define_constant(name: obj_type.name, obj_type)
+    type_checker.check_module(module: module, ast: body)
+
+    let attr_type = attr_node.resolved_type.get
+
+    assert.false(type_checker.diagnostics.errors?)
+    assert_instance_of(attr_type, RigidTypeParameterType)
+    assert.same_object((attr_type as RigidTypeParameterType).type, param)
   }
 }
 
@@ -4015,6 +4226,43 @@ test.group('Type-checking type casts') do (g) {
     assert.true(type_checker.diagnostics.errors?)
     assert_object_instance(node.resolved_type.get, int_type)
   }
+
+  g.test('Casting a type to a method type parameter') {
+    let type_checker = TypeChecker.new
+    let module = new_module('foo')
+    let body = parse('def foo!(A) { 10 as A }')
+    let meth_node = body.children[0] as DefineMethod
+    let node = meth_node.body.children[0]
+
+    type_checker.check_module(module: module, ast: body)
+
+    assert.false(type_checker.diagnostics.errors?)
+
+    let type = node.resolved_type.get
+    let param = module.methods['foo'].type.lookup_type_parameter('A').get.type
+
+    assert_instance_of(type, RigidTypeParameterType)
+    assert.same_object((type as RigidTypeParameterType).type, param)
+  }
+
+  g.test('Casting a type to an object type parameter') {
+    let type_checker = TypeChecker.new
+    let module = new_module('foo')
+    let body = parse('object Foo!(A) { def foo { 10 as A } }')
+    let obj_node = body.children[0] as DefineObject
+    let meth_node = obj_node.body.children[0] as DefineMethod
+    let node = meth_node.body.children[0]
+
+    type_checker.check_module(module: module, ast: body)
+
+    let type = node.resolved_type.get
+    let obj = module.constants['Foo'].type as ObjectType
+    let param = obj.lookup_type_parameter('A').get.type
+
+    assert.false(type_checker.diagnostics.errors?)
+    assert_instance_of(type, RigidTypeParameterType)
+    assert.same_object((type as RigidTypeParameterType).type, param)
+  }
 }
 
 test.group('Type-checking closures') do (g) {
@@ -4229,7 +4477,8 @@ test.group('Type-checking closures') do (g) {
     let param = type.lookup_type_parameter('T').get.type
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.same_object(type.return_type, param)
+    assert_instance_of(type.return_type, RigidTypeParameterType)
+    assert.same_object((type.return_type as RigidTypeParameterType).type, param)
   }
 
   g.test('Defining a closure with a type parameter and explicit return type') {
@@ -4523,7 +4772,8 @@ test.group('Type-checking lambdas') do (g) {
     let param = type.lookup_type_parameter('T').get.type
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.same_object(type.return_type, param)
+    assert_instance_of(type.return_type, RigidTypeParameterType)
+    assert.same_object((type.return_type as RigidTypeParameterType).type, param)
   }
 
   g.test('Defining a lambda with a type parameter and explicit return type') {
