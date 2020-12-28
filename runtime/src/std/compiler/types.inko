@@ -846,6 +846,10 @@ impl Type for TypeParameterType {
     )
   }
 
+  def lookup_method(name: String) -> ?Symbol!(MethodType) {
+    @required_traits.iter.find_some do (type) { type.lookup_method(name) }
+  }
+
   def type_compatible?(
     with: Type,
     builtins: Builtins,

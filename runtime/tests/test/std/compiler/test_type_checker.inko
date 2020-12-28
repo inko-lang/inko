@@ -5479,6 +5479,45 @@ test.group('Type-checking sending messages') do (g) {
 
     assert.false(type_checker.diagnostics.errors?)
   }
+
+  g.test('Sending a message to a type parameter that responds to the message') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let str_type = type_checker.builtins.string_type
+    let to_string_trait = TraitType.new('ToString')
+    let to_string = MethodType
+      .new(name: 'to_string', layout: BlockLayout.new(str_type.new_instance))
+
+    to_string_trait
+      .default_methods
+      .define(name: to_string.name, type: to_string)
+
+    let param = TypeParameterType
+      .new(name: 'T', required_traits: Array.new(to_string_trait.new_instance))
+
+    let body = parse('a.to_string')
+    let node = body.children[0]
+
+    body.variable_scope.symbols.define(name: 'a', type: param)
+    type_checker.check_module(module: module, ast: body)
+
+    assert.false(type_checker.diagnostics.errors?)
+    assert_object_instance(node.resolved_type.get, str_type)
+  }
+
+  g.test('Sending an undefined message to a type parameter') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let param = TypeParameterType.new('T')
+    let body = parse('a.test')
+    let node = body.children[0]
+
+    body.variable_scope.symbols.define(name: 'a', type: param)
+    type_checker.check_module(module: module, ast: body)
+
+    assert.true(type_checker.diagnostics.errors?)
+    assert.true(node.resolved_type.get.error?)
+  }
 }
 
 test.group('Type-checking sending messages with method bounds') do (g) {

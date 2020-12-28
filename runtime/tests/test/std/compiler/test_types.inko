@@ -910,6 +910,23 @@ test.group('std::compiler::types::TypeParameterType.required_traits') do (g) {
   }
 }
 
+test.group('std::compiler::types::TypeParameterType.lookup_method') do (g) {
+  g.test('Looking up a method from a required trait') {
+    let to_string_trait = TraitType.new('ToString')
+    let to_string = MethodType
+      .new(name: 'to_string', layout: BlockLayout.new(AnyType.new))
+
+    to_string_trait
+      .default_methods
+      .define(name: to_string.name, type: to_string)
+
+    let required = Array.new(to_string_trait.new_instance)
+    let param = TypeParameterType.new(name: 'T', required_traits: required)
+
+    assert.same_object(param.lookup_method(to_string.name).get.type, to_string)
+  }
+}
+
 test.group('std::compiler::types::TypeParameterType.type_name') do (g) {
   g.test('Obtaining the type name of an empty TypeParameterType') {
     assert.equal(TypeParameterType.new('T').type_name, 'T')

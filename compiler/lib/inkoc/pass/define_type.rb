@@ -1032,7 +1032,7 @@ module Inkoc
             block_type.define_required_argument(name, arg_type)
           end
 
-        scope.locals.add_symbol(symbol)
+        scope.locals.define(symbol.name, symbol.type)
 
         arg_type
       end
