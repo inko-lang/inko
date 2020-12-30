@@ -1501,7 +1501,7 @@ describe Inkoc::Pass::DefineType do
 
   describe '#on_object' do
     it 'defines an object using its name' do
-      type = expression_type('object Person {}')
+      type = expression_type('class Person {}')
 
       expect(type).to be_instance_of(Inkoc::TypeSystem::Object)
       expect(type.name).to eq('Person')
@@ -1509,13 +1509,13 @@ describe Inkoc::Pass::DefineType do
     end
 
     it 'produces a type error when using a reserved constant' do
-      expression_type('object Self {}')
+      expression_type('class Self {}')
 
       expect(state.diagnostics.errors?).to eq(true)
     end
 
     it 'defines the name attribute of the object' do
-      type = expression_type('object Person {}')
+      type = expression_type('class Person {}')
       attr = Inkoc::Config::OBJECT_NAME_INSTANCE_ATTRIBUTE
 
       expect(type.lookup_attribute(attr).type)
@@ -1523,7 +1523,7 @@ describe Inkoc::Pass::DefineType do
     end
 
     it 'defines the object in the current scope' do
-      type = expression_type('object Person {}')
+      type = expression_type('class Person {}')
 
       expect(type_scope.self_type.lookup_attribute('Person').type).to eq(type)
     end
@@ -1536,7 +1536,7 @@ describe Inkoc::Pass::DefineType do
         locals: Inkoc::SymbolTable.new
       )
 
-      type = expression_type('object Person {}', scope)
+      type = expression_type('class Person {}', scope)
 
       expect(tir_module.lookup_global('Person')).to eq(type)
     end
@@ -1546,7 +1546,7 @@ describe Inkoc::Pass::DefineType do
 
       type_scope.module_type.define_attribute('C', trait)
 
-      type = expression_type('object Person!(A, B: C) {}')
+      type = expression_type('class Person!(A, B: C) {}')
 
       param_a = type.lookup_type_parameter('A')
       param_b = type.lookup_type_parameter('B')
@@ -1565,7 +1565,7 @@ describe Inkoc::Pass::DefineType do
         .module_type
         .define_attribute('Integer', state.typedb.integer_type)
 
-      type = expression_type('object Person!(A: B!(Integer)) {}')
+      type = expression_type('class Person!(A: B!(Integer)) {}')
 
       required_trait = type
         .lookup_type_parameter('A')
@@ -1579,7 +1579,7 @@ describe Inkoc::Pass::DefineType do
     end
 
     it 'supports defining methods on the object' do
-      type = expression_type('object Person { def foo {} }')
+      type = expression_type('class Person { def foo {} }')
       method = type.lookup_method('foo')
 
       expect(method.type).to be_method

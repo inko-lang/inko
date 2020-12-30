@@ -81,7 +81,7 @@ trait TypeCheckScope {
 }
 
 # A (lexical) scope to use for looking up types.
-object TypeScope {
+class TypeScope {
   # The module that surrounds the scope.
   @module: ModuleType
 
@@ -190,7 +190,7 @@ impl TypeCheckScope for TypeScope {
 # A RigidTypeScope is used to assign type parameters to their rigid counterparts
 # whenever this is necessary, removing the need for visiting AST nodes multiple
 # times just to produce the right types for the right contexts.
-object RigidTypeScope {
+class RigidTypeScope {
   # The type of `self`/`Self`.
   @self_type: Type
 
@@ -219,7 +219,7 @@ object RigidTypeScope {
       as TraitInstance -> {
         types.assign_rigid_type_parameters(type.instance_of.type_parameters)
       }
-      as ObjectInstance -> {
+      as ClassInstance -> {
         types.assign_rigid_type_parameters(type.instance_of.type_parameters)
       }
       else -> {}
@@ -346,7 +346,7 @@ trait Type {
   }
 
   # Returns `True` if `self` is an object and an instance of the given object.
-  def object_instance_of?(type: ObjectType) -> Boolean {
+  def object_instance_of?(type: ClassType) -> Boolean {
     False
   }
 
@@ -400,7 +400,7 @@ trait Type {
 }
 
 # A collection of type parameters and the types assigned to them.
-object TypeParameterTypes {
+class TypeParameterTypes {
   # The type parameters and the types assigned to these parameters.
   #
   # We use a Map as type parameters can be assigned to out of order. This can
@@ -412,7 +412,7 @@ object TypeParameterTypes {
     let copy = new
     let from = match(let matched = type) {
       as TraitInstance -> { matched.type_parameter_types }
-      as ObjectInstance -> { matched.type_parameter_types }
+      as ClassInstance -> { matched.type_parameter_types }
       else -> { return copy }
     }
 
@@ -471,7 +471,7 @@ object TypeParameterTypes {
 
   def copy_into_type(type: Type) {
     match(let matched = type) {
-      as ObjectInstance -> {
+      as ClassInstance -> {
         copy_into_type_parameter_types(
           parameters: matched.instance_of.type_parameters,
           arguments: matched.type_parameter_types
@@ -539,43 +539,43 @@ impl SetIndex!(TypeParameterType, Type) for TypeParameterTypes {
 }
 
 # A collection of built-in types.
-object Builtins {
-  @trait_type: ObjectType
-  @boolean_type: ObjectType
-  @true_singleton: ObjectInstance
-  @false_singleton: ObjectInstance
-  @nil_type: ObjectType
-  @nil_singleton: ObjectInstance
-  @block_type: ObjectType
-  @integer_type: ObjectType
-  @float_type: ObjectType
-  @string_type: ObjectType
-  @module_type: ObjectType
-  @array_type: ObjectType
-  @byte_array_type: ObjectType
-  @ffi_library_type: ObjectType
-  @ffi_function_type: ObjectType
-  @ffi_pointer_type: ObjectType
-  @ip_socket_type: ObjectType
-  @unix_socket_type: ObjectType
-  @process_type: ObjectType
-  @read_only_file_type: ObjectType
-  @write_only_file_type: ObjectType
-  @read_write_file_type: ObjectType
-  @hasher_type: ObjectType
-  @generator_type: ObjectType
+class Builtins {
+  @trait_type: ClassType
+  @boolean_type: ClassType
+  @true_singleton: ClassInstance
+  @false_singleton: ClassInstance
+  @nil_type: ClassType
+  @nil_singleton: ClassInstance
+  @block_type: ClassType
+  @integer_type: ClassType
+  @float_type: ClassType
+  @string_type: ClassType
+  @module_type: ClassType
+  @array_type: ClassType
+  @byte_array_type: ClassType
+  @ffi_library_type: ClassType
+  @ffi_function_type: ClassType
+  @ffi_pointer_type: ClassType
+  @ip_socket_type: ClassType
+  @unix_socket_type: ClassType
+  @process_type: ClassType
+  @read_only_file_type: ClassType
+  @write_only_file_type: ClassType
+  @read_write_file_type: ClassType
+  @hasher_type: ClassType
+  @generator_type: ClassType
 
   static def new -> Self {
-    let array_type = ObjectType.new('Array')
-    let boolean_type = ObjectType.new('Boolean')
-    let nil_type = ObjectType.new('NilType')
+    let array_type = ClassType.new('Array')
+    let boolean_type = ClassType.new('Boolean')
+    let nil_type = ClassType.new('NilType')
 
     array_type.type_parameters.define(
       name: ARRAY_TYPE_PARAMETER,
       type: TypeParameterType.new(ARRAY_TYPE_PARAMETER)
     )
 
-    let generator_type = ObjectType.new('Generator')
+    let generator_type = ClassType.new('Generator')
 
     generator_type.type_parameters.define(
       name: GENERATOR_VALUE_TYPE_PARAMETER,
@@ -588,126 +588,126 @@ object Builtins {
     )
 
     Self {
-      @trait_type = ObjectType.new('Trait'),
+      @trait_type = ClassType.new('Trait'),
       @boolean_type = boolean_type,
-      @true_singleton = ObjectInstance.new(boolean_type),
-      @false_singleton = ObjectInstance.new(boolean_type),
+      @true_singleton = ClassInstance.new(boolean_type),
+      @false_singleton = ClassInstance.new(boolean_type),
       @nil_type = nil_type,
-      @nil_singleton = ObjectInstance.new(nil_type),
-      @block_type = ObjectType.new('Block'),
-      @integer_type = ObjectType.new('Integer'),
-      @float_type = ObjectType.new('Float'),
-      @string_type = ObjectType.new('String'),
-      @module_type = ObjectType.new('Module'),
-      @byte_array_type = ObjectType.new('ByteArray'),
+      @nil_singleton = ClassInstance.new(nil_type),
+      @block_type = ClassType.new('Block'),
+      @integer_type = ClassType.new('Integer'),
+      @float_type = ClassType.new('Float'),
+      @string_type = ClassType.new('String'),
+      @module_type = ClassType.new('Module'),
+      @byte_array_type = ClassType.new('ByteArray'),
       @array_type = array_type,
-      @ffi_library_type = ObjectType.new('Library'),
-      @ffi_function_type = ObjectType.new('Function'),
-      @ffi_pointer_type = ObjectType.new('Pointer'),
-      @ip_socket_type = ObjectType.new('Socket'),
-      @unix_socket_type = ObjectType.new('Socket'),
-      @process_type = ObjectType.new('Process'),
-      @read_only_file_type = ObjectType.new('ReadOnlyFile'),
-      @write_only_file_type = ObjectType.new('WriteOnlyFile'),
-      @read_write_file_type = ObjectType.new('ReadWriteFile'),
-      @hasher_type = ObjectType.new('Hasher'),
+      @ffi_library_type = ClassType.new('Library'),
+      @ffi_function_type = ClassType.new('Function'),
+      @ffi_pointer_type = ClassType.new('Pointer'),
+      @ip_socket_type = ClassType.new('Socket'),
+      @unix_socket_type = ClassType.new('Socket'),
+      @process_type = ClassType.new('Process'),
+      @read_only_file_type = ClassType.new('ReadOnlyFile'),
+      @write_only_file_type = ClassType.new('WriteOnlyFile'),
+      @read_write_file_type = ClassType.new('ReadWriteFile'),
+      @hasher_type = ClassType.new('Hasher'),
       @generator_type = generator_type
     }
   }
 
-  def trait_type -> ObjectType {
+  def trait_type -> ClassType {
     @trait_type
   }
 
-  def boolean_type -> ObjectType {
+  def boolean_type -> ClassType {
     @boolean_type
   }
 
-  def true_singleton -> ObjectInstance {
+  def true_singleton -> ClassInstance {
     @true_singleton
   }
 
-  def false_singleton -> ObjectInstance {
+  def false_singleton -> ClassInstance {
     @false_singleton
   }
 
-  def nil_type -> ObjectType {
+  def nil_type -> ClassType {
     @nil_type
   }
 
-  def nil_singleton -> ObjectInstance {
+  def nil_singleton -> ClassInstance {
     @nil_singleton
   }
 
-  def block_type -> ObjectType {
+  def block_type -> ClassType {
     @block_type
   }
 
-  def integer_type -> ObjectType {
+  def integer_type -> ClassType {
     @integer_type
   }
 
-  def float_type -> ObjectType {
+  def float_type -> ClassType {
     @float_type
   }
 
-  def string_type -> ObjectType {
+  def string_type -> ClassType {
     @string_type
   }
 
-  def module_type -> ObjectType {
+  def module_type -> ClassType {
     @module_type
   }
 
-  def array_type -> ObjectType {
+  def array_type -> ClassType {
     @array_type
   }
 
-  def byte_array_type -> ObjectType {
+  def byte_array_type -> ClassType {
     @byte_array_type
   }
 
-  def ffi_library_type -> ObjectType {
+  def ffi_library_type -> ClassType {
     @ffi_library_type
   }
 
-  def ffi_function_type -> ObjectType {
+  def ffi_function_type -> ClassType {
     @ffi_function_type
   }
 
-  def ffi_pointer_type -> ObjectType {
+  def ffi_pointer_type -> ClassType {
     @ffi_pointer_type
   }
 
-  def ip_socket_type -> ObjectType {
+  def ip_socket_type -> ClassType {
     @ip_socket_type
   }
 
-  def unix_socket_type -> ObjectType {
+  def unix_socket_type -> ClassType {
     @unix_socket_type
   }
 
-  def process_type -> ObjectType {
+  def process_type -> ClassType {
     @process_type
   }
 
-  def read_only_file_type -> ObjectType {
+  def read_only_file_type -> ClassType {
     @read_only_file_type
   }
 
-  def write_only_file_type -> ObjectType {
+  def write_only_file_type -> ClassType {
     @write_only_file_type
   }
 
-  def read_write_file_type -> ObjectType {
+  def read_write_file_type -> ClassType {
     @read_write_file_type
   }
 
-  def hasher_type -> ObjectType {
+  def hasher_type -> ClassType {
     @hasher_type
   }
 
-  def generator_type -> ObjectType {
+  def generator_type -> ClassType {
     @generator_type
   }
 }
@@ -716,7 +716,7 @@ object Builtins {
 #
 # A Never type used as for example a return type means a method will never
 # return.
-object NeverType {
+class NeverType {
   static def new -> Self {
     Self {}
   }
@@ -747,7 +747,7 @@ impl Type for NeverType {
 }
 
 # A type that signals a real type has to be inferred somehow.
-object InferType {
+class InferType {
   static def new -> Self {
     Self {}
   }
@@ -776,7 +776,7 @@ impl Type for InferType {
 }
 
 # A type that all other types are compatible with.
-object AnyType {
+class AnyType {
   static def new -> Self {
     Self {}
   }
@@ -816,7 +816,7 @@ impl Type for AnyType {
 # `Self` types are essentially placeholders for types that should be resolved to
 # the type of `self` when they are used. Take this method for example:
 #
-#     object Thing {
+#     class Thing {
 #       def example(thing: Self) {}
 #     }
 #
@@ -824,7 +824,7 @@ impl Type for AnyType {
 #
 # Self types are mostly useful in traits, as this allows them to be inferred to
 # the type of the object that implements the trait.
-object SelfType {
+class SelfType {
   static def new -> Self {
     Self {}
   }
@@ -876,7 +876,7 @@ impl Type for SelfType {
 # Error types can only be created by the compiler. These types are compatible
 # with all other types to prevent cascading errors. This is safe, because the
 # compiler will not continue the compilation process when errors are present.
-object ErrorType {
+class ErrorType {
   static def new -> Self {
     Self {}
   }
@@ -901,7 +901,7 @@ impl Type for ErrorType {
 }
 
 # A type parameter used in a generic type.
-object TypeParameterType {
+class TypeParameterType {
   # The name of the type parameter.
   @name: String
 
@@ -1006,7 +1006,7 @@ impl Type for TypeParameterType {
 # type placeholder that has certain requirements, but isn't an actual type (at
 # runtime). A rigid type parameter is _some type_ that happens to meet the type
 # parameter requirements, we just don't know what the actual type is.
-object RigidTypeParameterType {
+class RigidTypeParameterType {
   # The type parameter we belong to.
   @type: TypeParameterType
 
@@ -1048,7 +1048,7 @@ impl Type for RigidTypeParameterType {
 }
 
 # Additional type parameter bounds to apply to a trait implementation or method.
-object TypeParameterBounds {
+class TypeParameterBounds {
   # All type parameters that have additional bounds, in the order they are
   # defined in.
   @parameters: Array!(TypeParameterType)
@@ -1198,7 +1198,7 @@ trait BlockType: Type {
   }
 
   # Returns `True` if `self` is an instance of the given type.
-  def instance_of?(type: ObjectType, builtins: Builtins) -> Boolean {
+  def instance_of?(type: ClassType, builtins: Builtins) -> Boolean {
     type.same_object?(builtins.block_type)
   }
 
@@ -1342,7 +1342,7 @@ trait BlockType: Type {
 # for this is optional (e.g. a block may be defined without any arguments).
 # Since the logic is the same for all block types (methods, closures, etc), we
 # use this separate object for building type names.
-object BlockNameBuilder {
+class BlockNameBuilder {
   # The buffer to use for building the type name.
   @buffer: StringBuffer
 
@@ -1424,7 +1424,7 @@ impl ToString for BlockNameBuilder {
 # Methods, closures and lambdas all need these fields. Instead of duplicating
 # these fields and methods for every block type, we provide them through this
 # `BlockLayout` type.
-object BlockLayout {
+class BlockLayout {
   # The type parameters this block defines.
   @type_parameters: SymbolTable!(TypeParameterType)
 
@@ -1551,7 +1551,7 @@ object BlockLayout {
 }
 
 # A method bound to a type.
-object MethodType {
+class MethodType {
   # The basic data of this method, such as its arguments.
   @layout: BlockLayout
 
@@ -1672,7 +1672,7 @@ impl Type for MethodType {
             )
           }
       }
-      as ObjectInstance -> {
+      as ClassInstance -> {
         instance_of?(type: expected.instance_of, builtins: builtins)
       }
       as TraitInstance -> {
@@ -1716,7 +1716,7 @@ impl BlockType for MethodType {
   ) -> Boolean {
     let type_parameter_types = match(let matched = type) {
       as TraitInstance -> { matched.type_parameter_types }
-      as ObjectInstance -> { matched.type_parameter_types }
+      as ClassInstance -> { matched.type_parameter_types }
       else -> { return True }
     }
 
@@ -1752,7 +1752,7 @@ impl BlockType for MethodType {
 }
 
 # Type information about closures.
-object ClosureType {
+class ClosureType {
   # The basic data of this closure, such as its arguments.
   @layout: BlockLayout
 
@@ -1800,7 +1800,7 @@ impl Type for ClosureType {
           block_compatible?(with: expected, builtins: builtins, scope: scope)
         }
       }
-      as ObjectInstance -> {
+      as ClassInstance -> {
         instance_of?(type: expected.instance_of, builtins: builtins)
       }
       as TraitInstance -> {
@@ -1847,7 +1847,7 @@ impl BlockType for ClosureType {
 }
 
 # Type information about lambdas.
-object LambdaType {
+class LambdaType {
   # The basic data of this lambda, such as its arguments.
   @layout: BlockLayout
 
@@ -1886,7 +1886,7 @@ impl Type for LambdaType {
       as ClosureType -> {
         block_compatible?(with: expected, builtins: builtins, scope: scope)
       }
-      as ObjectInstance -> {
+      as ClassInstance -> {
         instance_of?(type: expected.instance_of, builtins: builtins)
       }
       as TraitInstance -> {
@@ -1925,7 +1925,7 @@ impl BlockType for LambdaType {
 }
 
 # Type information of an Inko trait.
-object TraitType {
+class TraitType {
   # The name of the trait.
   @name: String
 
@@ -2047,7 +2047,7 @@ impl Type for TraitType {
 }
 
 # An instance of an Inko trait.
-object TraitInstance {
+class TraitInstance {
   # The trait `self` is an instance of.
   @instance_of: TraitType
 
@@ -2169,7 +2169,7 @@ impl Type for TraitInstance {
 }
 
 # A trait implemented for an object.
-object TraitImplementation {
+class TraitImplementation {
   # The trait type that is implemented.
   @type: TraitInstance
 
@@ -2201,7 +2201,7 @@ object TraitImplementation {
 }
 
 # An attribute defined for an object.
-object AttributeType {
+class AttributeType {
   # The public type of the attribute.
   #
   # This is the type as defined by the user.
@@ -2226,24 +2226,24 @@ object AttributeType {
   }
 }
 
-# An Inko object.
-object ObjectType {
-  # The name of the object.
+# An Inko class.
+class ClassType {
+  # The name of the class.
   @name: String
 
-  # The instance attributes defined on this object.
+  # The instance attributes defined on this class.
   @attributes: SymbolTable!(AttributeType)
 
-  # The static methods defined on this object.
+  # The static methods defined on this class.
   @static_methods: SymbolTable!(MethodType)
 
-  # The instance methods defined on this object.
+  # The instance methods defined on this class.
   @instance_methods: SymbolTable!(MethodType)
 
-  # The type parameters this object defines.
+  # The type parameters this class defines.
   @type_parameters: SymbolTable!(TypeParameterType)
 
-  # The traits this object implements.
+  # The traits this class implements.
   @implemented_traits: Map!(TraitType, TraitImplementation)
 
   static def new(name: String) -> Self {
@@ -2322,7 +2322,7 @@ object ObjectType {
     let trait_impl =
       implemented_traits.get(type.instance_of).get_or_else { return False }
 
-    # ObjectType types can never be generic (e.g. Array itself is not generic,
+    # ClassType types can never be generic (e.g. Array itself is not generic,
     # but instances of Array are), so we don't need to check any bounds.
     trait_impl.type.type_parameter_types.type_compatible?(
       with: type.type_parameter_types,
@@ -2332,7 +2332,7 @@ object ObjectType {
   }
 }
 
-impl Type for ObjectType {
+impl Type for ClassType {
   def type_name -> String {
     format_type_name(name: @name, type_parameters: @type_parameters)
   }
@@ -2357,8 +2357,8 @@ impl Type for ObjectType {
     @type_parameters.length
   }
 
-  def new_instance(type_arguments = Array.new) -> ObjectInstance {
-    let instance = ObjectInstance.new(self)
+  def new_instance(type_arguments = Array.new) -> ClassInstance {
+    let instance = ClassInstance.new(self)
 
     instance
       .type_parameter_types
@@ -2373,7 +2373,7 @@ impl Type for ObjectType {
     scope: TypeCheckScope
   ) -> Boolean {
     match(let expected = with) {
-      as ObjectType -> { self.same_object?(expected) }
+      as ClassType -> { self.same_object?(expected) }
       as SelfType -> {
         type_compatible?(
           with: scope.self_type.new_instance,
@@ -2395,16 +2395,16 @@ impl Type for ObjectType {
   }
 }
 
-# An instance of an Inko object.
-object ObjectInstance {
-  # The object `self` is an instance of.
-  @instance_of: ObjectType
+# An instance of an Inko class.
+class ClassInstance {
+  # The class `self` is an instance of.
+  @instance_of: ClassType
 
   # Type parameters and the types assigned to these parameters.
   @type_parameter_types: TypeParameterTypes
 
   static def new(
-    instance_of: ObjectType,
+    instance_of: ClassType,
     type_parameter_types = TypeParameterTypes.new
   ) -> Self {
     Self {
@@ -2413,7 +2413,7 @@ object ObjectInstance {
     }
   }
 
-  def instance_of -> ObjectType {
+  def instance_of -> ClassType {
     @instance_of
   }
 
@@ -2422,7 +2422,7 @@ object ObjectInstance {
   }
 }
 
-impl Type for ObjectInstance {
+impl Type for ClassInstance {
   def type_name -> String {
     format_type_name(
       name: @instance_of.name,
@@ -2459,7 +2459,7 @@ impl Type for ObjectInstance {
     @type_parameter_types[parameter] = type
   }
 
-  def object_instance_of?(type: ObjectType) -> Boolean {
+  def object_instance_of?(type: ClassType) -> Boolean {
     @instance_of.same_object?(type)
   }
 
@@ -2495,7 +2495,7 @@ impl Type for ObjectInstance {
     scope: TypeCheckScope
   ) -> Boolean {
     match(let expected = with) {
-      as ObjectInstance -> {
+      as ClassInstance -> {
         @instance_of
           .same_object?(expected.instance_of)
           .if_false { return False }
@@ -2532,7 +2532,7 @@ impl Type for ObjectInstance {
   def substitute(scope: TypeCheckScope) -> Self {
     number_of_type_parameters.zero?.if_true { return self }
 
-    ObjectInstance.new(
+    ClassInstance.new(
       instance_of: @instance_of,
       type_parameter_types: @type_parameter_types.substitute(scope)
     )
@@ -2540,7 +2540,7 @@ impl Type for ObjectInstance {
 }
 
 # Type information for an Inko module.
-object ModuleType {
+class ModuleType {
   # The name of the module.
   @name: ModuleName
 
@@ -2620,7 +2620,7 @@ impl Type for ModuleType {
   ) -> Boolean {
     match(let expected = with) {
       as ModuleType -> { expected.same_object?(self) }
-      as ObjectInstance -> {
+      as ClassInstance -> {
         expected.object_instance_of?(builtins.module_type)
       }
       as TraitInstance -> {

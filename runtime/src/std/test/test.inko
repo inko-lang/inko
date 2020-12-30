@@ -11,7 +11,7 @@ import std::test::error::TestFailure
 
 # A test defined by the user, including details such as the name and the
 # location it was defined at.
-object Test {
+class Test {
   # The name of this test.
   @name: String
 

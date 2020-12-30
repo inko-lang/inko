@@ -2,7 +2,7 @@
 import std::compiler::ast::body::Body
 import std::compiler::ast::imports::(Import, ImportAlias, ImportSymbol)
 import std::compiler::ast::node::Node
-import std::compiler::ast::objects::(DefineObject, ImplementTrait)
+import std::compiler::ast::objects::(DefineClass, ImplementTrait)
 import std::compiler::ast::send::Send
 import std::compiler::ast::variables::(Constant, Identifier)
 import std::compiler::module_name::(
@@ -22,11 +22,11 @@ def add_object_implementation(name: ModuleName, body: Body) {
 
   body.children.each do (node) {
     match(let matched = node) {
-      as DefineObject -> {
+      as DefineClass -> {
         let loc = matched.location
         let obj_impl = ImplementTrait.new(
           trait_name: Constant.new(name: OBJECT_TRAIT, location: loc),
-          object_name: Constant.new(name: matched.name, location: loc),
+          class_name: Constant.new(name: matched.name, location: loc),
           type_parameter_bounds: Array.new,
           body: Body.new(children: Array.new, location: loc),
           location: loc

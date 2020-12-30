@@ -117,7 +117,7 @@ values.[](0)
 values.[]=(0, 42)
 ```
 
-Objects can support these operators by implementing the following methods:
+Classes can support these operators by implementing the following methods:
 
 * `def [](index: K) -> R`
 * `def []=(index: K, value: V) -> R`
@@ -131,7 +131,7 @@ these operators do so using a consistent interface. Let's say we have a type for
 storing single characters, defined like so:
 
 ```inko
-object Chars {
+class Chars {
   @chars: Array!(String)
 
   static def new(chars: Array!(String)) -> Self {
@@ -154,7 +154,7 @@ To achieve this, we implement the traits from `std::index` as follows:
 ```inko
 import std::index::(Index, SetIndex)
 
-object Chars {
+class Chars {
   @chars: Array!(String)
 
   static def new(chars: Array!(String)) -> Self {

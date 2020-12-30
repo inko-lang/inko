@@ -31,7 +31,7 @@ module Inkoc
         mod
         mul
         not_equal
-        object
+        class
         or
         pow
         return
@@ -166,8 +166,8 @@ module Inkoc
       case start.type
       when :import
         import(start)
-      when :object
-        def_object(start)
+      when :class
+        def_class(start)
       when :trait
         def_trait(start)
       when :impl
@@ -192,7 +192,7 @@ module Inkoc
 
       loop do
         case step.type
-        when :identifier, :object, :trait, :return
+        when :identifier, :class, :trait, :return
           steps << identifier_from_token(step)
         when :constant
           symbol = import_symbol_from_token(step)
@@ -1062,23 +1062,17 @@ module Inkoc
       expression(advance!)
     end
 
-    # Parses an object definition.
-    #
-    # Examples:
-    #
-    #     object Person {}
-    #     object Person impl Foo {}
-    #     object Person impl Foo, Bar {}
-    def def_object(start)
+    # Parses a class definition.
+    def def_class(start)
       name = advance_and_expect!(:constant)
       targs = optional_type_parameter_definitions
-      body = object_body(advance_and_expect!(:curly_open))
+      body = class_body(advance_and_expect!(:curly_open))
 
       AST::Object.new(name.value, targs, body, start.location)
     end
 
-    # Parses the body of an object definition.
-    def object_body(start)
+    # Parses the body of a class definition.
+    def class_body(start)
       nodes = []
 
       while (token = @lexer.advance) && token.valid_but_not?(:curly_close)

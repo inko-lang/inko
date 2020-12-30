@@ -81,8 +81,8 @@ Here `send('ping')` sends a message to the process stored in the local variable
 When a message is sent, it's _deep copied_. This means that the sender and
 receiver will both use a different copy of the data sent. Certain types are
 optimised to remove the need for copying. For example, objects of type `Integer`
-are not heap allocated, removing the need for copying. Objects of type `String`
-use reference counting internally, making it cheap to send a `String` from one
+are not heap allocated, removing the need for copying. `String` instances use
+reference counting internally, making it cheap to send a `String` from one
 process to another.
 
 When a process sends a message to itself, the message is not copied.

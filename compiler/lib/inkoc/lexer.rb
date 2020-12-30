@@ -8,7 +8,7 @@ module Inkoc
     IDENTIFIERS = {
       'let' => :let,
       'mut' => :mut,
-      'object' => :object,
+      'class' => :class,
       'trait' => :trait,
       'import' => :import,
       'return' => :return,

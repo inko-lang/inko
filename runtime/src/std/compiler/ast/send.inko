@@ -8,7 +8,7 @@ import std::compiler::types::(BlockType, Type)
 import std::option::Option
 
 # A keyword argument and its value.
-object KeywordArgument {
+class KeywordArgument {
   # The name of the keyword argument.
   @name: Identifier
 
@@ -48,7 +48,7 @@ impl Node for KeywordArgument {
 }
 
 # A message sent to a receiver.
-object Send {
+class Send {
   # The name of the message that is sent.
   @message: String
 

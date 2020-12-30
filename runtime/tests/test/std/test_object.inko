@@ -2,7 +2,7 @@ import std::operators::Equal
 import std::test
 import std::test::assert
 
-object Dummy {
+class Dummy {
   static def new -> Self {
     Self {}
   }

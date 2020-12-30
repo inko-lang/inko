@@ -4,7 +4,7 @@ import std::fs::path::(Path, ToPath)
 import std::range::Range
 
 # The location of a single Inko expression.
-object SourceLocation {
+class SourceLocation {
   # The file path of the expression.
   @file: Path
 

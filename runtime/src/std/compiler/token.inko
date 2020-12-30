@@ -47,7 +47,7 @@ trait Token {
 }
 
 # A regular token used for a variety of inputs.
-object RegularToken {
+class RegularToken {
   # The type of the token.
   @type: String
 
@@ -81,7 +81,7 @@ impl Token for RegularToken {
 }
 
 # A token used for keywords.
-object KeywordToken {
+class KeywordToken {
   # The keyword of this token.
   @keyword: String
 
@@ -112,7 +112,7 @@ impl Token for KeywordToken {
 }
 
 # A token used for invalid input values.
-object InvalidToken {
+class InvalidToken {
   # The value of the token.
   @value: String
 
@@ -147,7 +147,7 @@ impl Token for InvalidToken {
 }
 
 # A token used for indicating a lexer has consumed all input.
-object NullToken {
+class NullToken {
   # The location of the token.
   @location: SourceLocation
 
@@ -183,7 +183,7 @@ impl Token for NullToken {
 }
 
 # A token used for binary operators.
-object BinaryToken {
+class BinaryToken {
   # The type of the token.
   @type: String
 
@@ -225,7 +225,7 @@ impl Token for BinaryToken {
 }
 
 # A token used for binary assignment operators.
-object BinaryAssignToken {
+class BinaryAssignToken {
   # The type of the token.
   @type: String
 

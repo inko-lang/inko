@@ -4,11 +4,11 @@ import std::compiler::ast::body::Body
 import std::compiler::ast::node::*
 import std::compiler::ast::variables::(Constant, DefineTypeParameter)
 import std::compiler::source_location::SourceLocation
-import std::compiler::types::(ObjectInstance, ObjectType, Type, TraitType)
+import std::compiler::types::(ClassInstance, ClassType, Type, TraitType)
 import std::option::Option
 
-# A named object defined using the "object" keyword.
-object DefineObject {
+# A class definition.
+class DefineClass {
   # The name of the defined object.
   @name: String
 
@@ -22,7 +22,7 @@ object DefineObject {
   @location: SourceLocation
 
   # The type of this AST node.
-  @resolved_type: ?ObjectType
+  @resolved_type: ?ClassType
 
   static def new(
     name: String,
@@ -55,12 +55,12 @@ object DefineObject {
   }
 }
 
-impl Node for DefineObject {
-  def resolved_type -> ?ObjectType {
+impl Node for DefineClass {
+  def resolved_type -> ?ClassType {
     @resolved_type
   }
 
-  def resolved_type=(type: ObjectType) -> ObjectType {
+  def resolved_type=(type: ClassType) -> ClassType {
     @resolved_type = Option.some(type)
     type
   }
@@ -71,7 +71,7 @@ impl Node for DefineObject {
 }
 
 # The definition of an attribute in an object.
-object DefineAttribute {
+class DefineAttribute {
   # The name of the attribute.
   @name: String
 
@@ -124,7 +124,7 @@ impl Node for DefineAttribute {
 }
 
 # A trait defined using the "trait" keyword.
-object DefineTrait {
+class DefineTrait {
   # The name of the trait that is defined.
   @name: String
 
@@ -198,12 +198,12 @@ impl Node for DefineTrait {
 
 
 # The implementation of a trait for an object.
-object ImplementTrait {
+class ImplementTrait {
   # The name of the trait that is implemented.
   @trait_name: Constant
 
   # The name of the object to implement the trait for.
-  @object_name: Constant
+  @class_name: Constant
 
   # Additional type parameter bounds that a concrete type must implement for
   # this trait to be available.
@@ -217,14 +217,14 @@ object ImplementTrait {
 
   static def new(
     trait_name: Constant,
-    object_name: Constant,
+    class_name: Constant,
     type_parameter_bounds: Array!(DefineTypeParameter),
     body: Body,
     location: SourceLocation
   ) -> Self {
     Self {
       @trait_name = trait_name,
-      @object_name = object_name,
+      @class_name = class_name,
       @type_parameter_bounds = type_parameter_bounds,
       @body = body,
       @location = location
@@ -237,8 +237,8 @@ object ImplementTrait {
   }
 
   # Returns the name of the object the trait is implemented for.
-  def object_name -> Constant {
-    @object_name
+  def class_name -> Constant {
+    @class_name
   }
 
   # Returns the type parameter bounds of the implementation.
@@ -269,7 +269,7 @@ impl Node for ImplementTrait {
 }
 
 # An object that is reopened.
-object ReopenObject {
+class ReopenObject {
   # The name of the object that is reopened.
   @name: Constant
 
@@ -280,7 +280,7 @@ object ReopenObject {
   @location: SourceLocation
 
   # The type of this AST node.
-  @resolved_type: ?ObjectType
+  @resolved_type: ?ClassType
 
   static def new(name: Constant, body: Body, location: SourceLocation) -> Self {
     Self {
@@ -303,11 +303,11 @@ object ReopenObject {
 }
 
 impl Node for ReopenObject {
-  def resolved_type -> ?ObjectType {
+  def resolved_type -> ?ClassType {
     @resolved_type
   }
 
-  def resolved_type=(type: ObjectType) -> ObjectType {
+  def resolved_type=(type: ClassType) -> ClassType {
     @resolved_type = Option.some(type)
     type
   }
@@ -318,7 +318,7 @@ impl Node for ReopenObject {
 }
 
 # An attribute that is assigned in a constructor.
-object ConstructorAttribute {
+class ConstructorAttribute {
   # The name of the attribute.
   @name: String
 
@@ -352,7 +352,7 @@ impl Node for ConstructorAttribute {
 }
 
 # An object constructor.
-object Constructor {
+class Constructor {
   # The name of the type to create an instance of.
   @name: String
 

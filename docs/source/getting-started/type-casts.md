@@ -26,8 +26,9 @@ let value = 'hello' as ToString
 value as String
 ```
 
-Casting an object to a trait, or a trait to an object, only works if the object
-implements the trait. Thus, this is not valid:
+Casting an class instance to a trait instance, or a trait instance to a class
+instance, only works if the class implements the trait. Thus, this is not
+valid:
 
 ```inko
 trait NotImplemented {}

@@ -6,7 +6,7 @@ import std::map::Map
 import std::option::Option
 
 # Information of a single symbol, such as an identifier or a constant.
-object Symbol!(T) {
+class Symbol!(T) {
   # The name of the symbol.
   @name: String
 
@@ -42,7 +42,7 @@ object Symbol!(T) {
 
 # A collection of symbols and associated information such as their types, mapped
 # to their names.
-object SymbolTable!(T) {
+class SymbolTable!(T) {
   # The names of the symbols and their corresponding Symbol objects.
   @mapping: Map!(String, Symbol!(T))
 

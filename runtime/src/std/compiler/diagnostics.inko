@@ -13,7 +13,7 @@ let ERROR = 'error'
 let WARNING = 'warning'
 
 # A single warning or error produced by the compiler.
-object Diagnostic {
+class Diagnostic {
   # The level of the diagnostic.
   @level: String
 
@@ -51,7 +51,7 @@ object Diagnostic {
 }
 
 # A collection of Diagnostic objects produced by the compiler.
-object Diagnostics {
+class Diagnostics {
   # The collection of diagnostics produced so far.
   @values: Array!(Diagnostic)
 

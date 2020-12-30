@@ -8,7 +8,7 @@ import std::operators::Equal
 import std::option::Option
 
 # The name of a module.
-object ModuleName {
+class ModuleName {
   # The components of the module name.
   #
   # For example, the module name `std::foo` would translate to

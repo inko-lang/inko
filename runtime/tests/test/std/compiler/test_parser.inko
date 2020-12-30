@@ -241,19 +241,19 @@ test.group('Parsing literls') do (g) {
   }
 }
 
-test.group('Parsing object definitions') do (g) {
+test.group('Parsing class definitions') do (g) {
   g.test('Parsing an empty body') {
-    let node = parse_as(input: 'object A {}', type: DefineObject)
+    let node = parse_as(input: 'class A {}', type: DefineClass)
 
     assert.equal(node.name, 'A')
     assert.true(node.body.children.empty?)
-    assert.equal(node.body.location.column, 10)
+    assert.equal(node.body.location.column, 9)
   }
 
   g.test('Parsing an object definition with type parameters') {
     let node = parse_as(
-      input: 'object A!(One: A, Two: B + C) {}',
-      type: DefineObject
+      input: 'class A!(One: A, Two: B + C) {}',
+      type: DefineClass
     )
 
     let params = node.type_parameters
@@ -261,47 +261,47 @@ test.group('Parsing object definitions') do (g) {
     assert.equal(params.length, 2)
 
     assert.equal(params[0].name, 'One')
-    assert.equal(params[0].location.column, 11)
+    assert.equal(params[0].location.column, 10)
 
     assert.equal(params[0].required_traits[0].name, 'A')
-    assert.equal(params[0].required_traits[0].location.column, 16)
+    assert.equal(params[0].required_traits[0].location.column, 15)
 
     assert.equal(params[1].name, 'Two')
-    assert.equal(params[1].location.column, 19)
+    assert.equal(params[1].location.column, 18)
 
     assert.equal(params[1].required_traits[0].name, 'B')
-    assert.equal(params[1].required_traits[0].location.column, 24)
+    assert.equal(params[1].required_traits[0].location.column, 23)
 
     assert.equal(params[1].required_traits[1].name, 'C')
-    assert.equal(params[1].required_traits[1].location.column, 28)
+    assert.equal(params[1].required_traits[1].location.column, 27)
   }
 
   g.test('Parsing an invalid list of type parameters') {
-    assert.panic { parse('object A!(Foo, {}') }
+    assert.panic { parse('class A!(Foo, {}') }
   }
 
   g.test('Parsing an object body without a closing curly brace') {
-    assert.panic { parse('object A {') }
+    assert.panic { parse('class A {') }
   }
 
   g.test('Parsing an object body with invalid child nodes') {
-    assert.panic { parse('object A { 10 }') }
+    assert.panic { parse('class A { 10 }') }
   }
 
   g.test('Parsing an object without a name') {
-    assert.panic { parse('object {}') }
+    assert.panic { parse('class {}') }
   }
 
   g.test('Parsing an object containing a method') {
     let node =
-      parse_as(input: 'object A { def foo {} }', type: DefineObject)
+      parse_as(input: 'class A { def foo {} }', type: DefineClass)
 
     assert_instance_of(node.body.children[0], DefineMethod)
   }
 
   g.test('Parsing an object containing attribute definitions') {
     let node =
-      parse_as(input: 'object A { @a: A @b: B }', type: DefineObject)
+      parse_as(input: 'class A { @a: A @b: B }', type: DefineClass)
 
     assert.equal(node.body.children.length, 2)
 
@@ -316,7 +316,7 @@ test.group('Parsing object definitions') do (g) {
   }
 
   g.test('Parsing an object defining a required method') {
-    assert.panic { parse('object A { def foo }') }
+    assert.panic { parse('class A { def foo }') }
   }
 }
 
@@ -448,8 +448,8 @@ test.group('Parsing implementation blocks') do (g) {
     assert.equal(node.trait_name.name, 'A')
     assert.equal(node.trait_name.location.column, 6)
 
-    assert.equal(node.object_name.name, 'B')
-    assert.equal(node.object_name.location.column, 12)
+    assert.equal(node.class_name.name, 'B')
+    assert.equal(node.class_name.location.column, 12)
   }
 
   g.test('Implementing a trait with type arguments') {
@@ -458,8 +458,8 @@ test.group('Parsing implementation blocks') do (g) {
     assert.equal(node.trait_name.name, 'A')
     assert.equal((node.trait_name.type_arguments[0] as Constant).name, 'C')
 
-    assert.equal(node.object_name.name, 'B')
-    assert.true(node.object_name.type_arguments.empty?)
+    assert.equal(node.class_name.name, 'B')
+    assert.true(node.class_name.type_arguments.empty?)
   }
 
   g.test('Implementing a trait with type parameter bounds') {
@@ -1377,7 +1377,7 @@ test.group('Parsing method definitions') do (g) {
 
   g.test('Parsing a static method when defining an object') {
     let node =
-      parse_as(input: 'object A { static def foo {} }', type: DefineObject)
+      parse_as(input: 'class A { static def foo {} }', type: DefineClass)
 
     let method = node.body.children[0] as DefineMethod
 

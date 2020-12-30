@@ -99,7 +99,7 @@ message, the message is (deep) copied into the receiving process' heap.
 The permanent heap is a global heap that is not garbage collected. This heap is
 primarily used for storing permanent objects, such as modules. Objects in this
 heap can never refer to non permanent objects, so writing any non permanent
-object to a permanent object will result in a copy being written instead. This
+class to a permanent object will result in a copy being written instead. This
 removes the need for the GC having to check the permanent heap to determine if a
 process-local object can be garbage collected, at the cost of requiring a bit
 more memory.

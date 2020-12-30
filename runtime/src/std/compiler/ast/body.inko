@@ -7,7 +7,7 @@ import std::compiler::variable_scope::VariableScope
 import std::option::Option
 
 # A collection of different expressions.
-object Body {
+class Body {
   # The nodes stored in this collection of expressions.
   @children: Array!(Node)
 

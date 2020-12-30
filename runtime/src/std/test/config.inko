@@ -39,7 +39,7 @@ let DEFAULT_CONCURRENCY = 32
 #     config['concurrency'] = 16
 #
 #     config.concurrency # => 16
-object Configuration {
+class Configuration {
   # The number of tests to execute concurrently.
   @concurrency: Integer
 

@@ -1,7 +1,7 @@
 # AST types for literal values, such as integers and strings.
 import std::compiler::ast::node::*
 import std::compiler::source_location::SourceLocation
-import std::compiler::types::ObjectInstance
+import std::compiler::types::ClassInstance
 import std::option::Option
 
 # A simple literal value, such as an integer or a float.
@@ -11,7 +11,7 @@ trait Literal: Node {
 }
 
 # AST node for integer literals.
-object IntegerLiteral {
+class IntegerLiteral {
   # The value of the literal.
   @value: String
 
@@ -19,7 +19,7 @@ object IntegerLiteral {
   @location: SourceLocation
 
   # The type of this AST node.
-  @resolved_type: ?ObjectInstance
+  @resolved_type: ?ClassInstance
 
   static def new(value: String, location: SourceLocation) -> Self {
     Self { @value = value, @location = location, @resolved_type = Option.none }
@@ -27,11 +27,11 @@ object IntegerLiteral {
 }
 
 impl Node for IntegerLiteral {
-  def resolved_type -> ?ObjectInstance {
+  def resolved_type -> ?ClassInstance {
     @resolved_type
   }
 
-  def resolved_type=(value: ObjectInstance) -> ObjectInstance {
+  def resolved_type=(value: ClassInstance) -> ClassInstance {
     @resolved_type = Option.some(value)
     value
   }
@@ -48,7 +48,7 @@ impl Literal for IntegerLiteral {
 }
 
 # AST node for float literals.
-object FloatLiteral {
+class FloatLiteral {
   # The value of the literal.
   @value: String
 
@@ -56,7 +56,7 @@ object FloatLiteral {
   @location: SourceLocation
 
   # The type of this AST node.
-  @resolved_type: ?ObjectInstance
+  @resolved_type: ?ClassInstance
 
   static def new(value: String, location: SourceLocation) -> Self {
     Self { @value = value, @location = location, @resolved_type = Option.none }
@@ -64,12 +64,12 @@ object FloatLiteral {
 }
 
 impl Node for FloatLiteral {
-  def resolved_type=(value: ObjectInstance) -> ObjectInstance {
+  def resolved_type=(value: ClassInstance) -> ClassInstance {
     @resolved_type = Option.some(value)
     value
   }
 
-  def resolved_type -> ?ObjectInstance {
+  def resolved_type -> ?ClassInstance {
     @resolved_type
   }
 
@@ -85,7 +85,7 @@ impl Literal for FloatLiteral {
 }
 
 # AST node for string literals.
-object StringLiteral {
+class StringLiteral {
   # The value of the literal.
   @value: String
 
@@ -93,7 +93,7 @@ object StringLiteral {
   @location: SourceLocation
 
   # The type of this AST node.
-  @resolved_type: ?ObjectInstance
+  @resolved_type: ?ClassInstance
 
   static def new(value: String, location: SourceLocation) -> Self {
     Self { @value = value, @location = location, @resolved_type = Option.none }
@@ -101,11 +101,11 @@ object StringLiteral {
 }
 
 impl Node for StringLiteral {
-  def resolved_type -> ?ObjectInstance {
+  def resolved_type -> ?ClassInstance {
     @resolved_type
   }
 
-  def resolved_type=(value: ObjectInstance) -> ObjectInstance {
+  def resolved_type=(value: ClassInstance) -> ClassInstance {
     @resolved_type = Option.some(value)
     value
   }

@@ -50,7 +50,7 @@ Let's say we want to create an iterator that yields the first 5 values in an
 ```inko
 import std::iterator::Iterator
 
-object LimitedIterator!(T) {
+class LimitedIterator!(T) {
   @array: Array!(T)
   @index: Integer
 

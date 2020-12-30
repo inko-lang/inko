@@ -51,7 +51,7 @@
 #
 #     import std::mirror
 #
-#     object Person {
+#     class Person {
 #       @name: String
 #
 #       static def new(name: String) -> Self {
@@ -68,7 +68,7 @@
 #
 #     import std::mirror
 #
-#     object Person {
+#     class Person {
 #       @name: String
 #
 #       static def new(name: String) -> Self {
@@ -142,7 +142,7 @@ trait Mirror: Format {
   #
   #     import std::mirror::ObjectMirror
   #
-  #     object Dummy {}
+  #     class Dummy {}
   #
   #     let obj = Dummy {}
   #     let mirror = ObjectMirror.new(obj)
@@ -153,7 +153,7 @@ trait Mirror: Format {
   #
   #     import std::mirror::ObjectMirror
   #
-  #     object Dummy {
+  #     class Dummy {
   #       @name: String
   #     }
   #
@@ -173,7 +173,7 @@ trait Mirror: Format {
   #
   #     import std::mirror::ObjectMirror
   #
-  #     object Person {
+  #     class Person {
   #       @name: String
   #
   #       static def new(name: String) -> Self {
@@ -224,7 +224,7 @@ trait Mirror: Format {
   #     trait Trait1 {}
   #     trait Trait2 {}
   #
-  #     object ExampleObject impl Trait1 {}
+  #     class ExampleObject impl Trait1 {}
   #
   #     let mirror = ObjectMirror.new(ExampleObject.new)
   #
@@ -262,7 +262,7 @@ trait Mirror: Format {
   #     import std::conversion::ToString
   #     import std::mirror::ObjectMirror
   #
-  #     object Person impl ToString {
+  #     class Person impl ToString {
   #       def to_string -> String {
   #         'Alice'
   #       }
@@ -284,7 +284,7 @@ trait Mirror: Format {
   #
   #     import std::mirror::ObjectMirror
   #
-  #     object Person {
+  #     class Person {
   #       @name: String
   #
   #       static def new(name: String) -> Self {
@@ -324,7 +324,7 @@ trait Mirrored {
 }
 
 # A generic mirror for a regular object.
-object ObjectMirror {
+class ObjectMirror {
   # The object that is being mirrored.
   @subject: Any
 
@@ -356,7 +356,7 @@ object ObjectMirror {
   #
   #     import std::mirror::ObjectMirror
   #
-  #     object Person {}
+  #     class Person {}
   #
   #     ObjectMirror.new(Person).name # => 'Person'
   def name -> String {
@@ -401,7 +401,7 @@ impl Mirror for ObjectMirror {
 }
 
 # A mirror for a `Block`.
-object BlockMirror {
+class BlockMirror {
   # The block that is being mirrored.
   @subject: Block
 
@@ -506,7 +506,7 @@ impl Mirror for BlockMirror {
 }
 
 # A mirror for a `Module`.
-object ModuleMirror {
+class ModuleMirror {
   @subject: Module
 
   static def new(subject: Module) -> Self {
@@ -540,7 +540,7 @@ impl Mirror for ModuleMirror {
 }
 
 # A mirror for an `Array`.
-object ArrayMirror!(T) {
+class ArrayMirror!(T) {
   # The `Array` that is mirrored.
   @subject: Array!(T)
 
@@ -577,7 +577,7 @@ impl Mirror for ArrayMirror {
 }
 
 # A mirror for a `ByteArray`.
-object ByteArrayMirror {
+class ByteArrayMirror {
   # The `ByteArray` that is mirrored.
   @subject: ByteArray
 
@@ -602,7 +602,7 @@ impl Mirror for ByteArrayMirror {
 }
 
 # A mirror for a `Map`
-object MapMirror!(K: Hash + Equal, V) {
+class MapMirror!(K: Hash + Equal, V) {
   # The `Map` that is mirrored.
   @subject: Map!(K, V)
 
@@ -649,7 +649,7 @@ impl Mirror for MapMirror {
 }
 
 # A mirror for a `Set`.
-object SetMirror!(V: Hash + Equal) {
+class SetMirror!(V: Hash + Equal) {
   # The `Set` that is mirrored.
   @subject: Set!(V)
 
@@ -690,7 +690,7 @@ impl Mirror for SetMirror {
 }
 
 # A mirror for a `Pair`.
-object PairMirror!(A, B) {
+class PairMirror!(A, B) {
   # The `Pair` that is mirrored
   @subject: Pair!(A, B)
 
@@ -725,7 +725,7 @@ impl Mirror for PairMirror {
 }
 
 # A mirror for a `Triple`.
-object TripleMirror!(A, B, C) {
+class TripleMirror!(A, B, C) {
   # The `Triple` that is mirrored
   @subject: Triple!(A, B, C)
 
@@ -768,7 +768,7 @@ impl Mirror for TripleMirror {
 }
 
 # A mirror for an `Integer`.
-object IntegerMirror {
+class IntegerMirror {
   # The `Integer` that is mirrored.
   @subject: Integer
 
@@ -791,7 +791,7 @@ impl Mirror for IntegerMirror {
 }
 
 # A mirror for a `Float`.
-object FloatMirror {
+class FloatMirror {
   # The `Float` that is mirrored.
   @subject: Float
 
@@ -814,7 +814,7 @@ impl Mirror for FloatMirror {
 }
 
 # A mirror for a `String`.
-object StringMirror {
+class StringMirror {
   # The `String` that is mirrored.
   @subject: String
 
@@ -837,7 +837,7 @@ impl Mirror for StringMirror {
 }
 
 # A mirror for a `Boolean`
-object BooleanMirror {
+class BooleanMirror {
   # The `Boolean` that is mirrored.
   @subject: Boolean
 
@@ -860,7 +860,7 @@ impl Mirror for BooleanMirror {
 }
 
 # A mirror for `Nil`
-object NilMirror {
+class NilMirror {
   # The `Nil` that is mirrored.
   @subject: Nil
 
@@ -883,7 +883,7 @@ impl Mirror for NilMirror {
 }
 
 # A mirror for an `Option`.
-object OptionMirror!(T) {
+class OptionMirror!(T) {
   @subject: ?T
 
   static def new!(T)(subject: ?T) -> OptionMirror!(T) {

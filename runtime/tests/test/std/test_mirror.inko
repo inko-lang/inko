@@ -17,7 +17,7 @@ let CURRENT_FILE = ModuleMirror.new(ThisModule).source_path
 trait Trait1 {}
 trait Trait2 {}
 
-object Dummy {
+class Dummy {
   @name: String
   @age: Integer
 
@@ -31,13 +31,13 @@ object Dummy {
 impl Equal for Dummy {}
 impl Trait1 for Dummy {}
 
-object EmptyObject {
+class EmptyObject {
   static def new -> Self {
     Self {}
   }
 }
 
-object OneAttribute {
+class OneAttribute {
   @number: Integer
 
   static def new -> Self {
@@ -45,7 +45,7 @@ object OneAttribute {
   }
 }
 
-object TwoAttributes {
+class TwoAttributes {
   @first: String
   @second: Integer
 
@@ -54,7 +54,7 @@ object TwoAttributes {
   }
 }
 
-object NestedObject {
+class NestedObject {
   @child: OneAttribute
 
   static def new -> Self {
@@ -62,13 +62,13 @@ object NestedObject {
   }
 }
 
-object Foo {
+class Foo {
   static def new -> Self {
     Self {}
   }
 }
 
-object FooMirror {
+class FooMirror {
   @subject: Foo
 
   static def new(subject: Foo) -> Self {

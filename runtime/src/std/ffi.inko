@@ -271,7 +271,7 @@ impl Library {
 }
 
 # A member in a structure.
-object Member {
+class Member {
   # The name of this `Member`.
   @name: String
 
@@ -303,7 +303,7 @@ object Member {
 
 # The members, alignment, and other information used for building a C
 # structure.
-object Layout {
+class Layout {
   # The members of this layout, mapped to their names.
   @members: Map!(String, Member)
 
@@ -341,7 +341,7 @@ object Layout {
 }
 
 # A C structure.
-object Struct {
+class Struct {
   # The pointer to the C address that contains the structure.
   @pointer: Pointer
 
@@ -396,7 +396,7 @@ impl Layout {
 }
 
 # An object used for constructing an immutable `Layout`.
-object LayoutBuilder {
+class LayoutBuilder {
   # The names of all members, in the order they are defined in.
   @members: Array!(String)
 
@@ -515,7 +515,7 @@ impl SetIndex!(String, Type) for LayoutBuilder {
 # A Type is just a simple wrapper around an Integer. The use of a `Type`
 # instead of a regular `Integer` makes it a little more difficult to use
 # incorrect type identifiers when attaching C functions.
-object Type {
+class Type {
   # The numeric identifier of this type.
   @id: Integer
 

@@ -25,7 +25,7 @@ trait Formatter: ToString {
 }
 
 # The default formatter to use when formatting an object.
-object DefaultFormatter {
+class DefaultFormatter {
   # The buffer to use for the formatting output.
   @buffer: StringBuffer
 

@@ -14,7 +14,7 @@ let INSTRUCTION_RECEIVER_NAME = '_INKOC'
 
 # A type for storing compiler settings, such as the source directories to search
 # through.
-object Config {
+class Config {
   # The source directories to search through when importing a module.
   @source_directories: Array!(Path)
 

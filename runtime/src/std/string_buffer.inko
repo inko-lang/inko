@@ -44,7 +44,7 @@ import std::length::Length
 #     let buffer = StringBuffer.new('foo', 'bar', 'baz')
 #
 #     buffer.to_string # => 'foobarbaz'
-object StringBuffer {
+class StringBuffer {
   # The `String` objects that have been buffered so far.
   @strings: Array!(String)
 

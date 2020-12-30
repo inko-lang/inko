@@ -20,7 +20,7 @@ let TIME_IN_SECONDS_THRESHOLD = 1.0
 #
 # Passed tests are displayed as a ".", while failed tests are displayed as "F".
 # All output is written to STDOUT.
-object ProgressFormatter {
+class ProgressFormatter {
   # The number of failed tests.
   @failed: Integer
 

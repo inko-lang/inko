@@ -5,7 +5,7 @@ import std::compiler::source_location::SourceLocation
 #
 # Comments are not stored in the AST but separately, and thus are also not
 # treated as AST nodes.
-object Comment {
+class Comment {
   # The text of the comment, excluding the comment character (`#`).
   @text: String
 

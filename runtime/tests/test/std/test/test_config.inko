@@ -8,7 +8,7 @@ import std::test::formatters::ProgressFormatter
 import std::test::test::Test
 import std::time::Duration
 
-object DummyFormatter {
+class DummyFormatter {
   static def new -> Self {
     Self {}
   }

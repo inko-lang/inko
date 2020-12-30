@@ -3,7 +3,7 @@ import std::pair::Pair
 import std::test
 import std::test::assert
 
-object EmptyIterator {
+class EmptyIterator {
   static def new -> Self {
     Self {}
   }
@@ -15,7 +15,7 @@ impl Iterator!(Integer, Never) for EmptyIterator {
   }
 }
 
-object SimpleIterator {
+class SimpleIterator {
   @values: Array!(Integer)
   @index: Integer
 

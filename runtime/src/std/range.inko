@@ -17,7 +17,7 @@ import std::successor::Successor
 #
 # 1. They are both of the same type.
 # 2. Both implement the `Successor` and `SmallerOrEqual` traits.
-object Range!(T: Successor + SmallerOrEqual) {
+class Range!(T: Successor + SmallerOrEqual) {
   # The start value of the range.
   @start: T
 

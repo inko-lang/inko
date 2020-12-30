@@ -5,7 +5,7 @@ import std::loop::(while)
 import std::option::Option
 
 # A scope to use for looking up local variables.
-object VariableScope {
+class VariableScope {
   # The symbol table that contains all local variables defined in this scope.
   @symbols: SymbolTable!(Type)
 

@@ -8,7 +8,7 @@ import std::loop::(while)
 import std::operators::Equal
 
 # Details of a single call frame in a call stack.
-object CallFrame {
+class CallFrame {
   # The path of the file the frame belongs to.
   @path: Path
 

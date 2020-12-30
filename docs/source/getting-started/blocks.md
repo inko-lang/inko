@@ -14,9 +14,9 @@ methods, required methods, default methods, and module methods.
 
 A module method is simple a method defined inside a module.
 
-Objects can have static and instance methods, while traits can have required and
-default methods. We cover methods for traits and objects in greater detail in
-the chapters [Objects](objects.md) and [Traits](traits.md).
+Classes can have static and instance methods, while traits can have required and
+default methods. We cover methods for traits and classes in greater detail in
+the chapters [Classes](classes.md) and [Traits](traits.md).
 
 ## Calling methods
 

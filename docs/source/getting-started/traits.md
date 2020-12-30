@@ -19,7 +19,7 @@ trait ToString {
 ```
 
 You can't create an instance of a trait. Instead, traits act like blueprints to
-be implemented by objects.
+be implemented by classes.
 
 ## Implementing traits
 
@@ -30,7 +30,7 @@ trait ToString {
 
 }
 
-object Number {
+class Number {
 
 }
 
@@ -42,7 +42,7 @@ impl ToString for Number {
 Inko uses nominal typing, so a trait is not implemented unless you explicitly do
 so using the `impl` keyword.
 
-A trait can only be implemented once for an object. If a method in a trait
+A trait can only be implemented once for a class. If a method in a trait
 conflicts with that of another trait, the trait can't be implemented; requiring
 you to resolve the conflict somehow.
 
@@ -53,7 +53,7 @@ you to resolve the conflict somehow.
 ## Trait requirements
 
 When defining a trait, you can specify one or more traits as requirements. When
-an object implements a trait with one or more of such requirements, the object
+a class implements a trait with one or more of such requirements, the class
 must also implement those traits:
 
 ```inko
@@ -85,7 +85,7 @@ trait Display: ToString + Format {
 
 ## Required methods
 
-Traits can define methods that an object must implement. To define a required
+Traits can define methods that a class must implement. To define a required
 method, use the `def` keyword like regular methods and leave out the method
 body:
 
@@ -114,9 +114,9 @@ trait Printer {
 
 ## Default methods
 
-We define default methods like any other method. When an object implements a
-trait with a default method, that method becomes available to the object.
-An object is free to redefine the default method's implementation:
+We define default methods like any other method. When a class implements a trait
+with a default method, that method becomes available to the object. An object
+is free to redefine the default method's implementation:
 
 ```inko
 trait ToString {
@@ -125,7 +125,7 @@ trait ToString {
   }
 }
 
-object Fireworks {
+class Fireworks {
 
 }
 

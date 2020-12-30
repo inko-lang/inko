@@ -6,7 +6,7 @@ import std::compiler::types::Type
 import std::option::Option
 
 # An expression that should be casted to a different type.
-object TypeCast {
+class TypeCast {
   # The expression of which the type should be casted to something else.
   @expression: Node
 

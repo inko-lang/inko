@@ -36,7 +36,7 @@ def assert_instance_of(node: Node, instance_of: Node) {
 
 test.group('std::compiler::desugar.add_object_implementation') do (g) {
   g.test('Adding the implementation of the Object trait') {
-    let body = parse('object A {}')
+    let body = parse('class A {}')
     let module = module_name('foo')
 
     desugar.add_object_implementation(name: module, body: body)
@@ -45,14 +45,14 @@ test.group('std::compiler::desugar.add_object_implementation') do (g) {
 
     let impl_node = body.children[1] as ImplementTrait
 
-    assert.equal(impl_node.object_name.name, 'A')
+    assert.equal(impl_node.class_name.name, 'A')
     assert.equal(impl_node.trait_name.name, OBJECT_TRAIT)
     assert.true(impl_node.body.children.empty?)
     assert.same_object(impl_node.location, body.children[0].location)
   }
 
   g.test("The Object trait isn't implemented in std::bootstrap") {
-    let body = parse('object A {}')
+    let body = parse('class A {}')
 
     desugar.add_object_implementation(name: BOOTSTRAP_MODULE, body: body)
 

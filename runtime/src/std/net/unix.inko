@@ -37,7 +37,7 @@ let SEQPACKET = SOCK_SEQPACKET
 let RAW = SOCK_RAW
 
 # A Unix domain socket address.
-object SocketAddress {
+class SocketAddress {
   # The path or name of the address.
   #
   # This is a `String` since using a `Path` does not make sense for abstract
@@ -372,7 +372,7 @@ impl Close for Socket {
 }
 
 # A Unix datagram socket.
-object UnixDatagram {
+class UnixDatagram {
   # The raw `Socket` wrapped by this `UnixDatagram`.
   @socket: Socket
 
@@ -484,7 +484,7 @@ impl Close for UnixDatagram {
 }
 
 # A Unix stream socket connected to another Unix socket.
-object UnixStream {
+class UnixStream {
   # The raw `Socket` wrapped by this `UnixStream`.
   @socket: Socket
 
@@ -572,7 +572,7 @@ impl Close for UnixStream {
 }
 
 # A Unix socket server that can accept incoming connections.
-object UnixListener {
+class UnixListener {
   # The raw `Socket` wrapped by this `UnixListener`.
   @socket: Socket
 

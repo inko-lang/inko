@@ -7,7 +7,7 @@ import std::operators::Equal
 import std::test
 import std::test::assert
 
-object DummyType {
+class DummyType {
   static def new -> Self {
     Self {}
   }
@@ -29,7 +29,7 @@ impl Type for DummyType {
   }
 }
 
-object DummyBlock {
+class DummyBlock {
   @layout: BlockLayout
 
   static def new -> Self {
@@ -95,8 +95,8 @@ def new_module(name = 'foo') -> ModuleType {
   ModuleType.new(ModuleName.new(Array.new(name)))
 }
 
-def with_generic_type(block: do (ObjectInstance, TypeParameterType)) {
-  let array_type = ObjectType.new('Array')
+def with_generic_type(block: do (ClassInstance, TypeParameterType)) {
+  let array_type = ClassType.new('Array')
   let param = TypeParameterType.new('T')
 
   array_type.type_parameters.define(name: param.name, type: param)
@@ -235,7 +235,7 @@ test.group('std::compiler::types::TypeParameterTypes.assign_in_order') do (g) {
     let param1 = TypeParameterType.new('A')
     let param2 = TypeParameterType.new('B')
     let types = TypeParameterTypes.new
-    let type1 = ObjectType.new('A')
+    let type1 = ClassType.new('A')
     let type2 = NeverType.new
 
     table.define(name: param1.name, type: param1)
@@ -256,7 +256,7 @@ test.group('std::compiler::types::TypeParameterTypes.substitute') do (g) {
     let param1 = TypeParameterType.new('A')
     let param2 = TypeParameterType.new('B')
     let types = TypeParameterTypes.new
-    let self_type = ObjectType.new('String')
+    let self_type = ClassType.new('String')
 
     types[param1] = SelfType.new
     types[param2] = NeverType.new
@@ -275,9 +275,9 @@ test.group('std::compiler::types::TypeParameterTypes.type_compatible?') do (g) {
     let types3 = TypeParameterTypes.new
     let param1 = TypeParameterType.new('A')
     let param2 = TypeParameterType.new('B')
-    let self_type = ObjectType.new('Foo')
+    let self_type = ClassType.new('Foo')
     let builtins = Builtins.new
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
     let scope = TypeScope.new(module: new_module, self_type: self_type)
 
     types1[param1] = object_type
@@ -316,7 +316,7 @@ test.group('std::compiler::types::TypeParameterTypes.copy_into_type') do (g) {
     let builtins = Builtins.new
     let param1 = TypeParameterType.new('A')
     let param2 = TypeParameterType.new('B')
-    let list_type = ObjectType.new('List')
+    let list_type = ClassType.new('List')
 
     list_type.type_parameters.define(name: param1.name, type: param1)
 
@@ -336,7 +336,7 @@ test.group('std::compiler::types::TypeParameterTypes.copy_into_type') do (g) {
     let builtins = Builtins.new
     let param1 = TypeParameterType.new('A')
     let param2 = TypeParameterType.new('B')
-    let to_list_type = ObjectType.new('ToList')
+    let to_list_type = ClassType.new('ToList')
 
     to_list_type.type_parameters.define(name: param1.name, type: param1)
 
@@ -356,7 +356,7 @@ test.group('std::compiler::types::TypeParameterTypes.copy_into_type') do (g) {
     let builtins = Builtins.new
     let param1 = TypeParameterType.new('A')
     let param2 = TypeParameterType.new('B')
-    let list_type = ObjectType.new('List')
+    let list_type = ClassType.new('List')
     let list_instance = list_type.new_instance
     let ptypes = TypeParameterTypes.new
 
@@ -555,12 +555,12 @@ test.group('std::compiler::types::NeverType.type_compatible?') do (g) {
     assert_compatible(NeverType.new, NeverType.new)
   }
 
-  g.test('Comparing a NeverType with an ObjectType') {
-    assert_compatible(NeverType.new, ObjectType.new('String'))
+  g.test('Comparing a NeverType with an ClassType') {
+    assert_compatible(NeverType.new, ClassType.new('String'))
   }
 
-  g.test('Comparing a NeverType with an ObjectInstance') {
-    let instance = ObjectInstance.new(ObjectType.new('String'))
+  g.test('Comparing a NeverType with an ClassInstance') {
+    let instance = ClassInstance.new(ClassType.new('String'))
 
     assert_compatible(NeverType.new, instance)
   }
@@ -586,7 +586,7 @@ test.group('std::compiler::types::NeverType.type_compatible?') do (g) {
 
   g.test('Comparing a NeverType with an assigned TypeParameterType') {
     with_generic_type do (type, param) {
-      let assigned = ObjectType.new('Foo')
+      let assigned = ClassType.new('Foo')
 
       type.assign_type_parameter(parameter: param, type: assigned)
 
@@ -629,12 +629,12 @@ test.group('std::compiler::types::InferType.type_compatible?') do (g) {
     assert_not_compatible(InferType.new, NeverType.new)
   }
 
-  g.test('Comparing an InferType with an ObjectType') {
-    assert_not_compatible(InferType.new, ObjectType.new('String'))
+  g.test('Comparing an InferType with an ClassType') {
+    assert_not_compatible(InferType.new, ClassType.new('String'))
   }
 
-  g.test('Comparing an InferType with an ObjectInstance') {
-    let instance = ObjectInstance.new(ObjectType.new('String'))
+  g.test('Comparing an InferType with an ClassInstance') {
+    let instance = ClassInstance.new(ClassType.new('String'))
 
     assert_not_compatible(InferType.new, instance)
   }
@@ -659,7 +659,7 @@ test.group('std::compiler::types::InferType.type_compatible?') do (g) {
 
   g.test('Comparing an InferType with an assigned TypeParameterType') {
     with_generic_type do (type, param) {
-      let assigned = ObjectType.new('Foo')
+      let assigned = ClassType.new('Foo')
 
       type.assign_type_parameter(parameter: param, type: assigned)
 
@@ -702,12 +702,12 @@ test.group('std::compiler::types::AnyType.type_compatible?') do (g) {
     assert_not_compatible(AnyType.new, NeverType.new)
   }
 
-  g.test('Comparing an AnyType with an ObjectType') {
-    assert_not_compatible(AnyType.new, ObjectType.new('String'))
+  g.test('Comparing an AnyType with an ClassType') {
+    assert_not_compatible(AnyType.new, ClassType.new('String'))
   }
 
-  g.test('Comparing an AnyType with an ObjectInstance') {
-    let instance = ObjectInstance.new(ObjectType.new('String'))
+  g.test('Comparing an AnyType with an ClassInstance') {
+    let instance = ClassInstance.new(ClassType.new('String'))
 
     assert_not_compatible(AnyType.new, instance)
   }
@@ -733,7 +733,7 @@ test.group('std::compiler::types::AnyType.type_compatible?') do (g) {
 
   g.test('Comparing an AnyType with an assigned TypeParameterType') {
     with_generic_type do (type, param) {
-      let assigned = ObjectType.new('Foo')
+      let assigned = ClassType.new('Foo')
 
       type.assign_type_parameter(parameter: param, type: assigned)
 
@@ -758,7 +758,7 @@ test.group('std::compiler::types::AnyType.type_compatible?') do (g) {
     assert_not_compatible(
       compare: AnyType.new,
       with: SelfType.new,
-      self_type: ObjectType.new('String')
+      self_type: ClassType.new('String')
     )
   }
 }
@@ -779,14 +779,14 @@ test.group('std::compiler::types::SelfType.type_compatible?') do (g) {
   g.test('Comparing a SelfType with a type that is not the current Self type') {
     assert_not_compatible(
       compare: SelfType.new,
-      with: ObjectType.new('String'),
+      with: ClassType.new('String'),
       builtins: Builtins.new,
-      self_type: ObjectType.new('Integer')
+      self_type: ClassType.new('Integer')
     )
   }
 
   g.test('Comparing a SelfType with a type that is the current Self type') {
-    let obj_type = ObjectType.new('String')
+    let obj_type = ClassType.new('String')
     let obj_instance = obj_type.new_instance
 
     assert_compatible(
@@ -798,7 +798,7 @@ test.group('std::compiler::types::SelfType.type_compatible?') do (g) {
   }
 
   g.test('Comparing a SelfType with another SelfType') {
-    let obj_type = ObjectType.new('String')
+    let obj_type = ClassType.new('String')
 
     assert_compatible(
       compare: SelfType.new,
@@ -828,7 +828,7 @@ test.group('std::compiler::types::SelfType.type_compatible?') do (g) {
 
 test.group('std::compiler::types::SelfType.substitute') do (g) {
   g.test('Substituting Self for the self type') {
-    let type = ObjectType.new('String')
+    let type = ClassType.new('String')
     let sub = SelfType.new.substitute(type_scope(type))
 
     assert.true(sub.object_instance_of?(type))
@@ -860,12 +860,12 @@ test.group('std::compiler::types::ErrorType.type_compatible?') do (g) {
     assert_compatible(ErrorType.new, NeverType.new)
   }
 
-  g.test('Comparing a ErrorType with an ObjectType') {
-    assert_compatible(ErrorType.new, ObjectType.new('String'))
+  g.test('Comparing a ErrorType with an ClassType') {
+    assert_compatible(ErrorType.new, ClassType.new('String'))
   }
 
-  g.test('Comparing a ErrorType with an ObjectInstance') {
-    let instance = ObjectInstance.new(ObjectType.new('String'))
+  g.test('Comparing a ErrorType with an ClassInstance') {
+    let instance = ClassInstance.new(ClassType.new('String'))
 
     assert_compatible(ErrorType.new, instance)
   }
@@ -963,12 +963,12 @@ test.group('std::compiler::types::TypeParameterType.type_compatible?') do (g) {
     assert_not_compatible(TypeParameterType.new('T'), NeverType.new)
   }
 
-  g.test('Comparing a TypeParameterType with an ObjectType') {
-    assert_not_compatible(TypeParameterType.new('T'), ObjectType.new('String'))
+  g.test('Comparing a TypeParameterType with an ClassType') {
+    assert_not_compatible(TypeParameterType.new('T'), ClassType.new('String'))
   }
 
-  g.test('Comparing a TypeParameterType with an ObjectInstance') {
-    let instance = ObjectInstance.new(ObjectType.new('String'))
+  g.test('Comparing a TypeParameterType with an ClassInstance') {
+    let instance = ClassInstance.new(ClassType.new('String'))
     let param = TypeParameterType.new('T')
 
     assert_not_compatible(param, instance)
@@ -1022,7 +1022,7 @@ test.group('std::compiler::types::TypeParameterType.type_compatible?') do (g) {
   g.test('Comparing a TypeParameterType with an assigned TypeParameterType') {
     with_generic_type do (type, param) {
       let aparam = TypeParameterType.new('A')
-      let assigned = ObjectType.new('Foo')
+      let assigned = ClassType.new('Foo')
 
       type.assign_type_parameter(parameter: param, type: assigned)
 
@@ -1038,7 +1038,7 @@ test.group('std::compiler::types::TypeParameterType.type_compatible?') do (g) {
   }
 
   g.test('Comparing a TypeParameterType with a SelfType') {
-    let obj_type = ObjectType.new('String')
+    let obj_type = ClassType.new('String')
 
     # A type parameter can never be used as a type for `self`, so this
     # comparison will always produce False.
@@ -1053,7 +1053,7 @@ test.group('std::compiler::types::TypeParameterType.type_compatible?') do (g) {
 
 test.group('std::compiler::types::TypeParameterType.substitute') do (g) {
   g.test('Substituting a type parameter with a type') {
-    let obj_type = ObjectType.new('Array')
+    let obj_type = ClassType.new('Array')
     let param = TypeParameterType.new('T')
 
     obj_type.type_parameters.define(name: param.name, type: param)
@@ -1065,14 +1065,14 @@ test.group('std::compiler::types::TypeParameterType.substitute') do (g) {
   }
 
   g.test('Substituting a type parameter without a type') {
-    let obj_type = ObjectType.new('Array')
+    let obj_type = ClassType.new('Array')
     let param = TypeParameterType.new('T')
 
     assert.same_object(param.substitute(type_scope(obj_type)), param)
   }
 
   g.test('Substituting a type parameter assigned to itself') {
-    let obj_type = ObjectType.new('Array')
+    let obj_type = ClassType.new('Array')
     let param = TypeParameterType.new('T')
 
     obj_type.type_parameters.define(name: param.name, type: param)
@@ -1083,7 +1083,7 @@ test.group('std::compiler::types::TypeParameterType.substitute') do (g) {
   }
 
   g.test('Substituting a type parameter with a rigid type parameter') {
-    let obj_type = ObjectType.new('Array')
+    let obj_type = ClassType.new('Array')
     let param = TypeParameterType.new('T')
     let rigid = RigidTypeParameterType.new(param)
 
@@ -1159,7 +1159,7 @@ test.group('std::compiler::types::RigidTypeParameterType.type_compatible?') do (
 
 test.group('std::compiler::types::RigidTypeParameterType.substitute') do (g) {
   g.test('Substituting a rigid type parameter with a type') {
-    let obj_type = ObjectType.new('Array')
+    let obj_type = ClassType.new('Array')
     let param = TypeParameterType.new('T')
     let rigid = RigidTypeParameterType.new(param)
 
@@ -1172,7 +1172,7 @@ test.group('std::compiler::types::RigidTypeParameterType.substitute') do (g) {
   }
 
   g.test('Substituting a rigid type parameter without a type') {
-    let obj_type = ObjectType.new('Array')
+    let obj_type = ClassType.new('Array')
     let param = TypeParameterType.new('T')
     let rigid = RigidTypeParameterType.new(param)
 
@@ -1180,7 +1180,7 @@ test.group('std::compiler::types::RigidTypeParameterType.substitute') do (g) {
   }
 
   g.test('Substituting a rigid type parameter assigned to itself') {
-    let obj_type = ObjectType.new('Array')
+    let obj_type = ClassType.new('Array')
     let param = TypeParameterType.new('T')
     let rigid = RigidTypeParameterType.new(param)
 
@@ -1362,7 +1362,7 @@ test.group('std::compiler::types::BlockLayout.increment_throws') do (g) {
 
 test.group('std::compiler::types::BlockLayout.return_type') do (g) {
   g.test('Setting and getting the return type of a layout') {
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
     let never = NeverType.new
     let layout = BlockLayout.new(never)
 
@@ -1376,7 +1376,7 @@ test.group('std::compiler::types::BlockLayout.return_type') do (g) {
 
 test.group('std::compiler::types::BlockLayout.substitute') do (g) {
   g.test('Substituting a Self type used as a throw type') {
-    let self_type = ObjectType.new('Foo').new_instance
+    let self_type = ClassType.new('Foo').new_instance
     let layout = BlockLayout
       .new(return_type: NeverType.new, throw_type: Option.some(SelfType.new))
 
@@ -1386,7 +1386,7 @@ test.group('std::compiler::types::BlockLayout.substitute') do (g) {
   }
 
   g.test('Substituting a Self type used as a throw type') {
-    let self_type = ObjectType.new('Foo').new_instance
+    let self_type = ClassType.new('Foo').new_instance
     let layout = BlockLayout.new(SelfType.new)
     let new_layout = layout.substitute(type_scope(self_type))
 
@@ -1394,7 +1394,7 @@ test.group('std::compiler::types::BlockLayout.substitute') do (g) {
   }
 
   g.test('Substituting a Self type used in an argument') {
-    let foo_instance = ObjectType.new('Foo').new_instance
+    let foo_instance = ClassType.new('Foo').new_instance
     let layout = BlockLayout.new(NeverType.new)
     let self_type = SelfType.new
 
@@ -1407,7 +1407,7 @@ test.group('std::compiler::types::BlockLayout.substitute') do (g) {
   }
 
   g.test('The new layout inherits type parameters') {
-    let self_type = ObjectType.new('Foo').new_instance
+    let self_type = ClassType.new('Foo').new_instance
     let layout = BlockLayout.new(NeverType.new)
     let param = TypeParameterType.new('T')
 
@@ -1419,10 +1419,10 @@ test.group('std::compiler::types::BlockLayout.substitute') do (g) {
   }
 
   g.test('The new layout inherits the number of required arguments') {
-    let self_type = ObjectType.new('Foo').new_instance
+    let self_type = ClassType.new('Foo').new_instance
     let layout = BlockLayout.new(NeverType.new)
 
-    layout.define_required_argument(name: 'a', type: ObjectType.new('Bar'))
+    layout.define_required_argument(name: 'a', type: ClassType.new('Bar'))
 
     let new_layout = layout.substitute(type_scope(self_type))
 
@@ -1430,10 +1430,10 @@ test.group('std::compiler::types::BlockLayout.substitute') do (g) {
   }
 
   g.test('The new layout inherits the rest argument flag') {
-    let self_type = ObjectType.new('Foo').new_instance
+    let self_type = ClassType.new('Foo').new_instance
     let layout = BlockLayout.new(NeverType.new)
 
-    layout.define_rest_argument(name: 'a', type: ObjectType.new('Bar'))
+    layout.define_rest_argument(name: 'a', type: ClassType.new('Bar'))
 
     let new_layout = layout.substitute(type_scope(self_type))
 
@@ -1441,7 +1441,7 @@ test.group('std::compiler::types::BlockLayout.substitute') do (g) {
   }
 
   g.test('The new layout inherits the throws counter') {
-    let self_type = ObjectType.new('Foo').new_instance
+    let self_type = ClassType.new('Foo').new_instance
     let layout = BlockLayout.new(NeverType.new)
 
     layout.throws
@@ -1505,7 +1505,7 @@ test.group('std::compiler::types::BlockType.increment_throws') do (g) {
 
 test.group('std::compiler::types::BlockType.return_type') do (g) {
   g.test('Setting and getting the return type of a block') {
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
     let block = DummyBlock.new
 
     assert.same_object(block.return_type, block.layout.return_type)
@@ -1530,9 +1530,9 @@ test.group('std::compiler::types::BlockType.type_parameters') do (g) {
 }
 
 test.group('std::compiler::types::BlockType.instance_of?') do (g) {
-  g.test('Checking if a BlockType is an instance of an ObjectType') {
+  g.test('Checking if a BlockType is an instance of an ClassType') {
     let builtins = Builtins.new
-    let obj_type = ObjectType.new('List')
+    let obj_type = ClassType.new('List')
     let block = DummyBlock.new
 
     assert.false(block.instance_of?(type: obj_type, builtins: builtins))
@@ -1664,7 +1664,7 @@ test.group('std::compiler::types::MethodType.type_name') do (g) {
     method.type_parameters.define(name: 'A', type: param1)
     method.type_parameters.define(name: 'B', type: param2)
 
-    method.define_required_argument(name: 'a', type: ObjectType.new('C'))
+    method.define_required_argument(name: 'a', type: ClassType.new('C'))
     method.define_required_argument(name: 'b', type: NeverType.new)
 
     method.throw_type = NeverType.new
@@ -1730,24 +1730,24 @@ test.group('std::compiler::types::MethodType.type_compatible?') do (g) {
     assert_not_compatible(method, NeverType.new)
   }
 
-  g.test('Comparing a MethodType with an ObjectType') {
+  g.test('Comparing a MethodType with an ClassType') {
     let method =
       MethodType.new(name: 'to_string', layout: BlockLayout.new(NeverType.new))
 
-    assert_not_compatible(method, ObjectType.new('String'))
+    assert_not_compatible(method, ClassType.new('String'))
   }
 
-  g.test('Comparing a MethodType with an ObjectInstance') {
+  g.test('Comparing a MethodType with an ClassInstance') {
     let method =
       MethodType.new(name: 'to_string', layout: BlockLayout.new(NeverType.new))
 
     let builtins = Builtins.new
 
-    assert_not_compatible(method, ObjectType.new('String'))
+    assert_not_compatible(method, ClassType.new('String'))
 
     assert_compatible(
       compare: method,
-      with: ObjectInstance.new(builtins.block_type),
+      with: ClassInstance.new(builtins.block_type),
       builtins: builtins
     )
   }
@@ -1816,7 +1816,7 @@ test.group('std::compiler::types::MethodType.type_compatible?') do (g) {
 
   g.test('Comparing a MethodType with an assigned TypeParameterType') {
     with_generic_type do (type, param) {
-      let assigned = ObjectType.new('Foo')
+      let assigned = ClassType.new('Foo')
       let method_type =
         MethodType.new(name: 'foo', layout: BlockLayout.new(NeverType.new))
 
@@ -1839,7 +1839,7 @@ test.group('std::compiler::types::MethodType.type_compatible?') do (g) {
     let method =
       MethodType.new(name: 'to_string', layout: BlockLayout.new(NeverType.new))
 
-    let obj_type = ObjectType.new('String')
+    let obj_type = ClassType.new('String')
 
     # A MethodType can't be used as a type for `self`. When implementing methods
     # or traits for all blocks, `self` will be an instance of the object type
@@ -1879,7 +1879,7 @@ test.group('std::compiler::types::MethodType.type_compatible?') do (g) {
     let method4 =
       MethodType.new(name: 'to_string', layout: BlockLayout.new(NeverType.new))
 
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
 
     method1.define_required_argument(name: 'foo', type: object_type)
     method2.define_required_argument(name: 'foo', type: object_type)
@@ -1901,7 +1901,7 @@ test.group('std::compiler::types::MethodType.type_compatible?') do (g) {
     let method3 =
       MethodType.new(name: 'to_string', layout: BlockLayout.new(NeverType.new))
 
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
 
     method1.throw_type = object_type
     method2.throw_type = object_type
@@ -1912,7 +1912,7 @@ test.group('std::compiler::types::MethodType.type_compatible?') do (g) {
   }
 
   g.test('Comparing a MethodType with a return type with another MethodType') {
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
     let method1 =
       MethodType.new(name: 'to_string', layout: BlockLayout.new(object_type))
 
@@ -2116,14 +2116,14 @@ test.group('std::compiler::types::ClosureType.type_name') do (g) {
   }
 
   g.test('Obtaining the type name of a ClosureType with a full type signature') {
-    let block = ClosureType.new(BlockLayout.new(ObjectType.new('D')))
+    let block = ClosureType.new(BlockLayout.new(ClassType.new('D')))
     let param1 = TypeParameterType.new('A')
     let param2 = TypeParameterType.new('B')
 
     block.type_parameters.define(name: 'A', type: param1)
     block.type_parameters.define(name: 'B', type: param2)
 
-    block.define_required_argument(name: 'a', type: ObjectType.new('C'))
+    block.define_required_argument(name: 'a', type: ClassType.new('C'))
     block.define_required_argument(name: 'b', type: NeverType.new)
 
     block.throw_type = NeverType.new
@@ -2151,21 +2151,21 @@ test.group('std::compiler::types::ClosureType.type_compatible?') do (g) {
     assert_not_compatible(block, NeverType.new)
   }
 
-  g.test('Comparing a ClosureType with an ObjectType') {
+  g.test('Comparing a ClosureType with an ClassType') {
     let block = ClosureType.new(BlockLayout.new(NeverType.new))
 
-    assert_not_compatible(block, ObjectType.new('String'))
+    assert_not_compatible(block, ClassType.new('String'))
   }
 
-  g.test('Comparing a ClosureType with an ObjectInstance') {
+  g.test('Comparing a ClosureType with an ClassInstance') {
     let block = ClosureType.new(BlockLayout.new(NeverType.new))
     let builtins = Builtins.new
 
-    assert_not_compatible(block, ObjectType.new('String'))
+    assert_not_compatible(block, ClassType.new('String'))
 
     assert_compatible(
       compare: block,
-      with: ObjectInstance.new(builtins.block_type),
+      with: ClassInstance.new(builtins.block_type),
       builtins: builtins
     )
   }
@@ -2234,7 +2234,7 @@ test.group('std::compiler::types::ClosureType.type_compatible?') do (g) {
   g.test('Comparing a ClosureType with an assigned TypeParameterType') {
     with_generic_type do (type, param) {
       let block_type = ClosureType.new(BlockLayout.new(NeverType.new))
-      let assigned = ObjectType.new('Foo')
+      let assigned = ClassType.new('Foo')
 
       type.assign_type_parameter(parameter: param, type: assigned)
 
@@ -2252,7 +2252,7 @@ test.group('std::compiler::types::ClosureType.type_compatible?') do (g) {
 
   g.test('Comparing a ClosureType with a SelfType') {
     let block = ClosureType.new(BlockLayout.new(NeverType.new))
-    let obj_type = ObjectType.new('String')
+    let obj_type = ClassType.new('String')
 
     assert_not_compatible(
       compare: block,
@@ -2294,7 +2294,7 @@ test.group('std::compiler::types::ClosureType.type_compatible?') do (g) {
     let block2 = ClosureType.new(BlockLayout.new(NeverType.new))
     let block3 = ClosureType.new(BlockLayout.new(NeverType.new))
     let block4 = ClosureType.new(BlockLayout.new(NeverType.new))
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
 
     block1.define_required_argument(name: 'foo', type: object_type)
     block2.define_required_argument(name: 'foo', type: object_type)
@@ -2310,7 +2310,7 @@ test.group('std::compiler::types::ClosureType.type_compatible?') do (g) {
     let block1 = ClosureType.new(BlockLayout.new(NeverType.new))
     let block2 = ClosureType.new(BlockLayout.new(NeverType.new))
     let block3 = ClosureType.new(BlockLayout.new(NeverType.new))
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
 
     block1.throw_type = object_type
     block2.throw_type = object_type
@@ -2321,7 +2321,7 @@ test.group('std::compiler::types::ClosureType.type_compatible?') do (g) {
   }
 
   g.test('Comparing a ClosureType with a return type with another ClosureType') {
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
     let block1 = ClosureType.new(BlockLayout.new(object_type.new_instance))
     let block2 = ClosureType.new(BlockLayout.new(object_type.new_instance))
     let block3 = ClosureType.new(BlockLayout.new(NeverType.new))
@@ -2421,7 +2421,7 @@ test.group('std::compiler::types::ClosureType.substitute') do (g) {
     let block =
       ClosureType.new(layout: BlockLayout.new(SelfType.new), captures: True)
 
-    let self_type = ObjectType.new('Foo').new_instance
+    let self_type = ClassType.new('Foo').new_instance
     let new_block = block.substitute(type_scope(self_type))
 
     assert.same_object(new_block.layout.return_type, self_type)
@@ -2463,14 +2463,14 @@ test.group('std::compiler::types::LambdaType.type_name') do (g) {
   }
 
   g.test('Obtaining the type name of a LambdaType with a full type signature') {
-    let block = LambdaType.new(BlockLayout.new(ObjectType.new('D')))
+    let block = LambdaType.new(BlockLayout.new(ClassType.new('D')))
     let param1 = TypeParameterType.new('A')
     let param2 = TypeParameterType.new('B')
 
     block.type_parameters.define(name: 'A', type: param1)
     block.type_parameters.define(name: 'B', type: param2)
 
-    block.define_required_argument(name: 'a', type: ObjectType.new('C'))
+    block.define_required_argument(name: 'a', type: ClassType.new('C'))
     block.define_required_argument(name: 'b', type: NeverType.new)
 
     block.throw_type = NeverType.new
@@ -2498,21 +2498,21 @@ test.group('std::compiler::types::LambdaType.type_compatible?') do (g) {
     assert_not_compatible(block, NeverType.new)
   }
 
-  g.test('Comparing a LambdaType with an ObjectType') {
+  g.test('Comparing a LambdaType with an ClassType') {
     let block = LambdaType.new(BlockLayout.new(NeverType.new))
 
-    assert_not_compatible(block, ObjectType.new('String'))
+    assert_not_compatible(block, ClassType.new('String'))
   }
 
-  g.test('Comparing a LambdaType with an ObjectInstance') {
+  g.test('Comparing a LambdaType with an ClassInstance') {
     let block = LambdaType.new(BlockLayout.new(NeverType.new))
     let builtins = Builtins.new
 
-    assert_not_compatible(block, ObjectType.new('String'))
+    assert_not_compatible(block, ClassType.new('String'))
 
     assert_compatible(
       compare: block,
-      with: ObjectInstance.new(builtins.block_type),
+      with: ClassInstance.new(builtins.block_type),
       builtins: builtins
     )
   }
@@ -2581,7 +2581,7 @@ test.group('std::compiler::types::LambdaType.type_compatible?') do (g) {
   g.test('Comparing a LambdaType with an assigned TypeParameterType') {
     with_generic_type do (type, param) {
       let block_type = LambdaType.new(BlockLayout.new(NeverType.new))
-      let assigned = ObjectType.new('Foo')
+      let assigned = ClassType.new('Foo')
 
       type.assign_type_parameter(parameter: param, type: assigned)
 
@@ -2599,7 +2599,7 @@ test.group('std::compiler::types::LambdaType.type_compatible?') do (g) {
 
   g.test('Comparing a LambdaType with a SelfType') {
     let block = LambdaType.new(BlockLayout.new(NeverType.new))
-    let obj_type = ObjectType.new('String')
+    let obj_type = ClassType.new('String')
 
     assert_not_compatible(
       compare: block,
@@ -2630,7 +2630,7 @@ test.group('std::compiler::types::LambdaType.type_compatible?') do (g) {
     let block2 = LambdaType.new(BlockLayout.new(NeverType.new))
     let block3 = LambdaType.new(BlockLayout.new(NeverType.new))
     let block4 = LambdaType.new(BlockLayout.new(NeverType.new))
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
 
     block1.define_required_argument(name: 'foo', type: object_type)
     block2.define_required_argument(name: 'foo', type: object_type)
@@ -2646,7 +2646,7 @@ test.group('std::compiler::types::LambdaType.type_compatible?') do (g) {
     let block1 = LambdaType.new(BlockLayout.new(NeverType.new))
     let block2 = LambdaType.new(BlockLayout.new(NeverType.new))
     let block3 = LambdaType.new(BlockLayout.new(NeverType.new))
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
 
     block1.throw_type = object_type
     block2.throw_type = object_type
@@ -2657,7 +2657,7 @@ test.group('std::compiler::types::LambdaType.type_compatible?') do (g) {
   }
 
   g.test('Comparing a LambdaType with a return type with another LambdaType') {
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
     let block1 = LambdaType.new(BlockLayout.new(object_type.new_instance))
     let block2 = LambdaType.new(BlockLayout.new(object_type.new_instance))
     let block3 = LambdaType.new(BlockLayout.new(NeverType.new))
@@ -2756,7 +2756,7 @@ test.group('std::compiler::types::LambdaType.substitute') do (g) {
   g.test('Substituting a lambda') {
     let block = LambdaType.new(BlockLayout.new(SelfType.new))
 
-    let self_type = ObjectType.new('Foo').new_instance
+    let self_type = ClassType.new('Foo').new_instance
     let new_block = block.substitute(type_scope(self_type))
 
     assert.same_object(new_block.layout.return_type, self_type)
@@ -2928,16 +2928,16 @@ test.group('std::compiler::types::TraitType.type_compatible?') do (g) {
     assert_not_compatible(TraitType.new('ToString'), NeverType.new)
   }
 
-  g.test('Comparing a TraitType with an ObjectType') {
-    assert_not_compatible(TraitType.new('ToString'), ObjectType.new('String'))
+  g.test('Comparing a TraitType with an ClassType') {
+    assert_not_compatible(TraitType.new('ToString'), ClassType.new('String'))
   }
 
-  g.test('Comparing a TraitType with an ObjectInstance') {
+  g.test('Comparing a TraitType with an ClassInstance') {
     let trait_type = TraitType.new('ToString')
 
     assert_not_compatible(
       trait_type,
-      ObjectInstance.new(ObjectType.new('String'))
+      ClassInstance.new(ClassType.new('String'))
     )
   }
 
@@ -2979,7 +2979,7 @@ test.group('std::compiler::types::TraitType.type_compatible?') do (g) {
 
   g.test('Comparing a TraitType with an assigned TypeParameterType') {
     with_generic_type do (type, param) {
-      let assigned = ObjectType.new('Foo')
+      let assigned = ClassType.new('Foo')
       let trait_type = TraitType.new('ToFoo')
 
       type.assign_type_parameter(parameter: param, type: assigned)
@@ -2990,7 +2990,7 @@ test.group('std::compiler::types::TraitType.type_compatible?') do (g) {
   }
 
   g.test('Comparing an TraitType with a SelfType') {
-    let trait_type = ObjectType.new('ToString')
+    let trait_type = ClassType.new('ToString')
     let self_type = SelfType.new
 
     # A ToString can't be passed to an instance of ToString.
@@ -3056,7 +3056,7 @@ test.group('std::compiler::types::TraitInstance.type_name') do (g) {
     type.type_parameters.define(name: 'B', type: param2)
 
     instance.type_parameter_types[param1] = NeverType.new
-    instance.type_parameter_types[param2] = ObjectType.new('A')
+    instance.type_parameter_types[param2] = ClassType.new('A')
 
     assert.equal(instance.type_name, 'Add!(Never, A)')
   }
@@ -3200,7 +3200,7 @@ test.group('std::compiler::types::TraitInstance.lookup_type_parameter_type') do 
   g.test('Looking up a type parameter type') {
     let trait_type = TraitType.new('B')
     let param = TypeParameterType.new('T')
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
 
     trait_type.type_parameters.define(name: param.name, type: param)
 
@@ -3234,10 +3234,10 @@ test.group('std::compiler::types::TraitInstance.type_compatible?') do (g) {
     assert_not_compatible(instance, NeverType.new)
   }
 
-  g.test('Comparing a TraitInstance with an ObjectType') {
+  g.test('Comparing a TraitInstance with an ClassType') {
     let instance = TraitInstance.new(TraitType.new('ToString'))
 
-    assert_not_compatible(instance, ObjectType.new('String'))
+    assert_not_compatible(instance, ClassType.new('String'))
   }
 
   g.test('Comparing a TraitInstance with another TraitInstance') {
@@ -3260,7 +3260,7 @@ test.group('std::compiler::types::TraitInstance.type_compatible?') do (g) {
     let trait_type = TraitType.new('ToPair')
     let param1 = TypeParameterType.new('A')
     let param2 = TypeParameterType.new('B')
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
 
     trait_type.type_parameters.define(name: 'A', type: param1)
     trait_type.type_parameters.define(name: 'B', type: param2)
@@ -3324,7 +3324,7 @@ test.group('std::compiler::types::TraitInstance.type_compatible?') do (g) {
 
   g.test('Comparing a TraitInstance with an assigned TypeParameterType') {
     with_generic_type do (type, param) {
-      let assigned = ObjectType.new('Foo')
+      let assigned = ClassType.new('Foo')
       let compare = TraitType.new('ToFoo').new_instance
 
       type.assign_type_parameter(parameter: param, type: assigned)
@@ -3361,13 +3361,13 @@ test.group('std::compiler::types::TraitInstance.type_compatible?') do (g) {
     )
   }
 
-  g.test('Comparing a TraitInstance with an ObjectInstance') {
+  g.test('Comparing a TraitInstance with an ClassInstance') {
     let trait_type = TraitType.new('ToString')
-    let obj_type = ObjectType.new('String')
+    let obj_type = ClassType.new('String')
 
     assert_not_compatible(
       TraitInstance.new(trait_type),
-      ObjectInstance.new(obj_type)
+      ClassInstance.new(obj_type)
     )
   }
 
@@ -3400,55 +3400,55 @@ test.group('std::compiler::type::TraitImplementation.bounds') do (g) {
   }
 }
 
-test.group('std::compiler::types::ObjectType.name') do (g) {
+test.group('std::compiler::types::ClassType.name') do (g) {
   g.test('Obtaining the name of an object') {
-    assert.equal(ObjectType.new('A').name, 'A')
+    assert.equal(ClassType.new('A').name, 'A')
   }
 }
 
-test.group('std::compiler::types::ObjectType.attributes') do (g) {
+test.group('std::compiler::types::ClassType.attributes') do (g) {
   g.test('Obtaining the attributes of an object') {
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
 
     assert.true(object_type.attributes.empty?)
   }
 }
 
-test.group('std::compiler::types::ObjectType.static_methods') do (g) {
+test.group('std::compiler::types::ClassType.static_methods') do (g) {
   g.test('Obtaining the static methods of an object') {
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
 
     assert.true(object_type.static_methods.empty?)
   }
 }
 
-test.group('std::compiler::types::ObjectType.instance_methods') do (g) {
+test.group('std::compiler::types::ClassType.instance_methods') do (g) {
   g.test('Obtaining the instance methods of an object') {
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
 
     assert.true(object_type.instance_methods.empty?)
   }
 }
 
-test.group('std::compiler::types::ObjectType.type_parameters') do (g) {
+test.group('std::compiler::types::ClassType.type_parameters') do (g) {
   g.test('Obtaining the type parameters of an object') {
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
 
     assert.true(object_type.type_parameters.empty?)
   }
 }
 
-test.group('std::compiler::types::ObjectType.implemented_traits') do (g) {
+test.group('std::compiler::types::ClassType.implemented_traits') do (g) {
   g.test('Obtaining the implemented traits of an object') {
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
 
     assert.true(object_type.implemented_traits.empty?)
   }
 }
 
-test.group('std::compiler::types::ObjectType.add_trait_implementation') do (g) {
+test.group('std::compiler::types::ClassType.add_trait_implementation') do (g) {
   g.test('Adding a trait implementation to an object') {
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
     let trait_type = TraitType.new('A')
     let implementation = TraitImplementation.new(trait_type.new_instance)
 
@@ -3458,9 +3458,9 @@ test.group('std::compiler::types::ObjectType.add_trait_implementation') do (g) {
   }
 }
 
-test.group('std::compiler::types::ObjectType.remove_trait_implementation') do (g) {
+test.group('std::compiler::types::ClassType.remove_trait_implementation') do (g) {
   g.test('Removing a trait implementation from an object') {
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
     let trait_type = TraitType.new('A')
     let implementation = TraitImplementation.new(trait_type.new_instance)
 
@@ -3471,9 +3471,9 @@ test.group('std::compiler::types::ObjectType.remove_trait_implementation') do (g
   }
 }
 
-test.group('std::compiler::types::ObjectType.define_attribute') do (g) {
+test.group('std::compiler::types::ClassType.define_attribute') do (g) {
   g.test('Defining an attribute') {
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
     let type = NeverType.new
 
     object_type.define_attribute(name: '@a', type: type)
@@ -3485,9 +3485,9 @@ test.group('std::compiler::types::ObjectType.define_attribute') do (g) {
   }
 }
 
-test.group('std::compiler::types::ObjectType.implements_trait?') do (g) {
+test.group('std::compiler::types::ClassType.implements_trait?') do (g) {
   g.test('Checking if an object implements a trait') {
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
     let trait_type = TraitType.new('A')
     let trait_instance = trait_type.new_instance
     let builtins = Builtins.new
@@ -3508,21 +3508,21 @@ test.group('std::compiler::types::ObjectType.implements_trait?') do (g) {
   }
 }
 
-test.group('std::compiler::types::ObjectType.type_name') do (g) {
-  g.test('Obtaining the type name of a regular ObjectType') {
-    assert.equal(ObjectType.new('String').type_name, 'String')
+test.group('std::compiler::types::ClassType.type_name') do (g) {
+  g.test('Obtaining the type name of a regular ClassType') {
+    assert.equal(ClassType.new('String').type_name, 'String')
   }
 
-  g.test('Obtaining the type name of an ObjectType with one type parameter') {
-    let type = ObjectType.new('Array')
+  g.test('Obtaining the type name of an ClassType with one type parameter') {
+    let type = ClassType.new('Array')
 
     type.type_parameters.define(name: 'T', type: TypeParameterType.new('T'))
 
     assert.equal(type.type_name, 'Array!(T)')
   }
 
-  g.test('Obtaining the type name of an ObjectType with multiple type parameters') {
-    let type = ObjectType.new('Array')
+  g.test('Obtaining the type name of an ClassType with multiple type parameters') {
+    let type = ClassType.new('Array')
 
     type.type_parameters.define(name: 'A', type: TypeParameterType.new('A'))
     type.type_parameters.define(name: 'B', type: TypeParameterType.new('B'))
@@ -3531,9 +3531,9 @@ test.group('std::compiler::types::ObjectType.type_name') do (g) {
   }
 }
 
-test.group('std::compiler::types::ObjectType.lookup_type') do (g) {
+test.group('std::compiler::types::ClassType.lookup_type') do (g) {
   g.test('Looking up a type by its name') {
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
     let param = TypeParameterType.new('T')
 
     object_type.type_parameters.define(name: param.name, type: param)
@@ -3543,9 +3543,9 @@ test.group('std::compiler::types::ObjectType.lookup_type') do (g) {
   }
 }
 
-test.group('std::compiler::types::ObjectType.lookup_type_parameter') do (g) {
+test.group('std::compiler::types::ClassType.lookup_type_parameter') do (g) {
   g.test('Looking up a type parameter by its name') {
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
     let param = TypeParameterType.new('T')
 
     object_type.type_parameters.define(name: param.name, type: param)
@@ -3555,9 +3555,9 @@ test.group('std::compiler::types::ObjectType.lookup_type_parameter') do (g) {
   }
 }
 
-test.group('std::compiler::types::ObjectType.lookup_method') do (g) {
+test.group('std::compiler::types::ClassType.lookup_method') do (g) {
   g.test('Looking up a static method by its name') {
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
     let a_method =
       MethodType.new(name: 'a', layout: BlockLayout.new(NeverType.new))
 
@@ -3572,9 +3572,9 @@ test.group('std::compiler::types::ObjectType.lookup_method') do (g) {
   }
 }
 
-test.group('std::compiler::types::ObjectType.initialise?') do (g) {
+test.group('std::compiler::types::ClassType.initialise?') do (g) {
   g.test('Checking if an object needs to be initialised with type arguments') {
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
 
     assert.false(object_type.initialise?)
 
@@ -3586,9 +3586,9 @@ test.group('std::compiler::types::ObjectType.initialise?') do (g) {
   }
 }
 
-test.group('std::compiler::types::ObjectType.number_of_type_parameters') do (g) {
+test.group('std::compiler::types::ClassType.number_of_type_parameters') do (g) {
   g.test('Obtaining the number of type parameters') {
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
 
     assert.equal(object_type.number_of_type_parameters, 0)
 
@@ -3600,9 +3600,9 @@ test.group('std::compiler::types::ObjectType.number_of_type_parameters') do (g) 
   }
 }
 
-test.group('std::compiler::types::ObjectType.new_instance') do (g) {
+test.group('std::compiler::types::ClassType.new_instance') do (g) {
   g.test('Creating a new instance of an object') {
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
     let param = TypeParameterType.new('T')
     let type = NeverType.new
 
@@ -3616,50 +3616,50 @@ test.group('std::compiler::types::ObjectType.new_instance') do (g) {
   }
 }
 
-test.group('std::compiler::types::ObjectType.type_compatible?') do (g) {
-  g.test('Comparing an ObjectType with an ErrorType') {
-    let obj_type = ObjectType.new('String')
+test.group('std::compiler::types::ClassType.type_compatible?') do (g) {
+  g.test('Comparing an ClassType with an ErrorType') {
+    let obj_type = ClassType.new('String')
 
     assert_compatible(obj_type, ErrorType.new)
   }
 
-  g.test('Comparing an ObjectType with an AnyType') {
-    let obj_type = ObjectType.new('String')
+  g.test('Comparing an ClassType with an AnyType') {
+    let obj_type = ClassType.new('String')
 
     assert_compatible(obj_type, AnyType.new)
   }
 
-  g.test('Comparing an ObjectType with a NeverType') {
-    let obj_type = ObjectType.new('String')
+  g.test('Comparing an ClassType with a NeverType') {
+    let obj_type = ClassType.new('String')
 
     assert_not_compatible(obj_type, NeverType.new)
   }
 
-  g.test('Comparing an ObjectType with another ObjectType') {
-    let obj1 = ObjectType.new('String')
-    let obj2 = ObjectType.new('Integer')
+  g.test('Comparing an ClassType with another ClassType') {
+    let obj1 = ClassType.new('String')
+    let obj2 = ClassType.new('Integer')
 
     assert_not_compatible(obj1, obj2)
     assert_compatible(obj1, obj1)
   }
 
-  g.test('Comparing an ObjectType with an ObjectInstance') {
-    let obj_type = ObjectType.new('String')
-    let instance = ObjectInstance.new(obj_type)
+  g.test('Comparing an ClassType with an ClassInstance') {
+    let obj_type = ClassType.new('String')
+    let instance = ClassInstance.new(obj_type)
 
     assert_not_compatible(obj_type, instance)
   }
 
-  g.test('Comparing an ObjectType with a TraitType') {
-    let obj_type = ObjectType.new('String')
+  g.test('Comparing an ClassType with a TraitType') {
+    let obj_type = ClassType.new('String')
     let trait_type = TraitType.new('ToString')
 
     assert_not_compatible(obj_type, trait_type)
   }
 
-  g.test('Comparing an ObjectType with a TraitInstance') {
+  g.test('Comparing an ClassType with a TraitInstance') {
     let builtins = Builtins.new
-    let obj_type = ObjectType.new('String')
+    let obj_type = ClassType.new('String')
     let trait_type = TraitType.new('ToString')
     let with = TraitInstance.new(trait_type)
 
@@ -3675,23 +3675,23 @@ test.group('std::compiler::types::ObjectType.type_compatible?') do (g) {
     assert_not_compatible(compare: obj_type, with: with, builtins: builtins)
   }
 
-  g.test('Comparing an ObjectType with a SelfType') {
-    let obj_type = ObjectType.new('String')
+  g.test('Comparing an ClassType with a SelfType') {
+    let obj_type = ClassType.new('String')
     let self_type = SelfType.new
 
     # The String type itself can't be passed to an instance of String.
     assert_not_compatible(obj_type, self_type)
   }
 
-  g.test('Comparing an ObjectType with an empty TypeParameterType') {
-    let obj_type = ObjectType.new('String')
+  g.test('Comparing an ClassType with an empty TypeParameterType') {
+    let obj_type = ClassType.new('String')
     let param = TypeParameterType.new('T')
 
     assert_compatible(obj_type, param)
   }
 
-  g.test('Comparing an ObjectType with a TypeParameterType with one required trait') {
-    let obj_type = ObjectType.new('String')
+  g.test('Comparing an ClassType with a TypeParameterType with one required trait') {
+    let obj_type = ClassType.new('String')
     let trait_type = TraitType.new('A')
     let param = TypeParameterType
       .new(name: 'T', required_traits: Array.new(TraitInstance.new(trait_type)))
@@ -3705,8 +3705,8 @@ test.group('std::compiler::types::ObjectType.type_compatible?') do (g) {
     assert_not_compatible(obj_type, param)
   }
 
-  g.test('Comparing an ObjectType with a TypeParameterType with multiple required traits') {
-    let obj_type = ObjectType.new('String')
+  g.test('Comparing an ClassType with a TypeParameterType with multiple required traits') {
+    let obj_type = ClassType.new('String')
     let trait1 = TraitType.new('A')
     let trait2 = TraitType.new('B')
     let param = TypeParameterType.new(
@@ -3730,19 +3730,19 @@ test.group('std::compiler::types::ObjectType.type_compatible?') do (g) {
     assert_not_compatible(obj_type, param)
   }
 
-  g.test('Comparing a ObjectType with an unassigned TypeParameterType') {
+  g.test('Comparing a ClassType with an unassigned TypeParameterType') {
     with_generic_type do (type, param) {
-      let compare = ObjectType.new('Foo')
+      let compare = ClassType.new('Foo')
 
       assert_compatible(compare: compare, with: param, self_type: type)
       assert.same_object(type.lookup_type_parameter_type(param).get, compare)
     }
   }
 
-  g.test('Comparing a ObjectType with an assigned TypeParameterType') {
+  g.test('Comparing a ClassType with an assigned TypeParameterType') {
     with_generic_type do (type, param) {
-      let assigned = ObjectType.new('Foo')
-      let compare = ObjectType.new('Foo')
+      let assigned = ClassType.new('Foo')
+      let compare = ClassType.new('Foo')
 
       type.assign_type_parameter(parameter: param, type: assigned)
 
@@ -3751,50 +3751,50 @@ test.group('std::compiler::types::ObjectType.type_compatible?') do (g) {
     }
   }
 
-  g.test('Comparing an ObjectType with a ModuleType') {
-    let obj_type = ObjectType.new('String')
+  g.test('Comparing an ClassType with a ModuleType') {
+    let obj_type = ClassType.new('String')
     let mod_type = new_module
 
     assert_not_compatible(obj_type, mod_type)
   }
 }
 
-test.group('std::compiler::types::ObjectInstance.instance_of') do (g) {
+test.group('std::compiler::types::ClassInstance.instance_of') do (g) {
   g.test('Obtaining the type an object is an instance of') {
-    let object_type = ObjectType.new('String')
+    let object_type = ClassType.new('String')
 
     assert.same_object(object_type.new_instance.instance_of, object_type)
   }
 }
 
-test.group('std::compiler::types::ObjectInstance.type_parameter_types') do (g) {
+test.group('std::compiler::types::ClassInstance.type_parameter_types') do (g) {
   g.test('Obtaining the type parameter types') {
-    let object_type = ObjectType.new('Array')
+    let object_type = ClassType.new('Array')
     let instance = object_type.new_instance
 
     assert.true(instance.type_parameter_types.empty?)
   }
 }
 
-test.group('std::compiler::types::ObjectInstance.type_name') do (g) {
-  g.test('Obtaining the type name of a regular ObjectInstance') {
-    let instance = ObjectInstance.new(ObjectType.new('String'))
+test.group('std::compiler::types::ClassInstance.type_name') do (g) {
+  g.test('Obtaining the type name of a regular ClassInstance') {
+    let instance = ClassInstance.new(ClassType.new('String'))
 
     assert.equal(instance.type_name, 'String')
   }
 
-  g.test('Obtaining the type name of an ObjectInstance with one type parameter') {
-    let type = ObjectType.new('Array')
-    let instance = ObjectInstance.new(type)
+  g.test('Obtaining the type name of an ClassInstance with one type parameter') {
+    let type = ClassType.new('Array')
+    let instance = ClassInstance.new(type)
 
     type.type_parameters.define(name: 'T', type: TypeParameterType.new('T'))
 
     assert.equal(instance.type_name, 'Array!(T)')
   }
 
-  g.test('Obtaining the type name of an ObjectInstance with multiple type parameters') {
-    let type = ObjectType.new('Array')
-    let instance = ObjectInstance.new(type)
+  g.test('Obtaining the type name of an ClassInstance with multiple type parameters') {
+    let type = ClassType.new('Array')
+    let instance = ClassInstance.new(type)
 
     type.type_parameters.define(name: 'A', type: TypeParameterType.new('A'))
     type.type_parameters.define(name: 'B', type: TypeParameterType.new('B'))
@@ -3802,14 +3802,14 @@ test.group('std::compiler::types::ObjectInstance.type_name') do (g) {
     assert.equal(instance.type_name, 'Array!(A, B)')
   }
 
-  g.test('Obtaining the type name of a ObjectInstance with type arguments') {
-    let type = ObjectType.new('Array')
+  g.test('Obtaining the type name of a ClassInstance with type arguments') {
+    let type = ClassType.new('Array')
     let param1 = TypeParameterType.new('A')
     let param2 = TypeParameterType.new('B')
-    let instance = ObjectInstance.new(type)
+    let instance = ClassInstance.new(type)
 
    instance.type_parameter_types[param1] = NeverType.new
-   instance.type_parameter_types[param2] = ObjectType.new('A')
+   instance.type_parameter_types[param2] = ClassType.new('A')
 
     type.type_parameters.define(name: 'A', type: param1)
     type.type_parameters.define(name: 'B', type: param2)
@@ -3818,10 +3818,10 @@ test.group('std::compiler::types::ObjectInstance.type_name') do (g) {
   }
 }
 
-test.group('std::compiler::types::ObjectInstance.number_of_type_parameters') do (g) {
+test.group('std::compiler::types::ClassInstance.number_of_type_parameters') do (g) {
   g.test('Obtaining the number of type parameters') {
-    let object1 = ObjectType.new('A')
-    let object2 = ObjectType.new('B')
+    let object1 = ClassType.new('A')
+    let object2 = ClassType.new('B')
 
     object2.type_parameters.define(name: 'T', type: TypeParameterType.new('T'))
 
@@ -3830,9 +3830,9 @@ test.group('std::compiler::types::ObjectInstance.number_of_type_parameters') do 
   }
 }
 
-test.group('std::compiler::types::ObjectInstance.lookup_attribute') do (g) {
+test.group('std::compiler::types::ClassInstance.lookup_attribute') do (g) {
   g.test('Looking up an attribute of an object') {
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
     let type = NeverType.new
 
     object_type.define_attribute(name: '@a', type: type)
@@ -3845,9 +3845,9 @@ test.group('std::compiler::types::ObjectInstance.lookup_attribute') do (g) {
   }
 }
 
-test.group('std::compiler::types::ObjectInstance.lookup_method') do (g) {
+test.group('std::compiler::types::ClassInstance.lookup_method') do (g) {
   g.test('Looking up an instance method') {
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
     let instance = object_type.new_instance
     let a_method =
       MethodType.new(name: 'a', layout: BlockLayout.new(NeverType.new))
@@ -3863,9 +3863,9 @@ test.group('std::compiler::types::ObjectInstance.lookup_method') do (g) {
   }
 }
 
-test.group('std::compiler::types::ObjectInstance.lookup_type') do (g) {
+test.group('std::compiler::types::ClassInstance.lookup_type') do (g) {
   g.test('Looking up a type by its name') {
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
     let param = TypeParameterType.new('T')
     let instance = object_type.new_instance
 
@@ -3876,9 +3876,9 @@ test.group('std::compiler::types::ObjectInstance.lookup_type') do (g) {
   }
 }
 
-test.group('std::compiler::types::ObjectInstance.lookup_type_parameter') do (g) {
+test.group('std::compiler::types::ClassInstance.lookup_type_parameter') do (g) {
   g.test('Looking up a type parameter by its name') {
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
     let param = TypeParameterType.new('T')
     let instance = object_type.new_instance
 
@@ -3889,9 +3889,9 @@ test.group('std::compiler::types::ObjectInstance.lookup_type_parameter') do (g) 
   }
 }
 
-test.group('std::compiler::types::ObjectInstance.lookup_type_parameter') do (g) {
+test.group('std::compiler::types::ClassInstance.lookup_type_parameter') do (g) {
   g.test('Looking up a type parameter by its name') {
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
     let param = TypeParameterType.new('T')
     let instance = object_type.new_instance
 
@@ -3902,10 +3902,10 @@ test.group('std::compiler::types::ObjectInstance.lookup_type_parameter') do (g) 
   }
 }
 
-test.group('std::compiler::types::ObjectInstance.object_instance_of?') do (g) {
-  g.test('Checking if an ObjectInstance is an instance of an ObjectType') {
-    let obj1 = ObjectType.new('A')
-    let obj2 = ObjectType.new('B')
+test.group('std::compiler::types::ClassInstance.object_instance_of?') do (g) {
+  g.test('Checking if an ClassInstance is an instance of an ClassType') {
+    let obj1 = ClassType.new('A')
+    let obj2 = ClassType.new('B')
     let instance = obj1.new_instance
 
     assert.true(instance.object_instance_of?(obj1))
@@ -3913,9 +3913,9 @@ test.group('std::compiler::types::ObjectInstance.object_instance_of?') do (g) {
   }
 }
 
-test.group('std::compiler::types::ObjectInstance.implements_trait?') do (g) {
+test.group('std::compiler::types::ClassInstance.implements_trait?') do (g) {
   g.test('Checking if an object instance implements a trait') {
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
     let object_instance = object_type.new_instance
     let trait_type = TraitType.new('A')
     let trait_instance = trait_type.new_instance
@@ -3940,7 +3940,7 @@ test.group('std::compiler::types::ObjectInstance.implements_trait?') do (g) {
     let module = new_module
     let to_string = TraitType.new('ToString')
     let builtins = Builtins.new
-    let list_type = ObjectType.new('List')
+    let list_type = ClassType.new('List')
     let param = TypeParameterType.new('T')
     let to_string_impl = TraitImplementation.new(to_string.new_instance)
 
@@ -3990,58 +3990,58 @@ test.group('std::compiler::types::ObjectInstance.implements_trait?') do (g) {
   }
 }
 
-test.group('std::compiler::types::ObjectInstance.type_compatible?') do (g) {
-  g.test('Comparing an ObjectInstance with an ErrorType') {
-    let instance = ObjectInstance.new(ObjectType.new('String'))
+test.group('std::compiler::types::ClassInstance.type_compatible?') do (g) {
+  g.test('Comparing an ClassInstance with an ErrorType') {
+    let instance = ClassInstance.new(ClassType.new('String'))
 
     assert_compatible(instance, ErrorType.new)
   }
 
-  g.test('Comparing an ObjectInstance with an AnyType') {
-    let instance = ObjectInstance.new(ObjectType.new('String'))
+  g.test('Comparing an ClassInstance with an AnyType') {
+    let instance = ClassInstance.new(ClassType.new('String'))
 
     assert_compatible(instance, AnyType.new)
   }
 
-  g.test('Comparing an ObjectInstance with a NeverType') {
-    let instance = ObjectInstance.new(ObjectType.new('String'))
+  g.test('Comparing an ClassInstance with a NeverType') {
+    let instance = ClassInstance.new(ClassType.new('String'))
 
     assert_not_compatible(instance, NeverType.new)
   }
 
-  g.test('Comparing an ObjectInstance with an ObjectType') {
-    let instance = ObjectInstance.new(ObjectType.new('String'))
+  g.test('Comparing an ClassInstance with an ClassType') {
+    let instance = ClassInstance.new(ClassType.new('String'))
 
-    assert_not_compatible(instance, ObjectType.new('String'))
+    assert_not_compatible(instance, ClassType.new('String'))
   }
 
-  g.test('Comparing an ObjectInstance with a TraitType') {
-    let instance = ObjectInstance.new(ObjectType.new('String'))
+  g.test('Comparing an ClassInstance with a TraitType') {
+    let instance = ClassInstance.new(ClassType.new('String'))
 
     assert_not_compatible(instance, TraitType.new('ToString'))
   }
 
-  g.test('Comparing an ObjectInstance with another ObjectInstance') {
-    let obj1 = ObjectType.new('String')
-    let obj2 = ObjectType.new('Foo')
+  g.test('Comparing an ClassInstance with another ClassInstance') {
+    let obj1 = ClassType.new('String')
+    let obj2 = ClassType.new('Foo')
 
-    assert_not_compatible(ObjectInstance.new(obj1), ObjectInstance.new(obj2))
-    assert_compatible(ObjectInstance.new(obj1), ObjectInstance.new(obj1))
+    assert_not_compatible(ClassInstance.new(obj1), ClassInstance.new(obj2))
+    assert_compatible(ClassInstance.new(obj1), ClassInstance.new(obj1))
   }
 
-  g.test('Comparing a generic ObjectInstance with another ObjectInstance') {
-    let obj_type = ObjectType.new('Pair')
+  g.test('Comparing a generic ClassInstance with another ClassInstance') {
+    let obj_type = ClassType.new('Pair')
     let param1 = TypeParameterType.new('A')
     let param2 = TypeParameterType.new('B')
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
 
     obj_type.type_parameters.define(name: 'A', type: param1)
     obj_type.type_parameters.define(name: 'B', type: param2)
 
-    let instance1 = ObjectInstance.new(obj_type)
-    let instance2 = ObjectInstance.new(obj_type)
-    let instance3 = ObjectInstance.new(obj_type)
-    let instance4 = ObjectInstance.new(obj_type)
+    let instance1 = ClassInstance.new(obj_type)
+    let instance2 = ClassInstance.new(obj_type)
+    let instance3 = ClassInstance.new(obj_type)
+    let instance4 = ClassInstance.new(obj_type)
 
     instance1.type_parameter_types[param1] = object_type
     instance1.type_parameter_types[param2] = object_type
@@ -4057,23 +4057,23 @@ test.group('std::compiler::types::ObjectInstance.type_compatible?') do (g) {
     assert_not_compatible(instance2, instance4)
   }
 
-  g.test('Comparing an ObjectInstance with a TraitInstance') {
-    let obj_type = ObjectType.new('String')
+  g.test('Comparing an ClassInstance with a TraitInstance') {
+    let obj_type = ClassType.new('String')
     let trait1 = TraitType.new('ToString')
     let trait2 = TraitType.new('ToInteger')
 
-    assert_not_compatible(ObjectInstance.new(obj_type), TraitInstance.new(trait1))
-    assert_not_compatible(ObjectInstance.new(obj_type), TraitInstance.new(trait2))
+    assert_not_compatible(ClassInstance.new(obj_type), TraitInstance.new(trait1))
+    assert_not_compatible(ClassInstance.new(obj_type), TraitInstance.new(trait2))
 
     obj_type.add_trait_implementation(
       TraitImplementation.new(TraitInstance.new(trait1))
     )
 
-    assert_compatible(ObjectInstance.new(obj_type), TraitInstance.new(trait1))
+    assert_compatible(ClassInstance.new(obj_type), TraitInstance.new(trait1))
   }
 
-  g.test('Comparing an ObjectInstance with a TypeParameterType') {
-    let obj_type = ObjectType.new('String')
+  g.test('Comparing an ClassInstance with a TypeParameterType') {
+    let obj_type = ClassType.new('String')
     let trait1 = TraitType.new('ToString')
     let trait2 = TraitType.new('ToInteger')
     let param1 = TypeParameterType.new('T')
@@ -4084,29 +4084,29 @@ test.group('std::compiler::types::ObjectInstance.type_compatible?') do (g) {
       )
     )
 
-    assert_compatible(ObjectInstance.new(obj_type), param1)
-    assert_not_compatible(ObjectInstance.new(obj_type), param2)
+    assert_compatible(ClassInstance.new(obj_type), param1)
+    assert_not_compatible(ClassInstance.new(obj_type), param2)
 
     obj_type.add_trait_implementation(
       TraitImplementation.new(TraitInstance.new(trait1))
     )
 
-    assert_not_compatible(ObjectInstance.new(obj_type), param2)
+    assert_not_compatible(ClassInstance.new(obj_type), param2)
   }
 
-  g.test('Comparing a ObjectInstance with an unassigned TypeParameterType') {
+  g.test('Comparing a ClassInstance with an unassigned TypeParameterType') {
     with_generic_type do (type, param) {
-      let compare = ObjectType.new('Foo').new_instance
+      let compare = ClassType.new('Foo').new_instance
 
       assert_compatible(compare: compare, with: param, self_type: type)
       assert.same_object(type.lookup_type_parameter_type(param).get, compare)
     }
   }
 
-  g.test('Comparing a ObjectInstance with an assigned TypeParameterType') {
+  g.test('Comparing a ClassInstance with an assigned TypeParameterType') {
     with_generic_type do (type, param) {
-      let assigned = ObjectType.new('Bar')
-      let compare = ObjectType.new('Foo').new_instance
+      let assigned = ClassType.new('Bar')
+      let compare = ClassType.new('Foo').new_instance
 
       type.assign_type_parameter(parameter: param, type: assigned)
 
@@ -4115,45 +4115,45 @@ test.group('std::compiler::types::ObjectInstance.type_compatible?') do (g) {
     }
   }
 
-  g.test('Comparing an ObjectInstance with a ModuleType') {
+  g.test('Comparing an ClassInstance with a ModuleType') {
     let mod_type = new_module
-    let instance = ObjectInstance.new(ObjectType.new('String'))
+    let instance = ClassInstance.new(ClassType.new('String'))
 
     assert_not_compatible(instance, mod_type)
   }
 
-  g.test('Comparing an ObjectInstance with a SelfType') {
-    let obj1 = ObjectType.new('String')
-    let obj2 = ObjectType.new('Integer')
+  g.test('Comparing an ClassInstance with a SelfType') {
+    let obj1 = ClassType.new('String')
+    let obj2 = ClassType.new('Integer')
     let builtins = Builtins.new
 
     assert_compatible(
-      compare: ObjectInstance.new(obj1),
+      compare: ClassInstance.new(obj1),
       with: SelfType.new,
       builtins: builtins,
-      self_type: ObjectInstance.new(obj1)
+      self_type: ClassInstance.new(obj1)
     )
 
     assert_not_compatible(
-      compare: ObjectInstance.new(obj1),
+      compare: ClassInstance.new(obj1),
       with: SelfType.new,
       builtins: builtins,
-      self_type: ObjectInstance.new(obj2)
+      self_type: ClassInstance.new(obj2)
     )
   }
 }
 
-test.group('std::compiler::types::ObjectInstance.substitute') do (g) {
+test.group('std::compiler::types::ClassInstance.substitute') do (g) {
   g.test('Substituting a regular object') {
-    let object_type = ObjectType.new('A')
+    let object_type = ClassType.new('A')
     let instance = object_type.new_instance
 
     assert.same_object(instance.substitute(type_scope(instance)), instance)
   }
 
   g.test('Substituting a generic object') {
-    let object1 = ObjectType.new('A')
-    let object2 = ObjectType.new('B')
+    let object1 = ClassType.new('A')
+    let object2 = ClassType.new('B')
     let param = TypeParameterType.new('T')
 
     object2.type_parameters.define(name: param.name, type: param)
@@ -4166,9 +4166,9 @@ test.group('std::compiler::types::ObjectInstance.substitute') do (g) {
   }
 
   g.test('Substituting a generic object with custom type arguments') {
-    let list_type = ObjectType.new('List')
+    let list_type = ClassType.new('List')
     let param = TypeParameterType.new('T')
-    let assigned = ObjectType.new('Integer').new_instance
+    let assigned = ClassType.new('Integer').new_instance
 
     list_type.type_parameters.define(name: param.name, type: param)
 
@@ -4211,7 +4211,7 @@ test.group('std::compiler::types::ModuleType.defines?') do (g) {
       MethodType.new(name: 'a', layout: BlockLayout.new(NeverType.new))
 
     mod.define_method(name: 'a', type: method)
-    mod.define_constant(name: 'b', type: ObjectType.new('A'))
+    mod.define_constant(name: 'b', type: ClassType.new('A'))
 
     assert.true(mod.defines?('a'))
     assert.true(mod.defines?('b'))
@@ -4232,7 +4232,7 @@ test.group('std::compiler::types::ModuleType.type_name') do (g) {
 test.group('std::compiler::types::ModuleType.lookup_type') do (g) {
   g.test('Looking up a type') {
     let mod = new_module
-    let type = ObjectType.new('A')
+    let type = ClassType.new('A')
 
     mod.define_constant(name: 'A', type: type)
 
@@ -4267,11 +4267,11 @@ test.group('std::compiler::types::ModuleType.type_compatible?') do (g) {
     assert_not_compatible(new_module, NeverType.new)
   }
 
-  g.test('Comparing a ModuleType with an ObjectType') {
-    assert_not_compatible(new_module, ObjectType.new('String'))
+  g.test('Comparing a ModuleType with an ClassType') {
+    assert_not_compatible(new_module, ClassType.new('String'))
   }
 
-  g.test('Comparing a ModuleType with a ObjectType') {
+  g.test('Comparing a ModuleType with a ClassType') {
     assert_not_compatible(new_module, TraitType.new('ToString'))
   }
 
@@ -4283,20 +4283,20 @@ test.group('std::compiler::types::ModuleType.type_compatible?') do (g) {
     assert_not_compatible(mod1, mod2)
   }
 
-  g.test('Comparing a ModuleType with an ObjectInstance') {
+  g.test('Comparing a ModuleType with an ClassInstance') {
     let builtins = Builtins.new
     let mod_type = new_module
-    let obj_type = ObjectType.new('Thing')
+    let obj_type = ClassType.new('Thing')
 
     assert_compatible(
       compare: mod_type,
-      with: ObjectInstance.new(builtins.module_type),
+      with: ClassInstance.new(builtins.module_type),
       builtins: builtins
     )
 
     assert_not_compatible(
       compare: mod_type,
-      with: ObjectInstance.new(obj_type),
+      with: ClassInstance.new(obj_type),
       builtins: builtins
     )
   }
@@ -4361,7 +4361,7 @@ test.group('std::compiler::types::ModuleType.type_compatible?') do (g) {
 
   g.test('Comparing a ModuleType with an assigned TypeParameterType') {
     with_generic_type do (type, param) {
-      let assigned = ObjectType.new('Foo')
+      let assigned = ClassType.new('Foo')
 
       type.assign_type_parameter(parameter: param, type: assigned)
 

@@ -69,7 +69,7 @@ let SEPARATOR = _SEPARATOR
 #     import std::fs::path::Path
 #
 #     '/tmp/hello.txt'.to_path
-object Path {
+class Path {
   # The raw file path.
   @path: String
 

@@ -1,28 +1,28 @@
 # Generics
 
-Inko supports generic objects, traits and blocks. Examples of built-in generic
+Inko supports generic classes, traits and blocks. Examples of built-in generic
 types are `Array`, `Map`, `Pair`, and `Range`.
 
-## Generic objects
+## Generic classes
 
-A generic object is defined as follows:
+A generic class is defined as follows:
 
 ```inko
-object List!(T) {}
+class List!(T) {}
 ```
 
-Here we define a `List` object with a single type parameter: `T`. A list of type
+Here we define a `List` class with a single type parameter: `T`. A list of type
 parameters starts with `!(` and ends with a `)`. You can use type parameters in
 signatures:
 
 ```inko
-object List!(T) {
+class List!(T) {
   def push(value: T) {
     # This is OK
   }
 
   def foo {
-    T # This is not, because T isn't an object at runtime.
+    T # This is not, because T isn't a type that exists at runtime.
   }
 }
 ```
@@ -34,7 +34,7 @@ assigned to the type parameter must implement:
 trait Foo {}
 trait Bar {}
 
-object List!(T: Foo + Bar) {}
+class List!(T: Foo + Bar) {}
 ```
 
 Here any type assigned to `T` must implement the traits `Foo` and `Bar`.
@@ -42,14 +42,14 @@ Here any type assigned to `T` must implement the traits `Foo` and `Bar`.
 If you want to define multiple type parameters, separate them with a comma:
 
 ```inko
-object List!(A, B, C) {}
+class List!(A, B, C) {}
 ```
 
 Here's how you'd define a generic list type that supports pushing and popping of
 values:
 
 ```inko
-object List!(T) {
+class List!(T) {
   @values: Array!(T)
 
   static def new -> Self {
@@ -66,8 +66,8 @@ object List!(T) {
 }
 ```
 
-When using a generic object in a type signature, you must specify the types to
-assign to the object's type parameters. In case of our `List` type, that means
+When using a generic class in a type signature, you must specify the types to
+assign to the class' type parameters. In case of our `List` type, that means
 this isn't valid:
 
 ```inko
@@ -80,7 +80,7 @@ Instead we have to write something like this:
 def foo(list: List!(Integer)) {}
 ```
 
-When reopening a generic object, you don't need to specify its type parameters
+When reopening a generic class, you don't need to specify its type parameters
 again:
 
 ```inko
@@ -89,7 +89,7 @@ impl List {}
 
 ## Generic traits
 
-Generic traits are defined the same way as generic objects:
+Generic traits are defined the same way as generic classes:
 
 ```inko
 trait ToList!(T) {}

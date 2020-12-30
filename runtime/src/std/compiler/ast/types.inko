@@ -8,7 +8,7 @@ import std::compiler::types::(
 import std::option::Option
 
 # A closure type created using the `do` keyword.
-object ClosureType {
+class ClosureType {
   # The argument types of this closure.
   @arguments: Array!(TypeNode)
 
@@ -83,7 +83,7 @@ impl Node for ClosureType {
 impl TypeNode for ClosureType {}
 
 # A lambda type created using the `lambda` keyword.
-object LambdaType {
+class LambdaType {
   # The argument types of this lambda.
   @arguments: Array!(TypeNode)
 
@@ -158,7 +158,7 @@ impl Node for LambdaType {
 impl TypeNode for LambdaType {}
 
 # An Option type created using the `?T` syntax.
-object OptionType {
+class OptionType {
   # The wrapped type.
   @type: TypeNode
 

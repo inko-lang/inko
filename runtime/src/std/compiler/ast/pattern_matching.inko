@@ -10,7 +10,7 @@ import std::option::Option
 trait MatchCase: Node {}
 
 # A pattern matching expression.
-object Match {
+class Match {
   # The expression that the match is performed on.
   @expression: ?Node
 
@@ -79,7 +79,7 @@ impl Node for Match {
 }
 
 # A pattern matching case for matching a type.
-object MatchType {
+class MatchType {
   # The type that is expected by this case.
   @pattern: Constant
 
@@ -141,7 +141,7 @@ impl Node for MatchType {
 impl MatchCase for MatchType {}
 
 # A pattern matching case for matching one or more expression.
-object MatchExpressions {
+class MatchExpressions {
   # The patterns to match.
   @patterns: Array!(Node)
 
@@ -203,7 +203,7 @@ impl Node for MatchExpressions {
 impl MatchCase for MatchExpressions {}
 
 # An "else" case in a pattern match.
-object MatchElse {
+class MatchElse {
   # The body to run when the case is met.
   @body: Body
 

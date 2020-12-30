@@ -38,7 +38,7 @@ nav:
     - getting-started/static-typing.md
     - getting-started/basic-types.md
     - getting-started/blocks.md
-    - getting-started/objects.md
+    - getting-started/classes.md
     - getting-started/traits.md
     - getting-started/modules.md
     - getting-started/variables.md

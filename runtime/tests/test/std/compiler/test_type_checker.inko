@@ -50,12 +50,12 @@ def assert_instance_of(type: Type, instance_of: Type) {
   assert.true(mirror.reflect(type).instance_of?(instance_of))
 }
 
-def assert_object_instance(type: Type, instance_of: ObjectType) {
+def assert_object_instance(type: Type, instance_of: ClassType) {
   match(let matched = type) {
-    as ObjectInstance when matched.instance_of.same_object?(instance_of) -> {}
+    as ClassInstance when matched.instance_of.same_object?(instance_of) -> {}
     else -> {
       process.panic(
-        `Expected {matched.type_name} to be an object instance of {instance_of.type_name}`
+        `Expected {matched.type_name} to be an instance of {instance_of.type_name}`
       )
     }
   }
@@ -97,7 +97,7 @@ def setup_match_types(type_checker: TypeChecker, module: ModuleType) {
   )
 }
 
-object DummyPass {
+class DummyPass {
   @type_checker: TypeChecker
   @module: ModuleType
 
@@ -130,7 +130,7 @@ test.group('std::compiler::type_checker::TypePass.visit_constant') do (g) {
 
   g.test('Resolving a constant that exists') {
     let pass = DummyPass.new
-    let foo_type = ObjectType.new('Foo')
+    let foo_type = ClassType.new('Foo')
 
     pass.module.define_constant(name: foo_type.name, type: foo_type)
 
@@ -156,8 +156,8 @@ test.group('std::compiler::type_checker::TypePass.visit_constant') do (g) {
 
   g.test('Resolving an existing regular constant with type arguments') {
     let pass = DummyPass.new
-    let foo_type = ObjectType.new('Foo')
-    let bar_type = ObjectType.new('Bar')
+    let foo_type = ClassType.new('Foo')
+    let bar_type = ClassType.new('Bar')
 
     pass.module.define_constant(name: foo_type.name, type: foo_type)
     pass.module.define_constant(name: bar_type.name, type: bar_type)
@@ -173,8 +173,8 @@ test.group('std::compiler::type_checker::TypePass.visit_constant') do (g) {
 
   g.test('Resolving an existing generic constant with type arguments') {
     let pass = DummyPass.new
-    let foo_type = ObjectType.new('Foo')
-    let bar_type = ObjectType.new('Bar')
+    let foo_type = ClassType.new('Foo')
+    let bar_type = ClassType.new('Bar')
     let param = TypeParameterType.new('A')
 
     foo_type.type_parameters.define(name: 'A', type: param)
@@ -185,11 +185,11 @@ test.group('std::compiler::type_checker::TypePass.visit_constant') do (g) {
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_constant(node: node, types: scope)
 
-    assert_instance_of(type, ObjectInstance)
+    assert_instance_of(type, ClassInstance)
     assert.same_object(node.resolved_type.get, type)
     assert.false(pass.type_checker.diagnostics.errors?)
 
-    let obj_type = type as ObjectInstance
+    let obj_type = type as ClassInstance
 
     assert.same_object(obj_type.instance_of, foo_type)
     assert.equal(obj_type.type_parameter_types.length, 1)
@@ -198,8 +198,8 @@ test.group('std::compiler::type_checker::TypePass.visit_constant') do (g) {
 
   g.test('Resolving an existing generic constant with an incorrect number of type arguments') {
     let pass = DummyPass.new
-    let foo_type = ObjectType.new('Foo')
-    let bar_type = ObjectType.new('Bar')
+    let foo_type = ClassType.new('Foo')
+    let bar_type = ClassType.new('Bar')
 
     foo_type.type_parameters.define(name: 'A', type: TypeParameterType.new('A'))
     foo_type.type_parameters.define(name: 'B', type: TypeParameterType.new('B'))
@@ -253,7 +253,7 @@ test.group('std::compiler::type_checker::TypePass.visit_constant_as_type') do (g
 
   g.test('Resolving an existing generic constant without type arguments') {
     let pass = DummyPass.new
-    let foo_type = ObjectType.new('Foo')
+    let foo_type = ClassType.new('Foo')
 
     foo_type.type_parameters.define(name: 'A', type: TypeParameterType.new('A'))
     pass.module.define_constant(name: foo_type.name, type: foo_type)
@@ -283,8 +283,8 @@ test.group('std::compiler::type_checker::TypePass.visit_closure_type') do (g) {
   }
 
   g.test('Defining a closure type with valid argument types') {
-    let foo_type = ObjectType.new('Foo')
-    let bar_type = ObjectType.new('Bar')
+    let foo_type = ClassType.new('Foo')
+    let bar_type = ClassType.new('Bar')
     let pass = DummyPass.new
 
     pass.module.define_constant(name: foo_type.name, type: foo_type)
@@ -304,11 +304,11 @@ test.group('std::compiler::type_checker::TypePass.visit_closure_type') do (g) {
     assert.equal(arg0.name, '0')
     assert.equal(arg1.name, '1')
 
-    assert_instance_of(arg0.type, ObjectInstance)
-    assert_instance_of(arg1.type, ObjectInstance)
+    assert_instance_of(arg0.type, ClassInstance)
+    assert_instance_of(arg1.type, ClassInstance)
 
-    assert.equal((arg0.type as ObjectInstance).instance_of.name, 'Foo')
-    assert.equal((arg1.type as ObjectInstance).instance_of.name, 'Bar')
+    assert.equal((arg0.type as ClassInstance).instance_of.name, 'Foo')
+    assert.equal((arg1.type as ClassInstance).instance_of.name, 'Bar')
   }
 
   g.test('Defining a closure type with invalid argument types') {
@@ -333,7 +333,7 @@ test.group('std::compiler::type_checker::TypePass.visit_closure_type') do (g) {
 
   g.test('Defining a closure with a valid throw type') {
     let pass = DummyPass.new
-    let foo_type = ObjectType.new('Foo')
+    let foo_type = ClassType.new('Foo')
 
     pass.module.define_constant(name: foo_type.name, type: foo_type)
 
@@ -343,8 +343,8 @@ test.group('std::compiler::type_checker::TypePass.visit_closure_type') do (g) {
     let throws = type.throw_type.get
 
     assert.same_object(node.resolved_type.get, type)
-    assert_instance_of(throws, ObjectInstance)
-    assert.same_object((throws as ObjectInstance).instance_of, foo_type)
+    assert_instance_of(throws, ClassInstance)
+    assert.same_object((throws as ClassInstance).instance_of, foo_type)
   }
 
   g.test('Defining a closure with an invalid throw type') {
@@ -359,7 +359,7 @@ test.group('std::compiler::type_checker::TypePass.visit_closure_type') do (g) {
 
   g.test('Defining a closure with a valid return type') {
     let pass = DummyPass.new
-    let foo_type = ObjectType.new('Foo')
+    let foo_type = ClassType.new('Foo')
 
     pass.module.define_constant(name: foo_type.name, type: foo_type)
 
@@ -369,8 +369,8 @@ test.group('std::compiler::type_checker::TypePass.visit_closure_type') do (g) {
     let returns = type.return_type
 
     assert.same_object(node.resolved_type.get, type)
-    assert_instance_of(returns, ObjectInstance)
-    assert.same_object((returns as ObjectInstance).instance_of, foo_type)
+    assert_instance_of(returns, ClassInstance)
+    assert.same_object((returns as ClassInstance).instance_of, foo_type)
   }
 
   g.test('Defining a closure with an invalid return type') {
@@ -411,7 +411,7 @@ test.group('std::compiler::type_checker::TypePass.visit_closure_type') do (g) {
 
   g.test('Defining a closure type with an uninitialised generic argument') {
     let pass = DummyPass.new
-    let foo_type = ObjectType.new('Foo')
+    let foo_type = ClassType.new('Foo')
 
     foo_type.type_parameters.define(name: 'A', type: TypeParameterType.new('A'))
 
@@ -441,8 +441,8 @@ test.group('std::compiler::type_checker::TypePass.visit_lambda_type') do (g) {
   }
 
   g.test('Defining a lambda type with valid argument types') {
-    let foo_type = ObjectType.new('Foo')
-    let bar_type = ObjectType.new('Bar')
+    let foo_type = ClassType.new('Foo')
+    let bar_type = ClassType.new('Bar')
     let pass = DummyPass.new
 
     pass.module.define_constant(name: foo_type.name, type: foo_type)
@@ -462,11 +462,11 @@ test.group('std::compiler::type_checker::TypePass.visit_lambda_type') do (g) {
     assert.equal(arg0.name, '0')
     assert.equal(arg1.name, '1')
 
-    assert_instance_of(arg0.type, ObjectInstance)
-    assert_instance_of(arg1.type, ObjectInstance)
+    assert_instance_of(arg0.type, ClassInstance)
+    assert_instance_of(arg1.type, ClassInstance)
 
-    assert.equal((arg0.type as ObjectInstance).instance_of.name, 'Foo')
-    assert.equal((arg1.type as ObjectInstance).instance_of.name, 'Bar')
+    assert.equal((arg0.type as ClassInstance).instance_of.name, 'Foo')
+    assert.equal((arg1.type as ClassInstance).instance_of.name, 'Bar')
   }
 
   g.test('Defining a lambda type with invalid argument types') {
@@ -491,7 +491,7 @@ test.group('std::compiler::type_checker::TypePass.visit_lambda_type') do (g) {
 
   g.test('Defining a lambda with a valid throw type') {
     let pass = DummyPass.new
-    let foo_type = ObjectType.new('Foo')
+    let foo_type = ClassType.new('Foo')
 
     pass.module.define_constant(name: foo_type.name, type: foo_type)
 
@@ -503,8 +503,8 @@ test.group('std::compiler::type_checker::TypePass.visit_lambda_type') do (g) {
 
     let throws = type.throw_type.get
 
-    assert_instance_of(throws, ObjectInstance)
-    assert.same_object((throws as ObjectInstance).instance_of, foo_type)
+    assert_instance_of(throws, ClassInstance)
+    assert.same_object((throws as ClassInstance).instance_of, foo_type)
   }
 
   g.test('Defining a lambda with an invalid throw type') {
@@ -519,7 +519,7 @@ test.group('std::compiler::type_checker::TypePass.visit_lambda_type') do (g) {
 
   g.test('Defining a lambda with a valid return type') {
     let pass = DummyPass.new
-    let foo_type = ObjectType.new('Foo')
+    let foo_type = ClassType.new('Foo')
 
     pass.module.define_constant(name: foo_type.name, type: foo_type)
 
@@ -531,8 +531,8 @@ test.group('std::compiler::type_checker::TypePass.visit_lambda_type') do (g) {
 
     let returns = type.return_type
 
-    assert_instance_of(returns, ObjectInstance)
-    assert.same_object((returns as ObjectInstance).instance_of, foo_type)
+    assert_instance_of(returns, ClassInstance)
+    assert.same_object((returns as ClassInstance).instance_of, foo_type)
   }
 
   g.test('Defining a lambda with an invalid return type') {
@@ -573,7 +573,7 @@ test.group('std::compiler::type_checker::TypePass.visit_lambda_type') do (g) {
 
   g.test('Defining a lambda type with an uninitialised generic argument') {
     let pass = DummyPass.new
-    let foo_type = ObjectType.new('Foo')
+    let foo_type = ClassType.new('Foo')
 
     foo_type.type_parameters.define(name: 'A', type: TypeParameterType.new('A'))
 
@@ -616,7 +616,7 @@ test.group('std::compiler::type_checker::TypePass.visit_define_type_parameter') 
 
   g.test('Defining an invalid type parameter') {
     let pass = DummyPass.new
-    let foo_type = ObjectType.new('Foo')
+    let foo_type = ClassType.new('Foo')
 
     pass.module.define_constant(name: foo_type.name, type: foo_type)
 
@@ -658,9 +658,9 @@ test.group('std::compiler::type_checker::TypeChecker.diagnostics') do (g) {
 test.group('std::compiler::type_checker::TypeChecker.check') do (g) {
   g.test('Type-checking a module and its dependencies') {
     let name = ModuleName.new(Array.new('main'))
-    let ast = parse("import foo\nobject A {}")
+    let ast = parse("import foo\nclass A {}")
     let foo_parsed = ParsedModule
-      .new(name: ModuleName.new(Array.new('foo')), ast: parse('object A {}'))
+      .new(name: ModuleName.new(Array.new('foo')), ast: parse('class A {}'))
 
     let type_checker = TypeChecker.new(dependencies: Array.new(foo_parsed))
 
@@ -680,7 +680,7 @@ test.group('Type-checking imports') do (g) {
     let foo_mod = new_module('foo')
     let bar_mod = new_module('bar')
     let type_checker = TypeChecker.new
-    let bar_type = ObjectType.new('Bar')
+    let bar_type = ClassType.new('Bar')
     let node = parse('import foo::(Bar)')
 
     foo_mod.define_constant(name: bar_type.name, type: bar_type)
@@ -690,7 +690,7 @@ test.group('Type-checking imports') do (g) {
     let imported = bar_mod.globals['Bar'].type
 
     assert.false(type_checker.diagnostics.errors?)
-    assert.same_object(imported as ObjectType, bar_type)
+    assert.same_object(imported as ClassType, bar_type)
   }
 
   g.test('Importing a non-existing symbol') {
@@ -712,7 +712,7 @@ test.group('Type-checking imports') do (g) {
     let foo_mod = new_module('foo')
     let bar_mod = new_module('bar')
     let type_checker = TypeChecker.new
-    let bar_type = ObjectType.new('Bar')
+    let bar_type = ClassType.new('Bar')
     let node = parse('import foo::(Bar, Bar)')
 
     foo_mod.define_constant(name: bar_type.name, type: bar_type)
@@ -722,7 +722,7 @@ test.group('Type-checking imports') do (g) {
     let imported = bar_mod.globals['Bar'].type
 
     assert.true(type_checker.diagnostics.errors?)
-    assert.same_object(imported as ObjectType, bar_type)
+    assert.same_object(imported as ClassType, bar_type)
   }
 
   g.test('Importing two different symbols') {
@@ -730,8 +730,8 @@ test.group('Type-checking imports') do (g) {
     let bar_mod = new_module('bar')
     let type_checker = TypeChecker.new
     let node = parse('import foo::(Bar, Baz)')
-    let bar_type = ObjectType.new('Bar')
-    let baz_type = ObjectType.new('Baz')
+    let bar_type = ClassType.new('Bar')
+    let baz_type = ClassType.new('Baz')
 
     foo_mod.define_constant(name: bar_type.name, type: bar_type)
     foo_mod.define_constant(name: baz_type.name, type: baz_type)
@@ -742,8 +742,8 @@ test.group('Type-checking imports') do (g) {
     let bar = bar_mod.globals['Bar'].type
     let baz = bar_mod.globals['Baz'].type
 
-    assert.same_object(bar as ObjectType, bar_type)
-    assert.same_object(baz as ObjectType, baz_type)
+    assert.same_object(bar as ClassType, bar_type)
+    assert.same_object(baz as ClassType, baz_type)
   }
 
   g.test('Importing a symbol with an alias') {
@@ -751,7 +751,7 @@ test.group('Type-checking imports') do (g) {
     let bar_mod = new_module('bar')
     let type_checker = TypeChecker.new
     let node = parse('import foo::(Bar as Baz)')
-    let bar_type = ObjectType.new('Bar')
+    let bar_type = ClassType.new('Bar')
 
     foo_mod.define_constant(name: bar_type.name, type: bar_type)
     type_checker.add_module(foo_mod)
@@ -793,8 +793,8 @@ test.group('Type-checking imports') do (g) {
     let bar_mod = new_module('bar')
     let type_checker = TypeChecker.new
     let node = parse('import foo::*')
-    let bar_type = ObjectType.new('Bar')
-    let baz_type = ObjectType.new('Baz')
+    let bar_type = ClassType.new('Bar')
+    let baz_type = ClassType.new('Baz')
 
     foo_mod.define_constant(name: bar_type.name, type: bar_type)
     foo_mod.define_constant(name: baz_type.name, type: baz_type)
@@ -805,8 +805,8 @@ test.group('Type-checking imports') do (g) {
     let bar = bar_mod.globals['Bar'].type
     let baz = bar_mod.globals['Baz'].type
 
-    assert.same_object(bar as ObjectType, bar_type)
-    assert.same_object(baz as ObjectType, baz_type)
+    assert.same_object(bar as ClassType, bar_type)
+    assert.same_object(baz as ClassType, baz_type)
   }
 
   g.test('Importing a symbol from a non-existing module') {
@@ -823,68 +823,68 @@ test.group('Type-checking imports') do (g) {
   }
 }
 
-test.group('Type-checking object definitions') do (g) {
-  g.test('Defining an empty object') {
+test.group('Type-checking class definitions') do (g) {
+  g.test('Defining an empty class') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let node = parse('object A {}')
+    let node = parse('class A {}')
 
     type_checker.check_module(module: module, ast: node)
 
     let type = module.constants['A'].type
 
     assert.false(type_checker.diagnostics.errors?)
-    assert_instance_of(type, ObjectType)
-    assert_instance_of(node.children[0].resolved_type.get, ObjectType)
+    assert_instance_of(type, ClassType)
+    assert_instance_of(node.children[0].resolved_type.get, ClassType)
   }
 
-  g.test('Defining an empty generic object') {
+  g.test('Defining an empty generic class') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
     let foo_type = TraitType.new('Foo')
-    let node = parse('object A!(T: Foo) {}')
+    let node = parse('class A!(T: Foo) {}')
 
     module.define_constant(name: foo_type.name, type: foo_type)
     type_checker.check_module(module: module, ast: node)
 
     let type = module.constants['A'].type
 
-    assert_instance_of(type, ObjectType)
-    assert_instance_of(node.children[0].resolved_type.get, ObjectType)
+    assert_instance_of(type, ClassType)
+    assert_instance_of(node.children[0].resolved_type.get, ClassType)
 
-    let param = (type as ObjectType).type_parameters['T'].type
+    let param = (type as ClassType).type_parameters['T'].type
 
     assert.false(type_checker.diagnostics.errors?)
     assert.equal(param.required_traits[0].instance_of, foo_type)
   }
 
-  g.test('Defining a generic object with an invalid type parameter') {
+  g.test('Defining a generic class with an invalid type parameter') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let node = parse('object A!(T: Foo) {}')
+    let node = parse('class A!(T: Foo) {}')
 
     type_checker.check_module(module: module, ast: node)
 
     let type = module.constants['A'].type
 
     assert.true(type_checker.diagnostics.errors?)
-    assert_instance_of(type, ObjectType)
-    assert_instance_of(node.children[0].resolved_type.get, ObjectType)
-    assert.true((type as ObjectType).type_parameters.get('T').none?)
+    assert_instance_of(type, ClassType)
+    assert_instance_of(node.children[0].resolved_type.get, ClassType)
+    assert.true((type as ClassType).type_parameters.get('T').none?)
   }
 
-  g.test('Redefining an existing object') {
+  g.test('Redefining an existing class') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let a_type = ObjectType.new('A')
-    let node = parse('object A {}')
+    let a_type = ClassType.new('A')
+    let node = parse('class A {}')
 
     module.define_constant(name: a_type.name, type: a_type)
     type_checker.check_module(module: module, ast: node)
 
     assert.true(type_checker.diagnostics.errors?)
     assert.same_object(module.constants['A'].type, a_type)
-    assert_instance_of(node.children[0].resolved_type.get, ObjectType)
+    assert_instance_of(node.children[0].resolved_type.get, ClassType)
   }
 }
 
@@ -918,7 +918,7 @@ test.group('Type-checking trait definitions') do (g) {
     assert_instance_of(type, TraitType)
     assert_instance_of(node.children[0].resolved_type.get, TraitType)
 
-    let param = (type as ObjectType).type_parameters['T'].type
+    let param = (type as ClassType).type_parameters['T'].type
 
     assert.equal(param.required_traits[0].instance_of, foo_type)
   }
@@ -957,22 +957,22 @@ test.group('Type-checking attribute definitions') do (g) {
   g.test('Defining an attribute') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let foo_type = ObjectType.new('Foo')
-    let node = parse('object A { @foo: Foo }')
+    let foo_type = ClassType.new('Foo')
+    let node = parse('class A { @foo: Foo }')
     let attr_node =
-      (node.children[0] as DefineObject).body.children[0] as DefineAttribute
+      (node.children[0] as DefineClass).body.children[0] as DefineAttribute
 
     module.define_constant(name: foo_type.name, type: foo_type)
     type_checker.check_module(module: module, ast: node)
 
-    let obj = module.constants['A'].type as ObjectType
+    let obj = module.constants['A'].type as ClassType
     let attr = obj.attributes['@foo'].type
 
-    assert_instance_of(attr.public_type, ObjectInstance)
-    assert_instance_of(attr.internal_type, ObjectInstance)
+    assert_instance_of(attr.public_type, ClassInstance)
+    assert_instance_of(attr.internal_type, ClassInstance)
     assert.same_object(attr_node.resolved_type.get, attr.internal_type)
     assert.same_object(
-      (attr.internal_type as ObjectInstance).instance_of,
+      (attr.internal_type as ClassInstance).instance_of,
       foo_type
     )
   }
@@ -980,13 +980,13 @@ test.group('Type-checking attribute definitions') do (g) {
   g.test('Defining an attribute as a type parameter') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let node = parse('object A!(T) { @foo: T }')
+    let node = parse('class A!(T) { @foo: T }')
     let attr_node =
-      (node.children[0] as DefineObject).body.children[0] as DefineAttribute
+      (node.children[0] as DefineClass).body.children[0] as DefineAttribute
 
     type_checker.check_module(module: module, ast: node)
 
-    let obj = module.constants['A'].type as ObjectType
+    let obj = module.constants['A'].type as ClassType
     let attr = obj.attributes['@foo'].type
 
     assert.false(type_checker.diagnostics.errors?)
@@ -998,19 +998,19 @@ test.group('Type-checking attribute definitions') do (g) {
   g.test('Defining an attribute as a generic type containing a type parameter') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let node = parse('object A!(T) { @foo: List!(T) }')
-    let list_type = ObjectType.new('List')
+    let node = parse('class A!(T) { @foo: List!(T) }')
+    let list_type = ClassType.new('List')
     let list_param = TypeParameterType.new('A')
 
     list_type.type_parameters.define(name: 'A', type: list_param)
     module.globals.define(name: list_type.name, type: list_type)
     type_checker.check_module(module: module, ast: node)
 
-    let obj = module.constants['A'].type as ObjectType
-    let attr = obj.attributes['@foo'].type.internal_type as ObjectInstance
+    let obj = module.constants['A'].type as ClassType
+    let attr = obj.attributes['@foo'].type.internal_type as ClassInstance
 
     assert.false(type_checker.diagnostics.errors?)
-    assert_instance_of(attr, ObjectInstance)
+    assert_instance_of(attr, ClassInstance)
 
     let list_param_type = attr.lookup_type_parameter_type(list_param).get
     let obj_param = obj.lookup_type_parameter('T').get.type
@@ -1025,13 +1025,13 @@ test.group('Type-checking attribute definitions') do (g) {
   g.test('Defining an attribute with an invalid type') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let node = parse('object A { @foo: Foo }')
+    let node = parse('class A { @foo: Foo }')
     let attr_node =
-      (node.children[0] as DefineObject).body.children[0] as DefineAttribute
+      (node.children[0] as DefineClass).body.children[0] as DefineAttribute
 
     type_checker.check_module(module: module, ast: node)
 
-    let obj = module.constants['A'].type as ObjectType
+    let obj = module.constants['A'].type as ClassType
     let attr = obj.attributes['@foo'].type
 
     assert.true(type_checker.diagnostics.errors?)
@@ -1384,7 +1384,7 @@ test.group('Type-checking method definitions') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     let method = module.methods['foo'].type as MethodType
-    let arg = method.arguments['a'].type as ObjectInstance
+    let arg = method.arguments['a'].type as ClassInstance
 
     assert.false(type_checker.diagnostics.errors?)
     assert.true(method.rest_argument?)
@@ -1608,14 +1608,14 @@ test.group('Type-checking method definitions') do (g) {
     let trait1 = TraitType.new('ToString')
     let trait2 = TraitType.new('ToInteger')
     let body =
-      parse('object A!(T) { def foo when T: ToString, T: ToInteger {} }')
+      parse('class A!(T) { def foo when T: ToString, T: ToInteger {} }')
 
     module.define_constant(name: 'ToString', trait1)
     module.define_constant(name: 'ToInteger', trait2)
 
     type_checker.check_module(module: module, ast: body)
 
-    let a_obj = module.constants['A'].type as ObjectType
+    let a_obj = module.constants['A'].type as ClassType
     let param = a_obj.type_parameters['T'].type
     let method = a_obj.instance_methods['foo'].type
     let bounds = method.type_parameter_bounds[param]
@@ -1628,14 +1628,14 @@ test.group('Type-checking method definitions') do (g) {
   g.test('Defining a method with an argument type used in a method bound') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let body = parse('object A!(T) { def foo(a: T) when T: ToString {} }')
+    let body = parse('class A!(T) { def foo(a: T) when T: ToString {} }')
     let trait_type = TraitType.new('ToString')
 
     module.define_constant(name: 'ToString', trait_type)
 
     type_checker.check_module(module: module, ast: body)
 
-    let a_obj = module.constants['A'].type as ObjectType
+    let a_obj = module.constants['A'].type as ClassType
     let method = a_obj.instance_methods['foo'].type as MethodType
     let arg_type = method.arguments['a'].type as TypeParameterType
 
@@ -1650,7 +1650,7 @@ test.group('Type-checking method definitions') do (g) {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
     let body =
-      parse('object A!(T) { def foo(a: T) !! T when T: ToString { throw a } }')
+      parse('class A!(T) { def foo(a: T) !! T when T: ToString { throw a } }')
 
     let trait_type = TraitType.new('ToString')
 
@@ -1658,7 +1658,7 @@ test.group('Type-checking method definitions') do (g) {
 
     type_checker.check_module(module: module, ast: body)
 
-    let a_obj = module.constants['A'].type as ObjectType
+    let a_obj = module.constants['A'].type as ClassType
     let method = a_obj.instance_methods['foo'].type as MethodType
     let ttype = method.throw_type.get as TypeParameterType
 
@@ -1672,14 +1672,14 @@ test.group('Type-checking method definitions') do (g) {
   g.test('Defining a method with a return type used in a method bound') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let body = parse('object A!(T) { def foo -> T when T: ToString {} }')
+    let body = parse('class A!(T) { def foo -> T when T: ToString {} }')
     let trait_type = TraitType.new('ToString')
 
     module.define_constant(name: 'ToString', trait_type)
 
     type_checker.check_module(module: module, ast: body)
 
-    let a_obj = module.constants['A'].type as ObjectType
+    let a_obj = module.constants['A'].type as ClassType
     let method = a_obj.instance_methods['foo'].type as MethodType
     let rtype = method.return_type as TypeParameterType
 
@@ -1722,7 +1722,7 @@ test.group('Type-checking method definitions') do (g) {
     let type_checker = TypeChecker.new
     let body = parse('def foo(a: Self) {}')
 
-    module.globals.define(name: 'foo', type: ObjectType.new('Foo'))
+    module.globals.define(name: 'foo', type: ClassType.new('Foo'))
     type_checker.check_module(module: module, ast: body)
 
     assert.false(type_checker.diagnostics.errors?)
@@ -1777,8 +1777,8 @@ test.group('Type-checking method definitions') do (g) {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
     let int_type = type_checker.builtins.integer_type
-    let body = parse('object A { def foo -> Integer { 10 } }')
-    let object_node = body.children[0] as DefineObject
+    let body = parse('class A { def foo -> Integer { 10 } }')
+    let object_node = body.children[0] as DefineClass
     let method_node = object_node.body.children[0] as DefineMethod
     let int_node = method_node.body.children[0] as IntegerLiteral
 
@@ -1818,7 +1818,7 @@ test.group('Type-checking method definitions') do (g) {
 
     module.define_constant(name: 'Integer', type: int_type)
     module.define_constant(name: 'A', type: TraitType.new('A'))
-    module.define_constant(name: 'B', type: ObjectType.new('B'))
+    module.define_constant(name: 'B', type: ClassType.new('B'))
 
     type_checker.check_module(module: module, ast: body)
 
@@ -1846,14 +1846,14 @@ test.group('Type-checking method definitions') do (g) {
   g.test('Defining a method in an object') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let body = parse('object Foo { def foo {} }')
+    let body = parse('class Foo { def foo {} }')
 
     type_checker.check_module(module: module, ast: body)
 
-    let obj_type = body.children[0].resolved_type.get as ObjectType
+    let obj_type = body.children[0].resolved_type.get as ClassType
 
     assert.false(type_checker.diagnostics.errors?)
-    assert_instance_of(obj_type, ObjectType)
+    assert_instance_of(obj_type, ClassType)
 
     assert.false(obj_type.instance_methods.get('foo').none?)
   }
@@ -1861,11 +1861,11 @@ test.group('Type-checking method definitions') do (g) {
   g.test('Redefining a method in an object') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let body = parse('object Foo { def foo(a: Self) {} def foo {} }')
+    let body = parse('class Foo { def foo(a: Self) {} def foo {} }')
 
     type_checker.check_module(module: module, ast: body)
 
-    let foo_type = module.constants['Foo'].type as ObjectType
+    let foo_type = module.constants['Foo'].type as ClassType
     let method = foo_type.instance_methods['foo'].type
 
     assert.true(type_checker.diagnostics.errors?)
@@ -1875,11 +1875,11 @@ test.group('Type-checking method definitions') do (g) {
   g.test('Defining an instance method with the same name as a static method') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let body = parse('object Foo { static def foo {} def foo {} }')
+    let body = parse('class Foo { static def foo {} def foo {} }')
 
     type_checker.check_module(module: module, ast: body)
 
-    let foo_type = module.constants['Foo'].type as ObjectType
+    let foo_type = module.constants['Foo'].type as ClassType
 
     assert.true(type_checker.diagnostics.errors?)
     assert.false(foo_type.static_methods.get('foo').none?)
@@ -1889,11 +1889,11 @@ test.group('Type-checking method definitions') do (g) {
   g.test('Defining a static method with the same name as an instance method') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let body = parse('object Foo { def foo {} static def foo {} }')
+    let body = parse('class Foo { def foo {} static def foo {} }')
 
     type_checker.check_module(module: module, ast: body)
 
-    let foo_type = module.constants['Foo'].type as ObjectType
+    let foo_type = module.constants['Foo'].type as ClassType
 
     assert.true(type_checker.diagnostics.errors?)
     assert.true(foo_type.static_methods.get('foo').none?)
@@ -1903,11 +1903,11 @@ test.group('Type-checking method definitions') do (g) {
   g.test('Defining an instance method with an argument depending on the "self" type') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let body = parse('object Foo { def foo(a = self) {} }')
+    let body = parse('class Foo { def foo(a = self) {} }')
 
     type_checker.check_module(module: module, ast: body)
 
-    let obj_type = module.constants['Foo'].type as ObjectType
+    let obj_type = module.constants['Foo'].type as ClassType
     let method = obj_type.instance_methods['foo'].type
 
     assert.false(type_checker.diagnostics.errors?)
@@ -1917,11 +1917,11 @@ test.group('Type-checking method definitions') do (g) {
   g.test('Defining a static method with an argument depending on the "self" type') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let body = parse('object Foo { static def foo(a = self) {} }')
+    let body = parse('class Foo { static def foo(a = self) {} }')
 
     type_checker.check_module(module: module, ast: body)
 
-    let obj_type = module.constants['Foo'].type as ObjectType
+    let obj_type = module.constants['Foo'].type as ClassType
     let method = obj_type.static_methods['foo'].type
 
     assert.false(type_checker.diagnostics.errors?)
@@ -2134,11 +2134,11 @@ test.group('Type-checking method definitions') do (g) {
     assert.true(type_checker.diagnostics.errors?)
   }
 
-  g.test('Defining a method using a required object type parameter argument') {
+  g.test('Defining a method using a required class type parameter argument') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let body = parse('object A!(T) { def foo(arg: T) {} }')
-    let obj_node = body.children[0] as DefineObject
+    let body = parse('class A!(T) { def foo(arg: T) {} }')
+    let obj_node = body.children[0] as DefineClass
     let meth_node = obj_node.body.children[0] as DefineMethod
     let arg_node = meth_node.arguments[0] as DefineRequiredArgument
 
@@ -2222,10 +2222,10 @@ test.group('Type-checking method definitions') do (g) {
     assert.same_object((lvar_param_type as RigidTypeParameterType).type, param)
   }
 
-  g.test('Referring to an object type parameter in a method body') {
+  g.test('Referring to an class type parameter in a method body') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let body = parse('object A!(T) { def foo { T } }')
+    let body = parse('class A!(T) { def foo { T } }')
 
     type_checker.check_module(module: module, ast: body)
 
@@ -2255,7 +2255,7 @@ test.group('Type-checking method definitions') do (g) {
   g.test('Referring to a type in a method body') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let ary_type = ObjectType.new('Array')
+    let ary_type = ClassType.new('Array')
     let body = parse('def foo { Array }')
     let meth_node = body.children[0] as DefineMethod
     let const_node = meth_node.body.children[0] as Constant
@@ -2270,8 +2270,8 @@ test.group('Type-checking method definitions') do (g) {
   g.test('Referring to a generic type using type arguments in a method body') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let foo_type = ObjectType.new('Foo')
-    let ary_type = ObjectType.new('Array')
+    let foo_type = ClassType.new('Foo')
+    let ary_type = ClassType.new('Array')
     let ary_param = TypeParameterType.new('T')
 
     ary_type.type_parameters.define(name: ary_param.name, type: ary_param)
@@ -2316,7 +2316,7 @@ test.group('Type-checking constant definitions') do (g) {
 
     module.define_constant(
       name: 'A',
-      type: ObjectInstance.new(type_checker.builtins.float_type)
+      type: ClassInstance.new(type_checker.builtins.float_type)
     )
 
     type_checker.check_module(module: module, ast: body)
@@ -2334,7 +2334,7 @@ test.group('Type-checking constant definitions') do (g) {
 
     module.globals.define(
       name: 'A',
-      type: ObjectInstance.new(type_checker.builtins.float_type)
+      type: ClassInstance.new(type_checker.builtins.float_type)
     )
 
     type_checker.check_module(module: module, ast: body)
@@ -2354,7 +2354,7 @@ test.group('Type-checking trait implementations') do (g) {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
     let trait_type = TraitType.new('ToString')
-    let obj_type = ObjectType.new('Number')
+    let obj_type = ClassType.new('Number')
 
     module.define_constant(name: trait_type.name, type: trait_type)
     module.define_constant(name: obj_type.name, type: obj_type)
@@ -2366,10 +2366,10 @@ test.group('Type-checking trait implementations') do (g) {
 
     let implementation = obj_type.implemented_traits[trait_type]
 
-    assert_instance_of(impl_node.object_name.resolved_type.get, ObjectType)
+    assert_instance_of(impl_node.class_name.resolved_type.get, ClassType)
     assert_instance_of(impl_node.trait_name.resolved_type.get, TraitInstance)
 
-    assert.same_object(impl_node.object_name.resolved_type.get, obj_type)
+    assert.same_object(impl_node.class_name.resolved_type.get, obj_type)
     assert.true(
       (impl_node.trait_name.resolved_type.get as TraitInstance)
         .instance_of == trait_type
@@ -2384,7 +2384,7 @@ test.group('Type-checking trait implementations') do (g) {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
     let trait_type = TraitType.new('ToString')
-    let obj_type = ObjectType.new('Number')
+    let obj_type = ClassType.new('Number')
     let type_param = TypeParameterType.new('A')
 
     obj_type.type_parameters.define(name: 'A', type: type_param)
@@ -2407,7 +2407,7 @@ test.group('Type-checking trait implementations') do (g) {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
     let trait_type = TraitType.new('ToString')
-    let obj_type = ObjectType.new('Number')
+    let obj_type = ClassType.new('Number')
     let type_param = TypeParameterType.new('A')
 
     obj_type.type_parameters.define(name: 'A', type: type_param)
@@ -2428,7 +2428,7 @@ test.group('Type-checking trait implementations') do (g) {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
     let trait_type = TraitType.new('ToString')
-    let obj_type = ObjectType.new('Number')
+    let obj_type = ClassType.new('Number')
     let type_param = TypeParameterType.new('A')
 
     obj_type.type_parameters.define(name: 'A', type: type_param)
@@ -2451,7 +2451,7 @@ test.group('Type-checking trait implementations') do (g) {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
     let trait_type = TraitType.new('ToString')
-    let obj_type = ObjectType.new('Number')
+    let obj_type = ClassType.new('Number')
     let type_param = TypeParameterType.new('A')
     let foo = MethodType.new(name: 'foo', layout: BlockLayout.new(NeverType.new))
 
@@ -2473,7 +2473,7 @@ test.group('Type-checking trait implementations') do (g) {
   g.test('Implementing a non-existing trait') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let obj_type = ObjectType.new('Number')
+    let obj_type = ClassType.new('Number')
 
     module.define_constant(name: obj_type.name, type: obj_type)
 
@@ -2500,7 +2500,7 @@ test.group('Type-checking trait implementations') do (g) {
     type_checker.check_module(module: module, ast: node)
 
     assert.true(type_checker.diagnostics.errors?)
-    assert.true(impl_node.object_name.resolved_type.get.error?)
+    assert.true(impl_node.class_name.resolved_type.get.error?)
     assert.true(impl_node.trait_name.resolved_type.none?)
   }
 
@@ -2508,7 +2508,7 @@ test.group('Type-checking trait implementations') do (g) {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
     let trait_type = TraitType.new('ToString')
-    let obj_type = ObjectType.new('Number')
+    let obj_type = ClassType.new('Number')
 
     module.define_constant(name: trait_type.name, type: trait_type)
     module.define_constant(name: obj_type.name, type: obj_type)
@@ -2525,7 +2525,7 @@ test.group('Type-checking trait implementations') do (g) {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
     let trait_type = TraitType.new('ToString')
-    let obj_type = ObjectType.new('Number')
+    let obj_type = ClassType.new('Number')
     let type_param = TypeParameterType.new('A')
 
     obj_type.type_parameters.define(name: 'A', type: type_param)
@@ -2546,7 +2546,7 @@ test.group('Type-checking trait implementations') do (g) {
     let type_checker = TypeChecker.new
     let trait1 = TraitType.new('ToString')
     let trait2 = TraitType.new('ToInteger')
-    let obj_type = ObjectType.new('A')
+    let obj_type = ClassType.new('A')
     let type_param = TypeParameterType.new('T')
 
     obj_type.type_parameters.define(name: type_param.name, type: type_param)
@@ -2573,7 +2573,7 @@ test.group('Type-checking trait implementations') do (g) {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
     let trait_type = TraitType.new('Add')
-    let obj_type = ObjectType.new('Integer')
+    let obj_type = ClassType.new('Integer')
     let type_param = TypeParameterType.new('A')
 
     trait_type.type_parameters.define(name: type_param.name, type: type_param)
@@ -2593,7 +2593,7 @@ test.group('Type-checking trait implementations') do (g) {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
     let trait_type = TraitType.new('Add')
-    let obj_type = ObjectType.new('Integer')
+    let obj_type = ClassType.new('Integer')
     let method_type =
       MethodType.new(name: '+', layout: BlockLayout.new(NeverType.new))
 
@@ -2613,7 +2613,7 @@ test.group('Type-checking trait implementations') do (g) {
   g.test('Implementing a trait with an unimplemented dependency') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let obj_type = ObjectType.new('Integer')
+    let obj_type = ClassType.new('Integer')
     let trait1 = TraitType.new('Sub')
     let trait2 = TraitType
       .new(name: 'Add', required_traits: Array.new(TraitInstance.new(trait1)))
@@ -2634,7 +2634,7 @@ test.group('Type-checking trait implementations') do (g) {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
     let trait_type = TraitType.new('Add')
-    let obj_type = ObjectType.new('Integer')
+    let obj_type = ClassType.new('Integer')
     let method_type = MethodType.new(
       name: '+',
       layout: BlockLayout.new(type_checker.builtins.nil_type.new_instance)
@@ -2659,7 +2659,7 @@ test.group('Type-checking trait implementations') do (g) {
   g.test('Implementing a trait with all dependencies implemented') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let obj_type = ObjectType.new('Integer')
+    let obj_type = ClassType.new('Integer')
     let trait1 = TraitType.new('Sub')
     let trait2 = TraitType
       .new(name: 'Add', required_traits: Array.new(TraitInstance.new(trait1)))
@@ -2683,7 +2683,7 @@ test.group('Type-checking trait implementations') do (g) {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
     let trait_type = TraitType.new('Add')
-    let obj_type = ObjectType.new('Integer')
+    let obj_type = ClassType.new('Integer')
     let plus = MethodType.new(
       name: '+',
       layout: BlockLayout.new(type_checker.builtins.nil_type.new_instance)
@@ -2711,7 +2711,7 @@ test.group('Type-checking trait implementations') do (g) {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
     let trait_type = TraitType.new('Add')
-    let obj_type = ObjectType.new('Integer')
+    let obj_type = ClassType.new('Integer')
     let plus = MethodType.new(name: '+', layout: BlockLayout.new(NeverType.new))
 
     trait_type.default_methods.define(name: '+', type: plus)
@@ -2730,7 +2730,7 @@ test.group('Type-checking trait implementations') do (g) {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
     let trait_type = TraitType.new('Add')
-    let obj_type = ObjectType.new('Integer')
+    let obj_type = ClassType.new('Integer')
     let plus = MethodType.new(
       name: '+',
       layout: BlockLayout.new(type_checker.builtins.nil_type.new_instance)
@@ -2755,7 +2755,7 @@ test.group('Type-checking trait implementations') do (g) {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
     let trait_type = TraitType.new('Add')
-    let obj_type = ObjectType.new('Integer')
+    let obj_type = ClassType.new('Integer')
     let plus = MethodType.new(
       name: '+',
       layout: BlockLayout.new(type_checker.builtins.integer_type.new_instance)
@@ -2780,7 +2780,7 @@ test.group('Type-checking trait implementations') do (g) {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
     let trait_type = TraitType.new('Add')
-    let obj_type = ObjectType.new('Integer')
+    let obj_type = ClassType.new('Integer')
     let trait_plus = MethodType.new(
       name: '+',
       layout: BlockLayout.new(type_checker.builtins.nil_type.new_instance)
@@ -2810,7 +2810,7 @@ test.group('Type-checking trait implementations') do (g) {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
     let trait_type = TraitType.new('Add')
-    let obj_type = ObjectType.new('Integer')
+    let obj_type = ClassType.new('Integer')
     let trait_plus =
       MethodType.new(name: '+', layout: BlockLayout.new(AnyType.new))
 
@@ -2836,7 +2836,7 @@ test.group('Type-checking trait implementations') do (g) {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
     let trait_type = TraitType.new('Add')
-    let obj_type = ObjectType.new('Integer')
+    let obj_type = ClassType.new('Integer')
     let trait_plus =
       MethodType.new(name: '+', layout: BlockLayout.new(NeverType.new))
 
@@ -2862,7 +2862,7 @@ test.group('Type-checking trait implementations') do (g) {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
     let trait_type = TraitType.new('Add')
-    let obj_type = ObjectType.new('Bla')
+    let obj_type = ClassType.new('Bla')
     let foo = MethodType.new(
       name: 'foo',
       layout: BlockLayout.new(type_checker.builtins.integer_type.new_instance)
@@ -2894,7 +2894,7 @@ test.group('Type-checking trait implementations') do (g) {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
     let trait_type = TraitType.new('Add')
-    let obj_type = ObjectType.new('Integer')
+    let obj_type = ClassType.new('Integer')
     let foo = MethodType.new(
       name: 'foo',
       layout: BlockLayout.new(type_checker.builtins.nil_singleton)
@@ -2925,7 +2925,7 @@ test.group('Type-checking trait implementations') do (g) {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
     let trait_type = TraitType.new('Add')
-    let obj_type = ObjectType.new('Integer')
+    let obj_type = ClassType.new('Integer')
     let foo = MethodType.new(
       name: 'foo',
       layout: BlockLayout.new(type_checker.builtins.nil_singleton)
@@ -2953,7 +2953,7 @@ test.group('Type-checking trait implementations') do (g) {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
     let trait_type = TraitType.new('Add')
-    let obj_type = ObjectType.new('Integer')
+    let obj_type = ClassType.new('Integer')
     let foo = MethodType.new(name: 'foo', static_method: True)
 
     obj_type.static_methods.define(name: 'foo', type: foo)
@@ -2999,7 +2999,7 @@ test.group('Type-checking reopened types') do (g) {
   g.test('Reopening the instance of an object') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let obj_type = ObjectType.new('String')
+    let obj_type = ClassType.new('String')
     let node = parse('impl A {}')
 
     module.define_constant(name: 'A', type: obj_type.new_instance)
@@ -3024,7 +3024,7 @@ test.group('Type-checking reopened types') do (g) {
   g.test('Defining an instance method when reopening an object') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let a_type = ObjectType.new('A')
+    let a_type = ClassType.new('A')
     let node = parse('impl A { def foo {} }')
 
     module.define_constant(name: a_type.name, type: a_type)
@@ -3038,7 +3038,7 @@ test.group('Type-checking reopened types') do (g) {
   g.test('Defining a static method when reopening an object') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let a_type = ObjectType.new('A')
+    let a_type = ClassType.new('A')
     let node = parse('impl A { static def foo {} }')
 
     module.define_constant(name: a_type.name, type: a_type)
@@ -3052,7 +3052,7 @@ test.group('Type-checking reopened types') do (g) {
   g.test('Defining an existing instance method when reopening an object') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let a_type = ObjectType.new('A')
+    let a_type = ClassType.new('A')
     let foo_method = MethodType.new(
       name: 'foo',
       layout: BlockLayout.new(type_checker.builtins.nil_singleton)
@@ -3072,7 +3072,7 @@ test.group('Type-checking reopened types') do (g) {
   g.test('Defining an existing static method when reopening an object') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let a_type = ObjectType.new('A')
+    let a_type = ClassType.new('A')
     let foo_method =
       MethodType.new(name: 'foo', layout: BlockLayout.new(NeverType.new))
 
@@ -3270,7 +3270,7 @@ test.group('Type-checking method calls without explicit receivers') do (g) {
 
     assert.false(type_checker.diagnostics.errors?)
 
-    let type = node.resolved_type.get as ObjectInstance
+    let type = node.resolved_type.get as ClassInstance
     let param = type_checker
       .builtins
       .array_type
@@ -3431,7 +3431,7 @@ test.group('Type-checking variable reassignments') do (g) {
     let arg_node = meth_node.arguments[0] as DefineOptionalArgument
     let assign_node = arg_node.default_value as AssignAttribute
 
-    let obj_type = ObjectType.new(name: 'A')
+    let obj_type = ClassType.new(name: 'A')
     let int_type = type_checker.builtins.integer_type
 
     let attr =
@@ -3538,7 +3538,7 @@ test.group('Type-checking variable reassignments') do (g) {
     let arg_node = meth_node.arguments[0] as DefineOptionalArgument
     let assign_node = arg_node.default_value as AssignAttribute
 
-    let obj_type = ObjectType.new(name: 'A')
+    let obj_type = ClassType.new(name: 'A')
     let int_type = type_checker.builtins.integer_type
 
     module.define_constant(name: obj_type.name, obj_type)
@@ -3564,7 +3564,7 @@ test.group('Type-checking attribute references') do (g) {
     let arg_node = meth_node.arguments[0] as DefineOptionalArgument
     let attr_node = arg_node.default_value as Attribute
 
-    let obj_type = ObjectType.new(name: 'A')
+    let obj_type = ClassType.new(name: 'A')
     let int_type = type_checker.builtins.integer_type
 
     let attr =
@@ -3588,7 +3588,7 @@ test.group('Type-checking attribute references') do (g) {
     let meth_node = impl_node.body.children[0] as DefineMethod
     let arg_node = meth_node.arguments[0] as DefineOptionalArgument
     let attr_node = arg_node.default_value as Attribute
-    let obj_type = ObjectType.new(name: 'A')
+    let obj_type = ClassType.new(name: 'A')
 
     module.define_constant(name: obj_type.name, obj_type)
 
@@ -3606,7 +3606,7 @@ test.group('Type-checking attribute references') do (g) {
     let impl_node = body.children[0] as ReopenObject
     let meth_node = impl_node.body.children[0] as DefineMethod
     let attr_node = meth_node.body.children[0] as Attribute
-    let obj_type = ObjectType.new(name: 'A')
+    let obj_type = ClassType.new(name: 'A')
     let param = TypeParameterType.new('T')
 
     obj_type.type_parameters.define(name: param.name, type: param)
@@ -4242,18 +4242,18 @@ test.group('Type-checking type casts') do (g) {
     assert.same_object((type as RigidTypeParameterType).type, param)
   }
 
-  g.test('Casting a type to an object type parameter') {
+  g.test('Casting a type to an class type parameter') {
     let type_checker = TypeChecker.new
     let module = new_module('foo')
-    let body = parse('object Foo!(A) { def foo { 10 as A } }')
-    let obj_node = body.children[0] as DefineObject
+    let body = parse('class Foo!(A) { def foo { 10 as A } }')
+    let obj_node = body.children[0] as DefineClass
     let meth_node = obj_node.body.children[0] as DefineMethod
     let node = meth_node.body.children[0]
 
     type_checker.check_module(module: module, ast: body)
 
     let type = node.resolved_type.get
-    let obj = module.constants['Foo'].type as ObjectType
+    let obj = module.constants['Foo'].type as ClassType
     let param = obj.lookup_type_parameter('A').get.type
 
     assert.false(type_checker.diagnostics.errors?)
@@ -4549,7 +4549,7 @@ test.group('Type-checking closures') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     let block = body.children[0].resolved_type.get as ClosureType
-    let arg = block.arguments['a'].type as ObjectInstance
+    let arg = block.arguments['a'].type as ClassInstance
 
     assert.false(type_checker.diagnostics.errors?)
     assert.true(block.rest_argument?)
@@ -4844,7 +4844,7 @@ test.group('Type-checking lambdas') do (g) {
     type_checker.check_module(module: module, ast: body)
 
     let block = body.children[0].resolved_type.get as LambdaType
-    let arg = block.arguments['a'].type as ObjectInstance
+    let arg = block.arguments['a'].type as ClassInstance
 
     assert.false(type_checker.diagnostics.errors?)
     assert.true(block.rest_argument?)
@@ -5609,7 +5609,7 @@ test.group('Type-checking sending messages') do (g) {
     let int_type = type_checker.builtins.integer_type
     let body = parse('foo(a)')
     let node = body.children[0] as Send
-    let list_type = ObjectType.new('List')
+    let list_type = ClassType.new('List')
     let list_param = TypeParameterType.new('T')
 
     list_type.type_parameters.define(name: list_param.name, type: list_param)
@@ -6752,7 +6752,7 @@ test.group('Type-checking VM instructions') do (g) {
     let int_type = type_checker.builtins.integer_type
     let body = parse('_INKOC.get_attribute(a, "foo")')
     let node = body.children[0]
-    let foo_type = ObjectType.new('Foo')
+    let foo_type = ClassType.new('Foo')
 
     body.variable_scope.symbols.define(name: 'a', type: foo_type.new_instance)
     module.define_constant(name: int_type.name, type: int_type)
@@ -6782,8 +6782,8 @@ test.group('Type-checking VM instructions') do (g) {
     let type_checker = TypeChecker.new
     let body = parse('_INKOC.copy_blocks(foo, bar)')
     let node = body.children[0]
-    let foo_type = ObjectType.new('Foo')
-    let bar_type = ObjectType.new('Bar')
+    let foo_type = ClassType.new('Foo')
+    let bar_type = ClassType.new('Bar')
 
     body.variable_scope.symbols.define(name: 'foo', type: foo_type)
     body.variable_scope.symbols.define(name: 'bar', type: bar_type)
@@ -7876,7 +7876,7 @@ test.group('Type-checking VM instructions') do (g) {
     let type_checker = TypeChecker.new
     let body = parse('_INKOC.file_read(f)')
     let node = body.children[0]
-    let file_type = ObjectType.new('File')
+    let file_type = ClassType.new('File')
 
     body.variable_scope.symbols.define(name: 'f', type: file_type.new_instance)
     type_checker.check_module(module: module, ast: body)
@@ -7893,7 +7893,7 @@ test.group('Type-checking VM instructions') do (g) {
     let type_checker = TypeChecker.new
     let body = parse('_INKOC.file_seek(f, 10)')
     let node = body.children[0]
-    let file_type = ObjectType.new('File')
+    let file_type = ClassType.new('File')
 
     body.variable_scope.symbols.define(name: 'f', type: file_type.new_instance)
     type_checker.check_module(module: module, ast: body)
@@ -7910,7 +7910,7 @@ test.group('Type-checking VM instructions') do (g) {
     let type_checker = TypeChecker.new
     let body = parse('_INKOC.file_size(f)')
     let node = body.children[0]
-    let file_type = ObjectType.new('File')
+    let file_type = ClassType.new('File')
 
     body.variable_scope.symbols.define(name: 'f', type: file_type.new_instance)
     type_checker.check_module(module: module, ast: body)
@@ -7927,7 +7927,7 @@ test.group('Type-checking VM instructions') do (g) {
     let type_checker = TypeChecker.new
     let body = parse('_INKOC.file_write(f, "foo")')
     let node = body.children[0]
-    let file_type = ObjectType.new('File')
+    let file_type = ClassType.new('File')
 
     body.variable_scope.symbols.define(name: 'f', type: file_type.new_instance)
     type_checker.check_module(module: module, ast: body)
@@ -7944,7 +7944,7 @@ test.group('Type-checking VM instructions') do (g) {
     let type_checker = TypeChecker.new
     let body = parse('_INKOC.file_remove(f)')
     let node = body.children[0]
-    let file_type = ObjectType.new('File')
+    let file_type = ClassType.new('File')
 
     body.variable_scope.symbols.define(name: 'f', type: file_type.new_instance)
     type_checker.check_module(module: module, ast: body)
@@ -7958,7 +7958,7 @@ test.group('Type-checking VM instructions') do (g) {
     let type_checker = TypeChecker.new
     let body = parse('_INKOC.file_copy(f)')
     let node = body.children[0]
-    let file_type = ObjectType.new('File')
+    let file_type = ClassType.new('File')
 
     body.variable_scope.symbols.define(name: 'f', type: file_type.new_instance)
     type_checker.check_module(module: module, ast: body)
@@ -7975,7 +7975,7 @@ test.group('Type-checking VM instructions') do (g) {
     let type_checker = TypeChecker.new
     let body = parse('_INKOC.file_type(f)')
     let node = body.children[0]
-    let file_type = ObjectType.new('File')
+    let file_type = ClassType.new('File')
 
     body.variable_scope.symbols.define(name: 'f', type: file_type.new_instance)
     type_checker.check_module(module: module, ast: body)
@@ -7993,7 +7993,7 @@ test.group('Type-checking VM instructions') do (g) {
     let body = parse('_INKOC.file_time(f)')
     let array_type = type_checker.builtins.array_type
     let node = body.children[0]
-    let file_type = ObjectType.new('File')
+    let file_type = ClassType.new('File')
 
     body.variable_scope.symbols.define(name: 'f', type: file_type.new_instance)
     type_checker.check_module(module: module, ast: body)
@@ -8011,7 +8011,7 @@ test.group('Type-checking VM instructions') do (g) {
     let type_checker = TypeChecker.new
     let body = parse('_INKOC.file_path(f)')
     let node = body.children[0]
-    let file_type = ObjectType.new('File')
+    let file_type = ClassType.new('File')
 
     body.variable_scope.symbols.define(name: 'f', type: file_type.new_instance)
     type_checker.check_module(module: module, ast: body)
@@ -8163,7 +8163,7 @@ test.group('Type-checking VM instructions') do (g) {
     let type_checker = TypeChecker.new
     let body = parse('_INKOC.hasher_to_hash(hasher)')
     let node = body.children[0]
-    let hasher_type = ObjectType.new('Hasher')
+    let hasher_type = ClassType.new('Hasher')
 
     body
       .variable_scope
@@ -9272,7 +9272,7 @@ test.group('Type-checking object constructors') do (g) {
   g.test('Creating an instance without attributes') {
     let module = new_std_module('foo')
     let type_checker = TypeChecker.new
-    let obj_type = ObjectType.new('A')
+    let obj_type = ClassType.new('A')
     let body = parse('A {}')
     let node = body.children[0]
 
@@ -9286,7 +9286,7 @@ test.group('Type-checking object constructors') do (g) {
   g.test('Creating an instance with attributes') {
     let module = new_std_module('foo')
     let type_checker = TypeChecker.new
-    let obj_type = ObjectType.new('A')
+    let obj_type = ClassType.new('A')
     let builtins = type_checker.builtins
     let int_type = builtins.integer_type
     let str_type = builtins.string_type
@@ -9310,7 +9310,7 @@ test.group('Type-checking object constructors') do (g) {
   g.test('Creating an instance without setting all attributes') {
     let module = new_std_module('foo')
     let type_checker = TypeChecker.new
-    let obj_type = ObjectType.new('A')
+    let obj_type = ClassType.new('A')
     let builtins = type_checker.builtins
 
     obj_type
@@ -9332,7 +9332,7 @@ test.group('Type-checking object constructors') do (g) {
   g.test('Creating an instance while setting the same attribute twice') {
     let module = new_std_module('foo')
     let type_checker = TypeChecker.new
-    let obj_type = ObjectType.new('A')
+    let obj_type = ClassType.new('A')
     let builtins = type_checker.builtins
 
     obj_type
@@ -9351,7 +9351,7 @@ test.group('Type-checking object constructors') do (g) {
   g.test('Creating an instance while setting an undefined attribute') {
     let module = new_std_module('foo')
     let type_checker = TypeChecker.new
-    let obj_type = ObjectType.new('A')
+    let obj_type = ClassType.new('A')
     let body = parse('A { @a = 10 }')
     let node = body.children[0]
 
@@ -9365,7 +9365,7 @@ test.group('Type-checking object constructors') do (g) {
   g.test('Creating an instance with a generic attribute') {
     let module = new_std_module('foo')
     let type_checker = TypeChecker.new
-    let obj_type = ObjectType.new('A')
+    let obj_type = ClassType.new('A')
     let int_type = type_checker.builtins.integer_type
     let param = TypeParameterType.new('T')
 
@@ -9387,7 +9387,7 @@ test.group('Type-checking object constructors') do (g) {
   g.test('Creating an instance using a Self type in a module method') {
     let module = new_std_module('foo')
     let type_checker = TypeChecker.new
-    let obj_type = ObjectType.new('A')
+    let obj_type = ClassType.new('A')
     let body = parse('def foo { Self {} }')
 
     module.globals.define(name: 'A', obj_type)
@@ -9399,7 +9399,7 @@ test.group('Type-checking object constructors') do (g) {
   g.test('Creating an instance using a Self type in an instance method') {
     let module = new_std_module('foo')
     let type_checker = TypeChecker.new
-    let body = parse('object A { def foo { Self {} } }')
+    let body = parse('class A { def foo { Self {} } }')
 
     type_checker.check_module(module: module, ast: body)
 
@@ -9409,14 +9409,14 @@ test.group('Type-checking object constructors') do (g) {
   g.test('Creating an instance using a Self type in a static method') {
     let module = new_std_module('foo')
     let type_checker = TypeChecker.new
-    let body = parse('object A { static def foo { Self {} } }')
-    let object_node = body.children[0] as DefineObject
+    let body = parse('class A { static def foo { Self {} } }')
+    let object_node = body.children[0] as DefineClass
     let method_node = object_node.body.children[0] as DefineMethod
     let node = method_node.body.children[0]
 
     type_checker.check_module(module: module, ast: body)
 
-    let obj_type = module.constants['A'].type as ObjectType
+    let obj_type = module.constants['A'].type as ClassType
 
     assert.false(type_checker.diagnostics.errors?)
     assert_object_instance(node.resolved_type.get, obj_type)
@@ -9610,7 +9610,7 @@ test.group('Type-checking Option types created using ?T') do (g) {
     let module = new_std_module('foo')
     let type_checker = TypeChecker.new
     let opt_mod = ModuleType.new(OPTION_MODULE)
-    let opt_type = ObjectType.new('Option')
+    let opt_type = ClassType.new('Option')
     let opt_param = TypeParameterType.new('T')
 
     opt_type.type_parameters.define(name: opt_param.name, type: opt_param)

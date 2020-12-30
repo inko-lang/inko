@@ -4,7 +4,7 @@ from pygments import token
 __version__ = '1.0.0'
 
 KEYWORDS = (
-    'as', 'def', 'do', 'else', 'for', 'impl', 'lambda', 'mut', 'object',
+    'as', 'def', 'do', 'else', 'for', 'impl', 'lambda', 'mut', 'class',
     'return', 'self', 'static', 'throw', 'trait', 'try', 'when', 'match',
     'yield'
 )

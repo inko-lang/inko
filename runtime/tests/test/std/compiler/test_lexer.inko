@@ -83,8 +83,8 @@ test.group('std::compiler::lexer::Keywords.keyword?') do (g) {
     assert.true(Keywords.new.keyword?('for'.to_byte_array))
   }
 
-  g.test('Checking if "object" is a keyword') {
-    assert.true(Keywords.new.keyword?('object'.to_byte_array))
+  g.test('Checking if "class" is a keyword') {
+    assert.true(Keywords.new.keyword?('class'.to_byte_array))
   }
 
   g.test('Checking if "static" is a keyword') {
@@ -1457,11 +1457,11 @@ world\n" "hello"'
     assert.equal(token.location.line_range, 1..1)
   }
 
-  g.test('Lexing the object keyword') {
-    let token = lex('object')
+  g.test('Lexing the class keyword') {
+    let token = lex('class')
 
-    assert.equal(token.type, 'object')
-    assert.equal(token.value, 'object')
+    assert.equal(token.type, 'class')
+    assert.equal(token.value, 'class')
     assert.true(token.keyword?)
 
     assert.equal(token.location.column, 1)
@@ -1672,19 +1672,19 @@ world\n" "hello"'
     assert.equal(token.location.line_range, 1..1)
   }
 
-  g.test('Lexing an object definition') {
-    let tokens = lex_all("object Person {\nfoo\n}")
+  g.test('Lexing a class definition') {
+    let tokens = lex_all("class Person {\nfoo\n}")
 
-    assert.equal(tokens[0].type, 'object')
+    assert.equal(tokens[0].type, 'class')
     assert.equal(tokens[0].location.column, 1)
     assert.equal(tokens[0].location.line_range, 1..1)
 
     assert.equal(tokens[1].type, 'constant')
-    assert.equal(tokens[1].location.column, 8)
+    assert.equal(tokens[1].location.column, 7)
     assert.equal(tokens[1].location.line_range, 1..1)
 
     assert.equal(tokens[2].type, 'curly_open')
-    assert.equal(tokens[2].location.column, 15)
+    assert.equal(tokens[2].location.column, 14)
     assert.equal(tokens[2].location.line_range, 1..1)
 
     assert.equal(tokens[3].type, 'identifier')

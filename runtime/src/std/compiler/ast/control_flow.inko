@@ -6,7 +6,7 @@ import std::compiler::types::Type
 import std::option::Option
 
 # A return from a surrounding method or closure.
-object Return {
+class Return {
   # An expression to return, if any.
   @expression: ?Node
 
@@ -45,7 +45,7 @@ impl Node for Return {
 }
 
 # A throw from a surrounding method.
-object Throw {
+class Throw {
   # The expression to throw.
   @expression: Node
 
@@ -97,7 +97,7 @@ impl Node for Throw {
 }
 
 # An expression that might throw.
-object Try {
+class Try {
   # The expression to try to run.
   @expression: Node
 
@@ -193,7 +193,7 @@ impl Node for Try {
 }
 
 # An expression that should panic if an error is thrown.
-object TryPanic {
+class TryPanic {
   # The expression to try to run.
   @expression: Node
 
@@ -245,7 +245,7 @@ impl Node for TryPanic {
 }
 
 # A yield from a surrounding method.
-object Yield {
+class Yield {
   # An expression to yield.
   @expression: Node
 

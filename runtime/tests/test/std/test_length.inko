@@ -2,7 +2,7 @@ import std::length::Length
 import std::test
 import std::test::assert
 
-object EmptyList {
+class EmptyList {
   static def new -> Self {
     Self {}
   }
@@ -14,7 +14,7 @@ impl Length for EmptyList {
   }
 }
 
-object NonEmptyList {
+class NonEmptyList {
   static def new -> Self {
     Self {}
   }

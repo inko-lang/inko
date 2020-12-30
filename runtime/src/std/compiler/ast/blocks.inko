@@ -24,7 +24,7 @@ trait DefineArgument: Node {
 #
 # Untyped arguments are only valid for closures and lambdas, and their types are
 # inferred based on the use of the block.
-object DefineUntypedArgument {
+class DefineUntypedArgument {
   # The name of the argument.
   @name: String
 
@@ -61,7 +61,7 @@ impl Node for DefineUntypedArgument {
 impl DefineArgument for DefineUntypedArgument {}
 
 # The definition of a required argument.
-object DefineRequiredArgument {
+class DefineRequiredArgument {
   # The name of the argument.
   @name: String
 
@@ -114,7 +114,7 @@ impl Node for DefineRequiredArgument {
 impl DefineArgument for DefineRequiredArgument {}
 
 # The definition of a rest argument
-object DefineRestArgument {
+class DefineRestArgument {
   # The name of the argument.
   @name: String
 
@@ -167,7 +167,7 @@ impl Node for DefineRestArgument {
 impl DefineArgument for DefineRestArgument {}
 
 # An argument definition with a default value.
-object DefineOptionalArgument {
+class DefineOptionalArgument {
   # The name of the argument.
   @name: String
 
@@ -233,7 +233,7 @@ impl DefineArgument for DefineOptionalArgument {
 }
 
 # A closure that was created without the `do` or `lambda` keyword.
-object BasicClosure {
+class BasicClosure {
   # The expressions in the block's body.
   @body: Body
 
@@ -269,7 +269,7 @@ impl Node for BasicClosure {
 }
 
 # A closure created with the `do` keyword.
-object Closure {
+class Closure {
   # The type parameters of the closure.
   @type_parameters: Array!(DefineTypeParameter)
 
@@ -347,7 +347,7 @@ impl Node for Closure {
 }
 
 # A lambda created with the `do` keyword.
-object Lambda {
+class Lambda {
   # The type parameters of the lambda.
   @type_parameters: Array!(DefineTypeParameter)
 
@@ -425,7 +425,7 @@ impl Node for Lambda {
 }
 
 # A method created using the `def` keyword.
-object DefineMethod {
+class DefineMethod {
   # The name of the method.
   @name: String
 
@@ -546,7 +546,7 @@ impl Node for DefineMethod {
 }
 
 # A required method created using the `def` keyword.
-object DefineRequiredMethod {
+class DefineRequiredMethod {
   # The name of the method.
   @name: String
 

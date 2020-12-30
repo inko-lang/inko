@@ -5,7 +5,7 @@ import std::operators::Equal
 import std::test
 import std::test::assert
 
-object DummyType {
+class DummyType {
   static def new -> Self {
     Self {}
   }

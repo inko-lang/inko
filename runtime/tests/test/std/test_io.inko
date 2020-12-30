@@ -3,7 +3,7 @@ import std::os::NEWLINE
 import std::test
 import std::test::assert
 
-object Reader {
+class Reader {
   static def new -> Self {
     Self {}
   }
@@ -24,7 +24,7 @@ impl Read for Reader {
   }
 }
 
-object Writer {
+class Writer {
   @buffer: Array!(String)
 
   static def new -> Self {

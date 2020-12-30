@@ -40,7 +40,7 @@ def octets_to_hextet(first: Integer, second: Integer) -> Integer {
 }
 
 # An error thrown when attempting to parse an invalid IPv4 or IPv6 address.
-object AddressParseError {
+class AddressParseError {
   # The address that could not be parsed.
   @address: String
 
@@ -94,7 +94,7 @@ trait IpAddress: Equal + ToString + ToIpAddress {
   def segments -> Array!(Integer)
 }
 
-object Ipv6Address {
+class Ipv6Address {
   # The segments/hextets of this IPv6 address.
   @segments: Array!(Integer)
 
@@ -502,7 +502,7 @@ impl IpAddress for Ipv6Address {
   }
 }
 
-object Ipv4Address {
+class Ipv4Address {
   # The segments/octets of this IPv4 address.
   @segments: Array!(Integer)
 

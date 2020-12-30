@@ -7,7 +7,7 @@ import std::hash::*
 import std::operators::Equal
 
 # A pair of two values.
-object Pair!(A, B) {
+class Pair!(A, B) {
   # The first value of this `Pair`.
   @first: A
 
@@ -63,7 +63,7 @@ impl Hash for Pair {
 }
 
 # A pair of three values.
-object Triple!(A, B, C) {
+class Triple!(A, B, C) {
   # The first value of this `Pair`.
   @first: A
 

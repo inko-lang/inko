@@ -284,27 +284,27 @@ lambda {
 Lambdas can't capture variables. This means lambdas are basically anonymous
 methods that you can pass around.
 
-## Objects
+## Class
 
-Objects, also known as classes or structures in other languages, are Inko's
-record types. To create an object, use the `object` keyword:
+Classes are created using the `class` keyword:
 
 ```inko
-object Person {
+class Person {
   # ...
 }
 ```
 
-You can create instances of objects like so:
+You can create instances of classes like so:
 
 ```inko
 Person {} # This creates a new Person instance
 ```
 
-If an object defines one or more attributes, you must specify them:
+If a class defines one or more attributes, you must specify them when creating
+an instance:
 
 ```inko
-object Person {
+class Person {
   @name: String
 }
 
@@ -333,7 +333,7 @@ The type `Self` is a special type that can be used in a few places, such as type
 signatures. The use of this type is best explained using a simple example:
 
 ```inko
-object Number {
+class Number {
   def add(other: Self) -> Self {
     # ...
   }

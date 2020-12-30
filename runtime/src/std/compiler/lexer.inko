@@ -76,7 +76,7 @@ let MAX_BYTE = 255
 # them.
 #
 # An `EscapeMap` can only map bytes up to byte 128.
-object EscapeMap {
+class EscapeMap {
   # A ByteArray that maps bytes to the ones they should be replaced with.
   #
   # Since NULL bytes are valid replacements, the value 255 is used to signal no
@@ -113,7 +113,7 @@ object EscapeMap {
 # Since this code is based on generated code, changing it may produce unexpected
 # results. For example, the various lookup tables in this type should not have
 # their order changed.
-object Keywords {
+class Keywords {
   # The associated values for the first and second bytes in a keyword.
   @associated_values: Array!(Integer)
 
@@ -140,7 +140,7 @@ object Keywords {
         24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
         24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
         24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
-        24, 24, 24, 24, 24, 24, 24,  0, 14, 24,
+        24, 24, 24, 24, 24, 24, 24,  0, 24, 12,
         13,  0, 16, 24, 12,  3, 24, 24,  6,  6,
         24,  3, 24, 24,  0,  0,  2, 12, 24,  4,
         24,  9, 24, 24, 24, 24, 24, 24, 24, 24,
@@ -182,7 +182,7 @@ object Keywords {
         'when'.to_byte_array,
         'mut'.to_byte_array,
         'for'.to_byte_array,
-        'object'.to_byte_array
+        'class'.to_byte_array
       ),
       @word_length = 2..6,
       @max_hash_value = 23
@@ -207,7 +207,7 @@ object Keywords {
 # A `Lexer` is used for turning Inko source code into a sequence of tokens.
 # These tokens in turn can be used by a parser to produce an Abstract Syntax
 # Tree.
-object Lexer {
+class Lexer {
   # The byte stream to lex.
   @input: ByteArray
 

@@ -7,7 +7,7 @@ import std::debug::CallFrame
 #
 # Each `TestFailure` is given a message describing the failure, and a
 # `CallFrame` that points to the location of the failure.
-object TestFailure {
+class TestFailure {
   # A message describing the assertion failure.
   @message: String
 

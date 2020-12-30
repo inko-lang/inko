@@ -156,13 +156,13 @@ let A = 10
 A = 20 # This is invalid
 ```
 
-When you define an object or trait, a constant is defined containing that object
-or trait:
+When you define a class or trait, a constant is defined containing that class or
+trait:
 
 ```inko
-object Person {}
+class Person {}
 
-Person # This is a constant that stores our Person object
+Person # This is a constant that stores our Person class
 ```
 
 Like global variables, you can use a constant anywhere in the module that
@@ -179,11 +179,11 @@ let VALUE: ToString = 10
 
 ## Attributes
 
-Attributes are fields of an object, as covered in the [Objects](objects.md)
+Attributes are fields of a class, as covered in the [Classes](classes.md)
 chapter. Attributes can always be assigned new values:
 
 ```inko
-object Person {
+class Person {
   @name: String
 
   static def new(name: String) -> Self {
@@ -196,7 +196,7 @@ object Person {
 }
 ```
 
-Attributes are only available to the instance methods of an object (including
+Attributes are only available to the instance methods of a class (including
 those added when implementing a trait).
 
 ### Explicit types
@@ -205,7 +205,7 @@ Attributes always have their type stated explicitly. This means the following is
 invalid:
 
 ```inko
-object Person {
+class Person {
   @name
 
   static def new(name: String) -> Self {

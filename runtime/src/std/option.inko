@@ -51,7 +51,7 @@ import std::operators::Equal
 #
 # An Option can wrap a value, in which case we call it a Some. An Option that
 # doesn't contain a value is called a None.
-object Option!(T) {
+class Option!(T) {
   # The wrapped value.
   #
   # For a None, this is a special value that signals we're dealing with a None
@@ -255,7 +255,7 @@ impl Equal for Option {
 }
 
 # A type used to signal that an Option doesn't contain a value.
-object NoneMarker {}
+class NoneMarker {}
 
 # A singleton Option used to indicate a None value.
 #

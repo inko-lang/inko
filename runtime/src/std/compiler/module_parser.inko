@@ -16,7 +16,7 @@ import std::process::(self, Process)
 import std::set::Set
 
 # A module that has been parsed into an AST.
-object ParsedModule {
+class ParsedModule {
   # The name of the module that was parsed.
   @name: ModuleName
 
@@ -89,7 +89,7 @@ trait ParseRequest {
 }
 
 # A request to parse a pre-defined chunk of source code.
-object ParseSource {
+class ParseSource {
   # The name of the module to parse.
   @name: ModuleName
 
@@ -133,7 +133,7 @@ impl ParseRequest for ParseSource {
 }
 
 # A request to parse a file.
-object ParseFile {
+class ParseFile {
   # The name of the module to parse.
   @name: ModuleName
 
@@ -178,7 +178,7 @@ impl ParseRequest for ParseFile {
 
 # A type for parsing a module to run along with all its (recursive)
 # dependencies.
-object ModuleParser {
+class ModuleParser {
   # A collection of the diagnostics produced by the parser processes.
   @diagnostics: Diagnostics
 

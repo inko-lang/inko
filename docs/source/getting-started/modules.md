@@ -61,7 +61,7 @@ def example -> Integer {
   10
 }
 
-object Example {
+class Example {
   def example -> Integer {
     # This ensures we return `10`, instead of recursing back into the current
     # method.

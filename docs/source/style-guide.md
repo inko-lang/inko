@@ -73,10 +73,10 @@ Constants use PascalCase for naming, such as `ByteArray` and `String`:
 
 ```inko
 # Good
-object AddressFormatter {}
+class AddressFormatter {}
 
 # Bad
-object Addressformatter {}
+class Addressformatter {}
 ```
 
 Methods, local variables, instance attributes, and arguments all use snake_case
@@ -408,7 +408,7 @@ describe the purpose of the item. For example:
 ```inko
 # A Person can be used for storing details of a single person, such as their
 # name and address.
-object Person {
+class Person {
 
 }
 ```
@@ -475,7 +475,7 @@ When defining a module, items defined in it should come in the following order:
 Example:
 
 ```inko
-object Person {
+class Person {
   @name: String
 }
 
@@ -536,13 +536,13 @@ let block = do (number: Integer) { number }
 
 ## Constructors
 
-Constructing a type uses the following syntax:
+Constructing an instance of a class uses the following syntax:
 
 ```inko
 TypeName { @attribute = 'value' }
 ```
 
-When constructing a type, place the expression on a single line if it fits:
+When constructing an instance, place the expression on a single line if it fits:
 
 ```inko
 Person { @name = 'Alice', @age = 32 }
@@ -557,7 +557,7 @@ Person {
 }
 ```
 
-If an object doesn't define any attributes, construct your object as follows:
+If a class doesn't define any attributes, construct your instance as follows:
 
 ```inko
 Person {}
@@ -600,5 +600,5 @@ try {
 ## Iterators
 
 Instead of manually implementing iterators using `std::iterator::Iterator`, use
-`std::iterator::Enumerator`. This makes it easier to implement iterators, and
-requires less code compared to using the `Iterator` trait.
+generators to implement iterators. Refer to the [Iterators](guides/iterators.md)
+guide for more details.

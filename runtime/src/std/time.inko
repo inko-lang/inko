@@ -12,7 +12,7 @@ import std::time::bits::*
 # A `Duration` can be used to measure the span of time without having to worry
 # about casting the time to different scales yourself. A `Duration` can be
 # created using various scales such as seconds and milliseconds.
-object Duration {
+class Duration {
   # The number of seconds (including fractional seconds) of this `Duration`.
   @seconds: Float
 
@@ -247,7 +247,7 @@ impl GreaterOrEqual for Duration {
 # `SystemTime` can be influenced by time zone changes, clock adjustments, or
 # leap seconds. If you need a monotonically increasing clock you should use
 # `Instant` instead.
-object SystemTime {
+class SystemTime {
   # The year of this `SystemTime`.
   @year: Integer
 
@@ -775,7 +775,7 @@ impl Equal for SystemTime {
 # `Instant` objects represent the number of seconds relative to an unspecified
 # epoch. Unlike a system clock a monotonic clock never decreases, making it
 # useful for tasks such as measuring the execution time of a block of code.
-object Instant {
+class Instant {
   # The (internal) timestamp of this `Instant`.
   @time: Float
 

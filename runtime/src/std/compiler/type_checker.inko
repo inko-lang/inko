@@ -27,7 +27,7 @@ import std::process::(panic)
 import std::set::Set
 
 # A message sent to an object that needs to be validated.
-object Message {
+class Message {
   # The receiver of the message.
   @receiver: Type
 
@@ -1567,7 +1567,7 @@ trait ExpressionTypePass: TypePass {
     )
 
     let object_type = match(let matched = type) {
-      as ObjectType -> { matched }
+      as ClassType -> { matched }
       else -> {
         type_checker
           .diagnostics
@@ -2192,7 +2192,7 @@ trait ExpressionTypePass: TypePass {
     True
   }
 
-  def any_type_array -> ObjectInstance {
+  def any_type_array -> ClassInstance {
     type_checker.builtins.array_type.new_instance(Array.new(AnyType.new))
   }
 
@@ -2253,7 +2253,7 @@ trait ExpressionTypePass: TypePass {
 }
 
 # A compiler pass for preparing other passes.
-object Prepare {
+class Prepare {
   # The module to prepare.
   @module: ModuleType
 
@@ -2283,7 +2283,7 @@ impl Pass for Prepare {
 }
 
 # A compiler pass that type-checks all imported modules.
-object TypeCheckImports {
+class TypeCheckImports {
   # The module to prepare.
   @module: ModuleType
 
@@ -2324,7 +2324,7 @@ impl Pass for TypeCheckImports {
 }
 
 # A compiler pass for defining the types of all imported symbols.
-object DefineImportedSymbolTypes {
+class DefineImportedSymbolTypes {
   # The module for which to define the types.
   @module: ModuleType
 
@@ -2460,7 +2460,7 @@ impl Pass for DefineImportedSymbolTypes {
 # A compiler pass for defining type signatures of types.
 #
 # This pass will define any objects and traits, and their type parameters.
-object DefineTypeSignatures {
+class DefineTypeSignatures {
   # The module for which to define the types.
   @module: ModuleType
 
@@ -2471,8 +2471,8 @@ object DefineTypeSignatures {
     Self { @module = module, @type_checker = type_checker }
   }
 
-  def visit_define_object(node: DefineObject, types: TypeScope) -> ObjectType {
-    let type = ObjectType.new(node.name)
+  def visit_define_class(node: DefineClass, types: TypeScope) -> ClassType {
+    let type = ClassType.new(node.name)
 
     define_type_parameters(
       nodes: node.type_parameters,
@@ -2527,7 +2527,7 @@ impl Pass for DefineTypeSignatures {
 
     ast.children.each do (child) {
       match(let node = child) {
-        as DefineObject -> { visit_define_object(node: node, types: types) }
+        as DefineClass -> { visit_define_class(node: node, types: types) }
         as DefineTrait -> { visit_define_trait(node: node, types: types) }
         else -> {}
       }
@@ -2551,7 +2551,7 @@ impl TypePass for DefineTypeSignatures {
 #
 # This pass expects that the `DefineTypeSignatures` pass ran first and may panic
 # if this isn't the case.
-object DefineAttributeTypes {
+class DefineAttributeTypes {
   # The module for which to define the types.
   @module: ModuleType
 
@@ -2562,7 +2562,7 @@ object DefineAttributeTypes {
     Self { @module = module, @type_checker = type_checker }
   }
 
-  def visit_define_object(node: DefineObject, types: TypeScope) -> ObjectType {
+  def visit_define_class(node: DefineClass, types: TypeScope) -> ClassType {
     let type = node.resolved_type.get
     let new_types = node.body.type_scope.get
 
@@ -2580,7 +2580,7 @@ object DefineAttributeTypes {
 
   def visit_define_attribute(
     node: DefineAttribute,
-    object_type: ObjectType,
+    object_type: ClassType,
     types: TypeScope
   ) -> Type {
     let type = visit_type_node(node: node.value_type, types: types)
@@ -2596,7 +2596,7 @@ impl Pass for DefineAttributeTypes {
 
     ast.children.each do (child) {
       match(let node = child) {
-        as DefineObject -> { visit_define_object(node: node, types: types) }
+        as DefineClass -> { visit_define_class(node: node, types: types) }
         else -> {}
       }
     }
@@ -2617,7 +2617,7 @@ impl TypePass for DefineAttributeTypes {
 
 # Compiler pass for type-checking types and expressions, except those defined in
 # method bodies.
-object TypeCheck {
+class TypeCheck {
   # The module for which to define the types.
   @module: ModuleType
 
@@ -2653,7 +2653,7 @@ object TypeCheck {
     node.resolved_type = target_type
   }
 
-  def visit_define_object(node: DefineObject, types: TypeScope) -> Type {
+  def visit_define_class(node: DefineClass, types: TypeScope) -> Type {
     let type = node.resolved_type.get
     let new_scope = node.body.type_scope.get
 
@@ -2807,16 +2807,16 @@ object TypeCheck {
 
   def visit_implement_trait(node: ImplementTrait, types: TypeScope) -> Type {
     let trait_name = node.trait_name
-    let object_name = node.object_name
+    let class_name = node.class_name
 
     let object_type =
-      match(let matched = visit_constant(node: object_name, types: types)) {
-        as ObjectType -> { matched }
+      match(let matched = visit_constant(node: class_name, types: types)) {
+        as ClassType -> { matched }
         as ErrorType -> { return matched }
         else -> {
           type_checker.diagnostics.invalid_trait_implementation(
-            name: object_name.name,
-            location: object_name.location
+            name: class_name.name,
+            location: class_name.location
           )
 
           return ErrorType.new
@@ -2973,7 +2973,7 @@ object TypeCheck {
     let type = match(
       let matched = visit_constant(node: name, types: types)
     ) {
-      as ObjectType -> { matched }
+      as ClassType -> { matched }
       as ErrorType -> { return matched }
       else -> {
         type_checker
@@ -3009,7 +3009,7 @@ object TypeCheck {
 
   def visit_trait_implementation_bounds(
     nodes: Array!(DefineTypeParameter),
-    object_type: ObjectType,
+    object_type: ClassType,
     implementation: TraitImplementation,
     types: TypeScope
   ) -> Boolean {
@@ -3084,7 +3084,7 @@ object TypeCheck {
 
   def required_methods_implemented?(
     node: ImplementTrait,
-    object_type: ObjectType,
+    object_type: ClassType,
     trait_instance: TraitInstance,
     scope: TypeScope,
   ) -> Boolean {
@@ -3127,7 +3127,7 @@ object TypeCheck {
 
   def required_traits_implemented?(
     node: ImplementTrait,
-    object_type: ObjectType,
+    object_type: ClassType,
     trait_instance: TraitInstance,
     scope: TypeScope
   ) -> Boolean {
@@ -3255,7 +3255,7 @@ object TypeCheck {
   }
 
   def store_method_in_object(
-    type: ObjectType,
+    type: ClassType,
     method: MethodType,
     types: TypeCheckScope,
     location: SourceLocation
@@ -3309,7 +3309,7 @@ object TypeCheck {
   }
 
   def store_implemented_method_in_object(
-    type: ObjectType,
+    type: ClassType,
     trait_instance: TraitInstance,
     method: MethodType,
     scope: TypeScope,
@@ -3372,7 +3372,7 @@ impl Pass for TypeCheck {
 
     ast.children.each do (node) {
       match(let matched = node) {
-        as DefineObject -> { visit_define_object(node: matched, types: types) }
+        as DefineClass -> { visit_define_class(node: matched, types: types) }
         as DefineTrait -> { visit_define_trait(node: matched, types: types) }
         as DefineMethod -> {
           store_method_in_module(
@@ -3414,7 +3414,7 @@ impl TypePass for TypeCheck {
 impl ExpressionTypePass for TypeCheck {}
 
 # Compiler pass for type-checking the bodies of methods.
-object TypeCheckMethods {
+class TypeCheckMethods {
   # The module for which to define the types.
   @module: ModuleType
 
@@ -3425,7 +3425,7 @@ object TypeCheckMethods {
     Self { @module = module, @type_checker = type_checker }
   }
 
-  def visit_define_object(node: DefineObject, types: TypeScope) {
+  def visit_define_class(node: DefineClass, types: TypeScope) {
     visit_define_method_nodes(node.body)
   }
 
@@ -3506,7 +3506,7 @@ impl Pass for TypeCheckMethods {
 
     ast.children.each do (node) {
       match(let matched = node) {
-        as DefineObject -> { visit_define_object(node: matched, types: types) }
+        as DefineClass -> { visit_define_class(node: matched, types: types) }
         as DefineTrait -> { visit_define_trait(node: matched, types: types) }
         as DefineMethod -> { visit_define_method(node: matched, types: types) }
         as ImplementTrait -> {
@@ -3537,7 +3537,7 @@ impl TypePass for TypeCheckMethods {
 impl ExpressionTypePass for TypeCheckMethods {}
 
 # A type used for defining and checking types of Inko modules.
-object TypeChecker {
+class TypeChecker {
   # The modules that have been type-checked thus far (or are in the process of
   # being type-checked), mapped using their fully qualified names.
   @modules: Map!(ModuleName, ModuleType)
@@ -3600,12 +3600,12 @@ object TypeChecker {
     trait_from_module(module: OPERATORS_MODULE, constant: MATCH_TRAIT)
   }
 
-  def option_object -> ?ObjectType {
+  def option_object -> ?ClassType {
     module(OPTION_MODULE)
       .then do (mod) { mod.constants.get(OPTION_TYPE) }
       .then do (sym) {
         match(let matched = sym.type) {
-          as ObjectType -> { Option.some(matched) }
+          as ClassType -> { Option.some(matched) }
           else -> { Option.none }
         }
       }

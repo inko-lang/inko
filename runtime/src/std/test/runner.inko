@@ -29,7 +29,7 @@ import std::vm
 let FAILURE_EXIT_STATUS = 1
 
 # The internal state of a `Runner`.
-object RunnerState {
+class RunnerState {
   # All the tests registered with this runner.
   @tests: Array!(Test)
 
@@ -73,7 +73,7 @@ trait Command {
 }
 
 # A Command for setting configuration options of a `Runner`.
-object ConfigureRunner {
+class ConfigureRunner {
   # The name of the option to set.
   @option: String
 
@@ -93,7 +93,7 @@ impl Command for ConfigureRunner {
 }
 
 # A command for adding a new test to a runner.
-object AddTest {
+class AddTest {
   # The test to add.
   @test: Test
 
@@ -109,7 +109,7 @@ impl Command for AddTest {
 }
 
 # A command for running all tests currently registered with a `Runner`.
-object RunTests {
+class RunTests {
   # The `Process` to notify once all tests have been completed.
   @notify: Process
 
@@ -175,7 +175,7 @@ impl Command for RunTests {
 
 # A message sent by a `Runner` to inform a process that the `Runner` has
 # finished.
-object RunnerFinished {
+class RunnerFinished {
   # The runner `Process` that sent the message.
   @runner: Process
 
@@ -203,7 +203,7 @@ object RunnerFinished {
 # A test runner consists out of two components: a server (an instance of
 # `Runner`), and one or more clients (instances of `Client`). The state of a
 # `Runner` is stored in a separate `RunnerState` instance.
-object Runner {
+class Runner {
   # The internal state of a Runner.
   @state: RunnerState
 
@@ -222,7 +222,7 @@ object Runner {
 }
 
 # A client that communicates with a certain `Runner`.
-object Client {
+class Client {
   # The `Process` to use for communicating with the `Runner`.
   @runner: Process
 

@@ -6,7 +6,7 @@ import std::compiler::source_location::SourceLocation
 import std::option::Option
 
 # The alias to import a symbol under.
-object ImportAlias {
+class ImportAlias {
   # The name of the alias.
   @name: String
 
@@ -28,7 +28,7 @@ object ImportAlias {
 }
 
 # A symbol to import, with an optional alias.
-object ImportSymbol {
+class ImportSymbol {
   # The name of the symbol to import.
   @name: String
 
@@ -73,7 +73,7 @@ object ImportSymbol {
 }
 
 # A single import statement, containing a list of symbols to import.
-object Import {
+class Import {
   # The nodes that make up the name of the module to import.
   @path: Array!(Identifier)
 

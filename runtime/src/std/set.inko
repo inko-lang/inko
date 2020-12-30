@@ -9,7 +9,7 @@ import std::operators::Equal
 #
 # The order of values in this Set are not guaranteed. For values to be stored in
 # a `Set` they must implement the `Hash` and `Equal` traits.
-object Set!(V: Hash + Equal) {
+class Set!(V: Hash + Equal) {
   # The Map used for storing values.
   #
   # The keys are the values inserted in this `Set`, the values are always set to

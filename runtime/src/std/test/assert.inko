@@ -13,7 +13,7 @@ import std::option::Option
 import std::process::(self, Process)
 
 # The result of a PanicTest.
-object PanicResult {
+class PanicResult {
   # A `String` containing the panic error message, if a panic happened.
   @error: ?String
 
@@ -27,7 +27,7 @@ object PanicResult {
 }
 
 # A test to verify if a block will panic or not.
-object PanicTest {
+class PanicTest {
   # The process that owns the test.
   @owner: Process
 

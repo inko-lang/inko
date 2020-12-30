@@ -26,7 +26,7 @@ import std::loop::(loop, while)
 import std::option::Option
 
 # An error produced by the parser.
-object ParseError {
+class ParseError {
   # The error message to display.
   @message: String
 
@@ -72,7 +72,7 @@ impl Error for ParseError {
 }
 
 # An LL(1) recursive descent parser for parsing Inko source code into an AST.
-object Parser {
+class Parser {
   # The lexer to use for lexing the input stream.
   @lexer: Lexer
 
@@ -151,7 +151,7 @@ object Parser {
   def top_level_expression(token: Token) !! ParseError -> Node {
     match(token.type) {
       'import' -> { try import_module(token) }
-      'object' -> { try object_definition(token) }
+      'class' -> { try class_definition(token) }
       'trait' -> { try trait_definition(token) }
       'impl' -> { try implement_or_reopen(token) }
       'def' -> { try method_definition(token) }
@@ -248,12 +248,12 @@ object Parser {
     Option.some(ImportAlias.new(name: token.value, location: token.location))
   }
 
-  def object_definition(token: Token) !! ParseError -> DefineObject {
+  def class_definition(token: Token) !! ParseError -> DefineClass {
     let name = try token_of_type('constant')
     let params = try type_parameter_definitions
-    let body = try object_body
+    let body = try class_body
 
-    DefineObject.new(
+    DefineClass.new(
       name: name.value,
       type_parameters: params,
       body: body,
@@ -306,35 +306,35 @@ object Parser {
       return try implement_trait(token: token, trait_name: trait_name)
     }
 
-    let object_name = constant_from_token(first_name)
+    let class_name = constant_from_token(first_name)
 
-    try reopen_object(token: token, object_name: object_name)
+    try reopen_class(token: token, class_name: class_name)
   }
 
   def implement_trait(
     token: Token,
     trait_name: Constant
   ) !! ParseError -> ImplementTrait {
-    let object_name = constant_from_token(try token_of_type('constant'))
+    let class_name = constant_from_token(try token_of_type('constant'))
     let bounds = try type_parameter_bounds
     let body = try trait_implementation_body
 
     ImplementTrait.new(
       trait_name: trait_name,
-      object_name: object_name,
+      class_name: class_name,
       type_parameter_bounds: bounds,
       body: body,
       location: token.location
     )
   }
 
-  def reopen_object(
+  def reopen_class(
     token: Token,
-    object_name: Constant
+    class_name: Constant
   ) !! ParseError -> ReopenObject {
-    let body = try reopen_object_body
+    let body = try reopen_class_body
 
-    ReopenObject.new(name: object_name, body: body, location: token.location)
+    ReopenObject.new(name: class_name, body: body, location: token.location)
   }
 
   def method_definition(token: Token) !! ParseError -> Node {
@@ -464,7 +464,7 @@ object Parser {
     }
   }
 
-  def restricted_object_body_node(token: Token) !! ParseError -> Node {
+  def restricted_class_body_node(token: Token) !! ParseError -> Node {
     match(token.type) {
       'def', 'static' -> { try method_definition(token) }
       'attribute' -> { try attribute_definition(token) }
@@ -486,7 +486,7 @@ object Parser {
     }
   }
 
-  def restricted_reopen_object_body_node(token: Token) !! ParseError -> Node {
+  def restricted_reopen_class_body_node(token: Token) !! ParseError -> Node {
     match(token.type) {
       'def', 'static' -> { try method_definition(token) }
       else -> { throw ParseError.unexpected_token(token) }
@@ -1417,11 +1417,11 @@ object Parser {
     try block_body(try token_of_type('curly_open'))
   }
 
-  def object_body !! ParseError -> Body {
+  def class_body !! ParseError -> Body {
     let start = try token_of_type('curly_open')
 
     try collect_block_body_nodes(start.location) do (token) {
-      try restricted_object_body_node(token)
+      try restricted_class_body_node(token)
     }
   }
 
@@ -1433,11 +1433,11 @@ object Parser {
     }
   }
 
-  def reopen_object_body !! ParseError -> Body {
+  def reopen_class_body !! ParseError -> Body {
     let start = try token_of_type('curly_open')
 
     try collect_block_body_nodes(start.location) do (token) {
-      try restricted_reopen_object_body_node(token)
+      try restricted_reopen_class_body_node(token)
     }
   }
 
