@@ -2054,22 +2054,6 @@ test.group('std::compiler::types::MethodType.type_compatible?') do (g) {
 
     assert_compatible(compare: foo1, with: foo2, builtins: builtins)
   }
-
-  g.test('Comparing a method that returns with a method that ignores its return type') {
-    let builtins = Builtins.new
-    let block1 = MethodType
-      .new(name: 'foo', layout: BlockLayout.new(AnyType.new))
-
-    let block2 = MethodType.new(
-      name: 'foo',
-      layout: BlockLayout.new(
-        return_type: builtins.nil_type.new_instance,
-        ignore_return_type: True
-      )
-    )
-
-    assert_compatible(block1, block2)
-  }
 }
 
 test.group('std::compiler:types::MethodType.lookup_type') do (g) {
@@ -2408,19 +2392,6 @@ test.group('std::compiler::types::ClosureType.type_compatible?') do (g) {
 
     assert_compatible(block1, block2)
   }
-
-  g.test('Comparing a closure that returns with a closure that ignores its return type') {
-    let builtins = Builtins.new
-    let block1 = ClosureType.new(BlockLayout.new(AnyType.new))
-    let block2 = ClosureType.new(
-      BlockLayout.new(
-        return_type: builtins.nil_type.new_instance,
-        ignore_return_type: True
-      )
-    )
-
-    assert_compatible(block1, block2)
-  }
 }
 
 test.group('std::compiler:types::ClosureType.lookup_type') do (g) {
@@ -2754,19 +2725,6 @@ test.group('std::compiler::types::LambdaType.type_compatible?') do (g) {
     let param2 = TypeParameterType.new('B')
     let block1 = LambdaType.new(BlockLayout.new(param1))
     let block2 = LambdaType.new(BlockLayout.new(param2))
-
-    assert_compatible(block1, block2)
-  }
-
-  g.test('Comparing a lambda that returns with a lambda that ignores its return type') {
-    let builtins = Builtins.new
-    let block1 = LambdaType.new(BlockLayout.new(AnyType.new))
-    let block2 = LambdaType.new(
-      BlockLayout.new(
-        return_type: builtins.nil_type.new_instance,
-        ignore_return_type: True
-      )
-    )
 
     assert_compatible(block1, block2)
   }

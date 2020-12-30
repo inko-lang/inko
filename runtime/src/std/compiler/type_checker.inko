@@ -233,8 +233,7 @@ trait TypePass {
     node: ClosureTypeNode,
     types: TypeScope
   ) -> ClosureType {
-    let block =
-      ClosureType.new(BlockLayout.new(type_checker.builtins.nil_singleton))
+    let block = ClosureType.new(BlockLayout.new(AnyType.new))
 
     visit_block_type(
       block: block,
@@ -252,8 +251,7 @@ trait TypePass {
     node: LambdaTypeNode,
     types: TypeScope
   ) -> LambdaType {
-    let block =
-      LambdaType.new(BlockLayout.new(type_checker.builtins.nil_singleton))
+    let block = LambdaType.new(BlockLayout.new(AnyType.new))
 
     visit_block_type(
       block: block,

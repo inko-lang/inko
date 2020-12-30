@@ -279,7 +279,7 @@ test.group('std::compiler::type_checker::TypePass.visit_closure_type') do (g) {
     assert.true(type.arguments.empty?)
     assert.true(type.type_parameters.empty?)
     assert.true(type.throw_type.none?)
-    assert.same_object(type.return_type, pass.type_checker.builtins.nil_singleton)
+    assert_instance_of(type.return_type, AnyType)
   }
 
   g.test('Defining a closure type with valid argument types') {
@@ -437,10 +437,7 @@ test.group('std::compiler::type_checker::TypePass.visit_lambda_type') do (g) {
     assert.true(type.arguments.empty?)
     assert.true(type.type_parameters.empty?)
     assert.true(type.throw_type.none?)
-    assert.same_object(
-      type.return_type,
-      pass.type_checker.builtins.nil_singleton
-    )
+    assert_instance_of(type.return_type, AnyType)
   }
 
   g.test('Defining a lambda type with valid argument types') {

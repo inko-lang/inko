@@ -1228,8 +1228,6 @@ trait BlockType: Type {
     throw_type_compatible?(with: with, builtins: builtins, scope: scope)
       .if_false { return False }
 
-    with.ignore_return_type?.if_true { return True }
-
     return_type
       .type_compatible?(with: with.return_type, builtins: builtins, scope: scope)
   }
@@ -1334,10 +1332,6 @@ trait BlockType: Type {
 
   def yield_type -> ?Type {
     Option.none
-  }
-
-  def ignore_return_type? -> Boolean {
-    layout.ignore_return_type?
   }
 }
 
@@ -1452,17 +1446,13 @@ object BlockLayout {
   # The return type of the block.
   @return_type: Type
 
-  # If this block's return type is to be ignored.
-  @ignore_return_type: Boolean
-
   static def new(
     return_type: Type,
     throw_type: ?Type = Option.none,
     type_parameters: SymbolTable!(TypeParameterType) = SymbolTable.new,
     required_arguments = 0,
     rest_argument = False,
-    throws = False,
-    ignore_return_type = False
+    throws = False
   ) -> Self {
     Self {
       @type_parameters = type_parameters,
@@ -1471,8 +1461,7 @@ object BlockLayout {
       @rest_argument = rest_argument,
       @throws = throws,
       @return_type = return_type,
-      @throw_type = throw_type,
-      @ignore_return_type = ignore_return_type
+      @throw_type = throw_type
     }
   }
 
@@ -1558,10 +1547,6 @@ object BlockLayout {
     }
 
     new_layout
-  }
-
-  def ignore_return_type? -> Boolean {
-    @ignore_return_type
   }
 }
 

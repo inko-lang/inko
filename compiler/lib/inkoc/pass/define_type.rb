@@ -87,7 +87,7 @@ module Inkoc
         if node.returns
           type.return_type = define_type_instance(node.returns, scope)
         else
-          type.return_type = @state.typedb.nil_type.new_instance
+          type.return_type = TypeSystem::Any.singleton
           type.ignore_return = true
         end
 
