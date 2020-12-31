@@ -566,16 +566,16 @@ class Builtins {
   @generator_type: ClassType
 
   static def new -> Self {
-    let array_type = ClassType.new('Array')
-    let boolean_type = ClassType.new('Boolean')
-    let nil_type = ClassType.new('NilType')
+    let array_type = ClassType.builtin('Array')
+    let boolean_type = ClassType.builtin('Boolean')
+    let nil_type = ClassType.builtin('NilType')
 
     array_type.type_parameters.define(
       name: ARRAY_TYPE_PARAMETER,
       type: TypeParameterType.new(ARRAY_TYPE_PARAMETER)
     )
 
-    let generator_type = ClassType.new('Generator')
+    let generator_type = ClassType.builtin('Generator')
 
     generator_type.type_parameters.define(
       name: GENERATOR_VALUE_TYPE_PARAMETER,
@@ -588,29 +588,29 @@ class Builtins {
     )
 
     Self {
-      @trait_type = ClassType.new('Trait'),
+      @trait_type = ClassType.builtin('Trait'),
       @boolean_type = boolean_type,
       @true_singleton = ClassInstance.new(boolean_type),
       @false_singleton = ClassInstance.new(boolean_type),
       @nil_type = nil_type,
       @nil_singleton = ClassInstance.new(nil_type),
-      @block_type = ClassType.new('Block'),
-      @integer_type = ClassType.new('Integer'),
-      @float_type = ClassType.new('Float'),
-      @string_type = ClassType.new('String'),
-      @module_type = ClassType.new('Module'),
-      @byte_array_type = ClassType.new('ByteArray'),
+      @block_type = ClassType.builtin('Block'),
+      @integer_type = ClassType.builtin('Integer'),
+      @float_type = ClassType.builtin('Float'),
+      @string_type = ClassType.builtin('String'),
+      @module_type = ClassType.builtin('Module'),
+      @byte_array_type = ClassType.builtin('ByteArray'),
       @array_type = array_type,
-      @ffi_library_type = ClassType.new('Library'),
-      @ffi_function_type = ClassType.new('Function'),
-      @ffi_pointer_type = ClassType.new('Pointer'),
-      @ip_socket_type = ClassType.new('Socket'),
-      @unix_socket_type = ClassType.new('Socket'),
-      @process_type = ClassType.new('Process'),
-      @read_only_file_type = ClassType.new('ReadOnlyFile'),
-      @write_only_file_type = ClassType.new('WriteOnlyFile'),
-      @read_write_file_type = ClassType.new('ReadWriteFile'),
-      @hasher_type = ClassType.new('Hasher'),
+      @ffi_library_type = ClassType.builtin('Library'),
+      @ffi_function_type = ClassType.builtin('Function'),
+      @ffi_pointer_type = ClassType.builtin('Pointer'),
+      @ip_socket_type = ClassType.builtin('Socket'),
+      @unix_socket_type = ClassType.builtin('Socket'),
+      @process_type = ClassType.builtin('Process'),
+      @read_only_file_type = ClassType.builtin('ReadOnlyFile'),
+      @write_only_file_type = ClassType.builtin('WriteOnlyFile'),
+      @read_write_file_type = ClassType.builtin('ReadWriteFile'),
+      @hasher_type = ClassType.builtin('Hasher'),
       @generator_type = generator_type
     }
   }
@@ -2246,6 +2246,21 @@ class ClassType {
   # The traits this class implements.
   @implemented_traits: Map!(TraitType, TraitImplementation)
 
+  # If the type is a built-in type or not.
+  @builtin: Boolean
+
+  static def builtin(name: String) -> Self {
+    Self {
+      @name = name,
+      @attributes = SymbolTable.new,
+      @static_methods = SymbolTable.new,
+      @instance_methods = SymbolTable.new,
+      @type_parameters = SymbolTable.new,
+      @implemented_traits = Map.new,
+      @builtin = True
+    }
+  }
+
   static def new(name: String) -> Self {
     Self {
       @name = name,
@@ -2253,7 +2268,8 @@ class ClassType {
       @static_methods = SymbolTable.new,
       @instance_methods = SymbolTable.new,
       @type_parameters = SymbolTable.new,
-      @implemented_traits = Map.new
+      @implemented_traits = Map.new,
+      @builtin = False
     }
   }
 
@@ -2329,6 +2345,10 @@ class ClassType {
       builtins: builtins,
       scope: scope
     )
+  }
+
+  def builtin? -> Boolean {
+    @builtin
   }
 }
 

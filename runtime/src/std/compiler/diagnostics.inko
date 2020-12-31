@@ -586,6 +586,13 @@ class Diagnostics {
       location: location
     )
   }
+
+  def unsupported_constructor(location: SourceLocation) {
+    error(
+      message: "This type doesn't support the constructor syntax",
+      location: location
+    )
+  }
 }
 
 impl Length for Diagnostics {

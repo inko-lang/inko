@@ -1566,7 +1566,7 @@ trait ExpressionTypePass: TypePass {
       }
     )
 
-    let object_type = match(let matched = type) {
+    let class_type = match(let matched = type) {
       as ClassType -> { matched }
       else -> {
         type_checker
@@ -1577,7 +1577,13 @@ trait ExpressionTypePass: TypePass {
       }
     }
 
-    let instance = object_type.new_instance
+    class_type.builtin?.if_true {
+      type_checker.diagnostics.unsupported_constructor(node.location)
+
+      return node.resolved_type = ErrorType.new
+    }
+
+    let instance = class_type.new_instance
     let assigned = Set.new
     let scope = TypeScope.new(
       module: types.module,
@@ -1601,7 +1607,7 @@ trait ExpressionTypePass: TypePass {
         }
         sym.none? -> {
           type_checker.diagnostics.undefined_attribute(
-            type: object_type.type_name,
+            type: class_type.type_name,
             attribute: name,
             location: loc
           )
@@ -1619,7 +1625,7 @@ trait ExpressionTypePass: TypePass {
       }
     }
 
-    object_type.attributes.symbols.each do (attr) {
+    class_type.attributes.symbols.each do (attr) {
       assigned.contains?(attr.name).if_false {
         type_checker
           .diagnostics
@@ -2569,7 +2575,7 @@ class DefineAttributeTypes {
     node.body.children.each do (child) {
       match(let node = child) {
         as DefineAttribute -> {
-          visit_define_attribute(node: node, object_type: type, types: new_types)
+          visit_define_attribute(node: node, class_type: type, types: new_types)
         }
         else -> {}
       }
@@ -2580,11 +2586,11 @@ class DefineAttributeTypes {
 
   def visit_define_attribute(
     node: DefineAttribute,
-    object_type: ClassType,
+    class_type: ClassType,
     types: TypeScope
   ) -> Type {
     let type = visit_type_node(node: node.value_type, types: types)
-    let attr = object_type.define_attribute(name: node.name, type: type)
+    let attr = class_type.define_attribute(name: node.name, type: type)
 
     node.resolved_type = attr.type.internal_type
   }
@@ -2809,7 +2815,7 @@ class TypeCheck {
     let trait_name = node.trait_name
     let class_name = node.class_name
 
-    let object_type =
+    let class_type =
       match(let matched = visit_constant(node: class_name, types: types)) {
         as ClassType -> { matched }
         as ErrorType -> { return matched }
@@ -2828,7 +2834,7 @@ class TypeCheck {
     # processing the object name first, and using a new type scope for the trait
     # name.
     let new_scope = node.body.type_scope = TypeScope
-      .new(module: @module, self_type: object_type)
+      .new(module: @module, self_type: class_type)
 
     let trait_instance = match(
       let matched = visit_constant_as_type(node: trait_name, types: new_scope)
@@ -2848,7 +2854,7 @@ class TypeCheck {
 
     visit_trait_implementation_bounds(
       nodes: node.type_parameter_bounds,
-      object_type: object_type,
+      class_type: class_type,
       implementation: implementation,
       types: new_scope
     )
@@ -2863,7 +2869,7 @@ class TypeCheck {
     trait_instance.instance_of.default_methods.symbols.each do (default) {
       let name = default.name
       let existing =
-        object_type.instance_methods.get(name).map do (sym) { sym.type }
+        class_type.instance_methods.get(name).map do (sym) { sym.type }
 
       # Default methods may be implemented ahead of the trait. If so, we allow
       # this as long as the existing implementation is compatible with the one
@@ -2910,14 +2916,14 @@ class TypeCheck {
       # us from using `to_string` for any `T` that _only_ implements
       # `ToString`.
       existing.if_false {
-        object_type.instance_methods.define(name: name, type: default.type)
+        class_type.instance_methods.define(name: name, type: default.type)
       }
     }
 
     # The implementation is added first, so that methods added in the body can
     # pass the type of `self`/`Self` to anything that expects the trait we are
     # implementing.
-    object_type.add_trait_implementation(implementation)
+    class_type.add_trait_implementation(implementation)
 
     node.body.children.each do (child) {
       match(let matched = child) {
@@ -2929,7 +2935,7 @@ class TypeCheck {
           )
 
           store_implemented_method_in_object(
-            type: object_type,
+            type: class_type,
             trait_instance: trait_instance,
             method: method,
             scope: new_scope,
@@ -2948,7 +2954,7 @@ class TypeCheck {
       .and {
         required_traits_implemented?(
           node: node,
-          object_type: object_type,
+          class_type: class_type,
           trait_instance: trait_instance,
           scope: new_scope
         )
@@ -2956,16 +2962,16 @@ class TypeCheck {
       .and {
         required_methods_implemented?(
           node: node,
-          object_type: object_type,
+          class_type: class_type,
           trait_instance: trait_instance,
           scope: new_scope
         )
       }
       .if_false {
-        object_type.remove_trait_implementation(implementation)
+        class_type.remove_trait_implementation(implementation)
       }
 
-    object_type
+    class_type
   }
 
   def visit_reopen_object(node: ReopenObject, types: TypeScope) -> Type {
@@ -3009,13 +3015,13 @@ class TypeCheck {
 
   def visit_trait_implementation_bounds(
     nodes: Array!(DefineTypeParameter),
-    object_type: ClassType,
+    class_type: ClassType,
     implementation: TraitImplementation,
     types: TypeScope
   ) -> Boolean {
     nodes.iter.all? do (bound) {
       let type =
-        object_type.lookup_type_parameter(bound.name).map do (sym) { sym.type }
+        class_type.lookup_type_parameter(bound.name).map do (sym) { sym.type }
 
       define_type_parameter_bound(
         node: bound,
@@ -3084,7 +3090,7 @@ class TypeCheck {
 
   def required_methods_implemented?(
     node: ImplementTrait,
-    object_type: ClassType,
+    class_type: ClassType,
     trait_instance: TraitInstance,
     scope: TypeScope,
   ) -> Boolean {
@@ -3096,7 +3102,7 @@ class TypeCheck {
       .symbols
       .each do (symbol) {
         let required = symbol.type
-        let implemented = object_type
+        let implemented = class_type
           .instance_methods
           .get(required.name)
           .get_or_else {
@@ -3127,14 +3133,14 @@ class TypeCheck {
 
   def required_traits_implemented?(
     node: ImplementTrait,
-    object_type: ClassType,
+    class_type: ClassType,
     trait_instance: TraitInstance,
     scope: TypeScope
   ) -> Boolean {
     let builtins = @type_checker.builtins
 
     trait_instance.instance_of.required_traits.iter.all? do (required) {
-      object_type
+      class_type
         .implements_trait?(type: required, builtins: builtins, scope: scope)
         .if(
           true: { True },

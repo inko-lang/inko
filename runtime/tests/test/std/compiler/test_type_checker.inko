@@ -9421,6 +9421,20 @@ test.group('Type-checking object constructors') do (g) {
     assert.false(type_checker.diagnostics.errors?)
     assert_object_instance(node.resolved_type.get, obj_type)
   }
+
+  g.test('Creating an instance of a built-in type') {
+    let module = new_std_module('foo')
+    let type_checker = TypeChecker.new
+    let byte_array = type_checker.builtins.byte_array_type
+    let body = parse('ByteArray {}')
+    let node = body.children[0]
+
+    module.globals.define(name: byte_array.name, type: byte_array)
+    type_checker.check_module(module: module, ast: body)
+
+    assert.true(type_checker.diagnostics.errors?)
+    assert.true(node.resolved_type.get.error?)
+  }
 }
 
 test.group('Type-checking generators') do (g) {
