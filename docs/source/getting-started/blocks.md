@@ -41,11 +41,10 @@ arguments the closure or lambda needs. For example:
 ```
 
 Here we define a closure without any argument and explicit throw/return types,
-removing the need for the `do` keyword. Lambdas always require the `lambda`
-keyword:
+removing the need for the `do` keyword. Lambdas use the `fn` keyword:
 
 ```inko
-lambda { 10 }.call
+fn { 10 }.call
 ```
 
 ## Returning from blocks
@@ -96,7 +95,7 @@ We define required arguments as follows:
 ```inko
 def greet(name: String) {}  # A module method
 do (name: String) {}        # A closure
-lambda (name: String) {}    # A lambda
+fn (name: String) {}        # A lambda
 ```
 
 Here `name` is the name of the argument, and `String` is its type. To define an
@@ -105,7 +104,7 @@ optional argument, provide a default value for the argument:
 ```inko
 def greet(name = 'Alice') {}
 do (name = 'Alice') {}
-lambda (name = 'Alice') {}
+fn (name = 'Alice') {}
 ```
 
 When specifying a default value, you can still specify an explicit argument
@@ -114,7 +113,7 @@ type:
 ```inko
 def greet(name: String = 'Alice') {}
 do (name: String = 'Alice') {}
-lambda (name: String = 'Alice') {}
+fn (name: String = 'Alice') {}
 ```
 
 In this case the explicit type will be used as the argument type. It's an error
@@ -127,7 +126,7 @@ argument:
 ```inko
 def greet(name: String, *other: String) {}
 do (name: String, *other: String) {}
-lambda (name: String, *other: String) {}
+fn (name: String, *other: String) {}
 ```
 
 Here `other` is the rest argument. We can call this method like so:
@@ -281,7 +280,7 @@ For closures and lambdas, the syntax is the same:
 
 ```inko
 do !! Integer {}
-lambda !! Integer {}
+fn !! Integer {}
 ```
 
 How to throw values and handle errors is covered separately.
@@ -300,8 +299,8 @@ Here the method states that it returns an instance of the `String` type. The
 syntax for closures and lambdas is the same:
 
 ```inko
-do !! Integer {}
-lambda !! Integer {}
+do -> Integer {}
+fn -> Integer {}
 ```
 
 When adding an explicit throw and return type to a block, the throw type must
@@ -310,5 +309,5 @@ come first:
 ```inko
 def example !! Integer -> String {}
 do !! Integer -> String {}
-lambda !! Integer -> String {}
+fn !! Integer -> String {}
 ```

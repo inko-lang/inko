@@ -122,7 +122,7 @@ Methods, closures and lambdas can also be generic. The syntax is as follows:
 
 ```inko
 do !(T)(value: T) {}         # A generic closure
-lambda !(T)(value: T) {}     # A generic lambda
+fn !(T)(value: T) {}         # A generic lambda
 def example!(T)(value: T) {} # A generic method
 ```
 

@@ -19,7 +19,7 @@ class TestGroup {
   }
 
   # Registers a new test with a runner.
-  def test(name: String, body: lambda) -> Test {
+  def test(name: String, body: fn) -> Test {
     let location = stacktrace(skip: 2, limit: 1)[0]
     let test = Test.new(
       name: name,

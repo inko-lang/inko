@@ -12,7 +12,7 @@ def example_test -> Test {
     group_name: 'group name',
     runner: process.current,
     location: frame,
-    body: lambda { process.panic('This is a failure!') }
+    body: fn { process.panic('This is a failure!') }
   )
 }
 

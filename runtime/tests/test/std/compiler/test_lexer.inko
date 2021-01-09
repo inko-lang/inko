@@ -51,8 +51,8 @@ test.group('std::compiler::lexer::Keywords.keyword?') do (g) {
     assert.true(Keywords.new.keyword?('import'.to_byte_array))
   }
 
-  g.test('Checking if "lambda" is a keyword') {
-    assert.true(Keywords.new.keyword?('lambda'.to_byte_array))
+  g.test('Checking if "fn" is a keyword') {
+    assert.true(Keywords.new.keyword?('fn'.to_byte_array))
   }
 
   g.test('Checking if "as" is a keyword') {
@@ -1617,11 +1617,11 @@ world\n" "hello"'
     assert.equal(token.location.line_range, 1..1)
   }
 
-  g.test('Lexing the lambda keyword') {
-    let token = lex('lambda')
+  g.test('Lexing the fn keyword') {
+    let token = lex('fn')
 
-    assert.equal(token.type, 'lambda')
-    assert.equal(token.value, 'lambda')
+    assert.equal(token.type, 'fn')
+    assert.equal(token.value, 'fn')
     assert.true(token.keyword?)
 
     assert.equal(token.location.column, 1)

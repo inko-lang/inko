@@ -151,7 +151,7 @@ def receive_timeout(timeout: ToFloat) !! StandardError -> Any {
 #     process.spawn {
 #       10 # => 10
 #     }
-def spawn(block: lambda) -> Process {
+def spawn(block: fn) -> Process {
   _INKOC.process_spawn(block)
 }
 

@@ -28,14 +28,14 @@ class Test {
   @failure: ?TestFailure
 
   # The test body to execute.
-  @body: lambda
+  @body: fn
 
   static def new(
     name: String,
     group_name: String,
     runner: Process,
     location: CallFrame,
-    body: lambda,
+    body: fn,
   ) -> Self {
     Self {
       @name = name,

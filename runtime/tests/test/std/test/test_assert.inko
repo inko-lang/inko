@@ -2,7 +2,7 @@ import std::process
 import std::test
 import std::test::assert::(self, PanicResult, PanicTest)
 
-def run_panic_test(block: lambda) -> PanicResult {
+def run_panic_test(block: fn) -> PanicResult {
   let test = PanicTest
     .new(owner: process.current, block: block)
 
@@ -25,14 +25,14 @@ test.group('std::test::assert::PanicResult.error') do (g) {
 
 test.group('std::test::assert::PanicTest.run') do (g) {
   g.test('Running a panic test that panics') {
-    let result = run_panic_test lambda { process.panic('oops') }
+    let result = run_panic_test fn { process.panic('oops') }
 
     assert.true(result.error.some?)
     assert.equal(result.error.get, 'oops')
   }
 
   g.test('Running a panic test that does not panic') {
-    let result = run_panic_test lambda { 0 }
+    let result = run_panic_test fn { 0 }
 
     assert.true(result.error.none?)
   }

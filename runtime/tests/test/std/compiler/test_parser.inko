@@ -730,7 +730,7 @@ test.group('Parsing message send chains') do (g) {
   }
 
   g.test('Sending a message with a lambda as the type argument') {
-    let node = parse_as(input: '10.foo!(lambda (A, B) !! A -> B)', type: Send)
+    let node = parse_as(input: '10.foo!(fn (A, B) !! A -> B)', type: Send)
 
     assert.equal(node.type_arguments.length, 1)
 
@@ -884,7 +884,7 @@ test.group('Parsing message send chains') do (g) {
   }
 
   g.test('Parsing a message chain with a lambda outside parentheses') {
-    let node = parse_as(input: '10.foo() lambda {}', type: Send)
+    let node = parse_as(input: '10.foo() fn {}', type: Send)
 
     assert.equal(node.arguments.length, 1)
     assert_instance_of(node.arguments[0], Lambda)
@@ -930,7 +930,7 @@ test.group('Parsing message send chains without parentheses') do (g) {
   }
 
   g.test('Sending a message with a lambda argument') {
-    let node = parse_as(input: '10.foo lambda { 20 }', type: Send)
+    let node = parse_as(input: '10.foo fn { 20 }', type: Send)
 
     assert.equal(node.message, 'foo')
     assert.equal(node.arguments.length, 1)
@@ -1073,7 +1073,7 @@ test.group('Parsing closures') do (g) {
 
 test.group('Parsing lambdas') do (g) {
   g.test('Parsing a lambda') {
-    let node = parse_as(input: 'lambda { 10 }', type: Lambda)
+    let node = parse_as(input: 'fn { 10 }', type: Lambda)
 
     assert.equal(node.body.children.length, 1)
     assert.true(node.arguments.empty?)
@@ -1082,7 +1082,7 @@ test.group('Parsing lambdas') do (g) {
   }
 
   g.test('Parsing a lambda without explicitly typed arguments') {
-    let node = parse_as(input: 'lambda (a, b) {}', type: Lambda)
+    let node = parse_as(input: 'fn (a, b) {}', type: Lambda)
     let arg1 = node.arguments[0] as DefineUntypedArgument
     let arg2 = node.arguments[1] as DefineUntypedArgument
 
@@ -1094,7 +1094,7 @@ test.group('Parsing lambdas') do (g) {
   }
 
   g.test('Parsing a lambda with statically typed arguments') {
-    let node = parse_as(input: 'lambda (a: A, b: B) {}', type: Lambda)
+    let node = parse_as(input: 'fn (a: A, b: B) {}', type: Lambda)
     let arg1 = node.arguments[0] as DefineRequiredArgument
     let arg2 = node.arguments[1] as DefineRequiredArgument
 
@@ -1106,53 +1106,53 @@ test.group('Parsing lambdas') do (g) {
   }
 
   g.test('Parsing a lambda with a constant as the return type') {
-    let node = parse_as(input: 'lambda -> A {}', type: Lambda)
+    let node = parse_as(input: 'fn -> A {}', type: Lambda)
 
     assert.equal((node.return_type.get as Constant).name, 'A')
   }
 
   g.test('Parsing a lambda with a lambda as the return type') {
-    let node = parse_as(input: 'lambda -> lambda -> A {}', type: Lambda)
+    let node = parse_as(input: 'fn -> fn -> A {}', type: Lambda)
     let rtype = node.return_type.get as LambdaType
 
     assert.equal((rtype.return_type.get as Constant).name, 'A')
   }
 
   g.test('Parsing a lambda with an optional type as the return type') {
-    let node = parse_as(input: 'lambda -> ?A {}', type: Lambda)
+    let node = parse_as(input: 'fn -> ?A {}', type: Lambda)
     let type = node.return_type.get as OptionType
     let wrapped = type.type as Constant
 
-    assert.equal(type.location.column, 11)
+    assert.equal(type.location.column, 7)
     assert.equal(wrapped.name, 'A')
-    assert.equal(wrapped.location.column, 12)
+    assert.equal(wrapped.location.column, 8)
   }
 
   g.test('Parsing a lambda with a constant as the throw type') {
-    let node = parse_as(input: 'lambda !! A {}', type: Lambda)
+    let node = parse_as(input: 'fn !! A {}', type: Lambda)
 
     assert.equal((node.throw_type.get as Constant).name, 'A')
   }
 
   g.test('Parsing a lambda with a lambda as the throw type') {
-    let node = parse_as(input: 'lambda !! lambda !! A {}', type: Lambda)
+    let node = parse_as(input: 'fn !! fn !! A {}', type: Lambda)
     let rtype = node.throw_type.get as LambdaType
 
     assert.equal((rtype.throw_type.get as Constant).name, 'A')
   }
 
   g.test('Parsing a lambda with an optional type as the throw type') {
-    let node = parse_as(input: 'lambda !! ?A {}', type: Lambda)
+    let node = parse_as(input: 'fn !! ?A {}', type: Lambda)
     let type = node.throw_type.get as OptionType
     let wrapped = type.type as Constant
 
-    assert.equal(type.location.column, 11)
+    assert.equal(type.location.column, 7)
     assert.equal(wrapped.name, 'A')
-    assert.equal(wrapped.location.column, 12)
+    assert.equal(wrapped.location.column, 8)
   }
 
   g.test('Parsing a lambda with type parameters') {
-    let node = parse_as(input: 'lambda !(A, B) {}', type: Lambda)
+    let node = parse_as(input: 'fn !(A, B) {}', type: Lambda)
 
     assert.equal(node.type_parameters.length, 2)
     assert.equal(node.type_parameters[0].name, 'A')
@@ -1768,7 +1768,7 @@ test.group('Parsing identifiers') do (g) {
   }
 
   g.test('Parsing an identifier with a lambda argument') {
-    let node = parse_as(input: 'foo lambda {}', type: Send)
+    let node = parse_as(input: 'foo fn {}', type: Send)
 
     assert.equal(node.message, 'foo')
     assert.equal(node.arguments.length, 1)
@@ -1835,7 +1835,7 @@ test.group('Parsing identifiers') do (g) {
   }
 
   g.test('Parsing an identifier with a lambda argument outside parentheses') {
-    let node = parse_as(input: 'foo() lambda {}', type: Send)
+    let node = parse_as(input: 'foo() fn {}', type: Send)
 
     assert.equal(node.message, 'foo')
     assert.equal(node.arguments.length, 1)

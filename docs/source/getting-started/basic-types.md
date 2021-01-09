@@ -273,10 +273,10 @@ no arguments, no explicit return type, and no explicit throw type:
 }
 ```
 
-To create a lambda, use the `lambda` keyword:
+To create a lambda, use the `fn` keyword:
 
 ```inko
-lambda {
+fn {
   # ...
 }
 ```

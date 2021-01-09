@@ -429,7 +429,7 @@ test.group('std::compiler::type_checker::TypePass.visit_closure_type') do (g) {
 test.group('std::compiler::type_checker::TypePass.visit_lambda_type') do (g) {
   g.test('Defining a simple lambda type') {
     let pass = DummyPass.new
-    let node = parse_type('lambda') as LambdaTypeNode
+    let node = parse_type('fn') as LambdaTypeNode
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_lambda_type(node: node, types: scope)
 
@@ -448,7 +448,7 @@ test.group('std::compiler::type_checker::TypePass.visit_lambda_type') do (g) {
     pass.module.define_constant(name: foo_type.name, type: foo_type)
     pass.module.define_constant(name: bar_type.name, type: bar_type)
 
-    let node = parse_type('lambda (Foo, Bar)') as LambdaTypeNode
+    let node = parse_type('fn (Foo, Bar)') as LambdaTypeNode
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_lambda_type(node: node, types: scope)
 
@@ -471,7 +471,7 @@ test.group('std::compiler::type_checker::TypePass.visit_lambda_type') do (g) {
 
   g.test('Defining a lambda type with invalid argument types') {
     let pass = DummyPass.new
-    let node = parse_type('lambda (Foo, Bar)') as LambdaTypeNode
+    let node = parse_type('fn (Foo, Bar)') as LambdaTypeNode
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_lambda_type(node: node, types: scope)
 
@@ -495,7 +495,7 @@ test.group('std::compiler::type_checker::TypePass.visit_lambda_type') do (g) {
 
     pass.module.define_constant(name: foo_type.name, type: foo_type)
 
-    let node = parse_type('lambda !! Foo') as LambdaTypeNode
+    let node = parse_type('fn !! Foo') as LambdaTypeNode
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_lambda_type(node: node, types: scope)
 
@@ -509,7 +509,7 @@ test.group('std::compiler::type_checker::TypePass.visit_lambda_type') do (g) {
 
   g.test('Defining a lambda with an invalid throw type') {
     let pass = DummyPass.new
-    let node = parse_type('lambda !! Foo') as LambdaTypeNode
+    let node = parse_type('fn !! Foo') as LambdaTypeNode
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_lambda_type(node: node, types: scope)
 
@@ -523,7 +523,7 @@ test.group('std::compiler::type_checker::TypePass.visit_lambda_type') do (g) {
 
     pass.module.define_constant(name: foo_type.name, type: foo_type)
 
-    let node = parse_type('lambda -> Foo') as LambdaTypeNode
+    let node = parse_type('fn -> Foo') as LambdaTypeNode
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_lambda_type(node: node, types: scope)
 
@@ -537,7 +537,7 @@ test.group('std::compiler::type_checker::TypePass.visit_lambda_type') do (g) {
 
   g.test('Defining a lambda with an invalid return type') {
     let pass = DummyPass.new
-    let node = parse_type('lambda -> Foo') as LambdaTypeNode
+    let node = parse_type('fn -> Foo') as LambdaTypeNode
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_lambda_type(node: node, types: scope)
 
@@ -551,7 +551,7 @@ test.group('std::compiler::type_checker::TypePass.visit_lambda_type') do (g) {
 
     pass.module.define_constant(name: foo_type.name, type: foo_type)
 
-    let node = parse_type('lambda !(A: Foo, B: Foo)') as LambdaTypeNode
+    let node = parse_type('fn !(A: Foo, B: Foo)') as LambdaTypeNode
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_lambda_type(node: node, types: scope)
 
@@ -579,7 +579,7 @@ test.group('std::compiler::type_checker::TypePass.visit_lambda_type') do (g) {
 
     pass.module.define_constant(name: foo_type.name, type: foo_type)
 
-    let node = parse_type('lambda (Foo)') as LambdaTypeNode
+    let node = parse_type('fn (Foo)') as LambdaTypeNode
     let scope = TypeScope.new(pass.module)
     let type = pass.visit_lambda_type(node: node, types: scope)
 
@@ -3730,7 +3730,7 @@ test.group('Type-checking method returns') do (g) {
   g.test('Returning from a lambda') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let body = parse('lambda { return }')
+    let body = parse('fn { return }')
 
     type_checker.check_module(module: module, ast: body)
 
@@ -4604,7 +4604,7 @@ test.group('Type-checking lambdas') do (g) {
   g.test('Defining an empty lambda without explicit types') {
     let type_checker = TypeChecker.new
     let module = new_module('foo')
-    let body = parse('lambda {}')
+    let body = parse('fn {}')
     let node = body.children[0] as Lambda
 
     type_checker.check_module(module: module, ast: body)
@@ -4625,7 +4625,7 @@ test.group('Type-checking lambdas') do (g) {
     let type_checker = TypeChecker.new
     let int_type = type_checker.builtins.integer_type
     let module = new_module('foo')
-    let body = parse('lambda { x }')
+    let body = parse('fn { x }')
     let node = body.children[0] as Lambda
 
     body.variable_scope.symbols.define(name: 'x', type: int_type.new_instance)
@@ -4644,7 +4644,7 @@ test.group('Type-checking lambdas') do (g) {
     let module = new_module('foo')
     let int_type = type_checker.builtins.integer_type
     let float_type = type_checker.builtins.float_type
-    let body = parse("lambda (a: Float, b: Integer) { a \n b }")
+    let body = parse("fn (a: Float, b: Integer) { a \n b }")
     let node = body.children[0] as Lambda
 
     module.define_constant(name: 'Integer', type: int_type)
@@ -4670,7 +4670,7 @@ test.group('Type-checking lambdas') do (g) {
     let type_checker = TypeChecker.new
     let module = new_module('foo')
     let int_type = type_checker.builtins.integer_type
-    let body = parse('lambda -> Integer { 10 }')
+    let body = parse('fn -> Integer { 10 }')
     let node = body.children[0] as Lambda
 
     module.define_constant(name: 'Integer', type: int_type)
@@ -4686,7 +4686,7 @@ test.group('Type-checking lambdas') do (g) {
     let type_checker = TypeChecker.new
     let module = new_module('foo')
     let int_type = type_checker.builtins.integer_type
-    let body = parse('lambda -> Integer { 10.5 }')
+    let body = parse('fn -> Integer { 10.5 }')
     let node = body.children[0] as Lambda
 
     module.define_constant(name: 'Integer', type: int_type)
@@ -4702,7 +4702,7 @@ test.group('Type-checking lambdas') do (g) {
     let type_checker = TypeChecker.new
     let module = new_module('foo')
     let int_type = type_checker.builtins.integer_type
-    let body = parse('lambda !! Integer { local throw 10 }')
+    let body = parse('fn !! Integer { local throw 10 }')
     let node = body.children[0] as Lambda
 
     module.define_constant(name: 'Integer', type: int_type)
@@ -4718,7 +4718,7 @@ test.group('Type-checking lambdas') do (g) {
     let type_checker = TypeChecker.new
     let module = new_module('foo')
     let int_type = type_checker.builtins.integer_type
-    let body = parse('lambda !! Integer { local throw 10.5 }')
+    let body = parse('fn !! Integer { local throw 10.5 }')
     let node = body.children[0] as Lambda
 
     module.define_constant(name: 'Integer', type: int_type)
@@ -4734,7 +4734,7 @@ test.group('Type-checking lambdas') do (g) {
     let type_checker = TypeChecker.new
     let module = new_module('foo')
     let int_type = type_checker.builtins.integer_type
-    let body = parse('lambda !! Integer {}')
+    let body = parse('fn !! Integer {}')
 
     module.define_constant(name: 'Integer', type: int_type)
     type_checker.check_module(module: module, ast: body)
@@ -4746,7 +4746,7 @@ test.group('Type-checking lambdas') do (g) {
     let type_checker = TypeChecker.new
     let module = new_module('foo')
     let int_type = type_checker.builtins.integer_type
-    let body = parse('lambda { local throw 10 }')
+    let body = parse('fn { local throw 10 }')
     let node = body.children[0] as Closure
 
     type_checker.check_module(module: module, ast: body)
@@ -4760,7 +4760,7 @@ test.group('Type-checking lambdas') do (g) {
   g.test('Defining a lambda with a type parameter') {
     let type_checker = TypeChecker.new
     let module = new_module('foo')
-    let body = parse('lambda !(T)(a: T) { a }')
+    let body = parse('fn !(T)(a: T) { a }')
     let node = body.children[0] as Lambda
 
     type_checker.check_module(module: module, ast: body)
@@ -4776,7 +4776,7 @@ test.group('Type-checking lambdas') do (g) {
   g.test('Defining a lambda with a type parameter and explicit return type') {
     let type_checker = TypeChecker.new
     let module = new_module('foo')
-    let body = parse('lambda !(T)(a: T) -> T { a }')
+    let body = parse('fn !(T)(a: T) -> T { a }')
     let node = body.children[0] as Lambda
 
     type_checker.check_module(module: module, ast: body)
@@ -4791,7 +4791,7 @@ test.group('Type-checking lambdas') do (g) {
   g.test('Defining a lambda with a type parameter and explicit throw type') {
     let type_checker = TypeChecker.new
     let module = new_module('foo')
-    let body = parse('lambda !(T)(a: T) !! T { local throw a }')
+    let body = parse('fn !(T)(a: T) !! T { local throw a }')
     let node = body.children[0] as Lambda
 
     type_checker.check_module(module: module, ast: body)
@@ -4806,7 +4806,7 @@ test.group('Type-checking lambdas') do (g) {
   g.test('Defining a lambda with immutable untyped arguments') {
     let type_checker = TypeChecker.new
     let module = new_module('foo')
-    let body = parse('lambda (a, b) {}')
+    let body = parse('fn (a, b) {}')
     let node = body.children[0] as Lambda
 
     type_checker.check_module(module: module, ast: body)
@@ -4822,7 +4822,7 @@ test.group('Type-checking lambdas') do (g) {
     let type_checker = TypeChecker.new
     let int_type = type_checker.builtins.integer_type
     let module = new_module('foo')
-    let body = parse('lambda (a = 10) {}')
+    let body = parse('fn (a = 10) {}')
     let node = body.children[0] as Lambda
 
     type_checker.check_module(module: module, ast: body)
@@ -4836,7 +4836,7 @@ test.group('Type-checking lambdas') do (g) {
   g.test('Defining a lambda with a statically typed rest argument') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let body = parse('lambda(*a: Integer) {}')
+    let body = parse('fn(*a: Integer) {}')
 
     module
       .define_constant(name: 'Integer', type: type_checker.builtins.integer_type)
@@ -4855,7 +4855,7 @@ test.group('Type-checking lambdas') do (g) {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
     let int_type = type_checker.builtins.integer_type
-    let body = parse('lambda(a: Integer) { a }')
+    let body = parse('fn(a: Integer) { a }')
 
     module.define_constant(name: 'Integer', type: int_type)
     type_checker.check_module(module: module, ast: body)
@@ -4872,7 +4872,7 @@ test.group('Type-checking lambdas') do (g) {
     let type_checker = TypeChecker.new
     let int_type = type_checker.builtins.integer_type
     let ary_type = type_checker.builtins.array_type
-    let body = parse('lambda(*a: Integer) { a }')
+    let body = parse('fn(*a: Integer) { a }')
 
     module.define_constant(name: 'Integer', type: int_type)
     type_checker.check_module(module: module, ast: body)
@@ -5587,7 +5587,7 @@ test.group('Type-checking sending messages') do (g) {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
     let builtins = type_checker.builtins
-    let body = parse('foo lambda { 10 }')
+    let body = parse('foo fn { 10 }')
     let node = body.children[0] as Send
     let param = TypeParameterType.new('R')
     let foo = MethodType.new(name: 'foo', layout: BlockLayout.new(param))
@@ -6141,7 +6141,7 @@ test.group('Type-checking the `local try` keyword') do (g) {
   g.test('Re-throwing an error in a lambda that has no explicit error type') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let body = parse('lambda { local try foo }')
+    let body = parse('fn { local try foo }')
     let block = body.children[0] as Lambda
     let node = block.body.children[0] as Try
 

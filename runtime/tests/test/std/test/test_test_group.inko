@@ -11,7 +11,7 @@ def add_test -> Test {
   let state = RunnerState.new
   let group = TestGroup.new(name: 'group', client: client)
 
-  group.test(name: 'Test name', body: lambda { 10 })
+  group.test(name: 'Test name', body: fn { 10 })
 
   (process.receive as AddTest).run(state)
 

@@ -32,9 +32,9 @@ class PanicTest {
   @owner: Process
 
   # The `Block` to run.
-  @block: lambda
+  @block: fn
 
-  static def new(owner: Process, block: lambda) -> Self {
+  static def new(owner: Process, block: fn) -> Self {
     Self { @owner = owner, @block = block }
   }
 
@@ -94,7 +94,7 @@ def greater!(T: Greater)(given: T, minimum: T) {
 }
 
 # Asserts that the given lambda panics.
-def panic(block: lambda) {
+def panic(block: fn) {
   let proc = process.spawn {
     let test = process.receive as PanicTest
 
@@ -111,7 +111,7 @@ def panic(block: lambda) {
 }
 
 # Asserts that the given lambda does not panic.
-def no_panic(block: lambda) {
+def no_panic(block: fn) {
   let proc = process.spawn {
     let test = process.receive as PanicTest
 

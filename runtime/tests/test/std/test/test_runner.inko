@@ -19,7 +19,7 @@ def example_test -> Test {
     group_name: 'group name',
     runner: process.current,
     location: frame,
-    body: lambda {}
+    body: fn {}
   )
 }
 

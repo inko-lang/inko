@@ -1316,7 +1316,7 @@ describe Inkoc::Pass::DefineType do
     end
 
     context 'when inside a lambda' do
-      let(:keyword) { 'lambda' }
+      let(:keyword) { 'fn' }
 
       include_examples 'inside an anonymous block'
     end
@@ -1721,19 +1721,19 @@ describe Inkoc::Pass::DefineType do
   end
 
   describe '#on_lambda' do
-    let(:header) { 'lambda' }
+    let(:header) { 'fn' }
 
     it_behaves_like 'a Block type'
     it_behaves_like 'an anonymous block'
 
     it 'produces a lambda' do
-      type = expression_type('lambda {}')
+      type = expression_type('fn {}')
 
       expect(type).to be_lambda
     end
 
     it 'defines the type of self as the module type' do
-      type = expression_type('lambda { self }')
+      type = expression_type('fn { self }')
 
       expect(type.return_type).to be_type_instance_of(tir_module.type)
     end
@@ -2456,7 +2456,7 @@ describe Inkoc::Pass::DefineType do
     end
 
     it 'returns a new lambda type' do
-      type = constant_type('lambda (Integer) !! Float -> String')
+      type = constant_type('fn (Integer) !! Float -> String')
 
       expect(type).to be_lambda
       expect(type.arguments['0'].type).to be_type_instance_of(integer)
@@ -2483,7 +2483,7 @@ describe Inkoc::Pass::DefineType do
 
       tir_module.globals.define('Array', array_type)
 
-      type = constant_type('lambda (Array!(Foo))', scope)
+      type = constant_type('fn (Array!(Foo))', scope)
       arg_type = type.arguments['0'].type
 
       expect(state.diagnostics.errors?).to eq(false)

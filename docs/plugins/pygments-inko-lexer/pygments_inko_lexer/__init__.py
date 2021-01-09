@@ -4,9 +4,9 @@ from pygments import token
 __version__ = '1.0.0'
 
 KEYWORDS = (
-    'as', 'def', 'do', 'else', 'for', 'impl', 'lambda', 'mut', 'class',
+    'as', 'def', 'do', 'else', 'for', 'impl', 'fn', 'mut', 'class',
     'return', 'self', 'static', 'throw', 'trait', 'try', 'when', 'match',
-    'yield'
+    'yield', 'local'
 )
 
 

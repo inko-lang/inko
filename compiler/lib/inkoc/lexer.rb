@@ -21,7 +21,7 @@ module Inkoc
       'as' => :as,
       'impl' => :impl,
       'for' => :for,
-      'lambda' => :lambda,
+      'fn' => :lambda,
       'static' => :static,
       'match' => :match,
       'when' => :when,

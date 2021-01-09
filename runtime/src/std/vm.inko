@@ -39,6 +39,6 @@ def exit(status: Integer) -> Never {
 #     vm.panicking lambda (error) {
 #       stderr.print(error)
 #     }
-def panicking(block: lambda (String)) {
+def panicking(block: fn (String)) {
   _INKOC.set_default_panic_handler(block)
 }

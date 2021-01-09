@@ -500,10 +500,8 @@ let block = { 10 }
 let block = do { 10 }
 ```
 
-Lambdas always require the `lambda` keyword, otherwise they will be inferred as
-a closure.
-
-The `do` and `lambda` keywords should be followed by a single space:
+Lambdas always require the `fn` keyword, otherwise they will be inferred as a
+closure. The `do` and `fn` keywords should be followed by a single space:
 
 ```inko
 # Good

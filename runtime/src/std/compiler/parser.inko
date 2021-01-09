@@ -731,7 +731,7 @@ class Parser {
       'constant',
       'curly_open',
       'do',
-      'lambda',
+      'fn',
       'integer',
       'float',
       'string',
@@ -972,7 +972,7 @@ class Parser {
       'constant' -> { try constant_or_constructor(token) }
       'curly_open' -> { try basic_closure(token) }
       'do' -> { try closure(token) }
-      'lambda' -> { try self.lambda(token) }
+      'fn' -> { try self.lambda(token) }
       'integer' -> { integer(token) }
       'float' -> { float(token) }
       'string' -> { string(token) }
@@ -1275,7 +1275,7 @@ class Parser {
       'constant' -> { try constant(token) }
       'question' -> { try option_type(token) }
       'do' -> { try closure_type(token) }
-      'lambda' -> { try lambda_type(token) }
+      'fn' -> { try lambda_type(token) }
       else -> { throw ParseError.unexpected_token(token) }
     } as TypeNode
   }
@@ -1374,7 +1374,7 @@ class Parser {
       .and {
         (peeked.type == 'curly_open')
           .or { peeked.type == 'do' }
-          .or { peeked.type == 'lambda' }
+          .or { peeked.type == 'fn' }
       }
   }
 
