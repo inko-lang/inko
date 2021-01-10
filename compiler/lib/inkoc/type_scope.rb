@@ -33,6 +33,20 @@ module Inkoc
       end
     end
 
+    def block_boundary
+      source = self
+
+      while source
+        if source.block_type.lambda? || source.block_type.method?
+          return source.block_type
+        end
+
+        source = source.parent
+      end
+
+      nil
+    end
+
     def module_type
       @module.type
     end

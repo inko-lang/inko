@@ -414,7 +414,7 @@ module Inkoc
 
         block_type = scope.block_type
 
-        block_type.return_type = type if block_type.infer_return_type
+        block_type.inferred_return_type = type if block_type.infer_return_type
         expected_type =
           block_type.return_type.resolve_self_type(scope.self_type)
 
@@ -445,7 +445,7 @@ module Inkoc
             typedb.nil_type.new_instance
           end
 
-        block = scope.enclosing_method
+        block = scope.block_boundary
 
         if block
           expected = block.return_type.resolve_self_type(scope.self_type)
@@ -461,6 +461,10 @@ module Inkoc
           unless rtype.type_compatible?(expected, @state)
             diagnostics
               .return_type_error(expected, rtype, node.value_location)
+          end
+
+          if block.infer_return_type
+            block.inferred_return_type = rtype
           end
         else
           diagnostics.return_outside_of_method_error(node.location)
@@ -514,8 +518,12 @@ module Inkoc
         curr_block = scope.block_type
 
         if (throw_type = node.throw_type)
-          if curr_block.infer_throw_type? && node.local
-            curr_block.throw_type = throw_type
+          if curr_block.infer_throw_type?
+            if node.local
+              curr_block.throw_type = throw_type
+            elsif (fn = scope.block_boundary) && fn.infer_throw_type?
+              fn.throw_type = throw_type
+            end
           end
         else
           diagnostics.redundant_try_warning(node.location)
@@ -562,6 +570,8 @@ module Inkoc
 
         if node.local && scope.block_type.infer_throw_type?
           scope.block_type.throw_type = type
+        elsif (fn = scope.block_boundary) && fn.infer_throw_type?
+          fn.throw_type = type
         end
 
         TypeSystem::Never.new
@@ -892,6 +902,10 @@ module Inkoc
 
         define_block_signature(node, new_scope, expected_block)
         define_type(node.body, new_scope)
+
+        block_type.arguments.each do |arg|
+          arg.type = arg.type.with_rigid_type_parameters
+        end
 
         block_type
       end

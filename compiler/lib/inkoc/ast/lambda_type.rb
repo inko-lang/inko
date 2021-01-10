@@ -33,6 +33,14 @@ module Inkoc
       def lambda_or_block_type?
         true
       end
+
+      def late_binding=(*)
+        # Late binding does not apply to block types.
+      end
+
+      def late_binding?
+        false
+      end
     end
   end
 end

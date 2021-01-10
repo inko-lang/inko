@@ -448,6 +448,13 @@ module Inkoc
             copy.yield_type&.with_rigid_type_parameters
         end
       end
+
+      def inferred_return_type=(type)
+        @return_type = type
+        meth = @attributes[Config::CALL_MESSAGE]
+
+        meth.type.return_type = type if meth.any?
+      end
     end
   end
 end

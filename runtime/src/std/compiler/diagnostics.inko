@@ -384,7 +384,7 @@ class Diagnostics {
 
   def invalid_return(location: SourceLocation) {
     error(
-      message: 'The "return" keyword can only be used in a method',
+      message: 'The "return" keyword can only be used in methods and lambdas',
       location: location
     )
   }
@@ -477,9 +477,9 @@ class Diagnostics {
     )
   }
 
-  def invalid_method_throw(location: SourceLocation) {
+  def invalid_throw(location: SourceLocation) {
     error(
-      message: 'The `throw` keyword can only be used in methods',
+      message: 'The `throw` keyword can only be used in methods and lambdas',
       location: location
     )
   }
@@ -491,9 +491,9 @@ class Diagnostics {
     )
   }
 
-  def invalid_method_try(location: SourceLocation) {
+  def invalid_try(location: SourceLocation) {
     error(
-      message: 'The `try` keyword without the `else` keyword can only be used in methods',
+      message: 'The `try` keyword without the `else` keyword can only be used in methods and lambdas',
       location: location
     )
   }
@@ -516,7 +516,7 @@ class Diagnostics {
     error(message: 'This expression never throws', location: location)
   }
 
-  def unexpected_method_throw(type: String, location: SourceLocation) {
+  def unexpected_nonlocal_throw(type: String, location: SourceLocation) {
     let message = `You can't throw a value of type "{type}", \
       as the surrounding method doesn't define a type to throw`
 

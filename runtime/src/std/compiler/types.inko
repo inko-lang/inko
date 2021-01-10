@@ -88,23 +88,23 @@ class TypeScope {
   # The type of `self`.
   @self_type: Type
 
-  # The method that surrounds this scope, if any.
-  @method: ?MethodType
-
   # The block (a method, closure, or lambda) that surrounds this scope, if any.
   @block: ?BlockType
+
+  # The parent type scope.
+  @parent: ?TypeScope
 
   static def new(
     module: ModuleType,
     self_type: Type = module,
-    method: ?MethodType = Option.none,
-    block: ?BlockType = method
+    block: ?BlockType = Option.none,
+    parent: ?TypeScope = Option.none
   ) -> Self {
     Self {
       @module = module,
       @self_type = self_type,
-      @method = method,
-      @block = block
+      @block = block,
+      @parent = parent
     }
   }
 
@@ -116,18 +116,46 @@ class TypeScope {
     @self_type
   }
 
-  def method -> ?MethodType {
-    @method
-  }
-
   def block -> ?BlockType {
     @block
+  }
+
+  def parent -> ?TypeScope {
+    @parent
+  }
+
+  def each_enclosing_block(block: do (BlockType), source = self) {
+    source.block.let(block).else { return }
+    source.parent.if_false { return }
+    each_enclosing_block(block, source.parent.get)
+  }
+
+  def block_scope_boundary -> ?BlockType {
+    each_enclosing_block do (type) {
+      type.scope_boundary?.if_true { return Option.some(type) }
+    }
+
+    Option.none
+  }
+
+  def yield_boundary -> ?MethodType {
+    each_enclosing_block do (type) {
+      match(let matched = type) {
+        as MethodType -> { return Option.some(matched) }
+        as LambdaType -> { return Option.none }
+        else -> {}
+      }
+    }
+
+    Option.none
   }
 
   def lookup_type(name: String) -> ?Symbol!(Type) {
     @block
       .then do (block) { block.lookup_type(name) }
-      .else { @method.then do (method) { method.lookup_type(name) } }
+      .else {
+        block_scope_boundary.then do (method) { method.lookup_type(name) }
+      }
       .else { @self_type.lookup_type(name) }
       .else { @module.lookup_type(name) }
   }
@@ -207,11 +235,7 @@ class RigidTypeScope {
   static def from_type_scope(scope: TypeScope) -> Self {
     let types = TypeParameterTypes.new
 
-    scope.block.let do (block) {
-      types.assign_rigid_type_parameters(block.type_parameters)
-    }
-
-    scope.method.let do (block) {
+    scope.each_enclosing_block do (block) {
       types.assign_rigid_type_parameters(block.type_parameters)
     }
 
@@ -1333,6 +1357,10 @@ trait BlockType: Type {
   def yield_type -> ?Type {
     Option.none
   }
+
+  def scope_boundary? -> Boolean {
+    False
+  }
 }
 
 # An object used for building the type name of a block type, such as a
@@ -1749,6 +1777,10 @@ impl BlockType for MethodType {
   def yield_type -> ?Type {
     @yield_type
   }
+
+  def scope_boundary? -> Boolean {
+    True
+  }
 }
 
 # Type information about closures.
@@ -1861,6 +1893,10 @@ impl Type for LambdaType {
     True
   }
 
+  def lambda? -> Boolean {
+    True
+  }
+
   def type_name -> String {
     BlockNameBuilder
       .new('lambda')
@@ -1921,6 +1957,10 @@ impl Type for LambdaType {
 impl BlockType for LambdaType {
   def layout -> BlockLayout {
     @layout
+  }
+
+  def scope_boundary? -> Boolean {
+    True
   }
 }
 

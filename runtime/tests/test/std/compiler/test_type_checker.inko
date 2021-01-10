@@ -3730,14 +3730,15 @@ test.group('Type-checking method returns') do (g) {
   g.test('Returning from a lambda') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
-    let body = parse('fn { return }')
+    let int_type = type_checker.builtins.integer_type
+    let body = parse('fn { return 10 }')
 
     type_checker.check_module(module: module, ast: body)
 
     let block = body.children[0].resolved_type.get as LambdaType
 
-    assert.true(type_checker.diagnostics.errors?)
-    assert.true(block.return_type.error?)
+    assert.false(type_checker.diagnostics.errors?)
+    assert_object_instance(block.return_type, int_type)
   }
 }
 
@@ -4742,12 +4743,27 @@ test.group('Type-checking lambdas') do (g) {
     assert.true(type_checker.diagnostics.errors?)
   }
 
-  g.test('Defining a lambda that throws without an explicit throw type') {
+  g.test('Defining a lambda that throws using `local throw` without an explicit throw type') {
     let type_checker = TypeChecker.new
     let module = new_module('foo')
     let int_type = type_checker.builtins.integer_type
     let body = parse('fn { local throw 10 }')
-    let node = body.children[0] as Closure
+    let node = body.children[0] as Lambda
+
+    type_checker.check_module(module: module, ast: body)
+
+    let type = node.resolved_type.get
+
+    assert.false(type_checker.diagnostics.errors?)
+    assert_object_instance(type.throw_type.get, int_type)
+  }
+
+  g.test('Defining a lambda that throws without an explicit throw type') {
+    let type_checker = TypeChecker.new
+    let module = new_module('foo')
+    let int_type = type_checker.builtins.integer_type
+    let body = parse('fn { throw 10 }')
+    let node = body.children[0] as Lambda
 
     type_checker.check_module(module: module, ast: body)
 
@@ -6138,10 +6154,35 @@ test.group('Type-checking the `local try` keyword') do (g) {
     assert_object_instance(block.resolved_type.get.throw_type.get, int_type)
   }
 
-  g.test('Re-throwing an error in a lambda that has no explicit error type') {
+  g.test('Re-throwing an error in a lambda using `local try` that has no explicit error type') {
     let module = new_module('foo')
     let type_checker = TypeChecker.new
     let body = parse('fn { local try foo }')
+    let block = body.children[0] as Lambda
+    let node = block.body.children[0] as Try
+
+    let int_type = type_checker.builtins.integer_type
+    let foo = MethodType.new(
+      name: 'foo',
+      layout: BlockLayout.new(
+        return_type: int_type.new_instance,
+        throw_type: Option.some(int_type.new_instance)
+      )
+    )
+
+    module.define_method(name: foo.name, type: foo)
+
+    type_checker.check_module(module: module, ast: body)
+
+    assert.false(type_checker.diagnostics.errors?)
+    assert_object_instance(node.resolved_type.get, int_type)
+    assert_object_instance(block.resolved_type.get.throw_type.get, int_type)
+  }
+
+  g.test('Re-throwing an error in a lambda that has no explicit error type') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let body = parse('fn { try foo }')
     let block = body.children[0] as Lambda
     let node = block.body.children[0] as Try
 

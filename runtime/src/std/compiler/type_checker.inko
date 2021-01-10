@@ -896,8 +896,8 @@ trait ExpressionTypePass: TypePass {
     let send_scope = TypeScope.new(
       module: types.module,
       self_type: receiver,
-      method: types.method,
-      block: types.block
+      block: types.block,
+      parent: types.parent
     )
 
     block
@@ -1009,7 +1009,9 @@ trait ExpressionTypePass: TypePass {
 
     node.local_throw?.if(
       true: { visit_local_try(node: node, types: types, variables: variables) },
-      false: { visit_method_try(node: node, types: types, variables: variables) }
+      false: {
+        visit_nonlocal_try(node: node, types: types, variables: variables)
+      }
     )
 
     node.resolved_type.get
@@ -1047,22 +1049,27 @@ trait ExpressionTypePass: TypePass {
     visit_try_else(node: node, types: types, variables: variables)
   }
 
-  def visit_method_try(
+  def visit_nonlocal_try(
     node: Try,
     types: TypeScope,
     variables: VariableScope
   ) {
     let throw_type = node.resolved_throw_type.get
-    let block = types.method.get_or_else {
-      type_checker.diagnostics.invalid_method_try(node.location)
+    let block = types.block_scope_boundary.get_or_else {
+      type_checker.diagnostics.invalid_try(node.location)
       return
     }
 
     node.with_else?.if_false {
       block.throws
 
+      block.throw_type.some?.and { block.throw_type.get.infer? }.if_true {
+        block.throw_type = throw_type
+        return
+      }
+
       let expected = block.throw_type.get_or_else {
-        type_checker.diagnostics.unexpected_method_throw(
+        type_checker.diagnostics.unexpected_nonlocal_throw(
           type: throw_type.type_name,
           location: node.location
         )
@@ -1588,8 +1595,8 @@ trait ExpressionTypePass: TypePass {
     let scope = TypeScope.new(
       module: types.module,
       self_type: instance,
-      method: types.method,
-      block: types.block
+      block: types.block,
+      parent: types.parent
     )
 
     node.attributes.each do (attr) {
@@ -1691,8 +1698,8 @@ trait ExpressionTypePass: TypePass {
     let body_types = node.body.type_scope = TypeScope.new(
       module: module,
       self_type: types.self_type,
-      method: types.method,
-      block: Option.some(closure)
+      block: Option.some(closure),
+      parent: Option.some(types)
     )
 
     let returned = visit_expressions(
@@ -1722,8 +1729,8 @@ trait ExpressionTypePass: TypePass {
     let body_types = node.body.type_scope = TypeScope.new(
       module: module,
       self_type: types.self_type,
-      method: types.method,
-      block: Option.some(closure)
+      block: Option.some(closure),
+      parent: Option.some(types)
     )
 
     define_anonymous_block_type(
@@ -1753,7 +1760,6 @@ trait ExpressionTypePass: TypePass {
     let body_types = node.body.type_scope = TypeScope.new(
       module: module,
       self_type: types.self_type,
-      method: types.method,
       block: Option.some(lambda_type)
     )
 
@@ -1925,7 +1931,7 @@ trait ExpressionTypePass: TypePass {
       }
       .get_or(type_checker.builtins.nil_singleton)
 
-    let surrounding_block = types.method
+    let surrounding_block = types.block_scope_boundary
     let block = surrounding_block.get_or_else {
       type_checker.diagnostics.invalid_return(node.location)
 
@@ -1958,7 +1964,7 @@ trait ExpressionTypePass: TypePass {
 
     node.local_throw?.if(
       true: { visit_local_throw(node: node, type: type, types: types) },
-      false: { visit_method_throw(node: node, type: type, types: types) }
+      false: { visit_nonlocal_throw(node: node, type: type, types: types) }
     )
 
     node.resolved_type = type
@@ -1986,16 +1992,23 @@ trait ExpressionTypePass: TypePass {
     )
   }
 
-  def visit_method_throw(node: Throw, type: Type, types: TypeScope) {
-    let block = types.method.get_or_else {
-      type_checker.diagnostics.invalid_method_throw(node.location)
+  def visit_nonlocal_throw(node: Throw, type: Type, types: TypeScope) {
+    let block = types.block_scope_boundary.get_or_else {
+      type_checker.diagnostics.invalid_throw(node.location)
+      return
+    }
+
+    block.throw_type.some?.and { block.throw_type.get.infer? }.if_true {
+      block.throws
+      block.throw_type = type
+
       return
     }
 
     let throws = block.throw_type.get_or_else {
       type_checker
         .diagnostics
-        .unexpected_method_throw(type: type.type_name, location: node.location)
+        .unexpected_nonlocal_throw(type: type.type_name, location: node.location)
 
       return
     }
@@ -2020,7 +2033,7 @@ trait ExpressionTypePass: TypePass {
 
     node.resolved_type = type
 
-    let block = types.method.get_or_else {
+    let block = types.yield_boundary.get_or_else {
       type_checker.diagnostics.invalid_yield(node.location)
       return type
     }
@@ -3212,7 +3225,7 @@ class TypeCheck {
       .if(true: { types.self_type }, false: { types.self_type.new_instance })
 
     TypeScope
-      .new(module: @module, self_type: self_type, method: Option.some(method))
+      .new(module: @module, self_type: self_type, block: Option.some(method))
   }
 
   def store_method_in_module(

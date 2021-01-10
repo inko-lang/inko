@@ -129,11 +129,11 @@ module Inkoc
         process_node(node.value, block_type)
 
         thrown = node.value.type
-        block = node.local ? @block_nesting.last : @block_nesting.first
+        block = node.local ? @block_nesting.last : throw_block_scope
 
         return if in_try?
 
-        if !node.local && !block.method?
+        if !node.local && !block.method? && !block.lambda?
           diagnostics.invalid_method_throw_error(node.location)
           return
         end
@@ -163,7 +163,7 @@ module Inkoc
 
         return if node.explicit_block_for_else_body?
 
-        track_in = node.local ? @block_nesting.last : @block_nesting.first
+        track_in = node.local ? @block_nesting.last : throw_block_scope
 
         if track_in == @module.body.type
           diagnostics.throw_at_top_level_error(node.throw_type, loc)
@@ -238,6 +238,14 @@ module Inkoc
 
       def in_try?
         @try_nesting.positive?
+      end
+
+      def throw_block_scope
+        @block_nesting.reverse_each do |block|
+          return block if block.method? || block.lambda?
+        end
+
+        nil
       end
 
       def inspect
