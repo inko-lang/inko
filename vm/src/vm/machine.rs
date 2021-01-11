@@ -1,5 +1,4 @@
 //! Virtual Machine for running instructions
-use crate::execution_context::ExecutionContext;
 use crate::gc::collection::collect as collect_garbage;
 use crate::integer_operations;
 use crate::network_poller::Worker as NetworkPollerWorker;
@@ -9,7 +8,6 @@ use crate::object_pointer::ObjectPointer;
 use crate::object_value;
 use crate::process::RcProcess;
 use crate::runtime_error::RuntimeError;
-use crate::runtime_panic;
 use crate::scheduler::join_list::JoinList;
 use crate::scheduler::process_worker::ProcessWorker;
 use crate::vm::instruction::Opcode;
@@ -28,7 +26,6 @@ use crate::vm::state::RcState;
 use num_bigint::BigInt;
 use std::i32;
 use std::ops::{Add, Mul, Sub};
-use std::panic;
 use std::thread;
 
 /// The number of reductions to apply for a method call.
@@ -274,40 +271,17 @@ impl Machine {
         self.state.scheduler.schedule_on_main_thread(process);
     }
 
-    /// Executes a single process, terminating in the event of an error.
-    pub fn run_with_error_handling(
-        &mut self,
-        worker: &mut ProcessWorker,
-        process: &RcProcess,
-    ) {
-        // We are using AssertUnwindSafe here so we can pass a &mut Worker to
-        // run()/panic(). This might be risky if values captured are not unwind
-        // safe, so take care when capturing new variables.
-        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-            if let Err(message) = self.run(worker, process) {
-                self.panic(worker, process, &message);
-            }
-        }));
-
-        if let Err(error) = result {
-            if let Ok(message) = error.downcast::<String>() {
-                self.panic(worker, process, &message);
-            } else {
-                self.panic(
-                    worker,
-                    process,
-                    &"The VM panicked with an unknown error",
-                );
-            };
+    pub fn run(&mut self, worker: &mut ProcessWorker, process: &RcProcess) {
+        if let Err(message) = self.run_loop(worker, process) {
+            self.panic(process, &message);
         }
     }
 
-    /// Executes a single process.
     #[cfg_attr(
         feature = "cargo-clippy",
         allow(cyclomatic_complexity, cognitive_complexity)
     )]
-    pub fn run(
+    fn run_loop(
         &mut self,
         worker: &mut ProcessWorker,
         process: &RcProcess,
@@ -422,10 +396,6 @@ impl Machine {
                     // first, then retry this instruction.
                     if context.schedule_deferred_blocks(process)? {
                         remember_and_reset!(process, context, index);
-                    }
-
-                    if context.terminate_upon_return {
-                        break 'exec_loop;
                     }
 
                     let method_return = instruction.arg(0) == 1;
@@ -1101,32 +1071,11 @@ impl Machine {
 
                     enter_context!(process, context, index);
                 }
-                Opcode::ProcessSetPanicHandler => {
-                    let reg = instruction.arg(0);
-                    let block = context.get_register(instruction.arg(1));
-                    let res =
-                        process::process_set_panic_handler(process, block);
-
-                    context.set_register(reg, res);
-                }
                 Opcode::ProcessAddDeferToCaller => {
                     let reg = instruction.arg(0);
                     let block = context.get_register(instruction.arg(1));
                     let res =
                         process::process_add_defer_to_caller(process, block)?;
-
-                    context.set_register(reg, res);
-                }
-                Opcode::SetDefaultPanicHandler => {
-                    let reg = instruction.arg(0);
-                    let block = context.get_register(instruction.arg(1));
-                    let res = try_error!(
-                        general::set_default_panic_handler(&self.state, block),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
 
                     context.set_register(reg, res);
                 }
@@ -1321,11 +1270,6 @@ impl Machine {
             }
 
             if process.pop_context() {
-                // Move all the pending deferred blocks from previous frames
-                // into the top-level frame. These will be scheduled once we
-                // return from the panic handler.
-                process.context_mut().append_deferred_blocks(&mut deferred);
-
                 return Err(format!(
                     "A thrown value reached the top-level in process {:#x}",
                     process.identifier()
@@ -1334,68 +1278,34 @@ impl Machine {
         }
     }
 
-    fn panic(
-        &mut self,
-        worker: &mut ProcessWorker,
-        process: &RcProcess,
-        message: &str,
-    ) {
-        let handler_opt = process
-            .panic_handler()
-            .cloned()
-            .or_else(|| self.state.default_panic_handler());
+    fn panic(&mut self, process: &RcProcess, message: &str) {
+        let mut frames = Vec::new();
+        let mut buffer = String::new();
 
-        if let Some(handler) = handler_opt {
-            if let Err(message) =
-                self.run_custom_panic_handler(worker, process, message, handler)
-            {
-                self.run_default_panic_handler(process, &message);
-            }
-        } else {
-            self.run_default_panic_handler(process, message);
+        for context in process.contexts() {
+            frames.push(format!(
+                "\"{}\" line {}, in \"{}\"",
+                context.code.file.string_value().unwrap(),
+                context.line().to_string(),
+                context.code.name.string_value().unwrap()
+            ));
         }
-    }
 
-    /// Executes a custom panic handler.
-    ///
-    /// Any deferred blocks will be executed before executing the registered
-    /// panic handler.
-    fn run_custom_panic_handler(
-        &mut self,
-        worker: &mut ProcessWorker,
-        process: &RcProcess,
-        message: &str,
-        handler: ObjectPointer,
-    ) -> Result<(), String> {
-        let block = handler.block_value()?;
-        let mut new_context = ExecutionContext::from_block(block);
-        let error = process.allocate(
-            object_value::string(message.to_string()),
-            self.state.string_prototype,
-        );
+        frames.reverse();
 
-        new_context.terminate_upon_return();
-        new_context.binding.locals_mut()[0] = error;
+        buffer.push_str("Stack trace (the most recent call comes last):");
 
-        process.push_context(new_context);
+        for (index, line) in frames.iter().enumerate() {
+            buffer.push_str(&format!("\n  {}: {}", index, line));
+        }
 
-        // We want to schedule any remaining deferred blocks _before_ running
-        // the panic handler. This way, if the panic handler hard terminates, we
-        // still run the deferred blocks.
-        process
-            .context_mut()
-            .schedule_deferred_blocks_of_all_parents(process)?;
+        buffer.push_str(&format!(
+            "\nProcess {:#x} panicked: {}",
+            process.identifier(),
+            message
+        ));
 
-        self.run_with_error_handling(worker, &process);
-
-        Ok(())
-    }
-
-    /// Executes the default panic handler.
-    ///
-    /// This handler will _not_ execute any deferred blocks.
-    fn run_default_panic_handler(&self, process: &RcProcess, message: &str) {
-        runtime_panic::display_panic(process, message);
+        eprintln!("{}", buffer);
         self.state.terminate(1);
     }
 }

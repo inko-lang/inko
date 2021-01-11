@@ -1,9 +1,10 @@
 import std::module
-import std::test
-import std::test::assert
+import std::test::*
 
-test.group('std::module.list') do (g) {
-  g.test('Getting all the modules that have been defined') {
-    assert.true(module.list.length.positive?)
+def tests(t: Tests) {
+  t.group('std::module.list') do (g) {
+    g.test('Getting all the modules that have been defined') {
+      try assert_true(module.list.length.positive?)
+    }
   }
 }

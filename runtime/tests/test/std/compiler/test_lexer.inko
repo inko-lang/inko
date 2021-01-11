@@ -1,7 +1,6 @@
 import std::compiler::lexer::(Keywords, Lexer)
 import std::compiler::token::Token
-import std::test
-import std::test::assert
+import std::test::*
 
 def lex(input: String) -> Token {
   Lexer.new(input: input, file: 'test.inko').next
@@ -18,1917 +17,1919 @@ def lex_all(input: String) -> Array!(Token) {
   }
 }
 
-test.group('std::compiler::lexer::Keywords.keyword?') do (g) {
-  g.test('Checking if "let" is a keyword') {
-    assert.true(Keywords.new.keyword?('let'.to_byte_array))
-  }
+def tests(t: Tests) {
+  t.group('std::compiler::lexer::Keywords.keyword?') do (g) {
+    g.test('Checking if "let" is a keyword') {
+      try assert_true(Keywords.new.keyword?('let'.to_byte_array))
+    }
+
+    g.test('Checking if "else" is a keyword') {
+      try assert_true(Keywords.new.keyword?('else'.to_byte_array))
+    }
+
+    g.test('Checking if "try" is a keyword') {
+      try assert_true(Keywords.new.keyword?('try'.to_byte_array))
+    }
+
+    g.test('Checking if "return" is a keyword') {
+      try assert_true(Keywords.new.keyword?('return'.to_byte_array))
+    }
 
-  g.test('Checking if "else" is a keyword') {
-    assert.true(Keywords.new.keyword?('else'.to_byte_array))
-  }
+    g.test('Checking if "trait" is a keyword') {
+      try assert_true(Keywords.new.keyword?('trait'.to_byte_array))
+    }
 
-  g.test('Checking if "try" is a keyword') {
-    assert.true(Keywords.new.keyword?('try'.to_byte_array))
-  }
+    g.test('Checking if "impl" is a keyword') {
+      try assert_true(Keywords.new.keyword?('impl'.to_byte_array))
+    }
 
-  g.test('Checking if "return" is a keyword') {
-    assert.true(Keywords.new.keyword?('return'.to_byte_array))
-  }
+    g.test('Checking if "self" is a keyword') {
+      try assert_true(Keywords.new.keyword?('self'.to_byte_array))
+    }
 
-  g.test('Checking if "trait" is a keyword') {
-    assert.true(Keywords.new.keyword?('trait'.to_byte_array))
-  }
+    g.test('Checking if "import" is a keyword') {
+      try assert_true(Keywords.new.keyword?('import'.to_byte_array))
+    }
 
-  g.test('Checking if "impl" is a keyword') {
-    assert.true(Keywords.new.keyword?('impl'.to_byte_array))
-  }
+    g.test('Checking if "fn" is a keyword') {
+      try assert_true(Keywords.new.keyword?('fn'.to_byte_array))
+    }
 
-  g.test('Checking if "self" is a keyword') {
-    assert.true(Keywords.new.keyword?('self'.to_byte_array))
-  }
+    g.test('Checking if "as" is a keyword') {
+      try assert_true(Keywords.new.keyword?('as'.to_byte_array))
+    }
 
-  g.test('Checking if "import" is a keyword') {
-    assert.true(Keywords.new.keyword?('import'.to_byte_array))
-  }
+    g.test('Checking if "throw" is a keyword') {
+      try assert_true(Keywords.new.keyword?('throw'.to_byte_array))
+    }
 
-  g.test('Checking if "fn" is a keyword') {
-    assert.true(Keywords.new.keyword?('fn'.to_byte_array))
-  }
+    g.test('Checking if "when" is a keyword') {
+      try assert_true(Keywords.new.keyword?('when'.to_byte_array))
+    }
 
-  g.test('Checking if "as" is a keyword') {
-    assert.true(Keywords.new.keyword?('as'.to_byte_array))
-  }
+    g.test('Checking if "mut" is a keyword') {
+      try assert_true(Keywords.new.keyword?('mut'.to_byte_array))
+    }
 
-  g.test('Checking if "throw" is a keyword') {
-    assert.true(Keywords.new.keyword?('throw'.to_byte_array))
-  }
+    g.test('Checking if "def" is a keyword') {
+      try assert_true(Keywords.new.keyword?('def'.to_byte_array))
+    }
 
-  g.test('Checking if "when" is a keyword') {
-    assert.true(Keywords.new.keyword?('when'.to_byte_array))
-  }
+    g.test('Checking if "do" is a keyword') {
+      try assert_true(Keywords.new.keyword?('do'.to_byte_array))
+    }
 
-  g.test('Checking if "mut" is a keyword') {
-    assert.true(Keywords.new.keyword?('mut'.to_byte_array))
-  }
+    g.test('Checking if "for" is a keyword') {
+      try assert_true(Keywords.new.keyword?('for'.to_byte_array))
+    }
 
-  g.test('Checking if "def" is a keyword') {
-    assert.true(Keywords.new.keyword?('def'.to_byte_array))
-  }
+    g.test('Checking if "class" is a keyword') {
+      try assert_true(Keywords.new.keyword?('class'.to_byte_array))
+    }
 
-  g.test('Checking if "do" is a keyword') {
-    assert.true(Keywords.new.keyword?('do'.to_byte_array))
-  }
+    g.test('Checking if "static" is a keyword') {
+      try assert_true(Keywords.new.keyword?('static'.to_byte_array))
+    }
 
-  g.test('Checking if "for" is a keyword') {
-    assert.true(Keywords.new.keyword?('for'.to_byte_array))
-  }
+    g.test('Checking if "match" is a keyword') {
+      try assert_true(Keywords.new.keyword?('match'.to_byte_array))
+    }
 
-  g.test('Checking if "class" is a keyword') {
-    assert.true(Keywords.new.keyword?('class'.to_byte_array))
-  }
+    g.test('Checking if "local" is a keyword') {
+      try assert_true(Keywords.new.keyword?('local'.to_byte_array))
+    }
 
-  g.test('Checking if "static" is a keyword') {
-    assert.true(Keywords.new.keyword?('static'.to_byte_array))
-  }
+    g.test('Checking if "extern" is a keyword') {
+      try assert_true(Keywords.new.keyword?('extern'.to_byte_array))
+    }
 
-  g.test('Checking if "match" is a keyword') {
-    assert.true(Keywords.new.keyword?('match'.to_byte_array))
-  }
+    g.test('Checking if an invalid identifier is a keyword') {
+      let keywords = Keywords.new
 
-  g.test('Checking if "local" is a keyword') {
-    assert.true(Keywords.new.keyword?('local'.to_byte_array))
+      try assert_false(keywords.keyword?('foo'.to_byte_array))
+      try assert_false(keywords.keyword?('bar'.to_byte_array))
+      try assert_false(keywords.keyword?('baz'.to_byte_array))
+      try assert_false(keywords.keyword?('this is not an identifier'.to_byte_array))
+    }
   }
 
-  g.test('Checking if "extern" is a keyword') {
-    assert.true(Keywords.new.keyword?('extern'.to_byte_array))
-  }
+  t.group('std::compiler::lexer::Lexer.next') do (g) {
+    g.test('Lexing an integer') {
+      let token = lex('10')
 
-  g.test('Checking if an invalid identifier is a keyword') {
-    let keywords = Keywords.new
+      try assert_equal(token.type, 'integer')
+      try assert_equal(token.value, '10')
 
-    assert.false(keywords.keyword?('foo'.to_byte_array))
-    assert.false(keywords.keyword?('bar'.to_byte_array))
-    assert.false(keywords.keyword?('baz'.to_byte_array))
-    assert.false(keywords.keyword?('this is not an identifier'.to_byte_array))
-  }
-}
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-test.group('std::compiler::lexer::Lexer.next') do (g) {
-  g.test('Lexing an integer') {
-    let token = lex('10')
+    g.test('Lexing two integers on the same line') {
+      let tokens = lex_all('10  20')
 
-    assert.equal(token.type, 'integer')
-    assert.equal(token.value, '10')
+      try assert_equal(tokens[0].location.column, 1)
+      try assert_equal(tokens[1].location.column, 5)
+    }
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+    g.test('Lexing two integers on separate lines') {
+      let tokens = lex_all("10\n20")
 
-  g.test('Lexing two integers on the same line') {
-    let tokens = lex_all('10  20')
+      try assert_equal(tokens[0].location.column, 1)
+      try assert_equal(tokens[0].location.line_range, 1..1)
 
-    assert.equal(tokens[0].location.column, 1)
-    assert.equal(tokens[1].location.column, 5)
-  }
+      try assert_equal(tokens[1].location.column, 1)
+      try assert_equal(tokens[1].location.line_range, 2..2)
+    }
 
-  g.test('Lexing two integers on separate lines') {
-    let tokens = lex_all("10\n20")
+    g.test('Lexing an integer containing underscores') {
+      let token = lex('1_000_000')
 
-    assert.equal(tokens[0].location.column, 1)
-    assert.equal(tokens[0].location.line_range, 1..1)
+      try assert_equal(token.type, 'integer')
+      try assert_equal(token.value, '1_000_000')
 
-    assert.equal(tokens[1].location.column, 1)
-    assert.equal(tokens[1].location.line_range, 2..2)
-  }
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-  g.test('Lexing an integer containing underscores') {
-    let token = lex('1_000_000')
+    g.test('Lexing a hexadecimal integer with a lowercase x') {
+      let token = lex('0x123')
 
-    assert.equal(token.type, 'integer')
-    assert.equal(token.value, '1_000_000')
+      try assert_equal(token.type, 'integer')
+      try assert_equal(token.value, '0x123')
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-  g.test('Lexing a hexadecimal integer with a lowercase x') {
-    let token = lex('0x123')
+    g.test('Lexing a hexadecimal integer with an uppercase X') {
+      let token = lex('0X123')
 
-    assert.equal(token.type, 'integer')
-    assert.equal(token.value, '0x123')
+      try assert_equal(token.type, 'integer')
+      try assert_equal(token.value, '0X123')
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-  g.test('Lexing a hexadecimal integer with an uppercase X') {
-    let token = lex('0X123')
+    g.test('Lexing a hexadecimal integer containing underscores') {
+      let token = lex('0x123_456')
 
-    assert.equal(token.type, 'integer')
-    assert.equal(token.value, '0X123')
+      try assert_equal(token.type, 'integer')
+      try assert_equal(token.value, '0x123_456')
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-  g.test('Lexing a hexadecimal integer containing underscores') {
-    let token = lex('0x123_456')
+    g.test('Lexing a float') {
+      let token = lex('1.2')
 
-    assert.equal(token.type, 'integer')
-    assert.equal(token.value, '0x123_456')
+      try assert_equal(token.type, 'float')
+      try assert_equal(token.value, '1.2')
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-  g.test('Lexing a float') {
-    let token = lex('1.2')
+    g.test('Lexing a float with a lowercase exponent') {
+      let token = lex('1e2')
 
-    assert.equal(token.type, 'float')
-    assert.equal(token.value, '1.2')
+      try assert_equal(token.type, 'float')
+      try assert_equal(token.value, '1e2')
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-  g.test('Lexing a float with a lowercase exponent') {
-    let token = lex('1e2')
+    g.test('Lexing a float with an uppercase exponent') {
+      let token = lex('1E2')
 
-    assert.equal(token.type, 'float')
-    assert.equal(token.value, '1e2')
+      try assert_equal(token.type, 'float')
+      try assert_equal(token.value, '1E2')
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-  g.test('Lexing a float with an uppercase exponent') {
-    let token = lex('1E2')
+    g.test('Lexing a float with a positive lowercase exponent') {
+      let token = lex('1e+2')
 
-    assert.equal(token.type, 'float')
-    assert.equal(token.value, '1E2')
+      try assert_equal(token.type, 'float')
+      try assert_equal(token.value, '1e+2')
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-  g.test('Lexing a float with a positive lowercase exponent') {
-    let token = lex('1e+2')
+    g.test('Lexing a float with a positive uppercase exponent') {
+      let token = lex('1E+2')
 
-    assert.equal(token.type, 'float')
-    assert.equal(token.value, '1e+2')
+      try assert_equal(token.type, 'float')
+      try assert_equal(token.value, '1E+2')
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-  g.test('Lexing a float with a positive uppercase exponent') {
-    let token = lex('1E+2')
+    g.test('Lexing a float with a negative lowercase exponent') {
+      let token = lex('1e-2')
 
-    assert.equal(token.type, 'float')
-    assert.equal(token.value, '1E+2')
+      try assert_equal(token.type, 'float')
+      try assert_equal(token.value, '1e-2')
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-  g.test('Lexing a float with a negative lowercase exponent') {
-    let token = lex('1e-2')
+    g.test('Lexing a float with a negative uppercase exponent') {
+      let token = lex('1E-2')
 
-    assert.equal(token.type, 'float')
-    assert.equal(token.value, '1e-2')
+      try assert_equal(token.type, 'float')
+      try assert_equal(token.value, '1E-2')
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-  g.test('Lexing a float with a negative uppercase exponent') {
-    let token = lex('1E-2')
+    g.test('Lexing a float with an exponent without trailings digits') {
+      let tokens = lex_all('10e')
 
-    assert.equal(token.type, 'float')
-    assert.equal(token.value, '1E-2')
+      try assert_equal(tokens.length, 2)
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+      try assert_equal(tokens[0].type, 'integer')
+      try assert_equal(tokens[0].value, '10')
+      try assert_equal(tokens[0].location.line_range, 1..1)
+      try assert_equal(tokens[0].location.column, 1)
 
-  g.test('Lexing a float with an exponent without trailings digits') {
-    let tokens = lex_all('10e')
+      try assert_equal(tokens[1].type, 'identifier')
+      try assert_equal(tokens[1].value, 'e')
+      try assert_equal(tokens[1].location.line_range, 1..1)
+      try assert_equal(tokens[1].location.column, 3)
+    }
 
-    assert.equal(tokens.length, 2)
+    g.test('Lexing a float with a positive exponent without trailings digits') {
+      let tokens = lex_all('10e+')
 
-    assert.equal(tokens[0].type, 'integer')
-    assert.equal(tokens[0].value, '10')
-    assert.equal(tokens[0].location.line_range, 1..1)
-    assert.equal(tokens[0].location.column, 1)
+      try assert_equal(tokens.length, 3)
 
-    assert.equal(tokens[1].type, 'identifier')
-    assert.equal(tokens[1].value, 'e')
-    assert.equal(tokens[1].location.line_range, 1..1)
-    assert.equal(tokens[1].location.column, 3)
-  }
+      try assert_equal(tokens[0].type, 'integer')
+      try assert_equal(tokens[0].value, '10')
+      try assert_equal(tokens[0].location.line_range, 1..1)
+      try assert_equal(tokens[0].location.column, 1)
 
-  g.test('Lexing a float with a positive exponent without trailings digits') {
-    let tokens = lex_all('10e+')
-
-    assert.equal(tokens.length, 3)
-
-    assert.equal(tokens[0].type, 'integer')
-    assert.equal(tokens[0].value, '10')
-    assert.equal(tokens[0].location.line_range, 1..1)
-    assert.equal(tokens[0].location.column, 1)
-
-    assert.equal(tokens[1].type, 'identifier')
-    assert.equal(tokens[1].value, 'e')
-    assert.equal(tokens[1].location.line_range, 1..1)
-    assert.equal(tokens[1].location.column, 3)
-
-    assert.true(tokens[2].binary?)
-    assert.equal(tokens[2].type, 'add')
-    assert.equal(tokens[2].value, '+')
-    assert.equal(tokens[2].location.line_range, 1..1)
-    assert.equal(tokens[2].location.column, 4)
-  }
+      try assert_equal(tokens[1].type, 'identifier')
+      try assert_equal(tokens[1].value, 'e')
+      try assert_equal(tokens[1].location.line_range, 1..1)
+      try assert_equal(tokens[1].location.column, 3)
 
-  g.test('Lexing a float with a negative exponent without trailings digits') {
-    let tokens = lex_all('10e-')
-
-    assert.equal(tokens.length, 3)
-
-    assert.equal(tokens[0].type, 'integer')
-    assert.equal(tokens[0].value, '10')
-    assert.equal(tokens[0].location.line_range, 1..1)
-    assert.equal(tokens[0].location.column, 1)
-
-    assert.equal(tokens[1].type, 'identifier')
-    assert.equal(tokens[1].value, 'e')
-    assert.equal(tokens[1].location.line_range, 1..1)
-    assert.equal(tokens[1].location.column, 3)
-
-    assert.true(tokens[2].binary?)
-    assert.equal(tokens[2].type, 'sub')
-    assert.equal(tokens[2].value, '-')
-    assert.equal(tokens[2].location.line_range, 1..1)
-    assert.equal(tokens[2].location.column, 4)
-  }
+      try assert_true(tokens[2].binary?)
+      try assert_equal(tokens[2].type, 'add')
+      try assert_equal(tokens[2].value, '+')
+      try assert_equal(tokens[2].location.line_range, 1..1)
+      try assert_equal(tokens[2].location.column, 4)
+    }
 
-  g.test('Lexing a float containing underscores') {
-    let tokens = lex_all('1_0.2_0 1e+2_3 1_2e+2')
+    g.test('Lexing a float with a negative exponent without trailings digits') {
+      let tokens = lex_all('10e-')
 
-    assert.equal(tokens[0].value, '1_0.2_0')
-    assert.equal(tokens[0].location.line_range, 1..1)
-    assert.equal(tokens[0].location.column, 1)
+      try assert_equal(tokens.length, 3)
 
-    assert.equal(tokens[1].value, '1e+2_3')
-    assert.equal(tokens[1].location.line_range, 1..1)
-    assert.equal(tokens[1].location.column, 9)
+      try assert_equal(tokens[0].type, 'integer')
+      try assert_equal(tokens[0].value, '10')
+      try assert_equal(tokens[0].location.line_range, 1..1)
+      try assert_equal(tokens[0].location.column, 1)
 
-    assert.equal(tokens[2].value, '1_2e+2')
-    assert.equal(tokens[2].location.line_range, 1..1)
-    assert.equal(tokens[2].location.column, 16)
-  }
+      try assert_equal(tokens[1].type, 'identifier')
+      try assert_equal(tokens[1].value, 'e')
+      try assert_equal(tokens[1].location.line_range, 1..1)
+      try assert_equal(tokens[1].location.column, 3)
 
-  g.test('Lexing an empty single-line comment') {
-    let token = lex('#')
+      try assert_true(tokens[2].binary?)
+      try assert_equal(tokens[2].type, 'sub')
+      try assert_equal(tokens[2].value, '-')
+      try assert_equal(tokens[2].location.line_range, 1..1)
+      try assert_equal(tokens[2].location.column, 4)
+    }
 
-    assert.equal(token.type, 'comment')
-    assert.equal(token.value, '')
+    g.test('Lexing a float containing underscores') {
+      let tokens = lex_all('1_0.2_0 1e+2_3 1_2e+2')
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+      try assert_equal(tokens[0].value, '1_0.2_0')
+      try assert_equal(tokens[0].location.line_range, 1..1)
+      try assert_equal(tokens[0].location.column, 1)
 
-  g.test('Lexing a single-line comment') {
-    let token = lex('# hello')
+      try assert_equal(tokens[1].value, '1e+2_3')
+      try assert_equal(tokens[1].location.line_range, 1..1)
+      try assert_equal(tokens[1].location.column, 9)
 
-    assert.equal(token.type, 'comment')
-    assert.equal(token.value, ' hello')
+      try assert_equal(tokens[2].value, '1_2e+2')
+      try assert_equal(tokens[2].location.line_range, 1..1)
+      try assert_equal(tokens[2].location.column, 16)
+    }
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+    g.test('Lexing an empty single-line comment') {
+      let token = lex('#')
 
-  g.test('Lexing a single-line comment followed by a new line') {
-    let tokens = lex_all("# hello\n10")
+      try assert_equal(token.type, 'comment')
+      try assert_equal(token.value, '')
 
-    assert.equal(tokens[0].type, 'comment')
-    assert.equal(tokens[0].value, ' hello')
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-    assert.equal(tokens[1].type, 'integer')
-    assert.equal(tokens[1].value, '10')
+    g.test('Lexing a single-line comment') {
+      let token = lex('# hello')
 
-    assert.equal(tokens[1].location.line_range, 2..2)
-    assert.equal(tokens[1].location.column, 1)
-  }
+      try assert_equal(token.type, 'comment')
+      try assert_equal(token.value, ' hello')
 
-  g.test('Lexing an attribute') {
-    let token = lex('@foo')
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-    assert.equal(token.type, 'attribute')
-    assert.equal(token.value, '@foo')
+    g.test('Lexing a single-line comment followed by a new line') {
+      let tokens = lex_all("# hello\n10")
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+      try assert_equal(tokens[0].type, 'comment')
+      try assert_equal(tokens[0].value, ' hello')
 
-  g.test('Lexing an identifier with an underscore') {
-    let token = lex('@foo_bar')
+      try assert_equal(tokens[1].type, 'integer')
+      try assert_equal(tokens[1].value, '10')
 
-    assert.equal(token.type, 'attribute')
-    assert.equal(token.value, '@foo_bar')
+      try assert_equal(tokens[1].location.line_range, 2..2)
+      try assert_equal(tokens[1].location.column, 1)
+    }
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+    g.test('Lexing an attribute') {
+      let token = lex('@foo')
 
-  g.test('Lexing an identifier followed by a non-identifier') {
-    let token = lex('@foo+10')
+      try assert_equal(token.type, 'attribute')
+      try assert_equal(token.value, '@foo')
 
-    assert.equal(token.type, 'attribute')
-    assert.equal(token.value, '@foo')
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+    g.test('Lexing an identifier with an underscore') {
+      let token = lex('@foo_bar')
 
-  g.test('Lexing an identifier ending in a question mark') {
-    let token = lex('foo?')
+      try assert_equal(token.type, 'attribute')
+      try assert_equal(token.value, '@foo_bar')
 
-    assert.equal(token.type, 'identifier')
-    assert.equal(token.value, 'foo?')
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+    g.test('Lexing an identifier followed by a non-identifier') {
+      let token = lex('@foo+10')
 
-  g.test('Lexing an opening curly brace') {
-    let token = lex('{')
+      try assert_equal(token.type, 'attribute')
+      try assert_equal(token.value, '@foo')
 
-    assert.equal(token.type, 'curly_open')
-    assert.equal(token.value, '{')
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+    g.test('Lexing an identifier ending in a question mark') {
+      let token = lex('foo?')
 
-  g.test('Lexing a closing curly brace') {
-    let token = lex('}')
+      try assert_equal(token.type, 'identifier')
+      try assert_equal(token.value, 'foo?')
 
-    assert.equal(token.type, 'curly_close')
-    assert.equal(token.value, '}')
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+    g.test('Lexing an opening curly brace') {
+      let token = lex('{')
 
-  g.test('Lexing an opening parenthesis') {
-    let token = lex('(')
+      try assert_equal(token.type, 'curly_open')
+      try assert_equal(token.value, '{')
 
-    assert.equal(token.type, 'paren_open')
-    assert.equal(token.value, '(')
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+    g.test('Lexing a closing curly brace') {
+      let token = lex('}')
 
-  g.test('Lexing a closing parenthesis') {
-    let token = lex(')')
+      try assert_equal(token.type, 'curly_close')
+      try assert_equal(token.value, '}')
 
-    assert.equal(token.type, 'paren_close')
-    assert.equal(token.value, ')')
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+    g.test('Lexing an opening parenthesis') {
+      let token = lex('(')
 
-  g.test('Lexing a single quoted string') {
-    let token = lex("'hello'")
+      try assert_equal(token.type, 'paren_open')
+      try assert_equal(token.value, '(')
 
-    assert.equal(token.type, 'string')
-    assert.equal(token.value, 'hello')
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+    g.test('Lexing a closing parenthesis') {
+      let token = lex(')')
 
-  g.test('Lexing a single quoted string containing an escaped single quote') {
-    let token = lex("'hello\'world'")
+      try assert_equal(token.type, 'paren_close')
+      try assert_equal(token.value, ')')
 
-    assert.equal(token.type, 'string')
-    assert.equal(token.value, "hello'world")
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+    g.test('Lexing a single quoted string') {
+      let token = lex("'hello'")
 
-  g.test('Lexing a single quoted string containing a newline literal') {
-    let token = lex("'hello\\nworld'")
+      try assert_equal(token.type, 'string')
+      try assert_equal(token.value, 'hello')
 
-    assert.equal(token.type, 'string')
-    assert.equal(token.value, 'hello\nworld')
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+    g.test('Lexing a single quoted string containing an escaped single quote') {
+      let token = lex("'hello\'world'")
 
-  g.test('Lexing a single quoted string containing a tab literal') {
-    let token = lex("'hello\\tworld'")
+      try assert_equal(token.type, 'string')
+      try assert_equal(token.value, "hello'world")
 
-    assert.equal(token.type, 'string')
-    assert.equal(token.value, 'hello\tworld')
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+    g.test('Lexing a single quoted string containing a newline literal') {
+      let token = lex("'hello\\nworld'")
 
-  g.test('Lexing a single quoted string containing a carriage return literal') {
-    let token = lex("'hello\\rworld'")
+      try assert_equal(token.type, 'string')
+      try assert_equal(token.value, 'hello\nworld')
 
-    assert.equal(token.type, 'string')
-    assert.equal(token.value, 'hello\rworld')
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+    g.test('Lexing a single quoted string containing a tab literal') {
+      let token = lex("'hello\\tworld'")
 
-  g.test('Lexing a single quoted string containing an escape literal') {
-    let token = lex("'hello\\eworld'")
+      try assert_equal(token.type, 'string')
+      try assert_equal(token.value, 'hello\tworld')
 
-    assert.equal(token.type, 'string')
-    assert.equal(token.value, 'hello\eworld')
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+    g.test('Lexing a single quoted string containing a carriage return literal') {
+      let token = lex("'hello\\rworld'")
 
-  g.test('Lexing a single quoted string containing a null literal') {
-    let token = lex("'hello\\0world'")
+      try assert_equal(token.type, 'string')
+      try assert_equal(token.value, 'hello\rworld')
 
-    assert.equal(token.type, 'string')
-    assert.equal(token.value, 'hello\0world')
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+    g.test('Lexing a single quoted string containing an escape literal') {
+      let token = lex("'hello\\eworld'")
 
-  g.test('Lexing a string containing an escaped backslash followed by more tokens') {
-    let tokens = lex_all("'\\\\' 10")
+      try assert_equal(token.type, 'string')
+      try assert_equal(token.value, 'hello\eworld')
 
-    assert.equal(tokens.length, 2)
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-    assert.equal(tokens[0].type, 'string')
-    assert.equal(tokens[0].value, '\\')
+    g.test('Lexing a single quoted string containing a null literal') {
+      let token = lex("'hello\\0world'")
 
-    assert.equal(tokens[1].type, 'integer')
-    assert.equal(tokens[1].value, '10')
-  }
+      try assert_equal(token.type, 'string')
+      try assert_equal(token.value, 'hello\0world')
 
-  g.test('Lexing a double quoted string') {
-    let token = lex('"hello"')
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-    assert.equal(token.type, 'string')
-    assert.equal(token.value, 'hello')
+    g.test('Lexing a string containing an escaped backslash followed by more tokens') {
+      let tokens = lex_all("'\\\\' 10")
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+      try assert_equal(tokens.length, 2)
 
-  g.test('Lexing a double quoted string containing an escaped double quote') {
-    let token = lex('"hello\\"world"')
+      try assert_equal(tokens[0].type, 'string')
+      try assert_equal(tokens[0].value, '\\')
 
-    assert.equal(token.type, 'string')
-    assert.equal(token.value, 'hello"world')
+      try assert_equal(tokens[1].type, 'integer')
+      try assert_equal(tokens[1].value, '10')
+    }
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+    g.test('Lexing a double quoted string') {
+      let token = lex('"hello"')
 
-  g.test('Lexing a double quoted string containing an escaped single quote') {
-    let token = lex('"hello\\\'world"')
+      try assert_equal(token.type, 'string')
+      try assert_equal(token.value, 'hello')
 
-    assert.equal(token.type, 'string')
-    assert.equal(token.value, "hello'world")
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+    g.test('Lexing a double quoted string containing an escaped double quote') {
+      let token = lex('"hello\\"world"')
 
-  g.test('Lexing a double quoted string containing a newline literal') {
-    let token = lex('"hello\nworld"')
+      try assert_equal(token.type, 'string')
+      try assert_equal(token.value, 'hello"world')
 
-    assert.equal(token.type, 'string')
-    assert.equal(token.value, "hello\nworld")
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+    g.test('Lexing a double quoted string containing an escaped single quote') {
+      let token = lex('"hello\\\'world"')
 
-  g.test('Lexing a double quoted string containing a newline literal followed by an integer') {
-    let tokens = lex_all('"hello\nworld"10')
+      try assert_equal(token.type, 'string')
+      try assert_equal(token.value, "hello'world")
 
-    assert.equal(tokens[0].type, 'string')
-    assert.equal(tokens[0].value, "hello\nworld")
-    assert.equal(tokens[0].location.line_range, 1..1)
-    assert.equal(tokens[0].location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-    assert.equal(tokens[1].type, 'integer')
-    assert.equal(tokens[1].location.line_range, 1..1)
-    assert.equal(tokens[1].location.column, 15)
-  }
+    g.test('Lexing a double quoted string containing a newline literal') {
+      let token = lex('"hello\nworld"')
 
-  g.test('Lexing a double quoted string containing a tab literal') {
-    let token = lex('"hello\tworld"')
+      try assert_equal(token.type, 'string')
+      try assert_equal(token.value, "hello\nworld")
 
-    assert.equal(token.type, 'string')
-    assert.equal(token.value, "hello\tworld")
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+    g.test('Lexing a double quoted string containing a newline literal followed by an integer') {
+      let tokens = lex_all('"hello\nworld"10')
 
-  g.test('Lexing a double quoted string containing a carriage return literal') {
-    let token = lex('"hello\rworld"')
+      try assert_equal(tokens[0].type, 'string')
+      try assert_equal(tokens[0].value, "hello\nworld")
+      try assert_equal(tokens[0].location.line_range, 1..1)
+      try assert_equal(tokens[0].location.column, 1)
 
-    assert.equal(token.type, 'string')
-    assert.equal(token.value, "hello\rworld")
+      try assert_equal(tokens[1].type, 'integer')
+      try assert_equal(tokens[1].location.line_range, 1..1)
+      try assert_equal(tokens[1].location.column, 15)
+    }
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+    g.test('Lexing a double quoted string containing a tab literal') {
+      let token = lex('"hello\tworld"')
 
-  g.test('Lexing a double quoted string containing an escape literal') {
-    let token = lex('"hello\eworld"')
+      try assert_equal(token.type, 'string')
+      try assert_equal(token.value, "hello\tworld")
 
-    assert.equal(token.type, 'string')
-    assert.equal(token.value, "hello\eworld")
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+    g.test('Lexing a double quoted string containing a carriage return literal') {
+      let token = lex('"hello\rworld"')
 
-  g.test('Lexing a double quoted string containing a null literal') {
-    let token = lex('"hello\0world"')
+      try assert_equal(token.type, 'string')
+      try assert_equal(token.value, "hello\rworld")
 
-    assert.equal(token.type, 'string')
-    assert.equal(token.value, "hello\0world")
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
+    g.test('Lexing a double quoted string containing an escape literal') {
+      let token = lex('"hello\eworld"')
+
+      try assert_equal(token.type, 'string')
+      try assert_equal(token.value, "hello\eworld")
+
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
+
+    g.test('Lexing a double quoted string containing a null literal') {
+      let token = lex('"hello\0world"')
+
+      try assert_equal(token.type, 'string')
+      try assert_equal(token.value, "hello\0world")
+
+      try assert_equal(token.location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+    }
 
-  g.test('Lexing a single quoted string containing a newline') {
-    let token = lex(
-      "'hello
+    g.test('Lexing a single quoted string containing a newline') {
+      let token = lex(
+        "'hello
 world'"
-    )
+      )
 
-    assert.equal(token.type, 'string')
-    assert.equal(token.value, "hello\nworld")
+      try assert_equal(token.type, 'string')
+      try assert_equal(token.value, "hello\nworld")
 
-    assert.equal(token.location.line_range, 1..2)
-    assert.equal(token.location.column, 1)
-  }
+      try assert_equal(token.location.line_range, 1..2)
+      try assert_equal(token.location.column, 1)
+    }
 
-  g.test('Lexing a double quoted string containing a newline') {
-    let token = lex(
-      '"hello
+    g.test('Lexing a double quoted string containing a newline') {
+      let token = lex(
+        '"hello
 world"'
-    )
+      )
 
-    assert.equal(token.type, 'string')
-    assert.equal(token.value, "hello\nworld")
+      try assert_equal(token.type, 'string')
+      try assert_equal(token.value, "hello\nworld")
 
-    assert.equal(token.location.line_range, 1..2)
-    assert.equal(token.location.column, 1)
-  }
+      try assert_equal(token.location.line_range, 1..2)
+      try assert_equal(token.location.column, 1)
+    }
 
-  g.test('Lexing a double quoted string containing a newline followed by another string') {
-    let tokens = lex_all(
-      '"hello
+    g.test('Lexing a double quoted string containing a newline followed by another string') {
+      let tokens = lex_all(
+        '"hello
 world" "hello"'
-    )
+      )
 
-    assert.equal(tokens[0].value, "hello\nworld")
-    assert.equal(tokens[0].location.column, 1)
-    assert.equal(tokens[0].location.line_range, 1..2)
+      try assert_equal(tokens[0].value, "hello\nworld")
+      try assert_equal(tokens[0].location.column, 1)
+      try assert_equal(tokens[0].location.line_range, 1..2)
 
-    assert.equal(tokens[1].value, 'hello')
-    assert.equal(tokens[1].location.column, 8)
-    assert.equal(tokens[1].location.line_range, 2..2)
-  }
+      try assert_equal(tokens[1].value, 'hello')
+      try assert_equal(tokens[1].location.column, 8)
+      try assert_equal(tokens[1].location.line_range, 2..2)
+    }
 
-  g.test('Lexing a single quoted string containing a newline followed by another string') {
-    let tokens = lex_all(
-      "'hello
+    g.test('Lexing a single quoted string containing a newline followed by another string') {
+      let tokens = lex_all(
+        "'hello
 world' 'hello'"
-    )
+      )
 
-    assert.equal(tokens[0].value, "hello\nworld")
-    assert.equal(tokens[0].location.column, 1)
-    assert.equal(tokens[0].location.line_range, 1..2)
+      try assert_equal(tokens[0].value, "hello\nworld")
+      try assert_equal(tokens[0].location.column, 1)
+      try assert_equal(tokens[0].location.line_range, 1..2)
 
-    assert.equal(tokens[1].value, 'hello')
-    assert.equal(tokens[1].location.column, 8)
-    assert.equal(tokens[1].location.line_range, 2..2)
-  }
+      try assert_equal(tokens[1].value, 'hello')
+      try assert_equal(tokens[1].location.column, 8)
+      try assert_equal(tokens[1].location.line_range, 2..2)
+    }
 
-  g.test('Lexing a double quoted string containing a newline and a newline literal') {
-    let tokens = lex_all(
-      '"hello
+    g.test('Lexing a double quoted string containing a newline and a newline literal') {
+      let tokens = lex_all(
+        '"hello
 world\n" "hello"'
-    )
-
-    assert.equal(tokens[0].value, "hello\nworld\n")
-    assert.equal(tokens[0].location.column, 1)
-    assert.equal(tokens[0].location.line_range, 1..2)
-
-    assert.equal(tokens[1].value, 'hello')
-    assert.equal(tokens[1].location.column, 10)
-    assert.equal(tokens[1].location.line_range, 2..2)
-  }
+      )
 
-  g.test('Lexing a multi-line double quoted string followed by an integer') {
-    let tokens = lex_all("\"\nfoobar\"10")
-
-    assert.equal(tokens[0].type, 'string')
-    assert.equal(tokens[0].value, "\nfoobar")
-    assert.equal(tokens[0].location.line_range, 1..2)
-    assert.equal(tokens[0].location.column, 1)
-
-    assert.equal(tokens[1].type, 'integer')
-    assert.equal(tokens[1].value, '10')
-    assert.equal(tokens[1].location.line_range, 2..2)
-    assert.equal(tokens[1].location.column, 8)
-  }
+      try assert_equal(tokens[0].value, "hello\nworld\n")
+      try assert_equal(tokens[0].location.column, 1)
+      try assert_equal(tokens[0].location.line_range, 1..2)
 
-  g.test('Lexing a single colon') {
-    let token = lex(':')
+      try assert_equal(tokens[1].value, 'hello')
+      try assert_equal(tokens[1].location.column, 10)
+      try assert_equal(tokens[1].location.line_range, 2..2)
+    }
 
-    assert.equal(token.type, 'colon')
-    assert.equal(token.value, ':')
+    g.test('Lexing a multi-line double quoted string followed by an integer') {
+      let tokens = lex_all("\"\nfoobar\"10")
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_equal(tokens[0].type, 'string')
+      try assert_equal(tokens[0].value, "\nfoobar")
+      try assert_equal(tokens[0].location.line_range, 1..2)
+      try assert_equal(tokens[0].location.column, 1)
 
-  g.test('Lexing a double colon') {
-    let token = lex('::')
+      try assert_equal(tokens[1].type, 'integer')
+      try assert_equal(tokens[1].value, '10')
+      try assert_equal(tokens[1].location.line_range, 2..2)
+      try assert_equal(tokens[1].location.column, 8)
+    }
 
-    assert.equal(token.type, 'colon_colon')
-    assert.equal(token.value, '::')
+    g.test('Lexing a single colon') {
+      let token = lex(':')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_equal(token.type, 'colon')
+      try assert_equal(token.value, ':')
 
-  g.test('Lexing the division operator') {
-    let token = lex('/')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.true(token.binary?)
-    assert.equal(token.type, 'div')
-    assert.equal(token.value, '/')
+    g.test('Lexing a double colon') {
+      let token = lex('::')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_equal(token.type, 'colon_colon')
+      try assert_equal(token.value, '::')
 
-  g.test('Lexing the division-assign operator') {
-    let token = lex('/=')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.false(token.binary?)
-    assert.true(token.binary_assign?)
-    assert.equal(token.type, 'div_assign')
-    assert.equal(token.value, '/=')
+    g.test('Lexing the division operator') {
+      let token = lex('/')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_true(token.binary?)
+      try assert_equal(token.type, 'div')
+      try assert_equal(token.value, '/')
 
-  g.test('Lexing the modulo operator') {
-    let token = lex('%')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.true(token.binary?)
-    assert.equal(token.type, 'mod')
-    assert.equal(token.value, '%')
+    g.test('Lexing the division-assign operator') {
+      let token = lex('/=')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_false(token.binary?)
+      try assert_true(token.binary_assign?)
+      try assert_equal(token.type, 'div_assign')
+      try assert_equal(token.value, '/=')
 
-  g.test('Lexing the modulo-assign operator') {
-    let token = lex('%=')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.false(token.binary?)
-    assert.true(token.binary_assign?)
-    assert.equal(token.type, 'mod_assign')
-    assert.equal(token.value, '%=')
+    g.test('Lexing the modulo operator') {
+      let token = lex('%')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_true(token.binary?)
+      try assert_equal(token.type, 'mod')
+      try assert_equal(token.value, '%')
 
-  g.test('Lexing the XOR operator') {
-    let token = lex('^')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.true(token.binary?)
-    assert.equal(token.type, 'xor')
-    assert.equal(token.value, '^')
+    g.test('Lexing the modulo-assign operator') {
+      let token = lex('%=')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_false(token.binary?)
+      try assert_true(token.binary_assign?)
+      try assert_equal(token.type, 'mod_assign')
+      try assert_equal(token.value, '%=')
 
-  g.test('Lexing the XOR-assign operator') {
-    let token = lex('^=')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.false(token.binary?)
-    assert.true(token.binary_assign?)
-    assert.equal(token.type, 'xor_assign')
-    assert.equal(token.value, '^=')
+    g.test('Lexing the XOR operator') {
+      let token = lex('^')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_true(token.binary?)
+      try assert_equal(token.type, 'xor')
+      try assert_equal(token.value, '^')
 
-  g.test('Lexing the AND operator') {
-    let token = lex('&')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.true(token.binary?)
-    assert.equal(token.type, 'and')
-    assert.equal(token.value, '&')
+    g.test('Lexing the XOR-assign operator') {
+      let token = lex('^=')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_false(token.binary?)
+      try assert_true(token.binary_assign?)
+      try assert_equal(token.type, 'xor_assign')
+      try assert_equal(token.value, '^=')
 
-  g.test('Lexing the AND-assign operator') {
-    let token = lex('&=')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.false(token.binary?)
-    assert.true(token.binary_assign?)
-    assert.equal(token.type, 'and_assign')
-    assert.equal(token.value, '&=')
+    g.test('Lexing the AND operator') {
+      let token = lex('&')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_true(token.binary?)
+      try assert_equal(token.type, 'and')
+      try assert_equal(token.value, '&')
 
-  g.test('Lexing the OR operator') {
-    let token = lex('|')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.true(token.binary?)
-    assert.equal(token.type, 'or')
-    assert.equal(token.value, '|')
+    g.test('Lexing the AND-assign operator') {
+      let token = lex('&=')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_false(token.binary?)
+      try assert_true(token.binary_assign?)
+      try assert_equal(token.type, 'and_assign')
+      try assert_equal(token.value, '&=')
 
-  g.test('Lexing the OR-assign operator') {
-    let token = lex('|=')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.false(token.binary?)
-    assert.true(token.binary_assign?)
-    assert.equal(token.type, 'or_assign')
-    assert.equal(token.value, '|=')
+    g.test('Lexing the OR operator') {
+      let token = lex('|')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_true(token.binary?)
+      try assert_equal(token.type, 'or')
+      try assert_equal(token.value, '|')
 
-  g.test('Lexing the multiplication operator') {
-    let token = lex('*')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.true(token.binary?)
-    assert.equal(token.type, 'mul')
-    assert.equal(token.value, '*')
+    g.test('Lexing the OR-assign operator') {
+      let token = lex('|=')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_false(token.binary?)
+      try assert_true(token.binary_assign?)
+      try assert_equal(token.type, 'or_assign')
+      try assert_equal(token.value, '|=')
 
-  g.test('Lexing the power operator') {
-    let token = lex('**')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.true(token.binary?)
-    assert.equal(token.type, 'pow')
-    assert.equal(token.value, '**')
+    g.test('Lexing the multiplication operator') {
+      let token = lex('*')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_true(token.binary?)
+      try assert_equal(token.type, 'mul')
+      try assert_equal(token.value, '*')
 
-  g.test('Lexing the multiplication-assign operator') {
-    let token = lex('*=')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.false(token.binary?)
-    assert.true(token.binary_assign?)
-    assert.equal(token.type, 'mul_assign')
-    assert.equal(token.value, '*=')
+    g.test('Lexing the power operator') {
+      let token = lex('**')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_true(token.binary?)
+      try assert_equal(token.type, 'pow')
+      try assert_equal(token.value, '**')
 
-  g.test('Lexing a negative integer') {
-    let token = lex('-10')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.type, 'integer')
-    assert.equal(token.value, '-10')
+    g.test('Lexing the multiplication-assign operator') {
+      let token = lex('*=')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_false(token.binary?)
+      try assert_true(token.binary_assign?)
+      try assert_equal(token.type, 'mul_assign')
+      try assert_equal(token.value, '*=')
 
-  g.test('Lexing a negative hexadecimal integer') {
-    let token = lex('-0x2')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.type, 'integer')
-    assert.equal(token.value, '-0x2')
+    g.test('Lexing a negative integer') {
+      let token = lex('-10')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_equal(token.type, 'integer')
+      try assert_equal(token.value, '-10')
 
-  g.test('Lexing a negative float') {
-    let token = lex('-2.5')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.type, 'float')
-    assert.equal(token.value, '-2.5')
+    g.test('Lexing a negative hexadecimal integer') {
+      let token = lex('-0x2')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_equal(token.type, 'integer')
+      try assert_equal(token.value, '-0x2')
 
-  g.test('Lexing an integer followed by a dot') {
-    let tokens = lex_all('10.')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(tokens[0].type, 'integer')
-    assert.equal(tokens[0].value, '10')
+    g.test('Lexing a negative float') {
+      let token = lex('-2.5')
 
-    assert.equal(tokens[1].type, 'dot')
-    assert.equal(tokens[1].value, '.')
-  }
+      try assert_equal(token.type, 'float')
+      try assert_equal(token.value, '-2.5')
 
-  g.test('Lexing an integer followed by a dot and an identifier') {
-    let tokens = lex_all('10.foo')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(tokens[0].type, 'integer')
-    assert.equal(tokens[0].value, '10')
+    g.test('Lexing an integer followed by a dot') {
+      let tokens = lex_all('10.')
 
-    assert.equal(tokens[1].type, 'dot')
-    assert.equal(tokens[1].value, '.')
+      try assert_equal(tokens[0].type, 'integer')
+      try assert_equal(tokens[0].value, '10')
 
-    assert.equal(tokens[2].type, 'identifier')
-    assert.equal(tokens[2].value, 'foo')
-  }
+      try assert_equal(tokens[1].type, 'dot')
+      try assert_equal(tokens[1].value, '.')
+    }
 
-  g.test('Lexing an integer followed by the inclusive range operator') {
-    let tokens = lex_all('10..')
+    g.test('Lexing an integer followed by a dot and an identifier') {
+      let tokens = lex_all('10.foo')
 
-    assert.equal(tokens[0].type, 'integer')
-    assert.equal(tokens[0].value, '10')
+      try assert_equal(tokens[0].type, 'integer')
+      try assert_equal(tokens[0].value, '10')
 
-    assert.equal(tokens[1].type, 'inclusive_range')
-    assert.equal(tokens[1].value, '..')
-  }
+      try assert_equal(tokens[1].type, 'dot')
+      try assert_equal(tokens[1].value, '.')
 
-  g.test('Lexing an integer followed by the exclusive range operator') {
-    let tokens = lex_all('10...')
+      try assert_equal(tokens[2].type, 'identifier')
+      try assert_equal(tokens[2].value, 'foo')
+    }
 
-    assert.equal(tokens[0].type, 'integer')
-    assert.equal(tokens[0].value, '10')
+    g.test('Lexing an integer followed by the inclusive range operator') {
+      let tokens = lex_all('10..')
 
-    assert.equal(tokens[1].type, 'exclusive_range')
-    assert.equal(tokens[1].value, '...')
-  }
+      try assert_equal(tokens[0].type, 'integer')
+      try assert_equal(tokens[0].value, '10')
 
-  g.test('Lexing the arrow operator') {
-    let token = lex('->')
+      try assert_equal(tokens[1].type, 'inclusive_range')
+      try assert_equal(tokens[1].value, '..')
+    }
 
-    assert.equal(token.type, 'arrow')
-    assert.equal(token.value, '->')
+    g.test('Lexing an integer followed by the exclusive range operator') {
+      let tokens = lex_all('10...')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_equal(tokens[0].type, 'integer')
+      try assert_equal(tokens[0].value, '10')
 
-  g.test('Lexing the double arrow operator') {
-    let token = lex('=>')
+      try assert_equal(tokens[1].type, 'exclusive_range')
+      try assert_equal(tokens[1].value, '...')
+    }
 
-    assert.equal(token.type, 'double_arrow')
-    assert.equal(token.value, '=>')
+    g.test('Lexing the arrow operator') {
+      let token = lex('->')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_equal(token.type, 'arrow')
+      try assert_equal(token.value, '->')
 
-  g.test('Lexing the subtraction operator') {
-    let token = lex('-')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.true(token.binary?)
-    assert.equal(token.type, 'sub')
-    assert.equal(token.value, '-')
+    g.test('Lexing the double arrow operator') {
+      let token = lex('=>')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_equal(token.type, 'double_arrow')
+      try assert_equal(token.value, '=>')
 
-  g.test('Lexing the subtraction-assign operator') {
-    let token = lex('-=')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.false(token.binary?)
-    assert.true(token.binary_assign?)
-    assert.equal(token.type, 'sub_assign')
-    assert.equal(token.value, '-=')
+    g.test('Lexing the subtraction operator') {
+      let token = lex('-')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_true(token.binary?)
+      try assert_equal(token.type, 'sub')
+      try assert_equal(token.value, '-')
 
-  g.test('Lexing the addition operator') {
-    let token = lex('+')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.true(token.binary?)
-    assert.equal(token.type, 'add')
-    assert.equal(token.value, '+')
+    g.test('Lexing the subtraction-assign operator') {
+      let token = lex('-=')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_false(token.binary?)
+      try assert_true(token.binary_assign?)
+      try assert_equal(token.type, 'sub_assign')
+      try assert_equal(token.value, '-=')
 
-  g.test('Lexing the addition-assign operator') {
-    let token = lex('+=')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.false(token.binary?)
-    assert.true(token.binary_assign?)
-    assert.equal(token.type, 'add_assign')
-    assert.equal(token.value, '+=')
+    g.test('Lexing the addition operator') {
+      let token = lex('+')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_true(token.binary?)
+      try assert_equal(token.type, 'add')
+      try assert_equal(token.value, '+')
 
-  g.test('Lexing the assign operator') {
-    let token = lex('=')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.false(token.binary?)
-    assert.equal(token.type, 'assign')
-    assert.equal(token.value, '=')
+    g.test('Lexing the addition-assign operator') {
+      let token = lex('+=')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_false(token.binary?)
+      try assert_true(token.binary_assign?)
+      try assert_equal(token.type, 'add_assign')
+      try assert_equal(token.value, '+=')
 
-  g.test('Lexing the equals operator') {
-    let token = lex('==')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.true(token.binary?)
-    assert.false(token.binary_assign?)
-    assert.equal(token.type, 'equal')
-    assert.equal(token.value, '==')
+    g.test('Lexing the assign operator') {
+      let token = lex('=')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_false(token.binary?)
+      try assert_equal(token.type, 'assign')
+      try assert_equal(token.value, '=')
 
-  g.test('Lexing the match operator') {
-    let token = lex('=~')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.true(token.binary?)
-    assert.false(token.binary_assign?)
-    assert.equal(token.type, 'match')
-    assert.equal(token.value, '=~')
+    g.test('Lexing the equals operator') {
+      let token = lex('==')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_true(token.binary?)
+      try assert_false(token.binary_assign?)
+      try assert_equal(token.type, 'equal')
+      try assert_equal(token.value, '==')
 
-  g.test('Lexing the lower operator') {
-    let token = lex('<')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.true(token.binary?)
-    assert.equal(token.type, 'lower')
-    assert.equal(token.value, '<')
+    g.test('Lexing the match operator') {
+      let token = lex('=~')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_true(token.binary?)
+      try assert_false(token.binary_assign?)
+      try assert_equal(token.type, 'match')
+      try assert_equal(token.value, '=~')
 
-  g.test('Lexing the lower-equal operator') {
-    let token = lex('<=')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.true(token.binary?)
-    assert.false(token.binary_assign?)
-    assert.equal(token.type, 'lower_equal')
-    assert.equal(token.value, '<=')
+    g.test('Lexing the lower operator') {
+      let token = lex('<')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_true(token.binary?)
+      try assert_equal(token.type, 'lower')
+      try assert_equal(token.value, '<')
 
-  g.test('Lexing the shift-left operator') {
-    let token = lex('<<')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.true(token.binary?)
-    assert.equal(token.type, 'shift_left')
-    assert.equal(token.value, '<<')
+    g.test('Lexing the lower-equal operator') {
+      let token = lex('<=')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_true(token.binary?)
+      try assert_false(token.binary_assign?)
+      try assert_equal(token.type, 'lower_equal')
+      try assert_equal(token.value, '<=')
 
-  g.test('Lexing the shift-left-assign operator') {
-    let token = lex('<<=')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.false(token.binary?)
-    assert.true(token.binary_assign?)
-    assert.equal(token.type, 'shift_left_assign')
-    assert.equal(token.value, '<<=')
+    g.test('Lexing the shift-left operator') {
+      let token = lex('<<')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_true(token.binary?)
+      try assert_equal(token.type, 'shift_left')
+      try assert_equal(token.value, '<<')
 
-  g.test('Lexing the greater operator') {
-    let token = lex('>')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.true(token.binary?)
-    assert.equal(token.type, 'greater')
-    assert.equal(token.value, '>')
+    g.test('Lexing the shift-left-assign operator') {
+      let token = lex('<<=')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_false(token.binary?)
+      try assert_true(token.binary_assign?)
+      try assert_equal(token.type, 'shift_left_assign')
+      try assert_equal(token.value, '<<=')
 
-  g.test('Lexing the greater-equal operator') {
-    let token = lex('>=')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.true(token.binary?)
-    assert.false(token.binary_assign?)
-    assert.equal(token.type, 'greater_equal')
-    assert.equal(token.value, '>=')
+    g.test('Lexing the greater operator') {
+      let token = lex('>')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_true(token.binary?)
+      try assert_equal(token.type, 'greater')
+      try assert_equal(token.value, '>')
 
-  g.test('Lexing the shift-right operator') {
-    let token = lex('>>')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.true(token.binary?)
-    assert.equal(token.type, 'shift_right')
-    assert.equal(token.value, '>>')
+    g.test('Lexing the greater-equal operator') {
+      let token = lex('>=')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_true(token.binary?)
+      try assert_false(token.binary_assign?)
+      try assert_equal(token.type, 'greater_equal')
+      try assert_equal(token.value, '>=')
 
-  g.test('Lexing the shift-right-assign operator') {
-    let token = lex('>>=')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.false(token.binary?)
-    assert.true(token.binary_assign?)
-    assert.equal(token.type, 'shift_right_assign')
-    assert.equal(token.value, '>>=')
+    g.test('Lexing the shift-right operator') {
+      let token = lex('>>')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_true(token.binary?)
+      try assert_equal(token.type, 'shift_right')
+      try assert_equal(token.value, '>>')
 
-  g.test('Lexing an opening bracket') {
-    let token = lex('[')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.type, 'bracket_open')
-    assert.equal(token.value, '[')
+    g.test('Lexing the shift-right-assign operator') {
+      let token = lex('>>=')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_false(token.binary?)
+      try assert_true(token.binary_assign?)
+      try assert_equal(token.type, 'shift_right_assign')
+      try assert_equal(token.value, '>>=')
 
-  g.test('Lexing a closing bracket') {
-    let token = lex(']')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.type, 'bracket_close')
-    assert.equal(token.value, ']')
+    g.test('Lexing an opening bracket') {
+      let token = lex('[')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_equal(token.type, 'bracket_open')
+      try assert_equal(token.value, '[')
 
-  g.test('Lexing the not-equal operator') {
-    let token = lex('!=')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.true(token.binary?)
-    assert.false(token.binary_assign?)
-    assert.equal(token.type, 'not_equal')
-    assert.equal(token.value, '!=')
+    g.test('Lexing a closing bracket') {
+      let token = lex(']')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_equal(token.type, 'bracket_close')
+      try assert_equal(token.value, ']')
 
-  g.test('Lexing the type arguments operator') {
-    let token = lex('!(')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.type, 'type_args_open')
-    assert.equal(token.value, '!(')
+    g.test('Lexing the not-equal operator') {
+      let token = lex('!=')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_true(token.binary?)
+      try assert_false(token.binary_assign?)
+      try assert_equal(token.type, 'not_equal')
+      try assert_equal(token.value, '!=')
 
-  g.test('Lexing the throws operator') {
-    let token = lex('!!')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.type, 'throws')
-    assert.equal(token.value, '!!')
+    g.test('Lexing the type arguments operator') {
+      let token = lex('!(')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_equal(token.type, 'type_args_open')
+      try assert_equal(token.value, '!(')
 
-  g.test('Lexing an exclamation sign followed by an identifier') {
-    let tokens = lex_all('!foo')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(tokens[0].type, 'exclamation')
-    assert.equal(tokens[0].value, '!')
+    g.test('Lexing the throws operator') {
+      let token = lex('!!')
 
-    assert.equal(tokens[1].type, 'identifier')
-    assert.equal(tokens[1].value, 'foo')
-  }
+      try assert_equal(token.type, 'throws')
+      try assert_equal(token.value, '!!')
 
-  g.test('Lexing a single dot') {
-    let token = lex('.')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.type, 'dot')
-    assert.equal(token.value, '.')
+    g.test('Lexing an exclamation sign followed by an identifier') {
+      let tokens = lex_all('!foo')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_equal(tokens[0].type, 'exclamation')
+      try assert_equal(tokens[0].value, '!')
 
-  g.test('Lexing the inclusive range operator') {
-    let token = lex('..')
+      try assert_equal(tokens[1].type, 'identifier')
+      try assert_equal(tokens[1].value, 'foo')
+    }
 
-    assert.true(token.binary?)
-    assert.equal(token.type, 'inclusive_range')
-    assert.equal(token.value, '..')
+    g.test('Lexing a single dot') {
+      let token = lex('.')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_equal(token.type, 'dot')
+      try assert_equal(token.value, '.')
 
-  g.test('Lexing the exclusive range operator') {
-    let token = lex('...')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.true(token.binary?)
-    assert.equal(token.type, 'exclusive_range')
-    assert.equal(token.value, '...')
+    g.test('Lexing the inclusive range operator') {
+      let token = lex('..')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_true(token.binary?)
+      try assert_equal(token.type, 'inclusive_range')
+      try assert_equal(token.value, '..')
 
-  g.test('Lexing a comma') {
-    let token = lex(',')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.type, 'comma')
-    assert.equal(token.value, ',')
+    g.test('Lexing the exclusive range operator') {
+      let token = lex('...')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_true(token.binary?)
+      try assert_equal(token.type, 'exclusive_range')
+      try assert_equal(token.value, '...')
 
-  g.test('Lexing a question mark') {
-    let token = lex('?')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.type, 'question')
-    assert.equal(token.value, '?')
+    g.test('Lexing a comma') {
+      let token = lex(',')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_equal(token.type, 'comma')
+      try assert_equal(token.value, ',')
 
-  g.test('Lexing an identifier') {
-    let token = lex('foo')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.type, 'identifier')
-    assert.equal(token.value, 'foo')
+    g.test('Lexing a question mark') {
+      let token = lex('?')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_equal(token.type, 'question')
+      try assert_equal(token.value, '?')
 
-  g.test('Lexing two identifiers') {
-    let tokens = lex_all('foo bar')
-
-    assert.equal(tokens[0].type, 'identifier')
-    assert.equal(tokens[0].value, 'foo')
-    assert.equal(tokens[0].location.column, 1)
-    assert.equal(tokens[0].location.line_range, 1..1)
-
-    assert.equal(tokens[1].type, 'identifier')
-    assert.equal(tokens[1].value, 'bar')
-    assert.equal(tokens[1].location.column, 5)
-    assert.equal(tokens[1].location.line_range, 1..1)
-  }
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-  g.test('Lexing an identifier containing an underscore') {
-    let token = lex('foo_bar')
+    g.test('Lexing an identifier') {
+      let token = lex('foo')
 
-    assert.equal(token.type, 'identifier')
-    assert.equal(token.value, 'foo_bar')
+      try assert_equal(token.type, 'identifier')
+      try assert_equal(token.value, 'foo')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-  g.test('Lexing an identifier containing a number') {
-    let token = lex('foo10')
+    g.test('Lexing two identifiers') {
+      let tokens = lex_all('foo bar')
 
-    assert.equal(token.type, 'identifier')
-    assert.equal(token.value, 'foo10')
+      try assert_equal(tokens[0].type, 'identifier')
+      try assert_equal(tokens[0].value, 'foo')
+      try assert_equal(tokens[0].location.column, 1)
+      try assert_equal(tokens[0].location.line_range, 1..1)
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_equal(tokens[1].type, 'identifier')
+      try assert_equal(tokens[1].value, 'bar')
+      try assert_equal(tokens[1].location.column, 5)
+      try assert_equal(tokens[1].location.line_range, 1..1)
+    }
 
-  g.test('Lexing an constant') {
-    let token = lex('Foo')
+    g.test('Lexing an identifier containing an underscore') {
+      let token = lex('foo_bar')
 
-    assert.equal(token.type, 'constant')
-    assert.equal(token.value, 'Foo')
+      try assert_equal(token.type, 'identifier')
+      try assert_equal(token.value, 'foo_bar')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-  g.test('Lexing two constants') {
-    let tokens = lex_all('Foo Bar')
-
-    assert.equal(tokens[0].type, 'constant')
-    assert.equal(tokens[0].value, 'Foo')
-    assert.equal(tokens[0].location.column, 1)
-    assert.equal(tokens[0].location.line_range, 1..1)
-
-    assert.equal(tokens[1].type, 'constant')
-    assert.equal(tokens[1].value, 'Bar')
-    assert.equal(tokens[1].location.column, 5)
-    assert.equal(tokens[1].location.line_range, 1..1)
-  }
+    g.test('Lexing an identifier containing a number') {
+      let token = lex('foo10')
 
-  g.test('Lexing an constant containing an underscore') {
-    let token = lex('Foo_bar')
+      try assert_equal(token.type, 'identifier')
+      try assert_equal(token.value, 'foo10')
 
-    assert.equal(token.type, 'constant')
-    assert.equal(token.value, 'Foo_bar')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+    g.test('Lexing an constant') {
+      let token = lex('Foo')
 
-  g.test('Lexing an constant containing a number') {
-    let token = lex('Foo10')
+      try assert_equal(token.type, 'constant')
+      try assert_equal(token.value, 'Foo')
 
-    assert.equal(token.type, 'constant')
-    assert.equal(token.value, 'Foo10')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+    g.test('Lexing two constants') {
+      let tokens = lex_all('Foo Bar')
 
-  g.test('Lexing an identifier starting with an underscore') {
-    let token = lex('_foo')
+      try assert_equal(tokens[0].type, 'constant')
+      try assert_equal(tokens[0].value, 'Foo')
+      try assert_equal(tokens[0].location.column, 1)
+      try assert_equal(tokens[0].location.line_range, 1..1)
 
-    assert.equal(token.type, 'identifier')
-    assert.equal(token.value, '_foo')
+      try assert_equal(tokens[1].type, 'constant')
+      try assert_equal(tokens[1].value, 'Bar')
+      try assert_equal(tokens[1].location.column, 5)
+      try assert_equal(tokens[1].location.line_range, 1..1)
+    }
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+    g.test('Lexing an constant containing an underscore') {
+      let token = lex('Foo_bar')
 
-  g.test('Lexing a constant starting with an underscore') {
-    let token = lex('_Foo')
+      try assert_equal(token.type, 'constant')
+      try assert_equal(token.value, 'Foo_bar')
 
-    assert.equal(token.type, 'constant')
-    assert.equal(token.value, '_Foo')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+    g.test('Lexing an constant containing a number') {
+      let token = lex('Foo10')
 
-  g.test('Lexing an identifier starting with multiple underscores') {
-    let token = lex('__foo')
+      try assert_equal(token.type, 'constant')
+      try assert_equal(token.value, 'Foo10')
 
-    assert.equal(token.type, 'identifier')
-    assert.equal(token.value, '__foo')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+    g.test('Lexing an identifier starting with an underscore') {
+      let token = lex('_foo')
 
-  g.test('Lexing a constant starting with multiple underscores') {
-    let token = lex('__Foo')
+      try assert_equal(token.type, 'identifier')
+      try assert_equal(token.value, '_foo')
 
-    assert.equal(token.type, 'constant')
-    assert.equal(token.value, '__Foo')
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+    g.test('Lexing a constant starting with an underscore') {
+      let token = lex('_Foo')
 
-  g.test('Lexing an underscore') {
-    let token = lex('_')
+      try assert_equal(token.type, 'constant')
+      try assert_equal(token.value, '_Foo')
 
-    assert.equal(token.type, 'identifier')
-    assert.equal(token.value, '_')
-  }
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-  g.test('Lexing an underscore followed by a space') {
-    let token = lex('_ ')
+    g.test('Lexing an identifier starting with multiple underscores') {
+      let token = lex('__foo')
 
-    assert.equal(token.type, 'identifier')
-    assert.equal(token.value, '_')
-  }
+      try assert_equal(token.type, 'identifier')
+      try assert_equal(token.value, '__foo')
 
-  g.test('Lexing an underscore followed by a newline') {
-    let token = lex("_\n")
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.type, 'identifier')
-    assert.equal(token.value, '_')
-  }
+    g.test('Lexing a constant starting with multiple underscores') {
+      let token = lex('__Foo')
 
-  g.test('Lexing an underscore followed by a tab') {
-    let token = lex("_\t")
+      try assert_equal(token.type, 'constant')
+      try assert_equal(token.value, '__Foo')
 
-    assert.equal(token.type, 'identifier')
-    assert.equal(token.value, '_')
-  }
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-  g.test('Lexing an underscore followed by a carriage return') {
-    let token = lex("_\r")
+    g.test('Lexing an underscore') {
+      let token = lex('_')
 
-    assert.equal(token.type, 'identifier')
-    assert.equal(token.value, '_')
-  }
+      try assert_equal(token.type, 'identifier')
+      try assert_equal(token.value, '_')
+    }
 
-  g.test('Lexing an underscore followed by a number') {
-    let token = lex('_10')
+    g.test('Lexing an underscore followed by a space') {
+      let token = lex('_ ')
 
-    assert.equal(token.type, 'identifier')
-    assert.equal(token.value, '_10')
-  }
+      try assert_equal(token.type, 'identifier')
+      try assert_equal(token.value, '_')
+    }
 
-  g.test('Lexing of invalid input') {
-    let lexer = Lexer.new(input: ';foo', file: 'test.inko')
-    let token = lexer.next
+    g.test('Lexing an underscore followed by a newline') {
+      let token = lex("_\n")
 
-    assert.equal(token.type, 'invalid')
-    assert.equal(token.value, ';')
-    assert.false(token.valid?)
+      try assert_equal(token.type, 'identifier')
+      try assert_equal(token.value, '_')
+    }
 
-    assert.false(lexer.next?)
-  }
+    g.test('Lexing an underscore followed by a tab') {
+      let token = lex("_\t")
 
-  g.test('Lexing of invalid Unicode input') {
-    let lexer = Lexer.new(input: 'ófoo', file: 'test.inko')
-    let token = lexer.next
+      try assert_equal(token.type, 'identifier')
+      try assert_equal(token.value, '_')
+    }
 
-    assert.equal(token.type, 'invalid')
-    assert.equal(token.value, ByteArray.new(195).to_string)
-    assert.false(lexer.next?)
-  }
+    g.test('Lexing an underscore followed by a carriage return') {
+      let token = lex("_\r")
 
-  g.test('Lexing the let keyword') {
-    let token = lex('let')
+      try assert_equal(token.type, 'identifier')
+      try assert_equal(token.value, '_')
+    }
 
-    assert.equal(token.type, 'let')
-    assert.equal(token.value, 'let')
-    assert.true(token.keyword?)
+    g.test('Lexing an underscore followed by a number') {
+      let token = lex('_10')
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_equal(token.type, 'identifier')
+      try assert_equal(token.value, '_10')
+    }
 
-  g.test('Lexing the mut keyword') {
-    let token = lex('mut')
+    g.test('Lexing of invalid input') {
+      let lexer = Lexer.new(input: ';foo', file: 'test.inko')
+      let token = lexer.next
 
-    assert.equal(token.type, 'mut')
-    assert.equal(token.value, 'mut')
-    assert.true(token.keyword?)
+      try assert_equal(token.type, 'invalid')
+      try assert_equal(token.value, ';')
+      try assert_false(token.valid?)
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_false(lexer.next?)
+    }
 
-  g.test('Lexing the class keyword') {
-    let token = lex('class')
+    g.test('Lexing of invalid Unicode input') {
+      let lexer = Lexer.new(input: 'ófoo', file: 'test.inko')
+      let token = lexer.next
 
-    assert.equal(token.type, 'class')
-    assert.equal(token.value, 'class')
-    assert.true(token.keyword?)
+      try assert_equal(token.type, 'invalid')
+      try assert_equal(token.value, ByteArray.new(195).to_string)
+      try assert_false(lexer.next?)
+    }
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+    g.test('Lexing the let keyword') {
+      let token = lex('let')
 
-  g.test('Lexing the trait keyword') {
-    let token = lex('trait')
+      try assert_equal(token.type, 'let')
+      try assert_equal(token.value, 'let')
+      try assert_true(token.keyword?)
 
-    assert.equal(token.type, 'trait')
-    assert.equal(token.value, 'trait')
-    assert.true(token.keyword?)
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+    g.test('Lexing the mut keyword') {
+      let token = lex('mut')
 
-  g.test('Lexing the import keyword') {
-    let token = lex('import')
+      try assert_equal(token.type, 'mut')
+      try assert_equal(token.value, 'mut')
+      try assert_true(token.keyword?)
 
-    assert.equal(token.type, 'import')
-    assert.equal(token.value, 'import')
-    assert.true(token.keyword?)
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+    g.test('Lexing the class keyword') {
+      let token = lex('class')
 
-  g.test('Lexing the return keyword') {
-    let token = lex('return')
+      try assert_equal(token.type, 'class')
+      try assert_equal(token.value, 'class')
+      try assert_true(token.keyword?)
 
-    assert.equal(token.type, 'return')
-    assert.equal(token.value, 'return')
-    assert.true(token.keyword?)
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+    g.test('Lexing the trait keyword') {
+      let token = lex('trait')
 
-  g.test('Lexing the self keyword') {
-    let token = lex('self')
+      try assert_equal(token.type, 'trait')
+      try assert_equal(token.value, 'trait')
+      try assert_true(token.keyword?)
 
-    assert.equal(token.type, 'self')
-    assert.equal(token.value, 'self')
-    assert.true(token.keyword?)
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+    g.test('Lexing the import keyword') {
+      let token = lex('import')
 
-  g.test('Lexing the def keyword') {
-    let token = lex('def')
+      try assert_equal(token.type, 'import')
+      try assert_equal(token.value, 'import')
+      try assert_true(token.keyword?)
 
-    assert.equal(token.type, 'def')
-    assert.equal(token.value, 'def')
-    assert.true(token.keyword?)
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+    g.test('Lexing the return keyword') {
+      let token = lex('return')
 
-  g.test('Lexing the do keyword') {
-    let token = lex('do')
+      try assert_equal(token.type, 'return')
+      try assert_equal(token.value, 'return')
+      try assert_true(token.keyword?)
 
-    assert.equal(token.type, 'do')
-    assert.equal(token.value, 'do')
-    assert.true(token.keyword?)
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+    g.test('Lexing the self keyword') {
+      let token = lex('self')
 
-  g.test('Lexing the throw keyword') {
-    let token = lex('throw')
+      try assert_equal(token.type, 'self')
+      try assert_equal(token.value, 'self')
+      try assert_true(token.keyword?)
 
-    assert.equal(token.type, 'throw')
-    assert.equal(token.value, 'throw')
-    assert.true(token.keyword?)
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+    g.test('Lexing the def keyword') {
+      let token = lex('def')
 
-  g.test('Lexing the else keyword') {
-    let token = lex('else')
+      try assert_equal(token.type, 'def')
+      try assert_equal(token.value, 'def')
+      try assert_true(token.keyword?)
 
-    assert.equal(token.type, 'else')
-    assert.equal(token.value, 'else')
-    assert.true(token.keyword?)
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+    g.test('Lexing the do keyword') {
+      let token = lex('do')
 
-  g.test('Lexing the try keyword') {
-    let token = lex('try')
+      try assert_equal(token.type, 'do')
+      try assert_equal(token.value, 'do')
+      try assert_true(token.keyword?)
 
-    assert.equal(token.type, 'try')
-    assert.equal(token.value, 'try')
-    assert.true(token.keyword?)
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+    g.test('Lexing the throw keyword') {
+      let token = lex('throw')
 
-  g.test('Lexing the try! keyword') {
-    let tokens = lex_all('try!')
+      try assert_equal(token.type, 'throw')
+      try assert_equal(token.value, 'throw')
+      try assert_true(token.keyword?)
 
-    assert.equal(tokens[0].type, 'try')
-    assert.equal(tokens[0].value, 'try')
-    assert.true(tokens[0].keyword?)
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(tokens[0].location.column, 1)
-    assert.equal(tokens[0].location.line_range, 1..1)
+    g.test('Lexing the else keyword') {
+      let token = lex('else')
 
-    assert.equal(tokens[1].type, 'exclamation')
-    assert.equal(tokens[1].value, '!')
+      try assert_equal(token.type, 'else')
+      try assert_equal(token.value, 'else')
+      try assert_true(token.keyword?)
 
-    assert.equal(tokens[1].location.column, 4)
-    assert.equal(tokens[1].location.line_range, 1..1)
-  }
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-  g.test('Lexing the as keyword') {
-    let token = lex('as')
+    g.test('Lexing the try keyword') {
+      let token = lex('try')
 
-    assert.equal(token.type, 'as')
-    assert.equal(token.value, 'as')
-    assert.true(token.keyword?)
+      try assert_equal(token.type, 'try')
+      try assert_equal(token.value, 'try')
+      try assert_true(token.keyword?)
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-  g.test('Lexing the impl keyword') {
-    let token = lex('impl')
+    g.test('Lexing the try! keyword') {
+      let tokens = lex_all('try!')
 
-    assert.equal(token.type, 'impl')
-    assert.equal(token.value, 'impl')
-    assert.true(token.keyword?)
+      try assert_equal(tokens[0].type, 'try')
+      try assert_equal(tokens[0].value, 'try')
+      try assert_true(tokens[0].keyword?)
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+      try assert_equal(tokens[0].location.column, 1)
+      try assert_equal(tokens[0].location.line_range, 1..1)
 
-  g.test('Lexing the for keyword') {
-    let token = lex('for')
+      try assert_equal(tokens[1].type, 'exclamation')
+      try assert_equal(tokens[1].value, '!')
 
-    assert.equal(token.type, 'for')
-    assert.equal(token.value, 'for')
-    assert.true(token.keyword?)
+      try assert_equal(tokens[1].location.column, 4)
+      try assert_equal(tokens[1].location.line_range, 1..1)
+    }
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+    g.test('Lexing the as keyword') {
+      let token = lex('as')
 
-  g.test('Lexing the fn keyword') {
-    let token = lex('fn')
+      try assert_equal(token.type, 'as')
+      try assert_equal(token.value, 'as')
+      try assert_true(token.keyword?)
 
-    assert.equal(token.type, 'fn')
-    assert.equal(token.value, 'fn')
-    assert.true(token.keyword?)
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+    g.test('Lexing the impl keyword') {
+      let token = lex('impl')
 
-  g.test('Lexing the when keyword') {
-    let token = lex('when')
+      try assert_equal(token.type, 'impl')
+      try assert_equal(token.value, 'impl')
+      try assert_true(token.keyword?)
 
-    assert.equal(token.type, 'when')
-    assert.equal(token.value, 'when')
-    assert.true(token.keyword?)
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+    g.test('Lexing the for keyword') {
+      let token = lex('for')
 
-  g.test('Lexing the match keyword') {
-    let token = lex('match')
+      try assert_equal(token.type, 'for')
+      try assert_equal(token.value, 'for')
+      try assert_true(token.keyword?)
 
-    assert.equal(token.type, 'match')
-    assert.equal(token.value, 'match')
-    assert.true(token.keyword?)
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+    g.test('Lexing the fn keyword') {
+      let token = lex('fn')
 
-  g.test('Lexing the local keyword') {
-    let token = lex('local')
+      try assert_equal(token.type, 'fn')
+      try assert_equal(token.value, 'fn')
+      try assert_true(token.keyword?)
 
-    assert.equal(token.type, 'local')
-    assert.equal(token.value, 'local')
-    assert.true(token.keyword?)
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+    g.test('Lexing the when keyword') {
+      let token = lex('when')
 
-  g.test('Lexing the yield keyword') {
-    let token = lex('yield')
+      try assert_equal(token.type, 'when')
+      try assert_equal(token.value, 'when')
+      try assert_true(token.keyword?)
 
-    assert.equal(token.type, 'yield')
-    assert.equal(token.value, 'yield')
-    assert.true(token.keyword?)
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
+    g.test('Lexing the match keyword') {
+      let token = lex('match')
 
-  g.test('Lexing a class definition') {
-    let tokens = lex_all("class Person {\nfoo\n}")
+      try assert_equal(token.type, 'match')
+      try assert_equal(token.value, 'match')
+      try assert_true(token.keyword?)
 
-    assert.equal(tokens[0].type, 'class')
-    assert.equal(tokens[0].location.column, 1)
-    assert.equal(tokens[0].location.line_range, 1..1)
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(tokens[1].type, 'constant')
-    assert.equal(tokens[1].location.column, 7)
-    assert.equal(tokens[1].location.line_range, 1..1)
+    g.test('Lexing the local keyword') {
+      let token = lex('local')
 
-    assert.equal(tokens[2].type, 'curly_open')
-    assert.equal(tokens[2].location.column, 14)
-    assert.equal(tokens[2].location.line_range, 1..1)
+      try assert_equal(token.type, 'local')
+      try assert_equal(token.value, 'local')
+      try assert_true(token.keyword?)
 
-    assert.equal(tokens[3].type, 'identifier')
-    assert.equal(tokens[3].location.column, 1)
-    assert.equal(tokens[3].location.line_range, 2..2)
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-    assert.equal(tokens[4].type, 'curly_close')
-    assert.equal(tokens[4].location.column, 1)
-    assert.equal(tokens[4].location.line_range, 3..3)
-  }
+    g.test('Lexing the yield keyword') {
+      let token = lex('yield')
 
-  g.test('Lexing an identifier followed by a trailing newline') {
-    let lexer = Lexer.new(input: "foo\n", file: 'test.inko')
-    let token = lexer.next
+      try assert_equal(token.type, 'yield')
+      try assert_equal(token.value, 'yield')
+      try assert_true(token.keyword?)
 
-    assert.equal(token.type, 'identifier')
-    assert.equal(token.value, 'foo')
-    assert.false(lexer.next?)
-  }
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
 
-  g.test('Lexing an empty template string') {
-    let tokens = lex_all('``')
-
-    assert.equal(tokens[0].type, 'tstring_open')
-    assert.equal(tokens[0].value, '`')
-    assert.equal(tokens[0].location.line_range, 1..1)
-    assert.equal(tokens[0].location.column, 1)
-
-    assert.equal(tokens[1].type, 'tstring_close')
-    assert.equal(tokens[1].value, '`')
-    assert.equal(tokens[1].location.line_range, 1..1)
-    assert.equal(tokens[1].location.column, 2)
-  }
+    g.test('Lexing a class definition') {
+      let tokens = lex_all("class Person {\nfoo\n}")
 
-  g.test('Lexing a template string with text') {
-    let tokens = lex_all('`hello`')
-
-    assert.equal(tokens[0].type, 'tstring_open')
-    assert.equal(tokens[0].value, '`')
-    assert.equal(tokens[0].location.line_range, 1..1)
-    assert.equal(tokens[0].location.column, 1)
-
-    assert.equal(tokens[1].type, 'tstring_text')
-    assert.equal(tokens[1].value, 'hello')
-    assert.equal(tokens[1].location.line_range, 1..1)
-    assert.equal(tokens[1].location.column, 2)
-
-    assert.equal(tokens[2].type, 'tstring_close')
-    assert.equal(tokens[2].value, '`')
-    assert.equal(tokens[2].location.line_range, 1..1)
-    assert.equal(tokens[2].location.column, 7)
-  }
+      try assert_equal(tokens[0].type, 'class')
+      try assert_equal(tokens[0].location.column, 1)
+      try assert_equal(tokens[0].location.line_range, 1..1)
 
-  g.test('Lexing a template string containing an expression') {
-    let tokens = lex_all('`foo{10}bar`')
+      try assert_equal(tokens[1].type, 'constant')
+      try assert_equal(tokens[1].location.column, 7)
+      try assert_equal(tokens[1].location.line_range, 1..1)
 
-    assert.equal(tokens[0].type, 'tstring_open')
-    assert.equal(tokens[0].location.column, 1)
+      try assert_equal(tokens[2].type, 'curly_open')
+      try assert_equal(tokens[2].location.column, 14)
+      try assert_equal(tokens[2].location.line_range, 1..1)
 
-    assert.equal(tokens[1].type, 'tstring_text')
-    assert.equal(tokens[1].value, 'foo')
-    assert.equal(tokens[1].location.column, 2)
+      try assert_equal(tokens[3].type, 'identifier')
+      try assert_equal(tokens[3].location.column, 1)
+      try assert_equal(tokens[3].location.line_range, 2..2)
 
-    assert.equal(tokens[2].type, 'tstring_expr_open')
-    assert.equal(tokens[2].value, '{')
-    assert.equal(tokens[2].location.column, 5)
+      try assert_equal(tokens[4].type, 'curly_close')
+      try assert_equal(tokens[4].location.column, 1)
+      try assert_equal(tokens[4].location.line_range, 3..3)
+    }
 
-    assert.equal(tokens[3].type, 'integer')
-    assert.equal(tokens[3].value, '10')
-    assert.equal(tokens[3].location.column, 6)
+    g.test('Lexing an identifier followed by a trailing newline') {
+      let lexer = Lexer.new(input: "foo\n", file: 'test.inko')
+      let token = lexer.next
 
-    assert.equal(tokens[4].type, 'tstring_expr_close')
-    assert.equal(tokens[4].value, '}')
-    assert.equal(tokens[4].location.column, 8)
+      try assert_equal(token.type, 'identifier')
+      try assert_equal(token.value, 'foo')
+      try assert_false(lexer.next?)
+    }
 
-    assert.equal(tokens[5].type, 'tstring_text')
-    assert.equal(tokens[5].value, 'bar')
-    assert.equal(tokens[5].location.column, 9)
+    g.test('Lexing an empty template string') {
+      let tokens = lex_all('``')
 
-    assert.equal(tokens[6].type, 'tstring_close')
-    assert.equal(tokens[6].value, '`')
-    assert.equal(tokens[6].location.column, 12)
-  }
+      try assert_equal(tokens[0].type, 'tstring_open')
+      try assert_equal(tokens[0].value, '`')
+      try assert_equal(tokens[0].location.line_range, 1..1)
+      try assert_equal(tokens[0].location.column, 1)
 
-  g.test('Lexing a template string containing an expression with curly braces') {
-    let tokens = lex_all('`{{}}`')
-
-    assert.equal(tokens[0].type, 'tstring_open')
-    assert.equal(tokens[1].type, 'tstring_expr_open')
-    assert.equal(tokens[2].type, 'curly_open')
-    assert.equal(tokens[3].type, 'curly_close')
-    assert.equal(tokens[4].type, 'tstring_expr_close')
-    assert.equal(tokens[5].type, 'tstring_close')
-  }
+      try assert_equal(tokens[1].type, 'tstring_close')
+      try assert_equal(tokens[1].value, '`')
+      try assert_equal(tokens[1].location.line_range, 1..1)
+      try assert_equal(tokens[1].location.column, 2)
+    }
 
-  g.test('Lexing a template string containing an escaped backtick') {
-    let tokens = lex_all('`\\``')
+    g.test('Lexing a template string with text') {
+      let tokens = lex_all('`hello`')
 
-    assert.equal(tokens[0].type, 'tstring_open')
-    assert.equal(tokens[1].type, 'tstring_text')
-    assert.equal(tokens[1].value, '`')
-    assert.equal(tokens[2].type, 'tstring_close')
-  }
+      try assert_equal(tokens[0].type, 'tstring_open')
+      try assert_equal(tokens[0].value, '`')
+      try assert_equal(tokens[0].location.line_range, 1..1)
+      try assert_equal(tokens[0].location.column, 1)
 
-  g.test('Lexing a template string containing an escaped single quote') {
-    let tokens = lex_all('`\\\'`')
+      try assert_equal(tokens[1].type, 'tstring_text')
+      try assert_equal(tokens[1].value, 'hello')
+      try assert_equal(tokens[1].location.line_range, 1..1)
+      try assert_equal(tokens[1].location.column, 2)
 
-    assert.equal(tokens[0].type, 'tstring_open')
-    assert.equal(tokens[1].type, 'tstring_text')
-    assert.equal(tokens[1].value, "'")
-    assert.equal(tokens[2].type, 'tstring_close')
-  }
+      try assert_equal(tokens[2].type, 'tstring_close')
+      try assert_equal(tokens[2].value, '`')
+      try assert_equal(tokens[2].location.line_range, 1..1)
+      try assert_equal(tokens[2].location.column, 7)
+    }
 
-  g.test('Lexing a template string containing an escaped double quote') {
-    let tokens = lex_all('`\\"`')
+    g.test('Lexing a template string containing an expression') {
+      let tokens = lex_all('`foo{10}bar`')
 
-    assert.equal(tokens[0].type, 'tstring_open')
-    assert.equal(tokens[1].type, 'tstring_text')
-    assert.equal(tokens[1].value, '"')
-    assert.equal(tokens[2].type, 'tstring_close')
-  }
+      try assert_equal(tokens[0].type, 'tstring_open')
+      try assert_equal(tokens[0].location.column, 1)
 
-  g.test('Lexing a template string containing an escaped escape sequence') {
-    let tokens = lex_all('`\\\n`')
+      try assert_equal(tokens[1].type, 'tstring_text')
+      try assert_equal(tokens[1].value, 'foo')
+      try assert_equal(tokens[1].location.column, 2)
 
-    assert.equal(tokens[0].type, 'tstring_open')
-    assert.equal(tokens[1].type, 'tstring_text')
-    assert.equal(tokens[1].value, '\n')
-    assert.equal(tokens[2].type, 'tstring_close')
-  }
+      try assert_equal(tokens[2].type, 'tstring_expr_open')
+      try assert_equal(tokens[2].value, '{')
+      try assert_equal(tokens[2].location.column, 5)
 
-  g.test('Lexing a template string in curly braces containing an expression with curly braces') {
-    let tokens = lex_all('{`{{}}`}')
-
-    assert.equal(tokens[0].type, 'curly_open')
-    assert.equal(tokens[1].type, 'tstring_open')
-    assert.equal(tokens[2].type, 'tstring_expr_open')
-    assert.equal(tokens[3].type, 'curly_open')
-    assert.equal(tokens[4].type, 'curly_close')
-    assert.equal(tokens[5].type, 'tstring_expr_close')
-    assert.equal(tokens[6].type, 'tstring_close')
-    assert.equal(tokens[7].type, 'curly_close')
-  }
+      try assert_equal(tokens[3].type, 'integer')
+      try assert_equal(tokens[3].value, '10')
+      try assert_equal(tokens[3].location.column, 6)
 
-  g.test('Lexing a template string containing escape sequences') {
-    let tokens = lex_all('`\n\r\t\e`10')
-
-    assert.equal(tokens[0].type, 'tstring_open')
-    assert.equal(tokens[1].type, 'tstring_text')
-    assert.equal(tokens[1].value, "\n\r\t\e")
-    assert.equal(tokens[2].type, 'tstring_close')
-    assert.equal(tokens[3].type, 'integer')
-    assert.equal(tokens[3].location.column, 11)
-  }
+      try assert_equal(tokens[4].type, 'tstring_expr_close')
+      try assert_equal(tokens[4].value, '}')
+      try assert_equal(tokens[4].location.column, 8)
 
-  g.test('Lexing a template string wrapped across lines') {
-    let tokens = lex_all(
-      '`foo \
-        bar`'
-    )
+      try assert_equal(tokens[5].type, 'tstring_text')
+      try assert_equal(tokens[5].value, 'bar')
+      try assert_equal(tokens[5].location.column, 9)
 
-    assert.equal(tokens[0].type, 'tstring_open')
+      try assert_equal(tokens[6].type, 'tstring_close')
+      try assert_equal(tokens[6].value, '`')
+      try assert_equal(tokens[6].location.column, 12)
+    }
 
-    assert.equal(tokens[1].type, 'tstring_text')
-    assert.equal(tokens[1].value, 'foo bar')
-    assert.equal(tokens[1].location.line_range, 1..2)
+    g.test('Lexing a template string containing an expression with curly braces') {
+      let tokens = lex_all('`{{}}`')
 
-    assert.equal(tokens[2].type, 'tstring_close')
-    assert.equal(tokens[2].location.line_range, 2..2)
-  }
+      try assert_equal(tokens[0].type, 'tstring_open')
+      try assert_equal(tokens[1].type, 'tstring_expr_open')
+      try assert_equal(tokens[2].type, 'curly_open')
+      try assert_equal(tokens[3].type, 'curly_close')
+      try assert_equal(tokens[4].type, 'tstring_expr_close')
+      try assert_equal(tokens[5].type, 'tstring_close')
+    }
 
-  g.test('Lexing a template string containing newlines') {
-    let tokens = lex_all("`foo\nbar`")
+    g.test('Lexing a template string containing an escaped backtick') {
+      let tokens = lex_all('`\\``')
 
-    assert.equal(tokens[0].type, 'tstring_open')
+      try assert_equal(tokens[0].type, 'tstring_open')
+      try assert_equal(tokens[1].type, 'tstring_text')
+      try assert_equal(tokens[1].value, '`')
+      try assert_equal(tokens[2].type, 'tstring_close')
+    }
 
-    assert.equal(tokens[1].type, 'tstring_text')
-    assert.equal(tokens[1].value, "foo\nbar")
-    assert.equal(tokens[1].location.line_range, 1..2)
+    g.test('Lexing a template string containing an escaped single quote') {
+      let tokens = lex_all('`\\\'`')
 
-    assert.equal(tokens[2].type, 'tstring_close')
-    assert.equal(tokens[2].location.line_range, 2..2)
-  }
+      try assert_equal(tokens[0].type, 'tstring_open')
+      try assert_equal(tokens[1].type, 'tstring_text')
+      try assert_equal(tokens[1].value, "'")
+      try assert_equal(tokens[2].type, 'tstring_close')
+    }
 
-  g.test('Lexing nested template strings with expressions') {
-    let tokens = lex_all('`foo{`a{10}b`}bar`')
-
-    # `foo{
-    assert.equal(tokens[0].type, 'tstring_open')
-    assert.equal(tokens[1].type, 'tstring_text')
-    assert.equal(tokens[1].value, 'foo')
-    assert.equal(tokens[2].type, 'tstring_expr_open')
-
-    # `a{10}b`
-    assert.equal(tokens[3].type, 'tstring_open')
-    assert.equal(tokens[4].type, 'tstring_text')
-    assert.equal(tokens[4].value, 'a')
-    assert.equal(tokens[5].type, 'tstring_expr_open')
-    assert.equal(tokens[6].type, 'integer')
-    assert.equal(tokens[7].type, 'tstring_expr_close')
-    assert.equal(tokens[8].type, 'tstring_text')
-    assert.equal(tokens[8].value, 'b')
-    assert.equal(tokens[9].type, 'tstring_close')
-
-    # }bar`
-    assert.equal(tokens[10].type, 'tstring_expr_close')
-    assert.equal(tokens[11].type, 'tstring_text')
-    assert.equal(tokens[11].value, 'bar')
-    assert.equal(tokens[12].type, 'tstring_close')
-  }
+    g.test('Lexing a template string containing an escaped double quote') {
+      let tokens = lex_all('`\\"`')
+
+      try assert_equal(tokens[0].type, 'tstring_open')
+      try assert_equal(tokens[1].type, 'tstring_text')
+      try assert_equal(tokens[1].value, '"')
+      try assert_equal(tokens[2].type, 'tstring_close')
+    }
+
+    g.test('Lexing a template string containing an escaped escape sequence') {
+      let tokens = lex_all('`\\\n`')
+
+      try assert_equal(tokens[0].type, 'tstring_open')
+      try assert_equal(tokens[1].type, 'tstring_text')
+      try assert_equal(tokens[1].value, '\n')
+      try assert_equal(tokens[2].type, 'tstring_close')
+    }
+
+    g.test('Lexing a template string in curly braces containing an expression with curly braces') {
+      let tokens = lex_all('{`{{}}`}')
+
+      try assert_equal(tokens[0].type, 'curly_open')
+      try assert_equal(tokens[1].type, 'tstring_open')
+      try assert_equal(tokens[2].type, 'tstring_expr_open')
+      try assert_equal(tokens[3].type, 'curly_open')
+      try assert_equal(tokens[4].type, 'curly_close')
+      try assert_equal(tokens[5].type, 'tstring_expr_close')
+      try assert_equal(tokens[6].type, 'tstring_close')
+      try assert_equal(tokens[7].type, 'curly_close')
+    }
+
+    g.test('Lexing a template string containing escape sequences') {
+      let tokens = lex_all('`\n\r\t\e`10')
+
+      try assert_equal(tokens[0].type, 'tstring_open')
+      try assert_equal(tokens[1].type, 'tstring_text')
+      try assert_equal(tokens[1].value, "\n\r\t\e")
+      try assert_equal(tokens[2].type, 'tstring_close')
+      try assert_equal(tokens[3].type, 'integer')
+      try assert_equal(tokens[3].location.column, 11)
+    }
+
+    g.test('Lexing a template string wrapped across lines') {
+      let tokens = lex_all(
+        '`foo \
+          bar`'
+      )
+
+      try assert_equal(tokens[0].type, 'tstring_open')
+
+      try assert_equal(tokens[1].type, 'tstring_text')
+      try assert_equal(tokens[1].value, 'foo bar')
+      try assert_equal(tokens[1].location.line_range, 1..2)
+
+      try assert_equal(tokens[2].type, 'tstring_close')
+      try assert_equal(tokens[2].location.line_range, 2..2)
+    }
+
+    g.test('Lexing a template string containing newlines') {
+      let tokens = lex_all("`foo\nbar`")
+
+      try assert_equal(tokens[0].type, 'tstring_open')
+
+      try assert_equal(tokens[1].type, 'tstring_text')
+      try assert_equal(tokens[1].value, "foo\nbar")
+      try assert_equal(tokens[1].location.line_range, 1..2)
+
+      try assert_equal(tokens[2].type, 'tstring_close')
+      try assert_equal(tokens[2].location.line_range, 2..2)
+    }
+
+    g.test('Lexing nested template strings with expressions') {
+      let tokens = lex_all('`foo{`a{10}b`}bar`')
+
+      # `foo{
+      try assert_equal(tokens[0].type, 'tstring_open')
+      try assert_equal(tokens[1].type, 'tstring_text')
+      try assert_equal(tokens[1].value, 'foo')
+      try assert_equal(tokens[2].type, 'tstring_expr_open')
+
+      # `a{10}b`
+      try assert_equal(tokens[3].type, 'tstring_open')
+      try assert_equal(tokens[4].type, 'tstring_text')
+      try assert_equal(tokens[4].value, 'a')
+      try assert_equal(tokens[5].type, 'tstring_expr_open')
+      try assert_equal(tokens[6].type, 'integer')
+      try assert_equal(tokens[7].type, 'tstring_expr_close')
+      try assert_equal(tokens[8].type, 'tstring_text')
+      try assert_equal(tokens[8].value, 'b')
+      try assert_equal(tokens[9].type, 'tstring_close')
+
+      # }bar`
+      try assert_equal(tokens[10].type, 'tstring_expr_close')
+      try assert_equal(tokens[11].type, 'tstring_text')
+      try assert_equal(tokens[11].value, 'bar')
+      try assert_equal(tokens[12].type, 'tstring_close')
+    }
 
-  g.test('Lexing a multi-line template string followed by an integer') {
-    let tokens = lex_all("`foo\nbar`10")
+    g.test('Lexing a multi-line template string followed by an integer') {
+      let tokens = lex_all("`foo\nbar`10")
 
-    assert.equal(tokens[0].type, 'tstring_open')
+      try assert_equal(tokens[0].type, 'tstring_open')
 
-    assert.equal(tokens[1].type, 'tstring_text')
-    assert.equal(tokens[1].value, "foo\nbar")
-    assert.equal(tokens[1].location.column, 2)
-    assert.equal(tokens[1].location.line_range, 1..2)
+      try assert_equal(tokens[1].type, 'tstring_text')
+      try assert_equal(tokens[1].value, "foo\nbar")
+      try assert_equal(tokens[1].location.column, 2)
+      try assert_equal(tokens[1].location.line_range, 1..2)
 
-    assert.equal(tokens[2].type, 'tstring_close')
-    assert.equal(tokens[2].location.line_range, 2..2)
-    assert.equal(tokens[2].location.column, 4)
+      try assert_equal(tokens[2].type, 'tstring_close')
+      try assert_equal(tokens[2].location.line_range, 2..2)
+      try assert_equal(tokens[2].location.column, 4)
 
-    assert.equal(tokens[3].type, 'integer')
-    assert.equal(tokens[3].location.line_range, 2..2)
-    assert.equal(tokens[3].location.column, 5)
+      try assert_equal(tokens[3].type, 'integer')
+      try assert_equal(tokens[3].location.line_range, 2..2)
+      try assert_equal(tokens[3].location.column, 5)
+    }
   }
-}
 
-test.group('std::compiler::lexer::Lexer.current_location') do (g) {
-  g.test('Obtaining the current location of the input stream') {
-    let lexer = Lexer.new(input: "foo\nbar", file: 'test.inko')
+  t.group('std::compiler::lexer::Lexer.current_location') do (g) {
+    g.test('Obtaining the current location of the input stream') {
+      let lexer = Lexer.new(input: "foo\nbar", file: 'test.inko')
 
-    lexer.next
+      lexer.next
 
-    let location = lexer.current_location
+      let location = lexer.current_location
 
-    assert.equal(location.line_range, 2..2)
-    assert.equal(location.column, 1)
+      try assert_equal(location.line_range, 2..2)
+      try assert_equal(location.column, 1)
+    }
   }
 }

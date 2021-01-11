@@ -1,163 +1,149 @@
 import std::process::(self, Process)
-import std::test
-import std::test::assert
+import std::test::*
 import std::time::Instant
 import std::mirror::ObjectMirror
 
-test.group('std::process.current') do (g) {
-  g.test('Obtaining the current Process') {
-    assert.true(ObjectMirror.new(process.current).instance_of?(Process))
-  }
-}
-
-test.group('std::process::Process.send') do (g) {
-  g.test('Sending a message to a Process') {
-    let message = process.current.send('testing')
-    let received = process.receive as String
-
-    assert.equal(message, 'testing')
-    assert.equal(received, message)
-  }
-}
-
-test.group('std::process::Process.identifier') do (g) {
-  g.test('Obtaining the identifier of a process') {
-    assert.true(process.current.identifier.positive?)
-  }
-}
-
-test.group('std::process.receive') do (g) {
-  g.test('Receiving a message') {
-    process.current.send('testing')
-
-    let received = process.receive as String
-
-    assert.equal(received, 'testing')
-  }
-}
-
-test.group('std::process.receive_timeout') do (g) {
-  g.test('Receiving a message when there is a message') {
-    process.current.send('testing')
-
-    let received = try process.receive_timeout(0.001) as String else 'nope'
-
-    assert.equal(received, 'testing')
+def tests(t: Tests) {
+  t.group('std::process.current') do (g) {
+    g.test('Obtaining the current Process') {
+      try assert_true(ObjectMirror.new(process.current).instance_of?(Process))
+    }
   }
 
-  g.test('Receiving a message when there is no message') {
-    let received = try process.receive_timeout(0.001) as String else 'nope'
+  t.group('std::process::Process.send') do (g) {
+    g.test('Sending a message to a Process') {
+      let message = process.current.send('testing')
+      let received = process.receive as String
 
-    assert.equal(received, 'nope')
-  }
-}
-
-test.group('std::process.spawn') do (g) {
-  g.test('Spawning a process') {
-    let proc = process.spawn {}
-
-    assert.true(ObjectMirror.new(proc).instance_of?(Process))
-  }
-}
-
-test.group('std::process.blocking') do (g) {
-  g.test('Performing a blocking operation') {
-    assert.equal(process.blocking({ 10 }), 10)
-  }
-}
-
-test.group('std::process.suspend') do (g) {
-  g.test('Suspending a process') {
-    assert.equal(process.suspend, Nil)
+      try assert_equal(message, 'testing')
+      try assert_equal(received, message)
+    }
   }
 
-  g.test('Suspending a process for a minimum amount of time') {
-    let start = Instant.new
-    let wait = 0.01
-
-    process.suspend(wait)
-
-    let duration = start.elapsed.to_float
-
-    # Due to the use of floats the 0.01 might be rounded down to 0.009999 or a
-    # similar value. This means we can't simply assert that `duration >= 0.01`.
-    assert.true(duration >= 0.005)
+  t.group('std::process::Process.identifier') do (g) {
+    g.test('Obtaining the identifier of a process') {
+      try assert_true(process.current.identifier.positive?)
+    }
   }
-}
 
-test.group('std::process.terminate') do (g) {
-  g.test('Terminating the current process') {
-    let proc = process.spawn {
-      let parent = process.receive as Process
+  t.group('std::process.receive') do (g) {
+    g.test('Receiving a message') {
+      process.current.send('testing')
 
-      process.terminate
+      let received = process.receive as String
 
-      # This code will never run, unless `process.terminate` somehow doesn't
-      # terminate the current process.
-      parent.send(True)
+      try assert_equal(received, 'testing')
+    }
+  }
+
+  t.group('std::process.receive_timeout') do (g) {
+    g.test('Receiving a message when there is a message') {
+      process.current.send('testing')
+
+      let received = try process.receive_timeout(0.001) as String else 'nope'
+
+      try assert_equal(received, 'testing')
     }
 
-    proc.send(process.current)
+    g.test('Receiving a message when there is no message') {
+      let received = try process.receive_timeout(0.001) as String else 'nope'
 
-    # Only if `process.terminate` _does not_ terminate the process will we
-    # receive a message.
-    let message = try process.receive_timeout(0.01) as Boolean else False
-
-    assert.true(message.false?)
+      try assert_equal(received, 'nope')
+    }
   }
-}
 
-test.group('std::process.panicking') do (g) {
-  g.test('Registering a custom panic handler') {
-    let proc = process.spawn {
-      let parent = process.receive as Process
+  t.group('std::process.spawn') do (g) {
+    g.test('Spawning a process') {
+      let proc = process.spawn {}
 
-      process.panicking do (error) {
-        parent.send(error)
-      }
+      try assert_true(ObjectMirror.new(proc).instance_of?(Process))
+    }
+  }
 
-      process.panic('example panic')
+  t.group('std::process.blocking') do (g) {
+    g.test('Performing a blocking operation') {
+      try assert_equal(process.blocking({ 10 }), 10)
+    }
+  }
+
+  t.group('std::process.suspend') do (g) {
+    g.test('Suspending a process') {
+      try assert_equal(process.suspend, Nil)
     }
 
-    proc.send(process.current)
+    g.test('Suspending a process for a minimum amount of time') {
+      let start = Instant.new
+      let wait = 0.01
 
-    let error = process.receive as String
+      process.suspend(wait)
 
-    assert.equal(error, 'example panic')
+      let duration = start.elapsed.to_float
+
+      # Due to the use of floats the 0.01 might be rounded down to 0.009999 or a
+      # similar value. This means we can't simply assert that `duration >=
+      # 0.01`.
+      try assert_true(duration >= 0.005)
+    }
   }
-}
 
-test.group('std::process.defer') do (g) {
-  g.test('Deferring the execution of a Block') {
-    let mut number = 0
+  t.group('std::process.terminate') do (g) {
+    g.test('Terminating the current process') {
+      let proc = process.spawn {
+        let parent = process.receive as Process
 
-    do {
-      process.defer {
-        # This will be executed _after_ `number = 1` below.
-        number = 2
+        process.terminate
+
+        # This code will never run, unless `process.terminate` somehow doesn't
+        # terminate the current process.
+        parent.send(True)
       }
 
-      number = 1
-    }.call
+      proc.send(process.current)
 
-    assert.equal(number, 2)
+      # Only if `process.terminate` _does not_ terminate the process will we
+      # receive a message.
+      let message = try process.receive_timeout(0.01) as Boolean else False
+
+      try assert_true(message.false?)
+    }
   }
-}
 
-test.group('std::process.pinned') do (g) {
-  g.test('Pinning a process to an OS thread') {
-    # There is no reliable way of testing whether we are truly pinned, without
-    # using some sort of FFI example that uses thread-local storage. Since that
-    # is far too much to test here, we'll just test that the block returns the
-    # proper value.
-    assert.equal(process.pinned({ 10 }), 10)
+  t.group('std::process.defer') do (g) {
+    g.test('Deferring the execution of a Block') {
+      let mut number = 0
+
+      do {
+        process.defer {
+          # This will be executed _after_ `number = 1` below.
+          number = 2
+        }
+
+        number = 1
+      }.call
+
+      try assert_equal(number, 2)
+    }
   }
-}
 
-test.group('std::process.panic') do (g) {
-  g.test('Causing a process to panic') {
-    assert.panic {
-      process.panic('This is a panic')
+  t.group('std::process.pinned') do (g) {
+    g.test('Pinning a process to an OS thread') {
+      # There is no reliable way of testing whether we are truly pinned, without
+      # using some sort of FFI example that uses thread-local storage. Since
+      # that is far too much to test here, we'll just test that the block
+      # returns the proper value.
+      try assert_equal(process.pinned({ 10 }), 10)
+    }
+  }
+
+  t.group('std::process.panic') do (g) {
+    g.test('Causing a process to panic') {
+      try assert_panic(
+        "
+        import std::process
+
+        process.panic('This is a panic')
+        "
+      )
     }
   }
 }

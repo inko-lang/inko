@@ -11,13 +11,7 @@
 #
 # Processes are lightweight, and quick to spawn. This allows one to spawn many
 # processes without having to worry about consuming too much memory. The exact
-# amount of memory necessary to spawn a process depends on the runtime. For
-# example, IVM allocates memory for the heap in 32 KB blocks. This means that
-# once you allocate your first object your process will have at least 32 KB of
-# memory dedicated to itself. This may sound like a lot of memory, but IVM can
-# fit roughly 1020 objects in 32 KB of memory. This means that you can fit
-# roughly 1600 processes (each using up to 32 KB of memory) in 500 MB of
-# memory.
+# amount of memory necessary to spawn a process depends on the runtime.
 #
 # # Asynchronous communication
 #
@@ -38,12 +32,6 @@
 # Processes are garbage collected independently from each other. While other
 # processes won't be suspended, the garbage collector may (and in case of IVM
 # will) suspend the process for the duration of garbage collection.
-#
-# When a process terminates cleanly, its memory is cleaned up asynchronously.
-# This ensures that no memory is leaked, and any file handles are closed
-# automatically. Because resource cleanup happens asynchronously there is no
-# guarantee as to when this will happen, and in case of a panic it might not
-# happen at all.
 #
 # # Parallelism
 #
@@ -254,35 +242,6 @@ def terminate -> Never {
   _INKOC.process_terminate_current
 }
 
-# Registers the given block as this process' panic handler.
-#
-# A panic handler is a block to execute when the process panicks. Each process
-# can only have a single handler, and newly registered handlers will overwrite
-# any previous ones.
-#
-# Once the handler returns, the current process will be terminated. If the main
-# process terminates, so does the entire program.
-#
-# The argument passed to the provided block is a `String` containing the panic
-# message. Obtaining a stacktrace can be done using `std::debug.stacktrace`, as
-# the call stack does not unwind before running the panick handler.
-#
-# # Examples
-#
-# Registering a panic handler:
-#
-#     import std::process
-#     import std::stdio::stderr
-#
-#     process.panicking do (error) {
-#       stderr.print(error)
-#     }
-#
-#     process.panic('This will run the above panick handler')
-def panicking(block: do (String)) {
-  _INKOC.process_set_panic_handler(block)
-}
-
 # Defers execution of the provided block, executing it when the block this
 # method is called from returns.
 #
@@ -306,10 +265,8 @@ def panicking(block: do (String)) {
 # Here the `ReadOnlyFile` object stored in the `readme` variable would be
 # closed once we return from the `example` method.
 #
-# Deferred blocks are executed even when panicking, but a panic inside a
-# deferred block will terminate the execution of said deferred block. When
-# using `std::vm.exit`, any deferred blocks pending execution will be executed
-# first.
+# Deferred blocks aren't executed when panicking, or when exiting the VM using
+# `std::vm.exit`.
 #
 # The order in which deferred blocks are executed is unspecified, and
 # programs should not assume these blocks are executed in a fixed order.
@@ -401,16 +358,9 @@ def pinned!(T)(block: do -> T) -> T {
 
 # Triggers a panic, terminating the current process.
 #
-# A panic will result in a stack trace being displayed followed by a custom
-# message. Once printed the process will terminate, executing any registered
-# panic handlers. If no process specific panic handler is installed, the global
-# panic handler (as registered using `std::vm.panicking`) will be executed.
-#
 # A panic should only be triggered as a last resort when no better alternative
-# is available. For errors that may happen regularly (e.g. network timeouts)
+# is available. For errors that may happen regularly, such as network timeouts,
 # it's better to throw an error using the `throw` keyword.
-#
-# This method will never return.
 #
 # # Examples
 #

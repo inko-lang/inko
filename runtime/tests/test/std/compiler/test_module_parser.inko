@@ -7,8 +7,7 @@ import std::compiler::parser::Parser
 import std::pair::Pair
 import std::fs::file::(self, WriteOnlyFile)
 import std::process
-import std::test
-import std::test::assert
+import std::test::*
 import test::fixtures::(self, RUNTIME_DIRECTORY, VALID_FILE)
 
 def parse(input: String) -> Body {
@@ -23,244 +22,246 @@ def config -> Config {
   config
 }
 
-test.group('std::compiler::module_parser::ParsedModule.name') do (g) {
-  g.test('Obtaining the name of a parsed module') {
-    let body = parse('')
-    let name = ModuleName.new(Array.new('foo'))
-    let module = ParsedModule.new(name: name, ast: body)
+def tests(t: Tests) {
+  t.group('std::compiler::module_parser::ParsedModule.name') do (g) {
+    g.test('Obtaining the name of a parsed module') {
+      let body = parse('')
+      let name = ModuleName.new(Array.new('foo'))
+      let module = ParsedModule.new(name: name, ast: body)
 
-    assert.equal(module.name, name)
-  }
-}
-
-test.group('std::compiler::module_parser::ParsedModule.ast') do (g) {
-  g.test('Obtaining the AST of a parsed module') {
-    let body = parse('')
-    let name = ModuleName.new(Array.new('foo'))
-    let module = ParsedModule.new(name: name, ast: body)
-
-    assert.true(module.ast.same_object?(body))
-  }
-}
-
-test.group('std::compiler::module_parser::ParsedModule.location') do (g) {
-  g.test('Obtaining the source location of a parsed module') {
-    let body = parse('')
-    let name = ModuleName.new(Array.new('foo'))
-    let module = ParsedModule.new(name: name, ast: body)
-
-    assert.true(module.location.same_object?(body.location))
-  }
-}
-
-test.group('std::compiler::module_parser::ParseSource.parse') do (g) {
-  g.test('Parsing a valid source snippet') {
-    let name = ModuleName.new(Array.new('foo'))
-
-    ParseSource.new(name: name, source: 'foo', path: 'test.inko').parse
-
-    let pair = process.receive as Pair!(ParsedModule, Diagnostics)
-
-    assert.equal(pair.first.name.to_string, 'foo')
-    assert.equal(pair.first.location.file.to_string, 'test.inko')
-    assert.true(pair.first.ast.children.length > 1)
-    assert.false(pair.second.errors?)
+      try assert_equal(module.name, name)
+    }
   }
 
-  g.test('Parsing an invalid source snippet') {
-    let name = ModuleName.new(Array.new('foo'))
+  t.group('std::compiler::module_parser::ParsedModule.ast') do (g) {
+    g.test('Obtaining the AST of a parsed module') {
+      let body = parse('')
+      let name = ModuleName.new(Array.new('foo'))
+      let module = ParsedModule.new(name: name, ast: body)
 
-    ParseSource.new(name: name, source: '10 +', path: 'test.inko').parse
-
-    let pair = process.receive as Pair!(ParsedModule, Diagnostics)
-
-    assert.equal(pair.first.name.to_string, 'foo')
-    assert.equal(pair.first.location.file.to_string, 'test.inko')
-    assert.true(pair.first.ast.children.empty?)
-    assert.true(pair.second.errors?)
-  }
-}
-
-test.group('std::compiler::module_parser::ParseSource.read_source') do (g) {
-  g.test('Reading the source of a valid snippet') {
-    let name = ModuleName.new(Array.new('foo'))
-    let request = ParseSource.new(name: name, source: 'foo', path: 'test.inko')
-    let diagnostics = Diagnostics.new
-    let bytes = request.read_source(diagnostics)
-
-    assert.true(diagnostics.empty?)
-    assert.false(bytes.empty?)
-  }
-}
-
-test.group('std::compiler::module_parser::ParseSource.name') do (g) {
-  g.test('Obtaining the name of the module to parse') {
-    let name = ModuleName.new(Array.new('foo'))
-    let request = ParseSource.new(name: name, source: 'foo', path: 'test.inko')
-
-    assert.equal(request.name, name)
-  }
-}
-
-test.group('std::compiler::module_parser::ParseSource.path') do (g) {
-  g.test('Obtaining the path of the module to parse') {
-    let name = ModuleName.new(Array.new('foo'))
-    let request = ParseSource.new(name: name, source: 'foo', path: 'test.inko')
-
-    assert.equal(request.path.to_string, 'test.inko')
-  }
-}
-
-test.group('std::compiler::module_parser::ParseSource.reply_to') do (g) {
-  g.test('Obtaining the process to reply to') {
-    let name = ModuleName.new(Array.new('foo'))
-    let request = ParseSource.new(name: name, source: 'foo', path: 'test.inko')
-
-    assert.equal(request.reply_to.identifier, process.current.identifier)
-  }
-}
-
-test.group('std::compiler::module_parser::ParseFile.parse') do (g) {
-  g.test('Parsing a valid file') {
-    let name = ModuleName.new(Array.new('foo'))
-
-    ParseFile.new(name: name, path: VALID_FILE).parse
-
-    let pair = process.receive as Pair!(ParsedModule, Diagnostics)
-
-    assert.equal(pair.first.name.to_string, 'foo')
-    assert.equal(pair.first.location.file, VALID_FILE)
-    assert.true(pair.first.ast.children.length > 1)
-    assert.false(pair.second.errors?)
+      try assert_true(module.ast.same_object?(body))
+    }
   }
 
-  g.test('Parsing an invalid file') {
-    let name = ModuleName.new(Array.new('foo'))
+  t.group('std::compiler::module_parser::ParsedModule.location') do (g) {
+    g.test('Obtaining the source location of a parsed module') {
+      let body = parse('')
+      let name = ModuleName.new(Array.new('foo'))
+      let module = ParsedModule.new(name: name, ast: body)
 
-    ParseFile.new(name: name, path: 'kittens.inko').parse
-
-    let pair = process.receive as Pair!(ParsedModule, Diagnostics)
-
-    assert.equal(pair.first.name.to_string, 'foo')
-    assert.equal(pair.first.location.file.to_string, 'kittens.inko')
-    assert.true(pair.first.ast.children.empty?)
-    assert.true(pair.second.errors?)
-  }
-}
-
-test.group('std::compiler::module_parser::ParseFile.read_source') do (g) {
-  g.test('Reading the source of a valid file') {
-    let name = ModuleName.new(Array.new('foo'))
-    let request = ParseFile.new(name: name, path: VALID_FILE)
-    let diagnostics = Diagnostics.new
-    let bytes = request.read_source(diagnostics)
-
-    assert.true(diagnostics.empty?)
-    assert.false(bytes.empty?)
+      try assert_true(module.location.same_object?(body.location))
+    }
   }
 
-  g.test('Reading the source of an invalid file') {
-    let name = ModuleName.new(Array.new('foo'))
-    let request = ParseFile.new(name: name, path: 'kittens.inko')
-    let diagnostics = Diagnostics.new
-    let bytes = request.read_source(diagnostics)
+  t.group('std::compiler::module_parser::ParseSource.parse') do (g) {
+    g.test('Parsing a valid source snippet') {
+      let name = ModuleName.new(Array.new('foo'))
 
-    assert.true(diagnostics.errors?)
-    assert.true(bytes.empty?)
-  }
-}
+      ParseSource.new(name: name, source: 'foo', path: 'test.inko').parse
 
-test.group('std::compiler::module_parser::ParseFile.name') do (g) {
-  g.test('Obtaining the name of the module to parse') {
-    let name = ModuleName.new(Array.new('foo'))
-    let request = ParseFile.new(name: name, path: VALID_FILE)
+      let pair = process.receive as Pair!(ParsedModule, Diagnostics)
 
-    assert.equal(request.name, name)
-  }
-}
+      try assert_equal(pair.first.name.to_string, 'foo')
+      try assert_equal(pair.first.location.file.to_string, 'test.inko')
+      try assert_true(pair.first.ast.children.length > 1)
+      try assert_false(pair.second.errors?)
+    }
 
-test.group('std::compiler::module_parser::ParseFile.path') do (g) {
-  g.test('Obtaining the path of the module to parse') {
-    let name = ModuleName.new(Array.new('foo'))
-    let request = ParseFile.new(name: name, path: VALID_FILE)
+    g.test('Parsing an invalid source snippet') {
+      let name = ModuleName.new(Array.new('foo'))
 
-    assert.equal(request.path, VALID_FILE)
-  }
-}
+      ParseSource.new(name: name, source: '10 +', path: 'test.inko').parse
 
-test.group('std::compiler::module_parser::ParseFile.reply_to') do (g) {
-  g.test('Obtaining the process to reply to') {
-    let name = ModuleName.new(Array.new('foo'))
-    let request = ParseFile.new(name: name, path: VALID_FILE)
+      let pair = process.receive as Pair!(ParsedModule, Diagnostics)
 
-    assert.equal(request.reply_to.identifier, process.current.identifier)
-  }
-}
-
-test.group('std::compiler::module_parser::ModuleParser.parse_source') do (g) {
-  g.test('Parsing a module and its dependencies') {
-    let config = config
-    let diagnostics = Diagnostics.new
-    let parser = ModuleParser.new(config: config, diagnostics: diagnostics)
-    let name = ModuleName.new(Array.new('foo'))
-    let modules =
-      parser.parse_source(name: name, source: '10', path: 'test.inko')
-
-    assert.true(modules.second.length > 1)
-    assert.equal(modules.first.name, name)
-    assert.false(diagnostics.errors?)
+      try assert_equal(pair.first.name.to_string, 'foo')
+      try assert_equal(pair.first.location.file.to_string, 'test.inko')
+      try assert_true(pair.first.ast.children.empty?)
+      try assert_true(pair.second.errors?)
+    }
   }
 
-  g.test('Parsing a module that produces errors') {
-    let config = config
-    let diagnostics = Diagnostics.new
-    let parser = ModuleParser.new(config: config, diagnostics: diagnostics)
-    let name = ModuleName.new(Array.new('foo'))
-    let modules =
-      parser.parse_source(name: name, source: 'import 10', path: 'test.inko')
+  t.group('std::compiler::module_parser::ParseSource.read_source') do (g) {
+    g.test('Reading the source of a valid snippet') {
+      let name = ModuleName.new(Array.new('foo'))
+      let request = ParseSource.new(name: name, source: 'foo', path: 'test.inko')
+      let diagnostics = Diagnostics.new
+      let bytes = request.read_source(diagnostics)
 
-    assert.true(modules.second.empty?)
-    assert.true(diagnostics.errors?)
-  }
-}
-
-test.group('std::compiler::module_parser::ModuleParser.parse_file') do (g) {
-  g.test('Parsing a module and its dependencies') {
-    let config = config
-    let file_path = fixtures.temporary_file_path
-    let handle = try! WriteOnlyFile.new(file_path)
-
-    process.defer { try file.remove(file_path) else Nil }
-    process.defer { handle.close }
-
-    try! handle.write_string('10')
-
-    let diagnostics = Diagnostics.new
-    let parser = ModuleParser.new(config: config, diagnostics: diagnostics)
-    let name = ModuleName.new(Array.new('foo'))
-    let modules = parser.parse_file(name: name, path: file_path)
-
-    assert.true(modules.second.length > 1)
-    assert.equal(modules.first.name, name)
-    assert.false(diagnostics.errors?)
+      try assert_true(diagnostics.empty?)
+      try assert_false(bytes.empty?)
+    }
   }
 
-  g.test('Parsing a module that produces errors') {
-    let config = config
-    let file_path = fixtures.temporary_file_path
-    let handle = try! WriteOnlyFile.new(file_path)
+  t.group('std::compiler::module_parser::ParseSource.name') do (g) {
+    g.test('Obtaining the name of the module to parse') {
+      let name = ModuleName.new(Array.new('foo'))
+      let request = ParseSource.new(name: name, source: 'foo', path: 'test.inko')
 
-    process.defer { try file.remove(file_path) else Nil }
-    process.defer { handle.close }
+      try assert_equal(request.name, name)
+    }
+  }
 
-    try! handle.write_string('import 10')
+  t.group('std::compiler::module_parser::ParseSource.path') do (g) {
+    g.test('Obtaining the path of the module to parse') {
+      let name = ModuleName.new(Array.new('foo'))
+      let request = ParseSource.new(name: name, source: 'foo', path: 'test.inko')
 
-    let diagnostics = Diagnostics.new
-    let parser = ModuleParser.new(config: config, diagnostics: diagnostics)
-    let name = ModuleName.new(Array.new('foo'))
-    let modules = parser.parse_file(name: name, path: file_path)
+      try assert_equal(request.path.to_string, 'test.inko')
+    }
+  }
 
-    assert.true(modules.second.empty?)
-    assert.true(diagnostics.errors?)
+  t.group('std::compiler::module_parser::ParseSource.reply_to') do (g) {
+    g.test('Obtaining the process to reply to') {
+      let name = ModuleName.new(Array.new('foo'))
+      let request = ParseSource.new(name: name, source: 'foo', path: 'test.inko')
+
+      try assert_equal(request.reply_to.identifier, process.current.identifier)
+    }
+  }
+
+  t.group('std::compiler::module_parser::ParseFile.parse') do (g) {
+    g.test('Parsing a valid file') {
+      let name = ModuleName.new(Array.new('foo'))
+
+      ParseFile.new(name: name, path: VALID_FILE).parse
+
+      let pair = process.receive as Pair!(ParsedModule, Diagnostics)
+
+      try assert_equal(pair.first.name.to_string, 'foo')
+      try assert_equal(pair.first.location.file, VALID_FILE)
+      try assert_true(pair.first.ast.children.length > 1)
+      try assert_false(pair.second.errors?)
+    }
+
+    g.test('Parsing an invalid file') {
+      let name = ModuleName.new(Array.new('foo'))
+
+      ParseFile.new(name: name, path: 'kittens.inko').parse
+
+      let pair = process.receive as Pair!(ParsedModule, Diagnostics)
+
+      try assert_equal(pair.first.name.to_string, 'foo')
+      try assert_equal(pair.first.location.file.to_string, 'kittens.inko')
+      try assert_true(pair.first.ast.children.empty?)
+      try assert_true(pair.second.errors?)
+    }
+  }
+
+  t.group('std::compiler::module_parser::ParseFile.read_source') do (g) {
+    g.test('Reading the source of a valid file') {
+      let name = ModuleName.new(Array.new('foo'))
+      let request = ParseFile.new(name: name, path: VALID_FILE)
+      let diagnostics = Diagnostics.new
+      let bytes = request.read_source(diagnostics)
+
+      try assert_true(diagnostics.empty?)
+      try assert_false(bytes.empty?)
+    }
+
+    g.test('Reading the source of an invalid file') {
+      let name = ModuleName.new(Array.new('foo'))
+      let request = ParseFile.new(name: name, path: 'kittens.inko')
+      let diagnostics = Diagnostics.new
+      let bytes = request.read_source(diagnostics)
+
+      try assert_true(diagnostics.errors?)
+      try assert_true(bytes.empty?)
+    }
+  }
+
+  t.group('std::compiler::module_parser::ParseFile.name') do (g) {
+    g.test('Obtaining the name of the module to parse') {
+      let name = ModuleName.new(Array.new('foo'))
+      let request = ParseFile.new(name: name, path: VALID_FILE)
+
+      try assert_equal(request.name, name)
+    }
+  }
+
+  t.group('std::compiler::module_parser::ParseFile.path') do (g) {
+    g.test('Obtaining the path of the module to parse') {
+      let name = ModuleName.new(Array.new('foo'))
+      let request = ParseFile.new(name: name, path: VALID_FILE)
+
+      try assert_equal(request.path, VALID_FILE)
+    }
+  }
+
+  t.group('std::compiler::module_parser::ParseFile.reply_to') do (g) {
+    g.test('Obtaining the process to reply to') {
+      let name = ModuleName.new(Array.new('foo'))
+      let request = ParseFile.new(name: name, path: VALID_FILE)
+
+      try assert_equal(request.reply_to.identifier, process.current.identifier)
+    }
+  }
+
+  t.group('std::compiler::module_parser::ModuleParser.parse_source') do (g) {
+    g.test('Parsing a module and its dependencies') {
+      let config = config
+      let diagnostics = Diagnostics.new
+      let parser = ModuleParser.new(config: config, diagnostics: diagnostics)
+      let name = ModuleName.new(Array.new('foo'))
+      let modules =
+        parser.parse_source(name: name, source: '10', path: 'test.inko')
+
+      try assert_true(modules.second.length > 1)
+      try assert_equal(modules.first.name, name)
+      try assert_false(diagnostics.errors?)
+    }
+
+    g.test('Parsing a module that produces errors') {
+      let config = config
+      let diagnostics = Diagnostics.new
+      let parser = ModuleParser.new(config: config, diagnostics: diagnostics)
+      let name = ModuleName.new(Array.new('foo'))
+      let modules =
+        parser.parse_source(name: name, source: 'import 10', path: 'test.inko')
+
+      try assert_true(modules.second.empty?)
+      try assert_true(diagnostics.errors?)
+    }
+  }
+
+  t.group('std::compiler::module_parser::ModuleParser.parse_file') do (g) {
+    g.test('Parsing a module and its dependencies') {
+      let config = config
+      let file_path = fixtures.temporary_file_path
+      let handle = try! WriteOnlyFile.new(file_path)
+
+      process.defer { try file.remove(file_path) else Nil }
+      process.defer { handle.close }
+
+      try! handle.write_string('10')
+
+      let diagnostics = Diagnostics.new
+      let parser = ModuleParser.new(config: config, diagnostics: diagnostics)
+      let name = ModuleName.new(Array.new('foo'))
+      let modules = parser.parse_file(name: name, path: file_path)
+
+      try assert_true(modules.second.length > 1)
+      try assert_equal(modules.first.name, name)
+      try assert_false(diagnostics.errors?)
+    }
+
+    g.test('Parsing a module that produces errors') {
+      let config = config
+      let file_path = fixtures.temporary_file_path
+      let handle = try! WriteOnlyFile.new(file_path)
+
+      process.defer { try file.remove(file_path) else Nil }
+      process.defer { handle.close }
+
+      try! handle.write_string('import 10')
+
+      let diagnostics = Diagnostics.new
+      let parser = ModuleParser.new(config: config, diagnostics: diagnostics)
+      let name = ModuleName.new(Array.new('foo'))
+      let modules = parser.parse_file(name: name, path: file_path)
+
+      try assert_true(modules.second.empty?)
+      try assert_true(diagnostics.errors?)
+    }
   }
 }

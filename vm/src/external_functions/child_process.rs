@@ -106,7 +106,7 @@ pub fn child_process_stdout_read(
 ) -> Result<ObjectPointer, RuntimeError> {
     let cmd = arguments[0].command_value_mut()?;
     let buff = arguments[1].byte_array_value_mut()?;
-    let size = arguments[2].u64_value()?;
+    let size = arguments[2].u64_value().ok();
     let result = cmd
         .stdout
         .as_mut()
@@ -130,7 +130,7 @@ pub fn child_process_stderr_read(
 ) -> Result<ObjectPointer, RuntimeError> {
     let cmd = arguments[0].command_value_mut()?;
     let buff = arguments[1].byte_array_value_mut()?;
-    let size = arguments[2].u64_value()?;
+    let size = arguments[2].u64_value().ok();
     let result = cmd
         .stderr
         .as_mut()

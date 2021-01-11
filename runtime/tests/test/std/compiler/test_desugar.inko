@@ -8,9 +8,7 @@ import std::compiler::desugar
 import std::compiler::module_name::ModuleName
 import std::compiler::parser::Parser
 import std::compiler::types::(BOOTSTRAP_MODULE, OBJECT_TRAIT)
-import std::mirror::ObjectMirror
-import std::test
-import std::test::assert
+import std::test::*
 
 def parse(input: String) -> Body {
   let parser = Parser.new(input: input, file: 'test.inko')
@@ -30,168 +28,166 @@ def module_name(*components: String) -> ModuleName {
   ModuleName.new(components)
 }
 
-def assert_instance_of(node: Node, instance_of: Node) {
-  assert.true(ObjectMirror.new(node).instance_of?(instance_of))
-}
+def tests(t: Tests) {
+  t.group('std::compiler::desugar.add_object_implementation') do (g) {
+    g.test('Adding the implementation of the Object trait') {
+      let body = parse('class A {}')
+      let module = module_name('foo')
 
-test.group('std::compiler::desugar.add_object_implementation') do (g) {
-  g.test('Adding the implementation of the Object trait') {
-    let body = parse('class A {}')
-    let module = module_name('foo')
+      desugar.add_object_implementation(name: module, body: body)
 
-    desugar.add_object_implementation(name: module, body: body)
+      try assert_equal(body.children.length, 2)
 
-    assert.equal(body.children.length, 2)
+      let impl_node = body.children[1] as ImplementTrait
 
-    let impl_node = body.children[1] as ImplementTrait
+      try assert_equal(impl_node.class_name.name, 'A')
+      try assert_equal(impl_node.trait_name.name, OBJECT_TRAIT)
+      try assert_true(impl_node.body.children.empty?)
+      try assert_same_object(impl_node.location, body.children[0].location)
+    }
 
-    assert.equal(impl_node.class_name.name, 'A')
-    assert.equal(impl_node.trait_name.name, OBJECT_TRAIT)
-    assert.true(impl_node.body.children.empty?)
-    assert.same_object(impl_node.location, body.children[0].location)
+    g.test("The Object trait isn't implemented in std::bootstrap") {
+      let body = parse('class A {}')
+
+      desugar.add_object_implementation(name: BOOTSTRAP_MODULE, body: body)
+
+      try assert_equal(body.children.length, 1)
+    }
   }
 
-  g.test("The Object trait isn't implemented in std::bootstrap") {
-    let body = parse('class A {}')
+  t.group('std::compiler::desugar.hoist_imports') do (g) {
+    g.test('Hosting imports to the start of the module') {
+      let body = parse("import foo\n10\nimport bar")
 
-    desugar.add_object_implementation(name: BOOTSTRAP_MODULE, body: body)
+      desugar.hoist_imports(body)
 
-    assert.equal(body.children.length, 1)
-  }
-}
+      try assert_instance_of(body.children[0], Import)
+      try assert_instance_of(body.children[1], Import)
+      try assert_instance_of(body.children[2], IntegerLiteral)
 
-test.group('std::compiler::desugar.hoist_imports') do (g) {
-  g.test('Hosting imports to the start of the module') {
-    let body = parse("import foo\n10\nimport bar")
-
-    desugar.hoist_imports(body)
-
-    assert_instance_of(body.children[0], Import)
-    assert_instance_of(body.children[1], Import)
-    assert_instance_of(body.children[2], IntegerLiteral)
-
-    assert.equal(
-      (body.children[0] as Import).module_name,
-      ModuleName.new(Array.new('foo'))
-    )
-
-    assert.equal(
-      (body.children[1] as Import).module_name,
-      ModuleName.new(Array.new('bar'))
-    )
-  }
-
-  g.test('Hoisting imports when there are no imports to hoist_imports') {
-    let body = parse('10')
-
-    desugar.hoist_imports(body)
-
-    assert.equal(body.children.length, 1)
-    assert_instance_of(body.children[0], IntegerLiteral)
-  }
-}
-
-test.group('std::compiler::desugar.add_implicit_symbols') do (g) {
-  g.test('Adding implicit symbols to an import without symbols') {
-    let body = parse('import std')
-
-    desugar.add_implicit_symbols(body)
-
-    let imp = body.children[0] as Import
-
-    assert.equal(imp.symbols.length, 1)
-    assert.true(imp.symbols[0].import_self?)
-  }
-
-  g.test('Adding implicit symbols to an import with symbols') {
-    let body = parse('import std::(foo)')
-
-    desugar.add_implicit_symbols(body)
-
-    let imp = body.children[0] as Import
-
-    assert.equal(imp.symbols.length, 1)
-    assert.equal(imp.symbols[0].name, 'foo')
-  }
-}
-
-test.group('std::compiler::desugar.add_implicit_imports') do (g) {
-  g.test('Inserting implicit imports when compiling a module without imports') {
-    let body = parse('')
-
-    desugar.add_implicit_imports(name: module_name('std', 'foo'), body: body)
-
-    let imports = imports_in(body)
-
-    assert.equal(
-      imports,
-      Array.new(module_name('std', 'bootstrap'), module_name('std', 'init'))
-    )
-  }
-
-  g.test('Inserting implicit imports when compiling a module with imports') {
-    let body = parse('import foo')
-
-    desugar.add_implicit_imports(name: module_name('std', 'foo'), body: body)
-
-    let imports = imports_in(body)
-
-    assert.equal(
-      imports,
-      Array.new(
-        module_name('std', 'bootstrap'),
-        module_name('std', 'init'),
-        module_name('foo')
+      try assert_equal(
+        (body.children[0] as Import).module_name,
+        ModuleName.new(Array.new('foo'))
       )
-    )
+
+      try assert_equal(
+        (body.children[1] as Import).module_name,
+        ModuleName.new(Array.new('bar'))
+      )
+    }
+
+    g.test('Hoisting imports when there are no imports to hoist_imports') {
+      let body = parse('10')
+
+      desugar.hoist_imports(body)
+
+      try assert_equal(body.children.length, 1)
+      try assert_instance_of(body.children[0], IntegerLiteral)
+    }
   }
 
-  g.test('Inserting implicit imports when compiling std::init') {
-    let body = parse('')
+  t.group('std::compiler::desugar.add_implicit_symbols') do (g) {
+    g.test('Adding implicit symbols to an import without symbols') {
+      let body = parse('import std')
 
-    desugar
-      .add_implicit_imports(name: module_name('std', 'init'), body: body)
+      desugar.add_implicit_symbols(body)
 
-    let imports = imports_in(body)
+      let imp = body.children[0] as Import
 
-    assert.equal(
-      imports,
-      Array.new(ModuleName.new(Array.new('std', 'bootstrap')))
-    )
+      try assert_equal(imp.symbols.length, 1)
+      try assert_true(imp.symbols[0].import_self?)
+    }
+
+    g.test('Adding implicit symbols to an import with symbols') {
+      let body = parse('import std::(foo)')
+
+      desugar.add_implicit_symbols(body)
+
+      let imp = body.children[0] as Import
+
+      try assert_equal(imp.symbols.length, 1)
+      try assert_equal(imp.symbols[0].name, 'foo')
+    }
   }
 
-  g.test('Inserting implicit imports when compiling std::bootstrap') {
-    let body = parse('')
+  t.group('std::compiler::desugar.add_implicit_imports') do (g) {
+    g.test('Inserting implicit imports when compiling a module without imports') {
+      let body = parse('')
 
-    desugar
-      .add_implicit_imports(name: module_name('std', 'bootstrap'), body: body)
+      desugar.add_implicit_imports(name: module_name('std', 'foo'), body: body)
 
-    assert.true(body.children.empty?)
-  }
+      let imports = imports_in(body)
 
-  g.test('Inserting implicit imports into a non standard library module') {
-    let body = parse('')
+      try assert_equal(
+        imports,
+        Array.new(module_name('std', 'bootstrap'), module_name('std', 'init'))
+      )
+    }
 
-    desugar.add_implicit_imports(name: module_name('foo', 'bar'), body: body)
+    g.test('Inserting implicit imports when compiling a module with imports') {
+      let body = parse('import foo')
 
-    let imports = body.imports
+      desugar.add_implicit_imports(name: module_name('std', 'foo'), body: body)
 
-    assert.equal(imports[0].module_name, module_name('std', 'bootstrap'))
-    assert.equal(imports[1].module_name, module_name('std', 'init'))
+      let imports = imports_in(body)
 
-    assert.equal(imports[2].module_name, module_name('std', 'option'))
-    assert.equal(imports[2].symbols[0].name, 'Option')
+      try assert_equal(
+        imports,
+        Array.new(
+          module_name('std', 'bootstrap'),
+          module_name('std', 'init'),
+          module_name('foo')
+        )
+      )
+    }
 
-    assert.equal(imports[3].module_name, module_name('std', 'map'))
-    assert.equal(imports[3].symbols[0].name, 'Map')
+    g.test('Inserting implicit imports when compiling std::init') {
+      let body = parse('')
 
-    assert.equal(imports[4].module_name, module_name('std', 'range'))
-    assert.equal(imports[4].symbols[0].name, 'Range')
+      desugar
+        .add_implicit_imports(name: module_name('std', 'init'), body: body)
 
-    assert.equal(imports[5].module_name, module_name('std', 'loop'))
-    assert.equal(imports[5].symbols[0].name, 'loop')
+      let imports = imports_in(body)
 
-    assert.equal(imports[6].module_name, module_name('std', 'loop'))
-    assert.equal(imports[6].symbols[0].name, 'while')
+      try assert_equal(
+        imports,
+        Array.new(ModuleName.new(Array.new('std', 'bootstrap')))
+      )
+    }
+
+    g.test('Inserting implicit imports when compiling std::bootstrap') {
+      let body = parse('')
+
+      desugar
+        .add_implicit_imports(name: module_name('std', 'bootstrap'), body: body)
+
+      try assert_true(body.children.empty?)
+    }
+
+    g.test('Inserting implicit imports into a non standard library module') {
+      let body = parse('')
+
+      desugar.add_implicit_imports(name: module_name('foo', 'bar'), body: body)
+
+      let imports = body.imports
+
+      try assert_equal(imports[0].module_name, module_name('std', 'bootstrap'))
+      try assert_equal(imports[1].module_name, module_name('std', 'init'))
+
+      try assert_equal(imports[2].module_name, module_name('std', 'option'))
+      try assert_equal(imports[2].symbols[0].name, 'Option')
+
+      try assert_equal(imports[3].module_name, module_name('std', 'map'))
+      try assert_equal(imports[3].symbols[0].name, 'Map')
+
+      try assert_equal(imports[4].module_name, module_name('std', 'range'))
+      try assert_equal(imports[4].symbols[0].name, 'Range')
+
+      try assert_equal(imports[5].module_name, module_name('std', 'loop'))
+      try assert_equal(imports[5].symbols[0].name, 'loop')
+
+      try assert_equal(imports[6].module_name, module_name('std', 'loop'))
+      try assert_equal(imports[6].symbols[0].name, 'while')
+    }
   }
 }

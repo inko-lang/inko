@@ -71,9 +71,6 @@ pub struct LocalData {
     /// while also borrowing the mailbox.
     pub mailbox: Mutex<Mailbox>,
 
-    /// A block to execute in the event of a panic.
-    pub panic_handler: ObjectPointer,
-
     /// The currently running generator.
     pub generator: RcGenerator,
 
@@ -125,7 +122,6 @@ impl Process {
         let local_data = LocalData {
             allocator: LocalAllocator::new(global_allocator, config),
             generator: Generator::running(Box::new(context)),
-            panic_handler: ObjectPointer::null(),
             thread_id: None,
             mailbox: Mutex::new(Mailbox::new()),
             status: ProcessStatus::new(),
@@ -493,28 +489,10 @@ impl Process {
         state.global_allocator.add_blocks(&mut blocks);
     }
 
-    pub fn panic_handler(&self) -> Option<&ObjectPointer> {
-        let local_data = self.local_data();
-
-        if local_data.panic_handler.is_null() {
-            None
-        } else {
-            Some(&local_data.panic_handler)
-        }
-    }
-
-    pub fn set_panic_handler(&self, handler: ObjectPointer) {
-        self.local_data_mut().panic_handler = handler;
-    }
-
     pub fn each_global_pointer<F>(&self, mut callback: F)
     where
         F: FnMut(ObjectPointerPointer),
     {
-        if let Some(handler) = self.panic_handler() {
-            callback(handler.pointer());
-        }
-
         if let Some(ptr) = self.local_data().generator.result_pointer_pointer()
         {
             callback(ptr);
@@ -748,7 +726,7 @@ mod tests {
     fn test_process_type_size() {
         // This test is put in place to ensure the type size doesn't change
         // unintentionally.
-        assert_eq!(mem::size_of::<Process>(), 360);
+        assert_eq!(mem::size_of::<Process>(), 352);
     }
 
     #[test]
@@ -777,13 +755,12 @@ mod tests {
     fn test_each_global_pointer() {
         let (_machine, _block, process) = setup();
 
-        process.set_panic_handler(ObjectPointer::integer(5));
         process.set_result(ObjectPointer::integer(7));
 
         let mut pointers = Vec::new();
 
         process.each_global_pointer(|ptr| pointers.push(ptr));
 
-        assert_eq!(pointers.len(), 2);
+        assert_eq!(pointers.len(), 1);
     }
 }

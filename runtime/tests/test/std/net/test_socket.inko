@@ -5,86 +5,75 @@ import std::net::socket::(
 )
 import std::os
 import std::process
-import std::test
-import std::test::assert
+import std::test::*
 
-test.group('std::net::socket::SocketAddress.new') do (g) {
-  g.test('Creating a SocketAddress') {
-    let ip = Ipv4Address.new(127, 0, 0, 1)
-    let addr = SocketAddress.new(ip: ip, port: 1234)
+def tests(t: Tests) {
+  t.group('std::net::socket::SocketAddress.new') do (g) {
+    g.test('Creating a SocketAddress') {
+      let ip = Ipv4Address.new(127, 0, 0, 1)
+      let addr = SocketAddress.new(ip: ip, port: 1234)
 
-    assert.equal(addr.ip as Ipv4Address, ip)
-    assert.equal(addr.port, 1234)
-  }
-}
-
-test.group('std::net::socket::SocketAddress.==') do (g) {
-  g.test('Comparing two identical SocketAddress objects') {
-    let ip = Ipv4Address.new(127, 0, 0, 1)
-    let addr1 = SocketAddress.new(ip: ip, port: 1234)
-    let addr2 = SocketAddress.new(ip: ip, port: 1234)
-
-    assert.equal(addr1, addr2)
-  }
-
-  g.test('Comparing two different SocketAddress objects') {
-    let ip = Ipv4Address.new(127, 0, 0, 1)
-    let addr1 = SocketAddress.new(ip: ip, port: 1234)
-    let addr2 = SocketAddress.new(ip: ip, port: 12345)
-
-    assert.not_equal(addr1, addr2)
-  }
-}
-
-test.group('std::net::socket::Socket.ipv4') do (g) {
-  g.test('Creating an IPv4 stream socket') {
-    assert.no_panic {
-      try! Socket.ipv4(STREAM)
+      try assert_equal(addr.ip as Ipv4Address, ip)
+      try assert_equal(addr.port, 1234)
     }
   }
 
-  g.test('Creating an IPv4 datagram socket') {
-    assert.no_panic {
-      try! Socket.ipv4(DGRAM)
+  t.group('std::net::socket::SocketAddress.==') do (g) {
+    g.test('Comparing two identical SocketAddress objects') {
+      let ip = Ipv4Address.new(127, 0, 0, 1)
+      let addr1 = SocketAddress.new(ip: ip, port: 1234)
+      let addr2 = SocketAddress.new(ip: ip, port: 1234)
+
+      try assert_equal(addr1, addr2)
+    }
+
+    g.test('Comparing two different SocketAddress objects') {
+      let ip = Ipv4Address.new(127, 0, 0, 1)
+      let addr1 = SocketAddress.new(ip: ip, port: 1234)
+      let addr2 = SocketAddress.new(ip: ip, port: 12345)
+
+      try assert_not_equal(addr1, addr2)
     }
   }
-}
 
-test.group('std::net::socket::Socket.ipv6') do (g) {
-  g.test('Creating an IPv6 stream socket') {
-    assert.no_panic {
-      try! Socket.ipv6(STREAM)
+  t.group('std::net::socket::Socket.ipv4') do (g) {
+    g.test('Creating an IPv4 stream socket') {
+      try assert_no_throw { local try Socket.ipv4(STREAM) }
+    }
+
+    g.test('Creating an IPv4 datagram socket') {
+      try assert_no_throw { local try Socket.ipv4(DGRAM) }
     }
   }
 
-  g.test('Creating an IPv6 datagram socket') {
-    assert.no_panic {
-      try! Socket.ipv6(DGRAM)
+  t.group('std::net::socket::Socket.ipv6') do (g) {
+    g.test('Creating an IPv6 stream socket') {
+      try assert_no_throw { local try Socket.ipv6(STREAM) }
+    }
+
+    g.test('Creating an IPv6 datagram socket') {
+      try assert_no_throw { local try Socket.ipv6(DGRAM) }
     }
   }
-}
 
-test.group('std::net::socket::Socket.bind') do (g) {
-  g.test('Binding a socket') {
-    assert.no_panic {
+  t.group('std::net::socket::Socket.bind') do (g) {
+    g.test('Binding a socket') {
       let sock = try! Socket.ipv4(STREAM)
 
-      try! sock.bind(ip: '0.0.0.0', port: 0)
+      try assert_no_throw { local try sock.bind(ip: '0.0.0.0', port: 0) }
+    }
+
+    g.test('Binding a socket to an invalid address') {
+      try assert_panic(
+        "import std::net::socket::(Socket, STREAM)
+
+        try! Socket.ipv4(STREAM).bind(ip: '0.0.0.0', port: -1)"
+      )
     }
   }
 
-  g.test('Binding a socket to an invalid address') {
-    assert.panic {
-      let sock = try! Socket.ipv4(STREAM)
-
-      try! sock.bind(ip: '0.0.0.0', port: -1)
-    }
-  }
-}
-
-test.group('std::net::socket::Socket.connect') do (g) {
-  g.test('Connecting a socket') {
-    assert.no_panic {
+  t.group('std::net::socket::Socket.connect') do (g) {
+    g.test('Connecting a socket') {
       let listener = try! Socket.ipv4(STREAM)
       let stream = try! Socket.ipv4(STREAM)
 
@@ -93,462 +82,456 @@ test.group('std::net::socket::Socket.connect') do (g) {
 
       let addr = try! listener.local_address
 
-      try! stream.connect(ip: addr.ip, port: addr.port)
+      try assert_no_throw {
+        local try stream.connect(ip: addr.ip, port: addr.port)
+      }
     }
-  }
 
-  g.test('Connecting a socket to a non-existing address') {
-    assert.panic {
+    g.test('Connecting a socket to a non-existing address') {
       let stream = try! Socket.ipv4(STREAM)
 
-      # connect() may not immediately raise a "connection refused" error, due to
-      # connect() being non-blocking. In this case the "connection refused"
-      # error is raised on the next operation.
-      #
-      # Since a connect() _might_ still raise the error right away, we have to
-      # both connect and try to use the socket in some way.
-      try! stream.connect(ip: '0.0.0.0', port: 40_000)
-      try! stream.write_string('ping')
+      try assert_throw {
+        # connect() may not immediately raise a "connection refused" error, due
+        # to connect() being non-blocking. In this case the "connection refused"
+        # error is raised on the next operation.
+        #
+        # Since a connect() _might_ still raise the error right away, we have to
+        # both connect and try to use the socket in some way.
+        local try stream.connect(ip: '0.0.0.0', port: 40_000)
+        local try stream.write_string('ping')
+      }
     }
   }
-}
 
-test.group('std::net::socket::Socket.listen') do (g) {
-  g.test('Marking a Socket as listening with a custom backlog') {
-    let socket = try! Socket.ipv4(STREAM)
-
-    try! socket.bind(ip: '0.0.0.0', port: 0)
-
-    assert.equal(try! socket.listen(4), 4)
-  }
-
-  g.test('Marking a Socket as listening using the default backlog') {
-    let socket = try! Socket.ipv4(STREAM)
-
-    try! socket.bind(ip: '0.0.0.0', port: 0)
-
-    assert.equal(try! socket.listen, MAXIMUM_LISTEN_BACKLOG)
-  }
-}
-
-test.group('std::net::socket::Socket.accept') do (g) {
-  g.test('Accepting a connection from an unbound socket') {
-    assert.panic {
+  t.group('std::net::socket::Socket.listen') do (g) {
+    g.test('Marking a Socket as listening with a custom backlog') {
       let socket = try! Socket.ipv4(STREAM)
 
-      try! socket.accept
+      try! socket.bind(ip: '0.0.0.0', port: 0)
+
+      try assert_equal(try! socket.listen(4), 4)
+    }
+
+    g.test('Marking a Socket as listening using the default backlog') {
+      let socket = try! Socket.ipv4(STREAM)
+
+      try! socket.bind(ip: '0.0.0.0', port: 0)
+
+      try assert_equal(try! socket.listen, MAXIMUM_LISTEN_BACKLOG)
     }
   }
 
-  g.test('Accepting a connection from a bound socket') {
-    let listener = try! Socket.ipv4(STREAM)
+  t.group('std::net::socket::Socket.accept') do (g) {
+    g.test('Accepting a connection from an unbound socket') {
+      let socket = try! Socket.ipv4(STREAM)
 
-    let child_proc = process.spawn {
-      let address = process.receive as SocketAddress
-      let stream = try! Socket.ipv4(STREAM)
-
-      try! stream.connect(ip: address.ip, port: address.port)
+      try assert_throw { local try socket.accept }
     }
 
-    try! listener.bind(ip: '127.0.0.1', port: 0)
-    try! listener.listen
+    g.test('Accepting a connection from a bound socket') {
+      let listener = try! Socket.ipv4(STREAM)
 
-    child_proc.send(try! listener.local_address)
+      let child_proc = process.spawn {
+        let address = process.receive as SocketAddress
+        let stream = try! Socket.ipv4(STREAM)
 
-    let connection = try! listener.accept
-
-    assert.equal(try! connection.local_address, try! listener.local_address)
-  }
-}
-
-test.group('std::net::socket::Socket.send_string_to') do (g) {
-  g.test('Sending a String to a specific address') {
-    let socket = try! Socket.ipv4(DGRAM)
-
-    # On Windows one can not use sendto() with 0.0.0.0 being the target IP
-    # address, so instead we bind (and send to) 127.0.0.1.
-    try! socket.bind(ip: '127.0.0.1', port: 0)
-
-    let send_to = try! socket.local_address
-
-    try! socket.send_string_to('ping', send_to.ip, send_to.port)
-
-    assert.equal(try! socket.read_string(size: 4), 'ping')
-  }
-}
-
-test.group('std::net::socket::Socket.send_bytes_to') do (g) {
-  g.test('Sending a ByteArray to a specific address') {
-    let socket = try! Socket.ipv4(DGRAM)
-
-    # On Windows one can not use sendto() with 0.0.0.0 being the target IP
-    # address, so instead we bind (and send to) 127.0.0.1.
-    try! socket.bind(ip: '127.0.0.1', port: 0)
-
-    let send_to = try! socket.local_address
-    let bytes = 'ping'.to_byte_array
-
-    try! socket.send_bytes_to(bytes, send_to.ip, send_to.port)
-
-    assert.equal(try! socket.read_string(size: 4), 'ping')
-  }
-}
-
-test.group('std::net::socket::Socket.receive_from') do (g) {
-  g.test('Receiving a message and a SocketAddress') {
-    let listener = try! Socket.ipv4(DGRAM)
-    let client = try! Socket.ipv4(DGRAM)
-
-    try! listener.bind(ip: '127.0.0.1', port: 0)
-    try! client.bind(ip: '127.0.0.1', port: 0)
-
-    let send_to = try! listener.local_address
-
-    try! client.send_string_to('ping', send_to.ip, send_to.port)
-
-    let bytes = ByteArray.new
-    let sender = try! listener.receive_from(bytes: bytes, size: 4)
-
-    assert.equal(sender, try! client.local_address)
-    assert.equal(bytes.to_string, 'ping')
-  }
-}
-
-test.group('std::net::socket::Socket.local_address') do (g) {
-  g.test('Obtaining the local address of an unbound socket') {
-    os.windows?.if(
-      true: {
-        assert.panic {
-          let socket = try! Socket.ipv4(DGRAM)
-
-          try! socket.local_address
-        }
-      },
-      false: {
-        let socket = try! Socket.ipv4(DGRAM)
-        let address = try! socket.local_address
-
-        assert.equal(
-          address,
-          SocketAddress.new(ip: Ipv4Address.new(0, 0, 0, 0), port: 0)
-        )
+        try! stream.connect(ip: address.ip, port: address.port)
       }
-    )
+
+      try! listener.bind(ip: '127.0.0.1', port: 0)
+      try! listener.listen
+
+      child_proc.send(try! listener.local_address)
+
+      let connection = try! listener.accept
+
+      try assert_equal(try! connection.local_address, try! listener.local_address)
+    }
   }
 
-  g.test('Obtaining the local address of a bound socket') {
-    let socket = try! Socket.ipv4(DGRAM)
-
-    try! socket.bind(ip: '127.0.0.1', port: 0)
-
-    let local_address = try! socket.local_address
-
-    assert.equal(local_address.ip.to_string, '127.0.0.1')
-    assert.true(local_address.port.positive?)
-  }
-}
-
-test.group('std::net::socket::Socket.peer_address') do (g) {
-  g.test('Obtaining the peer address of a disconnected socket') {
-    assert.panic {
+  t.group('std::net::socket::Socket.send_string_to') do (g) {
+    g.test('Sending a String to a specific address') {
       let socket = try! Socket.ipv4(DGRAM)
 
-      try! socket.peer_address
+      # On Windows one can not use sendto() with 0.0.0.0 being the target IP
+      # address, so instead we bind (and send to) 127.0.0.1.
+      try! socket.bind(ip: '127.0.0.1', port: 0)
+
+      let send_to = try! socket.local_address
+
+      try! socket.send_string_to('ping', send_to.ip, send_to.port)
+
+      try assert_equal(try! socket.read_string(size: 4), 'ping')
     }
   }
 
-  g.test('Obtaining the peer address of a connected socket') {
-    let listener = try! Socket.ipv4(STREAM)
-    let client = try! Socket.ipv4(STREAM)
+  t.group('std::net::socket::Socket.send_bytes_to') do (g) {
+    g.test('Sending a ByteArray to a specific address') {
+      let socket = try! Socket.ipv4(DGRAM)
 
-    try! listener.bind(ip: '127.0.0.1', port: 0)
-    try! listener.listen
+      # On Windows one can not use sendto() with 0.0.0.0 being the target IP
+      # address, so instead we bind (and send to) 127.0.0.1.
+      try! socket.bind(ip: '127.0.0.1', port: 0)
 
-    let listener_addr = try! listener.local_address
+      let send_to = try! socket.local_address
+      let bytes = 'ping'.to_byte_array
 
-    try! client.connect(ip: listener_addr.ip, port: listener_addr.port)
+      try! socket.send_bytes_to(bytes, send_to.ip, send_to.port)
 
-    assert.equal(try! client.peer_address, listener_addr)
+      try assert_equal(try! socket.read_string(size: 4), 'ping')
+    }
   }
-}
 
-test.group('std::net::socket::Socket.ttl') do (g) {
-  g.test('Setting and obtaining the value of the IP_TTL option') {
-    let socket = try! Socket.ipv4(STREAM)
+  t.group('std::net::socket::Socket.receive_from') do (g) {
+    g.test('Receiving a message and a SocketAddress') {
+      let listener = try! Socket.ipv4(DGRAM)
+      let client = try! Socket.ipv4(DGRAM)
 
-    try! socket.ttl = 10
+      try! listener.bind(ip: '127.0.0.1', port: 0)
+      try! client.bind(ip: '127.0.0.1', port: 0)
 
-    assert.equal(try! socket.ttl, 10)
+      let send_to = try! listener.local_address
+
+      try! client.send_string_to('ping', send_to.ip, send_to.port)
+
+      let bytes = ByteArray.new
+      let sender = try! listener.receive_from(bytes: bytes, size: 4)
+
+      try assert_equal(sender, try! client.local_address)
+      try assert_equal(bytes.to_string, 'ping')
+    }
   }
-}
 
-test.group('std::net::socket::Socket.only_ipv6?') do (g) {
-  g.test('Setting and obtainin the IPV6_V6ONLY option') {
-    let socket = try! Socket.ipv6(STREAM)
+  t.group('std::net::socket::Socket.local_address') do (g) {
+    g.test('Obtaining the local address of an unbound socket') {
+      os.windows?.if(
+        true: {
+          let socket = try! Socket.ipv4(DGRAM)
 
-    try! socket.only_ipv6 = True
+          try assert_throw { local try socket.local_address }
+        },
+        false: {
+          let socket = try! Socket.ipv4(DGRAM)
+          let address = try! socket.local_address
 
-    assert.true(try! socket.only_ipv6?)
+          try assert_equal(
+            address,
+            SocketAddress.new(ip: Ipv4Address.new(0, 0, 0, 0), port: 0)
+          )
+        }
+      )
+    }
+
+    g.test('Obtaining the local address of a bound socket') {
+      let socket = try! Socket.ipv4(DGRAM)
+
+      try! socket.bind(ip: '127.0.0.1', port: 0)
+
+      let local_address = try! socket.local_address
+
+      try assert_equal(local_address.ip.to_string, '127.0.0.1')
+      try assert_true(local_address.port.positive?)
+    }
   }
-}
 
-test.group('std::net::socket::Socket.no_delay?') do (g) {
-  g.test('Setting and obtaining the value of the TCP_NODELAY option') {
-    let socket = try! Socket.ipv4(STREAM)
+  t.group('std::net::socket::Socket.peer_address') do (g) {
+    g.test('Obtaining the peer address of a disconnected socket') {
+      let socket = try! Socket.ipv4(DGRAM)
 
-    try! socket.no_delay = True
+      try assert_throw { local try socket.peer_address }
+    }
 
-    assert.true(try! socket.no_delay?)
+    g.test('Obtaining the peer address of a connected socket') {
+      let listener = try! Socket.ipv4(STREAM)
+      let client = try! Socket.ipv4(STREAM)
+
+      try! listener.bind(ip: '127.0.0.1', port: 0)
+      try! listener.listen
+
+      let listener_addr = try! listener.local_address
+
+      try! client.connect(ip: listener_addr.ip, port: listener_addr.port)
+
+      try assert_equal(try! client.peer_address, listener_addr)
+    }
   }
-}
 
-test.group('std::net::socket::Socket.broadcast?') do (g) {
-  g.test('Setting and obtaining the value of the SO_BROADCAST option') {
-    let socket = try! Socket.ipv4(DGRAM)
-
-    try! socket.broadcast = True
-
-    assert.true(try! socket.broadcast?)
-  }
-}
-
-test.group('std::net::socket::Socket.linger') do (g) {
-  g.test('Setting and obtaining the value of the SO_LINGER option') {
-    let socket = try! Socket.ipv4(STREAM)
-
-    try! socket.linger = 5
-
-    assert.equal(try! { socket.linger }.to_seconds.to_integer, 5)
-  }
-}
-
-test.group('std::net::socket::Socket.receive_buffer_size') do (g) {
-  g.test('Setting and obtaining the value of the SO_RCVBUF option') {
-    let socket = try! Socket.ipv4(STREAM)
-
-    try! socket.receive_buffer_size = 256
-
-    assert.true(try! { socket.receive_buffer_size } >= 256)
-  }
-}
-
-test.group('std::net::socket::Socket.send_buffer_size') do (g) {
-  g.test('Setting and obtaining the value of the SO_SNDBUT option') {
-    let socket = try! Socket.ipv4(STREAM)
-
-    try! socket.send_buffer_size = 256
-
-    assert.true(try! { socket.send_buffer_size } >= 256)
-  }
-}
-
-# Obtaining the TCP keepalive setting fails on Windows. See
-# https://github.com/alexcrichton/socket2-rs/issues/24 for more information.
-os.windows?.if_false {
-  test.group('std::net::socket::Socket.keepalive') do (g) {
-    g.test('Setting and obtaining the TCP keepalive timeout') {
+  t.group('std::net::socket::Socket.ttl') do (g) {
+    g.test('Setting and obtaining the value of the IP_TTL option') {
       let socket = try! Socket.ipv4(STREAM)
 
-      try! socket.keepalive = 5
+      try! socket.ttl = 10
 
-      assert.equal(try! { socket.keepalive }.to_seconds.to_integer, 5)
+      try assert_equal(try! socket.ttl, 10)
     }
   }
-}
 
-test.group('std::net::socket::Socket.ipv4_multicast_loop?') do (g) {
-  g.test('Setting and obtaining the value of the IP_MULTICAST_LOOP option') {
-    let socket = try! Socket.ipv4(DGRAM)
+  t.group('std::net::socket::Socket.only_ipv6?') do (g) {
+    g.test('Setting and obtainin the IPV6_V6ONLY option') {
+      let socket = try! Socket.ipv6(STREAM)
 
-    try! socket.ipv4_multicast_loop = True
+      try! socket.only_ipv6 = True
 
-    assert.true(try! socket.ipv4_multicast_loop?)
+      try assert_true(try! socket.only_ipv6?)
+    }
   }
-}
 
-test.group('std::net::socket::Socket.ipv6_multicast_loop?') do (g) {
-  g.test('Setting and obtaining the value of the IPV6_MULTICAST_LOOP option') {
-    let socket = try! Socket.ipv6(DGRAM)
+  t.group('std::net::socket::Socket.no_delay?') do (g) {
+    g.test('Setting and obtaining the value of the TCP_NODELAY option') {
+      let socket = try! Socket.ipv4(STREAM)
 
-    try! socket.ipv6_multicast_loop = True
+      try! socket.no_delay = True
 
-    assert.true(try! socket.ipv6_multicast_loop?)
+      try assert_true(try! socket.no_delay?)
+    }
   }
-}
 
-test.group('std::net::socket::Socket.ipv4_multicast_ttl?') do (g) {
-  g.test('Setting and obtaining the value of the IP_MULTICAST_TTL option') {
-    let socket = try! Socket.ipv4(DGRAM)
+  t.group('std::net::socket::Socket.broadcast?') do (g) {
+    g.test('Setting and obtaining the value of the SO_BROADCAST option') {
+      let socket = try! Socket.ipv4(DGRAM)
 
-    try! socket.ipv4_multicast_ttl = 32
+      try! socket.broadcast = True
 
-    assert.equal(try! socket.ipv4_multicast_ttl, 32)
+      try assert_true(try! socket.broadcast?)
+    }
   }
-}
 
-test.group('std::net::socket::Socket.ipv6_multicast_hops') do (g) {
-  g.test('Setting and obtaining the value of the IPV6_MULTICAST_HOPS option') {
-    let socket = try! Socket.ipv6(DGRAM)
+  t.group('std::net::socket::Socket.linger') do (g) {
+    g.test('Setting and obtaining the value of the SO_LINGER option') {
+      let socket = try! Socket.ipv4(STREAM)
 
-    try! socket.ipv6_multicast_hops = 4
+      try! socket.linger = 5
 
-    assert.equal(try! socket.ipv6_multicast_hops, 4)
+      try assert_equal(try! { socket.linger }.to_seconds.to_integer, 5)
+    }
   }
-}
 
-test.group('std::net::socket::Socket.ipv4_multicast_interface') do (g) {
-  g.test('Setting and obtaining the IP_MULTICAST_IF option') {
-    let socket = try! Socket.ipv4(DGRAM)
+  t.group('std::net::socket::Socket.receive_buffer_size') do (g) {
+    g.test('Setting and obtaining the value of the SO_RCVBUF option') {
+      let socket = try! Socket.ipv4(STREAM)
 
-    try! socket.ipv4_multicast_interface = '127.0.0.1'
+      try! socket.receive_buffer_size = 256
 
-    assert.equal(
-      try! { socket.ipv4_multicast_interface }.to_string,
-      '127.0.0.1'
-    )
+      try assert_true(try! { socket.receive_buffer_size } >= 256)
+    }
   }
-}
 
-test.group('std::net::socket::Socket.ipv6_multicast_interface') do (g) {
-  g.test('Setting and obtaining the IPV6_MULTICAST_IF option') {
-    let socket = try! Socket.ipv6(DGRAM)
-    let mut interface = 0
-    let mut found = False
+  t.group('std::net::socket::Socket.send_buffer_size') do (g) {
+    g.test('Setting and obtaining the value of the SO_SNDBUT option') {
+      let socket = try! Socket.ipv4(STREAM)
 
-    # The actual interface might vary per environment, but there is no
-    # cross-platform way of figuring out which interface is valid. To work
-    # around this we just try the first 10 interfaces, and error if none could
-    # be found.
-    while({ found.false?.and { interface < 10 } }) {
-      found = True
+      try! socket.send_buffer_size = 256
 
-      try {
-        socket.ipv6_multicast_interface = interface
-      } else (error) {
-        found = False
-        interface += 1
+      try assert_true(try! { socket.send_buffer_size } >= 256)
+    }
+  }
+
+  # Obtaining the TCP keepalive setting fails on Windows. See
+  # https://github.com/alexcrichton/socket2-rs/issues/24 for more information.
+  os.windows?.if_false {
+    t.group('std::net::socket::Socket.keepalive') do (g) {
+      g.test('Setting and obtaining the TCP keepalive timeout') {
+        let socket = try! Socket.ipv4(STREAM)
+
+        try! socket.keepalive = 5
+
+        try assert_equal(try! { socket.keepalive }.to_seconds.to_integer, 5)
       }
     }
-
-    assert.true(found)
-    assert.equal(try! socket.ipv6_multicast_interface, interface)
   }
-}
 
-test.group('std::net::socket::Socket.ipv6_unicast_hops') do (g) {
-  g.test('Setting and obtaining the value of the IPV6_UNICAST_HOPS option') {
-    let socket = try! Socket.ipv6(DGRAM)
+  t.group('std::net::socket::Socket.ipv4_multicast_loop?') do (g) {
+    g.test('Setting and obtaining the value of the IP_MULTICAST_LOOP option') {
+      let socket = try! Socket.ipv4(DGRAM)
 
-    try! socket.ipv6_unicast_hops = 4
+      try! socket.ipv4_multicast_loop = True
 
-    assert.equal(try! socket.ipv6_unicast_hops, 4)
+      try assert_true(try! socket.ipv4_multicast_loop?)
+    }
   }
-}
 
-test.group('std::net::socket::Socket.reuse_adress') do (g) {
-  g.test('Setting and obtaining the value of the SO_REUSEADDR option') {
-    let socket = try! Socket.ipv6(DGRAM)
+  t.group('std::net::socket::Socket.ipv6_multicast_loop?') do (g) {
+    g.test('Setting and obtaining the value of the IPV6_MULTICAST_LOOP option') {
+      let socket = try! Socket.ipv6(DGRAM)
 
-    try! socket.reuse_address = True
+      try! socket.ipv6_multicast_loop = True
 
-    assert.true(try! socket.reuse_address)
+      try assert_true(try! socket.ipv6_multicast_loop?)
+    }
   }
-}
 
-test.group('std::net::socket::Socket.reuse_port') do (g) {
-  g.test('Setting and obtaining the value of the SO_REUSEPORT option') {
-    let socket = try! Socket.ipv6(DGRAM)
+  t.group('std::net::socket::Socket.ipv4_multicast_ttl?') do (g) {
+    g.test('Setting and obtaining the value of the IP_MULTICAST_TTL option') {
+      let socket = try! Socket.ipv4(DGRAM)
 
-    try! socket.reuse_port = True
+      try! socket.ipv4_multicast_ttl = 32
 
-    os.windows?.if(
-      # Windows does not support SO_REUSEPORT, so the return value is always
-      # `False`.
-      true: { assert.false(try! socket.reuse_port) },
-      false: { assert.true(try! socket.reuse_port) }
-    )
+      try assert_equal(try! socket.ipv4_multicast_ttl, 32)
+    }
   }
-}
 
-test.group('std::net::socket::Socket.read_bytes') do (g) {
-  g.test('Reading bytes from a Socket') {
-    let socket = try! Socket.ipv4(DGRAM)
-    let bytes = ByteArray.new
+  t.group('std::net::socket::Socket.ipv6_multicast_hops') do (g) {
+    g.test('Setting and obtaining the value of the IPV6_MULTICAST_HOPS option') {
+      let socket = try! Socket.ipv6(DGRAM)
 
-    try! socket.bind(ip: '127.0.0.1', port: 0)
+      try! socket.ipv6_multicast_hops = 4
 
-    let local_addr = try! socket.local_address
-
-    try! socket.send_string_to('ping', local_addr.ip, local_addr.port)
-
-    let read = try! socket.read_bytes(bytes: bytes, size: 4)
-
-    assert.equal(bytes.to_string, 'ping')
-    assert.equal(read, 4)
+      try assert_equal(try! socket.ipv6_multicast_hops, 4)
+    }
   }
-}
 
-test.group('std::net::socket::Socket.write_bytes') do (g) {
-  g.test('Writing bytes to a Socket') {
-    let listener = try! Socket.ipv4(STREAM)
-    let stream = try! Socket.ipv4(STREAM)
+  t.group('std::net::socket::Socket.ipv4_multicast_interface') do (g) {
+    g.test('Setting and obtaining the IP_MULTICAST_IF option') {
+      let socket = try! Socket.ipv4(DGRAM)
 
-    try! listener.bind(ip: '127.0.0.1', port: 0)
-    try! listener.listen
+      try! socket.ipv4_multicast_interface = '127.0.0.1'
 
-    let local_addr = try! listener.local_address
-
-    try! stream.connect(ip: local_addr.ip, port: local_addr.port)
-
-    let written = try! stream.write_bytes('ping'.to_byte_array)
-    let connection = try! listener.accept
-    let message = try! connection.read_string(size: 4)
-
-    assert.equal(message, 'ping')
-    assert.equal(written, 4)
+      try assert_equal(
+        try! { socket.ipv4_multicast_interface }.to_string,
+        '127.0.0.1'
+      )
+    }
   }
-}
 
-test.group('std::net::socket::Socket.close') do (g) {
-  g.test('Closing a Socket') {
-    assert.no_panic {
+  t.group('std::net::socket::Socket.ipv6_multicast_interface') do (g) {
+    g.test('Setting and obtaining the IPV6_MULTICAST_IF option') {
+      let socket = try! Socket.ipv6(DGRAM)
+      let mut interface = 0
+      let mut found = False
+
+      # The actual interface might vary per environment, but there is no
+      # cross-platform way of figuring out which interface is valid. To work
+      # around this we just try the first 10 interfaces, and error if none could
+      # be found.
+      while({ found.false?.and { interface < 10 } }) {
+        found = True
+
+        try {
+          socket.ipv6_multicast_interface = interface
+        } else (error) {
+          found = False
+          interface += 1
+        }
+      }
+
+      try assert_true(found)
+      try assert_equal(try! socket.ipv6_multicast_interface, interface)
+    }
+  }
+
+  t.group('std::net::socket::Socket.ipv6_unicast_hops') do (g) {
+    g.test('Setting and obtaining the value of the IPV6_UNICAST_HOPS option') {
+      let socket = try! Socket.ipv6(DGRAM)
+
+      try! socket.ipv6_unicast_hops = 4
+
+      try assert_equal(try! socket.ipv6_unicast_hops, 4)
+    }
+  }
+
+  t.group('std::net::socket::Socket.reuse_adress') do (g) {
+    g.test('Setting and obtaining the value of the SO_REUSEADDR option') {
+      let socket = try! Socket.ipv6(DGRAM)
+
+      try! socket.reuse_address = True
+
+      try assert_true(try! socket.reuse_address)
+    }
+  }
+
+  t.group('std::net::socket::Socket.reuse_port') do (g) {
+    g.test('Setting and obtaining the value of the SO_REUSEPORT option') {
+      let socket = try! Socket.ipv6(DGRAM)
+
+      try! socket.reuse_port = True
+
+      os.windows?.if(
+        # Windows does not support SO_REUSEPORT, so the return value is always
+        # `False`.
+        true: { try assert_false(try! socket.reuse_port) },
+        false: { try assert_true(try! socket.reuse_port) }
+      )
+    }
+  }
+
+  t.group('std::net::socket::Socket.read_bytes') do (g) {
+    g.test('Reading bytes from a Socket') {
+      let socket = try! Socket.ipv4(DGRAM)
+      let bytes = ByteArray.new
+
+      try! socket.bind(ip: '127.0.0.1', port: 0)
+
+      let local_addr = try! socket.local_address
+
+      try! socket.send_string_to('ping', local_addr.ip, local_addr.port)
+
+      let read = try! socket.read_bytes(bytes: bytes, size: 4)
+
+      try assert_equal(bytes.to_string, 'ping')
+      try assert_equal(read, 4)
+    }
+  }
+
+  t.group('std::net::socket::Socket.write_bytes') do (g) {
+    g.test('Writing bytes to a Socket') {
+      let listener = try! Socket.ipv4(STREAM)
+      let stream = try! Socket.ipv4(STREAM)
+
+      try! listener.bind(ip: '127.0.0.1', port: 0)
+      try! listener.listen
+
+      let local_addr = try! listener.local_address
+
+      try! stream.connect(ip: local_addr.ip, port: local_addr.port)
+
+      let written = try! stream.write_bytes('ping'.to_byte_array)
+      let connection = try! listener.accept
+      let message = try! connection.read_string(size: 4)
+
+      try assert_equal(message, 'ping')
+      try assert_equal(written, 4)
+    }
+  }
+
+  t.group('std::net::socket::Socket.close') do (g) {
+    g.test('Closing a Socket') {
       let socket = try! Socket.ipv4(STREAM)
 
+      # There isn't a way we can really verify if a socket is closed or not, so
+      # this is a simple smoke test.
       socket.close
     }
   }
-}
 
-test.group('std::net::socket::Socket.flush') do (g) {
-  g.test('Flushing a Socket') {
-    let socket = try! Socket.ipv4(STREAM)
+  t.group('std::net::socket::Socket.flush') do (g) {
+    g.test('Flushing a Socket') {
+      let socket = try! Socket.ipv4(STREAM)
 
-    assert.equal(socket.flush, Nil)
+      try assert_equal(socket.flush, Nil)
+    }
   }
-}
 
-test.group('std::net::socket::Socket.shutdown_read') do (g) {
-  g.test('Shutting down the reading half of a Socket') {
-    let listener = try! Socket.ipv4(STREAM)
-    let stream = try! Socket.ipv4(STREAM)
+  t.group('std::net::socket::Socket.shutdown_read') do (g) {
+    g.test('Shutting down the reading half of a Socket') {
+      let listener = try! Socket.ipv4(STREAM)
+      let stream = try! Socket.ipv4(STREAM)
 
-    try! listener.bind(ip: '127.0.0.1', port: 0)
-    try! listener.listen
+      try! listener.bind(ip: '127.0.0.1', port: 0)
+      try! listener.listen
 
-    let local_addr = try! listener.local_address
+      let local_addr = try! listener.local_address
 
-    try! stream.connect(ip: local_addr.ip, port: local_addr.port)
-    try! stream.shutdown_read
+      try! stream.connect(ip: local_addr.ip, port: local_addr.port)
+      try! stream.shutdown_read
 
-    let message = try! stream.read_string(4)
+      let message = try! stream.read_string(4)
 
-    assert.equal(message, '')
+      try assert_equal(message, '')
+    }
   }
-}
 
-test.group('std::net::socket::Socket.shutdown_write') do (g) {
-  g.test('Shutting down the writing half of a Socket') {
-    assert.panic {
+  t.group('std::net::socket::Socket.shutdown_write') do (g) {
+    g.test('Shutting down the writing half of a Socket') {
       let listener = try! Socket.ipv4(STREAM)
       let stream = try! Socket.ipv4(STREAM)
 
@@ -559,14 +542,30 @@ test.group('std::net::socket::Socket.shutdown_write') do (g) {
 
       try! stream.connect(ip: local_addr.ip, port: local_addr.port)
       try! stream.shutdown_write
-      try! stream.write_string('ping')
+
+      try assert_throw { local try stream.write_string('ping') }
     }
   }
-}
 
-test.group('std::net::socket::Socket.shutdown') do (g) {
-  g.test('Shutting down the writing half of a Socket') {
-    assert.panic {
+  t.group('std::net::socket::Socket.shutdown') do (g) {
+    g.test('Shutting down the writing half of a Socket') {
+      let listener = try! Socket.ipv4(STREAM)
+      let stream = try! Socket.ipv4(STREAM)
+
+      try! listener.bind(ip: '127.0.0.1', port: 0)
+      try! listener.listen
+
+      let local_addr = try! listener.local_address
+
+      try! stream.connect(ip: local_addr.ip, port: local_addr.port)
+
+      try assert_throw {
+        local try stream.shutdown
+        local try stream.write_string('ping')
+      }
+    }
+
+    g.test('Shutting down the reading half of a Socket') {
       let listener = try! Socket.ipv4(STREAM)
       let stream = try! Socket.ipv4(STREAM)
 
@@ -577,176 +576,154 @@ test.group('std::net::socket::Socket.shutdown') do (g) {
 
       try! stream.connect(ip: local_addr.ip, port: local_addr.port)
       try! stream.shutdown
-      try! stream.write_string('ping')
+
+      let message = try! stream.read_string(4)
+
+      try assert_equal(message, '')
     }
   }
 
-  g.test('Shutting down the reading half of a Socket') {
-    let listener = try! Socket.ipv4(STREAM)
-    let stream = try! Socket.ipv4(STREAM)
+  t.group('std::net::socket::UdpSocket.new') do (g) {
+    g.test('Creating a UdpSocket') {
+      try assert_no_throw { local try UdpSocket.new(ip: '0.0.0.0', port: 0) }
+    }
 
-    try! listener.bind(ip: '127.0.0.1', port: 0)
-    try! listener.listen
-
-    let local_addr = try! listener.local_address
-
-    try! stream.connect(ip: local_addr.ip, port: local_addr.port)
-    try! stream.shutdown
-
-    let message = try! stream.read_string(4)
-
-    assert.equal(message, '')
-  }
-}
-
-test.group('std::net::socket::UdpSocket.new') do (g) {
-  g.test('Creating a UdpSocket') {
-    assert.no_panic {
-      try! UdpSocket.new(ip: '0.0.0.0', port: 0)
+    g.test('Creating a UdpSocket using an invalid IP address') {
+      try assert_throw { local try UdpSocket.new(ip: 'foo', port: 0) }
     }
   }
 
-  g.test('Creating a UdpSocket using an invalid IP address') {
-    assert.panic {
-      try! UdpSocket.new(ip: 'foo', port: 0)
-    }
-  }
-}
-
-test.group('std::net::socket::UdpSocket.connect') do (g) {
-  g.test('Connecting a UdpSocket') {
-    assert.no_panic {
+  t.group('std::net::socket::UdpSocket.connect') do (g) {
+    g.test('Connecting a UdpSocket') {
       let socket1 = try! UdpSocket.new(ip: '127.0.0.1', port: 40_000)
       let socket2 = try! UdpSocket.new(ip: '127.0.0.1', port: 41_000)
 
-      try! socket1.connect(ip: '127.0.0.1', port: 41_000)
+      process.defer {
+        socket1.close
+        socket2.close
+      }
 
-      socket1.close
-      socket2.close
+      try assert_no_throw {
+        local try socket1.connect(ip: '127.0.0.1', port: 41_000)
+      }
+    }
+
+    g.test('Reading and writing from a connected UdpSocket') {
+      let socket1 = try! UdpSocket.new(ip: '127.0.0.1', port: 0)
+      let socket2 = try! UdpSocket.new(ip: '127.0.0.1', port: 0)
+      let address = try! socket2.local_address
+
+      try! socket1.connect(ip: '127.0.0.1', port: address.port)
+      try! socket1.write_string('ping')
+
+      try assert_equal(try! socket2.read_string(4), 'ping')
     }
   }
 
-  g.test('Reading and writing from a connected UdpSocket') {
-    let socket1 = try! UdpSocket.new(ip: '127.0.0.1', port: 0)
-    let socket2 = try! UdpSocket.new(ip: '127.0.0.1', port: 0)
-    let address = try! socket2.local_address
+  t.group('std::net::socket::UdpSocket.send_string_to') do (g) {
+    g.test('Sending a String to a specific address') {
+      let socket = try! UdpSocket.new('127.0.0.1', port: 0)
+      let send_to = try! socket.local_address
 
-    try! socket1.connect(ip: '127.0.0.1', port: address.port)
-    try! socket1.write_string('ping')
+      try! socket.send_string_to('ping', send_to.ip, send_to.port)
 
-    assert.equal(try! socket2.read_string(4), 'ping')
-  }
-}
-
-test.group('std::net::socket::UdpSocket.send_string_to') do (g) {
-  g.test('Sending a String to a specific address') {
-    let socket = try! UdpSocket.new('127.0.0.1', port: 0)
-    let send_to = try! socket.local_address
-
-    try! socket.send_string_to('ping', send_to.ip, send_to.port)
-
-    assert.equal(try! socket.read_string(size: 4), 'ping')
-  }
-}
-
-test.group('std::net::socket::UdpSocket.send_bytes_to') do (g) {
-  g.test('Sending a ByteArray to a specific address') {
-    let socket = try! UdpSocket.new('127.0.0.1', port: 0)
-    let send_to = try! socket.local_address
-    let bytes = 'ping'.to_byte_array
-
-    try! socket.send_bytes_to(bytes, send_to.ip, send_to.port)
-
-    assert.equal(try! socket.read_string(size: 4), 'ping')
-  }
-}
-
-test.group('std::net::socket::UdpSocket.receive_from') do (g) {
-  g.test('Receiving a message and a SocketAddress') {
-    let listener = try! UdpSocket.new(ip: '127.0.0.1', port: 0)
-    let client = try! UdpSocket.new(ip: '127.0.0.1', port: 0)
-    let send_to = try! listener.local_address
-
-    try! client.send_string_to('ping', send_to.ip, send_to.port)
-
-    let bytes = ByteArray.new
-    let sender = try! listener.receive_from(bytes: bytes, size: 4)
-
-    assert.equal(sender, try! client.local_address)
-    assert.equal(bytes.to_string, 'ping')
-  }
-}
-
-test.group('std::net::socket::UdpSocket.local_address') do (g) {
-  g.test('Obtaining the local address of a UdpSocket') {
-    let socket = try! UdpSocket.new(ip: '127.0.0.1', port: 0)
-    let local_address = try! socket.local_address
-
-    assert.equal(local_address.ip.to_string, '127.0.0.1')
-    assert.true(local_address.port.positive?)
-  }
-}
-
-test.group('std::net::socket::UdpSocket.read_bytes') do (g) {
-  g.test('Reading bytes from a UdpSocket') {
-    let socket = try! UdpSocket.new(ip: '127.0.0.1', port: 0)
-    let bytes = ByteArray.new
-    let local_addr = try! socket.local_address
-
-    try! socket.send_string_to('ping', local_addr.ip, local_addr.port)
-
-    let read = try! socket.read_bytes(bytes: bytes, size: 4)
-
-    assert.equal(bytes.to_string, 'ping')
-    assert.equal(read, 4)
-  }
-}
-
-test.group('std::net::socket::UdpSocket.write_bytes') do (g) {
-  g.test('Writing bytes to a connected UdpSocket') {
-    let server_socket = try! UdpSocket.new(ip: '127.0.0.1', port: 0)
-    let client_socket = try! UdpSocket.new(ip: '127.0.0.1', port: 0)
-    let local_addr = try! server_socket.local_address
-
-    try! client_socket.connect(ip: local_addr.ip, port: local_addr.port)
-
-    let written = try! client_socket.write_bytes('ping'.to_byte_array)
-    let message = try! server_socket.read_string(size: 4)
-
-    assert.equal(message, 'ping')
-    assert.equal(written, 4)
+      try assert_equal(try! socket.read_string(size: 4), 'ping')
+    }
   }
 
-  g.test('Writing bytes to a disconnected UdpSocket') {
-    assert.panic {
+  t.group('std::net::socket::UdpSocket.send_bytes_to') do (g) {
+    g.test('Sending a ByteArray to a specific address') {
+      let socket = try! UdpSocket.new('127.0.0.1', port: 0)
+      let send_to = try! socket.local_address
+      let bytes = 'ping'.to_byte_array
+
+      try! socket.send_bytes_to(bytes, send_to.ip, send_to.port)
+
+      try assert_equal(try! socket.read_string(size: 4), 'ping')
+    }
+  }
+
+  t.group('std::net::socket::UdpSocket.receive_from') do (g) {
+    g.test('Receiving a message and a SocketAddress') {
+      let listener = try! UdpSocket.new(ip: '127.0.0.1', port: 0)
+      let client = try! UdpSocket.new(ip: '127.0.0.1', port: 0)
+      let send_to = try! listener.local_address
+
+      try! client.send_string_to('ping', send_to.ip, send_to.port)
+
+      let bytes = ByteArray.new
+      let sender = try! listener.receive_from(bytes: bytes, size: 4)
+
+      try assert_equal(sender, try! client.local_address)
+      try assert_equal(bytes.to_string, 'ping')
+    }
+  }
+
+  t.group('std::net::socket::UdpSocket.local_address') do (g) {
+    g.test('Obtaining the local address of a UdpSocket') {
+      let socket = try! UdpSocket.new(ip: '127.0.0.1', port: 0)
+      let local_address = try! socket.local_address
+
+      try assert_equal(local_address.ip.to_string, '127.0.0.1')
+      try assert_true(local_address.port.positive?)
+    }
+  }
+
+  t.group('std::net::socket::UdpSocket.read_bytes') do (g) {
+    g.test('Reading bytes from a UdpSocket') {
+      let socket = try! UdpSocket.new(ip: '127.0.0.1', port: 0)
+      let bytes = ByteArray.new
+      let local_addr = try! socket.local_address
+
+      try! socket.send_string_to('ping', local_addr.ip, local_addr.port)
+
+      let read = try! socket.read_bytes(bytes: bytes, size: 4)
+
+      try assert_equal(bytes.to_string, 'ping')
+      try assert_equal(read, 4)
+    }
+  }
+
+  t.group('std::net::socket::UdpSocket.write_bytes') do (g) {
+    g.test('Writing bytes to a connected UdpSocket') {
+      let server_socket = try! UdpSocket.new(ip: '127.0.0.1', port: 0)
+      let client_socket = try! UdpSocket.new(ip: '127.0.0.1', port: 0)
+      let local_addr = try! server_socket.local_address
+
+      try! client_socket.connect(ip: local_addr.ip, port: local_addr.port)
+
+      let written = try! client_socket.write_bytes('ping'.to_byte_array)
+      let message = try! server_socket.read_string(size: 4)
+
+      try assert_equal(message, 'ping')
+      try assert_equal(written, 4)
+    }
+
+    g.test('Writing bytes to a disconnected UdpSocket') {
       let socket = try! UdpSocket.new(ip: '127.0.0.1', port: 0)
 
-      try! socket.write_bytes('ping'.to_byte_array)
+      try assert_throw { local try socket.write_bytes('ping'.to_byte_array) }
     }
   }
-}
 
-test.group('std::net::socket::UdpSocket.close') do (g) {
-  g.test('Closing a UdpSocket') {
-    assert.no_panic {
+  t.group('std::net::socket::UdpSocket.close') do (g) {
+    g.test('Closing a UdpSocket') {
       let socket = try! UdpSocket.new(ip: '127.0.0.1', port: 0)
 
       socket.close
     }
   }
-}
 
-test.group('std::net::socket::UdpSocket.flush') do (g) {
-  g.test('Flushing a UdpSocket') {
-    let socket = try! UdpSocket.new(ip: '127.0.0.1', port: 0)
+  t.group('std::net::socket::UdpSocket.flush') do (g) {
+    g.test('Flushing a UdpSocket') {
+      let socket = try! UdpSocket.new(ip: '127.0.0.1', port: 0)
 
-    assert.equal(socket.flush, Nil)
+      try assert_equal(socket.flush, Nil)
+    }
   }
-}
 
-test.group('std::net::socket::TcpStream.new') do (g) {
-  g.test('Creating a new TcpStream') {
-    assert.no_panic {
+  t.group('std::net::socket::TcpStream.new') do (g) {
+    g.test('Creating a new TcpStream') {
       let listener = try! Socket.ipv4(STREAM)
 
       try! listener.bind(ip: '127.0.0.1', port: 0)
@@ -754,104 +731,104 @@ test.group('std::net::socket::TcpStream.new') do (g) {
 
       let listener_addr = try! listener.local_address
 
-      try! TcpStream.new(ip: listener_addr.ip, port: listener_addr.port)
+      try assert_no_throw {
+        local try TcpStream.new(ip: listener_addr.ip, port: listener_addr.port)
+      }
     }
   }
-}
 
-test.group('std::net::socket::TcpStream.local_address') do (g) {
-  g.test('Obtaining the local address') {
-    let listener = try! Socket.ipv4(STREAM)
+  t.group('std::net::socket::TcpStream.local_address') do (g) {
+    g.test('Obtaining the local address') {
+      let listener = try! Socket.ipv4(STREAM)
 
-    try! listener.bind(ip: '127.0.0.1', port: 0)
-    try! listener.listen
+      try! listener.bind(ip: '127.0.0.1', port: 0)
+      try! listener.listen
 
-    let listener_addr = try! listener.local_address
-    let stream =
-      try! TcpStream.new(ip: listener_addr.ip, port: listener_addr.port)
+      let listener_addr = try! listener.local_address
+      let stream =
+        try! TcpStream.new(ip: listener_addr.ip, port: listener_addr.port)
 
-    let local_addr = try! stream.local_address
+      let local_addr = try! stream.local_address
 
-    assert.equal(local_addr.ip.to_string, '127.0.0.1')
-    assert.true(local_addr.port.positive?)
+      try assert_equal(local_addr.ip.to_string, '127.0.0.1')
+      try assert_true(local_addr.port.positive?)
+    }
   }
-}
 
-test.group('std::net::socket::TcpStream.peer_address') do (g) {
-  g.test('Obtaining the peer address') {
-    let listener = try! Socket.ipv4(STREAM)
+  t.group('std::net::socket::TcpStream.peer_address') do (g) {
+    g.test('Obtaining the peer address') {
+      let listener = try! Socket.ipv4(STREAM)
 
-    try! listener.bind(ip: '127.0.0.1', port: 0)
-    try! listener.listen
+      try! listener.bind(ip: '127.0.0.1', port: 0)
+      try! listener.listen
 
-    let listener_addr = try! listener.local_address
-    let stream =
-      try! TcpStream.new(ip: listener_addr.ip, port: listener_addr.port)
+      let listener_addr = try! listener.local_address
+      let stream =
+        try! TcpStream.new(ip: listener_addr.ip, port: listener_addr.port)
 
-    let peer_addr = try! stream.peer_address
+      let peer_addr = try! stream.peer_address
 
-    assert.equal(peer_addr.ip as Ipv4Address, listener_addr.ip as Ipv4Address)
-    assert.equal(peer_addr.port, listener_addr.port)
+      try assert_equal(peer_addr.ip as Ipv4Address, listener_addr.ip as Ipv4Address)
+      try assert_equal(peer_addr.port, listener_addr.port)
+    }
   }
-}
 
-test.group('std::net::socket::TcpStream.read_bytes') do (g) {
-  g.test('Reading bytes from a TcpStream') {
-    let listener = try! Socket.ipv4(STREAM)
+  t.group('std::net::socket::TcpStream.read_bytes') do (g) {
+    g.test('Reading bytes from a TcpStream') {
+      let listener = try! Socket.ipv4(STREAM)
 
-    try! listener.bind(ip: '127.0.0.1', port: 0)
-    try! listener.listen
+      try! listener.bind(ip: '127.0.0.1', port: 0)
+      try! listener.listen
 
-    let addr = try! listener.local_address
-    let stream = try! TcpStream.new(ip: addr.ip, port: addr.port)
-    let bytes = ByteArray.new
+      let addr = try! listener.local_address
+      let stream = try! TcpStream.new(ip: addr.ip, port: addr.port)
+      let bytes = ByteArray.new
 
-    try! listener.accept.write_string('ping')
+      try! listener.accept.write_string('ping')
 
-    try! stream.read_bytes(bytes: bytes, size: 4)
+      try! stream.read_bytes(bytes: bytes, size: 4)
 
-    assert.equal(bytes.to_string, 'ping')
+      try assert_equal(bytes.to_string, 'ping')
+    }
   }
-}
 
 
-test.group('std::net::socket::TcpStream.write_bytes') do (g) {
-  g.test('Writing bytes to a TcpStream') {
-    let listener = try! Socket.ipv4(STREAM)
+  t.group('std::net::socket::TcpStream.write_bytes') do (g) {
+    g.test('Writing bytes to a TcpStream') {
+      let listener = try! Socket.ipv4(STREAM)
 
-    try! listener.bind(ip: '127.0.0.1', port: 0)
-    try! listener.listen
+      try! listener.bind(ip: '127.0.0.1', port: 0)
+      try! listener.listen
 
-    let addr = try! listener.local_address
-    let stream = try! TcpStream.new(ip: addr.ip, port: addr.port)
-    let connection = try! listener.accept
+      let addr = try! listener.local_address
+      let stream = try! TcpStream.new(ip: addr.ip, port: addr.port)
+      let connection = try! listener.accept
 
-    try! stream.write_bytes('ping'.to_byte_array)
+      try! stream.write_bytes('ping'.to_byte_array)
 
-    assert.equal(try! connection.read_string(4), 'ping')
+      try assert_equal(try! connection.read_string(4), 'ping')
+    }
   }
-}
 
-test.group('std::net::socket::TcpStream.write_string') do (g) {
-  g.test('Writing a String to a TcpStream') {
-    let listener = try! Socket.ipv4(STREAM)
+  t.group('std::net::socket::TcpStream.write_string') do (g) {
+    g.test('Writing a String to a TcpStream') {
+      let listener = try! Socket.ipv4(STREAM)
 
-    try! listener.bind(ip: '127.0.0.1', port: 0)
-    try! listener.listen
+      try! listener.bind(ip: '127.0.0.1', port: 0)
+      try! listener.listen
 
-    let addr = try! listener.local_address
-    let stream = try! TcpStream.new(ip: addr.ip, port: addr.port)
-    let connection = try! listener.accept
+      let addr = try! listener.local_address
+      let stream = try! TcpStream.new(ip: addr.ip, port: addr.port)
+      let connection = try! listener.accept
 
-    try! stream.write_string('ping')
+      try! stream.write_string('ping')
 
-    assert.equal(try! connection.read_string(4), 'ping')
+      try assert_equal(try! connection.read_string(4), 'ping')
+    }
   }
-}
 
-test.group('std::net::socket::TcpStream.close') do (g) {
-  g.test('Closing a TcpStream') {
-    assert.no_panic {
+  t.group('std::net::socket::TcpStream.close') do (g) {
+    g.test('Closing a TcpStream') {
       let listener = try! Socket.ipv4(STREAM)
 
       try! listener.bind(ip: '127.0.0.1', port: 0)
@@ -863,43 +840,41 @@ test.group('std::net::socket::TcpStream.close') do (g) {
       stream.close
     }
   }
-}
 
-test.group('std::net::socket::TcpStream.flush') do (g) {
-  g.test('Flushing a TcpStream') {
-    let listener = try! Socket.ipv4(STREAM)
+  t.group('std::net::socket::TcpStream.flush') do (g) {
+    g.test('Flushing a TcpStream') {
+      let listener = try! Socket.ipv4(STREAM)
 
-    try! listener.bind(ip: '127.0.0.1', port: 0)
-    try! listener.listen
+      try! listener.bind(ip: '127.0.0.1', port: 0)
+      try! listener.listen
 
-    let addr = try! listener.local_address
-    let stream = try! TcpStream.new(ip: addr.ip, port: addr.port)
+      let addr = try! listener.local_address
+      let stream = try! TcpStream.new(ip: addr.ip, port: addr.port)
 
-    assert.equal(stream.flush, Nil)
+      try assert_equal(stream.flush, Nil)
+    }
   }
-}
 
-test.group('std::net::socket::TcpStream.shutdown_read') do (g) {
-  g.test('Shutting down the reading half of a TcpStream') {
-    let listener = try! Socket.ipv4(STREAM)
+  t.group('std::net::socket::TcpStream.shutdown_read') do (g) {
+    g.test('Shutting down the reading half of a TcpStream') {
+      let listener = try! Socket.ipv4(STREAM)
 
-    try! listener.bind(ip: '127.0.0.1', port: 0)
-    try! listener.listen
+      try! listener.bind(ip: '127.0.0.1', port: 0)
+      try! listener.listen
 
-    let addr = try! listener.local_address
-    let stream = try! TcpStream.new(ip: addr.ip, port: addr.port)
+      let addr = try! listener.local_address
+      let stream = try! TcpStream.new(ip: addr.ip, port: addr.port)
 
-    try! stream.shutdown_read
+      try! stream.shutdown_read
 
-    let message = try! stream.read_string(4)
+      let message = try! stream.read_string(4)
 
-    assert.equal(message, '')
+      try assert_equal(message, '')
+    }
   }
-}
 
-test.group('std::net::socket::TcpStream.shutdown_write') do (g) {
-  g.test('Shutting down the writing half of a Socket') {
-    assert.panic {
+  t.group('std::net::socket::TcpStream.shutdown_write') do (g) {
+    g.test('Shutting down the writing half of a Socket') {
       let listener = try! Socket.ipv4(STREAM)
 
       try! listener.bind(ip: '127.0.0.1', port: 0)
@@ -909,14 +884,13 @@ test.group('std::net::socket::TcpStream.shutdown_write') do (g) {
       let stream = try! TcpStream.new(ip: addr.ip, port: addr.port)
 
       try! stream.shutdown_write
-      try! stream.write_string('ping')
+
+      try assert_throw { local try stream.write_string('ping') }
     }
   }
-}
 
-test.group('std::net::socket::Socket.shutdown') do (g) {
-  g.test('Shutting down the writing half of a Socket') {
-    assert.panic {
+  t.group('std::net::socket::Socket.shutdown') do (g) {
+    g.test('Shutting down the writing half of a Socket') {
       let listener = try! Socket.ipv4(STREAM)
 
       try! listener.bind(ip: '127.0.0.1', port: 0)
@@ -926,75 +900,74 @@ test.group('std::net::socket::Socket.shutdown') do (g) {
       let stream = try! TcpStream.new(ip: addr.ip, port: addr.port)
 
       try! stream.shutdown
-      try! stream.write_string('ping')
+
+      try assert_throw { local try stream.write_string('ping') }
+    }
+
+    g.test('Shutting down the reading half of a Socket') {
+      let listener = try! Socket.ipv4(STREAM)
+
+      try! listener.bind(ip: '127.0.0.1', port: 0)
+      try! listener.listen
+
+      let addr = try! listener.local_address
+      let stream = try! TcpStream.new(ip: addr.ip, port: addr.port)
+
+      try! stream.shutdown
+
+      let message = try! stream.read_string(4)
+
+      try assert_equal(message, '')
     }
   }
 
-  g.test('Shutting down the reading half of a Socket') {
-    let listener = try! Socket.ipv4(STREAM)
-
-    try! listener.bind(ip: '127.0.0.1', port: 0)
-    try! listener.listen
-
-    let addr = try! listener.local_address
-    let stream = try! TcpStream.new(ip: addr.ip, port: addr.port)
-
-    try! stream.shutdown
-
-    let message = try! stream.read_string(4)
-
-    assert.equal(message, '')
-  }
-}
-
-test.group('std::net::socket::TcpListener.new') do (g) {
-  g.test('Creating a TcpListener') {
-    assert.no_panic {
-      try! TcpListener.new(ip: '0.0.0.0', port: 0)
+  t.group('std::net::socket::TcpListener.new') do (g) {
+    g.test('Creating a TcpListener') {
+      try assert_no_throw { local try TcpListener.new(ip: '0.0.0.0', port: 0) }
     }
-  }
 
-  g.test('Creating a TcpListener with an in-use address and port') {
-    assert.no_panic {
+    g.test('Creating a TcpListener with an in-use address and port') {
       let listener1 = try! TcpListener.new(ip: '0.0.0.0', port: 0)
       let address = try! listener1.local_address
 
-      try! TcpListener.new(ip: address.ip, port: address.port)
+      try assert_no_throw {
+        local try TcpListener.new(ip: address.ip, port: address.port)
+      }
+    }
+
+    g.test('Creating a TcpListener that only uses IPv6 packets') {
+      let listener = try! TcpListener.new(ip: '::1', port: 0, only_ipv6: True)
+
+      try assert_true(try! listener.socket.only_ipv6?)
     }
   }
 
-  g.test('Creating a TcpListener that only uses IPv6 packets') {
-    let listener = try! TcpListener.new(ip: '::1', port: 0, only_ipv6: True)
+  t.group('std::net::socket::TcpListener.accept') do (g) {
+    g.test('Accepting an incoming connection') {
+      let listener = try! TcpListener.new(ip: '127.0.0.1', port: 0)
+      let addr = try! listener.local_address
+      let stream = try! TcpStream.new(ip: addr.ip, port: addr.port)
+      let connection = try! listener.accept
 
-    assert.true(try! listener.socket.only_ipv6?)
+      try assert_equal(try! connection.local_address, try! stream.peer_address)
+    }
   }
-}
 
-test.group('std::net::socket::TcpListener.accept') do (g) {
-  g.test('Accepting an incoming connection') {
-    let listener = try! TcpListener.new(ip: '127.0.0.1', port: 0)
-    let addr = try! listener.local_address
-    let stream = try! TcpStream.new(ip: addr.ip, port: addr.port)
-    let connection = try! listener.accept
+  t.group('std::net::socket::TcpListener.local_address') do (g) {
+    g.test('Obtaining the local address') {
+      let listener = try! TcpListener.new(ip: '127.0.0.1', port: 0)
+      let addr = try! listener.local_address
 
-    assert.equal(try! connection.local_address, try! stream.peer_address)
+      try assert_equal(addr.ip.to_string, '127.0.0.1')
+      try assert_true(addr.port.positive?)
+    }
   }
-}
 
-test.group('std::net::socket::TcpListener.local_address') do (g) {
-  g.test('Obtaining the local address') {
-    let listener = try! TcpListener.new(ip: '127.0.0.1', port: 0)
-    let addr = try! listener.local_address
+  t.group('std::net::socket::TcpListener.close') do (g) {
+    g.test('Closing a TcpListener') {
+      let listener = try! TcpListener.new(ip: '127.0.0.1', port: 0)
 
-    assert.equal(addr.ip.to_string, '127.0.0.1')
-    assert.true(addr.port.positive?)
-  }
-}
-
-test.group('std::net::socket::TcpListener.close') do (g) {
-  g.test('Closing a TcpListener') {
-    let listener = try! TcpListener.new(ip: '127.0.0.1', port: 0)
-
-    assert.equal(listener.close, Nil)
+      try assert_equal(listener.close, Nil)
+    }
   }
 }

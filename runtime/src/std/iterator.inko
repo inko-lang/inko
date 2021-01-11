@@ -97,13 +97,7 @@ trait Iterator!(T, E) {
   #       stdout.print(number)
   #     }
   def each(block: do (T)) !! E {
-    let value = try { next }
-
-    match {
-      value.some? -> { block.call(value.get) }
-      else -> { return }
-    }
-
+    try { next }.let(block).else { return }
     try each(block)
   }
 
@@ -368,6 +362,31 @@ trait Iterator!(T, E) {
 
     result
   }
+
+  # Returns an `Iterator` that produces chunks of values.
+  #
+  # Each chunk is up to the amount specified by the `size` argument. If the
+  # number of values can't be evenly divided, the last chunk may contain fewer
+  # than `size` elements.
+  def chunks(size: Integer) !! E => Array!(T) {
+    let mut chunk = Array.new
+
+    try each do (value) {
+      (chunk.length == size).if(
+        true: {
+          yield chunk
+
+          # The supplied block may decide to continue using the Array, so we
+          # can't clear it and reuse it; instead we must create a new one.
+          chunk = Array.new(value)
+        },
+        false: { chunk.push(value) }
+      )
+    }
+
+    chunk.empty?.if_false { yield chunk }
+  }
+
   # Transforms the `Iterator` into an `Array`.
   #
   # This method will advance the iterator to the end.

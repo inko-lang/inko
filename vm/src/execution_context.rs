@@ -30,9 +30,6 @@ pub struct ExecutionContext {
     /// The current module.
     pub module: DerefPointer<Module>,
 
-    /// If a process should terminate once it returns from this context.
-    pub terminate_upon_return: bool,
-
     /// Blocks to execute when returning from this context.
     pub deferred_blocks: Vec<ObjectPointer>,
 }
@@ -60,7 +57,6 @@ impl ExecutionContext {
             parent: None,
             instruction_index: 0,
             module: block.module,
-            terminate_upon_return: false,
         }
     }
 
@@ -198,10 +194,6 @@ impl ExecutionContext {
 
     pub fn binding_pointer(&self) -> *const Binding {
         &*self.binding as *const Binding
-    }
-
-    pub fn terminate_upon_return(&mut self) {
-        self.terminate_upon_return = true;
     }
 
     pub fn add_defer(&mut self, block: ObjectPointer) {
@@ -403,7 +395,7 @@ mod tests {
 
         // This test is put in place to ensure the type size doesn't change
         // unintentionally.
-        assert_eq!(size, 88);
+        assert_eq!(size, 80);
     }
 
     #[test]

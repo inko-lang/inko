@@ -116,7 +116,7 @@ trait Read {
   # If no argument is given, all remaining data is to be read. If the `size`
   # argument is given, up to `size` bytes will be read from the stream.
   #
-  # A `size` argument of `0` results in all bytes being read.
+  # If `size <= 0`, all remaining bytes are read.
   def read_bytes(bytes: ByteArray, size = 0) !! Error -> Integer
 
   # Reads data from a stream into a `String`.
@@ -124,7 +124,7 @@ trait Read {
   # If no argument is given, all remaining data is to be read. If the `size`
   # argument is given, up to `size` bytes will be read from the stream.
   #
-  #  A `size` argument of `0` results in all bytes being read.
+  # If `size <= 0`, all remaining bytes are read.
   def read_string(size = 0) !! Error -> String {
     let bytes = ByteArray.new
 
@@ -160,5 +160,8 @@ trait Write {
 # Trait for seeking to a given offset in a stream of bytes.
 trait Seek {
   # Seeks to the given byte offset, returning the new offset.
+  #
+  # If `position` is negative, seeking is performed in reverse order relative to
+  # the end.
   def seek(position: Integer) !! Error -> Integer
 }

@@ -148,12 +148,6 @@ pub struct State {
     /// The commandline arguments passed to an Inko program.
     pub arguments: Vec<ObjectPointer>,
 
-    /// The default panic handler for all processes.
-    ///
-    /// This field defaults to a null pointer. Reading and writing this field
-    /// should be done using atomic operations.
-    pub default_panic_handler: ObjectPointer,
-
     /// The system polling mechanism to use for polling non-blocking sockets.
     pub network_poller: NetworkPoller,
 
@@ -231,7 +225,6 @@ impl State {
             nil_prototype: nil_proto,
             nil_object: nil_obj,
             arguments: Vec::with_capacity(arguments.len()),
-            default_panic_handler: ObjectPointer::null(),
             byte_array_prototype: byte_array_proto,
             module_prototype: module_proto,
             ffi_library_prototype,
@@ -323,16 +316,6 @@ impl State {
 
     pub fn current_exit_status(&self) -> i32 {
         *self.exit_status.lock()
-    }
-
-    pub fn default_panic_handler(&self) -> Option<ObjectPointer> {
-        let handler = self.default_panic_handler.atomic_load();
-
-        if handler.is_null() {
-            None
-        } else {
-            Some(handler)
-        }
     }
 
     pub fn parse_image(&self, path: &str) -> Result<(), String> {

@@ -151,7 +151,7 @@ impl Worker<RcProcess> for ProcessWorker {
         // needed.
         let machine = unsafe { &mut *self.machine.get() };
 
-        machine.run_with_error_handling(self, &job);
+        machine.run(self, &job);
     }
 }
 

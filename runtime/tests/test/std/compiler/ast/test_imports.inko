@@ -1,32 +1,33 @@
 import std::compiler::ast::imports::(ImportAlias, ImportSymbol)
 import std::compiler::source_location::SourceLocation
-import std::test
-import std::test::assert
+import std::test::*
 
 def location -> SourceLocation {
   SourceLocation.new(file: 'test.inko', line_range: 1..1, column: 1)
 }
 
-test.group('std::compiler::ast::imports::ImportSymbol.expose?') do (g) {
-  g.test('Checking if a symbol without an alias should be exposed') {
-    let symbol = ImportSymbol.new(name: 'foo', location: location)
+def tests(t: Tests) {
+  t.group('std::compiler::ast::imports::ImportSymbol.expose?') do (g) {
+    g.test('Checking if a symbol without an alias should be exposed') {
+      let symbol = ImportSymbol.new(name: 'foo', location: location)
 
-    assert.true(symbol.expose?)
-  }
+      try assert_true(symbol.expose?)
+    }
 
-  g.test('Checking if a symbol with an alias should be exposed') {
-    let alias = ImportAlias.new(name: 'bar', location: location)
-    let symbol = ImportSymbol
-      .new(name: 'foo', location: location, alias: Option.some(alias))
+    g.test('Checking if a symbol with an alias should be exposed') {
+      let alias = ImportAlias.new(name: 'bar', location: location)
+      let symbol = ImportSymbol
+        .new(name: 'foo', location: location, alias: Option.some(alias))
 
-    assert.true(symbol.expose?)
-  }
+      try assert_true(symbol.expose?)
+    }
 
-  g.test('Checking if a symbol aliased as _ should be exposed') {
-    let alias = ImportAlias.new(name: '_', location: location)
-    let symbol = ImportSymbol
-      .new(name: 'foo', location: location, alias: Option.some(alias))
+    g.test('Checking if a symbol aliased as _ should be exposed') {
+      let alias = ImportAlias.new(name: '_', location: location)
+      let symbol = ImportSymbol
+        .new(name: 'foo', location: location, alias: Option.some(alias))
 
-    assert.false(symbol.expose?)
+      try assert_false(symbol.expose?)
+    }
   }
 }

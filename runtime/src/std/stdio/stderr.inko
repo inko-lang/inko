@@ -14,7 +14,6 @@
 
 import std::conversion::ToString
 import std::io::Write
-import std::os::NEWLINE
 import std::process::(blocking)
 
 extern def stderr_write_string(input: String) !! String -> Integer
@@ -61,7 +60,7 @@ impl Write for ThisModule {
     blocking {
       let written = try stderr_write_string(data.to_string) else return 0
 
-      written + try stderr_write_string(NEWLINE) else 0
+      written + try stderr_write_string("\n") else 0
     }
   }
 

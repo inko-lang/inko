@@ -82,11 +82,8 @@ fn trace(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::binding::Binding;
-    use crate::block::Block;
     use crate::config::Config;
     use crate::object::Object;
-    use crate::object_pointer::ObjectPointer;
     use crate::object_value;
     use crate::vm::state::State;
     use crate::vm::test::setup;
@@ -434,42 +431,5 @@ mod tests {
 
         assert!(young.is_marked());
         assert!(mature.is_marked());
-    }
-
-    #[test]
-    fn test_trace_with_panic_handler() {
-        let (_machine, block, process) = setup();
-        let local = process.allocate_empty();
-        let receiver = process.allocate_empty();
-
-        let code = process.context().code.clone();
-        let binding = Binding::new(1, ObjectPointer::integer(1), None);
-
-        binding.set_local(0, local);
-
-        let new_block =
-            Block::new(code, Some(binding), receiver, &block.module);
-
-        let panic_handler =
-            process.allocate_without_prototype(object_value::block(new_block));
-
-        process.set_panic_handler(panic_handler);
-        process.prepare_for_collection(false);
-
-        let stats = trace(
-            &process,
-            &mut process.local_data_mut().mailbox.lock(),
-            false,
-            false,
-            &Pool::new(1),
-        );
-
-        assert_eq!(stats.marked, 3);
-        assert_eq!(stats.evacuated, 0);
-        assert_eq!(stats.promoted, 0);
-
-        assert!(panic_handler.is_marked());
-        assert!(receiver.is_marked());
-        assert!(local.is_marked());
     }
 }

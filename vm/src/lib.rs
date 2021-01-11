@@ -43,7 +43,6 @@ pub mod process;
 pub mod process_status;
 pub mod registers;
 pub mod runtime_error;
-pub mod runtime_panic;
 pub mod scheduler;
 pub mod slicing;
 pub mod socket;

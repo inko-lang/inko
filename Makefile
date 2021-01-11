@@ -231,7 +231,7 @@ compiler/test:
 
 runtime/test:
 	$(MAKE) vm/release DEV=1
-	./${TARGET_BINARY} test -d runtime/tests dummy
+	./${TARGET_BINARY} test -d runtime/tests
 
 vm/debug:
 	cd cli && ${CARGO_CMD} build ${TARGET_OPTION} ${FEATURES_OPTION}

@@ -1,140 +1,141 @@
 import std::hash::DefaultHasher
-import std::test
-import std::test::assert
+import std::test::*
 
-test.group('std::boolean::Boolean.true?') do (g) {
-  g.test('Checking if a Boolean is True') {
-    assert.true(True.true?)
-    assert.false(False.true?)
-  }
-}
-
-test.group('std::boolean::Boolean.false?') do (g) {
-  g.test('Checking if a Boolean is False') {
-    assert.false(True.false?)
-    assert.true(False.false?)
-  }
-}
-
-test.group('std::boolean::Boolean.truthy?') do (g) {
-  g.test('Checking if a Boolean is truthy') {
-    assert.true(True.truthy?)
-    assert.false(False.truthy?)
-  }
-}
-
-test.group('std::boolean::Boolean.if_true') do (g) {
-  g.test('Sending "if_true" to True') {
-    let mut num = 0
-
-    True.if_true { num = 10 }
-
-    assert.equal(num, 10)
+def tests(t: Tests) {
+  t.group('std::boolean::Boolean.true?') do (g) {
+    g.test('Checking if a Boolean is True') {
+      try assert_true(True.true?)
+      try assert_false(False.true?)
+    }
   }
 
-  g.test('Sending "if_true" to False') {
-    let mut num = 0
-
-    False.if_true { num = 10 }
-
-    assert.equal(num, 0)
-  }
-}
-
-test.group('std::boolean::Boolean.if_false') do (g) {
-  g.test('Sending "if_false" to True') {
-    let mut num = 0
-
-    True.if_false { num = 10 }
-
-    assert.equal(num, 0)
+  t.group('std::boolean::Boolean.false?') do (g) {
+    g.test('Checking if a Boolean is False') {
+      try assert_false(True.false?)
+      try assert_true(False.false?)
+    }
   }
 
-  g.test('Sending "if_false" to False') {
-    let mut num = 0
-
-    False.if_false { num = 10 }
-
-    assert.equal(num, 10)
-  }
-}
-
-test.group('std::boolean::Boolean.if') do (g) {
-  g.test('Sending "if" to True') {
-    assert.equal(True.if(true: { 10 }, false: { 20 }), 10)
+  t.group('std::boolean::Boolean.truthy?') do (g) {
+    g.test('Checking if a Boolean is truthy') {
+      try assert_true(True.truthy?)
+      try assert_false(False.truthy?)
+    }
   }
 
-  g.test('Sending "if" to False') {
-    assert.equal(False.if(true: { 10 }, false: { 20 }), 20)
-  }
-}
+  t.group('std::boolean::Boolean.if_true') do (g) {
+    g.test('Sending "if_true" to True') {
+      let mut num = 0
 
-test.group('std::boolean::Boolean.and') do (g) {
-  g.test('Sending "and" to True') {
-    assert.equal(True.and({ True }), True)
-  }
+      True.if_true { num = 10 }
 
-  g.test('Sending "and" to False') {
-    assert.equal(False.and({ True }), False)
-  }
-}
+      try assert_equal(num, 10)
+    }
 
-test.group('std::boolean::Boolean.or') do (g) {
-  g.test('Sending "or" to True') {
-    assert.equal(True.or({ False }), True)
+    g.test('Sending "if_true" to False') {
+      let mut num = 0
+
+      False.if_true { num = 10 }
+
+      try assert_equal(num, 0)
+    }
   }
 
-  g.test('Sending "or" to False') {
-    assert.equal(False.or({ True }), True)
-  }
-}
+  t.group('std::boolean::Boolean.if_false') do (g) {
+    g.test('Sending "if_false" to True') {
+      let mut num = 0
 
-test.group('std::boolean::Boolean.==') do (g) {
-  g.test('Comparing True with another Boolean') {
-    assert.equal(True, True)
-    assert.not_equal(True, False)
-  }
+      True.if_false { num = 10 }
 
-  g.test('Comparing False with another Boolean') {
-    assert.equal(False, False)
-    assert.not_equal(False, True)
-  }
-}
+      try assert_equal(num, 0)
+    }
 
-test.group('std::boolean::Boolean.to_string') do (g) {
-  g.test('Converting True to a String') {
-    assert.equal(True.to_string, 'True')
+    g.test('Sending "if_false" to False') {
+      let mut num = 0
+
+      False.if_false { num = 10 }
+
+      try assert_equal(num, 10)
+    }
   }
 
-  g.test('Converting False to a String') {
-    assert.equal(False.to_string, 'False')
-  }
-}
+  t.group('std::boolean::Boolean.if') do (g) {
+    g.test('Sending "if" to True') {
+      try assert_equal(True.if(true: { 10 }, false: { 20 }), 10)
+    }
 
-test.group('std::boolean::Boolean.hash') do (g) {
-  g.test('Hashing True') {
-    let hasher1 = DefaultHasher.new(1, 2)
-    let hasher2 = DefaultHasher.new(1, 2)
-
-    True.hash(hasher1)
-    True.hash(hasher2)
-
-    # The exact hash value may change between OS processes or releases, so all
-    # we can do is assert that the value is the same every time we send `hash`
-    # to `True`.
-    assert.equal(hasher1.to_hash, hasher2.to_hash)
+    g.test('Sending "if" to False') {
+      try assert_equal(False.if(true: { 10 }, false: { 20 }), 20)
+    }
   }
 
-  g.test('Hashing False') {
-    let hasher1 = DefaultHasher.new(1, 2)
-    let hasher2 = DefaultHasher.new(1, 2)
+  t.group('std::boolean::Boolean.and') do (g) {
+    g.test('Sending "and" to True') {
+      try assert_equal(True.and({ True }), True)
+    }
 
-    False.hash(hasher1)
-    False.hash(hasher2)
+    g.test('Sending "and" to False') {
+      try assert_equal(False.and({ True }), False)
+    }
+  }
 
-    # The exact hash value may change between OS processes or releases, so all
-    # we can do is assert that the value is the same every time we send `hash`
-    # to `True`.
-    assert.equal(hasher1.to_hash, hasher2.to_hash)
+  t.group('std::boolean::Boolean.or') do (g) {
+    g.test('Sending "or" to True') {
+      try assert_equal(True.or({ False }), True)
+    }
+
+    g.test('Sending "or" to False') {
+      try assert_equal(False.or({ True }), True)
+    }
+  }
+
+  t.group('std::boolean::Boolean.==') do (g) {
+    g.test('Comparing True with another Boolean') {
+      try assert_equal(True, True)
+      try assert_not_equal(True, False)
+    }
+
+    g.test('Comparing False with another Boolean') {
+      try assert_equal(False, False)
+      try assert_not_equal(False, True)
+    }
+  }
+
+  t.group('std::boolean::Boolean.to_string') do (g) {
+    g.test('Converting True to a String') {
+      try assert_equal(True.to_string, 'True')
+    }
+
+    g.test('Converting False to a String') {
+      try assert_equal(False.to_string, 'False')
+    }
+  }
+
+  t.group('std::boolean::Boolean.hash') do (g) {
+    g.test('Hashing True') {
+      let hasher1 = DefaultHasher.new(1, 2)
+      let hasher2 = DefaultHasher.new(1, 2)
+
+      True.hash(hasher1)
+      True.hash(hasher2)
+
+      # The exact hash value may change between OS processes or releases, so all
+      # we can do is assert that the value is the same every time we send `hash`
+      # to `True`.
+      try assert_equal(hasher1.to_hash, hasher2.to_hash)
+    }
+
+    g.test('Hashing False') {
+      let hasher1 = DefaultHasher.new(1, 2)
+      let hasher2 = DefaultHasher.new(1, 2)
+
+      False.hash(hasher1)
+      False.hash(hasher2)
+
+      # The exact hash value may change between OS processes or releases, so all
+      # we can do is assert that the value is the same every time we send `hash`
+      # to `True`.
+      try assert_equal(hasher1.to_hash, hasher2.to_hash)
+    }
   }
 }

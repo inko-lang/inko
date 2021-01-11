@@ -1,6 +1,5 @@
 import std::length::Length
-import std::test
-import std::test::assert
+import std::test::*
 
 class EmptyList {
   static def new -> Self {
@@ -26,12 +25,14 @@ impl Length for NonEmptyList {
   }
 }
 
-test.group('std::length::Length.empty?') do (g) {
-  g.test('Checking if an empty object is empty') {
-    assert.true(EmptyList.new.empty?)
-  }
+def tests(t: Tests) {
+  t.group('std::length::Length.empty?') do (g) {
+    g.test('Checking if an empty object is empty') {
+      try assert_true(EmptyList.new.empty?)
+    }
 
-  g.test('Checking if a non-empty object is empty') {
-    assert.false(NonEmptyList.new.empty?)
+    g.test('Checking if a non-empty object is empty') {
+      try assert_false(NonEmptyList.new.empty?)
+    }
   }
 }

@@ -7,6 +7,7 @@ use crate::object_value;
 use crate::process::RcProcess;
 use crate::runtime_error::RuntimeError;
 use crate::vm::state::RcState;
+use num_traits::Signed;
 use num_traits::ToPrimitive;
 use std::fs;
 use std::io::{Seek, SeekFrom, Write};
@@ -36,32 +37,25 @@ pub fn file_seek(
     let file_ptr = arguments[0];
     let offset_ptr = arguments[1];
     let file = file_ptr.file_value_mut()?;
-
-    let offset = if offset_ptr.is_bigint() {
+    let seek = if offset_ptr.is_bigint() {
         let big_offset = offset_ptr.bigint_value()?;
 
-        if let Some(offset) = big_offset.to_u64() {
-            offset
+        if big_offset.is_negative() {
+            SeekFrom::End(big_offset.to_i64().unwrap_or(i64::MIN))
         } else {
-            return Err(RuntimeError::Panic(format!(
-                "{} is too big for a seek offset",
-                big_offset
-            )));
+            SeekFrom::Start(big_offset.to_u64().unwrap_or(u64::MAX))
         }
     } else {
         let offset = offset_ptr.integer_value()?;
 
         if offset < 0 {
-            return Err(RuntimeError::Panic(format!(
-                "{} is not a valid seek offset",
-                offset
-            )));
+            SeekFrom::End(offset)
+        } else {
+            SeekFrom::Start(offset as u64)
         }
-
-        offset as u64
     };
 
-    let cursor = file.get_mut().seek(SeekFrom::Start(offset))?;
+    let cursor = file.get_mut().seek(seek)?;
 
     Ok(process.allocate_u64(cursor, state.integer_prototype))
 }
@@ -348,7 +342,7 @@ pub fn file_read(
 ) -> Result<ObjectPointer, RuntimeError> {
     let file = arguments[0].file_value_mut()?;
     let buff = arguments[1].byte_array_value_mut()?;
-    let size = arguments[2].u64_value()?;
+    let size = arguments[2].u64_value().ok();
     let stream = file.get_mut();
     let result = read_into(stream, buff, size)?;
 

@@ -1,26 +1,27 @@
 import std::hash::DefaultHasher
-import std::test
-import std::test::assert
+import std::test::*
 
-test.group('std::block::Block.==') do (g) {
-  g.test('Comparing two blocks') {
-    let a = { 10 }
-    let b = { 10 }
+def tests(t: Tests) {
+  t.group('std::block::Block.==') do (g) {
+    g.test('Comparing two blocks') {
+      let a = { 10 }
+      let b = { 10 }
 
-    assert.equal(a, a)
-    assert.not_equal(a, b)
+      try assert_equal(a, a)
+      try assert_not_equal(a, b)
+    }
   }
-}
 
-test.group('std::block::Block.hash') do (g) {
-  g.test('Hashing a block') {
-    let block = { 10 }
-    let hasher1 = DefaultHasher.new(1, 2)
-    let hasher2 = DefaultHasher.new(1, 2)
+  t.group('std::block::Block.hash') do (g) {
+    g.test('Hashing a block') {
+      let block = { 10 }
+      let hasher1 = DefaultHasher.new(1, 2)
+      let hasher2 = DefaultHasher.new(1, 2)
 
-    block.hash(hasher1)
-    block.hash(hasher2)
+      block.hash(hasher1)
+      block.hash(hasher2)
 
-    assert.equal(hasher1.to_hash, hasher2.to_hash)
+      try assert_equal(hasher1.to_hash, hasher2.to_hash)
+    }
   }
 }

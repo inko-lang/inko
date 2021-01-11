@@ -1,25 +1,26 @@
 import std::compiler::source_location::SourceLocation
-import std::test
-import std::test::assert
+import std::test::*
 
 def location -> SourceLocation {
   SourceLocation.new(file: 'test.inko', line_range: 1..2, column: 4)
 }
 
-test.group('std::compiler::source_location::SourceLocation.file') do (g) {
-  g.test('Obtaining the file path') {
-    assert.equal(location.file, 'test.inko'.to_path)
+def tests(t: Tests) {
+  t.group('std::compiler::source_location::SourceLocation.file') do (g) {
+    g.test('Obtaining the file path') {
+      try assert_equal(location.file, 'test.inko'.to_path)
+    }
   }
-}
 
-test.group('std::compiler::source_location::SourceLocation.line_range') do (g) {
-  g.test('Obtaining the line range') {
-    assert.equal(location.line_range, 1..2)
+  t.group('std::compiler::source_location::SourceLocation.line_range') do (g) {
+    g.test('Obtaining the line range') {
+      try assert_equal(location.line_range, 1..2)
+    }
   }
-}
 
-test.group('std::compiler::source_location::SourceLocation.column') do (g) {
-  g.test('Obtaining the column') {
-    assert.equal(location.column, 4)
+  t.group('std::compiler::source_location::SourceLocation.column') do (g) {
+    g.test('Obtaining the column') {
+      try assert_equal(location.column, 4)
+    }
   }
 }

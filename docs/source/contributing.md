@@ -105,28 +105,29 @@ located in `runtime/tests/test/std/foo/test_bar.inko`. The basic structure of a
 test looks like this:
 
 ```inko
-import std::test
-import std::test::assert
+import std::test::*
 
-test.group('Fully qualified name of the method to test') do (g) {
-  g.test('A description of the test') {
+def tests(t: Tests) {
+  t.group('Fully qualified name of the method to test') do (g) {
+    g.test('A description of the test') {
 
+    }
   }
 }
 ```
 
-Generally, each test group (created using `test.group`) focuses on a single
-method. In some cases a test group may cover more than a single method, if this
-makes the testing process easier. For example, for the self-hosting compiler we
-test larger chunks of code at a time, as this is easier compared to testing
-every method in isolation.
+Generally, each test group (created using `t.group`) focuses on a single method.
+In some cases a test group may cover more than a single method, if this makes
+the testing process easier. For example, for the self-hosting compiler we test
+larger chunks of code at a time, as this is easier compared to testing every
+method in isolation.
 
 Test names should be a clear and natural to read description of what the test
 does, not what it expects. So "Adding two numbers" and not "it returns an
 integer". Here's a simple example from the tests for the `std::ansi` module:
 
 ```inko
-test.group('std::ansi.red') do (g) {
+t.group('std::ansi.red') do (g) {
   g.test('Applying the color red to a String') {
     assert.equal(ansi.red('hello'), "\e[31mhello\e[0m")
   }

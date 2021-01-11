@@ -18,27 +18,3 @@
 def exit(status: Integer) -> Never {
   _INKOC.exit(status)
 }
-
-# Defines the default panic handler.
-#
-# The provided `lambda` is executed whenever a process panics and doesn't
-# define its own panic handler. Once the block returns, the process will
-# terminate.
-#
-# The argument passed to the provided block is a `String` containing the panic
-# message. Obtaining a stacktrace can be done using `std::debug.stacktrace`, as
-# the call stack does not unwind before running the panick handler.
-#
-# # Examples
-#
-# Defining a custom default panic handler:
-#
-#     import std::vm
-#     import std::stdio::stderr
-#
-#     vm.panicking lambda (error) {
-#       stderr.print(error)
-#     }
-def panicking(block: fn (String)) {
-  _INKOC.set_default_panic_handler(block)
-}

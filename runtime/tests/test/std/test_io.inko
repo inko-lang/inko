@@ -1,7 +1,6 @@
 import std::io::(Error, INVALID_INPUT, NOT_FOUND, Read, Write)
 import std::os::NEWLINE
-import std::test
-import std::test::assert
+import std::test::*
 
 class Reader {
   static def new -> Self {
@@ -50,46 +49,48 @@ impl Write for Writer {
   }
 }
 
-test.group('std::io::Error.new') do (g) {
-  g.test('Creating an Error for an error code') {
-    let error = Error.new(NOT_FOUND)
+def tests(t: Tests) {
+  t.group('std::io::Error.new') do (g) {
+    g.test('Creating an Error for an error code') {
+      let error = Error.new(NOT_FOUND)
 
-    assert.equal(error.code, NOT_FOUND)
-    assert.equal(error.message, 'The resource could not be found')
-  }
-}
-
-test.group('std::io::Error.invalid_input') do (g) {
-  g.test('Creating a custom Error for invalid input') {
-    let error = Error.invalid_input('testing')
-
-    assert.equal(error.code, INVALID_INPUT)
-    assert.equal(error.message, 'testing')
-  }
-}
-
-test.group('std::io::Read.read_string') do (g) {
-  g.test('Reading all bytes into a String') {
-    let reader = Reader.new
-    let string = try! reader.read_string
-
-    assert.equal(string, 'inko')
+      try assert_equal(error.code, NOT_FOUND)
+      try assert_equal(error.message, 'The resource could not be found')
+    }
   }
 
-  g.test('Reading a limited number of bytes into a String') {
-    let reader = Reader.new
-    let string = try! reader.read_string(size: 2)
+  t.group('std::io::Error.invalid_input') do (g) {
+    g.test('Creating a custom Error for invalid input') {
+      let error = Error.invalid_input('testing')
 
-    assert.equal(string, 'in')
+      try assert_equal(error.code, INVALID_INPUT)
+      try assert_equal(error.message, 'testing')
+    }
   }
-}
 
-test.group('std::io::Write.print') do (g) {
-  g.test('Printing a String') {
-    let writer = Writer.new
-    let written = try! writer.print('inko')
+  t.group('std::io::Read.read_string') do (g) {
+    g.test('Reading all bytes into a String') {
+      let reader = Reader.new
+      let string = try! reader.read_string
 
-    assert.equal(written, 5)
-    assert.equal(writer.buffer, Array.new('inko', "\n"))
+      try assert_equal(string, 'inko')
+    }
+
+    g.test('Reading a limited number of bytes into a String') {
+      let reader = Reader.new
+      let string = try! reader.read_string(size: 2)
+
+      try assert_equal(string, 'in')
+    }
+  }
+
+  t.group('std::io::Write.print') do (g) {
+    g.test('Printing a String') {
+      let writer = Writer.new
+      let written = try! writer.print('inko')
+
+      try assert_equal(written, 5)
+      try assert_equal(writer.buffer, Array.new('inko', "\n"))
+    }
   }
 }

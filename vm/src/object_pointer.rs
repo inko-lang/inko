@@ -66,7 +66,7 @@ macro_rules! def_integer_value_getter {
                 || int_val > i64::from($kind::MAX)
             {
                 Err(format!(
-                    "{} can not be converted to a {}",
+                    "{} can't be converted to a {}",
                     int_val, $error_name
                 ))
             } else {
@@ -563,7 +563,7 @@ impl ObjectPointer {
 
         if value < f64::from(f32::MIN) || value > f64::from(f32::MAX) {
             Err(format!(
-                "{} can not be converted to a 32 bits floating point",
+                "{} can't be converted to a 32 bits floating point",
                 value
             ))
         } else {

@@ -1,490 +1,463 @@
 import std::net::ip::(self, Ipv4Address, Ipv6Address)
-import std::test
-import std::test::assert
+import std::test::*
 import std::process
 
-test.group('std::net::ip.parse') do (g) {
-  g.test('Parsing an IPv4 address') {
-    assert.equal(
-      try! ip.parse('1.2.3.4') as Ipv4Address,
-      Ipv4Address.new(1, 2, 3, 4)
-    )
-  }
+def tests(t: Tests) {
+  t.group('std::net::ip.parse') do (g) {
+    g.test('Parsing an IPv4 address') {
+      try assert_equal(
+        try! ip.parse('1.2.3.4') as Ipv4Address,
+        Ipv4Address.new(1, 2, 3, 4)
+      )
+    }
 
-  g.test('Parsing an IPv6 address') {
-    assert.equal(
-      try! ip.parse('::1') as Ipv6Address,
-      Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)
-    )
-  }
+    g.test('Parsing an IPv6 address') {
+      try assert_equal(
+        try! ip.parse('::1') as Ipv6Address,
+        Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)
+      )
+    }
 
-  g.test('Parsing an invalid IPv4 address') {
-    assert.panic {
-      try! ip.parse('1.2')
+    g.test('Parsing an invalid IPv4 address') {
+      try assert_throw { local try ip.parse('1.2') }
+    }
+
+    g.test('Parsing an invalid IP address') {
+      try assert_throw {
+        local try ip.parse('ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff')
+      }
+
+      try assert_throw { local try ip.parse('foo') }
+    }
+
+    g.test('Parsing an empty address') {
+      try assert_throw { local try ip.parse('') }
     }
   }
 
-  g.test('Parsing an invalid IP address') {
-    assert.panic {
-      try! ip.parse('ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff')
+  t.group('std::net::ip.Ipv4Address.parse') do (g) {
+    g.test('Parsing a valid IPv4 address') {
+      let parsed = try! Ipv4Address.parse('1.2.3.4'.to_byte_array)
+
+      try assert_equal(parsed, Ipv4Address.new(1, 2, 3, 4))
     }
 
-    assert.panic {
-      try! ip.parse('foo')
+    g.test('Parsing an IPv4 address that is too short') {
+      try assert_throw { local try Ipv4Address.parse('1.2'.to_byte_array) }
     }
-  }
 
-  g.test('Parsing an empty address') {
-    assert.panic {
-      try! ip.parse('')
+    g.test('Parsing an IPv4 address that is too long') {
+      try assert_throw {
+        local try Ipv4Address.parse('255.255.255.255.255.255'.to_byte_array)
+      }
     }
-  }
-}
 
-test.group('std::net::ip.Ipv4Address.parse') do (g) {
-  g.test('Parsing a valid IPv4 address') {
-    let parsed = try! Ipv4Address.parse('1.2.3.4'.to_byte_array)
-
-    assert.equal(parsed, Ipv4Address.new(1, 2, 3, 4))
-  }
-
-  g.test('Parsing an IPv4 address that is too short') {
-    assert.panic {
-      try! Ipv4Address.parse('1.2'.to_byte_array)
+    g.test('Parsing an IPv4 address containing invalid characters') {
+      try assert_throw { local try Ipv4Address.parse('1.f.4.a'.to_byte_array) }
     }
-  }
 
-  g.test('Parsing an IPv4 address that is too long') {
-    assert.panic {
-      try! Ipv4Address.parse('255.255.255.255.255.255'.to_byte_array)
+    g.test('Parsing an IPv4 address that does not contain any dots') {
+      try assert_throw { local try Ipv4Address.parse('1234'.to_byte_array) }
     }
-  }
 
-  g.test('Parsing an IPv4 address containing invalid characters') {
-    assert.panic {
-      try! Ipv4Address.parse('1.f.4.a'.to_byte_array)
+    g.test('Parsing an IPv4 address containing out of bounds octets') {
+      try assert_throw { local try Ipv4Address.parse('300.0.0.0'.to_byte_array) }
     }
-  }
 
-  g.test('Parsing an IPv4 address that does not contain any dots') {
-    assert.panic {
-      try! Ipv4Address.parse('1234'.to_byte_array)
+    g.test('Parsing an IPv4 address containing a port') {
+      try assert_throw { local try Ipv4Address.parse('1.2.3.4:80'.to_byte_array) }
     }
-  }
 
-  g.test('Parsing an IPv4 address containing out of bounds octets') {
-    assert.panic {
-      try! Ipv4Address.parse('300.0.0.0'.to_byte_array)
+    g.test('Parsing an IPv4 address containing a CIDR mask') {
+      try assert_throw { local try Ipv4Address.parse('1.2.3.4/24'.to_byte_array) }
+    }
+
+    g.test('Parsing an IPv4 address that starts with dot') {
+      try assert_throw { local try Ipv4Address.parse('.2.3.4'.to_byte_array) }
+    }
+
+    g.test('Parsing an IPv4 address that is just a single dot') {
+      try assert_throw { local try Ipv4Address.parse('.'.to_byte_array) }
+    }
+
+    g.test('Parsing an empty String') {
+      try assert_throw { local try Ipv4Address.parse(''.to_byte_array) }
     }
   }
 
-  g.test('Parsing an IPv4 address containing a port') {
-    assert.panic {
-      try! Ipv4Address.parse('1.2.3.4:80'.to_byte_array)
+  t.group('std::net::ip::Ipv4Address.broadcast?') do (g) {
+    g.test('Checking if an IPv4 address is a broadcast address') {
+      try assert_true(Ipv4Address.new(255, 255, 255, 255).broadcast?)
+      try assert_false(Ipv4Address.new(1, 255, 255, 255).broadcast?)
+      try assert_false(Ipv4Address.new(255, 1, 255, 255).broadcast?)
+      try assert_false(Ipv4Address.new(255, 255, 1, 255).broadcast?)
+      try assert_false(Ipv4Address.new(255, 255, 255, 1).broadcast?)
     }
   }
 
-  g.test('Parsing an IPv4 address containing a CIDR mask') {
-    assert.panic {
-      try! Ipv4Address.parse('1.2.3.4/24'.to_byte_array)
+  t.group('std::net::ip::Ipv4Address.documentation?') do (g) {
+    g.test('Checking if an IPv4 address is a documentation address') {
+      try assert_true(Ipv4Address.new(192, 0, 2, 0).documentation?)
+      try assert_true(Ipv4Address.new(192, 0, 2, 1).documentation?)
+      try assert_false(Ipv4Address.new(192, 1, 2, 1).documentation?)
+
+      try assert_true(Ipv4Address.new(198, 51, 100, 0).documentation?)
+      try assert_true(Ipv4Address.new(198, 51, 100, 1).documentation?)
+      try assert_false(Ipv4Address.new(198, 52, 100, 1).documentation?)
+
+      try assert_true(Ipv4Address.new(203, 0, 113, 0).documentation?)
+      try assert_true(Ipv4Address.new(203, 0, 113, 1).documentation?)
+      try assert_false(Ipv4Address.new(203, 1, 113, 1).documentation?)
     }
   }
 
-  g.test('Parsing an IPv4 address that starts with dot') {
-    assert.panic {
-      try! Ipv4Address.parse('.2.3.4'.to_byte_array)
+  t.group('std::net::ip::Ipv4Address.link_local?') do (g) {
+    g.test('Checking if an IPv4 address is link local') {
+      try assert_true(Ipv4Address.new(169, 254).link_local?)
+      try assert_true(Ipv4Address.new(169, 254, 1).link_local?)
+      try assert_true(Ipv4Address.new(169, 254, 1, 1).link_local?)
+
+      try assert_false(Ipv4Address.new(169, 1, 1, 1).link_local?)
+      try assert_false(Ipv4Address.new(1, 254, 1, 1).link_local?)
     }
   }
 
-  g.test('Parsing an IPv4 address that is just a single dot') {
-    assert.panic {
-      try! Ipv4Address.parse('.'.to_byte_array)
+  t.group('std::net::ip::Ipv4Address.loopback?') do (g) {
+    g.test('Checking if an IPv4 address is a loopback address') {
+      try assert_true(Ipv4Address.new(127, 0, 0, 1).loopback?)
+      try assert_true(Ipv4Address.new(127, 0, 0, 2).loopback?)
+      try assert_true(Ipv4Address.new(127, 1, 1, 1).loopback?)
+      try assert_false(Ipv4Address.new(128, 0, 0, 0).loopback?)
     }
   }
 
-  g.test('Parsing an empty String') {
-    assert.panic {
-      try! Ipv4Address.parse(''.to_byte_array)
+  t.group('std::net::ip::Ipv4Address.multicast?') do (g) {
+    g.test('Checking if an IPv4 address is a multicast address') {
+      try assert_true(Ipv4Address.new(224).multicast?)
+      try assert_true(Ipv4Address.new(225).multicast?)
+      try assert_true(Ipv4Address.new(226).multicast?)
+      try assert_true(Ipv4Address.new(227).multicast?)
+      try assert_true(Ipv4Address.new(239).multicast?)
+
+      try assert_false(Ipv4Address.new(200).multicast?)
+      try assert_false(Ipv4Address.new(240).multicast?)
     }
   }
-}
 
-test.group('std::net::ip::Ipv4Address.broadcast?') do (g) {
-  g.test('Checking if an IPv4 address is a broadcast address') {
-    assert.true(Ipv4Address.new(255, 255, 255, 255).broadcast?)
-    assert.false(Ipv4Address.new(1, 255, 255, 255).broadcast?)
-    assert.false(Ipv4Address.new(255, 1, 255, 255).broadcast?)
-    assert.false(Ipv4Address.new(255, 255, 1, 255).broadcast?)
-    assert.false(Ipv4Address.new(255, 255, 255, 1).broadcast?)
-  }
-}
+  t.group('std::net::ip::Ipv4Address.private?') do (g) {
+    g.test('Checking if an IPv4 address is a private address') {
+      try assert_true(Ipv4Address.new(10, 0, 0, 0).private?)
+      try assert_true(Ipv4Address.new(10, 0, 0, 1).private?)
+      try assert_true(Ipv4Address.new(10, 1, 1, 1).private?)
 
-test.group('std::net::ip::Ipv4Address.documentation?') do (g) {
-  g.test('Checking if an IPv4 address is a documentation address') {
-    assert.true(Ipv4Address.new(192, 0, 2, 0).documentation?)
-    assert.true(Ipv4Address.new(192, 0, 2, 1).documentation?)
-    assert.false(Ipv4Address.new(192, 1, 2, 1).documentation?)
+      try assert_true(Ipv4Address.new(172, 16, 0, 0).private?)
+      try assert_true(Ipv4Address.new(172, 16, 0, 1).private?)
+      try assert_true(Ipv4Address.new(172, 16, 1, 0).private?)
 
-    assert.true(Ipv4Address.new(198, 51, 100, 0).documentation?)
-    assert.true(Ipv4Address.new(198, 51, 100, 1).documentation?)
-    assert.false(Ipv4Address.new(198, 52, 100, 1).documentation?)
+      try assert_true(Ipv4Address.new(192, 168, 0, 0).private?)
+      try assert_true(Ipv4Address.new(192, 168, 0, 1).private?)
+      try assert_true(Ipv4Address.new(192, 168, 1, 0).private?)
 
-    assert.true(Ipv4Address.new(203, 0, 113, 0).documentation?)
-    assert.true(Ipv4Address.new(203, 0, 113, 1).documentation?)
-    assert.false(Ipv4Address.new(203, 1, 113, 1).documentation?)
-  }
-}
-
-test.group('std::net::ip::Ipv4Address.link_local?') do (g) {
-  g.test('Checking if an IPv4 address is link local') {
-    assert.true(Ipv4Address.new(169, 254).link_local?)
-    assert.true(Ipv4Address.new(169, 254, 1).link_local?)
-    assert.true(Ipv4Address.new(169, 254, 1, 1).link_local?)
-
-    assert.false(Ipv4Address.new(169, 1, 1, 1).link_local?)
-    assert.false(Ipv4Address.new(1, 254, 1, 1).link_local?)
-  }
-}
-
-test.group('std::net::ip::Ipv4Address.loopback?') do (g) {
-  g.test('Checking if an IPv4 address is a loopback address') {
-    assert.true(Ipv4Address.new(127, 0, 0, 1).loopback?)
-    assert.true(Ipv4Address.new(127, 0, 0, 2).loopback?)
-    assert.true(Ipv4Address.new(127, 1, 1, 1).loopback?)
-    assert.false(Ipv4Address.new(128, 0, 0, 0).loopback?)
-  }
-}
-
-test.group('std::net::ip::Ipv4Address.multicast?') do (g) {
-  g.test('Checking if an IPv4 address is a multicast address') {
-    assert.true(Ipv4Address.new(224).multicast?)
-    assert.true(Ipv4Address.new(225).multicast?)
-    assert.true(Ipv4Address.new(226).multicast?)
-    assert.true(Ipv4Address.new(227).multicast?)
-    assert.true(Ipv4Address.new(239).multicast?)
-
-    assert.false(Ipv4Address.new(200).multicast?)
-    assert.false(Ipv4Address.new(240).multicast?)
-  }
-}
-
-test.group('std::net::ip::Ipv4Address.private?') do (g) {
-  g.test('Checking if an IPv4 address is a private address') {
-    assert.true(Ipv4Address.new(10, 0, 0, 0).private?)
-    assert.true(Ipv4Address.new(10, 0, 0, 1).private?)
-    assert.true(Ipv4Address.new(10, 1, 1, 1).private?)
-
-    assert.true(Ipv4Address.new(172, 16, 0, 0).private?)
-    assert.true(Ipv4Address.new(172, 16, 0, 1).private?)
-    assert.true(Ipv4Address.new(172, 16, 1, 0).private?)
-
-    assert.true(Ipv4Address.new(192, 168, 0, 0).private?)
-    assert.true(Ipv4Address.new(192, 168, 0, 1).private?)
-    assert.true(Ipv4Address.new(192, 168, 1, 0).private?)
-
-    assert.false(Ipv4Address.new(11, 0, 0, 0).private?)
-    assert.false(Ipv4Address.new(192, 1, 1, 1).private?)
-    assert.false(Ipv4Address.new(172, 15, 0, 0).private?)
-  }
-}
-
-test.group('std::net::ip::Ipv4Address.unspecified?') do (g) {
-  g.test('Checking if an IPv4 address is unspecified') {
-    assert.true(Ipv4Address.new(0, 0, 0, 0).unspecified?)
-    assert.false(Ipv4Address.new(0, 0, 0, 1).unspecified?)
-  }
-}
-
-test.group('std::net::ip::Ipv4Address.to_ipv6_compatible') do (g) {
-  g.test('Converting an IPv4 address to an IPv4-compatible IPv6 address') {
-    let ipv4 = Ipv4Address.new(192, 0, 2, 255)
-    let ipv6 = ipv4.to_ipv6_compatible
-
-    assert.equal(ipv6, Ipv6Address.new(0, 0, 0, 0, 0, 0, 0xc000, 0x2ff))
-  }
-}
-
-test.group('std::net::ip::Ipv4Address.to_ipv6_mapped') do (g) {
-  g.test('Converting an IPv4 address to an IPv4-mapped IPv6 address') {
-    let ipv4 = Ipv4Address.new(192, 0, 2, 255)
-    let ipv6 = ipv4.to_ipv6_mapped
-
-    assert.equal(ipv6, Ipv6Address.new(0, 0, 0, 0, 0, 0xffff, 0xc000, 0x2ff))
-  }
-}
-
-test.group('std::net::ip::Ipv4Address.to_string') do (g) {
-  g.test('Converting an IPv4 address to a String') {
-    assert.equal(Ipv4Address.new(0, 0, 0, 0).to_string, '0.0.0.0')
-    assert.equal(Ipv4Address.new(127, 0, 0, 1).to_string, '127.0.0.1')
-  }
-}
-
-test.group('std::net::ip::Ipv4Address.==') do (g) {
-  g.test('Comparing two IPv4 addresses') {
-    assert.equal(Ipv4Address.new(127, 0, 0, 1), Ipv4Address.new(127, 0, 0, 1))
-
-    assert.not_equal(
-      Ipv4Address.new(127, 0, 0, 1),
-      Ipv4Address.new(127, 0, 0, 2)
-    )
-  }
-}
-
-test.group('std::net::ip::Ipv6Address.documentation?') do (g) {
-  g.test('Checking if an IPv6 address is a documentation address') {
-    assert.true(Ipv6Address.new(0x2001, 0xdb8).documentation?)
-    assert.true(Ipv6Address.new(0x2001, 0xdb8, 1).documentation?)
-    assert.true(Ipv6Address.new(0x2001, 0xdb8, 1, 2).documentation?)
-
-    assert.false(Ipv6Address.new(0x2001, 0xffff).documentation?)
-    assert.false(Ipv6Address.new(0xffff, 0xdb8, 1, 2).documentation?)
-  }
-}
-
-test.group('std::net::ip::Ipv6Address.loopback?') do (g) {
-  g.test('Checking if an IPv6 address is a loopback address') {
-    assert.true(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1).loopback?)
-    assert.false(Ipv6Address.new(0, 0, 0, 0, 0, 0, 1, 1).loopback?)
-  }
-}
-
-test.group('std::net::ip::Ipv6Address.multicast?') do (g) {
-  g.test('Checking if an IPv6 address is a multicast address') {
-    assert.true(Ipv6Address.new(0xff00).multicast?)
-    assert.true(Ipv6Address.new(0xff01).multicast?)
-    assert.true(Ipv6Address.new(0xff02).multicast?)
-    assert.true(Ipv6Address.new(0xff03).multicast?)
-    assert.true(Ipv6Address.new(0xff04).multicast?)
-
-    assert.false(Ipv6Address.new(0x0f00).multicast?)
-    assert.false(Ipv6Address.new(1).multicast?)
-  }
-}
-
-test.group('std::net::ip::Ipv6Address.unspecified?') do (g) {
-  g.test('Checking if an IPv6 address is unspecified') {
-    assert.true(Ipv6Address.new(0, 0, 0, 0, 0, 0 ,0 ,0).unspecified?)
-    assert.false(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1).unspecified?)
-  }
-}
-
-test.group('std::net::ip::Ipv6Address.ipv4_compatible?') do (g) {
-  g.test('Checking if an IPv6 address is an IPv4-compatible address') {
-    assert.true(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 0).ipv4_compatible?)
-    assert.true(Ipv6Address.new(0, 0, 0, 0, 0, 0, 1, 1).ipv4_compatible?)
-    assert.false(Ipv6Address.new(0, 0, 0, 0, 0, 1, 1, 1).ipv4_compatible?)
-  }
-}
-
-test.group('std::net::ip::Ipv6Address.ipv4_mapped?') do (g) {
-  g.test('Checking if an IPv6 address is an IPv4-mapped address') {
-    assert.true(Ipv6Address.new(0, 0, 0, 0, 0, 0xffff, 0, 0).ipv4_mapped?)
-    assert.true(Ipv6Address.new(0, 0, 0, 0, 0, 0xffff, 1, 1).ipv4_mapped?)
-    assert.false(Ipv6Address.new(0, 0, 0, 0, 0, 0xff, 1, 1).ipv4_mapped?)
-  }
-}
-
-test.group('std::net::ip::Ipv6Address.parse') do (g) {
-  g.test('Parsing a valid IPv6 address') {
-    assert.equal(
-      try! Ipv6Address.parse('2001:db8:0:0:1:0:0:1'.to_byte_array),
-      Ipv6Address.new(0x2001, 0xdb8, 0, 0, 1, 0, 0, 1)
-    )
-
-    assert.equal(
-      try! Ipv6Address.parse('2001:0db8:0:0:1:0:0:1'.to_byte_array),
-      Ipv6Address.new(0x2001, 0x0db8, 0, 0, 1, 0, 0, 1)
-    )
+      try assert_false(Ipv4Address.new(11, 0, 0, 0).private?)
+      try assert_false(Ipv4Address.new(192, 1, 1, 1).private?)
+      try assert_false(Ipv4Address.new(172, 15, 0, 0).private?)
+    }
   }
 
-  g.test('Parsing an IPv6 address with leading zero compression') {
-    assert.equal(
-      try! Ipv6Address.parse('::1'.to_byte_array),
-      Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)
-    )
-
-    assert.equal(
-      try! Ipv6Address.parse('::1:1:1'.to_byte_array),
-      Ipv6Address.new(0, 0, 0, 0, 0, 1, 1, 1)
-    )
+  t.group('std::net::ip::Ipv4Address.unspecified?') do (g) {
+    g.test('Checking if an IPv4 address is unspecified') {
+      try assert_true(Ipv4Address.new(0, 0, 0, 0).unspecified?)
+      try assert_false(Ipv4Address.new(0, 0, 0, 1).unspecified?)
+    }
   }
 
-  g.test('Parsing an IPv6 address with trailing zero compression') {
-    assert.equal(try! Ipv6Address.parse('1::'.to_byte_array), Ipv6Address.new(1))
+  t.group('std::net::ip::Ipv4Address.to_ipv6_compatible') do (g) {
+    g.test('Converting an IPv4 address to an IPv4-compatible IPv6 address') {
+      let ipv4 = Ipv4Address.new(192, 0, 2, 255)
+      let ipv6 = ipv4.to_ipv6_compatible
+
+      try assert_equal(ipv6, Ipv6Address.new(0, 0, 0, 0, 0, 0, 0xc000, 0x2ff))
+    }
   }
 
-  g.test('Parsing an IPv6 address with zero compression') {
-    assert.equal(
-      try! Ipv6Address.parse('2001:DB8:0:0:1::1'.to_byte_array),
-      Ipv6Address.new(0x2001, 0xdb8, 0, 0, 1, 0, 0, 1)
-    )
+  t.group('std::net::ip::Ipv4Address.to_ipv6_mapped') do (g) {
+    g.test('Converting an IPv4 address to an IPv4-mapped IPv6 address') {
+      let ipv4 = Ipv4Address.new(192, 0, 2, 255)
+      let ipv6 = ipv4.to_ipv6_mapped
 
-    assert.equal(
-      try! Ipv6Address.parse('2001:DB8:0:0::1:1'.to_byte_array),
-      Ipv6Address.new(0x2001, 0xdb8, 0, 0, 0, 0, 1, 1)
-    )
-
-    assert.equal(
-      try! Ipv6Address.parse('1::1'.to_byte_array),
-      Ipv6Address.new(1, 0, 0, 0, 0, 0, 0, 1)
-    )
+      try assert_equal(ipv6, Ipv6Address.new(0, 0, 0, 0, 0, 0xffff, 0xc000, 0x2ff))
+    }
   }
 
-  g.test('Parsing an IPv6 address with an embedded IPv4 address') {
-    assert.equal(
-      try! Ipv6Address.parse(
-        '0000:0000:0000:0000:0000:ffff:192.168.1.1'.to_byte_array
-      ),
-      Ipv6Address.new(0, 0, 0, 0, 0, 0xffff, 0xc0a8, 0x101)
-    )
-
-    assert.equal(
-      try! Ipv6Address.parse(
-        '0000:0000:0000:0000:0000:c0a8:192.168.1.1'.to_byte_array
-      ),
-      Ipv6Address.new(0, 0, 0, 0, 0, 0xc0a8, 0xc0a8, 0x101)
-    )
-
-    assert.equal(
-      try! Ipv6Address.parse('::1:192.168.1.1'.to_byte_array),
-      Ipv6Address.new(0, 0, 0, 0, 0, 1, 0xc0a8, 0x101)
-    )
+  t.group('std::net::ip::Ipv4Address.to_string') do (g) {
+    g.test('Converting an IPv4 address to a String') {
+      try assert_equal(Ipv4Address.new(0, 0, 0, 0).to_string, '0.0.0.0')
+      try assert_equal(Ipv4Address.new(127, 0, 0, 1).to_string, '127.0.0.1')
+    }
   }
 
-  g.test('Parsing an embedded IPv4 address with leading compression') {
-    assert.equal(
-      try! Ipv6Address.parse('::1.2.3.4'.to_byte_array),
-      Ipv6Address.new(0, 0, 0, 0, 0, 0, 258, 772)
-    )
-  }
+  t.group('std::net::ip::Ipv4Address.==') do (g) {
+    g.test('Comparing two IPv4 addresses') {
+      try assert_equal(Ipv4Address.new(127, 0, 0, 1), Ipv4Address.new(127, 0, 0, 1))
 
-  g.test('Parsing an IPv6 address that is too long') {
-    assert.panic {
-      try! Ipv6Address.parse(
-        '0000:0000:0000:0000:0000:0000:0000:0000:0000'.to_byte_array
+      try assert_not_equal(
+        Ipv4Address.new(127, 0, 0, 1),
+        Ipv4Address.new(127, 0, 0, 2)
       )
     }
   }
 
-  g.test('Parsing an IPv6 address that is too short') {
-    assert.panic {
-      try! Ipv6Address.parse('0000'.to_byte_array)
+  t.group('std::net::ip::Ipv6Address.documentation?') do (g) {
+    g.test('Checking if an IPv6 address is a documentation address') {
+      try assert_true(Ipv6Address.new(0x2001, 0xdb8).documentation?)
+      try assert_true(Ipv6Address.new(0x2001, 0xdb8, 1).documentation?)
+      try assert_true(Ipv6Address.new(0x2001, 0xdb8, 1, 2).documentation?)
+
+      try assert_false(Ipv6Address.new(0x2001, 0xffff).documentation?)
+      try assert_false(Ipv6Address.new(0xffff, 0xdb8, 1, 2).documentation?)
     }
   }
 
-  g.test('Parsing an IPv6 address that compresses zeroes more than once') {
-    assert.panic {
-      try! Ipv6Address.parse('::1::1'.to_byte_array)
+  t.group('std::net::ip::Ipv6Address.loopback?') do (g) {
+    g.test('Checking if an IPv6 address is a loopback address') {
+      try assert_true(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1).loopback?)
+      try assert_false(Ipv6Address.new(0, 0, 0, 0, 0, 0, 1, 1).loopback?)
     }
   }
 
-  g.test('Parsing an IPv6 address that contains too many colons') {
-    assert.panic {
-      try! Ipv6Address.parse('1:::1'.to_byte_array)
+  t.group('std::net::ip::Ipv6Address.multicast?') do (g) {
+    g.test('Checking if an IPv6 address is a multicast address') {
+      try assert_true(Ipv6Address.new(0xff00).multicast?)
+      try assert_true(Ipv6Address.new(0xff01).multicast?)
+      try assert_true(Ipv6Address.new(0xff02).multicast?)
+      try assert_true(Ipv6Address.new(0xff03).multicast?)
+      try assert_true(Ipv6Address.new(0xff04).multicast?)
+
+      try assert_false(Ipv6Address.new(0x0f00).multicast?)
+      try assert_false(Ipv6Address.new(1).multicast?)
     }
   }
 
-  g.test('Parsing an IPv6 address containing invalid hextets') {
-    assert.panic {
-      try! Ipv6Address.parse('0000:0000:0000:0000:0000:0000:zzzz'.to_byte_array)
+  t.group('std::net::ip::Ipv6Address.unspecified?') do (g) {
+    g.test('Checking if an IPv6 address is unspecified') {
+      try assert_true(Ipv6Address.new(0, 0, 0, 0, 0, 0 ,0 ,0).unspecified?)
+      try assert_false(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1).unspecified?)
     }
   }
 
-  g.test('Parsing an IPv6 address embedding an invalid IPv4 address') {
-    assert.panic {
-      try! Ipv6Address.parse('::1:300.168.1.1'.to_byte_array)
-    }
-
-    assert.panic {
-      try! Ipv6Address.parse('::1:300.168:1.1'.to_byte_array)
+  t.group('std::net::ip::Ipv6Address.ipv4_compatible?') do (g) {
+    g.test('Checking if an IPv6 address is an IPv4-compatible address') {
+      try assert_true(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 0).ipv4_compatible?)
+      try assert_true(Ipv6Address.new(0, 0, 0, 0, 0, 0, 1, 1).ipv4_compatible?)
+      try assert_false(Ipv6Address.new(0, 0, 0, 0, 0, 1, 1, 1).ipv4_compatible?)
     }
   }
 
-  g.test('Parsing an IPv6 address containing a CIDR mask') {
-    assert.panic {
-      try! Ipv6Address.parse('::1/24'.to_byte_array)
+  t.group('std::net::ip::Ipv6Address.ipv4_mapped?') do (g) {
+    g.test('Checking if an IPv6 address is an IPv4-mapped address') {
+      try assert_true(Ipv6Address.new(0, 0, 0, 0, 0, 0xffff, 0, 0).ipv4_mapped?)
+      try assert_true(Ipv6Address.new(0, 0, 0, 0, 0, 0xffff, 1, 1).ipv4_mapped?)
+      try assert_false(Ipv6Address.new(0, 0, 0, 0, 0, 0xff, 1, 1).ipv4_mapped?)
     }
   }
 
-  g.test('Parsing an empty IPv6 address') {
-    assert.equal(try! Ipv6Address.parse('::'.to_byte_array), Ipv6Address.new)
+  t.group('std::net::ip::Ipv6Address.parse') do (g) {
+    g.test('Parsing a valid IPv6 address') {
+      try assert_equal(
+        try! Ipv6Address.parse('2001:db8:0:0:1:0:0:1'.to_byte_array),
+        Ipv6Address.new(0x2001, 0xdb8, 0, 0, 1, 0, 0, 1)
+      )
+
+      try assert_equal(
+        try! Ipv6Address.parse('2001:0db8:0:0:1:0:0:1'.to_byte_array),
+        Ipv6Address.new(0x2001, 0x0db8, 0, 0, 1, 0, 0, 1)
+      )
+    }
+
+    g.test('Parsing an IPv6 address with leading zero compression') {
+      try assert_equal(
+        try! Ipv6Address.parse('::1'.to_byte_array),
+        Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)
+      )
+
+      try assert_equal(
+        try! Ipv6Address.parse('::1:1:1'.to_byte_array),
+        Ipv6Address.new(0, 0, 0, 0, 0, 1, 1, 1)
+      )
+    }
+
+    g.test('Parsing an IPv6 address with trailing zero compression') {
+      try assert_equal(
+        try! Ipv6Address.parse('1::'.to_byte_array),
+        Ipv6Address.new(1)
+      )
+    }
+
+    g.test('Parsing an IPv6 address with zero compression') {
+      try assert_equal(
+        try! Ipv6Address.parse('2001:DB8:0:0:1::1'.to_byte_array),
+        Ipv6Address.new(0x2001, 0xdb8, 0, 0, 1, 0, 0, 1)
+      )
+
+      try assert_equal(
+        try! Ipv6Address.parse('2001:DB8:0:0::1:1'.to_byte_array),
+        Ipv6Address.new(0x2001, 0xdb8, 0, 0, 0, 0, 1, 1)
+      )
+
+      try assert_equal(
+        try! Ipv6Address.parse('1::1'.to_byte_array),
+        Ipv6Address.new(1, 0, 0, 0, 0, 0, 0, 1)
+      )
+    }
+
+    g.test('Parsing an IPv6 address with an embedded IPv4 address') {
+      try assert_equal(
+        try! Ipv6Address.parse(
+          '0000:0000:0000:0000:0000:ffff:192.168.1.1'.to_byte_array
+        ),
+        Ipv6Address.new(0, 0, 0, 0, 0, 0xffff, 0xc0a8, 0x101)
+      )
+
+      try assert_equal(
+        try! Ipv6Address.parse(
+          '0000:0000:0000:0000:0000:c0a8:192.168.1.1'.to_byte_array
+        ),
+        Ipv6Address.new(0, 0, 0, 0, 0, 0xc0a8, 0xc0a8, 0x101)
+      )
+
+      try assert_equal(
+        try! Ipv6Address.parse('::1:192.168.1.1'.to_byte_array),
+        Ipv6Address.new(0, 0, 0, 0, 0, 1, 0xc0a8, 0x101)
+      )
+    }
+
+    g.test('Parsing an embedded IPv4 address with leading compression') {
+      try assert_equal(
+        try! Ipv6Address.parse('::1.2.3.4'.to_byte_array),
+        Ipv6Address.new(0, 0, 0, 0, 0, 0, 258, 772)
+      )
+    }
+
+    g.test('Parsing an IPv6 address that is too long') {
+      try assert_throw {
+        local try Ipv6Address.parse(
+          '0000:0000:0000:0000:0000:0000:0000:0000:0000'.to_byte_array
+        )
+      }
+    }
+
+    g.test('Parsing an IPv6 address that is too short') {
+      try assert_throw { local try Ipv6Address.parse('0000'.to_byte_array) }
+    }
+
+    g.test('Parsing an IPv6 address that compresses zeroes more than once') {
+      try assert_throw { local try Ipv6Address.parse('::1::1'.to_byte_array) }
+    }
+
+    g.test('Parsing an IPv6 address that contains too many colons') {
+      try assert_throw { local try Ipv6Address.parse('1:::1'.to_byte_array) }
+    }
+
+    g.test('Parsing an IPv6 address containing invalid hextets') {
+      try assert_throw {
+        local try Ipv6Address
+          .parse('0000:0000:0000:0000:0000:0000:zzzz'.to_byte_array)
+      }
+    }
+
+    g.test('Parsing an IPv6 address embedding an invalid IPv4 address') {
+      try assert_throw {
+        local try Ipv6Address.parse('::1:300.168.1.1'.to_byte_array)
+      }
+
+      try assert_throw {
+        local try Ipv6Address.parse('::1:300.168:1.1'.to_byte_array)
+      }
+    }
+
+    g.test('Parsing an IPv6 address containing a CIDR mask') {
+      try assert_throw {
+        local try Ipv6Address.parse('::1/24'.to_byte_array)
+      }
+    }
+
+    g.test('Parsing an empty IPv6 address') {
+      try assert_equal(try! Ipv6Address.parse('::'.to_byte_array), Ipv6Address.new)
+    }
   }
-}
 
-test.group('std::net::ip::Ipv6Address.to_string') do (g) {
-  g.test('Converting an IPv6 unspecified address to a String') {
-    assert.equal(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 0).to_string, '::')
+  t.group('std::net::ip::Ipv6Address.to_string') do (g) {
+    g.test('Converting an IPv6 unspecified address to a String') {
+      try assert_equal(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 0).to_string, '::')
+    }
+
+    g.test('Converting an IPv6 loopback address to a String') {
+      try assert_equal(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1).to_string, '::1')
+    }
+
+    g.test('Converting an IPv6 address to a String') {
+      try assert_equal(Ipv6Address.new(1, 0, 0, 0, 0, 0, 0, 1).to_string, '1::1')
+      try assert_equal(Ipv6Address.new(1, 0, 1, 0, 0, 0, 0, 1).to_string, '1:0:1::1')
+
+      try assert_equal(
+        Ipv6Address.new(1, 0, 0, 0, 0, 0, 0xc000, 0x2ff).to_string,
+        '1::c000:2ff'
+      )
+
+      try assert_equal(
+        Ipv6Address.new(1, 0, 1, 0, 0, 0, 0xc000, 0x2ff).to_string,
+        '1:0:1::c000:2ff'
+      )
+
+      try assert_equal(
+        Ipv6Address.new(1, 0, 0, 0, 0, 0xffff, 0xc000, 0x2ff).to_string,
+        '1::ffff:c000:2ff'
+      )
+
+      try assert_equal(
+        Ipv6Address.new(1, 0, 1, 0, 0, 0xffff, 0xc000, 0x2ff).to_string,
+        '1:0:1::ffff:c000:2ff'
+      )
+    }
+
+    g.test('Converting an IPv4-compatible IPv6 address to a String') {
+      try assert_equal(
+        Ipv6Address.new(0, 0, 0, 0, 0, 0, 0xc000, 0x2ff).to_string,
+        '::192.0.2.255'
+      )
+    }
+
+    g.test('Converting an IPv4-mapped IPv6 address to a String') {
+      try assert_equal(
+        Ipv6Address.new(0, 0, 0, 0, 0, 0xffff, 0xc000, 0x2ff).to_string,
+        '::ffff:192.0.2.255'
+      )
+    }
   }
 
-  g.test('Converting an IPv6 loopback address to a String') {
-    assert.equal(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1).to_string, '::1')
+  t.group('std::net::ip::Ipv6Address.==') do (g) {
+    g.test('Comparing two IPv6 addresses') {
+      try assert_equal(
+        Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1),
+        Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)
+      )
+
+      try assert_not_equal(
+        Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1),
+        Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 2)
+      )
+    }
   }
 
-  g.test('Converting an IPv6 address to a String') {
-    assert.equal(Ipv6Address.new(1, 0, 0, 0, 0, 0, 0, 1).to_string, '1::1')
-    assert.equal(Ipv6Address.new(1, 0, 1, 0, 0, 0, 0, 1).to_string, '1:0:1::1')
+  t.group('std::string::String.to_ip_address') do (g) {
+    g.test('Converting a valid String to an IP address') {
+      let addr = try! '0.0.0.0'.to_ip_address
 
-    assert.equal(
-      Ipv6Address.new(1, 0, 0, 0, 0, 0, 0xc000, 0x2ff).to_string,
-      '1::c000:2ff'
-    )
+      try assert_equal(addr as Ipv4Address, Ipv4Address.new(0, 0, 0, 0))
+    }
 
-    assert.equal(
-      Ipv6Address.new(1, 0, 1, 0, 0, 0, 0xc000, 0x2ff).to_string,
-      '1:0:1::c000:2ff'
-    )
-
-    assert.equal(
-      Ipv6Address.new(1, 0, 0, 0, 0, 0xffff, 0xc000, 0x2ff).to_string,
-      '1::ffff:c000:2ff'
-    )
-
-    assert.equal(
-      Ipv6Address.new(1, 0, 1, 0, 0, 0xffff, 0xc000, 0x2ff).to_string,
-      '1:0:1::ffff:c000:2ff'
-    )
-  }
-
-  g.test('Converting an IPv4-compatible IPv6 address to a String') {
-    assert.equal(
-      Ipv6Address.new(0, 0, 0, 0, 0, 0, 0xc000, 0x2ff).to_string,
-      '::192.0.2.255'
-    )
-  }
-
-  g.test('Converting an IPv4-mapped IPv6 address to a String') {
-    assert.equal(
-      Ipv6Address.new(0, 0, 0, 0, 0, 0xffff, 0xc000, 0x2ff).to_string,
-      '::ffff:192.0.2.255'
-    )
-  }
-}
-
-test.group('std::net::ip::Ipv6Address.==') do (g) {
-  g.test('Comparing two IPv6 addresses') {
-    assert.equal(
-      Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1),
-      Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)
-    )
-
-    assert.not_equal(
-      Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1),
-      Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 2)
-    )
-  }
-}
-
-test.group('std::string::String.to_ip_address') do (g) {
-  g.test('Converting a valid String to an IP address') {
-    let addr = try! '0.0.0.0'.to_ip_address
-
-    assert.equal(addr as Ipv4Address, Ipv4Address.new(0, 0, 0, 0))
-  }
-
-  g.test('Converting an invalid String to an IP address') {
-    assert.panic {
-      try! 'foo'.to_ip_address
+    g.test('Converting an invalid String to an IP address') {
+      try assert_throw { local try 'foo'.to_ip_address }
     }
   }
 }

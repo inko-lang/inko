@@ -109,31 +109,6 @@ pub fn exit(state: &RcState, status_ptr: ObjectPointer) -> Result<(), String> {
 }
 
 #[inline(always)]
-pub fn set_default_panic_handler(
-    state: &RcState,
-    handler: ObjectPointer,
-) -> Result<ObjectPointer, RuntimeError> {
-    if handler.block_value()?.captures_from.is_some() {
-        return Err(RuntimeError::from(
-            "Default panic handlers can't capture any variables",
-        ));
-    }
-
-    let handler_to_use = if handler.is_permanent() {
-        handler
-    } else {
-        state.permanent_allocator.lock().copy_object(handler)?
-    };
-
-    state
-        .default_panic_handler
-        .raw
-        .atomic_store(handler_to_use.raw.raw);
-
-    Ok(handler_to_use)
-}
-
-#[inline(always)]
 pub fn move_result(process: &RcProcess) -> Result<ObjectPointer, String> {
     process.take_result().ok_or_else(|| {
         "The last instruction didn't produce a result".to_string()

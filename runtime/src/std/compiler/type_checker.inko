@@ -669,9 +669,7 @@ trait ExpressionTypePass: TypePass {
       'process_suspend_current' -> { NeverType.new }
       'process_terminate_current' -> { NeverType.new }
       'process_set_blocking' -> { builtins.boolean_type.new_instance }
-      'process_set_panic_handler' -> { AnyType.new }
       'process_add_defer_to_caller' -> { AnyType.new }
-      'set_default_panic_handler' -> { AnyType.new }
       'process_set_pinned' -> { builtins.boolean_type.new_instance }
       'process_identifier' -> { builtins.integer_type.new_instance }
       'close' -> { NeverType.new }
@@ -2228,15 +2226,7 @@ class TypeCheckImports {
 
     @type_checker.module(name).if_true { return }
 
-    let ast = @type_checker.syntax_tree(name).get_or_else {
-      # This check is present to ensure the compiler always checks for any error
-      # diagnostics before running type checking. Not doing so will break this
-      # code if it tries to type check a module dependency that hasn't been
-      # parsed.
-      panic(
-        `The module "{name}" needs to be type checked, but has not been parsed`
-      )
-    }
+    let ast = @type_checker.syntax_tree(name).get_or_else { return }
 
     @type_checker.check(name: name, ast: ast)
   }

@@ -1,48 +1,49 @@
-import std::test
-import std::test::assert
+import std::test::*
 
-test.group('std::nil::NilType.truthy?') do (g) {
-  g.test('Checking if a Nil is truthy') {
-    assert.false(Nil.truthy?)
+def tests(t: Tests) {
+  t.group('std::nil::NilType.truthy?') do (g) {
+    g.test('Checking if a Nil is truthy') {
+      try assert_false(Nil.truthy?)
+    }
   }
-}
 
-test.group('std::nil::NilType.if_true') do (g) {
-  g.test('The supplied block is never called') {
-    let mut num = 0
+  t.group('std::nil::NilType.if_true') do (g) {
+    g.test('The supplied block is never called') {
+      let mut num = 0
 
-    Nil.if_true { num = 42 }
+      Nil.if_true { num = 42 }
 
-    assert.equal(num, 0)
+      try assert_equal(num, 0)
+    }
   }
-}
 
-test.group('std::nil::NilType.if_false') do (g) {
-  g.test('The supplied block is always called') {
-    let mut num = 0
+  t.group('std::nil::NilType.if_false') do (g) {
+    g.test('The supplied block is always called') {
+      let mut num = 0
 
-    Nil.if_false { num = 42 }
+      Nil.if_false { num = 42 }
 
-    assert.equal(num, 42)
+      try assert_equal(num, 42)
+    }
   }
-}
 
-test.group('std::nil::NilType.if') do (g) {
-  g.test('The block passed to the "false" argument is called') {
-    let actual = Nil.if(true: { 1729 }, false: { 42 })
+  t.group('std::nil::NilType.if') do (g) {
+    g.test('The block passed to the "false" argument is called') {
+      let actual = Nil.if(true: { 1729 }, false: { 42 })
 
-    assert.equal(actual, 42)
+      try assert_equal(actual, 42)
+    }
   }
-}
 
-test.group('std::nil::NilType.and') do (g) {
-  g.test('The supplied block is never called') {
-    assert.false(Nil.and { True })
+  t.group('std::nil::NilType.and') do (g) {
+    g.test('The supplied block is never called') {
+      try assert_false(Nil.and { True })
+    }
   }
-}
 
-test.group('std::nil::NilType.or') do (g) {
-  g.test('The supplied block is always called') {
-    assert.true(Nil.or { True })
+  t.group('std::nil::NilType.or') do (g) {
+    g.test('The supplied block is always called') {
+      try assert_true(Nil.or { True })
+    }
   }
 }

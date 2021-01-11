@@ -222,10 +222,9 @@ The block provided to the `else` keyword _can_ contain multiple expressions.
 
 ## Panics
 
-Panics are critical errors that by default stop the entire program. These kind
-of errors should only be used when there is nothing that can be done at runtime.
-Examples of operations that may trigger a panic include (but are not limited
-to):
+Panics are critical errors that stop the entire program. These kind of errors
+should only be used when there is nothing that can be done at runtime.  Examples
+of operations that may trigger a panic include (but are not limited to):
 
 * Dividing by zero.
 * Trying to allocate new memory when the system doesn't have any remaining
@@ -254,29 +253,6 @@ Process 0 panicked: Byte array index 3 is out of bounds
 The use of panics for critical errors greatly reduces the amount of exceptions
 you need to handle, making error handling more pleasant.
 
-If you want a panic to only stop the process that triggered it, you'll need to
-register a panic handler using `std::process.panicking`. This is a block that
-will be executed whenever a panic is triggered, after which the process will
-stop. The argument passed to this block is an error message as a `String`.
-
-If a process does not define its own panic handler, the global panic handler
-will be used. This panic handler can be overwritten using `std::vm.panicking`:
-
-```inko
-import std::vm
-import std::stdio::stderr
-
-vm.panicking {
-  stderr.print('oops, we ran into a panic!')
-}
-```
-
-Note that you can't restore the global panic handler after you have redefined
-it. Also keep in mind that if you overwrite the global panic handler, Inko will
-_not_ stop the program for you, as this is done by the default global handler.
-This means that if you still want to stop the program, you have to do so
-manually using `std::vm.exit`:
-
 ## Panics versus exceptions
 
 Exceptions should be used for everything that you expect to occur during
@@ -284,4 +260,5 @@ runtime. This includes network timeouts, file permission errors, input
 validation errors, and so on.
 
 Panics should _only_ be used for critical errors that should not occur at
-runtime in a well written program.
+runtime in a well written program. Since Inko doesn't allow recovery from a
+panic, these should be used sparingly.

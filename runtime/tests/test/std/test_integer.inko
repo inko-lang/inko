@@ -1,355 +1,338 @@
 import std::hash::DefaultHasher
-import std::test
-import std::test::assert
+import std::test::*
 
-test.group('std::integer::Integer.==') do (g) {
-  g.test('Comparing two equal Integers') {
-    assert.equal(10, 10)
-  }
+def tests(t: Tests) {
+  t.group('std::integer::Integer.==') do (g) {
+    g.test('Comparing two equal Integers') {
+      try assert_equal(10, 10)
+    }
 
-  g.test('Comparing two Integers that are not equal') {
-    assert.not_equal(10, 5)
-  }
+    g.test('Comparing two Integers that are not equal') {
+      try assert_not_equal(10, 5)
+    }
 
-  g.test('Comparing the maximum value of a signed 64 bits integer') {
-    assert.equal(9_223_372_036_854_775_807, 9_223_372_036_854_775_807)
-  }
+    g.test('Comparing the maximum value of a signed 64 bits integer') {
+      try assert_equal(9_223_372_036_854_775_807, 9_223_372_036_854_775_807)
+    }
 
-  g.test('Comparing the maximum value of a signed 128 bits integer') {
-    assert.equal(
-      170_141_183_460_469_231_731_687_303_715_884_105_727,
-      170_141_183_460_469_231_731_687_303_715_884_105_727
-    )
-  }
-}
-
-test.group('std::integer::Integer.to_integer') do (g) {
-  g.test('Converting an Integer to an Integer returns the same Integer') {
-    assert.equal(42.to_integer, 42)
-  }
-}
-
-test.group('std::integer::Integer.to_float') do (g) {
-  g.test('Converting an Integer to a Float') {
-    assert.equal(42.to_float, 42.0)
-  }
-}
-
-test.group('std::integer::Integer.to_string') do (g) {
-  g.test('Converting an Integer to a String') {
-    assert.equal(42.to_string, '42')
-  }
-}
-
-test.group('std::integer::Integer.+') do (g) {
-  g.test('Adding an Integer to another Integer') {
-    assert.equal(42 + 42, 84)
-  }
-}
-
-test.group('std::integer::Integer./') do (g) {
-  g.test('Dividing an Integer by another Integer') {
-    assert.equal(42 / 42, 1)
-  }
-}
-
-test.group('std::integer::Integer.*') do (g) {
-  g.test('Multiplying an Integer by another Integer') {
-    assert.equal(21 * 2, 42)
-  }
-}
-
-test.group('std::integer::Integer.-') do (g) {
-  g.test('Subtracting an Integer from another Integer') {
-    assert.equal(42 - 42, 0)
-  }
-}
-
-test.group('std::integer::Integer.%') do (g) {
-  g.test('Computing the remainder when dividing an Integer by another Integer') {
-    assert.equal(42 % 5, 2)
-  }
-}
-
-test.group('std::integer::Integer.<') do (g) {
-  g.test('Checking if an Integer is smaller than another Integer') {
-    assert.true(2 < 3)
-    assert.false(3 < 2)
-  }
-}
-
-test.group('std::integer::Integer.>') do (g) {
-  g.test('Checking if an Integer is greater than another Integer') {
-    assert.true(3 > 2)
-    assert.false(2 > 3)
-  }
-}
-
-test.group('std::integer::Integer.>=') do (g) {
-  g.test('Checking if an Integer is greater than or equal to another Integer') {
-    assert.true(4 >= 3)
-    assert.true(3 >= 3)
-    assert.false(2 >= 3)
-  }
-}
-
-test.group('std::integer::Integer.<=') do (g) {
-  g.test('Checking if an Integer is less than or equal to another Integer') {
-    assert.true(2 <= 3)
-    assert.true(3 <= 3)
-    assert.false(4 <= 3)
-  }
-}
-
-test.group('std::integer::Integer.&') do (g) {
-  g.test('Computing the result of a bitwise AND with another Integer') {
-    assert.equal(256 & 16, 0)
-    assert.equal(2010 & 5, 0)
-    assert.equal(65535 & 1, 1)
-  }
-}
-
-test.group('std::integer::Integer.|') do (g) {
-  g.test('Computing the result of a bitwise OR with another Integer') {
-    assert.equal(1 | 0, 1)
-    assert.equal(5 | 4, 5)
-    assert.equal(5 | 6, 7)
-    assert.equal(248 | 4096, 4344)
-  }
-}
-
-test.group('std::integer::Integer.^') do (g) {
-  g.test('Computing the result of a bitwise XOR with another Integer') {
-    assert.equal(3 ^ 5, 6)
-    assert.equal(-2 ^ -255, 255)
-  }
-}
-
-test.group('std::integer::Integer.<<') do (g) {
-  g.test('Shifting the bits of an Integer to the left') {
-    assert.equal(1 << 1, 2)
-    assert.equal(-1 << 1, -2)
-    assert.equal(2 << -1, 1)
-    assert.equal(-2 << -1, -1)
-    assert.equal(0 << 1, 0)
-    assert.equal(1 << 0, 1)
-    assert.equal(-1 << 0, -1)
-    assert.equal(4 << -3, 0)
-  }
-}
-
-test.group('std::integer::Integer.>>') do (g) {
-  g.test('Shifting the bits of an Integer to the right') {
-    assert.equal(2 >> 1, 1)
-    assert.equal(-2 >> 1, -1)
-    assert.equal(1 >> -1, 2)
-    assert.equal(-1 >> -1, -2)
-    assert.equal(0 >> 1, 0)
-    assert.equal(1 >> 0, 1)
-    assert.equal(-1 >> 0, -1)
-    assert.equal(4 >> 3, 0)
-  }
-}
-
-test.group('std::integer::Integer.negative?') do (g) {
-  g.test('Checking if an Integer is less than 0') {
-    assert.true(-1.negative?)
-    assert.false(0.negative?)
-    assert.false(1.negative?)
-  }
-}
-
-test.group('std::integer::Integer.positive?') do (g) {
-  g.test('Checking if an Integer is greater than 0') {
-    assert.true(1.positive?)
-    assert.false(0.positive?)
-    assert.false(-1.positive?)
-  }
-}
-
-test.group('std::integer::Integer.zero?') do (g) {
-  g.test('Checking if an Integer is 0') {
-    assert.true(0.zero?)
-    assert.false(-1.zero?)
-    assert.false(1.zero?)
-  }
-}
-
-test.group('std::integer::Integer.absolute') do (g) {
-  g.test('Computing the distance an Integer is from 0') {
-    assert.equal(0.absolute, 0)
-    assert.equal(-1.absolute, 1)
-    assert.equal(1.absolute, 1)
-  }
-}
-
-test.group('std::integer::Integer.opposite') do (g) {
-  g.test('Computing the opposite sign of an Integer') {
-    assert.equal(0.opposite, 0)
-    assert.equal(-1.opposite, 1)
-    assert.equal(1.opposite, -1)
-  }
-}
-
-test.group('std::integer::Integer.hash') do (g) {
-  g.test('Hashing an Integer') {
-    let hasher1 = DefaultHasher.new(1, 2)
-    let hasher2 = DefaultHasher.new(1, 2)
-
-    5.hash(hasher1)
-    5.hash(hasher2)
-
-    assert.equal(hasher1.to_hash, hasher2.to_hash)
-  }
-}
-
-test.group('std::integer::Integer.successor') do (g) {
-  g.test('Computing the next larger positive Integer') {
-    assert.equal(1.successor, 2)
-  }
-
-  g.test('Computing the 0 when Self is -1') {
-    assert.equal(-1.successor, 0)
-  }
-
-  g.test('Computing the next larger negative Integer') {
-    assert.equal(-2.successor, -1)
-  }
-}
-
-test.group('std::integer::Integer.parse') do (g) {
-  g.test('Parsing a base 2 Integer') {
-    assert.equal(try! Integer.parse(string: '11', radix: 2), 3)
-  }
-
-  g.test('Parsing an Integer with leading whitespace') {
-    assert.panic {
-      try! Integer.parse(' 1')
+    g.test('Comparing the maximum value of a signed 128 bits integer') {
+      try assert_equal(
+        170_141_183_460_469_231_731_687_303_715_884_105_727,
+        170_141_183_460_469_231_731_687_303_715_884_105_727
+      )
     }
   }
 
-  g.test('Parsing an Integer with trailing whitespace') {
-    assert.panic {
-      try! Integer.parse('1 ')
+  t.group('std::integer::Integer.to_integer') do (g) {
+    g.test('Converting an Integer to an Integer') {
+      try assert_equal(42.to_integer, 42)
     }
   }
 
-  g.test('Parsing a base 8 Integer') {
-    assert.equal(try! Integer.parse(string: '52', radix: 8), 42)
-  }
-
-  g.test('Parsing a base 10 Integer') {
-    assert.equal(try! Integer.parse(string: '12', radix: 10), 12)
-  }
-
-  g.test('Parsing a base 12 Integer') {
-    assert.equal(try! Integer.parse(string: '10', radix: 12), 12)
-  }
-
-  g.test('Parsing a base 16 Integer') {
-    assert.equal(try! Integer.parse(string: 'F', radix: 16), 15)
-  }
-
-  g.test('Parsing a base 20 Integer') {
-    assert.equal(try! Integer.parse(string: 'H', radix: 20), 17)
-  }
-
-  g.test('Parsing a negative base 10 Integer') {
-    assert.equal(try! Integer.parse(string: '-5', radix: 10), -5)
-  }
-
-  g.test('Parsing an invalid Integer') {
-    assert.panic {
-      try! Integer.parse(string: 'Z', radix: 16)
+  t.group('std::integer::Integer.to_float') do (g) {
+    g.test('Converting an Integer to a Float') {
+      try assert_equal(42.to_float, 42.0)
     }
   }
 
-  g.test('Parsing a large base 10 Integer') {
-    let integer = try! Integer.parse(
-      '123456789123456789123456789123456789123456789123456789123456789123456789123456789'
-    )
-
-    assert.equal(
-      integer,
-      123456789123456789123456789123456789123456789123456789123456789123456789123456789
-    )
-  }
-}
-
-test.group('std::integer::Integer.format') do (g) {
-  g.test('Formatting an Integer in base 2') {
-    assert.equal(4.format(radix: 2), '100')
-    assert.equal(10.format(radix: 2), '1010')
-    assert.equal(32.format(radix: 2), '100000')
-
-    assert.equal(-4.format(radix: 2), '-100')
-    assert.equal(-10.format(radix: 2), '-1010')
-    assert.equal(-32.format(radix: 2), '-100000')
-  }
-
-  g.test('Formatting an Integer in base 4') {
-    assert.equal(4.format(radix: 4), '10')
-    assert.equal(10.format(radix: 4), '22')
-    assert.equal(32.format(radix: 4), '200')
-
-    assert.equal(-4.format(radix: 4), '-10')
-    assert.equal(-10.format(radix: 4), '-22')
-    assert.equal(-32.format(radix: 4), '-200')
-  }
-
-  g.test('Formatting an Integer in base 16') {
-    assert.equal(4.format(radix: 16), '4')
-    assert.equal(10.format(radix: 16), 'a')
-    assert.equal(32.format(radix: 16), '20')
-    assert.equal(0x2ff.format(radix: 16), '2ff')
-
-    assert.equal(-4.format(radix: 16), '-4')
-    assert.equal(-10.format(radix: 16), '-a')
-    assert.equal(-32.format(radix: 16), '-20')
-    assert.equal(-0x2ff.format(radix: 16), '-2ff')
-  }
-
-  g.test('Formatting an Integer in base 32') {
-    assert.equal(4.format(radix: 32), '4')
-    assert.equal(10.format(radix: 32), 'a')
-    assert.equal(32.format(radix: 32), '10')
-
-    assert.equal(-4.format(radix: 32), '-4')
-    assert.equal(-10.format(radix: 32), '-a')
-    assert.equal(-32.format(radix: 32), '-10')
-  }
-
-  g.test('Formatting Integer 0') {
-    assert.equal(0.format(radix: 2), '0')
-    assert.equal(0.format(radix: 4), '0')
-    assert.equal(0.format(radix: 16), '0')
-  }
-
-  g.test('Using a radix smaller than 2') {
-    assert.panic {
-      10.format(radix: -1)
-    }
-
-    assert.panic {
-      10.format(radix: 0)
-    }
-
-    assert.panic {
-      10.format(radix: 1)
+  t.group('std::integer::Integer.to_string') do (g) {
+    g.test('Converting an Integer to a String') {
+      try assert_equal(42.to_string, '42')
     }
   }
 
-  g.test('Using a radix greater than 36') {
-    assert.panic {
-      10.format(radix: 37)
+  t.group('std::integer::Integer.+') do (g) {
+    g.test('Adding an Integer to another Integer') {
+      try assert_equal(42 + 42, 84)
     }
   }
-}
 
-test.group('std::ineger::Integer.times') do (g) {
-  g.test('Iterating from 0 up to the value of an Integer') {
-    let values = 4.times.to_array
+  t.group('std::integer::Integer./') do (g) {
+    g.test('Dividing an Integer by another Integer') {
+      try assert_equal(42 / 42, 1)
+    }
+  }
 
-    assert.equal(values, Array.new(0, 1, 2, 3))
+  t.group('std::integer::Integer.*') do (g) {
+    g.test('Multiplying an Integer by another Integer') {
+      try assert_equal(21 * 2, 42)
+    }
+  }
+
+  t.group('std::integer::Integer.-') do (g) {
+    g.test('Subtracting an Integer from another Integer') {
+      try assert_equal(42 - 42, 0)
+    }
+  }
+
+  t.group('std::integer::Integer.%') do (g) {
+    g.test('Computing the remainder when dividing an Integer by another Integer') {
+      try assert_equal(42 % 5, 2)
+    }
+  }
+
+  t.group('std::integer::Integer.<') do (g) {
+    g.test('Checking if an Integer is smaller than another Integer') {
+      try assert_true(2 < 3)
+      try assert_false(3 < 2)
+    }
+  }
+
+  t.group('std::integer::Integer.>') do (g) {
+    g.test('Checking if an Integer is greater than another Integer') {
+      try assert_true(3 > 2)
+      try assert_false(2 > 3)
+    }
+  }
+
+  t.group('std::integer::Integer.>=') do (g) {
+    g.test('Checking if an Integer is greater than or equal to another Integer') {
+      try assert_true(4 >= 3)
+      try assert_true(3 >= 3)
+      try assert_false(2 >= 3)
+    }
+  }
+
+  t.group('std::integer::Integer.<=') do (g) {
+    g.test('Checking if an Integer is less than or equal to another Integer') {
+      try assert_true(2 <= 3)
+      try assert_true(3 <= 3)
+      try assert_false(4 <= 3)
+    }
+  }
+
+  t.group('std::integer::Integer.&') do (g) {
+    g.test('Computing the result of a bitwise AND with another Integer') {
+      try assert_equal(256 & 16, 0)
+      try assert_equal(2010 & 5, 0)
+      try assert_equal(65535 & 1, 1)
+    }
+  }
+
+  t.group('std::integer::Integer.|') do (g) {
+    g.test('Computing the result of a bitwise OR with another Integer') {
+      try assert_equal(1 | 0, 1)
+      try assert_equal(5 | 4, 5)
+      try assert_equal(5 | 6, 7)
+      try assert_equal(248 | 4096, 4344)
+    }
+  }
+
+  t.group('std::integer::Integer.^') do (g) {
+    g.test('Computing the result of a bitwise XOR with another Integer') {
+      try assert_equal(3 ^ 5, 6)
+      try assert_equal(-2 ^ -255, 255)
+    }
+  }
+
+  t.group('std::integer::Integer.<<') do (g) {
+    g.test('Shifting the bits of an Integer to the left') {
+      try assert_equal(1 << 1, 2)
+      try assert_equal(-1 << 1, -2)
+      try assert_equal(2 << -1, 1)
+      try assert_equal(-2 << -1, -1)
+      try assert_equal(0 << 1, 0)
+      try assert_equal(1 << 0, 1)
+      try assert_equal(-1 << 0, -1)
+      try assert_equal(4 << -3, 0)
+    }
+  }
+
+  t.group('std::integer::Integer.>>') do (g) {
+    g.test('Shifting the bits of an Integer to the right') {
+      try assert_equal(2 >> 1, 1)
+      try assert_equal(-2 >> 1, -1)
+      try assert_equal(1 >> -1, 2)
+      try assert_equal(-1 >> -1, -2)
+      try assert_equal(0 >> 1, 0)
+      try assert_equal(1 >> 0, 1)
+      try assert_equal(-1 >> 0, -1)
+      try assert_equal(4 >> 3, 0)
+    }
+  }
+
+  t.group('std::integer::Integer.negative?') do (g) {
+    g.test('Checking if an Integer is less than 0') {
+      try assert_true(-1.negative?)
+      try assert_false(0.negative?)
+      try assert_false(1.negative?)
+    }
+  }
+
+  t.group('std::integer::Integer.positive?') do (g) {
+    g.test('Checking if an Integer is greater than 0') {
+      try assert_true(1.positive?)
+      try assert_false(0.positive?)
+      try assert_false(-1.positive?)
+    }
+  }
+
+  t.group('std::integer::Integer.zero?') do (g) {
+    g.test('Checking if an Integer is 0') {
+      try assert_true(0.zero?)
+      try assert_false(-1.zero?)
+      try assert_false(1.zero?)
+    }
+  }
+
+  t.group('std::integer::Integer.absolute') do (g) {
+    g.test('Computing the distance an Integer is from 0') {
+      try assert_equal(0.absolute, 0)
+      try assert_equal(-1.absolute, 1)
+      try assert_equal(1.absolute, 1)
+    }
+  }
+
+  t.group('std::integer::Integer.opposite') do (g) {
+    g.test('Computing the opposite sign of an Integer') {
+      try assert_equal(0.opposite, 0)
+      try assert_equal(-1.opposite, 1)
+      try assert_equal(1.opposite, -1)
+    }
+  }
+
+  t.group('std::integer::Integer.hash') do (g) {
+    g.test('Hashing an Integer') {
+      let hasher1 = DefaultHasher.new(1, 2)
+      let hasher2 = DefaultHasher.new(1, 2)
+
+      5.hash(hasher1)
+      5.hash(hasher2)
+
+      try assert_equal(hasher1.to_hash, hasher2.to_hash)
+    }
+  }
+
+  t.group('std::integer::Integer.successor') do (g) {
+    g.test('Computing the next larger positive Integer') {
+      try assert_equal(1.successor, 2)
+    }
+
+    g.test('Computing the 0 when Self is -1') {
+      try assert_equal(-1.successor, 0)
+    }
+
+    g.test('Computing the next larger negative Integer') {
+      try assert_equal(-2.successor, -1)
+    }
+  }
+
+  t.group('std::integer::Integer.parse') do (g) {
+    g.test('Parsing a base 2 Integer') {
+      try assert_equal(try! Integer.parse(string: '11', radix: 2), 3)
+    }
+
+    g.test('Parsing an Integer with leading whitespace') {
+      try assert_throw { local try Integer.parse(' 1') }
+    }
+
+    g.test('Parsing an Integer with trailing whitespace') {
+      try assert_throw { local try Integer.parse('1 ') }
+    }
+
+    g.test('Parsing a base 8 Integer') {
+      try assert_equal(try! Integer.parse(string: '52', radix: 8), 42)
+    }
+
+    g.test('Parsing a base 10 Integer') {
+      try assert_equal(try! Integer.parse(string: '12', radix: 10), 12)
+    }
+
+    g.test('Parsing a base 12 Integer') {
+      try assert_equal(try! Integer.parse(string: '10', radix: 12), 12)
+    }
+
+    g.test('Parsing a base 16 Integer') {
+      try assert_equal(try! Integer.parse(string: 'F', radix: 16), 15)
+    }
+
+    g.test('Parsing a base 20 Integer') {
+      try assert_equal(try! Integer.parse(string: 'H', radix: 20), 17)
+    }
+
+    g.test('Parsing a negative base 10 Integer') {
+      try assert_equal(try! Integer.parse(string: '-5', radix: 10), -5)
+    }
+
+    g.test('Parsing an invalid Integer') {
+      try assert_throw { local try Integer.parse(string: 'Z', radix: 16) }
+    }
+
+    g.test('Parsing a large base 10 Integer') {
+      let integer = try! Integer.parse(
+        '123456789123456789123456789123456789123456789123456789123456789123456789123456789'
+      )
+
+      try assert_equal(
+        integer,
+        123456789123456789123456789123456789123456789123456789123456789123456789123456789
+      )
+    }
+  }
+
+  t.group('std::integer::Integer.format') do (g) {
+    g.test('Formatting an Integer in base 2') {
+      try assert_equal(4.format(radix: 2), '100')
+      try assert_equal(10.format(radix: 2), '1010')
+      try assert_equal(32.format(radix: 2), '100000')
+
+      try assert_equal(-4.format(radix: 2), '-100')
+      try assert_equal(-10.format(radix: 2), '-1010')
+      try assert_equal(-32.format(radix: 2), '-100000')
+    }
+
+    g.test('Formatting an Integer in base 4') {
+      try assert_equal(4.format(radix: 4), '10')
+      try assert_equal(10.format(radix: 4), '22')
+      try assert_equal(32.format(radix: 4), '200')
+
+      try assert_equal(-4.format(radix: 4), '-10')
+      try assert_equal(-10.format(radix: 4), '-22')
+      try assert_equal(-32.format(radix: 4), '-200')
+    }
+
+    g.test('Formatting an Integer in base 16') {
+      try assert_equal(4.format(radix: 16), '4')
+      try assert_equal(10.format(radix: 16), 'a')
+      try assert_equal(32.format(radix: 16), '20')
+      try assert_equal(0x2ff.format(radix: 16), '2ff')
+
+      try assert_equal(-4.format(radix: 16), '-4')
+      try assert_equal(-10.format(radix: 16), '-a')
+      try assert_equal(-32.format(radix: 16), '-20')
+      try assert_equal(-0x2ff.format(radix: 16), '-2ff')
+    }
+
+    g.test('Formatting an Integer in base 32') {
+      try assert_equal(4.format(radix: 32), '4')
+      try assert_equal(10.format(radix: 32), 'a')
+      try assert_equal(32.format(radix: 32), '10')
+
+      try assert_equal(-4.format(radix: 32), '-4')
+      try assert_equal(-10.format(radix: 32), '-a')
+      try assert_equal(-32.format(radix: 32), '-10')
+    }
+
+    g.test('Formatting Integer 0') {
+      try assert_equal(0.format(radix: 2), '0')
+      try assert_equal(0.format(radix: 4), '0')
+      try assert_equal(0.format(radix: 16), '0')
+    }
+
+    g.test('Using a radix smaller than 2') {
+      try assert_panic('10.format(radix: 1)')
+    }
+
+    g.test('Using a radix greater than 36') {
+      try assert_panic('10.format(radix: 37)')
+    }
+  }
+
+  t.group('std::ineger::Integer.times') do (g) {
+    g.test('Iterating from 0 up to the value of an Integer') {
+      let values = 4.times.to_array
+
+      try assert_equal(values, Array.new(0, 1, 2, 3))
+    }
   }
 }

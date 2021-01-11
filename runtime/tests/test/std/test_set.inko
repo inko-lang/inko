@@ -1,97 +1,98 @@
 import std::set::Set
-import std::test
-import std::test::assert
+import std::test::*
 
-test.group('std::set::Set.insert') do (g) {
-  g.test('Inserting a value into a Set') {
-    let set = Set.new
+def tests(t: Tests) {
+  t.group('std::set::Set.insert') do (g) {
+    g.test('Inserting a value into a Set') {
+      let set = Set.new
 
-    assert.true(set.insert(10))
-    assert.false(set.insert(10))
-  }
-}
-
-test.group('std::set::Set.remove') do (g) {
-  g.test('Removing a non-existing value from a Set') {
-    let set = Set.new
-
-    assert.false(set.remove(10))
+      try assert_true(set.insert(10))
+      try assert_false(set.insert(10))
+    }
   }
 
-  g.test('Removing an existing value from a Set') {
-    let set = Set.new
+  t.group('std::set::Set.remove') do (g) {
+    g.test('Removing a non-existing value from a Set') {
+      let set = Set.new
 
-    set.insert(10)
-
-    assert.true(set.remove(10))
-  }
-}
-
-test.group('std::set::Set.each') do (g) {
-  g.test('Iterating over the values in a Set') {
-    let set = Set.new
-    let mut total = 0
-
-    set.insert(1)
-    set.insert(2)
-
-    set.each do (value) {
-      total += value
+      try assert_false(set.remove(10))
     }
 
-    assert.equal(total, 3)
+    g.test('Removing an existing value from a Set') {
+      let set = Set.new
+
+      set.insert(10)
+
+      try assert_true(set.remove(10))
+    }
   }
-}
 
-test.group('std::set::Set.iter') do (g) {
-  g.test('Iterating over the values in a Set') {
-    let set = Set.new
+  t.group('std::set::Set.each') do (g) {
+    g.test('Iterating over the values in a Set') {
+      let set = Set.new
+      let mut total = 0
 
-    set.insert(1)
+      set.insert(1)
+      set.insert(2)
 
-    let iter = set.iter
+      set.each do (value) {
+        total += value
+      }
 
-    assert.equal(iter.next, Option.some(1))
-    assert.true(iter.next.none?)
+      try assert_equal(total, 3)
+    }
   }
-}
 
-test.group('std::set::Set.contains?') do (g) {
-  g.test('Checking if a Set contains a value') {
-    let set = Set.new
+  t.group('std::set::Set.iter') do (g) {
+    g.test('Iterating over the values in a Set') {
+      let set = Set.new
 
-    assert.false(set.contains?(10))
+      set.insert(1)
 
-    set.insert(10)
+      let iter = set.iter
 
-    assert.true(set.contains?(10))
+      try assert_equal(iter.next, Option.some(1))
+      try assert_true(iter.next.none?)
+    }
   }
-}
 
-test.group('std::set::Set.==') do (g) {
-  g.test('Checking if two Sets are equal') {
-    let set1 = Set.new
-    let set2 = Set.new
-    let set3 = Set.new
+  t.group('std::set::Set.contains?') do (g) {
+    g.test('Checking if a Set contains a value') {
+      let set = Set.new
 
-    set1.insert(1)
-    set2.insert(1)
-    set3.insert(2)
+      try assert_false(set.contains?(10))
 
-    assert.equal(set1, set2)
-    assert.not_equal(set1, set3)
+      set.insert(10)
+
+      try assert_true(set.contains?(10))
+    }
   }
-}
 
-test.group('std::set::Set.length') do (g) {
-  g.test('Obtaining the numer of values in a Set') {
-    let set = Set.new
+  t.group('std::set::Set.==') do (g) {
+    g.test('Checking if two Sets are equal') {
+      let set1 = Set.new
+      let set2 = Set.new
+      let set3 = Set.new
 
-    assert.equal(set.length, 0)
+      set1.insert(1)
+      set2.insert(1)
+      set3.insert(2)
 
-    set.insert(1)
-    set.insert(2)
+      try assert_equal(set1, set2)
+      try assert_not_equal(set1, set3)
+    }
+  }
 
-    assert.equal(set.length, 2)
+  t.group('std::set::Set.length') do (g) {
+    g.test('Obtaining the numer of values in a Set') {
+      let set = Set.new
+
+      try assert_equal(set.length, 0)
+
+      set.insert(1)
+      set.insert(2)
+
+      try assert_equal(set.length, 2)
+    }
   }
 }

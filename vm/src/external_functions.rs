@@ -50,10 +50,10 @@ pub type ExternalFunction = fn(
 pub fn read_into<T: Read>(
     stream: &mut T,
     output: &mut Vec<u8>,
-    size: u64,
+    size: Option<u64>,
 ) -> Result<usize, RuntimeError> {
-    let read = if size > 0 {
-        stream.take(size).read_to_end(output)?
+    let read = if size > Some(0) {
+        stream.take(size.unwrap()).read_to_end(output)?
     } else {
         stream.read_to_end(output)?
     };

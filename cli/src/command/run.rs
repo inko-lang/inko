@@ -62,19 +62,19 @@ pub fn run(arguments: &[String]) -> Result<i32, Error> {
         return Ok(0);
     }
 
-    if let Some(input) = matches.free.get(0) {
-        run_file(
-            input,
-            matches.opt_strs("i"),
-            matches.opt_str("f"),
-            &matches.free[1..],
-        )
-    } else if let Some(source) = matches.opt_str("e") {
+    if let Some(source) = matches.opt_str("e") {
         run_eval(
             &source,
             matches.opt_strs("i"),
             matches.opt_str("f"),
             &matches.free,
+        )
+    } else if let Some(input) = matches.free.get(0) {
+        run_file(
+            input,
+            matches.opt_strs("i"),
+            matches.opt_str("f"),
+            &matches.free[1..],
         )
     } else {
         Err(Error::generic(

@@ -81,7 +81,6 @@ module Inkoc
         ProcessReceiveMessage
         ProcessSendMessage
         ProcessSetBlocking
-        ProcessSetPanicHandler
         ProcessSetPinned
         ProcessSpawn
         ProcessSuspendCurrent
@@ -91,7 +90,6 @@ module Inkoc
         RunBlockWithReceiver
         SetAttribute
         SetBlock
-        SetDefaultPanicHandler
         SetGlobal
         SetLiteral
         SetLiteralWide

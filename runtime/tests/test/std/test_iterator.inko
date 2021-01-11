@@ -1,7 +1,6 @@
 import std::iterator::Iterator
 import std::pair::Pair
-import std::test
-import std::test::assert
+import std::test::*
 
 class EmptyIterator {
   static def new -> Self {
@@ -40,224 +39,250 @@ def gen_with_error !! String => Integer {
   throw 'foo'
 }
 
-test.group('std::iterator::Iterator.each') do (g) {
-  g.test('Iterating over the values in an Iterator') {
-    let iter = SimpleIterator.new
-    let values = Array.new
+def tests(t: Tests) {
+  t.group('std::iterator::Iterator.each') do (g) {
+    g.test('Iterating over the values in an Iterator') {
+      let iter = SimpleIterator.new
+      let values = Array.new
 
-    iter.each do (value) { values.push(value) }
+      iter.each do (value) { values.push(value) }
 
-    assert.equal(values, Array.new(10, 20, 30))
-  }
-
-  g.test('Iterating over the values in an empty Iterator') {
-    let iter = EmptyIterator.new
-    let values = Array.new
-
-    iter.each do (value) {
-      values.push(value)
+      try assert_equal(values, Array.new(10, 20, 30))
     }
 
-    assert.equal(values, Array.new)
-  }
-}
+    g.test('Iterating over the values in an empty Iterator') {
+      let iter = EmptyIterator.new
+      let values = Array.new
 
-test.group('std::iterator::Iterator.find') do (g) {
-  g.test('Finding the first occurrence of a value in an Iterator') {
-    let iter = SimpleIterator.new
-    let val = iter.find do (value) { value == 20 }
+      iter.each do (value) {
+        values.push(value)
+      }
 
-    assert.equal(val, Option.some(20))
-  }
-
-  g.test('Finding the first occurrence of a value in an empty Iterator') {
-    let iter = EmptyIterator.new
-    let val = iter.find do (value) { value == 20 }
-
-    assert.true(val.none?)
-  }
-}
-
-test.group('std::iterator::Iterator.find_some') do (g) {
-  g.test('Finding the first Some value') {
-    let iter = SimpleIterator.new
-    let opt = iter.find_some do (value) { Option.some(value) }
-
-    assert.equal(opt, Option.some(10))
+      try assert_equal(values, Array.new)
+    }
   }
 
-  g.test('Not finding a value') {
-    let iter = SimpleIterator.new
-    let opt = iter.find_some do (value) { Option.none }
+  t.group('std::iterator::Iterator.find') do (g) {
+    g.test('Finding the first occurrence of a value in an Iterator') {
+      let iter = SimpleIterator.new
+      let val = iter.find do (value) { value == 20 }
 
-    assert.true(opt.none?)
-  }
-}
-
-test.group('std::iterator::Iterator.any?') do (g) {
-  g.test('Checking if an Iterator includes a value') {
-    let iter = SimpleIterator.new
-
-    assert.true(iter.any? do (value) { value == 20 })
-    assert.false(iter.any? do (value) { value == 200 })
-  }
-}
-
-test.group('std::iterator::Iterator.map') do (g) {
-  g.test('Mapping the values of an Iterator to a different value') {
-    let iter = SimpleIterator.new.map do (val) { val * 2 }
-    let values = Array.new
-
-    iter.each do (value) {
-      values.push(value)
+      try assert_equal(val, Option.some(20))
     }
 
-    assert.equal(values, Array.new(20, 40, 60))
-  }
-}
+    g.test('Finding the first occurrence of a value in an empty Iterator') {
+      let iter = EmptyIterator.new
+      let val = iter.find do (value) { value == 20 }
 
-test.group('std::iterator::Iterator.select') do (g) {
-  g.test('Selecting values from an empy Iterator') {
-    let iter = EmptyIterator.new
-    let vals = iter.select do (value) { value > 10 }.to_array
-
-    assert.true(vals.empty?)
+      try assert_true(val.none?)
+    }
   }
 
-  g.test('Selecting values from an Iterator with values') {
-    let iter = SimpleIterator.new
-    let vals = iter.select do (value) { value > 10 }.to_array
+  t.group('std::iterator::Iterator.find_some') do (g) {
+    g.test('Finding the first Some value') {
+      let iter = SimpleIterator.new
+      let opt = iter.find_some do (value) { Option.some(value) }
 
-    assert.equal(vals, Array.new(20, 30))
+      try assert_equal(opt, Option.some(10))
+    }
+
+    g.test('Not finding a value') {
+      let iter = SimpleIterator.new
+      let opt = iter.find_some do (value) { Option.none }
+
+      try assert_true(opt.none?)
+    }
   }
 
-  g.test('Selecting values from an Iterator when no values match') {
-    let iter = SimpleIterator.new
-    let vals = iter.select do (value) { value > 50 }.to_array
+  t.group('std::iterator::Iterator.any?') do (g) {
+    g.test('Checking if an Iterator includes a value') {
+      let iter = SimpleIterator.new
 
-    assert.true(vals.empty?)
-  }
-}
-
-test.group('std::iterator::Iterator.partition') do (g) {
-  g.test('Partitioning an empty Iterator') {
-    let iter = EmptyIterator.new
-    let pair = iter.partition do (value) { value >= 20 }
-
-    assert.true(pair.first.empty?)
-    assert.true(pair.second.empty?)
+      try assert_true(iter.any? do (value) { value == 20 })
+      try assert_false(iter.any? do (value) { value == 200 })
+    }
   }
 
-  g.test('Partitioning an Iterator with value') {
-    let iter = SimpleIterator.new
-    let pair = iter.partition do (value) { value >= 20 }
+  t.group('std::iterator::Iterator.map') do (g) {
+    g.test('Mapping the values of an Iterator to a different value') {
+      let iter = SimpleIterator.new.map do (val) { val * 2 }
+      let values = Array.new
 
-    assert.equal(pair.first, Array.new(20, 30))
-    assert.equal(pair.second, Array.new(10))
-  }
-}
+      iter.each do (value) {
+        values.push(value)
+      }
 
-test.group('std::iterator::Iterator.to_array') do (g) {
-  g.test('Converting an Iterator to an Array') {
-    let iter = SimpleIterator.new
-    let vals = iter.to_array
-
-    assert.equal(vals, Array.new(10, 20, 30))
-  }
-}
-
-test.group('std::iterator::Iterator.all?') do (g) {
-  g.test('Checking if all values in an Iterator meet a condition') {
-    let a = Array.new(10, 20, 30)
-    let b = Array.new(-1, 20, 30)
-    let c = Array.new(10, -2, 30)
-
-    assert.true(a.iter.all? do (value) { value.positive? })
-    assert.false(b.iter.all? do (value) { value.positive? })
-    assert.false(c.iter.all? do (value) { value.positive? })
-  }
-}
-
-test.group('std::iterator::Iterator.zip') do (g) {
-  g.test('Zipping two Iterators with an identical number of values') {
-    let a = Array.new(10, 20, 30)
-    let b = Array.new(40, 50, 60)
-    let zip = a.iter.zip(b.iter)
-
-    assert.equal(zip.next, Option.some(Pair.new(10, 40)))
-    assert.equal(zip.next, Option.some(Pair.new(20, 50)))
-    assert.equal(zip.next, Option.some(Pair.new(30, 60)))
-    assert.true(zip.next.none?)
+      try assert_equal(values, Array.new(20, 40, 60))
+    }
   }
 
-  g.test('Zipping two Iterators with a different number of values') {
-    let a = Array.new(10, 20, 30)
-    let b = Array.new(40, 50)
-    let zip1 = a.iter.zip(b.iter)
-    let zip2 = b.iter.zip(a.iter)
+  t.group('std::iterator::Iterator.select') do (g) {
+    g.test('Selecting values from an empy Iterator') {
+      let iter = EmptyIterator.new
+      let vals = iter.select do (value) { value > 10 }.to_array
 
-    assert.equal(zip1.next, Option.some(Pair.new(10, 40)))
-    assert.equal(zip1.next, Option.some(Pair.new(20, 50)))
-    assert.equal(zip2.next, Option.some(Pair.new(40, 10)))
-    assert.equal(zip2.next, Option.some(Pair.new(50, 20)))
-    assert.true(zip2.next.none?)
-  }
-}
+      try assert_true(vals.empty?)
+    }
 
-test.group('std::iterator::Iterator.join') do (g) {
-  g.test('Joining values in an empty Iterator') {
-    assert.equal(Array.new.iter.join(','), '')
-  }
+    g.test('Selecting values from an Iterator with values') {
+      let iter = SimpleIterator.new
+      let vals = iter.select do (value) { value > 10 }.to_array
 
-  g.test('Joining a single value') {
-    assert.equal(Array.new(10).iter.join(','), '10')
-  }
+      try assert_equal(vals, Array.new(20, 30))
+    }
 
-  g.test('Joining multiple values') {
-    assert.equal(Array.new(10, 20, 30).iter.join(','), '10,20,30')
+    g.test('Selecting values from an Iterator when no values match') {
+      let iter = SimpleIterator.new
+      let vals = iter.select do (value) { value > 50 }.to_array
+
+      try assert_true(vals.empty?)
+    }
   }
 
-  g.test('Joining multiple values using multiple characters as the separator') {
-    assert.equal(Array.new(10, 20, 30).iter.join('::'), '10::20::30')
+  t.group('std::iterator::Iterator.partition') do (g) {
+    g.test('Partitioning an empty Iterator') {
+      let iter = EmptyIterator.new
+      let pair = iter.partition do (value) { value >= 20 }
+
+      try assert_true(pair.first.empty?)
+      try assert_true(pair.second.empty?)
+    }
+
+    g.test('Partitioning an Iterator with value') {
+      let iter = SimpleIterator.new
+      let pair = iter.partition do (value) { value >= 20 }
+
+      try assert_equal(pair.first, Array.new(20, 30))
+      try assert_equal(pair.second, Array.new(10))
+    }
   }
 
-  g.test('Joining multiple values using an empty separator') {
-    assert.equal(Array.new(10, 20, 30).iter.join(''), '102030')
-  }
-}
+  t.group('std::iterator::Iterator.to_array') do (g) {
+    g.test('Converting an Iterator to an Array') {
+      let iter = SimpleIterator.new
+      let vals = iter.to_array
 
-test.group('std::iterator::Iterator.reduce') do (g) {
-  g.test('Reducing an Iterator to a single value') {
-    let total =
-      Array.new(1, 2, 3).iter.reduce(0) do (total, current) { total + current }
-
-    assert.equal(total, 6)
-  }
-}
-
-test.group('std::iterator::Generator.resume') do (g) {
-  g.test("Resuming a generator that doesn't throw") {
-    let iter = gen
-
-    assert.equal(iter.resume, Option.some(10))
-    assert.equal(iter.resume, Option.some(20))
-    assert.true(iter.resume.none?)
+      try assert_equal(vals, Array.new(10, 20, 30))
+    }
   }
 
-  g.test('Resuming a generator that throws') {
-    let iter = gen_with_error
+  t.group('std::iterator::Iterator.all?') do (g) {
+    g.test('Checking if all values in an Iterator meet a condition') {
+      let a = Array.new(10, 20, 30)
+      let b = Array.new(-1, 20, 30)
+      let c = Array.new(10, -2, 30)
 
-    assert.true(try iter.resume.some? else False)
-    assert.false(try iter.resume.some? else False)
+      try assert_true(a.iter.all? do (value) { value.positive? })
+      try assert_false(b.iter.all? do (value) { value.positive? })
+      try assert_false(c.iter.all? do (value) { value.positive? })
+    }
   }
-}
 
-test.group('std::iterator::Generator.next') do (g) {
-  g.test('Resuming a generator') {
-    let iter = gen
+  t.group('std::iterator::Iterator.zip') do (g) {
+    g.test('Zipping two Iterators with an identical number of values') {
+      let a = Array.new(10, 20, 30)
+      let b = Array.new(40, 50, 60)
+      let zip = a.iter.zip(b.iter)
 
-    assert.equal(iter.next, Option.some(10))
-    assert.equal(iter.next, Option.some(20))
-    assert.true(iter.next.none?)
+      try assert_equal(zip.next, Option.some(Pair.new(10, 40)))
+      try assert_equal(zip.next, Option.some(Pair.new(20, 50)))
+      try assert_equal(zip.next, Option.some(Pair.new(30, 60)))
+      try assert_true(zip.next.none?)
+    }
+
+    g.test('Zipping two Iterators with a different number of values') {
+      let a = Array.new(10, 20, 30)
+      let b = Array.new(40, 50)
+      let zip1 = a.iter.zip(b.iter)
+      let zip2 = b.iter.zip(a.iter)
+
+      try assert_equal(zip1.next, Option.some(Pair.new(10, 40)))
+      try assert_equal(zip1.next, Option.some(Pair.new(20, 50)))
+      try assert_equal(zip2.next, Option.some(Pair.new(40, 10)))
+      try assert_equal(zip2.next, Option.some(Pair.new(50, 20)))
+      try assert_true(zip2.next.none?)
+    }
+  }
+
+  t.group('std::iterator::Iterator.join') do (g) {
+    g.test('Joining values in an empty Iterator') {
+      try assert_equal(Array.new.iter.join(','), '')
+    }
+
+    g.test('Joining a single value') {
+      try assert_equal(Array.new(10).iter.join(','), '10')
+    }
+
+    g.test('Joining multiple values') {
+      try assert_equal(Array.new(10, 20, 30).iter.join(','), '10,20,30')
+    }
+
+    g.test('Joining multiple values using multiple characters as the separator') {
+      try assert_equal(Array.new(10, 20, 30).iter.join('::'), '10::20::30')
+    }
+
+    g.test('Joining multiple values using an empty separator') {
+      try assert_equal(Array.new(10, 20, 30).iter.join(''), '102030')
+    }
+  }
+
+  t.group('std::iterator::Iterator.reduce') do (g) {
+    g.test('Reducing an Iterator to a single value') {
+      let total =
+        Array.new(1, 2, 3).iter.reduce(0) do (total, current) { total + current }
+
+      try assert_equal(total, 6)
+    }
+  }
+
+  t.group('std::iterator::Iterator.chunks') do (g) {
+    g.test('Chunking an Iterator with an even number of values') {
+      let nums = Array.new(10, 20, 30, 40).iter.chunks(2)
+
+      try assert_equal(nums.next, Option.some(Array.new(10, 20)))
+      try assert_equal(nums.next, Option.some(Array.new(30, 40)))
+      try assert_true(nums.next.none?)
+    }
+
+    g.test('Chunking an Iterator with an uneven number of values') {
+      let nums = Array.new(10, 20, 30).iter.chunks(2)
+
+      try assert_equal(nums.next, Option.some(Array.new(10, 20)))
+      try assert_equal(nums.next, Option.some(Array.new(30)))
+      try assert_true(nums.next.none?)
+    }
+
+    g.test('Chunking an empty Iterator') {
+      let nums = Array.new.iter.chunks(2)
+
+      try assert_true(nums.next.none?)
+    }
+  }
+
+  t.group('std::iterator::Generator.resume') do (g) {
+    g.test("Resuming a generator that doesn't throw") {
+      let iter = gen
+
+      try assert_equal(iter.resume, Option.some(10))
+      try assert_equal(iter.resume, Option.some(20))
+      try assert_true(iter.resume.none?)
+    }
+
+    g.test('Resuming a generator that throws') {
+      let iter = gen_with_error
+
+      try assert_true(try iter.resume.some? else False)
+      try assert_false(try iter.resume.some? else False)
+    }
+  }
+
+  t.group('std::iterator::Generator.next') do (g) {
+    g.test('Resuming a generator') {
+      let iter = gen
+
+      try assert_equal(iter.next, Option.some(10))
+      try assert_equal(iter.next, Option.some(20))
+      try assert_true(iter.next.none?)
+    }
   }
 }

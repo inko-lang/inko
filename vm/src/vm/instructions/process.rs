@@ -14,15 +14,6 @@ pub fn process_allocate(state: &RcState, block: &Block) -> RcProcess {
 }
 
 #[inline(always)]
-pub fn process_set_panic_handler(
-    process: &RcProcess,
-    handler: ObjectPointer,
-) -> ObjectPointer {
-    process.set_panic_handler(handler);
-    handler
-}
-
-#[inline(always)]
 pub fn process_current(state: &RcState, process: &RcProcess) -> ObjectPointer {
     process.allocate(
         object_value::process(process.clone()),

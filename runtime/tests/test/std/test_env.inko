@@ -1,7 +1,7 @@
 import std::env
-import std::test
+import std::os::Command
 import std::process
-import std::test::assert
+import std::test::*
 
 def temporary_environment_variable!(R)(block: do (String) -> R) -> R {
   let name = 'INKO_ENV_' + process.current.identifier.to_string
@@ -13,159 +13,176 @@ def temporary_environment_variable!(R)(block: do (String) -> R) -> R {
   block.call(name)
 }
 
-test.group('std::env.[]') do (g) {
-  g.test('Obtaining the value of an existing environment variable') {
-    temporary_environment_variable do (name) {
-      env[name] = 'foo'
+def tests(t: Tests) {
+  t.group('std::env.[]') do (g) {
+    g.test('Obtaining the value of an existing environment variable') {
+      temporary_environment_variable do (name) {
+        env[name] = 'foo'
 
-      assert.equal(env[name], 'foo')
+        try assert_equal(env[name], 'foo')
+      }
+    }
+
+    g.test('Obtaining the value of a non-existing environment variable') {
+      try assert_panic(
+        'import std::env
+
+        env["KITTENS"]'
+      )
     }
   }
 
-  g.test('Obtaining the value of a non-existing environment variable') {
-    assert.panic {
-      temporary_environment_variable do (name) { env[name] }
+  t.group('std::env.get') do (g) {
+    g.test('Obtaining the value of an existing environment variable') {
+      temporary_environment_variable do (name) {
+        env[name] = 'foo'
+
+        try assert_equal(env.get(name), Option.some('foo'))
+      }
     }
-  }
-}
 
-test.group('std::env.get') do (g) {
-  g.test('Obtaining the value of an existing environment variable') {
-    temporary_environment_variable do (name) {
-      env[name] = 'foo'
-
-      assert.equal(env.get(name), Option.some('foo'))
-    }
-  }
-
-  g.test('Obtaining the value of a non-existing environment variable') {
-    temporary_environment_variable do (name) {
-      assert.true(env.get(name).none?)
-    }
-  }
-}
-
-test.group('std::env.[]=') do (g) {
-  g.test('Setting the value of an environment variable') {
-    temporary_environment_variable do (name) {
-      env[name] = 'foo'
-
-      assert.equal(env[name], 'foo')
-
-      env[name] = 'bar'
-
-      assert.equal(env[name], 'bar')
-    }
-  }
-}
-
-test.group('std::env.remove') do (g) {
-  g.test('Removing an existing environment variable') {
-    temporary_environment_variable do (name) {
-      env[name] = 'foo'
-
-      env.remove(name)
-
-      assert.true(env.get(name).none?)
+    g.test('Obtaining the value of a non-existing environment variable') {
+      temporary_environment_variable do (name) {
+        try assert_true(env.get(name).none?)
+      }
     }
   }
 
-  g.test('Removing a non-existing environment variable') {
-    temporary_environment_variable do (name) {
-      env.remove(name)
+  t.group('std::env.[]=') do (g) {
+    g.test('Setting the value of an environment variable') {
+      temporary_environment_variable do (name) {
+        env[name] = 'foo'
 
-      assert.true(env.get(name).none?)
+        try assert_equal(env[name], 'foo')
+
+        env[name] = 'bar'
+
+        try assert_equal(env[name], 'bar')
+      }
     }
   }
-}
 
-test.group('std::env.variables') do (g) {
-  g.test('Obtaining all environment variables and their values') {
-    temporary_environment_variable do (name) {
-      env[name] = 'foo'
+  t.group('std::env.remove') do (g) {
+    g.test('Removing an existing environment variable') {
+      temporary_environment_variable do (name) {
+        env[name] = 'foo'
 
-      let vars = env.variables
+        env.remove(name)
 
-      assert.false(vars.empty?)
-      assert.equal(vars[name], 'foo')
-    }
-  }
-}
-
-test.group('std::env.home_directory') do (g) {
-  g.test('Obtaining the home directory of the current user') {
-    env.home_directory.let do (home_dir) {
-      assert.greater(home_dir.to_string.length, 0)
-    }
-  }
-}
-
-test.group('std::env.temporary_directory') do (g) {
-  g.test('Obtaining the temporary directory') {
-    let temp_dir = env.temporary_directory
-
-    assert.true(temp_dir.exists?)
-    assert.greater(temp_dir.to_string.length, 0)
-  }
-}
-
-test.group('std::env.working_directory') do (g) {
-  g.test('Obtaining the current working directory') {
-    let path = try env.working_directory.to_string else ''
-
-    assert.greater(path.length, 0)
-  }
-}
-
-test.group('std::env.working_directory=') do (g) {
-  g.test('Changing the current working directory') {
-    let path = try env.working_directory.to_string else '.'
-    let new_path = try {
-      (env.working_directory = path).to_string
-    } else {
-      ''
+        try assert_true(env.get(name).none?)
+      }
     }
 
-    assert.equal(new_path, path)
+    g.test('Removing a non-existing environment variable') {
+      temporary_environment_variable do (name) {
+        env.remove(name)
+
+        try assert_true(env.get(name).none?)
+      }
+    }
   }
 
-  g.test('Changing the working directory to an invalid directory') {
-    let path = try {
-      (env.working_directory = 'does-not-exist').to_string
-    } else {
-      'not-set'
+  t.group('std::env.variables') do (g) {
+    g.test('Obtaining all environment variables and their values') {
+      temporary_environment_variable do (name) {
+        env[name] = 'foo'
+
+        let vars = env.variables
+
+        try assert_false(vars.empty?)
+        try assert_equal(vars[name], 'foo')
+      }
+    }
+  }
+
+  t.group('std::env.home_directory') do (g) {
+    g.test('Obtaining the home directory of the current user') {
+      env.home_directory.let do (home_dir) {
+        try assert_greater(home_dir.to_string.length, 0)
+      }
+    }
+  }
+
+  t.group('std::env.temporary_directory') do (g) {
+    g.test('Obtaining the temporary directory') {
+      let temp_dir = env.temporary_directory
+
+      try assert_true(temp_dir.exists?)
+      try assert_greater(temp_dir.to_string.length, 0)
+    }
+  }
+
+  t.group('std::env.working_directory') do (g) {
+    g.test('Obtaining the current working directory') {
+      let path = try env.working_directory.to_string else ''
+
+      try assert_greater(path.length, 0)
+    }
+  }
+
+  t.group('std::env.working_directory=') do (g) {
+    g.test('Changing the current working directory') {
+      let path = try env.working_directory.to_string else '.'
+      let new_path = try {
+        (env.working_directory = path).to_string
+      } else {
+        ''
+      }
+
+      try assert_equal(new_path, path)
     }
 
-    assert.equal(path, 'not-set')
-  }
-}
+    g.test('Changing the working directory to an invalid directory') {
+      let path = try {
+        (env.working_directory = 'does-not-exist').to_string
+      } else {
+        'not-set'
+      }
 
-test.group('std::env.arguments') do (g) {
-  g.test('Obtaining the commandline arguments') {
-    assert.equal(env.arguments, Array.new('dummy'))
-  }
-
-  g.test('Every call results in a new Array being returned') {
-    let args1 = env.arguments
-    let args2 = env.arguments
-
-    assert.false(args1.same_object?(args2))
+      try assert_equal(path, 'not-set')
+    }
   }
 
-  g.test('Modifying the arguments Array does not affect other calls') {
-    let args1 = env.arguments
+  t.group('std::env.arguments') do (g) {
+    g.test('Obtaining the commandline arguments') {
+      let program = '
+        import std::env
+        import std::stdio::stdout
 
-    args1.push('bar')
+        env.arguments.each do (arg) { stdout.print(arg) }
+        '
 
-    let args2 = env.arguments
+      let exe = try! env.executable
+      let cmd = Command
+        .new(exe)
+        .argument('run')
+        .argument('-e')
+        .argument(program)
+        .argument('foo')
+        .argument('bar')
+        .ignore_stdin
+        .ignore_stderr
+        .pipe_stdout
 
-    assert.equal(args1, Array.new('dummy', 'bar'))
-    assert.equal(args2, Array.new('dummy'))
+      let child = try! cmd.spawn
+      let status = try! child.wait
+      let out = try! child.stdout.read_string
+
+      try assert_true(status.success?)
+      try assert_equal(out, "foo\nbar\n")
+    }
+
+    g.test('Every call results in a new Array being returned') {
+      let args1 = env.arguments
+      let args2 = env.arguments
+
+      try assert_false(args1.same_object?(args2))
+    }
   }
-}
 
-test.group('std::env.executable') do (g) {
-  g.test('Getting the path to the current executable') {
-    assert.true(try! { env.executable }.file?)
+  t.group('std::env.executable') do (g) {
+    g.test('Getting the path to the current executable') {
+      try assert_true(try! { env.executable }.file?)
+    }
   }
 }

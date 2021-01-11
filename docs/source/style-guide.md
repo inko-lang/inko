@@ -21,20 +21,22 @@ example, if a line's length is dominated by a string, then it's OK to keep that
 on a single line:
 
 ```inko
-import std::test
+import std::test::*
 
-test.group('This is the name of a test group') do (g) {
-  # This is OK
-  g.test("This is the name of the test. These names can get pretty long, so it's OK to not wrap them") {
+def tests(t: Tests) {
+  t.group('This is the name of a test group') do (g) {
+    # This is OK
+    g.test("This is the name of the test. These names can get pretty long, so it's OK to not wrap them") {
 
-  }
+    }
 
-  # This is not any better than just keeping the string on a single line.
-  g.test(
-    "This is the name of the test. These names can get pretty long, so " +
-      "it's OK to not wrap them"
-  ) {
+    # This is not any better than just keeping the string on a single line.
+    g.test(
+      "This is the name of the test. These names can get pretty long, so " +
+        "it's OK to not wrap them"
+    ) {
 
+    }
   }
 }
 ```

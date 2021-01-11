@@ -19,8 +19,9 @@ provided the directory contains a test/ directory.
 
 Examples:
 
-    inko test           # Runs all unit tests in ./tests/test
-    inko test -d foo    # Runs all unit tests in ./foo/test
+    inko test                          # Runs all unit tests in ./tests/test
+    inko test -d foo                   # Runs all unit tests in ./foo/test
+    inko test tests/test/test_foo.inko # Only runs ./tests/test/test_foo.inko
 
 Output formats:
 
@@ -33,6 +34,12 @@ const DEFAULT_TESTS_ROOT: &str = "tests";
 
 /// The name of the directory that contains unit tests.
 const TEST_DIRECTORY: &str = "test";
+
+/// The name of the configuration module.
+const CONFIG_MODULE: &str = "config";
+
+/// The file used for configuring unit tests.
+const CONFIG_FILE: &str = "config.inko";
 
 /// Compiles and runs Inko unit tests.
 pub fn run(arguments: &[String]) -> Result<i32, Error> {
@@ -77,8 +84,26 @@ pub fn run(arguments: &[String]) -> Result<i32, Error> {
         )));
     }
 
-    let modules = test_modules(&root_dir)?;
-    let source = generate_source(modules);
+    let has_config = test_dir.join(CONFIG_FILE).is_file();
+
+    // If the user provides extra arguments, we'll treat these as specific test
+    // modules to run.
+    let modules = if !matches.free.is_empty() {
+        let mut mods = Vec::with_capacity(matches.free.len());
+
+        for path in &matches.free {
+            mods.push(module_name(
+                PathBuf::from(path).canonicalize()?,
+                &root_dir,
+            )?);
+        }
+
+        mods
+    } else {
+        test_modules(&root_dir)?
+    };
+
+    let source = generate_source(modules, has_config);
 
     run::run_eval(
         &source,
@@ -129,43 +154,75 @@ fn test_modules(directory: &PathBuf) -> Result<Vec<String>, Error> {
                 continue;
             }
 
-            let mut mod_path = path
-                .strip_prefix(directory)
-                .map_err(|e| e.to_string())?
-                .to_string_lossy()
-                .replace(MAIN_SEPARATOR, MODULE_SEPARATOR);
-
-            // This removes the trailing source extension, without the need
-            // for allocating another String.
-            mod_path.truncate(mod_path.len() - (SOURCE_FILE_EXT.len() + 1));
-
-            mods.push(mod_path);
+            mods.push(module_name(path, directory)?);
         }
     }
 
     Ok(mods)
 }
 
+fn module_name(path: PathBuf, directory: &PathBuf) -> Result<String, Error> {
+    let mut mod_path = path
+        .strip_prefix(directory)
+        .unwrap_or(&path)
+        .to_string_lossy()
+        .replace(MAIN_SEPARATOR, MODULE_SEPARATOR);
+
+    // This removes the trailing source extension, without the need
+    // for allocating another String.
+    mod_path.truncate(mod_path.len() - (SOURCE_FILE_EXT.len() + 1));
+
+    Ok(mod_path)
+}
+
 /// Generates Inko source code used for running unit tests.
 ///
 /// The resulting source code will look along the lines of the following:
 ///
-///     import std::test
-///     import test::foo::bar::(self as _)
-///     test.run
-fn generate_source(modules: Vec<String>) -> String {
-    let mut output = "import std::test\n".to_string();
+///     import std::test::Tests
+///     import test::config
+///     import test::foo::bar::(self as mod0)
+///     import test::foo::baz::(self as mod1)
+///
+///     def main {
+///       let tests = Tests.new
+///
+///       config.setup(tests)
+///       mod0.tests(tests)
+///       mod1.tests(tests)
+///       tests.run
+///     }
+fn generate_source(modules: Vec<String>, has_config: bool) -> String {
+    let mut output = "import std::test::Tests\n".to_string();
 
-    for module in modules {
-        output.push_str("import ");
-        output.push_str(&module);
-
-        // To prevent imported module names from conflicting, we import them as
-        // `_`; resulting in no symbols being created for the imported module.
-        output.push_str(MODULE_SEPARATOR);
-        output.push_str("(self as _)\n");
+    if has_config {
+        output.push_str(&format!(
+            "import {}{}{}\n",
+            TEST_DIRECTORY, MODULE_SEPARATOR, CONFIG_MODULE
+        ));
     }
 
-    output.push_str("test.run");
+    for (index, module) in modules.iter().enumerate() {
+        output.push_str(&format!(
+            "import {}{}(self as mod{})\n",
+            module, MODULE_SEPARATOR, index
+        ));
+    }
+
+    // TODO: main method
+    //output.push_str(&"\ndef main {\n");
+    output.push_str(&"  let tests = Tests.new\n");
+
+    if has_config {
+        output.push_str(&format!("  {}.setup(tests)\n", CONFIG_MODULE));
+    }
+
+    for index in 0..modules.len() {
+        output.push_str(&format!("  mod{}.tests(tests)\n", index));
+    }
+
+    output.push_str("  tests.run\n");
+    // TODO: main method
+    //output.push_str("}\n");
     output
 }

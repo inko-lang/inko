@@ -1,280 +1,282 @@
 import std::fs::path::Path
 import std::hash::DefaultHasher
-import std::test
-import std::test::assert
+import std::test::*
 
-test.group('std::string::String.to_uppercase') do (g) {
-  g.test('Converting a String to uppercase') {
-    assert.equal('hello'.to_uppercase, 'HELLO')
-    assert.equal('ä'.to_uppercase, 'Ä')
-    assert.equal('aä'.to_uppercase, 'AÄ')
-  }
-}
-
-test.group('std::string::String.to_lowercase') do (g) {
-  g.test('Converting a String to lowercase') {
-    assert.equal('HELLO'.to_lowercase, 'hello')
-    assert.equal('Ä'.to_lowercase, 'ä')
-    assert.equal('AÄ'.to_lowercase, 'aä')
-  }
-}
-
-test.group('std::string::String.bytesize') do (g) {
-  g.test('Calculating the number of bytes in a String') {
-    assert.equal('foo'.bytesize, 3)
-    assert.equal('Ä'.bytesize, 2)
-    assert.equal('AÄ'.bytesize, 3)
-  }
-}
-
-test.group('std::string::String.slice') do (g) {
-  g.test('Slicing a String from the start of the String') {
-    assert.equal('hello_world'.slice(start: 0, length: 5), 'hello')
-    assert.equal('hello_world'.slice(start: 0, length: 20), 'hello_world')
-  }
-
-  g.test('Slicing a String from the end of the String') {
-    assert.equal('hello_world'.slice(start: -5, length: 5), 'world')
-    assert.equal('hello_world'.slice(start: -1, length: 5), 'd')
-  }
-
-  g.test('Slicing a String with a negative length') {
-    assert.panic {
-      'hello'.slice(start: 0, length: -5)
+def tests(t: Tests) {
+  t.group('std::string::String.to_uppercase') do (g) {
+    g.test('Converting a String to uppercase') {
+      try assert_equal('hello'.to_uppercase, 'HELLO')
+      try assert_equal('ä'.to_uppercase, 'Ä')
+      try assert_equal('aä'.to_uppercase, 'AÄ')
     }
   }
 
-  g.test('Slicing a String with a very large start position') {
-    assert.panic {
-      'hello'.slice(
-        start: 340_282_366_920_938_463_463_374_607_431_768_211_455,
-        length: 1
+  t.group('std::string::String.to_lowercase') do (g) {
+    g.test('Converting a String to lowercase') {
+      try assert_equal('HELLO'.to_lowercase, 'hello')
+      try assert_equal('Ä'.to_lowercase, 'ä')
+      try assert_equal('AÄ'.to_lowercase, 'aä')
+    }
+  }
+
+  t.group('std::string::String.bytesize') do (g) {
+    g.test('Calculating the number of bytes in a String') {
+      try assert_equal('foo'.bytesize, 3)
+      try assert_equal('Ä'.bytesize, 2)
+      try assert_equal('AÄ'.bytesize, 3)
+    }
+  }
+
+  t.group('std::string::String.slice') do (g) {
+    g.test('Slicing a String from the start of the String') {
+      try assert_equal('hello_world'.slice(start: 0, length: 5), 'hello')
+      try assert_equal('hello_world'.slice(start: 0, length: 20), 'hello_world')
+    }
+
+    g.test('Slicing a String from the end of the String') {
+      try assert_equal('hello_world'.slice(start: -5, length: 5), 'world')
+      try assert_equal('hello_world'.slice(start: -1, length: 5), 'd')
+    }
+
+    g.test('Slicing a String with a negative length') {
+      try assert_panic("'hello'.slice(start: 0, length: -5)")
+    }
+
+    g.test('Slicing a String with a very large start position') {
+      try assert_panic(
+        "
+        'hello'.slice(
+          start: 340_282_366_920_938_463_463_374_607_431_768_211_455,
+          length: 1
+        )
+        "
       )
     }
   }
-}
 
-test.group('std::string::String.starts_with?') do (g) {
-  g.test('Checking if a String starts with the given prefix') {
-    assert.true('hello_world'.starts_with?('hello'))
-    assert.false('hello_world'.starts_with?('x'))
-  }
-}
-
-test.group('std::string::String.ends_with?') do (g) {
-  g.test('Checking if a String ends with the given suffix') {
-    assert.true('hello_world'.ends_with?('world'))
-    assert.false('hello_world'.ends_with?('x'))
-  }
-}
-
-test.group('std::string::String.to_string') do (g) {
-  g.test('Converting a String to a String') {
-    assert.equal('foo'.to_string, 'foo')
-    assert.not_equal('foo'.to_string, 'bar')
-  }
-}
-
-test.group('std::string::String.length') do (g) {
-  g.test('Calculating the number of characters in a String') {
-    assert.equal('foo'.length, 3)
-    assert.equal('Ä'.length, 1)
-    assert.equal('AÄ'.length, 2)
-    assert.equal('쿠키'.length, 2)
-  }
-}
-
-test.group('std::string::String.==') do (g) {
-  g.test('Checking if two Strings are equal to each other') {
-    assert.true('foo' == 'foo')
-    assert.true('Ä' == 'Ä')
-    assert.true('AÄ' == 'AÄ')
-    assert.true('쿠키' == '쿠키')
-
-    assert.false('foo' == 'bar')
-    assert.false('Ä' == '쿠')
-    assert.false('AÄ' == 'A쿠')
-    assert.false('쿠Ä' == '쿠키')
-  }
-}
-
-test.group('std::string::String.+') do (g) {
-  g.test('Concatenating two Strings') {
-    assert.equal('foo' + 'bar', 'foobar')
-    assert.equal('Ä' + 'Ä', 'ÄÄ')
-    assert.equal('A' + 'Ä', 'AÄ')
-    assert.equal('쿠' + '키', '쿠키')
-  }
-}
-
-test.group('std::string::String.to_path') do (g) {
-  g.test('Converting a String to a Path') {
-    assert.equal('foo.inko'.to_path, Path.new('foo.inko'))
-  }
-}
-
-test.group('std::string::String.to_integer') do (g) {
-  g.test('Converting a String to an Integer') {
-    assert.equal('10'.to_integer, 10)
-    assert.equal('-5'.to_integer, -5)
-  }
-
-  g.test('Converting an invalid String to an Integer') {
-    assert.equal('foo'.to_integer, 0)
-  }
-}
-
-test.group('std::string::String.to_float') do (g) {
-  g.test('Converting a String to a Float') {
-    assert.equal('10.5'.to_float, 10.5)
-    assert.equal('-5.0'.to_float, -5.0)
-  }
-
-  g.test('Converting an invalid String to an Integer') {
-    assert.equal('foo'.to_float, 0.0)
-  }
-}
-
-test.group('std::string::String.hash') do (g) {
-  g.test('Hashing a String') {
-    let hasher1 = DefaultHasher.new(1, 2)
-    let hasher2 = DefaultHasher.new(1, 2)
-
-    'foo'.hash(hasher1)
-    'foo'.hash(hasher2)
-
-    assert.equal(hasher1.to_hash, hasher2.to_hash)
-  }
-}
-
-test.group('std::string::String.byte') do (g) {
-  g.test('Obtaining the first byte') {
-    assert.equal('inko'.byte(0), 105)
-  }
-
-  g.test('Obtaining the byte of a positive index') {
-    assert.equal('inko'.byte(1), 110)
-  }
-
-  g.test('Obtaining the byte of a negative index') {
-    assert.equal('inko'.byte(-1), 111)
-  }
-}
-
-test.group('std::string::String.to_byte_array') do (g) {
-  g.test('Converting a String to a ByteArray') {
-    assert.equal('inko'.to_byte_array, ByteArray.new(105, 110, 107, 111))
-  }
-}
-
-test.group('std::string::String.slice_bytes') do (g) {
-  g.test('Slicing a String into bytes of the String') {
-    assert.equal(
-      'hello_world'.slice_bytes(start: 0, length: 5),
-      'hello'.to_byte_array
-    )
-
-    assert.equal(
-      'hello_world'.slice_bytes(start: 0, length: 20),
-      'hello_world'.to_byte_array
-    )
-  }
-
-  g.test('Slicing a String into bytes from the end of the String') {
-    assert.equal(
-      'hello_world'.slice_bytes(start: -5, length: 5),
-      'world'.to_byte_array
-    )
-
-    assert.equal(
-      'hello_world'.slice_bytes(start: -1, length: 5),
-      'd'.to_byte_array
-    )
-  }
-
-  g.test('Slicing a String into bytes with a negative length') {
-    assert.panic {
-      'hello'.slice_bytes(start: 0, length: -5)
+  t.group('std::string::String.starts_with?') do (g) {
+    g.test('Checking if a String starts with the given prefix') {
+      try assert_true('hello_world'.starts_with?('hello'))
+      try assert_false('hello_world'.starts_with?('x'))
     }
   }
 
-  g.test('Slicing a Unicode String into bytes') {
-    assert.equal(
-      '→foo'.slice_bytes(start: 0, length: 2),
-      ByteArray.new(226, 134)
-    )
-
-    assert.equal('→foo'.slice_bytes(start: 0, length: 6), '→foo'.to_byte_array)
-    assert.equal('→foo'.slice_bytes(start: 0, length: 3), '→'.to_byte_array)
-  }
-}
-
-test.group('std::string::String.split') do (g) {
-  g.test('Splitting a string lazily') {
-    let iter = 'foo/bar'.split('/')
-
-    assert.equal(iter.next, Option.some('foo'))
-    assert.equal(iter.next, Option.some('bar'))
-    assert.true(iter.next.none?)
+  t.group('std::string::String.ends_with?') do (g) {
+    g.test('Checking if a String ends with the given suffix') {
+      try assert_true('hello_world'.ends_with?('world'))
+      try assert_false('hello_world'.ends_with?('x'))
+    }
   }
 
-  g.test('Splitting a String using a single character separator') {
-    let segments = 'foo/bar/baz'.split('/').to_array
-
-    assert.equal(segments, Array.new('foo', 'bar', 'baz'))
+  t.group('std::string::String.to_string') do (g) {
+    g.test('Converting a String to a String') {
+      try assert_equal('foo'.to_string, 'foo')
+      try assert_not_equal('foo'.to_string, 'bar')
+    }
   }
 
-  g.test('Splitting a String using multiple characters as the separator') {
-    let segments = 'foo::bar::baz'.split('::').to_array
-
-    assert.equal(segments, Array.new('foo', 'bar', 'baz'))
+  t.group('std::string::String.length') do (g) {
+    g.test('Calculating the number of characters in a String') {
+      try assert_equal('foo'.length, 3)
+      try assert_equal('Ä'.length, 1)
+      try assert_equal('AÄ'.length, 2)
+      try assert_equal('쿠키'.length, 2)
+    }
   }
 
-  g.test('Splitting a String that does not contain the separator') {
-    let segments = 'foo'.split('/').to_array
+  t.group('std::string::String.==') do (g) {
+    g.test('Checking if two Strings are equal to each other') {
+      try assert_true('foo' == 'foo')
+      try assert_true('Ä' == 'Ä')
+      try assert_true('AÄ' == 'AÄ')
+      try assert_true('쿠키' == '쿠키')
 
-    assert.equal(segments, Array.new('foo'))
+      try assert_false('foo' == 'bar')
+      try assert_false('Ä' == '쿠')
+      try assert_false('AÄ' == 'A쿠')
+      try assert_false('쿠Ä' == '쿠키')
+    }
   }
 
-  g.test('Splitting a String using a multibyte separator') {
-    let segments = 'foo→bar→baz'.split('→').to_array
-
-    assert.equal(segments, Array.new('foo', 'bar', 'baz'))
+  t.group('std::string::String.+') do (g) {
+    g.test('Concatenating two Strings') {
+      try assert_equal('foo' + 'bar', 'foobar')
+      try assert_equal('Ä' + 'Ä', 'ÄÄ')
+      try assert_equal('A' + 'Ä', 'AÄ')
+      try assert_equal('쿠' + '키', '쿠키')
+    }
   }
 
-  g.test('Splitting a String containing multibyte characters') {
-    assert.equal('foo→bar→baz'.split('bar').to_array, Array.new('foo→', '→baz'))
+  t.group('std::string::String.to_path') do (g) {
+    g.test('Converting a String to a Path') {
+      try assert_equal('foo.inko'.to_path, Path.new('foo.inko'))
+    }
   }
 
-  g.test('Splitting a String containing multiple separators in a row') {
-    let segments = 'foo//bar/baz'.split('/').to_array
+  t.group('std::string::String.to_integer') do (g) {
+    g.test('Converting a String to an Integer') {
+      try assert_equal('10'.to_integer, 10)
+      try assert_equal('-5'.to_integer, -5)
+    }
 
-    assert.equal(segments, Array.new('foo', '', 'bar', 'baz'))
+    g.test('Converting an invalid String to an Integer') {
+      try assert_equal('foo'.to_integer, 0)
+    }
   }
 
-  g.test('Splitting a String with an empty String as the separator') {
-    assert.equal('foo/bar/baz'.split('').to_array, Array.new('foo/bar/baz'))
+  t.group('std::string::String.to_float') do (g) {
+    g.test('Converting a String to a Float') {
+      try assert_equal('10.5'.to_float, 10.5)
+      try assert_equal('-5.0'.to_float, -5.0)
+    }
+
+    g.test('Converting an invalid String to an Integer') {
+      try assert_equal('foo'.to_float, 0.0)
+    }
   }
 
-  g.test('Splitting a String with a separator longer than the String') {
-    let segments = 'foo/bar'.split('///////////////').to_array
+  t.group('std::string::String.hash') do (g) {
+    g.test('Hashing a String') {
+      let hasher1 = DefaultHasher.new(1, 2)
+      let hasher2 = DefaultHasher.new(1, 2)
 
-    assert.equal(segments, Array.new('foo/bar'))
+      'foo'.hash(hasher1)
+      'foo'.hash(hasher2)
+
+      try assert_equal(hasher1.to_hash, hasher2.to_hash)
+    }
   }
 
-  g.test('Splitting a String that ends with the separator') {
-    assert.equal('foo/'.split('/').to_array, Array.new('foo'))
+  t.group('std::string::String.byte') do (g) {
+    g.test('Obtaining the first byte') {
+      try assert_equal('inko'.byte(0), 105)
+    }
+
+    g.test('Obtaining the byte of a positive index') {
+      try assert_equal('inko'.byte(1), 110)
+    }
+
+    g.test('Obtaining the byte of a negative index') {
+      try assert_equal('inko'.byte(-1), 111)
+    }
   }
 
-  g.test('Splitting a String that ends with the separator multiple times') {
-    assert.equal('foo//'.split('/').to_array, Array.new('foo', ''))
-    assert.equal('foo///'.split('/').to_array, Array.new('foo', '', ''))
-
-    assert.equal('foo//'.split('//').to_array, Array.new('foo'))
-    assert.equal('foo///'.split('//').to_array, Array.new('foo', '/'))
+  t.group('std::string::String.to_byte_array') do (g) {
+    g.test('Converting a String to a ByteArray') {
+      try assert_equal('inko'.to_byte_array, ByteArray.new(105, 110, 107, 111))
+    }
   }
 
-  g.test('Splitting an empty String') {
-    assert.equal(''.split('/').to_array, Array.new)
+  t.group('std::string::String.slice_bytes') do (g) {
+    g.test('Slicing a String into bytes of the String') {
+      try assert_equal(
+        'hello_world'.slice_bytes(start: 0, length: 5),
+        'hello'.to_byte_array
+      )
+
+      try assert_equal(
+        'hello_world'.slice_bytes(start: 0, length: 20),
+        'hello_world'.to_byte_array
+      )
+    }
+
+    g.test('Slicing a String into bytes from the end of the String') {
+      try assert_equal(
+        'hello_world'.slice_bytes(start: -5, length: 5),
+        'world'.to_byte_array
+      )
+
+      try assert_equal(
+        'hello_world'.slice_bytes(start: -1, length: 5),
+        'd'.to_byte_array
+      )
+    }
+
+    g.test('Slicing a String into bytes with a negative length') {
+      try assert_panic("'hello'.slice_bytes(start: 0, length: -5)")
+    }
+
+    g.test('Slicing a Unicode String into bytes') {
+      try assert_equal(
+        '→foo'.slice_bytes(start: 0, length: 2),
+        ByteArray.new(226, 134)
+      )
+
+      try assert_equal('→foo'.slice_bytes(start: 0, length: 6), '→foo'.to_byte_array)
+      try assert_equal('→foo'.slice_bytes(start: 0, length: 3), '→'.to_byte_array)
+    }
+  }
+
+  t.group('std::string::String.split') do (g) {
+    g.test('Splitting a string lazily') {
+      let iter = 'foo/bar'.split('/')
+
+      try assert_equal(iter.next, Option.some('foo'))
+      try assert_equal(iter.next, Option.some('bar'))
+      try assert_true(iter.next.none?)
+    }
+
+    g.test('Splitting a String using a single character separator') {
+      let segments = 'foo/bar/baz'.split('/').to_array
+
+      try assert_equal(segments, Array.new('foo', 'bar', 'baz'))
+    }
+
+    g.test('Splitting a String using multiple characters as the separator') {
+      let segments = 'foo::bar::baz'.split('::').to_array
+
+      try assert_equal(segments, Array.new('foo', 'bar', 'baz'))
+    }
+
+    g.test('Splitting a String that does not contain the separator') {
+      let segments = 'foo'.split('/').to_array
+
+      try assert_equal(segments, Array.new('foo'))
+    }
+
+    g.test('Splitting a String using a multibyte separator') {
+      let segments = 'foo→bar→baz'.split('→').to_array
+
+      try assert_equal(segments, Array.new('foo', 'bar', 'baz'))
+    }
+
+    g.test('Splitting a String containing multibyte characters') {
+      try assert_equal(
+        'foo→bar→baz'.split('bar').to_array,
+        Array.new('foo→', '→baz')
+      )
+    }
+
+    g.test('Splitting a String containing multiple separators in a row') {
+      let segments = 'foo//bar/baz'.split('/').to_array
+
+      try assert_equal(segments, Array.new('foo', '', 'bar', 'baz'))
+    }
+
+    g.test('Splitting a String with an empty String as the separator') {
+      try assert_equal('foo/bar/baz'.split('').to_array, Array.new('foo/bar/baz'))
+    }
+
+    g.test('Splitting a String with a separator longer than the String') {
+      let segments = 'foo/bar'.split('///////////////').to_array
+
+      try assert_equal(segments, Array.new('foo/bar'))
+    }
+
+    g.test('Splitting a String that ends with the separator') {
+      try assert_equal('foo/'.split('/').to_array, Array.new('foo'))
+    }
+
+    g.test('Splitting a String that ends with the separator multiple times') {
+      try assert_equal('foo//'.split('/').to_array, Array.new('foo', ''))
+      try assert_equal('foo///'.split('/').to_array, Array.new('foo', '', ''))
+
+      try assert_equal('foo//'.split('//').to_array, Array.new('foo'))
+      try assert_equal('foo///'.split('//').to_array, Array.new('foo', '/'))
+    }
+
+    g.test('Splitting an empty String') {
+      try assert_equal(''.split('/').to_array, Array.new)
+    }
   }
 }

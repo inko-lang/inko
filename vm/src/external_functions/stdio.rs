@@ -99,7 +99,7 @@ pub fn stdin_read(
     arguments: &[ObjectPointer],
 ) -> Result<ObjectPointer, RuntimeError> {
     let buff = arguments[0].byte_array_value_mut()?;
-    let size = arguments[1].u64_value()?;
+    let size = arguments[1].u64_value().ok();
     let result = read_into(&mut stdin(), buff, size)?;
 
     Ok(process.allocate_usize(result, state.integer_prototype))

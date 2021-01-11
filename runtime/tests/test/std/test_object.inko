@@ -1,6 +1,5 @@
 import std::operators::Equal
-import std::test
-import std::test::assert
+import std::test::*
 
 class Dummy {
   static def new -> Self {
@@ -10,100 +9,102 @@ class Dummy {
 
 impl Equal for Dummy {}
 
-test.group('std::object::Object.same_object?') do (g) {
-  g.test('Comparing two objects that do not reside at the same address') {
-    let obj1 = Dummy.new
-    let obj2 = Dummy.new
+def tests(t: Tests) {
+  t.group('std::object::Object.same_object?') do (g) {
+    g.test('Comparing two objects that do not reside at the same address') {
+      let obj1 = Dummy.new
+      let obj2 = Dummy.new
 
-    assert.false(obj1.same_object?(obj2))
+      try assert_false(obj1.same_object?(obj2))
+    }
+
+    g.test('Comparing two objects that reside at the same address') {
+      let obj = Dummy.new
+
+      try assert_true(obj.same_object?(obj))
+    }
   }
 
-  g.test('Comparing two objects that reside at the same address') {
-    let obj = Dummy.new
+  t.group('std::object::Object.==') do (g) {
+    g.test('Comparing two objects that do not reside at the same address') {
+      let obj1 = Dummy.new
+      let obj2 = Dummy.new
 
-    assert.true(obj.same_object?(obj))
-  }
-}
+      try assert_not_equal(obj1, obj2)
+    }
 
-test.group('std::object::Object.==') do (g) {
-  g.test('Comparing two objects that do not reside at the same address') {
-    let obj1 = Dummy.new
-    let obj2 = Dummy.new
+    g.test('Comparing two objects that reside at the same address') {
+      let obj = Dummy.new
 
-    assert.not_equal(obj1, obj2)
-  }
-
-  g.test('Comparing two objects that reside at the same address') {
-    let obj = Dummy.new
-
-    assert.equal(obj, obj)
-  }
-}
-
-test.group('std::object::Object.!=') do (g) {
-  g.test('Comparing two objects that do not reside at the same address') {
-    let obj1 = Dummy.new
-    let obj2 = Dummy.new
-
-    assert.true(obj1 != obj2)
+      try assert_equal(obj, obj)
+    }
   }
 
-  g.test('Comparing two objects that reside at the same address') {
-    let obj = Dummy.new
+  t.group('std::object::Object.!=') do (g) {
+    g.test('Comparing two objects that do not reside at the same address') {
+      let obj1 = Dummy.new
+      let obj2 = Dummy.new
 
-    assert.false(obj != obj)
+      try assert_true(obj1 != obj2)
+    }
+
+    g.test('Comparing two objects that reside at the same address') {
+      let obj = Dummy.new
+
+      try assert_false(obj != obj)
+    }
   }
-}
 
-test.group('std::object::Object.truthy?') do (g) {
-  g.test('Checking if an object is truthy') {
-    assert.true(Dummy.new.truthy?)
+  t.group('std::object::Object.truthy?') do (g) {
+    g.test('Checking if an object is truthy') {
+      try assert_true(Dummy.new.truthy?)
+    }
   }
-}
 
-test.group('std::object::Object.if_true') do (g) {
-  g.test('The supplied block is always executed') {
-    let obj = Dummy.new
-    let mut num = 0
+  t.group('std::object::Object.if_true') do (g) {
+    g.test('The supplied block is always executed') {
+      let obj = Dummy.new
+      let mut num = 0
 
-    obj.if_true { num = 10 }
+      obj.if_true { num = 10 }
 
-    assert.equal(num, 10)
+      try assert_equal(num, 10)
+    }
   }
-}
 
-test.group('std::object::Object.if_false') do (g) {
-  g.test('The supplied block is never executed') {
-    let obj = Dummy.new
-    let mut num = 0
+  t.group('std::object::Object.if_false') do (g) {
+    g.test('The supplied block is never executed') {
+      let obj = Dummy.new
+      let mut num = 0
 
-    obj.if_false { num = 10 }
+      obj.if_false { num = 10 }
 
-    assert.equal(num, 0)
+      try assert_equal(num, 0)
+    }
   }
-}
 
-test.group('std::object::Object.if') do (g) {
-  g.test('The block passed to the true: argument is always executed') {
-    let obj = Dummy.new
-    let res = obj.if(true: { 10 }, false: { 20 })
+  t.group('std::object::Object.if') do (g) {
+    g.test('The block passed to the true: argument is always executed') {
+      let obj = Dummy.new
+      let res = obj.if(true: { 10 }, false: { 20 })
 
-    assert.equal(res, 10)
+      try assert_equal(res, 10)
+    }
   }
-}
 
-test.group('std::object::Object.and') do (g) {
-  g.test('The supplied block is always executed') {
-    let obj = Dummy.new
+  t.group('std::object::Object.and') do (g) {
+    g.test('The supplied block is always executed') {
+      let obj = Dummy.new
 
-    assert.true(obj.and({ True }))
+      try assert_true(obj.and({ True }))
+    }
   }
-}
 
-test.group('std::object::Object.or') do (g) {
-  g.test('The supplied block is never executed') {
-    let obj = Dummy.new
+  t.group('std::object::Object.or') do (g) {
+    g.test('The supplied block is never executed') {
+      let obj = Dummy.new
 
-    assert.true(obj.or({ False }))
+      try assert_true(obj.or({ False }))
+    }
   }
 }
