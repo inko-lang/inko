@@ -30,19 +30,37 @@ pub struct File {
 }
 
 impl File {
-    pub fn open(path: ObjectPointer, mode: i64) -> Result<File, RuntimeError> {
-        let mut open_opts = OpenOptions::new();
+    pub fn read_only(path: ObjectPointer) -> Result<Self, RuntimeError> {
+        Self::open(path, OpenOptions::new().read(true))
+    }
 
-        match mode {
-            READ => open_opts.read(true),
-            WRITE => open_opts.write(true).truncate(true).create(true),
-            APPEND => open_opts.append(true).create(true),
-            READ_WRITE => open_opts.read(true).write(true).create(true),
-            READ_APPEND => open_opts.read(true).append(true).create(true),
-            _ => return Err(format!("Invalid file open mode: {}", mode).into()),
-        };
+    pub fn write_only(path: ObjectPointer) -> Result<Self, RuntimeError> {
+        Self::open(
+            path,
+            OpenOptions::new().write(true).truncate(true).create(true),
+        )
+    }
 
-        let file = open_opts.open(path.string_value()?)?;
+    pub fn append_only(path: ObjectPointer) -> Result<Self, RuntimeError> {
+        Self::open(path, OpenOptions::new().append(true).create(true))
+    }
+
+    pub fn read_write(path: ObjectPointer) -> Result<Self, RuntimeError> {
+        Self::open(path, OpenOptions::new().read(true).write(true).create(true))
+    }
+
+    pub fn read_append(path: ObjectPointer) -> Result<Self, RuntimeError> {
+        Self::open(
+            path,
+            OpenOptions::new().read(true).append(true).create(true),
+        )
+    }
+
+    pub fn open(
+        path: ObjectPointer,
+        options: &mut OpenOptions,
+    ) -> Result<Self, RuntimeError> {
+        let file = options.open(path.string_value()?)?;
 
         Ok(File {
             inner: ClosableFile::new(file),

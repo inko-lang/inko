@@ -6,6 +6,7 @@
 use crate::arc_without_weak::ArcWithoutWeak;
 use crate::binding::RcBinding;
 use crate::block::Block;
+use crate::external_functions::ExternalFunction;
 use crate::ffi::{Library, Pointer, RcFunction};
 use crate::file::File;
 use crate::generator::RcGenerator;
@@ -69,6 +70,9 @@ pub enum ObjectValue {
 
     /// A generator that can be resumed.
     Generator(RcGenerator),
+
+    /// An external function.
+    ExternalFunction(ExternalFunction),
 }
 
 impl ObjectValue {
@@ -359,6 +363,14 @@ impl ObjectValue {
         }
     }
 
+    pub fn as_external_function(&self) -> Result<ExternalFunction, String> {
+        match *self {
+            ObjectValue::ExternalFunction(fun) => Ok(fun),
+            _ => Err("ObjectValue::as_external_function() called on a non external function"
+                .to_string()),
+        }
+    }
+
     pub fn take(&mut self) -> ObjectValue {
         mem::replace(self, ObjectValue::None)
     }
@@ -385,7 +397,8 @@ impl ObjectValue {
             | ObjectValue::Pointer(_)
             | ObjectValue::Process(_)
             | ObjectValue::Socket(_)
-            | ObjectValue::Generator(_) => true,
+            | ObjectValue::Generator(_)
+            | ObjectValue::ExternalFunction(_) => true,
             _ => false,
         }
     }
@@ -410,6 +423,7 @@ impl ObjectValue {
             ObjectValue::Socket(_) => "Socket",
             ObjectValue::Module(_) => "Module",
             ObjectValue::Generator(_) => "Generator",
+            ObjectValue::ExternalFunction(_) => "BuiltinFunction",
         }
     }
 
@@ -503,6 +517,10 @@ pub fn generator(value: RcGenerator) -> ObjectValue {
     ObjectValue::Generator(value)
 }
 
+pub fn external_function(value: ExternalFunction) -> ObjectValue {
+    ObjectValue::ExternalFunction(value)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -511,7 +529,6 @@ mod tests {
     use crate::compiled_code::CompiledCode;
     use crate::config::Config;
     use crate::ffi::Library;
-    use crate::file::READ;
     use crate::object_pointer::ObjectPointer;
     use crate::vm::state::{RcState, State};
 
@@ -593,7 +610,7 @@ mod tests {
     fn test_is_file() {
         let state = state();
         let path = state.intern_string(null_device_path().to_string());
-        let file = Box::new(File::open(path, READ).unwrap());
+        let file = Box::new(File::read_only(path).unwrap());
 
         assert!(ObjectValue::File(file).is_file());
         assert_eq!(ObjectValue::None.is_file(), false);
@@ -687,7 +704,7 @@ mod tests {
     fn test_as_file_with_file() {
         let state = state();
         let path = state.intern_string(null_device_path().to_string());
-        let file = Box::new(File::open(path, READ).unwrap());
+        let file = Box::new(File::read_only(path).unwrap());
         let value = ObjectValue::File(file);
         let result = value.as_file();
 
@@ -703,7 +720,7 @@ mod tests {
     fn test_as_file_mut_with_file() {
         let state = state();
         let path = state.intern_string(null_device_path().to_string());
-        let file = Box::new(File::open(path, READ).unwrap());
+        let file = Box::new(File::read_only(path).unwrap());
         let mut value = ObjectValue::File(file);
         let result = value.as_file_mut();
 
@@ -782,7 +799,7 @@ mod tests {
     fn test_file() {
         let state = state();
         let path = state.intern_string(null_device_path().to_string());
-        let f = File::open(path, READ).unwrap();
+        let f = File::read_only(path).unwrap();
 
         assert!(file(f).is_file());
     }

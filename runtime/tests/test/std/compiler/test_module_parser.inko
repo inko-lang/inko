@@ -5,7 +5,7 @@ import std::compiler::module_name::ModuleName
 import std::compiler::module_parser::*
 import std::compiler::parser::Parser
 import std::pair::Pair
-import std::fs::file
+import std::fs::file::(self, WriteOnlyFile)
 import std::process
 import std::test
 import std::test::assert
@@ -228,7 +228,7 @@ test.group('std::compiler::module_parser::ModuleParser.parse_file') do (g) {
   g.test('Parsing a module and its dependencies') {
     let config = config
     let file_path = fixtures.temporary_file_path
-    let handle = try! file.write_only(file_path)
+    let handle = try! WriteOnlyFile.new(file_path)
 
     process.defer { try file.remove(file_path) else Nil }
     process.defer { handle.close }
@@ -248,7 +248,7 @@ test.group('std::compiler::module_parser::ModuleParser.parse_file') do (g) {
   g.test('Parsing a module that produces errors') {
     let config = config
     let file_path = fixtures.temporary_file_path
-    let handle = try! file.write_only(file_path)
+    let handle = try! WriteOnlyFile.new(file_path)
 
     process.defer { try file.remove(file_path) else Nil }
     process.defer { handle.close }

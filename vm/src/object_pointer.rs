@@ -22,6 +22,7 @@ use std::usize;
 use crate::arc_without_weak::ArcWithoutWeak;
 use crate::binding::RcBinding;
 use crate::block::Block;
+use crate::external_functions::ExternalFunction;
 use crate::ffi::{Library, Pointer, RcFunction};
 use crate::file::File;
 use crate::generator::RcGenerator;
@@ -636,6 +637,12 @@ impl ObjectPointer {
     );
 
     def_value_getter!(generator_value, get, as_generator, &RcGenerator);
+    def_value_getter!(
+        external_function_value,
+        get,
+        as_external_function,
+        ExternalFunction
+    );
 
     /// Atomically loads the underlying pointer, returning a new ObjectPointer.
     pub fn atomic_load(&self) -> Self {

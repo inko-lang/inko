@@ -7,6 +7,9 @@ import std::operators::(
 import std::process::(panic)
 import std::time::bits::*
 
+extern def time_monotonic -> Float
+extern def time_system -> Array!(Any)
+
 # A span of time measured in seconds.
 #
 # A `Duration` can be used to measure the span of time without having to worry
@@ -283,7 +286,7 @@ class SystemTime {
   #
   #     SystemTime.now
   static def now -> SystemTime {
-    let time = _INKOC.time_system
+    let time = time_system
 
     from_timestamp(time: time[0] as Float, utc_offset: time[1] as Integer)
   }
@@ -299,7 +302,7 @@ class SystemTime {
   #
   #     SystemTime.utc
   static def utc -> SystemTime {
-    let time = _INKOC.time_system
+    let time = time_system
 
     from_utc_timestamp(time[0] as Float)
   }
@@ -779,7 +782,7 @@ class Instant {
   # The (internal) timestamp of this `Instant`.
   @time: Float
 
-  static def new(time = _INKOC.time_monotonic) -> Self {
+  static def new(time = time_monotonic) -> Self {
     Self { @time = time }
   }
 
@@ -799,7 +802,7 @@ class Instant {
   #
   #     start.elapsed.to_integer # => 1
   def elapsed -> Duration {
-    Duration.new(_INKOC.time_monotonic - @time)
+    Duration.new(time_monotonic - @time)
   }
 }
 

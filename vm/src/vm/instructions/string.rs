@@ -179,7 +179,7 @@ pub fn string_to_integer(
     let string = str_ptr.string_value()?;
     let radix = radix_ptr.integer_value()?;
 
-    if radix < 2 || radix > 36 {
+    if !(2..=36).contains(&radix) {
         return Err(RuntimeError::Panic(
             "radix must be between 2 and 32, not {}".to_string(),
         ));

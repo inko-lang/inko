@@ -143,7 +143,7 @@ pub fn byte_array_to_string(
 fn integer_to_byte(pointer: ObjectPointer) -> Result<u8, String> {
     let value = pointer.integer_value()?;
 
-    if value >= MIN_BYTE && value <= MAX_BYTE {
+    if (MIN_BYTE..=MAX_BYTE).contains(&value) {
         Ok(value as u8)
     } else {
         Err(format!(

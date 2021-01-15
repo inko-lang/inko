@@ -47,13 +47,13 @@ impl Node for KeywordArgument {
   }
 }
 
-# A message sent to a receiver.
+# A message sent to an object.
 class Send {
   # The name of the message that is sent.
   @message: String
 
   # The receiver the message is sent to.
-  @receiver: Node
+  @receiver: ?Node
 
   # The arguments passed with the message.
   @arguments: Array!(Node)
@@ -78,10 +78,10 @@ class Send {
 
   static def new(
     message: String,
-    receiver: Node,
     arguments: Array!(Node),
     type_arguments: Array!(TypeNode),
-    location: SourceLocation
+    location: SourceLocation,
+    receiver: ?Node = Option.none
   ) -> Self {
     Self {
       @message = message,
@@ -100,7 +100,7 @@ class Send {
     @message
   }
 
-  def receiver -> Node {
+  def receiver -> ?Node {
     @receiver
   }
 
@@ -113,7 +113,9 @@ class Send {
   }
 
   def instruction? -> Boolean {
-    match(let matched = @receiver) {
+    let receiver = @receiver.get_or_else { return False }
+
+    match(let matched = receiver) {
       as Constant when matched.name == INSTRUCTION_RECEIVER_NAME -> { True }
       else -> { False }
     }

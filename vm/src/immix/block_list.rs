@@ -83,7 +83,7 @@ impl BlockList {
 
     /// Returns an iterator that iterates over the Vec, instead of using the
     /// "next" pointers of every block.
-    pub fn iter_mut<'a>(&'a mut self) -> SliceIterMut<'a, Box<Block>> {
+    pub fn iter_mut(&mut self) -> SliceIterMut<'_, Box<Block>> {
         self.blocks.iter_mut()
     }
 

@@ -221,6 +221,8 @@ module Inkoc
 
         if node.symbol && node.depth
           get_local_symbol(node.depth, node.symbol, body, loc)
+        elsif node.block_type&.extern
+          extern_function_call(name, [], node.block_type, body, node.location)
         elsif body.self_type.responds_to_message?(name)
           send_to_self(name, node.block_type, node.type, body, loc)
         elsif @module.responds_to_message?(name)
@@ -279,6 +281,19 @@ module Inkoc
         body.registers.release(receiver)
 
         result
+      end
+
+      def on_extern_method(node, body)
+        loc = node.location
+        name = set_string(node.name, body, loc)
+        register = body.register(node.type)
+
+        body.instruct(:Unary, :ExternalFunctionLoad, register, name, loc)
+
+        body.registers.release(name)
+        body.registers.release(register)
+
+        set_global(node.name, register, body, loc)
       end
 
       def on_block(node, body)
@@ -567,6 +582,16 @@ module Inkoc
       end
 
       def on_send(node, body)
+        if node.block_type.extern
+          return extern_function_call(
+            node.name,
+            node.arguments,
+            node.block_type,
+            body,
+            node.location
+          )
+        end
+
         return on_imported_method(node, body) if node.imported
 
         receiver = receiver_for_send(node, body)
@@ -1103,20 +1128,6 @@ module Inkoc
         raw_binary_instruction(:FloatRound, node, body)
       end
 
-      def on_raw_stdout_write(node, body)
-        raw_unary_instruction(:StdoutWrite, node, body)
-      end
-
-      def on_raw_stdout_flush(node, body)
-        body.instruct(:Simple, :StdoutFlush, node.location)
-        get_nil(body, node.location)
-      end
-
-      def on_raw_stderr_flush(node, body)
-        body.instruct(:Simple, :StderrFlush, node.location)
-        get_nil(body, node.location)
-      end
-
       def on_raw_get_true(node, body)
         get_true(body, node.location)
       end
@@ -1201,14 +1212,6 @@ module Inkoc
         raw_binary_instruction(:ArrayRemove, node, body)
       end
 
-      def on_raw_time_monotonic(node, body)
-        raw_nullary_instruction(:TimeMonotonic, node, body)
-      end
-
-      def on_raw_time_system(node, body)
-        raw_nullary_instruction(:TimeSystem, node, body)
-      end
-
       def on_raw_string_to_upper(node, body)
         raw_unary_instruction(:StringToUpper, node, body)
       end
@@ -1246,14 +1249,6 @@ module Inkoc
 
       def on_raw_string_byte(node, body)
         raw_binary_instruction(:StringByte, node, body)
-      end
-
-      def on_raw_stdin_read(node, body)
-        raw_binary_instruction(:StdinRead, node, body)
-      end
-
-      def on_raw_stderr_write(node, body)
-        raw_unary_instruction(:StderrWrite, node, body)
       end
 
       def on_raw_process_spawn(node, body)
@@ -1299,92 +1294,6 @@ module Inkoc
         raw_binary_instruction(:AttributeExists, node, body)
       end
 
-      def on_raw_file_flush(node, body)
-        file = process_node(node.arguments.fetch(0), body)
-
-        body.instruct(:Nullary, :FileFlush, file, node.location)
-        body.registers.release(file)
-
-        get_nil(body, node.location)
-      end
-
-      def on_raw_file_open(node, body)
-        raw_binary_instruction(:FileOpen, node, body)
-      end
-
-      def on_raw_file_path(node, body)
-        raw_unary_instruction(:FilePath, node, body)
-      end
-
-      def on_raw_file_read(node, body)
-        raw_ternary_instruction(:FileRead, node, body)
-      end
-
-      def on_raw_file_seek(node, body)
-        raw_binary_instruction(:FileSeek, node, body)
-      end
-
-      def on_raw_file_size(node, body)
-        raw_unary_instruction(:FileSize, node, body)
-      end
-
-      def on_raw_file_write(node, body)
-        raw_binary_instruction(:FileWrite, node, body)
-      end
-
-      def on_raw_file_remove(node, body)
-        path = process_node(node.arguments.fetch(0), body)
-
-        result =
-          body.instruct(:Nullary, :FileRemove, path, node.location)
-
-        body.registers.release(path)
-
-        result
-      end
-
-      def on_raw_file_copy(node, body)
-        raw_binary_instruction(:FileCopy, node, body)
-      end
-
-      def on_raw_file_type(node, body)
-        raw_unary_instruction(:FileType, node, body)
-      end
-
-      def on_raw_file_time(node, body)
-        raw_binary_instruction(:FileTime, node, body)
-      end
-
-      def on_raw_directory_create(node, body)
-        path = process_node(node.arguments.fetch(0), body)
-        recurse = process_node(node.arguments.fetch(1), body)
-
-        result =
-          body.instruct(:Unary, :DirectoryCreate, path, recurse, node.location)
-
-        body.registers.release(path)
-        body.registers.release(recurse)
-
-        result
-      end
-
-      def on_raw_directory_remove(node, body)
-        path = process_node(node.arguments.fetch(0), body)
-        recurse = process_node(node.arguments.fetch(1), body)
-
-        result =
-          body.instruct(:Unary, :DirectoryRemove, path, recurse, node.location)
-
-        body.registers.release(path)
-        body.registers.release(recurse)
-
-        result
-      end
-
-      def on_raw_directory_list(node, body)
-        raw_unary_instruction(:DirectoryList, node, body)
-      end
-
       def on_raw_close(node, body)
         object = process_node(node.arguments.fetch(0), body)
 
@@ -1408,30 +1317,6 @@ module Inkoc
         status = process_node(node.arguments.fetch(0), body)
 
         body.instruct(:Exit, status, node.location)
-      end
-
-      def on_raw_platform(node, body)
-        raw_nullary_instruction(:Platform, node, body)
-      end
-
-      def on_raw_hasher_new(node, body)
-        raw_binary_instruction(:HasherNew, node, body)
-      end
-
-      def on_raw_hasher_write(node, body)
-        raw_binary_instruction(:HasherWrite, node, body)
-      end
-
-      def on_raw_hasher_to_hash(node, body)
-        raw_unary_instruction(:HasherToHash, node, body)
-      end
-
-      def on_raw_stacktrace(node, body)
-        raw_binary_instruction(:Stacktrace, node, body)
-      end
-
-      def on_raw_block_metadata(node, body)
-        raw_binary_instruction(:BlockMetadata, node, body)
       end
 
       def on_raw_string_format_debug(node, body)
@@ -1554,49 +1439,6 @@ module Inkoc
         set_current_file_path(body, node.location)
       end
 
-      def on_raw_env_get(node, body)
-        raw_unary_instruction(:EnvGet, node, body)
-      end
-
-      def on_raw_env_set(node, body)
-        raw_binary_instruction(:EnvSet, node, body)
-      end
-
-      def on_raw_env_remove(node, body)
-        name = process_node(node.arguments.fetch(0), body)
-
-        result =
-          body.instruct(:Nullary, :EnvRemove, name, node.location)
-
-        body.registers.release(name)
-
-        result
-      end
-
-      def on_raw_env_variables(node, body)
-        raw_nullary_instruction(:EnvVariables, node, body)
-      end
-
-      def on_raw_env_home_directory(node, body)
-        raw_nullary_instruction(:EnvHomeDirectory, node, body)
-      end
-
-      def on_raw_env_temp_directory(node, body)
-        raw_nullary_instruction(:EnvTempDirectory, node, body)
-      end
-
-      def on_raw_env_get_working_directory(node, body)
-        raw_nullary_instruction(:EnvGetWorkingDirectory, node, body)
-      end
-
-      def on_raw_env_set_working_directory(node, body)
-        raw_unary_instruction(:EnvSetWorkingDirectory, node, body)
-      end
-
-      def on_raw_env_arguments(node, body)
-        raw_nullary_instruction(:EnvArguments, node, body)
-      end
-
       def on_raw_process_set_panic_handler(node, body)
         raw_unary_instruction(:ProcessSetPanicHandler, node, body)
       end
@@ -1617,46 +1459,6 @@ module Inkoc
         raw_unary_instruction(:ProcessIdentifier, node, body)
       end
 
-      def on_raw_ffi_library_open(node, body)
-        raw_unary_instruction(:FFILibraryOpen, node, body)
-      end
-
-      def on_raw_ffi_function_attach(node, body)
-        raw_quaternary_instruction(:FFIFunctionAttach, node, body)
-      end
-
-      def on_raw_ffi_function_call(node, body)
-        raw_binary_instruction(:FFIFunctionCall, node, body)
-      end
-
-      def on_raw_ffi_pointer_attach(node, body)
-        raw_binary_instruction(:FFIPointerAttach, node, body)
-      end
-
-      def on_raw_ffi_pointer_read(node, body)
-        raw_ternary_instruction(:FFIPointerRead, node, body)
-      end
-
-      def on_raw_ffi_pointer_write(node, body)
-        raw_quaternary_instruction(:FFIPointerWrite, node, body)
-      end
-
-      def on_raw_ffi_pointer_from_address(node, body)
-        raw_unary_instruction(:FFIPointerFromAddress, node, body)
-      end
-
-      def on_raw_ffi_pointer_address(node, body)
-        raw_unary_instruction(:FFIPointerAddress, node, body)
-      end
-
-      def on_raw_ffi_type_size(node, body)
-        raw_unary_instruction(:FFITypeSize, node, body)
-      end
-
-      def on_raw_ffi_type_alignment(node, body)
-        raw_unary_instruction(:FFITypeAlignment, node, body)
-      end
-
       def on_raw_string_to_integer(node, body)
         raw_binary_instruction(:StringToInteger, node, body)
       end
@@ -1667,101 +1469,6 @@ module Inkoc
 
       def on_raw_float_to_bits(node, body)
         raw_unary_instruction(:FloatToBits, node, body)
-      end
-
-      def on_raw_socket_create(node, body)
-        raw_binary_instruction(:SocketCreate, node, body)
-      end
-
-      def on_raw_socket_write(node, body)
-        raw_binary_instruction(:SocketWrite, node, body)
-      end
-
-      def on_raw_socket_read(node, body)
-        raw_ternary_instruction(:SocketRead, node, body)
-      end
-
-      def on_raw_socket_accept(node, body)
-        raw_unary_instruction(:SocketAccept, node, body)
-      end
-
-      def on_raw_socket_receive_from(node, body)
-        raw_ternary_instruction(:SocketReceiveFrom, node, body)
-      end
-
-      def on_raw_socket_send_to(node, body)
-        raw_quaternary_instruction(:SocketSendTo, node, body)
-      end
-
-      def on_raw_socket_address(node, body)
-        raw_binary_instruction(:SocketAddress, node, body)
-      end
-
-      def on_raw_socket_get_option(node, body)
-        raw_binary_instruction(:SocketGetOption, node, body)
-      end
-
-      def on_raw_socket_set_option(node, body)
-        raw_ternary_instruction(:SocketSetOption, node, body)
-      end
-
-      def on_raw_socket_bind(node, body)
-        sock = process_node(node.arguments.fetch(0), body)
-        addr = process_node(node.arguments.fetch(1), body)
-        port = process_node(node.arguments.fetch(2), body)
-
-        result =
-          body.instruct(:Binary, :SocketBind, sock, addr, port, node.location)
-
-        body.registers.release(sock)
-        body.registers.release(addr)
-        body.registers.release(port)
-
-        result
-      end
-
-      def on_raw_socket_connect(node, body)
-        sock = process_node(node.arguments.fetch(0), body)
-        addr = process_node(node.arguments.fetch(1), body)
-        port = process_node(node.arguments.fetch(2), body)
-
-        result =
-          body.instruct(:Binary, :SocketConnect, sock, addr, port, node.location)
-
-        body.registers.release(sock)
-        body.registers.release(addr)
-        body.registers.release(port)
-
-        result
-      end
-
-      def on_raw_socket_shutdown(node, body)
-        sock = process_node(node.arguments.fetch(0), body)
-        mode = process_node(node.arguments.fetch(1), body)
-
-        result =
-          body.instruct(:Unary, :SocketShutdown, sock, mode, node.location)
-
-        body.registers.release(sock)
-        body.registers.release(mode)
-
-        result
-      end
-
-      def on_raw_socket_listen(node, body)
-        raw_binary_instruction(:SocketListen, node, body)
-      end
-
-      def on_raw_random_number(node, body)
-        raw_unary_instruction(:RandomNumber, node, body)
-      end
-
-      def on_raw_random_range(node, body)
-        raw_binary_instruction(:RandomRange, node, body)
-      end
-
-      def on_raw_random_bytes(node, body)
-        raw_unary_instruction(:RandomBytes, node, body)
       end
 
       def on_raw_if(node, body)
@@ -1797,16 +1504,8 @@ module Inkoc
         raw_unary_instruction(:ModuleLoad, node, body)
       end
 
-      def on_raw_module_list(node, body)
-        raw_nullary_instruction(:ModuleList, node, body)
-      end
-
       def on_raw_module_get(node, body)
         raw_unary_instruction(:ModuleGet, node, body)
-      end
-
-      def on_raw_module_info(node, body)
-        raw_binary_instruction(:ModuleInfo, node, body)
       end
 
       def on_raw_generator_resume(node, body)
@@ -2283,6 +1982,23 @@ module Inkoc
           body,
           location
         )
+      end
+
+      def extern_function_call(name, arguments, block_type, body, loc)
+        args = send_arguments(block_type, arguments, body, loc)
+        func_reg = get_global(name, body, loc)
+        ret_reg = body.register(block_type.return_type)
+        args = make_registers_contiguous(args, body, loc)
+        start = args.first || ret_reg
+
+        body.instruct(
+          :ExternalFunctionCall, ret_reg, func_reg, start, args.length, loc
+        )
+
+        body.registers.release(func_reg)
+        body.registers.release_all(args)
+
+        ret_reg
       end
 
       def get_self(body, location)

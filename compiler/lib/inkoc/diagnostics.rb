@@ -508,5 +508,13 @@ module Inkoc
         location
       )
     end
+
+    def external_functions_with_receiver(location)
+      error("External functions can't use a receiver", location)
+    end
+
+    def external_function_import(name, location)
+      error("The external function #{name.inspect} can't be imported", location)
+    end
   end
 end

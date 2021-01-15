@@ -62,6 +62,8 @@ module Inkoc
       def import_symbol(name, type, location)
         if @module.global_defined?(name)
           diagnostics.import_existing_symbol_error(name, location)
+        elsif type.method? && type.extern
+          diagnostics.external_function_import(name, location)
         else
           @module.globals.define(name, type)
         end

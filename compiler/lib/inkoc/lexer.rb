@@ -26,7 +26,8 @@ module Inkoc
       'match' => :match,
       'when' => :when,
       'local' => :local,
-      'yield' => :yield
+      'yield' => :yield,
+      'extern' => :extern
     }.freeze
 
     SPECIALS = Set.new(

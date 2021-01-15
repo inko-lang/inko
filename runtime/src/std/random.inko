@@ -3,9 +3,16 @@
 # This module provides methods for generating random numbers and bytes.
 import std::conversion::(ToFloat, ToInteger)
 
+extern def random_integer -> Integer
+extern def random_incremental_integer -> Integer
+extern def random_float -> Float
+extern def random_integer_range(min: Integer, max: Integer) -> Integer
+extern def random_float_range(min: Float, max: Float) -> Float
+extern def random_bytes(size: Integer) -> ByteArray
+
 # Returns a random `Integer`.
 def integer -> Integer {
-  _INKOC.random_number(0) as Integer
+  random_integer
 }
 
 # Returns a random `Integer` that is incremented on every request.
@@ -28,12 +35,12 @@ def integer -> Integer {
 #
 #     two - one # => 1
 def incremental_integer -> Integer {
-  _INKOC.random_number(1) as Integer
+  random_incremental_integer
 }
 
 # Returns a random `Float`.
 def float -> Float {
-  _INKOC.random_number(2) as Float
+  random_float
 }
 
 # Returns a random `Integer` in the given range.
@@ -43,9 +50,9 @@ def float -> Float {
 #
 # # Panics
 #
-# This method will panic if `min` is equal to or greater than `max`.
+# This method panics if `min` is equal to or greater than `max`.
 def integer_between(min: ToInteger, max: ToInteger) -> Integer {
-  _INKOC.random_range(min.to_integer, max.to_integer) as Integer
+  random_integer_range(min.to_integer, max.to_integer)
 }
 
 # Returns a random `Float` in the given range.
@@ -55,9 +62,9 @@ def integer_between(min: ToInteger, max: ToInteger) -> Integer {
 #
 # # Panics
 #
-# This method will panic if `min` is equal to or greater than `max`.
+# This method panics if `min` is equal to or greater than `max`.
 def float_between(min: ToFloat, max: ToFloat) -> Float {
-  _INKOC.random_range(min.to_float, max.to_float) as Float
+  random_float_range(min.to_float, max.to_float)
 }
 
 # Returns a `ByteArray` containing random bytes.
@@ -67,6 +74,6 @@ def float_between(min: ToFloat, max: ToFloat) -> Float {
 # # Panics
 #
 # This method might panic if no random bytes could be generated.
-def bytes(size: Integer) -> ByteArray {
-  _INKOC.random_bytes(size)
+def bytes(size: ToInteger) -> ByteArray {
+  random_bytes(size.to_integer)
 }

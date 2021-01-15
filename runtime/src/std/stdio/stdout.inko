@@ -17,11 +17,15 @@ import std::io::Write
 import std::os::NEWLINE
 import std::process::(blocking)
 
+extern def stdout_write_string(input: String) !! String -> Integer
+extern def stdout_write_bytes(input: ByteArray) !! String -> Integer
+extern def stdout_flush !! String
+
 impl Write for ThisModule {
   # Writes a `ByteArray` of bytes to STDOUT, returning the number of bytes
   # written.
   def write_bytes(bytes: ByteArray) -> Integer {
-    blocking { try _INKOC.stdout_write(bytes) else 0 }
+    blocking { try stdout_write_bytes(bytes) else 0 }
   }
 
   # Writes a `ToString` to STDOUT, returning the number of bytes written.
@@ -34,7 +38,7 @@ impl Write for ThisModule {
   #
   #     stdout.write_string('hello') # => 5
   def write_string(data: ToString) -> Integer {
-    blocking { try _INKOC.stdout_write(data.to_string) else 0 }
+    blocking { try stdout_write_string(data.to_string) else 0 }
   }
 
   # Writes the given string-like object to STDOUT, followed by a newline.
@@ -55,13 +59,13 @@ impl Write for ThisModule {
   #     stdout.print
   def print(data: ToString = '') -> Integer {
     blocking {
-      let written = try _INKOC.stdout_write(data.to_string) else return 0
+      let written = try stdout_write_string(data.to_string) else return 0
 
-      written + try _INKOC.stdout_write(NEWLINE) else 0
+      written + try stdout_write_string(NEWLINE) else 0
     }
   }
 
   def flush {
-    blocking { try _INKOC.stdout_flush else Nil }
+    blocking { try stdout_flush else Nil }
   }
 }

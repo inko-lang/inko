@@ -6,12 +6,6 @@ use crate::scheduler::pool_state::PoolState;
 use crate::scheduler::queue::RcQueue;
 use crate::scheduler::worker::Worker;
 use crate::vm::machine::Machine;
-use num_bigint::BigInt;
-use num_bigint::RandBigInt;
-use rand::distributions::uniform::{SampleBorrow, SampleUniform};
-use rand::distributions::{Distribution, Standard};
-use rand::rngs::ThreadRng;
-use rand::{thread_rng, Rng};
 use std::cell::UnsafeCell;
 
 /// The state that a worker is in.
@@ -30,15 +24,6 @@ pub enum Mode {
 pub struct ProcessWorker {
     /// The unique ID of this worker, used for pinning jobs.
     pub id: usize,
-
-    /// A randomly generated integer that is incremented upon request. This can
-    /// be used as a seed for hashing. The integer is incremented to ensure
-    /// every seed is unique, without having to generate an entirely new random
-    /// number.
-    pub random_number: u64,
-
-    /// The random number generator for this thread.
-    pub rng: ThreadRng,
 
     /// The thread pool used for tracing live objects during garbage collection.
     pub tracers: TracerPool,
@@ -68,8 +53,6 @@ impl ProcessWorker {
 
         ProcessWorker {
             id,
-            random_number: rand::random(),
-            rng: thread_rng(),
             queue,
             state,
             mode: Mode::Normal,
@@ -95,52 +78,6 @@ impl ProcessWorker {
 
     pub fn leave_exclusive_mode(&mut self) {
         self.mode = Mode::Normal;
-    }
-
-    pub fn random_incremental_number(&mut self) -> u64 {
-        self.random_number = self.random_number.wrapping_add(1);
-
-        self.random_number
-    }
-
-    pub fn random_number<T>(&mut self) -> T
-    where
-        Standard: Distribution<T>,
-    {
-        self.rng.gen()
-    }
-
-    pub fn random_number_between<T: SampleUniform, V>(
-        &mut self,
-        min: V,
-        max: V,
-    ) -> T
-    where
-        V: SampleBorrow<T> + Sized,
-    {
-        self.rng.gen_range(min, max)
-    }
-
-    pub fn random_bigint_between(
-        &mut self,
-        min: &BigInt,
-        max: &BigInt,
-    ) -> BigInt {
-        self.rng.gen_bigint_range(min, max)
-    }
-
-    pub fn random_bytes(&mut self, size: usize) -> Result<Vec<u8>, String> {
-        let mut bytes = Vec::with_capacity(size);
-
-        unsafe {
-            bytes.set_len(size);
-        }
-
-        self.rng
-            .try_fill(&mut bytes[..])
-            .map_err(|e| e.to_string())?;
-
-        Ok(bytes)
     }
 
     /// Performs a single iteration of the normal work loop.
@@ -335,55 +272,5 @@ mod tests {
         worker.leave_exclusive_mode();
 
         assert_eq!(worker.mode, Mode::Normal);
-    }
-
-    #[test]
-    fn test_random_number() {
-        let (machine, _block, _process) = setup();
-        let mut worker = worker(machine.clone());
-
-        // There is no particular way we can test the exact value, so this is
-        // just a smoke test to see if the method works or not.
-        worker.random_number::<u8>();
-    }
-
-    #[test]
-    fn test_random_number_between() {
-        let (machine, _block, _process) = setup();
-        let mut worker = worker(machine.clone());
-        let number: u8 = worker.random_number_between(0, 10);
-
-        assert!(number <= 10);
-    }
-
-    #[test]
-    fn test_random_bigint_between() {
-        let (machine, _block, _process) = setup();
-        let mut worker = worker(machine.clone());
-        let min = BigInt::from(0);
-        let max = BigInt::from(10);
-        let number = worker.random_bigint_between(&min, &max);
-
-        assert!(number >= min && number <= max);
-    }
-
-    #[test]
-    fn test_random_incremental_number() {
-        let (machine, _block, _process) = setup();
-        let mut worker = worker(machine.clone());
-        let num1 = worker.random_incremental_number();
-        let num2 = worker.random_incremental_number();
-
-        assert_eq!(num2 - num1, 1);
-    }
-
-    #[test]
-    fn test_random_bytes() {
-        let (machine, _block, _process) = setup();
-        let mut worker = worker(machine.clone());
-        let bytes = worker.random_bytes(4).unwrap();
-
-        assert_eq!(bytes.len(), 4);
-        assert_eq!(bytes.capacity(), 4);
     }
 }

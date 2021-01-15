@@ -72,10 +72,6 @@ macro_rules! socket_duration_getter {
     };
 }
 
-const DOMAIN_IPV4: u8 = 0;
-const DOMAIN_IPV6: u8 = 1;
-const DOMAIN_UNIX: u8 = 2;
-
 /// Decodes a SockAddr into an address/path, and a port.
 fn decode_sockaddr(
     sockaddr: SockAddr,
@@ -147,6 +143,23 @@ fn update_buffer_length_and_capacity(buffer: &mut Vec<u8>, read: usize) {
     buffer.shrink_to_fit();
 }
 
+fn socket_type(kind: u8) -> Result<Type, RuntimeError> {
+    let kind = match kind {
+        0 => Type::stream(),
+        1 => Type::dgram(),
+        2 => Type::seqpacket(),
+        3 => Type::raw(),
+        _ => {
+            return Err(RuntimeError::Panic(format!(
+                "{} is not a valid socket type",
+                kind
+            )))
+        }
+    };
+
+    Ok(kind)
+}
+
 /// A nonblocking socket that can be registered with a `NetworkPoller`.
 pub struct Socket {
     /// The raw socket.
@@ -166,35 +179,11 @@ pub struct Socket {
 }
 
 impl Socket {
-    pub fn new(domain_int: u8, kind_int: u8) -> Result<Socket, RuntimeError> {
-        let domain = match domain_int {
-            DOMAIN_IPV4 => Domain::ipv4(),
-            DOMAIN_IPV6 => Domain::ipv6(),
-
-            #[cfg(unix)]
-            DOMAIN_UNIX => Domain::unix(),
-
-            _ => {
-                return Err(RuntimeError::Panic(format!(
-                    "{} is not a valid socket domain",
-                    domain_int
-                )))
-            }
-        };
-
-        let kind = match kind_int {
-            0 => Type::stream(),
-            1 => Type::dgram(),
-            2 => Type::seqpacket(),
-            3 => Type::raw(),
-            _ => {
-                return Err(RuntimeError::Panic(format!(
-                    "{} is not a valid socket type",
-                    kind_int
-                )))
-            }
-        };
-
+    pub fn new(
+        domain: Domain,
+        kind: Type,
+        unix: bool,
+    ) -> Result<Self, RuntimeError> {
         let socket = RawSocket::new(domain, kind, None)?;
 
         socket.set_nonblocking(true)?;
@@ -202,8 +191,30 @@ impl Socket {
         Ok(Socket {
             inner: ClosableSocket::new(socket),
             registered: AtomicBool::new(false),
-            unix: domain_int == DOMAIN_UNIX,
+            unix,
         })
+    }
+
+    pub fn ipv4(kind_int: u8) -> Result<Socket, RuntimeError> {
+        Self::new(Domain::ipv4(), socket_type(kind_int)?, false)
+    }
+
+    pub fn ipv6(kind_int: u8) -> Result<Socket, RuntimeError> {
+        Self::new(Domain::ipv6(), socket_type(kind_int)?, false)
+    }
+
+    pub fn unix(kind_int: u8) -> Result<Socket, RuntimeError> {
+        #[cfg(unix)]
+        {
+            Self::new(Domain::unix(), socket_type(kind_int)?, true)
+        }
+
+        #[cfg(not(unix))]
+        {
+            Err(RuntimeError::from(
+                "UNIX sockets aren't supported on this platform",
+            ))
+        }
     }
 
     pub fn bind(&self, address: &str, port: u16) -> Result<(), RuntimeError> {
@@ -355,20 +366,16 @@ impl Socket {
         Ok(decode_sockaddr(sockaddr, self.unix)?)
     }
 
-    pub fn shutdown(&self, mode: u8) -> Result<(), RuntimeError> {
-        let shutdown = match mode {
-            0 => Shutdown::Read,
-            1 => Shutdown::Write,
-            2 => Shutdown::Both,
-            _ => {
-                return Err(RuntimeError::Panic(format!(
-                    "{} is not a valid mode to shut down",
-                    mode
-                )));
-            }
-        };
+    pub fn shutdown_read(&self) -> Result<(), RuntimeError> {
+        self.inner.shutdown(Shutdown::Read).map_err(|e| e.into())
+    }
 
-        Ok(self.inner.shutdown(shutdown)?)
+    pub fn shutdown_write(&self) -> Result<(), RuntimeError> {
+        self.inner.shutdown(Shutdown::Write).map_err(|e| e.into())
+    }
+
+    pub fn shutdown_read_write(&self) -> Result<(), RuntimeError> {
+        self.inner.shutdown(Shutdown::Both).map_err(|e| e.into())
     }
 
     socket_setter!(set_ttl, u32);
@@ -481,7 +488,7 @@ mod tests {
 
     #[test]
     fn test_clone() {
-        let socket1 = Socket::new(0, 0).unwrap();
+        let socket1 = Socket::ipv4(0).unwrap();
 
         socket1.registered.store(true, Ordering::Release);
 

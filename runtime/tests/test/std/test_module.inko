@@ -1,0 +1,9 @@
+import std::module
+import std::test
+import std::test::assert
+
+test.group('std::module.list') do (g) {
+  g.test('Getting all the modules that have been defined') {
+    assert.true(module.list.length.positive?)
+  }
+}

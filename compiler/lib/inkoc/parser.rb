@@ -172,6 +172,8 @@ module Inkoc
         def_trait(start)
       when :impl
         implement_trait(start)
+      when :extern
+        def_extern_method(start)
       else
         expression(start)
       end
@@ -832,6 +834,19 @@ module Inkoc
       def_method(def_start).tap do |method|
         method.static = true
       end
+    end
+
+    def def_extern_method(start)
+      advance_and_expect!(:define)
+
+      name_token = advance!
+      name = message_name_for_token(name_token)
+      arguments = optional_arguments
+      throw_type = optional_throw_type
+      ret_type = optional_return_type
+
+      AST::ExternMethod
+        .new(name, arguments, ret_type, throw_type, start.location)
     end
 
     # Parses a list of argument definitions.

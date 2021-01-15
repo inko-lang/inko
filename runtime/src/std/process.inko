@@ -291,10 +291,10 @@ def panicking(block: do (String)) {
 # and close it using a deferred block:
 #
 #     import std::process
-#     import std::fs::file
+#     import std::fs::file::ReadOnlyFile
 #
 #     def example {
-#       let readme = try! file.read_only('README.md')
+#       let readme = try! ReadOnlyFile.new('README.md')
 #
 #       process.defer {
 #         readme.close
@@ -340,9 +340,9 @@ def panicking(block: do (String)) {
 # Closing a file using a deferred block:
 #
 #     import std::process
-#     import std::fs::file
+#     import std::fs::file::ReadOnlyFile
 #
-#     let readme = try! file.read_only('README.md')
+#     let readme = try! ReadOnlyFile.new('README.md')
 #
 #     process.defer {
 #       readme.close

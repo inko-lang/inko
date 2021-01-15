@@ -3,7 +3,7 @@ import std::compiler::config::SOURCE_EXTENSION
 import std::compiler::source_location::SourceLocation
 import std::conversion::ToString
 import std::fs::path::(Path, ToPath, SEPARATOR)
-import std::hash::*
+import std::hash::(Hash, Hasher)
 import std::operators::Equal
 import std::option::Option
 

@@ -803,7 +803,7 @@ mod tests {
         let ins =
             unwrap!(read_instruction(&mut BufReader::new(buffer.as_slice())));
 
-        assert_eq!(ins.opcode, Opcode::SetLiteral);
+        assert_eq!(ins.opcode, Opcode::Allocate);
         assert_eq!(ins.arg(0), 6);
         assert_eq!(ins.line, 2);
     }
@@ -825,7 +825,7 @@ mod tests {
 
         let ins = &instructions[0];
 
-        assert_eq!(ins.opcode, Opcode::SetLiteral);
+        assert_eq!(ins.opcode, Opcode::Allocate);
         assert_eq!(ins.arg(0), 6);
         assert_eq!(ins.line, 2);
     }

@@ -1361,6 +1361,10 @@ trait BlockType: Type {
   def scope_boundary? -> Boolean {
     False
   }
+
+  def external_function? -> Boolean {
+    False
+  }
 }
 
 # An object used for building the type name of a block type, such as a
@@ -1599,10 +1603,14 @@ class MethodType {
   # A boolean indicating this method yields a value.
   @yields: Boolean
 
+  # A boolean indicating that this method is an external function.
+  @external: Boolean
+
   static def new(
     name: String,
     layout: BlockLayout,
     static_method = False,
+    external = False
   ) -> Self {
     Self {
       @layout = layout,
@@ -1610,7 +1618,8 @@ class MethodType {
       @static_method = static_method,
       @type_parameter_bounds = TypeParameterBounds.new,
       @yield_type = Option.none,
-      @yields = False
+      @yields = False,
+      @external = external
     }
   }
 
@@ -1780,6 +1789,10 @@ impl BlockType for MethodType {
 
   def scope_boundary? -> Boolean {
     True
+  }
+
+  def external_function? -> Boolean {
+    @external
   }
 }
 
@@ -2648,7 +2661,11 @@ class ModuleType {
   }
 
   def define_method(name: String, type: MethodType) {
-    @methods.define(name: name, type: type)
+    # External functions can't be imported from other modules, and calling them
+    # doesn't depend on runtime lookups. As such, we only need/should define
+    # them as a global.
+    type.external_function?.if_false { @methods.define(name: name, type: type) }
+
     @globals.define(name: name, type: type)
   }
 }

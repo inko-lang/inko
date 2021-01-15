@@ -593,6 +593,13 @@ class Diagnostics {
       location: location
     )
   }
+
+  def external_function_with_receiver(location: SourceLocation) {
+    error(
+      message: "External functions can't be used with a receiver",
+      location: location
+    )
+  }
 }
 
 impl Length for Diagnostics {

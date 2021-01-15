@@ -3,7 +3,7 @@
 # This module only offers types for binary and ternary tuples. If you need a
 # combination of more values (e.g. a 4-arity tuple), it's best to define your
 # own type instead.
-import std::hash::*
+import std::hash::(Hash, Hasher)
 import std::operators::Equal
 
 # A pair of two values.

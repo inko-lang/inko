@@ -8,7 +8,7 @@ import std::compiler::diagnostics::Diagnostics
 import std::compiler::module_name::ModuleName
 import std::compiler::parser::Parser
 import std::compiler::source_location::SourceLocation
-import std::fs::file
+import std::fs::file::ReadOnlyFile
 import std::fs::path::(ToPath, Path)
 import std::loop::(while)
 import std::pair::Pair
@@ -153,7 +153,7 @@ impl ParseRequest for ParseFile {
     let bytes = ByteArray.new
 
     try {
-      file.read_only(@path).read_bytes(bytes)
+      ReadOnlyFile.new(@path).read_bytes(bytes)
     } else (err) {
       diagnostics.failed_to_read_source(message: err.message, path: @path)
 

@@ -156,6 +156,7 @@ class Parser {
       'impl' -> { try implement_or_reopen(token) }
       'def' -> { try method_definition(token) }
       'let' -> { try define_local_variable_or_constant(token) }
+      'extern' -> { try external_method_definition(token) }
       else -> { try expression(token) }
     } as Node
   }
@@ -359,6 +360,25 @@ class Parser {
       yield_type: yield_type,
       static_method: static_method,
       body: try body,
+      location: token.location
+    )
+  }
+
+  def external_method_definition(token: Token) !! ParseError -> Node {
+    try token_of_type('def')
+
+    let name =
+      try message_name_from_token(token: next_token, consume_assign: True)
+
+    let arguments = try external_method_argument_definitions
+    let throws = try optional_throw_type
+    let returns = try optional_return_type
+
+    DefineExternalFunction.new(
+      name: name,
+      arguments: arguments,
+      throw_type: throws,
+      return_type: returns,
       location: token.location
     )
   }
@@ -598,6 +618,25 @@ class Parser {
     }
   }
 
+  def external_method_argument_definitions(
+    require_types = True
+  ) !! ParseError -> Array!(DefineRequiredArgument) {
+    try collect_optional_greedy_list(
+      start: 'paren_open',
+      stop: 'paren_close'
+    ) do (token) {
+      try require_token_type(token: token, expected: 'identifier')
+
+      let type = try optional_identifier_type
+
+      DefineRequiredArgument.new(
+        name: token.value,
+        value_type: type.get,
+        location: token.location
+      )
+    }
+  }
+
   def required_traits !! ParseError -> Array!(Constant) {
     let traits = Array.new
 
@@ -647,7 +686,7 @@ class Parser {
 
       node = Send.new(
         message: operator.value,
-        receiver: node,
+        receiver: Option.some(node),
         arguments: Array.new(operand),
         type_arguments: Array.new,
         location: operator.location
@@ -713,7 +752,7 @@ class Parser {
 
     Send.new(
       message: message,
-      receiver: receiver,
+      receiver: Option.some(receiver),
       arguments: arguments,
       type_arguments: Array.new,
       location: start.location
@@ -929,11 +968,9 @@ class Parser {
   def identifier_send(token: Token) !! ParseError -> Send {
     let type_args = try type_arguments
     let args = try message_arguments(name: token, setter: False)
-    let rec = self_object(token)
 
     Send.new(
       message: token.value,
-      receiver: rec,
       arguments: args,
       type_arguments: type_args,
       location: token.location
@@ -956,7 +993,7 @@ class Parser {
 
     Send.new(
       message: message,
-      receiver: variable,
+      receiver: Option.some(variable),
       arguments: Array.new(operand),
       type_arguments: Array.new,
       location: operator.location
@@ -1132,7 +1169,7 @@ class Parser {
 
     Send.new(
       message: name,
-      receiver: receiver,
+      receiver: Option.some(receiver),
       arguments: arguments,
       type_arguments: type_arguments,
       location: name_token.location

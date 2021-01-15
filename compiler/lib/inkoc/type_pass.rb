@@ -365,10 +365,6 @@ module Inkoc
       typedb.float_type.new_instance
     end
 
-    def on_raw_stdout_write(*)
-      typedb.integer_type.new_instance
-    end
-
     def on_raw_get_true(*)
       typedb.true_type.new_instance
     end
@@ -481,14 +477,6 @@ module Inkoc
       TypeSystem::Any.new
     end
 
-    def on_raw_time_monotonic(*)
-      typedb.float_type.new_instance
-    end
-
-    def on_raw_time_system(*)
-      typedb.new_array_of_type(new_object_type)
-    end
-
     def on_raw_string_to_upper(*)
       typedb.string_type.new_instance
     end
@@ -522,14 +510,6 @@ module Inkoc
     end
 
     def on_raw_string_byte(*)
-      typedb.integer_type.new_instance
-    end
-
-    def on_raw_stdin_read(*)
-      typedb.integer_type.new_instance
-    end
-
-    def on_raw_stderr_write(*)
       typedb.integer_type.new_instance
     end
 
@@ -569,70 +549,6 @@ module Inkoc
       typedb.boolean_type.new_instance
     end
 
-    def on_raw_file_flush(*)
-      typedb.nil_type.new_instance
-    end
-
-    def on_raw_stdout_flush(*)
-      typedb.nil_type.new_instance
-    end
-
-    def on_raw_stderr_flush(*)
-      typedb.nil_type.new_instance
-    end
-
-    def on_raw_file_open(*)
-      new_object_type
-    end
-
-    def on_raw_file_path(*)
-      typedb.string_type.new_instance
-    end
-
-    def on_raw_file_read(*)
-      typedb.integer_type.new_instance
-    end
-
-    def on_raw_file_seek(*)
-      typedb.integer_type.new_instance
-    end
-
-    def on_raw_file_size(*)
-      typedb.integer_type.new_instance
-    end
-
-    def on_raw_file_write(*)
-      typedb.integer_type.new_instance
-    end
-
-    def on_raw_file_remove(*)
-      TypeSystem::Never.new
-    end
-
-    def on_raw_file_copy(*)
-      typedb.integer_type.new_instance
-    end
-
-    def on_raw_file_type(*)
-      typedb.integer_type.new_instance
-    end
-
-    def on_raw_file_time(*)
-      typedb.new_array_of_type(new_object_type)
-    end
-
-    def on_raw_directory_create(*)
-      TypeSystem::Never.new
-    end
-
-    def on_raw_directory_remove(*)
-      TypeSystem::Never.new
-    end
-
-    def on_raw_directory_list(*)
-      typedb.new_array_of_type(typedb.string_type.new_instance)
-    end
-
     def on_raw_close(*)
       typedb.nil_type.new_instance
     end
@@ -647,32 +563,6 @@ module Inkoc
 
     def on_raw_exit(*)
       TypeSystem::Never.new
-    end
-
-    def on_raw_platform(*)
-      typedb.string_type.new_instance
-    end
-
-    def on_raw_hasher_new(*)
-      typedb.hasher_type.new_instance
-    end
-
-    def on_raw_hasher_write(node, _)
-      node.arguments.fetch(0).type
-    end
-
-    def on_raw_hasher_to_hash(*)
-      typedb.integer_type.new_instance
-    end
-
-    def on_raw_stacktrace(*)
-      tuple = typedb.new_array_of_type(new_object_type)
-
-      typedb.new_array_of_type(tuple)
-    end
-
-    def on_raw_block_metadata(*)
-      new_object_type
     end
 
     def on_raw_string_format_debug(*)
@@ -731,42 +621,6 @@ module Inkoc
       typedb.string_type.new_instance
     end
 
-    def on_raw_env_get(*)
-      typedb.string_type.new_instance
-    end
-
-    def on_raw_env_set(*)
-      typedb.string_type.new_instance
-    end
-
-    def on_raw_env_remove(*)
-      TypeSystem::Never.new
-    end
-
-    def on_raw_env_variables(*)
-      typedb.new_array_of_type(typedb.string_type.new_instance)
-    end
-
-    def on_raw_env_home_directory(*)
-      typedb.string_type.new_instance
-    end
-
-    def on_raw_env_temp_directory(*)
-      typedb.string_type.new_instance
-    end
-
-    def on_raw_env_get_working_directory(*)
-      typedb.string_type.new_instance
-    end
-
-    def on_raw_env_set_working_directory(*)
-      typedb.string_type.new_instance
-    end
-
-    def on_raw_env_arguments(*)
-      typedb.new_array_of_type(typedb.string_type.new_instance)
-    end
-
     def on_raw_process_set_panic_handler(*)
       typedb.block_type.new_instance
     end
@@ -787,46 +641,6 @@ module Inkoc
       typedb.integer_type.new_instance
     end
 
-    def on_raw_ffi_library_open(node, _)
-      typedb.ffi_library_type.new_instance
-    end
-
-    def on_raw_ffi_function_attach(node, _)
-      typedb.ffi_function_type.new_instance
-    end
-
-    def on_raw_ffi_function_call(*)
-      new_object_type
-    end
-
-    def on_raw_ffi_pointer_attach(node, _)
-      typedb.ffi_pointer_type.new_instance
-    end
-
-    def on_raw_ffi_pointer_read(*)
-      new_object_type
-    end
-
-    def on_raw_ffi_pointer_write(*)
-      new_object_type
-    end
-
-    def on_raw_ffi_pointer_from_address(node, _)
-      typedb.ffi_pointer_type.new_instance
-    end
-
-    def on_raw_ffi_pointer_address(*)
-      typedb.integer_type.new_instance
-    end
-
-    def on_raw_ffi_type_size(*)
-      typedb.integer_type.new_instance
-    end
-
-    def on_raw_ffi_type_alignment(*)
-      typedb.integer_type.new_instance
-    end
-
     def on_raw_string_to_integer(*)
       typedb.integer_type.new_instance
     end
@@ -839,70 +653,6 @@ module Inkoc
       typedb.integer_type.new_instance
     end
 
-    def on_raw_socket_create(node, _)
-      new_object_type
-    end
-
-    def on_raw_socket_write(*)
-      typedb.integer_type.new_instance
-    end
-
-    def on_raw_socket_read(*)
-      typedb.integer_type.new_instance
-    end
-
-    def on_raw_socket_accept(node, _)
-      new_object_type
-    end
-
-    def on_raw_socket_receive_from(*)
-      typedb.new_array_of_type(new_object_type)
-    end
-
-    def on_raw_socket_send_to(*)
-      typedb.integer_type.new_instance
-    end
-
-    def on_raw_socket_address(*)
-      typedb.new_array_of_type(new_object_type)
-    end
-
-    def on_raw_socket_get_option(*)
-      new_object_type
-    end
-
-    def on_raw_socket_set_option(*)
-      new_object_type
-    end
-
-    def on_raw_socket_bind(*)
-      TypeSystem::Never.new
-    end
-
-    def on_raw_socket_connect(*)
-      TypeSystem::Never.new
-    end
-
-    def on_raw_socket_shutdown(*)
-      TypeSystem::Never.new
-    end
-
-    def on_raw_socket_listen(*)
-      typedb.integer_type.new_instance
-    end
-
-    def on_raw_random_number(*)
-      new_object_type
-    end
-
-    def on_raw_random_range(*)
-      new_object_type
-    end
-
-    def on_raw_random_bytes(*)
-      typedb.byte_array_type.new_instance
-    end
-
     def on_raw_if(node, _)
       node.arguments.fetch(1).type.new_instance
     end
@@ -913,14 +663,6 @@ module Inkoc
 
     def on_raw_module_get(*)
       typedb.module_type.new_instance
-    end
-
-    def on_raw_module_list(*)
-      typedb.new_array_of_type(typedb.module_type.new_instance)
-    end
-
-    def on_raw_module_info(*)
-      typedb.string_type.new_instance
     end
 
     def on_raw_generator_resume(*)

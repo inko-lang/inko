@@ -11,6 +11,7 @@ use std::mem;
 use std::ops::Drop;
 use std::ops::{Index, IndexMut};
 use std::ptr;
+use std::slice;
 
 pub struct Chunk<T> {
     ptr: *mut T,
@@ -59,6 +60,10 @@ impl<T> Chunk<T> {
                 ptr::write_bytes(self.ptr, 0, self.capacity);
             }
         }
+    }
+
+    pub fn slice(&self, start: usize, length: usize) -> &[T] {
+        unsafe { slice::from_raw_parts(self.ptr.add(start), length) }
     }
 }
 
@@ -149,5 +154,18 @@ mod tests {
 
         assert!(chunk[0] == ObjectPointer::integer(5));
         assert!(chunk[1].is_null());
+    }
+
+    #[test]
+    fn test_slice() {
+        let mut chunk = Chunk::<usize>::new(3);
+
+        chunk[0] = 1;
+        chunk[1] = 2;
+        chunk[2] = 3;
+
+        assert_eq!(chunk.slice(0, 3), &[1, 2, 3]);
+        assert_eq!(chunk.slice(1, 2), &[2, 3]);
+        assert_eq!(chunk.slice(0, 2), &[1, 2]);
     }
 }

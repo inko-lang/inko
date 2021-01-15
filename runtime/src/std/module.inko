@@ -14,3 +14,10 @@
 # If needed, module information can be obtained using
 # `std::mirror::ModuleMirror`.
 let Module = _INKOC.get_module_prototype
+
+extern def module_list -> Array!(Module)
+
+# Returns all the modules that have been defined.
+def list -> Array!(Module) {
+  module_list
+}

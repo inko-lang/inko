@@ -4,26 +4,11 @@
 # `std::net::socket` and `std::net::unix`.
 import std::io::(Error as IoError)
 
-# A marker trait used for values that can be directly sent across a socket.
-trait SocketValue {}
-
-impl SocketValue for ByteArray {}
-impl SocketValue for String {}
-
 # A raw socket.
 #
 # This trait is a marker trait not meant to be used directly. Instead, you
 # should use socket types such as `std::net::socket::Socket`.
 trait Socket {}
-
-# The domain for IPv4 sockets.
-let AF_INET = 0
-
-# The domain for IPv6 sockets.
-let AF_INET6 = 1
-
-# The domain for Unix sockets.
-let AF_UNIX = 2
 
 # The socket type for socket streams.
 let SOCK_STREAM = 0
@@ -45,102 +30,330 @@ let SOCK_RAW = 3
 # `net.core.somaxconn` on Linux (for example) would have no effect.
 let MAXIMUM_LISTEN_BACKLOG = 65_535
 
-let TTL = 0
-let ONLY_V6 = 1
-let NODELAY = 2
-let BROADCAST = 3
-let LINGER = 4
-let RECV_SIZE = 5
-let SEND_SIZE = 6
-let KEEPALIVE = 7
-let MULTICAST_LOOP_V4 = 8
-let MULTICAST_LOOP_V6 = 9
-let MULTICAST_TTL_V4 = 10
-let MULTICAST_HOPS_V6 = 11
-let MULTICAST_IF_V4 = 12
-let MULTICAST_IF_V6 = 13
-let UNICAST_HOPS_V6 = 14
-let REUSE_ADDRESS = 15
-let REUSE_PORT = 16
-
-let LOCAL_ADDRESS = 0
-let PEER_ADDRESS = 1
-
-let SHUTDOWN_READ = 0
-let SHUTDOWN_WRITE = 1
-let SHUTDOWN_BOTH = 2
-
-# Sets a socket option to the given value.
-#
-# The allowed value `value` differs based on the value passed to `option`.
-def set_socket_option!(T)(
+extern def socket_read(
   socket: Socket,
-  option: Integer,
-  value: T
-) !! IoError -> T {
-  try {
-    _INKOC.socket_set_option(socket, option, value) as T
-  } else (error) {
-    throw IoError.new(error as String)
-  }
+  bytes: ByteArray,
+  size: Integer
+) !! String -> Integer
+
+extern def socket_write_string(
+  socket: Socket,
+  input: String
+) !! String -> Integer
+
+extern def socket_write_bytes(
+  socket: Socket,
+  input: ByteArray,
+) !! String -> Integer
+
+extern def socket_listen(socket: Socket, backlog: Integer) !! String -> Integer
+extern def socket_bind(socket: Socket, address: String, port: Integer) !! String
+extern def socket_connect(
+  socket: Socket,
+  address: String,
+  port: Integer
+) !! String
+
+extern def socket_receive_from(
+  socket: Socket,
+  bytes: ByteArray,
+  size: Integer
+) !! String -> Array!(Any)
+
+extern def socket_send_bytes_to(
+  socket: Socket,
+  input: ByteArray,
+  address: String,
+  port: Integer
+) !! String -> Integer
+
+extern def socket_send_string_to(
+  socket: Socket,
+  input: String,
+  address: String,
+  port: Integer
+) !! String -> Integer
+
+extern def socket_shutdown_read(socket: Socket) !! String
+extern def socket_shutdown_write(socket: Socket) !! String
+extern def socket_shutdown_read_write(socket: Socket) !! String
+extern def socket_local_address(socket: Socket) !! String -> Array!(Any)
+extern def socket_peer_address(socket: Socket) !! String -> Array!(Any)
+
+extern def socket_get_ttl(socket: Socket) !! String -> Integer
+extern def socket_get_only_v6(socket: Socket) !! String -> Boolean
+extern def socket_get_nodelay(socket: Socket) !! String -> Boolean
+extern def socket_get_broadcast(socket: Socket) !! String -> Boolean
+extern def socket_get_linger(socket: Socket) !! String -> Float
+extern def socket_get_recv_size(socket: Socket) !! String -> Integer
+extern def socket_get_send_size(socket: Socket) !! String -> Integer
+extern def socket_get_keepalive(socket: Socket) !! String -> Float
+extern def socket_get_multicast_loop_v4(socket: Socket) !! String -> Boolean
+extern def socket_get_multicast_loop_v6(socket: Socket) !! String -> Boolean
+extern def socket_get_multicast_ttl_v4(socket: Socket) !! String -> Integer
+extern def socket_get_multicast_hops_v6(socket: Socket) !! String -> Integer
+extern def socket_get_multicast_if_v4(socket: Socket) !! String -> String
+extern def socket_get_multicast_if_v6(socket: Socket) !! String -> Integer
+extern def socket_get_unicast_hops_v6(socket: Socket) !! String -> Integer
+extern def socket_get_reuse_address(socket: Socket) !! String -> Boolean
+extern def socket_get_reuse_port(socket: Socket) !! String -> Boolean
+
+extern def socket_set_ttl(socket: Socket, value: Integer) !! String -> Integer
+extern def socket_set_only_v6(
+  socket: Socket,
+  value: Boolean
+) !! String -> Boolean
+
+extern def socket_set_nodelay(
+  socket: Socket,
+  value: Boolean
+) !! String -> Boolean
+
+extern def socket_set_broadcast(
+  socket: Socket,
+  value: Boolean
+) !! String -> Boolean
+
+extern def socket_set_linger(socket: Socket, value: Float) !! String -> Float
+extern def socket_set_recv_size(
+  socket: Socket,
+  value: Integer
+) !! String -> Integer
+
+extern def socket_set_send_size(
+  socket: Socket,
+  value: Integer
+) !! String -> Integer
+
+extern def socket_set_keepalive(
+  socket: Socket,
+  value: Float
+) !! String -> Float
+
+extern def socket_set_multicast_loop_v4(
+  socket: Socket,
+  value: Boolean
+) !! String -> Boolean
+
+extern def socket_set_multicast_loop_v6(
+  socket: Socket,
+  value: Boolean
+) !! String -> Boolean
+
+extern def socket_set_multicast_ttl_v4(
+  socket: Socket,
+  value: Integer
+) !! String -> Integer
+
+extern def socket_set_multicast_hops_v6(
+  socket: Socket,
+  value: Integer
+) !! String -> Integer
+
+extern def socket_set_multicast_if_v4(
+  socket: Socket,
+  value: String
+) !! String -> String
+
+extern def socket_set_multicast_if_v6(
+  socket: Socket,
+  value: Integer
+) !! String -> Integer
+
+extern def socket_set_unicast_hops_v6(
+  socket: Socket,
+  value: Integer
+) !! String -> Integer
+
+extern def socket_set_reuse_address(
+  socket: Socket,
+  value: Boolean
+) !! String -> Boolean
+
+extern def socket_set_reuse_port(
+  socket: Socket,
+  value: Boolean
+) !! String -> Boolean
+
+def get_ttl(socket: Socket) !! IoError -> Integer {
+  try socket_get_ttl(socket) else (error) throw IoError.new(error)
 }
 
-# Retrieves the value of a socket option.
-#
-# The type of the returned value depends on the `option` argument.
-def get_socket_option!(T)(socket: Socket, option: Integer) !! IoError -> T {
-  try {
-    _INKOC.socket_get_option(socket, option) as T
-  } else (error) {
-    throw IoError.new(error as String)
-  }
+def get_only_v6(socket: Socket) !! IoError -> Boolean {
+  try socket_get_only_v6(socket) else (error) throw IoError.new(error)
 }
 
-# Obtains the local or peer address of a socket.
-def address(socket: Socket, peer = False) !! IoError -> Array!(Object) {
-  let kind = peer.if(true: { PEER_ADDRESS }, false: { LOCAL_ADDRESS })
+def get_nodelay(socket: Socket) !! IoError -> Boolean {
+  try socket_get_nodelay(socket) else (error) throw IoError.new(error)
+}
 
-  try {
-    _INKOC.socket_address(socket, kind)
-  } else (error) {
-    throw IoError.new(error as String)
-  }
+def get_broadcast(socket: Socket) !! IoError -> Boolean {
+  try socket_get_broadcast(socket) else (error) throw IoError.new(error)
+}
+
+def get_linger(socket: Socket) !! IoError -> Float {
+  try socket_get_linger(socket) else (error) throw IoError.new(error)
+}
+
+def get_recv_size(socket: Socket) !! IoError -> Integer {
+  try socket_get_recv_size(socket) else (error) throw IoError.new(error)
+}
+
+def get_send_size(socket: Socket) !! IoError -> Integer {
+  try socket_get_send_size(socket) else (error) throw IoError.new(error)
+}
+
+def get_keepalive(socket: Socket) !! IoError -> Float {
+  try socket_get_keepalive(socket) else (error) throw IoError.new(error)
+}
+
+def get_multicast_loop_v4(socket: Socket) !! IoError -> Boolean {
+  try socket_get_multicast_loop_v4(socket) else (error) throw IoError.new(error)
+}
+
+def get_multicast_loop_v6(socket: Socket) !! IoError -> Boolean {
+  try socket_get_multicast_loop_v6(socket) else (error) throw IoError.new(error)
+}
+
+def get_multicast_ttl_v4(socket: Socket) !! IoError -> Integer {
+  try socket_get_multicast_ttl_v4(socket) else (error) throw IoError.new(error)
+}
+
+def get_multicast_hops_v6(socket: Socket) !! IoError -> Integer {
+  try socket_get_multicast_hops_v6(socket) else (error) throw IoError.new(error)
+}
+
+def get_multicast_if_v4(socket: Socket) !! IoError -> String {
+  try socket_get_multicast_if_v4(socket) else (error) throw IoError.new(error)
+}
+
+def get_multicast_if_v6(socket: Socket) !! IoError -> Integer {
+  try socket_get_multicast_if_v6(socket) else (error) throw IoError.new(error)
+}
+
+def get_unicast_hops_v6(socket: Socket) !! IoError -> Integer {
+  try socket_get_unicast_hops_v6(socket) else (error) throw IoError.new(error)
+}
+
+def get_reuse_address(socket: Socket) !! IoError -> Boolean {
+  try socket_get_reuse_address(socket) else (error) throw IoError.new(error)
+}
+
+def get_reuse_port(socket: Socket) !! IoError -> Boolean {
+  try socket_get_reuse_port(socket) else (error) throw IoError.new(error)
+}
+
+def set_ttl(socket: Socket, value: Integer) !! IoError -> Integer {
+  try socket_set_ttl(socket, value) else (e) throw IoError.new(e)
+}
+
+def set_only_v6(socket: Socket, value: Boolean) !! IoError -> Boolean {
+  try socket_set_only_v6(socket, value) else (e) throw IoError.new(e)
+}
+
+def set_nodelay(socket: Socket, value: Boolean) !! IoError -> Boolean {
+  try socket_set_nodelay(socket, value) else (e) throw IoError.new(e)
+}
+
+def set_broadcast(socket: Socket, value: Boolean) !! IoError -> Boolean {
+  try socket_set_broadcast(socket, value) else (e) throw IoError.new(e)
+}
+
+def set_linger(socket: Socket, value: Float) !! IoError -> Float {
+  try socket_set_linger(socket, value) else (e) throw IoError.new(e)
+}
+
+def set_recv_size(socket: Socket, value: Integer) !! IoError -> Integer {
+  try socket_set_recv_size(socket, value) else (e) throw IoError.new(e)
+}
+
+def set_send_size(socket: Socket, value: Integer) !! IoError -> Integer {
+  try socket_set_send_size(socket, value) else (e) throw IoError.new(e)
+}
+
+def set_keepalive(socket: Socket, value: Float) !! IoError -> Float {
+  try socket_set_keepalive(socket, value) else (e) throw IoError.new(e)
+}
+
+def set_multicast_loop_v4(socket: Socket, value: Boolean) !! IoError -> Boolean {
+  try socket_set_multicast_loop_v4(socket, value) else (e) throw IoError.new(e)
+}
+
+def set_multicast_loop_v6(socket: Socket, value: Boolean) !! IoError -> Boolean {
+  try socket_set_multicast_loop_v6(socket, value) else (e) throw IoError.new(e)
+}
+
+def set_multicast_ttl_v4(socket: Socket, value: Integer) !! IoError -> Integer {
+  try socket_set_multicast_ttl_v4(socket, value) else (e) throw IoError.new(e)
+}
+
+def set_multicast_hops_v6(socket: Socket, value: Integer) !! IoError -> Integer {
+  try socket_set_multicast_hops_v6(socket, value) else (e) throw IoError.new(e)
+}
+
+def set_multicast_if_v4(socket: Socket, value: String) !! IoError -> String {
+  try socket_set_multicast_if_v4(socket, value) else (e) throw IoError.new(e)
+}
+
+def set_multicast_if_v6(socket: Socket, value: Integer) !! IoError -> Integer {
+  try socket_set_multicast_if_v6(socket, value) else (e) throw IoError.new(e)
+}
+
+def set_unicast_hops_v6(socket: Socket, value: Integer) !! IoError -> Integer {
+  try socket_set_unicast_hops_v6(socket, value) else (e) throw IoError.new(e)
+}
+
+def set_reuse_address(socket: Socket, value: Boolean) !! IoError -> Boolean {
+  try socket_set_reuse_address(socket, value) else (e) throw IoError.new(e)
+}
+
+def set_reuse_port(socket: Socket, value: Boolean) !! IoError -> Boolean {
+  try socket_set_reuse_port(socket, value) else (e) throw IoError.new(e)
+}
+
+def local_address(socket: Socket) !! IoError -> Array!(Any) {
+  try socket_local_address(socket) else (error) throw IoError.new(error)
+}
+
+def peer_address(socket: Socket) !! IoError -> Array!(Any) {
+  try socket_peer_address(socket) else (error) throw IoError.new(error)
 }
 
 def bind(socket: Socket, address: String, port: Integer) !! IoError {
-  try {
-    _INKOC.socket_bind(socket, address, port)
-  } else (error) {
-    throw IoError.new(error as String)
-  }
+  try socket_bind(socket, address, port) else (error) throw IoError.new(error)
 }
 
 def connect(socket: Socket, address: String, port: Integer) !! IoError {
-  try {
-    _INKOC.socket_connect(socket, address, port)
-  } else (error) {
-    throw IoError.new(error as String)
-  }
+  try socket_connect(socket, address, port) else (error) throw IoError.new(error)
 }
 
 def listen(socket: Socket, backlog: Integer) !! IoError -> Integer {
-  try {
-    _INKOC.socket_listen(socket, backlog)
-  } else (error) {
-    throw IoError.new(error as String)
-  }
+  try socket_listen(socket, backlog) else (error) throw IoError.new(error)
 }
 
-def send_to(
+def send_bytes_to(
   socket: Socket,
-  message: SocketValue,
+  bytes: ByteArray,
   address: String,
   port: Integer
 ) !! IoError -> Integer {
   try {
-    _INKOC.socket_send_to(socket, message, address, port)
+    socket_send_bytes_to(socket, bytes, address, port)
   } else (error) {
-    throw IoError.new(error as String)
+    throw IoError.new(error)
+  }
+}
+
+def send_string_to(
+  socket: Socket,
+  string: String,
+  address: String,
+  port: Integer
+) !! IoError -> Integer {
+  try {
+    socket_send_string_to(socket, string, address, port)
+  } else (error) {
+    throw IoError.new(error)
   }
 }
 
@@ -148,66 +361,34 @@ def receive_from(
   socket: Socket,
   bytes: ByteArray,
   size: Integer
-) !! IoError -> Array!(Object) {
-  try {
-    _INKOC.socket_receive_from(socket, bytes, size)
-  } else (error) {
-    throw IoError.new(error as String)
-  }
+) !! IoError -> Array!(Any) {
+  try socket_receive_from(socket, bytes, size) else (e) throw IoError.new(e)
 }
 
 def read_bytes(
   socket: Socket,
   bytes: ByteArray,
-  size = 0
+  size: Integer
 ) !! IoError -> Integer {
-  try {
-    _INKOC.socket_read(socket, bytes, size)
-  } else (error) {
-    throw IoError.new(error as String)
-  }
+  try socket_read(socket, bytes, size) else (error) throw IoError.new(error)
 }
 
 def write_bytes(socket: Socket, bytes: ByteArray) !! IoError -> Integer {
-  try {
-    _INKOC.socket_write(socket, bytes)
-  } else (error) {
-    throw IoError.new(error as String)
-  }
+  try socket_write_bytes(socket, bytes) else (error) throw IoError.new(error)
 }
 
 def write_string(socket: Socket, string: String) !! IoError -> Integer {
-  try {
-    _INKOC.socket_write(socket, string)
-  } else (error) {
-    throw IoError.new(error as String)
-  }
-}
-
-def close(socket: Socket) {
-  _INKOC.close(socket)
+  try socket_write_string(socket, string) else (error) throw IoError.new(error)
 }
 
 def shutdown_read(socket: Socket) !! IoError {
-  try {
-    _INKOC.socket_shutdown(socket, SHUTDOWN_READ)
-  } else (error) {
-    throw IoError.new(error as String)
-  }
+  try socket_shutdown_read(socket) else (error) throw IoError.new(error)
 }
 
 def shutdown_write(socket: Socket) !! IoError {
-  try {
-    _INKOC.socket_shutdown(socket, SHUTDOWN_WRITE)
-  } else (error) {
-    throw IoError.new(error as String)
-  }
+  try socket_shutdown_write(socket) else (error) throw IoError.new(error)
 }
 
 def shutdown(socket: Socket) !! IoError {
-  try {
-    _INKOC.socket_shutdown(socket, SHUTDOWN_BOTH)
-  } else (error) {
-    throw IoError.new(error as String)
-  }
+  try socket_shutdown_read_write(socket) else (error) throw IoError.new(error)
 }

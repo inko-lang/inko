@@ -655,3 +655,86 @@ impl Node for DefineRequiredMethod {
     @location
   }
 }
+
+# An external method created using the `extern def` keyword.
+class DefineExternalFunction {
+  # The name of the method.
+  @name: String
+
+  # The arguments of the method.
+  @arguments: Array!(DefineRequiredArgument)
+
+  # The type of the value this method might throw.
+  @throw_type: ?TypeNode
+
+  # The return type of this method.
+  @return_type: ?TypeNode
+
+  # The source location of the method.
+  @location: SourceLocation
+
+  # The type of this method.
+  @resolved_type: ?MethodType
+
+  # The type scope to use for this method. This is stored directly in this node,
+  # as it doesn't have a Body node.
+  @type_scope: ?TypeScope
+
+  static def new(
+    name: String,
+    arguments: Array!(DefineRequiredArgument),
+    throw_type: ?TypeNode,
+    return_type: ?TypeNode,
+    location: SourceLocation
+  ) -> Self {
+    Self {
+      @name = name,
+      @arguments = arguments,
+      @throw_type = throw_type,
+      @return_type = return_type,
+      @location = location,
+      @resolved_type = Option.none,
+      @type_scope = Option.none
+    }
+  }
+
+  def name -> String {
+    @name
+  }
+
+  def arguments -> Array!(DefineRequiredArgument) {
+    @arguments
+  }
+
+  def return_type -> ?TypeNode {
+    @return_type
+  }
+
+  def throw_type -> ?TypeNode {
+    @throw_type
+  }
+
+  def type_scope -> ?TypeScope {
+    @type_scope
+  }
+
+  def type_scope=(value: TypeScope) -> TypeScope {
+    @type_scope = Option.some(value)
+    value
+  }
+}
+
+impl Node for DefineExternalFunction {
+  def resolved_type -> ?MethodType {
+    @resolved_type
+  }
+
+  def resolved_type=(value: MethodType) -> MethodType {
+    @resolved_type = Option.some(value)
+    value
+  }
+
+  def location -> SourceLocation {
+    @location
+  }
+}

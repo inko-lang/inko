@@ -207,6 +207,11 @@ module Inkoc
               .undefined_method_error(source, name, node.location)
         end
 
+        if node.receiver && method.extern
+          diagnostics.external_functions_with_receiver(node.location)
+          return TypeSystem::Error.new
+        end
+
         unless verify_method_bounds(source, method, node.location)
           return TypeSystem::Error.new
         end
@@ -724,6 +729,28 @@ module Inkoc
         @deferred_methods << DeferredMethod.new(node, new_scope)
 
         type
+      end
+
+      def on_extern_method(node, scope)
+        if node.arguments.length > Config::MAXIMUM_METHOD_ARGUMENTS
+          diagnostics.too_many_arguments(node.location)
+        end
+
+        type = TypeSystem::Block.named_method(node.name, typedb.block_type)
+        type.extern = true
+
+        new_scope = TypeScope.new(
+          scope.self_type,
+          type,
+          @module,
+          locals: SymbolTable.new
+        )
+
+        define_method_bounds(node, new_scope)
+        define_block_signature(node, new_scope)
+        define_generator_signature(node, new_scope) if node.yields
+
+        store_type(type, scope, node.location)
       end
 
       def on_required_method(node, scope)

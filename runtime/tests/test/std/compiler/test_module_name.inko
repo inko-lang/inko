@@ -1,6 +1,6 @@
 import std::compiler::module_name::ModuleName
 import std::fs::dir
-import std::fs::file
+import std::fs::file::WriteOnlyFile
 import std::hash::DefaultHasher
 import std::os
 import std::process
@@ -40,7 +40,7 @@ test.group('std::compiler::module_name::ModuleName.absolute_source_path') do (g)
 
     try! dir.create(path: directory)
 
-    let handle = try! file.write_only(source_path)
+    let handle = try! WriteOnlyFile.new(source_path)
 
     process.defer {
       handle.close

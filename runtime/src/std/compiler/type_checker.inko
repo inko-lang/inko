@@ -628,7 +628,6 @@ trait ExpressionTypePass: TypePass {
       'object_equals' -> { builtins.boolean_type.new_instance }
       'copy_blocks' -> { NeverType.new }
       'run_block' -> { AnyType.new }
-      'block_metadata' -> { AnyType.new }
       'integer_to_string' -> { builtins.string_type.new_instance }
       'integer_to_float' -> { builtins.float_type.new_instance }
       'integer_add' -> { builtins.integer_type.new_instance }
@@ -669,8 +668,6 @@ trait ExpressionTypePass: TypePass {
       'array_set' -> { AnyType.new }
       'array_clear' -> { NeverType.new }
       'array_remove' -> { AnyType.new }
-      'time_monotonic' -> { builtins.float_type.new_instance }
-      'time_system' -> { any_type_array }
       'string_to_upper' -> { builtins.string_type.new_instance }
       'string_to_lower' -> { builtins.string_type.new_instance }
       'string_to_byte_array' -> { builtins.byte_array_type.new_instance }
@@ -684,11 +681,6 @@ trait ExpressionTypePass: TypePass {
       'string_concat_array' -> { builtins.string_type.new_instance }
       'string_to_integer' -> { builtins.integer_type.new_instance }
       'string_to_float' -> { builtins.float_type.new_instance }
-      'stdout_write' -> { builtins.integer_type.new_instance }
-      'stdout_flush' -> { NeverType.new }
-      'stderr_write' -> { builtins.integer_type.new_instance }
-      'stderr_flush' -> { NeverType.new }
-      'stdin_read' -> { builtins.integer_type.new_instance }
       'process_spawn' -> { builtins.process_type.new_instance }
       'process_send_message' -> { AnyType.new }
       'process_receive_message' -> { AnyType.new }
@@ -701,34 +693,9 @@ trait ExpressionTypePass: TypePass {
       'set_default_panic_handler' -> { AnyType.new }
       'process_set_pinned' -> { builtins.boolean_type.new_instance }
       'process_identifier' -> { builtins.integer_type.new_instance }
-      'file_open' -> { AnyType.new }
-      'file_flush' -> { NeverType.new }
-      'file_read' -> { builtins.integer_type.new_instance }
-      'file_seek' -> { builtins.integer_type.new_instance }
-      'file_size' -> { builtins.integer_type.new_instance }
-      'file_write' -> { builtins.integer_type.new_instance }
-      'file_remove' -> { NeverType.new }
-      'file_copy' -> { builtins.integer_type.new_instance }
-      'file_type' -> { builtins.integer_type.new_instance }
-      'file_time' -> { any_type_array }
-      'file_path' -> { builtins.string_type.new_instance }
-      'directory_create' -> { NeverType.new }
-      'directory_remove' -> { NeverType.new }
-      'directory_list' -> {
-        let string = builtins.string_type.new_instance
-
-        builtins.array_type.new_instance(Array.new(string))
-      }
       'close' -> { NeverType.new }
       'panic' -> { NeverType.new }
       'exit' -> { NeverType.new }
-      'platform' -> { builtins.string_type.new_instance }
-      'hasher_new' -> { builtins.hasher_type.new_instance }
-      'hasher_write' -> { AnyType.new }
-      'hasher_to_hash' -> { builtins.integer_type.new_instance }
-      'stacktrace' -> {
-        builtins.array_type.new_instance(Array.new(any_type_array))
-      }
       'byte_array_from_array' -> { builtins.byte_array_type.new_instance }
       'byte_array_set' -> { builtins.integer_type.new_instance }
       'byte_array_at' -> { builtins.integer_type.new_instance }
@@ -738,58 +705,9 @@ trait ExpressionTypePass: TypePass {
       'byte_array_equals' -> { builtins.boolean_type.new_instance }
       'byte_array_to_string' -> { builtins.string_type.new_instance }
       'set_object_name' -> { builtins.string_type.new_instance }
-      'env_get' -> { builtins.string_type.new_instance }
-      'env_set' -> { builtins.string_type.new_instance }
-      'env_remove' -> { NeverType.new }
-      'env_variables' -> {
-        builtins
-          .array_type
-          .new_instance(Array.new(builtins.string_type.new_instance))
-      }
-      'env_home_directory' -> { builtins.string_type.new_instance }
-      'env_temp_directory' -> { builtins.string_type.new_instance }
-      'env_get_working_directory' -> { builtins.string_type.new_instance }
-      'env_set_working_directory' -> { builtins.string_type.new_instance }
-      'env_arguments' -> {
-        builtins
-          .array_type
-          .new_instance(Array.new(builtins.string_type.new_instance))
-      }
-      'ffi_library_open' -> { builtins.ffi_library_type.new_instance }
-      'ffi_function_attach' -> { builtins.ffi_function_type.new_instance }
-      'ffi_call' -> { AnyType.new }
-      'ffi_pointer_attach' -> { builtins.ffi_pointer_type.new_instance }
-      'ffi_pointer_read' -> { AnyType.new }
-      'ffi_pointer_write' -> { AnyType.new }
-      'ffi_pointer_from_address' -> { builtins.ffi_pointer_type.new_instance }
-      'ffi_pointer_address' -> { builtins.integer_type.new_instance }
-      'ffi_type_size' -> { builtins.integer_type.new_instance }
-      'ffi_type_alignment' -> { builtins.integer_type.new_instance }
-      'socket_create' -> { AnyType.new }
-      'socket_write' -> { builtins.integer_type.new_instance }
-      'socket_read' -> { builtins.integer_type.new_instance }
-      'socket_accept' -> { AnyType.new }
-      'socket_receive_from' -> { any_type_array }
-      'socket_send_to' -> { builtins.integer_type.new_instance }
-      'socket_address' -> { any_type_array }
-      'socket_get_option' -> { AnyType.new }
-      'socket_set_option' -> { AnyType.new }
-      'socket_bind' -> { NeverType.new }
-      'socket_connect' -> { NeverType.new }
-      'socket_shutdown' -> { NeverType.new }
-      'socket_listen' -> { builtins.integer_type.new_instance }
-      'random_number' -> { AnyType.new }
-      'random_range' -> { AnyType.new }
-      'random_bytes' -> { builtins.byte_array_type.new_instance }
       'if' -> { node.arguments[1].resolved_type.get.new_instance }
       'module_load' -> { builtins.module_type.new_instance }
       'module_get' -> { builtins.module_type.new_instance }
-      'module_list' -> {
-        builtins
-          .array_type
-          .new_instance(Array.new(builtins.module_type.new_instance))
-      }
-      'module_info' -> { builtins.string_type.new_instance }
       'generator_resume' -> { NeverType.new }
       'generator_value' -> { AnyType.new }
       'generator_yielded' -> { builtins.boolean_type.new_instance }
@@ -808,7 +726,12 @@ trait ExpressionTypePass: TypePass {
     variables: VariableScope
   ) -> Type {
     let receiver =
-      visit_expression(node: node.receiver, types: types, variables: variables)
+      node
+        .receiver
+        .map do (receiver) {
+          visit_expression(node: receiver, types: types, variables: variables)
+        }
+        .get_or(types.self_type)
 
     receiver.error?.if_true { return node.resolved_type = receiver }
 
@@ -830,8 +753,15 @@ trait ExpressionTypePass: TypePass {
       }
     )
 
+    # TODO: still needed?
     node.resolved_type.let do (type) {
       type.error?.if_true { return type }
+    }
+
+    block.external_function?.and { node.receiver.some? }.if_true {
+      type_checker.diagnostics.external_function_with_receiver(node.location)
+
+      return node.resolved_type = ErrorType.new
     }
 
     node.block_type = block
@@ -2731,8 +2661,40 @@ class TypeCheck {
     type
   }
 
+  def visit_define_external_function(
+    node: DefineExternalFunction,
+    types: TypeScope
+  ) -> MethodType {
+    let temp_scope = VariableScope.new
+    let rigid_types = RigidTypeScope.new(types.self_type)
+    let layout = BlockLayout.new(type_checker.builtins.nil_type.new_instance)
+    let method = MethodType.new(name: node.name, layout: layout, external: True)
+    let method_types =
+      node.type_scope = type_scope_for_method(method: method, types: types)
+
+    node.arguments.each do (arg) {
+      visit_define_required_argument(
+        node: arg,
+        block: method,
+        types: method_types,
+        rigid_types: rigid_types,
+        variables: temp_scope
+      )
+    }
+
+    node.throw_type.let do (node) {
+      method.throw_type = visit_type_node(node: node, types: method_types)
+    }
+
+    node.return_type.let do (node) {
+      method.return_type = visit_type_node(node: node, types: method_types)
+    }
+
+    method
+  }
+
   def visit_define_method(node: DefineMethod, types: TypeScope) -> MethodType {
-    let layout = BlockLayout.new(type_checker.builtins.nil_singleton)
+    let layout = BlockLayout.new(type_checker.builtins.nil_type.new_instance)
     let method = MethodType
       .new(name: node.name, layout: layout, static_method: node.static_method?)
 
@@ -2759,7 +2721,7 @@ class TypeCheck {
     implementation: TraitImplementation,
     types: TypeScope
   ) -> MethodType {
-    let layout = BlockLayout.new(type_checker.builtins.nil_singleton)
+    let layout = BlockLayout.new(type_checker.builtins.nil_type.new_instance)
     let method = MethodType
       .new(name: node.name, layout: layout, static_method: node.static_method?)
 
@@ -2805,7 +2767,7 @@ class TypeCheck {
     # required method can have argument defaults, and processing those requires
     # a VariableScope.
     let temp_scope = VariableScope.new
-    let layout = BlockLayout.new(type_checker.builtins.nil_singleton)
+    let layout = BlockLayout.new(type_checker.builtins.nil_type.new_instance)
     let method = MethodType.new(name: node.name, layout: layout)
 
     let method_type_scope =
@@ -3397,6 +3359,13 @@ impl Pass for TypeCheck {
           store_method_in_module(
             type: @module,
             method: visit_define_method(node: matched, types: types),
+            location: matched.location
+          )
+        }
+        as DefineExternalFunction -> {
+          store_method_in_module(
+            type: @module,
+            method: visit_define_external_function(node: matched, types: types),
             location: matched.location
           )
         }

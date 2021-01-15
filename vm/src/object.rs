@@ -409,7 +409,6 @@ mod tests {
     use crate::config::Config;
     use crate::execution_context::ExecutionContext;
     use crate::file::File;
-    use crate::file::READ;
     use crate::generator::Generator;
     use crate::immix::block::Block;
     use crate::module::Module;
@@ -723,7 +722,7 @@ mod tests {
 
         let state = State::with_rc(Config::new(), &[]);
         let path = state.intern_string(readme);
-        let file = File::open(path, READ).unwrap();
+        let file = File::read_only(path).unwrap();
         let obj = Object::new(ObjectValue::File(Box::new(file)));
         let mut pointers = Vec::new();
 

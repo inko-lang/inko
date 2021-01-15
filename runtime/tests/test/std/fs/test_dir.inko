@@ -1,7 +1,6 @@
 import std::env
-import std::fs
 import std::fs::dir
-import std::fs::path::SEPARATOR
+import std::fs::path::(Path, SEPARATOR)
 import std::process
 import std::string_buffer::StringBuffer
 import std::test
@@ -11,7 +10,7 @@ import std::stdio::stdout
 # The path of the base temporary directory, such as /tmp on Linux.
 let TEMP = env.temporary_directory.to_string
 
-def temp_dir(components = Array.new!(String)) -> String {
+def temp_dir(components = Array.new!(String)) -> Path {
   let buffer = StringBuffer
     .new(TEMP, SEPARATOR, 'inko-test-' + process.current.identifier.to_string)
 
@@ -20,10 +19,10 @@ def temp_dir(components = Array.new!(String)) -> String {
     buffer.push(component)
   }
 
-  buffer.to_string
+  buffer.to_string.to_path
 }
 
-def with_temp_dir(components = Array.new!(String), block: do (String)) {
+def with_temp_dir(components = Array.new!(String), block: do (Path)) {
   let root = temp_dir
   let path = temp_dir(components)
 
@@ -45,7 +44,7 @@ test.group('std::fs::dir.create') do (g) {
     with_temp_dir(Array.new('foo')) do (path) {
       try! dir.create(path)
 
-      assert.true(fs.directory?(path))
+      assert.true(path.directory?)
     }
   }
 
@@ -62,7 +61,7 @@ test.group('std::fs::dir.create') do (g) {
     with_temp_dir(Array.new('foo', 'bar')) do (path) {
       try! dir.create(path: path, recursive: True)
 
-      assert.true(fs.directory?(path))
+      assert.true(path.directory?)
     }
   }
 
@@ -82,7 +81,7 @@ test.group('std::fs::dir.remove') do (g) {
       try! dir.create(path)
       try! dir.remove(path)
 
-      assert.false(fs.directory?(path))
+      assert.false(path.directory?)
     }
   }
 
@@ -100,7 +99,7 @@ test.group('std::fs::dir.remove') do (g) {
       try! dir.create(path: path, recursive: True)
       try! dir.remove(path: path, recursive: True)
 
-      assert.false(fs.directory?(path))
+      assert.false(path.directory?)
     }
   }
 
@@ -111,7 +110,7 @@ test.group('std::fs::dir.remove') do (g) {
       try! dir.create(path: path, recursive: True)
       try! dir.remove(path: root, recursive: True)
 
-      assert.false(fs.directory?(root))
+      assert.false(root.directory?)
     }
   }
 }
@@ -142,7 +141,7 @@ test.group('std::fs::dir.list') do (g) {
       let contents = try! dir.list(root)
 
       assert.equal(contents.length, 1)
-      assert.equal(contents[0].to_string, path)
+      assert.equal(contents[0], path)
     }
   }
 }

@@ -47,7 +47,7 @@ def binary_send(operator: String) {
   assert.equal(node.message, operator)
   assert.equal(node.arguments.length, 1)
 
-  let rec = node.receiver as IntegerLiteral
+  let rec = node.receiver.get as IntegerLiteral
   let arg = node.arguments[0] as IntegerLiteral
 
   assert.equal(rec.value, '1')
@@ -64,8 +64,8 @@ def binary_assign_local(operator: String, message: String) {
   assert.equal(send.message, message)
   assert.equal(send.arguments.length, 1)
 
-  assert_instance_of(send.receiver, Identifier)
-  assert.equal((send.receiver as Identifier).name, 'foo')
+  assert_instance_of(send.receiver.get, Identifier)
+  assert.equal((send.receiver.get as Identifier).name, 'foo')
 
   assert_instance_of(send.arguments[0], IntegerLiteral)
   assert.equal((send.arguments[0] as IntegerLiteral).value, '10')
@@ -81,8 +81,8 @@ def binary_assign_attribute(operator: String, message: String) {
   assert.equal(send.message, message)
   assert.equal(send.arguments.length, 1)
 
-  assert_instance_of(send.receiver, Attribute)
-  assert.equal((send.receiver as Attribute).name, '@foo')
+  assert_instance_of(send.receiver.get, Attribute)
+  assert.equal((send.receiver.get as Attribute).name, '@foo')
 
   assert_instance_of(send.arguments[0], IntegerLiteral)
   assert.equal((send.arguments[0] as IntegerLiteral).value, '10')
@@ -673,7 +673,7 @@ test.group('Parsing binary expressions') do (g) {
 test.group('Parsing message send chains') do (g) {
   g.test('Sending a message to a receiver') {
     let node = parse_as(input: '10.foo', type: Send)
-    let receiver = node.receiver as IntegerLiteral
+    let receiver = node.receiver.get as IntegerLiteral
 
     assert.equal(receiver.value, '10')
     assert.equal(node.message, 'foo')
@@ -682,13 +682,13 @@ test.group('Parsing message send chains') do (g) {
 
   g.test('Sending a chain of messages') {
     let node = parse_as(input: '10.foo.bar', type: Send)
-    let receiver = node.receiver as Send
+    let receiver = node.receiver.get as Send
 
     assert.equal(receiver.message, 'foo')
     assert.equal(node.message, 'bar')
     assert.true(node.arguments.empty?)
 
-    assert.equal((receiver.receiver as IntegerLiteral).value, '10')
+    assert.equal((receiver.receiver.get as IntegerLiteral).value, '10')
   }
 
   g.test('Sending a message with arguments') {
@@ -835,7 +835,7 @@ test.group('Parsing message send chains') do (g) {
 
   g.test('Parsing a message send chain that sets an attribute') {
     let node = parse_as(input: '10.foo.bar = 20', type: Send)
-    let receiver = node.receiver as Send
+    let receiver = node.receiver.get as Send
 
     assert.equal(node.message, 'bar=')
     assert.equal(node.arguments.length, 1)
@@ -848,7 +848,7 @@ test.group('Parsing message send chains') do (g) {
 
   g.test('Parsing a message send chain that sets an attribute on a new line') {
     let node = parse_as(input: "10.foo.bar =\n20", type: Send)
-    let receiver = node.receiver as Send
+    let receiver = node.receiver.get as Send
 
     assert.equal(node.message, 'bar=')
     assert.equal(node.arguments.length, 1)
@@ -877,10 +877,10 @@ test.group('Parsing message send chains') do (g) {
     let node = parse_as(input: 'thing.foo { }.bar', type: Send)
 
     assert.equal(node.message, 'bar')
-    assert_instance_of(node.receiver, Send)
+    assert_instance_of(node.receiver.get, Send)
 
-    assert.equal((node.receiver as Send).message, 'foo')
-    assert.equal((node.receiver as Send).arguments.length, 1)
+    assert.equal((node.receiver.get as Send).message, 'foo')
+    assert.equal((node.receiver.get as Send).arguments.length, 1)
   }
 
   g.test('Parsing a message chain with a lambda outside parentheses') {
@@ -1429,7 +1429,7 @@ test.group('Reading and writing the index of of a value') do (g) {
     assert.equal(node.message, '[]')
     assert.equal(node.arguments.length, 1)
 
-    assert.equal((node.receiver as Constant).name, 'A')
+    assert.equal((node.receiver.get as Constant).name, 'A')
     assert.equal((node.arguments[0] as IntegerLiteral).value, '10')
   }
 
@@ -1439,7 +1439,7 @@ test.group('Reading and writing the index of of a value') do (g) {
     assert.equal(node.message, '[]')
     assert.equal(node.arguments.length, 1)
 
-    assert.equal((node.receiver as Send).message, 'bar')
+    assert.equal((node.receiver.get as Send).message, 'bar')
     assert.equal((node.arguments[0] as IntegerLiteral).value, '10')
   }
 
@@ -1449,7 +1449,7 @@ test.group('Reading and writing the index of of a value') do (g) {
     assert.equal(node.message, '[]=')
     assert.equal(node.arguments.length, 2)
 
-    assert.equal((node.receiver as Constant).name, 'A')
+    assert.equal((node.receiver.get as Constant).name, 'A')
     assert.equal((node.arguments[0] as IntegerLiteral).value, '10')
     assert.equal((node.arguments[1] as IntegerLiteral).value, '20')
   }
@@ -1460,7 +1460,7 @@ test.group('Reading and writing the index of of a value') do (g) {
     assert.equal(node.message, '[]=')
     assert.equal(node.arguments.length, 2)
 
-    assert.equal((node.receiver as Send).message, 'bar')
+    assert.equal((node.receiver.get as Send).message, 'bar')
     assert.equal((node.arguments[0] as IntegerLiteral).value, '10')
     assert.equal((node.arguments[1] as IntegerLiteral).value, '20')
   }
@@ -1778,10 +1778,10 @@ test.group('Parsing identifiers') do (g) {
     let node = parse_as(input: 'foo { }.bar', type: Send)
 
     assert.equal(node.message, 'bar')
-    assert_instance_of(node.receiver, Send)
+    assert_instance_of(node.receiver.get, Send)
 
-    assert.equal((node.receiver as Send).message, 'foo')
-    assert.equal((node.receiver as Send).arguments.length, 1)
+    assert.equal((node.receiver.get as Send).message, 'foo')
+    assert.equal((node.receiver.get as Send).arguments.length, 1)
   }
 
   g.test('Parsing an identifier followed by parentheses') {

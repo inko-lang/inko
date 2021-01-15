@@ -821,6 +821,22 @@ test.group('Type-checking imports') do (g) {
       type_checker.check_module(module: module, ast: node)
     }
   }
+
+  g.test('Importing an external function') {
+    let foo_mod = new_module('foo')
+    let bar_mod = new_module('bar')
+    let type_checker = TypeChecker.new
+    let bar_type = MethodType
+      .new(name: 'bar', layout: BlockLayout.new(AnyType.new), external: True)
+
+    let node = parse('import foo::(bar)')
+
+    foo_mod.define_method(name: bar_type.name, type: bar_type)
+    type_checker.add_module(foo_mod)
+    type_checker.check_module(module: bar_mod, ast: node)
+
+    assert.true(type_checker.diagnostics.errors?)
+  }
 }
 
 test.group('Type-checking class definitions') do (g) {
@@ -7344,21 +7360,6 @@ test.group('Type-checking VM instructions') do (g) {
     )
   }
 
-  g.test('Using stdout_write()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.stdout_write("foo")')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.integer_type
-    )
-  }
-
   g.test('Using get_nil()') {
     let module = new_std_module('foo')
     let type_checker = TypeChecker.new
@@ -7564,38 +7565,6 @@ test.group('Type-checking VM instructions') do (g) {
     assert_instance_of(node.resolved_type.get, AnyType)
   }
 
-  g.test('Using time_monotonic()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.time_monotonic')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.float_type
-    )
-  }
-
-  g.test('Using time_system()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.time_system')
-    let array_type = type_checker.builtins.array_type
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    let type = node.resolved_type.get
-    let param = array_type.lookup_type_parameter(ARRAY_TYPE_PARAMETER).get.type
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(type, array_type)
-    assert_instance_of(type.lookup_type_parameter_type(param).get, AnyType)
-  }
-
   g.test('Using string_to_upper()') {
     let module = new_std_module('foo')
     let type_checker = TypeChecker.new
@@ -7731,36 +7700,6 @@ test.group('Type-checking VM instructions') do (g) {
     )
   }
 
-  g.test('Using stdin_read()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.stdin_read')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.integer_type
-    )
-  }
-
-  g.test('Using stderr_write()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.stderr_write("foo")')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.integer_type
-    )
-  }
-
   g.test('Using process_spawn()') {
     let module = new_std_module('foo')
     let type_checker = TypeChecker.new
@@ -7864,250 +7803,6 @@ test.group('Type-checking VM instructions') do (g) {
     assert_instance_of(type.lookup_type_parameter_type(param).get, AnyType)
   }
 
-  g.test('Using file_flush()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.file_flush')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_instance_of(node.resolved_type.get, NeverType)
-  }
-
-  g.test('Using stdout_flush()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.stdout_flush')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_instance_of(node.resolved_type.get, NeverType)
-  }
-
-  g.test('Using stderr_flush()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.stderr_flush')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_instance_of(node.resolved_type.get, NeverType)
-  }
-
-  g.test('Using file_open()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.file_open')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_instance_of(node.resolved_type.get, AnyType)
-  }
-
-  g.test('Using file_read()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.file_read(f)')
-    let node = body.children[0]
-    let file_type = ClassType.new('File')
-
-    body.variable_scope.symbols.define(name: 'f', type: file_type.new_instance)
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.integer_type
-    )
-  }
-
-  g.test('Using file_seek()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.file_seek(f, 10)')
-    let node = body.children[0]
-    let file_type = ClassType.new('File')
-
-    body.variable_scope.symbols.define(name: 'f', type: file_type.new_instance)
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.integer_type
-    )
-  }
-
-  g.test('Using file_size()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.file_size(f)')
-    let node = body.children[0]
-    let file_type = ClassType.new('File')
-
-    body.variable_scope.symbols.define(name: 'f', type: file_type.new_instance)
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.integer_type
-    )
-  }
-
-  g.test('Using file_write()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.file_write(f, "foo")')
-    let node = body.children[0]
-    let file_type = ClassType.new('File')
-
-    body.variable_scope.symbols.define(name: 'f', type: file_type.new_instance)
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.integer_type
-    )
-  }
-
-  g.test('Using file_remove()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.file_remove(f)')
-    let node = body.children[0]
-    let file_type = ClassType.new('File')
-
-    body.variable_scope.symbols.define(name: 'f', type: file_type.new_instance)
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_instance_of(node.resolved_type.get, NeverType)
-  }
-
-  g.test('Using file_copy()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.file_copy(f)')
-    let node = body.children[0]
-    let file_type = ClassType.new('File')
-
-    body.variable_scope.symbols.define(name: 'f', type: file_type.new_instance)
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.integer_type
-    )
-  }
-
-  g.test('Using file_type()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.file_type(f)')
-    let node = body.children[0]
-    let file_type = ClassType.new('File')
-
-    body.variable_scope.symbols.define(name: 'f', type: file_type.new_instance)
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.integer_type
-    )
-  }
-
-  g.test('Using file_time()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.file_time(f)')
-    let array_type = type_checker.builtins.array_type
-    let node = body.children[0]
-    let file_type = ClassType.new('File')
-
-    body.variable_scope.symbols.define(name: 'f', type: file_type.new_instance)
-    type_checker.check_module(module: module, ast: body)
-
-    let type = node.resolved_type.get
-    let param = array_type.lookup_type_parameter(ARRAY_TYPE_PARAMETER).get.type
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(type, array_type)
-    assert_instance_of(type.lookup_type_parameter_type(param).get, AnyType)
-  }
-
-  g.test('Using file_path()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.file_path(f)')
-    let node = body.children[0]
-    let file_type = ClassType.new('File')
-
-    body.variable_scope.symbols.define(name: 'f', type: file_type.new_instance)
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.string_type
-    )
-  }
-
-  g.test('Using directory_create()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.directory_create("foo")')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_instance_of(node.resolved_type.get, NeverType)
-  }
-
-  g.test('Using directory_remove()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.directory_remove("foo")')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_instance_of(node.resolved_type.get, NeverType)
-  }
-
-  g.test('Using directory_list()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.directory_list("foo")')
-    let array_type = type_checker.builtins.array_type
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    let type = node.resolved_type.get
-    let param = array_type.lookup_type_parameter(ARRAY_TYPE_PARAMETER).get.type
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(type, array_type)
-    assert_object_instance(
-      type.lookup_type_parameter_type(param).get,
-      type_checker.builtins.string_type
-    )
-  }
-
   g.test('Using close()') {
     let module = new_std_module('foo')
     let type_checker = TypeChecker.new
@@ -8157,100 +7852,6 @@ test.group('Type-checking VM instructions') do (g) {
 
     assert.false(type_checker.diagnostics.errors?)
     assert_instance_of(node.resolved_type.get, NeverType)
-  }
-
-  g.test('Using platform()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.platform')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.string_type
-    )
-  }
-
-  g.test('Using hasher_new()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.hasher_new')
-    let node = body.children[0]
-    let hasher_type = type_checker.builtins.hasher_type
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(node.resolved_type.get, hasher_type)
-  }
-
-  g.test('Using hasher_write()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.hasher_write')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_instance_of(node.resolved_type.get, AnyType)
-  }
-
-  g.test('Using hasher_to_hash()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.hasher_to_hash(hasher)')
-    let node = body.children[0]
-    let hasher_type = ClassType.new('Hasher')
-
-    body
-      .variable_scope
-      .symbols
-      .define(name: 'hasher', type: hasher_type.new_instance)
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.integer_type
-    )
-  }
-
-  g.test('Using stacktrace()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.stacktrace()')
-    let array_type = type_checker.builtins.array_type
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    let type = node.resolved_type.get
-    let param = array_type.lookup_type_parameter(ARRAY_TYPE_PARAMETER).get.type
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(type, array_type)
-
-    let param_type = type.lookup_type_parameter_type(param).get
-
-    assert_object_instance(param_type, array_type)
-    assert_instance_of(param_type.lookup_type_parameter_type(param).get, AnyType)
-  }
-
-  g.test('Using block_metadata()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.block_metadata({})')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_instance_of(node.resolved_type.get, AnyType)
   }
 
   g.test('Using string_format_debug()') {
@@ -8589,146 +8190,6 @@ test.group('Type-checking VM instructions') do (g) {
     )
   }
 
-  g.test('Using env_get()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.env_get')
-    let node = body.children[0]
-    let string_type = type_checker.builtins.string_type
-
-    type_checker.check_module(module: module, ast: body)
-
-    let type = node.resolved_type.get
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(type, string_type)
-  }
-
-  g.test('Using env_set()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.env_set')
-    let node = body.children[0]
-    let string_type = type_checker.builtins.string_type
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(node.resolved_type.get, string_type)
-  }
-
-  g.test('Using env_remove()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.env_remove')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_instance_of(node.resolved_type.get, NeverType)
-  }
-
-  g.test('Using env_variables()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.env_variables')
-    let array_type = type_checker.builtins.array_type
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    let type = node.resolved_type.get
-    let param = array_type.lookup_type_parameter(ARRAY_TYPE_PARAMETER).get.type
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(type, array_type)
-
-    let param_type = type.lookup_type_parameter_type(param).get
-
-    assert_object_instance(param_type, type_checker.builtins.string_type)
-  }
-
-  g.test('Using env_home_directory()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.env_home_directory')
-    let node = body.children[0]
-    let string_type = type_checker.builtins.string_type
-
-    type_checker.check_module(module: module, ast: body)
-
-    let type = node.resolved_type.get
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(type, string_type)
-  }
-
-  g.test('Using env_temp_directory()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.env_temp_directory')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.string_type
-    )
-  }
-
-  g.test('Using env_get_working_directory()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.env_get_working_directory')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.string_type
-    )
-  }
-
-  g.test('Using env_set_working_directory()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.env_set_working_directory')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.string_type
-    )
-  }
-
-  g.test('Using env_arguments()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.env_arguments')
-    let array_type = type_checker.builtins.array_type
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    let type = node.resolved_type.get
-    let param = array_type.lookup_type_parameter(ARRAY_TYPE_PARAMETER).get.type
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(type, array_type)
-
-    let param_type = type.lookup_type_parameter_type(param).get
-
-    assert_object_instance(param_type, type_checker.builtins.string_type)
-  }
-
   g.test('Using process_set_panic_handler()') {
     let module = new_std_module('foo')
     let type_checker = TypeChecker.new
@@ -8795,139 +8256,6 @@ test.group('Type-checking VM instructions') do (g) {
     )
   }
 
-  g.test('Using ffi_library_open()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.ffi_library_open')
-    let node = body.children[0]
-    let lib_type = type_checker.builtins.ffi_library_type
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(node.resolved_type.get, lib_type)
-  }
-
-  g.test('Using ffi_function_attach()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.ffi_function_attach')
-    let node = body.children[0]
-    let fn_type = type_checker.builtins.ffi_function_type
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(node.resolved_type.get, fn_type)
-  }
-
-  g.test('Using ffi_call()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.ffi_call')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_instance_of(node.resolved_type.get, AnyType)
-  }
-
-  g.test('Using ffi_pointer_attach()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.ffi_pointer_attach')
-    let node = body.children[0]
-    let ptr_type = type_checker.builtins.ffi_pointer_type
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(node.resolved_type.get, ptr_type)
-  }
-
-  g.test('Using ffi_pointer_read()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.ffi_pointer_read')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_instance_of(node.resolved_type.get, AnyType)
-  }
-
-  g.test('Using ffi_pointer_write()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.ffi_pointer_write')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_instance_of(node.resolved_type.get, AnyType)
-  }
-
-  g.test('Using ffi_pointer_from_address()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.ffi_pointer_from_address')
-    let node = body.children[0]
-    let ptr_type = type_checker.builtins.ffi_pointer_type
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(node.resolved_type.get, ptr_type)
-  }
-
-  g.test('Using ffi_pointer_address()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.ffi_pointer_address')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.integer_type
-    )
-  }
-
-  g.test('Using ffi_type_size()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.ffi_type_size')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.integer_type
-    )
-  }
-
-  g.test('Using ffi_type_alignment()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.ffi_type_alignment')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.integer_type
-    )
-  }
-
   g.test('Using string_to_integer()') {
     let module = new_std_module('foo')
     let type_checker = TypeChecker.new
@@ -8973,223 +8301,6 @@ test.group('Type-checking VM instructions') do (g) {
     )
   }
 
-  g.test('Using socket_create()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.socket_create')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_instance_of(node.resolved_type.get, AnyType)
-  }
-
-  g.test('Using socket_write()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.socket_write')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.integer_type
-    )
-  }
-
-  g.test('Using socket_read()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.socket_read')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.integer_type
-    )
-  }
-
-  g.test('Using socket_accept()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.socket_accept')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_instance_of(node.resolved_type.get, AnyType)
-  }
-
-  g.test('Using socket_receive_from()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.socket_receive_from')
-    let array_type = type_checker.builtins.array_type
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    let type = node.resolved_type.get
-    let param = array_type.lookup_type_parameter(ARRAY_TYPE_PARAMETER).get.type
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(type, array_type)
-    assert_instance_of(type.lookup_type_parameter_type(param).get, AnyType)
-  }
-
-  g.test('Using socket_send_to()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.socket_send_to')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.integer_type
-    )
-  }
-
-  g.test('Using socket_address()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.socket_address')
-    let array_type = type_checker.builtins.array_type
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    let type = node.resolved_type.get
-    let param = array_type.lookup_type_parameter(ARRAY_TYPE_PARAMETER).get.type
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(type, array_type)
-    assert_instance_of(type.lookup_type_parameter_type(param).get, AnyType)
-  }
-
-  g.test('Using socket_get_option()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.socket_get_option')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_instance_of(node.resolved_type.get, AnyType)
-  }
-
-  g.test('Using socket_set_option()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.socket_set_option')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_instance_of(node.resolved_type.get, AnyType)
-  }
-
-  g.test('Using socket_bind()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.socket_bind')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_instance_of(node.resolved_type.get, NeverType)
-  }
-
-  g.test('Using socket_connect()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.socket_connect')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_instance_of(node.resolved_type.get, NeverType)
-  }
-
-  g.test('Using socket_shutdown()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.socket_shutdown')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_instance_of(node.resolved_type.get, NeverType)
-  }
-
-  g.test('Using socket_listen()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.socket_listen')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.integer_type
-    )
-  }
-
-  g.test('Using random_number()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.random_number')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_instance_of(node.resolved_type.get, AnyType)
-  }
-
-  g.test('Using random_range()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.random_range')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_instance_of(node.resolved_type.get, AnyType)
-  }
-
-  g.test('Using random_bytes()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.random_bytes')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.byte_array_type
-    )
-  }
-
   g.test('Using if()') {
     let module = new_std_module('foo')
     let type_checker = TypeChecker.new
@@ -9232,41 +8343,6 @@ test.group('Type-checking VM instructions') do (g) {
 
     assert.false(type_checker.diagnostics.errors?)
     assert_object_instance(type, type_checker.builtins.module_type)
-  }
-
-  g.test('Using module_list()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.module_list')
-    let array_type = type_checker.builtins.array_type
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    let type = node.resolved_type.get
-    let param = array_type.lookup_type_parameter(ARRAY_TYPE_PARAMETER).get.type
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(type, array_type)
-    assert_object_instance(
-      type.lookup_type_parameter_type(param).get,
-      type_checker.builtins.module_type
-    )
-  }
-
-  g.test('Using module_info()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.module_info')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.string_type
-    )
   }
 
   g.test('Using generator_resume()') {
@@ -9688,5 +8764,68 @@ test.group('Type-checking Option types created using ?T') do (g) {
       arg_type.lookup_type_parameter_type(opt_param).get,
       int_type
     )
+  }
+}
+
+test.group('Type-checking external function definitions') do (g) {
+  g.test('Defining an external function') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let int_type = type_checker.builtins.integer_type
+    let flt_type = type_checker.builtins.float_type
+    let str_type = type_checker.builtins.string_type
+    let body = parse('extern def foo(num: Integer) !! Float -> String')
+
+    module.define_constant(name: 'Integer', type: int_type)
+    module.define_constant(name: 'Float', type: flt_type)
+    module.define_constant(name: 'String', type: str_type)
+    type_checker.check_module(module: module, ast: body)
+
+    let method = module.lookup_method('foo').get.type as MethodType
+
+    assert.true(method.external_function?)
+    assert_object_instance(method.arguments['num'].type, int_type)
+    assert_object_instance(method.throw_type.get, flt_type)
+    assert_object_instance(method.return_type, str_type)
+  }
+}
+
+test.group('Type-checking external function calls') do (g) {
+  g.test('Calling an external function without a receiver') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let int_type = type_checker.builtins.integer_type
+    let body = parse('foo')
+    let node = body.children[0]
+    let foo = MethodType.new(
+      name: 'foo',
+      layout: BlockLayout.new(int_type.new_instance),
+      external: True
+    )
+
+    module.define_method(name: foo.name, type: foo)
+    type_checker.check_module(module: module, ast: body)
+
+    assert.false(type_checker.diagnostics.errors?)
+    assert_object_instance(node.resolved_type.get, int_type)
+  }
+
+  g.test('Calling an external function with a receiver') {
+    let module = new_module('foo')
+    let type_checker = TypeChecker.new
+    let int_type = type_checker.builtins.integer_type
+    let body = parse('self.foo')
+    let node = body.children[0]
+    let foo = MethodType.new(
+      name: 'foo',
+      layout: BlockLayout.new(int_type.new_instance),
+      external: True
+    )
+
+    module.define_method(name: foo.name, type: foo)
+    type_checker.check_module(module: module, ast: body)
+
+    assert.true(type_checker.diagnostics.errors?)
+    assert.true(node.resolved_type.get.error?)
   }
 }

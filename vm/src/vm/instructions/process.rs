@@ -1,7 +1,6 @@
 //! VM functions for working with Inko processes.
 use crate::block::Block;
 use crate::duration;
-use crate::execution_context::ExecutionContext;
 use crate::object_pointer::ObjectPointer;
 use crate::object_value;
 use crate::process::{Process, RcProcess, RescheduleRights};
@@ -154,19 +153,6 @@ pub fn process_set_blocking(
 }
 
 #[inline(always)]
-pub fn stacktrace(
-    state: &RcState,
-    process: &RcProcess,
-    limit_ptr: ObjectPointer,
-    skip_ptr: ObjectPointer,
-) -> Result<ObjectPointer, String> {
-    let limit = limit_ptr.usize_value()?;
-    let skip = skip_ptr.usize_value()?;
-
-    Ok(allocate_stacktrace(process, state, limit, skip))
-}
-
-#[inline(always)]
 pub fn process_add_defer_to_caller(
     process: &RcProcess,
     block: ObjectPointer,
@@ -308,44 +294,4 @@ fn attempt_to_reschedule_process(state: &RcState, process: &RcProcess) {
     if reschedule {
         state.scheduler.schedule(process.clone());
     }
-}
-
-/// Produces a stacktrace containing up to N stack frames.
-fn allocate_stacktrace(
-    process: &RcProcess,
-    state: &RcState,
-    limit: usize,
-    skip: usize,
-) -> ObjectPointer {
-    let mut trace = if limit > 0 {
-        Vec::with_capacity(limit)
-    } else {
-        Vec::new()
-    };
-
-    let mut contexts: Vec<&ExecutionContext> = {
-        let iter = process.contexts().into_iter().skip(skip);
-
-        if limit > 0 {
-            iter.take(limit).collect()
-        } else {
-            iter.collect()
-        }
-    };
-
-    contexts.reverse();
-
-    for context in contexts {
-        let file = context.code.file;
-        let name = context.code.name;
-        let line = ObjectPointer::integer(i64::from(context.line()));
-        let tuple = process.allocate(
-            object_value::array(vec![file, name, line]),
-            state.array_prototype,
-        );
-
-        trace.push(tuple);
-    }
-
-    process.allocate(object_value::array(trace), state.array_prototype)
 }

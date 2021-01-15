@@ -2,7 +2,6 @@
 use crate::block::Block;
 use crate::execution_context::ExecutionContext;
 use crate::object_pointer::ObjectPointer;
-use crate::object_value;
 use crate::process::RcProcess;
 use crate::vm::state::RcState;
 
@@ -35,13 +34,6 @@ pub fn module_load_string(
 }
 
 #[inline(always)]
-pub fn module_list(state: &RcState, process: &RcProcess) -> ObjectPointer {
-    let modules = state.modules.lock().list();
-
-    process.allocate(object_value::array(modules), state.array_prototype)
-}
-
-#[inline(always)]
 pub fn module_get(
     state: &RcState,
     name_ptr: ObjectPointer,
@@ -49,19 +41,4 @@ pub fn module_get(
     let name = name_ptr.string_value()?;
 
     state.modules.lock().get(name)
-}
-
-#[inline(always)]
-pub fn module_info(
-    module_ptr: ObjectPointer,
-    field_ptr: ObjectPointer,
-) -> Result<ObjectPointer, String> {
-    let field = field_ptr.integer_value()?;
-    let module = module_ptr.module_value()?;
-
-    match field {
-        0 => Ok(module.name()),
-        1 => Ok(module.source_path()),
-        _ => Err(format!("{} is not a valid module info type", field)),
-    }
 }

@@ -126,10 +126,42 @@ _INKOC.set_object_name(Pointer, 'Pointer')
 # The address used for NULL pointers.
 let NULL_ADDRESS = 0x0
 
+extern def ffi_library_open(names: Array!(String)) !! String -> Library
+extern def ffi_function_attach(
+  library: Library,
+  name: String,
+  arguments: Array!(Integer),
+  returns: Integer
+) !! String -> Function
+
+extern def ffi_function_call(function: Function, arguments: Array!(Any)) -> Any
+extern def ffi_pointer_attach(
+  library: Library,
+  name: String
+) !! String -> Pointer
+
+extern def ffi_pointer_read(
+  pointer: Pointer,
+  type: Integer,
+  offset: Integer
+) -> Any
+
+extern def ffi_pointer_write(
+  pointer: Pointer,
+  type: Integer,
+  value: Any,
+  offset: Integer
+) -> Any
+
+extern def ffi_pointer_from_address(address: Integer) -> Pointer
+extern def ffi_pointer_address(pointer: Pointer) -> Integer
+extern def ffi_type_size(type: Integer) -> Integer
+extern def ffi_type_alignment(type: Integer) -> Integer
+
 impl Pointer {
   # Creates a pointer using the given memory address.
   static def new(address: Integer) -> Self {
-    _INKOC.ffi_pointer_from_address(address)
+    ffi_pointer_from_address(address)
   }
 
   # Returns a NULL `Pointer`.
@@ -144,7 +176,7 @@ impl Pointer {
 
   # Returns the address of this `Pointer`.
   def address -> Integer {
-    _INKOC.ffi_pointer_address(self)
+    ffi_pointer_address(self)
   }
 
   # Reads the value of a pointer into a certain type.
@@ -152,8 +184,8 @@ impl Pointer {
   # The `type` argument specifies the `Type` of data that is being read. The
   # `offset` argument can be used to specify an offset in bytes (relative to
   # the pointer) to read from.
-  def read(type: Type, offset = 0) -> Object {
-    _INKOC.ffi_pointer_read(self, type.to_integer, offset)
+  def read(type: Type, offset = 0) -> Any {
+    ffi_pointer_read(self, type.to_integer, offset)
   }
 
   # Writes a value to the pointer.
@@ -162,7 +194,7 @@ impl Pointer {
   # `offset` argument can be used to specify an offset in bytes (relative to
   # the pointer) to write to.
   def write!(T)(type: Type, value: T, offset = 0) -> T {
-    _INKOC.ffi_pointer_write(self, type.to_integer, value, offset)
+    ffi_pointer_write(self, type.to_integer, value, offset)
   }
 }
 
@@ -189,22 +221,14 @@ impl Library {
   #
   # This method throws if the library can't be loaded.
   static def new(names: Array!(String)) !! StandardError -> Self {
-    try {
-      _INKOC.ffi_library_open(names)
-    } else (error) {
-      throw StandardError.new(error as String)
-    }
+    try ffi_library_open(names) else (error) throw StandardError.new(error)
   }
 
   # Returns a `Pointer` pointing to the address of the given variable.
   #
   # This method throws if there is no symbol with the given name.
   def variable(name: String) !! StandardError -> Pointer {
-    try {
-      _INKOC.ffi_pointer_attach(self, name)
-    } else (error) {
-      throw StandardError.new(error as String)
-    }
+    try ffi_pointer_attach(self, name) else (e) throw StandardError.new(e)
   }
 }
 
@@ -233,22 +257,22 @@ impl Function {
     returns: Type
   ) !! StandardError -> Self {
     try {
-      _INKOC.ffi_function_attach(
+      ffi_function_attach(
         library,
         name,
-        arguments.iter.map do (type: Type) { type.to_integer }.to_array,
+        arguments.iter.map do (type) { type.to_integer }.to_array,
         returns.to_integer
       )
     } else (error) {
-      throw StandardError.new(error as String)
+      throw StandardError.new(error)
     }
   }
 
   # Calls the function with the given arguments.
   #
   # This method will panic if any of the arguments are invalid.
-  def call(*arguments: Object) -> Object {
-    _INKOC.ffi_function_call(self, arguments)
+  def call(*arguments: Object) -> Any {
+    ffi_function_call(self, arguments)
   }
 }
 
@@ -370,7 +394,7 @@ class Struct {
   # Reads the value of the given struct member.
   #
   # This method will panic if the given member does not exist.
-  def [](name: String) -> Object {
+  def [](name: String) -> Any {
     let member = @layout[name]
 
     @pointer.read(type: member.type, offset: member.offset)
@@ -525,12 +549,12 @@ class Type {
 
   # Returns the size of this type in bytes.
   def size -> Integer {
-    _INKOC.ffi_type_size(@id)
+    ffi_type_size(@id)
   }
 
   # Returns the alignment of this type in bytes.
   def alignment -> Integer {
-    _INKOC.ffi_type_alignment(@id)
+    ffi_type_alignment(@id)
   }
 }
 

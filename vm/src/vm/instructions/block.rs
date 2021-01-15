@@ -81,30 +81,3 @@ pub fn set_block(
 
     process.allocate(object_value::block(block), state.block_prototype)
 }
-
-#[inline(always)]
-pub fn block_metadata(
-    state: &RcState,
-    process: &RcProcess,
-    block_ptr: ObjectPointer,
-    field_ptr: ObjectPointer,
-) -> Result<ObjectPointer, String> {
-    let block = block_ptr.block_value()?;
-    let kind = field_ptr.integer_value()?;
-
-    let result = match kind {
-        0 => block.code.name,
-        1 => block.code.file,
-        2 => ObjectPointer::integer(i64::from(block.code.line)),
-        3 => process.allocate(
-            object_value::array(block.code.arguments.clone()),
-            state.array_prototype,
-        ),
-        4 => ObjectPointer::integer(i64::from(block.code.required_arguments)),
-        _ => {
-            return Err(format!("{} is not a valid block metadata type", kind));
-        }
-    };
-
-    Ok(result)
-}

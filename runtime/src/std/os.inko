@@ -1,5 +1,7 @@
 # Module for retrieving operating system related information.
 
+extern def env_platform_name -> String
+
 # Returns a `String` describing the current platform.
 #
 # The following values may currently be returned:
@@ -28,7 +30,7 @@
 #
 #     os.platform # => 'linux'
 def platform -> String {
-  _INKOC.platform
+  env_platform_name
 }
 
 # Returns `True` if the program is running on Windows.

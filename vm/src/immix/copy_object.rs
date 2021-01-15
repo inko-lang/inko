@@ -98,6 +98,9 @@ pub trait CopyObject: Sized {
                     "Generator objects can't be copied",
                 ));
             }
+            ObjectValue::ExternalFunction(fun) => {
+                ObjectValue::ExternalFunction(fun)
+            }
         };
 
         let mut copy = if let Some(proto_ptr) = to_copy.prototype() {

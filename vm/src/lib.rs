@@ -3,6 +3,8 @@
 #![cfg_attr(feature = "cargo-clippy", allow(needless_range_loop))]
 #![cfg_attr(feature = "cargo-clippy", allow(missing_safety_doc))]
 
+pub mod macros;
+
 pub mod arc_without_weak;
 pub mod binding;
 pub mod block;
@@ -19,9 +21,9 @@ pub mod directories;
 pub mod duration;
 pub mod error_messages;
 pub mod execution_context;
+pub mod external_functions;
 pub mod ffi;
 pub mod file;
-pub mod filesystem;
 pub mod gc;
 pub mod generator;
 pub mod global_scope;
@@ -29,7 +31,6 @@ pub mod hasher;
 pub mod immix;
 pub mod immutable_string;
 pub mod integer_operations;
-pub mod macros;
 pub mod mailbox;
 pub mod module;
 pub mod modules;

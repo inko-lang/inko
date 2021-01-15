@@ -40,6 +40,10 @@ impl Registers {
             }
         }
     }
+
+    pub fn slice(&self, start: u16, length: u16) -> &[ObjectPointer] {
+        self.values.slice(start as usize, length as usize)
+    }
 }
 
 #[cfg(test)]

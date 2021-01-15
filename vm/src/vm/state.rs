@@ -5,6 +5,7 @@
 //! etc.
 use crate::arc_without_weak::ArcWithoutWeak;
 use crate::config::Config;
+use crate::external_functions::ExternalFunctions;
 use crate::immix::global_allocator::{GlobalAllocator, RcGlobalAllocator};
 use crate::immix::permanent_allocator::PermanentAllocator;
 use crate::immutable_string::ImmutableString;
@@ -155,12 +156,18 @@ pub struct State {
 
     /// All modules that are available to the current program.
     pub modules: Mutex<Modules>,
+
+    /// All external functions that a compiler can use.
+    pub external_functions: ExternalFunctions,
 }
 
 impl RefUnwindSafe for State {}
 
 impl State {
     pub fn with_rc(config: Config, arguments: &[String]) -> RcState {
+        let external_functions = ExternalFunctions::setup()
+            .expect("Failed to set up the default external functions");
+
         let global_alloc = GlobalAllocator::with_rc();
 
         // Boxed since moving around the allocator can break pointers from the
@@ -237,6 +244,7 @@ impl State {
             trait_prototype,
             network_poller: NetworkPoller::new(),
             modules: Mutex::new(Modules::new()),
+            external_functions,
         };
 
         for argument in arguments {

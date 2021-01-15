@@ -16,21 +16,15 @@ use crate::vm::instruction::Opcode;
 use crate::vm::instructions::array;
 use crate::vm::instructions::block;
 use crate::vm::instructions::byte_array;
-use crate::vm::instructions::env;
-use crate::vm::instructions::ffi;
+use crate::vm::instructions::external_functions;
 use crate::vm::instructions::float;
 use crate::vm::instructions::general;
 use crate::vm::instructions::generator;
-use crate::vm::instructions::hasher;
 use crate::vm::instructions::integer;
-use crate::vm::instructions::io;
 use crate::vm::instructions::module;
 use crate::vm::instructions::object;
 use crate::vm::instructions::process;
-use crate::vm::instructions::random;
-use crate::vm::instructions::socket;
 use crate::vm::instructions::string;
-use crate::vm::instructions::time;
 use crate::vm::state::RcState;
 use num_bigint::BigInt;
 use std::i32;
@@ -766,145 +760,6 @@ impl Machine {
 
                     context.set_register(reg, res);
                 }
-                Opcode::StdoutWrite => {
-                    let reg = instruction.arg(0);
-                    let val = context.get_register(instruction.arg(1));
-                    let res = try_io_error!(
-                        io::stdout_write(&self.state, process, val),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, res);
-                }
-                Opcode::StderrWrite => {
-                    let reg = instruction.arg(0);
-                    let val = context.get_register(instruction.arg(1));
-                    let res = try_io_error!(
-                        io::stderr_write(&self.state, process, val),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, res);
-                }
-                Opcode::StdoutFlush => {
-                    try_io_error!(
-                        io::stdout_flush(),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-                }
-                Opcode::StderrFlush => {
-                    try_io_error!(
-                        io::stderr_flush(),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-                }
-                Opcode::StdinRead => {
-                    let reg = instruction.arg(0);
-                    let buf = context.get_register(instruction.arg(1));
-                    let max = context.get_register(instruction.arg(2));
-                    let res = try_io_error!(
-                        io::stdin_read(&self.state, process, buf, max),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, res);
-                }
-                Opcode::FileOpen => {
-                    let reg = instruction.arg(0);
-                    let path = context.get_register(instruction.arg(1));
-                    let mode = context.get_register(instruction.arg(2));
-                    let res = try_io_error!(
-                        io::file_open(&self.state, process, path, mode),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, res);
-                }
-                Opcode::FileWrite => {
-                    let reg = instruction.arg(0);
-                    let file = context.get_register(instruction.arg(1));
-                    let input = context.get_register(instruction.arg(2));
-                    let res = try_io_error!(
-                        io::file_write(&self.state, process, file, input),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, res);
-                }
-                Opcode::FileRead => {
-                    let reg = instruction.arg(0);
-                    let file = context.get_register(instruction.arg(1));
-                    let buf = context.get_register(instruction.arg(2));
-                    let max = context.get_register(instruction.arg(3));
-                    let res = try_io_error!(
-                        io::file_read(&self.state, process, file, buf, max),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, res);
-                }
-                Opcode::FileFlush => {
-                    let file = context.get_register(instruction.arg(0));
-
-                    try_io_error!(
-                        io::file_flush(file),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-                }
-                Opcode::FileSize => {
-                    let reg = instruction.arg(0);
-                    let path = context.get_register(instruction.arg(1));
-                    let res = try_io_error!(
-                        io::file_size(&self.state, process, path),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, res);
-                }
-                Opcode::FileSeek => {
-                    let reg = instruction.arg(0);
-                    let file = context.get_register(instruction.arg(1));
-                    let pos = context.get_register(instruction.arg(2));
-                    let res = try_io_error!(
-                        io::file_seek(&self.state, process, file, pos),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, res);
-                }
                 Opcode::ModuleLoad => {
                     let reg = instruction.arg(0);
                     let name = context.get_register(instruction.arg(1));
@@ -913,24 +768,10 @@ impl Machine {
                     context.set_register(reg, res);
                     enter_context!(process, context, index);
                 }
-                Opcode::ModuleList => {
-                    let reg = instruction.arg(0);
-                    let res = module::module_list(&self.state, process);
-
-                    context.set_register(reg, res);
-                }
                 Opcode::ModuleGet => {
                     let reg = instruction.arg(0);
                     let name = context.get_register(instruction.arg(1));
                     let res = module::module_get(&self.state, name)?;
-
-                    context.set_register(reg, res);
-                }
-                Opcode::ModuleInfo => {
-                    let reg = instruction.arg(0);
-                    let module = context.get_register(instruction.arg(1));
-                    let field = context.get_register(instruction.arg(2));
-                    let res = module::module_info(module, field)?;
 
                     context.set_register(reg, res);
                 }
@@ -1104,12 +945,6 @@ impl Machine {
 
                     context.set_register(reg, res);
                 }
-                Opcode::TimeMonotonic => {
-                    let reg = instruction.arg(0);
-                    let res = time::time_monotonic(&self.state, process);
-
-                    context.set_register(reg, res);
-                }
                 Opcode::RunBlock => {
                     let block = context.get_register(instruction.arg(0));
                     let start = instruction.arg(1);
@@ -1241,17 +1076,6 @@ impl Machine {
 
                     return Ok(());
                 }
-                Opcode::FileRemove => {
-                    let path = context.get_register(instruction.arg(0));
-
-                    try_io_error!(
-                        io::file_remove(path),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-                }
                 Opcode::Panic => {
                     let msg = context.get_register(instruction.arg(0));
 
@@ -1275,103 +1099,6 @@ impl Machine {
 
                     return Ok(());
                 }
-                Opcode::Platform => {
-                    let reg = instruction.arg(0);
-                    let res = env::platform(&self.state);
-
-                    context.set_register(reg, res);
-                }
-                Opcode::FileCopy => {
-                    let reg = instruction.arg(0);
-                    let src = context.get_register(instruction.arg(1));
-                    let dst = context.get_register(instruction.arg(2));
-                    let res = try_io_error!(
-                        io::file_copy(&self.state, process, src, dst),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, res);
-                }
-                Opcode::FileType => {
-                    let reg = instruction.arg(0);
-                    let path = context.get_register(instruction.arg(1));
-                    let res = try_io_error!(
-                        io::file_type(path),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, res);
-                }
-                Opcode::FileTime => {
-                    let reg = instruction.arg(0);
-                    let path = context.get_register(instruction.arg(1));
-                    let kind = context.get_register(instruction.arg(2));
-                    let res = try_io_error!(
-                        io::file_time(&self.state, process, path, kind),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, res);
-                }
-                Opcode::FilePath => {
-                    let reg = instruction.arg(0);
-                    let file = context.get_register(instruction.arg(1));
-                    let res = io::file_path(file)?;
-
-                    context.set_register(reg, res);
-                }
-                Opcode::TimeSystem => {
-                    let reg = instruction.arg(0);
-                    let res = time::time_system(&self.state, process);
-
-                    context.set_register(reg, res);
-                }
-                Opcode::DirectoryCreate => {
-                    let path = context.get_register(instruction.arg(0));
-                    let recurse = context.get_register(instruction.arg(1));
-
-                    try_io_error!(
-                        io::directory_create(&self.state, path, recurse),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-                }
-                Opcode::DirectoryRemove => {
-                    let path = context.get_register(instruction.arg(0));
-                    let recurse = context.get_register(instruction.arg(1));
-
-                    try_io_error!(
-                        io::directory_remove(&self.state, path, recurse),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-                }
-                Opcode::DirectoryList => {
-                    let reg = instruction.arg(0);
-                    let path = context.get_register(instruction.arg(1));
-                    let res = try_io_error!(
-                        io::directory_list(&self.state, process, path),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, res);
-                }
                 Opcode::StringConcat => {
                     let reg = instruction.arg(0);
                     let start = instruction.arg(1);
@@ -1383,40 +1110,6 @@ impl Machine {
                         start,
                         len,
                     )?;
-
-                    context.set_register(reg, res);
-                }
-                Opcode::HasherNew => {
-                    let reg = instruction.arg(0);
-                    let key0 = context.get_register(instruction.arg(1));
-                    let key1 = context.get_register(instruction.arg(2));
-                    let res =
-                        hasher::hasher_new(&self.state, process, key0, key1)?;
-
-                    context.set_register(reg, res);
-                }
-                Opcode::HasherWrite => {
-                    let reg = instruction.arg(0);
-                    let hasher = context.get_register(instruction.arg(1));
-                    let val = context.get_register(instruction.arg(2));
-                    let res = hasher::hasher_write(hasher, val)?;
-
-                    context.set_register(reg, res);
-                }
-                Opcode::HasherToHash => {
-                    let reg = instruction.arg(0);
-                    let hasher = context.get_register(instruction.arg(1));
-                    let res =
-                        hasher::hasher_to_hash(&self.state, process, hasher)?;
-
-                    context.set_register(reg, res);
-                }
-                Opcode::Stacktrace => {
-                    let reg = instruction.arg(0);
-                    let limit = context.get_register(instruction.arg(1));
-                    let skip = context.get_register(instruction.arg(2));
-                    let res =
-                        process::stacktrace(&self.state, process, limit, skip)?;
 
                     context.set_register(reg, res);
                 }
@@ -1434,19 +1127,6 @@ impl Machine {
                         string,
                         start,
                         len,
-                    )?;
-
-                    context.set_register(reg, res);
-                }
-                Opcode::BlockMetadata => {
-                    let reg = instruction.arg(0);
-                    let block = context.get_register(instruction.arg(1));
-                    let field = context.get_register(instruction.arg(2));
-                    let res = block::block_metadata(
-                        &self.state,
-                        process,
-                        block,
-                        field,
                     )?;
 
                     context.set_register(reg, res);
@@ -1568,87 +1248,6 @@ impl Machine {
 
                     context.set_register(reg, res);
                 }
-                Opcode::EnvGet => {
-                    let reg = instruction.arg(0);
-                    let var = context.get_register(instruction.arg(1));
-                    let val = try_error!(
-                        env::env_get(&self.state, process, var),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, val);
-                }
-                Opcode::EnvSet => {
-                    let reg = instruction.arg(0);
-                    let var = context.get_register(instruction.arg(1));
-                    let val = context.get_register(instruction.arg(2));
-                    let res = env::env_set(var, val)?;
-
-                    context.set_register(reg, res);
-                }
-                Opcode::EnvVariables => {
-                    let reg = instruction.arg(0);
-                    let res = env::env_variables(&self.state, process)?;
-
-                    context.set_register(reg, res);
-                }
-                Opcode::EnvHomeDirectory => {
-                    let reg = instruction.arg(0);
-                    let res = try_error!(
-                        env::env_home_directory(&self.state, process),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, res);
-                }
-                Opcode::EnvTempDirectory => {
-                    let reg = instruction.arg(0);
-                    let res = env::env_temp_directory(&self.state, process);
-
-                    context.set_register(reg, res);
-                }
-                Opcode::EnvGetWorkingDirectory => {
-                    let reg = instruction.arg(0);
-                    let res = try_error!(
-                        env::env_get_working_directory(&self.state, process),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, res);
-                }
-                Opcode::EnvSetWorkingDirectory => {
-                    let reg = instruction.arg(0);
-                    let dir = context.get_register(instruction.arg(1));
-                    let res = try_error!(
-                        env::env_set_working_directory(dir),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, res);
-                }
-                Opcode::EnvArguments => {
-                    let reg = instruction.arg(0);
-                    let res = env::env_arguments(&self.state, process);
-
-                    context.set_register(reg, res);
-                }
-                Opcode::EnvRemove => {
-                    let var = context.get_register(instruction.arg(0));
-
-                    env::env_remove(var)?;
-                }
                 Opcode::BlockGetReceiver => {
                     let reg = instruction.arg(0);
                     let res = block::block_get_receiver(context);
@@ -1719,132 +1318,6 @@ impl Machine {
 
                     context.set_register(reg, res);
                 }
-                Opcode::FFILibraryOpen => {
-                    let reg = instruction.arg(0);
-                    let names = context.get_register(instruction.arg(1));
-                    let res = try_error!(
-                        ffi::ffi_library_open(&self.state, process, names),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, res);
-                }
-                Opcode::FFIFunctionAttach => {
-                    let reg = instruction.arg(0);
-                    let lib = context.get_register(instruction.arg(1));
-                    let name = context.get_register(instruction.arg(2));
-                    let args = context.get_register(instruction.arg(3));
-                    let rtype = context.get_register(instruction.arg(4));
-                    let res = try_error!(
-                        ffi::ffi_function_attach(
-                            &self.state,
-                            process,
-                            lib,
-                            name,
-                            args,
-                            rtype,
-                        ),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, res);
-                }
-                Opcode::FFIFunctionCall => {
-                    let reg = instruction.arg(0);
-                    let func = context.get_register(instruction.arg(1));
-                    let args = context.get_register(instruction.arg(2));
-                    let res = ffi::ffi_function_call(
-                        &self.state,
-                        process,
-                        func,
-                        args,
-                    )?;
-
-                    context.set_register(reg, res);
-                }
-                Opcode::FFIPointerAttach => {
-                    let reg = instruction.arg(0);
-                    let lib = context.get_register(instruction.arg(1));
-                    let name = context.get_register(instruction.arg(2));
-                    let res = try_error!(
-                        ffi::ffi_pointer_attach(
-                            &self.state,
-                            process,
-                            lib,
-                            name,
-                        ),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, res);
-                }
-                Opcode::FFIPointerRead => {
-                    let reg = instruction.arg(0);
-                    let ptr = context.get_register(instruction.arg(1));
-                    let kind = context.get_register(instruction.arg(2));
-                    let offset = context.get_register(instruction.arg(3));
-                    let res = ffi::ffi_pointer_read(
-                        &self.state,
-                        process,
-                        ptr,
-                        kind,
-                        offset,
-                    )?;
-
-                    context.set_register(reg, res);
-                }
-                Opcode::FFIPointerWrite => {
-                    let reg = instruction.arg(0);
-                    let ptr = context.get_register(instruction.arg(1));
-                    let kind = context.get_register(instruction.arg(2));
-                    let val = context.get_register(instruction.arg(3));
-                    let offset = context.get_register(instruction.arg(4));
-                    let res = ffi::ffi_pointer_write(ptr, kind, val, offset)?;
-
-                    context.set_register(reg, res);
-                }
-                Opcode::FFIPointerFromAddress => {
-                    let reg = instruction.arg(0);
-                    let addr = context.get_register(instruction.arg(1));
-                    let res = ffi::ffi_pointer_from_address(
-                        &self.state,
-                        process,
-                        addr,
-                    )?;
-
-                    context.set_register(reg, res);
-                }
-                Opcode::FFIPointerAddress => {
-                    let reg = instruction.arg(0);
-                    let ptr = context.get_register(instruction.arg(1));
-                    let res =
-                        ffi::ffi_pointer_address(&self.state, process, ptr)?;
-
-                    context.set_register(reg, res);
-                }
-                Opcode::FFITypeSize => {
-                    let reg = instruction.arg(0);
-                    let kind = context.get_register(instruction.arg(1));
-                    let res = ffi::ffi_type_size(kind)?;
-
-                    context.set_register(reg, res);
-                }
-                Opcode::FFITypeAlignment => {
-                    let reg = instruction.arg(0);
-                    let kind = context.get_register(instruction.arg(1));
-                    let res = ffi::ffi_type_alignment(kind)?;
-
-                    context.set_register(reg, res);
-                }
                 Opcode::StringToInteger => {
                     let reg = instruction.arg(0);
                     let val = context.get_register(instruction.arg(1));
@@ -1889,272 +1362,6 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let val = context.get_register(instruction.arg(1));
                     let res = float::float_to_bits(&self.state, process, val)?;
-
-                    context.set_register(reg, res);
-                }
-                Opcode::SocketCreate => {
-                    let reg = instruction.arg(0);
-                    let domain = context.get_register(instruction.arg(1));
-                    let kind = context.get_register(instruction.arg(2));
-                    let res = try_io_error!(
-                        socket::socket_create(
-                            &self.state,
-                            process,
-                            domain,
-                            kind
-                        ),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, res);
-                }
-                Opcode::SocketWrite => {
-                    let reg = instruction.arg(0);
-                    let sock = context.get_register(instruction.arg(1));
-                    let data = context.get_register(instruction.arg(2));
-                    let res = try_io_error!(
-                        socket::socket_write(&self.state, process, sock, data),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, res);
-                }
-                Opcode::SocketRead => {
-                    let reg = instruction.arg(0);
-                    let sock = context.get_register(instruction.arg(1));
-                    let buff = context.get_register(instruction.arg(2));
-                    let len = context.get_register(instruction.arg(3));
-                    let res = try_io_error!(
-                        socket::socket_read(
-                            &self.state,
-                            process,
-                            sock,
-                            buff,
-                            len
-                        ),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, res);
-                }
-                Opcode::SocketAccept => {
-                    let reg = instruction.arg(0);
-                    let sock = context.get_register(instruction.arg(1));
-                    let res = try_io_error!(
-                        socket::socket_accept(&self.state, process, sock),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, res);
-                }
-                Opcode::SocketReceiveFrom => {
-                    let reg = instruction.arg(0);
-                    let sock = context.get_register(instruction.arg(1));
-                    let buff = context.get_register(instruction.arg(2));
-                    let len = context.get_register(instruction.arg(3));
-                    let res = try_io_error!(
-                        socket::socket_receive_from(
-                            &self.state,
-                            process,
-                            sock,
-                            buff,
-                            len
-                        ),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, res);
-                }
-                Opcode::SocketSendTo => {
-                    let reg = instruction.arg(0);
-                    let sock = context.get_register(instruction.arg(1));
-                    let buff = context.get_register(instruction.arg(2));
-                    let addr = context.get_register(instruction.arg(3));
-                    let port = context.get_register(instruction.arg(4));
-                    let res = try_io_error!(
-                        socket::socket_send_to(
-                            &self.state,
-                            process,
-                            sock,
-                            buff,
-                            addr,
-                            port
-                        ),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, res);
-                }
-                Opcode::SocketAddress => {
-                    let reg = instruction.arg(0);
-                    let sock = context.get_register(instruction.arg(1));
-                    let kind = context.get_register(instruction.arg(2));
-                    let res = try_io_error!(
-                        socket::socket_address(
-                            &self.state,
-                            process,
-                            sock,
-                            kind
-                        ),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, res);
-                }
-                Opcode::SocketGetOption => {
-                    let reg = instruction.arg(0);
-                    let sock = context.get_register(instruction.arg(1));
-                    let opt = context.get_register(instruction.arg(2));
-                    let res = try_io_error!(
-                        socket::socket_get_option(
-                            &self.state,
-                            process,
-                            sock,
-                            opt
-                        ),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, res);
-                }
-                Opcode::SocketSetOption => {
-                    let reg = instruction.arg(0);
-                    let sock = context.get_register(instruction.arg(1));
-                    let opt = context.get_register(instruction.arg(2));
-                    let val = context.get_register(instruction.arg(3));
-                    let res = try_io_error!(
-                        socket::socket_set_option(&self.state, sock, opt, val),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, res);
-                }
-                Opcode::SocketBind => {
-                    let sock = context.get_register(instruction.arg(0));
-                    let addr = context.get_register(instruction.arg(1));
-                    let port = context.get_register(instruction.arg(2));
-
-                    try_io_error!(
-                        socket::socket_bind(
-                            &self.state,
-                            process,
-                            sock,
-                            addr,
-                            port
-                        ),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-                }
-                Opcode::SocketListen => {
-                    let reg = instruction.arg(0);
-                    let sock = context.get_register(instruction.arg(1));
-                    let backlog = context.get_register(instruction.arg(2));
-                    let res = try_io_error!(
-                        socket::socket_listen(sock, backlog),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, res);
-                }
-                Opcode::SocketConnect => {
-                    let sock = context.get_register(instruction.arg(0));
-                    let addr = context.get_register(instruction.arg(1));
-                    let port = context.get_register(instruction.arg(2));
-
-                    try_io_error!(
-                        socket::socket_connect(
-                            &self.state,
-                            process,
-                            sock,
-                            addr,
-                            port
-                        ),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-                }
-                Opcode::SocketShutdown => {
-                    let sock = context.get_register(instruction.arg(0));
-                    let mode = context.get_register(instruction.arg(1));
-
-                    try_io_error!(
-                        socket::socket_shutdown(sock, mode),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-                }
-                Opcode::RandomNumber => {
-                    let reg = instruction.arg(0);
-                    let kind = context.get_register(instruction.arg(1));
-                    let res = random::random_number(
-                        &self.state,
-                        process,
-                        worker,
-                        kind,
-                    )?;
-
-                    context.set_register(reg, res);
-                }
-                Opcode::RandomRange => {
-                    let reg = instruction.arg(0);
-                    let min = context.get_register(instruction.arg(1));
-                    let max = context.get_register(instruction.arg(2));
-                    let res = random::random_range(
-                        &self.state,
-                        process,
-                        worker,
-                        min,
-                        max,
-                    )?;
-
-                    context.set_register(reg, res);
-                }
-                Opcode::RandomBytes => {
-                    let reg = instruction.arg(0);
-                    let size = context.get_register(instruction.arg(1));
-                    let res = random::random_bytes(
-                        &self.state,
-                        process,
-                        worker,
-                        size,
-                    )?;
 
                     context.set_register(reg, res);
                 }
@@ -2213,6 +1420,38 @@ impl Machine {
                         context,
                         index
                     );
+
+                    context.set_register(reg, res);
+                }
+                Opcode::ExternalFunctionCall => {
+                    let reg = instruction.arg(0);
+                    let func = context.get_register(instruction.arg(1));
+                    let start = instruction.arg(2);
+                    let len = instruction.arg(3);
+                    let res = try_io_error!(
+                        external_functions::external_function_call(
+                            &self.state,
+                            process,
+                            context,
+                            func,
+                            start,
+                            len
+                        ),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
+
+                    context.set_register(reg, res);
+                }
+                Opcode::ExternalFunctionLoad => {
+                    let reg = instruction.arg(0);
+                    let name = context.get_register(instruction.arg(1));
+                    let res = external_functions::external_function_load(
+                        &self.state,
+                        name,
+                    )?;
 
                     context.set_register(reg, res);
                 }

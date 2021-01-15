@@ -22,7 +22,7 @@ module Inkoc
       attr_accessor :prototype, :captures, :last_argument_is_rest, :throw_type,
                     :return_type, :type_parameter_instances, :infer_return_type,
                     :infer_throw_type, :block_type, :self_type, :yield_type,
-                    :yields, :ignore_return, :arguments
+                    :yields, :ignore_return, :arguments, :extern
 
       def self.closure(prototype, return_type: nil)
         new(

@@ -3,9 +3,12 @@ import std::debug
 import std::float::(NAN, INFINITY, NEGATIVE_INFINITY)
 import std::format::(Format, Formatter)
 import std::format::DefaultFormatter
-import std::fs
 import std::mirror
-import std::mirror::*
+import std::mirror::(
+  ArrayMirror, BlockMirror, BooleanMirror, ByteArrayMirror, FloatMirror,
+  IntegerMirror, MapMirror, Mirror, Mirrored, ModuleMirror, NilMirror,
+  ObjectMirror, OptionMirror, PairMirror, SetMirror, StringMirror, TripleMirror
+)
 import std::operators::Equal
 import std::pair::(Triple, Pair)
 import std::set::Set
@@ -352,7 +355,7 @@ test.group('std::mirror::ModuleMirror.source_path') do (g) {
     let mirror = ModuleMirror.new(ThisModule)
 
     assert.equal(mirror.source_path, CURRENT_FILE)
-    assert.true(fs.file?(mirror.source_path))
+    assert.true(mirror.source_path.file?)
   }
 }
 

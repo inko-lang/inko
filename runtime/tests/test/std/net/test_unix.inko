@@ -248,13 +248,27 @@ os.unix?.if_true {
     }
   }
 
-  test.group('std::net::unix::Socket.send_to') do (g) {
-    g.test('Sending a message to a specific address') {
+  test.group('std::net::unix::Socket.send_string_to') do (g) {
+    g.test('Sending a String to a specific address') {
       with_path do (path) {
         let socket = try! Socket.new(DGRAM)
 
         try! socket.bind(path)
-        try! socket.send_to(message: 'ping', address: path)
+        try! socket.send_string_to('ping', path)
+
+        assert.equal(try! socket.read_string(size: 4), 'ping')
+      }
+    }
+  }
+
+  test.group('std::net::unix::Socket.send_bytes_to') do (g) {
+    g.test('Sending a ByteArray to a specific address') {
+      with_path do (path) {
+        let socket = try! Socket.new(DGRAM)
+        let bytes = 'ping'.to_byte_array
+
+        try! socket.bind(path)
+        try! socket.send_bytes_to(bytes, path)
 
         assert.equal(try! socket.read_string(size: 4), 'ping')
       }
@@ -269,7 +283,7 @@ os.unix?.if_true {
 
         try! listener.bind(path1)
         try! client.bind(path2)
-        try! client.send_to(message: 'ping', address: path1)
+        try! client.send_string_to('ping', path1)
 
         let bytes = ByteArray.new
         let sender = try! listener.receive_from(bytes: bytes, size: 4)
@@ -331,7 +345,7 @@ os.unix?.if_true {
         let bytes = ByteArray.new
 
         try! socket.bind(path)
-        try! socket.send_to(message: 'ping', address: path)
+        try! socket.send_string_to('ping', path)
 
         let read = try! socket.read_bytes(bytes: bytes, size: 4)
 
@@ -519,7 +533,7 @@ os.unix?.if_true {
       with_path do (path) {
         let socket = try! UnixDatagram.new(path)
 
-        try! socket.send_to(message: 'ping', address: path)
+        try! socket.send_string_to('ping', path)
 
         assert.equal(try! socket.read_string(size: 4), 'ping')
       }
@@ -532,7 +546,7 @@ os.unix?.if_true {
         let listener = try! UnixDatagram.new(path1)
         let client = try! UnixDatagram.new(path2)
 
-        try! client.send_to(message: 'ping', address: path1)
+        try! client.send_string_to('ping', path1)
 
         let bytes = ByteArray.new
         let sender = try! listener.receive_from(bytes: bytes, size: 4)
@@ -560,7 +574,7 @@ os.unix?.if_true {
         let socket = try! UnixDatagram.new(path)
         let bytes = ByteArray.new
 
-        try! socket.send_to(message: 'ping', address: path)
+        try! socket.send_string_to('ping', path)
 
         let read = try! socket.read_bytes(bytes: bytes, size: 4)
 

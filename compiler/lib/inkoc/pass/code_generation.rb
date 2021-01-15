@@ -205,6 +205,17 @@ module Inkoc
           .instruct(:RunBlock, [block, start, amount], tir_ins.location)
       end
 
+      def on_external_function_call(tir_ins, compiled_code, *)
+        reg = tir_ins.register.id
+        func = tir_ins.function.id
+        start = tir_ins.start.id
+        amount = tir_ins.amount
+
+        compiled_code.instruct(
+          :ExternalFunctionCall, [reg, func, start, amount], tir_ins.location
+        )
+      end
+
       def on_run_block_with_receiver(tir_ins, compiled_code, *)
         block = tir_ins.block.id
         rec = tir_ins.receiver.id

@@ -105,6 +105,14 @@ let OBJECT_NAME_ATTRIBUTE = '@_object_name'
 # The name of the attribute that stores all the implemented traits.
 let IMPLEMENTED_TRAITS_ATTRIBUTE = '@_implemented_traits'
 
+extern def block_name(block: Block) -> String
+extern def block_file(block: Block) -> String
+extern def block_line(block: Block) -> Integer
+extern def block_arguments(block: Block) -> Array!(String)
+extern def block_required_arguments(block: Block) -> Integer
+extern def module_name(module: Module) -> String
+extern def module_source_path(module: Module) -> String
+
 # An object for reflecting upon another object.
 trait Mirror: Format {
   # Returns the object reflected upon.
@@ -422,9 +430,7 @@ class BlockMirror {
   #
   #     mirror.path # => Path
   def path -> Path {
-    let path_str = _INKOC.block_metadata(@subject, 1) as String
-
-    Path.new(path_str)
+    Path.new(block_file(@subject))
   }
 
   # Returns the line number the block is defined on.
@@ -440,7 +446,7 @@ class BlockMirror {
   #
   #     mirror.line # => 3
   def line -> Integer {
-    _INKOC.block_metadata(@subject, 2) as Integer
+    block_line(@subject)
   }
 
   # Returns the argument names of the block.
@@ -456,7 +462,7 @@ class BlockMirror {
   #
   #     mirror.argument_names # => Array.new('@subject', 'number')
   def argument_names -> Array!(String) {
-    _INKOC.block_metadata(@subject, 3) as Array!(String)
+    block_arguments(@subject)
   }
 
   # Returns the number of required arguments.
@@ -472,7 +478,7 @@ class BlockMirror {
   #
   #     mirror.required_arguments # => 2
   def required_arguments -> Integer {
-    _INKOC.block_metadata(@subject, 4) as Integer
+    block_required_arguments(@subject)
   }
 
   # Returns the name of the block.
@@ -488,7 +494,7 @@ class BlockMirror {
   #
   #     mirror.name # => 'example'
   def name -> String {
-    _INKOC.block_metadata(@subject, 0) as String
+    block_name(@subject)
   }
 }
 
@@ -515,12 +521,12 @@ class ModuleMirror {
 
   # Returns the name of the module.
   def name -> String {
-    _INKOC.module_info(@subject, 0)
+    module_name(@subject)
   }
 
   # Returns the path of the source file that defined the module.
   def source_path -> Path {
-    Path.new(_INKOC.module_info(@subject, 1))
+    Path.new(module_source_path(@subject))
   }
 }
 

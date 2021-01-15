@@ -4252,6 +4252,17 @@ test.group('std::compiler::types::ModuleType.lookup_method') do (g) {
     assert.same_object(mod.lookup_method(method.name).get.type, method)
     assert.true(mod.lookup_method('baz').none?)
   }
+
+  g.test('Looking up an external function') {
+    let mod = new_module
+    let method = MethodType
+      .new(name: 'foo', layout: BlockLayout.new(NeverType.new), external: True)
+
+    mod.define_method(name: method.name, type: method)
+
+    assert.same_object(mod.lookup_method(method.name).get.type, method)
+    assert.true(mod.methods.get(method.name).none?)
+  }
 }
 
 test.group('std::compiler::types::ModuleType.type_compatible?') do (g) {

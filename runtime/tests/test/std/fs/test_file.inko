@@ -1,6 +1,5 @@
 import std::conversion::ToString
 import std::env
-import std::fs
 import std::fs::file::(self, ReadOnlyFile, ReadWriteFile, Remove, WriteOnlyFile)
 import std::fs::path::(SEPARATOR)
 import std::io::Close
@@ -13,9 +12,7 @@ import test::fixtures::(self, VALID_FILE)
 def read_string(path: ToString) -> String {
   let file = try! ReadOnlyFile.new(path)
 
-  process.defer {
-    file.close
-  }
+  process.defer { file.close }
 
   try! file.read_string
 }
@@ -29,32 +26,23 @@ def close_and_remove_file!(T: Close + Remove)(file: T) {
 }
 
 def read_only_file(block: do (ReadOnlyFile), path: ToString = VALID_FILE) {
-  let file = try! ::file.read_only(path)
+  let file = try! ReadOnlyFile.new(path)
 
-  process.defer {
-    file.close
-  }
-
+  process.defer { file.close }
   block.call(file)
 }
 
 def write_only_file(block: do (WriteOnlyFile)) {
-  let file = try! ::file.write_only(fixtures.temporary_file_path)
+  let file = try! WriteOnlyFile.new(fixtures.temporary_file_path)
 
-  process.defer {
-    close_and_remove_file(file)
-  }
-
+  process.defer { close_and_remove_file(file) }
   block.call(file)
 }
 
 def read_write_file(block: do (ReadWriteFile)) {
-  let file = try! ::file.read_write(fixtures.temporary_file_path)
+  let file = try! ReadWriteFile.new(fixtures.temporary_file_path)
 
-  process.defer {
-    close_and_remove_file(file)
-  }
-
+  process.defer { close_and_remove_file(file) }
   block.call(file)
 }
 
@@ -193,7 +181,19 @@ test.group('std::fs::file::ReadOnlyFile.close') do (g) {
 test.group('std::fs::file::WriteOnlyFile.new') do (g) {
   g.test('Opening a file in write-only mode') {
     assert.no_panic {
-      write_only_file do (_) {}
+      let file = try! WriteOnlyFile.new(fixtures.temporary_file_path)
+
+      process.defer { close_and_remove_file(file) }
+    }
+  }
+}
+
+test.group('std::fs::file::WriteOnlyFile.append') do (g) {
+  g.test('Opening a file in append-only mode') {
+    assert.no_panic {
+      let file = try! WriteOnlyFile.append(fixtures.temporary_file_path)
+
+      process.defer { close_and_remove_file(file) }
     }
   }
 }
@@ -211,8 +211,7 @@ test.group('std::fs::file::WriteOnlyFile.write_bytes') do (g) {
     write_only_file do (file) {
       try! file.write_bytes(ByteArray.new(105, 110))
 
-      let append = try! WriteOnlyFile
-        .new(path: fixtures.temporary_file_path, append: True)
+      let append = try! WriteOnlyFile.append(fixtures.temporary_file_path)
 
       process.defer {
         close_and_remove_file(append)
@@ -315,7 +314,7 @@ test.group('std::fs::file::WriteOnlyFile.remove') do (g) {
     write_only_file do (file) {
       try! file.remove
 
-      assert.false(fs.exists?(file.path))
+      assert.false(file.path.exists?)
     }
   }
 
@@ -332,7 +331,19 @@ test.group('std::fs::file::WriteOnlyFile.remove') do (g) {
 test.group('std::fs::file::ReadWriteFile.new') do (g) {
   g.test('Opening a file in read-write mode') {
     assert.no_panic {
-      read_write_file do (_) {}
+      let file = try! ReadWriteFile.new(fixtures.temporary_file_path)
+
+      process.defer { close_and_remove_file(file) }
+    }
+  }
+}
+
+test.group('std::fs::file::ReadWriteFile.append') do (g) {
+  g.test('Opening a file in read-append mode') {
+    assert.no_panic {
+      let file = try! ReadWriteFile.append(fixtures.temporary_file_path)
+
+      process.defer { close_and_remove_file(file) }
     }
   }
 }
@@ -456,7 +467,7 @@ test.group('std::fs::file::ReadWriteFile.remove') do (g) {
     read_write_file do (file) {
       try! file.remove
 
-      assert.false(fs.exists?(file.path))
+      assert.false(file.path.exists?)
     }
   }
 
@@ -475,7 +486,7 @@ test.group('std::fs::file.remove') do (g) {
     write_only_file do (f) {
       try! file.remove(f.path)
 
-      assert.false(fs.exists?(f.path))
+      assert.false(f.path.exists?)
     }
   }
 
@@ -489,7 +500,8 @@ test.group('std::fs::file.remove') do (g) {
 test.group('std::fs::file.copy') do (g) {
   g.test('Copying an existing file') {
     write_only_file do (f) {
-      let new_path = f.path.to_string + process.current.identifier.to_string
+      let new_path =
+        `{f.path.to_string}{process.current.identifier.to_string}`.to_path
 
       process.defer {
         try file.remove(new_path) else Nil
@@ -497,8 +509,8 @@ test.group('std::fs::file.copy') do (g) {
 
       try! file.copy(f.path, new_path)
 
-      assert.true(fs.exists?(f.path))
-      assert.true(fs.exists?(new_path))
+      assert.true(f.path.exists?)
+      assert.true(new_path.exists?)
     }
   }
 

@@ -99,6 +99,10 @@ test.group('std::compiler::lexer::Keywords.keyword?') do (g) {
     assert.true(Keywords.new.keyword?('local'.to_byte_array))
   }
 
+  g.test('Checking if "extern" is a keyword') {
+    assert.true(Keywords.new.keyword?('extern'.to_byte_array))
+  }
+
   g.test('Checking if an invalid identifier is a keyword') {
     let keywords = Keywords.new
 

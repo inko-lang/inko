@@ -15,14 +15,17 @@
 import std::conversion::ToString
 import std::io::Write
 import std::os::NEWLINE
-import std::process
+import std::process::(blocking)
+
+extern def stderr_write_string(input: String) !! String -> Integer
+extern def stderr_write_bytes(input: ByteArray) !! String -> Integer
+extern def stderr_flush !! String
 
 impl Write for ThisModule {
-  # Writes a `ByteArray` to STDERR, returning the number of bytes written.
+  # Writes a `ByteArray` of bytes to STDERR, returning the number of bytes
+  # written.
   def write_bytes(bytes: ByteArray) -> Integer {
-    process.blocking {
-      try _INKOC.stderr_write(bytes) else 0
-    }
+    blocking { try stderr_write_bytes(bytes) else 0 }
   }
 
   # Writes a `ToString` to STDERR, returning the number of bytes written.
@@ -35,9 +38,7 @@ impl Write for ThisModule {
   #
   #     stderr.write_string('hello') # => 5
   def write_string(data: ToString) -> Integer {
-    process.blocking {
-      try _INKOC.stderr_write(data.to_string) else 0
-    }
+    blocking { try stderr_write_string(data.to_string) else 0 }
   }
 
   # Writes the given string-like object to STDERR, followed by a newline.
@@ -57,16 +58,14 @@ impl Write for ThisModule {
   #
   #     stderr.print
   def print(data: ToString = '') -> Integer {
-    process.blocking {
-      let written = try _INKOC.stderr_write(data.to_string) else return 0
+    blocking {
+      let written = try stderr_write_string(data.to_string) else return 0
 
-      written + try _INKOC.stderr_write(NEWLINE) else 0
+      written + try stderr_write_string(NEWLINE) else 0
     }
   }
 
   def flush {
-    process.blocking {
-      try _INKOC.stderr_flush else Nil
-    }
+    blocking { try stderr_flush else Nil }
   }
 }
