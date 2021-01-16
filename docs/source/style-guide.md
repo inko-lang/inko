@@ -351,24 +351,29 @@ foo
 
 ## Keyword arguments
 
-When passing a single argument, prefer the use of positional arguments:
+The use of keyword arguments is recommended whenever this enhances the
+readability of code. Take the following code for example:
 
 ```inko
-# Good
-Array.new(10, 20, 30).remove_at(0)
-
-# Also fine, though a bit redundant.
-Array.new(10, 20, 30).remove_at(index: 0)
+'hello'.slice(0, 2)
 ```
 
-When passing multiple arguments, use keyword arguments:
+Looking at this code, it's not clear what the values `0` and `2` are used for.
+Using keyword arguments this becomes obvious:
 
 ```inko
-# Good
 'hello'.slice(start: 0, length: 2)
+```
 
-# Bad: we have no idea what our arguments mean.
-'hello'.slice(0, 2)
+When passing variables with the same name as the arguments, you can leave out
+keyword arguments:
+
+```inko
+# This is redundant.
+'hello'.slice(start: start, length: length)
+
+# This is fine.
+'hello'.slice(start, length)
 ```
 
 A method may define a single rest argument: an argument that stores any
@@ -382,18 +387,6 @@ Array.new(values: 10, values: 20, values: 30)
 # Instead you must take this approach:
 Array.new(10, 20, 30)
 ```
-
-When passing one argument in parentheses, and a block outside the parentheses,
-omit the use of keyword arguments:
-
-```inko
-test.group('This is the description of the group') do (g) {
-
-}
-```
-
-If using keyword arguments makes the code easier to read, favour the use of
-keyword arguments, even if this would clash with the above guidelines.
 
 ## Comments
 
