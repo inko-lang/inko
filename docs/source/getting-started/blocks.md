@@ -311,3 +311,25 @@ def example !! Integer -> String {}
 do !! Integer -> String {}
 fn !! Integer -> String {}
 ```
+
+## External functions
+
+The standard library makes use of functions defined in the VM, which we call
+"external functions". The use of these functions allows implementing logic in
+the VM, without having to change the compiler whenever changing these functions.
+
+External functions are defined using `extern def`. For example, here's how the
+external function for writing a String to STDOUT is defined:
+
+```inko
+extern def stdout_write_string(input: String) !! String -> Integer
+```
+
+Once defined, these functions can be called like a regular method:
+
+```inko
+try! stdout_write_string('hello')
+```
+
+Unlike methods, external functions can't be imported from a module, nor do they
+support the use of a receiver.
