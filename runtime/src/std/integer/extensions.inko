@@ -6,6 +6,8 @@ import std::process::(panic)
 import std::range::(Range, ToRange)
 import std::string_buffer::StringBuffer
 
+extern def string_to_integer(string: String, radix: Integer) -> Integer
+
 impl Integer {
   # Parses an `Integer` from a `String` in a given base.
   #
@@ -46,7 +48,7 @@ impl Integer {
   #     try! Integer.parse('F', 16) # => 15
   static def parse(string: String, radix = 10) !! StandardError -> Integer {
     try {
-      _INKOC.string_to_integer(string, radix)
+      string_to_integer(string, radix)
     } else (error) {
       throw StandardError.new(error as String)
     }

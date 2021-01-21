@@ -992,14 +992,6 @@ module Inkoc
         result
       end
 
-      def on_raw_integer_to_string(node, body)
-        raw_unary_instruction(:IntegerToString, node, body)
-      end
-
-      def on_raw_integer_to_float(node, body)
-        raw_unary_instruction(:IntegerToFloat, node, body)
-      end
-
       def on_raw_integer_add(node, body)
         raw_binary_instruction(:IntegerAdd, node, body)
       end
@@ -1060,14 +1052,6 @@ module Inkoc
         raw_binary_instruction(:IntegerSmallerOrEqual, node, body)
       end
 
-      def on_raw_float_to_string(node, body)
-        raw_unary_instruction(:FloatToString, node, body)
-      end
-
-      def on_raw_float_to_integer(node, body)
-        raw_unary_instruction(:FloatToInteger, node, body)
-      end
-
       def on_raw_float_add(node, body)
         raw_binary_instruction(:FloatAdd, node, body)
       end
@@ -1106,26 +1090,6 @@ module Inkoc
 
       def on_raw_float_smaller_or_equal(node, body)
         raw_binary_instruction(:FloatSmallerOrEqual, node, body)
-      end
-
-      def on_raw_float_is_nan(node, body)
-        raw_unary_instruction(:FloatIsNan, node, body)
-      end
-
-      def on_raw_float_is_infinite(node, body)
-        raw_unary_instruction(:FloatIsInfinite, node, body)
-      end
-
-      def on_raw_float_ceil(node, body)
-        raw_unary_instruction(:FloatCeil, node, body)
-      end
-
-      def on_raw_float_floor(node, body)
-        raw_unary_instruction(:FloatFloor, node, body)
-      end
-
-      def on_raw_float_round(node, body)
-        raw_binary_instruction(:FloatRound, node, body)
       end
 
       def on_raw_get_true(node, body)
@@ -1202,26 +1166,8 @@ module Inkoc
         body.instruct(:ArraySet, register, array_reg, index_reg, vreg, loc)
       end
 
-      def on_raw_array_clear(node, body)
-        reg = process_node(node.arguments.fetch(0), body)
-
-        body.instruct(:Nullary, :ArrayClear, reg, node.location)
-      end
-
       def on_raw_array_remove(node, body)
         raw_binary_instruction(:ArrayRemove, node, body)
-      end
-
-      def on_raw_string_to_upper(node, body)
-        raw_unary_instruction(:StringToUpper, node, body)
-      end
-
-      def on_raw_string_to_lower(node, body)
-        raw_unary_instruction(:StringToLower, node, body)
-      end
-
-      def on_raw_string_to_byte_array(node, body)
-        raw_unary_instruction(:StringToByteArray, node, body)
       end
 
       def on_raw_string_size(node, body)
@@ -1241,10 +1187,6 @@ module Inkoc
         arg = process_node(node.arguments.fetch(1), body)
 
         string_concat([rec, arg], body, node.location)
-      end
-
-      def on_raw_string_slice(node, body)
-        raw_ternary_instruction(:StringSlice, node, body)
       end
 
       def on_raw_string_byte(node, body)
@@ -1286,10 +1228,6 @@ module Inkoc
         raw_unary_instruction(:GetPrototype, node, body)
       end
 
-      def on_raw_get_attribute_names(node, body)
-        raw_unary_instruction(:GetAttributeNames, node, body)
-      end
-
       def on_raw_attribute_exists(node, body)
         raw_binary_instruction(:AttributeExists, node, body)
       end
@@ -1319,14 +1257,6 @@ module Inkoc
         body.instruct(:Exit, status, node.location)
       end
 
-      def on_raw_string_format_debug(node, body)
-        raw_unary_instruction(:StringFormatDebug, node, body)
-      end
-
-      def on_raw_string_concat_array(node, body)
-        raw_unary_instruction(:StringConcatArray, node, body)
-      end
-
       def on_raw_byte_array_from_array(node, body)
         raw_unary_instruction(:ByteArrayFromArray, node, body)
       end
@@ -1347,18 +1277,8 @@ module Inkoc
         raw_unary_instruction(:ByteArrayLength, node, body)
       end
 
-      def on_raw_byte_array_clear(node, body)
-        reg = process_node(node.arguments.fetch(0), body)
-
-        body.instruct(:Nullary, :ByteArrayClear, reg, node.location)
-      end
-
       def on_raw_byte_array_equals(node, body)
         raw_binary_instruction(:ByteArrayEquals, node, body)
-      end
-
-      def on_raw_byte_array_to_string(node, body)
-        raw_binary_instruction(:ByteArrayToString, node, body)
       end
 
       def on_raw_get_boolean_prototype(node, body)
@@ -1457,18 +1377,6 @@ module Inkoc
 
       def on_raw_process_identifier(node, body)
         raw_unary_instruction(:ProcessIdentifier, node, body)
-      end
-
-      def on_raw_string_to_integer(node, body)
-        raw_binary_instruction(:StringToInteger, node, body)
-      end
-
-      def on_raw_string_to_float(node, body)
-        raw_unary_instruction(:StringToFloat, node, body)
-      end
-
-      def on_raw_float_to_bits(node, body)
-        raw_unary_instruction(:FloatToBits, node, body)
       end
 
       def on_raw_if(node, body)

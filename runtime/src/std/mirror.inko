@@ -112,6 +112,8 @@ extern def block_arguments(block: Block) -> Array!(String)
 extern def block_required_arguments(block: Block) -> Integer
 extern def module_name(module: Module) -> String
 extern def module_source_path(module: Module) -> String
+extern def object_attribute_names(object: Any) -> Array!(Any)
+extern def string_format_debug(string: String) -> String
 
 # An object for reflecting upon another object.
 trait Mirror: Format {
@@ -194,7 +196,7 @@ trait Mirror: Format {
   #
   #     mirror.attributes # => Array.new('@name')
   def attributes -> Array!(String) {
-    _INKOC.get_attribute_names(subject) as Array!(String)
+    object_attribute_names(subject) as Array!(String)
   }
 
   # Returns `True` if the subject is an instance of the given object.
@@ -282,7 +284,7 @@ trait Mirror: Format {
 
     _INKOC.object_equals(impl_set, Nil).if_true { return Array.new }
 
-    _INKOC.get_attribute_names(impl_set) as Array!(Trait)
+    object_attribute_names(impl_set) as Array!(Trait)
   }
 
   # Returns the names of all instance attributes defined directly on the
@@ -831,7 +833,7 @@ class StringMirror {
 
 impl Format for StringMirror {
   def format!(F: Formatter)(formatter: F) -> F {
-    formatter.push(_INKOC.string_format_debug(@subject))
+    formatter.push(string_format_debug(@subject))
     formatter
   }
 }

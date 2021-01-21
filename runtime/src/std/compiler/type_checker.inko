@@ -599,7 +599,6 @@ trait ExpressionTypePass: TypePass {
     let rtype = match(name) {
       'set_attribute' -> { AnyType.new }
       'get_attribute' -> { AnyType.new }
-      'get_attribute_names' -> { any_type_array }
       'get_true' -> { builtins.true_singleton }
       'get_false' -> { builtins.false_singleton }
       'get_nil' -> { builtins.nil_singleton }
@@ -628,8 +627,6 @@ trait ExpressionTypePass: TypePass {
       'object_equals' -> { builtins.boolean_type.new_instance }
       'copy_blocks' -> { NeverType.new }
       'run_block' -> { AnyType.new }
-      'integer_to_string' -> { builtins.string_type.new_instance }
-      'integer_to_float' -> { builtins.float_type.new_instance }
       'integer_add' -> { builtins.integer_type.new_instance }
       'integer_div' -> { builtins.integer_type.new_instance }
       'integer_mul' -> { builtins.integer_type.new_instance }
@@ -645,8 +642,6 @@ trait ExpressionTypePass: TypePass {
       'integer_equals' -> { builtins.boolean_type.new_instance }
       'integer_greater_or_equal' -> { builtins.boolean_type.new_instance }
       'integer_smaller_or_equal' -> { builtins.boolean_type.new_instance }
-      'float_to_string' -> { builtins.string_type.new_instance }
-      'float_to_integer' -> { builtins.integer_type.new_instance }
       'float_add' -> { builtins.float_type.new_instance }
       'float_div' -> { builtins.float_type.new_instance }
       'float_mul' -> { builtins.float_type.new_instance }
@@ -657,30 +652,15 @@ trait ExpressionTypePass: TypePass {
       'float_equals' -> { builtins.boolean_type.new_instance }
       'float_greater_or_equal' -> { builtins.boolean_type.new_instance }
       'float_smaller_or_equal' -> { builtins.boolean_type.new_instance }
-      'float_is_nan' -> { builtins.boolean_type.new_instance }
-      'float_is_infinite' -> { builtins.boolean_type.new_instance }
-      'float_ceil' -> { builtins.float_type.new_instance }
-      'float_floor' -> { builtins.float_type.new_instance }
-      'float_round' -> { builtins.float_type.new_instance }
-      'float_to_bits' -> { builtins.integer_type.new_instance }
       'array_length' -> { builtins.integer_type.new_instance }
       'array_at' -> { AnyType.new }
       'array_set' -> { AnyType.new }
-      'array_clear' -> { NeverType.new }
       'array_remove' -> { AnyType.new }
-      'string_to_upper' -> { builtins.string_type.new_instance }
-      'string_to_lower' -> { builtins.string_type.new_instance }
-      'string_to_byte_array' -> { builtins.byte_array_type.new_instance }
       'string_size' -> { builtins.integer_type.new_instance }
       'string_length' -> { builtins.integer_type.new_instance }
       'string_equals' -> { builtins.boolean_type.new_instance }
       'string_concat' -> { builtins.string_type.new_instance }
-      'string_slice' -> { builtins.string_type.new_instance }
       'string_byte' -> { builtins.integer_type.new_instance }
-      'string_format_debug' -> { builtins.string_type.new_instance }
-      'string_concat_array' -> { builtins.string_type.new_instance }
-      'string_to_integer' -> { builtins.integer_type.new_instance }
-      'string_to_float' -> { builtins.float_type.new_instance }
       'process_spawn' -> { builtins.process_type.new_instance }
       'process_send_message' -> { AnyType.new }
       'process_receive_message' -> { AnyType.new }
@@ -701,7 +681,6 @@ trait ExpressionTypePass: TypePass {
       'byte_array_at' -> { builtins.integer_type.new_instance }
       'byte_array_remove' -> { builtins.integer_type.new_instance }
       'byte_array_length' -> { builtins.integer_type.new_instance }
-      'byte_array_clear' -> { NeverType.new }
       'byte_array_equals' -> { builtins.boolean_type.new_instance }
       'byte_array_to_string' -> { builtins.string_type.new_instance }
       'set_object_name' -> { builtins.string_type.new_instance }

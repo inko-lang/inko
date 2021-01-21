@@ -159,17 +159,6 @@ pub fn attribute_exists(
 }
 
 #[inline(always)]
-pub fn get_attribute_names(
-    state: &RcState,
-    process: &RcProcess,
-    rec_ptr: ObjectPointer,
-) -> ObjectPointer {
-    let attributes = rec_ptr.attribute_names();
-
-    process.allocate(object_value::array(attributes), state.array_prototype)
-}
-
-#[inline(always)]
 pub fn copy_blocks(
     state: &RcState,
     target_ptr: ObjectPointer,

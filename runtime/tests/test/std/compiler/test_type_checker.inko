@@ -6850,36 +6850,6 @@ test.group('Type-checking VM instructions') do (g) {
     assert_instance_of(node.resolved_type.get, NeverType)
   }
 
-  g.test('Using integer_to_string()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.integer_to_string(10)')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.string_type
-    )
-  }
-
-  g.test('Using integer_to_float()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.integer_to_float(10)')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.float_type
-    )
-  }
-
   g.test('Using integer_add()') {
     let module = new_std_module('foo')
     let type_checker = TypeChecker.new
@@ -7105,36 +7075,6 @@ test.group('Type-checking VM instructions') do (g) {
     )
   }
 
-  g.test('Using float_to_string()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.float_to_string(10.5)')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.string_type
-    )
-  }
-
-  g.test('Using float_to_integer()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.float_to_integer(10.5)')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.integer_type
-    )
-  }
-
   g.test('Using float_add()') {
     let module = new_std_module('foo')
     let type_checker = TypeChecker.new
@@ -7282,81 +7222,6 @@ test.group('Type-checking VM instructions') do (g) {
     assert_object_instance(
       node.resolved_type.get,
       type_checker.builtins.boolean_type
-    )
-  }
-
-  g.test('Using float_is_nan()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.float_is_nan(10.5)')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.boolean_type
-    )
-  }
-
-  g.test('Using float_is_infinite()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.float_is_infinite(10.5)')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.boolean_type
-    )
-  }
-
-  g.test('Using float_ceil()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.float_ceil(10.5)')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.float_type
-    )
-  }
-
-  g.test('Using float_floor()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.float_floor(10.5)')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.float_type
-    )
-  }
-
-  g.test('Using float_round()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.float_round(10.5)')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.float_type
     )
   }
 
@@ -7539,20 +7404,6 @@ test.group('Type-checking VM instructions') do (g) {
     assert_instance_of(node.resolved_type.get, AnyType)
   }
 
-  g.test('Using array_clear()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.array_clear(array)')
-    let node = body.children[0]
-    let array = type_checker.builtins.array_type.new_instance
-
-    body.variable_scope.symbols.define(name: 'array', type: array)
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_instance_of(node.resolved_type.get, NeverType)
-  }
-
   g.test('Using array_remove()') {
     let module = new_std_module('foo')
     let type_checker = TypeChecker.new
@@ -7563,51 +7414,6 @@ test.group('Type-checking VM instructions') do (g) {
 
     assert.false(type_checker.diagnostics.errors?)
     assert_instance_of(node.resolved_type.get, AnyType)
-  }
-
-  g.test('Using string_to_upper()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.string_to_upper("foo")')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.string_type
-    )
-  }
-
-  g.test('Using string_to_lower()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.string_to_lower("foo")')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.string_type
-    )
-  }
-
-  g.test('Using string_to_byte_array()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.string_to_byte_array("foo")')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.byte_array_type
-    )
   }
 
   g.test('Using string_size()') {
@@ -7659,21 +7465,6 @@ test.group('Type-checking VM instructions') do (g) {
     let module = new_std_module('foo')
     let type_checker = TypeChecker.new
     let body = parse('_INKOC.string_concat("foo", "foo")')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.string_type
-    )
-  }
-
-  g.test('Using string_slice()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.string_slice("foo", 0, 1)')
     let node = body.children[0]
 
     type_checker.check_module(module: module, ast: body)
@@ -7786,23 +7577,6 @@ test.group('Type-checking VM instructions') do (g) {
     assert_instance_of(node.resolved_type.get, AnyType)
   }
 
-  g.test('Using get_attribute_names()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.get_attribute_names')
-    let array_type = type_checker.builtins.array_type
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    let type = node.resolved_type.get
-    let param = array_type.lookup_type_parameter(ARRAY_TYPE_PARAMETER).get.type
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(type, array_type)
-    assert_instance_of(type.lookup_type_parameter_type(param).get, AnyType)
-  }
-
   g.test('Using close()') {
     let module = new_std_module('foo')
     let type_checker = TypeChecker.new
@@ -7852,36 +7626,6 @@ test.group('Type-checking VM instructions') do (g) {
 
     assert.false(type_checker.diagnostics.errors?)
     assert_instance_of(node.resolved_type.get, NeverType)
-  }
-
-  g.test('Using string_format_debug()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.string_format_debug("foo")')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.string_type
-    )
-  }
-
-  g.test('Using string_concat_array()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.string_concat_array')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.string_type
-    )
   }
 
   g.test('Using byte_array_from_array()') {
@@ -7957,18 +7701,6 @@ test.group('Type-checking VM instructions') do (g) {
       node.resolved_type.get,
       type_checker.builtins.integer_type
     )
-  }
-
-  g.test('Using byte_array_clear()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.byte_array_clear')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_instance_of(node.resolved_type.get, NeverType)
   }
 
   g.test('Using byte_array_equals()') {
@@ -8245,51 +7977,6 @@ test.group('Type-checking VM instructions') do (g) {
     let module = new_std_module('foo')
     let type_checker = TypeChecker.new
     let body = parse('_INKOC.process_identifier')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.integer_type
-    )
-  }
-
-  g.test('Using string_to_integer()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.string_to_integer')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.integer_type
-    )
-  }
-
-  g.test('Using string_to_float()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.string_to_float')
-    let node = body.children[0]
-
-    type_checker.check_module(module: module, ast: body)
-
-    assert.false(type_checker.diagnostics.errors?)
-    assert_object_instance(
-      node.resolved_type.get,
-      type_checker.builtins.float_type
-    )
-  }
-
-  g.test('Using float_to_bits()') {
-    let module = new_std_module('foo')
-    let type_checker = TypeChecker.new
-    let body = parse('_INKOC.float_to_bits')
     let node = body.children[0]
 
     type_checker.check_module(module: module, ast: body)

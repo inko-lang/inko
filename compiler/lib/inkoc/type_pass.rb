@@ -229,14 +229,6 @@ module Inkoc
       TypeSystem::Never.new
     end
 
-    def on_raw_integer_to_string(*)
-      typedb.string_type.new_instance
-    end
-
-    def on_raw_integer_to_float(*)
-      typedb.float_type.new_instance
-    end
-
     def on_raw_integer_add(*)
       typedb.integer_type.new_instance
     end
@@ -297,14 +289,6 @@ module Inkoc
       typedb.boolean_type.new_instance
     end
 
-    def on_raw_float_to_string(*)
-      typedb.string_type.new_instance
-    end
-
-    def on_raw_float_to_integer(*)
-      typedb.integer_type.new_instance
-    end
-
     def on_raw_float_add(*)
       typedb.float_type.new_instance
     end
@@ -343,26 +327,6 @@ module Inkoc
 
     def on_raw_float_smaller_or_equal(*)
       typedb.boolean_type.new_instance
-    end
-
-    def on_raw_float_is_nan(*)
-      typedb.boolean_type.new_instance
-    end
-
-    def on_raw_float_is_infinite(*)
-      typedb.boolean_type.new_instance
-    end
-
-    def on_raw_float_ceil(*)
-      typedb.float_type.new_instance
-    end
-
-    def on_raw_float_floor(*)
-      typedb.float_type.new_instance
-    end
-
-    def on_raw_float_round(*)
-      typedb.float_type.new_instance
     end
 
     def on_raw_get_true(*)
@@ -469,24 +433,8 @@ module Inkoc
       TypeSystem::Any.new
     end
 
-    def on_raw_array_clear(*)
-      TypeSystem::Never.new
-    end
-
     def on_raw_array_remove(node, _)
       TypeSystem::Any.new
-    end
-
-    def on_raw_string_to_upper(*)
-      typedb.string_type.new_instance
-    end
-
-    def on_raw_string_to_lower(*)
-      typedb.string_type.new_instance
-    end
-
-    def on_raw_string_to_byte_array(*)
-      typedb.byte_array_type.new_instance
     end
 
     def on_raw_string_size(*)
@@ -502,10 +450,6 @@ module Inkoc
     end
 
     def on_raw_string_concat(*)
-      typedb.string_type.new_instance
-    end
-
-    def on_raw_string_slice(*)
       typedb.string_type.new_instance
     end
 
@@ -541,10 +485,6 @@ module Inkoc
       new_object_type
     end
 
-    def on_raw_get_attribute_names(*)
-      new_object_type
-    end
-
     def on_raw_attribute_exists(*)
       typedb.boolean_type.new_instance
     end
@@ -563,14 +503,6 @@ module Inkoc
 
     def on_raw_exit(*)
       TypeSystem::Never.new
-    end
-
-    def on_raw_string_format_debug(*)
-      typedb.string_type.new_instance
-    end
-
-    def on_raw_string_concat_array(*)
-      typedb.string_type.new_instance
     end
 
     def on_raw_byte_array_from_array(*)
@@ -593,16 +525,8 @@ module Inkoc
       typedb.integer_type.new_instance
     end
 
-    def on_raw_byte_array_clear(*)
-      TypeSystem::Never.new
-    end
-
     def on_raw_byte_array_equals(*)
       typedb.boolean_type.new_instance
-    end
-
-    def on_raw_byte_array_to_string(*)
-      typedb.string_type.new_instance
     end
 
     def on_raw_get_boolean_prototype(*)
@@ -638,18 +562,6 @@ module Inkoc
     end
 
     def on_raw_process_identifier(*)
-      typedb.integer_type.new_instance
-    end
-
-    def on_raw_string_to_integer(*)
-      typedb.integer_type.new_instance
-    end
-
-    def on_raw_string_to_float(*)
-      typedb.float_type.new_instance
-    end
-
-    def on_raw_float_to_bits(*)
       typedb.integer_type.new_instance
     end
 

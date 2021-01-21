@@ -1,5 +1,4 @@
 //! VM functions for working with Inko byte arrays.
-use crate::immutable_string::ImmutableString;
 use crate::object_pointer::ObjectPointer;
 use crate::object_value;
 use crate::process::RcProcess;
@@ -94,13 +93,6 @@ pub fn byte_array_length(
 }
 
 #[inline(always)]
-pub fn byte_array_clear(array_ptr: ObjectPointer) -> Result<(), String> {
-    array_ptr.byte_array_value_mut()?.clear();
-
-    Ok(())
-}
-
-#[inline(always)]
 pub fn byte_array_equals(
     state: &RcState,
     compare_ptr: ObjectPointer,
@@ -115,29 +107,6 @@ pub fn byte_array_equals(
     };
 
     Ok(result)
-}
-
-#[inline(always)]
-pub fn byte_array_to_string(
-    state: &RcState,
-    process: &RcProcess,
-    array_ptr: ObjectPointer,
-    drain_ptr: ObjectPointer,
-) -> Result<ObjectPointer, String> {
-    let input_bytes = array_ptr.byte_array_value_mut()?;
-
-    let string_bytes = if drain_ptr == state.true_object {
-        input_bytes.drain(0..).collect()
-    } else {
-        input_bytes.clone()
-    };
-
-    let string = ImmutableString::from_utf8(string_bytes);
-
-    Ok(process.allocate(
-        object_value::immutable_string(string),
-        state.string_prototype,
-    ))
 }
 
 fn integer_to_byte(pointer: ObjectPointer) -> Result<u8, String> {

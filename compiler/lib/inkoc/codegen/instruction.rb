@@ -10,20 +10,17 @@ module Inkoc
         AllocatePermanent
         ArrayAllocate
         ArrayAt
-        ArrayClear
         ArrayLength
         ArrayRemove
         ArraySet
         AttributeExists
         BlockGetReceiver
         ByteArrayAt
-        ByteArrayClear
         ByteArrayEquals
         ByteArrayFromArray
         ByteArrayLength
         ByteArrayRemove
         ByteArraySet
-        ByteArrayToString
         Close
         CopyBlocks
         CopyRegister
@@ -31,30 +28,21 @@ module Inkoc
         ExternalFunctionCall
         ExternalFunctionLoad
         FloatAdd
-        FloatCeil
         FloatDiv
         FloatEquals
-        FloatFloor
         FloatGreater
         FloatGreaterOrEqual
-        FloatIsInfinite
-        FloatIsNan
         FloatMod
         FloatMul
-        FloatRound
         FloatSmaller
         FloatSmallerOrEqual
         FloatSub
-        FloatToBits
-        FloatToInteger
-        FloatToString
         GeneratorAllocate
         GeneratorResume
         GeneratorValue
         GeneratorYield
         GetAttribute
         GetAttributeInSelf
-        GetAttributeNames
         GetBuiltinPrototype
         GetFalse
         GetGlobal
@@ -81,8 +69,6 @@ module Inkoc
         IntegerSmaller
         IntegerSmallerOrEqual
         IntegerSub
-        IntegerToFloat
-        IntegerToString
         LocalExists
         ModuleGet
         ModuleLoad
@@ -113,17 +99,9 @@ module Inkoc
         SetParentLocal
         StringByte
         StringConcat
-        StringConcatArray
         StringEquals
-        StringFormatDebug
         StringLength
         StringSize
-        StringSlice
-        StringToByteArray
-        StringToFloat
-        StringToInteger
-        StringToLower
-        StringToUpper
         TailCall
         Throw
       ]

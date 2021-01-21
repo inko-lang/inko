@@ -19,16 +19,22 @@ macro_rules! register {
     }
 }
 
+mod array;
 mod blocks;
+mod byte_array;
 mod env;
 mod ffi;
+mod float;
 mod fs;
 mod hasher;
+mod integer;
 mod modules;
+mod object;
 mod process;
 mod random;
 mod socket;
 mod stdio;
+mod string;
 mod time;
 
 /// A external function that can be called from Inko source code.
@@ -60,6 +66,12 @@ impl ExternalFunctions {
         modules::setup(&mut instance)?;
         socket::setup(&mut instance)?;
         process::setup(&mut instance)?;
+        array::setup(&mut instance)?;
+        byte_array::setup(&mut instance)?;
+        float::setup(&mut instance)?;
+        object::setup(&mut instance)?;
+        integer::setup(&mut instance)?;
+        string::setup(&mut instance)?;
 
         Ok(instance)
     }

@@ -2,6 +2,8 @@
 import std::conversion::ToString
 import std::length::Length
 
+extern def string_concat_array(strings: Array!(String)) -> String
+
 # A buffer for efficiently concatenating `String` objects together.
 #
 # When concatenating multiple `String` objects together, intermediate `String`
@@ -108,7 +110,7 @@ impl ToString for StringBuffer {
   #
   #     buffer.to_string # => 'hello world'
   def to_string -> String {
-    _INKOC.string_concat_array(@strings)
+    string_concat_array(@strings)
   }
 }
 

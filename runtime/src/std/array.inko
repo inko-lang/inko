@@ -21,6 +21,8 @@ import std::loop::(repeat, while)
 import std::operators::Equal
 import std::option::Option
 
+extern def array_clear(array: Array!(Any))
+
 impl Array {
   # Returns a new Array containing the given values.
   #
@@ -71,7 +73,7 @@ impl Array {
   #     array.clear
   #     array.empty? # => True
   def clear {
-    _INKOC.array_clear(self)
+    array_clear(self)
   }
 
   # Pushes a value to the back of the Array, returning the pushed value.

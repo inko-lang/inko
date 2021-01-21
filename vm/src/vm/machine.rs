@@ -20,7 +20,6 @@ use crate::vm::instructions::external_functions;
 use crate::vm::instructions::float;
 use crate::vm::instructions::general;
 use crate::vm::instructions::generator;
-use crate::vm::instructions::integer;
 use crate::vm::instructions::module;
 use crate::vm::instructions::object;
 use crate::vm::instructions::process;
@@ -526,22 +525,6 @@ impl Machine {
                         overflowing_modulo
                     );
                 }
-                Opcode::IntegerToFloat => {
-                    let reg = instruction.arg(0);
-                    let val = context.get_register(instruction.arg(1));
-                    let res =
-                        integer::integer_to_float(&self.state, process, val)?;
-
-                    context.set_register(reg, res);
-                }
-                Opcode::IntegerToString => {
-                    let reg = instruction.arg(0);
-                    let val = context.get_register(instruction.arg(1));
-                    let res =
-                        integer::integer_to_string(&self.state, process, val)?;
-
-                    context.set_register(reg, res);
-                }
                 Opcode::IntegerBitwiseAnd => {
                     integer_op!(
                         process,
@@ -619,22 +602,6 @@ impl Machine {
                 Opcode::FloatMod => {
                     float_op!(self.state, process, context, instruction, %);
                 }
-                Opcode::FloatToInteger => {
-                    let reg = instruction.arg(0);
-                    let val = context.get_register(instruction.arg(1));
-                    let res =
-                        float::float_to_integer(&self.state, process, val)?;
-
-                    context.set_register(reg, res);
-                }
-                Opcode::FloatToString => {
-                    let reg = instruction.arg(0);
-                    let val = context.get_register(instruction.arg(1));
-                    let res =
-                        float::float_to_string(&self.state, process, val)?;
-
-                    context.set_register(reg, res);
-                }
                 Opcode::FloatSmaller => {
                     float_bool_op!(self.state, context, instruction, <);
                 }
@@ -705,44 +672,12 @@ impl Machine {
 
                     context.set_register(reg, res);
                 }
-                Opcode::ArrayClear => {
-                    let ary = context.get_register(instruction.arg(0));
-
-                    array::clear(ary)?;
-                }
-                Opcode::StringToLower => {
-                    let reg = instruction.arg(0);
-                    let val = context.get_register(instruction.arg(1));
-                    let res =
-                        string::string_to_lower(&self.state, process, val)?;
-
-                    context.set_register(reg, res);
-                }
-                Opcode::StringToUpper => {
-                    let reg = instruction.arg(0);
-                    let val = context.get_register(instruction.arg(1));
-                    let res =
-                        string::string_to_upper(&self.state, process, val)?;
-
-                    context.set_register(reg, res);
-                }
                 Opcode::StringEquals => {
                     let reg = instruction.arg(0);
                     let cmp = context.get_register(instruction.arg(1));
                     let cmp_with = context.get_register(instruction.arg(2));
                     let res =
                         string::string_equals(&self.state, cmp, cmp_with)?;
-
-                    context.set_register(reg, res);
-                }
-                Opcode::StringToByteArray => {
-                    let reg = instruction.arg(0);
-                    let val = context.get_register(instruction.arg(1));
-                    let res = string::string_to_byte_array(
-                        &self.state,
-                        process,
-                        val,
-                    )?;
 
                     context.set_register(reg, res);
                 }
@@ -937,14 +872,6 @@ impl Machine {
 
                     context.set_register(reg, res);
                 }
-                Opcode::GetAttributeNames => {
-                    let reg = instruction.arg(0);
-                    let rec = context.get_register(instruction.arg(1));
-                    let res =
-                        object::get_attribute_names(&self.state, process, rec);
-
-                    context.set_register(reg, res);
-                }
                 Opcode::RunBlock => {
                     let block = context.get_register(instruction.arg(0));
                     let start = instruction.arg(1);
@@ -1009,43 +936,6 @@ impl Machine {
                         context,
                         index
                     );
-                }
-                Opcode::FloatIsNan => {
-                    let reg = instruction.arg(0);
-                    let ptr = context.get_register(instruction.arg(1));
-                    let res = float::float_is_nan(&self.state, ptr);
-
-                    context.set_register(reg, res);
-                }
-                Opcode::FloatIsInfinite => {
-                    let reg = instruction.arg(0);
-                    let ptr = context.get_register(instruction.arg(1));
-                    let res = float::float_is_infinite(&self.state, ptr);
-
-                    context.set_register(reg, res);
-                }
-                Opcode::FloatFloor => {
-                    let reg = instruction.arg(0);
-                    let ptr = context.get_register(instruction.arg(1));
-                    let res = float::float_floor(&self.state, process, ptr)?;
-
-                    context.set_register(reg, res);
-                }
-                Opcode::FloatCeil => {
-                    let reg = instruction.arg(0);
-                    let ptr = context.get_register(instruction.arg(1));
-                    let res = float::float_ceil(&self.state, process, ptr)?;
-
-                    context.set_register(reg, res);
-                }
-                Opcode::FloatRound => {
-                    let reg = instruction.arg(0);
-                    let ptr = context.get_register(instruction.arg(1));
-                    let prec = context.get_register(instruction.arg(2));
-                    let res =
-                        float::float_round(&self.state, process, ptr, prec)?;
-
-                    context.set_register(reg, res);
                 }
                 Opcode::Close => {
                     let ptr = context.get_register(instruction.arg(0));
@@ -1116,43 +1006,6 @@ impl Machine {
                 Opcode::ProcessTerminateCurrent => {
                     break 'exec_loop;
                 }
-                Opcode::StringSlice => {
-                    let reg = instruction.arg(0);
-                    let string = context.get_register(instruction.arg(1));
-                    let start = context.get_register(instruction.arg(2));
-                    let len = context.get_register(instruction.arg(3));
-                    let res = string::string_slice(
-                        &self.state,
-                        process,
-                        string,
-                        start,
-                        len,
-                    )?;
-
-                    context.set_register(reg, res);
-                }
-                Opcode::StringFormatDebug => {
-                    let reg = instruction.arg(0);
-                    let string = context.get_register(instruction.arg(1));
-                    let res = string::string_format_debug(
-                        &self.state,
-                        process,
-                        string,
-                    )?;
-
-                    context.set_register(reg, res);
-                }
-                Opcode::StringConcatArray => {
-                    let reg = instruction.arg(0);
-                    let strings = context.get_register(instruction.arg(1));
-                    let res = string::string_concat_array(
-                        &self.state,
-                        process,
-                        strings,
-                    )?;
-
-                    context.set_register(reg, res);
-                }
                 Opcode::ByteArrayFromArray => {
                     let reg = instruction.arg(0);
                     let ary = context.get_register(instruction.arg(1));
@@ -1218,11 +1071,6 @@ impl Machine {
 
                     context.set_register(reg, res);
                 }
-                Opcode::ByteArrayClear => {
-                    let array = context.get_register(instruction.arg(0));
-
-                    byte_array::byte_array_clear(array)?;
-                }
                 Opcode::ByteArrayEquals => {
                     let reg = instruction.arg(0);
                     let cmp = context.get_register(instruction.arg(1));
@@ -1231,19 +1079,6 @@ impl Machine {
                         &self.state,
                         cmp,
                         cmp_with,
-                    )?;
-
-                    context.set_register(reg, res);
-                }
-                Opcode::ByteArrayToString => {
-                    let reg = instruction.arg(0);
-                    let ary = context.get_register(instruction.arg(1));
-                    let drain = context.get_register(instruction.arg(2));
-                    let res = byte_array::byte_array_to_string(
-                        &self.state,
-                        process,
-                        ary,
-                        drain,
                     )?;
 
                     context.set_register(reg, res);
@@ -1318,50 +1153,11 @@ impl Machine {
 
                     context.set_register(reg, res);
                 }
-                Opcode::StringToInteger => {
-                    let reg = instruction.arg(0);
-                    let val = context.get_register(instruction.arg(1));
-                    let rdx = context.get_register(instruction.arg(2));
-                    let res = try_error!(
-                        string::string_to_integer(
-                            &self.state,
-                            process,
-                            val,
-                            rdx
-                        ),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, res);
-                }
-                Opcode::StringToFloat => {
-                    let reg = instruction.arg(0);
-                    let val = context.get_register(instruction.arg(1));
-                    let res = try_error!(
-                        string::string_to_float(&self.state, process, val),
-                        self,
-                        process,
-                        context,
-                        index
-                    );
-
-                    context.set_register(reg, res);
-                }
                 Opcode::StringByte => {
                     let reg = instruction.arg(0);
                     let val = context.get_register(instruction.arg(1));
                     let idx = context.get_register(instruction.arg(2));
                     let res = string::string_byte(val, idx)?;
-
-                    context.set_register(reg, res);
-                }
-                Opcode::FloatToBits => {
-                    let reg = instruction.arg(0);
-                    let val = context.get_register(instruction.arg(1));
-                    let res = float::float_to_bits(&self.state, process, val)?;
 
                     context.set_register(reg, res);
                 }

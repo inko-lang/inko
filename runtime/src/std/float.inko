@@ -9,6 +9,15 @@ import std::operators::*
 let INFINITY_LABEL = 'Infinity'
 let NEGATIVE_INFINITY_LABEL = '-Infinity'
 
+extern def float_ceil(float: Float) -> Float
+extern def float_floor(float: Float) -> Float
+extern def float_round(float: Float, decimals: Integer) -> Float
+extern def float_to_bits(float: Float) -> Integer
+extern def float_to_integer(float: Float) -> Integer
+extern def float_to_string(float: Float) -> String
+extern def float_is_nan(float: Float) -> Boolean
+extern def float_is_infinite(float: Float) -> Boolean
+
 impl Add!(Self) for Float {
   def +(other: Self) -> Self {
     _INKOC.float_add(self, other)
@@ -118,7 +127,7 @@ impl Float {
   #     0.0 / 0.0
   #       .not_a_number? # => True
   def not_a_number? -> Boolean {
-    _INKOC.float_is_nan(self)
+    float_is_nan(self)
   }
 
   # Returns `True` if `self` is an infinite number.
@@ -134,7 +143,7 @@ impl Float {
   #     10.0 / 0.0
   #       .infinite? # => True
   def infinite? -> Boolean {
-    _INKOC.float_is_infinite(self)
+    float_is_infinite(self)
   }
 
   # Returns `True` if `self` is neither infinite nor `NAN`.
@@ -172,7 +181,7 @@ impl Float {
   #
   #     NAN.floor.not_a_number? # => True
   def floor -> Float {
-    _INKOC.float_floor(self)
+    float_floor(self)
   }
 
   # Returns the smallest number greater than or equal to `self`.
@@ -189,7 +198,7 @@ impl Float {
   #
   #     NAN.ceil.not_a_number? # => True
   def ceil -> Float {
-    _INKOC.float_ceil(self)
+    float_ceil(self)
   }
 
   # Rounds `self` to the nearest number.
@@ -218,7 +227,7 @@ impl Float {
   #
   #     NAN.round.not_a_number? # => True
   def round(decimals = 0) -> Float {
-    _INKOC.float_round(self, decimals)
+    float_round(self, decimals)
   }
 
   # Returns the fractional part of this float.
@@ -243,7 +252,7 @@ impl Float {
   #
   #     1.0.to_bits # => 4607182418800017408
   def to_bits -> Integer {
-    _INKOC.float_to_bits(self)
+    float_to_bits(self)
   }
 }
 
@@ -253,7 +262,7 @@ impl ToInteger for Float {
   # The `Float` will be rounded towards zero. Converting a `NAN`, `INFINITY`,
   # or `NEGATIVE_INFINITY` to an `Integer` will result in a panic.
   def to_integer -> Integer {
-    _INKOC.float_to_integer(self)
+    float_to_integer(self)
   }
 }
 
@@ -295,8 +304,7 @@ impl ToString for Float {
     }
 
     not_a_number?.if_true { return 'NaN' }
-
-    _INKOC.float_to_string(self)
+    float_to_string(self)
   }
 }
 

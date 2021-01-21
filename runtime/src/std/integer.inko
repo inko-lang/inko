@@ -5,6 +5,9 @@ import std::numeric::Numeric
 import std::operators::*
 import std::successor::Successor
 
+extern def integer_to_string(integer: Integer) -> String
+extern def integer_to_float(integer: Integer) -> Float
+
 impl ToInteger for Integer {
   def to_integer -> Integer {
     self
@@ -13,13 +16,13 @@ impl ToInteger for Integer {
 
 impl ToFloat for Integer {
   def to_float -> Float {
-    _INKOC.integer_to_float(self)
+    integer_to_float(self)
   }
 }
 
 impl ToString for Integer {
   def to_string -> String {
-    _INKOC.integer_to_string(self)
+    integer_to_string(self)
   }
 }
 

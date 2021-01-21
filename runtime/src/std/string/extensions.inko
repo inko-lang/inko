@@ -5,6 +5,8 @@ import std::conversion::(ToFloat, ToInteger)
 import std::loop::(while)
 import std::process::(panic)
 
+extern def string_to_byte_array(string: String) -> ByteArray
+
 # Returns `True` if a string separator starts at the given byte position.
 #
 # The `string` argument is the `String` to split, using the separator (as a
@@ -29,7 +31,7 @@ def split_at?(
 impl ToByteArray for String {
   # Returns a `ByteArray` containing the bytes of this `String`.
   def to_byte_array -> ByteArray {
-    _INKOC.string_to_byte_array(self) as ByteArray
+    string_to_byte_array(self) as ByteArray
   }
 }
 

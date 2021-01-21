@@ -7,6 +7,10 @@ import std::hash::Hash
 import std::length::Length
 import std::operators::(Add, Equal, Match)
 
+extern def string_to_lower(string: String) -> String
+extern def string_to_upper(string: String) -> String
+extern def string_slice(string: String, start: Integer, size: Integer) -> String
+
 impl String {
   # Returns the uppercase equivalent of the current `String`.
   #
@@ -24,7 +28,7 @@ impl String {
   #
   #     'aä'.to_uppercase # => 'AÄ'
   def to_uppercase -> String {
-    _INKOC.string_to_upper(self)
+    string_to_upper(self)
   }
 
   # Returns the lowercase equivalent of the current `String`.
@@ -43,7 +47,7 @@ impl String {
   #
   #     'AÄ'.to_lowercase # => 'aä'
   def to_lowercase -> String {
-    _INKOC.string_to_lower(self)
+    string_to_lower(self)
   }
 
   # Returns the size of the `String` in bytes.
@@ -100,7 +104,7 @@ impl String {
       _INKOC.panic('The slice length must be zero or greater')
     }
 
-    _INKOC.string_slice(self, start, length)
+    string_slice(self, start, length)
   }
 
   # Returns `True` if `self` starts with the given `String`.
@@ -114,7 +118,7 @@ impl String {
   def starts_with?(prefix: String) -> Boolean {
     (prefix.length > length).if_true { return False }
 
-    slice(0, prefix.length) == prefix
+    slice(start: 0, length: prefix.length) == prefix
   }
 
   # Returns `True` if `self` ends with the given `String`.

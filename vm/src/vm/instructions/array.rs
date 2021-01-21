@@ -94,9 +94,3 @@ pub fn array_length(
 
     Ok(process.allocate_usize(vector.len(), state.integer_prototype))
 }
-
-#[inline(always)]
-pub fn clear(array_ptr: ObjectPointer) -> Result<(), String> {
-    array_ptr.array_value_mut()?.clear();
-    Ok(())
-}

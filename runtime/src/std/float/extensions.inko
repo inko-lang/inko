@@ -5,6 +5,8 @@ import std::float::(
   INFINITY, INFINITY_LABEL, NEGATIVE_INFINITY, NEGATIVE_INFINITY_LABEL
 )
 
+extern def string_to_float(string: String) -> Float
+
 impl Float {
   # Parses a `Float` from a `String`.
   #
@@ -32,7 +34,7 @@ impl Float {
     (string == NEGATIVE_INFINITY_LABEL).if_true { return NEGATIVE_INFINITY }
 
     try {
-      _INKOC.string_to_float(string)
+      string_to_float(string)
     } else (error) {
       throw StandardError.new(error as String)
     }

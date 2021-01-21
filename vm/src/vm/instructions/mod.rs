@@ -5,7 +5,6 @@ pub mod external_functions;
 pub mod float;
 pub mod general;
 pub mod generator;
-pub mod integer;
 pub mod module;
 pub mod object;
 pub mod process;

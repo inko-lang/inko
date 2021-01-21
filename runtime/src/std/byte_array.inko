@@ -17,6 +17,10 @@ import std::loop::(repeat, while)
 import std::operators::Equal
 import std::option::Option
 
+extern def byte_array_clear(bytes: ByteArray)
+extern def byte_array_to_string(bytes: ByteArray) -> String
+extern def byte_array_drain_to_string(bytes: ByteArray) -> String
+
 # A type that can be converted to a `ByteArray`.
 trait ToByteArray {
   # Converts `self` to a `ByteArray`.
@@ -75,9 +79,8 @@ impl ByteArray {
   #
   #     bytes.clear
   #     bytes.length # => 0
-  def clear -> Self {
-    _INKOC.byte_array_clear(self)
-    self
+  def clear {
+    byte_array_clear(self)
   }
 
   # Pushes a value to the back of the `ByteArray`, returning the pushed value.
@@ -204,7 +207,7 @@ impl ByteArray {
   #     bytes.drain_to_string # => 'inko'
   #     bytes.empty?          # => True
   def drain_to_string -> String {
-    _INKOC.byte_array_to_string(self, True)
+    byte_array_drain_to_string(self)
   }
 
   # Slices `self` into a new `ByteArray`.
@@ -313,7 +316,7 @@ impl ToString for ByteArray {
   #
   #     bytes.to_string # => 'inko'
   def to_string -> String {
-    _INKOC.byte_array_to_string(self, False)
+    byte_array_to_string(self)
   }
 }
 
