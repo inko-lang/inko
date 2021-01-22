@@ -101,6 +101,9 @@ pub trait CopyObject: Sized {
             ObjectValue::ExternalFunction(fun) => {
                 ObjectValue::ExternalFunction(fun)
             }
+            ObjectValue::Command(_) => {
+                return Err(RuntimeError::from("Commands can't be copied"));
+            }
         };
 
         let mut copy = if let Some(proto_ptr) = to_copy.prototype() {

@@ -1,10 +1,11 @@
 //! Functions for working with the standard input/output streams.
+use crate::external_functions::read_into;
 use crate::object_pointer::ObjectPointer;
 use crate::process::RcProcess;
 use crate::runtime_error::RuntimeError;
 use crate::vm::state::RcState;
+use std::io::Write;
 use std::io::{stderr, stdin, stdout};
-use std::io::{Read, Write};
 
 /// Writes a String to STDOUT.
 ///
@@ -98,13 +99,8 @@ pub fn stdin_read(
     arguments: &[ObjectPointer],
 ) -> Result<ObjectPointer, RuntimeError> {
     let buff = arguments[0].byte_array_value_mut()?;
-    let amount = arguments[1].u64_value()?;
-    let mut stream = stdin();
-    let result = if amount > 0 {
-        stream.take(amount).read_to_end(buff)?
-    } else {
-        stream.read_to_end(buff)?
-    };
+    let size = arguments[1].u64_value()?;
+    let result = read_into(&mut stdin(), buff, size)?;
 
     Ok(process.allocate_usize(result, state.integer_prototype))
 }

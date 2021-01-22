@@ -12,6 +12,7 @@ use std::i16;
 use std::i32;
 use std::i64;
 use std::i8;
+use std::process::Child;
 use std::ptr;
 use std::u16;
 use std::u32;
@@ -643,6 +644,8 @@ impl ObjectPointer {
         as_external_function,
         ExternalFunction
     );
+    def_value_getter!(command_value, get, as_command, &Child);
+    def_value_getter!(command_value_mut, get_mut, as_command_mut, &mut Child);
 
     /// Atomically loads the underlying pointer, returning a new ObjectPointer.
     pub fn atomic_load(&self) -> Self {

@@ -4,6 +4,7 @@ use crate::process::RcProcess;
 use crate::runtime_error::RuntimeError;
 use crate::vm::state::RcState;
 use ahash::AHashMap;
+use std::io::Read;
 
 /// Defines a setup() function that registers all the given external functions.
 macro_rules! register {
@@ -22,6 +23,7 @@ macro_rules! register {
 mod array;
 mod blocks;
 mod byte_array;
+mod child_process;
 mod env;
 mod ffi;
 mod float;
@@ -43,6 +45,21 @@ pub type ExternalFunction = fn(
     &RcProcess,
     &[ObjectPointer],
 ) -> Result<ObjectPointer, RuntimeError>;
+
+/// Reads a number of bytes from a buffer into a Vec.
+pub fn read_into<T: Read>(
+    stream: &mut T,
+    output: &mut Vec<u8>,
+    size: u64,
+) -> Result<usize, RuntimeError> {
+    let read = if size > 0 {
+        stream.take(size).read_to_end(output)?
+    } else {
+        stream.read_to_end(output)?
+    };
+
+    Ok(read)
+}
 
 /// A collection of external functions.
 pub struct ExternalFunctions {
@@ -72,6 +89,7 @@ impl ExternalFunctions {
         object::setup(&mut instance)?;
         integer::setup(&mut instance)?;
         string::setup(&mut instance)?;
+        child_process::setup(&mut instance)?;
 
         Ok(instance)
     }

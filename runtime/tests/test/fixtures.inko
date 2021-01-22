@@ -34,3 +34,16 @@ def temporary_file_path -> Path {
 
   Path.new(`{tmp}{SEPARATOR}inko-temporary-file-path-{id}`)
 }
+
+def inko_executable -> Path {
+  ModuleMirror
+    .new(ThisModule)
+    .source_path
+    .directory
+    .join('..')
+    .join('..')
+    .join('..')
+    .join('target')
+    .join('release')
+    .join('inko')
+}

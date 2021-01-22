@@ -1,6 +1,61 @@
-# Module for retrieving operating system related information.
+# Platform-independent operating system functionality.
+import std::conversion::ToString
+import std::io::(Close, Error, Read, Write)
+import std::map::Map
+import std::option::Option
+import std::process::(blocking)
+
+# A child OS process.
+let ChildProcess = _INKOC.get_child_process_prototype
+
+# A stream that should be redirected to the null device.
+let STREAM_NULL = 0
+
+# The stream inherits from the parent process.
+let STREAM_INHERIT = 1
+
+# The stream is piped to a separate buffer.
+let STREAM_PIPED = 2
 
 extern def env_platform_name -> String
+extern def child_process_spawn(
+  path: String,
+  arguments: Array!(String),
+  variables: Array!(String),
+  stdin: Integer,
+  stdout: Integer,
+  stderr: Integer,
+  directory: String
+) !! Integer -> ChildProcess
+
+extern def child_process_wait(process: ChildProcess) !! Integer -> Integer
+extern def child_process_try_wait(process: ChildProcess) !! Integer -> Integer
+extern def child_process_stdout_read(
+  process: ChildProcess,
+  bytes: ByteArray,
+  size: Integer
+) !! Integer -> Integer
+
+extern def child_process_stderr_read(
+  process: ChildProcess,
+  bytes: ByteArray,
+  size: Integer
+) !! Integer -> Integer
+
+extern def child_process_stdout_close(process: ChildProcess)
+extern def child_process_stderr_close(process: ChildProcess)
+extern def child_process_stdin_close(process: ChildProcess)
+extern def child_process_stdin_write_bytes(
+  process: ChildProcess,
+  bytes: ByteArray
+) !! Integer -> Integer
+
+extern def child_process_stdin_write_string(
+  process: ChildProcess,
+  string: String
+) !! Integer -> Integer
+
+extern def child_process_stdin_flush(process: ChildProcess) !! Integer
 
 # Returns a `String` describing the current platform.
 #
@@ -55,3 +110,436 @@ def mac? -> Boolean {
 
 # The newline separator to use on the current platform.
 let NEWLINE = windows?.if(true: { "\r\n" }, false: { "\n" })
+
+# A builder type for a `ChildProcess`.
+#
+# This type is used to define arguments, environment variables, what to do with
+# the standard input/output streams, etc.
+#
+# Once a command is prepared, you can spawn it using `Command.spawn`, returning
+# a `ChildProcess`.
+#
+# # Redirecting standard input/output streams
+#
+# By default STDIN, STDOUT, and STDERR are inherited. These streams can be
+# changed to being redirected to the null device, or to be piped to a buffer.
+# For example, to pipe STDOUT:
+#
+#     import std::os::Command
+#
+#     try! Command.new('ls').pipe_stdout.spawn
+#
+# We can also ignore a stream:
+#
+#     import std::os::Command
+#
+#     try! Command.new('ls').ignore_stderr.spawn
+#
+# # Waiting for the child process
+#
+# The method `Command.spawn` returns a `ChildProcess`. This object is used for
+# reading/writing the standard input/output streams, and to wait for the process
+# to terminate. Waiting for a process is done using `ChildProcess.wait`:
+#
+#     import std::os::Command
+#
+#     let child = try! Command.new('ls')
+#
+#     try! child.wait
+#
+# There's also `ChildProcess.try_wait`, which returns immediately if the process
+# is still running; instead of waiting for it to finish.
+#
+# The input and output streams are accessed using `ChildProcess.stdin`,
+# `ChildProcess.stdout`, and `ChildProcess.stderr`. For example, to read from
+# STDOUT:
+#
+#     import std::os::Command
+#     import std::stdio::stdout
+#
+#     let child = try! Command.new('ls')
+#
+#     try! child.wait
+#
+#     stdout.write_string(try! child.stdout.read_string)
+class Command {
+  # The program to spawn.
+  @program: String
+
+  # What to do with the STDIN stream.
+  @stdin: Integer
+
+  # What to do with the STDOUT stream.
+  @stdout: Integer
+
+  # What to do with the STDERR stream.
+  @stderr: Integer
+
+  # The arguments to pass to the command.
+  @arguments: Array!(String)
+
+  # The environment variables to pass to the command.
+  #
+  # The order in which variables are passed isn't guaranteed.
+  @variables: Map!(String, String)
+
+  # The working directory to use for the command.
+  @directory: ?String
+
+  # Creates a new `Command` that will run the given program.
+  #
+  # The program can either be the name (e.g. `ls`), or a path to the command
+  # (e.g. `/usr/bin/ls`). If just a name is given, the `PATH` variable is
+  # searched to find the path to the command.
+  #
+  # The input and output streams default to inheriting from their parent (= the
+  # current OS process).
+  #
+  # # Examples
+  #
+  # Using a command name:
+  #
+  #     import std::os::Command
+  #
+  #     Command.new('ls')
+  #
+  # Using a command path:
+  #
+  #     import std::os::Command
+  #
+  #     Command.new('/usr/bin/ls')
+  static def new(program: ToString) -> Self {
+    Self {
+      @program = program.to_string,
+      @stdin = STREAM_INHERIT,
+      @stdout = STREAM_INHERIT,
+      @stderr = STREAM_INHERIT,
+      @arguments = Array.new,
+      @variables = Map.new,
+      @directory = Option.none
+    }
+  }
+
+  # Returns the program to start.
+  def program -> String {
+    @program
+  }
+
+  # Adds a single argument to the command.
+  #
+  # # Examples
+  #
+  #     import std::os::Command
+  #
+  #     Command.new('ls').argument('/tmp')
+  def argument(value: String) -> Self {
+    @arguments.push(value)
+    self
+  }
+
+  # Adds multiple arguments to the command.
+  #
+  # # Examples
+  #
+  #     import std::os::Command
+  #
+  #     Command.new('ls').arguments(Array.new('/tmp', '/usr'))
+  def arguments(values: Array!(String)) -> Self {
+    @arguments.append(values)
+    self
+  }
+
+  # Returns the arguments added so far.
+  def current_arguments -> Array!(String) {
+    @arguments
+  }
+
+  # Adds or updates an environment variable to the command.
+  #
+  # # Examples
+  #
+  #     import std::os::Command
+  #
+  #     Command.new('env').variable(name: 'FOO', value: 'bar')
+  def variable(name: String, value: String) -> Self {
+    @variables[name] = value
+    self
+  }
+
+  # Adds or updates multiple environment variables to the command.
+  #
+  # # Examples
+  #
+  #     import std::os::Command
+  #
+  #     let vars = Map.new
+  #
+  #     vars['FOO'] = 'bar'
+  #
+  #     Command.new('env').variables(vars)
+  def variables(values: Map!(String, String)) -> Self {
+    values.each do (key, value) {
+      @variables[key] = value
+    }
+
+    self
+  }
+
+  # Returns the variables added so far.
+  def current_variables -> Map!(String, String) {
+    @variables
+  }
+
+  # Redirects STDIN to the null device.
+  def ignore_stdin -> Self {
+    @stdin = STREAM_NULL
+    self
+  }
+
+  # Redirects STDOUT to the null device.
+  def ignore_stdout -> Self {
+    @stdout = STREAM_NULL
+    self
+  }
+
+  # Redirects STDERR to the null device.
+  def ignore_stderr -> Self {
+    @stderr = STREAM_NULL
+    self
+  }
+
+  # Inherits STDIN from the parent process.
+  def inherit_stdin -> Self {
+    @stdin = STREAM_INHERIT
+    self
+  }
+
+  # Inherits STDOUT from the parent process.
+  def inherit_stdout -> Self {
+    @stdout = STREAM_INHERIT
+    self
+  }
+
+  # Inherits STDERR from the parent process.
+  def inherit_stderr -> Self {
+    @stderr = STREAM_INHERIT
+    self
+  }
+
+  # Pipes STDIN to a buffer.
+  def pipe_stdin -> Self {
+    @stdin = STREAM_PIPED
+    self
+  }
+
+  # Pipes STDOUT to a buffer.
+  def pipe_stdout -> Self {
+    @stdout = STREAM_PIPED
+    self
+  }
+
+  # Pipes STDERR to a buffer.
+  def pipe_stderr -> Self {
+    @stderr = STREAM_PIPED
+    self
+  }
+
+  # Spawns a child process that runs the command.
+  #
+  # This method throws if the process couldn't be spawned.
+  #
+  # # Examples
+  #
+  #     let child = try! Command.new('ls').spawn
+  #
+  #     try! child.wait
+  def spawn !! Error -> ChildProcess {
+    let vars = Array.new
+
+    @variables.each do (key, value) {
+      vars.push(key)
+      vars.push(value)
+    }
+
+    try {
+      child_process_spawn(
+        @program,
+        @arguments,
+        vars,
+        @stdin,
+        @stdout,
+        @stderr,
+        @directory.get_or('')
+      )
+    } else (code) {
+      throw Error.new(code)
+    }
+  }
+}
+
+# The status of a process after it terminated.
+class ExitStatus {
+  # The raw exit code.
+  @code: Integer
+
+  static def new(code: Integer) -> Self {
+    Self { @code = code }
+  }
+
+  # Returns the exit code.
+  #
+  # # Examples
+  #
+  #     import std::os::ExitStatus
+  #
+  #     ExitStatus.new(4).code # => 4
+  def code -> Integer {
+    @code
+  }
+
+  # Returns `True` if the status signals success.
+  #
+  # # Examples
+  #
+  #     import std::os::ExitStatus
+  #
+  #     ExitStatus.new(0).success? # => True
+  #     ExitStatus.new(1).success? # => False
+  def success? -> Boolean {
+    @code.zero?
+  }
+}
+
+# The standard input stream.
+class Stdin {
+  # The child process the stream is connected to.
+  @process: ChildProcess
+
+  static def new(process: ChildProcess) -> Self {
+    Self { @process = process }
+  }
+}
+
+impl Write for Stdin {
+  def write_bytes(bytes: ByteArray) !! Error -> Integer {
+    try {
+      child_process_stdin_write_bytes(@process, bytes)
+    } else (code) {
+      throw Error.new(code)
+    }
+  }
+
+  def write_string(string: ToString) !! Error -> Integer {
+    try {
+      child_process_stdin_write_string(@process, string.to_string)
+    } else (code) {
+      throw Error.new(code)
+    }
+  }
+
+  def flush !! Error {
+    try child_process_stdin_flush(@process) else (code) throw Error.new(code)
+  }
+}
+
+impl Close for Stdin {
+  def close {
+    child_process_stdin_close(@process)
+  }
+}
+
+# The standard output stream.
+class Stdout {
+  # The child process the stream is connected to.
+  @process: ChildProcess
+
+  static def new(process: ChildProcess) -> Self {
+    Self { @process = process }
+  }
+}
+
+impl Read for Stdout {
+  def read_bytes(bytes: ByteArray, size = 0) !! Error -> Integer {
+    blocking {
+      try {
+        child_process_stdout_read(@process, bytes, size)
+      } else (code) {
+        throw Error.new(code)
+      }
+    }
+  }
+}
+
+impl Close for Stdout {
+  def close {
+    child_process_stdout_close(@process)
+  }
+}
+
+# The standard error output stream.
+class Stderr {
+  # The child process the stream is connected to.
+  @process: ChildProcess
+
+  static def new(process: ChildProcess) -> Self {
+    Self { @process = process }
+  }
+}
+
+impl Read for Stderr {
+  def read_bytes(bytes: ByteArray, size = 0) !! Error -> Integer {
+    blocking {
+      try {
+        child_process_stderr_read(@process, bytes, size)
+      } else (code) {
+        throw Error.new(code)
+      }
+    }
+  }
+}
+
+impl Close for Stderr {
+  def close {
+    child_process_stderr_close(@process)
+  }
+}
+
+impl ChildProcess {
+  # Returns a handle to the standard output stream.
+  def stdout -> Stdout {
+    Stdout.new(self)
+  }
+
+  # Returns a handle to the standard error stream.
+  def stderr -> Stderr {
+    Stderr.new(self)
+  }
+
+  # Returns a handle to the standard input stream.
+  def stdin -> Stdin {
+    Stdin.new(self)
+  }
+
+  # Waits for the process to terminate.
+  #
+  # The STDIN stream is closed before waiting.
+  def wait !! Error -> ExitStatus {
+    let id = blocking {
+      try child_process_wait(self) else (code) throw Error.new(code)
+    }
+
+    ExitStatus.new(id)
+  }
+
+  # Returns the exit status without blocking.
+  #
+  # If the process is still running, a None is returned.
+  #
+  # This method doesn't close the STDIN stream before waiting.
+  def try_wait !! Error -> ?ExitStatus {
+    let id = try child_process_try_wait(self) else (code) throw Error.new(code)
+
+    (id == -1)
+      .if(true: { Option.none }, false: { Option.some(ExitStatus.new(id)) })
+  }
+}

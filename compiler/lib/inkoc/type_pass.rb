@@ -413,6 +413,10 @@ module Inkoc
       typedb.trait_type
     end
 
+    def on_raw_get_child_process_prototype(*)
+      typedb.child_process_type
+    end
+
     def on_raw_get_array_prototype(*)
       typedb.array_type
     end

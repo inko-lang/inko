@@ -4,8 +4,6 @@
 # reading from and writing to a file.
 import std::conversion::ToString
 import std::error::(Error as ErrorTrait)
-import std::os::NEWLINE
-import std::string
 
 let OTHER_ERROR = 0
 let NOT_FOUND = 1
@@ -148,11 +146,14 @@ trait Write {
   # Flushes any pending writes.
   def flush !! Error
 
-  # Writes the given `String` to the stream, followed by a line separator.
+  # Writes the given `String` to the stream, followed by a LINE FEED (`\n`)
+  # character.
+  #
+  # This method always uses `\n` as the newline separator.
   #
   # The return value is the number of bytes written to the stream.
   def print(data: ToString = '') !! Error -> Integer {
-    ( try write_string(data.to_string) ) + ( try write_string(NEWLINE) )
+    ( try write_string(data.to_string) ) + ( try write_string("\n") )
   }
 }
 

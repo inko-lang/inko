@@ -1,6 +1,7 @@
-import std::os::(self, NEWLINE)
+import std::os::(self, Command, NEWLINE)
 import std::test
 import std::test::assert
+import test::fixtures::(inko_executable)
 
 test.group('std::os.platform') do (g) {
   g.test('Obtaining the name of the underlying platform') {
@@ -52,5 +53,185 @@ test.group('std::os::NEWLINE') do (g) {
     let expected = os.windows?.if(true: { "\r\n" }, false: { "\n" })
 
     assert.equal(NEWLINE, expected)
+  }
+}
+
+test.group('std::os::Command.program') do (g) {
+  g.test('Getting the program') {
+    assert.equal(Command.new('ls').program, 'ls')
+  }
+}
+
+test.group('std::os::Command.argument') do (g) {
+  g.test('Adding a single argument') {
+    let cmd = Command.new('ls')
+
+    cmd.argument('foo')
+    cmd.argument('bar')
+
+    assert.equal(cmd.current_arguments, Array.new('foo', 'bar'))
+  }
+}
+
+test.group('std::os::Command.arguments') do (g) {
+  g.test('Adding multiple arguments') {
+    let cmd = Command.new('ls')
+
+    cmd.arguments(Array.new('foo', 'bar'))
+
+    assert.equal(cmd.current_arguments, Array.new('foo', 'bar'))
+  }
+}
+
+test.group('std::os::Command.variable') do (g) {
+  g.test('Adding a single environment variable') {
+    let cmd = Command.new('ls')
+
+    cmd.variable(name: 'USER', value: 'alice')
+
+    assert.equal(cmd.current_variables['USER'], 'alice')
+  }
+}
+
+test.group('std::os::Command.variables') do (g) {
+  g.test('Adding multiple environment variables') {
+    let cmd = Command.new('ls')
+
+    cmd.variables(Map.new.set('USER', 'alice').set('FOO', 'bar'))
+
+    assert.equal(cmd.current_variables['USER'], 'alice')
+    assert.equal(cmd.current_variables['FOO'], 'bar')
+  }
+}
+
+# Testing STDIN, STDOUT and STDERR on Windows is a bit tricky due to its limited
+# support for commandline programs. As such we only run some basic tests on
+# Windows, and more in-depth tests on Unix platforms.
+os.windows?.if_true {
+  test.group('std::os::Command.spawn') do (g) {
+    g.test('Spawning a command that ignores all input and output') {
+      let cmd = Command
+        .new(inko_executable)
+        .argument('--help')
+        .ignore_stdin
+        .ignore_stdout
+        .ignore_stderr
+
+      let child = try! cmd.spawn
+
+      try! child.wait
+
+      assert.equal(try! child.stdout.read_string, '')
+      assert.equal(try! child.stderr.read_string, '')
+    }
+
+    g.test('Spawning a non-existing command') {
+      assert.panic {
+        try! Command.new('foo').ignore_stdin.ignore_stdout.ignore_stderr.spawn
+      }
+    }
+  }
+}
+
+os.unix?.if_true {
+  test.group('std::os::Command.spawn') do (g) {
+    g.test('Spawning a command that ignores all input and output') {
+      let cmd = Command.new('echo').ignore_stdin.ignore_stdout.ignore_stderr
+      let child = try! cmd.spawn
+      let status = try! child.wait
+
+      assert.true(status.success?)
+      assert.equal(try! child.stdout.read_string, '')
+      assert.equal(try! child.stderr.read_string, '')
+    }
+
+    g.test('Spawning a command that pipes STDOUT') {
+      let cmd = Command
+        .new('echo')
+        .argument('foo')
+        .ignore_stdin
+        .ignore_stderr
+        .pipe_stdout
+
+      let child = try! cmd.spawn
+      let status = try! child.wait
+
+      assert.true(status.success?)
+      assert.equal(try! child.stdout.read_string, "foo\n")
+    }
+
+    g.test('Spawning a command that pipes STDERR') {
+      let cmd = Command
+        .new('ls')
+        .argument('--wat')
+        .ignore_stdin
+        .ignore_stdout
+        .pipe_stderr
+
+      let child = try! cmd.spawn
+
+      try! child.wait
+
+      assert.false(try! { child.stderr.read_string }.empty?)
+    }
+
+    g.test('Spawning a command that supports writing to STDIN') {
+      let cmd = Command
+        .new('cat')
+        .argument('-')
+        .pipe_stdout
+        .pipe_stdin
+        .ignore_stderr
+
+      let child = try! cmd.spawn
+
+      try! child.stdin.write_string('hello')
+      try! child.wait
+
+      assert.equal(try! child.stdout.read_string, 'hello')
+    }
+
+    g.test('Spawning a non-existing command') {
+      assert.panic {
+        try! Command.new('foo').ignore_stdin.ignore_stdout.ignore_stderr.spawn
+      }
+    }
+  }
+
+  test.group('std::os::ChildProcess.wait') do (g) {
+    g.test('Waiting for a process') {
+      let cmd = Command.new('true').ignore_stdout.ignore_stderr
+      let child = try! cmd.spawn
+      let status = try! child.wait
+
+      assert.true(status.code.zero?)
+      assert.true(status.success?)
+    }
+  }
+
+  test.group('std::os::ChildProcess.try_wait') do (g) {
+    g.test('Waiting for a process') {
+      let cmd = Command
+        .new('cat')
+        .argument('-')
+        .ignore_stdout
+        .ignore_stderr
+        .pipe_stdin
+
+      let child = try! cmd.spawn
+
+      assert.true(try! { child.try_wait }.none?)
+
+      try! child.stdin.write_string('foo')
+
+      # We can't use try_wait directly, as the process may not have terminated
+      # when we do so.
+      try! child.wait
+
+      let status = try! child.try_wait
+
+      assert.true(status.some?)
+      assert.true(status.get.success?)
+    }
   }
 }

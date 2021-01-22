@@ -142,6 +142,9 @@ pub struct State {
     /// The prototype to use for generators.
     pub generator_prototype: ObjectPointer,
 
+    /// The prototype to use for child processes.
+    pub child_process_prototype: ObjectPointer,
+
     /// The commandline arguments passed to an Inko program.
     pub arguments: Vec<ObjectPointer>,
 
@@ -199,6 +202,7 @@ impl State {
         let hasher_prototype = perm_alloc.allocate_empty();
         let generator_prototype = perm_alloc.allocate_empty();
         let trait_prototype = perm_alloc.allocate_empty();
+        let child_process_prototype = perm_alloc.allocate_empty();
 
         nil_obj.set_prototype(nil_proto);
         true_obj.set_prototype(boolean_proto);
@@ -242,6 +246,7 @@ impl State {
             hasher_prototype,
             generator_prototype,
             trait_prototype,
+            child_process_prototype,
             network_poller: NetworkPoller::new(),
             modules: Mutex::new(Modules::new()),
             external_functions,

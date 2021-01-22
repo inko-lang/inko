@@ -54,6 +54,7 @@ module Inkoc
     READ_WRITE_FILE_TYPE = 'ReadWriteFile'
     HASHER_TYPE = 'DefaultHasher'
     GENERATOR_TYPE = 'Generator'
+    CHILD_PROCESS_TYPE = 'ChildProcess'
     SELF_TYPE = 'Self'
     NEVER_TYPE = 'Never'
     ANY_TYPE = 'Any'

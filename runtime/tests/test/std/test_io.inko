@@ -89,7 +89,7 @@ test.group('std::io::Write.print') do (g) {
     let writer = Writer.new
     let written = try! writer.print('inko')
 
-    assert.equal(written, NEWLINE.length + 4)
-    assert.equal(writer.buffer, Array.new('inko', NEWLINE))
+    assert.equal(written, 5)
+    assert.equal(writer.buffer, Array.new('inko', "\n"))
   }
 }

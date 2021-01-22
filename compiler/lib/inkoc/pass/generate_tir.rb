@@ -1140,6 +1140,10 @@ module Inkoc
         builtin_prototype_instruction(PrototypeID::TRAIT, node, body)
       end
 
+      def on_raw_get_child_process_prototype(node, body)
+        builtin_prototype_instruction(PrototypeID::CHILD_PROCESS, node, body)
+      end
+
       def on_raw_get_block_prototype(node, body)
         builtin_prototype_instruction(PrototypeID::BLOCK, node, body)
       end

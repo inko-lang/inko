@@ -65,6 +65,7 @@ pub fn get_builtin_prototype(
         18 => state.hasher_prototype,
         19 => state.generator_prototype,
         20 => state.trait_prototype,
+        21 => state.child_process_prototype,
         _ => return Err(format!("Invalid prototype identifier: {}", id_int)),
     };
 

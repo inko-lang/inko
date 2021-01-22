@@ -1,5 +1,6 @@
 //! Functions for working with the file system.
 use crate::date_time::DateTime;
+use crate::external_functions::read_into;
 use crate::file::File;
 use crate::object_pointer::ObjectPointer;
 use crate::object_value;
@@ -8,7 +9,7 @@ use crate::runtime_error::RuntimeError;
 use crate::vm::state::RcState;
 use num_traits::ToPrimitive;
 use std::fs;
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{Seek, SeekFrom, Write};
 
 /// Returns the path of a file.
 ///
@@ -347,13 +348,9 @@ pub fn file_read(
 ) -> Result<ObjectPointer, RuntimeError> {
     let file = arguments[0].file_value_mut()?;
     let buff = arguments[1].byte_array_value_mut()?;
-    let amount = arguments[2].u64_value()?;
+    let size = arguments[2].u64_value()?;
     let stream = file.get_mut();
-    let result = if amount > 0 {
-        stream.take(amount).read_to_end(buff)?
-    } else {
-        stream.read_to_end(buff)?
-    };
+    let result = read_into(stream, buff, size)?;
 
     Ok(process.allocate_usize(result, state.integer_prototype))
 }

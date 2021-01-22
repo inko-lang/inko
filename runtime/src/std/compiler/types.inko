@@ -588,6 +588,7 @@ class Builtins {
   @read_write_file_type: ClassType
   @hasher_type: ClassType
   @generator_type: ClassType
+  @child_process_type: ClassType
 
   static def new -> Self {
     let array_type = ClassType.builtin('Array')
@@ -635,7 +636,8 @@ class Builtins {
       @write_only_file_type = ClassType.builtin('WriteOnlyFile'),
       @read_write_file_type = ClassType.builtin('ReadWriteFile'),
       @hasher_type = ClassType.builtin('Hasher'),
-      @generator_type = generator_type
+      @generator_type = generator_type,
+      @child_process_type = ClassType.builtin('ChildProcess')
     }
   }
 
@@ -733,6 +735,10 @@ class Builtins {
 
   def generator_type -> ClassType {
     @generator_type
+  }
+
+  def child_process_type -> ClassType {
+    @child_process_type
   }
 }
 

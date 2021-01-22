@@ -18,6 +18,7 @@ use crate::process::RcProcess;
 use crate::socket::Socket;
 use num_bigint::BigInt;
 use std::mem;
+use std::process::Child;
 
 /// Enum for storing different values in an Object.
 #[cfg_attr(feature = "cargo-clippy", allow(box_vec))]
@@ -73,6 +74,9 @@ pub enum ObjectValue {
 
     /// An external function.
     ExternalFunction(ExternalFunction),
+
+    /// An OS command.
+    Command(Box<Child>),
 }
 
 impl ObjectValue {
@@ -371,6 +375,24 @@ impl ObjectValue {
         }
     }
 
+    pub fn as_command(&self) -> Result<&Child, String> {
+        match *self {
+            ObjectValue::Command(ref cmd) => Ok(cmd),
+            _ => {
+                Err("ObjectValue::as_command() called on a non command"
+                    .to_string())
+            }
+        }
+    }
+
+    pub fn as_command_mut(&mut self) -> Result<&mut Child, String> {
+        match *self {
+            ObjectValue::Command(ref mut cmd) => Ok(cmd),
+            _ => Err("ObjectValue::as_command_mut() called on a non command"
+                .to_string()),
+        }
+    }
+
     pub fn take(&mut self) -> ObjectValue {
         mem::replace(self, ObjectValue::None)
     }
@@ -398,6 +420,7 @@ impl ObjectValue {
             | ObjectValue::Process(_)
             | ObjectValue::Socket(_)
             | ObjectValue::Generator(_)
+            | ObjectValue::Command(_)
             | ObjectValue::ExternalFunction(_) => true,
             _ => false,
         }
@@ -424,6 +447,7 @@ impl ObjectValue {
             ObjectValue::Module(_) => "Module",
             ObjectValue::Generator(_) => "Generator",
             ObjectValue::ExternalFunction(_) => "BuiltinFunction",
+            ObjectValue::Command(_) => "Command",
         }
     }
 
@@ -519,6 +543,10 @@ pub fn generator(value: RcGenerator) -> ObjectValue {
 
 pub fn external_function(value: ExternalFunction) -> ObjectValue {
     ObjectValue::ExternalFunction(value)
+}
+
+pub fn command(command: Child) -> ObjectValue {
+    ObjectValue::Command(Box::new(command))
 }
 
 #[cfg(test)]

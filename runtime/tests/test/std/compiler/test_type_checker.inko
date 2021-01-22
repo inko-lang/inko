@@ -7907,6 +7907,21 @@ test.group('Type-checking VM instructions') do (g) {
     )
   }
 
+  g.test('Using child_process_prototype()') {
+    let module = new_std_module('foo')
+    let type_checker = TypeChecker.new
+    let body = parse('_INKOC.get_child_process_prototype')
+    let node = body.children[0]
+
+    type_checker.check_module(module: module, ast: body)
+
+    assert.false(type_checker.diagnostics.errors?)
+    assert.same_object(
+      node.resolved_type.get,
+      type_checker.builtins.child_process_type
+    )
+  }
+
   g.test('Using set_object_name()') {
     let module = new_std_module('foo')
     let type_checker = TypeChecker.new

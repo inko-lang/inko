@@ -23,5 +23,6 @@ module Inkoc
     HASHER = 18
     GENERATOR = 19
     TRAIT = 20
+    CHILD_PROCESS = 21
   end
 end
