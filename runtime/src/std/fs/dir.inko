@@ -1,13 +1,13 @@
 # Types and methods for manipulating directories on a filesystem.
 import std::fs::path::(Path, ToPath)
-import std::io::(Error as IOError)
+import std::io::Error
 import std::process::(blocking)
 
-extern def directory_create(path: String) !! String
-extern def directory_create_recursive(path: String) !! String
-extern def directory_remove(path: String) !! String
-extern def directory_remove_recursive(path: String) !! String
-extern def directory_list(path: String) !! String -> Array!(String)
+extern def directory_create(path: String) !! Integer
+extern def directory_create_recursive(path: String) !! Integer
+extern def directory_remove(path: String) !! Integer
+extern def directory_remove_recursive(path: String) !! Integer
+extern def directory_list(path: String) !! Integer -> Array!(String)
 
 # Creates a new empty directory at the given path.
 #
@@ -37,15 +37,15 @@ extern def directory_list(path: String) !! String -> Array!(String)
 #     import std::fs::dir
 #
 #     try! dir.create(path: '/tmp/test/hello/world', recursive: True)
-def create(path: ToPath, recursive = False) !! IOError {
+def create(path: ToPath, recursive = False) !! Error {
   let str = path.to_path.to_string
 
   blocking {
     recursive.if(
       true: {
-        try directory_create_recursive(str) else (e) throw IOError.new(e)
+        try directory_create_recursive(str) else (e) throw Error.new(e)
       },
-      false: { try directory_create(str) else (e) throw IOError.new(e) },
+      false: { try directory_create(str) else (e) throw Error.new(e) },
     )
   }
 }
@@ -75,15 +75,15 @@ def create(path: ToPath, recursive = False) !! IOError {
 #
 #     try! dir.create(path: '/tmp/foo/bar', recursive: True)
 #     try! dir.remove(path: '/tmp/foo', recursive: True)
-def remove(path: ToPath, recursive = False) !! IOError {
+def remove(path: ToPath, recursive = False) !! Error {
   let str = path.to_path.to_string
 
   blocking {
     recursive.if(
       true: {
-        try directory_remove_recursive(str) else (e) throw IOError.new(e)
+        try directory_remove_recursive(str) else (e) throw Error.new(e)
       },
-      false: { try directory_remove(str) else (e) throw IOError.new(e) },
+      false: { try directory_remove(str) else (e) throw Error.new(e) },
     )
   }
 }
@@ -107,9 +107,9 @@ def remove(path: ToPath, recursive = False) !! IOError {
 #     let paths = try! dir.list('.')
 #
 #     paths[0].to_string # => 'README.md'
-def list(path: ToPath) !! IOError -> Array!(Path) {
+def list(path: ToPath) !! Error -> Array!(Path) {
   let paths = blocking {
-    try directory_list(path.to_path.to_string) else (e) throw IOError.new(e)
+    try directory_list(path.to_path.to_string) else (e) throw Error.new(e)
   }
 
   paths.iter.map do (path) { Path.new(path) }.to_array

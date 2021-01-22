@@ -2,17 +2,99 @@
 #
 # The IO module provides the basic building blocks for IO operations such as
 # reading from and writing to a file.
-
 import std::conversion::ToString
-import std::error::StandardError
+import std::error::(Error as ErrorTrait)
 import std::os::NEWLINE
 import std::string
 
-# The object to use when throwing IO related errors.
+let OTHER_ERROR = 0
+let NOT_FOUND = 1
+let PERMISSION_DENIED = 2
+let CONNECTION_REFUSED = 3
+let CONNECTION_RESET = 4
+let CONNECTION_ABORTED = 5
+let NOT_CONNECTED = 6
+let ADDR_IN_USE = 7
+let ADDR_NOT_AVAILABLE = 8
+let BROKEN_PIPE = 9
+let ALREADY_EXISTS = 10
+let INVALID_INPUT = 11
+let INVALID_DATA = 12
+let TIMED_OUT = 13
+let WRITE_ZERO = 14
+let INTERRUPTED = 15
+let UNEXPECTED_EOF = 16
+
+# An IO error.
 #
-# This is simply a re-exported `StandardError` so code using this type doesn't
-# have to be changed if we ever decide to use a custom object for errors.
-let Error = StandardError
+# `Error` is thrown whenever an IO operation resulted in an error, such as when
+# trying to access a non-existing file.
+class Error {
+  # The IO error code.
+  @code: Integer
+
+  # The error message.
+  @message: String
+
+  # Returns a new `Error` according to the given error code.
+  static def new(code: Integer) -> Self {
+    let message = match(code) {
+      NOT_FOUND -> { 'The resource could not be found' }
+      PERMISSION_DENIED -> {
+        'The operation lacked the necessary privileges to complete'
+      }
+      CONNECTION_REFUSED -> {
+        'The connection was refused by the remote server'
+      }
+      CONNECTION_RESET -> { 'The connection was reset by the remote server' }
+      CONNECTION_ABORTED -> {
+        'The connection was terminated by the remote server'
+      }
+      NOT_CONNECTED -> {
+        'The operation failed because the connection has not yet been established'
+      }
+      ADDR_IN_USE -> { 'The address is already in use' }
+      ADDR_NOT_AVAILABLE -> { 'The address is not available' }
+      BROKEN_PIPE -> { 'The operation failed because a pipe was closed' }
+      ALREADY_EXISTS -> { 'The resource already exists' }
+      INVALID_INPUT -> { 'An input parameter is invalid' }
+      INVALID_DATA -> { 'The supplied data is not valid for this operation' }
+      TIMED_OUT -> { 'The operation timed out' }
+      WRITE_ZERO -> {
+        'The operation failed because not enough bytes were written'
+      }
+      INTERRUPTED -> { 'The operation was interrupted' }
+      UNEXPECTED_EOF -> {
+        'The operation failed because of an unexpected end-of-file'
+      }
+      else -> { 'An unknown IO error occurred' }
+    }
+
+    Self { @code = code, @message = message }
+  }
+
+  # Returns a new `Error` indicating invalid input.
+  static def invalid_input(message: String) -> Self {
+    Self { @code = INVALID_INPUT, @message = message }
+  }
+
+  # Returns the error code.
+  def code -> Integer {
+    @code
+  }
+}
+
+impl ToString for Error {
+  def to_string -> String {
+    `{@message} (error code: {@code})`
+  }
+}
+
+impl ErrorTrait for Error {
+  def message -> String {
+    @message
+  }
+}
 
 # A trait for closing streams, such as files and sockets.
 trait Close {

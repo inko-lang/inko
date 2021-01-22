@@ -1,7 +1,7 @@
 # Networking types for Unix domain socket communication.
 import std::conversion::ToString
 import std::fs::path::(Path, ToPath)
-import std::io::(Close, Error as IoError, Read, Write)
+import std::io::(Close, Error, Read, Write)
 import std::net::bits::(
   self, MAXIMUM_LISTEN_BACKLOG, SOCK_DGRAM, SOCK_RAW, SOCK_SEQPACKET,
   SOCK_STREAM, Socket as RawSocket
@@ -32,8 +32,8 @@ let SEQPACKET = SOCK_SEQPACKET
 # The socket type for Unix raw sockets.
 let RAW = SOCK_RAW
 
-extern def socket_allocate_unix(type: Integer) !! String -> Socket
-extern def socket_accept_unix(socket: Socket) !! String -> Socket
+extern def socket_allocate_unix(type: Integer) !! Integer -> Socket
+extern def socket_accept_unix(socket: Socket) !! Integer -> Socket
 
 # A Unix domain socket address.
 class SocketAddress {
@@ -148,8 +148,8 @@ impl Socket {
   #     import std::net::unix::(DGRAM, Socket)
   #
   #     try! Socket.new(DGRAM)
-  static def new(kind: Integer) !! IoError -> Socket {
-    try socket_allocate_unix(kind) else (error) throw IoError.new(error)
+  static def new(kind: Integer) !! Error -> Socket {
+    try socket_allocate_unix(kind) else (error) throw Error.new(error)
   }
 
   # Binds this socket to the specified path or abstract address.
@@ -163,7 +163,7 @@ impl Socket {
   #     let socket = try! Socket.new(DGRAM)
   #
   #     try! socket.bind('/tmp/test.sock')
-  def bind(path: ToString) !! IoError {
+  def bind(path: ToString) !! Error {
     try bits.bind(self, path.to_string, 0)
   }
 
@@ -182,7 +182,7 @@ impl Socket {
   #     try! listener.listen
   #
   #     try! stream.connect('/tmp/test.sock')
-  def connect(path: ToString) !! IoError {
+  def connect(path: ToString) !! Error {
     try bits.connect(self, path.to_string, 0)
   }
 
@@ -199,7 +199,7 @@ impl Socket {
   #
   #     try! socket.bind('/tmp/test.sock')
   #     try! socket.listen
-  def listen(backlog = MAXIMUM_LISTEN_BACKLOG) !! IoError -> Integer {
+  def listen(backlog = MAXIMUM_LISTEN_BACKLOG) !! Error -> Integer {
     try bits.listen(self, backlog)
   }
 
@@ -225,8 +225,8 @@ impl Socket {
   #     let client = try! listener.accept
   #
   #     try! client.read_string(4) # => 'ping'
-  def accept !! IoError -> Socket {
-    try socket_accept_unix(self) else (error) throw IoError.new(error)
+  def accept !! Error -> Socket {
+    try socket_accept_unix(self) else (error) throw Error.new(error)
   }
 
   # Sends a `String` to the given address.
@@ -241,7 +241,7 @@ impl Socket {
   #
   #     try! socket.bind('/tmp/test.sock')
   #     try! socket.send_string_to(string: 'hello', address: '/tmp/test.sock')
-  def send_string_to(string: String, address: ToString) !! IoError -> Integer {
+  def send_string_to(string: String, address: ToString) !! Error -> Integer {
     try bits.send_string_to(self, string, address.to_string, 0)
   }
 
@@ -258,7 +258,7 @@ impl Socket {
   #
   #     try! socket.bind('/tmp/test.sock')
   #     try! socket.send_bytes_to(bytes: bytes, address: '/tmp/test.sock')
-  def send_bytes_to(bytes: ByteArray, address: ToString) !! IoError -> Integer {
+  def send_bytes_to(bytes: ByteArray, address: ToString) !! Error -> Integer {
     try bits.send_bytes_to(self, bytes, address.to_string, 0)
   }
 
@@ -286,58 +286,58 @@ impl Socket {
   def receive_from(
     bytes: ByteArray,
     size: Integer
-  ) !! IoError -> SocketAddress {
+  ) !! Error -> SocketAddress {
     let addr = try bits.receive_from(socket: self, bytes: bytes, size: size)
 
     SocketAddress.new(addr[0] as String)
   }
 
   # Returns the local address of this socket.
-  def local_address !! IoError -> SocketAddress {
+  def local_address !! Error -> SocketAddress {
     let addr = try bits.local_address(self)
 
     SocketAddress.new(addr[0] as String)
   }
 
   # Returns the peer address of this socket.
-  def peer_address !! IoError -> SocketAddress {
+  def peer_address !! Error -> SocketAddress {
     let addr = try bits.peer_address(self)
 
     SocketAddress.new(addr[0] as String)
   }
 
   # Returns the value of the `SO_RCVBUF` option.
-  def receive_buffer_size !! IoError -> Integer {
+  def receive_buffer_size !! Error -> Integer {
     try bits.get_recv_size(self)
   }
 
   # Sets the value of the `SO_RCVBUF` option.
-  def receive_buffer_size=(value: Integer) !! IoError -> Integer {
+  def receive_buffer_size=(value: Integer) !! Error -> Integer {
     try bits.set_recv_size(self, value)
   }
 
   # Returns the value of the `SO_SNDBUF` option.
-  def send_buffer_size !! IoError -> Integer {
+  def send_buffer_size !! Error -> Integer {
     try bits.get_send_size(self)
   }
 
   # Sets the value of the `SO_SNDBUF` option.
-  def send_buffer_size=(value: Integer) !! IoError -> Integer {
+  def send_buffer_size=(value: Integer) !! Error -> Integer {
     try bits.set_send_size(self, value)
   }
 
   # Shuts down the reading half of this socket.
-  def shutdown_read !! IoError {
+  def shutdown_read !! Error {
     try bits.shutdown_read(self)
   }
 
   # Shuts down the writing half of this socket.
-  def shutdown_write !! IoError {
+  def shutdown_write !! Error {
     try bits.shutdown_write(self)
   }
 
   # Shuts down both the reading and writing half of this socket.
-  def shutdown !! IoError {
+  def shutdown !! Error {
     try bits.shutdown(self)
   }
 }
@@ -345,17 +345,17 @@ impl Socket {
 impl RawSocket for Socket {}
 
 impl Read for Socket {
-  def read_bytes(bytes: ByteArray, size = 0) !! IoError -> Integer {
+  def read_bytes(bytes: ByteArray, size = 0) !! Error -> Integer {
     try bits.read_bytes(self, bytes, size)
   }
 }
 
 impl Write for Socket {
-  def write_bytes(bytes: ByteArray) !! IoError -> Integer {
+  def write_bytes(bytes: ByteArray) !! Error -> Integer {
     try bits.write_bytes(self, bytes)
   }
 
-  def write_string(string: String) !! IoError -> Integer {
+  def write_string(string: String) !! Error -> Integer {
     try bits.write_string(self, string)
   }
 
@@ -384,7 +384,7 @@ class UnixDatagram {
   #     import std::net::unix::UnixDatagram
   #
   #     try! UnixDatagram.new('/tmp/test.sock')
-  static def new(address: ToString) !! IoError -> Self {
+  static def new(address: ToString) !! Error -> Self {
     let socket = try Socket.new(DGRAM)
 
     try socket.bind(address)
@@ -408,7 +408,7 @@ class UnixDatagram {
   #     let socket2 = try! UnixDatagram.new('/tmp/test2.sock')
   #
   #     try! socket1.connect('/tmp/test2.sock')
-  def connect(address: ToString) !! IoError {
+  def connect(address: ToString) !! Error {
     try @socket.connect(address)
   }
 
@@ -423,7 +423,7 @@ class UnixDatagram {
   #     let socket = try! UnixDatagram.new('/tmp/test.sock')
   #
   #     try! socket.send_string_to(string: 'hello', address: '/tmp/test.sock')
-  def send_string_to(string: String, address: ToString) !! IoError -> Integer {
+  def send_string_to(string: String, address: ToString) !! Error -> Integer {
     try @socket.send_string_to(string, address)
   }
 
@@ -439,7 +439,7 @@ class UnixDatagram {
   #     let bytes = 'hello'.to_byte_array
   #
   #     try! socket.send_bytes_to(bytes: bytes, address: '/tmp/test.sock')
-  def send_bytes_to(bytes: ByteArray, address: ToString) !! IoError -> Integer {
+  def send_bytes_to(bytes: ByteArray, address: ToString) !! Error -> Integer {
     try @socket.send_bytes_to(bytes, address)
   }
 
@@ -450,14 +450,14 @@ class UnixDatagram {
   def receive_from(
     bytes: ByteArray,
     size: Integer
-  ) !! IoError -> SocketAddress {
+  ) !! Error -> SocketAddress {
     try @socket.receive_from(bytes: bytes, size: size)
   }
 
   # Returns the local address of this socket.
   #
   # See the documentation of `Socket.local_address` for more information.
-  def local_address !! IoError -> SocketAddress {
+  def local_address !! Error -> SocketAddress {
     try @socket.local_address
   }
 
@@ -471,17 +471,17 @@ class UnixDatagram {
 }
 
 impl Read for UnixDatagram {
-  def read_bytes(bytes: ByteArray, size = 0) !! IoError -> Integer {
+  def read_bytes(bytes: ByteArray, size = 0) !! Error -> Integer {
     try @socket.read_bytes(bytes: bytes, size: size)
   }
 }
 
 impl Write for UnixDatagram {
-  def write_bytes(bytes: ByteArray) !! IoError -> Integer {
+  def write_bytes(bytes: ByteArray) !! Error -> Integer {
     try @socket.write_bytes(bytes)
   }
 
-  def write_string(string: String) !! IoError -> Integer {
+  def write_string(string: String) !! Error -> Integer {
     try @socket.write_string(string)
   }
 
@@ -512,7 +512,7 @@ class UnixStream {
   #     let listener = try! UnixListener.new('/tmp/test.sock')
   #
   #     try! UnixStream.new('/tmp/test.sock')
-  static def new(address: ToString) !! IoError -> Self {
+  static def new(address: ToString) !! Error -> Self {
     let socket = try Socket.new(STREAM)
 
     try socket.connect(address)
@@ -523,14 +523,14 @@ class UnixStream {
   # Returns the local address of this socket.
   #
   # See the documentation of `Socket.local_address` for more information.
-  def local_address !! IoError -> SocketAddress {
+  def local_address !! Error -> SocketAddress {
     try @socket.local_address
   }
 
   # Returns the peer address of this socket.
   #
   # See the documentation of `Socket.peer_address` for more information.
-  def peer_address !! IoError -> SocketAddress {
+  def peer_address !! Error -> SocketAddress {
     try @socket.peer_address
   }
 
@@ -543,33 +543,33 @@ class UnixStream {
   }
 
   # Shuts down the reading half of this socket.
-  def shutdown_read !! IoError {
+  def shutdown_read !! Error {
     try @socket.shutdown_read
   }
 
   # Shuts down the writing half of this socket.
-  def shutdown_write !! IoError {
+  def shutdown_write !! Error {
     try @socket.shutdown_write
   }
 
   # Shuts down both the reading and writing half of this socket.
-  def shutdown !! IoError {
+  def shutdown !! Error {
     try @socket.shutdown
   }
 }
 
 impl Read for UnixStream {
-  def read_bytes(bytes: ByteArray, size = 0) !! IoError -> Integer {
+  def read_bytes(bytes: ByteArray, size = 0) !! Error -> Integer {
     try @socket.read_bytes(bytes: bytes, size: size)
   }
 }
 
 impl Write for UnixStream {
-  def write_bytes(bytes: ByteArray) !! IoError -> Integer {
+  def write_bytes(bytes: ByteArray) !! Error -> Integer {
     try @socket.write_bytes(bytes)
   }
 
-  def write_string(string: String) !! IoError -> Integer {
+  def write_string(string: String) !! Error -> Integer {
     try @socket.write_string(string)
   }
 
@@ -609,7 +609,7 @@ class UnixListener {
   static def new(
     address: ToString,
     backlog = MAXIMUM_LISTEN_BACKLOG
-  ) !! IoError -> Self {
+  ) !! Error -> Self {
     let socket = try Socket.new(STREAM)
 
     try socket.bind(address)
@@ -636,14 +636,14 @@ class UnixListener {
   #     let connection = try! listener.accept
   #
   #     try! connection.read_string(4) # => 'ping'
-  def accept !! IoError -> UnixStream {
+  def accept !! Error -> UnixStream {
     UnixStream { @socket = try @socket.accept }
   }
 
   # Returns the local address of this socket.
   #
   # See the documentation of `Socket.local_address` for more information.
-  def local_address !! IoError -> SocketAddress {
+  def local_address !! Error -> SocketAddress {
     try @socket.local_address
   }
 

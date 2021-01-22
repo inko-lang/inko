@@ -1,5 +1,4 @@
 //! Errors that can be produced at VM runtime.
-use crate::error_messages;
 use crate::object_pointer::ObjectPointer;
 use std::convert::From;
 use std::io;
@@ -44,7 +43,27 @@ impl From<io::Error> for RuntimeError {
         if error.kind() == io::ErrorKind::WouldBlock {
             RuntimeError::WouldBlock
         } else {
-            RuntimeError::ErrorMessage(error_messages::from_io_error(&error))
+            let code = match error.kind() {
+                io::ErrorKind::NotFound => 1,
+                io::ErrorKind::PermissionDenied => 2,
+                io::ErrorKind::ConnectionRefused => 3,
+                io::ErrorKind::ConnectionReset => 4,
+                io::ErrorKind::ConnectionAborted => 5,
+                io::ErrorKind::NotConnected => 6,
+                io::ErrorKind::AddrInUse => 7,
+                io::ErrorKind::AddrNotAvailable => 8,
+                io::ErrorKind::BrokenPipe => 9,
+                io::ErrorKind::AlreadyExists => 10,
+                io::ErrorKind::InvalidInput => 11,
+                io::ErrorKind::InvalidData => 12,
+                io::ErrorKind::TimedOut => 13,
+                io::ErrorKind::WriteZero => 14,
+                io::ErrorKind::Interrupted => 15,
+                io::ErrorKind::UnexpectedEof => 16,
+                _ => 0,
+            };
+
+            RuntimeError::Error(ObjectPointer::integer(code))
         }
     }
 }

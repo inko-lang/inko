@@ -1,6 +1,6 @@
 # Networking types for TCP/UDP communication.
 import std::conversion::(ToFloat, ToString)
-import std::io::(Close, Error as IoError, Read, Write)
+import std::io::(Close, Error, Read, Write)
 import std::net::bits::(
   self, MAXIMUM_LISTEN_BACKLOG, SOCK_DGRAM, SOCK_RAW, SOCK_SEQPACKET,
   SOCK_STREAM, Socket as RawSocket
@@ -32,9 +32,9 @@ let SEQPACKET = SOCK_SEQPACKET
 # The socket type for raw sockets.
 let RAW = SOCK_RAW
 
-extern def socket_allocate_ipv4(type: Integer) !! String -> Socket
-extern def socket_allocate_ipv6(type: Integer) !! String -> Socket
-extern def socket_accept_ip(socket: Socket) !! String -> Socket
+extern def socket_allocate_ipv4(type: Integer) !! Integer -> Socket
+extern def socket_allocate_ipv6(type: Integer) !! Integer -> Socket
+extern def socket_accept_ip(socket: Socket) !! Integer -> Socket
 
 # An IPv4 or IPv6 socket address.
 class SocketAddress {
@@ -74,8 +74,8 @@ impl Socket {
   #     import std::net::socket::(DGRAM, Socket)
   #
   #     try! Socket.ipv4(DGRAM)
-  static def ipv4(kind: Integer) !! IoError -> Self {
-    try socket_allocate_ipv4(kind) else (error) throw IoError.new(error)
+  static def ipv4(kind: Integer) !! Error -> Self {
+    try socket_allocate_ipv4(kind) else (error) throw Error.new(error)
   }
 
   # Creates a new IPv6 socket.
@@ -85,8 +85,8 @@ impl Socket {
   #     import std::net::socket::(DGRAM, Socket)
   #
   #     try! Socket.ipv6(DGRAM)
-  static def ipv6(kind: Integer) !! IoError -> Self {
-    try socket_allocate_ipv6(kind) else (error) throw IoError.new(error)
+  static def ipv6(kind: Integer) !! Error -> Self {
+    try socket_allocate_ipv6(kind) else (error) throw Error.new(error)
   }
 
   # Binds this socket to the specified address.
@@ -100,7 +100,7 @@ impl Socket {
   #     let socket = try! Socket.ipv4(DGRAM)
   #
   #     try! socket.bind(ip: '0.0.0.0', port: 9999)
-  def bind(ip: ToIpAddress, port: Integer) !! IoError {
+  def bind(ip: ToIpAddress, port: Integer) !! Error {
     try bits.bind(self, ip.to_ip_address.to_string, port)
   }
 
@@ -118,7 +118,7 @@ impl Socket {
   #     try! socket.bind(ip: '0.0.0.0', port: 9999)
   #     try! socket.listen
   #     try! client.connect(ip: '0.0.0.0', port: 9999)
-  def connect(ip: ToIpAddress, port: Integer) !! IoError {
+  def connect(ip: ToIpAddress, port: Integer) !! Error {
     try bits.connect(self, ip.to_ip_address.to_string, port)
   }
 
@@ -135,7 +135,7 @@ impl Socket {
   #
   #     try! socket.bind(ip: '0.0.0.0', port: 9999)
   #     try! socket.listen
-  def listen(backlog = MAXIMUM_LISTEN_BACKLOG) !! IoError -> Integer {
+  def listen(backlog = MAXIMUM_LISTEN_BACKLOG) !! Error -> Integer {
     try bits.listen(self, backlog)
   }
 
@@ -161,8 +161,8 @@ impl Socket {
   #     let client = try! listener.accept
   #
   #     try! client.read_string(4) # => 'ping'
-  def accept !! IoError -> Socket {
-    try socket_accept_ip(self) else (error) throw IoError.new(error)
+  def accept !! Error -> Socket {
+    try socket_accept_ip(self) else (error) throw Error.new(error)
   }
 
   # Sends a `String` to the given address.
@@ -181,7 +181,7 @@ impl Socket {
     string: String,
     ip: ToIpAddress,
     port: Integer
-  ) !! IoError -> Integer {
+  ) !! Error -> Integer {
     try bits.send_string_to(self, string, ip.to_ip_address.to_string, port)
   }
 
@@ -202,7 +202,7 @@ impl Socket {
     bytes: ByteArray,
     ip: ToIpAddress,
     port: Integer
-  ) !! IoError -> Integer {
+  ) !! Error -> Integer {
     try bits.send_bytes_to(self, bytes, ip.to_ip_address.to_string, port)
   }
 
@@ -231,7 +231,7 @@ impl Socket {
   def receive_from(
     bytes: ByteArray,
     size: Integer
-  ) !! IoError -> SocketAddress {
+  ) !! Error -> SocketAddress {
     let addr = try bits.receive_from(socket: self, bytes: bytes, size: size)
     let ip = try! parse_ip(addr[0] as String)
 
@@ -239,7 +239,7 @@ impl Socket {
   }
 
   # Returns the local address of this socket.
-  def local_address !! IoError -> SocketAddress {
+  def local_address !! Error -> SocketAddress {
     let addr = try bits.local_address(self)
     let ip = try! parse_ip(addr[0] as String)
 
@@ -247,7 +247,7 @@ impl Socket {
   }
 
   # Returns the peer address of this socket.
-  def peer_address !! IoError -> SocketAddress {
+  def peer_address !! Error -> SocketAddress {
     let addr = try bits.peer_address(self)
     let ip = try! parse_ip(addr[0] as String)
 
@@ -255,79 +255,79 @@ impl Socket {
   }
 
   # Returns the value of the `IP_TTL` option.
-  def ttl !! IoError -> Integer {
+  def ttl !! Error -> Integer {
     try bits.get_ttl(self)
   }
 
   # Sets the value of the `IP_TTL` option.
-  def ttl=(value: Integer) !! IoError -> Integer {
+  def ttl=(value: Integer) !! Error -> Integer {
     try bits.set_ttl(self, value)
   }
 
   # Returns the value of the `IPV6_V6ONLY` option.
-  def only_ipv6? !! IoError -> Boolean {
+  def only_ipv6? !! Error -> Boolean {
     try bits.get_only_v6(self)
   }
 
   # Sets the value of the `IPV6_V6ONLY` option.
-  def only_ipv6=(value: Boolean) !! IoError -> Boolean {
+  def only_ipv6=(value: Boolean) !! Error -> Boolean {
     try bits.set_only_v6(self, value)
   }
 
   # Returns the value of the `TCP_NODELAY` option.
-  def no_delay? !! IoError -> Boolean {
+  def no_delay? !! Error -> Boolean {
     try bits.get_nodelay(self)
   }
 
   # Sets the value of the `TCP_NODELAY` option.
-  def no_delay=(value: Boolean) !! IoError -> Boolean {
+  def no_delay=(value: Boolean) !! Error -> Boolean {
     try bits.set_nodelay(self, value)
   }
 
   # Returns the value of the `SO_BROADCAST` option.
-  def broadcast? !! IoError -> Boolean {
+  def broadcast? !! Error -> Boolean {
     try bits.get_broadcast(self)
   }
 
   # Sets the value of the `SO_BROADCAST` option.
-  def broadcast=(value: Boolean) !! IoError -> Boolean {
+  def broadcast=(value: Boolean) !! Error -> Boolean {
     try bits.set_broadcast(self, value)
   }
 
   # Returns the value of the `SO_LINGER` option.
-  def linger !! IoError -> Duration {
+  def linger !! Error -> Duration {
     let seconds = try bits.get_linger(self)
 
     Duration.new(seconds)
   }
 
   # Sets the value of the `SO_LINGER` option.
-  def linger=(value: ToFloat) !! IoError -> Float {
+  def linger=(value: ToFloat) !! Error -> Float {
     try bits.set_linger(self, value.to_float)
   }
 
   # Returns the value of the `SO_RCVBUF` option.
-  def receive_buffer_size !! IoError -> Integer {
+  def receive_buffer_size !! Error -> Integer {
     try bits.get_recv_size(self)
   }
 
   # Sets the value of the `SO_RCVBUF` option.
-  def receive_buffer_size=(value: Integer) !! IoError -> Integer {
+  def receive_buffer_size=(value: Integer) !! Error -> Integer {
     try bits.set_recv_size(self, value)
   }
 
   # Returns the value of the `SO_SNDBUF` option.
-  def send_buffer_size !! IoError -> Integer {
+  def send_buffer_size !! Error -> Integer {
     try bits.get_send_size(self)
   }
 
   # Sets the value of the `SO_SNDBUF` option.
-  def send_buffer_size=(value: Integer) !! IoError -> Integer {
+  def send_buffer_size=(value: Integer) !! Error -> Integer {
     try bits.set_send_size(self, value)
   }
 
   # Returns the value of the system's keepalive time.
-  def keepalive !! IoError -> Duration {
+  def keepalive !! Error -> Duration {
     let seconds = try bits.get_keepalive(self)
 
     Duration.new(seconds)
@@ -335,52 +335,52 @@ impl Socket {
 
   # Sets the value of the keepalive timeout (e.g. `SO_KEEPALIVE` on Unix
   # systems).
-  def keepalive=(value: ToFloat) !! IoError -> Float {
+  def keepalive=(value: ToFloat) !! Error -> Float {
     try bits.set_keepalive(self, value.to_float)
   }
 
   # Returns the value of the `IP_MULTICAST_LOOP` option.
-  def ipv4_multicast_loop? !! IoError -> Boolean {
+  def ipv4_multicast_loop? !! Error -> Boolean {
     try bits.get_multicast_loop_v4(self)
   }
 
   # Sets the value of the `IP_MULTICAST_LOOP` option.
-  def ipv4_multicast_loop=(value: Boolean) !! IoError -> Boolean {
+  def ipv4_multicast_loop=(value: Boolean) !! Error -> Boolean {
     try bits.set_multicast_loop_v4(self, value)
   }
 
   # Returns the value of the `IPV6_MULTICAST_LOOP` option.
-  def ipv6_multicast_loop? !! IoError -> Boolean {
+  def ipv6_multicast_loop? !! Error -> Boolean {
     try bits.get_multicast_loop_v6(self)
   }
 
   # Sets the value of the `IPV6_MULTICAST_LOOP` option.
-  def ipv6_multicast_loop=(value: Boolean) !! IoError -> Boolean {
+  def ipv6_multicast_loop=(value: Boolean) !! Error -> Boolean {
     try bits.set_multicast_loop_v6(self, value)
   }
 
   # Returns the value of the `IP_MULTICAST_TTL` option.
-  def ipv4_multicast_ttl !! IoError -> Integer {
+  def ipv4_multicast_ttl !! Error -> Integer {
     try bits.get_multicast_ttl_v4(self)
   }
 
   # Sets the value of the `IP_MULTICAST_TTL` option.
-  def ipv4_multicast_ttl=(value: Integer) !! IoError -> Integer {
+  def ipv4_multicast_ttl=(value: Integer) !! Error -> Integer {
     try bits.set_multicast_ttl_v4(self, value)
   }
 
   # Returns the value of the `IPV6_MULTICAST_HOPS` option.
-  def ipv6_multicast_hops !! IoError -> Integer {
+  def ipv6_multicast_hops !! Error -> Integer {
     try bits.get_multicast_hops_v6(self)
   }
 
   # Sets the value of the `IPV6_MULTICAST_HOPS` option.
-  def ipv6_multicast_hops=(value: Integer) !! IoError -> Integer {
+  def ipv6_multicast_hops=(value: Integer) !! Error -> Integer {
     try bits.set_multicast_hops_v6(self, value)
   }
 
   # Returns the value of the `IP_MULTICAST_IF` option.
-  def ipv4_multicast_interface !! IoError -> Ipv4Address {
+  def ipv4_multicast_interface !! Error -> Ipv4Address {
     let address_string =
       try bits.get_multicast_if_v4(self)
 
@@ -390,37 +390,37 @@ impl Socket {
   }
 
   # Sets the value of the `IP_MULTICAST_IF` option.
-  def ipv4_multicast_interface=(value: ToString) !! IoError -> String {
+  def ipv4_multicast_interface=(value: ToString) !! Error -> String {
     try bits.set_multicast_if_v4(self, value.to_string)
   }
 
   # Returns the value of the `IPV6_MULTICAST_IF` option.
-  def ipv6_multicast_interface !! IoError -> Integer {
+  def ipv6_multicast_interface !! Error -> Integer {
     try bits.get_multicast_if_v6(self)
   }
 
   # Sets the value of the `IPV6_MULTICAST_IF` option.
-  def ipv6_multicast_interface=(value: Integer) !! IoError -> Integer {
+  def ipv6_multicast_interface=(value: Integer) !! Error -> Integer {
     try bits.set_multicast_if_v6(self, value)
   }
 
   # Returns the value of the `IPV6_UNICAST_HOPS` option.
-  def ipv6_unicast_hops !! IoError -> Integer {
+  def ipv6_unicast_hops !! Error -> Integer {
     try bits.get_unicast_hops_v6(self)
   }
 
   # Sets the value of the `IPV6_UNICAST_HOPS` option.
-  def ipv6_unicast_hops=(value: Integer) !! IoError -> Integer {
+  def ipv6_unicast_hops=(value: Integer) !! Error -> Integer {
     try bits.set_unicast_hops_v6(self, value)
   }
 
   # Returns the value of the `SO_REUSEADDR` option.
-  def reuse_address !! IoError -> Boolean {
+  def reuse_address !! Error -> Boolean {
     try bits.get_reuse_address(self)
   }
 
   # Sets the value of the `SO_REUSEADDR` option.
-  def reuse_address=(value: Boolean) !! IoError -> Boolean {
+  def reuse_address=(value: Boolean) !! Error -> Boolean {
     try bits.set_reuse_address(self, value)
   }
 
@@ -428,7 +428,7 @@ impl Socket {
   #
   # Not all platforms may support this option, in which case the returned value
   # will be `False`.
-  def reuse_port !! IoError -> Boolean {
+  def reuse_port !! Error -> Boolean {
     try bits.get_reuse_port(self)
   }
 
@@ -436,22 +436,22 @@ impl Socket {
   #
   # Not all platforms may support this option, in which case the supplied
   # argument will be ignored.
-  def reuse_port=(value: Boolean) !! IoError -> Boolean {
+  def reuse_port=(value: Boolean) !! Error -> Boolean {
     try bits.set_reuse_port(self, value)
   }
 
   # Shuts down the reading half of this socket.
-  def shutdown_read !! IoError {
+  def shutdown_read !! Error {
     try bits.shutdown_read(self)
   }
 
   # Shuts down the writing half of this socket.
-  def shutdown_write !! IoError {
+  def shutdown_write !! Error {
     try bits.shutdown_write(self)
   }
 
   # Shuts down both the reading and writing half of this socket.
-  def shutdown !! IoError {
+  def shutdown !! Error {
     try bits.shutdown(self)
   }
 }
@@ -459,17 +459,17 @@ impl Socket {
 impl RawSocket for Socket {}
 
 impl Read for Socket {
-  def read_bytes(bytes: ByteArray, size = 0) !! IoError -> Integer {
+  def read_bytes(bytes: ByteArray, size = 0) !! Error -> Integer {
     try bits.read_bytes(self, bytes, size)
   }
 }
 
 impl Write for Socket {
-  def write_bytes(bytes: ByteArray) !! IoError -> Integer {
+  def write_bytes(bytes: ByteArray) !! Error -> Integer {
     try bits.write_bytes(self, bytes)
   }
 
-  def write_string(string: String) !! IoError -> Integer {
+  def write_string(string: String) !! Error -> Integer {
     try bits.write_string(self, string)
   }
 
@@ -509,8 +509,10 @@ class UdpSocket {
   #     import std::net::ip::Ipv4Address
   #
   #     try! UdpSocket.new(ip: Ipv4Address.new(0, 0, 0, 0), port: 0)
-  static def new(ip: ToIpAddress, port: Integer) !! IoError -> Self {
-    let ip_addr = try ip.to_ip_address else (e) throw IoError.new(e.message)
+  static def new(ip: ToIpAddress, port: Integer) !! Error -> Self {
+    let ip_addr =
+      try ip.to_ip_address else (e) throw Error.invalid_input(e.message)
+
     let socket = ip_addr
       .v6?
       .if(true: { try Socket.ipv6(DGRAM) }, false: { try Socket.ipv4(DGRAM) })
@@ -536,7 +538,7 @@ class UdpSocket {
   #     let socket2 = try! UdpSocket.new(ip: '0.0.0.0', port: 41_000)
   #
   #     try! socket1.connect(ip: '0.0.0.0', port: 41_000)
-  def connect(ip: ToIpAddress, port: Integer) !! IoError {
+  def connect(ip: ToIpAddress, port: Integer) !! Error {
     try @socket.connect(ip: ip, port: port)
   }
 
@@ -555,7 +557,7 @@ class UdpSocket {
     string: String,
     ip: ToIpAddress,
     port: Integer
-  ) !! IoError -> Integer {
+  ) !! Error -> Integer {
     try @socket.send_string_to(string, ip, port)
   }
 
@@ -575,7 +577,7 @@ class UdpSocket {
     bytes: ByteArray,
     ip: ToIpAddress,
     port: Integer
-  ) !! IoError -> Integer {
+  ) !! Error -> Integer {
     try @socket.send_bytes_to(bytes, ip, port)
   }
 
@@ -586,14 +588,14 @@ class UdpSocket {
   def receive_from(
     bytes: ByteArray,
     size: Integer
-  ) !! IoError -> SocketAddress {
+  ) !! Error -> SocketAddress {
     try @socket.receive_from(bytes: bytes, size: size)
   }
 
   # Returns the local address of this socket.
   #
   # See the documentation of `Socket.local_address` for more information.
-  def local_address !! IoError -> SocketAddress {
+  def local_address !! Error -> SocketAddress {
     try @socket.local_address
   }
 
@@ -607,17 +609,17 @@ class UdpSocket {
 }
 
 impl Read for UdpSocket {
-  def read_bytes(bytes: ByteArray, size = 0) !! IoError -> Integer {
+  def read_bytes(bytes: ByteArray, size = 0) !! Error -> Integer {
     try @socket.read_bytes(bytes: bytes, size: size)
   }
 }
 
 impl Write for UdpSocket {
-  def write_bytes(bytes: ByteArray) !! IoError -> Integer {
+  def write_bytes(bytes: ByteArray) !! Error -> Integer {
     try @socket.write_bytes(bytes)
   }
 
-  def write_string(string: String) !! IoError -> Integer {
+  def write_string(string: String) !! Error -> Integer {
     try @socket.write_string(string)
   }
 
@@ -649,8 +651,10 @@ class TcpStream {
   #     let listener = try! TcpListener.new(ip: '127.0.0.1', port: 40_000)
   #
   #     try! TcpStream.new(ip: '127.0.0.1', port: 40_000)
-  static def new(ip: ToIpAddress, port: Integer) !! IoError -> Self {
-    let ip_addr = try ip.to_ip_address else (e) throw IoError.new(e.message)
+  static def new(ip: ToIpAddress, port: Integer) !! Error -> Self {
+    let ip_addr =
+      try ip.to_ip_address else (e) throw Error.invalid_input(e.message)
+
     let socket = ip_addr
       .v6?
       .if(true: { try Socket.ipv6(STREAM) }, false: { try Socket.ipv4(STREAM) })
@@ -663,14 +667,14 @@ class TcpStream {
   # Returns the local address of this socket.
   #
   # See the documentation of `Socket.local_address` for more information.
-  def local_address !! IoError -> SocketAddress {
+  def local_address !! Error -> SocketAddress {
     try @socket.local_address
   }
 
   # Returns the peer address of this socket.
   #
   # See the documentation of `Socket.peer_address` for more information.
-  def peer_address !! IoError -> SocketAddress {
+  def peer_address !! Error -> SocketAddress {
     try @socket.peer_address
   }
 
@@ -683,33 +687,33 @@ class TcpStream {
   }
 
   # Shuts down the reading half of this socket.
-  def shutdown_read !! IoError {
+  def shutdown_read !! Error {
     try @socket.shutdown_read
   }
 
   # Shuts down the writing half of this socket.
-  def shutdown_write !! IoError {
+  def shutdown_write !! Error {
     try @socket.shutdown_write
   }
 
   # Shuts down both the reading and writing half of this socket.
-  def shutdown !! IoError {
+  def shutdown !! Error {
     try @socket.shutdown
   }
 }
 
 impl Read for TcpStream {
-  def read_bytes(bytes: ByteArray, size = 0) !! IoError -> Integer {
+  def read_bytes(bytes: ByteArray, size = 0) !! Error -> Integer {
     try @socket.read_bytes(bytes: bytes, size: size)
   }
 }
 
 impl Write for TcpStream {
-  def write_bytes(bytes: ByteArray) !! IoError -> Integer {
+  def write_bytes(bytes: ByteArray) !! Error -> Integer {
     try @socket.write_bytes(bytes)
   }
 
-  def write_string(string: String) !! IoError -> Integer {
+  def write_string(string: String) !! Error -> Integer {
     try @socket.write_string(string)
   }
 
@@ -765,8 +769,10 @@ class TcpListener {
     port: Integer,
     backlog = MAXIMUM_LISTEN_BACKLOG,
     only_ipv6 = False
-  ) !! IoError -> Self {
-    let ip_addr = try ip.to_ip_address else (e) throw IoError.new(e.message)
+  ) !! Error -> Self {
+    let ip_addr =
+      try ip.to_ip_address else (e) throw Error.invalid_input(e.message)
+
     let socket = ip_addr
       .v6?
       .if(true: { try Socket.ipv6(STREAM) }, false: { try Socket.ipv4(STREAM) })
@@ -801,14 +807,14 @@ class TcpListener {
   #     let connection = try! listener.accept
   #
   #     try! connection.read_string(4) # => 'ping'
-  def accept !! IoError -> TcpStream {
+  def accept !! Error -> TcpStream {
     TcpStream { @socket = try @socket.accept }
   }
 
   # Returns the local address of this socket.
   #
   # See the documentation of `Socket.local_address` for more information.
-  def local_address !! IoError -> SocketAddress {
+  def local_address !! Error -> SocketAddress {
     try @socket.local_address
   }
 

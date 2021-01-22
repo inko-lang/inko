@@ -19,7 +19,6 @@ pub mod date_time;
 pub mod deref_pointer;
 pub mod directories;
 pub mod duration;
-pub mod error_messages;
 pub mod execution_context;
 pub mod external_functions;
 pub mod ffi;

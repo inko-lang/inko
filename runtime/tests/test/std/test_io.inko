@@ -1,4 +1,4 @@
-import std::io::(Read, Write)
+import std::io::(Error, INVALID_INPUT, NOT_FOUND, Read, Write)
 import std::os::NEWLINE
 import std::test
 import std::test::assert
@@ -47,6 +47,24 @@ impl Write for Writer {
     @buffer.push(string)
 
     string.length
+  }
+}
+
+test.group('std::io::Error.new') do (g) {
+  g.test('Creating an Error for an error code') {
+    let error = Error.new(NOT_FOUND)
+
+    assert.equal(error.code, NOT_FOUND)
+    assert.equal(error.message, 'The resource could not be found')
+  }
+}
+
+test.group('std::io::Error.invalid_input') do (g) {
+  g.test('Creating a custom Error for invalid input') {
+    let error = Error.invalid_input('testing')
+
+    assert.equal(error.code, INVALID_INPUT)
+    assert.equal(error.message, 'testing')
   }
 }
 

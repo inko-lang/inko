@@ -1,15 +1,15 @@
 # Methods for reading from STDIN.
 #
 # This module provides various methods for reading data from STDIN.
-import std::io::(Read, Error as IOError)
+import std::io::(Read, Error)
 import std::process::(blocking)
 
-extern def stdin_read(bytes: ByteArray, size: Integer) !! String -> Integer
+extern def stdin_read(bytes: ByteArray, size: Integer) !! Integer -> Integer
 
 impl Read for ThisModule {
-  def read_bytes(bytes: ByteArray, size = 0) !! IOError -> Integer {
+  def read_bytes(bytes: ByteArray, size = 0) !! Error -> Integer {
     blocking {
-      try stdin_read(bytes, size) else (error) throw IOError.new(error)
+      try stdin_read(bytes, size) else (error) throw Error.new(error)
     }
   }
 }

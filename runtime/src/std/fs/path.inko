@@ -40,17 +40,17 @@
 #     try! ReadOnlyFile.new(Path.new('/dev/urandom'))
 import std::conversion::ToString
 import std::fs::path::bits::(self, SEPARATOR as _SEPARATOR)
-import std::io::(Error as IOError, Size)
+import std::io::(Error, Size)
 import std::operators::Equal
 import std::os
 import std::process::(blocking)
 import std::string_buffer::StringBuffer
 import std::time::SystemTime
 
-extern def file_size(path: String) !! String -> Integer
-extern def path_created_at(path: String) !! String -> Array!(Any)
-extern def path_modified_at(path: String) !! String -> Array!(Any)
-extern def path_accessed_at(path: String) !! String -> Array!(Any)
+extern def file_size(path: String) !! Integer -> Integer
+extern def path_created_at(path: String) !! Integer -> Array!(Any)
+extern def path_modified_at(path: String) !! Integer -> Array!(Any)
+extern def path_accessed_at(path: String) !! Integer -> Array!(Any)
 extern def path_is_file(path: String) -> Boolean
 extern def path_is_directory(path: String) -> Boolean
 extern def path_exists(path: String) -> Boolean
@@ -111,9 +111,9 @@ class Path {
   #     let path = Path.new('README.md')
   #
   #     try! path.created_at # => SystemTime { ... }
-  def created_at !! IOError -> SystemTime {
+  def created_at !! Error -> SystemTime {
     let time = blocking {
-      try path_created_at(@path) else (err) throw IOError.new(err)
+      try path_created_at(@path) else (err) throw Error.new(err)
     }
 
     SystemTime
@@ -131,9 +131,9 @@ class Path {
   #     let path = Path.new('README.md')
   #
   #     try! path.modified_at # => SystemTime { ... }
-  def modified_at !! IOError -> SystemTime {
+  def modified_at !! Error -> SystemTime {
     let time = blocking {
-      try path_modified_at(@path) else (err) throw IOError.new(err)
+      try path_modified_at(@path) else (err) throw Error.new(err)
     }
 
     SystemTime
@@ -151,9 +151,9 @@ class Path {
   #     let path = Path.new('README.md')
   #
   #     try! path.accessed_at # => SystemTime { ... }
-  def accessed_at !! IOError -> SystemTime {
+  def accessed_at !! Error -> SystemTime {
     let time = blocking {
-      try path_accessed_at(@path) else (err) throw IOError.new(err)
+      try path_accessed_at(@path) else (err) throw Error.new(err)
     }
 
     SystemTime
@@ -295,9 +295,9 @@ impl Size for Path {
   #     let path = Path.new('/dev/null')
   #
   #     try! path.size # => 0
-  def size !! IOError -> Integer {
+  def size !! Error -> Integer {
     blocking {
-      try file_size(@path) else (err) throw IOError.new(err)
+      try file_size(@path) else (err) throw Error.new(err)
     }
   }
 }
