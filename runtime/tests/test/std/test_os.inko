@@ -1,7 +1,7 @@
+import std::env
 import std::os::(self, Command, NEWLINE)
 import std::test
 import std::test::assert
-import test::fixtures::(inko_executable)
 
 test.group('std::os.platform') do (g) {
   g.test('Obtaining the name of the underlying platform') {
@@ -111,7 +111,7 @@ os.windows?.if_true {
   test.group('std::os::Command.spawn') do (g) {
     g.test('Spawning a command that ignores all input and output') {
       let cmd = Command
-        .new(inko_executable)
+        .new(try! env.executable)
         .argument('--help')
         .ignore_stdin
         .ignore_stdout
