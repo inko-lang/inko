@@ -163,3 +163,9 @@ test.group('std::env.arguments') do (g) {
     assert.equal(args2, Array.new('dummy'))
   }
 }
+
+test.group('std::env.executable') do (g) {
+  g.test('Getting the path to the current executable') {
+    assert.true(try! { env.executable }.file?)
+  }
+}

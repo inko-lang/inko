@@ -162,6 +162,19 @@ pub fn env_platform_name(
     Ok(state.intern_string(platform::operating_system().to_string()))
 }
 
+/// Returns the full path to the current executable.
+///
+/// This function takes no arguments.
+pub fn env_executable(
+    state: &RcState,
+    process: &RcProcess,
+    _: &[ObjectPointer],
+) -> Result<ObjectPointer, RuntimeError> {
+    let path = env::current_exe()?.to_string_lossy().to_string();
+
+    Ok(process.allocate(object_value::string(path), state.string_prototype))
+}
+
 register!(
     env_get,
     env_set,
@@ -172,5 +185,6 @@ register!(
     env_get_working_directory,
     env_set_working_directory,
     env_arguments,
-    env_platform_name
+    env_platform_name,
+    env_executable
 );
