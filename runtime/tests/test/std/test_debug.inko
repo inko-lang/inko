@@ -1,27 +1,27 @@
-import std::debug::(self, CallFrame)
+import std::debug::(self, StackFrame)
 import std::mirror::ModuleMirror
 import std::test
 import std::test::assert
 
-test.group('std::debug::CallFrame.path') do (g) {
-  g.test('Obtaining the file path of a CallFrame') {
-    let frame = CallFrame.new(path: 'foo.inko', name: 'foo', line: 1)
+test.group('std::debug::StackFrame.path') do (g) {
+  g.test('Obtaining the file path of a StackFrame') {
+    let frame = StackFrame.new(path: 'foo.inko', name: 'foo', line: 1)
 
     assert.equal(frame.path.to_string, 'foo.inko')
   }
 }
 
-test.group('std::debug::CallFrame.name') do (g) {
-  g.test('Obtaining the name of a CallFrame') {
-    let frame = CallFrame.new(path: 'foo.inko', name: 'foo', line: 1)
+test.group('std::debug::StackFrame.name') do (g) {
+  g.test('Obtaining the name of a StackFrame') {
+    let frame = StackFrame.new(path: 'foo.inko', name: 'foo', line: 1)
 
     assert.equal(frame.name, 'foo')
   }
 }
 
-test.group('std::debug::CallFrame.line') do (g) {
-  g.test('Obtaining the line number of a CallFrame') {
-    let frame = CallFrame.new(path: 'foo.inko', name: 'foo', line: 1)
+test.group('std::debug::StackFrame.line') do (g) {
+  g.test('Obtaining the line number of a StackFrame') {
+    let frame = StackFrame.new(path: 'foo.inko', name: 'foo', line: 1)
 
     assert.equal(frame.line, 1)
   }

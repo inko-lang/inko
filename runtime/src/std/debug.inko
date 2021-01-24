@@ -12,15 +12,15 @@ extern def process_stacktrace(
   skip: Integer
 ) -> Array!(Array!(Any))
 
-# Details of a single call frame in a call stack.
-class CallFrame {
+# Details of a single stack frame in a stack trace.
+class StackFrame {
   # The path of the file the frame belongs to.
   @path: Path
 
   # The name of the block of code the frame belongs to.
   @name: String
 
-  # The line number the call frame originates from.
+  # The line number the stack frame originates from.
   @line: Integer
 
   static def new(path: ToPath, name: String, line: Integer) -> Self {
@@ -46,45 +46,45 @@ class CallFrame {
 # Returns a stack trace leading up to the line that called this method.
 #
 # The stack trace is returned in reverse order. This means that the most recent
-# call frame is the last value in the returned `Array`.
+# stack frame is the last value in the returned `Array`.
 #
 # The returned stack trace does not include the frame for this method itself.
 #
 # # Skipping
 #
-# The `skip` argument can be set to an integer to skip a number of call frames.
+# The `skip` argument can be set to an integer to skip a number of stack frames.
 # By default this is set to skip the first frame, ensuring that this method
 # itself does not appear in the returned stack.
 #
 # # Limit
 #
-# An optional limit can be specified to limit the number of call frames to the
-# given number, starting with the most recent call frame. If this limit is 0,
+# An optional limit can be specified to limit the number of stack frames to the
+# given number, starting with the most recent stack frame. If this limit is 0,
 # all frames are included.
 #
 # # Example
 #
 # Returning the trace of a method call:
 #
-#     import std::debug::(self, CallFrame)
+#     import std::debug::(self, StackFrame)
 #
-#     def first -> CallFrame {
+#     def first -> StackFrame {
 #       second
 #     }
 #
-#     def second -> CallFrame {
+#     def second -> StackFrame {
 #       debug.stacktrace[-1]
 #     }
 #
 #     first.name # => 'second'
 #     first.line # => 8
-def stacktrace(skip = 1, limit = 0) -> Array!(CallFrame) {
+def stacktrace(skip = 1, limit = 0) -> Array!(StackFrame) {
   let mut raw_frames = process_stacktrace(limit, skip)
   let mut frames = Array.new
 
   raw_frames.each do (raw_frame) {
     frames.push(
-      CallFrame.new(
+      StackFrame.new(
         path: (raw_frame[0] as String).to_path,
         name: raw_frame[1] as String,
         line: raw_frame[2] as Integer,
@@ -95,19 +95,19 @@ def stacktrace(skip = 1, limit = 0) -> Array!(CallFrame) {
   frames
 }
 
-# Returns the last `CallFrame` originating from the given `Path`.
+# Returns the last `StackFrame` originating from the given `Path`.
 #
 # # Examples
 #
-# Obtaining the last `CallFrame` from a given file:
+# Obtaining the last `StackFrame` from a given file:
 #
 #     import std::debug
-def last_call_frame_in(file: ToPath) -> CallFrame {
+def last_call_frame_in(file: ToPath) -> StackFrame {
   let frames = stacktrace(skip: 1)
   let default = frames[-1]
   let path = file.to_path
 
-  # The last CallFrame is the default, and will point to this method itself.
+  # The last StackFrame is the default, and will point to this method itself.
   # This means we don't need to check that frame.
   let mut index = frames.length - 2
 
@@ -122,5 +122,5 @@ def last_call_frame_in(file: ToPath) -> CallFrame {
   default
 }
 
-impl Equal for CallFrame {}
-impl Hash for CallFrame {}
+impl Equal for StackFrame {}
+impl Hash for StackFrame {}

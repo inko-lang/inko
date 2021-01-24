@@ -1,16 +1,16 @@
-import std::debug::CallFrame
+import std::debug::StackFrame
 import std::test
 import std::test::assert
 import std::test::error::TestFailure
 
 def test_failure -> TestFailure {
-  let frame = CallFrame.new(path: 'test.inko', name: 'test', line: 1)
+  let frame = StackFrame.new(path: 'test.inko', name: 'test', line: 1)
 
   TestFailure.new(message: 'oops', location: frame)
 }
 
 test.group('std::test::error::TestFailure.location') do (g) {
-  g.test('Obtaining the CallFrame of a TestFailure') {
+  g.test('Obtaining the StackFrame of a TestFailure') {
     let failure = test_failure
 
     assert.equal(failure.location.path.to_string, 'test.inko')

@@ -3,7 +3,7 @@
 # The `Test` type is used for defining tests and their details, such as the
 # source location and the `Block` to run. Tests are typically defined by
 # sending `test` to an instance of `std::test::test_group::TestGroup`.
-import std::debug::(self, CallFrame)
+import std::debug::(self, StackFrame)
 import std::option::Option
 import std::process::(self, Process)
 import std::stdio::stdout
@@ -18,8 +18,8 @@ class Test {
   # The name of the group this test belongs to.
   @group_name: String
 
-  # A CallFrame pointing to the location the test was defined on by the user.
-  @location: CallFrame
+  # A StackFrame pointing to the location the test was defined on by the user.
+  @location: StackFrame
 
   # The runner process this test belongs.
   @runner: Process
@@ -34,7 +34,7 @@ class Test {
     name: String,
     group_name: String,
     runner: Process,
-    location: CallFrame,
+    location: StackFrame,
     body: fn,
   ) -> Self {
     Self {
@@ -58,7 +58,7 @@ class Test {
   }
 
   # Returns the location this test was defined on.
-  def location -> CallFrame {
+  def location -> StackFrame {
     @location
   }
 

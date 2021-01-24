@@ -1,25 +1,25 @@
 # Types for signalling test failures
 import std::conversion::ToString
 import std::error::Error
-import std::debug::CallFrame
+import std::debug::StackFrame
 
 # A `TestFailure` is used to indicate that a particular assertion failed.
 #
 # Each `TestFailure` is given a message describing the failure, and a
-# `CallFrame` that points to the location of the failure.
+# `StackFrame` that points to the location of the failure.
 class TestFailure {
   # A message describing the assertion failure.
   @message: String
 
   # The location of the assertion failure.
-  @location: CallFrame
+  @location: StackFrame
 
-  static def new(message: String, location: CallFrame) -> Self {
+  static def new(message: String, location: StackFrame) -> Self {
     Self { @message = message, @location = location }
   }
 
   # Returns the location of the failure.
-  def location -> CallFrame {
+  def location -> StackFrame {
     @location
   }
 }

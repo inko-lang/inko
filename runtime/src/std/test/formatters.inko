@@ -1,7 +1,7 @@
 # Built-in formatters for test suites.
 import std::ansi::(self, BOLD, CYAN, GREEN, RED)
 import std::conversion::ToString
-import std::debug::CallFrame
+import std::debug::StackFrame
 import std::stdio::stdout
 import std::test::error::TestFailure
 import std::test::formatter::Formatter
@@ -33,7 +33,7 @@ class ProgressFormatter {
   }
 
   # Returns the location of a test failure.
-  def format_location(location: CallFrame) -> String {
+  def format_location(location: StackFrame) -> String {
     `{location.path}:{location.line}`
   }
 

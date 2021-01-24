@@ -1,4 +1,4 @@
-import std::debug::CallFrame
+import std::debug::StackFrame
 import std::process
 import std::test
 import std::test::assert
@@ -8,7 +8,7 @@ import std::test::test::Test
 import std::time::Duration
 
 def example_test -> Test {
-  let frame = CallFrame.new(path: 'test.inko', name: 'test', line: 1)
+  let frame = StackFrame.new(path: 'test.inko', name: 'test', line: 1)
 
   Test.new(
     name: 'test name',
@@ -22,7 +22,7 @@ def example_test -> Test {
 test.group('std::test::formatters::ProgressFormatter.format_location') do (g) {
   g.test('Generating the failure location description for a failed test') {
     let fmt = ProgressFormatter.new
-    let frame = CallFrame.new(path: 'test.inko', name: 'test', line: 1)
+    let frame = StackFrame.new(path: 'test.inko', name: 'test', line: 1)
 
     assert.equal(fmt.format_location(frame), 'test.inko:1')
   }
