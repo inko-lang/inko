@@ -1,2 +1,5 @@
 [workspace]
 members = ["cli", "vm"]
+
+[profile.release]
+panic = "abort"
