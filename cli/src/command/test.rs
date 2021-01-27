@@ -184,14 +184,12 @@ fn module_name(path: PathBuf, directory: &PathBuf) -> Result<String, Error> {
 ///     import test::foo::bar::(self as mod0)
 ///     import test::foo::baz::(self as mod1)
 ///
-///     def main {
-///       let tests = Tests.new
+///     let tests = Tests.new
 ///
-///       config.setup(tests)
-///       mod0.tests(tests)
-///       mod1.tests(tests)
-///       tests.run
-///     }
+///     config.setup(tests)
+///     mod0.tests(tests)
+///     mod1.tests(tests)
+///     tests.run
 fn generate_source(modules: Vec<String>, has_config: bool) -> String {
     let mut output = "import std::test::Tests\n".to_string();
 
@@ -209,20 +207,16 @@ fn generate_source(modules: Vec<String>, has_config: bool) -> String {
         ));
     }
 
-    // TODO: main method
-    //output.push_str(&"\ndef main {\n");
-    output.push_str(&"  let tests = Tests.new\n");
+    output.push_str(&"let tests = Tests.new\n");
 
     if has_config {
-        output.push_str(&format!("  {}.setup(tests)\n", CONFIG_MODULE));
+        output.push_str(&format!("{}.setup(tests)\n", CONFIG_MODULE));
     }
 
     for index in 0..modules.len() {
-        output.push_str(&format!("  mod{}.tests(tests)\n", index));
+        output.push_str(&format!("mod{}.tests(tests)\n", index));
     }
 
-    output.push_str("  tests.run\n");
-    // TODO: main method
-    //output.push_str("}\n");
+    output.push_str("tests.run\n");
     output
 }
