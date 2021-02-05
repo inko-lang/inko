@@ -731,11 +731,6 @@ trait ExpressionTypePass: TypePass {
       }
     )
 
-    # TODO: still needed?
-    node.resolved_type.let do (type) {
-      type.error?.if_true { return type }
-    }
-
     block.external_function?.and { node.receiver.some? }.if_true {
       type_checker.diagnostics.external_function_with_receiver(node.location)
 
