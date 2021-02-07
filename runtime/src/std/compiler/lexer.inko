@@ -100,111 +100,6 @@ class EscapeMap {
   }
 }
 
-# Detecting Inko keywords using perfect hashing.
-#
-# The code for this type was originally generated using gperf using the
-# following command:
-#
-#     gperf -m100 keywords.txt
-#
-# Here `keywords.txt` contains a sorted list of all the keywords of Inko. The
-# generated C code was then ported to Inko by hand.
-#
-# Since this code is based on generated code, changing it may produce unexpected
-# results. For example, the various lookup tables in this type should not have
-# their order changed.
-class Keywords {
-  # The associated values for the first and second bytes in a keyword.
-  @associated_values: Array!(Integer)
-
-  # All available keywords, as ByteArray instances.
-  @word_list: Array!(ByteArray)
-
-  # Input values with a length outside of this `Range` definitely can't be a
-  # keyword.
-  @word_length: Range!(Integer)
-
-  # The maximum possible hash value. If a hash value is greater, the input is
-  # definitely not a keyword.
-  @max_hash_value: Integer
-
-  static def new -> Self {
-    Self {
-      @associated_values = Array.new(
-        25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
-        25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
-        25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
-        25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
-        25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
-        25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
-        25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
-        25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
-        25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
-        25, 25, 25, 25, 25, 25, 25, 14, 25, 13,
-        12,  0, 16, 25, 13,  7, 25, 25,  6,  0,
-         5,  3, 25, 25,  0,  0,  2,  0, 25,  4,
-        12,  0, 25, 25, 25, 25, 25, 25, 25, 25,
-        25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
-        25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
-        25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
-        25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
-        25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
-        25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
-        25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
-        25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
-        25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
-        25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
-        25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
-        25, 25, 25, 25, 25, 25, 25, 25, 25, 25,
-        25, 25, 25, 25, 25, 25
-      ),
-      @word_list = Array.new(
-        ''.to_byte_array,
-        ''.to_byte_array,
-        ''.to_byte_array,
-        'mut'.to_byte_array,
-        'self'.to_byte_array,
-        'try'.to_byte_array,
-        'return'.to_byte_array,
-        'trait'.to_byte_array,
-        'static'.to_byte_array,
-        'let'.to_byte_array,
-        'else'.to_byte_array,
-        'impl'.to_byte_array,
-        'yield'.to_byte_array,
-        'import'.to_byte_array,
-        'local'.to_byte_array,
-        'def'.to_byte_array,
-        'as'.to_byte_array,
-        'do'.to_byte_array,
-        'extern'.to_byte_array,
-        'match'.to_byte_array,
-        'throw'.to_byte_array,
-        'when'.to_byte_array,
-        'for'.to_byte_array,
-        'fn'.to_byte_array,
-        'class'.to_byte_array
-      ),
-      @word_length = 2..6,
-      @max_hash_value = 24
-    }
-  }
-
-  # Returns `True` if the given `ByteArray` is a valid Inko keyword.
-  def keyword?(bytes: ByteArray) -> Boolean {
-    let length = bytes.length
-
-    @word_length.cover?(length).if_false { return False }
-
-    let assoc = @associated_values
-    let hash = length + assoc[bytes[1]] + assoc[bytes[0]]
-
-    (hash > @max_hash_value).if_true { return False }
-
-    @word_list[hash] == bytes
-  }
-}
-
 # A `Lexer` is used for turning Inko source code into a sequence of tokens.
 # These tokens in turn can be used by a parser to produce an Abstract Syntax
 # Tree.
@@ -237,9 +132,6 @@ class Lexer {
   # The current column number.
   @column: Integer
 
-  # A type used for detecting keywords.
-  @keywords: Keywords
-
   # The escape sequence literals supported by a single quoted string, and their
   # replacement bytes.
   @single_quoted_string_escapes: EscapeMap
@@ -265,7 +157,6 @@ class Lexer {
       @states = Array.new(STATE_DEFAULT),
       @line = 1,
       @column = 1,
-      @keywords = Keywords.new,
       @single_quoted_string_escapes = EscapeMap
         .new
         .map(byte: SINGLE_QUOTE, to: SINGLE_QUOTE)
@@ -877,14 +768,37 @@ class Lexer {
 
     while({ valid_identifier_byte? }) { @position += 1 }
 
-    let bytes = slice_bytes(start: start, stop: @position)
-    let string = bytes.to_string
+    let string = slice_string(start: start, stop: @position)
     let location = source_location(@line)
 
     @column += string.length
 
-    @keywords.keyword?(bytes).if_true {
-      return KeywordToken.new(keyword: string, location: location)
+    match(string) {
+      'as',
+      'class',
+      'def',
+      'do',
+      'else',
+      'extern',
+      'fn',
+      'for',
+      'impl',
+      'import',
+      'let',
+      'local',
+      'match',
+      'mut',
+      'return',
+      'self',
+      'static',
+      'throw',
+      'trait',
+      'try',
+      'when',
+      'yield' -> {
+        return KeywordToken.new(keyword: string, location: location)
+      }
+      else -> {}
     }
 
     RegularToken.new(type: 'identifier', value: string, location: location)
@@ -983,11 +897,7 @@ class Lexer {
   }
 
   def slice_string(start: Integer, stop: Integer) -> String {
-    slice_bytes(start: start, stop: stop).drain_to_string
-  }
-
-  def slice_bytes(start: Integer, stop: Integer) -> ByteArray {
-    @input.slice(start: start, length: stop - start)
+    @input.slice(start: start, length: stop - start).drain_to_string
   }
 
   def current_byte -> Integer {

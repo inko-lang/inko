@@ -1,4 +1,4 @@
-import std::compiler::lexer::(Keywords, Lexer)
+import std::compiler::lexer::Lexer
 import std::compiler::token::Token
 import std::test::*
 
@@ -18,101 +18,6 @@ def lex_all(input: String) -> Array!(Token) {
 }
 
 def tests(t: Tests) {
-  t.group('std::compiler::lexer::Keywords.keyword?') do (g) {
-    g.test('Checking if "let" is a keyword') {
-      try assert_true(Keywords.new.keyword?('let'.to_byte_array))
-    }
-
-    g.test('Checking if "else" is a keyword') {
-      try assert_true(Keywords.new.keyword?('else'.to_byte_array))
-    }
-
-    g.test('Checking if "try" is a keyword') {
-      try assert_true(Keywords.new.keyword?('try'.to_byte_array))
-    }
-
-    g.test('Checking if "return" is a keyword') {
-      try assert_true(Keywords.new.keyword?('return'.to_byte_array))
-    }
-
-    g.test('Checking if "trait" is a keyword') {
-      try assert_true(Keywords.new.keyword?('trait'.to_byte_array))
-    }
-
-    g.test('Checking if "impl" is a keyword') {
-      try assert_true(Keywords.new.keyword?('impl'.to_byte_array))
-    }
-
-    g.test('Checking if "self" is a keyword') {
-      try assert_true(Keywords.new.keyword?('self'.to_byte_array))
-    }
-
-    g.test('Checking if "import" is a keyword') {
-      try assert_true(Keywords.new.keyword?('import'.to_byte_array))
-    }
-
-    g.test('Checking if "fn" is a keyword') {
-      try assert_true(Keywords.new.keyword?('fn'.to_byte_array))
-    }
-
-    g.test('Checking if "as" is a keyword') {
-      try assert_true(Keywords.new.keyword?('as'.to_byte_array))
-    }
-
-    g.test('Checking if "throw" is a keyword') {
-      try assert_true(Keywords.new.keyword?('throw'.to_byte_array))
-    }
-
-    g.test('Checking if "when" is a keyword') {
-      try assert_true(Keywords.new.keyword?('when'.to_byte_array))
-    }
-
-    g.test('Checking if "mut" is a keyword') {
-      try assert_true(Keywords.new.keyword?('mut'.to_byte_array))
-    }
-
-    g.test('Checking if "def" is a keyword') {
-      try assert_true(Keywords.new.keyword?('def'.to_byte_array))
-    }
-
-    g.test('Checking if "do" is a keyword') {
-      try assert_true(Keywords.new.keyword?('do'.to_byte_array))
-    }
-
-    g.test('Checking if "for" is a keyword') {
-      try assert_true(Keywords.new.keyword?('for'.to_byte_array))
-    }
-
-    g.test('Checking if "class" is a keyword') {
-      try assert_true(Keywords.new.keyword?('class'.to_byte_array))
-    }
-
-    g.test('Checking if "static" is a keyword') {
-      try assert_true(Keywords.new.keyword?('static'.to_byte_array))
-    }
-
-    g.test('Checking if "match" is a keyword') {
-      try assert_true(Keywords.new.keyword?('match'.to_byte_array))
-    }
-
-    g.test('Checking if "local" is a keyword') {
-      try assert_true(Keywords.new.keyword?('local'.to_byte_array))
-    }
-
-    g.test('Checking if "extern" is a keyword') {
-      try assert_true(Keywords.new.keyword?('extern'.to_byte_array))
-    }
-
-    g.test('Checking if an invalid identifier is a keyword') {
-      let keywords = Keywords.new
-
-      try assert_false(keywords.keyword?('foo'.to_byte_array))
-      try assert_false(keywords.keyword?('bar'.to_byte_array))
-      try assert_false(keywords.keyword?('baz'.to_byte_array))
-      try assert_false(keywords.keyword?('this is not an identifier'.to_byte_array))
-    }
-  }
-
   t.group('std::compiler::lexer::Lexer.next') do (g) {
     g.test('Lexing an integer') {
       let token = lex('10')
@@ -1670,6 +1575,28 @@ world\n" "hello"'
 
       try assert_equal(token.type, 'yield')
       try assert_equal(token.value, 'yield')
+      try assert_true(token.keyword?)
+
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
+
+    g.test('Lexing the extern keyword') {
+      let token = lex('extern')
+
+      try assert_equal(token.type, 'extern')
+      try assert_equal(token.value, 'extern')
+      try assert_true(token.keyword?)
+
+      try assert_equal(token.location.column, 1)
+      try assert_equal(token.location.line_range, 1..1)
+    }
+
+    g.test('Lexing the static keyword') {
+      let token = lex('static')
+
+      try assert_equal(token.type, 'static')
+      try assert_equal(token.value, 'static')
       try assert_true(token.keyword?)
 
       try assert_equal(token.location.column, 1)
