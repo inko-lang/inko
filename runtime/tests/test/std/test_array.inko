@@ -222,14 +222,6 @@ def tests(t: Tests) {
     }
   }
 
-  t.group('std::array::Array.to_array') do (g) {
-    g.test('Converting an Array to another Array') {
-      let numbers = Array.new(10, 20, 30)
-
-      try assert_equal(numbers, Array.new(10, 20, 30))
-    }
-  }
-
   t.group('std::array::Array.==') do (g) {
     g.test('Comparing two equal Arrays') {
       try assert_equal(Array.new(10, 20), Array.new(10, 20))
