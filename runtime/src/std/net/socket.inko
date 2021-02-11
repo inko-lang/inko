@@ -511,7 +511,7 @@ class UdpSocket {
   #     try! UdpSocket.new(ip: Ipv4Address.new(0, 0, 0, 0), port: 0)
   static def new(ip: ToIpAddress, port: Integer) !! Error -> Self {
     let ip_addr =
-      try ip.to_ip_address else (e) throw Error.invalid_input(e.message)
+      try ip.to_ip_address else (e) throw Error.invalid_input(e.to_string)
 
     let socket = ip_addr
       .v6?
@@ -653,7 +653,7 @@ class TcpStream {
   #     try! TcpStream.new(ip: '127.0.0.1', port: 40_000)
   static def new(ip: ToIpAddress, port: Integer) !! Error -> Self {
     let ip_addr =
-      try ip.to_ip_address else (e) throw Error.invalid_input(e.message)
+      try ip.to_ip_address else (e) throw Error.invalid_input(e.to_string)
 
     let socket = ip_addr
       .v6?
@@ -771,7 +771,7 @@ class TcpListener {
     only_ipv6 = False
   ) !! Error -> Self {
     let ip_addr =
-      try ip.to_ip_address else (e) throw Error.invalid_input(e.message)
+      try ip.to_ip_address else (e) throw Error.invalid_input(e.to_string)
 
     let socket = ip_addr
       .v6?

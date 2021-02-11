@@ -65,11 +65,7 @@ impl ToString for ParseError {
   }
 }
 
-impl Error for ParseError {
-  def message -> String {
-    @message
-  }
-}
+impl Error for ParseError {}
 
 # An LL(1) recursive descent parser for parsing Inko source code into an AST.
 class Parser {

@@ -1,11 +1,13 @@
 # Types for error handling.
 import std::conversion::ToString
 
-# A type for building custom error objects.
-trait Error: ToString {
-  # Returns the error message.
-  def message -> String
-}
+# A trait for errors that occur at runtime.
+#
+# Errors describe themselves through the `ToString` strait.
+#
+# Error don't store stacktraces by default. As such, this trait doesn't provide
+# a method for obtaining a stacktrace.
+trait Error: ToString {}
 
 # A simple `Error` object that stores only an error message.
 #
@@ -26,8 +28,4 @@ impl ToString for StandardError {
   }
 }
 
-impl Error for StandardError {
-  def message -> String {
-    @message
-  }
-}
+impl Error for StandardError {}

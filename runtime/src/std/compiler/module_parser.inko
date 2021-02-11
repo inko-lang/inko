@@ -62,7 +62,7 @@ trait ParseRequest {
     let ast = try {
       Parser.new(input: source, file: path).parse
     } else (err) {
-      diagnostics.failed_to_parse(message: err.message, location: err.location)
+      diagnostics.failed_to_parse(message: err.to_string, location: err.location)
 
       Body.new(
         children: Array.new,

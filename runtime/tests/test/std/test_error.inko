@@ -9,12 +9,4 @@ def tests(t: Tests) {
       try assert_equal(error.to_string, 'hello')
     }
   }
-
-  t.group('std::error::StandardError.message') do (g) {
-    g.test('Obtaining the message from a StandardError') {
-      let error = StandardError.new('hello')
-
-      try assert_equal(error.message, 'hello')
-    }
-  }
 }

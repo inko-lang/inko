@@ -51,18 +51,14 @@ class AddressParseError {
 
 impl ToString for AddressParseError {
   def to_string -> String {
-    message
-  }
-}
-
-impl Error for AddressParseError {
-  def message -> String {
     @address.empty?.if(
       true: { 'The String to parse into an IP address is empty' },
-      false: { @address + ' is not a valid IP address' }
+      false: { `{@address} isn't a valid IP address` }
     )
   }
 }
+
+impl Error for AddressParseError {}
 
 # A type that can be converted to an `IpAddress`.
 trait ToIpAddress {
