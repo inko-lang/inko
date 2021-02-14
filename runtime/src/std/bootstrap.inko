@@ -75,36 +75,6 @@ trait Object {
     _INKOC.if(truthy?, Nil, block.call)
   }
 
-  # Returns `True` if `self` and the given object evaluate to `True`.
-  #
-  # # Examples
-  #
-  # Using two objects:
-  #
-  #     Object.new.and { Object.new } # => True
-  #
-  # Using and object and `False`:
-  #
-  #     Object.new.and { False } # => False
-  def and(other: do -> Boolean) -> Boolean {
-    _INKOC.if(truthy?, other.call, False)
-  }
-
-  # Returns `True` if `self` or the given object evaluates to `True`.
-  #
-  # # Examples
-  #
-  # Using two objects:
-  #
-  #     Object.new.or { Object.new } # => True
-  #
-  # Using an object and `False`:
-  #
-  #     Object.new.or { False } # => True
-  def or(other: do -> Boolean) -> Boolean {
-    _INKOC.if(truthy?, True, other.call)
-  }
-
   # Returns `True` if `self` and the given object are the exact same objects.
   #
   # Two objects are considered identical if they reside at the exact same

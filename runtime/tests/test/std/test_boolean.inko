@@ -138,4 +138,27 @@ def tests(t: Tests) {
       try assert_equal(hasher1.to_hash, hasher2.to_hash)
     }
   }
+
+  t.group('std::boolean::Boolean.and') do (g) {
+    g.test('Using True as the receiver') {
+      try assert_true(True.and({ True }))
+      try assert_false(True.and({ False }))
+    }
+
+    g.test('Using False as the receiver') {
+      try assert_false(False.and({ True }))
+    }
+  }
+
+  t.group('std::boolean::Boolean.or') do (g) {
+    g.test('Using True as the receiver') {
+      try assert_true(True.or({ True }))
+      try assert_true(True.or({ False }))
+    }
+
+    g.test('Using False as the receiver') {
+      try assert_true(False.or({ True }))
+      try assert_false(False.or({ False }))
+    }
+  }
 }

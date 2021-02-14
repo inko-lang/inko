@@ -20,6 +20,27 @@ impl Boolean {
   def false? -> Boolean {
     _INKOC.if(self, False, True)
   }
+
+  # Returns `True` if `self` is `True`, and the given block also returns `True`.
+  #
+  # # Examples
+  #
+  #     True.and { True }  # => True
+  #     False.and { True } # => False
+  def and(other: do -> Boolean) -> Boolean {
+    _INKOC.if(truthy?, other.call, False)
+  }
+
+  # Returns `True` if `self` is `True`, or if the given block returns `True`.
+  #
+  # # Examples
+  #
+  #     True.or { True }   # => True
+  #     False.or { True }  # => True
+  #     False.or { False } # => False
+  def or(other: do -> Boolean) -> Boolean {
+    _INKOC.if(truthy?, True, other.call)
+  }
 }
 
 impl ToString for Boolean {

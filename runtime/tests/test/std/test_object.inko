@@ -91,20 +91,4 @@ def tests(t: Tests) {
       try assert_equal(res, 10)
     }
   }
-
-  t.group('std::object::Object.and') do (g) {
-    g.test('The supplied block is always executed') {
-      let obj = Dummy.new
-
-      try assert_true(obj.and({ True }))
-    }
-  }
-
-  t.group('std::object::Object.or') do (g) {
-    g.test('The supplied block is never executed') {
-      let obj = Dummy.new
-
-      try assert_true(obj.or({ False }))
-    }
-  }
 }

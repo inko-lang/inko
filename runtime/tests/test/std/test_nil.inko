@@ -34,16 +34,4 @@ def tests(t: Tests) {
       try assert_equal(actual, 42)
     }
   }
-
-  t.group('std::nil::NilType.and') do (g) {
-    g.test('The supplied block is never called') {
-      try assert_false(Nil.and { True })
-    }
-  }
-
-  t.group('std::nil::NilType.or') do (g) {
-    g.test('The supplied block is always called') {
-      try assert_true(Nil.or { True })
-    }
-  }
 }
