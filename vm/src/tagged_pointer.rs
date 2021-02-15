@@ -96,9 +96,17 @@ impl<T> TaggedPointer<T> {
     /// This boolean returns true if the pointer was swapped, false otherwise.
     #[cfg_attr(feature = "cargo-clippy", allow(trivially_copy_pass_by_ref))]
     pub fn compare_and_swap(&self, current: *mut T, other: *mut T) -> bool {
-        self.as_atomic()
-            .compare_and_swap(current, other, Ordering::AcqRel)
-            == current
+        let result = self.as_atomic().compare_exchange(
+            current,
+            other,
+            Ordering::AcqRel,
+            Ordering::Acquire,
+        );
+
+        match result {
+            Ok(x) => x == current,
+            Err(x) => x == current,
+        }
     }
 
     /// Atomically replaces the current pointer with the given one.

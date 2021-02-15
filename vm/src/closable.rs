@@ -27,7 +27,7 @@ use {
 };
 
 #[cfg(unix)]
-const INVALID_FD: i32 = -1;
+const INVALID_FD: i32 = -2;
 
 #[cfg(windows)]
 use {

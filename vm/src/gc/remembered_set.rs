@@ -46,9 +46,17 @@ impl Chunk {
 
             let next = index + 1;
 
-            if self.index.compare_and_swap(index, next, Ordering::AcqRel)
-                == index
-            {
+            let result = match self.index.compare_exchange(
+                index,
+                next,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(x) => x,
+                Err(x) => x,
+            };
+
+            if result == index {
                 self.values[index] = value;
 
                 return true;
