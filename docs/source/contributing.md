@@ -59,6 +59,11 @@ how other languages implement the feature (if applicable), and so on.
 
 ## Submitting changes
 
+!!! note
+    We currently don't accept code changes other than simple bug fixes and
+    documentation related changes. There's a lot of work to be done, and we feel
+    it's more efficient if we do the work ourselves.
+
 To submit changes to Inko, you'll need a local Git clone of the repository. If
 you want to contribute to inko-lang/inko, you need to [build Inko from
 source](getting-started/installation.md#building-from-source). Make sure you are
