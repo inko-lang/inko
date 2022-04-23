@@ -59,6 +59,7 @@ include:
   - local: .gitlab/ci/releases.yml
   - local: .gitlab/ci/docs.yml
   - template: Security/License-Scanning.gitlab-ci.yml
+  - template: Security/Secret-Detection.gitlab-ci.yml
 
 license_scanning:
   variables:
