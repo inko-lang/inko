@@ -1,0 +1,114 @@
+import std::drop::(drop)
+import std::env
+import std::fmt::(DefaultFormatter, Format, Formatter)
+import std::fs::file::(WriteOnlyFile, remove)
+import std::fs::path::Path
+import std::hash::(Hash, Hasher)
+import std::map::DefaultHasher
+import std::sys::(Command, Stream)
+
+fn pub hash(value: ref Hash) -> Int {
+  let hasher: Hasher = DefaultHasher.new
+
+  value.hash(hasher)
+  hasher.hash
+}
+
+fn pub fmt(value: ref Format) -> String {
+  let fmt: Formatter = DefaultFormatter.new
+
+  value.fmt(fmt)
+  fmt.into_string
+}
+
+class pub Script {
+  let @id: Int
+  let @path: Path
+  let @code: String
+  let @cmd: Command
+  let @stdin: Option[String]
+  let @imports: Array[String]
+
+  fn pub static new(id: ref Int, code: String) -> Self {
+    let path = env.temporary_directory.join("inko_test_script_{id}.inko")
+    let exe = try! env.executable
+    let cmd = Command.new(exe)
+
+    cmd.argument('run')
+    cmd.argument('-f')
+    cmd.argument('plain')
+    cmd.argument(path.to_string)
+    cmd.stdin(Stream.Null)
+    cmd.stderr(Stream.Piped)
+    cmd.stdout(Stream.Piped)
+
+    Self {
+      @id = id.clone,
+      @path = path,
+      @code = code,
+      @cmd = cmd,
+      @stdin = Option.None,
+      @imports = ['std::stdio::*']
+    }
+  }
+
+  fn pub move import(module: String) -> Self {
+    @imports.push(module)
+    self
+  }
+
+  fn pub move stdin(input: String) -> Self {
+    @stdin = Option.Some(input)
+
+    @cmd.stdin(Stream.Piped)
+    self
+  }
+
+  fn pub move argument(value: String) -> Self {
+    @cmd.argument(value)
+    self
+  }
+
+  fn pub move variable(name: String, value: String) -> Self {
+    @cmd.variable(name, value)
+    self
+  }
+
+  fn pub move run -> String {
+    let file = try! WriteOnlyFile.new(@path.clone)
+
+    @imports.into_iter.each fn (mod) {
+      try! file.write_string("import {mod}\n")
+    }
+
+    try! file.write_string(
+"class async Main \{
+  fn async main \{
+    {@code}
+  }
+}
+"
+    )
+
+    try! file.flush
+
+    let exe = try! env.executable
+    let child = try! @cmd.spawn
+    let bytes = ByteArray.new
+
+    match @stdin {
+      case Some(input) -> try! child.stdin.write_string(input)
+      case _ -> 0
+    }
+
+    try! child.wait
+    try! child.stdout.read_all(bytes)
+    try! child.stderr.read_all(bytes)
+
+    drop(file)
+
+    try! remove(@path)
+
+    bytes.into_string
+  }
+}

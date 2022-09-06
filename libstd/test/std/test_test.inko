@@ -1,0 +1,132 @@
+import std::fs::path::Path
+import std::io::Write
+import std::sys
+import std::test::(Plain, Test, Tests)
+import std::time::Duration
+
+class Buffer {
+  let @bytes: mut ByteArray
+
+  fn static new(bytes: mut ByteArray) -> Self {
+    Self { @bytes = bytes}
+  }
+}
+
+impl Write for Buffer {
+  fn pub mut write_string(string: ref String) -> Int {
+    let bytes = string.to_byte_array
+    let size = bytes.length
+
+    @bytes.append(bytes)
+    size
+  }
+
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Int {
+    @bytes.append(bytes.clone)
+    bytes.length
+  }
+
+  fn pub mut flush {}
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('Plain.passed without colors') fn (t) {
+    let buff = ByteArray.new
+    let plain = Plain.new(out: Buffer.new(buff), colors: false)
+    let test = Test
+      .new(id: 1, name: 'foo', path: Path.new(''), line: 42, code: fn (t) {})
+
+    plain.passed(test)
+
+    t.equal(buff.to_string, '.')
+  }
+
+  t.test('Plain.passed with colors') fn (t) {
+    let buff = ByteArray.new
+    let plain = Plain.new(out: Buffer.new(buff), colors: true)
+    let test = Test
+      .new(id: 1, name: 'foo', path: Path.new(''), line: 42, code: fn (t) {})
+
+    plain.passed(test)
+
+    t.equal(buff.to_string, "\e[32m.\e[0m")
+  }
+
+  t.test('Plain.failed without colors') fn (t) {
+    let buff = ByteArray.new
+    let plain = Plain.new(out: Buffer.new(buff), colors: false)
+    let test = Test
+      .new(id: 1, name: 'foo', path: Path.new(''), line: 42, code: fn (t) {})
+
+    plain.failed(test)
+
+    t.equal(buff.to_string, 'F')
+  }
+
+  t.test('Plain.failed with colors') fn (t) {
+    let buff = ByteArray.new
+    let plain = Plain.new(out: Buffer.new(buff), colors: true)
+    let test = Test
+      .new(id: 1, name: 'foo', path: Path.new(''), line: 42, code: fn (t) {})
+
+    plain.failed(test)
+
+    t.equal(buff.to_string, "\e[31mF\e[0m")
+  }
+
+  t.test('Plain.finished without tests') fn (t) {
+    let buff = ByteArray.new
+    let plain = Plain.new(out: Buffer.new(buff), colors: false)
+
+    t.equal(plain.finished(Duration.from_seconds(1)), true)
+    t.equal(
+      buff.to_string,
+      "\nFinished running 0 tests in 1.0 seconds, 0 failures\n"
+    )
+  }
+
+  t.test('Plain.finished without failures') fn (t) {
+    let buff = ByteArray.new
+    let plain = Plain.new(out: Buffer.new(buff), colors: false)
+    let test = Test
+      .new(id: 1, name: 'foo', path: Path.new(''), line: 42, code: fn (t) {})
+
+    plain.passed(test)
+
+    t.equal(plain.finished(Duration.from_seconds(1)), true)
+    t.equal(
+      buff.to_string,
+      ".\nFinished running 1 tests in 1.0 seconds, 0 failures\n"
+    )
+  }
+
+  t.test('Plain.finished with failures') fn (t) {
+    let buff = ByteArray.new
+    let plain = Plain.new(out: Buffer.new(buff), colors: false)
+    let test = Test.new(
+      id: 1,
+      name: 'foo',
+      path: Path.new('foo.inko'),
+      line: 42,
+      code: fn (t) {}
+    )
+
+    test.true(false)
+    plain.failed(test)
+
+    t.equal(plain.finished(Duration.from_seconds(1)), false)
+
+    let out = buff.to_string
+
+    t.true(out.contains?('Failures:'))
+    t.true(out.contains?('Test: foo'))
+    t.true(out.contains?('Finished running 1 tests in 1.0 seconds, 1 failures'))
+  }
+
+  t.test('Tests.new') fn (t) {
+    let tests = Tests.new
+
+    t.equal(tests.concurrency, sys.cpu_cores)
+    t.true(tests.pattern.none?)
+  }
+}

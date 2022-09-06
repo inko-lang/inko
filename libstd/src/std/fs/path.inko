@@ -1,0 +1,360 @@
+# Cross-platform path manipulation.
+import std::clone::Clone
+import std::cmp::Equal
+import std::fmt::(Format, Formatter)
+import std::io::(Error, Size)
+import std::string::(ToString, IntoString)
+import std::sys
+import std::time::DateTime
+
+let FSLASH = 47
+let BSLASH = 92
+let COLON = 58
+
+# Returns the main path separator for the current platform.
+fn pub separator -> String {
+  if sys.windows? { '\\' } else { '/' }
+}
+
+# Returns `True` if the given `String` starts with a Windows drive name, such as
+# C:/.
+fn starts_with_windows_drive_name?(path: ref String) -> Bool {
+  if path.size < 3 { return false }
+
+  let start = path.byte(0)
+
+  # Windows drive letters are limited to the range a-z and A-Z.
+  (start >= 97 and start <= 122)
+    or (start >= 65 and start <= 90)
+    and path.byte(1) == COLON
+    and path_separator?(path.byte(2))
+}
+
+# Returns `True` if the byte is a valid path separator byte.
+fn path_separator?(byte: Int) -> Bool {
+  if sys.windows? { byte == FSLASH or byte == BSLASH } else { byte == FSLASH }
+}
+
+# Returns the number of bytes leading up to the last path separator.
+#
+# If no separator could be found, `-1` is returned.
+fn bytes_before_last_separator(path: String) -> Int {
+  if path.empty? { return -1 }
+
+  let windows_drive_path =
+    sys.windows? and starts_with_windows_drive_name?(path)
+
+  # If the path starts with a Windows drive name (e.g. "C:\foo") we don't want
+  # to trim off the \ in C:\, as it's part of the drive name.
+  let trim_until = if windows_drive_path { 2 } else { 0 }
+  let mut index = path.size - 1
+
+  # Trailing separators should be ignored, so we'll skip over them until the
+  # first non-separator byte.
+  while index > trim_until and path_separator?(path.byte(index)) {
+    index -= 1
+  }
+
+  let mut in_separator = false
+
+  while index > -1 {
+    let byte = path.byte(index)
+
+    if path_separator?(byte) {
+      in_separator = true
+    } else if in_separator {
+      # We have reached the ":" in a drive name such as "C:\". In this case we
+      # want to include the "\" since it's part of the drive name.
+      if windows_drive_path and index == 1 { return 3 }
+
+      return index + 1
+    }
+
+    index -= 1
+  }
+
+  if in_separator { 1 } else { -1 }
+}
+
+# Returns `True` if the given file path is an absolute path.
+fn absolute_path?(path: String) -> Bool {
+  path_separator?(path.byte(0))
+    or (sys.windows? and starts_with_windows_drive_name?(path))
+}
+
+# A path to a file or directory.
+#
+# A `Path` can be used to retrieve information about a path to a file or
+# directory such as the size or file type. `Path` objects can be created by
+# either using `Path.new` or by sending `to_path` to a `String`.
+#
+# # Examples
+#
+# Creating a new `Path` using a `String`:
+#
+#     import std::fs::path::Path
+#
+#     Path.new('/tmp/hello.txt')
+#
+# Converting a `String` to a `Path`:
+#
+#     import std::fs::path::Path
+#
+#     '/tmp/hello.txt'.to_path
+class pub Path {
+  # The raw file path.
+  let @path: String
+
+  fn pub static new(path: String) -> Self {
+    Self { @path = path }
+  }
+
+  # Returns `True` if the path points to a file.
+  fn pub file? -> Bool {
+    _INKO.path_is_file(@path)
+  }
+
+  # Returns `True` if the path points to a directory.
+  fn pub directory? -> Bool {
+    _INKO.path_is_directory(@path)
+  }
+
+  # Returns `True` if the path points to an existing file or directory.
+  fn pub exists? -> Bool {
+    _INKO.path_exists(@path)
+  }
+
+  # Returns the creation time of `self`.
+  #
+  # # Examples
+  #
+  # Obtaining the creation time of a `Path`:
+  #
+  #     import std::fs::path::Path
+  #
+  #     let path = Path.new('README.md')
+  #
+  #     try! path.created_at # => DateTime { ... }
+  fn pub created_at !! Error -> DateTime {
+    let time =
+      try _INKO.path_created_at(@path) else (err) throw Error.from_int(err)
+
+    DateTime.from_timestamp(time, _INKO.time_system_offset)
+  }
+
+  # Returns the modification time of `self`.
+  #
+  # # Examples
+  #
+  # Obtaining the modification time of a `Path`:
+  #
+  #     import std::fs::path::Path
+  #
+  #     let path = Path.new('README.md')
+  #
+  #     try! path.modified_at # => DateTime { ... }
+  fn pub modified_at !! Error -> DateTime {
+    let time =
+      try _INKO.path_modified_at(@path) else (err) throw Error.from_int(err)
+
+    DateTime.from_timestamp(time, _INKO.time_system_offset)
+  }
+
+  # Returns the access time of `self`.
+  #
+  # # Examples
+  #
+  # Obtaining the access time of a `Path`:
+  #
+  #     import std::fs::path::Path
+  #
+  #     let path = Path.new('README.md')
+  #
+  #     try! path.accessed_at # => DateTime { ... }
+  fn pub accessed_at !! Error -> DateTime {
+    let time =
+      try _INKO.path_accessed_at(@path) else (err) throw Error.from_int(err)
+
+    DateTime.from_timestamp(time, _INKO.time_system_offset)
+  }
+
+  # Returns `True` if this `Path` is an absolute path.
+  #
+  # # Examples
+  #
+  # Checking if a `Path` is absolute:
+  #
+  #     import std::fs::path::Path
+  #
+  #     Path.new('foo').absolute?  # => False
+  #     Path.new('/foo').absolute? # => True
+  fn pub absolute? -> Bool {
+    absolute_path?(@path.clone)
+  }
+
+  # Returns `True` if this `Path` is a relative path.
+  #
+  # # Examples
+  #
+  # Checking if a `Path` is relative:
+  #
+  #     import std::fs::path::Path
+  #
+  #     Path.new('foo').relative?  # => True
+  #     Path.new('../').relative?  # => True
+  #     Path.new('/foo').relative? # => False
+  fn pub relative? -> Bool {
+    absolute?.false?
+  }
+
+  # Joins `self` and the given path together to form a new `Path`.
+  #
+  # # Examples
+  #
+  # Joining a `Path` with a `String`:
+  #
+  #     import std::fs::path::Path
+  #
+  #     Path.new('foo/bar').join('baz').to_string # => 'foo/bar/baz'
+  #
+  # Joining a `Path` with another `Path`:
+  #
+  #     import std::fs::path::Path
+  #
+  #     Path.new('foo/bar').join(Path.new('bar')).to_string # => 'foo/bar/baz'
+  fn pub join(path: ref ToString) -> Path {
+    let path_str = path.to_string
+    let new_path = if absolute_path?(path_str) {
+      path_str
+    } else if path_separator?(@path.byte(@path.size - 1)) {
+      "{@path}{path_str}"
+    } else {
+      "{@path}{separator}{path_str}"
+    }
+
+    Path.new(new_path)
+  }
+
+  # Returns a `Path` to the directory of the current `Path`.
+  #
+  # This method does not touch the filesystem, and thus does not resolve paths
+  # like `..` and symbolic links to their real paths.
+  #
+  # # Examples
+  #
+  # Obtaining the directory of a path:
+  #
+  #     import std::fs::path::Path
+  #
+  #     Path.new('/foo/bar').directory # => Path.new('/foo')
+  #
+  # Obtaining the directory of the root directory:
+  #
+  #     import std::fs::path::Path
+  #
+  #     Path.new('/').directory # Path.new('/')
+  fn pub directory -> Path {
+    let length = bytes_before_last_separator(@path.clone)
+
+    if length < 0 { return Path.new('.') }
+
+    Path.new(@path.slice_bytes(start: 0, length: length).drain_to_string)
+  }
+}
+
+# A type from which a new `Path` can be created.
+trait pub ToPath {
+  # Returns a new `Path` based on `self`.
+  fn pub to_path -> Path
+}
+
+# A type that can be moved into a `Path`
+#
+# `IntoPath` is useful when you want to accept any type that can be converted to
+# a `Path`, including a `Path` itself, but don't unnecessary allocations.
+trait pub IntoPath {
+  # Moves `self` into a `Path`.
+  fn pub move into_path -> Path
+}
+
+impl Equal for Path {
+  # Returns `True` if `self` is equal to the given `Path`.
+  #
+  # # Examples
+  #
+  # Comparing two paths:
+  #
+  #     import std::fs::path::Path
+  #
+  #     let path1 = Path.new('foo')
+  #     let path2 = Path.new('foo')
+  #
+  #     path1 == path2 # => True
+  fn pub ==(other: ref Self) -> Bool {
+    @path == other.to_string
+  }
+}
+
+impl ToString for Path {
+  # Converts a `Path` to a `String`.
+  #
+  # # Examples
+  #
+  # Converting a `Path`:
+  #
+  #     import std::fs::path::Path
+  #
+  #     let path = Path.new('/dev/null')
+  #
+  #     path.to_string # => '/dev/null'
+  fn pub to_string -> String {
+    @path.clone
+  }
+}
+
+impl IntoString for Path {
+  fn pub move into_string -> String {
+    @path
+  }
+}
+
+impl Size for Path {
+  # Returns the size of the path in bytes.
+  #
+  # # Examples
+  #
+  # Getting the size of a path:
+  #
+  #     import std::fs::path::Path
+  #
+  #     let path = Path.new('/dev/null')
+  #
+  #     try! path.size # => 0
+  fn pub size !! Error -> Int {
+    try _INKO.file_size(@path) else (err) throw Error.from_int(err)
+  }
+}
+
+impl Clone for Path {
+  fn pub clone -> Self {
+    Path.new(@path.clone)
+  }
+}
+
+impl ToPath for Path {
+  fn pub to_path -> Path {
+    clone
+  }
+}
+
+impl IntoPath for Path {
+  fn pub move into_path -> Path {
+    self
+  }
+}
+
+impl Format for Path {
+  fn pub fmt(formatter: mut Formatter) {
+    @path.fmt(formatter)
+  }
+}

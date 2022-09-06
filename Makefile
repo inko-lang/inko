@@ -11,35 +11,14 @@ else
 	INSTALL_PREFIX = ${PREFIX}
 endif
 
-# The directory to place the VM executable in.
-INSTALL_VM_BIN := ${INSTALL_PREFIX}/bin/inko
+# The directory to place the executable in.
+INSTALL_BIN := ${INSTALL_PREFIX}/bin/inko
 
-# The base directory to place all library files (e.g. the runtime source) in.
-INSTALL_LIB_DIR := ${INSTALL_PREFIX}/lib/inko
-
-# The directory to place the compiler source code in.
-INSTALL_COMPILER_DIR := ${INSTALL_LIB_DIR}/compiler/lib
-
-# The install path of the Ruby Inko compiler's executable
-INSTALL_COMPILER_BIN := ${INSTALL_LIB_DIR}/compiler/bin/inkoc
-
-# The directory to place the runtime source code in.
-INSTALL_RUNTIME_DIR := ${INSTALL_LIB_DIR}/runtime
+# The directory to place the standard library in.
+INSTALL_STD := ${INSTALL_PREFIX}/lib/inko/libstd
 
 # The install path of the license file.
 INSTALL_LICENSE := ${INSTALL_PREFIX}/share/licenses/inko/LICENSE
-
-# The directory to load compiler source files from at runtime.
-LOAD_COMPILER_DIR := ${PREFIX}/lib/inko/compiler/lib
-
-# The path to the inkoc executable at runtime.
-LOAD_COMPILER_BIN := ${PREFIX}/lib/inko/compiler/bin/inkoc
-
-# The directory to load the runtime source code from.
-LOAD_RUNTIME_DIR := ${PREFIX}/lib/inko/runtime
-
-# The cargo command to use for building the VM.
-CARGO_CMD := cargo
 
 # The target to use for cross compilation. An empty string indicates the default
 # target of the underlying platform.
@@ -91,63 +70,32 @@ TMP_DIR := tmp
 # The path of the archive to build for source releases.
 SOURCE_TAR := ${TMP_DIR}/${VERSION}.tar.gz
 
-# The path of the checksum for the source tar archive.
-SOURCE_TAR_CHECKSUM := ${SOURCE_TAR}.sha256
-
 # The path to the versions file.
 MANIFEST := ${TMP_DIR}/manifest.txt
 
-# The program to use for generating SHA256 checksums.
-SHA256SUM := sha256sum
-
-# If DEV is set to a non-empty values, the CLI will use the local copy of the
-# compiler and runtime.
-#
-# We export these here so we don't have to explicitly pass them to every command
-# used to build the CLI.
-ifneq (${DEV},)
-	export INKO_COMPILER_BIN = $(realpath compiler/bin/inkoc)
-	export INKO_COMPILER_LIB = $(realpath compiler/lib)
-	export INKO_RUNTIME_LIB = $(realpath runtime/src)
-
-	# Enable incremental compilation for dev builds. This slows down the final
-	# binaries a bit, but for development builds this is worth the reduction in
-	# compile times.
-	export CARGO_INCREMENTAL = 1
-else
-	export INKO_COMPILER_BIN = ${LOAD_COMPILER_BIN}
-	export INKO_COMPILER_LIB = ${LOAD_COMPILER_DIR}
-	export INKO_RUNTIME_LIB = ${LOAD_RUNTIME_DIR}
-endif
-
-# Building is a separate step so that environment variables such as DESTDIR are
-# not passed to any crates we need to build, ensuring they don't break because
-# of that (example: https://github.com/tov/libffi-sys-rs/issues/35).
-build: vm/release
+build:
+	INKO_LIBSTD=${INSTALL_STD} cargo build --release
 
 ${TMP_DIR}:
 	mkdir -p "${@}"
 
 ${SOURCE_TAR}: ${TMP_DIR}
 	git archive --format tar HEAD \
-		compiler/bin \
-		compiler/lib \
-		runtime/src \
-		cli \
+		ast \
+		bytecode \
+		compiler \
+		libstd/src \
 		vm \
 		.cargo \
 		Cargo.toml \
 		Cargo.lock \
+		CHANGELOG.md \
 		LICENSE \
 		Makefile \
 		| gzip > "${@}"
 
-${SOURCE_TAR_CHECKSUM}: ${SOURCE_TAR}
-	${SHA256SUM} "${SOURCE_TAR}" | awk '{print $$1}' > "${SOURCE_TAR_CHECKSUM}"
-
-release/source: ${SOURCE_TAR} ${SOURCE_TAR_CHECKSUM}
+release/source: ${SOURCE_TAR}
 	aws s3 cp --acl public-read "${SOURCE_TAR}" s3://${RELEASES_S3_BUCKET}/
-	aws s3 cp --acl public-read "${SOURCE_TAR_CHECKSUM}" s3://${RELEASES_S3_BUCKET}/
 
 release/manifest: ${TMP_DIR}
 	aws s3 ls s3://${RELEASES_S3_BUCKET}/ | \
@@ -165,8 +113,8 @@ release/versions:
 	ruby scripts/update_versions.rb ${VERSION}
 
 release/commit:
-	git commit compiler/lib/inkoc/version.rb vm/Cargo.toml \
-		cli/Cargo.toml Cargo.lock CHANGELOG.md -m "Release v${VERSION}"
+	git add */Cargo.toml Cargo.toml Cargo.lock CHANGELOG.md
+	git commit -m "Release v${VERSION}"
 	git push origin "$$(git rev-parse --abbrev-ref HEAD)"
 
 release/tag:
@@ -175,19 +123,11 @@ release/tag:
 
 release/publish: release/versions release/changelog release/commit release/tag
 
-${INSTALL_COMPILER_BIN}:
-	mkdir -p "$$(dirname ${@})"
-	install -m755 compiler/bin/inkoc "${@}"
-
-${INSTALL_COMPILER_DIR}:
+${INSTALL_STD}:
 	mkdir -p "${@}"
-	cp -r compiler/lib/* "${@}"
+	cp -r libstd/src/* "${@}"
 
-${INSTALL_RUNTIME_DIR}:
-	mkdir -p "${@}"
-	cp -r runtime/src/* "${@}"
-
-${INSTALL_VM_BIN}:
+${INSTALL_BIN}:
 	mkdir -p "$$(dirname ${@})"
 	install -m755 ${TARGET_BINARY} "${@}"
 
@@ -195,21 +135,18 @@ ${INSTALL_LICENSE}:
 	mkdir -p "$$(dirname ${@})"
 	install -m644 LICENSE "${@}"
 
-install: ${INSTALL_COMPILER_BIN} \
-	${INSTALL_COMPILER_DIR} \
-	${INSTALL_RUNTIME_DIR} \
-	${INSTALL_VM_BIN} \
+install: ${INSTALL_STD} \
+	${INSTALL_BIN} \
 	${INSTALL_LICENSE}
 
 uninstall:
-	rm -rf ${INSTALL_LIB_DIR}
-	rm -f ${INSTALL_VM_BIN}
-	rm -f ${INSTALL_LICENSE}
+	rm -rf ${INSTALL_STD}
+	rm -f ${INSTALL_BIN}
 	rm -rf ${INSTALL_PREFIX}/share/licenses/inko
 
 clean:
 	rm -rf "${TMP_DIR}"
-	cd vm && ${CARGO_CMD} clean
+	cargo clean
 
 docs/install:
 	cd docs && poetry install
@@ -226,40 +163,18 @@ docs/publish: docs/install docs/build
 	aws cloudfront create-invalidation \
 		--distribution-id ${DOCS_CLOUDFRONT_ID} --paths "/*"
 
-compiler/test:
-	cd compiler && bundle exec rspec spec
+clippy:
+	touch */src/lib.rs */src/main.rs
+	cargo clippy ${TARGET_OPTION} ${FEATURES_OPTION}
 
-runtime/test:
-	$(MAKE) vm/release DEV=1
-	./${TARGET_BINARY} test -d runtime/tests
+rustfmt-check:
+	rustfmt --check */src/lib.rs */src/main.rs
 
-vm/debug:
-	cd cli && ${CARGO_CMD} build ${TARGET_OPTION} ${FEATURES_OPTION}
-
-vm/check:
-	${CARGO_CMD} check
-
-vm/test:
-	${CARGO_CMD} test
-
-vm/clippy:
-	touch vm/src/lib.rs cli/src/lib.rs
-	cd cli && ${CARGO_CMD} clippy ${TARGET_OPTION} ${FEATURES_OPTION} -- -Dwarnings
-
-vm/rustfmt-check:
-	rustfmt --check vm/src/lib.rs cli/src/main.rs
-
-vm/rustfmt:
-	rustfmt --emit files vm/src/lib.rs cli/src/main.rs
-
-vm/release:
-	cd cli && ${CARGO_CMD} build --release ${TARGET_OPTION} ${FEATURES_OPTION}
-
-vm/profile:
-	cd cli && ${CARGO_CMD} build --release ${TARGET_OPTION} ${FEATURES_OPTION}
+rustfmt:
+	rustfmt --emit files */src/lib.rs */src/main.rs
 
 .PHONY: release/source release/manifest release/changelog release/versions
 .PHONY: release/commit release/publish release/tag
 .PHONY: build install uninstall clean
-.PHONY: vm/debug vm/check vm/clippy vm/rustfmt-check vm/rustfmt vm/release vm/profile
+.PHONY: libstd/test rustfmt rustfmt-check clippy
 .PHONY: docs/install docs/build docs/server docs/publish

@@ -1,0 +1,92 @@
+import helpers::Script
+import std::env
+import std::test::Tests
+
+fn pub tests(t: mut Tests) {
+  t.test('env.get') fn (t) {
+    let code = "STDOUT.new.write_string(env.get('INKO_TEST').unwrap_or('?'))"
+    let present =
+      Script.new(t.id, code).variable('INKO_TEST', 'foo').import('std::env').run
+    let missing = Script.new(t.id, code).import('std::env').run
+
+    t.equal(present, 'foo')
+    t.equal(missing, '?')
+  }
+
+  t.test('env.variables') fn (t) {
+    let code = '
+      let out = STDOUT.new
+      let vars = env.variables
+
+      out.print(vars["INKO_FOO"])
+      out.print(vars["INKO_BAR"])
+    '
+
+    let output = Script
+      .new(t.id, code)
+      .variable('INKO_FOO', 'foo')
+      .variable('INKO_BAR', 'bar')
+      .import('std::env')
+      .run
+
+    t.equal(output, "foo\nbar\n")
+  }
+
+  t.test('env.home_directory') fn (t) {
+    # Home directories are optional, and even if they're set the actual path may
+    # not exist. As such there's not really anything we can test for, other than
+    # asserting the path isn't empty.
+    match env.home_directory {
+      case Some(path) -> t.true(path.to_string.size > 0)
+      case _ -> {}
+    }
+  }
+
+  t.test('env.working_directory') fn (t) {
+    let path = try! env.working_directory
+
+    t.true(path.directory?)
+  }
+
+  t.test('env.working_directory=') fn (t) {
+    let tmp = env.temporary_directory.to_string
+    let code = '
+      try! env.working_directory = env.get("INKO_PWD").unwrap
+
+      STDOUT.new.write_string(try! { env.working_directory }.to_string)
+    '
+
+    let output = Script
+      .new(t.id, code)
+      .variable('INKO_PWD', tmp.clone)
+      .import('std::env')
+      .run
+
+    t.equal(output, tmp)
+  }
+
+  t.test('env.arguments') fn (t) {
+    let code = '
+      let out = STDOUT.new
+      let args = env.arguments
+
+      out.print(args[0])
+      out.print(args[1])
+    '
+
+    let output = Script
+      .new(t.id, code)
+      .argument('foo')
+      .argument('bar')
+      .import('std::env')
+      .run
+
+    t.equal(output, "foo\nbar\n")
+  }
+
+  t.test('env.executable') fn (t) {
+    let path = try! env.executable
+
+    t.true(path.file?)
+  }
+}

@@ -2,3 +2,23 @@ max_width = 80
 use_try_shorthand = true
 reorder_imports = true
 edition = "2018"
+
+# The default setting results in too aggressive/clunky wrapping for a lot of
+# code. For example, this:
+#
+#     if !foo.bar().baz() {
+#         bar();
+#     }
+#
+# Would result in something like this:
+#
+#     if !foo
+#         .bar()
+#         .baz()
+#     {
+#         bar();
+#     }
+#
+# Setting this to "Max" results in a more consistent and less infuriating
+# wrapping stype.
+use_small_heuristics = 'Max'

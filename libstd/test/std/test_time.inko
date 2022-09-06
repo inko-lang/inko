@@ -1,0 +1,343 @@
+import helpers::(fmt)
+import std::cmp::Ordering
+import std::process::(sleep)
+import std::test::Tests
+import std::time::(DateTime, Duration, Instant)
+
+fn pub tests(t: mut Tests) {
+  t.test('Duration.from_seconds') fn (t) {
+    t.equal(Duration.from_seconds(1.2).to_seconds, 1.2)
+  }
+
+  t.test('Duration.from_milliseconds') fn (t) {
+    t.equal(Duration.from_milliseconds(500).to_milliseconds, 500.0)
+  }
+
+  t.test('Duration.from_microseconds') fn (t) {
+    t.equal(Duration.from_microseconds(100).to_microseconds, 100.0)
+  }
+
+  t.test('Duration.from_nanoseconds') fn (t) {
+    t.equal(Duration.from_nanoseconds(100).to_nanoseconds, 100.0)
+  }
+
+  t.test('Duration.to_seconds') fn (t) {
+    t.equal(Duration.from_milliseconds(500).to_seconds, 0.5)
+  }
+
+  t.test('Duration.to_milliseconds') fn (t) {
+    t.equal(Duration.from_seconds(1).to_milliseconds, 1000.0)
+  }
+
+  t.test('Duration.to_microseconds') fn (t) {
+    t.equal(Duration.from_seconds(1).to_microseconds, 1_000_000.0)
+  }
+
+  t.test('Duration.to_nanoseconds') fn (t) {
+    t.equal(Duration.from_seconds(1).to_nanoseconds, 1_000_000_000.0)
+  }
+
+  t.test('Duration.clone') fn (t) {
+    t.equal(Duration.from_seconds(1).clone, Duration.from_seconds(1))
+  }
+
+  t.test('Duration.+') fn (t) {
+    t.equal(
+      Duration.from_seconds(1) + Duration.from_seconds(1),
+      Duration.from_seconds(2)
+    )
+  }
+
+  t.test('Duration.-') fn (t) {
+    t.equal(
+      Duration.from_seconds(1) - Duration.from_seconds(0.5),
+      Duration.from_seconds(0.5)
+    )
+  }
+
+  t.test('Duration.cmp') fn (t) {
+    let a = Duration.from_seconds(1)
+    let b = Duration.from_seconds(2)
+
+    t.equal(a.cmp(b), Ordering.Less)
+    t.equal(b.cmp(a), Ordering.Greater)
+    t.equal(a.cmp(a), Ordering.Equal)
+  }
+
+  t.test('Duration.==') fn (t) {
+    t.equal(Duration.from_seconds(1), Duration.from_milliseconds(1000))
+    t.not_equal(Duration.from_seconds(1), Duration.from_seconds(2))
+  }
+
+  t.test('Duration.fmt') fn (t) {
+    t.equal(fmt(Duration.from_seconds(2.5)), '2.5 sec')
+    t.equal(fmt(Duration.from_seconds(1.0)), '1.0 sec')
+    t.equal(fmt(Duration.from_milliseconds(420)), '420.0 msec')
+    t.equal(fmt(Duration.from_milliseconds(1)), '1.0 msec')
+    t.equal(fmt(Duration.from_microseconds(420)), '420.0 µsec')
+    t.equal(fmt(Duration.from_microseconds(1)), '1.0 µsec')
+    t.equal(fmt(Duration.from_nanoseconds(420)), '420.0 nsec')
+    t.equal(fmt(Duration.from_nanoseconds(1)), '1.0 nsec')
+  }
+
+  t.test('DateTime.new') fn (t) {
+    let time = DateTime.new
+
+    t.true(time.year > 0)
+    t.true(time.month > 0)
+    t.true(time.day > 0)
+  }
+
+  t.test('DateTime.utc') fn (t) {
+    t.equal(DateTime.utc.utc_offset, 0)
+  }
+
+  t.test('DateTime.from_timestamp') fn (t) {
+    let t1 = DateTime.from_timestamp(time: 0.0, utc_offset: 0)
+    let t2 = DateTime.from_timestamp(time: 0.0, utc_offset: 3_600)
+    let t3 = DateTime.from_timestamp(time: 1661538868.123, utc_offset: 7200)
+    let t4 = DateTime.from_timestamp(time: -3600, utc_offset: 0)
+
+    t.equal(t1.year, 1970)
+    t.equal(t1.month, 1)
+    t.equal(t1.day, 1)
+    t.equal(t1.hour, 0)
+    t.equal(t1.minute, 0)
+    t.equal(t1.second, 0)
+    t.equal(t1.sub_second, 0.0)
+    t.equal(t1.utc_offset, 0)
+
+    t.equal(t2.year, 1970)
+    t.equal(t2.month, 1)
+    t.equal(t2.day, 1)
+    t.equal(t2.hour, 1)
+    t.equal(t2.minute, 0)
+    t.equal(t2.second, 0)
+    t.equal(t2.sub_second, 0.0)
+    t.equal(t2.utc_offset, 3_600)
+
+    t.equal(t3.year, 2022)
+    t.equal(t3.month, 8)
+    t.equal(t3.day, 26)
+    t.equal(t3.hour, 20)
+    t.equal(t3.minute, 34)
+    t.equal(t3.second, 28)
+    t.true(t3.sub_second >= 0.12 and t3.sub_second <= 0.123)
+    t.equal(t3.utc_offset, 7200)
+
+    t.equal(t4.year, 1969)
+    t.equal(t4.month, 12)
+    t.equal(t4.day, 31)
+    t.equal(t4.hour, 23)
+    t.equal(t4.minute, 0)
+    t.equal(t4.second, 0)
+  }
+
+  t.test('DateTime.day_of_week') fn (t) {
+    let t1 = DateTime.from_timestamp(time: 1661538868, utc_offset: 7200)
+    let t2 = DateTime.from_timestamp(time: 0, utc_offset: 0)
+    let t3 = DateTime.from_timestamp(time: -3600, utc_offset: 0)
+    let t4 = DateTime.from_timestamp(time: -307411200, utc_offset: 0)
+    let t5 = DateTime.from_timestamp(time: -432000, utc_offset: 0)
+
+    t.equal(t1.day_of_week, 5)
+    t.equal(t2.day_of_week, 4)
+    t.equal(t3.day_of_week, 3)
+    t.equal(t4.day_of_week, 2)
+    t.equal(t5.day_of_week, 6)
+  }
+
+  t.test('DateTime.day_of_year') fn (t) {
+    let t1 = DateTime.from_timestamp(time: 1661538868, utc_offset: 7200)
+    let t2 = DateTime.from_timestamp(time: 0, utc_offset: 0)
+    let t3 = DateTime.from_timestamp(time: -3600, utc_offset: 0)
+    let t4 = DateTime.from_timestamp(time: 1454457600, utc_offset: 0)
+
+    t.equal(t1.day_of_year, 238)
+    t.equal(t2.day_of_year, 1)
+    t.equal(t3.day_of_year, 365)
+    t.equal(t4.day_of_year, 34)
+  }
+
+  t.test('DateTime.days_since_unix_epoch') fn (t) {
+    let t1 = DateTime.from_timestamp(time: 1661538868, utc_offset: 7200)
+    let t2 = DateTime.from_timestamp(time: 0, utc_offset: 0)
+    let t3 = DateTime.from_timestamp(time: -3600, utc_offset: 0)
+
+    t.equal(t1.days_since_unix_epoch, 19_230)
+    t.equal(t2.days_since_unix_epoch, 0)
+    t.equal(t3.days_since_unix_epoch, -1)
+  }
+
+  t.test('DateTime.leap_year?') fn (t) {
+    let t1 = DateTime.from_timestamp(time: 1451606400, utc_offset: 0) # 2016
+    let t2 = DateTime.from_timestamp(time: 1483228800, utc_offset: 0) # 2017
+
+    t.true(t1.leap_year?)
+    t.false(t2.leap_year?)
+  }
+
+  t.test('DateTime.utc?') fn (t) {
+    let t1 = DateTime.from_timestamp(time: 1, utc_offset: 3600)
+    let t2 = DateTime.from_timestamp(time: 1, utc_offset: 0)
+
+    t.false(t1.utc?)
+    t.true(t2.utc?)
+  }
+
+  t.test('DateTime.to_utc') fn (t) {
+    let t1 = DateTime.from_timestamp(time: 0, utc_offset: 0)
+    let t2 = DateTime.from_timestamp(time: 1661538868, utc_offset: 7200)
+    let t3 = DateTime.from_timestamp(time: 0, utc_offset: 7200)
+
+    t.equal(t1.to_utc, t1)
+    t.equal(t2.to_utc, DateTime.from_timestamp(time: 1661538868, utc_offset: 0))
+    t.equal(t3.to_utc, DateTime.from_timestamp(time: 0, utc_offset: 0))
+  }
+
+  t.test('DateTime.fmt') fn (t) {
+    let t1 = DateTime.from_timestamp(time: 1661538868, utc_offset: 7200)
+    let t2 = DateTime.from_timestamp(time: 0, utc_offset: 0)
+    let t3 = DateTime.from_timestamp(time: -3600, utc_offset: 0)
+
+    t.equal(fmt(t1), '2022-08-26 20:34:28 +0200')
+    t.equal(fmt(t2), '1970-01-01 00:00:00 UTC')
+    t.equal(fmt(t3), '1969-12-31 23:00:00 UTC')
+  }
+
+  t.test('DateTime.to_int') fn (t) {
+    let t1 = DateTime.from_timestamp(time: 1661538868, utc_offset: 7200)
+    let t2 = DateTime.from_timestamp(time: 0, utc_offset: 0)
+    let t3 = DateTime.from_timestamp(time: -3600, utc_offset: 0)
+
+    t.equal(t1.to_int, 1661538868)
+    t.equal(t2.to_int, 0)
+    t.equal(t3.to_int, -3600)
+  }
+
+  t.test('DateTime.to_float') fn (t) {
+    let t1 = DateTime.from_timestamp(time: 1661538868.123, utc_offset: 7200)
+    let t2 = DateTime.from_timestamp(time: 0.123, utc_offset: 0)
+    let t3 = DateTime.from_timestamp(time: -3600.123, utc_offset: 0)
+
+    t.true(t1.to_float.fractional >= 0.0)
+    t.true(t2.to_float.fractional >= 0.0)
+    t.true(t3.to_float.fractional >= 0.0)
+  }
+
+  t.test('DateTime.+') fn (t) {
+    let t1 = DateTime.from_timestamp(time: 0, utc_offset: 7200)
+    let t2 = DateTime.from_timestamp(time: 3600, utc_offset: 7200)
+
+    t.equal(t1 + Duration.from_seconds(3600), t2)
+  }
+
+  t.test('DateTime.-') fn (t) {
+    let t1 = DateTime.from_timestamp(time: 3600, utc_offset: 7200)
+    let t2 = DateTime.from_timestamp(time: 0, utc_offset: 7200)
+
+    t.equal(t1 - Duration.from_seconds(3600), t2)
+  }
+
+  t.test('DateTime.cmp') fn (t) {
+    let t1 = DateTime.from_timestamp(time: 3600.123, utc_offset: 7200)
+    let t2 = DateTime.from_timestamp(time: 0.123, utc_offset: 7200)
+
+    t.equal(t1.cmp(t2), Ordering.Greater)
+    t.equal(t2.cmp(t1), Ordering.Less)
+    t.equal(t1.cmp(t1), Ordering.Equal)
+  }
+
+  t.test('DateTime.==') fn (t) {
+    let t1 = DateTime.from_timestamp(time: 3600.123, utc_offset: 7200)
+    let t2 = DateTime.from_timestamp(time: 0.123, utc_offset: 7200)
+    let t3 = DateTime.from_timestamp(time: 0.0, utc_offset: 7200)
+    let t4 = DateTime.from_timestamp(time: 0.0, utc_offset: 0)
+
+    t.equal(t1, t1)
+    t.not_equal(t1, t2)
+    t.not_equal(t3, t4)
+  }
+
+  t.test('DateTime.clone') fn (t) {
+    let t1 = DateTime.from_timestamp(time: 3600, utc_offset: 7200)
+    let t2 = t1.clone
+
+    t.equal(t1, t2)
+  }
+
+  t.test('Instant.new') fn (t) {
+    let t1 = Instant.new
+    let t2 = Instant.new
+
+    t.true(t2 >= t1)
+  }
+
+  t.test('Instant.elapsed') fn (t) {
+    let time = Instant.new
+    let pause = Duration.from_milliseconds(10)
+
+    sleep(pause)
+
+    let elapsed = time.elapsed
+
+    t.true(elapsed >= pause)
+  }
+
+  t.test('Instant.clone') fn (t) {
+    let t1 = Instant.new
+    let t2 = t1.clone
+
+    t.equal(t1, t2)
+  }
+
+  t.test('Instant.to_int') fn (t) {
+    let t1 = Instant.new
+
+    t.true(t1.to_int >= 0)
+  }
+
+  t.test('Instant.to_float') fn (t) {
+    let t1 = Instant.new
+
+    t.true(t1.to_float >= 0.0)
+  }
+
+  t.test('Instant.+') fn (t) {
+    let t1 = Instant.new
+    let t2 = t1 + Duration.from_seconds(2)
+
+    t.equal(t2.to_int, t1.to_int + 2)
+  }
+
+  t.test('Instant.-') fn (t) {
+    let base = Instant.new
+    let t1 = base + Duration.from_seconds(2)
+    let t2 = t1 - Duration.from_seconds(1)
+
+    t.equal(t2.to_int, base.to_int + 1)
+  }
+
+  t.test('Instant.cmp') fn (t) {
+    let t1 = Instant.new
+    let t2 = t1 + Duration.from_milliseconds(10)
+
+    t.equal(t1.cmp(t1), Ordering.Equal)
+    t.equal(t1.cmp(t2), Ordering.Less)
+    t.equal(t2.cmp(t1), Ordering.Greater)
+  }
+
+  t.test('Instant.==') fn (t) {
+    let t1 = Instant.new
+    let t2 = t1 + Duration.from_milliseconds(10)
+
+    t.equal(t1, t1)
+    t.not_equal(t1, t2)
+  }
+
+  t.test('Instant.fmt') fn (t) {
+    let t1 = Instant.new
+
+    t.equal(fmt(t1), "{t1.to_float} sec")
+  }
+}

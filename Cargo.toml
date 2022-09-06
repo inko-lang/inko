@@ -1,5 +1,9 @@
 [workspace]
-members = ["cli", "vm"]
+members = ["ast", "bytecode", "inko", "compiler", "vm"]
 
 [profile.release]
 panic = "abort"
+
+[profile.release-debug]
+inherits = "release"
+debug = true

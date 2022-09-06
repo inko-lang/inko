@@ -8,13 +8,14 @@ RUN apk add --update make libffi libffi-dev rust cargo build-base
 # `ADD . /inko/` to add files.
 ADD Cargo.lock Cargo.toml LICENSE Makefile /inko/
 ADD .cargo /inko/.cargo/
-ADD cli /inko/cli/
+ADD ast /inko/ast/
+ADD bytecode /inko/bytecode/
 ADD compiler /inko/compiler/
-ADD runtime /inko/runtime/
-ADD vm /inko/vm/
+ADD libstd/src /inko/compiler/libstd/src
+ADD vm /inko/vm
 
 WORKDIR /inko
-RUN make build FEATURES='libinko/libffi-system' PREFIX='/usr'
+RUN make build FEATURES='libffi-system' PREFIX='/usr'
 RUN strip target/release/inko
 RUN make install PREFIX='/usr'
 
@@ -26,6 +27,3 @@ RUN apk add --update libffi libffi-dev ruby ruby-json libgcc
 COPY --from=builder ["/usr/bin/inko", "/usr/bin/inko"]
 COPY --from=builder ["/usr/lib/inko", "/usr/lib/inko/"]
 COPY --from=builder ["/usr/share/licenses/inko", "/usr/share/licenses/inko/"]
-
-# Disable any warnings about the Ruby compiler.
-ENV RUBYOPT '-W:no-deprecated -W:no-experimental'

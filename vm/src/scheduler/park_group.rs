@@ -1,6 +1,5 @@
 //! Parking and waking up of multiple threads.
-use parking_lot::{Condvar, Mutex};
-use std::time::Duration;
+use std::sync::{Condvar, Mutex};
 
 macro_rules! lock_and_notify {
     ($parker: expr, $method: ident) => {
@@ -23,68 +22,36 @@ macro_rules! lock_and_notify {
 ///
 /// Since a ParkGroup is not associated with a single value, threads must
 /// pass some sort of condition to `ParkGroup::park_while()`.
-pub struct ParkGroup {
+pub(crate) struct ParkGroup {
     mutex: Mutex<()>,
     cvar: Condvar,
 }
 
 impl ParkGroup {
-    pub fn new() -> Self {
-        ParkGroup {
-            mutex: Mutex::new(()),
-            cvar: Condvar::new(),
-        }
+    pub(crate) fn new() -> Self {
+        ParkGroup { mutex: Mutex::new(()), cvar: Condvar::new() }
     }
 
     /// Notifies all parked threads.
-    pub fn notify_all(&self) {
+    pub(crate) fn notify_all(&self) {
         lock_and_notify!(self, notify_all);
     }
 
     /// Notifies a single parked thread.
-    pub fn notify_one(&self) {
+    pub(crate) fn notify_one(&self) {
         lock_and_notify!(self, notify_one);
     }
 
-    pub fn park(&self) {
-        let mut lock = self.mutex.lock();
-
-        self.cvar.wait(&mut lock);
-    }
-
     /// Parks the current thread as long as the given condition is true.
-    pub fn park_while<F>(&self, condition: F)
+    pub(crate) fn park_while<F>(&self, condition: F)
     where
         F: Fn() -> bool,
     {
-        let mut lock = self.mutex.lock();
+        let mut lock = self.mutex.lock().unwrap();
 
         while condition() {
-            self.cvar.wait(&mut lock);
+            lock = self.cvar.wait(lock).unwrap();
         }
-    }
-
-    /// Parks the current thread as long as the given condition is true, until
-    /// the timeout expires.
-    ///
-    /// The return value will be true if the wait timed out.
-    pub fn park_while_with_timeout<F>(
-        &self,
-        timeout: Duration,
-        condition: F,
-    ) -> bool
-    where
-        F: Fn() -> bool,
-    {
-        let mut lock = self.mutex.lock();
-
-        while condition() {
-            if self.cvar.wait_for(&mut lock, timeout).timed_out() {
-                return true;
-            }
-        }
-
-        false
     }
 }
 
@@ -94,6 +61,7 @@ mod tests {
     use crate::arc_without_weak::ArcWithoutWeak;
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::thread;
+    use std::time::Instant;
 
     #[test]
     fn test_notify_one() {
@@ -151,7 +119,11 @@ mod tests {
             handles.push(handle);
         }
 
-        while started.load(Ordering::SeqCst) < handles.len() {}
+        let started_at = Instant::now();
+
+        while started.load(Ordering::SeqCst) < handles.len()
+            && started_at.elapsed().as_secs() <= 5
+        {}
 
         alive.store(false, Ordering::SeqCst);
         group.notify_all();
@@ -169,25 +141,5 @@ mod tests {
         });
 
         assert_eq!(thread.join().unwrap(), 10);
-    }
-
-    #[test]
-    fn test_park_while_with_timeout_with_thread() {
-        let thread = thread::spawn(|| {
-            ParkGroup::new()
-                .park_while_with_timeout(Duration::from_millis(10), || true);
-            10
-        });
-
-        assert_eq!(thread.join().unwrap(), 10);
-    }
-
-    #[test]
-    fn test_park_while_with_timeout_without_thread() {
-        let group = ParkGroup::new();
-
-        assert!(
-            group.park_while_with_timeout(Duration::from_millis(1), || true)
-        );
     }
 }

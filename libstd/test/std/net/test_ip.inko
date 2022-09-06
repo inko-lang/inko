@@ -1,0 +1,442 @@
+import helpers::(fmt)
+import std::net::ip::(self, IpAddress, Ipv4Address, Ipv6Address)
+import std::test::Tests
+
+fn pub tests(t: mut Tests) {
+  t.test('IpAddress.v4') fn (t) {
+    t.equal(
+      IpAddress.v4(127, 0, 0, 1),
+      IpAddress.V4(Ipv4Address.new(127, 0, 0, 1))
+    )
+
+    t.equal(
+      IpAddress.v6(0, 0, 0, 0, 0, 0, 0, 1),
+      IpAddress.V6(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1))
+    )
+  }
+
+  t.test('IpAddress.parse') fn (t) {
+    t.equal(
+      IpAddress.parse('1.2.3.4'),
+      Option.Some(IpAddress.V4(Ipv4Address.new(1, 2, 3, 4)))
+    )
+
+    t.equal(
+      IpAddress.parse('::1'),
+      Option.Some(IpAddress.V6(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)))
+    )
+
+    t.true(IpAddress.parse('1.2').none?)
+    t.true(IpAddress.parse('foo').none?)
+    t.true(IpAddress.parse('').none?)
+  }
+
+  t.test('IpAddress.v4?') fn (t) {
+    t.true(IpAddress.V4(Ipv4Address.new(1, 2, 3, 4)).v4?)
+    t.false(IpAddress.V6(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)).v4?)
+  }
+
+  t.test('IpAddress.v6?') fn (t) {
+    t.true(IpAddress.V6(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)).v6?)
+    t.false(IpAddress.V4(Ipv4Address.new(1, 2, 3, 4)).v6?)
+  }
+
+  t.test('IpAddress.documentation?') fn (t) {
+    t.true(IpAddress.V4(Ipv4Address.new(192, 0, 2, 0)).documentation?)
+    t.true(
+      IpAddress.V6(Ipv6Address.new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 0))
+        .documentation?
+    )
+  }
+
+  t.test('IpAddress.loopback?') fn (t) {
+    t.true(IpAddress.V4(Ipv4Address.new(127, 0, 0, 1)).loopback?)
+    t.true(IpAddress.V6(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)).loopback?)
+  }
+
+  t.test('IpAddress.multicast?') fn (t) {
+    t.true(IpAddress.V4(Ipv4Address.new(224, 254, 0, 0)).multicast?)
+    t.true(
+      IpAddress.V6(Ipv6Address.new(0xff00, 0, 0, 0, 0, 0, 0, 0)).multicast?
+    )
+  }
+
+  t.test('IpAddress.unspecified?') fn (t) {
+    t.true(IpAddress.V4(Ipv4Address.new(0, 0, 0, 0)).unspecified?)
+    t.true(IpAddress.V6(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 0)).unspecified?)
+  }
+
+  t.test('IpAddress.==') fn (t) {
+    t.equal(
+      IpAddress.V4(Ipv4Address.new(0, 0, 0, 0)),
+      IpAddress.V4(Ipv4Address.new(0, 0, 0, 0))
+    )
+
+    t.not_equal(
+      IpAddress.V4(Ipv4Address.new(0, 0, 0, 0)),
+      IpAddress.V4(Ipv4Address.new(0, 0, 0, 1))
+    )
+
+    t.equal(
+      IpAddress.V6(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 0)),
+      IpAddress.V6(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 0)),
+    )
+
+    t.not_equal(
+      IpAddress.V6(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 0)),
+      IpAddress.V6(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)),
+    )
+  }
+
+  t.test('IpAddress.into_string') fn (t) {
+    t.equal(IpAddress.V4(Ipv4Address.new(1, 2, 3, 4)).into_string, '1.2.3.4')
+    t.equal(
+      IpAddress.V6(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)).into_string,
+      '::1'
+    )
+  }
+
+  t.test('IpAddress.to_string') fn (t) {
+    t.equal(IpAddress.V4(Ipv4Address.new(1, 2, 3, 4)).to_string, '1.2.3.4')
+    t.equal(
+      IpAddress.V6(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)).to_string,
+      '::1'
+    )
+  }
+
+  t.test('IpAddress.clone') fn (t) {
+    t.equal(
+      IpAddress.V4(Ipv4Address.new(0, 0, 0, 0)).clone,
+      IpAddress.V4(Ipv4Address.new(0, 0, 0, 0))
+    )
+
+    t.equal(
+      IpAddress.V6(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 0)).clone,
+      IpAddress.V6(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 0)),
+    )
+  }
+
+  t.test('IpAddress.format') fn (t) {
+    t.equal(fmt(IpAddress.V4(Ipv4Address.new(1, 2, 3, 4))), '1.2.3.4')
+    t.equal(fmt(IpAddress.V6(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1))), '::1')
+  }
+
+  t.test('Ipv6Address.parse') fn (t) {
+    t.equal(
+      Ipv6Address.parse('2001:db8:0:0:1:0:0:1'),
+      Option.Some(Ipv6Address.new(0x2001, 0xdb8, 0, 0, 1, 0, 0, 1))
+    )
+
+    t.equal(
+      Ipv6Address.parse('2001:0db8:0:0:1:0:0:1'),
+      Option.Some(Ipv6Address.new(0x2001, 0x0db8, 0, 0, 1, 0, 0, 1))
+    )
+
+    t.equal(
+      Ipv6Address.parse('::1'),
+      Option.Some(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1))
+    )
+
+    t.equal(
+      Ipv6Address.parse('::1:1:1'),
+      Option.Some(Ipv6Address.new(0, 0, 0, 0, 0, 1, 1, 1))
+    )
+
+    t.equal(
+      Ipv6Address.parse('1::'),
+      Option.Some(Ipv6Address.new(1, 0, 0, 0, 0, 0, 0, 0))
+    )
+
+    t.equal(
+      Ipv6Address.parse('2001:DB8:0:0:1::1'),
+      Option.Some(Ipv6Address.new(0x2001, 0xdb8, 0, 0, 1, 0, 0, 1))
+    )
+
+    t.equal(
+      Ipv6Address.parse('2001:DB8:0:0::1:1'),
+      Option.Some(Ipv6Address.new(0x2001, 0xdb8, 0, 0, 0, 0, 1, 1))
+    )
+
+    t.equal(
+      Ipv6Address.parse('1::1'),
+      Option.Some(Ipv6Address.new(1, 0, 0, 0, 0, 0, 0, 1))
+    )
+
+    t.equal(
+      Ipv6Address.parse('0000:0000:0000:0000:0000:ffff:192.168.1.1'),
+      Option.Some(Ipv6Address.new(0, 0, 0, 0, 0, 0xffff, 0xc0a8, 0x101))
+    )
+
+    t.equal(
+      Ipv6Address.parse('0000:0000:0000:0000:0000:c0a8:192.168.1.1'),
+      Option.Some(Ipv6Address.new(0, 0, 0, 0, 0, 0xc0a8, 0xc0a8, 0x101))
+    )
+
+    t.equal(
+      Ipv6Address.parse('::1:192.168.1.1'),
+      Option.Some(Ipv6Address.new(0, 0, 0, 0, 0, 1, 0xc0a8, 0x101))
+    )
+
+    t.equal(
+      Ipv6Address.parse('::1.2.3.4'),
+      Option.Some(Ipv6Address.new(0, 0, 0, 0, 0, 0, 258, 772))
+    )
+
+    t.equal(
+      Ipv6Address.parse('::'),
+      Option.Some(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 0))
+    )
+
+    t.true(
+      Ipv6Address.parse('0000:0000:0000:0000:0000:0000:0000:0000:0000').none?
+    )
+
+    t.true(
+      Ipv6Address
+        .parse('this is a long string that should never be treated as an IP address')
+        .none?
+    )
+
+    t.true(Ipv6Address.parse('hello').none?)
+    t.true(Ipv6Address.parse('0000').none?)
+    t.true(Ipv6Address.parse('::1::1').none?)
+    t.true(Ipv6Address.parse('1:::1').none?)
+    t.true(Ipv6Address.parse('0000:0000:0000:0000:0000:0000:zzzz').none?)
+    t.true(Ipv6Address.parse('::1:300.168.1.1').none?)
+    t.true(Ipv6Address.parse('::1:300.168:1.1').none?)
+    t.true(Ipv6Address.parse('::1/24').none?)
+  }
+
+  t.test('Ipv6Address.ipv4_compatible?') fn (t) {
+    t.true(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 0).ipv4_compatible?)
+    t.true(Ipv6Address.new(0, 0, 0, 0, 0, 0, 1, 1).ipv4_compatible?)
+    t.false(Ipv6Address.new(0, 0, 0, 0, 0, 1, 1, 1).ipv4_compatible?)
+  }
+
+  t.test('Ipv6Address.ipv4_mapped?') fn (t) {
+    t.true(Ipv6Address.new(0, 0, 0, 0, 0, 0xffff, 0, 0).ipv4_mapped?)
+    t.true(Ipv6Address.new(0, 0, 0, 0, 0, 0xffff, 1, 1).ipv4_mapped?)
+    t.false(Ipv6Address.new(0, 0, 0, 0, 0, 0xff, 1, 1).ipv4_mapped?)
+  }
+
+  t.test('Ipv6Address.documentation?') fn (t) {
+    t.true(Ipv6Address.new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 0).documentation?)
+    t.true(Ipv6Address.new(0x2001, 0xdb8, 1, 0, 0, 0, 0, 0).documentation?)
+    t.true(Ipv6Address.new(0x2001, 0xdb8, 1, 2, 0, 0, 0, 0).documentation?)
+    t.false(Ipv6Address.new(0x2001, 0xffff, 0, 0, 0, 0, 0, 0).documentation?)
+    t.false(Ipv6Address.new(0xffff, 0xdb8, 1, 2, 0, 0, 0, 0).documentation?)
+  }
+
+  t.test('Ipv6Address.loopback?') fn (t) {
+    t.true(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1).loopback?)
+    t.false(Ipv6Address.new(0, 0, 0, 0, 0, 0, 1, 1).loopback?)
+  }
+
+  t.test('Ipv6Address.multicast?') fn (t) {
+    t.true(Ipv6Address.new(0xff00, 0, 0, 0, 0, 0, 0, 0).multicast?)
+    t.true(Ipv6Address.new(0xff01, 0, 0, 0, 0, 0, 0, 0).multicast?)
+    t.true(Ipv6Address.new(0xff02, 0, 0, 0, 0, 0, 0, 0).multicast?)
+    t.true(Ipv6Address.new(0xff03, 0, 0, 0, 0, 0, 0, 0).multicast?)
+    t.true(Ipv6Address.new(0xff04, 0, 0, 0, 0, 0, 0, 0).multicast?)
+    t.false(Ipv6Address.new(0x0f00, 0, 0, 0, 0, 0, 0, 0).multicast?)
+    t.false(Ipv6Address.new(1, 0, 0, 0, 0, 0, 0, 0).multicast?)
+  }
+
+  t.test('Ipv6Address.unspecified?') fn (t) {
+    t.true(Ipv6Address.new(0, 0, 0, 0, 0, 0 ,0 ,0).unspecified?)
+    t.false(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1).unspecified?)
+  }
+
+  t.test('Ipv6Address.to_string') fn (t) {
+    t.equal(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 0).to_string, '::')
+    t.equal(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1).to_string, '::1')
+    t.equal(Ipv6Address.new(1, 0, 0, 0, 0, 0, 0, 1).to_string, '1::1')
+    t.equal(Ipv6Address.new(1, 0, 1, 0, 0, 0, 0, 1).to_string, '1:0:1::1')
+    t.equal(
+      Ipv6Address.new(1, 0, 0, 0, 0, 0, 0xc000, 0x2ff).to_string,
+      '1::c000:2ff'
+    )
+
+    t.equal(
+      Ipv6Address.new(1, 0, 1, 0, 0, 0, 0xc000, 0x2ff).to_string,
+      '1:0:1::c000:2ff'
+    )
+
+    t.equal(
+      Ipv6Address.new(1, 0, 0, 0, 0, 0xffff, 0xc000, 0x2ff).to_string,
+      '1::ffff:c000:2ff'
+    )
+
+    t.equal(
+      Ipv6Address.new(1, 0, 1, 0, 0, 0xffff, 0xc000, 0x2ff).to_string,
+      '1:0:1::ffff:c000:2ff'
+    )
+
+    t.equal(
+      Ipv6Address.new(0, 0, 0, 0, 0, 0, 0xc000, 0x2ff).to_string,
+      '::192.0.2.255'
+    )
+
+    t.equal(
+      Ipv6Address.new(0, 0, 0, 0, 0, 0xffff, 0xc000, 0x2ff).to_string,
+      '::ffff:192.0.2.255'
+    )
+  }
+
+  t.test('Ipv6Address.into_string') fn (t) {
+    t.equal(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 0).into_string, '::')
+    t.equal(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1).into_string, '::1')
+    t.equal(Ipv6Address.new(1, 0, 0, 0, 0, 0, 0, 1).into_string, '1::1')
+  }
+
+  t.test('Ipv6Address.fmt') fn (t) {
+    t.equal(
+      fmt(Ipv6Address.new(1, 0, 1, 0, 0, 0, 0xc000, 0x2ff)),
+      '1:0:1::c000:2ff'
+    )
+  }
+
+  t.test('Ipv6Address.==') fn (t) {
+    t.equal(
+      Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1),
+      Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)
+    )
+
+    t.not_equal(
+      Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1),
+      Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 2)
+    )
+  }
+
+  t.test('Ipv6Address.clone') fn (t) {
+    t.equal(
+      Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1).clone,
+      Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1),
+    )
+  }
+
+  t.test('Ipv4Address.parse') fn (t) {
+    t.equal(
+      Ipv4Address.parse('1.2.3.4'),
+      Option.Some(Ipv4Address.new(1, 2, 3, 4))
+    )
+
+    t.equal(
+      Ipv4Address.parse('255.255.255.255'),
+      Option.Some(Ipv4Address.new(255, 255, 255, 255))
+    )
+
+    t.true(Ipv4Address.parse('1.2').none?)
+    t.true(Ipv4Address.parse('255.255.255.255.255.255').none?)
+    t.true(Ipv4Address.parse('1.f.4.a').none?)
+    t.true(Ipv4Address.parse('1234').none?)
+    t.true(Ipv4Address.parse('300.0.0.0').none?)
+    t.true(Ipv4Address.parse('1.2.3.4:80').none?)
+    t.true(Ipv4Address.parse('1.2.3.4/24').none?)
+    t.true(Ipv4Address.parse('.2.3.4').none?)
+    t.true(Ipv4Address.parse('.').none?)
+    t.true(Ipv4Address.parse('').none?)
+  }
+
+  t.test('Ipv4Address.broadcast?') fn (t) {
+    t.true(Ipv4Address.new(255, 255, 255, 255).broadcast?)
+    t.false(Ipv4Address.new(1, 255, 255, 255).broadcast?)
+    t.false(Ipv4Address.new(255, 1, 255, 255).broadcast?)
+    t.false(Ipv4Address.new(255, 255, 1, 255).broadcast?)
+    t.false(Ipv4Address.new(255, 255, 255, 1).broadcast?)
+  }
+
+  t.test('Ipv4Address.documentation?') fn (t) {
+    t.true(Ipv4Address.new(192, 0, 2, 0).documentation?)
+    t.true(Ipv4Address.new(192, 0, 2, 1).documentation?)
+    t.false(Ipv4Address.new(192, 1, 2, 1).documentation?)
+    t.true(Ipv4Address.new(198, 51, 100, 0).documentation?)
+    t.true(Ipv4Address.new(198, 51, 100, 1).documentation?)
+    t.false(Ipv4Address.new(198, 52, 100, 1).documentation?)
+    t.true(Ipv4Address.new(203, 0, 113, 0).documentation?)
+    t.true(Ipv4Address.new(203, 0, 113, 1).documentation?)
+    t.false(Ipv4Address.new(203, 1, 113, 1).documentation?)
+  }
+
+  t.test('Ipv4Address.link_local?') fn (t) {
+    t.true(Ipv4Address.new(169, 254, 0, 0).link_local?)
+    t.true(Ipv4Address.new(169, 254, 1, 0).link_local?)
+    t.true(Ipv4Address.new(169, 254, 1, 1).link_local?)
+    t.false(Ipv4Address.new(169, 1, 1, 1).link_local?)
+    t.false(Ipv4Address.new(1, 254, 1, 1).link_local?)
+  }
+
+  t.test('Ipv4Address.loopback?') fn (t) {
+    t.true(Ipv4Address.new(127, 0, 0, 1).loopback?)
+    t.true(Ipv4Address.new(127, 0, 0, 2).loopback?)
+    t.true(Ipv4Address.new(127, 1, 1, 1).loopback?)
+    t.false(Ipv4Address.new(128, 0, 0, 0).loopback?)
+  }
+
+  t.test('Ipv4Address.multicast?') fn (t) {
+    t.true(Ipv4Address.new(224, 0, 0, 0).multicast?)
+    t.true(Ipv4Address.new(225, 0, 0, 0).multicast?)
+    t.true(Ipv4Address.new(226, 0, 0, 0).multicast?)
+    t.true(Ipv4Address.new(227, 0, 0, 0).multicast?)
+    t.true(Ipv4Address.new(239, 0, 0, 0).multicast?)
+    t.false(Ipv4Address.new(200, 0, 0, 0).multicast?)
+    t.false(Ipv4Address.new(240, 0, 0, 0).multicast?)
+  }
+
+  t.test('Ipv4Address.private?') fn (t) {
+    t.true(Ipv4Address.new(10, 0, 0, 0).private?)
+    t.true(Ipv4Address.new(10, 0, 0, 1).private?)
+    t.true(Ipv4Address.new(10, 1, 1, 1).private?)
+    t.true(Ipv4Address.new(172, 16, 0, 0).private?)
+    t.true(Ipv4Address.new(172, 16, 0, 1).private?)
+    t.true(Ipv4Address.new(172, 16, 1, 0).private?)
+    t.true(Ipv4Address.new(192, 168, 0, 0).private?)
+    t.true(Ipv4Address.new(192, 168, 0, 1).private?)
+    t.true(Ipv4Address.new(192, 168, 1, 0).private?)
+    t.false(Ipv4Address.new(11, 0, 0, 0).private?)
+    t.false(Ipv4Address.new(192, 1, 1, 1).private?)
+    t.false(Ipv4Address.new(172, 15, 0, 0).private?)
+  }
+
+  t.test('Ipv4Address.unspecified?') fn (t) {
+    t.true(Ipv4Address.new(0, 0, 0, 0).unspecified?)
+    t.false(Ipv4Address.new(0, 0, 0, 1).unspecified?)
+  }
+
+  t.test('Ipv4Address.to_ipv6_compatible') fn (t) {
+    let ipv4 = Ipv4Address.new(192, 0, 2, 255)
+    let ipv6 = ipv4.to_ipv6_compatible
+
+    t.equal(ipv6, Ipv6Address.new(0, 0, 0, 0, 0, 0, 0xc000, 0x2ff))
+  }
+
+  t.test('Ipv4Address.to_ipv6_mapped') fn (t) {
+    let ipv4 = Ipv4Address.new(192, 0, 2, 255)
+    let ipv6 = ipv4.to_ipv6_mapped
+
+    t.equal(ipv6, Ipv6Address.new(0, 0, 0, 0, 0, 0xffff, 0xc000, 0x2ff))
+  }
+
+  t.test('Ipv4Address.to_string') fn (t) {
+    t.equal(Ipv4Address.new(0, 0, 0, 0).to_string, '0.0.0.0')
+    t.equal(Ipv4Address.new(127, 0, 0, 1).to_string, '127.0.0.1')
+  }
+
+  t.test('Ipv4Address.into_string') fn (t) {
+    t.equal(Ipv4Address.new(0, 0, 0, 0).into_string, '0.0.0.0')
+    t.equal(Ipv4Address.new(127, 0, 0, 1).into_string, '127.0.0.1')
+  }
+
+  t.test('Ipv4Address.fmt') fn (t) {
+    t.equal(fmt(Ipv4Address.new(127, 0, 0, 1)), '127.0.0.1')
+  }
+
+  t.test('Ipv4Address.==') fn (t) {
+    t.equal(Ipv4Address.new(127, 0, 0, 1), Ipv4Address.new(127, 0, 0, 1))
+    t.not_equal(Ipv4Address.new(127, 0, 0, 1), Ipv4Address.new(127, 0, 0, 2))
+  }
+
+  t.test('Ipv4Address.clone') fn (t) {
+    t.equal(Ipv4Address.new(127, 0, 0, 1).clone, Ipv4Address.new(127, 0, 0, 1))
+  }
+}

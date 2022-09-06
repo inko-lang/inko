@@ -4,7 +4,6 @@
 //! references are supported. This makes ArcWithoutWeak ideal for performance
 //! sensitive code where weak references are not needed.
 use std::cmp;
-use std::mem;
 use std::ops::Deref;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -15,13 +14,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 /// member of this structure. This in turn allows one to read the value of this
 /// `Inner` using `*mut T`.
 #[repr(C)]
-pub struct Inner<T> {
+pub(crate) struct Inner<T> {
     value: T,
     references: AtomicUsize,
 }
 
 /// A thread-safe reference counted pointer.
-pub struct ArcWithoutWeak<T> {
+pub(crate) struct ArcWithoutWeak<T> {
     inner: NonNull<Inner<T>>,
 }
 
@@ -29,35 +28,8 @@ unsafe impl<T> Sync for ArcWithoutWeak<T> {}
 unsafe impl<T> Send for ArcWithoutWeak<T> {}
 
 impl<T> ArcWithoutWeak<T> {
-    /// Consumes the `ArcWithoutWeak`, returning the wrapped pointer.
-    ///
-    /// The returned pointer is in reality a pointer to the inner structure,
-    /// instead of a pointer directly to the value.
-    #[cfg_attr(feature = "cargo-clippy", allow(wrong_self_convention))]
-    pub fn into_raw(value: Self) -> *mut T {
-        let raw = value.inner;
-
-        mem::forget(value);
-
-        raw.as_ptr() as _
-    }
-
-    /// Constructs an `ArcWithoutWeak` from a raw pointer.
-    ///
-    /// This method is incredibly unsafe, as it makes no attempt to verify if
-    /// the pointer actually a pointer previously created using
-    /// `ArcWithoutWeak::into_raw()`.
-    pub unsafe fn from_raw(value: *mut T) -> Self {
-        ArcWithoutWeak {
-            inner: NonNull::new_unchecked(value as *mut Inner<T>),
-        }
-    }
-
-    pub fn new(value: T) -> Self {
-        let inner = Inner {
-            value,
-            references: AtomicUsize::new(1),
-        };
+    pub(crate) fn new(value: T) -> Self {
+        let inner = Inner { value, references: AtomicUsize::new(1) };
 
         ArcWithoutWeak {
             inner: unsafe {
@@ -66,15 +38,11 @@ impl<T> ArcWithoutWeak<T> {
         }
     }
 
-    pub fn inner(&self) -> &Inner<T> {
+    pub(crate) fn inner(&self) -> &Inner<T> {
         unsafe { self.inner.as_ref() }
     }
 
-    pub fn references(&self) -> usize {
-        self.inner().references.load(Ordering::SeqCst)
-    }
-
-    pub fn as_ptr(&self) -> *mut T {
+    pub(crate) fn as_ptr(&self) -> *mut T {
         self.inner.as_ptr() as _
     }
 }
@@ -127,6 +95,12 @@ impl<T: PartialEq> PartialEq for ArcWithoutWeak<T> {
 
 impl<T: Eq> Eq for ArcWithoutWeak<T> {}
 
+impl<T> From<&ArcWithoutWeak<T>> for ArcWithoutWeak<T> {
+    fn from(arc: &ArcWithoutWeak<T>) -> Self {
+        arc.clone()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -144,8 +118,8 @@ mod tests {
         let pointer = ArcWithoutWeak::new(10);
         let cloned = pointer.clone();
 
-        assert_eq!(pointer.references(), 2);
-        assert_eq!(cloned.references(), 2);
+        assert_eq!(pointer.inner().references.load(Ordering::SeqCst), 2);
+        assert_eq!(cloned.inner().references.load(Ordering::SeqCst), 2);
     }
 
     #[test]
@@ -155,7 +129,7 @@ mod tests {
 
         drop(cloned);
 
-        assert_eq!(pointer.references(), 1);
+        assert_eq!(pointer.inner().references.load(Ordering::SeqCst), 1);
     }
 
     #[test]
@@ -188,7 +162,8 @@ mod tests {
     }
 
     #[test]
-    fn test_optional_type_type() {
+    fn test_type_size() {
         assert_eq!(mem::size_of::<ArcWithoutWeak<()>>(), 8);
+        assert_eq!(mem::size_of::<Option<ArcWithoutWeak<()>>>(), 8);
     }
 }

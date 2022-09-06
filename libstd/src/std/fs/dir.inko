@@ -1,0 +1,117 @@
+# Manipulating directories on a filesystem.
+import std::fs::path::Path
+import std::io::Error
+import std::string::ToString
+
+# Creates a new empty directory at the given path.
+#
+# # Errors
+#
+# This method may throw if any of the following conditions are met:
+#
+# 1. The user lacks the necessary permissions to create the directory.
+# 2. The directory already exists.
+#
+# # Examples
+#
+# Creating a directory:
+#
+#     import std::fs::dir
+#
+#     try! dir.create('/tmp/test')
+fn pub create(path: ref ToString) !! Error {
+  try _INKO.directory_create(path.to_string) else (e) throw Error.from_int(e)
+}
+
+# Creates a new empty directory at the given path, while also creating any
+# intermediate directories.
+#
+# # Errors
+#
+# This method may throw if any of the following conditions are met:
+#
+# 1. The user lacks the necessary permissions to create the directory.
+#
+# # Examples
+#
+# Creating a directory:
+#
+#     import std::fs::dir
+#
+#     try! dir.create_all('/tmp/foo/bar/test')
+fn pub create_all(path: ref ToString) !! Error {
+  let str = path.to_string
+
+  try _INKO.directory_create_recursive(str) else (e) throw Error.from_int(e)
+}
+
+# Removes the directory at the given path.
+#
+# # Errors
+#
+# This method may throw if any of the following conditions are met:
+#
+# 1. The user lacks the necessary permissions to remove the directory.
+# 2. The directory is not empty.
+# 3. The directory does not exist.
+#
+# # Examples
+#
+# Removing a directory:
+#
+#     import std::fs::dir
+#
+#     try! dir.create('/tmp/test')
+#     try! dir.remove('/tmp/test')
+fn pub remove(path: ref ToString) !! Error {
+  try _INKO.directory_remove(path.to_string) else (e) throw Error.from_int(e)
+}
+
+# Removes the directory and its contents at the given path.
+#
+# # Errors
+#
+# This method may throw if any of the following conditions are met:
+#
+# 1. The user lacks the necessary permissions to remove the directory.
+# 2. The directory does not exist.
+#
+# # Examples
+#
+# Removing a directory:
+#
+#     import std::fs::dir
+#
+#     try! dir.create_all('/tmp/foo/bar')
+#     try! dir.remove_all('/tmp/foo')
+fn pub remove_all(path: ref ToString) !! Error {
+  let str = path.to_string
+
+  try _INKO.directory_remove_recursive(str) else (e) throw Error.from_int(e)
+}
+
+# Returns an `Array` containing the paths to the contents of the directory.
+#
+# # Errors
+#
+# This method may throw if any of the following conditions are met:
+#
+# 1. The user lacks the necessary permissions to read the contents of the
+#    directory.
+# 2. The path does not point to a valid directory.
+#
+# # Examples
+#
+# Listing the contents of a directory:
+#
+#     import std::fs::dir
+#
+#     let paths = try! dir.list('.')
+#
+#     paths[0].to_string # => 'README.md'
+fn pub list(path: ref ToString) !! Error -> Array[Path] {
+  let paths =
+    try _INKO.directory_list(path.to_string) else (e) throw Error.from_int(e)
+
+  paths.into_iter.map fn (path) { Path.new(path) }.to_array
+}

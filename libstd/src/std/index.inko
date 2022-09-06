@@ -1,0 +1,54 @@
+# Reading and writing of values using indexes.
+
+# A type that can be indexed.
+trait pub Index[K, R] {
+  # Returns the value of the given index.
+  #
+  # # Panics
+  #
+  # This method may panic if the index doesn't exist.
+  fn pub index(index: K) -> R
+}
+
+# A type that can be indexed mutably.
+#
+# The `index` method of the `Index` type takes its receiver as an immutable
+# reference. This limits it to returning either newly created values, or
+# immutable references to data stored in the receiver.
+#
+# The `IndexMut` trait defines the method `index_mut`, which takes its receiver
+# as a mutable reference, allowing the method to return mutable references to
+# data stored in the receiver.
+#
+# In other words: `Index` is used for when you just want to get data out of a
+# type, while `IndexMut` is used if you also want to mutate that data.
+trait pub IndexMut[K, R] {
+  # Returns a mutable reference to the index' value.
+  #
+  # # Panics
+  #
+  # This method may panic if the index doesn't exist.
+  fn pub mut index_mut(index: K) -> R
+}
+
+# A type that allows writing a value to an index.
+trait pub SetIndex[K, V] {
+  # Sets the given index to the given value.
+  #
+  # # Panics
+  #
+  # This method may panic if the index is out of bounds, though this depends on
+  # the type that implements this method.
+  fn pub mut set_index(index: K, value: V)
+}
+
+# Checks if `index` is in the range of zero up to (but excluding) `length`.
+#
+# # Panics
+#
+# This method panics if the index is out of bounds.
+fn pub bounds_check(index: ref Int, length: ref Int) {
+  if index >= 0 and index < length { return }
+
+  _INKO.panic("The index {index} is out of bounds (length: {length})")
+}

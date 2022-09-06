@@ -22,45 +22,33 @@ extra_css:
 markdown_extensions:
   - pymdownx.highlight
   - pymdownx.superfences
-  - pymdownx.tabbed
+  - pymdownx.tabbed:
+      alternate_style: true
   - admonition
 nav:
-  - Home:
-    - index.md
-    - inko-compared-to-other-languages.md
-    - style-guide.md
-    - contributing.md
+  - Home: index.md
   - Getting started:
     - getting-started/installation.md
+    - getting-started/cli.md
     - getting-started/ivm.md
-    - getting-started/text-editor-setup.md
-    - getting-started/our-first-program.md
-    - getting-started/static-typing.md
-    - getting-started/basic-types.md
-    - getting-started/blocks.md
-    - getting-started/classes.md
-    - getting-started/traits.md
-    - getting-started/modules.md
+    - getting-started/hello-world.md
+    - getting-started/syntax.md
+    - getting-started/memory-management.md
+    - getting-started/types.md
     - getting-started/variables.md
-    - getting-started/operators.md
-    - getting-started/control-flow.md
-    - getting-started/type-casts.md
-    - getting-started/optional-values.md
-    - getting-started/generics.md
     - getting-started/error-handling.md
     - getting-started/concurrency.md
     - getting-started/pattern-matching.md
-    - getting-started/prelude.md
   - Guides:
-    - guides/index.md
-    - guides/iterators.md
-    - guides/sockets.md
-  - Virtual machine:
-    - virtual-machine/introduction.md
-    - virtual-machine/configuration.md
-    - virtual-machine/bytecode.md
-    - virtual-machine/memory-management.md
-    - virtual-machine/scheduling.md
+    - guides/style-guide.md
+    - guides/contributing.md
+    - guides/testing.md
+    - guides/deploying.md
+    - guides/ffi.md
+    - guides/operators.md
+  - Internals:
+    - internals/index.md
+    - internals/compiler.md
 extra:
   social:
     - icon: fontawesome/brands/gitlab

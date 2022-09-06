@@ -1,0 +1,55 @@
+import helpers::(fmt, hash)
+import std::cmp::Ordering
+import std::test::Tests
+
+fn pub tests(t: mut Tests) {
+  t.test('Bool.true?') fn (t) {
+    t.true(true.true?)
+    t.false(false.true?)
+  }
+
+  t.test('Bool.false?') fn (t) {
+    t.true(false.false?)
+    t.false(true.false?)
+  }
+
+  t.test('Bool.to_int') fn (t) {
+    t.equal(true.to_int, 1)
+    t.equal(false.to_int, 0)
+  }
+
+  t.test('Bool.to_string') fn (t) {
+    t.equal(true.to_string, 'true')
+    t.equal(false.to_string, 'false')
+  }
+
+  t.test('Bool.clone') fn (t) {
+    t.equal(true.clone, true)
+    t.equal(false.clone, false)
+  }
+
+  t.test('Bool.==') fn (t) {
+    t.equal(true, true)
+    t.equal(false, false)
+    t.not_equal(true, false)
+  }
+
+  t.test('Bool.cmp') fn (t) {
+    t.equal(true.cmp(true), Ordering.Equal)
+    t.equal(true.cmp(false), Ordering.Greater)
+    t.equal(false.cmp(true), Ordering.Less)
+    t.equal(false.cmp(false), Ordering.Equal)
+  }
+
+  t.test('Bool.hash') fn (t) {
+    t.equal(hash(true), hash(true))
+    t.equal(hash(false), hash(false))
+    t.not_equal(hash(true), hash(false))
+    t.not_equal(hash(false), hash(true))
+  }
+
+  t.test('Bool.fmt') fn (t) {
+    t.equal(fmt(true), 'true')
+    t.equal(fmt(false), 'false')
+  }
+}

@@ -1,0 +1,79 @@
+# Traits for the various binary operators.
+
+# The binary `+` operator.
+#
+# This trait is generic as types may wish to customise the type on the
+# right-hand side of the operator.
+trait pub Add[T] {
+  # Adds the given object to `self`, producing a new instance of the same type
+  # as `self`.
+  fn pub +(other: ref T) -> Self
+}
+
+# The binary `-` operator.
+#
+# This trait is generic as types may wish to customise the type on the
+# right-hand side of the operator.
+trait pub Subtract[T] {
+  # Subtracts the given object from `self`, producing a new instance of the
+  # same type as `self`.
+  fn pub -(other: ref T) -> Self
+}
+
+# The binary `/` operator.
+trait pub Divide {
+  # Divides `self` by the given object, producing a new one of the same type.
+  fn pub /(other: ref Self) -> Self
+}
+
+# The binary `*` operator.
+trait pub Multiply {
+  # Multiplies `self` with the given object, producing a new one of the same
+  # type.
+  fn pub *(other: ref Self) -> Self
+}
+
+# The binary `%` operator.
+trait pub Modulo {
+  # Gets the remainder after dividing `self` by the given object, producing a
+  # new one of the same type.
+  fn pub %(other: ref Self) -> Self
+}
+
+# The binary `**` operator.
+trait pub Power {
+  # Raises `self` to the power of the given exponent.
+  fn pub **(other: ref Self) -> Self
+}
+
+# The binary `&` (bitwise AND) operator.
+trait pub BitAnd {
+  # Returns the result of a bitwise AND with `self` and the given object.
+  fn pub &(other: ref Self) -> Self
+}
+
+# The binary `|` (bitwise OR) operator.
+trait pub BitOr {
+  # Returns the result of a bitwise OR with `self` and the given object.
+  fn pub |(other: ref Self) -> Self
+}
+
+# The binary `^` operator.
+trait pub BitXor {
+  # Returns the result of a bitwise XOR with `self` and the given object.
+  fn pub ^(other: ref Self) -> Self
+}
+
+# The binary `<<` operator.
+trait pub ShiftLeft {
+  # Returns the result of a bitwise shift to the left with `self` and the given
+  # object.
+  fn pub <<(other: ref Self) -> Self
+}
+
+# The binary `>>` operator.
+trait pub ShiftRight {
+  # Returns the result of a bitwise shift to the right with `self` and the
+  # given object.
+  fn pub >>(other: ref Self) -> Self
+}

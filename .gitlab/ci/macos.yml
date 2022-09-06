@@ -5,58 +5,38 @@
     - inko
     - vbox
 
-test:compiler:macos:
+test:rust:macos:
   extends:
     - .only-source-repository
-    - .only-compiler-changes
-    - .macos-tags
-  stage: test
-  before_script:
-    - ruby --version
-    - gem --version
-    - bundle --version
-    - cd compiler
-    - bundle config set path vendor
-    - bundle install --retry=3
-    - cd ..
-  script:
-    - gmake compiler/test
-  cache:
-    key: macos-compiler
-    paths:
-      - compiler/vendor/ruby
-
-test:ivm:macos:
-  extends:
-    - .only-source-repository
-    - .only-vm-changes
+    - .only-rust-changes
     - .macos-tags
   stage: test
   before_script:
     - rustc --version
     - cargo --version
   script:
-    - env LLVM_CONFIG_PATH="$(brew --prefix llvm)/bin/llvm-config" gmake vm/test
+    - env LLVM_CONFIG_PATH="$(brew --prefix llvm)/bin/llvm-config" cargo test
   cache:
-    key: macos-vm
+    key: macos
     paths:
       - .cargo
-      - vm/target
+      - target
 
-test:runtime:macos:
+test:libstd:macos:
   extends:
     - .only-source-repository
-    - .only-runtime-changes
+    - .only-libstd-changes
     - .macos-tags
   stage: test
   before_script:
-    - ruby --version
     - rustc --version
     - cargo --version
   script:
-    - env LLVM_CONFIG_PATH="$(brew --prefix llvm)/bin/llvm-config" gmake runtime/test
+    - cd libstd
+    - env LLVM_CONFIG_PATH="$(brew --prefix llvm)/bin/llvm-config"
+      cargo run --release -p inko -- test
   cache:
-    key: macos-vm
+    key: macos
     paths:
       - .cargo
-      - vm/target
+      - target

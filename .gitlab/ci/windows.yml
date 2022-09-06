@@ -5,58 +5,37 @@
     - windows
     - windows-1809
 
-test:compiler:windows:
+test:rust:windows:
   extends:
-    - .only-compiler-changes
+    - .only-rust-changes
     - .windows-tags
   stage: test
   before_script:
-    - ./scripts/run.ps1 choco install make --yes
-    - cd compiler
-    - bundle config set path vendor
-    - bundle install --retry=3
-    - cd ..
-    - ruby --version
-    - gem --version
-    - bundle --version
-  script:
-    - make compiler/test
-  cache:
-    key: windows-compiler
-    paths:
-      - compiler/vendor/ruby
-
-test:ivm:windows:
-  extends:
-    - .only-vm-changes
-    - .windows-tags
-  stage: test
-  before_script:
-    - ./scripts/run.ps1 choco install rust-ms make --yes
+    - ./scripts/run.ps1 choco install rust-ms --yes
     - rustc --version
     - cargo --version
   script:
-    - make vm/test
+    - cargo test
   cache:
-    key: windows-vm
+    key: windows
     paths:
       - .cargo
-      - vm/target
+      - target
 
-test:runtime:windows:
+test:libstd:windows:
   extends:
-    - .only-runtime-changes
+    - .only-libstd-changes
     - .windows-tags
   stage: test
   before_script:
-    - ./scripts/run.ps1 choco install rust-ms make --yes
-    - ruby --version
+    - ./scripts/run.ps1 choco install rust-ms --yes
     - rustc --version
     - cargo --version
   script:
-    - make runtime/test
+    - cd libstd
+    - cargo run --release -p inko -- test
   cache:
-    key: windows-vm
+    key: windows
     paths:
       - .cargo
-      - vm/target
+      - target

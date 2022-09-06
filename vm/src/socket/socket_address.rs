@@ -17,7 +17,7 @@ const AF_INET: i32 = AddressFamily::Inet as i32;
 const AF_INET6: i32 = AddressFamily::Inet6 as i32;
 
 #[cfg(unix)]
-#[cfg_attr(feature = "cargo-clippy", allow(uninit_assumed_init))]
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::uninit_assumed_init))]
 fn sun_path_offset() -> usize {
     use std::mem::MaybeUninit;
 
@@ -40,19 +40,14 @@ fn unix_socket_path(sockaddr: &SockAddr) -> String {
         return String::new();
     }
 
-    let (start, stop) = if raw_addr.sun_path[0] == 0 {
-        (1, len)
-    } else {
-        (0, len - 1)
-    };
+    let (start, stop) =
+        if raw_addr.sun_path[0] == 0 { (1, len) } else { (0, len - 1) };
 
     // Abstract names might contain NULL bytes and invalid UTF8. Since Inko
     // doesn't provide any better types at the moment we'll use a string and
     // convert the data to UTF8. A byte array would technically be better, but
     // these are mutable and make for an unpleasant runtime API.
-    OsStr::from_bytes(&path[start..stop])
-        .to_string_lossy()
-        .into_owned()
+    OsStr::from_bytes(&path[start..stop]).to_string_lossy().into_owned()
 }
 
 #[cfg(not(unix))]
@@ -62,7 +57,7 @@ fn unix_socket_path(_sockaddr: &SockAddr) -> String {
 
 /// A wrapper around the system's structure for socket addresses, such as
 /// `sockaddr_un` for UNIX sockets.
-pub enum SocketAddress {
+pub(crate) enum SocketAddress {
     /// A UNIX socket.
     ///
     /// We use a separate enum variant because datagram UNIX sockets will have
@@ -75,20 +70,20 @@ pub enum SocketAddress {
 }
 
 impl SocketAddress {
-    pub fn address(&self) -> Result<(String, i64), String> {
+    pub(crate) fn address(&self) -> Result<(String, i64), String> {
         match self {
             SocketAddress::Unix(sockaddr) => {
-                Ok((unix_socket_path(sockaddr), -1))
+                Ok((unix_socket_path(sockaddr), 0))
             }
             SocketAddress::Other(sockaddr) => {
                 match i32::from(sockaddr.family()) {
                     AF_INET => {
-                        let addr = sockaddr.as_inet().unwrap();
+                        let addr = sockaddr.as_socket_ipv4().unwrap();
 
                         Ok((addr.ip().to_string(), i64::from(addr.port())))
                     }
                     AF_INET6 => {
-                        let addr = sockaddr.as_inet6().unwrap();
+                        let addr = sockaddr.as_socket_ipv6().unwrap();
 
                         Ok((addr.ip().to_string(), i64::from(addr.port())))
                     }

@@ -1,0 +1,17 @@
+[package]
+name = "inko"
+version = "0.9.0" # VERSION
+authors = ["Yorick Peterse <yorick@yorickpeterse.com>"]
+edition = "2021"
+license = "MPL-2.0"
+
+[features]
+default = []
+jemalloc = ["jemallocator"]
+libffi-system = ["vm/libffi-system"]
+
+[dependencies]
+getopts = "^0.2"
+jemallocator = { version = "^0.3", optional = true }
+vm = { path = "../vm" }
+compiler = { path = "../compiler" }

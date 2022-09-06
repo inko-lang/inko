@@ -1,18 +1,16 @@
 //! Errors that can be produced at VM runtime.
-use crate::object_pointer::ObjectPointer;
+use crate::mem::Pointer;
 use std::convert::From;
 use std::io;
 use std::net::AddrParseError;
 
-/// An error that can be raised in the VM at runtime.]
-#[derive(Debug)]
-pub enum RuntimeError {
-    /// An error message that should be turned into an exception, allowing code
-    /// to handle it.
-    ErrorMessage(String),
+const INVALID_INPUT: i64 = 11;
 
+/// An error that can be raised in the VM at runtime.
+#[derive(Debug)]
+pub(crate) enum RuntimeError {
     /// An error to throw as-is.
-    Error(ObjectPointer),
+    Error(Pointer),
 
     /// A fatal error that should result in the VM terminating.
     Panic(String),
@@ -23,18 +21,8 @@ pub enum RuntimeError {
 }
 
 impl RuntimeError {
-    pub fn out_of_bounds(index: usize) -> Self {
-        RuntimeError::ErrorMessage(format!(
-            "The index {} is out of bounds",
-            index
-        ))
-    }
-
-    pub fn should_poll(&self) -> bool {
-        match self {
-            RuntimeError::WouldBlock => true,
-            _ => false,
-        }
+    pub(crate) fn should_poll(&self) -> bool {
+        matches!(self, RuntimeError::WouldBlock)
     }
 }
 
@@ -54,7 +42,7 @@ impl From<io::Error> for RuntimeError {
                 io::ErrorKind::AddrNotAvailable => 8,
                 io::ErrorKind::BrokenPipe => 9,
                 io::ErrorKind::AlreadyExists => 10,
-                io::ErrorKind::InvalidInput => 11,
+                io::ErrorKind::InvalidInput => INVALID_INPUT,
                 io::ErrorKind::InvalidData => 12,
                 io::ErrorKind::TimedOut => 13,
                 io::ErrorKind::WriteZero => 14,
@@ -63,7 +51,7 @@ impl From<io::Error> for RuntimeError {
                 _ => 0,
             };
 
-            RuntimeError::Error(ObjectPointer::integer(code))
+            RuntimeError::Error(Pointer::int(code))
         }
     }
 }
@@ -81,7 +69,7 @@ impl From<&str> for RuntimeError {
 }
 
 impl From<AddrParseError> for RuntimeError {
-    fn from(result: AddrParseError) -> Self {
-        RuntimeError::ErrorMessage(result.to_string())
+    fn from(_: AddrParseError) -> Self {
+        RuntimeError::Error(Pointer::int(INVALID_INPUT))
     }
 }

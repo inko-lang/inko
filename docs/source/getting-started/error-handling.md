@@ -1,264 +1,348 @@
 # Error handling
 
-Inko uses exceptions for error handling, albeit in a somewhat different fashion
-compared to other languages. Inko's error handling is inspired by the article
-["The Error Model"](http://joeduffyblog.com/2016/02/07/the-error-model/) by Joe
-Duffy.
+Let's take a look at one of the defining features of Inko: its approach to error
+handling, inspired by the article ["The Error
+Model"](http://joeduffyblog.com/2016/02/07/the-error-model/). To explain this
+we'll transform our "Hello, World!" program from the ["Hello,
+World!"](hello-world.md) guide into a program that writes the message to a file,
+reads it back, then writes it to STDOUT.
 
-## Throwing in a method
+## "Hello, World!" using files
 
-When a method throws an error, it must define the type to throw in its
-signature. A method that throws an `Error` would be defined as follows:
-
-```inko
-def example !! Error {
-  # ...
-}
-```
-
-Here `!! Error` means "This method will throw an `Error`". The type thrown can
-be an object or a trait, but _only one type_ can be thrown. This simplifies
-error handling, as a caller of a method only needs to handle a single error
-type.
-
-If a method defines a type to throw, it _must_ at some point actually throw this
-type. It's a compile-time error to define a method with a throw type, without it
-actually throwing:
+We'll start with the following code:
 
 ```inko
-def example !! Error -> Integer {
-  # This would not compile, since we never throw an error.
-  10
-}
-```
+import std::fs::file::ReadWriteFile
 
-Throwing an error is done using the `throw` keyword:
+class async Main {
+  fn async main {
 
-```inko
-def withdraw_money(amount: Integer) !! String -> Integer {
-  amount.positive?.if(
-    true: { amount },
-    false: { throw "You can't withdraw a negative amount of money!" }
-  )
-}
-```
-
-If `amount` is greater than zero, we just return the value, otherwise we throw a
-`String`.
-
-Note that the `throw` keyword will throw from the surrounding method, much like
-how the `return` keyword returns from the surrounding method.
-
-## Throwing in a closure or lambda
-
-If you want to throw from just a closure or lambda, instead of the surrounding
-method, you need to use `local throw`. For example:
-
-```inko
-let example = do (number: Integer) { local throw number }
-
-try! example.call(10)
-```
-
-You can also scope the `try` keyword to the surrounding closure using `local
-try`:
-
-```inko
-let foo = do (number: Integer) { local throw number }
-let bar = { local try foo.call(10) }
-
-try! bar.call
-```
-
-## Sending messages that may throw
-
-To send a message that throws, you must use the `try` or `try!` keyword. Both
-keywords will run an expression, but both will respond differently to an error.
-When using `try`, the error will be re-thrown:
-
-```inko
-def withdraw_money(amount: Integer) !! String -> Integer {
-  amount.positive?.if(
-    true: { amount },
-    false: { throw "You can't withdraw a negative amount of money!" }
-  )
-}
-
-def transfer_money(amount: Integer) !! String -> Integer {
-  let amount = try withdraw_money(amount)
-
-  transfer_to_other_account(amount)
-}
-```
-
-Here `try withdraw_money(amount)` re-throws any errors thrown by
-`withdraw_money`. When using `try` like this, all previous rules apply as well.
-This means the following code is invalid, because `transfer_money` doesn't
-define a type to throw:
-
-```inko
-def withdraw_money(amount: Integer) !! String -> Integer {
-  amount.positive?.if(
-    true: { amount },
-    false: { throw "You can't withdraw a negative amount of money!" }
-  )
-}
-
-def transfer_money(amount: Integer) -> Integer {
-  let amount = try withdraw_money(amount)
-
-  transfer_to_other_account(amount)
-}
-```
-
-We can handle errors by using the form `try EXPR else (error) ELSE`, with `EXPR`
-being the expression that may throw, `error` being a local variable to store the
-error in, and `ELSE` being the expression(s) to run when an error is thrown.
-Both the try and else expressions can be wrapped in curly braces, but the try
-expression can only be a single expression:
-
-```inko
-# Valid
-try foo else (error) bar
-
-# Also valid
-try { foo } else (error) { bar }
-
-# This is not valid, because the `try` body can only contain a single
-expression.
-try {
-  foo
-  bar
-} else (error) {
-  bar
-}
-```
-
-Using a `try` with an `else`,  we can change the above example to the following:
-
-```inko
-def withdraw_money(amount: Integer) !! String -> Integer {
-  amount.positive?.if(
-    true: { amount },
-    false: { throw "You can't withdraw a negative amount of money!" }
-  )
-}
-
-def transfer_money(amount: Integer) -> Integer {
-  let amount = try withdraw_money(amount) else 0
-
-  transfer_to_other_account(amount)
-}
-```
-
-In this case we just ignore any errors thrown by `withdraw_money` and assign
-`amount` to `0` instead. If we wanted to do something with the error, we would
-change our code to the following:
-
-```inko
-def withdraw_money(amount: Integer) !! String -> Integer {
-  amount.positive?.if(
-    true: { amount },
-    false: { throw "You can't withdraw a negative amount of money!" }
-  )
-}
-
-def transfer_money(amount: Integer) !! String -> Integer {
-  let amount = try {
-    withdraw_money(amount)
-  } else (error) {
-    throw 'Encountered the following error: ' + error
   }
-
-  transfer_to_other_account(amount)
 }
 ```
 
-When storing the error in a variable you do not need to specify its type, as the
-compiler will infer this for you.
+Instead of importing `STDOUT` we import `ReadWriteFile`. This is a type used for
+both reading and writing from and to a file. The `std::fs::file` module also
+provides a type for just reading files (`ReadOnlyFile`), and a type for just
+writing files (`WriteOnlyFile`). In our case we need both, hence the use of
+`ReadWriteFile`.
 
-Sometimes there is no sensible way of handling an error. For example, we may
-need to open a read-only file that we can't create during runtime. For these
-cases you can use the `try!` keyword:
+Next we'll need to create our file:
 
 ```inko
-def withdraw_money(amount: Integer) !! String -> Integer {
-  amount.positive?.if(
-    true: { amount },
-    false: { throw 'You can not withdraw a negative amount of money!' }
-  )
-}
+import std::fs::file::ReadWriteFile
 
-def transfer_money(amount: Integer) -> Integer {
-  let amount = try! withdraw_money(amount)
-
-  transfer_to_other_account(amount)
+class async Main {
+  fn async main {
+    let file = try! ReadWriteFile.new('hello.txt')
+  }
 }
 ```
 
-When using `try!`, any error encountered in the expression will result in a
-panic.
+`ReadWriteFile.new('hello.txt')` creates a new instance of the `ReadWriteFile`
+type and tells it to try and open the file `hello.txt`, creating it if it
+doesn't exist.
 
-## Catching errors from multiple expressions
-
-Inko does not support wrapping multiple expressions using the `try` or `try!`
-keywords. This means code such as this is invalid:
+Creating a file may fail, such as when you don't have permissions to do so. As
+such the `new` method is annotated to signal that it may throw an error. The
+signature of the method is as follows:
 
 ```inko
-try {
-  let amount = withdraw_money(10)
-  let transferred = transfer_money(amount)
-
+fn pub static new(path: IntoPath) !! Error -> Self {
   # ...
 }
 ```
 
-The choice to not support this is deliberate. By limiting the `try` and `try!`
-keywords to only a single expression, error handling becomes more fine grained.
-This in turn makes debugging and refactoring easier, as a change in the error
-API will not require you to change hundreds of lines in a `try` expression.
+For now we can ignore everything except the following:
 
-The block provided to the `else` keyword _can_ contain multiple expressions.
+```
+!! Error
+```
 
-## Panics
+Within a method signature, the syntax `!! TypeName` indicates the method may
+throw a value of type `TypeName`. In our case the type is called `Error`. A
+method may only specify a single type, simplifying the error handling process.
+_If_ a method specifies a throw type, we _must_ handle the error when calling
+the method, and not doing so results in a compile-time error. If a method
+specifies a throw type it _must_ at some point throw a value of said type using
+the `throw` or `try` keyword. Again it's a compile-time error to not do so.
 
-Panics are critical errors that stop the entire program. These kind of errors
-should only be used when there is nothing that can be done at runtime.  Examples
-of operations that may trigger a panic include (but are not limited to):
+These rules mean that a method can never lie about throwing or not, and every
+error is guaranteed to be handled in some way. Due to the syntax used for error
+handling it's also clear that a call may throw, meaning you don't have to look
+at a method's definition just to figure that out.
 
-* Dividing by zero.
-* Trying to allocate new memory when the system doesn't have any remaining
-  memory.
-* Trying to set the value of an out of bounds byte array index.
-
-To illustrate, take the following program:
+Error handling is done using the `try` and `try!` keywords. `try` defaults to
+throwing the error again:
 
 ```inko
-import std::byte_array::ByteArray
-
-let bytes = ByteArray.new(10, 20)
-
-bytes[3] = 10
+let file = try ReadWriteFile.new('hello.txt')
 ```
 
-When executed it will panic with the following output:
+This is subject to the same requirements for error handling as listed above.
+This means you can't just use `try expression` in a method without annotating
+the method accordingly.
 
+Explicitly handling the error is done using the syntax `try EXPR else ELSE`. For
+example, if we just want to return from the surrounding method we can do so as
+follows:
+
+```inko
+let file = try ReadWriteFile.new('hello.txt') else return
 ```
-Stack trace (the most recent call comes last):
-  0: "test.inko", line 5, in "main"
-  1: "runtime/std/byte_array.inko", line 240, in "[]="
-Process 0 panicked: Byte array index 3 is out of bounds
+
+You can also use curly braces for both the `try` and `else` bodies:
+
+```inko
+let file = try {
+  ReadWriteFile.new('hello.txt')
+} else {
+  return
+}
 ```
 
-The use of panics for critical errors greatly reduces the amount of exceptions
-you need to handle, making error handling more pleasant.
+If we want to do something with the error, we can specify a variable to bind it
+to:
 
-## Panics versus exceptions
+```inko
+let file = try ReadWriteFile.new('hello.txt') else (error) {
+  return
+}
+```
 
-Exceptions should be used for everything that you expect to occur during
-runtime. This includes network timeouts, file permission errors, input
-validation errors, and so on.
+If there's no sensible way of handling the error at runtime, we can decide to
+abort the program with an error message. This is known as a panic, and we can do
+this by using `try!` (that's `try` but with an exclamation mark at the end).
 
-Panics should _only_ be used for critical errors that should not occur at
-runtime in a well written program. Since Inko doesn't allow recovery from a
-panic, these should be used sparingly.
+For this guide we just want to abort if we can't create the file, hence the use
+of the `try!` keyword.
+
+Moving on, let's write the message to the file:
+
+```inko
+import std::fs::file::ReadWriteFile
+
+class async Main {
+  fn async main {
+    let file = try! ReadWriteFile.new('hello.txt')
+
+    try! file.write_string('Hello, World!')
+  }
+}
+```
+
+Again the operation can fail, such as when the file is removed after creating
+it, and so again we must handle any errors. And again for the sake of
+simplicity, we'll just abort in the event we encounter an error.
+
+If you now save the above code and run it, you'll end up with a file called
+`hello.txt` in the current working directory, containing the text "Hello,
+World!".
+
+Let's combine this with writing the message back to STDOUT. For this we'll need
+to import STDOUT again:
+
+```inko
+import std::fs::file::ReadWriteFile
+import std::stdio::STDOUT
+
+class async Main {
+  fn async main {
+    let file = try! ReadWriteFile.new('hello.txt')
+
+    try! file.write_string('Hello, World!')
+  }
+}
+```
+
+Now we'll need to read the contents back from the file. First we must rewind it,
+as reading continues where the last write (or read) ended, then we must read the
+contents into a `ByteArray`:
+
+```inko
+import std::fs::file::ReadWriteFile
+import std::stdio::STDOUT
+
+class async Main {
+  fn async main {
+    let file = try! ReadWriteFile.new('hello.txt')
+
+    try! file.write_string('Hello, World!')
+    try! file.seek(0)
+
+    let bytes = ByteArray.new
+
+    try! file.read_all(bytes)
+  }
+}
+```
+
+Here we rewind to the start using `try! file.seek(0)`, aborting if we encounter
+an error. After that we read the entire file into a `ByteArray`. As the name
+suggests, `ByteArray` is a type that stores bytes. Since files can contain
+virtually anything, reads operate on byte arrays instead of using strings.
+
+To write the bytes back to STDOUT, we can use the `write_bytes` method:
+
+```inko
+import std::fs::file::ReadWriteFile
+import std::stdio::STDOUT
+
+class async Main {
+  fn async main {
+    let file = try! ReadWriteFile.new('hello.txt')
+
+    try! file.write_string('Hello, World!')
+    try! file.seek(0)
+
+    let bytes = ByteArray.new
+
+    try! file.read_all(bytes)
+
+    STDOUT.new.write_bytes(bytes)
+  }
+}
+```
+
+At this point you may have noticed we don't perform any error handling when
+writing to STDOUT, and you're correct: the `STDOUT` and `STDERR` types are
+implemented such that they ignore any errors when writing. This is done as there
+are few (if any) cases where you _don't_ want to just ignore the error and move
+on.
+
+We now have a little program that writes "Hello, World!" to a file, reads it
+back, then writes it to STDOUT. But what's missing is removing the file once
+we're done. And so for our next trick we'll make `hello.txt` disappear:
+
+```inko
+import std::fs::file::(ReadWriteFile, remove)
+import std::stdio::STDOUT
+
+class async Main {
+  fn async main {
+    let file = try! ReadWriteFile.new('hello.txt')
+
+    try! file.write_string('Hello, World!')
+    try! file.seek(0)
+
+    let bytes = ByteArray.new
+
+    try! file.read_all(bytes)
+
+    STDOUT.new.write_bytes(bytes)
+
+    try remove(file.path) else nil
+  }
+}
+```
+
+Removing files is done using the method `std::fs::file.remove`, which we now
+import along with the `ReadWriteFile` type. We then remove the file as follows:
+
+```inko
+try remove(file.path) else nil
+```
+
+This tries to remove the file, and does nothing in the event of an error. In
+this case that's totally fine, as not being able to remove the file isn't a
+problem.
+
+Let's say that instead of aborting with a panic, we want to write a custom
+message to STDERR and quit the program. We'd end up with something like this:
+
+```inko
+import std::fs::file::(ReadWriteFile, remove)
+import std::stdio::(STDERR, STDOUT)
+
+class async Main {
+  fn async main {
+    let stderr = STDERR.new
+    let file = try ReadWriteFile.new('hello.txt') else {
+      stderr.print('Failed to open hello.txt')
+      return
+    }
+
+    try file.write_string('Hello, World!') else {
+      stderr.print('Failed to write to hello.txt')
+      return
+    }
+
+    try file.seek(0) else {
+      stderr.print('Failed to seek to the start of hello.txt')
+      return
+    }
+
+    let bytes = ByteArray.new
+
+    try file.read_all(bytes) else {
+      stderr.print('Failed to read from hello.txt')
+      return
+    }
+
+    STDOUT.new.write_bytes(bytes)
+
+    try remove(file.path) else nil
+  }
+}
+```
+
+If we also want to display the original IO error message, we'd end up with
+something like this instead:
+
+```inko
+import std::fs::file::(ReadWriteFile, remove)
+import std::stdio::(STDERR, STDOUT)
+
+class async Main {
+  fn async main {
+    let stderr = STDERR.new
+    let file = try ReadWriteFile.new('hello.txt') else (error) {
+      stderr.print("Failed to open hello.txt: {error}")
+      return
+    }
+
+    try file.write_string('Hello, World!') else (error) {
+      stderr.print("Failed to write to hello.txt: {error}")
+      return
+    }
+
+    try file.seek(0) else (error) {
+      stderr.print("Failed to seek to the start of hello.txt: {error}")
+      return
+    }
+
+    let bytes = ByteArray.new
+
+    try file.read_all(bytes) else (error) {
+      stderr.print("Failed to read from hello.txt: {error}")
+      return
+    }
+
+    STDOUT.new.write_bytes(bytes)
+
+    try remove(file.path) else nil
+  }
+}
+```
+
+## The cost of error handling
+
+Error handling in Inko is cheap: the cost of a `throw` is the same as a
+`return`, while a `try` consists of checking a flag and a branch. Inko doesn't
+automatically attach a stack trace to every error, meaning the cost of creating
+an error value is the same as creating any other value. Inko also doesn't
+implicitly unwind the stack when encountering an error.
+
+## Errors that abort execution
+
+Inko has two types of errors: those than can be handled at runtime using `try`
+or `try!`, and critical errors that abort the program. Such an error is called a
+"panic", and is used for errors that shouldn't be handled by the developer.
+
+An example of a panic is when you divide by zero, or when accessing an out of
+bounds index in an array. Both cases are the result of incorrect code, and as
+such all we can do is abort.
+
+As a rule of thumb, panics should only be used when they can be triggered as the
+result of incorrect code, or if there's nothing you can do other than to abort
+(e.g. when your program requires a file to exist, but the file is missing).

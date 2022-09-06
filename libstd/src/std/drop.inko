@@ -1,0 +1,20 @@
+# Types and methods for dropping values.
+
+# Drops the given value.
+#
+# This method drops the value simply by taking ownership of it, and dropping it
+# before returning. This allows one to drop a value before reaching the end of a
+# scope.
+fn pub drop[T](_value: T) {
+  # _value dropped implicitly
+}
+
+# A type that defines a destructor to run when the type is dropped.
+trait pub Drop {
+  # The destructor for this type.
+  #
+  # This method is called _before_ the memory of `self` is released. It doesn't
+  # take ownership of `self` as that would result in the destructor being called
+  # multiple times.
+  fn mut drop
+}

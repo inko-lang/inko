@@ -3,22 +3,22 @@ use std::env;
 use std::io;
 
 /// Returns the path to the home directory.
-pub fn home() -> Option<String> {
+pub(crate) fn home() -> Option<String> {
     dirs_next::home_dir().map(|path| path.to_string_lossy().into_owned())
 }
 
 /// Returns the path to the temporary directory.
-pub fn temp() -> String {
+pub(crate) fn temp() -> String {
     env::temp_dir().to_string_lossy().into_owned()
 }
 
 /// Returns the current working directory.
-pub fn working_directory() -> io::Result<String> {
+pub(crate) fn working_directory() -> io::Result<String> {
     env::current_dir().map(|path| path.to_string_lossy().into_owned())
 }
 
 /// Returns the current working directory.
-pub fn set_working_directory(directory: &str) -> io::Result<()> {
+pub(crate) fn set_working_directory(directory: &str) -> io::Result<()> {
     env::set_current_dir(directory)
 }
 

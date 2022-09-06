@@ -1,0 +1,77 @@
+import helpers::Script
+import std::test::Tests
+
+fn pub tests(t: mut Tests) {
+  t.test('STDIN.read') fn (t) {
+    let code = '
+      let out = STDOUT.new
+      let in = STDIN.new
+      let bytes = ByteArray.new
+
+      try! in.read_all(bytes)
+      out.write_bytes(bytes)
+    '
+
+    let output = Script.new(t.id, code).stdin('hello').run
+
+    t.equal(output, 'hello')
+  }
+
+  t.test('STDOUT.write_bytes') fn (t) {
+    let code = 'STDOUT.new.write_bytes("hello".to_byte_array)'
+
+    t.equal(Script.new(t.id, code).run, 'hello')
+  }
+
+  t.test('STDOUT.write_string') fn (t) {
+    let code = 'STDOUT.new.write_string("hello")'
+
+    t.equal(Script.new(t.id, code).run, 'hello')
+  }
+
+  t.test('STDOUT.print') fn (t) {
+    let code = 'STDOUT.new.print("hello")'
+
+    t.equal(Script.new(t.id, code).run, "hello\n")
+  }
+
+  t.test('STDOUT.flush') fn (t) {
+    let code = '
+      let out = STDOUT.new
+
+      out.write_string("hello")
+      out.flush
+    '
+
+    t.equal(Script.new(t.id, code).run, "hello")
+  }
+
+  t.test('STDERR.write_bytes') fn (t) {
+    let code = 'STDERR.new.write_bytes("hello".to_byte_array)'
+
+    t.equal(Script.new(t.id, code).run, 'hello')
+  }
+
+  t.test('STDERR.write_string') fn (t) {
+    let code = 'STDERR.new.write_string("hello")'
+
+    t.equal(Script.new(t.id, code).run, 'hello')
+  }
+
+  t.test('STDERR.print') fn (t) {
+    let code = 'STDERR.new.print("hello")'
+
+    t.equal(Script.new(t.id, code).run, "hello\n")
+  }
+
+  t.test('STDERR.flush') fn (t) {
+    let code = '
+      let out = STDERR.new
+
+      out.write_string("hello")
+      out.flush
+    '
+
+    t.equal(Script.new(t.id, code).run, "hello")
+  }
+}
