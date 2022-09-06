@@ -20,30 +20,18 @@ stages:
       - branches@inko-lang/inko
       - tags@inko-lang/inko
 
-.only-vm-changes:
+.only-rust-changes:
   only:
     changes:
-      - vm/**/*
-      - cli/**/*
-      - Cargo.toml
-      - Cargo.lock
+      - "**/*.rs"
+      - "**/Cargo.*"
 
-.only-runtime-changes:
+.only-libstd-changes:
   only:
     changes:
-      - runtime/**/*
-      - compiler/**/*
-      # If the VM changes this may affect the runtime, so we also run runtime
-      # tests.
-      - vm/**/*
-      - cli/**/*
-      - Cargo.toml
-      - Cargo.lock
-
-.only-compiler-changes:
-  only:
-    changes:
-      - compiler/**/*
+      - "**/*.inko"
+      - "**/*.rs"
+      - "**/Cargo.*"
 
 .only-docs-changes:
   only:
@@ -58,9 +46,4 @@ include:
   - local: .gitlab/ci/lints.yml
   - local: .gitlab/ci/releases.yml
   - local: .gitlab/ci/docs.yml
-  - template: Security/License-Scanning.gitlab-ci.yml
   - template: Security/Secret-Detection.gitlab-ci.yml
-
-license_scanning:
-  variables:
-    CARGO_HOME: $HOME/.cargo

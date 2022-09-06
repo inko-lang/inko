@@ -1,0 +1,104 @@
+# Inclusive and exclusive ranges.
+import std::cmp::(Contains, Compare, Equal)
+import std::fmt::(Format, Formatter)
+import std::hash::(Hash, Hasher)
+import std::iter::(Enum, Iter, IntoIter)
+
+# A range of integers.
+#
+# A `Range` is either inclusive or exclusive, based on whether it was created
+# using `Range.inclusive` or `Range.exclusive` respectively. The `Range` type
+# only supports integers.
+class pub Range {
+  # The start value of the range.
+  let pub @start: Int
+
+  # The end value of the range.
+  let pub @end: Int
+
+  # If the range should include the end.
+  let @inclusive: Bool
+
+  # Returns a new inclusive range.
+  fn pub static inclusive(start: Int, end: Int) -> Self {
+    Self { @start = start, @end = end, @inclusive = true }
+  }
+
+  # Returns a new exclusive range.
+  fn pub static exclusive(start: Int, end: Int) -> Self {
+    Self { @start = start, @end = end, @inclusive = false }
+  }
+
+  # Returns `true` if the range is an inclusive range.
+  fn pub inclusive? -> Bool {
+    @inclusive.clone
+  }
+}
+
+impl Contains[Int] for Range {
+  # Returns `true` if the given argument resides in the range of `self`.
+  #
+  # # Examples
+  #
+  # Checking if a `Range` covers a value:
+  #
+  #     1.until(10).cover?(5)  # => true
+  #     1.until(10).cover?(15) # => false
+  fn pub contains?(value: ref Int) -> Bool {
+    @start <= value and if inclusive? { value <= @end } else { value < @end }
+  }
+}
+
+impl IntoIter[Int, Never] for Range {
+  # Moves `self` into an iterator over its values.
+  #
+  # # Examples
+  #
+  #     1.until(4).into_iter.to_array # => [1, 2, 3]
+  fn pub move into_iter -> Iter[Int, Never] {
+    let mut current = @start
+    let end = @end
+    let inclusive = @inclusive
+
+    Enum.new fn move {
+      let advance = if inclusive { current <= end } else { current < end }
+
+      if advance { Option.Some(current := current + 1) } else { Option.None }
+    }
+  }
+}
+
+impl Equal for Range {
+  # Returns `true` if `self` and `other` are identical.
+  #
+  # # Examples
+  #
+  # Comparing two identical ranges:
+  #
+  #     1.until(10) == 1.until(10) # => true
+  #
+  # Comparing two different ranges:
+  #
+  #     1.until(10) == 1.until(5) # => false
+  fn pub ==(other: ref Self) -> Bool {
+    @start == other.start
+      and @end == other.end
+      and @inclusive == other.inclusive?
+  }
+}
+
+impl Hash for Range {
+  fn pub hash(hasher: mut Hasher) {
+    @inclusive.hash(hasher)
+    @start.hash(hasher)
+    @end.hash(hasher)
+  }
+}
+
+impl Format for Range {
+  fn pub fmt(formatter: mut Formatter) {
+    @start.fmt(formatter)
+    formatter.write(if @inclusive { ' to ' } else { ' until ' })
+    @end.fmt(formatter)
+  }
+}

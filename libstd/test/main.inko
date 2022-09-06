@@ -1,0 +1,74 @@
+import std::env
+
+import std::fs::test_dir
+import std::fs::test_file
+import std::fs::test_path
+import std::net::test_ip
+import std::net::test_socket
+import std::test::Tests
+import std::test_array
+import std::test_bool
+import std::test_byte_array
+import std::test_cmp
+import std::test_debug
+import std::test_env
+import std::test_ffi
+import std::test_float
+import std::test_fmt
+import std::test_int
+import std::test_io
+import std::test_iter
+import std::test_map
+import std::test_nil
+import std::test_option
+import std::test_process
+import std::test_random
+import std::test_range
+import std::test_set
+import std::test_stdio
+import std::test_string
+import std::test_sys
+import std::test_test
+import std::test_time
+import std::test_tuple
+
+class async Main {
+  fn async main {
+    let tests = Tests.new
+
+    test_array.tests(tests)
+    test_bool.tests(tests)
+    test_byte_array.tests(tests)
+    test_cmp.tests(tests)
+    test_debug.tests(tests)
+    test_dir.tests(tests)
+    test_env.tests(tests)
+    test_ffi.tests(tests)
+    test_file.tests(tests)
+    test_float.tests(tests)
+    test_fmt.tests(tests)
+    test_int.tests(tests)
+    test_io.tests(tests)
+    test_ip.tests(tests)
+    test_iter.tests(tests)
+    test_map.tests(tests)
+    test_nil.tests(tests)
+    test_option.tests(tests)
+    test_path.tests(tests)
+    test_process.tests(tests)
+    test_random.tests(tests)
+    test_range.tests(tests)
+    test_set.tests(tests)
+    test_socket.tests(tests)
+    test_stdio.tests(tests)
+    test_string.tests(tests)
+    test_sys.tests(tests)
+    test_test.tests(tests)
+    test_time.tests(tests)
+    test_tuple.tests(tests)
+
+    tests.pattern = env.arguments.into_iter.next
+
+    tests.run
+  }
+}

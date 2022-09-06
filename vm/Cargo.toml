@@ -1,8 +1,8 @@
 [package]
-name = "libinko"
+name = "vm"
 version = "0.9.0" # VERSION
 authors = ["Yorick Peterse <yorick@yorickpeterse.com>"]
-edition = "2018"
+edition = "2021"
 build = "build.rs"
 license = "MPL-2.0"
 
@@ -14,29 +14,33 @@ libffi-system = ["libffi/system"]
 
 [dependencies]
 num_cpus = "^1.13"
-parking_lot = "^0.10"
-time = "^0.2"
-num-integer = "^0.1"
-float-cmp = "^0.8"
-num-traits = "^0.2"
-dirs-next = "^1.0"
-libloading = "^0.6"
-libffi = "^1.0"
-crossbeam-deque = "^0.7"
-crossbeam-channel = "^0.4"
-crossbeam-utils = "^0.7"
-nix = "^0.19"
-ahash = "^0.4"
-rand = "^0.6"
-polling = "^2.0"
 
-[dependencies.num-bigint]
-version = "^0.2"
-features = ["rand"]
+# Newer versions of the `time` crate only expose local time behind a
+# compile-time --cfg flag. This isn't viable for us, as it makes the compilation
+# process easier and introduces a fallible API when in practise this probably
+# won't be a problem for us.
+#
+# Until a better solution is presented, we'll lock ourselves to the last version
+# of this crate that doesn't include these changes.
+time = "=0.2.22"
+
+float-cmp = "^0.9"
+dirs-next = "^1.0"
+libloading = "^0.7"
+libffi = "^3.0"
+crossbeam-deque = "^0.8"
+crossbeam-channel = "^0.5"
+crossbeam-utils = "^0.8"
+nix = "^0.25"
+ahash = "^0.8"
+rand = "^0.8"
+polling = "^2.0"
+unicode-segmentation = "^1.8"
+bytecode = { path = "../bytecode" }
 
 [dependencies.socket2]
-version = "^0.3.11"
-features = ["unix", "reuseport"]
+version = "^0.4"
+features = ["all"]
 
 [target.'cfg(windows)'.dependencies]
 winapi = "^0.3"

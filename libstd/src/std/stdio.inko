@@ -1,0 +1,74 @@
+# STDIN, STDOUT, and STDERR streams.
+import std::io::(Error, Read, Write)
+
+# The standard input stream of the current OS process.
+class pub STDIN {
+  # Returns a new handle to the input stream.
+  fn pub static new -> Self {
+    Self {}
+  }
+}
+
+impl Read for STDIN {
+  fn pub mut read(into: mut ByteArray, size: Int) !! Error -> Int {
+    try _INKO.stdin_read(into, size) else (error) throw Error.from_int(error)
+  }
+}
+
+# The standard output stream of the current OS process.
+#
+# To make it easier to write to STDOUT, any errors produced while writing are
+# ignored.
+class pub STDOUT {
+  # Returns a new handle to the output stream.
+  fn pub static new -> Self {
+    Self {}
+  }
+}
+
+impl Write for STDOUT {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Int {
+    try _INKO.stdout_write_bytes(bytes) else 0
+  }
+
+  fn pub mut write_string(string: ref String) -> Int {
+    try _INKO.stdout_write_string(string) else 0
+  }
+
+  fn pub mut flush {
+    try _INKO.stdout_flush else return
+  }
+
+  fn pub mut print(string: ref String) -> Int {
+    write_string(string) write_string("\n")
+  }
+}
+
+# The standard error stream of the current OS process.
+#
+# To make it easier to write to STDERR, any errors produced while writing are
+# ignored.
+class pub STDERR {
+  # Returns a new handle to the error stream.
+  fn pub static new -> Self {
+    Self {}
+  }
+}
+
+impl Write for STDERR {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Int {
+    try _INKO.stderr_write_bytes(bytes) else 0
+  }
+
+  fn pub mut write_string(string: ref String) -> Int {
+    try _INKO.stderr_write_string(string) else 0
+  }
+
+  fn pub mut flush {
+    try _INKO.stderr_flush else return
+  }
+
+  fn pub mut print(string: ref String) -> Int {
+    write_string(string) + write_string("\n")
+  }
+}

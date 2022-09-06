@@ -1,6 +1,6 @@
-/compiler/target
-/compiler/pkg
 .*.rustfmt
+*.ibi
+/libstd/build
 /tmp
 /target
 /docs/build

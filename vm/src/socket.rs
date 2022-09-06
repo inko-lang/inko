@@ -1,20 +1,19 @@
 pub mod socket_address;
 
-use crate::closable::ClosableSocket;
-use crate::duration;
 use crate::network_poller::Interest;
 use crate::network_poller::NetworkPoller;
-use crate::process::RcProcess;
+use crate::process::ProcessPointer;
 use crate::runtime_error::RuntimeError;
 use crate::socket::socket_address::SocketAddress;
 use socket2::{Domain, SockAddr, Socket as RawSocket, Type};
 use std::io;
 use std::io::Read;
-use std::net::Ipv4Addr;
+use std::mem::transmute;
 use std::net::Shutdown;
 use std::net::{IpAddr, SocketAddr};
 use std::slice;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 
 #[cfg(unix)]
 use nix::errno::Errno::{EINPROGRESS, EISCONN};
@@ -26,7 +25,7 @@ use winapi::shared::winerror::{
 
 macro_rules! socket_setter {
     ($setter:ident, $type:ty) => {
-        pub fn $setter(&self, value: $type) -> Result<(), RuntimeError> {
+        pub(crate) fn $setter(&self, value: $type) -> Result<(), RuntimeError> {
             self.inner.$setter(value)?;
 
             Ok(())
@@ -36,7 +35,7 @@ macro_rules! socket_setter {
 
 macro_rules! socket_getter {
     ($getter:ident, $type:ty) => {
-        pub fn $getter(&self) -> Result<$type, RuntimeError> {
+        pub(crate) fn $getter(&self) -> Result<$type, RuntimeError> {
             Ok(self.inner.$getter()?)
         }
     };
@@ -44,7 +43,7 @@ macro_rules! socket_getter {
 
 macro_rules! socket_u32_getter {
     ($getter:ident) => {
-        pub fn $getter(&self) -> Result<usize, RuntimeError> {
+        pub(crate) fn $getter(&self) -> Result<usize, RuntimeError> {
             Ok(self.inner.$getter()? as usize)
         }
     };
@@ -52,10 +51,10 @@ macro_rules! socket_u32_getter {
 
 macro_rules! socket_duration_setter {
     ($setter:ident) => {
-        pub fn $setter(&self, value: f64) -> Result<(), RuntimeError> {
-            let dur = duration::from_f64(value)?;
+        pub(crate) fn $setter(&self, value: f64) -> Result<(), RuntimeError> {
+            let dur = Duration::from_secs_f64(value);
 
-            self.inner.$setter(dur)?;
+            self.inner.$setter(Some(dur))?;
 
             Ok(())
         }
@@ -64,10 +63,10 @@ macro_rules! socket_duration_setter {
 
 macro_rules! socket_duration_getter {
     ($getter:ident) => {
-        pub fn $getter(&self) -> Result<f64, RuntimeError> {
+        pub(crate) fn $getter(&self) -> Result<f64, RuntimeError> {
             let dur = self.inner.$getter()?;
 
-            Ok(duration::to_f64(dur))
+            Ok(dur.map(|v| v.as_secs_f64()).unwrap_or(0.0))
         }
     };
 }
@@ -143,12 +142,12 @@ fn update_buffer_length_and_capacity(buffer: &mut Vec<u8>, read: usize) {
     buffer.shrink_to_fit();
 }
 
-fn socket_type(kind: u8) -> Result<Type, RuntimeError> {
+fn socket_type(kind: i64) -> Result<Type, RuntimeError> {
     let kind = match kind {
-        0 => Type::stream(),
-        1 => Type::dgram(),
-        2 => Type::seqpacket(),
-        3 => Type::raw(),
+        0 => Type::STREAM,
+        1 => Type::DGRAM,
+        2 => Type::SEQPACKET,
+        3 => Type::RAW,
         _ => {
             return Err(RuntimeError::Panic(format!(
                 "{} is not a valid socket type",
@@ -161,9 +160,9 @@ fn socket_type(kind: u8) -> Result<Type, RuntimeError> {
 }
 
 /// A nonblocking socket that can be registered with a `NetworkPoller`.
-pub struct Socket {
+pub(crate) struct Socket {
     /// The raw socket.
-    inner: ClosableSocket,
+    inner: RawSocket,
 
     /// A flag indicating that this socket has been registered with a poller.
     ///
@@ -179,7 +178,7 @@ pub struct Socket {
 }
 
 impl Socket {
-    pub fn new(
+    pub(crate) fn new(
         domain: Domain,
         kind: Type,
         unix: bool,
@@ -188,36 +187,34 @@ impl Socket {
 
         socket.set_nonblocking(true)?;
 
-        Ok(Socket {
-            inner: ClosableSocket::new(socket),
-            registered: AtomicBool::new(false),
-            unix,
-        })
+        Ok(Socket { inner: socket, registered: AtomicBool::new(false), unix })
     }
 
-    pub fn ipv4(kind_int: u8) -> Result<Socket, RuntimeError> {
-        Self::new(Domain::ipv4(), socket_type(kind_int)?, false)
+    pub(crate) fn ipv4(kind_int: i64) -> Result<Socket, RuntimeError> {
+        Self::new(Domain::IPV4, socket_type(kind_int)?, false)
     }
 
-    pub fn ipv6(kind_int: u8) -> Result<Socket, RuntimeError> {
-        Self::new(Domain::ipv6(), socket_type(kind_int)?, false)
+    pub(crate) fn ipv6(kind_int: i64) -> Result<Socket, RuntimeError> {
+        Self::new(Domain::IPV6, socket_type(kind_int)?, false)
     }
 
-    pub fn unix(kind_int: u8) -> Result<Socket, RuntimeError> {
-        #[cfg(unix)]
-        {
-            Self::new(Domain::unix(), socket_type(kind_int)?, true)
-        }
-
-        #[cfg(not(unix))]
-        {
-            Err(RuntimeError::from(
-                "UNIX sockets aren't supported on this platform",
-            ))
-        }
+    #[cfg(unix)]
+    pub(crate) fn unix(kind_int: i64) -> Result<Socket, RuntimeError> {
+        Self::new(Domain::UNIX, socket_type(kind_int)?, true)
     }
 
-    pub fn bind(&self, address: &str, port: u16) -> Result<(), RuntimeError> {
+    #[cfg(not(unix))]
+    pub(crate) fn unix(_: i64) -> Result<Socket, RuntimeError> {
+        Err(RuntimeError::from(
+            "UNIX sockets aren't supported on this platform",
+        ))
+    }
+
+    pub(crate) fn bind(
+        &self,
+        address: &str,
+        port: u16,
+    ) -> Result<(), RuntimeError> {
         let sockaddr = encode_sockaddr(address, port, self.unix)?;
 
         self.inner.bind(&sockaddr)?;
@@ -225,13 +222,13 @@ impl Socket {
         Ok(())
     }
 
-    pub fn listen(&self, backlog: i32) -> Result<(), RuntimeError> {
+    pub(crate) fn listen(&self, backlog: i32) -> Result<(), RuntimeError> {
         self.inner.listen(backlog)?;
 
         Ok(())
     }
 
-    pub fn connect(
+    pub(crate) fn connect(
         &self,
         address: &str,
         port: u16,
@@ -269,9 +266,9 @@ impl Socket {
         Ok(())
     }
 
-    pub fn register(
+    pub(crate) fn register(
         &mut self,
-        process: &RcProcess,
+        process: ProcessPointer,
         poller: &NetworkPoller,
         interest: Interest,
     ) -> Result<(), RuntimeError> {
@@ -284,16 +281,16 @@ impl Socket {
         // 1. Set "registered" _first_ (if necessary)
         // 2. Add the socket to the poller
         if self.registered.load(Ordering::Acquire) {
-            Ok(poller.modify(process, &*self.inner, interest)?)
+            Ok(poller.modify(process, &self.inner, interest)?)
         } else {
             self.registered.store(true, Ordering::Release);
-            Ok(poller.add(process, &*self.inner, interest)?)
+            Ok(poller.add(process, &self.inner, interest)?)
         }
 
         // *DO NOT* use "self" from here on.
     }
 
-    pub fn accept(&self) -> Result<Self, RuntimeError> {
+    pub(crate) fn accept(&self) -> Result<Self, RuntimeError> {
         let (socket, _) = self.inner.accept()?;
 
         // Accepted sockets don't inherit the non-blocking status of the
@@ -301,13 +298,13 @@ impl Socket {
         socket.set_nonblocking(true)?;
 
         Ok(Socket {
-            inner: ClosableSocket::new(socket),
+            inner: socket,
             registered: AtomicBool::new(false),
             unix: self.unix,
         })
     }
 
-    pub fn read(
+    pub(crate) fn read(
         &self,
         buffer: &mut Vec<u8>,
         amount: usize,
@@ -321,29 +318,30 @@ impl Socket {
             // For files this is fine, but for sockets EOF is not triggered
             // until the socket is closed; which is almost always too late.
             let slice = socket_output_slice(buffer, amount);
-            let read = self.inner.recv(slice)?;
+            let read = self.inner.recv(unsafe { transmute(slice) })?;
 
             update_buffer_length_and_capacity(buffer, read);
             Ok(read)
         } else {
-            Ok((&*self.inner).read_to_end(buffer)?)
+            Ok((&self.inner).read_to_end(buffer)?)
         }
     }
 
-    pub fn recv_from(
+    pub(crate) fn recv_from(
         &self,
         buffer: &mut Vec<u8>,
         bytes: usize,
     ) -> Result<(String, i64), RuntimeError> {
         let slice = socket_output_slice(buffer, bytes);
-        let (read, sockaddr) = self.inner.recv_from(slice)?;
+        let (read, sockaddr) =
+            self.inner.recv_from(unsafe { transmute(slice) })?;
 
         update_buffer_length_and_capacity(buffer, read);
 
-        Ok(decode_sockaddr(sockaddr, self.unix)?)
+        decode_sockaddr(sockaddr, self.unix)
     }
 
-    pub fn send_to(
+    pub(crate) fn send_to(
         &self,
         buffer: &[u8],
         address: &str,
@@ -354,27 +352,27 @@ impl Socket {
         Ok(self.inner.send_to(buffer, &sockaddr)?)
     }
 
-    pub fn local_address(&self) -> Result<(String, i64), RuntimeError> {
+    pub(crate) fn local_address(&self) -> Result<(String, i64), RuntimeError> {
         let sockaddr = self.inner.local_addr()?;
 
-        Ok(decode_sockaddr(sockaddr, self.unix)?)
+        decode_sockaddr(sockaddr, self.unix)
     }
 
-    pub fn peer_address(&self) -> Result<(String, i64), RuntimeError> {
+    pub(crate) fn peer_address(&self) -> Result<(String, i64), RuntimeError> {
         let sockaddr = self.inner.peer_addr()?;
 
-        Ok(decode_sockaddr(sockaddr, self.unix)?)
+        decode_sockaddr(sockaddr, self.unix)
     }
 
-    pub fn shutdown_read(&self) -> Result<(), RuntimeError> {
+    pub(crate) fn shutdown_read(&self) -> Result<(), RuntimeError> {
         self.inner.shutdown(Shutdown::Read).map_err(|e| e.into())
     }
 
-    pub fn shutdown_write(&self) -> Result<(), RuntimeError> {
+    pub(crate) fn shutdown_write(&self) -> Result<(), RuntimeError> {
         self.inner.shutdown(Shutdown::Write).map_err(|e| e.into())
     }
 
-    pub fn shutdown_read_write(&self) -> Result<(), RuntimeError> {
+    pub(crate) fn shutdown_read_write(&self) -> Result<(), RuntimeError> {
         self.inner.shutdown(Shutdown::Both).map_err(|e| e.into())
     }
 
@@ -382,75 +380,61 @@ impl Socket {
     socket_setter!(set_only_v6, bool);
     socket_setter!(set_nodelay, bool);
     socket_setter!(set_broadcast, bool);
-    socket_setter!(set_multicast_loop_v4, bool);
-    socket_setter!(set_multicast_loop_v6, bool);
     socket_setter!(set_reuse_address, bool);
+    socket_setter!(set_keepalive, bool);
 
     socket_setter!(set_recv_buffer_size, usize);
     socket_setter!(set_send_buffer_size, usize);
-    socket_setter!(set_multicast_ttl_v4, u32);
-    socket_setter!(set_multicast_hops_v6, u32);
-    socket_setter!(set_multicast_if_v6, u32);
-    socket_setter!(set_unicast_hops_v6, u32);
 
     socket_duration_setter!(set_linger);
-    socket_duration_setter!(set_keepalive);
 
     socket_getter!(only_v6, bool);
     socket_getter!(nodelay, bool);
     socket_getter!(broadcast, bool);
-    socket_getter!(multicast_loop_v4, bool);
-    socket_getter!(multicast_loop_v6, bool);
     socket_getter!(reuse_address, bool);
+    socket_getter!(keepalive, bool);
 
     socket_getter!(recv_buffer_size, usize);
     socket_getter!(send_buffer_size, usize);
 
     socket_u32_getter!(ttl);
-    socket_u32_getter!(multicast_ttl_v4);
-    socket_u32_getter!(multicast_hops_v6);
-    socket_u32_getter!(multicast_if_v6);
-    socket_u32_getter!(unicast_hops_v6);
 
     socket_duration_getter!(linger);
-    socket_duration_getter!(keepalive);
-
-    pub fn set_multicast_if_v4(&self, addr: &str) -> Result<(), RuntimeError> {
-        let ip_addr = addr.parse::<Ipv4Addr>()?;
-
-        Ok(self.inner.set_multicast_if_v4(&ip_addr)?)
-    }
-
-    pub fn multicast_if_v4(&self) -> Result<String, RuntimeError> {
-        Ok(self.inner.multicast_if_v4().map(|addr| addr.to_string())?)
-    }
 
     #[cfg(unix)]
-    pub fn set_reuse_port(&self, reuse: bool) -> Result<(), RuntimeError> {
+    pub(crate) fn set_reuse_port(
+        &self,
+        reuse: bool,
+    ) -> Result<(), RuntimeError> {
         Ok(self.inner.set_reuse_port(reuse)?)
     }
 
     #[cfg(not(unix))]
-    pub fn set_reuse_port(&self, _reuse: bool) -> Result<(), RuntimeError> {
+    pub(crate) fn set_reuse_port(
+        &self,
+        _reuse: bool,
+    ) -> Result<(), RuntimeError> {
         Ok(())
     }
 
     #[cfg(unix)]
-    pub fn reuse_port(&self) -> Result<bool, RuntimeError> {
+    pub(crate) fn reuse_port(&self) -> Result<bool, RuntimeError> {
         Ok(self.inner.reuse_port()?)
     }
 
     #[cfg(not(unix))]
-    pub fn reuse_port(&self) -> Result<bool, RuntimeError> {
+    pub(crate) fn reuse_port(&self) -> Result<bool, RuntimeError> {
         Ok(false)
     }
 
-    pub fn is_unix(&self) -> bool {
-        self.unix
-    }
+    pub(crate) fn try_clone(&self) -> Result<Socket, RuntimeError> {
+        let sock = Socket {
+            inner: self.inner.try_clone()?,
+            registered: AtomicBool::new(false),
+            unix: self.unix,
+        };
 
-    pub fn close(&mut self) {
-        self.inner.close()
+        Ok(sock)
     }
 }
 
@@ -466,19 +450,7 @@ impl io::Write for Socket {
 
 impl io::Read for Socket {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.inner.recv(buf)
-    }
-}
-
-impl Clone for Socket {
-    fn clone(&self) -> Self {
-        Socket {
-            inner: ClosableSocket::new(
-                self.inner.try_clone().expect("Failed to clone the socket"),
-            ),
-            registered: AtomicBool::new(false),
-            unix: self.unix,
-        }
+        self.inner.recv(unsafe { transmute(buf) })
     }
 }
 
@@ -487,12 +459,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_clone() {
+    fn test_try_clone() {
         let socket1 = Socket::ipv4(0).unwrap();
 
         socket1.registered.store(true, Ordering::Release);
 
-        let socket2 = socket1.clone();
+        let socket2 = socket1.try_clone().unwrap();
 
         assert_eq!(socket2.registered.load(Ordering::Acquire), false);
         assert_eq!(socket2.unix, false);

@@ -1,53 +1,33 @@
 ---
-test:compiler:linux:
+test:rust:linux:
   extends:
-    - .only-compiler-changes
-  image: registry.gitlab.com/inko-lang/development-docker-images:alpine
-  stage: test
-  before_script:
-    - ruby --version
-    - gem --version
-    - bundle --version
-    - cd compiler
-    - bundle config set path vendor
-    - bundle install --retry=3
-    - cd ..
-  script:
-    - make compiler/test
-  cache:
-    key: linux-compiler
-    paths:
-      - compiler/vendor/ruby
-
-test:ivm:linux:
-  extends:
-    - .only-vm-changes
+    - .only-rust-changes
   image: registry.gitlab.com/inko-lang/development-docker-images:alpine
   stage: test
   before_script:
     - rustc --version
     - cargo --version
   script:
-    - make vm/test
+    - cargo test
   cache:
-    key: linux-vm
+    key: linux
     paths:
       - .cargo
-      - vm/target
+      - target
 
-test:runtime:linux:
+test:libstd:linux:
   extends:
-    - .only-runtime-changes
+    - .only-libstd-changes
   image: registry.gitlab.com/inko-lang/development-docker-images:alpine
   stage: test
   before_script:
-    - ruby --version
     - rustc --version
     - cargo --version
   script:
-    - make runtime/test
+    - cd libstd
+    - cargo run --release -p inko -- test
   cache:
-    key: linux-vm
+    key: linux
     paths:
       - .cargo
-      - vm/target
+      - target

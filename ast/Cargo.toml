@@ -1,0 +1,16 @@
+[package]
+name = "ast"
+version = "0.9.0" # VERSION
+authors = ["Yorick Peterse <yorick@yorickpeterse.com>"]
+edition = "2021"
+license = "MPL-2.0"
+
+[lib]
+doctest = false
+
+[dependencies]
+unicode-segmentation = "^1.8"
+getopts = "^0.2"
+
+[dev-dependencies]
+similar-asserts = "^1.1"

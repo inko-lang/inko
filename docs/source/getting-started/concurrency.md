@@ -1,218 +1,242 @@
 # Concurrency
 
-Inko allows you to perform work concurrently by using "lightweight processes".
-Lightweight processes are isolated tasks, scheduled by the virtual machine.
-Processes can never read each other's memory, instead they communicate by
-sending messages. These messages can be any object, and they are deep copied
-when sent.
+For concurrency Inko uses "lightweight processes", also known as green threads.
+Processes are isolated from each other and don't share memory, making race
+conditions impossible. Communication between processes is done by sending
+messages, which look like regular method calls. Messages are processed in FIFO
+order. Values passed with these messages have their ownership transferred to the
+receiving process.
 
-Processes using isolated memory means never having to worry about data races,
-nor do you need to use mutexes and similar structures. If an operation needs to
-be synchronised, you can do so by sending a message to a process.
+Processes run concurrently, and Inko's scheduler takes care of balancing the
+workload across OS threads.
 
-Inko uses preemptive multitasking for processes. This means that each process
-runs for a certain period of time on an OS thread, after which it's suspended
-and another process is allowed to run. This repeats itself until the program
-finishes. Because of the use of preemptive multitasking, a single process is
-unable to indefinitely block an OS thread from performing any other work.
+A process finishes when it has no more messages to process, and no references to
+the process exist.
+
+Processes are cheap to spawn, with a single empty process needing less than 1
+KiB of memory.
+
+!!! note
+    The size of processes is subject to change, and we expect it to grow to 2
+    KiB in the future (similar to Go and Erlang).
+
+A process is defined using the syntax `class async`:
+
+```inko
+class async Counter {}
+```
+
+## The main process
+
+Each program starts with a single process called "Main". This process runs on
+the main thread, while other processes run on different threads. For this the
+Inko runtime uses a pool of threads, balancing work between these threads
+automatically.
+
+The main process must be defined explicitly, and must define the async method
+"main":
+
+```inko
+class async Main {
+  fn async main {
+
+  }
+}
+```
+
+When the main process finishes and no references to it exist, the program is
+ended; even if other processes are still running.
+
+## Defining fields
+
+A process can define zero or more fields:
+
+```inko
+class async Counter {
+  let @value: Int
+}
+```
+
+While the field types don't have to be sendable, when creating an instance the
+assigned value _must_ be sendable. For example:
+
+```inko
+class async List {
+  let @values: Array[Int]
+}
+```
+
+To assign the `@values` field when creating an instance of `List`, we'd have to
+assign it a unique value:
+
+```inko
+List { @values = recover [10, 20] }
+```
+
+Since a `uni Array[Int]` can be moved into a `Array[Int]`, this is valid. Had we
+assigned it a regular array the program would not compile, because `Array[Int]`
+isn't sendable.
+
+## Spawning processes
+
+A process is spawned by creating an instance of its class. In the above example,
+`List { ... }` spawns the process for us, then gives us an owned value pointing
+to the process. When spawning a process it doesn't start running right away,
+instead it will wait for its first message.
+
+## Defining messages
+
+Messages are defined by defining methods with the `async` keyword. A message is
+just an asynchronous method call, optionally writing its result to a future. The
+arguments, return type and throw type of an `async` method must be sendable (see
+[Memory management](memory-management.md) for more information).
+
+Here's how you'd define a message that just writes to STDOUT:
+
+```inko
+import std::stdio::STDOUT
+
+class async Example {
+  fn async write(message: String) {
+    STDOUT.new.print(message)
+  }
+}
+```
 
 ## Sending messages
 
-To get started with processes, you must first import the `std::process` module:
+Sending messages uses the same syntax as regular method calls:
 
 ```inko
-import std::process
-```
+class async Counter {
+  let @value: Int
 
-This module provides a variety of methods we can use, but let's start simple:
-we'll start a process, then send it a message. The started process in turn will
-receive a message, then stop. First, let's start the new process:
+  fn async mut increment {
+    @value += 1
+  }
 
-```inko
-import std::process
+  fn async value -> Int {
+    @value.clone
+  }
+}
 
-let proc = process.spawn {
+class async Main {
+  fn async main {
+    let counter = Counter { @value = 0 }
 
+    counter.increment
+    counter.value # => 1
+  }
 }
 ```
 
-By sending the message `spawn` to the `process` module we can start a new
-process. The argument we provide is a lambda that will be executed in the newly
-started process. The return value is a `Process` object, which we can later use
-to send messages to the process.
-
-Now let's change our code so that our process waits for a message to arrive:
+When using this syntax, the sender is suspended until the receiver produces a
+response. If we don't want to wait right away, we can do so using the `async`
+keyword:
 
 ```inko
-import std::process
+let counter = Counter { @value = 0 }
 
-let proc = process.spawn {
-  process.receive
+async counter.increment # => Future[Nil, Never]
+async counter.value     # => Future[Int, Never]
+```
+
+When using the `async` keyword we get back a value of type `Future[T, E]`, where
+`T` is the message's return type, and `E` the message's throw type (defaulting
+to `Never`). To resolve the future you have to call `await` on it:
+
+```inko
+let counter = Counter { @value = 0 }
+
+async counter.increment
+
+let future = async counter.value
+
+future.await # => 1
+```
+
+If the message may throw, the error has to be handled when calling `await`. This
+isn't needed if the future's error type is `Never`, such as in the above
+example.
+
+`await` waits until a result is produced. If you want to limit the amount
+of time spent waiting, use `Future.await_for` instead:
+
+```inko
+import std::time::Duration
+
+class async Counter {
+  let @value: Int
+
+  fn async mut increment {
+    @value += 1
+  }
+
+  fn async value -> Int {
+    @value.clone
+  }
+}
+
+class async Main {
+  fn async main {
+    let counter = Counter { @value = 0 }
+
+    async counter.increment
+
+    let future = async counter.value
+
+    future.await_for(Duration.from_seconds(1))
+  }
 }
 ```
 
-Here we use `process.receive` to wait for a new message. Once received, we just
-discard it.
+In this case the return type of `await_for` is `Option[Int]`, and a `None` is
+produced if a result wasn't produced within the specified time limit.
 
-When a process tries to receive a message, one of two things can happen:
+## Polling futures
 
-1. If there is no message, the process will suspend itself until a message
-   arrives.
-1. If there is a message, the message is returned.
-
-We haven't sent a message yet to our process, so it will suspend itself and wait
-for us to send one. Let's send it a message:
+Sometimes you have multiple futures, and you want to act as soon as the
+underlying message produces its result. For this there's the `poll` method from
+the `std::process` module. This method takes an array of futures and waits until
+one or more futures are ready. Its return value is an array of ready futures,
+and the input array is modified in place so it no longer contains these futures:
 
 ```inko
-import std::process
+import std::process::(poll)
 
-let proc = process.spawn {
-  process.receive
+class async Runner {
+  fn async run {
+    # Just imagine this doing something that may take a long time
+    # ...
+  }
 }
 
-proc.send('ping')
-```
+class async Main {
+  fn async main {
+    let runner1 = Runner {}
+    let runner2 = Runner {}
+    let pending = [async runner1.run, async runner2.run]
 
-Here `send('ping')` sends a message to the process stored in the local variable
-`proc`.
-
-## Copying messages
-
-When a message is sent, it's _deep copied_. This means that the sender and
-receiver will both use a different copy of the data sent. Certain types are
-optimised to remove the need for copying. For example, objects of type `Integer`
-are not heap allocated, removing the need for copying. `String` instances use
-reference counting internally, making it cheap to send a `String` from one
-process to another.
-
-When a process sends a message to itself, the message is not copied.
-
-Despite these optimisations, it's best to avoid sending large objects to
-different processes. Instead, we recommend that a single process owns the data
-and sends out some kind of reference (e.g. an ID of sorts).
-
-Having said that, copying a message is typically cheaper than using a lock of
-sorts to allow concurrent access to shared memory. Furthermore, Inko tries hard
-to reuse memory as best as it can. As a result, the overhead of copying
-typically won't be something you should worry about.
-
-## Waiting for a response
-
-Our program doesn't do a whole lot: we start a process, send it a message, then
-stop. Let's change our program so that the started process sends a response
-back, and our main process waits for it to be received:
-
-```inko
-import std::process::(self, Process)
-
-let child = process.spawn {
-  let reply_to = process.receive as Process
-
-  reply_to.send('pong')
-}
-
-child.send(process.current)
-
-process.receive
-```
-
-Here we start a new process, which will then wait until it receives a process
-object. Once received, it sends the `"pong"` message to it.
-
-This is quite a bit of a jump from the previous example, so let's discuss it
-step by step. We start our process as usual, which then runs the following:
-
-```inko
-import std::process::(self, Process)
-```
-
-This imports the `std::process` module and makes it available as `process`,
-while also importing the `Process` constant from the same module and exposing it
-as `Process`. Next, we start our process:
-
-```inko
-let child = process.spawn {
-  # ...
+    while pending.length > 0 {
+      poll(pending).into_iter.each fn (future) {
+        # ...
+      }
+    }
+  }
 }
 ```
 
-This starts a new process, and stores the process object in the `child` local
-variable. The first line this new process runs is the following:
+The run time of `poll()` is `O(n)` where `n` is the number of futures to poll.
+If you have a large list of futures to poll, it may be better to poll it in
+smaller chunks, or refactor your code such that polling isn't necessary in the
+first place.
 
-```inko
-let reply_to = process.receive as Process
-```
+## Dropping processes
 
-This line of code does two things:
-
-1. We wait for a message to arrive.
-2. We inform the compiler that our message is of type `Process`.
-
-Step one is nothing new, but step two needs some explaining. The return type of
-`process.receive` is `Any`, and we can't do much with that type on its own. To
-deal with this, we cast it to the type we want (`Process`).
-
-Next, we have the following:
-
-```inko
-reply_to.send('pong')
-```
-
-Here we send a message to the process stored in `reply_to`, which in our example
-is also the process that started the child process.
-
-Next, we have the following two lines:
-
-```inko
-child.send(process.current)
-
-process.receive
-```
-
-Here we send the child process the process object of the current process, then
-wait for the child process to reply.
-
-## Timeouts
-
-Sometimes we want to only wait for a certain period of time when receiving a
-message. We can do so by using `process.receive_timeout`:
-
-```inko
-import std::process
-
-try! process.receive_timeout(1)
-```
-
-When running this, our program will wait one second for a message to arrive. If
-no message is received in time, an error is thrown.
-
-## Blocking operations
-
-Sometimes a process needs to perform a task that will block the OS thread it's
-running on. We can use the method `process.blocking` for this:
-
-```inko
-import std::process
-
-process.blocking {
-  # blocking operation here.
-}
-```
-
-When we use `process.blocking`, the current process is moved to a separate
-thread pool dedicated to slow or blocking processes. This allows us to perform
-our blocking operation (in the provided block), while still allowing other
-processes to run without getting blocked as well.
-
-Typically you won't have to use `process.blocking` as the various Inko APIs will
-take care of this for you. For example, various file system operations use
-`process.blocking` to move blocking operations to the separate thread pool.
-
-## Process monitoring
-
-If you have worked with Erlang or Elixir before, you may wonder if there is a
-way to monitor a process. There isn't. Inko's error handling model prevents
-unexpected runtime errors from occurring, removing the need for process
-monitoring. Panics in turn stop the entire program by default, and are not meant
-to be monitored from another Inko process, as panics are the result of software
-bugs, and software bugs should not be ignored or retried.
+The owned value for a process is a value type. Internally processes use atomic
+reference counting to keep track of the number of incoming references. Imagine a
+process being a server, and each owned value/reference being a client. When the
+count reaches zero, the process is instructed to drop itself after it finishes
+running any remaining messages. This means that there may be some time between
+when the last reference to a process is dropped, and when the process itself is
+dropped.

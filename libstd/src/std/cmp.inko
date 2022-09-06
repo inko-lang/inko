@@ -1,0 +1,108 @@
+# Types for for common comparison operations, such as equality, ordering,
+# inclusion, and others.
+import std::fmt::(Format, Formatter)
+
+# A type describing the ordering between two values.
+class pub enum Ordering {
+  case Less
+  case Equal
+  case Greater
+}
+
+impl Equal for Ordering {
+  fn pub ==(other: ref Self) -> Bool {
+    match self {
+      case Less -> match other {
+        case Less -> true
+        case _ -> false
+      }
+      case Equal -> match other {
+        case Equal -> true
+        case _ -> false
+      }
+      case Greater -> match other {
+        case Greater -> true
+        case _ -> false
+      }
+    }
+  }
+}
+
+impl Format for Ordering {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case Less -> formatter.write('Less')
+      case Equal -> formatter.write('Equal')
+      case Greater -> formatter.write('Greater')
+    }
+  }
+}
+
+# A type that can be compared to another type for a sort-order.
+trait pub Compare {
+  # Returns the ordering between `self` and the given argument.
+  #
+  # The returned value should be as follows:
+  #
+  # | Expression | Return value
+  # |:-----------|:------------
+  # | `a == b`   | `Ordering.Equal`
+  # | `a > b`    | `Ordering.Greater`
+  # | `a < b`    | `Ordering.Less`
+  fn pub cmp(other: ref Self) -> Ordering
+
+  # Returns `true` if `self` is lower than the given argument.
+  fn pub <(other: ref Self) -> Bool {
+    match cmp(other) {
+      case Less -> true
+      case _ -> false
+    }
+  }
+
+  # Returns `true` if `self` is lower than or equal to the given argument.
+  fn pub <=(other: ref Self) -> Bool {
+    match cmp(other) {
+      case Less or Equal -> true
+      case _ -> false
+    }
+  }
+
+  # Returns `true` if `self` is greater than the given argument.
+  fn pub >(other: ref Self) -> Bool {
+    match cmp(other) {
+      case Greater -> true
+      case _ -> false
+    }
+  }
+
+  # Returns `true` if `self` is equal to or greater than the given argument.
+  fn pub >=(other: ref Self) -> Bool {
+    match cmp(other) {
+      case Greater or Equal -> true
+      case _ -> false
+    }
+  }
+}
+
+# A type that can be compared for equality.
+trait pub Equal {
+  # Returns `True` if `self` and the given object are equal to each other.
+  #
+  # This operator is used to perform structural equality. This means two objects
+  # residing in different memory locations may be considered equal, provided
+  # their structure is equal. For example, two different arrays may be
+  # considered to have structural equality if they contain the exact same
+  # values.
+  fn pub ==(other: ref Self) -> Bool
+
+  # Returns `True` if `self` and the given object are not equal to each other.
+  fn pub !=(other: ref Self) -> Bool {
+    (self == other).false?
+  }
+}
+
+# A type that supports checking if a value is included in `self`.
+trait pub Contains[T] {
+  # Returns `true` if the given value is contained in `self`.
+  fn pub contains?(value: ref T) -> Bool
+}

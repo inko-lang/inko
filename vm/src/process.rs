@@ -1,39 +1,448 @@
 use crate::arc_without_weak::ArcWithoutWeak;
-use crate::block::Block;
-use crate::config::Config;
 use crate::execution_context::ExecutionContext;
-use crate::generator::{Generator, RcGenerator};
-use crate::immix::block_list::BlockList;
-use crate::immix::copy_object::CopyObject;
-use crate::immix::global_allocator::RcGlobalAllocator;
-use crate::immix::local_allocator::LocalAllocator;
-use crate::mailbox::Mailbox;
-use crate::object_pointer::{ObjectPointer, ObjectPointerPointer};
-use crate::object_value;
-use crate::process_status::ProcessStatus;
-use crate::runtime_error::RuntimeError;
+use crate::indexes::{FieldIndex, MethodIndex};
+use crate::location_table::Location;
+use crate::mem::{allocate, ClassPointer, Header, MethodPointer, Pointer};
 use crate::scheduler::timeouts::Timeout;
-use crate::tagged_pointer::{self, TaggedPointer};
-use crate::vm::state::State;
-use num_bigint::BigInt;
-use num_traits::FromPrimitive;
-use parking_lot::Mutex;
-use std::cell::UnsafeCell;
-use std::i64;
-use std::mem;
+use std::alloc::{alloc, dealloc, handle_alloc_error, Layout};
+use std::collections::VecDeque;
+use std::mem::{align_of, size_of, swap};
 use std::ops::Drop;
-use std::panic::RefUnwindSafe;
-use std::ptr;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::ops::{Deref, DerefMut};
+use std::ptr::{copy_nonoverlapping, drop_in_place, NonNull};
+use std::slice;
+use std::sync::{Mutex, MutexGuard};
 
-pub type RcProcess = ArcWithoutWeak<Process>;
+/// The shared state of a future.
+pub(crate) struct FutureState {
+    /// The process that's waiting for this future to complete.
+    pub(crate) consumer: Option<ProcessPointer>,
 
-/// The bit that is set to mark a process as being suspended.
-const SUSPENDED_BIT: usize = 0;
+    /// The result of a message.
+    ///
+    /// This defaults to the undefined singleton.
+    result: Pointer,
+
+    /// A boolean indicating that the result was produced by throwing an error,
+    /// instead of returning it.
+    thrown: bool,
+
+    /// A boolean indicating the future is disconnected.
+    ///
+    /// This flag is set whenever a reader or writer is dropped.
+    disconnected: bool,
+}
+
+impl FutureState {
+    pub(crate) fn new() -> RcFutureState {
+        let state = Self {
+            consumer: None,
+            result: Pointer::undefined_singleton(),
+            thrown: false,
+            disconnected: false,
+        };
+
+        ArcWithoutWeak::new(Mutex::new(state))
+    }
+
+    pub(crate) fn has_result(&self) -> bool {
+        self.result != Pointer::undefined_singleton()
+    }
+}
+
+type RcFutureState = ArcWithoutWeak<Mutex<FutureState>>;
+
+impl RcFutureState {
+    /// Writes the result of a message to this future.
+    ///
+    /// If the future has been disconnected, an Err is returned that contains
+    /// the value that we tried to write.
+    ///
+    /// The returned tuple contains a value that indicates if a process needs to
+    /// be rescheduled, and a pointer to the process that sent the message.
+    pub(crate) fn write(&self, result: Pointer, thrown: bool) -> WriteResult {
+        let mut future = self.lock().unwrap();
+
+        if future.disconnected {
+            return WriteResult::Discard;
+        }
+
+        future.thrown = thrown;
+        future.result = result;
+
+        if let Some(consumer) = future.consumer.take() {
+            match consumer.state.lock().unwrap().try_reschedule_for_future() {
+                RescheduleRights::Failed => WriteResult::Continue,
+                RescheduleRights::Acquired => WriteResult::Reschedule(consumer),
+                RescheduleRights::AcquiredWithTimeout => {
+                    WriteResult::RescheduleWithTimeout(consumer)
+                }
+            }
+        } else {
+            WriteResult::Continue
+        }
+    }
+
+    /// Gets the value from this future.
+    ///
+    /// When a None is returned, the consumer must stop running any code. It's
+    /// then up to a producer to reschedule the consumer when writing a value to
+    /// the future.
+    pub(crate) fn get(
+        &self,
+        consumer: ProcessPointer,
+        timeout: Option<ArcWithoutWeak<Timeout>>,
+    ) -> FutureResult {
+        // The locking order is important here: we _must_ lock the future
+        // _before_ locking the consumer. If we lock the consumer first, we
+        // could deadlock with processes writing to this future.
+        let mut future = self.lock().unwrap();
+        let mut state = consumer.state.lock().unwrap();
+        let result = future.result;
+
+        if result != Pointer::undefined_singleton() {
+            future.consumer = None;
+            future.result = Pointer::undefined_singleton();
+
+            state.status.set_waiting_for_future(false);
+
+            return if future.thrown {
+                FutureResult::Thrown(result)
+            } else {
+                FutureResult::Returned(result)
+            };
+        }
+
+        future.consumer = Some(consumer);
+
+        state.waiting_for_future(timeout);
+        FutureResult::None
+    }
+}
+
+/// A method scheduled for execution at some point in the future.
+///
+/// The size of this type depends on the number of arguments. Using this
+/// approach allows us to keep the size of a message as small as possible,
+/// without the need for allocating arguments separately.
+#[repr(C)]
+struct ScheduledMethodInner {
+    /// The method to run.
+    method: MethodIndex,
+
+    /// The number of arguments of this message.
+    length: u8,
+
+    /// The arguments of the message.
+    arguments: [Pointer; 0],
+}
+
+/// An owned pointer to a ScheduledMethodInner.
+struct ScheduledMethod(NonNull<ScheduledMethodInner>);
+
+impl ScheduledMethod {
+    fn new(method: MethodIndex, arguments: Vec<Pointer>) -> Self {
+        unsafe {
+            let layout = Self::layout(arguments.len() as u8);
+            let raw_ptr = alloc(layout) as *mut ScheduledMethodInner;
+
+            if raw_ptr.is_null() {
+                handle_alloc_error(layout);
+            }
+
+            let msg = &mut *raw_ptr;
+
+            init!(msg.method => method);
+            init!(msg.length => arguments.len() as u8);
+
+            copy_nonoverlapping(
+                arguments.as_ptr(),
+                msg.arguments.as_mut_ptr(),
+                arguments.len(),
+            );
+
+            Self(NonNull::new_unchecked(raw_ptr))
+        }
+    }
+
+    unsafe fn layout(length: u8) -> Layout {
+        let size = size_of::<ScheduledMethodInner>()
+            + (length as usize * size_of::<Pointer>());
+
+        // Messages are sent often, so we don't want the overhead of size and
+        // alignment checks.
+        Layout::from_size_align_unchecked(size, align_of::<Self>())
+    }
+}
+
+impl Deref for ScheduledMethod {
+    type Target = ScheduledMethodInner;
+
+    fn deref(&self) -> &ScheduledMethodInner {
+        unsafe { self.0.as_ref() }
+    }
+}
+
+impl Drop for ScheduledMethod {
+    fn drop(&mut self) {
+        unsafe {
+            let layout = Self::layout(self.0.as_ref().length);
+
+            drop_in_place(self.0.as_ptr());
+            dealloc(self.0.as_ptr() as *mut u8, layout);
+        }
+    }
+}
+
+/// A message sent between two processes.
+struct Message {
+    write: Write,
+    scheduled: ScheduledMethod,
+}
+
+impl Message {
+    fn new(
+        method: MethodIndex,
+        write: Write,
+        arguments: Vec<Pointer>,
+    ) -> Message {
+        let scheduled = ScheduledMethod::new(method, arguments);
+
+        Message { write, scheduled }
+    }
+}
+
+/// A collection of messages to be processed by a process.
+struct Mailbox {
+    messages: VecDeque<Message>,
+}
+
+impl Mailbox {
+    fn new() -> Self {
+        Mailbox { messages: VecDeque::new() }
+    }
+
+    fn send(&mut self, message: Message) {
+        self.messages.push_back(message);
+    }
+
+    fn receive(&mut self) -> Option<Message> {
+        self.messages.pop_front()
+    }
+}
+
+/// A type indicating how the results of a task should be communicated with the
+/// consumer.
+pub(crate) enum Write {
+    /// The result of a task is to be discarded.
+    Discard,
+
+    /// The consumer/sender is suspended and waiting for a result, without using
+    /// a future.
+    Direct(ProcessPointer),
+
+    /// The consumer scheduled the message without immediately waiting for it.
+    /// Instead of writing the result directly to the consumer, we write it to a
+    /// future.
+    Future(RcFutureState),
+}
+
+/// A task to run in response to a message.
+pub(crate) struct Task {
+    /// The execution context/call stack of this task.
+    pub(crate) context: Box<ExecutionContext>,
+
+    /// The stack of arguments for the next instruction.
+    ///
+    /// Certain instructions use a variable number of arguments, such as method
+    /// calls. For these instructions we use a stack, as the VM's instructions
+    /// are of a fixed size.
+    ///
+    /// The ordering of values may differ per instruction: for method calls
+    /// arguments should be pushed in reverse order, so the first pop() returns
+    /// the first argument instead of the last one. For other instructions the
+    /// values are in-order, meaning the first value in the stack is the first
+    /// value to use.
+    ///
+    /// In the past we used to put registers next to each other, and specified
+    /// the first register and the number of arguments. The VM would then read
+    /// all arguments in sequence. While this removes the need for a stack, it
+    /// complicated code generation enough that we decided to move away from it.
+    pub(crate) stack: Vec<Pointer>,
+    pub(crate) write: Write,
+}
+
+impl Task {
+    pub(crate) fn new(context: ExecutionContext, write: Write) -> Self {
+        Self { context: Box::new(context), write, stack: Vec::new() }
+    }
+
+    pub(crate) fn take_arguments(&mut self) -> Vec<Pointer> {
+        let mut stack = Vec::new();
+
+        swap(&mut stack, &mut self.stack);
+        stack
+    }
+
+    pub(crate) fn clear_arguments(&mut self) {
+        self.stack.clear();
+    }
+
+    /// Adds a new execution context to the stack.
+    ///
+    /// The parent of the new context is set to the context before the push.
+    pub(crate) fn push_context(&mut self, new_context: ExecutionContext) {
+        let mut boxed = Box::new(new_context);
+        let target = &mut self.context;
+
+        swap(target, &mut boxed);
+        target.parent = Some(boxed);
+    }
+
+    /// Pops the current execution context off the stack.
+    ///
+    /// If all contexts have been popped, `true` is returned.
+    pub(crate) fn pop_context(&mut self) -> bool {
+        let context = &mut self.context;
+
+        if let Some(parent) = context.parent.take() {
+            *context = parent;
+            false
+        } else {
+            true
+        }
+    }
+
+    pub(crate) fn contexts(&self) -> Vec<&ExecutionContext> {
+        self.context.contexts().collect::<Vec<_>>()
+    }
+}
+
+/// A pointer to a Task.
+///
+/// In various places we borrow a Task while also borrowing its fields, or while
+/// borrowing fields of the owning Process. This can't be expressed safely in
+/// Rust's type system, and working around this requires fiddling with pointer
+/// casts and unsafe code.
+///
+/// To make this less painful to deal with, instead of using a `&mut Task` in
+/// various places we use a `TaskPointer`. This won't give us any extra safety,
+/// but at least it's less annoying to deal with.
+#[repr(transparent)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub(crate) struct TaskPointer(Pointer);
+
+impl TaskPointer {
+    fn new(pointer: &Task) -> Self {
+        Self(Pointer::new(pointer as *const _ as *mut _))
+    }
+}
+
+impl Deref for TaskPointer {
+    type Target = Task;
+
+    fn deref(&self) -> &Task {
+        unsafe { &*(self.0.as_ptr() as *mut Task) }
+    }
+}
+
+impl DerefMut for TaskPointer {
+    fn deref_mut(&mut self) -> &mut Task {
+        unsafe { &mut *(self.0.as_ptr() as *mut Task) }
+    }
+}
+
+/// The status of a process, represented as a set of bits.
+pub(crate) struct ProcessStatus {
+    /// The bits used to indicate the status of the process.
+    ///
+    /// Multiple bits may be set in order to combine different statuses.
+    bits: u8,
+}
+
+impl ProcessStatus {
+    /// A regular process.
+    const NORMAL: u8 = 0b00_0000;
+
+    /// The main process.
+    const MAIN: u8 = 0b00_0001;
+
+    /// The process is waiting for a message.
+    const WAITING_FOR_MESSAGE: u8 = 0b00_0010;
+
+    /// The process is waiting for a future.
+    const WAITING_FOR_FUTURE: u8 = 0b00_0100;
+
+    /// The process is simply sleeping for a certain amount of time.
+    const SLEEPING: u8 = 0b00_1000;
+
+    /// The process was rescheduled after a timeout expired.
+    const TIMEOUT_EXPIRED: u8 = 0b01_0000;
+
+    /// The process is waiting for something, or suspended for a period of time
+    const WAITING: u8 = Self::WAITING_FOR_FUTURE | Self::SLEEPING;
+
+    pub(crate) fn new() -> Self {
+        Self { bits: Self::NORMAL }
+    }
+
+    fn set_main(&mut self) {
+        self.update_bits(Self::MAIN, true);
+    }
+
+    fn is_main(&self) -> bool {
+        self.bit_is_set(Self::MAIN)
+    }
+
+    fn set_waiting_for_message(&mut self, enable: bool) {
+        self.update_bits(Self::WAITING_FOR_MESSAGE, enable);
+    }
+
+    fn is_waiting_for_message(&self) -> bool {
+        self.bit_is_set(Self::WAITING_FOR_MESSAGE)
+    }
+
+    fn set_waiting_for_future(&mut self, enable: bool) {
+        self.update_bits(Self::WAITING_FOR_FUTURE, enable);
+    }
+
+    fn is_waiting_for_future(&self) -> bool {
+        self.bit_is_set(Self::WAITING_FOR_FUTURE)
+    }
+
+    fn is_waiting(&self) -> bool {
+        (self.bits & Self::WAITING) != 0
+    }
+
+    fn no_longer_waiting(&mut self) {
+        self.update_bits(Self::WAITING, false);
+    }
+
+    fn set_timeout_expired(&mut self, enable: bool) {
+        self.update_bits(Self::TIMEOUT_EXPIRED, enable)
+    }
+
+    fn set_sleeping(&mut self, enable: bool) {
+        self.update_bits(Self::SLEEPING, enable);
+    }
+
+    fn timeout_expired(&self) -> bool {
+        self.bit_is_set(Self::TIMEOUT_EXPIRED)
+    }
+
+    fn update_bits(&mut self, mask: u8, enable: bool) {
+        self.bits = if enable { self.bits | mask } else { self.bits & !mask };
+    }
+
+    fn bit_is_set(&self, bit: u8) -> bool {
+        self.bits & bit == bit
+    }
+}
 
 /// An enum describing what rights a thread was given when trying to reschedule
 /// a process.
-pub enum RescheduleRights {
+#[derive(Eq, PartialEq, Debug)]
+pub(crate) enum RescheduleRights {
     /// The rescheduling rights were not obtained.
     Failed,
 
@@ -42,725 +451,1135 @@ pub enum RescheduleRights {
 
     /// The rescheduling rights were obtained, and the process was using a
     /// timeout.
-    AcquiredWithTimeout(ArcWithoutWeak<Timeout>),
+    AcquiredWithTimeout,
 }
 
 impl RescheduleRights {
-    pub fn are_acquired(&self) -> bool {
-        match self {
-            RescheduleRights::Failed => false,
-            _ => true,
-        }
-    }
-
-    pub fn process_had_timeout(&self) -> bool {
-        match self {
-            RescheduleRights::AcquiredWithTimeout(_) => true,
-            _ => false,
-        }
+    pub(crate) fn are_acquired(&self) -> bool {
+        !matches!(self, RescheduleRights::Failed)
     }
 }
 
-pub struct LocalData {
-    /// The process-local memory allocator.
-    pub allocator: LocalAllocator,
+/// An enum describing what to do when finishing a task.
+#[derive(PartialEq, Eq, Debug)]
+pub(crate) enum Finished {
+    /// There's more work to process, so the process needs to be rescheduled.
+    Reschedule,
 
+    /// There are no messages to process, but there are still clients that may
+    /// produce new messages.
+    WaitForMessage,
+
+    /// There are no messages left, and no clients exist.
+    Terminate,
+}
+
+/// The shared state of a process.
+///
+/// This state is shared by both the process and its clients.
+pub(crate) struct ProcessState {
     /// The mailbox of this process.
-    ///
-    /// We store this in LocalData so that we can borrow fields from LocalData
-    /// while also borrowing the mailbox.
-    pub mailbox: Mutex<Mailbox>,
-
-    /// The currently running generator.
-    pub generator: RcGenerator,
-
-    /// The ID of the thread this process is pinned to.
-    pub thread_id: Option<u8>,
+    mailbox: Mailbox,
 
     /// The status of the process.
     status: ProcessStatus,
+
+    /// The timeout this process is suspended with, if any.
+    ///
+    /// If missing and the process is suspended, it means the process is
+    /// suspended indefinitely.
+    timeout: Option<ArcWithoutWeak<Timeout>>,
 }
 
-pub struct Process {
-    /// Data stored in a process that should only be modified by a single thread
-    /// at once.
-    local_data: UnsafeCell<LocalData>,
-
-    /// If the process is waiting for a message.
-    waiting_for_message: AtomicBool,
-
-    /// A marker indicating if a process is suspened, optionally including the
-    /// pointer to the timeout.
-    ///
-    /// When this value is NULL, the process is not suspended.
-    ///
-    /// When the lowest bit is set to 1, the pointer may point to (after
-    /// unsetting the bit) to one of the following:
-    ///
-    /// 1. NULL, meaning the process is suspended indefinitely.
-    /// 2. A Timeout, meaning the process is suspended until the timeout
-    ///    expires.
-    ///
-    /// While the type here uses a `TaggedPointer`, in reality the type is an
-    /// `ArcWithoutWeak<Timeout>`. This trick is needed to allow for atomic
-    /// operations and tagging, something which isn't possible using an
-    /// `Option<T>`.
-    suspended: TaggedPointer<Timeout>,
-}
-
-unsafe impl Sync for LocalData {}
-unsafe impl Send for LocalData {}
-unsafe impl Sync for Process {}
-impl RefUnwindSafe for Process {}
-
-impl Process {
-    pub fn with_rc(
-        context: ExecutionContext,
-        global_allocator: RcGlobalAllocator,
-        config: &Config,
-    ) -> RcProcess {
-        let local_data = LocalData {
-            allocator: LocalAllocator::new(global_allocator, config),
-            generator: Generator::running(Box::new(context)),
-            thread_id: None,
-            mailbox: Mutex::new(Mailbox::new()),
+impl ProcessState {
+    pub(crate) fn new() -> Self {
+        Self {
+            mailbox: Mailbox::new(),
             status: ProcessStatus::new(),
-        };
-
-        ArcWithoutWeak::new(Process {
-            local_data: UnsafeCell::new(local_data),
-            waiting_for_message: AtomicBool::new(false),
-            suspended: TaggedPointer::null(),
-        })
+            timeout: None,
+        }
     }
 
-    pub fn from_block(
-        block: &Block,
-        global_allocator: RcGlobalAllocator,
-        config: &Config,
-    ) -> RcProcess {
-        let context = ExecutionContext::from_block(block);
-
-        Process::with_rc(context, global_allocator, config)
-    }
-
-    pub fn set_main(&self) {
-        self.local_data_mut().status.set_main();
-    }
-
-    pub fn is_main(&self) -> bool {
-        self.local_data().status.is_main()
-    }
-
-    pub fn set_blocking(&self, enable: bool) {
-        self.local_data_mut().status.set_blocking(enable);
-    }
-
-    pub fn is_blocking(&self) -> bool {
-        self.local_data().status.is_blocking()
-    }
-
-    pub fn set_terminated(&self) {
-        self.local_data_mut().status.set_terminated();
-    }
-
-    pub fn is_terminated(&self) -> bool {
-        self.local_data().status.is_terminated()
-    }
-
-    pub fn thread_id(&self) -> Option<u8> {
-        self.local_data().thread_id
-    }
-
-    pub fn set_thread_id(&self, id: u8) {
-        self.local_data_mut().thread_id = Some(id);
-    }
-
-    pub fn unset_thread_id(&self) {
-        self.local_data_mut().thread_id = None;
-    }
-
-    pub fn is_pinned(&self) -> bool {
-        self.thread_id().is_some()
-    }
-
-    pub fn suspend_with_timeout(&self, timeout: ArcWithoutWeak<Timeout>) {
-        let pointer = ArcWithoutWeak::into_raw(timeout);
-        let tagged = tagged_pointer::with_bit(pointer, SUSPENDED_BIT);
-
-        self.suspended.atomic_store(tagged);
-    }
-
-    pub fn suspend_without_timeout(&self) {
-        let pointer = ptr::null_mut();
-        let tagged = tagged_pointer::with_bit(pointer, SUSPENDED_BIT);
-
-        self.suspended.atomic_store(tagged);
-    }
-
-    pub fn is_suspended_with_timeout(
+    pub(crate) fn has_same_timeout(
         &self,
         timeout: &ArcWithoutWeak<Timeout>,
     ) -> bool {
-        let pointer = self.suspended.atomic_load();
-
-        tagged_pointer::untagged(pointer) == timeout.as_ptr()
+        self.timeout
+            .as_ref()
+            .map(|t| t.as_ptr() == timeout.as_ptr())
+            .unwrap_or(false)
     }
 
-    /// Attempts to acquire the rights to reschedule this process.
-    pub fn acquire_rescheduling_rights(&self) -> RescheduleRights {
-        let current = self.suspended.atomic_load();
+    pub(crate) fn try_reschedule_after_timeout(&mut self) -> RescheduleRights {
+        if !self.status.is_waiting() {
+            return RescheduleRights::Failed;
+        }
 
-        if current.is_null() {
-            RescheduleRights::Failed
-        } else if self.suspended.compare_and_swap(current, ptr::null_mut()) {
-            let untagged = tagged_pointer::untagged(current);
+        if self.status.is_waiting_for_future() {
+            // If we were waiting for a future, it means the timeout has
+            // expired.
+            self.status.set_timeout_expired(true);
+        }
 
-            if untagged.is_null() {
-                RescheduleRights::Acquired
-            } else {
-                let timeout = unsafe { ArcWithoutWeak::from_raw(untagged) };
+        self.status.no_longer_waiting();
 
-                RescheduleRights::AcquiredWithTimeout(timeout)
-            }
+        if self.timeout.take().is_some() {
+            RescheduleRights::AcquiredWithTimeout
         } else {
-            RescheduleRights::Failed
+            RescheduleRights::Acquired
         }
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
-    pub fn local_data_mut(&self) -> &mut LocalData {
-        unsafe { &mut *self.local_data.get() }
+    pub(crate) fn waiting_for_future(
+        &mut self,
+        timeout: Option<ArcWithoutWeak<Timeout>>,
+    ) {
+        self.timeout = timeout;
+
+        self.status.set_waiting_for_future(true);
     }
 
-    pub fn local_data(&self) -> &LocalData {
-        unsafe { &*self.local_data.get() }
+    fn try_reschedule_for_message(&mut self) -> RescheduleRights {
+        if !self.status.is_waiting_for_message() {
+            return RescheduleRights::Failed;
+        }
+
+        self.status.set_waiting_for_message(false);
+        RescheduleRights::Acquired
     }
 
-    pub fn push_context(&self, context: ExecutionContext) {
-        self.local_data_mut().generator.push_context(context);
+    fn try_reschedule_for_future(&mut self) -> RescheduleRights {
+        if !self.status.is_waiting_for_future() {
+            return RescheduleRights::Failed;
+        }
+
+        self.status.set_waiting_for_future(false);
+
+        if self.timeout.take().is_some() {
+            RescheduleRights::AcquiredWithTimeout
+        } else {
+            RescheduleRights::Acquired
+        }
     }
+}
 
-    pub fn resume_generator(&self, mut generator: RcGenerator) {
-        let local_data = self.local_data_mut();
-        let target = &mut local_data.generator;
+/// A lightweight process.
+#[repr(C)]
+pub(crate) struct Process {
+    pub(crate) header: Header,
 
-        mem::swap(target, &mut generator);
-        target.set_parent(generator);
-    }
+    /// A boolean indicating that the result was thrown rather than returned.
+    thrown: bool,
 
-    /// Pops an execution context.
+    /// The currently running task, if any.
+    task: Option<Task>,
+
+    /// The last value returned or thrown.
+    result: Pointer,
+
+    /// The internal shared state of the process.
+    state: Mutex<ProcessState>,
+
+    /// The fields of this process.
     ///
-    /// This method returns true if we're at the top of the execution context
-    /// stack.
-    pub fn pop_context(&self) -> bool {
-        let local_data = self.local_data_mut();
-        let gen = &mut local_data.generator;
+    /// The length of this flexible array is derived from the number of
+    /// fields defined in this process' class.
+    fields: [Pointer; 0],
+}
 
-        if gen.pop_context() {
-            gen.set_finished();
-
-            if let Some(parent) = gen.take_parent() {
-                local_data.generator = parent;
-                false
-            } else {
-                true
-            }
-        } else {
-            false
+impl Process {
+    pub(crate) fn drop_and_deallocate(ptr: ProcessPointer) {
+        unsafe {
+            drop_in_place(ptr.as_pointer().as_ptr() as *mut Self);
+            ptr.as_pointer().free();
         }
     }
 
-    pub fn yield_value(&self, value: ObjectPointer) -> bool {
-        let local_data = self.local_data_mut();
-        let gen = &mut local_data.generator;
+    pub(crate) fn alloc(class: ClassPointer) -> ProcessPointer {
+        let ptr = allocate(unsafe { class.instance_layout() });
+        let obj = unsafe { ptr.get_mut::<Self>() };
+        let mut state = ProcessState::new();
 
-        gen.yield_value(value);
+        // Processes start without any messages, so we must ensure their status
+        // is set accordingly.
+        state.status.set_waiting_for_message(true);
 
-        if let Some(parent) = gen.take_parent() {
-            local_data.generator = parent;
+        obj.header.init_atomic(class);
 
+        init!(obj.thrown => false);
+        init!(obj.result => Pointer::undefined_singleton());
+        init!(obj.state => Mutex::new(state));
+        init!(obj.task => None);
+
+        unsafe { ProcessPointer::from_pointer(ptr) }
+    }
+
+    /// Returns a new Process acting as the main process.
+    ///
+    /// This process always runs on the main thread.
+    pub(crate) fn main(
+        class: ClassPointer,
+        method: MethodPointer,
+    ) -> ProcessPointer {
+        let mut process = Self::alloc(class);
+        let mut task = Task::new(ExecutionContext::new(method), Write::Discard);
+
+        task.stack.push(process.as_pointer());
+
+        process.task = Some(task);
+
+        // The main process always has an initial message, so we need to reset
+        // this particular status.
+        process.state().status.set_waiting_for_message(false);
+        process.set_main();
+        process
+    }
+
+    pub(crate) fn set_main(&mut self) {
+        // The main process starts without any references, ensuring that when it
+        // terminates the program as a whole also terminates. We handle this
+        // here instead of `Process::main` as this makes writing some unit tests
+        // a bit easier.
+        self.header.reset_references();
+        self.state.lock().unwrap().status.set_main();
+    }
+
+    pub(crate) fn is_main(&self) -> bool {
+        self.state.lock().unwrap().status.is_main()
+    }
+
+    /// Suspends this process for a period of time.
+    ///
+    /// A process is sleeping when it simply isn't to be scheduled for a while,
+    /// without waiting for a message, future, or something else.
+    pub(crate) fn suspend(&mut self, timeout: ArcWithoutWeak<Timeout>) {
+        let mut state = self.state.lock().unwrap();
+
+        state.timeout = Some(timeout);
+
+        state.status.set_sleeping(true);
+    }
+
+    /// Sends a synchronous message to this process.
+    pub(crate) fn send_message(
+        &mut self,
+        method: MethodIndex,
+        sender: ProcessPointer,
+        arguments: Vec<Pointer>,
+        wait: bool,
+    ) -> RescheduleRights {
+        let write = if wait { Write::Direct(sender) } else { Write::Discard };
+        let message = Message::new(method, write, arguments);
+        let mut state = self.state.lock().unwrap();
+
+        state.mailbox.send(message);
+        state.try_reschedule_for_message()
+    }
+
+    /// Sends an asynchronous message to this process.
+    pub(crate) fn send_async_message(
+        &mut self,
+        method: MethodIndex,
+        future: RcFutureState,
+        arguments: Vec<Pointer>,
+    ) -> RescheduleRights {
+        let message = Message::new(method, Write::Future(future), arguments);
+        let mut state = self.state.lock().unwrap();
+
+        state.mailbox.send(message);
+        state.try_reschedule_for_message()
+    }
+
+    /// Schedules a task to run, if none is scheduled already.
+    pub(crate) fn task_to_run(&mut self) -> Option<TaskPointer> {
+        let mut proc_state = self.state.lock().unwrap();
+
+        if let Some(task) = self.task.as_ref() {
+            return Some(TaskPointer::new(task));
+        }
+
+        let message = if let Some(message) = proc_state.mailbox.receive() {
+            message
+        } else {
+            proc_state.status.set_waiting_for_message(true);
+
+            return None;
+        };
+
+        drop(proc_state);
+
+        let method =
+            unsafe { self.header.class.get_method(message.scheduled.method) };
+        let ctx = ExecutionContext::new(method);
+        let len = message.scheduled.length as usize;
+        let values = unsafe {
+            slice::from_raw_parts(message.scheduled.arguments.as_ptr(), len)
+        };
+
+        let mut task = Task::new(ctx, message.write);
+
+        task.stack.extend_from_slice(values);
+
+        self.task = Some(task);
+
+        self.task.as_ref().map(TaskPointer::new)
+    }
+
+    /// Finishes the exection of a task, and decides what to do next with this
+    /// process.
+    pub(crate) fn finish_task(&mut self) -> Finished {
+        let mut state = self.state.lock().unwrap();
+
+        self.task.take();
+
+        if !state.mailbox.messages.is_empty() {
+            return Finished::Reschedule;
+        }
+
+        if self.header.atomic_references() > 0 {
+            state.status.set_waiting_for_message(true);
+
+            return Finished::WaitForMessage;
+        }
+
+        Finished::Terminate
+    }
+
+    pub(crate) unsafe fn set_field(
+        &mut self,
+        index: FieldIndex,
+        value: Pointer,
+    ) {
+        self.fields.as_mut_ptr().add(index.into()).write(value);
+    }
+
+    pub(crate) unsafe fn get_field(&self, index: FieldIndex) -> Pointer {
+        *self.fields.as_ptr().add(index.into())
+    }
+
+    pub(crate) fn timeout_expired(&self) -> bool {
+        let mut state = self.state.lock().unwrap();
+
+        if state.status.timeout_expired() {
+            state.status.set_timeout_expired(false);
             true
         } else {
             false
         }
     }
 
-    pub fn allocate_empty(&self) -> ObjectPointer {
-        self.local_data_mut().allocator.allocate_empty()
+    pub(crate) fn state(&self) -> MutexGuard<ProcessState> {
+        self.state.lock().unwrap()
     }
 
-    pub fn allocate_usize(
-        &self,
-        value: usize,
-        prototype: ObjectPointer,
-    ) -> ObjectPointer {
-        self.allocate_u64(value as u64, prototype)
-    }
+    pub(crate) fn stacktrace(&self) -> Vec<Location> {
+        let mut locations = Vec::new();
 
-    pub fn allocate_i64(
-        &self,
-        value: i64,
-        prototype: ObjectPointer,
-    ) -> ObjectPointer {
-        if ObjectPointer::integer_too_large(value) {
-            self.allocate(object_value::integer(value), prototype)
-        } else {
-            ObjectPointer::integer(value)
-        }
-    }
+        if let Some(task) = self.task.as_ref() {
+            for context in task.contexts() {
+                let mut index = context.index;
 
-    pub fn allocate_u64(
-        &self,
-        value: u64,
-        prototype: ObjectPointer,
-    ) -> ObjectPointer {
-        if ObjectPointer::unsigned_integer_as_big_integer(value) {
-            // The value is too large to fit in a i64, so we need to allocate it
-            // as a big integer.
-            self.allocate(object_value::bigint(BigInt::from(value)), prototype)
-        } else if ObjectPointer::unsigned_integer_too_large(value) {
-            // The value is small enough that it can fit in an i64, but not
-            // small enough that it can fit in a _tagged_ i64.
-            self.allocate(object_value::integer(value as i64), prototype)
-        } else {
-            ObjectPointer::integer(value as i64)
-        }
-    }
+                // Instruction indexes that are saved always point to the next
+                // instruction to run, not the current one.
+                if index > 0 {
+                    index -= 1;
+                }
 
-    pub fn allocate_f64_as_i64(
-        &self,
-        value: f64,
-        prototype: ObjectPointer,
-    ) -> Result<ObjectPointer, String> {
-        if value.is_nan() {
-            return Err("A NaN can not be converted to an Integer".to_string());
-        } else if value.is_infinite() {
-            return Err("An infinite Float can not be converted to an Integer"
-                .to_string());
+                if let Some(location) = context.method.locations.get(index) {
+                    locations.push(location);
+                }
+            }
+
+            // The most recent frame should come first, not last.
+            locations.reverse();
         }
 
-        // We use >= and <= here, as i64::MAX as a f64 can't be casted back to
-        // i64, since `i64::MAX as f64` will produce a value slightly larger
-        // than `i64::MAX`.
-        let pointer = if value >= i64::MAX as f64 || value <= i64::MIN as f64 {
-            self.allocate(
-                object_value::bigint(BigInt::from_f64(value).unwrap()),
-                prototype,
-            )
-        } else {
-            self.allocate_i64(value as i64, prototype)
-        };
-
-        Ok(pointer)
+        locations
     }
 
-    pub fn allocate(
-        &self,
-        value: object_value::ObjectValue,
-        proto: ObjectPointer,
-    ) -> ObjectPointer {
-        let local_data = self.local_data_mut();
-
-        local_data.allocator.allocate_with_prototype(value, proto)
+    pub(crate) fn thrown(&self) -> bool {
+        self.thrown
     }
 
-    pub fn allocate_without_prototype(
-        &self,
-        value: object_value::ObjectValue,
-    ) -> ObjectPointer {
-        let local_data = self.local_data_mut();
-
-        local_data.allocator.allocate_without_prototype(value)
+    pub(crate) fn set_return_value(&mut self, value: Pointer) {
+        self.result = value;
     }
 
-    pub fn send_message_from_external_process(
-        &self,
-        message_to_copy: ObjectPointer,
-    ) -> Result<(), RuntimeError> {
-        let local_data = self.local_data_mut();
-
-        // The lock must be acquired first, as the receiving process may be
-        // garbage collected at this time.
-        let mut mailbox = local_data.mailbox.lock();
-
-        // When a process terminates it will acquire the mailbox lock first.
-        // Checking the status after acquiring the lock allows us to obtain a
-        // stable view of the status.
-        if self.is_terminated() {
-            return Ok(());
-        }
-
-        mailbox.send(local_data.allocator.copy_object(message_to_copy)?);
-        Ok(())
+    pub(crate) fn set_throw_value(&mut self, value: Pointer) {
+        self.thrown = true;
+        self.result = value;
     }
 
-    pub fn send_message_from_self(&self, message: ObjectPointer) {
-        self.local_data_mut().mailbox.lock().send(message);
-    }
+    pub(crate) fn move_result(&mut self) -> Pointer {
+        let result = self.result;
 
-    pub fn receive_message(&self) -> Option<ObjectPointer> {
-        self.local_data_mut().mailbox.lock().receive()
-    }
+        self.result = Pointer::undefined_singleton();
+        self.thrown = false;
 
-    pub fn context(&self) -> &ExecutionContext {
-        self.local_data().generator.context()
-    }
-
-    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
-    pub fn context_mut(&self) -> &mut ExecutionContext {
-        self.local_data_mut().generator.context_mut()
-    }
-
-    pub fn has_messages(&self) -> bool {
-        self.local_data().mailbox.lock().has_messages()
-    }
-
-    pub fn should_collect_young_generation(&self) -> bool {
-        self.local_data().allocator.should_collect_young()
-    }
-
-    pub fn should_collect_mature_generation(&self) -> bool {
-        self.local_data().allocator.should_collect_mature()
-    }
-
-    pub fn contexts(&self) -> Vec<&ExecutionContext> {
-        self.local_data().generator.contexts()
-    }
-
-    /// Write barrier for tracking cross generation writes.
-    ///
-    /// This barrier is based on the Steele write barrier and tracks the object
-    /// that is *written to*, not the object that is being written.
-    pub fn write_barrier(
-        &self,
-        written_to: ObjectPointer,
-        written: ObjectPointer,
-    ) {
-        if written_to.is_mature() && written.is_young() {
-            self.local_data_mut().allocator.remember_object(written_to);
-        }
-    }
-
-    pub fn prepare_for_collection(&self, mature: bool) -> bool {
-        self.local_data_mut()
-            .allocator
-            .prepare_for_collection(mature)
-    }
-
-    pub fn reclaim_blocks(&self, state: &State, mature: bool) {
-        self.local_data_mut()
-            .allocator
-            .reclaim_blocks(state, mature);
-    }
-
-    pub fn reclaim_all_blocks(&self) -> BlockList {
-        let local_data = self.local_data_mut();
-        let mut blocks = BlockList::new();
-
-        for bucket in &mut local_data.allocator.young_generation {
-            blocks.append(&mut bucket.blocks);
-        }
-
-        blocks.append(&mut local_data.allocator.mature_generation.blocks);
-
-        blocks
-    }
-
-    pub fn terminate(&self, state: &State) {
-        // The mailbox lock _must_ be acquired first, otherwise we may end up
-        // reclaiming blocks while another process is allocating message into
-        // them.
-        let _mailbox = self.local_data_mut().mailbox.lock();
-        let mut blocks = self.reclaim_all_blocks();
-
-        // Once terminated we don't want to receive any messages any more, as
-        // they will never be received and thus lead to an increase in memory.
-        // Thus, we mark the process as terminated. We must do this _after_
-        // acquiring the lock to ensure other processes sending messages will
-        // observe the right value.
-        self.set_terminated();
-
-        for block in blocks.iter_mut() {
-            block.reset();
-            block.finalize();
-        }
-
-        state.global_allocator.add_blocks(&mut blocks);
-    }
-
-    pub fn each_global_pointer<F>(&self, mut callback: F)
-    where
-        F: FnMut(ObjectPointerPointer),
-    {
-        if let Some(ptr) = self.local_data().generator.result_pointer_pointer()
-        {
-            callback(ptr);
-        }
-    }
-
-    pub fn each_remembered_pointer<F>(&self, callback: F)
-    where
-        F: FnMut(ObjectPointerPointer),
-    {
-        self.local_data_mut()
-            .allocator
-            .each_remembered_pointer(callback);
-    }
-
-    pub fn prune_remembered_set(&self) {
-        self.local_data_mut().allocator.prune_remembered_objects();
-    }
-
-    pub fn remember_object(&self, pointer: ObjectPointer) {
-        self.local_data_mut().allocator.remember_object(pointer);
-    }
-
-    pub fn waiting_for_message(&self) {
-        self.waiting_for_message.store(true, Ordering::Release);
-    }
-
-    pub fn no_longer_waiting_for_message(&self) {
-        self.waiting_for_message.store(false, Ordering::Release);
-    }
-
-    pub fn is_waiting_for_message(&self) -> bool {
-        self.waiting_for_message.load(Ordering::Acquire)
-    }
-
-    pub fn set_result(&self, result: ObjectPointer) {
-        self.local_data().generator.set_result(result);
-    }
-
-    pub fn take_result(&self) -> Option<ObjectPointer> {
-        self.local_data().generator.take_result()
+        result
     }
 }
 
-impl Drop for Process {
-    fn drop(&mut self) {
-        // This ensures the timeout is dropped if it's present, without having
-        // to duplicate the dropping logic.
-        self.acquire_rescheduling_rights();
+/// A pointer to a process.
+#[repr(transparent)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub(crate) struct ProcessPointer(NonNull<Process>);
+
+unsafe impl Sync for ProcessPointer {}
+unsafe impl Send for ProcessPointer {}
+
+impl ProcessPointer {
+    pub(crate) unsafe fn from_pointer(pointer: Pointer) -> Self {
+        Self::new(pointer.as_ptr() as *mut Process)
+    }
+
+    /// Returns a new pointer from a raw Pointer.
+    pub(crate) unsafe fn new(pointer: *mut Process) -> Self {
+        Self(NonNull::new_unchecked(pointer))
+    }
+
+    pub(crate) fn identifier(self) -> usize {
+        self.0.as_ptr() as usize
+    }
+
+    pub(crate) fn as_pointer(self) -> Pointer {
+        Pointer::new(self.0.as_ptr() as *mut u8)
     }
 }
 
-impl RcProcess {
-    /// Returns the unique identifier associated with this process.
-    pub fn identifier(&self) -> usize {
-        self.as_ptr() as usize
+impl Deref for ProcessPointer {
+    type Target = Process;
+
+    fn deref(&self) -> &Process {
+        unsafe { &*self.0.as_ptr() }
     }
 }
 
-impl PartialEq for RcProcess {
-    fn eq(&self, other: &Self) -> bool {
-        self.identifier() == other.identifier()
+impl DerefMut for ProcessPointer {
+    fn deref_mut(&mut self) -> &mut Process {
+        unsafe { &mut *self.0.as_mut() }
     }
 }
 
-impl Eq for RcProcess {}
+/// An enum describing the value produced by a future, and how it was produced.
+#[derive(PartialEq, Eq, Debug)]
+pub(crate) enum FutureResult {
+    /// No values has been produced so far.
+    None,
+
+    /// The value was returned.
+    Returned(Pointer),
+
+    /// The value was thrown and should be thrown again.
+    Thrown(Pointer),
+}
+
+/// An enum that describes what a producer should do after writing to a future.
+#[derive(PartialEq, Eq, Debug)]
+pub(crate) enum WriteResult {
+    /// The future is disconnected, and the writer should discard the value it
+    /// tried to write.
+    Discard,
+
+    /// A value was written, but no further action is needed.
+    Continue,
+
+    /// A value was written, and the given process needs to be rescheduled.
+    Reschedule(ProcessPointer),
+
+    /// A value was written, the given process needs to be rescheduled, and a
+    /// timeout needs to be invalidated.
+    RescheduleWithTimeout(ProcessPointer),
+}
+
+/// Storage for a value to be computed some time in the future.
+///
+/// A Future is essentially just a single-producer single-consumer queue, with
+/// support for only writing a value once, and only reading it once. Futures are
+/// used to send message results between processes.
+#[repr(C)]
+pub(crate) struct Future {
+    header: Header,
+    state: RcFutureState,
+}
+
+impl Future {
+    pub(crate) fn alloc(class: ClassPointer, state: RcFutureState) -> Pointer {
+        let ptr = allocate(Layout::new::<Self>());
+        let obj = unsafe { ptr.get_mut::<Self>() };
+
+        obj.header.init(class);
+        init!(obj.state => state);
+        ptr
+    }
+
+    pub(crate) unsafe fn drop(ptr: Pointer) {
+        drop_in_place(ptr.untagged_ptr() as *mut Self);
+    }
+
+    pub(crate) fn get(
+        &self,
+        consumer: ProcessPointer,
+        timeout: Option<ArcWithoutWeak<Timeout>>,
+    ) -> FutureResult {
+        self.state.get(consumer, timeout)
+    }
+
+    pub(crate) fn lock(&self) -> MutexGuard<FutureState> {
+        self.state.lock().unwrap()
+    }
+
+    pub(crate) fn disconnect(&self) -> Pointer {
+        let mut future = self.state.lock().unwrap();
+        let result = future.result;
+
+        future.disconnected = true;
+        future.result = Pointer::undefined_singleton();
+
+        result
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::object_value;
-    use crate::vm::test::setup;
-    use num_bigint::BigInt;
-    use std::f64;
-    use std::i32;
-    use std::i64;
-    use std::mem;
+    use crate::location_table::Location;
+    use crate::mem::{Class, Method};
+    use crate::test::{
+        empty_class, empty_method, empty_process_class, new_process,
+        OwnedClass, OwnedProcess,
+    };
+    use std::time::Duration;
 
     #[test]
-    fn test_contexts() {
-        let (_machine, _block, process) = setup();
+    fn test_message_new() {
+        let method = MethodIndex::new(0);
+        let future = FutureState::new();
+        let write = Write::Future(future);
+        let message =
+            Message::new(method, write, vec![Pointer::int(1), Pointer::int(2)]);
 
-        assert_eq!(process.contexts().len(), 1);
-    }
+        assert_eq!(0_u16, message.scheduled.method.into());
+        assert_eq!(message.scheduled.length, 2);
 
-    #[test]
-    fn test_reclaim_blocks_without_mature() {
-        let (machine, _block, process) = setup();
-
-        {
-            let local_data = process.local_data_mut();
-
-            local_data.allocator.young_config.increment_allocations();
-            local_data.allocator.mature_config.increment_allocations();
+        unsafe {
+            assert_eq!(
+                *message.scheduled.arguments.as_ptr().add(0),
+                Pointer::int(1)
+            );
+            assert_eq!(
+                *message.scheduled.arguments.as_ptr().add(1),
+                Pointer::int(2)
+            );
         }
-
-        process.reclaim_blocks(&machine.state, false);
-
-        let local_data = process.local_data();
-
-        assert_eq!(local_data.allocator.young_config.block_allocations, 0);
-        assert_eq!(local_data.allocator.mature_config.block_allocations, 1);
     }
 
     #[test]
-    fn test_reclaim_blocks_with_mature() {
-        let (machine, _block, process) = setup();
+    fn test_mailbox_send_receive() {
+        let method = MethodIndex::new(0);
+        let future = FutureState::new();
+        let write = Write::Future(future);
+        let message =
+            Message::new(method, write, vec![Pointer::int(1), Pointer::int(2)]);
+        let mut mailbox = Mailbox::new();
 
-        {
-            let local_data = process.local_data_mut();
+        mailbox.send(message);
 
-            local_data.allocator.young_config.increment_allocations();
-            local_data.allocator.mature_config.increment_allocations();
-        }
+        let message = mailbox.receive().unwrap();
 
-        process.reclaim_blocks(&machine.state, true);
-
-        let local_data = process.local_data();
-
-        assert_eq!(local_data.allocator.young_config.block_allocations, 0);
-        assert_eq!(local_data.allocator.mature_config.block_allocations, 0);
+        assert_eq!(message.scheduled.length, 2);
     }
 
     #[test]
-    fn test_receive_message() {
-        let (machine, _block, process) = setup();
+    fn test_process_status_new() {
+        let status = ProcessStatus::new();
 
-        let input_message = process
-            .allocate(object_value::integer(14), process.allocate_empty());
-
-        let attr = machine.state.intern_string("hello".to_string());
-
-        input_message.add_attribute(&process, attr, attr);
-
-        process
-            .send_message_from_external_process(input_message)
-            .unwrap();
-
-        let received = process.receive_message().unwrap();
-
-        assert!(received.is_young());
-        assert!(received.get().value.is_integer());
-        assert!(received.get().prototype().is_some());
-        assert!(received.get().attributes_map().is_some());
-        assert!(received.is_finalizable());
-        assert!(received.raw.raw != input_message.raw.raw);
+        assert_eq!(status.bits, 0);
     }
 
     #[test]
-    fn test_send_message_from_external_process_with_closed_mailbox() {
-        let (_machine, _block, process) = setup();
+    fn test_process_status_set_main() {
+        let mut status = ProcessStatus::new();
 
-        let message = process
-            .allocate(object_value::integer(14), process.allocate_empty());
+        status.set_main();
 
-        process.set_terminated();
-        process.send_message_from_external_process(message).unwrap();
-
-        assert!(process.receive_message().is_none());
+        assert!(status.is_main());
     }
 
     #[test]
-    fn test_allocate_f64_as_i64_with_a_small_float() {
-        let (machine, _block, process) = setup();
+    fn test_process_status_set_waiting_for_message() {
+        let mut status = ProcessStatus::new();
 
-        let result =
-            process.allocate_f64_as_i64(1.5, machine.state.integer_prototype);
+        status.set_waiting_for_message(true);
+        assert!(status.is_waiting_for_message());
 
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap().integer_value().unwrap(), 1);
+        status.set_waiting_for_message(false);
+        assert_eq!(status.is_waiting_for_message(), false);
     }
 
     #[test]
-    fn test_allocate_f64_as_i64_with_a_medium_float() {
-        let (machine, _block, process) = setup();
+    fn test_process_status_set_waiting_for_future() {
+        let mut status = ProcessStatus::new();
 
-        let float = i32::MAX as f64;
-        let result =
-            process.allocate_f64_as_i64(float, machine.state.integer_prototype);
+        status.set_waiting_for_future(true);
+        assert!(status.is_waiting_for_future());
 
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap().integer_value().unwrap(), i32::MAX as i64);
+        status.set_waiting_for_future(false);
+        assert_eq!(status.is_waiting_for_future(), false);
     }
 
     #[test]
-    fn test_allocate_f64_as_i64_with_a_large_float() {
-        let (machine, _block, process) = setup();
+    fn test_process_status_is_waiting() {
+        let mut status = ProcessStatus::new();
 
-        let float = i64::MAX as f64;
-        let result =
-            process.allocate_f64_as_i64(float, machine.state.integer_prototype);
+        status.set_sleeping(true);
+        assert!(status.is_waiting());
 
-        let max = BigInt::from(i64::MAX);
+        status.set_sleeping(false);
+        status.set_waiting_for_future(true);
+        assert!(status.is_waiting());
 
-        assert!(result.is_ok());
-        assert!(result.unwrap().bigint_value().unwrap() >= &max);
+        status.no_longer_waiting();
+
+        assert_eq!(status.is_waiting_for_future(), false);
+        assert_eq!(status.is_waiting(), false);
     }
 
     #[test]
-    fn test_allocate_f64_as_i64_with_a_nan() {
-        let (machine, _block, process) = setup();
-        let result = process
-            .allocate_f64_as_i64(f64::NAN, machine.state.integer_prototype);
+    fn test_process_status_timeout_expired() {
+        let mut status = ProcessStatus::new();
 
-        assert!(result.is_err());
+        status.set_timeout_expired(true);
+        assert!(status.timeout_expired());
+
+        status.set_timeout_expired(false);
+        assert_eq!(status.timeout_expired(), false);
     }
 
     #[test]
-    fn test_allocate_f64_as_i64_with_infinity() {
-        let (machine, _block, process) = setup();
-        let result = process.allocate_f64_as_i64(
-            f64::INFINITY,
-            machine.state.integer_prototype,
+    fn test_reschedule_rights_are_acquired() {
+        assert_eq!(RescheduleRights::Failed.are_acquired(), false);
+        assert_eq!(RescheduleRights::Acquired.are_acquired(), true);
+        assert_eq!(RescheduleRights::AcquiredWithTimeout.are_acquired(), true);
+    }
+
+    #[test]
+    fn test_process_state_has_same_timeout() {
+        let mut state = ProcessState::new();
+        let timeout = Timeout::with_rc(Duration::from_secs(0));
+
+        assert_eq!(state.has_same_timeout(&timeout), false);
+
+        state.timeout = Some(timeout.clone());
+
+        assert!(state.has_same_timeout(&timeout));
+    }
+
+    #[test]
+    fn test_process_state_try_reschedule_after_timeout() {
+        let mut state = ProcessState::new();
+
+        assert_eq!(
+            state.try_reschedule_after_timeout(),
+            RescheduleRights::Failed
         );
 
-        assert!(result.is_err());
-    }
+        state.waiting_for_future(None);
 
-    #[test]
-    fn test_allocate_f64_as_i64_with_negative_infinity() {
-        let (machine, _block, process) = setup();
-        let result = process.allocate_f64_as_i64(
-            f64::NEG_INFINITY,
-            machine.state.integer_prototype,
+        assert_eq!(
+            state.try_reschedule_after_timeout(),
+            RescheduleRights::Acquired
         );
 
-        assert!(result.is_err());
+        assert_eq!(state.status.is_waiting_for_future(), false);
+        assert_eq!(state.status.is_waiting(), false);
+
+        let timeout = Timeout::with_rc(Duration::from_secs(0));
+
+        state.waiting_for_future(Some(timeout));
+
+        assert_eq!(
+            state.try_reschedule_after_timeout(),
+            RescheduleRights::AcquiredWithTimeout
+        );
+
+        assert_eq!(state.status.is_waiting_for_future(), false);
+        assert_eq!(state.status.is_waiting(), false);
     }
 
     #[test]
-    fn test_process_type_size() {
-        // This test is put in place to ensure the type size doesn't change
-        // unintentionally.
-        assert_eq!(mem::size_of::<Process>(), 352);
+    fn test_process_state_waiting_for_future() {
+        let mut state = ProcessState::new();
+        let timeout = Timeout::with_rc(Duration::from_secs(0));
+
+        state.waiting_for_future(None);
+
+        assert!(state.status.is_waiting_for_future());
+        assert!(state.timeout.is_none());
+
+        state.waiting_for_future(Some(timeout));
+
+        assert!(state.status.is_waiting_for_future());
+        assert!(state.timeout.is_some());
     }
 
     #[test]
-    fn test_process_set_thread_id() {
-        let (_machine, _block, process) = setup();
+    fn test_process_state_try_reschedule_for_message() {
+        let mut state = ProcessState::new();
 
-        assert!(process.thread_id().is_none());
+        assert_eq!(
+            state.try_reschedule_for_message(),
+            RescheduleRights::Failed
+        );
 
-        process.set_thread_id(4);
+        state.status.set_waiting_for_message(true);
 
-        assert_eq!(process.thread_id(), Some(4));
-
-        process.unset_thread_id();
-
-        assert!(process.thread_id().is_none());
+        assert_eq!(
+            state.try_reschedule_for_message(),
+            RescheduleRights::Acquired
+        );
+        assert_eq!(state.status.is_waiting_for_message(), false);
     }
 
     #[test]
-    fn test_identifier() {
-        let (_machine, _block, process) = setup();
+    fn test_process_state_try_reschedule_for_future() {
+        let mut state = ProcessState::new();
 
-        assert!(process.identifier() > 0);
+        assert_eq!(state.try_reschedule_for_future(), RescheduleRights::Failed);
+
+        state.status.set_waiting_for_future(true);
+        assert_eq!(
+            state.try_reschedule_for_future(),
+            RescheduleRights::Acquired
+        );
+        assert_eq!(state.status.is_waiting_for_future(), false);
+
+        state.status.set_waiting_for_future(true);
+        state.timeout = Some(Timeout::with_rc(Duration::from_secs(0)));
+
+        assert_eq!(
+            state.try_reschedule_for_future(),
+            RescheduleRights::AcquiredWithTimeout
+        );
+        assert_eq!(state.status.is_waiting_for_future(), false);
     }
 
     #[test]
-    fn test_each_global_pointer() {
-        let (_machine, _block, process) = setup();
+    fn test_process_new() {
+        let class = empty_process_class("A");
+        let process = OwnedProcess::new(Process::alloc(*class));
 
-        process.set_result(ObjectPointer::integer(7));
+        assert_eq!(process.header.class.as_pointer(), class.as_pointer());
+        assert!(process.task.is_none());
+    }
 
-        let mut pointers = Vec::new();
+    #[test]
+    fn test_process_main() {
+        let proc_class = empty_process_class("A");
+        let method = empty_method();
+        let process = OwnedProcess::new(Process::main(*proc_class, method));
 
-        process.each_global_pointer(|ptr| pointers.push(ptr));
+        assert!(process.is_main());
 
-        assert_eq!(pointers.len(), 1);
+        Method::drop_and_deallocate(method);
+    }
+
+    #[test]
+    fn test_process_set_main() {
+        let class = empty_process_class("A");
+        let mut process = OwnedProcess::new(Process::alloc(*class));
+
+        assert!(!process.is_main());
+
+        process.set_main();
+        assert!(process.is_main());
+    }
+
+    #[test]
+    fn test_process_suspend() {
+        let class = empty_process_class("A");
+        let mut process = OwnedProcess::new(Process::alloc(*class));
+        let timeout = Timeout::with_rc(Duration::from_secs(0));
+
+        process.suspend(timeout);
+
+        assert!(process.state().timeout.is_some());
+        assert!(process.state().status.is_waiting());
+    }
+
+    #[test]
+    fn test_process_send_message() {
+        let proc_class = OwnedClass::new(Class::process("A".to_string(), 0, 1));
+        let method = empty_method();
+        let future = FutureState::new();
+        let index = MethodIndex::new(0);
+
+        unsafe { proc_class.set_method(index, method) };
+
+        let mut process = OwnedProcess::new(Process::alloc(*proc_class));
+
+        process.send_async_message(index, future, vec![Pointer::int(42)]);
+
+        let mut state = process.state();
+
+        assert_eq!(state.mailbox.messages.len(), 1);
+        assert_eq!(state.mailbox.receive().unwrap().scheduled.length, 1);
+    }
+
+    #[test]
+    fn test_process_task_to_run_without_a_task() {
+        let class = empty_process_class("A");
+        let mut process = OwnedProcess::new(Process::alloc(*class));
+
+        assert!(process.task_to_run().is_none());
+    }
+
+    #[test]
+    fn test_process_task_to_run_waiting_server() {
+        let class = empty_process_class("A");
+        let mut process = OwnedProcess::new(Process::alloc(*class));
+
+        assert!(process.task_to_run().is_none());
+        assert!(process.state().status.is_waiting_for_message());
+        assert!(!process.state().status.is_waiting());
+    }
+
+    #[test]
+    fn test_process_task_to_run_with_message() {
+        let proc_class = OwnedClass::new(Class::process("A".to_string(), 0, 1));
+        let method = empty_method();
+        let future = FutureState::new();
+        let index = MethodIndex::new(0);
+
+        unsafe { proc_class.set_method(index, method) };
+
+        let mut process = OwnedProcess::new(Process::alloc(*proc_class));
+
+        process.send_async_message(index, future, vec![Pointer::int(42)]);
+
+        let mut task = process.task_to_run().unwrap();
+
+        assert!(process.task.is_some());
+        assert!(task.stack.pop() == Some(Pointer::int(42)));
+    }
+
+    #[test]
+    fn test_process_task_to_run_with_existing_task() {
+        let proc_class = OwnedClass::new(Class::process("A".to_string(), 0, 1));
+        let method = empty_method();
+        let ctx = ExecutionContext::new(method);
+        let task = Task::new(ctx, Write::Discard);
+        let mut process = OwnedProcess::new(Process::alloc(*proc_class));
+
+        process.task = Some(task);
+
+        assert_eq!(
+            process.task_to_run(),
+            process.task.as_ref().map(|x| TaskPointer::new(x))
+        );
+
+        Method::drop_and_deallocate(method);
+    }
+
+    #[test]
+    fn test_finish_task_with_existing_task() {
+        let proc_class = OwnedClass::new(Class::process("A".to_string(), 0, 1));
+        let method = empty_method();
+        let ctx = ExecutionContext::new(method);
+        let task = Task::new(ctx, Write::Discard);
+        let mut process = OwnedProcess::new(Process::alloc(*proc_class));
+
+        process.task = Some(task);
+        process.finish_task();
+
+        assert!(process.task.is_none());
+
+        Method::drop_and_deallocate(method);
+    }
+
+    #[test]
+    fn test_process_finish_task_without_pending_work() {
+        let class = empty_process_class("A");
+        let mut process = OwnedProcess::new(Process::alloc(*class));
+
+        process.set_main();
+
+        assert_eq!(process.finish_task(), Finished::Terminate);
+    }
+
+    #[test]
+    fn test_process_finish_task_with_clients() {
+        let class = empty_process_class("A");
+        let mut process = OwnedProcess::new(Process::alloc(*class));
+
+        assert_eq!(process.finish_task(), Finished::WaitForMessage);
+        assert!(process.state().status.is_waiting_for_message());
+    }
+
+    #[test]
+    fn test_process_finish_task_with_messages() {
+        let proc_class = OwnedClass::new(Class::process("A".to_string(), 0, 1));
+        let method = empty_method();
+        let future = FutureState::new();
+        let index = MethodIndex::new(0);
+
+        unsafe { proc_class.set_method(index, method) };
+
+        let mut process = OwnedProcess::new(Process::alloc(*proc_class));
+
+        process.send_async_message(index, future, Vec::new());
+
+        assert_eq!(process.finish_task(), Finished::Reschedule);
+    }
+
+    #[test]
+    fn test_process_get_set_field() {
+        let class = OwnedClass::new(Class::process("A".to_string(), 1, 0));
+        let mut process = OwnedProcess::new(Process::alloc(*class));
+        let idx = FieldIndex::new(0);
+
+        unsafe {
+            process.set_field(idx, Pointer::int(4));
+
+            assert!(process.get_field(idx) == Pointer::int(4));
+        }
+    }
+
+    #[test]
+    fn test_process_timeout_expired() {
+        let class = empty_process_class("A");
+        let mut process = OwnedProcess::new(Process::alloc(*class));
+        let timeout = Timeout::with_rc(Duration::from_secs(0));
+
+        assert!(!process.timeout_expired());
+
+        process.suspend(timeout);
+
+        assert!(!process.timeout_expired());
+        assert!(!process.state().status.timeout_expired());
+    }
+
+    #[test]
+    fn test_process_pointer_identifier() {
+        let ptr = unsafe { ProcessPointer::new(0x4 as *mut _) };
+
+        assert_eq!(ptr.identifier(), 0x4);
+    }
+
+    #[test]
+    fn test_process_pointer_as_pointer() {
+        let ptr = unsafe { ProcessPointer::new(0x4 as *mut _) };
+
+        assert_eq!(ptr.as_pointer(), Pointer::new(0x4 as *mut _));
+    }
+
+    #[test]
+    fn test_future_new() {
+        let fut_class = empty_class("Future");
+        let state = FutureState::new();
+        let future = Future::alloc(*fut_class, state);
+
+        unsafe {
+            assert_eq!(
+                future.get::<Header>().class.as_pointer(),
+                fut_class.as_pointer()
+            );
+        }
+
+        unsafe {
+            Future::drop(future);
+            future.free();
+        }
+    }
+
+    #[test]
+    fn test_future_write_without_consumer() {
+        let state = FutureState::new();
+        let result = state.write(Pointer::int(42), false);
+
+        assert_eq!(result, WriteResult::Continue);
+        assert_eq!(state.lock().unwrap().thrown, false);
+    }
+
+    #[test]
+    fn test_future_write_thrown() {
+        let state = FutureState::new();
+        let result = state.write(Pointer::int(42), true);
+
+        assert_eq!(result, WriteResult::Continue);
+        assert_eq!(state.lock().unwrap().thrown, true);
+    }
+
+    #[test]
+    fn test_future_write_disconnected() {
+        let state = FutureState::new();
+
+        state.lock().unwrap().disconnected = true;
+
+        let result = state.write(Pointer::int(42), false);
+
+        assert_eq!(result, WriteResult::Discard);
+    }
+
+    #[test]
+    fn test_future_write_with_consumer() {
+        let proc_class = empty_process_class("A");
+        let process = OwnedProcess::new(Process::alloc(*proc_class));
+        let state = FutureState::new();
+
+        state.lock().unwrap().consumer = Some(*process);
+
+        let result = state.write(Pointer::int(42), false);
+
+        assert_eq!(result, WriteResult::Continue);
+    }
+
+    #[test]
+    fn test_future_write_with_waiting_consumer() {
+        let proc_class = empty_process_class("A");
+        let process = OwnedProcess::new(Process::alloc(*proc_class));
+        let state = FutureState::new();
+
+        process.state().waiting_for_future(None);
+        state.lock().unwrap().consumer = Some(*process);
+
+        let result = state.write(Pointer::int(42), false);
+
+        assert_eq!(result, WriteResult::Reschedule(*process));
+    }
+
+    #[test]
+    fn test_future_write_with_waiting_consumer_with_timeout() {
+        let proc_class = empty_process_class("A");
+        let process = OwnedProcess::new(Process::alloc(*proc_class));
+        let state = FutureState::new();
+        let timeout = Timeout::with_rc(Duration::from_secs(0));
+
+        process.state().waiting_for_future(Some(timeout));
+        state.lock().unwrap().consumer = Some(*process);
+
+        let result = state.write(Pointer::int(42), false);
+
+        assert_eq!(result, WriteResult::RescheduleWithTimeout(*process));
+        assert_eq!(process.state().status.is_waiting_for_future(), false);
+        assert!(process.state().timeout.is_none());
+    }
+
+    #[test]
+    fn test_future_get_without_result() {
+        let proc_class = empty_process_class("A");
+        let process = OwnedProcess::new(Process::alloc(*proc_class));
+        let state = FutureState::new();
+
+        assert_eq!(state.get(*process, None), FutureResult::None);
+        assert_eq!(state.lock().unwrap().consumer, Some(*process));
+        assert!(process.state().status.is_waiting_for_future());
+    }
+
+    #[test]
+    fn test_future_get_without_result_with_timeout() {
+        let proc_class = empty_process_class("A");
+        let process = OwnedProcess::new(Process::alloc(*proc_class));
+        let state = FutureState::new();
+        let timeout = Timeout::with_rc(Duration::from_secs(0));
+
+        assert_eq!(state.get(*process, Some(timeout)), FutureResult::None);
+        assert_eq!(state.lock().unwrap().consumer, Some(*process));
+        assert!(process.state().status.is_waiting_for_future());
+        assert!(process.state().timeout.is_some());
+    }
+
+    #[test]
+    fn test_future_get_with_result() {
+        let proc_class = empty_process_class("A");
+        let process = OwnedProcess::new(Process::alloc(*proc_class));
+        let state = FutureState::new();
+        let value = Pointer::int(42);
+
+        process.state().waiting_for_future(None);
+        state.lock().unwrap().result = value;
+
+        assert_eq!(state.get(*process, None), FutureResult::Returned(value));
+        assert!(state.lock().unwrap().consumer.is_none());
+        assert!(!process.state().status.is_waiting_for_future());
+    }
+
+    #[test]
+    fn test_future_get_with_thrown_result() {
+        let proc_class = empty_process_class("A");
+        let process = OwnedProcess::new(Process::alloc(*proc_class));
+        let state = FutureState::new();
+        let value = Pointer::int(42);
+
+        process.state().waiting_for_future(None);
+        state.lock().unwrap().result = value;
+        state.lock().unwrap().thrown = true;
+
+        assert_eq!(state.get(*process, None), FutureResult::Thrown(value));
+        assert!(state.lock().unwrap().consumer.is_none());
+        assert!(!process.state().status.is_waiting_for_future());
+    }
+
+    #[test]
+    fn test_future_disconnect() {
+        let fut_class = empty_class("Future");
+        let state = FutureState::new();
+        let fut = Future::alloc(*fut_class, state.clone());
+        let result = unsafe { fut.get::<Future>() }.disconnect();
+
+        assert!(state.lock().unwrap().disconnected);
+        assert!(result == Pointer::undefined_singleton());
+
+        unsafe {
+            Future::drop(fut);
+            fut.free();
+        }
+    }
+
+    #[test]
+    fn test_process_stacktrace() {
+        let proc_class = empty_process_class("B");
+        let mut proc = new_process(*proc_class);
+        let method1 = empty_method();
+        let method2 = empty_method();
+
+        unsafe {
+            let m1 = method1.as_pointer().get_mut::<Method>();
+            let m2 = method2.as_pointer().get_mut::<Method>();
+
+            m1.locations.add_entry(0, 4, Pointer::int(2), Pointer::int(1));
+            m2.locations.add_entry(0, 12, Pointer::int(4), Pointer::int(3));
+        }
+
+        let ctx1 = ExecutionContext::new(method1);
+        let ctx2 = ExecutionContext::new(method2);
+        let mut task = Task::new(ctx1, Write::Discard);
+
+        task.push_context(ctx2);
+
+        proc.task = Some(task);
+
+        let trace = proc.stacktrace();
+
+        assert_eq!(trace.len(), 2);
+        assert_eq!(
+            trace.get(0),
+            Some(&Location {
+                name: Pointer::int(1),
+                file: Pointer::int(2),
+                line: Pointer::int(4)
+            })
+        );
+        assert_eq!(
+            trace.get(1),
+            Some(&Location {
+                name: Pointer::int(3),
+                file: Pointer::int(4),
+                line: Pointer::int(12)
+            })
+        );
+
+        Method::drop_and_deallocate(method1);
+        Method::drop_and_deallocate(method2);
     }
 }

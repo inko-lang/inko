@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 /// own a Queue can push jobs into the queue with minimal overhead, while other
 /// threads can push jobs into the queue using a Multiple Producer Multiple
 /// Consumer (MPMC) channel.
-pub struct Queue<T: Send> {
+pub(crate) struct Queue<T: Send> {
     /// The worker side of the deque, used for producing new jobs. This
     /// structure _can only_ be used by the thread that owns this queue.
     worker: Worker<T>,
@@ -29,10 +29,10 @@ pub struct Queue<T: Send> {
     receiver: Receiver<T>,
 }
 
-pub type RcQueue<T> = ArcWithoutWeak<Queue<T>>;
+pub(crate) type RcQueue<T> = ArcWithoutWeak<Queue<T>>;
 
 impl<T: Send> Queue<T> {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let worker = Worker::new_fifo();
         let stealer = worker.stealer();
         let (sender, receiver) = unbounded();
@@ -46,19 +46,19 @@ impl<T: Send> Queue<T> {
         }
     }
 
-    pub fn with_rc() -> ArcWithoutWeak<Queue<T>> {
+    pub(crate) fn with_rc() -> ArcWithoutWeak<Queue<T>> {
         ArcWithoutWeak::new(Self::new())
     }
 
-    pub fn pending_external(&self) -> usize {
+    pub(crate) fn pending_external(&self) -> usize {
         self.pending_external.load(Ordering::Acquire)
     }
 
-    pub fn increment_pending_external(&self) {
+    pub(crate) fn increment_pending_external(&self) {
         self.pending_external.fetch_add(1, Ordering::Release);
     }
 
-    pub fn decrement_pending_external(&self) {
+    pub(crate) fn decrement_pending_external(&self) {
         if self.pending_external() > 0 {
             self.pending_external.fetch_sub(1, Ordering::Release);
         }
@@ -67,14 +67,14 @@ impl<T: Send> Queue<T> {
     /// Pushes a job onto the deque.
     ///
     /// This method can only be used by the thread that owns the queue.
-    pub fn push_internal(&self, value: T) {
+    pub(crate) fn push_internal(&self, value: T) {
         self.worker.push(value);
     }
 
     /// Pushes a job onto the shared channel.
     ///
     /// This method can be safely used by multiple threads.
-    pub fn push_external(&self, value: T) {
+    pub(crate) fn push_external(&self, value: T) {
         self.increment_pending_external();
 
         self.sender
@@ -83,7 +83,7 @@ impl<T: Send> Queue<T> {
     }
 
     /// Pops a value from the worker.
-    pub fn pop(&self) -> Option<T> {
+    pub(crate) fn pop(&self) -> Option<T> {
         self.worker.pop()
     }
 
@@ -92,13 +92,11 @@ impl<T: Send> Queue<T> {
     /// This method can safely be used by different threads. The returned
     /// boolean will be `true` if one or more jobs were stolen, `false`
     /// otherwise.
-    pub fn steal_into(&self, queue: &Self) -> bool {
+    pub(crate) fn steal_into(&self, queue: &Self) -> bool {
         loop {
             match self.stealer.steal_batch(&queue.worker) {
                 Steal::Empty => return false,
-                Steal::Success(_) => {
-                    return true;
-                }
+                Steal::Success(_) => return true,
                 _ => {}
             };
         }
@@ -106,7 +104,7 @@ impl<T: Send> Queue<T> {
 
     /// Pops a job from the public channel, without first moving it to the
     /// private Worker.
-    pub fn pop_external_job(&self) -> Option<T> {
+    pub(crate) fn pop_external_job(&self) -> Option<T> {
         let job = self.receiver.try_recv().ok();
 
         if job.is_some() {
@@ -121,7 +119,7 @@ impl<T: Send> Queue<T> {
     ///
     /// This method will return `true` if one or more jobs were moved into the
     /// local queue.
-    pub fn move_external_jobs(&self) -> bool {
+    pub(crate) fn move_external_jobs(&self) -> bool {
         // We only receive up to the number of currently pending jobs. If many
         // jobs are scheduled rapidly, simply receiving until we run out of
         // messages could result in this method taking a very long time to
@@ -145,13 +143,8 @@ impl<T: Send> Queue<T> {
         received > 0
     }
 
-    /// Returns true if there are one or more jobs stored in our local worker.
-    pub fn has_local_jobs(&self) -> bool {
-        !self.worker.is_empty()
-    }
-
     /// Returns true if there are one or more jobs stored in the external queue.
-    pub fn has_external_jobs(&self) -> bool {
+    pub(crate) fn has_external_jobs(&self) -> bool {
         self.pending_external() > 0
     }
 }
@@ -200,7 +193,7 @@ mod tests {
         queue1.push_internal(10);
 
         assert!(queue1.steal_into(&queue2));
-        assert!(queue2.has_local_jobs());
+        assert!(queue1.worker.is_empty());
         assert_eq!(queue2.pop(), Some(10));
     }
 
@@ -244,11 +237,11 @@ mod tests {
     fn test_has_local_jobs() {
         let queue = Queue::new();
 
-        assert_eq!(queue.has_local_jobs(), false);
+        assert!(queue.worker.is_empty());
 
         queue.push_internal(10);
 
-        assert!(queue.has_local_jobs());
+        assert!(!queue.worker.is_empty());
     }
 
     #[test]

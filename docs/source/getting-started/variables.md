@@ -1,219 +1,251 @@
-# Variables
+# Variables and fields
 
-Variables can be used to perform a computation and remember the result. There
-are four types of variables: local variables, global variables, constants, and
-attributes.
+Variables are defined using the `let` keyword. For an overview of the syntax,
+refer to [Defining variables](syntax.md#defining-variables) in the syntax guide.
 
-## Local variables
-
-At risk of sounding like Captain Obvious, local variables are variables local to
-the scope you define them in. For example, a local variable in a method won't
-conflict with a local variable defined outside the method. To define a local
-variable, use the `let` keyword:
+Inko infers the types of variables based on their values:
 
 ```inko
-let number = 10
+let a = 10 # `a` is inferred as `Int`
 ```
 
-By default a variable defined using `let` can't be assigned a new value. If you
-want to be able to assign a new value, use `let mut`:
+For more information about type inference, refer to the [Type
+inference](types.md#type-inference) section.
 
-```inko
-let foo = 10
-let mut bar = 10
-
-foo = 20 # This is not valid
-bar = 20 # This is valid
-```
-
-### Capturing
-
-Closures can can capture local variables from a surrounding scope. For example:
-
-```inko
-def example {
-  let number = 10
-
-  { number }.call # This will return 10
-}
-```
-
-Closures can also shadow outer local variables:
-
-```inko
-def example {
-  let number = 10
-
-  {
-    let number = 20
-
-    number
-  }.call # This will return 20
-
-  number # This will return 10
-}
-```
-
-Lambdas can't capture local variables.
-
-### Explicit types
-
-The type of a local variable as inferred from the value assigned to it. If you
-want to explicitly state the type, you can do so as follows:
-
-```inko
-let number: Integer = 10
-```
-
-This is useful if you want the type of the variable to be a trait, while
-assigning it an object. For example:
-
-```inko
-let value: ToString = 10
-```
-
-## Global variables
-
-Global variables can't be created directly, instead the compiler creates these
-when you import a module. For example:
-
-```inko
-import std::stdio::stdout
-
-stdout
-```
-
-Here `stdout` is a global variable. Global variables can be used anywhere in the
-module:
-
-```inko
-import std::stdio::stdout
-
-def example {
-  stdout
-}
-```
-
-If in a given scope both a local variable and global variable have the same
-name, the local variable takes precedence:
-
-```inko
-import std::stdio::stdout
-
-def example {
-  let stdout = 10
-
-  stdout # This returns 10, not the stdout module
-}
-```
-
-You can't assign a new value to a global variable:
-
-```inko
-import std::stdio::stdout
-
-stdout = 20
-```
-
-You _can_ define a module method with the same name as a global variable:
-
-```inko
-import std::stdio::stdout
-
-def stdout {}
-
-stdout # This will call the method
-```
-
-A global variable is scoped to its surrounding module, so two modules can import
-the same symbol without causing any conflicts. This means a better name would be
-"module-local variables", but that can be confused with local variables; so we
-use "global variables" instead.
-
-## Constants
-
-Constants are variables that start with a capital letter (in the ASCII range
-A-Z), or an underscore followed by a capital letter. To define a constant, you
-also use the `let` keyword:
-
-```inko
-let A = 10
-let _A = 10
-```
-
-Because constants are, well, constant, you can't declare them as mutable using `let
-mut`:
-
-```inko
-let mut A = 10 # This is invalid
-```
-
-This also means you can't assign a new value to a constant:
-
-```inko
-let A = 10
-
-A = 20 # This is invalid
-```
-
-When you define a class or trait, a constant is defined containing that class or
-trait:
-
-```inko
-class Person {}
-
-Person # This is a constant that stores our Person class
-```
-
-Like global variables, you can use a constant anywhere in the module that
-defines it.
-
-### Explicit types
-
-Like local variables, the type of a constant is inferred from its value. And
-like local variables, you can specify an explicit type if necessary:
-
-```inko
-let VALUE: ToString = 10
-```
-
-## Attributes
-
-Attributes are fields of a class, as covered in the [Classes](classes.md)
-chapter. Attributes can always be assigned new values:
+Fields are defined using the `let` keyword in a class definition:
 
 ```inko
 class Person {
-  @name: String
+  let @name: String
+}
+```
 
-  static def new(name: String) -> Self {
-    Self { @name = name }
+## Assigning variables and fields
+
+Variables and fields are assigned new values using `=`. For variables this
+requires the variable to be mutable:
+
+```inko
+let a = 10
+let mut b = 10
+
+a = 20 # Not OK, `a` isn't defined as mutable
+b = 20 # This is OK
+```
+
+For fields the surrounding method must be mutable:
+
+```inko
+class Person {
+  let @name: String
+
+  fn foo {
+    @name = 'Alice' # Not OK as `foo` is not a mutable method
   }
 
-  def remove_name {
-    @name = ''
+  fn mut foo {
+    @name = 'Alice' # OK
   }
 }
 ```
 
-Attributes are only available to the instance methods of a class (including
-those added when implementing a trait).
+When a variable or field is assigned a new value, its old value is dropped.
+Assignments always return `nil`.
 
-### Explicit types
+Inko also supports swapping of values using `:=`, known as a "swap assignment".
+This works the same as regular assignments, except the old value is returned
+instead of dropped:
 
-Attributes always have their type stated explicitly. This means the following is
-invalid:
+```inko
+let mut a = 10
+
+a = 20 # This returns `10`
+```
+
+This also works for fields:
 
 ```inko
 class Person {
-  @name
+  let @name: String
 
-  static def new(name: String) -> Self {
-    Self { @name = name }
+  fn replace_name(new_name: String) -> String {
+    @name := new_name
+  }
+}
+```
+
+## Ownership
+
+When a value is assigned to a variable, the value is moved into that variable.
+If the value is owned this means the original variable (if there was any) is no
+longer available. If the value is a reference, the variable is given a new
+reference, allowing you to continue using the old variable:
+
+```inko
+let a = [10]
+let b = a
+
+a.pop # Invalid, as `a` is moved into `b`
+```
+
+## Field ownership
+
+The type fields are exposed as depends on the kind of method the field is used
+in. If a method is immutable, the field type is `ref T`. If the method is
+mutable, the type of a field is instead `mut T`; unless it's defined as a `ref
+T`:
+
+```inko
+class Person {
+  let @name: String
+  let @grades: ref Array[Int]
+
+  fn foo {
+    @name   # => ref String
+    @grades # => ref Array[Int]
   }
 
-  def remove_name {
-    @name = ''
+  fn mut foo {
+    @name   # => mut String
+    @grades # => ref Array[Int]
   }
+
+  fn move foo {
+    @name   # => String
+    @grades # => ref Array[Int]
+  }
+}
+```
+
+If a method is marked as moving using the `move` keyword, you can move fields
+out of their owner, and the fields are exposed using their original types (i.e.
+`@name` is exposed as `String` and not `mut String`):
+
+```inko
+class Person {
+  let @name: String
+
+  fn move into_name -> String {
+    @name
+  }
+}
+```
+
+When moving a field, the remaining fields are dropped individually and the owner
+of the moved field is partially dropped. It's a compile-time error to use the
+same field or `self` after a field is moved. You also can't capture any fields
+or `self` from the owner the field is moved out of.
+
+If a type defines a custom destructor, its fields can't be moved in a moving
+method.
+
+## Drop semantics
+
+When exiting a scope, any variables defined in this scope are dropped in
+reverse-lexical order. This means that if you define `a` and then `b`, `b` is
+dropped before `a`.
+
+When using `return` or `throw`, all variables defined up to that point are
+dropped in the same reverse-lexical order.
+
+## Conditional moves and loops
+
+If a variable is dropped conditionally, it's not available afterwards:
+
+```inko
+let a = [10]
+
+if something {
+  let b = a
+}
+
+# `a` _might_ be moved at this point, so we can't use it anymore.
+```
+
+The same applies to loops: if a variable is moved in a loop, it can't be used
+outside the loop:
+
+```inko
+let a = [10]
+
+loop {
+  let b = a
+}
+```
+
+Any variable defined outside of a loop but moved inside the loop _must_ be
+assigned a new value before the end of the loop. This means the above code is
+incorrect, and we have to fix it like so:
+
+```inko
+let mut a = [10]
+
+loop {
+  let b = a
+
+  a = []
+}
+```
+
+We can do the same for conditions:
+
+```inko
+let mut a = [10]
+
+if condition {
+  let b = a
+
+  a = []
+}
+
+# `a` can be used here, because we guaranteed it always has a value at this
+# point
+```
+
+If a value is moved in one branch of a condition, it's still available in the
+other branches:
+
+```inko
+let a = [10]
+
+# This is fine, because only one branch ever runs.
+if foo {
+  let b = a
+} else if bar {
+  let b = a
+}
+```
+
+This also applies to pattern match expressions.
+
+To handle dropping of conditionally moved variables, Inko uses hidden variables
+called "drop flags". These are created whenever necessary and default to `true`.
+When a variable is moved its corresponding drop flag (if any) is set to `false`.
+When it's time to drop the variable, the compiler inserts code that checks the
+value of this flag and only drops the variable if the value is still `true`.
+This means that this:
+
+```inko
+let a = [10]
+
+if condition {
+  let b = a
+}
+```
+
+Is more or less the same as this:
+
+```inko
+let a = [10]
+let a_flag = true
+
+if condition {
+  a_flag = false
+
+  let b = a
+}
+
+if a_flag {
+  drop(a)
 }
 ```

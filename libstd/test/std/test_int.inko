@@ -1,0 +1,241 @@
+import helpers::(fmt, hash)
+import std::cmp::Ordering
+import std::test::Tests
+
+fn pub tests(t: mut Tests) {
+  t.test('Int.from_base2') fn (t) {
+    t.equal(Int.from_base2('1'), Option.Some(1))
+    t.equal(Int.from_base2('11'), Option.Some(3))
+    t.equal(Int.from_base2('1010'), Option.Some(10))
+    t.equal(Int.from_base2('+11'), Option.Some(3))
+    t.equal(Int.from_base2('-11'), Option.Some(-3))
+    t.equal(Int.from_base2('ef'), Option.None)
+    t.equal(Int.from_base2(' 11'), Option.None)
+    t.equal(Int.from_base2('11 '), Option.None)
+  }
+
+  t.test('Int.from_base10') fn (t) {
+    t.equal(Int.from_base10('42'), Option.Some(42))
+    t.equal(Int.from_base10('11'), Option.Some(11))
+    t.equal(Int.from_base10('+11'), Option.Some(11))
+    t.equal(Int.from_base10('-11'), Option.Some(-11))
+    t.equal(Int.from_base10(' 11'), Option.None)
+    t.equal(Int.from_base10('11 '), Option.None)
+    t.equal(Int.from_base10('f'), Option.None)
+  }
+
+  t.test('Int.from_base16') fn (t) {
+    t.equal(Int.from_base16('42'), Option.Some(66))
+    t.equal(Int.from_base16('11'), Option.Some(17))
+    t.equal(Int.from_base16('ef'), Option.Some(239))
+    t.equal(Int.from_base16('+ef'), Option.Some(239))
+    t.equal(Int.from_base16('-ef'), Option.Some(-239))
+    t.equal(Int.from_base16(' 11'), Option.None)
+    t.equal(Int.from_base16('11 '), Option.None)
+    t.equal(Int.from_base16('zz'), Option.None)
+  }
+
+  t.test('Int.to_base2') fn (t) {
+    t.equal(0.to_base2, '0')
+    t.equal(123.to_base2, '1111011')
+    t.equal(-123.to_base2, '-1111011')
+  }
+
+  t.test('Int.to_base16') fn (t) {
+    t.equal(0.to_base16, '0')
+    t.equal(123.to_base16, '7b')
+    t.equal(-123.to_base16, '-7b')
+  }
+
+  t.test('Int.times') fn (t) {
+    let vals = []
+
+    3.times fn (v) { vals.push(v) }
+
+    t.equal(vals, [0, 1, 2])
+  }
+
+  t.test('Int.absolute') fn (t) {
+    t.equal(0.absolute, 0)
+    t.equal(1.absolute, 1)
+    t.equal(-1.absolute, 1)
+    t.equal(-9223372036854775807.absolute, 9223372036854775807)
+  }
+
+  t.test('Int.opposite') fn (t) {
+    t.equal(42.opposite, -42)
+    t.equal(-42.opposite, 42)
+    t.equal(0.opposite, 0)
+    t.equal(-9223372036854775807.opposite, 9223372036854775807)
+    t.equal(9223372036854775807.opposite, -9223372036854775807)
+  }
+
+  t.test('Int.until') fn (t) {
+    let range = 0.until(4)
+
+    t.true(range.contains?(0))
+    t.true(range.contains?(1))
+    t.true(range.contains?(2))
+    t.true(range.contains?(3))
+    t.false(range.contains?(4))
+  }
+
+  t.test('Int.to') fn (t) {
+    let range = 0.to(4)
+
+    t.true(range.contains?(0))
+    t.true(range.contains?(1))
+    t.true(range.contains?(2))
+    t.true(range.contains?(3))
+    t.true(range.contains?(4))
+    t.false(range.contains?(5))
+  }
+
+  t.test('Int.digits') fn (t) {
+    t.equal(0.digits, 1)
+    t.equal(1.digits, 1)
+    t.equal(11.digits, 2)
+    t.equal(111.digits, 3)
+    t.equal(1111.digits, 4)
+    t.equal(-0.digits, 1)
+    t.equal(-1.digits, 1)
+    t.equal(-11.digits, 2)
+    t.equal(-111.digits, 3)
+  }
+
+  t.test('Int.to_int') fn (t) {
+    t.equal(42.to_int, 42)
+    t.equal(-42.to_int, -42)
+  }
+
+  t.test('Int.to_float') fn (t) {
+    t.equal(42.to_float, 42.0)
+    t.equal(-42.to_float, -42.0)
+  }
+
+  t.test('Int.into_float') fn (t) {
+    t.equal(42.into_float, 42.0)
+    t.equal(-42.into_float, -42.0)
+  }
+
+  t.test('Int.cmp') fn (t) {
+    t.equal(0.cmp(0), Ordering.Equal)
+    t.equal(0.cmp(1), Ordering.Less)
+    t.equal(2.cmp(1), Ordering.Greater)
+  }
+
+  t.test('Int.<') fn (t) {
+    t.true(0 < 1)
+    t.false(1 < 0)
+  }
+
+  t.test('Int.<=') fn (t) {
+    t.true(0 <= 1)
+    t.true(0 <= 0)
+    t.false(1 <= 0)
+  }
+
+  t.test('Int.>') fn (t) {
+    t.true(1 > 0)
+    t.false(0 > 1)
+  }
+
+  t.test('Int.>=') fn (t) {
+    t.true(1 >= 0)
+    t.true(0 >= 0)
+    t.false(0 >= 1)
+  }
+
+  t.test('Int.==') fn (t) {
+    t.equal(1, 1)
+    t.not_equal(1, 0)
+  }
+
+  t.test('Int.clone') fn (t) {
+    t.equal(42.clone, 42)
+  }
+
+  t.test('Int.to_string') fn (t) {
+    t.equal(42.to_string, '42')
+    t.equal(-42.to_string, '-42')
+  }
+
+  t.test('Int.+') fn (t) {
+    t.equal(1 + 1, 2)
+    t.equal(-1 + 1, 0)
+  }
+
+  t.test('Int.-') fn (t) {
+    t.equal(1 - 1, 0)
+    t.equal(0 - 1, -1)
+  }
+
+  t.test('Int./') fn (t) {
+    t.equal(10 / 2, 5)
+    t.equal(10 / -2, -5)
+    t.equal(-10 / 2, -5)
+  }
+
+  t.test('Int.*') fn (t) {
+    t.equal(5 * 2, 10)
+    t.equal(-5 * 2, -10)
+  }
+
+  t.test('Int.%') fn (t) {
+    t.equal(1 % 2, 1)
+    t.equal(2 % 2, 0)
+    t.equal(-1 % 2, 1)
+    t.equal(-2 % 2, 0)
+  }
+
+  t.test('Int.&') fn (t) {
+    t.equal(1 & 2, 0)
+    t.equal(2 & 2, 2)
+    t.equal(-2 & 2, 2)
+  }
+
+  t.test('Int.|') fn (t) {
+    t.equal(1 | 2, 3)
+    t.equal(-1 | 2, -1)
+  }
+
+  t.test('Int.^') fn (t) {
+    t.equal(1 ^ 2, 3)
+    t.equal(-1 ^ 2, -3)
+  }
+
+  t.test('Int.<<') fn (t) {
+    t.equal(1 << 16, 65_536)
+    t.equal(1 << 8, 256)
+    t.equal(-1 << 8, -256)
+  }
+
+  t.test('Int.>>') fn (t) {
+    t.equal(1 >> 16, 0)
+    t.equal(65_536 >> 16, 1)
+  }
+
+  t.test('Int.**') fn (t) {
+    t.equal(2 ** 2, 4)
+    t.equal(2 ** 8, 256)
+  }
+
+  t.test('Int.hash') fn (t) {
+    t.equal(hash(42), hash(42))
+  }
+
+  t.test('Int.fmt') fn (t) {
+    t.equal(fmt(42), '42')
+    t.equal(fmt(-42), '-42')
+  }
+
+  t.test('Int.nearest_power_of_two') fn (t) {
+    t.equal(-4.nearest_power_of_two, 0)
+    t.equal(-1.nearest_power_of_two, 0)
+    t.equal(0.nearest_power_of_two, 0)
+    t.equal(1.nearest_power_of_two, 1)
+    t.equal(2.nearest_power_of_two, 2)
+    t.equal(3.nearest_power_of_two, 4)
+    t.equal(9.nearest_power_of_two, 16)
+  }
+}

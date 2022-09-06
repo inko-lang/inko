@@ -1,0 +1,168 @@
+import helpers::(fmt, hash)
+import std::test::Tests
+
+fn pub tests(t: mut Tests) {
+  t.test('ByteArray.new') fn (t) {
+    t.equal(ByteArray.new, ByteArray.from_array([]))
+  }
+
+  t.test('ByteArray.from_array') fn (t) {
+    let bytes = ByteArray.from_array([10, 20])
+
+    t.equal(bytes[0], 10)
+    t.equal(bytes[1], 20)
+  }
+
+  t.test('ByteArray.filled') fn (t) {
+    t.equal(ByteArray.filled(with: 0, times: 0), ByteArray.new)
+    t.equal(ByteArray.filled(with: 0, times: 2), ByteArray.from_array([0, 0]))
+  }
+
+  t.test('ByteArray.clear') fn (t) {
+    let bytes = ByteArray.from_array([10, 20])
+
+    bytes.clear
+
+    t.equal(bytes, ByteArray.new)
+  }
+
+  t.test('ByteArray.append') fn (t) {
+    let a = ByteArray.from_array([10])
+    let b = ByteArray.from_array([20])
+
+    a.append(b)
+    t.equal(a, ByteArray.from_array([10, 20]))
+  }
+
+  t.test('ByteArray.push') fn (t) {
+    let bytes = ByteArray.new
+
+    bytes.push(10)
+    bytes.push(20)
+
+    t.equal(bytes, ByteArray.from_array([10, 20]))
+  }
+
+  t.test('ByteArray.pop') fn (t) {
+    let bytes = ByteArray.from_array([10, 20])
+
+    t.equal(bytes.pop, Option.Some(20))
+    t.equal(bytes.pop, Option.Some(10))
+    t.equal(bytes.pop, Option.None)
+  }
+
+  t.test('ByteArray.remove_at') fn (t) {
+    let bytes = ByteArray.from_array([10, 20, 30])
+
+    t.equal(bytes.remove_at(1), 20)
+    t.equal(bytes, ByteArray.from_array([10, 30]))
+  }
+
+  t.test('ByteArray.drain_to_string') fn (t) {
+    let bytes = ByteArray.from_array([105, 110, 107, 111])
+
+    t.equal(bytes.drain_to_string, 'inko')
+    t.equal(bytes, ByteArray.new)
+  }
+
+  t.test('ByteArray.slice') fn (t) {
+    let bytes = ByteArray.from_array([105, 110, 107, 111])
+
+    t.equal(bytes.slice(start: 0, length: 0), ByteArray.new)
+    t.equal(bytes.slice(start: 0, length: 1), ByteArray.from_array([105]))
+    t.equal(bytes.slice(start: 0, length: 4), bytes)
+    t.equal(bytes.slice(start: 0, length: 10), bytes)
+  }
+
+  t.test('ByteArray.get') fn (t) {
+    let bytes = ByteArray.from_array([105, 110])
+
+    t.equal(bytes.get(0), Option.Some(105))
+    t.equal(bytes.get(1), Option.Some(110))
+    t.equal(bytes.get(2), Option.None)
+  }
+
+  t.test('ByteArray.length') fn (t) {
+    t.equal(ByteArray.new.length, 0)
+    t.equal(ByteArray.from_array([10]).length, 1)
+  }
+
+  t.test('ByteArray.empty?') fn (t) {
+    t.true(ByteArray.new.empty?)
+    t.false(ByteArray.from_array([10]).empty?)
+  }
+
+  t.test('ByteArray.to_array') fn (t) {
+    t.equal(ByteArray.new.to_array, [])
+    t.equal(ByteArray.from_array([10, 20]).to_array, [10, 20])
+  }
+
+  t.test('ByteArray.iter') fn (t) {
+    let bytes = ByteArray.from_array([10, 20])
+
+    t.equal(bytes.iter.to_array, [10, 20])
+  }
+
+  t.test('ByteArray.index') fn (t) {
+    let bytes = ByteArray.from_array([10, 20])
+
+    t.equal(bytes[0], 10)
+    t.equal(bytes[1], 20)
+  }
+
+  t.test('ByteArray.set_index') fn (t) {
+    let bytes = ByteArray.from_array([10, 20])
+
+    bytes[0] = 50
+
+    t.equal(bytes[0], 50)
+  }
+
+  t.test('ByteArray.to_byte_array') fn (t) {
+    let bytes = ByteArray.from_array([10, 20])
+
+    t.equal(bytes.to_byte_array, bytes)
+  }
+
+  t.test('ByteArray.into_byte_array') fn (t) {
+    t.equal(
+      ByteArray.from_array([10, 20]).into_byte_array,
+      ByteArray.from_array([10, 20])
+    )
+  }
+
+  t.test('ByteArray.to_string') fn (t) {
+    t.equal(ByteArray.from_array([105, 110, 107, 111]).to_string, 'inko')
+  }
+
+  t.test('ByteArray.==') fn (t) {
+    t.equal(ByteArray.new, ByteArray.new)
+    t.equal(ByteArray.from_array([10]), ByteArray.from_array([10]))
+    t.not_equal(ByteArray.from_array([10]), ByteArray.new)
+  }
+
+  t.test('ByteArray.clone') fn (t) {
+    let bytes = ByteArray.from_array([10, 20])
+
+    t.equal(bytes.clone, bytes)
+  }
+
+  t.test('ByteArray.hash') fn (t) {
+    t.equal(hash(ByteArray.from_array([10])), hash(ByteArray.from_array([10])))
+    t.not_equal(hash(ByteArray.from_array([10, 20])), hash(ByteArray.new))
+  }
+
+  t.test('ByteArray.contains?') fn (t) {
+    let bytes = ByteArray.from_array([10, 20])
+
+    t.true(bytes.contains?(10))
+    t.true(bytes.contains?(20))
+    t.false(bytes.contains?(30))
+  }
+
+  t.test('ByteArray.fmt') fn (t) {
+    t.equal(fmt(ByteArray.new), '[]')
+    t.equal(fmt(ByteArray.from_array([10])), '[10]')
+    t.equal(fmt(ByteArray.from_array([10, 20])), '[10, 20]')
+  }
+}

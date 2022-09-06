@@ -1,0 +1,31 @@
+import helpers::(fmt, hash)
+import std::random
+import std::test::Tests
+
+fn pub tests(t: mut Tests) {
+  t.test('random.int_range') fn (t) {
+    let range1 = random.int_range(start: 1, stop: 5)
+    let range2 = random.int_range(start: 1, stop: 1)
+    let range3 = random.int_range(start: 10, stop: 1)
+
+    t.true(range1 >= 1 and range1 < 5)
+    t.equal(range2, 0)
+    t.equal(range3, 0)
+  }
+
+  t.test('random.float_range') fn (t) {
+    let range1 = random.float_range(start: 1.0, stop: 5.0)
+    let range2 = random.float_range(start: 1.0, stop: 1.0)
+    let range3 = random.float_range(start: 10.0, stop: 1.0)
+
+    t.true(range1 >= 1.0 and range1 < 5.0)
+    t.equal(range2, 0.0)
+    t.equal(range3, 0.0)
+  }
+
+  t.test('random.bytes') fn (t) {
+    let bytes = random.bytes(3)
+
+    t.equal(bytes.length, 3)
+  }
+}

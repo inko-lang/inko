@@ -1,0 +1,211 @@
+import helpers::(fmt, hash)
+import std::cmp::Ordering
+import std::hash::Hasher
+import std::map::DefaultHasher
+import std::test::Tests
+
+fn pub tests(t: mut Tests) {
+  t.test('Float.not_a_number') fn (t) {
+    t.not_equal(Float.not_a_number, Float.not_a_number)
+    t.true(Float.not_a_number.not_a_number?)
+  }
+
+  t.test('Float.infinity') fn (t) {
+    t.equal(Float.infinity, Float.infinity)
+    t.not_equal(Float.infinity, Float.negative_infinity)
+    t.true(Float.infinity.infinite?)
+  }
+
+  t.test('Float.negative_infinity') fn (t) {
+    t.equal(Float.negative_infinity, Float.negative_infinity)
+    t.true(Float.negative_infinity.infinite?)
+  }
+
+  t.test('Float.parse') fn (t) {
+    t.equal(Float.parse('10.2'), Option.Some(10.2))
+    t.equal(Float.parse('1.2e1'), Option.Some(12.0))
+    t.equal(Float.parse('1.2E1'), Option.Some(12.0))
+    t.equal(Float.parse('.5'), Option.Some(0.5))
+    t.equal(Float.parse('5.'), Option.Some(5.0))
+    t.equal(Float.parse('-1.2'), Option.Some(-1.2))
+    t.equal(Float.parse('inf'), Option.Some(Float.infinity))
+    t.equal(Float.parse('Infinity'), Option.Some(Float.infinity))
+    t.equal(Float.parse('-inf'), Option.Some(Float.negative_infinity))
+    t.equal(Float.parse('-Infinity'), Option.Some(Float.negative_infinity))
+    t.true(Float.parse('NaN').unwrap.not_a_number?)
+
+    t.equal(Float.parse(' 1.2'), Option.None)
+    t.equal(Float.parse('1.2 '), Option.None)
+  }
+
+  t.test('Float.absolute') fn (t) {
+    t.equal(10.2.absolute, 10.2)
+    t.equal(-10.2.absolute, 10.2)
+    t.equal(-0.0.absolute, 0.0)
+    t.true(Float.not_a_number.absolute.not_a_number?)
+    t.equal(Float.infinity.absolute, Float.infinity)
+    t.equal(Float.negative_infinity.absolute, Float.infinity)
+  }
+
+  t.test('Float.opposite') fn (t) {
+    t.equal(10.2.opposite, -10.2)
+    t.equal(-10.2.opposite, 10.2)
+    t.equal(-0.0.opposite, 0.0)
+    t.equal(0.0.opposite, -0.0)
+    t.true(Float.not_a_number.opposite.not_a_number?)
+    t.equal(Float.infinity.opposite, Float.negative_infinity)
+    t.equal(Float.negative_infinity.opposite, Float.infinity)
+  }
+
+  t.test('Float.not_a_number?') fn (t) {
+    t.true(Float.not_a_number.not_a_number?)
+    t.false(10.2.not_a_number?)
+  }
+
+  t.test('Float.infinite?') fn (t) {
+    t.true(Float.infinity.infinite?)
+    t.true(Float.negative_infinity.infinite?)
+    t.false(10.2.infinite?)
+  }
+
+  t.test('Float.floor') fn (t) {
+    t.equal(10.5.floor, 10.0)
+    t.equal(Float.infinity.floor, Float.infinity)
+    t.true(Float.not_a_number.floor.not_a_number?)
+  }
+
+  t.test('Float.ceil') fn (t) {
+    t.equal(10.5.ceil, 11.0)
+    t.equal(Float.infinity.ceil, Float.infinity)
+    t.true(Float.not_a_number.ceil.not_a_number?)
+  }
+
+  t.test('Float.round') fn (t) {
+    t.equal(10.123.round(1), 10.1)
+    t.equal(10.123.round(2), 10.12)
+    t.equal(10.123.round(3), 10.123)
+  }
+
+  t.test('Float.fractional') fn (t) {
+    t.equal(10.5.fractional, 0.5)
+    t.true(Float.infinity.fractional.not_a_number?)
+  }
+
+  t.test('Float.to_bits') fn (t) {
+    t.equal(10.5.to_bits, 4_622_100_592_565_682_176)
+  }
+
+  t.test('Float.to_int') fn (t) {
+    t.equal(0.0.to_int, 0)
+    t.equal(-0.0.to_int, 0)
+    t.equal(10.5.to_int, 10)
+    t.equal(-10.5.to_int, -10)
+  }
+
+  t.test('Float.to_float') fn (t) {
+    t.equal(10.5.to_float, 10.5)
+  }
+
+  t.test('Float.into_float') fn (t) {
+    t.equal(10.5.into_float, 10.5)
+  }
+
+  t.test('Float.clone') fn (t) {
+    t.equal(10.5.clone, 10.5)
+  }
+
+  t.test('Float.+') fn (t) {
+    t.equal(1.0 + 0.5, 1.5)
+    t.equal(-1.0 + -0.5, -1.5)
+    t.true((Float.not_a_number + Float.not_a_number).not_a_number?)
+    t.equal(Float.infinity + Float.infinity, Float.infinity)
+  }
+
+  t.test('Float.-') fn (t) {
+    t.equal(1.0 - 0.5, 0.5)
+    t.equal(-1.0 - -0.5, -0.5)
+    t.true((Float.not_a_number - Float.not_a_number).not_a_number?)
+    t.true((Float.infinity - Float.infinity).not_a_number?)
+  }
+
+  t.test('Float./') fn (t) {
+    t.equal(1.0 / 2.0, 0.5)
+    t.equal(-1.0 / -2.0, 0.5)
+    t.true((Float.not_a_number / Float.not_a_number).not_a_number?)
+    t.true((Float.infinity / Float.infinity).not_a_number?)
+  }
+
+  t.test('Float.*') fn (t) {
+    t.equal(1.0 * 2.0, 2.0)
+    t.equal(-1.0 * -2.0, 2.0)
+    t.true((Float.not_a_number * Float.not_a_number).not_a_number?)
+    t.equal(Float.infinity * Float.infinity, Float.infinity)
+  }
+
+  t.test('Float.%') fn (t) {
+    t.equal(5.0 % 2.0, 1.0)
+    t.true((Float.not_a_number % 2.0).not_a_number?)
+    t.true((Float.infinity % 2.0).not_a_number?)
+  }
+
+  t.test('Float.cmp') fn (t) {
+    t.equal(1.0.cmp(2.0), Ordering.Less)
+    t.equal(2.0.cmp(1.0), Ordering.Greater)
+    t.equal(1.0.cmp(1.0), Ordering.Equal)
+    t.equal(Float.infinity.cmp(1.0), Ordering.Greater)
+    t.equal(Float.infinity.cmp(Float.infinity), Ordering.Equal)
+    t.equal(Float.negative_infinity.cmp(Float.infinity), Ordering.Less)
+  }
+
+  t.test('Float.<') fn (t) {
+    t.true(1.0 < 2.0)
+    t.false(2.0 < 1.0)
+  }
+
+  t.test('Float.<=') fn (t) {
+    t.true(1.0 <= 2.0)
+    t.true(1.0 <= 1.0)
+    t.false(2.0 <= 1.0)
+  }
+
+  t.test('Float.>') fn (t) {
+    t.true(2.0 > 1.0)
+    t.false(1.0 > 2.0)
+  }
+
+  t.test('Float.>=') fn (t) {
+    t.true(2.0 >= 1.0)
+    t.true(2.0 >= 2.0)
+    t.false(1.0 >= 2.0)
+  }
+
+  t.test('Float.==') fn (t) {
+    t.equal(10.2, 10.2)
+    t.equal(10.2999999999999999998, 10.3)
+    t.not_equal(10.299999999999998, 10.3)
+  }
+
+  t.test('Float.to_string') fn (t) {
+    t.equal(10.2.to_string, '10.2')
+    t.equal(-10.2.to_string, '-10.2')
+    t.equal(0.0.to_string, '0.0')
+    t.equal(-0.0.to_string, '-0.0')
+    t.equal(Float.not_a_number.to_string, 'NaN')
+    t.equal(Float.infinity.to_string, 'Infinity')
+    t.equal(Float.negative_infinity.to_string, '-Infinity')
+  }
+
+  t.test('Float.hash') fn (t) {
+    t.equal(hash(10.2), hash(10.2))
+  }
+
+  t.test('Float.fmt') fn (t) {
+    t.equal(fmt(10.2), '10.2')
+    t.equal(fmt(-10.2), '-10.2')
+    t.equal(fmt(0.0), '0.0')
+    t.equal(fmt(-0.0), '-0.0')
+    t.equal(fmt(Float.not_a_number), 'NaN')
+    t.equal(fmt(Float.infinity), 'Infinity')
+    t.equal(fmt(Float.negative_infinity), '-Infinity')
+  }
+}

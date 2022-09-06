@@ -1,21 +1,18 @@
-# Inko's version manager
+# Using Inko's version manager
 
-Inko has its own version manager called [ivm](https://gitlab.com/inko-lang/ivm).
+Inko has its own version manager: [ivm](https://gitlab.com/inko-lang/ivm).
 Using ivm you can install and manage multiple versions of Inko; whether you are
-using Linux, macOS, or Windows. ivm is written in Rust and does not come with
-system dependencies of its own.
-
-## Supported platforms
-
-ivm works on Linux, macOS, and Windows. It probably also works on the various
-BSDs, but we haven't tested this. For all platforms a 64-bits architecture is
-required.
+using Linux, macOS, or Windows. ivm is written in Rust and doesn't require
+additional system dependencies.
 
 ## Installing
 
-Both ivm and Inko require that you have Rust and cargo installed. We recommend
-that you install Rust and cargo using [rustup](https://rustup.rs/). Once
-installed, you can install ivm by running the following:
+ivm itself only requires Rust 1.62 or newer, but to build Inko itself you'll
+need to also meet the requirements listed in the [installation
+guide](installation.md).
+
+ivm is distributed using [crates.io](https://crates.io/), and is installed as
+follows:
 
 ```bash
 cargo install ivm
@@ -43,21 +40,6 @@ Inko executables to your path:
     When using Windows, you need to restart your terminal after running the
     `setx` command, as it doesn't affect your current terminal.
 
-You can then install ivm by running the following command:
-
-```bash
-cargo install ivm
-```
-
-To test if the installation was successful, run the following:
-
-```bash
-ivm --version
-```
-
-This should print a message like "ivm version XXX" where "XXX" is the current
-version of ivm.
-
 ## Updating
 
 To update ivm, run the following:
@@ -68,10 +50,10 @@ cargo install ivm --force
 
 ## Usage
 
-To install a version (e.g. 0.8.1):
+To install a version (e.g. 0.10.0):
 
 ```bash
-ivm install 0.8.1     # This will install version 0.8.1
+ivm install 0.10.0    # This will install version 0.10.0
 ivm install latest    # This will install the latest available version
 ```
 
@@ -82,7 +64,7 @@ ivm install latest    # This will install the latest available version
 To uninstall a version:
 
 ```bash
-ivm uninstall 0.8.1     # This will uninstall version 0.8.1
+ivm uninstall 0.10.0    # This will uninstall version 0.10.0
 ivm uninstall latest    # This will uninstall the latest _installed_ version
 ```
 
@@ -101,7 +83,7 @@ ivm known
 To change the default Inko version:
 
 ```bash
-ivm default 0.8.1
+ivm default 0.10.0
 ```
 
 To remove any temporary data:
@@ -113,7 +95,7 @@ ivm clean
 To run a command with a specific Inko version:
 
 ```bash
-ivm run 0.8.1 inko --version    # This will run `inko --version` using Inko 0.8.1
+ivm run 0.10.0 inko --version    # This will run `inko --version` using Inko 0.10.0
 ivm run latest inko
 ```
 

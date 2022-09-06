@@ -45,15 +45,20 @@ to = options[:to]
 
 commits = commits_in(
   [
-    'Makefile',
-    'compiler/bin',
-    'compiler/lib',
-    'runtime/src',
-    'vm/src',
-    'vm/Cargo.toml',
-    'cli/src',
-    'cli/Cargo.toml',
-    'Cargo.toml'
+    '.cargo',
+    'ast',
+    'bytecode',
+    'compiler',
+    'docs',
+    'inko',
+    'libstd',
+    'types',
+    'vm',
+    'Cargo.lock',
+    'Cargo.toml',
+    'Dockerfile',
+    'LICENSE',
+    'Makefile'
   ],
   from,
   to

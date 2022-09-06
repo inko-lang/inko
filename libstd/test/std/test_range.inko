@@ -1,0 +1,49 @@
+import helpers::(fmt, hash)
+import std::range::Range
+import std::test::Tests
+
+fn pub tests(t: mut Tests) {
+  t.test('Range.inclusive') fn (t) {
+    let range = Range.inclusive(1, 10)
+
+    t.equal(range.start, 1)
+    t.equal(range.end, 10)
+    t.true(range.inclusive?)
+  }
+
+  t.test('Range.exclusive') fn (t) {
+    let range = Range.exclusive(1, 10)
+
+    t.equal(range.start, 1)
+    t.equal(range.end, 10)
+    t.false(range.inclusive?)
+  }
+
+  t.test('Range.contains?') fn (t) {
+    t.true(Range.inclusive(1, 10).contains?(1))
+    t.true(Range.inclusive(1, 10).contains?(10))
+    t.true(Range.exclusive(1, 10).contains?(1))
+    t.false(Range.exclusive(1, 10).contains?(10))
+  }
+
+  t.test('Range.into_iter') fn (t) {
+    t.equal(Range.inclusive(1, 3).into_iter.to_array, [1, 2, 3])
+    t.equal(Range.exclusive(1, 3).into_iter.to_array, [1, 2])
+  }
+
+  t.test('Range.==') fn (t) {
+    t.equal(Range.inclusive(1, 3), Range.inclusive(1, 3))
+    t.not_equal(Range.inclusive(1, 3), Range.exclusive(1, 4))
+    t.not_equal(Range.inclusive(1, 3), Range.exclusive(1, 3))
+  }
+
+  t.test('Range.hash') fn (t) {
+    t.equal(hash(Range.inclusive(1, 3)), hash(Range.inclusive(1, 3)))
+    t.not_equal(hash(Range.inclusive(1, 3)), hash(Range.exclusive(1, 3)))
+  }
+
+  t.test('Range.fmt') fn (t) {
+    t.equal(fmt(Range.inclusive(1, 3)), '1 to 3')
+    t.equal(fmt(Range.exclusive(1, 3)), '1 until 3')
+  }
+}

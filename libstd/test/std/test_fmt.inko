@@ -1,0 +1,58 @@
+import std::fmt::DefaultFormatter
+import std::test::Tests
+
+fn pub tests(t: mut Tests) {
+  t.test('DefaultFormatter.descend') fn (t) {
+    let fmt1 = DefaultFormatter.new
+    let fmt2 = DefaultFormatter.new
+
+    fmt1.descend fn {
+      fmt1.descend fn {
+        fmt1.descend fn {
+          fmt1.descend fn {
+            fmt1.descend fn {
+              fmt1.descend fn {
+                fmt1.descend fn {
+                  fmt1.descend fn {
+                    fmt1.descend fn {
+                      fmt1.descend fn {
+                        fmt1.descend fn {
+                          fmt1.descend fn {
+                            fmt1.descend fn {
+                              fmt1.descend fn {
+                                fmt1.descend fn {
+                                  fmt1.descend fn {
+                                    fmt1.descend fn {
+                                      fmt1.write('test')
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    fmt2.descend fn { fmt2.write('test') }
+
+    t.equal(fmt1.into_string, '...')
+    t.equal(fmt2.into_string, 'test')
+  }
+
+  t.test('DefaultFormatter.write') fn (t) {
+    let fmt = DefaultFormatter.new
+
+    fmt.write('test')
+
+    t.equal(fmt.into_string, 'test')
+  }
+}

@@ -1,0 +1,86 @@
+# Lightweight Inko processes.
+#
+# Processes are lightweight, isolated tasks that can run concurrently. Processes
+# use a type-safe form of message passing, instead of sharing memory. Futures
+# are used whenever a message is sent and the sender wants to resolve the result
+# at a later point in time.
+import std::drop::Drop
+import std::time::Duration
+
+# Terminates the program with an error message.
+#
+# A panic is an unrecoverable error meant to guard against code bugs. For
+# runtime errors, use `try` and `throw` instead.
+fn pub panic(message: ref String) -> Never {
+  _INKO.panic(message)
+}
+
+# Suspends the current process for at least the given duration.
+#
+# The actual time the process is suspended for may be larger than the given
+# duration.
+fn pub sleep(time: ref Duration) {
+  _INKO.process_suspend(time.to_seconds)
+}
+
+# Suspends the current process until one or more futures in the `pending` array
+# are ready.
+#
+# The return value is an array containing all futures that are ready.
+#
+# After calling this method, `pending` only contain futures that aren't ready.
+#
+# If the `pending` array is empty, this method returns immediately.
+#
+# This method is useful when you have multiple futures to resolve, but want to
+# act as soon as any futures are ready, instead of waiting until all of them are
+# ready.
+#
+# # Performance
+#
+# Due to how polling works, performance of this method is `O(n)` where `n` is
+# the number of futures in the `pending` array.
+fn pub poll[T, E](pending: mut Array[Future[T, E]]) -> Array[Future[T, E]] {
+  _INKO.future_poll(pending) as Array[Future[T, E]]
+}
+
+# The result of an asynchronous operation.
+#
+# A future can be resolved into its value using either `await` or `await_for`,
+# both taking over ownership of the future. Both may block the calling process,
+# but they won't block the OS thread the process is running on.
+#
+# If the message that the future belongs to threw a value, awaiting the future
+# will re-throw said value.
+class builtin Future[T, E] {
+  # Waits for and returns the result of a message.
+  #
+  # If no value is present at the time this method is called, the calling
+  # processes is suspended until a result is produced.
+  fn pub move await !! E -> T {
+    let val = try _INKO.future_get(self) else (e) { throw e as E }
+
+    val as T
+  }
+
+  # Waits for the result or until the timeout expires.
+  #
+  # Similar to `Future.await`, this method blocks the calling process until
+  # either a value is produced or the timeout expires.
+  fn pub move await_for(time: ref Duration) !! E -> Option[T] {
+    let secs = time.to_seconds
+    let val = try { _INKO.future_get_for(self, secs) } else (e) { throw e as E }
+
+    if _INKO.is_undefined(val) { Option.None } else { Option.Some(val as T) }
+  }
+}
+
+impl Drop for Future {
+  fn mut drop {
+    let result = _INKO.future_drop(self)
+
+    if _INKO.is_undefined(result) { return }
+
+    result as T
+  }
+}

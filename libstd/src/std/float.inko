@@ -1,0 +1,328 @@
+# The Float type.
+import std::clone::Clone
+import std::cmp::(Compare, Equal, Ordering)
+import std::fmt::(Format, Formatter)
+import std::hash::(Hash, Hasher)
+import std::int::ToInt
+import std::ops::*
+import std::string::ToString
+
+# A type that can be converted to a Float.
+trait pub ToFloat {
+  # Converts `self` to a `Float`
+  fn pub to_float -> Float
+}
+
+# A type that can be converted into a Float by taking over ownership of the
+# source value.
+trait pub IntoFloat {
+  # Moves `self` into a `Float`.
+  fn pub move into_float -> Float
+}
+
+# A 64-bit floating point number.
+class builtin Float {
+  # Returns a NaN.
+  fn pub static not_a_number -> Float {
+    0.0 / 0.0
+  }
+
+  # Returns the positive infinity value.
+  fn pub static infinity -> Float {
+    1.0 / 0.0
+  }
+
+  # Returns the negative infinity value.
+  fn pub static negative_infinity -> Float {
+    -1.0 / 0.0
+  }
+
+  # Parses a `Float` from a `String`.
+  #
+  # # Error handling
+  #
+  # This method will throw if the input `String` is not in the right format.
+  #
+  # # Format
+  #
+  # The input `String` is expected to be in base 10. Leading and/or trailing
+  # whitespace is considered to be invalid, and will result in an error being
+  # thrown.
+  #
+  # # Examples
+  #
+  # Parsing a `Float` from a `String`:
+  #
+  #     Float.parse('10.5') # => Option.Some(10.5)
+  #
+  # Parsing a `Float` with an exponent:
+  #
+  #     Float.parse('1.2e1') # => Option.Some(12.0)
+  fn pub static parse(string: ref String) -> Option[Self] {
+    let res = _INKO.string_to_float(string)
+
+    if _INKO.is_undefined(res) { Option.None } else { Option.Some(res) }
+  }
+
+  # Returns the absolute value of `self`.
+  #
+  # # Examples
+  #
+  #     42.0.absolute  # => 42
+  #     -42.0.absolute # => 42
+  fn pub absolute -> Self {
+    if self < 0.0 { 0.0 - self } else { clone }
+  }
+
+  # Returns a value with the opposite sign of `self`.
+  #
+  # # Examples
+  #
+  #     42.0.opposite  # => -42
+  #     -42.0.opposite # => 42
+  fn pub opposite -> Self {
+    0.0 - self
+  }
+
+  # Returns `true` if `self` is not a number (NAN).
+  #
+  # # Examples
+  #
+  # Using a regular float:
+  #
+  #     10.5.not_a_number? => false
+  #
+  # Using a NAN value:
+  #
+  #     Float.not_a_number.not_a_number? # => true
+  fn pub not_a_number? -> Bool {
+    _INKO.float_is_nan(self)
+  }
+
+  # Returns `true` if `self` is an infinite number.
+  #
+  # # Examples
+  #
+  # Using a regular float:
+  #
+  #     10.5.infinite? # => false
+  #
+  # Using an infinite number:
+  #
+  #     10.0 / 0.0
+  #       .infinite? # => true
+  fn pub infinite? -> Bool {
+    _INKO.float_is_inf(self)
+  }
+
+  # Returns the largest number less than or equal to `self`.
+  #
+  # # Examples
+  #
+  # Using a regular float:
+  #
+  #     3.5.floor # => 3.0
+  #
+  # Using a NAN value will produce a new NAN:
+  #
+  #     Float.not_a_number.floor.not_a_number? # => true
+  fn pub floor -> Float {
+    _INKO.float_floor(self)
+  }
+
+  # Returns the smallest number greater than or equal to `self`.
+  #
+  # # Examples
+  #
+  # Using a regular float:
+  #
+  #     3.5.ceil # => 4.0
+  #
+  # Using a NAN value will produce a new NAN:
+  #
+  #     Float.not_a_number.ceil.not_a_number? # => true
+  fn pub ceil -> Float {
+    _INKO.float_ceil(self)
+  }
+
+  # Rounds `self` to the nearest number.
+  #
+  # The `decimals` argument can be used to control the number of decimals of
+  # the returned `Float`. When a negative value is used, the number is rounded
+  # on the left hand side of the decimal point.
+  #
+  # # Examples
+  #
+  # Using a regular float:
+  #
+  #     3.5.round # => 3.0
+  #
+  # Rounding to a given number of decimals:
+  #
+  #     3.123.round(1) # => 3.1
+  #
+  # Rounding a number using a negative number of decimals:
+  #
+  #     34567.89.round(-2) # => 34600.0
+  #
+  # Using a NAN value will produce a new NAN:
+  #
+  #     Float.not_a_number.round.not_a_number? # => true
+  fn pub round(decimals: Int) -> Float {
+    _INKO.float_round(self, decimals)
+  }
+
+  # Returns the fractional part of this float.
+  #
+  # # Examples
+  #
+  # Returning the fractional:
+  #
+  #     3.5.fract => 0.5
+  fn pub fractional -> Float {
+    absolute % 1.0
+  }
+
+  # Returns the bitwise representation of `self`, as an `Int`.
+  #
+  # This does not _cast_ the `Float`, instead the returned `Int` has all
+  # the bits set that make up `self`.
+  #
+  # # Examples
+  #
+  # Converting a `Float` to its bitwise representation:
+  #
+  #     1.0.to_bits # => 4607182418800017408
+  fn pub to_bits -> Int {
+    _INKO.float_to_bits(self)
+  }
+}
+
+impl ToInt for Float {
+  # Converts a `Float` to an `Int`.
+  #
+  # The `Float` will be rounded towards zero. Converting a `NAN`, `INFINITY`,
+  # or `NEGATIVE_INFINITY` to an `Int` will result in a panic.
+  fn pub to_int -> Int {
+    _INKO.float_to_int(self)
+  }
+}
+
+impl ToFloat for Float {
+  fn pub to_float -> Float {
+    clone
+  }
+}
+
+impl IntoFloat for Float {
+  fn pub move into_float -> Float {
+    self
+  }
+}
+
+impl Clone for Float {
+  fn pub clone -> Self {
+    _INKO.float_clone(self)
+  }
+}
+
+impl Add[Float] for Float {
+  fn pub +(other: ref Self) -> Self {
+    _INKO.float_add(self, other)
+  }
+}
+
+impl Subtract[Float] for Float {
+  fn pub -(other: ref Self) -> Self {
+    _INKO.float_sub(self, other)
+  }
+}
+
+impl Divide for Float {
+  fn pub /(other: ref Self) -> Self {
+    _INKO.float_div(self, other)
+  }
+}
+
+impl Multiply for Float {
+  fn pub *(other: ref Self) -> Self {
+    _INKO.float_mul(self, other)
+  }
+}
+
+impl Modulo for Float {
+  fn pub %(other: ref Self) -> Self {
+    _INKO.float_mod(self, other)
+  }
+}
+
+impl Compare for Float {
+  fn pub cmp(other: ref Self) -> Ordering {
+    if self > other {
+      Ordering.Greater
+    } else if self < other {
+      Ordering.Less
+    } else {
+      Ordering.Equal
+    }
+  }
+
+  fn pub <(other: ref Self) -> Bool {
+    _INKO.float_lt(self, other)
+  }
+
+  fn pub <=(other: ref Self) -> Bool {
+    _INKO.float_le(self, other)
+  }
+
+  fn pub >(other: ref Self) -> Bool {
+    _INKO.float_gt(self, other)
+  }
+
+  fn pub >=(other: ref Self) -> Bool {
+    _INKO.float_ge(self, other)
+  }
+}
+
+impl Equal for Float {
+  fn pub ==(other: ref Self) -> Bool {
+    _INKO.float_eq(self, other)
+  }
+}
+
+impl ToString for Float {
+  # Converts `self` to a `String.
+  #
+  # # Examples
+  #
+  # Converting a positive float:
+  #
+  #     10.5.to_string # => '10.5'
+  #
+  # Converting a negative float:
+  #
+  #     -10.5.to_string # => '-10.5'
+  #
+  # Converting a NAN:
+  #
+  #     Float.not_a_number.to_string # => 'NaN'
+  #
+  # Converting an infinite number:
+  #
+  #     Float.infinity.to_string # => 'Infinity'
+  fn pub to_string -> String {
+    _INKO.float_to_string(self)
+  }
+}
+
+impl Hash for Float {
+  fn pub hash(hasher: mut Hasher) {
+    hasher.write(to_bits)
+  }
+}
+
+impl Format for Float {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.write(to_string)
+  }
+}
