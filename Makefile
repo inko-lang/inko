@@ -163,6 +163,14 @@ docs/publish: docs/install docs/build
 	aws cloudfront create-invalidation \
 		--distribution-id ${DOCS_CLOUDFRONT_ID} --paths "/*"
 
+docs/versions:
+	git tag | python ./scripts/docs_versions.py > versions.json
+	aws s3 cp versions.json s3://${DOCS_S3_BUCKET}/manual/versions.json \
+		--acl=public-read --cache-control max-age=86400
+	aws cloudfront create-invalidation \
+		--distribution-id ${DOCS_CLOUDFRONT_ID} --paths "/manual/versions.json"
+	rm versions.json
+
 clippy:
 	touch */src/lib.rs */src/main.rs
 	cargo clippy ${TARGET_OPTION} ${FEATURES_OPTION}
@@ -177,4 +185,4 @@ rustfmt:
 .PHONY: release/commit release/publish release/tag
 .PHONY: build install uninstall clean
 .PHONY: libstd/test rustfmt rustfmt-check clippy
-.PHONY: docs/install docs/build docs/server docs/publish
+.PHONY: docs/install docs/build docs/server docs/publish docs/versions

@@ -1,6 +1,7 @@
 site_name: The Inko manual
 site_description: The Inko programming language manual
 site_author: The Inko programming language developers
+site_url: https://docs.inko-lang.org/manual
 docs_dir: source
 site_dir: build
 use_directory_urls: true
@@ -63,3 +64,6 @@ extra:
     - icon: fontawesome/brands/reddit
       link: https://reddit.com/r/inko
       name: Join the /r/inko subreddit
+  version:
+    provider: mike
+    default: latest

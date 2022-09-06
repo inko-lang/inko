@@ -17,6 +17,27 @@ release:docker:
   script:
     - ./scripts/docker.sh "$CI_COMMIT_REF_NAME"
 
+release:docs:
+  image: registry.gitlab.com/inko-lang/development-docker-images:python
+  stage: release
+  before_script:
+    - poetry --version
+    - poetry config virtualenvs.in-project true
+    - ./scripts/poetry_install.sh
+  script:
+    - make docs/publish DOCS_FOLDER=$CI_COMMIT_REF_NAME
+    - if [[ $CI_COMMIT_REF_NAME = $(git tag -l --sort=-v:refname | head -n1) ]]
+      then
+        make docs/publish DOCS_FOLDER=latest
+      fi
+    - make docs/versions
+  only:
+    - tags
+  cache:
+    key: docs-release
+    paths:
+      - docs/.venv
+
 post-release:manifest:
   image: registry.gitlab.com/inko-lang/development-docker-images:alpine
   stage: post-release
