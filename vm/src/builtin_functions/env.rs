@@ -14,13 +14,11 @@ pub(crate) fn env_get(
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
     let var_name = unsafe { InkoString::read(&arguments[0]) };
-    let result = if let Some(val) = env::var_os(var_name) {
-        let string = val.to_string_lossy().into_owned();
-
-        InkoString::alloc(state.permanent_space.string_class(), string)
-    } else {
-        Pointer::undefined_singleton()
-    };
+    let result = state
+        .environment
+        .get(var_name)
+        .cloned()
+        .unwrap_or_else(Pointer::undefined_singleton);
 
     Ok(result)
 }
@@ -30,11 +28,11 @@ pub(crate) fn env_variables(
     _: ProcessPointer,
     _: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
-    let names = env::vars_os()
-        .map(|(key, _)| {
-            let name = key.to_string_lossy().into_owned();
-
-            InkoString::alloc(state.permanent_space.string_class(), name)
+    let names = state
+        .environment
+        .keys()
+        .map(|key| {
+            InkoString::alloc(state.permanent_space.string_class(), key.clone())
         })
         .collect();
 

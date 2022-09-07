@@ -1,8 +1,3 @@
-//! Virtual Machine States
-//!
-//! Each virtual machine has its own state. This state includes any scheduled
-//! garbage collections, the configuration, the files that have been parsed,
-//! etc.
 use crate::arc_without_weak::ArcWithoutWeak;
 use crate::builtin_functions::BuiltinFunctions;
 use crate::config::Config;
@@ -13,6 +8,8 @@ use crate::scheduler::process::Scheduler;
 use crate::scheduler::timeout_worker::TimeoutWorker;
 use ahash::RandomState;
 use rand::{thread_rng, Rng};
+use std::collections::HashMap;
+use std::env;
 use std::panic::RefUnwindSafe;
 use std::sync::Mutex;
 use std::time;
@@ -30,6 +27,14 @@ pub(crate) struct State {
 
     /// The commandline arguments passed to an Inko program.
     pub arguments: Vec<Pointer>,
+
+    /// The environment variables defined when the VM started.
+    ///
+    /// We cache environment variables because C functions used through the FFI
+    /// (or through libraries) may call `setenv()` concurrently with `getenv()`
+    /// calls, which is unsound. Caching the variables also means we can safely
+    /// use `localtime_r()` (which internally may call `setenv()`).
+    pub environment: HashMap<String, Pointer>,
 
     /// The exit status to use when the VM terminates.
     pub exit_status: Mutex<i32>,
@@ -83,8 +88,20 @@ impl State {
         let hash_state =
             RandomState::with_seeds(rng.gen(), rng.gen(), rng.gen(), rng.gen());
 
+        let environment = env::vars_os()
+            .into_iter()
+            .map(|(k, v)| {
+                (
+                    k.to_string_lossy().into_owned(),
+                    permanent_space
+                        .allocate_string(v.to_string_lossy().into_owned()),
+                )
+            })
+            .collect::<HashMap<_, _>>();
+
         let state = State {
             scheduler: Scheduler::new(config.process_threads),
+            environment,
             config,
             start_time: time::Instant::now(),
             exit_status: Mutex::new(0),
