@@ -622,6 +622,8 @@ mod tests {
         let state = ArcWithoutWeak::new(State::new(1));
         let state_clone = state.clone();
 
+        state.schedule_onto_queue(0, *process);
+
         let handle = thread::spawn(move || {
             let queue = &state_clone.queues[0];
 
@@ -629,8 +631,6 @@ mod tests {
 
             queue.pop_external_job()
         });
-
-        state.schedule_onto_queue(0, *process);
 
         let job = handle.join().unwrap();
 
