@@ -51,6 +51,7 @@ nav:
   - Internals:
     - internals/index.md
     - internals/compiler.md
+    - internals/vm.md
 extra:
   social:
     - icon: fontawesome/brands/gitlab

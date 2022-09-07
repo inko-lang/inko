@@ -176,6 +176,13 @@ The `PREFIX` variable must be specified for both `make build` and
 `make install`. The `DESTDIR` variable defaults to the value of the `PREFIX`
 variable.
 
+When packaging Inko it's best to use a system wide installation of FFI, instead
+of building it from source when compiling Inko. To do so, build Inko as follows:
+
+```bash
+cargo build --release --features libffi-system
+```
+
 [ivm]: ivm.md
 [homebrew]: https://brew.sh/
 [msys2]: http://www.msys2.org/
