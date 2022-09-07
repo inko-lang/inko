@@ -19,7 +19,7 @@ use std::time::Duration;
 use nix::errno::Errno::{EINPROGRESS, EISCONN};
 
 #[cfg(windows)]
-use winapi::shared::winerror::{
+use windows_sys::Win32::Networking::WinSock::{
     WSAEINPROGRESS as EINPROGRESS, WSAEISCONN as EISCONN,
 };
 

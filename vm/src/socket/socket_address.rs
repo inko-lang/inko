@@ -2,19 +2,10 @@ use socket2::SockAddr;
 
 #[cfg(unix)]
 use {
-    nix::sys::socket::{sockaddr_un, AddressFamily},
+    nix::sys::socket::sockaddr_un,
     std::ffi::OsStr,
     std::os::{raw::c_char, unix::ffi::OsStrExt},
 };
-
-#[cfg(windows)]
-use winapi::shared::ws2def::{AF_INET, AF_INET6};
-
-#[cfg(unix)]
-const AF_INET: i32 = AddressFamily::Inet as i32;
-
-#[cfg(unix)]
-const AF_INET6: i32 = AddressFamily::Inet6 as i32;
 
 #[cfg(unix)]
 #[cfg_attr(feature = "cargo-clippy", allow(clippy::uninit_assumed_init))]
@@ -75,24 +66,10 @@ impl SocketAddress {
             SocketAddress::Unix(sockaddr) => {
                 Ok((unix_socket_path(sockaddr), 0))
             }
-            SocketAddress::Other(sockaddr) => {
-                match i32::from(sockaddr.family()) {
-                    AF_INET => {
-                        let addr = sockaddr.as_socket_ipv4().unwrap();
-
-                        Ok((addr.ip().to_string(), i64::from(addr.port())))
-                    }
-                    AF_INET6 => {
-                        let addr = sockaddr.as_socket_ipv6().unwrap();
-
-                        Ok((addr.ip().to_string(), i64::from(addr.port())))
-                    }
-                    _ => Err(format!(
-                        "The address family {} is not supported",
-                        sockaddr.family()
-                    )),
-                }
-            }
+            SocketAddress::Other(sockaddr) => match sockaddr.as_socket() {
+                Some(v) => Ok((v.ip().to_string(), i64::from(v.port()))),
+                None => Err("The address family isn't supported".to_string()),
+            },
         }
     }
 }

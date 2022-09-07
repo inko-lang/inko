@@ -42,5 +42,6 @@ bytecode = { path = "../bytecode" }
 version = "^0.4"
 features = ["all"]
 
-[target.'cfg(windows)'.dependencies]
-winapi = "^0.3"
+[target.'cfg(windows)'.dependencies.windows-sys]
+version = "^0.36"
+features = ["Win32_Networking_WinSock"]
