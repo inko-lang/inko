@@ -2,7 +2,7 @@ use socket2::SockAddr;
 
 #[cfg(unix)]
 use {
-    nix::sys::socket::sockaddr_un,
+    libc::sockaddr_un,
     std::ffi::OsStr,
     std::os::{raw::c_char, unix::ffi::OsStrExt},
 };

@@ -16,7 +16,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 #[cfg(unix)]
-use nix::errno::Errno::{EINPROGRESS, EISCONN};
+use libc::{EINPROGRESS, EISCONN};
 
 #[cfg(windows)]
 use windows_sys::Win32::Networking::WinSock::{
