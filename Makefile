@@ -20,20 +20,8 @@ INSTALL_STD := ${INSTALL_PREFIX}/lib/inko/libstd
 # The install path of the license file.
 INSTALL_LICENSE := ${INSTALL_PREFIX}/share/licenses/inko/LICENSE
 
-# The target to use for cross compilation. An empty string indicates the default
-# target of the underlying platform.
-TARGET :=
-
 # The list of features to enable when building the VM.
 FEATURES :=
-
-ifneq (${TARGET},)
-	TARGET_OPTION=--target ${TARGET}
-	TARGET_BINARY=target/${TARGET}/release/inko
-else
-	TARGET_OPTION=
-	TARGET_BINARY=target/release/inko
-endif
 
 ifneq (${FEATURES},)
 	FEATURES_OPTION=--features ${FEATURES}
@@ -129,7 +117,7 @@ ${INSTALL_STD}:
 
 ${INSTALL_BIN}:
 	mkdir -p "$$(dirname ${@})"
-	install -m755 ${TARGET_BINARY} "${@}"
+	install -m755 target/release/inko "${@}"
 
 ${INSTALL_LICENSE}:
 	mkdir -p "$$(dirname ${@})"
@@ -173,7 +161,7 @@ docs/versions:
 
 clippy:
 	touch */src/lib.rs */src/main.rs
-	cargo clippy ${TARGET_OPTION} ${FEATURES_OPTION} -- -D warnings
+	cargo clippy ${FEATURES_OPTION} -- -D warnings
 
 rustfmt-check:
 	rustfmt --check */src/lib.rs */src/main.rs
