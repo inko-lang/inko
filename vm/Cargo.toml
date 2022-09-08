@@ -14,16 +14,6 @@ libffi-system = ["libffi/system"]
 
 [dependencies]
 num_cpus = "^1.13"
-
-# Newer versions of the `time` crate only expose local time behind a
-# compile-time --cfg flag. This isn't viable for us, as it makes the compilation
-# process easier and introduces a fallible API when in practise this probably
-# won't be a problem for us.
-#
-# Until a better solution is presented, we'll lock ourselves to the last version
-# of this crate that doesn't include these changes.
-time = "=0.2.22"
-
 float-cmp = "^0.9"
 dirs-next = "^1.0"
 libloading = "^0.7"
@@ -44,4 +34,10 @@ features = ["all"]
 
 [target.'cfg(windows)'.dependencies.windows-sys]
 version = "^0.36"
-features = ["Win32_Networking_WinSock"]
+features = [
+    "Win32_Foundation",
+    "Win32_Networking_WinSock",
+    "Win32_System_Time",
+    "Win32_System_SystemInformation",
+    "Win32_System_SystemServices",
+]

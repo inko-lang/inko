@@ -9,13 +9,13 @@
 //! to use for certain files, how to store file paths, etc; instead we can keep
 //! all that in the standard library.
 use crate::builtin_functions::read_into;
-use crate::date_time::DateTime;
 use crate::mem::{Array, ByteArray, Float, Int, Pointer, String as InkoString};
 use crate::process::ProcessPointer;
 use crate::runtime_error::RuntimeError;
 use crate::state::State;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Seek, SeekFrom, Write};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub(crate) fn file_drop(
     _: &State,
@@ -127,8 +127,7 @@ pub(crate) fn path_created_at(
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
     let path = unsafe { InkoString::read(&arguments[0]) };
-    let time =
-        DateTime::from_system_time(fs::metadata(path)?.created()?).timestamp();
+    let time = system_time_to_timestamp(fs::metadata(path)?.created()?);
 
     Ok(Float::alloc(state.permanent_space.float_class(), time))
 }
@@ -139,8 +138,7 @@ pub(crate) fn path_modified_at(
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
     let path = unsafe { InkoString::read(&arguments[0]) };
-    let time =
-        DateTime::from_system_time(fs::metadata(path)?.modified()?).timestamp();
+    let time = system_time_to_timestamp(fs::metadata(path)?.modified()?);
 
     Ok(Float::alloc(state.permanent_space.float_class(), time))
 }
@@ -151,8 +149,7 @@ pub(crate) fn path_accessed_at(
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
     let path = unsafe { InkoString::read(&arguments[0]) };
-    let time =
-        DateTime::from_system_time(fs::metadata(path)?.accessed()?).timestamp();
+    let time = system_time_to_timestamp(fs::metadata(path)?.accessed()?);
 
     Ok(Float::alloc(state.permanent_space.float_class(), time))
 }
@@ -343,4 +340,14 @@ fn open_file(
         .open(path)
         .map(|fd| Pointer::boxed(fd))
         .map_err(|e| RuntimeError::from(e))
+}
+
+fn system_time_to_timestamp(time: SystemTime) -> f64 {
+    let duration = if time < UNIX_EPOCH {
+        UNIX_EPOCH.duration_since(time)
+    } else {
+        time.duration_since(UNIX_EPOCH)
+    };
+
+    duration.unwrap().as_secs_f64()
 }
