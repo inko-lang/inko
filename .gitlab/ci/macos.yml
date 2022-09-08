@@ -15,7 +15,7 @@ test:rust:macos:
     - rustc --version
     - cargo --version
   script:
-    - env LLVM_CONFIG_PATH="$(brew --prefix llvm)/bin/llvm-config" cargo test
+    - cargo test
   cache:
     key: macos
     paths:
@@ -33,8 +33,7 @@ test:libstd:macos:
     - cargo --version
   script:
     - cd libstd
-    - env LLVM_CONFIG_PATH="$(brew --prefix llvm)/bin/llvm-config"
-      cargo run --release -p inko -- test
+    - cargo run --release -p inko -- test
   cache:
     key: macos
     paths:
