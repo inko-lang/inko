@@ -1,77 +1,25 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require 'optparse'
-require 'time'
+require 'json'
+require 'net/http'
+require 'uri'
 
-def commits_in(directories, from, to)
-  command = "git log #{from}..#{to} --format='* %h: %s' " \
-    "--extended-regexp --invert-grep --grep '^Release' #{directories.join(' ')}"
+version = ARGV.fetch(0)
+uri =
+  URI.parse('https://gitlab.com/api/v4/projects/4545016/repository/changelog')
+uri.query = URI.encode_www_form(version: version)
+resp = Net::HTTP.get_response(uri)
 
-  output = `#{command}`.strip
-
-  output.empty? ? 'No changes.' : output
+unless resp.is_a?(Net::HTTPSuccess)
+  abort "Failed to get the changelog: #{resp.body}"
 end
 
-changelog = File.expand_path('../CHANGELOG.md', __dir__)
-options = {
-  from: `git tag --sort taggerdate`.lines.last&.strip,
-  to: 'HEAD',
-  version: ARGV.fetch(0)
-}
+section = JSON.load(resp.body).fetch('notes')
+file = File.expand_path('../CHANGELOG.md', __dir__)
+changelog = File.read(file)
+marker = "<!-- new section -->\n"
 
-parser = OptionParser.new do |o|
-  o.banner = 'Usage: changelog.rb [OPTIONS]'
-
-  o.separator("\nOptions:\n")
-
-  o.on('-h', '--help', 'Shows this help message') do
-    abort o.to_s
-  end
-
-  o.on('-f', '--from SHA', 'The first commit or tag for the changelog') do |val|
-    options[:from] = val unless val.empty?
-  end
-
-  o.on('-t', '--to SHA', 'The last commit or tag for the changelog') do |val|
-    options[:to] = val unless val.empty?
-  end
-end
-
-parser.parse!(ARGV)
-
-from = options[:from]
-to = options[:to]
-
-commits = commits_in(
-  [
-    '.cargo',
-    'ast',
-    'bytecode',
-    'compiler',
-    'docs',
-    'inko',
-    'libstd',
-    'types',
-    'vm',
-    'Cargo.lock',
-    'Cargo.toml',
-    'Dockerfile',
-    'LICENSE',
-    'Makefile'
-  ],
-  from,
-  to
-)
-
-new_changelog = File.read(changelog).gsub('# Changelog', <<~CHANGELOG.strip)
-  # Changelog
-
-  ## #{options[:version]} - #{Time.now.strftime('%B %d, %Y')}
-
-  #{commits}
-CHANGELOG
-
-File.open(changelog, 'w') do |handle|
-  handle.write(new_changelog)
+File.open(file, 'w') do |handle|
+  handle.write(changelog.gsub(marker, "#{marker}\n#{section}"))
 end

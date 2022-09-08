@@ -185,3 +185,26 @@ gitlint --commits 'HEAD~10..HEAD'
 
 For more details about writing commit messages, take a look at
 [this article](https://chris.beams.io/posts/git-commit/).
+
+### Changelog entries
+
+The changelog is generated from Git commits, using [GitLab's changelog
+API](https://docs.gitlab.com/ee/api/repositories.html#generate-changelog-data).
+To include a commit in the changelog, add the `Changelog` trailer to the end of
+the commit. This trailer can be set to the following values:
+
+- `added`: for new features
+- `fixed`: for bug fixes
+- `changed`: for something that changed but isn't necessarily a bug fix
+- `other`: for any other kind of change
+
+For example:
+
+```
+This is the subject of a commit
+
+This is the body of the commit message, providing more details about the
+changes.
+
+Changelog: fixed
+```
