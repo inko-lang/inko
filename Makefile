@@ -69,17 +69,19 @@ ${TMP_DIR}:
 
 ${SOURCE_TAR}: ${TMP_DIR}
 	git archive --format tar HEAD \
+		.cargo \
+		CHANGELOG.md \
+		Cargo.lock \
+		Cargo.toml \
+		LICENSE \
+		Makefile \
 		ast \
 		bytecode \
 		compiler \
+		inko \
 		libstd/src \
 		vm \
-		.cargo \
-		Cargo.toml \
-		Cargo.lock \
-		CHANGELOG.md \
-		LICENSE \
-		Makefile \
+		types \
 		| gzip > "${@}"
 
 release/source: ${SOURCE_TAR}
