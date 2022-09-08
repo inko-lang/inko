@@ -335,7 +335,15 @@ fn pub tests(t: mut Tests) {
     t.true(Ipv4Address.parse('1.2.3.4/24').none?)
     t.true(Ipv4Address.parse('.2.3.4').none?)
     t.true(Ipv4Address.parse('.').none?)
+    t.true(Ipv4Address.parse('....').none?)
     t.true(Ipv4Address.parse('').none?)
+
+    t.true(Ipv4Address.parse('0127.0.0.1').none?)
+    t.true(Ipv4Address.parse('00127.0.0.1').none?)
+    t.true(Ipv4Address.parse('127.00.0.1').none?)
+    t.true(Ipv4Address.parse('127.0.00.1').none?)
+    t.true(Ipv4Address.parse('127.0.0.01').none?)
+    t.true(Ipv4Address.parse('127.0.0.001').none?)
   }
 
   t.test('Ipv4Address.broadcast?') fn (t) {

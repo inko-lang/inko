@@ -6,6 +6,9 @@ import std::string::(IntoString, StringBuffer, ToString)
 # The byte for a single dot (".").
 let DOT_BYTE = 46
 
+# The byte for zero as a string ("0").
+let ZERO_BYTE = 48
+
 # The byte for a single colon (":").
 let COLON_BYTE = 58
 
@@ -610,7 +613,7 @@ class pub Ipv4Address {
   let @c: Int
   let @d: Int
 
-  # Parses an IPv4 address literal (e.g. 1.2.3.4).
+  # Parses an IPv4 address literal (e.g. "1.2.3.4").
   #
   # # Examples
   #
@@ -622,33 +625,30 @@ class pub Ipv4Address {
   #
   #     addr.v4? # => true
   fn pub static parse(input: ref String) -> Option[Self] {
-    let bytes = input.to_byte_array
-    let mut cursor = 0
-    let max = bytes.length
-    let segments = []
-    let segment_bytes = ByteArray.new
-
     # No IPv4 address can be longer than 15 characters (255.255.255.255).
-    if max > 15 { return Option.None }
+    if input.size > 15 { return Option.None }
 
-    while cursor < max {
-      while cursor < max and bytes[cursor] != DOT_BYTE {
-        segment_bytes.push(bytes[cursor])
-        cursor += 1
+    let segments = []
+
+    input.split('.').each fn (segment) {
+      # This handles inputs such as "." and "..."
+      if segment.empty? { return }
+
+      # We don't support octal formats, as it was never part of the spec.
+      # Ignoring them can lead to security issues, as described in
+      # https://www.bleepingcomputer.com/news/security/go-rust-net-library-affected-by-critical-ip-address-validation-vulnerability/.
+      if segment.byte(0) == ZERO_BYTE and segment.size > 1 {
+        return
       }
 
-      let int = match Int.from_base10(segment_bytes.drain_to_string) {
-        case Some(int) -> int
-        case _ -> return Option.None
+      match Int.from_base10(segment) {
+        case Some(int)
+          if int >= IP_MINIMUM_VALUE and int <= IPV4_OCTET_MAXIMUM ->
+        {
+          segments.push(int)
+        }
+        case _ -> {}
       }
-
-      if int < IP_MINIMUM_VALUE or int > IPV4_OCTET_MAXIMUM {
-        return Option.None
-      }
-
-      segments.push(int)
-
-      cursor += 1
     }
 
     if segments.length != IPV4_OCTETS { return Option.None }
