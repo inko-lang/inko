@@ -579,11 +579,8 @@ impl<'a> DefineConstants<'a> {
 
     fn run(mut self, module: &mut hir::Module) {
         for expression in module.expressions.iter_mut() {
-            match expression {
-                hir::TopLevelExpression::Constant(ref mut n) => {
-                    self.define_constant(n);
-                }
-                _ => {}
+            if let hir::TopLevelExpression::Constant(ref mut n) = expression {
+                self.define_constant(n);
             }
         }
     }
