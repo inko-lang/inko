@@ -622,7 +622,7 @@ mod tests {
 
         // The method instructions
         pack_u32(&mut chunk, 1);
-        pack_u8(&mut chunk, 95);
+        pack_u8(&mut chunk, 94);
         pack_u16(&mut chunk, 2);
 
         // The location table
@@ -645,7 +645,7 @@ mod tests {
 
         // The method instructions
         pack_u32(&mut chunk, 1);
-        pack_u8(&mut chunk, 95);
+        pack_u8(&mut chunk, 94);
         pack_u16(&mut chunk, 2);
 
         // The location table
@@ -875,7 +875,7 @@ mod tests {
         let arg1 = u16::from_le_bytes([u32_bytes[0], u32_bytes[1]]);
         let arg2 = u16::from_le_bytes([u32_bytes[2], u32_bytes[3]]);
 
-        pack_u8(&mut buffer, 50);
+        pack_u8(&mut buffer, 49);
         pack_u16(&mut buffer, 14);
         pack_u16(&mut buffer, arg1);
         pack_u16(&mut buffer, arg2);

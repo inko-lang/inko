@@ -14,6 +14,12 @@ trait pub ToInt {
   fn pub to_int -> Int
 }
 
+# The minimum value an `Int` can represent.
+let pub MIN = -9_223_372_036_854_775_808
+
+# The maximum value an `Int` can represent.
+let pub MAX = 9_223_372_036_854_775_807
+
 # A 64-bits signed integer type.
 #
 # `Int` values can represent values in the range

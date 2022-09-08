@@ -10,7 +10,7 @@ use crate::type_check::define_types::{
     DefineTypeParameters, DefineTypes, DefineVariants, ImplementTraits,
     InsertPrelude,
 };
-use crate::type_check::expressions::Expressions;
+use crate::type_check::expressions::{DefineConstants, Expressions};
 use crate::type_check::imports::DefineImportedTypes;
 use crate::type_check::methods::{
     check_main_process, define_builtin_functions, DefineMethods,
@@ -180,6 +180,7 @@ impl Compiler {
             && check_main_process(state)
             && ImplementTraitMethods::run_all(state, modules)
             && define_builtin_functions(state)
+            && DefineConstants::run_all(state, modules)
             && Expressions::run_all(state, modules)
     }
 

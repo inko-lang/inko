@@ -559,8 +559,49 @@ impl MethodCall {
     }
 }
 
-/// A compiler pass for type-checking expressions in method bodies and
-/// constants.
+/// A compiler pass for type-checking constant definitions.
+pub(crate) struct DefineConstants<'a> {
+    state: &'a mut State,
+    module: ModuleId,
+}
+
+impl<'a> DefineConstants<'a> {
+    pub(crate) fn run_all(
+        state: &'a mut State,
+        modules: &mut Vec<hir::Module>,
+    ) -> bool {
+        for module in modules {
+            DefineConstants { state, module: module.module_id }.run(module);
+        }
+
+        !state.diagnostics.has_errors()
+    }
+
+    fn run(mut self, module: &mut hir::Module) {
+        for expression in module.expressions.iter_mut() {
+            match expression {
+                hir::TopLevelExpression::Constant(ref mut n) => {
+                    self.define_constant(n);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn define_constant(&mut self, node: &mut hir::DefineConstant) {
+        let id = node.constant_id.unwrap();
+        let typ = CheckConstant::new(self.state, self.module)
+            .expression(&mut node.value);
+
+        id.set_value_type(self.db_mut(), typ);
+    }
+
+    fn db_mut(&mut self) -> &mut Database {
+        &mut self.state.db
+    }
+}
+
+/// A compiler pass for type-checking expressions in methods.
 pub(crate) struct Expressions<'a> {
     state: &'a mut State,
     module: ModuleId,
@@ -595,9 +636,6 @@ impl<'a> Expressions<'a> {
                 }
                 hir::TopLevelExpression::ModuleMethod(ref mut n) => {
                     self.define_module_method(n);
-                }
-                hir::TopLevelExpression::Constant(ref mut n) => {
-                    self.define_constant(n);
                 }
                 _ => {}
             }
@@ -685,14 +723,6 @@ impl<'a> Expressions<'a> {
         for n in &mut node.body {
             self.define_instance_method(n, &bounds);
         }
-    }
-
-    fn define_constant(&mut self, node: &mut hir::DefineConstant) {
-        let id = node.constant_id.unwrap();
-        let typ = CheckConstant::new(self.state, self.module)
-            .expression(&mut node.value);
-
-        id.set_value_type(self.db_mut(), typ);
     }
 
     fn define_module_method(&mut self, node: &mut hir::DefineModuleMethod) {
@@ -2541,8 +2571,8 @@ impl<'a> CheckMethodBody<'a> {
 
     /// A reference to a constant.
     ///
-    /// Types are not allowed, as they can't be used as values
-    /// (e.g. `return ToString` makes no sense).
+    /// Types are not allowed, as they can't be used as values (e.g. `return
+    /// ToString` makes no sense).
     fn constant(
         &mut self,
         node: &mut hir::ConstantRef,

@@ -3,7 +3,7 @@ import std::clone::Clone
 import std::cmp::(Compare, Equal, Ordering)
 import std::fmt::(Format, Formatter)
 import std::hash::(Hash, Hasher)
-import std::int::ToInt
+import std::int::(MAX, MIN, ToInt)
 import std::ops::*
 import std::string::ToString
 
@@ -35,6 +35,15 @@ class builtin Float {
   # Returns the negative infinity value.
   fn pub static negative_infinity -> Float {
     -1.0 / 0.0
+  }
+
+  # Returns a `Float` by interpreting the given `Int` as the bits of the float.
+  #
+  # # Example
+  #
+  #     Float.from_bits(0x4029000000000000) # => 12.5
+  fn pub static from_bits(bits: Int) -> Float {
+    _INKO.float_from_bits(bits)
   }
 
   # Parses a `Float` from a `String`.
@@ -71,7 +80,7 @@ class builtin Float {
   #     42.0.absolute  # => 42
   #     -42.0.absolute # => 42
   fn pub absolute -> Self {
-    if self < 0.0 { 0.0 - self } else { clone }
+    Float.from_bits(to_bits & MAX)
   }
 
   # Returns a value with the opposite sign of `self`.
@@ -81,7 +90,7 @@ class builtin Float {
   #     42.0.opposite  # => -42
   #     -42.0.opposite # => 42
   fn pub opposite -> Self {
-    0.0 - self
+    Float.from_bits(to_bits ^ MIN)
   }
 
   # Returns `true` if `self` is not a number (NAN).

@@ -182,13 +182,6 @@ pub(crate) fn round(
 }
 
 #[inline(always)]
-pub(crate) fn to_bits(state: &State, pointer: Pointer) -> Pointer {
-    let bits = unsafe { Float::read(pointer) }.to_bits() as i64;
-
-    Int::alloc(state.permanent_space.int_class(), bits)
-}
-
-#[inline(always)]
 pub(crate) fn to_int(state: &State, pointer: Pointer) -> Pointer {
     let float = unsafe { Float::read(pointer) };
 

@@ -21,6 +21,12 @@ fn pub tests(t: mut Tests) {
     t.true(Float.negative_infinity.infinite?)
   }
 
+  t.test('Float.from_bits') fn (t) {
+    t.equal(Float.from_bits(0), 0.0)
+    t.equal(Float.from_bits(-123.4.to_bits), -123.4)
+    t.equal(Float.from_bits(0x4029000000000000), 12.5)
+  }
+
   t.test('Float.parse') fn (t) {
     t.equal(Float.parse('10.2'), Option.Some(10.2))
     t.equal(Float.parse('1.2e1'), Option.Some(12.0))
@@ -42,6 +48,7 @@ fn pub tests(t: mut Tests) {
     t.equal(10.2.absolute, 10.2)
     t.equal(-10.2.absolute, 10.2)
     t.equal(-0.0.absolute, 0.0)
+    t.equal(-123094797234.1023874.absolute, 123094797234.1023874)
     t.true(Float.not_a_number.absolute.not_a_number?)
     t.equal(Float.infinity.absolute, Float.infinity)
     t.equal(Float.negative_infinity.absolute, Float.infinity)
@@ -50,6 +57,9 @@ fn pub tests(t: mut Tests) {
   t.test('Float.opposite') fn (t) {
     t.equal(10.2.opposite, -10.2)
     t.equal(-10.2.opposite, 10.2)
+    t.equal(-123.456789.opposite, 123.456789)
+    t.equal(123094797234.1023874.opposite, -123094797234.1023874)
+    t.equal(-123094797234.1023874.opposite, 123094797234.1023874)
     t.equal(-0.0.opposite, 0.0)
     t.equal(0.0.opposite, -0.0)
     t.true(Float.not_a_number.opposite.not_a_number?)

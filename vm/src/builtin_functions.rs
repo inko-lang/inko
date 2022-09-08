@@ -9,6 +9,7 @@ mod array;
 mod byte_array;
 mod env;
 mod ffi;
+mod float;
 mod fs;
 mod hasher;
 mod process;
@@ -190,6 +191,8 @@ impl BuiltinFunctions {
                 array::array_reserve,
                 array::array_capacity,
                 process::process_stacktrace_length,
+                float::float_to_bits,
+                float::float_from_bits,
             ],
         }
     }

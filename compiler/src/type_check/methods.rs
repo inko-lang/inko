@@ -1399,6 +1399,8 @@ pub(crate) fn define_builtin_functions(state: &mut State) -> bool {
         (BIF::ArrayReserve, nil, never),
         (BIF::ArrayCapacity, int, never),
         (BIF::ProcessStacktraceLength, int, never),
+        (BIF::FloatToBits, int, never),
+        (BIF::FloatFromBits, float, never),
     ];
 
     // Regular VM instructions exposed directly to the standard library. These
@@ -1440,7 +1442,6 @@ pub(crate) fn define_builtin_functions(state: &mut State) -> bool {
         (Opcode::FloatMul, float),
         (Opcode::FloatRound, float),
         (Opcode::FloatSub, float),
-        (Opcode::FloatToBits, int),
         (Opcode::FloatToInt, int),
         (Opcode::FloatToString, string),
         (Opcode::FutureDrop, any),
