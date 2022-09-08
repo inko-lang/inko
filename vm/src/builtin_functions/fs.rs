@@ -336,10 +336,7 @@ fn open_file(
 ) -> Result<Pointer, RuntimeError> {
     let path = unsafe { InkoString::read(&path_ptr) };
 
-    options
-        .open(path)
-        .map(Pointer::boxed)
-        .map_err(RuntimeError::from)
+    options.open(path).map(Pointer::boxed).map_err(RuntimeError::from)
 }
 
 fn system_time_to_timestamp(time: SystemTime) -> f64 {
