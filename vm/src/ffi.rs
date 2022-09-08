@@ -621,7 +621,7 @@ mod tests {
     const LIBM: &'static str = "libm.dylib";
 
     #[cfg(target_os = "linux")]
-    const LIBM: &'static str = "libm.so.6";
+    const LIBM: &str = "libm.so.6";
 
     #[cfg(target_os = "windows")]
     const LIBM: &'static str = "msvcrt.dll";

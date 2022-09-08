@@ -338,8 +338,8 @@ fn open_file(
 
     options
         .open(path)
-        .map(|fd| Pointer::boxed(fd))
-        .map_err(|e| RuntimeError::from(e))
+        .map(Pointer::boxed)
+        .map_err(RuntimeError::from)
 }
 
 fn system_time_to_timestamp(time: SystemTime) -> f64 {

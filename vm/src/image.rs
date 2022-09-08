@@ -483,7 +483,6 @@ mod tests {
     use crate::mem::{Float, Int, String as InkoString};
     use crate::test::OwnedClass;
     use bytecode::Opcode;
-    use std::mem;
     use std::u64;
 
     fn pack_signature(buffer: &mut Vec<u8>) {
@@ -496,34 +495,34 @@ mod tests {
 
     fn pack_u16(buffer: &mut Vec<u8>, value: u16) {
         let num = u16::to_le(value);
-        let bytes: [u8; 2] = unsafe { mem::transmute(num) };
+        let bytes = num.to_ne_bytes();
 
         buffer.extend_from_slice(&bytes);
     }
 
     fn pack_u32(buffer: &mut Vec<u8>, value: u32) {
         let num = u32::to_le(value);
-        let bytes: [u8; 4] = unsafe { mem::transmute(num) };
+        let bytes = num.to_ne_bytes();
 
         buffer.extend_from_slice(&bytes);
     }
 
     fn pack_u64(buffer: &mut Vec<u8>, value: u64) {
         let num = u64::to_le(value);
-        let bytes: [u8; 8] = unsafe { mem::transmute(num) };
+        let bytes = num.to_ne_bytes();
 
         buffer.extend_from_slice(&bytes);
     }
 
     fn pack_i64(buffer: &mut Vec<u8>, value: i64) {
         let num = i64::to_le(value);
-        let bytes: [u8; 8] = unsafe { mem::transmute(num) };
+        let bytes = num.to_ne_bytes();
 
         buffer.extend_from_slice(&bytes);
     }
 
     fn pack_f64(buffer: &mut Vec<u8>, value: f64) {
-        pack_u64(buffer, unsafe { mem::transmute(value) });
+        pack_u64(buffer, value.to_bits());
     }
 
     fn pack_string(buffer: &mut Vec<u8>, string: &str) {
@@ -881,7 +880,7 @@ mod tests {
         pack_u16(&mut buffer, arg1);
         pack_u16(&mut buffer, arg2);
 
-        let ins = read_instruction(reader!(buffer), &mut constants).unwrap();
+        let ins = read_instruction(reader!(buffer), &constants).unwrap();
 
         assert_eq!(ins.opcode, Opcode::GetConstant);
         assert_eq!(ins.arg(0), 14);
@@ -891,7 +890,7 @@ mod tests {
     #[test]
     fn test_read_instructions() {
         let mut buffer = Vec::new();
-        let mut constants = Chunk::new(0);
+        let constants = Chunk::new(0);
 
         pack_u32(&mut buffer, 1);
         pack_u8(&mut buffer, 0);
@@ -899,7 +898,7 @@ mod tests {
         pack_u16(&mut buffer, 2);
         pack_u16(&mut buffer, 4);
 
-        let ins = read_instructions(reader!(buffer), &mut constants).unwrap();
+        let ins = read_instructions(reader!(buffer), &constants).unwrap();
 
         assert_eq!(ins.len(), 1);
         assert_eq!(ins[0].opcode, Opcode::Allocate);
@@ -953,10 +952,7 @@ mod tests {
     #[test]
     fn test_read_class_with_builtin_class() {
         let mut buffer = Vec::new();
-        let mut counts = MethodCounts::default();
-
-        counts.int_class = 1;
-
+        let counts = MethodCounts { int_class: 1, ..Default::default() };
         let perm = PermanentSpace::new(0, 0, counts);
         let mut constants = Chunk::new(1);
 

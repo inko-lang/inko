@@ -159,7 +159,7 @@ mod tests {
 
         queue.push_internal(10);
 
-        assert_eq!(queue.worker.is_empty(), false);
+        assert!(!queue.worker.is_empty());
     }
 
     #[test]
@@ -188,7 +188,7 @@ mod tests {
         let queue1 = Queue::new();
         let queue2 = Queue::new();
 
-        assert_eq!(queue1.steal_into(&queue2), false);
+        assert!(!queue1.steal_into(&queue2));
 
         queue1.push_internal(10);
 
@@ -230,7 +230,7 @@ mod tests {
     fn test_move_external_jobs_without_jobs() {
         let queue: Queue<()> = Queue::new();
 
-        assert_eq!(queue.move_external_jobs(), false);
+        assert!(!queue.move_external_jobs());
     }
 
     #[test]
@@ -260,7 +260,7 @@ mod tests {
     fn test_has_external_jobs() {
         let queue = Queue::new();
 
-        assert_eq!(queue.has_external_jobs(), false);
+        assert!(!queue.has_external_jobs());
 
         queue.push_external(10);
 

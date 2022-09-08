@@ -387,7 +387,7 @@ mod tests {
         worker.terminate();
         worker.handle_pending_messages();
 
-        assert_eq!(worker.is_alive(), false);
+        assert!(!worker.is_alive());
     }
 
     #[test]
@@ -410,7 +410,7 @@ mod tests {
         worker.terminate();
         worker.wait_for_message();
 
-        assert_eq!(worker.is_alive(), false);
+        assert!(!worker.is_alive());
     }
 
     #[test]
@@ -420,7 +420,7 @@ mod tests {
         worker.terminate();
         worker.wait_for_message_with_timeout(Duration::from_millis(5));
 
-        assert_eq!(worker.is_alive(), false);
+        assert!(!worker.is_alive());
     }
 
     #[test]
@@ -439,7 +439,7 @@ mod tests {
 
         worker.handle_message(Message::Terminate);
 
-        assert_eq!(worker.is_alive(), false);
+        assert!(!worker.is_alive());
     }
 
     #[test]
@@ -450,7 +450,7 @@ mod tests {
 
         worker.handle_message(Message::Terminate);
 
-        assert_eq!(worker.is_alive(), false);
+        assert!(!worker.is_alive());
     }
 
     #[test]
@@ -470,7 +470,7 @@ mod tests {
         let process = Process::alloc(*class);
         let worker = TimeoutWorker::new();
 
-        assert_eq!(worker.heap_is_fragmented(), false);
+        assert!(!worker.heap_is_fragmented());
 
         for time in &[1_u64, 2_u64] {
             let timeout = Timeout::with_rc(Duration::from_secs(*time));

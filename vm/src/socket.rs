@@ -466,7 +466,7 @@ mod tests {
 
         let socket2 = socket1.try_clone().unwrap();
 
-        assert_eq!(socket2.registered.load(Ordering::Acquire), false);
-        assert_eq!(socket2.unix, false);
+        assert!(!socket2.registered.load(Ordering::Acquire));
+        assert!(!socket2.unix);
     }
 }

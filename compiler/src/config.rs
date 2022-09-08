@@ -56,7 +56,7 @@ impl Config {
     pub(crate) fn new() -> Self {
         let cwd = env::current_dir().unwrap_or_else(|_| PathBuf::new());
         let libstd = option_env!("INKO_LIBSTD")
-            .map(|p| PathBuf::from(p))
+            .map(PathBuf::from)
             .unwrap_or_else(|| {
                 // To ease the development process, we default to the standard
                 // library directory in the Git repository. This way you don't

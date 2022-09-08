@@ -3889,7 +3889,7 @@ impl<'a> LowerMethod<'a> {
 
         if partially_moved {
             for (id, _) in &fields {
-                let reg = self.field_mapping.get(&id).cloned().unwrap();
+                let reg = self.field_mapping.get(id).cloned().unwrap();
 
                 if self.register_is_moved(reg) {
                     continue;
@@ -4239,9 +4239,8 @@ impl<'a> LowerMethod<'a> {
 
         // This is an indicationg we're trying to get a register's state, but
         // without first connecting all basic blocks properly.
-        debug_assert_eq!(
-            initial,
-            false,
+        debug_assert!(
+            !initial,
             "missing state for register r{} in block b{} (method {:?} in {:?})",
             register.0,
             block.0,

@@ -253,10 +253,7 @@ mod tests {
 
         Module::alloc(&mut state.db, ModuleName::new("bar"), "bar.inko".into());
 
-        assert_eq!(
-            DefineImportedTypes::run_all(&mut state, &mut modules),
-            false
-        );
+        assert!(!DefineImportedTypes::run_all(&mut state, &mut modules));
 
         let error = state.diagnostics.iter().next().unwrap();
 
@@ -347,7 +344,7 @@ mod tests {
         let foo_mod = modules[0].module_id;
 
         assert!(foo_mod.symbol_exists(&state.db, &symbol));
-        assert_eq!(foo_mod.symbol_exists(&state.db, &"bar".to_string()), false);
+        assert!(!foo_mod.symbol_exists(&state.db, "bar"));
         assert_eq!(
             foo_mod.symbol(&state.db, &symbol),
             Some(Symbol::Module(bar_mod))
@@ -395,10 +392,7 @@ mod tests {
 
         Module::alloc(&mut state.db, ModuleName::new("bar"), "bar.inko".into());
 
-        assert_eq!(
-            DefineImportedTypes::run_all(&mut state, &mut modules),
-            false
-        );
+        assert!(!DefineImportedTypes::run_all(&mut state, &mut modules));
 
         let error = state.diagnostics.iter().next().unwrap();
 
@@ -501,7 +495,7 @@ mod tests {
         let foo_mod = modules[0].module_id;
 
         assert!(foo_mod.symbol_exists(&state.db, &symbol));
-        assert_eq!(foo_mod.symbol_exists(&state.db, &"Foo".to_string()), false);
+        assert!(!foo_mod.symbol_exists(&state.db, "Foo"));
         assert_eq!(
             foo_mod.symbol(&state.db, &symbol),
             Some(Symbol::Module(bar_mod))
@@ -559,10 +553,7 @@ mod tests {
             Symbol::Module(bar_mod),
         );
 
-        assert_eq!(
-            DefineImportedTypes::run_all(&mut state, &mut modules),
-            false
-        );
+        assert!(!DefineImportedTypes::run_all(&mut state, &mut modules));
 
         let error = state.diagnostics.iter().next().unwrap();
 
@@ -659,10 +650,7 @@ mod tests {
 
         Module::alloc(&mut state.db, ModuleName::new("bar"), "bar.inko".into());
 
-        assert_eq!(
-            DefineImportedTypes::run_all(&mut state, &mut modules),
-            false
-        );
+        assert!(!DefineImportedTypes::run_all(&mut state, &mut modules));
 
         let error = state.diagnostics.iter().next().unwrap();
 

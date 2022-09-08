@@ -71,7 +71,7 @@ pub(crate) fn env_get_working_directory(
     _: ProcessPointer,
     _: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
-    let path = directories::working_directory().map(|p| canonalize(p))?;
+    let path = directories::working_directory().map(canonalize)?;
 
     Ok(InkoString::alloc(state.permanent_space.string_class(), path))
 }

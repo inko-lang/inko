@@ -173,7 +173,7 @@ docs/versions:
 
 clippy:
 	touch */src/lib.rs */src/main.rs
-	cargo clippy ${TARGET_OPTION} ${FEATURES_OPTION}
+	cargo clippy ${TARGET_OPTION} ${FEATURES_OPTION} -- -D warnings
 
 rustfmt-check:
 	rustfmt --check */src/lib.rs */src/main.rs

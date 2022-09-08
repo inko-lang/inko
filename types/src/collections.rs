@@ -176,7 +176,7 @@ mod tests {
         map.insert("A", 10);
 
         assert!(map.contains_key(&"A"));
-        assert_eq!(map.contains_key(&"B"), false);
+        assert!(!map.contains_key(&"B"));
     }
 
     #[test]

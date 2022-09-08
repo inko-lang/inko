@@ -349,7 +349,7 @@ mod tests {
 
         scheduler.terminate();
 
-        assert_eq!(scheduler.pool.state.is_alive(), false);
+        assert!(!scheduler.pool.state.is_alive());
     }
 
     #[test]
@@ -392,7 +392,7 @@ mod tests {
         thread.state.queues[0].push_external(process);
         thread.run(&state);
 
-        assert_eq!(thread.state.queues[0].has_external_jobs(), false);
+        assert!(!thread.state.queues[0].has_external_jobs());
     }
 
     #[test]
@@ -464,9 +464,9 @@ mod tests {
         let state = setup();
         let pool = &state.scheduler.pool;
 
-        assert_eq!(pool.state.is_alive(), true);
+        assert!(pool.state.is_alive());
         pool.terminate();
-        assert_eq!(pool.state.is_alive(), false);
+        assert!(!pool.state.is_alive());
     }
 
     #[test]
@@ -479,7 +479,7 @@ mod tests {
 
         threads.join().unwrap();
 
-        assert_eq!(pool.state.is_alive(), false);
+        assert!(!pool.state.is_alive());
 
         Method::drop_and_deallocate(method);
     }
@@ -513,7 +513,7 @@ mod tests {
 
         thread.join().unwrap();
 
-        assert_eq!(pool.state.has_global_jobs(), false);
+        assert!(!pool.state.has_global_jobs());
     }
 
     #[test]
@@ -537,7 +537,7 @@ mod tests {
 
         state.push_global(process);
 
-        assert_eq!(state.global_queue.is_empty(), false);
+        assert!(!state.global_queue.is_empty());
     }
 
     #[test]
@@ -560,7 +560,7 @@ mod tests {
 
         state.terminate();
 
-        assert_eq!(state.is_alive(), false);
+        assert!(!state.is_alive());
     }
 
     #[test]
@@ -587,7 +587,7 @@ mod tests {
         let process = proc_wrapper.take_and_forget();
         let state = State::new(4);
 
-        assert_eq!(state.has_global_jobs(), false);
+        assert!(!state.has_global_jobs());
 
         state.push_global(process);
 

@@ -4430,10 +4430,7 @@ impl TypeRef {
             // Type errors are compatible with all other types to prevent a
             // cascade of type errors.
             TypeRef::Error => true,
-            TypeRef::Any => match with {
-                TypeRef::Any | TypeRef::Error => true,
-                _ => false,
-            },
+            TypeRef::Any => matches!(with, TypeRef::Any | TypeRef::Error),
             TypeRef::Placeholder(id) => {
                 if let Some(assigned) = id.value(db) {
                     return assigned.type_check(db, with, context, subtyping);
@@ -5557,8 +5554,8 @@ mod tests {
             ModuleId(0),
         );
 
-        assert_eq!(regular_class.kind(&db).is_async(), false);
-        assert_eq!(async_class.kind(&db).is_async(), true);
+        assert!(!regular_class.kind(&db).is_async());
+        assert!(async_class.kind(&db).is_async());
     }
 
     #[test]
@@ -6208,7 +6205,7 @@ mod tests {
         let param = method.new_type_parameter(&mut db, "A".to_string());
 
         assert_eq!(
-            method.named_type(&db, &"A".to_string()),
+            method.named_type(&db, "A"),
             Some(Symbol::TypeParameter(param))
         );
     }
@@ -6770,7 +6767,7 @@ mod tests {
 
         id.new_symbol(&mut db, "A".to_string(), Symbol::Module(id));
 
-        assert_eq!(id.symbol(&db, &"A".to_string()), Some(Symbol::Module(id)));
+        assert_eq!(id.symbol(&db, "A"), Some(Symbol::Module(id)));
     }
 
     #[test]
@@ -6801,8 +6798,8 @@ mod tests {
 
         id.new_symbol(&mut db, "A".to_string(), Symbol::Module(id));
 
-        assert_eq!(id.symbol_exists(&db, &"A".to_string()), true);
-        assert_eq!(id.symbol_exists(&db, &"B".to_string()), false);
+        assert!(id.symbol_exists(&db, "A"));
+        assert!(!id.symbol_exists(&db, "B"));
     }
 
     #[test]
@@ -7121,8 +7118,7 @@ mod tests {
 
         assert_ne!(closure, new_closure);
 
-        let new_arg =
-            new_closure.get(&db).arguments.get(&"a".to_string()).unwrap();
+        let new_arg = new_closure.get(&db).arguments.get("a").unwrap();
 
         assert_eq!(new_arg.value_type, param_type);
         assert_eq!(
@@ -7877,7 +7873,7 @@ mod tests {
         let param = array.new_type_parameter(&mut db, "T".to_string());
 
         assert_eq!(
-            TypeId::Class(array).named_type(&db, &"T".to_string()),
+            TypeId::Class(array).named_type(&db, "T"),
             Some(Symbol::TypeParameter(param))
         );
     }
@@ -7894,7 +7890,7 @@ mod tests {
         let param = to_array.new_type_parameter(&mut db, "T".to_string());
 
         assert_eq!(
-            TypeId::Trait(to_array).named_type(&db, &"T".to_string()),
+            TypeId::Trait(to_array).named_type(&db, "T"),
             Some(Symbol::TypeParameter(param))
         );
     }
@@ -7917,11 +7913,8 @@ mod tests {
 
         module.new_symbol(&mut db, "String".to_string(), symbol);
 
-        assert_eq!(
-            type_id.named_type(&db, &"String".to_string()),
-            Some(symbol)
-        );
-        assert!(type_id.named_type(&db, &"Foo".to_string()).is_none());
+        assert_eq!(type_id.named_type(&db, "String"), Some(symbol));
+        assert!(type_id.named_type(&db, "Foo").is_none());
     }
 
     #[test]
@@ -7942,10 +7935,10 @@ mod tests {
         ));
 
         assert_eq!(
-            ins.named_type(&db, &"T".to_string()),
+            ins.named_type(&db, "T"),
             Some(Symbol::TypeParameter(param))
         );
-        assert!(ins.named_type(&db, &"E".to_string()).is_none());
+        assert!(ins.named_type(&db, "E").is_none());
     }
 
     #[test]
@@ -7965,10 +7958,10 @@ mod tests {
         ));
 
         assert_eq!(
-            ins.named_type(&db, &"T".to_string()),
+            ins.named_type(&db, "T"),
             Some(Symbol::TypeParameter(param))
         );
-        assert!(ins.named_type(&db, &"E".to_string()).is_none());
+        assert!(ins.named_type(&db, "E").is_none());
     }
 
     #[test]
@@ -7979,7 +7972,7 @@ mod tests {
             "T".to_string(),
         ));
 
-        assert!(param.named_type(&db, &"T".to_string()).is_none());
+        assert!(param.named_type(&db, "T").is_none());
     }
 
     #[test]
@@ -7987,7 +7980,7 @@ mod tests {
         let mut db = Database::new();
         let block = TypeId::Closure(Closure::alloc(&mut db, false));
 
-        assert!(block.named_type(&db, &"T".to_string()).is_none());
+        assert!(block.named_type(&db, "T").is_none());
     }
 
     #[test]
@@ -8452,7 +8445,7 @@ mod tests {
     fn test_database_module() {
         let mut db = Database::new();
         let name = ModuleName::new("foo");
-        let id = Module::alloc(&mut db, name.clone(), "foo.inko".into());
+        let id = Module::alloc(&mut db, name, "foo.inko".into());
 
         assert_eq!(db.module("foo"), id);
     }

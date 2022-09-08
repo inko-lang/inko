@@ -837,18 +837,18 @@ mod tests {
         let scope = TypeScope::new(module, array_ins, Some(method));
 
         assert_eq!(
-            scope.symbol(&state.db, &"A".to_string()),
+            scope.symbol(&state.db, "A"),
             Some(Symbol::TypeParameter(method_param))
         );
         assert_eq!(
-            scope.symbol(&state.db, &"B".to_string()),
+            scope.symbol(&state.db, "B"),
             Some(Symbol::TypeParameter(self_param))
         );
         assert_eq!(
-            scope.symbol(&state.db, &"Array".to_string()),
+            scope.symbol(&state.db, "Array"),
             Some(Symbol::Class(array))
         );
-        assert!(scope.symbol(&state.db, &"Foo".to_string()).is_none());
+        assert!(scope.symbol(&state.db, "Foo").is_none());
     }
 
     #[test]
@@ -884,7 +884,7 @@ mod tests {
             .as_trait_instance(&mut node);
 
         assert_eq!(typ, Some(to_string_ins));
-        assert_eq!(state.diagnostics.has_errors(), false);
+        assert!(!state.diagnostics.has_errors());
     }
 
     #[test]
@@ -954,7 +954,7 @@ mod tests {
             DefineTypeSignature::new(&mut state, module, &scope, rules)
                 .define_type(&mut node);
 
-        assert_eq!(state.diagnostics.has_errors(), false);
+        assert!(!state.diagnostics.has_errors());
         assert_eq!(type_ref, TypeRef::Owned(class_instance));
         assert_eq!(variant!(node, hir::Type::Named).resolved_type, type_ref);
     }
@@ -1003,7 +1003,7 @@ mod tests {
             DefineTypeSignature::new(&mut state, bar_mod, &scope, rules)
                 .define_type(&mut node);
 
-        assert_eq!(state.diagnostics.has_errors(), false);
+        assert!(!state.diagnostics.has_errors());
         assert_eq!(type_ref, TypeRef::Owned(class_instance));
         assert_eq!(variant!(node, hir::Type::Named).resolved_type, type_ref);
     }
@@ -1034,9 +1034,7 @@ mod tests {
             cols(1, 1),
         )));
         let scope = TypeScope::new(module, class_instance, None);
-        let mut rules = Rules::default();
-
-        rules.allow_private_types = false;
+        let rules = Rules { allow_private_types: false, ..Default::default() };
 
         DefineTypeSignature::new(&mut state, module, &scope, rules)
             .define_type(&mut node);
@@ -1080,7 +1078,7 @@ mod tests {
             DefineTypeSignature::new(&mut state, module, &scope, rules)
                 .define_type(&mut node);
 
-        assert_eq!(state.diagnostics.has_errors(), false);
+        assert!(!state.diagnostics.has_errors());
         assert_eq!(type_ref, TypeRef::Ref(class_instance));
 
         assert_eq!(
@@ -1119,7 +1117,7 @@ mod tests {
                 .define_type(&mut node);
 
         assert_eq!(type_ref, TypeRef::Owned(TypeId::Closure(ClosureId(0))));
-        assert_eq!(state.diagnostics.has_errors(), false);
+        assert!(!state.diagnostics.has_errors());
         assert_eq!(variant!(node, hir::Type::Closure).resolved_type, type_ref);
     }
 
@@ -1249,7 +1247,7 @@ mod tests {
             .define_type(&mut node);
 
         CheckTypeSignature::new(&mut state, module, instance_a, rules)
-            .check(&mut node);
+            .check(&node);
 
         assert!(state.diagnostics.has_errors());
 

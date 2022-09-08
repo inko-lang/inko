@@ -19,7 +19,7 @@ pub(crate) fn hir_module(
 ) -> hir::Module {
     hir::Module {
         module_id: Module::alloc(&mut state.db, name, "test.inko".into()),
-        expressions: expressions,
+        expressions,
         location: cols(1, 1),
     }
 }

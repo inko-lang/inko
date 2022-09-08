@@ -75,12 +75,12 @@ mod tests {
         let name = "inko_compiler_test.txt";
         let temp = root.join(name);
 
-        paths.add(root.clone());
+        paths.add(root);
         write(&temp, Vec::new()).unwrap();
 
         assert_eq!(
             paths.get(&PathBuf::from(name)),
-            Some(temp.clone().canonicalize().unwrap())
+            Some(temp.canonicalize().unwrap())
         );
 
         remove_file(&temp).unwrap();

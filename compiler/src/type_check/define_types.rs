@@ -1134,11 +1134,12 @@ mod tests {
     use crate::modules_parser::ParsedModule;
     use crate::test::{cols, define_drop_trait};
     use ast::parser::Parser;
+    use std::fmt::Write as _;
     use types::module_name::ModuleName;
     use types::{ClassId, ConstantId, TraitId, TraitInstance};
 
     fn get_trait(db: &Database, module: ModuleId, name: &str) -> TraitId {
-        if let Some(Symbol::Trait(id)) = module.symbol(db, &name.to_string()) {
+        if let Some(Symbol::Trait(id)) = module.symbol(db, name) {
             id
         } else {
             panic!("Expected a Trait");
@@ -1146,7 +1147,7 @@ mod tests {
     }
 
     fn get_class(db: &Database, module: ModuleId, name: &str) -> ClassId {
-        if let Some(Symbol::Class(id)) = module.symbol(db, &name.to_string()) {
+        if let Some(Symbol::Class(id)) = module.symbol(db, name) {
             id
         } else {
             panic!("Expected a Class");
@@ -1184,7 +1185,7 @@ mod tests {
 
         assert!(DefineTypes::run_all(&mut state, &mut modules));
 
-        let sym = modules[0].module_id.symbol(&state.db, &"A".to_string());
+        let sym = modules[0].module_id.symbol(&state.db, "A");
         let id = ConstantId(0);
 
         assert_eq!(state.diagnostics.iter().count(), 0);
@@ -1205,9 +1206,9 @@ mod tests {
         assert_eq!(class_expr(&modules[0]).class_id, Some(id));
 
         assert_eq!(id.name(&state.db), &"A".to_string());
-        assert_eq!(id.kind(&state.db).is_async(), false);
+        assert!(!id.kind(&state.db).is_async());
         assert_eq!(
-            modules[0].module_id.symbol(&state.db, &"A".to_string()),
+            modules[0].module_id.symbol(&state.db, "A"),
             Some(Symbol::Class(id))
         );
     }
@@ -1227,7 +1228,7 @@ mod tests {
         assert_eq!(id.name(&state.db), &"A".to_string());
         assert!(id.kind(&state.db).is_async());
         assert_eq!(
-            modules[0].module_id.symbol(&state.db, &"A".to_string()),
+            modules[0].module_id.symbol(&state.db, "A"),
             Some(Symbol::Class(id))
         );
     }
@@ -1245,7 +1246,7 @@ mod tests {
         assert_eq!(trait_expr(&modules[0]).trait_id, Some(id));
 
         assert_eq!(
-            modules[0].module_id.symbol(&state.db, &"A".to_string()),
+            modules[0].module_id.symbol(&state.db, "A"),
             Some(Symbol::Trait(id))
         );
     }
@@ -1642,7 +1643,7 @@ mod tests {
         assert!(DefineFields::run_all(&mut state, &mut modules));
 
         let person = get_class(&state.db, module, "Person");
-        let field = person.field(&state.db, &"name".to_string()).unwrap();
+        let field = person.field(&state.db, "name").unwrap();
 
         assert_eq!(
             field.value_type(&state.db),
@@ -1686,7 +1687,7 @@ mod tests {
         assert!(!DefineFields::run_all(&mut state, &mut modules));
 
         let person = get_class(&state.db, module, "Person");
-        let field = person.field(&state.db, &"name".to_string()).unwrap();
+        let field = person.field(&state.db, "name").unwrap();
         let string_ins = ClassInstance::new(string);
 
         assert_eq!(
@@ -1713,7 +1714,7 @@ mod tests {
         let mut input = "class Person {".to_string();
 
         for i in 0..260 {
-            input.push_str(&format!("\nlet @{}: String", i));
+            let _ = write!(input, "\nlet @{}: String", i);
         }
 
         input.push_str("\n}");
@@ -1784,10 +1785,7 @@ mod tests {
 
         DefineTypes::run_all(&mut state, &mut modules);
 
-        assert_eq!(
-            DefineTypeParameters::run_all(&mut state, &mut modules),
-            false
-        );
+        assert!(!DefineTypeParameters::run_all(&mut state, &mut modules));
 
         let error = state.diagnostics.iter().next().unwrap();
 

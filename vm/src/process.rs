@@ -1014,7 +1014,7 @@ mod tests {
         assert!(status.is_waiting_for_message());
 
         status.set_waiting_for_message(false);
-        assert_eq!(status.is_waiting_for_message(), false);
+        assert!(!status.is_waiting_for_message());
     }
 
     #[test]
@@ -1025,7 +1025,7 @@ mod tests {
         assert!(status.is_waiting_for_future());
 
         status.set_waiting_for_future(false);
-        assert_eq!(status.is_waiting_for_future(), false);
+        assert!(!status.is_waiting_for_future());
     }
 
     #[test]
@@ -1041,8 +1041,8 @@ mod tests {
 
         status.no_longer_waiting();
 
-        assert_eq!(status.is_waiting_for_future(), false);
-        assert_eq!(status.is_waiting(), false);
+        assert!(!status.is_waiting_for_future());
+        assert!(!status.is_waiting());
     }
 
     #[test]
@@ -1053,14 +1053,14 @@ mod tests {
         assert!(status.timeout_expired());
 
         status.set_timeout_expired(false);
-        assert_eq!(status.timeout_expired(), false);
+        assert!(!status.timeout_expired());
     }
 
     #[test]
     fn test_reschedule_rights_are_acquired() {
-        assert_eq!(RescheduleRights::Failed.are_acquired(), false);
-        assert_eq!(RescheduleRights::Acquired.are_acquired(), true);
-        assert_eq!(RescheduleRights::AcquiredWithTimeout.are_acquired(), true);
+        assert!(!RescheduleRights::Failed.are_acquired());
+        assert!(RescheduleRights::Acquired.are_acquired());
+        assert!(RescheduleRights::AcquiredWithTimeout.are_acquired());
     }
 
     #[test]
@@ -1068,7 +1068,7 @@ mod tests {
         let mut state = ProcessState::new();
         let timeout = Timeout::with_rc(Duration::from_secs(0));
 
-        assert_eq!(state.has_same_timeout(&timeout), false);
+        assert!(!state.has_same_timeout(&timeout));
 
         state.timeout = Some(timeout.clone());
 
@@ -1091,8 +1091,8 @@ mod tests {
             RescheduleRights::Acquired
         );
 
-        assert_eq!(state.status.is_waiting_for_future(), false);
-        assert_eq!(state.status.is_waiting(), false);
+        assert!(!state.status.is_waiting_for_future());
+        assert!(!state.status.is_waiting());
 
         let timeout = Timeout::with_rc(Duration::from_secs(0));
 
@@ -1103,8 +1103,8 @@ mod tests {
             RescheduleRights::AcquiredWithTimeout
         );
 
-        assert_eq!(state.status.is_waiting_for_future(), false);
-        assert_eq!(state.status.is_waiting(), false);
+        assert!(!state.status.is_waiting_for_future());
+        assert!(!state.status.is_waiting());
     }
 
     #[test]
@@ -1138,7 +1138,7 @@ mod tests {
             state.try_reschedule_for_message(),
             RescheduleRights::Acquired
         );
-        assert_eq!(state.status.is_waiting_for_message(), false);
+        assert!(!state.status.is_waiting_for_message());
     }
 
     #[test]
@@ -1152,7 +1152,7 @@ mod tests {
             state.try_reschedule_for_future(),
             RescheduleRights::Acquired
         );
-        assert_eq!(state.status.is_waiting_for_future(), false);
+        assert!(!state.status.is_waiting_for_future());
 
         state.status.set_waiting_for_future(true);
         state.timeout = Some(Timeout::with_rc(Duration::from_secs(0)));
@@ -1161,7 +1161,7 @@ mod tests {
             state.try_reschedule_for_future(),
             RescheduleRights::AcquiredWithTimeout
         );
-        assert_eq!(state.status.is_waiting_for_future(), false);
+        assert!(!state.status.is_waiting_for_future());
     }
 
     #[test]
@@ -1275,7 +1275,7 @@ mod tests {
 
         assert_eq!(
             process.task_to_run(),
-            process.task.as_ref().map(|x| TaskPointer::new(x))
+            process.task.as_ref().map(TaskPointer::new)
         );
 
         Method::drop_and_deallocate(method);
@@ -1398,7 +1398,7 @@ mod tests {
         let result = state.write(Pointer::int(42), false);
 
         assert_eq!(result, WriteResult::Continue);
-        assert_eq!(state.lock().unwrap().thrown, false);
+        assert!(!state.lock().unwrap().thrown);
     }
 
     #[test]
@@ -1407,7 +1407,7 @@ mod tests {
         let result = state.write(Pointer::int(42), true);
 
         assert_eq!(result, WriteResult::Continue);
-        assert_eq!(state.lock().unwrap().thrown, true);
+        assert!(state.lock().unwrap().thrown);
     }
 
     #[test]
@@ -1461,7 +1461,7 @@ mod tests {
         let result = state.write(Pointer::int(42), false);
 
         assert_eq!(result, WriteResult::RescheduleWithTimeout(*process));
-        assert_eq!(process.state().status.is_waiting_for_future(), false);
+        assert!(!process.state().status.is_waiting_for_future());
         assert!(process.state().timeout.is_none());
     }
 

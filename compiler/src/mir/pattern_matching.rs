@@ -961,7 +961,7 @@ mod tests {
         bindings: Vec<Binding>,
         block_id: BlockId,
     ) -> Decision {
-        Decision::Success(Body { bindings: bindings, block_id })
+        Decision::Success(Body { bindings, block_id })
     }
 
     fn fail() -> Decision {

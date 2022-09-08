@@ -1428,7 +1428,7 @@ impl<'a> CheckMethodBody<'a> {
 
         // Since other types aren't compatible with Any, we only need to check
         // the first value's type.
-        if types.len() > 0 && types[0].is_any(self.db()) {
+        if !types.is_empty() && types[0].is_any(self.db()) {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidType,
                 "Arrays can't store values of type 'Any'",

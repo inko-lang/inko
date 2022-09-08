@@ -170,9 +170,9 @@ mod tests {
 
         poller.terminate();
 
-        assert_eq!(poller.poll(&mut events).unwrap(), false);
+        assert!(!poller.poll(&mut events).unwrap());
         assert_eq!(events.capacity(), 1);
         assert_eq!(events.len(), 0);
-        assert_eq!(poller.is_alive(), false);
+        assert!(!poller.is_alive());
     }
 }

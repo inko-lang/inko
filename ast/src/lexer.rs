@@ -1484,10 +1484,10 @@ mod tests {
     fn test_token_same_line_as() {
         let tok1 = tok(TokenKind::As, "", 1..=1, 1..=1);
         let tok2 = tok(TokenKind::As, "", 1..=1, 1..=1);
-        let tok3 = tok(TokenKind::As, "", 2..=1, 1..=1);
+        let tok3 = tok(TokenKind::As, "", 2..=2, 1..=1);
 
-        assert_eq!(tok1.same_line_as(&tok2), true);
-        assert_eq!(tok1.same_line_as(&tok3), false);
+        assert!(tok1.same_line_as(&tok2));
+        assert!(!tok1.same_line_as(&tok3));
     }
 
     #[test]
