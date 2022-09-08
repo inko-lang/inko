@@ -180,6 +180,12 @@ When packaging Inko it's best to use a system wide installation of FFI, instead
 of building it from source when compiling Inko. To do so, build Inko as follows:
 
 ```bash
+make build FEATURES=libffi-system
+```
+
+Or if you don't want to use make:
+
+```bash
 cargo build --release --features libffi-system
 ```
 

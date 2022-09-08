@@ -1,0 +1,11 @@
+.git/
+CHANGELOG.md
+clippy.toml
+deny.toml
+docs/
+gitlint
+libstd/build/
+macstadium.png
+scripts/
+target/
+tmp/

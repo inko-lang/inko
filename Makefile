@@ -62,7 +62,7 @@ SOURCE_TAR := ${TMP_DIR}/${VERSION}.tar.gz
 MANIFEST := ${TMP_DIR}/manifest.txt
 
 build:
-	INKO_LIBSTD=${INSTALL_STD} cargo build --release
+	INKO_LIBSTD=${INSTALL_STD} cargo build --release ${FEATURES_OPTION}
 
 ${TMP_DIR}:
 	mkdir -p "${@}"
@@ -161,7 +161,7 @@ docs/versions:
 
 clippy:
 	touch */src/lib.rs */src/main.rs
-	cargo clippy ${FEATURES_OPTION} -- -D warnings
+	cargo clippy -- -D warnings
 
 rustfmt-check:
 	rustfmt --check */src/lib.rs */src/main.rs
