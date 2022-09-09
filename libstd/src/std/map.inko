@@ -239,6 +239,24 @@ class pub Map[K: Hash + Equal, V] {
     @entries.iter
   }
 
+  # Returns an iterator of mutable key-value pairs.
+  #
+  # # Examples
+  #
+  # Iterating over all the key-value pairs:
+  #
+  #     let mut map = Map.new
+  #
+  #     map['name'] = 'Alice'
+  #
+  #     map.iter_mut.each fn (entry) {
+  #       entry.key   # => 'name'
+  #       entry.value # => 'Alice'
+  #     }
+  fn pub mut iter_mut -> Iter[mut Entry[K, V], Never] {
+    @entries.iter_mut
+  }
+
   # Returns an `Iter` that iterates over all key-value pairs in this
   # `Map`, yielding them by value.
   #

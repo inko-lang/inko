@@ -76,6 +76,21 @@ fn pub tests(t: mut Tests) {
     t.equal(entries[1].value, 'Bla')
   }
 
+  t.test('Map.iter_mut') fn (t) {
+    let map = Map.new
+
+    map['name'] = 'Alice'
+    map['city'] = 'Bla'
+
+    let entries = map.iter_mut.to_array
+
+    t.equal(entries.length, 2)
+    t.equal(entries[0].key, 'name')
+    t.equal(entries[0].value, 'Alice')
+    t.equal(entries[1].key, 'city')
+    t.equal(entries[1].value, 'Bla')
+  }
+
   t.test('Map.into_iter') fn (t) {
     let map = Map.new
 
