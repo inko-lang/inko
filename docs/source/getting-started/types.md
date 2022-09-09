@@ -21,6 +21,12 @@ Instances of classes are created using the class literal syntax:
 Person { @name = 'Alice', @age = 42 }
 ```
 
+Within a class you can also create instances of the class itself using `Self`:
+
+```inko
+Self { @name = 'Alice', @age = 42 }
+```
+
 When creating an instance, all fields must be assigned a value, and a field
 can't be assigned a value multiple times.
 
@@ -246,6 +252,25 @@ some cases can be used to explicitly ignore the result of an expression (e.g. in
 pattern matching bodies).
 
 `Nil` is a value type.
+
+## Special types
+
+Inko has three special types: `Self`, `Any` and `Never`. These types are special
+in that they don't exist at runtime as some sort of structure, instead they only
+exist in the compiler.
+
+`Self` is a type that refers to either the surrounding class, or when used in a
+trait refers to the class that implements the trait.
+
+`Any` is a type used for a value that could be anything, including data not
+managed by the Inko runtime such as a pointer to a C structure. Types can't be
+cast _to_ an `Any` (nor are they compatible with `Any`), but you _can_ cast
+`Any` to any other type. This is useful when working with Inko's FFI, but you
+should avoid `Any` anywhere else.
+
+`Never` is a type that indicates something never happens. When used in a return
+or throw type it means a method never returns or throws. If a method doesn't
+define a throw type, it defaults to `Never`.
 
 ## Generic types
 
