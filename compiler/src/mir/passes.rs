@@ -1436,7 +1436,6 @@ impl<'a> LowerMethod<'a> {
 
     fn loop_expression(&mut self, node: hir::Loop) -> RegisterId {
         let loc = self.add_location(node.location);
-        let reg = self.new_register(types::TypeRef::Never);
         let before_loop = self.current_block;
         let loop_start = self.add_current_block();
         let after_loop = self.add_block();
@@ -1472,7 +1471,8 @@ impl<'a> LowerMethod<'a> {
         }
 
         self.current_block = after_loop;
-        reg
+
+        self.new_register(types::TypeRef::Never)
     }
 
     fn break_expression(&mut self, node: hir::Break) -> RegisterId {
@@ -2782,6 +2782,10 @@ impl<'a> LowerMethod<'a> {
             if let Some(val) = state.bodies.remove(&start_block) {
                 val
             } else {
+                // Don't forget to exit the scope here, since we entered a new
+                // one bofer calling this method.
+                self.exit_scope();
+
                 return start_block;
             };
 
@@ -3775,10 +3779,10 @@ impl<'a> LowerMethod<'a> {
 
     fn enter_scope(&mut self) {
         let mut scope = Scope::regular_scope(&self.scope);
-        let target = &mut self.scope;
 
-        swap(target, &mut scope);
-        target.parent = Some(scope);
+        swap(&mut self.scope, &mut scope);
+
+        self.scope.parent = Some(scope);
     }
 
     fn enter_call_scope(&mut self) -> bool {
@@ -3789,20 +3793,20 @@ impl<'a> LowerMethod<'a> {
         }
 
         let mut scope = Scope::call_scope(&self.scope);
-        let target = &mut self.scope;
 
-        swap(target, &mut scope);
-        target.parent = Some(scope);
+        swap(&mut self.scope, &mut scope);
+
+        self.scope.parent = Some(scope);
 
         true
     }
 
     fn enter_loop_scope(&mut self, next_block: BlockId, break_block: BlockId) {
         let mut scope = Scope::loop_scope(&self.scope, next_block, break_block);
-        let target = &mut self.scope;
 
-        swap(target, &mut scope);
-        target.parent = Some(scope);
+        swap(&mut self.scope, &mut scope);
+
+        self.scope.parent = Some(scope);
     }
 
     fn exit_scope(&mut self) -> Box<Scope> {
