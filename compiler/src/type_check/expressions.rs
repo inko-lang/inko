@@ -6,7 +6,6 @@ use crate::type_check::{DefineAndCheckTypeSignature, Rules, TypeScope};
 use ast::source_location::SourceLocation;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-use types::collections::IndexMap;
 use types::{
     format_type, format_type_with_context, format_type_with_self, Block,
     BuiltinCallInfo, BuiltinFunctionKind, CallInfo, CallKind, ClassId,
@@ -39,12 +38,12 @@ struct Pattern<'a> {
     variable_scope: &'a mut VariableScope,
 
     /// The variables introduced by this pattern.
-    variables: IndexMap<String, VariableId>,
+    variables: HashMap<String, VariableId>,
 }
 
 impl<'a> Pattern<'a> {
     fn new(variable_scope: &'a mut VariableScope) -> Self {
-        Self { variable_scope, variables: IndexMap::new() }
+        Self { variable_scope, variables: HashMap::new() }
     }
 }
 
@@ -2319,7 +2318,7 @@ impl<'a> CheckMethodBody<'a> {
         // is needed as code like `case A(a), B(b) -> test(a)` is invalid,
         // as the variable could be undefined depending on which pattern
         // matched.
-        for (vars, location) in patterns {
+        for (vars, location) in &patterns {
             for &name in &all_var_names {
                 if vars.contains_key(name) {
                     continue;
@@ -2329,9 +2328,15 @@ impl<'a> CheckMethodBody<'a> {
                     DiagnosticId::InvalidPattern,
                     format!("This pattern must define the variable '{}'", name),
                     self.file(),
-                    location.clone(),
+                    (*location).clone(),
                 );
             }
+        }
+
+        // Since we use a sub Pattern for tracking defined variables per OR
+        // branch, we have to copy those to the parent Pattern.
+        for (key, val) in &pattern.variable_scope.variables {
+            pattern.variables.insert(key.clone(), *val);
         }
     }
 
@@ -3209,7 +3214,7 @@ impl<'a> CheckMethodBody<'a> {
 
             self.pattern(&mut case.pattern, input_type, &mut pattern);
 
-            case.variable_ids = pattern.variables.values().clone();
+            case.variable_ids = pattern.variables.values().cloned().collect();
 
             if let Some(guard) = case.guard.as_mut() {
                 let mut guard_scope = new_scope.inherit(ScopeKind::Regular);
