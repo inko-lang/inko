@@ -1215,8 +1215,6 @@ impl Lexer {
     ) -> Token {
         let value = String::from_utf8_lossy(&buffer).into_owned();
 
-        // TODO: somehow count since the byte index of the last newline, but
-        // ignore newline literals (e.g. `"foo\nbar"` is a single line string).
         if !value.is_empty() {
             self.column += value.graphemes(true).count();
         }

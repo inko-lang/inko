@@ -307,6 +307,9 @@ struct DecisionState {
 
     /// If the original input value is owned or not.
     owned: bool,
+
+    /// If the result of a match arm should be written to a register or ignored.
+    write_result: bool,
 }
 
 impl DecisionState {
@@ -314,6 +317,7 @@ impl DecisionState {
         output: RegisterId,
         after_block: BlockId,
         owned: bool,
+        write_result: bool,
         location: LocationId,
     ) -> Self {
         Self {
@@ -325,6 +329,7 @@ impl DecisionState {
             guards: HashMap::new(),
             owned,
             location,
+            write_result,
         }
     }
 
@@ -1340,7 +1345,6 @@ impl<'a> LowerMethod<'a> {
             hir::Expression::FieldRef(n) => self.field(*n),
             hir::Expression::Float(n) => self.float_literal(*n),
             hir::Expression::IdentifierRef(n) => self.identifier(*n),
-            hir::Expression::If(n) => self.if_expression(*n),
             hir::Expression::Index(n) => self.index_expression(*n),
             hir::Expression::ClassLiteral(n) => self.class_literal(*n),
             hir::Expression::Int(n) => self.int_literal(*n),
@@ -1511,109 +1515,6 @@ impl<'a> LowerMethod<'a> {
         self.current_block_mut().goto(target, loc);
         self.add_edge(source, target);
         self.add_current_block();
-    }
-
-    fn if_expression(&mut self, node: hir::If) -> RegisterId {
-        // The result is untracked as otherwise an explicit return/throw/etc may
-        // drop it before we write to it.
-        let if_result = self.new_untracked_register(node.resolved_type);
-        let loc = self.add_location(node.location);
-        let before_if = self.current_block;
-        let after_if = self.add_block();
-        let mut condition_blocks = self.add_blocks(node.conditions.len());
-        let has_else = !node.else_body.is_empty();
-        let else_block = if has_else {
-            let block = self.add_block();
-
-            condition_blocks.push(block);
-            Some(block)
-        } else {
-            None
-        };
-
-        self.add_edge(before_if, condition_blocks[0]);
-
-        for (index, node) in node.conditions.into_iter().enumerate() {
-            let loc = self.add_location(node.location);
-            let cond_start = condition_blocks[index];
-
-            self.current_block = cond_start;
-
-            self.enter_scope();
-
-            let cond = self.expression(node.condition);
-
-            // We don't mark the register as moved for two reasons:
-            //
-            // 1. It's not needed because we don't drop permanent registers, and
-            //    booleans are always permanent.
-            // 2. If the register belongs to a variable defined outside the
-            //    `if`, we'd end up moving that variable, which isn't what we
-            //    want.
-            self.exit_scope();
-
-            let cond_end = self.current_block;
-            let if_false =
-                condition_blocks.get(index + 1).cloned().unwrap_or(after_if);
-            let body_start = self.add_current_block();
-
-            self.add_edge(cond_end, body_start);
-            self.add_edge(cond_end, if_false);
-            self.block_mut(cond_end).branch(cond, body_start, if_false, loc);
-            self.enter_scope();
-
-            let result = self.body(node.body, loc);
-            let body_end = self.current_block;
-
-            if has_else {
-                self.mark_register_as_moved(result);
-            }
-
-            // We must exit the scope first, otherwise any drop code is inserted
-            // after the jump.
-            self.exit_scope();
-
-            if self.block_is_connected(body_end) {
-                // If `else` is missing, the result of any of the `if` arms is
-                // ignored.
-                if has_else {
-                    self.block_mut(body_end)
-                        .move_register(if_result, result, loc);
-                }
-
-                self.block_mut(body_end).goto(after_if, loc);
-                self.add_edge(body_end, after_if);
-            }
-        }
-
-        if let Some(block) = else_block {
-            self.enter_scope();
-
-            self.current_block = block;
-
-            let else_result = self.body(node.else_body, loc);
-
-            self.mark_register_as_moved(else_result);
-            self.exit_scope();
-
-            if self.in_connected_block() {
-                self.current_block_mut().move_register(
-                    if_result,
-                    else_result,
-                    loc,
-                );
-
-                self.current_block_mut().goto(after_if, loc);
-                self.add_edge(self.current_block, after_if);
-            }
-        } else {
-            self.block_mut(after_if).nil_literal(if_result, loc);
-        }
-
-        self.current_block = after_if;
-
-        self.scope.created.push(if_result);
-        if_result
     }
 
     fn class_literal(&mut self, node: hir::ClassLiteral) -> RegisterId {
@@ -2495,6 +2396,7 @@ impl<'a> LowerMethod<'a> {
             output_reg,
             after_block,
             input_type.is_owned_or_uni(self.db()),
+            node.write_result,
             loc,
         );
 
@@ -2559,6 +2461,10 @@ impl<'a> LowerMethod<'a> {
         }
 
         self.current_block = after_block;
+
+        if !state.write_result {
+            self.current_block_mut().nil_literal(output_reg, loc);
+        }
 
         self.scope.created.push(output_reg);
         output_reg
@@ -2796,7 +2702,9 @@ impl<'a> LowerMethod<'a> {
         let loc = self.add_location(body_loc);
         let reg = self.body(exprs, loc);
 
-        self.mark_register_as_moved(reg);
+        if state.write_result {
+            self.mark_register_as_moved(reg);
+        }
 
         // We don't enter a scope in this method, because we must enter a new
         // scope _before_ defining the match bindings, otherwise e.g. a `return`
@@ -2804,7 +2712,10 @@ impl<'a> LowerMethod<'a> {
         self.exit_scope();
 
         if self.in_connected_block() {
-            self.current_block_mut().move_register(state.output, reg, loc);
+            if state.write_result {
+                self.current_block_mut().move_register(state.output, reg, loc);
+            }
+
             self.current_block_mut().goto(state.after_block, loc);
             self.add_edge(self.current_block, state.after_block);
         }

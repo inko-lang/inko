@@ -452,7 +452,6 @@ pub(crate) enum Expression {
     FieldRef(Box<FieldRef>),
     Float(Box<FloatLiteral>),
     IdentifierRef(Box<IdentifierRef>),
-    If(Box<If>),
     Index(Box<Index>),
     ClassLiteral(Box<ClassLiteral>),
     Int(Box<IntLiteral>),
@@ -497,7 +496,6 @@ impl Expression {
             Expression::FieldRef(ref n) => &n.location,
             Expression::Float(ref n) => &n.location,
             Expression::IdentifierRef(ref n) => &n.location,
-            Expression::If(ref n) => &n.location,
             Expression::Index(ref n) => &n.location,
             Expression::ClassLiteral(ref n) => &n.location,
             Expression::Int(ref n) => &n.location,
@@ -871,21 +869,6 @@ pub(crate) struct ElseBlock {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct IfCondition {
-    pub(crate) condition: Expression,
-    pub(crate) body: Vec<Expression>,
-    pub(crate) location: SourceLocation,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct If {
-    pub(crate) resolved_type: types::TypeRef,
-    pub(crate) conditions: Vec<IfCondition>,
-    pub(crate) else_body: Vec<Expression>,
-    pub(crate) location: SourceLocation,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct TuplePattern {
     pub(crate) field_ids: Vec<types::FieldId>,
     pub(crate) values: Vec<Pattern>,
@@ -997,6 +980,7 @@ pub(crate) struct Match {
     pub(crate) expression: Expression,
     pub(crate) cases: Vec<MatchCase>,
     pub(crate) location: SourceLocation,
+    pub(crate) write_result: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1985,7 +1969,7 @@ impl<'a> LowerToHir<'a> {
             ast::Expression::Try(node) => self.try_expression(*node),
             ast::Expression::TryPanic(node) => self.try_panic(*node),
             ast::Expression::If(node) => {
-                Expression::If(self.if_expression(*node))
+                Expression::Match(self.if_expression(*node))
             }
             ast::Expression::Loop(node) => {
                 Expression::Loop(self.loop_expression(*node))
@@ -2627,24 +2611,67 @@ impl<'a> LowerToHir<'a> {
         }
     }
 
-    fn if_expression(&mut self, node: ast::If) -> Box<If> {
-        let conditions = node
-            .conditions
-            .into_iter()
-            .map(|n| IfCondition {
-                condition: self.expression(n.condition),
-                body: self.expressions(n.body),
-                location: n.location,
+    fn if_expression(&mut self, node: ast::If) -> Box<Match> {
+        let mut cases = vec![MatchCase {
+            variable_ids: Vec::new(),
+            pattern: Pattern::True(Box::new(True {
+                resolved_type: types::TypeRef::Unknown,
+                location: node.if_true.condition.location().clone(),
+            })),
+            guard: None,
+            body: self.expressions(node.if_true.body),
+            location: node.if_true.location,
+        }];
+
+        for cond in node.else_if {
+            cases.push(MatchCase {
+                variable_ids: Vec::new(),
+                pattern: Pattern::Wildcard(Box::new(WildcardPattern {
+                    location: cond.location.clone(),
+                })),
+                guard: Some(self.expression(cond.condition)),
+                body: self.expressions(cond.body),
+                location: cond.location,
+            });
+        }
+
+        let mut has_else = false;
+
+        if let Some(body) = node.else_body {
+            let location = body.location.clone();
+
+            has_else = true;
+
+            cases.push(MatchCase {
+                variable_ids: Vec::new(),
+                pattern: Pattern::Wildcard(Box::new(WildcardPattern {
+                    location: body.location.clone(),
+                })),
+                guard: None,
+                body: self.expressions(body),
+                location,
             })
-            .collect();
+        } else {
+            cases.push(MatchCase {
+                variable_ids: Vec::new(),
+                pattern: Pattern::Wildcard(Box::new(WildcardPattern {
+                    location: node.location.clone(),
+                })),
+                guard: None,
+                body: vec![Expression::Nil(Box::new(Nil {
+                    resolved_type: types::TypeRef::Unknown,
+                    location: node.location.clone(),
+                }))],
+                location: node.location.clone(),
+            });
+        }
 
-        let else_body = self.optional_expressions(node.else_body);
-
-        Box::new(If {
+        Box::new(Match {
             resolved_type: types::TypeRef::Unknown,
-            conditions,
-            else_body,
+            expression: self.expression(node.if_true.condition),
+            cases,
             location: node.location,
+            write_result: has_else,
         })
     }
 
@@ -2676,15 +2703,32 @@ impl<'a> LowerToHir<'a> {
         let location = node.condition.location().clone();
         let condition = self.expression(node.condition);
         let cond_body = self.expressions(node.body);
-        let body = vec![Expression::If(Box::new(If {
+        let body = vec![Expression::Match(Box::new(Match {
             resolved_type: types::TypeRef::Unknown,
-            conditions: vec![IfCondition {
-                condition,
-                body: cond_body,
-                location: location.clone(),
-            }],
-            else_body: vec![self.break_expression(location.clone())],
-            location,
+            expression: condition,
+            cases: vec![
+                MatchCase {
+                    variable_ids: Vec::new(),
+                    pattern: Pattern::True(Box::new(True {
+                        resolved_type: types::TypeRef::Unknown,
+                        location: location.clone(),
+                    })),
+                    guard: None,
+                    body: cond_body,
+                    location: location.clone(),
+                },
+                MatchCase {
+                    variable_ids: Vec::new(),
+                    pattern: Pattern::Wildcard(Box::new(WildcardPattern {
+                        location: location.clone(),
+                    })),
+                    guard: None,
+                    body: vec![self.break_expression(location)],
+                    location: node.location.clone(),
+                },
+            ],
+            location: node.location.clone(),
+            write_result: true,
         }))];
 
         Box::new(Loop { body, location: node.location })
@@ -2737,6 +2781,7 @@ impl<'a> LowerToHir<'a> {
                 })
                 .collect(),
             location: node.location,
+            write_result: true,
         })
     }
 
@@ -5855,15 +5900,21 @@ mod tests {
 
         assert_eq!(
             hir,
-            Expression::If(Box::new(If {
+            Expression::Match(Box::new(Match {
                 resolved_type: types::TypeRef::Unknown,
-                conditions: vec![
-                    IfCondition {
-                        condition: Expression::Int(Box::new(IntLiteral {
-                            value: 10,
+                expression: Expression::Int(Box::new(IntLiteral {
+                    value: 10,
+                    resolved_type: types::TypeRef::Unknown,
+                    location: cols(11, 12)
+                })),
+                cases: vec![
+                    MatchCase {
+                        variable_ids: Vec::new(),
+                        pattern: Pattern::True(Box::new(True {
                             resolved_type: types::TypeRef::Unknown,
                             location: cols(11, 12)
                         })),
+                        guard: None,
                         body: vec![Expression::Int(Box::new(IntLiteral {
                             value: 20,
                             resolved_type: types::TypeRef::Unknown,
@@ -5871,26 +5922,39 @@ mod tests {
                         }))],
                         location: cols(11, 19)
                     },
-                    IfCondition {
-                        condition: Expression::Int(Box::new(IntLiteral {
+                    MatchCase {
+                        variable_ids: Vec::new(),
+                        pattern: Pattern::Wildcard(Box::new(WildcardPattern {
+                            location: cols(29, 37)
+                        })),
+                        guard: Some(Expression::Int(Box::new(IntLiteral {
                             value: 30,
                             resolved_type: types::TypeRef::Unknown,
                             location: cols(29, 30)
-                        })),
+                        }))),
                         body: vec![Expression::Int(Box::new(IntLiteral {
                             value: 40,
                             resolved_type: types::TypeRef::Unknown,
                             location: cols(34, 35)
                         }))],
                         location: cols(29, 37)
+                    },
+                    MatchCase {
+                        variable_ids: Vec::new(),
+                        pattern: Pattern::Wildcard(Box::new(WildcardPattern {
+                            location: cols(44, 49)
+                        })),
+                        guard: None,
+                        body: vec![Expression::Int(Box::new(IntLiteral {
+                            value: 50,
+                            resolved_type: types::TypeRef::Unknown,
+                            location: cols(46, 47)
+                        }))],
+                        location: cols(44, 49)
                     }
                 ],
-                else_body: vec![Expression::Int(Box::new(IntLiteral {
-                    value: 50,
-                    resolved_type: types::TypeRef::Unknown,
-                    location: cols(46, 47)
-                }))],
-                location: cols(8, 49)
+                location: cols(8, 49),
+                write_result: true
             }))
         );
     }
@@ -5919,25 +5983,42 @@ mod tests {
         assert_eq!(
             hir,
             Expression::Loop(Box::new(Loop {
-                body: vec![Expression::If(Box::new(If {
+                body: vec![Expression::Match(Box::new(Match {
                     resolved_type: types::TypeRef::Unknown,
-                    conditions: vec![IfCondition {
-                        condition: Expression::Int(Box::new(IntLiteral {
-                            value: 10,
-                            resolved_type: types::TypeRef::Unknown,
+                    expression: Expression::Int(Box::new(IntLiteral {
+                        value: 10,
+                        resolved_type: types::TypeRef::Unknown,
+                        location: cols(14, 15)
+                    })),
+                    cases: vec![
+                        MatchCase {
+                            variable_ids: Vec::new(),
+                            pattern: Pattern::True(Box::new(True {
+                                resolved_type: types::TypeRef::Unknown,
+                                location: cols(14, 15)
+                            })),
+                            guard: None,
+                            body: vec![Expression::Int(Box::new(IntLiteral {
+                                value: 20,
+                                resolved_type: types::TypeRef::Unknown,
+                                location: cols(19, 20)
+                            }))],
                             location: cols(14, 15)
-                        })),
-                        body: vec![Expression::Int(Box::new(IntLiteral {
-                            value: 20,
-                            resolved_type: types::TypeRef::Unknown,
-                            location: cols(19, 20)
-                        }))],
-                        location: cols(14, 15)
-                    }],
-                    else_body: vec![Expression::Break(Box::new(Break {
-                        location: cols(14, 15)
-                    }))],
-                    location: cols(14, 15)
+                        },
+                        MatchCase {
+                            variable_ids: Vec::new(),
+                            pattern: Pattern::Wildcard(Box::new(
+                                WildcardPattern { location: cols(14, 15) }
+                            )),
+                            guard: None,
+                            body: vec![Expression::Break(Box::new(Break {
+                                location: cols(14, 15)
+                            }))],
+                            location: cols(8, 22)
+                        }
+                    ],
+                    location: cols(8, 22),
+                    write_result: true,
                 })),],
                 location: cols(8, 22)
             }))
@@ -6026,7 +6107,8 @@ mod tests {
                     }))],
                     location: cols(18, 33)
                 }],
-                location: cols(8, 35)
+                location: cols(8, 35),
+                write_result: true
             }))
         );
     }

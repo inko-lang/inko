@@ -1379,7 +1379,8 @@ impl Node for IfCondition {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct If {
-    pub conditions: Vec<IfCondition>,
+    pub if_true: IfCondition,
+    pub else_if: Vec<IfCondition>,
     pub else_body: Option<Expressions>,
     pub location: SourceLocation,
 }

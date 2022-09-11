@@ -2560,7 +2560,8 @@ impl Parser {
         &mut self,
         start: Token,
     ) -> Result<Expression, ParseError> {
-        let mut conditions = vec![self.if_condition()?];
+        let if_true = self.if_condition()?;
+        let mut else_if = Vec::new();
         let mut else_body = None;
 
         while self.peek().kind == TokenKind::Else {
@@ -2568,7 +2569,7 @@ impl Parser {
 
             if self.peek().kind == TokenKind::If {
                 self.next();
-                conditions.push(self.if_condition()?);
+                else_if.push(self.if_condition()?);
             } else {
                 let token = self.expect(TokenKind::CurlyOpen)?;
                 else_body = Some(self.expressions(token)?);
@@ -2577,13 +2578,17 @@ impl Parser {
             }
         }
 
-        // There's always one condition, so we can safely use unwrap() in the
-        // fallback.
         let end_loc = location!(else_body)
-            .unwrap_or_else(|| conditions.last().unwrap().location());
+            .or_else(|| location!(else_if.last()))
+            .unwrap_or_else(|| if_true.location());
         let location = SourceLocation::start_end(&start.location, end_loc);
 
-        Ok(Expression::If(Box::new(If { conditions, else_body, location })))
+        Ok(Expression::If(Box::new(If {
+            if_true,
+            else_if,
+            else_body,
+            location,
+        })))
     }
 
     fn match_expression(
@@ -8486,7 +8491,7 @@ mod tests {
         assert_eq!(
             expr("if a { b }"),
             Expression::If(Box::new(If {
-                conditions: vec![IfCondition {
+                if_true: IfCondition {
                     condition: Expression::Identifier(Box::new(Identifier {
                         name: "a".to_string(),
                         location: cols(4, 4)
@@ -8501,7 +8506,8 @@ mod tests {
                         location: cols(6, 10)
                     },
                     location: cols(4, 10)
-                }],
+                },
+                else_if: Vec::new(),
                 else_body: None,
                 location: cols(1, 10)
             }))
@@ -8510,7 +8516,7 @@ mod tests {
         assert_eq!(
             expr("if A { b }"),
             Expression::If(Box::new(If {
-                conditions: vec![IfCondition {
+                if_true: IfCondition {
                     condition: Expression::Constant(Box::new(Constant {
                         source: None,
                         name: "A".to_string(),
@@ -8526,7 +8532,8 @@ mod tests {
                         location: cols(6, 10)
                     },
                     location: cols(4, 10)
-                }],
+                },
+                else_if: Vec::new(),
                 else_body: None,
                 location: cols(1, 10)
             }))
@@ -8535,7 +8542,7 @@ mod tests {
         assert_eq!(
             expr("if a { b } else { c }"),
             Expression::If(Box::new(If {
-                conditions: vec![IfCondition {
+                if_true: IfCondition {
                     condition: Expression::Identifier(Box::new(Identifier {
                         name: "a".to_string(),
                         location: cols(4, 4)
@@ -8550,7 +8557,8 @@ mod tests {
                         location: cols(6, 10)
                     },
                     location: cols(4, 10)
-                }],
+                },
+                else_if: Vec::new(),
                 else_body: Some(Expressions {
                     values: vec![Expression::Identifier(Box::new(
                         Identifier {
@@ -8567,44 +8575,38 @@ mod tests {
         assert_eq!(
             expr("if a { b } else if c { d }"),
             Expression::If(Box::new(If {
-                conditions: vec![
-                    IfCondition {
-                        condition: Expression::Identifier(Box::new(
+                if_true: IfCondition {
+                    condition: Expression::Identifier(Box::new(Identifier {
+                        name: "a".to_string(),
+                        location: cols(4, 4)
+                    })),
+                    body: Expressions {
+                        values: vec![Expression::Identifier(Box::new(
                             Identifier {
-                                name: "a".to_string(),
-                                location: cols(4, 4)
+                                name: "b".to_string(),
+                                location: cols(8, 8)
                             }
-                        )),
-                        body: Expressions {
-                            values: vec![Expression::Identifier(Box::new(
-                                Identifier {
-                                    name: "b".to_string(),
-                                    location: cols(8, 8)
-                                }
-                            ))],
-                            location: cols(6, 10)
-                        },
-                        location: cols(4, 10)
+                        ))],
+                        location: cols(6, 10)
                     },
-                    IfCondition {
-                        condition: Expression::Identifier(Box::new(
+                    location: cols(4, 10)
+                },
+                else_if: vec![IfCondition {
+                    condition: Expression::Identifier(Box::new(Identifier {
+                        name: "c".to_string(),
+                        location: cols(20, 20)
+                    })),
+                    body: Expressions {
+                        values: vec![Expression::Identifier(Box::new(
                             Identifier {
-                                name: "c".to_string(),
-                                location: cols(20, 20)
+                                name: "d".to_string(),
+                                location: cols(24, 24)
                             }
-                        )),
-                        body: Expressions {
-                            values: vec![Expression::Identifier(Box::new(
-                                Identifier {
-                                    name: "d".to_string(),
-                                    location: cols(24, 24)
-                                }
-                            ))],
-                            location: cols(22, 26)
-                        },
-                        location: cols(20, 26)
+                        ))],
+                        location: cols(22, 26)
                     },
-                ],
+                    location: cols(20, 26)
+                },],
                 else_body: None,
                 location: cols(1, 26)
             }))
@@ -8613,25 +8615,23 @@ mod tests {
         assert_eq!(
             expr("if a { b } else if c { d } else if e { f }"),
             Expression::If(Box::new(If {
-                conditions: vec![
-                    IfCondition {
-                        condition: Expression::Identifier(Box::new(
+                if_true: IfCondition {
+                    condition: Expression::Identifier(Box::new(Identifier {
+                        name: "a".to_string(),
+                        location: cols(4, 4)
+                    })),
+                    body: Expressions {
+                        values: vec![Expression::Identifier(Box::new(
                             Identifier {
-                                name: "a".to_string(),
-                                location: cols(4, 4)
+                                name: "b".to_string(),
+                                location: cols(8, 8)
                             }
-                        )),
-                        body: Expressions {
-                            values: vec![Expression::Identifier(Box::new(
-                                Identifier {
-                                    name: "b".to_string(),
-                                    location: cols(8, 8)
-                                }
-                            ))],
-                            location: cols(6, 10)
-                        },
-                        location: cols(4, 10)
+                        ))],
+                        location: cols(6, 10)
                     },
+                    location: cols(4, 10)
+                },
+                else_if: vec![
                     IfCondition {
                         condition: Expression::Identifier(Box::new(
                             Identifier {
@@ -8677,44 +8677,38 @@ mod tests {
         assert_eq!(
             expr("if a { b } else if c { d } else { e }"),
             Expression::If(Box::new(If {
-                conditions: vec![
-                    IfCondition {
-                        condition: Expression::Identifier(Box::new(
+                if_true: IfCondition {
+                    condition: Expression::Identifier(Box::new(Identifier {
+                        name: "a".to_string(),
+                        location: cols(4, 4)
+                    })),
+                    body: Expressions {
+                        values: vec![Expression::Identifier(Box::new(
                             Identifier {
-                                name: "a".to_string(),
-                                location: cols(4, 4)
+                                name: "b".to_string(),
+                                location: cols(8, 8)
                             }
-                        )),
-                        body: Expressions {
-                            values: vec![Expression::Identifier(Box::new(
-                                Identifier {
-                                    name: "b".to_string(),
-                                    location: cols(8, 8)
-                                }
-                            ))],
-                            location: cols(6, 10)
-                        },
-                        location: cols(4, 10)
+                        ))],
+                        location: cols(6, 10)
                     },
-                    IfCondition {
-                        condition: Expression::Identifier(Box::new(
+                    location: cols(4, 10)
+                },
+                else_if: vec![IfCondition {
+                    condition: Expression::Identifier(Box::new(Identifier {
+                        name: "c".to_string(),
+                        location: cols(20, 20)
+                    })),
+                    body: Expressions {
+                        values: vec![Expression::Identifier(Box::new(
                             Identifier {
-                                name: "c".to_string(),
-                                location: cols(20, 20)
+                                name: "d".to_string(),
+                                location: cols(24, 24)
                             }
-                        )),
-                        body: Expressions {
-                            values: vec![Expression::Identifier(Box::new(
-                                Identifier {
-                                    name: "d".to_string(),
-                                    location: cols(24, 24)
-                                }
-                            ))],
-                            location: cols(22, 26)
-                        },
-                        location: cols(20, 26)
+                        ))],
+                        location: cols(22, 26)
                     },
-                ],
+                    location: cols(20, 26)
+                },],
                 else_body: Some(Expressions {
                     values: vec![Expression::Identifier(Box::new(
                         Identifier {

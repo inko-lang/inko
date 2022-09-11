@@ -1297,7 +1297,6 @@ impl<'a> CheckMethodBody<'a> {
             hir::Expression::IdentifierRef(ref mut n) => {
                 self.identifier(n, scope)
             }
-            hir::Expression::If(ref mut n) => self.if_expression(n, scope),
             hir::Expression::ClassLiteral(ref mut n) => {
                 self.class_literal(n, scope)
             }
@@ -3127,86 +3126,14 @@ impl<'a> CheckMethodBody<'a> {
         TypeRef::Never
     }
 
-    fn if_expression(
-        &mut self,
-        node: &mut hir::If,
-        scope: &mut LexicalScope,
-    ) -> TypeRef {
-        let mut rtype = TypeRef::nil();
-        let has_else = !node.else_body.is_empty();
-
-        for (index, cond) in node.conditions.iter_mut().enumerate() {
-            let mut guard_scope = scope.inherit(ScopeKind::Regular);
-            let cond_type =
-                self.expression(&mut cond.condition, &mut guard_scope);
-            let mut body_scope = scope.inherit(ScopeKind::Regular);
-
-            self.require_boolean(
-                cond_type,
-                self.self_type,
-                cond.condition.location(),
-            );
-
-            let typ =
-                self.last_expression_type(&mut cond.body, &mut body_scope);
-
-            if index == 0 || rtype.is_never(self.db()) {
-                rtype = typ;
-                continue;
-            }
-
-            let mut ctx = TypeContext::new(self.self_type);
-
-            if !typ.type_check(self.db(), rtype, &mut ctx, true) {
-                let loc = cond
-                    .body
-                    .last()
-                    .map(|n| n.location())
-                    .unwrap_or(&cond.location);
-
-                self.state.diagnostics.type_error(
-                    format_type_with_self(self.db(), self.self_type, typ),
-                    format_type_with_self(self.db(), self.self_type, rtype),
-                    self.file(),
-                    loc.clone(),
-                );
-            }
-        }
-
-        if has_else {
-            let mut else_scope = scope.inherit(ScopeKind::Regular);
-            let typ =
-                self.last_expression_type(&mut node.else_body, &mut else_scope);
-            let mut ctx = TypeContext::new(self.self_type);
-
-            if !rtype.is_never(self.db())
-                && !typ.type_check(self.db(), rtype, &mut ctx, true)
-            {
-                let loc = node.else_body.last().map(|n| n.location()).unwrap();
-
-                self.state.diagnostics.type_error(
-                    format_type_with_self(self.db(), self.self_type, typ),
-                    format_type_with_self(self.db(), self.self_type, rtype),
-                    self.file(),
-                    loc.clone(),
-                );
-            }
-
-            node.resolved_type = rtype;
-        } else {
-            node.resolved_type = TypeRef::nil();
-        }
-
-        node.resolved_type
-    }
-
     fn match_expression(
         &mut self,
         node: &mut hir::Match,
         scope: &mut LexicalScope,
     ) -> TypeRef {
         let input_type = self.expression(&mut node.expression, scope);
-        let mut rtype = None;
+        let mut rtype =
+            if node.write_result { None } else { Some(TypeRef::nil()) };
 
         for case in &mut node.cases {
             let mut new_scope = scope.inherit(ScopeKind::Regular);
@@ -3217,9 +3144,10 @@ impl<'a> CheckMethodBody<'a> {
             case.variable_ids = pattern.variables.values().cloned().collect();
 
             if let Some(guard) = case.guard.as_mut() {
-                let mut guard_scope = new_scope.inherit(ScopeKind::Regular);
+                let mut scope = new_scope.inherit(ScopeKind::Regular);
+                let typ = self.expression(guard, &mut scope);
 
-                self.expression(guard, &mut guard_scope);
+                self.require_boolean(typ, self.self_type, guard.location());
             }
 
             if let Some(expected) = rtype {
