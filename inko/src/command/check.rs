@@ -27,6 +27,13 @@ pub fn run(arguments: &[String]) -> Result<i32, Error> {
         "FORMAT",
     );
 
+    options.optmulti(
+        "i",
+        "include",
+        "A directory to add to the list of source directories",
+        "PATH",
+    );
+
     let matches = options.parse(arguments)?;
 
     if matches.opt_present("h") {
@@ -38,6 +45,10 @@ pub fn run(arguments: &[String]) -> Result<i32, Error> {
 
     if let Some(format) = matches.opt_str("f") {
         config.set_presenter(&format)?;
+    }
+
+    for path in matches.opt_strs("i") {
+        config.sources.add(path.into());
     }
 
     let mut compiler = Compiler::new(config);
