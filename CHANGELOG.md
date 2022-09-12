@@ -5,3 +5,23 @@ Entries from before version 0.10.0 are no longer included, but can be viewed
 [here](https://gitlab.com/inko-lang/inko/-/blob/f9c01b86af70596021e649be5d43ec2a22b6d298/CHANGELOG.md).
 
 <!-- new section -->
+
+## 0.10.0 (2022-09-12)
+
+**NOTE:** this section appears a bit limited as for 0.10.0 we switched to a
+different approach to generating changelogs. For more details, refer to the
+0.10.0 release post.
+
+### Added (1 change)
+
+- [Add Map.iter_mut](inko-lang/inko@40e7bd29ccfae11464446a90d65854a647f49791)
+
+### Fixed (2 changes)
+
+- [Fix defining bindings in OR patterns](inko-lang/inko@be7794ff9b1ed0ef5e7341e136ced607b01456a1)
+- [Fix building source archives](inko-lang/inko@82452f1746bd2da787f2f0b84fc43ff1c196f00a)
+
+### Changed (2 changes)
+
+- [Lower if to match expressions](inko-lang/inko@ab5a7866ed37c6e8de83695ba89fd31a780316a2)
+- [Update Docker build process](inko-lang/inko@c454fd4eaf588ce15277a45e4e161dfb999c0e36)

@@ -22,7 +22,7 @@ dependencies = [
 
 [[package]]
 name = "ast"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "getopts",
  "similar-asserts",
@@ -54,7 +54,7 @@ dependencies = [
 
 [[package]]
 name = "bytecode"
-version = "0.9.0"
+version = "0.10.0"
 
 [[package]]
 name = "cc"
@@ -70,7 +70,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "compiler"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "ast",
  "bytecode",
@@ -211,7 +211,7 @@ dependencies = [
 
 [[package]]
 name = "inko"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "compiler",
  "getopts",
@@ -503,7 +503,7 @@ dependencies = [
 
 [[package]]
 name = "types"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "bytecode",
 ]
@@ -534,7 +534,7 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 
 [[package]]
 name = "vm"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "ahash",
  "bytecode",
