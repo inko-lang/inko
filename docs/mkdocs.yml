@@ -30,6 +30,7 @@ nav:
   - Home: index.md
   - Getting started:
     - getting-started/installation.md
+    - getting-started/editors.md
     - getting-started/cli.md
     - getting-started/ivm.md
     - getting-started/hello-world.md
