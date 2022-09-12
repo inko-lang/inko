@@ -1,9 +1,15 @@
 # Inko
 
-Inko is a general-purpose, statically typed, easy to use programming language.
-It features deterministic automatic memory management (without a garbage
-collector), a pleasant way of handling errors, excellent support for
-concurrency, a simple syntax, and much more.
+Inko is a language for building concurrent software with confidence. Inko makes
+it easy to build concurrent software, without having to worry about
+unpredictable performance, unexpected runtime errors, race conditions, and type
+errors.
+
+Inko features deterministic automatic memory management, move semantics, static
+typing, type-safe concurrency, efficient error handling, and more.
+
+Inko supports 64-bits Linux, macOS and Windows, and installing Inko is quick and
+easy.
 
 For more information, see the [Inko website](https://inko-lang.org/). If you'd
 like to follow this project but don't have a GitLab account, please consider
@@ -14,7 +20,7 @@ starring our [GitHub mirror](https://github.com/YorickPeterse/inko).
 - Deterministic automatic memory management based on single ownership
 - Easy concurrency through lightweight isolated processes
 - Static typing
-- A unique twist on error handling
+- Error handling done right
 - An efficient, compact and portable bytecode interpreter
 - Pattern matching
 - Algebraic data types
