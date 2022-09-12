@@ -26,10 +26,7 @@ release:docs:
     - ./scripts/poetry_install.sh
   script:
     - make docs/publish DOCS_FOLDER=$CI_COMMIT_REF_NAME
-    - if [[ $CI_COMMIT_REF_NAME = $(git tag -l --sort=-v:refname | head -n1) ]]
-      then
-        make docs/publish DOCS_FOLDER=latest
-      fi
+    - if [[ $CI_COMMIT_REF_NAME = $(git tag -l --sort=-v:refname | head -n1) ]]; then make docs/publish DOCS_FOLDER=latest; fi
     - make docs/versions
   only:
     - tags
