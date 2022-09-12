@@ -15,7 +15,7 @@ pub const IMAGE_EXT: &str = "ibi";
 pub(crate) const MAIN_MODULE: &str = "main";
 
 /// The name of the directory containing a project's source code.
-const SOURCE: &str = "src";
+pub(crate) const SOURCE: &str = "src";
 
 /// The name of the directory containing a project's unit tests.
 const TESTS: &str = "test";

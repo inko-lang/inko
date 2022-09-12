@@ -1,5 +1,5 @@
 use crate::codegen;
-use crate::config::{Config, IMAGE_EXT, SOURCE_EXT};
+use crate::config::{Config, IMAGE_EXT, SOURCE, SOURCE_EXT};
 use crate::hir;
 use crate::mir::{passes as mir, Mir};
 use crate::modules_parser::{ModulesParser, ParsedModule};
@@ -236,9 +236,24 @@ impl Compiler {
 
     fn module_name_from_path(&self, file: &Path) -> ModuleName {
         file.strip_prefix(&self.state.config.source)
-            .or_else(|_| file.strip_prefix(&self.state.config.tests))
+            .ok()
+            .or_else(|| file.strip_prefix(&self.state.config.tests).ok())
+            .or_else(|| {
+                // This allows us to check e.g. `./libstd/src/std/string.inko`
+                // while the current working directory is `.`. This is useful
+                // when e.g. checking files using a text editor, as they would
+                // likely have the working directory set to `.` and not
+                // `./libstd`.
+                let mut components = file.components();
+
+                if components.any(|c| c.as_os_str() == SOURCE) {
+                    Some(components.as_path())
+                } else {
+                    None
+                }
+            })
             .map(ModuleName::from_relative_path)
-            .unwrap_or_else(|_| ModuleName::main())
+            .unwrap_or_else(|| ModuleName::main())
     }
 
     fn all_source_modules(
