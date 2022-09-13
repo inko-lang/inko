@@ -253,7 +253,7 @@ impl Compiler {
                 }
             })
             .map(ModuleName::from_relative_path)
-            .unwrap_or_else(|| ModuleName::main())
+            .unwrap_or_else(ModuleName::main)
     }
 
     fn all_source_modules(
