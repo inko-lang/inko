@@ -240,4 +240,64 @@ fn pub tests(t: mut Tests) {
     t.equal(fmt("foo\tbar"), '"foo\tbar"')
     t.equal(fmt("foo\rbar"), '"foo\rbar"')
   }
+
+  t.test('String.strip_prefix') fn (t) {
+    t.equal('hello'.strip_prefix('xxxxxxxxx'), 'hello')
+    t.equal('hello'.strip_prefix('x'), 'hello')
+    t.equal('hello'.strip_prefix(''), 'hello')
+    t.equal('XhelloX'.strip_prefix('x'), 'XhelloX')
+    t.equal('xhellox'.strip_prefix('xy'), 'xhellox')
+    t.equal('xhellox'.strip_prefix('y'), 'xhellox')
+    t.equal('xhellox'.strip_prefix('x'), 'hellox')
+    t.equal('xxhelloxx'.strip_prefix('xx'), 'helloxx')
+    t.equal('😃hello😃'.strip_prefix('😃'), 'hello😃')
+  }
+
+  t.test('String.strip_suffix') fn (t) {
+    t.equal('hello'.strip_suffix('xxxxxxxxx'), 'hello')
+    t.equal('hello'.strip_suffix('x'), 'hello')
+    t.equal('hello'.strip_suffix(''), 'hello')
+    t.equal('XhelloX'.strip_suffix('x'), 'XhelloX')
+    t.equal('xhellox'.strip_suffix('xy'), 'xhellox')
+    t.equal('xhellox'.strip_suffix('y'), 'xhellox')
+    t.equal('xhellox'.strip_suffix('x'), 'xhello')
+    t.equal('xxhelloxx'.strip_suffix('xx'), 'xxhello')
+    t.equal('😃hello😃'.strip_suffix('😃'), '😃hello')
+  }
+
+  t.test('String.trim_start') fn (t) {
+    t.equal(''.trim_start, '')
+    t.equal('hello'.trim_start, 'hello')
+    t.equal(' hello '.trim_start, 'hello ')
+    t.equal('  hello  '.trim_start, 'hello  ')
+    t.equal('  '.trim_start, '')
+    t.equal("\thello\t".trim_start, "hello\t")
+    t.equal("\rhello\r".trim_start, "hello\r")
+    t.equal("\nhello\n".trim_start, "hello\n")
+    t.equal("\t\r\n\thello".trim_start, 'hello')
+  }
+
+  t.test('String.trim_end') fn (t) {
+    t.equal(''.trim_end, '')
+    t.equal('hello'.trim_end, 'hello')
+    t.equal(' hello '.trim_end, ' hello')
+    t.equal('  hello  '.trim_end, '  hello')
+    t.equal('  '.trim_end, '')
+    t.equal("\thello\t".trim_end, "\thello")
+    t.equal("\rhello\r".trim_end, "\rhello")
+    t.equal("\nhello\n".trim_end, "\nhello")
+    t.equal("hello\t\r\n\t".trim_end, 'hello')
+  }
+
+  t.test('String.trim') fn (t) {
+    t.equal(''.trim, '')
+    t.equal('hello'.trim, 'hello')
+    t.equal(' hello '.trim, 'hello')
+    t.equal('  hello  '.trim, 'hello')
+    t.equal('  '.trim, '')
+    t.equal("\thello\t".trim, "hello")
+    t.equal("\rhello\r".trim, "hello")
+    t.equal("\nhello\n".trim, "hello")
+    t.equal("hello\t\r\n\t".trim, 'hello')
+  }
 }

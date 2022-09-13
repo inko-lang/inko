@@ -16,6 +16,15 @@ import std::index::(bounds_check)
 import std::iter::(Enum, Iter)
 import std::ops::Add
 
+let TAB_BYTE = 9
+let NL_BYTE = 10
+let CR_BYTE = 13
+let SPACE_BYTE = 32
+
+fn whitespace?(byte: Int) -> Bool {
+  byte == TAB_BYTE or byte == NL_BYTE or byte == CR_BYTE or byte == SPACE_BYTE
+}
+
 fn padding(string: String, length: Int, pad_to: Int) -> String {
   if length >= pad_to { return '' }
 
@@ -327,6 +336,83 @@ class builtin String {
   #     '😀😃'.characters.next # => Option.Some('😀 ')
   fn pub characters -> Characters {
     Characters { @string = self, @iter = _INKO.string_characters(self) }
+  }
+
+  # Returns a new `String` without the given prefix.
+  #
+  # # Examples
+  #
+  #     'xhellox'.strip_prefix('x') # => 'hellox'
+  fn pub strip_prefix(prefix: ref String) -> String {
+    if starts_with?(prefix).false? { return clone }
+
+    slice_bytes(start: prefix.size, length: size - prefix.size).into_string
+  }
+
+  # Returns a new `String` without the given suffix.
+  #
+  # # Examples
+  #
+  #     'xhellox'.strip_suffix('x') # => 'xhello'
+  fn pub strip_suffix(suffix: ref String) -> String {
+    if ends_with?(suffix).false? { return clone }
+
+    slice_bytes(start: 0, length: size - suffix.size).into_string
+  }
+
+  # Returns a new `String` without any leading whitespace.
+  #
+  # # Examples
+  #
+  #     ' hello'.trim_start  # => 'hello'
+  #     "\thello".trim_start # => 'hello'
+  fn pub trim_start -> String {
+    let mut index = 0
+    let max = size
+
+    while index < max {
+      if whitespace?(byte(index)) { index += 1 } else { break }
+    }
+
+    slice_bytes(start: index, length: size - index).into_string
+  }
+
+  # Returns a new `String` without any trailing whitespace.
+  #
+  # # Examples
+  #
+  #     'hello '.trim_end  # => 'hello'
+  #     "hello\t".trim_end # => 'hello'
+  fn pub trim_end -> String {
+    let mut index = size - 1
+
+    while index >= 0 {
+      if whitespace?(byte(index)) { index -= 1 } else { break }
+    }
+
+    slice_bytes(start: 0, length: index + 1).into_string
+  }
+
+  # Returns a new `String` with both leading and trailing whitespace removed.
+  #
+  # # Examples
+  #
+  #     ' hello '.trim  # => 'hello'
+  #     " hello\t".trim # => 'hello'
+  fn pub trim -> String {
+    let max = size
+    let mut start = 0
+    let mut end = max - 1
+
+    while start < max {
+      if whitespace?(byte(start)) { start += 1 } else { break }
+    }
+
+    while end >= 0 {
+      if whitespace?(byte(end)) { end -= 1 } else { break }
+    }
+
+    slice_bytes(start: start, length: end + 1 - start).into_string
   }
 }
 
