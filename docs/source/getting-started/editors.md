@@ -17,3 +17,13 @@ using NeoVim):
     ```lua
     use 'https://gitlab.com/inko-lang/inko.vim.git'
     ```
+
+## Visual Studio Code
+
+An official extension for Visual Studio Code is provided
+[here](https://marketplace.visualstudio.com/items?itemName=inko-lang.inko). To
+install it, open VS Code's Quick Open window (Ctrl+P) and run the following:
+
+```
+ext install inko-lang.inko
+```
