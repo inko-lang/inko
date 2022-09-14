@@ -79,10 +79,10 @@ mod tests {
         set_from_env!(cfg, reductions, "BAR", u16);
 
         assert_eq!(cfg.process_threads, 1);
-        assert_eq!(cfg.reductions, DEFAULT_REDUCTIONS);
+        assert_eq!(cfg.reductions, 0);
 
         set_from_env!(cfg, reductions, "BAZ", u16);
 
-        assert_eq!(cfg.reductions, DEFAULT_REDUCTIONS);
+        assert_eq!(cfg.reductions, 0);
     }
 }
