@@ -9,9 +9,7 @@ macro_rules! set_from_env {
     ($config:expr, $field:ident, $key:expr, $value_type:ty) => {{
         if let Ok(raw_value) = var(concat!("INKO_", $key)) {
             if let Ok(value) = raw_value.parse::<$value_type>() {
-                if value > 0 {
-                    $config.$field = value;
-                }
+                $config.$field = value;
             }
         };
     }};

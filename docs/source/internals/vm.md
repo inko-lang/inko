@@ -17,7 +17,12 @@ string.
 
 Processes are scheduled onto a fixed-size pool of OS threads, with the default
 size being equal to the number of CPU cores. This can be changed by setting the
-environment variable `INKO_PROCESS_THREADS` to a value between 1 and 65 535.
+environment variable `INKO_PROCESS_THREADS` to a value between 0 and 65 535.
+
+The main thread is reserved for the main process, and the value set in
+`INKO_PROCESS_THREADS` specifies the number of _additional_ threads to spawn.
+This means that if the value is set to 16, you'll have 16 process threads _in
+addition to_ the main thread.
 
 Processes maintain a reduction counter, starting at a pre-determined value.
 Certain operations reduce this counter. When the counter reaches zero it's
