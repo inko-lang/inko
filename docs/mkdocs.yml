@@ -26,6 +26,7 @@ markdown_extensions:
   - pymdownx.tabbed:
       alternate_style: true
   - admonition
+  - footnotes
 nav:
   - Home: index.md
   - Getting started:
@@ -33,6 +34,7 @@ nav:
     - getting-started/editors.md
     - getting-started/cli.md
     - getting-started/ivm.md
+    - getting-started/compared.md
     - getting-started/hello-world.md
     - getting-started/syntax.md
     - getting-started/memory-management.md
