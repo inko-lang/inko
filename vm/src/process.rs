@@ -460,20 +460,6 @@ impl RescheduleRights {
     }
 }
 
-/// An enum describing what to do when finishing a task.
-#[derive(PartialEq, Eq, Debug)]
-pub(crate) enum Finished {
-    /// There's more work to process, so the process needs to be rescheduled.
-    Reschedule,
-
-    /// There are no messages to process, but there are still clients that may
-    /// produce new messages.
-    WaitForMessage,
-
-    /// There are no messages left, and no clients exist.
-    Terminate,
-}
-
 /// The shared state of a process.
 ///
 /// This state is shared by both the process and its clients.
@@ -636,11 +622,6 @@ impl Process {
     }
 
     pub(crate) fn set_main(&mut self) {
-        // The main process starts without any references, ensuring that when it
-        // terminates the program as a whole also terminates. We handle this
-        // here instead of `Process::main` as this makes writing some unit tests
-        // a bit easier.
-        self.header.reset_references();
         self.state.lock().unwrap().status.set_main();
     }
 
@@ -727,22 +708,19 @@ impl Process {
 
     /// Finishes the exection of a task, and decides what to do next with this
     /// process.
-    pub(crate) fn finish_task(&mut self) -> Finished {
+    ///
+    /// If the return value is `true`, the process should be rescheduled.
+    pub(crate) fn finish_task(&mut self) -> bool {
         let mut state = self.state.lock().unwrap();
 
         self.task.take();
 
-        if !state.mailbox.messages.is_empty() {
-            return Finished::Reschedule;
-        }
-
-        if self.header.atomic_references() > 0 {
+        if state.mailbox.messages.is_empty() {
             state.status.set_waiting_for_message(true);
-
-            return Finished::WaitForMessage;
+            false
+        } else {
+            true
         }
-
-        Finished::Terminate
     }
 
     pub(crate) unsafe fn set_field(
@@ -1304,7 +1282,7 @@ mod tests {
 
         process.set_main();
 
-        assert_eq!(process.finish_task(), Finished::Terminate);
+        assert!(!process.finish_task());
     }
 
     #[test]
@@ -1312,7 +1290,7 @@ mod tests {
         let class = empty_process_class("A");
         let mut process = OwnedProcess::new(Process::alloc(*class));
 
-        assert_eq!(process.finish_task(), Finished::WaitForMessage);
+        assert!(!process.finish_task());
         assert!(process.state().status.is_waiting_for_message());
     }
 
@@ -1329,7 +1307,7 @@ mod tests {
 
         process.send_async_message(index, future, Vec::new());
 
-        assert_eq!(process.finish_task(), Finished::Reschedule);
+        assert!(process.finish_task());
     }
 
     #[test]

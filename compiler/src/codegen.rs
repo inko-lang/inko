@@ -552,8 +552,11 @@ impl<'a> Lower<'a> {
 
                 buffer.push(Instruction::three(op, reg, val, 1));
             }
-            mir::Instruction::Finish(_) => {
-                buffer.push(Instruction::zero(Opcode::ProcessFinishTask));
+            mir::Instruction::Finish(v) => {
+                let op = Opcode::ProcessFinishTask;
+                let arg = v.terminate as u16;
+
+                buffer.push(Instruction::one(op, arg));
             }
             mir::Instruction::AllocateArray(ins) => {
                 let op = Opcode::ArrayAllocate;

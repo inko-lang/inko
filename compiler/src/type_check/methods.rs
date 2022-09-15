@@ -948,44 +948,86 @@ impl<'a> MethodDefiner for DefineMethods<'a> {
 }
 
 /// A compiler pass that checks if the `Main` process and its `main` method are
-/// defined.
-pub(crate) fn check_main_process(state: &mut State) -> bool {
-    let main_mod = if let Some(name) = state.db.main_module() {
-        name.as_str()
-    } else {
-        return true;
-    };
+/// defined, and marks the main method accordingly.
+pub(crate) struct CheckMainMethod<'a> {
+    state: &'a mut State,
+}
 
-    let mod_id = state.db.module(main_mod);
+impl<'a> CheckMainMethod<'a> {
+    pub(crate) fn run(state: &'a mut State) -> bool {
+        CheckMainMethod { state }.check()
+    }
 
-    if let Some(Symbol::Class(class_id)) = mod_id.symbol(&state.db, MAIN_CLASS)
-    {
-        let stype = TypeId::ClassInstance(ClassInstance::new(class_id));
-
-        if class_id.kind(&state.db).is_async()
-            && class_id.method(&state.db, MAIN_METHOD).map_or(false, |m| {
-                m.kind(&state.db) == MethodKind::Async
-                    && m.number_of_arguments(&state.db) == 0
-                    && m.throw_type(&state.db).is_never(&state.db)
-                    && m.return_type(&state.db).is_nil(&state.db, stype)
-            })
-        {
+    fn check(&mut self) -> bool {
+        let main_mod = if let Some(name) = self.db().main_module() {
+            name.as_str()
+        } else {
+            // The main module isn't defined when type-checking a specific file,
+            // as said file doesn't necessarily have to be the main module (i.e.
+            // we're type-checking `std/string.inko`).
             return true;
+        };
+
+        let mod_id = self.db().module(main_mod);
+
+        if let Some(method) = self.main_method(mod_id) {
+            method.set_main(self.db_mut());
+            true
+        } else {
+            self.state.diagnostics.error(
+                DiagnosticId::MissingMain,
+                format!(
+                    "This module must define the async class '{}', \
+                    which must define the async method '{}'",
+                    MAIN_CLASS, MAIN_METHOD
+                ),
+                mod_id.file(self.db()),
+                SourceLocation::new(1..=1, 1..=1),
+            );
+
+            false
         }
     }
 
-    state.diagnostics.error(
-        DiagnosticId::MissingMain,
-        format!(
-            "This module must define the async class '{}', \
-            which must define the async method '{}'",
-            MAIN_CLASS, MAIN_METHOD
-        ),
-        mod_id.file(&state.db),
-        SourceLocation::new(1..=1, 1..=1),
-    );
+    fn main_method(&self, mod_id: ModuleId) -> Option<MethodId> {
+        let class = if let Some(Symbol::Class(class_id)) =
+            mod_id.symbol(self.db(), MAIN_CLASS)
+        {
+            class_id
+        } else {
+            return None;
+        };
 
-    false
+        let stype = TypeId::ClassInstance(ClassInstance::new(class));
+
+        if !class.kind(self.db()).is_async() {
+            return None;
+        }
+
+        let method = if let Some(m) = class.method(self.db(), MAIN_METHOD) {
+            m
+        } else {
+            return None;
+        };
+
+        if method.kind(self.db()) == MethodKind::Async
+            && method.number_of_arguments(self.db()) == 0
+            && method.throw_type(self.db()).is_never(self.db())
+            && method.return_type(self.db()).is_nil(self.db(), stype)
+        {
+            Some(method)
+        } else {
+            None
+        }
+    }
+
+    fn db(&self) -> &Database {
+        &self.state.db
+    }
+
+    fn db_mut(&mut self) -> &mut Database {
+        &mut self.state.db
+    }
 }
 
 /// A compiler pass that defines methods implemented from traits

@@ -597,7 +597,7 @@ impl Opcode {
             Opcode::ObjectEq => 3,
             Opcode::Panic => 1,
             Opcode::ProcessAllocate => 3,
-            Opcode::ProcessFinishTask => 0,
+            Opcode::ProcessFinishTask => 1,
             Opcode::ProcessGetField => 3,
             Opcode::ProcessSend => 3,
             Opcode::ProcessSendAsync => 3,

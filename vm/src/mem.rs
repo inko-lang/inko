@@ -241,16 +241,8 @@ impl Header {
         self.references
     }
 
-    pub(crate) fn atomic_references(&self) -> u16 {
-        self.references_as_atomic().load(Ordering::Acquire)
-    }
-
     pub(crate) fn increment(&mut self) {
         self.references += 1;
-    }
-
-    pub(crate) fn reset_references(&mut self) {
-        self.references = 0;
     }
 
     pub(crate) fn decrement(&mut self) {

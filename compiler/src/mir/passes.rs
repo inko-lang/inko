@@ -375,6 +375,7 @@ impl<'a> GenerateDropper<'a> {
             types::DROPPER_METHOD,
             types::MethodKind::Mutable,
             true,
+            false,
         );
     }
 
@@ -390,6 +391,7 @@ impl<'a> GenerateDropper<'a> {
             types::ASYNC_DROPPER_METHOD,
             types::MethodKind::AsyncMutable,
             false,
+            true,
         );
         let (dropper_type, rec) =
             self.method_type(types::DROPPER_METHOD, types::MethodKind::Mutable);
@@ -496,6 +498,7 @@ impl<'a> GenerateDropper<'a> {
         name: &str,
         kind: types::MethodKind,
         free_self: bool,
+        terminate: bool,
     ) -> types::MethodId {
         let drop_method_opt =
             self.class.id.method(&self.state.db, types::DROP_METHOD);
@@ -531,9 +534,14 @@ impl<'a> GenerateDropper<'a> {
             lower.current_block_mut().free(self_reg, loc);
         }
 
-        let nil_reg = lower.get_nil(loc);
+        if terminate {
+            lower.current_block_mut().finish(true, loc);
+        } else {
+            let nil_reg = lower.get_nil(loc);
 
-        lower.current_block_mut().return_value(nil_reg, loc);
+            lower.current_block_mut().return_value(nil_reg, loc);
+        }
+
         self.add_method(name, method_type, method);
         method_type
     }
@@ -2289,7 +2297,9 @@ impl<'a> LowerMethod<'a> {
                 self.current_block = after_id;
             }
 
-            self.current_block_mut().finish(location);
+            let terminate = self.method.id.is_main(self.db());
+
+            self.current_block_mut().finish(terminate, location);
         } else if throw {
             self.current_block_mut().throw_value(register, location);
         } else {

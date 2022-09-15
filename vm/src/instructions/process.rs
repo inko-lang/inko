@@ -3,7 +3,7 @@ use crate::indexes::{ClassIndex, FieldIndex, MethodIndex};
 use crate::mem::Float;
 use crate::mem::Pointer;
 use crate::process::{
-    Finished, Future, FutureState, Process, ProcessPointer, RescheduleRights,
+    Future, FutureState, Process, ProcessPointer, RescheduleRights,
     TaskPointer, Write, WriteResult,
 };
 use crate::scheduler::timeouts::Timeout;
@@ -82,29 +82,6 @@ pub(crate) fn suspend(
 
     process.suspend(timeout.clone());
     state.timeout_worker.suspend(process, timeout);
-}
-
-#[inline(always)]
-pub(crate) fn finish_task(state: &State, mut process: ProcessPointer) {
-    match process.finish_task() {
-        Finished::Reschedule => state.scheduler.schedule(process),
-        Finished::Terminate => {
-            if process.is_main() {
-                state.terminate();
-            }
-
-            // Processes drop/free themselves as this must be deferred until all
-            // messages (including any destructors) have finished running. If we
-            // did this in a destructor we'd end up releasing memory of a
-            // process while still using it.
-            Process::drop_and_deallocate(process);
-        }
-        Finished::WaitForMessage => {
-            // When waiting for a message, clients will reschedule or terminate
-            // the process when needed. This means at this point we can't use
-            // the process anymore, as it may have already been rescheduled.
-        }
-    }
 }
 
 #[inline(always)]

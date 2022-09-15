@@ -331,8 +331,10 @@ mod tests {
     use super::*;
     use crate::arc_without_weak::ArcWithoutWeak;
     use crate::mem::Method;
-    use crate::process::Process;
-    use crate::test::{empty_method, empty_process_class, new_process, setup};
+    use crate::test::{
+        empty_async_method, empty_process_class, new_main_process, new_process,
+        setup,
+    };
     use std::mem;
     use std::thread;
 
@@ -368,60 +370,65 @@ mod tests {
     fn test_run_global_jobs() {
         let state = setup();
         let class = empty_process_class("A");
-        let proc_wrapper = new_process(*class);
-        let mut process = proc_wrapper.take_and_forget();
+        let main_method = empty_async_method();
+        let proc_wrapper = new_main_process(*class, main_method);
+        let process = proc_wrapper.take_and_forget();
         let mut thread = thread(&state);
 
-        process.set_main();
         thread.state.push_global(process);
         thread.run(&state);
 
         assert!(thread.state.pop_global().is_none());
         assert!(thread.state.queues[0].pop().is_none());
+
+        Method::drop_and_deallocate(main_method);
     }
 
     #[test]
     fn test_run_with_external_jobs() {
         let state = setup();
         let class = empty_process_class("A");
-        let proc_wrapper = new_process(*class);
-        let mut process = proc_wrapper.take_and_forget();
+        let main_method = empty_async_method();
+        let proc_wrapper = new_main_process(*class, main_method);
+        let process = proc_wrapper.take_and_forget();
         let mut thread = thread(&state);
 
-        process.set_main();
         thread.state.queues[0].push_external(process);
         thread.run(&state);
 
         assert!(!thread.state.queues[0].has_external_jobs());
+
+        Method::drop_and_deallocate(main_method);
     }
 
     #[test]
     fn test_run_steal_then_terminate() {
         let state = setup();
         let class = empty_process_class("A");
-        let proc_wrapper = new_process(*class);
-        let mut process = proc_wrapper.take_and_forget();
+        let main_method = empty_async_method();
+        let proc_wrapper = new_main_process(*class, main_method);
+        let process = proc_wrapper.take_and_forget();
         let mut thread = thread(&state);
 
-        process.set_main();
         thread.state.queues[1].push_internal(process);
         thread.run(&state);
 
         assert!(thread.state.queues[1].pop().is_none());
+
+        Method::drop_and_deallocate(main_method);
     }
 
     #[test]
     fn test_run_work_and_steal() {
         let state = setup();
         let class = empty_process_class("A");
-        let proc_wrapper = new_process(*class);
+        let main_method = empty_async_method();
+        let proc_wrapper = new_main_process(*class, main_method);
         let mut thread = thread(&state);
-        let mut process1 = proc_wrapper.take_and_forget();
-        let mut process2 = Process::alloc(*class);
+        let process1 = proc_wrapper.take_and_forget();
+        let process2 = new_process(*class);
 
-        process2.header.reset_references();
-        process1.set_main();
-        thread.queue.push_internal(process2);
+        thread.queue.push_internal(*process2);
         thread.state.queues[1].push_internal(process1);
 
         // Here the order of work is:
@@ -433,24 +440,28 @@ mod tests {
 
         assert!(thread.queue.pop().is_none());
         assert!(thread.state.queues[1].pop().is_none());
+
+        Method::drop_and_deallocate(main_method);
     }
 
     #[test]
     fn test_run_work_then_terminate_steal_loop() {
         let state = setup();
         let class = empty_process_class("A");
-        let proc_wrapper = new_process(*class);
+        let main_method = empty_async_method();
+        let proc_wrapper = new_main_process(*class, main_method);
         let mut thread = thread(&state);
-        let mut process1 = proc_wrapper.take_and_forget();
+        let process1 = proc_wrapper.take_and_forget();
         let process2 = new_process(*class);
 
-        process1.set_main();
         thread.state.queues[0].push_internal(process1);
         thread.state.queues[1].push_internal(*process2);
         thread.run(&state);
 
         assert!(thread.state.queues[0].pop().is_none());
         assert!(thread.state.queues[1].pop().is_some());
+
+        Method::drop_and_deallocate(main_method);
     }
 
     #[test]
@@ -474,7 +485,7 @@ mod tests {
         let state = setup();
         let pool = &state.scheduler.pool;
         let class = empty_process_class("A");
-        let method = empty_method();
+        let method = empty_async_method();
         let threads = pool.start_main(state.clone(), *class, method);
 
         threads.join().unwrap();
@@ -500,11 +511,9 @@ mod tests {
     fn test_spawn_thread() {
         let state = setup();
         let class = empty_process_class("A");
-        let process = new_process(*class);
-        let mut proc = process.take_and_forget();
-
-        proc.set_main();
-
+        let main_method = empty_async_method();
+        let process = new_main_process(*class, main_method);
+        let proc = process.take_and_forget();
         let pool = &state.scheduler.pool;
         let thread =
             pool.spawn_thread(state.clone(), pool.state.queues[0].clone());
@@ -514,6 +523,8 @@ mod tests {
         thread.join().unwrap();
 
         assert!(!pool.state.has_global_jobs());
+
+        Method::drop_and_deallocate(main_method);
     }
 
     #[test]

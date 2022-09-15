@@ -13,7 +13,7 @@ use crate::type_check::define_types::{
 use crate::type_check::expressions::{DefineConstants, Expressions};
 use crate::type_check::imports::DefineImportedTypes;
 use crate::type_check::methods::{
-    check_main_process, define_builtin_functions, DefineMethods,
+    define_builtin_functions, CheckMainMethod, DefineMethods,
     DefineModuleMethodNames, ImplementTraitMethods,
 };
 use std::env::current_dir;
@@ -177,7 +177,7 @@ impl Compiler {
             && DefineVariants::run_all(state, modules)
             && DefineFields::run_all(state, modules)
             && DefineMethods::run_all(state, modules)
-            && check_main_process(state)
+            && CheckMainMethod::run(state)
             && ImplementTraitMethods::run_all(state, modules)
             && define_builtin_functions(state)
             && DefineConstants::run_all(state, modules)

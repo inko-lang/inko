@@ -233,9 +233,11 @@ impl Block {
         })));
     }
 
-    pub(crate) fn finish(&mut self, location: LocationId) {
-        self.instructions
-            .push(Instruction::Finish(Box::new(Finish { location })));
+    pub(crate) fn finish(&mut self, terminate: bool, location: LocationId) {
+        self.instructions.push(Instruction::Finish(Box::new(Finish {
+            location,
+            terminate,
+        })));
     }
 
     pub(crate) fn nil_literal(
@@ -1126,6 +1128,7 @@ pub(crate) struct Reduce {
 
 #[derive(Clone)]
 pub(crate) struct Finish {
+    pub(crate) terminate: bool,
     pub(crate) location: LocationId,
 }
 
@@ -1425,7 +1428,9 @@ impl Instruction {
                 )
             }
             Instruction::Reduce(ref v) => format!("reduce {}", v.amount),
-            Instruction::Finish(_) => "finish".to_string(),
+            Instruction::Finish(v) => {
+                if v.terminate { "terminate" } else { "finish" }.to_string()
+            }
         }
     }
 }

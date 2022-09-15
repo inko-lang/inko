@@ -109,17 +109,21 @@ pub(crate) fn setup() -> RcState {
     State::new(config, perm, &[])
 }
 
-/// Returns a dummy process to use for tests
 pub(crate) fn new_process(class: ClassPointer) -> OwnedProcess {
     OwnedProcess::new(Process::alloc(class))
 }
 
-/// Allocates and returns a new empty module.
+pub(crate) fn new_main_process(
+    class: ClassPointer,
+    method: MethodPointer,
+) -> OwnedProcess {
+    OwnedProcess::new(Process::main(class, method))
+}
+
 pub(crate) fn empty_module(class: ClassPointer) -> OwnedModule {
     OwnedModule::new(Module::alloc(class))
 }
 
-/// Allocates and returns a new empty method.
 pub(crate) fn empty_method() -> MethodPointer {
     // We use Int values for the name so we don't have to worry about also
     // dropping strings when dropping this Method.
@@ -132,12 +136,22 @@ pub(crate) fn empty_method() -> MethodPointer {
     )
 }
 
-/// Allocates an empty class.
+pub(crate) fn empty_async_method() -> MethodPointer {
+    // We use Int values for the name so we don't have to worry about also
+    // dropping strings when dropping this Method.
+    Method::alloc(
+        123,
+        2,
+        vec![Instruction::one(Opcode::ProcessFinishTask, 1)],
+        LocationTable::new(),
+        Vec::new(),
+    )
+}
+
 pub(crate) fn empty_class(name: &str) -> OwnedClass {
     OwnedClass::new(Class::alloc(name.to_string(), 0, 0))
 }
 
-/// Allocates an empty process class.
 pub(crate) fn empty_process_class(name: &str) -> OwnedClass {
     OwnedClass::new(Class::process(name.to_string(), 0, 0))
 }

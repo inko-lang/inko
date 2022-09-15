@@ -2264,6 +2264,7 @@ pub struct Method {
     throw_type: TypeRef,
     return_type: TypeRef,
     source: MethodSource,
+    main: bool,
 
     /// The type of the receiver of the method, aka the type of `self` (not
     /// `Self`).
@@ -2314,6 +2315,7 @@ impl Method {
             receiver: TypeRef::Unknown,
             self_type: None,
             field_types: HashMap::new(),
+            main: false,
         }
     }
 }
@@ -2526,6 +2528,14 @@ impl MethodId {
             argument.value_type,
             argument.variable,
         );
+    }
+
+    pub fn set_main(&self, db: &mut Database) {
+        self.get_mut(db).main = true;
+    }
+
+    pub fn is_main(&self, db: &Database) -> bool {
+        self.get(db).main
     }
 
     fn get(self, db: &Database) -> &Method {

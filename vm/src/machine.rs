@@ -166,8 +166,8 @@ impl<'a> Machine<'a> {
             if let Err(message) = self.run_task(process, task) {
                 self.panic(process, &message);
             }
-        } else {
-            process::finish_task(self.state, process);
+        } else if process.finish_task() {
+            self.state.scheduler.schedule(process);
         }
     }
 
@@ -1017,6 +1017,23 @@ impl<'a> Machine<'a> {
                     state.context.set_register(reg, res);
                 }
                 Opcode::ProcessFinishTask => {
+                    let terminate = ins.arg(0) == 1;
+
+                    if terminate {
+                        if process.is_main() {
+                            self.state.terminate();
+                        }
+
+                        // Processes drop/free themselves as this must be
+                        // deferred until all messages (including any
+                        // destructors) have finished running. If we did this in
+                        // a destructor we'd end up releasing memory of a
+                        // process while still using it.
+                        Process::drop_and_deallocate(process);
+
+                        return Ok(());
+                    }
+
                     break 'ins_loop;
                 }
                 Opcode::JumpTable => {
@@ -1042,7 +1059,10 @@ impl<'a> Machine<'a> {
             };
         }
 
-        process::finish_task(self.state, process);
+        if process.finish_task() {
+            self.state.scheduler.schedule(process);
+        }
+
         Ok(())
     }
 
