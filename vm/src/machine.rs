@@ -113,22 +113,21 @@ impl<'a> Machine<'a> {
 
         {
             let state = state.clone();
-            let _ = thread::Builder::new()
+
+            thread::Builder::new()
                 .name("timeout worker".to_string())
                 .spawn(move || state.timeout_worker.run(&state.scheduler))
                 .unwrap();
-        };
+        }
 
-        let poller_guard = {
-            let thread_state = state.clone();
+        {
+            let state = state.clone();
 
             thread::Builder::new()
                 .name("network poller".to_string())
-                .spawn(move || {
-                    NetworkPollerWorker::new(thread_state).run();
-                })
-                .unwrap()
-        };
+                .spawn(move || NetworkPollerWorker::new(state).run())
+                .unwrap();
+        }
 
         // Starting the primary threads will block this thread, as the main
         // worker will run directly onto the current thread. As such, we must
@@ -145,7 +144,7 @@ impl<'a> Machine<'a> {
 
         // Joining the pools only fails in case of a panic. In this case we
         // don't want to re-panic as this clutters the error output.
-        if primary_guard.join().is_err() || poller_guard.join().is_err() {
+        if primary_guard.join().is_err() {
             state.set_exit_status(1);
         }
 

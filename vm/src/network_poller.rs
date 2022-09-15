@@ -3,7 +3,6 @@ use crate::process::{Process, ProcessPointer};
 use crate::state::RcState;
 use polling::{Event, Poller, Source};
 use std::io;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 /// The type of event a poller should wait for.
 pub(crate) enum Interest {
@@ -17,20 +16,17 @@ pub(crate) enum Interest {
 /// A poller for non-blocking sockets.
 pub(crate) struct NetworkPoller {
     poller: Poller,
-    alive: AtomicBool,
 }
 
 impl NetworkPoller {
     pub(crate) fn new() -> Self {
         NetworkPoller {
             poller: Poller::new().expect("Failed to set up the network poller"),
-            alive: AtomicBool::new(true),
         }
     }
 
-    pub(crate) fn poll(&self, events: &mut Vec<Event>) -> io::Result<bool> {
-        self.poller.wait(events, None)?;
-        Ok(self.is_alive())
+    pub(crate) fn poll(&self, events: &mut Vec<Event>) -> io::Result<usize> {
+        self.poller.wait(events, None)
     }
 
     pub(crate) fn add(
@@ -49,15 +45,6 @@ impl NetworkPoller {
         interest: Interest,
     ) -> io::Result<()> {
         self.poller.modify(source, self.event(process, interest))
-    }
-
-    pub(crate) fn terminate(&self) {
-        self.alive.store(false, Ordering::Release);
-        self.poller.notify().expect("Failed to notify the poller to terminate");
-    }
-
-    pub(crate) fn is_alive(&self) -> bool {
-        self.alive.load(Ordering::Acquire)
     }
 
     fn event(&self, process: ProcessPointer, interest: Interest) -> Event {
@@ -84,9 +71,14 @@ impl Worker {
         let mut events = Vec::new();
 
         loop {
-            if !self.state.network_poller.poll(&mut events).unwrap_or(false) {
-                // The poller is no longer alive, so we should shut down.
-                return;
+            if let Err(err) = self.state.network_poller.poll(&mut events) {
+                if err.kind() != io::ErrorKind::Interrupted {
+                    // It's not entirely clear if/when we ever run into this,
+                    // but should we run into any error that's _not_ an
+                    // interrupt then there's probably more going on, and all we
+                    // can do is abort.
+                    panic!("Polling for IO events failed: {:?}", err);
+                }
             }
 
             for event in &events {
@@ -155,24 +147,9 @@ mod tests {
 
         poller.add(*process, &sock1, Interest::Write).unwrap();
         poller.add(*process, &sock2, Interest::Write).unwrap();
-        poller.poll(&mut events).unwrap();
 
+        assert!(poller.poll(&mut events).is_ok());
         assert!(events.capacity() >= 2);
         assert_eq!(events.len(), 2);
-    }
-
-    #[test]
-    fn test_terminate() {
-        let poller = NetworkPoller::new();
-        let mut events = Vec::with_capacity(1);
-
-        assert!(poller.is_alive());
-
-        poller.terminate();
-
-        assert!(!poller.poll(&mut events).unwrap());
-        assert_eq!(events.capacity(), 1);
-        assert_eq!(events.len(), 0);
-        assert!(!poller.is_alive());
     }
 }

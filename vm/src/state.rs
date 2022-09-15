@@ -118,7 +118,6 @@ impl State {
 
     pub(crate) fn terminate(&self) {
         self.scheduler.terminate();
-        self.network_poller.terminate();
     }
 
     pub(crate) fn set_exit_status(&self, new_status: i32) {
