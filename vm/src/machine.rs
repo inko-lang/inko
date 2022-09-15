@@ -111,15 +111,12 @@ impl<'a> Machine<'a> {
         let entry_method =
             unsafe { entry_class.get_method(image.entry_method) };
 
-        let timeout_guard = {
-            let thread_state = state.clone();
-
-            thread::Builder::new()
+        {
+            let state = state.clone();
+            let _ = thread::Builder::new()
                 .name("timeout worker".to_string())
-                .spawn(move || {
-                    thread_state.timeout_worker.run(&thread_state.scheduler);
-                })
-                .unwrap()
+                .spawn(move || state.timeout_worker.run(&state.scheduler))
+                .unwrap();
         };
 
         let poller_guard = {
@@ -148,10 +145,7 @@ impl<'a> Machine<'a> {
 
         // Joining the pools only fails in case of a panic. In this case we
         // don't want to re-panic as this clutters the error output.
-        if primary_guard.join().is_err()
-            || timeout_guard.join().is_err()
-            || poller_guard.join().is_err()
-        {
+        if primary_guard.join().is_err() || poller_guard.join().is_err() {
             state.set_exit_status(1);
         }
 

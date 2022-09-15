@@ -118,7 +118,6 @@ impl State {
 
     pub(crate) fn terminate(&self) {
         self.scheduler.terminate();
-        self.timeout_worker.terminate();
         self.network_poller.terminate();
     }
 

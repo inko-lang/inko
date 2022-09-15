@@ -15,9 +15,9 @@ const FRAGMENTATION_THRESHOLD: f64 = 0.1;
 /// The maximum number of messages to process in a single timeout iteration.
 const MAX_MESSAGES_PER_ITERATION: usize = 64;
 
-enum Message {
-    Suspend(ProcessPointer, ArcWithoutWeak<Timeout>),
-    Terminate,
+struct Message {
+    process: ProcessPointer,
+    timeout: ArcWithoutWeak<Timeout>,
 }
 
 struct Inner {
@@ -26,9 +26,6 @@ struct Inner {
 
     /// The receiving half of the channel used for suspending processes.
     receiver: Receiver<Message>,
-
-    /// Indicates if the timeout worker should run or terminate.
-    alive: bool,
 }
 
 /// A TimeoutWorker is tasked with rescheduling processes when their timeouts
@@ -69,7 +66,7 @@ impl TimeoutWorker {
     pub(crate) fn new() -> Self {
         let (sender, receiver) = unbounded();
 
-        let inner = Inner { timeouts: Timeouts::new(), receiver, alive: true };
+        let inner = Inner { timeouts: Timeouts::new(), receiver };
 
         TimeoutWorker {
             inner: UnsafeCell::new(inner),
@@ -78,38 +75,26 @@ impl TimeoutWorker {
         }
     }
 
-    pub(crate) fn terminate(&self) {
-        self.sender
-            .send(Message::Terminate)
-            .expect("Failed to terminate because the channel was closed");
-    }
-
     pub(crate) fn increase_expired_timeouts(&self) {
         self.expired.fetch_add(1, Ordering::AcqRel);
     }
 
     pub(crate) fn run(&self, scheduler: &Scheduler) {
-        while self.is_alive() {
+        loop {
             self.defragment_heap();
             self.handle_pending_messages();
-
-            // This ensures we don't end up waiting for a message below if we
-            // were instructed to terminated when processing the pending
-            // messages.
-            if !self.is_alive() {
-                return;
-            }
 
             let time_until_expiration =
                 self.reschedule_expired_processes(scheduler);
 
             if let Some(duration) = time_until_expiration {
-                self.wait_for_message_with_timeout(duration);
-            } else {
-                // When there are no timeouts there's no point in periodically
-                // processing the list of timeouts, so instead we wait until the
-                // first one is added.
-                self.wait_for_message();
+                match self.inner().receiver.recv_timeout(duration) {
+                    Ok(msg) => self.handle_message(msg),
+                    Err(err) if err.is_disconnected() => break,
+                    _ => {}
+                }
+            } else if !self.wait_for_message() {
+                break;
             }
         }
     }
@@ -119,9 +104,10 @@ impl TimeoutWorker {
         process: ProcessPointer,
         timeout: ArcWithoutWeak<Timeout>,
     ) {
-        self.sender
-            .send(Message::Suspend(process, timeout))
-            .expect("Failed to suspend because the channel was closed");
+        // If a send fails that's OK, because this realistically only happens
+        // during shutdown of the program, at which point we don't care about
+        // what happens with the message.
+        let _ = self.sender.send(Message { process, timeout });
     }
 
     fn reschedule_expired_processes(
@@ -150,37 +136,17 @@ impl TimeoutWorker {
         }
     }
 
-    fn wait_for_message(&self) {
-        let message = self
-            .inner()
-            .receiver
-            .recv()
-            .expect("Attempt to receive from a closed channel");
-
-        self.handle_message(message);
-    }
-
-    fn wait_for_message_with_timeout(&self, wait_for: Duration) {
-        if let Ok(message) = self.inner().receiver.recv_timeout(wait_for) {
+    fn wait_for_message(&self) -> bool {
+        if let Ok(message) = self.inner().receiver.recv() {
             self.handle_message(message);
+            true
+        } else {
+            false
         }
     }
 
     fn handle_message(&self, message: Message) {
-        let inner = self.inner_mut();
-
-        match message {
-            Message::Suspend(process, timeout) => {
-                inner.timeouts.insert(process, timeout);
-            }
-            Message::Terminate => {
-                inner.alive = false;
-            }
-        }
-    }
-
-    fn is_alive(&self) -> bool {
-        self.inner().alive
+        self.inner_mut().timeouts.insert(message.process, message.timeout);
     }
 
     fn number_of_expired_timeouts(&self) -> f64 {
@@ -222,11 +188,26 @@ mod tests {
     use std::thread;
     use std::time::Instant;
 
+    fn terminate(worker: &TimeoutWorker) {
+        let (sender, _) = unbounded();
+
+        // This shuts down the worker by dropping the old Sender, without
+        // needing extra boolean "alive" flags.
+        //
+        // We use this hack because in tests we may use an Arc for TimeoutWorker
+        // so we can share it with threads.
+        unsafe {
+            let oh_dear_god =
+                worker as *const TimeoutWorker as *mut TimeoutWorker;
+
+            (&mut *oh_dear_god).sender = sender;
+        }
+    }
+
     #[test]
     fn test_new() {
         let worker = TimeoutWorker::new();
 
-        assert!(worker.inner().alive);
         assert_eq!(worker.inner().timeouts.len(), 0);
         assert_eq!(worker.expired.load(Ordering::Acquire), 0);
     }
@@ -238,15 +219,6 @@ mod tests {
         let process = new_process(*class);
 
         worker.suspend(*process, Timeout::with_rc(Duration::from_secs(1)));
-
-        assert!(worker.inner().receiver.recv().is_ok());
-    }
-
-    #[test]
-    fn test_terminate() {
-        let worker = TimeoutWorker::new();
-
-        worker.terminate();
 
         assert!(worker.inner().receiver.recv().is_ok());
     }
@@ -280,8 +252,7 @@ mod tests {
         // loop.
         worker.wait_for_message();
         worker.wait_for_message();
-        worker.terminate();
-
+        terminate(&worker);
         worker.run(&scheduler);
 
         assert_eq!(worker.inner().timeouts.len(), 1);
@@ -298,7 +269,7 @@ mod tests {
 
         process.state().waiting_for_future(Some(timeout.clone()));
         worker.suspend(process, timeout);
-        worker.terminate();
+        terminate(&worker);
         worker.run(&scheduler);
 
         assert_eq!(worker.inner().timeouts.len(), 1);
@@ -338,7 +309,7 @@ mod tests {
             thread::sleep(Duration::from_millis(5));
         }
 
-        worker.terminate();
+        terminate(&worker);
 
         let duration =
             handle.join().expect("Failed to join the timeout worker");
@@ -378,79 +349,6 @@ mod tests {
         worker.reschedule_expired_processes(&scheduler);
 
         assert!(scheduler.pool.state.pop_global().is_none());
-    }
-
-    #[test]
-    fn test_handle_pending_messages() {
-        let worker = TimeoutWorker::new();
-
-        worker.terminate();
-        worker.handle_pending_messages();
-
-        assert!(!worker.is_alive());
-    }
-
-    #[test]
-    fn test_handle_pending_messages_with_many_messages() {
-        let worker = TimeoutWorker::new();
-
-        for _ in 0..(MAX_MESSAGES_PER_ITERATION + 1) {
-            worker.terminate();
-        }
-
-        worker.handle_pending_messages();
-
-        assert!(worker.inner().receiver.recv().is_ok());
-    }
-
-    #[test]
-    fn test_wait_for_message() {
-        let worker = TimeoutWorker::new();
-
-        worker.terminate();
-        worker.wait_for_message();
-
-        assert!(!worker.is_alive());
-    }
-
-    #[test]
-    fn test_wait_for_message_with_timeout_with_message() {
-        let worker = TimeoutWorker::new();
-
-        worker.terminate();
-        worker.wait_for_message_with_timeout(Duration::from_millis(5));
-
-        assert!(!worker.is_alive());
-    }
-
-    #[test]
-    fn test_wait_for_message_with_timeout_without_message() {
-        let worker = TimeoutWorker::new();
-        let start = Instant::now();
-
-        worker.wait_for_message_with_timeout(Duration::from_millis(10));
-
-        assert!(start.elapsed() >= Duration::from_millis(9));
-    }
-
-    #[test]
-    fn test_handle_message() {
-        let worker = TimeoutWorker::new();
-
-        worker.handle_message(Message::Terminate);
-
-        assert!(!worker.is_alive());
-    }
-
-    #[test]
-    fn test_is_alive() {
-        let worker = TimeoutWorker::new();
-
-        assert!(worker.is_alive());
-
-        worker.handle_message(Message::Terminate);
-
-        assert!(!worker.is_alive());
     }
 
     #[test]
