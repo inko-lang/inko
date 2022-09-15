@@ -3,7 +3,6 @@ use crate::arc_without_weak::ArcWithoutWeak;
 use crate::machine::Machine;
 use crate::mem::{ClassPointer, MethodPointer};
 use crate::process::{Process, ProcessPointer};
-use crate::scheduler::join_list::JoinList;
 use crate::scheduler::park_group::ParkGroup;
 use crate::scheduler::queue::{Queue, RcQueue};
 use crate::state::RcState as VmState;
@@ -143,43 +142,28 @@ impl Pool {
         self.state.terminate();
     }
 
-    /// Starts the pool, blocking the current thread until the pool is
-    /// terminated.
-    ///
-    /// The current thread will be used to perform jobs scheduled onto the first
-    /// queue.
+    /// Starts the pool, blocking the current thread until the program
+    /// terminates.
     pub(crate) fn start_main(
         &self,
         vm_state: VmState,
         class: ClassPointer,
         method: MethodPointer,
-    ) -> JoinList<()> {
-        let join_list = self.spawn_threads_for_range(1, vm_state.clone());
+    ) {
+        self.spawn_threads_for_range(1, vm_state.clone());
+
         let queue = self.state.queues[0].clone();
         let mut thread = Thread::main(queue, self.state.clone(), class, method);
 
         thread.run(&vm_state);
-        join_list
     }
 
-    /// Spawns OS threads for a range of queues, starting at the given position.
-    fn spawn_threads_for_range(
-        &self,
-        start_at: usize,
-        vm_state: VmState,
-    ) -> JoinList<()> {
-        let mut handles = Vec::new();
-
+    fn spawn_threads_for_range(&self, start_at: usize, vm_state: VmState) {
         for index in start_at..self.state.queues.len() {
-            let handle = self.spawn_thread(
-                vm_state.clone(),
-                self.state.queues[index].clone(),
-            );
+            let queue = self.state.queues[index].clone();
 
-            handles.push(handle);
+            self.spawn_thread(vm_state.clone(), queue);
         }
-
-        JoinList::new(handles)
     }
 
     fn spawn_thread(
@@ -478,21 +462,6 @@ mod tests {
         assert!(pool.state.is_alive());
         pool.terminate();
         assert!(!pool.state.is_alive());
-    }
-
-    #[test]
-    fn test_start_main() {
-        let state = setup();
-        let pool = &state.scheduler.pool;
-        let class = empty_process_class("A");
-        let method = empty_async_method();
-        let threads = pool.start_main(state.clone(), *class, method);
-
-        threads.join().unwrap();
-
-        assert!(!pool.state.is_alive());
-
-        Method::drop_and_deallocate(method);
     }
 
     #[test]

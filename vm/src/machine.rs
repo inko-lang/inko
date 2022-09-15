@@ -129,23 +129,14 @@ impl<'a> Machine<'a> {
                 .unwrap();
         }
 
-        // Starting the primary threads will block this thread, as the main
-        // worker will run directly onto the current thread. As such, we must
-        // start these threads last.
-        let primary_guard = {
+        {
             let thread_state = state.clone();
 
             state.scheduler.pool.start_main(
                 thread_state,
                 entry_class,
                 entry_method,
-            )
-        };
-
-        // Joining the pools only fails in case of a panic. In this case we
-        // don't want to re-panic as this clutters the error output.
-        if primary_guard.join().is_err() {
-            state.set_exit_status(1);
+            );
         }
 
         Ok(state.current_exit_status())
