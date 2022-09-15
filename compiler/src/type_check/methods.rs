@@ -1004,11 +1004,7 @@ impl<'a> CheckMainMethod<'a> {
             return None;
         }
 
-        let method = if let Some(m) = class.method(self.db(), MAIN_METHOD) {
-            m
-        } else {
-            return None;
-        };
+        let method = class.method(self.db(), MAIN_METHOD)?;
 
         if method.kind(self.db()) == MethodKind::Async
             && method.number_of_arguments(self.db()) == 0
