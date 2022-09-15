@@ -17,12 +17,34 @@ string.
 
 Processes are scheduled onto a fixed-size pool of OS threads, with the default
 size being equal to the number of CPU cores. This can be changed by setting the
-environment variable `INKO_PROCESS_THREADS` to a value between 0 and 65 535.
+environment variable `INKO_PROCESS_THREADS` to a value between 1 and 65 535.
 
-The main thread is reserved for the main process, and the value set in
-`INKO_PROCESS_THREADS` specifies the number of _additional_ threads to spawn.
-This means that if the value is set to 16, you'll have 16 process threads _in
-addition to_ the main thread.
+### The main thread
+
+The main OS thread isn't used for anything special, instead it waits for the
+process threads to finish. This means that C libraries that require the use of
+the main thread won't work with Inko. Few libraries have such requirements, most
+of which are GUI libraries, and these probably won't work with Inko anyway due
+to their heavy use of callbacks, which Inko doesn't support.
+
+### Load balancing
+
+Work is distributed using a work stealing algorithm. Each thread has a bounded
+local queue that they produce work on, and other threads can steal work from
+this queue. Threads also have a single slot for a process to run at a higher
+priority. This is used in certain cases where we want to reduce latency.
+
+When new work is produced but the queue is full, the work is instead
+pushed onto a global queue all threads have access to. Threads perform work in
+these steps:
+
+1. Run the process in the priority slot
+1. Run all processes in the local queue
+1. Steal processes from another thread
+1. Steal processes from the global queue
+1. Go to sleep until new work is pushed onto the global queue
+
+### Reductions
 
 Processes maintain a reduction counter, starting at a pre-determined value.
 Certain operations reduce this counter. When the counter reaches zero it's
@@ -48,6 +70,31 @@ For file IO we block the OS thread. Inko used to use a dedicated pool of OS
 threads for blocking operations, but we removed this to simplify the VM. An
 alternative and better approach is discussed in [this
 issue](https://gitlab.com/inko-lang/inko/-/issues/247).
+
+## Timeouts
+
+Processes can suspend themselves with a timeout, or await a future for up to a
+certain amount of time. A separate thread called the "timeout worker" handles
+managing such processes. The timeout worker uses a binary heap for storing
+processes along with their timeouts, sorting them such that those with the
+shortest timeout are processed first.
+
+When a process suspends itself with a timeout, it stores itself in a queue owned
+by the timeout worker.
+
+The timeout worker performs its work in these steps:
+
+1. Move messages from the synchronised queue into an unsynchronised local FIFO
+   queue
+1. Defragment the heap by removing entries that are no longer valid (e.g. a
+   process got rescheduled before its timeout expired)
+1. Process any new entries to add into the heap
+1. Sleep until the shortest timeout expires, taking into account time already
+   spent sleeping for the given timeout
+1. Repeat this cycle until we shut down
+
+If the timeout worker is asleep and a new entry is added to the synchronised
+queue, the worker is woken up and the cycle starts anew.
 
 ## Memory management
 

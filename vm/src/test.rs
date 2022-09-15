@@ -6,6 +6,7 @@ use crate::mem::{
 };
 use crate::permanent_space::{MethodCounts, PermanentSpace};
 use crate::process::{Process, ProcessPointer};
+use crate::scheduler::process::Thread;
 use crate::state::{RcState, State};
 use bytecode::{Instruction, Opcode};
 use std::mem::forget;
@@ -102,8 +103,13 @@ impl Drop for OwnedModule {
 }
 
 /// Sets up various objects commonly needed in tests
-pub(crate) fn setup() -> RcState {
-    let config = Config::new();
+pub(crate) fn setup() -> (RcState, Vec<Thread>) {
+    let mut config = Config::new();
+
+    // We set this to a fixed amount so tests are more consistent across
+    // different platforms.
+    config.process_threads = 2;
+
     let perm = PermanentSpace::new(0, 0, MethodCounts::default());
 
     State::new(config, perm, &[])

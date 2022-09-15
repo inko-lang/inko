@@ -22,9 +22,6 @@ pub struct Config {
     /// The number of process threads to run.
     pub process_threads: u16,
 
-    /// The number of threads to use for parsing bytecode images.
-    pub bytecode_threads: u16,
-
     /// The number of reductions a process can perform before being suspended.
     pub reductions: u16,
 }
@@ -35,7 +32,6 @@ impl Config {
 
         Config {
             process_threads: cpu_count as u16,
-            bytecode_threads: cpu_count as u16,
             reductions: DEFAULT_REDUCTIONS,
         }
     }
@@ -44,7 +40,6 @@ impl Config {
         let mut config = Config::new();
 
         set_from_env!(config, process_threads, "PROCESS_THREADS", u16);
-        set_from_env!(config, bytecode_threads, "BYTECODE_THREADS", u16);
         set_from_env!(config, reductions, "REDUCTIONS", u16);
 
         config

@@ -14,6 +14,7 @@ use crate::mem::{Int, Pointer, String as InkoString};
 use crate::network_poller::Worker as NetworkPollerWorker;
 use crate::process::{Process, ProcessPointer, TaskPointer};
 use crate::runtime_error::RuntimeError;
+use crate::scheduler::process::Thread;
 use crate::state::State;
 use bytecode::Instruction;
 use bytecode::Opcode;
@@ -106,7 +107,8 @@ impl<'a> Machine<'a> {
     ///
     /// This method blocks the calling thread until the Inko program terminates.
     pub fn boot(image: Image, arguments: &[String]) -> Result<i32, String> {
-        let state = State::new(image.config, image.permanent_space, arguments);
+        let (state, proc_threads) =
+            State::new(image.config, image.permanent_space, arguments);
         let entry_class = image.entry_class;
         let entry_method =
             unsafe { entry_class.get_method(image.entry_method) };
@@ -129,34 +131,27 @@ impl<'a> Machine<'a> {
                 .unwrap();
         }
 
-        {
-            let thread_state = state.clone();
-
-            state.scheduler.pool.start_main(
-                thread_state,
-                entry_class,
-                entry_method,
-            );
-        }
+        state.scheduler.run(&*state, entry_class, entry_method, proc_threads);
 
         Ok(state.current_exit_status())
     }
 
-    pub(crate) fn run(&self, mut process: ProcessPointer) {
+    pub(crate) fn run(&self, thread: &mut Thread, mut process: ProcessPointer) {
         // When there's no task to run, clients will try to reschedule the
         // process after sending it a message. This means we (here) don't need
         // to do anything extra.
         if let Some(task) = process.task_to_run() {
-            if let Err(message) = self.run_task(process, task) {
+            if let Err(message) = self.run_task(thread, process, task) {
                 self.panic(process, &message);
             }
         } else if process.finish_task() {
-            self.state.scheduler.schedule(process);
+            thread.schedule(process);
         }
     }
 
     fn run_task(
         &self,
+        thread: &mut Thread,
         mut process: ProcessPointer,
         mut task: TaskPointer,
     ) -> Result<(), String> {
@@ -526,11 +521,12 @@ impl<'a> Machine<'a> {
                     let wait = ins.arg(2) == 1;
 
                     state.save();
-                    process::send_message(
-                        self.state, task, process, rec, method, wait,
+
+                    let switch = process::send_message(
+                        self.state, thread, task, process, rec, method, wait,
                     );
 
-                    if wait {
+                    if switch {
                         return Ok(());
                     }
                 }
@@ -539,7 +535,7 @@ impl<'a> Machine<'a> {
                     let rec = state.context.get_register(ins.arg(1));
                     let method = ins.arg(2);
                     let res = process::send_async_message(
-                        self.state, task, rec, method,
+                        self.state, thread, task, rec, method,
                     );
 
                     state.context.set_register(reg, res);
@@ -549,6 +545,7 @@ impl<'a> Machine<'a> {
                     let val = state.context.get_register(ins.arg(1));
                     let res = process::write_result(
                         self.state,
+                        thread,
                         task,
                         val,
                         ins.arg(2) == 1,
@@ -877,7 +874,7 @@ impl<'a> Machine<'a> {
                     // (combined with this check) can't overflow an i32.
                     if reductions <= 0 {
                         state.save();
-                        self.state.scheduler.schedule(process);
+                        thread.schedule(process);
 
                         return Ok(());
                     }
@@ -1044,7 +1041,7 @@ impl<'a> Machine<'a> {
         }
 
         if process.finish_task() {
-            self.state.scheduler.schedule(process);
+            thread.schedule(process);
         }
 
         Ok(())

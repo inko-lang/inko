@@ -6,6 +6,7 @@ use crate::process::{
     Future, FutureState, Process, ProcessPointer, RescheduleRights,
     TaskPointer, Write, WriteResult,
 };
+use crate::scheduler::process::Thread;
 use crate::scheduler::timeouts::Timeout;
 use crate::state::State;
 use std::time::Duration;
@@ -22,30 +23,40 @@ pub(crate) fn allocate(state: &State, class_idx: u32) -> Pointer {
 #[inline(always)]
 pub(crate) fn send_message(
     state: &State,
+    thread: &mut Thread,
     mut task: TaskPointer,
     sender: ProcessPointer,
     receiver_ptr: Pointer,
     method: u16,
     wait: bool,
-) {
+) -> bool {
     let mut receiver = unsafe { ProcessPointer::from_pointer(receiver_ptr) };
     let args = task.take_arguments();
 
     match receiver.send_message(MethodIndex::new(method), sender, args, wait) {
         RescheduleRights::AcquiredWithTimeout => {
             state.timeout_worker.increase_expired_timeouts();
-            state.scheduler.schedule(receiver);
         }
-        RescheduleRights::Acquired => {
-            state.scheduler.schedule(receiver);
-        }
-        _ => {}
+        RescheduleRights::Acquired => {}
+        _ => return false,
+    }
+
+    if wait {
+        // When awaiting the result immediately we want to keep latency as small
+        // as possible. To achieve this we reschedule the receiver (if allowed)
+        // onto the current worker with a high priority.
+        thread.schedule_priority(receiver);
+        true
+    } else {
+        thread.schedule(receiver);
+        false
     }
 }
 
 #[inline(always)]
 pub(crate) fn send_async_message(
     state: &State,
+    thread: &mut Thread,
     mut task: TaskPointer,
     receiver_ptr: Pointer,
     method: u16,
@@ -60,10 +71,10 @@ pub(crate) fn send_async_message(
     {
         RescheduleRights::AcquiredWithTimeout => {
             state.timeout_worker.increase_expired_timeouts();
-            state.scheduler.schedule(receiver);
+            thread.schedule(receiver);
         }
         RescheduleRights::Acquired => {
-            state.scheduler.schedule(receiver);
+            thread.schedule(receiver);
         }
         _ => {}
     }
@@ -101,6 +112,7 @@ pub(crate) fn set_field(process: Pointer, index: u16, value: Pointer) {
 #[inline(always)]
 pub(crate) fn write_result(
     state: &State,
+    thread: &mut Thread,
     task: TaskPointer,
     result: Pointer,
     thrown: bool,
@@ -114,18 +126,18 @@ pub(crate) fn write_result(
                 rec.set_return_value(result);
             }
 
-            state.scheduler.schedule(rec);
+            thread.schedule(rec);
             Pointer::true_singleton()
         }
         Write::Future(fut) => match fut.write(result, thrown) {
             WriteResult::Continue => Pointer::true_singleton(),
             WriteResult::Reschedule(consumer) => {
-                state.scheduler.schedule(consumer);
+                thread.schedule(consumer);
                 Pointer::true_singleton()
             }
             WriteResult::RescheduleWithTimeout(consumer) => {
                 state.timeout_worker.increase_expired_timeouts();
-                state.scheduler.schedule(consumer);
+                thread.schedule(consumer);
                 Pointer::true_singleton()
             }
             WriteResult::Discard => Pointer::false_singleton(),

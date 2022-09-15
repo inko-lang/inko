@@ -16,8 +16,6 @@ use bytecode::{
     Instruction, Opcode, CONST_FLOAT, CONST_INTEGER, CONST_STRING,
     SIGNATURE_BYTES, VERSION,
 };
-use crossbeam_channel::bounded;
-use crossbeam_utils::thread::scope;
 use std::f64;
 use std::fs::File;
 use std::io::{BufReader, Read};
@@ -114,12 +112,7 @@ impl Image {
 
         // Now we can load the bytecode for all modules, including the entry
         // module. The order in which the modules are returned is unspecified.
-        read_modules(
-            config.bytecode_threads as usize,
-            modules as usize,
-            &space,
-            stream,
-        )?;
+        read_modules(modules as usize, &space, stream)?;
 
         Ok(Image {
             entry_class: unsafe { space.get_class(entry_class) },
@@ -156,47 +149,18 @@ fn read_builtin_method_counts<R: Read>(
 }
 
 fn read_modules<R: Read>(
-    concurrency: usize,
     num_modules: usize,
     space: &PermanentSpace,
     stream: &mut R,
 ) -> Result<(), String> {
-    let (in_sender, in_receiver) = bounded::<Vec<u8>>(num_modules);
+    for _ in 0..num_modules {
+        let amount = read_u64(stream)? as usize;
+        let chunk = read_vec!(stream, amount);
 
-    scope(|s| {
-        let mut handles = Vec::with_capacity(concurrency);
+        read_module(space, &mut &chunk[..])?;
+    }
 
-        for _ in 0..concurrency {
-            let handle = s.spawn(|_| -> Result<(), String> {
-                while let Ok(chunk) = in_receiver.recv() {
-                    read_module(space, &mut &chunk[..])?;
-                }
-
-                Ok(())
-            });
-
-            handles.push(handle);
-        }
-
-        for _ in 0..num_modules {
-            let amount = read_u64(stream)? as usize;
-            let chunk = read_vec!(stream, amount);
-
-            in_sender.send(chunk).expect("Failed to send a chunk of bytecode");
-        }
-
-        // We need to drop the sender before joining. If we don't, parser
-        // threads won't terminate until the end of this scope. But since we are
-        // joining those threads, we'd never reach that point.
-        drop(in_sender);
-
-        for handle in handles {
-            handle.join().map_err(|e| format!("{:?}", e))??;
-        }
-
-        Ok(())
-    })
-    .map_err(|e| format!("{:?}", e))?
+    Ok(())
 }
 
 fn read_module<R: Read>(
