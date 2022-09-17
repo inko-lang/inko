@@ -9,7 +9,9 @@ macro_rules! set_from_env {
     ($config:expr, $field:ident, $key:expr, $value_type:ty) => {{
         if let Ok(raw_value) = var(concat!("INKO_", $key)) {
             if let Ok(value) = raw_value.parse::<$value_type>() {
-                $config.$field = value;
+                if value > 0 {
+                    $config.$field = value;
+                }
             }
         };
     }};
@@ -74,10 +76,10 @@ mod tests {
         set_from_env!(cfg, reductions, "BAR", u16);
 
         assert_eq!(cfg.process_threads, 1);
-        assert_eq!(cfg.reductions, 0);
+        assert_eq!(cfg.reductions, DEFAULT_REDUCTIONS);
 
         set_from_env!(cfg, reductions, "BAZ", u16);
 
-        assert_eq!(cfg.reductions, 0);
+        assert_eq!(cfg.reductions, DEFAULT_REDUCTIONS);
     }
 }
