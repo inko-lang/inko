@@ -94,16 +94,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "crossbeam-channel"
-version = "0.5.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2dd04ddaf88237dc3b8d8f9a3c1004b506b54b3313403944054d23c0870c521"
-dependencies = [
- "cfg-if",
- "crossbeam-utils",
-]
-
-[[package]]
 name = "crossbeam-queue"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -508,7 +498,6 @@ version = "0.10.0"
 dependencies = [
  "ahash",
  "bytecode",
- "crossbeam-channel",
  "crossbeam-queue",
  "crossbeam-utils",
  "dirs-next",
