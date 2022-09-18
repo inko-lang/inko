@@ -135,14 +135,9 @@ To use the FFI, the VM provides a few built-in functions such as
 
 ## Bytecode format
 
-The VM uses a custom bytecode format and parses bytecode images in parallel. By
-default the number of threads used for parsing bytecode images equals the number
-of CPU cores, but this can be changed by setting `INKO_BYTECODE_THREADS` to a
-value between 1 and 65 535.
-
-The bytecode format is subject to change. The best way to understand how it
-works is to look at the source code of the `Image` type in the VM, found in
-`vm/src/image.rs`.
+The VM uses a custom bytecode format and is subject to change. The best way to
+understand how it works is to look at the source code of the `Image` type in the
+VM, found in `vm/src/image.rs`.
 
 VM instructions need 12 bytes of space and support up to 5 arguments.
 
