@@ -5,13 +5,12 @@ use crate::mem::{ClassPointer, MethodPointer};
 use crate::process::{Process, ProcessPointer};
 use crate::state::State;
 use crossbeam_queue::ArrayQueue;
-use crossbeam_utils::sync::{Parker, Unparker};
 use crossbeam_utils::thread::scope;
 use std::cmp::min;
 use std::mem::size_of;
 use std::ops::Drop;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::Mutex;
+use std::sync::{Condvar, Mutex};
 
 /// The starting capacity of the global queue.
 ///
@@ -36,9 +35,6 @@ const STEAL_LIMIT: usize = 32;
 struct Shared {
     /// The queue threads can steal work from.
     queue: ArcWithoutWeak<ArrayQueue<ProcessPointer>>,
-
-    /// A handle used to unpark a sleeping thread.
-    unparker: Unparker,
 }
 
 /// The private half of a thread, used only by the OS thread this state belongs
@@ -67,16 +63,13 @@ pub(crate) struct Thread {
     /// Other threads can't steal from this slot, because that would defeat its
     /// purpose.
     priority: Option<ProcessPointer>,
-
-    /// A handle used for parking this thread.
-    parker: Parker,
 }
 
 impl Thread {
-    fn new(id: usize, parker: Parker, shared: ArcWithoutWeak<Pool>) -> Thread {
+    fn new(id: usize, shared: ArcWithoutWeak<Pool>) -> Thread {
         let work = shared.threads[id].queue.clone();
 
-        Self { id, work, priority: None, pool: shared, parker }
+        Self { id, work, priority: None, pool: shared }
     }
 
     pub(crate) fn schedule(&mut self, process: ProcessPointer) {
@@ -194,27 +187,23 @@ impl Thread {
     }
 
     fn sleep(&self) {
-        self.transition_to_sleeping();
+        let global = self.pool.global.lock().unwrap();
 
-        // When another thread signals termination of the pool, it does so
-        // before attempting to wake up any sleeping threads. If we don't check
-        // the pool state again here, we may end up sleeping without ever being
-        // woken up.
-        if self.pool.is_alive() {
-            self.parker.park();
+        if !global.is_empty() || !self.pool.is_alive() {
+            return;
         }
 
-        // At this point we were either woken up by another worker because new
-        // work is produced, or because we're shutting down. In neither case do
-        // we need to remove our ID from the sleepers list, because it's either
-        // already done or redundant. Spurious wake-ups are not a problem, as
-        // crossbeam's `Parker::park()` handles this for us.
-        self.pool.sleeping.fetch_sub(1, Ordering::AcqRel);
-    }
-
-    fn transition_to_sleeping(&self) {
-        self.pool.sleepers.lock().unwrap().push(self.id);
         self.pool.sleeping.fetch_add(1, Ordering::AcqRel);
+
+        // We don't handle spurious wakeups here because:
+        //
+        // 1. We may be woken up when new work is produced on a local queue,
+        //    while the global queue is still empty
+        // 2. If we're woken up too early we'll just perform another work
+        //    iteration, then go back to sleep.
+        let _ = self.pool.parker.wait(global).unwrap();
+
+        self.pool.sleeping.fetch_sub(1, Ordering::AcqRel);
     }
 
     fn run_process(&mut self, state: &State, process: ProcessPointer) {
@@ -258,19 +247,19 @@ struct Pool {
     /// relevant here.
     global: Mutex<Vec<ProcessPointer>>,
 
+    /// A condition variable used for waking up sleeping threads.
+    parker: Condvar,
+
     /// A flag indicating if the pool is alive and work should be consumed, or
     /// if we should shut down.
     alive: AtomicBool,
 
-    /// The IDs of th threads that are asleep.
-    sleepers: Mutex<Vec<usize>>,
-
     /// The number of sleeping threads.
     ///
-    /// This counter isn't necessarily 100% in sync with the actual list of
-    /// sleepers. This is OK because at worst we'll slightly delay waking up a
-    /// thread, while at best we avoid acquiring a lock on an empty sleeper
-    /// list.
+    /// This counter isn't necessarily 100% in sync with the actual amount of
+    /// sleeping threads. This is OK because at worst we'll slightly delay
+    /// waking up a thread, while at best we avoid acquiring a lock on the
+    /// global queue.
     sleeping: AtomicUsize,
 }
 
@@ -292,9 +281,11 @@ impl Pool {
     }
 
     fn unpark_one(&self) {
-        if let Some(id) = self.sleepers.lock().unwrap().pop() {
-            self.threads[id].unparker.unpark();
-        }
+        // We need to acquire the lock so we don't signal a thread just before
+        // it goes to sleep.
+        let _lock = self.global.lock().unwrap();
+
+        self.parker.notify_one();
     }
 }
 
@@ -315,31 +306,24 @@ impl Scheduler {
         assert!(size > 0, "A pool requires at least a single thread");
 
         let mut shared = Vec::with_capacity(size);
-        let mut parkers = Vec::with_capacity(size);
 
         for _ in 0..size {
             let queue =
                 ArcWithoutWeak::new(ArrayQueue::new(LOCAL_QUEUE_CAPACITY));
-            let parker = Parker::new();
-            let unparker = parker.unparker().clone();
 
-            parkers.push(parker);
-            shared.push(Shared { queue, unparker });
+            shared.push(Shared { queue });
         }
 
         let shared = ArcWithoutWeak::new(Pool {
             threads: shared,
             global: Mutex::new(Vec::with_capacity(GLOBAL_QUEUE_START_CAPACITY)),
+            parker: Condvar::new(),
             alive: AtomicBool::new(true),
-            sleepers: Mutex::new(Vec::new()),
             sleeping: AtomicUsize::new(0),
         });
 
-        let threads = parkers
-            .into_iter()
-            .enumerate()
-            .map(|(id, parker)| Thread::new(id, parker, shared.clone()))
-            .collect();
+        let threads =
+            (0..size).map(|id| Thread::new(id, shared.clone())).collect();
 
         (Self { pool: shared }, threads)
     }
@@ -353,13 +337,10 @@ impl Scheduler {
     }
 
     pub(crate) fn terminate(&self) {
-        self.pool.alive.store(false, Ordering::Release);
+        let _ = self.pool.global.lock().unwrap();
 
-        for &id in self.pool.sleepers.lock().unwrap().iter() {
-            // During shutdown we don't care about leaving behind sleeping IDs,
-            // so we just leave the list as-is.
-            self.pool.threads[id].unparker.unpark();
-        }
+        self.pool.alive.store(false, Ordering::Release);
+        self.pool.parker.notify_all();
     }
 
     pub(crate) fn run(
@@ -413,7 +394,7 @@ mod tests {
         let (scheduler, mut threads) = Scheduler::new(1);
         let thread = &mut threads[0];
 
-        thread.transition_to_sleeping();
+        scheduler.pool.sleeping.fetch_add(1, Ordering::AcqRel);
 
         for _ in 0..LOCAL_QUEUE_CAPACITY {
             thread.schedule(process);
@@ -423,7 +404,6 @@ mod tests {
 
         assert_eq!(thread.work.len(), LOCAL_QUEUE_CAPACITY);
         assert_eq!(scheduler.pool.global.lock().unwrap().len(), 1);
-        assert!(scheduler.pool.sleepers.lock().unwrap().is_empty());
 
         while thread.work.pop().is_some() {
             // Since we schedule the same process multiple times, we have to
@@ -510,29 +490,25 @@ mod tests {
     }
 
     #[test]
-    fn test_pool_schedule() {
+    fn test_pool_schedule_with_sleeping_thread() {
         let class = empty_process_class("A");
         let process = new_process(*class).take_and_forget();
         let scheduler = Scheduler::new(1).0;
 
-        scheduler.pool.sleepers.lock().unwrap().push(0);
         scheduler.pool.sleeping.fetch_add(1, Ordering::Release);
         scheduler.schedule(process);
 
         assert_eq!(scheduler.pool.global.lock().unwrap().len(), 1);
-        assert!(scheduler.pool.sleepers.lock().unwrap().is_empty());
     }
 
     #[test]
     fn test_scheduler_terminate() {
         let (scheduler, threads) = Scheduler::new(1);
 
-        scheduler.pool.sleepers.lock().unwrap().push(0);
         scheduler.pool.sleeping.fetch_add(1, Ordering::Release);
         scheduler.terminate();
 
-        // If we didn't call unpark, we'd hang here forever.
-        threads[0].parker.park();
+        threads[0].sleep();
 
         assert!(!scheduler.is_alive());
     }
