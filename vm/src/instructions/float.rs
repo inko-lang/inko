@@ -2,7 +2,10 @@
 use crate::mem::Pointer;
 use crate::mem::{Float, Int, String as InkoString};
 use crate::state::State;
-use float_cmp::ApproxEqUlps;
+
+/// The maximum difference between two floats for them to be considered equal,
+/// as expressed in "Units in the Last Place" (ULP).
+const ULP_DIFF: i64 = 1;
 
 #[inline(always)]
 pub(crate) fn add(
@@ -67,10 +70,30 @@ pub(crate) fn modulo(state: &State, left: Pointer, right: Pointer) -> Pointer {
 
 #[inline(always)]
 pub(crate) fn eq(left_ptr: Pointer, right_ptr: Pointer) -> Pointer {
+    // For float equality we use ULPs. See
+    // https://randomascii.wordpress.com/2012/02/25/comparing-floating-point-numbers-2012-edition/
+    // for more details.
     let left = unsafe { Float::read(left_ptr) };
     let right = unsafe { Float::read(right_ptr) };
 
-    if !left.is_nan() && !right.is_nan() && left.approx_eq_ulps(&right, 1) {
+    if left == right {
+        // Handle cases such as `-0.0 == 0.0`.
+        return Pointer::true_singleton();
+    }
+
+    if left.is_sign_positive() != right.is_sign_positive() {
+        return Pointer::false_singleton();
+    }
+
+    if left.is_nan() || right.is_nan() {
+        return Pointer::false_singleton();
+    }
+
+    let left_bits = left.to_bits() as i64;
+    let right_bits = right.to_bits() as i64;
+    let diff = left_bits.wrapping_sub(right_bits);
+
+    if diff >= -ULP_DIFF && diff <= ULP_DIFF {
         Pointer::true_singleton()
     } else {
         Pointer::false_singleton()

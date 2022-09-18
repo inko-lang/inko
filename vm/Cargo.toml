@@ -14,7 +14,6 @@ libffi-system = ["libffi/system"]
 
 [dependencies]
 num_cpus = "^1.13"
-float-cmp = "^0.9"
 dirs-next = "^1.0"
 libloading = "^0.7"
 libffi = "^3.0"
