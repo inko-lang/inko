@@ -24,16 +24,20 @@ pub struct Config {
     /// The number of process threads to run.
     pub process_threads: u16,
 
+    /// The number of backup process threads to spawn.
+    pub backup_threads: u16,
+
     /// The number of reductions a process can perform before being suspended.
     pub reductions: u16,
 }
 
 impl Config {
     pub fn new() -> Config {
-        let cpu_count = num_cpus::get();
+        let cpu_count = num_cpus::get() as u16;
 
         Config {
-            process_threads: cpu_count as u16,
+            process_threads: cpu_count,
+            backup_threads: cpu_count * 4,
             reductions: DEFAULT_REDUCTIONS,
         }
     }
@@ -42,6 +46,7 @@ impl Config {
         let mut config = Config::new();
 
         set_from_env!(config, process_threads, "PROCESS_THREADS", u16);
+        set_from_env!(config, backup_threads, "BACKUP_THREADS", u16);
         set_from_env!(config, reductions, "REDUCTIONS", u16);
 
         config

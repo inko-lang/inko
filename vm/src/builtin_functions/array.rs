@@ -1,10 +1,12 @@
 use crate::mem::{Array, Int, Pointer};
 use crate::process::ProcessPointer;
 use crate::runtime_error::RuntimeError;
+use crate::scheduler::process::Thread;
 use crate::state::State;
 
 pub(crate) fn array_reserve(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     args: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -17,6 +19,7 @@ pub(crate) fn array_reserve(
 
 pub(crate) fn array_capacity(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     args: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {

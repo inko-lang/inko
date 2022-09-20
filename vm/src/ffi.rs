@@ -654,7 +654,7 @@ mod tests {
 
     #[test]
     fn test_function_from_pointers() {
-        let (state, _) = setup();
+        let state = setup();
         let name = InkoString::alloc(
             state.permanent_space.string_class(),
             LIBM.to_string(),
@@ -673,7 +673,7 @@ mod tests {
     #[test]
     fn test_function_call() {
         let lib = Library::open(&[LIBM]).unwrap();
-        let (state, _) = setup();
+        let state = setup();
         let arg = Float::alloc(state.permanent_space.float_class(), 3.15);
 
         unsafe {
@@ -690,7 +690,7 @@ mod tests {
 
     #[test]
     fn test_pointer_read_and_write() {
-        let (state, _) = setup();
+        let state = setup();
 
         unsafe {
             let ptr = Pointer::new(calloc(1, 3));

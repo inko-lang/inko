@@ -2,10 +2,12 @@ use crate::immutable_string::ImmutableString;
 use crate::mem::{ByteArray, Pointer, String as InkoString};
 use crate::process::ProcessPointer;
 use crate::runtime_error::RuntimeError;
+use crate::scheduler::process::Thread;
 use crate::state::State;
 
 pub(crate) fn byte_array_to_string(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     args: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -21,6 +23,7 @@ pub(crate) fn byte_array_to_string(
 
 pub(crate) fn byte_array_drain_to_string(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     args: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {

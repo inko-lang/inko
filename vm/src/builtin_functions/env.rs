@@ -4,12 +4,14 @@ use crate::mem::{Array, Pointer, String as InkoString};
 use crate::platform;
 use crate::process::ProcessPointer;
 use crate::runtime_error::RuntimeError;
+use crate::scheduler::process::Thread;
 use crate::state::State;
 use std::env;
 use std::path::PathBuf;
 
 pub(crate) fn env_get(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -25,6 +27,7 @@ pub(crate) fn env_get(
 
 pub(crate) fn env_variables(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     _: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -41,6 +44,7 @@ pub(crate) fn env_variables(
 
 pub(crate) fn env_home_directory(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     _: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -58,6 +62,7 @@ pub(crate) fn env_home_directory(
 
 pub(crate) fn env_temp_directory(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     _: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -68,6 +73,7 @@ pub(crate) fn env_temp_directory(
 
 pub(crate) fn env_get_working_directory(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     _: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -78,6 +84,7 @@ pub(crate) fn env_get_working_directory(
 
 pub(crate) fn env_set_working_directory(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -89,6 +96,7 @@ pub(crate) fn env_set_working_directory(
 
 pub(crate) fn env_arguments(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     _: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -100,6 +108,7 @@ pub(crate) fn env_arguments(
 
 pub(crate) fn env_platform(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     _: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -108,6 +117,7 @@ pub(crate) fn env_platform(
 
 pub(crate) fn env_executable(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     _: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {

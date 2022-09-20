@@ -4,7 +4,7 @@ use crate::config::Config;
 use crate::mem::Pointer;
 use crate::network_poller::NetworkPoller;
 use crate::permanent_space::PermanentSpace;
-use crate::scheduler::process::{Scheduler, Thread};
+use crate::scheduler::process::Scheduler;
 use crate::scheduler::timeout_worker::TimeoutWorker;
 use ahash::RandomState;
 use rand::{thread_rng, Rng};
@@ -78,7 +78,7 @@ impl State {
         config: Config,
         permanent_space: PermanentSpace,
         args: &[String],
-    ) -> (RcState, Vec<Thread>) {
+    ) -> RcState {
         let arguments = args
             .iter()
             .map(|arg| permanent_space.allocate_string(arg.clone()))
@@ -99,8 +99,11 @@ impl State {
             })
             .collect::<HashMap<_, _>>();
 
-        let (scheduler, threads) =
-            Scheduler::new(config.process_threads as usize);
+        let scheduler = Scheduler::new(
+            config.process_threads as usize,
+            config.backup_threads as usize,
+        );
+
         let state = State {
             scheduler,
             environment,
@@ -115,7 +118,7 @@ impl State {
             hash_state,
         };
 
-        (ArcWithoutWeak::new(state), threads)
+        ArcWithoutWeak::new(state)
     }
 
     pub(crate) fn terminate(&self) {

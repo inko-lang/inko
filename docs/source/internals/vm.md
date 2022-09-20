@@ -66,10 +66,22 @@ poller". This is a system/thread that polls a list of sockets until they are
 ready, rescheduling their corresponding processes. Polling is done using APIs
 such as epoll on Linux, kqueue on macOS/BSD, and IO completion ports on Windows.
 
-For file IO we block the OS thread. Inko used to use a dedicated pool of OS
-threads for blocking operations, but we removed this to simplify the VM. An
-alternative and better approach is discussed in [this
-issue](https://gitlab.com/inko-lang/inko/-/issues/247).
+For blocking operations, such as file IO, Inko uses a fixed amount of backup
+threads. When an OS thread is about to enter a blocking operation, it sets a
+flag indicating when it did so. This is implemented such that it in most cases
+it won't take more than 100-200 nanoseconds.
+
+In the background a monitor thread periodically examines all OS threads. If it
+finds an OS thread is blocking for too long, it wakes up a backup thread to take
+over the work of this blocking OS thread. When the blocking OS thread finishes
+the blocking call it continues running its process. When the process is
+rescheduled and the OS thread would pick up new work, it becomes a backup thread
+instead.
+
+The number of backup threads is controlled using the environment variable
+`INKO_BACKUP_THREADS` and defaults to four times the number of CPU cores. The
+monitor thread runs at an interval of 100 microseconds, though the exact
+interval may differ between platforms. This interval can't be changed.
 
 ## Timeouts
 

@@ -2,7 +2,7 @@
 use crate::arc_without_weak::ArcWithoutWeak;
 use crate::process::{Process, ProcessPointer};
 use std::cmp;
-use std::collections::{BinaryHeap, VecDeque};
+use std::collections::BinaryHeap;
 use std::ops::Drop;
 use std::time::{Duration, Instant};
 
@@ -129,8 +129,8 @@ impl Timeouts {
 
     pub(crate) fn processes_to_reschedule(
         &mut self,
-    ) -> (VecDeque<ProcessPointer>, Option<Duration>) {
-        let mut reschedule = VecDeque::new();
+    ) -> (Vec<ProcessPointer>, Option<Duration>) {
+        let mut reschedule = Vec::new();
         let mut time_until_expiration = None;
 
         while let Some(entry) = self.timeouts.pop() {
@@ -153,7 +153,7 @@ impl Timeouts {
 
             if state.try_reschedule_after_timeout().are_acquired() {
                 drop(state);
-                reschedule.push_back(entry.process);
+                reschedule.push(entry.process);
             }
         }
 

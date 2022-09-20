@@ -1,11 +1,13 @@
 use crate::mem::{Array, ByteArray, Float, Int, Pointer, String as InkoString};
 use crate::process::ProcessPointer;
 use crate::runtime_error::RuntimeError;
+use crate::scheduler::process::Thread;
 use crate::state::State;
 use unicode_segmentation::{Graphemes, UnicodeSegmentation};
 
 pub(crate) fn string_to_lower(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     args: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -17,6 +19,7 @@ pub(crate) fn string_to_lower(
 
 pub(crate) fn string_to_upper(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     args: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -28,6 +31,7 @@ pub(crate) fn string_to_upper(
 
 pub(crate) fn string_to_byte_array(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     args: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -39,6 +43,7 @@ pub(crate) fn string_to_byte_array(
 
 pub(crate) fn string_to_float(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     args: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -58,6 +63,7 @@ pub(crate) fn string_to_float(
 
 pub(crate) fn string_to_int(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     args: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -80,6 +86,7 @@ pub(crate) fn string_to_int(
 
 pub(crate) fn string_characters(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     args: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -91,6 +98,7 @@ pub(crate) fn string_characters(
 
 pub(crate) fn string_characters_next(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     args: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -106,6 +114,7 @@ pub(crate) fn string_characters_next(
 
 pub(crate) fn string_characters_drop(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     args: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -115,6 +124,7 @@ pub(crate) fn string_characters_drop(
 
 pub(crate) fn string_concat_array(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     args: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {

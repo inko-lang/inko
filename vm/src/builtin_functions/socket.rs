@@ -3,6 +3,7 @@ use crate::mem::{ByteArray, Float, Int, Pointer, String as InkoString};
 use crate::network_poller::Interest;
 use crate::process::ProcessPointer;
 use crate::runtime_error::RuntimeError;
+use crate::scheduler::process::Thread;
 use crate::socket::Socket;
 use crate::state::State;
 use std::io::Write;
@@ -21,6 +22,7 @@ macro_rules! ret {
 
 pub(crate) fn socket_allocate_ipv4(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -32,6 +34,7 @@ pub(crate) fn socket_allocate_ipv4(
 
 pub(crate) fn socket_allocate_ipv6(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -43,6 +46,7 @@ pub(crate) fn socket_allocate_ipv6(
 
 pub(crate) fn socket_allocate_unix(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -54,6 +58,7 @@ pub(crate) fn socket_allocate_unix(
 
 pub(crate) fn socket_write_string(
     state: &State,
+    _: &mut Thread,
     process: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -69,6 +74,7 @@ pub(crate) fn socket_write_string(
 
 pub(crate) fn socket_write_bytes(
     state: &State,
+    _: &mut Thread,
     process: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -84,6 +90,7 @@ pub(crate) fn socket_write_bytes(
 
 pub(crate) fn socket_read(
     state: &State,
+    _: &mut Thread,
     process: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -100,6 +107,7 @@ pub(crate) fn socket_read(
 
 pub(crate) fn socket_listen(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -112,6 +120,7 @@ pub(crate) fn socket_listen(
 
 pub(crate) fn socket_bind(
     state: &State,
+    _: &mut Thread,
     process: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -125,6 +134,7 @@ pub(crate) fn socket_bind(
 
 pub(crate) fn socket_connect(
     state: &State,
+    _: &mut Thread,
     process: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -138,6 +148,7 @@ pub(crate) fn socket_connect(
 
 pub(crate) fn socket_accept_ip(
     state: &State,
+    _: &mut Thread,
     process: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -149,6 +160,7 @@ pub(crate) fn socket_accept_ip(
 
 pub(crate) fn socket_accept_unix(
     state: &State,
+    _: &mut Thread,
     process: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -160,6 +172,7 @@ pub(crate) fn socket_accept_unix(
 
 pub(crate) fn socket_receive_from(
     state: &State,
+    _: &mut Thread,
     process: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -175,6 +188,7 @@ pub(crate) fn socket_receive_from(
 
 pub(crate) fn socket_send_bytes_to(
     state: &State,
+    _: &mut Thread,
     process: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -191,6 +205,7 @@ pub(crate) fn socket_send_bytes_to(
 
 pub(crate) fn socket_send_string_to(
     state: &State,
+    _: &mut Thread,
     process: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -207,6 +222,7 @@ pub(crate) fn socket_send_string_to(
 
 pub(crate) fn socket_shutdown_read(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -217,6 +233,7 @@ pub(crate) fn socket_shutdown_read(
 
 pub(crate) fn socket_shutdown_write(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -227,6 +244,7 @@ pub(crate) fn socket_shutdown_write(
 
 pub(crate) fn socket_shutdown_read_write(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -237,6 +255,7 @@ pub(crate) fn socket_shutdown_read_write(
 
 pub(crate) fn socket_local_address(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -248,6 +267,7 @@ pub(crate) fn socket_local_address(
 
 pub(crate) fn socket_peer_address(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -259,6 +279,7 @@ pub(crate) fn socket_peer_address(
 
 pub(crate) fn socket_get_ttl(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -269,6 +290,7 @@ pub(crate) fn socket_get_ttl(
 
 pub(crate) fn socket_get_only_v6(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -281,6 +303,7 @@ pub(crate) fn socket_get_only_v6(
 
 pub(crate) fn socket_get_nodelay(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -293,6 +316,7 @@ pub(crate) fn socket_get_nodelay(
 
 pub(crate) fn socket_get_broadcast(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -305,6 +329,7 @@ pub(crate) fn socket_get_broadcast(
 
 pub(crate) fn socket_get_linger(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -315,6 +340,7 @@ pub(crate) fn socket_get_linger(
 
 pub(crate) fn socket_get_recv_size(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -326,6 +352,7 @@ pub(crate) fn socket_get_recv_size(
 
 pub(crate) fn socket_get_send_size(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -337,6 +364,7 @@ pub(crate) fn socket_get_send_size(
 
 pub(crate) fn socket_get_keepalive(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -351,6 +379,7 @@ pub(crate) fn socket_get_keepalive(
 
 pub(crate) fn socket_get_reuse_address(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -363,6 +392,7 @@ pub(crate) fn socket_get_reuse_address(
 
 pub(crate) fn socket_get_reuse_port(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -375,6 +405,7 @@ pub(crate) fn socket_get_reuse_port(
 
 pub(crate) fn socket_set_ttl(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -387,6 +418,7 @@ pub(crate) fn socket_set_ttl(
 
 pub(crate) fn socket_set_only_v6(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -398,6 +430,7 @@ pub(crate) fn socket_set_only_v6(
 
 pub(crate) fn socket_set_nodelay(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -409,6 +442,7 @@ pub(crate) fn socket_set_nodelay(
 
 pub(crate) fn socket_set_broadcast(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -420,6 +454,7 @@ pub(crate) fn socket_set_broadcast(
 
 pub(crate) fn socket_set_linger(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -432,6 +467,7 @@ pub(crate) fn socket_set_linger(
 
 pub(crate) fn socket_set_recv_size(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -444,6 +480,7 @@ pub(crate) fn socket_set_recv_size(
 
 pub(crate) fn socket_set_send_size(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -456,6 +493,7 @@ pub(crate) fn socket_set_send_size(
 
 pub(crate) fn socket_set_keepalive(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -468,6 +506,7 @@ pub(crate) fn socket_set_keepalive(
 
 pub(crate) fn socket_set_reuse_address(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -480,6 +519,7 @@ pub(crate) fn socket_set_reuse_address(
 
 pub(crate) fn socket_set_reuse_port(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -492,6 +532,7 @@ pub(crate) fn socket_set_reuse_port(
 
 pub(crate) fn socket_try_clone(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -503,6 +544,7 @@ pub(crate) fn socket_try_clone(
 
 pub(crate) fn socket_drop(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -513,6 +555,7 @@ pub(crate) fn socket_drop(
 
 pub(crate) fn socket_address_pair_address(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -523,6 +566,7 @@ pub(crate) fn socket_address_pair_address(
 
 pub(crate) fn socket_address_pair_port(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -533,6 +577,7 @@ pub(crate) fn socket_address_pair_port(
 
 pub(crate) fn socket_address_pair_drop(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {

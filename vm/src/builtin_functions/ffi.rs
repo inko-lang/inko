@@ -5,10 +5,12 @@ use crate::ffi::{
 use crate::mem::{Array, Int, Pointer, String as InkoString};
 use crate::process::ProcessPointer;
 use crate::runtime_error::RuntimeError;
+use crate::scheduler::process::Thread;
 use crate::state::State;
 
 pub(crate) fn ffi_library_open(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -22,6 +24,7 @@ pub(crate) fn ffi_library_open(
 
 pub(crate) fn ffi_function_attach(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -39,6 +42,7 @@ pub(crate) fn ffi_function_attach(
 
 pub(crate) fn ffi_function_call(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -50,6 +54,7 @@ pub(crate) fn ffi_function_call(
 
 pub(crate) fn ffi_pointer_attach(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -66,6 +71,7 @@ pub(crate) fn ffi_pointer_attach(
 
 pub(crate) fn ffi_pointer_read(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -79,6 +85,7 @@ pub(crate) fn ffi_pointer_read(
 
 pub(crate) fn ffi_pointer_write(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -96,6 +103,7 @@ pub(crate) fn ffi_pointer_write(
 
 pub(crate) fn ffi_pointer_from_address(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -106,6 +114,7 @@ pub(crate) fn ffi_pointer_from_address(
 
 pub(crate) fn ffi_pointer_address(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -116,6 +125,7 @@ pub(crate) fn ffi_pointer_address(
 
 pub(crate) fn ffi_type_size(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -126,6 +136,7 @@ pub(crate) fn ffi_type_size(
 
 pub(crate) fn ffi_type_alignment(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -136,6 +147,7 @@ pub(crate) fn ffi_type_alignment(
 
 pub(crate) fn ffi_library_drop(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -148,6 +160,7 @@ pub(crate) fn ffi_library_drop(
 
 pub(crate) fn ffi_function_drop(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {

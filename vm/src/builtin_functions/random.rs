@@ -2,11 +2,13 @@
 use crate::mem::{ByteArray, Float, Int, Pointer};
 use crate::process::ProcessPointer;
 use crate::runtime_error::RuntimeError;
+use crate::scheduler::process::Thread;
 use crate::state::State;
 use rand::{thread_rng, Rng};
 
 pub(crate) fn random_int(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     _: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -15,6 +17,7 @@ pub(crate) fn random_int(
 
 pub(crate) fn random_float(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     _: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -23,6 +26,7 @@ pub(crate) fn random_float(
 
 pub(crate) fn random_int_range(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -35,6 +39,7 @@ pub(crate) fn random_int_range(
 
 pub(crate) fn random_float_range(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -47,6 +52,7 @@ pub(crate) fn random_float_range(
 
 pub(crate) fn random_bytes(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {

@@ -3,11 +3,13 @@ use crate::hasher::Hasher;
 use crate::mem::{Int, Pointer};
 use crate::process::ProcessPointer;
 use crate::runtime_error::RuntimeError;
+use crate::scheduler::process::Thread;
 use crate::state::State;
 use std::hash::BuildHasher as _;
 
 pub(crate) fn hasher_new(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     _: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -18,6 +20,7 @@ pub(crate) fn hasher_new(
 
 pub(crate) fn hasher_write_int(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -30,6 +33,7 @@ pub(crate) fn hasher_write_int(
 
 pub(crate) fn hasher_to_hash(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -41,6 +45,7 @@ pub(crate) fn hasher_to_hash(
 
 pub(crate) fn hasher_drop(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {

@@ -149,10 +149,7 @@ impl TimeoutWorker {
         let (expired, time_until_expiration) =
             inner.timeouts.processes_to_reschedule();
 
-        for proc in expired {
-            scheduler.schedule(proc);
-        }
-
+        scheduler.schedule_multiple(expired);
         time_until_expiration
     }
 
@@ -229,7 +226,7 @@ mod tests {
         let class = empty_process_class("A");
         let process = Process::alloc(*class);
         let worker = TimeoutWorker::new();
-        let scheduler = Scheduler::new(1).0;
+        let scheduler = Scheduler::new(1, 1);
 
         for time in &[10_u64, 5_u64] {
             let timeout = Timeout::with_rc(Duration::from_secs(*time));
@@ -255,7 +252,7 @@ mod tests {
         let class = empty_process_class("A");
         let process = Process::alloc(*class);
         let worker = TimeoutWorker::new();
-        let scheduler = Scheduler::new(1).0;
+        let scheduler = Scheduler::new(1, 1);
         let timeout = Timeout::with_rc(Duration::from_secs(10));
 
         process.state().waiting_for_future(Some(timeout.clone()));
@@ -270,7 +267,7 @@ mod tests {
         let class = empty_process_class("A");
         let process = Process::alloc(*class);
         let worker = TimeoutWorker::new();
-        let scheduler = Scheduler::new(1).0;
+        let scheduler = Scheduler::new(1, 1);
         let timeout = Timeout::with_rc(Duration::from_secs(0));
 
         process.state().waiting_for_future(Some(timeout.clone()));

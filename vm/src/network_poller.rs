@@ -1,5 +1,5 @@
 //! Polling of non-blocking sockets using the system's polling mechanism.
-use crate::process::{Process, ProcessPointer};
+use crate::process::ProcessPointer;
 use crate::state::RcState;
 use polling::{Event, Poller, Source};
 use std::io;
@@ -81,13 +81,12 @@ impl Worker {
                 }
             }
 
-            for event in &events {
-                let process =
-                    unsafe { ProcessPointer::new(event.key as *mut Process) };
+            let processes = events
+                .iter()
+                .map(|ev| unsafe { ProcessPointer::new(ev.key as *mut _) })
+                .collect();
 
-                self.state.scheduler.schedule(process);
-            }
-
+            self.state.scheduler.schedule_multiple(processes);
             events.clear();
         }
     }

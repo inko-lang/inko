@@ -2,6 +2,7 @@
 use crate::mem::{Float, Int, Pointer};
 use crate::process::ProcessPointer;
 use crate::runtime_error::RuntimeError;
+use crate::scheduler::process::Thread;
 use crate::state::State;
 use std::mem::MaybeUninit;
 
@@ -107,6 +108,7 @@ fn offset() -> i64 {
 
 pub(crate) fn time_monotonic(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     _: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -118,6 +120,7 @@ pub(crate) fn time_monotonic(
 
 pub(crate) fn time_system(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     _: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -126,6 +129,7 @@ pub(crate) fn time_system(
 
 pub(crate) fn time_system_offset(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     _: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {

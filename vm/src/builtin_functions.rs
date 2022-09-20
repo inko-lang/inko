@@ -2,6 +2,7 @@
 use crate::mem::Pointer;
 use crate::process::ProcessPointer;
 use crate::runtime_error::RuntimeError;
+use crate::scheduler::process::Thread;
 use crate::state::State;
 use std::io::Read;
 
@@ -21,8 +22,12 @@ mod sys;
 mod time;
 
 /// A builtin function that can be called from Inko source code.
-pub(crate) type BuiltinFunction =
-    fn(&State, ProcessPointer, &[Pointer]) -> Result<Pointer, RuntimeError>;
+pub(crate) type BuiltinFunction = fn(
+    &State,
+    &mut Thread,
+    ProcessPointer,
+    &[Pointer],
+) -> Result<Pointer, RuntimeError>;
 
 /// Reads a number of bytes from a buffer into a Vec.
 pub(crate) fn read_into<T: Read>(

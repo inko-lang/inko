@@ -107,8 +107,7 @@ impl<'a> Machine<'a> {
     ///
     /// This method blocks the calling thread until the Inko program terminates.
     pub fn boot(image: Image, arguments: &[String]) -> Result<i32, String> {
-        let (state, proc_threads) =
-            State::new(image.config, image.permanent_space, arguments);
+        let state = State::new(image.config, image.permanent_space, arguments);
         let entry_class = image.entry_class;
         let entry_method =
             unsafe { entry_class.get_method(image.entry_method) };
@@ -131,8 +130,7 @@ impl<'a> Machine<'a> {
                 .unwrap();
         }
 
-        state.scheduler.run(&*state, entry_class, entry_method, proc_threads);
-
+        state.scheduler.run(&*state, entry_class, entry_method);
         Ok(state.current_exit_status())
     }
 
@@ -733,7 +731,7 @@ impl<'a> Machine<'a> {
                     state.rewind();
 
                     match builtin_functions::call(
-                        self.state, process, task, func,
+                        self.state, thread, process, task, func,
                     ) {
                         Ok(val) => {
                             state.save();

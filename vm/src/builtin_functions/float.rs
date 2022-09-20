@@ -1,10 +1,12 @@
 use crate::mem::{Float, Int, Pointer};
 use crate::process::ProcessPointer;
 use crate::runtime_error::RuntimeError;
+use crate::scheduler::process::Thread;
 use crate::state::State;
 
 pub(crate) fn float_to_bits(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     args: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -15,6 +17,7 @@ pub(crate) fn float_to_bits(
 
 pub(crate) fn float_from_bits(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     args: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {

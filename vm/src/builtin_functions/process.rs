@@ -3,10 +3,12 @@ use crate::location_table::Location;
 use crate::mem::{Int, Pointer};
 use crate::process::ProcessPointer;
 use crate::runtime_error::RuntimeError;
+use crate::scheduler::process::Thread;
 use crate::state::State;
 
 pub(crate) fn process_stacktrace(
     _: &State,
+    _: &mut Thread,
     process: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -21,6 +23,7 @@ pub(crate) fn process_stacktrace(
 
 pub(crate) fn process_call_frame_name(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -32,6 +35,7 @@ pub(crate) fn process_call_frame_name(
 
 pub(crate) fn process_call_frame_path(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -43,6 +47,7 @@ pub(crate) fn process_call_frame_path(
 
 pub(crate) fn process_call_frame_line(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -54,6 +59,7 @@ pub(crate) fn process_call_frame_line(
 
 pub(crate) fn process_stacktrace_drop(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -63,6 +69,7 @@ pub(crate) fn process_stacktrace_drop(
 
 pub(crate) fn process_stacktrace_length(
     state: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {

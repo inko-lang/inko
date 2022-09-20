@@ -3,6 +3,7 @@ use crate::builtin_functions::read_into;
 use crate::mem::{Array, ByteArray, Int, Pointer, String as InkoString};
 use crate::process::ProcessPointer;
 use crate::runtime_error::RuntimeError;
+use crate::scheduler::process::Thread;
 use crate::state::State;
 use num_cpus;
 use std::io::Write;
@@ -10,6 +11,7 @@ use std::process::{Child, Command, Stdio};
 
 pub(crate) fn child_process_spawn(
     _: &State,
+    thread: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -40,34 +42,25 @@ pub(crate) fn child_process_spawn(
         cmd.current_dir(directory);
     }
 
-    Ok(Pointer::boxed(cmd.spawn()?))
+    thread.blocking(|| Ok(Pointer::boxed(cmd.spawn()?)))
 }
 
-/// Waits for a command and returns its exit status.
-///
-/// This method blocks the current thread while waiting.
-///
-/// This function closes STDIN before waiting.
 pub(crate) fn child_process_wait(
     _: &State,
+    thread: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
     let child = unsafe { arguments[0].get_mut::<Child>() };
-    let status = child.wait()?;
+    let status = thread.blocking(|| child.wait())?;
     let code = status.code().unwrap_or(0) as i64;
 
     Ok(Pointer::int(code))
 }
 
-/// Waits for a command and returns its exit status, without blocking.
-///
-/// This method returns immediately if the child has not yet been terminated. If
-/// the process hasn't terminated yet, -1 is returned.
-///
-/// This function requires a single argument: the command to wait for.
 pub(crate) fn child_process_try_wait(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -80,6 +73,7 @@ pub(crate) fn child_process_try_wait(
 
 pub(crate) fn child_process_stdout_read(
     state: &State,
+    thread: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -89,7 +83,7 @@ pub(crate) fn child_process_stdout_read(
     let value = child
         .stdout
         .as_mut()
-        .map(|stream| read_into(stream, buff, size))
+        .map(|stream| thread.blocking(|| read_into(stream, buff, size)))
         .unwrap_or(Ok(0))?;
 
     Ok(Int::alloc(state.permanent_space.int_class(), value))
@@ -97,6 +91,7 @@ pub(crate) fn child_process_stdout_read(
 
 pub(crate) fn child_process_stderr_read(
     state: &State,
+    thread: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -106,7 +101,7 @@ pub(crate) fn child_process_stderr_read(
     let value = child
         .stderr
         .as_mut()
-        .map(|stream| read_into(stream, buff, size))
+        .map(|stream| thread.blocking(|| read_into(stream, buff, size)))
         .unwrap_or(Ok(0))?;
 
     Ok(Int::alloc(state.permanent_space.int_class(), value))
@@ -114,6 +109,7 @@ pub(crate) fn child_process_stderr_read(
 
 pub(crate) fn child_process_stdin_write_bytes(
     state: &State,
+    thread: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -122,7 +118,7 @@ pub(crate) fn child_process_stdin_write_bytes(
     let value = child
         .stdin
         .as_mut()
-        .map(|stream| stream.write(input))
+        .map(|stream| thread.blocking(|| stream.write(input)))
         .unwrap_or(Ok(0))?;
 
     Ok(Int::alloc(state.permanent_space.int_class(), value as i64))
@@ -130,6 +126,7 @@ pub(crate) fn child_process_stdin_write_bytes(
 
 pub(crate) fn child_process_stdin_write_string(
     state: &State,
+    thread: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -138,7 +135,7 @@ pub(crate) fn child_process_stdin_write_string(
     let value = child
         .stdin
         .as_mut()
-        .map(|stream| stream.write(input.as_bytes()))
+        .map(|stream| thread.blocking(|| stream.write(input.as_bytes())))
         .unwrap_or(Ok(0))?;
 
     Ok(Int::alloc(state.permanent_space.int_class(), value as i64))
@@ -146,18 +143,24 @@ pub(crate) fn child_process_stdin_write_string(
 
 pub(crate) fn child_process_stdin_flush(
     _: &State,
+    thread: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
     let child = unsafe { arguments[0].get_mut::<Child>() };
 
-    child.stdin.as_mut().map(|stream| stream.flush()).unwrap_or(Ok(()))?;
+    child
+        .stdin
+        .as_mut()
+        .map(|stream| thread.blocking(|| stream.flush()))
+        .unwrap_or(Ok(()))?;
 
     Ok(Pointer::nil_singleton())
 }
 
 pub(crate) fn child_process_stdout_close(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -169,6 +172,7 @@ pub(crate) fn child_process_stdout_close(
 
 pub(crate) fn child_process_stderr_close(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -180,6 +184,7 @@ pub(crate) fn child_process_stderr_close(
 
 pub(crate) fn child_process_stdin_close(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -191,6 +196,7 @@ pub(crate) fn child_process_stdin_close(
 
 pub(crate) fn child_process_drop(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -203,6 +209,7 @@ pub(crate) fn child_process_drop(
 
 pub(crate) fn cpu_cores(
     _: &State,
+    _: &mut Thread,
     _: ProcessPointer,
     _: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
