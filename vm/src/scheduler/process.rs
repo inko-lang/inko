@@ -187,7 +187,6 @@ impl<'a> Thread<'a> {
     pub(crate) fn schedule_priority(&mut self, process: ProcessPointer) {
         if self.backup {
             self.pool.schedule(process);
-            return;
         } else {
             // Outside of any bugs in the VM, we should never reach this point
             // and still have a value in the priority slot, so we can just set
