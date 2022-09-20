@@ -3,11 +3,8 @@ use crate::mem::Pointer;
 
 /// A single entry in a location table.
 pub(crate) struct Entry {
-    /// The instruction offset.
-    ///
-    /// Offsets are relative to the previous offset, allowing for more than
-    /// (2^16)-1 instructions per method.
-    offset: u16,
+    /// The instruction index.
+    index: u32,
 
     /// The source line number.
     ///
@@ -53,23 +50,17 @@ impl LocationTable {
 
     pub(crate) fn add_entry(
         &mut self,
-        offset: u16,
+        index: u32,
         line: u16,
         file: Pointer,
         name: Pointer,
     ) {
-        self.entries.push(Entry { offset, line, file, name });
+        self.entries.push(Entry { index, line, file, name });
     }
 
-    pub(crate) fn get(&self, offset: usize) -> Option<Location> {
-        let mut current = 0_usize;
-
+    pub(crate) fn get(&self, index: u32) -> Option<Location> {
         for entry in self.entries.iter() {
-            current += entry.offset as usize;
-
-            if current >= offset {
-                // If we panic in these two lines that's fine, because we can't
-                // do anything useful with busted bytecode anyway.
+            if entry.index == index {
                 let name = entry.name;
                 let file = entry.file;
                 let line = Pointer::int(entry.line as i64);
@@ -102,32 +93,15 @@ mod tests {
         table.add_entry(1, 2, file, name);
         table.add_entry(1, 3, file, name);
 
-        assert_eq!(
-            table.get(0),
-            Some(Location { name, file, line: Pointer::int(1) })
-        );
-
+        assert!(table.get(0).is_none());
         assert_eq!(
             table.get(1),
-            Some(Location { name, file, line: Pointer::int(1) })
+            Some(Location { name, file, line: Pointer::int(2) })
         );
-
         assert_eq!(
             table.get(2),
             Some(Location { name, file, line: Pointer::int(1) })
         );
-
-        assert_eq!(
-            table.get(3),
-            Some(Location { name, file, line: Pointer::int(2) })
-        );
-
-        assert_eq!(
-            table.get(4),
-            Some(Location { name, file, line: Pointer::int(3) })
-        );
-
-        assert_eq!(table.get(5), None);
-        assert_eq!(table.get(10), None);
+        assert!(table.get(3).is_none());
     }
 }

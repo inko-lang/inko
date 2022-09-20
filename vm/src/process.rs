@@ -4,6 +4,7 @@ use crate::indexes::{FieldIndex, MethodIndex};
 use crate::location_table::Location;
 use crate::mem::{allocate, ClassPointer, Header, MethodPointer, Pointer};
 use crate::scheduler::timeouts::Timeout;
+use bytecode::Opcode;
 use std::alloc::{alloc, dealloc, handle_alloc_error, Layout};
 use std::collections::VecDeque;
 use std::mem::{align_of, size_of, swap};
@@ -756,15 +757,18 @@ impl Process {
         if let Some(task) = self.task.as_ref() {
             for context in task.contexts() {
                 let mut index = context.index;
+                let ins = &context.method.instructions[index];
 
-                // Instruction indexes that are saved always point to the next
-                // instruction to run, not the current one.
-                if index > 0 {
+                // When entering methods the index points to the instruction
+                // _after_ the call. For built-in function calls this isn't the
+                // case, as we store the current index instead so the call can
+                // be retried (e.g. when a socket operation) would block.
+                if index > 0 && ins.opcode != Opcode::BuiltinFunctionCall {
                     index -= 1;
                 }
 
-                if let Some(location) = context.method.locations.get(index) {
-                    locations.push(location);
+                if let Some(loc) = context.method.locations.get(index as u32) {
+                    locations.push(loc);
                 }
             }
 

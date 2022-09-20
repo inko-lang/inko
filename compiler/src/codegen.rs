@@ -844,11 +844,8 @@ impl<'a> Lower<'a> {
         locations: Vec<(usize, LocationId)>,
     ) {
         let mut entries = Vec::new();
-        let mut offset = 0_u16;
 
         for (index, id) in locations {
-            offset = index as u16 - offset;
-
             let loc = self.mir.location(id);
             let name = loc.method.name(self.db).clone();
             let file = loc.module.file(self.db).to_string_lossy().into_owned();
@@ -856,13 +853,13 @@ impl<'a> Lower<'a> {
             let file_idx = self.constant_index(Constant::String(file));
             let name_idx = self.constant_index(Constant::String(name));
 
-            entries.push((offset, line, file_idx, name_idx));
+            entries.push((index as u32, line, file_idx, name_idx));
         }
 
         buffer.write_u16(entries.len() as u16);
 
-        for (offset, line, file, name) in entries {
-            buffer.write_u16(offset);
+        for (index, line, file, name) in entries {
+            buffer.write_u32(index);
             buffer.write_u16(line);
             buffer.write_u32(file);
             buffer.write_u32(name);

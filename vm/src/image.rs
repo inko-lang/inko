@@ -343,12 +343,12 @@ fn read_location_table<R: Read>(
     let mut table = LocationTable::new();
 
     for _ in 0..read_u16(stream)? {
-        let offset = read_u16(stream)?;
+        let index = read_u32(stream)?;
         let line = read_u16(stream)?;
         let file = read_constant_index(stream, constants)?;
         let name = read_constant_index(stream, constants)?;
 
-        table.add_entry(offset, line, file, name);
+        table.add_entry(index, line, file, name);
     }
 
     Ok(table)
@@ -968,7 +968,7 @@ mod tests {
 
         // The location table
         pack_u16(&mut buffer, 1); // entries
-        pack_u16(&mut buffer, 0);
+        pack_u32(&mut buffer, 0);
         pack_u16(&mut buffer, 14);
         pack_u32(&mut buffer, 1);
         pack_u32(&mut buffer, 0);
