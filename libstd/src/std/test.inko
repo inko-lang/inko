@@ -93,7 +93,7 @@ class pub Test {
   let pub @line: Int
 
   # All test failures produced when running the tests.
-  let @failures: Array[Failure]
+  let pub @failures: Array[Failure]
 
   # A closure containing the assertions to perform.
   let @code: uni fn (mut Test)
