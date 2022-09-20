@@ -27,24 +27,6 @@ macro_rules! reset {
     }};
 }
 
-/// Handles a function that may produce an Inko panic.
-macro_rules! try_panic {
-    ($expr: expr, $loop_state: expr) => {{
-        match $expr {
-            Ok(thing) => thing,
-            Err(msg) => vm_panic!(msg, $loop_state),
-        }
-    }};
-}
-
-macro_rules! vm_panic {
-    ($message: expr, $loop_state: expr) => {{
-        $loop_state.rewind();
-
-        return Err($message);
-    }};
-}
-
 /// The state of an interpreter loop, such as the context being executed.
 ///
 /// We use a structure here so we don't need to pass around tons of variables
@@ -229,7 +211,7 @@ impl<'a> Machine<'a> {
                     let reg = ins.arg(0);
                     let a = state.context.get_register(ins.arg(1));
                     let b = state.context.get_register(ins.arg(2));
-                    let res = try_panic!(integer::add(self.state, a, b), state);
+                    let res = integer::add(self.state, a, b)?;
 
                     state.context.set_register(reg, res);
                 }
@@ -237,7 +219,7 @@ impl<'a> Machine<'a> {
                     let reg = ins.arg(0);
                     let a = state.context.get_register(ins.arg(1));
                     let b = state.context.get_register(ins.arg(2));
-                    let res = try_panic!(integer::div(self.state, a, b), state);
+                    let res = integer::div(self.state, a, b)?;
 
                     state.context.set_register(reg, res);
                 }
@@ -245,7 +227,7 @@ impl<'a> Machine<'a> {
                     let reg = ins.arg(0);
                     let a = state.context.get_register(ins.arg(1));
                     let b = state.context.get_register(ins.arg(2));
-                    let res = try_panic!(integer::mul(self.state, a, b), state);
+                    let res = integer::mul(self.state, a, b)?;
 
                     state.context.set_register(reg, res);
                 }
@@ -253,7 +235,7 @@ impl<'a> Machine<'a> {
                     let reg = ins.arg(0);
                     let a = state.context.get_register(ins.arg(1));
                     let b = state.context.get_register(ins.arg(2));
-                    let res = try_panic!(integer::sub(self.state, a, b), state);
+                    let res = integer::sub(self.state, a, b)?;
 
                     state.context.set_register(reg, res);
                 }
@@ -261,8 +243,7 @@ impl<'a> Machine<'a> {
                     let reg = ins.arg(0);
                     let a = state.context.get_register(ins.arg(1));
                     let b = state.context.get_register(ins.arg(2));
-                    let res =
-                        try_panic!(integer::modulo(self.state, a, b), state);
+                    let res = integer::modulo(self.state, a, b)?;
 
                     state.context.set_register(reg, res);
                 }
@@ -294,7 +275,7 @@ impl<'a> Machine<'a> {
                     let reg = ins.arg(0);
                     let a = state.context.get_register(ins.arg(1));
                     let b = state.context.get_register(ins.arg(2));
-                    let res = try_panic!(integer::shl(self.state, a, b), state);
+                    let res = integer::shl(self.state, a, b)?;
 
                     state.context.set_register(reg, res);
                 }
@@ -302,7 +283,7 @@ impl<'a> Machine<'a> {
                     let reg = ins.arg(0);
                     let a = state.context.get_register(ins.arg(1));
                     let b = state.context.get_register(ins.arg(2));
-                    let res = try_panic!(integer::shr(self.state, a, b), state);
+                    let res = integer::shr(self.state, a, b)?;
 
                     state.context.set_register(reg, res);
                 }
@@ -524,7 +505,7 @@ impl<'a> Machine<'a> {
 
                     let switch = process::send_message(
                         self.state, thread, task, process, rec, method, wait,
-                    );
+                    )?;
 
                     if switch {
                         return Ok(());
@@ -535,8 +516,8 @@ impl<'a> Machine<'a> {
                     let rec = state.context.get_register(ins.arg(1));
                     let method = ins.arg(2);
                     let res = process::send_async_message(
-                        self.state, thread, task, rec, method,
-                    );
+                        self.state, thread, process, task, rec, method,
+                    )?;
 
                     state.context.set_register(reg, res);
                 }
@@ -622,10 +603,9 @@ impl<'a> Machine<'a> {
                 Opcode::Panic => {
                     let msg = state.context.get_register(ins.arg(0));
 
-                    vm_panic!(
-                        unsafe { InkoString::read(&msg).to_string() },
-                        state
-                    );
+                    state.rewind();
+
+                    return Err(unsafe { InkoString::read(&msg).to_string() });
                 }
                 Opcode::Exit => {
                     let status = state.context.get_register(ins.arg(0));
@@ -741,9 +721,9 @@ impl<'a> Machine<'a> {
                             process.set_return_value(val)
                         }
                         Err(RuntimeError::Panic(msg)) => {
-                            state.save();
                             task.clear_arguments();
-                            vm_panic!(msg, state);
+
+                            return Err(msg);
                         }
                         Err(RuntimeError::Error(value)) => {
                             state.save();
@@ -846,7 +826,7 @@ impl<'a> Machine<'a> {
                 Opcode::CheckRefs => {
                     let ptr = state.context.get_register(ins.arg(0));
 
-                    try_panic!(general::check_refs(ptr), state);
+                    general::check_refs(ptr)?;
                 }
                 Opcode::Free => {
                     let obj = state.context.get_register(ins.arg(0));

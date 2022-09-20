@@ -11,6 +11,9 @@ use crate::scheduler::timeouts::Timeout;
 use crate::state::State;
 use std::time::Duration;
 
+const SEND_ERROR: &str = "Processes can't send messages to themselves, \
+    as this could result in deadlocks";
+
 #[inline(always)]
 pub(crate) fn allocate(state: &State, class_idx: u32) -> Pointer {
     let class_index = ClassIndex::new(class_idx);
@@ -29,8 +32,13 @@ pub(crate) fn send_message(
     receiver_ptr: Pointer,
     method: u16,
     wait: bool,
-) -> bool {
+) -> Result<bool, String> {
     let mut receiver = unsafe { ProcessPointer::from_pointer(receiver_ptr) };
+
+    if sender == receiver {
+        return Err(SEND_ERROR.to_string());
+    }
+
     let args = task.take_arguments();
 
     match receiver.send_message(MethodIndex::new(method), sender, args, wait) {
@@ -38,10 +46,10 @@ pub(crate) fn send_message(
             state.timeout_worker.increase_expired_timeouts();
         }
         RescheduleRights::Acquired => {}
-        _ => return false,
+        _ => return Ok(false),
     }
 
-    if wait {
+    let switch = if wait {
         // When awaiting the result immediately we want to keep latency as small
         // as possible. To achieve this we reschedule the receiver (if allowed)
         // onto the current worker with a high priority.
@@ -50,18 +58,26 @@ pub(crate) fn send_message(
     } else {
         thread.schedule(receiver);
         false
-    }
+    };
+
+    Ok(switch)
 }
 
 #[inline(always)]
 pub(crate) fn send_async_message(
     state: &State,
     thread: &mut Thread,
+    sender: ProcessPointer,
     mut task: TaskPointer,
     receiver_ptr: Pointer,
     method: u16,
-) -> Pointer {
+) -> Result<Pointer, String> {
     let mut receiver = unsafe { ProcessPointer::from_pointer(receiver_ptr) };
+
+    if sender == receiver {
+        return Err(SEND_ERROR.to_string());
+    }
+
     let fut_state = FutureState::new();
     let fut =
         Future::alloc(state.permanent_space.future_class(), fut_state.clone());
@@ -79,7 +95,7 @@ pub(crate) fn send_async_message(
         _ => {}
     }
 
-    fut
+    Ok(fut)
 }
 
 #[inline(always)]
