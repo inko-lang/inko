@@ -165,6 +165,15 @@ impl<'a> Thread<'a> {
     }
 
     pub(crate) fn schedule(&mut self, process: ProcessPointer) {
+        if self.backup {
+            // A thread may continue to run briefly after returning from a
+            // blocking operation. In this case new work is to be pushed
+            // elsewhere, otherwise it may never be picked up again (e.g. all
+            // other threads have gone to sleep).
+            self.pool.schedule(process);
+            return;
+        }
+
         if let Err(process) = self.work.push(process) {
             self.pool.schedule(process);
             return;
@@ -177,7 +186,8 @@ impl<'a> Thread<'a> {
 
     pub(crate) fn schedule_priority(&mut self, process: ProcessPointer) {
         if self.backup {
-            self.schedule(process);
+            self.pool.schedule(process);
+            return;
         } else {
             // Outside of any bugs in the VM, we should never reach this point
             // and still have a value in the priority slot, so we can just set
@@ -187,27 +197,14 @@ impl<'a> Thread<'a> {
     }
 
     pub(crate) fn start_blocking(&mut self) {
-        // Pushing all our work to other threads may take some time. To reduce
-        // the latency of the blocking operation we instead have other threads
-        // steal work from us. Since threads can't steal from the priority slot,
-        // we push this process back into the local queue.
-        if let Some(process) = self.priority.take() {
-            if let Err(process) = self.work.push(process) {
-                self.pool.schedule(process);
-            }
-        }
-
-        if let Some(process) = self.work.pop() {
-            // Moving a single job is enough to wake up at least a single
-            // sleeping thread (if any), without slowing down the blocking
-            // operation further. If we _just_ signalled sleeping threads we
-            // might end up notifying them _after_ they perform their checks,
-            // resulting in them never waking up.
-            self.pool.schedule(process);
-        }
-
         let epoch = self.pool.current_epoch();
         let shared = &self.pool.threads[self.id];
+
+        // We have to push our work away before entering the blocking operation.
+        // If we do this after returning from the blocking operation, another
+        // thread may already be using our queue, at which point we'd slow it
+        // down by moving its work to the global queue.
+        self.move_work_to_global_queue();
 
         self.blocked_at = epoch;
         shared.blocked_at.store(epoch, Ordering::Release);
@@ -286,14 +283,6 @@ impl<'a> Thread<'a> {
     fn run(&mut self, state: &State) {
         while self.pool.is_alive() {
             if self.backup {
-                // When finishing a blocking operation the process is allowed to
-                // continue running, as rescheduling it would likely slow it
-                // down even further. This means new work may have been produced
-                // since we entered a blocking operation. If we don't push this
-                // work back to the global queue, it may never be completed
-                // (e.g. if all other threads are asleep).
-                self.move_work_to_global_queue();
-
                 let mut blocked = self.pool.blocked_threads.lock().unwrap();
 
                 if let Some(id) = blocked.pop_front() {
@@ -1030,7 +1019,7 @@ mod tests {
         assert_eq!(thread.blocked_at, 4);
         assert_eq!(pool.threads[0].blocked_at.load(Ordering::Acquire), 4);
         assert_eq!(pool.monitor.status.load(), MonitorStatus::Notified);
-        assert_eq!(thread.work.len(), 1);
+        assert!(thread.work.is_empty());
         assert!(thread.priority.is_none());
     }
 
