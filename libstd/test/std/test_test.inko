@@ -78,10 +78,10 @@ fn pub tests(t: mut Tests) {
     let buff = ByteArray.new
     let plain = Plain.new(out: Buffer.new(buff), colors: false)
 
-    t.equal(plain.finished(Duration.from_seconds(1)), true)
+    t.equal(plain.finished(duration: Duration.from_seconds(1), seed: 42), true)
     t.equal(
       buff.to_string,
-      "\nFinished running 0 tests in 1.0 seconds, 0 failures\n"
+      "\nFinished running 0 tests in 1.0 seconds, 0 failures, seed: 42\n"
     )
   }
 
@@ -93,10 +93,10 @@ fn pub tests(t: mut Tests) {
 
     plain.passed(test)
 
-    t.equal(plain.finished(Duration.from_seconds(1)), true)
+    t.equal(plain.finished(duration: Duration.from_seconds(1), seed: 42), true)
     t.equal(
       buff.to_string,
-      ".\nFinished running 1 tests in 1.0 seconds, 0 failures\n"
+      ".\nFinished running 1 tests in 1.0 seconds, 0 failures, seed: 42\n"
     )
   }
 
@@ -114,13 +114,17 @@ fn pub tests(t: mut Tests) {
     test.true(false)
     plain.failed(test)
 
-    t.equal(plain.finished(Duration.from_seconds(1)), false)
+    t.equal(plain.finished(duration: Duration.from_seconds(1), seed: 42), false)
 
     let out = buff.to_string
 
     t.true(out.contains?('Failures:'))
     t.true(out.contains?('Test: foo'))
-    t.true(out.contains?('Finished running 1 tests in 1.0 seconds, 1 failures'))
+    t.true(
+      out.contains?(
+        'Finished running 1 tests in 1.0 seconds, 1 failures, seed: 42'
+      )
+    )
   }
 
   t.test('Tests.new') fn (t) {

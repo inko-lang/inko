@@ -62,9 +62,10 @@ import std::debug
 import std::fmt
 import std::fs::path::Path
 import std::io::Write
-import std::sys
 import std::process::(sleep, poll)
+import std::rand::(Random, Shuffle)
 import std::stdio::STDOUT
+import std::sys
 import std::time::(Duration, Instant)
 
 fn format(value: ref fmt::Format) -> String {
@@ -178,8 +179,10 @@ trait pub Reporter {
   #
   # The `duration` argument is set to the total execution time.
   #
+  # The `seed` argument is the seed used to sort the tests in a random order.
+  #
   # If any tests failed, this method must return `false`.
-  fn pub move finished(duration: Duration) -> Bool
+  fn pub move finished(duration: Duration, seed: Int) -> Bool
 }
 
 # A test reporter that writes to STDOUT.
@@ -220,7 +223,7 @@ impl Reporter for Plain {
     try! @out.flush
   }
 
-  fn pub move finished(duration: Duration) -> Bool {
+  fn pub move finished(duration: Duration, seed: Int) -> Bool {
     let failed = @failed.length > 0
 
     if failed {
@@ -257,7 +260,7 @@ impl Reporter for Plain {
     }
 
     try! @out.print(
-      "\nFinished running {@tests} tests in {dur}, {failures}"
+      "\nFinished running {@tests} tests in {dur}, {failures}, seed: {seed}"
     )
 
     @failed.empty?
@@ -323,6 +326,20 @@ class pub Tests {
   # By default no tests are filtered out.
   let pub @pattern: Option[String]
 
+  # The seed to use for ordering the tests.
+  #
+  # Tests are sorted in random order before running them, in an attempt to
+  # prevent them from depending on a specific execution order. When debugging
+  # test failures it may be useful to set the seed to a fixed value, ensuring
+  # tests are sorted in the same order.
+  #
+  # While this value affects the order in which tests are sorted and scheduled,
+  # tests may finish in a different order. For example, given a seed S and tests
+  # [A, B, C], the tests might be ordered as [C, B, A] but finish in the order
+  # [B, C, A], due to tests being run concurrently. For a truly deterministic
+  # execution order you'll also need to set the `concurrency` field to `1`.
+  let pub @seed: Option[Int]
+
   let @tests: Array[uni Test]
 
   # Returns a new test tests with its default settings.
@@ -331,7 +348,8 @@ class pub Tests {
       @tests = [],
       @concurrency = sys.cpu_cores,
       @reporter = Plain.new(out: STDOUT.new, colors: sys.unix?),
-      @pattern = Option.None
+      @pattern = Option.None,
+      @seed = Option.None,
     }
   }
 
@@ -366,9 +384,14 @@ class pub Tests {
       case _ -> @tests
     }
 
+    let seed = match @seed {
+      case Some(seed) -> seed
+      case _ -> Random.new.int
+    }
+
     # We shuffle tests in a random order to ensure they don't end up
     # (implicitly) depending on a specific execution order.
-    tests.shuffle
+    Shuffle.from_int(seed).sort(tests)
 
     let rep = @reporter
     let futures = []
@@ -391,7 +414,7 @@ class pub Tests {
       }
     }
 
-    if rep.finished(start.elapsed) {
+    if rep.finished(start.elapsed, seed) {
       sys.exit(status: 0)
     } else {
       sys.exit(status: 1)
