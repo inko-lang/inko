@@ -869,6 +869,9 @@ pub enum BuiltinFunction {
     ProcessStacktraceLength,
     FloatToBits,
     FloatFromBits,
+    RandomNew,
+    RandomFromInt,
+    RandomDrop,
 }
 
 impl BuiltinFunction {
@@ -1017,6 +1020,9 @@ impl BuiltinFunction {
             BuiltinFunction::ProcessStacktraceLength => 140,
             BuiltinFunction::FloatToBits => 141,
             BuiltinFunction::FloatFromBits => 142,
+            BuiltinFunction::RandomNew => 143,
+            BuiltinFunction::RandomFromInt => 144,
+            BuiltinFunction::RandomDrop => 145,
         }
     }
 
@@ -1207,6 +1213,9 @@ impl BuiltinFunction {
             }
             BuiltinFunction::FloatToBits => "float_to_bits",
             BuiltinFunction::FloatFromBits => "float_from_bits",
+            BuiltinFunction::RandomNew => "random_new",
+            BuiltinFunction::RandomFromInt => "random_from_int",
+            BuiltinFunction::RandomDrop => "random_drop",
         }
     }
 }

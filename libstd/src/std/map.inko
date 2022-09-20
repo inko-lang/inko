@@ -6,7 +6,6 @@ import std::hash::(Hash, Hasher)
 import std::index::(Index, IndexMut, SetIndex)
 import std::iter::Iter
 import std::process::(panic)
-import std::random
 
 fn resize_threshold(size: Int) -> Int {
   # This produces a threshold of 90%, without the need to allocate floats.

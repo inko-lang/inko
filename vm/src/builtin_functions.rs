@@ -198,6 +198,9 @@ impl BuiltinFunctions {
                 process::process_stacktrace_length,
                 float::float_to_bits,
                 float::float_from_bits,
+                random::random_new,
+                random::random_from_int,
+                random::random_drop,
             ],
         }
     }

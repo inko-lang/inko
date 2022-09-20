@@ -7,7 +7,7 @@ import std::hash::(Hash, Hasher)
 import std::index::(bounds_check, Index, IndexMut, SetIndex)
 import std::iter::(Enum, Iter)
 import std::option::Option
-import std::random::(int_range)
+import std::rand::Shuffle
 
 # An ordered, integer-indexed generic collection of values.
 #
@@ -309,32 +309,12 @@ class builtin Array[T] {
   #
   # # Examples
   #
-  #   let a = [10, 20]
+  #     let a = [10, 20]
   #
-  #   a.shuffle
-  #
-  #   a # => [20, 10]
+  #     a.shuffle
+  #     a # => [20, 10]
   fn pub mut shuffle {
-    # The algorithm used here is Sattolo's algorithm. Some more details on this
-    # are found here:
-    #
-    # - https://en.wikipedia.org/wiki/Fisher–Yates_shuffle#Sattolo's_algorithm
-    # - https://danluu.com/sattolo/
-    # - https://rosettacode.org/wiki/Sattolo_cycle
-    #
-    # Note that the types produced by `array_get()` and `array_set()` are `Any`.
-    # These values aren't dropped automatically, so there's no need to mark them
-    # as moved to prevent them from being dropped after the swap.
-    let mut swap = length - 1
-
-    while swap > 0 {
-      let swap_with = int_range(start: 0, stop: swap)
-      let swap_val = _INKO.array_get(self, swap)
-
-      _INKO.array_set(self, swap, _INKO.array_set(self, swap_with, swap_val))
-
-      swap -= 1
-    }
+    Shuffle.new.sort(self)
   }
 
   # Reverses `self` in-place

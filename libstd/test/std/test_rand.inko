@@ -1,0 +1,69 @@
+import helpers::(fmt, hash)
+import std::rand::(Random, Shuffle)
+import std::test::Tests
+
+fn pub tests(t: mut Tests) {
+  t.test('Random.from_int') fn (t) {
+    let rng = Random.from_int(42)
+
+    # Since we have a fixed seed, we also have a fixed output.
+    t.equal(rng.int, -8733474309719776094)
+    t.equal(rng.float, 0.5427252099031439)
+    t.equal(rng.bytes(3), ByteArray.from_array([209, 52, 81]))
+  }
+
+  t.test('Random.int') fn (t) {
+    # This is just a smoke test to ensure the underlying code isn't outright
+    # wrong.
+    Random.new.int
+  }
+
+  t.test('Random.float') fn (t) {
+    # This is just a smoke test to ensure the underlying code isn't outright
+    # wrong.
+    Random.new.float
+  }
+
+  t.test('Random.int_between') fn (t) {
+    let rng = Random.new
+    let range1 = rng.int_between(min: 1, max: 5)
+    let range2 = rng.int_between(min: 1, max: 1)
+    let range3 = rng.int_between(min: 10, max: 1)
+
+    t.true(range1 >= 1 and range1 < 5)
+    t.equal(range2, 0)
+    t.equal(range3, 0)
+  }
+
+  t.test('Random.float_between') fn (t) {
+    let rng = Random.new
+    let range1 = rng.float_between(min: 1.0, max: 5.0)
+    let range2 = rng.float_between(min: 1.0, max: 1.0)
+    let range3 = rng.float_between(min: 10.0, max: 1.0)
+
+    t.true(range1 >= 1.0 and range1 < 5.0)
+    t.equal(range2, 0.0)
+    t.equal(range3, 0.0)
+  }
+
+  t.test('Random.bytes') fn (t) {
+    let rng = Random.new
+
+    t.equal(rng.bytes(3).length, 3)
+  }
+
+  t.test('Shuffle.sort') fn (t) {
+    let one = [10]
+    let two = [10, 20]
+    let three = [10, 20, 30]
+    let shuffle = Shuffle.from_int(42)
+
+    shuffle.sort(one)
+    shuffle.sort(two)
+    shuffle.sort(three)
+
+    t.equal(one, [10])
+    t.equal(two, [20, 10])
+    t.equal(three, [20, 30, 10])
+  }
+}

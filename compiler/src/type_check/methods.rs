@@ -1439,6 +1439,9 @@ pub(crate) fn define_builtin_functions(state: &mut State) -> bool {
         (BIF::ProcessStacktraceLength, int, never),
         (BIF::FloatToBits, int, never),
         (BIF::FloatFromBits, float, never),
+        (BIF::RandomNew, any, never),
+        (BIF::RandomFromInt, any, never),
+        (BIF::RandomDrop, nil, never),
     ];
 
     // Regular VM instructions exposed directly to the standard library. These

@@ -22,7 +22,7 @@ import std::test_map
 import std::test_nil
 import std::test_option
 import std::test_process
-import std::test_random
+import std::test_rand
 import std::test_range
 import std::test_set
 import std::test_stdio
@@ -56,7 +56,7 @@ class async Main {
     test_option.tests(tests)
     test_path.tests(tests)
     test_process.tests(tests)
-    test_random.tests(tests)
+    test_rand.tests(tests)
     test_range.tests(tests)
     test_set.tests(tests)
     test_socket.tests(tests)
