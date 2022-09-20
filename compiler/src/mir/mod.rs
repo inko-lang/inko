@@ -696,7 +696,7 @@ impl Block {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) enum Constant {
     Int(i64),
     Float(f64),
@@ -707,7 +707,16 @@ impl PartialEq for Constant {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Constant::Int(a), Constant::Int(b)) => a == b,
-            (Constant::Float(a), Constant::Float(b)) => a == b,
+            // When comparing float constants we _shouldn't_ treat -0.0 and 0.0
+            // as being the same constants, as this could mess up the generated
+            // code. For example, if we treated them as the same the expression
+            // `-0.0.to_string` could randomly evaluate to `"0.0"`, which isn't
+            // correct.
+            (Constant::Float(a), Constant::Float(b))
+                if a.is_sign_positive() == b.is_sign_positive() =>
+            {
+                a == b
+            }
             (Constant::String(a), Constant::String(b)) => a == b,
             _ => false,
         }
@@ -1564,5 +1573,17 @@ impl Mir {
 
     pub(crate) fn location(&self, index: LocationId) -> &Location {
         &self.locations[index.0]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_constant_eq() {
+        assert_eq!(Constant::Float(0.0), Constant::Float(0.0));
+        assert_ne!(Constant::Float(0.0), Constant::Float(-0.0));
+        assert_ne!(Constant::Float(-0.0), Constant::Float(0.0));
     }
 }
