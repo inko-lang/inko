@@ -7,6 +7,8 @@ use crate::state::State;
 use crossbeam_queue::ArrayQueue;
 use crossbeam_utils::atomic::AtomicCell;
 use crossbeam_utils::thread::scope;
+use rand::rngs::ThreadRng;
+use rand::thread_rng;
 use std::cmp::min;
 use std::collections::VecDeque;
 use std::mem::size_of;
@@ -121,6 +123,9 @@ pub(crate) struct Thread<'a> {
     ///
     /// A value of 0 indicates the thread isn't blocked.
     blocked_at: u64,
+
+    /// A random number generator to use for the current thread.
+    pub(crate) rng: ThreadRng,
 }
 
 impl<'a> Thread<'a> {
@@ -132,6 +137,7 @@ impl<'a> Thread<'a> {
             pool,
             backup: false,
             blocked_at: NOT_BLOCKING,
+            rng: thread_rng(),
         }
     }
 
@@ -145,6 +151,7 @@ impl<'a> Thread<'a> {
             pool,
             backup: true,
             blocked_at: NOT_BLOCKING,
+            rng: thread_rng(),
         }
     }
 
@@ -783,20 +790,16 @@ impl Scheduler {
                 .unwrap();
 
             for id in 0..self.primary {
-                let mut thread = Thread::new(id, &*self.pool);
-
                 s.builder()
                     .name(format!("proc {}", id))
-                    .spawn(move |_| thread.run(state))
+                    .spawn(move |_| Thread::new(id, &*self.pool).run(state))
                     .unwrap();
             }
 
             for id in 0..self.backup {
-                let mut thread = Thread::backup(&*self.pool);
-
                 s.builder()
                     .name(format!("backup {}", id))
-                    .spawn(move |_| thread.run(state))
+                    .spawn(move |_| Thread::backup(&*self.pool).run(state))
                     .unwrap();
             }
 
