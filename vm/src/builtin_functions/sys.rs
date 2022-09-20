@@ -5,9 +5,9 @@ use crate::process::ProcessPointer;
 use crate::runtime_error::RuntimeError;
 use crate::scheduler::process::Thread;
 use crate::state::State;
-use num_cpus;
 use std::io::Write;
 use std::process::{Child, Command, Stdio};
+use std::thread::available_parallelism;
 
 pub(crate) fn child_process_spawn(
     _: &State,
@@ -213,7 +213,9 @@ pub(crate) fn cpu_cores(
     _: ProcessPointer,
     _: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
-    Ok(Pointer::int(num_cpus::get() as i64))
+    let cores = available_parallelism().map(|v| v.get()).unwrap_or(1);
+
+    Ok(Pointer::int(cores as i64))
 }
 
 fn stdio_for(value: i64) -> Stdio {

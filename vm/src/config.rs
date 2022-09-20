@@ -3,6 +3,7 @@
 //! Various virtual machine settings that can be changed by the user, such as
 //! the number of threads to run.
 use std::env::var;
+use std::thread::available_parallelism;
 
 /// Sets a configuration field based on an environment variable.
 macro_rules! set_from_env {
@@ -52,7 +53,8 @@ pub struct Config {
 
 impl Config {
     pub fn new() -> Config {
-        let cpu_count = num_cpus::get() as u16;
+        let cpu_count =
+            available_parallelism().map(|v| v.get()).unwrap_or(1) as u16;
 
         Config {
             process_threads: cpu_count,
