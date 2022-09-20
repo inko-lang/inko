@@ -59,19 +59,21 @@ impl NetworkPoller {
 
 /// A thread that polls a poller and reschedules processes.
 pub(crate) struct Worker {
+    id: usize,
     state: RcState,
 }
 
 impl Worker {
-    pub(crate) fn new(state: RcState) -> Self {
-        Worker { state }
+    pub(crate) fn new(id: usize, state: RcState) -> Self {
+        Worker { id, state }
     }
 
     pub(crate) fn run(&self) {
         let mut events = Vec::new();
+        let poller = &self.state.network_pollers[self.id];
 
         loop {
-            if let Err(err) = self.state.network_poller.poll(&mut events) {
+            if let Err(err) = poller.poll(&mut events) {
                 if err.kind() != io::ErrorKind::Interrupted {
                     // It's not entirely clear if/when we ever run into this,
                     // but should we run into any error that's _not_ an

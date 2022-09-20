@@ -60,11 +60,23 @@ compiler to insert these instructions in the right place.
 
 ## IO operations
 
+### Sockets
+
 For network IO the VM uses non-blocking sockets. When performing an operation
 that would block, the process and its socket are registered with "the network
 poller". This is a system/thread that polls a list of sockets until they are
 ready, rescheduling their corresponding processes. Polling is done using APIs
 such as epoll on Linux, kqueue on macOS/BSD, and IO completion ports on Windows.
+
+By default a single network poller thread is spawned, and each process thread
+uses the same poller. The number of poller threads is configured using the
+`INKO_NETPOLL_THREADS` environment variable. This variable can be set to a value
+between 1 and 127. When the value is greater than one, network poller threads
+are assigned to process threads in a round-robin fashion. Most programs won't
+need more than a single thread, but if you make heavy use of (many) sockets you
+may want to increase this value.
+
+### Blocking IO
 
 For blocking operations, such as file IO, Inko uses a fixed amount of backup
 threads. When an OS thread is about to enter a blocking operation, it sets a

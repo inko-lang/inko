@@ -124,12 +124,19 @@ pub(crate) struct Thread<'a> {
     /// A value of 0 indicates the thread isn't blocked.
     blocked_at: u64,
 
+    /// The ID of the network poller assigned to this thread.
+    ///
+    /// Threads are each assigned a network poller in a round-robin fashion.
+    /// This is useful for programs that heavily rely on sockets, as a single
+    /// network poller thread may not be able to complete its work fast enough.
+    pub(crate) network_poller: usize,
+
     /// A random number generator to use for the current thread.
     pub(crate) rng: ThreadRng,
 }
 
 impl<'a> Thread<'a> {
-    fn new(id: usize, pool: &'a Pool) -> Thread {
+    fn new(id: usize, network_poller: usize, pool: &'a Pool) -> Thread {
         Self {
             id,
             work: pool.threads[id].queue.clone(),
@@ -137,11 +144,12 @@ impl<'a> Thread<'a> {
             pool,
             backup: false,
             blocked_at: NOT_BLOCKING,
+            network_poller,
             rng: thread_rng(),
         }
     }
 
-    fn backup(pool: &'a Pool) -> Thread {
+    fn backup(network_poller: usize, pool: &'a Pool) -> Thread {
         Self {
             // For backup threads the ID/queue doesn't matter, because we won't
             // use them until we're turned into a regular thread.
@@ -151,6 +159,7 @@ impl<'a> Thread<'a> {
             pool,
             backup: true,
             blocked_at: NOT_BLOCKING,
+            network_poller,
             rng: thread_rng(),
         }
     }
@@ -783,6 +792,7 @@ impl Scheduler {
         method: MethodPointer,
     ) {
         let process = Process::main(class, method);
+        let pollers = state.network_pollers.len();
         let _ = scope(move |s| {
             s.builder()
                 .name("proc monitor".to_string())
@@ -790,16 +800,24 @@ impl Scheduler {
                 .unwrap();
 
             for id in 0..self.primary {
+                let poll_id = id % pollers;
+
                 s.builder()
                     .name(format!("proc {}", id))
-                    .spawn(move |_| Thread::new(id, &*self.pool).run(state))
+                    .spawn(move |_| {
+                        Thread::new(id, poll_id, &*self.pool).run(state)
+                    })
                     .unwrap();
             }
 
             for id in 0..self.backup {
+                let poll_id = id % pollers;
+
                 s.builder()
                     .name(format!("backup {}", id))
-                    .spawn(move |_| Thread::backup(&*self.pool).run(state))
+                    .spawn(move |_| {
+                        Thread::backup(poll_id, &*self.pool).run(state)
+                    })
                     .unwrap();
             }
 
@@ -823,7 +841,7 @@ mod tests {
         let class = empty_process_class("A");
         let process = new_process(*class).take_and_forget();
         let scheduler = Scheduler::new(1, 1);
-        let mut thread = Thread::new(0, &scheduler.pool);
+        let mut thread = Thread::new(0, 0, &scheduler.pool);
 
         thread.schedule(process);
 
@@ -836,7 +854,7 @@ mod tests {
         let class = empty_process_class("A");
         let process = new_process(*class).take_and_forget();
         let scheduler = Scheduler::new(1, 1);
-        let mut thread = Thread::new(0, &scheduler.pool);
+        let mut thread = Thread::new(0, 0, &scheduler.pool);
 
         scheduler.pool.sleeping.fetch_add(1, Ordering::AcqRel);
 
@@ -860,7 +878,7 @@ mod tests {
         let class = empty_process_class("A");
         let process = new_process(*class).take_and_forget();
         let scheduler = Scheduler::new(1, 1);
-        let mut thread = Thread::new(0, &scheduler.pool);
+        let mut thread = Thread::new(0, 0, &scheduler.pool);
 
         thread.schedule_priority(process);
 
@@ -873,7 +891,7 @@ mod tests {
         let main_method = empty_async_method();
         let process = new_main_process(*class, main_method).take_and_forget();
         let state = setup();
-        let mut thread = Thread::new(0, &state.scheduler.pool);
+        let mut thread = Thread::new(0, 0, &state.scheduler.pool);
 
         thread.schedule(process);
         thread.run(&state);
@@ -889,7 +907,7 @@ mod tests {
         let main_method = empty_async_method();
         let process = new_main_process(*class, main_method).take_and_forget();
         let state = setup();
-        let mut thread = Thread::new(0, &state.scheduler.pool);
+        let mut thread = Thread::new(0, 0, &state.scheduler.pool);
 
         thread.schedule_priority(process);
         thread.run(&state);
@@ -906,8 +924,8 @@ mod tests {
         let main_method = empty_async_method();
         let process = new_main_process(*class, main_method).take_and_forget();
         let state = setup();
-        let mut thread0 = Thread::new(0, &state.scheduler.pool);
-        let mut thread1 = Thread::new(1, &state.scheduler.pool);
+        let mut thread0 = Thread::new(0, 0, &state.scheduler.pool);
+        let mut thread1 = Thread::new(1, 0, &state.scheduler.pool);
 
         thread1.schedule(process);
         thread0.run(&state);
@@ -924,7 +942,7 @@ mod tests {
         let main_method = empty_async_method();
         let process = new_main_process(*class, main_method).take_and_forget();
         let state = setup();
-        let mut thread = Thread::new(0, &state.scheduler.pool);
+        let mut thread = Thread::new(0, 0, &state.scheduler.pool);
 
         state.scheduler.pool.schedule(process);
         thread.run(&state);
@@ -941,7 +959,7 @@ mod tests {
         let main_method = empty_async_method();
         let process = new_main_process(*class, main_method).take_and_forget();
         let state = setup();
-        let mut thread = Thread::new(0, &state.scheduler.pool);
+        let mut thread = Thread::new(0, 0, &state.scheduler.pool);
 
         thread.backup = true;
 
@@ -972,7 +990,7 @@ mod tests {
         // sleep. This test ensures it wakes up during termination.
         let _ = scope(|s| {
             s.spawn(|_| {
-                let mut thread = Thread::new(0, pool);
+                let mut thread = Thread::new(0, 0, pool);
 
                 thread.backup = true;
                 thread.schedule(process);
@@ -1000,7 +1018,7 @@ mod tests {
         let proc2 = new_process(*class).take_and_forget();
         let state = setup();
         let pool = &state.scheduler.pool;
-        let mut thread = Thread::new(0, pool);
+        let mut thread = Thread::new(0, 0, pool);
 
         pool.epoch.store(4, Ordering::Release);
         pool.monitor.status.store(MonitorStatus::Sleeping);
@@ -1020,7 +1038,7 @@ mod tests {
     fn test_thread_finish_blocking() {
         let state = setup();
         let pool = &state.scheduler.pool;
-        let mut thread = Thread::new(0, pool);
+        let mut thread = Thread::new(0, 0, pool);
 
         thread.start_blocking();
         thread.finish_blocking();
@@ -1039,7 +1057,7 @@ mod tests {
     fn test_thread_blocking() {
         let state = setup();
         let pool = &state.scheduler.pool;
-        let mut thread = Thread::new(0, pool);
+        let mut thread = Thread::new(0, 0, pool);
 
         thread.blocking(|| {
             pool.threads[0].blocked_at.store(NOT_BLOCKING, Ordering::Release)
@@ -1055,7 +1073,7 @@ mod tests {
         let proc2 = new_process(*class).take_and_forget();
         let state = setup();
         let pool = &state.scheduler.pool;
-        let mut thread = Thread::new(0, pool);
+        let mut thread = Thread::new(0, 0, pool);
 
         thread.schedule(proc1);
         thread.schedule_priority(proc2);
@@ -1081,7 +1099,7 @@ mod tests {
     #[test]
     fn test_scheduler_terminate() {
         let scheduler = Scheduler::new(1, 1);
-        let thread = Thread::new(0, &scheduler.pool);
+        let thread = Thread::new(0, 0, &scheduler.pool);
 
         scheduler.pool.sleeping.fetch_add(1, Ordering::Release);
         scheduler.terminate();

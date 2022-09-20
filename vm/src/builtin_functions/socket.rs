@@ -8,16 +8,21 @@ use crate::socket::Socket;
 use crate::state::State;
 use std::io::Write;
 
-macro_rules! ret {
-    ($result:expr, $state:expr, $proc:expr, $sock:expr, $interest:expr) => {{
-        if let Err(ref err) = $result {
-            if err.should_poll() {
-                $sock.register($proc, &$state.network_poller, $interest)?;
-            }
+fn ret(
+    result: Result<Pointer, RuntimeError>,
+    state: &State,
+    thread: &Thread,
+    process: ProcessPointer,
+    socket: &mut Socket,
+    interest: Interest,
+) -> Result<Pointer, RuntimeError> {
+    if let Err(ref err) = result {
+        if err.should_poll() {
+            socket.register(state, process, thread.network_poller, interest)?;
         }
+    }
 
-        $result
-    }};
+    result
 }
 
 pub(crate) fn socket_allocate_ipv4(
@@ -58,7 +63,7 @@ pub(crate) fn socket_allocate_unix(
 
 pub(crate) fn socket_write_string(
     state: &State,
-    _: &mut Thread,
+    thread: &mut Thread,
     process: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -69,12 +74,12 @@ pub(crate) fn socket_write_string(
         .map(|size| Int::alloc(state.permanent_space.int_class(), size as i64))
         .map_err(RuntimeError::from);
 
-    ret!(res, state, process, sock, Interest::Write)
+    ret(res, state, thread, process, sock, Interest::Write)
 }
 
 pub(crate) fn socket_write_bytes(
     state: &State,
-    _: &mut Thread,
+    thread: &mut Thread,
     process: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -85,12 +90,12 @@ pub(crate) fn socket_write_bytes(
         .map(|size| Int::alloc(state.permanent_space.int_class(), size as i64))
         .map_err(RuntimeError::from);
 
-    ret!(res, state, process, sock, Interest::Write)
+    ret(res, state, thread, process, sock, Interest::Write)
 }
 
 pub(crate) fn socket_read(
     state: &State,
-    _: &mut Thread,
+    thread: &mut Thread,
     process: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -102,7 +107,7 @@ pub(crate) fn socket_read(
         .read(buffer, amount)
         .map(|size| Int::alloc(state.permanent_space.int_class(), size as i64));
 
-    ret!(result, state, process, sock, Interest::Read)
+    ret(result, state, thread, process, sock, Interest::Read)
 }
 
 pub(crate) fn socket_listen(
@@ -120,7 +125,7 @@ pub(crate) fn socket_listen(
 
 pub(crate) fn socket_bind(
     state: &State,
-    _: &mut Thread,
+    thread: &mut Thread,
     process: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -129,12 +134,12 @@ pub(crate) fn socket_bind(
     let port = unsafe { Int::read(arguments[2]) } as u16;
     let result = sock.bind(addr, port).map(|_| Pointer::nil_singleton());
 
-    ret!(result, state, process, sock, Interest::Read)
+    ret(result, state, thread, process, sock, Interest::Read)
 }
 
 pub(crate) fn socket_connect(
     state: &State,
-    _: &mut Thread,
+    thread: &mut Thread,
     process: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -143,36 +148,36 @@ pub(crate) fn socket_connect(
     let port = unsafe { Int::read(arguments[2]) } as u16;
     let result = sock.connect(addr, port).map(|_| Pointer::nil_singleton());
 
-    ret!(result, state, process, sock, Interest::Write)
+    ret(result, state, thread, process, sock, Interest::Write)
 }
 
 pub(crate) fn socket_accept_ip(
     state: &State,
-    _: &mut Thread,
+    thread: &mut Thread,
     process: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
     let sock = unsafe { arguments[0].get_mut::<Socket>() };
     let result = sock.accept().map(Pointer::boxed);
 
-    ret!(result, state, process, sock, Interest::Read)
+    ret(result, state, thread, process, sock, Interest::Read)
 }
 
 pub(crate) fn socket_accept_unix(
     state: &State,
-    _: &mut Thread,
+    thread: &mut Thread,
     process: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
     let sock = unsafe { arguments[0].get_mut::<Socket>() };
     let result = sock.accept().map(Pointer::boxed);
 
-    ret!(result, state, process, sock, Interest::Read)
+    ret(result, state, thread, process, sock, Interest::Read)
 }
 
 pub(crate) fn socket_receive_from(
     state: &State,
-    _: &mut Thread,
+    thread: &mut Thread,
     process: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -183,12 +188,12 @@ pub(crate) fn socket_receive_from(
         .recv_from(buffer, amount)
         .map(|(addr, port)| allocate_address_pair(state, addr, port));
 
-    ret!(result, state, process, sock, Interest::Read)
+    ret(result, state, thread, process, sock, Interest::Read)
 }
 
 pub(crate) fn socket_send_bytes_to(
     state: &State,
-    _: &mut Thread,
+    thread: &mut Thread,
     process: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -200,12 +205,12 @@ pub(crate) fn socket_send_bytes_to(
         .send_to(buffer, address, port)
         .map(|size| Int::alloc(state.permanent_space.int_class(), size as i64));
 
-    ret!(result, state, process, sock, Interest::Write)
+    ret(result, state, thread, process, sock, Interest::Write)
 }
 
 pub(crate) fn socket_send_string_to(
     state: &State,
-    _: &mut Thread,
+    thread: &mut Thread,
     process: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
@@ -217,7 +222,7 @@ pub(crate) fn socket_send_string_to(
         .send_to(buffer, address, port)
         .map(|size| Int::alloc(state.permanent_space.int_class(), size as i64));
 
-    ret!(result, state, process, sock, Interest::Write)
+    ret(result, state, thread, process, sock, Interest::Write)
 }
 
 pub(crate) fn socket_shutdown_read(

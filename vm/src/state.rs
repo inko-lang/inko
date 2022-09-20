@@ -20,13 +20,13 @@ pub(crate) type RcState = ArcWithoutWeak<State>;
 /// The state of a virtual machine.
 pub(crate) struct State {
     /// The virtual machine's configuration.
-    pub config: Config,
+    pub(crate) config: Config,
 
     /// The start time of the VM (more or less).
-    pub start_time: time::Instant,
+    pub(crate) start_time: time::Instant,
 
     /// The commandline arguments passed to an Inko program.
-    pub arguments: Vec<Pointer>,
+    pub(crate) arguments: Vec<Pointer>,
 
     /// The environment variables defined when the VM started.
     ///
@@ -34,25 +34,25 @@ pub(crate) struct State {
     /// (or through libraries) may call `setenv()` concurrently with `getenv()`
     /// calls, which is unsound. Caching the variables also means we can safely
     /// use `localtime_r()` (which internally may call `setenv()`).
-    pub environment: HashMap<String, Pointer>,
+    pub(crate) environment: HashMap<String, Pointer>,
 
     /// The exit status to use when the VM terminates.
-    pub exit_status: Mutex<i32>,
+    pub(crate) exit_status: Mutex<i32>,
 
     /// The scheduler to use for executing Inko processes.
-    pub scheduler: Scheduler,
+    pub(crate) scheduler: Scheduler,
 
     /// A task used for handling timeouts, such as message and IO timeouts.
-    pub timeout_worker: TimeoutWorker,
+    pub(crate) timeout_worker: TimeoutWorker,
 
-    /// The system polling mechanism to use for polling non-blocking sockets.
-    pub network_poller: NetworkPoller,
+    /// The network pollers to use for process threads.
+    pub(crate) network_pollers: Vec<NetworkPoller>,
 
     /// All builtin functions that a compiler can use.
-    pub builtin_functions: BuiltinFunctions,
+    pub(crate) builtin_functions: BuiltinFunctions,
 
     /// A type for allocating and storing blocks and permanent objects.
-    pub permanent_space: PermanentSpace,
+    pub(crate) permanent_space: PermanentSpace,
 
     /// The random state to use for building hashers.
     ///
@@ -104,6 +104,9 @@ impl State {
             config.backup_threads as usize,
         );
 
+        let network_pollers =
+            (0..config.netpoll_threads).map(|_| NetworkPoller::new()).collect();
+
         let state = State {
             scheduler,
             environment,
@@ -112,7 +115,7 @@ impl State {
             exit_status: Mutex::new(0),
             timeout_worker: TimeoutWorker::new(),
             arguments,
-            network_poller: NetworkPoller::new(),
+            network_pollers,
             builtin_functions: BuiltinFunctions::new(),
             permanent_space,
             hash_state,

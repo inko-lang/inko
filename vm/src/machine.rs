@@ -122,12 +122,14 @@ impl<'a> Machine<'a> {
         }
 
         {
-            let state = state.clone();
+            for id in 0..state.network_pollers.len() {
+                let state = state.clone();
 
-            thread::Builder::new()
-                .name("network poller".to_string())
-                .spawn(move || NetworkPollerWorker::new(state).run())
-                .unwrap();
+                thread::Builder::new()
+                    .name(format!("netpoll {}", id))
+                    .spawn(move || NetworkPollerWorker::new(id, state).run())
+                    .unwrap();
+            }
         }
 
         state.scheduler.run(&*state, entry_class, entry_method);

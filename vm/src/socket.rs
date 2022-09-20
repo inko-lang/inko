@@ -1,10 +1,10 @@
 pub mod socket_address;
 
 use crate::network_poller::Interest;
-use crate::network_poller::NetworkPoller;
 use crate::process::ProcessPointer;
 use crate::runtime_error::RuntimeError;
 use crate::socket::socket_address::SocketAddress;
+use crate::state::State;
 use socket2::{Domain, SockAddr, Socket as RawSocket, Type};
 use std::io;
 use std::io::Read;
@@ -12,8 +12,12 @@ use std::mem::transmute;
 use std::net::Shutdown;
 use std::net::{IpAddr, SocketAddr};
 use std::slice;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicI8, Ordering};
 use std::time::Duration;
+
+/// The registered value to use to signal a socket isn't registered with a
+/// network poller.
+const NOT_REGISTERED: i8 = -1;
 
 #[cfg(unix)]
 use libc::{EINPROGRESS, EISCONN};
@@ -164,14 +168,16 @@ pub(crate) struct Socket {
     /// The raw socket.
     inner: RawSocket,
 
-    /// A flag indicating that this socket has been registered with a poller.
+    /// The ID of the network poller we're registered with.
+    ///
+    /// A value of -1 indicates the socket isn't registered with any poller.
     ///
     /// This flag is necessary because the system's polling mechanism may not
     /// allow overwriting existing registrations without setting some additional
     /// flags. For example, epoll requires the use of EPOLL_CTL_MOD when
     /// overwriting a registration, as using EPOLL_CTL_ADD will produce an error
     /// if a file descriptor is already registered.
-    registered: AtomicBool,
+    registered: AtomicI8,
 
     /// A flag indicating if we're dealing with a UNIX socket or not.
     unix: bool,
@@ -187,7 +193,11 @@ impl Socket {
 
         socket.set_nonblocking(true)?;
 
-        Ok(Socket { inner: socket, registered: AtomicBool::new(false), unix })
+        Ok(Socket {
+            inner: socket,
+            registered: AtomicI8::new(NOT_REGISTERED),
+            unix,
+        })
     }
 
     pub(crate) fn ipv4(kind_int: i64) -> Result<Socket, RuntimeError> {
@@ -268,10 +278,13 @@ impl Socket {
 
     pub(crate) fn register(
         &mut self,
+        state: &State,
         process: ProcessPointer,
-        poller: &NetworkPoller,
+        thread_poller_id: usize,
         interest: Interest,
     ) -> Result<(), RuntimeError> {
+        let existing_id = self.registered.load(Ordering::Acquire);
+
         // Once registered, the process might be rescheduled immediately if
         // there is data available. This means that once we (re)register the
         // socket, it is not safe to use "self" anymore.
@@ -280,14 +293,20 @@ impl Socket {
         //
         // 1. Set "registered" _first_ (if necessary)
         // 2. Add the socket to the poller
-        if self.registered.load(Ordering::Acquire) {
-            Ok(poller.modify(process, &self.inner, interest)?)
-        } else {
-            self.registered.store(true, Ordering::Release);
-            Ok(poller.add(process, &self.inner, interest)?)
-        }
+        let result = if existing_id == NOT_REGISTERED {
+            let poller = &state.network_pollers[thread_poller_id];
 
-        // *DO NOT* use "self" from here on.
+            self.registered.store(thread_poller_id as i8, Ordering::Release);
+            poller.add(process, &self.inner, interest)
+        } else {
+            let poller = &state.network_pollers[existing_id as usize];
+
+            poller.modify(process, &self.inner, interest)
+        };
+
+        // *DO NOT* use "self" from here on, as the socket/process may already
+        // be running on a different thread.
+        result.map_err(|e| e.into())
     }
 
     pub(crate) fn accept(&self) -> Result<Self, RuntimeError> {
@@ -299,7 +318,7 @@ impl Socket {
 
         Ok(Socket {
             inner: socket,
-            registered: AtomicBool::new(false),
+            registered: AtomicI8::new(NOT_REGISTERED),
             unix: self.unix,
         })
     }
@@ -430,7 +449,7 @@ impl Socket {
     pub(crate) fn try_clone(&self) -> Result<Socket, RuntimeError> {
         let sock = Socket {
             inner: self.inner.try_clone()?,
-            registered: AtomicBool::new(false),
+            registered: AtomicI8::new(NOT_REGISTERED),
             unix: self.unix,
         };
 
@@ -462,11 +481,11 @@ mod tests {
     fn test_try_clone() {
         let socket1 = Socket::ipv4(0).unwrap();
 
-        socket1.registered.store(true, Ordering::Release);
+        socket1.registered.store(2, Ordering::Release);
 
         let socket2 = socket1.try_clone().unwrap();
 
-        assert!(!socket2.registered.load(Ordering::Acquire));
+        assert_eq!(socket2.registered.load(Ordering::Acquire), NOT_REGISTERED);
         assert!(!socket2.unix);
     }
 }
