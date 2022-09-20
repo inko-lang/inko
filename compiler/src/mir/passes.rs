@@ -3054,7 +3054,10 @@ impl<'a> LowerMethod<'a> {
 
                 let args = Vec::new();
 
-                if info.dynamic {
+                if info.id.is_async(self.db()) {
+                    self.current_block_mut()
+                        .send_and_wait(rec, info.id, args, loc);
+                } else if info.dynamic {
                     self.current_block_mut().call_dynamic(rec, id, args, loc);
                 } else {
                     self.current_block_mut().call(rec, id, args, loc);
