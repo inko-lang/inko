@@ -344,6 +344,14 @@ fn pub tests(t: mut Tests) {
     t.true(Ipv4Address.parse('127.0.00.1').none?)
     t.true(Ipv4Address.parse('127.0.0.01').none?)
     t.true(Ipv4Address.parse('127.0.0.001').none?)
+
+    # These are various weird IPv4 formats not part of the spec. We test for
+    # them here to make sure we explicitly don't support them.
+    t.true(Ipv4Address.parse('3232271615').none?)
+    t.true(Ipv4Address.parse('0xc0.0xa8.0x8c.0xff').none?)
+    t.true(Ipv4Address.parse('192.168.36095').none?)
+    t.true(Ipv4Address.parse('192.11046143').none?)
+    t.true(Ipv4Address.parse('000000001.000000002.000000003.00000004').none?)
   }
 
   t.test('Ipv4Address.broadcast?') fn (t) {
