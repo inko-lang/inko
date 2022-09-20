@@ -620,6 +620,15 @@ impl Opcode {
             Opcode::FuturePoll => 2,
         }
     }
+
+    pub fn rewind_before_call(self) -> bool {
+        matches!(
+            self,
+            Opcode::BuiltinFunctionCall
+                | Opcode::FutureGet
+                | Opcode::FutureGetFor
+        )
+    }
 }
 
 /// A fixed-width VM instruction.

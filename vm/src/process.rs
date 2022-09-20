@@ -4,7 +4,6 @@ use crate::indexes::{FieldIndex, MethodIndex};
 use crate::location_table::Location;
 use crate::mem::{allocate, ClassPointer, Header, MethodPointer, Pointer};
 use crate::scheduler::timeouts::Timeout;
-use bytecode::Opcode;
 use std::alloc::{alloc, dealloc, handle_alloc_error, Layout};
 use std::collections::VecDeque;
 use std::mem::{align_of, size_of, swap};
@@ -763,7 +762,7 @@ impl Process {
                 // _after_ the call. For built-in function calls this isn't the
                 // case, as we store the current index instead so the call can
                 // be retried (e.g. when a socket operation) would block.
-                if index > 0 && ins.opcode != Opcode::BuiltinFunctionCall {
+                if index > 0 && !ins.opcode.rewind_before_call() {
                     index -= 1;
                 }
 
