@@ -718,7 +718,7 @@ impl<'a> Machine<'a> {
                         Ok(val) => {
                             state.save();
                             task.clear_arguments();
-                            process.set_return_value(val)
+                            process.set_return_value(val);
                         }
                         Err(RuntimeError::Panic(msg)) => {
                             task.clear_arguments();
@@ -736,6 +736,23 @@ impl<'a> Machine<'a> {
                             // already running again in another thread.
                             return Ok(());
                         }
+                    }
+
+                    // If the function took too long to run (e.g. an IO
+                    // operation took too long), we have to give up running the
+                    // process. If we continue running we could mess up whatever
+                    // thread has taken over our queue/work, and we'd be using
+                    // the OS thread even longer than we already have.
+                    //
+                    // We schedule onto the global queue because if another
+                    // thread took over but found no other work, it may have
+                    // gone to sleep. In that case scheduling onto the local
+                    // queue may result in the work never getting picked up
+                    // (e.g. if all other threads are also sleeping).
+                    if thread.backup {
+                        thread.schedule_global(process);
+
+                        return Ok(());
                     }
                 }
                 Opcode::FutureGet => {

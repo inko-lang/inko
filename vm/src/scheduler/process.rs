@@ -113,8 +113,8 @@ pub(crate) struct Thread<'a> {
     /// purpose.
     priority: Option<ProcessPointer>,
 
-    /// A flag indicating this thread is a backup thread.
-    backup: bool,
+    /// A flag indicating this thread is or will become a backup thread.
+    pub(crate) backup: bool,
 
     /// The epoch at which we started blocking.
     ///
@@ -164,16 +164,12 @@ impl<'a> Thread<'a> {
         }
     }
 
+    /// Schedules a process onto the local queue, overflowing to the global
+    /// queue if the local queue is full.
+    ///
+    /// This method shouldn't be used when the thread is to transition to a
+    /// backup thread, as the work might never get picked up again.
     pub(crate) fn schedule(&mut self, process: ProcessPointer) {
-        if self.backup {
-            // A thread may continue to run briefly after returning from a
-            // blocking operation. In this case new work is to be pushed
-            // elsewhere, otherwise it may never be picked up again (e.g. all
-            // other threads have gone to sleep).
-            self.pool.schedule(process);
-            return;
-        }
-
         if let Err(process) = self.work.push(process) {
             self.pool.schedule(process);
             return;
@@ -184,15 +180,20 @@ impl<'a> Thread<'a> {
         }
     }
 
+    /// Schedules a process in the priority slot.
+    ///
+    /// This method shouldn't be used when the thread is to transition to a
+    /// backup thread, as the work might never get picked up again.
     pub(crate) fn schedule_priority(&mut self, process: ProcessPointer) {
-        if self.backup {
-            self.pool.schedule(process);
-        } else {
-            // Outside of any bugs in the VM, we should never reach this point
-            // and still have a value in the priority slot, so we can just set
-            // the value as-is.
-            self.priority = Some(process);
-        }
+        // Outside of any bugs in the VM, we should never reach this point and
+        // still have a value in the priority slot, so we can just set the value
+        // as-is.
+        self.priority = Some(process);
+    }
+
+    /// Schedules a process onto the global queue.
+    pub(crate) fn schedule_global(&self, process: ProcessPointer) {
+        self.pool.schedule(process);
     }
 
     pub(crate) fn start_blocking(&mut self) {
@@ -243,8 +244,9 @@ impl<'a> Thread<'a> {
             // The monitor thread determined we took too long and we have to
             // become a backup thread.
             self.backup = true;
-            self.blocked_at = NOT_BLOCKING;
         }
+
+        self.blocked_at = NOT_BLOCKING;
     }
 
     pub(crate) fn blocking<F, R>(&mut self, function: F) -> R
@@ -962,39 +964,6 @@ mod tests {
             thread.work.as_ptr(),
             state.scheduler.pool.threads[1].queue.as_ptr()
         );
-
-        Method::drop_and_deallocate(main_method);
-    }
-
-    #[test]
-    fn test_thread_run_as_backup_without_blocked_threads() {
-        let class = empty_process_class("A");
-        let main_method = empty_async_method();
-        let process = new_main_process(*class, main_method).take_and_forget();
-        let state = setup();
-        let pool = &state.scheduler.pool;
-
-        // When a backup thread doesn't find any blocked threads it goes to
-        // sleep. This test ensures it wakes up during termination.
-        let _ = scope(|s| {
-            s.spawn(|_| {
-                let mut thread = Thread::new(0, 0, pool);
-
-                thread.backup = true;
-                thread.schedule(process);
-                thread.run(&state);
-            });
-
-            while pool.global.lock().unwrap().is_empty() {
-                // Spin until the other thread moves its work to the global
-                // queue.
-                sleep(Duration::from_micros(10));
-            }
-
-            state.scheduler.terminate();
-        });
-
-        assert_eq!(pool.global.lock().unwrap().len(), 1);
 
         Method::drop_and_deallocate(main_method);
     }
