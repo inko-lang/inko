@@ -1,5 +1,4 @@
 //! Functions for setting/getting environment and operating system data.
-use crate::directories;
 use crate::mem::{Array, Pointer, String as InkoString};
 use crate::platform;
 use crate::process::ProcessPointer;
@@ -48,14 +47,21 @@ pub(crate) fn env_home_directory(
     _: ProcessPointer,
     _: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
-    let result = if let Some(path) = directories::home() {
-        InkoString::alloc(
-            state.permanent_space.string_class(),
-            canonalize(path),
-        )
+    // Rather than performing all sorts of magical incantations to get the home
+    // directory, we're just going to require that these environment variables
+    // are set.
+    let var = if cfg!(windows) {
+        state.environment.get("USERPROFILE")
     } else {
-        Pointer::undefined_singleton()
+        state.environment.get("HOME")
     };
+
+    // If the home is explicitly set to an empty string we still ignore it,
+    // because there's no scenario in which Some("") is useful.
+    let result = var
+        .cloned()
+        .filter(|p| unsafe { !InkoString::read(p).is_empty() })
+        .unwrap_or_else(Pointer::undefined_singleton);
 
     Ok(result)
 }
@@ -66,7 +72,7 @@ pub(crate) fn env_temp_directory(
     _: ProcessPointer,
     _: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
-    let path = canonalize(directories::temp());
+    let path = canonalize(env::temp_dir().to_string_lossy().into_owned());
 
     Ok(InkoString::alloc(state.permanent_space.string_class(), path))
 }
@@ -77,7 +83,9 @@ pub(crate) fn env_get_working_directory(
     _: ProcessPointer,
     _: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
-    let path = directories::working_directory().map(canonalize)?;
+    let path = env::current_dir()
+        .map(|path| path.to_string_lossy().into_owned())
+        .map(canonalize)?;
 
     Ok(InkoString::alloc(state.permanent_space.string_class(), path))
 }
@@ -90,7 +98,7 @@ pub(crate) fn env_set_working_directory(
 ) -> Result<Pointer, RuntimeError> {
     let dir = unsafe { InkoString::read(&arguments[0]) };
 
-    directories::set_working_directory(dir)?;
+    env::set_current_dir(dir)?;
     Ok(Pointer::nil_singleton())
 }
 

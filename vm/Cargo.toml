@@ -13,7 +13,6 @@ doctest = false
 libffi-system = ["libffi/system"]
 
 [dependencies]
-dirs-next = "^1.0"
 libloading = "^0.7"
 libffi = "^3.0"
 crossbeam-utils = "^0.8"

@@ -9,7 +9,6 @@ pub mod arc_without_weak;
 pub mod builtin_functions;
 pub mod chunk;
 pub mod config;
-pub mod directories;
 pub mod execution_context;
 pub mod ffi;
 pub mod hasher;
