@@ -343,7 +343,7 @@ impl<'a> ImplementTraits<'a> {
                 if !node.bounds.is_empty() {
                     self.state.diagnostics.error(
                         DiagnosticId::InvalidImplementation,
-                        "The trait 'std::drop::Drop' doesn't support type \
+                        "The 'Drop' trait doesn't support type \
                         parameter bounds",
                         self.file(),
                         node.location.clone(),
@@ -920,9 +920,9 @@ impl<'a> InsertPrelude<'a> {
         self.add_class(ClassId::nil());
         self.add_class(ClassId::byte_array());
 
-        self.import_class("std::option", "Option");
-        self.import_class("std::map", "Map");
-        self.import_method("std::process", "panic");
+        self.import_class("std/option", "Option");
+        self.import_class("std/map", "Map");
+        self.import_method("std/process", "panic");
     }
 
     fn add_class(&mut self, id: ClassId) {

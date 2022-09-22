@@ -12,7 +12,7 @@ reads it back, then writes it to STDOUT.
 We'll start with the following code:
 
 ```inko
-import std::fs::file::ReadWriteFile
+import 'std/fs/file' (ReadWriteFile)
 
 class async Main {
   fn async main {
@@ -22,7 +22,7 @@ class async Main {
 ```
 
 Instead of importing `STDOUT` we import `ReadWriteFile`. This is a type used for
-both reading and writing from and to a file. The `std::fs::file` module also
+both reading and writing from and to a file. The `std/fs/file` module also
 provides a type for just reading files (`ReadOnlyFile`), and a type for just
 writing files (`WriteOnlyFile`). In our case we need both, hence the use of
 `ReadWriteFile`.
@@ -30,7 +30,7 @@ writing files (`WriteOnlyFile`). In our case we need both, hence the use of
 Next we'll need to create our file:
 
 ```inko
-import std::fs::file::ReadWriteFile
+import 'std/fs/file' (ReadWriteFile)
 
 class async Main {
   fn async main {
@@ -120,7 +120,7 @@ of the `try!` keyword.
 Moving on, let's write the message to the file:
 
 ```inko
-import std::fs::file::ReadWriteFile
+import 'std/fs/file' (ReadWriteFile)
 
 class async Main {
   fn async main {
@@ -143,8 +143,8 @@ Let's combine this with writing the message back to STDOUT. For this we'll need
 to import STDOUT again:
 
 ```inko
-import std::fs::file::ReadWriteFile
-import std::stdio::STDOUT
+import 'std/fs/file' (ReadWriteFile)
+import 'std/stdio' (STDOUT)
 
 class async Main {
   fn async main {
@@ -160,8 +160,8 @@ as reading continues where the last write (or read) ended, then we must read the
 contents into a `ByteArray`:
 
 ```inko
-import std::fs::file::ReadWriteFile
-import std::stdio::STDOUT
+import 'std/fs/file' (ReadWriteFile)
+import 'std/stdio' (STDOUT)
 
 class async Main {
   fn async main {
@@ -185,8 +185,8 @@ virtually anything, reads operate on byte arrays instead of using strings.
 To write the bytes back to STDOUT, we can use the `write_bytes` method:
 
 ```inko
-import std::fs::file::ReadWriteFile
-import std::stdio::STDOUT
+import 'std/fs/file' (ReadWriteFile)
+import 'std/stdio' (STDOUT)
 
 class async Main {
   fn async main {
@@ -215,8 +215,8 @@ back, then writes it to STDOUT. But what's missing is removing the file once
 we're done. And so for our next trick we'll make `hello.txt` disappear:
 
 ```inko
-import std::fs::file::(ReadWriteFile, remove)
-import std::stdio::STDOUT
+import 'std/fs/file' (ReadWriteFile, remove)
+import 'std/stdio' (STDOUT)
 
 class async Main {
   fn async main {
@@ -236,8 +236,9 @@ class async Main {
 }
 ```
 
-Removing files is done using the method `std::fs::file.remove`, which we now
-import along with the `ReadWriteFile` type. We then remove the file as follows:
+Removing files is done using the method `remove` from the `std/fs/file` module,
+which we now import along with the `ReadWriteFile` type. We then remove the file
+as follows:
 
 ```inko
 try remove(file.path) else nil
@@ -251,8 +252,8 @@ Let's say that instead of aborting with a panic, we want to write a custom
 message to STDERR and quit the program. We'd end up with something like this:
 
 ```inko
-import std::fs::file::(ReadWriteFile, remove)
-import std::stdio::(STDERR, STDOUT)
+import 'std/fs/file' (ReadWriteFile, remove)
+import 'std/stdio' (STDERR, STDOUT)
 
 class async Main {
   fn async main {
@@ -290,8 +291,8 @@ If we also want to display the original IO error message, we'd end up with
 something like this instead:
 
 ```inko
-import std::fs::file::(ReadWriteFile, remove)
-import std::stdio::(STDERR, STDOUT)
+import 'std/fs/file' (ReadWriteFile, remove)
+import 'std/stdio' (STDERR, STDOUT)
 
 class async Main {
   fn async main {

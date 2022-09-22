@@ -4,8 +4,8 @@
 # use a type-safe form of message passing, instead of sharing memory. Futures
 # are used whenever a message is sent and the sender wants to resolve the result
 # at a later point in time.
-import std::drop::Drop
-import std::time::Duration
+import 'std/drop' (Drop)
+import 'std/time' (Duration)
 
 # Terminates the program with an error message.
 #

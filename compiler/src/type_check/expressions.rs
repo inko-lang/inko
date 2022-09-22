@@ -21,7 +21,7 @@ const IGNORE_VARIABLE: &str = "_";
 
 const INDEX_METHOD: &str = "index";
 const INDEX_MUT_METHOD: &str = "index_mut";
-const INDEX_MODULE: &str = "std::index";
+const INDEX_MODULE: &str = "std/index";
 const INDEX_TRAIT: &str = "Index";
 const INDEX_MUT_TRAIT: &str = "IndexMut";
 

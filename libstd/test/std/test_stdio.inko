@@ -1,5 +1,5 @@
-import helpers::Script
-import std::test::Tests
+import 'helpers' (Script)
+import 'std/test' (Tests)
 
 fn pub tests(t: mut Tests) {
   t.test('STDIN.read') fn (t) {

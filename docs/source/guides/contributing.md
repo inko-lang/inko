@@ -91,12 +91,12 @@ guide](style-guide.md). We don't have any tools yet to enforce the style guide,
 so this is done manually during code review.
 
 Unit tests for Inko are located in `libstd/test` and are named `test_X.inko`,
-where `X` is the module to test. For example, the tests for `std::string` are
+where `X` is the module to test. For example, the tests for `std/string` are
 located in `libstd/test/std/test_string.inko`. Test modules are structured as
 follows:
 
 ```inko
-import std::test::Tests
+import 'std/test' (Tests)
 
 fn pub tests(t: mut Tests) {
   t.test('Test name') fn (t) {

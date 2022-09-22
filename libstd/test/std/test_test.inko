@@ -1,8 +1,8 @@
-import std::fs::path::Path
-import std::io::Write
-import std::sys
-import std::test::(Plain, Test, Tests)
-import std::time::Duration
+import 'std/fs/path' (Path)
+import 'std/io' (Write)
+import 'std/sys'
+import 'std/test' (Plain, Test, Tests)
+import 'std/time' (Duration)
 
 class Buffer {
   let @bytes: mut ByteArray

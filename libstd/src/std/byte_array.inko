@@ -1,13 +1,13 @@
 # Arrays of bytes
-import std::clone::Clone
-import std::cmp::(Contains, Equal)
-import std::drop::Drop
-import std::fmt::(Format, Formatter)
-import std::hash::(Hash, Hasher)
-import std::index::(bounds_check, Index, SetIndex)
-import std::iter::(Enum, Iter)
-import std::option::Option
-import std::string::(IntoString, ToString)
+import 'std/clone' (Clone)
+import 'std/cmp' (Contains, Equal)
+import 'std/drop' (Drop)
+import 'std/fmt' (Format, Formatter)
+import 'std/hash' (Hash, Hasher)
+import 'std/index' (bounds_check, Index, SetIndex)
+import 'std/iter' (Enum, Iter)
+import 'std/option' (Option)
+import 'std/string' (IntoString, ToString)
 
 # A type from which a new `ByteArray` can be created.
 trait pub ToByteArray {

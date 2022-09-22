@@ -2,9 +2,9 @@
 #
 # The IO module provides the basic building blocks for IO operations such as
 # reading from and writing to a file.
-import std::cmp::Equal
-import std::fmt::(Format, Formatter)
-import std::string::ToString
+import 'std/cmp' (Equal)
+import 'std/fmt' (Format, Formatter)
+import 'std/string' (ToString)
 
 # The initial number of bytes to read in `Read.read_all`
 let INITIAL_READ_ALL_SIZE = 1024

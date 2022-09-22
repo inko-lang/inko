@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf, MAIN_SEPARATOR};
 
 const MAIN_MODULE: &str = "main";
 const SOURCE_EXT: &str = "inko";
-const SEPARATOR: &str = "::";
+const SEPARATOR: &str = "/";
 
 /// The fully qualified name of a module.
 #[derive(Eq, PartialEq, Hash, Clone, Ord, PartialOrd)]
@@ -14,11 +14,14 @@ pub struct ModuleName {
 
 impl ModuleName {
     pub fn from_relative_path(path: &Path) -> Self {
-        Self::new(
-            path.with_extension("")
-                .to_string_lossy()
-                .replace(MAIN_SEPARATOR, SEPARATOR),
-        )
+        let mut converted =
+            path.with_extension("").to_string_lossy().into_owned();
+
+        if MAIN_SEPARATOR != '/' {
+            converted = converted.replace(MAIN_SEPARATOR, "/");
+        }
+
+        Self::new(converted)
     }
 
     pub fn main() -> Self {
@@ -26,7 +29,7 @@ impl ModuleName {
     }
 
     pub fn std_init() -> Self {
-        Self::new("std::init")
+        Self::new("std/init")
     }
 
     pub fn new<S: Into<String>>(value: S) -> Self {
@@ -34,7 +37,7 @@ impl ModuleName {
     }
 
     pub fn is_std(&self) -> bool {
-        self.value.starts_with("std::")
+        self.value.starts_with("std/")
     }
 
     pub fn tail(&self) -> &str {
@@ -42,9 +45,11 @@ impl ModuleName {
     }
 
     pub fn to_path(&self) -> PathBuf {
-        let mut path = PathBuf::from(
-            self.value.replace(SEPARATOR, &MAIN_SEPARATOR.to_string()),
-        );
+        let mut path = if MAIN_SEPARATOR != '/' {
+            PathBuf::from(self.value.replace("/", &MAIN_SEPARATOR.to_string()))
+        } else {
+            PathBuf::from(&self.value)
+        };
 
         path.set_extension(SOURCE_EXT);
         path
@@ -76,14 +81,13 @@ impl fmt::Debug for ModuleName {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::MAIN_SEPARATOR;
 
     #[test]
     fn test_from_relative_path() {
         let path = PathBuf::from("foo").join("bar.inko");
         let name = ModuleName::from_relative_path(&path);
 
-        assert_eq!(name, ModuleName::new("foo::bar"));
+        assert_eq!(name, ModuleName::new("foo/bar"));
     }
 
     #[test]
@@ -93,7 +97,7 @@ mod tests {
 
     #[test]
     fn test_to_path() {
-        let name = ModuleName::new("foo::bar");
+        let name = ModuleName::new("foo/bar");
         let path = name.to_path();
 
         assert_eq!(
@@ -104,8 +108,8 @@ mod tests {
 
     #[test]
     fn test_is_std() {
-        let name1 = ModuleName::new("foo::bar");
-        let name2 = ModuleName::new("std::bar");
+        let name1 = ModuleName::new("foo/bar");
+        let name2 = ModuleName::new("std/bar");
 
         assert!(!name1.is_std());
         assert!(name2.is_std());
@@ -113,22 +117,22 @@ mod tests {
 
     #[test]
     fn test_tail() {
-        let name = ModuleName::new("foo::bar");
+        let name = ModuleName::new("foo/bar");
 
         assert_eq!(name.tail(), &"bar".to_string());
     }
 
     #[test]
     fn test_display() {
-        let name = ModuleName::new("foo::bar");
+        let name = ModuleName::new("foo/bar");
 
-        assert_eq!(format!("{}", name), "foo::bar".to_string());
+        assert_eq!(format!("{}", name), "foo/bar".to_string());
     }
 
     #[test]
     fn test_debug() {
-        let name = ModuleName::new("foo::bar");
+        let name = ModuleName::new("foo/bar");
 
-        assert_eq!(format!("{:?}", name), "ModuleName(foo::bar)".to_string());
+        assert_eq!(format!("{:?}", name), "ModuleName(foo/bar)".to_string());
     }
 }

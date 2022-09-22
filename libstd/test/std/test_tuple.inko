@@ -1,5 +1,5 @@
-import helpers::(fmt, hash)
-import std::test::Tests
+import 'helpers' (fmt, hash)
+import 'std/test' (Tests)
 
 fn pub tests(t: mut Tests) {
   t.test('Tuple1.0') fn (t) {

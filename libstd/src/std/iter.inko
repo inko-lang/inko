@@ -20,9 +20,9 @@
 #
 # Inko uses external iteration. To make it easier to write such iterators, it
 # provides the `Enum` type, which can create iterators from a closure.
-import std::cmp::Equal
-import std::option::Option
-import std::string::(ToString, StringBuffer)
+import 'std/cmp' (Equal)
+import 'std/option' (Option)
+import 'std/string' (ToString, StringBuffer)
 
 # A generic iterator over a sequence of values of type `T`.
 #
@@ -374,7 +374,7 @@ trait pub IntoIter[T, E] {
 #
 # # Examples
 #
-#     import std::iter::(Iter, Enum)
+#     import 'std/iter' (Iter, Enum)
 #
 #     fn example(max: Int) -> Iter[Int, Never] {
 #       let mut index = 0
@@ -406,7 +406,7 @@ class pub Enum[T, E] {
   #
   # # Examples
   #
-  #     import std::iter::Enum
+  #     import 'std/iter' (Enum)
   #
   #     let vals = Enum.once(42)
   #
@@ -430,7 +430,7 @@ class pub Enum[T, E] {
   #
   # # Examples
   #
-  #     import std::iter::Enum
+  #     import 'std/iter' (Enum)
   #
   #     let vals = [10, 20]
   #     let iter = Enum.indexed(vals.length) fn (index) { vals[index] }
@@ -462,7 +462,7 @@ impl Iter[T, E] for Enum {
 #
 # # Examples
 #
-#     import std::iter
+#     import 'std/iter'
 #
 #     let vals = [10, 20, 30].into_iter
 #

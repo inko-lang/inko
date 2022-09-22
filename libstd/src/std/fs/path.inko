@@ -1,11 +1,11 @@
 # Cross-platform path manipulation.
-import std::clone::Clone
-import std::cmp::Equal
-import std::fmt::(Format, Formatter)
-import std::io::(Error, Size)
-import std::string::(ToString, IntoString)
-import std::sys
-import std::time::DateTime
+import 'std/clone' (Clone)
+import 'std/cmp' (Equal)
+import 'std/fmt' (Format, Formatter)
+import 'std/io' (Error, Size)
+import 'std/string' (ToString, IntoString)
+import 'std/sys'
+import 'std/time' (DateTime)
 
 let FSLASH = 47
 let BSLASH = 92
@@ -92,13 +92,13 @@ fn absolute_path?(path: String) -> Bool {
 #
 # Creating a new `Path` using a `String`:
 #
-#     import std::fs::path::Path
+#     import 'std/fs/path' (Path)
 #
 #     Path.new('/tmp/hello.txt')
 #
 # Converting a `String` to a `Path`:
 #
-#     import std::fs::path::Path
+#     import 'std/fs/path' (Path)
 #
 #     '/tmp/hello.txt'.to_path
 class pub Path {
@@ -130,7 +130,7 @@ class pub Path {
   #
   # Obtaining the creation time of a `Path`:
   #
-  #     import std::fs::path::Path
+  #     import 'std/fs/path' (Path)
   #
   #     let path = Path.new('README.md')
   #
@@ -148,7 +148,7 @@ class pub Path {
   #
   # Obtaining the modification time of a `Path`:
   #
-  #     import std::fs::path::Path
+  #     import 'std/fs/path' (Path)
   #
   #     let path = Path.new('README.md')
   #
@@ -166,7 +166,7 @@ class pub Path {
   #
   # Obtaining the access time of a `Path`:
   #
-  #     import std::fs::path::Path
+  #     import 'std/fs/path' (Path)
   #
   #     let path = Path.new('README.md')
   #
@@ -184,7 +184,7 @@ class pub Path {
   #
   # Checking if a `Path` is absolute:
   #
-  #     import std::fs::path::Path
+  #     import 'std/fs/path' (Path)
   #
   #     Path.new('foo').absolute?  # => False
   #     Path.new('/foo').absolute? # => True
@@ -198,7 +198,7 @@ class pub Path {
   #
   # Checking if a `Path` is relative:
   #
-  #     import std::fs::path::Path
+  #     import 'std/fs/path' (Path)
   #
   #     Path.new('foo').relative?  # => True
   #     Path.new('../').relative?  # => True
@@ -213,13 +213,13 @@ class pub Path {
   #
   # Joining a `Path` with a `String`:
   #
-  #     import std::fs::path::Path
+  #     import 'std/fs/path' (Path)
   #
   #     Path.new('foo/bar').join('baz').to_string # => 'foo/bar/baz'
   #
   # Joining a `Path` with another `Path`:
   #
-  #     import std::fs::path::Path
+  #     import 'std/fs/path' (Path)
   #
   #     Path.new('foo/bar').join(Path.new('bar')).to_string # => 'foo/bar/baz'
   fn pub join(path: ref ToString) -> Path {
@@ -244,13 +244,13 @@ class pub Path {
   #
   # Obtaining the directory of a path:
   #
-  #     import std::fs::path::Path
+  #     import 'std/fs/path' (Path)
   #
   #     Path.new('/foo/bar').directory # => Path.new('/foo')
   #
   # Obtaining the directory of the root directory:
   #
-  #     import std::fs::path::Path
+  #     import 'std/fs/path' (Path)
   #
   #     Path.new('/').directory # Path.new('/')
   fn pub directory -> Path {
@@ -284,7 +284,7 @@ impl Equal for Path {
   #
   # Comparing two paths:
   #
-  #     import std::fs::path::Path
+  #     import 'std/fs/path' (Path)
   #
   #     let path1 = Path.new('foo')
   #     let path2 = Path.new('foo')
@@ -302,7 +302,7 @@ impl ToString for Path {
   #
   # Converting a `Path`:
   #
-  #     import std::fs::path::Path
+  #     import 'std/fs/path' (Path)
   #
   #     let path = Path.new('/dev/null')
   #
@@ -325,7 +325,7 @@ impl Size for Path {
   #
   # Getting the size of a path:
   #
-  #     import std::fs::path::Path
+  #     import 'std/fs/path' (Path)
   #
   #     let path = Path.new('/dev/null')
   #

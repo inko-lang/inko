@@ -7,10 +7,10 @@
 # Optional values differ from nullable/nilable types in that they can be nested.
 # That is, `Option[Option[T]]` and `Option[T]` are two different types, but
 # `T | null` and `T | null | null` are the same.
-import std::clone::Clone
-import std::cmp::Equal
-import std::fmt::(Format, Formatter)
-import std::process::(panic)
+import 'std/clone' (Clone)
+import 'std/cmp' (Equal)
+import 'std/fmt' (Format, Formatter)
+import 'std/process' (panic)
 
 # An optional value.
 #

@@ -15,16 +15,12 @@ fn imported_modules(module: &Module) -> Vec<(ModuleName, SourceLocation)> {
     for expr in &module.expressions {
         let (path, loc) = match expr {
             TopLevelExpression::Import(ref node) => {
-                (&node.path, node.location().clone())
+                (&node.path.path, node.location().clone())
             }
             _ => continue,
         };
 
-        let name = ModuleName::from(
-            path.steps.iter().map(|i| i.name.clone()).collect::<Vec<_>>(),
-        );
-
-        names.push((name, loc));
+        names.push((ModuleName::new(path), loc));
     }
 
     names
@@ -183,7 +179,7 @@ mod tests {
         let file1 = TempFile::new("parsing1a");
         let file2 = TempFile::new("parsing2a");
 
-        write(file1.path(), "import parsing2a").unwrap();
+        write(file1.path(), "import 'parsing2a'").unwrap();
         write(file2.path(), "let A = 10").unwrap();
 
         let mut state = State::new(Config::new());
@@ -208,7 +204,7 @@ mod tests {
         let file1 = TempFile::new("parsing1b");
         let file2 = TempFile::new("parsing2b");
 
-        write(file1.path(), "import parsing2b").unwrap();
+        write(file1.path(), "import 'parsing2b'").unwrap();
         write(file2.path(), "10").unwrap();
 
         let mut state = State::new(Config::new());
@@ -228,7 +224,7 @@ mod tests {
     fn test_run_with_missing_file() {
         let file1 = TempFile::new("parsing1c");
 
-        write(file1.path(), "import parsing2c").unwrap();
+        write(file1.path(), "import 'parsing2c'").unwrap();
 
         let mut state = State::new(Config::new());
 

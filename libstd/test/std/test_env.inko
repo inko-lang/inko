@@ -1,13 +1,13 @@
-import helpers::Script
-import std::env
-import std::test::Tests
+import 'helpers' (Script)
+import 'std/env'
+import 'std/test' (Tests)
 
 fn pub tests(t: mut Tests) {
   t.test('env.get') fn (t) {
     let code = "STDOUT.new.write_string(env.get('INKO_TEST').unwrap_or('?'))"
     let present =
-      Script.new(t.id, code).variable('INKO_TEST', 'foo').import('std::env').run
-    let missing = Script.new(t.id, code).import('std::env').run
+      Script.new(t.id, code).variable('INKO_TEST', 'foo').import("'std/env'").run
+    let missing = Script.new(t.id, code).import("'std/env'").run
 
     t.equal(present, 'foo')
     t.equal(missing, '?')
@@ -26,7 +26,7 @@ fn pub tests(t: mut Tests) {
       .new(t.id, code)
       .variable('INKO_FOO', 'foo')
       .variable('INKO_BAR', 'bar')
-      .import('std::env')
+      .import("'std/env'")
       .run
 
     t.equal(output, "foo\nbar\n")
@@ -59,7 +59,7 @@ fn pub tests(t: mut Tests) {
     let output = Script
       .new(t.id, code)
       .variable('INKO_PWD', tmp.clone)
-      .import('std::env')
+      .import("'std/env'")
       .run
 
     t.equal(output, tmp)
@@ -78,7 +78,7 @@ fn pub tests(t: mut Tests) {
       .new(t.id, code)
       .argument('foo')
       .argument('bar')
-      .import('std::env')
+      .import("'std/env'")
       .run
 
     t.equal(output, "foo\nbar\n")

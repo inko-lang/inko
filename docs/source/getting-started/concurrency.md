@@ -94,7 +94,7 @@ arguments, return type and throw type of an `async` method must be sendable (see
 Here's how you'd define a message that just writes to STDOUT:
 
 ```inko
-import std::stdio::STDOUT
+import 'std/stdio' (STDOUT)
 
 class async Example {
   fn async write(message: String) {
@@ -163,7 +163,7 @@ example.
 of time spent waiting, use `Future.await_for` instead:
 
 ```inko
-import std::time::Duration
+import 'std/time' (Duration)
 
 class async Counter {
   let @value: Int
@@ -197,12 +197,12 @@ produced if a result wasn't produced within the specified time limit.
 
 Sometimes you have multiple futures, and you want to act as soon as the
 underlying message produces its result. For this there's the `poll` method from
-the `std::process` module. This method takes an array of futures and waits until
+the `std/process` module. This method takes an array of futures and waits until
 one or more futures are ready. Its return value is an array of ready futures,
 and the input array is modified in place so it no longer contains these futures:
 
 ```inko
-import std::process::(poll)
+import 'std/process' (poll)
 
 class async Runner {
   fn async run {

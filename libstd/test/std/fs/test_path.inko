@@ -1,9 +1,9 @@
-import helpers::(fmt)
-import std::env
-import std::fs::file::(self, WriteOnlyFile)
-import std::fs::path::(self, Path)
-import std::sys
-import std::test::Tests
+import 'helpers' (fmt)
+import 'std/env'
+import 'std/fs/file' (self, WriteOnlyFile)
+import 'std/fs/path' (self, Path)
+import 'std/sys'
+import 'std/test' (Tests)
 
 fn created_at? -> Bool {
   try env.temporary_directory.created_at else return false

@@ -1,17 +1,17 @@
-import helpers::(fmt)
-import std::drop::Drop
-import std::env
-import std::fs::file
-import std::fs::path::Path
-import std::net::ip::(IpAddress, Ipv4Address, Ipv6Address)
-import std::net::socket::(
+import 'helpers' (fmt)
+import 'std/drop' (Drop)
+import 'std/env'
+import 'std/fs/file'
+import 'std/fs/path' (Path)
+import 'std/net/ip' (IpAddress, Ipv4Address, Ipv6Address)
+import 'std/net/socket' (
   Socket, SocketAddress, TcpServer, TcpClient, Type, UdpSocket, UnixAddress,
   UnixDatagram, UnixServer, UnixSocket, UnixClient
 )
-import std::string::ToString
-import std::sys
-import std::test::Tests
-import std::time::Duration
+import 'std/string' (ToString)
+import 'std/sys'
+import 'std/test' (Tests)
+import 'std/time' (Duration)
 
 class SocketPath {
   let @path: Path

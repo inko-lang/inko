@@ -1,6 +1,6 @@
-import helpers::(fmt)
-import std::io::(Error, Read, Write)
-import std::test::Tests
+import 'helpers' (fmt)
+import 'std/io' (Error, Read, Write)
+import 'std/test' (Tests)
 
 class Reader {
   let @index: Int
