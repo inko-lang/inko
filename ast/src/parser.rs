@@ -120,18 +120,6 @@ impl Parser {
         start: Token,
     ) -> Result<TopLevelExpression, ParseError> {
         let path = self.import_path()?;
-
-        if self.peek().kind == TokenKind::Mul {
-            let end = self.next();
-            let location =
-                SourceLocation::start_end(&start.location, &end.location);
-
-            return Ok(TopLevelExpression::GlobImport(Box::new(GlobImport {
-                path,
-                location,
-            })));
-        }
-
         let symbols = self.import_symbols()?;
         let end_loc =
             symbols.as_ref().map(|x| &x.location).unwrap_or(&path.location);
@@ -3221,35 +3209,6 @@ mod tests {
                 location: cols(1, 15)
             }))
         );
-    }
-
-    #[test]
-    fn test_glob_imports() {
-        assert_eq!(
-            top(parse("import foo::bar::*")),
-            TopLevelExpression::GlobImport(Box::new(GlobImport {
-                path: ImportPath {
-                    steps: vec![
-                        Identifier {
-                            name: "foo".to_string(),
-                            location: cols(8, 10)
-                        },
-                        Identifier {
-                            name: "bar".to_string(),
-                            location: cols(13, 15)
-                        }
-                    ],
-                    location: cols(8, 15)
-                },
-                location: cols(1, 18)
-            }))
-        );
-    }
-
-    #[test]
-    fn test_invalid_glob_imports() {
-        assert_error!("import foo::bar::(*)", cols(19, 19));
-        assert_error!("import *", cols(8, 8));
     }
 
     #[test]

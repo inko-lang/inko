@@ -299,18 +299,6 @@ If `self` is imported, it should come first:
 import std::fs::file::(self, ReadOnlyFile)
 ```
 
-Avoid importing both a wildcard and specific symbols from a module. Instead,
-explicitly import all the symbols you need:
-
-```inko
-# Bad
-import std::fs::file::*
-import std::fs::file::(ReadOnlyFile as RoFile)
-
-# Good
-import std::fs::file::(ReadOnlyFile as RoFile, ... as ...)
-```
-
 ## Class literals
 
 Constructing an instance of a class uses the following syntax:

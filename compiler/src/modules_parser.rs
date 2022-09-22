@@ -17,9 +17,6 @@ fn imported_modules(module: &Module) -> Vec<(ModuleName, SourceLocation)> {
             TopLevelExpression::Import(ref node) => {
                 (&node.path, node.location().clone())
             }
-            TopLevelExpression::GlobImport(ref node) => {
-                (&node.path, node.location().clone())
-            }
             _ => continue,
         };
 

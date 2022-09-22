@@ -37,14 +37,8 @@ impl<'a> DefineImportedTypes<'a> {
 
     fn run(mut self, module: &mut hir::Module) {
         for expr in &module.expressions {
-            match expr {
-                hir::TopLevelExpression::Import(ref node) => {
-                    self.import(node);
-                }
-                hir::TopLevelExpression::GlobImport(ref node) => {
-                    self.glob_import(node);
-                }
-                _ => {}
+            if let hir::TopLevelExpression::Import(ref node) = expr {
+                self.import(node);
             }
         }
     }
@@ -137,28 +131,6 @@ impl<'a> DefineImportedTypes<'a> {
                 self.file(),
                 node.name.location.clone(),
             );
-        }
-    }
-
-    fn glob_import(&mut self, node: &hir::GlobImport) {
-        let source_name = self.import_source(&node.source);
-        let source = self.db().module(&source_name.to_string());
-
-        for (name, symbol) in source.symbols(self.db()) {
-            // We don't import duplicate symbols. This way the module can
-            // introduce constants you may have already imported (or imported
-            // from a different module), without resulting in type errors.
-            if self.module.symbol_exists(self.db(), &name)
-                || !symbol.defined_in(self.db(), source)
-            {
-                continue;
-            }
-
-            if symbol.is_private(self.db()) {
-                continue;
-            }
-
-            self.module.new_symbol(self.db_mut(), name, symbol);
         }
     }
 
@@ -709,155 +681,5 @@ mod tests {
         assert_eq!(error.id(), DiagnosticId::PrivateSymbol);
         assert_eq!(error.file(), &PathBuf::from("test.inko"));
         assert_eq!(error.location(), &cols(3, 3));
-    }
-
-    #[test]
-    fn test_glob_import() {
-        let symbol = "to_foo".to_string();
-        let mut state = State::new(Config::new());
-        let mut modules = vec![hir_module(
-            &mut state,
-            ModuleName::new("foo"),
-            vec![hir::TopLevelExpression::GlobImport(Box::new(
-                hir::GlobImport {
-                    source: vec![hir::Identifier {
-                        name: "bar".to_string(),
-                        location: cols(1, 1),
-                    }],
-                    location: cols(1, 1),
-                },
-            ))],
-        )];
-
-        let bar_mod = Module::alloc(
-            &mut state.db,
-            ModuleName::new("bar"),
-            "bar.inko".into(),
-        );
-
-        let to_foo = Method::alloc(
-            &mut state.db,
-            bar_mod,
-            "to_foo".to_string(),
-            Visibility::Public,
-            MethodKind::Instance,
-        );
-
-        bar_mod.new_symbol(
-            &mut state.db,
-            "to_foo".to_string(),
-            Symbol::Method(to_foo),
-        );
-
-        assert!(DefineImportedTypes::run_all(&mut state, &mut modules));
-
-        let foo_mod = modules[0].module_id;
-
-        assert!(foo_mod.symbol_exists(&state.db, &symbol));
-        assert_eq!(
-            foo_mod.symbol(&state.db, &symbol),
-            Some(Symbol::Method(to_foo))
-        );
-    }
-
-    #[test]
-    fn test_glob_import_private_symbol() {
-        let symbol = "_foo".to_string();
-        let mut state = State::new(Config::new());
-        let mut modules = vec![hir_module(
-            &mut state,
-            ModuleName::new("foo"),
-            vec![hir::TopLevelExpression::GlobImport(Box::new(
-                hir::GlobImport {
-                    source: vec![hir::Identifier {
-                        name: "bar".to_string(),
-                        location: cols(1, 1),
-                    }],
-                    location: cols(1, 1),
-                },
-            ))],
-        )];
-
-        let bar_mod = Module::alloc(
-            &mut state.db,
-            ModuleName::new("bar"),
-            "bar.inko".into(),
-        );
-
-        let foo = Method::alloc(
-            &mut state.db,
-            bar_mod,
-            symbol.clone(),
-            Visibility::Private,
-            MethodKind::Instance,
-        );
-
-        bar_mod.new_symbol(&mut state.db, symbol.clone(), Symbol::Method(foo));
-
-        assert!(DefineImportedTypes::run_all(&mut state, &mut modules));
-
-        let foo_mod = modules[0].module_id;
-
-        assert!(!foo_mod.symbol_exists(&state.db, &symbol));
-    }
-
-    #[test]
-    fn test_glob_import_with_duplicate_symbol() {
-        let symbol = "to_foo".to_string();
-        let mut state = State::new(Config::new());
-        let mut modules = vec![hir_module(
-            &mut state,
-            ModuleName::new("foo"),
-            vec![
-                hir::TopLevelExpression::GlobImport(Box::new(
-                    hir::GlobImport {
-                        source: vec![hir::Identifier {
-                            name: "bar".to_string(),
-                            location: cols(1, 1),
-                        }],
-                        location: cols(1, 1),
-                    },
-                )),
-                hir::TopLevelExpression::GlobImport(Box::new(
-                    hir::GlobImport {
-                        source: vec![hir::Identifier {
-                            name: "bar".to_string(),
-                            location: cols(2, 2),
-                        }],
-                        location: cols(2, 2),
-                    },
-                )),
-            ],
-        )];
-
-        let bar_mod = Module::alloc(
-            &mut state.db,
-            ModuleName::new("bar"),
-            "bar.inko".into(),
-        );
-
-        let to_foo = Method::alloc(
-            &mut state.db,
-            bar_mod,
-            "to_foo".to_string(),
-            Visibility::Public,
-            MethodKind::Instance,
-        );
-
-        bar_mod.new_symbol(
-            &mut state.db,
-            "to_foo".to_string(),
-            Symbol::Method(to_foo),
-        );
-
-        assert!(DefineImportedTypes::run_all(&mut state, &mut modules));
-
-        let foo_mod = modules[0].module_id;
-
-        assert!(foo_mod.symbol_exists(&state.db, &symbol));
-        assert_eq!(
-            foo_mod.symbol(&state.db, &symbol),
-            Some(Symbol::Method(to_foo))
-        );
     }
 }

@@ -350,18 +350,6 @@ impl Node for Import {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct GlobImport {
-    pub path: ImportPath,
-    pub location: SourceLocation,
-}
-
-impl Node for GlobImport {
-    fn location(&self) -> &SourceLocation {
-        &self.location
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
 pub struct DefineConstant {
     pub public: bool,
     pub name: Constant,
@@ -526,7 +514,6 @@ pub enum TopLevelExpression {
     ReopenClass(Box<ReopenClass>),
     ImplementTrait(Box<ImplementTrait>),
     Import(Box<Import>),
-    GlobImport(Box<GlobImport>),
 }
 
 impl Node for TopLevelExpression {
@@ -539,7 +526,6 @@ impl Node for TopLevelExpression {
             TopLevelExpression::ReopenClass(ref typ) => typ.location(),
             TopLevelExpression::ImplementTrait(ref typ) => typ.location(),
             TopLevelExpression::Import(ref typ) => typ.location(),
-            TopLevelExpression::GlobImport(ref typ) => typ.location(),
         }
     }
 }

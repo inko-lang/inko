@@ -48,7 +48,7 @@ class pub Script {
       @code = code,
       @cmd = cmd,
       @stdin = Option.None,
-      @imports = ['std::stdio::*']
+      @imports = ['std::stdio::(STDIN, STDERR, STDOUT)']
     }
   }
 

@@ -196,12 +196,6 @@ pub(crate) struct Import {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct GlobImport {
-    pub(crate) source: Vec<Identifier>,
-    pub(crate) location: SourceLocation,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct DefineConstant {
     pub(crate) public: bool,
     pub(crate) constant_id: Option<types::ConstantId>,
@@ -377,7 +371,6 @@ pub(crate) enum TopLevelExpression {
     Constant(Box<DefineConstant>),
     ModuleMethod(Box<DefineModuleMethod>),
     Trait(Box<DefineTrait>),
-    GlobImport(Box<GlobImport>),
     Implement(Box<ImplementTrait>),
     Import(Box<Import>),
     Reopen(Box<ReopenClass>),
@@ -1058,9 +1051,6 @@ impl<'a> LowerToHir<'a> {
                     self.implement_trait(*node)
                 }
                 ast::TopLevelExpression::Import(node) => self.import(*node),
-                ast::TopLevelExpression::GlobImport(node) => {
-                    self.glob_import(*node)
-                }
             })
             .collect()
     }
@@ -1445,13 +1435,6 @@ impl<'a> LowerToHir<'a> {
         }
 
         values
-    }
-
-    fn glob_import(&self, node: ast::GlobImport) -> TopLevelExpression {
-        TopLevelExpression::GlobImport(Box::new(GlobImport {
-            source: self.import_module_path(node.path),
-            location: node.location,
-        }))
     }
 
     fn type_reference(&self, node: ast::Type) -> Type {
@@ -4489,22 +4472,6 @@ mod tests {
                 }],
                 symbols: Vec::new(),
                 location: cols(1, 8)
-            }))
-        );
-    }
-
-    #[test]
-    fn test_lower_glob_import() {
-        let hir = lower_top_expr("import a::*").0;
-
-        assert_eq!(
-            hir,
-            TopLevelExpression::GlobImport(Box::new(GlobImport {
-                source: vec![Identifier {
-                    name: "a".to_string(),
-                    location: cols(8, 8)
-                }],
-                location: cols(1, 11)
             }))
         );
     }
