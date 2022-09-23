@@ -137,7 +137,8 @@ trait must implement the required methods, and is automatically given a copy of
 the default methods; unless the class overrides the implementation. Traits may
 also list other traits a class must implement.
 
-A simple example of a trait is `std::string::ToString`, defined as follows:
+A simple example of a trait is `ToString` from the `std/string` package, defined
+as follows:
 
 ```inko
 trait pub ToString {
@@ -150,7 +151,7 @@ compatible with the one of the trait. Here's what such an implementation might
 look like:
 
 ```inko
-import std::string::ToString
+import 'std/string' (ToString)
 
 class Person {
   let @name: String
@@ -241,7 +242,7 @@ lack of a value.
 ### Map
 
 `Map` is a hash map and can store key-value pairs of any type, as long as the
-keys implement the traits `std::hash::Hash` and `std::cmp::Equal`.
+keys implement the traits `Hash` and `Equal`.
 
 ### Nil
 
@@ -337,13 +338,13 @@ The prelude includes the following types and methods:
 
 | Symbol              | Source module
 |:--------------------|:------------------------------------------------------
-| `Int`               | `std::int`
-| `Float`             | `std::float`
-| `String`            | `std::string`
-| `Array`             | `std::array`
-| `Boolean`           | `std::bool`
-| `Nil`               | `std::nil`
-| `ByteArray`         | `std::byte_array`
-| `Option`            | `std::option`
-| `Map`               | `std::map`
-| `panic`             | `std::process`
+| `Int`               | `std/int`
+| `Float`             | `std/float`
+| `String`            | `std/string`
+| `Array`             | `std/array`
+| `Boolean`           | `std/bool`
+| `Nil`               | `std/nil`
+| `ByteArray`         | `std/byte_array`
+| `Option`            | `std/option`
+| `Map`               | `std/map`
+| `panic`             | `std/process`

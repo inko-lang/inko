@@ -7,15 +7,15 @@ powered by [libffi](https://sourceware.org/libffi/).
     Inko's FFI is quite basic and comes with various limitations. We aim to
     improve this over time.
 
-Inko's FFI is provided using the module `std::ffi`. For more information, refer
+Inko's FFI is provided using the module `std/ffi`. For more information, refer
 to the source code of this module.
 
 ## Loading libraries
 
-To load a library at runtime, use the type `std::ffi::Library`:
+To load a library at runtime, use the `Library` type from the `std/ffi` module:
 
 ```inko
-import std::ffi::Library
+import 'std/ffi' (Library)
 
 class async Main {
   fn async main {
@@ -38,7 +38,7 @@ After creating a `Library` you can load functions through it. For example,
 `malloc` and `free` are loaded as follows:
 
 ```inko
-import std::ffi::(Library, Type)
+import 'std/ffi' (Library, Type)
 
 class async Main {
   fn async main {
@@ -65,7 +65,7 @@ signalling the function doesn't exist.
 Similar to loading functions we can load variables:
 
 ```inko
-import std::ffi::(Library, Type)
+import 'std/ffi' (Library, Type)
 
 class async Main {
   fn async main {
@@ -105,11 +105,11 @@ catches fire.
 When using the return value of a C function, it's up to you to cast it to or
 construct the appropriate type. Consider our `malloc` example from earlier: it's
 return type is a pointer (specified using `returns: Type.Pointer`), for which
-`std::ffi` provides the type `Pointer`. This means we can use the result like
+`std/ffi` provides the type `Pointer`. This means we can use the result like
 so:
 
 ```inko
-import std::ffi::(Library, Type, Pointer)
+import 'std/ffi' (Library, Type, Pointer)
 
 class async Main {
   fn async main {
@@ -135,7 +135,7 @@ like any other value. If we want to pass it back to C, we have to get the
 underlying raw pointer using `Pointer.raw`:
 
 ```inko
-import std::ffi::(Library, Type, Pointer)
+import 'std/ffi' (Library, Type, Pointer)
 
 class async Main {
   fn async main {
@@ -162,7 +162,7 @@ If the return type is a built-in type such as `String` or `Int`, we can cast the
 `Any` to the appropriate type:
 
 ```inko
-import std::ffi::(Library, Type, Pointer)
+import 'std/ffi' (Library, Type, Pointer)
 
 class async Main {
   fn async main {
@@ -193,7 +193,7 @@ For example, if you have a struct with two `int` fields (`Type.I32`), you'd
 define the layout like so:
 
 ```inko
-import std::ffi::(LayoutBuilder, Struct)
+import 'std/ffi' (LayoutBuilder, Struct)
 
 let builder = LayoutBuilder.new
 

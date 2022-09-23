@@ -189,8 +189,14 @@ pub(crate) struct ImportSymbol {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ImportPath {
+    pub(crate) path: String,
+    pub(crate) location: SourceLocation,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Import {
-    pub(crate) source: Vec<Identifier>,
+    pub(crate) source: ImportPath,
     pub(crate) symbols: Vec<ImportSymbol>,
     pub(crate) location: SourceLocation,
 }
@@ -1396,14 +1402,13 @@ impl<'a> LowerToHir<'a> {
 
     fn import(&self, node: ast::Import) -> TopLevelExpression {
         TopLevelExpression::Import(Box::new(Import {
-            source: self.import_module_path(node.path),
+            source: ImportPath {
+                path: node.path.path,
+                location: node.path.location,
+            },
             symbols: self.import_symbols(node.symbols),
             location: node.location,
         }))
-    }
-
-    fn import_module_path(&self, node: ast::ImportPath) -> Vec<Identifier> {
-        node.steps.into_iter().map(|n| self.identifier(n)).collect()
     }
 
     fn import_symbols(
@@ -2953,7 +2958,7 @@ mod tests {
     use types::module_name::ModuleName;
 
     fn parse(input: &str) -> ParsedModule {
-        let name = ModuleName::new("std::foo");
+        let name = ModuleName::new("std/foo");
         let ast = Parser::new(input.into(), "test.inko".into())
             .parse()
             .expect("Failed to parse the module");
@@ -4461,98 +4466,98 @@ mod tests {
 
     #[test]
     fn test_lower_import() {
-        let hir = lower_top_expr("import a").0;
+        let hir = lower_top_expr("import 'a'").0;
 
         assert_eq!(
             hir,
             TopLevelExpression::Import(Box::new(Import {
-                source: vec![Identifier {
-                    name: "a".to_string(),
-                    location: cols(8, 8)
-                }],
+                source: ImportPath {
+                    path: "a".to_string(),
+                    location: cols(8, 10)
+                },
                 symbols: Vec::new(),
-                location: cols(1, 8)
+                location: cols(1, 10)
             }))
         );
     }
 
     #[test]
     fn test_lower_import_symbol() {
-        let hir = lower_top_expr("import a::(b)").0;
+        let hir = lower_top_expr("import 'a' (b)").0;
 
         assert_eq!(
             hir,
             TopLevelExpression::Import(Box::new(Import {
-                source: vec![Identifier {
-                    name: "a".to_string(),
-                    location: cols(8, 8)
-                }],
+                source: ImportPath {
+                    path: "a".to_string(),
+                    location: cols(8, 10)
+                },
                 symbols: vec![ImportSymbol {
                     name: Identifier {
                         name: "b".to_string(),
-                        location: cols(12, 12)
+                        location: cols(13, 13)
                     },
                     import_as: Identifier {
                         name: "b".to_string(),
-                        location: cols(12, 12)
+                        location: cols(13, 13)
                     },
-                    location: cols(12, 12)
+                    location: cols(13, 13)
                 }],
-                location: cols(1, 13)
+                location: cols(1, 14)
             }))
         );
     }
 
     #[test]
     fn test_lower_import_symbol_with_alias() {
-        let hir = lower_top_expr("import a::(b as c)").0;
+        let hir = lower_top_expr("import 'a' (b as c)").0;
 
         assert_eq!(
             hir,
             TopLevelExpression::Import(Box::new(Import {
-                source: vec![Identifier {
-                    name: "a".to_string(),
-                    location: cols(8, 8)
-                }],
+                source: ImportPath {
+                    path: "a".to_string(),
+                    location: cols(8, 10)
+                },
                 symbols: vec![ImportSymbol {
                     name: Identifier {
                         name: "b".to_string(),
-                        location: cols(12, 12)
+                        location: cols(13, 13)
                     },
                     import_as: Identifier {
                         name: "c".to_string(),
-                        location: cols(17, 17)
+                        location: cols(18, 18)
                     },
-                    location: cols(12, 17)
+                    location: cols(13, 18)
                 }],
-                location: cols(1, 18)
+                location: cols(1, 19)
             }))
         );
     }
 
     #[test]
     fn test_lower_import_self() {
-        let hir = lower_top_expr("import a::(self)").0;
+        let hir = lower_top_expr("import 'a' (self)").0;
 
         assert_eq!(
             hir,
             TopLevelExpression::Import(Box::new(Import {
-                source: vec![Identifier {
-                    name: "a".to_string(),
-                    location: cols(8, 8)
-                }],
+                source: ImportPath {
+                    path: "a".to_string(),
+                    location: cols(8, 10)
+                },
                 symbols: vec![ImportSymbol {
                     name: Identifier {
                         name: "self".to_string(),
-                        location: cols(12, 15)
+                        location: cols(13, 16)
                     },
                     import_as: Identifier {
                         name: "self".to_string(),
-                        location: cols(12, 15)
+                        location: cols(13, 16)
                     },
-                    location: cols(12, 15)
+                    location: cols(13, 16)
                 }],
-                location: cols(1, 16)
+                location: cols(1, 17)
             }))
         );
     }

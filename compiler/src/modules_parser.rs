@@ -6,7 +6,7 @@ use ast::parser::Parser;
 use ast::source_location::SourceLocation;
 use std::collections::{HashMap, HashSet};
 use std::fs::read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use types::module_name::ModuleName;
 
 fn imported_modules(module: &Module) -> Vec<(ModuleName, SourceLocation)> {
@@ -15,16 +15,12 @@ fn imported_modules(module: &Module) -> Vec<(ModuleName, SourceLocation)> {
     for expr in &module.expressions {
         let (path, loc) = match expr {
             TopLevelExpression::Import(ref node) => {
-                (&node.path, node.location().clone())
+                (&node.path.path, node.location().clone())
             }
             _ => continue,
         };
 
-        let name = ModuleName::from(
-            path.steps.iter().map(|i| i.name.clone()).collect::<Vec<_>>(),
-        );
-
-        names.push((name, loc));
+        names.push((ModuleName::new(path), loc));
     }
 
     names
@@ -62,8 +58,8 @@ impl<'a> ModulesParser<'a> {
         let mut modules = HashMap::new();
         let mut pending = initial;
 
-        for (name, _) in &pending {
-            scheduled.insert(name.clone());
+        for (_, path) in &pending {
+            scheduled.insert(path.clone());
         }
 
         for name in &self.state.config.implicit_imports {
@@ -71,36 +67,50 @@ impl<'a> ModulesParser<'a> {
             // don't need to search through all the source paths.
             let path = self.state.config.libstd.join(name.to_path());
 
-            scheduled.insert(name.clone());
+            scheduled.insert(path.clone());
             pending.push((name.clone(), path));
         }
 
         while let Some((qname, file)) = pending.pop() {
             if let Some(ast) = self.parse(&file) {
                 let deps = imported_modules(&ast);
+                let dir = file.parent().unwrap();
 
                 modules
                     .insert(qname.clone(), ParsedModule { name: qname, ast });
 
                 for (dep, location) in deps {
-                    if scheduled.contains(&dep) {
+                    let path = self.path_for_module(&dep, dir);
+
+                    if let Some(path) = path {
+                        if path == file {
+                            self.state.diagnostics.error(
+                                DiagnosticId::InvalidFile,
+                                "This import tries to import the current \
+                                module, which isn't possible"
+                                    .to_string(),
+                                file.clone(),
+                                location,
+                            );
+
+                            continue;
+                        }
+
+                        if scheduled.contains(&path) {
+                            continue;
+                        }
+
+                        scheduled.insert(path.clone());
+                        pending.push((dep, path));
                         continue;
                     }
 
-                    scheduled.insert(dep.clone());
-
-                    if let Some(path) =
-                        self.state.config.sources.get(&dep.to_path())
-                    {
-                        pending.push((dep, path));
-                    } else {
-                        self.state.diagnostics.error(
-                            DiagnosticId::InvalidFile,
-                            format!("The module '{}' couldn't be found", dep),
-                            file.clone(),
-                            location,
-                        );
-                    }
+                    self.state.diagnostics.error(
+                        DiagnosticId::InvalidFile,
+                        format!("The path '{}' doesn't point to a module", dep),
+                        file.clone(),
+                        location,
+                    );
                 }
             }
         }
@@ -149,6 +159,52 @@ impl<'a> ModulesParser<'a> {
             }
         }
     }
+
+    fn path_for_module(
+        &mut self,
+        module: &ModuleName,
+        directory: &Path,
+    ) -> Option<PathBuf> {
+        let raw_path = module.to_path();
+        let rel_path = directory.join(&raw_path);
+
+        // We allow local imports relative to the directory of the current file.
+        // This way you can write `import 'foo'` and be certain it always points
+        // to `foo.inko` in the same directory as the module containing the
+        // import.
+        if rel_path.is_file() {
+            return Some(rel_path);
+        }
+
+        let with_mod_path = module.join("mod").to_path();
+        let rel_mod_path = directory.join(&with_mod_path);
+
+        // We also support importing mod.inko files: if we import `foo/bar` but
+        // it doesn't exist, but `foo/bar/mod.inko` _does_ exist, we import the
+        // latter. This way you can structure your project like this:
+        //
+        //     src/
+        //       mod.inko
+        //
+        // And import it like this:
+        //
+        //     import 'gitlab.com/foo/bar'
+        //
+        // Instead of having to stick the name of the actual module into the
+        // import. This prevents a "stutter" when a package and its only module
+        // share the same name.
+        //
+        // We also support this for imports relative to the load path below.
+        if rel_mod_path.is_file() {
+            return Some(rel_mod_path);
+        }
+
+        self.state
+            .config
+            .sources
+            .get(&raw_path)
+            .or_else(|| self.state.config.sources.get(&with_mod_path))
+    }
 }
 
 #[cfg(test)]
@@ -183,7 +239,7 @@ mod tests {
         let file1 = TempFile::new("parsing1a");
         let file2 = TempFile::new("parsing2a");
 
-        write(file1.path(), "import parsing2a").unwrap();
+        write(file1.path(), "import 'parsing2a'").unwrap();
         write(file2.path(), "let A = 10").unwrap();
 
         let mut state = State::new(Config::new());
@@ -208,7 +264,7 @@ mod tests {
         let file1 = TempFile::new("parsing1b");
         let file2 = TempFile::new("parsing2b");
 
-        write(file1.path(), "import parsing2b").unwrap();
+        write(file1.path(), "import 'parsing2b'").unwrap();
         write(file2.path(), "10").unwrap();
 
         let mut state = State::new(Config::new());
@@ -228,7 +284,7 @@ mod tests {
     fn test_run_with_missing_file() {
         let file1 = TempFile::new("parsing1c");
 
-        write(file1.path(), "import parsing2c").unwrap();
+        write(file1.path(), "import 'parsing2c'").unwrap();
 
         let mut state = State::new(Config::new());
 

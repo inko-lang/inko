@@ -1,6 +1,6 @@
-import helpers::(fmt)
-import std::net::ip::(self, IpAddress, Ipv4Address, Ipv6Address)
-import std::test::Tests
+import 'helpers' (fmt)
+import 'std/net/ip' (self, IpAddress, Ipv4Address, Ipv6Address)
+import 'std/test' (Tests)
 
 fn pub tests(t: mut Tests) {
   t.test('IpAddress.v4') fn (t) {

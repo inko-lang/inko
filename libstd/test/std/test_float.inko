@@ -1,8 +1,8 @@
-import helpers::(fmt, hash)
-import std::cmp::Ordering
-import std::hash::Hasher
-import std::map::DefaultHasher
-import std::test::Tests
+import 'helpers' (fmt, hash)
+import 'std/cmp' (Ordering)
+import 'std/hash' (Hasher)
+import 'std/map' (DefaultHasher)
+import 'std/test' (Tests)
 
 fn pub tests(t: mut Tests) {
   t.test('Float.not_a_number') fn (t) {

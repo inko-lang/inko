@@ -1,7 +1,7 @@
-import helpers::(fmt, hash, Script)
-import std::drop::(drop, Drop)
-import std::rand::Random
-import std::test::Tests
+import 'helpers' (fmt, hash, Script)
+import 'std/drop' (drop, Drop)
+import 'std/rand' (Random)
+import 'std/test' (Tests)
 
 class Counter {
   let @value: Int

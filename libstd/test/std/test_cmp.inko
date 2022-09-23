@@ -1,6 +1,6 @@
-import helpers::(fmt)
-import std::cmp::(Compare, Equal, Ordering)
-import std::test::Tests
+import 'helpers' (fmt)
+import 'std/cmp' (Compare, Equal, Ordering)
+import 'std/test' (Tests)
 
 class enum Letter {
   case A

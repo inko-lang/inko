@@ -5,16 +5,16 @@
 # Various methods for `String` may operate on or mention "characters". Whenever
 # this is the case, we are referring to extended grapheme clusters, _not_
 # Unicode scalar values or bytes.
-import std::byte_array::(IntoByteArray, ToByteArray)
-import std::clone::Clone
-import std::cmp::(Contains, Equal)
-import std::drop::Drop
-import std::fmt::(Format, Formatter)
-import std::fs::path::(IntoPath, Path, ToPath)
-import std::hash::(Hash, Hasher)
-import std::index::(bounds_check)
-import std::iter::(Enum, Iter)
-import std::ops::Add
+import 'std/byte_array' (IntoByteArray, ToByteArray)
+import 'std/clone' (Clone)
+import 'std/cmp' (Contains, Equal)
+import 'std/drop' (Drop)
+import 'std/fmt' (Format, Formatter)
+import 'std/fs/path' (IntoPath, Path, ToPath)
+import 'std/hash' (Hash, Hasher)
+import 'std/index' (bounds_check)
+import 'std/iter' (Enum, Iter)
+import 'std/ops' (Add)
 
 let TAB_BYTE = 9
 let NL_BYTE = 10
@@ -602,7 +602,7 @@ impl Drop for Characters {
 # Using a `StringBuffer` we can work around this, only allocating a `String`
 # once we are done:
 #
-#     import std::string::StringBuffer
+#     import 'std/string' (StringBuffer)
 #
 #     let buffer = StringBuffer.new
 #
@@ -614,7 +614,7 @@ impl Drop for Characters {
 #
 # You can also create a `StringBuffer` and feed it values right away:
 #
-#     import std::string::StringBuffer
+#     import 'std/string' (StringBuffer)
 #
 #     let buffer = StringBuffer.from_array(['foo', 'bar', 'baz'])
 #
@@ -633,7 +633,7 @@ class pub StringBuffer {
   #
   # Creating a `StringBuffer` from an `Array`:
   #
-  #     import std::string::StringBuffer
+  #     import 'std/string' (StringBuffer)
   #
   #     let strings = ['foo', 'bar']
   #
@@ -648,7 +648,7 @@ class pub StringBuffer {
   #
   # Adding a `String` to a `StringBuffer`:
   #
-  #     import std::string::StringBuffer
+  #     import 'std/string' (StringBuffer)
   #
   #     let buffer = StringBuffer.new
   #
@@ -670,7 +670,7 @@ impl ToString for StringBuffer {
   #
   # Converting a `StringBuffer` to a `String`:
   #
-  #     import std::string::StringBuffer
+  #     import 'std/string' (StringBuffer)
   #
   #     let buffer = StringBuffer.new
   #

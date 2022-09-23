@@ -55,7 +55,7 @@ const TUPLE6_NAME: &str = "Tuple6";
 const TUPLE7_NAME: &str = "Tuple7";
 const TUPLE8_NAME: &str = "Tuple8";
 
-pub const STRING_MODULE: &str = "std::string";
+pub const STRING_MODULE: &str = "std/string";
 pub const TO_STRING_TRAIT: &str = "ToString";
 pub const TO_STRING_METHOD: &str = "to_string";
 
@@ -63,14 +63,14 @@ pub const CALL_METHOD: &str = "call";
 pub const MAIN_CLASS: &str = "Main";
 pub const MAIN_METHOD: &str = "main";
 
-pub const DROP_MODULE: &str = "std::drop";
+pub const DROP_MODULE: &str = "std/drop";
 pub const DROP_TRAIT: &str = "Drop";
 
 pub const DROP_METHOD: &str = "drop";
 pub const DROPPER_METHOD: &str = "$dropper";
 pub const ASYNC_DROPPER_METHOD: &str = "$async_dropper";
 
-pub const CLONE_MODULE: &str = "std::clone";
+pub const CLONE_MODULE: &str = "std/clone";
 pub const CLONE_TRAIT: &str = "Clone";
 pub const CLONE_METHOD: &str = "clone";
 

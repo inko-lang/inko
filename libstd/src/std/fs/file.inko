@@ -11,10 +11,10 @@
 #
 # Files are automatically closed when they are dropped. Any errors that may
 # occur when closing a file are ignored.
-import std::drop::Drop
-import std::fs::path::(IntoPath, Path)
-import std::io::(Error, Read, Seek, Size, Write)
-import std::string::ToString
+import 'std/drop' (Drop)
+import 'std/fs/path' (IntoPath, Path)
+import 'std/io' (Error, Read, Seek, Size, Write)
+import 'std/string' (ToString)
 
 # Removes the file for the given file path.
 #
@@ -22,7 +22,7 @@ import std::string::ToString
 #
 # Removing a file:
 #
-#     import std::fs::file::(self, WriteOnlyFile)
+#     import 'std/fs/file' (self, WriteOnlyFile)
 #
 #     let handle = try! WriteOnlyFile.new('/tmp/test.txt')
 #
@@ -39,7 +39,7 @@ fn pub remove(path: ref ToString) !! Error {
 #
 # Copying a file:
 #
-#     import std::fs::file::(self, WriteOnlyFile)
+#     import 'std/fs/file' (self, WriteOnlyFile)
 #
 #     let handle = try! WriteOnlyFile.new('/tmp/test.txt')
 #
@@ -67,7 +67,7 @@ class pub ReadOnlyFile {
   #
   # Opening a file in read-only mode:
   #
-  #     import std::fs::file::ReadOnlyFile
+  #     import 'std/fs/file' (ReadOnlyFile)
   #
   #     let handle = try! ReadOnlyFile.new('/dev/null')
   fn pub static new(path: IntoPath) !! Error -> Self {
@@ -118,7 +118,7 @@ class pub WriteOnlyFile {
   #
   # # Examples
   #
-  #     import std::fs::file::WriteOnlyFile
+  #     import 'std/fs/file' (WriteOnlyFile)
   #
   #     let file = try! WriteOnlyFile.new('/dev/null')
   fn pub static new(path: IntoPath) !! Error -> Self {
@@ -136,7 +136,7 @@ class pub WriteOnlyFile {
   #
   # # Examples
   #
-  #     import std::fs::file::WriteOnlyFile
+  #     import 'std/fs/file' (WriteOnlyFile)
   #
   #     let file = try! WriteOnlyFile.append('/dev/null')
   fn pub static append(path: IntoPath) !! Error -> Self {
@@ -189,7 +189,7 @@ class pub ReadWriteFile {
   #
   # # Examples
   #
-  #     import std::fs::file::ReadWriteFile
+  #     import 'std/fs/file' (ReadWriteFile)
   #
   #     let handle = try! ReadWriteFile.new('/dev/null')
   fn pub static new(path: IntoPath) !! Error -> Self {
@@ -207,7 +207,7 @@ class pub ReadWriteFile {
   #
   # # Examples
   #
-  #     import std::fs::file::ReadWriteFile
+  #     import 'std/fs/file' (ReadWriteFile)
   #
   #     let handle = try! ReadWriteFile.append('/dev/null')
   fn pub static append(path: IntoPath) !! Error -> Self {

@@ -326,7 +326,7 @@ impl Node for ImportSymbols {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct ImportPath {
-    pub steps: Vec<Identifier>,
+    pub path: String,
     pub location: SourceLocation,
 }
 

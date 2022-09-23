@@ -1,6 +1,6 @@
-import std::process
-import std::test::Tests
-import std::time::(Duration, Instant)
+import 'std/process'
+import 'std/test' (Tests)
+import 'std/time' (Duration, Instant)
 
 class async Proc {
   fn async send_back(value: Int) -> Int {

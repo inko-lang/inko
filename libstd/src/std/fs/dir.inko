@@ -1,7 +1,7 @@
 # Manipulating directories on a filesystem.
-import std::fs::path::Path
-import std::io::Error
-import std::string::ToString
+import 'std/fs/path' (Path)
+import 'std/io' (Error)
+import 'std/string' (ToString)
 
 # Creates a new empty directory at the given path.
 #
@@ -16,7 +16,7 @@ import std::string::ToString
 #
 # Creating a directory:
 #
-#     import std::fs::dir
+#     import 'std/fs/dir'
 #
 #     try! dir.create('/tmp/test')
 fn pub create(path: ref ToString) !! Error {
@@ -36,7 +36,7 @@ fn pub create(path: ref ToString) !! Error {
 #
 # Creating a directory:
 #
-#     import std::fs::dir
+#     import 'std/fs/dir'
 #
 #     try! dir.create_all('/tmp/foo/bar/test')
 fn pub create_all(path: ref ToString) !! Error {
@@ -59,7 +59,7 @@ fn pub create_all(path: ref ToString) !! Error {
 #
 # Removing a directory:
 #
-#     import std::fs::dir
+#     import 'std/fs/dir'
 #
 #     try! dir.create('/tmp/test')
 #     try! dir.remove('/tmp/test')
@@ -80,7 +80,7 @@ fn pub remove(path: ref ToString) !! Error {
 #
 # Removing a directory:
 #
-#     import std::fs::dir
+#     import 'std/fs/dir'
 #
 #     try! dir.create_all('/tmp/foo/bar')
 #     try! dir.remove_all('/tmp/foo')
@@ -104,7 +104,7 @@ fn pub remove_all(path: ref ToString) !! Error {
 #
 # Listing the contents of a directory:
 #
-#     import std::fs::dir
+#     import 'std/fs/dir'
 #
 #     let paths = try! dir.list('.')
 #

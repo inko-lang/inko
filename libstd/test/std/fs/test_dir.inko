@@ -1,6 +1,6 @@
-import std::env
-import std::fs::dir
-import std::test::Tests
+import 'std/env'
+import 'std/fs/dir'
+import 'std/test' (Tests)
 
 fn pub tests(t: mut Tests) {
   t.test('dir.create') fn (t) {

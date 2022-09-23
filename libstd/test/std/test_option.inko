@@ -1,5 +1,5 @@
-import helpers::(fmt, Script)
-import std::test::Tests
+import 'helpers' (fmt, Script)
+import 'std/test' (Tests)
 
 fn pub tests(t: mut Tests) {
   t.test('Option.as_ref') fn (t) {

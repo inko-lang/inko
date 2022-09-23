@@ -1,12 +1,12 @@
 # IP and Unix domain sockets.
-import std::cmp::Equal
-import std::drop::Drop
-import std::fmt::(Format, Formatter)
-import std::fs::path::Path
-import std::io::(Error, Read, Write)
-import std::net::ip::IpAddress
-import std::string::ToString
-import std::time::Duration
+import 'std/cmp' (Equal)
+import 'std/drop' (Drop)
+import 'std/fmt' (Format, Formatter)
+import 'std/fs/path' (Path)
+import 'std/io' (Error, Read, Write)
+import 'std/net/ip' (IpAddress)
+import 'std/string' (ToString)
+import 'std/time' (Duration)
 
 # The maximum value valid for a listen() call.
 #
@@ -83,7 +83,7 @@ class pub Socket {
   #
   # # Examples
   #
-  #     import std::net::socket::(Type, Socket)
+  #     import 'std/net/socket' (Type, Socket)
   #
   #     try! Socket.ipv4(Type.DGRAM)
   fn pub static ipv4(type: Type) !! Error -> Self {
@@ -97,7 +97,7 @@ class pub Socket {
   #
   # # Examples
   #
-  #     import std::net::socket::(Type, Socket)
+  #     import 'std/net/socket' (Type, Socket)
   #
   #     try! Socket.ipv6(Type.DGRAM)
   fn pub static ipv6(type: Type) !! Error -> Self {
@@ -113,7 +113,7 @@ class pub Socket {
   #
   # Binding a socket:
   #
-  #     import std::net::socket::(Socket, Type)
+  #     import 'std/net/socket' (Socket, Type)
   #
   #     let socket = try! Socket.ipv4(Type.DGRAM)
   #
@@ -130,7 +130,7 @@ class pub Socket {
   #
   # Connecting a socket:
   #
-  #     import std::net::socket::(Socket, Type)
+  #     import 'std/net/socket' (Socket, Type)
   #
   #     let listener = try! Socket.ipv4(Type.STREAM)
   #     let client = try! Socket.ipv4(Type.STREAM)
@@ -151,7 +151,7 @@ class pub Socket {
   #
   # Marking a socket as a listener:
   #
-  #     import std::net::socket::(Socket, Type)
+  #     import 'std/net/socket' (Socket, Type)
   #
   #     let socket = try! Socket.ipv4(Type.STREAM)
   #
@@ -173,7 +173,7 @@ class pub Socket {
   #
   # Accepting a connection and reading data from the connection:
   #
-  #     import std::net::socket::(Socket, Type)
+  #     import 'std/net/socket' (Socket, Type)
   #
   #     let listener = try! Socket.ipv4(Type.STREAM)
   #     let stream = try! Socket.ipv4(Type.STREAM)
@@ -202,7 +202,7 @@ class pub Socket {
   #
   # # Examples
   #
-  #     import std::net::socket::(Socket, Type)
+  #     import 'std/net/socket' (Socket, Type)
   #
   #     let socket = try! Socket.ipv4(Type.DGRAM)
   #
@@ -226,7 +226,7 @@ class pub Socket {
   #
   # # Examples
   #
-  #     import std::net::socket::(Socket, Type)
+  #     import 'std/net/socket' (Socket, Type)
   #
   #     let socket = try! Socket.ipv4(Type.DGRAM)
   #     let bytes = 'hello'.to_byte_array
@@ -255,7 +255,7 @@ class pub Socket {
   #
   # Sending a message to ourselves and receiving it:
   #
-  #     import std::net::socket::(Socket, Type)
+  #     import 'std/net/socket' (Socket, Type)
   #
   #     let socket = try! Socket.ipv4(Type.DGRAM)
   #     let bytes = ByteArray.new
@@ -484,8 +484,8 @@ class pub UdpSocket {
   #
   # Creating a new bound UDP socket:
   #
-  #     import std::net::socket::UdpSocket
-  #     import std::net::ip::IpAddress
+  #     import 'std/net/socket' (UdpSocket)
+  #     import 'std/net/ip' (IpAddress)
   #
   #     let ip = try! IpAddress.parse('0.0.0.0')
   #
@@ -504,15 +504,11 @@ class pub UdpSocket {
 
   # Connects `self` to the remote address.
   #
-  # Connecting a `UdpSocket` allows sending and receiving data using the
-  # methods from `std::io::Read` and `std::io::Write`, instead of having to use
-  # `UdpSocket.receive_from` and `UdpSocket.send_to`.
-  #
   # # Examples
   #
   # Connecting a UDP socket:
   #
-  #     import std::net::socket::UdpSocket
+  #     import 'std/net/socket' (UdpSocket)
   #
   #     let socket1 = try! UdpSocket.new(ip: '0.0.0.0', port: 40_000)
   #     let socket2 = try! UdpSocket.new(ip: '0.0.0.0', port: 41_000)
@@ -528,7 +524,7 @@ class pub UdpSocket {
   #
   # # Examples
   #
-  #     import std::net::socket::UdpSocket
+  #     import 'std/net/socket' (UdpSocket)
   #
   #     let socket = try! UdpSocket.new(ip: '0.0.0.0', port: 9999)
   #
@@ -547,7 +543,7 @@ class pub UdpSocket {
   #
   # # Examples
   #
-  #     import std::net::socket::UdpSocket
+  #     import 'std/net/socket' (UdpSocket)
   #
   #     let socket = try! UdpSocket.new(ip: '0.0.0.0', port: 9999)
   #     let bytes = 'hello'.to_byte_array
@@ -618,8 +614,8 @@ class pub TcpClient {
   #
   # Connecting a `TcpClient`:
   #
-  #     import std::net::socket::TcpClient
-  #     import std::net::ip::IpAddress
+  #     import 'std/net/socket' (TcpClient)
+  #     import 'std/net/ip' (IpAddress)
   #
   #     let ip = try! IpAddress.parse('127.0.0.1')
   #
@@ -710,8 +706,8 @@ class pub TcpServer {
   #
   # Creating a `TcpServer`:
   #
-  #     import std::net::socket::TcpServer
-  #     import std::net::ip::IpAddress
+  #     import 'std/net/socket' (TcpServer)
+  #     import 'std/net/ip' (IpAddress)
   #
   #     let ip = try! IpAddress.parse('0.0.0.0')
   #
@@ -740,7 +736,7 @@ class pub TcpServer {
   #
   # Accepting a new connection:
   #
-  #     import std::net::socket::(TcpServer, TcpClient)
+  #     import 'std/net/socket' (TcpServer, TcpClient)
   #
   #     let listener = try! TcpServer.new(ip: '127.0.0.1', port: 40_000)
   #     let client = try! TcpClient.new(ip: '127.0.0.1', port: 40_000)
@@ -787,19 +783,19 @@ class pub UnixAddress {
   #
   # Creating a `UnixAddress` that uses a path:
   #
-  #     import std::net::socket::UnixAddress
+  #     import 'std/net/socket' (UnixAddress)
   #
   #     UnixAddress.new('/tmp/test.sock')
   #
   # Creating a `UnixAddress` that uses an unnamed address:
   #
-  #     import std::net::socket::UnixAddress
+  #     import 'std/net/socket' (UnixAddress)
   #
   #     UnixAddress.new('')
   #
   # Creating a `UnixAddress` that uses an abstract address:
   #
-  #     import std::net::socket::UnixAddress
+  #     import 'std/net/socket' (UnixAddress)
   #
   #     UnixAddress.new("\0example")
   fn pub static new(address: ref ToString) -> Self {
@@ -823,7 +819,7 @@ class pub UnixAddress {
   #
   # Checking if an address is abstract:
   #
-  #     import std::net::socket::UnixAddress
+  #     import 'std/net/socket' (UnixAddress)
   #
   #     UnixAddress.new('/tmp/test.sock').abstract?    # => false
   #     UnixAddress.new("\0example-address").abstract? # => true
@@ -837,7 +833,7 @@ class pub UnixAddress {
   #
   # Checking if an address is unnamed:
   #
-  #     import std::net::socket::UnixAddress
+  #     import 'std/net/socket' (UnixAddress)
   #
   #     UnixAddress.new('/tmp/test.sock').unnamed? # => false
   #     UnixAddress.new('').unnamed?               # => true
@@ -867,7 +863,7 @@ impl Equal for UnixAddress {
   #
   # Comparing two `UnixAddress` objects:
   #
-  #     import std::net::socket::UnixAddress
+  #     import 'std/net/socket' (UnixAddress)
   #
   #     UnixAddress.new('a.sock') == UnixAddress.new('a.sock') # => true
   #     UnixAddress.new('a.sock') == UnixAddress.new('b.sock') # => false
@@ -883,7 +879,7 @@ impl ToString for UnixAddress {
   #
   # Converting a `UnixAddress` to a `String`:
   #
-  #     import std::net::socket::UnixAddress
+  #     import 'std/net/socket' (UnixAddress)
   #
   #     UnixAddress.new('/tmp/test.sock').to_string # => '/tmp/test.sock'
   #     UnixAddress.new("\0example").to_string      # => "\0example"
@@ -902,7 +898,7 @@ class pub UnixSocket {
   #
   # Creating a new socket:
   #
-  #     import std::net::socket::(Type, UnixSocket)
+  #     import 'std/net/socket' (Type, UnixSocket)
   #
   #     try! UnixSocket.new(Type.DGRAM)
   fn pub static new(type: Type) !! Error -> UnixSocket {
@@ -918,7 +914,7 @@ class pub UnixSocket {
   #
   # Binding a Unix socket to a path:
   #
-  #     import std::net::socket::(Type, UnixSocket)
+  #     import 'std/net/socket' (Type, UnixSocket)
   #
   #     let socket = try! UnixSocket.new(Type.DGRAM)
   #
@@ -935,7 +931,7 @@ class pub UnixSocket {
   #
   # Connecting a Unix socket:
   #
-  #     import std::net::socket::(Type, UnixSocket)
+  #     import 'std/net/socket' (Type, UnixSocket)
   #
   #     let listener = try! UnixSocket.new(Type.STREAM)
   #     let stream = try! UnixSocket.new(Type.STREAM)
@@ -957,7 +953,7 @@ class pub UnixSocket {
   #
   # Marking a socket as a listener:
   #
-  #     import std::net::socket::(Type, UnixSocket)
+  #     import 'std/net/socket' (Type, UnixSocket)
   #
   #     let socket = try! UnixSocket.new(Type.STREAM)
   #
@@ -979,7 +975,7 @@ class pub UnixSocket {
   #
   # Accepting a connection and reading data from the connection:
   #
-  #     import std::net::socket::(Type, UnixSocket)
+  #     import 'std/net/socket' (Type, UnixSocket)
   #
   #     let listener = try! UnixSocket.new(Type.STREAM)
   #     let stream = try! UnixSocket.new(Type.STREAM)
@@ -1008,7 +1004,7 @@ class pub UnixSocket {
   #
   # # Examples
   #
-  #     import std::net::socket::(Type, UnixSocket)
+  #     import 'std/net/socket' (Type, UnixSocket)
   #
   #     let socket = try! UnixSocket.new(Type.DGRAM)
   #
@@ -1031,7 +1027,7 @@ class pub UnixSocket {
   #
   # # Examples
   #
-  #     import std::net::socket::(Type, UnixSocket)
+  #     import 'std/net/socket' (Type, UnixSocket)
   #
   #     let socket = try! UnixSocket.new(Type.DGRAM)
   #     let bytes = 'hello'.to_byte_array
@@ -1059,7 +1055,7 @@ class pub UnixSocket {
   #
   # Sending a message to ourselves and receiving it:
   #
-  #     import std::net::socket::(Type, UnixSocket)
+  #     import 'std/net/socket' (Type, UnixSocket)
   #
   #     let socket = try! UnixSocket.new(Type.DGRAM)
   #     let bytes = ByteArray.new
@@ -1184,7 +1180,7 @@ class pub UnixDatagram {
   #
   # Creating a new Unix datagram socket:
   #
-  #     import std::net::socket::UnixDatagram
+  #     import 'std/net/socket' (UnixDatagram)
   #
   #     try! UnixDatagram.new('/tmp/test.sock')
   fn pub static new(address: ref ToString) !! Error -> Self {
@@ -1197,15 +1193,11 @@ class pub UnixDatagram {
 
   # Connects `self` to the remote addres.s
   #
-  # Connecting a `UnixDatagram` allows sending and receiving data using the
-  # methods from `std::io::Read` and `std::io::Write`, instead of having to use
-  # `UnixDatagram.receive_from` and `UnixDatagram.send_to`.
-  #
   # # Examples
   #
   # Connecting a Unix datagram socket:
   #
-  #     import std::net::socket::UnixDatagram
+  #     import 'std/net/socket' (UnixDatagram)
   #
   #     let socket1 = try! UnixDatagram.new('/tmp/test1.sock')
   #     let socket2 = try! UnixDatagram.new('/tmp/test2.sock')
@@ -1221,7 +1213,7 @@ class pub UnixDatagram {
   #
   # # Examples
   #
-  #     import std::net::socket::UnixDatagram
+  #     import 'std/net/socket' (UnixDatagram)
   #
   #     let socket = try! UnixDatagram.new('/tmp/test.sock')
   #
@@ -1239,7 +1231,7 @@ class pub UnixDatagram {
   #
   # # Examples
   #
-  #     import std::net::socket::UnixDatagram
+  #     import 'std/net/socket' (UnixDatagram)
   #
   #     let socket = try! UnixDatagram.new('/tmp/test.sock')
   #     let bytes = 'hello'.to_byte_array
@@ -1305,7 +1297,7 @@ class pub UnixClient {
   #
   # Connecting a `UnixClient`:
   #
-  #     import std::net::socket::(UnixServer, UnixClient)
+  #     import 'std/net/socket' (UnixServer, UnixClient)
   #
   #     let listener = try! UnixServer.new('/tmp/test.sock')
   #
@@ -1387,7 +1379,7 @@ class pub UnixServer {
   #
   # Creating a `UnixServer`:
   #
-  #     import std::net::socket::UnixServer
+  #     import 'std/net/socket' (UnixServer)
   #
   #     try! UnixServer.new('/tmp/test.sock')
   fn pub static new(address: ref ToString) !! Error -> Self {
@@ -1407,7 +1399,7 @@ class pub UnixServer {
   #
   # Accepting a new connection:
   #
-  #     import std::net::socket::(UnixServer, UnixClient)
+  #     import 'std/net/socket' (UnixServer, UnixClient)
   #
   #     let listener = try! UnixServer.new('/tmp/test.sock')
   #     let client = try! UnixClient.new('/tmp/test.sock')

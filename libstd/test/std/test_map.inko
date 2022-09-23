@@ -1,6 +1,6 @@
-import helpers::(fmt, hash)
-import std::map::(DefaultHasher, Hasher)
-import std::test::Tests
+import 'helpers' (fmt, hash)
+import 'std/map' (DefaultHasher, Hasher)
+import 'std/test' (Tests)
 
 fn pub tests(t: mut Tests) {
   t.test('Entry.key') fn (t) {

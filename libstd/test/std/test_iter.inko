@@ -1,5 +1,5 @@
-import std::iter::(Enum, join)
-import std::test::Tests
+import 'std/iter' (Enum, join)
+import 'std/test' (Tests)
 
 fn pub tests(t: mut Tests) {
   t.test('Iter.each') fn (t) {

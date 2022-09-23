@@ -1,8 +1,8 @@
-import helpers::(fmt)
-import std::cmp::Ordering
-import std::process::(sleep)
-import std::test::Tests
-import std::time::(DateTime, Duration, Instant)
+import 'helpers' (fmt)
+import 'std/cmp' (Ordering)
+import 'std/process' (sleep)
+import 'std/test' (Tests)
+import 'std/time' (DateTime, Duration, Instant)
 
 fn pub tests(t: mut Tests) {
   t.test('Duration.from_seconds') fn (t) {

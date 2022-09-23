@@ -1,6 +1,6 @@
-import helpers::(fmt, hash)
-import std::rand::(Random, Shuffle)
-import std::test::Tests
+import 'helpers' (fmt, hash)
+import 'std/rand' (Random, Shuffle)
+import 'std/test' (Tests)
 
 fn pub tests(t: mut Tests) {
   t.test('Random.from_int') fn (t) {

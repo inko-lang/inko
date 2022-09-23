@@ -1,6 +1,6 @@
-import std::drop::Drop
-import std::ffi::(Function, LayoutBuilder, Library, Pointer, Struct, Type)
-import std::test::Tests
+import 'std/drop' (Drop)
+import 'std/ffi' (Function, LayoutBuilder, Library, Pointer, Struct, Type)
+import 'std/test' (Tests)
 
 fn libc_paths -> Array[String] {
   [

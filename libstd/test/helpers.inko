@@ -1,11 +1,11 @@
-import std::drop::(drop)
-import std::env
-import std::fmt::(DefaultFormatter, Format, Formatter)
-import std::fs::file::(WriteOnlyFile, remove)
-import std::fs::path::Path
-import std::hash::(Hash, Hasher)
-import std::map::DefaultHasher
-import std::sys::(Command, Stream)
+import 'std/drop' (drop)
+import 'std/env'
+import 'std/fmt' (DefaultFormatter, Format, Formatter)
+import 'std/fs/file' (WriteOnlyFile, remove)
+import 'std/fs/path' (Path)
+import 'std/hash' (Hash, Hasher)
+import 'std/map' (DefaultHasher)
+import 'std/sys' (Command, Stream)
 
 fn pub hash(value: ref Hash) -> Int {
   let hasher: Hasher = DefaultHasher.new
@@ -48,7 +48,7 @@ class pub Script {
       @code = code,
       @cmd = cmd,
       @stdin = Option.None,
-      @imports = ['std::stdio::(STDIN, STDERR, STDOUT)']
+      @imports = ["'std/stdio' (STDIN, STDERR, STDOUT)"]
     }
   }
 

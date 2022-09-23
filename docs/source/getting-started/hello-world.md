@@ -6,7 +6,7 @@ Let's start with the most basic Inko program: a program that writes
 Create a file called `hello.inko` with the following contents:
 
 ```inko
-import std::stdio::STDOUT
+import 'std/stdio' (STDOUT)
 
 class async Main {
   fn async main {
@@ -28,23 +28,23 @@ If all went well, the output is "Hello, World!".
 Let's break down what the program does. We first encounter the following line:
 
 ```inko
-import std::stdio::STDOUT
+import 'std/stdio' (STDOUT)
 ```
 
-This imports the `STDOUT` type from the `std::stdio` module, provided by the
+This imports the `STDOUT` type from the `std/stdio` module, provided by the
 standard library. Inko doesn't expose a print method of sorts by default, as not
 every program needs to write to STDOUT or STDERR. As such, we have to explicitly
 import the necessary type. If we wanted to write to STDERR, we'd instead use the
 following import:
 
 ```inko
-import std::stdio::STDERR
+import 'std/stdio' (STDERR)
 ```
 
 We can also import both:
 
 ```inko
-import std::stdio::(STDERR, STDOUT)
+import 'std/stdio' (STDERR, STDOUT)
 ```
 
 After the import we encounter the following:

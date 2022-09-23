@@ -1,15 +1,15 @@
 # The Int type.
-import std::clone::Clone
-import std::cmp::(Compare, Equal, Ordering)
-import std::float::(IntoFloat, ToFloat)
-import std::fmt::(Format, Formatter)
-import std::hash::(Hash, Hasher)
-import std::ops::(
+import 'std/clone' (Clone)
+import 'std/cmp' (Compare, Equal, Ordering)
+import 'std/float' (IntoFloat, ToFloat)
+import 'std/fmt' (Format, Formatter)
+import 'std/hash' (Hash, Hasher)
+import 'std/ops' (
   Add, BitAnd, BitOr, BitXor, Divide, Modulo, Multiply, Power,
   ShiftLeft, ShiftRight, Subtract
 )
-import std::range::Range
-import std::string::(ToString, StringBuffer)
+import 'std/range' (Range)
+import 'std/string' (ToString, StringBuffer)
 
 # A type that can be converted to a Int.
 trait pub ToInt {

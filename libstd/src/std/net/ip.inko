@@ -1,7 +1,7 @@
-import std::clone::Clone
-import std::cmp::Equal
-import std::fmt::(Format, Formatter)
-import std::string::(IntoString, StringBuffer, ToString)
+import 'std/clone' (Clone)
+import 'std/cmp' (Equal)
+import 'std/fmt' (Format, Formatter)
+import 'std/string' (IntoString, StringBuffer, ToString)
 
 # The byte for a single dot (".").
 let DOT_BYTE = 46
@@ -54,7 +54,7 @@ class pub enum IpAddress {
   #
   # # Examples
   #
-  #     import std::net::ip::IpAddress
+  #     import 'std/net/ip' (IpAddress)
   #
   #     IpAdress.v4(127, 0, 0, 1)
   fn pub static v4(a: Int, b: Int, c: Int, d: Int) -> Self {
@@ -67,7 +67,7 @@ class pub enum IpAddress {
   #
   # # Examples
   #
-  #     import std::net::ip::IpAddress
+  #     import 'std/net/ip' (IpAddress)
   #
   #     IpAdress.v6(0, 0, 0, 0, 0, 0, 0, 1)
   fn pub static v6(
@@ -92,13 +92,13 @@ class pub enum IpAddress {
   #
   # Parsing an IPv4 address:
   #
-  #     import std::net::ip::IpAddress
+  #     import 'std/net/ip' (IpAddress)
   #
   #     IpAddress.parse('1.2.3.4') # => Option.Some(IpAddress.V4(Ipv4Address.new(1, 2, 3, 4)))
   #
   # Parsing an IPv6 address:
   #
-  #     import std::net::ip::IpAddress
+  #     import 'std/net/ip' (IpAddress)
   #
   #     IpAddress.parse('::1') # => Option.Some(IpAddress.V6(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)))
   fn pub static parse(address: ref String) -> Option[Self] {
@@ -226,7 +226,7 @@ class pub Ipv6Address {
   #
   # Parsing an IPv6 address:
   #
-  #     import std::net::ip::Ipv6Address
+  #     import 'std/net/ip' (Ipv6Address)
   #
   #     Ipv6Address.parse('::1').unwrap.v6? # => true
   fn pub static parse(input: ref String) -> Option[Self] {
@@ -371,7 +371,7 @@ class pub Ipv6Address {
   #
   # Checking if an IPv6 address is an IPv4-compatible IPv6 address:
   #
-  #     import std::net::ip::Ipv6Address
+  #     import 'std/net/ip' (Ipv6Address)
   #
   #     Ipv6Address.new(0, 0, 0, 0, 0, 0, 1, 1).ipv4_compatible? # => true
   fn pub ipv4_compatible? -> Bool {
@@ -384,7 +384,7 @@ class pub Ipv6Address {
   #
   # Checking if an IPv6 address is an IPv4-mapped IPv6 address:
   #
-  #     import std::net::ip::Ipv6Address
+  #     import 'std/net/ip' (Ipv6Address)
   #
   #     Ipv6Address.new(0, 0, 0, 0, 0, 0xffff, 1, 1).ipv4_compatible? # => true
   fn pub ipv4_mapped? -> Bool {
@@ -404,7 +404,7 @@ class pub Ipv6Address {
   #
   # Checking if an IPv6 address is a documentation address:
   #
-  #     import std::net::ip::Ipv6Address
+  #     import 'std/net/ip' (Ipv6Address)
   #
   #     Ipv6Address.new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 0).documentation # => true
   fn pub documentation? -> Bool {
@@ -417,7 +417,7 @@ class pub Ipv6Address {
   #
   # Checking if an address is a loopback address:
   #
-  #     import std::net::ip::Ipv6Address
+  #     import 'std/net/ip' (Ipv6Address)
   #
   #     Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1).loopback? # => true
   #     Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 2).loopback? # => false
@@ -438,7 +438,7 @@ class pub Ipv6Address {
   #
   # Checking if an address is a multicast address:
   #
-  #     import std::net::ip::Ipv6Address
+  #     import 'std/net/ip' (Ipv6Address)
   #
   #     Ipv6Address.new(0xff00, 0, 0, 0, 0, 0, 0, 0).multicast? # => true
   #     Ipv6Address.new(0xff01, 0, 0, 0, 0, 0, 0, 0).multicast? # => true
@@ -451,7 +451,7 @@ class pub Ipv6Address {
   #
   # # Examples
   #
-  #     import std::net::ip::Ipv6Address
+  #     import 'std/net/ip' (Ipv6Address)
   #
   #     Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 0).unspecified? # => true
   #     Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1).unspecified? # => false
@@ -480,7 +480,7 @@ impl Equal for Ipv6Address {
   #
   # Comparing two IPv6 addresses:
   #
-  #     import std::net::ip::Ipv6Address
+  #     import 'std/net/ip' (Ipv6Address)
   #
   #     let addr1 = Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)
   #     let addr2 = Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)
@@ -510,7 +510,7 @@ impl ToString for Ipv6Address {
   #
   # Converting an IPv6 address to a `String`:
   #
-  #     import std::net::ip::Ipv6Address
+  #     import 'std/net/ip' (Ipv6Address)
   #
   #     Ipv6Address.new.to_string # => '::'
   #     Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1) # => '::1'
@@ -619,7 +619,7 @@ class pub Ipv4Address {
   #
   # Parsing an IPv4 address:
   #
-  #     import std::net::ip::Ipv4Address
+  #     import 'std/net/ip' (Ipv4Address)
   #
   #     let addr = Ipv4Address.parse('1.2.3.4').unwrap
   #
@@ -672,7 +672,7 @@ class pub Ipv4Address {
   #
   # Checking if an IPv4 address is a broadcast address:
   #
-  #     import std::net::ip::Ipv4Address
+  #     import 'std/net/ip' (Ipv4Address)
   #
   #     Ipv4Address.new(127, 0, 0, 1).broadcast? # => false
   #     Ipv4Address.new(255, 255, 255, 255).broadcast? # => true
@@ -689,7 +689,7 @@ class pub Ipv4Address {
   #
   # Checking if an address is link-local:
   #
-  #     import std::net::ip::Ipv4Address
+  #     import 'std/net/ip' (Ipv4Address)
   #
   #     Ipv4Address.new(169, 254, 0, 0).link_local? # => true
   #     Ipv4Address.new(169, 254, 1, 0).link_local? # => true
@@ -710,7 +710,7 @@ class pub Ipv4Address {
   #
   # Checking if an address is in a private range:
   #
-  #     import std::net::ip::Ipv4Address
+  #     import 'std/net/ip' (Ipv4Address)
   #
   #     Ipv4Address.new(10, 0, 0, 1).private? # => true
   #     Ipv4Address.new(127, 0, 0, 1).private? # => false
@@ -730,7 +730,7 @@ class pub Ipv4Address {
   #
   # Converting an IPv4 address:
   #
-  #     import std::net::ip::(Ipv4Address, Ipv6Address)
+  #     import 'std/net/ip' (Ipv4Address, Ipv6Address)
   #
   #     let ipv4 = Ipv4Address.new(192, 0, 2, 255)
   #     let ipv6 = ipv4.to_ipv6_compatible
@@ -775,7 +775,7 @@ class pub Ipv4Address {
   #
   # Checking if an IPv4 address is a documentation address:
   #
-  #     import std::net::ip::Ipv4Address
+  #     import 'std/net/ip' (Ipv4Address)
   #
   #     Ipv4Address.new(192, 0, 2, 0).documentation? # => true
   #     Ipv4Address.new(192, 1, 2, 0).documentation? # => false
@@ -797,7 +797,7 @@ class pub Ipv4Address {
   #
   # Checking if an address is a loopback address:
   #
-  #     import std::net::ip::Ipv4Address
+  #     import 'std/net/ip' (Ipv4Address)
   #
   #     Ipv4Address.new(127, 0, 0, 1).loopback? # => true
   #     Ipv4Address.new(127, 0, 1, 1).loopback? # => true
@@ -812,7 +812,7 @@ class pub Ipv4Address {
   #
   # Checking if an address is a multicast address:
   #
-  #     import std::net::ip::Ipv4Address
+  #     import 'std/net/ip' (Ipv4Address)
   #
   #     Ipv4Address.new(224, 254, 0, 0).multicast? # => true
   #     Ipv4Address.new(127, 0, 0, 1).multicast? # => false
@@ -826,7 +826,7 @@ class pub Ipv4Address {
   #
   # # Examples
   #
-  #     import std::net::ip::Ipv4Address
+  #     import 'std/net/ip' (Ipv4Address)
   #
   #     Ipv4Address.new(0, 0, 0, 0).unspecified? # => true
   #     Ipv4Address.new(0, 0, 0, 1).unspecified? # => false
@@ -851,7 +851,7 @@ impl Equal for Ipv4Address {
   #
   # Comparing two IPv4 addresses:
   #
-  #     import std::net::ip::Ipv4Address
+  #     import 'std/net/ip' (Ipv4Address)
   #
   #     let addr1 = Ipv4Address.new(127, 0, 0, 1)
   #     let addr2 = Ipv4Address.new(127, 0, 0, 1)
@@ -871,7 +871,7 @@ impl ToString for Ipv4Address {
   #
   # Converting an IPv4 address to a `String`:
   #
-  #     import std::net::ip::Ipv4Address
+  #     import 'std/net/ip' (Ipv4Address)
   #
   #     Ipv4Address.new.to_string # => '0.0.0.0'
   #     Ipv4Address.new(127, 0, 0, 1) # => '127.0.0.1'

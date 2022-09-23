@@ -21,10 +21,10 @@
 #
 # # Writing tests
 #
-# To write a test you need to import the `Tests` type into your module of
+# To write a test you need to import 'the' `Tests` type into your module of
 # choice. You can then write your tests like so:
 #
-#     import std::test::Tests
+#     import 'std/test' (Tests)
 #
 #     class async Main {
 #       fn async main {
@@ -43,7 +43,7 @@
 # directly (as shown above) no extra work is needed. If you decide to first
 # store the closure in a variable, you must explicitly recover it:
 #
-#     import std::test::Tests
+#     import 'std/test' (Tests)
 #
 #     class async Main {
 #       fn async main {
@@ -57,16 +57,16 @@
 #
 # For more information about the available assertions, refer to the
 # documentation of the `Test` type.
-import std::cmp::(Compare, Equal)
-import std::debug
-import std::fmt
-import std::fs::path::Path
-import std::io::Write
-import std::process::(sleep, poll)
-import std::rand::(Random, Shuffle)
-import std::stdio::STDOUT
-import std::sys
-import std::time::(Duration, Instant)
+import 'std/cmp' (Compare, Equal)
+import 'std/debug'
+import 'std/fmt'
+import 'std/fs/path' (Path)
+import 'std/io' (Write)
+import 'std/process' (sleep, poll)
+import 'std/rand' (Random, Shuffle)
+import 'std/stdio' (STDOUT)
+import 'std/sys'
+import 'std/time' (Duration, Instant)
 
 fn format(value: ref fmt::Format) -> String {
   let formatter: fmt::Formatter = fmt::DefaultFormatter.new

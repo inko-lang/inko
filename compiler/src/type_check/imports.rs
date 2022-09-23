@@ -44,7 +44,7 @@ impl<'a> DefineImportedTypes<'a> {
     }
 
     fn import(&mut self, node: &hir::Import) {
-        let source_name = self.import_source(&node.source);
+        let source_name = ModuleName::new(&node.source.path);
         let source = self.db().module(&source_name.to_string());
 
         if node.symbols.is_empty() {
@@ -52,7 +52,7 @@ impl<'a> DefineImportedTypes<'a> {
                 source,
                 &source_name,
                 source_name.tail().to_string(),
-                &node.source.last().unwrap().location,
+                &node.source.location,
             );
         } else {
             for symbol in &node.symbols {
@@ -145,12 +145,6 @@ impl<'a> DefineImportedTypes<'a> {
     fn db_mut(&mut self) -> &mut Database {
         &mut self.state.db
     }
-
-    fn import_source(&self, path: &[hir::Identifier]) -> ModuleName {
-        ModuleName::from(
-            path.iter().map(|n| n.name.clone()).collect::<Vec<_>>(),
-        )
-    }
 }
 
 #[cfg(test)]
@@ -170,10 +164,10 @@ mod tests {
             &mut state,
             ModuleName::new("foo"),
             vec![hir::TopLevelExpression::Import(Box::new(hir::Import {
-                source: vec![hir::Identifier {
-                    name: "bar".to_string(),
+                source: hir::ImportPath {
+                    path: "bar".to_string(),
                     location: cols(1, 1),
-                }],
+                },
                 symbols: Vec::new(),
                 location: cols(1, 1),
             }))],
@@ -205,18 +199,18 @@ mod tests {
             ModuleName::new("foo"),
             vec![
                 hir::TopLevelExpression::Import(Box::new(hir::Import {
-                    source: vec![hir::Identifier {
-                        name: "bar".to_string(),
+                    source: hir::ImportPath {
+                        path: "bar".to_string(),
                         location: cols(1, 1),
-                    }],
+                    },
                     symbols: Vec::new(),
                     location: cols(1, 1),
                 })),
                 hir::TopLevelExpression::Import(Box::new(hir::Import {
-                    source: vec![hir::Identifier {
-                        name: "bar".to_string(),
+                    source: hir::ImportPath {
+                        path: "bar".to_string(),
                         location: cols(3, 3),
-                    }],
+                    },
                     symbols: Vec::new(),
                     location: cols(2, 2),
                 })),
@@ -241,10 +235,10 @@ mod tests {
             &mut state,
             ModuleName::new("foo"),
             vec![hir::TopLevelExpression::Import(Box::new(hir::Import {
-                source: vec![hir::Identifier {
-                    name: "bar".to_string(),
+                source: hir::ImportPath {
+                    path: "bar".to_string(),
                     location: cols(1, 1),
-                }],
+                },
                 symbols: vec![hir::ImportSymbol {
                     name: hir::Identifier {
                         name: "self".to_string(),
@@ -286,10 +280,10 @@ mod tests {
             &mut state,
             ModuleName::new("foo"),
             vec![hir::TopLevelExpression::Import(Box::new(hir::Import {
-                source: vec![hir::Identifier {
-                    name: "bar".to_string(),
+                source: hir::ImportPath {
+                    path: "bar".to_string(),
                     location: cols(1, 1),
-                }],
+                },
                 symbols: vec![hir::ImportSymbol {
                     name: hir::Identifier {
                         name: "self".to_string(),
@@ -330,10 +324,10 @@ mod tests {
             &mut state,
             ModuleName::new("foo"),
             vec![hir::TopLevelExpression::Import(Box::new(hir::Import {
-                source: vec![hir::Identifier {
-                    name: "bar".to_string(),
+                source: hir::ImportPath {
+                    path: "bar".to_string(),
                     location: cols(1, 1),
-                }],
+                },
                 symbols: vec![
                     hir::ImportSymbol {
                         name: hir::Identifier {
@@ -381,10 +375,10 @@ mod tests {
             &mut state,
             ModuleName::new("foo"),
             vec![hir::TopLevelExpression::Import(Box::new(hir::Import {
-                source: vec![hir::Identifier {
-                    name: "bar".to_string(),
+                source: hir::ImportPath {
+                    path: "bar".to_string(),
                     location: cols(1, 1),
-                }],
+                },
                 symbols: vec![hir::ImportSymbol {
                     name: hir::Identifier {
                         name: "Foo".to_string(),
@@ -431,10 +425,10 @@ mod tests {
             &mut state,
             ModuleName::new("foo"),
             vec![hir::TopLevelExpression::Import(Box::new(hir::Import {
-                source: vec![hir::Identifier {
-                    name: "bar".to_string(),
+                source: hir::ImportPath {
+                    path: "bar".to_string(),
                     location: cols(1, 1),
-                }],
+                },
                 symbols: vec![hir::ImportSymbol {
                     name: hir::Identifier {
                         name: "Foo".to_string(),
@@ -481,10 +475,10 @@ mod tests {
             &mut state,
             ModuleName::new("foo"),
             vec![hir::TopLevelExpression::Import(Box::new(hir::Import {
-                source: vec![hir::Identifier {
-                    name: "bar".to_string(),
+                source: hir::ImportPath {
+                    path: "bar".to_string(),
                     location: cols(1, 1),
-                }],
+                },
                 symbols: vec![
                     hir::ImportSymbol {
                         name: hir::Identifier {
@@ -541,10 +535,10 @@ mod tests {
             &mut state,
             ModuleName::new("foo"),
             vec![hir::TopLevelExpression::Import(Box::new(hir::Import {
-                source: vec![hir::Identifier {
-                    name: "bar".to_string(),
+                source: hir::ImportPath {
+                    path: "bar".to_string(),
                     location: cols(1, 1),
-                }],
+                },
                 symbols: vec![
                     hir::ImportSymbol {
                         name: hir::Identifier {
@@ -601,10 +595,10 @@ mod tests {
             &mut state,
             ModuleName::new("foo"),
             vec![hir::TopLevelExpression::Import(Box::new(hir::Import {
-                source: vec![hir::Identifier {
-                    name: "bar".to_string(),
+                source: hir::ImportPath {
+                    path: "bar".to_string(),
                     location: cols(1, 1),
-                }],
+                },
                 symbols: vec![hir::ImportSymbol {
                     name: hir::Identifier {
                         name: "Foo".to_string(),
@@ -639,10 +633,10 @@ mod tests {
             &mut state,
             ModuleName::new("foo"),
             vec![hir::TopLevelExpression::Import(Box::new(hir::Import {
-                source: vec![hir::Identifier {
-                    name: "bar".to_string(),
+                source: hir::ImportPath {
+                    path: "bar".to_string(),
                     location: cols(1, 1),
-                }],
+                },
                 symbols: vec![hir::ImportSymbol {
                     name: hir::Identifier {
                         name: symbol.clone(),

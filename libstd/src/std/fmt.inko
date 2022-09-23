@@ -1,5 +1,5 @@
 # Types for formatting objects in a human-readable manner.
-import std::string::(IntoString, StringBuffer)
+import 'std/string' (IntoString, StringBuffer)
 
 # The value to use for objects if the nesting is too great.
 let PLACEHOLDER = '...'

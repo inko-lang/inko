@@ -2,8 +2,8 @@
 #
 # This module provides various facilities for debugging programs during
 # runtime, such as obtaining stack traces.
-import std::fs::path::Path
-import std::clone::Clone
+import 'std/fs/path' (Path)
+import 'std/clone' (Clone)
 
 # Details of a single stack frame in a stack trace.
 class pub StackFrame {
@@ -39,7 +39,7 @@ impl Clone for StackFrame {
 #
 # Returning the trace of a method call:
 #
-#     import std::debug::(stacktrace, StackFrame)
+#     import 'std/debug' (stacktrace, StackFrame)
 #
 #     fn first {
 #       second

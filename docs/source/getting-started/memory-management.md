@@ -224,8 +224,8 @@ let b = recover a.to_upper # => uni String
 Here's a more complicated example:
 
 ```inko
-import std::net::ip::IpAddress
-import std::net::socket::TcpServer
+import 'std/net/ip' (IpAddress)
+import 'std/net/socket' (TcpServer)
 
 class async Main {
   fn async main {

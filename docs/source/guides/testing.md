@@ -1,10 +1,10 @@
 # Unit testing
 
 Inko's standard library provides a module used for writing unit tests:
-`std::test`. Using this module one writes their unit tests like so:
+`std/test`. Using this module one writes their unit tests like so:
 
 ```inko
-import std::test::Tests
+import 'std/test' (Tests)
 
 fn pub tests(t: mut Tests) {
   t.test('The name of the test') fn (t) {
@@ -24,7 +24,7 @@ concurrent tests equals the number of available CPU cores, but this can be
 changed if necessary.
 
 For more information about the testing API, take a look at the source code of
-the `std::test` module.
+the `std/test` module.
 
 !!! note
     In the future Inko will support generating source code documentation, at
@@ -59,13 +59,13 @@ registers all your tests, and is run when using the `inko test` command. Here's
 what such a file might look like:
 
 ```inko
-import std::env
+import 'std/env'
 
-import std::test::Tests
-import std::test_array
-import std::test_bool
-import std::test_byte_array
-import std::test_tuple
+import 'std/test' (Tests)
+import 'std/test_array'
+import 'std/test_bool'
+import 'std/test_byte_array'
+import 'std/test_tuple'
 
 class async Main {
   fn async main {

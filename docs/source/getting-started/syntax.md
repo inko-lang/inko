@@ -46,26 +46,26 @@ The `import` statement is used to import a module or symbols from a module. The
 syntax is as follows:
 
 ```inko
-import mod1::mod2         # This imports `mod1::mod2` and exposes it as `mod2`
-import mod1::mod2::A      # This imports the symbol `A`
-import mod1::mod2::(A, B) # This imports the symbol `A` and `B`
-import mod1::mod2::(self) # This imports `mod2` from module `mod1`
+import 'mod1/mod2'        # This imports `mod1/mod2` and exposes it as `mod2`
+import 'mod1/mod2' (A)    # This imports the symbol `A`
+import 'mod1/mod2' (A, B) # This imports the symbol `A` and `B`
+import 'mod1/mod2' (self) # This imports `mod2` from module `mod1`
+import '../mod'           # This imports `mod` from the parent directory
 ```
 
 You can also alias symbols when importing them:
 
 ```inko
-import mod1::mod2::(A as B) # `A` is now exposed as `B`
+import 'mod1/mod2' (A as B) # `A` is now exposed as `B`
 ```
 
 You can also import module methods:
 
 ```inko
-import std::process::(sleep)
+import 'std/process' (sleep)
 ```
 
-This always requires the use of parentheses in the symbol list, otherwise the
-compiler would think you're trying to import the module `std::process::sleep`.
+When listing symbols to import, parentheses are always required.
 
 ## Constants
 
