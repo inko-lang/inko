@@ -50,6 +50,7 @@ import 'mod1/mod2'        # This imports `mod1/mod2` and exposes it as `mod2`
 import 'mod1/mod2' (A)    # This imports the symbol `A`
 import 'mod1/mod2' (A, B) # This imports the symbol `A` and `B`
 import 'mod1/mod2' (self) # This imports `mod2` from module `mod1`
+import '../mod'           # This imports `mod` from the parent directory
 ```
 
 You can also alias symbols when importing them:

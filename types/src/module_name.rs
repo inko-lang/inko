@@ -44,6 +44,15 @@ impl ModuleName {
         self.value.split(SEPARATOR).last().unwrap()
     }
 
+    pub fn join(&self, with: &str) -> Self {
+        let mut value = self.value.clone();
+
+        value.push_str(SEPARATOR);
+        value.push_str(with);
+
+        ModuleName { value: value }
+    }
+
     pub fn to_path(&self) -> PathBuf {
         let mut path = if MAIN_SEPARATOR != '/' {
             PathBuf::from(self.value.replace("/", &MAIN_SEPARATOR.to_string()))
@@ -120,6 +129,13 @@ mod tests {
         let name = ModuleName::new("foo/bar");
 
         assert_eq!(name.tail(), &"bar".to_string());
+    }
+
+    #[test]
+    fn test_join() {
+        let name = ModuleName::new("foo/bar");
+
+        assert_eq!(name.join("mod"), ModuleName::new("foo/bar/mod"));
     }
 
     #[test]
