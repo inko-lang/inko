@@ -1,6 +1,7 @@
 docs:master:
   extends:
     - .only-docs-changes
+    - .linux-large
   image: registry.gitlab.com/inko-lang/development-docker-images:python
   stage: docs
   before_script:

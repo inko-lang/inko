@@ -8,6 +8,8 @@ release:source:
     - tags
 
 release:docker:
+  extends:
+    - .linux-large
   image: docker:git
   stage: release
   services:
@@ -18,6 +20,8 @@ release:docker:
     - ./scripts/docker.sh "$CI_COMMIT_REF_NAME"
 
 release:docs:
+  extends:
+    - .linux-large
   image: registry.gitlab.com/inko-lang/development-docker-images:python
   stage: release
   before_script:
