@@ -3,7 +3,7 @@
   tags:
     - macos
     - inko
-    - vbox
+    - m1
 
 test:rust:macos:
   extends:
