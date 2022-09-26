@@ -9,6 +9,10 @@ Build files should go in the `build/` directory. Inko creates this directory for
 you if needed. This directory should not be tracked using your version control
 system of choice.
 
+Third-party dependencies are stored in a `dep/` directory. This directory is
+managed using Inko's package manager, and you shouldn't put files in it
+yourself.
+
 As a reference, this is what the standard library's structure looks like:
 
 ```

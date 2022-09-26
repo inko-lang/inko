@@ -11,8 +11,11 @@ else
 	INSTALL_PREFIX = ${PREFIX}
 endif
 
-# The directory to place the executable in.
-INSTALL_BIN := ${INSTALL_PREFIX}/bin/inko
+# The directory to place the Inko executable in.
+INSTALL_INKO := ${INSTALL_PREFIX}/bin/inko
+
+# The directory to place the package manager executable in.
+INSTALL_IPM := ${INSTALL_PREFIX}/bin/ipm
 
 # The directory to place the standard library in.
 INSTALL_STD := ${INSTALL_PREFIX}/lib/inko/libstd
@@ -82,6 +85,7 @@ ${SOURCE_TAR}: ${TMP_DIR}
 		libstd/src \
 		vm \
 		types \
+		ipm \
 		| gzip > "${@}"
 
 release/source: ${SOURCE_TAR}
@@ -117,21 +121,27 @@ ${INSTALL_STD}:
 	mkdir -p "${@}"
 	cp -r libstd/src/* "${@}"
 
-${INSTALL_BIN}:
+${INSTALL_INKO}:
 	mkdir -p "$$(dirname ${@})"
 	install -m755 target/release/inko "${@}"
+
+${INSTALL_IPM}:
+	mkdir -p "$$(dirname ${@})"
+	install -m755 target/release/ipm "${@}"
 
 ${INSTALL_LICENSE}:
 	mkdir -p "$$(dirname ${@})"
 	install -m644 LICENSE "${@}"
 
 install: ${INSTALL_STD} \
-	${INSTALL_BIN} \
+	${INSTALL_INKO} \
+	${INSTALL_IPM} \
 	${INSTALL_LICENSE}
 
 uninstall:
 	rm -rf ${INSTALL_STD}
-	rm -f ${INSTALL_BIN}
+	rm -f ${INSTALL_INKO}
+	rm -f ${INSTALL_IPM}
 	rm -rf ${INSTALL_PREFIX}/share/licenses/inko
 
 clean:

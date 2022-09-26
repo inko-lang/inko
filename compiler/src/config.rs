@@ -17,6 +17,9 @@ pub(crate) const MAIN_MODULE: &str = "main";
 /// The name of the directory containing a project's source code.
 pub(crate) const SOURCE: &str = "src";
 
+/// The name of the directory containing third-party dependencies.
+const DEP: &str = "dep";
+
 /// The name of the directory containing a project's unit tests.
 const TESTS: &str = "test";
 
@@ -31,6 +34,9 @@ pub struct Config {
 
     /// The directory containing the project's source code.
     pub(crate) source: PathBuf,
+
+    /// The directory containing the project's dependencies.
+    pub(crate) dependencies: PathBuf,
 
     /// The directory containing the project's unit tests.
     pub tests: PathBuf,
@@ -73,6 +79,7 @@ impl Config {
             source: cwd.join(SOURCE),
             tests: cwd.join(TESTS),
             build: cwd.join(BUILD),
+            dependencies: cwd.join(DEP),
             sources: SourcePaths::new(),
             presenter: Box::new(TextPresenter::with_colors()),
             implicit_imports: vec![],
@@ -87,6 +94,10 @@ impl Config {
 
         if self.source.is_dir() && self.source != self.libstd {
             self.sources.add(self.source.clone());
+        }
+
+        if self.dependencies.is_dir() {
+            self.sources.add(self.dependencies.clone());
         }
     }
 
