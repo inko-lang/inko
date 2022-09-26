@@ -81,6 +81,15 @@ fn pub tests(t: mut Tests) {
     t.equal(mem.ptr.read(type: Type.U8, offset: 0) as Int, 10)
   }
 
+  t.test('Pointer.pointer') fn (t) {
+    let a = Pointer.null
+    let b = a.pointer
+
+    b.write(type: Type.U8, offset: 0, value: 10)
+    t.equal(a.address, 10)
+    t.not_equal(b.address, 10)
+  }
+
   t.test('Pointer.clone') fn (t) {
     let ptr = Pointer.from_address(0x4)
 

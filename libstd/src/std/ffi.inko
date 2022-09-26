@@ -22,6 +22,9 @@ import std::set::Set
 # The address used for NULL pointers.
 let NULL_ADDRESS = 0x0
 
+# The size (in bytes) of an Inko object header.
+let HEADER_SIZE = 16
+
 # A pointer to a C value.
 class pub Pointer {
   # The raw pointer.
@@ -74,6 +77,14 @@ class pub Pointer {
   # Returns the underlying raw pointer.
   fn pub raw -> Any {
     @raw
+  }
+
+  # Returns a pointer to the raw pointer wrapped by `self` (aka a pointer
+  # pointer).
+  fn pub pointer -> Pointer {
+    let addr = _INKO.ffi_pointer_address(self) + HEADER_SIZE
+
+    Pointer.from_address(addr)
   }
 }
 
