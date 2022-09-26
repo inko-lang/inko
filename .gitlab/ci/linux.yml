@@ -2,6 +2,7 @@
 test:rust:linux:
   extends:
     - .only-rust-changes
+    - .linux-large
   image: registry.gitlab.com/inko-lang/development-docker-images:alpine
   stage: test
   before_script:
@@ -18,6 +19,7 @@ test:rust:linux:
 test:libstd:linux:
   extends:
     - .only-libstd-changes
+    - .linux-large
   image: registry.gitlab.com/inko-lang/development-docker-images:alpine
   stage: test
   before_script:

@@ -39,6 +39,10 @@ stages:
       - docs/**/*
       - .vale.ini
 
+.linux-large:
+  tags:
+    - saas-linux-large-amd64
+
 include:
   - local: .gitlab/ci/windows.yml
   - local: .gitlab/ci/macos.yml
