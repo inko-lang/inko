@@ -3249,6 +3249,10 @@ pub enum TypeRef {
     /// library isn't allowed.
     Any,
 
+    /// A value that could be anything but shouldn't have its ownership
+    /// transferred.
+    RefAny,
+
     /// The `Self` type.
     OwnedSelf,
 
@@ -3415,9 +3419,19 @@ impl TypeRef {
 
     pub fn is_any(self, db: &Database) -> bool {
         match self {
-            TypeRef::Any => true,
+            TypeRef::Any | TypeRef::RefAny => true,
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(false, |v| v.is_any(db))
+            }
+            _ => false,
+        }
+    }
+
+    pub fn is_ref_any(self, db: &Database) -> bool {
+        match self {
+            TypeRef::RefAny => true,
+            TypeRef::Placeholder(id) => {
+                id.value(db).map_or(false, |v| v.is_ref_any(db))
             }
             _ => false,
         }
@@ -4037,16 +4051,10 @@ impl TypeRef {
         with: TypeRef,
         context: &mut TypeContext,
     ) -> bool {
-        // `Any` can be cast to anything, which although unsafe is needed to
-        // make parts of the standard library work.
-        if self == TypeRef::Any {
+        // Casting to/from Any is dangerous but necessary to make the standard
+        // library work.
+        if self == TypeRef::Any || with == TypeRef::Any {
             return true;
-        }
-
-        // Explicitly casting to `Any` would allow one to then cast the result
-        // to any other type, which is very unsafe.
-        if with == TypeRef::Any {
-            return false;
         }
 
         self.type_check_directly(db, with, context, true)
@@ -4128,6 +4136,7 @@ impl TypeRef {
             TypeRef::Owned(TypeId::Class(_)) => true,
             TypeRef::Never => true,
             TypeRef::Any => true,
+            TypeRef::RefAny => true,
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(true, |v| v.is_permanent(db))
             }
@@ -4332,7 +4341,7 @@ impl TypeRef {
                 TypeRef::Owned(their_id) | TypeRef::Infer(their_id) => {
                     our_id.type_check(db, their_id, context, subtyping)
                 }
-                TypeRef::Any | TypeRef::Error => true,
+                TypeRef::Any | TypeRef::RefAny | TypeRef::Error => true,
                 TypeRef::OwnedSelf => {
                     our_id.type_check(db, context.self_type, context, subtyping)
                 }
@@ -4344,7 +4353,7 @@ impl TypeRef {
                 | TypeRef::Uni(their_id) => {
                     our_id.type_check(db, their_id, context, subtyping)
                 }
-                TypeRef::Any | TypeRef::Error => true,
+                TypeRef::Any | TypeRef::RefAny | TypeRef::Error => true,
                 TypeRef::UniSelf => {
                     our_id.type_check(db, context.self_type, context, subtyping)
                 }
@@ -4408,7 +4417,10 @@ impl TypeRef {
                 TypeRef::Owned(their_id) | TypeRef::Infer(their_id) => context
                     .self_type
                     .type_check(db, their_id, context, subtyping),
-                TypeRef::Any | TypeRef::Error | TypeRef::OwnedSelf => true,
+                TypeRef::Any
+                | TypeRef::RefAny
+                | TypeRef::Error
+                | TypeRef::OwnedSelf => true,
                 _ => false,
             },
             TypeRef::RefSelf => match with {
@@ -4432,6 +4444,7 @@ impl TypeRef {
                     context.self_type.type_check(db, their_id, context, false)
                 }
                 TypeRef::Any
+                | TypeRef::RefAny
                 | TypeRef::Error
                 | TypeRef::UniSelf
                 | TypeRef::OwnedSelf => true,
@@ -4440,7 +4453,10 @@ impl TypeRef {
             // Type errors are compatible with all other types to prevent a
             // cascade of type errors.
             TypeRef::Error => true,
-            TypeRef::Any => matches!(with, TypeRef::Any | TypeRef::Error),
+            TypeRef::Any => {
+                matches!(with, TypeRef::Any | TypeRef::RefAny | TypeRef::Error)
+            }
+            TypeRef::RefAny => matches!(with, TypeRef::RefAny | TypeRef::Error),
             TypeRef::Placeholder(id) => {
                 if let Some(assigned) = id.value(db) {
                     return assigned.type_check(db, with, context, subtyping);
@@ -4608,6 +4624,7 @@ impl FormatType for TypeRef {
             }
             TypeRef::Never => buffer.write("Never"),
             TypeRef::Any => buffer.write("Any"),
+            TypeRef::RefAny => buffer.write("ref Any"),
             TypeRef::OwnedSelf => {
                 self.format_self_type(buffer);
             }

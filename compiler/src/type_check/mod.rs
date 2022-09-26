@@ -274,20 +274,20 @@ impl<'a> DefineTypeSignature<'a> {
                     RefKind::Uni => TypeRef::UniSelf,
                     _ => TypeRef::RefSelf,
                 },
-                "Any" => {
-                    if kind == RefKind::Owned {
-                        TypeRef::Any
-                    } else {
+                "Any" => match kind {
+                    RefKind::Owned => TypeRef::Any,
+                    RefKind::Ref | RefKind::Mut => TypeRef::RefAny,
+                    RefKind::Uni => {
                         self.state.diagnostics.error(
                             DiagnosticId::InvalidType,
-                            "'Any' can't be used as a reference",
+                            "'uni Any' isn't a valid type",
                             self.file(),
                             node.location.clone(),
                         );
 
                         return TypeRef::Error;
                     }
-                }
+                },
                 _ => {
                     self.state.diagnostics.undefined_symbol(
                         name,

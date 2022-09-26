@@ -3603,6 +3603,15 @@ impl<'a> LowerMethod<'a> {
             return register;
         }
 
+        // 'ref Any' is used to pass values through the FFI without giving up
+        // ownership. Because the value could be anything, we don't increment
+        // ref counts.
+        if let Some(exp) = expected {
+            if exp.is_ref_any(self.db()) {
+                return register;
+            }
+        }
+
         if register_type.is_owned_or_uni(self.db()) {
             match expected {
                 // Owned values passed to references are implicitly passed as

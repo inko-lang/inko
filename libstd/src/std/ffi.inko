@@ -166,33 +166,42 @@ class pub Function {
   }
 
   # Calls the function with a single argument.
-  fn pub call1(arg0: Any) -> Any {
+  fn pub call1(arg0: ref Any) -> Any {
     _INKO.ffi_function_call(@func, arg0)
   }
 
   # Calls the function with two arguments.
-  fn pub call2(arg1: Any, arg2: Any) -> Any {
+  fn pub call2(arg1: ref Any, arg2: ref Any) -> Any {
     _INKO.ffi_function_call(@func, arg1, arg2)
   }
 
   # Calls the function with three arguments.
-  fn pub call3(arg1: Any, arg2: Any, arg3: Any) -> Any {
+  fn pub call3(arg1: ref Any, arg2: ref Any, arg3: ref Any) -> Any {
     _INKO.ffi_function_call(@func, arg1, arg2, arg3)
   }
 
   # Calls the function with four arguments.
-  fn pub call4(arg1: Any, arg2: Any, arg3: Any, arg4: Any) -> Any {
+  fn pub call4(
+    arg1: ref Any, arg2: ref Any, arg3: ref Any, arg4: ref Any
+  ) -> Any {
     _INKO.ffi_function_call(@func, arg1, arg2, arg3, arg4)
   }
 
   # Calls the function with five arguments.
-  fn pub call5(arg1: Any, arg2: Any, arg3: Any, arg4: Any, arg5: Any) -> Any {
+  fn pub call5(
+    arg1: ref Any, arg2: ref Any, arg3: ref Any, arg4: ref Any, arg5: ref Any
+  ) -> Any {
     _INKO.ffi_function_call(@func, arg1, arg2, arg3, arg4, arg5)
   }
 
   # Calls the function with six arguments.
   fn pub call6(
-    arg1: Any, arg2: Any, arg3: Any, arg4: Any, arg5: Any, arg6: Any
+    arg1: ref Any,
+    arg2: ref Any,
+    arg3: ref Any,
+    arg4: ref Any,
+    arg5: ref Any,
+    arg6: ref Any,
   ) -> Any {
     _INKO.ffi_function_call(@func, arg1, arg2, arg3, arg4, arg5, arg6)
   }

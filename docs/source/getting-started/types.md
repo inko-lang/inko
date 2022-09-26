@@ -266,7 +266,9 @@ trait refers to the class that implements the trait.
 managed by the Inko runtime such as a pointer to a C structure. Types can't be
 cast _to_ an `Any` (nor are they compatible with `Any`), but you _can_ cast
 `Any` to any other type. This is useful when working with Inko's FFI, but you
-should avoid `Any` anywhere else.
+should avoid `Any` anywhere else. `ref Any` is a variation of this type that
+doesn't take ownership of a value. This type is used in the FFI for function
+arguments.
 
 `Never` is a type that indicates something never happens. When used in a return
 or throw type it means a method never returns or throws. If a method doesn't
