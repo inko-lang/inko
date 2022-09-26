@@ -1,7 +1,7 @@
 max_width = 80
 use_try_shorthand = true
 reorder_imports = true
-edition = "2018"
+edition = "2021"
 
 # The default setting results in too aggressive/clunky wrapping for a lot of
 # code. For example, this:
@@ -20,5 +20,5 @@ edition = "2018"
 #     }
 #
 # Setting this to "Max" results in a more consistent and less infuriating
-# wrapping stype.
+# wrapping style.
 use_small_heuristics = 'Max'

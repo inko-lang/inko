@@ -6,11 +6,7 @@ unmaintained = "warn"
 yanked = "warn"
 notice = "warn"
 unsound = "warn"
-ignore = [
-    # https://gitlab.com/inko-lang/inko/-/issues/240#note_798519215
-    "RUSTSEC-2020-0071",
-    "RUSTSEC-2020-0056"
-]
+ignore = []
 
 [licenses]
 unlicensed = "deny"
@@ -20,7 +16,6 @@ allow = [
     "MPL-2.0",
     "ISC",
     "CC0-1.0",
-    "Unicode-DFS-2016",
     "BSD-3-Clause",
 ]
 copyleft = "deny"

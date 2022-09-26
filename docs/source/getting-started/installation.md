@@ -17,6 +17,9 @@ Unix compatibility layer such as [MSYS2][msys2].
 - A CPU with AES-NI support
 - Rust 1.62 or newer
 
+Inko's package manager (ipm) also required Git to be installed, and the `git`
+executable to be available in your PATH.
+
 For Unix based platforms, the following must also be available
 
 - Make
@@ -131,7 +134,10 @@ cd 0.10.0
 ```
 
 To compile a development build, run `cargo build`. For a release build,
-run `cargo build --release` instead.
+run `cargo build --release` instead. After building you can find the `inko`
+executable in `target/release/inko` (or `target/debug/inko` for a debug build),
+and the `ipm` executable in `target/release/ipm` (or `target/debug/ipm` for
+debug builds).
 
 By default Inko uses the standard library provided in the Git repository,
 located in `libstd/src`. If you wish to use a different directory, set the
