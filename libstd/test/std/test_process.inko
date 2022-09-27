@@ -12,7 +12,7 @@ class async Proc {
   }
 
   fn async slow {
-    process.sleep(Duration.from_seconds(5))
+    process.sleep(Duration.from_secs(5))
   }
 }
 
@@ -20,8 +20,8 @@ fn pub tests(t: mut Tests) {
   t.test('process.sleep') fn (t) {
     let start = Instant.new
 
-    process.sleep(Duration.from_milliseconds(10))
-    t.true(start.elapsed.to_milliseconds >= 10)
+    process.sleep(Duration.from_millis(10))
+    t.true(start.elapsed.to_millis >= 10)
   }
 
   t.test('process.poll') fn (t) {
@@ -48,7 +48,7 @@ fn pub tests(t: mut Tests) {
     let fast = async proc.send_back(42)
     let slow = async proc.slow
 
-    t.equal(fast.await_for(Duration.from_seconds(5)), Option.Some(42))
-    t.true(slow.await_for(Duration.from_milliseconds(10)).none?)
+    t.equal(fast.await_for(Duration.from_secs(5)), Option.Some(42))
+    t.true(slow.await_for(Duration.from_millis(10)).none?)
   }
 }

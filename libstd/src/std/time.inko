@@ -33,9 +33,9 @@ class pub Duration {
   #
   #     import std::time::Duration
   #
-  #     Duration.from_seconds(10.5)
-  fn pub static from_seconds(seconds: ToFloat) -> Duration {
-    Self { @nanos = (seconds.to_float * NANOS_PER_SEC).to_int }
+  #     Duration.from_secs(10.5)
+  fn pub static from_secs(secs: ToFloat) -> Duration {
+    Self { @nanos = (secs.to_float * NANOS_PER_SEC).to_int }
   }
 
   # Creates a new `Duration` from the given number of milliseconds.
@@ -44,9 +44,9 @@ class pub Duration {
   #
   #     import std::time::Duration
   #
-  #     Duration.from_milliseconds(10)
-  fn pub static from_milliseconds(milliseconds: ToInt) -> Duration {
-    Self { @nanos = milliseconds.to_int * MICROS_PER_SEC }
+  #     Duration.from_millis(10)
+  fn pub static from_millis(millis: ToInt) -> Duration {
+    Self { @nanos = millis.to_int * MICROS_PER_SEC }
   }
 
   # Creates a new `Duration` from the given number of microseconds.
@@ -55,9 +55,9 @@ class pub Duration {
   #
   #     import std::time::Duration
   #
-  #     Duration.from_microseconds(10)
-  fn pub static from_microseconds(microseconds: ToInt) -> Duration {
-    Self { @nanos = microseconds.to_int * MILLIS_PER_SEC }
+  #     Duration.from_micros(10)
+  fn pub static from_micros(micros: ToInt) -> Duration {
+    Self { @nanos = micros.to_int * MILLIS_PER_SEC }
   }
 
   # Creates a new `Duration` from the given number of nanoseconds.
@@ -66,9 +66,9 @@ class pub Duration {
   #
   #     import std::time::Duration
   #
-  #     Duration.from_nanoseconds(10)
-  fn pub static from_nanoseconds(nanoseconds: ToInt) -> Duration {
-    Self { @nanos = nanoseconds.to_int }
+  #     Duration.from_nanos(10)
+  fn pub static from_nanos(nanos: ToInt) -> Duration {
+    Self { @nanos = nanos.to_int }
   }
 
   # Returns the duration in seconds.
@@ -77,8 +77,8 @@ class pub Duration {
   #
   #     import std::time::Duration
   #
-  #     Duration.from_seconds(5).to_seconds # => 5.0
-  fn pub to_seconds -> Float {
+  #     Duration.from_secs(5).to_secs # => 5.0
+  fn pub to_secs -> Float {
     @nanos.to_float / NANOS_PER_SEC
   }
 
@@ -88,8 +88,8 @@ class pub Duration {
   #
   #     import std::time::Duration
   #
-  #     Duration.from_seconds(5).to_milliseconds # => 5000
-  fn pub to_milliseconds -> Int {
+  #     Duration.from_secs(5).to_millis # => 5000
+  fn pub to_millis -> Int {
     @nanos / MICROS_PER_SEC
   }
 
@@ -99,8 +99,8 @@ class pub Duration {
   #
   #     import std::time::Duration
   #
-  #     Duration.from_seconds(5).to_microseconds # => 5000000
-  fn pub to_microseconds -> Int {
+  #     Duration.from_secs(5).to_micros # => 5000000
+  fn pub to_micros -> Int {
     @nanos / MILLIS_PER_SEC
   }
 
@@ -110,8 +110,8 @@ class pub Duration {
   #
   #     import std::time::Duration
   #
-  #     Duration.from_seconds(5).to_nanoseconds # => 5000000000
-  fn pub to_nanoseconds -> Int {
+  #     Duration.from_secs(5).to_nanos # => 5000000000
+  fn pub to_nanos -> Int {
     @nanos.clone
   }
 }
@@ -149,11 +149,11 @@ impl Equal for Duration {
 impl Format for Duration {
   fn pub fmt(formatter: mut Formatter) {
     let write = if @nanos >= 1_000_000_000 {
-      "{to_seconds} sec"
+      "{to_secs} sec"
     } else if @nanos >= 1_000_000 {
-      "{to_milliseconds} msec"
+      "{to_millis} msec"
     } else if @nanos >= 1_000 {
-      "{to_microseconds} µsec"
+      "{to_micros} µsec"
     } else {
       "{@nanos} nsec"
     }
@@ -432,7 +432,7 @@ impl ToFloat for DateTime {
 
 impl Add[Duration] for DateTime {
   fn pub +(other: ref Duration) -> Self {
-    let timestamp = to_float + other.to_seconds
+    let timestamp = to_float + other.to_secs
 
     DateTime.from_timestamp(timestamp, utc_offset: @utc_offset.clone)
   }
@@ -440,7 +440,7 @@ impl Add[Duration] for DateTime {
 
 impl Subtract[Duration] for DateTime {
   fn pub -(other: ref Duration) -> Self {
-    let timestamp = to_float - other.to_seconds
+    let timestamp = to_float - other.to_secs
 
     DateTime.from_timestamp(timestamp, utc_offset: @utc_offset.clone)
   }
@@ -497,7 +497,7 @@ class pub Instant {
   #
   #     let start = Instant.new
   #
-  #     process.suspend(Duration.from_seconds(1))
+  #     process.suspend(Duration.from_secs(1))
   #
   #     start.elapsed.to_int # => 1
   fn pub elapsed -> Duration {

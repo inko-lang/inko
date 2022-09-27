@@ -280,7 +280,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('Socket.linger') fn (t) {
     let socket = try! Socket.ipv4(Type.STREAM)
-    let duration = Duration.from_seconds(5)
+    let duration = Duration.from_secs(5)
 
     try! socket.linger = duration
 

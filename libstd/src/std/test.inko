@@ -247,10 +247,10 @@ impl Reporter for Plain {
     }
 
     let decimals = 4
-    let dur = if duration.to_seconds >= 1.0 {
-      "{duration.to_seconds.round(decimals)} seconds"
+    let dur = if duration.to_secs >= 1.0 {
+      "{duration.to_secs.round(decimals)} seconds"
     } else {
-      "{duration.to_milliseconds} milliseconds"
+      "{duration.to_millis} milliseconds"
     }
 
     let failures = if failed {
