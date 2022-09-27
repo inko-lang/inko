@@ -113,11 +113,6 @@ fn pub tests(t: mut Tests) {
     t.equal(-42.to_float, -42.0)
   }
 
-  t.test('Int.into_float') fn (t) {
-    t.equal(42.into_float, 42.0)
-    t.equal(-42.into_float, -42.0)
-  }
-
   t.test('Int.cmp') fn (t) {
     t.equal(0.cmp(0), Ordering.Equal)
     t.equal(0.cmp(1), Ordering.Less)

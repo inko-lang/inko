@@ -1,7 +1,7 @@
 # The Int type.
 import std::clone::Clone
 import std::cmp::(Compare, Equal, Ordering)
-import std::float::(IntoFloat, ToFloat)
+import std::float::ToFloat
 import std::fmt::(Format, Formatter)
 import std::hash::(Hash, Hasher)
 import std::ops::(
@@ -230,12 +230,6 @@ impl ToInt for Int {
 impl ToFloat for Int {
   fn pub to_float -> Float {
     _INKO.int_to_float(self)
-  }
-}
-
-impl IntoFloat for Int {
-  fn pub move into_float -> Float {
-    to_float
   }
 }
 

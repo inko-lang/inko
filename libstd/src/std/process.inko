@@ -19,8 +19,11 @@ fn pub panic(message: ref String) -> Never {
 #
 # The actual time the process is suspended for may be larger than the given
 # duration.
+#
+# If the specified duration is less than or equal to zero, the process is
+# rescheduled immediately.
 fn pub sleep(time: ref Duration) {
-  _INKO.process_suspend(time.to_seconds)
+  _INKO.process_suspend(time.to_nanos)
 }
 
 # Suspends the current process until one or more futures in the `pending` array
@@ -67,9 +70,12 @@ class builtin Future[T, E] {
   #
   # Similar to `Future.await`, this method blocks the calling process until
   # either a value is produced or the timeout expires.
+  #
+  # If the given duration is less than or equal to zero, the process is
+  # rescheduled (more or less, but not necessarily) immediately after this call.
   fn pub move await_for(time: ref Duration) !! E -> Option[T] {
-    let secs = time.to_seconds
-    let val = try { _INKO.future_get_for(self, secs) } else (e) { throw e as E }
+    let nanos = time.to_nanos
+    let val = try { _INKO.future_get_for(self, nanos) } else (e) { throw e as E }
 
     if _INKO.is_undefined(val) { Option.None } else { Option.Some(val as T) }
   }

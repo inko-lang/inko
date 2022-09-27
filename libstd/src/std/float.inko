@@ -13,13 +13,6 @@ trait pub ToFloat {
   fn pub to_float -> Float
 }
 
-# A type that can be converted into a Float by taking over ownership of the
-# source value.
-trait pub IntoFloat {
-  # Moves `self` into a `Float`.
-  fn pub move into_float -> Float
-}
-
 # A 64-bit floating point number.
 class builtin Float {
   # Returns a NaN.
@@ -220,12 +213,6 @@ impl ToInt for Float {
 impl ToFloat for Float {
   fn pub to_float -> Float {
     clone
-  }
-}
-
-impl IntoFloat for Float {
-  fn pub move into_float -> Float {
-    self
   }
 }
 

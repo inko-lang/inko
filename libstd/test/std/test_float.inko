@@ -116,10 +116,6 @@ fn pub tests(t: mut Tests) {
     t.equal(10.5.to_float, 10.5)
   }
 
-  t.test('Float.into_float') fn (t) {
-    t.equal(10.5.into_float, 10.5)
-  }
-
   t.test('Float.clone') fn (t) {
     t.equal(10.5.clone, 10.5)
   }

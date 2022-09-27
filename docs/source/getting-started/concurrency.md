@@ -185,7 +185,7 @@ class async Main {
 
     let future = async counter.value
 
-    future.await_for(Duration.from_seconds(1))
+    future.await_for(Duration.from_secs(1))
   }
 }
 ```

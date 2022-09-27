@@ -112,10 +112,12 @@ pub(crate) fn time_monotonic(
     _: ProcessPointer,
     _: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
-    let duration = state.start_time.elapsed();
-    let seconds = duration.as_secs_f64();
+    // An i64 gives us roughly 292 years of time. That should be more than
+    // enough for a monotonic clock, as an Inko program is unlikely to run for
+    // that long.
+    let nanos = state.start_time.elapsed().as_nanos() as i64;
 
-    Ok(Float::alloc(state.permanent_space.float_class(), seconds))
+    Ok(Int::alloc(state.permanent_space.int_class(), nanos))
 }
 
 pub(crate) fn time_system(

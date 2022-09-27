@@ -1,5 +1,5 @@
 //! VM functions for working with Inko futures.
-use crate::mem::{Array, Float, Pointer};
+use crate::mem::{Array, Int, Pointer};
 use crate::process::{Future, FutureResult, ProcessPointer};
 use crate::scheduler::timeouts::Timeout;
 use crate::state::State;
@@ -40,9 +40,8 @@ pub(crate) fn get_for(
         return true;
     }
 
-    let timeout = Timeout::with_rc(Duration::from_secs_f64(unsafe {
-        Float::read(time_ptr)
-    }));
+    let nanos = unsafe { Int::read_u64(time_ptr) };
+    let timeout = Timeout::with_rc(Duration::from_nanos(nanos));
     let fut_ref = unsafe { future_ptr.get::<Future>() };
 
     match fut_ref.get(process, Some(timeout.clone())) {

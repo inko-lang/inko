@@ -1419,7 +1419,7 @@ pub(crate) fn define_builtin_functions(state: &mut State) -> bool {
         (BIF::StdoutFlush, nil, int),
         (BIF::StdoutWriteBytes, int, int),
         (BIF::StdoutWriteString, int, int),
-        (BIF::TimeMonotonic, float, never),
+        (BIF::TimeMonotonic, int, never),
         (BIF::TimeSystem, float, never),
         (BIF::TimeSystemOffset, int, never),
         (BIF::StringToLower, string, never),

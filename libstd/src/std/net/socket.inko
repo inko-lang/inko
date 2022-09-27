@@ -348,17 +348,17 @@ class pub Socket {
 
   # Returns the value of the `SO_LINGER` option.
   fn pub linger !! Error -> Duration {
-    let seconds =
+    let nanos =
       try _INKO.socket_get_linger(@fd) else (e) throw Error.from_int(e)
 
-    Duration.from_seconds(seconds)
+    Duration.from_nanos(nanos)
   }
 
   # Sets the value of the `SO_LINGER` option.
   fn pub mut linger=(value: ref Duration) !! Error {
-    let secs = value.to_seconds
+    let nanos = value.to_nanos
 
-    try _INKO.socket_set_linger(@fd, secs) else (e) throw Error.from_int(e)
+    try _INKO.socket_set_linger(@fd, nanos) else (e) throw Error.from_int(e)
   }
 
   # Returns the value of the `SO_RCVBUF` option.
