@@ -85,13 +85,6 @@ class List[T] {
 }
 ```
 
-## Supported Platforms
-
-[![CI sponsored by MacStadium](macstadium.png)](https://www.macstadium.com/)
-
-Inko supports Linux, macOS and Windows. Other platforms such as FreeBSD or
-OpenBSD may work, but are not officially supported at the moment.
-
 ## Installing
 
 Details about how to install Inko and its requirements can be found in the
