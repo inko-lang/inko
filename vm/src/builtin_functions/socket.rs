@@ -1,5 +1,5 @@
 //! Functions for working with non-blocking sockets.
-use crate::mem::{ByteArray, Float, Int, Pointer, String as InkoString};
+use crate::mem::{ByteArray, Int, Pointer, String as InkoString};
 use crate::network_poller::Interest;
 use crate::process::ProcessPointer;
 use crate::runtime_error::RuntimeError;
@@ -340,7 +340,7 @@ pub(crate) fn socket_get_linger(
 ) -> Result<Pointer, RuntimeError> {
     let value = unsafe { arguments[0].get::<Socket>() }.linger()?;
 
-    Ok(Float::alloc(state.permanent_space.float_class(), value))
+    Ok(Int::alloc(state.permanent_space.int_class(), value))
 }
 
 pub(crate) fn socket_get_recv_size(
@@ -464,7 +464,7 @@ pub(crate) fn socket_set_linger(
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
     let sock = unsafe { arguments[0].get_mut::<Socket>() };
-    let value = unsafe { Float::read(arguments[1]) };
+    let value = unsafe { Int::read_u64(arguments[1]) };
 
     sock.set_linger(value)?;
     Ok(Pointer::nil_singleton())

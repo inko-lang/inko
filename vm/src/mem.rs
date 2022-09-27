@@ -687,6 +687,16 @@ impl Int {
             ptr.get::<Int>().value
         }
     }
+
+    pub(crate) unsafe fn read_u64(ptr: Pointer) -> u64 {
+        let val = Self::read(ptr);
+
+        if val < 0 {
+            0
+        } else {
+            val as u64
+        }
+    }
 }
 
 /// A heap allocated float.
@@ -1117,5 +1127,29 @@ mod tests {
                 bar.as_pointer()
             );
         }
+    }
+
+    #[test]
+    fn test_int_read() {
+        let class = OwnedClass::new(Class::object("Int".to_string(), 0, 0));
+        let tagged = Int::alloc(*class, 42);
+        let max = Int::alloc(*class, i64::MAX);
+        let min = Int::alloc(*class, i64::MIN);
+
+        assert_eq!(unsafe { Int::read(tagged) }, 42);
+        assert_eq!(unsafe { Int::read(max) }, i64::MAX);
+        assert_eq!(unsafe { Int::read(min) }, i64::MIN);
+    }
+
+    #[test]
+    fn test_int_read_u64() {
+        let class = OwnedClass::new(Class::object("Int".to_string(), 0, 0));
+        let tagged = Int::alloc(*class, 42);
+        let max = Int::alloc(*class, i64::MAX);
+        let min = Int::alloc(*class, i64::MIN);
+
+        assert_eq!(unsafe { Int::read_u64(tagged) }, 42);
+        assert_eq!(unsafe { Int::read_u64(max) }, i64::MAX as u64);
+        assert_eq!(unsafe { Int::read_u64(min) }, 0);
     }
 }

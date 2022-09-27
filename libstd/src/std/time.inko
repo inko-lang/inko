@@ -1,7 +1,7 @@
 # Types and methods for dealing with time.
 import std::clone::Clone
 import std::cmp::(Compare, Equal, Ordering)
-import std::float::(IntoFloat, ToFloat)
+import std::float::ToFloat
 import std::fmt::(Format, Formatter)
 import std::int::ToInt
 import std::ops::(Add, Subtract)
@@ -11,184 +11,151 @@ let SECS_PER_HOUR = 3600
 let SECS_PER_DAY = 86_400
 let DAYS_PER_WEEK = 7
 
-# A span of time measured in seconds.
+let NANOS_PER_SEC = 1_000_000_000.0
+let MICROS_PER_SEC = 1_000_000
+let MILLIS_PER_SEC = 1_000
+
+# A span of time measured in nanoseconds.
 #
 # A `Duration` can be used to measure the span of time without having to worry
 # about casting the time to different scales yourself. A `Duration` can be
 # created using various scales such as seconds and milliseconds.
+#
+# `Duration` measures a time duration in nanoseconds, limiting it to durations
+# of up to 292 years. Operations producing values greater than this range will
+# panic.
 class pub Duration {
-  # The number of seconds (including fractional seconds) of this `Duration`.
-  let @seconds: Float
+  let @nanos: Int
 
   # Creates a new `Duration` from the given number of seconds.
   #
   # # Examples
   #
-  # Creating a `Duration` using an `Int`:
-  #
-  #     import std::time::Duration
-  #
-  #     Duration.from_seconds(10.0)
-  #
-  # Creating a `Duration` using a `Float`:
-  #
   #     import std::time::Duration
   #
   #     Duration.from_seconds(10.5)
-  fn pub static from_seconds(seconds: IntoFloat) -> Duration {
-    Self { @seconds = seconds.into_float }
+  fn pub static from_seconds(seconds: ToFloat) -> Duration {
+    Self { @nanos = (seconds.to_float * NANOS_PER_SEC).to_int }
   }
 
   # Creates a new `Duration` from the given number of milliseconds.
   #
   # # Examples
   #
-  # Creating a `Duration` using an `Int`:
-  #
   #     import std::time::Duration
   #
   #     Duration.from_milliseconds(10)
-  #
-  # Creating a `Duration` using a `Float`:
-  #
-  #     import std::time::Duration
-  #
-  #     Duration.from_milliseconds(10.5)
-  fn pub static from_milliseconds(milliseconds: IntoFloat) -> Duration {
-    Self { @seconds = milliseconds.into_float / 1000.0 }
+  fn pub static from_milliseconds(milliseconds: ToInt) -> Duration {
+    Self { @nanos = milliseconds.to_int * MICROS_PER_SEC }
   }
 
   # Creates a new `Duration` from the given number of microseconds.
   #
   # # Examples
   #
-  # Creating a `Duration` using an `Int`:
-  #
   #     import std::time::Duration
   #
   #     Duration.from_microseconds(10)
-  #
-  # Creating a `Duration` using a `Float`:
-  #
-  #     import std::time::Duration
-  #
-  #     Duration.from_microseconds(10.5)
-  fn pub static from_microseconds(microseconds: IntoFloat) -> Duration {
-    Self { @seconds = microseconds.into_float / 1_000_000.0 }
+  fn pub static from_microseconds(microseconds: ToInt) -> Duration {
+    Self { @nanos = microseconds.to_int * MILLIS_PER_SEC }
   }
 
   # Creates a new `Duration` from the given number of nanoseconds.
   #
   # # Examples
   #
-  # Creating a `Duration` using an `Int`:
-  #
   #     import std::time::Duration
   #
   #     Duration.from_nanoseconds(10)
-  #
-  # Creating a `Duration` using a `Float`:
-  #
-  #     import std::time::Duration
-  #
-  #     Duration.from_nanoseconds(10.5)
-  fn pub static from_nanoseconds(nanoseconds: IntoFloat) -> Duration {
-    Self { @seconds = nanoseconds.into_float / 1_000_000_000.0 }
+  fn pub static from_nanoseconds(nanoseconds: ToInt) -> Duration {
+    Self { @nanos = nanoseconds.to_int }
   }
 
   # Returns the duration in seconds.
   #
   # # Examples
   #
-  # Getting the seconds in a `Duration`:
-  #
   #     import std::time::Duration
   #
   #     Duration.from_seconds(5).to_seconds # => 5.0
   fn pub to_seconds -> Float {
-    @seconds.clone
+    @nanos.to_float / NANOS_PER_SEC
   }
 
   # Returns the duration in milliseconds.
   #
   # # Examples
   #
-  # Getting the milliseconds in a `Duration`:
-  #
   #     import std::time::Duration
   #
-  #     Duration.from_seconds(5).to_milliseconds # => 5000.0
-  fn pub to_milliseconds -> Float {
-    @seconds * 1000.0
+  #     Duration.from_seconds(5).to_milliseconds # => 5000
+  fn pub to_milliseconds -> Int {
+    @nanos / MICROS_PER_SEC
   }
 
   # Returns the duration in microseconds.
   #
   # # Examples
   #
-  # Getting the microseconds in a `Duration`:
-  #
   #     import std::time::Duration
   #
-  #     Duration.from_seconds(5).to_microseconds # => 5000000.0
-  fn pub to_microseconds -> Float {
-    @seconds * 1_000_000.0
+  #     Duration.from_seconds(5).to_microseconds # => 5000000
+  fn pub to_microseconds -> Int {
+    @nanos / MILLIS_PER_SEC
   }
 
   # Returns the duration in nanoseconds.
   #
   # # Examples
   #
-  # Getting the nanoseconds in a `Duration`:
-  #
   #     import std::time::Duration
   #
-  #     Duration.from_seconds(5).to_nanoseconds # => 5000000000.0
-  fn pub to_nanoseconds -> Float {
-    @seconds * 1_000_000_000.0
+  #     Duration.from_seconds(5).to_nanoseconds # => 5000000000
+  fn pub to_nanoseconds -> Int {
+    @nanos.clone
   }
 }
 
 impl Clone for Duration {
   fn pub clone -> Self {
-    Self { @seconds = @seconds.clone }
+    Self { @nanos = @nanos.clone }
   }
 }
 
 impl Add[Duration] for Duration {
   fn pub +(other: ref Duration) -> Self {
-    Duration.from_seconds(@seconds + other.to_seconds)
+    Duration { @nanos = @nanos + other.nanos }
   }
 }
 
 impl Subtract[Duration] for Duration {
   fn pub -(other: ref Duration) -> Self {
-    Duration.from_seconds(@seconds - other.to_seconds)
+    Duration { @nanos = @nanos - other.nanos }
   }
 }
 
 impl Compare for Duration {
   fn pub cmp(other: ref Self) -> Ordering {
-    @seconds.cmp(other.to_seconds)
+    @nanos.cmp(other.nanos)
   }
 }
 
 impl Equal for Duration {
   fn pub ==(other: ref Self) -> Bool {
-    @seconds == other.seconds
+    @nanos == other.nanos
   }
 }
 
 impl Format for Duration {
   fn pub fmt(formatter: mut Formatter) {
-    let write = if @seconds >= 1.0 {
-      "{@seconds} sec"
-    } else if @seconds >= 0.001 {
+    let write = if @nanos >= 1_000_000_000 {
+      "{to_seconds} sec"
+    } else if @nanos >= 1_000_000 {
       "{to_milliseconds} msec"
-    } else if @seconds >= 0.000001 {
+    } else if @nanos >= 1_000 {
       "{to_microseconds} µsec"
     } else {
-      "{to_nanoseconds} nsec"
+      "{@nanos} nsec"
     }
 
     formatter.write(write)
@@ -268,7 +235,7 @@ class pub DateTime {
   #     import std::time::DateTime
   #
   #     DateTime.from_timestamp(time: 1661546853, utc_offset: 0).year # => 2022
-  fn pub static from_timestamp(time: IntoFloat, utc_offset: Int) -> Self {
+  fn pub static from_timestamp(time: ToFloat, utc_offset: Int) -> Self {
     # This implementation is based on the algorithms as described on
     # http://howardhinnant.github.io/date_algorithms.html, specifically the
     # `civil_from_days()` algorithm.
@@ -280,7 +247,7 @@ class pub DateTime {
     # Important note: this algorithm works because Inko implements integer
     # divisions as floored divisions (like e.g. Python and Ruby), instead of
     # rounding towards zero (like Rust and C).
-    let time = time.into_float
+    let time = time.to_float
     let epoch_secs = time.to_int + utc_offset
     let epoch_days = (epoch_secs / SECS_PER_DAY) + 719_468
     let era =
@@ -500,20 +467,26 @@ impl Equal for DateTime {
 
 # A monotonically increasing clock.
 #
-# `Instant` objects represent the number of seconds relative to an unspecified
-# epoch. Unlike a system clock a monotonic clock never decreases, making it
-# useful for tasks such as measuring the execution time of a block of code.
+# The clock is measured in nanoseconds since an unspecified point in time. This
+# means the maximum time span we can represent is roughly 292 years. Operations
+# producing values greater than this range will panic.
+#
+# Unlike a system clock a monotonic clock never decreases, making it useful for
+# tasks such as measuring the execution time of a block of code.
 class pub Instant {
-  # The (internal) timestamp of this `Instant`.
-  let @time: Float
+  let @nanos: Int
 
   # Returns a new `Instant` representing the current time.
   fn pub static new -> Self {
-    Self { @time = _INKO.time_monotonic }
+    Self { @nanos = _INKO.time_monotonic }
   }
 
   # Returns a `Duration` measuring the time elapsed since the point in time
   # that `self` represents.
+  #
+  # # Panics
+  #
+  # This method panics if the duration can't be expressed in nanoseconds.
   #
   # # Examples
   #
@@ -528,49 +501,49 @@ class pub Instant {
   #
   #     start.elapsed.to_int # => 1
   fn pub elapsed -> Duration {
-    Duration.from_seconds(_INKO.time_monotonic - @time)
+    Duration { @nanos = _INKO.time_monotonic - @nanos }
   }
 }
 
 impl Clone for Instant {
   fn pub clone -> Self {
-    Self { @time = @time.clone }
+    Self { @nanos = @nanos.clone }
   }
 }
 
 impl ToInt for Instant {
   fn pub to_int -> Int {
-    @time.to_int
+    @nanos.to_int
   }
 }
 
 impl ToFloat for Instant {
   fn pub to_float -> Float {
-    @time.clone
+    @nanos.to_float
   }
 }
 
 impl Add[Duration] for Instant {
   fn pub +(other: ref Duration) -> Self {
-    Instant { @time = @time + other.to_seconds }
+    Instant { @nanos = @nanos + other.nanos }
   }
 }
 
 impl Subtract[Duration] for Instant {
   fn pub -(other: ref Duration) -> Self {
-    Instant { @time = @time - other.to_seconds }
+    Instant { @nanos = @nanos - other.nanos }
   }
 }
 
 impl Compare for Instant {
   fn pub cmp(other: ref Self) -> Ordering {
-    @time.cmp(other.to_float)
+    @nanos.cmp(other.nanos)
   }
 }
 
 impl Equal for Instant {
   fn pub ==(other: ref Self) -> Bool {
-    @time == other.to_float
+    @nanos == other.nanos
   }
 }
 

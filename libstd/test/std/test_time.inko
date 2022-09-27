@@ -1,4 +1,4 @@
-import helpers::(fmt)
+import helpers::(Script, fmt)
 import std::cmp::Ordering
 import std::process::(sleep)
 import std::test::Tests
@@ -10,15 +10,15 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('Duration.from_milliseconds') fn (t) {
-    t.equal(Duration.from_milliseconds(500).to_milliseconds, 500.0)
+    t.equal(Duration.from_milliseconds(500).to_milliseconds, 500)
   }
 
   t.test('Duration.from_microseconds') fn (t) {
-    t.equal(Duration.from_microseconds(100).to_microseconds, 100.0)
+    t.equal(Duration.from_microseconds(100).to_microseconds, 100)
   }
 
   t.test('Duration.from_nanoseconds') fn (t) {
-    t.equal(Duration.from_nanoseconds(100).to_nanoseconds, 100.0)
+    t.equal(Duration.from_nanoseconds(100).to_nanoseconds, 100)
   }
 
   t.test('Duration.to_seconds') fn (t) {
@@ -26,15 +26,15 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('Duration.to_milliseconds') fn (t) {
-    t.equal(Duration.from_seconds(1).to_milliseconds, 1000.0)
+    t.equal(Duration.from_seconds(1).to_milliseconds, 1000)
   }
 
   t.test('Duration.to_microseconds') fn (t) {
-    t.equal(Duration.from_seconds(1).to_microseconds, 1_000_000.0)
+    t.equal(Duration.from_seconds(1).to_microseconds, 1_000_000)
   }
 
   t.test('Duration.to_nanoseconds') fn (t) {
-    t.equal(Duration.from_seconds(1).to_nanoseconds, 1_000_000_000.0)
+    t.equal(Duration.from_seconds(1).to_nanoseconds, 1_000_000_000)
   }
 
   t.test('Duration.clone') fn (t) {
@@ -46,12 +46,34 @@ fn pub tests(t: mut Tests) {
       Duration.from_seconds(1) + Duration.from_seconds(1),
       Duration.from_seconds(2)
     )
+
+    let code = 'Duration.from_nanoseconds(9_223_372_036_854_775_807) +
+      Duration.from_nanoseconds(1)'
+
+    t.true(
+      Script
+        .new(id: t.id, code: code)
+        .import('std::time::Duration')
+        .run
+        .contains?('overflow')
+    )
   }
 
   t.test('Duration.-') fn (t) {
     t.equal(
       Duration.from_seconds(1) - Duration.from_seconds(0.5),
       Duration.from_seconds(0.5)
+    )
+
+    let code = 'Duration.from_nanoseconds(-9_223_372_036_854_775_808) -
+      Duration.from_nanoseconds(1)'
+
+    t.true(
+      Script
+        .new(id: t.id, code: code)
+        .import('std::time::Duration')
+        .run
+        .contains?('overflow')
     )
   }
 
@@ -72,12 +94,13 @@ fn pub tests(t: mut Tests) {
   t.test('Duration.fmt') fn (t) {
     t.equal(fmt(Duration.from_seconds(2.5)), '2.5 sec')
     t.equal(fmt(Duration.from_seconds(1.0)), '1.0 sec')
-    t.equal(fmt(Duration.from_milliseconds(420)), '420.0 msec')
-    t.equal(fmt(Duration.from_milliseconds(1)), '1.0 msec')
-    t.equal(fmt(Duration.from_microseconds(420)), '420.0 µsec')
-    t.equal(fmt(Duration.from_microseconds(1)), '1.0 µsec')
-    t.equal(fmt(Duration.from_nanoseconds(420)), '420.0 nsec')
-    t.equal(fmt(Duration.from_nanoseconds(1)), '1.0 nsec')
+    t.equal(fmt(Duration.from_milliseconds(420)), '420 msec')
+    t.equal(fmt(Duration.from_milliseconds(420.5)), '420 msec')
+    t.equal(fmt(Duration.from_milliseconds(1)), '1 msec')
+    t.equal(fmt(Duration.from_microseconds(420)), '420 µsec')
+    t.equal(fmt(Duration.from_microseconds(1)), '1 µsec')
+    t.equal(fmt(Duration.from_nanoseconds(420)), '420 nsec')
+    t.equal(fmt(Duration.from_nanoseconds(1)), '1 nsec')
   }
 
   t.test('DateTime.new') fn (t) {
@@ -281,7 +304,7 @@ fn pub tests(t: mut Tests) {
 
     let elapsed = time.elapsed
 
-    t.true(elapsed >= pause)
+    t.true(elapsed.to_milliseconds >= 10)
   }
 
   t.test('Instant.clone') fn (t) {
@@ -307,7 +330,7 @@ fn pub tests(t: mut Tests) {
     let t1 = Instant.new
     let t2 = t1 + Duration.from_seconds(2)
 
-    t.equal(t2.to_int, t1.to_int + 2)
+    t.equal(t2.to_int, t1.to_int + 2_000_000_000)
   }
 
   t.test('Instant.-') fn (t) {
@@ -315,7 +338,7 @@ fn pub tests(t: mut Tests) {
     let t1 = base + Duration.from_seconds(2)
     let t2 = t1 - Duration.from_seconds(1)
 
-    t.equal(t2.to_int, base.to_int + 1)
+    t.equal(t2.to_int, base.to_int + 1_000_000_000)
   }
 
   t.test('Instant.cmp') fn (t) {

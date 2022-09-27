@@ -55,11 +55,10 @@ macro_rules! socket_u32_getter {
 
 macro_rules! socket_duration_setter {
     ($setter:ident) => {
-        pub(crate) fn $setter(&self, value: f64) -> Result<(), RuntimeError> {
-            let dur = Duration::from_secs_f64(value);
+        pub(crate) fn $setter(&self, value: u64) -> Result<(), RuntimeError> {
+            let dur = Duration::from_nanos(value);
 
             self.inner.$setter(Some(dur))?;
-
             Ok(())
         }
     };
@@ -67,10 +66,10 @@ macro_rules! socket_duration_setter {
 
 macro_rules! socket_duration_getter {
     ($getter:ident) => {
-        pub(crate) fn $getter(&self) -> Result<f64, RuntimeError> {
+        pub(crate) fn $getter(&self) -> Result<i64, RuntimeError> {
             let dur = self.inner.$getter()?;
 
-            Ok(dur.map(|v| v.as_secs_f64()).unwrap_or(0.0))
+            Ok(dur.map(|v| v.as_nanos() as i64).unwrap_or(0))
         }
     };
 }

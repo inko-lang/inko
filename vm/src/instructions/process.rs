@@ -1,7 +1,6 @@
 //! VM functions for working with Inko processes.
 use crate::indexes::{ClassIndex, FieldIndex, MethodIndex};
-use crate::mem::Float;
-use crate::mem::Pointer;
+use crate::mem::{Int, Pointer};
 use crate::process::{
     Future, FutureState, Process, ProcessPointer, RescheduleRights,
     TaskPointer, Write, WriteResult,
@@ -104,8 +103,8 @@ pub(crate) fn suspend(
     mut process: ProcessPointer,
     time_ptr: Pointer,
 ) {
-    let time = unsafe { Float::read(time_ptr) };
-    let timeout = Timeout::with_rc(Duration::from_secs_f64(time));
+    let nanos = unsafe { Int::read_u64(time_ptr) };
+    let timeout = Timeout::with_rc(Duration::from_nanos(nanos));
 
     process.suspend(timeout.clone());
     state.timeout_worker.suspend(process, timeout);

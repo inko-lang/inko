@@ -21,7 +21,7 @@ fn pub tests(t: mut Tests) {
     let start = Instant.new
 
     process.sleep(Duration.from_milliseconds(10))
-    t.true(start.elapsed.to_milliseconds >= 10.0)
+    t.true(start.elapsed.to_milliseconds >= 10)
   }
 
   t.test('process.poll') fn (t) {
