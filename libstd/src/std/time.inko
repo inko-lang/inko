@@ -121,6 +121,27 @@ class pub Duration {
   }
 }
 
+impl ToInstant for Duration {
+  # Adds `self` to the current monotonic time, returning a new `Instant`
+  # representing the resulting point in time.
+  #
+  # # Examples
+  #
+  #     import std::time::(Duration, Instant)
+  #
+  #     let duration = Duration.from_secs(5)
+  #
+  #     duration.to_instant.remaining <= duration # => true
+  #
+  # # Panics
+  #
+  # This method panics if the resulting `Instant` is invalid, such as when it's
+  # a negative time.
+  fn pub to_instant -> Instant {
+    Instant.new + self
+  }
+}
+
 impl Clone for Duration {
   fn pub clone -> Self {
     Self { @nanos = @nanos.clone }
@@ -471,6 +492,15 @@ impl Equal for DateTime {
   }
 }
 
+# A type which can be converted to an `Instant`
+#
+# This is useful when you want create a deadline that supports both `Instant`
+# and `Duration` as an input.
+trait pub ToInstant {
+  # Converts `self` into an `Instant`.
+  fn pub to_instant -> Instant
+}
+
 # A monotonically increasing clock.
 #
 # The clock is measured in nanoseconds since an unspecified point in time. This
@@ -525,6 +555,12 @@ class pub Instant {
   #     time.remaining # => Duration.from_secs(5)
   fn pub remaining -> Duration {
     Duration { @nanos = @nanos - _INKO.time_monotonic }
+  }
+}
+
+impl ToInstant for Instant {
+  fn pub to_instant -> Instant {
+    clone
   }
 }
 

@@ -109,6 +109,14 @@ fn pub tests(t: mut Tests) {
     t.equal(fmt(Duration.from_nanos(-420)), '-420 nsec')
   }
 
+  t.test('Duration.to_instant') fn (t) {
+    let time = Duration.from_secs(5).to_instant
+    let rem = time.remaining
+
+    t.true(rem.to_secs > 0.0)
+    t.true(rem.to_secs <= 5.0)
+  }
+
   t.test('DateTime.new') fn (t) {
     let time = DateTime.new
 
@@ -397,5 +405,11 @@ fn pub tests(t: mut Tests) {
     let t1 = Instant.new
 
     t.equal(fmt(t1), "+{t1.to_int}")
+  }
+
+  t.test('Instant.to_instant') fn (t) {
+    let time = Instant.new
+
+    t.equal(time.to_instant, time)
   }
 }
