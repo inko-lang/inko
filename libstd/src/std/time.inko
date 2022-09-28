@@ -24,6 +24,11 @@ let MILLIS_PER_SEC = 1_000
 # `Duration` measures a time duration in nanoseconds, limiting it to durations
 # of up to 292 years. Operations producing values greater than this range will
 # panic.
+#
+# `Duration` objects can represent negative durations such as "-5 seconds". This
+# is useful when performing arithmetic on `Duration` objects, as you won't have
+# to worry about overflows. It also lets you represent a duration that goes back
+# in time, i.e. "something that happened 5 seconds ago".
 class pub Duration {
   let @nanos: Int
 
@@ -148,11 +153,12 @@ impl Equal for Duration {
 
 impl Format for Duration {
   fn pub fmt(formatter: mut Formatter) {
-    let write = if @nanos >= 1_000_000_000 {
+    let abs = @nanos.absolute
+    let write = if abs >= 1_000_000_000 {
       "{to_secs} sec"
-    } else if @nanos >= 1_000_000 {
+    } else if abs >= 1_000_000 {
       "{to_millis} msec"
-    } else if @nanos >= 1_000 {
+    } else if abs >= 1_000 {
       "{to_micros} µsec"
     } else {
       "{@nanos} nsec"
