@@ -30,9 +30,13 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('STDOUT.print') fn (t) {
-    let code = 'STDOUT.new.print("hello")'
+    let code = '
+let out = STDOUT.new
+let len = out.print("hello")
 
-    t.equal(Script.new(t.id, code).run, "hello\n")
+out.print(len.to_string)'
+
+    t.equal(Script.new(t.id, code).run, "hello\n6\n")
   }
 
   t.test('STDOUT.flush') fn (t) {

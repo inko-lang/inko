@@ -40,7 +40,7 @@ impl Write for STDOUT {
   }
 
   fn pub mut print(string: ref String) -> Int {
-    write_string(string) write_string("\n")
+    write_string(string) + write_string("\n")
   }
 }
 
