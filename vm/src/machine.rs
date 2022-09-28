@@ -603,8 +603,6 @@ impl<'a> Machine<'a> {
                 Opcode::Panic => {
                     let msg = state.context.get_register(ins.arg(0));
 
-                    state.rewind();
-
                     return Err(unsafe { InkoString::read(&msg).to_string() });
                 }
                 Opcode::Exit => {
