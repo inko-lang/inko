@@ -1,5 +1,5 @@
 //! Polling of non-blocking sockets using the system's polling mechanism.
-use crate::process::ProcessPointer;
+use crate::process::{ProcessPointer, RescheduleRights};
 use crate::state::RcState;
 use polling::{Event, Poller, Source};
 use std::io;
@@ -47,6 +47,10 @@ impl NetworkPoller {
         self.poller.modify(source, self.event(process, interest))
     }
 
+    pub(crate) fn delete(&self, source: impl Source) -> io::Result<()> {
+        self.poller.delete(source)
+    }
+
     fn event(&self, process: ProcessPointer, interest: Interest) -> Event {
         let key = process.identifier();
 
@@ -85,7 +89,25 @@ impl Worker {
 
             let processes = events
                 .iter()
-                .map(|ev| unsafe { ProcessPointer::new(ev.key as *mut _) })
+                .filter_map(|ev| {
+                    let proc = unsafe { ProcessPointer::new(ev.key as *mut _) };
+                    let mut state = proc.state();
+
+                    // A process may have also been registered with the timeout
+                    // thread (e.g. when using a timeout). As such we should
+                    // only reschedule the process if the timout thread didn't
+                    // already do this for us.
+                    match state.try_reschedule_for_io() {
+                        RescheduleRights::Failed => None,
+                        RescheduleRights::Acquired => Some(proc),
+                        RescheduleRights::AcquiredWithTimeout => {
+                            self.state
+                                .timeout_worker
+                                .increase_expired_timeouts();
+                            Some(proc)
+                        }
+                    }
+                })
                 .collect();
 
             self.state.scheduler.schedule_multiple(processes);
@@ -99,6 +121,7 @@ mod tests {
     use super::*;
     use crate::test::{empty_process_class, new_process};
     use std::net::UdpSocket;
+    use std::time::Duration;
 
     #[test]
     fn test_add() {
@@ -119,6 +142,26 @@ mod tests {
 
         assert!(poller.add(*process, &output, Interest::Read).is_ok());
         assert!(poller.modify(*process, &output, Interest::Write).is_ok());
+    }
+
+    #[test]
+    fn test_delete() {
+        let output = UdpSocket::bind("0.0.0.0:0").unwrap();
+        let poller = NetworkPoller::new();
+        let class = empty_process_class("A");
+        let process = new_process(*class);
+        let mut events = Vec::with_capacity(1);
+
+        assert!(poller.add(*process, &output, Interest::Write).is_ok());
+        assert!(poller.delete(&output).is_ok());
+
+        let len = poller
+            .poller
+            .wait(&mut events, Some(Duration::from_millis(10)))
+            .unwrap();
+
+        assert_eq!(len, 0);
+        assert_eq!(events.len(), 0);
     }
 
     #[test]

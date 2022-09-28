@@ -1,4 +1,55 @@
 # IP and Unix domain sockets.
+#
+# This module provides types for various socket types, such as TCP, UDP and Unix
+# sockets.
+#
+# The types `Socket` and `UnixSocket` are low-level sockets that implement most
+# of the socket logic. Types such as `TcpServer` and `TcpClient` wrap these
+# sockets to make it easier to create commonly used sockets, such as a TCP
+# client.
+#
+# # Deadlines and timeouts
+#
+# Socket timeouts are supported through a mechanism known as a "deadline". A
+# deadline specifies the time after which socket operations must time out. While
+# deadlines can be constructed from durations (e.g. using
+# `std::time::Duration`), they represent fixed points in time.
+#
+# The use of deadlines instead of timeouts makes it easier to apply time limits
+# to multiple operations. Consider the following chain of events:
+#
+# 1. read()
+# 1. write()
+# 1. read()
+#
+# Traditionally one might set a timeout such as 10 seconds. This poses a
+# problem: the timeout is applied to every operation, meaning each operation is
+# allowed to run up to 10 seconds, resulting in a total maximum runtime of 30
+# seconds.
+#
+# Using deadlines one sets a deadline in the future, and no matter the amount of
+# operations performed, the operations time out once we cross the deadline. In
+# our above example that means we can easily limit the total runtime to 10
+# seconds using a deadline that's 10 seconds in the future.
+#
+# Deadlines are set using `Socket.timeout_after` and `UnixSocket.timeout_after`.
+# These methods return a guard that clears the deadline when dropped, removing
+# the need for doing so manually (and ensuring you can't forget to clear the
+# deadline). Here's an example using deadlines to limit the time spent waiting
+# for a client to connect:
+#
+#     import std::net::ip::IpAddress
+#     import std::net::socket::TcpServer
+#     import std::time::Duration
+#
+#     let server = try! TcpServer.new(ip: IpAddress.v4(0, 0, 0, 0), port: 9000)
+#     let _guard = server.socket.timeout_after = Duration.from_secs(3)
+#
+#     # This times out after roughly three seconds.
+#     try! server.accept
+#
+# For more information about timeouts versus deadlines, consider reading [this
+# article](https://vorpus.org/blog/timeouts-and-cancellation-for-humans/).
 import std::cmp::Equal
 import std::drop::Drop
 import std::fmt::(Format, Formatter)
@@ -6,7 +57,7 @@ import std::fs::path::Path
 import std::io::(Error, Read, Write)
 import std::net::ip::IpAddress
 import std::string::ToString
-import std::time::Duration
+import std::time::(Duration, ToInstant)
 
 # The maximum value valid for a listen() call.
 #
@@ -15,6 +66,9 @@ import std::time::Duration
 # because it might be hardcoded. This means that setting `net.core.somaxconn` on
 # Linux (for example) would have no effect.
 let MAXIMUM_LISTEN_BACKLOG = 65_535
+
+# A value that signals the lack of a socket deadline.
+let NO_DEADLINE = -1
 
 # The type of a socket.
 class pub enum Type {
@@ -75,9 +129,25 @@ impl Format for SocketAddress {
   }
 }
 
+# A guard that clears the deadline of a `Socket` when dropped.
+class pub SocketDeadlineGuard {
+  let @socket: mut Socket
+}
+
+impl Drop for SocketDeadlineGuard {
+  fn mut drop {
+    @socket.deadline = NO_DEADLINE
+  }
+}
+
 # A low-level, non-blocking IPv4 or IPv6 socket.
 class pub Socket {
   let @fd: Any
+
+  # A point in time after which socket operations time out.
+  #
+  # We use an `Int` to remove the need for using `Option[Instant]`.
+  let @deadline: Int
 
   # Creates a new IPv4 socket.
   #
@@ -90,7 +160,7 @@ class pub Socket {
     let id = type.into_int
     let fd = try _INKO.socket_allocate_ipv4(id) else (e) throw Error.from_int(e)
 
-    Self { @fd = fd }
+    Self { @fd = fd, @deadline = NO_DEADLINE }
   }
 
   # Creates a new IPv6 socket.
@@ -104,7 +174,43 @@ class pub Socket {
     let id = type.into_int
     let fd = try _INKO.socket_allocate_ipv6(id) else (e) throw Error.from_int(e)
 
-    Self { @fd = fd }
+    Self { @fd = fd, @deadline = NO_DEADLINE }
+  }
+
+  # Sets the point in time after which socket operations must time out, known as
+  # a "deadline".
+  #
+  # The return value is a guard which clears the deadline when dropped.
+  #
+  # # Panics
+  #
+  # This method panics if a deadline is already set, as nested deadlines aren't
+  # supported.
+  #
+  # # Examples
+  #
+  # Using a `Duration` results in this method calculating the absolute time
+  # after which operations time out:
+  #
+  #     import std::net::socket::(Socket, Type)
+  #     import std::time::Duration
+  #
+  #     let socket = Socket.ipv4(Type.DGRAM)
+  #
+  #     socket.timeout_after = Duration.from_secs(5)
+  #
+  # We can also use an `Instant`:
+  #
+  #     import std::net::socket::(Socket, Type)
+  #     import std::time::(Duration, Instant)
+  #
+  #     let socket = Socket.ipv4(Type.DGRAM)
+  #     let _guard = socket.timeout_after = Instant.new + Duration.from_secs(5)
+  fn pub mut timeout_after=(deadline: ToInstant) -> SocketDeadlineGuard {
+    if @deadline != NO_DEADLINE { panic('A deadline is already set') }
+
+    @deadline = deadline.to_instant.to_int
+    SocketDeadlineGuard { @socket = self }
   }
 
   # Binds this socket to the specified address.
@@ -114,10 +220,11 @@ class pub Socket {
   # Binding a socket:
   #
   #     import std::net::socket::(Socket, Type)
+  #     import std::net::ip::IpAddress
   #
   #     let socket = try! Socket.ipv4(Type.DGRAM)
   #
-  #     try! socket.bind(ip: '0.0.0.0', port: 9999)
+  #     try! socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999)
   fn pub mut bind(ip: ref ToString, port: Int) !! Error {
     let addr = ip.to_string
 
@@ -131,17 +238,22 @@ class pub Socket {
   # Connecting a socket:
   #
   #     import std::net::socket::(Socket, Type)
+  #     import std::net::ip::IpAddress
   #
   #     let listener = try! Socket.ipv4(Type.STREAM)
   #     let client = try! Socket.ipv4(Type.STREAM)
   #
-  #     try! socket.bind(ip: '0.0.0.0', port: 9999)
+  #     try! socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999)
   #     try! socket.listen
-  #     try! client.connect(ip: '0.0.0.0', port: 9999)
+  #     try! client.connect(ip: IpAddress.v4(0, 0, 0, 0), port: 9999)
   fn pub mut connect(ip: ref ToString, port: Int) !! Error {
     let addr = ip.to_string
 
-    try _INKO.socket_connect(@fd, addr, port) else (e) throw Error.from_int(e)
+    try {
+      _INKO.socket_connect(@fd, addr, port, @deadline)
+    } else (err) {
+      throw Error.from_int(err)
+    }
   }
 
   # Marks this socket as being ready to accept incoming connections using
@@ -152,16 +264,17 @@ class pub Socket {
   # Marking a socket as a listener:
   #
   #     import std::net::socket::(Socket, Type)
+  #     import std::net::ip::IpAddress
   #
   #     let socket = try! Socket.ipv4(Type.STREAM)
   #
-  #     try! socket.bind(ip: '0.0.0.0', port: 9999)
+  #     try! socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999)
   #     try! socket.listen
   fn pub mut listen !! Error {
     try {
       _INKO.socket_listen(@fd, MAXIMUM_LISTEN_BACKLOG)
-    } else (e) {
-      throw Error.from_int(e)
+    } else (err) {
+      throw Error.from_int(err)
     }
   }
 
@@ -174,14 +287,15 @@ class pub Socket {
   # Accepting a connection and reading data from the connection:
   #
   #     import std::net::socket::(Socket, Type)
+  #     import std::net::ip::IpAddress
   #
   #     let listener = try! Socket.ipv4(Type.STREAM)
   #     let stream = try! Socket.ipv4(Type.STREAM)
   #
-  #     try! listener.bind(ip: '0.0.0.0', port: 9999)
+  #     try! listener.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999)
   #     try! listener.listen
   #
-  #     try! stream.connect(ip: '0.0.0.0', port: 9999)
+  #     try! stream.connect(ip: IpAddress.v4(0, 0, 0, 0), port: 9999)
   #     try! stream.write_string('ping')
   #
   #     let client = try! listener.accept
@@ -191,9 +305,13 @@ class pub Socket {
   #
   #     buffer.to_string # => 'ping'
   fn pub accept !! Error -> Socket {
-    let fd = try _INKO.socket_accept_ip(@fd) else (e) throw Error.from_int(e)
+    let fd = try {
+      _INKO.socket_accept_ip(@fd, @deadline)
+    } else (err) {
+      throw Error.from_int(err)
+    }
 
-    Socket { @fd = fd }
+    Socket { @fd = fd, @deadline = NO_DEADLINE }
   }
 
   # Sends a `String` to the given address.
@@ -203,20 +321,25 @@ class pub Socket {
   # # Examples
   #
   #     import std::net::socket::(Socket, Type)
+  #     import std::net::ip::IpAddress
   #
   #     let socket = try! Socket.ipv4(Type.DGRAM)
   #
-  #     try! socket.bind(ip: '0.0.0.0', port: 9999)
-  #     try! socket.send_string_to(string: 'hello', ip: '0.0.0.0', port: 9999)
+  #     try! socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999)
+  #     try! socket.send_string_to(
+  #       string: 'hello',
+  #       ip: IpAddress.v4(0, 0, 0, 0),
+  #       port: 9999
+  #     )
   fn pub mut send_string_to(
     string: ref String,
     ip: ref ToString,
     port: Int
   ) !! Error -> Int {
     try {
-      _INKO.socket_send_string_to(@fd, string, ip.to_string, port)
-    } else (e) {
-      throw Error.from_int(e)
+      _INKO.socket_send_string_to(@fd, string, ip.to_string, port, @deadline)
+    } else (err) {
+      throw Error.from_int(err)
     }
   }
 
@@ -227,21 +350,26 @@ class pub Socket {
   # # Examples
   #
   #     import std::net::socket::(Socket, Type)
+  #     import std::net::ip::IpAddress
   #
   #     let socket = try! Socket.ipv4(Type.DGRAM)
   #     let bytes = 'hello'.to_byte_array
   #
-  #     try! socket.bind(ip: '0.0.0.0', port: 9999)
-  #     try! socket.send_bytes_to(bytes: bytes, ip: '0.0.0.0', port: 9999)
+  #     try! socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999)
+  #     try! socket.send_bytes_to(
+  #       bytes: bytes,
+  #       ip: IpAddress.v4(0, 0, 0, 0),
+  #       port: 9999
+  #     )
   fn pub mut send_bytes_to(
     bytes: ByteArray,
     ip: ref ToString,
     port: Int
   ) !! Error -> Int {
     try {
-      _INKO.socket_send_bytes_to(@fd, bytes, ip.to_string, port)
-    } else (e) {
-      throw Error.from_int(e)
+      _INKO.socket_send_bytes_to(@fd, bytes, ip.to_string, port, @deadline)
+    } else (err) {
+      throw Error.from_int(err)
     }
   }
 
@@ -256,11 +384,16 @@ class pub Socket {
   # Sending a message to ourselves and receiving it:
   #
   #     import std::net::socket::(Socket, Type)
+  #     import std::net::ip::IpAddress
   #
   #     let socket = try! Socket.ipv4(Type.DGRAM)
   #     let bytes = ByteArray.new
   #
-  #     try! socket.send_string_to('hello', ip: '0.0.0.0', port: 9999)
+  #     try! socket.send_string_to(
+  #       'hello',
+  #       ip: IpAddress.v4(0, 0, 0, 0),
+  #       port: 9999
+  #     )
   #
   #     let received_from = try! socket.receive_from(bytes: bytes, size: 5)
   #
@@ -272,9 +405,9 @@ class pub Socket {
     size: Int
   ) !! Error -> SocketAddress {
     let raw_addr = try {
-      _INKO.socket_receive_from(@fd, bytes, size)
-    } else (e) {
-      throw Error.from_int(e)
+      _INKO.socket_receive_from(@fd, bytes, size, @deadline)
+    } else (err) {
+      throw Error.from_int(err)
     }
 
     let addr = _INKO.socket_address_pair_address(raw_addr)
@@ -398,7 +531,11 @@ class pub Socket {
 
   # Sets the value of the `SO_REUSEADDR` option.
   fn pub mut reuse_address=(value: Bool) !! Error {
-    try _INKO.socket_set_reuse_address(@fd, value) else (e) throw Error.from_int(e)
+    try {
+      _INKO.socket_set_reuse_address(@fd, value)
+    } else (err) {
+      throw Error.from_int(err)
+    }
   }
 
   # Returns the value of the `SO_REUSEPORT` option.
@@ -439,7 +576,7 @@ class pub Socket {
   fn pub try_clone !! Error -> Self {
     let fd = try _INKO.socket_try_clone(@fd) else (e) throw Error.from_int(e)
 
-    Self { @fd = fd }
+    Self { @fd = fd, @deadline = NO_DEADLINE }
   }
 }
 
@@ -451,17 +588,29 @@ impl Drop for Socket {
 
 impl Read for Socket {
   fn pub mut read(into: mut ByteArray, size: Int) !! Error -> Int {
-    try _INKO.socket_read(@fd, into, size) else (e) throw Error.from_int(e)
+    try {
+      _INKO.socket_read(@fd, into, size, @deadline)
+    } else (err) {
+      throw Error.from_int(err)
+    }
   }
 }
 
 impl Write for Socket {
   fn pub mut write_bytes(bytes: ref ByteArray) !! Error -> Int {
-    try _INKO.socket_write_bytes(@fd, bytes) else (e) throw Error.from_int(e)
+    try {
+      _INKO.socket_write_bytes(@fd, bytes, @deadline)
+    } else (err) {
+      throw Error.from_int(err)
+    }
   }
 
   fn pub mut write_string(string: ref String) !! Error -> Int {
-    try _INKO.socket_write_string(@fd, string) else (e) throw Error.from_int(e)
+    try {
+      _INKO.socket_write_string(@fd, string, @deadline)
+    } else (err) {
+      throw Error.from_int(err)
+    }
   }
 
   fn pub mut flush {
@@ -472,8 +621,7 @@ impl Write for Socket {
 # A UDP socket.
 #
 # A `UdpSocket` can be used to easily create a bound UDP socket from an IP
-# address and a port. Optionally a `UdpSocket` can be connected to another
-# socket using `UdpSocket::connect`.
+# address and a port.
 class pub UdpSocket {
   # The raw `Socket` wrapped by this `UdpSocket`.
   let pub @socket: Socket
@@ -513,11 +661,14 @@ class pub UdpSocket {
   # Connecting a UDP socket:
   #
   #     import std::net::socket::UdpSocket
+  #     import std::net::ip::IpAddress
   #
-  #     let socket1 = try! UdpSocket.new(ip: '0.0.0.0', port: 40_000)
-  #     let socket2 = try! UdpSocket.new(ip: '0.0.0.0', port: 41_000)
+  #     let socket1 =
+  #       try! UdpSocket.new(ip: IpAddress.v4(0, 0, 0, 0), port: 40_000)
+  #     let socket2 =
+  #       try! UdpSocket.new(ip: IpAddress.v4(0, 0, 0, 0), port: 41_000)
   #
-  #     try! socket1.connect(ip: '0.0.0.0', port: 41_000)
+  #     try! socket1.connect(ip: IpAddress.v4(0, 0, 0, 0), port: 41_000)
   fn pub mut connect(ip: ref ToString, port: Int) !! Error {
     try @socket.connect(ip, port)
   }
@@ -529,10 +680,16 @@ class pub UdpSocket {
   # # Examples
   #
   #     import std::net::socket::UdpSocket
+  #     import std::net::ip::IpAddress
   #
-  #     let socket = try! UdpSocket.new(ip: '0.0.0.0', port: 9999)
+  #     let socket =
+  #       try! UdpSocket.new(ip: IpAddress.v4(0, 0, 0, 0), port: 9999)
   #
-  #     try! socket.send_string_to(string: 'hello', ip: '0.0.0.0', port: 9999)
+  #     try! socket.send_string_to(
+  #       string: 'hello',
+  #       ip: IpAddress.v4(0, 0, 0, 0),
+  #       port: 9999
+  #     )
   fn pub mut send_string_to(
     string: ref String,
     ip: ref ToString,
@@ -548,11 +705,17 @@ class pub UdpSocket {
   # # Examples
   #
   #     import std::net::socket::UdpSocket
+  #     import std::net::ip::IpAddress
   #
-  #     let socket = try! UdpSocket.new(ip: '0.0.0.0', port: 9999)
+  #     let socket =
+  #       try! UdpSocket.new(ip: IpAddress.v4(0, 0, 0, 0), port: 9999)
   #     let bytes = 'hello'.to_byte_array
   #
-  #     try! socket.send_bytes_to(bytes: bytes, ip: '0.0.0.0', port: 9999)
+  #     try! socket.send_bytes_to(
+  #       bytes: bytes,
+  #       ip: IpAddress.v4(0, 0, 0, 0),
+  #       port: 9999
+  #     )
   fn pub mut send_bytes_to(
     bytes: ByteArray,
     ip: ref ToString,
@@ -614,6 +777,10 @@ class pub TcpClient {
   # Creates a new `TcpClient` that is connected to the TCP socket at the given
   # IP address and port.
   #
+  # This method doesn't enforce a deadline on establishing the connection. If
+  # you need to limit the amount of time spent waiting to establish the
+  # connection, use `TcpClient.with_timeout` instead.
+  #
   # # Examples
   #
   # Connecting a `TcpClient`:
@@ -630,6 +797,43 @@ class pub TcpClient {
     } else {
       try Socket.ipv4(Type.STREAM)
     }
+
+    try socket.connect(ip, port)
+
+    Self { @socket = socket }
+  }
+
+  # Creates a new `TcpClient` but limits the amount of time spent waiting for
+  # the connection to be established.
+  #
+  # The `timeout_after` argument specifies the deadline after which the
+  # `connect()` times out. The deadline is cleared once connected.
+  #
+  # See `TcpClient.new` for more information.
+  #
+  # # Examples
+  #
+  #     import std::net::socket::TcpClient
+  #     import std::net::ip::IpAddress
+  #     import std::time::Duration
+  #
+  #     try! TcpClient.with_timeout(
+  #       ip: IpAddress.v4(0, 0, 0, 0),
+  #       port: 40_000,
+  #       timeout_after: Duration.from_secs(5)
+  #     )
+  fn pub static with_timeout(
+    ip: IpAddress,
+    port: Int,
+    timeout_after: ToInstant
+  ) !! Error -> Self {
+    let socket = if ip.v6? {
+      try Socket.ipv6(Type.STREAM)
+    } else {
+      try Socket.ipv4(Type.STREAM)
+    }
+
+    let _ = socket.timeout_after = timeout_after
 
     try socket.connect(ip, port)
 
@@ -741,9 +945,12 @@ class pub TcpServer {
   # Accepting a new connection:
   #
   #     import std::net::socket::(TcpServer, TcpClient)
+  #     import std::net::ip::IpAddress
   #
-  #     let listener = try! TcpServer.new(ip: '127.0.0.1', port: 40_000)
-  #     let client = try! TcpClient.new(ip: '127.0.0.1', port: 40_000)
+  #     let listener =
+  #       try! TcpServer.new(ip: IpAddress.v4(127, 0, 0, 1), port: 40_000)
+  #     let client =
+  #       try! TcpClient.new(ip: IpAddress.v4(127, 0, 0, 1), port: 40_000)
   #
   #     client.write_string('ping')
   #
@@ -892,9 +1099,25 @@ impl ToString for UnixAddress {
   }
 }
 
+# A guard that clears the deadline of a `UnixSocket` when dropped.
+class pub UnixSocketDeadlineGuard {
+  let @socket: mut UnixSocket
+}
+
+impl Drop for UnixSocketDeadlineGuard {
+  fn mut drop {
+    @socket.deadline = NO_DEADLINE
+  }
+}
+
 # A low-level, non-blocking Unix domain socket.
 class pub UnixSocket {
   let @fd: Any
+
+  # A point in time after which socket operations time out.
+  #
+  # We use an `Int` to remove the need for using `Option[Instant]`.
+  let @deadline: Int
 
   # Creates a new Unix domain socket.
   #
@@ -909,7 +1132,43 @@ class pub UnixSocket {
     let id = type.into_int
     let fd = try _INKO.socket_allocate_unix(id) else (e) throw Error.from_int(e)
 
-    UnixSocket { @fd = fd }
+    UnixSocket { @fd = fd, @deadline = NO_DEADLINE }
+  }
+
+  # Sets the point in time after which socket operations must time out, known as
+  # a "deadline".
+  #
+  # The return value is a guard which clears the deadline when dropped.
+  #
+  # # Panics
+  #
+  # This method panics if a deadline is already set, as nested deadlines aren't
+  # supported.
+  #
+  # # Examples
+  #
+  # Using a `Duration` results in this method calculating the absolute time
+  # after which operations time out:
+  #
+  #     import std::net::socket::(UnixSocket, Type)
+  #     import std::time::Duration
+  #
+  #     let socket = UnixSocket.new(Type.DGRAM)
+  #
+  #     socket.timeout_after = Duration.from_secs(5)
+  #
+  # We can also use an `Instant`:
+  #
+  #     import std::net::socket::(UnixSocket, Type)
+  #     import std::time::(Duration, Instant)
+  #
+  #     let socket = UnixSocket.new(Type.DGRAM)
+  #     let _guard = socket.timeout_after = Instant.new + Duration.from_secs(5)
+  fn pub mut timeout_after=(deadline: ToInstant) -> UnixSocketDeadlineGuard {
+    if @deadline != NO_DEADLINE { panic('A deadline is already set') }
+
+    @deadline = deadline.to_instant.to_int
+    UnixSocketDeadlineGuard { @socket = self }
   }
 
   # Binds this socket to the specified path or abstract address.
@@ -924,8 +1183,10 @@ class pub UnixSocket {
   #
   #     try! socket.bind('/tmp/test.sock')
   fn pub mut bind(path: ref ToString) !! Error {
-    try _INKO.socket_bind(@fd, path.to_string, 0) else (e) {
-      throw Error.from_int(e)
+    try {
+      _INKO.socket_bind(@fd, path.to_string, 0, @deadline)
+    } else (err) {
+      throw Error.from_int(err)
     }
   }
 
@@ -945,8 +1206,10 @@ class pub UnixSocket {
   #
   #     try! stream.connect('/tmp/test.sock')
   fn pub mut connect(path: ref ToString) !! Error {
-    try _INKO.socket_connect(@fd, path.to_string, 0) else (e) {
-      throw Error.from_int(e)
+    try {
+      _INKO.socket_connect(@fd, path.to_string, 0, @deadline)
+    } else (err) {
+      throw Error.from_int(err)
     }
   }
 
@@ -966,8 +1229,8 @@ class pub UnixSocket {
   fn pub mut listen !! Error {
     try {
       _INKO.socket_listen(@fd, MAXIMUM_LISTEN_BACKLOG)
-    } else (e) {
-      throw Error.from_int(e)
+    } else (err) {
+      throw Error.from_int(err)
     }
   }
 
@@ -997,9 +1260,13 @@ class pub UnixSocket {
   #
   #     buffer.to_string # => 'ping'
   fn pub accept !! Error -> UnixSocket {
-    let fd = try _INKO.socket_accept_unix(@fd) else (e) throw Error.from_int(e)
+    let fd = try {
+      _INKO.socket_accept_unix(@fd, @deadline)
+    } else (err) {
+      throw Error.from_int(err)
+    }
 
-    UnixSocket { @fd = fd }
+    UnixSocket { @fd = fd, @deadline = NO_DEADLINE }
   }
 
   # Sends a `String` to the given address.
@@ -1019,9 +1286,9 @@ class pub UnixSocket {
     address: ref ToString
   ) !! Error -> Int {
     try {
-      _INKO.socket_send_string_to(@fd, string, address.to_string, 0)
-    } else (e) {
-      throw Error.from_int(e)
+      _INKO.socket_send_string_to(@fd, string, address.to_string, 0, @deadline)
+    } else (err) {
+      throw Error.from_int(err)
     }
   }
 
@@ -1043,9 +1310,9 @@ class pub UnixSocket {
     address: ref ToString
   ) !! Error -> Int {
     try {
-      _INKO.socket_send_bytes_to(@fd, bytes, address.to_string, 0)
-    } else (e) {
-      throw Error.from_int(e)
+      _INKO.socket_send_bytes_to(@fd, bytes, address.to_string, 0, @deadline)
+    } else (err) {
+      throw Error.from_int(err)
     }
   }
 
@@ -1070,11 +1337,14 @@ class pub UnixSocket {
   #
   #     bytes.to_string         # => 'hello'
   #     received_from.to_string # => '/tmp/test.sock'
-  fn pub mut receive_from(bytes: ref ByteArray, size: Int) !! Error -> UnixAddress {
+  fn pub mut receive_from(
+    bytes: ref ByteArray,
+    size: Int
+  ) !! Error -> UnixAddress {
     let raw_addr = try {
-      _INKO.socket_receive_from(@fd, bytes, size)
-    } else (e) {
-      throw Error.from_int(e)
+      _INKO.socket_receive_from(@fd, bytes, size, @deadline)
+    } else (err) {
+      throw Error.from_int(err)
     }
 
     let addr = _INKO.socket_address_pair_address(raw_addr)
@@ -1145,7 +1415,7 @@ class pub UnixSocket {
   fn pub try_clone !! Error -> Self {
     let fd = try _INKO.socket_try_clone(@fd) else (e) throw Error.from_int(e)
 
-    Self { @fd = fd }
+    Self { @fd = fd, @deadline = NO_DEADLINE }
   }
 }
 
@@ -1157,17 +1427,29 @@ impl Drop for UnixSocket {
 
 impl Read for UnixSocket {
   fn pub mut read(into: mut ByteArray, size: Int) !! Error -> Int {
-    try _INKO.socket_read(@fd, into, size) else (e) throw Error.from_int(e)
+    try {
+      _INKO.socket_read(@fd, into, size, @deadline)
+    } else (err) {
+      throw Error.from_int(err)
+    }
   }
 }
 
 impl Write for UnixSocket {
   fn pub mut write_bytes(bytes: ref ByteArray) !! Error -> Int {
-    try _INKO.socket_write_bytes(@fd, bytes) else (e) throw Error.from_int(e)
+    try {
+      _INKO.socket_write_bytes(@fd, bytes, @deadline)
+    } else (err) {
+      throw Error.from_int(err)
+    }
   }
 
   fn pub mut write_string(string: ref String) !! Error -> Int {
-    try _INKO.socket_write_string(@fd, string) else (e) throw Error.from_int(e)
+    try {
+      _INKO.socket_write_string(@fd, string, @deadline)
+    } else (err) {
+      throw Error.from_int(err)
+    }
   }
 
   fn pub mut flush {}
@@ -1256,7 +1538,10 @@ class pub UnixDatagram {
   # message was sent from.
   #
   # See the documentation of `UnixSocket.receive_from` for more information.
-  fn pub mut receive_from(bytes: ref ByteArray, size: Int) !! Error -> UnixAddress {
+  fn pub mut receive_from(
+    bytes: ref ByteArray,
+    size: Int
+  ) !! Error -> UnixAddress {
     try @socket.receive_from(bytes, size)
   }
 
@@ -1301,6 +1586,10 @@ class pub UnixClient {
 
   # Creates a new `UnixClient` that is connected to the given address.
   #
+  # This method doesn't enforce a deadline on establishing the connection. If
+  # you need to limit the amount of time spent waiting to establish the
+  # connection, use `UnixClient.with_timeout` instead.
+  #
   # # Examples
   #
   # Connecting a `UnixClient`:
@@ -1312,6 +1601,36 @@ class pub UnixClient {
   #     try! UnixClient.new('/tmp/test.sock')
   fn pub static new(address: ref ToString) !! Error -> Self {
     let socket = try UnixSocket.new(Type.STREAM)
+
+    try socket.connect(address)
+
+    Self { @socket = socket }
+  }
+
+  # Creates a new `UnixClient` but limits the amount of time spent waiting for
+  # the connection to be established.
+  #
+  # The `timeout_after` argument specifies the deadline after which the
+  # `connect()` times out. The deadline is cleared once connected.
+  #
+  # See `UnixClient.new` for more information.
+  #
+  # # Examples
+  #
+  #     import std::net::socket::UnixClient
+  #     import std::time::Duration
+  #
+  #     try! UnixClient.with_timeout(
+  #       address: '/tmp/test.sock'
+  #       timeout_after: Duration.from_secs(5)
+  #     )
+  fn pub static with_timeout(
+    address: ref ToString,
+    timeout_after: ToInstant
+  ) !! Error -> Self {
+    let socket = try UnixSocket.new(Type.STREAM)
+
+    let _ = socket.timeout_after = timeout_after
 
     try socket.connect(address)
 

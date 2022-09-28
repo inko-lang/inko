@@ -688,6 +688,10 @@ impl Pool {
     }
 
     fn schedule_multiple(&self, mut processes: Vec<ProcessPointer>) {
+        if processes.is_empty() {
+            return;
+        }
+
         let mut queue = self.global.lock().unwrap();
 
         queue.append(&mut processes);

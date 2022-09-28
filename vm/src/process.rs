@@ -373,14 +373,18 @@ impl ProcessStatus {
     /// The process is waiting for a future.
     const WAITING_FOR_FUTURE: u8 = 0b00_0100;
 
+    /// The process is waiting for an IO operation to complete.
+    const WAITING_FOR_IO: u8 = 0b00_1000;
+
     /// The process is simply sleeping for a certain amount of time.
-    const SLEEPING: u8 = 0b00_1000;
+    const SLEEPING: u8 = 0b01_0000;
 
     /// The process was rescheduled after a timeout expired.
-    const TIMEOUT_EXPIRED: u8 = 0b01_0000;
+    const TIMEOUT_EXPIRED: u8 = 0b10_0000;
 
-    /// The process is waiting for something, or suspended for a period of time
-    const WAITING: u8 = Self::WAITING_FOR_FUTURE | Self::SLEEPING;
+    /// The process is waiting for something, or suspended for a period of time.
+    const WAITING: u8 =
+        Self::WAITING_FOR_FUTURE | Self::SLEEPING | Self::WAITING_FOR_IO;
 
     pub(crate) fn new() -> Self {
         Self { bits: Self::NORMAL }
@@ -404,6 +408,14 @@ impl ProcessStatus {
 
     fn set_waiting_for_future(&mut self, enable: bool) {
         self.update_bits(Self::WAITING_FOR_FUTURE, enable);
+    }
+
+    fn set_waiting_for_io(&mut self, enable: bool) {
+        self.update_bits(Self::WAITING_FOR_IO, enable);
+    }
+
+    fn is_waiting_for_io(&self) -> bool {
+        self.bit_is_set(Self::WAITING_FOR_IO)
     }
 
     fn is_waiting_for_future(&self) -> bool {
@@ -501,9 +513,12 @@ impl ProcessState {
             return RescheduleRights::Failed;
         }
 
-        if self.status.is_waiting_for_future() {
-            // If we were waiting for a future, it means the timeout has
-            // expired.
+        if self.status.is_waiting_for_future()
+            || self.status.is_waiting_for_io()
+        {
+            // We may be suspended for some time without actually waiting for
+            // anything, in that case we don't want to update the process
+            // status.
             self.status.set_timeout_expired(true);
         }
 
@@ -525,6 +540,15 @@ impl ProcessState {
         self.status.set_waiting_for_future(true);
     }
 
+    pub(crate) fn waiting_for_io(
+        &mut self,
+        timeout: Option<ArcWithoutWeak<Timeout>>,
+    ) {
+        self.timeout = timeout;
+
+        self.status.set_waiting_for_io(true);
+    }
+
     fn try_reschedule_for_message(&mut self) -> RescheduleRights {
         if !self.status.is_waiting_for_message() {
             return RescheduleRights::Failed;
@@ -540,6 +564,20 @@ impl ProcessState {
         }
 
         self.status.set_waiting_for_future(false);
+
+        if self.timeout.take().is_some() {
+            RescheduleRights::AcquiredWithTimeout
+        } else {
+            RescheduleRights::Acquired
+        }
+    }
+
+    pub(crate) fn try_reschedule_for_io(&mut self) -> RescheduleRights {
+        if !self.status.is_waiting_for_io() {
+            return RescheduleRights::Failed;
+        }
+
+        self.status.set_waiting_for_io(false);
 
         if self.timeout.take().is_some() {
             RescheduleRights::AcquiredWithTimeout

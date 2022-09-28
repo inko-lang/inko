@@ -5,6 +5,7 @@ use std::io;
 use std::net::AddrParseError;
 
 const INVALID_INPUT: i64 = 11;
+const TIMED_OUT: i64 = 13;
 
 /// An error that can be raised in the VM at runtime.
 #[derive(Debug)]
@@ -21,6 +22,10 @@ pub(crate) enum RuntimeError {
 }
 
 impl RuntimeError {
+    pub(crate) fn timed_out() -> Self {
+        RuntimeError::Error(Pointer::int(TIMED_OUT))
+    }
+
     pub(crate) fn should_poll(&self) -> bool {
         matches!(self, RuntimeError::WouldBlock)
     }
@@ -44,7 +49,7 @@ impl From<io::Error> for RuntimeError {
                 io::ErrorKind::AlreadyExists => 10,
                 io::ErrorKind::InvalidInput => INVALID_INPUT,
                 io::ErrorKind::InvalidData => 12,
-                io::ErrorKind::TimedOut => 13,
+                io::ErrorKind::TimedOut => TIMED_OUT,
                 io::ErrorKind::WriteZero => 14,
                 io::ErrorKind::Interrupted => 15,
                 io::ErrorKind::UnexpectedEof => 16,

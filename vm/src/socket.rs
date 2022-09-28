@@ -296,6 +296,7 @@ impl Socket {
             let poller = &state.network_pollers[thread_poller_id];
 
             self.registered.store(thread_poller_id as i8, Ordering::Release);
+
             poller.add(process, &self.inner, interest)
         } else {
             let poller = &state.network_pollers[existing_id as usize];
@@ -306,6 +307,11 @@ impl Socket {
         // *DO NOT* use "self" from here on, as the socket/process may already
         // be running on a different thread.
         result.map_err(|e| e.into())
+    }
+
+    pub(crate) fn deregister(&mut self, state: &State) {
+        let poller_id = self.registered.load(Ordering::Acquire) as usize;
+        let _ = state.network_pollers[poller_id].delete(&self.inner);
     }
 
     pub(crate) fn accept(&self) -> Result<Self, RuntimeError> {
@@ -475,6 +481,7 @@ impl io::Read for Socket {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::mem::size_of;
 
     #[test]
     fn test_try_clone() {
@@ -486,5 +493,21 @@ mod tests {
 
         assert_eq!(socket2.registered.load(Ordering::Acquire), NOT_REGISTERED);
         assert!(!socket2.unix);
+    }
+
+    #[test]
+    fn test_type_size() {
+        let socket_size = if cfg!(windows) {
+            // Windows uses a HANDLE type, which is a pointer. This means the
+            // total size is 16 bytes due to the extra flags we store in the
+            // socket.
+            16
+        } else {
+            // On Unix a file descriptor is a 32-bits int, so the total size is
+            // 8 bytes.
+            8
+        };
+
+        assert_eq!(size_of::<Socket>(), socket_size);
     }
 }
