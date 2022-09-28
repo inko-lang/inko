@@ -4,6 +4,7 @@ use crate::network_poller::Interest;
 use crate::process::ProcessPointer;
 use crate::runtime_error::RuntimeError;
 use crate::scheduler::process::Thread;
+use crate::scheduler::timeouts::Timeout;
 use crate::socket::Socket;
 use crate::state::State;
 use std::io::Write;
@@ -15,14 +16,48 @@ fn ret(
     process: ProcessPointer,
     socket: &mut Socket,
     interest: Interest,
+    deadline: Pointer,
 ) -> Result<Pointer, RuntimeError> {
-    if let Err(ref err) = result {
-        if err.should_poll() {
-            socket.register(state, process, thread.network_poller, interest)?;
-        }
+    if !matches!(result, Err(ref err) if err.should_poll()) {
+        return result;
     }
 
+    // We must keep the process' state lock open until everything is registered,
+    // otherwise a timeout thread may reschedule the process (i.e. the timeout
+    // is very short) before we finish registering the socket with a poller.
+    let mut proc_state = process.state();
+    let nanos = unsafe { Int::read(deadline) };
+
+    // A deadline of -1 signals that we should wait indefinitely.
+    if nanos >= 0 {
+        let time = Timeout::from_nanos_deadline(state, nanos as u64);
+
+        proc_state.waiting_for_io(Some(time.clone()));
+        state.timeout_worker.suspend(process, time);
+    } else {
+        proc_state.waiting_for_io(None);
+    }
+
+    socket.register(state, process, thread.network_poller, interest)?;
     result
+}
+
+fn handle_timeout(
+    state: &State,
+    socket: &mut Socket,
+    process: ProcessPointer,
+) -> Result<(), RuntimeError> {
+    if process.timeout_expired() {
+        // The socket is still registered at this point, so we have to
+        // deregister first. If we don't and suspend for another IO operation,
+        // the poller could end up rescheduling the process multiple times (as
+        // there are multiple events still in flight for the process).
+        socket.deregister(state);
+
+        return Err(RuntimeError::timed_out());
+    }
+
+    Ok(())
 }
 
 pub(crate) fn socket_allocate_ipv4(
@@ -68,13 +103,17 @@ pub(crate) fn socket_write_string(
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
     let sock = unsafe { arguments[0].get_mut::<Socket>() };
+
+    handle_timeout(state, sock, process)?;
+
     let input = unsafe { InkoString::read(&arguments[1]).as_bytes() };
+    let deadline = arguments[2];
     let res = sock
         .write(input)
         .map(|size| Int::alloc(state.permanent_space.int_class(), size as i64))
         .map_err(RuntimeError::from);
 
-    ret(res, state, thread, process, sock, Interest::Write)
+    ret(res, state, thread, process, sock, Interest::Write, deadline)
 }
 
 pub(crate) fn socket_write_bytes(
@@ -84,13 +123,17 @@ pub(crate) fn socket_write_bytes(
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
     let sock = unsafe { arguments[0].get_mut::<Socket>() };
+
+    handle_timeout(state, sock, process)?;
+
     let input = unsafe { arguments[1].get::<ByteArray>() }.value();
+    let deadline = arguments[2];
     let res = sock
         .write(input)
         .map(|size| Int::alloc(state.permanent_space.int_class(), size as i64))
         .map_err(RuntimeError::from);
 
-    ret(res, state, thread, process, sock, Interest::Write)
+    ret(res, state, thread, process, sock, Interest::Write, deadline)
 }
 
 pub(crate) fn socket_read(
@@ -100,14 +143,17 @@ pub(crate) fn socket_read(
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
     let sock = unsafe { arguments[0].get_mut::<Socket>() };
+
+    handle_timeout(state, sock, process)?;
+
     let buffer = unsafe { arguments[1].get_mut::<ByteArray>() }.value_mut();
     let amount = unsafe { Int::read(arguments[2]) } as usize;
-
+    let deadline = arguments[3];
     let result = sock
         .read(buffer, amount)
         .map(|size| Int::alloc(state.permanent_space.int_class(), size as i64));
 
-    ret(result, state, thread, process, sock, Interest::Read)
+    ret(result, state, thread, process, sock, Interest::Read, deadline)
 }
 
 pub(crate) fn socket_listen(
@@ -124,17 +170,18 @@ pub(crate) fn socket_listen(
 }
 
 pub(crate) fn socket_bind(
-    state: &State,
-    thread: &mut Thread,
-    process: ProcessPointer,
+    _: &State,
+    _: &mut Thread,
+    _: ProcessPointer,
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
     let sock = unsafe { arguments[0].get_mut::<Socket>() };
     let addr = unsafe { InkoString::read(&arguments[1]) };
     let port = unsafe { Int::read(arguments[2]) } as u16;
-    let result = sock.bind(addr, port).map(|_| Pointer::nil_singleton());
 
-    ret(result, state, thread, process, sock, Interest::Read)
+    // POSX states that bind(2) _can_ produce EINPROGRESS, but in practise it
+    // seems no system out there actually does this.
+    sock.bind(addr, port).map(|_| Pointer::nil_singleton())
 }
 
 pub(crate) fn socket_connect(
@@ -144,11 +191,15 @@ pub(crate) fn socket_connect(
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
     let sock = unsafe { arguments[0].get_mut::<Socket>() };
+
+    handle_timeout(state, sock, process)?;
+
     let addr = unsafe { InkoString::read(&arguments[1]) };
     let port = unsafe { Int::read(arguments[2]) } as u16;
+    let deadline = arguments[3];
     let result = sock.connect(addr, port).map(|_| Pointer::nil_singleton());
 
-    ret(result, state, thread, process, sock, Interest::Write)
+    ret(result, state, thread, process, sock, Interest::Write, deadline)
 }
 
 pub(crate) fn socket_accept_ip(
@@ -158,9 +209,13 @@ pub(crate) fn socket_accept_ip(
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
     let sock = unsafe { arguments[0].get_mut::<Socket>() };
+    let deadline = arguments[1];
+
+    handle_timeout(state, sock, process)?;
+
     let result = sock.accept().map(Pointer::boxed);
 
-    ret(result, state, thread, process, sock, Interest::Read)
+    ret(result, state, thread, process, sock, Interest::Read, deadline)
 }
 
 pub(crate) fn socket_accept_unix(
@@ -170,9 +225,13 @@ pub(crate) fn socket_accept_unix(
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
     let sock = unsafe { arguments[0].get_mut::<Socket>() };
+    let deadline = arguments[1];
+
+    handle_timeout(state, sock, process)?;
+
     let result = sock.accept().map(Pointer::boxed);
 
-    ret(result, state, thread, process, sock, Interest::Read)
+    ret(result, state, thread, process, sock, Interest::Read, deadline)
 }
 
 pub(crate) fn socket_receive_from(
@@ -182,13 +241,17 @@ pub(crate) fn socket_receive_from(
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
     let sock = unsafe { arguments[0].get_mut::<Socket>() };
+
+    handle_timeout(state, sock, process)?;
+
     let buffer = unsafe { arguments[1].get_mut::<ByteArray>() }.value_mut();
     let amount = unsafe { Int::read(arguments[2]) } as usize;
+    let deadline = arguments[3];
     let result = sock
         .recv_from(buffer, amount)
         .map(|(addr, port)| allocate_address_pair(state, addr, port));
 
-    ret(result, state, thread, process, sock, Interest::Read)
+    ret(result, state, thread, process, sock, Interest::Read, deadline)
 }
 
 pub(crate) fn socket_send_bytes_to(
@@ -198,14 +261,18 @@ pub(crate) fn socket_send_bytes_to(
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
     let sock = unsafe { arguments[0].get_mut::<Socket>() };
+
+    handle_timeout(state, sock, process)?;
+
     let buffer = unsafe { arguments[1].get::<ByteArray>() }.value();
     let address = unsafe { InkoString::read(&arguments[2]) };
     let port = unsafe { Int::read(arguments[3]) } as u16;
+    let deadline = arguments[4];
     let result = sock
         .send_to(buffer, address, port)
         .map(|size| Int::alloc(state.permanent_space.int_class(), size as i64));
 
-    ret(result, state, thread, process, sock, Interest::Write)
+    ret(result, state, thread, process, sock, Interest::Write, deadline)
 }
 
 pub(crate) fn socket_send_string_to(
@@ -215,14 +282,18 @@ pub(crate) fn socket_send_string_to(
     arguments: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
     let sock = unsafe { arguments[0].get_mut::<Socket>() };
+
+    handle_timeout(state, sock, process)?;
+
     let buffer = unsafe { InkoString::read(&arguments[1]).as_bytes() };
     let address = unsafe { InkoString::read(&arguments[2]) };
     let port = unsafe { Int::read(arguments[3]) } as u16;
+    let deadline = arguments[4];
     let result = sock
         .send_to(buffer, address, port)
         .map(|size| Int::alloc(state.permanent_space.int_class(), size as i64));
 
-    ret(result, state, thread, process, sock, Interest::Write)
+    ret(result, state, thread, process, sock, Interest::Write, deadline)
 }
 
 pub(crate) fn socket_shutdown_read(

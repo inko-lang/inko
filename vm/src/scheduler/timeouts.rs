@@ -1,6 +1,7 @@
 //! Processes suspended with a timeout.
 use crate::arc_without_weak::ArcWithoutWeak;
 use crate::process::{Process, ProcessPointer};
+use crate::state::State;
 use std::cmp;
 use std::collections::BinaryHeap;
 use std::ops::Drop;
@@ -13,6 +14,32 @@ pub(crate) struct Timeout {
 }
 
 impl Timeout {
+    pub(crate) fn from_nanos_deadline(
+        state: &State,
+        nanos: u64,
+    ) -> ArcWithoutWeak<Self> {
+        let now = Instant::now();
+
+        // Our own monotonic clock is the time since the runtime epoch, which is
+        // roughly when the program first started running, so we can safely fit
+        // this in a Duration.
+        let dur = Duration::from_nanos(nanos as u64);
+
+        // This calculates the difference between our own monotonic clock, and
+        // the clock of `std::time::Instant`. We can then turn that into a
+        // `Duration` and add it to our `Instant` to get our deadline.
+        //
+        // Should the deadline ever be before the runtime epoch, we fall back to
+        // just the current time. In practise this shouldn't happen, but it's
+        // better to be safe than sorry.
+        let resume_after = dur
+            .checked_sub(now - state.start_time)
+            .map(|diff| now + diff)
+            .unwrap_or_else(|| now);
+
+        ArcWithoutWeak::new(Self { resume_after })
+    }
+
     pub(crate) fn new(suspend_for: Duration) -> Self {
         Timeout { resume_after: Instant::now() + suspend_for }
     }
@@ -22,13 +49,7 @@ impl Timeout {
     }
 
     pub(crate) fn remaining_time(&self) -> Option<Duration> {
-        let now = Instant::now();
-
-        if now >= self.resume_after {
-            None
-        } else {
-            Some(self.resume_after - now)
-        }
+        self.resume_after.checked_duration_since(Instant::now())
     }
 }
 
@@ -212,7 +233,9 @@ mod tests {
 
         #[test]
         fn test_remaining_time_without_remaining_time() {
-            let timeout = Timeout::new(Duration::from_secs(0));
+            let timeout = Timeout {
+                resume_after: Instant::now() - Duration::from_secs(1),
+            };
 
             assert!(timeout.remaining_time().is_none());
         }

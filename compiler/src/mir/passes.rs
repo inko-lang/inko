@@ -2382,8 +2382,11 @@ impl<'a> LowerMethod<'a> {
             self.current_block_mut().move_register(reg, src, loc);
         } else {
             let src = self.input_expression(node.value, None);
+            let reg = self.new_register(node.resolved_type);
 
-            self.unconditional_drop_register(src, loc);
+            // We don't drop immediately as this would break e.g. guards bounds
+            // to `_` (e.g. `let _ = something_that_returns_a_guard`).
+            self.current_block_mut().move_register(reg, src, loc);
         }
 
         self.get_nil(loc)

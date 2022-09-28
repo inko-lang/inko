@@ -753,6 +753,7 @@ pub(crate) struct DefineElse {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct DefineVariable {
+    pub(crate) resolved_type: types::TypeRef,
     pub(crate) variable_id: Option<types::VariableId>,
     pub(crate) mutable: bool,
     pub(crate) name: Identifier,
@@ -2327,6 +2328,7 @@ impl<'a> LowerToHir<'a> {
         node: ast::DefineVariable,
     ) -> Box<DefineVariable> {
         Box::new(DefineVariable {
+            resolved_type: types::TypeRef::Unknown,
             mutable: node.mutable,
             variable_id: None,
             name: self.identifier(node.name),
@@ -5371,6 +5373,7 @@ mod tests {
         assert_eq!(
             hir,
             Expression::DefineVariable(Box::new(DefineVariable {
+                resolved_type: types::TypeRef::Unknown,
                 variable_id: None,
                 name: Identifier {
                     name: "a".to_string(),

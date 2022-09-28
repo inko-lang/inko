@@ -11,7 +11,7 @@ import std::net::socket::(
 import std::string::ToString
 import std::sys
 import std::test::Tests
-import std::time::Duration
+import std::time::(Duration, Instant)
 
 class SocketPath {
   let @path: Path
@@ -600,6 +600,32 @@ fn pub tests(t: mut Tests) {
 
     t.no_throw fn {
       try TcpClient.new(ip: addr.ip.unwrap, port: addr.port.clone)
+    }
+  }
+
+  t.test('TcpClient.with_timeout') fn (t) {
+    let listener = try! Socket.ipv4(Type.STREAM)
+
+    try! listener.bind(ip: '127.0.0.1', port: 0)
+    try! listener.listen
+
+    let addr = try! listener.local_address
+
+    t.no_throw fn {
+      try TcpClient.with_timeout(
+        ip: addr.ip.unwrap,
+        port: addr.port.clone,
+        timeout_after: Duration.from_secs(2)
+      )
+    }
+
+    t.throw fn {
+      # This address is unroutable and so the connect times out.
+      try TcpClient.with_timeout(
+        ip: IpAddress.v4(192, 168, 0, 0),
+        port: addr.port.clone,
+        timeout_after: Duration.from_micros(500)
+      )
     }
   }
 
@@ -1225,6 +1251,22 @@ fn unix_tests(t: mut Tests) {
     try! listener.listen
 
     t.no_throw fn { try UnixClient.new(path) }
+  }
+
+  t.test('UnixClient.with_timeout') fn (t) {
+    let path = SocketPath.new(t.id)
+    let listener = try! UnixSocket.new(Type.STREAM)
+
+    try! listener.bind(path)
+    try! listener.listen
+
+    # Unlike IP sockets there's no unroutable address we can use, so at best we
+    # can assert the following doesn't time out. This means this test is mostly
+    # a smoke test, unlikely to actually fail unless our runtime is bugged.
+    t.no_throw fn {
+      try UnixClient
+        .with_timeout(address: path, timeout_after: Duration.from_secs(5))
+    }
   }
 
   t.test('UnixClient.local_address') fn (t) {

@@ -7,34 +7,22 @@ import std::time::(DateTime, Duration, Instant)
 fn pub tests(t: mut Tests) {
   t.test('Duration.from_secs') fn (t) {
     t.equal(Duration.from_secs(1.2).to_secs, 1.2)
+    t.equal(Duration.from_secs(-1.2).to_secs, -1.2)
   }
 
   t.test('Duration.from_millis') fn (t) {
     t.equal(Duration.from_millis(500).to_millis, 500)
+    t.equal(Duration.from_millis(-500).to_millis, -500)
   }
 
   t.test('Duration.from_micros') fn (t) {
     t.equal(Duration.from_micros(100).to_micros, 100)
+    t.equal(Duration.from_micros(-100).to_micros, -100)
   }
 
   t.test('Duration.from_nanos') fn (t) {
     t.equal(Duration.from_nanos(100).to_nanos, 100)
-  }
-
-  t.test('Duration.to_secs') fn (t) {
-    t.equal(Duration.from_millis(500).to_secs, 0.5)
-  }
-
-  t.test('Duration.to_millis') fn (t) {
-    t.equal(Duration.from_secs(1).to_millis, 1000)
-  }
-
-  t.test('Duration.to_micros') fn (t) {
-    t.equal(Duration.from_secs(1).to_micros, 1_000_000)
-  }
-
-  t.test('Duration.to_nanos') fn (t) {
-    t.equal(Duration.from_secs(1).to_nanos, 1_000_000_000)
+    t.equal(Duration.from_nanos(-100).to_nanos, -100)
   }
 
   t.test('Duration.clone') fn (t) {
@@ -45,6 +33,11 @@ fn pub tests(t: mut Tests) {
     t.equal(
       Duration.from_secs(1) + Duration.from_secs(1),
       Duration.from_secs(2)
+    )
+
+    t.equal(
+      Duration.from_secs(-1) + Duration.from_secs(2),
+      Duration.from_secs(1)
     )
 
     let code = 'Duration.from_nanos(9_223_372_036_854_775_807) +
@@ -65,6 +58,11 @@ fn pub tests(t: mut Tests) {
       Duration.from_secs(0.5)
     )
 
+    t.equal(
+      Duration.from_secs(-1) - Duration.from_secs(2),
+      Duration.from_secs(-3)
+    )
+
     let code = 'Duration.from_nanos(-9_223_372_036_854_775_808) -
       Duration.from_nanos(1)'
 
@@ -80,15 +78,18 @@ fn pub tests(t: mut Tests) {
   t.test('Duration.cmp') fn (t) {
     let a = Duration.from_secs(1)
     let b = Duration.from_secs(2)
+    let c = Duration.from_secs(-2)
 
     t.equal(a.cmp(b), Ordering.Less)
     t.equal(b.cmp(a), Ordering.Greater)
     t.equal(a.cmp(a), Ordering.Equal)
+    t.equal(c.cmp(b), Ordering.Less)
   }
 
   t.test('Duration.==') fn (t) {
     t.equal(Duration.from_secs(1), Duration.from_millis(1000))
     t.not_equal(Duration.from_secs(1), Duration.from_secs(2))
+    t.not_equal(Duration.from_secs(-1), Duration.from_secs(1))
   }
 
   t.test('Duration.fmt') fn (t) {
@@ -101,6 +102,19 @@ fn pub tests(t: mut Tests) {
     t.equal(fmt(Duration.from_micros(1)), '1 µsec')
     t.equal(fmt(Duration.from_nanos(420)), '420 nsec')
     t.equal(fmt(Duration.from_nanos(1)), '1 nsec')
+
+    t.equal(fmt(Duration.from_secs(-2.5)), '-2.5 sec')
+    t.equal(fmt(Duration.from_millis(-420)), '-420 msec')
+    t.equal(fmt(Duration.from_micros(-420)), '-420 µsec')
+    t.equal(fmt(Duration.from_nanos(-420)), '-420 nsec')
+  }
+
+  t.test('Duration.to_instant') fn (t) {
+    let time = Duration.from_secs(5).to_instant
+    let rem = time.remaining
+
+    t.true(rem.to_secs > 0.0)
+    t.true(rem.to_secs <= 5.0)
   }
 
   t.test('DateTime.new') fn (t) {
@@ -307,6 +321,15 @@ fn pub tests(t: mut Tests) {
     t.true(elapsed.to_millis >= 10)
   }
 
+  t.test('Instant.remaining') fn (t) {
+    let now = Instant.new
+    let t1 = now + Duration.from_secs(5)
+    let t2 = now - Duration.from_nanos(now.to_int)
+
+    t.true(t1.remaining.to_nanos <= 5_000_000_000)
+    t.true(t2.remaining.to_nanos <= 0)
+  }
+
   t.test('Instant.clone') fn (t) {
     let t1 = Instant.new
     let t2 = t1.clone
@@ -331,6 +354,16 @@ fn pub tests(t: mut Tests) {
     let t2 = t1 + Duration.from_secs(2)
 
     t.equal(t2.to_int, t1.to_int + 2_000_000_000)
+    t.true(
+      Script
+        .new(
+          id: t.id,
+          code: 'Instant.new + Duration.from_nanos(0 - (Instant.new.to_int * 2))'
+        )
+        .import('std::time::(Duration, Instant)')
+        .run
+        .contains?('represent a negative time')
+    )
   }
 
   t.test('Instant.-') fn (t) {
@@ -339,6 +372,16 @@ fn pub tests(t: mut Tests) {
     let t2 = t1 - Duration.from_secs(1)
 
     t.equal(t2.to_int, base.to_int + 1_000_000_000)
+    t.true(
+      Script
+        .new(
+          id: t.id,
+          code: 'Instant.new - Duration.from_nanos(Instant.new.to_int * 2)'
+        )
+        .import('std::time::(Duration, Instant)')
+        .run
+        .contains?('represent a negative time')
+    )
   }
 
   t.test('Instant.cmp') fn (t) {
@@ -361,6 +404,12 @@ fn pub tests(t: mut Tests) {
   t.test('Instant.fmt') fn (t) {
     let t1 = Instant.new
 
-    t.equal(fmt(t1), "{t1.to_float} sec")
+    t.equal(fmt(t1), "+{t1.to_int}")
+  }
+
+  t.test('Instant.to_instant') fn (t) {
+    let time = Instant.new
+
+    t.equal(time.to_instant, time)
   }
 }

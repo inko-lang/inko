@@ -24,6 +24,11 @@ let MILLIS_PER_SEC = 1_000
 # `Duration` measures a time duration in nanoseconds, limiting it to durations
 # of up to 292 years. Operations producing values greater than this range will
 # panic.
+#
+# `Duration` objects can represent negative durations such as "-5 seconds". This
+# is useful when performing arithmetic on `Duration` objects, as you won't have
+# to worry about overflows. It also lets you represent a duration that goes back
+# in time, i.e. "something that happened 5 seconds ago".
 class pub Duration {
   let @nanos: Int
 
@@ -116,6 +121,27 @@ class pub Duration {
   }
 }
 
+impl ToInstant for Duration {
+  # Adds `self` to the current monotonic time, returning a new `Instant`
+  # representing the resulting point in time.
+  #
+  # # Examples
+  #
+  #     import std::time::(Duration, Instant)
+  #
+  #     let duration = Duration.from_secs(5)
+  #
+  #     duration.to_instant.remaining <= duration # => true
+  #
+  # # Panics
+  #
+  # This method panics if the resulting `Instant` is invalid, such as when it's
+  # a negative time.
+  fn pub to_instant -> Instant {
+    Instant.new + self
+  }
+}
+
 impl Clone for Duration {
   fn pub clone -> Self {
     Self { @nanos = @nanos.clone }
@@ -148,11 +174,12 @@ impl Equal for Duration {
 
 impl Format for Duration {
   fn pub fmt(formatter: mut Formatter) {
-    let write = if @nanos >= 1_000_000_000 {
+    let abs = @nanos.absolute
+    let write = if abs >= 1_000_000_000 {
       "{to_secs} sec"
-    } else if @nanos >= 1_000_000 {
+    } else if abs >= 1_000_000 {
       "{to_millis} msec"
-    } else if @nanos >= 1_000 {
+    } else if abs >= 1_000 {
       "{to_micros} µsec"
     } else {
       "{@nanos} nsec"
@@ -465,6 +492,15 @@ impl Equal for DateTime {
   }
 }
 
+# A type which can be converted to an `Instant`
+#
+# This is useful when you want create a deadline that supports both `Instant`
+# and `Duration` as an input.
+trait pub ToInstant {
+  # Converts `self` into an `Instant`.
+  fn pub to_instant -> Instant
+}
+
 # A monotonically increasing clock.
 #
 # The clock is measured in nanoseconds since an unspecified point in time. This
@@ -473,6 +509,8 @@ impl Equal for DateTime {
 #
 # Unlike a system clock a monotonic clock never decreases, making it useful for
 # tasks such as measuring the execution time of a block of code.
+#
+# An `Instant` can never represent a negative time (e.g. -5).
 class pub Instant {
   let @nanos: Int
 
@@ -497,11 +535,32 @@ class pub Instant {
   #
   #     let start = Instant.new
   #
-  #     process.suspend(Duration.from_secs(1))
+  #     process.sleep(Duration.from_secs(1))
   #
-  #     start.elapsed.to_int # => 1
+  #     start.elapsed.to_secs >= 1.0 # => true
   fn pub elapsed -> Duration {
     Duration { @nanos = _INKO.time_monotonic - @nanos }
+  }
+
+  # Returns a `Duration` measuring the time remaining until reaching `self`.
+  #
+  # If `self` is in the past, the `Duration` represents a negative duration.
+  #
+  # # Examples
+  #
+  #     import std::time::(Duration, Instant)
+  #
+  #     let time = Instant.new + Duration.from_secs(5)
+  #
+  #     time.remaining # => Duration.from_secs(5)
+  fn pub remaining -> Duration {
+    Duration { @nanos = @nanos - _INKO.time_monotonic }
+  }
+}
+
+impl ToInstant for Instant {
+  fn pub to_instant -> Instant {
+    clone
   }
 }
 
@@ -525,13 +584,21 @@ impl ToFloat for Instant {
 
 impl Add[Duration] for Instant {
   fn pub +(other: ref Duration) -> Self {
-    Instant { @nanos = @nanos + other.nanos }
+    let nanos = @nanos + other.nanos
+
+    if nanos < 0 { panic("Instant can't represent a negative time ({nanos})") }
+
+    Instant { @nanos = nanos }
   }
 }
 
 impl Subtract[Duration] for Instant {
   fn pub -(other: ref Duration) -> Self {
-    Instant { @nanos = @nanos - other.nanos }
+    let nanos = @nanos - other.nanos
+
+    if nanos < 0 { panic("Instant can't represent a negative time ({nanos})") }
+
+    Instant { @nanos = nanos }
   }
 }
 
@@ -549,6 +616,6 @@ impl Equal for Instant {
 
 impl Format for Instant {
   fn pub fmt(formatter: mut Formatter) {
-    formatter.write("{to_float} sec")
+    formatter.write("+{@nanos}")
   }
 }
