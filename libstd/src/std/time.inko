@@ -479,6 +479,8 @@ impl Equal for DateTime {
 #
 # Unlike a system clock a monotonic clock never decreases, making it useful for
 # tasks such as measuring the execution time of a block of code.
+#
+# An `Instant` can never represent a negative time (e.g. -5).
 class pub Instant {
   let @nanos: Int
 
@@ -503,11 +505,26 @@ class pub Instant {
   #
   #     let start = Instant.new
   #
-  #     process.suspend(Duration.from_secs(1))
+  #     process.sleep(Duration.from_secs(1))
   #
-  #     start.elapsed.to_int # => 1
+  #     start.elapsed.to_secs >= 1.0 # => true
   fn pub elapsed -> Duration {
     Duration { @nanos = _INKO.time_monotonic - @nanos }
+  }
+
+  # Returns a `Duration` measuring the time remaining until reaching `self`.
+  #
+  # If `self` is in the past, the `Duration` represents a negative duration.
+  #
+  # # Examples
+  #
+  #     import std::time::(Duration, Instant)
+  #
+  #     let time = Instant.new + Duration.from_secs(5)
+  #
+  #     time.remaining # => Duration.from_secs(5)
+  fn pub remaining -> Duration {
+    Duration { @nanos = @nanos - _INKO.time_monotonic }
   }
 }
 
@@ -531,13 +548,21 @@ impl ToFloat for Instant {
 
 impl Add[Duration] for Instant {
   fn pub +(other: ref Duration) -> Self {
-    Instant { @nanos = @nanos + other.nanos }
+    let nanos = @nanos + other.nanos
+
+    if nanos < 0 { panic("Instant can't represent a negative time ({nanos})") }
+
+    Instant { @nanos = nanos }
   }
 }
 
 impl Subtract[Duration] for Instant {
   fn pub -(other: ref Duration) -> Self {
-    Instant { @nanos = @nanos - other.nanos }
+    let nanos = @nanos - other.nanos
+
+    if nanos < 0 { panic("Instant can't represent a negative time ({nanos})") }
+
+    Instant { @nanos = nanos }
   }
 }
 
@@ -555,6 +580,6 @@ impl Equal for Instant {
 
 impl Format for Instant {
   fn pub fmt(formatter: mut Formatter) {
-    formatter.write("{to_float} sec")
+    formatter.write("+{@nanos}")
   }
 }

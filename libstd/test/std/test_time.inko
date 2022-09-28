@@ -313,6 +313,15 @@ fn pub tests(t: mut Tests) {
     t.true(elapsed.to_millis >= 10)
   }
 
+  t.test('Instant.remaining') fn (t) {
+    let now = Instant.new
+    let t1 = now + Duration.from_secs(5)
+    let t2 = now - Duration.from_nanos(now.to_int)
+
+    t.true(t1.remaining.to_nanos <= 5_000_000_000)
+    t.true(t2.remaining.to_nanos <= 0)
+  }
+
   t.test('Instant.clone') fn (t) {
     let t1 = Instant.new
     let t2 = t1.clone
@@ -337,6 +346,16 @@ fn pub tests(t: mut Tests) {
     let t2 = t1 + Duration.from_secs(2)
 
     t.equal(t2.to_int, t1.to_int + 2_000_000_000)
+    t.true(
+      Script
+        .new(
+          id: t.id,
+          code: 'Instant.new + Duration.from_nanos(0 - (Instant.new.to_int * 2))'
+        )
+        .import('std::time::(Duration, Instant)')
+        .run
+        .contains?('represent a negative time')
+    )
   }
 
   t.test('Instant.-') fn (t) {
@@ -345,6 +364,16 @@ fn pub tests(t: mut Tests) {
     let t2 = t1 - Duration.from_secs(1)
 
     t.equal(t2.to_int, base.to_int + 1_000_000_000)
+    t.true(
+      Script
+        .new(
+          id: t.id,
+          code: 'Instant.new - Duration.from_nanos(Instant.new.to_int * 2)'
+        )
+        .import('std::time::(Duration, Instant)')
+        .run
+        .contains?('represent a negative time')
+    )
   }
 
   t.test('Instant.cmp') fn (t) {
@@ -367,6 +396,6 @@ fn pub tests(t: mut Tests) {
   t.test('Instant.fmt') fn (t) {
     let t1 = Instant.new
 
-    t.equal(fmt(t1), "{t1.to_float} sec")
+    t.equal(fmt(t1), "+{t1.to_int}")
   }
 }
