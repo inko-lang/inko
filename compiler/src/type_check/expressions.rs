@@ -1707,6 +1707,8 @@ impl<'a> CheckMethodBody<'a> {
         let name = &node.name.name;
         let rtype = TypeRef::nil();
 
+        node.resolved_type = var_type;
+
         if name == IGNORE_VARIABLE {
             return rtype;
         }
