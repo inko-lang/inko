@@ -487,7 +487,7 @@ impl MethodCall {
     ) -> TypeRef {
         let typ = self.method.throw_type(&state.db).inferred(
             &mut state.db,
-            &self.context,
+            &mut self.context,
             false,
         );
 
@@ -512,7 +512,7 @@ impl MethodCall {
     ) -> TypeRef {
         let typ = self.method.return_type(&state.db).inferred(
             &mut state.db,
-            &self.context,
+            &mut self.context,
             false,
         );
 
@@ -2111,7 +2111,7 @@ impl<'a> CheckMethodBody<'a> {
         }
 
         let immutable = value_type.is_ref(self.db());
-        let ctx = TypeContext::for_class_instance(self.db(), ins);
+        let mut ctx = TypeContext::for_class_instance(self.db(), ins);
 
         for node in &mut node.values {
             let name = &node.field.name;
@@ -2139,7 +2139,7 @@ impl<'a> CheckMethodBody<'a> {
 
             let field_type = field
                 .value_type(self.db())
-                .inferred(self.db_mut(), &ctx, immutable)
+                .inferred(self.db_mut(), &mut ctx, immutable)
                 .cast_according_to(value_type, self.db());
 
             node.field_id = Some(field);
@@ -2283,7 +2283,7 @@ impl<'a> CheckMethodBody<'a> {
 
         for (patt, member) in node.values.iter_mut().zip(members.into_iter()) {
             let typ = member
-                .inferred(self.db_mut(), &ctx, immutable)
+                .inferred(self.db_mut(), &mut ctx, immutable)
                 .cast_according_to(value_type, self.db());
 
             self.pattern(patt, typ, pattern);
@@ -2456,7 +2456,7 @@ impl<'a> CheckMethodBody<'a> {
     fn closure(
         &mut self,
         node: &mut hir::Closure,
-        expected: Option<(ClosureId, TypeRef, &mut TypeContext)>,
+        mut expected: Option<(ClosureId, TypeRef, &mut TypeContext)>,
         scope: &mut LexicalScope,
     ) -> TypeRef {
         let self_type = self.self_type;
@@ -2472,9 +2472,9 @@ impl<'a> CheckMethodBody<'a> {
             let db = &mut self.state.db;
 
             expected
-                .as_ref()
+                .as_mut()
                 .map(|(id, _, context)| {
-                    id.throw_type(db).inferred(db, context, false)
+                    id.throw_type(db).inferred(db, *context, false)
                 })
                 .unwrap_or_else(|| TypeRef::placeholder(self.db_mut()))
         };
@@ -2485,9 +2485,9 @@ impl<'a> CheckMethodBody<'a> {
             let db = &mut self.state.db;
 
             expected
-                .as_ref()
+                .as_mut()
                 .map(|(id, _, context)| {
-                    id.return_type(db).inferred(db, context, false)
+                    id.return_type(db).inferred(db, *context, false)
                 })
                 .unwrap_or_else(|| TypeRef::placeholder(self.db_mut()))
         };
@@ -2520,7 +2520,7 @@ impl<'a> CheckMethodBody<'a> {
                 let db = &mut self.state.db;
 
                 expected
-                    .as_ref()
+                    .as_mut()
                     .and_then(|(id, _, context)| {
                         id.positional_argument_input_type(db, index)
                             .map(|t| t.inferred(db, context, false))
@@ -3337,7 +3337,7 @@ impl<'a> CheckMethodBody<'a> {
                         );
 
                         let var_type =
-                            var_type.inferred(self.db_mut(), &ctx, false);
+                            var_type.inferred(self.db_mut(), &mut ctx, false);
 
                         node.kind = CallKind::SetField(FieldInfo {
                             id: field,
@@ -3482,12 +3482,12 @@ impl<'a> CheckMethodBody<'a> {
         let throws = closure
             .throw_type(self.db())
             .as_rigid_type(&mut self.state.db, self.bounds)
-            .inferred(self.db_mut(), &ctx, false);
+            .inferred(self.db_mut(), &mut ctx, false);
 
         let returns = closure
             .return_type(self.db())
             .as_rigid_type(&mut self.state.db, self.bounds)
-            .inferred(self.db_mut(), &ctx, false);
+            .inferred(self.db_mut(), &mut ctx, false);
 
         if let Some(block) = node.else_block.as_mut() {
             if throws.is_never(self.db()) {
@@ -3576,7 +3576,7 @@ impl<'a> CheckMethodBody<'a> {
                             .copy_into(&mut ctx.type_arguments);
 
                         let returns = if raw_typ.is_owned_or_uni(db) {
-                            let typ = raw_typ.inferred(db, &ctx, false);
+                            let typ = raw_typ.inferred(db, &mut ctx, false);
 
                             if receiver.is_ref(db) {
                                 typ.as_ref(db)
@@ -3584,7 +3584,7 @@ impl<'a> CheckMethodBody<'a> {
                                 typ.as_mut(db)
                             }
                         } else {
-                            raw_typ.inferred(db, &ctx, receiver.is_ref(db))
+                            raw_typ.inferred(db, &mut ctx, receiver.is_ref(db))
                         };
 
                         if receiver.require_sendable_arguments(self.db())

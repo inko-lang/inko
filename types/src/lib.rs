@@ -85,6 +85,17 @@ pub const FIELDS_LIMIT: usize = u8::MAX as usize;
 
 const MAX_FORMATTING_DEPTH: usize = 8;
 
+/// The maximum recursion/depth to restrict ourselves to when inferring types or
+/// checking if they are inferred.
+///
+/// In certain cases we may end up with cyclic types, where the cycles are
+/// non-trivial (e.g. `A -> B -> C -> D -> A`). To prevent runaway recursion we
+/// limit such operations to a certain depth.
+///
+/// The depth here is sufficiently large that no sane program should run into
+/// it, but we also won't blow the stack.
+const MAX_TYPE_DEPTH: usize = 64;
+
 pub fn format_type<T: FormatType>(db: &Database, typ: T) -> String {
     TypeFormatter::new(db, None, None).format(typ)
 }
@@ -324,6 +335,14 @@ impl TypePlaceholderId {
     }
 
     fn assign(self, db: &Database, value: TypeRef) {
+        // Assigning placeholders to themselves creates cycles that aren't
+        // useful, so we ignore those.
+        if let TypeRef::Placeholder(id) = value {
+            if id.0 == self.0 {
+                return;
+            }
+        }
+
         self.get(db).value.set(value);
 
         for &mut id in self.depending(db) {
@@ -371,11 +390,21 @@ pub struct TypeContext {
     /// When type-checking a method call, this table contains the type
     /// parameters and values of both the receiver and the method itself.
     pub type_arguments: TypeArguments,
+
+    /// The nesting/recursion depth when e.g. inferring a type.
+    ///
+    /// This value is used to prevent runaway recursion that can occur when
+    /// dealing with (complex) cyclic types.
+    depth: usize,
 }
 
 impl TypeContext {
     pub fn new(self_type_id: TypeId) -> Self {
-        Self { self_type: self_type_id, type_arguments: TypeArguments::new() }
+        Self {
+            self_type: self_type_id,
+            type_arguments: TypeArguments::new(),
+            depth: 0,
+        }
     }
 
     pub fn for_class_instance(db: &Database, instance: ClassInstance) -> Self {
@@ -385,14 +414,18 @@ impl TypeContext {
             TypeArguments::new()
         };
 
-        Self { self_type: TypeId::ClassInstance(instance), type_arguments }
+        Self {
+            self_type: TypeId::ClassInstance(instance),
+            type_arguments,
+            depth: 0,
+        }
     }
 
     pub fn with_arguments(
         self_type_id: TypeId,
         type_arguments: TypeArguments,
     ) -> Self {
-        Self { self_type: self_type_id, type_arguments }
+        Self { self_type: self_type_id, type_arguments, depth: 0 }
     }
 }
 
@@ -1081,7 +1114,7 @@ impl TraitInstance {
     fn inferred(
         self,
         db: &mut Database,
-        context: &TypeContext,
+        context: &mut TypeContext,
         immutable: bool,
     ) -> Self {
         if !self.instance_of.is_generic(db) {
@@ -1091,25 +1124,7 @@ impl TraitInstance {
         let mut new_args = TypeArguments::new();
 
         for (arg, val) in self.type_arguments(db).pairs() {
-            let new_val = match val {
-                TypeRef::Placeholder(id) => match id.value(db) {
-                    Some(TypeRef::Owned(TypeId::TraitInstance(ins)))
-                    | Some(TypeRef::Mut(TypeId::TraitInstance(ins)))
-                    | Some(TypeRef::Ref(TypeId::TraitInstance(ins)))
-                    | Some(TypeRef::Uni(TypeId::TraitInstance(ins)))
-                    | Some(TypeRef::RefUni(TypeId::TraitInstance(ins)))
-                    | Some(TypeRef::MutUni(TypeId::TraitInstance(ins)))
-                    | Some(TypeRef::Infer(TypeId::TraitInstance(ins)))
-                        if ins == self =>
-                    {
-                        TypeRef::Unknown
-                    }
-                    _ => val.inferred(db, context, immutable),
-                },
-                _ => val.inferred(db, context, immutable),
-            };
-
-            new_args.assign(arg, new_val);
+            new_args.assign(arg, val.inferred(db, context, immutable));
         }
 
         Self::generic(db, self.instance_of, new_args)
@@ -1952,7 +1967,7 @@ impl ClassInstance {
     fn inferred(
         self,
         db: &mut Database,
-        context: &TypeContext,
+        context: &mut TypeContext,
         immutable: bool,
     ) -> Self {
         if !self.instance_of.is_generic(db) {
@@ -1962,25 +1977,7 @@ impl ClassInstance {
         let mut new_args = TypeArguments::new();
 
         for (param, val) in self.type_arguments(db).pairs() {
-            let new_val = match val {
-                TypeRef::Placeholder(id) => match id.value(db) {
-                    Some(TypeRef::Owned(TypeId::ClassInstance(ins)))
-                    | Some(TypeRef::Mut(TypeId::ClassInstance(ins)))
-                    | Some(TypeRef::Ref(TypeId::ClassInstance(ins)))
-                    | Some(TypeRef::Uni(TypeId::ClassInstance(ins)))
-                    | Some(TypeRef::RefUni(TypeId::ClassInstance(ins)))
-                    | Some(TypeRef::MutUni(TypeId::ClassInstance(ins)))
-                    | Some(TypeRef::Infer(TypeId::ClassInstance(ins)))
-                        if ins == self =>
-                    {
-                        TypeRef::Unknown
-                    }
-                    _ => val.inferred(db, context, immutable),
-                },
-                _ => val.inferred(db, context, immutable),
-            };
-
-            new_args.assign(param, new_val);
+            new_args.assign(param, val.inferred(db, context, immutable));
         }
 
         Self::generic(db, self.instance_of, new_args)
@@ -3137,7 +3134,7 @@ impl ClosureId {
     fn inferred(
         self,
         db: &mut Database,
-        context: &TypeContext,
+        context: &mut TypeContext,
         immutable: bool,
     ) -> Self {
         let mut new_func = self.get(db).clone();
@@ -3790,10 +3787,16 @@ impl TypeRef {
     pub fn inferred(
         self,
         db: &mut Database,
-        context: &TypeContext,
+        context: &mut TypeContext,
         immutable: bool,
     ) -> TypeRef {
-        match self {
+        if context.depth == MAX_TYPE_DEPTH {
+            return TypeRef::Unknown;
+        }
+
+        context.depth += 1;
+
+        let result = match self {
             TypeRef::OwnedSelf => TypeRef::owned_or_ref(
                 self.infer_self_type_id(db, context),
                 immutable,
@@ -3955,7 +3958,10 @@ impl TypeRef {
                     || if immutable { self.as_ref(db) } else { self },
                 ),
             _ => self,
-        }
+        };
+
+        context.depth -= 1;
+        result
     }
 
     pub fn as_enum_instance(
@@ -4546,7 +4552,7 @@ impl TypeRef {
         self,
         type_parameter: TypeParameterId,
         db: &mut Database,
-        context: &TypeContext,
+        context: &mut TypeContext,
         immutable: bool,
     ) -> TypeRef {
         if let Some(arg) = context.type_arguments.get(type_parameter) {
@@ -8483,5 +8489,18 @@ mod tests {
         let db = Database::new();
 
         db.module("foo");
+    }
+
+    #[test]
+    fn test_type_placeholder_id_assign() {
+        let mut db = Database::new();
+        let p1 = TypePlaceholder::alloc(&mut db);
+        let p2 = TypePlaceholder::alloc(&mut db);
+
+        p1.assign(&db, TypeRef::Any);
+        p2.assign(&db, TypeRef::Placeholder(p2));
+
+        assert_eq!(p1.value(&db), Some(TypeRef::Any));
+        assert!(p2.value(&db).is_none());
     }
 }

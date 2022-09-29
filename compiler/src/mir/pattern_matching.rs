@@ -799,7 +799,7 @@ impl<'a> Compiler<'a> {
             return types.into_iter().map(|t| self.new_variable(t)).collect();
         }
 
-        let ctx = TypeContext::with_arguments(
+        let mut ctx = TypeContext::with_arguments(
             self.self_type,
             instance.type_arguments(self.db()).clone(),
         );
@@ -808,7 +808,7 @@ impl<'a> Compiler<'a> {
             .into_iter()
             .map(|raw_type| {
                 let inferred = raw_type
-                    .inferred(self.db_mut(), &ctx, false)
+                    .inferred(self.db_mut(), &mut ctx, false)
                     .cast_according_to(source_variable_type, self.db());
 
                 self.new_variable(inferred)
