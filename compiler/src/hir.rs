@@ -434,7 +434,6 @@ pub(crate) enum Expression {
     AssignVariable(Box<AssignVariable>),
     ReplaceVariable(Box<ReplaceVariable>),
     AsyncCall(Box<AsyncCall>),
-    Binary(Box<Binary>),
     Break(Box<Break>),
     BuiltinCall(Box<BuiltinCall>),
     Call(Box<Call>),
@@ -478,7 +477,6 @@ impl Expression {
             Expression::AssignVariable(ref n) => &n.location,
             Expression::ReplaceVariable(ref n) => &n.location,
             Expression::AsyncCall(ref n) => &n.location,
-            Expression::Binary(ref n) => &n.location,
             Expression::Break(ref n) => &n.location,
             Expression::BuiltinCall(ref n) => &n.location,
             Expression::Call(ref n) => &n.location,
@@ -691,15 +689,6 @@ impl Operator {
             Operator::Le => "<=",
         }
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct Binary {
-    pub(crate) info: Option<types::CallInfo>,
-    pub(crate) left: Expression,
-    pub(crate) right: Expression,
-    pub(crate) operator: Operator,
-    pub(crate) location: SourceLocation,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1795,12 +1784,12 @@ impl<'a> LowerToHir<'a> {
         let right = self.const_value(node.right);
         let location = node.location;
         let resolved_type = types::TypeRef::Unknown;
-        let operator = self.binary_operator(node.operator);
+        let operator = self.binary_operator(&node.operator);
 
         Box::new(ConstBinary { left, right, operator, resolved_type, location })
     }
 
-    fn binary_operator(&self, operator: ast::Operator) -> Operator {
+    fn binary_operator(&self, operator: &ast::Operator) -> Operator {
         // This isn't ideal, but I also don't want to introduce a standalone
         // Operator enum in its own module _just_ so we don't need this match.
         match operator.kind {
@@ -1858,7 +1847,7 @@ impl<'a> LowerToHir<'a> {
                 Expression::Float(self.float_literal(*node))
             }
             ast::Expression::Binary(node) => {
-                Expression::Binary(self.binary(*node))
+                Expression::Call(self.binary(*node, None))
             }
             ast::Expression::Field(node) => {
                 Expression::FieldRef(self.field_ref(*node))
@@ -1979,12 +1968,24 @@ impl<'a> LowerToHir<'a> {
         }
     }
 
-    fn binary(&mut self, node: ast::Binary) -> Box<Binary> {
-        Box::new(Binary {
-            info: None,
-            left: self.expression(node.left),
-            right: self.expression(node.right),
-            operator: self.binary_operator(node.operator),
+    fn binary(
+        &mut self,
+        node: ast::Binary,
+        else_block: Option<ElseBlock>,
+    ) -> Box<Call> {
+        let op = self.binary_operator(&node.operator);
+
+        Box::new(Call {
+            kind: types::CallKind::Unknown,
+            receiver: Some(self.expression(node.left)),
+            name: Identifier {
+                name: op.method_name().to_string(),
+                location: node.operator.location,
+            },
+            arguments: vec![Argument::Positional(Box::new(
+                self.expression(node.right),
+            ))],
+            else_block,
             location: node.location,
         })
     }
@@ -2197,6 +2198,7 @@ impl<'a> LowerToHir<'a> {
         &mut self,
         node: ast::BinaryAssignVariable,
     ) -> Box<AssignVariable> {
+        let op = self.binary_operator(&node.operator);
         let variable = self.identifier(node.variable);
         let receiver = Expression::IdentifierRef(Box::new(IdentifierRef {
             kind: types::IdentifierKind::Unknown,
@@ -2207,11 +2209,17 @@ impl<'a> LowerToHir<'a> {
         Box::new(AssignVariable {
             variable_id: None,
             variable,
-            value: Expression::Binary(Box::new(Binary {
-                info: None,
-                operator: self.binary_operator(node.operator),
-                left: receiver,
-                right: self.expression(node.value),
+            value: Expression::Call(Box::new(Call {
+                kind: types::CallKind::Unknown,
+                name: Identifier {
+                    name: op.method_name().to_string(),
+                    location: node.operator.location,
+                },
+                receiver: Some(receiver),
+                arguments: vec![Argument::Positional(Box::new(
+                    self.expression(node.value),
+                ))],
+                else_block: None,
                 location: node.location.clone(),
             })),
             resolved_type: types::TypeRef::Unknown,
@@ -2223,6 +2231,7 @@ impl<'a> LowerToHir<'a> {
         &mut self,
         node: ast::BinaryAssignField,
     ) -> Box<AssignField> {
+        let op = self.binary_operator(&node.operator);
         let field = self.field(node.field);
         let receiver = Expression::FieldRef(Box::new(FieldRef {
             field_id: None,
@@ -2234,11 +2243,17 @@ impl<'a> LowerToHir<'a> {
         Box::new(AssignField {
             field_id: None,
             field,
-            value: Expression::Binary(Box::new(Binary {
-                info: None,
-                operator: self.binary_operator(node.operator),
-                left: receiver,
-                right: self.expression(node.value),
+            value: Expression::Call(Box::new(Call {
+                kind: types::CallKind::Unknown,
+                name: Identifier {
+                    name: op.method_name().to_string(),
+                    location: node.operator.location,
+                },
+                receiver: Some(receiver),
+                arguments: vec![Argument::Positional(Box::new(
+                    self.expression(node.value),
+                ))],
+                else_block: None,
                 location: node.location.clone(),
             })),
             resolved_type: types::TypeRef::Unknown,
@@ -2261,6 +2276,7 @@ impl<'a> LowerToHir<'a> {
         &mut self,
         node: ast::BinaryAssignSetter,
     ) -> Box<AssignSetter> {
+        let op = self.binary_operator(&node.operator);
         let name = self.identifier(node.name);
         let setter_rec = self.expression(node.receiver);
         let getter_loc =
@@ -2278,11 +2294,17 @@ impl<'a> LowerToHir<'a> {
             kind: types::CallKind::Unknown,
             receiver: setter_rec,
             name,
-            value: Expression::Binary(Box::new(Binary {
-                info: None,
-                left: getter_rec,
-                right: self.expression(node.value),
-                operator: self.binary_operator(node.operator),
+            value: Expression::Call(Box::new(Call {
+                kind: types::CallKind::Unknown,
+                receiver: Some(getter_rec),
+                arguments: vec![Argument::Positional(Box::new(
+                    self.expression(node.value),
+                ))],
+                name: Identifier {
+                    name: op.method_name().to_string(),
+                    location: node.operator.location,
+                },
+                else_block: None,
                 location: node.location.clone(),
             })),
             else_block: None,
@@ -2586,6 +2608,9 @@ impl<'a> LowerToHir<'a> {
                     else_block: Some(else_block),
                     location,
                 }))
+            }
+            ast::Expression::Binary(node) => {
+                Expression::Call(self.binary(*node, Some(else_block)))
             }
             _ => {
                 let loc = try_block.value.location().clone();
@@ -4716,19 +4741,25 @@ mod tests {
 
         assert_eq!(
             hir,
-            Expression::Binary(Box::new(Binary {
-                info: None,
-                left: Expression::Int(Box::new(IntLiteral {
+            Expression::Call(Box::new(Call {
+                kind: types::CallKind::Unknown,
+                receiver: Some(Expression::Int(Box::new(IntLiteral {
                     value: 1,
                     resolved_type: types::TypeRef::Unknown,
                     location: cols(8, 8)
-                })),
-                right: Expression::Int(Box::new(IntLiteral {
-                    value: 2,
-                    resolved_type: types::TypeRef::Unknown,
-                    location: cols(12, 12)
-                })),
-                operator: Operator::Add,
+                }))),
+                arguments: vec![Argument::Positional(Box::new(
+                    Expression::Int(Box::new(IntLiteral {
+                        value: 2,
+                        resolved_type: types::TypeRef::Unknown,
+                        location: cols(12, 12)
+                    }))
+                ))],
+                name: Identifier {
+                    name: Operator::Add.method_name().to_string(),
+                    location: cols(10, 10)
+                },
+                else_block: None,
                 location: cols(8, 12)
             }))
         );
@@ -5178,19 +5209,27 @@ mod tests {
                     name: "a".to_string(),
                     location: cols(8, 8)
                 },
-                value: Expression::Binary(Box::new(Binary {
-                    info: None,
-                    left: Expression::IdentifierRef(Box::new(IdentifierRef {
-                        kind: types::IdentifierKind::Unknown,
-                        name: "a".to_string(),
-                        location: cols(8, 8)
-                    })),
-                    right: Expression::Int(Box::new(IntLiteral {
-                        value: 1,
-                        resolved_type: types::TypeRef::Unknown,
-                        location: cols(13, 13)
-                    })),
-                    operator: Operator::Add,
+                value: Expression::Call(Box::new(Call {
+                    kind: types::CallKind::Unknown,
+                    receiver: Some(Expression::IdentifierRef(Box::new(
+                        IdentifierRef {
+                            kind: types::IdentifierKind::Unknown,
+                            name: "a".to_string(),
+                            location: cols(8, 8)
+                        }
+                    ))),
+                    arguments: vec![Argument::Positional(Box::new(
+                        Expression::Int(Box::new(IntLiteral {
+                            value: 1,
+                            resolved_type: types::TypeRef::Unknown,
+                            location: cols(13, 13)
+                        }))
+                    ))],
+                    name: Identifier {
+                        name: Operator::Add.method_name().to_string(),
+                        location: cols(10, 11)
+                    },
+                    else_block: None,
                     location: cols(8, 13)
                 })),
                 resolved_type: types::TypeRef::Unknown,
@@ -5244,9 +5283,9 @@ mod tests {
                     name: "b".to_string(),
                     location: cols(10, 10)
                 },
-                value: Expression::Binary(Box::new(Binary {
-                    info: None,
-                    left: Expression::Call(Box::new(Call {
+                value: Expression::Call(Box::new(Call {
+                    kind: types::CallKind::Unknown,
+                    receiver: Some(Expression::Call(Box::new(Call {
                         kind: types::CallKind::Unknown,
                         receiver: Some(Expression::IdentifierRef(Box::new(
                             IdentifierRef {
@@ -5262,13 +5301,19 @@ mod tests {
                         arguments: Vec::new(),
                         else_block: None,
                         location: cols(8, 10)
-                    })),
-                    right: Expression::Int(Box::new(IntLiteral {
-                        resolved_type: types::TypeRef::Unknown,
-                        value: 1,
-                        location: cols(15, 15)
-                    })),
-                    operator: Operator::Add,
+                    }))),
+                    arguments: vec![Argument::Positional(Box::new(
+                        Expression::Int(Box::new(IntLiteral {
+                            resolved_type: types::TypeRef::Unknown,
+                            value: 1,
+                            location: cols(15, 15)
+                        }))
+                    ))],
+                    name: Identifier {
+                        name: Operator::Add.method_name().to_string(),
+                        location: cols(12, 13)
+                    },
+                    else_block: None,
                     location: cols(8, 15)
                 })),
                 else_block: None,
@@ -5286,20 +5331,26 @@ mod tests {
             Expression::AssignField(Box::new(AssignField {
                 field_id: None,
                 field: Field { name: "a".to_string(), location: cols(8, 9) },
-                value: Expression::Binary(Box::new(Binary {
-                    info: None,
-                    left: Expression::FieldRef(Box::new(FieldRef {
+                value: Expression::Call(Box::new(Call {
+                    kind: types::CallKind::Unknown,
+                    receiver: Some(Expression::FieldRef(Box::new(FieldRef {
                         field_id: None,
                         name: "a".to_string(),
                         resolved_type: types::TypeRef::Unknown,
                         location: cols(8, 9)
-                    })),
-                    right: Expression::Int(Box::new(IntLiteral {
-                        value: 1,
-                        resolved_type: types::TypeRef::Unknown,
-                        location: cols(14, 14)
-                    })),
-                    operator: Operator::Add,
+                    }))),
+                    arguments: vec![Argument::Positional(Box::new(
+                        Expression::Int(Box::new(IntLiteral {
+                            value: 1,
+                            resolved_type: types::TypeRef::Unknown,
+                            location: cols(14, 14)
+                        }))
+                    ))],
+                    name: Identifier {
+                        name: Operator::Add.method_name().to_string(),
+                        location: cols(11, 12)
+                    },
+                    else_block: None,
                     location: cols(8, 14)
                 })),
                 resolved_type: types::TypeRef::Unknown,

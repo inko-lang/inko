@@ -1342,7 +1342,6 @@ impl<'a> LowerMethod<'a> {
             hir::Expression::AssignVariable(n) => self.assign_variable(*n),
             hir::Expression::ReplaceVariable(n) => self.replace_variable(*n),
             hir::Expression::AsyncCall(n) => self.async_call(*n),
-            hir::Expression::Binary(n) => self.binary_call(*n),
             hir::Expression::Break(n) => self.break_expression(*n),
             hir::Expression::BuiltinCall(n) => self.builtin_call(*n),
             hir::Expression::Call(n) => self.call(*n),
@@ -2094,32 +2093,6 @@ impl<'a> LowerMethod<'a> {
             block.call_dynamic(rec, info.id, args, loc);
         } else {
             block.call(rec, info.id, args, loc);
-        }
-
-        block.reduce_call(loc);
-        block.move_result(reg, loc);
-
-        self.exit_call_scope(entered, reg);
-        reg
-    }
-
-    fn binary_call(&mut self, node: hir::Binary) -> RegisterId {
-        let info = node.info.unwrap();
-
-        self.verify_call_info(&info, &node.location);
-
-        let entered = self.enter_call_scope();
-        let exp = self.expected_argument_type(info.id, 0);
-        let left = self.expression(node.left);
-        let loc = self.add_location(node.location);
-        let args = vec![self.input_expression(node.right, Some(exp))];
-        let reg = self.new_register(info.returns);
-        let block = self.current_block_mut();
-
-        if info.dynamic {
-            block.call_dynamic(left, info.id, args, loc);
-        } else {
-            block.call(left, info.id, args, loc);
         }
 
         block.reduce_call(loc);

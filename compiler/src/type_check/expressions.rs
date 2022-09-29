@@ -1280,7 +1280,6 @@ impl<'a> CheckMethodBody<'a> {
                 self.replace_variable(n, scope)
             }
             hir::Expression::AsyncCall(ref mut n) => self.async_call(n, scope),
-            hir::Expression::Binary(ref mut n) => self.binary(n, scope),
             hir::Expression::Break(ref n) => self.break_expression(n, scope),
             hir::Expression::BuiltinCall(ref mut n) => {
                 self.builtin_call(n, scope)
@@ -2950,43 +2949,6 @@ impl<'a> CheckMethodBody<'a> {
 
         scope.mark_closures_as_capturing_self(self.db_mut());
         Some((field, var_type))
-    }
-
-    fn binary(
-        &mut self,
-        node: &mut hir::Binary,
-        scope: &mut LexicalScope,
-    ) -> TypeRef {
-        let left = self.expression(&mut node.left, scope);
-        let name = node.operator.method_name();
-        let (left_id, method) = if let Some(found) =
-            self.lookup_method(left, name, &node.location, false)
-        {
-            found
-        } else {
-            return TypeRef::Error;
-        };
-
-        let mut call =
-            MethodCall::new(self.state, self.module, left, left_id, method);
-
-        call.check_mutability(self.state, &node.location);
-        call.check_bounded_implementation(self.state, &node.location);
-        self.positional_argument(&mut call, 0, &mut node.right, scope);
-        call.check_argument_count(self.state, &node.location);
-        call.update_receiver_type_arguments(self.state, scope.surrounding_type);
-
-        let returns = call.return_type(self.state, &node.location);
-
-        node.info = Some(CallInfo {
-            id: method,
-            receiver: Receiver::Explicit,
-            returns,
-            throws: TypeRef::Never,
-            dynamic: left_id.use_dynamic_dispatch(),
-        });
-
-        returns
     }
 
     fn loop_expression(
