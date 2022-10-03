@@ -3239,6 +3239,10 @@ impl ClosureId {
     fn as_rigid_type(self, db: &mut Database, bounds: &TypeBounds) -> Self {
         let mut new_func = self.get(db).clone();
 
+        for arg in new_func.arguments.mapping.values_mut() {
+            arg.value_type = arg.value_type.as_rigid_type(db, bounds);
+        }
+
         new_func.throw_type = new_func.throw_type.as_rigid_type(db, bounds);
         new_func.return_type = new_func.return_type.as_rigid_type(db, bounds);
 
@@ -7287,7 +7291,7 @@ mod tests {
 
         let new_arg = new_closure.get(&db).arguments.get("a").unwrap();
 
-        assert_eq!(new_arg.value_type, param_type);
+        assert_eq!(new_arg.value_type, param.as_owned_rigid(),);
         assert_eq!(
             new_closure.throw_type(&db),
             TypeParameterId(0).as_owned_rigid()

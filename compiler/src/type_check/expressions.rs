@@ -1542,8 +1542,8 @@ impl<'a> CheckMethodBody<'a> {
             ClassInstance::new(class)
         };
 
-        let ins_id = TypeId::ClassInstance(ins);
-        let mut ctx = TypeContext::new(ins_id);
+        let mut ctx =
+            TypeContext::for_class_instance(self.db(), self.self_type, ins);
         let mut assigned = HashSet::new();
 
         for field in &mut node.fields {
@@ -1626,7 +1626,7 @@ impl<'a> CheckMethodBody<'a> {
         ins.copy_new_arguments_from(self.db_mut(), &ctx.type_arguments);
 
         node.class_id = Some(class);
-        node.resolved_type = TypeRef::Owned(ins_id);
+        node.resolved_type = TypeRef::Owned(TypeId::ClassInstance(ins));
         node.resolved_type
     }
 
