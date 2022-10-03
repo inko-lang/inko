@@ -8,7 +8,7 @@ pub mod module_name;
 use crate::collections::IndexMap;
 use crate::module_name::ModuleName;
 use bytecode::{BuiltinFunction as BIF, Opcode};
-use std::cell::{Cell, UnsafeCell};
+use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
@@ -84,6 +84,17 @@ pub const VARIANTS_LIMIT: usize = u16::MAX as usize;
 pub const FIELDS_LIMIT: usize = u8::MAX as usize;
 
 const MAX_FORMATTING_DEPTH: usize = 8;
+
+/// The maximum recursion/depth to restrict ourselves to when inferring types or
+/// checking if they are inferred.
+///
+/// In certain cases we may end up with cyclic types, where the cycles are
+/// non-trivial (e.g. `A -> B -> C -> D -> A`). To prevent runaway recursion we
+/// limit such operations to a certain depth.
+///
+/// The depth here is sufficiently large that no sane program should run into
+/// it, but we also won't blow the stack.
+const MAX_TYPE_DEPTH: usize = 64;
 
 pub fn format_type<T: FormatType>(db: &Database, typ: T) -> String {
     TypeFormatter::new(db, None, None).format(typ)
@@ -289,10 +300,7 @@ pub struct TypePlaceholder {
     /// inferring of that type doesn't affect values at index 1, 2, etc. By
     /// recording `ours` here, updating `id` also updates `ours`, without
     /// introducing a placeholder cycle.
-    ///
-    /// Truth be told, this setup is a bit of a hack and hopefully a better
-    /// solution presents itself in the future.
-    depending: UnsafeCell<Vec<TypePlaceholderId>>,
+    depending: Vec<TypePlaceholderId>,
 }
 
 impl TypePlaceholder {
@@ -300,7 +308,7 @@ impl TypePlaceholder {
         let id = db.type_placeholders.len();
         let typ = TypePlaceholder {
             value: Cell::new(TypeRef::Unknown),
-            depending: UnsafeCell::new(Vec::new()),
+            depending: Vec::new(),
         };
 
         db.type_placeholders.push(typ);
@@ -319,14 +327,22 @@ impl TypePlaceholderId {
         }
     }
 
-    fn add_depending(self, db: &Database, placeholder: TypePlaceholderId) {
-        self.depending(db).push(placeholder);
+    fn add_depending(self, db: &mut Database, placeholder: TypePlaceholderId) {
+        self.get_mut(db).depending.push(placeholder);
     }
 
     fn assign(self, db: &Database, value: TypeRef) {
+        // Assigning placeholders to themselves creates cycles that aren't
+        // useful, so we ignore those.
+        if let TypeRef::Placeholder(id) = value {
+            if id.0 == self.0 {
+                return;
+            }
+        }
+
         self.get(db).value.set(value);
 
-        for &mut id in self.depending(db) {
+        for &id in &self.get(db).depending {
             id.get(db).value.set(value);
         }
     }
@@ -335,9 +351,8 @@ impl TypePlaceholderId {
         &db.type_placeholders[self.0]
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::mut_from_ref))]
-    fn depending(self, db: &Database) -> &mut Vec<TypePlaceholderId> {
-        unsafe { &mut *self.get(db).depending.get() }
+    fn get_mut(self, db: &mut Database) -> &mut TypePlaceholder {
+        &mut db.type_placeholders[self.0]
     }
 }
 
@@ -352,6 +367,7 @@ impl FormatType for TypePlaceholderId {
 }
 
 /// A collection of values needed when checking and substituting types.
+#[derive(Clone)]
 pub struct TypeContext {
     /// The type of `Self`.
     ///
@@ -371,28 +387,42 @@ pub struct TypeContext {
     /// When type-checking a method call, this table contains the type
     /// parameters and values of both the receiver and the method itself.
     pub type_arguments: TypeArguments,
+
+    /// The nesting/recursion depth when e.g. inferring a type.
+    ///
+    /// This value is used to prevent runaway recursion that can occur when
+    /// dealing with (complex) cyclic types.
+    depth: usize,
 }
 
 impl TypeContext {
     pub fn new(self_type_id: TypeId) -> Self {
-        Self { self_type: self_type_id, type_arguments: TypeArguments::new() }
+        Self {
+            self_type: self_type_id,
+            type_arguments: TypeArguments::new(),
+            depth: 0,
+        }
     }
 
-    pub fn for_class_instance(db: &Database, instance: ClassInstance) -> Self {
+    pub fn for_class_instance(
+        db: &Database,
+        self_type: TypeId,
+        instance: ClassInstance,
+    ) -> Self {
         let type_arguments = if instance.instance_of().is_generic(db) {
             instance.type_arguments(db).clone()
         } else {
             TypeArguments::new()
         };
 
-        Self { self_type: TypeId::ClassInstance(instance), type_arguments }
+        Self { self_type, type_arguments, depth: 0 }
     }
 
     pub fn with_arguments(
         self_type_id: TypeId,
         type_arguments: TypeArguments,
     ) -> Self {
-        Self { self_type: self_type_id, type_arguments }
+        Self { self_type: self_type_id, type_arguments, depth: 0 }
     }
 }
 
@@ -454,10 +484,10 @@ impl TypeParameterId {
 
     fn all_requirements_met(
         self,
-        db: &Database,
-        func: impl FnMut(&TraitInstance) -> bool,
+        db: &mut Database,
+        mut func: impl FnMut(&mut Database, TraitInstance) -> bool,
     ) -> bool {
-        self.get(db).requirements.iter().all(func)
+        self.get(db).requirements.clone().into_iter().all(|r| func(db, r))
     }
 
     fn get(self, db: &Database) -> &TypeParameter {
@@ -470,7 +500,7 @@ impl TypeParameterId {
 
     fn type_check(
         self,
-        db: &Database,
+        db: &mut Database,
         with: TypeId,
         context: &mut TypeContext,
         subtyping: bool,
@@ -486,24 +516,24 @@ impl TypeParameterId {
 
     fn type_check_with_type_parameter(
         self,
-        db: &Database,
+        db: &mut Database,
         with: TypeParameterId,
         context: &mut TypeContext,
         subtyping: bool,
     ) -> bool {
-        with.all_requirements_met(db, |&req| {
+        with.all_requirements_met(db, |db, req| {
             self.type_check_with_trait_instance(db, req, context, subtyping)
         })
     }
 
     fn type_check_with_trait_instance(
         self,
-        db: &Database,
+        db: &mut Database,
         instance: TraitInstance,
         context: &mut TypeContext,
         subtyping: bool,
     ) -> bool {
-        self.get(db).requirements.iter().any(|req| {
+        self.get(db).requirements.clone().into_iter().any(|req| {
             req.type_check_with_trait_instance(
                 db, instance, None, context, subtyping,
             )
@@ -544,6 +574,7 @@ impl FormatType for TypeParameterId {
         // going to win any awards, but it should ensure we don't blow the stack
         // when trying to format recursive type parameters, such as
         // `T -> placeholder -> T`.
+
         if let Some(arg) = buffer.type_arguments.and_then(|a| a.get(*self)) {
             if let TypeRef::Placeholder(p) = arg {
                 match p.value(buffer.db) {
@@ -966,7 +997,7 @@ impl TraitInstance {
 
     fn type_check(
         self,
-        db: &Database,
+        db: &mut Database,
         with: TypeId,
         context: &mut TypeContext,
         subtyping: bool,
@@ -975,18 +1006,20 @@ impl TraitInstance {
             TypeId::TraitInstance(ins) => self.type_check_with_trait_instance(
                 db, ins, None, context, subtyping,
             ),
-            TypeId::TypeParameter(id) => id.all_requirements_met(db, |&req| {
-                self.type_check_with_trait_instance(
-                    db, req, None, context, subtyping,
-                )
-            }),
+            TypeId::TypeParameter(id) => {
+                id.all_requirements_met(db, |db, req| {
+                    self.type_check_with_trait_instance(
+                        db, req, None, context, subtyping,
+                    )
+                })
+            }
             _ => false,
         }
     }
 
     fn type_check_with_trait_instance(
         self,
-        db: &Database,
+        db: &mut Database,
         instance: TraitInstance,
         arguments: Option<&TypeArguments>,
         context: &mut TypeContext,
@@ -994,11 +1027,16 @@ impl TraitInstance {
     ) -> bool {
         if self.instance_of != instance.instance_of {
             return if subtyping {
-                self.instance_of.get(db).required_traits.iter().any(|req| {
-                    req.type_check_with_trait_instance(
-                        db, instance, None, context, subtyping,
-                    )
-                })
+                self.instance_of
+                    .get(db)
+                    .required_traits
+                    .clone()
+                    .into_iter()
+                    .any(|req| {
+                        req.type_check_with_trait_instance(
+                            db, instance, None, context, subtyping,
+                        )
+                    })
             } else {
                 false
             };
@@ -1010,36 +1048,40 @@ impl TraitInstance {
             return true;
         }
 
-        let our_args = self.type_arguments(db);
-        let their_args = instance.type_arguments(db);
+        let our_args = self.type_arguments(db).clone();
+        let their_args = instance.type_arguments(db).clone();
 
         // If additional type arguments are given (e.g. when comparing a generic
         // class instance to a trait), we need to remap the implementation
         // arguments accordingly. This way if `Box[T]` implements `Iter[T]`, for
         // a `Box[Int]` we produce a `Iter[Int]` rather than an `Iter[T]`.
         if let Some(args) = arguments {
-            our_trait.type_parameters.values().iter().all(|&param| {
-                our_args
-                    .get(param)
-                    .zip(their_args.get(param))
-                    .map(|(ours, theirs)| {
-                        ours.as_type_parameter()
-                            .and_then(|id| args.get(id))
-                            .unwrap_or(ours)
-                            .type_check(db, theirs, context, subtyping)
-                    })
-                    .unwrap_or(false)
-            })
+            our_trait.type_parameters.values().clone().into_iter().all(
+                |param| {
+                    our_args
+                        .get(param)
+                        .zip(their_args.get(param))
+                        .map(|(ours, theirs)| {
+                            ours.as_type_parameter()
+                                .and_then(|id| args.get(id))
+                                .unwrap_or(ours)
+                                .type_check(db, theirs, context, subtyping)
+                        })
+                        .unwrap_or(false)
+                },
+            )
         } else {
-            our_trait.type_parameters.values().iter().all(|&param| {
-                our_args
-                    .get(param)
-                    .zip(their_args.get(param))
-                    .map(|(ours, theirs)| {
-                        ours.type_check(db, theirs, context, subtyping)
-                    })
-                    .unwrap_or(false)
-            })
+            our_trait.type_parameters.values().clone().into_iter().all(
+                |param| {
+                    our_args
+                        .get(param)
+                        .zip(their_args.get(param))
+                        .map(|(ours, theirs)| {
+                            ours.type_check(db, theirs, context, subtyping)
+                        })
+                        .unwrap_or(false)
+                },
+            )
         }
     }
 
@@ -1049,15 +1091,17 @@ impl TraitInstance {
 
     fn implements_trait_instance(
         self,
-        db: &Database,
+        db: &mut Database,
         instance: TraitInstance,
         context: &mut TypeContext,
     ) -> bool {
-        self.instance_of.get(db).required_traits.iter().any(|req| {
-            req.type_check_with_trait_instance(
-                db, instance, None, context, true,
-            )
-        })
+        self.instance_of.get(db).required_traits.clone().into_iter().any(
+            |req| {
+                req.type_check_with_trait_instance(
+                    db, instance, None, context, true,
+                )
+            },
+        )
     }
 
     fn implements_trait_id(self, db: &Database, trait_id: TraitId) -> bool {
@@ -1081,7 +1125,7 @@ impl TraitInstance {
     fn inferred(
         self,
         db: &mut Database,
-        context: &TypeContext,
+        context: &mut TypeContext,
         immutable: bool,
     ) -> Self {
         if !self.instance_of.is_generic(db) {
@@ -1091,25 +1135,7 @@ impl TraitInstance {
         let mut new_args = TypeArguments::new();
 
         for (arg, val) in self.type_arguments(db).pairs() {
-            let new_val = match val {
-                TypeRef::Placeholder(id) => match id.value(db) {
-                    Some(TypeRef::Owned(TypeId::TraitInstance(ins)))
-                    | Some(TypeRef::Mut(TypeId::TraitInstance(ins)))
-                    | Some(TypeRef::Ref(TypeId::TraitInstance(ins)))
-                    | Some(TypeRef::Uni(TypeId::TraitInstance(ins)))
-                    | Some(TypeRef::RefUni(TypeId::TraitInstance(ins)))
-                    | Some(TypeRef::MutUni(TypeId::TraitInstance(ins)))
-                    | Some(TypeRef::Infer(TypeId::TraitInstance(ins)))
-                        if ins == self =>
-                    {
-                        TypeRef::Unknown
-                    }
-                    _ => val.inferred(db, context, immutable),
-                },
-                _ => val.inferred(db, context, immutable),
-            };
-
-            new_args.assign(arg, new_val);
+            new_args.assign(arg, val.inferred(db, context, immutable));
         }
 
         Self::generic(db, self.instance_of, new_args)
@@ -1233,6 +1259,7 @@ impl TypeBounds {
 
 /// An implementation of a trait, with (optionally) additional bounds for the
 /// implementation.
+#[derive(Clone)]
 pub struct TraitImplementation {
     pub instance: TraitInstance,
     pub bounds: TypeBounds,
@@ -1826,7 +1853,7 @@ impl ClassInstance {
 
     pub fn type_check_with_trait_instance(
         self,
-        db: &Database,
+        db: &mut Database,
         instance: TraitInstance,
         context: &mut TypeContext,
         subtyping: bool,
@@ -1835,18 +1862,37 @@ impl ClassInstance {
             return false;
         }
 
-        let trait_impl = if let Some(found) =
-            self.instance_of.trait_implementation(db, instance.instance_of)
+        let trait_impl = if let Some(found) = self
+            .instance_of
+            .trait_implementation(db, instance.instance_of)
+            .cloned()
         {
             found
         } else {
             return false;
         };
 
+        let mut trait_instance = trait_impl.instance;
+
+        if self.instance_of.is_generic(db)
+            && trait_instance.instance_of.is_generic(db)
+        {
+            // The generic trait implementation may refer to (or contain a type
+            // that refers) to a type parameter defined in our class. If we end
+            // up comparing such a type parameter, we must compare its assigned
+            // value instead if there is any.
+            //
+            // To achieve this we must first expose the type parameter
+            // assignments in the context, then infer the trait instance into a
+            // type that uses those assignments (if needed).
+            self.type_arguments(db).copy_into(&mut context.type_arguments);
+            trait_instance = trait_instance.inferred(db, context, false);
+        }
+
         let args = if self.instance_of.is_generic(db) {
-            let args = self.type_arguments(db);
+            let args = self.type_arguments(db).clone();
             let available =
-                trait_impl.bounds.mapping.iter().all(|(&orig, &bound)| {
+                trait_impl.bounds.mapping.into_iter().all(|(orig, bound)| {
                     args.get(orig).map_or(false, |t| {
                         t.is_compatible_with_type_parameter(db, bound, context)
                     })
@@ -1861,8 +1907,12 @@ impl ClassInstance {
             None
         };
 
-        trait_impl.instance.type_check_with_trait_instance(
-            db, instance, args, context, subtyping,
+        trait_instance.type_check_with_trait_instance(
+            db,
+            instance,
+            args.as_ref(),
+            context,
+            subtyping,
         )
     }
 
@@ -1882,7 +1932,7 @@ impl ClassInstance {
 
     fn type_check(
         self,
-        db: &Database,
+        db: &mut Database,
         with: TypeId,
         context: &mut TypeContext,
         subtyping: bool,
@@ -1899,8 +1949,8 @@ impl ClassInstance {
                     return true;
                 }
 
-                let our_args = self.type_arguments(db);
-                let their_args = ins.type_arguments(db);
+                let our_args = self.type_arguments(db).clone();
+                let their_args = ins.type_arguments(db).clone();
 
                 if our_args.mapping.is_empty() {
                     // Empty types are compatible with those that do have
@@ -1911,22 +1961,28 @@ impl ClassInstance {
                     return true;
                 }
 
-                our_class.type_parameters.values().iter().all(|&param| {
-                    our_args
-                        .get(param)
-                        .zip(their_args.get(param))
-                        .map(|(ours, theirs)| {
-                            ours.type_check(db, theirs, context, subtyping)
-                        })
-                        .unwrap_or(false)
-                })
+                our_class.type_parameters.values().clone().into_iter().all(
+                    |param| {
+                        our_args
+                            .get(param)
+                            .zip(their_args.get(param))
+                            .map(|(ours, theirs)| {
+                                ours.type_check(db, theirs, context, subtyping)
+                            })
+                            .unwrap_or(false)
+                    },
+                )
             }
             TypeId::TraitInstance(ins) => {
                 self.type_check_with_trait_instance(db, ins, context, subtyping)
             }
-            TypeId::TypeParameter(id) => id.all_requirements_met(db, |&req| {
-                self.type_check_with_trait_instance(db, req, context, subtyping)
-            }),
+            TypeId::TypeParameter(id) => {
+                id.all_requirements_met(db, |db, req| {
+                    self.type_check_with_trait_instance(
+                        db, req, context, subtyping,
+                    )
+                })
+            }
             _ => false,
         }
     }
@@ -1952,7 +2008,7 @@ impl ClassInstance {
     fn inferred(
         self,
         db: &mut Database,
-        context: &TypeContext,
+        context: &mut TypeContext,
         immutable: bool,
     ) -> Self {
         if !self.instance_of.is_generic(db) {
@@ -1962,25 +2018,7 @@ impl ClassInstance {
         let mut new_args = TypeArguments::new();
 
         for (param, val) in self.type_arguments(db).pairs() {
-            let new_val = match val {
-                TypeRef::Placeholder(id) => match id.value(db) {
-                    Some(TypeRef::Owned(TypeId::ClassInstance(ins)))
-                    | Some(TypeRef::Mut(TypeId::ClassInstance(ins)))
-                    | Some(TypeRef::Ref(TypeId::ClassInstance(ins)))
-                    | Some(TypeRef::Uni(TypeId::ClassInstance(ins)))
-                    | Some(TypeRef::RefUni(TypeId::ClassInstance(ins)))
-                    | Some(TypeRef::MutUni(TypeId::ClassInstance(ins)))
-                    | Some(TypeRef::Infer(TypeId::ClassInstance(ins)))
-                        if ins == self =>
-                    {
-                        TypeRef::Unknown
-                    }
-                    _ => val.inferred(db, context, immutable),
-                },
-                _ => val.inferred(db, context, immutable),
-            };
-
-            new_args.assign(param, new_val);
+            new_args.assign(param, val.inferred(db, context, immutable));
         }
 
         Self::generic(db, self.instance_of, new_args)
@@ -2051,7 +2089,7 @@ impl Arguments {
 
     fn type_check(
         &self,
-        db: &Database,
+        db: &mut Database,
         with: &Arguments,
         context: &mut TypeContext,
         same_name: bool,
@@ -2370,7 +2408,7 @@ impl MethodId {
 
     pub fn type_check(
         self,
-        db: &Database,
+        db: &mut Database,
         with: MethodId,
         context: &mut TypeContext,
     ) -> bool {
@@ -2389,30 +2427,71 @@ impl MethodId {
             return false;
         }
 
+        // These checks are performed in separate methods so we can avoid
+        // borrowing conflicts of the type database.
+        self.type_check_type_parameters(db, with, context)
+            && self.type_check_arguments(db, with, context)
+            && self.type_check_throw_type(db, with, context)
+            && self.type_check_return_type(db, with, context)
+    }
+
+    fn type_check_type_parameters(
+        self,
+        db: &mut Database,
+        with: MethodId,
+        context: &mut TypeContext,
+    ) -> bool {
+        let ours = self.get(db);
+        let theirs = with.get(db);
+
         if ours.type_parameters.len() != theirs.type_parameters.len() {
             return false;
         }
 
-        for (ours, &theirs) in ours
-            .type_parameters
+        ours.type_parameters
             .values()
-            .iter()
-            .zip(theirs.type_parameters.values().iter())
-        {
-            if !ours.type_check_with_type_parameter(db, theirs, context, false)
-            {
-                return false;
-            }
-        }
+            .clone()
+            .into_iter()
+            .zip(theirs.type_parameters.values().clone().into_iter())
+            .all(|(ours, theirs)| {
+                ours.type_check_with_type_parameter(db, theirs, context, false)
+            })
+    }
 
-        ours.arguments.type_check(db, &theirs.arguments, context, true)
-            && ours.throw_type.type_check(db, theirs.throw_type, context, true)
-            && ours.return_type.type_check(
-                db,
-                theirs.return_type,
-                context,
-                true,
-            )
+    fn type_check_arguments(
+        self,
+        db: &mut Database,
+        with: MethodId,
+        context: &mut TypeContext,
+    ) -> bool {
+        let ours = self.get(db).arguments.clone();
+        let theirs = with.get(db).arguments.clone();
+
+        ours.type_check(db, &theirs, context, true)
+    }
+
+    fn type_check_return_type(
+        self,
+        db: &mut Database,
+        with: MethodId,
+        context: &mut TypeContext,
+    ) -> bool {
+        let ours = self.get(db).return_type;
+        let theirs = with.get(db).return_type;
+
+        ours.type_check(db, theirs, context, true)
+    }
+
+    fn type_check_throw_type(
+        self,
+        db: &mut Database,
+        with: MethodId,
+        context: &mut TypeContext,
+    ) -> bool {
+        let ours = self.get(db).throw_type;
+        let theirs = with.get(db).throw_type;
+
+        ours.type_check(db, theirs, context, true)
     }
 
     pub fn name(self, db: &Database) -> &String {
@@ -3087,22 +3166,16 @@ impl ClosureId {
 
     fn type_check(
         self,
-        db: &Database,
+        db: &mut Database,
         with: TypeId,
         context: &mut TypeContext,
         subtyping: bool,
     ) -> bool {
         match with {
-            TypeId::Closure(their_id) => {
-                let lhs = self.get(db);
-                let rhs = their_id.get(db);
-                let err = lhs.throw_type;
-                let ret = lhs.return_type;
-
-                // Arguments never allow subtyping, as this isn't type-safe.
-                lhs.arguments.type_check(db, &rhs.arguments, context, false)
-                    && err.type_check(db, rhs.throw_type, context, subtyping)
-                    && ret.type_check(db, rhs.return_type, context, subtyping)
+            TypeId::Closure(with) => {
+                self.type_check_arguments(db, with, context)
+                    && self.type_check_throw_type(db, with, context, subtyping)
+                    && self.type_check_return_type(db, with, context, subtyping)
             }
             // Implementing traits for closures with a specific signature (e.g.
             // `impl ToString for do -> X`) isn't supported. Even if it was, it
@@ -3115,6 +3188,44 @@ impl ClosureId {
             TypeId::TypeParameter(id) => id.get(db).requirements.is_empty(),
             _ => false,
         }
+    }
+
+    fn type_check_arguments(
+        self,
+        db: &mut Database,
+        with: ClosureId,
+        context: &mut TypeContext,
+    ) -> bool {
+        let ours = self.get(db).arguments.clone();
+        let theirs = with.get(db).arguments.clone();
+
+        ours.type_check(db, &theirs, context, false)
+    }
+
+    fn type_check_return_type(
+        self,
+        db: &mut Database,
+        with: ClosureId,
+        context: &mut TypeContext,
+        subtyping: bool,
+    ) -> bool {
+        let ours = self.get(db).return_type;
+        let theirs = with.get(db).return_type;
+
+        ours.type_check(db, theirs, context, subtyping)
+    }
+
+    fn type_check_throw_type(
+        self,
+        db: &mut Database,
+        with: ClosureId,
+        context: &mut TypeContext,
+        subtyping: bool,
+    ) -> bool {
+        let ours = self.get(db).throw_type;
+        let theirs = with.get(db).throw_type;
+
+        ours.type_check(db, theirs, context, subtyping)
     }
 
     fn get(self, db: &Database) -> &Closure {
@@ -3137,7 +3248,7 @@ impl ClosureId {
     fn inferred(
         self,
         db: &mut Database,
-        context: &TypeContext,
+        context: &mut TypeContext,
         immutable: bool,
     ) -> Self {
         let mut new_func = self.get(db).clone();
@@ -3790,10 +3901,16 @@ impl TypeRef {
     pub fn inferred(
         self,
         db: &mut Database,
-        context: &TypeContext,
+        context: &mut TypeContext,
         immutable: bool,
     ) -> TypeRef {
-        match self {
+        if context.depth == MAX_TYPE_DEPTH {
+            return TypeRef::Unknown;
+        }
+
+        context.depth += 1;
+
+        let result = match self {
             TypeRef::OwnedSelf => TypeRef::owned_or_ref(
                 self.infer_self_type_id(db, context),
                 immutable,
@@ -3955,7 +4072,10 @@ impl TypeRef {
                     || if immutable { self.as_ref(db) } else { self },
                 ),
             _ => self,
-        }
+        };
+
+        context.depth -= 1;
+        result
     }
 
     pub fn as_enum_instance(
@@ -4035,7 +4155,7 @@ impl TypeRef {
 
     pub fn is_compatible_with_type_parameter(
         self,
-        db: &Database,
+        db: &mut Database,
         parameter: TypeParameterId,
         context: &mut TypeContext,
     ) -> bool {
@@ -4047,7 +4167,7 @@ impl TypeRef {
 
     pub fn allow_cast_to(
         self,
-        db: &Database,
+        db: &mut Database,
         with: TypeRef,
         context: &mut TypeContext,
     ) -> bool {
@@ -4073,7 +4193,7 @@ impl TypeRef {
 
     pub fn implements_trait_instance(
         self,
-        db: &Database,
+        db: &mut Database,
         trait_type: TraitInstance,
         context: &mut TypeContext,
     ) -> bool {
@@ -4218,7 +4338,7 @@ impl TypeRef {
 
     pub fn type_check(
         self,
-        db: &Database,
+        db: &mut Database,
         with: TypeRef,
         context: &mut TypeContext,
         subtyping: bool,
@@ -4262,7 +4382,7 @@ impl TypeRef {
 
     fn type_check_with_type_parameter(
         self,
-        db: &Database,
+        db: &mut Database,
         with: TypeRef,
         param: TypeParameterId,
         context: &mut TypeContext,
@@ -4331,7 +4451,7 @@ impl TypeRef {
 
     fn type_check_directly(
         self,
-        db: &Database,
+        db: &mut Database,
         with: TypeRef,
         context: &mut TypeContext,
         subtyping: bool,
@@ -4546,7 +4666,7 @@ impl TypeRef {
         self,
         type_parameter: TypeParameterId,
         db: &mut Database,
-        context: &TypeContext,
+        context: &mut TypeContext,
         immutable: bool,
     ) -> TypeRef {
         if let Some(arg) = context.type_arguments.get(type_parameter) {
@@ -4713,7 +4833,7 @@ impl TypeId {
 
     pub fn implements_trait_instance(
         self,
-        db: &Database,
+        db: &mut Database,
         trait_type: TraitInstance,
         context: &mut TypeContext,
     ) -> bool {
@@ -4799,7 +4919,7 @@ impl TypeId {
 
     fn type_check(
         self,
-        db: &Database,
+        db: &mut Database,
         with: TypeId,
         context: &mut TypeContext,
         subtyping: bool,
@@ -5052,9 +5172,14 @@ mod tests {
         let p3 = TypeParameter::alloc(&mut db, "C".to_string());
         let mut ctx = TypeContext::new(self_type);
 
-        assert!(p1.type_check(&db, TypeId::TypeParameter(p2), &mut ctx, false));
+        assert!(p1.type_check(
+            &mut db,
+            TypeId::TypeParameter(p2),
+            &mut ctx,
+            false
+        ));
         assert!(!p1.type_check(
-            &db,
+            &mut db,
             TypeId::RigidTypeParameter(p3),
             &mut ctx,
             false
@@ -5086,7 +5211,12 @@ mod tests {
 
         let mut ctx = TypeContext::new(self_type);
 
-        assert!(p1.type_check(&db, TypeId::TypeParameter(p2), &mut ctx, false));
+        assert!(p1.type_check(
+            &mut db,
+            TypeId::TypeParameter(p2),
+            &mut ctx,
+            false
+        ));
     }
 
     #[test]
@@ -5222,25 +5352,25 @@ mod tests {
         let mut ctx = TypeContext::new(self_type);
 
         assert!(ins1.type_check(
-            &db,
+            &mut db,
             TypeId::TraitInstance(ins2),
             &mut ctx,
             false
         ));
         assert!(!ins1.type_check(
-            &db,
+            &mut db,
             TypeId::TraitInstance(ins3),
             &mut ctx,
             false
         ));
         assert!(!ins1.type_check(
-            &db,
+            &mut db,
             TypeId::TraitInstance(ins4),
             &mut ctx,
             false
         ));
         assert!(!ins4.type_check(
-            &db,
+            &mut db,
             TypeId::TraitInstance(ins5),
             &mut ctx,
             false
@@ -5287,7 +5417,7 @@ mod tests {
         let self_type = TypeId::ClassInstance(ClassInstance::new(int));
         let mut ctx = TypeContext::new(self_type);
 
-        assert!(ins_b.type_check(&db, ins_c, &mut ctx, true));
+        assert!(ins_b.type_check(&mut db, ins_c, &mut ctx, true));
     }
 
     #[test]
@@ -5330,8 +5460,8 @@ mod tests {
         let self_type = TypeId::ClassInstance(ClassInstance::new(int));
         let mut ctx = TypeContext::new(self_type);
 
-        assert!(debug_ins.type_check(&db, to_string_ins, &mut ctx, true));
-        assert!(!debug_ins.type_check(&db, to_int_ins, &mut ctx, true));
+        assert!(debug_ins.type_check(&mut db, to_string_ins, &mut ctx, true));
+        assert!(!debug_ins.type_check(&mut db, to_int_ins, &mut ctx, true));
     }
 
     #[test]
@@ -5357,7 +5487,7 @@ mod tests {
         let self_type = TypeId::ClassInstance(ClassInstance::new(int));
         let mut ctx = TypeContext::new(self_type);
 
-        assert!(!to_s_ins.type_check(&db, param_ins, &mut ctx, false));
+        assert!(!to_s_ins.type_check(&mut db, param_ins, &mut ctx, false));
     }
 
     #[test]
@@ -5406,10 +5536,10 @@ mod tests {
         let self_type = TypeId::ClassInstance(ClassInstance::new(int));
         let mut ctx = TypeContext::new(self_type);
 
-        assert!(debug_ins.type_check(&db, param1_ins, &mut ctx, true));
-        assert!(debug_ins.type_check(&db, param2_ins, &mut ctx, true));
-        assert!(debug_ins.type_check(&db, param3_ins, &mut ctx, true));
-        assert!(!to_int_ins.type_check(&db, param2_ins, &mut ctx, true));
+        assert!(debug_ins.type_check(&mut db, param1_ins, &mut ctx, true));
+        assert!(debug_ins.type_check(&mut db, param2_ins, &mut ctx, true));
+        assert!(debug_ins.type_check(&mut db, param3_ins, &mut ctx, true));
+        assert!(!to_int_ins.type_check(&mut db, param2_ins, &mut ctx, true));
     }
 
     #[test]
@@ -5434,7 +5564,7 @@ mod tests {
         let self_type = TypeId::ClassInstance(ClassInstance::new(int));
         let mut ctx = TypeContext::new(self_type);
 
-        assert!(!debug_ins.type_check(&db, closure, &mut ctx, false));
+        assert!(!debug_ins.type_check(&mut db, closure, &mut ctx, false));
     }
 
     #[test]
@@ -5668,19 +5798,19 @@ mod tests {
         let mut ctx = TypeContext::new(self_type);
 
         assert!(ins1.type_check(
-            &db,
+            &mut db,
             TypeId::ClassInstance(ins1),
             &mut ctx,
             false
         ));
         assert!(ins1.type_check(
-            &db,
+            &mut db,
             TypeId::ClassInstance(ins2),
             &mut ctx,
             false
         ));
         assert!(!ins1.type_check(
-            &db,
+            &mut db,
             TypeId::ClassInstance(ins3),
             &mut ctx,
             false
@@ -5736,25 +5866,25 @@ mod tests {
         let mut ctx = TypeContext::new(self_type);
 
         assert!(ins1.type_check(
-            &db,
+            &mut db,
             TypeId::ClassInstance(ins2),
             &mut ctx,
             false
         ));
         assert!(!ins1.type_check(
-            &db,
+            &mut db,
             TypeId::ClassInstance(ins3),
             &mut ctx,
             false
         ));
         assert!(!ins1.type_check(
-            &db,
+            &mut db,
             TypeId::ClassInstance(ins4),
             &mut ctx,
             false
         ));
         assert!(!ins4.type_check(
-            &db,
+            &mut db,
             TypeId::ClassInstance(ins5),
             &mut ctx,
             false
@@ -5784,13 +5914,13 @@ mod tests {
         let mut ctx = TypeContext::new(stype);
 
         assert!(ins1.type_check(
-            &db,
+            &mut db,
             TypeId::ClassInstance(ins2),
             &mut ctx,
             false
         ));
         assert!(!ins2.type_check(
-            &db,
+            &mut db,
             TypeId::ClassInstance(ins1),
             &mut ctx,
             false
@@ -5843,13 +5973,13 @@ mod tests {
         let mut ctx = TypeContext::new(self_type);
 
         assert!(string_ins.type_check(
-            &db,
+            &mut db,
             TypeId::TraitInstance(to_string_ins),
             &mut ctx,
             true
         ));
 
-        assert!(!string_ins.type_check(&db, to_int_ins, &mut ctx, true));
+        assert!(!string_ins.type_check(&mut db, to_int_ins, &mut ctx, true));
     }
 
     #[test]
@@ -5924,7 +6054,7 @@ mod tests {
         // String -> Equal[String] is OK because String implements
         // Equal[String].
         assert!(string_ins.type_check(
-            &db,
+            &mut db,
             TypeId::TraitInstance(equal_string),
             &mut ctx,
             true
@@ -5933,7 +6063,7 @@ mod tests {
         // String -> Equal[Any] is OK, as Equal[String] is compatible with
         // Equal[Any] (but not the other way around).
         assert!(string_ins.type_check(
-            &db,
+            &mut db,
             TypeId::TraitInstance(equal_any),
             &mut ctx,
             true
@@ -5942,7 +6072,7 @@ mod tests {
         // String -> Equal[Int] is not OK, as Equal[Int] isn't implemented by
         // String.
         assert!(!string_ins.type_check(
-            &db,
+            &mut db,
             TypeId::TraitInstance(equal_int),
             &mut ctx,
             true
@@ -6038,9 +6168,19 @@ mod tests {
         let mut ctx = TypeContext::new(self_type);
         let to_string_type = TypeId::TraitInstance(to_string_ins);
 
-        assert!(!empty_array.type_check(&db, to_string_type, &mut ctx, true));
-        assert!(!float_array.type_check(&db, to_string_type, &mut ctx, true));
-        assert!(int_array.type_check(&db, to_string_type, &mut ctx, true));
+        assert!(!empty_array.type_check(
+            &mut db,
+            to_string_type,
+            &mut ctx,
+            true
+        ));
+        assert!(!float_array.type_check(
+            &mut db,
+            to_string_type,
+            &mut ctx,
+            true
+        ));
+        assert!(int_array.type_check(&mut db, to_string_type, &mut ctx, true));
     }
 
     #[test]
@@ -6098,13 +6238,13 @@ mod tests {
         let mut ctx = TypeContext::new(self_type);
 
         // String -> A is OK, as A has no requirements.
-        assert!(string_ins.type_check(&db, param1_type, &mut ctx, true));
+        assert!(string_ins.type_check(&mut db, param1_type, &mut ctx, true));
 
         // String -> B is OK, as ToString is implemented by String.
-        assert!(string_ins.type_check(&db, param2_type, &mut ctx, true));
+        assert!(string_ins.type_check(&mut db, param2_type, &mut ctx, true));
 
         // String -> C is not OK, as ToInt isn't implemented.
-        assert!(!string_ins.type_check(&db, param3_type, &mut ctx, true));
+        assert!(!string_ins.type_check(&mut db, param3_type, &mut ctx, true));
     }
 
     #[test]
@@ -6131,7 +6271,7 @@ mod tests {
         let self_type = TypeId::ClassInstance(ClassInstance::new(int));
         let mut ctx = TypeContext::new(self_type);
 
-        assert!(!string_ins.type_check(&db, param_ins, &mut ctx, false));
+        assert!(!string_ins.type_check(&mut db, param_ins, &mut ctx, false));
     }
 
     #[test]
@@ -6157,7 +6297,7 @@ mod tests {
         let self_type = TypeId::ClassInstance(ClassInstance::new(int));
         let mut ctx = TypeContext::new(self_type);
 
-        assert!(!string_ins.type_check(&db, closure, &mut ctx, false));
+        assert!(!string_ins.type_check(&mut db, closure, &mut ctx, false));
     }
 
     #[test]
@@ -6405,7 +6545,7 @@ mod tests {
         m1.set_return_type(&mut db, TypeRef::Any);
         m2.set_return_type(&mut db, TypeRef::Any);
 
-        assert!(!m1.type_check(&db, m2, &mut ctx));
+        assert!(!m1.type_check(&mut db, m2, &mut ctx));
     }
 
     #[test]
@@ -6439,7 +6579,7 @@ mod tests {
         m1.set_return_type(&mut db, TypeRef::Any);
         m2.set_return_type(&mut db, TypeRef::Any);
 
-        assert!(!m1.type_check(&db, m2, &mut ctx));
+        assert!(!m1.type_check(&mut db, m2, &mut ctx));
     }
 
     #[test]
@@ -6473,7 +6613,7 @@ mod tests {
         let self_type = TypeId::ClassInstance(ClassInstance::new(int));
         let mut ctx = TypeContext::new(self_type);
 
-        assert!(!m1.type_check(&db, m2, &mut ctx));
+        assert!(!m1.type_check(&mut db, m2, &mut ctx));
     }
 
     #[test]
@@ -6508,7 +6648,7 @@ mod tests {
         let self_type = TypeId::ClassInstance(ClassInstance::new(int));
         let mut ctx = TypeContext::new(self_type);
 
-        assert!(!m1.type_check(&db, m2, &mut ctx));
+        assert!(!m1.type_check(&mut db, m2, &mut ctx));
     }
 
     #[test]
@@ -6554,7 +6694,7 @@ mod tests {
         let self_type = TypeId::ClassInstance(ClassInstance::new(int));
         let mut ctx = TypeContext::new(self_type);
 
-        assert!(!m1.type_check(&db, m2, &mut ctx));
+        assert!(!m1.type_check(&mut db, m2, &mut ctx));
     }
 
     #[test]
@@ -6607,8 +6747,8 @@ mod tests {
         let self_type = TypeId::ClassInstance(ClassInstance::new(int));
         let mut ctx = TypeContext::new(self_type);
 
-        assert!(!m1.type_check(&db, m2, &mut ctx));
-        assert!(!m2.type_check(&db, m3, &mut ctx));
+        assert!(!m1.type_check(&mut db, m2, &mut ctx));
+        assert!(!m2.type_check(&mut db, m3, &mut ctx));
     }
 
     #[test]
@@ -6645,7 +6785,7 @@ mod tests {
         let self_type = TypeId::ClassInstance(ClassInstance::new(int));
         let mut ctx = TypeContext::new(self_type);
 
-        assert!(!m1.type_check(&db, m2, &mut ctx));
+        assert!(!m1.type_check(&mut db, m2, &mut ctx));
     }
 
     #[test]
@@ -6682,7 +6822,7 @@ mod tests {
         let self_type = TypeId::ClassInstance(ClassInstance::new(int));
         let mut ctx = TypeContext::new(self_type);
 
-        assert!(!m1.type_check(&db, m2, &mut ctx));
+        assert!(!m1.type_check(&mut db, m2, &mut ctx));
     }
 
     #[test]
@@ -6716,7 +6856,7 @@ mod tests {
         let self_type = TypeId::ClassInstance(ClassInstance::new(int));
         let mut ctx = TypeContext::new(self_type);
 
-        assert!(!m1.type_check(&db, m2, &mut ctx));
+        assert!(!m1.type_check(&mut db, m2, &mut ctx));
     }
 
     #[test]
@@ -6757,7 +6897,7 @@ mod tests {
         let self_type = TypeId::ClassInstance(ClassInstance::new(int));
         let mut ctx = TypeContext::new(self_type);
 
-        assert!(m1.type_check(&db, m2, &mut ctx));
+        assert!(m1.type_check(&mut db, m2, &mut ctx));
     }
 
     #[test]
@@ -6878,7 +7018,7 @@ mod tests {
         let mut ctx = TypeContext::new(self_type);
 
         assert!(closure1.type_check(
-            &db,
+            &mut db,
             TypeId::Closure(closure2),
             &mut ctx,
             false
@@ -6922,13 +7062,13 @@ mod tests {
         let mut ctx = TypeContext::new(self_type);
 
         assert!(closure1.type_check(
-            &db,
+            &mut db,
             TypeId::Closure(closure2),
             &mut ctx,
             false
         ));
         assert!(!closure1.type_check(
-            &db,
+            &mut db,
             TypeId::Closure(closure3),
             &mut ctx,
             false
@@ -6983,25 +7123,25 @@ mod tests {
         let mut ctx = TypeContext::new(self_type);
 
         assert!(closure1.type_check(
-            &db,
+            &mut db,
             TypeId::Closure(closure2),
             &mut ctx,
             false
         ));
         assert!(closure4.type_check(
-            &db,
+            &mut db,
             TypeId::Closure(closure1),
             &mut ctx,
             false
         ));
         assert!(!closure1.type_check(
-            &db,
+            &mut db,
             TypeId::Closure(closure3),
             &mut ctx,
             false
         ));
         assert!(!closure1.type_check(
-            &db,
+            &mut db,
             TypeId::Closure(closure4),
             &mut ctx,
             false
@@ -7049,19 +7189,19 @@ mod tests {
         let mut ctx = TypeContext::new(self_type);
 
         assert!(closure1.type_check(
-            &db,
+            &mut db,
             TypeId::Closure(closure2),
             &mut ctx,
             false
         ));
         assert!(!closure1.type_check(
-            &db,
+            &mut db,
             TypeId::Closure(closure3),
             &mut ctx,
             false
         ));
         assert!(!closure1.type_check(
-            &db,
+            &mut db,
             TypeId::Closure(closure4),
             &mut ctx,
             false
@@ -7095,13 +7235,13 @@ mod tests {
         let mut ctx = TypeContext::new(self_type);
 
         assert!(closure.type_check(
-            &db,
+            &mut db,
             TypeId::TypeParameter(param1),
             &mut ctx,
             false
         ));
         assert!(!closure.type_check(
-            &db,
+            &mut db,
             TypeId::TypeParameter(param2),
             &mut ctx,
             false
@@ -7182,33 +7322,53 @@ mod tests {
         let int_typ = TypeRef::Owned(int_ins);
 
         let mut ctx = TypeContext::new(string_ins);
-        assert!(string_typ.type_check(&db, string_typ, &mut ctx, false));
+        assert!(string_typ.type_check(&mut db, string_typ, &mut ctx, false));
 
         let mut ctx = TypeContext::new(string_ins);
-        assert!(string_typ.type_check(&db, TypeRef::Any, &mut ctx, false));
+        assert!(string_typ.type_check(&mut db, TypeRef::Any, &mut ctx, false));
 
         let mut ctx = TypeContext::new(string_ins);
         assert!(string_typ.type_check(
-            &db,
+            &mut db,
             TypeRef::OwnedSelf,
             &mut ctx,
             false
         ));
 
         let mut ctx = TypeContext::new(string_ins);
-        assert!(string_typ.type_check(&db, TypeRef::Error, &mut ctx, false));
+        assert!(string_typ.type_check(
+            &mut db,
+            TypeRef::Error,
+            &mut ctx,
+            false
+        ));
 
         let mut ctx = TypeContext::new(string_ins);
-        assert!(!string_typ.type_check(&db, string_ref_typ, &mut ctx, false));
+        assert!(!string_typ.type_check(
+            &mut db,
+            string_ref_typ,
+            &mut ctx,
+            false
+        ));
 
         let mut ctx = TypeContext::new(string_ins);
-        assert!(!string_typ.type_check(&db, TypeRef::RefSelf, &mut ctx, false));
+        assert!(!string_typ.type_check(
+            &mut db,
+            TypeRef::RefSelf,
+            &mut ctx,
+            false
+        ));
 
         let mut ctx = TypeContext::new(string_ins);
-        assert!(!string_typ.type_check(&db, TypeRef::Unknown, &mut ctx, false));
+        assert!(!string_typ.type_check(
+            &mut db,
+            TypeRef::Unknown,
+            &mut ctx,
+            false
+        ));
 
         let mut ctx = TypeContext::new(string_ins);
-        assert!(!string_typ.type_check(&db, int_typ, &mut ctx, false));
+        assert!(!string_typ.type_check(&mut db, int_typ, &mut ctx, false));
     }
 
     #[test]
@@ -7234,21 +7394,26 @@ mod tests {
         let mut ctx_int = TypeContext::new(int_ins);
         let mut ctx_str = TypeContext::new(string_ins);
 
-        assert!(string_typ.type_check(&db, string_typ, &mut ctx_int, false));
         assert!(string_typ.type_check(
-            &db,
+            &mut db,
+            string_typ,
+            &mut ctx_int,
+            false
+        ));
+        assert!(string_typ.type_check(
+            &mut db,
             TypeRef::Error,
             &mut ctx_int,
             false
         ));
         assert!(string_typ.type_check(
-            &db,
+            &mut db,
             TypeRef::RefSelf,
             &mut ctx_str,
             false
         ));
         assert!(!string_typ.type_check(
-            &db,
+            &mut db,
             TypeRef::Owned(string_ins),
             &mut ctx_int,
             false
@@ -7278,27 +7443,32 @@ mod tests {
         let mut ctx_int = TypeContext::new(int_ins);
         let mut ctx_str = TypeContext::new(string_ins);
 
-        assert!(string_typ.type_check(&db, string_typ, &mut ctx_int, false));
         assert!(string_typ.type_check(
-            &db,
+            &mut db,
+            string_typ,
+            &mut ctx_int,
+            false
+        ));
+        assert!(string_typ.type_check(
+            &mut db,
             TypeRef::Error,
             &mut ctx_int,
             false
         ));
         assert!(string_typ.type_check(
-            &db,
+            &mut db,
             TypeRef::RefSelf,
             &mut ctx_str,
             false
         ));
         assert!(string_typ.type_check(
-            &db,
+            &mut db,
             TypeRef::MutSelf,
             &mut ctx_str,
             false
         ));
         assert!(!string_typ.type_check(
-            &db,
+            &mut db,
             TypeRef::Owned(string_ins),
             &mut ctx_int,
             false
@@ -7335,14 +7505,14 @@ mod tests {
         let mut ctx = TypeContext::new(string_ins);
 
         assert!(string_typ.type_check(
-            &db,
+            &mut db,
             TypeRef::Ref(TypeId::TraitInstance(to_string)),
             &mut ctx,
             true
         ));
 
         assert!(!string_typ.type_check(
-            &db,
+            &mut db,
             TypeRef::Mut(TypeId::TraitInstance(to_string)),
             &mut ctx,
             true
@@ -7365,17 +7535,22 @@ mod tests {
         let param_typ = TypeRef::Infer(param_ins);
 
         let mut ctx = TypeContext::new(int_ins);
-        assert!(param_typ.type_check(&db, param_typ, &mut ctx, false));
+        assert!(param_typ.type_check(&mut db, param_typ, &mut ctx, false));
 
         let mut ctx = TypeContext::new(int_ins);
-        assert!(param_typ.type_check(&db, TypeRef::Error, &mut ctx, false));
+        assert!(param_typ.type_check(&mut db, TypeRef::Error, &mut ctx, false));
 
         let mut ctx = TypeContext::new(param_ins);
-        assert!(!param_typ.type_check(&db, TypeRef::RefSelf, &mut ctx, false));
+        assert!(!param_typ.type_check(
+            &mut db,
+            TypeRef::RefSelf,
+            &mut ctx,
+            false
+        ));
 
         let mut ctx = TypeContext::new(int_ins);
         assert!(!param_typ.type_check(
-            &db,
+            &mut db,
             TypeRef::Owned(param_ins),
             &mut ctx,
             false
@@ -7396,18 +7571,23 @@ mod tests {
         let mut ctx = TypeContext::new(int_ins);
 
         assert!(TypeRef::Never.type_check(
-            &db,
+            &mut db,
             TypeRef::Never,
             &mut ctx,
             false
         ));
         assert!(TypeRef::Never.type_check(
-            &db,
+            &mut db,
             TypeRef::Error,
             &mut ctx,
             false
         ));
-        assert!(TypeRef::Never.type_check(&db, TypeRef::Any, &mut ctx, false));
+        assert!(TypeRef::Never.type_check(
+            &mut db,
+            TypeRef::Any,
+            &mut ctx,
+            false
+        ));
     }
 
     #[test]
@@ -7436,22 +7616,32 @@ mod tests {
         let int_ins = TypeId::ClassInstance(ClassInstance::new(int));
         let mut ctx = TypeContext::new(int_ins);
 
-        assert!(TypeRef::Any.type_check(&db, TypeRef::Any, &mut ctx, false));
-        assert!(TypeRef::Any.type_check(&db, TypeRef::Error, &mut ctx, false));
-        assert!(!TypeRef::Any.type_check(&db, param, &mut ctx, false));
+        assert!(TypeRef::Any.type_check(
+            &mut db,
+            TypeRef::Any,
+            &mut ctx,
+            false
+        ));
+        assert!(TypeRef::Any.type_check(
+            &mut db,
+            TypeRef::Error,
+            &mut ctx,
+            false
+        ));
+        assert!(!TypeRef::Any.type_check(&mut db, param, &mut ctx, false));
         assert!(!TypeRef::Any.type_check(
-            &db,
+            &mut db,
             TypeRef::OwnedSelf,
             &mut ctx,
             false
         ));
         assert!(!TypeRef::Any.type_check(
-            &db,
+            &mut db,
             TypeRef::RefSelf,
             &mut ctx,
             false
         ));
-        assert!(!TypeRef::Any.type_check(&db, string_ins, &mut ctx, false));
+        assert!(!TypeRef::Any.type_check(&mut db, string_ins, &mut ctx, false));
     }
 
     #[test]
@@ -7468,7 +7658,7 @@ mod tests {
 
         let mut ctx = TypeContext::new(string_ins);
         assert!(TypeRef::OwnedSelf.type_check(
-            &db,
+            &mut db,
             TypeRef::Owned(string_ins),
             &mut ctx,
             false
@@ -7476,7 +7666,7 @@ mod tests {
 
         let mut ctx = TypeContext::new(string_ins);
         assert!(TypeRef::OwnedSelf.type_check(
-            &db,
+            &mut db,
             TypeRef::Any,
             &mut ctx,
             false
@@ -7484,7 +7674,7 @@ mod tests {
 
         let mut ctx = TypeContext::new(string_ins);
         assert!(TypeRef::OwnedSelf.type_check(
-            &db,
+            &mut db,
             TypeRef::Error,
             &mut ctx,
             false
@@ -7492,7 +7682,7 @@ mod tests {
 
         let mut ctx = TypeContext::new(string_ins);
         assert!(!TypeRef::OwnedSelf.type_check(
-            &db,
+            &mut db,
             TypeRef::Ref(string_ins),
             &mut ctx,
             false
@@ -7513,27 +7703,29 @@ mod tests {
         let string_ref = TypeRef::Ref(string_ins);
         let mut ctx = TypeContext::new(string_ins);
 
-        assert!(TypeRef::RefSelf.type_check(&db, string_ref, &mut ctx, false));
+        assert!(
+            TypeRef::RefSelf.type_check(&mut db, string_ref, &mut ctx, false)
+        );
         assert!(TypeRef::RefSelf.type_check(
-            &db,
+            &mut db,
             TypeRef::Error,
             &mut ctx,
             false
         ));
         assert!(!TypeRef::RefSelf.type_check(
-            &db,
+            &mut db,
             TypeRef::OwnedSelf,
             &mut ctx,
             false
         ));
         assert!(!TypeRef::RefSelf.type_check(
-            &db,
+            &mut db,
             TypeRef::Any,
             &mut ctx,
             false
         ));
         assert!(!TypeRef::RefSelf.type_check(
-            &db,
+            &mut db,
             TypeRef::Any,
             &mut ctx,
             false
@@ -7554,18 +7746,23 @@ mod tests {
         let mut ctx = TypeContext::new(int_ins);
 
         assert!(TypeRef::Error.type_check(
-            &db,
+            &mut db,
             TypeRef::Error,
             &mut ctx,
             false
         ));
         assert!(TypeRef::Error.type_check(
-            &db,
+            &mut db,
             TypeRef::Never,
             &mut ctx,
             false
         ));
-        assert!(TypeRef::Error.type_check(&db, TypeRef::Any, &mut ctx, false));
+        assert!(TypeRef::Error.type_check(
+            &mut db,
+            TypeRef::Any,
+            &mut ctx,
+            false
+        ));
     }
 
     #[test]
@@ -7582,10 +7779,10 @@ mod tests {
         let mut ctx = TypeContext::new(int_ins);
         let unknown = TypeRef::Unknown;
 
-        assert!(!unknown.type_check(&db, unknown, &mut ctx, false));
-        assert!(!unknown.type_check(&db, TypeRef::Error, &mut ctx, false));
-        assert!(!unknown.type_check(&db, TypeRef::Never, &mut ctx, false));
-        assert!(!unknown.type_check(&db, TypeRef::Any, &mut ctx, false));
+        assert!(!unknown.type_check(&mut db, unknown, &mut ctx, false));
+        assert!(!unknown.type_check(&mut db, TypeRef::Error, &mut ctx, false));
+        assert!(!unknown.type_check(&mut db, TypeRef::Never, &mut ctx, false));
+        assert!(!unknown.type_check(&mut db, TypeRef::Any, &mut ctx, false));
     }
 
     #[test]
@@ -7608,35 +7805,35 @@ mod tests {
             let mut ctx = TypeContext::new(ins);
 
             assert!(!ins_type
-                .is_compatible_with_type_parameter(&db, param1, &mut ctx));
+                .is_compatible_with_type_parameter(&mut db, param1, &mut ctx));
         }
 
         {
             let mut ctx = TypeContext::new(ins);
 
             assert!(ins_type
-                .is_compatible_with_type_parameter(&db, param2, &mut ctx));
+                .is_compatible_with_type_parameter(&mut db, param2, &mut ctx));
         }
 
         {
             let mut ctx = TypeContext::new(ins);
 
             assert!(TypeRef::OwnedSelf
-                .is_compatible_with_type_parameter(&db, param2, &mut ctx));
+                .is_compatible_with_type_parameter(&mut db, param2, &mut ctx));
         }
 
         {
             let mut ctx = TypeContext::new(ins);
 
             assert!(TypeRef::RefSelf
-                .is_compatible_with_type_parameter(&db, param2, &mut ctx));
+                .is_compatible_with_type_parameter(&mut db, param2, &mut ctx));
         }
 
         {
             let mut ctx = TypeContext::new(ins);
 
             assert!(TypeRef::Owned(TypeId::TypeParameter(param1))
-                .type_check(&db, ins_type, &mut ctx, false));
+                .type_check(&mut db, ins_type, &mut ctx, false));
         }
     }
 
@@ -7673,9 +7870,9 @@ mod tests {
         let int_ins = TypeId::ClassInstance(ClassInstance::new(int));
         let mut ctx = TypeContext::new(int_ins);
 
-        assert!(typ1.type_check(&db, param, &mut ctx, false));
+        assert!(typ1.type_check(&mut db, param, &mut ctx, false));
         assert_eq!(ctx.type_arguments.mapping.len(), 1);
-        assert!(!typ2.type_check(&db, param, &mut ctx, false));
+        assert!(!typ2.type_check(&mut db, param, &mut ctx, false));
     }
 
     #[test]
@@ -7707,22 +7904,22 @@ mod tests {
         );
 
         assert!(TypeRef::Owned(string_ins).implements_trait_instance(
-            &db,
+            &mut db,
             to_string_ins,
             &mut ctx
         ));
         assert!(TypeRef::Ref(string_ins).implements_trait_instance(
-            &db,
+            &mut db,
             to_string_ins,
             &mut ctx
         ));
         assert!(TypeRef::OwnedSelf.implements_trait_instance(
-            &db,
+            &mut db,
             to_string_ins,
             &mut ctx
         ));
         assert!(TypeRef::RefSelf.implements_trait_instance(
-            &db,
+            &mut db,
             to_string_ins,
             &mut ctx
         ));
@@ -7764,18 +7961,17 @@ mod tests {
         let mut ctx = TypeContext::new(debug_ins);
 
         assert!(TypeRef::Owned(debug_ins)
-            .implements_trait_instance(&db, to_s_ins, &mut ctx));
+            .implements_trait_instance(&mut db, to_s_ins, &mut ctx));
         assert!(TypeRef::Owned(to_foo_ins)
-            .implements_trait_instance(&db, to_s_ins, &mut ctx));
+            .implements_trait_instance(&mut db, to_s_ins, &mut ctx));
         assert!(TypeRef::Ref(debug_ins)
-            .implements_trait_instance(&db, to_s_ins, &mut ctx));
+            .implements_trait_instance(&mut db, to_s_ins, &mut ctx));
         assert!(TypeRef::Infer(debug_ins)
-            .implements_trait_instance(&db, to_s_ins, &mut ctx));
+            .implements_trait_instance(&mut db, to_s_ins, &mut ctx));
         assert!(TypeRef::OwnedSelf
-            .implements_trait_instance(&db, to_s_ins, &mut ctx));
-        assert!(
-            TypeRef::RefSelf.implements_trait_instance(&db, to_s_ins, &mut ctx)
-        );
+            .implements_trait_instance(&mut db, to_s_ins, &mut ctx));
+        assert!(TypeRef::RefSelf
+            .implements_trait_instance(&mut db, to_s_ins, &mut ctx));
     }
 
     #[test]
@@ -7818,13 +8014,17 @@ mod tests {
         let int_ins = TypeId::ClassInstance(ClassInstance::new(int));
         let mut ctx = TypeContext::new(int_ins);
 
-        assert!(param_ins.implements_trait_instance(&db, debug_ins, &mut ctx));
+        assert!(
+            param_ins.implements_trait_instance(&mut db, debug_ins, &mut ctx)
+        );
         assert!(param_ins.implements_trait_instance(
-            &db,
+            &mut db,
             to_string_ins,
             &mut ctx
         ));
-        assert!(!param_ins.implements_trait_instance(&db, to_foo_ins, &mut ctx));
+        assert!(
+            !param_ins.implements_trait_instance(&mut db, to_foo_ins, &mut ctx)
+        );
     }
 
     #[test]
@@ -7848,10 +8048,16 @@ mod tests {
         let int_ins = TypeId::ClassInstance(ClassInstance::new(int));
         let mut ctx = TypeContext::new(int_ins);
 
-        assert!(!TypeRef::Any.implements_trait_instance(&db, ins, &mut ctx));
-        assert!(!TypeRef::Unknown.implements_trait_instance(&db, ins, &mut ctx));
-        assert!(TypeRef::Error.implements_trait_instance(&db, ins, &mut ctx));
-        assert!(TypeRef::Never.implements_trait_instance(&db, ins, &mut ctx));
+        assert!(!TypeRef::Any.implements_trait_instance(&mut db, ins, &mut ctx));
+        assert!(
+            !TypeRef::Unknown.implements_trait_instance(&mut db, ins, &mut ctx)
+        );
+        assert!(
+            TypeRef::Error.implements_trait_instance(&mut db, ins, &mut ctx)
+        );
+        assert!(
+            TypeRef::Never.implements_trait_instance(&mut db, ins, &mut ctx)
+        );
     }
 
     #[test]
@@ -8027,9 +8233,9 @@ mod tests {
         let int_ins = TypeId::ClassInstance(ClassInstance::new(int));
         let mut ctx = TypeContext::new(int_ins);
 
-        assert!(typ1.type_check(&db, typ1, &mut ctx, false));
-        assert!(!typ1.type_check(&db, typ2, &mut ctx, false));
-        assert!(!typ1.type_check(&db, typ3, &mut ctx, false));
+        assert!(typ1.type_check(&mut db, typ1, &mut ctx, false));
+        assert!(!typ1.type_check(&mut db, typ2, &mut ctx, false));
+        assert!(!typ1.type_check(&mut db, typ3, &mut ctx, false));
     }
 
     #[test]
@@ -8049,9 +8255,9 @@ mod tests {
         let int_ins = TypeId::ClassInstance(ClassInstance::new(int));
         let mut ctx = TypeContext::new(int_ins);
 
-        assert!(typ1.type_check(&db, typ1, &mut ctx, false));
-        assert!(!typ1.type_check(&db, typ2, &mut ctx, false));
-        assert!(!typ1.type_check(&db, typ3, &mut ctx, false));
+        assert!(typ1.type_check(&mut db, typ1, &mut ctx, false));
+        assert!(!typ1.type_check(&mut db, typ2, &mut ctx, false));
+        assert!(!typ1.type_check(&mut db, typ3, &mut ctx, false));
     }
 
     #[test]
@@ -8071,9 +8277,9 @@ mod tests {
         let int_ins = TypeId::ClassInstance(ClassInstance::new(int));
         let mut ctx = TypeContext::new(int_ins);
 
-        assert!(typ1.type_check(&db, typ1, &mut ctx, false));
-        assert!(!typ1.type_check(&db, typ2, &mut ctx, false));
-        assert!(!typ1.type_check(&db, typ3, &mut ctx, false));
+        assert!(typ1.type_check(&mut db, typ1, &mut ctx, false));
+        assert!(!typ1.type_check(&mut db, typ2, &mut ctx, false));
+        assert!(!typ1.type_check(&mut db, typ3, &mut ctx, false));
     }
 
     #[test]
@@ -8110,9 +8316,9 @@ mod tests {
         let int_ins = TypeId::ClassInstance(ClassInstance::new(int));
         let mut ctx = TypeContext::new(int_ins);
 
-        assert!(ins1.type_check(&db, ins1, &mut ctx, false));
-        assert!(ins1.type_check(&db, ins2, &mut ctx, false));
-        assert!(!ins1.type_check(&db, ins3, &mut ctx, false));
+        assert!(ins1.type_check(&mut db, ins1, &mut ctx, false));
+        assert!(ins1.type_check(&mut db, ins2, &mut ctx, false));
+        assert!(!ins1.type_check(&mut db, ins3, &mut ctx, false));
     }
 
     #[test]
@@ -8150,7 +8356,7 @@ mod tests {
         let int_ins = TypeId::ClassInstance(ClassInstance::new(int));
         let mut ctx = TypeContext::new(int_ins);
 
-        assert!(debug_ins.type_check(&db, to_string_ins, &mut ctx, true));
+        assert!(debug_ins.type_check(&mut db, to_string_ins, &mut ctx, true));
     }
 
     #[test]
@@ -8175,7 +8381,12 @@ mod tests {
         let int_ins = TypeId::ClassInstance(ClassInstance::new(int));
         let mut ctx = TypeContext::new(int_ins);
 
-        assert!(closure1_type.type_check(&db, closure2_type, &mut ctx, false));
+        assert!(closure1_type.type_check(
+            &mut db,
+            closure2_type,
+            &mut ctx,
+            false
+        ));
     }
 
     #[test]
@@ -8451,7 +8662,9 @@ mod tests {
         let int_ins = TypeId::ClassInstance(ClassInstance::new(int));
         let mut ctx = TypeContext::new(int_ins);
 
-        assert!(!closure.implements_trait_instance(&db, debug_ins, &mut ctx));
+        assert!(
+            !closure.implements_trait_instance(&mut db, debug_ins, &mut ctx)
+        );
     }
 
     #[test]
@@ -8483,5 +8696,18 @@ mod tests {
         let db = Database::new();
 
         db.module("foo");
+    }
+
+    #[test]
+    fn test_type_placeholder_id_assign() {
+        let mut db = Database::new();
+        let p1 = TypePlaceholder::alloc(&mut db);
+        let p2 = TypePlaceholder::alloc(&mut db);
+
+        p1.assign(&db, TypeRef::Any);
+        p2.assign(&db, TypeRef::Placeholder(p2));
+
+        assert_eq!(p1.value(&db), Some(TypeRef::Any));
+        assert!(p2.value(&db).is_none());
     }
 }
