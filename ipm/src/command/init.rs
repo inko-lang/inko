@@ -18,7 +18,7 @@ Examples:
 
 const TEMPLATE: &str = "\
 # This file contains your project's dependencies. For more information, refer
-# to TODO";
+# to https://docs.inko-lang.org/manual/latest/getting-started/modules/";
 
 pub(crate) fn run(args: &[String]) -> Result<(), Error> {
     let mut options = Options::new();
