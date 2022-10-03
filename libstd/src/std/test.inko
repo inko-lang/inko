@@ -224,9 +224,7 @@ impl Reporter for Plain {
   }
 
   fn pub move finished(duration: Duration, seed: Int) -> Bool {
-    let failed = @failed.length > 0
-
-    if failed {
+    if @failed.length > 0 {
       try! @out.print("\n\nFailures:")
 
       @failed.iter.each_with_index fn (test_index, test) {
@@ -252,12 +250,10 @@ impl Reporter for Plain {
     } else {
       "{duration.to_millis} milliseconds"
     }
-
-    let failures = if failed {
-      red("{@failed.length} failures")
-    } else {
-      green('0 failures')
-    }
+    let failed =
+      @failed.iter.reduce(0) fn (sum, test) { sum + test.failures.length }
+    let failures =
+      if failed > 0 { red("{failed} failures") } else { green('0 failures') }
 
     try! @out.print(
       "\nFinished running {@tests} tests in {dur}, {failures}, seed: {seed}"

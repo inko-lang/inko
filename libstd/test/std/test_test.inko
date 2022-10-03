@@ -112,6 +112,7 @@ fn pub tests(t: mut Tests) {
     )
 
     test.true(false)
+    test.true(false)
     plain.failed(test)
 
     t.equal(plain.finished(duration: Duration.from_secs(1), seed: 42), false)
@@ -122,7 +123,7 @@ fn pub tests(t: mut Tests) {
     t.true(out.contains?('Test: foo'))
     t.true(
       out.contains?(
-        'Finished running 1 tests in 1.0 seconds, 1 failures, seed: 42'
+        'Finished running 1 tests in 1.0 seconds, 2 failures, seed: 42'
       )
     )
   }
