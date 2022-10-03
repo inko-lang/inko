@@ -1564,9 +1564,11 @@ impl<'a> LowerMethod<'a> {
 
     fn array_literal(&mut self, node: hir::ArrayLiteral) -> RegisterId {
         if !node.resolved_type.is_inferred(self.db()) {
-            self.state
-                .diagnostics
-                .cant_infer_type(self.file(), node.location.clone());
+            self.state.diagnostics.cant_infer_type(
+                types::format_type(self.db(), node.resolved_type),
+                self.file(),
+                node.location.clone(),
+            );
         }
 
         let vals: Vec<RegisterId> = node
@@ -1819,13 +1821,16 @@ impl<'a> LowerMethod<'a> {
         &mut self,
         typ: types::TypeRef,
         location: &SourceLocation,
-    ) -> bool {
+    ) {
         if typ.is_inferred(self.db()) {
-            return true;
+            return;
         }
 
-        self.state.diagnostics.cant_infer_type(self.file(), location.clone());
-        false
+        self.state.diagnostics.cant_infer_type(
+            types::format_type(self.db(), typ),
+            self.file(),
+            location.clone(),
+        );
     }
 
     fn expected_argument_type(

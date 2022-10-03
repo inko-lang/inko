@@ -648,7 +648,7 @@ impl<'a> CheckTypeSignature<'a> {
             }
 
             if !arg.is_compatible_with_type_parameter(
-                self.db(),
+                self.db_mut(),
                 param,
                 &mut context,
             ) {
@@ -694,6 +694,10 @@ impl<'a> CheckTypeSignature<'a> {
 
     fn db(&self) -> &Database {
         &self.state.db
+    }
+
+    fn db_mut(&mut self) -> &mut Database {
+        &mut self.state.db
     }
 }
 

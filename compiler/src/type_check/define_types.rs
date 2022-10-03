@@ -471,7 +471,7 @@ impl<'a> CheckTraitImplementations<'a> {
 
         for req in trait_ins.instance_of().required_traits(self.db()) {
             if !class_ins.type_check_with_trait_instance(
-                self.db(),
+                self.db_mut(),
                 req,
                 &mut context,
                 true,
@@ -496,6 +496,10 @@ impl<'a> CheckTraitImplementations<'a> {
 
     fn db(&self) -> &Database {
         &self.state.db
+    }
+
+    fn db_mut(&mut self) -> &mut Database {
+        &mut self.state.db
     }
 }
 

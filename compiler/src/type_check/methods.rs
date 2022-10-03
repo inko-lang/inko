@@ -1228,7 +1228,7 @@ impl<'a> ImplementTraitMethods<'a> {
                 .copy_into(&mut check_ctx.type_arguments);
         }
 
-        if !method.type_check(self.db(), original, &mut check_ctx) {
+        if !method.type_check(self.db_mut(), original, &mut check_ctx) {
             let file = self.file();
             let expected = format_type(self.db(), original);
 

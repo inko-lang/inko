@@ -794,12 +794,16 @@ impl Diagnostics {
 
     pub(crate) fn cant_infer_type(
         &mut self,
+        name: String,
         file: PathBuf,
         location: SourceLocation,
     ) {
         self.error(
             DiagnosticId::InvalidType,
-            "The type of this expression can't be inferred",
+            format!(
+                "The type of this expression ('{}') can't be fully inferred",
+                name,
+            ),
             file,
             location,
         );
