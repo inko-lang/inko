@@ -524,7 +524,10 @@ impl<'a> CheckTypeSignature<'a> {
 
     pub(crate) fn check_type_name(&mut self, node: &hir::TypeName) {
         match node.resolved_type {
-            TypeRef::Owned(id) | TypeRef::Ref(id) => match id {
+            TypeRef::Owned(id)
+            | TypeRef::Ref(id)
+            | TypeRef::Mut(id)
+            | TypeRef::Uni(id) => match id {
                 TypeId::ClassInstance(ins) => {
                     self.check_class_instance(node, ins);
                 }
