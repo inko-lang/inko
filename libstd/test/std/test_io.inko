@@ -1,5 +1,5 @@
 import helpers::(fmt)
-import std::io::(Error, Read, Write)
+import std::io::(ByteArrayReader, Error, Read, StringReader, Write)
 import std::test::Tests
 
 class Reader {
@@ -107,5 +107,66 @@ fn pub tests(t: mut Tests) {
     try! writer.print('foo')
 
     t.equal(writer.buffer, "foo\n".to_byte_array)
+  }
+
+  t.test('StringReader.read') fn (t) {
+    let reader = StringReader.new('foo')
+    let buff = ByteArray.new
+
+    t.equal(reader.read(into: buff, size: 2), 2)
+    t.equal(buff.to_string, 'fo')
+    t.equal(reader.read(into: buff, size: 2), 1)
+    t.equal(buff.to_string, 'foo')
+    t.equal(reader.read(into: buff, size: 2), 0)
+    t.equal(buff.to_string, 'foo')
+  }
+
+  t.test('StringReader.read_all') fn (t) {
+    let reader = StringReader.new('foo')
+    let buff = ByteArray.new
+
+    t.equal(reader.read_all(buff), 3)
+    t.equal(reader.read_all(buff), 0)
+    t.equal(buff.to_string, 'foo')
+  }
+
+  t.test('ByteArrayReader.read') fn (t) {
+    let input = 'foo'.to_byte_array
+    let reader = ByteArrayReader.new(input)
+    let buff = ByteArray.new
+
+    t.equal(reader.read(into: buff, size: 2), 2)
+    t.equal(buff.to_string, 'fo')
+    t.equal(reader.read(into: buff, size: 2), 1)
+    t.equal(buff.to_string, 'foo')
+    t.equal(reader.read(into: buff, size: 2), 0)
+    t.equal(buff.to_string, 'foo')
+  }
+
+  t.test('ByteArrayReader.read with a mutated ByteArray') fn (t) {
+    let input = 'foo'.to_byte_array
+    let reader = ByteArrayReader.new(input)
+    let buff = ByteArray.new
+
+    t.equal(reader.read(into: buff, size: 1), 1)
+    t.equal(buff.to_string, 'f')
+
+    input.pop
+    t.equal(reader.read(into: buff, size: 2), 1)
+    t.equal(buff.to_string, 'fo')
+
+    input.push(111)
+    t.equal(reader.read(into: buff, size: 2), 1)
+    t.equal(buff.to_string, 'foo')
+  }
+
+  t.test('ByteArrayReader.read_all') fn (t) {
+    let input = 'foo'.to_byte_array
+    let reader = ByteArrayReader.new(input)
+    let buff = ByteArray.new
+
+    t.equal(reader.read_all(buff), 3)
+    t.equal(reader.read_all(buff), 0)
+    t.equal(buff.to_string, 'foo')
   }
 }

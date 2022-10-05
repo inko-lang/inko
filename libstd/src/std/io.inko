@@ -262,3 +262,81 @@ trait pub Seek {
   # the end.
   fn pub mut seek(position: Int) !! Error -> Int
 }
+
+# A type that allows reading of a String.
+#
+# A `StringReader` is useful when you have a `String` and want to use it where
+# a `Read` type is expected.
+#
+# # Error handling
+#
+# The implementations of `read` and `read_all` never throw an error, so no error
+# handling is needed when using a value typed as `StringReader`.
+class pub StringReader {
+  let @string: ref String
+  let @index: Int
+
+  fn pub static new(string: ref String) -> Self {
+    Self { @string = string, @index = 0 }
+  }
+}
+
+impl Read for StringReader {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Int {
+    let mut read = 0
+    let max = @string.size
+
+    while read < size and @index < max {
+      into.push(@string.byte(@index := @index + 1))
+      read += 1
+    }
+
+    read
+  }
+
+  fn pub mut read_all(bytes: mut ByteArray) -> Int {
+    read(into: bytes, size: @string.size - @index)
+  }
+}
+
+# A type that allows reading of a `ByteArray`.
+#
+# A `ByteArrayReader` is useful when you have a `ByteArray` and want to use it
+# where a `Read` type is expected.
+#
+# Since a `ByteArray` is mutable and this reader takes an immutable reference to
+# a `ByteArray`, it's possible for the `ByteArray` to be mutated while this
+# reader exists. This reader supports this without issue, though it's
+# recommended to not mutate the `ByteArray` while reading from it, as this may
+# lead to confusing results.
+#
+# # Error handling
+#
+# The implementations of `read` and `read_all` never throw an error, so no error
+# handling is needed when using a value typed as `ByteArrayReader`.
+class pub ByteArrayReader {
+  let @bytes: ref ByteArray
+  let @index: Int
+
+  fn pub static new(bytes: ref ByteArray) -> Self {
+    Self { @bytes = bytes, @index = 0 }
+  }
+}
+
+impl Read for ByteArrayReader {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Int {
+    let mut read = 0
+    let max = @bytes.length
+
+    while read < size and @index < max {
+      into.push(@bytes[@index := @index + 1])
+      read += 1
+    }
+
+    read
+  }
+
+  fn pub mut read_all(bytes: mut ByteArray) -> Int {
+    read(into: bytes, size: @bytes.length - @index)
+  }
+}
