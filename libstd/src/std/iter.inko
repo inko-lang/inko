@@ -24,6 +24,9 @@ import std::cmp::Equal
 import std::option::Option
 import std::string::(ToString, StringBuffer)
 
+# The "byte" that signals the end in a `Bytes` iterator.
+let pub EOF = -1
+
 # A generic iterator over a sequence of values of type `T`.
 #
 # The type parameter `T` is the type of values that is produced. The type
@@ -456,6 +459,42 @@ impl Iter[T, E] for Enum {
   fn pub mut next !! E -> Option[T] {
     try @block.call
   }
+}
+
+# An iterator over a sequence of bytes.
+#
+# A `Bytes` is a regular iterator, but introduces the extra method `next_byte`.
+# This method is similar to `Iter.next` in that it advances the iterator, but
+# instead of returning an `Option[Int]` it returns an `Int`. This allows `Bytes`
+# to be used as both a regular iterator and a more specialised (and more
+# efficient) iterator over (large) sequences of bytes.
+#
+# When implementing `Bytes` for a type, you must also implement `Iter`. The
+# easiest way of doing this is to have `Iter.next` reuse the implementation of
+# `Bytes.next_byte` like so:
+#
+#     impl Iter[Int, Never] for MyType {
+#       fn pub mut next -> Option[Int] {
+#         match next_byte {
+#           case EOF -> Option.None
+#           case byte -> Option.Some(byte)
+#         }
+#       }
+#     }
+#
+#     impl Bytes[Never] for MyType {
+#       fn pub mut next_byte -> Int {
+#         # ...
+#       }
+#     }
+#
+# The type parameter `E` specifies the error that `next` may throw. If a stream
+# can't throw, this parameter should be assigned to `Never`.
+trait pub Bytes[E]: Iter[Int, E] {
+  # Returns the next byte in the iterator.
+  #
+  # If all input is consumed, this method must return `std::iter::EOF`.
+  fn pub mut next_byte !! E -> Int
 }
 
 # Joins the values of an iterator together using a separator.

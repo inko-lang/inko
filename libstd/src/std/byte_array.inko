@@ -5,7 +5,8 @@ import std::drop::Drop
 import std::fmt::(Format, Formatter)
 import std::hash::(Hash, Hasher)
 import std::index::(bounds_check, Index, SetIndex)
-import std::iter::(Enum, Iter)
+import std::io::Read
+import std::iter::(Bytes as BytesTrait, EOF, Enum, Iter)
 import std::option::Option
 import std::string::(IntoString, ToString)
 
@@ -263,9 +264,9 @@ class builtin ByteArray {
     iter.to_array
   }
 
-  # Returns an `Iter` that iterates over all values in `self`.
-  fn pub iter -> Iter[Int, Never] {
-    Enum.indexed(length) fn (i) { _INKO.byte_array_get(self, i) }
+  # Returns an iterator over the bytes in `self`.
+  fn pub iter -> Bytes {
+    Bytes { @bytes = self, @index = 0 }
   }
 }
 
@@ -410,5 +411,55 @@ impl Format for ByteArray {
     }
 
     formatter.write(']')
+  }
+}
+
+# An iterator over the bytes in a `ByteArray`.
+#
+# This iterator supports mutating the underlying `ByteArray` during iteration,
+# though it's recommended not to do so as the results may be confusing.
+class pub Bytes {
+  let @bytes: ref ByteArray
+  let @index: Int
+}
+
+impl Iter[Int, Never] for Bytes {
+  fn pub mut next -> Option[Int] {
+    match next_byte {
+      case EOF -> Option.None
+      case byte -> Option.Some(byte)
+    }
+  }
+}
+
+impl BytesTrait[Never] for Bytes {
+  fn pub mut next_byte -> Int {
+    if @index < @bytes.length {
+      _INKO.byte_array_get(@bytes, @index := @index + 1)
+    } else {
+      EOF
+    }
+  }
+}
+
+impl Read for Bytes {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Int {
+    let mut read = 0
+
+    while read < size {
+      match next_byte {
+        case EOF -> break
+        case byte -> {
+          into.push(byte)
+          read += 1
+        }
+      }
+    }
+
+    read
+  }
+
+  fn pub mut read_all(bytes: mut ByteArray) -> Int {
+    read(into: bytes, size: @bytes.length - @index)
   }
 }

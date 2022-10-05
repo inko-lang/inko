@@ -1,5 +1,6 @@
 import helpers::(fmt, hash)
 import std::fs::path::Path
+import std::iter::EOF
 import std::test::Tests
 
 fn pub tests(t: mut Tests) {
@@ -299,5 +300,48 @@ fn pub tests(t: mut Tests) {
     t.equal("\rhello\r".trim, "hello")
     t.equal("\nhello\n".trim, "hello")
     t.equal("hello\t\r\n\t".trim, 'hello')
+  }
+
+  t.test('Bytes.next') fn (t) {
+    let string = 'abc'
+    let iter = string.bytes
+
+    t.equal(iter.next, Option.Some(97))
+    t.equal(iter.next, Option.Some(98))
+    t.equal(iter.next, Option.Some(99))
+    t.equal(iter.next, Option.None)
+  }
+
+  t.test('Bytes.next_byte') fn (t) {
+    let string = 'abc'
+    let iter = string.bytes
+
+    t.equal(iter.next_byte, 97)
+    t.equal(iter.next_byte, 98)
+    t.equal(iter.next_byte, 99)
+    t.equal(iter.next_byte, EOF)
+  }
+
+  t.test('Bytes.read') fn (t) {
+    let string = 'foo'
+    let iter = string.bytes
+    let buff = ByteArray.new
+
+    t.equal(iter.read(into: buff, size: 2), 2)
+    t.equal(buff.to_string, 'fo')
+    t.equal(iter.read(into: buff, size: 2), 1)
+    t.equal(buff.to_string, 'foo')
+    t.equal(iter.read(into: buff, size: 2), 0)
+    t.equal(buff.to_string, 'foo')
+  }
+
+  t.test('Bytes.read_all') fn (t) {
+    let string = 'foo'
+    let iter = string.bytes
+    let buff = ByteArray.new
+
+    t.equal(iter.read_all(buff), 3)
+    t.equal(iter.read_all(buff), 0)
+    t.equal(buff.to_string, 'foo')
   }
 }
