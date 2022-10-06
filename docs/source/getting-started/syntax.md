@@ -413,6 +413,13 @@ bar \
 baz" # => "foo bar baz"
 ```
 
+Double quoted strings support Unicode escape sequences using the syntax
+`\u{XXXXX}`, such as this:
+
+```inko
+"foo\u{AC}bar"
+```
+
 ### Integers
 
 The syntax for integers is as follows:
