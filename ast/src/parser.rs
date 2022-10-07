@@ -1635,12 +1635,19 @@ impl Parser {
                         StringExpression { value, location },
                     )));
                 }
+                TokenKind::InvalidUnicodeEscape => {
+                    error!(
+                        token.location,
+                        "The Unicode escape sequence '{}' is invalid",
+                        token.value
+                    );
+                }
                 _ => {
                     error!(
-                        start.location,
+                        token.location,
                         "Expected the text of a String, an expression, \
                         or a double qoute, found '{}' instead",
-                        start.value
+                        token.value
                     );
                 }
             }
