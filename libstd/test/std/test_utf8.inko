@@ -1,0 +1,54 @@
+import std::test::Tests
+import std::utf8
+
+fn pub tests(t: mut Tests) {
+  t.test('utf8.encode_scalar') fn (t) {
+    let buf1 = ByteArray.new
+    let buf2 = ByteArray.new
+    let buf3 = ByteArray.new
+    let buf4 = ByteArray.from_array([1, 2])
+    let buf5 = ByteArray.new
+
+    t.equal(utf8.encode_scalar(0x5C, buf1), 1)
+    t.equal(utf8.encode_scalar(0xDF, buf2), 2)
+    t.equal(utf8.encode_scalar(0x1D11, buf3), 3)
+    t.equal(utf8.encode_scalar(0x1D11E, buf4), 4)
+    t.equal(utf8.encode_scalar(2 ** 32, buf5), 0)
+
+    t.equal(buf1, ByteArray.from_array([92]))
+    t.equal(buf2, ByteArray.from_array([195, 159]))
+    t.equal(buf3, ByteArray.from_array([225, 180, 145]))
+    t.equal(buf4, ByteArray.from_array([1, 2, 240, 157, 132, 158]))
+    t.equal(buf5, ByteArray.new)
+  }
+
+  t.test('utf8.codepoint_from_surrogates') fn (t) {
+    t.equal(utf8.codepoint_from_surrogates(0, 0), -56613888)
+    t.equal(utf8.codepoint_from_surrogates(0xD834, 0xDD1E), 0x1D11E)
+    t.equal(utf8.codepoint_from_surrogates(0xDFFF, 0xDFFF), 0x20FFFF)
+  }
+
+  t.test('utf8.surrogate?') fn (t) {
+    t.true(utf8.surrogate?(0xD834))
+    t.true(utf8.surrogate?(0xDFFF))
+    t.false(utf8.surrogate?(0xFF))
+  }
+
+  t.test('utf8.valid_scalar?') fn (t) {
+    t.true(utf8.valid_scalar?(0x0))
+    t.true(utf8.valid_scalar?(0x5C))
+    t.true(utf8.valid_scalar?(0x1D11E))
+    t.true(utf8.valid_scalar?(0x10FFFF))
+
+    t.false(utf8.valid_scalar?(0xDFFF))
+    t.false(utf8.valid_scalar?(0x10FFFF + 1))
+    t.false(utf8.valid_scalar?(-1))
+  }
+
+  t.test('utf8.codepoint_size') fn (t) {
+    t.equal(utf8.codepoint_size(0x41), 1)
+    t.equal(utf8.codepoint_size(0xDF), 2)
+    t.equal(utf8.codepoint_size(0x1D11), 3)
+    t.equal(utf8.codepoint_size(0x1D11E), 4)
+  }
+}

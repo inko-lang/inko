@@ -31,6 +31,7 @@ import std::test_sys
 import std::test_test
 import std::test_time
 import std::test_tuple
+import std::test_utf8
 
 class async Main {
   fn async main {
@@ -66,6 +67,7 @@ class async Main {
     test_test.tests(tests)
     test_time.tests(tests)
     test_tuple.tests(tests)
+    test_utf8.tests(tests)
 
     tests.pattern = env.arguments.into_iter.next
 

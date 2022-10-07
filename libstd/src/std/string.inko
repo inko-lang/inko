@@ -1,4 +1,4 @@
-# The `String` type
+# A UTF-8 encoded and immutable string.
 #
 # A `String` is an immutable, UTF-8 encoded string.
 #
