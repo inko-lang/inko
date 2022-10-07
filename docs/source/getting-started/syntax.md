@@ -69,17 +69,18 @@ compiler would think you're trying to import the module `std::process::sleep`.
 
 ## Constants
 
-Constants are defined using `let` at the module top-level:
+Constants are defined using `let` at the module top-level. Constants are limited
+to integers, floats, strings, arrays of constants, and binary expressions of
+constants:
 
 ```inko
 let A = 10
 let B = 10.5
 let C = 'foo'
 let D = A + 5
+let E = [A, 10]
+let F = 10 + A
 ```
-
-Constants are limited to integers, floats, and strings. Their values are limited
-to literals and binary expressions.
 
 ## Classes
 

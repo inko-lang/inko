@@ -201,6 +201,13 @@ impl PermanentSpace {
         ptr
     }
 
+    pub(crate) fn allocate_array(&self, value: Vec<Pointer>) -> Pointer {
+        let ptr = Array::alloc(self.array_class(), value).as_permanent();
+
+        self.permanent_objects.lock().unwrap().push(ptr);
+        ptr
+    }
+
     /// Adds a class in the global class list.
     ///
     /// This method is unsafe because it allows unsynchronised write access to

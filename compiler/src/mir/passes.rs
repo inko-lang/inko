@@ -659,6 +659,9 @@ impl<'a> DefineConstants<'a> {
 
                 self.mir.constants.get(&id).cloned().unwrap()
             }
+            hir::ConstExpression::Array(ref n) => Constant::Array(
+                n.values.iter().map(|n| self.expression(n)).collect(),
+            ),
             hir::ConstExpression::Invalid(_) => unreachable!(),
         }
     }
@@ -734,6 +737,16 @@ impl<'a> DefineConstants<'a> {
                     self.const_expr_error(&left, op, &right, loc);
                     Constant::String(String::new())
                 }
+            }
+            Constant::Array(_) => {
+                self.state.diagnostics.error(
+                    DiagnosticId::InvalidConstExpr,
+                    "Constant arrays don't support binary operations",
+                    self.file(),
+                    node.location.clone(),
+                );
+
+                left
             }
         }
     }

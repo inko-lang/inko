@@ -292,6 +292,7 @@ impl Parser {
             TokenKind::DoubleStringOpen => self.double_string_literal(start)?,
             TokenKind::Constant => self.constant_ref(start),
             TokenKind::ParenOpen => self.const_group(start)?,
+            TokenKind::BracketOpen => self.const_array(start)?,
             _ => {
                 error!(
                     start.location,
@@ -315,6 +316,30 @@ impl Parser {
             SourceLocation::start_end(&start.location, &end.location);
 
         Ok(Expression::Group(Box::new(Group { value, location })))
+    }
+
+    fn const_array(&mut self, start: Token) -> Result<Expression, ParseError> {
+        let mut values = Vec::new();
+
+        loop {
+            let token = self.require()?;
+
+            if token.kind == TokenKind::BracketClose {
+                let location =
+                    SourceLocation::start_end(&start.location, &token.location);
+
+                return Ok(Expression::Array(Box::new(Array {
+                    values,
+                    location,
+                })));
+            }
+
+            values.push(self.const_expression(token)?);
+
+            if self.peek().kind == TokenKind::Comma {
+                self.next();
+            }
+        }
     }
 
     fn optional_type_annotation(&mut self) -> Result<Option<Type>, ParseError> {
@@ -3501,6 +3526,29 @@ mod tests {
                     location: cols(13, 14)
                 })),
                 location: cols(1, 14)
+            }))
+        );
+    }
+
+    #[test]
+    fn test_constant_array() {
+        assert_eq!(
+            top(parse("let A = [10]")),
+            TopLevelExpression::DefineConstant(Box::new(DefineConstant {
+                public: false,
+                name: Constant {
+                    source: None,
+                    name: "A".to_string(),
+                    location: cols(5, 5)
+                },
+                value: Expression::Array(Box::new(Array {
+                    values: vec![Expression::Int(Box::new(IntLiteral {
+                        value: "10".to_string(),
+                        location: cols(10, 11)
+                    }))],
+                    location: cols(9, 12)
+                })),
+                location: cols(1, 12)
             }))
         );
     }

@@ -29,6 +29,9 @@ pub const CONST_FLOAT: u8 = 1;
 /// The tag that marks the start of a string constant.
 pub const CONST_STRING: u8 = 2;
 
+/// The tag that marks the start of an array constant.
+pub const CONST_ARRAY: u8 = 3;
+
 /// Enum containing all possible instruction types.
 ///
 /// When adding new opcodes, you must also add them to the `Opcode::from_byte`
