@@ -872,6 +872,7 @@ pub enum BuiltinFunction {
     RandomNew,
     RandomFromInt,
     RandomDrop,
+    StringSliceBytes,
 }
 
 impl BuiltinFunction {
@@ -1023,6 +1024,7 @@ impl BuiltinFunction {
             BuiltinFunction::RandomNew => 143,
             BuiltinFunction::RandomFromInt => 144,
             BuiltinFunction::RandomDrop => 145,
+            BuiltinFunction::StringSliceBytes => 146,
         }
     }
 
@@ -1216,6 +1218,7 @@ impl BuiltinFunction {
             BuiltinFunction::RandomNew => "random_new",
             BuiltinFunction::RandomFromInt => "random_from_int",
             BuiltinFunction::RandomDrop => "random_drop",
+            BuiltinFunction::StringSliceBytes => "string_slice_bytes",
         }
     }
 }

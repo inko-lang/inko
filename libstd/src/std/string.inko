@@ -141,33 +141,21 @@ class builtin String {
     buff.into_string
   }
 
-  # Slices `self` into a `ByteArray`.
+  # Slices `self` into a substring using a _byte_ range.
   #
-  # The returned `ByteArray` will contain all _bytes_ starting at the _byte_
-  # position specified in `start`, and will contain up to `length` _bytes_.
+  # Whereas `String.slice` operates on a range of characters, this method
+  # operates on a range of _bytes_. If the range is such that the new slice
+  # contains invalid UTF-8, the invalid sequences are replaced with
+  # U+FFFD REPLACEMENT CHARACTER.
   #
   # # Examples
   #
-  # Slicing a `String` into a `ByteArray`:
+  # Slicing a string using a valid range:
   #
-  #     'inko'.slice_bytes(start: 0, length: 4).to_string # => 'inko'
-  fn pub slice_bytes(start: Int, length: Int) -> ByteArray {
-    let bytes = ByteArray.new
-
-    if start < 0 or start > size { return bytes }
-
-    let mut index = start
-    let mut max = index + length
-
-    if max > size { max = size }
-
-    while index < max {
-      bytes.push(byte(index))
-
-      index += 1
-    }
-
-    bytes
+  #     '😊'.slice_bytes(start: 0, length: 4) # => '😊'
+  #     '😊'.slice_bytes(start: 0, length: 3) # => "\u{FFFD}"
+  fn pub slice_bytes(start: Int, length: Int) -> String {
+    _INKO.string_slice_bytes(self, start, length)
   }
 
   # Returns the _byte_ index of the first occurrence of the given `String`,

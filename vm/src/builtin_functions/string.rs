@@ -3,6 +3,7 @@ use crate::process::ProcessPointer;
 use crate::runtime_error::RuntimeError;
 use crate::scheduler::process::Thread;
 use crate::state::State;
+use std::cmp::min;
 use unicode_segmentation::{Graphemes, UnicodeSegmentation};
 
 pub(crate) fn string_to_lower(
@@ -136,4 +137,27 @@ pub(crate) fn string_concat_array(
     }
 
     Ok(InkoString::alloc(state.permanent_space.string_class(), buffer))
+}
+
+pub(crate) fn string_slice_bytes(
+    state: &State,
+    _: &mut Thread,
+    _: ProcessPointer,
+    args: &[Pointer],
+) -> Result<Pointer, RuntimeError> {
+    let string = unsafe { InkoString::read(&args[0]) };
+    let start = unsafe { Int::read(args[1]) };
+    let len = unsafe { Int::read(args[2]) };
+    let end = min((start + len) as usize, string.len());
+
+    let new_string = if start < 0 || len <= 0 || start as usize >= end {
+        String::new()
+    } else {
+        String::from_utf8_lossy(
+            &string.as_bytes()[start as usize..end as usize],
+        )
+        .into_owned()
+    };
+
+    Ok(InkoString::alloc(state.permanent_space.string_class(), new_string))
 }
