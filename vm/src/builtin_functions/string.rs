@@ -49,10 +49,18 @@ pub(crate) fn string_to_float(
     args: &[Pointer],
 ) -> Result<Pointer, RuntimeError> {
     let string = unsafe { InkoString::read(&args[0]) };
-    let parsed = match string {
+    let start = unsafe { Int::read(args[1]) };
+    let end = unsafe { Int::read(args[2]) };
+    let slice = if start >= 0 && end >= 0 {
+        &string[start as usize..end as usize]
+    } else {
+        string
+    };
+
+    let parsed = match slice {
         "Infinity" => Ok(f64::INFINITY),
         "-Infinity" => Ok(f64::NEG_INFINITY),
-        _ => string.parse::<f64>(),
+        _ => slice.parse::<f64>(),
     };
 
     let res = parsed
@@ -70,6 +78,8 @@ pub(crate) fn string_to_int(
 ) -> Result<Pointer, RuntimeError> {
     let string = unsafe { InkoString::read(&args[0]) };
     let radix = unsafe { Int::read(args[1]) };
+    let start = unsafe { Int::read(args[2]) };
+    let end = unsafe { Int::read(args[3]) };
 
     if !(2..=36).contains(&radix) {
         return Err(RuntimeError::Panic(format!(
@@ -78,7 +88,13 @@ pub(crate) fn string_to_int(
         )));
     }
 
-    let res = i64::from_str_radix(string, radix as u32)
+    let slice = if start >= 0 && end >= 0 {
+        &string[start as usize..end as usize]
+    } else {
+        string
+    };
+
+    let res = i64::from_str_radix(slice, radix as u32)
         .map(|val| Int::alloc(state.permanent_space.int_class(), val))
         .unwrap_or_else(|_| Pointer::undefined_singleton());
 

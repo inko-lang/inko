@@ -18,6 +18,7 @@ import std::test_fmt
 import std::test_int
 import std::test_io
 import std::test_iter
+import std::test_json
 import std::test_map
 import std::test_nil
 import std::test_option
@@ -52,6 +53,7 @@ class async Main {
     test_io.tests(tests)
     test_ip.tests(tests)
     test_iter.tests(tests)
+    test_json.tests(tests)
     test_map.tests(tests)
     test_nil.tests(tests)
     test_option.tests(tests)

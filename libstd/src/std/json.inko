@@ -1,0 +1,830 @@
+# Parsing and generating of JSON.
+#
+# # Parsing JSON
+#
+# This module provides support for parsing and generating JSON, conforming to
+# RFC 8259 (https://www.rfc-editor.org/rfc/rfc8259). Tests were performed
+# against the test corpus provided by the article
+# https://seriot.ch/projects/parsing_json.html. Extensions such as parsing
+# `NaN`, `Infinity`, and comments are not supported.
+#
+# Parsing is done using the `parse` module method:
+#
+#     import std::json
+#
+#     try! json.parse('[10]') # => Json.Array([Json.Int(10)])
+#
+# The parser enforces limits on the number of nested objects and the length of
+# strings. These limits can be adjusted by using the `Parser` type directly like
+# so:
+#
+#     import std::json::Parser
+#
+#     let parser = Parser.new('[10]')
+#
+#     parser.max_depth = 4
+#     parser.max_string_size = 128
+#
+#     try! parser.parse
+#
+# # Generating JSON
+#
+# Generating JSON strings is done using `Json.to_string` and
+# `Json.to_pretty_string`:
+#
+#     import std::json::Json
+#
+#     Json.Array([Json.Int(1), Json.Int(2)]).to_string # => '[1, 2]'
+#
+# When using `to_pretty_string`, the default indentation is two spaces per
+# indentation level. You can change this value by using the `Generator` type
+# directly:
+#
+#     import std::json::(Generator, Json)
+#
+#     let val = Json.Array([Json.Int(1), Json.Int(2)])
+#     let gen = Generator.new(indent: 4)
+#
+#     gen.generate(val)
+#
+# This would then produce the following JSON:
+#
+#     [
+#         1,
+#         2
+#     ]
+#
+# # Performance
+#
+# The implementation provided by this module isn't optimised for maximum
+# performance or optimal memory usage. Instead this module aims to provide an
+# implementation that's good enough for most cases.
+import std::cmp::Equal
+import std::fmt::(Format, Formatter)
+import std::string::(StringBuffer, ToString)
+import std::utf8
+
+let EOF = -1
+let BRACKET_OPEN = 0x5B
+let BRACKET_CLOSE = 0x5D
+let CURLY_OPEN = 0x7B
+let CURLY_CLOSE = 0x7D
+let DQUOTE = 0x22
+let COMMA = 0x2C
+let MINUS = 0x2D
+let PLUS = 0x2B
+let DOT = 0x2E
+let COLON = 0x3A
+let SLASH = 0x2F
+let BSLASH = 0x5C
+let SPACE = 0x20
+let BS = 0x8
+let TAB = 0x9
+let LF = 0xA
+let CR = 0xD
+let FF = 0xC
+let ZERO = 0x30
+let NINE = 0x39
+let LOWER_E = 0x65
+let UPPER_E = 0x45
+let LOWER_T = 0x74
+let LOWER_F = 0x66
+let LOWER_N = 0x6E
+let LOWER_B = 0x62
+let LOWER_R = 0x72
+let LOWER_U = 0x75
+
+# A table mapping bytes that follow a "\", and the types to replace the sequence
+# with. A value of `-1` means there's no replacement.
+let ESCAPE_TABLE = [
+  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
+  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
+  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
+  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
+  -1,     -1, DQUOTE,     -1,     -1,     -1,     -1,     -1,
+  -1,     -1,     -1,     -1,     -1,     -1,     -1,  SLASH,
+  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
+  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
+  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
+  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
+  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
+  -1,     -1,     -1,     -1, BSLASH,     -1,     -1,     -1,
+  -1,     -1,     BS,     -1,     -1,     -1,     FF,     -1,
+  -1,     -1,     -1,     -1,     -1,     -1,     LF,     -1,
+  -1,     -1,     CR,     -1,    TAB,     -1,     -1,     -1,
+  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
+  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
+  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
+  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
+  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
+  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
+  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
+  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
+  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
+  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
+  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
+  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
+  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
+  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
+  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
+  -1,     -1,     -1,     -1,     -1,     -1,     -1,
+]
+
+# The default amount of spaces to use for indentation when pretty-printing JSON
+# objects.
+let DEFAULT_PRETTY_INDENT = 2
+
+fn digit?(byte: Int) -> Bool {
+  byte >= ZERO and byte <= NINE
+}
+
+fn exponent?(byte: Int) -> Bool {
+  byte == LOWER_E or byte == UPPER_E
+}
+
+# A type describing an error produced while parsing a JSON document.
+class pub Error {
+  # A human readable description of the error.
+  let pub @message: String
+
+  # The line number of the error.
+  let pub @line: Int
+
+  # The byte offset in the input string at which the error starts.
+  #
+  # Managing column counts is tricky, as this involves maintaining a grapheme
+  # cluster counter, which is complicated and expensive. Instead we report a
+  # byte offset (relative to the start of the input), as we need to maintain
+  # this anyway.
+  #
+  # The article at https://www.foonathan.net/2021/02/column/ contains additional
+  # information regarding this topic.
+  let pub @offset: Int
+}
+
+impl Format for Error {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.write(to_string)
+  }
+}
+
+impl ToString for Error {
+  fn pub to_string -> String {
+    "{@message}, on line {@line} at byte offset {@offset}"
+  }
+}
+
+# A JSON value, such as `true` or an array.
+class pub enum Json {
+  case Int(Int)
+  case Float(Float)
+  case String(String)
+  case Array(Array[Json])
+  case Object(Map[String, Json])
+  case Bool(Bool)
+  case Null
+
+  # Formats `self` as a JSON string using indentation for nested objects.
+  #
+  # This method uses two spaces per indentation. To customise the amount of
+  # spaces you'll need to use the `Generator` type directly.
+  #
+  # # Examples
+  #
+  #     import std::json::Json
+  #     Json.Int(42).to_pretty_string               # => '42'
+  #     Json.Array([Json.Int(42)]).to_pretty_string # => "[\n  42\n]"
+  fn pub to_pretty_string -> String {
+    Generator.new(DEFAULT_PRETTY_INDENT).generate(self)
+  }
+}
+
+impl ToString for Json {
+  # Formats `self` as a JSON string.
+  #
+  # # Examples
+  #
+  #     import std::json::Json
+  #
+  #     Json.Int(42).to_string               # => '42'
+  #     Json.Array([Json.Int(42)]).to_string # => '[42]'
+  fn pub to_string -> String {
+    Generator.new(0).generate(self)
+  }
+}
+
+impl Format for Json {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case Int(val) -> {
+        formatter.write('Int(')
+        val.fmt(formatter)
+        formatter.write(')')
+      }
+      case Float(val) -> {
+        formatter.write('Float(')
+        val.fmt(formatter)
+        formatter.write(')')
+      }
+      case String(val) -> {
+        formatter.write('String(')
+        val.fmt(formatter)
+        formatter.write(')')
+      }
+      case Array(val) -> {
+        formatter.write('Array(')
+        val.fmt(formatter)
+        formatter.write(')')
+      }
+      case Object(val) -> {
+        formatter.write('Object(')
+        val.fmt(formatter)
+        formatter.write(')')
+      }
+      case Bool(val) -> {
+        formatter.write('Bool(')
+        val.fmt(formatter)
+        formatter.write(')')
+      }
+      case Null -> formatter.write('Null')
+    }
+  }
+}
+
+impl Equal for Json {
+  fn pub ==(other: ref Json) -> Bool {
+    match self {
+      case Int(lhs) -> match other {
+        case Int(rhs) -> lhs == rhs
+        case _ -> false
+      }
+      case Float(lhs) -> match other {
+        case Float(rhs) -> lhs == rhs
+        case _ -> false
+      }
+      case String(lhs) -> match other {
+        case String(rhs) -> lhs == rhs
+        case _ -> false
+      }
+      case Array(lhs) -> match other {
+        case Array(rhs) -> lhs == rhs
+        case _ -> false
+      }
+      case Object(lhs) -> match other {
+        case Object(rhs) -> lhs == rhs
+        case _ -> false
+      }
+      case Bool(lhs) -> match other {
+        case Bool(rhs) -> lhs == rhs
+        case _ -> false
+      }
+      case Null -> match other {
+        case Null -> true
+        case _ -> false
+      }
+    }
+  }
+}
+
+# A type for parsing a stream of bytes into a JSON object.
+#
+# This parser only supports parsing `String` values as input. If you need to
+# parse very large documents, it's best to separate the objects on a per line
+# basis, then parse the document one line at a time.
+#
+# # Nested arrays and objects
+#
+# This parser enforces a limit on the number of nested arrays and objects. The
+# default is sufficiently large that most documents won't result in an error
+# being thrown. You can change this limit by adjusting the value of the
+# `max_depth` field.
+#
+# # String sizes
+#
+# Strings are limited to a maximum size defined in bytes. This size defaults to
+# 10 MiB _per string_. You can change this limit by adjusting the value of the
+# `max_string_size` field.
+class pub Parser {
+  let @string: ref String
+  let @index: Int
+  let @size: Int
+  let @line: Int
+  let @depth: Int
+
+  # The maximum number of nested values.
+  #
+  # When parsing an array or object that exceeds this depth, an error is thrown.
+  let pub @max_depth: Int
+
+  # The maximum size of a string in bytes.
+  #
+  # When parsing a string that exceeds this limit, an error is thrown.
+  let pub @max_string_size: Int
+
+  # Returns a new parser that will parse the given `String`.
+  fn pub static new(string: ref String) -> Self {
+    Self {
+      @string = string,
+      @index = 0,
+      @size = string.size,
+      @line = 1,
+      @depth = 0,
+      @max_depth = 100,
+      @max_string_size = 10 * 1024 * 1024,
+    }
+  }
+
+  # Parses the input into a JSON object.
+  #
+  # If the input is invalid JSON, this method throws an `Error`.
+  #
+  # # Examples
+  #
+  #     import std::json::Parser
+  #
+  #     let parser = Parser.new('[10, 20]')
+  #
+  #     try! parser.parse # => Json.Array([Json.Int(10), Json.Int(20)])
+  fn pub move parse !! Error -> Json {
+    let result = try value
+
+    whitespace
+
+    # Only trailing whitespace is allowed.
+    if current != EOF { throw unexpected(current) }
+
+    result
+  }
+
+  fn mut value !! Error -> Json {
+    if @depth >= @max_depth {
+      throw error("Only up to {@max_depth} nested objects/arrays are allowed")
+    }
+
+    whitespace
+
+    loop {
+      match current {
+        case MINUS -> return try number
+        case BRACKET_OPEN -> return try array
+        case CURLY_OPEN -> return try object
+        case LOWER_T -> return try self.true
+        case LOWER_F -> return try self.false
+        case LOWER_N -> return try null
+        case DQUOTE -> return try string
+        case byte if digit?(byte) -> return try number
+        # This is to take care of any random garbage that may be included in the
+        # JSON document, including Unicode BOMs. This also saves us from having
+        # to explicitly check for all the different BOMs.
+        case byte -> throw unexpected(byte)
+      }
+    }
+  }
+
+  fn mut string !! Error -> Json {
+    Json.String(try string_value)
+  }
+
+  fn mut string_value !! Error -> String {
+    advance
+
+    let start = @index.clone
+
+    loop {
+      match current {
+        # If a string contains a backslash we need to fall back to a slower
+        # method of parsing that supports escape sequences. Using this as a
+        # fallback instead of the default allows us to avoid unnecessary
+        # allocations for many strings.
+        case BSLASH -> return try string_with_escape_sequence(start)
+        case DQUOTE -> break
+        case EOF -> throw unexpected(current)
+        case val if val >= 0x0 and val <= 0x001F -> throw invalid_control(val)
+        case _ -> advance
+      }
+    }
+
+    let size = @index - start
+
+    if size > @max_string_size {
+      throw error(
+        "The size of this string ({size} bytes) is greater than \
+        the maximum of {@max_string_size} bytes"
+      )
+    }
+
+    let string = slice_string(start)
+
+    advance
+    string
+  }
+
+  fn mut string_with_escape_sequence(started_at: Int) !! Error -> String {
+    let buffer =
+      @string.slice_bytes(started_at, @index - started_at).to_byte_array
+
+    loop {
+      match current {
+        case BSLASH -> match ESCAPE_TABLE[peek] {
+          case -1 if peek == LOWER_U -> try escaped_unicode(buffer)
+          case -1 -> {
+            let start = @index
+
+            @index += 2
+            throw error("'{slice_string(start)}' is an invalid escape sequence")
+          }
+          case replacement -> {
+            buffer.push(replacement.clone)
+            @index += 2
+          }
+        }
+        case DQUOTE -> break
+        case EOF -> throw unexpected(current)
+        case val if val >= 0x0 and val <= 0x001F -> throw invalid_control(val)
+        case byte -> {
+          buffer.push(byte)
+          advance
+        }
+      }
+    }
+
+    advance
+
+    if buffer.length > @max_string_size {
+      throw error(
+        "The size of this string ({buffer.length} bytes) is greater than \
+        the maximum of {@max_string_size} bytes"
+      )
+    }
+
+    buffer.into_string
+  }
+
+  fn mut escaped_unicode(buffer: mut ByteArray) !! Error {
+    # Skip the "\u"
+    @index += 2
+
+    let start = @index
+    let high = try codepoint
+
+    if utf8.encode_scalar(high, buffer) > 0 { return }
+
+    # At this point the codepoint is either straight up invalid (e.g. "\uZZZZ"),
+    # or it's a UTF-16 surrogate.
+    if utf8.surrogate?(high).false?
+      or (current == BSLASH and peek == LOWER_U).false?
+    {
+      throw error("'{slice_string(start)}' is an invalid Unicode codepoint")
+    }
+
+    # Skip the "\u" of the second pair.
+    @index += 2
+
+    let low = try codepoint
+
+    if utf8.surrogate?(low) {
+      let codepoint = utf8.codepoint_from_surrogates(high, low)
+
+      # The encoding may fail for pairs such as "\uDFFF\uDFFF".
+      if utf8.encode_scalar(codepoint, buffer) > 0 { return }
+    }
+
+    throw error("'{slice_string(start)}' is an invalid UTF-16 surrogate pair")
+  }
+
+  fn mut codepoint !! Error -> Int {
+    let start = @index
+
+    @index += 4
+
+    if @index >= @size {
+      throw error("Expected four hexadecimal digits, but we ran out of input")
+    }
+
+    let codepoint = _INKO.string_to_int(@string, 16, start, @index)
+
+    if _INKO.is_undefined(codepoint) {
+      throw error("'{slice_string(start)}' is an invalid Unicode codepoint")
+    }
+
+    codepoint
+  }
+
+  fn mut true !! Error -> Json {
+    try identifier('true')
+    Json.Bool(true)
+  }
+
+  fn mut false !! Error -> Json {
+    try identifier('false')
+    Json.Bool(false)
+  }
+
+  fn mut null !! Error -> Json {
+    try identifier('null')
+    Json.Null
+  }
+
+  fn mut array !! Error -> Json {
+    advance
+
+    let values = []
+
+    @depth += 1
+
+    while current != BRACKET_CLOSE {
+      values.push(try value)
+      try separator(BRACKET_CLOSE)
+    }
+
+    @depth -= 1
+    advance
+    Json.Array(values)
+  }
+
+  fn mut object !! Error -> Json {
+    advance
+    whitespace
+
+    let map = Map.new
+
+    @depth += 1
+
+    while current != CURLY_CLOSE {
+      let key = try string_value
+
+      if current != COLON { throw unexpected(current) }
+
+      advance
+
+      let val = try value
+
+      try separator(CURLY_CLOSE)
+
+      map[key] = val
+    }
+
+    advance
+    @depth -= 1
+    Json.Object(map)
+  }
+
+  fn mut number !! Error -> Json {
+    let start = @index
+
+    if current == MINUS {
+      advance
+
+      if digit?(current).false? { throw unexpected(current) }
+    }
+
+    # Numbers such as 001, 010, 01.0, etc are invalid.
+    if current == ZERO and digit?(peek) { throw unexpected(current) }
+
+    while digit?(current) { advance }
+
+    match current {
+      # Examples: 1.2, 1.2e1, 1.2e+1
+      case DOT -> {
+        # Advance over the "."
+        advance
+
+        if digit?(current).false? { throw unexpected(current) }
+
+        while digit?(current) { advance }
+
+        if exponent?(current) { try exponent }
+      }
+      # Example: 1E4
+      case byte if exponent?(byte) -> try exponent
+      # Example: 123, 0123 (invalid), -0123 (also invalid)
+      case _ -> {
+        # The integer and float format of JSON is also supported by our internal
+        # number parser. As part of parsing the JSON number we already validate
+        # it. This means we can bypass `Int.from_base10` (and `Float.parse`
+        # below), and instead use the underlying runtime functions.
+        let res = _INKO.string_to_int(@string, 10, start, @index)
+
+        # If the number is too big to fit in an integer, we'll promote the
+        # number to a float.
+        if _INKO.is_undefined(res).false? { return Json.Int(res) }
+      }
+    }
+
+    # At this point we've already validated the input format, and it's
+    # compatible with the underlying float parser, so no extra checks are
+    # needed.
+    Json.Float(_INKO.string_to_float(@string, start, @index))
+  }
+
+  fn mut exponent !! Error {
+    advance
+
+    if current == MINUS or current == PLUS { advance }
+    if digit?(current).false? { throw unexpected(current) }
+
+    while digit?(current) { advance }
+  }
+
+  fn mut advance_line {
+    @index += 1
+    @line += 1
+  }
+
+  fn mut advance {
+    @index += 1
+  }
+
+  fn current -> Int {
+    if @index < @size {
+      # We use a raw instruction here to avoid the overhead of bounds checking;
+      # something not yet optimised away at the time of writing.
+      _INKO.string_byte(@string, @index)
+    } else {
+      EOF
+    }
+  }
+
+  fn peek -> Int {
+    let index = @index + 1
+
+    if index < @size { _INKO.string_byte(@string, index) } else { EOF }
+  }
+
+  fn mut identifier(name: String) !! Error {
+    let mut index = 0
+    let max = name.size
+
+    while index < max {
+      if current != name.byte(index) { throw unexpected(current) }
+
+      advance
+      index += 1
+    }
+  }
+
+  fn mut separator(closing: Int) !! Error {
+    whitespace
+
+    if current != closing {
+      if current != COMMA { throw unexpected(current) }
+
+      advance
+      whitespace
+
+      if current == closing { throw unexpected(current) }
+    }
+  }
+
+  fn mut whitespace {
+    loop {
+      match current {
+        case SPACE or CR or TAB -> advance
+        case LF -> advance_line
+        case _ -> break
+      }
+    }
+  }
+
+  fn invalid_control(byte: Int) -> Error {
+    error("The control character {byte.to_base16} must be escaped")
+  }
+
+  fn unexpected(byte: Int) -> Error {
+    if byte == EOF {
+      return error("One or more tokens are required, but we ran out of input")
+    }
+
+    let char = ByteArray.from_array([byte]).into_string
+
+    error("The character '{char}' is unexpected")
+  }
+
+  fn slice_string(start: ref Int) -> String {
+    @string.slice_bytes(start.clone, length: @index - start)
+  }
+
+  fn error(message: String) -> Error {
+    Error { @message = message, @line = @line.clone, @offset = @index.clone }
+  }
+}
+
+# A type for turning a `Json` value into a JSON string.
+#
+# This type is used by `Json.to_string` and `Json.to_pretty_string`. Unless you
+# want to use custom indentation, it's recommended to use these methods instead
+# of using `Generator` directly.
+class pub Generator {
+  let @pretty: Bool
+  let @spaces: String
+  let @depth: Int
+  let @buffer: StringBuffer
+
+  # Returns a new `Generator` using the given indentation level.
+  #
+  # The `indent` argument specifies the number of spaces to use per indentation
+  # level. If this value is less than or equal to zero, no indentation is
+  # applied.
+  fn pub static new(indent: Int) -> Self {
+    Self {
+      @pretty = indent > 0,
+      @spaces = ' '.repeat(indent),
+      @depth = 0,
+      @buffer = StringBuffer.new
+    }
+  }
+
+  # Generates a JSON string for the given `Json` value.
+  #
+  # # Examples
+  #
+  #     import std::json::Generator
+  #
+  #     Generator.new(indent: 2).generate(Json.Array([Json.Int(1)])) # => '[1]'
+  fn pub mut generate(value: ref Json) -> String {
+    generate_value(value)
+    @buffer.to_string
+  }
+
+  fn mut generate_value(value: ref Json) {
+    match value {
+      case Int(val) -> @buffer.push(val.to_string)
+      case Float(val) -> @buffer.push(val.to_string)
+      case String(val) -> {
+        @buffer.push('"')
+        @buffer.push(val.escaped)
+        @buffer.push('"')
+      }
+      case Array(vals) -> {
+        @buffer.push('[')
+
+        if vals.length > 0 {
+          enter fn {
+            vals.iter.each_with_index fn (index, val) {
+              if index > 0 { separator }
+
+              indent
+              generate_value(val)
+            }
+          }
+        }
+
+        indent
+        @buffer.push(']')
+      }
+      case Object(vals) -> {
+        @buffer.push('{')
+
+        if vals.length > 0 {
+          enter fn {
+            vals.iter.each_with_index fn (index, pair) {
+              if index > 0 { separator }
+
+              indent
+              @buffer.push('"')
+              @buffer.push(pair.key.escaped)
+              @buffer.push('": ')
+              generate_value(pair.value)
+            }
+          }
+        }
+
+        indent
+        @buffer.push('}')
+      }
+      case Bool(val) -> @buffer.push(val.to_string)
+      case Null -> @buffer.push('null')
+    }
+  }
+
+  fn mut enter(block: fn) {
+    newline
+    @depth += 1
+    block.call
+    @depth -= 1
+    newline
+  }
+
+  fn mut indent {
+    if @pretty { @depth.times fn (_) { @buffer.push(@spaces.clone) } }
+  }
+
+  fn mut newline {
+    if @pretty { @buffer.push("\n") }
+  }
+
+  fn mut separator {
+    @buffer.push(if @pretty { ",\n" } else { ', ' })
+  }
+}
+
+# Parses a JSON string into a `Json` value.
+#
+# # Examples
+#
+#     import std::json
+#
+#     try! json.parse('[10]') # => Json.Array([Json.Int(10)])
+fn pub parse(string: ref String) !! Error -> Json {
+  try Parser.new(string).parse
+}
