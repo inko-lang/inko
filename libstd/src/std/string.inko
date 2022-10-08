@@ -17,13 +17,41 @@ import std::io::Read
 import std::iter::(Bytes as BytesTrait, EOF, Enum, Iter)
 import std::ops::Add
 
-let TAB_BYTE = 9
-let NL_BYTE = 10
-let CR_BYTE = 13
-let SPACE_BYTE = 32
+let TAB = 0x9
+let LF = 0xA
+let CR = 0xD
+let SPACE = 0x20
+let DQUOTE = 0x22
+let BSLASH = 0x5C
+
+let LOWER_B = 0x62
+let LOWER_N = 0x6e
+let LOWER_F = 0x66
+let LOWER_R = 0x72
+let LOWER_T = 0x74
+
+# A table mapping bytes to their replacements for `String.escaped`.
+let ESCAPE_TABLE = [
+       -1,         -1,         -1,         -1,         -1,         -1,
+       -1,         -1,    LOWER_B,    LOWER_T,    LOWER_N,         -1,
+  LOWER_F,    LOWER_R,         -1,         -1,         -1,         -1,
+       -1,         -1,         -1,         -1,         -1,         -1,
+       -1,         -1,         -1,         -1,         -1,         -1,
+       -1,         -1,         -1,         -1,     DQUOTE,         -1,
+       -1,         -1,         -1,         -1,         -1,         -1,
+       -1,         -1,         -1,         -1,         -1,         -1,
+       -1,         -1,         -1,         -1,         -1,         -1,
+       -1,         -1,         -1,         -1,         -1,         -1,
+       -1,         -1,         -1,         -1,         -1,         -1,
+       -1,         -1,         -1,         -1,         -1,         -1,
+       -1,         -1,         -1,         -1,         -1,         -1,
+       -1,         -1,         -1,         -1,         -1,         -1,
+       -1,         -1,         -1,         -1,         -1,         -1,
+       -1,         -1,     BSLASH,         -1,         -1,         -1,
+]
 
 fn whitespace?(byte: Int) -> Bool {
-  byte == TAB_BYTE or byte == NL_BYTE or byte == CR_BYTE or byte == SPACE_BYTE
+  byte == TAB or byte == LF or byte == CR or byte == SPACE
 }
 
 fn padding(string: String, length: Int, pad_to: Int) -> String {
@@ -403,6 +431,44 @@ class builtin String {
 
     slice_bytes(start: start, length: end + 1 - start).into_string
   }
+
+  # Returns a copy of `self` with all special characters escaped.
+  #
+  # The following characters are escaped:
+  #
+  # 1. Double quotes
+  # 1. Tabs
+  # 1. Newlines
+  # 1. Carriage returns
+  # 1. Backspace
+  # 1. Form feed
+  # 1. Backslash
+  #
+  # # Examples
+  #
+  #     "hello\nworld" # => 'hello\nworld'
+  #     "hello\\world" # => 'hello\\world'
+  fn pub escaped -> String {
+    let buff = ByteArray.new
+    let max = ESCAPE_TABLE.length
+
+    bytes.each fn (byte) {
+      if byte >= max {
+        buff.push(byte)
+        return
+      }
+
+      match ESCAPE_TABLE[byte] {
+        case -1 -> buff.push(byte)
+        case byte -> {
+          buff.push(BSLASH)
+          buff.push(byte.clone)
+        }
+      }
+    }
+
+    buff.into_string
+  }
 }
 
 impl Contains[String] for String {
@@ -502,36 +568,7 @@ impl IntoPath for String {
 impl Format for String {
   fn pub fmt(formatter: mut Formatter) {
     formatter.write('"')
-
-    let buff = bytes.reduce(ByteArray.new) fn (buff, byte) {
-      match byte {
-        # Double quotes
-        case 34 -> {
-          buff.push(92)
-          buff.push(byte)
-        }
-        # Tabs
-        case 9 -> {
-          buff.push(92)
-          buff.push(116)
-        }
-        # Newlines
-        case 10 -> {
-          buff.push(92)
-          buff.push(110)
-        }
-        # Carriage returns
-        case 13 -> {
-          buff.push(92)
-          buff.push(114)
-        }
-        case _ -> buff.push(byte)
-      }
-
-      buff
-    }
-
-    formatter.write(buff.into_string)
+    formatter.write(escaped)
     formatter.write('"')
   }
 }
