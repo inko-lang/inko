@@ -35,25 +35,13 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('String.slice_bytes') fn (t) {
-    t.equal(
-      'hello_world'.slice_bytes(start: 0, length: 5),
-      'hello'.to_byte_array
-    )
-
-    t.equal(
-      'hello_world'.slice_bytes(start: 0, length: 20),
-      'hello_world'.to_byte_array
-    )
-
-    t.equal(
-      '→foo'.slice_bytes(start: 0, length: 2),
-      ByteArray.from_array([226, 134])
-    )
-
-    t.equal('→foo'.slice_bytes(start: 0, length: 6), '→foo'.to_byte_array)
-    t.equal('→foo'.slice_bytes(start: 0, length: 3), '→'.to_byte_array)
-    t.equal('foo'.slice_bytes(start: 42, length: 50), ByteArray.new)
-    t.equal('foo'.slice_bytes(start: -5, length: 50), ByteArray.new)
+    t.equal('hello_world'.slice_bytes(start: 0, length: 5), 'hello')
+    t.equal('hello_world'.slice_bytes(start: 0, length: 20), 'hello_world')
+    t.equal('→foo'.slice_bytes(start: 0, length: 2), "\u{FFFD}")
+    t.equal('→foo'.slice_bytes(start: 0, length: 6), '→foo')
+    t.equal('→foo'.slice_bytes(start: 0, length: 3), '→')
+    t.equal('foo'.slice_bytes(start: 42, length: 50), '')
+    t.equal('foo'.slice_bytes(start: -5, length: 50), '')
   }
 
   t.test('String.byte_index') fn (t) {
@@ -231,6 +219,17 @@ fn pub tests(t: mut Tests) {
 
   t.test('String.into_path') fn (t) {
     t.equal('foo'.into_path, Path.new('foo'))
+  }
+
+  t.test('String.escaped') fn (t) {
+    t.equal('foo'.escaped, 'foo')
+    t.equal('"foo"'.escaped, '\"foo\"')
+    t.equal("'foo'".escaped, "'foo'")
+    t.equal("foo\nbar".escaped, 'foo\nbar')
+    t.equal("foo\tbar".escaped, 'foo\tbar')
+    t.equal("foo\rbar".escaped, 'foo\rbar')
+    t.equal("foo\u{C}bar".escaped, 'foo\fbar')
+    t.equal("foo\u{8}bar".escaped, 'foo\bbar')
   }
 
   t.test('String.fmt') fn (t) {

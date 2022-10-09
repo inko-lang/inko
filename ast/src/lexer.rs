@@ -584,7 +584,7 @@ impl Lexer {
 
         let location = self.source_location(line, column);
 
-        if closed && !value.is_empty() && value.len() <= 5 {
+        if closed && !value.is_empty() && value.len() <= 6 {
             if let Some(parsed) = u32::from_str_radix(&value, 16)
                 .ok()
                 .and_then(char::from_u32)
@@ -1802,12 +1802,28 @@ mod tests {
             tok(DoubleStringClose, "\"", 1..=1, 13..=13)
         );
         assert_tokens!(
+            "\"a\\u{10FFFF}b\"",
+            tok(DoubleStringOpen, "\"", 1..=1, 1..=1),
+            tok(StringText, "a", 1..=1, 2..=2),
+            tok(UnicodeEscape, "\u{10FFFF}", 1..=1, 3..=12),
+            tok(StringText, "b", 1..=1, 13..=13),
+            tok(DoubleStringClose, "\"", 1..=1, 14..=14)
+        );
+        assert_tokens!(
             "\"a\\u{XXXXX}b\"",
             tok(DoubleStringOpen, "\"", 1..=1, 1..=1),
             tok(StringText, "a", 1..=1, 2..=2),
             tok(InvalidUnicodeEscape, "XXXXX", 1..=1, 3..=11),
             tok(StringText, "b", 1..=1, 12..=12),
             tok(DoubleStringClose, "\"", 1..=1, 13..=13)
+        );
+        assert_tokens!(
+            "\"a\\u{FFFFFF}b\"",
+            tok(DoubleStringOpen, "\"", 1..=1, 1..=1),
+            tok(StringText, "a", 1..=1, 2..=2),
+            tok(InvalidUnicodeEscape, "FFFFFF", 1..=1, 3..=12),
+            tok(StringText, "b", 1..=1, 13..=13),
+            tok(DoubleStringClose, "\"", 1..=1, 14..=14)
         );
         assert_tokens!(
             "\"a\\u{AAAAA #}b\"",

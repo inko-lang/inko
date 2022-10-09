@@ -13,7 +13,7 @@ use crate::permanent_space::{
     FLOAT_CLASS, FUTURE_CLASS, INT_CLASS, NIL_CLASS, STRING_CLASS,
 };
 use bytecode::{
-    Instruction, Opcode, CONST_FLOAT, CONST_INTEGER, CONST_STRING,
+    Instruction, Opcode, CONST_ARRAY, CONST_FLOAT, CONST_INTEGER, CONST_STRING,
     SIGNATURE_BYTES, VERSION,
 };
 use std::f64;
@@ -186,6 +186,20 @@ fn read_string<R: Read>(stream: &mut R) -> Result<String, String> {
     let buff = read_vec!(stream, size);
 
     String::from_utf8(buff).map_err(|e| e.to_string())
+}
+
+fn read_constant_array<R: Read>(
+    space: &PermanentSpace,
+    stream: &mut R,
+) -> Result<Vec<Pointer>, String> {
+    let amount = read_u16(stream)? as usize;
+    let mut values = Vec::with_capacity(amount);
+
+    for _ in 0..amount {
+        values.push(read_constant(space, stream)?);
+    }
+
+    Ok(values)
 }
 
 fn read_u8<R: Read>(stream: &mut R) -> Result<u8, String> {
@@ -432,6 +446,9 @@ fn read_constant<R: Read>(
         CONST_INTEGER => space.allocate_int(read_i64(stream)?),
         CONST_FLOAT => space.allocate_float(read_f64(stream)?),
         CONST_STRING => space.allocate_string(read_string(stream)?),
+        CONST_ARRAY => {
+            space.allocate_array(read_constant_array(space, stream)?)
+        }
         _ => {
             return Err(format!("The constant type {} is invalid", const_type))
         }

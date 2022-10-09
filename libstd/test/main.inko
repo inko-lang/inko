@@ -18,6 +18,7 @@ import std::test_fmt
 import std::test_int
 import std::test_io
 import std::test_iter
+import std::test_json
 import std::test_map
 import std::test_nil
 import std::test_option
@@ -31,6 +32,7 @@ import std::test_sys
 import std::test_test
 import std::test_time
 import std::test_tuple
+import std::test_utf8
 
 class async Main {
   fn async main {
@@ -51,6 +53,7 @@ class async Main {
     test_io.tests(tests)
     test_ip.tests(tests)
     test_iter.tests(tests)
+    test_json.tests(tests)
     test_map.tests(tests)
     test_nil.tests(tests)
     test_option.tests(tests)
@@ -66,6 +69,7 @@ class async Main {
     test_test.tests(tests)
     test_time.tests(tests)
     test_tuple.tests(tests)
+    test_utf8.tests(tests)
 
     tests.pattern = env.arguments.into_iter.next
 

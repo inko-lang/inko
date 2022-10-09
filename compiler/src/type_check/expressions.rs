@@ -26,6 +26,7 @@ const INDEX_TRAIT: &str = "Index";
 const INDEX_MUT_TRAIT: &str = "IndexMut";
 
 const STRING_LITERAL_LIMIT: usize = u32::MAX as usize;
+const CONST_ARRAY_LIMIT: usize = u16::MAX as usize;
 
 /// The maximum number of methods that a single class can define.
 ///
@@ -976,6 +977,7 @@ impl<'a> CheckConstant<'a> {
             hir::ConstExpression::String(ref mut n) => self.string_literal(n),
             hir::ConstExpression::Binary(ref mut n) => self.binary(n),
             hir::ConstExpression::ConstantRef(ref mut n) => self.constant(n),
+            hir::ConstExpression::Array(ref mut n) => self.array(n),
             _ => TypeRef::Error,
         }
     }
@@ -1028,7 +1030,6 @@ impl<'a> CheckConstant<'a> {
         call.update_receiver_type_arguments(self.state, mod_type);
 
         node.resolved_type = call.return_type(self.state, &node.location);
-
         node.resolved_type
     }
 
@@ -1077,6 +1078,56 @@ impl<'a> CheckConstant<'a> {
                 TypeRef::Error
             }
         }
+    }
+
+    fn array(&mut self, node: &mut hir::ConstArray) -> TypeRef {
+        let types = node
+            .values
+            .iter_mut()
+            .map(|n| self.expression(n))
+            .collect::<Vec<_>>();
+
+        if types.len() > 1 {
+            let stype = TypeId::Module(self.module);
+            let &first = types.first().unwrap();
+            let mut ctx = TypeContext::new(stype);
+
+            for (&typ, node) in types[1..].iter().zip(node.values[1..].iter()) {
+                if !typ.type_check(self.db_mut(), first, &mut ctx, true) {
+                    self.state.diagnostics.type_error(
+                        format_type_with_context(self.db(), &ctx, typ),
+                        format_type_with_context(self.db(), &ctx, first),
+                        self.file(),
+                        node.location().clone(),
+                    );
+                }
+            }
+        }
+
+        if types.len() > CONST_ARRAY_LIMIT {
+            self.state.diagnostics.error(
+                DiagnosticId::InvalidConstExpr,
+                format!(
+                    "Constant arrays are limited to at most {} values",
+                    CONST_ARRAY_LIMIT
+                ),
+                self.file(),
+                node.location.clone(),
+            );
+        }
+
+        // Mutating constant arrays isn't safe, so they're typed as `ref
+        // Array[T]` instead of `Array[T]`.
+        let ary = TypeRef::Ref(TypeId::ClassInstance(
+            ClassInstance::generic_with_types(
+                self.db_mut(),
+                ClassId::array(),
+                types,
+            ),
+        ));
+
+        node.resolved_type = ary;
+        node.resolved_type
     }
 
     fn lookup_method(
@@ -1161,6 +1212,10 @@ impl<'a> CheckConstant<'a> {
 
     fn db(&self) -> &Database {
         &self.state.db
+    }
+
+    fn db_mut(&mut self) -> &mut Database {
+        &mut self.state.db
     }
 }
 

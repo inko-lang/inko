@@ -20,7 +20,7 @@ pub(crate) struct ImmutableString {
 #[cfg_attr(feature = "cargo-clippy", allow(clippy::len_without_is_empty))]
 impl ImmutableString {
     /// Creates an `ImmutableString` from a `Vec<u8>`, replacing any invalid
-    /// UTF-8 sequences with `U+FFDD REPLACEMENT CHARACTER`.
+    /// UTF-8 sequences with `U+FFFD REPLACEMENT CHARACTER`.
     pub(crate) fn from_utf8(bytes: Vec<u8>) -> Self {
         let string = match String::from_utf8(bytes) {
             Ok(string) => string,

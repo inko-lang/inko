@@ -292,6 +292,7 @@ impl Parser {
             TokenKind::DoubleStringOpen => self.double_string_literal(start)?,
             TokenKind::Constant => self.constant_ref(start),
             TokenKind::ParenOpen => self.const_group(start)?,
+            TokenKind::BracketOpen => self.const_array(start)?,
             _ => {
                 error!(
                     start.location,
@@ -315,6 +316,30 @@ impl Parser {
             SourceLocation::start_end(&start.location, &end.location);
 
         Ok(Expression::Group(Box::new(Group { value, location })))
+    }
+
+    fn const_array(&mut self, start: Token) -> Result<Expression, ParseError> {
+        let mut values = Vec::new();
+
+        loop {
+            let token = self.require()?;
+
+            if token.kind == TokenKind::BracketClose {
+                let location =
+                    SourceLocation::start_end(&start.location, &token.location);
+
+                return Ok(Expression::Array(Box::new(Array {
+                    values,
+                    location,
+                })));
+            }
+
+            values.push(self.const_expression(token)?);
+
+            if self.peek().kind == TokenKind::Comma {
+                self.next();
+            }
+        }
     }
 
     fn optional_type_annotation(&mut self) -> Result<Option<Type>, ParseError> {
@@ -1617,7 +1642,7 @@ impl Parser {
 
                     return Ok(Expression::DoubleString(Box::new(string)));
                 }
-                TokenKind::StringText => {
+                TokenKind::StringText | TokenKind::UnicodeEscape => {
                     values.push(DoubleStringValue::Text(Box::new(
                         self.string_text(token),
                     )));
@@ -1635,12 +1660,19 @@ impl Parser {
                         StringExpression { value, location },
                     )));
                 }
+                TokenKind::InvalidUnicodeEscape => {
+                    error!(
+                        token.location,
+                        "The Unicode escape sequence '{}' is invalid",
+                        token.value
+                    );
+                }
                 _ => {
                     error!(
-                        start.location,
+                        token.location,
                         "Expected the text of a String, an expression, \
                         or a double qoute, found '{}' instead",
-                        start.value
+                        token.value
                     );
                 }
             }
@@ -1651,7 +1683,10 @@ impl Parser {
         let mut value = start.value;
         let mut end_loc = start.location.clone();
 
-        while self.peek().kind == TokenKind::StringText {
+        while matches!(
+            self.peek().kind,
+            TokenKind::StringText | TokenKind::UnicodeEscape
+        ) {
             let token = self.next();
 
             value += &token.value;
@@ -3491,6 +3526,29 @@ mod tests {
                     location: cols(13, 14)
                 })),
                 location: cols(1, 14)
+            }))
+        );
+    }
+
+    #[test]
+    fn test_constant_array() {
+        assert_eq!(
+            top(parse("let A = [10]")),
+            TopLevelExpression::DefineConstant(Box::new(DefineConstant {
+                public: false,
+                name: Constant {
+                    source: None,
+                    name: "A".to_string(),
+                    location: cols(5, 5)
+                },
+                value: Expression::Array(Box::new(Array {
+                    values: vec![Expression::Int(Box::new(IntLiteral {
+                        value: "10".to_string(),
+                        location: cols(10, 11)
+                    }))],
+                    location: cols(9, 12)
+                })),
+                location: cols(1, 12)
             }))
         );
     }
@@ -5913,6 +5971,39 @@ mod tests {
                     }
                 ))],
                 location: cols(1, 10)
+            }))
+        );
+
+        assert_eq!(
+            expr("\"foo\\u{AC}bar\""),
+            Expression::DoubleString(Box::new(DoubleStringLiteral {
+                values: vec![DoubleStringValue::Text(Box::new(StringText {
+                    value: "foo\u{AC}bar".to_string(),
+                    location: location(1..=1, 2..=13)
+                })),],
+                location: location(1..=1, 1..=14)
+            }))
+        );
+
+        assert_eq!(
+            expr("\"foo\\u{AC}\""),
+            Expression::DoubleString(Box::new(DoubleStringLiteral {
+                values: vec![DoubleStringValue::Text(Box::new(StringText {
+                    value: "foo\u{AC}".to_string(),
+                    location: location(1..=1, 2..=10)
+                })),],
+                location: location(1..=1, 1..=11)
+            }))
+        );
+
+        assert_eq!(
+            expr("\"\\u{AC}bar\""),
+            Expression::DoubleString(Box::new(DoubleStringLiteral {
+                values: vec![DoubleStringValue::Text(Box::new(StringText {
+                    value: "\u{AC}bar".to_string(),
+                    location: location(1..=1, 2..=10)
+                })),],
+                location: location(1..=1, 1..=11)
             }))
         );
     }

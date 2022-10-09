@@ -165,6 +165,21 @@ class pub Test {
       @failures.push(Failure.new(format(err), 'no value is thrown'))
     }
   }
+
+  # Asserts that an expression (which may throw) equals the given value.
+  fn pub mut try_equal[T: Equal + fmt::Format, E: fmt::Format](
+    block: fn !! E -> T,
+    expected: ref T
+  ) {
+    let got = try block.call else (err) {
+      @failures.push(Failure.new(format(err), format(expected)))
+      return
+    }
+
+    if got == expected { return }
+
+    @failures.push(Failure.new(format(got), format(expected)))
+  }
 }
 
 # A type used for reporting test progress.

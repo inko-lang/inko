@@ -258,7 +258,7 @@ class pub Path {
 
     if length < 0 { return Path.new('.') }
 
-    Path.new(@path.slice_bytes(start: 0, length: length).drain_to_string)
+    Path.new(@path.slice_bytes(start: 0, length: length))
   }
 }
 

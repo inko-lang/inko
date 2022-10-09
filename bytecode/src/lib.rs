@@ -29,6 +29,9 @@ pub const CONST_FLOAT: u8 = 1;
 /// The tag that marks the start of a string constant.
 pub const CONST_STRING: u8 = 2;
 
+/// The tag that marks the start of an array constant.
+pub const CONST_ARRAY: u8 = 3;
+
 /// Enum containing all possible instruction types.
 ///
 /// When adding new opcodes, you must also add them to the `Opcode::from_byte`
@@ -872,6 +875,7 @@ pub enum BuiltinFunction {
     RandomNew,
     RandomFromInt,
     RandomDrop,
+    StringSliceBytes,
 }
 
 impl BuiltinFunction {
@@ -1023,6 +1027,7 @@ impl BuiltinFunction {
             BuiltinFunction::RandomNew => 143,
             BuiltinFunction::RandomFromInt => 144,
             BuiltinFunction::RandomDrop => 145,
+            BuiltinFunction::StringSliceBytes => 146,
         }
     }
 
@@ -1216,6 +1221,7 @@ impl BuiltinFunction {
             BuiltinFunction::RandomNew => "random_new",
             BuiltinFunction::RandomFromInt => "random_from_int",
             BuiltinFunction::RandomDrop => "random_drop",
+            BuiltinFunction::StringSliceBytes => "string_slice_bytes",
         }
     }
 }

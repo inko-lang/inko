@@ -15,6 +15,14 @@ let NANOS_PER_SEC = 1_000_000_000.0
 let MICROS_PER_SEC = 1_000_000
 let MILLIS_PER_SEC = 1_000
 
+# The number of days since the start of the year for each month, for a leap
+# year.
+let LEAP_DAYS = [0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 205, 335]
+
+# The number of days since the start of the year for each month, for a regular
+# year.
+let NORMAL_DAYS = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 204, 334]
+
 # A span of time measured in nanoseconds.
 #
 # A `Duration` can be used to measure the span of time without having to worry
@@ -347,11 +355,7 @@ class pub DateTime {
   # Returns the day of the year from 1 to 366 for leap years, and from 1 to 365
   # for regular years.
   fn pub day_of_year -> Int {
-    let days = if leap_year? {
-      [0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 205, 335]
-    } else {
-      [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 204, 334]
-    }
+    let days = if leap_year? { LEAP_DAYS } else { NORMAL_DAYS }
 
     days[@month - 1] + @day
   }

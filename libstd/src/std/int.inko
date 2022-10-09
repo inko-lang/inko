@@ -42,7 +42,7 @@ class builtin Int {
   #     Int.from_base2('11') # => Option.Some(3)
   #     Int.from_base2('ff') # => Option.None
   fn pub static from_base2(string: ref String) -> Option[Self] {
-    let res = _INKO.string_to_int(string, 2)
+    let res = _INKO.string_to_int(string, 2, -1, -1)
 
     if _INKO.is_undefined(res) { Option.None } else { Option.Some(res) }
   }
@@ -57,7 +57,7 @@ class builtin Int {
   #     Int.from_base10('12') # => Option.Some(12)
   #     Int.from_base10('ff') # => Option.None
   fn pub static from_base10(string: ref String) -> Option[Self] {
-    let res = _INKO.string_to_int(string, 10)
+    let res = _INKO.string_to_int(string, 10, -1, -1)
 
     if _INKO.is_undefined(res) { Option.None } else { Option.Some(res) }
   }
@@ -76,7 +76,7 @@ class builtin Int {
   #     Int.from_base16('ef') # => Option.Some(239)
   #     Int.from_base16('zz') # => Option.None
   fn pub static from_base16(string: ref String) -> Option[Self] {
-    let res = _INKO.string_to_int(string, 16)
+    let res = _INKO.string_to_int(string, 16, -1, -1)
 
     if _INKO.is_undefined(res) { Option.None } else { Option.Some(res) }
   }

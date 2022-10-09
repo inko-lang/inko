@@ -2,7 +2,8 @@
 use crate::mir::{self, CloneKind, Constant, LocationId, Method, Mir};
 use bytecode::{Instruction, Opcode};
 use bytecode::{
-    CONST_FLOAT, CONST_INTEGER, CONST_STRING, SIGNATURE_BYTES, VERSION,
+    CONST_ARRAY, CONST_FLOAT, CONST_INTEGER, CONST_STRING, SIGNATURE_BYTES,
+    VERSION,
 };
 use std::collections::{HashMap, HashSet, VecDeque};
 use types::{ClassId, Database, MethodId, FIRST_USER_CLASS_ID};
@@ -320,23 +321,10 @@ impl<'a> Lower<'a> {
         // (2^32)-1 constants in a single module.
         module_buffer.write_u32(self.constant_indexes.len() as u32);
 
-        for (cons, index) in self.constant_indexes {
-            module_buffer.write_u32(index);
+        for (cons, index) in &self.constant_indexes {
+            module_buffer.write_u32(*index);
 
-            match cons {
-                Constant::Int(v) => {
-                    module_buffer.write_u8(CONST_INTEGER);
-                    module_buffer.write_i64(v);
-                }
-                Constant::Float(v) => {
-                    module_buffer.write_u8(CONST_FLOAT);
-                    module_buffer.write_f64(v);
-                }
-                Constant::String(v) => {
-                    module_buffer.write_u8(CONST_STRING);
-                    module_buffer.write_string(&v);
-                }
-            }
+            self.constant(cons, &mut module_buffer);
         }
 
         let class_idx =
@@ -345,6 +333,31 @@ impl<'a> Lower<'a> {
         module_buffer.write_u32(class_idx);
         module_buffer.append(&mut classes_buffer);
         module_buffer
+    }
+
+    fn constant(&self, cons: &Constant, buffer: &mut Buffer) {
+        match cons {
+            Constant::Int(v) => {
+                buffer.write_u8(CONST_INTEGER);
+                buffer.write_i64(*v);
+            }
+            Constant::Float(v) => {
+                buffer.write_u8(CONST_FLOAT);
+                buffer.write_f64(*v);
+            }
+            Constant::String(v) => {
+                buffer.write_u8(CONST_STRING);
+                buffer.write_string(v);
+            }
+            Constant::Array(values) => {
+                buffer.write_u8(CONST_ARRAY);
+                buffer.write_u16(values.len() as u16);
+
+                for cons in values {
+                    self.constant(cons, buffer);
+                }
+            }
+        }
     }
 
     fn class(&mut self, class_id: ClassId, buffer: &mut Buffer) {

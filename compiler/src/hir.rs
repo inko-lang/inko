@@ -534,6 +534,7 @@ pub(crate) enum ConstExpression {
     Float(Box<FloatLiteral>),
     Binary(Box<ConstBinary>),
     ConstantRef(Box<ConstantRef>),
+    Array(Box<ConstArray>),
     Invalid(Box<SourceLocation>),
 }
 
@@ -545,6 +546,7 @@ impl ConstExpression {
             Self::Float(ref n) => &n.location,
             Self::Binary(ref n) => &n.location,
             Self::ConstantRef(ref n) => &n.location,
+            Self::Array(ref n) => &n.location,
             Self::Invalid(ref l) => l,
         }
     }
@@ -697,6 +699,13 @@ pub(crate) struct ConstBinary {
     pub(crate) right: ConstExpression,
     pub(crate) operator: Operator,
     pub(crate) resolved_type: types::TypeRef,
+    pub(crate) location: SourceLocation,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ConstArray {
+    pub(crate) resolved_type: types::TypeRef,
+    pub(crate) values: Vec<ConstExpression>,
     pub(crate) location: SourceLocation,
 }
 
@@ -1581,6 +1590,9 @@ impl<'a> LowerToHir<'a> {
                 ConstExpression::ConstantRef(self.constant_ref(*node))
             }
             ast::Expression::Group(node) => self.const_value(node.value),
+            ast::Expression::Array(node) => {
+                ConstExpression::Array(self.const_array(*node))
+            }
             node => {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidConstExpr,
@@ -1787,6 +1799,17 @@ impl<'a> LowerToHir<'a> {
         let operator = self.binary_operator(&node.operator);
 
         Box::new(ConstBinary { left, right, operator, resolved_type, location })
+    }
+
+    fn const_array(&mut self, node: ast::Array) -> Box<ConstArray> {
+        let values =
+            node.values.into_iter().map(|n| self.const_value(n)).collect();
+
+        Box::new(ConstArray {
+            resolved_type: types::TypeRef::Unknown,
+            values,
+            location: node.location,
+        })
     }
 
     fn binary_operator(&self, operator: &ast::Operator) -> Operator {
@@ -3193,6 +3216,31 @@ mod tests {
                     location: cols(9, 14)
                 })),
                 location: cols(1, 14)
+            }))
+        );
+    }
+
+    #[test]
+    fn test_lower_constant_with_array() {
+        let (hir, diags) = lower_top_expr("let A = [10]");
+
+        assert_eq!(diags, 0);
+        assert_eq!(
+            hir,
+            TopLevelExpression::Constant(Box::new(DefineConstant {
+                public: false,
+                constant_id: None,
+                name: Constant { name: "A".to_string(), location: cols(5, 5) },
+                value: ConstExpression::Array(Box::new(ConstArray {
+                    resolved_type: types::TypeRef::Unknown,
+                    values: vec![ConstExpression::Int(Box::new(IntLiteral {
+                        value: 10,
+                        resolved_type: types::TypeRef::Unknown,
+                        location: cols(10, 11)
+                    }))],
+                    location: cols(9, 12)
+                })),
+                location: cols(1, 12)
             }))
         );
     }

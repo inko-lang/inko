@@ -701,6 +701,7 @@ pub(crate) enum Constant {
     Int(i64),
     Float(f64),
     String(String),
+    Array(Vec<Constant>),
 }
 
 impl PartialEq for Constant {
@@ -718,6 +719,7 @@ impl PartialEq for Constant {
                 a == b
             }
             (Constant::String(a), Constant::String(b)) => a == b,
+            (Constant::Array(a), Constant::Array(b)) => a == b,
             _ => false,
         }
     }
@@ -731,6 +733,7 @@ impl Hash for Constant {
             Constant::Int(v) => v.hash(state),
             Constant::Float(v) => v.to_bits().hash(state),
             Constant::String(v) => v.hash(state),
+            Constant::Array(v) => v.hash(state),
         }
     }
 }
@@ -741,6 +744,7 @@ impl fmt::Display for Constant {
             Self::Int(v) => write!(f, "{}", v),
             Self::Float(v) => write!(f, "{}", v),
             Self::String(v) => write!(f, "{:?}", v),
+            Self::Array(v) => write!(f, "{:?}", v),
         }
     }
 }
