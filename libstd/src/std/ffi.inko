@@ -258,12 +258,12 @@ class pub Struct {
 
   # Returns the size in bytes of this `Struct`.
   fn pub size -> Int {
-    @layout.size.clone
+    @layout.size
   }
 
   # Returns the alignment of the members in this `Struct`.
   fn pub alignment -> Int {
-    @layout.alignment.clone
+    @layout.alignment
   }
 }
 
@@ -274,7 +274,7 @@ impl Index[String, Any] for Struct {
   fn pub index(index: String) -> Any {
     let member = @layout.members[index]
 
-    @pointer.read(type: member.type.clone, offset: member.offset.clone)
+    @pointer.read(type: member.type.clone, offset: member.offset)
   }
 }
 
@@ -283,7 +283,7 @@ impl SetIndex[String, Any] for Struct {
   fn pub mut set_index(index: String, value: Any) {
     let member = @layout.members[index]
     let type = member.type.clone
-    let offset = member.offset.clone
+    let offset = member.offset
 
     @pointer.write(type, offset, value)
   }
@@ -336,7 +336,7 @@ class pub LayoutBuilder {
       @alignment = value.alignment
     }
 
-    @existing.insert(name.clone)
+    @existing.insert(name)
     @members.push(name)
     @types.push(value)
   }
@@ -354,7 +354,7 @@ class pub LayoutBuilder {
     let members = Map.new
     let mut size = 0
     let mut offset = 0
-    let mut remaining_in_hole = @alignment.clone
+    let mut remaining_in_hole = @alignment
     let mut index = 0
 
     while index < @members.length {
@@ -370,30 +370,23 @@ class pub LayoutBuilder {
         size += padding
         offset += padding
 
-        remaining_in_hole = @alignment.clone
+        remaining_in_hole = @alignment
       }
 
-      members[name.clone] = Member {
-        @name = name.clone,
-        @type = type.clone,
-        @offset = offset.clone
-      }
+      members[name] =
+        Member { @name = name, @type = type.clone, @offset = offset }
 
       remaining_in_hole -= type_align
 
       size += type_align
       offset += type_align
 
-      if remaining_in_hole == 0 { remaining_in_hole = @alignment.clone }
+      if remaining_in_hole == 0 { remaining_in_hole = @alignment }
 
       index += 1
     }
 
-    Layout {
-      @members = members,
-      @alignment = @alignment.clone,
-      @size = size
-    }
+    Layout { @members = members, @alignment = @alignment, @size = size }
   }
 
   fn move into_layout_without_padding -> Layout {
@@ -405,21 +398,14 @@ class pub LayoutBuilder {
       let name = @members[index]
       let type = @types[index]
 
-      members[name.clone] = Member {
-        @name = name.clone,
-        @type = type.clone,
-        @offset = offset.clone
-      }
+      members[name] =
+        Member { @name = name, @type = type.clone, @offset = offset }
 
       offset += type.alignment
       index += 1
     }
 
-    Layout {
-      @members = members,
-      @alignment = @alignment.clone,
-      @size = offset
-    }
+    Layout { @members = members, @alignment = @alignment, @size = offset }
   }
 }
 

@@ -332,7 +332,7 @@ class pub Socket {
   #       port: 9999
   #     )
   fn pub mut send_string_to(
-    string: ref String,
+    string: String,
     ip: ref ToString,
     port: Int
   ) !! Error -> Int {
@@ -605,7 +605,7 @@ impl Write for Socket {
     }
   }
 
-  fn pub mut write_string(string: ref String) !! Error -> Int {
+  fn pub mut write_string(string: String) !! Error -> Int {
     try {
       _INKO.socket_write_string(@fd, string, @deadline)
     } else (err) {
@@ -691,7 +691,7 @@ class pub UdpSocket {
   #       port: 9999
   #     )
   fn pub mut send_string_to(
-    string: ref String,
+    string: String,
     ip: ref ToString,
     port: Int
   ) !! Error -> Int {
@@ -762,7 +762,7 @@ impl Write for UdpSocket {
     try @socket.write_bytes(bytes)
   }
 
-  fn pub mut write_string(string: ref String) !! Error -> Int {
+  fn pub mut write_string(string: String) !! Error -> Int {
     try @socket.write_string(string)
   }
 
@@ -889,7 +889,7 @@ impl Write for TcpClient {
     try @socket.write_bytes(bytes)
   }
 
-  fn pub mut write_string(string: ref String) !! Error -> Int {
+  fn pub mut write_string(string: String) !! Error -> Int {
     try @socket.write_string(string)
   }
 
@@ -1060,7 +1060,7 @@ impl Format for UnixAddress {
     } else if unnamed? {
       'unnamed'
     } else {
-      @address.clone
+      @address
     }
 
     formatter.write(write)
@@ -1095,7 +1095,7 @@ impl ToString for UnixAddress {
   #     UnixAddress.new('/tmp/test.sock').to_string # => '/tmp/test.sock'
   #     UnixAddress.new("\0example").to_string      # => "\0example"
   fn pub to_string -> String {
-    @address.clone
+    @address
   }
 }
 
@@ -1282,7 +1282,7 @@ class pub UnixSocket {
   #     try! socket.bind('/tmp/test.sock')
   #     try! socket.send_string_to(string: 'hello', address: '/tmp/test.sock')
   fn pub mut send_string_to(
-    string: ref String,
+    string: String,
     address: ref ToString
   ) !! Error -> Int {
     try {
@@ -1444,7 +1444,7 @@ impl Write for UnixSocket {
     }
   }
 
-  fn pub mut write_string(string: ref String) !! Error -> Int {
+  fn pub mut write_string(string: String) !! Error -> Int {
     try {
       _INKO.socket_write_string(@fd, string, @deadline)
     } else (err) {
@@ -1572,7 +1572,7 @@ impl Write for UnixDatagram {
     try @socket.write_bytes(bytes)
   }
 
-  fn pub mut write_string(string: ref String) !! Error -> Int {
+  fn pub mut write_string(string: String) !! Error -> Int {
     try @socket.write_string(string)
   }
 
@@ -1686,7 +1686,7 @@ impl Write for UnixClient {
     try @socket.write_bytes(bytes)
   }
 
-  fn pub mut write_string(string: ref String) !! Error -> Int {
+  fn pub mut write_string(string: String) !! Error -> Int {
     try @socket.write_string(string)
   }
 

@@ -162,7 +162,7 @@ impl Write for WriteOnlyFile {
     try _INKO.file_write_bytes(@fd, bytes) else (e) throw Error.from_int(e)
   }
 
-  fn pub mut write_string(string: ref String) !! Error -> Int {
+  fn pub mut write_string(string: String) !! Error -> Int {
     try _INKO.file_write_string(@fd, string) else (e) throw Error.from_int(e)
   }
 
@@ -239,7 +239,7 @@ impl Write for ReadWriteFile {
     try _INKO.file_write_bytes(@fd, bytes) else (e) throw Error.from_int(e)
   }
 
-  fn pub mut write_string(string: ref String) !! Error -> Int {
+  fn pub mut write_string(string: String) !! Error -> Int {
     try _INKO.file_write_string(@fd, string) else (e) throw Error.from_int(e)
   }
 

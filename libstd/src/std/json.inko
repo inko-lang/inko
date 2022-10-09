@@ -305,7 +305,7 @@ impl Equal for Json {
 # 10 MiB _per string_. You can change this limit by adjusting the value of the
 # `max_string_size` field.
 class pub Parser {
-  let @string: ref String
+  let @string: String
   let @index: Int
   let @size: Int
   let @line: Int
@@ -322,7 +322,7 @@ class pub Parser {
   let pub @max_string_size: Int
 
   # Returns a new parser that will parse the given `String`.
-  fn pub static new(string: ref String) -> Self {
+  fn pub static new(string: String) -> Self {
     Self {
       @string = string,
       @index = 0,
@@ -388,7 +388,7 @@ class pub Parser {
   fn mut string_value !! Error -> String {
     advance
 
-    let start = @index.clone
+    let start = @index
 
     loop {
       match current {
@@ -434,7 +434,7 @@ class pub Parser {
             throw error("'{slice_string(start)}' is an invalid escape sequence")
           }
           case replacement -> {
-            buffer.push(replacement.clone)
+            buffer.push(replacement)
             @index += 2
           }
         }
@@ -700,12 +700,12 @@ class pub Parser {
     error("The character '{char}' is unexpected")
   }
 
-  fn slice_string(start: ref Int) -> String {
-    @string.slice_bytes(start.clone, length: @index - start)
+  fn slice_string(start: Int) -> String {
+    @string.slice_bytes(start, length: @index - start)
   }
 
   fn error(message: String) -> Error {
-    Error { @message = message, @line = @line.clone, @offset = @index.clone }
+    Error { @message = message, @line = @line, @offset = @index }
   }
 }
 
@@ -806,7 +806,7 @@ class pub Generator {
   }
 
   fn mut indent {
-    if @pretty { @depth.times fn (_) { @buffer.push(@spaces.clone) } }
+    if @pretty { @depth.times fn (_) { @buffer.push(@spaces) } }
   }
 
   fn mut newline {
@@ -825,6 +825,6 @@ class pub Generator {
 #     import std::json
 #
 #     try! json.parse('[10]') # => Json.Array([Json.Int(10)])
-fn pub parse(string: ref String) !! Error -> Json {
+fn pub parse(string: String) !! Error -> Json {
   try Parser.new(string).parse
 }

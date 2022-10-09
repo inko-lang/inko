@@ -125,7 +125,7 @@ class pub Duration {
   #
   #     Duration.from_secs(5).to_nanos # => 5000000000
   fn pub to_nanos -> Int {
-    @nanos.clone
+    @nanos
   }
 }
 
@@ -152,7 +152,7 @@ impl ToInstant for Duration {
 
 impl Clone for Duration {
   fn pub clone -> Self {
-    Self { @nanos = @nanos.clone }
+    Self { @nanos = @nanos }
   }
 }
 
@@ -365,7 +365,7 @@ class pub DateTime {
   # The returned `Int` is negative if `self` is before the Unix epoch, and
   # positive for a value that is on or after the Unix epoch.
   fn pub days_since_unix_epoch -> Int {
-    let year = if @month <= 2 { @year - 1 } else { @year.clone }
+    let year = if @month <= 2 { @year - 1 } else { @year }
     let month = @month
     let era = if year >= 0 { year } else { year - 399 } / 400
     let yoe = year - (era * 400)
@@ -398,14 +398,14 @@ class pub DateTime {
 impl Clone for DateTime {
   fn pub clone -> Self {
     Self {
-      @year = @year.clone,
-      @month = @month.clone,
-      @day = @day.clone,
-      @hour = @hour.clone,
-      @minute = @minute.clone,
-      @second = @second.clone,
-      @sub_second = @sub_second.clone,
-      @utc_offset = @utc_offset.clone
+      @year = @year,
+      @month = @month,
+      @day = @day,
+      @hour = @hour,
+      @minute = @minute,
+      @second = @second,
+      @sub_second = @sub_second,
+      @utc_offset = @utc_offset
     }
   }
 }
@@ -465,7 +465,7 @@ impl Add[Duration] for DateTime {
   fn pub +(other: ref Duration) -> Self {
     let timestamp = to_float + other.to_secs
 
-    DateTime.from_timestamp(timestamp, utc_offset: @utc_offset.clone)
+    DateTime.from_timestamp(timestamp, utc_offset: @utc_offset)
   }
 }
 
@@ -473,7 +473,7 @@ impl Subtract[Duration] for DateTime {
   fn pub -(other: ref Duration) -> Self {
     let timestamp = to_float - other.to_secs
 
-    DateTime.from_timestamp(timestamp, utc_offset: @utc_offset.clone)
+    DateTime.from_timestamp(timestamp, utc_offset: @utc_offset)
   }
 }
 
@@ -570,7 +570,7 @@ impl ToInstant for Instant {
 
 impl Clone for Instant {
   fn pub clone -> Self {
-    Self { @nanos = @nanos.clone }
+    Self { @nanos = @nanos }
   }
 }
 

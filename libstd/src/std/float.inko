@@ -60,7 +60,7 @@ class builtin Float {
   # Parsing a `Float` with an exponent:
   #
   #     Float.parse('1.2e1') # => Option.Some(12.0)
-  fn pub static parse(string: ref String) -> Option[Self] {
+  fn pub static parse(string: String) -> Option[Self] {
     let res = _INKO.string_to_float(string, -1, -1)
 
     if _INKO.is_undefined(res) { Option.None } else { Option.Some(res) }

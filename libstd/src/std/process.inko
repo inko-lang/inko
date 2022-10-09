@@ -11,7 +11,7 @@ import std::time::Duration
 #
 # A panic is an unrecoverable error meant to guard against code bugs. For
 # runtime errors, use `try` and `throw` instead.
-fn pub panic(message: ref String) -> Never {
+fn pub panic(message: String) -> Never {
   _INKO.panic(message)
 }
 

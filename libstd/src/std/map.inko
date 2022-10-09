@@ -40,7 +40,7 @@ class pub Entry[K: Hash + Equal, V] {
   }
 
   fn hash -> Int {
-    @hash.clone
+    @hash
   }
 
   fn move into_value -> V {
@@ -165,7 +165,7 @@ class pub Map[K: Hash + Equal, V] {
   fn pub mut remove(key: ref K) -> Option[V] {
     let mut slot = slot_index(hash_key(key))
     let mut dist = 0
-    let mut index = @slots[slot].clone
+    let mut index = @slots[slot]
 
     # For the removal we need both the slot and the entry index, so we have to
     # duplicate the logic of `entries_index()` here, as this is the only place
@@ -179,7 +179,7 @@ class pub Map[K: Hash + Equal, V] {
       if entry.key == key { break }
 
       slot = slot_index(slot + 1)
-      index = @slots[slot].clone
+      index = @slots[slot]
       dist += 1
     }
 
@@ -198,7 +198,7 @@ class pub Map[K: Hash + Equal, V] {
     slot = slot_index(slot + 1)
 
     loop {
-      let mut index = @slots[slot].clone
+      let mut index = @slots[slot]
 
       if index == EMPTY { break }
 
@@ -405,7 +405,7 @@ class pub Map[K: Hash + Equal, V] {
       let mut slot = slot_index(rehash.hash)
 
       loop {
-        let index = @slots[slot].clone
+        let index = @slots[slot]
 
         if index == EMPTY {
           @slots[slot] = rehash_index
@@ -432,7 +432,7 @@ class pub Map[K: Hash + Equal, V] {
     let mut slot = slot_index(insert.hash)
 
     loop {
-      let index = @slots[slot].clone
+      let index = @slots[slot]
 
       if index == EMPTY {
         @slots[slot] = @entries.length
@@ -484,7 +484,7 @@ class pub Map[K: Hash + Equal, V] {
     loop {
       stolen.distance += 1
 
-      let index = @slots[slot].clone
+      let index = @slots[slot]
 
       if index == EMPTY {
         @slots[slot] = stolen_index
@@ -496,7 +496,7 @@ class pub Map[K: Hash + Equal, V] {
 
       if entry.distance < stolen.distance {
         @slots[slot] = stolen_index
-        stolen_index = index.clone
+        stolen_index = index
         stolen = entry
       }
 
@@ -509,14 +509,14 @@ class pub Map[K: Hash + Equal, V] {
     let mut dist = 0
 
     loop {
-      let index = @slots[slot].clone
+      let index = @slots[slot]
 
       if index == EMPTY { return EMPTY }
 
       let entry = @entries[index]
 
       if dist > entry.distance { return EMPTY }
-      if entry.key == key { return index.clone }
+      if entry.key == key { return index }
 
       slot = slot_index(slot + 1)
       dist += 1

@@ -3,7 +3,7 @@ import std::fs::file::(self, ReadOnlyFile, ReadWriteFile, WriteOnlyFile)
 import std::fs::path::Path
 import std::test::Tests
 
-fn write(string: ref String, to: ref Path) {
+fn write(string: String, to: ref Path) {
   let file = try! WriteOnlyFile.new(to.clone)
 
   try! file.write_string(string)

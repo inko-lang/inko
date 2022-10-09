@@ -29,7 +29,7 @@ class pub Script {
   let @stdin: Option[String]
   let @imports: Array[String]
 
-  fn pub static new(id: ref Int, code: String) -> Self {
+  fn pub static new(id: Int, code: String) -> Self {
     let path = env.temporary_directory.join("inko_test_script_{id}.inko")
     let exe = try! env.executable
     let cmd = Command.new(exe)
@@ -43,7 +43,7 @@ class pub Script {
     cmd.stdout(Stream.Piped)
 
     Self {
-      @id = id.clone,
+      @id = id,
       @path = path,
       @code = code,
       @cmd = cmd,
