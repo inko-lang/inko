@@ -23,7 +23,7 @@ class pub StackFrame {
 
 impl Clone for StackFrame {
   fn pub clone -> Self {
-    Self { @path = @path.clone, @name = @name.clone, @line = @line.clone }
+    Self { @path = @path.clone, @name = @name, @line = @line }
   }
 }
 

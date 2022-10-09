@@ -16,7 +16,7 @@ import std::time::(Duration, Instant)
 class SocketPath {
   let @path: Path
 
-  fn static pair(id: ref Int) -> (Self, Self) {
+  fn static pair(id: Int) -> (Self, Self) {
     let p1 = env.temporary_directory.join("inko-test-{id}-1.sock")
     let p2 = env.temporary_directory.join("inko-test-{id}-2.sock")
 
@@ -26,7 +26,7 @@ class SocketPath {
     (Self { @path = p1 }, Self { @path = p2 })
   }
 
-  fn static new(id: ref Int) -> Self {
+  fn static new(id: Int) -> Self {
     let path = env.temporary_directory.join("inko-test-{id}.sock")
 
     try file.remove(path) else nil

@@ -36,7 +36,7 @@ let IPV6_STRING_MAXIMUM_LENGTH = 45
 let IPV4_TOIPV6_SHIFT = 8
 
 # Converts a pair of IPv4 octets into a single IPv6 hextet.
-fn octets_to_hextet(first: ref Int, second: ref Int) -> Int {
+fn octets_to_hextet(first: Int, second: Int) -> Int {
   first << IPV4_TOIPV6_SHIFT | second
 }
 
@@ -101,7 +101,7 @@ class pub enum IpAddress {
   #     import std::net::ip::IpAddress
   #
   #     IpAddress.parse('::1') # => Option.Some(IpAddress.V6(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)))
-  fn pub static parse(address: ref String) -> Option[Self] {
+  fn pub static parse(address: String) -> Option[Self] {
     if address.contains?(':') {
       Ipv6Address.parse(address).map fn (v) { V6(v) }
     } else {
@@ -229,7 +229,7 @@ class pub Ipv6Address {
   #     import std::net::ip::Ipv6Address
   #
   #     Ipv6Address.parse('::1').unwrap.v6? # => true
-  fn pub static parse(input: ref String) -> Option[Self] {
+  fn pub static parse(input: String) -> Option[Self] {
     let bytes = input.to_byte_array
     let mut cursor = 0
     let max = bytes.length
@@ -340,14 +340,14 @@ class pub Ipv6Address {
     if segments.length != IPV6_HEXTETS { return Option.None }
 
     Option.Some(Ipv6Address.new(
-      segments[0].clone,
-      segments[1].clone,
-      segments[2].clone,
-      segments[3].clone,
-      segments[4].clone,
-      segments[5].clone,
-      segments[6].clone,
-      segments[7].clone,
+      segments[0],
+      segments[1],
+      segments[2],
+      segments[3],
+      segments[4],
+      segments[5],
+      segments[6],
+      segments[7],
     ))
   }
 
@@ -552,8 +552,8 @@ impl ToString for Ipv6Address {
         current_len += 1
 
         if current_len > compression_len {
-          compression_len = current_len.clone
-          compression_start = current_at.clone
+          compression_len = current_len
+          compression_start = current_at
         }
       } else {
         current_at = 0
@@ -594,14 +594,14 @@ impl IntoString for Ipv6Address {
 impl Clone for Ipv6Address {
   fn pub clone -> Self {
     Self {
-      @a = @a.clone,
-      @b = @b.clone,
-      @c = @c.clone,
-      @d = @d.clone,
-      @e = @e.clone,
-      @f = @f.clone,
-      @g = @g.clone,
-      @h = @h.clone,
+      @a = @a,
+      @b = @b,
+      @c = @c,
+      @d = @d,
+      @e = @e,
+      @f = @f,
+      @g = @g,
+      @h = @h,
     }
   }
 }
@@ -624,7 +624,7 @@ class pub Ipv4Address {
   #     let addr = Ipv4Address.parse('1.2.3.4').unwrap
   #
   #     addr.v4? # => true
-  fn pub static parse(input: ref String) -> Option[Self] {
+  fn pub static parse(input: String) -> Option[Self] {
     # No IPv4 address can be longer than 15 characters (255.255.255.255).
     if input.size > 15 { return Option.None }
 
@@ -654,10 +654,10 @@ class pub Ipv4Address {
     if segments.length != IPV4_OCTETS { return Option.None }
 
     Option.Some(Ipv4Address {
-      @a = segments[0].clone,
-      @b = segments[1].clone,
-      @c = segments[2].clone,
-      @d = segments[3].clone
+      @a = segments[0],
+      @b = segments[1],
+      @c = segments[2],
+      @d = segments[3]
     })
   }
 
@@ -888,6 +888,6 @@ impl IntoString for Ipv4Address {
 
 impl Clone for Ipv4Address {
   fn pub clone -> Self {
-    Self { @a = @a.clone, @b = @b.clone, @c = @c.clone, @d = @d.clone }
+    Self { @a = @a, @b = @b, @c = @c, @d = @d }
   }
 }

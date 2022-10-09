@@ -31,7 +31,7 @@ impl Write for STDOUT {
     try _INKO.stdout_write_bytes(bytes) else 0
   }
 
-  fn pub mut write_string(string: ref String) -> Int {
+  fn pub mut write_string(string: String) -> Int {
     try _INKO.stdout_write_string(string) else 0
   }
 
@@ -39,7 +39,7 @@ impl Write for STDOUT {
     try _INKO.stdout_flush else return
   }
 
-  fn pub mut print(string: ref String) -> Int {
+  fn pub mut print(string: String) -> Int {
     write_string(string) + write_string("\n")
   }
 }
@@ -60,7 +60,7 @@ impl Write for STDERR {
     try _INKO.stderr_write_bytes(bytes) else 0
   }
 
-  fn pub mut write_string(string: ref String) -> Int {
+  fn pub mut write_string(string: String) -> Int {
     try _INKO.stderr_write_string(string) else 0
   }
 
@@ -68,7 +68,7 @@ impl Write for STDERR {
     try _INKO.stderr_flush else return
   }
 
-  fn pub mut print(string: ref String) -> Int {
+  fn pub mut print(string: String) -> Int {
     write_string(string) + write_string("\n")
   }
 }

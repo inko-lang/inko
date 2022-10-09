@@ -3818,6 +3818,19 @@ impl TypeRef {
             self.as_ref(db)
         } else if other.is_mut(db) {
             self.as_mut(db)
+        } else if self.is_value_type(db)
+            && !self.is_owned_or_uni(db)
+            && other.is_owned_or_uni(db)
+        {
+            self.as_owned(db)
+        } else {
+            self
+        }
+    }
+
+    pub fn value_type_as_owned(self, db: &Database) -> Self {
+        if self.is_value_type(db) {
+            self.as_owned(db)
         } else {
             self
         }
@@ -3873,9 +3886,11 @@ impl TypeRef {
 
     pub fn as_uni(self, db: &Database) -> Self {
         match self {
-            TypeRef::Owned(id) | TypeRef::Infer(id) | TypeRef::Uni(id) => {
-                TypeRef::Uni(id)
-            }
+            TypeRef::Owned(id)
+            | TypeRef::Infer(id)
+            | TypeRef::Uni(id)
+            | TypeRef::Mut(id)
+            | TypeRef::Ref(id) => TypeRef::Uni(id),
             TypeRef::OwnedSelf | TypeRef::UniSelf => TypeRef::UniSelf,
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(self, |v| v.as_uni(db))
@@ -4465,6 +4480,11 @@ impl TypeRef {
                 TypeRef::Owned(their_id) | TypeRef::Infer(their_id) => {
                     our_id.type_check(db, their_id, context, subtyping)
                 }
+                TypeRef::Ref(their_id) | TypeRef::Mut(their_id)
+                    if self.is_value_type(db) =>
+                {
+                    our_id.type_check(db, their_id, context, subtyping)
+                }
                 TypeRef::Any | TypeRef::RefAny | TypeRef::Error => true,
                 TypeRef::OwnedSelf => {
                     our_id.type_check(db, context.self_type, context, subtyping)
@@ -4501,6 +4521,11 @@ impl TypeRef {
                 TypeRef::Ref(their_id) | TypeRef::Infer(their_id) => {
                     our_id.type_check(db, their_id, context, subtyping)
                 }
+                TypeRef::Owned(their_id) | TypeRef::Uni(their_id)
+                    if self.is_value_type(db) =>
+                {
+                    our_id.type_check(db, their_id, context, subtyping)
+                }
                 TypeRef::Error => true,
                 TypeRef::RefSelf => {
                     our_id.type_check(db, context.self_type, context, subtyping)
@@ -4513,6 +4538,11 @@ impl TypeRef {
                 }
                 TypeRef::Mut(their_id) => {
                     our_id.type_check(db, their_id, context, false)
+                }
+                TypeRef::Owned(their_id) | TypeRef::Uni(their_id)
+                    if self.is_value_type(db) =>
+                {
+                    our_id.type_check(db, their_id, context, subtyping)
                 }
                 TypeRef::Error => true,
                 TypeRef::RefSelf => {

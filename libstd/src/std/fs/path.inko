@@ -18,7 +18,7 @@ fn pub separator -> String {
 
 # Returns `True` if the given `String` starts with a Windows drive name, such as
 # C:/.
-fn starts_with_windows_drive_name?(path: ref String) -> Bool {
+fn starts_with_windows_drive_name?(path: String) -> Bool {
   if path.size < 3 { return false }
 
   let start = path.byte(0)
@@ -189,7 +189,7 @@ class pub Path {
   #     Path.new('foo').absolute?  # => False
   #     Path.new('/foo').absolute? # => True
   fn pub absolute? -> Bool {
-    absolute_path?(@path.clone)
+    absolute_path?(@path)
   }
 
   # Returns `True` if this `Path` is a relative path.
@@ -254,7 +254,7 @@ class pub Path {
   #
   #     Path.new('/').directory # Path.new('/')
   fn pub directory -> Path {
-    let length = bytes_before_last_separator(@path.clone)
+    let length = bytes_before_last_separator(@path)
 
     if length < 0 { return Path.new('.') }
 
@@ -308,7 +308,7 @@ impl ToString for Path {
   #
   #     path.to_string # => '/dev/null'
   fn pub to_string -> String {
-    @path.clone
+    @path
   }
 }
 
@@ -337,7 +337,7 @@ impl Size for Path {
 
 impl Clone for Path {
   fn pub clone -> Self {
-    Path.new(@path.clone)
+    Path.new(@path)
   }
 }
 

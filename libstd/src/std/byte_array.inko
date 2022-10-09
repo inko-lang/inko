@@ -280,7 +280,7 @@ impl Drop for ByteArray {
   }
 }
 
-impl Index[ref Int, Int] for ByteArray {
+impl Index[Int, Int] for ByteArray {
   # Returns the byte at the given index.
   #
   # # Examples
@@ -294,13 +294,13 @@ impl Index[ref Int, Int] for ByteArray {
   # # Panics
   #
   # This method panics if the index is out of bounds.
-  fn pub index(index: ref Int) -> Int {
+  fn pub index(index: Int) -> Int {
     bounds_check(index, length)
     _INKO.byte_array_get(self, index)
   }
 }
 
-impl SetIndex[ref Int, Int] for ByteArray {
+impl SetIndex[Int, Int] for ByteArray {
   # Stores a byte at the given index, then returns it.
   #
   # # Examples
@@ -315,7 +315,7 @@ impl SetIndex[ref Int, Int] for ByteArray {
   # # Panics
   #
   # This method panics if the index is out of bounds.
-  fn pub mut set_index(index: ref Int, value: Int) {
+  fn pub mut set_index(index: Int, value: Int) {
     bounds_check(index, length)
     _INKO.byte_array_set(self, index, value)
     _INKO.moved(value)

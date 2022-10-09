@@ -47,7 +47,7 @@ trait pub SetIndex[K, V] {
 # # Panics
 #
 # This method panics if the index is out of bounds.
-fn pub bounds_check(index: ref Int, length: ref Int) {
+fn pub bounds_check(index: Int, length: Int) {
   if index >= 0 and index < length { return }
 
   _INKO.panic("The index {index} is out of bounds (length: {length})")

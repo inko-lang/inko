@@ -1214,7 +1214,7 @@ impl<'a> LowerMethod<'a> {
             let loc = self.add_location(node.location().clone());
             let rets = node.returns_value();
             let ret = if rets && !ignore_ret {
-                self.output_expression(node, false)
+                self.output_expression(node)
             } else {
                 self.expression(node)
             };
@@ -1334,7 +1334,7 @@ impl<'a> LowerMethod<'a> {
                 // this case we need to clone the value type, as the original
                 // value may still be in use after the body, hence the clone
                 // argument is set to `true`.
-                self.output_expression(n, true)
+                self.output_expression(n)
             } else {
                 self.expression(n)
             };
@@ -2228,7 +2228,7 @@ impl<'a> LowerMethod<'a> {
     fn return_expression(&mut self, node: hir::Return) -> RegisterId {
         let loc = self.add_location(node.location);
         let reg = if let Some(value) = node.value {
-            self.output_expression(value, false)
+            self.output_expression(value)
         } else {
             self.get_nil(loc)
         };
@@ -2242,7 +2242,7 @@ impl<'a> LowerMethod<'a> {
 
     fn throw_expression(&mut self, node: hir::Throw) -> RegisterId {
         let loc = self.add_location(node.location);
-        let reg = self.output_expression(node.value, false);
+        let reg = self.output_expression(node.value);
 
         self.mark_register_as_moved(reg);
         self.drop_all_registers();
@@ -2324,10 +2324,18 @@ impl<'a> LowerMethod<'a> {
     ) -> RegisterId {
         let loc = self.add_location(location);
         let val = self.expression(value);
-        let reg = self.new_register(value_type);
 
-        self.current_block_mut().increment(reg, val, loc);
-        reg
+        if value_type.is_value_type(self.db()) {
+            let reg = self.clone_value_type(val, value_type, false, loc);
+
+            self.mark_register_as_available(reg);
+            reg
+        } else {
+            let reg = self.new_register(value_type);
+
+            self.current_block_mut().increment(reg, val, loc);
+            reg
+        }
     }
 
     fn recover_expression(&mut self, node: hir::Recover) -> RegisterId {
@@ -2657,6 +2665,10 @@ impl<'a> LowerMethod<'a> {
 
                     self.mark_register_as_moved(reg);
 
+                    if self.register_type(reg).is_permanent(self.db()) {
+                        continue;
+                    }
+
                     // If the value matched against is owned, it's destructured
                     // as part of the match. This means any fields ignored need
                     // to be dropped. If the match input is a reference no
@@ -2740,6 +2752,10 @@ impl<'a> LowerMethod<'a> {
             }
 
             self.mark_register_as_moved(reg);
+
+            if self.register_type(reg).is_permanent(self.db()) {
+                continue;
+            }
 
             // If the register is the match input register, we always need to
             // drop it. If the input is a reference, we don't want to drop
@@ -3424,11 +3440,7 @@ impl<'a> LowerMethod<'a> {
 
     /// Returns the register to use for an output expression (`return` or
     /// `throw`).
-    fn output_expression(
-        &mut self,
-        node: hir::Expression,
-        clone_value_type: bool,
-    ) -> RegisterId {
+    fn output_expression(&mut self, node: hir::Expression) -> RegisterId {
         let loc = self.add_location(node.location().clone());
         let reg = self.expression(node);
 
@@ -3436,8 +3448,10 @@ impl<'a> LowerMethod<'a> {
 
         let typ = self.register_type(reg);
 
-        if clone_value_type && typ.is_value_type(self.db()) {
-            return self.clone_value_type(reg, typ, loc);
+        if typ.is_value_type(self.db()) {
+            let force_clone = !typ.is_owned_or_uni(self.db());
+
+            return self.clone_value_type(reg, typ, force_clone, loc);
         }
 
         if typ.is_owned_or_uni(self.db()) {
@@ -3564,7 +3578,7 @@ impl<'a> LowerMethod<'a> {
         let typ = self.register_type(register);
 
         if typ.is_value_type(self.db()) {
-            return self.clone_value_type(register, typ, location);
+            return self.clone_value_type(register, typ, false, location);
         }
 
         self.check_field_move(register, location);
@@ -3628,6 +3642,7 @@ impl<'a> LowerMethod<'a> {
                 return self.clone_value_type(
                     register,
                     register_type,
+                    false,
                     location,
                 );
             }
@@ -3641,6 +3656,25 @@ impl<'a> LowerMethod<'a> {
             }
 
             return register;
+        }
+
+        // References of value types passed to owned values should be cloned.
+        // This allows passing e.g. `ref Int` to something that expects `Int`,
+        // without the need for an explicit clone.
+        if register_type.is_value_type(self.db())
+            && expected.map_or(false, |v| v.is_owned_or_uni(self.db()))
+        {
+            // In this case we force cloning, so expressions such as
+            // `foo(vals[0])` pass a clone instead of passing the returned ref
+            // directly. If we were to pass the ref directly, `foo` might drop
+            // it thinking its an owned value, then fail because a ref still
+            // exists.
+            return self.clone_value_type(
+                register,
+                register_type,
+                true,
+                location,
+            );
         }
 
         // For reference types we only need to increment if they originate from
@@ -3676,9 +3710,10 @@ impl<'a> LowerMethod<'a> {
         &mut self,
         source: RegisterId,
         typ: types::TypeRef,
+        force_clone: bool,
         location: LocationId,
     ) -> RegisterId {
-        if self.register_kind(source).is_regular() {
+        if self.register_kind(source).is_regular() && !force_clone {
             self.mark_register_as_moved(source);
 
             // Value types not bound to any variables/fields don't need to be

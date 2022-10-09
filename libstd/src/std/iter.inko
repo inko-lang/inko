@@ -506,9 +506,9 @@ trait pub Bytes[E]: Iter[Int, E] {
 #     let vals = [10, 20, 30].into_iter
 #
 #     iter.join(vals, ',') => '10,20,30'
-fn pub join[T: ToString, E](iter: Iter[T, E], with: ref String) !! E -> String {
+fn pub join[T: ToString, E](iter: Iter[T, E], with: String) !! E -> String {
   let result = try iter.reduce(StringBuffer.new) fn (buff, val) {
-    if buff.length > 0 { buff.push(with.clone) }
+    if buff.length > 0 { buff.push(with) }
 
     buff.push(val.to_string)
     buff

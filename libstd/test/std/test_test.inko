@@ -13,7 +13,7 @@ class Buffer {
 }
 
 impl Write for Buffer {
-  fn pub mut write_string(string: ref String) -> Int {
+  fn pub mut write_string(string: String) -> Int {
     let bytes = string.to_byte_array
     let size = bytes.length
 

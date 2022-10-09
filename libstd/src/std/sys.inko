@@ -187,7 +187,7 @@ class pub Command {
 
   # Returns the program to start.
   fn pub program -> String {
-    @program.clone
+    @program
   }
 
   # Sets the working directory of the command.
@@ -340,7 +340,7 @@ class pub ExitStatus {
 
 impl ToInt for ExitStatus {
   fn pub to_int -> Int {
-    @code.clone
+    @code
   }
 }
 
@@ -369,7 +369,7 @@ impl Write for Stdin {
     }
   }
 
-  fn pub mut write_string(string: ref String) !! Error -> Int {
+  fn pub mut write_string(string: String) !! Error -> Int {
     try {
       _INKO.child_process_stdin_write_string(@process.raw, string.to_string)
     } else (code) {

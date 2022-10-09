@@ -1279,7 +1279,10 @@ impl<'a> CheckMethodBody<'a> {
         nodes: &mut [hir::Expression],
         scope: &mut LexicalScope,
     ) -> TypeRef {
-        self.expressions(nodes, scope).pop().unwrap_or_else(TypeRef::nil)
+        self.expressions(nodes, scope)
+            .pop()
+            .unwrap_or_else(TypeRef::nil)
+            .value_type_as_owned(self.db())
     }
 
     fn expressions_with_return(
@@ -3225,7 +3228,12 @@ impl<'a> CheckMethodBody<'a> {
             );
         }
 
-        node.resolved_type = expr.as_ref(self.db());
+        node.resolved_type = if expr.is_value_type(self.db()) {
+            expr
+        } else {
+            expr.as_ref(self.db())
+        };
+
         node.resolved_type
     }
 
@@ -3250,7 +3258,12 @@ impl<'a> CheckMethodBody<'a> {
             return TypeRef::Error;
         }
 
-        node.resolved_type = expr.as_mut(self.db());
+        node.resolved_type = if expr.is_value_type(self.db()) {
+            expr
+        } else {
+            expr.as_mut(self.db())
+        };
+
         node.resolved_type
     }
 
@@ -3637,7 +3650,7 @@ impl<'a> CheckMethodBody<'a> {
                         ins.type_arguments(db)
                             .copy_into(&mut ctx.type_arguments);
 
-                        let returns = if raw_typ.is_owned_or_uni(db) {
+                        let mut returns = if raw_typ.is_owned_or_uni(db) {
                             let typ = raw_typ.inferred(db, &mut ctx, false);
 
                             if receiver.is_ref(db) {
@@ -3648,6 +3661,8 @@ impl<'a> CheckMethodBody<'a> {
                         } else {
                             raw_typ.inferred(db, &mut ctx, receiver.is_ref(db))
                         };
+
+                        returns = returns.value_type_as_owned(self.db());
 
                         if receiver.require_sendable_arguments(self.db())
                             && !returns.is_sendable(self.db())

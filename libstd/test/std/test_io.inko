@@ -42,7 +42,7 @@ impl Write for Writer {
     bytes.length
   }
 
-  fn pub mut write_string(string: ref String) -> Int {
+  fn pub mut write_string(string: String) -> Int {
     string.to_byte_array.iter.each fn (byte) { @buffer.push(byte) }
     string.size
   }

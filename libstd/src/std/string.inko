@@ -60,7 +60,7 @@ fn padding(string: String, length: Int, pad_to: Int) -> String {
   let pad_size = pad_to - length
   let pad_buf = StringBuffer.new
 
-  pad_size.times fn (_) { pad_buf.push(string.clone) }
+  pad_size.times fn (_) { pad_buf.push(string) }
 
   let mut pad = pad_buf.into_string
 
@@ -195,7 +195,7 @@ class builtin String {
   #     'hello'.byte_index(of: 'l', starting_at: 0) # => Option.Some(2)
   #     'hello'.byte_index(of: 'l', starting_at: 3) # => Option.Some(3)
   #     'hello'.byte_index(of: 'x', starting_at: 0) # => Option.None
-  fn pub byte_index(of: ref String, starting_at: Int) -> Option[Int] {
+  fn pub byte_index(of: String, starting_at: Int) -> Option[Int] {
     # This is a naive string searching algorithm (see
     # https://en.wikipedia.org/wiki/String-searching_algorithm) for more details
     # on the various algorithms.
@@ -233,7 +233,7 @@ class builtin String {
   #
   #     'test_starts_with'.starts_with?('test_') # => true
   #     'hello'.starts_with?('test_')            # => false
-  fn pub starts_with?(prefix: ref String) -> Bool {
+  fn pub starts_with?(prefix: String) -> Bool {
     match byte_index(of: prefix, starting_at: 0) {
       case Some(idx) -> idx == 0
       case _ -> false
@@ -248,7 +248,7 @@ class builtin String {
   #
   #     'hello_world'.ends_with?('world') # => true
   #     'hello'.ends_with?('world')       # => false
-  fn pub ends_with?(suffix: ref String) -> Bool {
+  fn pub ends_with?(suffix: String) -> Bool {
     byte_index(of: suffix, starting_at: size - suffix.size).some?
   }
 
@@ -275,11 +275,11 @@ class builtin String {
   #
   #     iter.next # => Option.Some('foo')
   #     iter.next # => Option.Some('bar')
-  fn pub split(separator: ref String) -> Enum[String, Never] {
+  fn pub split(separator: String) -> Enum[String, Never] {
     let mut offset = 0
 
     Enum.new fn move {
-      match byte_index(of: separator, starting_at: offset.clone) {
+      match byte_index(of: separator, starting_at: offset) {
         case Some(at) -> {
           let start = offset := at + separator.size
 
@@ -360,7 +360,7 @@ class builtin String {
   # # Examples
   #
   #     'xhellox'.strip_prefix('x') # => 'hellox'
-  fn pub strip_prefix(prefix: ref String) -> String {
+  fn pub strip_prefix(prefix: String) -> String {
     if starts_with?(prefix).false? { return clone }
 
     slice_bytes(start: prefix.size, length: size - prefix.size).into_string
@@ -371,7 +371,7 @@ class builtin String {
   # # Examples
   #
   #     'xhellox'.strip_suffix('x') # => 'xhello'
-  fn pub strip_suffix(suffix: ref String) -> String {
+  fn pub strip_suffix(suffix: String) -> String {
     if ends_with?(suffix).false? { return clone }
 
     slice_bytes(start: 0, length: size - suffix.size).into_string
@@ -462,7 +462,7 @@ class builtin String {
         case -1 -> buff.push(byte)
         case byte -> {
           buff.push(BSLASH)
-          buff.push(byte.clone)
+          buff.push(byte)
         }
       }
     }
@@ -555,7 +555,7 @@ impl Add[String] for String {
 
 impl ToPath for String {
   fn pub to_path -> Path {
-    Path.new(self.clone)
+    Path.new(clone)
   }
 }
 
@@ -584,7 +584,7 @@ class pub Characters {
   #
   # We need to maintain a reference to the String, otherwise the underlying
   # native iterator would be invalidated.
-  let @string: ref String
+  let @string: String
 
   # The native iterator provided by the VM.
   let @iter: Any
@@ -610,7 +610,7 @@ impl Drop for Characters {
 
 # An iterator over the bytes in a `String`.
 class pub Bytes {
-  let @string: ref String
+  let @string: String
   let @index: Int
 }
 

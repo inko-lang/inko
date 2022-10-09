@@ -243,10 +243,10 @@ trait pub Write {
   fn pub mut write_bytes(bytes: ref ByteArray) !! Error -> Int
 
   # Writes a `String` to the stream, returning the number of bytes written.
-  fn pub mut write_string(string: ref String) !! Error -> Int
+  fn pub mut write_string(string: String) !! Error -> Int
 
   # Writes a `String` followed by a Unix newline to the stream.
-  fn pub mut print(string: ref String) !! Error -> Int {
+  fn pub mut print(string: String) !! Error -> Int {
     try { write_string(string) } + try { write_string("\n") }
   }
 
