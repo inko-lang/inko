@@ -150,6 +150,9 @@ pub enum Opcode {
     IntBitNot,
     IntRotateLeft,
     IntRotateRight,
+    IntWrappingAdd,
+    IntWrappingSub,
+    IntWrappingMul,
 }
 
 impl Opcode {
@@ -266,6 +269,9 @@ impl Opcode {
             108 => Opcode::IntBitNot,
             109 => Opcode::IntRotateLeft,
             110 => Opcode::IntRotateRight,
+            111 => Opcode::IntWrappingAdd,
+            112 => Opcode::IntWrappingSub,
+            113 => Opcode::IntWrappingMul,
             _ => return Err(format!("The opcode {} is invalid", byte)),
         };
 
@@ -386,6 +392,9 @@ impl Opcode {
             Opcode::IntBitNot => 108,
             Opcode::IntRotateLeft => 109,
             Opcode::IntRotateRight => 110,
+            Opcode::IntWrappingAdd => 111,
+            Opcode::IntWrappingSub => 112,
+            Opcode::IntWrappingMul => 113,
         }
     }
 
@@ -502,6 +511,9 @@ impl Opcode {
             Opcode::IntBitNot => "int_bit_not",
             Opcode::IntRotateLeft => "int_rotate_left",
             Opcode::IntRotateRight => "int_rotate_right",
+            Opcode::IntWrappingAdd => "int_wrapping_add",
+            Opcode::IntWrappingSub => "int_wrapping_sub",
+            Opcode::IntWrappingMul => "int_wrapping_mul",
         }
     }
 
@@ -636,6 +648,9 @@ impl Opcode {
             Opcode::IntBitNot => 2,
             Opcode::IntRotateLeft => 3,
             Opcode::IntRotateRight => 3,
+            Opcode::IntWrappingAdd => 3,
+            Opcode::IntWrappingSub => 3,
+            Opcode::IntWrappingMul => 3,
         }
     }
 

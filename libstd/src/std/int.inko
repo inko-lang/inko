@@ -251,6 +251,42 @@ class builtin Int {
   fn pub rotate_right(amount: Int) -> Int  {
     _INKO.int_rotate_right(self, amount)
   }
+
+  # Adds `other` to `self`, wrapping around when overflowing.
+  #
+  # # Examples
+  #
+  #     import std::int::(MAX, MIN)
+  #
+  #     1.wrapping_add(1)   # => 2
+  #     MAX.wrapping_add(1) # => MAX
+  fn pub wrapping_add(other: Int) -> Int {
+    _INKO.int_wrapping_add(self, other)
+  }
+
+  # Subtracts `other` from `self`, wrapping around when overflowing.
+  #
+  # # Examples
+  #
+  #     import std::int::(MAX, MIN)
+  #
+  #     1.wrapping_sub(1)   # => 0
+  #     MIN.wrapping_sub(1) # => MAX
+  fn pub wrapping_sub(other: Int) -> Int {
+    _INKO.int_wrapping_sub(self, other)
+  }
+
+  # Multiplies `other` with `self`, wrapping around when overflowing.
+  #
+  # # Examples
+  #
+  #     import std::int::(MAX, MIN)
+  #
+  #     1.wrapping_mul(2)   # => 2
+  #     MAX.wrapping_mul(2) # => -2
+  fn pub wrapping_mul(other: Int) -> Int {
+    _INKO.int_wrapping_mul(self, other)
+  }
 }
 
 impl ToInt for Int {

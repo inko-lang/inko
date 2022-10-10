@@ -215,6 +215,14 @@ impl<'a> Machine<'a> {
 
                     state.context.set_register(reg, res);
                 }
+                Opcode::IntWrappingAdd => {
+                    let reg = ins.arg(0);
+                    let a = state.context.get_register(ins.arg(1));
+                    let b = state.context.get_register(ins.arg(2));
+                    let res = integer::wrapping_add(self.state, a, b)?;
+
+                    state.context.set_register(reg, res);
+                }
                 Opcode::IntDiv => {
                     let reg = ins.arg(0);
                     let a = state.context.get_register(ins.arg(1));
@@ -231,11 +239,27 @@ impl<'a> Machine<'a> {
 
                     state.context.set_register(reg, res);
                 }
+                Opcode::IntWrappingMul => {
+                    let reg = ins.arg(0);
+                    let a = state.context.get_register(ins.arg(1));
+                    let b = state.context.get_register(ins.arg(2));
+                    let res = integer::wrapping_mul(self.state, a, b)?;
+
+                    state.context.set_register(reg, res);
+                }
                 Opcode::IntSub => {
                     let reg = ins.arg(0);
                     let a = state.context.get_register(ins.arg(1));
                     let b = state.context.get_register(ins.arg(2));
                     let res = integer::sub(self.state, a, b)?;
+
+                    state.context.set_register(reg, res);
+                }
+                Opcode::IntWrappingSub => {
+                    let reg = ins.arg(0);
+                    let a = state.context.get_register(ins.arg(1));
+                    let b = state.context.get_register(ins.arg(2));
+                    let res = integer::wrapping_sub(self.state, a, b)?;
 
                     state.context.set_register(reg, res);
                 }

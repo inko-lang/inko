@@ -1520,6 +1520,9 @@ pub(crate) fn define_builtin_functions(state: &mut State) -> bool {
         (Opcode::IntBitNot, int),
         (Opcode::IntRotateLeft, int),
         (Opcode::IntRotateRight, int),
+        (Opcode::IntWrappingAdd, int),
+        (Opcode::IntWrappingSub, int),
+        (Opcode::IntWrappingMul, int),
     ];
 
     let macros = vec![

@@ -250,4 +250,19 @@ fn pub tests(t: mut Tests) {
   t.test('Int.rotate_right') fn (t) {
     t.equal(0x6E10AA.rotate_right(12), 0xAA00000000006E1)
   }
+
+  t.test('Int.wrapping_add') fn (t) {
+    t.equal(MAX.wrapping_add(1), MIN)
+    t.equal(0.wrapping_add(1), 1)
+  }
+
+  t.test('Int.wrapping_sub') fn (t) {
+    t.equal(MIN.wrapping_sub(1), MAX)
+    t.equal(1.wrapping_sub(1), 0)
+  }
+
+  t.test('Int.wrapping_mul') fn (t) {
+    t.equal(MAX.wrapping_mul(2), -2)
+    t.equal(1.wrapping_mul(2), 2)
+  }
 }

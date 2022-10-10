@@ -74,6 +74,19 @@ pub(crate) fn add(
 }
 
 #[inline(always)]
+pub(crate) fn wrapping_add(
+    state: &State,
+    left: Pointer,
+    right: Pointer,
+) -> Result<Pointer, String> {
+    let lhs = unsafe { Int::read(left) };
+    let rhs = unsafe { Int::read(right) };
+    let value = lhs.wrapping_add(rhs);
+
+    Ok(Int::alloc(state.permanent_space.int_class(), value))
+}
+
+#[inline(always)]
 pub(crate) fn div(
     state: &State,
     left: Pointer,
@@ -113,12 +126,38 @@ pub(crate) fn mul(
 }
 
 #[inline(always)]
+pub(crate) fn wrapping_mul(
+    state: &State,
+    left: Pointer,
+    right: Pointer,
+) -> Result<Pointer, String> {
+    let lhs = unsafe { Int::read(left) };
+    let rhs = unsafe { Int::read(right) };
+    let value = lhs.wrapping_mul(rhs);
+
+    Ok(Int::alloc(state.permanent_space.int_class(), value))
+}
+
+#[inline(always)]
 pub(crate) fn sub(
     state: &State,
     left: Pointer,
     right: Pointer,
 ) -> Result<Pointer, String> {
     let value = int_overflow_op!(Int, left, right, checked_sub);
+
+    Ok(Int::alloc(state.permanent_space.int_class(), value))
+}
+
+#[inline(always)]
+pub(crate) fn wrapping_sub(
+    state: &State,
+    left: Pointer,
+    right: Pointer,
+) -> Result<Pointer, String> {
+    let lhs = unsafe { Int::read(left) };
+    let rhs = unsafe { Int::read(right) };
+    let value = lhs.wrapping_sub(rhs);
 
     Ok(Int::alloc(state.permanent_space.int_class(), value))
 }
