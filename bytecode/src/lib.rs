@@ -625,7 +625,7 @@ impl Opcode {
             Opcode::Push => 1,
             Opcode::Pop => 1,
             Opcode::FuturePoll => 2,
-            Opcode::IntBitNot => 1,
+            Opcode::IntBitNot => 2,
         }
     }
 
