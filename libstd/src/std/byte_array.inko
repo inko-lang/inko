@@ -191,21 +191,7 @@ class builtin ByteArray {
   #     sliced[1] # => 3
   fn pub slice(start: Int, length: Int) -> ByteArray {
     bounds_check(start, self.length)
-
-    let new_array = ByteArray.new
-    let total_bytes = self.length
-    let mut index = start
-    let mut end_at = index + length
-
-    if end_at > total_bytes { end_at = total_bytes }
-
-    while index < end_at {
-      new_array.push(_INKO.byte_array_get(self, index))
-
-      index += 1
-    }
-
-    new_array
+    _INKO.byte_array_slice(self, start, length)
   }
 
   # Returns the byte at the given index, returning None if the index is out of

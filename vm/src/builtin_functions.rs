@@ -202,6 +202,7 @@ impl BuiltinFunctions {
                 random::random_from_int,
                 random::random_drop,
                 string::string_slice_bytes,
+                byte_array::byte_array_slice,
             ],
         }
     }
