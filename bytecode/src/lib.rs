@@ -148,6 +148,8 @@ pub enum Opcode {
     Pop,
     FuturePoll,
     IntBitNot,
+    IntRotateLeft,
+    IntRotateRight,
 }
 
 impl Opcode {
@@ -262,6 +264,8 @@ impl Opcode {
             106 => Opcode::Pop,
             107 => Opcode::FuturePoll,
             108 => Opcode::IntBitNot,
+            109 => Opcode::IntRotateLeft,
+            110 => Opcode::IntRotateRight,
             _ => return Err(format!("The opcode {} is invalid", byte)),
         };
 
@@ -380,6 +384,8 @@ impl Opcode {
             Opcode::Pop => 106,
             Opcode::FuturePoll => 107,
             Opcode::IntBitNot => 108,
+            Opcode::IntRotateLeft => 109,
+            Opcode::IntRotateRight => 110,
         }
     }
 
@@ -494,6 +500,8 @@ impl Opcode {
             Opcode::Pop => "pop",
             Opcode::FuturePoll => "future_poll",
             Opcode::IntBitNot => "int_bit_not",
+            Opcode::IntRotateLeft => "int_rotate_left",
+            Opcode::IntRotateRight => "int_rotate_right",
         }
     }
 
@@ -626,6 +634,8 @@ impl Opcode {
             Opcode::Pop => 1,
             Opcode::FuturePoll => 2,
             Opcode::IntBitNot => 2,
+            Opcode::IntRotateLeft => 3,
+            Opcode::IntRotateRight => 3,
         }
     }
 

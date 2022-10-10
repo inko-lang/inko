@@ -163,6 +163,32 @@ pub(crate) fn not(state: &State, ptr: Pointer) -> Pointer {
 }
 
 #[inline(always)]
+pub(crate) fn rotate_left(
+    state: &State,
+    left: Pointer,
+    right: Pointer,
+) -> Pointer {
+    let lhs = unsafe { Int::read(left) };
+    let rhs = unsafe { Int::read(right) as u32 };
+    let value = lhs.rotate_left(rhs);
+
+    Int::alloc(state.permanent_space.int_class(), value)
+}
+
+#[inline(always)]
+pub(crate) fn rotate_right(
+    state: &State,
+    left: Pointer,
+    right: Pointer,
+) -> Pointer {
+    let lhs = unsafe { Int::read(left) };
+    let rhs = unsafe { Int::read(right) as u32 };
+    let value = lhs.rotate_right(rhs);
+
+    Int::alloc(state.permanent_space.int_class(), value)
+}
+
+#[inline(always)]
 pub(crate) fn shl(
     state: &State,
     left: Pointer,

@@ -231,6 +231,26 @@ class builtin Int {
   fn pub not -> Int {
     _INKO.int_bit_not(self)
   }
+
+  # Shifts the bits to the left, wrapping the truncated bits to the end of the
+  # resulting integer.
+  #
+  # # Examples
+  #
+  #     0xaa00000000006e1.rotate_left(12) # => 0x6e10aa
+  fn pub rotate_left(amount: Int) -> Int  {
+    _INKO.int_rotate_left(self, amount)
+  }
+
+  # Shifts the bits to the right, wrapping the truncated bits to the end of the
+  # resulting integer.
+  #
+  # # Examples
+  #
+  #     0x6e10aa.rotate_right(12) # => 0xaa00000000006e1
+  fn pub rotate_right(amount: Int) -> Int  {
+    _INKO.int_rotate_right(self, amount)
+  }
 }
 
 impl ToInt for Int {

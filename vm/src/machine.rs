@@ -278,6 +278,22 @@ impl<'a> Machine<'a> {
 
                     state.context.set_register(reg, res);
                 }
+                Opcode::IntRotateLeft => {
+                    let reg = ins.arg(0);
+                    let a = state.context.get_register(ins.arg(1));
+                    let b = state.context.get_register(ins.arg(2));
+                    let res = integer::rotate_left(self.state, a, b);
+
+                    state.context.set_register(reg, res);
+                }
+                Opcode::IntRotateRight => {
+                    let reg = ins.arg(0);
+                    let a = state.context.get_register(ins.arg(1));
+                    let b = state.context.get_register(ins.arg(2));
+                    let res = integer::rotate_right(self.state, a, b);
+
+                    state.context.set_register(reg, res);
+                }
                 Opcode::IntShl => {
                     let reg = ins.arg(0);
                     let a = state.context.get_register(ins.arg(1));

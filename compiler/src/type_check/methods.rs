@@ -1518,6 +1518,8 @@ pub(crate) fn define_builtin_functions(state: &mut State) -> bool {
         (Opcode::ProcessSuspend, nil),
         (Opcode::FuturePoll, any),
         (Opcode::IntBitNot, int),
+        (Opcode::IntRotateLeft, int),
+        (Opcode::IntRotateRight, int),
     ];
 
     let macros = vec![

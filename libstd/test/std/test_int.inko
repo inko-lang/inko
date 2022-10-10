@@ -242,4 +242,12 @@ fn pub tests(t: mut Tests) {
     t.equal(MAX.not, MIN)
     t.equal(MIN.not, MAX)
   }
+
+  t.test('Int.rotate_left') fn (t) {
+    t.equal(0xAA00000000006E1.rotate_left(12), 0x6E10AA)
+  }
+
+  t.test('Int.rotate_right') fn (t) {
+    t.equal(0x6E10AA.rotate_right(12), 0xAA00000000006E1)
+  }
 }
