@@ -1517,6 +1517,7 @@ pub(crate) fn define_builtin_functions(state: &mut State) -> bool {
         (Opcode::IsUndefined, boolean),
         (Opcode::ProcessSuspend, nil),
         (Opcode::FuturePoll, any),
+        (Opcode::IntBitNot, int),
     ];
 
     let macros = vec![

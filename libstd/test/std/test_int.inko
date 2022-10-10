@@ -1,5 +1,6 @@
 import helpers::(fmt, hash)
 import std::cmp::Ordering
+import std::int::(MIN, MAX)
 import std::test::Tests
 
 fn pub tests(t: mut Tests) {
@@ -232,5 +233,13 @@ fn pub tests(t: mut Tests) {
     t.equal(2.nearest_power_of_two, 2)
     t.equal(3.nearest_power_of_two, 4)
     t.equal(9.nearest_power_of_two, 16)
+  }
+
+  t.test('Int.not') fn (t) {
+    t.equal(0.not, -1)
+    t.equal(12.not, -13)
+    t.equal(-13.not, 12)
+    t.equal(MAX.not, MIN)
+    t.equal(MIN.not, MAX)
   }
 }

@@ -147,6 +147,7 @@ pub enum Opcode {
     Push,
     Pop,
     FuturePoll,
+    IntBitNot,
 }
 
 impl Opcode {
@@ -260,6 +261,7 @@ impl Opcode {
             105 => Opcode::Push,
             106 => Opcode::Pop,
             107 => Opcode::FuturePoll,
+            108 => Opcode::IntBitNot,
             _ => return Err(format!("The opcode {} is invalid", byte)),
         };
 
@@ -377,6 +379,7 @@ impl Opcode {
             Opcode::Push => 105,
             Opcode::Pop => 106,
             Opcode::FuturePoll => 107,
+            Opcode::IntBitNot => 108,
         }
     }
 
@@ -490,6 +493,7 @@ impl Opcode {
             Opcode::Push => "push",
             Opcode::Pop => "pop",
             Opcode::FuturePoll => "future_poll",
+            Opcode::IntBitNot => "int_bit_not",
         }
     }
 
@@ -621,6 +625,7 @@ impl Opcode {
             Opcode::Push => 1,
             Opcode::Pop => 1,
             Opcode::FuturePoll => 2,
+            Opcode::IntBitNot => 1,
         }
     }
 

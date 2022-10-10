@@ -156,6 +156,13 @@ pub(crate) fn xor(state: &State, left: Pointer, right: Pointer) -> Pointer {
 }
 
 #[inline(always)]
+pub(crate) fn not(state: &State, ptr: Pointer) -> Pointer {
+    let value = unsafe { !Int::read(ptr) };
+
+    Int::alloc(state.permanent_space.int_class(), value)
+}
+
+#[inline(always)]
 pub(crate) fn shl(
     state: &State,
     left: Pointer,

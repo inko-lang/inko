@@ -271,6 +271,13 @@ impl<'a> Machine<'a> {
 
                     state.context.set_register(reg, res);
                 }
+                Opcode::IntBitNot => {
+                    let reg = ins.arg(0);
+                    let val = state.context.get_register(ins.arg(1));
+                    let res = integer::not(self.state, val);
+
+                    state.context.set_register(reg, res);
+                }
                 Opcode::IntShl => {
                     let reg = ins.arg(0);
                     let a = state.context.get_register(ins.arg(1));

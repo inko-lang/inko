@@ -219,6 +219,18 @@ class builtin Int {
     bytes.reverse
     ByteArray.from_array(bytes).into_string
   }
+
+  # Returns the result of performing a bitwise `NOT` on `self`.
+  #
+  # As Inko doesn't support unary operators besides `not` (which only supports
+  # booleans), this is just a regular method.
+  #
+  # # Examples
+  #
+  #     12.not # => -13
+  fn pub not -> Int {
+    _INKO.int_bit_not(self)
+  }
 }
 
 impl ToInt for Int {
