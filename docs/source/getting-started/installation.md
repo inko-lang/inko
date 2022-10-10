@@ -13,7 +13,7 @@ Unix compatibility layer such as [MSYS2][msys2].
 
 ## Requirements
 
-- A 64-bits platform, 32-bits platforms are not supported.
+- A 64-bits little-endian platform
 - A CPU with AES-NI support
 - Rust 1.62 or newer
 
