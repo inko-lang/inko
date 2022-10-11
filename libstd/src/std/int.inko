@@ -205,19 +205,18 @@ class builtin Int {
     if self == 0 { return '0' }
 
     let alphabet = '0123456789abcdef'
-    let bytes = []
+    let bytes = ByteArray.new
     let mut int = absolute
 
     while int > 0 {
       bytes.push(alphabet.byte(int % base))
-
       int /= base
     }
 
-    if self < 0 { bytes.push(45) }
+    if self < 0 { bytes.push(0x2D) }
 
     bytes.reverse
-    ByteArray.from_array(bytes).into_string
+    bytes.into_string
   }
 
   # Returns the result of performing a bitwise `NOT` on `self`.
