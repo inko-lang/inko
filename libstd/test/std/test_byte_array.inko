@@ -226,4 +226,12 @@ fn pub tests(t: mut Tests) {
     t.equal(iter.read_all(buff), 0)
     t.equal(buff.to_string, 'foo')
   }
+
+  t.test('ByteArray.reverse') fn (t) {
+    let vals = ByteArray.from_array([10, 20, 30])
+
+    vals.reverse
+
+    t.equal(vals, ByteArray.from_array([30, 20, 10]))
+  }
 }

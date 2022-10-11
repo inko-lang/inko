@@ -254,6 +254,29 @@ class builtin ByteArray {
   fn pub iter -> Bytes {
     Bytes { @bytes = self, @index = 0 }
   }
+
+  # Reverses `self` in-place
+  #
+  # # Examples
+  #
+  #     let a = ByteArray.from_array([10, 20, 30])
+  #
+  #     a.reverse
+  #
+  #     a # => ByteArray.from_array([30, 20, 10])
+  fn pub mut reverse {
+    let mut a = 0
+    let mut b = length - 1
+
+    while a < b {
+      let a_val = _INKO.byte_array_get(self, a)
+
+      _INKO.byte_array_set(self, a, _INKO.byte_array_set(self, b, a_val))
+
+      a += 1
+      b -= 1
+    }
+  }
 }
 
 impl Drop for ByteArray {
