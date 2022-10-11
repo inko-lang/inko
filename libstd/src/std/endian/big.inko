@@ -1,0 +1,89 @@
+# Methods for converting values to/from big-endian encoded bytes.
+
+# Pushes a value interpreted as a 32-bits unsigned integer into `into` as a
+# series of bytes.
+#
+# If `value` is greater than the maximum value of a 32-bits unsigned integer,
+# the additional bits are ignored (i.e. the value wraps around).
+#
+# # Examples
+#
+#     import std::endian::big
+#
+#     let bytes = ByteArray.new
+#
+#     big.push_u32(123456789, into: bytes)
+#     bytes # => ByteArray.from_array([7, 91, 205, 21])
+fn pub push_u32(value: Int, into: mut ByteArray) {
+  into.push(value >> 24)
+  into.push(value >> 16)
+  into.push(value >> 8)
+  into.push(value)
+}
+
+# Pushes a value interpreted as a 64-bits signed integer into `into` as a series
+# of bytes.
+#
+# # Examples
+#
+#     import std::endian::big
+#
+#     let bytes = ByteArray.new
+#
+#     big.push_i64(123456789, into: bytes)
+#     bytes # => ByteArray.from_array([7, 91, 205, 21])
+fn pub push_i64(value: Int, into: mut ByteArray) {
+  into.push(value >> 56)
+  into.push(value >> 48)
+  into.push(value >> 40)
+  into.push(value >> 32)
+  into.push(value >> 24)
+  into.push(value >> 16)
+  into.push(value >> 8)
+  into.push(value)
+}
+
+# Reads four bytes starting at `at` as a 32-bits signed integer.
+#
+# # Panics
+#
+# This method panics if there are less than four bytes available starting at
+# `at`.
+#
+# # Examples
+#
+#     import std::endian::big
+#
+#     let bytes = ByteArray.new
+#
+#     big.push_u32(123456789, into: bytes)
+#     big.read_u32(from: bytes, at: 0) # => 123456789
+fn pub read_u32(from: ref ByteArray, at: Int) -> Int {
+  (from[at] << 24) | (from[at + 1] << 16) | (from[at + 2] << 8) | from[at + 3]
+}
+
+# Reads eight bytes starting at `at` as a 64-bits signed integer.
+#
+# # Panics
+#
+# This method panics if there are less than eight bytes available starting at
+# `at`.
+#
+# # Examples
+#
+#     import std::endian::big
+#
+#     let bytes = ByteArray.new
+#
+#     big.push_i64(123456789, into: bytes)
+#     big.read_i64(from: bytes, at: 0) # => 123456789
+fn pub read_i64(from: ref ByteArray, at: Int) -> Int {
+  (from[at] << 56)
+    | (from[at + 1] << 48)
+    | (from[at + 2] << 40)
+    | (from[at + 3] << 32)
+    | (from[at + 4] << 24)
+    | (from[at + 5] << 16)
+    | (from[at + 6] << 8)
+    | from[at + 7]
+}

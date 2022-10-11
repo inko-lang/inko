@@ -1,0 +1,89 @@
+# Methods for converting values to/from little-endian encoded bytes.
+
+# Pushes a value interpreted as a 32-bits unsigned integer into `into` as a
+# series of bytes.
+#
+# If `value` is greater than the maximum value of a 32-bits unsigned integer,
+# the additional bits are ignored (i.e. the value wraps around).
+#
+# # Examples
+#
+#     import std::endian::little
+#
+#     let bytes = ByteArray.new
+#
+#     little.push_u32(123456789, into: bytes)
+#     bytes # => ByteArray.from_array([21, 205, 91, 7])
+fn pub push_u32(value: Int, into: mut ByteArray) {
+  into.push(value)
+  into.push(value >> 8)
+  into.push(value >> 16)
+  into.push(value >> 24)
+}
+
+# Pushes a value interpreted as a 64-bits signed integer into `into` as a series
+# of bytes.
+#
+# # Examples
+#
+#     import std::endian::little
+#
+#     let bytes = ByteArray.new
+#
+#     little.push_i64(123456789, into: bytes)
+#     bytes # => ByteArray.from_array([21, 205, 91, 7])
+fn pub push_i64(value: Int, into: mut ByteArray) {
+  into.push(value)
+  into.push(value >> 8)
+  into.push(value >> 16)
+  into.push(value >> 24)
+  into.push(value >> 32)
+  into.push(value >> 40)
+  into.push(value >> 48)
+  into.push(value >> 56)
+}
+
+# Reads four bytes starting at `at` as a 32-bits signed integer.
+#
+# # Panics
+#
+# This method panics if there are less than four bytes available starting at
+# `at`.
+#
+# # Examples
+#
+#     import std::endian::little
+#
+#     let bytes = ByteArray.new
+#
+#     little.push_u32(123456789, into: bytes)
+#     little.read_u32(from: bytes, at: 0) # => 123456789
+fn pub read_u32(from: ref ByteArray, at: Int) -> Int {
+  (from[at + 3] << 24) | (from[at + 2] << 16) | (from[at + 1] << 8) | from[at]
+}
+
+# Reads eight bytes starting at `at` as a 64-bits signed integer.
+#
+# # Panics
+#
+# This method panics if there are less than eight bytes available starting at
+# `at`.
+#
+# # Examples
+#
+#     import std::endian::little
+#
+#     let bytes = ByteArray.new
+#
+#     little.push_i64(123456789, into: bytes)
+#     little.read_i64(from: bytes, at: 0) # => 123456789
+fn pub read_i64(from: ref ByteArray, at: Int) -> Int {
+  (from[at + 7] << 56)
+    | (from[at + 6] << 48)
+    | (from[at + 5] << 40)
+    | (from[at + 4] << 32)
+    | (from[at + 3] << 24)
+    | (from[at + 2] << 16)
+    | (from[at + 1] << 8)
+    | from[at]
+}

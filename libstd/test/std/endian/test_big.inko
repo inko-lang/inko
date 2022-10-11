@@ -1,0 +1,67 @@
+import helpers::Script
+import std::endian::big
+import std::int::(MIN, MAX)
+import std::test::Tests
+
+fn pub tests(t: mut Tests) {
+  t.test('big.push_u32') fn (t) {
+    let b1 = ByteArray.new
+    let b2 = ByteArray.new
+
+    big.push_u32(123456789, into: b1)
+    big.push_u32(MAX, into: b2)
+
+    t.equal(b1, ByteArray.from_array([7, 91, 205, 21]))
+    t.equal(b2, ByteArray.from_array([255, 255, 255, 255]))
+  }
+
+  t.test('big.read_u32') fn (t) {
+    let bytes = ByteArray.new
+
+    big.push_u32(123456789, into: bytes)
+
+    t.equal(big.read_u32(from: bytes, at: 0), 123456789)
+    t.true(
+      Script
+        .new(id: t.id, code: 'big.read_u32(from: ByteArray.new, at: 0)')
+        .import('std::endian::big')
+        .run
+        .contains?('out of bounds')
+    )
+  }
+
+  t.test('big.push_i64') fn (t) {
+    let b1 = ByteArray.new
+    let b2 = ByteArray.new
+    let b3 = ByteArray.new
+
+    big.push_i64(123456789, into: b1)
+    big.push_i64(MAX, into: b2)
+    big.push_i64(MIN, into: b3)
+
+    t.equal(b1, ByteArray.from_array([0, 0, 0, 0, 7, 91, 205, 21]))
+    t.equal(b2, ByteArray.from_array([127, 255, 255, 255, 255, 255, 255, 255]))
+    t.equal(b3, ByteArray.from_array([128, 0, 0, 0, 0, 0, 0, 0]))
+  }
+
+  t.test('big.read_i64') fn (t) {
+    let b1 = ByteArray.new
+    let b2 = ByteArray.new
+    let b3 = ByteArray.new
+
+    big.push_i64(123456789, into: b1)
+    big.push_i64(MAX, into: b2)
+    big.push_i64(MIN, into: b3)
+
+    t.equal(big.read_i64(from: b1, at: 0), 123456789)
+    t.equal(big.read_i64(from: b2, at: 0), MAX)
+    t.equal(big.read_i64(from: b3, at: 0), MIN)
+    t.true(
+      Script
+        .new(id: t.id, code: 'big.read_i64(from: ByteArray.new, at: 0)')
+        .import('std::endian::big')
+        .run
+        .contains?('out of bounds')
+    )
+  }
+}
