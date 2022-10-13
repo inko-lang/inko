@@ -234,4 +234,16 @@ fn pub tests(t: mut Tests) {
 
     t.equal(vals, ByteArray.from_array([30, 20, 10]))
   }
+
+  t.test('ByteArray.copy_from') fn (t) {
+    let a = ByteArray.from_array([1, 2, 3, 4])
+    let b = ByteArray.new
+
+    t.equal(b.copy_from(a, at: 0, length: 2), 2)
+    t.equal(a, ByteArray.from_array([1, 2, 3, 4]))
+    t.equal(b, ByteArray.from_array([1, 2]))
+
+    t.equal(b.copy_from(b, at: 0, length: 2), 2)
+    t.equal(b, ByteArray.from_array([1, 2, 1, 2]))
+  }
 }

@@ -277,6 +277,24 @@ class builtin ByteArray {
       b -= 1
     }
   }
+
+  # Copies up to `length` bytes from `bytes` into `self`, starting at the index
+  # `at`.
+  #
+  # The return value is the number of bytes copied. This value may be less than
+  # `length` if there are fewer bytes in `bytes`.
+  #
+  # # Examples
+  #
+  #     let a = ByteArray.from_array([1, 2, 3, 4])
+  #     let b = ByteArray.new
+  #
+  #     b.copy_from(a, at: 0, length: 2)
+  #
+  #     b # => ByteArray.from_array([1, 2])
+  fn pub mut copy_from(bytes: ref ByteArray, at: Int, length: Int) -> Int {
+    _INKO.byte_array_copy_from(self, bytes, at, length)
+  }
 }
 
 impl Drop for ByteArray {

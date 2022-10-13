@@ -908,6 +908,7 @@ pub enum BuiltinFunction {
     StringSliceBytes,
     ByteArraySlice,
     ByteArrayAppend,
+    ByteArrayCopyFrom,
 }
 
 impl BuiltinFunction {
@@ -1062,6 +1063,7 @@ impl BuiltinFunction {
             BuiltinFunction::StringSliceBytes => 146,
             BuiltinFunction::ByteArraySlice => 147,
             BuiltinFunction::ByteArrayAppend => 148,
+            BuiltinFunction::ByteArrayCopyFrom => 149,
         }
     }
 
@@ -1258,6 +1260,7 @@ impl BuiltinFunction {
             BuiltinFunction::StringSliceBytes => "string_slice_bytes",
             BuiltinFunction::ByteArraySlice => "byte_array_slice",
             BuiltinFunction::ByteArrayAppend => "byte_array_append",
+            BuiltinFunction::ByteArrayCopyFrom => "byte_array_copy_from",
         }
     }
 }

@@ -67,3 +67,21 @@ pub(crate) fn byte_array_append(
     target.value_mut().append(source.value_mut());
     Ok(Pointer::nil_singleton())
 }
+
+pub(crate) fn byte_array_copy_from(
+    state: &State,
+    _: &mut Thread,
+    _: ProcessPointer,
+    args: &[Pointer],
+) -> Result<Pointer, RuntimeError> {
+    let target = unsafe { args[0].get_mut::<ByteArray>() };
+    let source = unsafe { args[1].get_mut::<ByteArray>() };
+    let start = unsafe { Int::read(args[2]) } as usize;
+    let len = unsafe { Int::read(args[3]) } as usize;
+    let end = min((start + len) as usize, source.value().len());
+    let slice = &source.value()[start..end];
+    let amount = slice.len() as i64;
+
+    target.value_mut().extend_from_slice(slice);
+    Ok(Int::alloc(state.permanent_space.int_class(), amount))
+}
