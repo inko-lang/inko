@@ -8,7 +8,7 @@ import std::ops::(
   Add, BitAnd, BitOr, BitXor, Divide, Modulo, Multiply, Power,
   ShiftLeft, ShiftRight, Subtract
 )
-import std::range::Range
+import std::range::(ExclusiveRange, InclusiveRange)
 import std::string::(ToString, StringBuffer)
 
 # A type that can be converted to a Int.
@@ -139,13 +139,13 @@ class builtin Int {
   }
 
   # Returns a `Range` from `self` up to but excluding `other`.
-  fn pub until(other: Int) -> Range {
-    Range.exclusive(clone, other)
+  fn pub until(other: Int) -> ExclusiveRange {
+    ExclusiveRange.new(clone, other)
   }
 
   # Returns a `Range` from `self` up to and including `other`.
-  fn pub to(other: Int) -> Range {
-    Range.inclusive(clone, other)
+  fn pub to(other: Int) -> InclusiveRange {
+    InclusiveRange.new(clone, other)
   }
 
   # Returns the number of digits of `self`.

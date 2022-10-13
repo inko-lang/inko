@@ -1,49 +1,111 @@
 import helpers::(fmt, hash)
-import std::range::Range
+import std::range::(ExclusiveRange, InclusiveRange)
 import std::test::Tests
 
 fn pub tests(t: mut Tests) {
-  t.test('Range.inclusive') fn (t) {
-    let range = Range.inclusive(1, 10)
+  t.test('InclusiveRange.new') fn (t) {
+    let range = InclusiveRange.new(1, 10)
 
     t.equal(range.start, 1)
     t.equal(range.end, 10)
     t.true(range.inclusive?)
   }
 
-  t.test('Range.exclusive') fn (t) {
-    let range = Range.exclusive(1, 10)
+  t.test('ExclusiveRange.new') fn (t) {
+    let range = ExclusiveRange.new(1, 10)
 
     t.equal(range.start, 1)
     t.equal(range.end, 10)
     t.false(range.inclusive?)
   }
 
-  t.test('Range.contains?') fn (t) {
-    t.true(Range.inclusive(1, 10).contains?(1))
-    t.true(Range.inclusive(1, 10).contains?(10))
-    t.true(Range.exclusive(1, 10).contains?(1))
-    t.false(Range.exclusive(1, 10).contains?(10))
+  t.test('InclusiveRange.contains?') fn (t) {
+    t.true(InclusiveRange.new(1, 10).contains?(1))
+    t.true(InclusiveRange.new(1, 10).contains?(10))
   }
 
-  t.test('Range.into_iter') fn (t) {
-    t.equal(Range.inclusive(1, 3).into_iter.to_array, [1, 2, 3])
-    t.equal(Range.exclusive(1, 3).into_iter.to_array, [1, 2])
+  t.test('ExclusiveRange.contains?') fn (t) {
+    t.true(ExclusiveRange.new(1, 10).contains?(1))
+    t.false(ExclusiveRange.new(1, 10).contains?(10))
   }
 
-  t.test('Range.==') fn (t) {
-    t.equal(Range.inclusive(1, 3), Range.inclusive(1, 3))
-    t.not_equal(Range.inclusive(1, 3), Range.exclusive(1, 4))
-    t.not_equal(Range.inclusive(1, 3), Range.exclusive(1, 3))
+  t.test('InclusiveRange.iter') fn (t) {
+    t.equal(InclusiveRange.new(1, 3).iter.to_array, [1, 2, 3])
   }
 
-  t.test('Range.hash') fn (t) {
-    t.equal(hash(Range.inclusive(1, 3)), hash(Range.inclusive(1, 3)))
-    t.not_equal(hash(Range.inclusive(1, 3)), hash(Range.exclusive(1, 3)))
+  t.test('ExclusiveRange.iter') fn (t) {
+    t.equal(ExclusiveRange.new(1, 3).iter.to_array, [1, 2])
   }
 
-  t.test('Range.fmt') fn (t) {
-    t.equal(fmt(Range.inclusive(1, 3)), '1 to 3')
-    t.equal(fmt(Range.exclusive(1, 3)), '1 until 3')
+  t.test('InclusiveRange.==') fn (t) {
+    t.equal(InclusiveRange.new(1, 3), InclusiveRange.new(1, 3))
+    t.not_equal(InclusiveRange.new(1, 3), InclusiveRange.new(1, 4))
+  }
+
+  t.test('ExclusiveRange.==') fn (t) {
+    t.equal(ExclusiveRange.new(1, 3), ExclusiveRange.new(1, 3))
+    t.not_equal(ExclusiveRange.new(1, 3), ExclusiveRange.new(1, 4))
+  }
+
+  t.test('InclusiveRange.hash') fn (t) {
+    t.equal(hash(InclusiveRange.new(1, 3)), hash(InclusiveRange.new(1, 3)))
+    t.not_equal(hash(InclusiveRange.new(1, 3)), hash(InclusiveRange.new(1, 4)))
+  }
+
+  t.test('ExclusiveRange.hash') fn (t) {
+    t.equal(hash(ExclusiveRange.new(1, 3)), hash(ExclusiveRange.new(1, 3)))
+    t.not_equal(hash(ExclusiveRange.new(1, 3)), hash(ExclusiveRange.new(1, 4)))
+  }
+
+  t.test('InclusiveRange.fmt') fn (t) {
+    t.equal(fmt(InclusiveRange.new(1, 3)), '1 to 3')
+  }
+
+  t.test('ExclusiveRange.fmt') fn (t) {
+    t.equal(fmt(ExclusiveRange.new(1, 3)), '1 until 3')
+  }
+
+  t.test('InclusiveRange.step_by') fn (t) {
+    t.equal(InclusiveRange.new(0, -2).step_by(2).to_array, [])
+    t.equal(
+      InclusiveRange.new(0, 0).step_by(2).to_array,
+      [InclusiveRange.new(0, 0)]
+    )
+    t.equal(
+      InclusiveRange.new(0, 1).step_by(2).to_array, [InclusiveRange.new(0, 1)]
+    )
+    t.equal(
+      InclusiveRange.new(1, 5).step_by(2).to_array,
+      [
+        InclusiveRange.new(1, 2),
+        InclusiveRange.new(3, 4),
+        InclusiveRange.new(5, 5)
+      ]
+    )
+  }
+
+  t.test('ExclusiveRange.step_by') fn (t) {
+    t.equal(ExclusiveRange.new(0, -2).step_by(2).to_array, [])
+    t.equal(ExclusiveRange.new(0, 0).step_by(2).to_array, [])
+    t.equal(
+      ExclusiveRange.new(0, 1).step_by(2).to_array, [ExclusiveRange.new(0, 1)]
+    )
+    t.equal(
+      ExclusiveRange.new(1, 5).step_by(2).to_array,
+      [ExclusiveRange.new(1, 2), ExclusiveRange.new(3, 4)]
+    )
+  }
+
+  t.test('InclusiveRange.length') fn (t) {
+    t.equal(InclusiveRange.new(0, 1).length, 2)
+    t.equal(InclusiveRange.new(0, 0).length, 1)
+    t.equal(InclusiveRange.new(0, -2).length, 0)
+  }
+
+  t.test('ExclusiveRange.length') fn (t) {
+    t.equal(ExclusiveRange.new(0, 1).length, 1)
+    t.equal(ExclusiveRange.new(0, 2).length, 2)
+    t.equal(ExclusiveRange.new(0, 0).length, 0)
+    t.equal(ExclusiveRange.new(0, -2).length, 0)
   }
 }
