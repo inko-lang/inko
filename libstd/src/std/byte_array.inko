@@ -93,7 +93,7 @@ class builtin ByteArray {
   #     a.append(b)
   #     a # => ByteArray.from_array([10, 20])
   fn pub mut append(other: Self) {
-    other.iter.each fn (v) { push(v) }
+    _INKO.byte_array_append(self, other)
   }
 
   # Pushes a value to the back of the `ByteArray`, returning the pushed value.

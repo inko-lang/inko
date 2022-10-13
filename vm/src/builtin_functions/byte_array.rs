@@ -54,3 +54,16 @@ pub(crate) fn byte_array_slice(
         bytes.value()[start..end].to_vec(),
     ))
 }
+
+pub(crate) fn byte_array_append(
+    _: &State,
+    _: &mut Thread,
+    _: ProcessPointer,
+    args: &[Pointer],
+) -> Result<Pointer, RuntimeError> {
+    let target = unsafe { args[0].get_mut::<ByteArray>() };
+    let source = unsafe { args[1].get_mut::<ByteArray>() };
+
+    target.value_mut().append(source.value_mut());
+    Ok(Pointer::nil_singleton())
+}

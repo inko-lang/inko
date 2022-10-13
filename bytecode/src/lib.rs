@@ -907,6 +907,7 @@ pub enum BuiltinFunction {
     RandomDrop,
     StringSliceBytes,
     ByteArraySlice,
+    ByteArrayAppend,
 }
 
 impl BuiltinFunction {
@@ -1060,6 +1061,7 @@ impl BuiltinFunction {
             BuiltinFunction::RandomDrop => 145,
             BuiltinFunction::StringSliceBytes => 146,
             BuiltinFunction::ByteArraySlice => 147,
+            BuiltinFunction::ByteArrayAppend => 148,
         }
     }
 
@@ -1255,6 +1257,7 @@ impl BuiltinFunction {
             BuiltinFunction::RandomDrop => "random_drop",
             BuiltinFunction::StringSliceBytes => "string_slice_bytes",
             BuiltinFunction::ByteArraySlice => "byte_array_slice",
+            BuiltinFunction::ByteArrayAppend => "byte_array_append",
         }
     }
 }

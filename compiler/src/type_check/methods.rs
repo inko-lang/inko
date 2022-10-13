@@ -1444,6 +1444,7 @@ pub(crate) fn define_builtin_functions(state: &mut State) -> bool {
         (BIF::RandomDrop, nil, never),
         (BIF::StringSliceBytes, string, never),
         (BIF::ByteArraySlice, byte_array, never),
+        (BIF::ByteArrayAppend, nil, never),
     ];
 
     // Regular VM instructions exposed directly to the standard library. These
