@@ -1,5 +1,5 @@
 import helpers::(fmt)
-import std::cmp::(Compare, Equal, Ordering)
+import std::cmp::(Compare, Equal, Ordering, max, min)
 import std::test::Tests
 
 class enum Letter {
@@ -81,5 +81,17 @@ fn pub tests(t: mut Tests) {
   t.test('Equal.==') fn (t) {
     t.true(Letter.A == Letter.A)
     t.true(Letter.A != Letter.B)
+  }
+
+  t.test('cmp.min') fn (t) {
+    t.equal(min(10, 10), 10)
+    t.equal(min(10, 5), 5)
+    t.equal(min(5, 10), 5)
+  }
+
+  t.test('cmp.max') fn (t) {
+    t.equal(max(10, 10), 10)
+    t.equal(max(10, 5), 10)
+    t.equal(max(5, 10), 10)
   }
 }
