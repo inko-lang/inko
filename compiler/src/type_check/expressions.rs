@@ -4,6 +4,7 @@ use crate::hir;
 use crate::state::State;
 use crate::type_check::{DefineAndCheckTypeSignature, Rules, TypeScope};
 use ast::source_location::SourceLocation;
+use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use types::{
@@ -124,6 +125,12 @@ struct LexicalScope<'a> {
     /// This flag allows us to quickly check if we're in a closure, without
     /// having to walk the scope up every time.
     in_closure: bool,
+
+    /// A boolean indicating that we broke out of this loop scope using `break`.
+    ///
+    /// We use a Cell here as each scope's parent is an immutable reference, as
+    /// using mutable references leads to all sorts of borrowing issues.
+    break_in_loop: Cell<bool>,
 }
 
 impl<'a> LexicalScope<'a> {
@@ -140,6 +147,7 @@ impl<'a> LexicalScope<'a> {
             throw_type,
             parent: None,
             in_closure: false,
+            break_in_loop: Cell::new(false),
         }
     }
 
@@ -152,6 +160,7 @@ impl<'a> LexicalScope<'a> {
             variables: VariableScope::new(),
             parent: Some(self),
             in_closure: self.in_closure,
+            break_in_loop: Cell::new(false),
         }
     }
 
@@ -2580,6 +2589,7 @@ impl<'a> CheckMethodBody<'a> {
             variables: VariableScope::new(),
             parent: Some(scope),
             in_closure: true,
+            break_in_loop: Cell::new(false),
         };
 
         for (index, arg) in node.arguments.iter_mut().enumerate() {
@@ -3029,7 +3039,18 @@ impl<'a> CheckMethodBody<'a> {
         let mut new_scope = scope.inherit(ScopeKind::Loop);
 
         self.expressions(&mut node.body, &mut new_scope);
-        TypeRef::Never
+
+        // Loops are expressions like any other. If we don't break out of the
+        // loop explicitly we may come to depend on the result of the `loop`
+        // expression later (e.g. `if x { loop { break } }`).
+        //
+        // If we never break out of the loop the return type is `Never` because,
+        // well, we'll never reach whatever code comes after the loop.
+        if new_scope.break_in_loop.get() {
+            TypeRef::nil()
+        } else {
+            TypeRef::Never
+        }
     }
 
     fn break_expression(
@@ -3037,7 +3058,20 @@ impl<'a> CheckMethodBody<'a> {
         node: &hir::Break,
         scope: &mut LexicalScope,
     ) -> TypeRef {
-        if !scope.in_loop() {
+        let mut in_loop = false;
+        let mut scope = Some(&*scope);
+
+        while let Some(current) = scope {
+            if current.kind == ScopeKind::Loop {
+                in_loop = true;
+                current.break_in_loop.set(true);
+                break;
+            }
+
+            scope = current.parent;
+        }
+
+        if !in_loop {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidLoopKeyword,
                 "The 'break' keyword can only be used inside loops",

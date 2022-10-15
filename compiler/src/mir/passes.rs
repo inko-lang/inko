@@ -1496,7 +1496,16 @@ impl<'a> LowerMethod<'a> {
 
         self.current_block = after_loop;
 
-        self.new_register(types::TypeRef::Never)
+        if self.in_connected_block() {
+            // Even though `loop` is typed as returning `Never`, we have to
+            // produce `nil` here because we will reach this point when breaking
+            // out of the loop. At that point we may then end up returning this
+            // value (e.g. a `loop` in an `if` would return this value as part
+            // of the `if`).
+            self.get_nil(loc)
+        } else {
+            self.new_register(types::TypeRef::Never)
+        }
     }
 
     fn break_expression(&mut self, node: hir::Break) -> RegisterId {
