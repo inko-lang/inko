@@ -66,6 +66,7 @@ pub(crate) struct ConstStringLiteral {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ArrayLiteral {
+    pub(crate) value_type: types::TypeRef,
     pub(crate) resolved_type: types::TypeRef,
     pub(crate) values: Vec<Expression>,
     pub(crate) location: SourceLocation,
@@ -74,6 +75,7 @@ pub(crate) struct ArrayLiteral {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct TupleLiteral {
     pub(crate) class_id: Option<types::ClassId>,
+    pub(crate) value_types: Vec<types::TypeRef>,
     pub(crate) resolved_type: types::TypeRef,
     pub(crate) values: Vec<Expression>,
     pub(crate) location: SourceLocation,
@@ -1729,6 +1731,7 @@ impl<'a> LowerToHir<'a> {
 
     fn array_literal(&mut self, node: ast::Array) -> Box<ArrayLiteral> {
         Box::new(ArrayLiteral {
+            value_type: types::TypeRef::Unknown,
             resolved_type: types::TypeRef::Unknown,
             values: self.values(node.values),
             location: node.location,
@@ -1738,6 +1741,7 @@ impl<'a> LowerToHir<'a> {
     fn tuple_literal(&mut self, node: ast::Tuple) -> Box<TupleLiteral> {
         Box::new(TupleLiteral {
             class_id: None,
+            value_types: Vec::new(),
             resolved_type: types::TypeRef::Unknown,
             values: self.values(node.values),
             location: node.location,
@@ -4753,6 +4757,7 @@ mod tests {
         assert_eq!(
             hir,
             Expression::Array(Box::new(ArrayLiteral {
+                value_type: types::TypeRef::Unknown,
                 resolved_type: types::TypeRef::Unknown,
                 values: vec![Expression::Int(Box::new(IntLiteral {
                     resolved_type: types::TypeRef::Unknown,
@@ -4773,6 +4778,7 @@ mod tests {
             Expression::Tuple(Box::new(TupleLiteral {
                 class_id: None,
                 resolved_type: types::TypeRef::Unknown,
+                value_types: Vec::new(),
                 values: vec![Expression::Int(Box::new(IntLiteral {
                     resolved_type: types::TypeRef::Unknown,
                     value: 10,

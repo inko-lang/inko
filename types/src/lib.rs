@@ -1824,6 +1824,14 @@ impl ClassInstance {
         &db.type_arguments[self.type_arguments as usize]
     }
 
+    pub fn first_type_argument(self, db: &Database) -> Option<TypeRef> {
+        db.type_arguments[self.type_arguments as usize]
+            .mapping
+            .values()
+            .cloned()
+            .next()
+    }
+
     pub fn copy_new_arguments_from(
         self,
         db: &mut Database,

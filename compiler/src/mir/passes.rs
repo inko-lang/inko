@@ -1573,9 +1573,10 @@ impl<'a> LowerMethod<'a> {
 
         self.current_block_mut().allocate(tup, id, loc);
 
-        for (val, field) in node.values.into_iter().zip(fields.into_iter()) {
+        for (index, val) in node.values.into_iter().enumerate() {
+            let field = fields[index];
+            let exp = node.value_types[index];
             let loc = self.add_location(val.location().clone());
-            let exp = field.value_type(self.db());
             let reg = self.input_expression(val, Some(exp));
 
             self.current_block_mut().set_field(tup, field, reg, loc);
@@ -1596,7 +1597,7 @@ impl<'a> LowerMethod<'a> {
         let vals: Vec<RegisterId> = node
             .values
             .into_iter()
-            .map(|n| self.input_expression(n, None))
+            .map(|n| self.input_expression(n, Some(node.value_type)))
             .collect();
 
         if vals.len() > ARRAY_LIMIT {
@@ -2379,17 +2380,17 @@ impl<'a> LowerMethod<'a> {
 
     fn define_variable(&mut self, node: hir::DefineVariable) -> RegisterId {
         let loc = self.add_location(node.location);
+        let exp = node.resolved_type;
 
         if let Some(id) = node.variable_id {
-            let exp = node.value_type.map(|_| id.value_type(self.db()));
-            let src = self.input_expression(node.value, exp);
+            let src = self.input_expression(node.value, Some(exp));
             let reg = self.new_variable(id);
 
             self.variable_mapping.insert(id, reg);
             self.add_drop_flag(reg, loc);
             self.current_block_mut().move_register(reg, src, loc);
         } else {
-            let src = self.input_expression(node.value, None);
+            let src = self.input_expression(node.value, Some(exp));
             let reg = self.new_register(node.resolved_type);
 
             // We don't drop immediately as this would break e.g. guards bounds

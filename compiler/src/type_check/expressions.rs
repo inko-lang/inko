@@ -1283,6 +1283,14 @@ impl<'a> CheckMethodBody<'a> {
         nodes.iter_mut().map(|n| self.expression(n, scope)).collect()
     }
 
+    fn input_expressions(
+        &mut self,
+        nodes: &mut [hir::Expression],
+        scope: &mut LexicalScope,
+    ) -> Vec<TypeRef> {
+        nodes.iter_mut().map(|n| self.input_expression(n, scope)).collect()
+    }
+
     fn last_expression_type(
         &mut self,
         nodes: &mut [hir::Expression],
@@ -1400,6 +1408,20 @@ impl<'a> CheckMethodBody<'a> {
         }
     }
 
+    fn input_expression(
+        &mut self,
+        node: &mut hir::Expression,
+        scope: &mut LexicalScope,
+    ) -> TypeRef {
+        let typ = self.expression(node, scope);
+
+        if typ.is_value_type(self.db()) {
+            typ.as_owned(self.db())
+        } else {
+            typ
+        }
+    }
+
     fn argument_expression(
         &mut self,
         expected_type: TypeRef,
@@ -1499,7 +1521,7 @@ impl<'a> CheckMethodBody<'a> {
         node: &mut hir::ArrayLiteral,
         scope: &mut LexicalScope,
     ) -> TypeRef {
-        let types = self.expressions(&mut node.values, scope);
+        let types = self.input_expressions(&mut node.values, scope);
 
         if types.len() > 1 {
             let &first = types.first().unwrap();
@@ -1528,14 +1550,15 @@ impl<'a> CheckMethodBody<'a> {
             );
         }
 
-        let ary = TypeRef::Owned(TypeId::ClassInstance(
-            ClassInstance::generic_with_types(
-                self.db_mut(),
-                ClassId::array(),
-                types,
-            ),
-        ));
+        let ins = ClassInstance::generic_with_types(
+            self.db_mut(),
+            ClassId::array(),
+            types,
+        );
+        let ary = TypeRef::Owned(TypeId::ClassInstance(ins));
 
+        node.value_type =
+            ins.first_type_argument(self.db()).unwrap_or(TypeRef::Unknown);
         node.resolved_type = ary;
         node.resolved_type
     }
@@ -1545,7 +1568,7 @@ impl<'a> CheckMethodBody<'a> {
         node: &mut hir::TupleLiteral,
         scope: &mut LexicalScope,
     ) -> TypeRef {
-        let types = self.expressions(&mut node.values, scope);
+        let types = self.input_expressions(&mut node.values, scope);
         let class = if let Some(id) = ClassId::tuple(types.len()) {
             id
         } else {
@@ -1557,11 +1580,16 @@ impl<'a> CheckMethodBody<'a> {
         };
 
         let tuple = TypeRef::Owned(TypeId::ClassInstance(
-            ClassInstance::generic_with_types(self.db_mut(), class, types),
+            ClassInstance::generic_with_types(
+                self.db_mut(),
+                class,
+                types.clone(),
+            ),
         ));
 
         node.class_id = Some(class);
         node.resolved_type = tuple;
+        node.value_types = types;
         node.resolved_type
     }
 
@@ -1738,7 +1766,7 @@ impl<'a> CheckMethodBody<'a> {
         node: &mut hir::DefineVariable,
         scope: &mut LexicalScope,
     ) -> TypeRef {
-        let value_type = self.expression(&mut node.value, scope);
+        let value_type = self.input_expression(&mut node.value, scope);
 
         if !value_type.allow_assignment(self.db()) {
             self.state.diagnostics.cant_assign_type(
@@ -1792,7 +1820,6 @@ impl<'a> CheckMethodBody<'a> {
         );
 
         node.variable_id = Some(id);
-
         rtype
     }
 
