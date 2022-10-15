@@ -34,7 +34,7 @@ pub(crate) fn to_dot(db: &Database, mir: &Mir, methods: &[&Method]) -> String {
         let name = if rec_name.is_empty() {
             format!("{}()", method.id.name(db))
         } else {
-            format!("{}::{}()", rec_name, method.id.name(db))
+            format!("{}.{}()", rec_name, method.id.name(db))
         };
 
         let _ = writeln!(buffer, "label=<{}>;", name);
