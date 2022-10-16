@@ -4,21 +4,21 @@ import std::int::(MIN, MAX)
 import std::test::Tests
 
 fn pub tests(t: mut Tests) {
-  t.test('big.push_u32') fn (t) {
-    let b1 = ByteArray.new
-    let b2 = ByteArray.new
+  t.test('big.write_u32') fn (t) {
+    let b1 = ByteArray.filled(with: 0, times: 4)
+    let b2 = ByteArray.filled(with: 0, times: 4)
 
-    big.push_u32(123456789, into: b1)
-    big.push_u32(MAX, into: b2)
+    big.write_u32(123456789, into: b1, at: 0)
+    big.write_u32(MAX, into: b2, at: 0)
 
     t.equal(b1, ByteArray.from_array([7, 91, 205, 21]))
     t.equal(b2, ByteArray.from_array([255, 255, 255, 255]))
   }
 
   t.test('big.read_u32') fn (t) {
-    let bytes = ByteArray.new
+    let bytes = ByteArray.filled(with: 0, times: 4)
 
-    big.push_u32(123456789, into: bytes)
+    big.write_u32(123456789, into: bytes, at: 0)
 
     t.equal(big.read_u32(from: bytes, at: 0), 123456789)
     t.true(
@@ -30,14 +30,14 @@ fn pub tests(t: mut Tests) {
     )
   }
 
-  t.test('big.push_i64') fn (t) {
-    let b1 = ByteArray.new
-    let b2 = ByteArray.new
-    let b3 = ByteArray.new
+  t.test('big.write_i64') fn (t) {
+    let b1 = ByteArray.filled(with: 0, times: 8)
+    let b2 = ByteArray.filled(with: 0, times: 8)
+    let b3 = ByteArray.filled(with: 0, times: 8)
 
-    big.push_i64(123456789, into: b1)
-    big.push_i64(MAX, into: b2)
-    big.push_i64(MIN, into: b3)
+    big.write_i64(123456789, into: b1, at: 0)
+    big.write_i64(MAX, into: b2, at: 0)
+    big.write_i64(MIN, into: b3, at: 0)
 
     t.equal(b1, ByteArray.from_array([0, 0, 0, 0, 7, 91, 205, 21]))
     t.equal(b2, ByteArray.from_array([127, 255, 255, 255, 255, 255, 255, 255]))
@@ -45,13 +45,13 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('big.read_i64') fn (t) {
-    let b1 = ByteArray.new
-    let b2 = ByteArray.new
-    let b3 = ByteArray.new
+    let b1 = ByteArray.filled(with: 0, times: 8)
+    let b2 = ByteArray.filled(with: 0, times: 8)
+    let b3 = ByteArray.filled(with: 0, times: 8)
 
-    big.push_i64(123456789, into: b1)
-    big.push_i64(MAX, into: b2)
-    big.push_i64(MIN, into: b3)
+    big.write_i64(123456789, into: b1, at: 0)
+    big.write_i64(MAX, into: b2, at: 0)
+    big.write_i64(MIN, into: b3, at: 0)
 
     t.equal(big.read_i64(from: b1, at: 0), 123456789)
     t.equal(big.read_i64(from: b2, at: 0), MAX)
