@@ -85,3 +85,17 @@ pub(crate) fn byte_array_copy_from(
     target.value_mut().extend_from_slice(slice);
     Ok(Int::alloc(state.permanent_space.int_class(), amount))
 }
+
+pub(crate) fn byte_array_resize(
+    _: &State,
+    _: &mut Thread,
+    _: ProcessPointer,
+    args: &[Pointer],
+) -> Result<Pointer, RuntimeError> {
+    let bytes = unsafe { args[0].get_mut::<ByteArray>() };
+    let size = unsafe { Int::read(args[1]) as usize };
+    let filler = unsafe { Int::read(args[2]) as u8 };
+
+    bytes.value_mut().resize(size, filler);
+    Ok(Pointer::nil_singleton())
+}

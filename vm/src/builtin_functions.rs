@@ -205,6 +205,7 @@ impl BuiltinFunctions {
                 byte_array::byte_array_slice,
                 byte_array::byte_array_append,
                 byte_array::byte_array_copy_from,
+                byte_array::byte_array_resize,
             ],
         }
     }

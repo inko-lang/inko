@@ -1446,6 +1446,7 @@ pub(crate) fn define_builtin_functions(state: &mut State) -> bool {
         (BIF::ByteArraySlice, byte_array, never),
         (BIF::ByteArrayAppend, nil, never),
         (BIF::ByteArrayCopyFrom, int, never),
+        (BIF::ByteArrayResize, nil, never),
     ];
 
     // Regular VM instructions exposed directly to the standard library. These

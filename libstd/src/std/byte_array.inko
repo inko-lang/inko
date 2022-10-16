@@ -56,14 +56,8 @@ class builtin ByteArray {
   #     bytes[1] # => 0
   fn pub static filled(with: Int, times: Int) -> ByteArray {
     let bytes = new
-    let mut index = 0
 
-    while index < times {
-      bytes.push(with)
-
-      index += 1
-    }
-
+    bytes.resize(times, with)
     bytes
   }
 
@@ -294,6 +288,31 @@ class builtin ByteArray {
   #     b # => ByteArray.from_array([1, 2])
   fn pub mut copy_from(bytes: ref ByteArray, at: Int, length: Int) -> Int {
     _INKO.byte_array_copy_from(self, bytes, at, length)
+  }
+
+  # Resizes `self` to the new length.
+  #
+  # If the given length is greater than the current length, the `value` argument
+  # is used to fill in the additional slots. If the given length is less than
+  # the current length, `self` is simply truncated.
+  #
+  # # Panics
+  #
+  # This method panics if the given length is less than zero.
+  #
+  # # Examples
+  #
+  #     let bytes = ByteArray.new
+  #
+  #     bytes.resize(length: 2, value: 1)
+  #     bytes # => ByteArray.from_array([1, 1])
+  #
+  #     bytes.resize(length: 0, value: 0)
+  #     bytes # => ByteArray.new
+  fn pub mut resize(length: Int, value: Int) {
+    if length < 0 { panic('The new length must be greater than zero') }
+
+    _INKO.byte_array_resize(self, length, value)
   }
 }
 

@@ -1,4 +1,4 @@
-import helpers::(fmt, hash)
+import helpers::(fmt, hash, Script)
 import std::iter::EOF
 import std::test::Tests
 
@@ -245,5 +245,22 @@ fn pub tests(t: mut Tests) {
 
     t.equal(b.copy_from(b, at: 0, length: 2), 2)
     t.equal(b, ByteArray.from_array([1, 2, 1, 2]))
+  }
+
+  t.test('ByteArray.resize') fn (t) {
+    let bytes = ByteArray.new
+
+    bytes.resize(length: 2, value: 1)
+    t.equal(bytes, ByteArray.from_array([1, 1]))
+
+    bytes.resize(length: 0, value: 0)
+    t.equal(bytes, ByteArray.new)
+
+    t.true(
+      Script
+        .new(id: t.id, code: 'ByteArray.new.resize(length: -5, value: 0)')
+        .run
+        .contains?('greater than zero')
+    )
   }
 }
