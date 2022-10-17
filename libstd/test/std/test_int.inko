@@ -34,6 +34,9 @@ fn pub tests(t: mut Tests) {
     t.equal(Int.from_base16(' 11'), Option.None)
     t.equal(Int.from_base16('11 '), Option.None)
     t.equal(Int.from_base16('zz'), Option.None)
+    t.equal(
+      Int.from_base16('-0x4a3f043013b2c4d1'), Option.Some(-5349999486874862801)
+    )
   }
 
   t.test('Int.to_base2') fn (t) {

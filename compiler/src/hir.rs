@@ -1617,8 +1617,15 @@ impl<'a> LowerToHir<'a> {
             input = input.replace('_', "");
         }
 
-        let result = if let Some(slice) = input.strip_prefix("0x") {
-            i64::from_str_radix(slice, 16)
+        let hex_prefix = if input.starts_with("-") { "-0x" } else { "0x" };
+        let result = if let Some(slice) = input.strip_prefix(hex_prefix) {
+            i64::from_str_radix(slice, 16).map(|v| {
+                if input.starts_with("-") {
+                    0_i64.wrapping_sub(v)
+                } else {
+                    v
+                }
+            })
         } else {
             i64::from_str(&input)
         };

@@ -94,7 +94,19 @@ pub(crate) fn string_to_int(
         string
     };
 
-    let res = i64::from_str_radix(slice, radix as u32)
+    // Rust doesn't handle parsing strings like "-0x4a3f043013b2c4d1" out of the
+    // box.
+    let parsed = if radix == 16 {
+        if let Some(tail) = string.strip_prefix("-0x") {
+            i64::from_str_radix(tail, 16).map(|v| 0_i64.wrapping_sub(v))
+        } else {
+            i64::from_str_radix(slice, 16)
+        }
+    } else {
+        i64::from_str_radix(slice, radix as u32)
+    };
+
+    let res = parsed
         .map(|val| Int::alloc(state.permanent_space.int_class(), val))
         .unwrap_or_else(|_| Pointer::undefined_singleton());
 
