@@ -209,6 +209,13 @@ fn pub tests(t: mut Tests) {
   t.test('Int.>>') fn (t) {
     t.equal(1 >> 16, 0)
     t.equal(65_536 >> 16, 1)
+    t.equal(-123 >> 3, -16)
+  }
+
+  t.test('Int.>>>') fn (t) {
+    t.equal(1 >>> 16, 0)
+    t.equal(65_536 >>> 16, 1)
+    t.equal(-123 >>> 3, 2305843009213693936)
   }
 
   t.test('Int.**') fn (t) {

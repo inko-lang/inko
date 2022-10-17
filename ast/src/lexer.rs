@@ -145,6 +145,7 @@ pub enum TokenKind {
     Pub,
     Recover,
     Ref,
+    Replace,
     Return,
     SelfObject,
     Shl,
@@ -159,7 +160,6 @@ pub enum TokenKind {
     StringText,
     Sub,
     SubAssign,
-    Replace,
     Throw,
     Throws,
     Trait,
@@ -168,6 +168,8 @@ pub enum TokenKind {
     TryPanic,
     Uni,
     UnicodeEscape,
+    UnsignedShr,
+    UnsignedShrAssign,
     When,
     While,
     Whitespace,
@@ -248,6 +250,8 @@ impl TokenKind {
             TokenKind::ShlAssign => "a '<<='",
             TokenKind::Shr => "a '>>'",
             TokenKind::ShrAssign => "a '>>='",
+            TokenKind::UnsignedShr => "a '>>>'",
+            TokenKind::UnsignedShrAssign => "a '>>>='",
             TokenKind::SingleStringClose => "a '''",
             TokenKind::SingleStringOpen => "a '''",
             TokenKind::Static => "the 'static' keyword",
@@ -361,6 +365,7 @@ impl Token {
                 | TokenKind::BitXor
                 | TokenKind::Shl
                 | TokenKind::Shr
+                | TokenKind::UnsignedShr
                 | TokenKind::Lt
                 | TokenKind::Le
                 | TokenKind::Gt
@@ -890,7 +895,14 @@ impl Lexer {
 
     fn greater(&mut self) -> Token {
         if self.next_byte() == GREATER {
-            return self.double_operator(TokenKind::Shr, TokenKind::ShrAssign);
+            return if self.peek(2) == GREATER {
+                self.triple_operator(
+                    TokenKind::UnsignedShr,
+                    TokenKind::UnsignedShrAssign,
+                )
+            } else {
+                self.double_operator(TokenKind::Shr, TokenKind::ShrAssign)
+            };
         }
 
         self.operator(TokenKind::Gt, TokenKind::Ge, self.position)
@@ -1252,6 +1264,18 @@ impl Lexer {
         self.next_byte() == LOWER_U && self.peek(2) == CURLY_OPEN
     }
 
+    fn triple_operator(
+        &mut self,
+        kind: TokenKind,
+        assign_kind: TokenKind,
+    ) -> Token {
+        let start = self.position;
+
+        self.position += 2;
+
+        self.operator(kind, assign_kind, start)
+    }
+
     fn double_operator(
         &mut self,
         kind: TokenKind,
@@ -1476,6 +1500,7 @@ mod tests {
         assert!(tok(TokenKind::Ge, "", 1..=1, 1..=1).is_operator());
         assert!(tok(TokenKind::Eq, "", 1..=1, 1..=1).is_operator());
         assert!(tok(TokenKind::Ne, "", 1..=1, 1..=1).is_operator());
+        assert!(tok(TokenKind::UnsignedShr, "", 1..=1, 1..=1).is_operator());
     }
 
     #[test]
@@ -2008,6 +2033,8 @@ mod tests {
         assert_token!(">=", Ge, ">=", 1..=1, 1..=2);
         assert_token!(">>", Shr, ">>", 1..=1, 1..=2);
         assert_token!(">>=", ShrAssign, ">>=", 1..=1, 1..=3);
+        assert_token!(">>>", UnsignedShr, ">>>", 1..=1, 1..=3);
+        assert_token!(">>>=", UnsignedShrAssign, ">>>=", 1..=1, 1..=4);
     }
 
     #[test]

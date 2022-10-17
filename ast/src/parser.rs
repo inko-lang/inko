@@ -1476,6 +1476,7 @@ impl Parser {
             TokenKind::Ge => OperatorKind::Ge,
             TokenKind::Shl => OperatorKind::Shl,
             TokenKind::Shr => OperatorKind::Shr,
+            TokenKind::UnsignedShr => OperatorKind::UnsignedShr,
             TokenKind::BitAnd => OperatorKind::BitAnd,
             TokenKind::BitOr => OperatorKind::BitOr,
             TokenKind::BitXor => OperatorKind::BitXor,
@@ -1753,6 +1754,10 @@ impl Parser {
             TokenKind::ShrAssign => {
                 return self.binary_assign_field(start, OperatorKind::Shr)
             }
+            TokenKind::UnsignedShrAssign => {
+                return self
+                    .binary_assign_field(start, OperatorKind::UnsignedShr)
+            }
             TokenKind::BitOrAssign => {
                 return self.binary_assign_field(start, OperatorKind::BitOr)
             }
@@ -1855,7 +1860,11 @@ impl Parser {
                 return self.binary_assign_variable(start, OperatorKind::Shl)
             }
             TokenKind::ShrAssign => {
-                return self.binary_assign_variable(start, OperatorKind::Shr)
+                return self.binary_assign_variable(start, OperatorKind::Shr);
+            }
+            TokenKind::UnsignedShrAssign => {
+                return self
+                    .binary_assign_variable(start, OperatorKind::UnsignedShr);
             }
             TokenKind::BitOrAssign => {
                 return self.binary_assign_variable(start, OperatorKind::BitOr)
@@ -2066,6 +2075,13 @@ impl Parser {
                     receiver,
                     name_token,
                     OperatorKind::Shr,
+                );
+            }
+            TokenKind::UnsignedShrAssign => {
+                return self.binary_assign_setter(
+                    receiver,
+                    name_token,
+                    OperatorKind::UnsignedShr,
                 );
             }
             TokenKind::BitOrAssign => {
@@ -6315,6 +6331,25 @@ mod tests {
         );
 
         assert_eq!(
+            expr("10 >>> 2"),
+            Expression::Binary(Box::new(Binary {
+                operator: Operator {
+                    kind: OperatorKind::UnsignedShr,
+                    location: cols(4, 6)
+                },
+                left: Expression::Int(Box::new(IntLiteral {
+                    value: "10".to_string(),
+                    location: cols(1, 2)
+                })),
+                right: Expression::Int(Box::new(IntLiteral {
+                    value: "2".to_string(),
+                    location: cols(8, 8)
+                })),
+                location: cols(1, 8)
+            }))
+        );
+
+        assert_eq!(
             expr("10 & 2"),
             Expression::Binary(Box::new(Binary {
                 operator: Operator {
@@ -6749,6 +6784,25 @@ mod tests {
         );
 
         assert_eq!(
+            expr("foo >>>= 10"),
+            Expression::BinaryAssignVariable(Box::new(BinaryAssignVariable {
+                variable: Identifier {
+                    name: "foo".to_string(),
+                    location: cols(1, 3)
+                },
+                value: Expression::Int(Box::new(IntLiteral {
+                    value: "10".to_string(),
+                    location: cols(10, 11)
+                })),
+                operator: Operator {
+                    kind: OperatorKind::UnsignedShr,
+                    location: cols(5, 8)
+                },
+                location: cols(1, 11)
+            }))
+        );
+
+        assert_eq!(
             expr("foo &= 10"),
             Expression::BinaryAssignVariable(Box::new(BinaryAssignVariable {
                 variable: Identifier {
@@ -6933,6 +6987,22 @@ mod tests {
                     location: cols(6, 8)
                 },
                 location: cols(1, 11)
+            }))
+        );
+
+        assert_eq!(
+            expr("@foo >>>= 10"),
+            Expression::BinaryAssignField(Box::new(BinaryAssignField {
+                field: Field { name: "foo".to_string(), location: cols(1, 4) },
+                value: Expression::Int(Box::new(IntLiteral {
+                    value: "10".to_string(),
+                    location: cols(11, 12)
+                })),
+                operator: Operator {
+                    kind: OperatorKind::UnsignedShr,
+                    location: cols(6, 9)
+                },
+                location: cols(1, 12)
             }))
         );
 

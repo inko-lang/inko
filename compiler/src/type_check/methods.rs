@@ -1527,6 +1527,7 @@ pub(crate) fn define_builtin_functions(state: &mut State) -> bool {
         (Opcode::IntWrappingAdd, int),
         (Opcode::IntWrappingSub, int),
         (Opcode::IntWrappingMul, int),
+        (Opcode::IntUnsignedShr, int),
     ];
 
     let macros = vec![

@@ -6,7 +6,7 @@ import std::fmt::(Format, Formatter)
 import std::hash::(Hash, Hasher)
 import std::ops::(
   Add, BitAnd, BitOr, BitXor, Divide, Modulo, Multiply, Power,
-  ShiftLeft, ShiftRight, Subtract
+  ShiftLeft, ShiftRight, Subtract, UnsignedShiftRight
 )
 import std::range::(ExclusiveRange, InclusiveRange)
 import std::string::(ToString, StringBuffer)
@@ -403,6 +403,12 @@ impl ShiftLeft for Int {
 impl ShiftRight for Int {
   fn pub >>(other: ref Self) -> Self {
     _INKO.int_shr(self, other)
+  }
+}
+
+impl UnsignedShiftRight for Int {
+  fn pub >>>(other: ref Self) -> Self {
+    _INKO.int_unsigned_shr(self, other)
   }
 }
 

@@ -658,10 +658,10 @@ pub(crate) enum Operator {
     BitXor,
     Div,
     Eq,
-    Gt,
     Ge,
-    Lt,
+    Gt,
     Le,
+    Lt,
     Mod,
     Mul,
     Ne,
@@ -669,6 +669,7 @@ pub(crate) enum Operator {
     Shl,
     Shr,
     Sub,
+    UnsignedShr,
 }
 
 impl Operator {
@@ -691,6 +692,7 @@ impl Operator {
             Operator::Ge => ">=",
             Operator::Lt => "<",
             Operator::Le => "<=",
+            Operator::UnsignedShr => ">>>",
         }
     }
 }
@@ -1837,6 +1839,7 @@ impl<'a> LowerToHir<'a> {
             ast::OperatorKind::Shl => Operator::Shl,
             ast::OperatorKind::Shr => Operator::Shr,
             ast::OperatorKind::Sub => Operator::Sub,
+            ast::OperatorKind::UnsignedShr => Operator::UnsignedShr,
         }
     }
 
@@ -4660,6 +4663,20 @@ mod tests {
                 value: 0xff,
                 resolved_type: types::TypeRef::Unknown,
                 location: cols(8, 11)
+            }))
+        );
+    }
+
+    #[test]
+    fn test_lower_negative_hex_int() {
+        let hir = lower_expr("fn a { -0x4a3f043013b2c4d1 }").0;
+
+        assert_eq!(
+            hir,
+            Expression::Int(Box::new(IntLiteral {
+                value: -0x4a3f043013b2c4d1,
+                resolved_type: types::TypeRef::Unknown,
+                location: cols(8, 26)
             }))
         );
     }

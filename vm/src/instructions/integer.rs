@@ -250,6 +250,23 @@ pub(crate) fn shr(
 }
 
 #[inline(always)]
+pub(crate) fn unsigned_shr(
+    state: &State,
+    left: Pointer,
+    right: Pointer,
+) -> Result<Pointer, String> {
+    let lhs = unsafe { Int::read(left) as u64 };
+    let rhs = unsafe { Int::read(right) };
+    let res = if let Some(result) = lhs.checked_shr(rhs as u32) {
+        result as i64
+    } else {
+        overflow_error!(lhs, rhs)
+    };
+
+    Ok(Int::alloc(state.permanent_space.int_class(), res))
+}
+
+#[inline(always)]
 pub(crate) fn pow(state: &State, left: Pointer, right: Pointer) -> Pointer {
     let lhs = unsafe { Int::read(left) };
     let rhs = unsafe { Int::read(right) };

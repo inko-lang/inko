@@ -965,10 +965,10 @@ pub enum OperatorKind {
     BitXor,
     Div,
     Eq,
-    Gt,
     Ge,
-    Lt,
+    Gt,
     Le,
+    Lt,
     Mod,
     Mul,
     Ne,
@@ -976,6 +976,7 @@ pub enum OperatorKind {
     Shl,
     Shr,
     Sub,
+    UnsignedShr,
 }
 
 #[derive(Debug, PartialEq, Eq)]

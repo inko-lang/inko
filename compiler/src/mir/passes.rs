@@ -688,6 +688,9 @@ impl<'a> DefineConstants<'a> {
                         hir::Operator::Pow => Some(lhs.pow(rhs as u32)),
                         hir::Operator::Shl => lhs.checked_shl(rhs as u32),
                         hir::Operator::Shr => lhs.checked_shr(rhs as u32),
+                        hir::Operator::UnsignedShr => (lhs as u64)
+                            .checked_shr(rhs as u32)
+                            .map(|v| v as i64),
                         hir::Operator::Sub => lhs.checked_sub(rhs),
                         _ => None,
                     };

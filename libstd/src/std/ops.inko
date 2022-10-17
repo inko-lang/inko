@@ -77,3 +77,10 @@ trait pub ShiftRight {
   # given object.
   fn pub >>(other: ref Self) -> Self
 }
+
+# The binary `>>>` operator.
+trait pub UnsignedShiftRight {
+  # Casts `self` to an unsigned integer, shifts it to the right, then returns
+  # the result as a signed integer.
+  fn pub >>>(other: ref Self) -> Self
+}

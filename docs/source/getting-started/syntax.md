@@ -702,7 +702,7 @@ Operators are left-associative. This means `5 + 10 * 2` evaluates to `30`, _not_
 `25`. The following binary operators are supported:
 
 `+` , `-` , `/` , `*` , `**` , `%` , `<` , `>` , `<=` , `>=` , `<<` , `>>` , `|`
-, `&` , `^` , `==` , `!=`
+, `&` , `^` , `==` , `!=`, `>>>`
 
 Inko also supports two logical operators: `and` and `or`. These operators have a
 higher precedence than the regular binary operators. This means

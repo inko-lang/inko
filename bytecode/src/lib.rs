@@ -153,6 +153,7 @@ pub enum Opcode {
     IntWrappingAdd,
     IntWrappingSub,
     IntWrappingMul,
+    IntUnsignedShr,
 }
 
 impl Opcode {
@@ -272,6 +273,7 @@ impl Opcode {
             111 => Opcode::IntWrappingAdd,
             112 => Opcode::IntWrappingSub,
             113 => Opcode::IntWrappingMul,
+            114 => Opcode::IntUnsignedShr,
             _ => return Err(format!("The opcode {} is invalid", byte)),
         };
 
@@ -395,6 +397,7 @@ impl Opcode {
             Opcode::IntWrappingAdd => 111,
             Opcode::IntWrappingSub => 112,
             Opcode::IntWrappingMul => 113,
+            Opcode::IntUnsignedShr => 114,
         }
     }
 
@@ -514,6 +517,7 @@ impl Opcode {
             Opcode::IntWrappingAdd => "int_wrapping_add",
             Opcode::IntWrappingSub => "int_wrapping_sub",
             Opcode::IntWrappingMul => "int_wrapping_mul",
+            Opcode::IntUnsignedShr => "int_unsigned_shr",
         }
     }
 
@@ -651,6 +655,7 @@ impl Opcode {
             Opcode::IntWrappingAdd => 3,
             Opcode::IntWrappingSub => 3,
             Opcode::IntWrappingMul => 3,
+            Opcode::IntUnsignedShr => 3,
         }
     }
 

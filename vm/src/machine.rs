@@ -334,6 +334,14 @@ impl<'a> Machine<'a> {
 
                     state.context.set_register(reg, res);
                 }
+                Opcode::IntUnsignedShr => {
+                    let reg = ins.arg(0);
+                    let a = state.context.get_register(ins.arg(1));
+                    let b = state.context.get_register(ins.arg(2));
+                    let res = integer::unsigned_shr(self.state, a, b)?;
+
+                    state.context.set_register(reg, res);
+                }
                 Opcode::IntLt => {
                     let reg = ins.arg(0);
                     let a = state.context.get_register(ins.arg(1));
