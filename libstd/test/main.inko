@@ -1,5 +1,12 @@
 import std::env
 
+import std::crypto::test_chacha
+import std::crypto::test_hash
+import std::crypto::test_math
+import std::crypto::test_md5
+import std::crypto::test_poly1305
+import std::crypto::test_sha1
+import std::crypto::test_sha2
 import std::endian::test_big
 import std::endian::test_little
 import std::fs::test_dir
@@ -44,6 +51,7 @@ class async Main {
     test_big.tests(tests)
     test_bool.tests(tests)
     test_byte_array.tests(tests)
+    test_chacha.tests(tests)
     test_cmp.tests(tests)
     test_debug.tests(tests)
     test_dir.tests(tests)
@@ -52,6 +60,7 @@ class async Main {
     test_file.tests(tests)
     test_float.tests(tests)
     test_fmt.tests(tests)
+    test_hash.tests(tests)
     test_int.tests(tests)
     test_io.tests(tests)
     test_ip.tests(tests)
@@ -59,13 +68,18 @@ class async Main {
     test_json.tests(tests)
     test_little.tests(tests)
     test_map.tests(tests)
+    test_math.tests(tests)
+    test_md5.tests(tests)
     test_nil.tests(tests)
     test_option.tests(tests)
     test_path.tests(tests)
+    test_poly1305.tests(tests)
     test_process.tests(tests)
     test_rand.tests(tests)
     test_range.tests(tests)
     test_set.tests(tests)
+    test_sha1.tests(tests)
+    test_sha2.tests(tests)
     test_socket.tests(tests)
     test_stdio.tests(tests)
     test_string.tests(tests)

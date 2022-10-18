@@ -1,0 +1,211 @@
+# The Poly1305 universal hash function.
+#
+# This implementation is based on the implementations found in the Hare standard
+# library and Loup Vaillant's Monocypher project.
+#
+# Poly1305 is typically used as a Message Authentication Code (MAC). It's not
+# suitable as a replacement for cryptographic hash functions such as SHA256.
+#
+# For more information about Poly1305, refer to RFC 8439
+# (https://datatracker.ietf.org/doc/html/rfc8439).
+import std::crypto::hash::(Block, Hash, Hasher)
+import std::crypto::math::(to_u32)
+import std::endian::little
+
+# The key size in bytes.
+let KEY_SIZE = 256 / 8
+
+# The size of the tag in bytes.
+let TAG_SIZE = 16
+
+# The size (in bytes) of the Poly1305 buffer/block.
+let BLOCK_SIZE = 16
+
+fn mul(a: Int, b: Int) -> Int {
+  to_u32(a) * b
+}
+
+# The Poly1305 universal hash function.
+class pub Poly1305 {
+  let @block: Block
+
+  # The constant multipliers derived from the secret key.
+  let @r0: Int
+  let @r1: Int
+  let @r2: Int
+  let @r3: Int
+
+  # Random numbers added to the end, derived from the secret key.
+  let @pad0: Int
+  let @pad1: Int
+  let @pad2: Int
+  let @pad3: Int
+
+  # The individual hash components.
+  let @h0: Int
+  let @h1: Int
+  let @h2: Int
+  let @h3: Int
+  let @h4: Int
+
+  # Hashes a message with the given one-time secret key.
+  #
+  # This method is useful if you just want to hash a single message.
+  #
+  # # Panics
+  #
+  # This method panics of the key isn't exactly 32 bytes long.
+  #
+  # # Examples
+  #
+  #     import std::rand::Random
+  #     import std::crypto::poly1305::Poly1305
+  #
+  #     let key = Random.new.bytes(size: 32)
+  #     let msg = 'This is a test'.to_byte_array
+  #
+  #     Poly1305.hash(key, msg)
+  fn pub static hash(key: ref ByteArray, bytes: ref ByteArray) -> Hash {
+    let hasher = new(key)
+
+    hasher.write(bytes)
+    hasher.finalize
+  }
+
+  # Returns a new Poly1305 hasher.
+  #
+  # The `key` argument is a one-time secret key to use for generating the hash.
+  # The key _must not_ be reused for other messages.
+  #
+  # # Panics
+  #
+  # This method panics if the key isn't exactly 32 bytes long.
+  fn pub static new(key: ref ByteArray) -> Self {
+    if key.length != KEY_SIZE {
+      panic("Poly1305 keys must be exactly {KEY_SIZE} bytes")
+    }
+
+    Self {
+      @block = Block.new(BLOCK_SIZE),
+      @r0 = little.read_u32(from: key, at: 0) & 0x0FFFFFFF,
+      @r1 = little.read_u32(from: key, at: 4) & 0x0FFFFFFC,
+      @r2 = little.read_u32(from: key, at: 8) & 0x0FFFFFFC,
+      @r3 = little.read_u32(from: key, at: 12) & 0x0FFFFFFC,
+      @pad0 = little.read_u32(from: key, at: 16),
+      @pad1 = little.read_u32(from: key, at: 20),
+      @pad2 = little.read_u32(from: key, at: 24),
+      @pad3 = little.read_u32(from: key, at: 28),
+      @h0 = 0,
+      @h1 = 0,
+      @h2 = 0,
+      @h3 = 0,
+      @h4 = 0,
+    }
+  }
+
+  fn mut compress(final: Bool) {
+    let mut s0 = @h0.wrapping_add(@block.read_u32_le(at: 0))
+    let mut s1 = @h1.wrapping_add(@block.read_u32_le(at: 4))
+    let mut s2 = @h2.wrapping_add(@block.read_u32_le(at: 8))
+    let mut s3 = @h3.wrapping_add(@block.read_u32_le(at: 12))
+    let mut s4 = @h4.wrapping_add(if final { 0 } else { 1 })
+
+    let r0 = @r0
+    let r1 = @r1
+    let r2 = @r2
+    let r3 = @r3
+    let rr0 = r0 >>> 2 * 5
+    let rr1 = r1 >>> 2 + r1
+    let rr2 = r2 >>> 2 + r2
+    let rr3 = r3 >>> 2 + r3
+
+    let x0 = (s0 * r0)
+      .wrapping_add(s1 * rr3)
+      .wrapping_add(s2 * rr2)
+      .wrapping_add(s3 * rr1)
+      .wrapping_add(s4 * rr0)
+
+    let x1 = (s0 * r1)
+      .wrapping_add(s1 * r0)
+      .wrapping_add(s2 * rr3)
+      .wrapping_add(s3 * rr2)
+      .wrapping_add(s4 * rr1)
+
+    let x2 = (s0 * r2)
+      .wrapping_add(s1 * r1)
+      .wrapping_add(s2 * r0)
+      .wrapping_add(s3 * rr3)
+      .wrapping_add(s4 * rr2)
+
+    let x3 = (s0 * r3)
+      .wrapping_add(s1 * r2)
+      .wrapping_add(s2 * r1)
+      .wrapping_add(s3 * r0)
+      .wrapping_add(s4 * rr3)
+
+    let x4 = to_u32(s4 * (r0 & 3))
+    let u5 = to_u32(x4 + (x3 >>> 32))
+    let u0 = u5 >>> 2 * 5 + (x0 & 0xFFFFFFFF)
+    let u1 = u0 >>> 32 + (x1 & 0xFFFFFFFF) + (x0 >> 32)
+    let u2 = u1 >>> 32 + (x2 & 0xFFFFFFFF) + (x1 >> 32)
+    let u3 = u2 >>> 32 + (x3 & 0xFFFFFFFF) + (x2 >> 32)
+    let u4 = u3 >>> 32 + (u5 & 3)
+
+    @h0 = to_u32(u0)
+    @h1 = to_u32(u1)
+    @h2 = to_u32(u2)
+    @h3 = to_u32(u3)
+    @h4 = to_u32(u4)
+  }
+}
+
+impl Hasher for Poly1305 {
+  fn pub mut write(bytes: ref ByteArray) {
+    @block.write_bytes(bytes) fn { compress(final: false) }
+  }
+
+  fn pub move finalize -> Hash {
+    if @block.block_index > 0 {
+      let mut i = @block.block_index
+
+      @block[i := i + 1] = 1
+
+      while i < BLOCK_SIZE { @block[i := i + 1] = 0 }
+
+      compress(final: true)
+    }
+
+    let mut c = 5
+
+    c = c.wrapping_add(@h0)
+    c = c >>> 32
+    c = c.wrapping_add(@h1)
+    c = c >>> 32
+    c = c.wrapping_add(@h2)
+    c = c >>> 32
+    c = c.wrapping_add(@h3)
+    c = c >>> 32
+    c = c.wrapping_add(@h4)
+    c = c >>> 2 * 5
+
+    let out = ByteArray.filled(with: 0, times: TAG_SIZE)
+
+    c = c.wrapping_add(@h0) + @pad0
+    little.write_u32(c, into: out, at: 0)
+    c = c >>> 32
+
+    c = c.wrapping_add(@h1) + @pad1
+    little.write_u32(c, into: out, at: 4)
+    c = c >>> 32
+
+    c = c.wrapping_add(@h2) + @pad2
+    little.write_u32(c, into: out, at: 8)
+    c = c >>> 32
+
+    c = c.wrapping_add(@h3) + @pad3
+    little.write_u32(c, into: out, at: 12)
+    c = c >>> 32
+
+    Hash.new(out)
+  }
+}

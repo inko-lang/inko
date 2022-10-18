@@ -1,0 +1,12 @@
+# Types for cryptographic ciphers.
+
+# A cryptographic cipher.
+trait pub Cipher {
+  # Encrypts a `ByteArray` and returns the encrypted result as a new
+  # `ByteArray`.
+  fn pub mut encrypt(bytes: mut ByteArray) -> ByteArray
+
+  # Decrypts a `ByteArray` and returns the decrypted result as a new
+  # `ByteArray`.
+  fn pub mut decrypt(bytes: mut ByteArray) -> ByteArray
+}

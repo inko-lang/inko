@@ -1,0 +1,167 @@
+# Types for cryptographic hash functions.
+import std::cmp::Equal
+import std::endian::big
+import std::endian::little
+import std::fmt::(Format, Formatter)
+import std::index::(Index, SetIndex)
+import std::string::(StringBuffer, ToString)
+
+# The digits to use when converting a digest to a hexadecimal string.
+let HEX_DIGITS = '0123456789abcdef'
+
+# A fixed-size block of bytes.
+class pub Block {
+  let @bytes: ByteArray
+
+  # The index to write the next byte to.
+  let @index: Int
+
+  # Returns a new `Block` with the given size in bytes.
+  fn pub static new(size: Int) -> Self {
+    Self { @bytes = ByteArray.filled(with: 0, times: size), @index = 0 }
+  }
+
+  # Reads an unsigned 32-bits little-endian integer from the given index.
+  fn pub read_u32_le(at: Int) -> Int {
+    little.read_u32(@bytes, at)
+  }
+
+  # Reads an unsigned 32-bits big-endian integer from the given index.
+  fn pub read_u32_be(at: Int) -> Int {
+    big.read_u32(@bytes, at)
+  }
+
+  # Reads a signed 64-bits big-endian integer from the given index.
+  fn pub read_i64_be(at: Int) -> Int {
+    big.read_i64(@bytes, at)
+  }
+
+  # Writes `bytes` into the block, calling `transform` if hashing is necessary.
+  fn pub mut write_bytes(bytes: ref ByteArray, transform: fn) {
+    let mut length = bytes.length
+    let mut index = 0
+
+    while length > 0 {
+      @bytes[@index := @index + 1] = bytes[index]
+
+      if @index == @bytes.length {
+        transform.call
+        @index = 0
+      }
+
+      index += 1
+      length -= 1
+    }
+  }
+
+  # Pads the block, calling the supplied closure if the block is full and
+  # hashing is necessary.
+  #
+  # This method expects the length to be written using a 64-bits integer.
+  fn pub mut add_padding(length_bytes: Int, transform: fn) {
+    let pad_to = @bytes.length - length_bytes
+
+    if @index >= pad_to {
+      @bytes[@index := @index + 1] = 0x80
+
+      while @index < @bytes.length { @bytes[@index := @index + 1] = 0 }
+
+      transform.call
+      @index = 0
+
+      while @index < pad_to { @bytes[@index := @index + 1] = 0 }
+    } else {
+      @bytes[@index := @index + 1] = 0x80
+
+      while @index < pad_to { @bytes[@index := @index + 1] = 0 }
+    }
+  }
+
+  # Writes a 64-bits little-endian message length into the block.
+  fn pub mut write_length_le(size: Int, at: Int) {
+    little.write_i64(size, into: @bytes, at: at)
+  }
+
+  # Writes a 64-bits big-endian message length into the block.
+  fn pub mut write_length_be(size: Int, at: Int) {
+    big.write_i64(size, into: @bytes, at: at)
+  }
+
+  # Returns the current index to write data to.
+  fn pub block_index -> Int {
+    @index
+  }
+}
+
+impl Index[Int, Int] for Block {
+  fn pub index(index: Int) -> Int {
+    @bytes[index]
+  }
+}
+
+impl SetIndex[Int, Int] for Block {
+  fn pub mut set_index(index: Int, value: Int) {
+    @bytes[index] = value
+  }
+}
+
+# The output of a cryptographic or (cryptography related) universal hash
+# function.
+#
+# Unlike `std::hash::Hash`, this type is _produced_ by hashers rather than a
+# trait to implement. In addition it's aimed at hasher related to cryptography,
+# such as SHA256 and Poly1305. This type isn't suitable for hashing arbitrary
+# Inko types.
+class pub Hash {
+  # The bytes that make up this Hash.
+  let pub @bytes: ByteArray
+
+  # Returns a new empty `Digest`.
+  fn pub static new(bytes: ByteArray) -> Self {
+    Self { @bytes = bytes}
+  }
+}
+
+impl ToString for Hash {
+  # Returns a hexadecimal `String` of this digest.
+  fn pub to_string -> String {
+    # We don't use Int.to_base16 here because we need extra padding, and to
+    # avoid allocating a String for every byte.
+    let hex = ByteArray.filled(with: 0, times: @bytes.length * 2)
+
+    @bytes.iter.each_with_index fn (index, byte) {
+      let hex_index = index * 2
+
+      hex[hex_index] = HEX_DIGITS.byte(byte >> 4)
+      hex[hex_index + 1] = HEX_DIGITS.byte(byte & 0x0F)
+    }
+
+    hex.into_string
+  }
+}
+
+impl Equal for Hash {
+  fn pub ==(other: ref Self) -> Bool {
+    @bytes == other.bytes
+  }
+}
+
+impl Format for Hash {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.write(to_string)
+  }
+}
+
+# A cryptographic hasher.
+trait pub Hasher {
+  # Writes the bytes into the hasher.
+  #
+  # This method is free to modify `bytes` if needed, so no assumption should be
+  # made about its contents after this method returns. If you're reusing the
+  # same `ByteArray` for multiple calls to `write`, you should clear the
+  # `ByteArray` after each call.
+  fn pub mut write(bytes: ref ByteArray)
+
+  # Generate a hash based on the current state.
+  fn pub move finalize -> Hash
+}

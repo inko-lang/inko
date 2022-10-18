@@ -1,0 +1,29 @@
+import std::test::Tests
+import std::crypto::math
+
+fn pub tests(t: mut Tests) {
+  t.test('math.rotate_left_u32') fn (t) {
+    t.equal(math.rotate_left_u32(0, 2), 0)
+    t.equal(math.rotate_left_u32(123, 4), 1968)
+    t.equal(math.rotate_left_u32(1, 32), 1)
+    t.equal(math.rotate_left_u32(4138929511350741, 1), 1050536875)
+  }
+
+  t.test('math.rotate_right_u32') fn (t) {
+    t.equal(math.rotate_right_u32(0, 2), 0)
+    t.equal(math.rotate_right_u32(123, 4), 2952790023)
+    t.equal(math.rotate_right_u32(1, 32), 1)
+    t.equal(math.rotate_right_u32(4138929511350741, 1), 3483574506)
+  }
+
+  t.test('math.shift_right_u32') fn (t) {
+    t.equal(math.shift_right_u32(10, 2), 2)
+    t.equal(math.shift_right_u32(2 ** 32 - 1, 30), 3)
+  }
+
+  t.test('math.to_u32') fn (t) {
+    t.equal(math.to_u32(123), 123)
+    t.equal(math.to_u32(4294967297), 1)
+    t.equal(math.to_u32(-1), 4294967295)
+  }
+}
