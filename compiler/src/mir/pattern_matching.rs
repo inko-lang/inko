@@ -401,7 +401,7 @@ impl Match {
                 missing.insert(name);
             }
             Decision::Guard(_, _, fallback) => {
-                self.add_missing_patterns(db, &*fallback, terms, missing);
+                self.add_missing_patterns(db, fallback, terms, missing);
             }
             Decision::Switch(var, cases, fallback) => {
                 for case in cases {
@@ -445,7 +445,7 @@ impl Match {
                 }
 
                 if let Some(node) = fallback {
-                    self.add_missing_patterns(db, &*node, terms, missing);
+                    self.add_missing_patterns(db, node, terms, missing);
                 }
             }
         }

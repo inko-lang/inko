@@ -442,7 +442,7 @@ require https://github.com/inko-lang/bar 4.5.6 def
         let version = Version::new(1, 2, 3);
         let checksum = Checksum::new("abc");
 
-        manifest.add_dependency(url.clone(), version, checksum);
+        manifest.add_dependency(url, version, checksum);
 
         assert_eq!(
             manifest.into_dependencies(),
@@ -461,7 +461,7 @@ require https://github.com/inko-lang/bar 4.5.6 def
         let version = Version::new(1, 2, 3);
         let checksum = Checksum::new("abc");
 
-        manifest.add_dependency(url.clone(), version, checksum);
+        manifest.add_dependency(url, version, checksum);
 
         assert_eq!(
             manifest.dependencies_mut(),

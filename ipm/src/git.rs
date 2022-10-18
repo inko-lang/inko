@@ -124,12 +124,12 @@ mod tests {
     }
 
     fn temp_dir() -> PathBuf {
-        PathBuf::from(source_dir()).join("tmp")
+        source_dir().join("tmp")
     }
 
     #[test]
     fn test_repository_open() {
-        let repo = Repository::open(&PathBuf::from(source_dir()));
+        let repo = Repository::open(&source_dir());
 
         assert!(repo.is_ok());
     }

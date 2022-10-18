@@ -668,7 +668,7 @@ pub(crate) struct Int {
 
 impl Int {
     pub(crate) fn alloc(class: ClassPointer, value: i64) -> Pointer {
-        if value >= MIN_INTEGER && value <= MAX_INTEGER {
+        if (MIN_INTEGER..=MAX_INTEGER).contains(&value) {
             return Pointer::int(value);
         }
 

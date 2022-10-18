@@ -25,7 +25,7 @@ pub(crate) fn child_process_spawn(
     let mut cmd = Command::new(program);
 
     for ptr in args {
-        cmd.arg(unsafe { InkoString::read(&*ptr) });
+        cmd.arg(unsafe { InkoString::read(ptr) });
     }
 
     for pair in env.chunks(2) {

@@ -939,7 +939,7 @@ impl<'a> MethodDefiner for DefineMethods<'a> {
     }
 
     fn state_mut(&mut self) -> &mut State {
-        &mut self.state
+        self.state
     }
 
     fn module(&self) -> ModuleId {
@@ -1268,7 +1268,7 @@ impl<'a> MethodDefiner for ImplementTraitMethods<'a> {
     }
 
     fn state_mut(&mut self) -> &mut State {
-        &mut self.state
+        self.state
     }
 
     fn module(&self) -> ModuleId {

@@ -93,7 +93,7 @@ pub(crate) fn eq(left_ptr: Pointer, right_ptr: Pointer) -> Pointer {
     let right_bits = right.to_bits() as i64;
     let diff = left_bits.wrapping_sub(right_bits);
 
-    if diff >= -ULP_DIFF && diff <= ULP_DIFF {
+    if (-ULP_DIFF..=ULP_DIFF).contains(&diff) {
         Pointer::true_singleton()
     } else {
         Pointer::false_singleton()

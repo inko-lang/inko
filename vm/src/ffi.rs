@@ -292,7 +292,7 @@ impl Library {
     pub(crate) fn from_pointers(search_for: &[InkoPointer]) -> Option<Library> {
         let names = search_for
             .iter()
-            .map(|n| unsafe { InkoString::read(&*n) })
+            .map(|n| unsafe { InkoString::read(n) })
             .collect::<Vec<_>>();
 
         Self::open(&names)
