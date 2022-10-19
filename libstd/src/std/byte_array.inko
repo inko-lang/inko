@@ -36,10 +36,10 @@ class builtin ByteArray {
   }
 
   # Returns a new `ByteArray` created from the given `Array`.
-  fn pub static from_array(array: Array[Int]) -> Self {
+  fn pub static from_array(array: ref Array[Int]) -> Self {
     let bytes = ByteArray.new
 
-    array.into_iter.each fn (v) { bytes.push(v) }
+    array.iter.each fn (v) { bytes.push(v) }
     bytes
   }
 
