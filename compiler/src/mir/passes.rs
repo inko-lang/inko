@@ -4615,7 +4615,11 @@ impl<'a> ExpandDrop<'a> {
         dropper: bool,
         location: LocationId,
     ) {
-        if dropper {
+        // Value types such as Int and Float don't need to go through a dropper,
+        // as they don't have any sub-values of destructors.
+        if dropper
+            && !self.method.registers.value_type(value).is_value_type(self.db)
+        {
             self.call_dropper(before_id, value, location);
         } else {
             self.block_mut(before_id).check_refs(value, location);
