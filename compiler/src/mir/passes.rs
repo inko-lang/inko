@@ -517,6 +517,11 @@ impl<'a> GenerateDropper<'a> {
             lower.current_block_mut().move_result(res, loc);
         }
 
+        // We check the ref count _after_ running the destructor, as otherwise a
+        // destructor might leak references of "self" through other mutable
+        // references (e.g. a field containing a mutable Array reference).
+        lower.current_block_mut().check_refs(self_reg, loc);
+
         for field in self.class.id.fields(lower.db()) {
             let typ = field.value_type(lower.db());
 
@@ -4610,11 +4615,10 @@ impl<'a> ExpandDrop<'a> {
         dropper: bool,
         location: LocationId,
     ) {
-        self.block_mut(before_id).check_refs(value, location);
-
         if dropper {
             self.call_dropper(before_id, value, location);
         } else {
+            self.block_mut(before_id).check_refs(value, location);
             self.block_mut(before_id).free(value, location);
         }
 
