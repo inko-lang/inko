@@ -3916,7 +3916,8 @@ impl<'a> CheckMethodBody<'a> {
 
         if !matches!(
             rec_id,
-            TypeId::ClassInstance(ins) if ins.instance_of().kind(self.db()).is_async()
+            TypeId::ClassInstance(ins)
+                if ins.instance_of().kind(self.db()).is_async()
         ) {
             let rec_name =
                 format_type_with_self(self.db(), self.self_type, rec_type);
@@ -3926,6 +3927,17 @@ impl<'a> CheckMethodBody<'a> {
                 format!("'{}' isn't an async type", rec_name),
                 self.file(),
                 node.receiver.location().clone(),
+            );
+
+            return TypeRef::Error;
+        }
+
+        if !method.is_async(self.db()) {
+            self.state.diagnostics.error(
+                DiagnosticId::InvalidCall,
+                format!("'{}' isn't an async method", name),
+                self.file(),
+                node.name.location.clone(),
             );
 
             return TypeRef::Error;
