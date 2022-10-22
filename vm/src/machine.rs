@@ -570,6 +570,11 @@ impl<'a> Machine<'a> {
                     let reg = ins.arg(0);
                     let rec = state.context.get_register(ins.arg(1));
                     let method = ins.arg(2);
+
+                    // We save in case of a panic, otherwise we may be missing
+                    // stack frames in the resulting stack trace.
+                    state.save();
+
                     let res = process::send_async_message(
                         self.state, thread, process, task, rec, method,
                     )?;
