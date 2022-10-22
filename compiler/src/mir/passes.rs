@@ -4509,6 +4509,7 @@ impl<'a> ExpandDrop<'a> {
         value: RegisterId,
         location: LocationId,
     ) {
+        let stype = self.method.id.self_type(self.db);
         let drop_id = self.add_block();
         let check_reg = self.method.registers.alloc(types::TypeRef::boolean());
         let check = self.block_mut(before_id);
@@ -4516,9 +4517,21 @@ impl<'a> ExpandDrop<'a> {
         check.decrement_atomic(check_reg, value, location);
         check.branch(check_reg, drop_id, after_id, location);
 
-        // Atomic values can't be pattern matched into sub-values, so we can
-        // call the dropper unconditionally.
-        self.call_dropper(drop_id, value, location);
+        if self.method.registers.value_type(value).is_string(self.db, stype) {
+            // Strings can be dropped directly instead of going through the
+            // dropper.
+            self.block_mut(drop_id).raw_instruction(
+                Opcode::StringDrop,
+                vec![value],
+                location,
+            );
+            self.block_mut(drop_id).free(value, location);
+        } else {
+            // Atomic values can't be pattern matched into sub-values, so we can
+            // call the dropper unconditionally.
+            self.call_dropper(drop_id, value, location);
+        }
+
         self.block_mut(drop_id).goto(after_id, location);
 
         self.method.body.add_edge(before_id, drop_id);
