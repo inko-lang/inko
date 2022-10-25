@@ -4476,6 +4476,21 @@ impl TypeRef {
         false
     }
 
+    fn type_check_with_type_placeholder(
+        self,
+        db: &mut Database,
+        with: TypePlaceholderId,
+        context: &mut TypeContext,
+        subtyping: bool,
+    ) -> bool {
+        if let Some(assigned) = with.value(db) {
+            self.type_check(db, assigned, context, subtyping)
+        } else {
+            with.assign(db, self);
+            true
+        }
+    }
+
     fn type_check_directly(
         self,
         db: &mut Database,
@@ -4483,6 +4498,13 @@ impl TypeRef {
         context: &mut TypeContext,
         subtyping: bool,
     ) -> bool {
+        // This case is the same for all variants of `self`, so we handle it
+        // here once.
+        if let TypeRef::Placeholder(id) = with {
+            return self
+                .type_check_with_type_placeholder(db, id, context, subtyping);
+        }
+
         match self {
             TypeRef::Owned(our_id) => match with {
                 TypeRef::Owned(their_id) | TypeRef::Infer(their_id) => {
