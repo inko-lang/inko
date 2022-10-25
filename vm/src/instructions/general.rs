@@ -54,7 +54,10 @@ pub(crate) fn call_virtual(
 #[inline(always)]
 pub(crate) fn get_class(state: &State, class_idx: u32) -> Pointer {
     unsafe {
-        state.permanent_space.get_class(ClassIndex::new(class_idx)).as_pointer()
+        Pointer::new(
+            state.permanent_space.get_class(ClassIndex::new(class_idx)).as_ptr()
+                as *mut _,
+        )
     }
 }
 

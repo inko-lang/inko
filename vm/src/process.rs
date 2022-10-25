@@ -620,7 +620,7 @@ impl Process {
     }
 
     pub(crate) fn alloc(class: ClassPointer) -> ProcessPointer {
-        let ptr = allocate(unsafe { class.instance_layout() });
+        let ptr = Pointer::new(allocate(unsafe { class.instance_layout() }));
         let obj = unsafe { ptr.get_mut::<Self>() };
         let mut state = ProcessState::new();
 
@@ -924,7 +924,7 @@ pub(crate) struct Future {
 
 impl Future {
     pub(crate) fn alloc(class: ClassPointer, state: RcFutureState) -> Pointer {
-        let ptr = allocate(Layout::new::<Self>());
+        let ptr = Pointer::new(allocate(Layout::new::<Self>()));
         let obj = unsafe { ptr.get_mut::<Self>() };
 
         obj.header.init(class);
@@ -1188,7 +1188,7 @@ mod tests {
         let class = empty_process_class("A");
         let process = OwnedProcess::new(Process::alloc(*class));
 
-        assert_eq!(process.header.class.as_pointer(), class.as_pointer());
+        assert_eq!(process.header.class.as_ptr(), class.as_ptr());
         assert!(process.task.is_none());
     }
 
@@ -1400,8 +1400,8 @@ mod tests {
 
         unsafe {
             assert_eq!(
-                future.get::<Header>().class.as_pointer(),
-                fut_class.as_pointer()
+                future.get::<Header>().class.as_ptr(),
+                fut_class.as_ptr()
             );
         }
 
@@ -1561,14 +1561,11 @@ mod tests {
         let mut proc = new_process(*proc_class);
         let method1 = empty_method();
         let method2 = empty_method();
+        let m1 = unsafe { &mut *method1.as_ptr() };
+        let m2 = unsafe { &mut *method2.as_ptr() };
 
-        unsafe {
-            let m1 = method1.as_pointer().get_mut::<Method>();
-            let m2 = method2.as_pointer().get_mut::<Method>();
-
-            m1.locations.add_entry(0, 4, Pointer::int(2), Pointer::int(1));
-            m2.locations.add_entry(0, 12, Pointer::int(4), Pointer::int(3));
-        }
+        m1.locations.add_entry(0, 4, Pointer::int(2), Pointer::int(1));
+        m2.locations.add_entry(0, 12, Pointer::int(4), Pointer::int(3));
 
         let ctx1 = ExecutionContext::new(method1);
         let ctx2 = ExecutionContext::new(method2);

@@ -61,14 +61,14 @@ const LOCAL_OWNED_MASK: usize = 0b00_0011;
 /// The mask to use for untagging a pointer.
 const UNTAG_MASK: usize = (!0b111) as usize;
 
-pub(crate) fn allocate(layout: Layout) -> Pointer {
+pub(crate) fn allocate(layout: Layout) -> *mut u8 {
     unsafe {
         let ptr = alloc(layout);
 
         if ptr.is_null() {
             handle_alloc_error(layout);
         } else {
-            Pointer::new(ptr)
+            ptr
         }
     }
 }
@@ -290,8 +290,8 @@ pub(crate) struct Method {
 impl Method {
     pub(crate) fn drop_and_deallocate(ptr: MethodPointer) {
         unsafe {
-            drop_in_place(ptr.as_pointer().untagged_ptr() as *mut Self);
-            dealloc(ptr.as_pointer().untagged_ptr(), Self::layout());
+            drop_in_place(ptr.as_ptr());
+            dealloc(ptr.as_ptr() as *mut u8, Self::layout());
         }
     }
 
@@ -303,8 +303,8 @@ impl Method {
         jump_tables: Vec<Vec<usize>>,
     ) -> MethodPointer {
         unsafe {
-            let ptr = allocate(Self::layout());
-            let obj = ptr.get_mut::<Self>();
+            let ptr = allocate(Self::layout()) as *mut Self;
+            let obj = &mut *ptr;
 
             init!(obj.hash => hash);
             init!(obj.registers => registers);
@@ -312,7 +312,7 @@ impl Method {
             init!(obj.locations => locations);
             init!(obj.jump_tables => jump_tables);
 
-            MethodPointer(ptr.as_permanent())
+            MethodPointer(ptr)
         }
     }
 
@@ -327,11 +327,11 @@ impl Method {
 /// A pointer to an immutable method.
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub(crate) struct MethodPointer(Pointer);
+pub(crate) struct MethodPointer(*mut Method);
 
 impl MethodPointer {
     /// Returns the MethodPointer as a regular Pointer.
-    pub(crate) fn as_pointer(self) -> Pointer {
+    pub(crate) fn as_ptr(self) -> *mut Method {
         self.0
     }
 }
@@ -340,7 +340,7 @@ impl Deref for MethodPointer {
     type Target = Method;
 
     fn deref(&self) -> &Method {
-        unsafe { self.0.get::<Method>() }
+        unsafe { &*(self.0 as *const Method) }
     }
 }
 
@@ -385,10 +385,10 @@ impl Class {
     pub(crate) fn drop(ptr: ClassPointer) {
         unsafe {
             let layout = Self::layout(ptr.method_slots);
-            let raw_ptr = ptr.as_pointer().as_ptr();
+            let raw_ptr = ptr.as_ptr();
 
-            drop_in_place(raw_ptr as *mut Self);
-            dealloc(raw_ptr, layout);
+            drop_in_place(raw_ptr);
+            dealloc(raw_ptr as *mut u8, layout);
         }
     }
 
@@ -402,13 +402,13 @@ impl Class {
 
             // For classes we zero memory out, so unused method slots are set to
             // zeroed memory, instead of random garbage.
-            let ptr = alloc_zeroed(layout);
+            let ptr = alloc_zeroed(layout) as *mut Class;
 
             if ptr.is_null() {
                 handle_alloc_error(layout);
             }
 
-            ClassPointer::new(Pointer::new(ptr))
+            ClassPointer::new(ptr)
         };
         let class_ptr_copy = class_ptr;
         let class = unsafe { class_ptr.get_mut() };
@@ -529,7 +529,7 @@ impl Drop for Class {
         for index in 0..self.method_slots {
             let method = unsafe { self.get_method(MethodIndex::new(index)) };
 
-            if method.as_pointer().as_ptr().is_null() {
+            if method.as_ptr().is_null() {
                 // Because the table size is always a power of two, some slots
                 // may be NULL.
                 continue;
@@ -543,14 +543,14 @@ impl Drop for Class {
 /// A pointer to a class.
 #[repr(transparent)]
 #[derive(Eq, PartialEq, Copy, Clone)]
-pub(crate) struct ClassPointer(Pointer);
+pub(crate) struct ClassPointer(*mut Class);
 
 impl ClassPointer {
     /// Returns a new ClassPointer from a raw Pointer.
     ///
     /// This method is unsafe as it doesn't perform any checks to ensure the raw
     /// pointer actually points to a class.
-    pub(crate) unsafe fn new(pointer: Pointer) -> Self {
+    pub(crate) unsafe fn new(pointer: *mut Class) -> Self {
         Self(pointer)
     }
 
@@ -563,7 +563,7 @@ impl ClassPointer {
         self.get_mut().set_method(index, value);
     }
 
-    pub(crate) fn as_pointer(self) -> Pointer {
+    pub(crate) fn as_ptr(self) -> *mut Class {
         self.0
     }
 
@@ -572,7 +572,7 @@ impl ClassPointer {
     /// This method is unsafe because no synchronisation is applied, nor do we
     /// guarantee there's only a single writer.
     unsafe fn get_mut(&mut self) -> &mut Class {
-        self.0.get_mut::<Class>()
+        &mut *(self.0 as *mut Class)
     }
 }
 
@@ -580,7 +580,7 @@ impl Deref for ClassPointer {
     type Target = Class;
 
     fn deref(&self) -> &Class {
-        unsafe { self.0.get::<Class>() }
+        unsafe { &*(self.0 as *const Class) }
     }
 }
 
@@ -601,7 +601,7 @@ impl Array {
     }
 
     pub(crate) fn alloc(class: ClassPointer, value: Vec<Pointer>) -> Pointer {
-        let ptr = allocate(Layout::new::<Self>());
+        let ptr = Pointer::new(allocate(Layout::new::<Self>()));
         let obj = unsafe { ptr.get_mut::<Self>() };
 
         obj.header.init(class);
@@ -635,7 +635,7 @@ impl ByteArray {
     }
 
     pub(crate) fn alloc(class: ClassPointer, value: Vec<u8>) -> Pointer {
-        let ptr = allocate(Layout::new::<Self>());
+        let ptr = Pointer::new(allocate(Layout::new::<Self>()));
         let obj = unsafe { ptr.get_mut::<Self>() };
 
         obj.header.init(class);
@@ -672,7 +672,7 @@ impl Int {
             return Pointer::int(value);
         }
 
-        let ptr = allocate(Layout::new::<Self>());
+        let ptr = Pointer::new(allocate(Layout::new::<Self>()));
         let obj = unsafe { ptr.get_mut::<Self>() };
 
         obj.header.init(class);
@@ -708,7 +708,7 @@ pub(crate) struct Float {
 
 impl Float {
     pub(crate) fn alloc(class: ClassPointer, value: f64) -> Pointer {
-        let ptr = allocate(Layout::new::<Self>());
+        let ptr = Pointer::new(allocate(Layout::new::<Self>()));
         let obj = unsafe { ptr.get_mut::<Self>() };
 
         obj.header.init(class);
@@ -758,7 +758,7 @@ impl String {
         class: ClassPointer,
         value: ImmutableString,
     ) -> Pointer {
-        let ptr = allocate(Layout::new::<Self>());
+        let ptr = Pointer::new(allocate(Layout::new::<Self>()));
         let obj = unsafe { ptr.get_mut::<Self>() };
 
         obj.header.init_atomic(class);
@@ -789,10 +789,9 @@ impl Module {
 
     pub(crate) fn alloc(class: ClassPointer) -> ModulePointer {
         let ptr = allocate(Layout::new::<Self>());
-        let obj = unsafe { ptr.get_mut::<Self>() };
 
-        obj.header.init(class);
-        ModulePointer(ptr.as_permanent())
+        unsafe { &mut *(ptr as *mut Self) }.header.init(class);
+        ModulePointer(ptr)
     }
 
     pub(crate) fn name(&self) -> &RustString {
@@ -803,11 +802,11 @@ impl Module {
 /// A pointer to a module.
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub(crate) struct ModulePointer(Pointer);
+pub(crate) struct ModulePointer(*mut u8);
 
 impl ModulePointer {
     pub(crate) fn as_pointer(self) -> Pointer {
-        self.0
+        Pointer::new(self.0).as_permanent()
     }
 }
 
@@ -815,7 +814,7 @@ impl Deref for ModulePointer {
     type Target = Module;
 
     fn deref(&self) -> &Module {
-        unsafe { self.0.get::<Module>() }
+        unsafe { &*(self.0 as *const Module) }
     }
 }
 
@@ -837,7 +836,7 @@ pub(crate) struct Object {
 impl Object {
     /// Bump allocates a user-defined object of a variable size.
     pub(crate) fn alloc(class: ClassPointer) -> Pointer {
-        let ptr = allocate(unsafe { class.instance_layout() });
+        let ptr = Pointer::new(allocate(unsafe { class.instance_layout() }));
         let obj = unsafe { ptr.get_mut::<Self>() };
 
         obj.header.init(class);
@@ -1118,13 +1117,13 @@ mod tests {
             module.header.class.set_method(index1, bar);
 
             assert_eq!(
-                module.header.class.get_method(index0).as_pointer(),
-                foo.as_pointer()
+                module.header.class.get_method(index0).as_ptr(),
+                foo.as_ptr()
             );
 
             assert_eq!(
-                module.header.class.get_method(index1).as_pointer(),
-                bar.as_pointer()
+                module.header.class.get_method(index1).as_ptr(),
+                bar.as_ptr()
             );
         }
     }
@@ -1139,6 +1138,11 @@ mod tests {
         assert_eq!(unsafe { Int::read(tagged) }, 42);
         assert_eq!(unsafe { Int::read(max) }, i64::MAX);
         assert_eq!(unsafe { Int::read(min) }, i64::MIN);
+
+        unsafe {
+            min.free();
+            max.free();
+        }
     }
 
     #[test]
@@ -1151,5 +1155,10 @@ mod tests {
         assert_eq!(unsafe { Int::read_u64(tagged) }, 42);
         assert_eq!(unsafe { Int::read_u64(max) }, i64::MAX as u64);
         assert_eq!(unsafe { Int::read_u64(min) }, 0);
+
+        unsafe {
+            min.free();
+            max.free();
+        }
     }
 }

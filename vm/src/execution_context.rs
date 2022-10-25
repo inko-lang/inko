@@ -96,7 +96,7 @@ mod tests {
         let method = empty_method();
         let ctx = ExecutionContext::new(method);
 
-        assert!(ctx.method.as_pointer() == method.as_pointer());
+        assert!(ctx.method.as_ptr() == method.as_ptr());
         assert!(ctx.parent.is_none());
         assert_eq!(ctx.index, 0);
 
@@ -108,7 +108,7 @@ mod tests {
         let method = empty_method();
         let ctx = ExecutionContext::new(method);
 
-        assert!(ctx.method.as_pointer() == method.as_pointer());
+        assert!(ctx.method.as_ptr() == method.as_ptr());
         assert!(ctx.parent.is_none());
         assert_eq!(ctx.index, 0);
 

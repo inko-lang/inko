@@ -232,7 +232,7 @@ impl PermanentSpace {
 
         let existing = *self.classes.get(index);
 
-        if !existing.as_pointer().as_ptr().is_null() {
+        if !existing.as_ptr().is_null() {
             return Err(format!(
                 "Can't store class {:?} in index {}, as it's already used by class {:?}",
                 class.name,
@@ -315,7 +315,7 @@ impl Drop for PermanentSpace {
             for index in 0..self.classes.len() {
                 let ptr = *self.classes.get(index);
 
-                if !ptr.as_pointer().as_ptr().is_null() {
+                if !ptr.as_ptr().is_null() {
                     Class::drop(ptr);
                 }
             }
