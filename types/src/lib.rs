@@ -2579,6 +2579,10 @@ impl MethodId {
         self.get(db).kind
     }
 
+    pub fn is_instance_method(self, db: &Database) -> bool {
+        self.kind(db) != MethodKind::Static
+    }
+
     pub fn module(self, db: &Database) -> ModuleId {
         self.get(db).module
     }
@@ -2719,8 +2723,29 @@ pub enum Receiver {
     /// method with that name).
     Implicit,
 
-    /// The receiver is implicit, and the method resolved to a module method.
-    Module(ModuleId),
+    /// The receiver is a class to call a static method on.
+    ///
+    /// This is separate from an explicit receiver as we don't need to process
+    /// the receiver expression in this case.
+    Class(ClassId),
+}
+
+impl Receiver {
+    pub fn class_or_implicit(db: &Database, method: MethodId) -> Receiver {
+        method
+            .receiver(db)
+            .as_class(db)
+            .map(Receiver::Class)
+            .unwrap_or(Receiver::Implicit)
+    }
+
+    pub fn class_or_explicit(db: &Database, receiver: TypeRef) -> Receiver {
+        receiver.as_class(db).map(Receiver::Class).unwrap_or(Receiver::Explicit)
+    }
+
+    pub fn is_explicit(&self) -> bool {
+        matches!(self, Receiver::Explicit)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -2766,7 +2791,6 @@ pub enum CallKind {
 pub enum IdentifierKind {
     Unknown,
     Variable(VariableId),
-    Module(ModuleId),
     Method(CallInfo),
     Field(FieldInfo),
 }
@@ -2775,7 +2799,6 @@ pub enum IdentifierKind {
 pub enum ConstantKind {
     Unknown,
     Constant(ConstantId),
-    Class(ClassId),
     Method(CallInfo),
 }
 
@@ -4134,6 +4157,14 @@ impl TypeRef {
         }
     }
 
+    pub fn as_class(self, db: &Database) -> Option<ClassId> {
+        match self {
+            TypeRef::Owned(TypeId::Class(id)) => Some(id),
+            TypeRef::Owned(TypeId::Module(id)) => Some(id.class(db)),
+            _ => None,
+        }
+    }
+
     pub fn as_type_parameter(self) -> Option<TypeParameterId> {
         match self {
             TypeRef::Owned(TypeId::TypeParameter(id))
@@ -4865,7 +4896,10 @@ impl TypeId {
     ) -> MethodLookup {
         if let Some(id) = self.method(db, name) {
             let kind = id.kind(db);
-            let is_ins = !matches!(self, TypeId::Class(_) | TypeId::Trait(_));
+            let is_ins = !matches!(
+                self,
+                TypeId::Class(_) | TypeId::Trait(_) | TypeId::Module(_)
+            );
 
             if is_ins && kind == MethodKind::Static {
                 MethodLookup::StaticOnInstance

@@ -1,8 +1,7 @@
 //! VM functions for which no better category/module exists.
 use crate::execution_context::ExecutionContext;
 use crate::indexes::{ClassIndex, FieldIndex, MethodIndex};
-use crate::mem::Pointer;
-use crate::mem::{Class, Header, Int, Object};
+use crate::mem::{Class, Header, Int, Object, Pointer};
 use crate::process::TaskPointer;
 use crate::state::State;
 use bytecode::{REF_ATOMIC, REF_OWNED, REF_PERMANENT, REF_REF};
@@ -52,13 +51,17 @@ pub(crate) fn call_virtual(
 }
 
 #[inline(always)]
-pub(crate) fn get_class(state: &State, class_idx: u32) -> Pointer {
-    unsafe {
-        Pointer::new(
-            state.permanent_space.get_class(ClassIndex::new(class_idx)).as_ptr()
-                as *mut _,
-        )
-    }
+pub(crate) fn call_static(
+    state: &State,
+    mut task: TaskPointer,
+    class_idx: u32,
+    method_idx: u16,
+) {
+    let class =
+        unsafe { state.permanent_space.get_class(ClassIndex::new(class_idx)) };
+    let method = unsafe { class.get_method(MethodIndex::new(method_idx)) };
+
+    task.push_context(ExecutionContext::new(method));
 }
 
 #[inline(always)]

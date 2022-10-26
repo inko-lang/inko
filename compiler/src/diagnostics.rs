@@ -495,11 +495,7 @@ impl Diagnostics {
     ) {
         self.error(
             DiagnosticId::InvalidSymbol,
-            format!(
-                "The constant '{}' exists, \
-                but it's a type instead of a value",
-                name
-            ),
+            format!("The symbol '{}' is defined but isn't a value", name),
             file,
             location,
         )

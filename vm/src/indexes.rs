@@ -23,29 +23,6 @@ impl From<ClassIndex> for usize {
     }
 }
 
-/// An index used for accessing modules.
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub(crate) struct ModuleIndex(u32);
-
-impl ModuleIndex {
-    pub(crate) fn new(index: u32) -> Self {
-        Self(index)
-    }
-}
-
-impl From<ModuleIndex> for u32 {
-    fn from(index: ModuleIndex) -> u32 {
-        index.0
-    }
-}
-
-impl From<ModuleIndex> for usize {
-    fn from(index: ModuleIndex) -> usize {
-        index.0 as usize
-    }
-}
-
 /// An index used for accessing methods.
 #[repr(transparent)]
 #[derive(Copy, Clone)]

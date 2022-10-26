@@ -1,6 +1,6 @@
 //! Types for memory that stays around permanently.
 use crate::chunk::Chunk;
-use crate::indexes::{ClassIndex, ModuleIndex};
+use crate::indexes::ClassIndex;
 use crate::mem::{
     Array, ByteArray, Class, ClassPointer, Float, Int, Module, ModulePointer,
     Object, Pointer, String as InkoString,
@@ -286,10 +286,6 @@ impl PermanentSpace {
 
     pub unsafe fn get_class(&self, index: ClassIndex) -> ClassPointer {
         *self.classes.get(index.into())
-    }
-
-    pub unsafe fn get_module(&self, index: ModuleIndex) -> ModulePointer {
-        *self.modules.get(index.into())
     }
 }
 
