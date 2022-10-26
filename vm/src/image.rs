@@ -460,7 +460,7 @@ fn read_constant<R: Read>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::indexes::{ClassIndex, MethodIndex, ModuleIndex};
+    use crate::indexes::{ClassIndex, MethodIndex};
     use crate::mem::{Float, Int, String as InkoString};
     use crate::test::OwnedClass;
     use bytecode::Opcode;
@@ -603,7 +603,7 @@ mod tests {
 
         // The method instructions
         pack_u32(&mut chunk, 1);
-        pack_u8(&mut chunk, 94);
+        pack_u8(&mut chunk, 93);
         pack_u16(&mut chunk, 2);
 
         // The location table
@@ -626,7 +626,7 @@ mod tests {
 
         // The method instructions
         pack_u32(&mut chunk, 1);
-        pack_u8(&mut chunk, 94);
+        pack_u8(&mut chunk, 93);
         pack_u16(&mut chunk, 2);
 
         // The location table
@@ -679,10 +679,6 @@ mod tests {
             image.entry_class == unsafe { perm.get_class(ClassIndex::new(0)) }
         );
         assert_eq!(entry_method, 42);
-
-        let module = unsafe { perm.get_module(ModuleIndex::new(0)) };
-
-        assert_eq!(module.name(), &"main");
 
         let module_class = unsafe { perm.get_class(ClassIndex::new(8)) };
         let counter_class = unsafe { perm.get_class(ClassIndex::new(9)) };

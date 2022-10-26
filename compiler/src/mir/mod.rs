@@ -457,19 +457,31 @@ impl Block {
         })));
     }
 
-    pub(crate) fn call(
+    pub(crate) fn call_static(
+        &mut self,
+        class: types::ClassId,
+        method: types::MethodId,
+        arguments: Vec<RegisterId>,
+        location: LocationId,
+    ) {
+        self.instructions.push(Instruction::CallStatic(Box::new(CallStatic {
+            class,
+            method,
+            arguments,
+            location,
+        })));
+    }
+
+    pub(crate) fn call_virtual(
         &mut self,
         receiver: RegisterId,
         method: types::MethodId,
         arguments: Vec<RegisterId>,
         location: LocationId,
     ) {
-        self.instructions.push(Instruction::Call(Box::new(Call {
-            receiver,
-            method,
-            arguments,
-            location,
-        })));
+        self.instructions.push(Instruction::CallVirtual(Box::new(
+            CallVirtual { receiver, method, arguments, location },
+        )));
     }
 
     pub(crate) fn call_dynamic(
@@ -503,19 +515,6 @@ impl Block {
         self.instructions.push(Instruction::CallDropper(Box::new(
             CallDropper { receiver, location },
         )));
-    }
-
-    pub(crate) fn get_class(
-        &mut self,
-        register: RegisterId,
-        id: types::ClassId,
-        location: LocationId,
-    ) {
-        self.instructions.push(Instruction::GetClass(Box::new(GetClass {
-            register,
-            id,
-            location,
-        })));
     }
 
     pub(crate) fn call_builtin(
@@ -615,19 +614,6 @@ impl Block {
             receiver,
             value,
             field,
-            location,
-        })));
-    }
-
-    pub(crate) fn get_module(
-        &mut self,
-        register: RegisterId,
-        module: types::ModuleId,
-        location: LocationId,
-    ) {
-        self.instructions.push(Instruction::GetModule(Box::new(GetModule {
-            register,
-            id: module,
             location,
         })));
     }
@@ -1019,7 +1005,15 @@ pub(crate) struct Strings {
 }
 
 #[derive(Clone)]
-pub(crate) struct Call {
+pub(crate) struct CallStatic {
+    pub(crate) class: types::ClassId,
+    pub(crate) method: types::MethodId,
+    pub(crate) arguments: Vec<RegisterId>,
+    pub(crate) location: LocationId,
+}
+
+#[derive(Clone)]
+pub(crate) struct CallVirtual {
     pub(crate) receiver: RegisterId,
     pub(crate) method: types::MethodId,
     pub(crate) arguments: Vec<RegisterId>,
@@ -1038,13 +1032,6 @@ pub(crate) struct CallDynamic {
 pub(crate) struct CallClosure {
     pub(crate) receiver: RegisterId,
     pub(crate) arguments: Vec<RegisterId>,
-    pub(crate) location: LocationId,
-}
-
-#[derive(Clone)]
-pub(crate) struct GetClass {
-    pub(crate) register: RegisterId,
-    pub(crate) id: types::ClassId,
     pub(crate) location: LocationId,
 }
 
@@ -1093,13 +1080,6 @@ pub(crate) struct SetField {
     pub(crate) receiver: RegisterId,
     pub(crate) value: RegisterId,
     pub(crate) field: types::FieldId,
-    pub(crate) location: LocationId,
-}
-
-#[derive(Clone)]
-pub(crate) struct GetModule {
-    pub(crate) register: RegisterId,
-    pub(crate) id: types::ModuleId,
     pub(crate) location: LocationId,
 }
 
@@ -1169,17 +1149,16 @@ pub(crate) enum Instruction {
     String(Box<StringLiteral>),
     True(Box<TrueLiteral>),
     Strings(Box<Strings>),
-    Call(Box<Call>),
+    CallStatic(Box<CallStatic>),
+    CallVirtual(Box<CallVirtual>),
     CallDynamic(Box<CallDynamic>),
     CallClosure(Box<CallClosure>),
     CallDropper(Box<CallDropper>),
-    GetClass(Box<GetClass>),
     CallBuiltin(Box<CallBuiltin>),
     Send(Box<Send>),
     SendAsync(Box<SendAsync>),
     GetField(Box<GetField>),
     SetField(Box<SetField>),
-    GetModule(Box<GetModule>),
     CheckRefs(Box<CheckRefs>),
     RefKind(Box<RefKind>),
     Drop(Box<Drop>),
@@ -1218,17 +1197,16 @@ impl Instruction {
             Instruction::Float(ref v) => v.location,
             Instruction::String(ref v) => v.location,
             Instruction::Strings(ref v) => v.location,
-            Instruction::Call(ref v) => v.location,
+            Instruction::CallStatic(ref v) => v.location,
+            Instruction::CallVirtual(ref v) => v.location,
             Instruction::CallDynamic(ref v) => v.location,
             Instruction::CallClosure(ref v) => v.location,
             Instruction::CallDropper(ref v) => v.location,
             Instruction::CallBuiltin(ref v) => v.location,
-            Instruction::GetClass(ref v) => v.location,
             Instruction::Send(ref v) => v.location,
             Instruction::SendAsync(ref v) => v.location,
             Instruction::GetField(ref v) => v.location,
             Instruction::SetField(ref v) => v.location,
-            Instruction::GetModule(ref v) => v.location,
             Instruction::CheckRefs(ref v) => v.location,
             Instruction::RefKind(ref v) => v.location,
             Instruction::Drop(ref v) => v.location,
@@ -1339,9 +1317,17 @@ impl Instruction {
             Instruction::Strings(ref v) => {
                 format!("r{} = strings [{}]", v.register.0, join(&v.values))
             }
-            Instruction::Call(ref v) => {
+            Instruction::CallStatic(ref v) => {
                 format!(
-                    "call r{}.{}({})",
+                    "call_static {}.{}({})",
+                    v.class.name(db),
+                    v.method.name(db),
+                    join(&v.arguments)
+                )
+            }
+            Instruction::CallVirtual(ref v) => {
+                format!(
+                    "call_virtual r{}.{}({})",
                     v.receiver.0,
                     v.method.name(db),
                     join(&v.arguments)
@@ -1364,9 +1350,6 @@ impl Instruction {
             }
             Instruction::CallDropper(ref v) => {
                 format!("call_dropper r{}", v.receiver.0,)
-            }
-            Instruction::GetClass(ref v) => {
-                format!("r{} = class {}", v.register.0, v.id.name(db))
             }
             Instruction::CallBuiltin(ref v) => {
                 format!("call_builtin {}({})", v.id.name(), join(&v.arguments))
@@ -1407,9 +1390,6 @@ impl Instruction {
                     v.field.name(db),
                     v.value.0
                 )
-            }
-            Instruction::GetModule(ref v) => {
-                format!("r{} = module {}", v.register.0, v.id.name(db))
             }
             Instruction::Increment(ref v) => {
                 format!("r{} = increment r{}", v.register.0, v.value.0)

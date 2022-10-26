@@ -5,6 +5,5 @@ pub mod float;
 pub mod future;
 pub mod general;
 pub mod integer;
-pub mod module;
 pub mod process;
 pub mod string;

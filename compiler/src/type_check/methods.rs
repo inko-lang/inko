@@ -295,7 +295,7 @@ impl<'a> DefineModuleMethodNames<'a> {
             module,
             name.clone(),
             Visibility::public(node.public),
-            MethodKind::Instance,
+            MethodKind::Static,
         );
 
         if self.module.symbol_exists(self.db(), name) {

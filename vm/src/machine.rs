@@ -7,7 +7,6 @@ use crate::instructions::float;
 use crate::instructions::future;
 use crate::instructions::general;
 use crate::instructions::integer;
-use crate::instructions::module;
 use crate::instructions::process;
 use crate::instructions::string;
 use crate::mem::{Int, Pointer, String as InkoString};
@@ -522,13 +521,6 @@ impl<'a> Machine<'a> {
 
                     state.context.set_register(reg, res);
                 }
-                Opcode::GetModule => {
-                    let reg = ins.arg(0);
-                    let id = ins.u32_arg(1, 2);
-                    let res = module::get(self.state, id);
-
-                    state.context.set_register(reg, res);
-                }
                 Opcode::SetField => {
                     let rec = state.context.get_register(ins.arg(0));
                     let idx = ins.arg(1);
@@ -854,6 +846,10 @@ impl<'a> Machine<'a> {
                     let method = ins.arg(1);
 
                     state.save();
+                    // TODO: remove
+                    if rec.as_ptr().is_null() {
+                        return Err("CallVirtual with NULL".to_string());
+                    }
                     general::call_virtual(self.state, task, rec, method);
                     reset!(task, state);
                 }
@@ -865,12 +861,13 @@ impl<'a> Machine<'a> {
                     general::call_dynamic(self.state, task, rec, hash);
                     reset!(task, state);
                 }
-                Opcode::GetClass => {
-                    let reg = ins.arg(0);
-                    let id = ins.u32_arg(1, 2);
-                    let res = general::get_class(self.state, id);
+                Opcode::CallStatic => {
+                    let class = ins.u32_arg(0, 1);
+                    let method = ins.arg(2);
 
-                    state.context.set_register(reg, res);
+                    state.save();
+                    general::call_static(self.state, task, class, method);
+                    reset!(task, state);
                 }
                 Opcode::RefKind => {
                     let reg = ins.arg(0);

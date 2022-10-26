@@ -440,7 +440,12 @@ impl<'a> GenerateDropper<'a> {
         if let Some(id) = drop_method_opt {
             let res = lower.new_register(types::TypeRef::nil());
 
-            lower.current_block_mut().call(self_reg, id, Vec::new(), loc);
+            lower.current_block_mut().call_virtual(
+                self_reg,
+                id,
+                Vec::new(),
+                loc,
+            );
             lower.current_block_mut().reduce_call(loc);
             lower.current_block_mut().move_result(res, loc);
         }
@@ -512,7 +517,12 @@ impl<'a> GenerateDropper<'a> {
         if let Some(id) = drop_method_opt {
             let res = lower.new_register(types::TypeRef::nil());
 
-            lower.current_block_mut().call(self_reg, id, Vec::new(), loc);
+            lower.current_block_mut().call_virtual(
+                self_reg,
+                id,
+                Vec::new(),
+                loc,
+            );
             lower.current_block_mut().reduce_call(loc);
             lower.current_block_mut().move_result(res, loc);
         }
@@ -1171,8 +1181,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn prepare(&mut self, location: LocationId) {
-        self.define_arguments(location);
-        self.define_field_registers(location);
+        self.define_base_registers(location);
     }
 
     fn run(mut self, nodes: Vec<hir::Expression>, location: LocationId) {
@@ -1240,56 +1249,47 @@ impl<'a> LowerMethod<'a> {
         }
     }
 
-    fn define_arguments(&mut self, location: LocationId) {
+    fn define_base_registers(&mut self, location: LocationId) {
         // The first register in a method is reserved for the receiver of the
         // method (e.g. `self`). For closures this points to the generated
         // closure object, not the outer `self` as captured by the closure.
-        let receiver = self.method.id.receiver(self.db());
-        let self_reg = self.new_self(receiver);
-        let mut regs = Vec::new();
+        //
+        // Static/module methods don't have this argument passed in, so we don't
+        // define the register. This is OK because the type-checker disallows
+        // the use of `self` in these cases.
+        let self_reg = if self.method.id.is_instance_method(self.db()) {
+            Some(self.new_self(self.method.id.receiver(self.db())))
+        } else {
+            None
+        };
+
+        let mut args = Vec::new();
 
         for arg in self.method.id.arguments(self.db()) {
             let reg = self.new_variable(arg.variable);
 
             self.variable_mapping.insert(arg.variable, reg);
-            regs.push(reg);
+            args.push(reg);
         }
 
-        self.add_argument_drop_flags(self_reg, regs, location);
-    }
-
-    fn add_argument_drop_flags(
-        &mut self,
-        self_reg: RegisterId,
-        arguments: Vec<RegisterId>,
-        location: LocationId,
-    ) {
-        self.add_drop_flag(self_reg, location);
-
-        for reg in arguments {
+        if let Some(reg) = self_reg {
             self.add_drop_flag(reg, location);
+
+            // Field registers have to be defined ahead of time so we can track
+            // their state properly. This is only needed for instance methods.
+            let rec = self.register_type(reg);
+
+            for (id, typ) in self.method.id.fields(self.db()) {
+                self.field_register(
+                    id,
+                    typ.cast_according_to(rec, self.db()),
+                    location,
+                );
+            }
         }
-    }
 
-    fn define_field_registers(&mut self, location: LocationId) {
-        // Field registers have to be defined ahead of time so we can track
-        // their state properly. Consider this code:
-        //
-        //     if true {
-        //       drop(@some_field)
-        //     }
-        //
-        // If we don't define the register types/states ahead of time, the state
-        // of `@some_field` in the `if` is "unknown", and the state after the
-        // `if` is "moved" instead of "maybe moved".
-        let rec = self.surrounding_type();
-
-        for (id, typ) in self.method.id.fields(self.db()) {
-            self.field_register(
-                id,
-                typ.cast_according_to(rec, self.db()),
-                location,
-            );
+        for reg in args {
+            self.add_drop_flag(reg, location);
         }
     }
 
@@ -1728,38 +1728,15 @@ impl<'a> LowerMethod<'a> {
 
                 let returns = info.returns;
                 let throws = info.throws;
-                let mut rec = match info.receiver {
-                    types::Receiver::Explicit => {
-                        self.expression(node.receiver.unwrap())
-                    }
-                    types::Receiver::Implicit => {
-                        let reg = self.self_register;
-
-                        self.check_if_implicit_receiver_is_moved(
-                            &node.name.name,
-                            &node.location,
-                        );
-                        reg
-                    }
-                    types::Receiver::Module(id) => self.get_module(id, loc),
+                let rec = if info.receiver.is_explicit() {
+                    node.receiver.map(|expr| self.expression(expr))
+                } else {
+                    None
                 };
-
-                if info.id.is_moving(self.db()) {
-                    rec = self.receiver_for_moving_method(rec, loc);
-                }
 
                 let args = self.call_arguments(&info, node.arguments);
 
-                if info.id.is_async(self.db()) {
-                    self.current_block_mut()
-                        .send_and_wait(rec, info.id, args, loc);
-                } else if info.dynamic {
-                    self.current_block_mut()
-                        .call_dynamic(rec, info.id, args, loc);
-                } else {
-                    self.current_block_mut().call(rec, info.id, args, loc);
-                }
-
+                self.handle_call(info, rec, args, loc);
                 self.current_block_mut().reduce_call(loc);
                 self.handle_result(node.else_block, returns, throws, loc)
             }
@@ -1806,6 +1783,56 @@ impl<'a> LowerMethod<'a> {
 
         self.exit_call_scope(entered, reg);
         reg
+    }
+
+    fn handle_call(
+        &mut self,
+        info: types::CallInfo,
+        receiver: Option<RegisterId>,
+        arguments: Vec<RegisterId>,
+        location: LocationId,
+    ) {
+        let mut rec = match info.receiver {
+            types::Receiver::Explicit => receiver.unwrap(),
+            types::Receiver::Implicit => {
+                let reg = self.self_register;
+
+                if !self.register_is_available(self.self_register) {
+                    let name = info.id.name(self.db()).clone();
+
+                    self.state.diagnostics.implicit_receiver_moved(
+                        &name,
+                        self.file(),
+                        self.mir.location(location).range.clone(),
+                    );
+                }
+
+                reg
+            }
+            types::Receiver::Class(id) => {
+                // Static methods can't move, be dynamic or async, so we can
+                // skip the code that comes after this.
+                self.current_block_mut()
+                    .call_static(id, info.id, arguments, location);
+
+                return;
+            }
+        };
+
+        if info.id.is_moving(self.db()) {
+            rec = self.receiver_for_moving_method(rec, location);
+        }
+
+        if info.id.is_async(self.db()) {
+            self.current_block_mut()
+                .send_and_wait(rec, info.id, arguments, location);
+        } else if info.dynamic {
+            self.current_block_mut()
+                .call_dynamic(rec, info.id, arguments, location);
+        } else {
+            self.current_block_mut()
+                .call_virtual(rec, info.id, arguments, location);
+        }
     }
 
     fn call_arguments(
@@ -1966,31 +1993,28 @@ impl<'a> LowerMethod<'a> {
 
     fn assign_setter(&mut self, node: hir::AssignSetter) -> RegisterId {
         let entered = self.enter_call_scope();
-        let rec = self.expression(node.receiver);
         let reg = match node.kind {
             types::CallKind::Call(info) => {
                 self.verify_call_info(&info, &node.location);
 
                 let loc = self.add_location(node.location);
                 let exp = self.expected_argument_type(info.id, 0);
+                let rec = if info.receiver.is_explicit() {
+                    Some(self.expression(node.receiver))
+                } else {
+                    None
+                };
+
                 let args = vec![self.input_expression(node.value, Some(exp))];
                 let returns = info.returns;
                 let throws = info.throws;
 
-                if info.id.is_async(self.db()) {
-                    self.current_block_mut()
-                        .send_and_wait(rec, info.id, args, loc);
-                } else if info.dynamic {
-                    self.current_block_mut()
-                        .call_dynamic(rec, info.id, args, loc);
-                } else {
-                    self.current_block_mut().call(rec, info.id, args, loc);
-                }
-
+                self.handle_call(info, rec, args, loc);
                 self.current_block_mut().reduce_call(loc);
                 self.handle_result(node.else_block, returns, throws, loc)
             }
             types::CallKind::SetField(info) => {
+                let rec = self.expression(node.receiver);
                 let exp = info.variable_type;
                 let loc = self.add_location(node.location);
                 let arg = self.input_expression(node.value, Some(exp));
@@ -2128,7 +2152,7 @@ impl<'a> LowerMethod<'a> {
         if info.dynamic {
             block.call_dynamic(rec, info.id, args, loc);
         } else {
-            block.call(rec, info.id, args, loc);
+            block.call_virtual(rec, info.id, args, loc);
         }
 
         block.reduce_call(loc);
@@ -2222,7 +2246,12 @@ impl<'a> LowerMethod<'a> {
                     })
                     .unwrap();
 
-                self.current_block_mut().call(arg, mid, Vec::new(), loc);
+                self.current_block_mut().call_virtual(
+                    arg,
+                    mid,
+                    Vec::new(),
+                    loc,
+                );
                 self.current_block_mut().reduce_call(loc);
                 self.current_block_mut().move_result(reg, loc);
                 self.current_block_mut().raw_instruction(
@@ -3053,55 +3082,24 @@ impl<'a> LowerMethod<'a> {
                 self.check_if_moved(reg, &node.name, &node.location);
                 reg
             }
-            types::IdentifierKind::Module(id) => {
-                let reg = self.new_register(types::TypeRef::module(id));
-
-                self.current_block_mut().get_module(reg, id, loc);
-                reg
-            }
             types::IdentifierKind::Method(info) => {
                 let entered = self.enter_call_scope();
                 let reg = self.new_register(info.returns);
-                let id = info.id;
-                let rec = if let types::Receiver::Module(id) = info.receiver {
-                    self.get_module(id, loc)
-                } else {
-                    let reg = self.self_register;
 
-                    self.check_if_implicit_receiver_is_moved(
-                        &node.name,
-                        &node.location,
-                    );
-
-                    if id.is_moving(self.db()) {
-                        self.receiver_for_moving_method(reg, loc)
-                    } else {
-                        reg
-                    }
-                };
-
-                let args = Vec::new();
-
-                if info.id.is_async(self.db()) {
-                    self.current_block_mut()
-                        .send_and_wait(rec, info.id, args, loc);
-                } else if info.dynamic {
-                    self.current_block_mut().call_dynamic(rec, id, args, loc);
-                } else {
-                    self.current_block_mut().call(rec, id, args, loc);
-                }
-
+                self.handle_call(info, None, Vec::new(), loc);
                 self.current_block_mut().reduce_call(loc);
                 self.current_block_mut().move_result(reg, loc);
-
                 self.exit_call_scope(entered, reg);
                 reg
             }
             types::IdentifierKind::Field(info) => {
-                self.check_if_implicit_receiver_is_moved(
-                    &node.name,
-                    &node.location,
-                );
+                if !self.register_is_available(self.self_register) {
+                    self.state.diagnostics.implicit_receiver_moved(
+                        &node.name,
+                        self.file(),
+                        self.mir.location(loc).range.clone(),
+                    );
+                }
 
                 let rec = self.self_register;
                 let reg = self.new_field(info.id, info.variable_type);
@@ -3152,34 +3150,14 @@ impl<'a> LowerMethod<'a> {
                 self.current_block_mut().get_constant(reg, id, loc);
                 reg
             }
-            types::ConstantKind::Class(id) => {
-                let reg = self.new_register(node.resolved_type);
-                let loc = self.add_location(node.location);
-
-                self.current_block_mut().get_class(reg, id, loc);
-                reg
-            }
             types::ConstantKind::Method(info) => {
                 let entered = self.enter_call_scope();
                 let loc = self.add_location(node.location);
                 let reg = self.new_register(info.returns);
-                let args = Vec::new();
-                let id = info.id;
-                let rec = if let types::Receiver::Module(id) = info.receiver {
-                    self.get_module(id, loc)
-                } else {
-                    self.self_register
-                };
 
-                if info.dynamic {
-                    self.current_block_mut().call_dynamic(rec, id, args, loc);
-                } else {
-                    self.current_block_mut().call(rec, id, args, loc);
-                }
-
+                self.handle_call(info, None, Vec::new(), loc);
                 self.current_block_mut().reduce_call(loc);
                 self.current_block_mut().move_result(reg, loc);
-
                 self.exit_call_scope(entered, reg);
                 reg
             }
@@ -3380,17 +3358,6 @@ impl<'a> LowerMethod<'a> {
         gen_class_reg
     }
 
-    fn get_module(
-        &mut self,
-        module: types::ModuleId,
-        location: LocationId,
-    ) -> RegisterId {
-        let reg = self.new_register(types::TypeRef::module(module));
-
-        self.current_block_mut().get_module(reg, module, location);
-        reg
-    }
-
     fn get_local(
         &mut self,
         id: types::VariableId,
@@ -3507,22 +3474,6 @@ impl<'a> LowerMethod<'a> {
         }
 
         self.state.diagnostics.moved_variable(
-            name,
-            self.file(),
-            location.clone(),
-        );
-    }
-
-    fn check_if_implicit_receiver_is_moved(
-        &mut self,
-        name: &str,
-        location: &SourceLocation,
-    ) {
-        if self.register_is_available(self.self_register) {
-            return;
-        }
-
-        self.state.diagnostics.implicit_receiver_moved(
             name,
             self.file(),
             location.clone(),
@@ -4693,7 +4644,12 @@ impl<'a> ExpandDrop<'a> {
             // can just call the dropper directly.
             let method = class.method(self.db, types::DROPPER_METHOD).unwrap();
 
-            self.block_mut(block).call(value, method, Vec::new(), location);
+            self.block_mut(block).call_virtual(
+                value,
+                method,
+                Vec::new(),
+                location,
+            );
         } else {
             self.block_mut(block).call_dropper(value, location);
         }

@@ -383,6 +383,13 @@ impl<'a> Lower<'a> {
         let mut jump_tables = Vec::new();
         let mut locations = Vec::new();
 
+        // if method.id.name(self.db) == "foo" {
+        //     println!(
+        //         "{}",
+        //         crate::mir::printer::to_dot(self.db, self.mir, &[&method])
+        //     );
+        // }
+
         // This should never happen, unless somebody is writing _really_
         // crazy code, or due to a compiler bug. Because of this, we just
         // resort to a simple assertion.
@@ -426,8 +433,18 @@ impl<'a> Lower<'a> {
         // Arguments are pushed in order, meaning that for arguments `(a, b, c)`
         // the stack would be `[a, b, c]`, and thus the first pop produces the
         // last argument.
-        for index in (0..=method.id.number_of_arguments(self.db)).rev() {
-            instructions.push(Instruction::one(Opcode::Pop, index as u16));
+        let num_args = method.id.number_of_arguments(self.db) as u16;
+        let arg_range = if method.id.is_instance_method(self.db) {
+            0..=num_args
+        } else {
+            // For static methods the receiver isn't passed, so we subtract one
+            // and saturate at zero. This way a static method with a single
+            // argument still generates one pop().
+            0..=num_args.saturating_sub(1)
+        };
+
+        for index in arg_range.rev() {
+            instructions.push(Instruction::one(Opcode::Pop, index));
         }
 
         queue.push_back(method.body.start_id);
@@ -643,7 +660,17 @@ impl<'a> Lower<'a> {
 
                 buffer.push(Instruction::three(op, reg, arg1, arg2));
             }
-            mir::Instruction::Call(ins) => {
+            mir::Instruction::CallStatic(ins) => {
+                let op = Opcode::CallStatic;
+                let class = self.class_info.get(&ins.class).unwrap().index;
+                let method = self.method_info.get(&ins.method).unwrap().index;
+                let (arg1, arg2) = split_u32(class);
+
+                push_values(buffer, &ins.arguments);
+                locations.push((buffer.len(), ins.location));
+                buffer.push(Instruction::three(op, arg1, arg2, method));
+            }
+            mir::Instruction::CallVirtual(ins) => {
                 let op = Opcode::CallVirtual;
                 let rec = ins.receiver.0 as u16;
                 let idx = self.method_info.get(&ins.method).unwrap().index;
@@ -724,14 +751,6 @@ impl<'a> Lower<'a> {
 
                 buffer.push(Instruction::one(op, reg));
             }
-            mir::Instruction::GetClass(ins) => {
-                let op = Opcode::GetClass;
-                let reg = ins.register.0 as u16;
-                let idx = self.class_info.get(&ins.id).unwrap().index;
-                let (arg1, arg2) = split_u32(idx);
-
-                buffer.push(Instruction::three(op, reg, arg1, arg2));
-            }
             mir::Instruction::GetConstant(ins) => {
                 let op = Opcode::GetConstant;
                 let reg = ins.register.0 as u16;
@@ -769,13 +788,6 @@ impl<'a> Lower<'a> {
                 let val = ins.value.0 as u16;
 
                 buffer.push(Instruction::three(op, rec, idx, val));
-            }
-            mir::Instruction::GetModule(ins) => {
-                let op = Opcode::GetModule;
-                let reg = ins.register.0 as u16;
-                let (idx1, idx2) = split_u32(ins.id.0);
-
-                buffer.push(Instruction::three(op, reg, idx1, idx2));
             }
             mir::Instruction::Increment(ins) => {
                 let op = Opcode::Increment;

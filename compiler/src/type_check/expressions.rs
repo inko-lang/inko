@@ -1361,7 +1361,9 @@ impl<'a> CheckMethodBody<'a> {
             }
             hir::Expression::Call(ref mut n) => self.call(n, scope),
             hir::Expression::Closure(ref mut n) => self.closure(n, None, scope),
-            hir::Expression::ConstantRef(ref mut n) => self.constant(n, scope),
+            hir::Expression::ConstantRef(ref mut n) => {
+                self.constant(n, scope, false)
+            }
             hir::Expression::DefineVariable(ref mut n) => {
                 self.define_variable(n, scope)
             }
@@ -1369,7 +1371,7 @@ impl<'a> CheckMethodBody<'a> {
             hir::Expression::FieldRef(ref mut n) => self.field(n, scope),
             hir::Expression::Float(ref mut n) => self.float_literal(n, scope),
             hir::Expression::IdentifierRef(ref mut n) => {
-                self.identifier(n, scope)
+                self.identifier(n, scope, false)
             }
             hir::Expression::ClassLiteral(ref mut n) => {
                 self.class_literal(n, scope)
@@ -1731,6 +1733,17 @@ impl<'a> CheckMethodBody<'a> {
         scope: &LexicalScope,
     ) -> TypeRef {
         let typ = scope.surrounding_type;
+
+        if !self.method.is_instance_method(self.db()) {
+            self.state.diagnostics.error(
+                DiagnosticId::InvalidSymbol,
+                "'self' can only be used in instance methods",
+                self.file(),
+                node.location.clone(),
+            );
+
+            return TypeRef::Error;
+        }
 
         if scope.in_recover() && !typ.is_sendable(self.db()) {
             self.state.diagnostics.unsendable_type_in_recover(
@@ -2678,14 +2691,11 @@ impl<'a> CheckMethodBody<'a> {
         node.resolved_type
     }
 
-    /// A reference to a constant.
-    ///
-    /// Types are not allowed, as they can't be used as values (e.g. `return
-    /// ToString` makes no sense).
     fn constant(
         &mut self,
         node: &mut hir::ConstantRef,
         scope: &LexicalScope,
+        receiver: bool,
     ) -> TypeRef {
         let name = &node.name;
         let module = self.module;
@@ -2695,7 +2705,10 @@ impl<'a> CheckMethodBody<'a> {
 
             match rec_id.lookup_method(self.db(), name, module, false) {
                 MethodLookup::Ok(method) => {
-                    (rec, rec_id, Receiver::Implicit, method)
+                    let rec_info =
+                        Receiver::class_or_implicit(self.db(), method);
+
+                    (rec, rec_id, rec_info, method)
                 }
                 MethodLookup::StaticOnInstance => {
                     self.invalid_static_call(name, rec, &node.location);
@@ -2718,7 +2731,15 @@ impl<'a> CheckMethodBody<'a> {
 
                             return node.resolved_type;
                         }
-                        Ok(Some(Symbol::Class(_) | Symbol::Trait(_))) => {
+                        Ok(Some(Symbol::Class(id))) if receiver => {
+                            node.resolved_type =
+                                TypeRef::Owned(TypeId::Class(id));
+
+                            return node.resolved_type;
+                        }
+                        Ok(Some(Symbol::Class(_) | Symbol::Trait(_)))
+                            if !receiver =>
+                        {
                             self.state.diagnostics.symbol_not_a_value(
                                 name,
                                 self.file(),
@@ -2741,7 +2762,7 @@ impl<'a> CheckMethodBody<'a> {
                         (
                             TypeRef::module(id),
                             TypeId::Module(id),
-                            Receiver::Module(id),
+                            Receiver::Class(id.class(self.db())),
                             method,
                         )
                     } else {
@@ -2780,44 +2801,11 @@ impl<'a> CheckMethodBody<'a> {
         node.resolved_type
     }
 
-    /// A constant used as the receiver of a method call.
-    ///
-    /// Unlike regular constant references, we do allow types here, as this is
-    /// needed to support expressions such as `Array.new`.
-    fn constant_receiver(&mut self, node: &mut hir::ConstantRef) -> TypeRef {
-        let name = &node.name;
-        let symbol = self.lookup_constant(name, node.source.as_ref());
-
-        match symbol {
-            Ok(Some(Symbol::Constant(id))) => {
-                node.kind = ConstantKind::Constant(id);
-                node.resolved_type = id.value_type(self.db());
-
-                node.resolved_type
-            }
-            Ok(Some(Symbol::Class(id))) => {
-                node.kind = ConstantKind::Class(id);
-                node.resolved_type = TypeRef::Owned(TypeId::Class(id));
-
-                node.resolved_type
-            }
-            Ok(_) => {
-                self.state.diagnostics.undefined_symbol(
-                    name,
-                    self.file(),
-                    node.location.clone(),
-                );
-
-                TypeRef::Error
-            }
-            Err(_) => TypeRef::Error,
-        }
-    }
-
     fn identifier(
         &mut self,
         node: &mut hir::IdentifierRef,
         scope: &mut LexicalScope,
+        receiver: bool,
     ) -> TypeRef {
         let name = &node.name;
         let module = self.module;
@@ -2838,8 +2826,15 @@ impl<'a> CheckMethodBody<'a> {
             match rec_id.lookup_method(self.db(), name, module, true) {
                 MethodLookup::Ok(method) => {
                     self.check_if_self_is_allowed(scope, &node.location);
-                    scope.mark_closures_as_capturing_self(self.db_mut());
-                    (rec, rec_id, Receiver::Implicit, method)
+
+                    if method.is_instance_method(self.db()) {
+                        scope.mark_closures_as_capturing_self(self.db_mut());
+                    }
+
+                    let rec_info =
+                        Receiver::class_or_implicit(self.db(), method);
+
+                    (rec, rec_id, rec_info, method)
                 }
                 MethodLookup::StaticOnInstance => {
                     self.invalid_static_call(name, rec, &node.location);
@@ -2875,11 +2870,17 @@ impl<'a> CheckMethodBody<'a> {
                     if let Some(Symbol::Module(id)) =
                         module.symbol(self.db(), name)
                     {
-                        let typ = TypeRef::module(id);
+                        if !receiver {
+                            self.state.diagnostics.symbol_not_a_value(
+                                name,
+                                self.file(),
+                                node.location.clone(),
+                            );
 
-                        node.kind = IdentifierKind::Module(id);
+                            return TypeRef::Error;
+                        }
 
-                        return typ;
+                        return TypeRef::module(id);
                     }
 
                     if let Some(Symbol::Method(method)) =
@@ -2890,7 +2891,7 @@ impl<'a> CheckMethodBody<'a> {
                         (
                             TypeRef::module(id),
                             TypeId::Module(id),
-                            Receiver::Module(id),
+                            Receiver::Class(id.class(self.db())),
                             method,
                         )
                     } else {
@@ -3517,9 +3518,11 @@ impl<'a> CheckMethodBody<'a> {
             self.check_missing_try(&setter, throws, loc);
         }
 
+        let rec_info = Receiver::class_or_explicit(self.db(), receiver);
+
         node.kind = CallKind::Call(CallInfo {
             id: method,
-            receiver: Receiver::Explicit,
+            receiver: rec_info,
             returns,
             throws,
             dynamic: rec_id.use_dynamic_dispatch(),
@@ -3790,9 +3793,11 @@ impl<'a> CheckMethodBody<'a> {
             self.check_missing_try(name, throws, &node.location);
         }
 
+        let rec_info = Receiver::class_or_explicit(self.db(), receiver);
+
         node.kind = CallKind::Call(CallInfo {
             id: method,
-            receiver: Receiver::Explicit,
+            receiver: rec_info,
             returns,
             throws,
             dynamic: rec_id.use_dynamic_dispatch(),
@@ -3811,13 +3816,19 @@ impl<'a> CheckMethodBody<'a> {
         let module = self.module;
         let rec = scope.surrounding_type;
         let rec_id = rec.type_id(self.db(), stype).unwrap();
-        let (receiver_info, rec, rec_id, method) =
+        let (rec_info, rec, rec_id, method) =
             match rec_id.lookup_method(self.db(), name, module, true) {
-                MethodLookup::Ok(id) => {
+                MethodLookup::Ok(method) => {
                     self.check_if_self_is_allowed(scope, &node.location);
-                    scope.mark_closures_as_capturing_self(self.db_mut());
 
-                    (Receiver::Implicit, rec, rec_id, id)
+                    if method.is_instance_method(self.db()) {
+                        scope.mark_closures_as_capturing_self(self.db_mut());
+                    }
+
+                    let rec_info =
+                        Receiver::class_or_implicit(self.db(), method);
+
+                    (rec_info, rec, rec_id, method)
                 }
                 MethodLookup::Private => {
                     self.private_method_call(name, &node.location);
@@ -3847,7 +3858,12 @@ impl<'a> CheckMethodBody<'a> {
                         let id = TypeId::Module(mod_id);
                         let mod_typ = TypeRef::Owned(id);
 
-                        (Receiver::Module(mod_id), mod_typ, id, method)
+                        (
+                            Receiver::Class(mod_id.class(self.db())),
+                            mod_typ,
+                            id,
+                            method,
+                        )
                     } else {
                         self.state.diagnostics.undefined_symbol(
                             name,
@@ -3886,7 +3902,7 @@ impl<'a> CheckMethodBody<'a> {
 
         node.kind = CallKind::Call(CallInfo {
             id: method,
-            receiver: receiver_info,
+            receiver: rec_info,
             returns,
             throws,
             dynamic: rec_id.use_dynamic_dispatch(),
@@ -4292,7 +4308,10 @@ impl<'a> CheckMethodBody<'a> {
     ) -> (TypeRef, bool) {
         let typ = match node {
             hir::Expression::ConstantRef(ref mut n) => {
-                self.constant_receiver(n)
+                self.constant(n, scope, true)
+            }
+            hir::Expression::IdentifierRef(ref mut n) => {
+                self.identifier(n, scope, true)
             }
             _ => self.expression(node, scope),
         };
