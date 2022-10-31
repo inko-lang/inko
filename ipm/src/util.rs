@@ -41,7 +41,7 @@ pub(crate) fn usage(options: &Options, summary: &str) {
 pub(crate) fn data_dir() -> Result<PathBuf, Error> {
     let base = if cfg!(windows) {
         windows_local_appdata()
-    } else if cfg!(macos) {
+    } else if cfg!(target_os = "macos") {
         home_dir().map(|h| h.join("Library").join("Application Support"))
     } else {
         env::var_os("XDG_DATA_HOME")
