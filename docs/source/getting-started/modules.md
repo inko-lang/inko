@@ -39,7 +39,7 @@ GitHub. There's no central package registry.
 
 ### Manifest format
 
-The dependencies or your project are listed in the file `inko.pkg` (called a
+The dependencies for your project are listed in the file `inko.pkg` (called a
 "package manifest") in the root directory of your project. The format of this
 file is a simple line based format that looks as follows:
 

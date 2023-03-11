@@ -45,7 +45,7 @@ This applies to all expressions, such as `if`, `try`, `while`, etc.
 
 ## Naming
 
-Constants use PascalCase, such as `ByteArray` and `String`:
+Classes use PascalCase, such as `ByteArray` and `String`:
 
 ```inko
 class AddressFormatter {}
@@ -184,7 +184,7 @@ If the only argument is a closure, leave out the parentheses:
 }
 ```
 
-If there are multiple arguments, and the last one is a block, use parentheses
+If there are multiple arguments, and the last one is a closure, use parentheses
 and place the closure outside them:
 
 ```inko
@@ -193,8 +193,8 @@ t.test('This is a test') fn (t) {
 }
 ```
 
-When the number of arguments don't fit on a single line, place every argument on
-their own line like so:
+When the number of arguments don't fit on a single line, place each argument on
+its own line like so:
 
 ```inko
 some_object.some_message_name(
@@ -215,7 +215,7 @@ some_object.some_message_name(
 )
 ```
 
-By using a trailing comma, adding a new argument arguments is easier as you
+By using a trailing comma, adding a new argument is easier as you
 don't need to first add a comma to the current last argument, before adding a
 new argument. When removing lines this also leads to smaller diffs.
 
@@ -318,7 +318,7 @@ If it doesn't fit, put every attribute assignment on a separate line:
 ```inko
 Person {
   @name = 'Alice',
-  @age = 32
+  @age = 32,
 }
 ```
 

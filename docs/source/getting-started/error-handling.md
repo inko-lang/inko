@@ -2,7 +2,7 @@
 
 Let's take a look at one of the defining features of Inko: its approach to error
 handling, inspired by the article ["The Error
-Model"](http://joeduffyblog.com/2016/02/07/the-error-model/). To explain this
+Model"](http://joeduffyblog.com/2016/02/07/the-error-model/). To explain this,
 we'll transform our "Hello, World!" program from the ["Hello,
 World!"](hello-world.md) guide into a program that writes the message to a file,
 reads it back, then writes it to STDOUT.
@@ -64,7 +64,7 @@ throw a value of type `TypeName`. In our case the type is called `Error`. A
 method may only specify a single type, simplifying the error handling process.
 _If_ a method specifies a throw type, we _must_ handle the error when calling
 the method, and not doing so results in a compile-time error. If a method
-specifies a throw type it _must_ at some point throw a value of said type using
+specifies a throw type, it _must_ at some point throw a value of said type using
 the `throw` or `try` keyword. Again it's a compile-time error to not do so.
 
 These rules mean that a method can never lie about throwing or not, and every
@@ -132,7 +132,7 @@ class async Main {
 ```
 
 Again the operation can fail, such as when the file is removed after creating
-it, and so again we must handle any errors. And again for the sake of
+it, and so again we must handle any errors. And again, for the sake of
 simplicity, we'll just abort in the event we encounter an error.
 
 If you now save the above code and run it, you'll end up with a file called
@@ -156,7 +156,7 @@ class async Main {
 ```
 
 Now we'll need to read the contents back from the file. First we must rewind it,
-as reading continues where the last write (or read) ended, then we must read the
+as reading continues where the last write (or read) ended; then we must read the
 contents into a `ByteArray`:
 
 ```inko

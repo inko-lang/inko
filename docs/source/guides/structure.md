@@ -5,7 +5,7 @@ modules, and a `test/` directory containing your unit tests. Source files use
 the `.inko` extension, and should use lowercase names. For example, the source
 code for `std::string` resides in `src/std/string.inko`.
 
-Build files should go in the `build/` directory. Inko creates this directory for
+Build files go in the `build/` directory. Inko creates this directory for
 you if needed. This directory should not be tracked using your version control
 system of choice.
 

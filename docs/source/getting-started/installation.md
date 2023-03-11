@@ -20,7 +20,7 @@ Unix compatibility layer such as [MSYS2][msys2].
 Inko's package manager (ipm) also required Git to be installed, and the `git`
 executable to be available in your PATH.
 
-For Unix based platforms, the following must also be available
+For Unix based platforms, the following must also be available:
 
 - Make
 - sh, bash or a compatible shell
