@@ -260,7 +260,7 @@ in that they don't exist at runtime as some sort of structure, instead they only
 exist in the compiler.
 
 `Self` is a type that refers to either the surrounding class, or when used in a
-trait refers to the class that implements the trait.
+trait, refers to the class that implements the trait.
 
 `Any` is a type used for a value that could be anything, including data not
 managed by the Inko runtime such as a pointer to a C structure. Types can't be

@@ -265,7 +265,7 @@ fn method_name {
 }
 ```
 
-## Taits
+## Traits
 
 Traits are defined using the `trait` keyword, and like classes default to being
 private to their modules.

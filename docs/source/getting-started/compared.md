@@ -96,7 +96,7 @@ one goal.
 
 ## Rust
 
-Rust is a statically typed, object-oriented, and compiles to machine code. For
+Rust is statically typed, object-oriented, and compiles to machine code. For
 memory management both Rust and Inko use single ownership, though their
 implementations, benefits and drawbacks differ. For example, Rust is strict at
 compile-time, removing the need for runtime checks. Inko performs some of its

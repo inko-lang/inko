@@ -58,7 +58,7 @@ compile-time error is produced.
 
 ## References and borrowing
 
-Besides owned values Inko also supports references. A reference allows you to
+Besides owned values, Inko also supports references. A reference allows you to
 temporarily use a value without moving it. When the reference is no longer
 needed, only the reference is discarded; not the value it points to. Creating a
 reference is known as "borrowing", because you borrow the value the reference
@@ -80,7 +80,7 @@ let c = mut a    # A mutable reference
 Inko automatically creates references for you whenever necessary, so you won't
 need to use these keywords often.
 
-Unlike Rust, Inko allows you to move owned values when references to it exist.
+Unlike Rust, Inko allows you to move owned values when references to them exist.
 Inko also allows both immutable and mutable references to the same value to
 exist at the same time. This makes it trivial to implement self-referential data
 structures (such as linked lists), without needing any unsafe code or the use of
@@ -188,7 +188,7 @@ value afterwards, because the references no longer exist.
 Both unique references and owned values allow you to call methods on them,
 though this comes with a set of rules. These rules are as follows:
 
-1. If a method takes any arguments, specifies a throw type, or a return type,
+1. If a method takes any arguments, or specifies a throw type or a return type,
    the types must be "sendable". If any of these types isn't sendable, the
    method isn't available.
 2. If a method doesn't take any arguments and is immutable, and returns and/or

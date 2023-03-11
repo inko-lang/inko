@@ -33,7 +33,7 @@ a = 20 # Not OK, `a` isn't defined as mutable
 b = 20 # This is OK
 ```
 
-For fields the surrounding method must be mutable:
+For fields, the surrounding method must be mutable:
 
 ```inko
 class Person {
@@ -59,7 +59,7 @@ instead of dropped:
 ```inko
 let mut a = 10
 
-a = 20 # This returns `10`
+a := 20 # This returns `10`
 ```
 
 This also works for fields:
@@ -220,7 +220,7 @@ This also applies to pattern match expressions.
 
 To handle dropping of conditionally moved variables, Inko uses hidden variables
 called "drop flags". These are created whenever necessary and default to `true`.
-When a variable is moved its corresponding drop flag (if any) is set to `false`.
+When a variable is moved, its corresponding drop flag (if any) is set to `false`.
 When it's time to drop the variable, the compiler inserts code that checks the
 value of this flag and only drops the variable if the value is still `true`.
 This means that this:

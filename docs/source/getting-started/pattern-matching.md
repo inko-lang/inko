@@ -270,7 +270,7 @@ match ref input {
 ## Drop semantics
 
 When pattern matching, any bindings introduced as part of a pattern are dropped
-at the end of the pattern's body; unless they are moved before then. When
+at the end of the pattern's body (unless they are moved before then). When
 matching against an owned value and the value is destructured, Inko performs a
 "partial drop" of the outer value _before_ entering the pattern body. A partial
 drop is a regular drop that doesn't invoke the type's destructor, and doesn't
