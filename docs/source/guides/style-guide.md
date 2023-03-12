@@ -45,7 +45,7 @@ This applies to all expressions, such as `if`, `try`, `while`, etc.
 
 ## Naming
 
-Classes use PascalCase, such as `ByteArray` and `String`:
+Types use PascalCase, such as `ByteArray` and `String`:
 
 ```inko
 class AddressFormatter {}
