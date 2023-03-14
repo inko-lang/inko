@@ -60,10 +60,10 @@ class builtin Float {
   # Parsing a `Float` with an exponent:
   #
   #     Float.parse('1.2e1') # => Option.Some(12.0)
-  fn pub static parse(string: String) -> Option[Self] {
+  fn pub static parse(string: String) -> Option[Float] {
     let res = _INKO.string_to_float(string, -1, -1)
 
-    if _INKO.is_undefined(res) { Option.None } else { Option.Some(res) }
+    if _INKO.is_null(res) { Option.None } else { Option.Some(res) }
   }
 
   # Returns the absolute value of `self`.
@@ -72,7 +72,7 @@ class builtin Float {
   #
   #     42.0.absolute  # => 42
   #     -42.0.absolute # => 42
-  fn pub absolute -> Self {
+  fn pub absolute -> Float {
     Float.from_bits(to_bits & MAX)
   }
 
@@ -82,7 +82,7 @@ class builtin Float {
   #
   #     42.0.opposite  # => -42
   #     -42.0.opposite # => 42
-  fn pub opposite -> Self {
+  fn pub opposite -> Float {
     Float.from_bits(to_bits ^ MIN)
   }
 
@@ -216,44 +216,44 @@ impl ToFloat for Float {
   }
 }
 
-impl Clone for Float {
-  fn pub clone -> Self {
-    _INKO.float_clone(self)
+impl Clone[Float] for Float {
+  fn pub clone -> Float {
+    self
   }
 }
 
-impl Add[Float] for Float {
-  fn pub +(other: ref Self) -> Self {
+impl Add[Float, Float] for Float {
+  fn pub +(other: ref Float) -> Float {
     _INKO.float_add(self, other)
   }
 }
 
-impl Subtract[Float] for Float {
-  fn pub -(other: ref Self) -> Self {
+impl Subtract[Float, Float] for Float {
+  fn pub -(other: ref Float) -> Float {
     _INKO.float_sub(self, other)
   }
 }
 
-impl Divide for Float {
-  fn pub /(other: ref Self) -> Self {
+impl Divide[Float, Float] for Float {
+  fn pub /(other: ref Float) -> Float {
     _INKO.float_div(self, other)
   }
 }
 
-impl Multiply for Float {
-  fn pub *(other: ref Self) -> Self {
+impl Multiply[Float, Float] for Float {
+  fn pub *(other: ref Float) -> Float {
     _INKO.float_mul(self, other)
   }
 }
 
-impl Modulo for Float {
-  fn pub %(other: ref Self) -> Self {
+impl Modulo[Float, Float] for Float {
+  fn pub %(other: ref Float) -> Float {
     _INKO.float_mod(self, other)
   }
 }
 
-impl Compare for Float {
-  fn pub cmp(other: ref Self) -> Ordering {
+impl Compare[Float] for Float {
+  fn pub cmp(other: ref Float) -> Ordering {
     if self > other {
       Ordering.Greater
     } else if self < other {
@@ -263,25 +263,25 @@ impl Compare for Float {
     }
   }
 
-  fn pub <(other: ref Self) -> Bool {
+  fn pub <(other: ref Float) -> Bool {
     _INKO.float_lt(self, other)
   }
 
-  fn pub <=(other: ref Self) -> Bool {
+  fn pub <=(other: ref Float) -> Bool {
     _INKO.float_le(self, other)
   }
 
-  fn pub >(other: ref Self) -> Bool {
+  fn pub >(other: ref Float) -> Bool {
     _INKO.float_gt(self, other)
   }
 
-  fn pub >=(other: ref Self) -> Bool {
+  fn pub >=(other: ref Float) -> Bool {
     _INKO.float_ge(self, other)
   }
 }
 
-impl Equal for Float {
-  fn pub ==(other: ref Self) -> Bool {
+impl Equal[Float] for Float {
+  fn pub ==(other: ref Float) -> Bool {
     _INKO.float_eq(self, other)
   }
 }

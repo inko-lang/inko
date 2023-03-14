@@ -9,8 +9,8 @@ class pub enum Ordering {
   case Greater
 }
 
-impl Equal for Ordering {
-  fn pub ==(other: ref Self) -> Bool {
+impl Equal[Ordering] for Ordering {
+  fn pub ==(other: ref Ordering) -> Bool {
     match self {
       case Less -> match other {
         case Less -> true
@@ -39,7 +39,7 @@ impl Format for Ordering {
 }
 
 # A type that can be compared to another type for a sort-order.
-trait pub Compare {
+trait pub Compare[T] {
   # Returns the ordering between `self` and the given argument.
   #
   # The returned value should be as follows:
@@ -49,10 +49,10 @@ trait pub Compare {
   # | `a == b`   | `Ordering.Equal`
   # | `a > b`    | `Ordering.Greater`
   # | `a < b`    | `Ordering.Less`
-  fn pub cmp(other: ref Self) -> Ordering
+  fn pub cmp(other: ref T) -> Ordering
 
   # Returns `true` if `self` is lower than the given argument.
-  fn pub <(other: ref Self) -> Bool {
+  fn pub <(other: ref T) -> Bool {
     match cmp(other) {
       case Less -> true
       case _ -> false
@@ -60,7 +60,7 @@ trait pub Compare {
   }
 
   # Returns `true` if `self` is lower than or equal to the given argument.
-  fn pub <=(other: ref Self) -> Bool {
+  fn pub <=(other: ref T) -> Bool {
     match cmp(other) {
       case Less or Equal -> true
       case _ -> false
@@ -68,7 +68,7 @@ trait pub Compare {
   }
 
   # Returns `true` if `self` is greater than the given argument.
-  fn pub >(other: ref Self) -> Bool {
+  fn pub >(other: ref T) -> Bool {
     match cmp(other) {
       case Greater -> true
       case _ -> false
@@ -76,7 +76,7 @@ trait pub Compare {
   }
 
   # Returns `true` if `self` is equal to or greater than the given argument.
-  fn pub >=(other: ref Self) -> Bool {
+  fn pub >=(other: ref T) -> Bool {
     match cmp(other) {
       case Greater or Equal -> true
       case _ -> false
@@ -85,7 +85,7 @@ trait pub Compare {
 }
 
 # A type that can be compared for equality.
-trait pub Equal {
+trait pub Equal[T] {
   # Returns `True` if `self` and the given object are equal to each other.
   #
   # This operator is used to perform structural equality. This means two objects
@@ -93,10 +93,10 @@ trait pub Equal {
   # their structure is equal. For example, two different arrays may be
   # considered to have structural equality if they contain the exact same
   # values.
-  fn pub ==(other: ref Self) -> Bool
+  fn pub ==(other: ref T) -> Bool
 
   # Returns `True` if `self` and the given object are not equal to each other.
-  fn pub !=(other: ref Self) -> Bool {
+  fn pub !=(other: ref T) -> Bool {
     (self == other).false?
   }
 }
@@ -114,7 +114,7 @@ trait pub Contains[T] {
 #     import std::cmp::(min)
 #
 #     min(10, 5) # => 5
-fn pub min[T: Compare](a: T, b: T) -> T {
+fn pub min[T: Compare[T]](a: T, b: T) -> T {
   if a <= b { a } else { b }
 }
 
@@ -125,6 +125,6 @@ fn pub min[T: Compare](a: T, b: T) -> T {
 #     import std::cmp::(max)
 #
 #     max(10, 5) # => 10
-fn pub max[T: Compare](a: T, b: T) -> T {
+fn pub max[T: Compare[T]](a: T, b: T) -> T {
   if a >= b { a } else { b }
 }

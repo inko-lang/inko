@@ -26,8 +26,8 @@ class pub DefaultFormatter {
   let @buffer: StringBuffer
   let @nesting: Int
 
-  fn pub static new -> Self {
-    Self { @buffer = StringBuffer.new, @nesting = 0 }
+  fn pub static new -> DefaultFormatter {
+    DefaultFormatter { @buffer = StringBuffer.new, @nesting = 0 }
   }
 }
 

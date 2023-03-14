@@ -153,18 +153,6 @@ impl Node for Constant {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct Async {
-    pub expression: Expression,
-    pub location: SourceLocation,
-}
-
-impl Node for Async {
-    fn location(&self) -> &SourceLocation {
-        &self.location
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
 pub struct Call {
     pub receiver: Option<Expression>,
     pub name: Identifier,
@@ -547,6 +535,7 @@ pub struct ReopenClass {
     pub class_name: Constant,
     pub body: ImplementationExpressions,
     pub location: SourceLocation,
+    pub bounds: Option<TypeBounds>,
 }
 
 impl Node for ReopenClass {
@@ -556,9 +545,36 @@ impl Node for ReopenClass {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+pub enum Requirement {
+    Trait(TypeName),
+    Mutable(SourceLocation),
+}
+
+impl Node for Requirement {
+    fn location(&self) -> &SourceLocation {
+        match self {
+            Requirement::Trait(n) => &n.location,
+            Requirement::Mutable(loc) => loc,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct Requirements {
+    pub values: Vec<Requirement>,
+    pub location: SourceLocation,
+}
+
+impl Node for Requirements {
+    fn location(&self) -> &SourceLocation {
+        &self.location
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub struct TypeBound {
     pub name: Constant,
-    pub requirements: TypeNames,
+    pub requirements: Requirements,
     pub location: SourceLocation,
 }
 
@@ -651,7 +667,6 @@ pub enum Expression {
     True(Box<True>),
     False(Box<False>),
     Nil(Box<Nil>),
-    Async(Box<Async>),
     ClassLiteral(Box<ClassLiteral>),
     Scope(Box<Scope>),
     Array(Box<Array>),
@@ -684,7 +699,6 @@ impl Node for Expression {
             Expression::AssignSetter(ref typ) => typ.location(),
             Expression::AssignVariable(ref typ) => typ.location(),
             Expression::ReplaceVariable(ref typ) => typ.location(),
-            Expression::Async(ref typ) => typ.location(),
             Expression::Binary(ref typ) => typ.location(),
             Expression::BinaryAssignField(ref typ) => typ.location(),
             Expression::BinaryAssignSetter(ref typ) => typ.location(),

@@ -41,20 +41,20 @@ impl ToString for Bool {
   }
 }
 
-impl Clone for Bool {
-  fn pub clone -> Self {
+impl Clone[Bool] for Bool {
+  fn pub clone -> Bool {
     if self { true } else { false }
   }
 }
 
-impl Equal for Bool {
-  fn pub ==(other: ref Self) -> Bool {
+impl Equal[Bool] for Bool {
+  fn pub ==(other: ref Bool) -> Bool {
     _INKO.object_eq(self, other)
   }
 }
 
-impl Compare for Bool {
-  fn pub cmp(other: ref Self) -> Ordering {
+impl Compare[Bool] for Bool {
+  fn pub cmp(other: ref Bool) -> Ordering {
     to_int.cmp(other.to_int)
   }
 }

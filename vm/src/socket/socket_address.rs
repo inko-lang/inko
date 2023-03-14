@@ -4,27 +4,24 @@ use socket2::SockAddr;
 use {
     libc::sockaddr_un,
     std::ffi::OsStr,
+    std::mem::transmute,
     std::os::{raw::c_char, unix::ffi::OsStrExt},
 };
 
 #[cfg(unix)]
 #[cfg_attr(feature = "cargo-clippy", allow(clippy::uninit_assumed_init))]
-fn sun_path_offset() -> usize {
-    use std::mem::MaybeUninit;
-
-    let addr: sockaddr_un = unsafe { MaybeUninit::uninit().assume_init() };
-    let base = &addr as *const _ as usize;
-    let path = &addr.sun_path as *const _ as usize;
+fn sun_path_offset(addr: &sockaddr_un) -> usize {
+    let base = addr as *const sockaddr_un as usize;
+    let path = &addr.sun_path as *const c_char as usize;
 
     path - base
 }
 
 #[cfg(unix)]
 fn unix_socket_path(sockaddr: &SockAddr) -> String {
-    let len = sockaddr.len() as usize - sun_path_offset();
-    let raw_addr = unsafe { &*(sockaddr.as_ptr() as *mut sockaddr_un) };
-    let path =
-        unsafe { &*(&raw_addr.sun_path as *const [c_char] as *const [u8]) };
+    let raw_addr = unsafe { &*(sockaddr.as_ptr() as *const sockaddr_un) };
+    let len = sockaddr.len() as usize - sun_path_offset(raw_addr);
+    let path = unsafe { transmute::<&[c_char], &[u8]>(&raw_addr.sun_path) };
 
     if len == 0 || (cfg!(not(target_os = "linux")) && raw_addr.sun_path[0] == 0)
     {
@@ -71,5 +68,22 @@ impl SocketAddress {
                 None => Err("The address family isn't supported".to_string()),
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[cfg(unix)]
+    fn test_unix_socket_path() {
+        let path1 = unix_socket_path(&SockAddr::unix("foo.sock").unwrap());
+        let path2 = unix_socket_path(&SockAddr::unix("").unwrap());
+        let path3 = unix_socket_path(&SockAddr::unix("\0").unwrap());
+
+        assert_eq!(path1, "foo.sock".to_string());
+        assert_eq!(path2, String::new());
+        assert_eq!(path3, String::new());
     }
 }

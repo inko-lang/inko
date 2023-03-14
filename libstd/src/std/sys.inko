@@ -173,8 +173,8 @@ class pub Command {
   #     import std::sys::Command
   #
   #     Command.new('/usr/bin/ls')
-  fn pub static new(program: IntoString) -> Self {
-    Self {
+  fn pub static new(program: IntoString) -> Command {
+    Command {
       @program = program.into_string,
       @stdin = Stream.Inherit,
       @stdout = Stream.Inherit,
@@ -321,8 +321,8 @@ class pub ExitStatus {
   # The raw exit code.
   let @code: Int
 
-  fn pub static new(code: Int) -> Self {
-    Self { @code = code }
+  fn pub static new(code: Int) -> ExitStatus {
+    ExitStatus { @code = code }
   }
 
   # Returns `True` if the status signals success.
@@ -349,8 +349,8 @@ class pub Stdin {
   # The child process the stream is connected to.
   let @process: ref ChildProcess
 
-  fn pub static new(process: ref ChildProcess) -> Self {
-    Self { @process = process }
+  fn pub static new(process: ref ChildProcess) -> Stdin {
+    Stdin { @process = process }
   }
 }
 
@@ -391,8 +391,8 @@ class pub Stdout {
   # The child process the stream is connected to.
   let @process: ref ChildProcess
 
-  fn pub static new(process: ref ChildProcess) -> Self {
-    Self { @process = process }
+  fn pub static new(process: ref ChildProcess) -> Stdout {
+    Stdout { @process = process }
   }
 }
 
@@ -417,8 +417,8 @@ class pub Stderr {
   # The child process the stream is connected to.
   let @process: ref ChildProcess
 
-  fn pub static new(process: ref ChildProcess) -> Self {
-    Self { @process = process }
+  fn pub static new(process: ref ChildProcess) -> Stderr {
+    Stderr { @process = process }
   }
 }
 

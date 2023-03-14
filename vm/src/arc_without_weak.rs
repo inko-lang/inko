@@ -20,6 +20,7 @@ pub(crate) struct Inner<T> {
 }
 
 /// A thread-safe reference counted pointer.
+#[repr(C)]
 pub(crate) struct ArcWithoutWeak<T> {
     inner: NonNull<Inner<T>>,
 }

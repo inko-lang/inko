@@ -24,7 +24,7 @@ import std::hash::(Hash, Hasher)
 import std::iter::(Enum, Iter)
 
 # A range of integers.
-trait pub Range: Contains[Int] + Equal + Hash + Format {
+trait pub Range: Contains[Int] + Hash + Format {
   # Returns the first value in the range.
   fn pub start -> Int
 
@@ -56,8 +56,8 @@ class pub InclusiveRange {
   let pub @end: Int
 
   # Returns a new `InclusiveRange` over the given values.
-  fn pub static new(start: Int, end: Int) -> Self {
-    Self { @start = start, @end = end }
+  fn pub static new(start: Int, end: Int) -> InclusiveRange {
+    InclusiveRange { @start = start, @end = end }
   }
 }
 
@@ -121,7 +121,7 @@ impl Contains[Int] for InclusiveRange {
   }
 }
 
-impl Equal for InclusiveRange {
+impl Equal[InclusiveRange] for InclusiveRange {
   # Returns `true` if `self` and `other` are identical.
   #
   # # Examples
@@ -133,7 +133,7 @@ impl Equal for InclusiveRange {
   # Comparing two different ranges:
   #
   #     1.to(10) == 1.to(5) # => false
-  fn pub ==(other: ref Self) -> Bool {
+  fn pub ==(other: ref InclusiveRange) -> Bool {
     @start == other.start and @end == other.end
   }
 }
@@ -162,8 +162,8 @@ class pub ExclusiveRange {
   let pub @end: Int
 
   # Returns a new `ExclusiveRange` over the given values.
-  fn pub static new(start: Int, end: Int) -> Self {
-    Self { @start = start, @end = end }
+  fn pub static new(start: Int, end: Int) -> ExclusiveRange {
+    ExclusiveRange { @start = start, @end = end }
   }
 }
 
@@ -227,7 +227,7 @@ impl Contains[Int] for ExclusiveRange {
   }
 }
 
-impl Equal for ExclusiveRange {
+impl Equal[ExclusiveRange] for ExclusiveRange {
   # Returns `true` if `self` and `other` are identical.
   #
   # # Examples
@@ -239,7 +239,7 @@ impl Equal for ExclusiveRange {
   # Comparing two different ranges:
   #
   #     1.until(10) == 1.until(5) # => false
-  fn pub ==(other: ref Self) -> Bool {
+  fn pub ==(other: ref ExclusiveRange) -> Bool {
     @start == other.start and @end == other.end
   }
 }

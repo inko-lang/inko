@@ -5,8 +5,6 @@ use compiler::compiler::{CompileError, Compiler};
 use compiler::config::Config as CompilerConfig;
 use getopts::Options;
 use vm::config::Config;
-use vm::image::Image;
-use vm::machine::Machine;
 
 const USAGE: &str = "Usage: inko test [OPTIONS]
 
@@ -53,12 +51,14 @@ pub fn run(arguments: &[String]) -> Result<i32, Error> {
 
     match result {
         Ok(bytes) => {
-            let config = Config::from_env();
-            let image = Image::load_bytes(config, bytes).map_err(|e| {
-                Error::generic(format!("Failed to parse bytecode image: {}", e))
-            })?;
-
-            Machine::boot(image, arguments).map_err(Error::generic)
+            // TODO: compile to object file and run
+            todo!("make 'inko test' work again")
+            // let config = Config::from_env();
+            // let image = Image::load_bytes(config, bytes).map_err(|e| {
+            //     Error::generic(format!("Failed to parse bytecode image: {}", e))
+            // })?;
+            //
+            // Machine::boot(image, arguments).map_err(Error::generic)
         }
         Err(CompileError::Invalid) => Ok(1),
         Err(CompileError::Internal(msg)) => Err(Error::generic(msg)),

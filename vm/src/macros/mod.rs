@@ -21,3 +21,25 @@ macro_rules! init {
         }
     };
 }
+
+#[cfg(target_os = "macos")]
+macro_rules! asm_func {
+    ($name: expr, $($body: tt)*) => {
+        std::arch::global_asm!(concat!(
+            ".global _", $name, "\n",
+            "_", $name, ":\n",
+            $($body)*
+        ));
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+macro_rules! asm_func {
+    ($name: expr, $($body: tt)*) => {
+        std::arch::global_asm!(concat!(
+            ".global ", $name, "\n",
+            $name, ":\n",
+            $($body)*
+        ));
+    }
+}

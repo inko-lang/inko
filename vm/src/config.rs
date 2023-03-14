@@ -2,8 +2,8 @@
 //!
 //! Various virtual machine settings that can be changed by the user, such as
 //! the number of threads to run.
+use crate::scheduler::number_of_cores;
 use std::env::var;
-use std::thread::available_parallelism;
 
 /// Sets a configuration field based on an environment variable.
 macro_rules! set_from_env {
@@ -18,10 +18,6 @@ macro_rules! set_from_env {
     }};
 }
 
-/// The default number of reductions to consume before a process suspends
-/// itself.
-const DEFAULT_REDUCTIONS: u16 = 1000;
-
 /// The default number of network poller threads to use.
 ///
 /// We default to one thread because for most setups this is probably more than
@@ -31,6 +27,12 @@ const DEFAULT_NETPOLL_THREADS: u8 = 1;
 /// The maximum number of netpoll threads that are allowed.
 const MAX_NETPOLL_THREADS: u8 = 127;
 
+/// The default size of each process' stack in bytes.
+///
+/// The default size is chosen as we believe it to be large enough for most
+/// cases, and to ensure foreign function calls don't overflow the stack.
+const DEFAULT_STACK_SIZE: u32 = 1 * 1024 * 1024;
+
 /// Structure containing the configuration settings for the virtual machine.
 pub struct Config {
     /// The number of process threads to run.
@@ -39,6 +41,9 @@ pub struct Config {
     /// The number of backup process threads to spawn.
     pub backup_threads: u16,
 
+    /// The size of each process' stack in bytes.
+    pub stack_size: u32,
+
     /// The number of network poller threads to use.
     ///
     /// While this value is stored as an u8, it's limited to a maximum of 127.
@@ -46,31 +51,27 @@ pub struct Config {
     /// and use the value -1 to signal a file descriptor isn't registered with
     /// any poller.
     pub netpoll_threads: u8,
-
-    /// The number of reductions a process can perform before being suspended.
-    pub reductions: u16,
 }
 
 impl Config {
-    pub fn new() -> Config {
-        let cpu_count =
-            available_parallelism().map(|v| v.get()).unwrap_or(1) as u16;
+    pub(crate) fn new() -> Config {
+        let cpu_count = number_of_cores() as u16;
 
         Config {
             process_threads: cpu_count,
             backup_threads: cpu_count * 4,
             netpoll_threads: DEFAULT_NETPOLL_THREADS,
-            reductions: DEFAULT_REDUCTIONS,
+            stack_size: DEFAULT_STACK_SIZE,
         }
     }
 
-    pub fn from_env() -> Config {
+    pub(crate) fn from_env() -> Config {
         let mut config = Config::new();
 
         set_from_env!(config, process_threads, "PROCESS_THREADS", u16);
         set_from_env!(config, backup_threads, "BACKUP_THREADS", u16);
-        set_from_env!(config, reductions, "REDUCTIONS", u16);
         set_from_env!(config, netpoll_threads, "NETPOLL_THREADS", u8);
+        set_from_env!(config, stack_size, "STACK_SIZE", u32);
 
         config.verify();
         config
@@ -101,7 +102,6 @@ mod tests {
         let config = Config::new();
 
         assert!(config.process_threads >= 1);
-        assert_eq!(config.reductions, DEFAULT_REDUCTIONS);
     }
 
     #[test]
@@ -109,14 +109,8 @@ mod tests {
         let mut cfg = Config::new();
 
         set_from_env!(cfg, process_threads, "FOO", u16);
-        set_from_env!(cfg, reductions, "BAR", u16);
 
         assert_eq!(cfg.process_threads, 1);
-        assert_eq!(cfg.reductions, DEFAULT_REDUCTIONS);
-
-        set_from_env!(cfg, reductions, "BAZ", u16);
-
-        assert_eq!(cfg.reductions, DEFAULT_REDUCTIONS);
     }
 
     #[test]

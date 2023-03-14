@@ -3,11 +3,11 @@
 //! MIR is used for various optimisations, analysing moves of values, compiling
 //! pattern matching into decision trees, and more.
 use ast::source_location::SourceLocation;
-use bytecode::{BuiltinFunction, Opcode};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use types::collections::IndexMap;
+use types::BuiltinFunction;
 
 /// The number of reductions to perform after calling a method.
 const CALL_COST: u16 = 1;
@@ -33,7 +33,7 @@ impl Registers {
     pub(crate) fn alloc(&mut self, value_type: types::TypeRef) -> RegisterId {
         let id = self.values.len();
 
-        self.values.push(Register { value_type });
+        self.values.push(Register { value_type, kind: RegisterKind::Regular });
         RegisterId(id)
     }
 
@@ -45,8 +45,12 @@ impl Registers {
         self.get(register).value_type
     }
 
-    pub(crate) fn len(&self) -> usize {
-        self.values.len()
+    pub(crate) fn mark_as_result(&mut self, register: RegisterId) {
+        self.values[register.0].kind = RegisterKind::Result;
+    }
+
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &Register> {
+        self.values.iter()
     }
 }
 
@@ -169,22 +173,36 @@ impl Block {
 
     pub(crate) fn branch_result(
         &mut self,
+        result: RegisterId,
         ok: BlockId,
         error: BlockId,
         location: LocationId,
     ) {
         self.instructions.push(Instruction::BranchResult(Box::new(
-            BranchResult { ok, error, location },
+            BranchResult { result, ok, error, location },
         )));
     }
 
-    pub(crate) fn jump_table(
+    pub(crate) fn switch(
         &mut self,
         register: RegisterId,
         blocks: Vec<BlockId>,
         location: LocationId,
     ) {
-        self.instructions.push(Instruction::JumpTable(Box::new(JumpTable {
+        self.instructions.push(Instruction::Switch(Box::new(Switch {
+            register,
+            blocks,
+            location,
+        })));
+    }
+
+    pub(crate) fn switch_kind(
+        &mut self,
+        register: RegisterId,
+        blocks: Vec<BlockId>,
+        location: LocationId,
+    ) {
+        self.instructions.push(Instruction::SwitchKind(Box::new(SwitchKind {
             register,
             blocks,
             location,
@@ -207,30 +225,6 @@ impl Block {
     ) {
         self.instructions
             .push(Instruction::Throw(Box::new(Throw { register, location })));
-    }
-
-    pub(crate) fn return_async_value(
-        &mut self,
-        register: RegisterId,
-        value: RegisterId,
-        location: LocationId,
-    ) {
-        self.instructions.push(Instruction::ReturnAsync(Box::new(
-            ReturnAsync { register, value, location },
-        )));
-    }
-
-    pub(crate) fn throw_async_value(
-        &mut self,
-        register: RegisterId,
-        value: RegisterId,
-        location: LocationId,
-    ) {
-        self.instructions.push(Instruction::ThrowAsync(Box::new(ThrowAsync {
-            register,
-            value,
-            location,
-        })));
     }
 
     pub(crate) fn finish(&mut self, terminate: bool, location: LocationId) {
@@ -323,19 +317,6 @@ impl Block {
         )));
     }
 
-    pub(crate) fn strings(
-        &mut self,
-        register: RegisterId,
-        values: Vec<RegisterId>,
-        location: LocationId,
-    ) {
-        self.instructions.push(Instruction::Strings(Box::new(Strings {
-            register,
-            values,
-            location,
-        })));
-    }
-
     pub(crate) fn move_register(
         &mut self,
         target: RegisterId,
@@ -345,6 +326,19 @@ impl Block {
         self.instructions.push(Instruction::MoveRegister(Box::new(
             MoveRegister { source, target, location },
         )));
+    }
+
+    pub(crate) fn reference(
+        &mut self,
+        register: RegisterId,
+        value: RegisterId,
+        location: LocationId,
+    ) {
+        self.instructions.push(Instruction::Reference(Box::new(Reference {
+            register,
+            value,
+            location,
+        })));
     }
 
     pub(crate) fn increment(
@@ -371,14 +365,26 @@ impl Block {
         })));
     }
 
-    pub(crate) fn decrement_atomic(
+    pub(crate) fn increment_atomic(
         &mut self,
         register: RegisterId,
         value: RegisterId,
         location: LocationId,
     ) {
+        self.instructions.push(Instruction::IncrementAtomic(Box::new(
+            IncrementAtomic { register, value, location },
+        )));
+    }
+
+    pub(crate) fn decrement_atomic(
+        &mut self,
+        register: RegisterId,
+        if_true: BlockId,
+        if_false: BlockId,
+        location: LocationId,
+    ) {
         self.instructions.push(Instruction::DecrementAtomic(Box::new(
-            DecrementAtomic { register, value, location },
+            DecrementAtomic { register, if_true, if_false, location },
         )));
     }
 
@@ -433,38 +439,29 @@ impl Block {
         })));
     }
 
-    pub(crate) fn ref_kind(
-        &mut self,
-        register: RegisterId,
-        value: RegisterId,
-        location: LocationId,
-    ) {
-        self.instructions.push(Instruction::RefKind(Box::new(RefKind {
-            register,
-            value,
-            location,
-        })));
-    }
-
     pub(crate) fn move_result(
         &mut self,
         register: RegisterId,
+        result: RegisterId,
         location: LocationId,
     ) {
         self.instructions.push(Instruction::MoveResult(Box::new(MoveResult {
             register,
+            result,
             location,
         })));
     }
 
     pub(crate) fn call_static(
         &mut self,
+        register: RegisterId,
         class: types::ClassId,
         method: types::MethodId,
         arguments: Vec<RegisterId>,
         location: LocationId,
     ) {
         self.instructions.push(Instruction::CallStatic(Box::new(CallStatic {
+            register,
             class,
             method,
             arguments,
@@ -472,38 +469,42 @@ impl Block {
         })));
     }
 
-    pub(crate) fn call_virtual(
+    pub(crate) fn call_instance(
         &mut self,
+        register: RegisterId,
         receiver: RegisterId,
         method: types::MethodId,
         arguments: Vec<RegisterId>,
         location: LocationId,
     ) {
-        self.instructions.push(Instruction::CallVirtual(Box::new(
-            CallVirtual { receiver, method, arguments, location },
+        self.instructions.push(Instruction::CallInstance(Box::new(
+            CallInstance { register, receiver, method, arguments, location },
         )));
     }
 
     pub(crate) fn call_dynamic(
         &mut self,
+        register: RegisterId,
         receiver: RegisterId,
         method: types::MethodId,
         arguments: Vec<RegisterId>,
         location: LocationId,
     ) {
         self.instructions.push(Instruction::CallDynamic(Box::new(
-            CallDynamic { receiver, method, arguments, location },
+            CallDynamic { register, receiver, method, arguments, location },
         )));
     }
 
     pub(crate) fn call_closure(
         &mut self,
+        register: RegisterId,
         receiver: RegisterId,
         arguments: Vec<RegisterId>,
+        throws: bool,
         location: LocationId,
     ) {
         self.instructions.push(Instruction::CallClosure(Box::new(
-            CallClosure { receiver, arguments, location },
+            CallClosure { register, receiver, arguments, throws, location },
         )));
     }
 
@@ -519,27 +520,17 @@ impl Block {
 
     pub(crate) fn call_builtin(
         &mut self,
-        id: BuiltinFunction,
+        register: RegisterId,
+        name: BuiltinFunction,
         arguments: Vec<RegisterId>,
         location: LocationId,
     ) {
         self.instructions.push(Instruction::CallBuiltin(Box::new(
-            CallBuiltin { id, arguments, location },
+            CallBuiltin { register, name, arguments, location },
         )));
     }
 
-    pub(crate) fn raw_instruction(
-        &mut self,
-        opcode: Opcode,
-        arguments: Vec<RegisterId>,
-        location: LocationId,
-    ) {
-        self.instructions.push(Instruction::RawInstruction(Box::new(
-            RawInstruction { opcode, arguments, location },
-        )));
-    }
-
-    pub(crate) fn send_and_wait(
+    pub(crate) fn send(
         &mut self,
         receiver: RegisterId,
         method: types::MethodId,
@@ -547,40 +538,6 @@ impl Block {
         location: LocationId,
     ) {
         self.instructions.push(Instruction::Send(Box::new(Send {
-            receiver,
-            method,
-            arguments,
-            location,
-            wait: true,
-        })));
-    }
-
-    pub(crate) fn send_and_forget(
-        &mut self,
-        receiver: RegisterId,
-        method: types::MethodId,
-        arguments: Vec<RegisterId>,
-        location: LocationId,
-    ) {
-        self.instructions.push(Instruction::Send(Box::new(Send {
-            receiver,
-            method,
-            arguments,
-            location,
-            wait: false,
-        })));
-    }
-
-    pub(crate) fn send_async(
-        &mut self,
-        register: RegisterId,
-        receiver: RegisterId,
-        method: types::MethodId,
-        arguments: Vec<RegisterId>,
-        location: LocationId,
-    ) {
-        self.instructions.push(Instruction::SendAsync(Box::new(SendAsync {
-            register,
             receiver,
             method,
             arguments,
@@ -631,6 +588,19 @@ impl Block {
         })));
     }
 
+    pub(crate) fn spawn(
+        &mut self,
+        register: RegisterId,
+        class: types::ClassId,
+        location: LocationId,
+    ) {
+        self.instructions.push(Instruction::Spawn(Box::new(Spawn {
+            register,
+            class,
+            location,
+        })));
+    }
+
     pub(crate) fn get_constant(
         &mut self,
         register: RegisterId,
@@ -640,36 +610,6 @@ impl Block {
         self.instructions.push(Instruction::GetConstant(Box::new(
             GetConstant { register, id, location },
         )));
-    }
-
-    pub(crate) fn string_eq(
-        &mut self,
-        register: RegisterId,
-        left: RegisterId,
-        right: RegisterId,
-        location: LocationId,
-    ) {
-        self.instructions.push(Instruction::StringEq(Box::new(StringEq {
-            register,
-            left,
-            right,
-            location,
-        })))
-    }
-
-    pub(crate) fn int_eq(
-        &mut self,
-        register: RegisterId,
-        left: RegisterId,
-        right: RegisterId,
-        location: LocationId,
-    ) {
-        self.instructions.push(Instruction::IntEq(Box::new(IntEq {
-            register,
-            left,
-            right,
-            location,
-        })))
     }
 
     pub(crate) fn reduce(&mut self, amount: u16, location: LocationId) {
@@ -686,7 +626,9 @@ impl Block {
 pub(crate) enum Constant {
     Int(i64),
     Float(f64),
+    // TODO: use Rc to make cloning cheaper
     String(String),
+    // TODO: use Rc to make cloning cheaper
     Array(Vec<Constant>),
 }
 
@@ -735,6 +677,17 @@ impl fmt::Display for Constant {
     }
 }
 
+/// A flag signalling what kind of register a register is.
+#[derive(Clone, Copy)]
+pub(crate) enum RegisterKind {
+    /// A regular register holding an Inko value.
+    Regular,
+
+    /// A register used for storing a runtime Result value, used for error
+    /// handling.
+    Result,
+}
+
 /// A MIR register/temporary variable.
 ///
 /// Registers may be introduced through user-defined local variables,
@@ -743,6 +696,7 @@ impl fmt::Display for Constant {
 #[derive(Clone)]
 pub(crate) struct Register {
     pub(crate) value_type: types::TypeRef,
+    pub(crate) kind: RegisterKind,
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
@@ -756,13 +710,15 @@ pub(crate) struct Branch {
     pub(crate) location: LocationId,
 }
 
-/// A jump table/switch instruction.
-///
-/// This instruction expects a list of blocks to jump to for their corresponding
-/// indexes/values. As such, it currently only supports monotonically increasing
-/// values that start at zero.
 #[derive(Clone)]
-pub(crate) struct JumpTable {
+pub(crate) struct Switch {
+    pub(crate) register: RegisterId,
+    pub(crate) blocks: Vec<BlockId>,
+    pub(crate) location: LocationId,
+}
+
+#[derive(Clone)]
+pub(crate) struct SwitchKind {
     pub(crate) register: RegisterId,
     pub(crate) blocks: Vec<BlockId>,
     pub(crate) location: LocationId,
@@ -770,6 +726,7 @@ pub(crate) struct JumpTable {
 
 #[derive(Clone)]
 pub(crate) struct BranchResult {
+    pub(crate) result: RegisterId,
     pub(crate) ok: BlockId,
     pub(crate) error: BlockId,
     pub(crate) location: LocationId,
@@ -781,7 +738,6 @@ pub(crate) struct Goto {
     pub(crate) location: LocationId,
 }
 
-/// Moves a value from one register to another.
 #[derive(Clone)]
 pub(crate) struct MoveRegister {
     pub(crate) source: RegisterId,
@@ -789,58 +745,13 @@ pub(crate) struct MoveRegister {
     pub(crate) location: LocationId,
 }
 
-/// Checks if the reference count of a register is zero.
-///
-/// If the value in the register has any references left, a runtime panic is
-/// produced.
 #[derive(Clone)]
 pub(crate) struct CheckRefs {
     pub(crate) register: RegisterId,
     pub(crate) location: LocationId,
 }
 
-/// Returns the kind of reference we're dealing with.
-///
-/// The following values may be produced:
-///
-/// - `0`: owned
-/// - `1`: a regular reference
-/// - `2`: an atomic type (either a reference or owned)
-#[derive(Clone)]
-pub(crate) struct RefKind {
-    pub(crate) register: RegisterId,
-    pub(crate) value: RegisterId,
-    pub(crate) location: LocationId,
-}
-
 /// Drops a value according to its type.
-///
-/// This instruction is essentially a macro that expands into one of the
-/// following (given the instruction `drop(value)`):
-///
-/// For an owned value, it checks the reference count and calls the value's
-/// dropper method:
-///
-///     check_refs(value)
-///     value.$dropper()
-///
-/// For a regular reference, it decrements the reference count:
-///
-///     decrement(value)
-///
-/// For a value that uses atomic reference counting, it decrements the count.
-/// If the new count is zero, the dropper method is called:
-///
-///     if decrement_atomic(value) {
-///       value.$dropper()
-///     }
-///
-/// For a process it does the same as an atomically reference counted value,
-/// except the dropper method is scheduled asynchronously:
-///
-///     if decrement_atomic(value) {
-///       async value.$dropper()
-///     }
 ///
 /// If `dropper` is set to `false`, the dropper method isn't called for a value
 /// no longer in use.
@@ -867,9 +778,6 @@ pub(crate) struct Free {
 pub(crate) enum CloneKind {
     Float,
     Int,
-    Process,
-    String,
-    Other,
 }
 
 /// Clones a value type.
@@ -884,20 +792,13 @@ pub(crate) struct Clone {
     pub(crate) location: LocationId,
 }
 
-/// Increments the reference count of a value.
-///
-/// For regular values this uses regular reference counting. For values that use
-/// atomic reference counting (e.g. processes), this instruction uses atomic
-/// reference counting.
-///
-/// If used on a type parameter, this instruction compiles down to the
-/// equivalent of:
-///
-///     if atomic(value) {
-///       increment_atomic(value)
-///     } else {
-///       increment(value)
-///     }
+#[derive(Clone)]
+pub(crate) struct Reference {
+    pub(crate) register: RegisterId,
+    pub(crate) value: RegisterId,
+    pub(crate) location: LocationId,
+}
+
 #[derive(Clone)]
 pub(crate) struct Increment {
     pub(crate) register: RegisterId,
@@ -912,16 +813,24 @@ pub(crate) struct Decrement {
 }
 
 #[derive(Clone)]
-pub(crate) struct DecrementAtomic {
+pub(crate) struct IncrementAtomic {
     pub(crate) register: RegisterId,
     pub(crate) value: RegisterId,
     pub(crate) location: LocationId,
 }
 
-/// Moves the result of the last method call into a register.
+#[derive(Clone)]
+pub(crate) struct DecrementAtomic {
+    pub(crate) register: RegisterId,
+    pub(crate) if_true: BlockId,
+    pub(crate) if_false: BlockId,
+    pub(crate) location: LocationId,
+}
+
 #[derive(Clone)]
 pub(crate) struct MoveResult {
     pub(crate) register: RegisterId,
+    pub(crate) result: RegisterId,
     pub(crate) location: LocationId,
 }
 
@@ -963,20 +872,6 @@ pub(crate) struct Throw {
 }
 
 #[derive(Clone)]
-pub(crate) struct ReturnAsync {
-    pub(crate) register: RegisterId,
-    pub(crate) value: RegisterId,
-    pub(crate) location: LocationId,
-}
-
-#[derive(Clone)]
-pub(crate) struct ThrowAsync {
-    pub(crate) register: RegisterId,
-    pub(crate) value: RegisterId,
-    pub(crate) location: LocationId,
-}
-
-#[derive(Clone)]
 pub(crate) struct IntLiteral {
     pub(crate) register: RegisterId,
     pub(crate) value: i64,
@@ -998,14 +893,8 @@ pub(crate) struct StringLiteral {
 }
 
 #[derive(Clone)]
-pub(crate) struct Strings {
-    pub(crate) register: RegisterId,
-    pub(crate) values: Vec<RegisterId>,
-    pub(crate) location: LocationId,
-}
-
-#[derive(Clone)]
 pub(crate) struct CallStatic {
+    pub(crate) register: RegisterId,
     pub(crate) class: types::ClassId,
     pub(crate) method: types::MethodId,
     pub(crate) arguments: Vec<RegisterId>,
@@ -1013,7 +902,8 @@ pub(crate) struct CallStatic {
 }
 
 #[derive(Clone)]
-pub(crate) struct CallVirtual {
+pub(crate) struct CallInstance {
+    pub(crate) register: RegisterId,
     pub(crate) receiver: RegisterId,
     pub(crate) method: types::MethodId,
     pub(crate) arguments: Vec<RegisterId>,
@@ -1022,6 +912,7 @@ pub(crate) struct CallVirtual {
 
 #[derive(Clone)]
 pub(crate) struct CallDynamic {
+    pub(crate) register: RegisterId,
     pub(crate) receiver: RegisterId,
     pub(crate) method: types::MethodId,
     pub(crate) arguments: Vec<RegisterId>,
@@ -1030,37 +921,23 @@ pub(crate) struct CallDynamic {
 
 #[derive(Clone)]
 pub(crate) struct CallClosure {
+    pub(crate) register: RegisterId,
     pub(crate) receiver: RegisterId,
     pub(crate) arguments: Vec<RegisterId>,
+    pub(crate) throws: bool,
     pub(crate) location: LocationId,
 }
 
 #[derive(Clone)]
 pub(crate) struct CallBuiltin {
-    pub(crate) id: BuiltinFunction,
-    pub(crate) arguments: Vec<RegisterId>,
-    pub(crate) location: LocationId,
-}
-
-#[derive(Clone)]
-pub(crate) struct RawInstruction {
-    pub(crate) opcode: Opcode,
+    pub(crate) register: RegisterId,
+    pub(crate) name: BuiltinFunction,
     pub(crate) arguments: Vec<RegisterId>,
     pub(crate) location: LocationId,
 }
 
 #[derive(Clone)]
 pub(crate) struct Send {
-    pub(crate) receiver: RegisterId,
-    pub(crate) method: types::MethodId,
-    pub(crate) arguments: Vec<RegisterId>,
-    pub(crate) location: LocationId,
-    pub(crate) wait: bool,
-}
-
-#[derive(Clone)]
-pub(crate) struct SendAsync {
-    pub(crate) register: RegisterId,
     pub(crate) receiver: RegisterId,
     pub(crate) method: types::MethodId,
     pub(crate) arguments: Vec<RegisterId>,
@@ -1098,18 +975,9 @@ pub(crate) struct Allocate {
 }
 
 #[derive(Clone)]
-pub(crate) struct IntEq {
+pub(crate) struct Spawn {
     pub(crate) register: RegisterId,
-    pub(crate) left: RegisterId,
-    pub(crate) right: RegisterId,
-    pub(crate) location: LocationId,
-}
-
-#[derive(Clone)]
-pub(crate) struct StringEq {
-    pub(crate) register: RegisterId,
-    pub(crate) left: RegisterId,
-    pub(crate) right: RegisterId,
+    pub(crate) class: types::ClassId,
     pub(crate) location: LocationId,
 }
 
@@ -1134,7 +1002,8 @@ pub(crate) enum Instruction {
     AllocateArray(Box<AllocateArray>),
     Branch(Box<Branch>),
     BranchResult(Box<BranchResult>),
-    JumpTable(Box<JumpTable>),
+    Switch(Box<Switch>),
+    SwitchKind(Box<SwitchKind>),
     False(Box<FalseLiteral>),
     Float(Box<FloatLiteral>),
     Goto(Box<Goto>),
@@ -1144,34 +1013,29 @@ pub(crate) enum Instruction {
     Nil(Box<NilLiteral>),
     Return(Box<Return>),
     Throw(Box<Throw>),
-    ReturnAsync(Box<ReturnAsync>),
-    ThrowAsync(Box<ThrowAsync>),
     String(Box<StringLiteral>),
     True(Box<TrueLiteral>),
-    Strings(Box<Strings>),
     CallStatic(Box<CallStatic>),
-    CallVirtual(Box<CallVirtual>),
+    CallInstance(Box<CallInstance>),
     CallDynamic(Box<CallDynamic>),
     CallClosure(Box<CallClosure>),
     CallDropper(Box<CallDropper>),
     CallBuiltin(Box<CallBuiltin>),
     Send(Box<Send>),
-    SendAsync(Box<SendAsync>),
     GetField(Box<GetField>),
     SetField(Box<SetField>),
     CheckRefs(Box<CheckRefs>),
-    RefKind(Box<RefKind>),
     Drop(Box<Drop>),
     Free(Box<Free>),
     Clone(Box<Clone>),
+    Reference(Box<Reference>),
     Increment(Box<Increment>),
     Decrement(Box<Decrement>),
+    IncrementAtomic(Box<IncrementAtomic>),
     DecrementAtomic(Box<DecrementAtomic>),
-    RawInstruction(Box<RawInstruction>),
     Allocate(Box<Allocate>),
+    Spawn(Box<Spawn>),
     GetConstant(Box<GetConstant>),
-    IntEq(Box<IntEq>),
-    StringEq(Box<StringEq>),
     Reduce(Box<Reduce>),
     Finish(Box<Finish>),
 }
@@ -1181,7 +1045,8 @@ impl Instruction {
         match self {
             Instruction::Branch(ref v) => v.location,
             Instruction::BranchResult(ref v) => v.location,
-            Instruction::JumpTable(ref v) => v.location,
+            Instruction::Switch(ref v) => v.location,
+            Instruction::SwitchKind(ref v) => v.location,
             Instruction::False(ref v) => v.location,
             Instruction::True(ref v) => v.location,
             Instruction::Goto(ref v) => v.location,
@@ -1189,37 +1054,32 @@ impl Instruction {
             Instruction::MoveResult(ref v) => v.location,
             Instruction::Return(ref v) => v.location,
             Instruction::Throw(ref v) => v.location,
-            Instruction::ReturnAsync(ref v) => v.location,
-            Instruction::ThrowAsync(ref v) => v.location,
             Instruction::Nil(ref v) => v.location,
             Instruction::AllocateArray(ref v) => v.location,
             Instruction::Int(ref v) => v.location,
             Instruction::Float(ref v) => v.location,
             Instruction::String(ref v) => v.location,
-            Instruction::Strings(ref v) => v.location,
             Instruction::CallStatic(ref v) => v.location,
-            Instruction::CallVirtual(ref v) => v.location,
+            Instruction::CallInstance(ref v) => v.location,
             Instruction::CallDynamic(ref v) => v.location,
             Instruction::CallClosure(ref v) => v.location,
             Instruction::CallDropper(ref v) => v.location,
             Instruction::CallBuiltin(ref v) => v.location,
             Instruction::Send(ref v) => v.location,
-            Instruction::SendAsync(ref v) => v.location,
             Instruction::GetField(ref v) => v.location,
             Instruction::SetField(ref v) => v.location,
             Instruction::CheckRefs(ref v) => v.location,
-            Instruction::RefKind(ref v) => v.location,
             Instruction::Drop(ref v) => v.location,
             Instruction::Free(ref v) => v.location,
             Instruction::Clone(ref v) => v.location,
+            Instruction::Reference(ref v) => v.location,
             Instruction::Increment(ref v) => v.location,
             Instruction::Decrement(ref v) => v.location,
+            Instruction::IncrementAtomic(ref v) => v.location,
             Instruction::DecrementAtomic(ref v) => v.location,
-            Instruction::RawInstruction(ref v) => v.location,
             Instruction::Allocate(ref v) => v.location,
+            Instruction::Spawn(ref v) => v.location,
             Instruction::GetConstant(ref v) => v.location,
-            Instruction::IntEq(ref v) => v.location,
-            Instruction::StringEq(ref v) => v.location,
             Instruction::Reduce(ref v) => v.location,
             Instruction::Finish(ref v) => v.location,
         }
@@ -1235,13 +1095,25 @@ impl Instruction {
             }
             Instruction::BranchResult(ref v) => {
                 format!(
-                    "branch_result ok = b{}, error = b{}",
-                    v.ok.0, v.error.0
+                    "branch_result r{}, ok = b{}, error = b{}",
+                    v.result.0, v.ok.0, v.error.0
                 )
             }
-            Instruction::JumpTable(ref v) => {
+            Instruction::Switch(ref v) => {
                 format!(
-                    "jump_table r{}, {}",
+                    "switch r{}, {}",
+                    v.register.0,
+                    v.blocks
+                        .iter()
+                        .enumerate()
+                        .map(|(idx, block)| format!("{} = b{}", idx, block.0))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            }
+            Instruction::SwitchKind(ref v) => {
+                format!(
+                    "switch_kind r{}, {}",
                     v.register.0,
                     v.blocks
                         .iter()
@@ -1290,11 +1162,8 @@ impl Instruction {
             Instruction::CheckRefs(ref v) => {
                 format!("check_refs r{}", v.register.0)
             }
-            Instruction::RefKind(ref v) => {
-                format!("r{} = ref_kind r{}", v.register.0, v.value.0)
-            }
             Instruction::MoveResult(ref v) => {
-                format!("r{} = move_result", v.register.0)
+                format!("r{} = move_result r{}", v.register.0, v.result.0)
             }
             Instruction::Return(ref v) => {
                 format!("return r{}", v.register.0)
@@ -1302,32 +1171,28 @@ impl Instruction {
             Instruction::Throw(ref v) => {
                 format!("throw r{}", v.register.0)
             }
-            Instruction::ReturnAsync(ref v) => {
-                format!("r{} = async return r{}", v.register.0, v.value.0)
-            }
-            Instruction::ThrowAsync(ref v) => {
-                format!("r{} = async throw r{}", v.register.0, v.value.0)
-            }
             Instruction::Allocate(ref v) => {
                 format!("r{} = allocate {}", v.register.0, v.class.name(db))
+            }
+            Instruction::Spawn(ref v) => {
+                format!("r{} = spawn {}", v.register.0, v.class.name(db))
             }
             Instruction::AllocateArray(ref v) => {
                 format!("r{} = array [{}]", v.register.0, join(&v.values))
             }
-            Instruction::Strings(ref v) => {
-                format!("r{} = strings [{}]", v.register.0, join(&v.values))
-            }
             Instruction::CallStatic(ref v) => {
                 format!(
-                    "call_static {}.{}({})",
+                    "r{} = call_static {}.{}({})",
+                    v.register.0,
                     v.class.name(db),
                     v.method.name(db),
                     join(&v.arguments)
                 )
             }
-            Instruction::CallVirtual(ref v) => {
+            Instruction::CallInstance(ref v) => {
                 format!(
-                    "call_virtual r{}.{}({})",
+                    "r{} = call_instance r{}.{}({})",
+                    v.register.0,
                     v.receiver.0,
                     v.method.name(db),
                     join(&v.arguments)
@@ -1335,7 +1200,8 @@ impl Instruction {
             }
             Instruction::CallDynamic(ref v) => {
                 format!(
-                    "call_dynamic r{}.{}({})",
+                    "r{} = call_dynamic r{}.{}({})",
+                    v.register.0,
                     v.receiver.0,
                     v.method.name(db),
                     join(&v.arguments)
@@ -1343,7 +1209,8 @@ impl Instruction {
             }
             Instruction::CallClosure(ref v) => {
                 format!(
-                    "call_closure r{}({})",
+                    "r{} = call_closure r{}({})",
+                    v.register.0,
                     v.receiver.0,
                     join(&v.arguments)
                 )
@@ -1352,24 +1219,16 @@ impl Instruction {
                 format!("call_dropper r{}", v.receiver.0,)
             }
             Instruction::CallBuiltin(ref v) => {
-                format!("call_builtin {}({})", v.id.name(), join(&v.arguments))
-            }
-            Instruction::RawInstruction(ref v) => {
-                format!("raw {}({})", v.opcode.name(), join(&v.arguments))
-            }
-            Instruction::Send(ref v) => {
                 format!(
-                    "{} r{}.{}({})",
-                    if v.wait { "send" } else { "send_forget" },
-                    v.receiver.0,
-                    v.method.name(db),
+                    "r{} = call_builtin {}({})",
+                    v.register.0,
+                    v.name.name(),
                     join(&v.arguments)
                 )
             }
-            Instruction::SendAsync(ref v) => {
+            Instruction::Send(ref v) => {
                 format!(
-                    "r{} = send_async r{}.{}({})",
-                    v.register.0,
+                    "send r{}.{}({})",
                     v.receiver.0,
                     v.method.name(db),
                     join(&v.arguments)
@@ -1391,14 +1250,23 @@ impl Instruction {
                     v.value.0
                 )
             }
+            Instruction::Reference(ref v) => {
+                format!("r{} = ref r{}", v.register.0, v.value.0)
+            }
             Instruction::Increment(ref v) => {
                 format!("r{} = increment r{}", v.register.0, v.value.0)
             }
             Instruction::Decrement(ref v) => {
                 format!("decrement r{}", v.register.0)
             }
+            Instruction::IncrementAtomic(ref v) => {
+                format!("r{} = increment_atomic r{}", v.register.0, v.value.0)
+            }
             Instruction::DecrementAtomic(ref v) => {
-                format!("r{} = decrement_atomic r{}", v.register.0, v.value.0)
+                format!(
+                    "decrement_atomic r{}, true = b{}, false = b{}",
+                    v.register.0, v.if_true.0, v.if_false.0
+                )
             }
             Instruction::GetConstant(ref v) => {
                 format!(
@@ -1406,18 +1274,6 @@ impl Instruction {
                     v.register.0,
                     v.id.module(db).name(db),
                     v.id.name(db)
-                )
-            }
-            Instruction::IntEq(ref v) => {
-                format!(
-                    "r{} = int_eq r{}, r{}",
-                    v.register.0, v.left.0, v.right.0
-                )
-            }
-            Instruction::StringEq(ref v) => {
-                format!(
-                    "r{} = string_eq r{}, r{}",
-                    v.register.0, v.left.0, v.right.0
                 )
             }
             Instruction::Reduce(ref v) => format!("reduce {}", v.amount),
@@ -1480,11 +1336,17 @@ pub(crate) struct Method {
     pub(crate) id: types::MethodId,
     pub(crate) registers: Registers,
     pub(crate) body: Graph,
+    pub(crate) arguments: Vec<RegisterId>,
 }
 
 impl Method {
     pub(crate) fn new(id: types::MethodId) -> Self {
-        Self { id, body: Graph::new(), registers: Registers::new() }
+        Self {
+            id,
+            body: Graph::new(),
+            registers: Registers::new(),
+            arguments: Vec::new(),
+        }
     }
 }
 
@@ -1512,6 +1374,7 @@ pub(crate) struct Mir {
     pub(crate) classes: HashMap<types::ClassId, Class>,
     pub(crate) traits: HashMap<types::TraitId, Trait>,
     pub(crate) methods: HashMap<types::MethodId, Method>,
+    // TODO: do we really need this?
     pub(crate) closure_classes: HashMap<types::ClosureId, types::ClassId>,
     locations: Vec<Location>,
 }
@@ -1557,6 +1420,10 @@ impl Mir {
 
     pub(crate) fn location(&self, index: LocationId) -> &Location {
         &self.locations[index.0]
+    }
+
+    pub(crate) fn number_of_methods(&self, class: types::ClassId) -> usize {
+        self.classes.get(&class).unwrap().methods.len()
     }
 }
 

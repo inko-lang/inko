@@ -191,6 +191,7 @@ mod tests {
     use super::*;
     use crate::process::Process;
     use crate::scheduler::process::Scheduler;
+    use crate::stack::Stack;
     use crate::test::{empty_process_class, new_process};
 
     #[test]
@@ -224,14 +225,14 @@ mod tests {
     #[test]
     fn test_run_with_fragmented_heap() {
         let class = empty_process_class("A");
-        let process = Process::alloc(*class);
+        let process = Process::alloc(*class, Stack::new(1024));
         let worker = TimeoutWorker::new();
-        let scheduler = Scheduler::new(1, 1);
+        let scheduler = Scheduler::new(1, 1, 1024);
 
         for time in &[10_u64, 5_u64] {
             let timeout = Timeout::with_rc(Duration::from_secs(*time));
 
-            process.state().waiting_for_future(Some(timeout.clone()));
+            process.state().waiting_for_channel(Some(timeout.clone()));
             worker.suspend(process, timeout);
         }
 
@@ -250,12 +251,12 @@ mod tests {
     #[test]
     fn test_run_with_message() {
         let class = empty_process_class("A");
-        let process = Process::alloc(*class);
+        let process = Process::alloc(*class, Stack::new(1024));
         let worker = TimeoutWorker::new();
-        let scheduler = Scheduler::new(1, 1);
+        let scheduler = Scheduler::new(1, 1, 1024);
         let timeout = Timeout::with_rc(Duration::from_secs(10));
 
-        process.state().waiting_for_future(Some(timeout.clone()));
+        process.state().waiting_for_channel(Some(timeout.clone()));
         worker.suspend(process, timeout);
         worker.run_iteration(&scheduler);
 
@@ -265,12 +266,12 @@ mod tests {
     #[test]
     fn test_run_with_reschedule() {
         let class = empty_process_class("A");
-        let process = Process::alloc(*class);
+        let process = Process::alloc(*class, Stack::new(1024));
         let worker = TimeoutWorker::new();
-        let scheduler = Scheduler::new(1, 1);
+        let scheduler = Scheduler::new(1, 1, 1024);
         let timeout = Timeout::with_rc(Duration::from_secs(0));
 
-        process.state().waiting_for_future(Some(timeout.clone()));
+        process.state().waiting_for_channel(Some(timeout.clone()));
         worker.suspend(process, timeout);
         worker.run_iteration(&scheduler);
 
@@ -280,11 +281,11 @@ mod tests {
     #[test]
     fn test_defragment_heap_without_fragmentation() {
         let class = empty_process_class("A");
-        let process = Process::alloc(*class);
+        let process = Process::alloc(*class, Stack::new(1024));
         let worker = TimeoutWorker::new();
         let timeout = Timeout::with_rc(Duration::from_secs(1));
 
-        process.state().waiting_for_future(Some(timeout.clone()));
+        process.state().waiting_for_channel(Some(timeout.clone()));
         worker.suspend(process, timeout);
         worker.move_messages();
         worker.handle_pending_messages();
@@ -297,13 +298,13 @@ mod tests {
     #[test]
     fn test_defragment_heap_with_fragmentation() {
         let class = empty_process_class("A");
-        let process = Process::alloc(*class);
+        let process = Process::alloc(*class, Stack::new(1024));
         let worker = TimeoutWorker::new();
 
         for time in &[1_u64, 1_u64] {
             let timeout = Timeout::with_rc(Duration::from_secs(*time));
 
-            process.state().waiting_for_future(Some(timeout.clone()));
+            process.state().waiting_for_channel(Some(timeout.clone()));
             worker.suspend(process, timeout);
         }
 

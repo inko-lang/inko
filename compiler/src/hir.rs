@@ -120,15 +120,6 @@ pub(crate) struct Call {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct AsyncCall {
-    pub(crate) info: Option<types::CallInfo>,
-    pub(crate) receiver: Expression,
-    pub(crate) name: Identifier,
-    pub(crate) arguments: Vec<Argument>,
-    pub(crate) location: SourceLocation,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct BuiltinCall {
     pub(crate) info: Option<types::BuiltinCallInfo>,
     pub(crate) name: Identifier,
@@ -383,6 +374,7 @@ pub(crate) struct ReopenClass {
     pub(crate) class_id: Option<types::ClassId>,
     pub(crate) class_name: Constant,
     pub(crate) body: Vec<ReopenClassExpression>,
+    pub(crate) bounds: Vec<TypeBound>,
     pub(crate) location: SourceLocation,
 }
 
@@ -394,9 +386,15 @@ pub(crate) enum ReopenClassExpression {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Requirement {
+    Trait(TypeName),
+    Mutable(SourceLocation),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct TypeBound {
     pub(crate) name: Constant,
-    pub(crate) requirements: Vec<TypeName>,
+    pub(crate) requirements: Vec<Requirement>,
     pub(crate) location: SourceLocation,
 }
 
@@ -435,7 +433,6 @@ pub(crate) enum Expression {
     AssignSetter(Box<AssignSetter>),
     AssignVariable(Box<AssignVariable>),
     ReplaceVariable(Box<ReplaceVariable>),
-    AsyncCall(Box<AsyncCall>),
     Break(Box<Break>),
     BuiltinCall(Box<BuiltinCall>),
     Call(Box<Call>),
@@ -478,7 +475,6 @@ impl Expression {
             Expression::AssignSetter(ref n) => &n.location,
             Expression::AssignVariable(ref n) => &n.location,
             Expression::ReplaceVariable(ref n) => &n.location,
-            Expression::AsyncCall(ref n) => &n.location,
             Expression::Break(ref n) => &n.location,
             Expression::BuiltinCall(ref n) => &n.location,
             Expression::Call(ref n) => &n.location,
@@ -551,6 +547,15 @@ impl ConstExpression {
             Self::Array(ref n) => &n.location,
             Self::Invalid(ref l) => l,
         }
+    }
+
+    pub(crate) fn is_simple_literal(&self) -> bool {
+        matches!(
+            self,
+            ConstExpression::Int(_)
+                | ConstExpression::Float(_)
+                | ConstExpression::String(_)
+        )
     }
 }
 
@@ -1294,9 +1299,21 @@ impl<'a> LowerToHir<'a> {
     fn type_bound(&self, node: ast::TypeBound) -> TypeBound {
         TypeBound {
             name: self.constant(node.name),
-            requirements: self.type_names(node.requirements),
+            requirements: self.requirements(node.requirements),
             location: node.location,
         }
+    }
+
+    fn requirements(&self, node: ast::Requirements) -> Vec<Requirement> {
+        node.values
+            .into_iter()
+            .map(|node| match node {
+                ast::Requirement::Trait(n) => {
+                    Requirement::Trait(self.type_name(n))
+                }
+                ast::Requirement::Mutable(loc) => Requirement::Mutable(loc),
+            })
+            .collect()
     }
 
     fn define_trait(&mut self, node: ast::DefineTrait) -> TopLevelExpression {
@@ -1340,6 +1357,7 @@ impl<'a> LowerToHir<'a> {
             class_id: None,
             class_name: self.constant(node.class_name),
             body: self.reopen_class_expressions(node.body),
+            bounds: self.optional_type_bounds(node.bounds),
             location: node.location,
         }))
     }
@@ -1896,7 +1914,6 @@ impl<'a> LowerToHir<'a> {
                 Expression::IdentifierRef(self.identifier_ref(*node))
             }
             ast::Expression::Call(node) => self.call(*node),
-            ast::Expression::Async(node) => self.async_call(*node),
             ast::Expression::AssignVariable(node) => {
                 Expression::AssignVariable(self.assign_variable(*node))
             }
@@ -2143,46 +2160,6 @@ impl<'a> LowerToHir<'a> {
         } else {
             Vec::new()
         }
-    }
-
-    fn async_call(&mut self, async_node: ast::Async) -> Expression {
-        let result = match self.expression(async_node.expression) {
-            Expression::Call(node) => {
-                if let Some(receiver) = node.receiver {
-                    return Expression::AsyncCall(Box::new(AsyncCall {
-                        info: None,
-                        receiver,
-                        name: node.name,
-                        arguments: node.arguments,
-                        location: async_node.location,
-                    }));
-                }
-
-                Expression::Call(node)
-            }
-            Expression::AssignSetter(node) => {
-                return Expression::AsyncCall(Box::new(AsyncCall {
-                    info: None,
-                    receiver: node.receiver,
-                    name: Identifier {
-                        name: node.name.name + "=",
-                        location: node.name.location,
-                    },
-                    arguments: vec![Argument::Positional(Box::new(node.value))],
-                    location: node.location,
-                }));
-            }
-            expr => expr,
-        };
-
-        self.state.diagnostics.error(
-            DiagnosticId::InvalidCall,
-            "The 'async' keyword requires a method call with a receiver",
-            self.file(),
-            async_node.location,
-        );
-
-        result
     }
 
     fn assign_variable(
@@ -2938,7 +2915,7 @@ impl<'a> LowerToHir<'a> {
         Expression::BuiltinCall(Box::new(BuiltinCall {
             info: None,
             name: Identifier {
-                name: types::CompilerMacro::PanicThrown.name().to_string(),
+                name: types::BuiltinFunction::PanicThrown.name().to_string(),
                 location: location.clone(),
             },
             arguments: vec![Expression::IdentifierRef(Box::new(
@@ -4228,18 +4205,38 @@ mod tests {
 
     #[test]
     fn test_lower_reopen_empty_class() {
-        let hir = lower_top_expr("impl A {}").0;
-
         assert_eq!(
-            hir,
+            lower_top_expr("impl A {}").0,
             TopLevelExpression::Reopen(Box::new(ReopenClass {
                 class_id: None,
                 class_name: Constant {
                     name: "A".to_string(),
                     location: cols(6, 6)
                 },
+                bounds: Vec::new(),
                 body: Vec::new(),
                 location: cols(1, 9)
+            }))
+        );
+
+        assert_eq!(
+            lower_top_expr("impl A if T: mut {}").0,
+            TopLevelExpression::Reopen(Box::new(ReopenClass {
+                class_id: None,
+                class_name: Constant {
+                    name: "A".to_string(),
+                    location: cols(6, 6)
+                },
+                bounds: vec![TypeBound {
+                    name: Constant {
+                        name: "T".to_string(),
+                        location: cols(11, 11)
+                    },
+                    requirements: vec![Requirement::Mutable(cols(14, 16))],
+                    location: cols(11, 16),
+                }],
+                body: Vec::new(),
+                location: cols(1, 16)
             }))
         );
     }
@@ -4273,6 +4270,7 @@ mod tests {
                         location: cols(10, 18)
                     }
                 ))],
+                bounds: Vec::new(),
                 location: cols(1, 20)
             }))
         );
@@ -4306,6 +4304,7 @@ mod tests {
                         location: cols(10, 25),
                     }
                 ))],
+                bounds: Vec::new(),
                 location: cols(1, 27)
             }))
         );
@@ -4340,6 +4339,7 @@ mod tests {
                         location: cols(10, 24)
                     }
                 ))],
+                bounds: Vec::new(),
                 location: cols(1, 26)
             }))
         );
@@ -4416,7 +4416,7 @@ mod tests {
 
     #[test]
     fn test_lower_trait_implementation_with_bounds() {
-        let hir = lower_top_expr("impl A for B if T: X {}").0;
+        let hir = lower_top_expr("impl A for B if T: X + mut {}").0;
 
         assert_eq!(
             hir,
@@ -4440,20 +4440,23 @@ mod tests {
                         name: "T".to_string(),
                         location: cols(17, 17)
                     },
-                    requirements: vec![TypeName {
-                        source: None,
-                        resolved_type: types::TypeRef::Unknown,
-                        name: Constant {
-                            name: "X".to_string(),
+                    requirements: vec![
+                        Requirement::Trait(TypeName {
+                            source: None,
+                            resolved_type: types::TypeRef::Unknown,
+                            name: Constant {
+                                name: "X".to_string(),
+                                location: cols(20, 20)
+                            },
+                            arguments: Vec::new(),
                             location: cols(20, 20)
-                        },
-                        arguments: Vec::new(),
-                        location: cols(20, 20)
-                    }],
-                    location: cols(17, 20)
+                        }),
+                        Requirement::Mutable(cols(24, 26))
+                    ],
+                    location: cols(17, 26)
                 }],
                 body: Vec::new(),
-                location: cols(1, 23),
+                location: cols(1, 29),
                 trait_instance: None,
                 class_instance: None,
             }))
@@ -5083,108 +5086,6 @@ mod tests {
                 }))],
                 else_block: None,
                 location: cols(8, 23)
-            }))
-        );
-    }
-
-    #[test]
-    fn test_lower_async_call() {
-        let (hir, diags) = lower_expr("fn a { async a.b(10) }");
-
-        assert_eq!(diags, 0);
-        assert_eq!(
-            hir,
-            Expression::AsyncCall(Box::new(AsyncCall {
-                info: None,
-                receiver: Expression::IdentifierRef(Box::new(IdentifierRef {
-                    kind: types::IdentifierKind::Unknown,
-                    name: "a".to_string(),
-                    location: cols(14, 14)
-                })),
-                name: Identifier {
-                    name: "b".to_string(),
-                    location: cols(16, 16)
-                },
-                arguments: vec![Argument::Positional(Box::new(
-                    Expression::Int(Box::new(IntLiteral {
-                        value: 10,
-                        resolved_type: types::TypeRef::Unknown,
-                        location: cols(18, 19)
-                    }))
-                ))],
-                location: cols(8, 20)
-            }))
-        );
-    }
-
-    #[test]
-    fn test_lower_async_setter() {
-        let (hir, diags) = lower_expr("fn a { async a.b = 10 }");
-
-        assert_eq!(diags, 0);
-        assert_eq!(
-            hir,
-            Expression::AsyncCall(Box::new(AsyncCall {
-                info: None,
-                receiver: Expression::IdentifierRef(Box::new(IdentifierRef {
-                    kind: types::IdentifierKind::Unknown,
-                    name: "a".to_string(),
-                    location: cols(14, 14)
-                })),
-                name: Identifier {
-                    name: "b=".to_string(),
-                    location: cols(16, 16)
-                },
-                arguments: vec![Argument::Positional(Box::new(
-                    Expression::Int(Box::new(IntLiteral {
-                        value: 10,
-                        resolved_type: types::TypeRef::Unknown,
-                        location: cols(20, 21)
-                    }))
-                ))],
-                location: cols(14, 21)
-            }))
-        );
-    }
-
-    #[test]
-    fn test_lower_async_call_without_receiver() {
-        let (hir, diags) = lower_expr("fn a { async a(10) }");
-
-        assert_eq!(diags, 1);
-        assert_eq!(
-            hir,
-            Expression::Call(Box::new(Call {
-                kind: types::CallKind::Unknown,
-                receiver: None,
-                name: Identifier {
-                    name: "a".to_string(),
-                    location: cols(14, 14)
-                },
-                arguments: vec![Argument::Positional(Box::new(
-                    Expression::Int(Box::new(IntLiteral {
-                        value: 10,
-                        resolved_type: types::TypeRef::Unknown,
-                        location: cols(16, 17)
-                    }))
-                ))],
-                else_block: None,
-                location: cols(14, 18)
-            }))
-        );
-    }
-
-    #[test]
-    fn test_lower_async_call_with_identifier() {
-        let (hir, diags) = lower_expr("fn a { async a }");
-
-        assert_eq!(diags, 1);
-        assert_eq!(
-            hir,
-            Expression::IdentifierRef(Box::new(IdentifierRef {
-                kind: types::IdentifierKind::Unknown,
-                name: "a".to_string(),
-                location: cols(14, 14)
             }))
         );
     }
@@ -5960,7 +5861,7 @@ mod tests {
                         BuiltinCall {
                             info: None,
                             name: Identifier {
-                                name: types::CompilerMacro::PanicThrown
+                                name: types::BuiltinFunction::PanicThrown
                                     .name()
                                     .to_string(),
                                 location: cols(8, 14)

@@ -197,6 +197,7 @@ impl Drop for Timeouts {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::stack::Stack;
     use crate::test::{empty_process_class, new_process};
 
     mod timeout {
@@ -335,11 +336,11 @@ mod tests {
         #[test]
         fn test_remove_invalid_entries_with_valid_entries() {
             let class = empty_process_class("A");
-            let process = Process::alloc(*class);
+            let process = Process::alloc(*class, Stack::new(1024));
             let mut timeouts = Timeouts::new();
             let timeout = Timeout::with_rc(Duration::from_secs(10));
 
-            process.state().waiting_for_future(Some(timeout.clone()));
+            process.state().waiting_for_channel(Some(timeout.clone()));
             timeouts.insert(process, timeout);
 
             assert_eq!(timeouts.remove_invalid_entries(), 0);
@@ -377,11 +378,11 @@ mod tests {
         #[test]
         fn test_processes_to_reschedule_with_remaining_time() {
             let class = empty_process_class("A");
-            let process = Process::alloc(*class);
+            let process = Process::alloc(*class, Stack::new(1024));
             let mut timeouts = Timeouts::new();
             let timeout = Timeout::with_rc(Duration::from_secs(10));
 
-            process.state().waiting_for_future(Some(timeout.clone()));
+            process.state().waiting_for_channel(Some(timeout.clone()));
             timeouts.insert(process, timeout);
 
             let (reschedule, expiration) = timeouts.processes_to_reschedule();
@@ -398,7 +399,7 @@ mod tests {
             let mut timeouts = Timeouts::new();
             let timeout = Timeout::with_rc(Duration::from_secs(0));
 
-            process.state().waiting_for_future(Some(timeout.clone()));
+            process.state().waiting_for_channel(Some(timeout.clone()));
             timeouts.insert(*process, timeout);
 
             let (reschedule, expiration) = timeouts.processes_to_reschedule();

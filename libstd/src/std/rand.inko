@@ -20,8 +20,8 @@ class pub Random {
   #     import std::rand::Random
   #
   #     Random.from_int(42)
-  fn pub static from_int(seed: Int) -> Self {
-    Self { @rng = _INKO.random_from_int(seed) }
+  fn pub static from_int(seed: Int) -> Random {
+    Random { @rng = _INKO.random_from_int(seed) }
   }
 
   # Returns a new `Random` seeded using a cryptographically secure seed.
@@ -34,8 +34,8 @@ class pub Random {
   #     import std::rand::Random
   #
   #     Random.new
-  fn pub static new -> Self {
-    Self { @rng = _INKO.random_new }
+  fn pub static new -> Random {
+    Random { @rng = _INKO.random_new }
   }
 
   # Returns a randomly generated `Int`.
@@ -99,13 +99,13 @@ class pub Shuffle {
   let @rng: Random
 
   # Returns a new `Shuffle` that sorts values in a random order.
-  fn pub static new -> Self {
-    Self { @rng = Random.new }
+  fn pub static new -> Shuffle {
+    Shuffle { @rng = Random.new }
   }
 
   # Returns a new `Shuffle` that uses the given seed for sorting values.
-  fn pub static from_int(seed: Int) -> Self {
-    Self { @rng = Random.from_int(seed) }
+  fn pub static from_int(seed: Int) -> Shuffle {
+    Shuffle { @rng = Random.from_int(seed) }
   }
 
   # Sorts the values of the given `Array` in place such that they are in a

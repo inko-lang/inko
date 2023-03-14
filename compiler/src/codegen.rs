@@ -143,7 +143,7 @@ struct MethodInfo {
 }
 
 /// A compiler pass that lowers MIR into a bytecode file.
-pub(crate) struct Lower<'a> {
+pub(crate) struct LowerToBytecode<'a> {
     db: &'a Database,
     mir: &'a Mir,
     class_info: &'a HashMap<ClassId, ClassInfo>,
@@ -151,7 +151,7 @@ pub(crate) struct Lower<'a> {
     constant_indexes: HashMap<Constant, u32>,
 }
 
-impl<'a> Lower<'a> {
+impl<'a> LowerToBytecode<'a> {
     pub(crate) fn run_all(db: &'a Database, mir: Mir) -> Bytecode {
         let mut method_hashes: HashMap<&str, u32> = HashMap::new();
         let mut method_info = HashMap::new();
@@ -279,7 +279,7 @@ impl<'a> Lower<'a> {
         buffer.write_u16(main_method_idx);
 
         for index in 0..mir.modules.len() {
-            let mut chunk = Lower {
+            let mut chunk = LowerToBytecode {
                 db,
                 mir: &mir,
                 constant_indexes: HashMap::new(),
@@ -383,12 +383,13 @@ impl<'a> Lower<'a> {
         let mut jump_tables = Vec::new();
         let mut locations = Vec::new();
 
-        // if method.id.name(self.db) == "foo" {
-        //     println!(
-        //         "{}",
-        //         crate::mir::printer::to_dot(self.db, self.mir, &[&method])
-        //     );
-        // }
+        // TODO: remove
+        if method.id.name(self.db) == "main" {
+            println!(
+                "{}",
+                crate::mir::printer::to_dot(self.db, self.mir, &[&method])
+            );
+        }
 
         // This should never happen, unless somebody is writing _really_
         // crazy code, or due to a compiler bug. Because of this, we just
@@ -837,12 +838,21 @@ impl<'a> Lower<'a> {
                 let op = Opcode::ProcessSend;
                 let rec = ins.receiver.0 as u16;
                 let idx = self.method_info.get(&ins.method).unwrap().index;
-                let wait = ins.wait as u16;
 
                 buffer.push(Instruction::one(Opcode::Push, rec));
                 push_values(buffer, &ins.arguments);
                 locations.push((buffer.len(), ins.location));
-                buffer.push(Instruction::three(op, rec, idx, wait));
+                buffer.push(Instruction::three(op, rec, idx, 1));
+            }
+            mir::Instruction::SendForget(ins) => {
+                let op = Opcode::ProcessSend;
+                let rec = ins.receiver.0 as u16;
+                let idx = self.method_info.get(&ins.method).unwrap().index;
+
+                buffer.push(Instruction::one(Opcode::Push, rec));
+                push_values(buffer, &ins.arguments);
+                locations.push((buffer.len(), ins.location));
+                buffer.push(Instruction::three(op, rec, idx, 0));
             }
             mir::Instruction::SendAsync(ins) => {
                 let op = Opcode::ProcessSendAsync;

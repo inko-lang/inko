@@ -226,9 +226,8 @@ booleans. This is achieved using pointer tagging.
 If a pointer has its lowest bit set to `1` it means the pointer is an immediate
 value, instead of pointing to a heap allocated object.
 
-If the lowest two bits are set to `1` (so `xx11`), the pointer is a tagged
-integer capable of storing integers up to 62 bits. 63 and 64 bits integers are
-heap allocated.
+If the lowest bit is set to `1` (so `xx1`), the pointer is a tagged integer
+capable of storing integers up to 63 bits. 64 bits integers are heap allocated.
 
 If the lowest two bits of a pointer are set to `10`, it means the pointer is a
 pointer to a permanently allocated heap object, such as a string literal.
@@ -241,14 +240,10 @@ unset):
 
 | Value            | Pattern
 |:-----------------|:-----------
-| Heap object      | `xxxx x000`
-| Permanent object | `xxxx xx10`
-| Reference        | `xxxx x1x0`
-| Tagged integer   | `xxxx xx11`
-| `true`           | `0000 1101`
-| `false`          | `0000 0101`
-| `nil`            | `0000 0001`
-| `undefined`      | `0000 1001`
+| Heap object      | `000`
+| Permanent object | `x10`
+| Reference        | `1x0`
+| Tagged integer   | `xx1`
 
 For more information, refer to `vm/src/mem.rs`, which implements most of the
 memory management logic of the VM.

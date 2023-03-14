@@ -29,7 +29,7 @@ class pub Script {
   let @stdin: Option[String]
   let @imports: Array[String]
 
-  fn pub static new(id: Int, code: String) -> Self {
+  fn pub static new(id: Int, code: String) -> Script {
     let path = env.temporary_directory.join("inko_test_script_{id}.inko")
     let exe = try! env.executable
     let cmd = Command.new(exe)
@@ -42,7 +42,7 @@ class pub Script {
     cmd.stderr(Stream.Piped)
     cmd.stdout(Stream.Piped)
 
-    Self {
+    Script {
       @id = id,
       @path = path,
       @code = code,
@@ -52,24 +52,24 @@ class pub Script {
     }
   }
 
-  fn pub move import(module: String) -> Self {
+  fn pub move import(module: String) -> Script {
     @imports.push(module)
     self
   }
 
-  fn pub move stdin(input: String) -> Self {
+  fn pub move stdin(input: String) -> Script {
     @stdin = Option.Some(input)
 
     @cmd.stdin(Stream.Piped)
     self
   }
 
-  fn pub move argument(value: String) -> Self {
+  fn pub move argument(value: String) -> Script {
     @cmd.argument(value)
     self
   }
 
-  fn pub move variable(name: String, value: String) -> Self {
+  fn pub move variable(name: String, value: String) -> Script {
     @cmd.variable(name, value)
     self
   }

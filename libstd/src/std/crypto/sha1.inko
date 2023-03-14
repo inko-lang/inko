@@ -54,8 +54,8 @@ class pub Sha1 {
   }
 
   # Returns a new instance of the hasher.
-  fn pub static new -> Self {
-    Self {
+  fn pub static new -> Sha1 {
+    Sha1 {
       @block = Block.new(BLOCK_SIZE),
       @words = Array.filled(with: 0, times: 80),
       @size = 0,

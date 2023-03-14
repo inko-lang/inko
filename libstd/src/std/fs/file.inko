@@ -16,6 +16,12 @@ import std::fs::path::(IntoPath, Path)
 import std::io::(Error, Read, Seek, Size, Write)
 import std::string::ToString
 
+let FILE_READ_ONLY = 0
+let FILE_WRITE_ONLY = 1
+let FILE_APPEND_ONLY = 2
+let FILE_READ_WRITE = 3
+let FILE_READ_APPEND = 4
+
 # Removes the file for the given file path.
 #
 # # Examples
@@ -70,15 +76,15 @@ class pub ReadOnlyFile {
   #     import std::fs::file::ReadOnlyFile
   #
   #     let handle = try! ReadOnlyFile.new('/dev/null')
-  fn pub static new(path: IntoPath) !! Error -> Self {
+  fn pub static new(path: IntoPath) !! Error -> ReadOnlyFile {
     let path_obj = path.into_path
     let fd = try {
-      _INKO.file_open_read_only(path_obj.to_string)
+      _INKO.file_open(path_obj.to_string, FILE_READ_ONLY)
     } else (e) {
       throw Error.from_int(e)
     }
 
-    Self { @path = path_obj, @fd = fd }
+    ReadOnlyFile { @path = path_obj, @fd = fd }
   }
 }
 
@@ -121,15 +127,15 @@ class pub WriteOnlyFile {
   #     import std::fs::file::WriteOnlyFile
   #
   #     let file = try! WriteOnlyFile.new('/dev/null')
-  fn pub static new(path: IntoPath) !! Error -> Self {
+  fn pub static new(path: IntoPath) !! Error -> WriteOnlyFile {
     let path_obj = path.into_path
     let fd = try {
-      _INKO.file_open_write_only(path_obj.to_string)
+      _INKO.file_open(path_obj.to_string, FILE_WRITE_ONLY)
     } else (e) {
       throw Error.from_int(e)
     }
 
-    Self { @path = path_obj, @fd = fd }
+    WriteOnlyFile { @path = path_obj, @fd = fd }
   }
 
   # Opens a file in append-only mode.
@@ -139,15 +145,15 @@ class pub WriteOnlyFile {
   #     import std::fs::file::WriteOnlyFile
   #
   #     let file = try! WriteOnlyFile.append('/dev/null')
-  fn pub static append(path: IntoPath) !! Error -> Self {
+  fn pub static append(path: IntoPath) !! Error -> WriteOnlyFile {
     let path_obj = path.into_path
     let fd = try {
-      _INKO.file_open_append_only(path_obj.to_string)
+      _INKO.file_open(path_obj.to_string, FILE_APPEND_ONLY)
     } else (e) {
       throw Error.from_int(e)
     }
 
-    Self { @path = path_obj, @fd = fd }
+    WriteOnlyFile { @path = path_obj, @fd = fd }
   }
 }
 
@@ -192,15 +198,15 @@ class pub ReadWriteFile {
   #     import std::fs::file::ReadWriteFile
   #
   #     let handle = try! ReadWriteFile.new('/dev/null')
-  fn pub static new(path: IntoPath) !! Error -> Self {
+  fn pub static new(path: IntoPath) !! Error -> ReadWriteFile {
     let path_obj = path.into_path
     let fd = try {
-      _INKO.file_open_read_write(path_obj.to_string)
+      _INKO.file_open(path_obj.to_string, FILE_READ_WRITE)
     } else (e) {
       throw Error.from_int(e)
     }
 
-    Self { @path = path_obj, @fd = fd }
+    ReadWriteFile { @path = path_obj, @fd = fd }
   }
 
   # Opens a file for both reading and appending:
@@ -210,15 +216,15 @@ class pub ReadWriteFile {
   #     import std::fs::file::ReadWriteFile
   #
   #     let handle = try! ReadWriteFile.append('/dev/null')
-  fn pub static append(path: IntoPath) !! Error -> Self {
+  fn pub static append(path: IntoPath) !! Error -> ReadWriteFile {
     let path_obj = path.into_path
     let fd = try {
-      _INKO.file_open_read_append(path_obj.to_string)
+      _INKO.file_open(path_obj.to_string, FILE_READ_APPEND)
     } else (e) {
       throw Error.from_int(e)
     }
 
-    Self { @path = path_obj, @fd = fd }
+    ReadWriteFile { @path = path_obj, @fd = fd }
   }
 }
 

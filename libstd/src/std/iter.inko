@@ -401,8 +401,8 @@ class pub Enum[T, E] {
   let @block: fn !! E -> Option[T]
 
   # Returns a new iterator using the block.
-  fn pub static new(block: fn !! E -> Option[T]) -> Self {
-    Self { @block = block }
+  fn pub static new(block: fn !! E -> Option[T]) -> Enum[T, E] {
+    Enum { @block = block }
   }
 
   # Returns an iterator that produces the given value once.
@@ -415,10 +415,10 @@ class pub Enum[T, E] {
   #
   #     vals.next # => Option.Some(42)
   #     vals.next # => Option.None
-  fn pub static once(value: T) -> Iter[T, Never] {
+  fn pub static once(value: T) -> Enum[T, Never] {
     let mut val = Option.Some(value)
 
-    Self { @block = fn move { val := Option.None } }
+    Enum { @block = fn move { val := Option.None } }
   }
 
   # Returns an iterator that iterates from zero up to (but not including) the
@@ -441,7 +441,7 @@ class pub Enum[T, E] {
   #     iter.next #=> Option.Some(10)
   #     iter.next #=> Option.Some(20)
   #     iter.next #=> Option.None
-  fn pub static indexed(limit: Int, block: fn (Int) !! E -> T) -> Self {
+  fn pub static indexed(limit: Int, block: fn (Int) !! E -> T) -> Enum[T, E] {
     let mut index = 0
     let wrapper = fn move {
       if index < limit {
@@ -451,7 +451,7 @@ class pub Enum[T, E] {
       }
     }
 
-    Self { @block = wrapper }
+    Enum { @block = wrapper }
   }
 }
 
