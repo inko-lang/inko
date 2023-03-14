@@ -1,21 +1,21 @@
-#!/usr/bin/env sh
+#!/bin/sh
 
 set -e
 
-tag="$1"
+image_name="$1"
 
-if [ "$tag" = '' ]
+if [ "$image_name" = '' ]
 then
-    echo 'You must specify the tag name as the first argument.'
+    echo 'You must specify the image name as the first argument.'
     exit 1
 fi
 
-version=$(echo "$tag" | cut -c 2-)
+docker build -t "${image_name}" -f Dockerfile .
 
-echo "$DOCKER_HUB_TOKEN" | \
-    docker login --password-stdin --username "$DOCKER_HUB_USER" \
-    docker.io
+docker login \
+    --username gitlab-ci-token \
+    --password "${CI_JOB_TOKEN}" \
+    "$CI_REGISTRY"
 
-docker build -t "inkolang/inko:$version" -f Dockerfile .
-docker push "inkolang/inko:$version"
-docker logout docker.io
+docker push "${image_name}"
+docker logout "$CI_REGISTRY"

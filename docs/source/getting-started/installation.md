@@ -49,34 +49,31 @@ ivm install 0.10.0 # Installs version 0.10.0
 ### Docker
 
 If you are using [Docker](https://www.docker.com/) or
-[Podman](https://podman.io/), you can use our official Docker images. These
-images are published on Docker Hub in the [inkolang/inko
-repository](https://hub.docker.com/r/inkolang/inko).
+[Podman](https://podman.io/), you can use our official Docker/Podman images.
+These images are published on
+[GitLab.com](https://gitlab.com/inko-lang/inko/container_registry/).
 
 To install Inko 0.10.0, run the following:
 
 === "Docker"
     ```bash
-    docker pull inkolang/inko:0.10.0
+    docker pull registry.gitlab.com/inko-lang/inko:0.10.0
     ```
 === "Podman"
     ```bash
-    podman pull inkolang/inko:0.10.0
+    podman pull registry.gitlab.com/inko-lang/inko:0.10.0
     ```
 
 You can then run Inko as follows:
 
 === "Docker"
     ```bash
-    docker run inkolang/inko:0.10.0 inko --version
+    docker run inko-lang/inko:0.10.0 inko --version
     ```
 === "Podman"
     ```bash
-    podman run inkolang/inko:0.10.0 inko --version
+    podman run inko-lang/inko:0.10.0 inko --version
     ```
-
-A full list of all available tags [is found
-here](https://hub.docker.com/r/inkolang/inko/tags).
 
 ### Arch Linux
 

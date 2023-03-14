@@ -17,7 +17,7 @@ release:docker:
   only:
     - tags
   script:
-    - ./scripts/docker.sh "$CI_COMMIT_REF_NAME"
+    - ./scripts/docker.sh "${CI_REGISTRY_IMAGE}/inko:$(echo "$CI_COMMIT_REF_NAME" | cut -c 2-)"
 
 release:docs:
   extends:
