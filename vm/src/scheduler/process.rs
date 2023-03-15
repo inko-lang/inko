@@ -1,8 +1,9 @@
 //! Scheduling and execution of lightweight Inko processes.
 use crate::arc_without_weak::ArcWithoutWeak;
-use crate::machine::Machine;
-use crate::mem::{ClassPointer, MethodPointer};
-use crate::process::{Process, ProcessPointer};
+use crate::context;
+use crate::process::{Process, ProcessPointer, Task};
+use crate::scheduler::{number_of_cores, pin_thread_to_core};
+use crate::stack::StackPool;
 use crate::state::State;
 use crossbeam_queue::ArrayQueue;
 use crossbeam_utils::atomic::AtomicCell;
@@ -11,11 +12,50 @@ use rand::rngs::ThreadRng;
 use rand::thread_rng;
 use std::cmp::min;
 use std::collections::VecDeque;
-use std::mem::size_of;
+use std::mem::{size_of, swap};
 use std::ops::Drop;
 use std::sync::atomic::{AtomicBool, AtomicU16, AtomicU64, Ordering};
 use std::sync::{Condvar, Mutex};
 use std::time::{Duration, Instant};
+
+/// The number of reductions a process can perform before it needs to suspend
+/// itself.
+///
+/// The number here is derived as follows:
+///
+/// - We assume a static or virtual method call takes <= 5 nsec
+/// - We want to restrict processes to time slices of roughly 10 µsec
+const REDUCTIONS: u16 = 2000;
+
+/// A type describing what a thread should do in response to a process yielding
+/// back control.
+///
+/// This type exists as processes may need to perform certain operations that
+/// aren't safe to perform while the process is still running. For example, a
+/// process may want to send a message to a receiver and wait for the result. If
+/// the receiver is still running, it may end up trying to reschedule the
+/// sender. If this happens while the sender is still wrapping up, all sorts of
+/// things can go wrong.
+///
+/// To prevent such problems, processes yield control back to the thread and let
+/// the thread perform such operations using its own stack.
+#[derive(Debug)]
+pub(crate) enum Action {
+    /// The thread shouldn't do anything with the process it was running.
+    Ignore,
+
+    /// The thread should terminate the process.
+    Terminate,
+}
+
+impl Action {
+    fn take(&mut self) -> Self {
+        let mut old_val = Action::Ignore;
+
+        swap(self, &mut old_val);
+        old_val
+    }
+}
 
 /// The starting capacity of the global queue.
 ///
@@ -88,7 +128,7 @@ struct Shared {
 
 /// The private half of a thread, used only by the OS thread this state belongs
 /// to.
-pub(crate) struct Thread<'a> {
+pub struct Thread {
     /// The unique ID of this thread.
     ///
     /// This is used to prevent a thread from trying to steal work from itself,
@@ -100,18 +140,7 @@ pub(crate) struct Thread<'a> {
     work: ArcWithoutWeak<ArrayQueue<ProcessPointer>>,
 
     /// The pool this thread belongs to.
-    pool: &'a Pool,
-
-    /// A process to run before trying to consume any other work.
-    ///
-    /// Sometimes we reschedule a process and want to run it immediately,
-    /// instead of processing jobs in the local queue. For example, when sending
-    /// a message to a process not doing anything, running it immediately
-    /// reduces the latency of producing a response to the message.
-    ///
-    /// Other threads can't steal from this slot, because that would defeat its
-    /// purpose.
-    priority: Option<ProcessPointer>,
+    pool: ArcWithoutWeak<Pool>,
 
     /// A flag indicating this thread is or will become a backup thread.
     pub(crate) backup: bool,
@@ -133,34 +162,54 @@ pub(crate) struct Thread<'a> {
 
     /// A random number generator to use for the current thread.
     pub(crate) rng: ThreadRng,
+
+    /// The pool of stacks to use.
+    pub(crate) stacks: StackPool,
+
+    /// A value indicating what to do with a process when it yields back to us.
+    ///
+    /// The default is to not do anything with a process after it yields back to
+    /// the thread.
+    pub(crate) action: Action,
+
+    /// The amount of reductions left before a process needs to be suspended.
+    pub(crate) reductions: u16,
 }
 
-impl<'a> Thread<'a> {
-    fn new(id: usize, network_poller: usize, pool: &'a Pool) -> Thread {
+impl Thread {
+    fn new(
+        id: usize,
+        network_poller: usize,
+        pool: ArcWithoutWeak<Pool>,
+    ) -> Thread {
         Self {
             id,
             work: pool.threads[id].queue.clone(),
-            priority: None,
-            pool,
             backup: false,
             blocked_at: NOT_BLOCKING,
             network_poller,
             rng: thread_rng(),
+            stacks: StackPool::new(pool.stack_size),
+            action: Action::Ignore,
+            reductions: REDUCTIONS,
+            pool,
         }
     }
 
-    fn backup(network_poller: usize, pool: &'a Pool) -> Thread {
+    fn backup(network_poller: usize, pool: ArcWithoutWeak<Pool>) -> Thread {
         Self {
             // For backup threads the ID/queue doesn't matter, because we won't
             // use them until we're turned into a regular thread.
             id: 0,
             work: pool.threads[0].queue.clone(),
-            priority: None,
-            pool,
             backup: true,
             blocked_at: NOT_BLOCKING,
             network_poller,
             rng: thread_rng(),
+            stacks: StackPool::new(pool.stack_size),
+            action: Action::Ignore,
+            reductions: REDUCTIONS,
+            pool,
         }
     }
 
@@ -180,31 +229,20 @@ impl<'a> Thread<'a> {
         }
     }
 
-    /// Schedules a process in the priority slot.
-    ///
-    /// This method shouldn't be used when the thread is to transition to a
-    /// backup thread, as the work might never get picked up again.
-    pub(crate) fn schedule_priority(&mut self, process: ProcessPointer) {
-        // Outside of any bugs in the VM, we should never reach this point and
-        // still have a value in the priority slot, so we can just set the value
-        // as-is.
-        self.priority = Some(process);
-    }
-
     /// Schedules a process onto the global queue.
     pub(crate) fn schedule_global(&self, process: ProcessPointer) {
         self.pool.schedule(process);
     }
 
     pub(crate) fn start_blocking(&mut self) {
-        let epoch = self.pool.current_epoch();
-        let shared = &self.pool.threads[self.id];
-
         // We have to push our work away before entering the blocking operation.
         // If we do this after returning from the blocking operation, another
         // thread may already be using our queue, at which point we'd slow it
         // down by moving its work to the global queue.
         self.move_work_to_global_queue();
+
+        let epoch = self.pool.current_epoch();
+        let shared = &self.pool.threads[self.id];
 
         self.blocked_at = epoch;
         shared.blocked_at.store(epoch, Ordering::Release);
@@ -249,7 +287,11 @@ impl<'a> Thread<'a> {
         self.blocked_at = NOT_BLOCKING;
     }
 
-    pub(crate) fn blocking<F, R>(&mut self, function: F) -> R
+    pub(crate) fn blocking<F, R>(
+        &mut self,
+        process: ProcessPointer,
+        function: F,
+    ) -> R
     where
         F: FnOnce() -> R,
     {
@@ -258,21 +300,35 @@ impl<'a> Thread<'a> {
         let res = function();
 
         self.finish_blocking();
+
+        // If the closure took too long to run (e.g. an IO operation took too
+        // long), we have to give up running the process. If we continue running
+        // we could mess up whatever thread has taken over our queue/work, and
+        // we'd be using the OS thread even longer than we already have.
+        //
+        // We schedule onto the global queue because if another thread took over
+        // but found no other work, it may have gone to sleep. In that case
+        // scheduling onto the local queue may result in the work never getting
+        // picked up (e.g. if all other threads are also sleeping).
+        if self.backup {
+            // Safety: the current thread is holding on to the run lock, so
+            // another thread can't run the process until we finish the context
+            // switch.
+            self.schedule_global(process);
+            unsafe { context::switch(process) };
+        }
+
         res
     }
 
     fn move_work_to_global_queue(&mut self) {
-        let len = self.work.len() + if self.priority.is_some() { 1 } else { 0 };
+        let len = self.work.len();
 
         if len == 0 {
             return;
         }
 
         let mut work = Vec::with_capacity(len);
-
-        if let Some(process) = self.priority.take() {
-            work.push(process);
-        }
 
         while let Some(process) = self.work.pop() {
             work.push(process);
@@ -313,6 +369,13 @@ impl<'a> Thread<'a> {
                 continue;
             }
 
+            // Now that we ran out of local work, we can try to shrink the stack
+            // if really necessary. We do this _before_ stealing global work to
+            // prevent the stack pool from ballooning in size. If we did this
+            // before going to sleep then in an active system we may never end
+            // up shrinking the stack pool.
+            self.stacks.shrink();
+
             if let Some(process) = self.steal_from_global() {
                 self.run_process(state, process);
                 continue;
@@ -323,7 +386,7 @@ impl<'a> Thread<'a> {
     }
 
     fn next_local_process(&mut self) -> Option<ProcessPointer> {
-        self.priority.take().or_else(|| self.work.pop())
+        self.work.pop()
     }
 
     fn steal_from_thread(&mut self) -> Option<ProcessPointer> {
@@ -413,18 +476,69 @@ impl<'a> Thread<'a> {
         self.pool.sleeping.fetch_sub(1, Ordering::AcqRel);
     }
 
-    fn run_process(&mut self, state: &State, process: ProcessPointer) {
-        Machine::new(state).run(self, process);
+    /// Runs a process by calling back into the native code.
+    fn run_process(&mut self, state: &State, mut process: ProcessPointer) {
+        {
+            // We must acquire the run lock first to prevent running a process
+            // that's still wrapping up/suspending in another thread.
+            //
+            // An example of such a scenario is when process A sends a message
+            // to process B, wants to wait for it, but B produces the result and
+            // tries to reschedule A _before_ A gets a chance to finish yielding
+            // back to the scheduler.
+            //
+            // This is done in a sub scope such that the lock is unlocked
+            // automatically when we decide what action to take in response to
+            // the yield.
+            let _lock = process.acquire_run_lock();
+
+            match process.next_task() {
+                Task::Resume => {
+                    process.set_thread(self);
+                    unsafe { context::switch(process) }
+                }
+                Task::Start(func, args) => {
+                    process.set_thread(self);
+                    unsafe { context::start(state, process, func, args) }
+                }
+                Task::Wait => return,
+            }
+
+            process.unset_thread();
+        }
+
+        self.reductions = REDUCTIONS;
+
+        match self.action.take() {
+            Action::Terminate => {
+                // Process termination can't be safely done on the process'
+                // stack, because its memory would be dropped while we're still
+                // using it, hence we do that here.
+                if process.is_main() {
+                    state.terminate();
+                }
+
+                if let Some(stack) = process.take_stack() {
+                    self.stacks.add(stack);
+                }
+
+                // Processes drop/free themselves as this must be deferred until
+                // all messages (including any destructors) have finished
+                // running. If we did this in a destructor we'd end up releasing
+                // memory of a process while still using it.
+                Process::drop_and_deallocate(process);
+            }
+            Action::Ignore => {
+                // In this case it's up to the process (or another process) to
+                // reschedule the process we just finished running.
+            }
+        }
     }
 }
 
-impl<'a> Drop for Thread<'a> {
+impl Drop for Thread {
     fn drop(&mut self) {
         while let Some(process) = self.work.pop() {
-            Process::drop_and_deallocate(process);
-        }
-
-        if let Some(process) = self.priority.take() {
             Process::drop_and_deallocate(process);
         }
     }
@@ -666,6 +780,9 @@ struct Pool {
 
     /// The state of the process monitor thread.
     monitor: MonitorState,
+
+    /// The size of each stack to allocate for a process.
+    stack_size: usize,
 }
 
 impl Pool {
@@ -729,7 +846,11 @@ pub(crate) struct Scheduler {
 }
 
 impl Scheduler {
-    pub(crate) fn new(size: usize, backup: usize) -> Scheduler {
+    pub(crate) fn new(
+        size: usize,
+        backup: usize,
+        stack_size: usize,
+    ) -> Scheduler {
         let mut shared = Vec::with_capacity(size);
 
         for _ in 0..size {
@@ -753,6 +874,7 @@ impl Scheduler {
                 lock: Mutex::new(()),
                 cvar: Condvar::new(),
             },
+            stack_size,
         });
 
         Self { primary: size, backup, pool: shared }
@@ -767,7 +889,7 @@ impl Scheduler {
     }
 
     pub(crate) fn terminate(&self) {
-        let _gloabl = self.pool.global.lock().unwrap();
+        let _global = self.pool.global.lock().unwrap();
         let _blocked = self.pool.blocked_threads.lock().unwrap();
         let _monitor = self.pool.monitor.lock.lock().unwrap();
 
@@ -779,18 +901,19 @@ impl Scheduler {
         self.pool.monitor.cvar.notify_one();
     }
 
-    pub(crate) fn run(
-        &self,
-        state: &State,
-        class: ClassPointer,
-        method: MethodPointer,
-    ) {
-        let process = Process::main(class, method);
+    pub(crate) fn run(&self, state: &State, process: ProcessPointer) {
         let pollers = state.network_pollers.len();
+        let cores = number_of_cores();
         let _ = scope(move |s| {
             s.builder()
                 .name("proc monitor".to_string())
-                .spawn(move |_| Monitor::new(&*self.pool).run())
+                .spawn(move |_| {
+                    // Cores 0 and 1 are used for the timeout and network poller
+                    // threads. Since we may be running quite often we'll pin
+                    // this thread to a different core.
+                    pin_thread_to_core(2 % cores);
+                    Monitor::new(&*self.pool).run()
+                })
                 .unwrap();
 
             for id in 0..self.primary {
@@ -799,7 +922,8 @@ impl Scheduler {
                 s.builder()
                     .name(format!("proc {}", id))
                     .spawn(move |_| {
-                        Thread::new(id, poll_id, &*self.pool).run(state)
+                        pin_thread_to_core(id % cores);
+                        Thread::new(id, poll_id, self.pool.clone()).run(state)
                     })
                     .unwrap();
             }
@@ -810,7 +934,8 @@ impl Scheduler {
                 s.builder()
                     .name(format!("backup {}", id))
                     .spawn(move |_| {
-                        Thread::backup(poll_id, &*self.pool).run(state)
+                        pin_thread_to_core(id % cores);
+                        Thread::backup(poll_id, self.pool.clone()).run(state)
                     })
                     .unwrap();
             }
@@ -823,19 +948,25 @@ impl Scheduler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mem::Method;
+    use crate::context::Context;
     use crate::test::{
-        empty_async_method, empty_process_class, new_main_process, new_process,
-        setup,
+        empty_process_class, new_main_process, new_process, setup,
     };
     use std::thread::sleep;
+
+    unsafe extern "system" fn method(ctx: *mut u8) {
+        let ctx = &mut *(ctx as *mut Context);
+
+        ctx.process.thread().action = Action::Terminate;
+        context::switch(ctx.process);
+    }
 
     #[test]
     fn test_thread_schedule() {
         let class = empty_process_class("A");
         let process = new_process(*class).take_and_forget();
-        let scheduler = Scheduler::new(1, 1);
-        let mut thread = Thread::new(0, 0, &scheduler.pool);
+        let scheduler = Scheduler::new(1, 1, 32);
+        let mut thread = Thread::new(0, 0, scheduler.pool.clone());
 
         thread.schedule(process);
 
@@ -847,8 +978,8 @@ mod tests {
     fn test_thread_schedule_with_overflow() {
         let class = empty_process_class("A");
         let process = new_process(*class).take_and_forget();
-        let scheduler = Scheduler::new(1, 1);
-        let mut thread = Thread::new(0, 0, &scheduler.pool);
+        let scheduler = Scheduler::new(1, 1, 32);
+        let mut thread = Thread::new(0, 0, scheduler.pool.clone());
 
         scheduler.pool.sleeping.fetch_add(1, Ordering::AcqRel);
 
@@ -868,92 +999,53 @@ mod tests {
     }
 
     #[test]
-    fn test_thread_schedule_priority() {
-        let class = empty_process_class("A");
-        let process = new_process(*class).take_and_forget();
-        let scheduler = Scheduler::new(1, 1);
-        let mut thread = Thread::new(0, 0, &scheduler.pool);
-
-        thread.schedule_priority(process);
-
-        assert_eq!(thread.priority, Some(process));
-    }
-
-    #[test]
     fn test_thread_run_with_local_job() {
         let class = empty_process_class("A");
-        let main_method = empty_async_method();
-        let process = new_main_process(*class, main_method).take_and_forget();
+        let process = new_main_process(*class, method).take_and_forget();
         let state = setup();
-        let mut thread = Thread::new(0, 0, &state.scheduler.pool);
+        let mut thread = Thread::new(0, 0, state.scheduler.pool.clone());
 
         thread.schedule(process);
         thread.run(&state);
 
         assert_eq!(thread.work.len(), 0);
-
-        Method::drop_and_deallocate(main_method);
-    }
-
-    #[test]
-    fn test_thread_run_with_priority_job() {
-        let class = empty_process_class("A");
-        let main_method = empty_async_method();
-        let process = new_main_process(*class, main_method).take_and_forget();
-        let state = setup();
-        let mut thread = Thread::new(0, 0, &state.scheduler.pool);
-
-        thread.schedule_priority(process);
-        thread.run(&state);
-
-        assert_eq!(thread.work.len(), 0);
-        assert!(thread.priority.is_none());
-
-        Method::drop_and_deallocate(main_method);
     }
 
     #[test]
     fn test_thread_run_with_stolen_job() {
         let class = empty_process_class("A");
-        let main_method = empty_async_method();
-        let process = new_main_process(*class, main_method).take_and_forget();
+        let process = new_main_process(*class, method).take_and_forget();
         let state = setup();
-        let mut thread0 = Thread::new(0, 0, &state.scheduler.pool);
-        let mut thread1 = Thread::new(1, 0, &state.scheduler.pool);
+        let mut thread0 = Thread::new(0, 0, state.scheduler.pool.clone());
+        let mut thread1 = Thread::new(1, 0, state.scheduler.pool.clone());
 
         thread1.schedule(process);
         thread0.run(&state);
 
         assert_eq!(thread0.work.len(), 0);
         assert_eq!(thread1.work.len(), 0);
-
-        Method::drop_and_deallocate(main_method);
     }
 
     #[test]
     fn test_thread_run_with_global_job() {
         let class = empty_process_class("A");
-        let main_method = empty_async_method();
-        let process = new_main_process(*class, main_method).take_and_forget();
+        let process = new_main_process(*class, method).take_and_forget();
         let state = setup();
-        let mut thread = Thread::new(0, 0, &state.scheduler.pool);
+        let mut thread = Thread::new(0, 0, state.scheduler.pool.clone());
 
         state.scheduler.pool.schedule(process);
         thread.run(&state);
 
         assert_eq!(thread.work.len(), 0);
         assert!(state.scheduler.pool.global.lock().unwrap().is_empty());
-
-        Method::drop_and_deallocate(main_method);
     }
 
     #[test]
     fn test_thread_run_as_backup() {
         let class = empty_process_class("A");
-        let main_method = empty_async_method();
-        let process = new_main_process(*class, main_method).take_and_forget();
+        let process = new_main_process(*class, method).take_and_forget();
         let state = setup();
-        let mut thread = Thread::new(0, 0, &state.scheduler.pool);
+        let mut thread = Thread::new(0, 0, state.scheduler.pool.clone());
 
         thread.backup = true;
 
@@ -968,38 +1060,33 @@ mod tests {
             thread.work.as_ptr(),
             state.scheduler.pool.threads[1].queue.as_ptr()
         );
-
-        Method::drop_and_deallocate(main_method);
     }
 
     #[test]
     fn test_thread_start_blocking() {
         let class = empty_process_class("A");
-        let proc1 = new_process(*class).take_and_forget();
-        let proc2 = new_process(*class).take_and_forget();
+        let proc = new_process(*class).take_and_forget();
         let state = setup();
         let pool = &state.scheduler.pool;
-        let mut thread = Thread::new(0, 0, pool);
+        let mut thread = Thread::new(0, 0, pool.clone());
 
         pool.epoch.store(4, Ordering::Release);
         pool.monitor.status.store(MonitorStatus::Sleeping);
 
-        thread.schedule_priority(proc1);
-        thread.schedule(proc2);
+        thread.schedule(proc);
         thread.start_blocking();
 
         assert_eq!(thread.blocked_at, 4);
         assert_eq!(pool.threads[0].blocked_at.load(Ordering::Acquire), 4);
         assert_eq!(pool.monitor.status.load(), MonitorStatus::Notified);
         assert!(thread.work.is_empty());
-        assert!(thread.priority.is_none());
     }
 
     #[test]
     fn test_thread_finish_blocking() {
         let state = setup();
         let pool = &state.scheduler.pool;
-        let mut thread = Thread::new(0, 0, pool);
+        let mut thread = Thread::new(0, 0, pool.clone());
 
         thread.start_blocking();
         thread.finish_blocking();
@@ -1015,41 +1102,25 @@ mod tests {
     }
 
     #[test]
-    fn test_thread_blocking() {
-        let state = setup();
-        let pool = &state.scheduler.pool;
-        let mut thread = Thread::new(0, 0, pool);
-
-        thread.blocking(|| {
-            pool.threads[0].blocked_at.store(NOT_BLOCKING, Ordering::Release)
-        });
-
-        assert!(thread.backup);
-    }
-
-    #[test]
     fn test_thread_move_work_to_global_queue() {
         let class = empty_process_class("A");
-        let proc1 = new_process(*class).take_and_forget();
-        let proc2 = new_process(*class).take_and_forget();
+        let proc = new_process(*class).take_and_forget();
         let state = setup();
         let pool = &state.scheduler.pool;
-        let mut thread = Thread::new(0, 0, pool);
+        let mut thread = Thread::new(0, 0, pool.clone());
 
-        thread.schedule(proc1);
-        thread.schedule_priority(proc2);
+        thread.schedule(proc);
         thread.move_work_to_global_queue();
 
         assert!(thread.work.is_empty());
-        assert!(thread.priority.is_none());
-        assert_eq!(pool.global.lock().unwrap().len(), 2);
+        assert_eq!(pool.global.lock().unwrap().len(), 1);
     }
 
     #[test]
     fn test_pool_schedule_with_sleeping_thread() {
         let class = empty_process_class("A");
         let process = new_process(*class).take_and_forget();
-        let scheduler = Scheduler::new(1, 1);
+        let scheduler = Scheduler::new(1, 1, 32);
 
         scheduler.pool.sleeping.fetch_add(1, Ordering::Release);
         scheduler.pool.schedule(process);
@@ -1059,8 +1130,8 @@ mod tests {
 
     #[test]
     fn test_scheduler_terminate() {
-        let scheduler = Scheduler::new(1, 1);
-        let thread = Thread::new(0, 0, &scheduler.pool);
+        let scheduler = Scheduler::new(1, 1, 32);
+        let thread = Thread::new(0, 0, scheduler.pool.clone());
 
         scheduler.pool.sleeping.fetch_add(1, Ordering::Release);
         scheduler.terminate();
@@ -1076,7 +1147,7 @@ mod tests {
 
     #[test]
     fn test_monitor_check_threads() {
-        let scheduler = Scheduler::new(2, 2);
+        let scheduler = Scheduler::new(2, 2, 32);
         let mut monitor = Monitor::new(&*scheduler.pool);
 
         assert!(!monitor.check_threads());
@@ -1104,7 +1175,7 @@ mod tests {
 
     #[test]
     fn test_monitor_update_epoch() {
-        let scheduler = Scheduler::new(1, 1);
+        let scheduler = Scheduler::new(1, 1, 32);
         let mut monitor = Monitor::new(&*scheduler.pool);
 
         assert_eq!(monitor.epoch, START_EPOCH);
@@ -1118,7 +1189,7 @@ mod tests {
 
     #[test]
     fn test_monitor_sleep() {
-        let scheduler = Scheduler::new(1, 1);
+        let scheduler = Scheduler::new(1, 1, 32);
         let monitor = Monitor::new(&*scheduler.pool);
         let start = Instant::now();
 
@@ -1131,7 +1202,7 @@ mod tests {
 
     #[test]
     fn test_monitor_deep_sleep_with_termination() {
-        let scheduler = Scheduler::new(1, 1);
+        let scheduler = Scheduler::new(1, 1, 32);
         let monitor = Monitor::new(&*scheduler.pool);
 
         scheduler.terminate();
@@ -1142,7 +1213,7 @@ mod tests {
 
     #[test]
     fn test_monitor_deep_sleep_with_notification() {
-        let scheduler = Scheduler::new(1, 1);
+        let scheduler = Scheduler::new(1, 1, 32);
         let monitor = Monitor::new(&*scheduler.pool);
         let _ = scope(|s| {
             s.spawn(|_| monitor.deep_sleep());
@@ -1164,7 +1235,7 @@ mod tests {
 
     #[test]
     fn test_monitor_deep_sleep_with_blocked_threads() {
-        let scheduler = Scheduler::new(1, 1);
+        let scheduler = Scheduler::new(1, 1, 32);
         let monitor = Monitor::new(&*scheduler.pool);
 
         scheduler.pool.threads[0].blocked_at.store(1, Ordering::Release);

@@ -251,7 +251,7 @@ impl Format for Json {
   }
 }
 
-impl Equal for Json {
+impl Equal[Json] for Json {
   fn pub ==(other: ref Json) -> Bool {
     match self {
       case Int(lhs) -> match other {
@@ -322,8 +322,8 @@ class pub Parser {
   let pub @max_string_size: Int
 
   # Returns a new parser that will parse the given `String`.
-  fn pub static new(string: String) -> Self {
-    Self {
+  fn pub static new(string: String) -> Parser {
+    Parser {
       @string = string,
       @index = 0,
       @size = string.size,
@@ -503,7 +503,7 @@ class pub Parser {
 
     let codepoint = _INKO.string_to_int(@string, 16, start, @index)
 
-    if _INKO.is_undefined(codepoint) {
+    if _INKO.is_null(codepoint) {
       throw error("'{slice_string(start)}' is an invalid Unicode codepoint")
     }
 
@@ -607,7 +607,7 @@ class pub Parser {
 
         # If the number is too big to fit in an integer, we'll promote the
         # number to a float.
-        if _INKO.is_undefined(res).false? { return Json.Int(res) }
+        if _INKO.is_null(res).false? { return Json.Int(res) }
       }
     }
 
@@ -725,8 +725,8 @@ class pub Generator {
   # The `indent` argument specifies the number of spaces to use per indentation
   # level. If this value is less than or equal to zero, no indentation is
   # applied.
-  fn pub static new(indent: Int) -> Self {
-    Self {
+  fn pub static new(indent: Int) -> Generator {
+    Generator {
       @pretty = indent > 0,
       @spaces = ' '.repeat(indent),
       @depth = 0,

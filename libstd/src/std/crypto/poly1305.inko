@@ -80,12 +80,12 @@ class pub Poly1305 {
   # # Panics
   #
   # This method panics if the key isn't exactly 32 bytes long.
-  fn pub static new(key: ref ByteArray) -> Self {
+  fn pub static new(key: ref ByteArray) -> Poly1305 {
     if key.length != KEY_SIZE {
       panic("Poly1305 keys must be exactly {KEY_SIZE} bytes")
     }
 
-    Self {
+    Poly1305 {
       @block = Block.new(BLOCK_SIZE),
       @r0 = little.read_u32(from: key, at: 0) & 0x0FFFFFFF,
       @r1 = little.read_u32(from: key, at: 4) & 0x0FFFFFFC,

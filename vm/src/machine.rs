@@ -113,7 +113,9 @@ impl<'a> Machine<'a> {
             }
         }
 
-        state.scheduler.run(&*state, entry_class, entry_method);
+        let proc = Process::main(entry_class, entry_method);
+
+        state.scheduler.run(&*state, proc);
         Ok(state.current_exit_status())
     }
 
@@ -539,7 +541,7 @@ impl<'a> Machine<'a> {
                 Opcode::ProcessAllocate => {
                     let reg = ins.arg(0);
                     let idx = ins.u32_arg(1, 2);
-                    let res = process::allocate(self.state, idx);
+                    let res = process::allocate(self.state, thread, idx);
 
                     state.context.set_register(reg, res);
                 }
@@ -846,10 +848,6 @@ impl<'a> Machine<'a> {
                     let method = ins.arg(1);
 
                     state.save();
-                    // TODO: remove
-                    if rec.as_ptr().is_null() {
-                        return Err("CallVirtual with NULL".to_string());
-                    }
                     general::call_virtual(self.state, task, rec, method);
                     reset!(task, state);
                 }
@@ -1055,6 +1053,10 @@ impl<'a> Machine<'a> {
                     if terminate {
                         if process.is_main() {
                             self.state.terminate();
+                        }
+
+                        if let Some(stack) = process.stack.take() {
+                            thread.stacks.add(stack);
                         }
 
                         // Processes drop/free themselves as this must be

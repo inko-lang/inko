@@ -31,12 +31,12 @@ trait pub IntoByteArray {
 # you're better off using the `Array` type.
 class builtin ByteArray {
   # Returns a new empty `ByteArray`.
-  fn pub static new -> Self {
-    _INKO.byte_array_allocate
+  fn pub static new -> ByteArray {
+    _INKO.byte_array_new
   }
 
   # Returns a new `ByteArray` created from the given `Array`.
-  fn pub static from_array(array: ref Array[Int]) -> Self {
+  fn pub static from_array(array: ref Array[Int]) -> ByteArray {
     let bytes = ByteArray.new
 
     array.iter.each fn (v) { bytes.push(v) }
@@ -86,7 +86,7 @@ class builtin ByteArray {
   #
   #     a.append(b)
   #     a # => ByteArray.from_array([10, 20])
-  fn pub mut append(other: Self) {
+  fn pub mut append(other: ByteArray) {
     _INKO.byte_array_append(self, other)
   }
 
@@ -127,7 +127,7 @@ class builtin ByteArray {
   fn pub mut pop -> Option[Int] {
     let val = _INKO.byte_array_pop(self)
 
-    if _INKO.is_undefined(val) { Option.None } else { Option.Some(val) }
+    if _INKO.is_null(val) { Option.None } else { Option.Some(val) }
   }
 
   # Removes the value at the given index, returning the removed value.
@@ -369,13 +369,13 @@ impl SetIndex[Int, Int] for ByteArray {
 }
 
 impl ToByteArray for ByteArray {
-  fn pub to_byte_array -> Self {
+  fn pub to_byte_array -> ByteArray {
     clone
   }
 }
 
 impl IntoByteArray for ByteArray {
-  fn pub move into_byte_array -> Self {
+  fn pub move into_byte_array -> ByteArray {
     self
   }
 }
@@ -404,7 +404,7 @@ impl IntoString for ByteArray {
   }
 }
 
-impl Equal for ByteArray {
+impl Equal[ByteArray] for ByteArray {
   # Returns `True` if two `ByteArray` objects are equal to each other.
   #
   # Two `ByteArray` objects are considered equal if they have the exact same
@@ -417,12 +417,12 @@ impl Equal for ByteArray {
   #     ByteArray.from_array([10]) == ByteArray.from_array([10]) # => True
   #     ByteArray.from_array([10]) == ByteArray.from_array([20]) # => False
   fn pub ==(other: ref ByteArray) -> Bool {
-    _INKO.byte_array_equals(self, other)
+    _INKO.byte_array_eq(self, other)
   }
 }
 
-impl Clone for ByteArray {
-  fn pub clone -> Self {
+impl Clone[ByteArray] for ByteArray {
+  fn pub clone -> ByteArray {
     _INKO.byte_array_clone(self)
   }
 }

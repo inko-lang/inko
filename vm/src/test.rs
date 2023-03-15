@@ -1,13 +1,9 @@
 //! Helper functions for writing unit tests.
 use crate::config::Config;
-use crate::location_table::LocationTable;
-use crate::mem::{
-    Class, ClassPointer, Method, MethodPointer, Module, ModulePointer,
-};
-use crate::permanent_space::{MethodCounts, PermanentSpace};
-use crate::process::{Process, ProcessPointer};
-use crate::state::{RcState, State};
-use bytecode::{Instruction, Opcode};
+use crate::mem::{Class, ClassPointer};
+use crate::process::{NativeAsyncMethod, Process, ProcessPointer};
+use crate::stack::Stack;
+use crate::state::{MethodCounts, RcState, State};
 use std::mem::forget;
 use std::ops::{Deref, DerefMut, Drop};
 
@@ -55,7 +51,7 @@ impl Drop for OwnedProcess {
 
 /// A class that is dropped when this pointer is dropped.
 #[repr(transparent)]
-pub(crate) struct OwnedClass(ClassPointer);
+pub(crate) struct OwnedClass(pub(crate) ClassPointer);
 
 impl OwnedClass {
     pub(crate) fn new(ptr: ClassPointer) -> Self {
@@ -73,31 +69,9 @@ impl Deref for OwnedClass {
 
 impl Drop for OwnedClass {
     fn drop(&mut self) {
-        Class::drop(self.0);
-    }
-}
-
-/// A module that is dropped when this pointer is dropped.
-#[repr(transparent)]
-pub(crate) struct OwnedModule(ModulePointer);
-
-impl OwnedModule {
-    pub(crate) fn new(ptr: ModulePointer) -> Self {
-        Self(ptr)
-    }
-}
-
-impl Deref for OwnedModule {
-    type Target = ModulePointer;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl Drop for OwnedModule {
-    fn drop(&mut self) {
-        Module::drop_and_deallocate(self.0);
+        unsafe {
+            Class::drop(self.0);
+        }
     }
 }
 
@@ -109,48 +83,18 @@ pub(crate) fn setup() -> RcState {
     // different platforms.
     config.process_threads = 2;
 
-    let perm = PermanentSpace::new(0, 0, MethodCounts::default());
-
-    State::new(config, perm, &[])
+    State::new(config, &MethodCounts::default(), &[])
 }
 
 pub(crate) fn new_process(class: ClassPointer) -> OwnedProcess {
-    OwnedProcess::new(Process::alloc(class))
+    OwnedProcess::new(Process::alloc(class, Stack::new(1024)))
 }
 
 pub(crate) fn new_main_process(
     class: ClassPointer,
-    method: MethodPointer,
+    method: NativeAsyncMethod,
 ) -> OwnedProcess {
-    OwnedProcess::new(Process::main(class, method))
-}
-
-pub(crate) fn empty_module(class: ClassPointer) -> OwnedModule {
-    OwnedModule::new(Module::alloc(class))
-}
-
-pub(crate) fn empty_method() -> MethodPointer {
-    // We use Int values for the name so we don't have to worry about also
-    // dropping strings when dropping this Method.
-    Method::alloc(
-        123,
-        2,
-        vec![Instruction::new(Opcode::Return, [0; 5])],
-        LocationTable::new(),
-        Vec::new(),
-    )
-}
-
-pub(crate) fn empty_async_method() -> MethodPointer {
-    // We use Int values for the name so we don't have to worry about also
-    // dropping strings when dropping this Method.
-    Method::alloc(
-        123,
-        2,
-        vec![Instruction::one(Opcode::ProcessFinishTask, 1)],
-        LocationTable::new(),
-        Vec::new(),
-    )
+    OwnedProcess::new(Process::main(class, method, Stack::new(1024)))
 }
 
 pub(crate) fn empty_class(name: &str) -> OwnedClass {

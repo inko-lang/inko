@@ -4,7 +4,8 @@ use std::hash::{Hash, Hasher as _};
 use std::i64;
 
 #[derive(Clone)]
-pub(crate) struct Hasher {
+#[repr(C)]
+pub struct Hasher {
     hasher: AHasher,
 }
 

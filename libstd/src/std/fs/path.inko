@@ -105,8 +105,8 @@ class pub Path {
   # The raw file path.
   let @path: String
 
-  fn pub static new(path: String) -> Self {
-    Self { @path = path }
+  fn pub static new(path: String) -> Path {
+    Path { @path = path }
   }
 
   # Returns `True` if the path points to a file.
@@ -277,7 +277,7 @@ trait pub IntoPath {
   fn pub move into_path -> Path
 }
 
-impl Equal for Path {
+impl Equal[Path] for Path {
   # Returns `True` if `self` is equal to the given `Path`.
   #
   # # Examples
@@ -290,7 +290,7 @@ impl Equal for Path {
   #     let path2 = Path.new('foo')
   #
   #     path1 == path2 # => True
-  fn pub ==(other: ref Self) -> Bool {
+  fn pub ==(other: ref Path) -> Bool {
     @path == other.to_string
   }
 }
@@ -335,8 +335,8 @@ impl Size for Path {
   }
 }
 
-impl Clone for Path {
-  fn pub clone -> Self {
+impl Clone[Path] for Path {
+  fn pub clone -> Path {
     Path.new(@path)
   }
 }

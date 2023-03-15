@@ -36,7 +36,7 @@ class pub enum Error {
   case UnexpectedEof
 
   # Returns a new `Error` according to the given error code.
-  fn pub static from_int(code: Int) -> Self {
+  fn pub static from_int(code: Int) -> Error {
     match code {
       case 0 -> Other
       case 1 -> NotFound
@@ -96,8 +96,8 @@ impl ToString for Error {
   }
 }
 
-impl Equal for Error {
-  fn pub ==(other: ref Self) -> Bool {
+impl Equal[Error] for Error {
+  fn pub ==(other: ref Error) -> Bool {
     match self {
       case Other -> match other {
         case Other -> true

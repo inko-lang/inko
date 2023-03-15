@@ -24,7 +24,6 @@ pub(crate) enum DiagnosticId {
     InvalidLoopKeyword,
     InvalidThrow,
     MissingField,
-    InvalidRef,
     InvalidPattern,
     InvalidField,
     MissingThrow,
@@ -57,7 +56,6 @@ impl fmt::Display for DiagnosticId {
             DiagnosticId::InvalidLoopKeyword => "invalid-loop-keyword",
             DiagnosticId::InvalidThrow => "invalid-throw",
             DiagnosticId::MissingField => "missing-field",
-            DiagnosticId::InvalidRef => "invalid-ref",
             DiagnosticId::InvalidPattern => "invalid-pattern",
             DiagnosticId::InvalidField => "invalid-field",
             DiagnosticId::MissingThrow => "missing-throw",
@@ -653,44 +651,6 @@ impl Diagnostics {
             file,
             location,
         );
-    }
-
-    pub(crate) fn unsendable_return_type(
-        &mut self,
-        name: &str,
-        type_name: String,
-        file: PathBuf,
-        location: SourceLocation,
-    ) {
-        self.error(
-            DiagnosticId::InvalidCall,
-            format!(
-                "The method '{}' isn't available because its receiver is a \
-                unique value, and the return type ('{}') isn't sendable",
-                name, type_name
-            ),
-            file,
-            location,
-        );
-    }
-
-    pub(crate) fn unsendable_throw_type(
-        &mut self,
-        name: &str,
-        type_name: String,
-        file: PathBuf,
-        location: SourceLocation,
-    ) {
-        self.error(
-            DiagnosticId::InvalidCall,
-            format!(
-                "The method '{}' isn't available because its receiver is a \
-                unique value, and the throw type ('{}') isn't sendable",
-                name, type_name
-            ),
-            file,
-            location,
-        )
     }
 
     pub(crate) fn self_in_closure_in_recover(

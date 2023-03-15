@@ -61,12 +61,12 @@ extra:
     - icon: fontawesome/brands/gitlab
       link: https://gitlab.com/inko-lang/inko
       name: View on GitLab
+    - icon: fontawesome/brands/discord
+      link: https://discord.com/invite/seeURxHxCb
+      name: Chat using Discord
     - icon: fontawesome/regular/comment
       link: https://matrix.to/#/+inko:matrix.org
       name: Chat using Matrix
-    - icon: fontawesome/brands/twitter
-      link: https://twitter.com/yorickpeterse
-      name: Follow on Twitter
     - icon: fontawesome/brands/reddit
       link: https://reddit.com/r/inko
       name: Join the /r/inko subreddit

@@ -33,18 +33,6 @@ class pub enum Option[T] {
     }
   }
 
-  # Returns an optional mutable reference to the wrapped value.
-  #
-  # # Examples
-  #
-  #     Option.Some([10]).as_mut # => Option.Some(mut [10])
-  fn pub mut as_mut -> Option[mut T] {
-    match self {
-      case Some(v) -> Option.Some(v)
-      case None -> Option.None
-    }
-  }
-
   # Returns the wrapped value.
   #
   # This method panics when used with a `None`.
@@ -174,7 +162,21 @@ class pub enum Option[T] {
   }
 }
 
-impl Equal for Option if T: Equal {
+impl Option if T: mut {
+  # Returns an optional mutable reference to the wrapped value.
+  #
+  # # Examples
+  #
+  #     Option.Some([10]).as_mut # => Option.Some(mut [10])
+  fn pub mut as_mut -> Option[mut T] {
+    match self {
+      case Some(v) -> Option.Some(v)
+      case None -> Option.None
+    }
+  }
+}
+
+impl Equal[Option[T]] for Option if T: Equal[T] {
   # Returns `true` if `self` and the given `Option` are equal.
   #
   # Two options are considered equal to each other if:
@@ -196,7 +198,7 @@ impl Equal for Option if T: Equal {
   # Comparing two None values:
   #
   #     Option.None == Option.None # => true
-  fn pub ==(other: ref Self) -> Bool {
+  fn pub ==(other: ref Option[T]) -> Bool {
     match self {
       case Some(ours) -> match other {
         case Some(theirs) -> ours == theirs
@@ -210,8 +212,8 @@ impl Equal for Option if T: Equal {
   }
 }
 
-impl Clone for Option if T: Clone {
-  fn pub clone -> Self {
+impl Clone[Option[T]] for Option if T: Clone[T] {
+  fn pub clone -> Option[T] {
     match self {
       case Some(v) -> Option.Some(v.clone)
       case None -> Option.None

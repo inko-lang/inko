@@ -1,6 +1,6 @@
-use crate::codegen;
 use crate::config::{Config, IMAGE_EXT, SOURCE, SOURCE_EXT};
 use crate::hir;
+use crate::llvm;
 use crate::mir::{passes as mir, Mir};
 use crate::modules_parser::{ModulesParser, ParsedModule};
 use crate::state::State;
@@ -13,8 +13,8 @@ use crate::type_check::define_types::{
 use crate::type_check::expressions::{DefineConstants, Expressions};
 use crate::type_check::imports::DefineImportedTypes;
 use crate::type_check::methods::{
-    define_builtin_functions, CheckMainMethod, DefineMethods,
-    DefineModuleMethodNames, ImplementTraitMethods,
+    CheckMainMethod, DefineMethods, DefineModuleMethodNames,
+    ImplementTraitMethods,
 };
 use std::env::current_dir;
 use std::ffi::OsStr;
@@ -63,20 +63,24 @@ impl Compiler {
         file: Option<PathBuf>,
     ) -> Result<PathBuf, CompileError> {
         let input = self.main_module_path(file)?;
-        let code = self.compile_bytecode(input.clone())?;
+        let code = self.compile_to_machine_code(input.clone())?;
         let path = self.write_code(input, code);
 
         Ok(path)
     }
 
+    // TODO: remove
+    #[deprecated = "write to a temporary file instead"]
     pub fn compile_to_memory(
         &mut self,
         file: Option<PathBuf>,
     ) -> Result<Vec<u8>, CompileError> {
         let input = self.main_module_path(file)?;
-        let code = self.compile_bytecode(input)?;
+        let code = self.compile_to_machine_code(input)?;
 
-        Ok(code.bytes)
+        // TODO: replace
+        Ok(Vec::new())
+        // Ok(code.bytes)
     }
 
     pub fn print_diagnostics(&self) {
@@ -114,17 +118,21 @@ impl Compiler {
         Ok(path)
     }
 
-    fn compile_bytecode(
+    fn compile_to_machine_code(
         &mut self,
         file: PathBuf,
-    ) -> Result<codegen::Bytecode, CompileError> {
+    ) -> Result<Vec<u8>, CompileError> {
         let main_mod = self.state.db.main_module().unwrap().clone();
         let ast_modules =
             ModulesParser::new(&mut self.state).run(vec![(main_mod, file)]);
 
         self.compile_to_mir(ast_modules).map(|mut mir| {
             self.optimise_mir(&mut mir);
-            codegen::Lower::run_all(&self.state.db, mir)
+
+            // TODO: decide what the return type should be
+            llvm::Lower::run_all(&self.state.db, &mir);
+
+            Vec::new()
         })
     }
 
@@ -179,7 +187,6 @@ impl Compiler {
             && DefineMethods::run_all(state, modules)
             && CheckMainMethod::run(state)
             && ImplementTraitMethods::run_all(state, modules)
-            && define_builtin_functions(state)
             && DefineConstants::run_all(state, modules)
             && Expressions::run_all(state, modules)
     }
@@ -204,13 +211,14 @@ impl Compiler {
 
     fn optimise_mir(&mut self, mir: &mut Mir) {
         mir::ExpandDrop::run_all(&self.state.db, mir);
+        mir::ExpandReference::run_all(&self.state.db, mir);
         mir::clean_up_basic_blocks(mir);
     }
 
     fn write_code(
         &self,
         main_file: PathBuf,
-        code: codegen::Bytecode,
+        code: Vec<u8>, // TODO: replace
     ) -> PathBuf {
         let path = self.state.config.output.clone().unwrap_or_else(|| {
             let name = main_file
@@ -230,7 +238,7 @@ impl Compiler {
             path
         });
 
-        std::fs::write(&path, code.bytes).unwrap();
+        std::fs::write(&path, code).unwrap();
         path
     }
 

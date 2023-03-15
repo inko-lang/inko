@@ -12,8 +12,13 @@ doctest = false
 unicode-segmentation = "^1.8"
 getopts = "^0.2"
 ast = { path = "../ast" }
-bytecode = { path = "../bytecode" }
 types = { path = "../types" }
+fnv = "^1.0"
+
+# We currently use LLVM 13.0 as this is the most recent LLVM version widely
+# available, including on Debian stable (a distribution that usually lags behind
+# the most).
+inkwell = { git = "https://github.com/TheDan64/inkwell", branch = "master", features = ["llvm13-0"] }
 
 [dev-dependencies]
 similar-asserts = "^1.1"

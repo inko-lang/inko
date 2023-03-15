@@ -495,9 +495,9 @@ impl IntoByteArray for String {
   }
 }
 
-impl Clone for String {
-  fn pub clone -> Self {
-    _INKO.string_clone(self)
+impl Clone[String] for String {
+  fn pub clone -> String {
+    self
   }
 }
 
@@ -513,7 +513,7 @@ impl IntoString for String {
   }
 }
 
-impl Equal for String {
+impl Equal[String] for String {
   # Returns `true` if the current `String` and `other` are equal to each other.
   #
   # # Examples
@@ -525,7 +525,7 @@ impl Equal for String {
   # Returns `false` if two Strings are not equal:
   #
   #     'foo' == 'bar' # => false
-  fn pub ==(other: ref Self) -> Bool {
+  fn pub ==(other: ref String) -> Bool {
     _INKO.string_eq(self, other)
   }
 }
@@ -542,14 +542,14 @@ impl Hash for String {
   }
 }
 
-impl Add[String] for String {
+impl Add[String, String] for String {
   # Concatenates `self` and the given `String`, returning a new `String`.
   #
   # # Examples
   #
   #     'hello ' + 'world' # => 'hello world'
-  fn pub +(other: ref Self) -> Self {
-    _INKO.strings(self, other)
+  fn pub +(other: ref String) -> String {
+    _INKO.string_concat(self, other)
   }
 }
 
@@ -594,7 +594,7 @@ impl Iter[String, Never] for Characters {
   fn pub mut next -> Option[String] {
     let val = _INKO.string_characters_next(@iter)
 
-    if _INKO.is_undefined(val) {
+    if _INKO.is_null(val) {
       Option.None
     } else {
       Option.Some(val as String)
@@ -696,8 +696,8 @@ class pub StringBuffer {
   let @strings: Array[String]
 
   # Returns a new empty `StringBuffer`.
-  fn pub static new -> Self {
-    Self { @strings = [] }
+  fn pub static new -> StringBuffer {
+    StringBuffer { @strings = [] }
   }
 
   # Returns a new `StringBuffer` from an existing `Array`.
@@ -711,8 +711,8 @@ class pub StringBuffer {
   #     let strings = ['foo', 'bar']
   #
   #     StringBuffer.from_array(strings).to_string # => 'foobar'
-  fn pub static from_array(strings: Array[String]) -> Self {
-    Self { @strings = strings }
+  fn pub static from_array(strings: Array[String]) -> StringBuffer {
+    StringBuffer { @strings = strings }
   }
 
   # Adds the given `String` to the buffer.

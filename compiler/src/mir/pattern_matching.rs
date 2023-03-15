@@ -22,9 +22,10 @@ use crate::hir;
 use crate::mir::{BlockId, Constant, Mir};
 use crate::state::State;
 use std::collections::{HashMap, HashSet};
+use types::resolve::TypeResolver;
 use types::{
-    ClassInstance, ClassKind, Database, FieldId, TypeContext, TypeId, TypeRef,
-    VariableId, VariantId, BOOLEAN_ID, INT_ID, STRING_ID,
+    ClassInstance, ClassKind, Database, FieldId, TypeArguments, TypeBounds,
+    TypeId, TypeRef, VariableId, VariantId, BOOLEAN_ID, INT_ID, STRING_ID,
 };
 
 /// A binding to define as part of a pattern.
@@ -799,16 +800,14 @@ impl<'a> Compiler<'a> {
             return types.into_iter().map(|t| self.new_variable(t)).collect();
         }
 
-        let mut ctx = TypeContext::with_arguments(
-            self.self_type,
-            instance.type_arguments(self.db()).clone(),
-        );
+        let args = TypeArguments::for_class(self.db_mut(), instance);
+        let bounds = TypeBounds::new(); // TODO: what bounds to use?
 
         types
             .into_iter()
             .map(|raw_type| {
-                let inferred = raw_type
-                    .inferred(self.db_mut(), &mut ctx, false)
+                let inferred = TypeResolver::new(self.db_mut(), &args, &bounds)
+                    .resolve(raw_type)
                     .cast_according_to(source_variable_type, self.db());
 
                 self.new_variable(inferred)
@@ -851,7 +850,7 @@ impl<'a> Compiler<'a> {
 
                     Type::Finite(cons)
                 }
-                ClassKind::Regular => {
+                ClassKind::Regular | ClassKind::Closure => {
                     let fields = class_id.fields(self.db());
                     let args = fields
                         .iter()

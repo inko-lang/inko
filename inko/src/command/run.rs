@@ -6,8 +6,6 @@ use compiler::config::{Config as CompilerConfig, IMAGE_EXT};
 use getopts::{Options, ParsingStyle};
 use std::path::PathBuf;
 use vm::config::Config;
-use vm::image::Image;
-use vm::machine::Machine;
 
 const USAGE: &str = "Usage: inko run [OPTIONS] [FILE]
 
@@ -60,22 +58,6 @@ pub fn run(arguments: &[String]) -> Result<i32, Error> {
     let input = matches.free.get(0);
     let arguments =
         if matches.free.len() > 1 { &matches.free[1..] } else { &[] };
-
-    match input {
-        Some(input) if input.ends_with(IMAGE_EXT) => {
-            let config = Config::from_env();
-            let image = Image::load_file(config, input).map_err(|e| {
-                Error::generic(format!(
-                    "Failed to parse bytecode image {}: {}",
-                    input, e
-                ))
-            })?;
-
-            return Machine::boot(image, arguments).map_err(Error::generic);
-        }
-        _ => {}
-    }
-
     let mut config = CompilerConfig::default();
 
     if let Some(format) = matches.opt_str("f") {
@@ -97,12 +79,14 @@ pub fn run(arguments: &[String]) -> Result<i32, Error> {
 
     match result {
         Ok(bytes) => {
-            let config = Config::from_env();
-            let image = Image::load_bytes(config, bytes).map_err(|e| {
-                Error::generic(format!("Failed to parse bytecode image: {}", e))
-            })?;
-
-            Machine::boot(image, arguments).map_err(Error::generic)
+            todo!("make 'inko run' work again")
+            // TODO: compile to object file and run that
+            // let config = Config::from_env();
+            // let image = Image::load_bytes(config, bytes).map_err(|e| {
+            //     Error::generic(format!("Failed to parse bytecode image: {}", e))
+            // })?;
+            //
+            // Machine::boot(image, arguments).map_err(Error::generic)
         }
         Err(CompileError::Invalid) => Ok(1),
         Err(CompileError::Internal(msg)) => Err(Error::generic(msg)),

@@ -6,16 +6,16 @@ import std::test::Tests
 class Counter {
   let @value: Int
 
-  fn static new -> Self {
-    Self { @value = 0 }
+  fn static new -> Counter {
+    Counter { @value = 0 }
   }
 }
 
 class TrackDrop {
   let @counter: mut Counter
 
-  fn static new(counter: mut Counter) -> Self {
-    Self { @counter = counter }
+  fn static new(counter: mut Counter) -> TrackDrop {
+    TrackDrop { @counter = counter }
   }
 }
 

@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf, MAIN_SEPARATOR};
 
 const MAIN_MODULE: &str = "main";
 const SOURCE_EXT: &str = "inko";
-const SEPARATOR: &str = "::";
+pub const SEPARATOR: &str = "::";
 
 /// The fully qualified name of a module.
 #[derive(Eq, PartialEq, Hash, Clone, Ord, PartialOrd)]

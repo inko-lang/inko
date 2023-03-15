@@ -237,7 +237,7 @@ class pub ChaCha20 {
   # environments you must ensure that the nonce is never reused for the same
   # key. Simply generating a random nonce isn't enough, as given enough time and
   # bad luck the same nonce may be produced.
-  fn pub static new(key: ref ByteArray, nonce: ref ByteArray) -> Self {
+  fn pub static new(key: ref ByteArray, nonce: ref ByteArray) -> ChaCha20 {
     if key.length != KEY_SIZE {
       panic("ChaCha20 key sizes must be exactly {KEY_SIZE} bytes")
     }
@@ -246,7 +246,7 @@ class pub ChaCha20 {
       panic("ChaCha20 nonce sizes must be exactly {CHACHA_NONCE_SIZE} bytes")
     }
 
-    Self {
+    ChaCha20 {
       @matrix = Matrix {
         @words = [
           0x61707865,
@@ -378,7 +378,7 @@ class pub XChaCha20 {
   #     let nonce = rand.bytes(size: 24)
   #
   #     XChaCha20.new(key, nonce)
-  fn pub static new(key: ref ByteArray, nonce: ref ByteArray) -> Self {
+  fn pub static new(key: ref ByteArray, nonce: ref ByteArray) -> XChaCha20 {
     if key.length != KEY_SIZE {
       panic("XChaCha20 key sizes must be exactly {KEY_SIZE} bytes")
     }
@@ -389,7 +389,7 @@ class pub XChaCha20 {
 
     let sub_key = hchacha20(key, nonce.slice(start: 0, length: 16))
 
-    Self {
+    XChaCha20 {
       @chacha = ChaCha20 {
         @matrix = Matrix {
           @words = [

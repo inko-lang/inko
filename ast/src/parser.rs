@@ -1119,15 +1119,21 @@ impl Parser {
         Ok(TypeBound { name, requirements, location })
     }
 
-    fn type_bound_requirements(&mut self) -> Result<TypeNames, ParseError> {
+    fn type_bound_requirements(&mut self) -> Result<Requirements, ParseError> {
         self.expect(TokenKind::Colon)?;
 
         let mut values = Vec::new();
 
         loop {
             let token = self.require()?;
+            let req = match token.kind {
+                TokenKind::Mut => Requirement::Mutable(token.location),
+                _ => Requirement::Trait(
+                    self.type_name_with_optional_namespace(token)?,
+                ),
+            };
 
-            values.push(self.type_name_with_optional_namespace(token)?);
+            values.push(req);
 
             let after = self.peek();
 
@@ -1146,7 +1152,7 @@ impl Parser {
             values.last().unwrap().location(),
         );
 
-        Ok(TypeNames { values, location })
+        Ok(Requirements { values, location })
     }
 
     fn reopen_class(
@@ -1155,14 +1161,16 @@ impl Parser {
         class_token: Token,
     ) -> Result<TopLevelExpression, ParseError> {
         let class_name = Constant::from(class_token);
+        let bounds = self.optional_type_bounds()?;
         let body = self.reopen_class_expressions()?;
-        let location =
-            SourceLocation::start_end(&start.location, body.location());
+        let end_loc = location!(bounds).unwrap_or_else(|| body.location());
+        let location = SourceLocation::start_end(&start.location, end_loc);
 
         Ok(TopLevelExpression::ReopenClass(Box::new(ReopenClass {
             class_name,
             body,
             location,
+            bounds,
         })))
     }
 
@@ -1551,7 +1559,6 @@ impl Parser {
         // When updating this match, also update the one used for parsing return
         // value expressions.
         let value = match start.kind {
-            TokenKind::Async => self.async_expression(start)?,
             TokenKind::BracketOpen => self.array_literal(start)?,
             TokenKind::Break => self.break_loop(start),
             TokenKind::Constant => self.constant(start)?,
@@ -2376,17 +2383,6 @@ impl Parser {
         Expression::False(Box::new(False { location: start.location }))
     }
 
-    fn async_expression(
-        &mut self,
-        start: Token,
-    ) -> Result<Expression, ParseError> {
-        let (expression, expr_loc) =
-            self.expression_with_optional_curly_braces()?;
-        let location = SourceLocation::start_end(&start.location, &expr_loc);
-
-        Ok(Expression::Async(Box::new(Async { expression, location })))
-    }
-
     fn group_or_tuple(
         &mut self,
         start: Token,
@@ -2490,8 +2486,7 @@ impl Parser {
             == start.location.line_range.start();
 
         let value = match peeked.kind {
-            TokenKind::Async
-            | TokenKind::BracketOpen
+            TokenKind::BracketOpen
             | TokenKind::Break
             | TokenKind::Constant
             | TokenKind::CurlyOpen
@@ -5006,7 +5001,7 @@ mod tests {
         );
 
         assert_eq!(
-            top(parse("impl A for B if X: A + B, Y: C {}")),
+            top(parse("impl A for B if X: A + B, Y: C + mut {}")),
             TopLevelExpression::ImplementTrait(Box::new(ImplementTrait {
                 trait_name: TypeName {
                     name: Constant {
@@ -5024,7 +5019,7 @@ mod tests {
                 },
                 body: ImplementationExpressions {
                     values: Vec::new(),
-                    location: cols(32, 33)
+                    location: cols(38, 39)
                 },
                 bounds: Some(TypeBounds {
                     values: vec![
@@ -5034,9 +5029,9 @@ mod tests {
                                 name: "X".to_string(),
                                 location: cols(17, 17)
                             },
-                            requirements: TypeNames {
+                            requirements: Requirements {
                                 values: vec![
-                                    TypeName {
+                                    Requirement::Trait(TypeName {
                                         name: Constant {
                                             source: None,
                                             name: "A".to_string(),
@@ -5044,8 +5039,8 @@ mod tests {
                                         },
                                         arguments: None,
                                         location: cols(20, 20)
-                                    },
-                                    TypeName {
+                                    }),
+                                    Requirement::Trait(TypeName {
                                         name: Constant {
                                             source: None,
                                             name: "B".to_string(),
@@ -5053,7 +5048,7 @@ mod tests {
                                         },
                                         arguments: None,
                                         location: cols(24, 24)
-                                    },
+                                    }),
                                 ],
                                 location: cols(20, 24)
                             },
@@ -5065,24 +5060,27 @@ mod tests {
                                 name: "Y".to_string(),
                                 location: cols(27, 27)
                             },
-                            requirements: TypeNames {
-                                values: vec![TypeName {
-                                    name: Constant {
-                                        source: None,
-                                        name: "C".to_string(),
+                            requirements: Requirements {
+                                values: vec![
+                                    Requirement::Trait(TypeName {
+                                        name: Constant {
+                                            source: None,
+                                            name: "C".to_string(),
+                                            location: cols(30, 30)
+                                        },
+                                        arguments: None,
                                         location: cols(30, 30)
-                                    },
-                                    arguments: None,
-                                    location: cols(30, 30)
-                                }],
-                                location: cols(30, 30)
+                                    }),
+                                    Requirement::Mutable(cols(34, 36))
+                                ],
+                                location: cols(30, 36)
                             },
-                            location: cols(27, 30)
+                            location: cols(27, 36)
                         }
                     ],
-                    location: cols(17, 30)
+                    location: cols(17, 36)
                 }),
-                location: cols(1, 33)
+                location: cols(1, 39)
             }))
         );
 
@@ -5144,6 +5142,7 @@ mod tests {
                     values: Vec::new(),
                     location: cols(8, 9)
                 },
+                bounds: None,
                 location: cols(1, 9)
             }))
         );
@@ -5177,6 +5176,7 @@ mod tests {
                     }],
                     location: cols(8, 20)
                 },
+                bounds: None,
                 location: cols(1, 20)
             }))
         );
@@ -5210,7 +5210,39 @@ mod tests {
                     }],
                     location: cols(8, 26)
                 },
+                bounds: None,
                 location: cols(1, 26)
+            }))
+        );
+
+        assert_eq!(
+            top(parse("impl A if T: mut {}")),
+            TopLevelExpression::ReopenClass(Box::new(ReopenClass {
+                class_name: Constant {
+                    source: None,
+                    name: "A".to_string(),
+                    location: cols(6, 6)
+                },
+                body: ImplementationExpressions {
+                    values: Vec::new(),
+                    location: cols(18, 19)
+                },
+                bounds: Some(TypeBounds {
+                    values: vec![TypeBound {
+                        name: Constant {
+                            source: None,
+                            name: "T".to_string(),
+                            location: cols(11, 11)
+                        },
+                        requirements: Requirements {
+                            values: vec![Requirement::Mutable(cols(14, 16))],
+                            location: cols(14, 16)
+                        },
+                        location: cols(11, 16)
+                    }],
+                    location: cols(11, 16)
+                }),
+                location: cols(1, 16)
             }))
         );
     }
@@ -5246,6 +5278,7 @@ mod tests {
                     }],
                     location: cols(8, 27)
                 },
+                bounds: None,
                 location: cols(1, 27)
             }))
         );
@@ -7147,47 +7180,6 @@ mod tests {
                     location: cols(4, 11)
                 }),
                 location: cols(1, 11)
-            }))
-        );
-    }
-
-    #[test]
-    fn test_async_expression() {
-        assert_eq!(
-            expr("async 10.foo"),
-            Expression::Async(Box::new(Async {
-                expression: Expression::Call(Box::new(Call {
-                    receiver: Some(Expression::Int(Box::new(IntLiteral {
-                        value: "10".to_string(),
-                        location: cols(7, 8)
-                    }))),
-                    name: Identifier {
-                        name: "foo".to_string(),
-                        location: cols(10, 12)
-                    },
-                    arguments: None,
-                    location: cols(7, 12)
-                })),
-                location: cols(1, 12)
-            }))
-        );
-
-        assert_eq!(
-            expr("async { 10.foo }"),
-            Expression::Async(Box::new(Async {
-                expression: Expression::Call(Box::new(Call {
-                    receiver: Some(Expression::Int(Box::new(IntLiteral {
-                        value: "10".to_string(),
-                        location: cols(9, 10)
-                    }))),
-                    name: Identifier {
-                        name: "foo".to_string(),
-                        location: cols(12, 14)
-                    },
-                    arguments: None,
-                    location: cols(9, 14)
-                })),
-                location: cols(1, 16)
             }))
         );
     }
