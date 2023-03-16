@@ -46,7 +46,7 @@ jobs:
           path: |
             ${{ github.workspace }}/.cargo
             target
-          key: ${{ runner.os }}-alpine
+          key: ${{ runner.os }}
       - run: 'cargo clippy -- -D warnings'
 
   cargo-fmt:
@@ -61,7 +61,7 @@ jobs:
           path: |
             ${{ github.workspace }}/.cargo
             target
-          key: ${{ runner.os }}-alpine
+          key: ${{ runner.os }}
       - run: 'cargo fmt --all --check'
 
   gitlint:
