@@ -8,7 +8,7 @@
 //!
 //! Our implementation is based on
 //! https://julesjacobs.com/notes/patternmatching/patternmatching.pdf and
-//! https://gitlab.com/yorickpeterse/pattern-matching-in-rust/-/tree/main/jacobs2021.
+//! https://github.com/yorickpeterse/pattern-matching-in-rust/tree/main/jacobs2021.
 //!
 //! The resulting decision tree doesn't contain AST or HIR nodes as the bodies
 //! for match cases; instead we store basic block IDs.

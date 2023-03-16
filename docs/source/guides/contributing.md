@@ -12,20 +12,20 @@ expected to adhere to this code of conduct.
 
 Bugs should be reported at the appropriate issue tracker. For example, bugs for
 Inko itself should be reported in the project
-[inko-lang/inko](https://gitlab.com/inko-lang/inko/-/issues), while bugs
+[inko-lang/inko](https://github.com/inko-lang/inko/issues), while bugs
 specific to Inko's version manager should be reported in the project
-[inko-lang/ivm](https://gitlab.com/inko-lang/ivm/-/issues). Here are a few of
+[inko-lang/ivm](https://github.com/inko-lang/ivm/issues). Here are a few of
 our projects:
 
 | Project            | Description               | Issue tracker
 |:-------------------|:--------------------------|:----------------------------
-| inko-lang/inko     | The main project for Inko | <https://gitlab.com/inko-lang/inko/-/issues>
-| inko-lang/ivm      | Inko's version manager    | <https://gitlab.com/inko-lang/ivm/-/issues>
-| inko-lang/inko.vim | Vim integration for Inko  | <https://gitlab.com/inko-lang/inko.vim/-/issues>
-| inko-lang/website  | The Inko website          | <https://gitlab.com/inko-lang/website/-/issues>
+| inko-lang/inko     | The main project for Inko | <https://github.com/inko-lang/inko/issues>
+| inko-lang/ivm      | Inko's version manager    | <https://github.com/inko-lang/ivm/issues>
+| inko-lang/inko.vim | Vim integration for Inko  | <https://github.com/inko-lang/inko.vim/issues>
+| inko-lang/website  | The Inko website          | <https://github.com/inko-lang/website/issues>
 
-For an up to date list, take a look at the [inko-lang GitLab
-group](https://gitlab.com/inko-lang).
+For an up to date list, take a look at the [inko-lang GitHub
+group](https://github.com/inko-lang).
 
 Before reporting a bug, please make sure an issue doesn't already exist for the
 bug. To find all reported bugs, filter the list of issues using the `type::Bug`
@@ -160,7 +160,7 @@ characters _unless_ they exceed this limit due to a URL.
 ```
 
 Another example can be seen in commit
-[b64323](https://gitlab.com/inko-lang/inko/-/commit/b64323fe288e2c21aeff268ca27fa47b0ed8732d).
+[b64323](https://github.com/inko-lang/inko/commit/b64323fe288e2c21aeff268ca27fa47b0ed8732d).
 
 When writing commit messages, please refrain from including tags like "feat:",
 "bug:", and others recommended by projects such as [Conventional
@@ -188,15 +188,15 @@ For more details about writing commit messages, take a look at
 
 ### Changelog entries
 
-The changelog is generated from Git commits, using [GitLab's changelog
-API](https://docs.gitlab.com/ee/api/repositories.html#generate-changelog-data).
-To include a commit in the changelog, add the `Changelog` trailer to the end of
-the commit. This trailer can be set to the following values:
+The changelog is generated from Git commits. To include a commit in the
+changelog, add the `Changelog` trailer to the end of the commit. This trailer
+can be set to the following values:
 
 - `added`: for new features
 - `fixed`: for bug fixes
 - `changed`: for something that changed but isn't necessarily a bug fix
 - `other`: for any other kind of change
+- `performance`: improvements to the performance of Inko
 
 For example:
 

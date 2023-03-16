@@ -11,9 +11,7 @@ typing, type-safe concurrency, efficient error handling, and more.
 Inko supports 64-bits Linux, macOS and Windows, and installing Inko is quick and
 easy.
 
-For more information, see the [Inko website](https://inko-lang.org/). If you'd
-like to follow this project but don't have a GitLab account, please consider
-starring our [GitHub mirror](https://github.com/YorickPeterse/inko).
+For more information, refer to the [Inko website](https://inko-lang.org/).
 
 ## Features
 

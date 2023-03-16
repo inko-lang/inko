@@ -51,17 +51,17 @@ ivm install 0.10.0 # Installs version 0.10.0
 If you are using [Docker](https://www.docker.com/) or
 [Podman](https://podman.io/), you can use our official Docker/Podman images.
 These images are published on
-[GitLab.com](https://gitlab.com/inko-lang/inko/container_registry/).
+[GitHub.com](https://github.com/inko-lang/inko/pkgs/container/inko).
 
 To install Inko 0.10.0, run the following:
 
 === "Docker"
     ```bash
-    docker pull registry.gitlab.com/inko-lang/inko:0.10.0
+    docker pull ghcr.io/inko-lang/inko:0.10.0
     ```
 === "Podman"
     ```bash
-    podman pull registry.gitlab.com/inko-lang/inko:0.10.0
+    podman pull ghcr.io/inko-lang/inko:0.10.0
     ```
 
 You can then run Inko as follows:
@@ -117,7 +117,7 @@ tracker](https://github.com/Homebrew/homebrew-core/issues).
 When building from Git, first clone the repository:
 
 ```bash
-git clone https://gitlab.com/inko-lang/inko.git
+git clone https://github.com/inko-lang/inko.git
 cd inko
 ```
 

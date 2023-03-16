@@ -5,7 +5,7 @@ site_url: https://docs.inko-lang.org/manual
 docs_dir: source
 site_dir: build
 use_directory_urls: true
-repo_url: https://gitlab.com/inko-lang/inko
+repo_url: https://github.com/inko-lang/inko
 repo_name: Inko
 edit_uri: -/tree/master/docs
 theme:
@@ -58,15 +58,12 @@ nav:
     - internals/vm.md
 extra:
   social:
-    - icon: fontawesome/brands/gitlab
-      link: https://gitlab.com/inko-lang/inko
-      name: View on GitLab
-    - icon: fontawesome/regular/comment
-      link: https://matrix.to/#/+inko:matrix.org
-      name: Chat using Matrix
-    - icon: fontawesome/brands/twitter
-      link: https://twitter.com/yorickpeterse
-      name: Follow on Twitter
+    - icon: fontawesome/brands/github
+      link: https://github.com/inko-lang/inko
+      name: View on GitHub
+    - icon: fontawesome/brands/discord
+      link: https://discord.gg/seeURxHxCb
+      name: Chat on Discord
     - icon: fontawesome/brands/reddit
       link: https://reddit.com/r/inko
       name: Join the /r/inko subreddit

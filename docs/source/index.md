@@ -11,4 +11,4 @@ If you are new to Inko, start by reading through the chapters in the "Getting
 started" section.
 
 You can contribute to the manual by submitting changes or bug reports to the
-[Inko repository](https://gitlab.com/inko-lang/inko).
+[Inko repository](https://github.com/inko-lang/inko).

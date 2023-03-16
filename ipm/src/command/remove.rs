@@ -12,7 +12,7 @@ to run `ipm sync`.
 
 Examples:
 
-    ipm remove gitlab.com/inko-lang/example";
+    ipm remove github.com/inko-lang/example";
 
 pub(crate) fn run(args: &[String]) -> Result<(), Error> {
     let mut options = Options::new();

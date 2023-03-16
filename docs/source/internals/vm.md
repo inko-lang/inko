@@ -185,7 +185,7 @@ embedded into the instruction as an argument. To handle conflicts, the VM uses
 linear probing. Due to rounding method table sizes up to the nearest power of
 two (based on its raw/initial size), conflicts are quite rare and a method can
 be found in at most a few probes. The VM doesn't perform inline caching, though
-[we may implement this in the future](https://gitlab.com/inko-lang/inko/-/issues/6).
+[we may implement this in the future](https://github.com/inko-lang/inko/issues/83).
 
 Static methods are called using virtual dispatch on the class. We may add a
 dedicated instruction for this in the future.

@@ -53,7 +53,7 @@ DOCS_CLOUDFRONT_ID := E3S16BR117BJOL
 
 # The folder to put the documentation in, allowing for branch specific
 # documentation.
-DOCS_FOLDER := master
+DOCS_FOLDER := main
 
 # The directory to store temporary files in.
 TMP_DIR := tmp

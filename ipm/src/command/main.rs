@@ -24,7 +24,7 @@ Commands:
 Examples:
 
     ipm init
-    ipm add gitlab.com/hello/world 1.2.3";
+    ipm add github.com/hello/world 1.2.3";
 
 pub(crate) fn run() -> Result<(), Error> {
     let args: Vec<_> = args().collect();

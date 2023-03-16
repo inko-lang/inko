@@ -1,6 +1,6 @@
 # Using Inko's version manager
 
-Inko has its own version manager: [ivm](https://gitlab.com/inko-lang/ivm).
+Inko has its own version manager: [ivm](https://github.com/inko-lang/ivm).
 Using ivm you can install and manage multiple versions of Inko; whether you are
 using Linux, macOS, or Windows. ivm is written in Rust and doesn't require
 additional system dependencies.

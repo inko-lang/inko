@@ -2,7 +2,7 @@
 //!
 //! This module currently allows unused functions, as it's not yet clear how
 //! we're going to expose this in the compiler. See
-//! https://gitlab.com/inko-lang/inko/-/issues/251 for more information.
+//! https://github.com/inko-lang/inko/issues/320 for more information.
 #![allow(unused)]
 
 use crate::mir::{BlockId, Method, Mir};

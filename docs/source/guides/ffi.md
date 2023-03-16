@@ -226,7 +226,7 @@ necessary.
   arguments, at least for now.
 - Inko doesn't support pinning of processes to OS threads (this is by design),
   making it more difficult to interact with C code that uses thread-local
-  storage. See [this issue](https://gitlab.com/inko-lang/inko/-/issues/258) for
+  storage. See [this issue](https://github.com/inko-lang/inko/issues/325) for
   more information.
 - C code that requires to be run on the main thread should be called from the
   "Main" process, as this process is always run on the main thread. There's no

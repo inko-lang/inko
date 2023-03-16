@@ -1,0 +1,65 @@
+---
+name: Release
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: eu-west-1
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v3
+      - run: make release/source
+      - run: make release/manifest
+
+  container:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v3
+      - uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v4
+        id: meta
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+      - uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  docs:
+    runs-on: ubuntu-latest
+    container:
+      image: 'ghcr.io/inko-lang/containers:python'
+    env:
+      AWS_REGION: eu-west-1
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        with:
+          path: |
+            docs/.venv
+          key: ${{ runner.os }}-docs-release
+      - run: poetry config virtualenvs.in-project true
+      - run: sh ./scripts/poetry_install.sh
+      - run: make docs/publish DOCS_FOLDER=${{ github.ref_name }}
+      - run: >
+          if [[ ${{ github.ref_name }} = $(git tag -l --sort=-v:refname | head -n1) ]]
+            then make docs/publish DOCS_FOLDER=latest
+          fi
+      - run: make docs/versions

@@ -18,7 +18,7 @@ all cases.
 trees](https://en.wikipedia.org/wiki/Decision_tree). Inko's implementation is
 based on [this algorithm](https://julesjacobs.com/notes/patternmatching/patternmatching.pdf).
 If you're interested in implementing pattern matching yourself, we suggest using
-[this project](https://gitlab.com/yorickpeterse/pattern-matching-in-rust) as a
+[this project](https://github.com/yorickpeterse/pattern-matching-in-rust) as a
 reference.
 
 For a list of available patterns and their syntax, refer to the [pattern

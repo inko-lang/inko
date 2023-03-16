@@ -14,7 +14,7 @@ your project, for that you need to run `ipm sync`.
 
 Examples:
 
-    ipm add gitlab.com/inko-lang/example 1.2.3";
+    ipm add github.com/inko-lang/example 1.2.3";
 
 pub(crate) fn run(args: &[String]) -> Result<(), Error> {
     let mut options = Options::new();

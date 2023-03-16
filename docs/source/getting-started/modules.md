@@ -130,7 +130,7 @@ Adding a package is done using `ipm add`, which takes the package URL and
 version to add. For example:
 
 ```bash
-ipm add gitlab.com/inko-lang/example-package 1.2.3
+ipm add github.com/inko-lang/example-package 1.2.3
 ```
 
 This command only adds the package to your `inko.pkg` file, it doesn't install
@@ -142,7 +142,7 @@ The inverse of `ipm add` is the `ipm remove` command, which takes a package URL
 and removes it from your `inko.pkg`. For example:
 
 ```bash
-ipm remove gitlab.com/inko-lang/example-package
+ipm remove github.com/inko-lang/example-package
 ```
 
 ### Installing dependencies

@@ -16,8 +16,8 @@ update them to the latest major version, use the -m/--major flag.
 Examples:
 
     ipm update
-    ipm update gitlab.com/inko-lang/example
-    ipm update gitlab.com/inko-lang/example --major";
+    ipm update github.com/inko-lang/example
+    ipm update github.com/inko-lang/example --major";
 
 pub(crate) fn run(args: &[String]) -> Result<(), Error> {
     let mut options = Options::new();
