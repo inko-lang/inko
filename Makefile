@@ -159,7 +159,7 @@ docs/server:
 
 docs/publish: docs/install docs/build
 	aws s3 sync docs/build s3://${DOCS_S3_BUCKET}/manual/${DOCS_FOLDER} \
-		--acl=public-read --delete --cache-control max-age=86400
+		--acl=public-read --delete --cache-control max-age=86400 --no-progress
 	aws cloudfront create-invalidation \
 		--distribution-id ${DOCS_CLOUDFRONT_ID} --paths "/*"
 
