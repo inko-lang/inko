@@ -18,6 +18,8 @@ on:
       - 'Cargo.*'
       - '*.toml'
       - 'Makefile'
+      - Dockerfile
+  workflow_dispatch:
 
 env:
   CARGO_HOME: ${{ github.workspace }}/.cargo
@@ -123,3 +125,30 @@ jobs:
         run: |
           cd libstd
           cargo run --release -p inko -- test
+
+  nightly-container:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    needs:
+      - std
+    if: |
+      github.repository == 'inko-lang/inko' && github.ref_name == 'main'
+    steps:
+      - uses: actions/checkout@v3
+      - uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v4
+        id: meta
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+      - uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
