@@ -5,6 +5,10 @@ on:
     tags:
       - 'v*'
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
 jobs:
   source:
     runs-on: ubuntu-latest

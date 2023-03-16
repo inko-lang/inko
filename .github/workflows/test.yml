@@ -23,6 +23,8 @@ on:
 
 env:
   CARGO_HOME: ${{ github.workspace }}/.cargo
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   cargo-deny:
