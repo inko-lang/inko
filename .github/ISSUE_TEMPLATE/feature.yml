@@ -1,0 +1,21 @@
+---
+name: Feature
+description: Request or propose a new feature
+labels:
+  - feature
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: |
+        Please describe your feature request in detail.
+    validations:
+      required: true
+
+  - type: textarea
+    id: related
+    attributes:
+      label: Related work
+      description: |
+        Please include any links/information about related work.
