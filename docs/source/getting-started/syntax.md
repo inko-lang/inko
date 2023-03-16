@@ -462,6 +462,19 @@ Arrays are created using flat brackets:
 
 Booleans are created using `true` and `false`.
 
+Inko doesn't have a dedicated negation operator such as `!expression` or `not expression`.
+Instead, you'd use the predicate methods `Bool.true?` and `Bool.false?`.
+`Bool.true?` returns `true` if its receiver is also `true`,
+while `Bool.false?` returns `true` if the receiver is `false.`
+
+Here's a simple example:
+
+```inko
+if volume_is_too_loud.false? {
+  turn_volume_to(11)
+}
+```
+
 ### Nil
 
 The `nil` keyword is used to create an instance of `Nil`.
