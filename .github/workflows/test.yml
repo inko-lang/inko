@@ -68,12 +68,11 @@ jobs:
 
   gitlint:
     runs-on: ubuntu-latest
-    container:
-      image: 'ghcr.io/inko-lang/containers:python'
     steps:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 10
+      - run: pip install gitlint
       - run: git config --global --add safe.directory $PWD
       - run: gitlint --commits "HEAD~9..HEAD"
 
