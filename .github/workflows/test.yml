@@ -1,6 +1,24 @@
 ---
 name: Tests
-on: push
+
+on:
+  push:
+    branches:
+      - '**'
+    paths:
+      - '.cargo/**'
+      - '.github/**'
+      - 'ast/**'
+      - 'compiler/**'
+      - 'inko/**'
+      - 'ipm/**'
+      - 'libstd/**'
+      - 'types/**'
+      - 'vm/**'
+      - 'Cargo.*'
+      - '*.toml'
+      - 'Makefile'
+
 env:
   CARGO_HOME: ${{ github.workspace }}/.cargo
 
