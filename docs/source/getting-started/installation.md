@@ -75,6 +75,21 @@ You can then run Inko as follows:
     podman run inko-lang/inko:0.10.0 inko --version
     ```
 
+We also build a container for every commit on the `main` branch, provided the
+tests are passing. If you like to live dangerously, you can use these as
+follows:
+
+=== "Docker"
+    ```bash
+    docker pull ghcr.io/inko-lang/inko:main
+    docker run inko-lang/inko:main inko --version
+    ```
+=== "Podman"
+    ```bash
+    podman pull ghcr.io/inko-lang/inko:main
+    podman run inko-lang/inko:main inko --version
+    ```
+
 ### Arch Linux
 
 Two AUR packages are provided: `inko` and `inko-git`. These can be installed
