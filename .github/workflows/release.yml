@@ -62,7 +62,7 @@ jobs:
           key: ${{ runner.os }}-docs-release
       - run: pip install poetry
       - run: poetry config virtualenvs.in-project true
-      - run: sh ./scripts/poetry_install.sh
+      - run: cd docs && poetry install
       - run: make docs/publish DOCS_FOLDER=${{ github.ref_name }}
       - run: >
           if [[ ${{ github.ref_name }} = $(git tag -l --sort=-v:refname | head -n1) ]]
