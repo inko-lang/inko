@@ -18,7 +18,7 @@ class Rational {
   let @denominator: Int
 }
 
-impl Add[Rational] for Rational {
+impl Add[Rational, Rational] for Rational {
   fn pub +(other: ref Rational) -> Rational {
     Rational {
       @numerator = @numerator + other.numerator,

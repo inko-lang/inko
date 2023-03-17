@@ -16,22 +16,22 @@ import std::time::(Duration, Instant)
 class SocketPath {
   let @path: Path
 
-  fn static pair(id: Int) -> (Self, Self) {
+  fn static pair(id: Int) -> (SocketPath, SocketPath) {
     let p1 = env.temporary_directory.join("inko-test-{id}-1.sock")
     let p2 = env.temporary_directory.join("inko-test-{id}-2.sock")
 
     try file.remove(p1) else nil
     try file.remove(p2) else nil
 
-    (Self { @path = p1 }, Self { @path = p2 })
+    (SocketPath { @path = p1 }, SocketPath { @path = p2 })
   }
 
-  fn static new(id: Int) -> Self {
+  fn static new(id: Int) -> SocketPath {
     let path = env.temporary_directory.join("inko-test-{id}.sock")
 
     try file.remove(path) else nil
 
-    Self { @path = path }
+    SocketPath { @path = path }
   }
 }
 
@@ -249,58 +249,44 @@ fn pub tests(t: mut Tests) {
   t.test('Socket.ttl') fn (t) {
     let socket = try! Socket.ipv4(Type.STREAM)
 
-    try! socket.ttl = 10
-
-    t.equal(try! socket.ttl, 10)
+    t.no_throw fn { try socket.ttl = 10 }
   }
 
   t.test('Socket.only_ipv6?') fn (t) {
     let socket = try! Socket.ipv6(Type.STREAM)
 
-    try! socket.only_ipv6 = true
-
-    t.true(try! socket.only_ipv6?)
+    t.no_throw fn { try socket.only_ipv6 = true }
   }
 
   t.test('Socket.no_delay?') fn (t) {
     let socket = try! Socket.ipv4(Type.STREAM)
 
-    try! socket.no_delay = true
-
-    t.true(try! socket.no_delay?)
+    t.no_throw fn { try socket.no_delay = true }
   }
 
   t.test('Socket.broadcast?') fn (t) {
     let socket = try! Socket.ipv4(Type.DGRAM)
 
-    try! socket.broadcast = true
-
-    t.true(try! socket.broadcast?)
+    t.no_throw fn { try socket.broadcast = true }
   }
 
   t.test('Socket.linger') fn (t) {
     let socket = try! Socket.ipv4(Type.STREAM)
     let duration = Duration.from_secs(5)
 
-    try! socket.linger = duration
-
-    t.equal(try! socket.linger, duration)
+    t.no_throw fn { try socket.linger = duration }
   }
 
   t.test('Socket.receive_buffer_size') fn (t) {
     let socket = try! Socket.ipv4(Type.STREAM)
 
-    try! socket.receive_buffer_size = 256
-
-    t.true(try! { socket.receive_buffer_size } >= 256)
+    t.no_throw fn { try socket.receive_buffer_size = 256 }
   }
 
   t.test('Socket.send_buffer_size') fn (t) {
     let socket = try! Socket.ipv4(Type.STREAM)
 
-    try! socket.send_buffer_size = 256
-
-    t.true(try! { socket.send_buffer_size } >= 256)
+    t.no_throw fn { try socket.send_buffer_size = 256 }
   }
 
   # Obtaining the TCP keepalive setting fails on Windows. See
@@ -309,32 +295,20 @@ fn pub tests(t: mut Tests) {
     t.test('Socket.keepalive') fn (t) {
       let socket = try! Socket.ipv4(Type.STREAM)
 
-      try! socket.keepalive = true
-
-      t.true(try! socket.keepalive)
+      t.no_throw fn { try socket.keepalive = true }
     }
   }
 
   t.test('Socket.reuse_adress') fn (t) {
     let socket = try! Socket.ipv6(Type.DGRAM)
 
-    try! socket.reuse_address = true
-
-    t.true(try! socket.reuse_address)
+    t.no_throw fn { try socket.reuse_address = true }
   }
 
   t.test('Socket.reuse_port') fn (t) {
     let socket = try! Socket.ipv6(Type.DGRAM)
 
-    try! socket.reuse_port = true
-
-    # Windows does not support SO_REUSEPORT, so the return value is always
-    # `false`.
-    if sys.windows? {
-      t.false(try! socket.reuse_port)
-    } else {
-      t.true(try! socket.reuse_port)
-    }
+    t.no_throw fn { try socket.reuse_port = true }
   }
 
   t.test('Socket.shutdown_read') fn (t) {
@@ -1077,17 +1051,13 @@ fn unix_tests(t: mut Tests) {
   t.test('UnixSocket.receive_buffer_size') fn (t) {
     let socket = try! UnixSocket.new(Type.STREAM)
 
-    try! socket.receive_buffer_size = 256
-
-    t.true(try! { socket.receive_buffer_size } >= 256)
+    t.no_throw fn { try socket.receive_buffer_size = 256 }
   }
 
   t.test('UnixSocket.send_buffer_size') fn (t) {
     let socket = try! UnixSocket.new(Type.STREAM)
 
-    try! socket.send_buffer_size = 256
-
-    t.true(try! { socket.send_buffer_size } >= 256)
+    t.no_throw fn { try socket.send_buffer_size = 256 }
   }
 
   t.test('UnixSocket.shutdown_read') fn (t) {

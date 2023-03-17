@@ -41,10 +41,10 @@ class builtin Int {
   #
   #     Int.from_base2('11') # => Option.Some(3)
   #     Int.from_base2('ff') # => Option.None
-  fn pub static from_base2(string: String) -> Option[Self] {
+  fn pub static from_base2(string: String) -> Option[Int] {
     let res = _INKO.string_to_int(string, 2, -1, -1)
 
-    if _INKO.is_undefined(res) { Option.None } else { Option.Some(res) }
+    if _INKO.is_null(res) { Option.None } else { Option.Some(res) }
   }
 
   # Parses an `Int` from a `String`, using base 10.
@@ -56,10 +56,10 @@ class builtin Int {
   #
   #     Int.from_base10('12') # => Option.Some(12)
   #     Int.from_base10('ff') # => Option.None
-  fn pub static from_base10(string: String) -> Option[Self] {
+  fn pub static from_base10(string: String) -> Option[Int] {
     let res = _INKO.string_to_int(string, 10, -1, -1)
 
-    if _INKO.is_undefined(res) { Option.None } else { Option.Some(res) }
+    if _INKO.is_null(res) { Option.None } else { Option.Some(res) }
   }
 
   # Parses an `Int` from a `String`, using base 16.
@@ -75,10 +75,10 @@ class builtin Int {
   #
   #     Int.from_base16('ef') # => Option.Some(239)
   #     Int.from_base16('zz') # => Option.None
-  fn pub static from_base16(string: String) -> Option[Self] {
+  fn pub static from_base16(string: String) -> Option[Int] {
     let res = _INKO.string_to_int(string, 16, -1, -1)
 
-    if _INKO.is_undefined(res) { Option.None } else { Option.Some(res) }
+    if _INKO.is_null(res) { Option.None } else { Option.Some(res) }
   }
 
   # Formats `self` as a `String` using base 2.
@@ -124,7 +124,7 @@ class builtin Int {
   #
   #     -4.absolute # => 4
   #     4.absolute  # => 4
-  fn pub absolute -> Self {
+  fn pub absolute -> Int {
     if self < 0 { 0 - self } else { clone }
   }
 
@@ -134,7 +134,7 @@ class builtin Int {
   #
   #     -42.opposite # => 42
   #     42.opposite  # => -42
-  fn pub opposite -> Self {
+  fn pub opposite -> Int {
     0 - self
   }
 
@@ -300,8 +300,8 @@ impl ToFloat for Int {
   }
 }
 
-impl Compare for Int {
-  fn pub cmp(other: ref Self) -> Ordering {
+impl Compare[Int] for Int {
+  fn pub cmp(other: ref Int) -> Ordering {
     if self > other {
       Ordering.Greater
     } else if self < other {
@@ -311,32 +311,32 @@ impl Compare for Int {
     }
   }
 
-  fn pub <(other: ref Self) -> Bool {
+  fn pub <(other: ref Int) -> Bool {
     _INKO.int_lt(self, other)
   }
 
-  fn pub <=(other: ref Self) -> Bool {
+  fn pub <=(other: ref Int) -> Bool {
     _INKO.int_le(self, other)
   }
 
-  fn pub >(other: ref Self) -> Bool {
+  fn pub >(other: ref Int) -> Bool {
     _INKO.int_gt(self, other)
   }
 
-  fn pub >=(other: ref Self) -> Bool {
+  fn pub >=(other: ref Int) -> Bool {
     _INKO.int_ge(self, other)
   }
 }
 
-impl Equal for Int {
+impl Equal[Int] for Int {
   fn pub ==(other: ref Int) -> Bool {
     _INKO.int_eq(self, other)
   }
 }
 
-impl Clone for Int {
-  fn pub clone -> Self {
-    _INKO.int_clone(self)
+impl Clone[Int] for Int {
+  fn pub clone -> Int {
+    self
   }
 }
 
@@ -346,74 +346,82 @@ impl ToString for Int {
   }
 }
 
-impl Add[Int] for Int {
-  fn pub +(other: ref Self) -> Self {
+impl Add[Int, Int] for Int {
+  fn pub +(other: ref Int) -> Int {
     _INKO.int_add(self, other)
   }
 }
 
-impl Subtract[Int] for Int {
-  fn pub -(other: ref Self) -> Self {
+impl Subtract[Int, Int] for Int {
+  fn pub -(other: ref Int) -> Int {
     _INKO.int_sub(self, other)
   }
 }
 
-impl Divide for Int {
-  fn pub /(other: ref Self) -> Self {
-    _INKO.int_div(self, other)
+impl Divide[Int, Int] for Int {
+  fn pub /(other: ref Int) -> Int {
+    # This implements floored division, rather than rounding towards zero. This
+    # makes division work more natural when using negative numbers.
+    #
+    # This code is based on the upcoming div_floor() implementation of the Rust
+    # standard library: https://github.com/rust-lang/rust/pull/88582.
+    let d = _INKO.int_div(self, other)
+    let r = _INKO.int_rem(self, other)
+
+    if (r > 0 and other < 0) or (r < 0 and other > 0) { d - 1 } else { d }
   }
 }
 
-impl Multiply for Int {
-  fn pub *(other: ref Self) -> Self {
+impl Multiply[Int, Int] for Int {
+  fn pub *(other: ref Int) -> Int {
     _INKO.int_mul(self, other)
   }
 }
 
-impl Modulo for Int {
-  fn pub %(other: ref Self) -> Self {
-    _INKO.int_mod(self, other)
+impl Modulo[Int, Int] for Int {
+  fn pub %(other: ref Int) -> Int {
+    _INKO.int_rem(_INKO.int_add(_INKO.int_rem(self, other), other), other)
   }
 }
 
-impl BitAnd for Int {
-  fn pub &(other: ref Self) -> Self {
+impl BitAnd[Int, Int] for Int {
+  fn pub &(other: ref Int) -> Int {
     _INKO.int_bit_and(self, other)
   }
 }
 
-impl BitOr for Int {
-  fn pub |(other: ref Self) -> Self {
+impl BitOr[Int, Int] for Int {
+  fn pub |(other: ref Int) -> Int {
     _INKO.int_bit_or(self, other)
   }
 }
 
-impl BitXor for Int {
-  fn pub ^(other: ref Self) -> Self {
+impl BitXor[Int, Int] for Int {
+  fn pub ^(other: ref Int) -> Int {
     _INKO.int_bit_xor(self, other)
   }
 }
 
-impl ShiftLeft for Int {
-  fn pub <<(other: ref Self) -> Self {
+impl ShiftLeft[Int, Int] for Int {
+  fn pub <<(other: ref Int) -> Int {
     _INKO.int_shl(self, other)
   }
 }
 
-impl ShiftRight for Int {
-  fn pub >>(other: ref Self) -> Self {
+impl ShiftRight[Int, Int] for Int {
+  fn pub >>(other: ref Int) -> Int {
     _INKO.int_shr(self, other)
   }
 }
 
-impl UnsignedShiftRight for Int {
-  fn pub >>>(other: ref Self) -> Self {
+impl UnsignedShiftRight[Int, Int] for Int {
+  fn pub >>>(other: ref Int) -> Int {
     _INKO.int_unsigned_shr(self, other)
   }
 }
 
-impl Power for Int {
-  fn pub **(other: ref Self) -> Self {
+impl Power[Int, Int] for Int {
+  fn pub **(other: ref Int) -> Int {
     _INKO.int_pow(self, other)
   }
 }

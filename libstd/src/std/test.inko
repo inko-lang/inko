@@ -57,12 +57,13 @@
 #
 # For more information about the available assertions, refer to the
 # documentation of the `Test` type.
+import std::channel::(wait)
 import std::cmp::(Compare, Equal)
 import std::debug
 import std::fmt
 import std::fs::path::Path
 import std::io::Write
-import std::process::(sleep, poll)
+import std::process::(sleep)
 import std::rand::(Random, Shuffle)
 import std::stdio::STDOUT
 import std::sys
@@ -106,8 +107,8 @@ class pub Test {
     path: Path,
     line: Int,
     code: uni fn (mut Test)
-  ) -> Self {
-    Self {
+  ) -> Test {
+    Test {
       @id = id,
       @name = name,
       @path = path,
@@ -118,14 +119,14 @@ class pub Test {
   }
 
   # Asserts that the given arguments are equal to each other.
-  fn pub mut equal[T: Equal + fmt::Format](got: ref T, expected: ref T) {
+  fn pub mut equal[T: Equal[T] + fmt::Format](got: ref T, expected: ref T) {
     if got == expected { return }
 
     @failures.push(Failure.new(format(got), format(expected)))
   }
 
   # Asserts that the given arguments are not equal to each other.
-  fn pub mut not_equal[T: Equal + fmt::Format](got: ref T, expected: ref T) {
+  fn pub mut not_equal[T: Equal[T] + fmt::Format](got: ref T, expected: ref T) {
     if got != expected { return }
 
     @failures.push(Failure.new(format(got), format(expected)))
@@ -167,7 +168,7 @@ class pub Test {
   }
 
   # Asserts that an expression (which may throw) equals the given value.
-  fn pub mut try_equal[T: Equal + fmt::Format, E: fmt::Format](
+  fn pub mut try_equal[T: Equal[T] + fmt::Format, E: fmt::Format](
     block: fn !! E -> T,
     expected: ref T
   ) {
@@ -208,8 +209,8 @@ class pub Plain {
   let @colors: Bool
 
   # Returns a new reporter that writes to the given output stream.
-  fn pub static new(out: Write, colors: Bool) -> Self {
-    Self { @out = out, @tests = 0, @failed = [], @colors = colors }
+  fn pub static new(out: Write, colors: Bool) -> Plain {
+    Plain { @out = out, @tests = 0, @failed = [], @colors = colors }
   }
 
   fn red(value: String) -> String {
@@ -279,12 +280,24 @@ impl Reporter for Plain {
 }
 
 class async Runner {
-  fn async run(test: uni Test) -> uni Test {
-    recover {
-      let test = recover test
+  let @input: Channel[uni Test]
+  let @output: Channel[uni Test]
 
-      test.code.call(test)
-      test
+  fn async run {
+    loop {
+      let test = match @input.try_receive {
+        case Some(test) -> test
+        case None -> return
+      }
+
+      let result = recover {
+        let test = recover test
+
+        test.code.call(test)
+        test
+      }
+
+      @output.send(result)
     }
   }
 }
@@ -306,11 +319,11 @@ class pub Failure {
   # Returns a new failure for the given reason.
   #
   # The source location is determined automatically based on the call stack.
-  fn pub static new(got: String, expected: String) -> Self {
+  fn pub static new(got: String, expected: String) -> Failure {
     # This skips the call to stacktrace(), the call to this new(), and its
     # caller (which would be e.g. `assert_equal`).
     match debug.stacktrace(skip: 3).pop.unwrap {
-      case { @path = path, @line = line } -> Self {
+      case { @path = path, @line = line } -> Failure {
         @got = got,
         @expected = expected,
         @path = path,
@@ -354,8 +367,8 @@ class pub Tests {
   let @tests: Array[uni Test]
 
   # Returns a new test tests with its default settings.
-  fn pub static new -> Self {
-    Self {
+  fn pub static new -> Tests {
+    Tests {
       @tests = [],
       @concurrency = sys.cpu_cores,
       @reporter = Plain.new(out: STDOUT.new, colors: sys.unix?),
@@ -405,24 +418,23 @@ class pub Tests {
     Shuffle.from_int(seed).sort(tests)
 
     let rep = @reporter
-    let futures = []
     let start = Instant.new
+    let input = Channel.new(tests.length)
+    let output = Channel.new(tests.length)
+    let size = tests.length
 
-    while tests.length > 0 or futures.length > 0 {
-      # This schedules up to N concurrent tests, but only if we have any tests
-      # left to schedule.
-      while futures.length < @concurrency {
-        match tests.pop {
-          case Some(test) -> futures.push(async Runner {}.run(test))
-          case _ -> break
-        }
-      }
+    # We send the tests first, as the test runners abort when the input channel
+    # is empty.
+    tests.into_iter.each fn (test) { input.send(test) }
 
-      poll(futures).into_iter.each fn (fut) {
-        let test: Test = fut.await
+    @concurrency.times fn (_) {
+      Runner { @input = input, @output = output }.run
+    }
 
-        if test.failures.empty? { rep.passed(test) } else { rep.failed(test) }
-      }
+    size.times fn (_) {
+      let test = recover output.receive
+
+      if test.failures.empty? { rep.passed(test) } else { rep.failed(test) }
     }
 
     if rep.finished(start.elapsed, seed) {

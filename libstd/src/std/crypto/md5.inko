@@ -108,8 +108,8 @@ class pub Md5 {
   }
 
   # Returns a new instance of the hasher.
-  fn pub static new -> Self {
-    Self {
+  fn pub static new -> Md5 {
+    Md5 {
       @block = Block.new(BLOCK_SIZE),
       @words = Array.filled(with: 0, times: 16),
       @size = 0,

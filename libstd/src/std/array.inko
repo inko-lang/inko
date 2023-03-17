@@ -43,12 +43,13 @@ class builtin Array[T] {
   # # Examples
   #
   #     Array.filled(with: 0, times: 4) # => [0, 0, 0, 0]
-  fn pub static filled[V: Clone](with: V, times: Int) -> Array[V] {
+  fn pub static filled[V: Clone[V]](with: V, times: Int) -> Array[V] {
+    if times == 0 { return [] }
+
     let array = with_capacity(times)
+    let temp = ref with
 
-    if times == 0 { return array }
-
-    (times - 1).times fn (_) { array.push(with.clone) }
+    (times - 1).times fn (_) { array.push(temp.clone) }
     array.push(with)
     array
   }
@@ -108,7 +109,7 @@ class builtin Array[T] {
   fn pub mut pop -> Option[T] {
     let val = _INKO.array_pop(self) as T
 
-    if _INKO.is_undefined(val) { Option.None } else { Option.Some(val) }
+    if _INKO.is_null(val) { Option.None } else { Option.Some(val) }
   }
 
   # Removes the value at the given index, returning the removed value.
@@ -149,36 +150,7 @@ class builtin Array[T] {
   fn pub get(index: Int) -> Option[ref T] {
     if index < 0 or index >= length { return Option.None }
 
-    let raw = _INKO.array_get(self, index) as T
-    let res = ref raw
-
-    _INKO.moved(raw)
-    Option.Some(res)
-  }
-
-  # Returns a mutable reference to the value at the given index.
-  #
-  # # Examples
-  #
-  # Retrieving an existing value:
-  #
-  #     let numbers = [10, 20]
-  #
-  #     numbers.get_mut(0) # => Option.Some(mut 10)
-  #
-  # Retrieving a value from a non-existing index:
-  #
-  #     let numbers = [10, 20]
-  #
-  #     numbers.get_mut(5) # => Option.None
-  fn pub mut get_mut(index: Int) -> Option[mut T] {
-    if index < 0 or index >= length { return Option.None }
-
-    let raw = _INKO.array_get(self, index) as T
-    let res = mut raw
-
-    _INKO.moved(raw)
-    Option.Some(res)
+    Option.Some((ref _INKO.array_get(self, index)) as ref T)
   }
 
   # Inserts the value at the given index, returning the old value.
@@ -205,11 +177,6 @@ class builtin Array[T] {
   # Returns an iterator that yields immutable references to the values in
   # `self`.
   fn pub iter -> Iter[ref T, Never] {
-    Enum.indexed(length) fn (index) { self[index] }
-  }
-
-  # Returns an iterator that yields mutable references to the values in `self`.
-  fn pub mut iter_mut -> Iter[mut T, Never] {
     Enum.indexed(length) fn (index) { self[index] }
   }
 
@@ -266,7 +233,7 @@ class builtin Array[T] {
   #     numbers.append([40, 50])
   #
   #     numbers.length # => 5
-  fn pub mut append(other: Self) {
+  fn pub mut append(other: Array[T]) {
     other.into_iter.each fn (v) { push(v) }
   }
 
@@ -341,6 +308,34 @@ class builtin Array[T] {
   }
 }
 
+impl Array if T: mut {
+  # Returns a mutable reference to the value at the given index.
+  #
+  # # Examples
+  #
+  # Retrieving an existing value:
+  #
+  #     let numbers = [10, 20]
+  #
+  #     numbers.get_mut(0) # => Option.Some(mut 10)
+  #
+  # Retrieving a value from a non-existing index:
+  #
+  #     let numbers = [10, 20]
+  #
+  #     numbers.get_mut(5) # => Option.None
+  fn pub mut get_mut(index: Int) -> Option[mut T] {
+    if index < 0 or index >= length { return Option.None }
+
+    Option.Some((mut _INKO.array_get(self, index)) as mut T)
+  }
+
+  # Returns an iterator that yields mutable references to the values in `self`.
+  fn pub mut iter_mut -> Iter[mut T, Never] {
+    Enum.indexed(length) fn (index) { self[index] }
+  }
+}
+
 impl Drop for Array {
   fn mut drop {
     let mut index = 0
@@ -351,7 +346,7 @@ impl Drop for Array {
   }
 }
 
-impl Contains[T] for Array if T: Equal {
+impl Contains[T] for Array if T: Equal[T] {
   # Returns `true` if `self` contains the given value.
   #
   # # Examples
@@ -367,24 +362,14 @@ impl Contains[T] for Array if T: Equal {
 impl Index[Int, ref T] for Array {
   fn pub index(index: Int) -> ref T {
     bounds_check(index, length)
-
-    let raw = _INKO.array_get(self, index) as T
-    let res = ref raw
-
-    _INKO.moved(raw)
-    res
+    ref(_INKO.array_get(self, index)) as ref T
   }
 }
 
-impl IndexMut[Int, mut T] for Array {
+impl IndexMut[Int, mut T] for Array if T: mut {
   fn pub mut index_mut(index: Int) -> mut T {
     bounds_check(index, length)
-
-    let raw = _INKO.array_get(self, index) as T
-    let res = mut raw
-
-    _INKO.moved(raw)
-    res
+    (mut _INKO.array_get(self, index)) as mut T
   }
 }
 
@@ -413,8 +398,8 @@ impl SetIndex[Int, T] for Array {
   }
 }
 
-impl Clone for Array if T: Clone {
-  fn pub clone -> Self {
+impl Clone[Array[T]] for Array if T: Clone[T] {
+  fn pub clone -> Array[T] {
     let copy = []
     let mut index = 0
     let max = length
@@ -425,7 +410,7 @@ impl Clone for Array if T: Clone {
   }
 }
 
-impl Equal for Array if T: Equal {
+impl Equal[Array[T]] for Array if T: Equal[T] {
   # Returns `true` if `self` and the given `Array` are identical.
   #
   # # Examples
@@ -441,7 +426,7 @@ impl Equal for Array if T: Equal {
   # Comparing two arrays with the same length but with different values:
   #
   #     [10, 20] == [20, 10] # => false
-  fn pub ==(other: ref Self) -> Bool {
+  fn pub ==(other: ref Array[T]) -> Bool {
     if length != other.length { return false }
 
     let mut index = 0

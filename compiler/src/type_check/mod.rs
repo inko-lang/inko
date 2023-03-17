@@ -3,10 +3,11 @@ use crate::diagnostics::DiagnosticId;
 use crate::hir;
 use crate::state::State;
 use std::path::PathBuf;
+use types::format::format_type;
 use types::{
-    format_type, Block, ClassId, ClassInstance, Closure, Database, MethodId,
-    ModuleId, Symbol, TraitId, TraitInstance, TypeArguments, TypeBounds,
-    TypeContext, TypeId, TypeParameterId, TypeRef,
+    Block, ClassId, ClassInstance, Closure, Database, MethodId, ModuleId,
+    Rules as TypeRules, Symbol, TraitId, TraitInstance, TypeArguments,
+    TypeBounds, TypeContext, TypeId, TypeParameter, TypeParameterId, TypeRef,
 };
 
 pub(crate) mod define_types;
@@ -67,26 +68,45 @@ impl<'a> TypeScope<'a> {
     }
 
     pub(crate) fn symbol(&self, db: &Database, name: &str) -> Option<Symbol> {
-        self.method
-            .and_then(|id| id.named_type(db, name))
-            .or_else(|| self.self_type.named_type(db, name))
-            .or_else(|| self.module.symbol(db, name))
+        if let Some(id) = self.method {
+            if let Some(sym) = id.named_type(db, name) {
+                return Some(sym);
+            }
+
+            match self.self_type.named_type(db, name) {
+                Some(Symbol::TypeParameter(pid)) => {
+                    if let Some(bound) = id.bounds(db).get(pid) {
+                        Some(Symbol::TypeParameter(bound))
+                    } else {
+                        Some(Symbol::TypeParameter(pid))
+                    }
+                }
+                None => self.module.symbol(db, name),
+                sym => sym,
+            }
+        } else {
+            self.self_type
+                .named_type(db, name)
+                .or_else(|| self.module.symbol(db, name))
+        }
     }
 }
 
 /// Rules to apply when defining and checking the types of type signatures.
 #[derive(Copy, Clone)]
 pub(crate) struct Rules {
-    /// When set to `true`, allows the use of the `Self` type in type
-    /// signatures.
-    pub(crate) allow_self_type: bool,
-
     /// When set to `true`, type parameters are defined as owned values; rather
     /// than allowing both owned values and references.
     pub(crate) type_parameters_as_owned: bool,
 
     /// When set to `true`, type parameters are defined as rigid parameters.
     pub(crate) type_parameters_as_rigid: bool,
+
+    /// If we allow the creation of mutable references to type parameters
+    /// defined on `self`.
+    ///
+    /// TODO: do we really need this?
+    pub(crate) allow_mutable_self_parameters: bool,
 
     /// If private types are allowed.
     pub(crate) allow_private_types: bool,
@@ -95,9 +115,9 @@ pub(crate) struct Rules {
 impl Default for Rules {
     fn default() -> Self {
         Self {
-            allow_self_type: true,
             type_parameters_as_owned: false,
             type_parameters_as_rigid: false,
+            allow_mutable_self_parameters: false,
             allow_private_types: true,
         }
     }
@@ -268,12 +288,6 @@ impl<'a> DefineTypeSignature<'a> {
                         return TypeRef::Error;
                     }
                 }
-                "Self" => match kind {
-                    RefKind::Owned => TypeRef::OwnedSelf,
-                    RefKind::Mut => TypeRef::MutSelf,
-                    RefKind::Uni => TypeRef::UniSelf,
-                    _ => TypeRef::RefSelf,
-                },
                 "Any" => match kind {
                     RefKind::Owned => TypeRef::Any,
                     RefKind::Ref | RefKind::Mut => TypeRef::RefAny,
@@ -320,7 +334,7 @@ impl<'a> DefineTypeSignature<'a> {
 
         let types =
             node.values.iter_mut().map(|n| self.define_type(n)).collect();
-        let ins = TypeId::ClassInstance(ClassInstance::generic_with_types(
+        let ins = TypeId::ClassInstance(ClassInstance::with_types(
             self.db_mut(),
             class,
             types,
@@ -395,7 +409,24 @@ impl<'a> DefineTypeSignature<'a> {
             RefKind::Owned => TypeRef::Infer(type_id),
             RefKind::Uni => TypeRef::Uni(type_id),
             RefKind::Ref => TypeRef::Ref(type_id),
-            RefKind::Mut => TypeRef::Mut(type_id),
+            RefKind::Mut => {
+                if !self.rules.allow_mutable_self_parameters
+                    && !param_id.is_mutable(self.db())
+                {
+                    self.state.diagnostics.error(
+                        DiagnosticId::InvalidType,
+                        format!(
+                            "The type 'mut {name}' is invalid, as '{name}' \
+                            might be immutable at runtime",
+                            name = id.name(self.db()),
+                        ),
+                        self.file(),
+                        node.location.clone(),
+                    );
+                }
+
+                TypeRef::Mut(type_id)
+            }
         }
     }
 
@@ -497,18 +528,11 @@ impl<'a> DefineTypeSignature<'a> {
 pub(crate) struct CheckTypeSignature<'a> {
     state: &'a mut State,
     module: ModuleId,
-    self_type: TypeId,
-    rules: Rules,
 }
 
 impl<'a> CheckTypeSignature<'a> {
-    pub(crate) fn new(
-        state: &'a mut State,
-        module: ModuleId,
-        self_type: TypeId,
-        rules: Rules,
-    ) -> Self {
-        Self { state, module, self_type, rules }
+    pub(crate) fn new(state: &'a mut State, module: ModuleId) -> Self {
+        Self { state, module }
     }
 
     pub(crate) fn check(&mut self, node: &hir::Type) {
@@ -536,16 +560,6 @@ impl<'a> CheckTypeSignature<'a> {
                 }
                 _ => {}
             },
-            TypeRef::OwnedSelf | TypeRef::RefSelf
-                if !self.rules.allow_self_type =>
-            {
-                self.state.diagnostics.error(
-                    DiagnosticId::InvalidType,
-                    "Self types can't be used here",
-                    self.file(),
-                    node.location.clone(),
-                );
-            }
             _ => {}
         }
     }
@@ -635,7 +649,7 @@ impl<'a> CheckTypeSignature<'a> {
         arguments: Vec<(TypeParameterId, TypeRef)>,
         allow_any: bool,
     ) {
-        let mut context = TypeContext::new(self.self_type);
+        let mut context = TypeContext::new();
 
         for ((param, arg), node) in
             arguments.into_iter().zip(node.arguments.iter())
@@ -654,6 +668,7 @@ impl<'a> CheckTypeSignature<'a> {
                 self.db_mut(),
                 param,
                 &mut context,
+                TypeRules::relaxed(),
             ) {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidType,
@@ -731,13 +746,7 @@ impl<'a> DefineAndCheckTypeSignature<'a> {
         )
         .define_type(node);
 
-        CheckTypeSignature::new(
-            self.state,
-            self.module,
-            self.scope.self_type,
-            self.rules,
-        )
-        .check(node);
+        CheckTypeSignature::new(self.state, self.module).check(node);
 
         typ
     }
@@ -755,17 +764,90 @@ impl<'a> DefineAndCheckTypeSignature<'a> {
         .as_trait_instance(node);
 
         if ins.is_some() {
-            CheckTypeSignature::new(
-                self.state,
-                self.module,
-                self.scope.self_type,
-                self.rules,
-            )
-            .check_type_name(node);
+            CheckTypeSignature::new(self.state, self.module)
+                .check_type_name(node);
         }
 
         ins
     }
+}
+
+pub(crate) fn define_type_bounds(
+    state: &mut State,
+    module: ModuleId,
+    class: ClassId,
+    nodes: &mut [hir::TypeBound],
+) -> TypeBounds {
+    let mut bounds = TypeBounds::new();
+
+    for bound in nodes {
+        let name = &bound.name.name;
+        let param = if let Some(id) = class.type_parameter(&state.db, name) {
+            id
+        } else {
+            state.diagnostics.undefined_symbol(
+                name,
+                module.file(&state.db),
+                bound.name.location.clone(),
+            );
+
+            continue;
+        };
+
+        if bounds.get(param).is_some() {
+            state.diagnostics.error(
+                DiagnosticId::InvalidBound,
+                format!(
+                    "Bounds are already defined for type parameter '{}'",
+                    name
+                ),
+                module.file(&state.db),
+                bound.location.clone(),
+            );
+
+            continue;
+        }
+
+        let mut reqs = param.requirements(&state.db);
+        let new_param = TypeParameter::alloc(&mut state.db, name.clone());
+
+        for req in &mut bound.requirements {
+            match req {
+                hir::Requirement::Trait(req) => {
+                    let rules = Rules::default();
+                    let scope =
+                        TypeScope::new(module, TypeId::Class(class), None);
+                    let mut definer =
+                        DefineTypeSignature::new(state, module, &scope, rules);
+
+                    if let Some(ins) = definer.as_trait_instance(req) {
+                        reqs.push(ins);
+                    }
+                }
+                hir::Requirement::Mutable(loc) => {
+                    if new_param.is_mutable(&state.db) {
+                        state.diagnostics.error(
+                            DiagnosticId::InvalidBound,
+                            format!(
+                                "The parameter '{}' is already mutable",
+                                name
+                            ),
+                            module.file(&state.db),
+                            loc.clone(),
+                        );
+                    }
+
+                    new_param.set_mutable(&mut state.db);
+                }
+            }
+        }
+
+        new_param.set_original(&mut state.db, param);
+        new_param.add_requirements(&mut state.db, reqs);
+        bounds.set(param, new_param);
+    }
+
+    bounds
 }
 
 #[cfg(test)]
@@ -1176,8 +1258,7 @@ mod tests {
         DefineTypeSignature::new(&mut state, module, &scope, rules)
             .define_type(&mut node);
 
-        CheckTypeSignature::new(&mut state, module, instance_a, rules)
-            .check(&node);
+        CheckTypeSignature::new(&mut state, module).check(&node);
 
         assert!(state.diagnostics.has_errors());
 
@@ -1253,8 +1334,7 @@ mod tests {
         DefineTypeSignature::new(&mut state, module, &scope, rules)
             .define_type(&mut node);
 
-        CheckTypeSignature::new(&mut state, module, instance_a, rules)
-            .check(&node);
+        CheckTypeSignature::new(&mut state, module).check(&node);
 
         assert!(state.diagnostics.has_errors());
 

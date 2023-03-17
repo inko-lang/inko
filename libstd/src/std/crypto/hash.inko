@@ -17,8 +17,8 @@ class pub Block {
   let @index: Int
 
   # Returns a new `Block` with the given size in bytes.
-  fn pub static new(size: Int) -> Self {
-    Self { @bytes = ByteArray.filled(with: 0, times: size), @index = 0 }
+  fn pub static new(size: Int) -> Block {
+    Block { @bytes = ByteArray.filled(with: 0, times: size), @index = 0 }
   }
 
   # Reads an unsigned 32-bits little-endian integer from the given index.
@@ -117,8 +117,8 @@ class pub Hash {
   let pub @bytes: ByteArray
 
   # Returns a new empty `Digest`.
-  fn pub static new(bytes: ByteArray) -> Self {
-    Self { @bytes = bytes}
+  fn pub static new(bytes: ByteArray) -> Hash {
+    Hash { @bytes = bytes}
   }
 }
 
@@ -140,8 +140,8 @@ impl ToString for Hash {
   }
 }
 
-impl Equal for Hash {
-  fn pub ==(other: ref Self) -> Bool {
+impl Equal[Hash] for Hash {
+  fn pub ==(other: ref Hash) -> Bool {
     @bytes == other.bytes
   }
 }

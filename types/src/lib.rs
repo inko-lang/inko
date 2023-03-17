@@ -2,12 +2,18 @@
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::new_without_default))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::len_without_is_empty))]
 
+#[cfg(test)]
+pub mod test;
+
+pub mod check;
 pub mod collections;
+pub mod either;
+pub mod format;
 pub mod module_name;
+pub mod resolve;
 
 use crate::collections::IndexMap;
 use crate::module_name::ModuleName;
-use bytecode::{BuiltinFunction as BIF, Opcode};
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -15,11 +21,11 @@ use std::path::PathBuf;
 pub const INT_ID: u32 = 0;
 pub const FLOAT_ID: u32 = 1;
 pub const STRING_ID: u32 = 2;
-const ARRAY_ID: u32 = 3;
+pub const ARRAY_ID: u32 = 3;
 pub const BOOLEAN_ID: u32 = 4;
-const NIL_ID: u32 = 5;
-const BYTE_ARRAY_ID: u32 = 6;
-const FUTURE_ID: u32 = 7;
+pub const NIL_ID: u32 = 5;
+pub const BYTE_ARRAY_ID: u32 = 6;
+pub const CHANNEL_ID: u32 = 7;
 
 const TUPLE1_ID: u32 = 8;
 const TUPLE2_ID: u32 = 9;
@@ -44,7 +50,7 @@ const ARRAY_NAME: &str = "Array";
 const BOOLEAN_NAME: &str = "Bool";
 const NIL_NAME: &str = "Nil";
 const BYTE_ARRAY_NAME: &str = "ByteArray";
-const FUTURE_NAME: &str = "Future";
+const CHANNEL_NAME: &str = "Channel";
 
 const TUPLE1_NAME: &str = "Tuple1";
 const TUPLE2_NAME: &str = "Tuple2";
@@ -83,8 +89,6 @@ pub const VARIANTS_LIMIT: usize = u16::MAX as usize;
 /// The maximum number of fields a class can define.
 pub const FIELDS_LIMIT: usize = u8::MAX as usize;
 
-const MAX_FORMATTING_DEPTH: usize = 8;
-
 /// The maximum recursion/depth to restrict ourselves to when inferring types or
 /// checking if they are inferred.
 ///
@@ -96,192 +100,27 @@ const MAX_FORMATTING_DEPTH: usize = 8;
 /// it, but we also won't blow the stack.
 const MAX_TYPE_DEPTH: usize = 64;
 
-pub fn format_type<T: FormatType>(db: &Database, typ: T) -> String {
-    TypeFormatter::new(db, None, None).format(typ)
-}
-
-pub fn format_type_with_self<T: FormatType>(
-    db: &Database,
-    self_type: TypeId,
-    typ: T,
-) -> String {
-    TypeFormatter::new(db, Some(self_type), None).format(typ)
-}
-
-pub fn format_type_with_context<T: FormatType>(
-    db: &Database,
-    context: &TypeContext,
-    typ: T,
-) -> String {
-    TypeFormatter::new(
-        db,
-        Some(context.self_type),
-        Some(&context.type_arguments),
-    )
-    .format(typ)
-}
-
-#[derive(Copy, Clone)]
-pub enum CompilerMacro {
-    FutureGet,
-    FutureGetFor,
-    StringClone,
-    Moved,
-    PanicThrown,
-    Strings,
-}
-
-impl CompilerMacro {
-    pub fn name(self) -> &'static str {
-        match self {
-            CompilerMacro::FutureGet => "future_get",
-            CompilerMacro::FutureGetFor => "future_get_for",
-            CompilerMacro::StringClone => "string_clone",
-            CompilerMacro::Moved => "moved",
-            CompilerMacro::PanicThrown => "panic_thrown",
-            CompilerMacro::Strings => "strings",
-        }
-    }
-}
-
-/// A buffer for formatting type names.
+/// A type inference placeholder.
 ///
-/// We use a simple wrapper around a String so we can more easily change the
-/// implementation in the future if necessary.
-pub struct TypeFormatter<'a> {
-    db: &'a Database,
-    self_type: Option<TypeId>,
-    type_arguments: Option<&'a TypeArguments>,
-    buffer: String,
-    depth: usize,
-}
-
-impl<'a> TypeFormatter<'a> {
-    pub fn new(
-        db: &'a Database,
-        self_type: Option<TypeId>,
-        type_arguments: Option<&'a TypeArguments>,
-    ) -> Self {
-        Self { db, self_type, type_arguments, buffer: String::new(), depth: 0 }
-    }
-
-    pub fn format<T: FormatType>(mut self, typ: T) -> String {
-        typ.format_type(&mut self);
-        self.buffer
-    }
-
-    fn descend<F: FnOnce(&mut TypeFormatter)>(&mut self, block: F) {
-        if self.depth == MAX_FORMATTING_DEPTH {
-            self.write("...");
-        } else {
-            self.depth += 1;
-
-            block(self);
-
-            self.depth -= 1;
-        }
-    }
-
-    fn write(&mut self, thing: &str) {
-        self.buffer.push_str(thing);
-    }
-
-    /// If a uni/ref/mut value wraps a type parameter, and that parameter is
-    /// assigned another value with ownership, you can end up with e.g.
-    /// `ref mut T` or `uni uni T`. This method provides a simple way of
-    /// preventing this from happening, without complicating the type formatting
-    /// process.
-    fn write_ownership(&mut self, thing: &str) {
-        if !self.buffer.ends_with(thing) {
-            self.write(thing);
-        }
-    }
-
-    fn type_arguments(
-        &mut self,
-        parameters: &[TypeParameterId],
-        arguments: &TypeArguments,
-    ) {
-        for (index, &param) in parameters.iter().enumerate() {
-            if index > 0 {
-                self.write(", ");
-            }
-
-            match arguments.get(param) {
-                Some(TypeRef::Placeholder(id))
-                    if id.value(self.db).is_none() =>
-                {
-                    // Placeholders without values aren't useful to show to the
-                    // developer, so we show the type parameter instead.
-                    //
-                    // The parameter itself may be assigned a value through the
-                    // type context (e.g. when a type is nested such as
-                    // `Array[Array[T]]`), and we don't want to display that
-                    // assignment as it's only to be used for the outer most
-                    // type. As such, we don't use format_type() here.
-                    param.format_type_without_argument(self);
-                }
-                Some(typ) => typ.format_type(self),
-                _ => param.format_type(self),
-            }
-        }
-    }
-
-    fn arguments(&mut self, arguments: &Arguments, include_name: bool) {
-        if arguments.len() == 0 {
-            return;
-        }
-
-        self.write(" (");
-
-        for (index, arg) in arguments.iter().enumerate() {
-            if index > 0 {
-                self.write(", ");
-            }
-
-            if include_name {
-                self.write(&arg.name);
-                self.write(": ");
-            }
-
-            arg.value_type.format_type(self);
-        }
-
-        self.write(")");
-    }
-
-    fn throw_type(&mut self, typ: TypeRef) {
-        if typ.is_never(self.db) {
-            return;
-        }
-
-        match typ {
-            TypeRef::Placeholder(id) if id.value(self.db).is_none() => {}
-            _ => {
-                self.write(" !! ");
-                typ.format_type(self);
-            }
-        }
-    }
-
-    fn return_type(&mut self, typ: TypeRef) {
-        match typ {
-            TypeRef::Placeholder(id) if id.value(self.db).is_none() => {}
-            _ if typ == TypeRef::nil() => {}
-            _ => {
-                self.write(" -> ");
-                typ.format_type(self);
-            }
-        }
-    }
-}
-
-/// A type of which the name can be formatted into something human-readable.
-pub trait FormatType {
-    fn format_type(&self, buffer: &mut TypeFormatter);
-}
-
-/// A placeholder for a type that has yet to be inferred.
+/// A type placeholder reprents a value of which the exact type isn't
+/// immediately known, and is to be inferred based on how the value is used.
+/// Take this code for example:
+///
+///     let vals = []
+///
+/// While we know that `vals` is an array, we don't know the type of the values
+/// in the array. In this case we use a type placeholder, meaning that `vals` is
+/// of type `Array[V₁]` where V₁ is a type placeholder.
+///
+/// At some point we may push a value into the array, for example:
+///
+///     vals.push(42)
+///
+/// In this case V₁ is assigned to `Int`, and we end up with `vals` inferred as
+/// `Array[Int]`.
+///
+/// The concept of type placeholder is taken from the Hindley-Milner type
+/// system.
 pub struct TypePlaceholder {
     /// The value assigned to this placeholder.
     ///
@@ -300,15 +139,25 @@ pub struct TypePlaceholder {
     /// inferring of that type doesn't affect values at index 1, 2, etc. By
     /// recording `ours` here, updating `id` also updates `ours`, without
     /// introducing a placeholder cycle.
+    ///
+    /// TODO: remove
     depending: Vec<TypePlaceholderId>,
+
+    /// The type parameter a type must be compatible with before it can be
+    /// assigned to this type variable.
+    required: Option<TypeParameterId>,
 }
 
 impl TypePlaceholder {
-    fn alloc(db: &mut Database) -> TypePlaceholderId {
+    fn alloc(
+        db: &mut Database,
+        required: Option<TypeParameterId>,
+    ) -> TypePlaceholderId {
         let id = db.type_placeholders.len();
         let typ = TypePlaceholder {
             value: Cell::new(TypeRef::Unknown),
             depending: Vec::new(),
+            required,
         };
 
         db.type_placeholders.push(typ);
@@ -317,7 +166,7 @@ impl TypePlaceholder {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct TypePlaceholderId(usize);
+pub struct TypePlaceholderId(pub(crate) usize);
 
 impl TypePlaceholderId {
     pub fn value(self, db: &Database) -> Option<TypeRef> {
@@ -327,13 +176,31 @@ impl TypePlaceholderId {
         }
     }
 
+    // TODO: rename to value()
+    fn resolve(self, db: &Database) -> TypeRef {
+        // Chains of type variables are very rare in practise, but they _can_
+        // occur and thus must be handled. Because they are so rare and unlikely
+        // to be more than 2-3 levels deep, we just use recursion here instead
+        // of a loop.
+        let typ = self.get(db).value.get();
+
+        match typ {
+            TypeRef::Placeholder(id) => id.resolve(db),
+            _ => typ,
+        }
+    }
+
+    fn required(self, db: &Database) -> Option<TypeParameterId> {
+        self.get(db).required
+    }
+
     fn add_depending(self, db: &mut Database, placeholder: TypePlaceholderId) {
         self.get_mut(db).depending.push(placeholder);
     }
 
     fn assign(self, db: &Database, value: TypeRef) {
-        // Assigning placeholders to themselves creates cycles that aren't
-        // useful, so we ignore those.
+        // Assigning placeholders to themselves isn't useful and results in
+        // resolve() getting stuck.
         if let TypeRef::Placeholder(id) = value {
             if id.0 == self.0 {
                 return;
@@ -342,6 +209,7 @@ impl TypePlaceholderId {
 
         self.get(db).value.set(value);
 
+        // TODO: remove
         for &id in &self.get(db).depending {
             id.get(db).value.set(value);
         }
@@ -356,32 +224,9 @@ impl TypePlaceholderId {
     }
 }
 
-impl FormatType for TypePlaceholderId {
-    fn format_type(&self, buffer: &mut TypeFormatter) {
-        if let Some(value) = self.value(buffer.db) {
-            value.format_type(buffer);
-        } else {
-            buffer.write("?");
-        }
-    }
-}
-
 /// A collection of values needed when checking and substituting types.
 #[derive(Clone)]
 pub struct TypeContext {
-    /// The type of `Self`.
-    ///
-    /// This isn't the same type as `self`: `Self` is a new instance of a type,
-    /// whereas `self` is the receiver. Consider this example:
-    ///
-    ///     class A {
-    ///       fn foo -> Self {}
-    ///     }
-    ///
-    /// Within `foo`, the type of `self` is `ref A`, but the type of `Self` is
-    /// `A`.
-    pub self_type: TypeId,
-
     /// The type arguments available to this context.
     ///
     /// When type-checking a method call, this table contains the type
@@ -393,36 +238,44 @@ pub struct TypeContext {
     /// This value is used to prevent runaway recursion that can occur when
     /// dealing with (complex) cyclic types.
     depth: usize,
+
+    /// Type comparisons that have been performed and should be skipped when
+    /// performed again.
+    ///
+    /// When type-checking recursive types we may end up comparing the same
+    /// types over and over (e.g. "is A compatible with B[A]"). To handle this
+    /// we cache comparisons here and simply treat the comparison as valid when
+    /// encountering a cached comparison. As the outer-most/first occurrence of
+    /// a comparison is still performed (we just short-circuit recursive
+    /// checks), the type-checking results are still correct.
+    ///
+    /// If the outer-most case is invalid, it doesn't matter what result is
+    /// produced for the inner/recursive checks, because the outer check would
+    /// return `false` anyway.
+    checked: HashSet<(TypeRef, TypeRef)>,
 }
 
 impl TypeContext {
-    pub fn new(self_type_id: TypeId) -> Self {
+    pub fn new() -> Self {
         Self {
-            self_type: self_type_id,
             type_arguments: TypeArguments::new(),
             depth: 0,
+            checked: HashSet::new(),
         }
     }
 
-    pub fn for_class_instance(
-        db: &Database,
-        self_type: TypeId,
-        instance: ClassInstance,
-    ) -> Self {
+    pub fn for_class_instance(db: &Database, instance: ClassInstance) -> Self {
         let type_arguments = if instance.instance_of().is_generic(db) {
             instance.type_arguments(db).clone()
         } else {
             TypeArguments::new()
         };
 
-        Self { self_type, type_arguments, depth: 0 }
+        Self { type_arguments, depth: 0, checked: HashSet::new() }
     }
 
-    pub fn with_arguments(
-        self_type_id: TypeId,
-        type_arguments: TypeArguments,
-    ) -> Self {
-        Self { self_type: self_type_id, type_arguments, depth: 0 }
+    pub fn with_arguments(type_arguments: TypeArguments) -> Self {
+        Self { type_arguments, depth: 0, checked: HashSet::new() }
     }
 }
 
@@ -434,6 +287,13 @@ pub struct TypeParameter {
     /// The traits that must be implemented before a type can be assigned to
     /// this type parameter.
     requirements: Vec<TraitInstance>,
+
+    /// If mutable references to this type parameter are allowed.
+    mutable: bool,
+
+    /// The ID of the original type parameter in case the current one is a
+    /// parameter introduced through additional type bounds.
+    original: Option<TypeParameterId>,
 }
 
 impl TypeParameter {
@@ -446,12 +306,12 @@ impl TypeParameter {
     }
 
     fn new(name: String) -> Self {
-        Self { name, requirements: Vec::new() }
+        Self { name, requirements: Vec::new(), mutable: false, original: None }
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
-pub struct TypeParameterId(usize);
+pub struct TypeParameterId(pub usize);
 
 impl TypeParameterId {
     pub fn name(self, db: &Database) -> &String {
@@ -482,6 +342,22 @@ impl TypeParameterId {
         None
     }
 
+    pub fn set_original(self, db: &mut Database, parameter: TypeParameterId) {
+        self.get_mut(db).original = Some(parameter);
+    }
+
+    pub fn original(self, db: &Database) -> Option<TypeParameterId> {
+        self.get(db).original
+    }
+
+    pub fn set_mutable(self, db: &mut Database) {
+        self.get_mut(db).mutable = true;
+    }
+
+    pub fn is_mutable(self, db: &Database) -> bool {
+        self.get(db).mutable
+    }
+
     fn all_requirements_met(
         self,
         db: &mut Database,
@@ -503,13 +379,15 @@ impl TypeParameterId {
         db: &mut Database,
         with: TypeId,
         context: &mut TypeContext,
-        subtyping: bool,
+        rules: Rules,
     ) -> bool {
         match with {
-            TypeId::TraitInstance(theirs) => self
-                .type_check_with_trait_instance(db, theirs, context, subtyping),
-            TypeId::TypeParameter(theirs) => self
-                .type_check_with_type_parameter(db, theirs, context, subtyping),
+            TypeId::TraitInstance(theirs) => {
+                self.type_check_with_trait_instance(db, theirs, context, rules)
+            }
+            TypeId::TypeParameter(theirs) => {
+                self.type_check_with_type_parameter(db, theirs, context, rules)
+            }
             _ => false,
         }
     }
@@ -519,10 +397,14 @@ impl TypeParameterId {
         db: &mut Database,
         with: TypeParameterId,
         context: &mut TypeContext,
-        subtyping: bool,
+        rules: Rules,
     ) -> bool {
+        if self == with {
+            return true;
+        }
+
         with.all_requirements_met(db, |db, req| {
-            self.type_check_with_trait_instance(db, req, context, subtyping)
+            self.type_check_with_trait_instance(db, req, context, rules)
         })
     }
 
@@ -531,12 +413,10 @@ impl TypeParameterId {
         db: &mut Database,
         instance: TraitInstance,
         context: &mut TypeContext,
-        subtyping: bool,
+        rules: Rules,
     ) -> bool {
         self.get(db).requirements.clone().into_iter().any(|req| {
-            req.type_check_with_trait_instance(
-                db, instance, None, context, subtyping,
-            )
+            req.type_check_with_trait_instance(db, instance, context, rules)
         })
     }
 
@@ -547,61 +427,10 @@ impl TypeParameterId {
     fn as_owned_rigid(self) -> TypeRef {
         TypeRef::Owned(TypeId::RigidTypeParameter(self))
     }
-
-    fn format_type_without_argument(&self, buffer: &mut TypeFormatter) {
-        let param = self.get(buffer.db);
-
-        buffer.write(&param.name);
-
-        if !param.requirements.is_empty() {
-            buffer.write(": ");
-
-            for (index, req) in param.requirements.iter().enumerate() {
-                if index > 0 {
-                    buffer.write(" + ");
-                }
-
-                req.format_type(buffer);
-            }
-        }
-    }
-}
-
-impl FormatType for TypeParameterId {
-    fn format_type(&self, buffer: &mut TypeFormatter) {
-        // Formatting type parameters is a bit tricky, as they may be assigned
-        // to themselves directly or through a placeholder. The below code isn't
-        // going to win any awards, but it should ensure we don't blow the stack
-        // when trying to format recursive type parameters, such as
-        // `T -> placeholder -> T`.
-
-        if let Some(arg) = buffer.type_arguments.and_then(|a| a.get(*self)) {
-            if let TypeRef::Placeholder(p) = arg {
-                match p.value(buffer.db) {
-                    Some(t) if t.as_type_parameter() == Some(*self) => {
-                        self.format_type_without_argument(buffer)
-                    }
-                    Some(t) => t.format_type(buffer),
-                    None => self.format_type_without_argument(buffer),
-                }
-
-                return;
-            }
-
-            if arg.as_type_parameter() == Some(*self) {
-                self.format_type_without_argument(buffer);
-                return;
-            }
-
-            arg.format_type(buffer);
-        } else {
-            self.format_type_without_argument(buffer);
-        };
-    }
 }
 
 /// Type parameters and the types assigned to them.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TypeArguments {
     /// We use a HashMap as parameters can be assigned in any order, and some
     /// may not be assigned at all.
@@ -609,6 +438,15 @@ pub struct TypeArguments {
 }
 
 impl TypeArguments {
+    pub fn for_class(db: &Database, instance: ClassInstance) -> TypeArguments {
+        if instance.instance_of().is_generic(db) {
+            instance.type_arguments(db).clone()
+        } else {
+            TypeArguments::new()
+        }
+    }
+
+    // TODO: remove?
     fn rigid(db: &mut Database, index: u32, bounds: &TypeBounds) -> Self {
         let mut new_args = Self::new();
 
@@ -623,6 +461,7 @@ impl TypeArguments {
         Self { mapping: HashMap::default() }
     }
 
+    // TODO: if `parameter` has `original` set, map to that instead.
     pub fn assign(&mut self, parameter: TypeParameterId, value: TypeRef) {
         self.mapping.insert(parameter, value);
     }
@@ -657,24 +496,6 @@ impl TypeArguments {
                 target.assign(param, value);
             }
         }
-    }
-
-    fn assigned_or_placeholders(
-        &self,
-        db: &mut Database,
-        parameters: Vec<TypeParameterId>,
-    ) -> Self {
-        let mut new_args = Self::new();
-
-        for param in parameters {
-            if let Some(val) = self.get(param) {
-                new_args.assign(param, val);
-            } else {
-                new_args.assign(param, TypeRef::placeholder(db));
-            }
-        }
-
-        new_args
     }
 }
 
@@ -894,12 +715,6 @@ impl TraitId {
     }
 }
 
-impl FormatType for TraitId {
-    fn format_type(&self, buffer: &mut TypeFormatter) {
-        buffer.write(&self.get(buffer.db).name);
-    }
-}
-
 /// An instance of a trait, along with its type arguments in case the trait is
 /// generic.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -916,9 +731,11 @@ pub struct TraitInstance {
 }
 
 impl TraitInstance {
-    /// Returns an instance to use as the type of `Self` in required and default
-    /// methods.
-    pub fn for_self_type(
+    pub fn new(instance_of: TraitId) -> Self {
+        Self { instance_of, type_arguments: 0 }
+    }
+
+    pub fn rigid(
         db: &mut Database,
         instance_of: TraitId,
         bounds: &TypeBounds,
@@ -937,10 +754,6 @@ impl TraitInstance {
         } else {
             Self::new(instance_of)
         }
-    }
-
-    pub fn new(instance_of: TraitId) -> Self {
-        Self { instance_of, type_arguments: 0 }
     }
 
     pub fn generic(
@@ -1000,17 +813,15 @@ impl TraitInstance {
         db: &mut Database,
         with: TypeId,
         context: &mut TypeContext,
-        subtyping: bool,
+        rules: Rules,
     ) -> bool {
         match with {
-            TypeId::TraitInstance(ins) => self.type_check_with_trait_instance(
-                db, ins, None, context, subtyping,
-            ),
+            TypeId::TraitInstance(ins) => {
+                self.type_check_with_trait_instance(db, ins, context, rules)
+            }
             TypeId::TypeParameter(id) => {
                 id.all_requirements_met(db, |db, req| {
-                    self.type_check_with_trait_instance(
-                        db, req, None, context, subtyping,
-                    )
+                    self.type_check_with_trait_instance(db, req, context, rules)
                 })
             }
             _ => false,
@@ -1021,12 +832,15 @@ impl TraitInstance {
         self,
         db: &mut Database,
         instance: TraitInstance,
-        arguments: Option<&TypeArguments>,
         context: &mut TypeContext,
-        subtyping: bool,
+        rules: Rules,
     ) -> bool {
+        if self == instance {
+            return true;
+        }
+
         if self.instance_of != instance.instance_of {
-            return if subtyping {
+            return if rules.subtyping {
                 self.instance_of
                     .get(db)
                     .required_traits
@@ -1034,7 +848,7 @@ impl TraitInstance {
                     .into_iter()
                     .any(|req| {
                         req.type_check_with_trait_instance(
-                            db, instance, None, context, subtyping,
+                            db, instance, context, rules,
                         )
                     })
             } else {
@@ -1051,38 +865,15 @@ impl TraitInstance {
         let our_args = self.type_arguments(db).clone();
         let their_args = instance.type_arguments(db).clone();
 
-        // If additional type arguments are given (e.g. when comparing a generic
-        // class instance to a trait), we need to remap the implementation
-        // arguments accordingly. This way if `Box[T]` implements `Iter[T]`, for
-        // a `Box[Int]` we produce a `Iter[Int]` rather than an `Iter[T]`.
-        if let Some(args) = arguments {
-            our_trait.type_parameters.values().clone().into_iter().all(
-                |param| {
-                    our_args
-                        .get(param)
-                        .zip(their_args.get(param))
-                        .map(|(ours, theirs)| {
-                            ours.as_type_parameter()
-                                .and_then(|id| args.get(id))
-                                .unwrap_or(ours)
-                                .type_check(db, theirs, context, subtyping)
-                        })
-                        .unwrap_or(false)
-                },
-            )
-        } else {
-            our_trait.type_parameters.values().clone().into_iter().all(
-                |param| {
-                    our_args
-                        .get(param)
-                        .zip(their_args.get(param))
-                        .map(|(ours, theirs)| {
-                            ours.type_check(db, theirs, context, subtyping)
-                        })
-                        .unwrap_or(false)
-                },
-            )
-        }
+        our_trait.type_parameters.values().clone().into_iter().all(|param| {
+            our_args
+                .get(param)
+                .zip(their_args.get(param))
+                .map(|(ours, theirs)| {
+                    ours.type_check(db, theirs, context, rules)
+                })
+                .unwrap_or(false)
+        })
     }
 
     fn named_type(self, db: &Database, name: &str) -> Option<Symbol> {
@@ -1095,11 +886,11 @@ impl TraitInstance {
         instance: TraitInstance,
         context: &mut TypeContext,
     ) -> bool {
+        let rules = Rules::new();
+
         self.instance_of.get(db).required_traits.clone().into_iter().any(
             |req| {
-                req.type_check_with_trait_instance(
-                    db, instance, None, context, true,
-                )
+                req.type_check_with_trait_instance(db, instance, context, rules)
             },
         )
     }
@@ -1120,44 +911,6 @@ impl TraitInstance {
         let new_args = TypeArguments::rigid(db, self.type_arguments, bounds);
 
         TraitInstance::generic(db, self.instance_of, new_args)
-    }
-
-    fn inferred(
-        self,
-        db: &mut Database,
-        context: &mut TypeContext,
-        immutable: bool,
-    ) -> Self {
-        if !self.instance_of.is_generic(db) {
-            return self;
-        }
-
-        let mut new_args = TypeArguments::new();
-
-        for (arg, val) in self.type_arguments(db).pairs() {
-            new_args.assign(arg, val.inferred(db, context, immutable));
-        }
-
-        Self::generic(db, self.instance_of, new_args)
-    }
-}
-
-impl FormatType for TraitInstance {
-    fn format_type(&self, buffer: &mut TypeFormatter) {
-        buffer.descend(|buffer| {
-            let ins_of = self.instance_of.get(buffer.db);
-
-            buffer.write(&ins_of.name);
-
-            if ins_of.type_parameters.len() > 0 {
-                let params = ins_of.type_parameters.values();
-                let args = self.type_arguments(buffer.db);
-
-                buffer.write("[");
-                buffer.type_arguments(params, args);
-                buffer.write("]");
-            }
-        });
     }
 }
 
@@ -1228,17 +981,13 @@ impl FieldId {
 /// Additional requirements for type parameters inside a trait implementation of
 /// method.
 ///
-/// Additional bounds are set using the `when` keyword like so:
-///
-///     impl Debug[T] for Array when T: X { ... }
-///
 /// This structure maps the original type parameters (`T` in this case) to type
 /// parameters created for the bounds. These new type parameters have their
 /// requirements set to the union of the original type parameter's requirements,
 /// and the requirements specified in the bounds. In other words, if the
 /// original parameter is defined as `T: A` and the bounds specify `T: B`, this
 /// structure maps `T: A` to `T: A + B`.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TypeBounds {
     mapping: HashMap<TypeParameterId, TypeParameterId>,
 }
@@ -1248,12 +997,33 @@ impl TypeBounds {
         Self { mapping: HashMap::default() }
     }
 
+    // TODO: handle bounded parameters
     pub fn set(&mut self, parameter: TypeParameterId, bounds: TypeParameterId) {
         self.mapping.insert(parameter, bounds);
     }
 
     pub fn get(&self, parameter: TypeParameterId) -> Option<TypeParameterId> {
         self.mapping.get(&parameter).cloned()
+    }
+
+    pub fn iter(
+        &self,
+    ) -> impl Iterator<Item = (&TypeParameterId, &TypeParameterId)> {
+        self.mapping.iter()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.mapping.is_empty()
+    }
+
+    pub fn union(&self, with: &TypeBounds) -> TypeBounds {
+        let mut union = self.clone();
+
+        for (&key, &val) in &with.mapping {
+            union.set(key, val);
+        }
+
+        union
     }
 }
 
@@ -1324,6 +1094,7 @@ pub enum ClassKind {
     Enum,
     Regular,
     Tuple,
+    Closure,
 }
 
 impl ClassKind {
@@ -1342,12 +1113,17 @@ impl ClassKind {
     pub fn is_tuple(self) -> bool {
         matches!(self, ClassKind::Tuple)
     }
+
+    pub fn is_closure(self) -> bool {
+        matches!(self, ClassKind::Closure)
+    }
 }
 
 /// An Inko class as declared using the `class` keyword.
 pub struct Class {
     kind: ClassKind,
     name: String,
+    atomic: bool,
     // A flag indicating the presence of a custom destructor.
     //
     // We store a flag for this so we can check for the presence of a destructor
@@ -1390,6 +1166,7 @@ impl Class {
             kind,
             visibility,
             destructor: false,
+            atomic: kind.is_async(),
             fields: IndexMap::new(),
             type_parameters: IndexMap::new(),
             methods: HashMap::new(),
@@ -1406,6 +1183,18 @@ impl Class {
             Visibility::Public,
             ModuleId(DEFAULT_BUILTIN_MODULE_ID),
         )
+    }
+
+    fn atomic(name: String) -> Self {
+        let mut class = Self::new(
+            name,
+            ClassKind::Regular,
+            Visibility::Public,
+            ModuleId(DEFAULT_BUILTIN_MODULE_ID),
+        );
+
+        class.atomic = true;
+        class
     }
 
     fn tuple(name: String) -> Self {
@@ -1446,8 +1235,8 @@ impl ClassId {
         ClassId(NIL_ID)
     }
 
-    pub fn future() -> ClassId {
-        ClassId(FUTURE_ID)
+    pub fn channel() -> ClassId {
+        ClassId(CHANNEL_ID)
     }
 
     pub fn array() -> ClassId {
@@ -1657,6 +1446,10 @@ impl ClassId {
         !self.is_public(db)
     }
 
+    pub fn is_atomic(self, db: &Database) -> bool {
+        self.get(db).atomic
+    }
+
     pub fn set_module(self, db: &mut Database, module: ModuleId) {
         self.get_mut(db).module = module;
     }
@@ -1692,18 +1485,16 @@ impl ClassId {
         self.get(db).destructor
     }
 
+    pub fn is_builtin(self) -> bool {
+        self.0 <= CHANNEL_ID
+    }
+
     fn get(self, db: &Database) -> &Class {
         &db.classes[self.0 as usize]
     }
 
     fn get_mut(self, db: &mut Database) -> &mut Class {
         &mut db.classes[self.0 as usize]
-    }
-}
-
-impl FormatType for ClassId {
-    fn format_type(&self, buffer: &mut TypeFormatter) {
-        buffer.write(&self.get(buffer.db).name);
     }
 }
 
@@ -1723,9 +1514,11 @@ pub struct ClassInstance {
 }
 
 impl ClassInstance {
-    /// Returns a class instance to use as the type of `Self` in instance
-    /// methods.
-    pub fn for_instance_self_type(
+    pub fn new(instance_of: ClassId) -> Self {
+        Self { instance_of, type_arguments: 0 }
+    }
+
+    pub fn rigid(
         db: &mut Database,
         instance_of: ClassId,
         bounds: &TypeBounds,
@@ -1746,28 +1539,6 @@ impl ClassInstance {
         }
     }
 
-    /// Returns a class instance to use as the type of `Self` in static methods.
-    pub fn for_static_self_type(
-        db: &mut Database,
-        instance_of: ClassId,
-    ) -> Self {
-        if instance_of.is_generic(db) {
-            let mut arguments = TypeArguments::new();
-
-            for param in instance_of.type_parameters(db) {
-                arguments.assign(param, param.as_owned_rigid());
-            }
-
-            Self::generic(db, instance_of, arguments)
-        } else {
-            Self::new(instance_of)
-        }
-    }
-
-    pub fn new(instance_of: ClassId) -> Self {
-        Self { instance_of, type_arguments: 0 }
-    }
-
     pub fn generic(
         db: &mut Database,
         instance_of: ClassId,
@@ -1781,39 +1552,37 @@ impl ClassInstance {
         ClassInstance { instance_of, type_arguments: args_id }
     }
 
-    pub fn generic_with_types(
+    pub fn with_types(
         db: &mut Database,
-        instance_of: ClassId,
-        types: Vec<TypeRef>,
+        class: ClassId,
+        arguments: Vec<TypeRef>,
     ) -> Self {
         let mut args = TypeArguments::new();
 
-        for (index, param) in
-            instance_of.type_parameters(db).into_iter().enumerate()
+        for (index, param) in class.type_parameters(db).into_iter().enumerate()
         {
-            args.assign(
-                param,
-                types
-                    .get(index)
-                    .cloned()
-                    .unwrap_or_else(|| TypeRef::placeholder(db)),
-            );
+            let val = arguments.get(index).cloned().unwrap_or_else(|| {
+                TypeRef::Placeholder(TypePlaceholder::alloc(db, Some(param)))
+            });
+
+            args.assign(param, val);
         }
 
-        Self::generic(db, instance_of, args)
+        Self::generic(db, class, args)
     }
 
-    pub fn generic_with_placeholders(
-        db: &mut Database,
-        instance_of: ClassId,
-    ) -> Self {
-        let mut args = TypeArguments::new();
-
-        for param in instance_of.type_parameters(db) {
-            args.assign(param, TypeRef::placeholder(db));
+    pub fn empty(db: &mut Database, class: ClassId) -> Self {
+        if !class.is_generic(db) {
+            return Self::new(class);
         }
 
-        Self::generic(db, instance_of, args)
+        let mut args = TypeArguments::new();
+
+        for param in class.type_parameters(db) {
+            args.assign(param, TypeRef::placeholder(db, Some(param)));
+        }
+
+        Self::generic(db, class, args)
     }
 
     pub fn instance_of(self) -> ClassId {
@@ -1864,9 +1633,9 @@ impl ClassInstance {
         db: &mut Database,
         instance: TraitInstance,
         context: &mut TypeContext,
-        subtyping: bool,
+        rules: Rules,
     ) -> bool {
-        if !subtyping {
+        if !rules.subtyping {
             return false;
         }
 
@@ -1880,48 +1649,46 @@ impl ClassInstance {
             return false;
         };
 
-        let mut trait_instance = trait_impl.instance;
+        let trait_instance = trait_impl.instance;
 
-        if self.instance_of.is_generic(db)
-            && trait_instance.instance_of.is_generic(db)
-        {
+        // When comparing X with X itself we can just bypass all of the below.
+        if trait_instance == instance && trait_impl.bounds.mapping.is_empty() {
+            return true;
+        }
+
+        if self.instance_of.is_generic(db) {
             // The generic trait implementation may refer to (or contain a type
             // that refers) to a type parameter defined in our class. If we end
             // up comparing such a type parameter, we must compare its assigned
             // value instead if there is any.
-            //
-            // To achieve this we must first expose the type parameter
-            // assignments in the context, then infer the trait instance into a
-            // type that uses those assignments (if needed).
-            self.type_arguments(db).copy_into(&mut context.type_arguments);
-            trait_instance = trait_instance.inferred(db, context, false);
-        }
-
-        let args = if self.instance_of.is_generic(db) {
-            let args = self.type_arguments(db).clone();
-            let available =
-                trait_impl.bounds.mapping.into_iter().all(|(orig, bound)| {
-                    args.get(orig).map_or(false, |t| {
-                        t.is_compatible_with_type_parameter(db, bound, context)
-                    })
-                });
-
-            if !available {
-                return false;
+            for (&param, &val) in &self.type_arguments(db).mapping {
+                if context.type_arguments.get(param).is_none() {
+                    context.type_arguments.assign(param, val);
+                }
             }
 
-            Some(args)
-        } else {
-            None
-        };
+            for (param, bound) in trait_impl.bounds.mapping.into_iter() {
+                if let Some(val) = context.type_arguments.get(param) {
+                    // The trait implementation may refer to the bounded
+                    // parameters. Because these are copies of the original
+                    // parameters along with the additional requirements, if any
+                    // of the original parameters are assigned a value we must
+                    // also create an entry for the bounded parameter.
+                    context.type_arguments.assign(bound, val);
 
-        trait_instance.type_check_with_trait_instance(
-            db,
-            instance,
-            args.as_ref(),
-            context,
-            subtyping,
-        )
+                    if !val.is_compatible_with_type_parameter(
+                        db, bound, context, rules,
+                    ) {
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
+            }
+        }
+
+        trait_instance
+            .type_check_with_trait_instance(db, instance, context, rules)
     }
 
     pub fn method(self, db: &Database, name: &str) -> Option<MethodId> {
@@ -1943,7 +1710,7 @@ impl ClassInstance {
         db: &mut Database,
         with: TypeId,
         context: &mut TypeContext,
-        subtyping: bool,
+        rules: Rules,
     ) -> bool {
         match with {
             TypeId::ClassInstance(ins) => {
@@ -1975,20 +1742,18 @@ impl ClassInstance {
                             .get(param)
                             .zip(their_args.get(param))
                             .map(|(ours, theirs)| {
-                                ours.type_check(db, theirs, context, subtyping)
+                                ours.type_check(db, theirs, context, rules)
                             })
                             .unwrap_or(false)
                     },
                 )
             }
             TypeId::TraitInstance(ins) => {
-                self.type_check_with_trait_instance(db, ins, context, subtyping)
+                self.type_check_with_trait_instance(db, ins, context, rules)
             }
             TypeId::TypeParameter(id) => {
                 id.all_requirements_met(db, |db, req| {
-                    self.type_check_with_trait_instance(
-                        db, req, context, subtyping,
-                    )
+                    self.type_check_with_trait_instance(db, req, context, rules)
                 })
             }
             _ => false,
@@ -2011,52 +1776,6 @@ impl ClassInstance {
         let new_args = TypeArguments::rigid(db, self.type_arguments, bounds);
 
         ClassInstance::generic(db, self.instance_of, new_args)
-    }
-
-    fn inferred(
-        self,
-        db: &mut Database,
-        context: &mut TypeContext,
-        immutable: bool,
-    ) -> Self {
-        if !self.instance_of.is_generic(db) {
-            return self;
-        }
-
-        let mut new_args = TypeArguments::new();
-
-        for (param, val) in self.type_arguments(db).pairs() {
-            new_args.assign(param, val.inferred(db, context, immutable));
-        }
-
-        Self::generic(db, self.instance_of, new_args)
-    }
-}
-
-impl FormatType for ClassInstance {
-    fn format_type(&self, buffer: &mut TypeFormatter) {
-        buffer.descend(|buffer| {
-            let ins_of = self.instance_of.get(buffer.db);
-
-            if ins_of.kind != ClassKind::Tuple {
-                buffer.write(&ins_of.name);
-            }
-
-            if ins_of.type_parameters.len() > 0 {
-                let (open, close) = if ins_of.kind == ClassKind::Tuple {
-                    ("(", ")")
-                } else {
-                    ("[", "]")
-                };
-
-                let params = ins_of.type_parameters.values();
-                let args = self.type_arguments(buffer.db);
-
-                buffer.write(open);
-                buffer.type_arguments(params, args);
-                buffer.write(close);
-            }
-        });
     }
 }
 
@@ -2095,6 +1814,7 @@ impl Arguments {
         self.mapping.len()
     }
 
+    // TODO: remove
     fn type_check(
         &self,
         db: &mut Database,
@@ -2105,6 +1825,8 @@ impl Arguments {
         if self.len() != with.len() {
             return false;
         }
+
+        let rules = Rules::none();
 
         for (ours, theirs) in
             self.mapping.values().iter().zip(with.mapping.values().iter())
@@ -2117,7 +1839,7 @@ impl Arguments {
                 db,
                 theirs.value_type,
                 context,
-                false,
+                rules,
             ) {
                 return false;
             }
@@ -2177,59 +1899,1095 @@ impl Visibility {
     }
 }
 
-#[derive(Copy, Clone)]
-pub enum BuiltinFunctionKind {
-    Function(BIF),
-    Instruction(Opcode),
-    Macro(CompilerMacro),
-}
-
-/// A function built into the compiler or VM.
-pub struct BuiltinFunction {
-    kind: BuiltinFunctionKind,
-    return_type: TypeRef,
-    throw_type: TypeRef,
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+pub enum BuiltinFunction {
+    ArrayCapacity,
+    ArrayClear,
+    ArrayDrop,
+    ArrayGet,
+    ArrayLength,
+    ArrayPop,
+    ArrayPush,
+    ArrayRemove,
+    ArrayReserve,
+    ArraySet,
+    ByteArrayNew,
+    ByteArrayAppend,
+    ByteArrayClear,
+    ByteArrayClone,
+    ByteArrayCopyFrom,
+    ByteArrayDrainToString,
+    ByteArrayDrop,
+    ByteArrayEq,
+    ByteArrayGet,
+    ByteArrayLength,
+    ByteArrayPop,
+    ByteArrayPush,
+    ByteArrayRemove,
+    ByteArrayResize,
+    ByteArraySet,
+    ByteArraySlice,
+    ByteArrayToString,
+    ChildProcessDrop,
+    ChildProcessSpawn,
+    ChildProcessStderrClose,
+    ChildProcessStderrRead,
+    ChildProcessStdinClose,
+    ChildProcessStdinFlush,
+    ChildProcessStdinWriteBytes,
+    ChildProcessStdinWriteString,
+    ChildProcessStdoutClose,
+    ChildProcessStdoutRead,
+    ChildProcessTryWait,
+    ChildProcessWait,
+    CpuCores,
+    DirectoryCreate,
+    DirectoryCreateRecursive,
+    DirectoryList,
+    DirectoryRemove,
+    DirectoryRemoveRecursive,
+    EnvArguments,
+    EnvExecutable,
+    EnvGet,
+    EnvGetWorkingDirectory,
+    EnvHomeDirectory,
+    EnvPlatform,
+    EnvSetWorkingDirectory,
+    EnvTempDirectory,
+    EnvVariables,
+    Exit,
+    FileCopy,
+    FileDrop,
+    FileFlush,
+    FileOpen,
+    FileRead,
+    FileRemove,
+    FileSeek,
+    FileSize,
+    FileWriteBytes,
+    FileWriteString,
+    FloatAdd,
+    FloatCeil,
+    FloatDiv,
+    FloatEq,
+    FloatFloor,
+    FloatFromBits,
+    FloatGe,
+    FloatGt,
+    FloatIsInf,
+    FloatIsNan,
+    FloatLe,
+    FloatLt,
+    FloatMod,
+    FloatMul,
+    FloatRound,
+    FloatSub,
+    FloatToBits,
+    FloatToInt,
+    FloatToString,
+    ChannelDrop,
+    ChannelNew,
+    ChannelReceive,
+    ChannelReceiveUntil,
+    ChannelSend,
+    ChannelTryReceive,
+    ChannelWait,
+    GetNil,
+    HasherDrop,
+    HasherNew,
+    HasherToHash,
+    HasherWriteInt,
+    IntAdd,
+    IntBitAnd,
+    IntBitNot,
+    IntBitOr,
+    IntBitXor,
+    IntDiv,
+    IntEq,
+    IntGe,
+    IntGt,
+    IntLe,
+    IntLt,
+    IntRem,
+    IntMul,
+    IntPow,
+    IntRotateLeft,
+    IntRotateRight,
+    IntShl,
+    IntShr,
+    IntSub,
+    IntToFloat,
+    IntToString,
+    IntUnsignedShr,
+    IntWrappingAdd,
+    IntWrappingMul,
+    IntWrappingSub,
+    IsNull,
+    Moved,
+    ObjectEq,
+    Panic,
+    PanicThrown,
+    PathAccessedAt,
+    PathCreatedAt,
+    PathExists,
+    PathIsDirectory,
+    PathIsFile,
+    PathModifiedAt,
+    ProcessStackFrameLine,
+    ProcessStackFrameName,
+    ProcessStackFramePath,
+    ProcessStacktrace,
+    ProcessStacktraceDrop,
+    ProcessStacktraceLength,
+    ProcessSuspend,
+    RandomBytes,
+    RandomDrop,
+    RandomFloat,
+    RandomFloatRange,
+    RandomFromInt,
+    RandomInt,
+    RandomIntRange,
+    RandomNew,
+    SocketAccept,
+    SocketAddressPairAddress,
+    SocketAddressPairDrop,
+    SocketAddressPairPort,
+    SocketNew,
+    SocketBind,
+    SocketConnect,
+    SocketDrop,
+    SocketListen,
+    SocketLocalAddress,
+    SocketPeerAddress,
+    SocketRead,
+    SocketReceiveFrom,
+    SocketSendBytesTo,
+    SocketSendStringTo,
+    SocketSetBroadcast,
+    SocketSetKeepalive,
+    SocketSetLinger,
+    SocketSetNodelay,
+    SocketSetOnlyV6,
+    SocketSetRecvSize,
+    SocketSetReuseAddress,
+    SocketSetReusePort,
+    SocketSetSendSize,
+    SocketSetTtl,
+    SocketShutdownRead,
+    SocketShutdownReadWrite,
+    SocketShutdownWrite,
+    SocketTryClone,
+    SocketWriteBytes,
+    SocketWriteString,
+    StderrFlush,
+    StderrWriteBytes,
+    StderrWriteString,
+    StdinRead,
+    StdoutFlush,
+    StdoutWriteBytes,
+    StdoutWriteString,
+    StringByte,
+    StringCharacters,
+    StringCharactersDrop,
+    StringCharactersNext,
+    StringConcat,
+    StringConcatArray,
+    StringDrop,
+    StringEq,
+    StringSize,
+    StringSliceBytes,
+    StringToByteArray,
+    StringToFloat,
+    StringToInt,
+    StringToLower,
+    StringToUpper,
+    TimeMonotonic,
+    TimeSystem,
+    TimeSystemOffset,
 }
 
 impl BuiltinFunction {
-    pub fn alloc(
-        db: &mut Database,
-        kind: BuiltinFunctionKind,
-        name: &str,
-        return_type: TypeRef,
-        throw_type: TypeRef,
-    ) -> BuiltinFunctionId {
-        let func = Self { kind, return_type, throw_type };
+    pub fn mapping() -> HashMap<String, Self> {
+        let mut map = HashMap::new();
+        let funcs = vec![
+            BuiltinFunction::ArrayCapacity,
+            BuiltinFunction::ArrayClear,
+            BuiltinFunction::ArrayDrop,
+            BuiltinFunction::ArrayGet,
+            BuiltinFunction::ArrayLength,
+            BuiltinFunction::ArrayPop,
+            BuiltinFunction::ArrayPush,
+            BuiltinFunction::ArrayRemove,
+            BuiltinFunction::ArrayReserve,
+            BuiltinFunction::ArraySet,
+            BuiltinFunction::ByteArrayNew,
+            BuiltinFunction::ByteArrayAppend,
+            BuiltinFunction::ByteArrayClear,
+            BuiltinFunction::ByteArrayClone,
+            BuiltinFunction::ByteArrayCopyFrom,
+            BuiltinFunction::ByteArrayDrainToString,
+            BuiltinFunction::ByteArrayDrop,
+            BuiltinFunction::ByteArrayEq,
+            BuiltinFunction::ByteArrayGet,
+            BuiltinFunction::ByteArrayLength,
+            BuiltinFunction::ByteArrayPop,
+            BuiltinFunction::ByteArrayPush,
+            BuiltinFunction::ByteArrayRemove,
+            BuiltinFunction::ByteArrayResize,
+            BuiltinFunction::ByteArraySet,
+            BuiltinFunction::ByteArraySlice,
+            BuiltinFunction::ByteArrayToString,
+            BuiltinFunction::ChildProcessDrop,
+            BuiltinFunction::ChildProcessSpawn,
+            BuiltinFunction::ChildProcessStderrClose,
+            BuiltinFunction::ChildProcessStderrRead,
+            BuiltinFunction::ChildProcessStdinClose,
+            BuiltinFunction::ChildProcessStdinFlush,
+            BuiltinFunction::ChildProcessStdinWriteBytes,
+            BuiltinFunction::ChildProcessStdinWriteString,
+            BuiltinFunction::ChildProcessStdoutClose,
+            BuiltinFunction::ChildProcessStdoutRead,
+            BuiltinFunction::ChildProcessTryWait,
+            BuiltinFunction::ChildProcessWait,
+            BuiltinFunction::CpuCores,
+            BuiltinFunction::DirectoryCreate,
+            BuiltinFunction::DirectoryCreateRecursive,
+            BuiltinFunction::DirectoryList,
+            BuiltinFunction::DirectoryRemove,
+            BuiltinFunction::DirectoryRemoveRecursive,
+            BuiltinFunction::EnvArguments,
+            BuiltinFunction::EnvExecutable,
+            BuiltinFunction::EnvGet,
+            BuiltinFunction::EnvGetWorkingDirectory,
+            BuiltinFunction::EnvHomeDirectory,
+            BuiltinFunction::EnvPlatform,
+            BuiltinFunction::EnvSetWorkingDirectory,
+            BuiltinFunction::EnvTempDirectory,
+            BuiltinFunction::EnvVariables,
+            BuiltinFunction::Exit,
+            BuiltinFunction::FileCopy,
+            BuiltinFunction::FileDrop,
+            BuiltinFunction::FileFlush,
+            BuiltinFunction::FileOpen,
+            BuiltinFunction::FileRead,
+            BuiltinFunction::FileRemove,
+            BuiltinFunction::FileSeek,
+            BuiltinFunction::FileSize,
+            BuiltinFunction::FileWriteBytes,
+            BuiltinFunction::FileWriteString,
+            BuiltinFunction::FloatAdd,
+            BuiltinFunction::FloatCeil,
+            BuiltinFunction::FloatDiv,
+            BuiltinFunction::FloatEq,
+            BuiltinFunction::FloatFloor,
+            BuiltinFunction::FloatFromBits,
+            BuiltinFunction::FloatGe,
+            BuiltinFunction::FloatGt,
+            BuiltinFunction::FloatIsInf,
+            BuiltinFunction::FloatIsNan,
+            BuiltinFunction::FloatLe,
+            BuiltinFunction::FloatLt,
+            BuiltinFunction::FloatMod,
+            BuiltinFunction::FloatMul,
+            BuiltinFunction::FloatRound,
+            BuiltinFunction::FloatSub,
+            BuiltinFunction::FloatToBits,
+            BuiltinFunction::FloatToInt,
+            BuiltinFunction::FloatToString,
+            BuiltinFunction::ChannelDrop,
+            BuiltinFunction::ChannelNew,
+            BuiltinFunction::ChannelReceive,
+            BuiltinFunction::ChannelReceiveUntil,
+            BuiltinFunction::ChannelSend,
+            BuiltinFunction::ChannelTryReceive,
+            BuiltinFunction::ChannelWait,
+            BuiltinFunction::GetNil,
+            BuiltinFunction::HasherDrop,
+            BuiltinFunction::HasherNew,
+            BuiltinFunction::HasherToHash,
+            BuiltinFunction::HasherWriteInt,
+            BuiltinFunction::IntAdd,
+            BuiltinFunction::IntBitAnd,
+            BuiltinFunction::IntBitNot,
+            BuiltinFunction::IntBitOr,
+            BuiltinFunction::IntBitXor,
+            BuiltinFunction::IntDiv,
+            BuiltinFunction::IntEq,
+            BuiltinFunction::IntGe,
+            BuiltinFunction::IntGt,
+            BuiltinFunction::IntLe,
+            BuiltinFunction::IntLt,
+            BuiltinFunction::IntRem,
+            BuiltinFunction::IntMul,
+            BuiltinFunction::IntPow,
+            BuiltinFunction::IntRotateLeft,
+            BuiltinFunction::IntRotateRight,
+            BuiltinFunction::IntShl,
+            BuiltinFunction::IntShr,
+            BuiltinFunction::IntSub,
+            BuiltinFunction::IntToFloat,
+            BuiltinFunction::IntToString,
+            BuiltinFunction::IntUnsignedShr,
+            BuiltinFunction::IntWrappingAdd,
+            BuiltinFunction::IntWrappingMul,
+            BuiltinFunction::IntWrappingSub,
+            BuiltinFunction::IsNull,
+            BuiltinFunction::Moved,
+            BuiltinFunction::ObjectEq,
+            BuiltinFunction::Panic,
+            BuiltinFunction::PanicThrown,
+            BuiltinFunction::PathAccessedAt,
+            BuiltinFunction::PathCreatedAt,
+            BuiltinFunction::PathExists,
+            BuiltinFunction::PathIsDirectory,
+            BuiltinFunction::PathIsFile,
+            BuiltinFunction::PathModifiedAt,
+            BuiltinFunction::ProcessStackFrameLine,
+            BuiltinFunction::ProcessStackFrameName,
+            BuiltinFunction::ProcessStackFramePath,
+            BuiltinFunction::ProcessStacktrace,
+            BuiltinFunction::ProcessStacktraceDrop,
+            BuiltinFunction::ProcessStacktraceLength,
+            BuiltinFunction::ProcessSuspend,
+            BuiltinFunction::RandomBytes,
+            BuiltinFunction::RandomDrop,
+            BuiltinFunction::RandomFloat,
+            BuiltinFunction::RandomFloatRange,
+            BuiltinFunction::RandomFromInt,
+            BuiltinFunction::RandomInt,
+            BuiltinFunction::RandomIntRange,
+            BuiltinFunction::RandomNew,
+            BuiltinFunction::SocketAccept,
+            BuiltinFunction::SocketAddressPairAddress,
+            BuiltinFunction::SocketAddressPairDrop,
+            BuiltinFunction::SocketAddressPairPort,
+            BuiltinFunction::SocketNew,
+            BuiltinFunction::SocketBind,
+            BuiltinFunction::SocketConnect,
+            BuiltinFunction::SocketDrop,
+            BuiltinFunction::SocketListen,
+            BuiltinFunction::SocketLocalAddress,
+            BuiltinFunction::SocketPeerAddress,
+            BuiltinFunction::SocketRead,
+            BuiltinFunction::SocketReceiveFrom,
+            BuiltinFunction::SocketSendBytesTo,
+            BuiltinFunction::SocketSendStringTo,
+            BuiltinFunction::SocketSetBroadcast,
+            BuiltinFunction::SocketSetKeepalive,
+            BuiltinFunction::SocketSetLinger,
+            BuiltinFunction::SocketSetNodelay,
+            BuiltinFunction::SocketSetOnlyV6,
+            BuiltinFunction::SocketSetRecvSize,
+            BuiltinFunction::SocketSetReuseAddress,
+            BuiltinFunction::SocketSetReusePort,
+            BuiltinFunction::SocketSetSendSize,
+            BuiltinFunction::SocketSetTtl,
+            BuiltinFunction::SocketShutdownRead,
+            BuiltinFunction::SocketShutdownReadWrite,
+            BuiltinFunction::SocketShutdownWrite,
+            BuiltinFunction::SocketTryClone,
+            BuiltinFunction::SocketWriteBytes,
+            BuiltinFunction::SocketWriteString,
+            BuiltinFunction::StderrFlush,
+            BuiltinFunction::StderrWriteBytes,
+            BuiltinFunction::StderrWriteString,
+            BuiltinFunction::StdinRead,
+            BuiltinFunction::StdoutFlush,
+            BuiltinFunction::StdoutWriteBytes,
+            BuiltinFunction::StdoutWriteString,
+            BuiltinFunction::StringByte,
+            BuiltinFunction::StringCharacters,
+            BuiltinFunction::StringCharactersDrop,
+            BuiltinFunction::StringCharactersNext,
+            BuiltinFunction::StringConcat,
+            BuiltinFunction::StringConcatArray,
+            BuiltinFunction::StringDrop,
+            BuiltinFunction::StringEq,
+            BuiltinFunction::StringSize,
+            BuiltinFunction::StringSliceBytes,
+            BuiltinFunction::StringToByteArray,
+            BuiltinFunction::StringToFloat,
+            BuiltinFunction::StringToInt,
+            BuiltinFunction::StringToLower,
+            BuiltinFunction::StringToUpper,
+            BuiltinFunction::TimeMonotonic,
+            BuiltinFunction::TimeSystem,
+            BuiltinFunction::TimeSystemOffset,
+        ];
 
-        Self::add(db, name.to_string(), func)
+        for func in funcs {
+            map.insert(func.name().to_string(), func);
+        }
+
+        map
     }
 
-    fn add(db: &mut Database, name: String, func: Self) -> BuiltinFunctionId {
-        let id = db.builtin_functions.len();
-
-        db.builtin_functions.insert(name, func);
-        BuiltinFunctionId(id)
+    pub fn name(self) -> &'static str {
+        match self {
+            BuiltinFunction::ArrayCapacity => "array_capacity",
+            BuiltinFunction::ArrayClear => "array_clear",
+            BuiltinFunction::ArrayDrop => "array_drop",
+            BuiltinFunction::ArrayGet => "array_get",
+            BuiltinFunction::ArrayLength => "array_length",
+            BuiltinFunction::ArrayPop => "array_pop",
+            BuiltinFunction::ArrayPush => "array_push",
+            BuiltinFunction::ArrayRemove => "array_remove",
+            BuiltinFunction::ArrayReserve => "array_reserve",
+            BuiltinFunction::ArraySet => "array_set",
+            BuiltinFunction::ByteArrayNew => "byte_array_new",
+            BuiltinFunction::ByteArrayAppend => "byte_array_append",
+            BuiltinFunction::ByteArrayClear => "byte_array_clear",
+            BuiltinFunction::ByteArrayClone => "byte_array_clone",
+            BuiltinFunction::ByteArrayCopyFrom => "byte_array_copy_from",
+            BuiltinFunction::ByteArrayDrainToString => {
+                "byte_array_drain_to_string"
+            }
+            BuiltinFunction::ByteArrayDrop => "byte_array_drop",
+            BuiltinFunction::ByteArrayEq => "byte_array_eq",
+            BuiltinFunction::ByteArrayGet => "byte_array_get",
+            BuiltinFunction::ByteArrayLength => "byte_array_length",
+            BuiltinFunction::ByteArrayPop => "byte_array_pop",
+            BuiltinFunction::ByteArrayPush => "byte_array_push",
+            BuiltinFunction::ByteArrayRemove => "byte_array_remove",
+            BuiltinFunction::ByteArrayResize => "byte_array_resize",
+            BuiltinFunction::ByteArraySet => "byte_array_set",
+            BuiltinFunction::ByteArraySlice => "byte_array_slice",
+            BuiltinFunction::ByteArrayToString => "byte_array_to_string",
+            BuiltinFunction::ChildProcessDrop => "child_process_drop",
+            BuiltinFunction::ChildProcessSpawn => "child_process_spawn",
+            BuiltinFunction::ChildProcessStderrClose => {
+                "child_process_stderr_close"
+            }
+            BuiltinFunction::ChildProcessStderrRead => {
+                "child_process_stderr_read"
+            }
+            BuiltinFunction::ChildProcessStdinClose => {
+                "child_process_stdin_close"
+            }
+            BuiltinFunction::ChildProcessStdinFlush => {
+                "child_process_stdin_flush"
+            }
+            BuiltinFunction::ChildProcessStdinWriteBytes => {
+                "child_process_stdin_write_bytes"
+            }
+            BuiltinFunction::ChildProcessStdinWriteString => {
+                "child_process_stdin_write_string"
+            }
+            BuiltinFunction::ChildProcessStdoutClose => {
+                "child_process_stdout_close"
+            }
+            BuiltinFunction::ChildProcessStdoutRead => {
+                "child_process_stdout_read"
+            }
+            BuiltinFunction::ChildProcessTryWait => "child_process_try_wait",
+            BuiltinFunction::ChildProcessWait => "child_process_wait",
+            BuiltinFunction::CpuCores => "cpu_cores",
+            BuiltinFunction::DirectoryCreate => "directory_create",
+            BuiltinFunction::DirectoryCreateRecursive => {
+                "directory_create_recursive"
+            }
+            BuiltinFunction::DirectoryList => "directory_list",
+            BuiltinFunction::DirectoryRemove => "directory_remove",
+            BuiltinFunction::DirectoryRemoveRecursive => {
+                "directory_remove_recursive"
+            }
+            BuiltinFunction::EnvArguments => "env_arguments",
+            BuiltinFunction::EnvExecutable => "env_executable",
+            BuiltinFunction::EnvGet => "env_get",
+            BuiltinFunction::EnvGetWorkingDirectory => {
+                "env_get_working_directory"
+            }
+            BuiltinFunction::EnvHomeDirectory => "env_home_directory",
+            BuiltinFunction::EnvPlatform => "env_platform",
+            BuiltinFunction::EnvSetWorkingDirectory => {
+                "env_set_working_directory"
+            }
+            BuiltinFunction::EnvTempDirectory => "env_temp_directory",
+            BuiltinFunction::EnvVariables => "env_variables",
+            BuiltinFunction::Exit => "exit",
+            BuiltinFunction::FileCopy => "file_copy",
+            BuiltinFunction::FileDrop => "file_drop",
+            BuiltinFunction::FileFlush => "file_flush",
+            BuiltinFunction::FileOpen => "file_open",
+            BuiltinFunction::FileRead => "file_read",
+            BuiltinFunction::FileRemove => "file_remove",
+            BuiltinFunction::FileSeek => "file_seek",
+            BuiltinFunction::FileSize => "file_size",
+            BuiltinFunction::FileWriteBytes => "file_write_bytes",
+            BuiltinFunction::FileWriteString => "file_write_string",
+            BuiltinFunction::FloatAdd => "float_add",
+            BuiltinFunction::FloatCeil => "float_ceil",
+            BuiltinFunction::FloatDiv => "float_div",
+            BuiltinFunction::FloatEq => "float_eq",
+            BuiltinFunction::FloatFloor => "float_floor",
+            BuiltinFunction::FloatFromBits => "float_from_bits",
+            BuiltinFunction::FloatGe => "float_ge",
+            BuiltinFunction::FloatGt => "float_gt",
+            BuiltinFunction::FloatIsInf => "float_is_inf",
+            BuiltinFunction::FloatIsNan => "float_is_nan",
+            BuiltinFunction::FloatLe => "float_le",
+            BuiltinFunction::FloatLt => "float_lt",
+            BuiltinFunction::FloatMod => "float_mod",
+            BuiltinFunction::FloatMul => "float_mul",
+            BuiltinFunction::FloatRound => "float_round",
+            BuiltinFunction::FloatSub => "float_sub",
+            BuiltinFunction::FloatToBits => "float_to_bits",
+            BuiltinFunction::FloatToInt => "float_to_int",
+            BuiltinFunction::FloatToString => "float_to_string",
+            BuiltinFunction::ChannelReceive => "channel_receive",
+            BuiltinFunction::ChannelReceiveUntil => "channel_receive_until",
+            BuiltinFunction::ChannelDrop => "channel_drop",
+            BuiltinFunction::ChannelWait => "channel_wait",
+            BuiltinFunction::ChannelNew => "channel_new",
+            BuiltinFunction::ChannelSend => "channel_send",
+            BuiltinFunction::ChannelTryReceive => "channel_try_receive",
+            BuiltinFunction::GetNil => "get_nil",
+            BuiltinFunction::HasherDrop => "hasher_drop",
+            BuiltinFunction::HasherNew => "hasher_new",
+            BuiltinFunction::HasherToHash => "hasher_to_hash",
+            BuiltinFunction::HasherWriteInt => "hasher_write_int",
+            BuiltinFunction::IntAdd => "int_add",
+            BuiltinFunction::IntBitAnd => "int_bit_and",
+            BuiltinFunction::IntBitNot => "int_bit_not",
+            BuiltinFunction::IntBitOr => "int_bit_or",
+            BuiltinFunction::IntBitXor => "int_bit_xor",
+            BuiltinFunction::IntDiv => "int_div",
+            BuiltinFunction::IntEq => "int_eq",
+            BuiltinFunction::IntGe => "int_ge",
+            BuiltinFunction::IntGt => "int_gt",
+            BuiltinFunction::IntLe => "int_le",
+            BuiltinFunction::IntLt => "int_lt",
+            BuiltinFunction::IntRem => "int_rem",
+            BuiltinFunction::IntMul => "int_mul",
+            BuiltinFunction::IntPow => "int_pow",
+            BuiltinFunction::IntRotateLeft => "int_rotate_left",
+            BuiltinFunction::IntRotateRight => "int_rotate_right",
+            BuiltinFunction::IntShl => "int_shl",
+            BuiltinFunction::IntShr => "int_shr",
+            BuiltinFunction::IntSub => "int_sub",
+            BuiltinFunction::IntToFloat => "int_to_float",
+            BuiltinFunction::IntToString => "int_to_string",
+            BuiltinFunction::IntUnsignedShr => "int_unsigned_shr",
+            BuiltinFunction::IntWrappingAdd => "int_wrapping_add",
+            BuiltinFunction::IntWrappingMul => "int_wrapping_mul",
+            BuiltinFunction::IntWrappingSub => "int_wrapping_sub",
+            BuiltinFunction::IsNull => "is_null",
+            BuiltinFunction::Moved => "moved",
+            BuiltinFunction::ObjectEq => "object_eq",
+            BuiltinFunction::Panic => "panic",
+            BuiltinFunction::PanicThrown => "panic_thrown",
+            BuiltinFunction::PathAccessedAt => "path_accessed_at",
+            BuiltinFunction::PathCreatedAt => "path_created_at",
+            BuiltinFunction::PathExists => "path_exists",
+            BuiltinFunction::PathIsDirectory => "path_is_directory",
+            BuiltinFunction::PathIsFile => "path_is_file",
+            BuiltinFunction::PathModifiedAt => "path_modified_at",
+            BuiltinFunction::ProcessStackFrameLine => {
+                "process_stack_frame_line"
+            }
+            BuiltinFunction::ProcessStackFrameName => {
+                "process_stack_frame_name"
+            }
+            BuiltinFunction::ProcessStackFramePath => {
+                "process_stack_frame_path"
+            }
+            BuiltinFunction::ProcessStacktrace => "process_stacktrace",
+            BuiltinFunction::ProcessStacktraceDrop => "process_stacktrace_drop",
+            BuiltinFunction::ProcessStacktraceLength => {
+                "process_stacktrace_length"
+            }
+            BuiltinFunction::ProcessSuspend => "process_suspend",
+            BuiltinFunction::RandomBytes => "random_bytes",
+            BuiltinFunction::RandomDrop => "random_drop",
+            BuiltinFunction::RandomFloat => "random_float",
+            BuiltinFunction::RandomFloatRange => "random_float_range",
+            BuiltinFunction::RandomFromInt => "random_from_int",
+            BuiltinFunction::RandomInt => "random_int",
+            BuiltinFunction::RandomIntRange => "random_int_range",
+            BuiltinFunction::RandomNew => "random_new",
+            BuiltinFunction::SocketAccept => "socket_accept",
+            BuiltinFunction::SocketAddressPairAddress => {
+                "socket_address_pair_address"
+            }
+            BuiltinFunction::SocketAddressPairDrop => {
+                "socket_address_pair_drop"
+            }
+            BuiltinFunction::SocketAddressPairPort => {
+                "socket_address_pair_port"
+            }
+            BuiltinFunction::SocketNew => "socket_new",
+            BuiltinFunction::SocketBind => "socket_bind",
+            BuiltinFunction::SocketConnect => "socket_connect",
+            BuiltinFunction::SocketDrop => "socket_drop",
+            BuiltinFunction::SocketListen => "socket_listen",
+            BuiltinFunction::SocketLocalAddress => "socket_local_address",
+            BuiltinFunction::SocketPeerAddress => "socket_peer_address",
+            BuiltinFunction::SocketRead => "socket_read",
+            BuiltinFunction::SocketReceiveFrom => "socket_receive_from",
+            BuiltinFunction::SocketSendBytesTo => "socket_send_bytes_to",
+            BuiltinFunction::SocketSendStringTo => "socket_send_string_to",
+            BuiltinFunction::SocketSetBroadcast => "socket_set_broadcast",
+            BuiltinFunction::SocketSetKeepalive => "socket_set_keepalive",
+            BuiltinFunction::SocketSetLinger => "socket_set_linger",
+            BuiltinFunction::SocketSetNodelay => "socket_set_nodelay",
+            BuiltinFunction::SocketSetOnlyV6 => "socket_set_only_v6",
+            BuiltinFunction::SocketSetRecvSize => "socket_set_recv_size",
+            BuiltinFunction::SocketSetReuseAddress => {
+                "socket_set_reuse_address"
+            }
+            BuiltinFunction::SocketSetReusePort => "socket_set_reuse_port",
+            BuiltinFunction::SocketSetSendSize => "socket_set_send_size",
+            BuiltinFunction::SocketSetTtl => "socket_set_ttl",
+            BuiltinFunction::SocketShutdownRead => "socket_shutdown_read",
+            BuiltinFunction::SocketShutdownReadWrite => {
+                "socket_shutdown_read_write"
+            }
+            BuiltinFunction::SocketShutdownWrite => "socket_shutdown_write",
+            BuiltinFunction::SocketTryClone => "socket_try_clone",
+            BuiltinFunction::SocketWriteBytes => "socket_write_bytes",
+            BuiltinFunction::SocketWriteString => "socket_write_string",
+            BuiltinFunction::StderrFlush => "stderr_flush",
+            BuiltinFunction::StderrWriteBytes => "stderr_write_bytes",
+            BuiltinFunction::StderrWriteString => "stderr_write_string",
+            BuiltinFunction::StdinRead => "stdin_read",
+            BuiltinFunction::StdoutFlush => "stdout_flush",
+            BuiltinFunction::StdoutWriteBytes => "stdout_write_bytes",
+            BuiltinFunction::StdoutWriteString => "stdout_write_string",
+            BuiltinFunction::StringByte => "string_byte",
+            BuiltinFunction::StringCharacters => "string_characters",
+            BuiltinFunction::StringCharactersDrop => "string_characters_drop",
+            BuiltinFunction::StringCharactersNext => "string_characters_next",
+            BuiltinFunction::StringConcat => "string_concat",
+            BuiltinFunction::StringConcatArray => "string_concat_array",
+            BuiltinFunction::StringDrop => "string_drop",
+            BuiltinFunction::StringEq => "string_eq",
+            BuiltinFunction::StringSize => "string_size",
+            BuiltinFunction::StringSliceBytes => "string_slice_bytes",
+            BuiltinFunction::StringToByteArray => "string_to_byte_array",
+            BuiltinFunction::StringToFloat => "string_to_float",
+            BuiltinFunction::StringToInt => "string_to_int",
+            BuiltinFunction::StringToLower => "string_to_lower",
+            BuiltinFunction::StringToUpper => "string_to_upper",
+            BuiltinFunction::TimeMonotonic => "time_monotonic",
+            BuiltinFunction::TimeSystem => "time_system",
+            BuiltinFunction::TimeSystemOffset => "time_system_offset",
+        }
     }
-}
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub struct BuiltinFunctionId(usize);
-
-impl BuiltinFunctionId {
-    pub fn kind(self, db: &Database) -> BuiltinFunctionKind {
-        self.get(db).kind
+    pub fn return_type(self) -> TypeRef {
+        match self {
+            BuiltinFunction::ArrayCapacity => TypeRef::int(),
+            BuiltinFunction::ArrayClear => TypeRef::nil(),
+            BuiltinFunction::ArrayDrop => TypeRef::nil(),
+            BuiltinFunction::ArrayGet => TypeRef::Any,
+            BuiltinFunction::ArrayLength => TypeRef::int(),
+            BuiltinFunction::ArrayPop => TypeRef::Any,
+            BuiltinFunction::ArrayPush => TypeRef::nil(),
+            BuiltinFunction::ArrayRemove => TypeRef::Any,
+            BuiltinFunction::ArrayReserve => TypeRef::nil(),
+            BuiltinFunction::ArraySet => TypeRef::Any,
+            BuiltinFunction::ByteArrayNew => TypeRef::byte_array(),
+            BuiltinFunction::ByteArrayAppend => TypeRef::nil(),
+            BuiltinFunction::ByteArrayClear => TypeRef::nil(),
+            BuiltinFunction::ByteArrayClone => TypeRef::byte_array(),
+            BuiltinFunction::ByteArrayCopyFrom => TypeRef::int(),
+            BuiltinFunction::ByteArrayDrainToString => TypeRef::string(),
+            BuiltinFunction::ByteArrayDrop => TypeRef::nil(),
+            BuiltinFunction::ByteArrayEq => TypeRef::boolean(),
+            BuiltinFunction::ByteArrayGet => TypeRef::int(),
+            BuiltinFunction::ByteArrayLength => TypeRef::int(),
+            BuiltinFunction::ByteArrayPop => TypeRef::int(),
+            BuiltinFunction::ByteArrayPush => TypeRef::nil(),
+            BuiltinFunction::ByteArrayRemove => TypeRef::int(),
+            BuiltinFunction::ByteArrayResize => TypeRef::nil(),
+            BuiltinFunction::ByteArraySet => TypeRef::int(),
+            BuiltinFunction::ByteArraySlice => TypeRef::byte_array(),
+            BuiltinFunction::ByteArrayToString => TypeRef::string(),
+            BuiltinFunction::ChildProcessDrop => TypeRef::Any,
+            BuiltinFunction::ChildProcessSpawn => TypeRef::Any,
+            BuiltinFunction::ChildProcessStderrClose => TypeRef::nil(),
+            BuiltinFunction::ChildProcessStderrRead => TypeRef::int(),
+            BuiltinFunction::ChildProcessStdinClose => TypeRef::nil(),
+            BuiltinFunction::ChildProcessStdinFlush => TypeRef::nil(),
+            BuiltinFunction::ChildProcessStdinWriteBytes => TypeRef::int(),
+            BuiltinFunction::ChildProcessStdinWriteString => TypeRef::int(),
+            BuiltinFunction::ChildProcessStdoutClose => TypeRef::nil(),
+            BuiltinFunction::ChildProcessStdoutRead => TypeRef::int(),
+            BuiltinFunction::ChildProcessTryWait => TypeRef::int(),
+            BuiltinFunction::ChildProcessWait => TypeRef::int(),
+            BuiltinFunction::CpuCores => TypeRef::int(),
+            BuiltinFunction::DirectoryCreate => TypeRef::nil(),
+            BuiltinFunction::DirectoryCreateRecursive => TypeRef::nil(),
+            BuiltinFunction::DirectoryList => TypeRef::Any,
+            BuiltinFunction::DirectoryRemove => TypeRef::nil(),
+            BuiltinFunction::DirectoryRemoveRecursive => TypeRef::nil(),
+            BuiltinFunction::EnvArguments => TypeRef::Any,
+            BuiltinFunction::EnvExecutable => TypeRef::string(),
+            BuiltinFunction::EnvGet => TypeRef::string(),
+            BuiltinFunction::EnvGetWorkingDirectory => TypeRef::string(),
+            BuiltinFunction::EnvHomeDirectory => TypeRef::string(),
+            BuiltinFunction::EnvPlatform => TypeRef::int(),
+            BuiltinFunction::EnvSetWorkingDirectory => TypeRef::nil(),
+            BuiltinFunction::EnvTempDirectory => TypeRef::string(),
+            BuiltinFunction::EnvVariables => TypeRef::Any,
+            BuiltinFunction::Exit => TypeRef::Never,
+            BuiltinFunction::FileCopy => TypeRef::int(),
+            BuiltinFunction::FileDrop => TypeRef::nil(),
+            BuiltinFunction::FileFlush => TypeRef::nil(),
+            BuiltinFunction::FileOpen => TypeRef::Any,
+            BuiltinFunction::FileRead => TypeRef::int(),
+            BuiltinFunction::FileRemove => TypeRef::nil(),
+            BuiltinFunction::FileSeek => TypeRef::int(),
+            BuiltinFunction::FileSize => TypeRef::int(),
+            BuiltinFunction::FileWriteBytes => TypeRef::int(),
+            BuiltinFunction::FileWriteString => TypeRef::int(),
+            BuiltinFunction::FloatAdd => TypeRef::float(),
+            BuiltinFunction::FloatCeil => TypeRef::float(),
+            BuiltinFunction::FloatDiv => TypeRef::float(),
+            BuiltinFunction::FloatEq => TypeRef::boolean(),
+            BuiltinFunction::FloatFloor => TypeRef::float(),
+            BuiltinFunction::FloatFromBits => TypeRef::float(),
+            BuiltinFunction::FloatGe => TypeRef::boolean(),
+            BuiltinFunction::FloatGt => TypeRef::boolean(),
+            BuiltinFunction::FloatIsInf => TypeRef::boolean(),
+            BuiltinFunction::FloatIsNan => TypeRef::boolean(),
+            BuiltinFunction::FloatLe => TypeRef::boolean(),
+            BuiltinFunction::FloatLt => TypeRef::boolean(),
+            BuiltinFunction::FloatMod => TypeRef::float(),
+            BuiltinFunction::FloatMul => TypeRef::float(),
+            BuiltinFunction::FloatRound => TypeRef::float(),
+            BuiltinFunction::FloatSub => TypeRef::float(),
+            BuiltinFunction::FloatToBits => TypeRef::int(),
+            BuiltinFunction::FloatToInt => TypeRef::int(),
+            BuiltinFunction::FloatToString => TypeRef::string(),
+            BuiltinFunction::ChannelReceive => TypeRef::Any,
+            BuiltinFunction::ChannelReceiveUntil => TypeRef::Any,
+            BuiltinFunction::ChannelDrop => TypeRef::nil(),
+            BuiltinFunction::ChannelWait => TypeRef::nil(),
+            BuiltinFunction::ChannelNew => TypeRef::Any,
+            BuiltinFunction::ChannelSend => TypeRef::nil(),
+            BuiltinFunction::ChannelTryReceive => TypeRef::Any,
+            BuiltinFunction::GetNil => TypeRef::nil(),
+            BuiltinFunction::HasherDrop => TypeRef::nil(),
+            BuiltinFunction::HasherNew => TypeRef::Any,
+            BuiltinFunction::HasherToHash => TypeRef::int(),
+            BuiltinFunction::HasherWriteInt => TypeRef::nil(),
+            BuiltinFunction::IntAdd => TypeRef::int(),
+            BuiltinFunction::IntBitAnd => TypeRef::int(),
+            BuiltinFunction::IntBitNot => TypeRef::int(),
+            BuiltinFunction::IntBitOr => TypeRef::int(),
+            BuiltinFunction::IntBitXor => TypeRef::int(),
+            BuiltinFunction::IntDiv => TypeRef::int(),
+            BuiltinFunction::IntEq => TypeRef::boolean(),
+            BuiltinFunction::IntGe => TypeRef::boolean(),
+            BuiltinFunction::IntGt => TypeRef::boolean(),
+            BuiltinFunction::IntLe => TypeRef::boolean(),
+            BuiltinFunction::IntLt => TypeRef::boolean(),
+            BuiltinFunction::IntRem => TypeRef::int(),
+            BuiltinFunction::IntMul => TypeRef::int(),
+            BuiltinFunction::IntPow => TypeRef::int(),
+            BuiltinFunction::IntRotateLeft => TypeRef::int(),
+            BuiltinFunction::IntRotateRight => TypeRef::int(),
+            BuiltinFunction::IntShl => TypeRef::int(),
+            BuiltinFunction::IntShr => TypeRef::int(),
+            BuiltinFunction::IntSub => TypeRef::int(),
+            BuiltinFunction::IntToFloat => TypeRef::float(),
+            BuiltinFunction::IntToString => TypeRef::string(),
+            BuiltinFunction::IntUnsignedShr => TypeRef::int(),
+            BuiltinFunction::IntWrappingAdd => TypeRef::int(),
+            BuiltinFunction::IntWrappingMul => TypeRef::int(),
+            BuiltinFunction::IntWrappingSub => TypeRef::int(),
+            BuiltinFunction::IsNull => TypeRef::boolean(),
+            BuiltinFunction::Moved => TypeRef::nil(),
+            BuiltinFunction::ObjectEq => TypeRef::boolean(),
+            BuiltinFunction::Panic => TypeRef::Never,
+            BuiltinFunction::PathAccessedAt => TypeRef::float(),
+            BuiltinFunction::PathCreatedAt => TypeRef::float(),
+            BuiltinFunction::PathExists => TypeRef::boolean(),
+            BuiltinFunction::PathIsDirectory => TypeRef::boolean(),
+            BuiltinFunction::PathIsFile => TypeRef::boolean(),
+            BuiltinFunction::PathModifiedAt => TypeRef::float(),
+            BuiltinFunction::ProcessStackFrameLine => TypeRef::int(),
+            BuiltinFunction::ProcessStackFrameName => TypeRef::string(),
+            BuiltinFunction::ProcessStackFramePath => TypeRef::string(),
+            BuiltinFunction::ProcessStacktrace => TypeRef::Any,
+            BuiltinFunction::ProcessStacktraceDrop => TypeRef::nil(),
+            BuiltinFunction::ProcessStacktraceLength => TypeRef::int(),
+            BuiltinFunction::ProcessSuspend => TypeRef::nil(),
+            BuiltinFunction::RandomBytes => TypeRef::byte_array(),
+            BuiltinFunction::RandomDrop => TypeRef::nil(),
+            BuiltinFunction::RandomFloat => TypeRef::float(),
+            BuiltinFunction::RandomFloatRange => TypeRef::float(),
+            BuiltinFunction::RandomFromInt => TypeRef::Any,
+            BuiltinFunction::RandomInt => TypeRef::int(),
+            BuiltinFunction::RandomIntRange => TypeRef::int(),
+            BuiltinFunction::RandomNew => TypeRef::Any,
+            BuiltinFunction::SocketAccept => TypeRef::Any,
+            BuiltinFunction::SocketAddressPairAddress => TypeRef::string(),
+            BuiltinFunction::SocketAddressPairDrop => TypeRef::nil(),
+            BuiltinFunction::SocketAddressPairPort => TypeRef::int(),
+            BuiltinFunction::SocketBind => TypeRef::nil(),
+            BuiltinFunction::SocketConnect => TypeRef::nil(),
+            BuiltinFunction::SocketDrop => TypeRef::nil(),
+            BuiltinFunction::SocketListen => TypeRef::nil(),
+            BuiltinFunction::SocketLocalAddress => TypeRef::Any,
+            BuiltinFunction::SocketNew => TypeRef::Any,
+            BuiltinFunction::SocketPeerAddress => TypeRef::Any,
+            BuiltinFunction::SocketRead => TypeRef::int(),
+            BuiltinFunction::SocketReceiveFrom => TypeRef::Any,
+            BuiltinFunction::SocketSendBytesTo => TypeRef::int(),
+            BuiltinFunction::SocketSendStringTo => TypeRef::int(),
+            BuiltinFunction::SocketSetBroadcast => TypeRef::nil(),
+            BuiltinFunction::SocketSetKeepalive => TypeRef::nil(),
+            BuiltinFunction::SocketSetLinger => TypeRef::nil(),
+            BuiltinFunction::SocketSetNodelay => TypeRef::nil(),
+            BuiltinFunction::SocketSetOnlyV6 => TypeRef::nil(),
+            BuiltinFunction::SocketSetRecvSize => TypeRef::nil(),
+            BuiltinFunction::SocketSetReuseAddress => TypeRef::nil(),
+            BuiltinFunction::SocketSetReusePort => TypeRef::nil(),
+            BuiltinFunction::SocketSetSendSize => TypeRef::nil(),
+            BuiltinFunction::SocketSetTtl => TypeRef::nil(),
+            BuiltinFunction::SocketShutdownRead => TypeRef::nil(),
+            BuiltinFunction::SocketShutdownReadWrite => TypeRef::nil(),
+            BuiltinFunction::SocketShutdownWrite => TypeRef::nil(),
+            BuiltinFunction::SocketTryClone => TypeRef::Any,
+            BuiltinFunction::SocketWriteBytes => TypeRef::int(),
+            BuiltinFunction::SocketWriteString => TypeRef::int(),
+            BuiltinFunction::StderrFlush => TypeRef::nil(),
+            BuiltinFunction::StderrWriteBytes => TypeRef::int(),
+            BuiltinFunction::StderrWriteString => TypeRef::int(),
+            BuiltinFunction::StdinRead => TypeRef::int(),
+            BuiltinFunction::StdoutFlush => TypeRef::nil(),
+            BuiltinFunction::StdoutWriteBytes => TypeRef::int(),
+            BuiltinFunction::StdoutWriteString => TypeRef::int(),
+            BuiltinFunction::StringByte => TypeRef::int(),
+            BuiltinFunction::StringCharacters => TypeRef::Any,
+            BuiltinFunction::StringCharactersDrop => TypeRef::nil(),
+            BuiltinFunction::StringCharactersNext => TypeRef::Any,
+            BuiltinFunction::StringConcat => TypeRef::string(),
+            BuiltinFunction::StringConcatArray => TypeRef::string(),
+            BuiltinFunction::StringDrop => TypeRef::nil(),
+            BuiltinFunction::StringEq => TypeRef::boolean(),
+            BuiltinFunction::StringSize => TypeRef::int(),
+            BuiltinFunction::StringSliceBytes => TypeRef::string(),
+            BuiltinFunction::StringToByteArray => TypeRef::byte_array(),
+            BuiltinFunction::StringToFloat => TypeRef::float(),
+            BuiltinFunction::StringToInt => TypeRef::int(),
+            BuiltinFunction::StringToLower => TypeRef::string(),
+            BuiltinFunction::StringToUpper => TypeRef::string(),
+            BuiltinFunction::TimeMonotonic => TypeRef::int(),
+            BuiltinFunction::TimeSystem => TypeRef::float(),
+            BuiltinFunction::TimeSystemOffset => TypeRef::int(),
+            BuiltinFunction::PanicThrown => TypeRef::Never,
+        }
     }
 
-    pub fn return_type(self, db: &Database) -> TypeRef {
-        self.get(db).return_type
-    }
-
-    pub fn throw_type(self, db: &Database) -> TypeRef {
-        self.get(db).throw_type
-    }
-
-    fn get(self, db: &Database) -> &BuiltinFunction {
-        &db.builtin_functions[self.0]
+    pub fn throw_type(self) -> TypeRef {
+        match self {
+            BuiltinFunction::ArrayCapacity => TypeRef::Never,
+            BuiltinFunction::ArrayClear => TypeRef::Never,
+            BuiltinFunction::ArrayDrop => TypeRef::Never,
+            BuiltinFunction::ArrayGet => TypeRef::Never,
+            BuiltinFunction::ArrayLength => TypeRef::Never,
+            BuiltinFunction::ArrayPop => TypeRef::Never,
+            BuiltinFunction::ArrayPush => TypeRef::Never,
+            BuiltinFunction::ArrayRemove => TypeRef::Never,
+            BuiltinFunction::ArrayReserve => TypeRef::Never,
+            BuiltinFunction::ArraySet => TypeRef::Never,
+            BuiltinFunction::ByteArrayAppend => TypeRef::Never,
+            BuiltinFunction::ByteArrayClear => TypeRef::Never,
+            BuiltinFunction::ByteArrayClone => TypeRef::Never,
+            BuiltinFunction::ByteArrayCopyFrom => TypeRef::Never,
+            BuiltinFunction::ByteArrayDrainToString => TypeRef::Never,
+            BuiltinFunction::ByteArrayDrop => TypeRef::Never,
+            BuiltinFunction::ByteArrayEq => TypeRef::Never,
+            BuiltinFunction::ByteArrayGet => TypeRef::Never,
+            BuiltinFunction::ByteArrayLength => TypeRef::Never,
+            BuiltinFunction::ByteArrayNew => TypeRef::Never,
+            BuiltinFunction::ByteArrayPop => TypeRef::Never,
+            BuiltinFunction::ByteArrayPush => TypeRef::Never,
+            BuiltinFunction::ByteArrayRemove => TypeRef::Never,
+            BuiltinFunction::ByteArrayResize => TypeRef::Never,
+            BuiltinFunction::ByteArraySet => TypeRef::Never,
+            BuiltinFunction::ByteArraySlice => TypeRef::Never,
+            BuiltinFunction::ByteArrayToString => TypeRef::Never,
+            BuiltinFunction::ChannelDrop => TypeRef::Never,
+            BuiltinFunction::ChannelNew => TypeRef::Never,
+            BuiltinFunction::ChannelReceive => TypeRef::Never,
+            BuiltinFunction::ChannelReceiveUntil => TypeRef::Any,
+            BuiltinFunction::ChannelSend => TypeRef::Never,
+            BuiltinFunction::ChannelTryReceive => TypeRef::Any,
+            BuiltinFunction::ChannelWait => TypeRef::Never,
+            BuiltinFunction::ChildProcessDrop => TypeRef::Never,
+            BuiltinFunction::ChildProcessSpawn => TypeRef::int(),
+            BuiltinFunction::ChildProcessStderrClose => TypeRef::Never,
+            BuiltinFunction::ChildProcessStderrRead => TypeRef::int(),
+            BuiltinFunction::ChildProcessStdinClose => TypeRef::Never,
+            BuiltinFunction::ChildProcessStdinFlush => TypeRef::int(),
+            BuiltinFunction::ChildProcessStdinWriteBytes => TypeRef::int(),
+            BuiltinFunction::ChildProcessStdinWriteString => TypeRef::int(),
+            BuiltinFunction::ChildProcessStdoutClose => TypeRef::Never,
+            BuiltinFunction::ChildProcessStdoutRead => TypeRef::int(),
+            BuiltinFunction::ChildProcessTryWait => TypeRef::int(),
+            BuiltinFunction::ChildProcessWait => TypeRef::int(),
+            BuiltinFunction::CpuCores => TypeRef::Never,
+            BuiltinFunction::DirectoryCreate => TypeRef::int(),
+            BuiltinFunction::DirectoryCreateRecursive => TypeRef::int(),
+            BuiltinFunction::DirectoryList => TypeRef::int(),
+            BuiltinFunction::DirectoryRemove => TypeRef::int(),
+            BuiltinFunction::DirectoryRemoveRecursive => TypeRef::int(),
+            BuiltinFunction::EnvArguments => TypeRef::Never,
+            BuiltinFunction::EnvExecutable => TypeRef::int(),
+            BuiltinFunction::EnvGet => TypeRef::Never,
+            BuiltinFunction::EnvGetWorkingDirectory => TypeRef::int(),
+            BuiltinFunction::EnvHomeDirectory => TypeRef::Never,
+            BuiltinFunction::EnvPlatform => TypeRef::Never,
+            BuiltinFunction::EnvSetWorkingDirectory => TypeRef::int(),
+            BuiltinFunction::EnvTempDirectory => TypeRef::Never,
+            BuiltinFunction::EnvVariables => TypeRef::Never,
+            BuiltinFunction::Exit => TypeRef::Never,
+            BuiltinFunction::FileCopy => TypeRef::int(),
+            BuiltinFunction::FileDrop => TypeRef::Never,
+            BuiltinFunction::FileFlush => TypeRef::int(),
+            BuiltinFunction::FileOpen => TypeRef::int(),
+            BuiltinFunction::FileRead => TypeRef::int(),
+            BuiltinFunction::FileRemove => TypeRef::int(),
+            BuiltinFunction::FileSeek => TypeRef::int(),
+            BuiltinFunction::FileSize => TypeRef::int(),
+            BuiltinFunction::FileWriteBytes => TypeRef::int(),
+            BuiltinFunction::FileWriteString => TypeRef::int(),
+            BuiltinFunction::FloatAdd => TypeRef::Never,
+            BuiltinFunction::FloatCeil => TypeRef::Never,
+            BuiltinFunction::FloatDiv => TypeRef::Never,
+            BuiltinFunction::FloatEq => TypeRef::Never,
+            BuiltinFunction::FloatFloor => TypeRef::Never,
+            BuiltinFunction::FloatFromBits => TypeRef::Never,
+            BuiltinFunction::FloatGe => TypeRef::Never,
+            BuiltinFunction::FloatGt => TypeRef::Never,
+            BuiltinFunction::FloatIsInf => TypeRef::Never,
+            BuiltinFunction::FloatIsNan => TypeRef::Never,
+            BuiltinFunction::FloatLe => TypeRef::Never,
+            BuiltinFunction::FloatLt => TypeRef::Never,
+            BuiltinFunction::FloatMod => TypeRef::Never,
+            BuiltinFunction::FloatMul => TypeRef::Never,
+            BuiltinFunction::FloatRound => TypeRef::Never,
+            BuiltinFunction::FloatSub => TypeRef::Never,
+            BuiltinFunction::FloatToBits => TypeRef::Never,
+            BuiltinFunction::FloatToInt => TypeRef::Never,
+            BuiltinFunction::FloatToString => TypeRef::Never,
+            BuiltinFunction::GetNil => TypeRef::Never,
+            BuiltinFunction::HasherDrop => TypeRef::Never,
+            BuiltinFunction::HasherNew => TypeRef::Never,
+            BuiltinFunction::HasherToHash => TypeRef::Never,
+            BuiltinFunction::HasherWriteInt => TypeRef::Never,
+            BuiltinFunction::IntAdd => TypeRef::Never,
+            BuiltinFunction::IntBitAnd => TypeRef::Never,
+            BuiltinFunction::IntBitNot => TypeRef::Never,
+            BuiltinFunction::IntBitOr => TypeRef::Never,
+            BuiltinFunction::IntBitXor => TypeRef::Never,
+            BuiltinFunction::IntDiv => TypeRef::Never,
+            BuiltinFunction::IntEq => TypeRef::Never,
+            BuiltinFunction::IntGe => TypeRef::Never,
+            BuiltinFunction::IntGt => TypeRef::Never,
+            BuiltinFunction::IntLe => TypeRef::Never,
+            BuiltinFunction::IntLt => TypeRef::Never,
+            BuiltinFunction::IntMul => TypeRef::Never,
+            BuiltinFunction::IntPow => TypeRef::Never,
+            BuiltinFunction::IntRem => TypeRef::Never,
+            BuiltinFunction::IntRotateLeft => TypeRef::Never,
+            BuiltinFunction::IntRotateRight => TypeRef::Never,
+            BuiltinFunction::IntShl => TypeRef::Never,
+            BuiltinFunction::IntShr => TypeRef::Never,
+            BuiltinFunction::IntSub => TypeRef::Never,
+            BuiltinFunction::IntToFloat => TypeRef::Never,
+            BuiltinFunction::IntToString => TypeRef::Never,
+            BuiltinFunction::IntUnsignedShr => TypeRef::Never,
+            BuiltinFunction::IntWrappingAdd => TypeRef::Never,
+            BuiltinFunction::IntWrappingMul => TypeRef::Never,
+            BuiltinFunction::IntWrappingSub => TypeRef::Never,
+            BuiltinFunction::IsNull => TypeRef::Never,
+            BuiltinFunction::Moved => TypeRef::Never,
+            BuiltinFunction::ObjectEq => TypeRef::Never,
+            BuiltinFunction::Panic => TypeRef::Never,
+            BuiltinFunction::PanicThrown => TypeRef::Never,
+            BuiltinFunction::PathAccessedAt => TypeRef::int(),
+            BuiltinFunction::PathCreatedAt => TypeRef::int(),
+            BuiltinFunction::PathExists => TypeRef::Never,
+            BuiltinFunction::PathIsDirectory => TypeRef::Never,
+            BuiltinFunction::PathIsFile => TypeRef::Never,
+            BuiltinFunction::PathModifiedAt => TypeRef::int(),
+            BuiltinFunction::ProcessStackFrameLine => TypeRef::Never,
+            BuiltinFunction::ProcessStackFrameName => TypeRef::Never,
+            BuiltinFunction::ProcessStackFramePath => TypeRef::Never,
+            BuiltinFunction::ProcessStacktrace => TypeRef::Never,
+            BuiltinFunction::ProcessStacktraceDrop => TypeRef::Never,
+            BuiltinFunction::ProcessStacktraceLength => TypeRef::Never,
+            BuiltinFunction::ProcessSuspend => TypeRef::Never,
+            BuiltinFunction::RandomBytes => TypeRef::Never,
+            BuiltinFunction::RandomDrop => TypeRef::Never,
+            BuiltinFunction::RandomFloat => TypeRef::Never,
+            BuiltinFunction::RandomFloatRange => TypeRef::Never,
+            BuiltinFunction::RandomFromInt => TypeRef::Never,
+            BuiltinFunction::RandomInt => TypeRef::Never,
+            BuiltinFunction::RandomIntRange => TypeRef::Never,
+            BuiltinFunction::RandomNew => TypeRef::Never,
+            BuiltinFunction::SocketAccept => TypeRef::int(),
+            BuiltinFunction::SocketAddressPairAddress => TypeRef::Never,
+            BuiltinFunction::SocketAddressPairDrop => TypeRef::Never,
+            BuiltinFunction::SocketAddressPairPort => TypeRef::Never,
+            BuiltinFunction::SocketBind => TypeRef::int(),
+            BuiltinFunction::SocketConnect => TypeRef::int(),
+            BuiltinFunction::SocketDrop => TypeRef::Never,
+            BuiltinFunction::SocketListen => TypeRef::int(),
+            BuiltinFunction::SocketLocalAddress => TypeRef::int(),
+            BuiltinFunction::SocketNew => TypeRef::int(),
+            BuiltinFunction::SocketPeerAddress => TypeRef::int(),
+            BuiltinFunction::SocketRead => TypeRef::int(),
+            BuiltinFunction::SocketReceiveFrom => TypeRef::int(),
+            BuiltinFunction::SocketSendBytesTo => TypeRef::int(),
+            BuiltinFunction::SocketSendStringTo => TypeRef::int(),
+            BuiltinFunction::SocketSetBroadcast => TypeRef::int(),
+            BuiltinFunction::SocketSetKeepalive => TypeRef::int(),
+            BuiltinFunction::SocketSetLinger => TypeRef::int(),
+            BuiltinFunction::SocketSetNodelay => TypeRef::int(),
+            BuiltinFunction::SocketSetOnlyV6 => TypeRef::int(),
+            BuiltinFunction::SocketSetRecvSize => TypeRef::int(),
+            BuiltinFunction::SocketSetReuseAddress => TypeRef::int(),
+            BuiltinFunction::SocketSetReusePort => TypeRef::int(),
+            BuiltinFunction::SocketSetSendSize => TypeRef::int(),
+            BuiltinFunction::SocketSetTtl => TypeRef::int(),
+            BuiltinFunction::SocketShutdownRead => TypeRef::int(),
+            BuiltinFunction::SocketShutdownReadWrite => TypeRef::int(),
+            BuiltinFunction::SocketShutdownWrite => TypeRef::int(),
+            BuiltinFunction::SocketTryClone => TypeRef::int(),
+            BuiltinFunction::SocketWriteBytes => TypeRef::int(),
+            BuiltinFunction::SocketWriteString => TypeRef::int(),
+            BuiltinFunction::StderrFlush => TypeRef::int(),
+            BuiltinFunction::StderrWriteBytes => TypeRef::int(),
+            BuiltinFunction::StderrWriteString => TypeRef::int(),
+            BuiltinFunction::StdinRead => TypeRef::int(),
+            BuiltinFunction::StdoutFlush => TypeRef::int(),
+            BuiltinFunction::StdoutWriteBytes => TypeRef::int(),
+            BuiltinFunction::StdoutWriteString => TypeRef::int(),
+            BuiltinFunction::StringByte => TypeRef::Never,
+            BuiltinFunction::StringCharacters => TypeRef::Never,
+            BuiltinFunction::StringCharactersDrop => TypeRef::Never,
+            BuiltinFunction::StringCharactersNext => TypeRef::Never,
+            BuiltinFunction::StringConcat => TypeRef::Never,
+            BuiltinFunction::StringConcatArray => TypeRef::Never,
+            BuiltinFunction::StringDrop => TypeRef::Never,
+            BuiltinFunction::StringEq => TypeRef::Never,
+            BuiltinFunction::StringSize => TypeRef::Never,
+            BuiltinFunction::StringSliceBytes => TypeRef::Never,
+            BuiltinFunction::StringToByteArray => TypeRef::Never,
+            BuiltinFunction::StringToFloat => TypeRef::Never,
+            BuiltinFunction::StringToInt => TypeRef::Never,
+            BuiltinFunction::StringToLower => TypeRef::Never,
+            BuiltinFunction::StringToUpper => TypeRef::Never,
+            BuiltinFunction::TimeMonotonic => TypeRef::Never,
+            BuiltinFunction::TimeSystem => TypeRef::Never,
+            BuiltinFunction::TimeSystemOffset => TypeRef::Never,
+        }
     }
 }
 
@@ -2262,21 +3020,8 @@ pub enum MethodSource {
     /// The method is directly defined for a type.
     Direct,
 
-    /// The method is defined using a regular trait implementation.
-    Implementation(TraitInstance),
-
-    /// The method is defined using a bounded trait implementation.
-    BoundedImplementation(TraitInstance),
-}
-
-impl MethodSource {
-    pub fn implementation(bounded: bool, instance: TraitInstance) -> Self {
-        if bounded {
-            Self::BoundedImplementation(instance)
-        } else {
-            Self::Implementation(instance)
-        }
-    }
+    /// The method is defined using a trait implementation.
+    Implementation(TraitInstance, MethodId),
 }
 
 pub enum MethodLookup {
@@ -2307,6 +3052,7 @@ pub struct Method {
     visibility: Visibility,
     type_parameters: IndexMap<String, TypeParameterId>,
     arguments: Arguments,
+    bounds: TypeBounds,
     throw_type: TypeRef,
     return_type: TypeRef,
     source: MethodSource,
@@ -2315,13 +3061,6 @@ pub struct Method {
     /// The type of the receiver of the method, aka the type of `self` (not
     /// `Self`).
     receiver: TypeRef,
-
-    /// The type to use for `Self` in this method.
-    ///
-    /// This differs from the receiver type. For example, for a static method
-    /// the receiver type is the class, while the type of `Self` is an instance
-    /// of the class.
-    self_type: Option<TypeId>,
 
     /// The fields this method has access to, along with their types.
     field_types: HashMap<String, (FieldId, TypeRef)>,
@@ -2354,12 +3093,12 @@ impl Method {
             kind,
             visibility,
             type_parameters: IndexMap::new(),
+            bounds: TypeBounds::new(),
             arguments: Arguments::new(),
             throw_type: TypeRef::Never,
             return_type: TypeRef::Unknown,
             source: MethodSource::Direct,
             receiver: TypeRef::Unknown,
-            self_type: None,
             field_types: HashMap::new(),
             main: false,
         }
@@ -2367,7 +3106,7 @@ impl Method {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
-pub struct MethodId(usize);
+pub struct MethodId(pub usize);
 
 impl MethodId {
     pub fn named_type(self, db: &Database, name: &str) -> Option<Symbol> {
@@ -2392,18 +3131,12 @@ impl MethodId {
         self.get_mut(db).receiver = receiver;
     }
 
-    pub fn set_self_type(self, db: &mut Database, typ: TypeId) {
-        self.get_mut(db).self_type = Some(typ);
-    }
-
     pub fn receiver(self, db: &Database) -> TypeRef {
         self.get(db).receiver
     }
 
-    pub fn self_type(self, db: &Database) -> TypeId {
-        self.get(db).self_type.expect(
-            "The method's Self type must be set before it can be obtained",
-        )
+    pub fn receiver_id(self, db: &Database) -> TypeId {
+        self.get(db).receiver.type_id(db).unwrap()
     }
 
     pub fn source(self, db: &Database) -> MethodSource {
@@ -2456,13 +3189,15 @@ impl MethodId {
             return false;
         }
 
+        let rules = Rules::none();
+
         ours.type_parameters
             .values()
             .clone()
             .into_iter()
             .zip(theirs.type_parameters.values().clone().into_iter())
             .all(|(ours, theirs)| {
-                ours.type_check_with_type_parameter(db, theirs, context, false)
+                ours.type_check_with_type_parameter(db, theirs, context, rules)
             })
     }
 
@@ -2487,7 +3222,7 @@ impl MethodId {
         let ours = self.get(db).return_type;
         let theirs = with.get(db).return_type;
 
-        ours.type_check(db, theirs, context, true)
+        ours.type_check(db, theirs, context, Rules::new())
     }
 
     fn type_check_throw_type(
@@ -2499,7 +3234,7 @@ impl MethodId {
         let ours = self.get(db).throw_type;
         let theirs = with.get(db).throw_type;
 
-        ours.type_check(db, theirs, context, true)
+        ours.type_check(db, theirs, context, Rules::new())
     }
 
     pub fn name(self, db: &Database) -> &String {
@@ -2518,13 +3253,6 @@ impl MethodId {
         matches!(
             self.get(db).kind,
             MethodKind::Mutable | MethodKind::AsyncMutable
-        )
-    }
-
-    pub fn is_immutable(self, db: &Database) -> bool {
-        matches!(
-            self.get(db).kind,
-            MethodKind::Async | MethodKind::Static | MethodKind::Instance
         )
     }
 
@@ -2613,7 +3341,7 @@ impl MethodId {
         self.get(db).field_types.values().cloned().collect()
     }
 
-    pub fn add_argument(&self, db: &mut Database, argument: Argument) {
+    pub fn add_argument(self, db: &mut Database, argument: Argument) {
         self.get_mut(db).arguments.new_argument(
             argument.name.clone(),
             argument.value_type,
@@ -2621,12 +3349,20 @@ impl MethodId {
         );
     }
 
-    pub fn set_main(&self, db: &mut Database) {
+    pub fn set_main(self, db: &mut Database) {
         self.get_mut(db).main = true;
     }
 
-    pub fn is_main(&self, db: &Database) -> bool {
+    pub fn is_main(self, db: &Database) -> bool {
         self.get(db).main
+    }
+
+    pub fn bounds(self, db: &Database) -> &TypeBounds {
+        &self.get(db).bounds
+    }
+
+    pub fn set_bounds(self, db: &mut Database, bounds: TypeBounds) {
+        self.get_mut(db).bounds = bounds;
     }
 
     fn get(self, db: &Database) -> &Method {
@@ -2666,51 +3402,6 @@ impl Block for MethodId {
 
     fn return_type(&self, db: &Database) -> TypeRef {
         self.get(db).return_type
-    }
-}
-
-impl FormatType for MethodId {
-    fn format_type(&self, buffer: &mut TypeFormatter) {
-        let block = self.get(buffer.db);
-
-        buffer.write("fn ");
-
-        if block.visibility == Visibility::Public {
-            buffer.write("pub ");
-        }
-
-        match block.kind {
-            MethodKind::Async => buffer.write("async "),
-            MethodKind::AsyncMutable => buffer.write("async mut "),
-            MethodKind::Static => buffer.write("static "),
-            MethodKind::Moving => buffer.write("move "),
-            MethodKind::Mutable | MethodKind::Destructor => {
-                buffer.write("mut ")
-            }
-            _ => {}
-        }
-
-        buffer.write(&block.name);
-
-        if block.type_parameters.len() > 0 {
-            buffer.write(" [");
-
-            for (index, param) in
-                block.type_parameters.values().iter().enumerate()
-            {
-                if index > 0 {
-                    buffer.write(", ");
-                }
-
-                param.format_type(buffer);
-            }
-
-            buffer.write("]");
-        }
-
-        buffer.arguments(&block.arguments, true);
-        buffer.throw_type(block.throw_type);
-        buffer.return_type(block.return_type);
     }
 }
 
@@ -2767,7 +3458,7 @@ pub struct ClosureCallInfo {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BuiltinCallInfo {
-    pub id: BuiltinFunctionId,
+    pub id: BuiltinFunction,
     pub returns: TypeRef,
     pub throws: TypeRef,
 }
@@ -2782,7 +3473,7 @@ pub struct FieldInfo {
 pub enum CallKind {
     Unknown,
     Call(CallInfo),
-    ClosureCall(ClosureCallInfo),
+    CallClosure(ClosureCallInfo),
     GetField(FieldInfo),
     SetField(FieldInfo),
 }
@@ -2945,12 +3636,6 @@ impl ModuleId {
     }
 }
 
-impl FormatType for ModuleId {
-    fn format_type(&self, buffer: &mut TypeFormatter) {
-        buffer.write(&self.get(buffer.db).name.to_string());
-    }
-}
-
 /// A local variable.
 pub struct Variable {
     /// The user-defined name of the variable.
@@ -3003,7 +3688,6 @@ impl VariableId {
 /// Unlike variables, constants can't be assigned new values. They are also
 /// limited to values of a select few types.
 pub struct Constant {
-    /// The ID of the constant local to its module.
     id: u16,
     module: ModuleId,
     name: String,
@@ -3102,7 +3786,7 @@ impl Closure {
         Self::add(db, closure)
     }
 
-    fn add(db: &mut Database, closure: Closure) -> ClosureId {
+    pub(crate) fn add(db: &mut Database, closure: Closure) -> ClosureId {
         let id = db.closures.len();
 
         db.closures.push(closure);
@@ -3200,13 +3884,13 @@ impl ClosureId {
         db: &mut Database,
         with: TypeId,
         context: &mut TypeContext,
-        subtyping: bool,
+        rules: Rules,
     ) -> bool {
         match with {
             TypeId::Closure(with) => {
                 self.type_check_arguments(db, with, context)
-                    && self.type_check_throw_type(db, with, context, subtyping)
-                    && self.type_check_return_type(db, with, context, subtyping)
+                    && self.type_check_throw_type(db, with, context, rules)
+                    && self.type_check_return_type(db, with, context, rules)
             }
             // Implementing traits for closures with a specific signature (e.g.
             // `impl ToString for do -> X`) isn't supported. Even if it was, it
@@ -3238,12 +3922,12 @@ impl ClosureId {
         db: &mut Database,
         with: ClosureId,
         context: &mut TypeContext,
-        subtyping: bool,
+        rules: Rules,
     ) -> bool {
         let ours = self.get(db).return_type;
         let theirs = with.get(db).return_type;
 
-        ours.type_check(db, theirs, context, subtyping)
+        ours.type_check(db, theirs, context, rules)
     }
 
     fn type_check_throw_type(
@@ -3251,15 +3935,15 @@ impl ClosureId {
         db: &mut Database,
         with: ClosureId,
         context: &mut TypeContext,
-        subtyping: bool,
+        rules: Rules,
     ) -> bool {
         let ours = self.get(db).throw_type;
         let theirs = with.get(db).throw_type;
 
-        ours.type_check(db, theirs, context, subtyping)
+        ours.type_check(db, theirs, context, rules)
     }
 
-    fn get(self, db: &Database) -> &Closure {
+    pub(crate) fn get(self, db: &Database) -> &Closure {
         &db.closures[self.0]
     }
 
@@ -3276,26 +3960,6 @@ impl ClosureId {
 
         new_func.throw_type = new_func.throw_type.as_rigid_type(db, bounds);
         new_func.return_type = new_func.return_type.as_rigid_type(db, bounds);
-
-        Closure::add(db, new_func)
-    }
-
-    fn inferred(
-        self,
-        db: &mut Database,
-        context: &mut TypeContext,
-        immutable: bool,
-    ) -> Self {
-        let mut new_func = self.get(db).clone();
-
-        for arg in new_func.arguments.mapping.values_mut() {
-            arg.value_type = arg.value_type.inferred(db, context, immutable);
-        }
-
-        new_func.throw_type =
-            new_func.throw_type.inferred(db, context, immutable);
-        new_func.return_type =
-            new_func.return_type.inferred(db, context, immutable);
 
         Closure::add(db, new_func)
     }
@@ -3332,21 +3996,36 @@ impl Block for ClosureId {
     }
 }
 
-impl FormatType for ClosureId {
-    fn format_type(&self, buffer: &mut TypeFormatter) {
-        buffer.descend(|buffer| {
-            let fun = self.get(buffer.db);
+/// Rules to apply/enforce when performing type checking.
+#[derive(Clone, Copy)]
+pub struct Rules {
+    /// When set to `true`, subtyping of types through traits is allowed.
+    subtyping: bool,
 
-            if fun.moving {
-                buffer.write("fn move");
-            } else {
-                buffer.write("fn");
-            }
+    /// When set to `true`, owned types can be type checked against reference
+    /// types.
+    relaxed_ownership: bool,
+}
 
-            buffer.arguments(&fun.arguments, false);
-            buffer.throw_type(fun.throw_type);
-            buffer.return_type(fun.return_type);
-        });
+impl Rules {
+    pub fn new() -> Rules {
+        Rules { subtyping: true, relaxed_ownership: false }
+    }
+
+    pub fn none() -> Rules {
+        Rules { subtyping: false, relaxed_ownership: false }
+    }
+
+    pub fn relaxed() -> Rules {
+        Rules { subtyping: true, relaxed_ownership: true }
+    }
+
+    fn without_subtyping(self) -> Rules {
+        Rules { subtyping: false, relaxed_ownership: self.relaxed_ownership }
+    }
+
+    fn with_relaxed_ownership(self) -> Rules {
+        Rules { subtyping: self.subtyping, relaxed_ownership: true }
     }
 }
 
@@ -3399,18 +4078,6 @@ pub enum TypeRef {
     /// transferred.
     RefAny,
 
-    /// The `Self` type.
-    OwnedSelf,
-
-    /// The `uni Self` type.
-    UniSelf,
-
-    /// The `ref Self` type.
-    RefSelf,
-
-    /// The `mut Self` type.
-    MutSelf,
-
     /// A value indicating a typing error.
     ///
     /// This type is produced whenever a type couldn't be produced, for example
@@ -3427,38 +4094,6 @@ pub enum TypeRef {
 }
 
 impl TypeRef {
-    fn mut_or_ref(id: TypeId, immutable: bool) -> TypeRef {
-        if immutable {
-            TypeRef::Ref(id)
-        } else {
-            TypeRef::Mut(id)
-        }
-    }
-
-    fn mut_or_ref_uni(id: TypeId, immutable: bool) -> TypeRef {
-        if immutable {
-            TypeRef::RefUni(id)
-        } else {
-            TypeRef::MutUni(id)
-        }
-    }
-
-    fn owned_or_ref(id: TypeId, immutable: bool) -> TypeRef {
-        if immutable {
-            TypeRef::Ref(id)
-        } else {
-            TypeRef::Owned(id)
-        }
-    }
-
-    fn uni_or_ref(id: TypeId, immutable: bool) -> TypeRef {
-        if immutable {
-            TypeRef::RefUni(id)
-        } else {
-            TypeRef::Uni(id)
-        }
-    }
-
     pub fn nil() -> TypeRef {
         TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(ClassId(
             NIL_ID,
@@ -3513,15 +4148,14 @@ impl TypeRef {
         TypeRef::Owned(TypeId::Module(id))
     }
 
-    pub fn placeholder(db: &mut Database) -> TypeRef {
-        TypeRef::Placeholder(TypePlaceholder::alloc(db))
+    pub fn placeholder(
+        db: &mut Database,
+        required: Option<TypeParameterId>,
+    ) -> TypeRef {
+        TypeRef::Placeholder(TypePlaceholder::alloc(db, required))
     }
 
-    pub fn type_id(
-        self,
-        db: &Database,
-        self_type: TypeId,
-    ) -> Result<TypeId, TypeRef> {
+    pub fn type_id(self, db: &Database) -> Result<TypeId, TypeRef> {
         match self {
             TypeRef::Owned(id)
             | TypeRef::Uni(id)
@@ -3530,23 +4164,15 @@ impl TypeRef {
             | TypeRef::RefUni(id)
             | TypeRef::MutUni(id)
             | TypeRef::Infer(id) => Ok(id),
-            TypeRef::OwnedSelf
-            | TypeRef::RefSelf
-            | TypeRef::MutSelf
-            | TypeRef::UniSelf => Ok(self_type),
             TypeRef::Placeholder(id) => {
-                id.value(db).ok_or(self).and_then(|t| t.type_id(db, self_type))
+                id.value(db).ok_or(self).and_then(|t| t.type_id(db))
             }
             _ => Err(self),
         }
     }
 
-    pub fn closure_id(
-        self,
-        db: &Database,
-        self_type: TypeId,
-    ) -> Option<ClosureId> {
-        if let Ok(TypeId::Closure(id)) = self.type_id(db, self_type) {
+    pub fn closure_id(self, db: &Database) -> Option<ClosureId> {
+        if let Ok(TypeId::Closure(id)) = self.type_id(db) {
             Some(id)
         } else {
             None
@@ -3608,8 +4234,6 @@ impl TypeRef {
             TypeRef::Owned(_)
             | TypeRef::Uni(_)
             | TypeRef::Infer(_)
-            | TypeRef::UniSelf
-            | TypeRef::OwnedSelf
             | TypeRef::Any => true,
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(false, |v| v.is_owned_or_uni(db))
@@ -3620,10 +4244,7 @@ impl TypeRef {
 
     pub fn is_owned(self, db: &Database) -> bool {
         match self {
-            TypeRef::Owned(_)
-            | TypeRef::Infer(_)
-            | TypeRef::OwnedSelf
-            | TypeRef::Any => true,
+            TypeRef::Owned(_) | TypeRef::Infer(_) | TypeRef::Any => true,
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(false, |v| v.is_owned(db))
             }
@@ -3669,19 +4290,60 @@ impl TypeRef {
         }
     }
 
-    pub fn is_self_type(self, db: &Database) -> bool {
+    pub fn is_generic(self, db: &Database) -> bool {
         match self {
-            TypeRef::OwnedSelf | TypeRef::MutSelf | TypeRef::RefSelf => true,
+            TypeRef::Owned(TypeId::TraitInstance(ins))
+            | TypeRef::Uni(TypeId::TraitInstance(ins))
+            | TypeRef::Ref(TypeId::TraitInstance(ins))
+            | TypeRef::Mut(TypeId::TraitInstance(ins))
+            | TypeRef::RefUni(TypeId::TraitInstance(ins))
+            | TypeRef::MutUni(TypeId::TraitInstance(ins)) => {
+                ins.instance_of.is_generic(db)
+            }
+            TypeRef::Owned(TypeId::ClassInstance(ins))
+            | TypeRef::Uni(TypeId::ClassInstance(ins))
+            | TypeRef::Ref(TypeId::ClassInstance(ins))
+            | TypeRef::Mut(TypeId::ClassInstance(ins))
+            | TypeRef::RefUni(TypeId::ClassInstance(ins))
+            | TypeRef::MutUni(TypeId::ClassInstance(ins)) => {
+                ins.instance_of.is_generic(db)
+            }
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.is_self_type(db))
+                id.value(db).map_or(false, |v| v.is_generic(db))
             }
             _ => false,
         }
     }
 
+    pub fn type_arguments(self, db: &Database) -> TypeArguments {
+        match self {
+            TypeRef::Owned(TypeId::TraitInstance(ins))
+            | TypeRef::Uni(TypeId::TraitInstance(ins))
+            | TypeRef::Ref(TypeId::TraitInstance(ins))
+            | TypeRef::Mut(TypeId::TraitInstance(ins))
+            | TypeRef::RefUni(TypeId::TraitInstance(ins))
+            | TypeRef::MutUni(TypeId::TraitInstance(ins)) => {
+                ins.type_arguments(db).clone()
+            }
+            TypeRef::Owned(TypeId::ClassInstance(ins))
+            | TypeRef::Uni(TypeId::ClassInstance(ins))
+            | TypeRef::Ref(TypeId::ClassInstance(ins))
+            | TypeRef::Mut(TypeId::ClassInstance(ins))
+            | TypeRef::RefUni(TypeId::ClassInstance(ins))
+            | TypeRef::MutUni(TypeId::ClassInstance(ins)) => {
+                ins.type_arguments(db).clone()
+            }
+            TypeRef::Placeholder(id) => id
+                .value(db)
+                .map(|v| v.type_arguments(db))
+                .unwrap_or_else(TypeArguments::new),
+            _ => TypeArguments::new(),
+        }
+    }
+
     pub fn is_uni(self, db: &Database) -> bool {
         match self {
-            TypeRef::Uni(_) | TypeRef::UniSelf => true,
+            TypeRef::Uni(_) => true,
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(false, |v| v.is_uni(db))
             }
@@ -3691,10 +4353,7 @@ impl TypeRef {
 
     pub fn require_sendable_arguments(self, db: &Database) -> bool {
         match self {
-            TypeRef::Uni(_)
-            | TypeRef::RefUni(_)
-            | TypeRef::MutUni(_)
-            | TypeRef::UniSelf => true,
+            TypeRef::Uni(_) | TypeRef::RefUni(_) | TypeRef::MutUni(_) => true,
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(false, |v| v.require_sendable_arguments(db))
             }
@@ -3704,7 +4363,7 @@ impl TypeRef {
 
     pub fn is_ref(self, db: &Database) -> bool {
         match self {
-            TypeRef::Ref(_) | TypeRef::RefSelf => true,
+            TypeRef::Ref(_) => true,
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(false, |v| v.is_ref(db))
             }
@@ -3714,7 +4373,7 @@ impl TypeRef {
 
     pub fn is_mut(self, db: &Database) -> bool {
         match self {
-            TypeRef::Mut(_) | TypeRef::MutSelf => true,
+            TypeRef::Mut(_) => true,
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(false, |v| v.is_ref(db))
             }
@@ -3722,12 +4381,23 @@ impl TypeRef {
         }
     }
 
+    pub fn is_mutable(self, db: &Database) -> bool {
+        match self {
+            TypeRef::Owned(_)
+            | TypeRef::Uni(_)
+            | TypeRef::Mut(_)
+            | TypeRef::Infer(_)
+            | TypeRef::Error
+            | TypeRef::Unknown => true,
+            TypeRef::Placeholder(id) => id.resolve(db).is_mutable(db),
+            _ => false,
+        }
+    }
+
     pub fn use_reference_counting(self, db: &Database) -> bool {
         match self {
             TypeRef::Ref(_)
-            | TypeRef::RefSelf
             | TypeRef::Mut(_)
-            | TypeRef::MutSelf
             | TypeRef::RefUni(_)
             | TypeRef::MutUni(_) => true,
             TypeRef::Placeholder(id) => {
@@ -3737,38 +4407,34 @@ impl TypeRef {
         }
     }
 
-    pub fn use_atomic_reference_counting(
-        self,
-        db: &Database,
-        self_type: TypeId,
-    ) -> bool {
-        self.class_id(db, self_type)
-            .map_or(false, |id| id.0 == STRING_ID || id.kind(db).is_async())
+    pub fn use_atomic_reference_counting(self, db: &Database) -> bool {
+        self.class_id_with_self_type(db).map_or(false, |id| id.is_atomic(db))
     }
 
-    pub fn is_bool(self, db: &Database, self_type: TypeId) -> bool {
-        self.is_instance_of(db, ClassId::boolean(), self_type)
+    pub fn is_bool(self, db: &Database) -> bool {
+        self.is_instance_of(db, ClassId::boolean())
     }
 
-    pub fn is_string(self, db: &Database, self_type: TypeId) -> bool {
-        self.is_instance_of(db, ClassId::string(), self_type)
+    pub fn is_int(self, db: &Database) -> bool {
+        self.is_instance_of(db, ClassId::int())
     }
 
-    pub fn is_nil(self, db: &Database, self_type: TypeId) -> bool {
-        self.is_instance_of(db, ClassId::nil(), self_type)
+    pub fn is_string(self, db: &Database) -> bool {
+        self.is_instance_of(db, ClassId::string())
+    }
+
+    pub fn is_nil(self, db: &Database) -> bool {
+        self.is_instance_of(db, ClassId::nil())
     }
 
     pub fn allow_moving(self) -> bool {
-        matches!(self, TypeRef::Owned(_) | TypeRef::Uni(_) | TypeRef::OwnedSelf)
+        matches!(self, TypeRef::Owned(_) | TypeRef::Uni(_))
     }
 
     pub fn allow_mutating(self) -> bool {
         matches!(
             self,
             TypeRef::Mut(_)
-                | TypeRef::MutSelf
-                | TypeRef::OwnedSelf
-                | TypeRef::UniSelf
                 | TypeRef::Owned(_)
                 | TypeRef::Uni(_)
                 | TypeRef::MutUni(_)
@@ -3791,55 +4457,12 @@ impl TypeRef {
         }
 
         match self {
-            TypeRef::Uni(_)
-            | TypeRef::UniSelf
-            | TypeRef::Never
-            | TypeRef::Error => true,
+            TypeRef::Uni(_) | TypeRef::Never | TypeRef::Error => true,
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(true, |v| v.is_sendable(db))
             }
             _ => false,
         }
-    }
-
-    pub fn is_sendable_output(self, db: &Database) -> bool {
-        if self.is_value_type(db) {
-            return true;
-        }
-
-        match self {
-            TypeRef::Uni(_)
-            | TypeRef::UniSelf
-            | TypeRef::Never
-            | TypeRef::Any
-            | TypeRef::Error => true,
-            TypeRef::Owned(TypeId::ClassInstance(id)) => {
-                let class = id.instance_of;
-
-                if class.is_generic(db)
-                    && !id
-                        .type_arguments(db)
-                        .mapping
-                        .iter()
-                        .all(|(_, v)| v.is_sendable_output(db))
-                {
-                    return false;
-                }
-
-                class
-                    .fields(db)
-                    .into_iter()
-                    .all(|f| f.value_type(db).is_sendable_output(db))
-            }
-            TypeRef::Placeholder(id) => {
-                id.value(db).map_or(true, |v| v.is_sendable_output(db))
-            }
-            _ => false,
-        }
-    }
-
-    pub fn is_async(self, db: &Database, self_type: TypeId) -> bool {
-        self.class_id(db, self_type).map_or(false, |id| id.kind(db).is_async())
     }
 
     pub fn cast_according_to(self, other: Self, db: &Database) -> Self {
@@ -3873,9 +4496,6 @@ impl TypeRef {
                 TypeRef::Ref(id)
             }
             TypeRef::Uni(id) => TypeRef::RefUni(id),
-            TypeRef::OwnedSelf => TypeRef::RefSelf,
-            TypeRef::MutSelf => TypeRef::RefSelf,
-            TypeRef::UniSelf => TypeRef::RefSelf,
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(self, |v| v.as_ref(db))
             }
@@ -3883,11 +4503,40 @@ impl TypeRef {
         }
     }
 
+    pub fn allow_as_ref(self, db: &Database) -> bool {
+        match self {
+            TypeRef::Any => true,
+            TypeRef::Owned(_) | TypeRef::Mut(_) | TypeRef::Ref(_) => true,
+            TypeRef::Placeholder(id) => {
+                id.value(db).map_or(false, |v| v.allow_as_ref(db))
+            }
+            _ => false,
+        }
+    }
+
+    pub fn allow_as_mut(self, db: &Database) -> bool {
+        match self {
+            TypeRef::Any => true,
+            TypeRef::Owned(TypeId::RigidTypeParameter(id)) => id.is_mutable(db),
+            TypeRef::Owned(_) | TypeRef::Mut(_) => true,
+            TypeRef::Placeholder(id) => {
+                id.value(db).map_or(false, |v| v.allow_as_mut(db))
+            }
+            _ => false,
+        }
+    }
+
     pub fn as_mut(self, db: &Database) -> Self {
         match self {
-            TypeRef::Owned(id) | TypeRef::Infer(id) => TypeRef::Mut(id),
+            TypeRef::Owned(TypeId::RigidTypeParameter(id)) => {
+                if id.is_mutable(db) {
+                    TypeRef::Mut(TypeId::RigidTypeParameter(id))
+                } else {
+                    self
+                }
+            }
+            TypeRef::Owned(id) => TypeRef::Mut(id),
             TypeRef::Uni(id) => TypeRef::MutUni(id),
-            TypeRef::OwnedSelf | TypeRef::UniSelf => TypeRef::MutSelf,
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(self, |v| v.as_mut(db))
             }
@@ -3922,7 +4571,6 @@ impl TypeRef {
             | TypeRef::Uni(id)
             | TypeRef::Mut(id)
             | TypeRef::Ref(id) => TypeRef::Uni(id),
-            TypeRef::OwnedSelf | TypeRef::UniSelf => TypeRef::UniSelf,
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(self, |v| v.as_uni(db))
             }
@@ -3937,9 +4585,6 @@ impl TypeRef {
             | TypeRef::Mut(id)
             | TypeRef::RefUni(id)
             | TypeRef::MutUni(id) => TypeRef::Owned(id),
-            TypeRef::UniSelf | TypeRef::MutSelf | TypeRef::RefSelf => {
-                TypeRef::OwnedSelf
-            }
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(self, |v| v.as_owned(db))
             }
@@ -3947,192 +4592,7 @@ impl TypeRef {
         }
     }
 
-    /// Replaces temporary types with their inferred types.
-    pub fn inferred(
-        self,
-        db: &mut Database,
-        context: &mut TypeContext,
-        immutable: bool,
-    ) -> TypeRef {
-        if context.depth == MAX_TYPE_DEPTH {
-            return TypeRef::Unknown;
-        }
-
-        context.depth += 1;
-
-        let result = match self {
-            TypeRef::OwnedSelf => TypeRef::owned_or_ref(
-                self.infer_self_type_id(db, context),
-                immutable,
-            ),
-            TypeRef::RefSelf => {
-                TypeRef::Ref(self.infer_self_type_id(db, context))
-            }
-            TypeRef::MutSelf => TypeRef::mut_or_ref(
-                self.infer_self_type_id(db, context),
-                immutable,
-            ),
-            TypeRef::UniSelf => TypeRef::uni_or_ref(
-                self.infer_self_type_id(db, context),
-                immutable,
-            ),
-            // Owned and Infer variants are treated the same, because:
-            //
-            // 1. For non-type parameters, Infer(T) is the same as Owned(T)
-            //    (simply because we never use Infer for anything but type
-            //    parameters).
-            // 2. For a type parameter, in both cases we can just use the
-            //    assigned value if there is any, as said value determines the
-            //    ownership. In case of an owned parameter non-owned values
-            //    can't be assigned to it anyway.
-            TypeRef::Owned(id) | TypeRef::Infer(id) => match id {
-                TypeId::ClassInstance(cid) => TypeRef::owned_or_ref(
-                    TypeId::ClassInstance(cid.inferred(db, context, immutable)),
-                    immutable,
-                ),
-                TypeId::TraitInstance(tid) => TypeRef::owned_or_ref(
-                    TypeId::TraitInstance(tid.inferred(db, context, immutable)),
-                    immutable,
-                ),
-                TypeId::TypeParameter(pid) => {
-                    let typ =
-                        self.infer_type_parameter(pid, db, context, immutable);
-
-                    if immutable {
-                        typ.as_ref(db)
-                    } else {
-                        typ
-                    }
-                }
-                TypeId::Closure(fid) => TypeRef::owned_or_ref(
-                    TypeId::Closure(fid.inferred(db, context, immutable)),
-                    immutable,
-                ),
-                _ => self,
-            },
-            TypeRef::Uni(id) => match id {
-                TypeId::ClassInstance(cid) => TypeRef::uni_or_ref(
-                    TypeId::ClassInstance(cid.inferred(db, context, immutable)),
-                    immutable,
-                ),
-                TypeId::TraitInstance(tid) => TypeRef::uni_or_ref(
-                    TypeId::TraitInstance(tid.inferred(db, context, immutable)),
-                    immutable,
-                ),
-                TypeId::TypeParameter(pid) => {
-                    let typ =
-                        self.infer_type_parameter(pid, db, context, immutable);
-
-                    if immutable {
-                        typ.as_ref(db)
-                    } else {
-                        typ
-                    }
-                }
-                TypeId::Closure(fid) => TypeRef::uni_or_ref(
-                    TypeId::Closure(fid.inferred(db, context, immutable)),
-                    immutable,
-                ),
-                _ => self,
-            },
-            TypeRef::Ref(id) => match id {
-                TypeId::ClassInstance(cid) => TypeRef::Ref(
-                    TypeId::ClassInstance(cid.inferred(db, context, immutable)),
-                ),
-                TypeId::TraitInstance(tid) => TypeRef::Ref(
-                    TypeId::TraitInstance(tid.inferred(db, context, immutable)),
-                ),
-                TypeId::TypeParameter(pid) => self
-                    .infer_type_parameter(pid, db, context, immutable)
-                    .as_ref(db),
-                TypeId::Closure(fid) => TypeRef::Ref(TypeId::Closure(
-                    fid.inferred(db, context, immutable),
-                )),
-                _ => self,
-            },
-            TypeRef::RefUni(id) => match id {
-                TypeId::ClassInstance(cid) => TypeRef::RefUni(
-                    TypeId::ClassInstance(cid.inferred(db, context, immutable)),
-                ),
-                TypeId::TraitInstance(tid) => TypeRef::RefUni(
-                    TypeId::TraitInstance(tid.inferred(db, context, immutable)),
-                ),
-                TypeId::TypeParameter(pid) => self
-                    .infer_type_parameter(pid, db, context, immutable)
-                    .as_ref_uni(db),
-                TypeId::Closure(fid) => TypeRef::RefUni(TypeId::Closure(
-                    fid.inferred(db, context, immutable),
-                )),
-                _ => self,
-            },
-            TypeRef::Mut(id) => match id {
-                TypeId::ClassInstance(cid) => TypeRef::mut_or_ref(
-                    TypeId::ClassInstance(cid.inferred(db, context, immutable)),
-                    immutable,
-                ),
-                TypeId::TraitInstance(tid) => TypeRef::mut_or_ref(
-                    TypeId::TraitInstance(tid.inferred(db, context, immutable)),
-                    immutable,
-                ),
-                TypeId::TypeParameter(pid) => {
-                    let typ =
-                        self.infer_type_parameter(pid, db, context, immutable);
-
-                    if immutable {
-                        typ.as_ref(db)
-                    } else {
-                        typ.as_mut(db)
-                    }
-                }
-                TypeId::Closure(fid) => TypeRef::mut_or_ref(
-                    TypeId::Closure(fid.inferred(db, context, immutable)),
-                    immutable,
-                ),
-                _ => self,
-            },
-            TypeRef::MutUni(id) => match id {
-                TypeId::ClassInstance(cid) => TypeRef::mut_or_ref_uni(
-                    TypeId::ClassInstance(cid.inferred(db, context, immutable)),
-                    immutable,
-                ),
-                TypeId::TraitInstance(tid) => TypeRef::mut_or_ref_uni(
-                    TypeId::TraitInstance(tid.inferred(db, context, immutable)),
-                    immutable,
-                ),
-                TypeId::TypeParameter(pid) => {
-                    let typ =
-                        self.infer_type_parameter(pid, db, context, immutable);
-
-                    if immutable {
-                        typ.as_ref_uni(db)
-                    } else {
-                        typ.as_mut_uni(db)
-                    }
-                }
-                TypeId::Closure(fid) => TypeRef::mut_or_ref_uni(
-                    TypeId::Closure(fid.inferred(db, context, immutable)),
-                    immutable,
-                ),
-                _ => self,
-            },
-            TypeRef::Placeholder(id) => id
-                .value(db)
-                .map(|t| t.inferred(db, context, immutable))
-                .unwrap_or_else(
-                    || if immutable { self.as_ref(db) } else { self },
-                ),
-            _ => self,
-        };
-
-        context.depth -= 1;
-        result
-    }
-
-    pub fn as_enum_instance(
-        self,
-        db: &Database,
-        self_type: TypeId,
-    ) -> Option<ClassInstance> {
+    pub fn as_enum_instance(self, db: &Database) -> Option<ClassInstance> {
         match self {
             TypeRef::Owned(TypeId::ClassInstance(ins))
             | TypeRef::Uni(TypeId::ClassInstance(ins))
@@ -4142,17 +4602,6 @@ impl TypeRef {
             {
                 Some(ins)
             }
-            TypeRef::OwnedSelf
-            | TypeRef::RefSelf
-            | TypeRef::MutSelf
-            | TypeRef::UniSelf => match self_type {
-                TypeId::ClassInstance(ins)
-                    if ins.instance_of.kind(db).is_enum() =>
-                {
-                    Some(ins)
-                }
-                _ => None,
-            },
             _ => None,
         }
     }
@@ -4216,11 +4665,22 @@ impl TypeRef {
         db: &mut Database,
         parameter: TypeParameterId,
         context: &mut TypeContext,
+        rules: Rules,
     ) -> bool {
+        let key = (self, TypeRef::Owned(TypeId::TypeParameter(parameter)));
+
+        if context.checked.contains(&key) {
+            return true;
+        }
+
+        context.checked.insert(key);
+
+        let rules = rules.with_relaxed_ownership();
+
         parameter
             .requirements(db)
             .into_iter()
-            .all(|r| self.implements_trait_instance(db, r, context))
+            .all(|r| self.implements_trait_instance(db, r, context, rules))
     }
 
     pub fn allow_cast_to(
@@ -4235,9 +4695,10 @@ impl TypeRef {
             return true;
         }
 
-        self.type_check_directly(db, with, context, true)
+        self.type_check_directly(db, with, context, Rules::new())
     }
 
+    // TODO: can we get rid of this and use the new resolver?
     pub fn as_rigid_type(self, db: &mut Database, bounds: &TypeBounds) -> Self {
         match self {
             TypeRef::Owned(id) => TypeRef::Owned(id.as_rigid_type(db, bounds)),
@@ -4254,26 +4715,21 @@ impl TypeRef {
         db: &mut Database,
         trait_type: TraitInstance,
         context: &mut TypeContext,
+        rules: Rules,
     ) -> bool {
         match self {
             TypeRef::Any => false,
             TypeRef::Error => true,
             TypeRef::Never => true,
-            TypeRef::OwnedSelf
-            | TypeRef::RefSelf
-            | TypeRef::MutSelf
-            | TypeRef::UniSelf => context
-                .self_type
-                .implements_trait_instance(db, trait_type, context),
             TypeRef::Owned(id)
             | TypeRef::Uni(id)
             | TypeRef::Ref(id)
             | TypeRef::Mut(id)
             | TypeRef::Infer(id) => {
-                id.implements_trait_instance(db, trait_type, context)
+                id.implements_trait_instance(db, trait_type, context, rules)
             }
             TypeRef::Placeholder(id) => id.value(db).map_or(true, |v| {
-                v.implements_trait_instance(db, trait_type, context)
+                v.implements_trait_instance(db, trait_type, context, rules)
             }),
             _ => false,
         }
@@ -4292,7 +4748,12 @@ impl TypeRef {
             | TypeRef::Uni(TypeId::ClassInstance(ins)) => {
                 matches!(
                     ins.instance_of.0,
-                    INT_ID | FLOAT_ID | STRING_ID | BOOLEAN_ID | NIL_ID
+                    INT_ID
+                        | FLOAT_ID
+                        | STRING_ID
+                        | BOOLEAN_ID
+                        | NIL_ID
+                        | CHANNEL_ID
                 )
             }
             TypeRef::Placeholder(id) => {
@@ -4322,6 +4783,7 @@ impl TypeRef {
         }
     }
 
+    // TODO: remove this method?
     pub fn is_inferred(self, db: &Database) -> bool {
         match self {
             TypeRef::Owned(id)
@@ -4352,20 +4814,11 @@ impl TypeRef {
         }
     }
 
-    pub fn implements_trait_id(
-        self,
-        db: &Database,
-        trait_id: TraitId,
-        self_type: TypeId,
-    ) -> bool {
+    pub fn implements_trait_id(self, db: &Database, trait_id: TraitId) -> bool {
         match self {
             TypeRef::Any => false,
             TypeRef::Error => false,
             TypeRef::Never => false,
-            TypeRef::OwnedSelf
-            | TypeRef::RefSelf
-            | TypeRef::MutSelf
-            | TypeRef::UniSelf => self_type.implements_trait_id(db, trait_id),
             TypeRef::Owned(id)
             | TypeRef::Uni(id)
             | TypeRef::Ref(id)
@@ -4375,20 +4828,31 @@ impl TypeRef {
         }
     }
 
-    pub fn class_id(self, db: &Database, self_type: TypeId) -> Option<ClassId> {
+    pub fn class_id_with_self_type(self, db: &Database) -> Option<ClassId> {
         match self {
             TypeRef::Owned(TypeId::ClassInstance(ins))
             | TypeRef::Uni(TypeId::ClassInstance(ins))
             | TypeRef::Ref(TypeId::ClassInstance(ins))
             | TypeRef::Mut(TypeId::ClassInstance(ins)) => Some(ins.instance_of),
-            TypeRef::OwnedSelf | TypeRef::RefSelf | TypeRef::MutSelf => {
-                match self_type {
-                    TypeId::ClassInstance(ins) => Some(ins.instance_of),
-                    _ => None,
-                }
-            }
             TypeRef::Placeholder(p) => {
-                p.value(db).and_then(|v| v.class_id(db, self_type))
+                p.value(db).and_then(|v| v.class_id_with_self_type(db))
+            }
+            _ => None,
+        }
+    }
+
+    pub fn class_id(
+        self,
+        db: &Database,
+        self_class: ClassId,
+    ) -> Option<ClassId> {
+        match self {
+            TypeRef::Owned(TypeId::ClassInstance(ins))
+            | TypeRef::Uni(TypeId::ClassInstance(ins))
+            | TypeRef::Ref(TypeId::ClassInstance(ins))
+            | TypeRef::Mut(TypeId::ClassInstance(ins)) => Some(ins.instance_of),
+            TypeRef::Placeholder(p) => {
+                p.value(db).and_then(|v| v.class_id(db, self_class))
             }
             _ => None,
         }
@@ -4399,12 +4863,38 @@ impl TypeRef {
         db: &mut Database,
         with: TypeRef,
         context: &mut TypeContext,
-        subtyping: bool,
+        rules: Rules,
     ) -> bool {
+        // This is used to short-circuit recursive type-checks (instead of them
+        // blowing up) that involve the same types. For more information see the
+        // documentation of the field itself.
+        //
+        // TODO: this doesn't account for cases where the types are effectively
+        // the same, but their type argument structures are different.
+        if context.checked.contains(&(self, with)) {
+            return true;
+        }
+
+        // The comparison must be inserted first, otherwise recursive
+        // type-checks would prevent us from ever inserting it in the first
+        // place (as we'd hit the depth limit first).
+        context.checked.insert((self, with));
+
+        // If a type-check involves too deeply nested types (but not necessarily
+        // comparisons with the same types) we just give up. Such types are
+        // extremely rare anyway, and the alternative is overflowing the stack.
+        //
+        // TODO: because of the above check this is probably no longer needed?
+        if context.depth == MAX_TYPE_DEPTH {
+            return false;
+        }
+
+        context.depth += 1;
+
         // We special-case type parameters on the right-hand side here, that way
         // we don't need to cover this case for all the various TypeRef variants
         // individually.
-        match with {
+        let result = match with {
             TypeRef::Owned(TypeId::TypeParameter(pid))
             | TypeRef::Uni(TypeId::TypeParameter(pid))
             | TypeRef::Infer(TypeId::TypeParameter(pid))
@@ -4412,12 +4902,10 @@ impl TypeRef {
             | TypeRef::MutUni(TypeId::TypeParameter(pid))
             | TypeRef::Mut(TypeId::TypeParameter(pid))
             | TypeRef::Ref(TypeId::TypeParameter(pid)) => self
-                .type_check_with_type_parameter(
-                    db, with, pid, context, subtyping,
-                ),
+                .type_check_with_type_parameter(db, with, pid, context, rules),
             TypeRef::Placeholder(id) => {
                 if let Some(assigned) = id.value(db) {
-                    self.type_check_directly(db, assigned, context, subtyping)
+                    self.type_check_directly(db, assigned, context, rules)
                 } else if let TypeRef::Placeholder(ours) = self {
                     // Assigning a placeholder to an unassigned placeholder
                     // isn't useful, and can break type inference when returning
@@ -4434,8 +4922,11 @@ impl TypeRef {
                     true
                 }
             }
-            _ => self.type_check_directly(db, with, context, subtyping),
-        }
+            _ => self.type_check_directly(db, with, context, rules),
+        };
+
+        context.depth -= 1;
+        result
     }
 
     fn type_check_with_type_parameter(
@@ -4444,9 +4935,21 @@ impl TypeRef {
         with: TypeRef,
         param: TypeParameterId,
         context: &mut TypeContext,
-        subtyping: bool,
+        rules: Rules,
     ) -> bool {
-        if let Some(assigned) = context.type_arguments.get(param) {
+        if let Some(mut assigned) = context.type_arguments.get(param) {
+            // This ensures that if we compare a `Foo` with a `uni T`, where `T`
+            // is assigned to `Foo`, we _disallow_ this because `Foo` isn't
+            // compatible with `uni Foo`.
+            if let TypeRef::Owned(_) = assigned {
+                match with {
+                    TypeRef::Uni(_) => assigned = assigned.as_uni(db),
+                    TypeRef::Ref(_) => assigned = assigned.as_ref(db),
+                    TypeRef::Mut(_) => assigned = assigned.as_mut(db),
+                    _ => {}
+                }
+            }
+
             if let TypeRef::Placeholder(placeholder) = assigned {
                 let mut rhs = with;
                 let mut update = true;
@@ -4480,8 +4983,7 @@ impl TypeRef {
 
                 rhs = rhs.cast_according_to(with, db);
 
-                let compat =
-                    self.type_check_directly(db, rhs, context, subtyping);
+                let compat = self.type_check_directly(db, rhs, context, rules);
 
                 if compat && update {
                     placeholder.assign(db, self);
@@ -4494,13 +4996,12 @@ impl TypeRef {
                 db,
                 assigned.cast_according_to(with, db),
                 context,
-                subtyping,
+                rules,
             );
         }
 
-        if self.type_check_directly(db, with, context, subtyping) {
+        if self.type_check_directly(db, with, context, rules) {
             context.type_arguments.assign(param, self);
-
             return true;
         }
 
@@ -4512,10 +5013,10 @@ impl TypeRef {
         db: &mut Database,
         with: TypePlaceholderId,
         context: &mut TypeContext,
-        subtyping: bool,
+        rules: Rules,
     ) -> bool {
         if let Some(assigned) = with.value(db) {
-            self.type_check(db, assigned, context, subtyping)
+            self.type_check(db, assigned, context, rules)
         } else {
             with.assign(db, self);
             true
@@ -4527,99 +5028,120 @@ impl TypeRef {
         db: &mut Database,
         with: TypeRef,
         context: &mut TypeContext,
-        subtyping: bool,
+        rules: Rules,
     ) -> bool {
         // This case is the same for all variants of `self`, so we handle it
         // here once.
         if let TypeRef::Placeholder(id) = with {
             return self
-                .type_check_with_type_placeholder(db, id, context, subtyping);
+                .type_check_with_type_placeholder(db, id, context, rules);
         }
 
         match self {
             TypeRef::Owned(our_id) => match with {
                 TypeRef::Owned(their_id) | TypeRef::Infer(their_id) => {
-                    our_id.type_check(db, their_id, context, subtyping)
+                    our_id.type_check(db, their_id, context, rules)
                 }
                 TypeRef::Ref(their_id) | TypeRef::Mut(their_id)
-                    if self.is_value_type(db) =>
+                    if self.is_value_type(db) || rules.relaxed_ownership =>
                 {
-                    our_id.type_check(db, their_id, context, subtyping)
+                    our_id.type_check(db, their_id, context, rules)
                 }
                 TypeRef::Any | TypeRef::RefAny | TypeRef::Error => true,
-                TypeRef::OwnedSelf => {
-                    our_id.type_check(db, context.self_type, context, subtyping)
-                }
                 _ => false,
             },
             TypeRef::Uni(our_id) => match with {
                 TypeRef::Owned(their_id)
                 | TypeRef::Infer(their_id)
                 | TypeRef::Uni(their_id) => {
-                    our_id.type_check(db, their_id, context, subtyping)
+                    our_id.type_check(db, their_id, context, rules)
                 }
                 TypeRef::Any | TypeRef::RefAny | TypeRef::Error => true,
-                TypeRef::UniSelf => {
-                    our_id.type_check(db, context.self_type, context, subtyping)
-                }
                 _ => false,
             },
             TypeRef::RefUni(our_id) => match with {
                 TypeRef::RefUni(their_id) => {
-                    our_id.type_check(db, their_id, context, subtyping)
+                    our_id.type_check(db, their_id, context, rules)
                 }
                 TypeRef::Error => true,
                 _ => false,
             },
             TypeRef::MutUni(our_id) => match with {
                 TypeRef::RefUni(their_id) | TypeRef::MutUni(their_id) => {
-                    our_id.type_check(db, their_id, context, subtyping)
+                    our_id.type_check(db, their_id, context, rules)
                 }
                 TypeRef::Error => true,
                 _ => false,
             },
             TypeRef::Ref(our_id) => match with {
                 TypeRef::Ref(their_id) | TypeRef::Infer(their_id) => {
-                    our_id.type_check(db, their_id, context, subtyping)
+                    our_id.type_check(db, their_id, context, rules)
+                }
+                // Consider this implementation:
+                //
+                //     impl Equal[ref Thing] for Thing { ... }
+                //
+                // And the following method:
+                //
+                //     fn example[T: Equal[T]](a: ref T) { ... }
+                //
+                // If we pass this a `ref Array[mut Thing]`, we end up comparing
+                // the `Equal[ref Thing]` implementation with the expected
+                // implementation `Equal[mut Thing]`.
+                //
+                // Normally this is invalid, but in the above context it's sound
+                // as the `example` method is restricted by the requirements as
+                // it specifies them (i.e. it doesn't know if `T` is actually
+                // owned, a ref, etc). As such we allow this comparison if
+                // needed.
+                TypeRef::Mut(their_id) if rules.relaxed_ownership => {
+                    our_id.type_check(db, their_id, context, rules)
                 }
                 TypeRef::Owned(their_id) | TypeRef::Uni(their_id)
                     if self.is_value_type(db) =>
                 {
-                    our_id.type_check(db, their_id, context, subtyping)
+                    our_id.type_check(db, their_id, context, rules)
                 }
                 TypeRef::Error => true,
-                TypeRef::RefSelf => {
-                    our_id.type_check(db, context.self_type, context, subtyping)
-                }
                 _ => false,
             },
             TypeRef::Mut(our_id) => match with {
                 TypeRef::Ref(their_id) | TypeRef::Infer(their_id) => {
-                    our_id.type_check(db, their_id, context, subtyping)
+                    our_id.type_check(db, their_id, context, rules)
                 }
-                TypeRef::Mut(their_id) => {
-                    our_id.type_check(db, their_id, context, false)
-                }
+                TypeRef::Mut(their_id) => our_id.type_check(
+                    db,
+                    their_id,
+                    context,
+                    rules.without_subtyping(),
+                ),
                 TypeRef::Owned(their_id) | TypeRef::Uni(their_id)
                     if self.is_value_type(db) =>
                 {
-                    our_id.type_check(db, their_id, context, subtyping)
+                    our_id.type_check(db, their_id, context, rules)
                 }
                 TypeRef::Error => true,
-                TypeRef::RefSelf => {
-                    our_id.type_check(db, context.self_type, context, subtyping)
-                }
-                TypeRef::MutSelf => {
-                    our_id.type_check(db, context.self_type, context, false)
-                }
                 _ => false,
             },
-            TypeRef::Infer(our_id) => match with {
+            TypeRef::Infer(TypeId::TypeParameter(our_id)) => match with {
                 TypeRef::Infer(their_id) => {
-                    our_id.type_check(db, their_id, context, subtyping)
+                    our_id.type_check(db, their_id, context, rules)
                 }
                 TypeRef::Error => true,
-                _ => false,
+                _ => {
+                    // If our parameter is bound to an argument, we have to
+                    // compare that argument with the value on the right
+                    // instead.
+                    if let Some(arg) = context
+                        .type_arguments
+                        .get(our_id)
+                        .filter(|&arg| self != arg)
+                    {
+                        return arg.type_check(db, with, context, rules);
+                    }
+
+                    false
+                }
             },
             // Since a Never can't actually be passed around, it's compatible
             // with everything else. This allows for code like this:
@@ -4628,43 +5150,6 @@ impl TypeRef {
             //
             // Where `panic` would return a `Never`.
             TypeRef::Never => true,
-            TypeRef::OwnedSelf => match with {
-                TypeRef::Owned(their_id) | TypeRef::Infer(their_id) => context
-                    .self_type
-                    .type_check(db, their_id, context, subtyping),
-                TypeRef::Any
-                | TypeRef::RefAny
-                | TypeRef::Error
-                | TypeRef::OwnedSelf => true,
-                _ => false,
-            },
-            TypeRef::RefSelf => match with {
-                TypeRef::Ref(their_id) | TypeRef::Infer(their_id) => context
-                    .self_type
-                    .type_check(db, their_id, context, subtyping),
-                TypeRef::Error | TypeRef::RefSelf => true,
-                _ => false,
-            },
-            TypeRef::MutSelf => match with {
-                TypeRef::Mut(their_id) | TypeRef::Infer(their_id) => {
-                    context.self_type.type_check(db, their_id, context, false)
-                }
-                TypeRef::Error | TypeRef::MutSelf => true,
-                _ => false,
-            },
-            TypeRef::UniSelf => match with {
-                TypeRef::Owned(their_id)
-                | TypeRef::Uni(their_id)
-                | TypeRef::Infer(their_id) => {
-                    context.self_type.type_check(db, their_id, context, false)
-                }
-                TypeRef::Any
-                | TypeRef::RefAny
-                | TypeRef::Error
-                | TypeRef::UniSelf
-                | TypeRef::OwnedSelf => true,
-                _ => false,
-            },
             // Type errors are compatible with all other types to prevent a
             // cascade of type errors.
             TypeRef::Error => true,
@@ -4674,7 +5159,7 @@ impl TypeRef {
             TypeRef::RefAny => matches!(with, TypeRef::RefAny | TypeRef::Error),
             TypeRef::Placeholder(id) => {
                 if let Some(assigned) = id.value(db) {
-                    return assigned.type_check(db, with, context, subtyping);
+                    return assigned.type_check(db, with, context, rules);
                 }
 
                 if !with.is_regular_type_parameter() {
@@ -4718,147 +5203,8 @@ impl TypeRef {
         }
     }
 
-    fn infer_self_type_id(
-        self,
-        db: &mut Database,
-        context: &TypeContext,
-    ) -> TypeId {
-        // Self types always refer to instances of a type, so if
-        // `context.self_type` is a class or trait, we need to turn it into an
-        // instance.
-        match context.self_type {
-            TypeId::Class(id) => {
-                let ins = if id.is_generic(db) {
-                    let args = context
-                        .type_arguments
-                        .assigned_or_placeholders(db, id.type_parameters(db));
-
-                    ClassInstance::generic(db, id, args)
-                } else {
-                    ClassInstance::new(id)
-                };
-
-                TypeId::ClassInstance(ins)
-            }
-            TypeId::Trait(id) => {
-                let ins = if id.is_generic(db) {
-                    let args = context
-                        .type_arguments
-                        .assigned_or_placeholders(db, id.type_parameters(db));
-
-                    TraitInstance::generic(db, id, args)
-                } else {
-                    TraitInstance::new(id)
-                };
-
-                TypeId::TraitInstance(ins)
-            }
-            val => val,
-        }
-    }
-
-    fn infer_type_parameter(
-        self,
-        type_parameter: TypeParameterId,
-        db: &mut Database,
-        context: &mut TypeContext,
-        immutable: bool,
-    ) -> TypeRef {
-        if let Some(arg) = context.type_arguments.get(type_parameter) {
-            // Given a case of `A -> placeholder -> A`, this prevents us from
-            // recursing back into this code and eventually blowing up the
-            // stack.
-            if let TypeRef::Placeholder(id) = arg {
-                if id.value(db).map_or(false, |v| v == self) {
-                    return arg;
-                }
-            }
-
-            if arg == self {
-                return self;
-            }
-
-            return arg.inferred(db, context, immutable);
-        }
-
-        if let TypeId::TraitInstance(ins) = context.self_type {
-            if let Some(arg) = ins
-                .instance_of
-                .get(db)
-                .inherited_type_arguments
-                .get(type_parameter)
-            {
-                return arg.inferred(db, context, immutable);
-            }
-        }
-
-        TypeRef::placeholder(db)
-    }
-
-    fn format_self_type(self, buffer: &mut TypeFormatter) {
-        if let Some(val) = buffer.self_type {
-            val.format_type(buffer);
-        } else {
-            buffer.write("Self");
-        }
-    }
-
-    fn is_instance_of(
-        self,
-        db: &Database,
-        id: ClassId,
-        self_type: TypeId,
-    ) -> bool {
-        self.class_id(db, self_type) == Some(id)
-    }
-}
-
-impl FormatType for TypeRef {
-    fn format_type(&self, buffer: &mut TypeFormatter) {
-        match self {
-            TypeRef::Owned(id) | TypeRef::Infer(id) => id.format_type(buffer),
-            TypeRef::Uni(id) => {
-                buffer.write_ownership("uni ");
-                id.format_type(buffer);
-            }
-            TypeRef::RefUni(id) => {
-                buffer.write_ownership("ref uni ");
-                id.format_type(buffer);
-            }
-            TypeRef::MutUni(id) => {
-                buffer.write_ownership("mut uni ");
-                id.format_type(buffer);
-            }
-            TypeRef::Ref(id) => {
-                buffer.write_ownership("ref ");
-                id.format_type(buffer);
-            }
-            TypeRef::Mut(id) => {
-                buffer.write_ownership("mut ");
-                id.format_type(buffer);
-            }
-            TypeRef::Never => buffer.write("Never"),
-            TypeRef::Any => buffer.write("Any"),
-            TypeRef::RefAny => buffer.write("ref Any"),
-            TypeRef::OwnedSelf => {
-                self.format_self_type(buffer);
-            }
-            TypeRef::RefSelf => {
-                buffer.write_ownership("ref ");
-                self.format_self_type(buffer);
-            }
-            TypeRef::MutSelf => {
-                buffer.write_ownership("mut ");
-                self.format_self_type(buffer);
-            }
-            TypeRef::UniSelf => {
-                buffer.write_ownership("uni ");
-                self.format_self_type(buffer);
-            }
-            TypeRef::Error => buffer.write("<error>"),
-            TypeRef::Unknown => buffer.write("<unknown>"),
-            TypeRef::Placeholder(id) => id.format_type(buffer),
-        };
+    fn is_instance_of(self, db: &Database, id: ClassId) -> bool {
+        self.class_id_with_self_type(db) == Some(id)
     }
 }
 
@@ -4934,17 +5280,16 @@ impl TypeId {
         db: &mut Database,
         trait_type: TraitInstance,
         context: &mut TypeContext,
+        rules: Rules,
     ) -> bool {
         match self {
-            TypeId::ClassInstance(id) => {
-                id.type_check_with_trait_instance(db, trait_type, context, true)
-            }
+            TypeId::ClassInstance(id) => id
+                .type_check_with_trait_instance(db, trait_type, context, rules),
             TypeId::TraitInstance(id) => {
                 id.implements_trait_instance(db, trait_type, context)
             }
-            TypeId::TypeParameter(id) | TypeId::RigidTypeParameter(id) => {
-                id.type_check_with_trait_instance(db, trait_type, context, true)
-            }
+            TypeId::TypeParameter(id) | TypeId::RigidTypeParameter(id) => id
+                .type_check_with_trait_instance(db, trait_type, context, rules),
             _ => false,
         }
     }
@@ -5020,45 +5365,26 @@ impl TypeId {
         db: &mut Database,
         with: TypeId,
         context: &mut TypeContext,
-        subtyping: bool,
+        rules: Rules,
     ) -> bool {
         match self {
             TypeId::Class(_) | TypeId::Trait(_) | TypeId::Module(_) => {
                 self == with
             }
             TypeId::ClassInstance(ins) => {
-                ins.type_check(db, with, context, subtyping)
+                ins.type_check(db, with, context, rules)
             }
             TypeId::TraitInstance(ins) => {
-                ins.type_check(db, with, context, subtyping)
+                ins.type_check(db, with, context, rules)
             }
             TypeId::TypeParameter(ins) => {
-                ins.type_check(db, with, context, subtyping)
+                ins.type_check(db, with, context, rules)
             }
-            TypeId::RigidTypeParameter(our_ins) => match with {
-                TypeId::RigidTypeParameter(their_ins) => our_ins == their_ins,
-                _ => our_ins.type_check(db, with, context, subtyping),
+            TypeId::RigidTypeParameter(ours) => match with {
+                TypeId::RigidTypeParameter(theirs) => ours == theirs,
+                _ => ours.type_check(db, with, context, rules),
             },
-            TypeId::Closure(ins) => {
-                ins.type_check(db, with, context, subtyping)
-            }
-        }
-    }
-}
-
-impl FormatType for TypeId {
-    fn format_type(&self, buffer: &mut TypeFormatter) {
-        match self {
-            TypeId::Class(id) => id.format_type(buffer),
-            TypeId::Trait(id) => id.format_type(buffer),
-            TypeId::Module(id) => id.format_type(buffer),
-            TypeId::ClassInstance(ins) => ins.format_type(buffer),
-            TypeId::TraitInstance(id) => id.format_type(buffer),
-            TypeId::TypeParameter(id) => id.format_type(buffer),
-            TypeId::RigidTypeParameter(id) => {
-                id.format_type_without_argument(buffer);
-            }
-            TypeId::Closure(id) => id.format_type(buffer),
+            TypeId::Closure(ins) => ins.type_check(db, with, context, rules),
         }
     }
 }
@@ -5076,7 +5402,7 @@ pub struct Database {
     closures: Vec<Closure>,
     variables: Vec<Variable>,
     constants: Vec<Constant>,
-    builtin_functions: IndexMap<String, BuiltinFunction>,
+    builtin_functions: HashMap<String, BuiltinFunction>,
     type_placeholders: Vec<TypePlaceholder>,
     variants: Vec<Variant>,
 
@@ -5085,6 +5411,8 @@ pub struct Database {
     /// For executables this will be set based on the file that is built/run.
     /// When just type-checking a project, this may be left as a None.
     main_module: Option<ModuleName>,
+    main_method: Option<MethodId>,
+    main_class: Option<ClassId>,
 }
 
 impl Database {
@@ -5096,12 +5424,12 @@ impl Database {
             classes: vec![
                 Class::regular(INT_NAME.to_string()),
                 Class::regular(FLOAT_NAME.to_string()),
-                Class::regular(STRING_NAME.to_string()),
+                Class::atomic(STRING_NAME.to_string()),
                 Class::regular(ARRAY_NAME.to_string()),
                 Class::regular(BOOLEAN_NAME.to_string()),
                 Class::regular(NIL_NAME.to_string()),
                 Class::regular(BYTE_ARRAY_NAME.to_string()),
-                Class::regular(FUTURE_NAME.to_string()),
+                Class::atomic(CHANNEL_NAME.to_string()),
                 Class::tuple(TUPLE1_NAME.to_string()),
                 Class::tuple(TUPLE2_NAME.to_string()),
                 Class::tuple(TUPLE3_NAME.to_string()),
@@ -5118,10 +5446,12 @@ impl Database {
             closures: Vec::new(),
             variables: Vec::new(),
             constants: Vec::new(),
-            builtin_functions: IndexMap::new(),
+            builtin_functions: BuiltinFunction::mapping(),
             type_placeholders: Vec::new(),
             variants: Vec::new(),
             main_module: None,
+            main_method: None,
+            main_class: None,
         }
     }
 
@@ -5134,7 +5464,7 @@ impl Database {
             BOOLEAN_NAME => Some(ClassId(BOOLEAN_ID)),
             NIL_NAME => Some(ClassId(NIL_ID)),
             BYTE_ARRAY_NAME => Some(ClassId(BYTE_ARRAY_ID)),
-            FUTURE_NAME => Some(ClassId(FUTURE_ID)),
+            CHANNEL_NAME => Some(ClassId(CHANNEL_ID)),
             TUPLE1_NAME => Some(ClassId(TUPLE1_ID)),
             TUPLE2_NAME => Some(ClassId(TUPLE2_ID)),
             TUPLE3_NAME => Some(ClassId(TUPLE3_ID)),
@@ -5147,8 +5477,8 @@ impl Database {
         }
     }
 
-    pub fn builtin_function(&self, name: &str) -> Option<BuiltinFunctionId> {
-        self.builtin_functions.index_of(name).map(BuiltinFunctionId)
+    pub fn builtin_function(&self, name: &str) -> Option<BuiltinFunction> {
+        self.builtin_functions.get(name).cloned()
     }
 
     pub fn module(&self, name: &str) -> ModuleId {
@@ -5200,16 +5530,37 @@ impl Database {
     pub fn main_module(&self) -> Option<&ModuleName> {
         self.main_module.as_ref()
     }
+
+    pub fn set_main_method(&mut self, id: MethodId) {
+        self.main_method = Some(id);
+    }
+
+    pub fn main_method(&self) -> Option<MethodId> {
+        self.main_method
+    }
+
+    pub fn set_main_class(&mut self, id: ClassId) {
+        self.main_class = Some(id);
+    }
+
+    pub fn main_class(&self) -> Option<ClassId> {
+        self.main_class
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test::{
+        immutable, instance, mutable, new_parameter, owned, placeholder, rigid,
+        uni,
+    };
     use std::mem::size_of;
 
     #[test]
     fn test_type_sizes() {
         assert_eq!(size_of::<TypeId>(), 16);
+        assert_eq!(size_of::<TypeRef>(), 24);
     }
 
     #[test]
@@ -5252,69 +5603,6 @@ mod tests {
         id.add_requirements(&mut db, vec![requirement]);
 
         assert_eq!(id.requirements(&db), vec![requirement]);
-    }
-
-    #[test]
-    fn test_type_parameter_id_type_check() {
-        let mut db = Database::new();
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let p1 = TypeParameter::alloc(&mut db, "A".to_string());
-        let p2 = TypeParameter::alloc(&mut db, "B".to_string());
-        let p3 = TypeParameter::alloc(&mut db, "C".to_string());
-        let mut ctx = TypeContext::new(self_type);
-
-        assert!(p1.type_check(
-            &mut db,
-            TypeId::TypeParameter(p2),
-            &mut ctx,
-            false
-        ));
-        assert!(!p1.type_check(
-            &mut db,
-            TypeId::RigidTypeParameter(p3),
-            &mut ctx,
-            false
-        ));
-    }
-
-    #[test]
-    fn test_type_parameter_id_type_check_with_requirements() {
-        let mut db = Database::new();
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let to_s = Trait::alloc(
-            &mut db,
-            "ToString".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let p1 = TypeParameter::alloc(&mut db, "A".to_string());
-        let p2 = TypeParameter::alloc(&mut db, "B".to_string());
-
-        p1.add_requirements(&mut db, vec![TraitInstance::new(to_s)]);
-        p2.add_requirements(&mut db, vec![TraitInstance::new(to_s)]);
-
-        let mut ctx = TypeContext::new(self_type);
-
-        assert!(p1.type_check(
-            &mut db,
-            TypeId::TypeParameter(p2),
-            &mut ctx,
-            false
-        ));
     }
 
     #[test]
@@ -5401,304 +5689,6 @@ mod tests {
 
         assert_eq!(ins2.instance_of.0, index);
         assert_eq!(ins2.type_arguments, 1);
-    }
-
-    #[test]
-    fn test_trait_instance_type_check_with_generic_trait_instance() {
-        let mut db = Database::new();
-        let trait_a = Trait::alloc(
-            &mut db,
-            "A".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let trait_b = Trait::alloc(
-            &mut db,
-            "B".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-
-        let param1 = trait_a.new_type_parameter(&mut db, "A".to_string());
-
-        trait_b.new_type_parameter(&mut db, "A".to_string());
-
-        let mut ins1_args = TypeArguments::new();
-        let mut ins2_args = TypeArguments::new();
-        let mut ins3_args = TypeArguments::new();
-
-        ins1_args.assign(param1, TypeRef::Any);
-        ins2_args.assign(param1, TypeRef::Any);
-        ins3_args.assign(param1, TypeRef::Never);
-
-        let ins1 = TraitInstance::generic(&mut db, trait_a, ins1_args);
-        let ins2 = TraitInstance::generic(&mut db, trait_a, ins2_args);
-        let ins3 = TraitInstance::generic(&mut db, trait_a, ins3_args);
-        let ins4 =
-            TraitInstance::generic(&mut db, trait_a, TypeArguments::new());
-        let ins5 =
-            TraitInstance::generic(&mut db, trait_b, TypeArguments::new());
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(self_type);
-
-        assert!(ins1.type_check(
-            &mut db,
-            TypeId::TraitInstance(ins2),
-            &mut ctx,
-            false
-        ));
-        assert!(!ins1.type_check(
-            &mut db,
-            TypeId::TraitInstance(ins3),
-            &mut ctx,
-            false
-        ));
-        assert!(!ins1.type_check(
-            &mut db,
-            TypeId::TraitInstance(ins4),
-            &mut ctx,
-            false
-        ));
-        assert!(!ins4.type_check(
-            &mut db,
-            TypeId::TraitInstance(ins5),
-            &mut ctx,
-            false
-        ));
-    }
-
-    #[test]
-    fn test_trait_instance_type_check_with_generic_trait_as_required_trait() {
-        let mut db = Database::new();
-        let trait_b = Trait::alloc(
-            &mut db,
-            "B".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let trait_c = Trait::alloc(
-            &mut db,
-            "C".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let ins_b =
-            TraitInstance::generic(&mut db, trait_b, TypeArguments::new());
-        let ins_c = TypeId::TraitInstance(TraitInstance::generic(
-            &mut db,
-            trait_c,
-            TypeArguments::new(),
-        ));
-
-        {
-            let req =
-                TraitInstance::generic(&mut db, trait_c, TypeArguments::new());
-
-            trait_b.add_required_trait(&mut db, req);
-        }
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(self_type);
-
-        assert!(ins_b.type_check(&mut db, ins_c, &mut ctx, true));
-    }
-
-    #[test]
-    fn test_trait_instance_type_check_with_regular_trait() {
-        let mut db = Database::new();
-        let debug = Trait::alloc(
-            &mut db,
-            "Debug".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let to_string = Trait::alloc(
-            &mut db,
-            "ToString".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let to_int = Trait::alloc(
-            &mut db,
-            "ToInt".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let requirement = TraitInstance::new(to_string);
-
-        debug.add_required_trait(&mut db, requirement);
-
-        let debug_ins = TraitInstance::new(debug);
-        let to_string_ins =
-            TypeId::TraitInstance(TraitInstance::new(to_string));
-        let to_int_ins = TypeId::TraitInstance(TraitInstance::new(to_int));
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(self_type);
-
-        assert!(debug_ins.type_check(&mut db, to_string_ins, &mut ctx, true));
-        assert!(!debug_ins.type_check(&mut db, to_int_ins, &mut ctx, true));
-    }
-
-    #[test]
-    fn test_trait_instance_type_check_with_rigid_type_parameter() {
-        let mut db = Database::new();
-        let to_s = Trait::alloc(
-            &mut db,
-            "ToString".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let to_s_ins = TraitInstance::new(to_s);
-        let param = TypeParameter::alloc(&mut db, "A".to_string());
-        let param_ins = TypeId::RigidTypeParameter(param);
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(self_type);
-
-        assert!(!to_s_ins.type_check(&mut db, param_ins, &mut ctx, false));
-    }
-
-    #[test]
-    fn test_trait_instance_type_check_with_type_parameter() {
-        let mut db = Database::new();
-        let debug = Trait::alloc(
-            &mut db,
-            "Debug".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let to_string = Trait::alloc(
-            &mut db,
-            "ToString".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let to_int = Trait::alloc(
-            &mut db,
-            "ToInt".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let param1 = TypeParameter::alloc(&mut db, "A".to_string());
-        let param2 = TypeParameter::alloc(&mut db, "B".to_string());
-        let param3 = TypeParameter::alloc(&mut db, "C".to_string());
-        let debug_ins = TraitInstance::new(debug);
-        let to_string_ins = TraitInstance::new(to_string);
-
-        debug.add_required_trait(&mut db, to_string_ins);
-        param2.add_requirements(&mut db, vec![debug_ins]);
-        param3.add_requirements(&mut db, vec![to_string_ins]);
-
-        let to_int_ins = TraitInstance::new(to_int);
-        let param1_ins = TypeId::TypeParameter(param1);
-        let param2_ins = TypeId::TypeParameter(param2);
-        let param3_ins = TypeId::TypeParameter(param3);
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(self_type);
-
-        assert!(debug_ins.type_check(&mut db, param1_ins, &mut ctx, true));
-        assert!(debug_ins.type_check(&mut db, param2_ins, &mut ctx, true));
-        assert!(debug_ins.type_check(&mut db, param3_ins, &mut ctx, true));
-        assert!(!to_int_ins.type_check(&mut db, param2_ins, &mut ctx, true));
-    }
-
-    #[test]
-    fn test_trait_instance_type_check_with_other_variants() {
-        let mut db = Database::new();
-        let debug = Trait::alloc(
-            &mut db,
-            "Debug".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let debug_ins = TraitInstance::new(debug);
-        let closure = TypeId::Closure(Closure::alloc(&mut db, false));
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(self_type);
-
-        assert!(!debug_ins.type_check(&mut db, closure, &mut ctx, false));
-    }
-
-    #[test]
-    fn test_trait_instance_format_type_with_regular_trait() {
-        let mut db = Database::new();
-        let trait_id = Trait::alloc(
-            &mut db,
-            "A".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let trait_ins = TraitInstance::new(trait_id);
-
-        assert_eq!(format_type(&db, trait_ins), "A".to_string());
-    }
-
-    #[test]
-    fn test_trait_instance_format_type_with_generic_trait() {
-        let mut db = Database::new();
-        let trait_id = Trait::alloc(
-            &mut db,
-            "ToString".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let param1 = trait_id.new_type_parameter(&mut db, "A".to_string());
-
-        trait_id.new_type_parameter(&mut db, "B".to_string());
-
-        let mut targs = TypeArguments::new();
-
-        targs.assign(param1, TypeRef::Any);
-
-        let trait_ins = TraitInstance::generic(&mut db, trait_id, targs);
-
-        assert_eq!(format_type(&db, trait_ins), "ToString[Any, B]");
     }
 
     #[test]
@@ -5865,540 +5855,6 @@ mod tests {
     }
 
     #[test]
-    fn test_class_instance_type_check_with_class_instance() {
-        let mut db = Database::new();
-        let cls1 = Class::alloc(
-            &mut db,
-            "A".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let cls2 = Class::alloc(
-            &mut db,
-            "B".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let ins1 = ClassInstance::new(cls1);
-        let ins2 = ClassInstance::new(cls1);
-        let ins3 = ClassInstance::new(cls2);
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(self_type);
-
-        assert!(ins1.type_check(
-            &mut db,
-            TypeId::ClassInstance(ins1),
-            &mut ctx,
-            false
-        ));
-        assert!(ins1.type_check(
-            &mut db,
-            TypeId::ClassInstance(ins2),
-            &mut ctx,
-            false
-        ));
-        assert!(!ins1.type_check(
-            &mut db,
-            TypeId::ClassInstance(ins3),
-            &mut ctx,
-            false
-        ));
-    }
-
-    #[test]
-    fn test_class_instance_type_check_with_generic_class_instance() {
-        let mut db = Database::new();
-        let class_a = Class::alloc(
-            &mut db,
-            "A".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let class_b = Class::alloc(
-            &mut db,
-            "B".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-
-        let param1 = class_a.new_type_parameter(&mut db, "A".to_string());
-
-        class_b.new_type_parameter(&mut db, "A".to_string());
-
-        let mut ins1_args = TypeArguments::new();
-        let mut ins2_args = TypeArguments::new();
-        let mut ins3_args = TypeArguments::new();
-
-        ins1_args.assign(param1, TypeRef::Any);
-        ins2_args.assign(param1, TypeRef::Any);
-        ins3_args.assign(param1, TypeRef::Never);
-
-        let ins1 = ClassInstance::generic(&mut db, class_a, ins1_args);
-        let ins2 = ClassInstance::generic(&mut db, class_a, ins2_args);
-        let ins3 = ClassInstance::generic(&mut db, class_a, ins3_args);
-        let ins4 =
-            ClassInstance::generic(&mut db, class_a, TypeArguments::new());
-        let ins5 =
-            ClassInstance::generic(&mut db, class_b, TypeArguments::new());
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(self_type);
-
-        assert!(ins1.type_check(
-            &mut db,
-            TypeId::ClassInstance(ins2),
-            &mut ctx,
-            false
-        ));
-        assert!(!ins1.type_check(
-            &mut db,
-            TypeId::ClassInstance(ins3),
-            &mut ctx,
-            false
-        ));
-        assert!(!ins1.type_check(
-            &mut db,
-            TypeId::ClassInstance(ins4),
-            &mut ctx,
-            false
-        ));
-        assert!(!ins4.type_check(
-            &mut db,
-            TypeId::ClassInstance(ins5),
-            &mut ctx,
-            false
-        ));
-    }
-
-    #[test]
-    fn test_class_instance_type_check_with_empty_type_arguments() {
-        let mut db = Database::new();
-        let array = Class::alloc(
-            &mut db,
-            "Array".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let param = array.new_type_parameter(&mut db, "T".to_string());
-        let ins1 = ClassInstance::generic(&mut db, array, TypeArguments::new());
-        let ins2 = {
-            let mut args = TypeArguments::new();
-
-            args.assign(param, TypeRef::Any);
-            ClassInstance::generic(&mut db, array, args)
-        };
-
-        let stype = TypeId::ClassInstance(ins1);
-        let mut ctx = TypeContext::new(stype);
-
-        assert!(ins1.type_check(
-            &mut db,
-            TypeId::ClassInstance(ins2),
-            &mut ctx,
-            false
-        ));
-        assert!(!ins2.type_check(
-            &mut db,
-            TypeId::ClassInstance(ins1),
-            &mut ctx,
-            false
-        ));
-    }
-
-    #[test]
-    fn test_class_instance_type_check_with_trait_instance() {
-        let mut db = Database::new();
-        let string = Class::alloc(
-            &mut db,
-            "String".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let to_string = Trait::alloc(
-            &mut db,
-            "ToString".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let to_string_ins = TraitInstance::new(to_string);
-        let to_int = Trait::alloc(
-            &mut db,
-            "ToInt".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-
-        string.add_trait_implementation(
-            &mut db,
-            TraitImplementation {
-                instance: to_string_ins,
-                bounds: TypeBounds::new(),
-            },
-        );
-
-        let string_ins = ClassInstance::new(string);
-        let to_int_ins = TypeId::TraitInstance(TraitInstance::new(to_int));
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(self_type);
-
-        assert!(string_ins.type_check(
-            &mut db,
-            TypeId::TraitInstance(to_string_ins),
-            &mut ctx,
-            true
-        ));
-
-        assert!(!string_ins.type_check(&mut db, to_int_ins, &mut ctx, true));
-    }
-
-    #[test]
-    fn test_class_instance_type_check_with_generic_trait_instance() {
-        let mut db = Database::new();
-        let string = Class::alloc(
-            &mut db,
-            "String".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let owned_string =
-            TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(string)));
-        let owned_int =
-            TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(int)));
-        let equal = Trait::alloc(
-            &mut db,
-            "Equal".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let equal_param = equal.new_type_parameter(&mut db, "T".to_string());
-
-        let equal_string = {
-            let mut type_args = TypeArguments::new();
-
-            type_args.assign(equal_param, owned_string);
-            TraitInstance::generic(&mut db, equal, type_args)
-        };
-
-        let equal_int = {
-            let mut type_args = TypeArguments::new();
-
-            type_args.assign(equal_param, owned_int);
-            TraitInstance::generic(&mut db, equal, type_args)
-        };
-
-        let equal_any = {
-            let mut type_args = TypeArguments::new();
-
-            type_args.assign(equal_param, TypeRef::Any);
-            TraitInstance::generic(&mut db, equal, type_args)
-        };
-
-        string.add_trait_implementation(
-            &mut db,
-            TraitImplementation {
-                instance: equal_string,
-                bounds: TypeBounds::new(),
-            },
-        );
-
-        let string_ins = ClassInstance::new(string);
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(self_type);
-
-        // String -> Equal[String] is OK because String implements
-        // Equal[String].
-        assert!(string_ins.type_check(
-            &mut db,
-            TypeId::TraitInstance(equal_string),
-            &mut ctx,
-            true
-        ));
-
-        // String -> Equal[Any] is OK, as Equal[String] is compatible with
-        // Equal[Any] (but not the other way around).
-        assert!(string_ins.type_check(
-            &mut db,
-            TypeId::TraitInstance(equal_any),
-            &mut ctx,
-            true
-        ));
-
-        // String -> Equal[Int] is not OK, as Equal[Int] isn't implemented by
-        // String.
-        assert!(!string_ins.type_check(
-            &mut db,
-            TypeId::TraitInstance(equal_int),
-            &mut ctx,
-            true
-        ));
-    }
-
-    #[test]
-    fn test_class_instance_type_check_with_trait_instance_with_bounds() {
-        let mut db = Database::new();
-        let array = Class::alloc(
-            &mut db,
-            "Array".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let float = Class::alloc(
-            &mut db,
-            "Float".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let param = array.new_type_parameter(&mut db, "T".to_string());
-        let to_string = Trait::alloc(
-            &mut db,
-            "ToString".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let to_string_ins = TraitInstance::new(to_string);
-        let mut to_string_impl = TraitImplementation {
-            instance: to_string_ins,
-            bounds: TypeBounds::new(),
-        };
-
-        let bound_param = TypeParameter::alloc(&mut db, "T".to_string());
-
-        bound_param.add_requirements(&mut db, vec![to_string_ins]);
-        to_string_impl.bounds.set(param, bound_param);
-        array.add_trait_implementation(&mut db, to_string_impl);
-
-        int.add_trait_implementation(
-            &mut db,
-            TraitImplementation {
-                instance: to_string_ins,
-                bounds: TypeBounds::new(),
-            },
-        );
-
-        let empty_array =
-            ClassInstance::generic(&mut db, array, TypeArguments::new());
-
-        let int_array = {
-            let mut args = TypeArguments::new();
-
-            args.assign(
-                param,
-                TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(int))),
-            );
-
-            ClassInstance::generic(&mut db, array, args)
-        };
-
-        let float_array = {
-            let mut args = TypeArguments::new();
-
-            args.assign(
-                param,
-                TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(
-                    float,
-                ))),
-            );
-
-            ClassInstance::generic(&mut db, array, args)
-        };
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(self_type);
-        let to_string_type = TypeId::TraitInstance(to_string_ins);
-
-        assert!(!empty_array.type_check(
-            &mut db,
-            to_string_type,
-            &mut ctx,
-            true
-        ));
-        assert!(!float_array.type_check(
-            &mut db,
-            to_string_type,
-            &mut ctx,
-            true
-        ));
-        assert!(int_array.type_check(&mut db, to_string_type, &mut ctx, true));
-    }
-
-    #[test]
-    fn test_class_instance_type_check_with_type_parameter() {
-        let mut db = Database::new();
-        let string = Class::alloc(
-            &mut db,
-            "String".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let to_string = Trait::alloc(
-            &mut db,
-            "ToString".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let to_string_ins = TraitInstance::new(to_string);
-        let to_int = Trait::alloc(
-            &mut db,
-            "ToInt".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let to_int_ins = TraitInstance::new(to_int);
-        let param1 = TypeParameter::alloc(&mut db, "A".to_string());
-        let param2 = TypeParameter::alloc(&mut db, "B".to_string());
-        let param3 = TypeParameter::alloc(&mut db, "C".to_string());
-
-        string.add_trait_implementation(
-            &mut db,
-            TraitImplementation {
-                instance: to_string_ins,
-                bounds: TypeBounds::new(),
-            },
-        );
-
-        param2.add_requirements(&mut db, vec![to_string_ins]);
-        param3.add_requirements(&mut db, vec![to_int_ins]);
-
-        let string_ins = ClassInstance::new(string);
-        let param1_type = TypeId::TypeParameter(param1);
-        let param2_type = TypeId::TypeParameter(param2);
-        let param3_type = TypeId::TypeParameter(param3);
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(self_type);
-
-        // String -> A is OK, as A has no requirements.
-        assert!(string_ins.type_check(&mut db, param1_type, &mut ctx, true));
-
-        // String -> B is OK, as ToString is implemented by String.
-        assert!(string_ins.type_check(&mut db, param2_type, &mut ctx, true));
-
-        // String -> C is not OK, as ToInt isn't implemented.
-        assert!(!string_ins.type_check(&mut db, param3_type, &mut ctx, true));
-    }
-
-    #[test]
-    fn test_class_instance_type_check_with_rigid_type_parameter() {
-        let mut db = Database::new();
-        let string = Class::alloc(
-            &mut db,
-            "String".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let string_ins = ClassInstance::new(string);
-        let param = TypeParameter::alloc(&mut db, "A".to_string());
-        let param_ins = TypeId::RigidTypeParameter(param);
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(self_type);
-
-        assert!(!string_ins.type_check(&mut db, param_ins, &mut ctx, false));
-    }
-
-    #[test]
-    fn test_class_instance_type_check_with_function() {
-        let mut db = Database::new();
-        let string = Class::alloc(
-            &mut db,
-            "String".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let closure = TypeId::Closure(Closure::alloc(&mut db, false));
-        let string_ins = ClassInstance::new(string);
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(self_type);
-
-        assert!(!string_ins.type_check(&mut db, closure, &mut ctx, false));
-    }
-
-    #[test]
     fn test_class_instance_as_rigid_type_with_regular_trait() {
         let mut db = Database::new();
         let string = Class::alloc(
@@ -6473,529 +5929,6 @@ mod tests {
             method.named_type(&db, "A"),
             Some(Symbol::TypeParameter(param))
         );
-    }
-
-    #[test]
-    fn test_method_id_format_type_with_instance_method() {
-        let mut db = Database::new();
-        let class_a = Class::alloc(
-            &mut db,
-            "A".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let class_b = Class::alloc(
-            &mut db,
-            "B".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let class_c = Class::alloc(
-            &mut db,
-            "C".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let class_d = Class::alloc(
-            &mut db,
-            "D".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let block = Method::alloc(
-            &mut db,
-            ModuleId(0),
-            "foo".to_string(),
-            Visibility::Private,
-            MethodKind::Instance,
-        );
-
-        let ins_a =
-            TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(class_a)));
-
-        let ins_b =
-            TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(class_b)));
-
-        let ins_c =
-            TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(class_c)));
-
-        let ins_d =
-            TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(class_d)));
-
-        block.new_argument(&mut db, "a".to_string(), ins_a, ins_a);
-        block.new_argument(&mut db, "b".to_string(), ins_b, ins_b);
-        block.set_throw_type(&mut db, ins_c);
-        block.set_return_type(&mut db, ins_d);
-
-        assert_eq!(format_type(&db, block), "fn foo (a: A, b: B) !! C -> D");
-    }
-
-    #[test]
-    fn test_method_id_format_type_with_moving_method() {
-        let mut db = Database::new();
-        let block = Method::alloc(
-            &mut db,
-            ModuleId(0),
-            "foo".to_string(),
-            Visibility::Private,
-            MethodKind::Moving,
-        );
-
-        block.set_return_type(&mut db, TypeRef::Any);
-
-        assert_eq!(format_type(&db, block), "fn move foo -> Any");
-    }
-
-    #[test]
-    fn test_method_id_format_type_with_type_parameters() {
-        let mut db = Database::new();
-        let block = Method::alloc(
-            &mut db,
-            ModuleId(0),
-            "foo".to_string(),
-            Visibility::Private,
-            MethodKind::Static,
-        );
-
-        block.new_type_parameter(&mut db, "A".to_string());
-        block.new_type_parameter(&mut db, "B".to_string());
-        block.set_return_type(&mut db, TypeRef::Any);
-
-        assert_eq!(format_type(&db, block), "fn static foo [A, B] -> Any");
-    }
-
-    #[test]
-    fn test_method_id_format_type_with_static_method() {
-        let mut db = Database::new();
-        let block = Method::alloc(
-            &mut db,
-            ModuleId(0),
-            "foo".to_string(),
-            Visibility::Private,
-            MethodKind::Static,
-        );
-
-        block.new_argument(
-            &mut db,
-            "a".to_string(),
-            TypeRef::Any,
-            TypeRef::Any,
-        );
-        block.set_return_type(&mut db, TypeRef::Any);
-
-        assert_eq!(format_type(&db, block), "fn static foo (a: Any) -> Any");
-    }
-
-    #[test]
-    fn test_method_id_format_type_with_async_method() {
-        let mut db = Database::new();
-        let block = Method::alloc(
-            &mut db,
-            ModuleId(0),
-            "foo".to_string(),
-            Visibility::Private,
-            MethodKind::Async,
-        );
-
-        block.new_argument(
-            &mut db,
-            "a".to_string(),
-            TypeRef::Any,
-            TypeRef::Any,
-        );
-        block.set_return_type(&mut db, TypeRef::Any);
-
-        assert_eq!(format_type(&db, block), "fn async foo (a: Any) -> Any");
-    }
-
-    #[test]
-    fn test_method_id_type_check_with_different_name() {
-        let mut db = Database::new();
-        let m1 = Method::alloc(
-            &mut db,
-            ModuleId(0),
-            "a".to_string(),
-            Visibility::Private,
-            MethodKind::Instance,
-        );
-        let m2 = Method::alloc(
-            &mut db,
-            ModuleId(0),
-            "b".to_string(),
-            Visibility::Private,
-            MethodKind::Instance,
-        );
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(self_type);
-
-        m1.set_return_type(&mut db, TypeRef::Any);
-        m2.set_return_type(&mut db, TypeRef::Any);
-
-        assert!(!m1.type_check(&mut db, m2, &mut ctx));
-    }
-
-    #[test]
-    fn test_method_id_type_check_with_different_visibility() {
-        let mut db = Database::new();
-        let m1 = Method::alloc(
-            &mut db,
-            ModuleId(0),
-            "a".to_string(),
-            Visibility::Public,
-            MethodKind::Instance,
-        );
-        let m2 = Method::alloc(
-            &mut db,
-            ModuleId(0),
-            "a".to_string(),
-            Visibility::Private,
-            MethodKind::Instance,
-        );
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(self_type);
-
-        m1.set_return_type(&mut db, TypeRef::Any);
-        m2.set_return_type(&mut db, TypeRef::Any);
-
-        assert!(!m1.type_check(&mut db, m2, &mut ctx));
-    }
-
-    #[test]
-    fn test_method_id_type_check_with_different_kind() {
-        let mut db = Database::new();
-        let m1 = Method::alloc(
-            &mut db,
-            ModuleId(0),
-            "a".to_string(),
-            Visibility::Private,
-            MethodKind::Instance,
-        );
-        let m2 = Method::alloc(
-            &mut db,
-            ModuleId(0),
-            "a".to_string(),
-            Visibility::Private,
-            MethodKind::Static,
-        );
-
-        m1.set_return_type(&mut db, TypeRef::Any);
-        m2.set_return_type(&mut db, TypeRef::Any);
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(self_type);
-
-        assert!(!m1.type_check(&mut db, m2, &mut ctx));
-    }
-
-    #[test]
-    fn test_method_id_type_check_with_different_param_count() {
-        let mut db = Database::new();
-        let m1 = Method::alloc(
-            &mut db,
-            ModuleId(0),
-            "a".to_string(),
-            Visibility::Private,
-            MethodKind::Instance,
-        );
-        let m2 = Method::alloc(
-            &mut db,
-            ModuleId(0),
-            "a".to_string(),
-            Visibility::Private,
-            MethodKind::Instance,
-        );
-
-        m2.new_type_parameter(&mut db, "T".to_string());
-        m1.set_return_type(&mut db, TypeRef::Any);
-        m2.set_return_type(&mut db, TypeRef::Any);
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(self_type);
-
-        assert!(!m1.type_check(&mut db, m2, &mut ctx));
-    }
-
-    #[test]
-    fn test_method_id_type_check_with_incompatible_params() {
-        let mut db = Database::new();
-        let m1 = Method::alloc(
-            &mut db,
-            ModuleId(0),
-            "a".to_string(),
-            Visibility::Private,
-            MethodKind::Instance,
-        );
-        let m2 = Method::alloc(
-            &mut db,
-            ModuleId(0),
-            "a".to_string(),
-            Visibility::Private,
-            MethodKind::Instance,
-        );
-        let to_s = Trait::alloc(
-            &mut db,
-            "ToString".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let to_s_ins = TraitInstance::new(to_s);
-
-        m1.new_type_parameter(&mut db, "T".to_string());
-
-        m2.new_type_parameter(&mut db, "T".to_string())
-            .add_requirements(&mut db, vec![to_s_ins]);
-
-        m1.set_return_type(&mut db, TypeRef::Any);
-        m2.set_return_type(&mut db, TypeRef::Any);
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(self_type);
-
-        assert!(!m1.type_check(&mut db, m2, &mut ctx));
-    }
-
-    #[test]
-    fn test_method_id_type_check_with_incompatible_arg_types() {
-        let mut db = Database::new();
-        let m1 = Method::alloc(
-            &mut db,
-            ModuleId(0),
-            "a".to_string(),
-            Visibility::Private,
-            MethodKind::Instance,
-        );
-        let m2 = Method::alloc(
-            &mut db,
-            ModuleId(0),
-            "a".to_string(),
-            Visibility::Private,
-            MethodKind::Instance,
-        );
-        let m3 = Method::alloc(
-            &mut db,
-            ModuleId(0),
-            "a".to_string(),
-            Visibility::Private,
-            MethodKind::Instance,
-        );
-        let to_s = Trait::alloc(
-            &mut db,
-            "ToString".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let to_s_ins =
-            TypeRef::Owned(TypeId::TraitInstance(TraitInstance::new(to_s)));
-
-        m1.new_argument(&mut db, "a".to_string(), to_s_ins, to_s_ins);
-        m3.new_argument(&mut db, "a".to_string(), to_s_ins, to_s_ins);
-
-        m1.set_return_type(&mut db, TypeRef::Any);
-        m2.set_return_type(&mut db, TypeRef::Any);
-        m3.set_return_type(&mut db, TypeRef::Any);
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(self_type);
-
-        assert!(!m1.type_check(&mut db, m2, &mut ctx));
-        assert!(!m2.type_check(&mut db, m3, &mut ctx));
-    }
-
-    #[test]
-    fn test_method_id_type_check_with_incompatible_arg_names() {
-        let mut db = Database::new();
-        let m1 = Method::alloc(
-            &mut db,
-            ModuleId(0),
-            "a".to_string(),
-            Visibility::Private,
-            MethodKind::Instance,
-        );
-        let m2 = Method::alloc(
-            &mut db,
-            ModuleId(0),
-            "a".to_string(),
-            Visibility::Private,
-            MethodKind::Instance,
-        );
-
-        m1.new_argument(&mut db, "a".to_string(), TypeRef::Any, TypeRef::Any);
-        m2.new_argument(&mut db, "b".to_string(), TypeRef::Any, TypeRef::Any);
-
-        m1.set_return_type(&mut db, TypeRef::Any);
-        m2.set_return_type(&mut db, TypeRef::Any);
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(self_type);
-
-        assert!(!m1.type_check(&mut db, m2, &mut ctx));
-    }
-
-    #[test]
-    fn test_method_id_type_check_with_incompatible_throw_type() {
-        let mut db = Database::new();
-        let m1 = Method::alloc(
-            &mut db,
-            ModuleId(0),
-            "a".to_string(),
-            Visibility::Private,
-            MethodKind::Instance,
-        );
-        let m2 = Method::alloc(
-            &mut db,
-            ModuleId(0),
-            "a".to_string(),
-            Visibility::Private,
-            MethodKind::Instance,
-        );
-
-        m1.set_throw_type(&mut db, TypeRef::Any);
-        m1.set_return_type(&mut db, TypeRef::Any);
-
-        m2.set_throw_type(&mut db, TypeRef::Never);
-        m2.set_return_type(&mut db, TypeRef::Any);
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(self_type);
-
-        assert!(!m1.type_check(&mut db, m2, &mut ctx));
-    }
-
-    #[test]
-    fn test_method_id_type_check_with_incompatible_return_type() {
-        let mut db = Database::new();
-        let m1 = Method::alloc(
-            &mut db,
-            ModuleId(0),
-            "a".to_string(),
-            Visibility::Private,
-            MethodKind::Instance,
-        );
-        let m2 = Method::alloc(
-            &mut db,
-            ModuleId(0),
-            "a".to_string(),
-            Visibility::Private,
-            MethodKind::Instance,
-        );
-
-        m1.set_return_type(&mut db, TypeRef::Any);
-        m2.set_return_type(&mut db, TypeRef::Never);
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(self_type);
-
-        assert!(!m1.type_check(&mut db, m2, &mut ctx));
-    }
-
-    #[test]
-    fn test_method_id_type_check_with_compatible_method() {
-        let mut db = Database::new();
-        let m1 = Method::alloc(
-            &mut db,
-            ModuleId(0),
-            "a".to_string(),
-            Visibility::Private,
-            MethodKind::Instance,
-        );
-        let m2 = Method::alloc(
-            &mut db,
-            ModuleId(0),
-            "a".to_string(),
-            Visibility::Private,
-            MethodKind::Instance,
-        );
-
-        m1.new_type_parameter(&mut db, "T".to_string());
-        m1.new_argument(&mut db, "a".to_string(), TypeRef::Any, TypeRef::Any);
-        m1.set_throw_type(&mut db, TypeRef::Any);
-        m1.set_return_type(&mut db, TypeRef::Any);
-
-        m2.new_type_parameter(&mut db, "T".to_string());
-        m2.new_argument(&mut db, "a".to_string(), TypeRef::Any, TypeRef::Any);
-        m2.set_throw_type(&mut db, TypeRef::Any);
-        m2.set_return_type(&mut db, TypeRef::Any);
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(self_type);
-
-        assert!(m1.type_check(&mut db, m2, &mut ctx));
     }
 
     #[test]
@@ -7076,277 +6009,6 @@ mod tests {
     }
 
     #[test]
-    fn test_closure_id_format_type_never_throws() {
-        let mut db = Database::new();
-        let block = Closure::alloc(&mut db, false);
-
-        block.set_throw_type(&mut db, TypeRef::Never);
-        block.set_return_type(&mut db, TypeRef::Any);
-
-        assert_eq!(format_type(&db, block), "fn -> Any");
-    }
-
-    #[test]
-    fn test_closure_id_format_type_never_returns() {
-        let mut db = Database::new();
-        let block = Closure::alloc(&mut db, false);
-
-        block.set_return_type(&mut db, TypeRef::Never);
-
-        assert_eq!(format_type(&db, block), "fn -> Never");
-    }
-
-    #[test]
-    fn test_closure_id_type_check_with_empty_closure() {
-        let mut db = Database::new();
-        let closure1 = Closure::alloc(&mut db, false);
-        let closure2 = Closure::alloc(&mut db, false);
-
-        closure1.set_return_type(&mut db, TypeRef::Any);
-        closure2.set_return_type(&mut db, TypeRef::Any);
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(self_type);
-
-        assert!(closure1.type_check(
-            &mut db,
-            TypeId::Closure(closure2),
-            &mut ctx,
-            false
-        ));
-    }
-
-    #[test]
-    fn test_closure_id_type_check_with_arguments() {
-        let mut db = Database::new();
-        let string = Class::alloc(
-            &mut db,
-            "String".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let string_ins =
-            TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(string)));
-        let closure1 = Closure::alloc(&mut db, false);
-        let closure2 = Closure::alloc(&mut db, false);
-        let closure3 = Closure::alloc(&mut db, false);
-
-        closure1.new_argument(&mut db, "a".to_string(), string_ins, string_ins);
-        closure1.set_return_type(&mut db, TypeRef::Any);
-
-        closure2.new_argument(&mut db, "x".to_string(), string_ins, string_ins);
-        closure2.set_return_type(&mut db, TypeRef::Any);
-
-        closure3.new_argument(&mut db, "a".to_string(), string_ins, string_ins);
-        closure3.new_argument(&mut db, "b".to_string(), string_ins, string_ins);
-        closure3.set_return_type(&mut db, TypeRef::Any);
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(self_type);
-
-        assert!(closure1.type_check(
-            &mut db,
-            TypeId::Closure(closure2),
-            &mut ctx,
-            false
-        ));
-        assert!(!closure1.type_check(
-            &mut db,
-            TypeId::Closure(closure3),
-            &mut ctx,
-            false
-        ));
-    }
-
-    #[test]
-    fn test_closure_id_type_check_with_throw_type() {
-        let mut db = Database::new();
-        let string = Class::alloc(
-            &mut db,
-            "String".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let string_ins =
-            TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(string)));
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let int_ins =
-            TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(int)));
-        let closure1 = Closure::alloc(&mut db, false);
-        let closure2 = Closure::alloc(&mut db, false);
-        let closure3 = Closure::alloc(&mut db, false);
-        let closure4 = Closure::alloc(&mut db, false);
-
-        closure1.set_throw_type(&mut db, string_ins);
-        closure1.set_return_type(&mut db, TypeRef::Any);
-
-        closure2.set_throw_type(&mut db, string_ins);
-        closure2.set_return_type(&mut db, TypeRef::Any);
-
-        closure3.set_throw_type(&mut db, int_ins);
-        closure3.set_return_type(&mut db, TypeRef::Any);
-
-        closure4.set_return_type(&mut db, TypeRef::Any);
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(self_type);
-
-        assert!(closure1.type_check(
-            &mut db,
-            TypeId::Closure(closure2),
-            &mut ctx,
-            false
-        ));
-        assert!(closure4.type_check(
-            &mut db,
-            TypeId::Closure(closure1),
-            &mut ctx,
-            false
-        ));
-        assert!(!closure1.type_check(
-            &mut db,
-            TypeId::Closure(closure3),
-            &mut ctx,
-            false
-        ));
-        assert!(!closure1.type_check(
-            &mut db,
-            TypeId::Closure(closure4),
-            &mut ctx,
-            false
-        ));
-    }
-
-    #[test]
-    fn test_closure_id_type_check_with_return_type() {
-        let mut db = Database::new();
-        let string = Class::alloc(
-            &mut db,
-            "String".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let string_ins =
-            TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(string)));
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let int_ins =
-            TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(int)));
-        let closure1 = Closure::alloc(&mut db, false);
-        let closure2 = Closure::alloc(&mut db, false);
-        let closure3 = Closure::alloc(&mut db, false);
-        let closure4 = Closure::alloc(&mut db, false);
-
-        closure1.set_return_type(&mut db, string_ins);
-        closure2.set_return_type(&mut db, string_ins);
-        closure3.set_return_type(&mut db, int_ins);
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(self_type);
-
-        assert!(closure1.type_check(
-            &mut db,
-            TypeId::Closure(closure2),
-            &mut ctx,
-            false
-        ));
-        assert!(!closure1.type_check(
-            &mut db,
-            TypeId::Closure(closure3),
-            &mut ctx,
-            false
-        ));
-        assert!(!closure1.type_check(
-            &mut db,
-            TypeId::Closure(closure4),
-            &mut ctx,
-            false
-        ));
-    }
-
-    #[test]
-    fn test_closure_id_type_check_with_type_parameter() {
-        let mut db = Database::new();
-        let closure = Closure::alloc(&mut db, false);
-        let to_string = Trait::alloc(
-            &mut db,
-            "ToString".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let to_string_ins = TraitInstance::new(to_string);
-        let param1 = TypeParameter::alloc(&mut db, "A".to_string());
-        let param2 = TypeParameter::alloc(&mut db, "B".to_string());
-
-        param2.add_requirements(&mut db, vec![to_string_ins]);
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let self_type = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(self_type);
-
-        assert!(closure.type_check(
-            &mut db,
-            TypeId::TypeParameter(param1),
-            &mut ctx,
-            false
-        ));
-        assert!(!closure.type_check(
-            &mut db,
-            TypeId::TypeParameter(param2),
-            &mut ctx,
-            false
-        ));
-    }
-
-    #[test]
     fn test_closure_id_as_rigid_type_with_regular_function() {
         let mut db = Database::new();
         let closure = Closure::alloc(&mut db, false);
@@ -7397,583 +6059,6 @@ mod tests {
     }
 
     #[test]
-    fn test_type_ref_type_check_with_owned() {
-        let mut db = Database::new();
-        let string = Class::alloc(
-            &mut db,
-            "String".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let string_ins = TypeId::ClassInstance(ClassInstance::new(string));
-        let int_ins = TypeId::ClassInstance(ClassInstance::new(int));
-        let string_typ = TypeRef::Owned(string_ins);
-        let string_ref_typ = TypeRef::Ref(string_ins);
-        let int_typ = TypeRef::Owned(int_ins);
-
-        let mut ctx = TypeContext::new(string_ins);
-        assert!(string_typ.type_check(&mut db, string_typ, &mut ctx, false));
-
-        let mut ctx = TypeContext::new(string_ins);
-        assert!(string_typ.type_check(&mut db, TypeRef::Any, &mut ctx, false));
-
-        let mut ctx = TypeContext::new(string_ins);
-        assert!(string_typ.type_check(
-            &mut db,
-            TypeRef::OwnedSelf,
-            &mut ctx,
-            false
-        ));
-
-        let mut ctx = TypeContext::new(string_ins);
-        assert!(string_typ.type_check(
-            &mut db,
-            TypeRef::Error,
-            &mut ctx,
-            false
-        ));
-
-        let mut ctx = TypeContext::new(string_ins);
-        assert!(!string_typ.type_check(
-            &mut db,
-            string_ref_typ,
-            &mut ctx,
-            false
-        ));
-
-        let mut ctx = TypeContext::new(string_ins);
-        assert!(!string_typ.type_check(
-            &mut db,
-            TypeRef::RefSelf,
-            &mut ctx,
-            false
-        ));
-
-        let mut ctx = TypeContext::new(string_ins);
-        assert!(!string_typ.type_check(
-            &mut db,
-            TypeRef::Unknown,
-            &mut ctx,
-            false
-        ));
-
-        let mut ctx = TypeContext::new(string_ins);
-        assert!(!string_typ.type_check(&mut db, int_typ, &mut ctx, false));
-    }
-
-    #[test]
-    fn test_type_ref_type_check_with_ref() {
-        let mut db = Database::new();
-        let string = Class::alloc(
-            &mut db,
-            "String".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let string_ins = TypeId::ClassInstance(ClassInstance::new(string));
-        let int_ins = TypeId::ClassInstance(ClassInstance::new(int));
-        let string_typ = TypeRef::Ref(string_ins);
-        let mut ctx_int = TypeContext::new(int_ins);
-        let mut ctx_str = TypeContext::new(string_ins);
-
-        assert!(string_typ.type_check(
-            &mut db,
-            string_typ,
-            &mut ctx_int,
-            false
-        ));
-        assert!(string_typ.type_check(
-            &mut db,
-            TypeRef::Error,
-            &mut ctx_int,
-            false
-        ));
-        assert!(string_typ.type_check(
-            &mut db,
-            TypeRef::RefSelf,
-            &mut ctx_str,
-            false
-        ));
-        assert!(!string_typ.type_check(
-            &mut db,
-            TypeRef::Owned(string_ins),
-            &mut ctx_int,
-            false
-        ));
-    }
-
-    #[test]
-    fn test_type_ref_type_check_with_mut() {
-        let mut db = Database::new();
-        let string = Class::alloc(
-            &mut db,
-            "String".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let string_ins = TypeId::ClassInstance(ClassInstance::new(string));
-        let int_ins = TypeId::ClassInstance(ClassInstance::new(int));
-        let string_typ = TypeRef::Mut(string_ins);
-        let mut ctx_int = TypeContext::new(int_ins);
-        let mut ctx_str = TypeContext::new(string_ins);
-
-        assert!(string_typ.type_check(
-            &mut db,
-            string_typ,
-            &mut ctx_int,
-            false
-        ));
-        assert!(string_typ.type_check(
-            &mut db,
-            TypeRef::Error,
-            &mut ctx_int,
-            false
-        ));
-        assert!(string_typ.type_check(
-            &mut db,
-            TypeRef::RefSelf,
-            &mut ctx_str,
-            false
-        ));
-        assert!(string_typ.type_check(
-            &mut db,
-            TypeRef::MutSelf,
-            &mut ctx_str,
-            false
-        ));
-        assert!(!string_typ.type_check(
-            &mut db,
-            TypeRef::Owned(string_ins),
-            &mut ctx_int,
-            false
-        ));
-    }
-
-    #[test]
-    fn test_type_ref_type_check_with_mut_trait() {
-        let mut db = Database::new();
-        let string = Class::alloc(
-            &mut db,
-            "String".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let to_string = TraitInstance::new(Trait::alloc(
-            &mut db,
-            "ToString".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        ));
-
-        string.add_trait_implementation(
-            &mut db,
-            TraitImplementation {
-                instance: to_string,
-                bounds: TypeBounds::new(),
-            },
-        );
-
-        let string_ins = TypeId::ClassInstance(ClassInstance::new(string));
-        let string_typ = TypeRef::Mut(string_ins);
-        let mut ctx = TypeContext::new(string_ins);
-
-        assert!(string_typ.type_check(
-            &mut db,
-            TypeRef::Ref(TypeId::TraitInstance(to_string)),
-            &mut ctx,
-            true
-        ));
-
-        assert!(!string_typ.type_check(
-            &mut db,
-            TypeRef::Mut(TypeId::TraitInstance(to_string)),
-            &mut ctx,
-            true
-        ));
-    }
-
-    #[test]
-    fn test_type_ref_type_check_with_infer() {
-        let mut db = Database::new();
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let int_ins = TypeId::ClassInstance(ClassInstance::new(int));
-        let param = TypeParameter::alloc(&mut db, "T".to_string());
-        let param_ins = TypeId::TypeParameter(param);
-        let param_typ = TypeRef::Infer(param_ins);
-
-        let mut ctx = TypeContext::new(int_ins);
-        assert!(param_typ.type_check(&mut db, param_typ, &mut ctx, false));
-
-        let mut ctx = TypeContext::new(int_ins);
-        assert!(param_typ.type_check(&mut db, TypeRef::Error, &mut ctx, false));
-
-        let mut ctx = TypeContext::new(param_ins);
-        assert!(!param_typ.type_check(
-            &mut db,
-            TypeRef::RefSelf,
-            &mut ctx,
-            false
-        ));
-
-        let mut ctx = TypeContext::new(int_ins);
-        assert!(!param_typ.type_check(
-            &mut db,
-            TypeRef::Owned(param_ins),
-            &mut ctx,
-            false
-        ));
-    }
-
-    #[test]
-    fn test_type_ref_type_check_with_never() {
-        let mut db = Database::new();
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let int_ins = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(int_ins);
-
-        assert!(TypeRef::Never.type_check(
-            &mut db,
-            TypeRef::Never,
-            &mut ctx,
-            false
-        ));
-        assert!(TypeRef::Never.type_check(
-            &mut db,
-            TypeRef::Error,
-            &mut ctx,
-            false
-        ));
-        assert!(TypeRef::Never.type_check(
-            &mut db,
-            TypeRef::Any,
-            &mut ctx,
-            false
-        ));
-    }
-
-    #[test]
-    fn test_type_ref_type_check_with_any() {
-        let mut db = Database::new();
-        let string = Class::alloc(
-            &mut db,
-            "String".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let string_ins =
-            TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(string)));
-        let param = TypeRef::Owned(TypeId::TypeParameter(
-            TypeParameter::alloc(&mut db, "T".to_string()),
-        ));
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let int_ins = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(int_ins);
-
-        assert!(TypeRef::Any.type_check(
-            &mut db,
-            TypeRef::Any,
-            &mut ctx,
-            false
-        ));
-        assert!(TypeRef::Any.type_check(
-            &mut db,
-            TypeRef::Error,
-            &mut ctx,
-            false
-        ));
-        assert!(!TypeRef::Any.type_check(&mut db, param, &mut ctx, false));
-        assert!(!TypeRef::Any.type_check(
-            &mut db,
-            TypeRef::OwnedSelf,
-            &mut ctx,
-            false
-        ));
-        assert!(!TypeRef::Any.type_check(
-            &mut db,
-            TypeRef::RefSelf,
-            &mut ctx,
-            false
-        ));
-        assert!(!TypeRef::Any.type_check(&mut db, string_ins, &mut ctx, false));
-    }
-
-    #[test]
-    fn test_type_ref_type_check_with_owned_self() {
-        let mut db = Database::new();
-        let string = Class::alloc(
-            &mut db,
-            "String".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let string_ins = TypeId::ClassInstance(ClassInstance::new(string));
-
-        let mut ctx = TypeContext::new(string_ins);
-        assert!(TypeRef::OwnedSelf.type_check(
-            &mut db,
-            TypeRef::Owned(string_ins),
-            &mut ctx,
-            false
-        ));
-
-        let mut ctx = TypeContext::new(string_ins);
-        assert!(TypeRef::OwnedSelf.type_check(
-            &mut db,
-            TypeRef::Any,
-            &mut ctx,
-            false
-        ));
-
-        let mut ctx = TypeContext::new(string_ins);
-        assert!(TypeRef::OwnedSelf.type_check(
-            &mut db,
-            TypeRef::Error,
-            &mut ctx,
-            false
-        ));
-
-        let mut ctx = TypeContext::new(string_ins);
-        assert!(!TypeRef::OwnedSelf.type_check(
-            &mut db,
-            TypeRef::Ref(string_ins),
-            &mut ctx,
-            false
-        ));
-    }
-
-    #[test]
-    fn test_type_ref_type_check_with_ref_self() {
-        let mut db = Database::new();
-        let string = Class::alloc(
-            &mut db,
-            "String".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let string_ins = TypeId::ClassInstance(ClassInstance::new(string));
-        let string_ref = TypeRef::Ref(string_ins);
-        let mut ctx = TypeContext::new(string_ins);
-
-        assert!(
-            TypeRef::RefSelf.type_check(&mut db, string_ref, &mut ctx, false)
-        );
-        assert!(TypeRef::RefSelf.type_check(
-            &mut db,
-            TypeRef::Error,
-            &mut ctx,
-            false
-        ));
-        assert!(!TypeRef::RefSelf.type_check(
-            &mut db,
-            TypeRef::OwnedSelf,
-            &mut ctx,
-            false
-        ));
-        assert!(!TypeRef::RefSelf.type_check(
-            &mut db,
-            TypeRef::Any,
-            &mut ctx,
-            false
-        ));
-        assert!(!TypeRef::RefSelf.type_check(
-            &mut db,
-            TypeRef::Any,
-            &mut ctx,
-            false
-        ));
-    }
-
-    #[test]
-    fn test_type_ref_type_check_with_error() {
-        let mut db = Database::new();
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let int_ins = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(int_ins);
-
-        assert!(TypeRef::Error.type_check(
-            &mut db,
-            TypeRef::Error,
-            &mut ctx,
-            false
-        ));
-        assert!(TypeRef::Error.type_check(
-            &mut db,
-            TypeRef::Never,
-            &mut ctx,
-            false
-        ));
-        assert!(TypeRef::Error.type_check(
-            &mut db,
-            TypeRef::Any,
-            &mut ctx,
-            false
-        ));
-    }
-
-    #[test]
-    fn test_type_ref_type_check_with_unknown() {
-        let mut db = Database::new();
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let int_ins = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(int_ins);
-        let unknown = TypeRef::Unknown;
-
-        assert!(!unknown.type_check(&mut db, unknown, &mut ctx, false));
-        assert!(!unknown.type_check(&mut db, TypeRef::Error, &mut ctx, false));
-        assert!(!unknown.type_check(&mut db, TypeRef::Never, &mut ctx, false));
-        assert!(!unknown.type_check(&mut db, TypeRef::Any, &mut ctx, false));
-    }
-
-    #[test]
-    fn test_type_ref_type_check_with_type_parameter() {
-        let mut db = Database::new();
-        let param1 = TypeParameter::alloc(&mut db, "A".to_string());
-        let param2 = TypeParameter::alloc(&mut db, "B".to_string());
-        let trait_id = Trait::alloc(
-            &mut db,
-            "ToString".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let ins = TypeId::TraitInstance(TraitInstance::new(trait_id));
-        let ins_type = TypeRef::Owned(ins);
-
-        param1.add_requirements(&mut db, vec![TraitInstance::new(trait_id)]);
-
-        {
-            let mut ctx = TypeContext::new(ins);
-
-            assert!(!ins_type
-                .is_compatible_with_type_parameter(&mut db, param1, &mut ctx));
-        }
-
-        {
-            let mut ctx = TypeContext::new(ins);
-
-            assert!(ins_type
-                .is_compatible_with_type_parameter(&mut db, param2, &mut ctx));
-        }
-
-        {
-            let mut ctx = TypeContext::new(ins);
-
-            assert!(TypeRef::OwnedSelf
-                .is_compatible_with_type_parameter(&mut db, param2, &mut ctx));
-        }
-
-        {
-            let mut ctx = TypeContext::new(ins);
-
-            assert!(TypeRef::RefSelf
-                .is_compatible_with_type_parameter(&mut db, param2, &mut ctx));
-        }
-
-        {
-            let mut ctx = TypeContext::new(ins);
-
-            assert!(TypeRef::Owned(TypeId::TypeParameter(param1))
-                .type_check(&mut db, ins_type, &mut ctx, false));
-        }
-    }
-
-    #[test]
-    fn test_type_ref_type_check_with_assigned_type_parameter() {
-        let mut db = Database::new();
-        let param = TypeRef::Owned(TypeId::TypeParameter(
-            TypeParameter::alloc(&mut db, "A".to_string()),
-        ));
-        let to_s = Trait::alloc(
-            &mut db,
-            "ToString".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let to_i = Trait::alloc(
-            &mut db,
-            "ToInt".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let to_s_ins = TraitInstance::new(to_s);
-        let to_i_ins = TraitInstance::new(to_i);
-        let typ1 = TypeRef::Owned(TypeId::TraitInstance(to_s_ins));
-        let typ2 = TypeRef::Owned(TypeId::TraitInstance(to_i_ins));
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let int_ins = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(int_ins);
-
-        assert!(typ1.type_check(&mut db, param, &mut ctx, false));
-        assert_eq!(ctx.type_arguments.mapping.len(), 1);
-        assert!(!typ2.type_check(&mut db, param, &mut ctx, false));
-    }
-
-    #[test]
     fn test_type_ref_implements_trait_with_class_instance() {
         let mut db = Database::new();
         let string = Class::alloc(
@@ -7991,7 +6076,8 @@ mod tests {
         );
         let to_string_ins = TraitInstance::new(to_string);
         let string_ins = TypeId::ClassInstance(ClassInstance::new(string));
-        let mut ctx = TypeContext::new(string_ins);
+        let mut ctx = TypeContext::new();
+        let rules = Rules::new();
 
         string.add_trait_implementation(
             &mut db,
@@ -8004,22 +6090,14 @@ mod tests {
         assert!(TypeRef::Owned(string_ins).implements_trait_instance(
             &mut db,
             to_string_ins,
-            &mut ctx
+            &mut ctx,
+            rules,
         ));
         assert!(TypeRef::Ref(string_ins).implements_trait_instance(
             &mut db,
             to_string_ins,
-            &mut ctx
-        ));
-        assert!(TypeRef::OwnedSelf.implements_trait_instance(
-            &mut db,
-            to_string_ins,
-            &mut ctx
-        ));
-        assert!(TypeRef::RefSelf.implements_trait_instance(
-            &mut db,
-            to_string_ins,
-            &mut ctx
+            &mut ctx,
+            rules,
         ));
     }
 
@@ -8056,20 +6134,17 @@ mod tests {
             to_foo.add_required_trait(&mut db, req);
         }
 
-        let mut ctx = TypeContext::new(debug_ins);
+        let mut ctx = TypeContext::new();
+        let rules = Rules::new();
 
         assert!(TypeRef::Owned(debug_ins)
-            .implements_trait_instance(&mut db, to_s_ins, &mut ctx));
+            .implements_trait_instance(&mut db, to_s_ins, &mut ctx, rules));
         assert!(TypeRef::Owned(to_foo_ins)
-            .implements_trait_instance(&mut db, to_s_ins, &mut ctx));
+            .implements_trait_instance(&mut db, to_s_ins, &mut ctx, rules));
         assert!(TypeRef::Ref(debug_ins)
-            .implements_trait_instance(&mut db, to_s_ins, &mut ctx));
+            .implements_trait_instance(&mut db, to_s_ins, &mut ctx, rules));
         assert!(TypeRef::Infer(debug_ins)
-            .implements_trait_instance(&mut db, to_s_ins, &mut ctx));
-        assert!(TypeRef::OwnedSelf
-            .implements_trait_instance(&mut db, to_s_ins, &mut ctx));
-        assert!(TypeRef::RefSelf
-            .implements_trait_instance(&mut db, to_s_ins, &mut ctx));
+            .implements_trait_instance(&mut db, to_s_ins, &mut ctx, rules));
     }
 
     #[test]
@@ -8102,27 +6177,19 @@ mod tests {
         debug.add_required_trait(&mut db, to_string_ins);
         param.add_requirements(&mut db, vec![debug_ins]);
 
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let int_ins = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(int_ins);
+        let mut ctx = TypeContext::new();
+        let rules = Rules::new();
 
-        assert!(
-            param_ins.implements_trait_instance(&mut db, debug_ins, &mut ctx)
-        );
+        assert!(param_ins
+            .implements_trait_instance(&mut db, debug_ins, &mut ctx, rules));
         assert!(param_ins.implements_trait_instance(
             &mut db,
             to_string_ins,
-            &mut ctx
+            &mut ctx,
+            rules
         ));
-        assert!(
-            !param_ins.implements_trait_instance(&mut db, to_foo_ins, &mut ctx)
-        );
+        assert!(!param_ins
+            .implements_trait_instance(&mut db, to_foo_ins, &mut ctx, rules));
     }
 
     #[test]
@@ -8135,60 +6202,17 @@ mod tests {
             Visibility::Private,
         );
         let ins = TraitInstance::new(trait_type);
+        let mut ctx = TypeContext::new();
+        let rules = Rules::new();
 
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let int_ins = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(int_ins);
-
-        assert!(!TypeRef::Any.implements_trait_instance(&mut db, ins, &mut ctx));
-        assert!(
-            !TypeRef::Unknown.implements_trait_instance(&mut db, ins, &mut ctx)
-        );
-        assert!(
-            TypeRef::Error.implements_trait_instance(&mut db, ins, &mut ctx)
-        );
-        assert!(
-            TypeRef::Never.implements_trait_instance(&mut db, ins, &mut ctx)
-        );
-    }
-
-    #[test]
-    fn test_type_ref_type_name() {
-        let mut db = Database::new();
-        let string = Class::alloc(
-            &mut db,
-            "String".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let string_ins = TypeId::ClassInstance(ClassInstance::new(string));
-        let param = TypeId::TypeParameter(TypeParameter::alloc(
-            &mut db,
-            "T".to_string(),
-        ));
-
-        assert_eq!(
-            format_type(&db, TypeRef::Owned(string_ins)),
-            "String".to_string()
-        );
-        assert_eq!(format_type(&db, TypeRef::Infer(param)), "T".to_string());
-        assert_eq!(
-            format_type(&db, TypeRef::Ref(string_ins)),
-            "ref String".to_string()
-        );
-        assert_eq!(format_type(&db, TypeRef::Never), "Never".to_string());
-        assert_eq!(format_type(&db, TypeRef::Any), "Any".to_string());
-        assert_eq!(format_type(&db, TypeRef::OwnedSelf), "Self".to_string());
-        assert_eq!(format_type(&db, TypeRef::RefSelf), "ref Self".to_string());
-        assert_eq!(format_type(&db, TypeRef::Error), "<error>".to_string());
-        assert_eq!(format_type(&db, TypeRef::Unknown), "<unknown>".to_string());
+        assert!(!TypeRef::Any
+            .implements_trait_instance(&mut db, ins, &mut ctx, rules));
+        assert!(!TypeRef::Unknown
+            .implements_trait_instance(&mut db, ins, &mut ctx, rules));
+        assert!(TypeRef::Error
+            .implements_trait_instance(&mut db, ins, &mut ctx, rules));
+        assert!(TypeRef::Never
+            .implements_trait_instance(&mut db, ins, &mut ctx, rules));
     }
 
     #[test]
@@ -8315,430 +6339,6 @@ mod tests {
     }
 
     #[test]
-    fn test_type_ref_type_check_with_class() {
-        let mut db = Database::new();
-        let typ1 = TypeRef::Owned(TypeId::Class(ClassId(0)));
-        let typ2 = TypeRef::Owned(TypeId::Class(ClassId(1)));
-        let typ3 = TypeRef::Owned(TypeId::Trait(TraitId(0)));
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let int_ins = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(int_ins);
-
-        assert!(typ1.type_check(&mut db, typ1, &mut ctx, false));
-        assert!(!typ1.type_check(&mut db, typ2, &mut ctx, false));
-        assert!(!typ1.type_check(&mut db, typ3, &mut ctx, false));
-    }
-
-    #[test]
-    fn test_type_ref_type_check_with_trait() {
-        let mut db = Database::new();
-        let typ1 = TypeRef::Owned(TypeId::Trait(TraitId(0)));
-        let typ2 = TypeRef::Owned(TypeId::Trait(TraitId(1)));
-        let typ3 = TypeRef::Owned(TypeId::Class(ClassId(0)));
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let int_ins = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(int_ins);
-
-        assert!(typ1.type_check(&mut db, typ1, &mut ctx, false));
-        assert!(!typ1.type_check(&mut db, typ2, &mut ctx, false));
-        assert!(!typ1.type_check(&mut db, typ3, &mut ctx, false));
-    }
-
-    #[test]
-    fn test_type_ref_type_check_with_module() {
-        let mut db = Database::new();
-        let typ1 = TypeRef::Owned(TypeId::Module(ModuleId(0)));
-        let typ2 = TypeRef::Owned(TypeId::Module(ModuleId(1)));
-        let typ3 = TypeRef::Owned(TypeId::Class(ClassId(0)));
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let int_ins = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(int_ins);
-
-        assert!(typ1.type_check(&mut db, typ1, &mut ctx, false));
-        assert!(!typ1.type_check(&mut db, typ2, &mut ctx, false));
-        assert!(!typ1.type_check(&mut db, typ3, &mut ctx, false));
-    }
-
-    #[test]
-    fn test_type_ref_type_check_with_class_instance() {
-        let mut db = Database::new();
-        let cls1 = Class::alloc(
-            &mut db,
-            "A".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let cls2 = Class::alloc(
-            &mut db,
-            "B".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let ins1 =
-            TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(cls1)));
-        let ins2 =
-            TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(cls1)));
-        let ins3 =
-            TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(cls2)));
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let int_ins = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(int_ins);
-
-        assert!(ins1.type_check(&mut db, ins1, &mut ctx, false));
-        assert!(ins1.type_check(&mut db, ins2, &mut ctx, false));
-        assert!(!ins1.type_check(&mut db, ins3, &mut ctx, false));
-    }
-
-    #[test]
-    fn test_type_ref_type_check_with_trait_instance() {
-        let mut db = Database::new();
-        let debug = Trait::alloc(
-            &mut db,
-            "Debug".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let to_string = Trait::alloc(
-            &mut db,
-            "ToString".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let requirement = TraitInstance::new(to_string);
-
-        debug.add_required_trait(&mut db, requirement);
-
-        let debug_ins =
-            TypeRef::Owned(TypeId::TraitInstance(TraitInstance::new(debug)));
-        let to_string_ins = TypeRef::Owned(TypeId::TraitInstance(
-            TraitInstance::new(to_string),
-        ));
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let int_ins = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(int_ins);
-
-        assert!(debug_ins.type_check(&mut db, to_string_ins, &mut ctx, true));
-    }
-
-    #[test]
-    fn test_type_ref_type_check_with_function() {
-        let mut db = Database::new();
-        let closure1 = Closure::alloc(&mut db, false);
-        let closure2 = Closure::alloc(&mut db, false);
-
-        closure1.set_return_type(&mut db, TypeRef::Any);
-        closure2.set_return_type(&mut db, TypeRef::Any);
-
-        let closure1_type = TypeRef::Owned(TypeId::Closure(closure1));
-        let closure2_type = TypeRef::Owned(TypeId::Closure(closure2));
-
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let int_ins = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(int_ins);
-
-        assert!(closure1_type.type_check(
-            &mut db,
-            closure2_type,
-            &mut ctx,
-            false
-        ));
-    }
-
-    #[test]
-    fn test_type_id_format_type_with_class() {
-        let mut db = Database::new();
-        let id = TypeId::Class(Class::alloc(
-            &mut db,
-            "String".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        ));
-
-        assert_eq!(format_type(&db, id), "String");
-    }
-
-    #[test]
-    fn test_type_id_format_type_with_trait() {
-        let mut db = Database::new();
-        let id = TypeId::Trait(Trait::alloc(
-            &mut db,
-            "ToString".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        ));
-
-        assert_eq!(format_type(&db, id), "ToString");
-    }
-
-    #[test]
-    fn test_type_id_format_type_with_module() {
-        let mut db = Database::new();
-        let id = TypeId::Module(Module::alloc(
-            &mut db,
-            ModuleName::new("foo::bar"),
-            "foo/bar.inko".into(),
-        ));
-
-        assert_eq!(format_type(&db, id), "foo::bar");
-    }
-
-    #[test]
-    fn test_type_id_format_type_with_class_instance() {
-        let mut db = Database::new();
-        let id = Class::alloc(
-            &mut db,
-            "String".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let ins = TypeId::ClassInstance(ClassInstance::new(id));
-
-        assert_eq!(format_type(&db, ins), "String");
-    }
-
-    #[test]
-    fn test_type_id_format_type_with_tuple_instance() {
-        let mut db = Database::new();
-        let id = Class::alloc(
-            &mut db,
-            "MyTuple".to_string(),
-            ClassKind::Tuple,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let param1 = id.new_type_parameter(&mut db, "A".to_string());
-        let param2 = id.new_type_parameter(&mut db, "B".to_string());
-        let mut args = TypeArguments::new();
-
-        args.assign(param1, TypeRef::Any);
-        args.assign(param2, TypeRef::Never);
-
-        let ins =
-            TypeId::ClassInstance(ClassInstance::generic(&mut db, id, args));
-
-        assert_eq!(format_type(&db, ins), "(Any, Never)");
-    }
-
-    #[test]
-    fn test_type_id_format_type_with_trait_instance() {
-        let mut db = Database::new();
-        let id = Trait::alloc(
-            &mut db,
-            "ToString".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let ins = TypeId::TraitInstance(TraitInstance::new(id));
-
-        assert_eq!(format_type(&db, ins), "ToString");
-    }
-
-    #[test]
-    fn test_type_id_format_type_with_generic_class_instance() {
-        let mut db = Database::new();
-        let id = Class::alloc(
-            &mut db,
-            "Future".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let param1 = id.new_type_parameter(&mut db, "T".to_string());
-
-        id.new_type_parameter(&mut db, "E".to_string());
-
-        let mut targs = TypeArguments::new();
-
-        targs.assign(param1, TypeRef::Any);
-
-        let ins =
-            TypeId::ClassInstance(ClassInstance::generic(&mut db, id, targs));
-
-        assert_eq!(format_type(&db, ins), "Future[Any, E]");
-    }
-
-    #[test]
-    fn test_type_id_format_type_with_generic_trait_instance() {
-        let mut db = Database::new();
-        let id = Trait::alloc(
-            &mut db,
-            "ToFoo".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let param1 = id.new_type_parameter(&mut db, "T".to_string());
-
-        id.new_type_parameter(&mut db, "E".to_string());
-
-        let mut targs = TypeArguments::new();
-
-        targs.assign(param1, TypeRef::Any);
-
-        let ins =
-            TypeId::TraitInstance(TraitInstance::generic(&mut db, id, targs));
-
-        assert_eq!(format_type(&db, ins), "ToFoo[Any, E]");
-    }
-
-    #[test]
-    fn test_type_id_format_type_with_type_parameter() {
-        let mut db = Database::new();
-        let param1 = TypeParameter::alloc(&mut db, "T".to_string());
-        let param2 = TypeParameter::alloc(&mut db, "T".to_string());
-        let to_string = Trait::alloc(
-            &mut db,
-            "ToString".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let to_int = Trait::alloc(
-            &mut db,
-            "ToInt".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let param1_ins = TypeId::TypeParameter(param1);
-        let param2_ins = TypeId::TypeParameter(param2);
-        let to_string_ins = TraitInstance::new(to_string);
-        let to_int_ins = TraitInstance::new(to_int);
-
-        param1.add_requirements(&mut db, vec![to_string_ins]);
-        param2.add_requirements(&mut db, vec![to_string_ins, to_int_ins]);
-
-        assert_eq!(format_type(&db, param1_ins), "T: ToString");
-        assert_eq!(format_type(&db, param2_ins), "T: ToString + ToInt");
-    }
-
-    #[test]
-    fn test_type_id_format_type_with_rigid_type_parameter() {
-        let mut db = Database::new();
-        let param1 = TypeParameter::alloc(&mut db, "T".to_string());
-        let param2 = TypeParameter::alloc(&mut db, "T".to_string());
-        let to_string = Trait::alloc(
-            &mut db,
-            "ToString".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let to_int = Trait::alloc(
-            &mut db,
-            "ToInt".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
-        let param1_ins = TypeId::RigidTypeParameter(param1);
-        let param2_ins = TypeId::RigidTypeParameter(param2);
-        let to_string_ins = TraitInstance::new(to_string);
-        let to_int_ins = TraitInstance::new(to_int);
-
-        param1.add_requirements(&mut db, vec![to_string_ins]);
-        param2.add_requirements(&mut db, vec![to_string_ins, to_int_ins]);
-
-        assert_eq!(format_type(&db, param1_ins), "T: ToString");
-        assert_eq!(format_type(&db, param2_ins), "T: ToString + ToInt");
-    }
-
-    #[test]
-    fn test_type_id_format_type_with_closure() {
-        let mut db = Database::new();
-        let class_a = Class::alloc(
-            &mut db,
-            "A".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let class_b = Class::alloc(
-            &mut db,
-            "B".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let class_c = Class::alloc(
-            &mut db,
-            "C".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let class_d = Class::alloc(
-            &mut db,
-            "D".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let block = Closure::alloc(&mut db, true);
-
-        let ins_a =
-            TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(class_a)));
-
-        let ins_b =
-            TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(class_b)));
-
-        let ins_c =
-            TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(class_c)));
-
-        let ins_d =
-            TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(class_d)));
-
-        block.new_argument(&mut db, "a".to_string(), ins_a, ins_a);
-        block.new_argument(&mut db, "b".to_string(), ins_b, ins_b);
-        block.set_throw_type(&mut db, ins_c);
-        block.set_return_type(&mut db, ins_d);
-
-        let block_ins = TypeId::Closure(block);
-
-        assert_eq!(format_type(&db, block_ins), "fn move (A, B) !! C -> D");
-    }
-
-    #[test]
     fn test_type_id_implements_trait_with_other_variants() {
         let mut db = Database::new();
         let closure = TypeId::Closure(Closure::alloc(&mut db, false));
@@ -8749,20 +6349,11 @@ mod tests {
             Visibility::Private,
         );
         let debug_ins = TraitInstance::new(debug);
+        let mut ctx = TypeContext::new();
+        let rules = Rules::new();
 
-        let int = Class::alloc(
-            &mut db,
-            "Int".to_string(),
-            ClassKind::Regular,
-            Visibility::Private,
-            ModuleId(0),
-        );
-        let int_ins = TypeId::ClassInstance(ClassInstance::new(int));
-        let mut ctx = TypeContext::new(int_ins);
-
-        assert!(
-            !closure.implements_trait_instance(&mut db, debug_ins, &mut ctx)
-        );
+        assert!(!closure
+            .implements_trait_instance(&mut db, debug_ins, &mut ctx, rules));
     }
 
     #[test]
@@ -8776,7 +6367,7 @@ mod tests {
         assert_eq!(&db.classes[4].name, BOOLEAN_NAME);
         assert_eq!(&db.classes[5].name, NIL_NAME);
         assert_eq!(&db.classes[6].name, BYTE_ARRAY_NAME);
-        assert_eq!(&db.classes[7].name, FUTURE_NAME);
+        assert_eq!(&db.classes[7].name, CHANNEL_NAME);
     }
 
     #[test]
@@ -8797,15 +6388,110 @@ mod tests {
     }
 
     #[test]
+    fn test_class_id_is_builtin() {
+        assert!(ClassId::int().is_builtin());
+        assert!(!ClassId::tuple8().is_builtin());
+        assert!(!ClassId(42).is_builtin());
+    }
+
+    #[test]
     fn test_type_placeholder_id_assign() {
         let mut db = Database::new();
-        let p1 = TypePlaceholder::alloc(&mut db);
-        let p2 = TypePlaceholder::alloc(&mut db);
+        let param = TypeParameter::alloc(&mut db, "T".to_string());
+        let p1 = TypePlaceholder::alloc(&mut db, Some(param));
+        let p2 = TypePlaceholder::alloc(&mut db, Some(param));
 
         p1.assign(&db, TypeRef::Any);
         p2.assign(&db, TypeRef::Placeholder(p2));
 
         assert_eq!(p1.value(&db), Some(TypeRef::Any));
         assert!(p2.value(&db).is_none());
+    }
+
+    #[test]
+    fn test_type_placeholder_id_resolve() {
+        let mut db = Database::new();
+        let var1 = TypePlaceholder::alloc(&mut db, None);
+        let var2 = TypePlaceholder::alloc(&mut db, None);
+        let var3 = TypePlaceholder::alloc(&mut db, None);
+
+        var1.assign(&db, TypeRef::Any);
+        var2.assign(&db, TypeRef::Placeholder(var1));
+        var3.assign(&db, TypeRef::Placeholder(var2));
+
+        assert_eq!(var1.resolve(&db), TypeRef::Any);
+        assert_eq!(var2.resolve(&db), TypeRef::Any);
+        assert_eq!(var3.resolve(&db), TypeRef::Any);
+    }
+
+    #[test]
+    fn test_type_ref_allow_as_ref() {
+        let mut db = Database::new();
+        let int = ClassId::int();
+        let var = TypePlaceholder::alloc(&mut db, None);
+        let param = new_parameter(&mut db, "A");
+
+        var.assign(&db, owned(instance(int)));
+
+        assert!(owned(instance(int)).allow_as_ref(&db));
+        assert!(mutable(instance(int)).allow_as_ref(&db));
+        assert!(immutable(instance(int)).allow_as_ref(&db));
+        assert!(placeholder(var).allow_as_ref(&db));
+        assert!(owned(rigid(param)).allow_as_ref(&db));
+        assert!(TypeRef::Any.allow_as_ref(&db));
+        assert!(!uni(instance(int)).allow_as_ref(&db));
+    }
+
+    #[test]
+    fn test_type_ref_allow_as_mut() {
+        let mut db = Database::new();
+        let int = ClassId::int();
+        let var = TypePlaceholder::alloc(&mut db, None);
+        let param1 = new_parameter(&mut db, "A");
+        let param2 = new_parameter(&mut db, "A");
+
+        param2.set_mutable(&mut db);
+        var.assign(&db, owned(instance(int)));
+
+        assert!(owned(instance(int)).allow_as_mut(&db));
+        assert!(mutable(instance(int)).allow_as_mut(&db));
+        assert!(placeholder(var).allow_as_mut(&db));
+        assert!(TypeRef::Any.allow_as_mut(&db));
+        assert!(owned(rigid(param2)).allow_as_mut(&db));
+        assert!(!immutable(instance(int)).allow_as_mut(&db));
+        assert!(!owned(rigid(param1)).allow_as_mut(&db));
+        assert!(!uni(instance(int)).allow_as_mut(&db));
+    }
+
+    #[test]
+    fn test_type_ref_as_ref() {
+        let mut db = Database::new();
+        let int = ClassId::int();
+        let param = new_parameter(&mut db, "A");
+
+        assert_eq!(owned(instance(int)).as_ref(&db), immutable(instance(int)));
+        assert_eq!(
+            uni(instance(int)).as_ref(&db),
+            TypeRef::RefUni(instance(int))
+        );
+        assert_eq!(owned(rigid(param)).as_ref(&db), immutable(rigid(param)));
+    }
+
+    #[test]
+    fn test_type_ref_as_mut() {
+        let mut db = Database::new();
+        let int = ClassId::int();
+        let param1 = new_parameter(&mut db, "A");
+        let param2 = new_parameter(&mut db, "A");
+
+        param2.set_mutable(&mut db);
+
+        assert_eq!(owned(instance(int)).as_mut(&db), mutable(instance(int)));
+        assert_eq!(
+            uni(instance(int)).as_mut(&db),
+            TypeRef::MutUni(instance(int))
+        );
+        assert_eq!(owned(rigid(param1)).as_mut(&db), owned(rigid(param1)));
+        assert_eq!(owned(rigid(param2)).as_mut(&db), mutable(rigid(param2)));
     }
 }

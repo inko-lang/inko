@@ -21,7 +21,6 @@ import std::test_byte_array
 import std::test_cmp
 import std::test_debug
 import std::test_env
-import std::test_ffi
 import std::test_float
 import std::test_fmt
 import std::test_int
@@ -56,7 +55,6 @@ class async Main {
     test_debug.tests(tests)
     test_dir.tests(tests)
     test_env.tests(tests)
-    test_ffi.tests(tests)
     test_file.tests(tests)
     test_float.tests(tests)
     test_fmt.tests(tests)

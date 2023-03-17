@@ -48,7 +48,7 @@ class pub Duration {
   #
   #     Duration.from_secs(10.5)
   fn pub static from_secs(secs: ToFloat) -> Duration {
-    Self { @nanos = (secs.to_float * NANOS_PER_SEC).to_int }
+    Duration { @nanos = (secs.to_float * NANOS_PER_SEC).to_int }
   }
 
   # Creates a new `Duration` from the given number of milliseconds.
@@ -59,7 +59,7 @@ class pub Duration {
   #
   #     Duration.from_millis(10)
   fn pub static from_millis(millis: ToInt) -> Duration {
-    Self { @nanos = millis.to_int * MICROS_PER_SEC }
+    Duration { @nanos = millis.to_int * MICROS_PER_SEC }
   }
 
   # Creates a new `Duration` from the given number of microseconds.
@@ -70,7 +70,7 @@ class pub Duration {
   #
   #     Duration.from_micros(10)
   fn pub static from_micros(micros: ToInt) -> Duration {
-    Self { @nanos = micros.to_int * MILLIS_PER_SEC }
+    Duration { @nanos = micros.to_int * MILLIS_PER_SEC }
   }
 
   # Creates a new `Duration` from the given number of nanoseconds.
@@ -81,7 +81,7 @@ class pub Duration {
   #
   #     Duration.from_nanos(10)
   fn pub static from_nanos(nanos: ToInt) -> Duration {
-    Self { @nanos = nanos.to_int }
+    Duration { @nanos = nanos.to_int }
   }
 
   # Returns the duration in seconds.
@@ -150,32 +150,32 @@ impl ToInstant for Duration {
   }
 }
 
-impl Clone for Duration {
-  fn pub clone -> Self {
-    Self { @nanos = @nanos }
+impl Clone[Duration] for Duration {
+  fn pub clone -> Duration {
+    Duration { @nanos = @nanos }
   }
 }
 
-impl Add[Duration] for Duration {
-  fn pub +(other: ref Duration) -> Self {
+impl Add[Duration, Duration] for Duration {
+  fn pub +(other: ref Duration) -> Duration {
     Duration { @nanos = @nanos + other.nanos }
   }
 }
 
-impl Subtract[Duration] for Duration {
-  fn pub -(other: ref Duration) -> Self {
+impl Subtract[Duration, Duration] for Duration {
+  fn pub -(other: ref Duration) -> Duration {
     Duration { @nanos = @nanos - other.nanos }
   }
 }
 
-impl Compare for Duration {
-  fn pub cmp(other: ref Self) -> Ordering {
+impl Compare[Duration] for Duration {
+  fn pub cmp(other: ref Duration) -> Ordering {
     @nanos.cmp(other.nanos)
   }
 }
 
-impl Equal for Duration {
-  fn pub ==(other: ref Self) -> Bool {
+impl Equal[Duration] for Duration {
+  fn pub ==(other: ref Duration) -> Bool {
     @nanos == other.nanos
   }
 }
@@ -243,7 +243,7 @@ class pub DateTime {
   #     import std::time::DateTime
   #
   #     DateTime.new
-  fn pub static new -> Self {
+  fn pub static new -> DateTime {
     from_timestamp(_INKO.time_system, _INKO.time_system_offset)
   }
 
@@ -257,7 +257,7 @@ class pub DateTime {
   #     import std::time::DateTime
   #
   #     DateTime.utc
-  fn pub static utc -> Self {
+  fn pub static utc -> DateTime {
     from_timestamp(time: _INKO.time_system, utc_offset: 0)
   }
 
@@ -270,7 +270,7 @@ class pub DateTime {
   #     import std::time::DateTime
   #
   #     DateTime.from_timestamp(time: 1661546853, utc_offset: 0).year # => 2022
-  fn pub static from_timestamp(time: ToFloat, utc_offset: Int) -> Self {
+  fn pub static from_timestamp(time: ToFloat, utc_offset: Int) -> DateTime {
     # This implementation is based on the algorithms as described on
     # http://howardhinnant.github.io/date_algorithms.html, specifically the
     # `civil_from_days()` algorithm.
@@ -303,7 +303,7 @@ class pub DateTime {
     let minute = (day_secs % SECS_PER_HOUR) / 60
     let hour = day_secs / SECS_PER_HOUR
 
-    Self {
+    DateTime {
       @year = year,
       @month = month,
       @day = day,
@@ -390,14 +390,14 @@ class pub DateTime {
 
   # Converts the `DateTime` to another `DateTime` that uses UTC as the
   # timezone.
-  fn pub to_utc -> Self {
+  fn pub to_utc -> DateTime {
     DateTime.from_timestamp(time: to_float, utc_offset: 0)
   }
 }
 
-impl Clone for DateTime {
-  fn pub clone -> Self {
-    Self {
+impl Clone[DateTime] for DateTime {
+  fn pub clone -> DateTime {
+    DateTime {
       @year = @year,
       @month = @month,
       @day = @day,
@@ -461,30 +461,30 @@ impl ToFloat for DateTime {
   }
 }
 
-impl Add[Duration] for DateTime {
-  fn pub +(other: ref Duration) -> Self {
+impl Add[Duration, DateTime] for DateTime {
+  fn pub +(other: ref Duration) -> DateTime {
     let timestamp = to_float + other.to_secs
 
     DateTime.from_timestamp(timestamp, utc_offset: @utc_offset)
   }
 }
 
-impl Subtract[Duration] for DateTime {
-  fn pub -(other: ref Duration) -> Self {
+impl Subtract[Duration, DateTime] for DateTime {
+  fn pub -(other: ref Duration) -> DateTime {
     let timestamp = to_float - other.to_secs
 
     DateTime.from_timestamp(timestamp, utc_offset: @utc_offset)
   }
 }
 
-impl Compare for DateTime {
-  fn pub cmp(other: ref Self) -> Ordering {
+impl Compare[DateTime] for DateTime {
+  fn pub cmp(other: ref DateTime) -> Ordering {
     to_float.cmp(other.to_float)
   }
 }
 
-impl Equal for DateTime {
-  fn pub ==(other: ref Self) -> Bool {
+impl Equal[DateTime] for DateTime {
+  fn pub ==(other: ref DateTime) -> Bool {
     @year == other.year
       and @month == other.month
       and @day == other.day
@@ -519,8 +519,8 @@ class pub Instant {
   let @nanos: Int
 
   # Returns a new `Instant` representing the current time.
-  fn pub static new -> Self {
-    Self { @nanos = _INKO.time_monotonic }
+  fn pub static new -> Instant {
+    Instant { @nanos = _INKO.time_monotonic }
   }
 
   # Returns a `Duration` measuring the time elapsed since the point in time
@@ -568,9 +568,9 @@ impl ToInstant for Instant {
   }
 }
 
-impl Clone for Instant {
-  fn pub clone -> Self {
-    Self { @nanos = @nanos }
+impl Clone[Instant] for Instant {
+  fn pub clone -> Instant {
+    Instant { @nanos = @nanos }
   }
 }
 
@@ -586,8 +586,8 @@ impl ToFloat for Instant {
   }
 }
 
-impl Add[Duration] for Instant {
-  fn pub +(other: ref Duration) -> Self {
+impl Add[Duration, Instant] for Instant {
+  fn pub +(other: ref Duration) -> Instant {
     let nanos = @nanos + other.nanos
 
     if nanos < 0 { panic("Instant can't represent a negative time ({nanos})") }
@@ -596,8 +596,8 @@ impl Add[Duration] for Instant {
   }
 }
 
-impl Subtract[Duration] for Instant {
-  fn pub -(other: ref Duration) -> Self {
+impl Subtract[Duration, Instant] for Instant {
+  fn pub -(other: ref Duration) -> Instant {
     let nanos = @nanos - other.nanos
 
     if nanos < 0 { panic("Instant can't represent a negative time ({nanos})") }
@@ -606,14 +606,14 @@ impl Subtract[Duration] for Instant {
   }
 }
 
-impl Compare for Instant {
-  fn pub cmp(other: ref Self) -> Ordering {
+impl Compare[Instant] for Instant {
+  fn pub cmp(other: ref Instant) -> Ordering {
     @nanos.cmp(other.nanos)
   }
 }
 
-impl Equal for Instant {
-  fn pub ==(other: ref Self) -> Bool {
+impl Equal[Instant] for Instant {
+  fn pub ==(other: ref Instant) -> Bool {
     @nanos == other.nanos
   }
 }

@@ -4,8 +4,8 @@ import std::io::(Error, Read, Write)
 # The standard input stream of the current OS process.
 class pub STDIN {
   # Returns a new handle to the input stream.
-  fn pub static new -> Self {
-    Self {}
+  fn pub static new -> STDIN {
+    STDIN {}
   }
 }
 
@@ -21,8 +21,8 @@ impl Read for STDIN {
 # ignored.
 class pub STDOUT {
   # Returns a new handle to the output stream.
-  fn pub static new -> Self {
-    Self {}
+  fn pub static new -> STDOUT {
+    STDOUT {}
   }
 }
 
@@ -50,8 +50,8 @@ impl Write for STDOUT {
 # ignored.
 class pub STDERR {
   # Returns a new handle to the error stream.
-  fn pub static new -> Self {
-    Self {}
+  fn pub static new -> STDERR {
+    STDERR {}
   }
 }
 

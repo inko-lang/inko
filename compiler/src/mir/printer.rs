@@ -23,7 +23,7 @@ pub(crate) fn to_dot(db: &Database, mir: &Mir, methods: &[&Method]) -> String {
         buffer.push_str("node[fontname=\"monospace\", fontsize=10];\n");
         buffer.push_str("edge[fontname=\"monospace\", fontsize=10];\n");
 
-        let rec_name = match method.id.self_type(db) {
+        let rec_name = match method.id.receiver_id(db) {
             TypeId::Class(id) => id.name(db),
             TypeId::Trait(id) => id.name(db),
             TypeId::ClassInstance(ins) => ins.instance_of().name(db),

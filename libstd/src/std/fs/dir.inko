@@ -113,5 +113,5 @@ fn pub list(path: ref ToString) !! Error -> Array[Path] {
   let paths =
     try _INKO.directory_list(path.to_string) else (e) throw Error.from_int(e)
 
-  paths.into_iter.map fn (path) { Path.new(path) }.to_array
+  (paths as Array[String]).into_iter.map fn (path) { Path.new(path) }.to_array
 }

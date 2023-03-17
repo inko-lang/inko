@@ -22,9 +22,10 @@ use crate::hir;
 use crate::mir::{BlockId, Constant, Mir};
 use crate::state::State;
 use std::collections::{HashMap, HashSet};
+use types::resolve::TypeResolver;
 use types::{
-    ClassInstance, ClassKind, Database, FieldId, TypeContext, TypeId, TypeRef,
-    VariableId, VariantId, BOOLEAN_ID, INT_ID, STRING_ID,
+    ClassInstance, ClassKind, Database, FieldId, TypeArguments, TypeBounds,
+    TypeId, TypeRef, VariableId, VariantId, BOOLEAN_ID, INT_ID, STRING_ID,
 };
 
 /// A binding to define as part of a pattern.
@@ -485,9 +486,6 @@ impl Variables {
 pub(crate) struct Compiler<'a> {
     state: &'a mut State,
 
-    /// The type of `Self` in the scope the `match` expression resides in.
-    self_type: TypeId,
-
     /// The basic blocks that are reachable in the match expression.
     ///
     /// If a block isn't in this list it means its pattern is redundant.
@@ -501,18 +499,8 @@ pub(crate) struct Compiler<'a> {
 }
 
 impl<'a> Compiler<'a> {
-    pub(crate) fn new(
-        state: &'a mut State,
-        self_type: TypeId,
-        variables: Variables,
-    ) -> Self {
-        Self {
-            state,
-            reachable: HashSet::new(),
-            missing: false,
-            variables,
-            self_type,
-        }
+    pub(crate) fn new(state: &'a mut State, variables: Variables) -> Self {
+        Self { state, reachable: HashSet::new(), missing: false, variables }
     }
 
     pub(crate) fn compile(mut self, rows: Vec<Row>) -> Match {
@@ -799,16 +787,14 @@ impl<'a> Compiler<'a> {
             return types.into_iter().map(|t| self.new_variable(t)).collect();
         }
 
-        let mut ctx = TypeContext::with_arguments(
-            self.self_type,
-            instance.type_arguments(self.db()).clone(),
-        );
+        let args = TypeArguments::for_class(self.db_mut(), instance);
+        let bounds = TypeBounds::new(); // TODO: what bounds to use?
 
         types
             .into_iter()
             .map(|raw_type| {
-                let inferred = raw_type
-                    .inferred(self.db_mut(), &mut ctx, false)
+                let inferred = TypeResolver::new(self.db_mut(), &args, &bounds)
+                    .resolve(raw_type)
                     .cast_according_to(source_variable_type, self.db());
 
                 self.new_variable(inferred)
@@ -818,7 +804,7 @@ impl<'a> Compiler<'a> {
 
     fn variable_type(&mut self, variable: &Variable) -> Type {
         let typ = variable.value_type(&self.variables);
-        let type_id = typ.type_id(self.db(), self.self_type).unwrap();
+        let type_id = typ.type_id(self.db()).unwrap();
         let class_ins = if let TypeId::ClassInstance(ins) = type_id {
             ins
         } else {
@@ -851,7 +837,7 @@ impl<'a> Compiler<'a> {
 
                     Type::Finite(cons)
                 }
-                ClassKind::Regular => {
+                ClassKind::Regular | ClassKind::Closure => {
                     let fields = class_id.fields(self.db());
                     let args = fields
                         .iter()
@@ -900,7 +886,7 @@ mod tests {
     use similar_asserts::assert_eq;
     use types::module_name::ModuleName;
     use types::{
-        Class, ClassId, ClassInstance, ClassKind, Module, TypeId,
+        Class, ClassInstance, ClassKind, Module, TypeId,
         Variable as VariableType, Visibility,
     };
 
@@ -930,10 +916,7 @@ mod tests {
     }
 
     fn compiler(state: &mut State) -> Compiler {
-        let self_type =
-            TypeId::ClassInstance(ClassInstance::new(ClassId::int()));
-
-        Compiler::new(state, self_type, Variables::new())
+        Compiler::new(state, Variables::new())
     }
 
     fn success(block: BlockId) -> Decision {

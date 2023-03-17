@@ -44,8 +44,8 @@ class builtin Tuple1[A] {
   let pub @0: A
 }
 
-impl Equal for Tuple1 if A: Equal {
-  fn pub ==(other: ref Self) -> Bool {
+impl Equal[Tuple1[A]] for Tuple1 if A: Equal[A] {
+  fn pub ==(other: ref Tuple1[A]) -> Bool {
     @0 == other.0
   }
 }
@@ -56,8 +56,8 @@ impl Hash for Tuple1 if A: Hash {
   }
 }
 
-impl Clone for Tuple1 if A: Clone {
-  fn pub clone -> Self {
+impl Clone[Tuple1[A]] for Tuple1 if A: Clone[A] {
+  fn pub clone -> Tuple1[A] {
     (@0.clone,)
   }
 }
@@ -76,8 +76,8 @@ class builtin Tuple2[A, B] {
   let pub @1: B
 }
 
-impl Equal for Tuple2 if A: Equal, B: Equal {
-  fn pub ==(other: ref Self) -> Bool {
+impl Equal[Tuple2[A, B]] for Tuple2 if A: Equal[A], B: Equal[B] {
+  fn pub ==(other: ref Tuple2[A, B]) -> Bool {
     @0 == other.0 and @1 == other.1
   }
 }
@@ -89,8 +89,8 @@ impl Hash for Tuple2 if A: Hash, B: Hash {
   }
 }
 
-impl Clone for Tuple2 if A: Clone, B: Clone {
-  fn pub clone -> Self {
+impl Clone[Tuple2[A, B]] for Tuple2 if A: Clone[A], B: Clone[B] {
+  fn pub clone -> Tuple2[A, B] {
     (@0.clone, @1.clone)
   }
 }
@@ -112,8 +112,11 @@ class builtin Tuple3[A, B, C] {
   let pub @2: C
 }
 
-impl Equal for Tuple3 if A: Equal, B: Equal, C: Equal {
-  fn pub ==(other: ref Self) -> Bool {
+impl Equal[Tuple3[A, B, C]] for Tuple3
+if
+  A: Equal[A], B: Equal[B], C: Equal[C]
+{
+  fn pub ==(other: ref Tuple3[A, B, C]) -> Bool {
     @0 == other.0 and @1 == other.1 and @2 == other.2
   }
 }
@@ -126,8 +129,8 @@ impl Hash for Tuple3 if A: Hash, B: Hash, C: Hash {
   }
 }
 
-impl Clone for Tuple3 if A: Clone, B: Clone, C: Clone {
-  fn pub clone -> Self {
+impl Clone[Tuple3[A, B, C]] for Tuple3 if A: Clone[A], B: Clone[B], C: Clone[C] {
+  fn pub clone -> Tuple3[A, B, C] {
     (@0.clone, @1.clone, @2.clone)
   }
 }
@@ -152,8 +155,11 @@ class builtin Tuple4[A, B, C, D] {
   let pub @3: D
 }
 
-impl Equal for Tuple4 if A: Equal, B: Equal, C: Equal, D: Equal {
-  fn pub ==(other: ref Self) -> Bool {
+impl Equal[Tuple4[A, B, C, D]] for Tuple4
+if
+  A: Equal[A], B: Equal[B], C: Equal[C], D: Equal[D]
+{
+  fn pub ==(other: ref Tuple4[A, B, C, D]) -> Bool {
     @0 == other.0 and @1 == other.1 and @2 == other.2 and @3 == other.3
   }
 }
@@ -167,8 +173,11 @@ impl Hash for Tuple4 if A: Hash, B: Hash, C: Hash, D: Hash {
   }
 }
 
-impl Clone for Tuple4 if A: Clone, B: Clone, C: Clone, D: Clone {
-  fn pub clone -> Self {
+impl Clone[Tuple4[A, B, C, D]] for Tuple4
+if
+  A: Clone[A], B: Clone[B], C: Clone[C], D: Clone[D]
+{
+  fn pub clone -> Tuple4[A, B, C, D] {
     (@0.clone, @1.clone, @2.clone, @3.clone)
   }
 }
@@ -196,8 +205,11 @@ class builtin Tuple5[A, B, C, D, E] {
   let pub @4: E
 }
 
-impl Equal for Tuple5 if A: Equal, B: Equal, C: Equal, D: Equal, E: Equal {
-  fn pub ==(other: ref Self) -> Bool {
+impl Equal[Tuple5[A, B, C, D, E]] for Tuple5
+if
+  A: Equal[A], B: Equal[B], C: Equal[C], D: Equal[D], E: Equal[E]
+{
+  fn pub ==(other: ref Tuple5[A, B, C, D, E]) -> Bool {
     @0 == other.0
       and @1 == other.1
       and @2 == other.2
@@ -216,8 +228,11 @@ impl Hash for Tuple5 if A: Hash, B: Hash, C: Hash, D: Hash, E: Hash {
   }
 }
 
-impl Clone for Tuple5 if A: Clone, B: Clone, C: Clone, D: Clone, E: Clone {
-  fn pub clone -> Self {
+impl Clone[Tuple5[A, B, C, D, E]] for Tuple5
+if
+  A: Clone[A], B: Clone[B], C: Clone[C], D: Clone[D], E: Clone[E]
+{
+  fn pub clone -> Tuple5[A, B, C, D, E] {
     (@0.clone, @1.clone, @2.clone, @3.clone, @4.clone)
   }
 }
@@ -251,11 +266,11 @@ class builtin Tuple6[A, B, C, D, E, F] {
   let pub @5: F
 }
 
-impl Equal for Tuple6
+impl Equal[Tuple6[A, B, C, D, E, F]] for Tuple6
 if
-  A: Equal, B: Equal, C: Equal, D: Equal, E: Equal, F: Equal
+  A: Equal[A], B: Equal[B], C: Equal[C], D: Equal[D], E: Equal[E], F: Equal[F]
 {
-  fn pub ==(other: ref Self) -> Bool {
+  fn pub ==(other: ref Tuple6[A, B, C, D, E, F]) -> Bool {
     @0 == other.0
       and @1 == other.1
       and @2 == other.2
@@ -277,11 +292,11 @@ impl Hash for Tuple6 if A: Hash, B: Hash, C: Hash, D: Hash, E: Hash, F: Hash
   }
 }
 
-impl Clone for Tuple6
+impl Clone[Tuple6[A, B, C, D, E, F]] for Tuple6
 if
-  A: Clone, B: Clone, C: Clone, D: Clone, E: Clone, F: Clone
+  A: Clone[A], B: Clone[B], C: Clone[C], D: Clone[D], E: Clone[E], F: Clone[F]
 {
-  fn pub clone -> Self {
+  fn pub clone -> Tuple6[A, B, C, D, E, F] {
     (@0.clone, @1.clone, @2.clone, @3.clone, @4.clone, @5.clone)
   }
 }
@@ -318,11 +333,12 @@ class builtin Tuple7[A, B, C, D, E, F, G] {
   let pub @6: G
 }
 
-impl Equal for Tuple7
+impl Equal[Tuple7[A, B, C, D, E, F, G]] for Tuple7
 if
-  A: Equal, B: Equal, C: Equal, D: Equal, E: Equal, F: Equal, G: Equal
+  A: Equal[A], B: Equal[B], C: Equal[C], D: Equal[D], E: Equal[E], F: Equal[F],
+  G: Equal[G]
 {
-  fn pub ==(other: ref Self) -> Bool {
+  fn pub ==(other: ref Tuple7[A, B, C, D, E, F, G]) -> Bool {
     @0 == other.0
       and @1 == other.1
       and @2 == other.2
@@ -348,11 +364,17 @@ if
   }
 }
 
-impl Clone for Tuple7
+impl Clone[Tuple7[A, B, C, D, E, F, G]] for Tuple7
 if
-  A: Clone, B: Clone, C: Clone, D: Clone, E: Clone, F: Clone, G: Clone
+  A: Clone[A],
+  B: Clone[B],
+  C: Clone[C],
+  D: Clone[D],
+  E: Clone[E],
+  F: Clone[F],
+  G: Clone[G]
 {
-  fn pub clone -> Self {
+  fn pub clone -> Tuple7[A, B, C, D, E, F, G] {
     (@0.clone, @1.clone, @2.clone, @3.clone, @4.clone, @5.clone, @6.clone)
   }
 }
@@ -392,11 +414,12 @@ class builtin Tuple8[A, B, C, D, E, F, G, H] {
   let pub @7: H
 }
 
-impl Equal for Tuple8
+impl Equal[Tuple8[A, B, C, D, E, F, G, H]] for Tuple8
 if
-  A: Equal, B: Equal, C: Equal, D: Equal, E: Equal, F: Equal, G: Equal, H: Equal
+  A: Equal[A], B: Equal[B], C: Equal[C], D: Equal[D], E: Equal[E], F: Equal[F],
+  G: Equal[G], H: Equal[H]
 {
-  fn pub ==(other: ref Self) -> Bool {
+  fn pub ==(other: ref Tuple8[A, B, C, D, E, F, G, H]) -> Bool {
     @0 == other.0
       and @1 == other.1
       and @2 == other.2
@@ -424,11 +447,18 @@ if
   }
 }
 
-impl Clone for Tuple8
+impl Clone[Tuple8[A, B, C, D, E, F, G, H]] for Tuple8
 if
-  A: Clone, B: Clone, C: Clone, D: Clone, E: Clone, F: Clone, G: Clone, H: Clone
+  A: Clone[A],
+  B: Clone[B],
+  C: Clone[C],
+  D: Clone[D],
+  E: Clone[E],
+  F: Clone[F],
+  G: Clone[G],
+  H: Clone[H]
 {
-  fn pub clone -> Self {
+  fn pub clone -> Tuple8[A, B, C, D, E, F, G, H] {
     (
       @0.clone,
       @1.clone,

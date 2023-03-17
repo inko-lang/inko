@@ -7,15 +7,17 @@ use ast::source_location::SourceLocation;
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
+use types::check::{TypeCheckScope, TypeChecker};
+use types::format::{format_type, format_type_with_context};
+use types::resolve::TypeResolver;
 use types::{
-    format_type, format_type_with_context, format_type_with_self, Block,
-    BuiltinCallInfo, BuiltinFunctionKind, CallInfo, CallKind, ClassId,
-    ClassInstance, Closure, ClosureCallInfo, ClosureId, CompilerMacro,
-    ConstantKind, ConstantPatternKind, Database, FieldId, FieldInfo,
-    IdentifierKind, MethodId, MethodLookup, MethodSource, ModuleId, Receiver,
-    Symbol, TraitId, TraitInstance, TypeArguments, TypeBounds, TypeContext,
-    TypeId, TypeRef, Variable, VariableId, CALL_METHOD, STRING_MODULE,
-    TO_STRING_TRAIT,
+    Block, BuiltinCallInfo, BuiltinFunction, CallInfo, CallKind, ClassId,
+    ClassInstance, Closure, ClosureCallInfo, ClosureId, ConstantKind,
+    ConstantPatternKind, Database, FieldId, FieldInfo, IdentifierKind,
+    MethodId, MethodLookup, MethodSource, ModuleId, Receiver,
+    Rules as TypeRules, Symbol, TraitId, TraitInstance, TypeArguments,
+    TypeBounds, TypeContext, TypeId, TypeRef, Variable, VariableId,
+    CALL_METHOD, STRING_MODULE, TO_STRING_TRAIT,
 };
 
 const IGNORE_VARIABLE: &str = "_";
@@ -236,8 +238,17 @@ struct MethodCall {
     /// A context for type-checking and substituting types.
     context: TypeContext,
 
+    /// A union of the type bounds of the surrounding and the called method.
+    ///
+    /// These bounds are to be used when inferring types, such as the return
+    /// type.
+    bounds: TypeBounds,
+
     /// The type of the method's receiver.
     receiver: TypeRef,
+
+    /// The type ID of the receiver type.
+    receiver_id: TypeId,
 
     /// The number of arguments specified.
     arguments: usize,
@@ -253,6 +264,7 @@ impl MethodCall {
     fn new(
         state: &State,
         module: ModuleId,
+        surrounding_scope: Option<(TypeId, MethodId)>,
         receiver: TypeRef,
         receiver_id: TypeId,
         method: MethodId,
@@ -301,63 +313,61 @@ impl MethodCall {
         // We only need to do this when the receiver is a class (and thus the
         // method has a source). If the receiver is a trait, we'll end up using
         // its inherited type arguments when inferring a type parameter.
-        match method.source(&state.db) {
-            MethodSource::BoundedImplementation(ins)
-            | MethodSource::Implementation(ins) => {
-                ins.copy_type_arguments_into(&state.db, &mut args);
-            }
-            _ => {}
+        if let MethodSource::Implementation(ins, _) = method.source(&state.db) {
+            ins.copy_type_arguments_into(&state.db, &mut args);
         }
 
         let require_sendable = receiver.require_sendable_arguments(&state.db)
             && !method.is_moving(&state.db);
 
+        let bounds = if let Some((self_id, self_method)) = surrounding_scope {
+            // When calling a method on `self`, we need to take any surrounding
+            // bounds into account when resolving types.
+            if self_id == receiver_id {
+                self_method.bounds(&state.db).union(method.bounds(&state.db))
+            } else {
+                self_method.bounds(&state.db).clone()
+            }
+        } else {
+            TypeBounds::new()
+        };
+
         Self {
             module,
             method,
+            bounds,
             receiver,
-            context: TypeContext::with_arguments(receiver_id, args),
+            receiver_id,
+            context: TypeContext::with_arguments(args),
             arguments: 0,
             named_arguments: HashSet::new(),
             require_sendable,
         }
     }
 
-    fn check_bounded_implementation(
+    fn check_type_bounds(
         &mut self,
         state: &mut State,
         location: &SourceLocation,
     ) {
-        if let MethodSource::BoundedImplementation(trait_ins) =
-            self.method.source(&state.db)
-        {
-            if self.receiver_id().implements_trait_instance(
-                &mut state.db,
-                trait_ins,
-                &mut self.context,
-            ) {
-                return;
-            }
+        let bounds = self.method.bounds(&state.db);
+        let args = self.context.type_arguments.clone();
+        let mut scope = TypeCheckScope::new(args.clone(), args);
+        let mut checker = TypeChecker::new(&state.db);
 
-            let method_name = self.method.name(&state.db).clone();
-            let rec_name = format_type_with_context(
-                &state.db,
-                &self.context,
-                self.receiver_id(),
-            );
-            let trait_name =
-                format_type_with_context(&state.db, &self.context, trait_ins);
-
+        if checker.check_bounds(bounds, &mut scope).is_err() {
             state.diagnostics.error(
                 DiagnosticId::InvalidSymbol,
                 format!(
-                    "The method '{}' exists for type '{}', \
-                    but requires this type to implement trait '{}'",
-                    method_name, rec_name, trait_name
+                    "The method '{}' exists but isn't available because \
+                    one or more type parameter bounds aren't met",
+                    self.method.name(&state.db),
                 ),
                 self.module.file(&state.db),
                 location.clone(),
             );
+
+            return;
         }
     }
 
@@ -446,7 +456,9 @@ impl MethodCall {
             );
         }
 
-        if given.type_check(&mut state.db, expected, &mut self.context, true) {
+        let rules = TypeRules::new();
+
+        if given.type_check(&mut state.db, expected, &mut self.context, rules) {
             return;
         }
 
@@ -466,12 +478,9 @@ impl MethodCall {
         // We don't update the type arguments of `self`, as that messes up
         // future method calls acting on the same type.
         match surrounding_type {
-            TypeRef::Owned(id) | TypeRef::Ref(id)
-                if id == self.receiver_id() =>
-            {
+            TypeRef::Owned(id) | TypeRef::Ref(id) if id == self.receiver_id => {
                 return;
             }
-            TypeRef::OwnedSelf | TypeRef::RefSelf => return,
             _ => {}
         }
 
@@ -483,88 +492,33 @@ impl MethodCall {
         // belong to the receiver need to be copied into the receiver's type
         // arguments. This ensures that future method calls observe the newly
         // assigned type parameters.
-        match self.receiver_id() {
+        match self.receiver_id {
             TypeId::ClassInstance(ins) => ins.copy_new_arguments_from(db, args),
             TypeId::TraitInstance(ins) => ins.copy_new_arguments_from(db, args),
             _ => {}
         }
     }
 
-    fn throw_type(
-        &mut self,
-        state: &mut State,
-        location: &SourceLocation,
-    ) -> TypeRef {
-        let typ = self.method.throw_type(&state.db).inferred(
+    fn throw_type(&mut self, state: &mut State) -> TypeRef {
+        let typ = self.method.throw_type(&state.db);
+
+        TypeResolver::new(
             &mut state.db,
-            &mut self.context,
-            false,
-        );
-
-        if !self.output_type_is_sendable(state, typ) {
-            let name = self.method.name(&state.db);
-
-            state.diagnostics.unsendable_throw_type(
-                name,
-                format_type_with_context(&state.db, &self.context, typ),
-                self.module.file(&state.db),
-                location.clone(),
-            );
-        }
-
-        typ
+            &self.context.type_arguments,
+            &self.bounds,
+        )
+        .resolve(typ)
     }
 
-    fn return_type(
-        &mut self,
-        state: &mut State,
-        location: &SourceLocation,
-    ) -> TypeRef {
-        let typ = self.method.return_type(&state.db).inferred(
+    fn return_type(&mut self, state: &mut State) -> TypeRef {
+        let typ = self.method.return_type(&state.db);
+
+        TypeResolver::new(
             &mut state.db,
-            &mut self.context,
-            false,
-        );
-
-        if !self.output_type_is_sendable(state, typ) {
-            let name = self.method.name(&state.db);
-
-            state.diagnostics.unsendable_return_type(
-                name,
-                format_type_with_context(&state.db, &self.context, typ),
-                self.module.file(&state.db),
-                location.clone(),
-            );
-        }
-
-        typ
-    }
-
-    fn receiver_id(&self) -> TypeId {
-        self.context.self_type
-    }
-
-    fn output_type_is_sendable(&self, state: &State, typ: TypeRef) -> bool {
-        if !self.require_sendable {
-            return true;
-        }
-
-        // If a method is immutable and doesn't define any arguments, any
-        // returned or thrown value that is sendable must have been created as
-        // part of the call, and thus can't have any outside references pointing
-        // to it. This allows such methods to return/throw owned values, while
-        // still allowing the use of such methods on unique receivers.
-        //
-        // Note that this check still enforces sendable sub values, meaning it's
-        // invalid to return e.g. `Array[ref Thing]`, as `ref Thing` isn't
-        // sendable.
-        if self.method.number_of_arguments(&state.db) == 0
-            && self.method.is_immutable(&state.db)
-        {
-            typ.is_sendable_output(&state.db)
-        } else {
-            typ.is_sendable(&state.db)
-        }
+            &self.context.type_arguments,
+            &self.bounds,
+        )
+        .resolve(typ)
     }
 }
 
@@ -579,17 +533,34 @@ impl<'a> DefineConstants<'a> {
         state: &'a mut State,
         modules: &mut Vec<hir::Module>,
     ) -> bool {
-        for module in modules {
-            DefineConstants { state, module: module.module_id }.run(module);
+        // Regular constants must be defined first such that complex constants
+        // (e.g. `A + B` or `[A, B]`) can refer to them, regardless of the order
+        // in which modules are processed.
+        for module in modules.iter_mut() {
+            DefineConstants { state, module: module.module_id }
+                .run(module, true);
+        }
+
+        for module in modules.iter_mut() {
+            DefineConstants { state, module: module.module_id }
+                .run(module, false);
         }
 
         !state.diagnostics.has_errors()
     }
 
-    fn run(mut self, module: &mut hir::Module) {
+    fn run(mut self, module: &mut hir::Module, simple_only: bool) {
         for expression in module.expressions.iter_mut() {
-            if let hir::TopLevelExpression::Constant(ref mut n) = expression {
-                self.define_constant(n);
+            let node = if let hir::TopLevelExpression::Constant(ref mut node) =
+                expression
+            {
+                node
+            } else {
+                continue;
+            };
+
+            if node.value.is_simple_literal() == simple_only {
+                self.define_constant(node);
             }
         }
     }
@@ -649,7 +620,6 @@ impl<'a> Expressions<'a> {
     }
 
     fn define_class(&mut self, node: &mut hir::DefineClass) {
-        let bounds = TypeBounds::new();
         let id = node.class_id.unwrap();
         let num_methods = id.number_of_methods(self.db());
 
@@ -674,7 +644,7 @@ impl<'a> Expressions<'a> {
                     self.define_async_method(n);
                 }
                 hir::ClassExpression::InstanceMethod(ref mut n) => {
-                    self.define_instance_method(n, &bounds);
+                    self.define_instance_method(n);
                 }
                 hir::ClassExpression::StaticMethod(ref mut n) => {
                     self.define_static_method(n);
@@ -685,12 +655,10 @@ impl<'a> Expressions<'a> {
     }
 
     fn reopen_class(&mut self, node: &mut hir::ReopenClass) {
-        let bounds = TypeBounds::new();
-
         for node in &mut node.body {
             match node {
                 hir::ReopenClassExpression::InstanceMethod(ref mut n) => {
-                    self.define_instance_method(n, &bounds)
+                    self.define_instance_method(n)
                 }
                 hir::ReopenClassExpression::StaticMethod(ref mut n) => {
                     self.define_static_method(n)
@@ -703,8 +671,6 @@ impl<'a> Expressions<'a> {
     }
 
     fn define_trait(&mut self, node: &mut hir::DefineTrait) {
-        let bounds = TypeBounds::new();
-
         self.verify_type_parameter_requirements(&node.type_parameters);
         self.verify_required_traits(
             &node.requirements,
@@ -713,27 +679,20 @@ impl<'a> Expressions<'a> {
 
         for node in &mut node.body {
             if let hir::TraitExpression::InstanceMethod(ref mut n) = node {
-                self.define_instance_method(n, &bounds);
+                self.define_instance_method(n);
             }
         }
     }
 
     fn implement_trait(&mut self, node: &mut hir::ImplementTrait) {
-        let class_id = node.class_instance.unwrap().instance_of();
-        let trait_id = node.trait_instance.unwrap().instance_of();
-        let bounds = class_id
-            .trait_implementation(self.db(), trait_id)
-            .map(|i| i.bounds.clone())
-            .unwrap();
-
         for n in &mut node.body {
-            self.define_instance_method(n, &bounds);
+            self.define_instance_method(n);
         }
     }
 
     fn define_module_method(&mut self, node: &mut hir::DefineModuleMethod) {
         let method = node.method_id.unwrap();
-        let stype = method.self_type(self.db());
+        let stype = method.receiver_id(self.db());
         let receiver = method.receiver(self.db());
         let bounds = TypeBounds::new();
         let returns =
@@ -766,51 +725,11 @@ impl<'a> Expressions<'a> {
         checker.check_if_throws(throws, &node.location);
     }
 
-    fn define_instance_method(
-        &mut self,
-        node: &mut hir::DefineInstanceMethod,
-        bounds: &TypeBounds,
-    ) {
+    fn define_instance_method(&mut self, node: &mut hir::DefineInstanceMethod) {
         let method = node.method_id.unwrap();
-        let stype = method.self_type(self.db());
+        let bounds = method.bounds(self.db()).clone();
+        let stype = method.receiver_id(self.db());
         let receiver = method.receiver(self.db());
-        let returns =
-            method.return_type(self.db()).as_rigid_type(self.db_mut(), bounds);
-        let throws =
-            method.throw_type(self.db()).as_rigid_type(self.db_mut(), bounds);
-        let mut scope = LexicalScope::method(receiver, returns, throws);
-
-        self.verify_type_parameter_requirements(&node.type_parameters);
-
-        for arg in method.arguments(self.db()) {
-            scope.variables.add_variable(arg.name, arg.variable);
-        }
-
-        self.define_field_types(receiver, method, bounds);
-
-        let mut checker = CheckMethodBody::new(
-            self.state,
-            self.module,
-            method,
-            stype,
-            bounds,
-        );
-
-        checker.expressions_with_return(
-            returns,
-            &mut node.body,
-            &mut scope,
-            &node.location,
-        );
-
-        checker.check_if_throws(throws, &node.location);
-    }
-
-    fn define_async_method(&mut self, node: &mut hir::DefineAsyncMethod) {
-        let method = node.method_id.unwrap();
-        let stype = method.self_type(self.db());
-        let receiver = method.receiver(self.db());
-        let bounds = TypeBounds::new();
         let returns =
             method.return_type(self.db()).as_rigid_type(self.db_mut(), &bounds);
         let throws =
@@ -843,9 +762,44 @@ impl<'a> Expressions<'a> {
         checker.check_if_throws(throws, &node.location);
     }
 
+    fn define_async_method(&mut self, node: &mut hir::DefineAsyncMethod) {
+        let method = node.method_id.unwrap();
+        let stype = method.receiver_id(self.db());
+        let receiver = method.receiver(self.db());
+        let bounds = TypeBounds::new();
+        let returns = TypeRef::nil();
+        let throws = TypeRef::Never;
+        let mut scope = LexicalScope::method(receiver, returns, throws);
+
+        self.verify_type_parameter_requirements(&node.type_parameters);
+
+        for arg in method.arguments(self.db()) {
+            scope.variables.add_variable(arg.name, arg.variable);
+        }
+
+        self.define_field_types(receiver, method, &bounds);
+
+        let mut checker = CheckMethodBody::new(
+            self.state,
+            self.module,
+            method,
+            stype,
+            &bounds,
+        );
+
+        checker.expressions_with_return(
+            returns,
+            &mut node.body,
+            &mut scope,
+            &node.location,
+        );
+
+        checker.check_if_throws(throws, &node.location);
+    }
+
     fn define_static_method(&mut self, node: &mut hir::DefineStaticMethod) {
         let method = node.method_id.unwrap();
-        let stype = method.self_type(self.db());
+        let stype = method.receiver_id(self.db());
         let receiver = method.receiver(self.db());
         let bounds = TypeBounds::new();
         let returns =
@@ -886,9 +840,13 @@ impl<'a> Expressions<'a> {
     ) {
         for field in receiver.fields(self.db()) {
             let name = field.name(self.db()).clone();
-            let typ = field
-                .value_type(self.db())
-                .as_rigid_type(self.db_mut(), bounds);
+            let raw_type = field.value_type(self.db());
+            let args = TypeArguments::new();
+            let mut resolver = TypeResolver::new(self.db_mut(), &args, bounds);
+
+            resolver.rigid = true;
+
+            let typ = resolver.resolve(raw_type);
 
             method.set_field_type(self.db_mut(), name, field, typ);
         }
@@ -1029,16 +987,22 @@ impl<'a> CheckConstant<'a> {
         };
 
         let mod_type = self.module_type;
-        let mut call =
-            MethodCall::new(self.state, self.module, left, left_id, method);
+        let mut call = MethodCall::new(
+            self.state,
+            self.module,
+            None,
+            left,
+            left_id,
+            method,
+        );
 
         call.check_mutability(self.state, &node.location);
-        call.check_bounded_implementation(self.state, &node.location);
+        call.check_type_bounds(self.state, &node.location);
         self.positional_argument(&mut call, &mut node.right);
         call.check_argument_count(self.state, &node.location);
         call.update_receiver_type_arguments(self.state, mod_type);
 
-        node.resolved_type = call.return_type(self.state, &node.location);
+        node.resolved_type = call.return_type(self.state);
         node.resolved_type
     }
 
@@ -1097,12 +1061,12 @@ impl<'a> CheckConstant<'a> {
             .collect::<Vec<_>>();
 
         if types.len() > 1 {
-            let stype = TypeId::Module(self.module);
             let &first = types.first().unwrap();
-            let mut ctx = TypeContext::new(stype);
+            let mut ctx = TypeContext::new();
+            let rules = TypeRules::new();
 
             for (&typ, node) in types[1..].iter().zip(node.values[1..].iter()) {
-                if !typ.type_check(self.db_mut(), first, &mut ctx, true) {
+                if !typ.type_check(self.db_mut(), first, &mut ctx, rules) {
                     self.state.diagnostics.type_error(
                         format_type_with_context(self.db(), &ctx, typ),
                         format_type_with_context(self.db(), &ctx, first),
@@ -1128,11 +1092,7 @@ impl<'a> CheckConstant<'a> {
         // Mutating constant arrays isn't safe, so they're typed as `ref
         // Array[T]` instead of `Array[T]`.
         let ary = TypeRef::Ref(TypeId::ClassInstance(
-            ClassInstance::generic_with_types(
-                self.db_mut(),
-                ClassId::array(),
-                types,
-            ),
+            ClassInstance::with_types(self.db_mut(), ClassId::array(), types),
         ));
 
         node.resolved_type = ary;
@@ -1145,14 +1105,13 @@ impl<'a> CheckConstant<'a> {
         name: &str,
         location: &SourceLocation,
     ) -> Option<(TypeId, MethodId)> {
-        let stype = TypeId::Module(self.module);
-        let rec_id = match receiver.type_id(self.db(), stype) {
+        let rec_id = match receiver.type_id(self.db()) {
             Ok(id) => id,
             Err(TypeRef::Error) => return None,
             Err(typ) => {
                 self.state.diagnostics.undefined_method(
                     name,
-                    format_type_with_self(self.db(), stype, typ),
+                    format_type(self.db(), typ),
                     self.file(),
                     location.clone(),
                 );
@@ -1173,7 +1132,7 @@ impl<'a> CheckConstant<'a> {
             MethodLookup::InstanceOnStatic => {
                 self.state.diagnostics.invalid_instance_call(
                     name,
-                    format_type_with_self(self.db(), stype, receiver),
+                    format_type(self.db(), receiver),
                     self.file(),
                     location.clone(),
                 );
@@ -1181,7 +1140,7 @@ impl<'a> CheckConstant<'a> {
             MethodLookup::StaticOnInstance => {
                 self.state.diagnostics.invalid_static_call(
                     name,
-                    format_type_with_self(self.db(), stype, receiver),
+                    format_type(self.db(), receiver),
                     self.file(),
                     location.clone(),
                 );
@@ -1189,7 +1148,7 @@ impl<'a> CheckConstant<'a> {
             MethodLookup::None => {
                 self.state.diagnostics.undefined_method(
                     name,
-                    format_type_with_self(self.db(), stype, receiver),
+                    format_type(self.db(), receiver),
                     self.file(),
                     location.clone(),
                 );
@@ -1238,7 +1197,7 @@ struct CheckMethodBody<'a> {
     /// The surrounding method.
     method: MethodId,
 
-    /// The type for `Self`, excluding ownership.
+    /// The type ID of the receiver of the surrounding method.
     self_type: TypeId,
 
     /// Any bounds to apply to type parameters.
@@ -1310,15 +1269,15 @@ impl<'a> CheckMethodBody<'a> {
         fallback_location: &SourceLocation,
     ) {
         let typ = self.last_expression_type(nodes, scope);
-        let mut ctx = TypeContext::new(self.self_type);
+        let mut ctx = TypeContext::new();
 
-        if returns.is_nil(self.db(), self.self_type) {
+        if returns.is_nil(self.db()) {
             // When the return type is `Nil` (explicit or not), we just ignore
             // whatever value is returned.
             return;
         }
 
-        if !typ.type_check(self.db_mut(), returns, &mut ctx, true) {
+        if !typ.type_check(self.db_mut(), returns, &mut ctx, TypeRules::new()) {
             let loc =
                 nodes.last().map(|n| n.location()).unwrap_or(fallback_location);
 
@@ -1354,7 +1313,6 @@ impl<'a> CheckMethodBody<'a> {
             hir::Expression::ReplaceVariable(ref mut n) => {
                 self.replace_variable(n, scope)
             }
-            hir::Expression::AsyncCall(ref mut n) => self.async_call(n, scope),
             hir::Expression::Break(ref n) => self.break_expression(n, scope),
             hir::Expression::BuiltinCall(ref mut n) => {
                 self.builtin_call(n, scope)
@@ -1417,11 +1375,17 @@ impl<'a> CheckMethodBody<'a> {
     ) -> TypeRef {
         let typ = self.expression(node, scope);
 
-        if typ.is_value_type(self.db()) {
-            typ.as_owned(self.db())
-        } else {
-            typ
+        if typ.is_uni(self.db()) {
+            // This ensures that value types such as `uni T` aren't implicitly
+            // converted to `T`.
+            return typ;
         }
+
+        if typ.is_value_type(self.db()) {
+            return typ.as_owned(self.db());
+        }
+
+        typ
     }
 
     fn argument_expression(
@@ -1434,7 +1398,7 @@ impl<'a> CheckMethodBody<'a> {
         match node {
             hir::Expression::Closure(ref mut n) => {
                 let expected = expected_type
-                    .closure_id(self.db(), self.self_type)
+                    .closure_id(self.db())
                     .map(|f| (f, expected_type, context));
 
                 self.closure(n, expected, scope)
@@ -1485,17 +1449,14 @@ impl<'a> CheckMethodBody<'a> {
             match value {
                 hir::StringValue::Expression(v) => {
                     let val = self.call(v, scope);
-                    let stype = self.self_type;
 
-                    if val != TypeRef::Error
-                        && !val.is_string(self.db(), self.self_type)
-                    {
+                    if val != TypeRef::Error && !val.is_string(self.db()) {
                         self.state.diagnostics.error(
                             DiagnosticId::InvalidType,
                             format!(
                                 "Expected a 'String', 'ref String' or \
                                 'mut String', found '{}' instead",
-                                format_type_with_self(self.db(), stype, val)
+                                format_type(self.db(), val)
                             ),
                             self.file(),
                             v.location.clone(),
@@ -1527,10 +1488,11 @@ impl<'a> CheckMethodBody<'a> {
 
         if types.len() > 1 {
             let &first = types.first().unwrap();
-            let mut ctx = TypeContext::new(self.self_type);
+            let mut ctx = TypeContext::new();
+            let rules = TypeRules::new();
 
             for (&typ, node) in types[1..].iter().zip(node.values[1..].iter()) {
-                if !typ.type_check(self.db_mut(), first, &mut ctx, true) {
+                if !typ.type_check(self.db_mut(), first, &mut ctx, rules) {
                     self.state.diagnostics.type_error(
                         format_type_with_context(self.db(), &ctx, typ),
                         format_type_with_context(self.db(), &ctx, first),
@@ -1552,11 +1514,8 @@ impl<'a> CheckMethodBody<'a> {
             );
         }
 
-        let ins = ClassInstance::generic_with_types(
-            self.db_mut(),
-            ClassId::array(),
-            types,
-        );
+        let ins =
+            ClassInstance::with_types(self.db_mut(), ClassId::array(), types);
         let ary = TypeRef::Owned(TypeId::ClassInstance(ins));
 
         node.value_type =
@@ -1582,11 +1541,7 @@ impl<'a> CheckMethodBody<'a> {
         };
 
         let tuple = TypeRef::Owned(TypeId::ClassInstance(
-            ClassInstance::generic_with_types(
-                self.db_mut(),
-                class,
-                types.clone(),
-            ),
+            ClassInstance::with_types(self.db_mut(), class, types.clone()),
         ));
 
         node.class_id = Some(class);
@@ -1633,14 +1588,8 @@ impl<'a> CheckMethodBody<'a> {
         };
 
         let require_send = class.kind(self.db()).is_async();
-        let ins = if class.is_generic(self.db()) {
-            ClassInstance::generic_with_placeholders(self.db_mut(), class)
-        } else {
-            ClassInstance::new(class)
-        };
-
-        let mut ctx =
-            TypeContext::for_class_instance(self.db(), self.self_type, ins);
+        let ins = ClassInstance::empty(self.db_mut(), class);
+        let mut ctx = TypeContext::for_class_instance(self.db(), ins);
         let mut assigned = HashSet::new();
 
         for field in &mut node.fields {
@@ -1673,8 +1622,12 @@ impl<'a> CheckMethodBody<'a> {
             let value = self.expression(&mut field.value, scope);
             let value_casted = value.cast_according_to(expected, self.db());
 
-            if !value_casted.type_check(self.db_mut(), expected, &mut ctx, true)
-            {
+            if !value_casted.type_check(
+                self.db_mut(),
+                expected,
+                &mut ctx,
+                TypeRules::new(),
+            ) {
                 self.state.diagnostics.type_error(
                     format_type_with_context(self.db(), &ctx, value),
                     format_type_with_context(self.db(), &ctx, expected),
@@ -1783,7 +1736,7 @@ impl<'a> CheckMethodBody<'a> {
 
         if !value_type.allow_assignment(self.db()) {
             self.state.diagnostics.cant_assign_type(
-                &format_type_with_self(self.db(), self.self_type, value_type),
+                &format_type(self.db(), value_type),
                 self.file(),
                 node.value.location().clone(),
             );
@@ -1791,7 +1744,7 @@ impl<'a> CheckMethodBody<'a> {
 
         let var_type = if let Some(tnode) = node.value_type.as_mut() {
             let exp_type = self.type_signature(tnode, self.self_type);
-            let mut typ_ctx = TypeContext::new(self.self_type);
+            let mut typ_ctx = TypeContext::new();
             let value_casted =
                 value_type.cast_according_to(exp_type, self.db());
 
@@ -1799,15 +1752,13 @@ impl<'a> CheckMethodBody<'a> {
                 self.db_mut(),
                 exp_type,
                 &mut typ_ctx,
-                true,
+                TypeRules::new(),
             ) {
-                let stype = self.self_type;
-
                 self.state.diagnostics.type_error(
-                    format_type_with_self(self.db(), stype, value_type),
-                    format_type_with_self(self.db(), stype, exp_type),
+                    format_type(self.db(), value_type),
+                    format_type(self.db(), exp_type),
                     self.file(),
-                    node.location.clone(),
+                    node.value.location().clone(),
                 );
             }
 
@@ -1887,19 +1838,17 @@ impl<'a> CheckMethodBody<'a> {
     ) {
         let var_type = if let Some(tnode) = node.value_type.as_mut() {
             let exp_type = self.type_signature(tnode, self.self_type);
-            let mut typ_ctx = TypeContext::new(self.self_type);
+            let mut typ_ctx = TypeContext::new();
 
             if !value_type.type_check(
                 self.db_mut(),
                 exp_type,
                 &mut typ_ctx,
-                true,
+                TypeRules::new(),
             ) {
-                let stype = self.self_type;
-
                 self.state.diagnostics.pattern_type_error(
-                    format_type_with_self(self.db(), stype, value_type),
-                    format_type_with_self(self.db(), stype, exp_type),
+                    format_type(self.db(), value_type),
+                    format_type(self.db(), exp_type),
                     self.file(),
                     node.location.clone(),
                 );
@@ -1925,10 +1874,11 @@ impl<'a> CheckMethodBody<'a> {
         }
 
         if let Some(existing) = pattern.variable_scope.variable(&name) {
-            let mut ctx = TypeContext::new(self.self_type);
+            let mut ctx = TypeContext::new();
             let ex_type = existing.value_type(self.db());
+            let rules = TypeRules::new();
 
-            if !var_type.type_check(self.db_mut(), ex_type, &mut ctx, true) {
+            if !var_type.type_check(self.db_mut(), ex_type, &mut ctx, rules) {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidType,
                     format!(
@@ -1977,20 +1927,14 @@ impl<'a> CheckMethodBody<'a> {
     ) {
         let name = &node.name;
 
-        if let Some(ins) =
-            value_type.as_enum_instance(self.db(), self.self_type)
-        {
+        if let Some(ins) = value_type.as_enum_instance(self.db()) {
             let variant =
                 if let Some(v) = ins.instance_of().variant(self.db(), name) {
                     v
                 } else {
                     self.state.diagnostics.undefined_variant(
                         name,
-                        format_type_with_self(
-                            self.db(),
-                            self.self_type,
-                            value_type,
-                        ),
+                        format_type(self.db(), value_type),
                         self.file(),
                         node.location.clone(),
                     );
@@ -2020,22 +1964,17 @@ impl<'a> CheckMethodBody<'a> {
         let exp_type = match symbol {
             Ok(Some(Symbol::Constant(id))) => {
                 let typ = id.value_type(self.db());
-                let cid = typ.class_id(self.db(), self.self_type).unwrap();
 
-                node.kind = if cid == ClassId::int() {
+                node.kind = if typ.is_int(self.db()) {
                     ConstantPatternKind::Int(id)
-                } else if cid == ClassId::string() {
+                } else if typ.is_string(self.db()) {
                     ConstantPatternKind::String(id)
                 } else {
                     self.state.diagnostics.error(
                         DiagnosticId::InvalidPattern,
                         format!(
                             "Expected a 'String' or 'Int', found '{}' instead",
-                            format_type_with_self(
-                                self.db(),
-                                self.self_type,
-                                typ
-                            ),
+                            format_type(self.db(), typ),
                         ),
                         self.file(),
                         node.location.clone(),
@@ -2070,14 +2009,14 @@ impl<'a> CheckMethodBody<'a> {
             }
         };
 
-        let mut typ_ctx = TypeContext::new(self.self_type);
+        let mut typ_ctx = TypeContext::new();
+        let rules = TypeRules::new();
 
-        if !value_type.type_check(self.db_mut(), exp_type, &mut typ_ctx, true) {
-            let self_type = self.self_type;
-
+        if !value_type.type_check(self.db_mut(), exp_type, &mut typ_ctx, rules)
+        {
             self.state.diagnostics.pattern_type_error(
-                format_type_with_self(self.db(), self_type, value_type),
-                format_type_with_self(self.db(), self_type, exp_type),
+                format_type(self.db(), value_type),
+                format_type(self.db(), exp_type),
                 self.file(),
                 node.location.clone(),
             );
@@ -2110,11 +2049,7 @@ impl<'a> CheckMethodBody<'a> {
                     format!(
                         "This pattern expects a tuple, \
                         but the input type is '{}'",
-                        format_type_with_self(
-                            self.db(),
-                            self.self_type,
-                            value_type
-                        ),
+                        format_type(self.db(), value_type),
                     ),
                     self.file(),
                     node.location.clone(),
@@ -2184,11 +2119,7 @@ impl<'a> CheckMethodBody<'a> {
                     format!(
                         "This pattern expects a regular class instance, \
                         but the input type is '{}'",
-                        format_type_with_self(
-                            self.db(),
-                            self.self_type,
-                            value_type
-                        ),
+                        format_type(self.db(), value_type),
                     ),
                     self.file(),
                     node.location.clone(),
@@ -2207,11 +2138,7 @@ impl<'a> CheckMethodBody<'a> {
                 format!(
                     "The type '{}' can't be destructured as it defines \
                     a custom destructor",
-                    format_type_with_self(
-                        self.db(),
-                        self.self_type,
-                        value_type
-                    )
+                    format_type(self.db(), value_type)
                 ),
                 self.file(),
                 node.location.clone(),
@@ -2228,8 +2155,7 @@ impl<'a> CheckMethodBody<'a> {
         }
 
         let immutable = value_type.is_ref(self.db());
-        let mut ctx =
-            TypeContext::for_class_instance(self.db(), self.self_type, ins);
+        let args = TypeArguments::for_class(self.db(), ins);
 
         for node in &mut node.values {
             let name = &node.field.name;
@@ -2240,11 +2166,7 @@ impl<'a> CheckMethodBody<'a> {
                     DiagnosticId::InvalidSymbol,
                     format!(
                         "The type '{}' doesn't define the field '{}'",
-                        format_type_with_self(
-                            self.db(),
-                            self.self_type,
-                            value_type
-                        ),
+                        format_type(self.db(), value_type),
                         name
                     ),
                     self.file(),
@@ -2255,9 +2177,14 @@ impl<'a> CheckMethodBody<'a> {
                 continue;
             };
 
-            let field_type = field
-                .value_type(self.db())
-                .inferred(self.db_mut(), &mut ctx, immutable)
+            let bounds = TypeBounds::new(); // TODO: which bounds to use?
+            let raw_type = field.value_type(self.db());
+            let mut resolver = TypeResolver::new(self.db_mut(), &args, &bounds);
+
+            resolver.immutable = immutable;
+
+            let field_type = resolver
+                .resolve(raw_type)
                 .cast_according_to(value_type, self.db());
 
             node.field_id = Some(field);
@@ -2302,7 +2229,7 @@ impl<'a> CheckMethodBody<'a> {
         input_type: TypeRef,
         location: &SourceLocation,
     ) {
-        let mut typ_ctx = TypeContext::new(self.self_type);
+        let mut typ_ctx = TypeContext::new();
         let compare = if input_type.is_owned_or_uni(self.db()) {
             input_type
         } else {
@@ -2311,17 +2238,19 @@ impl<'a> CheckMethodBody<'a> {
             input_type.as_owned(self.db())
         };
 
-        if !compare.type_check(self.db_mut(), pattern_type, &mut typ_ctx, true)
-        {
-            let self_type = self.self_type;
-
+        if !compare.type_check(
+            self.db_mut(),
+            pattern_type,
+            &mut typ_ctx,
+            TypeRules::new(),
+        ) {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidType,
                 format!(
                     "The type of this pattern is '{}', \
                     but the input type is '{}'",
-                    format_type_with_self(self.db(), self_type, pattern_type),
-                    format_type_with_self(self.db(), self_type, input_type),
+                    format_type(self.db(), pattern_type),
+                    format_type(self.db(), input_type),
                 ),
                 self.file(),
                 location.clone(),
@@ -2340,9 +2269,7 @@ impl<'a> CheckMethodBody<'a> {
             return;
         }
 
-        let ins = if let Some(ins) =
-            value_type.as_enum_instance(self.db(), self.self_type)
-        {
+        let ins = if let Some(ins) = value_type.as_enum_instance(self.db()) {
             ins
         } else {
             self.state.diagnostics.error(
@@ -2350,11 +2277,7 @@ impl<'a> CheckMethodBody<'a> {
                 format!(
                     "This pattern expects an enum class, \
                     but the input type is '{}'",
-                    format_type_with_self(
-                        self.db(),
-                        self.self_type,
-                        value_type
-                    ),
+                    format_type(self.db(), value_type),
                 ),
                 self.file(),
                 node.location.clone(),
@@ -2372,7 +2295,7 @@ impl<'a> CheckMethodBody<'a> {
         } else {
             self.state.diagnostics.undefined_variant(
                 name,
-                format_type_with_self(self.db(), self.self_type, value_type),
+                format_type(self.db(), value_type),
                 self.file(),
                 node.location.clone(),
             );
@@ -2396,19 +2319,20 @@ impl<'a> CheckMethodBody<'a> {
         }
 
         let immutable = value_type.is_ref(self.db());
-        let mut ctx = TypeContext::new(self.self_type);
-
-        ins.copy_type_arguments_into(self.db(), &mut ctx.type_arguments);
+        let args = TypeArguments::for_class(self.db(), ins);
+        let bounds = TypeBounds::new(); // TODO: which bounds to use?
 
         for (patt, member) in node.values.iter_mut().zip(members.into_iter()) {
-            let typ = member
-                .inferred(self.db_mut(), &mut ctx, immutable)
+            let mut resolver = TypeResolver::new(self.db_mut(), &args, &bounds);
+
+            resolver.immutable = immutable;
+
+            let typ = resolver
+                .resolve(member)
                 .cast_according_to(value_type, self.db());
 
             self.pattern(patt, typ, pattern);
         }
-
-        ins.copy_new_arguments_from(self.db_mut(), &ctx.type_arguments);
 
         node.variant_id = Some(variant);
     }
@@ -2549,19 +2473,20 @@ impl<'a> CheckMethodBody<'a> {
 
         if !val_type.allow_assignment(self.db()) {
             self.state.diagnostics.cant_assign_type(
-                &format_type_with_self(self.db(), self.self_type, val_type),
+                &format_type(self.db(), val_type),
                 self.file(),
                 value_node.location().clone(),
             );
         }
 
         let var_type = var.value_type(self.db());
-        let mut ctx = TypeContext::new(self.self_type);
+        let mut ctx = TypeContext::new();
+        let rules = TypeRules::new();
 
-        if !val_type.type_check(self.db_mut(), var_type, &mut ctx, true) {
+        if !val_type.type_check(self.db_mut(), var_type, &mut ctx, rules) {
             self.state.diagnostics.type_error(
-                format_type_with_self(self.db(), self.self_type, val_type),
-                format_type_with_self(self.db(), self.self_type, var_type),
+                format_type(self.db(), val_type),
+                format_type(self.db(), var_type),
                 self.file(),
                 location.clone(),
             );
@@ -2585,6 +2510,7 @@ impl<'a> CheckMethodBody<'a> {
                 .map_or(false, |(id, _, _)| id.is_moving(self.db()));
 
         let closure = Closure::alloc(self.db_mut(), moving);
+        let bounds = TypeBounds::new(); // TODO: which bounds to use?
         let throw_type = if let Some(n) = node.throw_type.as_mut() {
             self.type_signature(n, self_type)
         } else {
@@ -2593,9 +2519,12 @@ impl<'a> CheckMethodBody<'a> {
             expected
                 .as_mut()
                 .map(|(id, _, context)| {
-                    id.throw_type(db).inferred(db, *context, false)
+                    let raw_type = id.throw_type(db);
+
+                    TypeResolver::new(db, &context.type_arguments, &bounds)
+                        .resolve(raw_type)
                 })
-                .unwrap_or_else(|| TypeRef::placeholder(self.db_mut()))
+                .unwrap_or_else(|| TypeRef::placeholder(self.db_mut(), None))
         };
 
         let return_type = if let Some(n) = node.return_type.as_mut() {
@@ -2606,9 +2535,12 @@ impl<'a> CheckMethodBody<'a> {
             expected
                 .as_mut()
                 .map(|(id, _, context)| {
-                    id.return_type(db).inferred(db, *context, false)
+                    let raw_type = id.return_type(db);
+
+                    TypeResolver::new(db, &context.type_arguments, &bounds)
+                        .resolve(raw_type)
                 })
-                .unwrap_or_else(|| TypeRef::placeholder(self.db_mut()))
+                .unwrap_or_else(|| TypeRef::placeholder(self.db_mut(), None))
         };
 
         closure.set_throw_type(self.db_mut(), throw_type);
@@ -2642,10 +2574,16 @@ impl<'a> CheckMethodBody<'a> {
                 expected
                     .as_mut()
                     .and_then(|(id, _, context)| {
-                        id.positional_argument_input_type(db, index)
-                            .map(|t| t.inferred(db, context, false))
+                        id.positional_argument_input_type(db, index).map(|t| {
+                            TypeResolver::new(
+                                db,
+                                &context.type_arguments,
+                                &bounds,
+                            )
+                            .resolve(t)
+                        })
                     })
-                    .unwrap_or_else(|| TypeRef::placeholder(db))
+                    .unwrap_or_else(|| TypeRef::placeholder(db, None))
             };
 
             let var =
@@ -2701,7 +2639,7 @@ impl<'a> CheckMethodBody<'a> {
         let module = self.module;
         let (rec, rec_id, rec_kind, method) = {
             let rec = scope.surrounding_type;
-            let rec_id = rec.type_id(self.db(), self.self_type).unwrap();
+            let rec_id = rec.type_id(self.db()).unwrap();
 
             match rec_id.lookup_method(self.db(), name, module, false) {
                 MethodLookup::Ok(method) => {
@@ -2778,14 +2716,21 @@ impl<'a> CheckMethodBody<'a> {
             }
         };
 
-        let mut call = MethodCall::new(self.state, module, rec, rec_id, method);
+        let mut call = MethodCall::new(
+            self.state,
+            module,
+            Some((self.self_type, self.method)),
+            rec,
+            rec_id,
+            method,
+        );
 
         call.check_mutability(self.state, &node.location);
-        call.check_bounded_implementation(self.state, &node.location);
+        call.check_type_bounds(self.state, &node.location);
         call.check_argument_count(self.state, &node.location);
 
-        let returns = call.return_type(self.state, &node.location);
-        let throws = call.throw_type(self.state, &node.location);
+        let returns = call.return_type(self.state);
+        let throws = call.throw_type(self.state);
 
         self.check_missing_try(name, throws, &node.location);
 
@@ -2819,9 +2764,8 @@ impl<'a> CheckMethodBody<'a> {
         }
 
         let (rec, rec_id, rec_kind, method) = {
-            let stype = self.self_type;
             let rec = scope.surrounding_type;
-            let rec_id = rec.type_id(self.db(), stype).unwrap();
+            let rec_id = rec.type_id(self.db()).unwrap();
 
             match rec_id.lookup_method(self.db(), name, module, true) {
                 MethodLookup::Ok(method) => {
@@ -2852,21 +2796,6 @@ impl<'a> CheckMethodBody<'a> {
                     return TypeRef::Error;
                 }
                 _ => {
-                    if let Some((field, raw_type)) = self.field_type(name) {
-                        let typ = self.field_reference(
-                            raw_type,
-                            scope,
-                            &node.location,
-                        );
-
-                        node.kind = IdentifierKind::Field(FieldInfo {
-                            id: field,
-                            variable_type: typ,
-                        });
-
-                        return typ;
-                    }
-
                     if let Some(Symbol::Module(id)) =
                         module.symbol(self.db(), name)
                     {
@@ -2907,14 +2836,21 @@ impl<'a> CheckMethodBody<'a> {
             }
         };
 
-        let mut call = MethodCall::new(self.state, module, rec, rec_id, method);
+        let mut call = MethodCall::new(
+            self.state,
+            module,
+            Some((self.self_type, self.method)),
+            rec,
+            rec_id,
+            method,
+        );
 
         call.check_mutability(self.state, &node.location);
-        call.check_bounded_implementation(self.state, &node.location);
+        call.check_type_bounds(self.state, &node.location);
         call.check_argument_count(self.state, &node.location);
 
-        let returns = call.return_type(self.state, &node.location);
-        let throws = call.throw_type(self.state, &node.location);
+        let returns = call.return_type(self.state);
+        let throws = call.throw_type(self.state);
 
         self.check_missing_try(name, throws, &node.location);
 
@@ -3004,7 +2940,7 @@ impl<'a> CheckMethodBody<'a> {
 
         if !val_type.allow_assignment(self.db()) {
             self.state.diagnostics.cant_assign_type(
-                &format_type_with_self(self.db(), self.self_type, val_type),
+                &format_type(self.db(), val_type),
                 self.file(),
                 value_node.location().clone(),
             );
@@ -3022,13 +2958,13 @@ impl<'a> CheckMethodBody<'a> {
             return None;
         };
 
-        let stype = self.self_type;
-        let mut ctx = TypeContext::new(stype);
+        let mut ctx = TypeContext::new();
+        let rules = TypeRules::new();
 
-        if !val_type.type_check(self.db_mut(), var_type, &mut ctx, true) {
+        if !val_type.type_check(self.db_mut(), var_type, &mut ctx, rules) {
             self.state.diagnostics.type_error(
-                format_type_with_self(self.db(), stype, val_type),
-                format_type_with_self(self.db(), stype, var_type),
+                format_type(self.db(), val_type),
+                format_type(self.db(), var_type),
                 self.file(),
                 location.clone(),
             );
@@ -3136,8 +3072,8 @@ impl<'a> CheckMethodBody<'a> {
         let lhs = self.expression(&mut node.left, scope);
         let rhs = self.expression(&mut node.right, scope);
 
-        self.require_boolean(lhs, self.self_type, node.left.location());
-        self.require_boolean(rhs, self.self_type, node.right.location());
+        self.require_boolean(lhs, node.left.location());
+        self.require_boolean(rhs, node.right.location());
 
         node.resolved_type = TypeRef::boolean();
         node.resolved_type
@@ -3151,8 +3087,8 @@ impl<'a> CheckMethodBody<'a> {
         let lhs = self.expression(&mut node.left, scope);
         let rhs = self.expression(&mut node.right, scope);
 
-        self.require_boolean(lhs, self.self_type, node.left.location());
-        self.require_boolean(rhs, self.self_type, node.right.location());
+        self.require_boolean(lhs, node.left.location());
+        self.require_boolean(rhs, node.right.location());
 
         node.resolved_type = TypeRef::boolean();
         node.resolved_type
@@ -3174,9 +3110,10 @@ impl<'a> CheckMethodBody<'a> {
         }
 
         let expected = scope.return_type;
-        let mut ctx = TypeContext::new(self.self_type);
+        let mut ctx = TypeContext::new();
+        let rules = TypeRules::new();
 
-        if !returned.type_check(self.db_mut(), expected, &mut ctx, true) {
+        if !returned.type_check(self.db_mut(), expected, &mut ctx, rules) {
             self.state.diagnostics.type_error(
                 format_type_with_context(self.db(), &ctx, returned),
                 format_type_with_context(self.db(), &ctx, expected),
@@ -3197,7 +3134,8 @@ impl<'a> CheckMethodBody<'a> {
     ) -> TypeRef {
         let mut thrown = self.expression(&mut node.value, scope);
         let expected = scope.throw_type;
-        let mut ctx = TypeContext::new(self.self_type);
+        let mut ctx = TypeContext::new();
+        let rules = TypeRules::new();
 
         if scope.in_recover() && thrown.is_owned(self.db()) {
             thrown = thrown.as_uni(self.db());
@@ -3207,7 +3145,7 @@ impl<'a> CheckMethodBody<'a> {
             self.state
                 .diagnostics
                 .throw_not_allowed(self.file(), node.location.clone());
-        } else if !thrown.type_check(self.db_mut(), expected, &mut ctx, true) {
+        } else if !thrown.type_check(self.db_mut(), expected, &mut ctx, rules) {
             self.state.diagnostics.type_error(
                 format_type_with_context(self.db(), &ctx, thrown),
                 format_type_with_context(self.db(), &ctx, expected),
@@ -3243,7 +3181,7 @@ impl<'a> CheckMethodBody<'a> {
                 let mut scope = new_scope.inherit(ScopeKind::Regular);
                 let typ = self.expression(guard, &mut scope);
 
-                self.require_boolean(typ, self.self_type, guard.location());
+                self.require_boolean(typ, guard.location());
             }
 
             if let Some(expected) = rtype {
@@ -3278,9 +3216,9 @@ impl<'a> CheckMethodBody<'a> {
     ) -> TypeRef {
         let expr = self.expression(&mut node.value, scope);
 
-        if !expr.is_owned_or_uni(self.db()) {
+        if !expr.allow_as_ref(self.db()) {
             self.state.diagnostics.error(
-                DiagnosticId::InvalidRef,
+                DiagnosticId::InvalidType,
                 format!(
                     "A 'ref T' can't be created from a value of type '{}'",
                     self.fmt(expr)
@@ -3288,6 +3226,8 @@ impl<'a> CheckMethodBody<'a> {
                 self.file(),
                 node.location.clone(),
             );
+
+            return TypeRef::Error;
         }
 
         node.resolved_type = if expr.is_value_type(self.db()) {
@@ -3306,9 +3246,9 @@ impl<'a> CheckMethodBody<'a> {
     ) -> TypeRef {
         let expr = self.expression(&mut node.value, scope);
 
-        if !expr.is_owned_or_uni(self.db()) {
+        if !expr.allow_as_mut(self.db()) {
             self.state.diagnostics.error(
-                DiagnosticId::InvalidRef,
+                DiagnosticId::InvalidType,
                 format!(
                     "A 'mut T' can't be created from a value of type '{}'",
                     self.fmt(expr)
@@ -3350,7 +3290,7 @@ impl<'a> CheckMethodBody<'a> {
             last_type.as_owned(db)
         } else {
             self.state.diagnostics.error(
-                DiagnosticId::InvalidRef,
+                DiagnosticId::InvalidType,
                 format!(
                     "Values of type '{}' can't be recovered",
                     self.fmt(last_type)
@@ -3371,142 +3311,82 @@ impl<'a> CheckMethodBody<'a> {
         node: &mut hir::AssignSetter,
         scope: &mut LexicalScope,
     ) -> TypeRef {
-        let loc = &node.location;
         let (receiver, allow_type_private) =
             self.call_receiver(&mut node.receiver, scope);
         let value = self.expression(&mut node.value, scope);
         let setter = node.name.name.clone() + "=";
         let module = self.module;
-        let rec_id = if let Some(id) = self.receiver_id(receiver, loc) {
-            id
-        } else {
-            return TypeRef::Error;
-        };
+        let rec_id =
+            if let Some(id) = self.receiver_id(receiver, &node.location) {
+                id
+            } else {
+                return TypeRef::Error;
+            };
 
-        let method =
-            match rec_id.lookup_method(
-                self.db(),
-                &setter,
-                module,
-                allow_type_private,
-            ) {
-                MethodLookup::Ok(id) => id,
-                MethodLookup::Private => {
-                    self.private_method_call(&setter, loc);
+        let method = match rec_id.lookup_method(
+            self.db(),
+            &setter,
+            module,
+            allow_type_private,
+        ) {
+            MethodLookup::Ok(id) => id,
+            MethodLookup::Private => {
+                self.private_method_call(&setter, &node.location);
 
-                    return TypeRef::Error;
+                return TypeRef::Error;
+            }
+            MethodLookup::InstanceOnStatic => {
+                self.invalid_instance_call(&setter, receiver, &node.location);
+
+                return TypeRef::Error;
+            }
+            MethodLookup::StaticOnInstance => {
+                self.invalid_static_call(&setter, receiver, &node.location);
+
+                return TypeRef::Error;
+            }
+            MethodLookup::None => {
+                if node.else_block.is_some() {
+                    self.state
+                        .diagnostics
+                        .never_throws(self.file(), node.location.clone());
                 }
-                MethodLookup::InstanceOnStatic => {
-                    self.invalid_instance_call(&setter, receiver, loc);
 
-                    return TypeRef::Error;
-                }
-                MethodLookup::StaticOnInstance => {
-                    self.invalid_static_call(&setter, receiver, loc);
-
-                    return TypeRef::Error;
-                }
-                MethodLookup::None => {
-                    let field_name = &node.name.name;
-
-                    if let TypeId::ClassInstance(ins) = rec_id {
-                        if let Some(field) =
-                            ins.instance_of().field(self.db(), field_name)
-                        {
-                            if !field.is_visible_to(self.db(), module) {
-                                self.state.diagnostics.private_field(
-                                    field_name,
-                                    self.file(),
-                                    loc.clone(),
-                                );
-                            }
-
-                            if !receiver.allow_mutating() {
-                                self.state.diagnostics.error(
-                                    DiagnosticId::InvalidCall,
-                                    format!(
-                                    "Can't assign a new value to field '{}', \
-                                    as its receiver is immutable",
-                                    field_name,
-                                ),
-                                    self.module.file(self.db()),
-                                    loc.clone(),
-                                );
-                            }
-
-                            if node.else_block.is_some() {
-                                self.state
-                                    .diagnostics
-                                    .never_throws(self.file(), loc.clone());
-                            }
-
-                            let mut ctx = TypeContext::for_class_instance(
-                                self.db(),
-                                self.self_type,
-                                ins,
-                            );
-                            let var_type = field
-                                .value_type(self.db())
-                                .inferred(self.db_mut(), &mut ctx, false);
-                            let value =
-                                value.cast_according_to(var_type, self.db());
-
-                            if !value.type_check(
-                                self.db_mut(),
-                                var_type,
-                                &mut ctx,
-                                true,
-                            ) {
-                                self.state.diagnostics.type_error(
-                                    self.fmt(value),
-                                    self.fmt(var_type),
-                                    self.file(),
-                                    loc.clone(),
-                                );
-                            }
-
-                            if receiver.require_sendable_arguments(self.db())
-                                && !value.is_sendable(self.db())
-                            {
-                                self.state.diagnostics.unsendable_field_value(
-                                    field_name,
-                                    self.fmt(value),
-                                    self.file(),
-                                    loc.clone(),
-                                );
-                            }
-
-                            node.kind = CallKind::SetField(FieldInfo {
-                                id: field,
-                                variable_type: var_type,
-                            });
-
-                            return types::TypeRef::nil();
-                        }
-                    }
-
+                return if self.assign_field_with_receiver(
+                    node, receiver, rec_id, value, scope,
+                ) {
+                    TypeRef::nil()
+                } else {
                     self.state.diagnostics.undefined_method(
                         &setter,
                         self.fmt(receiver),
                         self.file(),
-                        loc.clone(),
+                        node.location.clone(),
                     );
 
-                    return TypeRef::Error;
-                }
-            };
+                    TypeRef::Error
+                };
+            }
+        };
 
-        let mut call =
-            MethodCall::new(self.state, self.module, receiver, rec_id, method);
+        let loc = &node.location;
+        let mut call = MethodCall::new(
+            self.state,
+            self.module,
+            Some((self.self_type, self.method)),
+            receiver,
+            rec_id,
+            method,
+        );
 
         call.check_mutability(self.state, loc);
-        call.check_bounded_implementation(self.state, loc);
+        call.check_type_bounds(self.state, loc);
         self.positional_argument(&mut call, 0, &mut node.value, scope);
         call.check_argument_count(self.state, loc);
         call.update_receiver_type_arguments(self.state, scope.surrounding_type);
 
-        let returns = call.return_type(self.state, &node.location);
-        let throws = call.throw_type(self.state, &node.location);
+        let returns = call.return_type(self.state);
+        let throws = call.throw_type(self.state);
 
         if let Some(block) = node.else_block.as_mut() {
             if throws.is_never(self.db()) {
@@ -3531,6 +3411,109 @@ impl<'a> CheckMethodBody<'a> {
         returns
     }
 
+    fn assign_field_with_receiver(
+        &mut self,
+        node: &mut hir::AssignSetter,
+        receiver: TypeRef,
+        receiver_id: TypeId,
+        value: TypeRef,
+        scope: &mut LexicalScope,
+    ) -> bool {
+        let name = &node.name.name;
+
+        // When using `self.field = value`, none of the below is applicable, nor
+        // do we need to calculate the field type as it's already cached.
+        if receiver_id == self.self_type {
+            return if let Some((field, typ)) = self.check_field_assignment(
+                name,
+                &mut node.value,
+                &node.name.location,
+                scope,
+            ) {
+                node.kind = CallKind::SetField(FieldInfo {
+                    id: field,
+                    variable_type: typ,
+                });
+
+                true
+            } else {
+                false
+            };
+        }
+
+        let (ins, field) = if let TypeId::ClassInstance(ins) = receiver_id {
+            if let Some(field) = ins.instance_of().field(self.db(), name) {
+                (ins, field)
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        };
+
+        if !field.is_visible_to(self.db(), self.module) {
+            self.state.diagnostics.private_field(
+                name,
+                self.file(),
+                node.location.clone(),
+            );
+        }
+
+        if !receiver.allow_mutating() {
+            self.state.diagnostics.error(
+                DiagnosticId::InvalidCall,
+                format!(
+                    "Can't assign a new value to field '{}', as its receiver \
+                    is immutable",
+                    name,
+                ),
+                self.module.file(self.db()),
+                node.location.clone(),
+            );
+        }
+
+        let mut ctx = TypeContext::for_class_instance(self.db(), ins);
+        let raw_type = field.value_type(self.db());
+        let bounds = TypeBounds::new(); // TODO: which bounds to use?
+        let var_type =
+            TypeResolver::new(self.db_mut(), &ctx.type_arguments, &bounds)
+                .resolve(raw_type);
+
+        let value = value.cast_according_to(var_type, self.db());
+
+        if !value.type_check(
+            self.db_mut(),
+            var_type,
+            &mut ctx,
+            TypeRules::new(),
+        ) {
+            self.state.diagnostics.type_error(
+                self.fmt(value),
+                self.fmt(var_type),
+                self.file(),
+                node.location.clone(),
+            );
+        }
+
+        if receiver.require_sendable_arguments(self.db())
+            && !value.is_sendable(self.db())
+        {
+            self.state.diagnostics.unsendable_field_value(
+                name,
+                self.fmt(value),
+                self.file(),
+                node.location.clone(),
+            );
+        }
+
+        node.kind = CallKind::SetField(FieldInfo {
+            id: field,
+            variable_type: var_type,
+        });
+
+        true
+    }
+
     fn call(
         &mut self,
         node: &mut hir::Call,
@@ -3539,7 +3522,7 @@ impl<'a> CheckMethodBody<'a> {
         if let Some((rec, allow_type_private)) =
             node.receiver.as_mut().map(|r| self.call_receiver(r, scope))
         {
-            if let Some(closure) = rec.closure_id(self.db(), self.self_type) {
+            if let Some(closure) = rec.closure_id(self.db()) {
                 self.call_closure(rec, closure, node, scope)
             } else {
                 self.call_with_receiver(rec, node, scope, allow_type_private)
@@ -3581,7 +3564,7 @@ impl<'a> CheckMethodBody<'a> {
             return TypeRef::Error;
         }
 
-        let mut ctx = TypeContext::new(self.self_type);
+        let mut ctx = TypeContext::new();
         let mut exp_args = Vec::new();
 
         for (index, arg_node) in node.arguments.iter_mut().enumerate() {
@@ -3606,7 +3589,9 @@ impl<'a> CheckMethodBody<'a> {
                 .argument_expression(exp, arg_expr_node, scope, &mut ctx)
                 .cast_according_to(exp, self.db());
 
-            if !given.type_check(self.db_mut(), exp, &mut ctx, true) {
+            let rules = TypeRules::new();
+
+            if !given.type_check(self.db_mut(), exp, &mut ctx, rules) {
                 self.state.diagnostics.type_error(
                     format_type_with_context(self.db(), &ctx, given),
                     format_type_with_context(self.db(), &ctx, exp),
@@ -3618,15 +3603,36 @@ impl<'a> CheckMethodBody<'a> {
             exp_args.push(exp);
         }
 
-        let throws = closure
-            .throw_type(self.db())
-            .as_rigid_type(&mut self.state.db, self.bounds)
-            .inferred(self.db_mut(), &mut ctx, false);
+        let throws = {
+            let raw_type = closure.throw_type(self.db());
+            let mut resolver = TypeResolver::new(
+                &mut self.state.db,
+                &ctx.type_arguments,
+                self.bounds,
+            );
 
-        let returns = closure
-            .return_type(self.db())
-            .as_rigid_type(&mut self.state.db, self.bounds)
-            .inferred(self.db_mut(), &mut ctx, false);
+            // TODO: do we actually need rigid types here instead of
+            // placeholders?
+            resolver.rigid = true;
+
+            resolver.resolve(raw_type)
+        };
+
+        let returns = {
+            let raw_type = closure.return_type(self.db());
+
+            let mut resolver = TypeResolver::new(
+                &mut self.state.db,
+                &ctx.type_arguments,
+                self.bounds,
+            );
+
+            // TODO: do we actually need rigid types here instead of
+            // placeholders?
+            resolver.rigid = true;
+
+            resolver.resolve(raw_type)
+        };
 
         if let Some(block) = node.else_block.as_mut() {
             if throws.is_never(self.db()) {
@@ -3640,7 +3646,7 @@ impl<'a> CheckMethodBody<'a> {
             self.check_missing_try(CALL_METHOD, throws, &node.location);
         }
 
-        node.kind = CallKind::ClosureCall(ClosureCallInfo {
+        node.kind = CallKind::CallClosure(ClosureCallInfo {
             id: closure,
             expected_arguments: exp_args,
             returns,
@@ -3657,129 +3663,94 @@ impl<'a> CheckMethodBody<'a> {
         scope: &mut LexicalScope,
         allow_type_private: bool,
     ) -> TypeRef {
-        let name = &node.name.name;
-        let loc = &node.location;
-        let module = self.module;
-        let rec_id = if let Some(id) = self.receiver_id(receiver, loc) {
-            id
-        } else {
-            return TypeRef::Error;
-        };
+        let rec_id =
+            if let Some(id) = self.receiver_id(receiver, &node.location) {
+                id
+            } else {
+                return TypeRef::Error;
+            };
 
         let method = match rec_id.lookup_method(
             self.db(),
-            name,
-            module,
+            &node.name.name,
+            self.module,
             allow_type_private,
         ) {
             MethodLookup::Ok(id) => id,
             MethodLookup::Private => {
-                self.private_method_call(name, loc);
+                self.private_method_call(&node.name.name, &node.location);
 
                 return TypeRef::Error;
             }
             MethodLookup::InstanceOnStatic => {
-                self.invalid_instance_call(name, receiver, loc);
+                self.invalid_instance_call(
+                    &node.name.name,
+                    receiver,
+                    &node.location,
+                );
 
                 return TypeRef::Error;
             }
             MethodLookup::StaticOnInstance => {
-                self.invalid_static_call(name, receiver, loc);
+                self.invalid_static_call(
+                    &node.name.name,
+                    receiver,
+                    &node.location,
+                );
 
                 return TypeRef::Error;
             }
             MethodLookup::None if node.arguments.is_empty() => {
-                if let TypeId::ClassInstance(ins) = rec_id {
-                    if let Some(field) =
-                        ins.instance_of().field(self.db(), name)
-                    {
-                        if !field.is_visible_to(self.db(), module) {
-                            self.state.diagnostics.private_field(
-                                &node.name.name,
-                                self.file(),
-                                node.location.clone(),
-                            );
-                        }
+                if node.else_block.is_some() {
+                    self.state
+                        .diagnostics
+                        .never_throws(self.file(), (&node.location).clone());
+                }
 
-                        if node.else_block.is_some() {
-                            self.state
-                                .diagnostics
-                                .never_throws(self.file(), loc.clone());
-                        }
-
-                        let mut ctx = TypeContext::new(self.self_type);
-                        let db = self.db_mut();
-                        let raw_typ = field.value_type(db);
-
-                        ins.type_arguments(db)
-                            .copy_into(&mut ctx.type_arguments);
-
-                        let mut returns = if raw_typ.is_owned_or_uni(db) {
-                            let typ = raw_typ.inferred(db, &mut ctx, false);
-
-                            if receiver.is_ref(db) {
-                                typ.as_ref(db)
-                            } else {
-                                typ.as_mut(db)
-                            }
-                        } else {
-                            raw_typ.inferred(db, &mut ctx, receiver.is_ref(db))
-                        };
-
-                        returns = returns.value_type_as_owned(self.db());
-
-                        if receiver.require_sendable_arguments(self.db())
-                            && !returns.is_sendable(self.db())
-                        {
-                            self.state.diagnostics.unsendable_field(
-                                name,
-                                self.fmt(returns),
-                                self.file(),
-                                node.location.clone(),
-                            );
-                        }
-
-                        node.kind = CallKind::GetField(FieldInfo {
-                            id: field,
-                            variable_type: returns,
-                        });
-
-                        return returns;
-                    }
+                if let Some(typ) =
+                    self.field_with_receiver(node, receiver, rec_id, scope)
+                {
+                    return typ;
                 }
 
                 self.state.diagnostics.undefined_method(
-                    name,
+                    &node.name.name,
                     self.fmt(receiver),
                     self.file(),
-                    loc.clone(),
+                    (&node.location).clone(),
                 );
 
                 return TypeRef::Error;
             }
             MethodLookup::None => {
                 self.state.diagnostics.undefined_method(
-                    name,
+                    &node.name.name,
                     self.fmt(receiver),
                     self.file(),
-                    loc.clone(),
+                    (&node.location).clone(),
                 );
 
                 return TypeRef::Error;
             }
         };
 
-        let mut call =
-            MethodCall::new(self.state, module, receiver, rec_id, method);
+        let mut call = MethodCall::new(
+            self.state,
+            self.module,
+            Some((self.self_type, self.method)),
+            receiver,
+            rec_id,
+            method,
+        );
 
         call.check_mutability(self.state, &node.location);
-        call.check_bounded_implementation(self.state, &node.location);
+        call.check_type_bounds(self.state, &node.location);
         self.call_arguments(&mut node.arguments, &mut call, scope);
         call.check_argument_count(self.state, &node.location);
         call.update_receiver_type_arguments(self.state, scope.surrounding_type);
 
-        let returns = call.return_type(self.state, &node.location);
-        let throws = call.throw_type(self.state, &node.location);
+        let returns = call.return_type(self.state);
+        let throws = call.throw_type(self.state);
 
         if let Some(block) = node.else_block.as_mut() {
             if throws.is_never(self.db()) {
@@ -3790,7 +3761,7 @@ impl<'a> CheckMethodBody<'a> {
 
             self.try_else_block(block, returns, throws, scope);
         } else {
-            self.check_missing_try(name, throws, &node.location);
+            self.check_missing_try(&node.name.name, throws, &node.location);
         }
 
         let rec_info = Receiver::class_or_explicit(self.db(), receiver);
@@ -3812,10 +3783,9 @@ impl<'a> CheckMethodBody<'a> {
         scope: &mut LexicalScope,
     ) -> TypeRef {
         let name = &node.name.name;
-        let stype = self.self_type;
         let module = self.module;
         let rec = scope.surrounding_type;
-        let rec_id = rec.type_id(self.db(), stype).unwrap();
+        let rec_id = rec.type_id(self.db()).unwrap();
         let (rec_info, rec, rec_id, method) =
             match rec_id.lookup_method(self.db(), name, module, true) {
                 MethodLookup::Ok(method) => {
@@ -3876,17 +3846,23 @@ impl<'a> CheckMethodBody<'a> {
                 }
             };
 
-        let mut call =
-            MethodCall::new(self.state, self.module, rec, rec_id, method);
+        let mut call = MethodCall::new(
+            self.state,
+            self.module,
+            Some((self.self_type, self.method)),
+            rec,
+            rec_id,
+            method,
+        );
 
         call.check_mutability(self.state, &node.location);
-        call.check_bounded_implementation(self.state, &node.location);
+        call.check_type_bounds(self.state, &node.location);
         self.call_arguments(&mut node.arguments, &mut call, scope);
         call.check_argument_count(self.state, &node.location);
         call.update_receiver_type_arguments(self.state, scope.surrounding_type);
 
-        let returns = call.return_type(self.state, &node.location);
-        let throws = call.throw_type(self.state, &node.location);
+        let returns = call.return_type(self.state);
+        let throws = call.throw_type(self.state);
 
         if let Some(block) = node.else_block.as_mut() {
             if throws.is_never(self.db()) {
@@ -3911,86 +3887,88 @@ impl<'a> CheckMethodBody<'a> {
         returns
     }
 
-    fn async_call(
+    fn field_with_receiver(
         &mut self,
-        node: &mut hir::AsyncCall,
+        node: &mut hir::Call,
+        receiver: TypeRef,
+        receiver_id: TypeId,
         scope: &mut LexicalScope,
-    ) -> TypeRef {
-        let allow_type_private = node.receiver.is_self();
-        let rec_type = self.expression(&mut node.receiver, scope);
+    ) -> Option<TypeRef> {
         let name = &node.name.name;
-        let (rec_id, method) = if let Some(found) = self.lookup_method(
-            rec_type,
-            name,
-            &node.location,
-            allow_type_private,
-        ) {
-            found
+
+        if receiver_id == self.self_type {
+            return if let Some((field, raw_type)) = self.field_type(name) {
+                let typ = self.field_reference(raw_type, scope, &node.location);
+
+                node.kind = CallKind::GetField(FieldInfo {
+                    id: field,
+                    variable_type: typ,
+                });
+
+                Some(typ)
+            } else {
+                self.state.diagnostics.undefined_method(
+                    name,
+                    self.fmt(receiver),
+                    self.file(),
+                    node.location.clone(),
+                );
+
+                None
+            };
+        }
+
+        let (ins, field) = if let TypeId::ClassInstance(ins) = receiver_id {
+            ins.instance_of().field(self.db(), name).map(|field| (ins, field))
         } else {
-            return TypeRef::Error;
-        };
+            None
+        }?;
 
-        if !matches!(
-            rec_id,
-            TypeId::ClassInstance(ins)
-                if ins.instance_of().kind(self.db()).is_async()
-        ) {
-            let rec_name =
-                format_type_with_self(self.db(), self.self_type, rec_type);
-
-            self.state.diagnostics.error(
-                DiagnosticId::InvalidCall,
-                format!("'{}' isn't an async type", rec_name),
+        if !field.is_visible_to(self.db(), self.module) {
+            self.state.diagnostics.private_field(
+                &node.name.name,
                 self.file(),
-                node.receiver.location().clone(),
+                node.location.clone(),
             );
-
-            return TypeRef::Error;
         }
 
-        if !method.is_async(self.db()) {
-            self.state.diagnostics.error(
-                DiagnosticId::InvalidCall,
-                format!("'{}' isn't an async method", name),
-                self.file(),
-                node.name.location.clone(),
-            );
+        let mut ctx = TypeContext::new();
+        let db = &mut self.state.db;
+        let raw_type = field.value_type(db);
 
-            return TypeRef::Error;
+        // TODO: remove?
+        ins.type_arguments(db).copy_into(&mut ctx.type_arguments);
+
+        let immutable = receiver.is_ref(db);
+        let args = ins.type_arguments(db).clone();
+        let bounds = TypeBounds::new(); // TODO: what bounds to use?
+        let mut resolver = TypeResolver::new(db, &args, &bounds);
+
+        resolver.immutable = immutable;
+
+        let mut returns = resolver.resolve(raw_type);
+
+        if returns.is_value_type(db) {
+            returns = returns.as_owned(db);
+        } else if !immutable && raw_type.is_owned_or_uni(db) {
+            returns = returns.as_mut(db);
         }
 
-        let mut call =
-            MethodCall::new(self.state, self.module, rec_type, rec_id, method);
+        if receiver.require_sendable_arguments(self.db())
+            && !returns.is_sendable(self.db())
+        {
+            self.state.diagnostics.unsendable_field(
+                name,
+                self.fmt(returns),
+                self.file(),
+                node.location.clone(),
+            );
+        }
 
-        call.check_mutability(self.state, &node.location);
-        call.check_bounded_implementation(self.state, &node.location);
-        self.call_arguments(&mut node.arguments, &mut call, scope);
-        call.check_argument_count(self.state, &node.location);
-        call.update_receiver_type_arguments(self.state, scope.surrounding_type);
+        node.kind =
+            CallKind::GetField(FieldInfo { id: field, variable_type: returns });
 
-        let returns = call.return_type(self.state, &node.location);
-        let throws = call.throw_type(self.state, &node.location);
-        let fut_class = ClassId::future();
-        let mut fut_args = TypeArguments::new();
-        let fut_params = fut_class.type_parameters(self.db());
-
-        fut_args.assign(fut_params[0], returns);
-        fut_args.assign(fut_params[1], throws);
-
-        let throws = TypeRef::Never;
-        let returns = TypeRef::Owned(TypeId::ClassInstance(
-            ClassInstance::generic(self.db_mut(), fut_class, fut_args),
-        ));
-
-        node.info = Some(CallInfo {
-            id: method,
-            receiver: Receiver::Explicit,
-            returns,
-            throws,
-            dynamic: rec_id.use_dynamic_dispatch(),
-        });
-
-        returns
+        Some(returns)
     }
 
     fn try_else_block(
@@ -4004,20 +3982,18 @@ impl<'a> CheckMethodBody<'a> {
 
         if let Some(var_def) = node.argument.as_mut() {
             let typ = if let Some(n) = var_def.value_type.as_mut() {
-                let mut typ_ctx = TypeContext::new(self.self_type);
+                let mut typ_ctx = TypeContext::new();
                 let exp_type = self.type_signature(n, self.self_type);
 
                 if !throws.type_check(
                     self.db_mut(),
                     exp_type,
                     &mut typ_ctx,
-                    true,
+                    TypeRules::new(),
                 ) {
-                    let self_type = self.self_type;
-
                     self.state.diagnostics.type_error(
-                        format_type_with_self(self.db(), self_type, throws),
-                        format_type_with_self(self.db(), self_type, exp_type),
+                        format_type(self.db(), throws),
+                        format_type(self.db(), exp_type),
                         self.file(),
                         node.location.clone(),
                     );
@@ -4075,20 +4051,18 @@ impl<'a> CheckMethodBody<'a> {
         // This way we don't need to duplicate a lot of the `try` logic for
         // `try!`. We handle this case explicitly here to provide better error
         // message in case a thrown type doesn't implement ToString.
-        if let BuiltinFunctionKind::Macro(CompilerMacro::PanicThrown) =
-            id.kind(self.db())
-        {
+        if let BuiltinFunction::PanicThrown = id {
             let trait_id =
                 self.db().trait_in_module(STRING_MODULE, TO_STRING_TRAIT);
             let arg = args[0];
 
-            if !arg.implements_trait_id(self.db(), trait_id, self.self_type) {
+            if !arg.implements_trait_id(self.db(), trait_id) {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidType,
                     format!(
                         "This expression may panic with a value of type '{}', \
                         but this type doesn't implement '{}::{}'",
-                        format_type_with_self(self.db(), self.self_type, arg),
+                        format_type(self.db(), arg),
                         STRING_MODULE,
                         TO_STRING_TRAIT
                     ),
@@ -4098,8 +4072,8 @@ impl<'a> CheckMethodBody<'a> {
             }
         }
 
-        let returns = id.return_type(self.db());
-        let throws = id.throw_type(self.db());
+        let returns = id.return_type();
+        let throws = id.throw_type();
 
         if let Some(block) = node.else_block.as_mut() {
             self.try_else_block(block, returns, throws, scope);
@@ -4118,8 +4092,29 @@ impl<'a> CheckMethodBody<'a> {
         scope: &mut LexicalScope,
     ) -> TypeRef {
         let expr_type = self.expression(&mut node.value, scope);
-        let cast_type = self.type_signature(&mut node.cast_to, self.self_type);
-        let mut ctx = TypeContext::new(self.self_type);
+
+        let rules = Rules {
+            type_parameters_as_rigid: true,
+            type_parameters_as_owned: true,
+            allow_mutable_self_parameters: expr_type.is_any(self.db()),
+            ..Default::default()
+        };
+        let type_scope = TypeScope::with_bounds(
+            self.module,
+            self.self_type,
+            Some(self.method),
+            self.bounds,
+        );
+
+        let cast_type = DefineAndCheckTypeSignature::new(
+            self.state,
+            self.module,
+            &type_scope,
+            rules,
+        )
+        .define_type(&mut node.cast_to);
+
+        let mut ctx = TypeContext::new();
 
         if !expr_type.allow_cast_to(self.db_mut(), cast_type, &mut ctx) {
             self.state.diagnostics.error(
@@ -4149,14 +4144,13 @@ impl<'a> CheckMethodBody<'a> {
         let index_mut =
             self.db().trait_in_module(INDEX_MODULE, INDEX_MUT_TRAIT);
 
-        let stype = self.self_type;
         let allow_type_private = node.receiver.is_self();
         let rec = self.expression(&mut node.receiver, scope);
         let name = if rec.allow_mutating()
-            && rec.implements_trait_id(self.db(), index_mut, stype)
+            && rec.implements_trait_id(self.db(), index_mut)
         {
             INDEX_MUT_METHOD
-        } else if rec.implements_trait_id(self.db(), index, stype) {
+        } else if rec.implements_trait_id(self.db(), index) {
             INDEX_METHOD
         } else {
             self.state.diagnostics.error(
@@ -4164,7 +4158,7 @@ impl<'a> CheckMethodBody<'a> {
                 format!(
                     "The type '{typ}' must implement either \
                     {module}::{index} or {module}::{index_mut}",
-                    typ = format_type_with_self(self.db(), stype, rec),
+                    typ = format_type(self.db(), rec),
                     module = INDEX_MODULE,
                     index = INDEX_TRAIT,
                     index_mut = INDEX_MUT_TRAIT
@@ -4184,16 +4178,22 @@ impl<'a> CheckMethodBody<'a> {
             return TypeRef::Error;
         };
 
-        let mut call =
-            MethodCall::new(self.state, self.module, rec, rec_id, method);
+        let mut call = MethodCall::new(
+            self.state,
+            self.module,
+            Some((self.self_type, self.method)),
+            rec,
+            rec_id,
+            method,
+        );
 
         call.check_mutability(self.state, &node.location);
-        call.check_bounded_implementation(self.state, &node.location);
+        call.check_type_bounds(self.state, &node.location);
         self.positional_argument(&mut call, 0, &mut node.index, scope);
         call.check_argument_count(self.state, &node.location);
         call.update_receiver_type_arguments(self.state, scope.surrounding_type);
 
-        let returns = call.return_type(self.state, &node.location);
+        let returns = call.return_type(self.state);
 
         node.info = Some(CallInfo {
             id: method,
@@ -4249,7 +4249,7 @@ impl<'a> CheckMethodBody<'a> {
         receiver: TypeRef,
         location: &SourceLocation,
     ) -> Option<TypeId> {
-        match receiver.type_id(self.db(), self.self_type) {
+        match receiver.type_id(self.db()) {
             Ok(id) => Some(id),
             Err(TypeRef::Error) => None,
             Err(TypeRef::Placeholder(_)) => {
@@ -4433,7 +4433,7 @@ impl<'a> CheckMethodBody<'a> {
                     "The method '{}' may throw a value of type '{}', \
                     but the 'try' keyword is missing",
                     name,
-                    format_type_with_self(self.db(), self.self_type, throws),
+                    format_type(self.db(), throws),
                 ),
                 self.file(),
                 location.clone(),
@@ -4453,13 +4453,8 @@ impl<'a> CheckMethodBody<'a> {
         }
     }
 
-    fn require_boolean(
-        &mut self,
-        typ: TypeRef,
-        self_type: TypeId,
-        location: &SourceLocation,
-    ) {
-        if typ == TypeRef::Error || typ.is_bool(self.db(), self.self_type) {
+    fn require_boolean(&mut self, typ: TypeRef, location: &SourceLocation) {
+        if typ == TypeRef::Error || typ.is_bool(self.db()) {
             return;
         }
 
@@ -4468,7 +4463,7 @@ impl<'a> CheckMethodBody<'a> {
             format!(
                 "Expected a 'Bool', 'ref Bool' or 'mut Bool', \
                 found '{}' instead",
-                format_type_with_self(self.db(), self_type, typ),
+                format_type(self.db(), typ),
             ),
             self.file(),
             location.clone(),
@@ -4565,7 +4560,7 @@ impl<'a> CheckMethodBody<'a> {
     }
 
     fn fmt(&self, typ: TypeRef) -> String {
-        format_type_with_self(self.db(), self.self_type, typ)
+        format_type(self.db(), typ)
     }
 
     fn invalid_static_call(

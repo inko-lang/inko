@@ -57,7 +57,7 @@ class pub enum IpAddress {
   #     import std::net::ip::IpAddress
   #
   #     IpAdress.v4(127, 0, 0, 1)
-  fn pub static v4(a: Int, b: Int, c: Int, d: Int) -> Self {
+  fn pub static v4(a: Int, b: Int, c: Int, d: Int) -> IpAddress {
     V4(Ipv4Address.new(a, b, c, d))
   }
 
@@ -79,7 +79,7 @@ class pub enum IpAddress {
     f: Int,
     g: Int,
     h: Int
-  ) -> Self {
+  ) -> IpAddress {
     V6(Ipv6Address.new(a, b, c, d, e, f, g, h))
   }
 
@@ -101,7 +101,7 @@ class pub enum IpAddress {
   #     import std::net::ip::IpAddress
   #
   #     IpAddress.parse('::1') # => Option.Some(IpAddress.V6(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)))
-  fn pub static parse(address: String) -> Option[Self] {
+  fn pub static parse(address: String) -> Option[IpAddress] {
     if address.contains?(':') {
       Ipv6Address.parse(address).map fn (v) { V6(v) }
     } else {
@@ -158,8 +158,8 @@ class pub enum IpAddress {
   }
 }
 
-impl Equal for IpAddress {
-  fn pub ==(other: ref Self) -> Bool {
+impl Equal[IpAddress] for IpAddress {
+  fn pub ==(other: ref IpAddress) -> Bool {
     match self {
       case V4(a) -> match other {
         case V4(b) -> a == b
@@ -191,8 +191,8 @@ impl ToString for IpAddress {
   }
 }
 
-impl Clone for IpAddress {
-  fn pub clone -> Self {
+impl Clone[IpAddress] for IpAddress {
+  fn pub clone -> IpAddress {
     match self {
       case V4(ip) -> IpAddress.V4(ip.clone)
       case V6(ip) -> IpAddress.V6(ip.clone)
@@ -229,7 +229,7 @@ class pub Ipv6Address {
   #     import std::net::ip::Ipv6Address
   #
   #     Ipv6Address.parse('::1').unwrap.v6? # => true
-  fn pub static parse(input: String) -> Option[Self] {
+  fn pub static parse(input: String) -> Option[Ipv6Address] {
     let bytes = input.to_byte_array
     let mut cursor = 0
     let max = bytes.length
@@ -361,8 +361,10 @@ class pub Ipv6Address {
     f: Int,
     g: Int,
     h: Int
-  ) -> Self {
-    Self { @a = a, @b = b, @c = c, @d = d, @e = e, @f = f, @g = g, @h = h }
+  ) -> Ipv6Address {
+    Ipv6Address {
+      @a = a, @b = b, @c = c, @d = d, @e = e, @f = f, @g = g, @h = h
+    }
   }
 
   # Returns `true` if `self` is an IPv4-compatible IPv6 address.
@@ -473,7 +475,7 @@ impl Format for Ipv6Address {
   }
 }
 
-impl Equal for Ipv6Address {
+impl Equal[Ipv6Address] for Ipv6Address {
   # Returns `true` if `self` and the given IP address are the same.
   #
   # # Examples
@@ -488,7 +490,7 @@ impl Equal for Ipv6Address {
   #
   #     addr1 == addr2 # => true
   #     addr1 == addr3 # => false
-  fn pub ==(other: ref Self) -> Bool {
+  fn pub ==(other: ref Ipv6Address) -> Bool {
     @a == other.a
       and @b == other.b
       and @c == other.c
@@ -591,9 +593,9 @@ impl IntoString for Ipv6Address {
   }
 }
 
-impl Clone for Ipv6Address {
-  fn pub clone -> Self {
-    Self {
+impl Clone[Ipv6Address] for Ipv6Address {
+  fn pub clone -> Ipv6Address {
+    Ipv6Address {
       @a = @a,
       @b = @b,
       @c = @c,
@@ -624,7 +626,7 @@ class pub Ipv4Address {
   #     let addr = Ipv4Address.parse('1.2.3.4').unwrap
   #
   #     addr.v4? # => true
-  fn pub static parse(input: String) -> Option[Self] {
+  fn pub static parse(input: String) -> Option[Ipv4Address] {
     # No IPv4 address can be longer than 15 characters (255.255.255.255).
     if input.size > 15 { return Option.None }
 
@@ -662,8 +664,8 @@ class pub Ipv4Address {
   }
 
   # Returns a new IPv4 address using the given octets.
-  fn pub static new(a: Int, b: Int, c: Int, d: Int) -> Self {
-    Self { @a = a, @b = b, @c = c, @d = d }
+  fn pub static new(a: Int, b: Int, c: Int, d: Int) -> Ipv4Address {
+    Ipv4Address { @a = a, @b = b, @c = c, @d = d }
   }
 
   # Returns `true` if `self` is a broadcast address (255.255.255.255).
@@ -844,7 +846,7 @@ impl Format for Ipv4Address {
   }
 }
 
-impl Equal for Ipv4Address {
+impl Equal[Ipv4Address] for Ipv4Address {
   # Returns `true` if `self` and the given IP address are the same.
   #
   # # Examples
@@ -859,7 +861,7 @@ impl Equal for Ipv4Address {
   #
   #     addr1 == addr2 # => true
   #     addr1 == addr3 # => false
-  fn pub ==(other: ref Self) -> Bool {
+  fn pub ==(other: ref Ipv4Address) -> Bool {
     @a == other.a and @b == other.b and @c == other.c and @d == other.d
   }
 }
@@ -886,8 +888,8 @@ impl IntoString for Ipv4Address {
   }
 }
 
-impl Clone for Ipv4Address {
-  fn pub clone -> Self {
-    Self { @a = @a, @b = @b, @c = @c, @d = @d }
+impl Clone[Ipv4Address] for Ipv4Address {
+  fn pub clone -> Ipv4Address {
+    Ipv4Address { @a = @a, @b = @b, @c = @c, @d = @d }
   }
 }

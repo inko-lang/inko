@@ -2,12 +2,10 @@ pub mod socket_address;
 
 use crate::network_poller::Interest;
 use crate::process::ProcessPointer;
-use crate::runtime_error::RuntimeError;
 use crate::socket::socket_address::SocketAddress;
 use crate::state::State;
 use socket2::{Domain, SockAddr, Socket as RawSocket, Type};
-use std::io;
-use std::io::Read;
+use std::io::{self, Read};
 use std::mem::transmute;
 use std::net::Shutdown;
 use std::net::{IpAddr, SocketAddr};
@@ -29,47 +27,16 @@ use windows_sys::Win32::Networking::WinSock::{
 
 macro_rules! socket_setter {
     ($setter:ident, $type:ty) => {
-        pub(crate) fn $setter(&self, value: $type) -> Result<(), RuntimeError> {
-            self.inner.$setter(value)?;
-
-            Ok(())
-        }
-    };
-}
-
-macro_rules! socket_getter {
-    ($getter:ident, $type:ty) => {
-        pub(crate) fn $getter(&self) -> Result<$type, RuntimeError> {
-            Ok(self.inner.$getter()?)
-        }
-    };
-}
-
-macro_rules! socket_u32_getter {
-    ($getter:ident) => {
-        pub(crate) fn $getter(&self) -> Result<usize, RuntimeError> {
-            Ok(self.inner.$getter()? as usize)
+        pub(crate) fn $setter(&self, value: $type) -> io::Result<()> {
+            self.inner.$setter(value)
         }
     };
 }
 
 macro_rules! socket_duration_setter {
     ($setter:ident) => {
-        pub(crate) fn $setter(&self, value: u64) -> Result<(), RuntimeError> {
-            let dur = Duration::from_nanos(value);
-
-            self.inner.$setter(Some(dur))?;
-            Ok(())
-        }
-    };
-}
-
-macro_rules! socket_duration_getter {
-    ($getter:ident) => {
-        pub(crate) fn $getter(&self) -> Result<i64, RuntimeError> {
-            let dur = self.inner.$getter()?;
-
-            Ok(dur.map(|v| v.as_nanos() as i64).unwrap_or(0))
+        pub(crate) fn $setter(&self, value: u64) -> io::Result<()> {
+            self.inner.$setter(Some(Duration::from_nanos(value)))
         }
     };
 }
@@ -78,14 +45,12 @@ macro_rules! socket_duration_getter {
 fn decode_sockaddr(
     sockaddr: SockAddr,
     unix: bool,
-) -> Result<(String, i64), RuntimeError> {
-    let peer_result = if unix {
+) -> Result<(String, i64), String> {
+    if unix {
         SocketAddress::Unix(sockaddr).address()
     } else {
         SocketAddress::Other(sockaddr).address()
-    };
-
-    Ok(peer_result?)
+    }
 }
 
 #[cfg(unix)]
@@ -93,14 +58,15 @@ fn encode_sockaddr(
     address: &str,
     port: u16,
     unix: bool,
-) -> Result<SockAddr, RuntimeError> {
+) -> io::Result<SockAddr> {
     if unix {
-        return Ok(SockAddr::unix(address)?);
+        return SockAddr::unix(address);
     }
 
-    let ip = address.parse::<IpAddr>()?;
-
-    Ok(SockAddr::from(SocketAddr::new(ip, port)))
+    address
+        .parse::<IpAddr>()
+        .map(|ip| SockAddr::from(SocketAddr::new(ip, port)))
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
 }
 
 #[cfg(not(unix))]
@@ -108,10 +74,11 @@ fn encode_sockaddr(
     address: &str,
     port: u16,
     _unix: bool,
-) -> Result<SockAddr, RuntimeError> {
-    let ip = address.parse::<IpAddr>()?;
-
-    Ok(SockAddr::from(SocketAddr::new(ip, port)))
+) -> io::Result<SockAddr> {
+    address
+        .parse::<IpAddr>()?
+        .map(|ip| SockAddr::from(SocketAddr::new(ip, port)))
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
 }
 
 /// Returns a slice of the input buffer that a socket operation can write to.
@@ -145,25 +112,21 @@ fn update_buffer_length_and_capacity(buffer: &mut Vec<u8>, read: usize) {
     buffer.shrink_to_fit();
 }
 
-fn socket_type(kind: i64) -> Result<Type, RuntimeError> {
-    let kind = match kind {
-        0 => Type::STREAM,
-        1 => Type::DGRAM,
-        2 => Type::SEQPACKET,
-        3 => Type::RAW,
-        _ => {
-            return Err(RuntimeError::Panic(format!(
-                "{} is not a valid socket type",
-                kind
-            )))
-        }
-    };
-
-    Ok(kind)
+fn socket_type(kind: i64) -> io::Result<Type> {
+    match kind {
+        0 => Ok(Type::STREAM),
+        1 => Ok(Type::DGRAM),
+        2 => Ok(Type::SEQPACKET),
+        3 => Ok(Type::RAW),
+        _ => Err(io::Error::new(
+            io::ErrorKind::Other,
+            format!("{} is not a valid socket type", kind),
+        )),
+    }
 }
 
 /// A nonblocking socket that can be registered with a `NetworkPoller`.
-pub(crate) struct Socket {
+pub struct Socket {
     /// The raw socket.
     inner: RawSocket,
 
@@ -187,7 +150,7 @@ impl Socket {
         domain: Domain,
         kind: Type,
         unix: bool,
-    ) -> Result<Self, RuntimeError> {
+    ) -> io::Result<Self> {
         let socket = RawSocket::new(domain, kind, None)?;
 
         socket.set_nonblocking(true)?;
@@ -199,53 +162,42 @@ impl Socket {
         })
     }
 
-    pub(crate) fn ipv4(kind_int: i64) -> Result<Socket, RuntimeError> {
+    pub(crate) fn ipv4(kind_int: i64) -> io::Result<Socket> {
         Self::new(Domain::IPV4, socket_type(kind_int)?, false)
     }
 
-    pub(crate) fn ipv6(kind_int: i64) -> Result<Socket, RuntimeError> {
+    pub(crate) fn ipv6(kind_int: i64) -> io::Result<Socket> {
         Self::new(Domain::IPV6, socket_type(kind_int)?, false)
     }
 
     #[cfg(unix)]
-    pub(crate) fn unix(kind_int: i64) -> Result<Socket, RuntimeError> {
+    pub(crate) fn unix(kind_int: i64) -> io::Result<Socket> {
         Self::new(Domain::UNIX, socket_type(kind_int)?, true)
     }
 
     #[cfg(not(unix))]
-    pub(crate) fn unix(_: i64) -> Result<Socket, RuntimeError> {
-        Err(RuntimeError::from(
+    pub(crate) fn unix(_: i64) -> io::Result<Socket> {
+        Err(io::Error::new(
+            io::ErrorKind::Other,
             "UNIX sockets aren't supported on this platform",
         ))
     }
 
-    pub(crate) fn bind(
-        &self,
-        address: &str,
-        port: u16,
-    ) -> Result<(), RuntimeError> {
+    pub(crate) fn bind(&self, address: &str, port: u16) -> io::Result<()> {
         let sockaddr = encode_sockaddr(address, port, self.unix)?;
 
-        self.inner.bind(&sockaddr)?;
-
-        Ok(())
+        self.inner.bind(&sockaddr)
     }
 
-    pub(crate) fn listen(&self, backlog: i32) -> Result<(), RuntimeError> {
-        self.inner.listen(backlog)?;
-
-        Ok(())
+    pub(crate) fn listen(&self, backlog: i32) -> io::Result<()> {
+        self.inner.listen(backlog)
     }
 
-    pub(crate) fn connect(
-        &self,
-        address: &str,
-        port: u16,
-    ) -> Result<(), RuntimeError> {
+    pub(crate) fn connect(&self, address: &str, port: u16) -> io::Result<()> {
         let sockaddr = encode_sockaddr(address, port, self.unix)?;
 
         match self.inner.connect(&sockaddr) {
-            Ok(_) => {}
+            Ok(_) => Ok(()),
             Err(ref e)
                 if e.kind() == io::ErrorKind::WouldBlock
                     || e.raw_os_error() == Some(EINPROGRESS as i32) =>
@@ -255,24 +207,21 @@ impl Socket {
                     // WouldBlock, with the actual error being stored in
                     // SO_ERROR on the socket. Windows in particular seems to
                     // take this approach.
-                    return Err(err.into());
+                    return Err(err);
                 }
 
                 // On Windows a connect(2) might throw WSAEWOULDBLOCK, the
                 // Windows equivalent of EAGAIN/EWOULDBLOCK. Other platforms may
                 // also produce some error that Rust will report as WouldBlock.
-                return Err(RuntimeError::WouldBlock);
+                Err(io::Error::from(io::ErrorKind::WouldBlock))
             }
             Err(ref e) if e.raw_os_error() == Some(EISCONN as i32) => {
                 // We may run into an EISCONN if a previous connect(2) attempt
                 // would block. In this case we can just continue.
+                Ok(())
             }
-            Err(e) => {
-                return Err(e.into());
-            }
+            Err(e) => Err(e),
         }
-
-        Ok(())
     }
 
     pub(crate) fn register(
@@ -281,7 +230,7 @@ impl Socket {
         process: ProcessPointer,
         thread_poller_id: usize,
         interest: Interest,
-    ) -> Result<(), RuntimeError> {
+    ) -> io::Result<()> {
         let existing_id = self.registered.load(Ordering::Acquire);
 
         // Once registered, the process might be rescheduled immediately if
@@ -306,7 +255,7 @@ impl Socket {
 
         // *DO NOT* use "self" from here on, as the socket/process may already
         // be running on a different thread.
-        result.map_err(|e| e.into())
+        result
     }
 
     pub(crate) fn deregister(&mut self, state: &State) {
@@ -314,7 +263,7 @@ impl Socket {
         let _ = state.network_pollers[poller_id].delete(&self.inner);
     }
 
-    pub(crate) fn accept(&self) -> Result<Self, RuntimeError> {
+    pub(crate) fn accept(&self) -> io::Result<Self> {
         let (socket, _) = self.inner.accept()?;
 
         // Accepted sockets don't inherit the non-blocking status of the
@@ -332,7 +281,7 @@ impl Socket {
         &self,
         buffer: &mut Vec<u8>,
         amount: usize,
-    ) -> Result<usize, RuntimeError> {
+    ) -> io::Result<usize> {
         if amount > 0 {
             // We don't use take(), because that only terminates if:
             //
@@ -355,7 +304,7 @@ impl Socket {
         &self,
         buffer: &mut Vec<u8>,
         bytes: usize,
-    ) -> Result<(String, i64), RuntimeError> {
+    ) -> io::Result<(String, i64)> {
         let slice = socket_output_slice(buffer, bytes);
         let (read, sockaddr) =
             self.inner.recv_from(unsafe { transmute(slice) })?;
@@ -363,6 +312,7 @@ impl Socket {
         update_buffer_length_and_capacity(buffer, read);
 
         decode_sockaddr(sockaddr, self.unix)
+            .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
     }
 
     pub(crate) fn send_to(
@@ -370,34 +320,36 @@ impl Socket {
         buffer: &[u8],
         address: &str,
         port: u16,
-    ) -> Result<usize, RuntimeError> {
+    ) -> io::Result<usize> {
         let sockaddr = encode_sockaddr(address, port, self.unix)?;
 
         Ok(self.inner.send_to(buffer, &sockaddr)?)
     }
 
-    pub(crate) fn local_address(&self) -> Result<(String, i64), RuntimeError> {
+    pub(crate) fn local_address(&self) -> io::Result<(String, i64)> {
         let sockaddr = self.inner.local_addr()?;
 
         decode_sockaddr(sockaddr, self.unix)
+            .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
     }
 
-    pub(crate) fn peer_address(&self) -> Result<(String, i64), RuntimeError> {
+    pub(crate) fn peer_address(&self) -> io::Result<(String, i64)> {
         let sockaddr = self.inner.peer_addr()?;
 
         decode_sockaddr(sockaddr, self.unix)
+            .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
     }
 
-    pub(crate) fn shutdown_read(&self) -> Result<(), RuntimeError> {
-        self.inner.shutdown(Shutdown::Read).map_err(|e| e.into())
+    pub(crate) fn shutdown_read(&self) -> io::Result<()> {
+        self.inner.shutdown(Shutdown::Read)
     }
 
-    pub(crate) fn shutdown_write(&self) -> Result<(), RuntimeError> {
-        self.inner.shutdown(Shutdown::Write).map_err(|e| e.into())
+    pub(crate) fn shutdown_write(&self) -> io::Result<()> {
+        self.inner.shutdown(Shutdown::Write)
     }
 
-    pub(crate) fn shutdown_read_write(&self) -> Result<(), RuntimeError> {
-        self.inner.shutdown(Shutdown::Both).map_err(|e| e.into())
+    pub(crate) fn shutdown_read_write(&self) -> io::Result<()> {
+        self.inner.shutdown(Shutdown::Both)
     }
 
     socket_setter!(set_ttl, u32);
@@ -412,46 +364,17 @@ impl Socket {
 
     socket_duration_setter!(set_linger);
 
-    socket_getter!(only_v6, bool);
-    socket_getter!(nodelay, bool);
-    socket_getter!(broadcast, bool);
-    socket_getter!(reuse_address, bool);
-    socket_getter!(keepalive, bool);
-
-    socket_getter!(recv_buffer_size, usize);
-    socket_getter!(send_buffer_size, usize);
-
-    socket_u32_getter!(ttl);
-
-    socket_duration_getter!(linger);
-
     #[cfg(unix)]
-    pub(crate) fn set_reuse_port(
-        &self,
-        reuse: bool,
-    ) -> Result<(), RuntimeError> {
-        Ok(self.inner.set_reuse_port(reuse)?)
+    pub(crate) fn set_reuse_port(&self, reuse: bool) -> io::Result<()> {
+        self.inner.set_reuse_port(reuse)
     }
 
     #[cfg(not(unix))]
-    pub(crate) fn set_reuse_port(
-        &self,
-        _reuse: bool,
-    ) -> Result<(), RuntimeError> {
+    pub(crate) fn set_reuse_port(&self, _reuse: bool) -> io::Result<()> {
         Ok(())
     }
 
-    #[cfg(unix)]
-    pub(crate) fn reuse_port(&self) -> Result<bool, RuntimeError> {
-        Ok(self.inner.reuse_port()?)
-    }
-
-    #[cfg(not(unix))]
-    pub(crate) fn reuse_port(&self) -> Result<bool, RuntimeError> {
-        Ok(false)
-    }
-
-    pub(crate) fn try_clone(&self) -> Result<Socket, RuntimeError> {
+    pub(crate) fn try_clone(&self) -> io::Result<Socket> {
         let sock = Socket {
             inner: self.inner.try_clone()?,
             registered: AtomicI8::new(NOT_REGISTERED),

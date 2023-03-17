@@ -7,8 +7,8 @@ import std::time::Duration
 class Buffer {
   let @bytes: mut ByteArray
 
-  fn static new(bytes: mut ByteArray) -> Self {
-    Self { @bytes = bytes}
+  fn static new(bytes: mut ByteArray) -> Buffer {
+    Buffer { @bytes = bytes}
   }
 }
 

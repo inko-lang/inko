@@ -6,8 +6,8 @@ class Reader {
   let @index: Int
   let @bytes: ByteArray
 
-  fn static new -> Self {
-    Self { @index = 0, @bytes = ByteArray.from_array([1, 2, 3]) }
+  fn static new -> Reader {
+    Reader { @index = 0, @bytes = ByteArray.from_array([1, 2, 3]) }
   }
 }
 
@@ -31,8 +31,8 @@ impl Read for Reader {
 class Writer {
   let @buffer: ByteArray
 
-  fn static new -> Self {
-    Self { @buffer = ByteArray.new }
+  fn static new -> Writer {
+    Writer { @buffer = ByteArray.new }
   }
 }
 

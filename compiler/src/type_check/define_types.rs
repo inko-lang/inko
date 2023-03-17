@@ -3,15 +3,16 @@ use crate::diagnostics::DiagnosticId;
 use crate::hir;
 use crate::state::State;
 use crate::type_check::{
-    CheckTypeSignature, DefineAndCheckTypeSignature, DefineTypeSignature,
-    Rules, TypeScope,
+    define_type_bounds, CheckTypeSignature, DefineAndCheckTypeSignature,
+    DefineTypeSignature, Rules, TypeScope,
 };
 use std::path::PathBuf;
+use types::format::format_type;
 use types::{
-    format_type, Class, ClassId, ClassInstance, ClassKind, Constant, Database,
-    ModuleId, Symbol, Trait, TraitId, TraitImplementation, TypeBounds,
-    TypeContext, TypeId, TypeParameter, TypeRef, Visibility, ENUM_TAG_FIELD,
-    ENUM_TAG_INDEX, FIELDS_LIMIT, MAIN_CLASS, VARIANTS_LIMIT,
+    Class, ClassId, ClassInstance, ClassKind, Constant, Database, ModuleId,
+    Rules as TypeRules, Symbol, Trait, TraitId, TraitImplementation,
+    TypeContext, TypeId, TypeRef, Visibility, ENUM_TAG_FIELD, ENUM_TAG_INDEX,
+    FIELDS_LIMIT, MAIN_CLASS, VARIANTS_LIMIT,
 };
 
 /// The maximum number of members a single variant can store. We subtract one as
@@ -243,68 +244,13 @@ impl<'a> ImplementTraits<'a> {
             return;
         }
 
-        let mut bounds = TypeBounds::new();
-        let rules = Rules::default();
-
-        for bound in &mut node.bounds {
-            let name = &bound.name.name;
-
-            let param =
-                if let Some(id) = class_id.type_parameter(self.db(), name) {
-                    id
-                } else {
-                    self.state.diagnostics.undefined_symbol(
-                        name,
-                        self.file(),
-                        bound.name.location.clone(),
-                    );
-
-                    continue;
-                };
-
-            if bounds.get(param).is_some() {
-                self.state.diagnostics.error(
-                    DiagnosticId::InvalidBound,
-                    format!(
-                        "Bounds are already defined for type parameter '{}'",
-                        name
-                    ),
-                    self.file(),
-                    bound.location.clone(),
-                );
-
-                continue;
-            }
-
-            let mut reqs = param.requirements(self.db());
-            let scope =
-                TypeScope::new(self.module, TypeId::Class(class_id), None);
-
-            let mut definer = DefineTypeSignature::new(
-                self.state,
-                self.module,
-                &scope,
-                rules,
-            );
-
-            for req in &mut bound.requirements {
-                if let Some(ins) = definer.as_trait_instance(req) {
-                    reqs.push(ins);
-                }
-            }
-
-            let name = param.name(self.db()).clone();
-            let new_param = TypeParameter::alloc(self.db_mut(), name);
-
-            new_param.add_requirements(self.db_mut(), reqs);
-            bounds.set(param, new_param);
-        }
-
-        let class_ins = ClassInstance::for_instance_self_type(
-            self.db_mut(),
+        let bounds = define_type_bounds(
+            self.state,
+            self.module,
             class_id,
-            &bounds,
+            &mut node.bounds,
         );
+        let class_ins = ClassInstance::rigid(self.db_mut(), class_id, &bounds);
         let scope = TypeScope::with_bounds(
             self.module,
             TypeId::ClassInstance(class_ins),
@@ -312,6 +258,7 @@ impl<'a> ImplementTraits<'a> {
             &bounds,
         );
 
+        let rules = Rules::default();
         let mut definer =
             DefineTypeSignature::new(self.state, self.module, &scope, rules);
 
@@ -451,30 +398,27 @@ impl<'a> CheckTraitImplementations<'a> {
     fn implement_trait(&mut self, node: &hir::ImplementTrait) {
         let class_ins = node.class_instance.unwrap();
         let trait_ins = node.trait_instance.unwrap();
-        let self_type = TypeId::ClassInstance(class_ins);
-        let mut checker = CheckTypeSignature::new(
-            self.state,
-            self.module,
-            self_type,
-            Rules::default(),
-        );
+        let mut checker = CheckTypeSignature::new(self.state, self.module);
 
         checker.check_type_name(&node.trait_name);
 
         for bound in &node.bounds {
             for req in &bound.requirements {
-                checker.check_type_name(req);
+                if let hir::Requirement::Trait(req) = req {
+                    checker.check_type_name(req);
+                }
             }
         }
 
-        let mut context = TypeContext::new(self_type);
+        let mut context = TypeContext::new();
+        let rules = TypeRules::new();
 
         for req in trait_ins.instance_of().required_traits(self.db()) {
             if !class_ins.type_check_with_trait_instance(
                 self.db_mut(),
                 req,
                 &mut context,
-                true,
+                rules,
             ) {
                 self.state.diagnostics.error(
                     DiagnosticId::MissingTrait,
@@ -620,22 +564,6 @@ impl<'a> DefineFields<'a> {
                 rules,
             )
             .define_type(&mut node.value_type);
-
-            match typ {
-                TypeRef::OwnedSelf | TypeRef::RefSelf => {
-                    self.state.diagnostics.error(
-                        DiagnosticId::InvalidType,
-                        format!(
-                            "'Self' can't be used here as it prevents \
-                            creating instances of '{}'",
-                            format_type(self.db(), scope.self_type),
-                        ),
-                        self.file(),
-                        node.value_type.location().clone(),
-                    );
-                }
-                _ => {}
-            }
 
             if !class_id.is_public(self.db()) && vis == Visibility::Public {
                 self.state.diagnostics.error(
@@ -854,41 +782,18 @@ impl<'a> CheckTypeParameters<'a> {
         for expr in module.expressions.iter_mut() {
             match expr {
                 hir::TopLevelExpression::Class(ref node) => {
-                    self.check_class(node);
+                    self.check_type_parameters(&node.type_parameters);
                 }
                 hir::TopLevelExpression::Trait(ref node) => {
-                    self.check_trait(node);
+                    self.check_type_parameters(&node.type_parameters);
                 }
                 _ => {}
             }
         }
     }
 
-    fn check_class(&mut self, node: &hir::DefineClass) {
-        let id = node.class_id.unwrap();
-        let self_type = TypeId::Class(id);
-
-        self.check_type_parameters(&node.type_parameters, self_type);
-    }
-
-    fn check_trait(&mut self, node: &hir::DefineTrait) {
-        let id = node.trait_id.unwrap();
-        let self_type = TypeId::Trait(id);
-
-        self.check_type_parameters(&node.type_parameters, self_type);
-    }
-
-    fn check_type_parameters(
-        &mut self,
-        nodes: &Vec<hir::TypeParameter>,
-        self_type: TypeId,
-    ) {
-        let mut checker = CheckTypeSignature::new(
-            self.state,
-            self.module,
-            self_type,
-            Rules { allow_self_type: false, ..Default::default() },
-        );
+    fn check_type_parameters(&mut self, nodes: &Vec<hir::TypeParameter>) {
+        let mut checker = CheckTypeSignature::new(self.state, self.module);
 
         for node in nodes {
             for req in &node.requirements {
@@ -923,6 +828,7 @@ impl<'a> InsertPrelude<'a> {
         self.add_class(ClassId::boolean());
         self.add_class(ClassId::nil());
         self.add_class(ClassId::byte_array());
+        self.add_class(ClassId::channel());
 
         self.import_class("std::option", "Option");
         self.import_class("std::map", "Map");
@@ -1140,7 +1046,7 @@ mod tests {
     use ast::parser::Parser;
     use std::fmt::Write as _;
     use types::module_name::ModuleName;
-    use types::{ClassId, ConstantId, TraitId, TraitInstance};
+    use types::{ClassId, ConstantId, TraitId, TraitInstance, TypeBounds};
 
     fn get_trait(db: &Database, module: ModuleId, name: &str) -> TraitId {
         if let Some(Symbol::Trait(id)) = module.symbol(db, name) {

@@ -70,6 +70,10 @@ let MAXIMUM_LISTEN_BACKLOG = 65_535
 # A value that signals the lack of a socket deadline.
 let NO_DEADLINE = -1
 
+let IPV4 = 0
+let IPV6 = 1
+let UNIX = 2
+
 # The type of a socket.
 class pub enum Type {
   # The type corresponding to `SOCK_STREAM`.
@@ -106,8 +110,8 @@ class pub SocketAddress {
   # The port number of this socket address.
   let pub @port: Int
 
-  fn pub static new(address: String, port: Int) -> Self {
-    Self { @address = address, @port = port }
+  fn pub static new(address: String, port: Int) -> SocketAddress {
+    SocketAddress { @address = address, @port = port }
   }
 
   # Returns the IPv4/IPv6 address associated with `self`.
@@ -116,9 +120,9 @@ class pub SocketAddress {
   }
 }
 
-impl Equal for SocketAddress {
+impl Equal[SocketAddress] for SocketAddress {
   # Returns `true` if `self` and `other` are the same.
-  fn pub ==(other: ref Self) -> Bool {
+  fn pub ==(other: ref SocketAddress) -> Bool {
     @address == other.address and @port == other.port
   }
 }
@@ -156,11 +160,11 @@ class pub Socket {
   #     import std::net::socket::(Type, Socket)
   #
   #     try! Socket.ipv4(Type.DGRAM)
-  fn pub static ipv4(type: Type) !! Error -> Self {
+  fn pub static ipv4(type: Type) !! Error -> Socket {
     let id = type.into_int
-    let fd = try _INKO.socket_allocate_ipv4(id) else (e) throw Error.from_int(e)
+    let fd = try _INKO.socket_new(IPV4, id) else (e) throw Error.from_int(e)
 
-    Self { @fd = fd, @deadline = NO_DEADLINE }
+    Socket { @fd = fd, @deadline = NO_DEADLINE }
   }
 
   # Creates a new IPv6 socket.
@@ -170,11 +174,11 @@ class pub Socket {
   #     import std::net::socket::(Type, Socket)
   #
   #     try! Socket.ipv6(Type.DGRAM)
-  fn pub static ipv6(type: Type) !! Error -> Self {
+  fn pub static ipv6(type: Type) !! Error -> Socket {
     let id = type.into_int
-    let fd = try _INKO.socket_allocate_ipv6(id) else (e) throw Error.from_int(e)
+    let fd = try _INKO.socket_new(IPV6, id) else (e) throw Error.from_int(e)
 
-    Self { @fd = fd, @deadline = NO_DEADLINE }
+    Socket { @fd = fd, @deadline = NO_DEADLINE }
   }
 
   # Sets the point in time after which socket operations must time out, known as
@@ -306,7 +310,7 @@ class pub Socket {
   #     buffer.to_string # => 'ping'
   fn pub accept !! Error -> Socket {
     let fd = try {
-      _INKO.socket_accept_ip(@fd, @deadline)
+      _INKO.socket_accept(@fd, @deadline)
     } else (err) {
       throw Error.from_int(err)
     }
@@ -439,19 +443,9 @@ class pub Socket {
     SocketAddress.new(addr, port)
   }
 
-  # Returns the value of the `IP_TTL` option.
-  fn pub ttl !! Error -> Int {
-    try _INKO.socket_get_ttl(@fd) else (e) throw Error.from_int(e)
-  }
-
   # Sets the value of the `IP_TTL` option.
   fn pub mut ttl=(value: Int) !! Error {
     try _INKO.socket_set_ttl(@fd, value) else (e) throw Error.from_int(e)
-  }
-
-  # Returns the value of the `IPV6_V6ONLY` option.
-  fn pub only_ipv6? !! Error -> Bool {
-    try _INKO.socket_get_only_v6(@fd) else (e) throw Error.from_int(e)
   }
 
   # Sets the value of the `IPV6_V6ONLY` option.
@@ -459,32 +453,14 @@ class pub Socket {
     try _INKO.socket_set_only_v6(@fd, value) else (e) throw Error.from_int(e)
   }
 
-  # Returns the value of the `TCP_NODELAY` option.
-  fn pub no_delay? !! Error -> Bool {
-    try _INKO.socket_get_nodelay(@fd) else (e) throw Error.from_int(e)
-  }
-
   # Sets the value of the `TCP_NODELAY` option.
   fn pub mut no_delay=(value: Bool) !! Error {
     try _INKO.socket_set_nodelay(@fd, value) else (e) throw Error.from_int(e)
   }
 
-  # Returns the value of the `SO_BROADCAST` option.
-  fn pub broadcast? !! Error -> Bool {
-    try _INKO.socket_get_broadcast(@fd) else (e) throw Error.from_int(e)
-  }
-
   # Sets the value of the `SO_BROADCAST` option.
   fn pub mut broadcast=(value: Bool) !! Error {
     try _INKO.socket_set_broadcast(@fd, value) else (e) throw Error.from_int(e)
-  }
-
-  # Returns the value of the `SO_LINGER` option.
-  fn pub linger !! Error -> Duration {
-    let nanos =
-      try _INKO.socket_get_linger(@fd) else (e) throw Error.from_int(e)
-
-    Duration.from_nanos(nanos)
   }
 
   # Sets the value of the `SO_LINGER` option.
@@ -494,19 +470,9 @@ class pub Socket {
     try _INKO.socket_set_linger(@fd, nanos) else (e) throw Error.from_int(e)
   }
 
-  # Returns the value of the `SO_RCVBUF` option.
-  fn pub receive_buffer_size !! Error -> Int {
-    try _INKO.socket_get_recv_size(@fd) else (e) throw Error.from_int(e)
-  }
-
   # Sets the value of the `SO_RCVBUF` option.
   fn pub mut receive_buffer_size=(value: Int) !! Error {
     try _INKO.socket_set_recv_size(@fd, value) else (e) throw Error.from_int(e)
-  }
-
-  # Returns the value of the `SO_SNDBUF` option.
-  fn pub send_buffer_size !! Error -> Int {
-    try _INKO.socket_get_send_size(@fd) else (e) throw Error.from_int(e)
   }
 
   # Sets the value of the `SO_SNDBUF` option.
@@ -514,19 +480,9 @@ class pub Socket {
     try _INKO.socket_set_send_size(@fd, value) else (e) throw Error.from_int(e)
   }
 
-  # Returns the value of the `SO_KEEPALIVE` option.
-  fn pub keepalive !! Error -> Bool {
-    try _INKO.socket_get_keepalive(@fd) else (e) throw Error.from_int(e)
-  }
-
   # Sets the value of the `SO_KEEPALIVE` option.
   fn pub mut keepalive=(value: Bool) !! Error {
     try _INKO.socket_set_keepalive(@fd, value) else (e) throw Error.from_int(e)
-  }
-
-  # Returns the value of the `SO_REUSEADDR` option.
-  fn pub reuse_address !! Error -> Bool {
-    try _INKO.socket_get_reuse_address(@fd) else (e) throw Error.from_int(e)
   }
 
   # Sets the value of the `SO_REUSEADDR` option.
@@ -536,14 +492,6 @@ class pub Socket {
     } else (err) {
       throw Error.from_int(err)
     }
-  }
-
-  # Returns the value of the `SO_REUSEPORT` option.
-  #
-  # Not all platforms may support this option, in which case the returned value
-  # will be `false`.
-  fn pub reuse_port !! Error -> Bool {
-    try _INKO.socket_get_reuse_port(@fd) else (e) throw Error.from_int(e)
   }
 
   # Sets the value of the `SO_REUSEPORT` option.
@@ -573,10 +521,10 @@ class pub Socket {
   #
   # Cloning a socket may fail, such as when the program has too many open file
   # descriptors.
-  fn pub try_clone !! Error -> Self {
+  fn pub try_clone !! Error -> Socket {
     let fd = try _INKO.socket_try_clone(@fd) else (e) throw Error.from_int(e)
 
-    Self { @fd = fd, @deadline = NO_DEADLINE }
+    Socket { @fd = fd, @deadline = NO_DEADLINE }
   }
 }
 
@@ -638,7 +586,7 @@ class pub UdpSocket {
   #     let ip = try! IpAddress.parse('0.0.0.0')
   #
   #     try! UdpSocket.new(ip, port: 0)
-  fn pub static new(ip: IpAddress, port: Int) !! Error -> Self {
+  fn pub static new(ip: IpAddress, port: Int) !! Error -> UdpSocket {
     let socket = if ip.v6? {
       try Socket.ipv6(Type.DGRAM)
     } else {
@@ -647,7 +595,7 @@ class pub UdpSocket {
 
     try socket.bind(ip, port)
 
-    Self { @socket = socket }
+    UdpSocket { @socket = socket }
   }
 
   # Connects `self` to the remote address.
@@ -746,8 +694,8 @@ class pub UdpSocket {
   #
   # Cloning a socket may fail, such as when the program has too many open file
   # descriptors.
-  fn pub try_clone !! Error -> Self {
-    Self { @socket = try @socket.try_clone }
+  fn pub try_clone !! Error -> UdpSocket {
+    UdpSocket { @socket = try @socket.try_clone }
   }
 }
 
@@ -791,7 +739,7 @@ class pub TcpClient {
   #     let ip = try! IpAddress.parse('127.0.0.1')
   #
   #     try! TcpClient.new(ip, port: 40_000)
-  fn pub static new(ip: IpAddress, port: Int) !! Error -> Self {
+  fn pub static new(ip: IpAddress, port: Int) !! Error -> TcpClient {
     let socket = if ip.v6? {
       try Socket.ipv6(Type.STREAM)
     } else {
@@ -800,7 +748,7 @@ class pub TcpClient {
 
     try socket.connect(ip, port)
 
-    Self { @socket = socket }
+    TcpClient { @socket = socket }
   }
 
   # Creates a new `TcpClient` but limits the amount of time spent waiting for
@@ -826,7 +774,7 @@ class pub TcpClient {
     ip: IpAddress,
     port: Int,
     timeout_after: ToInstant
-  ) !! Error -> Self {
+  ) !! Error -> TcpClient {
     let socket = if ip.v6? {
       try Socket.ipv6(Type.STREAM)
     } else {
@@ -837,7 +785,7 @@ class pub TcpClient {
 
     try socket.connect(ip, port)
 
-    Self { @socket = socket }
+    TcpClient { @socket = socket }
   }
 
   # Returns the local address of this socket.
@@ -873,8 +821,8 @@ class pub TcpClient {
   #
   # Cloning a socket may fail, such as when the program has too many open file
   # descriptors.
-  fn pub try_clone !! Error -> Self {
-    Self { @socket = try @socket.try_clone }
+  fn pub try_clone !! Error -> TcpClient {
+    TcpClient { @socket = try @socket.try_clone }
   }
 }
 
@@ -920,7 +868,7 @@ class pub TcpServer {
   #     let ip = try! IpAddress.parse('0.0.0.0')
   #
   #     try! TcpServer.new(ip, port: 40_000)
-  fn pub static new(ip: IpAddress, port: Int) !! Error -> Self {
+  fn pub static new(ip: IpAddress, port: Int) !! Error -> TcpServer {
     let socket = if ip.v6? {
       try Socket.ipv6(Type.STREAM)
     } else {
@@ -933,7 +881,7 @@ class pub TcpServer {
     try socket.bind(ip, port)
     try socket.listen
 
-    Self { @socket = socket }
+    TcpServer { @socket = socket }
   }
 
   # Accepts a new incoming connection from `self`.
@@ -975,8 +923,8 @@ class pub TcpServer {
   #
   # Cloning a socket may fail, such as when the program has too many open file
   # descriptors.
-  fn pub try_clone !! Error -> Self {
-    Self { @socket = try @socket.try_clone }
+  fn pub try_clone !! Error -> TcpServer {
+    TcpServer { @socket = try @socket.try_clone }
   }
 }
 
@@ -1009,8 +957,8 @@ class pub UnixAddress {
   #     import std::net::socket::UnixAddress
   #
   #     UnixAddress.new("\0example")
-  fn pub static new(address: ref ToString) -> Self {
-    Self { @address = address.to_string }
+  fn pub static new(address: ref ToString) -> UnixAddress {
+    UnixAddress { @address = address.to_string }
   }
 
   # Returns the path of this address.
@@ -1067,7 +1015,7 @@ impl Format for UnixAddress {
   }
 }
 
-impl Equal for UnixAddress {
+impl Equal[UnixAddress] for UnixAddress {
   # Returns `true` if `self` and `other` are the same socket addresses.
   #
   # # Examples
@@ -1078,7 +1026,7 @@ impl Equal for UnixAddress {
   #
   #     UnixAddress.new('a.sock') == UnixAddress.new('a.sock') # => true
   #     UnixAddress.new('a.sock') == UnixAddress.new('b.sock') # => false
-  fn pub ==(other: ref Self) -> Bool {
+  fn pub ==(other: ref UnixAddress) -> Bool {
     @address == other.address
   }
 }
@@ -1130,7 +1078,7 @@ class pub UnixSocket {
   #     try! UnixSocket.new(Type.DGRAM)
   fn pub static new(type: Type) !! Error -> UnixSocket {
     let id = type.into_int
-    let fd = try _INKO.socket_allocate_unix(id) else (e) throw Error.from_int(e)
+    let fd = try _INKO.socket_new(UNIX, id) else (e) throw Error.from_int(e)
 
     UnixSocket { @fd = fd, @deadline = NO_DEADLINE }
   }
@@ -1261,7 +1209,7 @@ class pub UnixSocket {
   #     buffer.to_string # => 'ping'
   fn pub accept !! Error -> UnixSocket {
     let fd = try {
-      _INKO.socket_accept_unix(@fd, @deadline)
+      _INKO.socket_accept(@fd, @deadline)
     } else (err) {
       throw Error.from_int(err)
     }
@@ -1373,19 +1321,9 @@ class pub UnixSocket {
     UnixAddress.new(addr)
   }
 
-  # Returns the value of the `SO_RCVBUF` option.
-  fn pub receive_buffer_size !! Error -> Int {
-    try _INKO.socket_get_recv_size(@fd) else (e) throw Error.from_int(e)
-  }
-
   # Sets the value of the `SO_RCVBUF` option.
   fn pub mut receive_buffer_size=(value: Int) !! Error {
     try _INKO.socket_set_recv_size(@fd, value) else (e) throw Error.from_int(e)
-  }
-
-  # Returns the value of the `SO_SNDBUF` option.
-  fn pub send_buffer_size !! Error -> Int {
-    try _INKO.socket_get_send_size(@fd) else (e) throw Error.from_int(e)
   }
 
   # Sets the value of the `SO_SNDBUF` option.
@@ -1412,10 +1350,10 @@ class pub UnixSocket {
   #
   # Cloning a socket may fail, such as when the program has too many open file
   # descriptors.
-  fn pub try_clone !! Error -> Self {
+  fn pub try_clone !! Error -> UnixSocket {
     let fd = try _INKO.socket_try_clone(@fd) else (e) throw Error.from_int(e)
 
-    Self { @fd = fd, @deadline = NO_DEADLINE }
+    UnixSocket { @fd = fd, @deadline = NO_DEADLINE }
   }
 }
 
@@ -1469,12 +1407,12 @@ class pub UnixDatagram {
   #     import std::net::socket::UnixDatagram
   #
   #     try! UnixDatagram.new('/tmp/test.sock')
-  fn pub static new(address: ref ToString) !! Error -> Self {
+  fn pub static new(address: ref ToString) !! Error -> UnixDatagram {
     let socket = try UnixSocket.new(Type.DGRAM)
 
     try socket.bind(address)
 
-    Self { @socket = socket }
+    UnixDatagram { @socket = socket }
   }
 
   # Connects `self` to the remote addres.s
@@ -1556,8 +1494,8 @@ class pub UnixDatagram {
   #
   # Cloning a socket may fail, such as when the program has too many open file
   # descriptors.
-  fn pub try_clone !! Error -> Self {
-    Self { @socket = try @socket.try_clone }
+  fn pub try_clone !! Error -> UnixDatagram {
+    UnixDatagram { @socket = try @socket.try_clone }
   }
 }
 
@@ -1599,12 +1537,12 @@ class pub UnixClient {
   #     let listener = try! UnixServer.new('/tmp/test.sock')
   #
   #     try! UnixClient.new('/tmp/test.sock')
-  fn pub static new(address: ref ToString) !! Error -> Self {
+  fn pub static new(address: ref ToString) !! Error -> UnixClient {
     let socket = try UnixSocket.new(Type.STREAM)
 
     try socket.connect(address)
 
-    Self { @socket = socket }
+    UnixClient { @socket = socket }
   }
 
   # Creates a new `UnixClient` but limits the amount of time spent waiting for
@@ -1627,14 +1565,14 @@ class pub UnixClient {
   fn pub static with_timeout(
     address: ref ToString,
     timeout_after: ToInstant
-  ) !! Error -> Self {
+  ) !! Error -> UnixClient {
     let socket = try UnixSocket.new(Type.STREAM)
 
     let _ = socket.timeout_after = timeout_after
 
     try socket.connect(address)
 
-    Self { @socket = socket }
+    UnixClient { @socket = socket }
   }
 
   # Returns the local address of this socket.
@@ -1670,8 +1608,8 @@ class pub UnixClient {
   #
   # Cloning a socket may fail, such as when the program has too many open file
   # descriptors.
-  fn pub try_clone !! Error -> Self {
-    Self { @socket = try @socket.try_clone }
+  fn pub try_clone !! Error -> UnixClient {
+    UnixClient { @socket = try @socket.try_clone }
   }
 }
 
@@ -1709,13 +1647,13 @@ class pub UnixServer {
   #     import std::net::socket::UnixServer
   #
   #     try! UnixServer.new('/tmp/test.sock')
-  fn pub static new(address: ref ToString) !! Error -> Self {
+  fn pub static new(address: ref ToString) !! Error -> UnixServer {
     let socket = try UnixSocket.new(Type.STREAM)
 
     try socket.bind(address)
     try socket.listen
 
-    Self { @socket = socket }
+    UnixServer { @socket = socket }
   }
 
   # Accepts a new incoming connection from `self`.
@@ -1754,7 +1692,7 @@ class pub UnixServer {
   #
   # Cloning a socket may fail, such as when the program has too many open file
   # descriptors.
-  fn pub try_clone !! Error -> Self {
-    Self { @socket = try @socket.try_clone }
+  fn pub try_clone !! Error -> UnixServer {
+    UnixServer { @socket = try @socket.try_clone }
   }
 }

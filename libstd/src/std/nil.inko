@@ -19,14 +19,14 @@ class builtin Nil {
   }
 }
 
-impl Equal for Nil {
-  fn pub ==(other: ref Self) -> Bool {
+impl Equal[Nil] for Nil {
+  fn pub ==(other: ref Nil) -> Bool {
     true
   }
 }
 
-impl Clone for Nil {
-  fn pub clone -> Self {
+impl Clone[Nil] for Nil {
+  fn pub clone -> Nil {
     _INKO.get_nil
   }
 }
