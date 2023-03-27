@@ -200,3 +200,12 @@ ipm update --major
 Note that if other packages depend on the previous major version of the package
 you're updating, you won't be able to update your `dep` directory using `ipm
 sync`.
+
+## Publishing a package
+
+To publish your package, simply push it to a git host and add a git
+tag with the version number, prefixed by `v`. So If you are releasing
+3.8.5, use `git tag v3.8.5`. Don't forget to push the tag with `git push --tags`.
+
+That's all that's required for `ipm add your/git/repo 3.8.5` to run successfully
+in a dependent package.
