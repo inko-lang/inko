@@ -1,4 +1,4 @@
-import std::fmt::DefaultFormatter
+import std::fmt::(DefaultFormatter, fmt)
 import std::test::Tests
 
 fn pub tests(t: mut Tests) {
@@ -54,5 +54,8 @@ fn pub tests(t: mut Tests) {
     fmt.write('test')
 
     t.equal(fmt.into_string, 'test')
+  }
+  t.test('fmt convenience method') fn (t) {
+    t.equal(fmt('test').into_string, '"test"')
   }
 }
