@@ -108,6 +108,11 @@ fn pub tests(t: mut Tests) {
 When adding a new test module, follow this structure then add it to
 `libstd/test/main.inko`, following the same style as the existing tests.
 
+To run the stdlib tests:
+
+1. Enter the libstd directory `cd libstd`
+2. Run the tests using `cargo run -p inko --release -- test`
+
 ### Shell scripts
 
 Some parts of our continuous integration setup depend on some shell scripts.
