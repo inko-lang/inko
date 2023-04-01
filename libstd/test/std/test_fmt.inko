@@ -55,7 +55,8 @@ fn pub tests(t: mut Tests) {
 
     t.equal(fmt.into_string, 'test')
   }
-  t.test('fmt convenience method') fn (t) {
+
+  t.test('fmt.fmt') fn (t) {
     t.equal(fmt('test').into_string, '"test"')
   }
 }

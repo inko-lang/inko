@@ -8,6 +8,21 @@ let PLACEHOLDER = '...'
 # before returning a placeholder.
 let MAX_DEPTH = 16
 
+# Formats a value using the default formatter.
+#
+# Examples
+#
+#     import std::fmt::(fmt)
+#
+#     fmt('hello') # => "hello"
+#     fmt([10, 20]) # => '[10, 20]'
+fn pub fmt[T: Format](value: ref T) -> String {
+  let formatter: Formatter = DefaultFormatter.new
+
+  value.fmt(formatter)
+  formatter.into_string
+}
+
 # A Formatter can be used to format an object for debugging purposes.
 trait pub Formatter: IntoString {
   # Writes the given `String` into the underlying buffer.
@@ -68,19 +83,4 @@ impl Formatter for DefaultFormatter {
 trait pub Format {
   # Formats `self` in a human-readable format for debugging purposes.
   fn pub fmt(formatter: mut Formatter)
-}
-
-# Convenience method to format a value using the DefaultFormatter.
-#
-# Examples
-#
-#     import std::fmt::(fmt)
-#
-#     fmt('hello') # => "hello"
-#     fmt([10, 20]) # => '[10, 20]'
-fn pub fmt[T: Format](value: ref T) -> String {
-  let formatter: Formatter = DefaultFormatter.new
-
-  value.fmt(formatter)
-  formatter.into_string
 }
