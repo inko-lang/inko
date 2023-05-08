@@ -87,7 +87,7 @@ class List[T] {
 
 Details about how to install Inko and its requirements can be found in the
 ["Installing
-Inko"](https://docs.inko-lang.org/manual/master/getting-started/installation/)
+Inko"](https://docs.inko-lang.org/manual/main/getting-started/installation/)
 guide in the Inko manual.
 
 ## License
