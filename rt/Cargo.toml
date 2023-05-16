@@ -1,0 +1,25 @@
+[package]
+name = "rt"
+version = "0.10.0" # VERSION
+authors = ["Yorick Peterse <yorick@yorickpeterse.com>"]
+edition = "2021"
+build = "build.rs"
+license = "MPL-2.0"
+
+[lib]
+name = "inko"
+doctest = false
+crate-type = ["staticlib", "lib"]
+
+[dependencies]
+crossbeam-utils = "^0.8"
+crossbeam-queue = "^0.3"
+libc = "^0.2"
+rand = { version = "^0.8", features = ["default", "small_rng"] }
+polling = "^2.8"
+unicode-segmentation = "^1.8"
+backtrace = "^0.3"
+
+[dependencies.socket2]
+version = "^0.5"
+features = ["all"]

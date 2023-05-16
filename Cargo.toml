@@ -1,5 +1,5 @@
 [workspace]
-members = ["ast", "bytecode", "inko", "compiler", "vm", "ipm"]
+members = ["ast", "inko", "compiler", "rt"]
 
 [profile.release]
 panic = "abort"

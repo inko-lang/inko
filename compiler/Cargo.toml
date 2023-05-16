@@ -4,6 +4,7 @@ version = "0.10.0" # VERSION
 authors = ["Yorick Peterse <yorick@yorickpeterse.com>"]
 edition = "2021"
 license = "MPL-2.0"
+build = "build.rs"
 
 [lib]
 doctest = false
@@ -12,8 +13,9 @@ doctest = false
 unicode-segmentation = "^1.8"
 getopts = "^0.2"
 ast = { path = "../ast" }
-bytecode = { path = "../bytecode" }
 types = { path = "../types" }
+fnv = "^1.0"
+inkwell = { version = "^0.1", features = ["llvm15-0"] }
 
 [dev-dependencies]
 similar-asserts = "^1.1"

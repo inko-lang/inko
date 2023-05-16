@@ -1,0 +1,132 @@
+import helpers::(fmt)
+import std::test::Tests
+
+fn pub tests(t: mut Tests) {
+  t.test('Result.ok?') fn (t) {
+    let foo: Result[Int, String] = Result.Ok(42)
+    let bar: Result[Int, String] = Result.Error('oops!')
+
+    t.true(foo.ok?)
+    t.false(bar.ok?)
+  }
+
+  t.test('Result.error?') fn (t) {
+    let foo: Result[Int, String] = Result.Ok(42)
+    let bar: Result[Int, String] = Result.Error('oops!')
+
+    t.false(foo.error?)
+    t.true(bar.error?)
+  }
+
+  t.test('Result.ok') fn (t) {
+    let foo: Result[Int, String] = Result.Ok(42)
+    let bar: Result[Int, String] = Result.Error('oops!')
+
+    t.equal(foo.ok, Option.Some(42))
+    t.equal(bar.ok, Option.None)
+  }
+
+  t.test('Result.error') fn (t) {
+    let foo: Result[Int, String] = Result.Ok(42)
+    let bar: Result[Int, String] = Result.Error('oops!')
+
+    t.equal(foo.error, Option.None)
+    t.equal(bar.error, Option.Some('oops!'))
+  }
+
+  t.test('Result.unwrap with an Ok') fn (t) {
+    let res: Result[Int, String] = Result.Ok(42)
+
+    t.equal(res.unwrap, 42)
+  }
+
+  t.panic('Result.unwrap with an Error') fn {
+    let res: Result[Int, Int] = Result.Error(0)
+
+    res.unwrap
+  }
+
+  t.test('Result.expect with an Ok') fn (t) {
+    let res: Result[Int, String] = Result.Ok(42)
+
+    t.equal(res.expect('foo'), 42)
+  }
+
+  t.panic('Result.expect with an Error') fn {
+    let res: Result[Int, Int] = Result.Error(0)
+
+    res.expect('foo')
+  }
+
+  t.test('Result.unwrap_or') fn (t) {
+    let foo: Result[Int, String] = Result.Ok(42)
+    let bar: Result[Int, String] = Result.Error('oops!')
+
+    t.equal(foo.unwrap_or(0), 42)
+    t.equal(bar.unwrap_or(0), 0)
+  }
+
+  t.test('Result.unwrap_or_else') fn (t) {
+    let foo: Result[Int, String] = Result.Ok(42)
+    let bar: Result[Int, String] = Result.Error('oops!')
+
+    t.equal(foo.unwrap_or_else fn { 0 }, 42)
+    t.equal(bar.unwrap_or_else fn { 0 }, 0)
+  }
+
+  t.test('Result.map') fn (t) {
+    let foo: Result[Int, String] = Result.Ok(42)
+    let bar: Result[Int, String] = Result.Error('oops!')
+
+    t.equal(foo.map fn (v) { v.to_string }, Result.Ok('42'))
+    t.equal(bar.map fn (v) { v.to_string }, Result.Error('oops!'))
+  }
+
+  t.test('Result.map_error') fn (t) {
+    let foo: Result[Int, String] = Result.Ok(42)
+    let bar: Result[Int, String] = Result.Error('oops!')
+
+    t.equal(foo.map_error fn (v) { v.to_upper }, Result.Ok(42))
+    t.equal(bar.map_error fn (v) { v.to_upper }, Result.Error('OOPS!'))
+  }
+
+  t.test('Result.then') fn (t) {
+    let foo: Result[Int, String] = Result.Ok(42)
+    let bar: Result[Int, String] = Result.Error('oops!')
+
+    t.equal(foo.then fn (v) { Result.Ok(v.to_string) }, Result.Ok('42'))
+    t.equal(bar.then fn (v) { Result.Ok(v.to_string) }, Result.Error('oops!'))
+  }
+
+  t.test('Result.else') fn (t) {
+    let foo: Result[Int, String] = Result.Ok(42)
+    let bar: Result[Int, String] = Result.Error('oops!')
+
+    t.equal(foo.else fn (v) { Result.Error(v.to_upper) }, Result.Ok(42))
+    t.equal(bar.else fn (v) { Result.Error(v.to_upper) }, Result.Error('OOPS!'))
+  }
+
+  t.test('Result.clone') fn (t) {
+    let foo: Result[Int, String] = Result.Ok(42)
+    let bar: Result[Int, String] = Result.Error('oops!')
+
+    t.equal(foo.clone, Result.Ok(42))
+    t.equal(bar.clone, Result.Error('oops!'))
+  }
+
+  t.test('Result.==') fn (t) {
+    let foo: Result[Int, String] = Result.Ok(42)
+    let bar: Result[Int, String] = Result.Error('oops!')
+
+    t.equal(foo, Result.Ok(42))
+    t.equal(bar, Result.Error('oops!'))
+  }
+
+  t.test('Result.fmt') fn (t) {
+    let foo: Result[Int, String] = Result.Ok(42)
+    let bar: Result[Int, String] = Result.Error('oops!')
+
+    t.equal(fmt(foo), 'Ok(42)')
+    t.equal(fmt(bar), 'Error("oops!")')
+  }
+}

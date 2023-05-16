@@ -3,15 +3,17 @@ use crate::diagnostics::DiagnosticId;
 use crate::hir;
 use crate::state::State;
 use crate::type_check::{
-    CheckTypeSignature, DefineAndCheckTypeSignature, DefineTypeSignature,
-    Rules, TypeScope,
+    define_type_bounds, CheckTypeSignature, DefineAndCheckTypeSignature,
+    DefineTypeSignature, Rules, TypeScope,
 };
 use std::path::PathBuf;
+use types::check::TypeChecker;
+use types::format::format_type;
 use types::{
-    format_type, Class, ClassId, ClassInstance, ClassKind, Constant, Database,
-    ModuleId, Symbol, Trait, TraitId, TraitImplementation, TypeBounds,
-    TypeContext, TypeId, TypeParameter, TypeRef, Visibility, ENUM_TAG_FIELD,
-    ENUM_TAG_INDEX, FIELDS_LIMIT, MAIN_CLASS, VARIANTS_LIMIT,
+    Class, ClassId, ClassInstance, ClassKind, Constant, Database, ModuleId,
+    Symbol, Trait, TraitId, TraitImplementation, TypeId, TypeRef, Visibility,
+    ENUM_TAG_FIELD, ENUM_TAG_INDEX, FIELDS_LIMIT, MAIN_CLASS, OPTION_CLASS,
+    OPTION_MODULE, RESULT_CLASS, RESULT_MODULE, VARIANTS_LIMIT,
 };
 
 /// The maximum number of members a single variant can store. We subtract one as
@@ -64,7 +66,7 @@ impl<'a> DefineTypes<'a> {
             hir::ClassKind::Builtin => {
                 if !self.module.is_std(self.db()) {
                     self.state.diagnostics.error(
-                        DiagnosticId::InvalidClass,
+                        DiagnosticId::InvalidType,
                         "Builtin classes can only be defined in 'std' modules",
                         self.file(),
                         node.location.clone(),
@@ -76,7 +78,7 @@ impl<'a> DefineTypes<'a> {
                     id
                 } else {
                     self.state.diagnostics.error(
-                        DiagnosticId::InvalidClass,
+                        DiagnosticId::InvalidType,
                         format!("'{}' isn't a valid builtin class", name),
                         self.file(),
                         node.location.clone(),
@@ -243,68 +245,22 @@ impl<'a> ImplementTraits<'a> {
             return;
         }
 
-        let mut bounds = TypeBounds::new();
-        let rules = Rules::default();
-
-        for bound in &mut node.bounds {
-            let name = &bound.name.name;
-
-            let param =
-                if let Some(id) = class_id.type_parameter(self.db(), name) {
-                    id
-                } else {
-                    self.state.diagnostics.undefined_symbol(
-                        name,
-                        self.file(),
-                        bound.name.location.clone(),
-                    );
-
-                    continue;
-                };
-
-            if bounds.get(param).is_some() {
-                self.state.diagnostics.error(
-                    DiagnosticId::InvalidBound,
-                    format!(
-                        "Bounds are already defined for type parameter '{}'",
-                        name
-                    ),
-                    self.file(),
-                    bound.location.clone(),
-                );
-
-                continue;
-            }
-
-            let mut reqs = param.requirements(self.db());
-            let scope =
-                TypeScope::new(self.module, TypeId::Class(class_id), None);
-
-            let mut definer = DefineTypeSignature::new(
-                self.state,
-                self.module,
-                &scope,
-                rules,
+        if class_id.kind(self.db()).is_extern() {
+            self.state.diagnostics.error(
+                DiagnosticId::InvalidImplementation,
+                "Traits can't be implemented for extern classes",
+                self.file(),
+                node.location.clone(),
             );
-
-            for req in &mut bound.requirements {
-                if let Some(ins) = definer.as_trait_instance(req) {
-                    reqs.push(ins);
-                }
-            }
-
-            let name = param.name(self.db()).clone();
-            let new_param = TypeParameter::alloc(self.db_mut(), name);
-
-            new_param.add_requirements(self.db_mut(), reqs);
-            bounds.set(param, new_param);
         }
 
-        let class_ins = ClassInstance::for_instance_self_type(
-            self.db_mut(),
+        let bounds = define_type_bounds(
+            self.state,
+            self.module,
             class_id,
-            &bounds,
+            &mut node.bounds,
         );
+        let class_ins = ClassInstance::rigid(self.db_mut(), class_id, &bounds);
         let scope = TypeScope::with_bounds(
             self.module,
             TypeId::ClassInstance(class_ins),
@@ -312,6 +268,7 @@ impl<'a> ImplementTraits<'a> {
             &bounds,
         );
 
+        let rules = Rules::default();
         let mut definer =
             DefineTypeSignature::new(self.state, self.module, &scope, rules);
 
@@ -451,13 +408,7 @@ impl<'a> CheckTraitImplementations<'a> {
     fn implement_trait(&mut self, node: &hir::ImplementTrait) {
         let class_ins = node.class_instance.unwrap();
         let trait_ins = node.trait_instance.unwrap();
-        let self_type = TypeId::ClassInstance(class_ins);
-        let mut checker = CheckTypeSignature::new(
-            self.state,
-            self.module,
-            self_type,
-            Rules::default(),
-        );
+        let mut checker = CheckTypeSignature::new(self.state, self.module);
 
         checker.check_type_name(&node.trait_name);
 
@@ -467,15 +418,10 @@ impl<'a> CheckTraitImplementations<'a> {
             }
         }
 
-        let mut context = TypeContext::new(self_type);
-
         for req in trait_ins.instance_of().required_traits(self.db()) {
-            if !class_ins.type_check_with_trait_instance(
-                self.db_mut(),
-                req,
-                &mut context,
-                true,
-            ) {
+            let mut checker = TypeChecker::new(self.db());
+
+            if !checker.class_implements_trait(class_ins, req) {
                 self.state.diagnostics.error(
                     DiagnosticId::MissingTrait,
                     format!(
@@ -497,10 +443,31 @@ impl<'a> CheckTraitImplementations<'a> {
     fn db(&self) -> &Database {
         &self.state.db
     }
+}
 
-    fn db_mut(&mut self) -> &mut Database {
-        &mut self.state.db
-    }
+/// A compiler pass that defines the fields for the runtime's result type.
+pub(crate) fn define_runtime_result_fields(state: &mut State) -> bool {
+    let class = ClassId::result();
+    let module = class.module(&state.db);
+
+    class.new_field(
+        &mut state.db,
+        "tag".to_string(),
+        0,
+        TypeRef::int(),
+        Visibility::Public,
+        module,
+    );
+    class.new_field(
+        &mut state.db,
+        "value".to_string(),
+        1,
+        TypeRef::Any,
+        Visibility::Public,
+        module,
+    );
+
+    true
 }
 
 /// A compiler pass that defines the fields in a class.
@@ -577,7 +544,7 @@ impl<'a> DefineFields<'a> {
 
             if id >= FIELDS_LIMIT {
                 self.state.diagnostics.error(
-                    DiagnosticId::InvalidClass,
+                    DiagnosticId::InvalidType,
                     format!(
                         "Classes can't define more than {} fields",
                         FIELDS_LIMIT
@@ -621,25 +588,9 @@ impl<'a> DefineFields<'a> {
             )
             .define_type(&mut node.value_type);
 
-            match typ {
-                TypeRef::OwnedSelf | TypeRef::RefSelf => {
-                    self.state.diagnostics.error(
-                        DiagnosticId::InvalidType,
-                        format!(
-                            "'Self' can't be used here as it prevents \
-                            creating instances of '{}'",
-                            format_type(self.db(), scope.self_type),
-                        ),
-                        self.file(),
-                        node.value_type.location().clone(),
-                    );
-                }
-                _ => {}
-            }
-
             if !class_id.is_public(self.db()) && vis == Visibility::Public {
                 self.state.diagnostics.error(
-                    DiagnosticId::InvalidField,
+                    DiagnosticId::InvalidSymbol,
                     "Public fields can't be defined for private types",
                     self.file(),
                     node.location.clone(),
@@ -717,6 +668,10 @@ impl<'a> DefineTypeParameters<'a> {
             } else {
                 let pid = id.new_type_parameter(self.db_mut(), name.clone());
 
+                if param.mutable {
+                    pid.set_mutable(self.db_mut());
+                }
+
                 param.type_parameter_id = Some(pid);
             }
         }
@@ -736,6 +691,10 @@ impl<'a> DefineTypeParameters<'a> {
                 );
             } else {
                 let pid = id.new_type_parameter(self.db_mut(), name.clone());
+
+                if param.mutable {
+                    pid.set_mutable(self.db_mut());
+                }
 
                 param.type_parameter_id = Some(pid);
             }
@@ -854,41 +813,18 @@ impl<'a> CheckTypeParameters<'a> {
         for expr in module.expressions.iter_mut() {
             match expr {
                 hir::TopLevelExpression::Class(ref node) => {
-                    self.check_class(node);
+                    self.check_type_parameters(&node.type_parameters);
                 }
                 hir::TopLevelExpression::Trait(ref node) => {
-                    self.check_trait(node);
+                    self.check_type_parameters(&node.type_parameters);
                 }
                 _ => {}
             }
         }
     }
 
-    fn check_class(&mut self, node: &hir::DefineClass) {
-        let id = node.class_id.unwrap();
-        let self_type = TypeId::Class(id);
-
-        self.check_type_parameters(&node.type_parameters, self_type);
-    }
-
-    fn check_trait(&mut self, node: &hir::DefineTrait) {
-        let id = node.trait_id.unwrap();
-        let self_type = TypeId::Trait(id);
-
-        self.check_type_parameters(&node.type_parameters, self_type);
-    }
-
-    fn check_type_parameters(
-        &mut self,
-        nodes: &Vec<hir::TypeParameter>,
-        self_type: TypeId,
-    ) {
-        let mut checker = CheckTypeSignature::new(
-            self.state,
-            self.module,
-            self_type,
-            Rules { allow_self_type: false, ..Default::default() },
-        );
+    fn check_type_parameters(&mut self, nodes: &Vec<hir::TypeParameter>) {
+        let mut checker = CheckTypeSignature::new(self.state, self.module);
 
         for node in nodes {
             for req in &node.requirements {
@@ -923,8 +859,15 @@ impl<'a> InsertPrelude<'a> {
         self.add_class(ClassId::boolean());
         self.add_class(ClassId::nil());
         self.add_class(ClassId::byte_array());
+        self.add_class(ClassId::channel());
 
-        self.import_class("std::option", "Option");
+        self.import_class(OPTION_MODULE, OPTION_CLASS);
+
+        // $Result is used by try/throw to prevent name conflicts, while Result
+        // is meant to be used by developers.
+        self.import_class_as(RESULT_MODULE, RESULT_CLASS, "$Result");
+        self.import_class(RESULT_MODULE, RESULT_CLASS);
+
         self.import_class("std::map", "Map");
         self.import_method("std::process", "panic");
     }
@@ -943,6 +886,20 @@ impl<'a> InsertPrelude<'a> {
         let id = self.state.db.class_in_module(module, class);
 
         self.add_class(id);
+    }
+
+    fn import_class_as(&mut self, module: &str, class: &str, alias: &str) {
+        let id = self.state.db.class_in_module(module, class);
+
+        if self.module.symbol_exists(self.db(), alias) {
+            return;
+        }
+
+        self.module.new_symbol(
+            self.db_mut(),
+            alias.to_string(),
+            Symbol::Class(id),
+        );
     }
 
     fn import_method(&mut self, module: &str, method: &str) {
@@ -1140,7 +1097,7 @@ mod tests {
     use ast::parser::Parser;
     use std::fmt::Write as _;
     use types::module_name::ModuleName;
-    use types::{ClassId, ConstantId, TraitId, TraitInstance};
+    use types::{ClassId, ConstantId, TraitId, TraitInstance, TypeBounds};
 
     fn get_trait(db: &Database, module: ModuleId, name: &str) -> TraitId {
         if let Some(Symbol::Trait(id)) = module.symbol(db, name) {
@@ -1204,7 +1161,7 @@ mod tests {
 
         assert!(DefineTypes::run_all(&mut state, &mut modules));
 
-        let id = ClassId(17);
+        let id = ClassId(18);
 
         assert_eq!(state.diagnostics.iter().count(), 0);
         assert_eq!(class_expr(&modules[0]).class_id, Some(id));
@@ -1224,7 +1181,7 @@ mod tests {
 
         assert!(DefineTypes::run_all(&mut state, &mut modules));
 
-        let id = ClassId(17);
+        let id = ClassId(18);
 
         assert_eq!(state.diagnostics.iter().count(), 0);
         assert_eq!(class_expr(&modules[0]).class_id, Some(id));
@@ -1739,7 +1696,7 @@ mod tests {
 
         let diag = state.diagnostics.iter().next().unwrap();
 
-        assert_eq!(diag.id(), DiagnosticId::InvalidClass);
+        assert_eq!(diag.id(), DiagnosticId::InvalidType);
     }
 
     #[test]
@@ -1753,7 +1710,7 @@ mod tests {
 
         let error = state.diagnostics.iter().next().unwrap();
 
-        assert_eq!(error.id(), DiagnosticId::InvalidType);
+        assert_eq!(error.id(), DiagnosticId::InvalidSymbol);
         assert_eq!(error.location(), &cols(27, 30));
     }
 

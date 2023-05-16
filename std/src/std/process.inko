@@ -1,0 +1,21 @@
+# Lightweight Inko processes.
+import std::time::Duration
+
+# Terminates the program with an error message.
+#
+# A panic is an unrecoverable error meant to guard against code bugs. For
+# runtime errors, use `try` and `throw` instead.
+fn pub panic(message: String) -> Never {
+  _INKO.panic(message)
+}
+
+# Suspends the current process for at least the given duration.
+#
+# The actual time the process is suspended for may be larger than the given
+# duration.
+#
+# If the specified duration is less than or equal to zero, the process is
+# rescheduled immediately.
+fn pub sleep(time: ref Duration) {
+  _INKO.process_suspend(time.to_nanos)
+}

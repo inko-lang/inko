@@ -1,20 +1,22 @@
-use crate::codegen;
-use crate::config::{Config, IMAGE_EXT, SOURCE, SOURCE_EXT};
+use crate::config::{BuildDirectories, Output};
+use crate::config::{Config, SOURCE, SOURCE_EXT};
 use crate::hir;
+use crate::linker::link;
+use crate::llvm;
 use crate::mir::{passes as mir, Mir};
 use crate::modules_parser::{ModulesParser, ParsedModule};
 use crate::state::State;
 use crate::type_check::define_types::{
-    CheckTraitImplementations, CheckTypeParameters, DefineFields,
-    DefineTraitRequirements, DefineTypeParameterRequirements,
-    DefineTypeParameters, DefineTypes, DefineVariants, ImplementTraits,
-    InsertPrelude,
+    define_runtime_result_fields, CheckTraitImplementations,
+    CheckTypeParameters, DefineFields, DefineTraitRequirements,
+    DefineTypeParameterRequirements, DefineTypeParameters, DefineTypes,
+    DefineVariants, ImplementTraits, InsertPrelude,
 };
 use crate::type_check::expressions::{DefineConstants, Expressions};
 use crate::type_check::imports::DefineImportedTypes;
 use crate::type_check::methods::{
-    define_builtin_functions, CheckMainMethod, DefineMethods,
-    DefineModuleMethodNames, ImplementTraitMethods,
+    CheckMainMethod, DefineMethods, DefineModuleMethodNames,
+    ImplementTraitMethods,
 };
 use std::env::current_dir;
 use std::ffi::OsStr;
@@ -52,31 +54,26 @@ impl Compiler {
             self.all_source_modules()?
         };
 
-        let ast_modules = ModulesParser::new(&mut self.state).run(input);
+        let ast = ModulesParser::new(&mut self.state).run(input);
+        let hir = self.compile_hir(ast)?;
 
-        self.compile_to_mir(ast_modules)?;
-        Ok(())
+        self.compile_mir(hir).map(|_| ())
     }
 
-    pub fn compile_to_file(
+    pub fn run(
         &mut self,
         file: Option<PathBuf>,
     ) -> Result<PathBuf, CompileError> {
-        let input = self.main_module_path(file)?;
-        let code = self.compile_bytecode(input.clone())?;
-        let path = self.write_code(input, code);
+        let file = self.main_module_path(file)?;
+        let main_mod = self.state.db.main_module().unwrap().clone();
+        let ast = ModulesParser::new(&mut self.state)
+            .run(vec![(main_mod, file.clone())]);
 
-        Ok(path)
-    }
+        let hir = self.compile_hir(ast)?;
+        let mut mir = self.compile_mir(hir)?;
 
-    pub fn compile_to_memory(
-        &mut self,
-        file: Option<PathBuf>,
-    ) -> Result<Vec<u8>, CompileError> {
-        let input = self.main_module_path(file)?;
-        let code = self.compile_bytecode(input)?;
-
-        Ok(code.bytes)
+        self.optimise_mir(&mut mir);
+        self.compile_machine_code(&mir, file)
     }
 
     pub fn print_diagnostics(&self) {
@@ -114,54 +111,45 @@ impl Compiler {
         Ok(path)
     }
 
-    fn compile_bytecode(
+    fn compile_mir(
         &mut self,
-        file: PathBuf,
-    ) -> Result<codegen::Bytecode, CompileError> {
-        let main_mod = self.state.db.main_module().unwrap().clone();
-        let ast_modules =
-            ModulesParser::new(&mut self.state).run(vec![(main_mod, file)]);
-
-        self.compile_to_mir(ast_modules).map(|mut mir| {
-            self.optimise_mir(&mut mir);
-            codegen::Lower::run_all(&self.state.db, mir)
-        })
-    }
-
-    fn compile_to_mir(
-        &mut self,
-        ast_modules: Vec<ParsedModule>,
+        mut modules: Vec<hir::Module>,
     ) -> Result<Mir, CompileError> {
-        let mut hir_mods = if let Some(v) = self.lower_to_hir(ast_modules) {
-            v
-        } else {
-            return Err(CompileError::Invalid);
-        };
-
-        if !self.type_check(&mut hir_mods) {
+        if !self.check_types(&mut modules) {
             return Err(CompileError::Invalid);
         }
 
-        self.lower_to_mir(hir_mods)
+        let mut mir = Mir::new();
+
+        mir::check_global_limits(&mut self.state)
+            .map_err(CompileError::Internal)?;
+
+        if mir::DefineConstants::run_all(&mut self.state, &mut mir, &modules)
+            && mir::LowerToMir::run_all(&mut self.state, &mut mir, modules)
+        {
+            Ok(mir)
+        } else {
+            Err(CompileError::Invalid)
+        }
     }
 
-    fn lower_to_hir(
+    fn compile_hir(
         &mut self,
         modules: Vec<ParsedModule>,
-    ) -> Option<Vec<hir::Module>> {
+    ) -> Result<Vec<hir::Module>, CompileError> {
         let hir = hir::LowerToHir::run_all(&mut self.state, modules);
 
         // Errors produced at this state are likely to result in us not being
         // able to compile the program properly (e.g. imported modules don't
         // exist), so we bail out right away.
         if self.state.diagnostics.has_errors() {
-            None
+            Err(CompileError::Invalid)
         } else {
-            Some(hir)
+            Ok(hir)
         }
     }
 
-    fn type_check(&mut self, modules: &mut Vec<hir::Module>) -> bool {
+    fn check_types(&mut self, modules: &mut Vec<hir::Module>) -> bool {
         let state = &mut self.state;
 
         DefineTypes::run_all(state, modules)
@@ -176,62 +164,48 @@ impl Compiler {
             && CheckTypeParameters::run_all(state, modules)
             && DefineVariants::run_all(state, modules)
             && DefineFields::run_all(state, modules)
+            && define_runtime_result_fields(state)
             && DefineMethods::run_all(state, modules)
             && CheckMainMethod::run(state)
             && ImplementTraitMethods::run_all(state, modules)
-            && define_builtin_functions(state)
             && DefineConstants::run_all(state, modules)
             && Expressions::run_all(state, modules)
     }
 
-    fn lower_to_mir(
-        &mut self,
-        modules: Vec<hir::Module>,
-    ) -> Result<Mir, CompileError> {
-        let state = &mut self.state;
-        let mut mir = Mir::new();
-
-        mir::check_global_limits(state).map_err(CompileError::Internal)?;
-
-        if mir::DefineConstants::run_all(state, &mut mir, &modules)
-            && mir::LowerToMir::run_all(state, &mut mir, modules)
-        {
-            Ok(mir)
-        } else {
-            Err(CompileError::Invalid)
-        }
-    }
-
     fn optimise_mir(&mut self, mir: &mut Mir) {
         mir::ExpandDrop::run_all(&self.state.db, mir);
+        mir::ExpandReference::run_all(&self.state.db, mir);
         mir::clean_up_basic_blocks(mir);
     }
 
-    fn write_code(
-        &self,
+    fn compile_machine_code(
+        &mut self,
+        mir: &Mir,
         main_file: PathBuf,
-        code: codegen::Bytecode,
-    ) -> PathBuf {
-        let path = self.state.config.output.clone().unwrap_or_else(|| {
-            let name = main_file
-                .file_stem()
-                .map(|s| s.to_string_lossy().into_owned())
-                .unwrap_or_else(|| "main".to_string());
+    ) -> Result<PathBuf, CompileError> {
+        let dirs = BuildDirectories::new(&self.state.config);
 
-            let dir = if self.state.config.build.is_dir() {
-                self.state.config.build.clone()
-            } else {
-                current_dir().unwrap_or_else(|_| PathBuf::new())
-            };
+        dirs.create().map_err(CompileError::Internal)?;
 
-            let mut path = dir.join(name);
+        let exe = match &self.state.config.output {
+            Output::Derive => {
+                let name = main_file
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| "main".to_string());
 
-            path.set_extension(IMAGE_EXT);
-            path
-        });
+                dirs.bin.join(name)
+            }
+            Output::File(name) => dirs.bin.join(name),
+            Output::Path(path) => path.clone(),
+        };
 
-        std::fs::write(&path, code.bytes).unwrap();
-        path
+        let objects = llvm::passes::Compile::run_all(&self.state, &dirs, mir)
+            .map_err(CompileError::Internal)?;
+
+        link(&self.state.config, &exe, &objects)
+            .map_err(CompileError::Internal)?;
+        Ok(exe)
     }
 
     fn module_name_from_path(&self, file: &Path) -> ModuleName {
@@ -239,11 +213,11 @@ impl Compiler {
             .ok()
             .or_else(|| file.strip_prefix(&self.state.config.tests).ok())
             .or_else(|| {
-                // This allows us to check e.g. `./libstd/src/std/string.inko`
+                // This allows us to check e.g. `./std/src/std/string.inko`
                 // while the current working directory is `.`. This is useful
                 // when e.g. checking files using a text editor, as they would
                 // likely have the working directory set to `.` and not
-                // `./libstd`.
+                // `./std`.
                 let mut components = file.components();
 
                 if components.any(|c| c.as_os_str() == SOURCE) {

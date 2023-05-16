@@ -38,7 +38,7 @@ mirror the module hierarchy of the module they are testing. For example, the
 tests for the standard library are organised as follows:
 
 ```
-libstd/test/
+std/test/
 ├── main.inko
 └── std
     ├── fs
@@ -60,8 +60,8 @@ what such a file might look like:
 
 ```inko
 import std::env
+import std::test::(Filter, Tests)
 
-import std::test::Tests
 import std::test_array
 import std::test_bool
 import std::test_byte_array
@@ -76,8 +76,7 @@ class async Main {
     test_byte_array.tests(tests)
     test_tuple.tests(tests)
 
-    tests.pattern = env.arguments.into_iter.next
-
+    tests.filter = Filter.from_string(env.arguments.opt(0).unwrap_or(''))
     tests.run
   }
 }
@@ -95,6 +94,12 @@ so, make sure your current working directory is the directory containing the
 The `inko test` command supports filtering tests by their name. For example, to
 run tests of which the name contains "kittens" you'd run the tests like so:
 
-```
+```bash
 inko test kittens
+```
+
+You can also filter by a file path, only running the tests in that file:
+
+```bash
+inko test test_kittens.inko
 ```

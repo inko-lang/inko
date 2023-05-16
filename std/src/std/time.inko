@@ -1,0 +1,625 @@
+# Types and methods for dealing with time.
+import std::clone::Clone
+import std::cmp::(Compare, Equal, Ordering)
+import std::float::ToFloat
+import std::fmt::(Format, Formatter)
+import std::int::ToInt
+import std::ops::(Add, Subtract)
+
+let SECS_PER_MIN = 60
+let SECS_PER_HOUR = 3600
+let SECS_PER_DAY = 86_400
+let DAYS_PER_WEEK = 7
+
+let NANOS_PER_SEC = 1_000_000_000.0
+let MICROS_PER_SEC = 1_000_000
+let MILLIS_PER_SEC = 1_000
+
+# The number of days since the start of the year for each month, for a leap
+# year.
+let LEAP_DAYS = [0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 205, 335]
+
+# The number of days since the start of the year for each month, for a regular
+# year.
+let NORMAL_DAYS = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 204, 334]
+
+# A span of time measured in nanoseconds.
+#
+# A `Duration` can be used to measure the span of time without having to worry
+# about casting the time to different scales yourself. A `Duration` can be
+# created using various scales such as seconds and milliseconds.
+#
+# `Duration` measures a time duration in nanoseconds, limiting it to durations
+# of up to 292 years. Operations producing values greater than this range will
+# panic.
+#
+# `Duration` objects can represent negative durations such as "-5 seconds". This
+# is useful when performing arithmetic on `Duration` objects, as you won't have
+# to worry about overflows. It also lets you represent a duration that goes back
+# in time, i.e. "something that happened 5 seconds ago".
+class pub Duration {
+  let @nanos: Int
+
+  # Creates a new `Duration` from the given number of seconds.
+  #
+  # # Examples
+  #
+  #     import std::time::Duration
+  #
+  #     Duration.from_secs(10.5)
+  fn pub static from_secs(secs: ToFloat) -> Duration {
+    Duration { @nanos = (secs.to_float * NANOS_PER_SEC).to_int }
+  }
+
+  # Creates a new `Duration` from the given number of milliseconds.
+  #
+  # # Examples
+  #
+  #     import std::time::Duration
+  #
+  #     Duration.from_millis(10)
+  fn pub static from_millis(millis: ToInt) -> Duration {
+    Duration { @nanos = millis.to_int * MICROS_PER_SEC }
+  }
+
+  # Creates a new `Duration` from the given number of microseconds.
+  #
+  # # Examples
+  #
+  #     import std::time::Duration
+  #
+  #     Duration.from_micros(10)
+  fn pub static from_micros(micros: ToInt) -> Duration {
+    Duration { @nanos = micros.to_int * MILLIS_PER_SEC }
+  }
+
+  # Creates a new `Duration` from the given number of nanoseconds.
+  #
+  # # Examples
+  #
+  #     import std::time::Duration
+  #
+  #     Duration.from_nanos(10)
+  fn pub static from_nanos(nanos: ToInt) -> Duration {
+    Duration { @nanos = nanos.to_int }
+  }
+
+  # Returns the duration in seconds.
+  #
+  # # Examples
+  #
+  #     import std::time::Duration
+  #
+  #     Duration.from_secs(5).to_secs # => 5.0
+  fn pub to_secs -> Float {
+    @nanos.to_float / NANOS_PER_SEC
+  }
+
+  # Returns the duration in milliseconds.
+  #
+  # # Examples
+  #
+  #     import std::time::Duration
+  #
+  #     Duration.from_secs(5).to_millis # => 5000
+  fn pub to_millis -> Int {
+    @nanos / MICROS_PER_SEC
+  }
+
+  # Returns the duration in microseconds.
+  #
+  # # Examples
+  #
+  #     import std::time::Duration
+  #
+  #     Duration.from_secs(5).to_micros # => 5000000
+  fn pub to_micros -> Int {
+    @nanos / MILLIS_PER_SEC
+  }
+
+  # Returns the duration in nanoseconds.
+  #
+  # # Examples
+  #
+  #     import std::time::Duration
+  #
+  #     Duration.from_secs(5).to_nanos # => 5000000000
+  fn pub to_nanos -> Int {
+    @nanos
+  }
+}
+
+impl ToInstant for Duration {
+  # Adds `self` to the current monotonic time, returning a new `Instant`
+  # representing the resulting point in time.
+  #
+  # # Examples
+  #
+  #     import std::time::(Duration, Instant)
+  #
+  #     let duration = Duration.from_secs(5)
+  #
+  #     duration.to_instant.remaining <= duration # => true
+  #
+  # # Panics
+  #
+  # This method panics if the resulting `Instant` is invalid, such as when it's
+  # a negative time.
+  fn pub to_instant -> Instant {
+    Instant.new + self
+  }
+}
+
+impl Clone[Duration] for Duration {
+  fn pub clone -> Duration {
+    Duration { @nanos = @nanos }
+  }
+}
+
+impl Add[Duration, Duration] for Duration {
+  fn pub +(other: ref Duration) -> Duration {
+    Duration { @nanos = @nanos + other.nanos }
+  }
+}
+
+impl Subtract[Duration, Duration] for Duration {
+  fn pub -(other: ref Duration) -> Duration {
+    Duration { @nanos = @nanos - other.nanos }
+  }
+}
+
+impl Compare[Duration] for Duration {
+  fn pub cmp(other: ref Duration) -> Ordering {
+    @nanos.cmp(other.nanos)
+  }
+}
+
+impl Equal[Duration] for Duration {
+  fn pub ==(other: ref Duration) -> Bool {
+    @nanos == other.nanos
+  }
+}
+
+impl Format for Duration {
+  fn pub fmt(formatter: mut Formatter) {
+    let abs = @nanos.absolute
+    let write = if abs >= 1_000_000_000 {
+      "{to_secs} sec"
+    } else if abs >= 1_000_000 {
+      "{to_millis} msec"
+    } else if abs >= 1_000 {
+      "{to_micros} µsec"
+    } else {
+      "{@nanos} nsec"
+    }
+
+    formatter.write(write)
+  }
+}
+
+# An object representing the current system time.
+#
+# Internally the time is represented as the number of seconds since the Unix
+# epoch, excluding leap seconds.
+#
+# `DateTime` is based on the Gregorian calendar, and doesn't support additional
+# calendars such as the Julian calendar.
+#
+# If you want to measure the duration between two events, it's best to use the
+# `Instant` type, as it's not affected by external factors such as clock
+# adjustments and leap seconds.
+class pub DateTime {
+  # The year.
+  let pub @year: Int
+
+  # The month, from `1` to `12`.
+  let pub @month: Int
+
+  # The day, from `1` to `31`.
+  let pub @day: Int
+
+  # The hour, from `0` to `23`.
+  let pub @hour: Int
+
+  # The minute, from `0` to `59`.
+  let pub @minute: Int
+
+  # The second, from `0` to `59`.
+  let pub @second: Int
+
+  # The sub seconds.
+  let pub @sub_second: Float
+
+  # The UTC offset (in seconds).
+  let pub @utc_offset: Int
+
+  # Returns a new `DateTime` representing the current time using the local
+  # timezone.
+  #
+  # # Examples
+  #
+  # Getting the current time:
+  #
+  #     import std::time::DateTime
+  #
+  #     DateTime.new
+  fn pub static new -> DateTime {
+    from_timestamp(_INKO.time_system, _INKO.time_system_offset)
+  }
+
+  # Returns a new `DateTime` representing the current time using UTC as the
+  # timezone.
+  #
+  # # Examples
+  #
+  # Getting the current time in UTC:
+  #
+  #     import std::time::DateTime
+  #
+  #     DateTime.utc
+  fn pub static utc -> DateTime {
+    from_timestamp(time: _INKO.time_system, utc_offset: 0)
+  }
+
+  # Returns a new `DateTime` from a Unix timestamp and UTC offset.
+  #
+  # The `time` argument is the number of seconds since or before the Unix epoch.
+  #
+  # # Example
+  #
+  #     import std::time::DateTime
+  #
+  #     DateTime.from_timestamp(time: 1661546853, utc_offset: 0).year # => 2022
+  fn pub static from_timestamp(time: ToFloat, utc_offset: Int) -> DateTime {
+    # This implementation is based on the algorithms as described on
+    # http://howardhinnant.github.io/date_algorithms.html, specifically the
+    # `civil_from_days()` algorithm.
+    #
+    # To be truly honest, at the time of writing I didn't fully understand the
+    # algorithm, and reading through the linked article made my head spin. But
+    # it works, so ship it!
+    #
+    # Important note: this algorithm works because Inko implements integer
+    # divisions as floored divisions (like e.g. Python and Ruby), instead of
+    # rounding towards zero (like Rust and C).
+    let time = time.to_float
+    let epoch_secs = time.to_int + utc_offset
+    let epoch_days = (epoch_secs / SECS_PER_DAY) + 719_468
+    let era =
+      if epoch_days >= 0 { epoch_days } else { epoch_days - 146_096 } / 146_097
+    let doe = epoch_days - (era * 146_097)
+    let yoe = (doe - (doe / 1460) + (doe / 36_524) - (doe / 146_096)) / 365
+    let doy = doe - ((365 * yoe) + (yoe / 4) - (yoe / 100))
+    let mp = ((5 * doy) + 2) / 153
+    let day = doy - ((153 * mp) + 2 / 5) + 1
+    let month = if mp < 10 { mp + 3 } else { mp - 9 }
+    let mut year = yoe + (era * 400)
+
+    if month <= 2 { year += 1 }
+
+    # The number of seconds since the start of the day.
+    let mut day_secs = epoch_secs - ((epoch_secs / SECS_PER_DAY) * SECS_PER_DAY)
+    let second = day_secs % 60
+    let minute = (day_secs % SECS_PER_HOUR) / 60
+    let hour = day_secs / SECS_PER_HOUR
+
+    DateTime {
+      @year = year,
+      @month = month,
+      @day = day,
+      @hour = hour,
+      @minute = minute,
+      @second = second,
+      @sub_second = time.fractional,
+      @utc_offset = utc_offset
+    }
+  }
+
+  # Returns the day of the week from 1 to 7.
+  #
+  # Per ISO 8601 the first day of the week starts on Monday, not Sunday.
+  fn pub day_of_week -> Int {
+    # January 1st, 1970 (our anchor date) was on a Thursday. We add 3 so that
+    # Monday (3 days before Thursday) becomes the anchor date.
+    #
+    # We later on add 1 since the % operator will return 0 for Monday (since its
+    # the first value in the range), but week days range from 1 to 7; not 0 to
+    # 6.
+    #
+    # The following table should help illustrate this:
+    #
+    # | Date       | Day of week | days_since_unix_epoch
+    # |:-----------|:------------|:----------------------
+    # | 1969-12-29 | Monday      | -3
+    # | 1969-12-30 | Tuesday     | -2
+    # | 1969-12-31 | Wednesday   | -1
+    # | 1970-01-01 | Thursday    | 0
+    # | 1970-01-02 | Friday      | 1
+    # | 1970-01-03 | Saturday    | 2
+    # | 1970-01-04 | Sunday      | 3
+    #
+    # For these dates, the calculations would be as follows:
+    #
+    # | Date       | Calculation        | Simplified  | Return value
+    # |:-----------|:-------------------|:------------|:------------
+    # | 1969-12-29 | ((-3 + 3) % 7) + 1 | (0 % 7) + 1 | 1
+    # | 1969-12-30 | ((-2 + 3) % 7) + 1 | (1 % 7) + 1 | 2
+    # | 1969-12-31 | ((-1 + 3) % 7) + 1 | (2 % 7) + 1 | 3
+    # | 1970-01-01 | ((0 + 3) % 7) + 1  | (3 % 7) + 1 | 4
+    # | 1970-01-02 | ((1 + 3) % 7) + 1  | (4 % 7) + 1 | 5
+    # | 1970-01-03 | ((2 + 3) % 7) + 1  | (5 % 7) + 1 | 6
+    # | 1970-01-04 | ((3 + 3) % 7) + 1  | (6 % 7) + 1 | 7
+    days_since_unix_epoch + 3 % DAYS_PER_WEEK + 1
+  }
+
+  # Returns the day of the year from 1 to 366 for leap years, and from 1 to 365
+  # for regular years.
+  fn pub day_of_year -> Int {
+    let days = if leap_year? { LEAP_DAYS } else { NORMAL_DAYS }
+
+    days.get(@month - 1) + @day
+  }
+
+  # Returns the number of days between `self` and the Unix epoch.
+  #
+  # The returned `Int` is negative if `self` is before the Unix epoch, and
+  # positive for a value that is on or after the Unix epoch.
+  fn pub days_since_unix_epoch -> Int {
+    let year = if @month <= 2 { @year - 1 } else { @year }
+    let month = @month
+    let era = if year >= 0 { year } else { year - 399 } / 400
+    let yoe = year - (era * 400)
+    let doy = (((153 * if month >= 2 { month - 3 } else { month + 9 }) + 2) / 5)
+      + @day - 1
+    let doe = (yoe * 365) + (yoe / 4) - (yoe / 100) + doy
+
+    (era * 146_097) + doe - 719_468
+  }
+
+  # Returns `true` if the current year is a leap year.
+  fn pub leap_year? -> Bool {
+    let year = @year
+
+    (year % 4) == 0 and ((year % 100) > 0 or (year % 400) == 0)
+  }
+
+  # Returns `true` if UTC is used.
+  fn pub utc? -> Bool {
+    @utc_offset == 0
+  }
+
+  # Converts the `DateTime` to another `DateTime` that uses UTC as the
+  # timezone.
+  fn pub to_utc -> DateTime {
+    DateTime.from_timestamp(time: to_float, utc_offset: 0)
+  }
+}
+
+impl Clone[DateTime] for DateTime {
+  fn pub clone -> DateTime {
+    DateTime {
+      @year = @year,
+      @month = @month,
+      @day = @day,
+      @hour = @hour,
+      @minute = @minute,
+      @second = @second,
+      @sub_second = @sub_second,
+      @utc_offset = @utc_offset
+    }
+  }
+}
+
+impl Format for DateTime {
+  fn pub fmt(formatter: mut Formatter) {
+    let sign = if @utc_offset > 0 { '+' } else { '-' }
+    let offset = if @utc_offset == 0 {
+      ' UTC'
+    } else {
+      let hh =
+        (@utc_offset / SECS_PER_HOUR).to_string.pad_start(with: '0', length: 2)
+      let mm = (@utc_offset % SECS_PER_HOUR / 60)
+        .to_string
+        .pad_start(with: '0', length: 2)
+
+      " {sign}{hh}{mm}"
+    }
+
+    let year = @year.to_string.pad_start(with: '0', length: 4)
+    let month = @month.to_string.pad_start(with: '0', length: 2)
+    let day = @day.to_string.pad_start(with: '0', length: 2)
+    let hour = @hour.to_string.pad_start(with: '0', length: 2)
+    let min = @minute.to_string.pad_start(with: '0', length: 2)
+    let secs = @second.to_string.pad_start(with: '0', length: 2)
+
+    formatter.write("{year}-{month}-{day} {hour}:{min}:{secs}{offset}")
+  }
+}
+
+impl ToInt for DateTime {
+  # Returns the number of seconds since the Unix epoch in UTC.
+  #
+  # This value will be negative if `self` is a `DateTime` before the Unix
+  # epoch.
+  fn pub to_int -> Int {
+    let days = days_since_unix_epoch
+    let days_sec = days.absolute * SECS_PER_DAY
+    let time_sec = (@hour * SECS_PER_HOUR) + (@minute * SECS_PER_MIN) + @second
+    let timestamp =
+      if days < 0 { 0 - (days_sec - time_sec) } else { days_sec + time_sec }
+
+    # Timestamps are always in UTC, not in the local time.
+    timestamp - @utc_offset
+  }
+}
+
+impl ToFloat for DateTime {
+  # Returns the timestamp since the Unix epoch, the including fractional
+  # seconds.
+  fn pub to_float -> Float {
+    to_int.to_float + @sub_second
+  }
+}
+
+impl Add[Duration, DateTime] for DateTime {
+  fn pub +(other: ref Duration) -> DateTime {
+    let timestamp = to_float + other.to_secs
+
+    DateTime.from_timestamp(timestamp, utc_offset: @utc_offset)
+  }
+}
+
+impl Subtract[Duration, DateTime] for DateTime {
+  fn pub -(other: ref Duration) -> DateTime {
+    let timestamp = to_float - other.to_secs
+
+    DateTime.from_timestamp(timestamp, utc_offset: @utc_offset)
+  }
+}
+
+impl Compare[DateTime] for DateTime {
+  fn pub cmp(other: ref DateTime) -> Ordering {
+    to_float.cmp(other.to_float)
+  }
+}
+
+impl Equal[DateTime] for DateTime {
+  fn pub ==(other: ref DateTime) -> Bool {
+    @year == other.year
+      and @month == other.month
+      and @day == other.day
+      and @hour == other.hour
+      and @minute == other.minute
+      and @second == other.second
+      and @sub_second == other.sub_second
+      and @utc_offset == other.utc_offset
+  }
+}
+
+# A type which can be converted to an `Instant`
+#
+# This is useful when you want create a deadline that supports both `Instant`
+# and `Duration` as an input.
+trait pub ToInstant {
+  # Converts `self` into an `Instant`.
+  fn pub to_instant -> Instant
+}
+
+# A monotonically increasing clock.
+#
+# The clock is measured in nanoseconds since an unspecified point in time. This
+# means the maximum time span we can represent is roughly 292 years. Operations
+# producing values greater than this range will panic.
+#
+# Unlike a system clock a monotonic clock never decreases, making it useful for
+# tasks such as measuring the execution time of a block of code.
+#
+# An `Instant` can never represent a negative time (e.g. -5).
+class pub Instant {
+  let @nanos: Int
+
+  # Returns a new `Instant` representing the current time.
+  fn pub static new -> Instant {
+    Instant { @nanos = _INKO.time_monotonic }
+  }
+
+  # Returns a `Duration` measuring the time elapsed since the point in time
+  # that `self` represents.
+  #
+  # # Panics
+  #
+  # This method panics if the duration can't be expressed in nanoseconds.
+  #
+  # # Examples
+  #
+  # Obtaining the time elapsed:
+  #
+  #     import std::process
+  #     import std::time::(Duration, Instant)
+  #
+  #     let start = Instant.new
+  #
+  #     process.sleep(Duration.from_secs(1))
+  #
+  #     start.elapsed.to_secs >= 1.0 # => true
+  fn pub elapsed -> Duration {
+    Duration { @nanos = _INKO.time_monotonic - @nanos }
+  }
+
+  # Returns a `Duration` measuring the time remaining until reaching `self`.
+  #
+  # If `self` is in the past, the `Duration` represents a negative duration.
+  #
+  # # Examples
+  #
+  #     import std::time::(Duration, Instant)
+  #
+  #     let time = Instant.new + Duration.from_secs(5)
+  #
+  #     time.remaining # => Duration.from_secs(5)
+  fn pub remaining -> Duration {
+    Duration { @nanos = @nanos - _INKO.time_monotonic }
+  }
+}
+
+impl ToInstant for Instant {
+  fn pub to_instant -> Instant {
+    clone
+  }
+}
+
+impl Clone[Instant] for Instant {
+  fn pub clone -> Instant {
+    Instant { @nanos = @nanos }
+  }
+}
+
+impl ToInt for Instant {
+  fn pub to_int -> Int {
+    @nanos.to_int
+  }
+}
+
+impl ToFloat for Instant {
+  fn pub to_float -> Float {
+    @nanos.to_float
+  }
+}
+
+impl Add[Duration, Instant] for Instant {
+  fn pub +(other: ref Duration) -> Instant {
+    let nanos = @nanos + other.nanos
+
+    if nanos < 0 { panic("Instant can't represent a negative time ({nanos})") }
+
+    Instant { @nanos = nanos }
+  }
+}
+
+impl Subtract[Duration, Instant] for Instant {
+  fn pub -(other: ref Duration) -> Instant {
+    let nanos = @nanos - other.nanos
+
+    if nanos < 0 { panic("Instant can't represent a negative time ({nanos})") }
+
+    Instant { @nanos = nanos }
+  }
+}
+
+impl Compare[Instant] for Instant {
+  fn pub cmp(other: ref Instant) -> Ordering {
+    @nanos.cmp(other.nanos)
+  }
+}
+
+impl Equal[Instant] for Instant {
+  fn pub ==(other: ref Instant) -> Bool {
+    @nanos == other.nanos
+  }
+}
+
+impl Format for Instant {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.write("+{@nanos}")
+  }
+}

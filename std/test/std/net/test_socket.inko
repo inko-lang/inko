@@ -1,0 +1,1421 @@
+import helpers::(fmt)
+import std::drop::Drop
+import std::env
+import std::fs::file
+import std::fs::path::Path
+import std::net::ip::(IpAddress, Ipv4Address, Ipv6Address)
+import std::net::socket::(
+  Socket, SocketAddress, TcpServer, TcpClient, Type, UdpSocket, UnixAddress,
+  UnixDatagram, UnixServer, UnixSocket, UnixClient
+)
+import std::string::ToString
+import std::test::Tests
+import std::time::(Duration, Instant)
+
+class SocketPath {
+  let @path: Path
+
+  fn static pair(id: Int) -> (SocketPath, SocketPath) {
+    let p1 = env.temporary_directory.join("inko-test-{id}-1.sock")
+    let p2 = env.temporary_directory.join("inko-test-{id}-2.sock")
+    let _ = file.remove(p1)
+    let _ = file.remove(p2)
+
+    (SocketPath { @path = p1 }, SocketPath { @path = p2 })
+  }
+
+  fn static new(id: Int) -> SocketPath {
+    let path = env.temporary_directory.join("inko-test-{id}.sock")
+    let _ = file.remove(path)
+
+    SocketPath { @path = path }
+  }
+}
+
+impl ToString for SocketPath {
+  fn pub to_string -> String {
+    @path.to_string
+  }
+}
+
+impl Drop for SocketPath {
+  fn mut drop {
+    let _ = file.remove(@path)
+  }
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('SocketAddress.new') fn (t) {
+    let addr = SocketAddress.new(address: '127.0.0.1', port: 1234)
+
+    t.equal(addr.ip, Option.Some(IpAddress.V4(Ipv4Address.new(127, 0, 0, 1))))
+    t.equal(addr.port, 1234)
+  }
+
+  t.test('SocketAddress.==') fn (t) {
+    let addr1 = SocketAddress.new(address: '127.0.0.1', port: 1234)
+    let addr2 = SocketAddress.new(address: '127.0.0.1', port: 4567)
+
+    t.equal(addr1, addr1)
+    t.not_equal(addr1, addr2)
+  }
+
+  t.test('SocketAddress.fmt') fn (t) {
+    t.equal(
+      fmt(SocketAddress.new(address: '127.0.0.1', port: 1234)),
+      '127.0.0.1:1234'
+    )
+  }
+
+  t.test('Socket.ipv4') fn (t) {
+    t.true(Socket.ipv4(Type.STREAM).ok?)
+    t.true(Socket.ipv4(Type.DGRAM).ok?)
+  }
+
+  t.test('Socket.ipv6') fn (t) {
+    t.true(Socket.ipv6(Type.STREAM).ok?)
+    t.true(Socket.ipv6(Type.DGRAM).ok?)
+  }
+
+  t.test('Socket.bind') fn (t) {
+    {
+      let sock = Socket.ipv4(Type.STREAM).unwrap
+
+      t.true(sock.bind(ip: 'foo', port: 0).error?)
+    }
+
+    {
+      let sock = Socket.ipv4(Type.STREAM).unwrap
+
+      t.true(sock.bind(ip: '0.0.0.0', port: 0).ok?)
+    }
+  }
+
+  t.test('Socket.connect') fn (t) {
+    let listener = Socket.ipv4(Type.STREAM).unwrap
+    let stream1 = Socket.ipv4(Type.STREAM).unwrap
+
+    listener.bind(ip: '127.0.0.1', port: 0).unwrap
+    listener.listen.unwrap
+
+    let addr = listener.local_address.unwrap
+
+    t.true(stream1.connect(ip: addr.ip.unwrap, port: addr.port.clone).ok?)
+
+    let stream2 = Socket.ipv4(Type.STREAM).unwrap
+
+    t.true(
+      # connect() may not immediately raise a "connection refused" error, due
+      # to connect() being non-blocking. In this case the "connection refused"
+      # error is raised on the next operation.
+      #
+      # Since a connect() _might_ still raise the error right away, we have to
+      # both connect and try to use the socket in some way.
+      stream2.connect(ip: '0.0.0.0', port: 40_000).error?
+        or stream2.write_string('ping').error?
+    )
+  }
+
+  t.test('Socket.listen') fn (t) {
+    let socket = Socket.ipv4(Type.STREAM).unwrap
+
+    socket.bind(ip: '0.0.0.0', port: 0).unwrap
+
+    t.true(socket.listen.ok?)
+  }
+
+  t.test('Socket.accept') fn (t) {
+    let server = Socket.ipv4(Type.STREAM).unwrap
+    let client = Socket.ipv4(Type.STREAM).unwrap
+
+    server.bind(ip: '127.0.0.1', port: 0).unwrap
+    server.listen.unwrap
+
+    let addr = server.local_address.unwrap
+
+    t.equal(client.connect(addr.address.clone, addr.port.clone), Result.Ok(nil))
+
+    let connection = server.accept.unwrap
+
+    t.equal(connection.local_address, Result.Ok(server.local_address.unwrap))
+  }
+
+  t.test('Socket.send_string_to') fn (t) {
+    let socket = Socket.ipv4(Type.DGRAM).unwrap
+
+    socket.bind(ip: '127.0.0.1', port: 0).unwrap
+
+    let send_to = socket.local_address.unwrap
+    let buffer = ByteArray.new
+
+    socket
+      .send_string_to('ping', ip: send_to.address, port: send_to.port.clone)
+      .unwrap
+
+    t.equal(socket.read(into: buffer, size: 4).unwrap, 4)
+    t.equal(buffer.into_string, 'ping')
+  }
+
+  t.test('Socket.send_bytes_to') fn (t) {
+    let socket = Socket.ipv4(Type.DGRAM).unwrap
+
+    socket.bind(ip: '127.0.0.1', port: 0).unwrap
+
+    let send_to = socket.local_address.unwrap
+    let buffer = ByteArray.new
+
+    socket
+      .send_bytes_to(
+        bytes: 'ping'.to_byte_array,
+        ip: send_to.address,
+        port: send_to.port.clone
+      )
+      .unwrap
+
+    t.equal(socket.read(into: buffer, size: 4).unwrap, 4)
+    t.equal(buffer.into_string, 'ping')
+  }
+
+  t.test('Socket.receive_from') fn (t) {
+    let listener = Socket.ipv4(Type.DGRAM).unwrap
+    let client = Socket.ipv4(Type.DGRAM).unwrap
+
+    listener.bind(ip: '127.0.0.1', port: 0).unwrap
+    client.bind(ip: '127.0.0.1', port: 0).unwrap
+
+    let send_to = listener.local_address.unwrap
+
+    client
+      .send_string_to('ping', ip: send_to.address, port: send_to.port.clone)
+      .unwrap
+
+    let bytes = ByteArray.new
+    let sender = listener.receive_from(bytes: bytes, size: 4).unwrap
+
+    t.equal(sender, client.local_address.unwrap)
+    t.equal(bytes.into_string, 'ping')
+  }
+
+  t.test('Socket.local_address with an unbound socket') fn (t) {
+    let socket = Socket.ipv4(Type.DGRAM).unwrap
+    let address = socket.local_address.unwrap
+
+    t.equal(address.address, '0.0.0.0')
+    t.equal(address.port, 0)
+  }
+
+  t.test('Socket.local_address with a bound socket') fn (t) {
+    let socket = Socket.ipv4(Type.DGRAM).unwrap
+
+    socket.bind(ip: '127.0.0.1', port: 0).unwrap
+
+    let local_address = socket.local_address.unwrap
+
+    t.equal(local_address.address, '127.0.0.1')
+    t.true(local_address.port > 0)
+  }
+
+  t.test('Socket.peer_address with a disconnected socket') fn (t) {
+    let socket = Socket.ipv4(Type.DGRAM).unwrap
+
+    t.true(socket.peer_address.error?)
+  }
+
+  t.test('Socket.peer_address with a connected socket') fn (t) {
+    let listener = Socket.ipv4(Type.STREAM).unwrap
+    let client = Socket.ipv4(Type.STREAM).unwrap
+
+    listener.bind(ip: '127.0.0.1', port: 0).unwrap
+    listener.listen.unwrap
+
+    let addr = listener.local_address.unwrap
+
+    t.equal(client.connect(ip: addr.address, port: addr.port), Result.Ok(nil))
+    t.equal(client.peer_address, Result.Ok(addr))
+  }
+
+  t.test('Socket.ttl') fn (t) {
+    let socket = Socket.ipv4(Type.STREAM).unwrap
+
+    t.true((socket.ttl = 10).ok?)
+  }
+
+  t.test('Socket.only_ipv6?') fn (t) {
+    let socket = Socket.ipv6(Type.STREAM).unwrap
+
+    t.true((socket.only_ipv6 = true).ok?)
+  }
+
+  t.test('Socket.no_delay?') fn (t) {
+    let socket = Socket.ipv4(Type.STREAM).unwrap
+
+    t.true((socket.no_delay = true).ok?)
+  }
+
+  t.test('Socket.broadcast?') fn (t) {
+    let socket = Socket.ipv4(Type.DGRAM).unwrap
+
+    t.true((socket.broadcast = true).ok?)
+  }
+
+  t.test('Socket.linger') fn (t) {
+    let socket = Socket.ipv4(Type.STREAM).unwrap
+    let duration = Duration.from_secs(5)
+
+    t.true((socket.linger = duration).ok?)
+  }
+
+  t.test('Socket.receive_buffer_size') fn (t) {
+    let socket = Socket.ipv4(Type.STREAM).unwrap
+
+    t.true((socket.receive_buffer_size = 256).ok?)
+  }
+
+  t.test('Socket.send_buffer_size') fn (t) {
+    let socket = Socket.ipv4(Type.STREAM).unwrap
+
+    t.true((socket.send_buffer_size = 256).ok?)
+  }
+
+  t.test('Socket.keepalive') fn (t) {
+    let socket = Socket.ipv4(Type.STREAM).unwrap
+
+    t.true((socket.keepalive = true).ok?)
+  }
+
+  t.test('Socket.reuse_adress') fn (t) {
+    let socket = Socket.ipv6(Type.DGRAM).unwrap
+
+    t.true((socket.reuse_address = true).ok?)
+  }
+
+  t.test('Socket.reuse_port') fn (t) {
+    let socket = Socket.ipv6(Type.DGRAM).unwrap
+
+    t.true((socket.reuse_port = true).ok?)
+  }
+
+  t.test('Socket.shutdown_read') fn (t) {
+    let listener = Socket.ipv4(Type.STREAM).unwrap
+    let stream = Socket.ipv4(Type.STREAM).unwrap
+
+    listener.bind(ip: '127.0.0.1', port: 0).unwrap
+    listener.listen.unwrap
+
+    let addr = listener.local_address.unwrap
+
+    stream.connect(ip: addr.address, port: addr.port.clone).unwrap
+    stream.shutdown_read.unwrap
+
+    let bytes = ByteArray.new
+
+    t.equal(stream.read(into: bytes, size: 4).unwrap, 0)
+    t.equal(bytes.length, 0)
+  }
+
+  t.test('Socket.shutdown_write') fn (t) {
+    let listener = Socket.ipv4(Type.STREAM).unwrap
+    let stream = Socket.ipv4(Type.STREAM).unwrap
+
+    listener.bind(ip: '127.0.0.1', port: 0).unwrap
+    listener.listen.unwrap
+
+    let addr = listener.local_address.unwrap
+
+    stream.connect(ip: addr.address, port: addr.port.clone).unwrap
+    stream.shutdown_write.unwrap
+
+    t.true(stream.write_string('ping').error?)
+  }
+
+  t.test('Socket.shutdown shuts down the writing half') fn (t) {
+    let listener = Socket.ipv4(Type.STREAM).unwrap
+    let stream = Socket.ipv4(Type.STREAM).unwrap
+
+    listener.bind(ip: '127.0.0.1', port: 0).unwrap
+    listener.listen.unwrap
+
+    let addr = listener.local_address.unwrap
+
+    stream.connect(ip: addr.address, port: addr.port.clone).unwrap
+    stream.shutdown.unwrap
+
+    t.true(stream.write_string('ping').error?)
+  }
+
+  t.test('Socket.shutdown shuts down the reading half') fn (t) {
+    let listener = Socket.ipv4(Type.STREAM).unwrap
+    let stream = Socket.ipv4(Type.STREAM).unwrap
+
+    listener.bind(ip: '127.0.0.1', port: 0).unwrap
+    listener.listen.unwrap
+
+    let addr = listener.local_address.unwrap
+
+    stream.connect(ip: addr.address, port: addr.port.clone).unwrap
+    stream.shutdown.unwrap
+
+    let bytes = ByteArray.new
+
+    t.equal(stream.read(into: bytes, size: 4).unwrap, 0)
+    t.equal(bytes.length, 0)
+  }
+
+  t.test('Socket.try_clone') fn (t) {
+    let socket = Socket.ipv4(Type.STREAM).unwrap
+
+    t.true(socket.try_clone.ok?)
+  }
+
+  t.test('Socket.read') fn (t) {
+    let socket = Socket.ipv4(Type.DGRAM).unwrap
+
+    socket.bind(ip: '127.0.0.1', port: 0).unwrap
+
+    let addr = socket.local_address.unwrap
+    let bytes = ByteArray.new
+
+    socket.send_string_to('ping', ip: addr.address, port: addr.port.clone).unwrap
+
+    t.equal(socket.read(into: bytes, size: 4).unwrap, 4)
+    t.equal(bytes.into_string, 'ping')
+  }
+
+  t.test('Socket.write_bytes') fn (t) {
+    let listener = Socket.ipv4(Type.STREAM).unwrap
+    let stream = Socket.ipv4(Type.STREAM).unwrap
+
+    listener.bind(ip: '127.0.0.1', port: 0).unwrap
+    listener.listen.unwrap
+
+    let addr = listener.local_address.unwrap
+
+    stream.connect(ip: addr.address, port: addr.port.clone).unwrap
+
+    let written = stream.write_bytes('ping'.to_byte_array).unwrap
+    let connection = listener.accept.unwrap
+    let bytes = ByteArray.new
+
+    t.equal(connection.read(into: bytes, size: 4).unwrap, 4)
+    t.equal(bytes.into_string, 'ping')
+  }
+
+  t.test('Socket.write_string') fn (t) {
+    let listener = Socket.ipv4(Type.STREAM).unwrap
+    let stream = Socket.ipv4(Type.STREAM).unwrap
+
+    listener.bind(ip: '127.0.0.1', port: 0).unwrap
+    listener.listen.unwrap
+
+    let addr = listener.local_address.unwrap
+
+    stream.connect(ip: addr.address, port: addr.port.clone).unwrap
+
+    let written = stream.write_string('ping').unwrap
+    let connection = listener.accept.unwrap
+    let bytes = ByteArray.new
+
+    t.equal(connection.read(into: bytes, size: 4).unwrap, 4)
+    t.equal(bytes.into_string, 'ping')
+  }
+
+  t.test('Socket.flush') fn (t) {
+    let socket = Socket.ipv4(Type.STREAM).unwrap
+
+    t.equal(socket.flush, Result.Ok(nil))
+  }
+
+  t.test('UdpSocket.new') fn (t) {
+    t.true(
+      UdpSocket
+        .new(ip: IpAddress.V4(Ipv4Address.new(0, 0, 0, 0)), port: 0)
+        .ok?
+    )
+
+    t.true(
+      UdpSocket
+        .new(ip: IpAddress.V6(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 0)), port: 0)
+        .ok?
+    )
+  }
+
+  t.test('UdpSocket.connect') fn (t) {
+    let ip = IpAddress.V4(Ipv4Address.new(127, 0, 0, 1))
+    let socket1 = UdpSocket.new(ip: ip.clone, port: 0).unwrap
+    let socket2 = UdpSocket.new(ip: ip, port: 0).unwrap
+    let addr = socket2.local_address.unwrap
+
+    t.true(socket1.connect(ip: addr.address, port: addr.port.clone).ok?)
+  }
+
+  t.test('UdpSocket.send_string_to') fn (t) {
+    let socket = UdpSocket
+      .new(ip: IpAddress.V4(Ipv4Address.new(127, 0, 0, 1)), port: 0)
+      .unwrap
+
+    let addr = socket.local_address.unwrap
+
+    socket.send_string_to('ping', ip: addr.address, port: addr.port.clone).unwrap
+
+    let bytes = ByteArray.new
+
+    t.equal(socket.read(into: bytes, size: 4).unwrap, 4)
+    t.equal(bytes.into_string, 'ping')
+  }
+
+  t.test('UdpSocket.send_bytes_to') fn (t) {
+    let ip = IpAddress.V4(Ipv4Address.new(127, 0, 0, 1))
+    let socket = UdpSocket.new(ip: ip, port: 0).unwrap
+    let addr = socket.local_address.unwrap
+
+    socket
+      .send_bytes_to(
+        'ping'.to_byte_array,
+        ip: addr.address,
+        port: addr.port.clone
+      )
+      .unwrap
+
+    let bytes = ByteArray.new
+
+    t.equal(socket.read(into: bytes, size: 4).unwrap, 4)
+    t.equal(bytes.into_string, 'ping')
+  }
+
+  t.test('UdpSocket.receive_from') fn (t) {
+    let ip = IpAddress.V4(Ipv4Address.new(127, 0, 0, 1))
+    let listener = UdpSocket.new(ip: ip.clone, port: 0).unwrap
+    let client = UdpSocket.new(ip: ip, port: 0).unwrap
+    let addr = listener.local_address.unwrap
+
+    client
+      .send_string_to('ping', ip: addr.address, port: addr.port.clone)
+      .unwrap
+
+    let bytes = ByteArray.new
+    let sender = listener.receive_from(bytes: bytes, size: 4).unwrap
+
+    t.equal(sender, client.local_address.unwrap)
+    t.equal(bytes.into_string, 'ping')
+  }
+
+  t.test('UdpSocket.local_address') fn (t) {
+    let ip = IpAddress.V4(Ipv4Address.new(127, 0, 0, 1))
+    let socket = UdpSocket.new(ip: ip, port: 0).unwrap
+    let local_address = socket.local_address.unwrap
+
+    t.equal(local_address.address, '127.0.0.1')
+    t.true(local_address.port > 0)
+  }
+
+  t.test('UdpSocket.try_clone') fn (t) {
+    let ip = IpAddress.V4(Ipv4Address.new(127, 0, 0, 1))
+    let socket = UdpSocket.new(ip: ip, port: 0).unwrap
+
+    t.true(socket.try_clone.ok?)
+  }
+
+  t.test('UdpSocket.read') fn (t) {
+    let ip = IpAddress.V4(Ipv4Address.new(127, 0, 0, 1))
+    let socket = UdpSocket.new(ip: ip, port: 0).unwrap
+    let addr = socket.local_address.unwrap
+
+    socket.send_string_to('ping', ip: addr.address, port: addr.port.clone).unwrap
+
+    let bytes = ByteArray.new
+
+    t.equal(socket.read(into: bytes, size: 4).unwrap, 4)
+    t.equal(bytes.to_string, 'ping')
+  }
+
+  t.test('UdpSocket.write_bytes') fn (t) {
+    let ip = IpAddress.V4(Ipv4Address.new(127, 0, 0, 1))
+    let server_socket = UdpSocket.new(ip: ip.clone, port: 0).unwrap
+    let client_socket = UdpSocket.new(ip: ip, port: 0).unwrap
+    let addr = server_socket.local_address.unwrap
+
+    client_socket.connect(ip: addr.address, port: addr.port.clone).unwrap
+    client_socket.write_bytes('ping'.to_byte_array).unwrap
+
+    let bytes = ByteArray.new
+
+    t.equal(server_socket.read(into: bytes, size: 4).unwrap, 4)
+    t.equal(bytes.into_string, 'ping')
+  }
+
+  t.test('UdpSocket.flush') fn (t) {
+    let ip = IpAddress.V4(Ipv4Address.new(127, 0, 0, 1))
+    let socket = UdpSocket.new(ip: ip, port: 0).unwrap
+
+    t.equal(socket.flush, Result.Ok(nil))
+  }
+
+  t.test('TcpClient.new') fn (t) {
+    let listener = Socket.ipv4(Type.STREAM).unwrap
+
+    listener.bind(ip: '127.0.0.1', port: 0).unwrap
+    listener.listen.unwrap
+
+    let addr = listener.local_address.unwrap
+
+    t.true(TcpClient.new(ip: addr.ip.unwrap, port: addr.port.clone).ok?)
+  }
+
+  t.test('TcpClient.with_timeout') fn (t) {
+    let listener = Socket.ipv4(Type.STREAM).unwrap
+
+    listener.bind(ip: '127.0.0.1', port: 0).unwrap
+    listener.listen.unwrap
+
+    let addr = listener.local_address.unwrap
+
+    let ex = match TcpClient.with_timeout(ip: addr.ip.unwrap, port: addr.port.clone, timeout_after: Duration.from_secs(666)) {
+      case Ok(val) -> 'no error'
+      case Error(err) -> err.to_string
+    }
+
+    t.equal(ex, 'no error')
+
+    t.true(
+      TcpClient
+        .with_timeout(
+          ip: addr.ip.unwrap,
+          port: addr.port.clone,
+          timeout_after: Duration.from_secs(2)
+        )
+        .ok?
+    )
+
+    t.true(
+      # This address is unroutable and so the connect times out.
+      TcpClient
+        .with_timeout(
+          ip: IpAddress.v4(192, 168, 0, 0),
+          port: addr.port.clone,
+          timeout_after: Duration.from_micros(500)
+        )
+        .error?
+    )
+  }
+
+  t.test('TcpClient.local_address') fn (t) {
+    let listener = Socket.ipv4(Type.STREAM).unwrap
+
+    listener.bind(ip: '127.0.0.1', port: 0).unwrap
+    listener.listen.unwrap
+
+    let addr = listener.local_address.unwrap
+    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port.clone).unwrap
+    let local_addr = stream.local_address.unwrap
+
+    t.equal(local_addr.address, '127.0.0.1')
+    t.true(local_addr.port > 0)
+  }
+
+  t.test('TcpClient.peer_address') fn (t) {
+    let listener = Socket.ipv4(Type.STREAM).unwrap
+
+    listener.bind(ip: '127.0.0.1', port: 0).unwrap
+    listener.listen.unwrap
+
+    let addr = listener.local_address.unwrap
+    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port.clone).unwrap
+    let peer_addr = stream.peer_address.unwrap
+
+    t.equal(peer_addr.address, addr.address)
+    t.equal(peer_addr.port, addr.port)
+  }
+
+  t.test('TcpClient.read') fn (t) {
+    let listener = Socket.ipv4(Type.STREAM).unwrap
+
+    listener.bind(ip: '127.0.0.1', port: 0).unwrap
+    listener.listen.unwrap
+
+    let addr = listener.local_address.unwrap
+    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port.clone).unwrap
+    let bytes = ByteArray.new
+    let client = listener.accept.unwrap
+
+    client.write_string('ping').unwrap
+    stream.read(into: bytes, size: 4).unwrap
+
+    t.equal(bytes.into_string, 'ping')
+  }
+
+  t.test('TcpClient.write_bytes') fn (t) {
+    let listener = Socket.ipv4(Type.STREAM).unwrap
+
+    listener.bind(ip: '127.0.0.1', port: 0).unwrap
+    listener.listen.unwrap
+
+    let addr = listener.local_address.unwrap
+    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port.clone).unwrap
+    let connection = listener.accept.unwrap
+    let bytes = ByteArray.new
+
+    t.equal(stream.write_bytes('ping'.to_byte_array).unwrap, 4)
+    t.equal(connection.read(into: bytes, size: 4).unwrap, 4)
+    t.equal(bytes.into_string, 'ping')
+  }
+
+  t.test('TcpClient.write_string') fn (t) {
+    let listener = Socket.ipv4(Type.STREAM).unwrap
+
+    listener.bind(ip: '127.0.0.1', port: 0).unwrap
+    listener.listen.unwrap
+
+    let addr = listener.local_address.unwrap
+    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port.clone).unwrap
+    let connection = listener.accept.unwrap
+    let bytes = ByteArray.new
+
+    t.equal(stream.write_string('ping').unwrap, 4)
+    t.equal(connection.read(into: bytes, size: 4).unwrap, 4)
+    t.equal(bytes.into_string, 'ping')
+  }
+
+  t.test('TcpClient.flush') fn (t) {
+    let listener = Socket.ipv4(Type.STREAM).unwrap
+
+    listener.bind(ip: '127.0.0.1', port: 0).unwrap
+    listener.listen.unwrap
+
+    let addr = listener.local_address.unwrap
+    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port.clone).unwrap
+
+    t.true(stream.flush.ok?)
+  }
+
+  t.test('TcpClient.shutdown_read') fn (t) {
+    let listener = Socket.ipv4(Type.STREAM).unwrap
+
+    listener.bind(ip: '127.0.0.1', port: 0).unwrap
+    listener.listen.unwrap
+
+    let addr = listener.local_address.unwrap
+    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port.clone).unwrap
+
+    stream.shutdown_read.unwrap
+
+    let bytes = ByteArray.new
+
+    stream.read(into: bytes, size: 4).unwrap
+
+    t.equal(bytes, ByteArray.new)
+  }
+
+  t.test('TcpClient.shutdown_write') fn (t) {
+    let listener = Socket.ipv4(Type.STREAM).unwrap
+
+    listener.bind(ip: '127.0.0.1', port: 0).unwrap
+    listener.listen.unwrap
+
+    let addr = listener.local_address.unwrap
+    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port.clone).unwrap
+
+    stream.shutdown_write.unwrap
+
+    t.true(stream.write_string('ping').error?)
+  }
+
+  t.test('TcpClient.shutdown shuts down the writing half') fn (t) {
+    let listener = Socket.ipv4(Type.STREAM).unwrap
+
+    listener.bind(ip: '127.0.0.1', port: 0).unwrap
+    listener.listen.unwrap
+
+    let addr = listener.local_address.unwrap
+    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port.clone).unwrap
+
+    stream.shutdown.unwrap
+
+    t.true(stream.write_string('ping').error?)
+  }
+
+  t.test('TcpClient.shutdown shuts down the reading half') fn (t) {
+    let listener = Socket.ipv4(Type.STREAM).unwrap
+
+    listener.bind(ip: '127.0.0.1', port: 0).unwrap
+    listener.listen.unwrap
+
+    let addr = listener.local_address.unwrap
+    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port.clone).unwrap
+
+    stream.shutdown.unwrap
+
+    let bytes = ByteArray.new
+
+    let message = stream.read(into: bytes, size: 4).unwrap
+
+    t.equal(bytes, ByteArray.new)
+  }
+
+  t.test('TcpClient.try_clone') fn (t) {
+    let listener = Socket.ipv4(Type.STREAM).unwrap
+
+    listener.bind(ip: '127.0.0.1', port: 0).unwrap
+    listener.listen.unwrap
+
+    let addr = listener.local_address.unwrap
+    let client = TcpClient.new(ip: addr.ip.unwrap, port: addr.port.clone).unwrap
+
+    t.true(client.try_clone.ok?)
+  }
+
+  t.test('TcpServer.new') fn (t) {
+    let ip = IpAddress.V4(Ipv4Address.new(0, 0, 0, 0))
+
+    t.true(TcpServer.new(ip: ip.clone, port: 0).ok?)
+
+    let listener = TcpServer.new(ip: ip, port: 0).unwrap
+    let addr = listener.local_address.unwrap
+
+    t.true(TcpServer.new(ip: addr.ip.unwrap, port: addr.port.clone).ok?)
+  }
+
+  t.test('TcpServer.accept') fn (t) {
+    let ip = IpAddress.V4(Ipv4Address.new(127, 0, 0, 1))
+    let listener = TcpServer.new(ip: ip, port: 0).unwrap
+    let addr = listener.local_address.unwrap
+    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port.clone).unwrap
+    let connection = listener.accept.unwrap
+
+    t.equal(connection.local_address.unwrap, stream.peer_address.unwrap)
+  }
+
+  t.test('TcpServer.local_address') fn (t) {
+    let ip = IpAddress.V4(Ipv4Address.new(127, 0, 0, 1))
+    let listener = TcpServer.new(ip: ip, port: 0).unwrap
+    let addr = listener.local_address.unwrap
+
+    t.equal(addr.address, '127.0.0.1')
+    t.true(addr.port > 0)
+  }
+
+  t.test('TcpServer.try_clone') fn (t) {
+    let ip = IpAddress.V4(Ipv4Address.new(127, 0, 0, 1))
+    let server = TcpServer.new(ip: ip, port: 0).unwrap
+
+    t.true(server.try_clone.ok?)
+  }
+
+  t.test('UnixAddress.to_path') fn (t) {
+    t.equal(UnixAddress.new('foo.sock').to_path, Option.Some('foo.sock'.to_path))
+    t.true(UnixAddress.new("\0foo").to_path.none?)
+    t.true(UnixAddress.new('').to_path.none?)
+  }
+
+  t.test('UnixAddress.to_string') fn (t) {
+    t.equal(UnixAddress.new('foo.sock').to_string, 'foo.sock')
+    t.equal(UnixAddress.new("\0foo").to_string, "\0foo")
+    t.equal(UnixAddress.new('').to_string, '')
+  }
+
+  t.test('UnixAddress.abstract?') fn (t) {
+    t.false(UnixAddress.new('').abstract?)
+    t.false(UnixAddress.new('foo.sock').abstract?)
+    t.true(UnixAddress.new("\0foo").abstract?)
+  }
+
+  t.test('UnixAddress.unnamed?') fn (t) {
+    t.false(UnixAddress.new('foo.sock').unnamed?)
+    t.false(UnixAddress.new("\0foo").unnamed?)
+    t.true(UnixAddress.new('').unnamed?)
+  }
+
+  t.test('UnixAddress.fmt') fn (t) {
+    t.equal(fmt(UnixAddress.new('foo.sock')), 'foo.sock')
+    t.equal(fmt(UnixAddress.new("\0foo")), '@foo')
+    t.equal(fmt(UnixAddress.new('')), 'unnamed')
+  }
+
+  t.test('UnixAddress.==') fn (t) {
+    t.equal(UnixAddress.new('a.sock'), UnixAddress.new('a.sock'))
+    t.not_equal(UnixAddress.new('a.sock'), UnixAddress.new('b.sock'))
+  }
+
+  t.test('UnixAddress.to_string') fn (t) {
+    t.equal(UnixAddress.new('foo.sock').to_string, 'foo.sock')
+    t.equal(UnixAddress.new("\0foo").to_string, "\0foo")
+    t.equal(UnixAddress.new('').to_string, '')
+  }
+
+  t.test('UnixSocket.new') fn (t) {
+    t.true(UnixSocket.new(Type.DGRAM).ok?)
+    t.true(UnixSocket.new(Type.STREAM).ok?)
+  }
+
+  t.test('UnixSocket.bind') fn (t) {
+    let socket1 = UnixSocket.new(Type.STREAM).unwrap
+    let socket2 = UnixSocket.new(Type.STREAM).unwrap
+    let path = SocketPath.new(t.id)
+
+    t.true(socket1.bind(path).ok?)
+    t.true(socket2.bind(path).error?)
+
+    if env::OS == 'linux' {
+      let socket = UnixSocket.new(Type.STREAM).unwrap
+
+      t.true(socket.bind("\0inko-test-{t.id}").ok?)
+    }
+  }
+
+  t.test('UnixSocket.connect') fn (t) {
+    let listener = UnixSocket.new(Type.STREAM).unwrap
+    let stream = UnixSocket.new(Type.STREAM).unwrap
+    let path = SocketPath.new(t.id)
+
+    t.true(stream.connect(path).error?)
+
+    listener.bind(path).unwrap
+    listener.listen.unwrap
+
+    t.true(stream.connect(path).ok?)
+
+    if env::OS == 'linux' {
+      let listener = UnixSocket.new(Type.STREAM).unwrap
+      let stream = UnixSocket.new(Type.STREAM).unwrap
+      let addr = "\0inko-test-{t.id}"
+
+      listener.bind(addr).unwrap
+      listener.listen.unwrap
+
+      t.true(stream.connect(addr).ok?)
+    }
+  }
+
+  t.test('UnixSocket.listen') fn (t) {
+    let path = SocketPath.new(t.id)
+    let socket = UnixSocket.new(Type.STREAM).unwrap
+
+    socket.bind(path).unwrap
+
+    t.true(socket.listen.ok?)
+  }
+
+  t.test('UnixSocket.accept') fn (t) {
+    let path = SocketPath.new(t.id)
+    let listener = UnixSocket.new(Type.STREAM).unwrap
+    let stream = UnixSocket.new(Type.STREAM).unwrap
+
+    listener.bind(path).unwrap
+    listener.listen.unwrap
+    stream.connect(path).unwrap
+
+    let client = listener.accept.unwrap
+
+    t.equal(client.peer_address.unwrap, stream.local_address.unwrap)
+  }
+
+  t.test('UnixSocket.send_string_to') fn (t) {
+    let path = SocketPath.new(t.id)
+    let socket = UnixSocket.new(Type.DGRAM).unwrap
+
+    socket.bind(path).unwrap
+    socket.send_string_to('ping', path).unwrap
+
+    let bytes = ByteArray.new
+
+    t.equal(socket.read(into: bytes, size: 4).unwrap, 4)
+    t.equal(bytes.into_string, 'ping')
+  }
+
+  t.test('UnixSocket.send_bytes_to') fn (t) {
+    let path = SocketPath.new(t.id)
+    let socket = UnixSocket.new(Type.DGRAM).unwrap
+
+    socket.bind(path).unwrap
+    socket.send_bytes_to('ping'.to_byte_array, path).unwrap
+
+    let bytes = ByteArray.new
+
+    t.equal(socket.read(into: bytes, size: 4).unwrap, 4)
+    t.equal(bytes.into_string, 'ping')
+  }
+
+  t.test('UnixSocket.receive_from') fn (t) {
+    let pair = SocketPath.pair(t.id)
+    let listener = UnixSocket.new(Type.DGRAM).unwrap
+    let client = UnixSocket.new(Type.DGRAM).unwrap
+
+    listener.bind(pair.0).unwrap
+    client.bind(pair.1).unwrap
+    client.send_string_to('ping', pair.0).unwrap
+
+    let bytes = ByteArray.new
+    let sender = listener.receive_from(bytes: bytes, size: 4).unwrap
+
+    t.equal(sender, client.local_address.unwrap)
+    t.equal(bytes.into_string, 'ping')
+  }
+
+  t.test('UnixSocket.local_address with an unbound socket') fn (t) {
+    let socket = UnixSocket.new(Type.DGRAM).unwrap
+    let address = socket.local_address.unwrap
+
+    t.equal(address, UnixAddress.new(''))
+  }
+
+  t.test('UnixSocket.local_address with a bound socket') fn (t) {
+    let path = SocketPath.new(t.id)
+    let socket = UnixSocket.new(Type.DGRAM).unwrap
+
+    socket.bind(path).unwrap
+
+    t.equal(socket.local_address.unwrap, UnixAddress.new(path.to_string))
+  }
+
+  t.test('UnixSocket.peer_address with a disconnected socket') fn (t) {
+    let socket = UnixSocket.new(Type.DGRAM).unwrap
+
+    t.true(socket.peer_address.error?)
+  }
+
+  t.test('UnixSocket.peer_address with a connected socket') fn (t) {
+    let path = SocketPath.new(t.id)
+    let listener = UnixSocket.new(Type.STREAM).unwrap
+    let client = UnixSocket.new(Type.STREAM).unwrap
+
+    listener.bind(path).unwrap
+    listener.listen.unwrap
+    client.connect(path).unwrap
+
+    t.equal(client.peer_address.unwrap, listener.local_address.unwrap)
+  }
+
+  t.test('UnixSocket.read') fn (t) {
+    let path = SocketPath.new(t.id)
+    let socket = UnixSocket.new(Type.DGRAM).unwrap
+
+    socket.bind(path).unwrap
+    socket.send_string_to('ping', path).unwrap
+
+    let bytes = ByteArray.new
+
+    t.equal(socket.read(into: bytes, size: 4).unwrap, 4)
+    t.equal(bytes.into_string, 'ping')
+  }
+
+  t.test('UnixSocket.write_bytes') fn (t) {
+    let path = SocketPath.new(t.id)
+    let listener = UnixSocket.new(Type.STREAM).unwrap
+    let stream = UnixSocket.new(Type.STREAM).unwrap
+
+    listener.bind(path).unwrap
+    listener.listen.unwrap
+    stream.connect(path).unwrap
+
+    let written = stream.write_bytes('ping'.to_byte_array).unwrap
+    let connection = listener.accept.unwrap
+    let bytes = ByteArray.new
+
+    t.equal(connection.read(into: bytes, size: 4).unwrap, 4)
+    t.equal(bytes.into_string, 'ping')
+  }
+
+  t.test('UnixSocket.write_string') fn (t) {
+    let path = SocketPath.new(t.id)
+    let listener = UnixSocket.new(Type.STREAM).unwrap
+    let stream = UnixSocket.new(Type.STREAM).unwrap
+
+    listener.bind(path).unwrap
+    listener.listen.unwrap
+    stream.connect(path).unwrap
+
+    let written = stream.write_string('ping').unwrap
+    let connection = listener.accept.unwrap
+    let bytes = ByteArray.new
+
+    t.equal(connection.read(into: bytes, size: 4).unwrap, 4)
+    t.equal(bytes.into_string, 'ping')
+  }
+
+  t.test('UnixSocket.flush') fn (t) {
+    let socket = UnixSocket.new(Type.STREAM).unwrap
+
+    t.equal(socket.flush, Result.Ok(nil))
+  }
+
+  t.test('UnixSocket.receive_buffer_size') fn (t) {
+    let socket = UnixSocket.new(Type.STREAM).unwrap
+
+    t.true((socket.receive_buffer_size = 256).ok?)
+  }
+
+  t.test('UnixSocket.send_buffer_size') fn (t) {
+    let socket = UnixSocket.new(Type.STREAM).unwrap
+
+    t.true((socket.send_buffer_size = 256).ok?)
+  }
+
+  t.test('UnixSocket.shutdown_read') fn (t) {
+    let path = SocketPath.new(t.id)
+    let listener = UnixSocket.new(Type.STREAM).unwrap
+    let stream = UnixSocket.new(Type.STREAM).unwrap
+
+    listener.bind(path).unwrap
+    listener.listen.unwrap
+    stream.connect(path).unwrap
+    stream.shutdown_read.unwrap
+
+    let bytes = ByteArray.new
+
+    t.equal(stream.read(into: bytes, size: 4).unwrap, 0)
+    t.equal(bytes, ByteArray.new)
+  }
+
+  t.test('UnixSocket.shutdown_write') fn (t) {
+    let path = SocketPath.new(t.id)
+    let listener = UnixSocket.new(Type.STREAM).unwrap
+    let stream = UnixSocket.new(Type.STREAM).unwrap
+
+    listener.bind(path).unwrap
+    listener.listen.unwrap
+    stream.connect(path).unwrap
+    stream.shutdown_write.unwrap
+
+    t.true(stream.write_string('ping').error?)
+  }
+
+  t.test('UnixSocket.shutdown shuts down the writing half') fn (t) {
+    let path = SocketPath.new(t.id)
+    let listener = UnixSocket.new(Type.STREAM).unwrap
+    let stream = UnixSocket.new(Type.STREAM).unwrap
+
+    listener.bind(path).unwrap
+    listener.listen.unwrap
+    stream.connect(path).unwrap
+    stream.shutdown.unwrap
+
+    t.true(stream.write_string('ping').error?)
+  }
+
+  t.test('UnixSocket.shutdown shuts down the reading half') fn (t) {
+    let path = SocketPath.new(t.id)
+    let listener = UnixSocket.new(Type.STREAM).unwrap
+    let stream = UnixSocket.new(Type.STREAM).unwrap
+
+    listener.bind(path).unwrap
+    listener.listen.unwrap
+    stream.connect(path).unwrap
+    stream.shutdown.unwrap
+
+    let bytes = ByteArray.new
+
+    t.equal(stream.read(into: bytes, size: 4).unwrap, 0)
+    t.equal(bytes, ByteArray.new)
+  }
+
+  t.test('UnixSocket.try_clone') fn (t) {
+    let path = SocketPath.new(t.id)
+    let socket = UnixSocket.new(Type.STREAM).unwrap
+
+    t.true(socket.try_clone.ok?)
+  }
+
+  t.test('UnixDatagram.new') fn (t) {
+    let path = SocketPath.new(t.id)
+
+    t.true(UnixDatagram.new(path).ok?)
+    t.true(UnixDatagram.new(path).error?)
+  }
+
+  t.test('UnixDatagram.connect') fn (t) {
+    let pair = SocketPath.pair(t.id)
+    let socket1 = UnixDatagram.new(pair.0).unwrap
+    let socket2 = UnixDatagram.new(pair.1).unwrap
+
+    t.true(socket2.connect(pair.0).ok?)
+  }
+
+  t.test('UnixDatagram.send_to') fn (t) {
+    let path = SocketPath.new(t.id)
+    let socket = UnixDatagram.new(path).unwrap
+
+    socket.send_string_to('ping', address: path).unwrap
+
+    let bytes = ByteArray.new
+
+    t.equal(socket.read(into: bytes, size: 4).unwrap, 4)
+    t.equal(bytes.into_string, 'ping')
+  }
+
+  t.test('UnixDatagram.receive_from') fn (t) {
+    let pair = SocketPath.pair(t.id)
+    let listener = UnixDatagram.new(pair.0).unwrap
+    let client = UnixDatagram.new(pair.1).unwrap
+
+    client.send_string_to('ping', pair.0).unwrap
+
+    let bytes = ByteArray.new
+    let sender = listener.receive_from(bytes: bytes, size: 4).unwrap
+
+    t.equal(sender, client.local_address.unwrap)
+    t.equal(bytes.into_string, 'ping')
+  }
+
+  t.test('UnixDatagram.local_address') fn (t) {
+    let path = SocketPath.new(t.id)
+    let socket = UnixDatagram.new(path).unwrap
+
+    t.equal(socket.local_address.unwrap, UnixAddress.new(path.to_string))
+  }
+
+  t.test('UnixDatagram.try_clone') fn (t) {
+    let path = SocketPath.new(t.id)
+    let socket = UnixDatagram.new(path).unwrap
+
+    t.true(socket.try_clone.ok?)
+  }
+
+  t.test('UnixDatagram.read') fn (t) {
+    let path = SocketPath.new(t.id)
+    let socket = UnixDatagram.new(path).unwrap
+
+    socket.send_string_to('ping', address: path).unwrap
+
+    let bytes = ByteArray.new
+
+    t.equal(socket.read(into: bytes, size: 4).unwrap, 4)
+    t.equal(bytes.into_string, 'ping')
+  }
+
+  t.test('UnixDatagram.write_bytes') fn (t) {
+    let pair = SocketPath.pair(t.id)
+    let server = UnixDatagram.new(pair.0).unwrap
+    let client = UnixDatagram.new(pair.1).unwrap
+
+    client.connect(pair.0).unwrap
+
+    let bytes = ByteArray.new
+
+    t.equal(client.write_bytes('ping'.to_byte_array).unwrap, 4)
+    t.equal(server.read(into: bytes, size: 4).unwrap, 4)
+    t.equal(bytes.into_string, 'ping')
+  }
+
+  t.test('UnixDatagram.flush') fn (t) {
+    let path = SocketPath.new(t.id)
+    let socket = UnixDatagram.new(path).unwrap
+
+    t.equal(socket.flush, Result.Ok(nil))
+  }
+
+  t.test('UnixClient.new') fn (t) {
+    let path = SocketPath.new(t.id)
+    let listener = UnixSocket.new(Type.STREAM).unwrap
+
+    listener.bind(path).unwrap
+    listener.listen.unwrap
+
+    t.true(UnixClient.new(path).ok?)
+  }
+
+  t.test('UnixClient.with_timeout') fn (t) {
+    let path = SocketPath.new(t.id)
+    let listener = UnixSocket.new(Type.STREAM).unwrap
+
+    listener.bind(path).unwrap
+    listener.listen.unwrap
+
+    # Unlike IP sockets there's no unroutable address we can use, so at best we
+    # can assert the following doesn't time out. This means this test is mostly
+    # a smoke test, unlikely to actually fail unless our runtime is bugged.
+    t.true(
+      UnixClient
+        .with_timeout(address: path, timeout_after: Duration.from_secs(5))
+        .ok?
+    )
+  }
+
+  t.test('UnixClient.local_address') fn (t) {
+    let path = SocketPath.new(t.id)
+    let listener = UnixSocket.new(Type.STREAM).unwrap
+
+    listener.bind(path).unwrap
+    listener.listen.unwrap
+
+    let stream = UnixClient.new(path).unwrap
+
+    t.equal(stream.local_address.unwrap, UnixAddress.new(''))
+  }
+
+  t.test('UnixClient.peer_address') fn (t) {
+    let path = SocketPath.new(t.id)
+    let listener = UnixSocket.new(Type.STREAM).unwrap
+
+    listener.bind(path).unwrap
+    listener.listen.unwrap
+
+    let stream = UnixClient.new(path).unwrap
+
+    t.equal(stream.peer_address.unwrap, UnixAddress.new(path.to_string))
+  }
+
+  t.test('UnixClient.read') fn (t) {
+    let path = SocketPath.new(t.id)
+    let listener = UnixSocket.new(Type.STREAM).unwrap
+
+    listener.bind(path).unwrap
+    listener.listen.unwrap
+
+    let stream = UnixClient.new(path).unwrap
+    let connection = listener.accept.unwrap
+
+    connection.write_string('ping').unwrap
+
+    let bytes = ByteArray.new
+
+    t.equal(stream.read(into: bytes, size: 4).unwrap, 4)
+    t.equal(bytes.into_string, 'ping')
+  }
+
+  t.test('UnixClient.write_bytes') fn (t) {
+    let path = SocketPath.new(t.id)
+    let listener = UnixSocket.new(Type.STREAM).unwrap
+
+    listener.bind(path).unwrap
+    listener.listen.unwrap
+
+    let stream = UnixClient.new(path).unwrap
+    let connection = listener.accept.unwrap
+    let bytes = ByteArray.new
+
+    t.equal(stream.write_bytes('ping'.to_byte_array).unwrap, 4)
+    t.equal(connection.read(into: bytes, size: 4).unwrap, 4)
+    t.equal(bytes.into_string, 'ping')
+  }
+
+  t.test('UnixClient.write_string') fn (t) {
+    let path = SocketPath.new(t.id)
+    let listener = UnixSocket.new(Type.STREAM).unwrap
+
+    listener.bind(path).unwrap
+    listener.listen.unwrap
+
+    let stream = UnixClient.new(path).unwrap
+    let connection = listener.accept.unwrap
+    let bytes = ByteArray.new
+
+    t.equal(stream.write_string('ping').unwrap, 4)
+    t.equal(connection.read(into: bytes, size: 4).unwrap, 4)
+    t.equal(bytes.into_string, 'ping')
+  }
+
+  t.test('UnixClient.flush') fn (t) {
+    let path = SocketPath.new(t.id)
+    let listener = UnixSocket.new(Type.STREAM).unwrap
+
+    listener.bind(path).unwrap
+    listener.listen.unwrap
+
+    let stream = UnixClient.new(path).unwrap
+
+    t.true(stream.flush.ok?)
+  }
+
+  t.test('UnixClient.shutdown_read') fn (t) {
+    let path = SocketPath.new(t.id)
+    let listener = UnixSocket.new(Type.STREAM).unwrap
+
+    listener.bind(path).unwrap
+    listener.listen.unwrap
+
+    let stream = UnixClient.new(path).unwrap
+
+    stream.shutdown_read.unwrap
+
+    let bytes = ByteArray.new
+
+    t.equal(stream.read(into: bytes, size: 4).unwrap, 0)
+    t.equal(bytes, ByteArray.new)
+  }
+
+  t.test('UnixClient.shutdown_write') fn (t) {
+    let path = SocketPath.new(t.id)
+    let listener = UnixSocket.new(Type.STREAM).unwrap
+
+    listener.bind(path).unwrap
+    listener.listen.unwrap
+
+    let stream = UnixClient.new(path).unwrap
+
+    stream.shutdown_write.unwrap
+
+    t.true(stream.write_string('ping').error?)
+  }
+
+  t.test('UnixClient.shutdown shuts down the writing half') fn (t) {
+    let path = SocketPath.new(t.id)
+    let listener = UnixSocket.new(Type.STREAM).unwrap
+
+    listener.bind(path).unwrap
+    listener.listen.unwrap
+
+    let stream = UnixClient.new(path).unwrap
+
+    stream.shutdown.unwrap
+
+    t.true(stream.write_string('ping').error?)
+  }
+
+  t.test('UnixClient.shutdown shuts down the reading half') fn (t) {
+    let path = SocketPath.new(t.id)
+    let listener = UnixSocket.new(Type.STREAM).unwrap
+
+    listener.bind(path).unwrap
+    listener.listen.unwrap
+
+    let stream = UnixClient.new(path).unwrap
+
+    stream.shutdown.unwrap
+
+    let bytes = ByteArray.new
+
+    t.equal(stream.read(into: bytes, size: 4).unwrap, 0)
+    t.equal(bytes, ByteArray.new)
+  }
+
+  t.test('UnixClient.try_clone') fn (t) {
+    let path = SocketPath.new(t.id)
+    let listener = UnixSocket.new(Type.STREAM).unwrap
+
+    listener.bind(path).unwrap
+    listener.listen.unwrap
+
+    let client = UnixClient.new(path).unwrap
+
+    t.true(client.try_clone.ok?)
+  }
+
+  t.test('UnixServer.new') fn (t) {
+    let path = SocketPath.new(t.id)
+
+    t.true(UnixServer.new(path).ok?)
+  }
+
+  t.test('UnixServer.accept') fn (t) {
+    let path = SocketPath.new(t.id)
+    let listener = UnixServer.new(path).unwrap
+    let stream = UnixClient.new(path).unwrap
+    let connection = listener.accept.unwrap
+
+    t.equal(connection.local_address.unwrap, stream.peer_address.unwrap)
+  }
+
+  t.test('UnixServer.local_address') fn (t) {
+    let path = SocketPath.new(t.id)
+    let listener = UnixServer.new(path).unwrap
+    let addr = listener.local_address.unwrap
+
+    t.equal(addr, UnixAddress.new(path.to_string))
+  }
+
+  t.test('UnixServer.try_clone') fn (t) {
+    let path = SocketPath.new(t.id)
+    let server = UnixServer.new(path).unwrap
+
+    t.true(server.try_clone.ok?)
+  }
+}

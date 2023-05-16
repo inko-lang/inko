@@ -1,0 +1,84 @@
+import helpers::(fmt)
+import std::crypto::hash::(Block, Hash)
+import std::endian::big
+import std::endian::little
+import std::test::Tests
+
+fn pub tests(t: mut Tests) {
+  t.test('Block.read_u32_le') fn (t) {
+    let block = Block.new(4)
+    let bytes = ByteArray.filled(with: 0, times: 4)
+
+    little.write_u32(123, into: bytes, at: 0)
+    block.write_bytes(bytes) fn {}
+
+    t.equal(block.read_u32_le(0), 123)
+  }
+
+  t.test('Block.read_u32_be') fn (t) {
+    let block = Block.new(4)
+    let bytes = ByteArray.filled(with: 0, times: 4)
+
+    big.write_u32(123, into: bytes, at: 0)
+    block.write_bytes(bytes) fn {}
+
+    t.equal(block.read_u32_be(0), 123)
+  }
+
+  t.test('Block.write_bytes') fn (t) {
+    let block = Block.new(4)
+    let bytes = ByteArray.filled(with: 1, times: 8)
+    let calls = []
+
+    block.write_bytes(bytes) fn { calls.push(true) }
+
+    t.equal(calls.length, 2)
+  }
+
+  t.test('Block.add_padding') fn (t) {
+    let block = Block.new(16)
+    let bytes = ByteArray.filled(with: 1, times: 10)
+    let calls = []
+
+    block.write_bytes(bytes) fn {}
+    block.add_padding(8) fn { calls.push(true) }
+
+    t.equal(calls.length, 1)
+    t.equal(block.get(10), 0x80)
+  }
+
+  t.test('Block.index') fn (t) {
+    let block = Block.new(4)
+
+    block.set(0, 42)
+
+    t.equal(block.get(0), 42)
+  }
+
+  t.test('Hash.to_string') fn (t) {
+    let bytes =
+      [93, 65, 64, 42, 188, 75, 42, 118, 185, 113, 157, 145, 16, 23, 197, 146]
+
+    let hash = Hash.new(ByteArray.from_array(bytes)).to_string
+
+    t.equal(hash, '5d41402abc4b2a76b9719d911017c592')
+  }
+
+  t.test('Hash.==') fn (t) {
+    let hash1 = Hash.new(ByteArray.from_array([1, 2, 3]))
+    let hash2 = Hash.new(ByteArray.from_array([1, 2, 3]))
+    let hash3 = Hash.new(ByteArray.from_array([1, 2]))
+
+    t.equal(hash1, hash2)
+    t.not_equal(hash1, hash3)
+  }
+
+  t.test('Hash.fmt') fn (t) {
+    let bytes =
+      [93, 65, 64, 42, 188, 75, 42, 118, 185, 113, 157, 145, 16, 23, 197, 146]
+
+    let hash = Hash.new(ByteArray.from_array(bytes))
+
+    t.equal(fmt(hash), '5d41402abc4b2a76b9719d911017c592')
+  }
+}

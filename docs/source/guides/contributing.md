@@ -90,9 +90,9 @@ For contributing changes to Inko source code, please follow [the Inko style
 guide](style-guide.md). We don't have any tools yet to enforce the style guide,
 so this is done manually during code review.
 
-Unit tests for Inko are located in `libstd/test` and are named `test_X.inko`,
+Unit tests for Inko are located in `std/test` and are named `test_X.inko`,
 where `X` is the module to test. For example, the tests for `std::string` are
-located in `libstd/test/std/test_string.inko`. Test modules are structured as
+located in `std/test/std/test_string.inko`. Test modules are structured as
 follows:
 
 ```inko
@@ -106,7 +106,7 @@ fn pub tests(t: mut Tests) {
 ```
 
 When adding a new test module, follow this structure then add it to
-`libstd/test/main.inko`, following the same style as the existing tests.
+`std/test/main.inko`, following the same style as the existing tests.
 
 To run the stdlib tests:
 

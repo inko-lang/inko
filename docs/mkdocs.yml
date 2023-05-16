@@ -34,28 +34,25 @@ nav:
     - getting-started/editors.md
     - getting-started/cli.md
     - getting-started/ivm.md
-    - getting-started/compared.md
     - getting-started/hello-world.md
-    - getting-started/syntax.md
     - getting-started/memory-management.md
     - getting-started/types.md
     - getting-started/variables.md
     - getting-started/error-handling.md
-    - getting-started/concurrency.md
     - getting-started/pattern-matching.md
+    - getting-started/concurrency.md
     - getting-started/modules.md
-  - Guides:
-    - guides/contributing.md
+  - Reference:
+    - guides/syntax.md
     - guides/style-guide.md
     - guides/structure.md
     - guides/testing.md
-    - guides/deploying.md
     - guides/ffi.md
     - guides/operators.md
+    - guides/contributing.md
   - Internals:
-    - internals/index.md
     - internals/compiler.md
-    - internals/vm.md
+    - internals/runtime.md
 extra:
   social:
     - icon: fontawesome/brands/github

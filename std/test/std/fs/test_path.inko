@@ -1,0 +1,147 @@
+import helpers::(fmt)
+import std::env
+import std::fs::dir
+import std::fs::file::(self, WriteOnlyFile)
+import std::fs::path::(self, Path)
+import std::sys
+import std::test::Tests
+
+fn created_at? -> Bool {
+  env.temporary_directory.created_at.ok?
+}
+
+fn modified_at? -> Bool {
+  env.temporary_directory.modified_at.ok?
+}
+
+fn accessed_at? -> Bool {
+  env.temporary_directory.accessed_at.ok?
+}
+
+fn write(string: String, to: ref Path) {
+  let file = WriteOnlyFile.new(to.clone).unwrap
+
+  file.write_string(string).unwrap
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('path::SEPARATOR') fn (t) {
+    t.equal(path::SEPARATOR, '/')
+  }
+
+  t.test('Path.file?') fn (t) {
+    let path = env.temporary_directory.join("inko-test-{t.id}")
+
+    t.false(path.file?)
+    write('test', to: path)
+    t.true(path.file?)
+
+    file.remove(path).unwrap
+  }
+
+  t.test('Path.directory?') fn (t) {
+    t.true(env.temporary_directory.directory?)
+    t.false(Path.new('inko-test-doesnt-exist').directory?)
+  }
+
+  t.test('Path.exists?') fn (t) {
+    t.true(env.temporary_directory.exists?)
+    t.false(Path.new('inko-test-doesnt-exist').exists?)
+  }
+
+  if created_at? {
+    t.test('Path.created_at') fn (t) {
+      let path = env.temporary_directory
+
+      t.true(path.created_at.ok?)
+    }
+  }
+
+  if modified_at? {
+    t.test('Path.modified_at') fn (t) {
+      let path = env.temporary_directory
+
+      t.true(path.modified_at.ok?)
+    }
+  }
+
+  if accessed_at? {
+    t.test('Path.accessed_at') fn (t) {
+      let path = env.temporary_directory
+
+      t.true(path.accessed_at.ok?)
+    }
+  }
+
+  t.test('Path.absolute?') fn (t) {
+    t.true(Path.new('/foo').absolute?)
+    t.false(Path.new('foo').absolute?)
+  }
+
+  t.test('Path.relative?') fn (t) {
+    t.true(Path.new('foo').relative?)
+    t.false(Path.new('/foo').relative?)
+  }
+
+  t.test('Path.join') fn (t) {
+    t.equal(Path.new('foo').join('bar'), Path.new('foo/bar'))
+    t.equal(Path.new('foo').join('/').join('bar'), Path.new('/bar'))
+  }
+
+  t.test('Path.directory') fn (t) {
+    t.equal(Path.new('foo').join('bar').directory, Path.new('foo'))
+  }
+
+  t.test('Path.==') fn (t) {
+    t.equal(Path.new('foo'), Path.new('foo'))
+    t.not_equal(Path.new('foo'), Path.new('bar'))
+  }
+
+  t.test('Path.to_string') fn (t) {
+    t.equal(Path.new('foo').to_string, 'foo')
+  }
+
+  t.test('Path.into_string') fn (t) {
+    t.equal(Path.new('foo').into_string, 'foo')
+  }
+
+  t.test('Path.size') fn (t) {
+    t.true(env.temporary_directory.size.unwrap >= 0)
+  }
+
+  t.test('Path.clone') fn (t) {
+    t.equal(Path.new('foo').clone, Path.new('foo'))
+  }
+
+  t.test('Path.to_path') fn (t) {
+    t.equal(Path.new('foo').to_path, Path.new('foo'))
+  }
+
+  t.test('Path.into_path') fn (t) {
+    t.equal(Path.new('foo').into_path, Path.new('foo'))
+  }
+
+  t.test('Path.fmt') fn (t) {
+    t.equal(fmt(Path.new('foo')), '"foo"')
+  }
+
+  t.test('Path.expand') fn (t) {
+    let temp = env.temporary_directory
+    let bar = temp.join('foo').join('bar')
+
+    dir.create_all(bar).unwrap
+
+    let expanded = bar.join('..').join('..').expand
+
+    t.equal(expanded, Result.Ok(temp))
+    dir.remove_all(bar)
+  }
+
+  t.test('Path.tail') fn (t) {
+    t.equal(Path.new('foo').tail, 'foo')
+    t.equal(Path.new('foo').join('bar').tail, 'bar')
+    t.equal(Path.new('foo').join('bar.txt').tail, 'bar.txt')
+    t.equal(Path.new('').tail, '')
+    t.equal(Path.new('..').tail, '..')
+  }
+}

@@ -1,0 +1,49 @@
+import std::channel
+import std::process::(sleep)
+import std::test::Tests
+import std::time::(Duration, Instant)
+
+fn pub tests(t: mut Tests) {
+  t.test('channel.wait') fn (t) {
+    let chan1: Channel[Int] = Channel.new(size: 1)
+    let chan2: Channel[Int] = Channel.new(size: 1)
+
+    chan1.send(42)
+
+    # There's not really a proper way we can test this without delaying the test
+    # suite, so this is mostly a smoke test to make sure wait() doesn't outright
+    # fail/crash/etc.
+    channel.wait([chan1, chan2])
+
+    t.equal(chan1.try_receive, Option.Some(42))
+    t.equal(chan2.try_receive, Option.None)
+  }
+
+  t.test('Channel.send') fn (t) {
+    let chan = Channel.new(size: 1)
+
+    chan.send(42)
+    t.equal(chan.receive, 42)
+  }
+
+  t.test('Channel.try_receive') fn (t) {
+    let chan = Channel.new(size: 1)
+
+    t.true(chan.try_receive.none?)
+    chan.send(42)
+    t.equal(chan.try_receive, Option.Some(42))
+  }
+
+  t.test('Channel.receive_until') fn (t) {
+    let chan = Channel.new(size: 1)
+    let time = Instant.new
+
+    sleep(Duration.from_millis(1))
+    t.true(chan.receive_until(time).none?)
+    chan.send(42)
+
+    let deadline = Instant.new + Duration.from_secs(10)
+
+    t.equal(chan.receive_until(deadline), Option.Some(42))
+  }
+}

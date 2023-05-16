@@ -1,0 +1,23 @@
+import std::debug::(StackFrame, stacktrace)
+import std::env
+import std::test::Tests
+
+fn pub tests(t: mut Tests) {
+  t.test('StackFrame.clone') fn (t) {
+    let frame1 = StackFrame.new(path: 'foo'.to_path, name: 'main', line: 42)
+    let frame2 = frame1.clone
+
+    t.equal(frame1.path, frame2.path)
+    t.equal(frame1.name, frame2.name)
+    t.equal(frame1.line, frame2.line)
+  }
+
+  t.test('debug.stacktrace') fn (t) {
+    let trace = stacktrace(skip: 0)
+    let last = trace.get(trace.length - 1)
+
+    t.equal(last.name, 'std::debug.stacktrace')
+    t.true(last.path.to_string.ends_with?('debug.inko'))
+    t.true(last.line >= 1)
+  }
+}

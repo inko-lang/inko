@@ -1,7 +1,8 @@
 # Variables and fields
 
 Variables are defined using the `let` keyword. For an overview of the syntax,
-refer to [Defining variables](syntax.md#defining-variables) in the syntax guide.
+refer to [Defining variables](../guides/syntax.md#defining-variables) in the
+syntax guide.
 
 Inko infers the types of variables based on their values:
 
@@ -118,26 +119,16 @@ class Person {
 ```
 
 If a method is marked as moving using the `move` keyword, you can move fields
-out of their owner, and the fields are exposed using their original types (i.e.
-`@name` is exposed as `String` and not `mut String`):
-
-```inko
-class Person {
-  let @name: String
-
-  fn move into_name -> String {
-    @name
-  }
-}
-```
+out of `self`, and the fields are exposed using their original types (i.e.
+`@name` is exposed as `String` and not `mut String`).
 
 When moving a field, the remaining fields are dropped individually and the owner
 of the moved field is partially dropped. It's a compile-time error to use the
 same field or `self` after a field is moved. You also can't capture any fields
 or `self` from the owner the field is moved out of.
 
-If a type defines a custom destructor, its fields can't be moved in a moving
-method.
+If a type defines a custom destructor, its fields can't be moved out of `self`
+in a moving method.
 
 ## Drop semantics
 

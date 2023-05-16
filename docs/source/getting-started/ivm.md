@@ -1,27 +1,53 @@
 # Using Inko's version manager
 
 Inko has its own version manager: [ivm](https://github.com/inko-lang/ivm).
-Using ivm you can install and manage multiple versions of Inko; whether you are
-using Linux, macOS, or Windows. ivm is written in Rust and doesn't require
-additional system dependencies.
+Using ivm you can install and manage multiple versions of Inko. ivm is written
+in Rust.
 
 ## Installing
 
-ivm itself only requires Rust 1.62 or newer, but to build Inko itself you'll
+ivm itself only requires Rust 1.63 or newer, but to build Inko itself you'll
 need to also meet the requirements listed in the [installation
 guide](installation.md).
 
-ivm is distributed using [crates.io](https://crates.io/), and is installed as
+### From source
+
+Clone the repository:
+
+```bash
+git clone https://github.com/inko-lang/ivm.git
+cd ivm
+cargo build --release
+```
+
+The resulting executable is found in `target/release/ivm`.
+
+If you are building a package of ivm, you can use the provided `Makefile`
+instead of `cargo build`:
+
+```bash
+make
+make install
+```
+
+This process can be customised by setting the following Make variables:
+
+- `DESTDIR`: the directory to install files into when running `make install`.
+- `PREFIX`: the path prefix to use for all files, defaults to `/usr`. When
+  combined with `DESTDIR`, the value of `DESTDIR` prefixes this value.
+
+### Using crates.io
+
+ivm is available on [crates.io](https://crates.io/), and you can install it as
 follows:
 
 ```bash
 cargo install ivm
 ```
 
-This will install the `ivm` executable in `$HOME/.cargo/bin`, where `$HOME` is
-your home directory (`%USERPROFILE%` on Windows). You need to add this to your
-shell's PATH if not done already. You also need to add the directory containing
-Inko executables to your path:
+This installs the `ivm` executable in `$HOME/.cargo/bin`, where `$HOME` is your
+home directory. You need to add this to your shell's PATH if not done already.
+You also need to add the directory containing Inko executables to your path:
 
 === "Bash"
     ```bash
@@ -31,16 +57,6 @@ Inko executables to your path:
     ```bash
     set -x PATH $HOME/.cargo/bin $HOME/.local/share/ivm/bin $PATH
     ```
-=== "cmd.exe"
-    ```dosbatch
-    setx PATH "%USERPROFILE%\.cargo\bin;%LocalAppData%\ivm\bin;%PATH%"
-    ```
-
-!!! tip
-    When using Windows, you need to restart your terminal after running the
-    `setx` command, as it doesn't affect your current terminal.
-
-## Updating
 
 To update ivm, run the following:
 

@@ -1,0 +1,258 @@
+# Types for error handling.
+#
+# The `Result` type is used for error handling, and wraps either an OK value or
+# an error value.
+import std::clone::Clone
+import std::cmp::Equal
+import std::fmt::(Format, Formatter)
+
+# A type that represents either success (`Ok(T)`) or failure (`Error(E)`).
+class pub enum Result[T, E] {
+  # The case and value for a successful result.
+  case Ok(T)
+
+  # The case and value for an error.
+  case Error(E)
+
+  # Returns `true` if `self` is an `Ok`.
+  #
+  # # Examples
+  #
+  #     let res: Result[Int, String] = Result.Ok(42)
+  #
+  #     res.ok? # => true
+  fn pub ok? -> Bool {
+    match self {
+      case Ok(_) -> true
+      case _ -> false
+    }
+  }
+
+  # Returns `true` if `self` is an `Err`.
+  #
+  # # Examples
+  #
+  #     let res: Result[Int, String] = Result.Error('oops!')
+  #
+  #     res.error? # => true
+  fn pub error? -> Bool {
+    match self {
+      case Error(_) -> true
+      case _ -> false
+    }
+  }
+
+  # Converts `self` into an `Option[T]`.
+  #
+  # If `self` is an `Ok`, a `Some(T)` is returned, otherwise a `None` is
+  # returned.
+  #
+  # # Examples
+  #
+  #     let res: Result[Int, String] = Result.Ok(42)
+  #
+  #     res.ok # => Option.Some(42)
+  fn pub move ok -> Option[T] {
+    match self {
+      case Ok(v) -> Option.Some(v)
+      case _ -> Option.None
+    }
+  }
+
+  # Converts `self` into an `Option[E]`.
+  #
+  # If `self` is an `Error`, a `Some(E)` is returned, otherwise a `None` is
+  # returned.
+  #
+  # # Examples
+  #
+  #     let res: Result[Int, String] = Result.Error('oops!')
+  #
+  #     res.error # => Option.Some(42)
+  fn pub move error -> Option[E] {
+    match self {
+      case Error(v) -> Option.Some(v)
+      case _ -> Option.None
+    }
+  }
+
+  # Unwraps `self` into its `Ok` value.
+  #
+  # # Panics
+  #
+  # This method panics if `self` is an `Error`.
+  #
+  # # Examples
+  #
+  #     let res: Result[Int, String] = Result.Ok(42)
+  #
+  #     res.unwrap # => 42
+  fn pub move unwrap -> T {
+    match self {
+      case Ok(val) -> val
+      case _ -> panic("Result.unwrap can't unwrap an Error")
+    }
+  }
+
+  # Returns the wrapped `Ok` value, triggering a panic with a custom message for
+  # a `Error`.
+  #
+  # # Examples
+  #
+  #     let res: Result[Int, String] = Result.Ok(10)
+  #
+  #     res.expect('a number must be present') # => 10
+  fn pub move expect(message: String) -> T {
+    match self {
+      case Ok(v) -> v
+      case _ -> panic(message)
+    }
+  }
+
+  # Unwraps `self` into its `Ok` value, returning a default value if `self` is
+  # an `Error`.
+  #
+  # # Examples
+  #
+  #     let foo: Result[Int, String] = Result.Ok(42)
+  #     let bar: Result[Int, String] = Result.Error('oops!')
+  #
+  #     foo.unwrap_or(0) # => 42
+  #     bar.unwrap_or(0) # => 0
+  fn pub move unwrap_or(default: T) -> T {
+    match self {
+      case Ok(val) -> val
+      case _ -> default
+    }
+  }
+
+  # Unwraps `self` into its `Ok` value, returning a default value if `self` is
+  # an `Error`.
+  #
+  # # Examples
+  #
+  #     let foo: Result[Int, String] = Result.Ok(42)
+  #     let bar: Result[Int, String] = Result.Error('oops!')
+  #
+  #     foo.unwrap_or_else fn { 0 } # => 42
+  #     bar.unwrap_or_else fn { 0 } # => 0
+  fn pub move unwrap_or_else(block: fn -> T) -> T {
+    match self {
+      case Ok(val) -> val
+      case _ -> block.call
+    }
+  }
+
+  # Maps a `Result[T, E]` into a `Result[R, E]`.
+  #
+  # If `self` is an `Ok`, the supplied closure is called and its value used to
+  # return a new `Ok`. If `self` is an `Error`, the `Error` is returned as-is.
+  #
+  # # Examples
+  #
+  #     let foo: Result[Int, String] = Result.Ok(42)
+  #
+  #     res.map fn (val) { val.to_string } # => Result.Ok('42')
+  fn pub move map[R](block: fn (T) -> R) -> Result[R, E] {
+    match self {
+      case Ok(v) -> Result.Ok(block.call(v))
+      case Error(e) -> Result.Error(e)
+    }
+  }
+
+  # Maps a `Result[T, E]` into a `Result[T, R]`.
+  #
+  # If `self` is an `Error`, the supplied closure is called and its value used
+  # to return a new `Error`. If `self` is an `Ok`, the `Ok` is returned as-is.
+  #
+  # # Examples
+  #
+  #     let foo: Result[Int, String] = Result.Error('oops!')
+  #
+  #     res.map_error fn (val) { val.to_upper } # => Result.Ok('OOPS!')
+  fn pub move map_error[R](block: fn (E) -> R) -> Result[T, R] {
+    match self {
+      case Ok(v) -> Result.Ok(v)
+      case Error(e) -> Result.Error(block.call(e))
+    }
+  }
+
+  # Maps a `Result[T, E]` into a `Result[R, E]`.
+  #
+  # If `self` is an `Ok`, the supplied closure is called and its returned
+  # `Result` is returned. If `self` is an `Error`, the `Error` is returned
+  # as-is.
+  #
+  # # Examples
+  #
+  #     let foo: Result[Int, String] = Result.Ok(42)
+  #
+  #     res.then fn (val) { Result.Ok(val.to_string) } # => Result.Ok('42')
+  fn pub move then[R](block: fn (T) -> Result[R, E]) -> Result[R, E] {
+    match self {
+      case Ok(v) -> block.call(v)
+      case Error(e) -> Result.Error(e)
+    }
+  }
+
+  # Maps a `Result[T, E]` into a `Result[T, R]`.
+  #
+  # If `self` is an `Error`, the supplied closure is called and its returned
+  # `Result` is returned. If `self` is an `Ok`, the `Ok` is returned as-is.
+  #
+  # # Examples
+  #
+  #     let foo: Result[Int, String] = Result.Error('oops!')
+  #
+  #     res.else fn (val) {
+  #       Result.Error(val.to_upper)
+  #     }
+  #     # => Result.Error('OOPS!')
+  fn pub move else[R](block: fn (E) -> Result[T, R]) -> Result[T, R] {
+    match self {
+      case Ok(v) -> Result.Ok(v)
+      case Error(e) -> block.call(e)
+    }
+  }
+}
+
+impl Clone[Result[T, E]] for Result if T: Clone[T], E: Clone[E] {
+  fn pub clone -> Result[T, E] {
+    match self {
+      case Ok(v) -> Result.Ok(v.clone)
+      case Error(v) -> Result.Error(v.clone)
+    }
+  }
+}
+
+impl Equal[Result[T, E]] for Result if T: Equal[T], E: Equal[E] {
+  fn pub ==(other: ref Result[T, E]) -> Bool {
+    match self {
+      case Ok(ours) -> match other {
+        case Ok(theirs) -> ours == theirs
+        case _ -> false
+      }
+      case Error(ours) -> match other {
+        case Error(theirs) -> ours == theirs
+        case _ -> false
+      }
+    }
+  }
+}
+
+impl Format for Result if T: Format, E: Format {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case Ok(v) -> {
+        formatter.write('Ok(')
+        v.fmt(formatter)
+        formatter.write(')')
+      }
+      case Error(v) -> {
+        formatter.write('Error(')
+        v.fmt(formatter)
+        formatter.write(')')
+      }
+    }
+  }
+}

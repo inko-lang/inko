@@ -1,2 +1,5 @@
-[target.'cfg(any(target_arch = "x86_64", target_arch = "aarch64"))']
-rustflags = ['-C', 'target-feature=+aes']
+# This is needed for stack traces to work when `panic=abort` is used. See
+# https://github.com/rust-lang/rust/issues/94815 and
+# https://github.com/rust-lang/backtrace-rs/issues/397 for more details.
+[build]
+rustflags = ['-C', 'force-unwind-tables']

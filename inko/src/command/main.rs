@@ -1,6 +1,7 @@
-//! The main entry point for the CLI.
 use crate::command::build;
 use crate::command::check;
+use crate::command::pkg;
+use crate::command::print;
 use crate::command::run;
 use crate::command::test;
 use crate::error::Error;
@@ -12,12 +13,11 @@ const USAGE: &str = "Usage: inko [OPTIONS] [COMMAND | FILE]
 
 Commands:
 
-    run      Compiles and runs FILE
-    build    Compiles FILE
-    test     Runs Inko unit tests
-
-If no explicit command is given, the run command is implied. Each command takes
-its own set of options.
+    run    Compile and run Inko source code directly
+    build  Compile Inko source code
+    test   Run Inko unit tests
+    print  Print compiler details to STDOUT
+    pkg    Managing of Inko packages
 
 Examples:
 
@@ -25,16 +25,15 @@ Examples:
     inko run hello.inko    # Same
     inko build hello.inko  # Compiles the file into a bytecode image
     inko check hello.inko  # Checks hello.inko for errors
-    inko run --help        # Prints the help message for the run command";
+    inko run --help        # Print the help message for the run command";
 
-/// Runs the default CLI command.
-pub fn run() -> Result<i32, Error> {
+pub(crate) fn run() -> Result<i32, Error> {
     let args: Vec<String> = env::args().collect();
     let mut options = Options::new();
 
     options.parsing_style(ParsingStyle::StopAtFirstFree);
-    options.optflag("h", "help", "Shows this help message");
-    options.optflag("v", "version", "Prints the version number");
+    options.optflag("h", "help", "Show this help message");
+    options.optflag("v", "version", "Print the version number");
 
     let matches = options.parse(&args[1..])?;
 
@@ -44,10 +43,7 @@ pub fn run() -> Result<i32, Error> {
     }
 
     if matches.opt_present("v") {
-        println!("inko version {}\n", env!("CARGO_PKG_VERSION"));
-        println!("AES-NI: {}", cfg!(target_feature = "aes"));
-        println!("jemalloc: {}", cfg!(feature = "jemalloc"));
-
+        println!("inko {}", env!("CARGO_PKG_VERSION"));
         return Ok(0);
     }
 
@@ -56,9 +52,14 @@ pub fn run() -> Result<i32, Error> {
         Some("build") => build::run(&matches.free[1..]),
         Some("check") => check::run(&matches.free[1..]),
         Some("test") => test::run(&matches.free[1..]),
-        Some(_) => run::run(&matches.free),
-        None => Err(Error::generic(
-            "You must specify a command or input file to run".to_string(),
-        )),
+        Some("print") => print::run(&matches.free[1..]),
+        Some("pkg") => pkg::run(&matches.free[1..]),
+        Some(cmd) => {
+            Err(Error::generic(format!("The command '{}' is invalid", cmd)))
+        }
+        None => {
+            print_usage(&options, USAGE);
+            Ok(0)
+        }
     }
 }

@@ -1,0 +1,61 @@
+import std::test::Tests
+import std::crypto::md5::Md5
+
+fn pub tests(t: mut Tests) {
+  t.test('Md5.hash') fn (t) {
+    t.equal(
+      Md5.hash('hello'.to_byte_array).to_string,
+      '5d41402abc4b2a76b9719d911017c592'
+    )
+  }
+
+  t.test('Md5.write') fn (t) {
+    let hasher = Md5.new
+
+    hasher.write('123456789012345678901234567890123456789'.to_byte_array)
+    hasher.write('123456789012345678901234567890123456789'.to_byte_array)
+    hasher.write('123456789012345678901234567890123456789'.to_byte_array)
+    hasher.write('123456789012345678901234567890123456789'.to_byte_array)
+    hasher.write('123456789012345678901234567890123456789'.to_byte_array)
+    hasher.write('123456789012345678901234567890123456789'.to_byte_array)
+
+    t.equal(hasher.finish.to_string, '9d86352a67b623f0dc685101cef98dd9')
+  }
+
+  t.test('Md5.finish') fn (t) {
+    let cases = [
+      ('', 'd41d8cd98f00b204e9800998ecf8427e'),
+      ('a', '0cc175b9c0f1b6a831c399e269772661'),
+      ('abc', '900150983cd24fb0d6963f7d28e17f72'),
+      ('hello', '5d41402abc4b2a76b9719d911017c592'),
+      ('message digest', 'f96b697d7cb7938d525a2f31aaf161d0'),
+      ('abcdefghijklmnopqrstuvwxyz', 'c3fcd3d76192e4007dfb496cca67e13b'),
+      (
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789',
+        'd174ab98d277d9f5a5611c2c9f419d9f'
+      ),
+      (
+        '12345678901234567890123456789012345678901234567890123456789012345678901234567890',
+        '57edf4a22be3c955ac49da2e2107b67a'
+      ),
+      (
+        'Inko is a language for building concurrent software with confidence. \
+          Inko makes it easy to build concurrent software, without having to \
+          worry about unpredictable performance, unexpected runtime errors, \
+          race conditions, and type errors.',
+        '6b8c6926954f355eccf02e55fd6e6ffd'
+      ),
+      (
+        '0123456701234567012345670123456701234567012345670123456701234567',
+        '520620de89e220f9b5850cc97cbff46c'
+      )
+    ]
+
+    cases.into_iter.each fn (pair) {
+      let hasher = Md5.new
+
+      hasher.write(pair.0.to_byte_array)
+      t.equal(hasher.finish.to_string, pair.1)
+    }
+  }
+}

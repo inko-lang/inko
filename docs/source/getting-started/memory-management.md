@@ -105,12 +105,11 @@ If the owned value is dropped but references to it still exist, a panic is
 produced and the program is aborted; protecting you against use-after-free
 errors.
 
-The reference count is a regular integer (i.e. we don't use atomic reference
-counting), and the compiler tries to optimise code such that the amount of
-reference count changes is kept as low as possible. While there is a runtime
-cost associated with maintaining these reference counts, the cost is minimal,
-and far less than the cost of running a tracing garbage collector or using
-regular (atomic) reference counting.
+The compiler tries to optimise code such that the amount of reference count
+changes is kept as low as possible. While there is a runtime cost associated
+with maintaining these reference counts, the cost is minimal, and far less than
+the cost of running a tracing garbage collector or using regular (atomic)
+reference counting everywhere.
 
 Inko's implementation is inspired by the paper ["Ownership You Can Count
 On"](https://www.semanticscholar.org/paper/Ownership-You-Can-Count-On/d0f2d28962d2a50d1914f0af8243d3f382fe077c)
@@ -188,12 +187,12 @@ value afterwards, because the references no longer exist.
 Both unique references and owned values allow you to call methods on them,
 though this comes with a set of rules. These rules are as follows:
 
-1. If a method takes any arguments, or specifies a throw type or a return type,
-   the types must be "sendable". If any of these types isn't sendable, the
-   method isn't available.
-2. If a method doesn't take any arguments and is immutable, and returns and/or
-   throws an owned value, the method is available if and only if these types are
-   sendable (including any sub values they may store).
+1. If a method takes any arguments and/or specifies a return type, these types
+   must be "sendable". If any of these types isn't sendable, the method isn't
+   available.
+2. If a method doesn't take any arguments and is immutable, and returns an owned
+   value, the method is available if and only if these types are sendable
+   (including any sub values they may store).
 
 A "sendable" type is a type that can cross the boundary between a unique value
 and the outside world, or a type that can be sent to another process. A type is

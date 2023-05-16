@@ -1,0 +1,264 @@
+# Types for core IO functionality.
+#
+# The IO module provides the basic building blocks for IO operations such as
+# reading from and writing to a file.
+import std::cmp::Equal
+import std::fmt::(Format, Formatter)
+import std::string::ToString
+
+# The initial number of bytes to read in `Read.read_all`
+let INITIAL_READ_ALL_SIZE = 1024
+
+# The maximum number of bytes to read when using `Read.read_all`.
+let MAX_READ_ALL_SIZE = 1024 * 1024
+
+# An IO error.
+#
+# `Error` is thrown whenever an IO operation resulted in an error, such as when
+# trying to access a non-existing file.
+class pub enum Error {
+  case Other
+  case NotFound
+  case PermissionDenied
+  case ConnectionRefused
+  case ConnectionReset
+  case ConnectionAborted
+  case NotConnected
+  case AddressInUse
+  case AddressUnavailable
+  case BrokenPipe
+  case AlreadyExists
+  case InvalidInput
+  case InvalidData
+  case TimedOut
+  case WriteZero
+  case Interrupted
+  case UnexpectedEof
+
+  # Returns a new `Error` according to the given error code.
+  fn pub static from_int(code: Int) -> Error {
+    match code {
+      case 0 -> Other
+      case 1 -> NotFound
+      case 2 -> PermissionDenied
+      case 3 -> ConnectionRefused
+      case 4 -> ConnectionReset
+      case 5 -> ConnectionAborted
+      case 6 -> NotConnected
+      case 7 -> AddressInUse
+      case 8 -> AddressUnavailable
+      case 9 -> BrokenPipe
+      case 10 -> AlreadyExists
+      case 11 -> InvalidInput
+      case 12 -> InvalidData
+      case 13 -> TimedOut
+      case 14 -> WriteZero
+      case 15 -> Interrupted
+      case 16 -> UnexpectedEof
+      case _ -> Other
+    }
+  }
+}
+
+impl ToString for Error {
+  fn pub to_string -> String {
+    match self {
+      case NotFound -> 'The resource could not be found'
+      case PermissionDenied -> {
+        'The operation lacked the necessary privileges to complete'
+      }
+      case ConnectionRefused -> {
+        'The connection was refused by the remote server'
+      }
+      case ConnectionReset -> 'The connection was reset by the remote server'
+      case ConnectionAborted -> {
+        'The connection was terminated by the remote server'
+      }
+      case NotConnected -> {
+        "The operation failed because the connection hasn't been established"
+      }
+      case AddressInUse -> 'The address is already in use'
+      case AddressUnavailable -> 'The address is not available'
+      case BrokenPipe -> 'The operation failed because a pipe was closed'
+      case AlreadyExists -> 'The resource already exists'
+      case InvalidInput -> 'An input parameter is invalid'
+      case InvalidData -> 'The supplied data is not valid for this operation'
+      case TimedOut -> 'The operation timed out'
+      case WriteZero -> {
+        'The operation failed because not enough bytes were written'
+      }
+      case Interrupted -> 'The operation was interrupted'
+      case UnexpectedEof -> {
+        'The operation failed because of an unexpected end-of-file'
+      }
+      case Other -> 'An unknown IO error occurred'
+    }
+  }
+}
+
+impl Equal[Error] for Error {
+  fn pub ==(other: ref Error) -> Bool {
+    match self {
+      case Other -> match other {
+        case Other -> true
+        case _ -> false
+      }
+      case NotFound -> match other {
+        case NotFound -> true
+        case _ -> false
+      }
+      case PermissionDenied -> match other {
+        case PermissionDenied -> true
+        case _ -> false
+      }
+      case ConnectionRefused -> match other {
+        case ConnectionRefused -> true
+        case _ -> false
+      }
+      case ConnectionReset -> match other {
+        case ConnectionReset -> true
+        case _ -> false
+      }
+      case ConnectionAborted -> match other {
+        case ConnectionAborted -> true
+        case _ -> false
+      }
+      case NotConnected -> match other {
+        case NotConnected -> true
+        case _ -> false
+      }
+      case AddressInUse -> match other {
+        case AddressInUse -> true
+        case _ -> false
+      }
+      case AddressUnavailable -> match other {
+        case AddressUnavailable -> true
+        case _ -> false
+      }
+      case BrokenPipe -> match other {
+        case BrokenPipe -> true
+        case _ -> false
+      }
+      case AlreadyExists -> match other {
+        case AlreadyExists -> true
+        case _ -> false
+      }
+      case InvalidInput -> match other {
+        case InvalidInput -> true
+        case _ -> false
+      }
+      case InvalidData -> match other {
+        case InvalidData -> true
+        case _ -> false
+      }
+      case TimedOut -> match other {
+        case TimedOut -> true
+        case _ -> false
+      }
+      case WriteZero -> match other {
+        case WriteZero -> true
+        case _ -> false
+      }
+      case Interrupted -> match other {
+        case Interrupted -> true
+        case _ -> false
+      }
+      case UnexpectedEof -> match other {
+        case UnexpectedEof -> true
+        case _ -> false
+      }
+    }
+  }
+}
+
+impl Format for Error {
+  fn pub fmt(formatter: mut Formatter) {
+    let string = match self {
+      case Other -> 'Other'
+      case NotFound -> 'NotFound'
+      case PermissionDenied -> 'PermissionDenied'
+      case ConnectionRefused -> 'ConnectionRefused'
+      case ConnectionReset -> 'ConnectionReset'
+      case ConnectionAborted -> 'ConnectionAborted'
+      case NotConnected -> 'NotConnected'
+      case AddressInUse -> 'AddressInUse'
+      case AddressUnavailable -> 'AddressUnavailable'
+      case BrokenPipe -> 'BrokenPipe'
+      case AlreadyExists -> 'AlreadyExists'
+      case InvalidInput -> 'InvalidInput'
+      case InvalidData -> 'InvalidData'
+      case TimedOut -> 'TimedOut'
+      case WriteZero -> 'WriteZero'
+      case Interrupted -> 'Interrupted'
+      case UnexpectedEof -> 'UnexpectedEof'
+    }
+
+    formatter.write(string)
+  }
+}
+
+# Trait for retrieving the size of an IO object.
+trait pub Size {
+  fn pub size -> Result[Int, Error]
+}
+
+# Trait for reading from a stream.
+trait pub Read {
+  # Reads bytes from a stream into a `ByteArray`.
+  #
+  # The return value is the number of bytes read.
+  #
+  # The `size` argument specifies how many bytes are to be read. The actual
+  # number of bytes read may be less than this value.
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error]
+
+  # Reads all bytes from the stream into the `ByteArray`.
+  #
+  # If an error is encountered while reading, this method stops reading any more
+  # bytes and re-throws the error.
+  #
+  # The return value is the number of bytes read.
+  fn pub mut read_all(bytes: mut ByteArray) -> Result[Int, Error] {
+    let mut total = 0
+    let mut read_size = INITIAL_READ_ALL_SIZE
+
+    loop {
+      let bytes_read = try read(into: bytes, size: read_size)
+
+      if bytes_read == 0 { return Result.Ok(total) }
+
+      total += bytes_read
+
+      # To reduce the overhead of large buffer reads, we increase the buffer
+      # size as more data is read.
+      if read_size < MAX_READ_ALL_SIZE { read_size *= 2 }
+    }
+  }
+}
+
+# Trait for writing to a stream.
+trait pub Write {
+  # Writes an `Array` of bytes to the stream, returning the number of bytes
+  # written.
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error]
+
+  # Writes a `String` to the stream, returning the number of bytes written.
+  fn pub mut write_string(string: String) -> Result[Int, Error]
+
+  # Writes a `String` followed by a Unix newline to the stream.
+  fn pub mut print(string: String) -> Result[Int, Error] {
+    Result.Ok((try write_string(string)) + (try write_string("\n")))
+  }
+
+  # Flushes any pending writes.
+  fn pub mut flush -> Result[Nil, Error]
+}
+
+# Trait for seeking to a given offset in a stream of bytes.
+trait pub Seek {
+  # Seeks to the given byte offset, returning the new offset.
+  #
+  # If `position` is negative, seeking is performed in reverse order relative to
+  # the end.
+  fn pub mut seek(position: Int) -> Result[Int, Error]
+}

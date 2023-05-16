@@ -1,0 +1,113 @@
+import helpers::(fmt)
+import std::io::(Error, Read, Write)
+import std::test::Tests
+
+class Reader {
+  let @index: Int
+  let @bytes: ByteArray
+
+  fn static new -> Reader {
+    Reader { @index = 0, @bytes = ByteArray.from_array([1, 2, 3]) }
+  }
+}
+
+impl Read for Reader {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Never] {
+    let start = @index
+    let mut max = @index + size
+
+    if max > @bytes.length { max = @bytes.length }
+
+    while @index < max {
+      into.push(@bytes.get(@index))
+
+      @index += 1
+    }
+
+    Result.Ok(@index - start)
+  }
+}
+
+class Writer {
+  let @buffer: ByteArray
+
+  fn static new -> Writer {
+    Writer { @buffer = ByteArray.new }
+  }
+}
+
+impl Write for Writer {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Never] {
+    bytes.iter.each fn (byte) { @buffer.push(byte) }
+    Result.Ok(bytes.length)
+  }
+
+  fn pub mut write_string(string: String) -> Result[Int, Never] {
+    string.to_byte_array.iter.each fn (byte) { @buffer.push(byte) }
+    Result.Ok(string.size)
+  }
+
+  fn pub mut flush -> Result[Nil, Never] {
+    Result.Ok(nil)
+  }
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('Error.from_int') fn (t) {
+    t.equal(Error.from_int(0), Error.Other)
+    t.equal(Error.from_int(1), Error.NotFound)
+    t.equal(Error.from_int(2), Error.PermissionDenied)
+    t.equal(Error.from_int(3), Error.ConnectionRefused)
+    t.equal(Error.from_int(4), Error.ConnectionReset)
+    t.equal(Error.from_int(5), Error.ConnectionAborted)
+    t.equal(Error.from_int(6), Error.NotConnected)
+    t.equal(Error.from_int(7), Error.AddressInUse)
+    t.equal(Error.from_int(8), Error.AddressUnavailable)
+    t.equal(Error.from_int(9), Error.BrokenPipe)
+    t.equal(Error.from_int(10), Error.AlreadyExists)
+    t.equal(Error.from_int(11), Error.InvalidInput)
+    t.equal(Error.from_int(12), Error.InvalidData)
+    t.equal(Error.from_int(13), Error.TimedOut)
+    t.equal(Error.from_int(14), Error.WriteZero)
+    t.equal(Error.from_int(15), Error.Interrupted)
+    t.equal(Error.from_int(16), Error.UnexpectedEof)
+    t.equal(Error.from_int(100), Error.Other)
+  }
+
+  t.test('Error.fmt') fn (t) {
+    t.equal(fmt(Error.Other), 'Other')
+    t.equal(fmt(Error.NotFound), 'NotFound')
+    t.equal(fmt(Error.PermissionDenied), 'PermissionDenied')
+    t.equal(fmt(Error.ConnectionRefused), 'ConnectionRefused')
+    t.equal(fmt(Error.ConnectionReset), 'ConnectionReset')
+    t.equal(fmt(Error.ConnectionAborted), 'ConnectionAborted')
+    t.equal(fmt(Error.NotConnected), 'NotConnected')
+    t.equal(fmt(Error.AddressInUse), 'AddressInUse')
+    t.equal(fmt(Error.AddressUnavailable), 'AddressUnavailable')
+    t.equal(fmt(Error.BrokenPipe), 'BrokenPipe')
+    t.equal(fmt(Error.AlreadyExists), 'AlreadyExists')
+    t.equal(fmt(Error.InvalidInput), 'InvalidInput')
+    t.equal(fmt(Error.InvalidData), 'InvalidData')
+    t.equal(fmt(Error.TimedOut), 'TimedOut')
+    t.equal(fmt(Error.WriteZero), 'WriteZero')
+    t.equal(fmt(Error.Interrupted), 'Interrupted')
+    t.equal(fmt(Error.UnexpectedEof), 'UnexpectedEof')
+  }
+
+  t.test('Read.read_all') fn (t) {
+    let reader = Reader.new
+    let bytes = ByteArray.new
+    let size = reader.read_all(bytes).unwrap
+
+    t.equal(size, 3)
+    t.equal(bytes, ByteArray.from_array([1, 2, 3]))
+  }
+
+  t.test('Write.print') fn (t) {
+    let writer = Writer.new
+
+    writer.print('foo').unwrap
+
+    t.equal(writer.buffer, "foo\n".to_byte_array)
+  }
+}

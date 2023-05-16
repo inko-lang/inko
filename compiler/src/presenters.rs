@@ -8,7 +8,7 @@ pub(crate) trait Presenter {
     fn present(&self, diagnostics: &Diagnostics);
 }
 
-/// Prints diagnostics in a compact text form, optionally enabling the use of
+/// Print diagnostics in a compact text form, optionally enabling the use of
 /// colors.
 ///
 /// The resulting output looks like this:
@@ -92,7 +92,7 @@ impl Presenter for TextPresenter {
     }
 }
 
-/// Prints diagnostics in JSON.
+/// A type that presents diagnostics as JSON.
 pub(crate) struct JSONPresenter {}
 
 impl JSONPresenter {

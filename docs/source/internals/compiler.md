@@ -1,7 +1,7 @@
 # The compiler
 
-Inko's compiler compiles Inko source files into a bytecode image, run by Inko's
-VM. The compiler is written in Rust. Originally we had plans for a self-hosting
+Inko's compiler compiles Inko source files into machine code using LLVM. The
+compiler is written in Rust. Originally we had plans for a self-hosting
 compiler, but have decided against taking this path (for the time being) to
 simplify the process of developing and maintaining Inko.
 
@@ -17,7 +17,9 @@ The compilation process consists of the following steps:
    HIR/AST.
 1. MIR is used for enforcing single ownership and move semantics, optimisations,
    and other analysis that requires a more detailed IR (compared to HIR).
-1. MIR is lowered into Inko bytecode, which is then written to a bytecode image.
+1. MIR is lowered into LLVM, which is then optimised further and compiled to
+   machine code.
+1. The resulting object files are linked together using the system linker.
 
 ## Parsing and the AST
 
@@ -188,8 +190,10 @@ as inlining, devirtualisation, and dead code removal.
 
 ## Code generation
 
-Code generation is performed by lowering MIR into bytecode. This is done in a
-single pass over all the MIR. The result is a bytecode image for the VM to run.
+Code generation is performed by lowering MIR into LLVM IR. This is done in a
+single pass over all the MIR. This IR is then optimised using LLVM, and
+converted into object files. These object files are then linked together using
+the system's linker.
 
 ### Methods
 

@@ -1,0 +1,102 @@
+import helpers::(fmt)
+import std::test::Tests
+
+fn pub tests(t: mut Tests) {
+  t.test('Option.as_ref') fn (t) {
+    let a = Option.Some('thing')
+    let b: Option[String] = Option.None
+
+    t.equal(a.as_ref, Option.Some(ref 'thing'))
+    t.equal(b.as_ref, Option.None)
+  }
+
+  t.test('Option.as_mut') fn (t) {
+    let a = Option.Some('thing')
+    let b: Option[String] = Option.None
+
+    t.equal(a.as_mut, Option.Some(mut 'thing'))
+    t.equal(b.as_mut, Option.None)
+  }
+
+  t.test('Option.unwrap with a Some') fn (t) {
+    t.equal(Option.Some(42).unwrap, 42)
+  }
+
+  t.test('Option.expect with a Some') fn (t) {
+    t.equal(Option.Some(42).expect('foo'), 42)
+  }
+
+  t.panic('Option.unwrap with a None') fn {
+    let opt: Option[Int] = Option.None
+
+    opt.unwrap
+  }
+
+  t.panic('Option.expect with a None') fn {
+    let opt: Option[Int] = Option.None
+
+    opt.expect('foo')
+  }
+
+  t.test('Option.unwrap_or') fn (t) {
+    t.equal(Option.Some(42).unwrap_or(0), 42)
+    t.equal(Option.None.unwrap_or(0), 0)
+  }
+
+  t.test('Option.map') fn (t) {
+    let a = Option.Some(42)
+    let b: Option[Int] = Option.None
+
+    t.equal(a.map fn (v) { v.to_string }, Option.Some('42'))
+    t.equal(b.map fn (v) { v.to_string }, Option.None)
+  }
+
+  t.test('Option.then') fn (t) {
+    let a = Option.Some(42)
+    let b: Option[Int] = Option.None
+
+    t.equal(a.then fn (v) { Option.Some(100) }, Option.Some(100))
+    t.equal(b.then fn (v) { Option.Some(100) }, Option.None)
+  }
+
+  t.test('Option.else') fn (t) {
+    let a = Option.Some(42)
+    let b: Option[Int] = Option.None
+
+    t.equal(a.else fn { Option.Some(100) }, Option.Some(42))
+    t.equal(b.else fn { Option.Some(100) }, Option.Some(100))
+  }
+
+  t.test('Option.zip') fn (t) {
+    t.equal(Option.Some(1).zip(Option.Some(2)), Option.Some((1, 2)))
+    t.equal(Option.Some(1).zip(Option.None as Option[Int]), Option.None)
+    t.equal((Option.None as Option[Int]).zip(Option.Some(1)), Option.None)
+  }
+
+  t.test('Option.some?') fn (t) {
+    t.true(Option.Some(4).some?)
+    t.false((Option.None as Option[Int]).some?)
+  }
+
+  t.test('Option.none?') fn (t) {
+    t.false(Option.Some(4).none?)
+    t.true((Option.None as Option[Int]).none?)
+  }
+
+  t.test('Option.==') fn (t) {
+    t.equal(Option.Some(4), Option.Some(4))
+    t.not_equal(Option.Some(4), Option.Some(5))
+    t.not_equal(Option.Some(4), Option.None)
+    t.not_equal(Option.None, Option.Some(4))
+  }
+
+  t.test('Option.clone') fn (t) {
+    t.equal(Option.Some(42).clone, Option.Some(42))
+    t.equal((Option.None as Option[Int]).clone, Option.None)
+  }
+
+  t.test('Option.fmt') fn (t) {
+    t.equal(fmt(Option.Some(42)), 'Some(42)')
+    t.equal(fmt(Option.None as Option[Int]), 'None')
+  }
+}

@@ -1,0 +1,240 @@
+import helpers::(fmt, hash)
+import std::hash::Hasher
+import std::test::Tests
+
+fn pub tests(t: mut Tests) {
+  t.test('Entry.key') fn (t) {
+    let map = Map.new
+
+    map.set('name', 'Alice')
+
+    let entry = map.iter.next.unwrap
+
+    t.equal(entry.key, 'name')
+  }
+
+  t.test('Entry.value') fn (t) {
+    let map = Map.new
+
+    map.set('name', 'Alice')
+
+    let entry = map.iter.next.unwrap
+
+    t.equal(entry.value, 'Alice')
+  }
+
+  t.test('Map.with_capacity') fn (t) {
+    let map1: Map[Int, Int] = Map.new
+    let map2: Map[Int, Int] = Map.with_capacity(0)
+    let map3: Map[Int, Int] = Map.with_capacity(1)
+    let map4: Map[Int, Int] = Map.with_capacity(3)
+    let map5: Map[Int, Int] = Map.with_capacity(8)
+
+    t.equal(map1.capacity, 4)
+    t.equal(map2.capacity, 4)
+    t.equal(map3.capacity, 1)
+    t.equal(map4.capacity, 4)
+    t.equal(map5.capacity, 8)
+  }
+
+  t.test('Map.remove') fn (t) {
+    let map = Map.new
+
+    map.set('name', 'Alice')
+    map.set('city', 'Bla')
+    map.set('foo', 'bar')
+    map.set('bar', 'baz')
+
+    t.equal(map.remove('city'), Option.Some('Bla'))
+    t.equal(map.remove('city'), Option.None)
+    t.equal(map.keys.to_array, [ref 'name', ref 'foo', ref 'bar'])
+    t.equal(map.values.to_array, [ref 'Alice', ref 'bar', ref 'baz'])
+  }
+
+  t.test('Map.iter') fn (t) {
+    let map = Map.new
+
+    map.set('name', 'Alice')
+    map.set('city', 'Bla')
+
+    let entries = map.iter.to_array
+
+    t.equal(entries.length, 2)
+    t.equal(entries.get(0).key, 'name')
+    t.equal(entries.get(0).value, 'Alice')
+    t.equal(entries.get(1).key, 'city')
+    t.equal(entries.get(1).value, 'Bla')
+  }
+
+  t.test('Map.iter_mut') fn (t) {
+    let map = Map.new
+
+    map.set('name', 'Alice')
+    map.set('city', 'Bla')
+
+    let entries = map.iter_mut.to_array
+
+    t.equal(entries.length, 2)
+    t.equal(entries.get(0).key, 'name')
+    t.equal(entries.get(0).value, 'Alice')
+    t.equal(entries.get(1).key, 'city')
+    t.equal(entries.get(1).value, 'Bla')
+  }
+
+  t.test('Map.into_iter') fn (t) {
+    let map = Map.new
+
+    map.set('name', 'Alice')
+    map.set('city', 'Bla')
+
+    let entries = map.into_iter.to_array
+
+    t.equal(entries.length, 2)
+    t.equal(entries.get(0).key, 'name')
+    t.equal(entries.get(0).value, 'Alice')
+    t.equal(entries.get(1).key, 'city')
+    t.equal(entries.get(1).value, 'Bla')
+  }
+
+  t.test('Map.keys') fn (t) {
+    let map = Map.new
+
+    map.set('name', 'Alice')
+    map.set('city', 'Bla')
+
+    let keys = map.keys.to_array
+
+    t.equal(keys.length, 2)
+    t.true(keys.get(0) == 'name' or keys.get(0) == 'city')
+  }
+
+  t.test('Map.values') fn (t) {
+    let map = Map.new
+
+    map.set('name', 'Alice')
+    map.set('city', 'Bla')
+
+    let values = map.values.to_array
+
+    t.equal(values.length, 2)
+    t.true(values.get(0) == 'Alice' or values.get(0) == 'Bla')
+  }
+
+  t.test('Map.opt') fn (t) {
+    let map = Map.new
+
+    map.set('name', 'Alice')
+
+    t.equal(map.opt('name'), Option.Some(ref 'Alice'))
+    t.equal(map.opt('city'), Option.None)
+  }
+
+  t.test('Map.opt_mut') fn (t) {
+    let map = Map.new
+
+    map.set('name', 'Alice')
+
+    t.equal(map.opt_mut('name'), Option.Some(mut 'Alice'))
+    t.equal(map.opt_mut('city'), Option.None)
+  }
+
+  t.test('Map.merge') fn (t) {
+    let map1 = Map.new
+    let map2 = Map.new
+
+    map1.set('name', 'Alice')
+    map2.set('city', 'Bla')
+
+    map1.merge(map2)
+
+    t.equal(map1.get('name'), 'Alice')
+    t.equal(map1.get('city'), 'Bla')
+  }
+
+  t.test('Map.length') fn (t) {
+    let map = Map.new
+
+    t.equal(map.length, 0)
+
+    map.set('name', 'Alice')
+
+    t.equal(map.length, 1)
+  }
+
+  t.test('Map.==') fn (t) {
+    let map1 = Map.new
+    let map2 = Map.new
+    let map3 = Map.new
+    let map4 = Map.new
+    let map5 = Map.new
+    let map6 = Map.new
+
+    map1.set('name', 'Alice')
+    map2.set('name', 'Alice')
+    map4.set('foo', 'bar')
+
+    map5.set('foo', 'bar')
+    map5.set('bar', 'baz')
+
+    map6.set('bar', 'baz')
+    map6.set('foo', 'bar')
+
+    t.equal(map1, map2)
+    t.equal(map5, map6)
+    t.not_equal(map1, map3)
+    t.not_equal(map1, map4)
+  }
+
+  t.test('Map.index') fn (t) {
+    let map = Map.new
+    let alias = ref map
+
+    map.set('name', 'Alice')
+
+    t.equal(alias.get('name'), 'Alice')
+  }
+
+  t.test('Map.index_mut') fn (t) {
+    let map = Map.new
+
+    map.set('name', 'Alice')
+
+    t.equal(map.get('name'), 'Alice')
+  }
+
+  t.test('Map.hash') fn (t) {
+    let map1 = Map.new
+    let map2 = Map.new
+    let map3: Map[String, String] = Map.new
+
+    map1.set('name', 'Alice')
+    map2.set('name', 'Alice')
+
+    t.equal(hash(map1), hash(map2))
+    t.not_equal(hash(map1), hash(map3))
+  }
+
+  t.test('Map.contains?') fn (t) {
+    let map1 = Map.new
+    let map2: Map[String, String] = Map.new
+
+    map1.set('name', 'Alice')
+
+    t.true(map1.contains?('name'))
+    t.false(map2.contains?('name'))
+  }
+
+  t.test('Map.fmt') fn (t) {
+    let map1: Map[String, String] = Map.new
+    let map2 = Map.new
+    let map3 = Map.new
+
+    map2.set('name', 'Alice')
+    map3.set('name', 'Alice')
+    map3.set('city', 'Bla')
+
+    t.equal(fmt(map1), '{}')
+    t.equal(fmt(map2), '{"name": "Alice"}')
+    t.equal(fmt(map3), '{"name": "Alice", "city": "Bla"}')
+  }
+}

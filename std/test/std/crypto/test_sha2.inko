@@ -1,0 +1,143 @@
+import std::test::Tests
+import std::crypto::sha2::(Sha256, Sha512)
+
+fn pub tests(t: mut Tests) {
+  t.test('Sha256.hash') fn (t) {
+    let hash = Sha256.hash('hello'.to_byte_array).to_string
+
+    t.equal(hash, '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824')
+  }
+
+  t.test('Sha256.write') fn (t) {
+    let hasher = Sha256.new
+
+    hasher.write('123456789012345678901234567890123456789'.to_byte_array)
+    hasher.write('123456789012345678901234567890123456789'.to_byte_array)
+    hasher.write('123456789012345678901234567890123456789'.to_byte_array)
+    hasher.write('123456789012345678901234567890123456789'.to_byte_array)
+    hasher.write('123456789012345678901234567890123456789'.to_byte_array)
+    hasher.write('123456789012345678901234567890123456789'.to_byte_array)
+
+    t.equal(hasher.finish.to_string, '1002070a9f6d34be894acf21e62d01b1b25938a81c86546eb2642f8b9731caf7')
+  }
+
+  t.test('Sha256.finish') fn (t) {
+    let cases = [
+      ('', 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'),
+      ('a', 'ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb'),
+      ('abc', 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'),
+      ('hello', '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824'),
+      ('message digest', 'f7846f55cf23e14eebeab5b4e1550cad5b509e3348fbc4efa3a1413d393cb650'),
+      (
+        'abcdefghijklmnopqrstuvwxyz',
+        '71c480df93d6ae2f1efad1447c66c9525e316218cf51fc8d9ed832f2daf18b73'
+      ),
+      (
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789',
+        'db4bfcbd4da0cd85a60c3c37d3fbd8805c77f15fc6b1fdfe614ee0a7c8fdb4c0'
+      ),
+      (
+        '12345678901234567890123456789012345678901234567890123456789012345678901234567890',
+        'f371bc4a311f2b009eef952dd83ca80e2b60026c8e935592d0f9c308453c813e',
+      ),
+      (
+        'Inko is a language for building concurrent software with confidence. \
+          Inko makes it easy to build concurrent software, without having to \
+          worry about unpredictable performance, unexpected runtime errors, \
+          race conditions, and type errors.',
+        'a0936176dafc10061f1ec9a8261a537a2d297b771dae3299ab471097c0f0f36a'
+      ),
+      (
+        '0123456701234567012345670123456701234567012345670123456701234567',
+        '8182cadb21af0e37c06414ece08e19c65bdb22c396d48ba7341012eea9ffdfdd'
+      )
+    ]
+
+    cases.into_iter.each fn (pair) {
+      let hasher = Sha256.new
+
+      hasher.write(pair.0.to_byte_array)
+      t.equal(hasher.finish.to_string, pair.1)
+    }
+  }
+
+  t.test('Sha512.hash') fn (t) {
+    let hash = Sha512.hash('hello'.to_byte_array).to_string
+
+    t.equal(
+      hash,
+      '9b71d224bd62f3785d96d46ad3ea3d73319bfbc2890caadae2dff72519673ca72323c3d99ba5c11d7c7acc6e14b8c5da0c4663475c2e5c3adef46f73bcdec043'
+    )
+  }
+
+  t.test('Sha512.write') fn (t) {
+    let hasher = Sha512.new
+
+    hasher.write('123456789012345678901234567890123456789'.to_byte_array)
+    hasher.write('123456789012345678901234567890123456789'.to_byte_array)
+    hasher.write('123456789012345678901234567890123456789'.to_byte_array)
+    hasher.write('123456789012345678901234567890123456789'.to_byte_array)
+    hasher.write('123456789012345678901234567890123456789'.to_byte_array)
+    hasher.write('123456789012345678901234567890123456789'.to_byte_array)
+
+    t.equal(
+      hasher.finish.to_string,
+      '5e2534f21d213edc33c937e4cdcd996b7d7486c6689b4f054afd811b25b727497d89d01506186daefee7f4b0cff9a977c319f8b594fe1c6551da1826e10d94cc'
+    )
+  }
+
+  t.test('Sha512.finish') fn (t) {
+    let cases = [
+      (
+        '',
+        'cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e'
+      ),
+      (
+        'a',
+        '1f40fc92da241694750979ee6cf582f2d5d7d28e18335de05abc54d0560e0f5302860c652bf08d560252aa5e74210546f369fbbbce8c12cfc7957b2652fe9a75'
+      ),
+      (
+        'abc',
+        'ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f'
+      ),
+      (
+        'hello',
+        '9b71d224bd62f3785d96d46ad3ea3d73319bfbc2890caadae2dff72519673ca72323c3d99ba5c11d7c7acc6e14b8c5da0c4663475c2e5c3adef46f73bcdec043'
+      ),
+      (
+        'message digest',
+        '107dbf389d9e9f71a3a95f6c055b9251bc5268c2be16d6c13492ea45b0199f3309e16455ab1e96118e8a905d5597b72038ddb372a89826046de66687bb420e7c'
+      ),
+      (
+        'abcdefghijklmnopqrstuvwxyz',
+        '4dbff86cc2ca1bae1e16468a05cb9881c97f1753bce3619034898faa1aabe429955a1bf8ec483d7421fe3c1646613a59ed5441fb0f321389f77f48a879c7b1f1'
+      ),
+      (
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789',
+        '1e07be23c26a86ea37ea810c8ec7809352515a970e9253c26f536cfc7a9996c45c8370583e0a78fa4a90041d71a4ceab7423f19c71b9d5a3e01249f0bebd5894'
+      ),
+      (
+        '12345678901234567890123456789012345678901234567890123456789012345678901234567890',
+        '72ec1ef1124a45b047e8b7c75a932195135bb61de24ec0d1914042246e0aec3a2354e093d76f3048b456764346900cb130d2a4fd5dd16abb5e30bcb850dee843',
+      ),
+      (
+        'Inko is a language for building concurrent software with confidence. \
+          Inko makes it easy to build concurrent software, without having to \
+          worry about unpredictable performance, unexpected runtime errors, \
+          race conditions, and type errors.',
+        'd642e9ca2d29360ab5d4d17841de89cb1141a1f379433df606bc5b0d7aac76eca3480afe01461865e7977557179a22919da27d2b56c9e96c90913e664789f725'
+      ),
+      (
+        '0123456701234567012345670123456701234567012345670123456701234567',
+        '846e0ef73436438a4acb0ba7078cfe381f10a0f5edebcb985b3790086ef5e7ac5992ac9c23c77761c764bb3b1c25702d06b99955eb197d45b82fb3d124699d78'
+      )
+    ]
+
+    cases.into_iter.each fn (pair) {
+      let hasher = Sha512.new
+
+      hasher.write(pair.0.to_byte_array)
+      t.equal(hasher.finish.to_string, pair.1)
+    }
+  }
+}

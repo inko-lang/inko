@@ -12,7 +12,7 @@ on:
       - 'compiler/**'
       - 'inko/**'
       - 'ipm/**'
-      - 'libstd/**'
+      - 'std/**'
       - 'types/**'
       - 'vm/**'
       - 'Cargo.*'
@@ -22,7 +22,9 @@ on:
   workflow_dispatch:
 
 env:
-  CARGO_HOME: ${{ github.workspace }}/.cargo
+  # This directory must be named differently from `.cargo`, otherwise it will
+  # conflict with our local Cargo configuration.
+  CARGO_HOME: ${{ github.workspace }}/.cargo-home
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
@@ -40,15 +42,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@1.62
+      - uses: dtolnay/rust-toolchain@1.63
         with:
           components: 'clippy'
       - uses: actions/cache@v3
         with:
           path: |
-            ${{ github.workspace }}/.cargo
+            ${{ env.CARGO_HOME }}
             target
           key: ${{ runner.os }}
+      - name: Install LLVM
+        run: bash scripts/llvm.sh
       - run: 'cargo clippy -- -D warnings'
 
   cargo-fmt:
@@ -61,7 +65,7 @@ jobs:
       - uses: actions/cache@v3
         with:
           path: |
-            ${{ github.workspace }}/.cargo
+            ${{ env.CARGO_HOME }}
             target
           key: ${{ runner.os }}
       - run: 'cargo fmt --all --check'
@@ -78,13 +82,13 @@ jobs:
 
   compiler:
     strategy:
+      fail-fast: false
       matrix:
         os:
           - macos-latest
           - ubuntu-latest
-          - windows-latest
         version:
-          - '1.62'
+          - '1.63'
           - stable
     runs-on: ${{ matrix.os }}
     steps:
@@ -95,37 +99,41 @@ jobs:
       - uses: actions/cache@v3
         with:
           path: |
-            ${{ github.workspace }}/.cargo
+            ${{ env.CARGO_HOME }}
             target
           key: ${{ runner.os }}-stable
+      - name: Install LLVM
+        run: bash scripts/llvm.sh
       - name: Running tests
         run: cargo test
 
   std:
     strategy:
+      fail-fast: false
       matrix:
         os:
           - macos-latest
           - ubuntu-latest
-          - windows-latest
     runs-on: ${{ matrix.os }}
     needs:
       - compiler
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@1.62
+      - uses: dtolnay/rust-toolchain@1.63
       - uses: actions/cache@v3
         with:
           path: |
-            ${{ github.workspace }}/.cargo
+            ${{ env.CARGO_HOME }}
             target
           key: ${{ runner.os }}-stable
+      - name: Install LLVM
+        run: bash scripts/llvm.sh
       - name: Compiling
         run: cargo build --release
       - name: Running tests
         run: |
-          cd libstd
-          cargo run --release -p inko -- test
+          cd std
+          ../target/release/inko test
 
   nightly-container:
     runs-on: ubuntu-latest

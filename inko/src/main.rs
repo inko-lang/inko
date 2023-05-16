@@ -1,14 +1,7 @@
-#[cfg(not(feature = "jemalloc"))]
-#[global_allocator]
-static A: std::alloc::System = std::alloc::System;
-
-#[cfg(feature = "jemalloc")]
-#[global_allocator]
-static A: jemallocator::Jemalloc = jemallocator::Jemalloc;
-
 mod command;
 mod error;
 mod options;
+mod pkg;
 
 use crate::command::main;
 use std::process::exit;

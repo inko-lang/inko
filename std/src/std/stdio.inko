@@ -1,0 +1,81 @@
+# STDIN, STDOUT, and STDERR streams.
+import std::io::(Error, Read, Write)
+
+# The standard input stream of the current OS process.
+class pub STDIN {
+  # Returns a new handle to the input stream.
+  fn pub static new -> STDIN {
+    STDIN {}
+  }
+}
+
+impl Read for STDIN {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
+    match _INKO.stdin_read(into, size) {
+      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+}
+
+# The standard output stream of the current OS process.
+#
+# To make it easier to write to STDOUT, any errors produced while writing are
+# ignored.
+class pub STDOUT {
+  # Returns a new handle to the output stream.
+  fn pub static new -> STDOUT {
+    STDOUT {}
+  }
+}
+
+impl Write for STDOUT {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
+    match _INKO.stdout_write_bytes(bytes) {
+      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  fn pub mut write_string(string: String) -> Result[Int, Error] {
+    match _INKO.stdout_write_string(string) {
+      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  fn pub mut flush -> Result[Nil, Never] {
+    Result.Ok(_INKO.stdout_flush)
+  }
+}
+
+# The standard error stream of the current OS process.
+#
+# To make it easier to write to STDERR, any errors produced while writing are
+# ignored.
+class pub STDERR {
+  # Returns a new handle to the error stream.
+  fn pub static new -> STDERR {
+    STDERR {}
+  }
+}
+
+impl Write for STDERR {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
+    match _INKO.stderr_write_bytes(bytes) {
+      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  fn pub mut write_string(string: String) -> Result[Int, Error] {
+    match _INKO.stderr_write_string(string) {
+      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  fn pub mut flush -> Result[Nil, Never] {
+    Result.Ok(_INKO.stderr_flush)
+  }
+}

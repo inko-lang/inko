@@ -1,0 +1,375 @@
+# Implementations of the SHA256 and SHA512 hash functions.
+#
+# # Examples
+#
+#     import std::crypto::sha2::Sha256
+#
+#     let hasher = Sha256.new
+#
+#     hasher.write('hello'.to_byte_array)
+#     hasher.finish.to_string # => '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824'
+#
+# Or when using the `hash` static method:
+#
+#     import std::crypto::sha2::Sha256
+#
+#     Sha256.hash('hello'.to_byte_array).to_string # => '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824'
+#
+# # Limitations
+#
+# The implementations of SHA256 and SHA512 use a 64-bits signed integer for
+# tracking the total message size in bytes. This limits the total message size
+# to 1024 PiB.
+import std::crypto::hash::(Block, Hash, Hasher)
+import std::crypto::math::(rotate_right_u32, shift_right_u32, to_u32)
+import std::endian::big
+
+let SHA256_BLOCK_SIZE = 64
+let SHA256_TABLE = [
+   0x428A2F98, 0x71374491, 0xB5C0FBCF, 0xE9B5DBA5,
+   0x3956C25B, 0x59F111F1, 0x923F82A4, 0xAB1C5ED5,
+   0xD807AA98, 0x12835B01, 0x243185BE, 0x550C7DC3,
+   0x72BE5D74, 0x80DEB1FE, 0x9BDC06A7, 0xC19BF174,
+   0xE49B69C1, 0xEFBE4786, 0x0FC19DC6, 0x240CA1CC,
+   0x2DE92C6F, 0x4A7484AA, 0x5CB0A9DC, 0x76F988DA,
+   0x983E5152, 0xA831C66D, 0xB00327C8, 0xBF597FC7,
+   0xC6E00BF3, 0xD5A79147, 0x06CA6351, 0x14292967,
+   0x27B70A85, 0x2E1B2138, 0x4D2C6DFC, 0x53380D13,
+   0x650A7354, 0x766A0ABB, 0x81C2C92E, 0x92722C85,
+   0xA2BFE8A1, 0xA81A664B, 0xC24B8B70, 0xC76C51A3,
+   0xD192E819, 0xD6990624, 0xF40E3585, 0x106AA070,
+   0x19A4C116, 0x1E376C08, 0x2748774C, 0x34B0BCB5,
+   0x391C0CB3, 0x4ED8AA4A, 0x5B9CCA4F, 0x682E6FF3,
+   0x748F82EE, 0x78A5636F, 0x84C87814, 0x8CC70208,
+   0x90BEFFFA, 0xA4506CEB, 0xBEF9A3F7, 0xC67178F2,
+]
+
+let SHA512_BLOCK_SIZE = 128
+let SHA512_TABLE = [
+  # These are the SHA512 constants but represented as a signed integer, wrapped
+  # around where necessary.
+  0x428A2F98D728AE22, 0x7137449123EF65CD, -0x4A3F043013B2C4D1,
+  -0x164A245A7E762444, 0x3956C25BF348B538, 0x59F111F1B605D019,
+  -0x6DC07D5B50E6B065, -0x54E3A12A25927EE8, -0x27F855675CFCFDBE,
+  0x12835B0145706FBE, 0x243185BE4EE4B28C, 0x550C7DC3D5FFB4E2,
+  0x72BE5D74F27B896F, -0x7F214E01C4E9694F, -0x6423F958DA38EDCB,
+  -0x3E640E8B3096D96C, -0x1B64963E610EB52E, -0x1041B879C7B0DA1D,
+  0xFC19DC68B8CD5B5, 0x240CA1CC77AC9C65, 0x2DE92C6F592B0275,
+  0x4A7484AA6EA6E483, 0x5CB0A9DCBD41FBD4, 0x76F988DA831153B5,
+  -0x67C1AEAD11992055, -0x57CE3992D24BCDF0, -0x4FFCD8376704DEC1,
+  -0x40A680384110F11C, -0x391FF40CC257703E, -0x2A586EB86CF558DB,
+  0x6CA6351E003826F, 0x142929670A0E6E70, 0x27B70A8546D22FFC,
+  0x2E1B21385C26C926, 0x4D2C6DFC5AC42AED, 0x53380D139D95B3DF,
+  0x650A73548BAF63DE, 0x766A0ABB3C77B2A8, -0x7E3D36D1B812511A,
+  -0x6D8DD37AEB7DCAC5, -0x5D40175EB30EFC9C, -0x57E599B443BDCFFF,
+  -0x3DB4748F2F07686F, -0x3893AE5CF9AB41D0, -0x2E6D17E62910ADE8,
+  -0x2966F9DBAA9A56F0, -0xBF1CA7AA88EDFD6, 0x106AA07032BBD1B8,
+  0x19A4C116B8D2D0C8, 0x1E376C085141AB53, 0x2748774CDF8EEB99,
+  0x34B0BCB5E19B48A8, 0x391C0CB3C5C95A63, 0x4ED8AA4AE3418ACB,
+  0x5B9CCA4F7763E373, 0x682E6FF3D6B2B8A3, 0x748F82EE5DEFB2FC,
+  0x78A5636F43172F60, -0x7B3787EB5E0F548E, -0x7338FDF7E59BC614,
+  -0x6F410005DC9CE1D8, -0x5BAF9314217D4217, -0x41065C084D3986EB,
+  -0x398E870D1C8DACD5, -0x35D8C13115D99E64, -0x2E794738DE3F3DF9,
+  -0x15258229321F14E2, -0xA82B08011912E88, 0x6F067AA72176FBA,
+  0xA637DC5A2C898A6, 0x113F9804BEF90DAE, 0x1B710B35131C471B,
+  0x28DB77F523047D84, 0x32CAAB7B40C72493, 0x3C9EBE0A15C9BEBC,
+  0x431D67C49C100D4C, 0x4CC5D4BECB3E42B6, 0x597F299CFC657E2A,
+  0x5FCB6FAB3AD6FAEC, 0x6C44198C4A475817,
+]
+
+# A SHA256 hasher.
+class pub Sha256 {
+  let @block: Block
+  let @words: Array[Int]
+  let @size: Int
+  let @a: Int
+  let @b: Int
+  let @c: Int
+  let @d: Int
+  let @e: Int
+  let @f: Int
+  let @g: Int
+  let @h: Int
+
+  # Generates a hash for the given bytes.
+  #
+  # # Examples
+  #
+  #     import std::crypto::sha2::Sha256
+  #
+  #     Sha256.hash('hello')
+  fn pub static hash(bytes: ref ByteArray) -> Hash {
+    let hasher = new
+
+    hasher.write(bytes)
+    hasher.finish
+  }
+
+  # Returns a new instance of the hasher.
+  fn pub static new -> Sha256 {
+    Sha256 {
+      @block = Block.new(SHA256_BLOCK_SIZE),
+      @words = Array.filled(with: 0, times: 64),
+      @size = 0,
+      @a = 0x6A09E667,
+      @b = 0xBB67AE85,
+      @c = 0x3C6EF372,
+      @d = 0xA54FF53A,
+      @e = 0x510E527F,
+      @f = 0x9B05688C,
+      @g = 0x1F83D9AB,
+      @h = 0x5BE0CD19,
+    }
+  }
+
+  fn mut compress {
+    let words = @words
+
+    0.until(16).iter.each fn (i) { words.set(i, @block.read_u32_be(i * 4)) }
+
+    16.until(64).iter.each fn (i) {
+      let w15 = words.get(i - 15)
+      let w2 = words.get(i - 2)
+      let s0 = to_u32(
+        rotate_right_u32(w15, 7)
+          ^ rotate_right_u32(w15, 18)
+          ^ shift_right_u32(w15, 3)
+      )
+
+      let s1 = to_u32(
+        rotate_right_u32(w2, 17)
+          ^ rotate_right_u32(w2, 19)
+          ^ shift_right_u32(w2, 10)
+      )
+
+      words.set(
+        i,
+        to_u32(
+          words.get(i - 16)
+            .wrapping_add(s0)
+            .wrapping_add(words.get(i - 7))
+            .wrapping_add(s1)
+        )
+      )
+    }
+
+    let mut a = @a
+    let mut b = @b
+    let mut c = @c
+    let mut d = @d
+    let mut e = @e
+    let mut f = @f
+    let mut g = @g
+    let mut h = @h
+    let mut i = 0
+
+    while i < 64 {
+      let ch = to_u32((e & f) ^ (e.not & g))
+      let s1 = to_u32(
+        rotate_right_u32(e, 6)
+          ^ rotate_right_u32(e, 11)
+          ^ rotate_right_u32(e, 25)
+      )
+
+      let maj = to_u32((a & b) ^ (a & c) ^ (b & c))
+      let s0 = to_u32(
+        rotate_right_u32(a, 2)
+          ^ rotate_right_u32(a, 13)
+          ^ rotate_right_u32(a, 22)
+      )
+
+      let temp1 = to_u32(
+        h
+          .wrapping_add(s1)
+          .wrapping_add(ch)
+          .wrapping_add(SHA256_TABLE.get(i))
+          .wrapping_add(words.get(i))
+      )
+      let temp2 = to_u32(s0.wrapping_add(maj))
+
+      h = g
+      g = f
+      f = e
+      e = to_u32(d.wrapping_add(temp1))
+      d = c
+      c = b
+      b = a
+      a = to_u32(temp1.wrapping_add(temp2))
+      i += 1
+    }
+
+    @a = to_u32(a.wrapping_add(@a))
+    @b = to_u32(b.wrapping_add(@b))
+    @c = to_u32(c.wrapping_add(@c))
+    @d = to_u32(d.wrapping_add(@d))
+    @e = to_u32(e.wrapping_add(@e))
+    @f = to_u32(f.wrapping_add(@f))
+    @g = to_u32(g.wrapping_add(@g))
+    @h = to_u32(h.wrapping_add(@h))
+  }
+}
+
+impl Hasher for Sha256 {
+  fn pub mut write(bytes: ref ByteArray) {
+    @size += bytes.length
+    @block.write_bytes(bytes) fn { compress }
+  }
+
+  fn pub move finish -> Hash {
+    @block.add_padding(8) fn { compress }
+    @block.write_length_be(@size * 8, at: 56)
+    compress
+
+    let out = ByteArray.filled(with: 0, times: 32)
+
+    big.write_u32(@a, into: out, at: 0)
+    big.write_u32(@b, into: out, at: 4)
+    big.write_u32(@c, into: out, at: 8)
+    big.write_u32(@d, into: out, at: 12)
+    big.write_u32(@e, into: out, at: 16)
+    big.write_u32(@f, into: out, at: 20)
+    big.write_u32(@g, into: out, at: 24)
+    big.write_u32(@h, into: out, at: 28)
+    Hash.new(out)
+  }
+}
+
+# A SHA512 hasher.
+class pub Sha512 {
+  let @block: Block
+  let @words: Array[Int]
+  let @size: Int
+  let @a: Int
+  let @b: Int
+  let @c: Int
+  let @d: Int
+  let @e: Int
+  let @f: Int
+  let @g: Int
+  let @h: Int
+
+  # Generates a hash for the given bytes.
+  #
+  # # Examples
+  #
+  #     import std::crypto::sha2::Sha512
+  #
+  #     Sha512.hash('hello')
+  fn pub static hash(bytes: ref ByteArray) -> Hash {
+    let hasher = new
+
+    hasher.write(bytes)
+    hasher.finish
+  }
+
+  # Returns a new instance of the hasher.
+  fn pub static new -> Sha512 {
+    Sha512 {
+      @block = Block.new(SHA512_BLOCK_SIZE),
+      @words = Array.filled(with: 0, times: 80),
+      @size = 0,
+      @a = 0x6A09E667F3BCC908,
+      @b = -0x4498517A7B3558C5,
+      @c = 0x3C6EF372FE94F82B,
+      @d = -0x5AB00AC5A0E2C90F,
+      @e = 0x510E527FADE682D1,
+      @f = -0x64FA9773D4C193E1,
+      @g = 0x1F83D9ABFB41BD6B,
+      @h = 0x5BE0CD19137E2179
+    }
+  }
+
+  fn mut compress {
+    let words = @words
+
+    0.until(16).iter.each fn (i) { words.set(i, @block.read_i64_be(i * 8)) }
+
+    16.until(80).iter.each fn (i) {
+      let w15 = words.get(i - 15)
+      let w2 = words.get(i - 2)
+      let s0 = w15.rotate_right(1) ^ w15.rotate_right(8) ^ (w15 >>> 7)
+      let s1 = w2.rotate_right(19) ^ w2.rotate_right(61) ^ (w2 >>> 6)
+
+      words.set(
+        i,
+        words.get(i - 16)
+          .wrapping_add(s0)
+          .wrapping_add(words.get(i - 7))
+          .wrapping_add(s1)
+      )
+    }
+
+    let mut a = @a
+    let mut b = @b
+    let mut c = @c
+    let mut d = @d
+    let mut e = @e
+    let mut f = @f
+    let mut g = @g
+    let mut h = @h
+    let mut i = 0
+
+    while i < 80 {
+      let ch = (e & f) ^ (e.not & g)
+      let maj = (a & b) ^ (a & c) ^ (b & c)
+      let s0 = a.rotate_right(28) ^ a.rotate_right(34) ^ a.rotate_right(39)
+      let s1 = e.rotate_right(14) ^ e.rotate_right(18) ^ e.rotate_right(41)
+      let temp1 = h
+        .wrapping_add(s1)
+        .wrapping_add(ch)
+        .wrapping_add(SHA512_TABLE.get(i))
+        .wrapping_add(words.get(i))
+
+      let temp2 = s0.wrapping_add(maj)
+
+      h = g
+      g = f
+      f = e
+      e = d.wrapping_add(temp1)
+      d = c
+      c = b
+      b = a
+      a = temp1.wrapping_add(temp2)
+      i += 1
+    }
+
+    @a = a.wrapping_add(@a)
+    @b = b.wrapping_add(@b)
+    @c = c.wrapping_add(@c)
+    @d = d.wrapping_add(@d)
+    @e = e.wrapping_add(@e)
+    @f = f.wrapping_add(@f)
+    @g = g.wrapping_add(@g)
+    @h = h.wrapping_add(@h)
+  }
+}
+
+impl Hasher for Sha512 {
+  fn pub mut write(bytes: ref ByteArray) {
+    @size += bytes.length
+    @block.write_bytes(bytes) fn { compress }
+  }
+
+  fn pub move finish -> Hash {
+    @block.add_padding(16) fn { compress }
+
+    # SHA512 wants a 128-bits length, but we internally maintain a 64-bits
+    # length, thus we must first write eight zero bytes, then write the 64-bits
+    # length.
+    @block.write_length_be(0, at: 112)
+    @block.write_length_be(@size * 8, at: 120)
+    compress
+
+    let out = ByteArray.filled(with: 0, times: 64)
+
+    big.write_i64(@a, into: out, at: 0)
+    big.write_i64(@b, into: out, at: 8)
+    big.write_i64(@c, into: out, at: 16)
+    big.write_i64(@d, into: out, at: 24)
+    big.write_i64(@e, into: out, at: 32)
+    big.write_i64(@f, into: out, at: 40)
+    big.write_i64(@g, into: out, at: 48)
+    big.write_i64(@h, into: out, at: 56)
+    Hash.new(out)
+  }
+}

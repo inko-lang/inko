@@ -1,4 +1,3 @@
-//! Command for type-checking Inko source code.
 use crate::error::Error;
 use crate::options::print_usage;
 use compiler::compiler::{CompileError, Compiler};
@@ -16,10 +15,10 @@ Examples:
     inko check hello.inko        # Check the file hello.inko";
 
 /// Type-checks Inko source code.
-pub fn run(arguments: &[String]) -> Result<i32, Error> {
+pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     let mut options = Options::new();
 
-    options.optflag("h", "help", "Shows this help message");
+    options.optflag("h", "help", "Show this help message");
     options.optopt(
         "f",
         "format",
