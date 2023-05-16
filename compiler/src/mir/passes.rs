@@ -2494,6 +2494,20 @@ impl<'a> LowerMethod<'a> {
             }
             pmatch::Decision::Guard(guard, ok, fail) => {
                 self.add_edge(parent_block, guard);
+
+                let guard_node = if let Some(node) = state.guards.remove(&guard)
+                {
+                    node
+                } else {
+                    // It's possible we visit the same guard twice, such as when
+                    // encountering the case `case A or B if X -> {}`, as the
+                    // guard is visited for every pattern in the OR pattern. In
+                    // this case we compile the guard on the first visit, then
+                    // return the block as-is (making sure to still connect the
+                    // parent block above).
+                    return guard;
+                };
+
                 self.enter_scope();
 
                 // Bindings are defined _after_ the guard, otherwise the failure
@@ -2530,7 +2544,7 @@ impl<'a> LowerMethod<'a> {
 
                 self.current_block = guard;
 
-                let reg = self.expression(state.guards.remove(&guard).unwrap());
+                let reg = self.expression(guard_node);
 
                 self.exit_scope();
 

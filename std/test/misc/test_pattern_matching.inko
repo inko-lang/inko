@@ -1,0 +1,20 @@
+import std::test::Tests
+
+class enum Letter {
+  case A
+  case B
+  case C
+}
+
+fn pub tests(t: mut Tests) {
+  # https://github.com/inko-lang/inko/issues/363
+  t.test('Pattern matching with OR patterns with guards') fn (t) {
+    let number = 42
+    let result = match Letter.A {
+      case A or B if number == 42 -> true
+      case _ -> false
+    }
+
+    t.true(result)
+  }
+}

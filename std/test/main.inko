@@ -44,6 +44,7 @@ import std::test_test
 import std::test_time
 import std::test_tuple
 import std::test_utf8
+import misc::test_pattern_matching
 
 class async Main {
   fn async main {
@@ -75,6 +76,7 @@ class async Main {
     test_nil.tests(tests)
     test_option.tests(tests)
     test_path.tests(tests)
+    test_pattern_matching.tests(tests)
     test_poly1305.tests(tests)
     test_process.tests(tests)
     test_rand.tests(tests)
