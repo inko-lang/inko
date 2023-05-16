@@ -100,7 +100,7 @@ fn pub tests(t: mut Tests) {
 
     let addr = listener.local_address.unwrap
 
-    t.true(stream1.connect(ip: addr.ip.unwrap, port: addr.port.clone).ok?)
+    t.true(stream1.connect(ip: addr.ip.unwrap, port: addr.port).ok?)
 
     let stream2 = Socket.ipv4(Type.STREAM).unwrap
 
@@ -133,7 +133,7 @@ fn pub tests(t: mut Tests) {
 
     let addr = server.local_address.unwrap
 
-    t.equal(client.connect(addr.address.clone, addr.port.clone), Result.Ok(nil))
+    t.equal(client.connect(addr.address.clone, addr.port), Result.Ok(nil))
 
     let connection = server.accept.unwrap
 
@@ -304,7 +304,7 @@ fn pub tests(t: mut Tests) {
 
     let addr = listener.local_address.unwrap
 
-    stream.connect(ip: addr.address, port: addr.port.clone).unwrap
+    t.equal(stream.connect(ip: addr.address, port: addr.port), Result.Ok(nil))
     stream.shutdown_read.unwrap
 
     let bytes = ByteArray.new
@@ -322,7 +322,7 @@ fn pub tests(t: mut Tests) {
 
     let addr = listener.local_address.unwrap
 
-    stream.connect(ip: addr.address, port: addr.port.clone).unwrap
+    t.equal(stream.connect(ip: addr.address, port: addr.port), Result.Ok(nil))
     stream.shutdown_write.unwrap
 
     t.true(stream.write_string('ping').error?)
@@ -337,7 +337,7 @@ fn pub tests(t: mut Tests) {
 
     let addr = listener.local_address.unwrap
 
-    stream.connect(ip: addr.address, port: addr.port.clone).unwrap
+    t.equal(stream.connect(ip: addr.address, port: addr.port), Result.Ok(nil))
     stream.shutdown.unwrap
 
     t.true(stream.write_string('ping').error?)
@@ -352,7 +352,7 @@ fn pub tests(t: mut Tests) {
 
     let addr = listener.local_address.unwrap
 
-    stream.connect(ip: addr.address, port: addr.port.clone).unwrap
+    t.equal(stream.connect(ip: addr.address, port: addr.port), Result.Ok(nil))
     stream.shutdown.unwrap
 
     let bytes = ByteArray.new
@@ -375,7 +375,7 @@ fn pub tests(t: mut Tests) {
     let addr = socket.local_address.unwrap
     let bytes = ByteArray.new
 
-    socket.send_string_to('ping', ip: addr.address, port: addr.port.clone).unwrap
+    socket.send_string_to('ping', ip: addr.address, port: addr.port).unwrap
 
     t.equal(socket.read(into: bytes, size: 4).unwrap, 4)
     t.equal(bytes.into_string, 'ping')
@@ -390,7 +390,7 @@ fn pub tests(t: mut Tests) {
 
     let addr = listener.local_address.unwrap
 
-    stream.connect(ip: addr.address, port: addr.port.clone).unwrap
+    t.equal(stream.connect(ip: addr.address, port: addr.port), Result.Ok(nil))
 
     let written = stream.write_bytes('ping'.to_byte_array).unwrap
     let connection = listener.accept.unwrap
@@ -409,7 +409,7 @@ fn pub tests(t: mut Tests) {
 
     let addr = listener.local_address.unwrap
 
-    stream.connect(ip: addr.address, port: addr.port.clone).unwrap
+    t.equal(stream.connect(ip: addr.address, port: addr.port), Result.Ok(nil))
 
     let written = stream.write_string('ping').unwrap
     let connection = listener.accept.unwrap
@@ -445,7 +445,7 @@ fn pub tests(t: mut Tests) {
     let socket2 = UdpSocket.new(ip: ip, port: 0).unwrap
     let addr = socket2.local_address.unwrap
 
-    t.true(socket1.connect(ip: addr.address, port: addr.port.clone).ok?)
+    t.true(socket1.connect(ip: addr.address, port: addr.port).ok?)
   }
 
   t.test('UdpSocket.send_string_to') fn (t) {
@@ -455,7 +455,7 @@ fn pub tests(t: mut Tests) {
 
     let addr = socket.local_address.unwrap
 
-    socket.send_string_to('ping', ip: addr.address, port: addr.port.clone).unwrap
+    socket.send_string_to('ping', ip: addr.address, port: addr.port).unwrap
 
     let bytes = ByteArray.new
 
@@ -472,7 +472,7 @@ fn pub tests(t: mut Tests) {
       .send_bytes_to(
         'ping'.to_byte_array,
         ip: addr.address,
-        port: addr.port.clone
+        port: addr.port
       )
       .unwrap
 
@@ -489,7 +489,7 @@ fn pub tests(t: mut Tests) {
     let addr = listener.local_address.unwrap
 
     client
-      .send_string_to('ping', ip: addr.address, port: addr.port.clone)
+      .send_string_to('ping', ip: addr.address, port: addr.port)
       .unwrap
 
     let bytes = ByteArray.new
@@ -520,7 +520,7 @@ fn pub tests(t: mut Tests) {
     let socket = UdpSocket.new(ip: ip, port: 0).unwrap
     let addr = socket.local_address.unwrap
 
-    socket.send_string_to('ping', ip: addr.address, port: addr.port.clone).unwrap
+    socket.send_string_to('ping', ip: addr.address, port: addr.port).unwrap
 
     let bytes = ByteArray.new
 
@@ -534,7 +534,10 @@ fn pub tests(t: mut Tests) {
     let client_socket = UdpSocket.new(ip: ip, port: 0).unwrap
     let addr = server_socket.local_address.unwrap
 
-    client_socket.connect(ip: addr.address, port: addr.port.clone).unwrap
+    t.equal(
+      client_socket.connect(ip: addr.address, port: addr.port),
+      Result.Ok(nil)
+    )
     client_socket.write_bytes('ping'.to_byte_array).unwrap
 
     let bytes = ByteArray.new
@@ -558,7 +561,7 @@ fn pub tests(t: mut Tests) {
 
     let addr = listener.local_address.unwrap
 
-    t.true(TcpClient.new(ip: addr.ip.unwrap, port: addr.port.clone).ok?)
+    t.true(TcpClient.new(ip: addr.ip.unwrap, port: addr.port).ok?)
   }
 
   t.test('TcpClient.with_timeout') fn (t) {
@@ -569,18 +572,11 @@ fn pub tests(t: mut Tests) {
 
     let addr = listener.local_address.unwrap
 
-    let ex = match TcpClient.with_timeout(ip: addr.ip.unwrap, port: addr.port.clone, timeout_after: Duration.from_secs(666)) {
-      case Ok(val) -> 'no error'
-      case Error(err) -> err.to_string
-    }
-
-    t.equal(ex, 'no error')
-
     t.true(
       TcpClient
         .with_timeout(
           ip: addr.ip.unwrap,
-          port: addr.port.clone,
+          port: addr.port,
           timeout_after: Duration.from_secs(2)
         )
         .ok?
@@ -591,7 +587,7 @@ fn pub tests(t: mut Tests) {
       TcpClient
         .with_timeout(
           ip: IpAddress.v4(192, 168, 0, 0),
-          port: addr.port.clone,
+          port: addr.port,
           timeout_after: Duration.from_micros(500)
         )
         .error?
@@ -605,7 +601,7 @@ fn pub tests(t: mut Tests) {
     listener.listen.unwrap
 
     let addr = listener.local_address.unwrap
-    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port.clone).unwrap
+    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port).unwrap
     let local_addr = stream.local_address.unwrap
 
     t.equal(local_addr.address, '127.0.0.1')
@@ -619,7 +615,7 @@ fn pub tests(t: mut Tests) {
     listener.listen.unwrap
 
     let addr = listener.local_address.unwrap
-    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port.clone).unwrap
+    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port).unwrap
     let peer_addr = stream.peer_address.unwrap
 
     t.equal(peer_addr.address, addr.address)
@@ -633,7 +629,7 @@ fn pub tests(t: mut Tests) {
     listener.listen.unwrap
 
     let addr = listener.local_address.unwrap
-    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port.clone).unwrap
+    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port).unwrap
     let bytes = ByteArray.new
     let client = listener.accept.unwrap
 
@@ -650,7 +646,7 @@ fn pub tests(t: mut Tests) {
     listener.listen.unwrap
 
     let addr = listener.local_address.unwrap
-    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port.clone).unwrap
+    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port).unwrap
     let connection = listener.accept.unwrap
     let bytes = ByteArray.new
 
@@ -666,7 +662,7 @@ fn pub tests(t: mut Tests) {
     listener.listen.unwrap
 
     let addr = listener.local_address.unwrap
-    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port.clone).unwrap
+    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port).unwrap
     let connection = listener.accept.unwrap
     let bytes = ByteArray.new
 
@@ -682,7 +678,7 @@ fn pub tests(t: mut Tests) {
     listener.listen.unwrap
 
     let addr = listener.local_address.unwrap
-    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port.clone).unwrap
+    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port).unwrap
 
     t.true(stream.flush.ok?)
   }
@@ -694,7 +690,7 @@ fn pub tests(t: mut Tests) {
     listener.listen.unwrap
 
     let addr = listener.local_address.unwrap
-    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port.clone).unwrap
+    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port).unwrap
 
     stream.shutdown_read.unwrap
 
@@ -712,7 +708,7 @@ fn pub tests(t: mut Tests) {
     listener.listen.unwrap
 
     let addr = listener.local_address.unwrap
-    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port.clone).unwrap
+    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port).unwrap
 
     stream.shutdown_write.unwrap
 
@@ -726,7 +722,7 @@ fn pub tests(t: mut Tests) {
     listener.listen.unwrap
 
     let addr = listener.local_address.unwrap
-    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port.clone).unwrap
+    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port).unwrap
 
     stream.shutdown.unwrap
 
@@ -740,7 +736,7 @@ fn pub tests(t: mut Tests) {
     listener.listen.unwrap
 
     let addr = listener.local_address.unwrap
-    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port.clone).unwrap
+    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port).unwrap
 
     stream.shutdown.unwrap
 
@@ -758,7 +754,7 @@ fn pub tests(t: mut Tests) {
     listener.listen.unwrap
 
     let addr = listener.local_address.unwrap
-    let client = TcpClient.new(ip: addr.ip.unwrap, port: addr.port.clone).unwrap
+    let client = TcpClient.new(ip: addr.ip.unwrap, port: addr.port).unwrap
 
     t.true(client.try_clone.ok?)
   }
@@ -771,14 +767,14 @@ fn pub tests(t: mut Tests) {
     let listener = TcpServer.new(ip: ip, port: 0).unwrap
     let addr = listener.local_address.unwrap
 
-    t.true(TcpServer.new(ip: addr.ip.unwrap, port: addr.port.clone).ok?)
+    t.true(TcpServer.new(ip: addr.ip.unwrap, port: addr.port).ok?)
   }
 
   t.test('TcpServer.accept') fn (t) {
     let ip = IpAddress.V4(Ipv4Address.new(127, 0, 0, 1))
     let listener = TcpServer.new(ip: ip, port: 0).unwrap
     let addr = listener.local_address.unwrap
-    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port.clone).unwrap
+    let stream = TcpClient.new(ip: addr.ip.unwrap, port: addr.port).unwrap
     let connection = listener.accept.unwrap
 
     t.equal(connection.local_address.unwrap, stream.peer_address.unwrap)
@@ -901,7 +897,7 @@ fn pub tests(t: mut Tests) {
 
     listener.bind(path).unwrap
     listener.listen.unwrap
-    stream.connect(path).unwrap
+    t.equal(stream.connect(path), Result.Ok(nil))
 
     let client = listener.accept.unwrap
 
@@ -979,7 +975,7 @@ fn pub tests(t: mut Tests) {
 
     listener.bind(path).unwrap
     listener.listen.unwrap
-    client.connect(path).unwrap
+    t.equal(client.connect(path), Result.Ok(nil))
 
     t.equal(client.peer_address.unwrap, listener.local_address.unwrap)
   }
@@ -1004,7 +1000,7 @@ fn pub tests(t: mut Tests) {
 
     listener.bind(path).unwrap
     listener.listen.unwrap
-    stream.connect(path).unwrap
+    t.equal(stream.connect(path), Result.Ok(nil))
 
     let written = stream.write_bytes('ping'.to_byte_array).unwrap
     let connection = listener.accept.unwrap
@@ -1021,7 +1017,7 @@ fn pub tests(t: mut Tests) {
 
     listener.bind(path).unwrap
     listener.listen.unwrap
-    stream.connect(path).unwrap
+    t.equal(stream.connect(path), Result.Ok(nil))
 
     let written = stream.write_string('ping').unwrap
     let connection = listener.accept.unwrap
@@ -1056,7 +1052,7 @@ fn pub tests(t: mut Tests) {
 
     listener.bind(path).unwrap
     listener.listen.unwrap
-    stream.connect(path).unwrap
+    t.equal(stream.connect(path), Result.Ok(nil))
     stream.shutdown_read.unwrap
 
     let bytes = ByteArray.new
@@ -1072,7 +1068,7 @@ fn pub tests(t: mut Tests) {
 
     listener.bind(path).unwrap
     listener.listen.unwrap
-    stream.connect(path).unwrap
+    t.equal(stream.connect(path), Result.Ok(nil))
     stream.shutdown_write.unwrap
 
     t.true(stream.write_string('ping').error?)
@@ -1085,7 +1081,7 @@ fn pub tests(t: mut Tests) {
 
     listener.bind(path).unwrap
     listener.listen.unwrap
-    stream.connect(path).unwrap
+    t.equal(stream.connect(path), Result.Ok(nil))
     stream.shutdown.unwrap
 
     t.true(stream.write_string('ping').error?)
@@ -1098,7 +1094,7 @@ fn pub tests(t: mut Tests) {
 
     listener.bind(path).unwrap
     listener.listen.unwrap
-    stream.connect(path).unwrap
+    t.equal(stream.connect(path), Result.Ok(nil))
     stream.shutdown.unwrap
 
     let bytes = ByteArray.new
@@ -1186,7 +1182,7 @@ fn pub tests(t: mut Tests) {
     let server = UnixDatagram.new(pair.0).unwrap
     let client = UnixDatagram.new(pair.1).unwrap
 
-    client.connect(pair.0).unwrap
+    t.equal(client.connect(pair.0), Result.Ok(nil))
 
     let bytes = ByteArray.new
 
