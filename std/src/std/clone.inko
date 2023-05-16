@@ -1,0 +1,7 @@
+# Cloning of objects.
+
+# A type that can be cloned into a new type.
+trait pub Clone[T] {
+  # Creates a clone of `self`.
+  fn pub clone -> T
+}

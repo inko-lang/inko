@@ -1,0 +1,60 @@
+import std::endian::big
+import std::int::(MIN, MAX)
+import std::test::Tests
+
+fn pub tests(t: mut Tests) {
+  t.test('big.write_u32') fn (t) {
+    let b1 = ByteArray.filled(with: 0, times: 4)
+    let b2 = ByteArray.filled(with: 0, times: 4)
+
+    big.write_u32(123456789, into: b1, at: 0)
+    big.write_u32(MAX, into: b2, at: 0)
+
+    t.equal(b1, ByteArray.from_array([7, 91, 205, 21]))
+    t.equal(b2, ByteArray.from_array([255, 255, 255, 255]))
+  }
+
+  t.test('big.read_u32') fn (t) {
+    let bytes = ByteArray.filled(with: 0, times: 4)
+
+    big.write_u32(123456789, into: bytes, at: 0)
+
+    t.equal(big.read_u32(from: bytes, at: 0), 123456789)
+  }
+
+  t.panic('big.read_u32 with not enough bytes') fn {
+    big.read_u32(from: ByteArray.new, at: 0)
+  }
+
+  t.test('big.write_i64') fn (t) {
+    let b1 = ByteArray.filled(with: 0, times: 8)
+    let b2 = ByteArray.filled(with: 0, times: 8)
+    let b3 = ByteArray.filled(with: 0, times: 8)
+
+    big.write_i64(123456789, into: b1, at: 0)
+    big.write_i64(MAX, into: b2, at: 0)
+    big.write_i64(MIN, into: b3, at: 0)
+
+    t.equal(b1, ByteArray.from_array([0, 0, 0, 0, 7, 91, 205, 21]))
+    t.equal(b2, ByteArray.from_array([127, 255, 255, 255, 255, 255, 255, 255]))
+    t.equal(b3, ByteArray.from_array([128, 0, 0, 0, 0, 0, 0, 0]))
+  }
+
+  t.test('big.read_i64') fn (t) {
+    let b1 = ByteArray.filled(with: 0, times: 8)
+    let b2 = ByteArray.filled(with: 0, times: 8)
+    let b3 = ByteArray.filled(with: 0, times: 8)
+
+    big.write_i64(123456789, into: b1, at: 0)
+    big.write_i64(MAX, into: b2, at: 0)
+    big.write_i64(MIN, into: b3, at: 0)
+
+    t.equal(big.read_i64(from: b1, at: 0), 123456789)
+    t.equal(big.read_i64(from: b2, at: 0), MAX)
+    t.equal(big.read_i64(from: b3, at: 0), MIN)
+  }
+
+  t.panic('big.read_i64 with not enough bytes') fn {
+    big.read_i64(from: ByteArray.new, at: 0)
+  }
+}

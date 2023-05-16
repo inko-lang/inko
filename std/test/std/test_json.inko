@@ -1,0 +1,404 @@
+import helpers::(fmt)
+import std::json::(self, Error, Json, Parser)
+import std::test::Tests
+
+fn parse(input: String) -> Result[Json, Error] {
+  Parser.new(input).parse
+}
+
+fn parse_invalid(input: String) -> Option[String] {
+  Parser.new(input).parse.error.map fn (v) { v.to_string }
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('Error.fmt') fn (t) {
+    let err = Error { @message = 'foo', @line = 1, @offset = 5 }
+
+    t.equal(fmt(err), 'foo, on line 1 at byte offset 5')
+  }
+
+  t.test('Error.to_string') fn (t) {
+    let err = Error { @message = 'foo', @line = 1, @offset = 5 }
+
+    t.equal(err.to_string, 'foo, on line 1 at byte offset 5')
+  }
+
+  t.test('Json.fmt') fn (t) {
+    let map = Map.new
+
+    map.set('a', Json.Int(10))
+
+    t.equal(fmt(Json.Int(42)), 'Int(42)')
+    t.equal(fmt(Json.Float(42.0)), 'Float(42.0)')
+    t.equal(fmt(Json.String('test')), 'String("test")')
+    t.equal(fmt(Json.Array([Json.Int(10)])), 'Array([Int(10)])')
+    t.equal(fmt(Json.Object(map)), 'Object({"a": Int(10)})')
+    t.equal(fmt(Json.Bool(true)), 'Bool(true)')
+    t.equal(fmt(Json.Bool(false)), 'Bool(false)')
+    t.equal(fmt(Json.Null), 'Null')
+  }
+
+  t.test('Json.==') fn (t) {
+    let map1 = Map.new
+    let map2 = Map.new
+    let map3 = Map.new
+
+    map1.set('a', Json.Int(10))
+    map2.set('a', Json.Int(10))
+    map3.set('a', Json.Int(10))
+
+    t.equal(Json.Int(10), Json.Int(10))
+    t.not_equal(Json.Int(10), Json.Int(20))
+    t.not_equal(Json.Int(10), Json.Float(20.0))
+
+    t.equal(Json.Float(10.0), Json.Float(10.0))
+    t.not_equal(Json.Float(10.0), Json.Float(20.0))
+    t.not_equal(Json.Float(10.0), Json.Int(10))
+
+    t.equal(Json.String('foo'), Json.String('foo'))
+    t.not_equal(Json.String('foo'), Json.String('bar'))
+    t.not_equal(Json.String('foo'), Json.Int(10))
+
+    t.equal(Json.Array([Json.Int(10)]), Json.Array([Json.Int(10)]))
+    t.not_equal(Json.Array([Json.Int(10)]), Json.Array([Json.Int(20)]))
+    t.not_equal(Json.Array([Json.Int(10)]), Json.Int(10))
+
+    t.equal(Json.Object(map1), Json.Object(map2))
+    t.not_equal(Json.Object(map3), Json.Object(Map.new))
+    t.not_equal(Json.Object(Map.new), Json.Int(10))
+
+    t.equal(Json.Bool(true), Json.Bool(true))
+    t.not_equal(Json.Bool(true), Json.Bool(false))
+    t.not_equal(Json.Bool(true), Json.Int(10))
+
+    t.equal(Json.Null, Json.Null)
+    t.not_equal(Json.Null, Json.Int(10))
+  }
+
+  t.test('Json.to_string') fn (t) {
+    let map = Map.new
+
+    map.set('a', Json.Int(1))
+    map.set('b', Json.Int(2))
+
+    t.equal(Json.Int(42).to_string, '42')
+    t.equal(Json.Float(1.2).to_string, '1.2')
+    t.equal(Json.String('foo').to_string, '"foo"')
+    t.equal(Json.String("a\nb").to_string, '"a\nb"')
+    t.equal(Json.String("a\rb").to_string, '"a\rb"')
+    t.equal(Json.String("a\tb").to_string, '"a\tb"')
+    t.equal(Json.String("a\u{C}b").to_string, '"a\fb"')
+    t.equal(Json.String("a\u{8}b").to_string, '"a\bb"')
+    t.equal(Json.String('a\\b').to_string, '"a\\\\b"')
+    t.equal(Json.Array([]).to_string, '[]')
+    t.equal(Json.Array([Json.Int(1), Json.Int(2)]).to_string, '[1, 2]')
+    t.equal(Json.Object(map).to_string, '{"a": 1, "b": 2}')
+    t.equal(Json.Object(Map.new).to_string, '{}')
+    t.equal(Json.Bool(true).to_string, 'true')
+    t.equal(Json.Bool(false).to_string, 'false')
+    t.equal(Json.Null.to_string, 'null')
+  }
+
+  t.test('Json.to_pretty_string') fn (t) {
+    t.equal(Json.Int(42).to_pretty_string, '42')
+    t.equal(Json.Float(1.2).to_pretty_string, '1.2')
+    t.equal(Json.String('foo').to_pretty_string, '"foo"')
+    t.equal(Json.String("a\nb").to_pretty_string, '"a\nb"')
+    t.equal(Json.String("a\rb").to_pretty_string, '"a\rb"')
+    t.equal(Json.String("a\tb").to_pretty_string, '"a\tb"')
+    t.equal(Json.String("a\u{C}b").to_pretty_string, '"a\fb"')
+    t.equal(Json.String("a\u{8}b").to_pretty_string, '"a\bb"')
+    t.equal(Json.String('a\\b').to_pretty_string, '"a\\\\b"')
+    t.equal(Json.Bool(true).to_pretty_string, 'true')
+    t.equal(Json.Bool(false).to_pretty_string, 'false')
+    t.equal(Json.Null.to_pretty_string, 'null')
+
+    t.equal(Json.Array([]).to_pretty_string, '[]')
+    t.equal(
+      Json.Array([Json.Int(1), Json.Int(2)]).to_pretty_string,
+      '[
+  1,
+  2
+]'
+    )
+
+    t.equal(
+      Json.Array([Json.Array([Json.Int(1), Json.Int(2)])]).to_pretty_string,
+      '[
+  [
+    1,
+    2
+  ]
+]'
+    )
+
+    let map1 = Map.new
+    let map2 = Map.new
+    let map3 = Map.new
+
+    map1.set('a', Json.Int(1))
+    map1.set('b', Json.Int(2))
+    map2.set('a', Json.Array([Json.Int(1), Json.Int(2)]))
+    map3.set('a', Json.Int(1))
+    map3.set('b', Json.Object(map2))
+
+    t.equal(Json.Object(Map.new).to_pretty_string, '{}')
+    t.equal(
+      Json.Object(map1).to_pretty_string,
+      '{
+  "a": 1,
+  "b": 2
+}'
+    )
+
+    t.equal(
+      Json.Object(map3).to_pretty_string,
+      '{
+  "a": 1,
+  "b": {
+    "a": [
+      1,
+      2
+    ]
+  }
+}'
+    )
+  }
+
+  t.test('Parsing integers') fn (t) {
+    t.equal(parse('0'), Result.Ok(Json.Int(0)))
+    t.equal(parse('42'), Result.Ok(Json.Int(42)))
+    t.equal(parse('  42'), Result.Ok(Json.Int(42)))
+    t.equal(parse('42   '), Result.Ok(Json.Int(42)))
+    t.equal(parse("\t42"), Result.Ok(Json.Int(42)))
+    t.equal(parse("\r42"), Result.Ok(Json.Int(42)))
+    t.equal(parse('-42'), Result.Ok(Json.Int(-42)))
+
+    t.true(parse('00').error?)
+    t.true(parse('10,').error?)
+    t.true(parse('-').error?)
+    t.true(parse('-01').error?)
+    t.true(parse('01').error?)
+    t.true(parse('1a').error?)
+    t.true(parse('-a').error?)
+  }
+
+  t.test('Parsing floats') fn (t) {
+    t.equal(parse('  1.2'), Result.Ok(Json.Float(1.2)))
+    t.equal(parse('1.2   '), Result.Ok(Json.Float(1.2)))
+    t.equal(parse('1.2'), Result.Ok(Json.Float(1.2)))
+    t.equal(parse('-1.2'), Result.Ok(Json.Float(-1.2)))
+    t.equal(parse('1.2e+123'), Result.Ok(Json.Float(1.2e+123)))
+    t.equal(parse('1.2e-123'), Result.Ok(Json.Float(1.2e-123)))
+    t.equal(parse('1.2E+123'), Result.Ok(Json.Float(1.2e+123)))
+    t.equal(parse('1.2E-123'), Result.Ok(Json.Float(1.2e-123)))
+    t.equal(parse('-1.2E-123'), Result.Ok(Json.Float(-1.2e-123)))
+    t.equal(parse('0.0'), Result.Ok(Json.Float(0.0)))
+    t.equal(parse('0E0'), Result.Ok(Json.Float(0.0)))
+    t.equal(parse('0e+1'), Result.Ok(Json.Float(0.0)))
+    t.equal(parse('1.2E1'), Result.Ok(Json.Float(1.2e1)))
+    t.equal(parse('1.2e1'), Result.Ok(Json.Float(1.2e1)))
+    t.equal(
+      parse('1.7976931348623157e+310'),
+      Result.Ok(Json.Float(Float.infinity))
+    )
+    t.equal(
+      parse('4.940656458412465441765687928682213723651e-330'),
+      Result.Ok(Json.Float(0.0))
+    )
+    t.equal(
+      parse('-0.000000000000000000000000000000000000000000000000000000000000000000000000000001'),
+      Result.Ok(Json.Float(-1.0E-78))
+    )
+
+    # These numbers are too big for regular integers, so we promote them to
+    # floats.
+    t.equal(
+      parse('11111111111111111111111111111111111111111'),
+      Result.Ok(Json.Float(11111111111111111111111111111111111111111.0))
+    )
+    t.equal(
+      parse('10000000000000000999'),
+      Result.Ok(Json.Float(10000000000000000999.0))
+    )
+
+    t.true(parse('00.0').error?)
+    t.true(parse('1.2e').error?)
+    t.true(parse('1.2e+').error?)
+    t.true(parse('1.2e-').error?)
+    t.true(parse('1.2E').error?)
+    t.true(parse('1.2E+').error?)
+    t.true(parse('1.2E-').error?)
+    t.true(parse('1.2E+a').error?)
+    t.true(parse('1.2E-a').error?)
+    t.true(parse('0E').error?)
+    t.true(parse('10.2,').error?)
+
+    t.equal(
+      parse_invalid("\n1.2e"),
+      Option.Some(
+        'One or more tokens are required, but we ran out of input, \
+          on line 2 at byte offset 5'
+      )
+    )
+  }
+
+  t.test('Parsing arrays') fn (t) {
+    t.equal(parse('[]'), Result.Ok(Json.Array([])))
+    t.equal(parse('[10]'), Result.Ok(Json.Array([Json.Int(10)])))
+    t.equal(
+      parse('[10, 20]'),
+      Result.Ok(Json.Array([Json.Int(10), Json.Int(20)]))
+    )
+
+    t.true(parse('[').error?)
+    t.true(parse(']').error?)
+    t.true(parse('[,10]').error?)
+    t.true(parse('[10,]').error?)
+    t.true(parse('[10').error?)
+    t.true(parse('[10,').error?)
+    t.true(parse('[10true]').error?)
+    t.true(parse('[],').error?)
+
+    {
+      let parser = Parser.new('[[[[10]]]]')
+
+      parser.max_depth = 2
+      t.true(parser.parse.error?)
+    }
+  }
+
+  t.test('Parsing booleans') fn (t) {
+    t.equal(parse('true'), Result.Ok(Json.Bool(true)))
+    t.equal(parse('false'), Result.Ok(Json.Bool(false)))
+
+    t.true(parse('t').error?)
+    t.true(parse('tr').error?)
+    t.true(parse('tru').error?)
+    t.true(parse('f').error?)
+    t.true(parse('fa').error?)
+    t.true(parse('fal').error?)
+    t.true(parse('fals').error?)
+  }
+
+  t.test('Parsing null') fn (t) {
+    t.equal(parse('null'), Result.Ok(Json.Null))
+
+    t.true(parse('n').error?)
+    t.true(parse('nu').error?)
+    t.true(parse('nul').error?)
+  }
+
+  t.test('Parsing strings') fn (t) {
+    t.equal(parse('"foo"'), Result.Ok(Json.String('foo')))
+    t.equal(parse('"foo bar"'), Result.Ok(Json.String('foo bar')))
+    t.equal(parse('"foo\nbar"'), Result.Ok(Json.String("foo\nbar")))
+    t.equal(parse('"foo\tbar"'), Result.Ok(Json.String("foo\tbar")))
+    t.equal(parse('"foo\rbar"'), Result.Ok(Json.String("foo\rbar")))
+    t.equal(parse('"foo\bbar"'), Result.Ok(Json.String("foo\u{0008}bar")))
+    t.equal(parse('"foo\fbar"'), Result.Ok(Json.String("foo\u{000C}bar")))
+    t.equal(parse('"foo\\"bar"'), Result.Ok(Json.String('foo"bar')))
+    t.equal(parse('"foo\\/bar"'), Result.Ok(Json.String('foo/bar')))
+    t.equal(parse('"foo\\\\bar"'), Result.Ok(Json.String("foo\\bar")))
+    t.equal(parse('"foo\u005Cbar"'), Result.Ok(Json.String('foo\\bar')))
+    t.equal(
+      parse('"foo\\u001Fbar"'),
+      Result.Ok(Json.String("foo\u{001F}bar"))
+    )
+    t.equal(parse('"\uD834\uDD1E"'), Result.Ok(Json.String("\u{1D11E}")))
+    t.equal(
+      parse('"\uE000\uE000"'),
+      Result.Ok(Json.String("\u{E000}\u{E000}"))
+    )
+
+    t.true(parse("\"\0\"").error?)
+    t.true(parse("\"\n\"").error?)
+    t.true(parse("\"\t\"").error?)
+    t.true(parse("\"\r\"").error?)
+    t.true(parse("\"\u{8}\"").error?) # \b
+    t.true(parse("\"\u{c}\"").error?) # \f
+
+    t.true(parse('"\x42"').error?)
+    t.true(parse('"\u1"').error?)
+    t.true(parse('"\u12"').error?)
+    t.true(parse('"\u123"').error?)
+    t.true(parse('"\u{XXXX}"').error?)
+    t.true(parse('"\uD834\uE000"').error?)
+    t.true(parse('"\uD834\uZZZZ"').error?)
+    t.true(parse('"\uDFFF\uDFFF"').error?)
+
+    {
+      let parser = Parser.new('"foo"')
+
+      parser.max_string_size = 2
+      t.true(parser.parse.error?)
+    }
+
+    t.equal(
+      parse_invalid('"a'),
+      Option.Some(
+        'One or more tokens are required, but we ran out of input, \
+          on line 1 at byte offset 2'
+      )
+    )
+  }
+
+  t.test('Parsing objects') fn (t) {
+    let map1 = Map.new
+    let map2 = Map.new
+    let map3 = Map.new
+    let map4 = Map.new
+    let map5 = Map.new
+
+    map2.set('a', Json.Int(10))
+    map3.set('a', Json.Int(20))
+    map4.set('a', Json.Int(10))
+    map4.set('b', Json.Int(20))
+    map5.set('a', Json.Int(10))
+    map5.set('b', Json.Int(20))
+
+    t.equal(parse('{}'), Result.Ok(Json.Object(map1)))
+    t.equal(parse('{ "a": 10 }'), Result.Ok(Json.Object(map2)))
+    t.equal(parse('{"a": 10, "a": 20}'), Result.Ok(Json.Object(map3)))
+    t.equal(parse('{"a": 10, "b": 20}'), Result.Ok(Json.Object(map4)))
+    t.equal(
+      parse('{
+          "a": 10,
+          "b": 20
+        }'
+      ),
+      Result.Ok(Json.Object(map5))
+    )
+
+    t.true(parse('{').error?)
+    t.true(parse('}').error?)
+    t.true(parse('{{}}').error?)
+    t.true(parse('{"a"}').error?)
+    t.true(parse('{"a":}').error?)
+    t.true(parse('{"a":10,}').error?)
+    t.true(parse('{},').error?)
+    t.true(parse('{"a": true} "x"').error?)
+
+    {
+      let parser = Parser.new('{"a": {"b": {"c": 10}}}')
+
+      parser.max_depth = 2
+      t.true(parser.parse.error?)
+    }
+
+    t.equal(
+      parse_invalid('{"a"}'),
+      Option.Some("The character '}' is unexpected, on line 1 at byte offset 4")
+    )
+  }
+
+  t.test('Parsing Unicode BOMs') fn (t) {
+    t.true(parse("\u{FEFF}10").error?)
+    t.true(parse("\u{FFFE}10").error?)
+    t.true(parse("\u{EF}\u{BB}\u{BF}10").error?)
+  }
+
+  t.test('json.parse') fn (t) {
+    t.equal(json.parse('[10]'), Result.Ok(Json.Array([Json.Int(10)])))
+  }
+}

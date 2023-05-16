@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf, MAIN_SEPARATOR};
 
 const MAIN_MODULE: &str = "main";
 const SOURCE_EXT: &str = "inko";
-const SEPARATOR: &str = "::";
+pub const SEPARATOR: &str = "::";
 
 /// The fully qualified name of a module.
 #[derive(Eq, PartialEq, Hash, Clone, Ord, PartialOrd)]
@@ -48,6 +48,10 @@ impl ModuleName {
 
         path.set_extension(SOURCE_EXT);
         path
+    }
+
+    pub fn normalized_name(&self) -> String {
+        self.value.replace(SEPARATOR, "_")
     }
 
     pub fn as_str(&self) -> &str {
@@ -130,5 +134,13 @@ mod tests {
         let name = ModuleName::new("foo::bar");
 
         assert_eq!(format!("{:?}", name), "ModuleName(foo::bar)".to_string());
+    }
+
+    #[test]
+    fn test_normalized_name() {
+        assert_eq!(
+            ModuleName::new("std::foo::bar").normalized_name(),
+            "std_foo_bar"
+        );
     }
 }

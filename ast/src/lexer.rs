@@ -161,16 +161,13 @@ pub enum TokenKind {
     Sub,
     SubAssign,
     Throw,
-    Throws,
     Trait,
     True,
     Try,
-    TryPanic,
     Uni,
     UnicodeEscape,
     UnsignedShr,
     UnsignedShrAssign,
-    When,
     While,
     Whitespace,
 }
@@ -261,12 +258,9 @@ impl TokenKind {
             TokenKind::Sub => "a '-'",
             TokenKind::SubAssign => "a '-='",
             TokenKind::Throw => "the 'throw' keyword",
-            TokenKind::Throws => "a '!!'",
             TokenKind::Trait => "the 'trait' keyword",
             TokenKind::Try => "the 'try' keyword",
-            TokenKind::TryPanic => "the 'try!' keyword",
             TokenKind::UnicodeEscape => "an Unicode escape sequence",
-            TokenKind::When => "the 'when' keyword",
             TokenKind::While => "the 'while' keyword",
             TokenKind::Whitespace => "whitespace",
             TokenKind::Mut => "the 'mut' keyword",
@@ -335,8 +329,6 @@ impl Token {
                 | TokenKind::Throw
                 | TokenKind::Trait
                 | TokenKind::Try
-                | TokenKind::TryPanic
-                | TokenKind::When
                 | TokenKind::While
                 | TokenKind::Mut
                 | TokenKind::Recover
@@ -924,12 +916,6 @@ impl Lexer {
                 self.position += 2;
                 self.token(TokenKind::Ne, start, self.line)
             }
-            EXCLAMATION => {
-                let start = self.position;
-
-                self.position += 2;
-                self.token(TokenKind::Throws, start, self.line)
-            }
             _ => self.invalid(self.position, self.position + 1),
         }
     }
@@ -952,7 +938,7 @@ impl Lexer {
 
         self.advance_identifier_bytes();
 
-        let mut value = self.slice_string(start, self.position);
+        let value = self.slice_string(start, self.position);
 
         // We use this approach so that:
         //
@@ -975,16 +961,7 @@ impl Lexer {
                 "for" => TokenKind::For,
                 "let" => TokenKind::Let,
                 "ref" => TokenKind::Ref,
-                "try" => {
-                    if self.current_byte() == EXCLAMATION {
-                        self.position += 1;
-
-                        value.push('!');
-                        TokenKind::TryPanic
-                    } else {
-                        TokenKind::Try
-                    }
-                }
+                "try" => TokenKind::Try,
                 "mut" => TokenKind::Mut,
                 "uni" => TokenKind::Uni,
                 "pub" => TokenKind::Pub,
@@ -997,7 +974,6 @@ impl Lexer {
                 "loop" => TokenKind::Loop,
                 "next" => TokenKind::Next,
                 "self" => TokenKind::SelfObject,
-                "when" => TokenKind::When,
                 "move" => TokenKind::Move,
                 "true" => TokenKind::True,
                 "case" => TokenKind::Case,
@@ -1475,7 +1451,6 @@ mod tests {
         assert!(tok(TokenKind::Trait, "", 1..=1, 1..=1).is_keyword());
         assert!(tok(TokenKind::True, "", 1..=1, 1..=1).is_keyword());
         assert!(tok(TokenKind::Try, "", 1..=1, 1..=1).is_keyword());
-        assert!(tok(TokenKind::When, "", 1..=1, 1..=1).is_keyword());
         assert!(tok(TokenKind::While, "", 1..=1, 1..=1).is_keyword());
         assert!(tok(TokenKind::Recover, "", 1..=1, 1..=1).is_keyword());
         assert!(tok(TokenKind::Nil, "", 1..=1, 1..=1).is_keyword());
@@ -2047,7 +2022,6 @@ mod tests {
     fn test_lexer_exclamation() {
         assert_token!("!", Invalid, "!", 1..=1, 1..=1);
         assert_token!("!=", Ne, "!=", 1..=1, 1..=2);
-        assert_token!("!!", Throws, "!!", 1..=1, 1..=2);
     }
 
     #[test]
@@ -2072,7 +2046,6 @@ mod tests {
         assert_token!("let", Let, "let", 1..=1, 1..=3);
         assert_token!("ref", Ref, "ref", 1..=1, 1..=3);
         assert_token!("try", Try, "try", 1..=1, 1..=3);
-        assert_token!("try!", TryPanic, "try!", 1..=1, 1..=4);
         assert_token!("mut", Mut, "mut", 1..=1, 1..=3);
         assert_token!("uni", Uni, "uni", 1..=1, 1..=3);
         assert_token!("pub", Pub, "pub", 1..=1, 1..=3);
@@ -2083,7 +2056,6 @@ mod tests {
         assert_token!("loop", Loop, "loop", 1..=1, 1..=4);
         assert_token!("next", Next, "next", 1..=1, 1..=4);
         assert_token!("self", SelfObject, "self", 1..=1, 1..=4);
-        assert_token!("when", When, "when", 1..=1, 1..=4);
         assert_token!("move", Move, "move", 1..=1, 1..=4);
         assert_token!("true", True, "true", 1..=1, 1..=4);
         assert_token!("case", Case, "case", 1..=1, 1..=4);

@@ -1,7 +1,8 @@
 # Modules & packages
 
-Inko projects are organised using "modules". A module is just an Inko source
-file you can import into another file using the `import` keyword. For example:
+Inko projects are organised as a collection of "modules". A module is just an
+Inko source file you can import into another file using the `import` keyword.
+For example:
 
 ```inko
 import std::stdio
@@ -15,7 +16,7 @@ import std::stdio::STDOUT
 ```
 
 For more information about the syntax of `import` statements, refer to the
-[Imports](syntax.md#imports) syntax documentation.
+[Imports](../guides/syntax.md#imports) syntax documentation.
 
 ## Import paths
 
@@ -25,7 +26,7 @@ module:
 1. The standard library
 1. Your project's `src/` directory (see
    [Project structure](../guides/structure.md))
-1. Your project's `dep/` directory
+1. Your project's `dep/src` directory
 
 If a module isn't found, a compile-time error is produced.
 
@@ -33,9 +34,9 @@ Inko doesn't supporting importing modules relative to another module.
 
 ## Third-party dependencies
 
-Inko supports adding third-party dependencies using its package manager "ipm".
-Packages are just Git repositories hosted on a platform such as GitLab or
-GitHub. There's no central package registry.
+Inko has a built-in package manager, available using the `inko pkg` command and
+its subcommands (e.g. `inko pkg add`). Packages are just Git repositories hosted
+on a platform such as GitLab or GitHub. There's no central package registry.
 
 ### Manifest format
 
@@ -67,13 +68,13 @@ is published.
 
 ### Version selection
 
-ipm uses [semantic versioning](https://semver.org/) for its versions, and
-[minimal version selection](https://research.swtch.com/vgo-mvs) for version
-selection.
+Inko's package manager uses [semantic versioning](https://semver.org/) for its
+versions, and [minimal version selection](https://research.swtch.com/vgo-mvs)
+for version selection.
 
 Minimal version selection means that you list the _minimum_ version of a package
 that you need. If multiple packages depend on different versions of the same
-package, ipm picks the most recent requirement from that list. Take these
+package, Inko picks the most recent requirement from that list. Take these
 requirements for example:
 
 ```
@@ -82,11 +83,11 @@ json >= 1.5.3
 json >= 1.8.2
 ```
 
-Here the most recent version that satisfies all requirements is 1.8.2, so ipm
+Here the most recent version that satisfies all requirements is 1.8.2, so Inko
 will pick that version of the "json" package.
 
-If packages require different major versions of another package, ipm produces an
-error as we don't support using multiple major versions of the same package.
+If packages require different major versions of another package, Inko produces
+an error as we don't support using multiple major versions of the same package.
 
 Using minimal version selection offers several benefits:
 
@@ -102,35 +103,30 @@ For more details we suggest reading through the article by Russ Cox.
 
 ### Handling security updates
 
-If a new version of a package is released, ipm ignores it due to the use of
+If a new version of a package is released, Inko ignores it due to the use of
 minimal version selection; instead picking the most recent version from the list
 of required versions. At first glance this may seem like a bad idea, as you
 won't be able to take advantage of security updates of your dependencies.
 There's a simple solution to this problem: add the dependency to your `inko.pkg`
-with the appropriate minimum version, and ipm takes care of the rest.
+with the appropriate minimum version, and Inko takes care of the rest.
 
-## Using ipm
+## Using Inko's package manager
 
-For a more in-depth overview of the available commands and flags, run `ipm
---help`. This also works for the various sub-commands, such as `ipm sync
+For a more in-depth overview of the available commands and flags, run `inko pkg
+--help`. This also works for the various sub-commands, such as `inko pkg sync
 --help`.
-
-When installing Inko using [ivm](ivm.md), ipm is already installed. When using a
-package provided by your system's package manager, ipm should also be installed,
-though on some platforms you may need to install ipm separately. If you're not
-sure, we recommend using ivm to install Inko and its package manager.
 
 ### Setting up
 
-Creating an empty `inko.pkg` is done using the `ipm init` command.
+Creating an empty `inko.pkg` is done using the `inko pkg init` command.
 
 ### Adding dependencies
 
-Adding a package is done using `ipm add`, which takes the package URL and
+Adding a package is done using `inko pkg add`, which takes the package URL and
 version to add. For example:
 
 ```bash
-ipm add github.com/inko-lang/example-package 1.2.3
+inko pkg add github.com/inko-lang/example-package 1.2.3
 ```
 
 This command only adds the package to your `inko.pkg` file, it doesn't install
@@ -138,32 +134,32 @@ it into your project.
 
 ### Removing dependencies
 
-The inverse of `ipm add` is the `ipm remove` command, which takes a package URL
-and removes it from your `inko.pkg`. For example:
+The inverse of `inko pkg add` is the `inko pkg remove` command, which takes a
+package URL and removes it from your `inko.pkg`. For example:
 
 ```bash
-ipm remove github.com/inko-lang/example-package
+inko pkg remove github.com/inko-lang/example-package
 ```
 
 ### Installing dependencies
 
 !!! warning
-    The `ipm sync` command removes all files in the `dep` directory before
-    installing the dependencis, so make sure to not place files not managed by
-    ipm in this directory.
+    The `inko pkg sync` command removes all files in the `dep/src` directory
+    before installing the dependencies, so make sure to not place files not
+    managed by Inko in this directory.
 
-Installing dependencies into your project is done using `ipm sync`. This command
-downloads all the necessary dependencies, selects the appropriate versions, then
-installs them in `./dep`. For example:
+Installing dependencies into your project is done using `inko pkg sync`. This
+command downloads all the necessary dependencies, selects the appropriate
+versions, then installs them in `./dep/src`. For example:
 
 ```
-$ ipm sync
+$ inko pkg sync
 Updating package cache
   Downloading /home/yorickpeterse/Projects/inko/ipm-test/http 1.0.1
   Downloading /home/yorickpeterse/Projects/inko/ipm-test/json 1.0.0
   Downloading /home/yorickpeterse/Projects/inko/ipm-test/test-package-with-dependency/ 0.5.2
   Downloading /home/yorickpeterse/Projects/inko/ipm-test/test-package 1.1.1
-Removing existing ./dep
+Removing existing dependencies in ./dep
 Installing
   /home/yorickpeterse/Projects/inko/ipm-test/json 1.0.0
   /home/yorickpeterse/Projects/inko/ipm-test/http 1.0.1
@@ -182,30 +178,27 @@ The `dep` directory shouldn't be tracked by Git, so make sure to add it to your
 
 ### Updating dependencies
 
-Updating dependencies to their latest version is done using the `ipm update`
-command. This command either takes a package URL and only updates that package,
-or updates all packages if no URL is specified.
+Updating dependencies to their latest version is done using the `inko pkg
+update` command. This command either takes a package URL and only updates that
+package, or updates all packages if no URL is specified.
 
 By default this command only updates versions to the latest version using the
 same major version. For example, if you depend on "json" version 1.2.3, and
-1.2.5 is released, `ipm update` updates the required version to 1.2.5. When
-version 2.0.0 is released, `ipm update` ignores it because this version isn't
-backwards compatible with version 1. To update across major versions, use the
-following:
+1.2.5 is released, `inko pkg update` updates the required version to 1.2.5. When
+version 2.0.0 is released, `inko pkg update` ignores it because this version
+isn't backwards compatible with version 1. To update across major versions, use
+the following:
 
 ```bash
-ipm update --major
+inko pkg update --major
 ```
 
 Note that if other packages depend on the previous major version of the package
-you're updating, you won't be able to update your `dep` directory using `ipm
-sync`.
+you're updating, you won't be able to update your `dep` directory using
+`inko pkg sync`.
 
 ## Publishing a package
 
-To publish your package, simply push it to a git host and add a git
-tag with the version number, prefixed by `v`. So If you are releasing
-3.8.5, use `git tag v3.8.5`. Don't forget to push the tag with `git push --tags`.
-
-That's all that's required for `ipm add your/git/repo 3.8.5` to run successfully
-in a dependent package.
+To publish your package, push it to a Git host and add a Git tag with the
+version number, prefixed by `v`. For example, if you are releasing 3.8.5, use
+`git tag v3.8.5`. Don't forget to push the tag with `git push --tags`.

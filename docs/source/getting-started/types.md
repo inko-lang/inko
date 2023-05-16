@@ -21,12 +21,6 @@ Instances of classes are created using the class literal syntax:
 Person { @name = 'Alice', @age = 42 }
 ```
 
-Within a class you can also create instances of the class itself using `Self`:
-
-```inko
-Self { @name = 'Alice', @age = 42 }
-```
-
 When creating an instance, all fields must be assigned a value, and a field
 can't be assigned a value multiple times.
 
@@ -61,13 +55,13 @@ class Person {
   let @age: Int
 
   fn name -> String {
-    @name.clone
+    @name
   }
 }
 
 impl Person {
   fn age -> Int {
-    @age.clone
+    @age
   }
 }
 ```
@@ -117,8 +111,8 @@ class Person {
 ```
 
 Fields are accessed using the same syntax as method calls, making it easier to
-introduce custom getter/setter methods without having to change every line that
-uses the fields:
+replace them with methods, without having to change every line that uses the
+fields:
 
 ```inko
 let alice = Person { @name = 'Alice', @age = 42 }
@@ -159,17 +153,17 @@ class Person {
 
 impl ToString for Person {
   fn pub to_string -> String {
-    @name.clone
+    @name
   }
 }
 ```
 
-A class can only implement a trait once, even if the trait is generic.
+A class can only implement a trait once.
 
 ## Type and method visibility
 
 Types and methods default to being private to the module they are defined in,
-and can be made public using the `pub` keyword. For example, a public class is
+and can be made public using the `pub` keyword. For example, a public method is
 defined as follows:
 
 ```inko
@@ -189,42 +183,19 @@ Inko provides various core types, such as `String`, `Int`, and `Array`.
 
 Some of these types are value types, which means that when they are moved a copy
 is created and then moved. This allows you to continue using the original value
-after it would be moved.
-
-### Int
-
-The `Int` class is used for integers. Integers are 64 bits signed integers.
-
-`Int` is a value type.
-
-### Float
-
-The `Float` class is used for IEEE 754 double-precision floating point numbers.
-
-`Float` is a value type.
-
-### String
-
-The `String` class is used for strings. Strings are UTF-8 encoded immutable
-strings. Internally strings are represented such that they can be efficiently
-passed to C code, at the cost of one extra byte of overhead per string.
-
-`String` uses atomic reference counting when copying. This means that ten copies
-of a 1 GiB `String` only require 1 GiB of memory.
-
-`String` is a value type.
-
-### Boolean
-
-Inko's boolean type is `Boolean`. Instances of `Boolean` are created using
-`true` and `false`.
-
-`Boolean` is a value type.
+after moving it.
 
 ### Array
 
 `Array` is a contiguous growable array type and can store any value, as long as
 all values in the array are of the same type.
+
+### Bool
+
+Inko's boolean type is `Bool`. Instances of `Bool` are created using `true` and
+`false`.
+
+`Bool` is a value type.
 
 ### ByteArray
 
@@ -232,11 +203,24 @@ all values in the array are of the same type.
 `ByteArray` needs less memory compared to an `Array`, but can only store `Int`
 values in the range of 0 up to (and including) 255.
 
-### Option
+### Channel
 
-`Option` is an algebraic data type/enum class used to represent an optional
-value. It has two variants: `Some(T)` and `None`, with `None` signalling the
-lack of a value.
+`Channel` is used for sending values between processes, and allows multiple
+processes to send and receive values concurrently.
+
+`Channel` is a value type.
+
+### Float
+
+The `Float` class is used for IEEE 754 double-precision floating point numbers.
+
+`Float` is a value type.
+
+### Int
+
+The `Int` class is used for integers. Integers are 64 bits signed integers.
+
+`Int` is a value type.
 
 ### Map
 
@@ -253,26 +237,46 @@ pattern matching bodies).
 
 `Nil` is a value type.
 
+### Option
+
+`Option` is an algebraic data type/enum class used to represent an optional
+value. It has two variants: `Some(T)` and `None`, with `None` signalling the
+lack of a value.
+
+### Result
+
+`Result` is an algebraic data type/enum class used for error handling. It has
+two variants: `Ok(T)` and `Error(E)`. The `Ok` variant signals the success of an
+operation, while `Error` signals an error occurred.
+
+### String
+
+The `String` class is used for strings. Strings are UTF-8 encoded immutable
+strings. Internally strings are represented such that they can be efficiently
+passed to C code, at the cost of one extra byte of overhead per string.
+
+`String` uses atomic reference counting when copying. This means that ten copies
+of a 1 GiB `String` only require 1 GiB of memory.
+
+`String` is a value type.
+
 ## Special types
 
-Inko has three special types: `Self`, `Any` and `Never`. These types are special
-in that they don't exist at runtime as some sort of structure, instead they only
-exist in the compiler.
-
-`Self` is a type that refers to either the surrounding class, or when used in a
-trait, refers to the class that implements the trait.
+Inko has two special types: `Any` and `Never`. These types are special in that
+they don't exist at runtime as some sort of structure, instead they only exist
+in the compiler.
 
 `Any` is a type used for a value that could be anything, including data not
-managed by the Inko runtime such as a pointer to a C structure. Types can't be
-cast _to_ an `Any` (nor are they compatible with `Any`), but you _can_ cast
-`Any` to any other type. This is useful when working with Inko's FFI, but you
-should avoid `Any` anywhere else. `ref Any` is a variation of this type that
-doesn't take ownership of a value. This type is used in the FFI for function
-arguments.
+managed by the Inko runtime such as a pointer to a C structure. This is useful
+when working with Inko's FFI, but you should avoid `Any` anywhere else. `ref
+Any` is a variation of this type that doesn't take ownership of a value.
 
-`Never` is a type that indicates something never happens. When used in a return
-or throw type it means a method never returns or throws. If a method doesn't
-define a throw type, it defaults to `Never`.
+!!! note
+    The `Any` type is likely to be removed in the future, so you should avoid
+    using it.
+
+`Never` is a type that indicates something never happens. When used as a return
+type, it means the method never returns.
 
 ## Generic types
 
@@ -291,15 +295,7 @@ class List[T] {
 }
 ```
 
-Classes, traits, methods and variants can all be made generic. Here's how you'd
-define a generic `Result` type commonly found in functional languages:
-
-```inko
-class enum Result[T, E] {
-  case Ok(T)
-  case Error(E)
-}
-```
+Classes, traits, methods and variants can all be made generic.
 
 ## Type inference
 
@@ -339,13 +335,15 @@ The prelude includes the following types and methods:
 
 | Symbol              | Source module
 |:--------------------|:------------------------------------------------------
-| `Int`               | `std::int`
-| `Float`             | `std::float`
-| `String`            | `std::string`
 | `Array`             | `std::array`
 | `Boolean`           | `std::bool`
-| `Nil`               | `std::nil`
 | `ByteArray`         | `std::byte_array`
-| `Option`            | `std::option`
+| `Channel`           | `std::channel`
+| `Float`             | `std::float`
+| `Int`               | `std::int`
 | `Map`               | `std::map`
+| `Nil`               | `std::nil`
+| `Option`            | `std::option`
+| `Result`            | `std::result`
+| `String`            | `std::string`
 | `panic`             | `std::process`

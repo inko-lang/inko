@@ -7,6 +7,3 @@ license = "MPL-2.0"
 
 [lib]
 doctest = false
-
-[dependencies]
-bytecode = { path = "../bytecode" }

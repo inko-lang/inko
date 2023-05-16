@@ -1,0 +1,1769 @@
+# IP and Unix domain sockets.
+#
+# This module provides types for various socket types, such as TCP, UDP and Unix
+# sockets.
+#
+# The types `Socket` and `UnixSocket` are low-level sockets that implement most
+# of the socket logic. Types such as `TcpServer` and `TcpClient` wrap these
+# sockets to make it easier to create commonly used sockets, such as a TCP
+# client.
+#
+# # Deadlines and timeouts
+#
+# Socket timeouts are supported through a mechanism known as a "deadline". A
+# deadline specifies the time after which socket operations must time out. While
+# deadlines can be constructed from durations (e.g. using
+# `std::time::Duration`), they represent fixed points in time.
+#
+# The use of deadlines instead of timeouts makes it easier to apply time limits
+# to multiple operations. Consider the following chain of events:
+#
+# 1. read()
+# 1. write()
+# 1. read()
+#
+# Traditionally one might set a timeout such as 10 seconds. This poses a
+# problem: the timeout is applied to every operation, meaning each operation is
+# allowed to run up to 10 seconds, resulting in a total maximum runtime of 30
+# seconds.
+#
+# Using deadlines one sets a deadline in the future, and no matter the amount of
+# operations performed, the operations time out once we cross the deadline. In
+# our above example that means we can easily limit the total runtime to 10
+# seconds using a deadline that's 10 seconds in the future.
+#
+# Deadlines are set using `Socket.timeout_after` and `UnixSocket.timeout_after`.
+# These methods return a guard that clears the deadline when dropped, removing
+# the need for doing so manually (and ensuring you can't forget to clear the
+# deadline). Here's an example using deadlines to limit the time spent waiting
+# for a client to connect:
+#
+#     import std::net::ip::IpAddress
+#     import std::net::socket::TcpServer
+#     import std::time::Duration
+#
+#     let server = TcpServer.new(ip: IpAddress.v4(0, 0, 0, 0), port: 9000).unwrap
+#     let _guard = server.socket.timeout_after = Duration.from_secs(3)
+#
+#     # This times out after roughly three seconds.
+#     server.accept.unwrap
+#
+# For more information about timeouts versus deadlines, consider reading [this
+# article](https://vorpus.org/blog/timeouts-and-cancellation-for-humans/).
+import std::cmp::Equal
+import std::drop::Drop
+import std::fmt::(Format, Formatter)
+import std::fs::path::Path
+import std::io::(Error, Read, Write)
+import std::net::ip::IpAddress
+import std::string::ToString
+import std::time::(Duration, ToInstant)
+
+# The maximum value valid for a listen() call.
+#
+# Linux and FreeBSD do not allow for values greater than this as they internally
+# use an u16, so we'll limit the backlog to this value. We don't use SOMAXCONN
+# because it might be hardcoded. This means that setting `net.core.somaxconn` on
+# Linux (for example) would have no effect.
+let MAXIMUM_LISTEN_BACKLOG = 65_535
+
+# A value that signals the lack of a socket deadline.
+let NO_DEADLINE = -1
+
+let IPV4 = 0
+let IPV6 = 1
+let UNIX = 2
+
+# The type of a socket.
+class pub enum Type {
+  # The type corresponding to `SOCK_STREAM`.
+  case STREAM
+
+  # The type corresponding to `SOCK_DGRAM`.
+  case DGRAM
+
+  # The type corresponding to `SOCK_SEQPACKET`.
+  case SEQPACKET
+
+  # The type corresponding to `SOCK_RAW`.
+  case RAW
+
+  # Converts a `Type` into the underlying `SOCK_*` integer.
+  fn pub move into_int -> Int {
+    match self {
+      case STREAM -> 0
+      case DGRAM -> 1
+      case SEQPACKET -> 2
+      case RAW -> 3
+    }
+  }
+}
+
+# An IPv4 or IPv6 socket address.
+class pub SocketAddress {
+  # The IPv4/IPv6 address of this socket address.
+  #
+  # This is stored as a `String` so we don't need to parse the address every
+  # time a `SocketAddress` is created.
+  let pub @address: String
+
+  # The port number of this socket address.
+  let pub @port: Int
+
+  fn pub static new(address: String, port: Int) -> SocketAddress {
+    SocketAddress { @address = address, @port = port }
+  }
+
+  # Returns the IPv4/IPv6 address associated with `self`.
+  fn pub ip -> Option[IpAddress] {
+    IpAddress.parse(@address)
+  }
+}
+
+impl Equal[SocketAddress] for SocketAddress {
+  # Returns `true` if `self` and `other` are the same.
+  fn pub ==(other: ref SocketAddress) -> Bool {
+    @address == other.address and @port == other.port
+  }
+}
+
+impl Format for SocketAddress {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.write("{@address}:{@port}")
+  }
+}
+
+# A guard that clears the deadline of a `Socket` when dropped.
+class pub SocketDeadlineGuard {
+  let @socket: mut Socket
+}
+
+impl Drop for SocketDeadlineGuard {
+  fn mut drop {
+    @socket.deadline = NO_DEADLINE
+  }
+}
+
+# A low-level, non-blocking IPv4 or IPv6 socket.
+class pub Socket {
+  let @fd: Any
+
+  # A point in time after which socket operations time out.
+  #
+  # We use an `Int` to remove the need for using `Option[Instant]`.
+  let @deadline: Int
+
+  # Creates a new IPv4 socket.
+  #
+  # # Examples
+  #
+  #     import std::net::socket::(Type, Socket)
+  #
+  #     Socket.ipv4(Type.DGRAM).unwrap
+  fn pub static ipv4(type: Type) -> Result[Socket, Error] {
+    match _INKO.socket_new(IPV4, type.into_int) {
+      case { @tag = 0, @value = v } -> Result.Ok(
+        Socket { @fd = v, @deadline = NO_DEADLINE }
+      )
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Creates a new IPv6 socket.
+  #
+  # # Examples
+  #
+  #     import std::net::socket::(Type, Socket)
+  #
+  #     Socket.ipv6(Type.DGRAM).unwrap
+  fn pub static ipv6(type: Type) -> Result[Socket, Error] {
+    match _INKO.socket_new(IPV6, type.into_int) {
+      case { @tag = 0, @value = v } -> Result.Ok(
+        Socket { @fd = v, @deadline = NO_DEADLINE }
+      )
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Sets the point in time after which socket operations must time out, known as
+  # a "deadline".
+  #
+  # The return value is a guard which clears the deadline when dropped.
+  #
+  # # Panics
+  #
+  # This method panics if a deadline is already set, as nested deadlines aren't
+  # supported.
+  #
+  # # Examples
+  #
+  # Using a `Duration` results in this method calculating the absolute time
+  # after which operations time out:
+  #
+  #     import std::net::socket::(Socket, Type)
+  #     import std::time::Duration
+  #
+  #     let socket = Socket.ipv4(Type.DGRAM)
+  #
+  #     socket.timeout_after = Duration.from_secs(5)
+  #
+  # We can also use an `Instant`:
+  #
+  #     import std::net::socket::(Socket, Type)
+  #     import std::time::(Duration, Instant)
+  #
+  #     let socket = Socket.ipv4(Type.DGRAM)
+  #     let _guard = socket.timeout_after = Instant.new + Duration.from_secs(5)
+  fn pub mut timeout_after=(deadline: ToInstant) -> SocketDeadlineGuard {
+    if @deadline != NO_DEADLINE { panic('A deadline is already set') }
+
+    @deadline = deadline.to_instant.to_int
+    SocketDeadlineGuard { @socket = self }
+  }
+
+  # Binds this socket to the specified address.
+  #
+  # # Examples
+  #
+  # Binding a socket:
+  #
+  #     import std::net::socket::(Socket, Type)
+  #     import std::net::ip::IpAddress
+  #
+  #     let socket = Socket.ipv4(Type.DGRAM).unwrap
+  #
+  #     socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).unwrap
+  fn pub mut bind(ip: ref ToString, port: Int) -> Result[Nil, Error] {
+    match _INKO.socket_bind(@fd, ip.to_string, port) {
+      case { @tag = 0, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Connects this socket to the specified address.
+  #
+  # # Examples
+  #
+  # Connecting a socket:
+  #
+  #     import std::net::socket::(Socket, Type)
+  #     import std::net::ip::IpAddress
+  #
+  #     let listener = Socket.ipv4(Type.STREAM).unwrap
+  #     let client = Socket.ipv4(Type.STREAM).unwrap
+  #
+  #     socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).unwrap
+  #     socket.listen.unwrap
+  #     client.connect(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).unwrap
+  fn pub mut connect(ip: ref ToString, port: Int) -> Result[Nil, Error] {
+    match _INKO.socket_connect(@fd, ip.to_string, port, @deadline) {
+      case { @tag = 0, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Marks this socket as being ready to accept incoming connections using
+  # `accept()`.
+  #
+  # # Examples
+  #
+  # Marking a socket as a listener:
+  #
+  #     import std::net::socket::(Socket, Type)
+  #     import std::net::ip::IpAddress
+  #
+  #     let socket = Socket.ipv4(Type.STREAM).unwrap
+  #
+  #     socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).unwrap
+  #     socket.listen.unwrap
+  fn pub mut listen -> Result[Nil, Error] {
+    match _INKO.socket_listen(@fd, MAXIMUM_LISTEN_BACKLOG) {
+      case { @tag = 0, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Accepts a new incoming connection from this socket.
+  #
+  # This method will not return until a connection is available.
+  #
+  # # Examples
+  #
+  # Accepting a connection and reading data from the connection:
+  #
+  #     import std::net::socket::(Socket, Type)
+  #     import std::net::ip::IpAddress
+  #
+  #     let listener = Socket.ipv4(Type.STREAM).unwrap
+  #     let stream = Socket.ipv4(Type.STREAM).unwrap
+  #
+  #     listener.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).unwrap
+  #     listener.listen.unwrap
+  #
+  #     stream.connect(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).unwrap
+  #     stream.write_string('ping').unwrap
+  #
+  #     let client = listener.accept.unwrap
+  #     let buffer = ByteArray.new
+  #
+  #     client.read(into: buffer, size: 4).unwrap
+  #
+  #     buffer.to_string # => 'ping'
+  fn pub accept -> Result[Socket, Error] {
+    match _INKO.socket_accept(@fd, @deadline) {
+      case { @tag = 0, @value = fd } -> Result.Ok(
+        Socket { @fd = fd, @deadline = NO_DEADLINE }
+      )
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Sends a `String` to the given address.
+  #
+  # The return value is the number of bytes sent.
+  #
+  # # Examples
+  #
+  #     import std::net::socket::(Socket, Type)
+  #     import std::net::ip::IpAddress
+  #
+  #     let socket = Socket.ipv4(Type.DGRAM).unwrap
+  #
+  #     socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).unwrap
+  #     socket
+  #       .send_string_to(
+  #         string: 'hello',
+  #         ip: IpAddress.v4(0, 0, 0, 0),
+  #         port: 9999
+  #       )
+  #       .unwrap
+  fn pub mut send_string_to(
+    string: String,
+    ip: ref ToString,
+    port: Int
+  ) -> Result[Int, Error] {
+    match _INKO.socket_send_string_to(@fd, string, ip.to_string, port, @deadline) {
+      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Sends a `ByteArray` to the given address.
+  #
+  # The return value is the number of bytes sent.
+  #
+  # # Examples
+  #
+  #     import std::net::socket::(Socket, Type)
+  #     import std::net::ip::IpAddress
+  #
+  #     let socket = Socket.ipv4(Type.DGRAM).unwrap
+  #     let bytes = 'hello'.to_byte_array
+  #
+  #     socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).unwrap
+  #     socket
+  #       .send_bytes_to(
+  #         bytes: bytes,
+  #         ip: IpAddress.v4(0, 0, 0, 0),
+  #         port: 9999
+  #       )
+  #       .unwrap
+  fn pub mut send_bytes_to(
+    bytes: ByteArray,
+    ip: ref ToString,
+    port: Int
+  ) -> Result[Int, Error] {
+    match _INKO.socket_send_bytes_to(@fd, bytes, ip.to_string, port, @deadline) {
+      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Receives a single datagram message on the socket, returning the address the
+  # message was sent from.
+  #
+  # The message is read into the given `ByteArray`, and up to `size` bytes will
+  # be read.
+  #
+  # # Examples
+  #
+  # Sending a message to ourselves and receiving it:
+  #
+  #     import std::net::socket::(Socket, Type)
+  #     import std::net::ip::IpAddress
+  #
+  #     let socket = Socket.ipv4(Type.DGRAM).unwrap
+  #     let bytes = ByteArray.new
+  #
+  #     socket
+  #       .send_string_to(
+  #         'hello',
+  #         ip: IpAddress.v4(0, 0, 0, 0),
+  #         port: 9999
+  #       )
+  #       .unwrap
+  #
+  #     let received_from = socket.receive_from(bytes: bytes, size: 5).unwrap
+  #
+  #     bytes.to_string       # => 'hello'
+  #     received_from.address # => '0.0.0.0'
+  #     received_from.port    # => 9999
+  fn pub mut receive_from(
+    bytes: ref ByteArray,
+    size: Int
+  ) -> Result[SocketAddress, Error] {
+    let raw_addr = match _INKO.socket_receive_from(@fd, bytes, size, @deadline) {
+      case { @tag = 0, @value = v } -> v
+      case { @tag = _, @value = e } -> throw Error.from_int(e as Int)
+    }
+
+    let addr = _INKO.socket_address_pair_address(raw_addr)
+    let port = _INKO.socket_address_pair_port(raw_addr)
+
+    _INKO.socket_address_pair_drop(raw_addr)
+    Result.Ok(SocketAddress.new(addr, port))
+  }
+
+  # Returns the local address of this socket.
+  fn pub local_address -> Result[SocketAddress, Error] {
+    let raw_addr = match _INKO.socket_local_address(@fd) {
+      case { @tag = 0, @value = v } -> v
+      case { @tag = _, @value = e } -> throw Error.from_int(e as Int)
+    }
+
+    let addr = _INKO.socket_address_pair_address(raw_addr)
+    let port = _INKO.socket_address_pair_port(raw_addr)
+
+    _INKO.socket_address_pair_drop(raw_addr)
+    Result.Ok(SocketAddress.new(addr, port))
+  }
+
+  # Returns the peer address of this socket.
+  fn pub peer_address -> Result[SocketAddress, Error] {
+    let raw_addr = match _INKO.socket_peer_address(@fd) {
+      case { @tag = 0, @value = v } -> v
+      case { @tag = _, @value = e } -> throw Error.from_int(e as Int)
+    }
+
+    let addr = _INKO.socket_address_pair_address(raw_addr)
+    let port = _INKO.socket_address_pair_port(raw_addr)
+
+    _INKO.socket_address_pair_drop(raw_addr)
+    Result.Ok(SocketAddress.new(addr, port))
+  }
+
+  # Sets the value of the `IP_TTL` option.
+  fn pub mut ttl=(value: Int) -> Result[Nil, Error] {
+    match _INKO.socket_set_ttl(@fd, value) {
+      case { @tag = 0, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Sets the value of the `IPV6_V6ONLY` option.
+  fn pub mut only_ipv6=(value: Bool) -> Result[Nil, Error] {
+    match _INKO.socket_set_only_v6(@fd, value) {
+      case { @tag = 0, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Sets the value of the `TCP_NODELAY` option.
+  fn pub mut no_delay=(value: Bool) -> Result[Nil, Error] {
+    match _INKO.socket_set_nodelay(@fd, value) {
+      case { @tag = 0, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Sets the value of the `SO_BROADCAST` option.
+  fn pub mut broadcast=(value: Bool) -> Result[Nil, Error] {
+    match _INKO.socket_set_broadcast(@fd, value) {
+      case { @tag = 0, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Sets the value of the `SO_LINGER` option.
+  fn pub mut linger=(value: ref Duration) -> Result[Nil, Error] {
+    match _INKO.socket_set_linger(@fd, value.to_nanos) {
+      case { @tag = 0, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Sets the value of the `SO_RCVBUF` option.
+  fn pub mut receive_buffer_size=(value: Int) -> Result[Nil, Error] {
+    match _INKO.socket_set_recv_size(@fd, value) {
+      case { @tag = 0, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Sets the value of the `SO_SNDBUF` option.
+  fn pub mut send_buffer_size=(value: Int) -> Result[Nil, Error] {
+    match _INKO.socket_set_send_size(@fd, value) {
+      case { @tag = 0, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Sets the value of the `SO_KEEPALIVE` option.
+  fn pub mut keepalive=(value: Bool) -> Result[Nil, Error] {
+    match _INKO.socket_set_keepalive(@fd, value) {
+      case { @tag = 0, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Sets the value of the `SO_REUSEADDR` option.
+  fn pub mut reuse_address=(value: Bool) -> Result[Nil, Error] {
+    match _INKO.socket_set_reuse_address(@fd, value) {
+      case { @tag = 0, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Sets the value of the `SO_REUSEPORT` option.
+  #
+  # Not all platforms may support this option, in which case the supplied
+  # argument will be ignored.
+  fn pub mut reuse_port=(value: Bool) -> Result[Nil, Error] {
+    match _INKO.socket_set_reuse_port(@fd, value) {
+      case { @tag = 0, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Shuts down the reading half of this socket.
+  fn pub mut shutdown_read -> Result[Nil, Error] {
+    match _INKO.socket_shutdown_read(@fd) {
+      case { @tag = 0, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Shuts down the writing half of this socket.
+  fn pub mut shutdown_write -> Result[Nil, Error] {
+    match _INKO.socket_shutdown_write(@fd) {
+      case { @tag = 0, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Shuts down both the reading and writing half of this socket.
+  fn pub mut shutdown -> Result[Nil, Error] {
+    match _INKO.socket_shutdown_read_write(@fd) {
+      case { @tag = 0, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Attempts to clone the socket.
+  #
+  # Cloning a socket may fail, such as when the program has too many open file
+  # descriptors.
+  fn pub try_clone -> Result[Socket, Error] {
+    match _INKO.socket_try_clone(@fd) {
+      case { @tag = 0, @value = fd } -> Result.Ok(
+        Socket { @fd = fd, @deadline = NO_DEADLINE }
+      )
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+}
+
+impl Drop for Socket {
+  fn mut drop {
+    _INKO.socket_drop(@fd)
+  }
+}
+
+impl Read for Socket {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
+    match _INKO.socket_read(@fd, into, size, @deadline) {
+      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+}
+
+impl Write for Socket {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
+    match _INKO.socket_write_bytes(@fd, bytes, @deadline) {
+      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  fn pub mut write_string(string: String) -> Result[Int, Error] {
+    match _INKO.socket_write_string(@fd, string, @deadline) {
+      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  fn pub mut flush -> Result[Nil, Never] {
+    Result.Ok(nil)
+  }
+}
+
+# A UDP socket.
+#
+# A `UdpSocket` can be used to easily create a bound UDP socket from an IP
+# address and a port.
+class pub UdpSocket {
+  # The raw `Socket` wrapped by this `UdpSocket`.
+  let pub @socket: Socket
+
+  # Creates a new `UdpSocket`, bound to the given address.
+  #
+  # # Examples
+  #
+  # Creating a new bound UDP socket:
+  #
+  #     import std::net::socket::UdpSocket
+  #     import std::net::ip::IpAddress
+  #
+  #     let ip = IpAddress.parse('0.0.0.0').unwrap
+  #
+  #     UdpSocket.new(ip, port: 0).unwrap
+  fn pub static new(ip: IpAddress, port: Int) -> Result[UdpSocket, Error] {
+    let socket = if ip.v6? {
+      try Socket.ipv6(Type.DGRAM)
+    } else {
+      try Socket.ipv4(Type.DGRAM)
+    }
+
+    try socket.bind(ip, port)
+    Result.Ok(UdpSocket { @socket = socket })
+  }
+
+  # Connects `self` to the remote address.
+  #
+  # Connecting a `UdpSocket` allows sending and receiving data using the
+  # methods from `std::io::Read` and `std::io::Write`, instead of having to use
+  # `UdpSocket.receive_from` and `UdpSocket.send_to`.
+  #
+  # # Examples
+  #
+  # Connecting a UDP socket:
+  #
+  #     import std::net::socket::UdpSocket
+  #     import std::net::ip::IpAddress
+  #
+  #     let socket1 =
+  #       UdpSocket.new(ip: IpAddress.v4(0, 0, 0, 0), port: 40_000).unwrap
+  #     let socket2 =
+  #       UdpSocket.new(ip: IpAddress.v4(0, 0, 0, 0), port: 41_000).unwrap
+  #
+  #     socket1.connect(ip: IpAddress.v4(0, 0, 0, 0), port: 41_000).unwrap
+  fn pub mut connect(ip: ref ToString, port: Int) -> Result[Nil, Error] {
+    @socket.connect(ip, port)
+  }
+
+  # Sends a `String` to the given address.
+  #
+  # See the documentation of `Socket.send_string_to` for more information.
+  #
+  # # Examples
+  #
+  #     import std::net::socket::UdpSocket
+  #     import std::net::ip::IpAddress
+  #
+  #     let socket =
+  #       UdpSocket.new(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).unwrap
+  #
+  #     socket
+  #       .send_string_to(
+  #         string: 'hello',
+  #         ip: IpAddress.v4(0, 0, 0, 0),
+  #         port: 9999
+  #       )
+  #       .unwrap
+  fn pub mut send_string_to(
+    string: String,
+    ip: ref ToString,
+    port: Int
+  ) -> Result[Int, Error] {
+    @socket.send_string_to(string, ip, port)
+  }
+
+  # Sends a `ByteArray` to the given address.
+  #
+  # See the documentation of `Socket.send_bytes_to` for more information.
+  #
+  # # Examples
+  #
+  #     import std::net::socket::UdpSocket
+  #     import std::net::ip::IpAddress
+  #
+  #     let socket =
+  #       UdpSocket.new(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).unwrap
+  #     let bytes = 'hello'.to_byte_array
+  #
+  #     socket
+  #       .send_bytes_to(
+  #         bytes: bytes,
+  #         ip: IpAddress.v4(0, 0, 0, 0),
+  #         port: 9999
+  #       )
+  #       .unwrap
+  fn pub mut send_bytes_to(
+    bytes: ByteArray,
+    ip: ref ToString,
+    port: Int
+  ) -> Result[Int, Error] {
+    @socket.send_bytes_to(bytes, ip, port)
+  }
+
+  # Receives a single datagram message on the socket, returning the address the
+  # message was sent from.
+  #
+  # See the documentation of `Socket.receive_from` for more information.
+  fn pub mut receive_from(
+    bytes: ref ByteArray,
+    size: Int
+  ) -> Result[SocketAddress, Error] {
+    @socket.receive_from(bytes, size)
+  }
+
+  # Returns the local address of this socket.
+  #
+  # See the documentation of `Socket.local_address` for more information.
+  fn pub local_address -> Result[SocketAddress, Error] {
+    @socket.local_address
+  }
+
+  # Attempts to clone the socket.
+  #
+  # Cloning a socket may fail, such as when the program has too many open file
+  # descriptors.
+  fn pub try_clone -> Result[UdpSocket, Error] {
+    @socket.try_clone.map fn (sock) { UdpSocket { @socket = sock } }
+  }
+}
+
+impl Read for UdpSocket {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
+    @socket.read(into, size)
+  }
+}
+
+impl Write for UdpSocket {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
+    @socket.write_bytes(bytes)
+  }
+
+  fn pub mut write_string(string: String) -> Result[Int, Error] {
+    @socket.write_string(string)
+  }
+
+  fn pub mut flush -> Result[Nil, Never] {
+    Result.Ok(nil)
+  }
+}
+
+# A TCP socket connected to another TCP socket.
+class pub TcpClient {
+  # The raw `Socket` wrapped by this `TcpClient`.
+  let pub @socket: Socket
+
+  # Creates a new `TcpClient` that is connected to the TCP socket at the given
+  # IP address and port.
+  #
+  # This method doesn't enforce a deadline on establishing the connection. If
+  # you need to limit the amount of time spent waiting to establish the
+  # connection, use `TcpClient.with_timeout` instead.
+  #
+  # # Examples
+  #
+  # Connecting a `TcpClient`:
+  #
+  #     import std::net::socket::TcpClient
+  #     import std::net::ip::IpAddress
+  #
+  #     let ip = IpAddress.parse('127.0.0.1').unwrap
+  #
+  #     TcpClient.new(ip, port: 40_000).unwrap
+  fn pub static new(ip: IpAddress, port: Int) -> Result[TcpClient, Error] {
+    let socket = if ip.v6? {
+      try Socket.ipv6(Type.STREAM)
+    } else {
+      try Socket.ipv4(Type.STREAM)
+    }
+
+    try socket.connect(ip, port)
+    Result.Ok(TcpClient { @socket = socket })
+  }
+
+  # Creates a new `TcpClient` but limits the amount of time spent waiting for
+  # the connection to be established.
+  #
+  # The `timeout_after` argument specifies the deadline after which the
+  # `connect()` times out. The deadline is cleared once connected.
+  #
+  # See `TcpClient.new` for more information.
+  #
+  # # Examples
+  #
+  #     import std::net::socket::TcpClient
+  #     import std::net::ip::IpAddress
+  #     import std::time::Duration
+  #
+  #     TcpClient
+  #       .with_timeout(
+  #         ip: IpAddress.v4(0, 0, 0, 0),
+  #         port: 40_000,
+  #         timeout_after: Duration.from_secs(5)
+  #       )
+  #       .unwrap
+  fn pub static with_timeout(
+    ip: IpAddress,
+    port: Int,
+    timeout_after: ToInstant
+  ) -> Result[TcpClient, Error] {
+    let socket = if ip.v6? {
+      try Socket.ipv6(Type.STREAM)
+    } else {
+      try Socket.ipv4(Type.STREAM)
+    }
+
+    let _ = socket.timeout_after = timeout_after
+
+    try socket.connect(ip, port)
+    Result.Ok(TcpClient { @socket = socket })
+  }
+
+  # Returns the local address of this socket.
+  #
+  # See the documentation of `Socket.local_address` for more information.
+  fn pub local_address -> Result[SocketAddress, Error] {
+    @socket.local_address
+  }
+
+  # Returns the peer address of this socket.
+  #
+  # See the documentation of `Socket.peer_address` for more information.
+  fn pub peer_address -> Result[SocketAddress, Error] {
+    @socket.peer_address
+  }
+
+  # Shuts down the reading half of this socket.
+  fn pub mut shutdown_read -> Result[Nil, Error] {
+    @socket.shutdown_read
+  }
+
+  # Shuts down the writing half of this socket.
+  fn pub mut shutdown_write -> Result[Nil, Error] {
+    @socket.shutdown_write
+  }
+
+  # Shuts down both the reading and writing half of this socket.
+  fn pub mut shutdown -> Result[Nil, Error] {
+    @socket.shutdown
+  }
+
+  # Attempts to clone the socket.
+  #
+  # Cloning a socket may fail, such as when the program has too many open file
+  # descriptors.
+  fn pub try_clone -> Result[TcpClient, Error] {
+    @socket.try_clone.map fn (sock) { TcpClient { @socket = sock } }
+  }
+}
+
+impl Read for TcpClient {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
+    @socket.read(into, size)
+  }
+}
+
+impl Write for TcpClient {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
+    @socket.write_bytes(bytes)
+  }
+
+  fn pub mut write_string(string: String) -> Result[Int, Error] {
+    @socket.write_string(string)
+  }
+
+  fn pub mut flush -> Result[Nil, Never] {
+    Result.Ok(nil)
+  }
+}
+
+# A TCP socket server that can accept incoming connections.
+class pub TcpServer {
+  # The raw `Socket` wrapped by this `TcpServer`.
+  let pub @socket: Socket
+
+  # Creates a new `TcpServer` bound to and listening on the given IP address
+  # and port.
+  #
+  # A `TcpServer` uses `SO_REUSEADDR` and `SO_REUSEPORT` to allow for fast
+  # rebinding of sockets. `SO_REUSEPORT` is only used on platforms that support
+  # it.
+  #
+  # The `only_ipv6` argument is ignored when binding to an IPv4 address.
+  #
+  # # Examples
+  #
+  # Creating a `TcpServer`:
+  #
+  #     import std::net::socket::TcpServer
+  #     import std::net::ip::IpAddress
+  #
+  #     let ip = IpAddress.parse('0.0.0.0').unwrap
+  #
+  #     TcpServer.new(ip, port: 40_000).unwrap
+  fn pub static new(ip: IpAddress, port: Int) -> Result[TcpServer, Error] {
+    let socket = if ip.v6? {
+      try Socket.ipv6(Type.STREAM)
+    } else {
+      try Socket.ipv4(Type.STREAM)
+    }
+
+    try socket.reuse_address = true
+    try socket.reuse_port = true
+    try socket.bind(ip, port)
+    try socket.listen
+    Result.Ok(TcpServer { @socket = socket })
+  }
+
+  # Accepts a new incoming connection from `self`.
+  #
+  # This method does not return until a connection is available.
+  #
+  # # Examples
+  #
+  # Accepting a new connection:
+  #
+  #     import std::net::socket::(TcpServer, TcpClient)
+  #     import std::net::ip::IpAddress
+  #
+  #     let listener =
+  #       TcpServer.new(ip: IpAddress.v4(127, 0, 0, 1), port: 40_000).unwrap
+  #     let client =
+  #       TcpClient.new(ip: IpAddress.v4(127, 0, 0, 1), port: 40_000).unwrap
+  #
+  #     client.write_string('ping')
+  #
+  #     let connection = listener.accept.unwrap
+  #     let buffer = ByteArray.new
+  #
+  #     connection.read(into: buffer, size: 4).unwrap
+  #
+  #     buffer.to_string # => 'ping'
+  fn pub accept -> Result[TcpClient, Error] {
+    @socket.accept.map fn (sock) { TcpClient { @socket = sock } }
+  }
+
+  # Returns the local address of this socket.
+  #
+  # See the documentation of `Socket.local_address` for more information.
+  fn pub local_address -> Result[SocketAddress, Error] {
+    @socket.local_address
+  }
+
+  # Attempts to clone the socket.
+  #
+  # Cloning a socket may fail, such as when the program has too many open file
+  # descriptors.
+  fn pub try_clone -> Result[TcpServer, Error] {
+    @socket.try_clone.map fn (sock) { TcpServer { @socket = sock } }
+  }
+}
+
+# A Unix domain socket address.
+class pub UnixAddress {
+  # The path or name of the address.
+  #
+  # This is a `String` since using a `Path` does not make sense for abstract
+  # and unnamed addresses.
+  let pub @address: String
+
+  # Creates a new `UnixAddress` from the given path or name.
+  #
+  # # Examples
+  #
+  # Creating a `UnixAddress` that uses a path:
+  #
+  #     import std::net::socket::UnixAddress
+  #
+  #     UnixAddress.new('/tmp/test.sock')
+  #
+  # Creating a `UnixAddress` that uses an unnamed address:
+  #
+  #     import std::net::socket::UnixAddress
+  #
+  #     UnixAddress.new('')
+  #
+  # Creating a `UnixAddress` that uses an abstract address:
+  #
+  #     import std::net::socket::UnixAddress
+  #
+  #     UnixAddress.new("\0example")
+  fn pub static new(address: ref ToString) -> UnixAddress {
+    UnixAddress { @address = address.to_string }
+  }
+
+  # Returns the path of this address.
+  #
+  # If the address is unnamed or an abstract address, None is returned.
+  fn pub to_path -> Option[Path] {
+    if unnamed? or abstract? {
+      Option.None
+    } else {
+      Option.Some(@address.to_path)
+    }
+  }
+
+  # Returns `true` if `self` is an abstract address.
+  #
+  # # Examples
+  #
+  # Checking if an address is abstract:
+  #
+  #     import std::net::socket::UnixAddress
+  #
+  #     UnixAddress.new('/tmp/test.sock').abstract?    # => false
+  #     UnixAddress.new("\0example-address").abstract? # => true
+  fn pub abstract? -> Bool {
+    @address.starts_with?("\0")
+  }
+
+  # Returns `true` if `self` is an unnamed address.
+  #
+  # # Examples
+  #
+  # Checking if an address is unnamed:
+  #
+  #     import std::net::socket::UnixAddress
+  #
+  #     UnixAddress.new('/tmp/test.sock').unnamed? # => false
+  #     UnixAddress.new('').unnamed?               # => true
+  fn pub unnamed? -> Bool {
+    @address.empty?
+  }
+}
+
+impl Format for UnixAddress {
+  fn pub fmt(formatter: mut Formatter) {
+    let write = if abstract? {
+      "@{@address.slice_bytes(start: 1, length: @address.size - 1)}"
+    } else if unnamed? {
+      'unnamed'
+    } else {
+      @address
+    }
+
+    formatter.write(write)
+  }
+}
+
+impl Equal[UnixAddress] for UnixAddress {
+  # Returns `true` if `self` and `other` are the same socket addresses.
+  #
+  # # Examples
+  #
+  # Comparing two `UnixAddress` objects:
+  #
+  #     import std::net::socket::UnixAddress
+  #
+  #     UnixAddress.new('a.sock') == UnixAddress.new('a.sock') # => true
+  #     UnixAddress.new('a.sock') == UnixAddress.new('b.sock') # => false
+  fn pub ==(other: ref UnixAddress) -> Bool {
+    @address == other.address
+  }
+}
+
+impl ToString for UnixAddress {
+  # Returns the address name or path as a `String`.
+  #
+  # # Examples
+  #
+  # Converting a `UnixAddress` to a `String`:
+  #
+  #     import std::net::socket::UnixAddress
+  #
+  #     UnixAddress.new('/tmp/test.sock').to_string # => '/tmp/test.sock'
+  #     UnixAddress.new("\0example").to_string      # => "\0example"
+  fn pub to_string -> String {
+    @address
+  }
+}
+
+# A guard that clears the deadline of a `UnixSocket` when dropped.
+class pub UnixSocketDeadlineGuard {
+  let @socket: mut UnixSocket
+}
+
+impl Drop for UnixSocketDeadlineGuard {
+  fn mut drop {
+    @socket.deadline = NO_DEADLINE
+  }
+}
+
+# A low-level, non-blocking Unix domain socket.
+class pub UnixSocket {
+  let @fd: Any
+
+  # A point in time after which socket operations time out.
+  #
+  # We use an `Int` to remove the need for using `Option[Instant]`.
+  let @deadline: Int
+
+  # Creates a new Unix domain socket.
+  #
+  # # Examples
+  #
+  # Creating a new socket:
+  #
+  #     import std::net::socket::(Type, UnixSocket)
+  #
+  #     UnixSocket.new(Type.DGRAM).unwrap
+  fn pub static new(type: Type) -> Result[UnixSocket, Error] {
+    match _INKO.socket_new(UNIX, type.into_int) {
+      case { @tag = 0, @value = fd } -> Result.Ok(
+        UnixSocket { @fd = fd, @deadline = NO_DEADLINE }
+      )
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Sets the point in time after which socket operations must time out, known as
+  # a "deadline".
+  #
+  # The return value is a guard which clears the deadline when dropped.
+  #
+  # # Panics
+  #
+  # This method panics if a deadline is already set, as nested deadlines aren't
+  # supported.
+  #
+  # # Examples
+  #
+  # Using a `Duration` results in this method calculating the absolute time
+  # after which operations time out:
+  #
+  #     import std::net::socket::(UnixSocket, Type)
+  #     import std::time::Duration
+  #
+  #     let socket = UnixSocket.new(Type.DGRAM)
+  #
+  #     socket.timeout_after = Duration.from_secs(5)
+  #
+  # We can also use an `Instant`:
+  #
+  #     import std::net::socket::(UnixSocket, Type)
+  #     import std::time::(Duration, Instant)
+  #
+  #     let socket = UnixSocket.new(Type.DGRAM)
+  #     let _guard = socket.timeout_after = Instant.new + Duration.from_secs(5)
+  fn pub mut timeout_after=(deadline: ToInstant) -> UnixSocketDeadlineGuard {
+    if @deadline != NO_DEADLINE { panic('A deadline is already set') }
+
+    @deadline = deadline.to_instant.to_int
+    UnixSocketDeadlineGuard { @socket = self }
+  }
+
+  # Binds this socket to the specified path or abstract address.
+  #
+  # # Examples
+  #
+  # Binding a Unix socket to a path:
+  #
+  #     import std::net::socket::(Type, UnixSocket)
+  #
+  #     let socket = UnixSocket.new(Type.DGRAM).unwrap
+  #
+  #     socket.bind('/tmp/test.sock').unwrap
+  fn pub mut bind(path: ref ToString) -> Result[Nil, Error] {
+    match _INKO.socket_bind(@fd, path.to_string, 0, @deadline) {
+      case { @tag = 0, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Connects this socket to the specified address.
+  #
+  # # Examples
+  #
+  # Connecting a Unix socket:
+  #
+  #     import std::net::socket::(Type, UnixSocket)
+  #
+  #     let listener = UnixSocket.new(Type.STREAM).unwrap
+  #     let stream = UnixSocket.new(Type.STREAM).unwrap
+  #
+  #     listener.bind('/tmp/test.sock').unwrap
+  #     listener.listen.unwrap
+  #
+  #     stream.connect('/tmp/test.sock').unwrap
+  fn pub mut connect(path: ref ToString) -> Result[Nil, Error] {
+    match _INKO.socket_connect(@fd, path.to_string, 0, @deadline) {
+      case { @tag = 0, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Marks this socket as being ready to accept incoming connections using
+  # `accept()`.
+  #
+  # # Examples
+  #
+  # Marking a socket as a listener:
+  #
+  #     import std::net::socket::(Type, UnixSocket)
+  #
+  #     let socket = UnixSocket.new(Type.STREAM).unwrap
+  #
+  #     socket.bind('/tmp/test.sock').unwrap
+  #     socket.listen.unwrap
+  fn pub mut listen -> Result[Nil, Error] {
+    match _INKO.socket_listen(@fd, MAXIMUM_LISTEN_BACKLOG) {
+      case { @tag = 0, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Accepts a new incoming connection from this socket.
+  #
+  # This method will not return until a connection is available.
+  #
+  # # Examples
+  #
+  # Accepting a connection and reading data from the connection:
+  #
+  #     import std::net::socket::(Type, UnixSocket)
+  #
+  #     let listener = UnixSocket.new(Type.STREAM).unwrap
+  #     let stream = UnixSocket.new(Type.STREAM).unwrap
+  #
+  #     listener.bind('/tmp/test.sock').unwrap
+  #     listener.listen.unwrap
+  #
+  #     stream.connect('/tmp/test.sock').unwrap
+  #     stream.write_string('ping').unwrap
+  #
+  #     let client = listener.accept.unwrap
+  #     let buffer = ByteArray.new
+  #
+  #     client.read(into: buffer, size: 4).unwrap
+  #
+  #     buffer.to_string # => 'ping'
+  fn pub accept -> Result[UnixSocket, Error] {
+    match _INKO.socket_accept(@fd, @deadline) {
+      case { @tag = 0, @value = fd } -> Result.Ok(
+        UnixSocket { @fd = fd, @deadline = NO_DEADLINE }
+      )
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Sends a `String` to the given address.
+  #
+  # The return value is the number of bytes sent.
+  #
+  # # Examples
+  #
+  #     import std::net::socket::(Type, UnixSocket)
+  #
+  #     let socket = UnixSocket.new(Type.DGRAM).unwrap
+  #
+  #     socket.bind('/tmp/test.sock').unwrap
+  #     socket.send_string_to(string: 'hello', address: '/tmp/test.sock').unwrap
+  fn pub mut send_string_to(
+    string: String,
+    address: ref ToString
+  ) -> Result[Int, Error] {
+    let addr = address.to_string
+
+    match _INKO.socket_send_string_to(@fd, string, addr, 0, @deadline) {
+      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Sends a `ByteArray` to the given address.
+  #
+  # The return value is the number of bytes sent.
+  #
+  # # Examples
+  #
+  #     import std::net::socket::(Type, UnixSocket)
+  #
+  #     let socket = UnixSocket.new(Type.DGRAM).unwrap
+  #     let bytes = 'hello'.to_byte_array
+  #
+  #     socket.bind('/tmp/test.sock').unwrap
+  #     socket.send_bytes_to(bytes: bytes, address: '/tmp/test.sock').unwrap
+  fn pub mut send_bytes_to(
+    bytes: ByteArray,
+    address: ref ToString
+  ) -> Result[Int, Error] {
+    let addr = address.to_string
+
+    match _INKO.socket_send_bytes_to(@fd, bytes, addr, 0, @deadline) {
+      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Receives a single datagram message on the socket, returning the address the
+  # message was sent from.
+  #
+  # The message is read into the given `ByteArray`, and up to `size` bytes will
+  # be read.
+  #
+  # # Examples
+  #
+  # Sending a message to ourselves and receiving it:
+  #
+  #     import std::net::socket::(Type, UnixSocket)
+  #
+  #     let socket = UnixSocket.new(Type.DGRAM).unwrap
+  #     let bytes = ByteArray.new
+  #
+  #     socket.send_string_to('hello', address: '/tmp/test.sock').unwrap
+  #
+  #     let received_from = socket.receive_from(bytes: bytes, size: 5).unwrap
+  #
+  #     bytes.to_string         # => 'hello'
+  #     received_from.to_string # => '/tmp/test.sock'
+  fn pub mut receive_from(
+    bytes: ref ByteArray,
+    size: Int
+  ) -> Result[UnixAddress, Error] {
+    let raw_addr = match _INKO.socket_receive_from(@fd, bytes, size, @deadline) {
+      case { @tag = 0, @value = v } -> v
+      case { @tag = _, @value = e } -> throw Error.from_int(e as Int)
+    }
+
+    let addr = _INKO.socket_address_pair_address(raw_addr)
+
+    _INKO.socket_address_pair_drop(raw_addr)
+    Result.Ok(UnixAddress.new(addr))
+  }
+
+  # Returns the local address of this socket.
+  fn pub local_address -> Result[UnixAddress, Error] {
+    let raw_addr = match _INKO.socket_local_address(@fd) {
+      case { @tag = 0, @value = v } -> v
+      case { @tag = _, @value = e } -> throw Error.from_int(e as Int)
+    }
+
+    let addr = _INKO.socket_address_pair_address(raw_addr)
+
+    _INKO.socket_address_pair_drop(raw_addr)
+    Result.Ok(UnixAddress.new(addr))
+  }
+
+  # Returns the peer address of this socket.
+  fn pub peer_address -> Result[UnixAddress, Error] {
+    let raw_addr = match _INKO.socket_peer_address(@fd) {
+      case { @tag = 0, @value = v } -> v
+      case { @tag = _, @value = e } -> throw Error.from_int(e as Int)
+    }
+
+    let addr = _INKO.socket_address_pair_address(raw_addr)
+
+    _INKO.socket_address_pair_drop(raw_addr)
+    Result.Ok(UnixAddress.new(addr))
+  }
+
+  # Sets the value of the `SO_RCVBUF` option.
+  fn pub mut receive_buffer_size=(value: Int) -> Result[Nil, Error] {
+    match _INKO.socket_set_recv_size(@fd, value) {
+      case { @tag = 0, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Sets the value of the `SO_SNDBUF` option.
+  fn pub mut send_buffer_size=(value: Int) -> Result[Nil, Error] {
+    match _INKO.socket_set_send_size(@fd, value) {
+      case { @tag = 0, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Shuts down the reading half of this socket.
+  fn pub mut shutdown_read -> Result[Nil, Error] {
+    match _INKO.socket_shutdown_read(@fd) {
+      case { @tag = 0, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Shuts down the writing half of this socket.
+  fn pub mut shutdown_write -> Result[Nil, Error] {
+    match _INKO.socket_shutdown_write(@fd) {
+      case { @tag = 0, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Shuts down both the reading and writing half of this socket.
+  fn pub mut shutdown -> Result[Nil, Error] {
+    match _INKO.socket_shutdown_read_write(@fd) {
+      case { @tag = 0, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Attempts to clone the socket.
+  #
+  # Cloning a socket may fail, such as when the program has too many open file
+  # descriptors.
+  fn pub try_clone -> Result[UnixSocket, Error] {
+    match _INKO.socket_try_clone(@fd) {
+      case { @tag = 0, @value = fd } -> Result.Ok(
+        UnixSocket { @fd = fd, @deadline = NO_DEADLINE }
+      )
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+}
+
+impl Drop for UnixSocket {
+  fn mut drop {
+    _INKO.socket_drop(@fd)
+  }
+}
+
+impl Read for UnixSocket {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
+    match _INKO.socket_read(@fd, into, size, @deadline) {
+      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+}
+
+impl Write for UnixSocket {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
+    match _INKO.socket_write_bytes(@fd, bytes, @deadline) {
+      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  fn pub mut write_string(string: String) -> Result[Int, Error] {
+    match _INKO.socket_write_string(@fd, string, @deadline) {
+      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  fn pub mut flush -> Result[Nil, Never] {
+    Result.Ok(nil)
+  }
+}
+
+# A Unix datagram socket.
+class pub UnixDatagram {
+  # The raw `UnixSocket` wrapped by this `UnixDatagram`.
+  let pub @socket: UnixSocket
+
+  # Creates a new Unix datagram socket bound to the given address.
+  #
+  # # Examples
+  #
+  # Creating a new Unix datagram socket:
+  #
+  #     import std::net::socket::UnixDatagram
+  #
+  #     UnixDatagram.new('/tmp/test.sock').unwrap
+  fn pub static new(address: ref ToString) -> Result[UnixDatagram, Error] {
+    let socket = try UnixSocket.new(Type.DGRAM)
+
+    try socket.bind(address)
+    Result.Ok(UnixDatagram { @socket = socket })
+  }
+
+  # Connects `self` to the remote addres.s
+  #
+  # Connecting a `UnixDatagram` allows sending and receiving data using the
+  # methods from `std::io::Read` and `std::io::Write`, instead of having to use
+  # `UnixDatagram.receive_from` and `UnixDatagram.send_to`.
+  #
+  # # Examples
+  #
+  # Connecting a Unix datagram socket:
+  #
+  #     import std::net::socket::UnixDatagram
+  #
+  #     let socket1 = UnixDatagram.new('/tmp/test1.sock').unwrap
+  #     let socket2 = UnixDatagram.new('/tmp/test2.sock').unwrap
+  #
+  #     socket1.connect('/tmp/test2.sock').unwrap
+  fn pub mut connect(address: ref ToString) -> Result[Nil, Error] {
+    @socket.connect(address)
+  }
+
+  # Sends a `String` to the given address.
+  #
+  # See the documentation of `UnixSocket.send_string_to` for more information.
+  #
+  # # Examples
+  #
+  #     import std::net::socket::UnixDatagram
+  #
+  #     let socket = UnixDatagram.new('/tmp/test.sock').unwrap
+  #
+  #     socket.send_string_to(string: 'hello', address: '/tmp/test.sock').unwrap
+  fn pub mut send_string_to(
+    string: String,
+    address: ref ToString
+  ) -> Result[Int, Error] {
+    @socket.send_string_to(string, address)
+  }
+
+  # Sends a `ByteArray` to the given address.
+  #
+  # See the documentation of `UnixSocket.send_bytes_to` for more information.
+  #
+  # # Examples
+  #
+  #     import std::net::socket::UnixDatagram
+  #
+  #     let socket = UnixDatagram.new('/tmp/test.sock').unwrap
+  #     let bytes = 'hello'.to_byte_array
+  #
+  #     socket.send_bytes_to(bytes: bytes, address: '/tmp/test.sock').unwrap
+  fn pub mut send_bytes_to(
+    bytes: ByteArray,
+    address: ref ToString
+  ) -> Result[Int, Error] {
+    @socket.send_bytes_to(bytes, address)
+  }
+
+  # Receives a single datagram message on the socket, returning the address the
+  # message was sent from.
+  #
+  # See the documentation of `UnixSocket.receive_from` for more information.
+  fn pub mut receive_from(
+    bytes: ref ByteArray,
+    size: Int
+  ) -> Result[UnixAddress, Error] {
+    @socket.receive_from(bytes, size)
+  }
+
+  # Returns the local address of this socket.
+  #
+  # See the documentation of `UnixSocket.local_address` for more information.
+  fn pub local_address -> Result[UnixAddress, Error] {
+    @socket.local_address
+  }
+
+  # Attempts to clone the socket.
+  #
+  # Cloning a socket may fail, such as when the program has too many open file
+  # descriptors.
+  fn pub try_clone -> Result[UnixDatagram, Error] {
+    @socket.try_clone.map fn (sock) { UnixDatagram { @socket = sock } }
+  }
+}
+
+impl Read for UnixDatagram {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
+    @socket.read(into, size)
+  }
+}
+
+impl Write for UnixDatagram {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
+    @socket.write_bytes(bytes)
+  }
+
+  fn pub mut write_string(string: String) -> Result[Int, Error] {
+    @socket.write_string(string)
+  }
+
+  fn pub mut flush -> Result[Nil, Never] {
+    Result.Ok(nil)
+  }
+}
+
+# A Unix stream socket connected to another Unix socket.
+class pub UnixClient {
+  # The raw `UnixSocket` wrapped by this `UnixClient`.
+  let pub @socket: UnixSocket
+
+  # Creates a new `UnixClient` that is connected to the given address.
+  #
+  # This method doesn't enforce a deadline on establishing the connection. If
+  # you need to limit the amount of time spent waiting to establish the
+  # connection, use `UnixClient.with_timeout` instead.
+  #
+  # # Examples
+  #
+  # Connecting a `UnixClient`:
+  #
+  #     import std::net::socket::(UnixServer, UnixClient)
+  #
+  #     let listener = UnixServer.new('/tmp/test.sock').unwrap
+  #
+  #     UnixClient.new('/tmp/test.sock').unwrap
+  fn pub static new(address: ref ToString) -> Result[UnixClient, Error] {
+    let socket = try UnixSocket.new(Type.STREAM)
+
+    try socket.connect(address)
+    Result.Ok(UnixClient { @socket = socket })
+  }
+
+  # Creates a new `UnixClient` but limits the amount of time spent waiting for
+  # the connection to be established.
+  #
+  # The `timeout_after` argument specifies the deadline after which the
+  # `connect()` times out. The deadline is cleared once connected.
+  #
+  # See `UnixClient.new` for more information.
+  #
+  # # Examples
+  #
+  #     import std::net::socket::UnixClient
+  #     import std::time::Duration
+  #
+  #     UnixClient
+  #       .with_timeout(
+  #         address: '/tmp/test.sock'
+  #         timeout_after: Duration.from_secs(5)
+  #       )
+  #       .unwrap
+  fn pub static with_timeout(
+    address: ref ToString,
+    timeout_after: ToInstant
+  ) -> Result[UnixClient, Error] {
+    let socket = try UnixSocket.new(Type.STREAM)
+
+    let _ = socket.timeout_after = timeout_after
+
+    try socket.connect(address)
+    Result.Ok(UnixClient { @socket = socket })
+  }
+
+  # Returns the local address of this socket.
+  #
+  # See the documentation of `UnixSocket.local_address` for more information.
+  fn pub local_address -> Result[UnixAddress, Error] {
+    @socket.local_address
+  }
+
+  # Returns the peer address of this socket.
+  #
+  # See the documentation of `UnixSocket.peer_address` for more information.
+  fn pub peer_address -> Result[UnixAddress, Error] {
+    @socket.peer_address
+  }
+
+  # Shuts down the reading half of this socket.
+  fn pub mut shutdown_read -> Result[Nil, Error] {
+    @socket.shutdown_read
+  }
+
+  # Shuts down the writing half of this socket.
+  fn pub mut shutdown_write -> Result[Nil, Error] {
+    @socket.shutdown_write
+  }
+
+  # Shuts down both the reading and writing half of this socket.
+  fn pub mut shutdown -> Result[Nil, Error] {
+    @socket.shutdown
+  }
+
+  # Attempts to clone the socket.
+  #
+  # Cloning a socket may fail, such as when the program has too many open file
+  # descriptors.
+  fn pub try_clone -> Result[UnixClient, Error] {
+    @socket.try_clone.map fn (sock) { UnixClient { @socket = sock } }
+  }
+}
+
+impl Read for UnixClient {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
+    @socket.read(into, size)
+  }
+}
+
+impl Write for UnixClient {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
+    @socket.write_bytes(bytes)
+  }
+
+  fn pub mut write_string(string: String) -> Result[Int, Error] {
+    @socket.write_string(string)
+  }
+
+  fn pub mut flush -> Result[Nil, Never] {
+    Result.Ok(nil)
+  }
+}
+
+# A Unix socket server that can accept incoming connections.
+class pub UnixServer {
+  # The raw `UnixSocket` wrapped by this `UnixServer`.
+  let pub @socket: UnixSocket
+
+  # Creates a new `UnixServer` bound to and listening on the given address.
+  #
+  # The `backlog` argument can be used to set the listen backlog.
+  #
+  # # Examples
+  #
+  # Creating a `UnixServer`:
+  #
+  #     import std::net::socket::UnixServer
+  #
+  #     UnixServer.new('/tmp/test.sock').unwrap
+  fn pub static new(address: ref ToString) -> Result[UnixServer, Error] {
+    let socket = try UnixSocket.new(Type.STREAM)
+
+    try socket.bind(address)
+    try socket.listen
+    Result.Ok(UnixServer { @socket = socket })
+  }
+
+  # Accepts a new incoming connection from `self`.
+  #
+  # This method does not return until a connection is available.
+  #
+  # # Examples
+  #
+  # Accepting a new connection:
+  #
+  #     import std::net::socket::(UnixServer, UnixClient)
+  #
+  #     let listener = UnixServer.new('/tmp/test.sock').unwrap
+  #     let client = UnixClient.new('/tmp/test.sock').unwrap
+  #
+  #     client.write_string('ping')
+  #
+  #     let connection = listener.accept.unwrap
+  #     let buffer = ByteArray.new
+  #
+  #     connection.read(into: buffer, size: 4).unwrap
+  #
+  #     buffer.to_string # => 'ping'
+  fn pub accept -> Result[UnixClient, Error] {
+    @socket.accept.map fn (sock) { UnixClient { @socket = sock } }
+  }
+
+  # Returns the local address of this socket.
+  #
+  # See the documentation of `UnixSocket.local_address` for more information.
+  fn pub local_address -> Result[UnixAddress, Error] {
+    @socket.local_address
+  }
+
+  # Attempts to clone the socket.
+  #
+  # Cloning a socket may fail, such as when the program has too many open file
+  # descriptors.
+  fn pub try_clone -> Result[UnixServer, Error] {
+    @socket.try_clone.map fn (sock) { UnixServer { @socket = sock } }
+  }
+}

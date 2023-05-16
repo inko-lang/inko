@@ -1,0 +1,760 @@
+# A UTF-8 encoded and immutable string.
+#
+# A `String` is an immutable, UTF-8 encoded string.
+#
+# Various methods for `String` may operate on or mention "characters". Whenever
+# this is the case, we are referring to extended grapheme clusters, _not_
+# Unicode scalar values or bytes.
+import std::array::(bounds_check)
+import std::byte_array::(IntoByteArray, ToByteArray)
+import std::clone::Clone
+import std::cmp::(Contains, Equal)
+import std::drop::Drop
+import std::fmt::(Format, Formatter)
+import std::fs::path::(IntoPath, Path, ToPath)
+import std::hash::(Hash, Hasher)
+import std::io::Read
+import std::iter::(Bytes as BytesTrait, EOF, Enum, Iter)
+import std::ops::Add
+
+let TAB = 0x9
+let LF = 0xA
+let CR = 0xD
+let SPACE = 0x20
+let DQUOTE = 0x22
+let BSLASH = 0x5C
+
+let LOWER_B = 0x62
+let LOWER_N = 0x6e
+let LOWER_F = 0x66
+let LOWER_R = 0x72
+let LOWER_T = 0x74
+
+# A table mapping bytes to their replacements for `String.escaped`.
+let ESCAPE_TABLE = [
+       -1,         -1,         -1,         -1,         -1,         -1,
+       -1,         -1,    LOWER_B,    LOWER_T,    LOWER_N,         -1,
+  LOWER_F,    LOWER_R,         -1,         -1,         -1,         -1,
+       -1,         -1,         -1,         -1,         -1,         -1,
+       -1,         -1,         -1,         -1,         -1,         -1,
+       -1,         -1,         -1,         -1,     DQUOTE,         -1,
+       -1,         -1,         -1,         -1,         -1,         -1,
+       -1,         -1,         -1,         -1,         -1,         -1,
+       -1,         -1,         -1,         -1,         -1,         -1,
+       -1,         -1,         -1,         -1,         -1,         -1,
+       -1,         -1,         -1,         -1,         -1,         -1,
+       -1,         -1,         -1,         -1,         -1,         -1,
+       -1,         -1,         -1,         -1,         -1,         -1,
+       -1,         -1,         -1,         -1,         -1,         -1,
+       -1,         -1,         -1,         -1,         -1,         -1,
+       -1,         -1,     BSLASH,         -1,         -1,         -1,
+]
+
+fn whitespace?(byte: Int) -> Bool {
+  byte == TAB or byte == LF or byte == CR or byte == SPACE
+}
+
+fn padding(string: String, length: Int, pad_to: Int) -> String {
+  if length >= pad_to { return '' }
+
+  let pad_size = pad_to - length
+  let pad_buf = StringBuffer.new
+
+  pad_size.times fn (_) { pad_buf.push(string) }
+
+  let mut pad = pad_buf.into_string
+
+  if pad.characters.count > pad_size {
+    # In case the `with` value contains multiple characters, we may need to
+    # truncate the padding to produce the correct final size.
+    pad.slice(start: 0, length: pad_size)
+  } else {
+    pad
+  }
+}
+
+# A type that can be moved into a `String`.
+trait pub IntoString {
+  # Moves `self` into a `String`.
+  fn pub move into_string -> String
+}
+
+# A type that can be converted to a `String`.
+trait pub ToString {
+  # Converts `self` to a `String`.
+  fn pub to_string -> String
+}
+
+# An UTF-8 encoded and immutable string type.
+class builtin String {
+  # Returns the uppercase equivalent of the current `String`.
+  #
+  # # Examples
+  #
+  # Converting a `String` containing only ASCII symbols:
+  #
+  #     'hello'.to_upper # => 'HELLO'
+  #
+  # Converting a `String` containing Unicode symbols:
+  #
+  #     'ä'.to_upper # => 'Ä'
+  #
+  # Converting a `String` containing both ASCII and Unicode symbols:
+  #
+  #     'aä'.to_upper # => 'AÄ'
+  fn pub to_upper -> String {
+    _INKO.string_to_upper(self)
+  }
+
+  # Returns the lowercase equivalent of the current `String`.
+  #
+  # # Examples
+  #
+  # Converting a `String` containing only ASCII symbols:
+  #
+  #     'HELLO'.to_lower # => 'hello'
+  #
+  # Converting a `String` containing Unicode symbols:
+  #
+  #     'Ä'.to_lower # => 'ä'
+  #
+  # Converting a `String` containing both ASCII and Unicode symbols:
+  #
+  #     'AÄ'.to_lower # => 'aä'
+  fn pub to_lower -> String {
+    _INKO.string_to_lower(self)
+  }
+
+  # Returns the size of the `String` in bytes.
+  #
+  # # Examples
+  #
+  # Getting the byte size of a `String`:
+  #
+  #     'foo'.size # => 3
+  #     '😀'.size  # => 4
+  fn pub size -> Int {
+    _INKO.string_size(self)
+  }
+
+  # Returns the byte at the given byte index.
+  #
+  # # Examples
+  #
+  # Obtaining a single byte from a `String`:
+  #
+  #     'inko'.byte(0) # => 105
+  fn pub byte(index: Int) -> Int {
+    bounds_check(index, size)
+    _INKO.string_byte(self, index)
+  }
+
+  # Slices `self` into a substring.
+  #
+  # Slicing a string allows one to extract a substring by providing a start
+  # position and the number of characters. If the index is out of bounds, an
+  # empty `String` is returned.
+  #
+  # # Examples
+  #
+  #     'hello_world'.slice(start: 0, length: 5)   # => 'hello'
+  #     'hello_world'.slice(start: 0, length: 100) # => 'hello_world'
+  fn pub slice(start: Int, length: Int) -> String {
+    let buff = StringBuffer.new
+
+    characters.each_with_index fn (index, char) {
+      if index >= start and buff.length < length { buff.push(char) }
+    }
+
+    buff.into_string
+  }
+
+  # Slices `self` into a substring using a _byte_ range.
+  #
+  # Whereas `String.slice` operates on a range of characters, this method
+  # operates on a range of _bytes_. If the range is such that the new slice
+  # contains invalid UTF-8, the invalid sequences are replaced with
+  # U+FFFD REPLACEMENT CHARACTER.
+  #
+  # # Examples
+  #
+  # Slicing a string using a valid range:
+  #
+  #     '😊'.slice_bytes(start: 0, length: 4) # => '😊'
+  #     '😊'.slice_bytes(start: 0, length: 3) # => "\u{FFFD}"
+  fn pub slice_bytes(start: Int, length: Int) -> String {
+    _INKO.string_slice_bytes(self, start, length)
+  }
+
+  # Returns the _byte_ index of the first occurrence of the given `String`,
+  # starting at the given byte index.
+  #
+  # # Examples
+  #
+  #     'hello'.byte_index(of: 'h', starting_at: 0) # => Option.Some(0)
+  #     'hello'.byte_index(of: 'l', starting_at: 0) # => Option.Some(2)
+  #     'hello'.byte_index(of: 'l', starting_at: 3) # => Option.Some(3)
+  #     'hello'.byte_index(of: 'x', starting_at: 0) # => Option.None
+  fn pub byte_index(of: String, starting_at: Int) -> Option[Int] {
+    # This is a naive string searching algorithm (see
+    # https://en.wikipedia.org/wiki/String-searching_algorithm) for more details
+    # on the various algorithms.
+    #
+    # We're using the naive algorithm because:
+    #
+    # 1. It's easy to implement
+    # 2. It doesn't require any pre-processing
+    # 3. At the time of writing there was no need for something more performant
+    let find_size = of.size
+
+    if find_size == 0 or size == 0 or find_size > size { return Option.None }
+
+    let mut a = starting_at
+    let max = size - find_size
+
+    while a <= max {
+      let mut b = 0
+
+      while b < find_size and byte(a + b) == of.byte(b) { b += 1 }
+
+      if b == find_size { return Option.Some(a) }
+
+      a += 1
+    }
+
+    Option.None
+  }
+
+  # Returns `true` if `self` starts with the given `String`.
+  #
+  # # Examples
+  #
+  # Checking if a `String` starts with another `String`:
+  #
+  #     'test_starts_with'.starts_with?('test_') # => true
+  #     'hello'.starts_with?('test_')            # => false
+  fn pub starts_with?(prefix: String) -> Bool {
+    match byte_index(of: prefix, starting_at: 0) {
+      case Some(idx) -> idx == 0
+      case _ -> false
+    }
+  }
+
+  # Returns `true` if `self` ends with the given `String`.
+  #
+  # # Examples
+  #
+  # Checking if a `String` ends with another `String`:
+  #
+  #     'hello_world'.ends_with?('world') # => true
+  #     'hello'.ends_with?('world')       # => false
+  fn pub ends_with?(suffix: String) -> Bool {
+    byte_index(of: suffix, starting_at: size - suffix.size).some?
+  }
+
+  # Returns an iterator over the bytes in `self`.
+  fn pub bytes -> Bytes {
+    Bytes { @string = self, @index = 0 }
+  }
+
+  # Splits `self` into an iterator of `Strings`, each separated by the given
+  # separator.
+  #
+  # # Examples
+  #
+  # Splitting a `String` using a single character as the separator:
+  #
+  #     let iter = 'foo/bar/baz'.split('/')
+  #
+  #     iter.next # => Option.Some('foo')
+  #     iter.next # => Option.Some('bar')
+  #
+  # Splitting a `String` using multiple characters as the separator:
+  #
+  #     let iter = 'foo::bar::baz'.split('::')
+  #
+  #     iter.next # => Option.Some('foo')
+  #     iter.next # => Option.Some('bar')
+  fn pub split(separator: String) -> Enum[String] {
+    let mut offset = 0
+
+    Enum.new fn move {
+      match byte_index(of: separator, starting_at: offset) {
+        case Some(at) -> {
+          let start = offset := at + separator.size
+
+          Option.Some(slice_bytes(start: start, length: at - start).into_string)
+        }
+        case _ if offset < size -> {
+          # No separator found, but we haven't reached the end of the String
+          # yet. In this case we return the remaining String.
+          let at = offset := size
+
+          Option.Some(slice_bytes(start: at, length: size - at).into_string)
+        }
+        case _ -> Option.None
+      }
+    }
+  }
+
+  # Returns `true` if `self` is an empty `String`.
+  #
+  # # Examples
+  #
+  #     ''.empty?    # => true
+  #     'foo'.empty? # => false
+  fn pub empty? -> Bool {
+    size == 0
+  }
+
+  # Returns a new `String` that is padded with another `String` until the given
+  # length is reached.
+  #
+  # The padding is applied at the start of the new `String`.
+  #
+  # # Examples
+  #
+  #     'hello'.pad_start(with: ' ', length: 7) # => '  hello'
+  #     'hello'.pad_start(with: ' ', length: 5) # => 'hello'
+  fn pub pad_start(with: String, length: Int) -> String {
+    padding(with, length: characters.count, pad_to: length) + self
+  }
+
+  # Returns a new `String` that is padded with another `String` until the given
+  # length is reached.
+  #
+  # The padding is applied at the end of the new `String`.
+  #
+  # # Examples
+  #
+  #     'hello'.pad_end(with: ' ', length: 7) # => 'hello  '
+  #     'hello'.pad_end(with: ' ', length: 5) # => 'hello'
+  fn pub pad_end(with: String, length: Int) -> String {
+    self + padding(with, length: characters.count, pad_to: length)
+  }
+
+  # Returns a new `String` that contains `self` multiple times.
+  #
+  # # Examples
+  #
+  #     'a'.repeat(4) # => 'aaaa'
+  fn pub repeat(times: Int) -> String {
+    let buf = StringBuffer.new
+
+    times.times fn (_) { buf.push(clone) }
+    buf.into_string
+  }
+
+  # Returns an iterator over the characters (= extended grapheme clusters) in
+  # `self`.
+  #
+  # # Examples
+  #
+  #     '😀😃'.characters.next # => Option.Some('😀 ')
+  fn pub characters -> Characters {
+    Characters { @string = self, @iter = _INKO.string_characters(self) }
+  }
+
+  # Returns a new `String` without the given prefix.
+  #
+  # # Examples
+  #
+  #     'xhellox'.strip_prefix('x') # => 'hellox'
+  fn pub strip_prefix(prefix: String) -> String {
+    if starts_with?(prefix).false? { return clone }
+
+    slice_bytes(start: prefix.size, length: size - prefix.size).into_string
+  }
+
+  # Returns a new `String` without the given suffix.
+  #
+  # # Examples
+  #
+  #     'xhellox'.strip_suffix('x') # => 'xhello'
+  fn pub strip_suffix(suffix: String) -> String {
+    if ends_with?(suffix).false? { return clone }
+
+    slice_bytes(start: 0, length: size - suffix.size).into_string
+  }
+
+  # Returns a new `String` without any leading whitespace.
+  #
+  # # Examples
+  #
+  #     ' hello'.trim_start  # => 'hello'
+  #     "\thello".trim_start # => 'hello'
+  fn pub trim_start -> String {
+    let mut index = 0
+    let max = size
+
+    while index < max {
+      if whitespace?(byte(index)) { index += 1 } else { break }
+    }
+
+    slice_bytes(start: index, length: size - index).into_string
+  }
+
+  # Returns a new `String` without any trailing whitespace.
+  #
+  # # Examples
+  #
+  #     'hello '.trim_end  # => 'hello'
+  #     "hello\t".trim_end # => 'hello'
+  fn pub trim_end -> String {
+    let mut index = size - 1
+
+    while index >= 0 {
+      if whitespace?(byte(index)) { index -= 1 } else { break }
+    }
+
+    slice_bytes(start: 0, length: index + 1).into_string
+  }
+
+  # Returns a new `String` with both leading and trailing whitespace removed.
+  #
+  # # Examples
+  #
+  #     ' hello '.trim  # => 'hello'
+  #     " hello\t".trim # => 'hello'
+  fn pub trim -> String {
+    let max = size
+    let mut start = 0
+    let mut end = max - 1
+
+    while start < max {
+      if whitespace?(byte(start)) { start += 1 } else { break }
+    }
+
+    while end >= 0 {
+      if whitespace?(byte(end)) { end -= 1 } else { break }
+    }
+
+    slice_bytes(start: start, length: end + 1 - start).into_string
+  }
+
+  # Returns a copy of `self` with all special characters escaped.
+  #
+  # The following characters are escaped:
+  #
+  # 1. Double quotes
+  # 1. Tabs
+  # 1. Newlines
+  # 1. Carriage returns
+  # 1. Backspace
+  # 1. Form feed
+  # 1. Backslash
+  #
+  # # Examples
+  #
+  #     "hello\nworld" # => 'hello\nworld'
+  #     "hello\\world" # => 'hello\\world'
+  fn pub escaped -> String {
+    let buff = ByteArray.new
+    let max = ESCAPE_TABLE.length
+
+    bytes.each fn (byte) {
+      if byte >= max {
+        buff.push(byte)
+        return
+      }
+
+      match ESCAPE_TABLE.get(byte) {
+        case -1 -> buff.push(byte)
+        case byte -> {
+          buff.push(BSLASH)
+          buff.push(byte)
+        }
+      }
+    }
+
+    buff.into_string
+  }
+}
+
+impl Contains[String] for String {
+  fn pub contains?(value: ref String) -> Bool {
+    byte_index(of: value, starting_at: 0).some?
+  }
+}
+
+impl Drop for String {
+  fn mut drop {
+    _INKO.string_drop(self)
+  }
+}
+
+impl ToByteArray for String {
+  fn pub to_byte_array -> ByteArray {
+    _INKO.string_to_byte_array(self)
+  }
+}
+
+impl IntoByteArray for String {
+  fn pub move into_byte_array -> ByteArray {
+    to_byte_array
+  }
+}
+
+impl Clone[String] for String {
+  fn pub clone -> String {
+    self
+  }
+}
+
+impl ToString for String {
+  fn pub to_string -> String {
+    clone
+  }
+}
+
+impl IntoString for String {
+  fn pub move into_string -> String {
+    self
+  }
+}
+
+impl Equal[String] for String {
+  # Returns `true` if the current `String` and `other` are equal to each other.
+  #
+  # # Examples
+  #
+  # Returns `true` if two Strings are equal:
+  #
+  #     'foo' == 'foo' # => true
+  #
+  # Returns `false` if two Strings are not equal:
+  #
+  #     'foo' == 'bar' # => false
+  fn pub ==(other: ref String) -> Bool {
+    _INKO.string_eq(self, other)
+  }
+}
+
+impl Hash for String {
+  fn pub hash(hasher: mut Hasher) {
+    let mut index = 0
+
+    while index < size {
+      hasher.write(_INKO.string_byte(self, index))
+
+      index += 1
+    }
+  }
+}
+
+impl Add[String, String] for String {
+  # Concatenates `self` and the given `String`, returning a new `String`.
+  #
+  # # Examples
+  #
+  #     'hello ' + 'world' # => 'hello world'
+  fn pub +(other: ref String) -> String {
+    _INKO.string_concat(self, other)
+  }
+}
+
+impl ToPath for String {
+  fn pub to_path -> Path {
+    Path.new(clone)
+  }
+}
+
+impl IntoPath for String {
+  fn pub move into_path -> Path {
+    Path.new(self)
+  }
+}
+
+impl Format for String {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.write('"')
+    formatter.write(escaped)
+    formatter.write('"')
+  }
+}
+
+# An iterator over the characters (= extended grapheme clusters) in a String.
+#
+# The exact number of grapheme clusters a `String` contains may change over time
+# as the Unicode specification changes. If you want to index into a `String` in
+# a stable way, it's best to calculate the character index, then translate that
+# to a more stable index such as the code point index, or the byte index.
+class pub Characters {
+  # The String we're iterating over.
+  #
+  # We need to maintain a reference to the String, otherwise the underlying
+  # native iterator would be invalidated.
+  let @string: String
+
+  # The native iterator provided by the VM.
+  let @iter: Any
+}
+
+impl Iter[String] for Characters {
+  fn pub mut next -> Option[String] {
+    match _INKO.string_characters_next(@iter) {
+      case { @tag = 0, @value = v } -> Option.Some(v as String)
+      case _ -> Option.None
+    }
+  }
+}
+
+impl Drop for Characters {
+  fn mut drop {
+    _INKO.string_characters_drop(@iter)
+  }
+}
+
+# An iterator over the bytes in a `String`.
+class pub Bytes {
+  let @string: String
+  let @index: Int
+}
+
+impl Iter[Int] for Bytes {
+  fn pub mut next -> Option[Int] {
+    match next_byte {
+      case EOF -> Option.None
+      case byte -> Option.Some(byte)
+    }
+  }
+}
+
+impl BytesTrait for Bytes {
+  fn pub mut next_byte -> Int {
+    if @index < @string.size {
+      _INKO.string_byte(@string, @index := @index + 1)
+    } else {
+      EOF
+    }
+  }
+}
+
+impl Read for Bytes {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Never] {
+    let mut read = 0
+
+    while read < size {
+      match next_byte {
+        case EOF -> break
+        case byte -> {
+          into.push(byte)
+          read += 1
+        }
+      }
+    }
+
+    Result.Ok(read)
+  }
+
+  fn pub mut read_all(bytes: mut ByteArray) -> Result[Int, Never] {
+    read(into: bytes, size: @string.size - @index)
+  }
+}
+
+# A buffer for efficiently concatenating `String` objects together.
+#
+# When concatenating multiple `String` objects together, intermediate `String`
+# objects are created. For example:
+#
+#     'foo' + 'bar' + 'baz'
+#
+# This code will allocate three `String` objects (for the `String` literals),
+# and two additional `String` objects. This is the result of the above
+# expression being evaluated as follows:
+#
+#     ('foo' + 'bar') + 'baz'
+#
+# This means that the first allocated `String` resulting from this expression
+# is `'foobar'`, which is then concatenated with `'baz'`, producing
+# `'foobarbaz'`.
+#
+# Using a `StringBuffer` we can work around this, only allocating a `String`
+# once we are done:
+#
+#     import std::string::StringBuffer
+#
+#     let buffer = StringBuffer.new
+#
+#     buffer.push('foo')
+#     buffer.push('bar')
+#     buffer.push('baz')
+#
+#     buffer.to_string # => 'foobarbaz'
+#
+# You can also create a `StringBuffer` and feed it values right away:
+#
+#     import std::string::StringBuffer
+#
+#     let buffer = StringBuffer.from_array(['foo', 'bar', 'baz'])
+#
+#     buffer.to_string # => 'foobarbaz'
+class pub StringBuffer {
+  let @strings: Array[String]
+
+  # Returns a new empty `StringBuffer`.
+  fn pub static new -> StringBuffer {
+    StringBuffer { @strings = [] }
+  }
+
+  # Returns a new `StringBuffer` from an existing `Array`.
+  #
+  # # Examples
+  #
+  # Creating a `StringBuffer` from an `Array`:
+  #
+  #     import std::string::StringBuffer
+  #
+  #     let strings = ['foo', 'bar']
+  #
+  #     StringBuffer.from_array(strings).to_string # => 'foobar'
+  fn pub static from_array(strings: Array[String]) -> StringBuffer {
+    StringBuffer { @strings = strings }
+  }
+
+  # Adds the given `String` to the buffer.
+  #
+  # # Examples
+  #
+  # Adding a `String` to a `StringBuffer`:
+  #
+  #     import std::string::StringBuffer
+  #
+  #     let buffer = StringBuffer.new
+  #
+  #     buffer.push('hello') # => 'hello'
+  fn pub mut push(string: String) {
+    @strings.push(string)
+  }
+
+  # Returns the number of values in `self`.
+  fn pub length -> Int {
+    @strings.length
+  }
+}
+
+impl ToString for StringBuffer {
+  # Generates a `String` using the current contents of the buffer.
+  #
+  # # Examples
+  #
+  # Converting a `StringBuffer` to a `String`:
+  #
+  #     import std::string::StringBuffer
+  #
+  #     let buffer = StringBuffer.new
+  #
+  #     buffer.push('hello ')
+  #     buffer.push('world')
+  #
+  #     buffer.to_string # => 'hello world'
+  fn pub to_string -> String {
+    _INKO.string_concat_array(@strings)
+  }
+}
+
+impl IntoString for StringBuffer {
+  fn pub move into_string -> String {
+    to_string
+  }
+}

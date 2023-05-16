@@ -2,15 +2,17 @@
 use crate::diagnostics::DiagnosticId;
 use crate::hir;
 use crate::state::State;
-use crate::type_check::{DefineAndCheckTypeSignature, Rules, TypeScope};
+use crate::type_check::{
+    define_type_bounds, DefineAndCheckTypeSignature, Rules, TypeScope,
+};
 use ast::source_location::SourceLocation;
-use bytecode::{BuiltinFunction as BIF, Opcode};
 use std::path::PathBuf;
+use types::check::{Environment, TypeChecker};
+use types::format::{format_type, format_type_with_arguments};
 use types::{
-    format_type, Block, BuiltinFunction, BuiltinFunctionKind, ClassId,
-    ClassInstance, CompilerMacro, Database, Method, MethodId, MethodKind,
-    MethodSource, ModuleId, Symbol, TraitId, TraitInstance, TypeBounds,
-    TypeContext, TypeId, TypeRef, Visibility, DROP_METHOD, MAIN_CLASS,
+    Block, ClassId, ClassInstance, Database, Method, MethodId, MethodKind,
+    MethodSource, ModuleId, Symbol, TraitId, TraitInstance, TypeArguments,
+    TypeBounds, TypeId, TypeRef, Visibility, DROP_METHOD, MAIN_CLASS,
     MAIN_METHOD,
 };
 
@@ -82,6 +84,10 @@ trait MethodDefiner {
                 self.db_mut(),
                 param_node.name.name.clone(),
             );
+
+            if param_node.mutable {
+                pid.set_mutable(self.db_mut());
+            }
 
             param_node.type_parameter_id = Some(pid);
         }
@@ -162,7 +168,9 @@ trait MethodDefiner {
                 let file = self.file();
                 let loc = node.location.clone();
 
-                self.state_mut().diagnostics.unsendable_type(name, file, loc);
+                self.state_mut()
+                    .diagnostics
+                    .unsendable_async_type(name, file, loc);
             }
 
             let var_type = arg_type.as_rigid_type(
@@ -177,32 +185,6 @@ trait MethodDefiner {
                 arg_type,
             );
         }
-    }
-
-    fn define_throw_type(
-        &mut self,
-        node: Option<&mut hir::Type>,
-        method: MethodId,
-        rules: Rules,
-        scope: &TypeScope,
-    ) {
-        let typ = if let Some(node) = node {
-            let typ = self.type_check(node, rules, scope);
-
-            if method.is_async(self.db()) && !typ.is_sendable(self.db()) {
-                let name = format_type(self.db(), typ);
-                let file = self.file();
-                let loc = node.location().clone();
-
-                self.state_mut().diagnostics.unsendable_type(name, file, loc);
-            }
-
-            typ
-        } else {
-            TypeRef::Never
-        };
-
-        method.set_throw_type(self.db_mut(), typ);
     }
 
     fn define_return_type(
@@ -220,7 +202,9 @@ trait MethodDefiner {
                 let file = self.file();
                 let loc = node.location().clone();
 
-                self.state_mut().diagnostics.unsendable_type(name, file, loc);
+                self.state_mut()
+                    .diagnostics
+                    .unsendable_async_type(name, file, loc);
             }
 
             typ
@@ -375,13 +359,17 @@ impl<'a> DefineMethods<'a> {
         for expr in &mut node.body {
             match expr {
                 hir::ClassExpression::AsyncMethod(ref mut node) => {
-                    self.define_async_method(class_id, node);
+                    self.define_async_method(class_id, node, TypeBounds::new());
                 }
                 hir::ClassExpression::StaticMethod(ref mut node) => {
                     self.define_static_method(class_id, node)
                 }
                 hir::ClassExpression::InstanceMethod(ref mut node) => {
-                    self.define_instance_method(class_id, node);
+                    self.define_instance_method(
+                        class_id,
+                        node,
+                        TypeBounds::new(),
+                    );
                 }
                 hir::ClassExpression::Variant(ref mut node) => {
                     self.define_variant_method(class_id, node);
@@ -461,16 +449,32 @@ impl<'a> DefineMethods<'a> {
             }
         };
 
+        if class_id.kind(self.db()).is_extern() {
+            self.state.diagnostics.error(
+                DiagnosticId::InvalidImplementation,
+                "Methods can't be defined for extern classes",
+                self.file(),
+                node.location.clone(),
+            );
+        }
+
+        let bounds = define_type_bounds(
+            self.state,
+            self.module,
+            class_id,
+            &mut node.bounds,
+        );
+
         for expr in &mut node.body {
             match expr {
                 hir::ReopenClassExpression::InstanceMethod(ref mut n) => {
-                    self.define_instance_method(class_id, n);
+                    self.define_instance_method(class_id, n, bounds.clone());
                 }
                 hir::ReopenClassExpression::StaticMethod(ref mut n) => {
                     self.define_static_method(class_id, n);
                 }
                 hir::ReopenClassExpression::AsyncMethod(ref mut n) => {
-                    self.define_async_method(class_id, n);
+                    self.define_async_method(class_id, n, bounds.clone());
                 }
             }
         }
@@ -484,11 +488,9 @@ impl<'a> DefineMethods<'a> {
         let method = node.method_id.unwrap();
 
         method.set_receiver(self.db_mut(), receiver);
-        method.set_self_type(self.db_mut(), self_type);
 
         let scope = TypeScope::new(self.module, self_type, Some(method));
         let rules = Rules {
-            allow_self_type: false,
             allow_private_types: method.is_private(self.db()),
             ..Default::default()
         };
@@ -504,7 +506,6 @@ impl<'a> DefineMethods<'a> {
             &scope,
         );
         self.define_arguments(&mut node.arguments, method, rules, &scope);
-        self.define_throw_type(node.throw_type.as_mut(), method, rules, &scope);
         self.define_return_type(
             node.return_type.as_mut(),
             method,
@@ -519,9 +520,12 @@ impl<'a> DefineMethods<'a> {
         node: &mut hir::DefineStaticMethod,
     ) {
         let receiver = TypeRef::Owned(TypeId::Class(class_id));
-        let self_type = TypeId::ClassInstance(
-            ClassInstance::for_static_self_type(self.db_mut(), class_id),
-        );
+        let bounds = TypeBounds::new();
+        let self_type = TypeId::ClassInstance(ClassInstance::rigid(
+            self.db_mut(),
+            class_id,
+            &bounds,
+        ));
         let module = self.module;
         let method = Method::alloc(
             self.db_mut(),
@@ -532,7 +536,6 @@ impl<'a> DefineMethods<'a> {
         );
 
         method.set_receiver(self.db_mut(), receiver);
-        method.set_self_type(self.db_mut(), self_type);
 
         let scope = TypeScope::new(self.module, self_type, Some(method));
         let rules = Rules {
@@ -552,7 +555,6 @@ impl<'a> DefineMethods<'a> {
             &scope,
         );
         self.define_arguments(&mut node.arguments, method, rules, &scope);
-        self.define_throw_type(node.throw_type.as_mut(), method, rules, &scope);
         self.define_return_type(
             node.return_type.as_mut(),
             method,
@@ -573,6 +575,7 @@ impl<'a> DefineMethods<'a> {
         &mut self,
         class_id: ClassId,
         node: &mut hir::DefineInstanceMethod,
+        mut bounds: TypeBounds,
     ) {
         let async_class = class_id.kind(self.db()).is_async();
 
@@ -605,6 +608,10 @@ impl<'a> DefineMethods<'a> {
             kind,
         );
 
+        if !method.is_mutable(self.db()) {
+            bounds.make_immutable(self.db_mut());
+        }
+
         // Regular instance methods on an `async class` must be private to the
         // class itself.
         if async_class && method.is_public(self.db()) {
@@ -623,17 +630,14 @@ impl<'a> DefineMethods<'a> {
                 || method.is_private(self.db()),
             ..Default::default()
         };
-        let bounds = TypeBounds::new();
-        let self_type =
-            TypeId::ClassInstance(ClassInstance::for_instance_self_type(
-                self.db_mut(),
-                class_id,
-                &bounds,
-            ));
+        let self_type = TypeId::ClassInstance(ClassInstance::rigid(
+            self.db_mut(),
+            class_id,
+            &bounds,
+        ));
         let receiver = receiver_type(self_type, node.kind);
 
         method.set_receiver(self.db_mut(), receiver);
-        method.set_self_type(self.db_mut(), self_type);
 
         let scope = TypeScope::with_bounds(
             self.module,
@@ -648,7 +652,6 @@ impl<'a> DefineMethods<'a> {
             &scope,
         );
         self.define_arguments(&mut node.arguments, method, rules, &scope);
-        self.define_throw_type(node.throw_type.as_mut(), method, rules, &scope);
         self.define_return_type(
             node.return_type.as_mut(),
             method,
@@ -662,6 +665,7 @@ impl<'a> DefineMethods<'a> {
             &node.location,
         );
 
+        method.set_bounds(self.db_mut(), bounds);
         node.method_id = Some(method);
     }
 
@@ -669,6 +673,7 @@ impl<'a> DefineMethods<'a> {
         &mut self,
         class_id: ClassId,
         node: &mut hir::DefineAsyncMethod,
+        mut bounds: TypeBounds,
     ) {
         let self_id = TypeId::Class(class_id);
         let module = self.module;
@@ -685,6 +690,10 @@ impl<'a> DefineMethods<'a> {
             kind,
         );
 
+        if !method.is_mutable(self.db()) {
+            bounds.make_immutable(self.db_mut());
+        }
+
         if !class_id.kind(self.db()).is_async() {
             let file = self.file();
 
@@ -699,18 +708,16 @@ impl<'a> DefineMethods<'a> {
         self.define_type_parameters(&mut node.type_parameters, method, self_id);
 
         let rules = Rules {
-            allow_self_type: true,
             allow_private_types: class_id.is_private(self.db())
                 || method.is_private(self.db()),
             ..Default::default()
         };
         let bounds = TypeBounds::new();
-        let self_type =
-            TypeId::ClassInstance(ClassInstance::for_instance_self_type(
-                self.db_mut(),
-                class_id,
-                &bounds,
-            ));
+        let self_type = TypeId::ClassInstance(ClassInstance::rigid(
+            self.db_mut(),
+            class_id,
+            &bounds,
+        ));
         let receiver = if node.mutable {
             TypeRef::Mut(self_type)
         } else {
@@ -718,7 +725,7 @@ impl<'a> DefineMethods<'a> {
         };
 
         method.set_receiver(self.db_mut(), receiver);
-        method.set_self_type(self.db_mut(), self_type);
+        method.set_return_type(self.db_mut(), TypeRef::nil());
 
         let scope = TypeScope::with_bounds(
             self.module,
@@ -733,13 +740,16 @@ impl<'a> DefineMethods<'a> {
             &scope,
         );
         self.define_arguments(&mut node.arguments, method, rules, &scope);
-        self.define_throw_type(node.throw_type.as_mut(), method, rules, &scope);
-        self.define_return_type(
-            node.return_type.as_mut(),
-            method,
-            rules,
-            &scope,
-        );
+
+        if node.return_type.is_some() {
+            self.state.diagnostics.error(
+                DiagnosticId::InvalidMethod,
+                "Async methods can't return values",
+                self.file(),
+                node.location.clone(),
+            );
+        }
+
         self.add_method_to_class(
             method,
             class_id,
@@ -747,6 +757,7 @@ impl<'a> DefineMethods<'a> {
             &node.location,
         );
 
+        method.set_bounds(self.db_mut(), bounds);
         node.method_id = Some(method);
     }
 
@@ -774,7 +785,7 @@ impl<'a> DefineMethods<'a> {
             ..Default::default()
         };
         let bounds = TypeBounds::new();
-        let self_type = TypeId::TraitInstance(TraitInstance::for_self_type(
+        let self_type = TypeId::TraitInstance(TraitInstance::rigid(
             self.db_mut(),
             trait_id,
             &bounds,
@@ -782,7 +793,6 @@ impl<'a> DefineMethods<'a> {
         let receiver = receiver_type(self_type, node.kind);
 
         method.set_receiver(self.db_mut(), receiver);
-        method.set_self_type(self.db_mut(), self_type);
 
         let scope = TypeScope::with_bounds(
             self.module,
@@ -797,7 +807,6 @@ impl<'a> DefineMethods<'a> {
             &scope,
         );
         self.define_arguments(&mut node.arguments, method, rules, &scope);
-        self.define_throw_type(node.throw_type.as_mut(), method, rules, &scope);
         self.define_return_type(
             node.return_type.as_mut(),
             method,
@@ -843,7 +852,7 @@ impl<'a> DefineMethods<'a> {
             ..Default::default()
         };
         let bounds = TypeBounds::new();
-        let self_type = TypeId::TraitInstance(TraitInstance::for_self_type(
+        let self_type = TypeId::TraitInstance(TraitInstance::rigid(
             self.db_mut(),
             trait_id,
             &bounds,
@@ -851,7 +860,6 @@ impl<'a> DefineMethods<'a> {
         let receiver = receiver_type(self_type, node.kind);
 
         method.set_receiver(self.db_mut(), receiver);
-        method.set_self_type(self.db_mut(), self_type);
 
         let scope = TypeScope::with_bounds(
             self.module,
@@ -866,7 +874,6 @@ impl<'a> DefineMethods<'a> {
             &scope,
         );
         self.define_arguments(&mut node.arguments, method, rules, &scope);
-        self.define_throw_type(node.throw_type.as_mut(), method, rules, &scope);
         self.define_return_type(
             node.return_type.as_mut(),
             method,
@@ -922,10 +929,23 @@ impl<'a> DefineMethods<'a> {
 
         let stype = TypeId::Class(class_id);
         let rec = TypeRef::Owned(stype);
+        let ret = if class_id.is_generic(self.db()) {
+            let args = class_id
+                .type_parameters(self.db())
+                .into_iter()
+                .map(|param| TypeRef::Infer(TypeId::TypeParameter(param)))
+                .collect();
+
+            ClassInstance::with_types(self.db_mut(), class_id, args)
+        } else {
+            ClassInstance::new(class_id)
+        };
 
         method.set_receiver(self.db_mut(), rec);
-        method.set_self_type(self.db_mut(), stype);
-        method.set_return_type(self.db_mut(), TypeRef::OwnedSelf);
+        method.set_return_type(
+            self.db_mut(),
+            TypeRef::Owned(TypeId::ClassInstance(ret)),
+        );
         class_id.add_method(self.db_mut(), name, method);
 
         node.method_id = Some(method);
@@ -970,8 +990,10 @@ impl<'a> CheckMainMethod<'a> {
 
         let mod_id = self.db().module(main_mod);
 
-        if let Some(method) = self.main_method(mod_id) {
+        if let Some((class, method)) = self.main_method(mod_id) {
             method.set_main(self.db_mut());
+            self.db_mut().set_main_method(method);
+            self.db_mut().set_main_class(class);
             true
         } else {
             self.state.diagnostics.error(
@@ -989,7 +1011,7 @@ impl<'a> CheckMainMethod<'a> {
         }
     }
 
-    fn main_method(&self, mod_id: ModuleId) -> Option<MethodId> {
+    fn main_method(&self, mod_id: ModuleId) -> Option<(ClassId, MethodId)> {
         let class = if let Some(Symbol::Class(class_id)) =
             mod_id.symbol(self.db(), MAIN_CLASS)
         {
@@ -997,8 +1019,6 @@ impl<'a> CheckMainMethod<'a> {
         } else {
             return None;
         };
-
-        let stype = TypeId::ClassInstance(ClassInstance::new(class));
 
         if !class.kind(self.db()).is_async() {
             return None;
@@ -1008,10 +1028,9 @@ impl<'a> CheckMainMethod<'a> {
 
         if method.kind(self.db()) == MethodKind::Async
             && method.number_of_arguments(self.db()) == 0
-            && method.throw_type(self.db()).is_never(self.db())
-            && method.return_type(self.db()).is_nil(self.db(), stype)
+            && method.return_type(self.db()).is_nil(self.db())
         {
-            Some(method)
+            Some((class, method))
         } else {
             None
         }
@@ -1088,14 +1107,13 @@ impl<'a> ImplementTraitMethods<'a> {
             );
         }
 
-        let bounded = !node.bounds.is_empty();
         let bounds = class_id
             .trait_implementation(self.db(), trait_id)
             .map(|i| i.bounds.clone())
             .unwrap();
 
         for expr in &mut node.body {
-            self.implement_method(expr, class_ins, trait_ins, bounded, &bounds);
+            self.implement_method(expr, class_ins, trait_ins, bounds.clone());
         }
 
         for req in trait_id.required_methods(self.db()) {
@@ -1126,7 +1144,7 @@ impl<'a> ImplementTraitMethods<'a> {
                 continue;
             }
 
-            let source = MethodSource::implementation(bounded, trait_ins);
+            let source = MethodSource::Implementation(trait_ins, method);
             let name = method.name(self.db()).clone();
             let copy = method.copy_method(self.db_mut());
 
@@ -1140,8 +1158,7 @@ impl<'a> ImplementTraitMethods<'a> {
         node: &mut hir::DefineInstanceMethod,
         class_instance: ClassInstance,
         trait_instance: TraitInstance,
-        bounded: bool,
-        bounds: &TypeBounds,
+        mut bounds: TypeBounds,
     ) {
         let name = &node.name.name;
         let original = if let Some(method) =
@@ -1176,6 +1193,10 @@ impl<'a> ImplementTraitMethods<'a> {
             method_kind(node.kind),
         );
 
+        if !method.is_mutable(self.db()) {
+            bounds.make_immutable(self.db_mut());
+        }
+
         self.define_type_parameters(
             &mut node.type_parameters,
             method,
@@ -1191,18 +1212,17 @@ impl<'a> ImplementTraitMethods<'a> {
         };
         let receiver = receiver_type(self_type, node.kind);
 
-        method.set_self_type(self.db_mut(), self_type);
         method.set_receiver(self.db_mut(), receiver);
         method.set_source(
             self.db_mut(),
-            MethodSource::implementation(bounded, trait_instance),
+            MethodSource::Implementation(trait_instance, original),
         );
 
         let scope = TypeScope::with_bounds(
             self.module,
             self_type,
             Some(method),
-            bounds,
+            &bounds,
         );
 
         self.define_type_parameter_requirements(
@@ -1212,7 +1232,6 @@ impl<'a> ImplementTraitMethods<'a> {
         );
 
         self.define_arguments(&mut node.arguments, method, rules, &scope);
-        self.define_throw_type(node.throw_type.as_mut(), method, rules, &scope);
         self.define_return_type(
             node.return_type.as_mut(),
             method,
@@ -1220,24 +1239,19 @@ impl<'a> ImplementTraitMethods<'a> {
             &scope,
         );
 
-        let mut check_ctx = TypeContext::new(self_type);
+        let targs = TypeArguments::for_trait(self.db(), trait_instance);
+        let mut env = Environment::new(targs.clone(), targs);
 
-        if trait_instance.instance_of().is_generic(self.db()) {
-            trait_instance
-                .type_arguments(self.db())
-                .copy_into(&mut check_ctx.type_arguments);
-        }
-
-        if !method.type_check(self.db_mut(), original, &mut check_ctx) {
+        if !TypeChecker::new(self.db()).check_method(method, original, &mut env)
+        {
             let file = self.file();
-            let expected = format_type(self.db(), original);
+            let lhs = format_type_with_arguments(self.db(), &env.left, method);
+            let rhs =
+                format_type_with_arguments(self.db(), &env.right, original);
 
             self.state_mut().diagnostics.error(
                 DiagnosticId::InvalidMethod,
-                format!(
-                    "This method isn't compatible with the method '{}'",
-                    expected
-                ),
+                format!("The method '{}' isn't compatible with '{}'", lhs, rhs),
                 file,
                 node.location.clone(),
             );
@@ -1250,6 +1264,8 @@ impl<'a> ImplementTraitMethods<'a> {
             // detected properly.
             method.mark_as_destructor(self.db_mut());
         }
+
+        method.set_bounds(self.db_mut(), bounds);
 
         self.add_method_to_class(
             method,
@@ -1274,288 +1290,4 @@ impl<'a> MethodDefiner for ImplementTraitMethods<'a> {
     fn module(&self) -> ModuleId {
         self.module
     }
-}
-
-/// A compiler pass that defines all built-in function signatures.
-///
-/// This is just a regular function as we don't need to traverse any modules.
-///
-/// We set these functions up separately as some of them depend on certain types
-/// (e.g. `Array`) being set up correctly.
-pub(crate) fn define_builtin_functions(state: &mut State) -> bool {
-    let db = &mut state.db;
-    let nil = TypeRef::nil();
-    let int = TypeRef::int();
-    let float = TypeRef::float();
-    let string = TypeRef::string();
-    let any = TypeRef::Any;
-    let never = TypeRef::Never;
-    let boolean = TypeRef::boolean();
-    let byte_array = TypeRef::byte_array();
-    let string_array = TypeRef::array(db, string);
-
-    // All the functions provided by the VM.
-    let vm = vec![
-        (BIF::ChildProcessDrop, any, never),
-        (BIF::ChildProcessSpawn, any, int),
-        (BIF::ChildProcessStderrClose, nil, never),
-        (BIF::ChildProcessStderrRead, int, int),
-        (BIF::ChildProcessStdinClose, nil, never),
-        (BIF::ChildProcessStdinFlush, nil, int),
-        (BIF::ChildProcessStdinWriteBytes, int, int),
-        (BIF::ChildProcessStdinWriteString, int, int),
-        (BIF::ChildProcessStdoutClose, nil, never),
-        (BIF::ChildProcessStdoutRead, int, int),
-        (BIF::ChildProcessTryWait, int, int),
-        (BIF::ChildProcessWait, int, int),
-        (BIF::EnvArguments, string_array, never),
-        (BIF::EnvExecutable, string, int),
-        (BIF::EnvGet, string, never),
-        (BIF::EnvGetWorkingDirectory, string, int),
-        (BIF::EnvHomeDirectory, string, never),
-        (BIF::EnvPlatform, int, never),
-        (BIF::EnvSetWorkingDirectory, nil, int),
-        (BIF::EnvTempDirectory, string, never),
-        (BIF::EnvVariables, string_array, never),
-        (BIF::FFIFunctionAttach, any, never),
-        (BIF::FFIFunctionCall, any, never),
-        (BIF::FFIFunctionDrop, nil, never),
-        (BIF::FFILibraryDrop, nil, never),
-        (BIF::FFILibraryOpen, any, never),
-        (BIF::FFIPointerAddress, int, never),
-        (BIF::FFIPointerAttach, any, never),
-        (BIF::FFIPointerFromAddress, any, never),
-        (BIF::FFIPointerRead, any, never),
-        (BIF::FFIPointerWrite, nil, never),
-        (BIF::FFITypeAlignment, int, never),
-        (BIF::FFITypeSize, int, never),
-        (BIF::DirectoryCreate, nil, int),
-        (BIF::DirectoryCreateRecursive, nil, int),
-        (BIF::DirectoryList, string_array, int),
-        (BIF::DirectoryRemove, nil, int),
-        (BIF::DirectoryRemoveRecursive, nil, int),
-        (BIF::FileCopy, int, int),
-        (BIF::FileDrop, nil, never),
-        (BIF::FileFlush, nil, int),
-        (BIF::FileOpenAppendOnly, any, int),
-        (BIF::FileOpenReadAppend, any, int),
-        (BIF::FileOpenReadOnly, any, int),
-        (BIF::FileOpenReadWrite, any, int),
-        (BIF::FileOpenWriteOnly, any, int),
-        (BIF::FileRead, int, int),
-        (BIF::FileRemove, nil, int),
-        (BIF::FileSeek, int, int),
-        (BIF::FileSize, int, int),
-        (BIF::FileWriteBytes, int, int),
-        (BIF::FileWriteString, int, int),
-        (BIF::PathAccessedAt, float, int),
-        (BIF::PathCreatedAt, float, int),
-        (BIF::PathExists, boolean, never),
-        (BIF::PathIsDirectory, boolean, never),
-        (BIF::PathIsFile, boolean, never),
-        (BIF::PathModifiedAt, float, int),
-        (BIF::HasherDrop, nil, never),
-        (BIF::HasherNew, any, never),
-        (BIF::HasherToHash, int, never),
-        (BIF::HasherWriteInt, nil, never),
-        (BIF::ProcessStacktraceDrop, nil, never),
-        (BIF::ProcessCallFrameLine, int, never),
-        (BIF::ProcessCallFrameName, string, never),
-        (BIF::ProcessCallFramePath, string, never),
-        (BIF::ProcessStacktrace, any, never),
-        (BIF::RandomBytes, byte_array, never),
-        (BIF::RandomFloat, float, never),
-        (BIF::RandomFloatRange, float, never),
-        (BIF::RandomIntRange, int, never),
-        (BIF::RandomInt, int, never),
-        (BIF::SocketAcceptIp, any, int),
-        (BIF::SocketAcceptUnix, any, int),
-        (BIF::SocketAddressPairAddress, string, never),
-        (BIF::SocketAddressPairDrop, nil, never),
-        (BIF::SocketAddressPairPort, int, never),
-        (BIF::SocketAllocateIpv4, any, int),
-        (BIF::SocketAllocateIpv6, any, int),
-        (BIF::SocketAllocateUnix, any, int),
-        (BIF::SocketBind, nil, int),
-        (BIF::SocketConnect, nil, int),
-        (BIF::SocketDrop, nil, never),
-        (BIF::SocketGetBroadcast, boolean, int),
-        (BIF::SocketGetKeepalive, boolean, int),
-        (BIF::SocketGetLinger, float, int),
-        (BIF::SocketGetNodelay, boolean, int),
-        (BIF::SocketGetOnlyV6, boolean, int),
-        (BIF::SocketGetRecvSize, int, int),
-        (BIF::SocketGetReuseAddress, boolean, int),
-        (BIF::SocketGetReusePort, boolean, int),
-        (BIF::SocketGetSendSize, int, int),
-        (BIF::SocketGetTtl, int, int),
-        (BIF::SocketListen, nil, int),
-        (BIF::SocketLocalAddress, any, int),
-        (BIF::SocketPeerAddress, any, int),
-        (BIF::SocketRead, int, int),
-        (BIF::SocketReceiveFrom, any, int),
-        (BIF::SocketSendBytesTo, int, int),
-        (BIF::SocketSendStringTo, int, int),
-        (BIF::SocketSetBroadcast, nil, int),
-        (BIF::SocketSetKeepalive, nil, int),
-        (BIF::SocketSetLinger, nil, int),
-        (BIF::SocketSetNodelay, nil, int),
-        (BIF::SocketSetOnlyV6, nil, int),
-        (BIF::SocketSetRecvSize, nil, int),
-        (BIF::SocketSetReuseAddress, nil, int),
-        (BIF::SocketSetReusePort, nil, int),
-        (BIF::SocketSetSendSize, nil, int),
-        (BIF::SocketSetTtl, nil, int),
-        (BIF::SocketShutdownRead, nil, int),
-        (BIF::SocketShutdownReadWrite, nil, int),
-        (BIF::SocketShutdownWrite, nil, int),
-        (BIF::SocketTryClone, any, int),
-        (BIF::SocketWriteBytes, int, int),
-        (BIF::SocketWriteString, int, int),
-        (BIF::StderrFlush, nil, int),
-        (BIF::StderrWriteBytes, int, int),
-        (BIF::StderrWriteString, int, int),
-        (BIF::StdinRead, int, int),
-        (BIF::StdoutFlush, nil, int),
-        (BIF::StdoutWriteBytes, int, int),
-        (BIF::StdoutWriteString, int, int),
-        (BIF::TimeMonotonic, int, never),
-        (BIF::TimeSystem, float, never),
-        (BIF::TimeSystemOffset, int, never),
-        (BIF::StringToLower, string, never),
-        (BIF::StringToUpper, string, never),
-        (BIF::StringToByteArray, byte_array, never),
-        (BIF::StringToFloat, float, never),
-        (BIF::StringToInt, int, never),
-        (BIF::ByteArrayDrainToString, string, never),
-        (BIF::ByteArrayToString, string, never),
-        (BIF::CpuCores, int, never),
-        (BIF::StringCharacters, any, never),
-        (BIF::StringCharactersNext, any, never),
-        (BIF::StringCharactersDrop, nil, never),
-        (BIF::StringConcatArray, string, never),
-        (BIF::ArrayReserve, nil, never),
-        (BIF::ArrayCapacity, int, never),
-        (BIF::ProcessStacktraceLength, int, never),
-        (BIF::FloatToBits, int, never),
-        (BIF::FloatFromBits, float, never),
-        (BIF::RandomNew, any, never),
-        (BIF::RandomFromInt, any, never),
-        (BIF::RandomDrop, nil, never),
-        (BIF::StringSliceBytes, string, never),
-        (BIF::ByteArraySlice, byte_array, never),
-        (BIF::ByteArrayAppend, nil, never),
-        (BIF::ByteArrayCopyFrom, int, never),
-        (BIF::ByteArrayResize, nil, never),
-    ];
-
-    // Regular VM instructions exposed directly to the standard library. These
-    // are needed to implement core functionality, such as integer addition.
-    let instructions = vec![
-        (Opcode::ArrayClear, nil),
-        (Opcode::ArrayGet, any),
-        (Opcode::ArrayLength, int),
-        (Opcode::ArrayPop, any),
-        (Opcode::ArrayPush, nil),
-        (Opcode::ArrayRemove, any),
-        (Opcode::ArraySet, any),
-        (Opcode::ArrayDrop, nil),
-        (Opcode::ByteArrayAllocate, byte_array),
-        (Opcode::ByteArrayClear, nil),
-        (Opcode::ByteArrayClone, byte_array),
-        (Opcode::ByteArrayEquals, boolean),
-        (Opcode::ByteArrayGet, int),
-        (Opcode::ByteArrayLength, int),
-        (Opcode::ByteArrayPop, int),
-        (Opcode::ByteArrayPush, nil),
-        (Opcode::ByteArrayRemove, int),
-        (Opcode::ByteArraySet, int),
-        (Opcode::ByteArrayDrop, nil),
-        (Opcode::Exit, never),
-        (Opcode::FloatAdd, float),
-        (Opcode::FloatCeil, float),
-        (Opcode::FloatClone, float),
-        (Opcode::FloatDiv, float),
-        (Opcode::FloatEq, boolean),
-        (Opcode::FloatFloor, float),
-        (Opcode::FloatGe, boolean),
-        (Opcode::FloatGt, boolean),
-        (Opcode::FloatIsInf, boolean),
-        (Opcode::FloatIsNan, boolean),
-        (Opcode::FloatLe, boolean),
-        (Opcode::FloatLt, boolean),
-        (Opcode::FloatMod, float),
-        (Opcode::FloatMul, float),
-        (Opcode::FloatRound, float),
-        (Opcode::FloatSub, float),
-        (Opcode::FloatToInt, int),
-        (Opcode::FloatToString, string),
-        (Opcode::FutureDrop, any),
-        (Opcode::GetNil, nil),
-        (Opcode::GetUndefined, any),
-        (Opcode::IntAdd, int),
-        (Opcode::IntBitAnd, int),
-        (Opcode::IntBitOr, int),
-        (Opcode::IntBitXor, int),
-        (Opcode::IntClone, int),
-        (Opcode::IntDiv, int),
-        (Opcode::IntEq, boolean),
-        (Opcode::IntGe, boolean),
-        (Opcode::IntGt, boolean),
-        (Opcode::IntLe, boolean),
-        (Opcode::IntLt, boolean),
-        (Opcode::IntMod, int),
-        (Opcode::IntMul, int),
-        (Opcode::IntShl, int),
-        (Opcode::IntShr, int),
-        (Opcode::IntSub, int),
-        (Opcode::IntPow, int),
-        (Opcode::IntToFloat, float),
-        (Opcode::IntToString, string),
-        (Opcode::ObjectEq, boolean),
-        (Opcode::Panic, never),
-        (Opcode::StringByte, int),
-        (Opcode::StringEq, boolean),
-        (Opcode::StringSize, int),
-        (Opcode::StringDrop, nil),
-        (Opcode::IsUndefined, boolean),
-        (Opcode::ProcessSuspend, nil),
-        (Opcode::FuturePoll, any),
-        (Opcode::IntBitNot, int),
-        (Opcode::IntRotateLeft, int),
-        (Opcode::IntRotateRight, int),
-        (Opcode::IntWrappingAdd, int),
-        (Opcode::IntWrappingSub, int),
-        (Opcode::IntWrappingMul, int),
-        (Opcode::IntUnsignedShr, int),
-    ];
-
-    let macros = vec![
-        (CompilerMacro::FutureGet, any, any),
-        (CompilerMacro::FutureGetFor, any, any),
-        (CompilerMacro::StringClone, string, never),
-        (CompilerMacro::Moved, any, never),
-        (CompilerMacro::PanicThrown, never, never),
-        (CompilerMacro::Strings, string, never),
-    ];
-
-    for (id, returns, throws) in vm.into_iter() {
-        let kind = BuiltinFunctionKind::Function(id);
-
-        BuiltinFunction::alloc(db, kind, id.name(), returns, throws);
-    }
-
-    for (opcode, returns) in instructions.into_iter() {
-        let kind = BuiltinFunctionKind::Instruction(opcode);
-
-        BuiltinFunction::alloc(db, kind, opcode.name(), returns, never);
-    }
-
-    for (mac, returns, throws) in macros.into_iter() {
-        let kind = BuiltinFunctionKind::Macro(mac);
-
-        BuiltinFunction::alloc(db, kind, mac.name(), returns, throws);
-    }
-
-    true
 }

@@ -1,7 +1,6 @@
-# Using Inko
+# Using the compiler
 
-Inko provides the command line executable `inko`. This executable is used for
-both compiling and running Inko source code.
+Inko's compiler is available through the `inko` command.
 
 ## Compiling and running
 
@@ -24,25 +23,27 @@ command.
 
 ## Compiling without running
 
-For deployments it's best to separate the two stages, as this removes the need
-for deploying your source code. To compile (but not run) a file, run the
-following:
+The `inko run` command requires your source code to be available, and compiles
+it from scratch every time. To avoid this, we can build a standalone executable
+using the `inko build` command:
 
 ```bash
 inko build hello.inko
 ```
 
-The resulting bytecode file is located at `./hello.ibi`, which you can run as
-follows:
+By default this produces a debug build, located in `./build/debug/hello`. To
+produce a release build instead, run the following:
 
 ```bash
-inko run hello.ibi
+inko build --release hello.inko
 ```
+
+The resulting executable is now located in `./build/release/hello`.
 
 You can specify an alternative output path using the `-o` option:
 
 ```bash
-inko build -o /tmp/hello.ibi hello.inko
+inko build -o /tmp/hello hello.inko
 ```
 
 For more information, run `inko --help`.

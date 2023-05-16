@@ -1,0 +1,308 @@
+# Types and methods for manipulating files on a filesystem.
+#
+# Rather than using a single "File" type for all different file modes, Inko uses
+# three separate file types:
+#
+# - `ReadOnlyFile`: read-only file operations
+# - `WriteOnlyFile`: write-only file operations
+# - `ReadWriteFile`: read-write file operations
+#
+# Using different types per file mode allows for a type-safe file API.
+#
+# Files are automatically closed when they are dropped. Any errors that may
+# occur when closing a file are ignored.
+import std::drop::Drop
+import std::fs::path::(IntoPath, Path)
+import std::io::(Error, Read, Seek, Size, Write)
+import std::string::ToString
+
+let FILE_READ_ONLY = 0
+let FILE_WRITE_ONLY = 1
+let FILE_APPEND_ONLY = 2
+let FILE_READ_WRITE = 3
+let FILE_READ_APPEND = 4
+
+# Removes the file for the given file path.
+#
+# # Examples
+#
+# Removing a file:
+#
+#     import std::fs::file::(self, WriteOnlyFile)
+#
+#     let handle = WriteOnlyFile.new('/tmp/test.txt').unwrap
+#
+#     handle.write('hello').unwrap
+#     file.remove('/tmp/test.txt').unwrap
+fn pub remove(path: ref ToString) -> Result[Nil, Error] {
+  match _INKO.file_remove(path.to_string) {
+    case { @tag = 0, @value = _ } -> Result.Ok(nil)
+    case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+  }
+}
+
+# Copies a file from the source destination to the target destination,
+# returning the number of copied bytes.
+#
+# # Examples
+#
+# Copying a file:
+#
+#     import std::fs::file::(self, WriteOnlyFile)
+#
+#     let handle = WriteOnlyFile.new('/tmp/test.txt').unwrap
+#
+#     handle.write('hello').unwrap
+#     file.copy(from: '/tmp/test.txt', to: '/tmp/test2.txt').unwrap
+fn pub copy(from: ref ToString, to: ref ToString) -> Result[Int, Error] {
+  match _INKO.file_copy(from.to_string, to.to_string) {
+    case { @tag = 0, @value = v } -> Result.Ok(v as Int)
+    case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+  }
+}
+
+# A file that can only be used for reads.
+class pub ReadOnlyFile {
+  # The path of the file.
+  let pub @path: Path
+
+  # The internal file descriptor.
+  let @fd: Any
+
+  # Returns a new `ReadOnlyFile`.
+  #
+  # # Examples
+  #
+  # Opening a file in read-only mode:
+  #
+  #     import std::fs::file::ReadOnlyFile
+  #
+  #     let handle = ReadOnlyFile.new('/dev/null').unwrap
+  fn pub static new(path: IntoPath) -> Result[ReadOnlyFile, Error] {
+    let path = path.into_path
+
+    match _INKO.file_open(path.to_string, FILE_READ_ONLY) {
+      case { @tag = 0, @value = v } -> Result.Ok(
+        ReadOnlyFile { @path = path, @fd = v }
+      )
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+}
+
+impl Drop for ReadOnlyFile {
+  fn mut drop {
+    _INKO.file_drop(@fd)
+  }
+}
+
+impl Read for ReadOnlyFile {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
+    match _INKO.file_read(@fd, into, size) {
+      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+}
+
+impl Seek for ReadOnlyFile {
+  fn pub mut seek(position: Int) -> Result[Int, Error] {
+    match _INKO.file_seek(@fd, position) {
+      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+}
+
+impl Size for ReadOnlyFile {
+  fn pub size -> Result[Int, Error] {
+    match _INKO.file_size(@path.to_string) {
+      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+}
+
+# A file that can only be used for writes.
+class pub WriteOnlyFile {
+  # The path of the file.
+  let pub @path: Path
+
+  # The internal file descriptor.
+  let @fd: Any
+
+  # Opens a file in write-only mode.
+  #
+  # # Examples
+  #
+  #     import std::fs::file::WriteOnlyFile
+  #
+  #     let file = WriteOnlyFile.new('/dev/null').unwrap
+  fn pub static new(path: IntoPath) -> Result[WriteOnlyFile, Error] {
+    let path = path.into_path
+
+    match _INKO.file_open(path.to_string, FILE_WRITE_ONLY) {
+      case { @tag = 0, @value = v } -> Result.Ok(
+        WriteOnlyFile { @path = path, @fd = v }
+      )
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Opens a file in append-only mode.
+  #
+  # # Examples
+  #
+  #     import std::fs::file::WriteOnlyFile
+  #
+  #     let file = WriteOnlyFile.append('/dev/null').unwrap
+  fn pub static append(path: IntoPath) -> Result[WriteOnlyFile, Error] {
+    let path = path.into_path
+
+    match _INKO.file_open(path.to_string, FILE_APPEND_ONLY) {
+      case { @tag = 0, @value = v } -> Result.Ok(
+        WriteOnlyFile { @path = path, @fd = v }
+      )
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+}
+
+impl Drop for WriteOnlyFile {
+  fn mut drop {
+    _INKO.file_drop(@fd)
+  }
+}
+
+impl Write for WriteOnlyFile {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
+    match _INKO.file_write_bytes(@fd, bytes) {
+      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  fn pub mut write_string(string: String) -> Result[Int, Error] {
+    match _INKO.file_write_string(@fd, string) {
+      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  fn pub mut flush -> Result[Nil, Error] {
+    match _INKO.file_flush(@fd) {
+      case { @tag = 0, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+}
+
+impl Seek for WriteOnlyFile {
+  fn pub mut seek(position: Int) -> Result[Int, Error] {
+    match _INKO.file_seek(@fd, position) {
+      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+}
+
+# A file that can be used for both reads and writes.
+class pub ReadWriteFile {
+  # The path of the file.
+  let pub @path: Path
+
+  # The internal file descriptor.
+  let @fd: Any
+
+  # Opens a file for both reading and writing:
+  #
+  # # Examples
+  #
+  #     import std::fs::file::ReadWriteFile
+  #
+  #     let handle = ReadWriteFile.new('/dev/null').unwrap
+  fn pub static new(path: IntoPath) -> Result[ReadWriteFile, Error] {
+    let path = path.into_path
+
+    match _INKO.file_open(path.to_string, FILE_READ_WRITE) {
+      case { @tag = 0, @value = v } -> Result.Ok(
+        ReadWriteFile { @path = path, @fd = v }
+      )
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  # Opens a file for both reading and appending:
+  #
+  # # Examples
+  #
+  #     import std::fs::file::ReadWriteFile
+  #
+  #     let handle = ReadWriteFile.append('/dev/null').unwrap
+  fn pub static append(path: IntoPath) -> Result[ReadWriteFile, Error] {
+    let path = path.into_path
+
+    match _INKO.file_open(path.to_string, FILE_READ_APPEND) {
+      case { @tag = 0, @value = v } -> Result.Ok(
+        ReadWriteFile { @path = path, @fd = v }
+      )
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+}
+
+impl Drop for ReadWriteFile {
+  fn mut drop {
+    _INKO.file_drop(@fd)
+  }
+}
+
+impl Read for ReadWriteFile {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
+    match _INKO.file_read(@fd, into, size) {
+      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+}
+
+impl Write for ReadWriteFile {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
+    match _INKO.file_write_bytes(@fd, bytes) {
+      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  fn pub mut write_string(string: String) -> Result[Int, Error] {
+    match _INKO.file_write_string(@fd, string) {
+      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+
+  fn pub mut flush -> Result[Nil, Error] {
+    match _INKO.file_flush(@fd) {
+      case { @tag = 0, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+}
+
+impl Seek for ReadWriteFile {
+  fn pub mut seek(position: Int) -> Result[Int, Error] {
+    match _INKO.file_seek(@fd, position) {
+      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+}
+
+impl Size for ReadWriteFile {
+  fn pub size -> Result[Int, Error] {
+    match _INKO.file_size(@path.to_string) {
+      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    }
+  }
+}

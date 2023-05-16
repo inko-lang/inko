@@ -524,45 +524,12 @@ impl Parser {
 
     fn optional_type_parameter_requirements(
         &mut self,
-    ) -> Result<Option<TypeNames>, ParseError> {
+    ) -> Result<Option<Requirements>, ParseError> {
         if self.peek().kind != TokenKind::Colon {
             return Ok(None);
         }
 
-        self.next();
-
-        let mut values = Vec::new();
-
-        loop {
-            let token = self.require()?;
-
-            values.push(self.type_name_with_optional_namespace(token)?);
-
-            let after = self.peek();
-
-            match after.kind {
-                TokenKind::Add => {
-                    self.next();
-                }
-                TokenKind::BracketClose | TokenKind::Comma => {
-                    break;
-                }
-                _ => {
-                    error!(
-                        after.location.clone(),
-                        "Expected a '+' or a ']', found '{}' instead",
-                        after.value
-                    );
-                }
-            }
-        }
-
-        let location = SourceLocation::start_end(
-            values.first().unwrap().location(),
-            values.last().unwrap().location(),
-        );
-
-        Ok(Some(TypeNames { values, location }))
+        Ok(Some(self.requirements()?))
     }
 
     fn reference_type(
@@ -631,15 +598,13 @@ impl Parser {
         start: Token,
     ) -> Result<ClosureType, ParseError> {
         let arguments = self.optional_block_argument_types()?;
-        let throw_type = self.optional_throw_type()?;
         let return_type = self.optional_return_type()?;
         let end_loc = location!(return_type)
-            .or_else(|| location!(throw_type))
             .or_else(|| location!(arguments))
             .unwrap_or(&start.location);
         let location = SourceLocation::start_end(&start.location, end_loc);
 
-        Ok(ClosureType { arguments, throw_type, return_type, location })
+        Ok(ClosureType { arguments, return_type, location })
     }
 
     fn optional_block_argument_types(
@@ -733,18 +698,6 @@ impl Parser {
         Ok(BlockArgument { name, value_type, location })
     }
 
-    fn optional_throw_type(&mut self) -> Result<Option<Type>, ParseError> {
-        if self.peek().kind != TokenKind::Throws {
-            return Ok(None);
-        }
-
-        self.next();
-
-        let start = self.require()?;
-
-        Ok(Some(self.type_reference(start)?))
-    }
-
     fn optional_return_type(&mut self) -> Result<Option<Type>, ParseError> {
         if self.peek().kind != TokenKind::Arrow {
             return Ok(None);
@@ -767,7 +720,6 @@ impl Parser {
         let (name, operator) = self.method_name(name_token)?;
         let type_parameters = self.optional_type_parameter_definitions()?;
         let arguments = self.optional_method_arguments()?;
-        let throw_type = self.optional_throw_type()?;
         let return_type = self.optional_return_type()?;
         let body_token = self.expect(TokenKind::CurlyOpen)?;
         let body = self.expressions(body_token)?;
@@ -780,7 +732,6 @@ impl Parser {
             name,
             type_parameters,
             arguments,
-            throw_type,
             return_type,
             location,
             body: Some(body),
@@ -822,7 +773,6 @@ impl Parser {
         let (name, operator) = self.method_name(name_token)?;
         let type_parameters = self.optional_type_parameter_definitions()?;
         let arguments = self.optional_method_arguments()?;
-        let throw_type = self.optional_throw_type()?;
         let return_type = self.optional_return_type()?;
         let body_token = self.expect(TokenKind::CurlyOpen)?;
         let body = self.expressions(body_token)?;
@@ -835,7 +785,6 @@ impl Parser {
             name,
             type_parameters,
             arguments,
-            throw_type,
             return_type,
             location,
             body: Some(body),
@@ -863,7 +812,6 @@ impl Parser {
         let (name, operator) = self.method_name(name_token)?;
         let type_parameters = self.optional_type_parameter_definitions()?;
         let arguments = self.optional_method_arguments()?;
-        let throw_type = self.optional_throw_type()?;
         let return_type = self.optional_return_type()?;
         let body_token = self.expect(TokenKind::CurlyOpen)?;
         let body = self.expressions(body_token)?;
@@ -876,7 +824,6 @@ impl Parser {
             name,
             type_parameters,
             arguments,
-            throw_type,
             return_type,
             location,
             body: Some(body),
@@ -1112,22 +1059,28 @@ impl Parser {
 
     fn type_bound(&mut self, start: Token) -> Result<TypeBound, ParseError> {
         let name = Constant::from(start);
-        let requirements = self.type_bound_requirements()?;
+        let requirements = self.requirements()?;
         let location =
             SourceLocation::start_end(name.location(), requirements.location());
 
         Ok(TypeBound { name, requirements, location })
     }
 
-    fn type_bound_requirements(&mut self) -> Result<TypeNames, ParseError> {
+    fn requirements(&mut self) -> Result<Requirements, ParseError> {
         self.expect(TokenKind::Colon)?;
 
         let mut values = Vec::new();
 
         loop {
             let token = self.require()?;
+            let req = match token.kind {
+                TokenKind::Mut => Requirement::Mutable(token.location),
+                _ => Requirement::Trait(
+                    self.type_name_with_optional_namespace(token)?,
+                ),
+            };
 
-            values.push(self.type_name_with_optional_namespace(token)?);
+            values.push(req);
 
             let after = self.peek();
 
@@ -1146,7 +1099,7 @@ impl Parser {
             values.last().unwrap().location(),
         );
 
-        Ok(TypeNames { values, location })
+        Ok(Requirements { values, location })
     }
 
     fn reopen_class(
@@ -1155,14 +1108,16 @@ impl Parser {
         class_token: Token,
     ) -> Result<TopLevelExpression, ParseError> {
         let class_name = Constant::from(class_token);
+        let bounds = self.optional_type_bounds()?;
         let body = self.reopen_class_expressions()?;
-        let location =
-            SourceLocation::start_end(&start.location, body.location());
+        let end_loc = location!(bounds).unwrap_or_else(|| body.location());
+        let location = SourceLocation::start_end(&start.location, end_loc);
 
         Ok(TopLevelExpression::ReopenClass(Box::new(ReopenClass {
             class_name,
             body,
             location,
+            bounds,
         })))
     }
 
@@ -1291,7 +1246,6 @@ impl Parser {
         let (name, operator) = self.method_name(name_token)?;
         let type_parameters = self.optional_type_parameter_definitions()?;
         let arguments = self.optional_method_arguments()?;
-        let throw_type = self.optional_throw_type()?;
         let return_type = self.optional_return_type()?;
         let body = if self.peek().kind == TokenKind::CurlyOpen {
             let body_token = self.expect(TokenKind::CurlyOpen)?;
@@ -1302,7 +1256,6 @@ impl Parser {
         };
         let end_loc = location!(body)
             .or_else(|| location!(return_type))
-            .or_else(|| location!(throw_type))
             .or_else(|| location!(arguments))
             .or_else(|| location!(type_parameters))
             .unwrap_or_else(|| name.location());
@@ -1314,7 +1267,6 @@ impl Parser {
             name,
             type_parameters,
             arguments,
-            throw_type,
             return_type,
             location,
             body,
@@ -1366,28 +1318,6 @@ impl Parser {
 
             parser.expression(start)
         })
-    }
-
-    fn expression_with_optional_curly_braces(
-        &mut self,
-    ) -> Result<(Expression, SourceLocation), ParseError> {
-        if self.peek().kind == TokenKind::CurlyOpen {
-            let open = self.next();
-            let token = self.require()?;
-            let expr = self.expression(token)?;
-            let close = self.expect(TokenKind::CurlyClose)?;
-
-            Ok((
-                expr,
-                SourceLocation::start_end(&open.location, &close.location),
-            ))
-        } else {
-            let token = self.require()?;
-            let expr = self.expression(token)?;
-            let loc = expr.location().clone();
-
-            Ok((expr, loc))
-        }
     }
 
     fn type_cast(&mut self, start: Token) -> Result<Expression, ParseError> {
@@ -1491,67 +1421,25 @@ impl Parser {
     }
 
     fn postfix(&mut self, start: Token) -> Result<Expression, ParseError> {
-        let start_line = *start.location.line_range.start();
         let mut node = self.value(start)?;
 
         loop {
             let peeked = self.peek();
 
-            match peeked.kind {
-                TokenKind::Dot => {
-                    node = self.call_with_receiver(node)?;
-                }
-                TokenKind::BracketOpen
-                    if *peeked.location.line_range.start() == start_line =>
-                {
-                    node = self.index_expression(node)?;
-                }
-                _ => break,
+            if let TokenKind::Dot = peeked.kind {
+                node = self.call_with_receiver(node)?;
+            } else {
+                break;
             }
         }
 
         Ok(node)
     }
 
-    fn index_expression(
-        &mut self,
-        receiver: Expression,
-    ) -> Result<Expression, ParseError> {
-        self.next();
-
-        let index_token = self.require()?;
-        let index = self.expression(index_token)?;
-        let close = self.expect(TokenKind::BracketClose)?;
-
-        if self.peek().kind == TokenKind::Assign {
-            self.next();
-
-            let value_token = self.require()?;
-            let value = self.expression(value_token)?;
-            let location = SourceLocation::start_end(
-                receiver.location(),
-                value.location(),
-            );
-
-            Ok(Expression::SetIndex(Box::new(SetIndex {
-                receiver,
-                index,
-                value,
-                location,
-            })))
-        } else {
-            let location =
-                SourceLocation::start_end(receiver.location(), &close.location);
-
-            Ok(Expression::Index(Box::new(Index { receiver, index, location })))
-        }
-    }
-
     fn value(&mut self, start: Token) -> Result<Expression, ParseError> {
         // When updating this match, also update the one used for parsing return
         // value expressions.
         let value = match start.kind {
-            TokenKind::Async => self.async_expression(start)?,
             TokenKind::BracketOpen => self.array_literal(start)?,
             TokenKind::Break => self.break_loop(start),
             TokenKind::Constant => self.constant(start)?,
@@ -1578,7 +1466,6 @@ impl Parser {
             TokenKind::True => self.true_literal(start),
             TokenKind::Nil => self.nil_literal(start),
             TokenKind::Try => self.try_expression(start)?,
-            TokenKind::TryPanic => self.try_panic_expression(start)?,
             TokenKind::While => self.while_expression(start)?,
             TokenKind::Let => self.define_variable(start)?,
             _ => {
@@ -2268,20 +2155,13 @@ impl Parser {
             false
         };
         let arguments = self.optional_closure_arguments()?;
-        let throw_type = self.optional_throw_type()?;
         let return_type = self.optional_return_type()?;
         let body_token = self.expect(TokenKind::CurlyOpen)?;
         let body = self.expressions(body_token)?;
         let location =
             SourceLocation::start_end(&start.location, &body.location);
-        let closure = Closure {
-            moving,
-            body,
-            arguments,
-            throw_type,
-            return_type,
-            location,
-        };
+        let closure =
+            Closure { moving, body, arguments, return_type, location };
 
         Ok(Expression::Closure(Box::new(closure)))
     }
@@ -2374,17 +2254,6 @@ impl Parser {
 
     fn false_literal(&mut self, start: Token) -> Expression {
         Expression::False(Box::new(False { location: start.location }))
-    }
-
-    fn async_expression(
-        &mut self,
-        start: Token,
-    ) -> Result<Expression, ParseError> {
-        let (expression, expr_loc) =
-            self.expression_with_optional_curly_braces()?;
-        let location = SourceLocation::start_end(&start.location, &expr_loc);
-
-        Ok(Expression::Async(Box::new(Async { expression, location })))
     }
 
     fn group_or_tuple(
@@ -2490,8 +2359,7 @@ impl Parser {
             == start.location.line_range.start();
 
         let value = match peeked.kind {
-            TokenKind::Async
-            | TokenKind::BracketOpen
+            TokenKind::BracketOpen
             | TokenKind::Break
             | TokenKind::Constant
             | TokenKind::CurlyOpen
@@ -2518,7 +2386,6 @@ impl Parser {
             | TokenKind::Throw
             | TokenKind::True
             | TokenKind::Try
-            | TokenKind::TryPanic
             | TokenKind::While
                 if same_line =>
             {
@@ -2539,60 +2406,12 @@ impl Parser {
         &mut self,
         start: Token,
     ) -> Result<Expression, ParseError> {
-        let try_block = self.try_block()?;
-        let else_block = self.optional_else_block()?;
-        let end_loc =
-            location!(else_block).unwrap_or_else(|| try_block.location());
+        let expr_token = self.require()?;
+        let expression = self.expression(expr_token)?;
+        let end_loc = expression.location();
         let location = SourceLocation::start_end(&start.location, end_loc);
 
-        Ok(Expression::Try(Box::new(Try { try_block, else_block, location })))
-    }
-
-    fn try_panic_expression(
-        &mut self,
-        start: Token,
-    ) -> Result<Expression, ParseError> {
-        let try_block = self.try_block()?;
-        let location =
-            SourceLocation::start_end(&start.location, try_block.location());
-
-        Ok(Expression::TryPanic(Box::new(TryPanic { try_block, location })))
-    }
-
-    fn optional_try_binding(
-        &mut self,
-    ) -> Result<Option<BlockArgument>, ParseError> {
-        if self.peek().kind != TokenKind::ParenOpen {
-            return Ok(None);
-        }
-
-        self.next();
-
-        let start = self.require()?;
-        let arg = self.define_closure_argument(start)?;
-
-        self.expect(TokenKind::ParenClose)?;
-        Ok(Some(arg))
-    }
-
-    fn try_block(&mut self) -> Result<TryBlock, ParseError> {
-        let (value, location) = self.expression_with_optional_curly_braces()?;
-
-        Ok(TryBlock { value, location })
-    }
-
-    fn optional_else_block(&mut self) -> Result<Option<ElseBlock>, ParseError> {
-        if self.peek().kind != TokenKind::Else {
-            return Ok(None);
-        }
-
-        let start = self.next();
-        let binding = self.optional_try_binding()?;
-        let body = self.expressions_with_optional_curly_braces()?;
-        let location =
-            SourceLocation::start_end(&start.location, body.location());
-
-        Ok(Some(ElseBlock { argument: binding, body, location }))
+        Ok(Expression::Try(Box::new(Try { expression, location })))
     }
 
     fn if_expression(
@@ -3760,7 +3579,6 @@ mod tests {
             parser.type_reference(start).unwrap(),
             Type::Closure(Box::new(ClosureType {
                 arguments: None,
-                throw_type: None,
                 return_type: None,
                 location: cols(1, 2)
             }))
@@ -3787,33 +3605,8 @@ mod tests {
                     }))],
                     location: cols(4, 6)
                 }),
-                throw_type: None,
                 return_type: None,
                 location: cols(1, 6)
-            }))
-        );
-    }
-
-    #[test]
-    fn test_type_reference_with_closure_type_with_throw_type() {
-        let mut parser = parser("fn !! T");
-        let start = parser.require().unwrap();
-
-        assert_eq!(
-            parser.type_reference(start).unwrap(),
-            Type::Closure(Box::new(ClosureType {
-                arguments: None,
-                throw_type: Some(Type::Named(Box::new(TypeName {
-                    name: Constant {
-                        source: None,
-                        name: "T".to_string(),
-                        location: cols(7, 7),
-                    },
-                    arguments: None,
-                    location: cols(7, 7)
-                }))),
-                return_type: None,
-                location: cols(1, 7)
             }))
         );
     }
@@ -3827,7 +3620,6 @@ mod tests {
             parser.type_reference(start).unwrap(),
             Type::Closure(Box::new(ClosureType {
                 arguments: None,
-                throw_type: None,
                 return_type: Some(Type::Named(Box::new(TypeName {
                     name: Constant {
                         source: None,
@@ -3844,7 +3636,7 @@ mod tests {
 
     #[test]
     fn test_type_reference_with_full_closure_type() {
-        let mut parser = parser("fn (B) !! C -> D");
+        let mut parser = parser("fn (B) -> D");
         let start = parser.require().unwrap();
 
         assert_eq!(
@@ -3862,25 +3654,16 @@ mod tests {
                     }))],
                     location: cols(4, 6)
                 }),
-                throw_type: Some(Type::Named(Box::new(TypeName {
+                return_type: Some(Type::Named(Box::new(TypeName {
                     name: Constant {
                         source: None,
-                        name: "C".to_string(),
+                        name: "D".to_string(),
                         location: cols(11, 11),
                     },
                     arguments: None,
                     location: cols(11, 11)
                 }))),
-                return_type: Some(Type::Named(Box::new(TypeName {
-                    name: Constant {
-                        source: None,
-                        name: "D".to_string(),
-                        location: cols(16, 16),
-                    },
-                    arguments: None,
-                    location: cols(16, 16)
-                }))),
-                location: cols(1, 16)
+                location: cols(1, 11)
             }))
         );
     }
@@ -3977,7 +3760,6 @@ mod tests {
                 },
                 type_parameters: None,
                 arguments: None,
-                throw_type: None,
                 return_type: None,
                 body: Some(Expressions {
                     values: Vec::new(),
@@ -3999,7 +3781,6 @@ mod tests {
                 },
                 type_parameters: None,
                 arguments: None,
-                throw_type: None,
                 return_type: None,
                 body: Some(Expressions {
                     values: Vec::new(),
@@ -4021,7 +3802,6 @@ mod tests {
                 },
                 type_parameters: None,
                 arguments: None,
-                throw_type: None,
                 return_type: None,
                 body: Some(Expressions {
                     values: Vec::new(),
@@ -4043,7 +3823,6 @@ mod tests {
                 },
                 type_parameters: None,
                 arguments: None,
-                throw_type: None,
                 return_type: None,
                 body: Some(Expressions {
                     values: Vec::new(),
@@ -4065,7 +3844,6 @@ mod tests {
                 },
                 type_parameters: None,
                 arguments: None,
-                throw_type: None,
                 return_type: None,
                 body: Some(Expressions {
                     values: Vec::new(),
@@ -4087,7 +3865,6 @@ mod tests {
                 },
                 type_parameters: None,
                 arguments: None,
-                throw_type: None,
                 return_type: None,
                 body: Some(Expressions {
                     values: Vec::new(),
@@ -4109,7 +3886,6 @@ mod tests {
                 },
                 type_parameters: None,
                 arguments: None,
-                throw_type: None,
                 return_type: None,
                 body: Some(Expressions {
                     values: Vec::new(),
@@ -4145,7 +3921,6 @@ mod tests {
                     location: cols(8, 10)
                 }),
                 arguments: None,
-                throw_type: None,
                 return_type: None,
                 body: Some(Expressions {
                     values: Vec::new(),
@@ -4172,9 +3947,9 @@ mod tests {
                             name: "T".to_string(),
                             location: cols(9, 9)
                         },
-                        requirements: Some(TypeNames {
+                        requirements: Some(Requirements {
                             values: vec![
-                                TypeName {
+                                Requirement::Trait(TypeName {
                                     name: Constant {
                                         source: None,
                                         name: "A".to_string(),
@@ -4182,8 +3957,8 @@ mod tests {
                                     },
                                     arguments: None,
                                     location: cols(12, 12)
-                                },
-                                TypeName {
+                                }),
+                                Requirement::Trait(TypeName {
                                     name: Constant {
                                         source: None,
                                         name: "B".to_string(),
@@ -4191,7 +3966,7 @@ mod tests {
                                     },
                                     arguments: None,
                                     location: cols(16, 16)
-                                }
+                                })
                             ],
                             location: cols(12, 16)
                         }),
@@ -4200,7 +3975,6 @@ mod tests {
                     location: cols(8, 17)
                 }),
                 arguments: None,
-                throw_type: None,
                 return_type: None,
                 body: Some(Expressions {
                     values: Vec::new(),
@@ -4261,46 +4035,12 @@ mod tests {
                     ],
                     location: cols(8, 19)
                 }),
-                throw_type: None,
                 return_type: None,
                 body: Some(Expressions {
                     values: Vec::new(),
                     location: cols(21, 22)
                 }),
                 location: cols(1, 22)
-            }))
-        );
-    }
-
-    #[test]
-    fn test_method_with_throw_type() {
-        assert_eq!(
-            top(parse("fn foo !! A {}")),
-            TopLevelExpression::DefineMethod(Box::new(DefineMethod {
-                public: false,
-                operator: false,
-                kind: MethodKind::Instance,
-                name: Identifier {
-                    name: "foo".to_string(),
-                    location: cols(4, 6)
-                },
-                type_parameters: None,
-                arguments: None,
-                throw_type: Some(Type::Named(Box::new(TypeName {
-                    name: Constant {
-                        source: None,
-                        name: "A".to_string(),
-                        location: cols(11, 11),
-                    },
-                    arguments: None,
-                    location: cols(11, 11)
-                }))),
-                return_type: None,
-                body: Some(Expressions {
-                    values: Vec::new(),
-                    location: cols(13, 14)
-                }),
-                location: cols(1, 14)
             }))
         );
     }
@@ -4319,7 +4059,6 @@ mod tests {
                 },
                 type_parameters: None,
                 arguments: None,
-                throw_type: None,
                 return_type: Some(Type::Named(Box::new(TypeName {
                     name: Constant {
                         source: None,
@@ -4352,7 +4091,6 @@ mod tests {
                 },
                 type_parameters: None,
                 arguments: None,
-                throw_type: None,
                 return_type: None,
                 body: Some(Expressions {
                     values: vec![Expression::Int(Box::new(IntLiteral {
@@ -4372,7 +4110,6 @@ mod tests {
         assert_error!("fn foo [A: ] {}", cols(12, 12));
         assert_error!("fn foo (A: ) {}", cols(9, 9));
         assert_error!("fn foo (a: ) {}", cols(12, 12));
-        assert_error!("fn foo !! {}", cols(11, 11));
         assert_error!("fn foo -> {}", cols(11, 11));
         assert_error!("fn foo {", cols(8, 8));
         assert_error!("fn foo", cols(6, 6));
@@ -4501,7 +4238,6 @@ mod tests {
                             },
                             type_parameters: None,
                             arguments: None,
-                            throw_type: None,
                             return_type: None,
                             body: Some(Expressions {
                                 values: Vec::new(),
@@ -4539,7 +4275,6 @@ mod tests {
                             },
                             type_parameters: None,
                             arguments: None,
-                            throw_type: None,
                             return_type: None,
                             body: Some(Expressions {
                                 values: Vec::new(),
@@ -4575,8 +4310,8 @@ mod tests {
                                 name: "B".to_string(),
                                 location: cols(9, 9)
                             },
-                            requirements: Some(TypeNames {
-                                values: vec![TypeName {
+                            requirements: Some(Requirements {
+                                values: vec![Requirement::Trait(TypeName {
                                     name: Constant {
                                         source: None,
                                         name: "X".to_string(),
@@ -4584,7 +4319,7 @@ mod tests {
                                     },
                                     arguments: None,
                                     location: cols(12, 12)
-                                }],
+                                })],
                                 location: cols(12, 12)
                             }),
                             location: cols(9, 12)
@@ -4626,8 +4361,8 @@ mod tests {
                             name: "B".to_string(),
                             location: cols(9, 9)
                         },
-                        requirements: Some(TypeNames {
-                            values: vec![TypeName {
+                        requirements: Some(Requirements {
+                            values: vec![Requirement::Trait(TypeName {
                                 name: Constant {
                                     source: Some(Identifier {
                                         name: "a".to_string(),
@@ -4638,7 +4373,7 @@ mod tests {
                                 },
                                 arguments: None,
                                 location: cols(12, 15)
-                            }],
+                            })],
                             location: cols(12, 15)
                         }),
                         location: cols(9, 15)
@@ -4679,7 +4414,6 @@ mod tests {
                             },
                             type_parameters: None,
                             arguments: None,
-                            throw_type: None,
                             return_type: None,
                             body: Some(Expressions {
                                 values: Vec::new(),
@@ -4717,7 +4451,6 @@ mod tests {
                             },
                             type_parameters: None,
                             arguments: None,
-                            throw_type: None,
                             return_type: None,
                             body: Some(Expressions {
                                 values: Vec::new(),
@@ -4758,7 +4491,6 @@ mod tests {
                             },
                             type_parameters: None,
                             arguments: None,
-                            throw_type: None,
                             return_type: None,
                             body: Some(Expressions {
                                 values: Vec::new(),
@@ -4799,7 +4531,6 @@ mod tests {
                             },
                             type_parameters: None,
                             arguments: None,
-                            throw_type: None,
                             return_type: None,
                             body: Some(Expressions {
                                 values: Vec::new(),
@@ -4840,7 +4571,6 @@ mod tests {
                             },
                             type_parameters: None,
                             arguments: None,
-                            throw_type: None,
                             return_type: None,
                             body: Some(Expressions {
                                 values: Vec::new(),
@@ -5006,7 +4736,7 @@ mod tests {
         );
 
         assert_eq!(
-            top(parse("impl A for B if X: A + B, Y: C {}")),
+            top(parse("impl A for B if X: A + B, Y: C + mut {}")),
             TopLevelExpression::ImplementTrait(Box::new(ImplementTrait {
                 trait_name: TypeName {
                     name: Constant {
@@ -5024,7 +4754,7 @@ mod tests {
                 },
                 body: ImplementationExpressions {
                     values: Vec::new(),
-                    location: cols(32, 33)
+                    location: cols(38, 39)
                 },
                 bounds: Some(TypeBounds {
                     values: vec![
@@ -5034,9 +4764,9 @@ mod tests {
                                 name: "X".to_string(),
                                 location: cols(17, 17)
                             },
-                            requirements: TypeNames {
+                            requirements: Requirements {
                                 values: vec![
-                                    TypeName {
+                                    Requirement::Trait(TypeName {
                                         name: Constant {
                                             source: None,
                                             name: "A".to_string(),
@@ -5044,8 +4774,8 @@ mod tests {
                                         },
                                         arguments: None,
                                         location: cols(20, 20)
-                                    },
-                                    TypeName {
+                                    }),
+                                    Requirement::Trait(TypeName {
                                         name: Constant {
                                             source: None,
                                             name: "B".to_string(),
@@ -5053,7 +4783,7 @@ mod tests {
                                         },
                                         arguments: None,
                                         location: cols(24, 24)
-                                    },
+                                    }),
                                 ],
                                 location: cols(20, 24)
                             },
@@ -5065,24 +4795,27 @@ mod tests {
                                 name: "Y".to_string(),
                                 location: cols(27, 27)
                             },
-                            requirements: TypeNames {
-                                values: vec![TypeName {
-                                    name: Constant {
-                                        source: None,
-                                        name: "C".to_string(),
+                            requirements: Requirements {
+                                values: vec![
+                                    Requirement::Trait(TypeName {
+                                        name: Constant {
+                                            source: None,
+                                            name: "C".to_string(),
+                                            location: cols(30, 30)
+                                        },
+                                        arguments: None,
                                         location: cols(30, 30)
-                                    },
-                                    arguments: None,
-                                    location: cols(30, 30)
-                                }],
-                                location: cols(30, 30)
+                                    }),
+                                    Requirement::Mutable(cols(34, 36))
+                                ],
+                                location: cols(30, 36)
                             },
-                            location: cols(27, 30)
+                            location: cols(27, 36)
                         }
                     ],
-                    location: cols(17, 30)
+                    location: cols(17, 36)
                 }),
-                location: cols(1, 33)
+                location: cols(1, 39)
             }))
         );
 
@@ -5114,7 +4847,6 @@ mod tests {
                         },
                         type_parameters: None,
                         arguments: None,
-                        throw_type: None,
                         return_type: None,
                         body: Some(Expressions {
                             values: Vec::new(),
@@ -5144,6 +4876,7 @@ mod tests {
                     values: Vec::new(),
                     location: cols(8, 9)
                 },
+                bounds: None,
                 location: cols(1, 9)
             }))
         );
@@ -5167,7 +4900,6 @@ mod tests {
                         },
                         type_parameters: None,
                         arguments: None,
-                        throw_type: None,
                         return_type: None,
                         body: Some(Expressions {
                             values: Vec::new(),
@@ -5177,6 +4909,7 @@ mod tests {
                     }],
                     location: cols(8, 20)
                 },
+                bounds: None,
                 location: cols(1, 20)
             }))
         );
@@ -5200,7 +4933,6 @@ mod tests {
                         },
                         type_parameters: None,
                         arguments: None,
-                        throw_type: None,
                         return_type: None,
                         body: Some(Expressions {
                             values: Vec::new(),
@@ -5210,7 +4942,39 @@ mod tests {
                     }],
                     location: cols(8, 26)
                 },
+                bounds: None,
                 location: cols(1, 26)
+            }))
+        );
+
+        assert_eq!(
+            top(parse("impl A if T: mut {}")),
+            TopLevelExpression::ReopenClass(Box::new(ReopenClass {
+                class_name: Constant {
+                    source: None,
+                    name: "A".to_string(),
+                    location: cols(6, 6)
+                },
+                body: ImplementationExpressions {
+                    values: Vec::new(),
+                    location: cols(18, 19)
+                },
+                bounds: Some(TypeBounds {
+                    values: vec![TypeBound {
+                        name: Constant {
+                            source: None,
+                            name: "T".to_string(),
+                            location: cols(11, 11)
+                        },
+                        requirements: Requirements {
+                            values: vec![Requirement::Mutable(cols(14, 16))],
+                            location: cols(14, 16)
+                        },
+                        location: cols(11, 16)
+                    }],
+                    location: cols(11, 16)
+                }),
+                location: cols(1, 16)
             }))
         );
     }
@@ -5236,7 +5000,6 @@ mod tests {
                         },
                         type_parameters: None,
                         arguments: None,
-                        throw_type: None,
                         return_type: None,
                         body: Some(Expressions {
                             values: Vec::new(),
@@ -5246,6 +5009,7 @@ mod tests {
                     }],
                     location: cols(8, 27)
                 },
+                bounds: None,
                 location: cols(1, 27)
             }))
         );
@@ -5395,8 +5159,8 @@ mod tests {
                                 name: "B".to_string(),
                                 location: cols(9, 9)
                             },
-                            requirements: Some(TypeNames {
-                                values: vec![TypeName {
+                            requirements: Some(Requirements {
+                                values: vec![Requirement::Trait(TypeName {
                                     name: Constant {
                                         source: None,
                                         name: "X".to_string(),
@@ -5404,7 +5168,7 @@ mod tests {
                                     },
                                     arguments: None,
                                     location: cols(12, 12)
-                                }],
+                                })],
                                 location: cols(12, 12)
                             }),
                             location: cols(9, 12)
@@ -5455,7 +5219,6 @@ mod tests {
                         },
                         type_parameters: None,
                         arguments: None,
-                        throw_type: None,
                         return_type: None,
                         body: None,
                         location: cols(11, 16)
@@ -5491,7 +5254,6 @@ mod tests {
                         },
                         type_parameters: None,
                         arguments: None,
-                        throw_type: None,
                         return_type: None,
                         body: None,
                         location: cols(11, 16)
@@ -5499,50 +5261,6 @@ mod tests {
                     location: cols(9, 18)
                 },
                 location: cols(1, 18)
-            }))
-        );
-    }
-
-    #[test]
-    fn test_trait_with_required_method_with_throw_type() {
-        assert_eq!(
-            top(parse("trait A { fn foo !! A }")),
-            TopLevelExpression::DefineTrait(Box::new(DefineTrait {
-                public: false,
-                name: Constant {
-                    source: None,
-                    name: "A".to_string(),
-                    location: cols(7, 7)
-                },
-                type_parameters: None,
-                requirements: None,
-                body: TraitExpressions {
-                    values: vec![DefineMethod {
-                        public: false,
-                        operator: false,
-                        kind: MethodKind::Instance,
-                        name: Identifier {
-                            name: "foo".to_string(),
-                            location: cols(14, 16)
-                        },
-                        type_parameters: None,
-                        arguments: None,
-                        throw_type: Some(Type::Named(Box::new(TypeName {
-                            name: Constant {
-                                source: None,
-                                name: "A".to_string(),
-                                location: cols(21, 21)
-                            },
-                            arguments: None,
-                            location: cols(21, 21)
-                        }))),
-                        return_type: None,
-                        body: None,
-                        location: cols(11, 21)
-                    }],
-                    location: cols(9, 23)
-                },
-                location: cols(1, 23)
             }))
         );
     }
@@ -5571,7 +5289,6 @@ mod tests {
                         },
                         type_parameters: None,
                         arguments: None,
-                        throw_type: None,
                         return_type: Some(Type::Named(Box::new(TypeName {
                             name: Constant {
                                 source: None,
@@ -5633,7 +5350,6 @@ mod tests {
                             }],
                             location: cols(18, 23)
                         }),
-                        throw_type: None,
                         return_type: None,
                         body: None,
                         location: cols(11, 23)
@@ -5680,7 +5396,6 @@ mod tests {
                             location: cols(18, 20)
                         }),
                         arguments: None,
-                        throw_type: None,
                         return_type: None,
                         body: None,
                         location: cols(11, 20)
@@ -5716,7 +5431,6 @@ mod tests {
                         },
                         type_parameters: None,
                         arguments: None,
-                        throw_type: None,
                         return_type: None,
                         body: Some(Expressions {
                             values: Vec::new(),
@@ -5755,7 +5469,6 @@ mod tests {
                         },
                         type_parameters: None,
                         arguments: None,
-                        throw_type: None,
                         return_type: None,
                         body: Some(Expressions {
                             values: Vec::new(),
@@ -7152,47 +6865,6 @@ mod tests {
     }
 
     #[test]
-    fn test_async_expression() {
-        assert_eq!(
-            expr("async 10.foo"),
-            Expression::Async(Box::new(Async {
-                expression: Expression::Call(Box::new(Call {
-                    receiver: Some(Expression::Int(Box::new(IntLiteral {
-                        value: "10".to_string(),
-                        location: cols(7, 8)
-                    }))),
-                    name: Identifier {
-                        name: "foo".to_string(),
-                        location: cols(10, 12)
-                    },
-                    arguments: None,
-                    location: cols(7, 12)
-                })),
-                location: cols(1, 12)
-            }))
-        );
-
-        assert_eq!(
-            expr("async { 10.foo }"),
-            Expression::Async(Box::new(Async {
-                expression: Expression::Call(Box::new(Call {
-                    receiver: Some(Expression::Int(Box::new(IntLiteral {
-                        value: "10".to_string(),
-                        location: cols(9, 10)
-                    }))),
-                    name: Identifier {
-                        name: "foo".to_string(),
-                        location: cols(12, 14)
-                    },
-                    arguments: None,
-                    location: cols(9, 14)
-                })),
-                location: cols(1, 16)
-            }))
-        );
-    }
-
-    #[test]
     fn test_call_with_trailing_blocks_without_parentheses() {
         assert_eq!(
             expr("foo fn {}"),
@@ -7207,7 +6879,6 @@ mod tests {
                         Box::new(Closure {
                             moving: false,
                             arguments: None,
-                            throw_type: None,
                             return_type: None,
                             body: Expressions {
                                 values: vec![],
@@ -7241,7 +6912,6 @@ mod tests {
                         Box::new(Closure {
                             moving: false,
                             arguments: None,
-                            throw_type: None,
                             return_type: None,
                             body: Expressions {
                                 values: vec![],
@@ -7275,7 +6945,6 @@ mod tests {
                         Box::new(Closure {
                             moving: false,
                             arguments: None,
-                            throw_type: None,
                             return_type: None,
                             body: Expressions {
                                 values: vec![],
@@ -7306,7 +6975,6 @@ mod tests {
                         Box::new(Closure {
                             moving: false,
                             arguments: None,
-                            throw_type: None,
                             return_type: None,
                             body: Expressions {
                                 values: vec![],
@@ -7343,7 +7011,6 @@ mod tests {
             Expression::Closure(Box::new(Closure {
                 moving: false,
                 arguments: None,
-                throw_type: None,
                 return_type: None,
                 body: Expressions {
                     values: Vec::new(),
@@ -7540,7 +7207,6 @@ mod tests {
             Expression::Closure(Box::new(Closure {
                 moving: false,
                 arguments: None,
-                throw_type: None,
                 return_type: None,
                 body: Expressions {
                     values: vec![Expression::Int(Box::new(IntLiteral {
@@ -7558,7 +7224,6 @@ mod tests {
             Expression::Closure(Box::new(Closure {
                 moving: true,
                 arguments: None,
-                throw_type: None,
                 return_type: None,
                 body: Expressions {
                     values: vec![Expression::Int(Box::new(IntLiteral {
@@ -7586,7 +7251,6 @@ mod tests {
                     }],
                     location: cols(4, 6)
                 }),
-                throw_type: None,
                 return_type: None,
                 body: Expressions {
                     values: vec![Expression::Int(Box::new(IntLiteral {
@@ -7622,7 +7286,6 @@ mod tests {
                     }],
                     location: cols(4, 9)
                 }),
-                throw_type: None,
                 return_type: None,
                 body: Expressions {
                     values: vec![Expression::Int(Box::new(IntLiteral {
@@ -7636,37 +7299,10 @@ mod tests {
         );
 
         assert_eq!(
-            expr("fn !! T { 10 }"),
-            Expression::Closure(Box::new(Closure {
-                moving: false,
-                arguments: None,
-                throw_type: Some(Type::Named(Box::new(TypeName {
-                    name: Constant {
-                        source: None,
-                        name: "T".to_string(),
-                        location: cols(7, 7)
-                    },
-                    arguments: None,
-                    location: cols(7, 7)
-                }))),
-                return_type: None,
-                body: Expressions {
-                    values: vec![Expression::Int(Box::new(IntLiteral {
-                        value: "10".to_string(),
-                        location: cols(11, 12)
-                    }))],
-                    location: cols(9, 14)
-                },
-                location: cols(1, 14)
-            }))
-        );
-
-        assert_eq!(
             expr("fn -> T { 10 }"),
             Expression::Closure(Box::new(Closure {
                 moving: false,
                 arguments: None,
-                throw_type: None,
                 return_type: Some(Type::Named(Box::new(TypeName {
                     name: Constant {
                         source: None,
@@ -7691,7 +7327,6 @@ mod tests {
     #[test]
     fn test_invalid_closures() {
         assert_error_expr!("fn {", cols(4, 4));
-        assert_error_expr!("fn !!", cols(5, 5));
         assert_error_expr!("fn ->", cols(5, 5));
         assert_error_expr!("fn =>", cols(4, 5));
     }
@@ -8085,70 +7720,6 @@ mod tests {
     }
 
     #[test]
-    fn test_index_expression() {
-        assert_eq!(
-            expr("10[1]"),
-            Expression::Index(Box::new(Index {
-                receiver: Expression::Int(Box::new(IntLiteral {
-                    value: "10".to_string(),
-                    location: cols(1, 2)
-                })),
-                index: Expression::Int(Box::new(IntLiteral {
-                    value: "1".to_string(),
-                    location: cols(4, 4)
-                })),
-                location: cols(1, 5)
-            }))
-        );
-
-        assert_eq!(
-            expr("10[1] = 2"),
-            Expression::SetIndex(Box::new(SetIndex {
-                receiver: Expression::Int(Box::new(IntLiteral {
-                    value: "10".to_string(),
-                    location: cols(1, 2)
-                })),
-                index: Expression::Int(Box::new(IntLiteral {
-                    value: "1".to_string(),
-                    location: cols(4, 4)
-                })),
-                value: Expression::Int(Box::new(IntLiteral {
-                    value: "2".to_string(),
-                    location: cols(9, 9)
-                })),
-                location: cols(1, 9)
-            }))
-        );
-    }
-
-    #[test]
-    fn test_index_on_separate_line() {
-        let mut parser = parser("10\n[1]");
-
-        parser.next();
-
-        let start = parser.require().unwrap();
-        let expr = parser.expression(start).unwrap();
-
-        assert_eq!(
-            expr,
-            Expression::Array(Box::new(Array {
-                values: vec![Expression::Int(Box::new(IntLiteral {
-                    value: "1".to_string(),
-                    location: location(2..=2, 2..=2)
-                }))],
-                location: location(2..=2, 1..=3)
-            }))
-        );
-    }
-
-    #[test]
-    fn test_invalid_indexing() {
-        assert_error_expr!("10[1", cols(4, 4));
-        assert_error_expr!("10[1] =", cols(7, 7));
-    }
-
-    #[test]
     fn test_throw_expression() {
         assert_eq!(
             expr("throw 10"),
@@ -8200,7 +7771,6 @@ mod tests {
                     moving: false,
                     arguments: None,
                     return_type: None,
-                    throw_type: None,
                     body: Expressions {
                         values: Vec::new(),
                         location: cols(11, 12)
@@ -8391,219 +7961,13 @@ mod tests {
         assert_eq!(
             expr("try a"),
             Expression::Try(Box::new(Try {
-                try_block: TryBlock {
-                    value: Expression::Identifier(Box::new(Identifier {
-                        name: "a".to_string(),
-                        location: cols(5, 5)
-                    })),
+                expression: Expression::Identifier(Box::new(Identifier {
+                    name: "a".to_string(),
                     location: cols(5, 5)
-                },
-                else_block: None,
+                })),
                 location: cols(1, 5)
             }))
         );
-
-        assert_eq!(
-            expr("try { a }"),
-            Expression::Try(Box::new(Try {
-                try_block: TryBlock {
-                    value: Expression::Identifier(Box::new(Identifier {
-                        name: "a".to_string(),
-                        location: cols(7, 7)
-                    })),
-                    location: cols(5, 9)
-                },
-                else_block: None,
-                location: cols(1, 9)
-            }))
-        );
-
-        assert_eq!(
-            expr("try a else b"),
-            Expression::Try(Box::new(Try {
-                try_block: TryBlock {
-                    value: Expression::Identifier(Box::new(Identifier {
-                        name: "a".to_string(),
-                        location: cols(5, 5)
-                    })),
-                    location: cols(5, 5)
-                },
-                else_block: Some(ElseBlock {
-                    argument: None,
-                    body: Expressions {
-                        values: vec![Expression::Identifier(Box::new(
-                            Identifier {
-                                name: "b".to_string(),
-                                location: cols(12, 12)
-                            }
-                        ))],
-                        location: cols(12, 12)
-                    },
-                    location: cols(7, 12)
-                }),
-                location: cols(1, 12)
-            }))
-        );
-
-        assert_eq!(
-            expr("try a else { b }"),
-            Expression::Try(Box::new(Try {
-                try_block: TryBlock {
-                    value: Expression::Identifier(Box::new(Identifier {
-                        name: "a".to_string(),
-                        location: cols(5, 5)
-                    })),
-                    location: cols(5, 5)
-                },
-                else_block: Some(ElseBlock {
-                    body: Expressions {
-                        values: vec![Expression::Identifier(Box::new(
-                            Identifier {
-                                name: "b".to_string(),
-                                location: cols(14, 14)
-                            }
-                        ))],
-                        location: cols(12, 16)
-                    },
-                    argument: None,
-                    location: cols(7, 16)
-                }),
-                location: cols(1, 16)
-            }))
-        );
-
-        assert_eq!(
-            expr("try a else (arg) b"),
-            Expression::Try(Box::new(Try {
-                try_block: TryBlock {
-                    value: Expression::Identifier(Box::new(Identifier {
-                        name: "a".to_string(),
-                        location: cols(5, 5)
-                    })),
-                    location: cols(5, 5)
-                },
-                else_block: Some(ElseBlock {
-                    body: Expressions {
-                        values: vec![Expression::Identifier(Box::new(
-                            Identifier {
-                                name: "b".to_string(),
-                                location: cols(18, 18)
-                            }
-                        ))],
-                        location: cols(18, 18)
-                    },
-                    argument: Some(BlockArgument {
-                        name: Identifier {
-                            name: "arg".to_string(),
-                            location: cols(13, 15)
-                        },
-                        value_type: None,
-                        location: cols(13, 15)
-                    }),
-                    location: cols(7, 18)
-                }),
-                location: cols(1, 18)
-            }))
-        );
-
-        assert_eq!(
-            expr("try a else (arg: T) b"),
-            Expression::Try(Box::new(Try {
-                try_block: TryBlock {
-                    value: Expression::Identifier(Box::new(Identifier {
-                        name: "a".to_string(),
-                        location: cols(5, 5)
-                    })),
-                    location: cols(5, 5)
-                },
-                else_block: Some(ElseBlock {
-                    body: Expressions {
-                        values: vec![Expression::Identifier(Box::new(
-                            Identifier {
-                                name: "b".to_string(),
-                                location: cols(21, 21)
-                            }
-                        ))],
-                        location: cols(21, 21)
-                    },
-                    argument: Some(BlockArgument {
-                        name: Identifier {
-                            name: "arg".to_string(),
-                            location: cols(13, 15)
-                        },
-                        value_type: Some(Type::Named(Box::new(TypeName {
-                            name: Constant {
-                                source: None,
-                                name: "T".to_string(),
-                                location: cols(18, 18)
-                            },
-                            arguments: None,
-                            location: cols(18, 18)
-                        }))),
-                        location: cols(13, 18)
-                    }),
-                    location: cols(7, 21)
-                }),
-                location: cols(1, 21)
-            }))
-        );
-
-        assert_eq!(
-            expr("try { a } else (arg) { b }"),
-            Expression::Try(Box::new(Try {
-                try_block: TryBlock {
-                    value: Expression::Identifier(Box::new(Identifier {
-                        name: "a".to_string(),
-                        location: cols(7, 7)
-                    })),
-                    location: cols(5, 9)
-                },
-                else_block: Some(ElseBlock {
-                    body: Expressions {
-                        values: vec![Expression::Identifier(Box::new(
-                            Identifier {
-                                name: "b".to_string(),
-                                location: cols(24, 24)
-                            }
-                        ))],
-                        location: cols(22, 26)
-                    },
-                    argument: Some(BlockArgument {
-                        name: Identifier {
-                            name: "arg".to_string(),
-                            location: cols(17, 19)
-                        },
-                        value_type: None,
-                        location: cols(17, 19)
-                    }),
-                    location: cols(11, 26)
-                }),
-                location: cols(1, 26)
-            }))
-        );
-    }
-
-    #[test]
-    fn test_try_panic_expression() {
-        assert_eq!(
-            expr("try! a"),
-            Expression::TryPanic(Box::new(TryPanic {
-                try_block: TryBlock {
-                    value: Expression::Identifier(Box::new(Identifier {
-                        name: "a".to_string(),
-                        location: cols(6, 6)
-                    })),
-                    location: cols(6, 6)
-                },
-                location: cols(1, 6)
-            }))
-        );
-    }
-
-    #[test]
-    fn test_invalid_try_expressions() {
-        assert_error_expr!("try a else", cols(10, 10));
-        assert_error_expr!("try a else (arg)", cols(16, 16));
     }
 
     #[test]

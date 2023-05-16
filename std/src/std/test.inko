@@ -1,0 +1,605 @@
+# A simple unit testing library.
+#
+# This module provides a simple and opinionated unit testing library. Tests are
+# simply closures with a description, and define assertions using a `Test`
+# instance passed as an argument to these closures.
+#
+# Unlike many other testing libraries, assertion failures don't immediately
+# terminate the test, instead the test runs until the end. This ensures all
+# failing assertions are immediately visible, instead of only the first
+# assertion per failing test being visible.
+#
+# This module doesn't provide the means for setting up hooks (e.g. a function
+# that runs before every or all tests), nor does it provide the means to tag
+# tests, temporarily disable them, and more.
+#
+# Tests are run concurrently and in random order. The number of concurrently
+# running tests is limited, with the default limit being the number of CPU cores
+# available. This makes it easier to interact with external services, such as
+# databases, as these may only be able to handle a limit number of concurrent
+# requests.
+#
+# # Writing tests
+#
+# To write a test you need to import the `Tests` type into your module of
+# choice. You can then write your tests like so:
+#
+#     import std::test::Tests
+#
+#     class async Main {
+#       fn async main {
+#         let tests = Tests.new
+#
+#         tests.test('This is the test description') fn (t) {
+#           t.equal('foo'.length, 3)
+#         }
+#
+#         tests.run
+#       }
+#     }
+#
+# The closure passed to the `test` method must be a `uni` closure, otherwise it
+# can't be sent to the process that runs the test. If you pass the closure
+# directly (as shown above) no extra work is needed. If you decide to first
+# store the closure in a variable, you must explicitly recover it:
+#
+#     import std::test::Tests
+#
+#     class async Main {
+#       fn async main {
+#         let tests = Tests.new
+#         let block = recover fn (t: mut Tets) { t.equal('foo'.length, 3) }
+#
+#         tests.test('This is the test description', block)
+#         tests.run
+#       }
+#     }
+#
+# For more information about the available assertions, refer to the
+# documentation of the `Test` type.
+import std::cmp::(Compare, Equal)
+import std::debug
+import std::env
+import std::fmt::(DefaultFormatter, Format, Formatter)
+import std::fs::path::Path
+import std::io::Write
+import std::process
+import std::rand::(Random, Shuffle)
+import std::stdio::STDOUT
+import std::sys::(Command, ExitStatus, Stream, cpu_cores, exit)
+import std::time::(Duration, Instant)
+
+let CHILD_VAR = 'INKO_TEST_CHILD'
+let TEST_PREFIX = 'test_'
+
+fn format(value: ref Format) -> String {
+  let formatter: Formatter = DefaultFormatter.new
+
+  value.fmt(formatter)
+  formatter.into_string
+}
+
+# A single unit test.
+class pub Test {
+  # The unique ID of this test.
+  #
+  # This ID can be used when you want to create some sort of resource unique to
+  # a test, such as a file. This removes the need for manually generating unique
+  # names/paths/etc.
+  let pub @id: Int
+
+  # The name of the test as defined by the user.
+  let pub @name: String
+
+  # The path to the source file the test is defined in.
+  let pub @path: Path
+
+  # The line on which the test is defined.
+  let pub @line: Int
+
+  # All test failures produced when running the tests.
+  let pub @failures: Array[Failure]
+
+  # A closure containing the assertions to perform.
+  let @code: uni fn (mut Test)
+
+  # Returns a new `Test`.
+  fn pub static new(
+    id: Int,
+    name: String,
+    path: Path,
+    line: Int,
+    code: uni fn (mut Test)
+  ) -> Test {
+    Test {
+      @id = id,
+      @name = name,
+      @path = path,
+      @line = line,
+      @failures = [],
+      @code = code
+    }
+  }
+
+  # Asserts that the given arguments are equal to each other.
+  fn pub mut equal[T: Equal[T] + Format](got: ref T, expected: ref T) {
+    if got == expected { return }
+
+    @failures.push(Failure.new(format(got), format(expected)))
+  }
+
+  # Asserts that the given arguments are not equal to each other.
+  fn pub mut not_equal[T: Equal[T] + Format](got: ref T, expected: ref T) {
+    if got != expected { return }
+
+    @failures.push(Failure.new(format(got), format(expected)))
+  }
+
+  # Asserts that `got` is greater than `minimum`.
+  fn pub mut greater[T: Compare[T] + Format](got: ref T, minimum: ref T) {
+    if got > minimum { return }
+
+    @failures.push(Failure.new(format(got), "> {format(minimum)}"))
+  }
+
+  # Asserts that the given value is `true`.
+  fn pub mut true(value: Bool) {
+    if value { return }
+
+    @failures.push(Failure.new('false', 'true'))
+  }
+
+  # Asserts that the given value is `false`.
+  fn pub mut false(value: Bool) {
+    if value.false? { return }
+
+    @failures.push(Failure.new('true', 'false'))
+  }
+
+  fn matches?(filter: ref Filter) -> Bool {
+    match filter {
+      case Pattern(pat) -> @name.contains?(pat)
+      case Location(path) -> @path == path
+      case None -> true
+    }
+  }
+}
+
+# A type used for reporting test progress.
+trait pub Reporter {
+  # Reports a test that passed.
+  fn pub mut passed(test: Test)
+
+  # Reports a test that failed.
+  fn pub mut failed(test: Test)
+
+  # Presents a summary of the test suite upon completion.
+  #
+  # The `duration` argument is set to the total execution time.
+  #
+  # The `seed` argument is the seed used to sort the tests in a random order.
+  #
+  # If any tests failed, this method must return `false`.
+  fn pub move finished(duration: Duration, seed: Int) -> Bool
+}
+
+# A test reporter that prints results in a simple text based format.
+class pub Plain {
+  let @out: Write
+  let @tests: Int
+  let @failed: Array[Test]
+  let @colors: Bool
+
+  # Returns a new reporter that writes to the given output stream.
+  fn pub static new(out: Write, colors: Bool) -> Plain {
+    Plain { @out = out, @tests = 0, @failed = [], @colors = colors }
+  }
+
+  fn red(value: String) -> String {
+    if @colors { "\e[31m{value}\e[0m" } else { value }
+  }
+
+  fn green(value: String) -> String {
+    if @colors { "\e[32m{value}\e[0m" } else { value }
+  }
+}
+
+impl Reporter for Plain {
+  fn pub mut passed(test: Test) {
+    @tests += 1
+    @out.write_string(green('.')).unwrap
+    @out.flush.unwrap
+  }
+
+  fn pub mut failed(test: Test) {
+    @tests += 1
+    @failed.push(test)
+    @out.write_string(red('F')).unwrap
+    @out.flush.unwrap
+  }
+
+  fn pub move finished(duration: Duration, seed: Int) -> Bool {
+    if @failed.length > 0 {
+      @out.print("\n\nFailures:").unwrap
+
+      @failed.iter.each_with_index fn (test_index, test) {
+        test.failures.iter.each_with_index fn (failure_index, fail) {
+          let num = "{test_index + failure_index + 1}."
+          let indent = ' '.repeat(num.characters.count)
+
+          @out
+            .print(
+              "
+{num} Test: {test.name}
+{indent} Line: {fail.path}:{fail.line}
+
+{indent}   {green("expected:")} {fail.expected}
+{indent}        {red("got:")} {fail.got}"
+            )
+            .unwrap
+        }
+      }
+    }
+
+    let decimals = 4
+    let dur = if duration.to_secs >= 1.0 {
+      "{duration.to_secs.round(decimals)} seconds"
+    } else {
+      "{duration.to_millis} milliseconds"
+    }
+    let failed =
+      @failed.iter.reduce(0) fn (sum, test) { sum + test.failures.length }
+    let failures =
+      if failed > 0 { red("{failed} failures") } else { green('0 failures') }
+
+    @out
+      .print(
+        "\nFinished running {@tests} tests in {dur}, {failures}, seed: {seed}"
+      )
+      .unwrap
+
+    @failed.empty?
+  }
+}
+
+class async Runner {
+  let @input: Channel[uni Test]
+  let @output: Channel[uni Test]
+
+  fn async run {
+    loop {
+      let test = match @input.try_receive {
+        case Some(test) -> test
+        case None -> return
+      }
+
+      let result = recover {
+        let test = recover test
+
+        test.code.call(test)
+        test
+      }
+
+      @output.send(result)
+    }
+  }
+}
+
+# A test failure produced by an assertion.
+class pub Failure {
+  # A description of what happened.
+  let pub @got: String
+
+  # A description of what was expected to happen.
+  let pub @expected: String
+
+  # The path to the source file in which the failure occurred.
+  let pub @path: Path
+
+  # The line on which the failure occurred.
+  let pub @line: Int
+
+  # Returns a new failure for the given reason.
+  #
+  # The source location is determined automatically based on the call stack.
+  fn pub static new(got: String, expected: String) -> Failure {
+    # This skips the call to stacktrace(), the call to this new(), and its
+    # caller (which would be e.g. `assert_equal`).
+    let frame = debug
+      .stacktrace(skip: 3)
+      .pop
+      .expect('at least one stack frame must be present')
+
+    match frame {
+      case { @path = path, @line = line } -> Failure {
+        @got = got,
+        @expected = expected,
+        @path = path,
+        @line = line
+      }
+    }
+  }
+}
+
+# A type describing how to filter out tests.
+class pub enum Filter {
+  # Only run tests of which the description matches this pattern.
+  case Pattern(String)
+
+  # Only run tests defined in the given file.
+  case Location(Path)
+
+  # No filter is applied.
+  case None
+
+  # Parses a `String` into a filter.
+  #
+  # If the `String` is a valid path, a `Location` is returned, if not a
+  # `Pattern` is returned.
+  fn pub static from_string(string: String) -> Filter {
+    if string.empty? { return Filter.None }
+
+    match Path.new(string).expand {
+      case Ok(path) -> Filter.Location(path)
+      case _ -> Filter.Pattern(string)
+    }
+  }
+}
+
+impl Equal[Filter] for Filter {
+  fn pub ==(other: ref Filter) -> Bool {
+    match self {
+      case Pattern(lhs) -> match other {
+        case Pattern(rhs) -> lhs == rhs
+        case _ -> false
+      }
+      case Location(lhs) -> match other {
+        case Location(rhs) -> lhs == rhs
+        case _ -> false
+      }
+      case None -> match other {
+        case None -> true
+        case _ -> false
+      }
+    }
+  }
+}
+
+impl Format for Filter {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case Pattern(val) -> {
+        formatter.write('Pattern(')
+        val.fmt(formatter)
+        formatter.write(')')
+      }
+      case Location(path) -> {
+        formatter.write('Location(')
+        path.fmt(formatter)
+        formatter.write(')')
+      }
+      case None -> formatter.write('None')
+    }
+  }
+}
+
+# A child process to run as part of a unit test.
+class pub Process {
+  let @cmd: Command
+  let @stdin: String
+
+  fn static new(id: Int) -> Process {
+    let cmd = Command.new(env.executable.unwrap)
+
+    cmd.stdin(Stream.Piped)
+    cmd.stdout(Stream.Piped)
+    cmd.stderr(Stream.Piped)
+    cmd.variable(CHILD_VAR, id.to_string)
+    Process { @cmd = cmd, @stdin = '' }
+  }
+
+  # Adds an argument to the process.
+  fn pub mut argument(value: String) {
+    @cmd.argument(value)
+  }
+
+  # Adds or updates an environment variable to the process.
+  fn pub mut variable(name: String, value: String) {
+    @cmd.variable(name, value)
+  }
+
+  # Sets the data to write to STDIN.
+  fn pub mut stdin(bytes: String) {
+    @stdin = bytes
+  }
+
+  # Spawns the process, waits for it to finish, and returns an `Output`
+  # containing the results.
+  fn pub move spawn -> Output {
+    let child = match @cmd.spawn {
+      case Ok(child) -> child
+      case Error(err) -> panic("Failed to spawn the child process: {err}")
+    }
+
+    let _ = child.stdin.write_string(@stdin)
+    let stdout = ByteArray.new
+    let stderr = ByteArray.new
+
+    child.stdout.read_all(stdout)
+    child.stderr.read_all(stderr)
+
+    let status = match child.wait {
+      case Ok(val) -> val
+      case Error(err) -> panic("Failed to wait for the child process: {err}")
+    }
+
+    Output {
+      @status = status,
+      @stdout = stdout.into_string,
+      @stderr = stderr.into_string
+    }
+  }
+}
+
+# The output of a sub process.
+class pub Output {
+  # The exit status of the process.
+  let pub @status: ExitStatus
+
+  # The data written to STDOUT.
+  let pub @stdout: String
+
+  # The data written to STDERR.
+  let pub @stderr: String
+}
+
+# A collection of tests to run.
+class pub Tests {
+  # The number of tests to run concurrently.
+  #
+  # This defaults to the number of CPU cores.
+  let pub @concurrency: Int
+
+  # The reporter to use for producing test output.
+  #
+  # This defaults to the `Plain` reporter that writes to STDOUT.
+  let pub @reporter: Reporter
+
+  # The filter to apply to decide which tests to run.
+  let pub @filter: Filter
+
+  # The seed to use for ordering the tests.
+  #
+  # Tests are sorted in random order before running them, in an attempt to
+  # prevent them from depending on a specific execution order. When debugging
+  # test failures it may be useful to set the seed to a fixed value, ensuring
+  # tests are sorted in the same order.
+  #
+  # While this value affects the order in which tests are sorted and scheduled,
+  # tests may finish in a different order. For example, given a seed S and tests
+  # [A, B, C], the tests might be ordered as [C, B, A] but finish in the order
+  # [B, C, A], due to tests being run concurrently. For a truly deterministic
+  # execution order you'll also need to set the `concurrency` field to `1`.
+  let pub @seed: Option[Int]
+
+  # All the tests that have been registered.
+  let @tests: Array[uni Test]
+
+  # Closures to call as part of a forking test/child process.
+  let @children: Array[fn]
+
+  # Returns a new test tests with its default settings.
+  fn pub static new -> Tests {
+    Tests {
+      @tests = [],
+      @children = [],
+      @concurrency = cpu_cores,
+      @reporter = Plain.new(out: STDOUT.new, colors: true),
+      @filter = Filter.None,
+      @seed = Option.None,
+    }
+  }
+
+  # Registers a new test with the test tests.
+  fn pub mut test(name: String, code: uni fn (mut Test)) {
+    let id = @tests.length
+    let test = recover {
+      let trace = debug.stacktrace(skip: 2)
+      let frame = trace
+        .reverse_iter
+        .find fn (frame) { frame.path.tail.starts_with?(TEST_PREFIX) }
+        .else fn { trace.opt(trace.length - 1) }
+        .expect('at least one stack frame must be present')
+        .clone
+
+      Test.new(id, name, frame.path.clone, frame.line, code)
+    }
+
+    @tests.push(test)
+  }
+
+  # Registers a new test using a fork/subprocess.
+  #
+  # This doesn't use the actual `fork()` system call. Instead, a new instance of
+  # the test executable is spawned such that it only runs the closure specified
+  # in the `child` argument.
+  fn pub mut fork(name: String, child: fn, test: uni fn (mut Test, Process)) {
+    let id = @children.length
+
+    @children.push(child)
+    test(name, fn move (t) { test.call(t, Process.new(id)) })
+  }
+
+  # Registers a new test that asserts the given closure triggers a panic.
+  fn pub mut panic(name: String, code: uni fn) {
+    fork(name, code) fn (test, process) {
+      let output = process.spawn
+      let code = output.status.to_int
+
+      if code == 101 { return }
+
+      test.failures.push(Failure.new(
+        "the process exited with status {code}",
+        'the process to panic with exit status 101'
+      ))
+    }
+  }
+
+  # Runs all the tests.
+  fn pub move run {
+    match env.opt(CHILD_VAR) {
+      case Some(id) -> return run_child(id)
+      case _ -> {}
+    }
+
+    let filter = @filter
+    let tests = @tests
+      .into_iter
+      .select_map fn (test) {
+        if test.matches?(filter) { Option.Some(test) } else { Option.None }
+      }
+      .to_array
+
+    let seed = match @seed {
+      case Some(seed) -> seed
+      case _ -> Random.new.int
+    }
+
+    # We shuffle tests in a random order to ensure they don't end up
+    # (implicitly) depending on a specific execution order.
+    Shuffle.from_int(seed).sort(tests)
+
+    let rep = @reporter
+    let start = Instant.new
+    let input = Channel.new(tests.length)
+    let output = Channel.new(tests.length)
+    let size = tests.length
+
+    # We send the tests first, as the test runners abort when the input channel
+    # is empty.
+    tests.into_iter.each fn (test) { input.send(test) }
+
+    @concurrency.times fn (_) {
+      Runner { @input = input, @output = output }.run
+    }
+
+    size.times fn (_) {
+      let test = recover output.receive
+
+      if test.failures.empty? { rep.passed(test) } else { rep.failed(test) }
+    }
+
+    if rep.finished(start.elapsed, seed) {
+      exit(status: 0)
+    } else {
+      exit(status: 1)
+    }
+  }
+
+  fn pub move run_child(id: String) {
+    match Int.from_base10(id).then(fn (id) { @children.opt_mut(id) }) {
+      case Some(block) -> block.call
+      case _ -> process.panic("The child ID '{id}' is invalid")
+    }
+  }
+}

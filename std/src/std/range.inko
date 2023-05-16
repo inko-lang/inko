@@ -1,0 +1,260 @@
+# Inclusive and exclusive ranges.
+#
+# There are three range types:
+#
+# - `Range`: a trait providing common behaviour for range types.
+# - `InclusiveRange`: an inclusive range of integers.
+# - `ExclusiveRang`: an exclusive range of integers.
+#
+# Ranges of arbitrary types aren't supported.
+#
+# # Creating ranges
+#
+# While you can create ranges using `InclusiveRange.new` and
+# `ExclusiveRange.new`, an easier way of doing so is using `Int.to` and
+# `Int.until` respectively. For example, to create an exclusive range from 1 to
+# 10:
+#
+#     1.until(10)
+#
+# For more information refer to the documentation of `Int.to` and `Int.until`.
+import std::cmp::(Contains, Compare, Equal, min)
+import std::fmt::(Format, Formatter)
+import std::hash::(Hash, Hasher)
+import std::iter::(Enum, Iter)
+
+# A range of integers.
+trait pub Range: Contains[Int] + Hash + Format {
+  # Returns the first value in the range.
+  fn pub start -> Int
+
+  # Returns the last value in the range.
+  fn pub end -> Int
+
+  # Returns `true` if the range is an inclusive range.
+  fn pub inclusive? -> Bool
+
+  # Returns an iterator that yields ranges of up to `amount` values.
+  #
+  # If the number of values in `self` can't be evenly divided by `amount`, the
+  # last range is shorter.
+  fn pub step_by(amount: Int) -> Enum[Range]
+
+  # Returns the number of values in this range.
+  fn pub length -> Int
+
+  # Returns an iterator over the values in `self`.
+  fn pub iter -> Iter[Int]
+}
+
+# An inclusive range of integers.
+class pub InclusiveRange {
+  # The start value of the range.
+  let pub @start: Int
+
+  # The end value of the range.
+  let pub @end: Int
+
+  # Returns a new `InclusiveRange` over the given values.
+  fn pub static new(start: Int, end: Int) -> InclusiveRange {
+    InclusiveRange { @start = start, @end = end }
+  }
+}
+
+impl Range for InclusiveRange {
+  fn pub start -> Int {
+    @start
+  }
+
+  fn pub end -> Int {
+    @end
+  }
+
+  fn pub inclusive? -> Bool {
+    true
+  }
+
+  fn pub step_by(amount: Int) -> Enum[InclusiveRange] {
+    let mut current = @start
+    let max = @end
+
+    Enum.new fn move {
+      if current > max { return Option.None }
+
+      let end = min(current + amount - 1, max)
+      let range = Option.Some(InclusiveRange.new(current, end))
+
+      current = end + 1
+      range
+    }
+  }
+
+  fn pub length -> Int {
+    if @end >= @start { @end - @start + 1 } else { 0 }
+  }
+
+  fn pub iter -> Enum[Int] {
+    let mut current = @start
+    let end = @end
+
+    Enum.new fn move {
+      if current <= end {
+        Option.Some(current := current + 1)
+      } else {
+        Option.None
+      }
+    }
+  }
+}
+
+impl Contains[Int] for InclusiveRange {
+  # Returns `true` if the given argument resides in the range of `self`.
+  #
+  # # Examples
+  #
+  # Checking if a `Range` covers a value:
+  #
+  #     1.to(10).cover?(5)  # => true
+  #     1.to(10).cover?(10) # => true
+  fn pub contains?(value: ref Int) -> Bool {
+    @start <= value and value <= @end
+  }
+}
+
+impl Equal[InclusiveRange] for InclusiveRange {
+  # Returns `true` if `self` and `other` are identical.
+  #
+  # # Examples
+  #
+  # Comparing two identical ranges:
+  #
+  #     1.to(10) == 1.to(10) # => true
+  #
+  # Comparing two different ranges:
+  #
+  #     1.to(10) == 1.to(5) # => false
+  fn pub ==(other: ref InclusiveRange) -> Bool {
+    @start == other.start and @end == other.end
+  }
+}
+
+impl Hash for InclusiveRange {
+  fn pub hash(hasher: mut Hasher) {
+    @start.hash(hasher)
+    @end.hash(hasher)
+  }
+}
+
+impl Format for InclusiveRange {
+  fn pub fmt(formatter: mut Formatter) {
+    @start.fmt(formatter)
+    formatter.write(' to ')
+    @end.fmt(formatter)
+  }
+}
+
+# An exclusive range of integers.
+class pub ExclusiveRange {
+  # The start value of the range.
+  let pub @start: Int
+
+  # The end value of the range.
+  let pub @end: Int
+
+  # Returns a new `ExclusiveRange` over the given values.
+  fn pub static new(start: Int, end: Int) -> ExclusiveRange {
+    ExclusiveRange { @start = start, @end = end }
+  }
+}
+
+impl Range for ExclusiveRange {
+  fn pub start -> Int {
+    @start
+  }
+
+  fn pub end -> Int {
+    @end
+  }
+
+  fn pub inclusive? -> Bool {
+    false
+  }
+
+  fn pub step_by(amount: Int) -> Enum[ExclusiveRange] {
+    let mut current = @start
+    let max = @end
+
+    Enum.new fn move {
+      if current >= max { return Option.None }
+
+      let end = min(current + amount - 1, end)
+      let range = Option.Some(ExclusiveRange.new(current, end))
+
+      current = end + 1
+      range
+    }
+  }
+
+  fn pub length -> Int {
+    if @end >= @start { @end - @start } else { 0 }
+  }
+
+  fn pub iter -> Enum[Int] {
+    let mut current = @start
+    let end = @end
+
+    Enum.new fn move {
+      if current < end {
+        Option.Some(current := current + 1)
+      } else {
+        Option.None
+      }
+    }
+  }
+}
+
+impl Contains[Int] for ExclusiveRange {
+  # Returns `true` if the given argument resides in the range of `self`.
+  #
+  # # Examples
+  #
+  # Checking if a `Range` covers a value:
+  #
+  #     1.until(10).cover?(5)  # => true
+  #     1.until(10).cover?(15) # => false
+  fn pub contains?(value: ref Int) -> Bool {
+    @start <= value and value < @end
+  }
+}
+
+impl Equal[ExclusiveRange] for ExclusiveRange {
+  # Returns `true` if `self` and `other` are identical.
+  #
+  # # Examples
+  #
+  # Comparing two identical ranges:
+  #
+  #     1.until(10) == 1.until(10) # => true
+  #
+  # Comparing two different ranges:
+  #
+  #     1.until(10) == 1.until(5) # => false
+  fn pub ==(other: ref ExclusiveRange) -> Bool {
+    @start == other.start and @end == other.end
+  }
+}
+
+impl Hash for ExclusiveRange {
+  fn pub hash(hasher: mut Hasher) {
+    @start.hash(hasher)
+    @end.hash(hasher)
+  }
+}
+
+impl Format for ExclusiveRange {
+  fn pub fmt(formatter: mut Formatter) {
+    @start.fmt(formatter)
+    formatter.write(' until ')
+    @end.fmt(formatter)
+  }
+}

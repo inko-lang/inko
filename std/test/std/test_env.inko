@@ -1,0 +1,93 @@
+import std::env
+import std::stdio::STDOUT
+import std::test::Tests
+
+fn pub tests(t: mut Tests) {
+  t.test('env::ARCH') fn (t) {
+    t.true(env::ARCH.size > 0)
+  }
+
+  t.test('env::OS') fn (t) {
+    t.true(env::OS.size > 0)
+  }
+
+  t.test('env::ABI') fn (t) {
+    t.true(env::ABI.size > 0)
+  }
+
+  t.fork(
+    'env.opt',
+    child: fn { STDOUT.new.write_string(env.opt('INKO_TEST').unwrap_or('?')) },
+    test: fn (test, process) {
+      process.variable('INKO_TEST', 'foo')
+      test.equal(process.spawn.stdout, 'foo')
+    }
+  )
+
+  t.fork(
+    'env.variables',
+    child: fn {
+      let out = STDOUT.new
+      let vars = env.variables
+
+      out.print(vars.get('INKO_FOO'))
+      out.print(vars.get('INKO_BAR'))
+    },
+    test: fn (test, process) {
+      process.variable('INKO_FOO', 'foo')
+      process.variable('INKO_BAR', 'bar')
+      test.equal(process.spawn.stdout, "foo\nbar\n")
+    }
+  )
+
+  t.test('env.home_directory') fn (t) {
+    # Home directories are optional, and even if they're set the actual path may
+    # not exist. As such there's not really anything we can test for, other than
+    # asserting the path isn't empty.
+    match env.home_directory {
+      case Some(path) -> t.true(path.to_string.size > 0)
+      case _ -> {}
+    }
+  }
+
+  t.test('env.working_directory') fn (t) {
+    let path = env.working_directory.unwrap
+
+    t.true(path.directory?)
+  }
+
+  t.fork(
+    'env.working_directory=',
+    child: fn {
+      let out = STDOUT.new
+
+      env.working_directory = env.temporary_directory
+      out.write_string(env.working_directory.unwrap.to_string)
+    },
+    test: fn (test, process) {
+      test.equal(process.spawn.stdout, env.temporary_directory.to_string)
+    }
+  )
+
+  t.fork(
+    'env.arguments',
+    child: fn {
+      let out = STDOUT.new
+      let args = env.arguments
+
+      out.print(args.get(0))
+      out.print(args.get(1))
+    },
+    test: fn (test, process) {
+      process.argument('foo')
+      process.argument('bar')
+      test.equal(process.spawn.stdout, "foo\nbar\n")
+    }
+  )
+
+  t.test('env.executable') fn (t) {
+    let path = env.executable.unwrap
+
+    t.true(path.file?)
+  }
+}

@@ -22,12 +22,12 @@ If you're interested in implementing pattern matching yourself, we suggest using
 reference.
 
 For a list of available patterns and their syntax, refer to the [pattern
-matching syntax section](syntax.md#pattern-matching).
+matching syntax section](../guides/syntax.md#pattern-matching).
 
 ## Literals and constants
 
-Pattern matching against literals is supported for values of type `Int`,
-`String` and `Float`. We can also use constants to specify the pattern:
+Pattern matching against literals is supported for values of type `Int`, `Bool`,
+and `String`. We can also use constants to specify the pattern:
 
 ```inko
 match 3 {
@@ -39,12 +39,6 @@ match 3 {
 match 3 {
   case ZERO -> 'foo'
   case ONE -> 'bar'
-  case _ -> 'baz'
-}
-
-match 11.0 {
-  case 10.2 -> 'foo'
-  case 11.0 -> 'bar'
   case _ -> 'baz'
 }
 
@@ -290,13 +284,13 @@ For references we just drop the reference before entering the
 pattern body:
 
 ```inko
-match values[4] {
+match values.get(4) {
   case Some(42) -> {
-    # This is valid because the `ref Option[Int]` returned by `values[4]` is
-    # dropped before we enter this body. If we didn't the line below would
-    # panic, because we'd try to drop the old value of `values[4]` while a
+    # This is valid because the `ref Option[Int]` returned by `values.get(4)` is
+    # dropped before we enter this body. If we didn't, the line below would
+    # panic, because we'd try to drop the old value of `values.get(4)` while a
     # reference to it still exists.
-    values[4] = Option.Some(0)
+    values.set(4, Option.Some(0))
   }
   case _ -> nil
 }
@@ -307,3 +301,5 @@ match values[4] {
 - Range patterns aren't supported, instead you can use pattern guards.
 - Types defining custom destructors can't be matched against.
 - `async` classes can't be matched against.
+- Matching against `Float` isn't supported, as you'll likely run into
+  precision/rounding errors.

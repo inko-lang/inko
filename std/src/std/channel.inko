@@ -1,0 +1,153 @@
+# A multi-producer, multi-consumer FIFO queue.
+import std::clone::Clone
+import std::drop::Drop
+import std::time::Instant
+
+# Blocks the current process until one or more of the given channels have a
+# message.
+#
+# This method simply returns once one or more channels have a message sent to
+# them. As a channel can have multiple consumers, it's possible that once this
+# method returns all the specified channels are empty again. As such, it's best
+# to use this method in a loop like so:
+#
+#     loop {
+#       channels.iter.each fn (chan) {
+#         match chan.try_receive {
+#           case Some(val) -> ...
+#           case _ -> {}
+#         }
+#       }
+#
+#       wait(channels)
+#     }
+#
+# This method is intended to be used when you have a small number of channels,
+# you want to wait until one or more have a message (without busy polling), and
+# you don't care which channels receive a message.
+#
+# # Performance
+#
+# This method may need to iterate over the list of channels multiple times. As
+# such it's best to only use a small number of channels at a time. If you find
+# yourself in need of having to wait for many (e.g. hundreds) of channels at a
+# time, you should probably refactor your code in some way (e.g. receive from an
+# auxillary channel instead).
+#
+# # Examples
+#
+#     import std::channel::(wait)
+#
+#     let chan1 = Channel.new(size: 1)
+#     let chan2 = Channel.new(size: 2)
+#
+#     chan2.send(1)
+#     wait([chan1, chan2])
+fn pub wait[T](channels: ref Array[Channel[T]]) {
+  _INKO.channel_wait(channels)
+}
+
+# A multi-producer, multi-consumer FIFO queue.
+#
+# Channels allow for multiple producers and consumers, uses FIFO ordering, and
+# are bounded. When sending a message to a channel that's full, the sending
+# process is blocked until space becomes available.
+#
+# Channels use atomic reference counting and are dropped (along with any pending
+# messages) when the last reference to the channel is dropped. Channels are
+# treated as value types and are sendable to other processes without the need
+# for the `recover` expression.
+class builtin Channel[T] {
+  # Returns a new channel that can store the given number of messages.
+  #
+  # If you specify a value less than 1, the size is set to 1.
+  fn pub static new(size: Int) -> Channel[uni T] {
+    _INKO.channel_new(size) as Channel[uni T]
+  }
+
+  # Sends a message to the channel.
+  #
+  # If the channel is full, the current process is blocked until space is
+  # available in the channel.
+  #
+  # # Examples
+  #
+  #     let chan = Channel.new(size: 4)
+  #
+  #     chan.send(1)
+  #     chan.send(2)
+  fn pub send(value: uni T) {
+    _INKO.channel_send(self, value)
+    _INKO.moved(value)
+  }
+
+  # Receives a message from the channel.
+  #
+  # This method blocks the current process until a message is delivered.
+  #
+  # # Examples
+  #
+  #     let chan = Channel.new(size: 1)
+  #
+  #     chan.send(1)
+  #     chan.receive # => 1
+  fn pub receive -> uni T {
+    _INKO.channel_receive(self) as uni T
+  }
+
+  # Receives a message from the channel without blocking the sender.
+  #
+  # If a message is availabe, it's returned as a `Some`, otherwise a `None` is
+  # returned.
+  #
+  # # Examples
+  #
+  #     let chan = Channel.new(size: 1)
+  #
+  #     chan.try_receive # => Option.None
+  #     chan.send(1)
+  #     chan.try_receive # => Option.Some(1)
+  fn pub try_receive -> Option[uni T] {
+    match _INKO.channel_try_receive(self) {
+      case { @tag = 0, @value = v } -> Option.Some(v as uni T)
+      case _ -> Option.None
+    }
+  }
+
+  # Receives a message, returning a `None` if no message is received when the
+  # deadline is met.
+  #
+  #     import std::time::Instant
+  #     import std::time::Duration
+  #
+  #     let duration = Duration.from_secs(1)
+  #     let chan = Channel.new(size: 1)
+  #
+  #     chan.receive_until(deadline: Instant.new + duration) # => Option.None
+  #     chan.send(1)
+  #     chan.receive_until(deadline: Instant.new + duration) # => Option.Some(1)
+  fn pub receive_until(deadline: ref Instant) -> Option[uni T] {
+    match _INKO.channel_receive_until(self, deadline.to_int) {
+      case { @tag = 0, @value = v } -> Option.Some(v as uni T)
+      case _ -> Option.None
+    }
+  }
+}
+
+impl Clone[Channel[T]] for Channel {
+  fn pub clone -> Channel[T] {
+    self
+  }
+}
+
+impl Drop for Channel {
+  fn mut drop {
+    loop {
+      match _INKO.channel_try_receive(self) {
+        # The value is dropped at the end of this scope.
+        case { @tag = 0, @value = v } -> v as T
+        case _ -> break
+      }
+    }
+  }
+}

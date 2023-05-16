@@ -1,7 +1,7 @@
 # Operator overloading
 
 Inko supports a variety of operators (see [this
-section](../getting-started/syntax.md#binary-expressions) for the full list),
+section](../guides/syntax.md#binary-expressions) for the full list),
 and these can be implemented for your own types. In fact, operators are just
 regular methods, though the compiler may choose to optimise some of them
 whenever possible.
@@ -18,7 +18,7 @@ class Rational {
   let @denominator: Int
 }
 
-impl Add[Rational] for Rational {
+impl Add[Rational, Rational] for Rational {
   fn pub +(other: ref Rational) -> Rational {
     Rational {
       @numerator = @numerator + other.numerator,

@@ -3,16 +3,16 @@ use getopts::Fail;
 use std::io;
 
 /// An error produced by a subprocess.
-pub struct Error {
+pub(crate) struct Error {
     /// The exit code to use.
-    pub status: i32,
+    pub(crate) status: i32,
 
     /// An error message to print to STDERR.
-    pub message: Option<String>,
+    pub(crate) message: Option<String>,
 }
 
 impl Error {
-    pub fn generic(message: String) -> Self {
+    pub(crate) fn generic(message: String) -> Self {
         Error { status: 1, message: Some(message) }
     }
 }

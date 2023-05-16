@@ -27,6 +27,10 @@ impl SourceLocation {
                 ..=(*end.column_range.end()),
         }
     }
+
+    pub fn line_column(&self) -> (usize, usize) {
+        (*self.line_range.start(), *self.column_range.start())
+    }
 }
 
 impl fmt::Debug for SourceLocation {

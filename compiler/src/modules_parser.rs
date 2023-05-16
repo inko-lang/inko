@@ -67,9 +67,9 @@ impl<'a> ModulesParser<'a> {
         }
 
         for name in &self.state.config.implicit_imports {
-            // Implicitly imported modules are always part of libstd, so we
+            // Implicitly imported modules are always part of std, so we
             // don't need to search through all the source paths.
-            let path = self.state.config.libstd.join(name.to_path());
+            let path = self.state.config.std.join(name.to_path());
 
             scheduled.insert(name.clone());
             pending.push((name.clone(), path));
@@ -105,8 +105,7 @@ impl<'a> ModulesParser<'a> {
             }
         }
 
-        let mut result: Vec<ParsedModule> =
-            modules.into_iter().map(|(_, v)| v).collect();
+        let mut result: Vec<ParsedModule> = modules.into_values().collect();
 
         // We sort the modules so we process them in a deterministic order,
         // resulting in diagnostics being produced in a deterministic order.
@@ -253,7 +252,7 @@ mod tests {
 
         let mut state = State::new(Config::new());
 
-        state.config.libstd = temp_dir();
+        state.config.std = temp_dir();
         state.config.implicit_imports = vec![ModuleName::new("parsing2d")];
 
         let mut pass = ModulesParser::new(&mut state);

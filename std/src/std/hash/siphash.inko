@@ -1,0 +1,99 @@
+# The SipHash hashing algorithm.
+#
+# SipHash isn't cryptographically secure, instead it's intended for e.g. hashing
+# of objects as part of the `Map` type.
+import std::crypto::math::(rotate_left_u64)
+import std::endian::little::(read_i64)
+import std::hash::Hasher
+
+# An implementation of the SipHash 1-3 algorithm.
+#
+# # Examples
+#
+#     import std::hash::siphash::SipHasher13
+#     import std::rand::Random
+#
+#     let rng = Random.new
+#     let hasher = SipHasher13.new(key0: rng.int, key1: rng.int)
+#
+#     hasher.write(42)
+#     hasher.finish
+class pub SipHasher13 {
+  let @length: Int
+  let @m_index: Int
+  let @m: Int
+  let @v0: Int
+  let @v1: Int
+  let @v2: Int
+  let @v3: Int
+
+  # Returns a new hasher using two default keys.
+  fn pub static default -> SipHasher13 {
+    new(_INKO.hash_key0, _INKO.hash_key1)
+  }
+
+  # Returns a new hasher using the two keys.
+  #
+  # Both keys _should_ be randomly generated. The type `std::rand::Random` can
+  # be used to generate these keys.
+  fn pub static new(key0: Int, key1: Int) -> SipHasher13 {
+    SipHasher13 {
+      @length = 0,
+      @m_index = 0,
+      @m = 0,
+      @v0 = 0x736F6D6570736575 ^ key0,
+      @v1 = 0x646F72616E646F6D ^ key1,
+      @v2 = 0x6C7967656E657261 ^ key0,
+      @v3 = 0x7465646279746573 ^ key1,
+    }
+  }
+
+  fn mut round {
+    @v0 = @v0.wrapping_add(@v1)
+    @v2 = @v2.wrapping_add(@v3)
+    @v1 = rotate_left_u64(@v1, 13)
+    @v3 = rotate_left_u64(@v3, 16)
+
+    @v1 ^= @v0
+    @v3 ^= @v2
+    @v0 = rotate_left_u64(@v0, 32)
+
+    @v2 = @v2.wrapping_add(@v1)
+    @v0 = @v0.wrapping_add(@v3)
+    @v1 = rotate_left_u64(@v1, 17)
+    @v3 = rotate_left_u64(@v3, 21)
+
+    @v1 ^= @v2
+    @v3 ^= @v0
+    @v2 = rotate_left_u64(@v2, 32)
+  }
+}
+
+impl Hasher for SipHasher13 {
+  fn pub mut write(value: Int) {
+    @length += 1
+    @m |= (value & 0xFF) << ((@m_index := @m_index + 1) * 8)
+
+    if @m_index < 8 { return }
+
+    @v3 ^= @m
+    round
+    @v0 ^= @m
+    @m_index = 0
+    @m = 0
+  }
+
+  fn pub move finish -> Int {
+    let len = @length
+
+    while @m_index < 7 { write(0) }
+
+    write(len)
+    @v2 ^= 0xFF
+    round
+    round
+    round
+
+    @v0 ^ @v1 ^ @v2 ^ @v3
+  }
+}

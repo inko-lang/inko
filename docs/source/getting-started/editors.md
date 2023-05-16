@@ -1,4 +1,4 @@
-# Editor integration
+# Editor setup
 
 ## Vim/Neovim
 

@@ -1,0 +1,293 @@
+import std::env
+import std::fs::file::(self, ReadOnlyFile, ReadWriteFile, WriteOnlyFile)
+import std::fs::path::Path
+import std::test::Tests
+
+fn write(string: String, to: ref Path) {
+  let file = WriteOnlyFile.new(to.clone).unwrap
+
+  file.write_string(string).unwrap
+}
+
+fn read(from: ref Path) -> String {
+  let file = ReadOnlyFile.new(from.clone).unwrap
+  let bytes = ByteArray.new
+
+  file.read_all(bytes).unwrap
+
+  bytes.into_string
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('file.remove') fn (t) {
+    let path = env.temporary_directory.join("inko-test-{t.id}")
+
+    t.true(file.remove(path).error?)
+
+    write('test', to: path)
+
+    t.true(file.remove(path).ok?)
+    t.false(path.exists?)
+  }
+
+  t.test('file.copy') fn (t) {
+    let path1 = env.temporary_directory.join("inko-test-{t.id}-1")
+    let path2 = env.temporary_directory.join("inko-test-{t.id}-2")
+
+    write('test', to: path1)
+
+    t.true(file.copy(from: path1, to: path2).ok?)
+    t.equal(read(path2), 'test')
+
+    file.remove(path1).unwrap
+    file.remove(path2).unwrap
+  }
+
+  t.test('ReadOnlyFile.new') fn (t) {
+    let path = env.temporary_directory.join("inko-test-{t.id}")
+
+    t.true(ReadOnlyFile.new(path.clone).error?)
+
+    write('test', to: path)
+
+    t.true(ReadOnlyFile.new(path.clone).ok?)
+
+    file.remove(path).unwrap
+  }
+
+  t.test('ReadOnlyFile.read') fn (t) {
+    let path = env.temporary_directory.join("inko-test-{t.id}")
+
+    write('test', to: path)
+
+    let handle = ReadOnlyFile.new(path.clone).unwrap
+    let bytes = ByteArray.new
+
+    handle.read(into: bytes, size: 4).unwrap
+
+    t.equal(bytes.into_string, 'test')
+
+    file.remove(path).unwrap
+  }
+
+  t.test('ReadOnlyFile.seek') fn (t) {
+    let path = env.temporary_directory.join("inko-test-{t.id}")
+
+    write('test', to: path)
+
+    let handle = ReadOnlyFile.new(path.clone).unwrap
+    let bytes = ByteArray.new
+
+    handle.seek(1).unwrap
+    handle.read(into: bytes, size: 4).unwrap
+
+    t.equal(bytes.into_string, 'est')
+
+    file.remove(path).unwrap
+  }
+
+  t.test('ReadOnlyFile.size') fn (t) {
+    let path = env.temporary_directory.join("inko-test-{t.id}")
+
+    write('test', to: path)
+
+    let handle = ReadOnlyFile.new(path.clone).unwrap
+
+    t.true(handle.size.unwrap >= 0)
+
+    file.remove(path).unwrap
+  }
+
+  t.test('WriteOnlyFile.new') fn (t) {
+    let path = env.temporary_directory.join("inko-test-{t.id}")
+
+    t.true(WriteOnlyFile.new(path.clone).ok?)
+    t.true(WriteOnlyFile.new(path.clone).ok?)
+
+    file.remove(path).unwrap
+  }
+
+  t.test('WriteOnlyFile.append') fn (t) {
+    let path = env.temporary_directory.join("inko-test-{t.id}")
+
+    t.true(WriteOnlyFile.append(path.clone).ok?)
+    t.true(WriteOnlyFile.append(path.clone).ok?)
+
+    file.remove(path).unwrap
+  }
+
+  t.test('WriteOnlyFile.write_bytes') fn (t) {
+    let path = env.temporary_directory.join("inko-test-{t.id}")
+
+    {
+      let handle = WriteOnlyFile.new(path.clone).unwrap
+
+      handle.write_bytes('test'.to_byte_array).unwrap
+    }
+
+    {
+      let handle = WriteOnlyFile.append(path.clone).unwrap
+
+      handle.write_bytes('ing'.to_byte_array).unwrap
+    }
+
+    t.equal(read(path), 'testing')
+
+    file.remove(path).unwrap
+  }
+
+  t.test('WriteOnlyFile.write_string') fn (t) {
+    let path = env.temporary_directory.join("inko-test-{t.id}")
+
+    {
+      let handle = WriteOnlyFile.new(path.clone).unwrap
+
+      handle.write_string('test').unwrap
+    }
+
+    {
+      let handle = WriteOnlyFile.append(path.clone).unwrap
+
+      handle.write_string('ing').unwrap
+    }
+
+    t.equal(read(path), 'testing')
+
+    file.remove(path).unwrap
+  }
+
+  t.test('WriteOnlyFile.flush') fn (t) {
+    let path = env.temporary_directory.join("inko-test-{t.id}")
+    let handle = WriteOnlyFile.new(path.clone).unwrap
+
+    handle.write_string('test').unwrap
+    handle.flush.unwrap
+
+    t.equal(read(path), 'test')
+
+    file.remove(path).unwrap
+  }
+
+  t.test('WriteOnlyFile.seek') fn (t) {
+    let path = env.temporary_directory.join("inko-test-{t.id}")
+    let handle = WriteOnlyFile.new(path.clone).unwrap
+
+    handle.write_string('test').unwrap
+    handle.seek(1).unwrap
+    handle.write_string('ing').unwrap
+
+    t.equal(read(path), 'ting')
+
+    file.remove(path).unwrap
+  }
+
+  t.test('ReadWriteFile.new') fn (t) {
+    let path = env.temporary_directory.join("inko-test-{t.id}")
+
+    t.true(ReadWriteFile.new(path.clone).ok?)
+    t.true(ReadWriteFile.new(path.clone).ok?)
+
+    file.remove(path).unwrap
+  }
+
+  t.test('ReadWriteFile.append') fn (t) {
+    let path = env.temporary_directory.join("inko-test-{t.id}")
+
+    t.true(ReadWriteFile.append(path.clone).ok?)
+    t.true(ReadWriteFile.append(path.clone).ok?)
+
+    file.remove(path).unwrap
+  }
+
+  t.test('ReadWriteFile.read') fn (t) {
+    let path = env.temporary_directory.join("inko-test-{t.id}")
+
+    write('test', to: path)
+
+    let handle = ReadWriteFile.new(path.clone).unwrap
+    let bytes = ByteArray.new
+
+    handle.read(bytes, size: 4).unwrap
+
+    t.equal(bytes.to_string, 'test')
+
+    file.remove(path).unwrap
+  }
+
+  t.test('ReadWriteFile.write_bytes') fn (t) {
+    let path = env.temporary_directory.join("inko-test-{t.id}")
+
+    {
+      let handle = ReadWriteFile.new(path.clone).unwrap
+
+      handle.write_bytes('test'.to_byte_array).unwrap
+    }
+
+    {
+      let handle = ReadWriteFile.append(path.clone).unwrap
+
+      handle.write_bytes('ing'.to_byte_array).unwrap
+    }
+
+    t.equal(read(path), 'testing')
+
+    file.remove(path).unwrap
+  }
+
+  t.test('ReadWriteFile.write_string') fn (t) {
+    let path = env.temporary_directory.join("inko-test-{t.id}")
+
+    {
+      let handle = ReadWriteFile.new(path.clone).unwrap
+
+      handle.write_string('test').unwrap
+    }
+
+    {
+      let handle = ReadWriteFile.append(path.clone).unwrap
+
+      handle.write_string('ing').unwrap
+    }
+
+    t.equal(read(path), 'testing')
+
+    file.remove(path).unwrap
+  }
+
+  t.test('ReadWriteFile.flush') fn (t) {
+    let path = env.temporary_directory.join("inko-test-{t.id}")
+    let handle = ReadWriteFile.new(path.clone).unwrap
+
+    handle.write_string('test').unwrap
+    handle.flush.unwrap
+
+    t.equal(read(path), 'test')
+
+    file.remove(path).unwrap
+  }
+
+  t.test('ReadWriteFile.seek') fn (t) {
+    let path = env.temporary_directory.join("inko-test-{t.id}")
+    let handle = ReadWriteFile.new(path.clone).unwrap
+
+    handle.write_string('test').unwrap
+    handle.seek(1).unwrap
+    handle.write_string('ing').unwrap
+
+    t.equal(read(path), 'ting')
+
+    file.remove(path).unwrap
+  }
+
+  t.test('ReadWriteFile.size') fn (t) {
+    let path = env.temporary_directory.join("inko-test-{t.id}")
+
+    write('test', to: path)
+
+    let handle = ReadWriteFile.new(path.clone).unwrap
+
+    t.true(handle.size.unwrap >= 0)
+
+    file.remove(path).unwrap
+  }
+}

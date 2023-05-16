@@ -110,7 +110,7 @@ impl<'a> DefineImportedTypes<'a> {
                 );
             } else if symbol.is_private(self.db()) {
                 self.state.diagnostics.error(
-                    DiagnosticId::PrivateSymbol,
+                    DiagnosticId::InvalidSymbol,
                     format!(
                         "The symbol '{}' is private and can't be imported",
                         name
@@ -678,7 +678,7 @@ mod tests {
 
         let error = state.diagnostics.iter().next().unwrap();
 
-        assert_eq!(error.id(), DiagnosticId::PrivateSymbol);
+        assert_eq!(error.id(), DiagnosticId::InvalidSymbol);
         assert_eq!(error.file(), &PathBuf::from("test.inko"));
         assert_eq!(error.location(), &cols(3, 3));
     }

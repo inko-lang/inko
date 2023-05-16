@@ -11,26 +11,26 @@ else
 	INSTALL_PREFIX = ${PREFIX}
 endif
 
+# The name of the static runtime library.
+RUNTIME_NAME := libinko.a
+
 # The directory to place the Inko executable in.
 INSTALL_INKO := ${INSTALL_PREFIX}/bin/inko
 
-# The directory to place the package manager executable in.
-INSTALL_IPM := ${INSTALL_PREFIX}/bin/ipm
-
 # The directory to place the standard library in.
-INSTALL_STD := ${INSTALL_PREFIX}/lib/inko/libstd
+INSTALL_STD := ${INSTALL_PREFIX}/lib/inko/std
+
+# The directory the standard library is located at at runtime.
+RUNTIME_STD := ${PREFIX}/lib/inko/std
+
+# The directory to place runtime library files in.
+INSTALL_RT := ${INSTALL_PREFIX}/lib/inko/runtime/${RUNTIME_NAME}
+
+# The directory the runtime library is located at at runtime.
+RUNTIME_RT := ${PREFIX}/lib/inko/runtime
 
 # The install path of the license file.
 INSTALL_LICENSE := ${INSTALL_PREFIX}/share/licenses/inko/LICENSE
-
-# The list of features to enable when building the VM.
-FEATURES :=
-
-ifneq (${FEATURES},)
-	FEATURES_OPTION=--features ${FEATURES}
-else
-	FEATURES_OPTION=
-endif
 
 ifeq (, $(shell command -v cargo 2> /dev/null))
 $(warning "The Inko version couldn't be determined, releasing won't be possible")
@@ -65,7 +65,7 @@ SOURCE_TAR := ${TMP_DIR}/${VERSION}.tar.gz
 MANIFEST := ${TMP_DIR}/manifest.txt
 
 build:
-	INKO_LIBSTD=${INSTALL_STD} cargo build --release ${FEATURES_OPTION}
+	INKO_STD=${RUNTIME_STD} INKO_RT=${RUNTIME_RT} cargo build --release
 
 ${TMP_DIR}:
 	mkdir -p "${@}"
@@ -79,13 +79,12 @@ ${SOURCE_TAR}: ${TMP_DIR}
 		LICENSE \
 		Makefile \
 		ast \
-		bytecode \
 		compiler \
 		inko \
-		libstd/src \
-		vm \
+		std/src \
+		rt \
 		types \
-		ipm \
+		pkg \
 		| gzip > "${@}"
 
 release/source: ${SOURCE_TAR}
@@ -119,33 +118,26 @@ release/publish: release/versions release/changelog release/commit release/tag
 
 ${INSTALL_STD}:
 	mkdir -p "${@}"
-	cp -r libstd/src/* "${@}"
+	cp -r std/src/* "${@}"
+
+${INSTALL_RT}:
+	install -D -m644 target/release/${RUNTIME_NAME} "${@}"
 
 ${INSTALL_INKO}:
-	mkdir -p "$$(dirname ${@})"
-	install -m755 target/release/inko "${@}"
-
-${INSTALL_IPM}:
-	mkdir -p "$$(dirname ${@})"
-	install -m755 target/release/ipm "${@}"
+	install -D -m755 target/release/inko "${@}"
 
 ${INSTALL_LICENSE}:
-	mkdir -p "$$(dirname ${@})"
-	install -m644 LICENSE "${@}"
+	install -D -m644 LICENSE "${@}"
 
 install: ${INSTALL_STD} \
+	${INSTALL_RT} \
 	${INSTALL_INKO} \
-	${INSTALL_IPM} \
 	${INSTALL_LICENSE}
-
-uninstall:
-	rm -rf ${INSTALL_STD}
-	rm -f ${INSTALL_INKO}
-	rm -f ${INSTALL_IPM}
-	rm -rf ${INSTALL_PREFIX}/share/licenses/inko
 
 clean:
 	rm -rf "${TMP_DIR}"
+	rm -rf build
+	rm -rf std/build
 	cargo clean
 
 docs/install:
@@ -183,6 +175,6 @@ rustfmt:
 
 .PHONY: release/source release/manifest release/changelog release/versions
 .PHONY: release/commit release/publish release/tag
-.PHONY: build install uninstall clean
-.PHONY: libstd/test rustfmt rustfmt-check clippy
+.PHONY: build install clean
+.PHONY: rustfmt rustfmt-check clippy
 .PHONY: docs/install docs/build docs/server docs/publish docs/versions

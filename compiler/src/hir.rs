@@ -11,9 +11,7 @@ use ::ast::source_location::SourceLocation;
 use std::path::PathBuf;
 use std::str::FromStr;
 
-const SET_INDEX_METHOD: &str = "set_index";
 const BUILTIN_RECEIVER: &str = "_INKO";
-const TRY_BINDING_VAR: &str = "$error";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct IntLiteral {
@@ -115,16 +113,6 @@ pub(crate) struct Call {
     pub(crate) receiver: Option<Expression>,
     pub(crate) name: Identifier,
     pub(crate) arguments: Vec<Argument>,
-    pub(crate) else_block: Option<ElseBlock>,
-    pub(crate) location: SourceLocation,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct AsyncCall {
-    pub(crate) info: Option<types::CallInfo>,
-    pub(crate) receiver: Expression,
-    pub(crate) name: Identifier,
-    pub(crate) arguments: Vec<Argument>,
     pub(crate) location: SourceLocation,
 }
 
@@ -133,7 +121,6 @@ pub(crate) struct BuiltinCall {
     pub(crate) info: Option<types::BuiltinCallInfo>,
     pub(crate) name: Identifier,
     pub(crate) arguments: Vec<Expression>,
-    pub(crate) else_block: Option<ElseBlock>,
     pub(crate) location: SourceLocation,
 }
 
@@ -179,7 +166,6 @@ pub(crate) struct AssignSetter {
     pub(crate) receiver: Expression,
     pub(crate) name: Identifier,
     pub(crate) value: Expression,
-    pub(crate) else_block: Option<ElseBlock>,
     pub(crate) location: SourceLocation,
 }
 
@@ -226,7 +212,6 @@ pub(crate) struct DefineInstanceMethod {
     pub(crate) name: Identifier,
     pub(crate) type_parameters: Vec<TypeParameter>,
     pub(crate) arguments: Vec<MethodArgument>,
-    pub(crate) throw_type: Option<Type>,
     pub(crate) return_type: Option<Type>,
     pub(crate) body: Vec<Expression>,
     pub(crate) location: SourceLocation,
@@ -239,7 +224,6 @@ pub(crate) struct DefineModuleMethod {
     pub(crate) name: Identifier,
     pub(crate) type_parameters: Vec<TypeParameter>,
     pub(crate) arguments: Vec<MethodArgument>,
-    pub(crate) throw_type: Option<Type>,
     pub(crate) return_type: Option<Type>,
     pub(crate) body: Vec<Expression>,
     pub(crate) location: SourceLocation,
@@ -253,7 +237,6 @@ pub(crate) struct DefineRequiredMethod {
     pub(crate) name: Identifier,
     pub(crate) type_parameters: Vec<TypeParameter>,
     pub(crate) arguments: Vec<MethodArgument>,
-    pub(crate) throw_type: Option<Type>,
     pub(crate) return_type: Option<Type>,
     pub(crate) method_id: Option<types::MethodId>,
     pub(crate) location: SourceLocation,
@@ -265,7 +248,6 @@ pub(crate) struct DefineStaticMethod {
     pub(crate) name: Identifier,
     pub(crate) type_parameters: Vec<TypeParameter>,
     pub(crate) arguments: Vec<MethodArgument>,
-    pub(crate) throw_type: Option<Type>,
     pub(crate) return_type: Option<Type>,
     pub(crate) body: Vec<Expression>,
     pub(crate) location: SourceLocation,
@@ -279,7 +261,6 @@ pub(crate) struct DefineAsyncMethod {
     pub(crate) name: Identifier,
     pub(crate) type_parameters: Vec<TypeParameter>,
     pub(crate) arguments: Vec<MethodArgument>,
-    pub(crate) throw_type: Option<Type>,
     pub(crate) return_type: Option<Type>,
     pub(crate) body: Vec<Expression>,
     pub(crate) location: SourceLocation,
@@ -383,6 +364,7 @@ pub(crate) struct ReopenClass {
     pub(crate) class_id: Option<types::ClassId>,
     pub(crate) class_name: Constant,
     pub(crate) body: Vec<ReopenClassExpression>,
+    pub(crate) bounds: Vec<TypeBound>,
     pub(crate) location: SourceLocation,
 }
 
@@ -397,6 +379,7 @@ pub(crate) enum ReopenClassExpression {
 pub(crate) struct TypeBound {
     pub(crate) name: Constant,
     pub(crate) requirements: Vec<TypeName>,
+    pub(crate) mutable: bool,
     pub(crate) location: SourceLocation,
 }
 
@@ -419,11 +402,11 @@ pub(crate) struct Scope {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct Index {
-    pub(crate) info: Option<types::CallInfo>,
-    pub(crate) receiver: Expression,
-    pub(crate) index: Expression,
+pub(crate) struct Try {
+    pub(crate) expression: Expression,
     pub(crate) location: SourceLocation,
+    pub(crate) kind: types::ThrowKind,
+    pub(crate) return_type: types::TypeRef,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -435,7 +418,6 @@ pub(crate) enum Expression {
     AssignSetter(Box<AssignSetter>),
     AssignVariable(Box<AssignVariable>),
     ReplaceVariable(Box<ReplaceVariable>),
-    AsyncCall(Box<AsyncCall>),
     Break(Box<Break>),
     BuiltinCall(Box<BuiltinCall>),
     Call(Box<Call>),
@@ -446,10 +428,8 @@ pub(crate) enum Expression {
     FieldRef(Box<FieldRef>),
     Float(Box<FloatLiteral>),
     IdentifierRef(Box<IdentifierRef>),
-    Index(Box<Index>),
     ClassLiteral(Box<ClassLiteral>),
     Int(Box<IntLiteral>),
-    Invalid(Box<SourceLocation>),
     Loop(Box<Loop>),
     Match(Box<Match>),
     Mut(Box<Mut>),
@@ -466,6 +446,7 @@ pub(crate) enum Expression {
     Tuple(Box<TupleLiteral>),
     TypeCast(Box<TypeCast>),
     Recover(Box<Recover>),
+    Try(Box<Try>),
 }
 
 impl Expression {
@@ -478,7 +459,6 @@ impl Expression {
             Expression::AssignSetter(ref n) => &n.location,
             Expression::AssignVariable(ref n) => &n.location,
             Expression::ReplaceVariable(ref n) => &n.location,
-            Expression::AsyncCall(ref n) => &n.location,
             Expression::Break(ref n) => &n.location,
             Expression::BuiltinCall(ref n) => &n.location,
             Expression::Call(ref n) => &n.location,
@@ -489,10 +469,8 @@ impl Expression {
             Expression::FieldRef(ref n) => &n.location,
             Expression::Float(ref n) => &n.location,
             Expression::IdentifierRef(ref n) => &n.location,
-            Expression::Index(ref n) => &n.location,
             Expression::ClassLiteral(ref n) => &n.location,
             Expression::Int(ref n) => &n.location,
-            Expression::Invalid(ref n) => n,
             Expression::Loop(ref n) => &n.location,
             Expression::Match(ref n) => &n.location,
             Expression::Mut(ref n) => &n.location,
@@ -509,6 +487,7 @@ impl Expression {
             Expression::Tuple(ref n) => &n.location,
             Expression::TypeCast(ref n) => &n.location,
             Expression::Recover(ref n) => &n.location,
+            Expression::Try(ref n) => &n.location,
         }
     }
 
@@ -552,6 +531,15 @@ impl ConstExpression {
             Self::Invalid(ref l) => l,
         }
     }
+
+    pub(crate) fn is_simple_literal(&self) -> bool {
+        matches!(
+            self,
+            ConstExpression::Int(_)
+                | ConstExpression::Float(_)
+                | ConstExpression::String(_)
+        )
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -559,6 +547,7 @@ pub(crate) struct TypeParameter {
     pub(crate) type_parameter_id: Option<types::TypeParameterId>,
     pub(crate) name: Constant,
     pub(crate) requirements: Vec<TypeName>,
+    pub(crate) mutable: bool,
     pub(crate) location: SourceLocation,
 }
 
@@ -614,7 +603,6 @@ pub(crate) enum ReferrableType {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ClosureType {
     pub(crate) arguments: Vec<Type>,
-    pub(crate) throw_type: Option<Type>,
     pub(crate) return_type: Option<Type>,
     pub(crate) location: SourceLocation,
     pub(crate) resolved_type: types::TypeRef,
@@ -741,7 +729,6 @@ pub(crate) struct Closure {
     pub(crate) resolved_type: types::TypeRef,
     pub(crate) moving: bool,
     pub(crate) arguments: Vec<BlockArgument>,
-    pub(crate) throw_type: Option<Type>,
     pub(crate) return_type: Option<Type>,
     pub(crate) body: Vec<Expression>,
     pub(crate) location: SourceLocation,
@@ -846,6 +833,7 @@ pub(crate) struct TypeCast {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Throw {
     pub(crate) resolved_type: types::TypeRef,
+    pub(crate) return_type: types::TypeRef,
     pub(crate) value: Expression,
     pub(crate) location: SourceLocation,
 }
@@ -854,13 +842,6 @@ pub(crate) struct Throw {
 pub(crate) struct Return {
     pub(crate) resolved_type: types::TypeRef,
     pub(crate) value: Option<Expression>,
-    pub(crate) location: SourceLocation,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct ElseBlock {
-    pub(crate) body: Vec<Expression>,
-    pub(crate) argument: Option<BlockArgument>,
     pub(crate) location: SourceLocation,
 }
 
@@ -1088,7 +1069,6 @@ impl<'a> LowerToHir<'a> {
             type_parameters: self
                 .optional_type_parameters(node.type_parameters),
             arguments: self.optional_method_arguments(node.arguments),
-            throw_type: node.throw_type.map(|n| self.type_reference(n)),
             return_type: node.return_type.map(|n| self.type_reference(n)),
             body: self.optional_expressions(node.body),
             method_id: None,
@@ -1202,7 +1182,6 @@ impl<'a> LowerToHir<'a> {
             type_parameters: self
                 .optional_type_parameters(node.type_parameters),
             arguments: self.optional_method_arguments(node.arguments),
-            throw_type: node.throw_type.map(|n| self.type_reference(n)),
             return_type: node.return_type.map(|n| self.type_reference(n)),
             body: self.optional_expressions(node.body),
             method_id: None,
@@ -1223,7 +1202,6 @@ impl<'a> LowerToHir<'a> {
             type_parameters: self
                 .optional_type_parameters(node.type_parameters),
             arguments: self.optional_method_arguments(node.arguments),
-            throw_type: node.throw_type.map(|n| self.type_reference(n)),
             return_type: node.return_type.map(|n| self.type_reference(n)),
             body: self.optional_expressions(node.body),
             method_id: None,
@@ -1235,8 +1213,6 @@ impl<'a> LowerToHir<'a> {
         &mut self,
         node: ast::DefineMethod,
     ) -> DefineInstanceMethod {
-        self.check_operator_requirements(&node);
-
         DefineInstanceMethod {
             public: node.public,
             kind: match node.kind {
@@ -1248,7 +1224,6 @@ impl<'a> LowerToHir<'a> {
             type_parameters: self
                 .optional_type_parameters(node.type_parameters),
             arguments: self.optional_method_arguments(node.arguments),
-            throw_type: node.throw_type.map(|n| self.type_reference(n)),
             return_type: node.return_type.map(|n| self.type_reference(n)),
             body: self.optional_expressions(node.body),
             method_id: None,
@@ -1260,8 +1235,6 @@ impl<'a> LowerToHir<'a> {
         &mut self,
         node: ast::DefineMethod,
     ) -> Box<DefineRequiredMethod> {
-        self.check_operator_requirements(&node);
-
         Box::new(DefineRequiredMethod {
             public: node.public,
             kind: match node.kind {
@@ -1273,7 +1246,6 @@ impl<'a> LowerToHir<'a> {
             type_parameters: self
                 .optional_type_parameters(node.type_parameters),
             arguments: self.optional_method_arguments(node.arguments),
-            throw_type: node.throw_type.map(|n| self.type_reference(n)),
             return_type: node.return_type.map(|n| self.type_reference(n)),
             method_id: None,
             location: node.location,
@@ -1281,7 +1253,7 @@ impl<'a> LowerToHir<'a> {
     }
 
     fn optional_type_bounds(
-        &self,
+        &mut self,
         node: Option<ast::TypeBounds>,
     ) -> Vec<TypeBound> {
         if let Some(types) = node {
@@ -1291,12 +1263,30 @@ impl<'a> LowerToHir<'a> {
         }
     }
 
-    fn type_bound(&self, node: ast::TypeBound) -> TypeBound {
-        TypeBound {
-            name: self.constant(node.name),
-            requirements: self.type_names(node.requirements),
-            location: node.location,
+    fn type_bound(&mut self, node: ast::TypeBound) -> TypeBound {
+        let name = self.constant(node.name);
+        let mut mutable = false;
+        let mut requirements = Vec::new();
+
+        for req in node.requirements.values {
+            match req {
+                ast::Requirement::Trait(n) => {
+                    requirements.push(self.type_name(n))
+                }
+                ast::Requirement::Mutable(loc) if mutable => {
+                    self.state.diagnostics.type_parameter_already_mutable(
+                        &name.name,
+                        self.file(),
+                        loc,
+                    );
+                }
+                ast::Requirement::Mutable(_) => {
+                    mutable = true;
+                }
+            }
         }
+
+        TypeBound { name, requirements, mutable, location: node.location }
     }
 
     fn define_trait(&mut self, node: ast::DefineTrait) -> TopLevelExpression {
@@ -1340,6 +1330,7 @@ impl<'a> LowerToHir<'a> {
             class_id: None,
             class_name: self.constant(node.class_name),
             body: self.reopen_class_expressions(node.body),
+            bounds: self.optional_type_bounds(node.bounds),
             location: node.location,
         }))
     }
@@ -1512,7 +1503,6 @@ impl<'a> LowerToHir<'a> {
     fn closure_type(&self, node: ast::ClosureType) -> Box<ClosureType> {
         Box::new(ClosureType {
             arguments: self.optional_types(node.arguments),
-            throw_type: node.throw_type.map(|n| self.type_reference(n)),
             return_type: node.return_type.map(|n| self.type_reference(n)),
             location: node.location,
             resolved_type: types::TypeRef::Unknown,
@@ -1553,9 +1543,36 @@ impl<'a> LowerToHir<'a> {
     fn type_parameter(&mut self, node: ast::TypeParameter) -> TypeParameter {
         let name = self.constant(node.name);
         let location = node.location;
-        let requirements = self.optional_type_names(node.requirements);
+        let mut mutable = false;
+        let mut requirements = Vec::new();
 
-        TypeParameter { type_parameter_id: None, name, requirements, location }
+        if let Some(reqs) = node.requirements {
+            for req in reqs.values {
+                match req {
+                    ast::Requirement::Trait(n) => {
+                        requirements.push(self.type_name(n))
+                    }
+                    ast::Requirement::Mutable(loc) if mutable => {
+                        self.state.diagnostics.type_parameter_already_mutable(
+                            &name.name,
+                            self.file(),
+                            loc,
+                        );
+                    }
+                    ast::Requirement::Mutable(_) => {
+                        mutable = true;
+                    }
+                }
+            }
+        }
+
+        TypeParameter {
+            type_parameter_id: None,
+            name,
+            requirements,
+            location,
+            mutable,
+        }
     }
 
     fn optional_type_names(
@@ -1717,7 +1734,6 @@ impl<'a> LowerToHir<'a> {
                             location: loc.clone(),
                         },
                         arguments: Vec::new(),
-                        else_block: None,
                         location: loc,
                     }))
                 }
@@ -1884,7 +1900,7 @@ impl<'a> LowerToHir<'a> {
                 Expression::Float(self.float_literal(*node))
             }
             ast::Expression::Binary(node) => {
-                Expression::Call(self.binary(*node, None))
+                Expression::Call(self.binary(*node))
             }
             ast::Expression::Field(node) => {
                 Expression::FieldRef(self.field_ref(*node))
@@ -1896,7 +1912,6 @@ impl<'a> LowerToHir<'a> {
                 Expression::IdentifierRef(self.identifier_ref(*node))
             }
             ast::Expression::Call(node) => self.call(*node),
-            ast::Expression::Async(node) => self.async_call(*node),
             ast::Expression::AssignVariable(node) => {
                 Expression::AssignVariable(self.assign_variable(*node))
             }
@@ -1964,12 +1979,6 @@ impl<'a> LowerToHir<'a> {
             ast::Expression::TypeCast(node) => {
                 Expression::TypeCast(self.type_cast(*node))
             }
-            ast::Expression::Index(node) => {
-                Expression::Index(self.index_expression(*node))
-            }
-            ast::Expression::SetIndex(node) => {
-                Expression::Call(self.set_index_expression(*node))
-            }
             ast::Expression::Throw(node) => {
                 Expression::Throw(self.throw_expression(*node))
             }
@@ -1977,7 +1986,6 @@ impl<'a> LowerToHir<'a> {
                 Expression::Return(self.return_expression(*node))
             }
             ast::Expression::Try(node) => self.try_expression(*node),
-            ast::Expression::TryPanic(node) => self.try_panic(*node),
             ast::Expression::If(node) => {
                 Expression::Match(self.if_expression(*node))
             }
@@ -2005,11 +2013,7 @@ impl<'a> LowerToHir<'a> {
         }
     }
 
-    fn binary(
-        &mut self,
-        node: ast::Binary,
-        else_block: Option<ElseBlock>,
-    ) -> Box<Call> {
+    fn binary(&mut self, node: ast::Binary) -> Box<Call> {
         let op = self.binary_operator(&node.operator);
 
         Box::new(Call {
@@ -2022,7 +2026,6 @@ impl<'a> LowerToHir<'a> {
             arguments: vec![Argument::Positional(Box::new(
                 self.expression(node.right),
             ))],
-            else_block,
             location: node.location,
         })
     }
@@ -2067,7 +2070,6 @@ impl<'a> LowerToHir<'a> {
                 info: None,
                 name: self.identifier(node.name),
                 arguments: self.optional_builtin_call_arguments(node.arguments),
-                else_block: None,
                 location: node.location,
             }));
         }
@@ -2077,7 +2079,6 @@ impl<'a> LowerToHir<'a> {
             receiver: node.receiver.map(|n| self.expression(n)),
             name: self.identifier(node.name),
             arguments: self.optional_call_arguments(node.arguments),
-            else_block: None,
             location: node.location,
         }))
     }
@@ -2143,46 +2144,6 @@ impl<'a> LowerToHir<'a> {
         } else {
             Vec::new()
         }
-    }
-
-    fn async_call(&mut self, async_node: ast::Async) -> Expression {
-        let result = match self.expression(async_node.expression) {
-            Expression::Call(node) => {
-                if let Some(receiver) = node.receiver {
-                    return Expression::AsyncCall(Box::new(AsyncCall {
-                        info: None,
-                        receiver,
-                        name: node.name,
-                        arguments: node.arguments,
-                        location: async_node.location,
-                    }));
-                }
-
-                Expression::Call(node)
-            }
-            Expression::AssignSetter(node) => {
-                return Expression::AsyncCall(Box::new(AsyncCall {
-                    info: None,
-                    receiver: node.receiver,
-                    name: Identifier {
-                        name: node.name.name + "=",
-                        location: node.name.location,
-                    },
-                    arguments: vec![Argument::Positional(Box::new(node.value))],
-                    location: node.location,
-                }));
-            }
-            expr => expr,
-        };
-
-        self.state.diagnostics.error(
-            DiagnosticId::InvalidCall,
-            "The 'async' keyword requires a method call with a receiver",
-            self.file(),
-            async_node.location,
-        );
-
-        result
     }
 
     fn assign_variable(
@@ -2256,7 +2217,6 @@ impl<'a> LowerToHir<'a> {
                 arguments: vec![Argument::Positional(Box::new(
                     self.expression(node.value),
                 ))],
-                else_block: None,
                 location: node.location.clone(),
             })),
             resolved_type: types::TypeRef::Unknown,
@@ -2290,7 +2250,6 @@ impl<'a> LowerToHir<'a> {
                 arguments: vec![Argument::Positional(Box::new(
                     self.expression(node.value),
                 ))],
-                else_block: None,
                 location: node.location.clone(),
             })),
             resolved_type: types::TypeRef::Unknown,
@@ -2304,7 +2263,6 @@ impl<'a> LowerToHir<'a> {
             receiver: self.expression(node.receiver),
             name: self.identifier(node.name),
             value: self.expression(node.value),
-            else_block: None,
             location: node.location,
         })
     }
@@ -2323,7 +2281,6 @@ impl<'a> LowerToHir<'a> {
             receiver: Some(setter_rec.clone()),
             name: name.clone(),
             arguments: Vec::new(),
-            else_block: None,
             location: getter_loc,
         }));
 
@@ -2341,10 +2298,8 @@ impl<'a> LowerToHir<'a> {
                     name: op.method_name().to_string(),
                     location: node.operator.location,
                 },
-                else_block: None,
                 location: node.location.clone(),
             })),
-            else_block: None,
             location: node.location,
         })
     }
@@ -2355,7 +2310,6 @@ impl<'a> LowerToHir<'a> {
             resolved_type: types::TypeRef::Unknown,
             moving: node.moving,
             arguments: self.optional_block_arguments(node.arguments),
-            throw_type: node.throw_type.map(|n| self.type_reference(n)),
             return_type: node.return_type.map(|n| self.type_reference(n)),
             body: self.expressions(node.body),
             location: node.location,
@@ -2488,35 +2442,10 @@ impl<'a> LowerToHir<'a> {
         })
     }
 
-    fn index_expression(&mut self, node: ast::Index) -> Box<Index> {
-        Box::new(Index {
-            info: None,
-            receiver: self.expression(node.receiver),
-            index: self.expression(node.index),
-            location: node.location,
-        })
-    }
-
-    fn set_index_expression(&mut self, node: ast::SetIndex) -> Box<Call> {
-        Box::new(Call {
-            kind: types::CallKind::Unknown,
-            receiver: Some(self.expression(node.receiver)),
-            name: Identifier {
-                name: SET_INDEX_METHOD.to_string(),
-                location: node.location.clone(),
-            },
-            arguments: vec![
-                Argument::Positional(Box::new(self.expression(node.index))),
-                Argument::Positional(Box::new(self.expression(node.value))),
-            ],
-            else_block: None,
-            location: node.location,
-        })
-    }
-
     fn throw_expression(&mut self, node: ast::Throw) -> Box<Throw> {
         Box::new(Throw {
             resolved_type: types::TypeRef::Unknown,
+            return_type: types::TypeRef::Unknown,
             value: self.expression(node.value),
             location: node.location,
         })
@@ -2532,130 +2461,13 @@ impl<'a> LowerToHir<'a> {
         })
     }
 
-    /// Desugars a `try` expression such that it always has an explicit `else`.
-    ///
-    /// This desugars this:
-    ///
-    ///     try x
-    ///
-    /// Into this:
-    ///
-    ///     try x else (error) throw error
-    ///
-    /// If an explicit `else` is already present, no desugaring is applied.
     fn try_expression(&mut self, node: ast::Try) -> Expression {
-        let else_block = if let Some(else_block) = node.else_block {
-            let body = self.expressions(else_block.body);
-            let binding = else_block.argument.map(|n| self.block_argument(n));
-
-            ElseBlock { body, argument: binding, location: else_block.location }
-        } else {
-            let location = node.location.clone();
-            let throw = self.throw_variable(TRY_BINDING_VAR, location.clone());
-            let binding = self.generated_variable_definition(
-                TRY_BINDING_VAR,
-                location.clone(),
-            );
-
-            ElseBlock { body: vec![throw], argument: Some(binding), location }
-        };
-
-        self.try_else(node.try_block, else_block, node.location)
-    }
-
-    /// Desugars a `try!` expression into a `try` that panics.
-    ///
-    /// Expressions like this:
-    ///
-    ///     try! x
-    ///
-    /// Are desugared into this:
-    ///
-    ///     try x else (error) _INKO.panic(error.to_string)
-    fn try_panic(&mut self, node: ast::TryPanic) -> Expression {
-        let location = node.location.clone();
-        let panic = self.hidden_panic(TRY_BINDING_VAR, location.clone());
-        let binding = self
-            .generated_variable_definition(TRY_BINDING_VAR, location.clone());
-        let else_block =
-            ElseBlock { body: vec![panic], argument: Some(binding), location };
-
-        self.try_else(node.try_block, else_block, node.location)
-    }
-
-    fn try_else(
-        &mut self,
-        try_block: ast::TryBlock,
-        else_block: ElseBlock,
-        location: SourceLocation,
-    ) -> Expression {
-        match try_block.value {
-            ast::Expression::Identifier(n) => {
-                Expression::Call(Box::new(Call {
-                    kind: types::CallKind::Unknown,
-                    receiver: None,
-                    name: self.identifier(*n),
-                    arguments: Vec::new(),
-                    else_block: Some(else_block),
-                    location,
-                }))
-            }
-            ast::Expression::Constant(n) => Expression::Call(Box::new(Call {
-                kind: types::CallKind::Unknown,
-                receiver: None,
-                name: Identifier { name: n.name, location: n.location },
-                arguments: Vec::new(),
-                else_block: Some(else_block),
-                location,
-            })),
-            ast::Expression::Call(call) => {
-                if self.is_builtin_call(&call) {
-                    if !self.module.is_std(&self.state.db) {
-                        self.state.diagnostics.invalid_builtin_function(
-                            self.file(),
-                            call.location.clone(),
-                        );
-                    }
-
-                    Expression::BuiltinCall(Box::new(BuiltinCall {
-                        info: None,
-                        name: self.identifier(call.name),
-                        arguments: self
-                            .optional_builtin_call_arguments(call.arguments),
-                        else_block: Some(else_block),
-                        location,
-                    }))
-                } else {
-                    Expression::Call(Box::new(Call {
-                        kind: types::CallKind::Unknown,
-                        receiver: call.receiver.map(|n| self.expression(n)),
-                        name: self.identifier(call.name),
-                        arguments: self.optional_call_arguments(call.arguments),
-                        else_block: Some(else_block),
-                        location,
-                    }))
-                }
-            }
-            ast::Expression::AssignSetter(node) => {
-                Expression::AssignSetter(Box::new(AssignSetter {
-                    kind: types::CallKind::Unknown,
-                    receiver: self.expression(node.receiver),
-                    name: self.identifier(node.name),
-                    value: self.expression(node.value),
-                    else_block: Some(else_block),
-                    location,
-                }))
-            }
-            ast::Expression::Binary(node) => {
-                Expression::Call(self.binary(*node, Some(else_block)))
-            }
-            _ => {
-                let loc = try_block.value.location().clone();
-
-                self.state.diagnostics.never_throws(self.file(), loc.clone());
-                Expression::Invalid(Box::new(loc))
-            }
-        }
+        Expression::Try(Box::new(Try {
+            expression: self.expression(node.expression),
+            kind: types::ThrowKind::Unknown,
+            location: node.location,
+            return_type: types::TypeRef::Unknown,
+        }))
     }
 
     fn if_expression(&mut self, node: ast::If) -> Box<Match> {
@@ -2914,61 +2726,6 @@ impl<'a> LowerToHir<'a> {
         nodes.into_iter().map(|n| self.pattern(n)).collect()
     }
 
-    fn throw_variable(
-        &self,
-        name: &str,
-        location: SourceLocation,
-    ) -> Expression {
-        Expression::Throw(Box::new(Throw {
-            resolved_type: types::TypeRef::Unknown,
-            value: Expression::IdentifierRef(Box::new(IdentifierRef {
-                kind: types::IdentifierKind::Unknown,
-                name: name.to_string(),
-                location: location.clone(),
-            })),
-            location,
-        }))
-    }
-
-    fn hidden_panic(
-        &self,
-        variable: &str,
-        location: SourceLocation,
-    ) -> Expression {
-        Expression::BuiltinCall(Box::new(BuiltinCall {
-            info: None,
-            name: Identifier {
-                name: types::CompilerMacro::PanicThrown.name().to_string(),
-                location: location.clone(),
-            },
-            arguments: vec![Expression::IdentifierRef(Box::new(
-                IdentifierRef {
-                    kind: types::IdentifierKind::Unknown,
-                    name: variable.to_string(),
-                    location: location.clone(),
-                },
-            ))],
-            else_block: None,
-            location,
-        }))
-    }
-
-    fn generated_variable_definition(
-        &self,
-        name: &str,
-        location: SourceLocation,
-    ) -> BlockArgument {
-        BlockArgument {
-            variable_id: None,
-            name: Identifier {
-                name: name.to_string(),
-                location: location.clone(),
-            },
-            value_type: None,
-            location,
-        }
-    }
-
     fn break_expression(&self, location: SourceLocation) -> Expression {
         Expression::Break(Box::new(Break { location }))
     }
@@ -2988,21 +2745,6 @@ impl<'a> LowerToHir<'a> {
             self.file(),
             location.clone(),
         );
-    }
-
-    fn check_operator_requirements(&mut self, node: &ast::DefineMethod) {
-        if !node.operator {
-            return;
-        }
-
-        if let Some(throws) = node.throw_type.as_ref() {
-            self.state.diagnostics.error(
-                DiagnosticId::InvalidMethod,
-                "Operator methods can't throw",
-                self.file(),
-                throws.location().clone(),
-            );
-        }
     }
 }
 
@@ -3374,7 +3116,7 @@ mod tests {
 
     #[test]
     fn test_lower_closure_type() {
-        let hir = lower_type("fn (A) !! B -> C");
+        let hir = lower_type("fn (A) -> C");
 
         assert_eq!(
             hir,
@@ -3389,27 +3131,17 @@ mod tests {
                     arguments: Vec::new(),
                     location: cols(13, 13)
                 }))],
-                throw_type: Some(Type::Named(Box::new(TypeName {
-                    source: None,
-                    resolved_type: types::TypeRef::Unknown,
-                    name: Constant {
-                        name: "B".to_string(),
-                        location: cols(19, 19)
-                    },
-                    arguments: Vec::new(),
-                    location: cols(19, 19)
-                }))),
                 return_type: Some(Type::Named(Box::new(TypeName {
                     source: None,
                     resolved_type: types::TypeRef::Unknown,
                     name: Constant {
                         name: "C".to_string(),
-                        location: cols(24, 24)
+                        location: cols(19, 19)
                     },
                     arguments: Vec::new(),
-                    location: cols(24, 24)
+                    location: cols(19, 19)
                 }))),
-                location: cols(9, 24),
+                location: cols(9, 19),
                 resolved_type: types::TypeRef::Unknown,
             }))
         );
@@ -3417,8 +3149,7 @@ mod tests {
 
     #[test]
     fn test_lower_module_method() {
-        let (hir, diags) =
-            lower_top_expr("fn foo[A: X](a: B) !! C -> D { 10 }");
+        let (hir, diags) = lower_top_expr("fn foo[A: X](a: B) -> D { 10 }");
 
         assert_eq!(diags, 0);
         assert_eq!(
@@ -3445,6 +3176,7 @@ mod tests {
                         arguments: Vec::new(),
                         location: cols(11, 11)
                     }],
+                    mutable: false,
                     location: cols(8, 11)
                 }],
                 arguments: vec![MethodArgument {
@@ -3464,33 +3196,23 @@ mod tests {
                     })),
                     location: cols(14, 17)
                 }],
-                throw_type: Some(Type::Named(Box::new(TypeName {
-                    source: None,
-                    resolved_type: types::TypeRef::Unknown,
-                    name: Constant {
-                        name: "C".to_string(),
-                        location: cols(23, 23)
-                    },
-                    arguments: Vec::new(),
-                    location: cols(23, 23)
-                }))),
                 return_type: Some(Type::Named(Box::new(TypeName {
                     source: None,
                     resolved_type: types::TypeRef::Unknown,
                     name: Constant {
                         name: "D".to_string(),
-                        location: cols(28, 28)
+                        location: cols(23, 23)
                     },
                     arguments: Vec::new(),
-                    location: cols(28, 28)
+                    location: cols(23, 23)
                 }))),
                 body: vec![Expression::Int(Box::new(IntLiteral {
                     value: 10,
                     resolved_type: types::TypeRef::Unknown,
-                    location: cols(32, 33)
+                    location: cols(27, 28)
                 }))],
                 method_id: None,
-                location: cols(1, 35),
+                location: cols(1, 30),
             })),
         );
     }
@@ -3522,6 +3244,7 @@ mod tests {
                         arguments: Vec::new(),
                         location: cols(12, 12)
                     }],
+                    mutable: false,
                     location: cols(9, 12)
                 }],
                 body: vec![ClassExpression::Field(Box::new(DefineField {
@@ -3635,6 +3358,7 @@ mod tests {
                         arguments: Vec::new(),
                         location: cols(20, 20)
                     }],
+                    mutable: false,
                     location: cols(17, 20)
                 }],
                 body: vec![ClassExpression::Field(Box::new(DefineField {
@@ -3685,8 +3409,7 @@ mod tests {
     #[test]
     fn test_lower_class_with_static_method() {
         let hir =
-            lower_top_expr("class A { fn static a[A](b: B) !! C -> D { 10 } }")
-                .0;
+            lower_top_expr("class A { fn static a[A](b: B) -> D { 10 } }").0;
 
         assert_eq!(
             hir,
@@ -3710,6 +3433,7 @@ mod tests {
                                 location: cols(23, 23)
                             },
                             requirements: Vec::new(),
+                            mutable: false,
                             location: cols(23, 23)
                         }],
                         arguments: vec![MethodArgument {
@@ -3729,36 +3453,26 @@ mod tests {
                             })),
                             location: cols(26, 29)
                         }],
-                        throw_type: Some(Type::Named(Box::new(TypeName {
-                            source: None,
-                            resolved_type: types::TypeRef::Unknown,
-                            name: Constant {
-                                name: "C".to_string(),
-                                location: cols(35, 35)
-                            },
-                            arguments: Vec::new(),
-                            location: cols(35, 35)
-                        }))),
                         return_type: Some(Type::Named(Box::new(TypeName {
                             source: None,
                             resolved_type: types::TypeRef::Unknown,
                             name: Constant {
                                 name: "D".to_string(),
-                                location: cols(40, 40)
+                                location: cols(35, 35)
                             },
                             arguments: Vec::new(),
-                            location: cols(40, 40)
+                            location: cols(35, 35)
                         }))),
                         body: vec![Expression::Int(Box::new(IntLiteral {
                             value: 10,
                             resolved_type: types::TypeRef::Unknown,
-                            location: cols(44, 45)
+                            location: cols(39, 40)
                         }))],
                         method_id: None,
-                        location: cols(11, 47),
+                        location: cols(11, 42),
                     }
                 ))],
-                location: cols(1, 49)
+                location: cols(1, 44)
             })),
         );
     }
@@ -3766,8 +3480,7 @@ mod tests {
     #[test]
     fn test_lower_class_with_async_method() {
         let hir =
-            lower_top_expr("class A { fn async a[A](b: B) !! C -> D { 10 } }")
-                .0;
+            lower_top_expr("class A { fn async a[A](b: B) -> D { 10 } }").0;
 
         assert_eq!(
             hir,
@@ -3792,6 +3505,7 @@ mod tests {
                                 location: cols(22, 22)
                             },
                             requirements: Vec::new(),
+                            mutable: false,
                             location: cols(22, 22)
                         }],
                         arguments: vec![MethodArgument {
@@ -3811,44 +3525,33 @@ mod tests {
                             })),
                             location: cols(25, 28)
                         }],
-                        throw_type: Some(Type::Named(Box::new(TypeName {
-                            source: None,
-                            resolved_type: types::TypeRef::Unknown,
-                            name: Constant {
-                                name: "C".to_string(),
-                                location: cols(34, 34)
-                            },
-                            arguments: Vec::new(),
-                            location: cols(34, 34)
-                        }))),
                         return_type: Some(Type::Named(Box::new(TypeName {
                             source: None,
                             resolved_type: types::TypeRef::Unknown,
                             name: Constant {
                                 name: "D".to_string(),
-                                location: cols(39, 39)
+                                location: cols(34, 34)
                             },
                             arguments: Vec::new(),
-                            location: cols(39, 39)
+                            location: cols(34, 34)
                         }))),
                         body: vec![Expression::Int(Box::new(IntLiteral {
                             value: 10,
                             resolved_type: types::TypeRef::Unknown,
-                            location: cols(43, 44)
+                            location: cols(38, 39)
                         }))],
                         method_id: None,
-                        location: cols(11, 46),
+                        location: cols(11, 41),
                     }
                 ))],
-                location: cols(1, 48)
+                location: cols(1, 43)
             })),
         );
     }
 
     #[test]
     fn test_lower_class_with_instance_method() {
-        let hir =
-            lower_top_expr("class A { fn a[A](b: B) !! C -> D { 10 } }").0;
+        let hir = lower_top_expr("class A { fn a[A](b: B) -> D { 10 } }").0;
 
         assert_eq!(
             hir,
@@ -3873,6 +3576,7 @@ mod tests {
                                 location: cols(16, 16)
                             },
                             requirements: Vec::new(),
+                            mutable: false,
                             location: cols(16, 16)
                         }],
                         arguments: vec![MethodArgument {
@@ -3892,45 +3596,28 @@ mod tests {
                             })),
                             location: cols(19, 22)
                         }],
-                        throw_type: Some(Type::Named(Box::new(TypeName {
-                            source: None,
-                            resolved_type: types::TypeRef::Unknown,
-                            name: Constant {
-                                name: "C".to_string(),
-                                location: cols(28, 28)
-                            },
-                            arguments: Vec::new(),
-                            location: cols(28, 28)
-                        }))),
                         return_type: Some(Type::Named(Box::new(TypeName {
                             source: None,
                             resolved_type: types::TypeRef::Unknown,
                             name: Constant {
                                 name: "D".to_string(),
-                                location: cols(33, 33)
+                                location: cols(28, 28)
                             },
                             arguments: Vec::new(),
-                            location: cols(33, 33)
+                            location: cols(28, 28)
                         }))),
                         body: vec![Expression::Int(Box::new(IntLiteral {
                             value: 10,
                             resolved_type: types::TypeRef::Unknown,
-                            location: cols(37, 38)
+                            location: cols(32, 33)
                         }))],
                         method_id: None,
-                        location: cols(11, 40)
+                        location: cols(11, 35)
                     }
                 ))],
-                location: cols(1, 42)
+                location: cols(1, 37)
             })),
         );
-    }
-
-    #[test]
-    fn test_lower_instance_operator_method_with_throw() {
-        let diags = lower_top_expr("class A { fn + !! A {} }").1;
-
-        assert_eq!(diags, 1);
     }
 
     #[test]
@@ -3964,6 +3651,7 @@ mod tests {
                         location: cols(9, 9)
                     },
                     requirements: Vec::new(),
+                    mutable: false,
                     location: cols(9, 9)
                 }],
                 requirements: vec![TypeName {
@@ -4005,7 +3693,7 @@ mod tests {
 
     #[test]
     fn test_lower_trait_with_required_method() {
-        let hir = lower_top_expr("trait A { fn a[A](b: B) !! C -> D }").0;
+        let hir = lower_top_expr("trait A { fn a[A](b: B) -> D }").0;
 
         assert_eq!(
             hir,
@@ -4030,6 +3718,7 @@ mod tests {
                                 location: cols(16, 16)
                             },
                             requirements: Vec::new(),
+                            mutable: false,
                             location: cols(16, 16)
                         }],
                         arguments: vec![MethodArgument {
@@ -4049,31 +3738,21 @@ mod tests {
                             })),
                             location: cols(19, 22)
                         }],
-                        throw_type: Some(Type::Named(Box::new(TypeName {
-                            source: None,
-                            resolved_type: types::TypeRef::Unknown,
-                            name: Constant {
-                                name: "C".to_string(),
-                                location: cols(28, 28)
-                            },
-                            arguments: Vec::new(),
-                            location: cols(28, 28)
-                        }))),
                         return_type: Some(Type::Named(Box::new(TypeName {
                             source: None,
                             resolved_type: types::TypeRef::Unknown,
                             name: Constant {
                                 name: "D".to_string(),
-                                location: cols(33, 33)
+                                location: cols(28, 28)
                             },
                             arguments: Vec::new(),
-                            location: cols(33, 33)
+                            location: cols(28, 28)
                         }))),
                         method_id: None,
-                        location: cols(11, 33)
+                        location: cols(11, 28)
                     }
                 ))],
-                location: cols(1, 35)
+                location: cols(1, 30)
             }))
         );
     }
@@ -4100,7 +3779,6 @@ mod tests {
                         },
                         type_parameters: Vec::new(),
                         arguments: Vec::new(),
-                        throw_type: None,
                         return_type: None,
                         method_id: None,
                         location: cols(11, 19)
@@ -4133,7 +3811,6 @@ mod tests {
                         },
                         type_parameters: Vec::new(),
                         arguments: Vec::new(),
-                        throw_type: None,
                         return_type: None,
                         body: Vec::new(),
                         method_id: None,
@@ -4147,8 +3824,7 @@ mod tests {
 
     #[test]
     fn test_lower_trait_with_default_method() {
-        let hir =
-            lower_top_expr("trait A { fn a[A](b: B) !! C -> D { 10 } }").0;
+        let hir = lower_top_expr("trait A { fn a[A](b: B) -> D { 10 } }").0;
 
         assert_eq!(
             hir,
@@ -4173,6 +3849,7 @@ mod tests {
                                 location: cols(16, 16)
                             },
                             requirements: Vec::new(),
+                            mutable: false,
                             location: cols(16, 16)
                         }],
                         arguments: vec![MethodArgument {
@@ -4192,54 +3869,65 @@ mod tests {
                             })),
                             location: cols(19, 22)
                         }],
-                        throw_type: Some(Type::Named(Box::new(TypeName {
-                            source: None,
-                            resolved_type: types::TypeRef::Unknown,
-                            name: Constant {
-                                name: "C".to_string(),
-                                location: cols(28, 28)
-                            },
-                            arguments: Vec::new(),
-                            location: cols(28, 28)
-                        }))),
                         return_type: Some(Type::Named(Box::new(TypeName {
                             source: None,
                             resolved_type: types::TypeRef::Unknown,
                             name: Constant {
                                 name: "D".to_string(),
-                                location: cols(33, 33)
+                                location: cols(28, 28)
                             },
                             arguments: Vec::new(),
-                            location: cols(33, 33)
+                            location: cols(28, 28)
                         }))),
                         body: vec![Expression::Int(Box::new(IntLiteral {
                             value: 10,
                             resolved_type: types::TypeRef::Unknown,
-                            location: cols(37, 38)
+                            location: cols(32, 33)
                         }))],
                         method_id: None,
-                        location: cols(11, 40)
+                        location: cols(11, 35)
                     }
                 ))],
-                location: cols(1, 42)
+                location: cols(1, 37)
             }))
         );
     }
 
     #[test]
     fn test_lower_reopen_empty_class() {
-        let hir = lower_top_expr("impl A {}").0;
-
         assert_eq!(
-            hir,
+            lower_top_expr("impl A {}").0,
             TopLevelExpression::Reopen(Box::new(ReopenClass {
                 class_id: None,
                 class_name: Constant {
                     name: "A".to_string(),
                     location: cols(6, 6)
                 },
+                bounds: Vec::new(),
                 body: Vec::new(),
                 location: cols(1, 9)
+            }))
+        );
+
+        assert_eq!(
+            lower_top_expr("impl A if T: mut {}").0,
+            TopLevelExpression::Reopen(Box::new(ReopenClass {
+                class_id: None,
+                class_name: Constant {
+                    name: "A".to_string(),
+                    location: cols(6, 6)
+                },
+                bounds: vec![TypeBound {
+                    name: Constant {
+                        name: "T".to_string(),
+                        location: cols(11, 11)
+                    },
+                    requirements: Vec::new(),
+                    mutable: true,
+                    location: cols(11, 16),
+                }],
+                body: Vec::new(),
+                location: cols(1, 16)
             }))
         );
     }
@@ -4266,13 +3954,13 @@ mod tests {
                         },
                         type_parameters: Vec::new(),
                         arguments: Vec::new(),
-                        throw_type: None,
                         return_type: None,
                         body: Vec::new(),
                         method_id: None,
                         location: cols(10, 18)
                     }
                 ))],
+                bounds: Vec::new(),
                 location: cols(1, 20)
             }))
         );
@@ -4299,13 +3987,13 @@ mod tests {
                         },
                         type_parameters: Vec::new(),
                         arguments: Vec::new(),
-                        throw_type: None,
                         return_type: None,
                         body: Vec::new(),
                         method_id: None,
                         location: cols(10, 25),
                     }
                 ))],
+                bounds: Vec::new(),
                 location: cols(1, 27)
             }))
         );
@@ -4333,13 +4021,13 @@ mod tests {
                         },
                         type_parameters: Vec::new(),
                         arguments: Vec::new(),
-                        throw_type: None,
                         return_type: None,
                         body: Vec::new(),
                         method_id: None,
                         location: cols(10, 24)
                     }
                 ))],
+                bounds: Vec::new(),
                 location: cols(1, 26)
             }))
         );
@@ -4416,7 +4104,7 @@ mod tests {
 
     #[test]
     fn test_lower_trait_implementation_with_bounds() {
-        let hir = lower_top_expr("impl A for B if T: X {}").0;
+        let hir = lower_top_expr("impl A for B if T: X + mut {}").0;
 
         assert_eq!(
             hir,
@@ -4449,11 +4137,12 @@ mod tests {
                         },
                         arguments: Vec::new(),
                         location: cols(20, 20)
-                    }],
-                    location: cols(17, 20)
+                    },],
+                    mutable: true,
+                    location: cols(17, 26)
                 }],
                 body: Vec::new(),
-                location: cols(1, 23),
+                location: cols(1, 29),
                 trait_instance: None,
                 class_instance: None,
             }))
@@ -4491,7 +4180,6 @@ mod tests {
                     },
                     type_parameters: Vec::new(),
                     arguments: Vec::new(),
-                    throw_type: None,
                     return_type: None,
                     body: Vec::new(),
                     method_id: None,
@@ -4535,7 +4223,6 @@ mod tests {
                     },
                     type_parameters: Vec::new(),
                     arguments: Vec::new(),
-                    throw_type: None,
                     return_type: None,
                     body: Vec::new(),
                     method_id: None,
@@ -4760,7 +4447,6 @@ mod tests {
                             location: cols(11, 12)
                         },
                         arguments: Vec::new(),
-                        else_block: None,
                         location: cols(11, 12)
                     })),
                     StringValue::Text(Box::new(StringText {
@@ -4837,7 +4523,6 @@ mod tests {
                     name: Operator::Add.method_name().to_string(),
                     location: cols(10, 10)
                 },
-                else_block: None,
                 location: cols(8, 12)
             }))
         );
@@ -4927,7 +4612,6 @@ mod tests {
                         location: cols(10, 11)
                     }))
                 ))],
-                else_block: None,
                 location: cols(8, 12)
             }))
         );
@@ -4959,7 +4643,6 @@ mod tests {
                     })),
                     location: cols(10, 14)
                 }))],
-                else_block: None,
                 location: cols(8, 15)
             }))
         );
@@ -4985,7 +4668,6 @@ mod tests {
                     location: cols(10, 10)
                 },
                 arguments: Vec::new(),
-                else_block: None,
                 location: cols(8, 10)
             }))
         );
@@ -5008,52 +4690,18 @@ mod tests {
                     resolved_type: types::TypeRef::Unknown,
                     location: cols(18, 19)
                 }))],
-                else_block: None,
                 location: cols(8, 20)
             }))
         );
     }
 
     #[test]
-    fn test_lower_try_builtin_call() {
-        let hir = lower_expr("fn a { try _INKO.foo(10) else 0 }").0;
-
-        assert_eq!(
-            hir,
-            Expression::BuiltinCall(Box::new(BuiltinCall {
-                info: None,
-                name: Identifier {
-                    name: "foo".to_string(),
-                    location: cols(18, 20)
-                },
-                arguments: vec![Expression::Int(Box::new(IntLiteral {
-                    value: 10,
-                    resolved_type: types::TypeRef::Unknown,
-                    location: cols(22, 23)
-                }))],
-                else_block: Some(ElseBlock {
-                    body: vec![Expression::Int(Box::new(IntLiteral {
-                        resolved_type: types::TypeRef::Unknown,
-                        value: 0,
-                        location: cols(31, 31)
-                    }))],
-                    argument: None,
-                    location: cols(26, 31)
-                }),
-                location: cols(8, 31)
-            }))
-        );
-    }
-
-    #[test]
-    fn test_lower_try_builtin_call_outside_stdlib() {
+    fn test_lower_builtin_call_outside_stdlib() {
         let name = ModuleName::new("foo");
-        let ast = Parser::new(
-            "fn a { try _INKO.foo(10) else 0 }".into(),
-            "test.inko".into(),
-        )
-        .parse()
-        .expect("Failed to parse the module");
+        let ast =
+            Parser::new("fn a { _INKO.foo(10) }".into(), "test.inko".into())
+                .parse()
+                .expect("Failed to parse the module");
 
         let ast = ParsedModule { ast, name };
         let mut state = State::new(Config::new());
@@ -5081,110 +4729,7 @@ mod tests {
                     resolved_type: types::TypeRef::Unknown,
                     location: cols(21, 22)
                 }))],
-                else_block: None,
                 location: cols(8, 23)
-            }))
-        );
-    }
-
-    #[test]
-    fn test_lower_async_call() {
-        let (hir, diags) = lower_expr("fn a { async a.b(10) }");
-
-        assert_eq!(diags, 0);
-        assert_eq!(
-            hir,
-            Expression::AsyncCall(Box::new(AsyncCall {
-                info: None,
-                receiver: Expression::IdentifierRef(Box::new(IdentifierRef {
-                    kind: types::IdentifierKind::Unknown,
-                    name: "a".to_string(),
-                    location: cols(14, 14)
-                })),
-                name: Identifier {
-                    name: "b".to_string(),
-                    location: cols(16, 16)
-                },
-                arguments: vec![Argument::Positional(Box::new(
-                    Expression::Int(Box::new(IntLiteral {
-                        value: 10,
-                        resolved_type: types::TypeRef::Unknown,
-                        location: cols(18, 19)
-                    }))
-                ))],
-                location: cols(8, 20)
-            }))
-        );
-    }
-
-    #[test]
-    fn test_lower_async_setter() {
-        let (hir, diags) = lower_expr("fn a { async a.b = 10 }");
-
-        assert_eq!(diags, 0);
-        assert_eq!(
-            hir,
-            Expression::AsyncCall(Box::new(AsyncCall {
-                info: None,
-                receiver: Expression::IdentifierRef(Box::new(IdentifierRef {
-                    kind: types::IdentifierKind::Unknown,
-                    name: "a".to_string(),
-                    location: cols(14, 14)
-                })),
-                name: Identifier {
-                    name: "b=".to_string(),
-                    location: cols(16, 16)
-                },
-                arguments: vec![Argument::Positional(Box::new(
-                    Expression::Int(Box::new(IntLiteral {
-                        value: 10,
-                        resolved_type: types::TypeRef::Unknown,
-                        location: cols(20, 21)
-                    }))
-                ))],
-                location: cols(14, 21)
-            }))
-        );
-    }
-
-    #[test]
-    fn test_lower_async_call_without_receiver() {
-        let (hir, diags) = lower_expr("fn a { async a(10) }");
-
-        assert_eq!(diags, 1);
-        assert_eq!(
-            hir,
-            Expression::Call(Box::new(Call {
-                kind: types::CallKind::Unknown,
-                receiver: None,
-                name: Identifier {
-                    name: "a".to_string(),
-                    location: cols(14, 14)
-                },
-                arguments: vec![Argument::Positional(Box::new(
-                    Expression::Int(Box::new(IntLiteral {
-                        value: 10,
-                        resolved_type: types::TypeRef::Unknown,
-                        location: cols(16, 17)
-                    }))
-                ))],
-                else_block: None,
-                location: cols(14, 18)
-            }))
-        );
-    }
-
-    #[test]
-    fn test_lower_async_call_with_identifier() {
-        let (hir, diags) = lower_expr("fn a { async a }");
-
-        assert_eq!(diags, 1);
-        assert_eq!(
-            hir,
-            Expression::IdentifierRef(Box::new(IdentifierRef {
-                kind: types::IdentifierKind::Unknown,
-                name: "a".to_string(),
-                location: cols(14, 14)
             }))
         );
     }
@@ -5307,7 +4852,6 @@ mod tests {
                         name: Operator::Add.method_name().to_string(),
                         location: cols(10, 11)
                     },
-                    else_block: None,
                     location: cols(8, 13)
                 })),
                 resolved_type: types::TypeRef::Unknown,
@@ -5338,7 +4882,6 @@ mod tests {
                     value: 1,
                     location: cols(14, 14)
                 })),
-                else_block: None,
                 location: cols(8, 14)
             }))
         );
@@ -5377,7 +4920,6 @@ mod tests {
                             location: cols(10, 10)
                         },
                         arguments: Vec::new(),
-                        else_block: None,
                         location: cols(8, 10)
                     }))),
                     arguments: vec![Argument::Positional(Box::new(
@@ -5391,10 +4933,8 @@ mod tests {
                         name: Operator::Add.method_name().to_string(),
                         location: cols(12, 13)
                     },
-                    else_block: None,
                     location: cols(8, 15)
                 })),
-                else_block: None,
                 location: cols(8, 15)
             }))
         );
@@ -5428,7 +4968,6 @@ mod tests {
                         name: Operator::Add.method_name().to_string(),
                         location: cols(11, 12)
                     },
-                    else_block: None,
                     location: cols(8, 14)
                 })),
                 resolved_type: types::TypeRef::Unknown,
@@ -5439,7 +4978,7 @@ mod tests {
 
     #[test]
     fn test_lower_closure() {
-        let hir = lower_expr("fn a { fn (a: T) !! A -> B { 10 } }").0;
+        let hir = lower_expr("fn a { fn (a: T) -> B { 10 } }").0;
 
         assert_eq!(
             hir,
@@ -5465,32 +5004,22 @@ mod tests {
                     }))),
                     location: cols(12, 15),
                 }],
-                throw_type: Some(Type::Named(Box::new(TypeName {
-                    source: None,
-                    resolved_type: types::TypeRef::Unknown,
-                    name: Constant {
-                        name: "A".to_string(),
-                        location: cols(21, 21)
-                    },
-                    arguments: Vec::new(),
-                    location: cols(21, 21)
-                }))),
                 return_type: Some(Type::Named(Box::new(TypeName {
                     source: None,
                     resolved_type: types::TypeRef::Unknown,
                     name: Constant {
                         name: "B".to_string(),
-                        location: cols(26, 26)
+                        location: cols(21, 21)
                     },
                     arguments: Vec::new(),
-                    location: cols(26, 26)
+                    location: cols(21, 21)
                 }))),
                 body: vec![Expression::Int(Box::new(IntLiteral {
                     value: 10,
                     resolved_type: types::TypeRef::Unknown,
-                    location: cols(30, 31)
+                    location: cols(25, 26)
                 }))],
-                location: cols(8, 33)
+                location: cols(8, 28)
             }))
         );
     }
@@ -5744,70 +5273,6 @@ mod tests {
     }
 
     #[test]
-    fn test_lower_index_expression() {
-        let hir = lower_expr("fn a { a[0] }").0;
-
-        assert_eq!(
-            hir,
-            Expression::Index(Box::new(Index {
-                info: None,
-                receiver: Expression::IdentifierRef(Box::new(IdentifierRef {
-                    kind: types::IdentifierKind::Unknown,
-                    name: "a".to_string(),
-                    location: cols(8, 8)
-                })),
-                index: Expression::Int(Box::new(IntLiteral {
-                    value: 0,
-                    resolved_type: types::TypeRef::Unknown,
-                    location: cols(10, 10)
-                })),
-                location: cols(8, 11)
-            }))
-        );
-    }
-
-    #[test]
-    fn test_lower_set_index_expression() {
-        let hir = lower_expr("fn a { a[0] = 1 }").0;
-
-        assert_eq!(
-            hir,
-            Expression::Call(Box::new(Call {
-                kind: types::CallKind::Unknown,
-                receiver: Some(Expression::IdentifierRef(Box::new(
-                    IdentifierRef {
-                        kind: types::IdentifierKind::Unknown,
-                        name: "a".to_string(),
-                        location: cols(8, 8)
-                    }
-                ))),
-                name: Identifier {
-                    name: SET_INDEX_METHOD.to_string(),
-                    location: cols(8, 15)
-                },
-                arguments: vec![
-                    Argument::Positional(Box::new(Expression::Int(Box::new(
-                        IntLiteral {
-                            value: 0,
-                            resolved_type: types::TypeRef::Unknown,
-                            location: cols(10, 10)
-                        }
-                    )))),
-                    Argument::Positional(Box::new(Expression::Int(Box::new(
-                        IntLiteral {
-                            value: 1,
-                            resolved_type: types::TypeRef::Unknown,
-                            location: cols(15, 15)
-                        }
-                    )))),
-                ],
-                else_block: None,
-                location: cols(8, 15)
-            }))
-        );
-    }
-
-    #[test]
     fn test_lower_throw_expression() {
         let hir = lower_expr("fn a { throw 10 }").0;
 
@@ -5815,6 +5280,7 @@ mod tests {
             hir,
             Expression::Throw(Box::new(Throw {
                 resolved_type: types::TypeRef::Unknown,
+                return_type: types::TypeRef::Unknown,
                 value: Expression::Int(Box::new(IntLiteral {
                     value: 10,
                     resolved_type: types::TypeRef::Unknown,
@@ -5858,135 +5324,24 @@ mod tests {
     }
 
     #[test]
-    fn test_lower_try_without_else() {
-        let hir = lower_expr("fn a { try a }").0;
+    fn test_lower_try() {
+        let hir = lower_expr("fn a { try a() }").0;
 
         assert_eq!(
             hir,
-            Expression::Call(Box::new(Call {
-                kind: types::CallKind::Unknown,
-                receiver: None,
-                name: Identifier {
-                    name: "a".to_string(),
-                    location: cols(12, 12)
-                },
-                arguments: Vec::new(),
-                else_block: Some(ElseBlock {
-                    body: vec![Expression::Throw(Box::new(Throw {
-                        resolved_type: types::TypeRef::Unknown,
-                        value: Expression::IdentifierRef(Box::new(
-                            IdentifierRef {
-                                kind: types::IdentifierKind::Unknown,
-                                name: TRY_BINDING_VAR.to_string(),
-                                location: cols(8, 12)
-                            }
-                        )),
-                        location: cols(8, 12)
-                    }))],
-                    argument: Some(BlockArgument {
-                        variable_id: None,
-                        name: Identifier {
-                            name: TRY_BINDING_VAR.to_string(),
-                            location: cols(8, 12)
-                        },
-                        value_type: None,
-                        location: cols(8, 12)
-                    }),
-                    location: cols(8, 12)
-                }),
-                location: cols(8, 12)
-            }))
-        );
-    }
-
-    #[test]
-    fn test_lower_try_with_else() {
-        let hir = lower_expr("fn a { try aa else (e) throw e }").0;
-
-        assert_eq!(
-            hir,
-            Expression::Call(Box::new(Call {
-                kind: types::CallKind::Unknown,
-                receiver: None,
-                name: Identifier {
-                    name: "aa".to_string(),
-                    location: cols(12, 13)
-                },
-                arguments: Vec::new(),
-                else_block: Some(ElseBlock {
-                    body: vec![Expression::Throw(Box::new(Throw {
-                        resolved_type: types::TypeRef::Unknown,
-                        value: Expression::IdentifierRef(Box::new(
-                            IdentifierRef {
-                                kind: types::IdentifierKind::Unknown,
-                                name: "e".to_string(),
-                                location: cols(30, 30)
-                            }
-                        )),
-                        location: cols(24, 30)
-                    }))],
-                    argument: Some(BlockArgument {
-                        variable_id: None,
-                        name: Identifier {
-                            name: "e".to_string(),
-                            location: cols(21, 21)
-                        },
-                        value_type: None,
-                        location: cols(21, 21)
-                    }),
-                    location: cols(15, 30)
-                }),
-                location: cols(8, 30)
-            }))
-        );
-    }
-
-    #[test]
-    fn test_lower_try_panic() {
-        let hir = lower_expr("fn a { try! aa }").0;
-
-        assert_eq!(
-            hir,
-            Expression::Call(Box::new(Call {
-                kind: types::CallKind::Unknown,
-                receiver: None,
-                name: Identifier {
-                    name: "aa".to_string(),
-                    location: cols(13, 14)
-                },
-                arguments: Vec::new(),
-                else_block: Some(ElseBlock {
-                    body: vec![Expression::BuiltinCall(Box::new(
-                        BuiltinCall {
-                            info: None,
-                            name: Identifier {
-                                name: types::CompilerMacro::PanicThrown
-                                    .name()
-                                    .to_string(),
-                                location: cols(8, 14)
-                            },
-                            arguments: vec![Expression::IdentifierRef(
-                                Box::new(IdentifierRef {
-                                    kind: types::IdentifierKind::Unknown,
-                                    name: TRY_BINDING_VAR.to_string(),
-                                    location: cols(8, 14)
-                                })
-                            )],
-                            else_block: None,
-                            location: cols(8, 14)
-                        }
-                    ))],
-                    argument: Some(BlockArgument {
-                        variable_id: None,
-                        name: Identifier {
-                            name: TRY_BINDING_VAR.to_string(),
-                            location: cols(8, 14)
-                        },
-                        value_type: None,
-                        location: cols(8, 14)
-                    }),
-                    location: cols(8, 14)
-                }),
+            Expression::Try(Box::new(Try {
+                expression: Expression::Call(Box::new(Call {
+                    kind: types::CallKind::Unknown,
+                    receiver: None,
+                    name: Identifier {
+                        name: "a".to_string(),
+                        location: cols(12, 12)
+                    },
+                    arguments: Vec::new(),
+                    location: cols(12, 14)
+                })),
+                kind: types::ThrowKind::Unknown,
+                return_type: types::TypeRef::Unknown,
                 location: cols(8, 14)
             }))
         );
@@ -6234,6 +5589,7 @@ mod tests {
                         location: cols(19, 19)
                     },
                     requirements: Vec::new(),
+                    mutable: false,
                     location: cols(19, 19)
                 }],
                 body: vec![

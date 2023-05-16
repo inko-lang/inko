@@ -1,0 +1,499 @@
+# A finite group of values, possibly of different types.
+#
+# Tuples are finite/fixed-size types that can store up to 8 values, and each
+# value can be of a different type. For example, here's a tuple of 3 values:
+#
+#     (10, "foo", 5.4)
+#
+# The type of this tuple is `(Int, String, Float)`.
+#
+# Tuple values are accessed using methods named after the value's position:
+#
+#     let triple = (10, "foo", 5.4)
+#
+#     triple.0 # => 10
+#     triple.1 # => "foo"
+#     triple.2 # => 5.4
+#
+# When accessing values using thes methods, the value is returned as a
+# reference. If you want to destructure a tuple, you can do so using pattern
+# matching:
+#
+#     match (10, "foo", 5.4) {
+#       case (a, b, c) -> {
+#         a # => 10
+#         b # => "foo"
+#         c # => 5.4
+#       }
+#     }
+#
+# # Limitations
+#
+# Tuples are limited up to 8 values. If you need to store more than 8 values,
+# it's recommended to use a custom class instead. If you _really_ want to use
+# tuples you can always nest them:
+#
+#     (1, 2, 3, 4, 5, 6, 7, (8, 9, 10))
+import std::clone::Clone
+import std::cmp::Equal
+import std::fmt::(Format, Formatter)
+import std::hash::(Hash, Hasher)
+
+# A 1-ary tuple.
+class builtin Tuple1[A] {
+  let pub @0: A
+}
+
+impl Equal[Tuple1[A]] for Tuple1 if A: Equal[A] {
+  fn pub ==(other: ref Tuple1[A]) -> Bool {
+    @0 == other.0
+  }
+}
+
+impl Hash for Tuple1 if A: Hash {
+  fn pub hash(hasher: mut Hasher) {
+    @0.hash(hasher)
+  }
+}
+
+impl Clone[Tuple1[A]] for Tuple1 if A: Clone[A] {
+  fn pub clone -> Tuple1[A] {
+    (@0.clone,)
+  }
+}
+
+impl Format for Tuple1 if A: Format {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.write('(')
+    @0.fmt(formatter)
+    formatter.write(')')
+  }
+}
+
+# A 2-ary tuple.
+class builtin Tuple2[A, B] {
+  let pub @0: A
+  let pub @1: B
+}
+
+impl Equal[Tuple2[A, B]] for Tuple2 if A: Equal[A], B: Equal[B] {
+  fn pub ==(other: ref Tuple2[A, B]) -> Bool {
+    @0 == other.0 and @1 == other.1
+  }
+}
+
+impl Hash for Tuple2 if A: Hash, B: Hash {
+  fn pub hash(hasher: mut Hasher) {
+    @0.hash(hasher)
+    @1.hash(hasher)
+  }
+}
+
+impl Clone[Tuple2[A, B]] for Tuple2 if A: Clone[A], B: Clone[B] {
+  fn pub clone -> Tuple2[A, B] {
+    (@0.clone, @1.clone)
+  }
+}
+
+impl Format for Tuple2 if A: Format, B: Format {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.write('(')
+    @0.fmt(formatter)
+    formatter.write(', ')
+    @1.fmt(formatter)
+    formatter.write(')')
+  }
+}
+
+# A 3-ary tuple.
+class builtin Tuple3[A, B, C] {
+  let pub @0: A
+  let pub @1: B
+  let pub @2: C
+}
+
+impl Equal[Tuple3[A, B, C]] for Tuple3
+if
+  A: Equal[A], B: Equal[B], C: Equal[C]
+{
+  fn pub ==(other: ref Tuple3[A, B, C]) -> Bool {
+    @0 == other.0 and @1 == other.1 and @2 == other.2
+  }
+}
+
+impl Hash for Tuple3 if A: Hash, B: Hash, C: Hash {
+  fn pub hash(hasher: mut Hasher) {
+    @0.hash(hasher)
+    @1.hash(hasher)
+    @2.hash(hasher)
+  }
+}
+
+impl Clone[Tuple3[A, B, C]] for Tuple3 if A: Clone[A], B: Clone[B], C: Clone[C] {
+  fn pub clone -> Tuple3[A, B, C] {
+    (@0.clone, @1.clone, @2.clone)
+  }
+}
+
+impl Format for Tuple3 if A: Format, B: Format, C: Format {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.write('(')
+    @0.fmt(formatter)
+    formatter.write(', ')
+    @1.fmt(formatter)
+    formatter.write(', ')
+    @2.fmt(formatter)
+    formatter.write(')')
+  }
+}
+
+# A 4-ary tuple.
+class builtin Tuple4[A, B, C, D] {
+  let pub @0: A
+  let pub @1: B
+  let pub @2: C
+  let pub @3: D
+}
+
+impl Equal[Tuple4[A, B, C, D]] for Tuple4
+if
+  A: Equal[A], B: Equal[B], C: Equal[C], D: Equal[D]
+{
+  fn pub ==(other: ref Tuple4[A, B, C, D]) -> Bool {
+    @0 == other.0 and @1 == other.1 and @2 == other.2 and @3 == other.3
+  }
+}
+
+impl Hash for Tuple4 if A: Hash, B: Hash, C: Hash, D: Hash {
+  fn pub hash(hasher: mut Hasher) {
+    @0.hash(hasher)
+    @1.hash(hasher)
+    @2.hash(hasher)
+    @3.hash(hasher)
+  }
+}
+
+impl Clone[Tuple4[A, B, C, D]] for Tuple4
+if
+  A: Clone[A], B: Clone[B], C: Clone[C], D: Clone[D]
+{
+  fn pub clone -> Tuple4[A, B, C, D] {
+    (@0.clone, @1.clone, @2.clone, @3.clone)
+  }
+}
+
+impl Format for Tuple4 if A: Format, B: Format, C: Format, D: Format {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.write('(')
+    @0.fmt(formatter)
+    formatter.write(', ')
+    @1.fmt(formatter)
+    formatter.write(', ')
+    @2.fmt(formatter)
+    formatter.write(', ')
+    @3.fmt(formatter)
+    formatter.write(')')
+  }
+}
+
+# A 5-ary tuple.
+class builtin Tuple5[A, B, C, D, E] {
+  let pub @0: A
+  let pub @1: B
+  let pub @2: C
+  let pub @3: D
+  let pub @4: E
+}
+
+impl Equal[Tuple5[A, B, C, D, E]] for Tuple5
+if
+  A: Equal[A], B: Equal[B], C: Equal[C], D: Equal[D], E: Equal[E]
+{
+  fn pub ==(other: ref Tuple5[A, B, C, D, E]) -> Bool {
+    @0 == other.0
+      and @1 == other.1
+      and @2 == other.2
+      and @3 == other.3
+      and @4 == other.4
+  }
+}
+
+impl Hash for Tuple5 if A: Hash, B: Hash, C: Hash, D: Hash, E: Hash {
+  fn pub hash(hasher: mut Hasher) {
+    @0.hash(hasher)
+    @1.hash(hasher)
+    @2.hash(hasher)
+    @3.hash(hasher)
+    @4.hash(hasher)
+  }
+}
+
+impl Clone[Tuple5[A, B, C, D, E]] for Tuple5
+if
+  A: Clone[A], B: Clone[B], C: Clone[C], D: Clone[D], E: Clone[E]
+{
+  fn pub clone -> Tuple5[A, B, C, D, E] {
+    (@0.clone, @1.clone, @2.clone, @3.clone, @4.clone)
+  }
+}
+
+impl Format for Tuple5
+if
+  A: Format, B: Format, C: Format, D: Format, E: Format
+{
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.write('(')
+    @0.fmt(formatter)
+    formatter.write(', ')
+    @1.fmt(formatter)
+    formatter.write(', ')
+    @2.fmt(formatter)
+    formatter.write(', ')
+    @3.fmt(formatter)
+    formatter.write(', ')
+    @4.fmt(formatter)
+    formatter.write(')')
+  }
+}
+
+# A 6-ary tuple.
+class builtin Tuple6[A, B, C, D, E, F] {
+  let pub @0: A
+  let pub @1: B
+  let pub @2: C
+  let pub @3: D
+  let pub @4: E
+  let pub @5: F
+}
+
+impl Equal[Tuple6[A, B, C, D, E, F]] for Tuple6
+if
+  A: Equal[A], B: Equal[B], C: Equal[C], D: Equal[D], E: Equal[E], F: Equal[F]
+{
+  fn pub ==(other: ref Tuple6[A, B, C, D, E, F]) -> Bool {
+    @0 == other.0
+      and @1 == other.1
+      and @2 == other.2
+      and @3 == other.3
+      and @4 == other.4
+      and @5 == other.5
+  }
+}
+
+impl Hash for Tuple6 if A: Hash, B: Hash, C: Hash, D: Hash, E: Hash, F: Hash
+{
+  fn pub hash(hasher: mut Hasher) {
+    @0.hash(hasher)
+    @1.hash(hasher)
+    @2.hash(hasher)
+    @3.hash(hasher)
+    @4.hash(hasher)
+    @5.hash(hasher)
+  }
+}
+
+impl Clone[Tuple6[A, B, C, D, E, F]] for Tuple6
+if
+  A: Clone[A], B: Clone[B], C: Clone[C], D: Clone[D], E: Clone[E], F: Clone[F]
+{
+  fn pub clone -> Tuple6[A, B, C, D, E, F] {
+    (@0.clone, @1.clone, @2.clone, @3.clone, @4.clone, @5.clone)
+  }
+}
+
+impl Format for Tuple6
+if
+  A: Format, B: Format, C: Format, D: Format, E: Format, F: Format
+{
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.write('(')
+    @0.fmt(formatter)
+    formatter.write(', ')
+    @1.fmt(formatter)
+    formatter.write(', ')
+    @2.fmt(formatter)
+    formatter.write(', ')
+    @3.fmt(formatter)
+    formatter.write(', ')
+    @4.fmt(formatter)
+    formatter.write(', ')
+    @5.fmt(formatter)
+    formatter.write(')')
+  }
+}
+
+# A 7-ary tuple.
+class builtin Tuple7[A, B, C, D, E, F, G] {
+  let pub @0: A
+  let pub @1: B
+  let pub @2: C
+  let pub @3: D
+  let pub @4: E
+  let pub @5: F
+  let pub @6: G
+}
+
+impl Equal[Tuple7[A, B, C, D, E, F, G]] for Tuple7
+if
+  A: Equal[A], B: Equal[B], C: Equal[C], D: Equal[D], E: Equal[E], F: Equal[F],
+  G: Equal[G]
+{
+  fn pub ==(other: ref Tuple7[A, B, C, D, E, F, G]) -> Bool {
+    @0 == other.0
+      and @1 == other.1
+      and @2 == other.2
+      and @3 == other.3
+      and @4 == other.4
+      and @5 == other.5
+      and @6 == other.6
+  }
+}
+
+impl Hash for Tuple7
+if
+  A: Hash, B: Hash, C: Hash, D: Hash, E: Hash, F: Hash, G: Hash
+{
+  fn pub hash(hasher: mut Hasher) {
+    @0.hash(hasher)
+    @1.hash(hasher)
+    @2.hash(hasher)
+    @3.hash(hasher)
+    @4.hash(hasher)
+    @5.hash(hasher)
+    @6.hash(hasher)
+  }
+}
+
+impl Clone[Tuple7[A, B, C, D, E, F, G]] for Tuple7
+if
+  A: Clone[A],
+  B: Clone[B],
+  C: Clone[C],
+  D: Clone[D],
+  E: Clone[E],
+  F: Clone[F],
+  G: Clone[G]
+{
+  fn pub clone -> Tuple7[A, B, C, D, E, F, G] {
+    (@0.clone, @1.clone, @2.clone, @3.clone, @4.clone, @5.clone, @6.clone)
+  }
+}
+
+impl Format for Tuple7
+if
+  A: Format, B: Format, C: Format, D: Format, E: Format, F: Format, G: Format
+{
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.write('(')
+    @0.fmt(formatter)
+    formatter.write(', ')
+    @1.fmt(formatter)
+    formatter.write(', ')
+    @2.fmt(formatter)
+    formatter.write(', ')
+    @3.fmt(formatter)
+    formatter.write(', ')
+    @4.fmt(formatter)
+    formatter.write(', ')
+    @5.fmt(formatter)
+    formatter.write(', ')
+    @6.fmt(formatter)
+    formatter.write(')')
+  }
+}
+
+# A 8-ary tuple.
+class builtin Tuple8[A, B, C, D, E, F, G, H] {
+  let pub @0: A
+  let pub @1: B
+  let pub @2: C
+  let pub @3: D
+  let pub @4: E
+  let pub @5: F
+  let pub @6: G
+  let pub @7: H
+}
+
+impl Equal[Tuple8[A, B, C, D, E, F, G, H]] for Tuple8
+if
+  A: Equal[A], B: Equal[B], C: Equal[C], D: Equal[D], E: Equal[E], F: Equal[F],
+  G: Equal[G], H: Equal[H]
+{
+  fn pub ==(other: ref Tuple8[A, B, C, D, E, F, G, H]) -> Bool {
+    @0 == other.0
+      and @1 == other.1
+      and @2 == other.2
+      and @3 == other.3
+      and @4 == other.4
+      and @5 == other.5
+      and @6 == other.6
+      and @7 == other.7
+  }
+}
+
+impl Hash for Tuple8
+if
+  A: Hash, B: Hash, C: Hash, D: Hash, E: Hash, F: Hash, G: Hash, H: Hash
+{
+  fn pub hash(hasher: mut Hasher) {
+    @0.hash(hasher)
+    @1.hash(hasher)
+    @2.hash(hasher)
+    @3.hash(hasher)
+    @4.hash(hasher)
+    @5.hash(hasher)
+    @6.hash(hasher)
+    @7.hash(hasher)
+  }
+}
+
+impl Clone[Tuple8[A, B, C, D, E, F, G, H]] for Tuple8
+if
+  A: Clone[A],
+  B: Clone[B],
+  C: Clone[C],
+  D: Clone[D],
+  E: Clone[E],
+  F: Clone[F],
+  G: Clone[G],
+  H: Clone[H]
+{
+  fn pub clone -> Tuple8[A, B, C, D, E, F, G, H] {
+    (
+      @0.clone,
+      @1.clone,
+      @2.clone,
+      @3.clone,
+      @4.clone,
+      @5.clone,
+      @6.clone,
+      @7.clone
+    )
+  }
+}
+
+impl Format for Tuple8
+if
+  A: Format, B: Format, C: Format, D: Format, E: Format, F: Format, G: Format,
+  H: Format
+{
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.write('(')
+    @0.fmt(formatter)
+    formatter.write(', ')
+    @1.fmt(formatter)
+    formatter.write(', ')
+    @2.fmt(formatter)
+    formatter.write(', ')
+    @3.fmt(formatter)
+    formatter.write(', ')
+    @4.fmt(formatter)
+    formatter.write(', ')
+    @5.fmt(formatter)
+    formatter.write(', ')
+    @6.fmt(formatter)
+    formatter.write(', ')
+    @7.fmt(formatter)
+    formatter.write(')')
+  }
+}

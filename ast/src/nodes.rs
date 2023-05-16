@@ -153,18 +153,6 @@ impl Node for Constant {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct Async {
-    pub expression: Expression,
-    pub location: SourceLocation,
-}
-
-impl Node for Async {
-    fn location(&self) -> &SourceLocation {
-        &self.location
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
 pub struct Call {
     pub receiver: Option<Expression>,
     pub name: Identifier,
@@ -381,7 +369,6 @@ pub struct DefineMethod {
     pub name: Identifier,
     pub type_parameters: Option<TypeParameters>,
     pub arguments: Option<MethodArguments>,
-    pub throw_type: Option<Type>,
     pub return_type: Option<Type>,
     pub body: Option<Expressions>,
     pub location: SourceLocation,
@@ -547,6 +534,7 @@ pub struct ReopenClass {
     pub class_name: Constant,
     pub body: ImplementationExpressions,
     pub location: SourceLocation,
+    pub bounds: Option<TypeBounds>,
 }
 
 impl Node for ReopenClass {
@@ -555,10 +543,38 @@ impl Node for ReopenClass {
     }
 }
 
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::large_enum_variant))]
+#[derive(Debug, PartialEq, Eq)]
+pub enum Requirement {
+    Trait(TypeName),
+    Mutable(SourceLocation),
+}
+
+impl Node for Requirement {
+    fn location(&self) -> &SourceLocation {
+        match self {
+            Requirement::Trait(n) => &n.location,
+            Requirement::Mutable(loc) => loc,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct Requirements {
+    pub values: Vec<Requirement>,
+    pub location: SourceLocation,
+}
+
+impl Node for Requirements {
+    fn location(&self) -> &SourceLocation {
+        &self.location
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct TypeBound {
     pub name: Constant,
-    pub requirements: TypeNames,
+    pub requirements: Requirements,
     pub location: SourceLocation,
 }
 
@@ -638,12 +654,9 @@ pub enum Expression {
     And(Box<And>),
     Or(Box<Or>),
     TypeCast(Box<TypeCast>),
-    Index(Box<Index>),
-    SetIndex(Box<SetIndex>),
     Throw(Box<Throw>),
     Return(Box<Return>),
     Try(Box<Try>),
-    TryPanic(Box<TryPanic>),
     If(Box<If>),
     Match(Box<Match>),
     Loop(Box<Loop>),
@@ -651,7 +664,6 @@ pub enum Expression {
     True(Box<True>),
     False(Box<False>),
     Nil(Box<Nil>),
-    Async(Box<Async>),
     ClassLiteral(Box<ClassLiteral>),
     Scope(Box<Scope>),
     Array(Box<Array>),
@@ -684,7 +696,6 @@ impl Node for Expression {
             Expression::AssignSetter(ref typ) => typ.location(),
             Expression::AssignVariable(ref typ) => typ.location(),
             Expression::ReplaceVariable(ref typ) => typ.location(),
-            Expression::Async(ref typ) => typ.location(),
             Expression::Binary(ref typ) => typ.location(),
             Expression::BinaryAssignField(ref typ) => typ.location(),
             Expression::BinaryAssignSetter(ref typ) => typ.location(),
@@ -702,7 +713,6 @@ impl Node for Expression {
             Expression::Group(ref typ) => typ.location(),
             Expression::Identifier(ref typ) => typ.location(),
             Expression::If(ref typ) => typ.location(),
-            Expression::Index(ref typ) => typ.location(),
             Expression::Int(ref typ) => typ.location(),
             Expression::Loop(ref typ) => typ.location(),
             Expression::Match(ref typ) => typ.location(),
@@ -712,13 +722,11 @@ impl Node for Expression {
             Expression::Return(ref typ) => typ.location(),
             Expression::Scope(ref typ) => typ.location(),
             Expression::SelfObject(ref typ) => typ.location(),
-            Expression::SetIndex(ref typ) => typ.location(),
             Expression::SingleString(ref typ) => typ.location(),
             Expression::Throw(ref typ) => typ.location(),
             Expression::True(ref typ) => typ.location(),
             Expression::Nil(ref typ) => typ.location(),
             Expression::Try(ref typ) => typ.location(),
-            Expression::TryPanic(ref typ) => typ.location(),
             Expression::Tuple(ref typ) => typ.location(),
             Expression::TypeCast(ref typ) => typ.location(),
             Expression::While(ref typ) => typ.location(),
@@ -755,7 +763,7 @@ impl Node for TypeNames {
 #[derive(Debug, PartialEq, Eq)]
 pub struct TypeParameter {
     pub name: Constant,
-    pub requirements: Option<TypeNames>,
+    pub requirements: Option<Requirements>,
     pub location: SourceLocation,
 }
 
@@ -899,7 +907,6 @@ impl Node for ReferrableType {
 #[derive(Debug, PartialEq, Eq)]
 pub struct ClosureType {
     pub arguments: Option<Types>,
-    pub throw_type: Option<Type>,
     pub return_type: Option<Type>,
     pub location: SourceLocation,
 }
@@ -1046,7 +1053,6 @@ impl Node for BlockArguments {
 pub struct Closure {
     pub moving: bool,
     pub arguments: Option<BlockArguments>,
-    pub throw_type: Option<Type>,
     pub return_type: Option<Type>,
     pub body: Expressions,
     pub location: SourceLocation,
@@ -1251,33 +1257,6 @@ impl Node for TypeCast {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct Index {
-    pub receiver: Expression,
-    pub index: Expression,
-    pub location: SourceLocation,
-}
-
-impl Node for Index {
-    fn location(&self) -> &SourceLocation {
-        &self.location
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct SetIndex {
-    pub receiver: Expression,
-    pub index: Expression,
-    pub value: Expression,
-    pub location: SourceLocation,
-}
-
-impl Node for SetIndex {
-    fn location(&self) -> &SourceLocation {
-        &self.location
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
 pub struct Throw {
     pub value: Expression,
     pub location: SourceLocation,
@@ -1302,50 +1281,12 @@ impl Node for Return {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct TryBlock {
-    pub value: Expression,
-    pub location: SourceLocation,
-}
-
-impl Node for TryBlock {
-    fn location(&self) -> &SourceLocation {
-        &self.location
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct ElseBlock {
-    pub body: Expressions,
-    pub argument: Option<BlockArgument>,
-    pub location: SourceLocation,
-}
-
-impl Node for ElseBlock {
-    fn location(&self) -> &SourceLocation {
-        &self.location
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
 pub struct Try {
-    pub try_block: TryBlock,
-    pub else_block: Option<ElseBlock>,
+    pub expression: Expression,
     pub location: SourceLocation,
 }
 
 impl Node for Try {
-    fn location(&self) -> &SourceLocation {
-        &self.location
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct TryPanic {
-    pub try_block: TryBlock,
-    pub location: SourceLocation,
-}
-
-impl Node for TryPanic {
     fn location(&self) -> &SourceLocation {
         &self.location
     }

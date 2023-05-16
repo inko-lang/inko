@@ -1,16 +1,24 @@
-FROM alpine:3 AS builder
+FROM fedora-minimal:38 AS builder
 
-RUN apk add --update make libffi libffi-dev rust cargo build-base
+ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL sparse
+
+# Fedora builds LLVM with libffi support, and when statically linking against
+# LLVM the build will fail if libffi-devel isn't installed, hence we include it
+# here. See https://gitlab.com/taricorp/llvm-sys.rs/-/issues/41 for some extra
+# details.
+RUN microdnf install --assumeyes gcc make rust cargo \
+    llvm15 llvm15-devel llvm15-static libstdc++-devel libstdc++-static \
+    libffi-devel zlib-devel
 ADD . /inko/
 WORKDIR /inko
-RUN make build FEATURES=libffi-system PREFIX='/usr'
+RUN make build PREFIX='/usr'
 RUN strip target/release/inko
 RUN make install PREFIX='/usr'
 
-FROM alpine:3
+FROM fedora-minimal:38
 
 # libgcc is needed because libgcc is dynamically linked to the executable.
-RUN apk add --update libffi libffi-dev libgcc
+RUN microdnf install --assumeyes libgcc
 
 COPY --from=builder ["/usr/bin/inko", "/usr/bin/inko"]
 COPY --from=builder ["/usr/lib/inko", "/usr/lib/inko/"]

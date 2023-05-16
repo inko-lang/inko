@@ -1,0 +1,72 @@
+# Boolean true and false.
+import std::clone::Clone
+import std::cmp::(Equal, Compare, Ordering)
+import std::fmt::(Format, Formatter)
+import std::hash::(Hash, Hasher)
+import std::int::ToInt
+import std::string::ToString
+
+# The class for boolean `true` and `false`.
+class builtin Bool {
+  # Returns `true` if `self` is `true`.
+  #
+  # # Examples
+  #
+  #     true.true?  # => true
+  #     false.true? # => false
+  fn pub true? -> Bool {
+    if self { true } else { false }
+  }
+
+  # Returns `true` if `self` is `false`.
+  #
+  # # Examples
+  #
+  #     true.false?  # => false
+  #     false.false? # => true
+  fn pub false? -> Bool {
+    if self { false } else { true }
+  }
+}
+
+impl ToInt for Bool {
+  fn pub to_int -> Int {
+    if self { 1 } else { 0 }
+  }
+}
+
+impl ToString for Bool {
+  fn pub to_string -> String {
+    if self { 'true' } else { 'false' }
+  }
+}
+
+impl Clone[Bool] for Bool {
+  fn pub clone -> Bool {
+    if self { true } else { false }
+  }
+}
+
+impl Equal[Bool] for Bool {
+  fn pub ==(other: ref Bool) -> Bool {
+    _INKO.object_eq(self, other)
+  }
+}
+
+impl Compare[Bool] for Bool {
+  fn pub cmp(other: ref Bool) -> Ordering {
+    to_int.cmp(other.to_int)
+  }
+}
+
+impl Hash for Bool {
+  fn pub hash(hasher: mut Hasher) {
+    hasher.write(to_int)
+  }
+}
+
+impl Format for Bool {
+  fn pub fmt(formatter: mut Formatter) {
+    if self { formatter.write('true') } else { formatter.write('false') }
+  }
+}

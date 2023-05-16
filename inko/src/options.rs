@@ -2,7 +2,7 @@
 use getopts::Options;
 
 /// Prints a usage message for a set of CLI options.
-pub fn print_usage(options: &Options, brief: &str) {
+pub(crate) fn print_usage(options: &Options, brief: &str) {
     let out = options.usage_with_format(|opts| {
         format!(
             "{}\n\nOptions:\n\n{}\n",

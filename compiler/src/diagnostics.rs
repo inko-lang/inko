@@ -8,29 +8,21 @@ use std::path::PathBuf;
 pub(crate) enum DiagnosticId {
     DuplicateSymbol,
     InvalidAssign,
-    InvalidBound,
     InvalidCall,
-    InvalidClass,
     InvalidConstExpr,
     InvalidFile,
     InvalidImplementation,
     InvalidMethod,
     InvalidSyntax,
-    InvalidTry,
     InvalidType,
     MissingTrait,
-    PrivateSymbol,
     InvalidSymbol,
     InvalidLoopKeyword,
     InvalidThrow,
     MissingField,
-    InvalidRef,
     InvalidPattern,
-    InvalidField,
-    MissingThrow,
     Unreachable,
-    MovedVariable,
-    InvalidMove,
+    Moved,
     InvalidMatch,
     LimitReached,
     MissingMain,
@@ -47,23 +39,15 @@ impl fmt::Display for DiagnosticId {
             DiagnosticId::InvalidSymbol => "invalid-symbol",
             DiagnosticId::InvalidType => "invalid-type",
             DiagnosticId::MissingTrait => "missing-trait",
-            DiagnosticId::InvalidBound => "invalid-bound",
             DiagnosticId::InvalidMethod => "invalid-method",
             DiagnosticId::InvalidImplementation => "invalid-implementation",
-            DiagnosticId::InvalidClass => "invalid-class",
-            DiagnosticId::PrivateSymbol => "private-symbol",
-            DiagnosticId::InvalidTry => "invalid-try",
             DiagnosticId::InvalidAssign => "invalid-assign",
             DiagnosticId::InvalidLoopKeyword => "invalid-loop-keyword",
             DiagnosticId::InvalidThrow => "invalid-throw",
             DiagnosticId::MissingField => "missing-field",
-            DiagnosticId::InvalidRef => "invalid-ref",
             DiagnosticId::InvalidPattern => "invalid-pattern",
-            DiagnosticId::InvalidField => "invalid-field",
-            DiagnosticId::MissingThrow => "missing-throw",
             DiagnosticId::Unreachable => "unreachable",
-            DiagnosticId::MovedVariable => "moved-variable",
-            DiagnosticId::InvalidMove => "invalid-move",
+            DiagnosticId::Moved => "moved",
             DiagnosticId::InvalidMatch => "invalid-match",
             DiagnosticId::LimitReached => "limit-reached",
             DiagnosticId::MissingMain => "missing-main",
@@ -304,7 +288,7 @@ impl Diagnostics {
         location: SourceLocation,
     ) {
         self.error(
-            DiagnosticId::PrivateSymbol,
+            DiagnosticId::InvalidSymbol,
             format!("The field '{}' is private", name),
             file,
             location,
@@ -321,7 +305,7 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidType,
             format!(
-                "Incorrect type: expected '{}', found '{}'",
+                "Expected a value of type '{}', found '{}'",
                 expected, given
             ),
             file,
@@ -387,20 +371,6 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidType,
             "Tuples are limited to up to 8 members",
-            file,
-            location,
-        );
-    }
-
-    pub(crate) fn throw_not_allowed(
-        &mut self,
-        file: PathBuf,
-        location: SourceLocation,
-    ) {
-        self.error(
-            DiagnosticId::InvalidThrow,
-            "Throwing isn't allowed, as the surrounding closure or method \
-            doesn't specify a throw type",
             file,
             location,
         );
@@ -539,37 +509,6 @@ impl Diagnostics {
         );
     }
 
-    pub(crate) fn never_throws(
-        &mut self,
-        file: PathBuf,
-        location: SourceLocation,
-    ) {
-        self.error(
-            DiagnosticId::InvalidTry,
-            "This expression never throws",
-            file,
-            location,
-        );
-    }
-
-    pub(crate) fn missing_throw(
-        &mut self,
-        name: String,
-        file: PathBuf,
-        location: SourceLocation,
-    ) {
-        self.error(
-            DiagnosticId::MissingThrow,
-            format!(
-                "A value of type '{}' is expected to be thrown, \
-                but no value is ever thrown",
-                name
-            ),
-            file,
-            location,
-        );
-    }
-
     pub(crate) fn unreachable(
         &mut self,
         file: PathBuf,
@@ -602,7 +541,43 @@ impl Diagnostics {
         );
     }
 
-    pub(crate) fn unsendable_type(
+    pub(crate) fn unsendable_argument(
+        &mut self,
+        argument: String,
+        file: PathBuf,
+        location: SourceLocation,
+    ) {
+        self.error(
+            DiagnosticId::InvalidType,
+            format!(
+                "The receiver of this call requires sendable arguments, \
+                but '{}' isn't sendable",
+                argument,
+            ),
+            file,
+            location,
+        );
+    }
+
+    pub(crate) fn unsendable_return_type(
+        &mut self,
+        name: String,
+        file: PathBuf,
+        location: SourceLocation,
+    ) {
+        self.error(
+            DiagnosticId::InvalidCall,
+            format!(
+                "The receiver of this call requires a sendable return type, \
+                but '{}' isn't sendable",
+                name
+            ),
+            file,
+            location,
+        );
+    }
+
+    pub(crate) fn unsendable_async_type(
         &mut self,
         name: String,
         file: PathBuf,
@@ -655,44 +630,6 @@ impl Diagnostics {
         );
     }
 
-    pub(crate) fn unsendable_return_type(
-        &mut self,
-        name: &str,
-        type_name: String,
-        file: PathBuf,
-        location: SourceLocation,
-    ) {
-        self.error(
-            DiagnosticId::InvalidCall,
-            format!(
-                "The method '{}' isn't available because its receiver is a \
-                unique value, and the return type ('{}') isn't sendable",
-                name, type_name
-            ),
-            file,
-            location,
-        );
-    }
-
-    pub(crate) fn unsendable_throw_type(
-        &mut self,
-        name: &str,
-        type_name: String,
-        file: PathBuf,
-        location: SourceLocation,
-    ) {
-        self.error(
-            DiagnosticId::InvalidCall,
-            format!(
-                "The method '{}' isn't available because its receiver is a \
-                unique value, and the throw type ('{}') isn't sendable",
-                name, type_name
-            ),
-            file,
-            location,
-        )
-    }
-
     pub(crate) fn self_in_closure_in_recover(
         &mut self,
         file: PathBuf,
@@ -732,7 +669,7 @@ impl Diagnostics {
         location: SourceLocation,
     ) {
         self.error(
-            DiagnosticId::MovedVariable,
+            DiagnosticId::Moved,
             format!("'{}' can't be used as it has been moved", name),
             file,
             location,
@@ -746,7 +683,7 @@ impl Diagnostics {
         location: SourceLocation,
     ) {
         self.error(
-            DiagnosticId::MovedVariable,
+            DiagnosticId::Moved,
             format!("'{}' can't be used, as 'self' has been moved", name),
             file,
             location,
@@ -760,7 +697,7 @@ impl Diagnostics {
         location: SourceLocation,
     ) {
         self.error(
-            DiagnosticId::InvalidMove,
+            DiagnosticId::Moved,
             format!(
                 "This closure can't capture '{}', as '{}' has been moved",
                 name, name,
@@ -777,7 +714,7 @@ impl Diagnostics {
         location: SourceLocation,
     ) {
         self.error(
-            DiagnosticId::InvalidMove,
+            DiagnosticId::Moved,
             format!(
                 "'{}' can't be moved inside a loop, as its value \
                 would be unavailable in the next iteration",
@@ -800,19 +737,6 @@ impl Diagnostics {
                 "The type of this expression ('{}') can't be fully inferred",
                 name,
             ),
-            file,
-            location,
-        );
-    }
-
-    pub(crate) fn cant_infer_throw_type(
-        &mut self,
-        file: PathBuf,
-        location: SourceLocation,
-    ) {
-        self.error(
-            DiagnosticId::InvalidType,
-            "The throw type of this expression can't be inferred",
             file,
             location,
         );
@@ -844,6 +768,84 @@ impl Diagnostics {
         self.error(
             DiagnosticId::LimitReached,
             format!("String literals can't be greater than {} bytes", limit),
+            file,
+            location,
+        );
+    }
+
+    pub(crate) fn type_parameter_already_mutable(
+        &mut self,
+        name: &str,
+        file: PathBuf,
+        location: SourceLocation,
+    ) {
+        self.error(
+            DiagnosticId::InvalidType,
+            format!("The type parameter '{}' is already mutable", name),
+            file,
+            location,
+        );
+    }
+
+    pub(crate) fn invalid_try(
+        &mut self,
+        name: String,
+        file: PathBuf,
+        location: SourceLocation,
+    ) {
+        self.error(
+            DiagnosticId::InvalidThrow,
+            format!(
+                "This expression must return an 'Option' or 'Result', \
+                found '{}'",
+                name
+            ),
+            file,
+            location,
+        );
+    }
+
+    pub(crate) fn try_not_available(
+        &mut self,
+        file: PathBuf,
+        location: SourceLocation,
+    ) {
+        self.error(
+            DiagnosticId::InvalidThrow,
+            "'try' can only be used in methods that return an \
+            'Option' or 'Result'",
+            file,
+            location,
+        );
+    }
+
+    pub(crate) fn throw_not_available(
+        &mut self,
+        file: PathBuf,
+        location: SourceLocation,
+    ) {
+        self.error(
+            DiagnosticId::InvalidThrow,
+            "'throw' can only be used in methods that return a 'Result'",
+            file,
+            location,
+        );
+    }
+
+    pub(crate) fn invalid_throw(
+        &mut self,
+        error: String,
+        returns: String,
+        file: PathBuf,
+        location: SourceLocation,
+    ) {
+        self.error(
+            DiagnosticId::InvalidThrow,
+            format!(
+                "Can't throw '{}' as the surrounding method \
+                returns a '{}'",
+                error, returns,
+            ),
             file,
             location,
         );

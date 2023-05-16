@@ -1,96 +1,157 @@
 # Installation
 
-Inko's virtual machine and compiler are written in
-[Rust](https://www.rust-lang.org/), bundled into a single executable compiled
-using Rust's "cargo" package manager/build tool.
+Inko's native code compiler is written in [Rust](https://www.rust-lang.org/) and
+uses [LLVM](https://llvm.org/) as its backend. The generated machine code links
+against a small runtime library, also written in Rust.
 
-Inko officially supports Linux, macOS, and Windows. BSDs and other Unix-like
-operating systems should also work, but are not officially supported at this
-time.
+This guide covers the steps needed to get Inko installed on your platform of
+choice.
 
-Windows users can build Inko using the Visual Studio build tools, or using a
-Unix compatibility layer such as [MSYS2][msys2].
+## Supported platforms
+
+Inko supports macOS and Linux. Inko _should_ also work on the various BSDs (e.g.
+FreeBSD), but at the moment we don't actively test on these platforms.
+
+Inko historically also supported Windows, but we dropped support with the
+introduction of the native code compiler. Our knowledge of Windows is limited,
+and the cost of maintaining Windows support isn't worth it. In the future we may
+support Windows again, providing somebody is willing to maintain the necessary
+changes.
 
 ## Requirements
 
 - A 64-bits little-endian platform
-- A CPU with AES-NI support
-- Rust 1.62 or newer
+- Rust 1.63 or newer
+- LLVM 15, with support for static linking against LLVM
+- A C compiler such as [GCC](https://gcc.gnu.org/) or
+  [clang](https://clang.llvm.org/)
+- Git, for managing Inko packages
 
-Inko's package manager (ipm) also required Git to be installed, and the `git`
-executable to be available in your PATH.
-
-For Unix based platforms, the following must also be available:
-
-- Make
-- sh, bash or a compatible shell
-- A C compiler such as GCC or clang
-
-These dependencies are not needed when building for Windows when using the
-Visual studio build tools. They _are_ needed when building under MSYS2 or
-similar Unix compatibility layers.
+[lld](https://lld.llvm.org/) is an optional dependency of Inko, and is used
+automatically on Linux when available.
 
 ## Installing
 
 ### Cross-platform
 
 The easiest way to install Inko is to use Inko's own version manager:
-[ivm][ivm]. ivm supports all the platforms officially supported by Inko,
-including Windows. For more information on how to install and use ivm, refer to
-the [ivm guide][ivm].
+[ivm](ivm.md). ivm supports all the platforms officially supported by Inko.
 
-Once installed, you can install Inko as follows:
+!!! info
+    Don't forget to install the necessary dependencies using your system's
+    package manager, as ivm doesn't do this for you. You can find the list of
+    the necessary packages to install below.
+
+Once ivm is installed installed, you can install Inko as follows:
 
 ```bash
-ivm install latest # Installs the latest version of Inko
-ivm install 0.10.0 # Installs version 0.10.0
+ivm install latest
 ```
 
-### Docker
+This installs the latest known version. If you want to install a specific
+version, run the following instead (where `X.Y.Z` is the version you want to
+install):
 
-If you are using [Docker](https://www.docker.com/) or
-[Podman](https://podman.io/), you can use our official Docker/Podman images.
-These images are published on
-[GitHub.com](https://github.com/inko-lang/inko/pkgs/container/inko).
+```bash
+ivm install X.Y.Z
+```
 
-To install Inko 0.10.0, run the following:
+For more details on how to use ivm and switch versions, refer to the [ivm
+guide](ivm.md).
 
-=== "Docker"
-    ```bash
-    docker pull ghcr.io/inko-lang/inko:0.10.0
-    ```
-=== "Podman"
-    ```bash
-    podman pull ghcr.io/inko-lang/inko:0.10.0
-    ```
+### From source
 
-You can then run Inko as follows:
+When building from Git, first clone the repository:
 
-=== "Docker"
-    ```bash
-    docker run inko-lang/inko:0.10.0 inko --version
-    ```
-=== "Podman"
-    ```bash
-    podman run inko-lang/inko:0.10.0 inko --version
-    ```
+```bash
+git clone https://github.com/inko-lang/inko.git
+cd inko
+```
 
-We also build a container for every commit on the `main` branch, provided the
-tests are passing. If you like to live dangerously, you can use these as
-follows:
+Or use a release tarball:
 
-=== "Docker"
-    ```bash
-    docker pull ghcr.io/inko-lang/inko:main
-    docker run inko-lang/inko:main inko --version
-    ```
-=== "Podman"
-    ```bash
-    podman pull ghcr.io/inko-lang/inko:main
-    podman run inko-lang/inko:main inko --version
-    ```
+```bash
+mkdir 0.11.0
+curl https://releases.inko-lang.org/0.11.0.tar.gz -o 0.11.0.tar.gz
+tar -C 0.11.0 -xf 0.11.0.tar.gz
+cd 0.11.0
+```
 
-### Arch Linux
+You can then compile Inko as follows:
+
+| Mode    | Command                 | Executable              | Runtime library
+|:--------|:------------------------|:------------------------|:-----------------------
+| Debug   | `cargo build`           | `./target/debug/inko`   | `./target/debug/libinko.a`
+| Release | `cargo build --release` | `./target/release/inko` | `./target/release/libinko.a`
+
+In both cases the standard library in `std/src` is used. You can customise the
+standard library and runtime library paths by setting these environment
+variables when running `cargo` build:
+
+- `INKO_STD`: the full path to the directory containing the standard library
+  modules, defaults to `./std/src`.
+- `INKO_RT`: the full path to the directory containing the runtime libraries to
+  link the generated code against, defaults to `./target/MODE` where `MODE` is
+  either `debug` for debug builds or `release` for release builds.
+
+If you are building a package, it's recommended to use the provide `Makefile`
+instead, as this simplifies the process of moving the necessary files in place
+and using the right paths. To compile a release build of Inko, run `make` and
+`make install` to install the files. This process can be customised by setting
+the following Make variables:
+
+- `DESTDIR`: the directory to install files into when running `make install`.
+- `PREFIX`: the path prefix to use for all files, defaults to `/usr`. When
+  combined with `DESTDIR`, the value of `DESTDIR` prefixes this value.
+
+For example:
+
+```bash
+make PREFIX=/usr/local
+make install DESTDIR=./package-root PREFIX=/usr/local
+```
+
+The `PREFIX` variable must be set for both the `make` and `make install`
+commands, but `DESTDIR` is only necessary for `make install`.
+
+### Linux
+
+Dependencies are split into two categories: the dependencies of the compiler,
+and the dependencies of the produced executable. The compiler dependencies only
+need to be installed in your development environment.
+
+#### Alpine
+
+!!! warning
+    Due to [this bug](https://gitlab.com/taricorp/llvm-sys.rs/-/issues/44) in
+    the llvm-sys crate, compiling the compiler for musl targets (which includes
+    Alpine) fails with the error "could not find native static library `rt`,
+    perhaps an -L flag is missing?".
+
+There's no official package for Inko in the Alpine repositories.
+
+When building from source, the compiler requires the following dependencies to
+be installed:
+
+```bash
+sudo apk add build-base rust cargo llvm15 llvm15-dev llvm15-static git
+```
+
+The generated code requires the following dependencies:
+
+```bash
+sudo apk add libgcc
+```
+
+#### Arch
+
+!!! warning
+    Arch Linux [no longer includes static libraries for
+    LLVM](https://bugs.archlinux.org/task/77691), resulting in an error when
+    building the compiler. We hope to support dynamic linking against LLVM in
+    the near future. For more information refer to [this feature
+    request](https://github.com/TheDan64/inkwell/issues/406) and [this
+    issue](https://gitlab.com/taricorp/llvm-sys.rs/-/issues/48).
 
 Two AUR packages are provided: `inko` and `inko-git`. These can be installed
 using your favourite AUR wrapper:
@@ -114,6 +175,55 @@ using your favourite AUR wrapper:
     makepkg -si
     ```
 
+When building from source, the compiler requires the following dependencies to
+be installed:
+
+```bash
+sudo pacman -Sy llvm rust git base-devel
+```
+
+The generated code requires the following dependencies:
+
+```bash
+sudo pacman -Sy gcc-libs
+```
+
+#### Fedora
+
+Inko isn't included in the Fedora repositories, nor is there a
+[copr](https://copr.fedorainfracloud.org/coprs/) package (though [this is
+planned](https://github.com/inko-lang/inko/issues/364)).
+
+When building from source, the compiler requires the following dependencies to
+be installed:
+
+```bash
+sudo dnf install gcc make rust cargo llvm15 llvm15-devel llvm15-static libstdc++-devel libstdc++-static libffi-devel zlib-devel git
+```
+
+The generated code requires the following dependencies:
+
+```bash
+sudo dnf install libgcc
+```
+
+#### Ubuntu
+
+There's no official package for Inko in the Ubuntu repositories.
+
+When building from source, the compiler requires the following dependencies to
+be installed:
+
+```bash
+sudo apt-get install --yes rustc cargo git build-essential llvm-15 llvm-15-dev libstdc++-11-dev libclang-common-15-dev zlib1g-dev
+```
+
+The generated code requires the following dependencies:
+
+```bash
+sudo dnf install libgcc-s1
+```
+
 ### macOS
 
 Inko is available in [Homebrew](https://brew.sh/):
@@ -127,88 +237,67 @@ issues specific to the formula (e.g. it doesn't work on a certain version of
 macOS), please report issues in the [homebrew-core issue
 tracker](https://github.com/Homebrew/homebrew-core/issues).
 
-### From source
-
-When building from Git, first clone the repository:
+To build from source, install the necessary dependencies as follows:
 
 ```bash
-git clone https://github.com/inko-lang/inko.git
-cd inko
+brew install llvm@15 rust git
 ```
 
-Or use a release tarball:
+When building from source, you may need to add the LLVM `bin` directory to your
+`PATH` as follows:
 
 ```bash
-mkdir 0.10.0
-curl https://releases.inko-lang.org/0.10.0.tar.gz -o 0.10.0.tar.gz
-tar -C 0.10.0 -xf 0.10.0.tar.gz
-cd 0.10.0
+export PATH="$(brew --prefix llvm@15)/bin:$PATH"
 ```
 
-To compile a development build, run `cargo build`. For a release build,
-run `cargo build --release` instead. After building you can find the `inko`
-executable in `target/release/inko` (or `target/debug/inko` for a debug build),
-and the `ipm` executable in `target/release/ipm` (or `target/debug/ipm` for
-debug builds).
-
-By default Inko uses the standard library provided in the Git repository,
-located in `libstd/src`. If you wish to use a different directory, set the
-`INKO_LIBSTD` environment variable to a path of your choosing. For example:
+You may also need to set the `LIBRARY_PATH` to the LLVM `lib` directory, though
+this doesn't always appear to be necessary:
 
 ```bash
-INKO_LIBSTD=/tmp/libstd/src cargo build --release
+export LIBRARY_PATH="$(brew --prefix llvm@15)/lib"
 ```
 
-This builds Inko such that it uses the standard library located at
-`/tmp/libstd/src`.
+### Docker
 
-When building from source you can set certain feature flags to customise the
-installation. These flags are specified like so:
+If you are using [Docker](https://www.docker.com/) or
+[Podman](https://podman.io/), you can use our official Docker/Podman images.
+These images are published on
+[GitHub.com](https://github.com/inko-lang/inko/pkgs/container/inko).
 
-```bash
-cargo build --release --features foo,bar
-```
+To install a specific version, run the following (replacing `X.Y.Z` with the
+version you want to install):
 
-The following feature flags are available:
+=== "Docker"
+    ```bash
+    docker pull ghcr.io/inko-lang/inko:X.Y.Z
+    ```
+=== "Podman"
+    ```bash
+    podman pull ghcr.io/inko-lang/inko:X.Y.Z
+    ```
 
-| Feature flag  | Default  | Description
-|:--------------|:---------|:--------------
-| libffi-system | Disabled | Dynamically link against [libffi][libffi], instead of compiling it from source.
-| jemalloc      | Disabled | Use [jemalloc][jemalloc] instead of the system allocator.
+You can then run Inko as follows:
 
-## Packaging
+=== "Docker"
+    ```bash
+    docker run inko-lang/inko:X.Y.Z inko --version
+    ```
+=== "Podman"
+    ```bash
+    podman run inko-lang/inko:X.Y.Z inko --version
+    ```
 
-To ease the process of building a package of Inko, consider using the Makefile
-provided as part of each release. Using this Makefile, the process (at least in
-most cases) is as simple as running the following:
+We also build a container for every commit on the `main` branch, provided the
+tests are passing. If you like to live dangerously, you can use these as
+follows:
 
-```bash
-make build PREFIX=/usr
-make install PREFIX=/usr DESTDIR=./chroot
-```
-
-The `PREFIX` variable specifies the base path of all files to install, while
-`DESTDIR` specifies a directory to move the files into.
-
-The `PREFIX` variable must be specified for both `make build` and
-`make install`. The `DESTDIR` variable defaults to the value of the `PREFIX`
-variable.
-
-When packaging Inko it's best to use a system wide installation of FFI, instead
-of building it from source when compiling Inko. To do so, build Inko as follows:
-
-```bash
-make build FEATURES=libffi-system
-```
-
-Or if you don't want to use make:
-
-```bash
-cargo build --release --features libffi-system
-```
-
-[ivm]: ivm.md
-[homebrew]: https://brew.sh/
-[msys2]: http://www.msys2.org/
-[libffi]: https://sourceware.org/libffi/
-[jemalloc]: http://jemalloc.net/
+=== "Docker"
+    ```bash
+    docker pull ghcr.io/inko-lang/inko:main
+    docker run inko-lang/inko:main inko --version
+    ```
+=== "Podman"
+    ```bash
+    podman pull ghcr.io/inko-lang/inko:main
+    podman run inko-lang/inko:main inko --version
+    ```

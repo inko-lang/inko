@@ -116,33 +116,17 @@ fn example(
 }
 ```
 
-If a throw or return type is given, place them on the same line as the closing
-parenthesis, if possible:
+If a return type is given, place it on the same line as the closing parenthesis,
+if possible:
 
 ```inko
 fn example(
   foo: A,
   bar: B,
-) !! ErrorType -> ReturnType {
+) -> ReturnType {
 
 }
 ```
-
-If this doesn't fit, place both types on their own line, at the same indentation
-level as the closing parenthesis:
-
-```inko
-fn example(
-  foo: A,
-  bar: B,
-)
-!! ErrorType
--> ReturnType {
-
-}
-```
-
-In all cases it's best to avoid code like this.
 
 Type arguments should be placed on the same line as the method name.
 

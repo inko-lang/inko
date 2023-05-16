@@ -1,0 +1,75 @@
+# Runtime debugging functionality
+#
+# This module provides various facilities for debugging programs during
+# runtime, such as obtaining stack traces.
+import std::fs::path::Path
+import std::clone::Clone
+
+# Details of a single stack frame in a stack trace.
+class pub StackFrame {
+  # The path of the file the frame belongs to.
+  let pub @path: Path
+
+  # The name of the block of code the frame belongs to.
+  let pub @name: String
+
+  # The line number the stack frame originates from.
+  let pub @line: Int
+
+  fn pub static new(path: Path, name: String, line: Int) -> StackFrame {
+    StackFrame { @path = path, @name = name, @line = line }
+  }
+}
+
+impl Clone[StackFrame] for StackFrame {
+  fn pub clone -> StackFrame {
+    StackFrame { @path = @path.clone, @name = @name, @line = @line }
+  }
+}
+
+# Returns a stack trace leading up to the line that called this method.
+#
+# The stack trace is returned in reverse order. This means that the most recent
+# stack frame is the last value in the returned `Array`.
+#
+# The `skip` argument specifies how many call frames to skip (from new to old).
+# A value of `0` means no frames are skipped.
+#
+# # Example
+#
+# Returning the trace of a method call:
+#
+#     import std::debug::(stacktrace, StackFrame)
+#
+#     fn first {
+#       second
+#     }
+#
+#     fn second {
+#       let frames = stacktrace(skip: 1)
+#       let frame = frames.get(frames.length - 1)
+#
+#       frame.name # => 'second'
+#     }
+fn pub stacktrace(skip: Int) -> Array[StackFrame] {
+  let trace = _INKO.process_stacktrace
+  let len = _INKO.process_stacktrace_length(trace)
+  let max = len - skip
+  let mut index = 0
+
+  if max <= 0 { return [] }
+
+  let frames = Array.with_capacity(max)
+
+  while index < max {
+    let path = Path.new(_INKO.process_stack_frame_path(trace, index))
+    let name = _INKO.process_stack_frame_name(trace, index)
+    let line = _INKO.process_stack_frame_line(trace, index)
+
+    frames.push(StackFrame.new(path, name, line))
+    index += 1
+  }
+
+  _INKO.process_stacktrace_drop(trace)
+  frames
+}

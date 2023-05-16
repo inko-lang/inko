@@ -22,10 +22,93 @@ use crate::hir;
 use crate::mir::{BlockId, Constant, Mir};
 use crate::state::State;
 use std::collections::{HashMap, HashSet};
+use types::resolve::TypeResolver;
 use types::{
-    ClassInstance, ClassKind, Database, FieldId, TypeContext, TypeId, TypeRef,
-    VariableId, VariantId, BOOLEAN_ID, INT_ID, STRING_ID,
+    ClassInstance, ClassKind, Database, FieldId, TypeArguments, TypeBounds,
+    TypeId, TypeRef, VariableId, VariantId, BOOLEAN_ID, INT_ID, STRING_ID,
 };
+
+fn add_missing_patterns(
+    db: &Database,
+    node: &Decision,
+    terms: &mut Vec<Term>,
+    missing: &mut HashSet<String>,
+) {
+    match node {
+        Decision::Success(_) => {}
+        Decision::Fail => {
+            let mut mapping = HashMap::new();
+
+            // At this point the terms stack looks something like this:
+            // `[term, term + arguments, term, ...]`. To construct a pattern
+            // name from this stack, we first map all variables to their
+            // term indexes. This is needed because when a term defines
+            // arguments, the terms for those arguments don't necessarily
+            // appear in order in the term stack.
+            //
+            // This mapping is then used when (recursively) generating a
+            // pattern name.
+            for (index, step) in terms.iter().enumerate() {
+                mapping.insert(&step.variable, index);
+            }
+
+            let name = terms
+                .first()
+                .map(|term| term.pattern_name(terms, &mapping))
+                .unwrap_or_else(|| "_".to_string());
+
+            missing.insert(name);
+        }
+        Decision::Guard(_, _, fallback) => {
+            add_missing_patterns(db, fallback, terms, missing);
+        }
+        Decision::Switch(var, cases, fallback) => {
+            for case in cases {
+                match &case.constructor {
+                    Constructor::True => {
+                        let name = "true".to_string();
+
+                        terms.push(Term::new(*var, name, Vec::new()));
+                    }
+                    Constructor::False => {
+                        let name = "false".to_string();
+
+                        terms.push(Term::new(*var, name, Vec::new()));
+                    }
+                    Constructor::Int(_) | Constructor::String(_) => {
+                        let name = "_".to_string();
+
+                        terms.push(Term::new(*var, name, Vec::new()));
+                    }
+                    Constructor::Class(_) => {
+                        let name = "_".to_string();
+
+                        terms.push(Term::new(*var, name, Vec::new()));
+                    }
+                    Constructor::Tuple(_) => {
+                        let name = String::new();
+                        let args = case.arguments.clone();
+
+                        terms.push(Term::new(*var, name, args));
+                    }
+                    Constructor::Variant(variant) => {
+                        let args = case.arguments.clone();
+                        let name = variant.name(db).clone();
+
+                        terms.push(Term::new(*var, name, args));
+                    }
+                }
+
+                add_missing_patterns(db, &case.node, terms, missing);
+                terms.pop();
+            }
+
+            if let Some(node) = fallback {
+                add_missing_patterns(db, node, terms, missing);
+            }
+        }
+    }
+}
 
 /// A binding to define as part of a pattern.
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -131,7 +214,7 @@ impl Pattern {
 
                 for pat in n.values {
                     let field = pat.field_id.unwrap();
-                    let index = field.index(db) as usize;
+                    let index = field.index(db);
 
                     args[index] = Pattern::from_hir(db, mir, pat.pattern);
                     fields[index] = field;
@@ -142,7 +225,9 @@ impl Pattern {
             hir::Pattern::Constant(n) => match n.kind {
                 types::ConstantPatternKind::String(id) => {
                     match mir.constants.get(&id) {
-                        Some(Constant::String(v)) => Pattern::String(v.clone()),
+                        Some(Constant::String(v)) => {
+                            Pattern::String(v.as_ref().clone())
+                        }
                         _ => unreachable!(),
                     }
                 }
@@ -359,96 +444,13 @@ impl Match {
         let mut names = HashSet::new();
         let mut steps = Vec::new();
 
-        self.add_missing_patterns(db, &self.tree, &mut steps, &mut names);
+        add_missing_patterns(db, &self.tree, &mut steps, &mut names);
 
         let mut missing: Vec<String> = names.into_iter().collect();
 
         // Sorting isn't necessary, but it makes it a bit easier to write tests.
         missing.sort();
         missing
-    }
-
-    fn add_missing_patterns(
-        &self,
-        db: &Database,
-        node: &Decision,
-        terms: &mut Vec<Term>,
-        missing: &mut HashSet<String>,
-    ) {
-        match node {
-            Decision::Success(_) => {}
-            Decision::Fail => {
-                let mut mapping = HashMap::new();
-
-                // At this point the terms stack looks something like this:
-                // `[term, term + arguments, term, ...]`. To construct a pattern
-                // name from this stack, we first map all variables to their
-                // term indexes. This is needed because when a term defines
-                // arguments, the terms for those arguments don't necessarily
-                // appear in order in the term stack.
-                //
-                // This mapping is then used when (recursively) generating a
-                // pattern name.
-                for (index, step) in terms.iter().enumerate() {
-                    mapping.insert(&step.variable, index);
-                }
-
-                let name = terms
-                    .first()
-                    .map(|term| term.pattern_name(terms, &mapping))
-                    .unwrap_or_else(|| "_".to_string());
-
-                missing.insert(name);
-            }
-            Decision::Guard(_, _, fallback) => {
-                self.add_missing_patterns(db, fallback, terms, missing);
-            }
-            Decision::Switch(var, cases, fallback) => {
-                for case in cases {
-                    match &case.constructor {
-                        Constructor::True => {
-                            let name = "true".to_string();
-
-                            terms.push(Term::new(*var, name, Vec::new()));
-                        }
-                        Constructor::False => {
-                            let name = "false".to_string();
-
-                            terms.push(Term::new(*var, name, Vec::new()));
-                        }
-                        Constructor::Int(_) | Constructor::String(_) => {
-                            let name = "_".to_string();
-
-                            terms.push(Term::new(*var, name, Vec::new()));
-                        }
-                        Constructor::Class(_) => {
-                            let name = "_".to_string();
-
-                            terms.push(Term::new(*var, name, Vec::new()));
-                        }
-                        Constructor::Tuple(_) => {
-                            let name = String::new();
-                            let args = case.arguments.clone();
-
-                            terms.push(Term::new(*var, name, args));
-                        }
-                        Constructor::Variant(variant) => {
-                            let args = case.arguments.clone();
-                            let name = variant.name(db).clone();
-
-                            terms.push(Term::new(*var, name, args));
-                        }
-                    }
-
-                    self.add_missing_patterns(db, &case.node, terms, missing);
-                    terms.pop();
-                }
-
-                if let Some(node) = fallback {
-                    self.add_missing_patterns(db, node, terms, missing);
-                }
-            }
-        }
     }
 }
 
@@ -485,9 +487,6 @@ impl Variables {
 pub(crate) struct Compiler<'a> {
     state: &'a mut State,
 
-    /// The type of `Self` in the scope the `match` expression resides in.
-    self_type: TypeId,
-
     /// The basic blocks that are reachable in the match expression.
     ///
     /// If a block isn't in this list it means its pattern is redundant.
@@ -498,20 +497,23 @@ pub(crate) struct Compiler<'a> {
 
     /// The pattern matching variables/temporaries.
     variables: Variables,
+
+    /// Type bounds to apply to types produced by patterns.
+    bounds: TypeBounds,
 }
 
 impl<'a> Compiler<'a> {
     pub(crate) fn new(
         state: &'a mut State,
-        self_type: TypeId,
         variables: Variables,
+        bounds: TypeBounds,
     ) -> Self {
         Self {
             state,
             reachable: HashSet::new(),
             missing: false,
             variables,
-            self_type,
+            bounds,
         }
     }
 
@@ -799,17 +801,15 @@ impl<'a> Compiler<'a> {
             return types.into_iter().map(|t| self.new_variable(t)).collect();
         }
 
-        let mut ctx = TypeContext::with_arguments(
-            self.self_type,
-            instance.type_arguments(self.db()).clone(),
-        );
+        let args = TypeArguments::for_class(self.db_mut(), instance);
 
         types
             .into_iter()
             .map(|raw_type| {
-                let inferred = raw_type
-                    .inferred(self.db_mut(), &mut ctx, false)
-                    .cast_according_to(source_variable_type, self.db());
+                let inferred =
+                    TypeResolver::new(&mut self.state.db, &args, &self.bounds)
+                        .resolve(raw_type)
+                        .cast_according_to(source_variable_type, self.db());
 
                 self.new_variable(inferred)
             })
@@ -818,7 +818,7 @@ impl<'a> Compiler<'a> {
 
     fn variable_type(&mut self, variable: &Variable) -> Type {
         let typ = variable.value_type(&self.variables);
-        let type_id = typ.type_id(self.db(), self.self_type).unwrap();
+        let type_id = typ.type_id(self.db()).unwrap();
         let class_ins = if let TypeId::ClassInstance(ins) = type_id {
             ins
         } else {
@@ -851,7 +851,7 @@ impl<'a> Compiler<'a> {
 
                     Type::Finite(cons)
                 }
-                ClassKind::Regular => {
+                ClassKind::Regular | ClassKind::Extern => {
                     let fields = class_id.fields(self.db());
                     let args = fields
                         .iter()
@@ -877,9 +877,7 @@ impl<'a> Compiler<'a> {
                         Vec::new(),
                     )])
                 }
-                // Async classes can't be used in class patterns, so we should
-                // never encounter an async class here.
-                ClassKind::Async => unreachable!(),
+                _ => unreachable!(),
             },
         }
     }
@@ -900,7 +898,7 @@ mod tests {
     use similar_asserts::assert_eq;
     use types::module_name::ModuleName;
     use types::{
-        Class, ClassId, ClassInstance, ClassKind, Module, TypeId,
+        Class, ClassInstance, ClassKind, Module, TypeId,
         Variable as VariableType, Visibility,
     };
 
@@ -930,10 +928,7 @@ mod tests {
     }
 
     fn compiler(state: &mut State) -> Compiler {
-        let self_type =
-            TypeId::ClassInstance(ClassInstance::new(ClassId::int()));
-
-        Compiler::new(state, self_type, Variables::new())
+        Compiler::new(state, Variables::new(), TypeBounds::new())
     }
 
     fn success(block: BlockId) -> Decision {

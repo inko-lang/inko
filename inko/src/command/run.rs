@@ -1,41 +1,37 @@
-//! Command for compiling and running Inko source code or bytecode images.
 use crate::error::Error;
 use crate::options::print_usage;
 use compiler::compiler::{CompileError, Compiler};
-use compiler::config::{Config as CompilerConfig, IMAGE_EXT};
+use compiler::config::{Config, Mode};
 use getopts::{Options, ParsingStyle};
+use std::env::temp_dir;
+use std::fs::{create_dir, remove_dir_all};
 use std::path::PathBuf;
-use vm::config::Config;
-use vm::image::Image;
-use vm::machine::Machine;
+use std::process::Command;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-const USAGE: &str = "Usage: inko run [OPTIONS] [FILE]
+const USAGE: &str = "Usage: inko run [OPTIONS] [FILE] [ARGS]
 
-Compile a source file and its dependencies into a bytecode file, then run it.
+Compile a source file and its dependencies into an executable, then run it.
 
-If the file is a source file (its extension is .inko), the file is first
-compiled into a bytecode file. If the file is a bytecode file (its extension is
-.ibi), the file is run directly.
+Running source files is meant for development and scripting purposes, as it
+requires compiling source code from scratch every time. When distributing or
+deploying your Inko software, you should build it ahead of time using the
+\"inko build\" command.
 
-Running source files is meant for development and scripting purposes, and comes
-with the overhead of having to run the compiler. For production environments
-it's best to compile and run your program separately. For example:
+When running files directly, the executable is built in release mode.
 
-    inko build hello.inko -o hello.ibi # Produces ./hello.ibi
-    inko run hello.ibi                 # Run the bytecode file
+Arguments passed _after_ the file to run are passed to the resulting executable.
 
 Examples:
 
-    inko run hello.inko    # Compile and runs the file hello.inko
-    inko run hello.ibi     # Run the bytecode file directly";
+    inko run hello.inko        # Compile and run the file hello.inko
+    inko run hello.inko --foo  # Passes --foo to the resulting executable";
 
-pub fn run(arguments: &[String]) -> Result<i32, Error> {
+pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     let mut options = Options::new();
 
     options.parsing_style(ParsingStyle::StopAtFirstFree);
-
-    options.optflag("h", "help", "Shows this help message");
-
+    options.optflag("h", "help", "Show this help message");
     options.optopt(
         "f",
         "format",
@@ -57,26 +53,9 @@ pub fn run(arguments: &[String]) -> Result<i32, Error> {
         return Ok(0);
     }
 
-    let input = matches.free.get(0);
+    let mut config = Config::default();
     let arguments =
         if matches.free.len() > 1 { &matches.free[1..] } else { &[] };
-
-    match input {
-        Some(input) if input.ends_with(IMAGE_EXT) => {
-            let config = Config::from_env();
-            let image = Image::load_file(config, input).map_err(|e| {
-                Error::generic(format!(
-                    "Failed to parse bytecode image {}: {}",
-                    input, e
-                ))
-            })?;
-
-            return Machine::boot(image, arguments).map_err(Error::generic);
-        }
-        _ => {}
-    }
-
-    let mut config = CompilerConfig::default();
 
     if let Some(format) = matches.opt_str("f") {
         config.set_presenter(&format)?;
@@ -86,23 +65,52 @@ pub fn run(arguments: &[String]) -> Result<i32, Error> {
         config.sources.add(path.into());
     }
 
+    let time = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_else(|_| Duration::from_secs(0))
+        .as_secs();
+    let build_dir = temp_dir().join(format!("inko-run-{}", time));
+
+    if !build_dir.is_dir() {
+        create_dir(&build_dir).map_err(|err| {
+            Error::generic(format!(
+                "Failed to create {}: {}",
+                build_dir.display(),
+                err
+            ))
+        })?;
+    }
+
+    config.build = build_dir.clone();
+    config.mode = Mode::Release;
+
     let mut compiler = Compiler::new(config);
-    let result = compiler.compile_to_memory(input.map(PathBuf::from));
+    let file = matches.free.get(0).map(PathBuf::from);
+    let result = compiler.run(file);
 
     compiler.print_diagnostics();
 
-    // This ensures we don't keep the compiler instance around beyond this
-    // point, as we don't need it from now on.
-    drop(compiler);
-
     match result {
-        Ok(bytes) => {
-            let config = Config::from_env();
-            let image = Image::load_bytes(config, bytes).map_err(|e| {
-                Error::generic(format!("Failed to parse bytecode image: {}", e))
-            })?;
+        Ok(exe) => {
+            let status = Command::new(exe)
+                .args(arguments)
+                .spawn()
+                .and_then(|mut child| child.wait())
+                .map_err(|err| {
+                    Error::generic(format!(
+                        "Failed to run the executable: {}",
+                        err
+                    ))
+                })
+                .map(|status| status.code().unwrap_or(0));
 
-            Machine::boot(image, arguments).map_err(Error::generic)
+            if build_dir.is_dir() {
+                // If this fails that dosen't matter because temporary files are
+                // removed upon shutdown anyway.
+                let _ = remove_dir_all(&build_dir);
+            }
+
+            status
         }
         Err(CompileError::Invalid) => Ok(1),
         Err(CompileError::Internal(msg)) => Err(Error::generic(msg)),
