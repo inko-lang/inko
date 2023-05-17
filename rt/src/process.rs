@@ -1213,7 +1213,7 @@ mod tests {
     fn test_process_state_suspend() {
         let class = empty_process_class("A");
         let stack = Stack::new(32);
-        let mut process = OwnedProcess::new(Process::alloc(*class, stack));
+        let process = OwnedProcess::new(Process::alloc(*class, stack));
         let timeout = Timeout::with_rc(Duration::from_secs(0));
 
         process.state().suspend(timeout);
@@ -1226,7 +1226,7 @@ mod tests {
     fn test_process_timeout_expired() {
         let class = empty_process_class("A");
         let stack = Stack::new(32);
-        let mut process = OwnedProcess::new(Process::alloc(*class, stack));
+        let process = OwnedProcess::new(Process::alloc(*class, stack));
         let timeout = Timeout::with_rc(Duration::from_secs(0));
 
         assert!(!process.timeout_expired());

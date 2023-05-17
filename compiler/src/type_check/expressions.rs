@@ -4285,7 +4285,7 @@ impl<'a> CheckMethodBody<'a> {
 
         while let Some(current) = source {
             if let Some(variable) = current.variables.variable(name) {
-                let mut var_type = variable.value_type(db);
+                let var_type = variable.value_type(db);
 
                 if crossed_uni && !var_type.is_sendable(db) {
                     self.state.diagnostics.error(
@@ -4302,18 +4302,29 @@ impl<'a> CheckMethodBody<'a> {
                     );
                 }
 
-                if captured && var_type.is_owned_or_uni(self.db()) {
-                    var_type = var_type.as_mut(self.db());
-                }
+                let expose_as =
+                    if captured && var_type.is_owned_or_uni(self.db()) {
+                        var_type.as_mut(self.db())
+                    } else {
+                        var_type
+                    };
 
                 for closure in capturing {
-                    closure.add_capture(self.db_mut(), variable);
+                    let capture_as = if closure.is_moving(self.db()) {
+                        // Moving closures captures types as-is, instead of
+                        // capturing them as references.
+                        var_type
+                    } else {
+                        expose_as
+                    };
+
+                    closure.add_capture(self.db_mut(), variable, capture_as);
                 }
 
                 // We return the variable even if it's from outside a recover
                 // expression. This way we can still type-check the use of the
                 // variable.
-                return Some((variable, var_type, allow_assignment));
+                return Some((variable, expose_as, allow_assignment));
             }
 
             match current.kind {

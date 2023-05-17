@@ -3165,7 +3165,11 @@ impl ConstantId {
 #[derive(Clone)]
 pub struct Closure {
     moving: bool,
-    captured: HashSet<VariableId>,
+
+    /// The variables captured by this closure, and the types the variables are
+    /// captured as.
+    captured: HashSet<(VariableId, TypeRef)>,
+
     /// The type of `self` as captured by the closure.
     captured_self_type: Option<TypeRef>,
     arguments: Arguments,
@@ -3245,11 +3249,16 @@ impl ClosureId {
         self.get(db).captured_self_type
     }
 
-    pub fn add_capture(self, db: &mut Database, variable: VariableId) {
-        self.get_mut(db).captured.insert(variable);
+    pub fn add_capture(
+        self,
+        db: &mut Database,
+        variable: VariableId,
+        captured_as: TypeRef,
+    ) {
+        self.get_mut(db).captured.insert((variable, captured_as));
     }
 
-    pub fn captured(self, db: &Database) -> Vec<VariableId> {
+    pub fn captured(self, db: &Database) -> Vec<(VariableId, TypeRef)> {
         self.get(db).captured.iter().cloned().collect()
     }
 
@@ -3259,13 +3268,8 @@ impl ClosureId {
 
     pub fn can_infer_as_uni(self, db: &Database) -> bool {
         let closure = self.get(db);
-        let allow_captures = if closure.moving {
-            closure.captured.iter().all(|v| v.value_type(db).is_sendable(db))
-        } else {
-            closure.captured.is_empty()
-        };
 
-        if !allow_captures {
+        if !closure.captured.iter().all(|(_, typ)| typ.is_sendable(db)) {
             return false;
         }
 
@@ -3715,6 +3719,7 @@ impl TypeRef {
 
         match self {
             TypeRef::Uni(_) | TypeRef::Never | TypeRef::Error => true,
+            TypeRef::Owned(TypeId::Closure(id)) => id.can_infer_as_uni(db),
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(true, |v| v.is_sendable(db))
             }
@@ -4347,8 +4352,8 @@ impl Database {
 mod tests {
     use super::*;
     use crate::test::{
-        immutable, instance, mutable, new_parameter, owned, placeholder, rigid,
-        uni,
+        closure, immutable, instance, mutable, new_class, new_parameter, owned,
+        placeholder, rigid, uni,
     };
     use std::mem::size_of;
 
@@ -4979,5 +4984,21 @@ mod tests {
         );
         assert_eq!(owned(rigid(param1)).as_mut(&db), owned(rigid(param1)));
         assert_eq!(owned(rigid(param2)).as_mut(&db), mutable(rigid(param2)));
+    }
+
+    #[test]
+    fn test_type_ref_is_sendable_with_closure() {
+        let mut db = Database::new();
+        let func1 = Closure::alloc(&mut db, false);
+        let func2 = Closure::alloc(&mut db, false);
+        let thing = new_class(&mut db, "Thing");
+        let var_type = immutable(instance(thing));
+        let var =
+            Variable::alloc(&mut db, "thing".to_string(), var_type, false);
+
+        func2.add_capture(&mut db, var, var_type);
+
+        assert!(owned(closure(func1)).is_sendable(&db));
+        assert!(!owned(closure(func2)).is_sendable(&db));
     }
 }

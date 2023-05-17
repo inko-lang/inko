@@ -3234,15 +3234,7 @@ impl<'a> LowerMethod<'a> {
             field_index += 1;
         }
 
-        for var in closure_id.captured(self.db()) {
-            let var_type = var.value_type(self.db());
-            let captured_as = if var_type.is_owned_or_uni(self.db()) && !moving
-            {
-                var_type.as_mut(self.db())
-            } else {
-                var_type
-            };
-
+        for (var, captured_as) in closure_id.captured(self.db()) {
             let name = var.name(self.db()).clone();
             let field = class_id.new_field(
                 self.db_mut(),
