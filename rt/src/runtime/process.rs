@@ -141,15 +141,20 @@ pub unsafe extern "system" fn inko_process_yield(mut process: ProcessPointer) {
 #[no_mangle]
 pub unsafe extern "system" fn inko_process_suspend(
     state: *const State,
-    mut process: ProcessPointer,
+    process: ProcessPointer,
     nanos: i64,
 ) -> *const Nil {
     let timeout = Timeout::with_rc(Duration::from_nanos(nanos as _));
     let state = &*state;
 
+    {
+        let mut proc_state = process.state();
+
+        proc_state.suspend(timeout.clone());
+        state.timeout_worker.suspend(process, timeout);
+    }
+
     // Safety: the current thread is holding on to the run lock
-    process.suspend(timeout.clone());
-    state.timeout_worker.suspend(process, timeout);
     context::switch(process);
 
     // We need to clear the timeout flag, otherwise future operations may time
@@ -275,7 +280,7 @@ pub unsafe extern "system" fn inko_channel_try_receive(
     mut process: ProcessPointer,
     channel: *const Channel,
 ) -> InkoResult {
-    match (*channel).receive(process, None) {
+    match (*channel).try_receive() {
         ReceiveResult::None => InkoResult::none(),
         ReceiveResult::Some(msg) => InkoResult::ok(msg as _),
         ReceiveResult::Reschedule(msg, sender) => {
@@ -305,7 +310,6 @@ pub unsafe extern "system" fn inko_channel_receive_until(
                 context::switch(process);
 
                 if process.timeout_expired() {
-                    state.timeout_worker.increase_expired_timeouts();
                     return InkoResult::none();
                 }
 

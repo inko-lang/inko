@@ -314,6 +314,11 @@ impl ProcessState {
             .unwrap_or(false)
     }
 
+    pub(crate) fn suspend(&mut self, timeout: ArcWithoutWeak<Timeout>) {
+        self.timeout = Some(timeout);
+        self.status.set_sleeping(true);
+    }
+
     pub(crate) fn try_reschedule_after_timeout(&mut self) -> RescheduleRights {
         if !self.status.is_waiting() {
             return RescheduleRights::Failed;
@@ -510,14 +515,6 @@ impl Process {
 
     pub(crate) fn is_main(&self) -> bool {
         self.state.lock().unwrap().status.is_main()
-    }
-
-    /// Suspends this process for a period of time.
-    pub(crate) fn suspend(&mut self, timeout: ArcWithoutWeak<Timeout>) {
-        let mut state = self.state.lock().unwrap();
-
-        state.timeout = Some(timeout);
-        state.status.set_sleeping(true);
     }
 
     /// Sends a synchronous message to this process.
@@ -921,6 +918,20 @@ impl Channel {
             ReceiveResult::None
         }
     }
+
+    pub(crate) fn try_receive(&self) -> ReceiveResult {
+        let mut state = self.state.lock().unwrap();
+
+        if let Some(msg) = state.receive() {
+            if let Some(proc) = state.waiting_for_space.pop() {
+                ReceiveResult::Reschedule(msg, proc)
+            } else {
+                ReceiveResult::Some(msg)
+            }
+        } else {
+            ReceiveResult::None
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1010,6 +1021,23 @@ mod tests {
 
         status.set_waiting_for_channel(false);
         assert!(!status.is_waiting_for_channel());
+    }
+
+    #[test]
+    fn test_process_status_no_longer_waiting() {
+        let mut status = ProcessStatus::new();
+
+        status.set_running(true);
+        status.set_waiting_for_channel(true);
+        status.set_waiting_for_io(true);
+        status.set_sleeping(true);
+        status.no_longer_waiting();
+
+        assert!(status.is_running());
+        assert!(!status.is_waiting_for_channel());
+        assert!(!status.is_waiting_for_io());
+        assert!(!status.bit_is_set(ProcessStatus::SLEEPING));
+        assert!(!status.is_waiting());
     }
 
     #[test]
@@ -1182,13 +1210,13 @@ mod tests {
     }
 
     #[test]
-    fn test_process_suspend() {
+    fn test_process_state_suspend() {
         let class = empty_process_class("A");
         let stack = Stack::new(32);
         let mut process = OwnedProcess::new(Process::alloc(*class, stack));
         let timeout = Timeout::with_rc(Duration::from_secs(0));
 
-        process.suspend(timeout);
+        process.state().suspend(timeout);
 
         assert!(process.state().timeout.is_some());
         assert!(process.state().status.is_waiting());
@@ -1203,7 +1231,7 @@ mod tests {
 
         assert!(!process.timeout_expired());
 
-        process.suspend(timeout);
+        process.state().suspend(timeout);
 
         assert!(!process.timeout_expired());
         assert!(!process.state().status.timeout_expired());
@@ -1329,6 +1357,24 @@ mod tests {
 
         assert_eq!(chan.receive(*process, None), ReceiveResult::None);
         assert!(process.state().status.is_waiting_for_channel());
+
+        unsafe {
+            Channel::drop(chan_ptr);
+            free(chan_ptr);
+        }
+    }
+
+    #[test]
+    fn test_channel_try_receive_empty() {
+        let process_class = empty_process_class("A");
+        let process =
+            OwnedProcess::new(Process::alloc(*process_class, Stack::new(32)));
+        let class = empty_class("Channel");
+        let chan_ptr = Channel::alloc(*class, 1);
+        let chan = unsafe { &(*chan_ptr) };
+
+        assert_eq!(chan.try_receive(), ReceiveResult::None);
+        assert!(!process.state().status.is_waiting_for_channel());
 
         unsafe {
             Channel::drop(chan_ptr);
