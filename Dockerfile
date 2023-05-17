@@ -1,4 +1,4 @@
-FROM fedora-minimal:38 AS builder
+FROM registry.fedoraproject.org/fedora-minimal:38 AS builder
 
 ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL sparse
 
@@ -15,7 +15,7 @@ RUN make build PREFIX='/usr'
 RUN strip target/release/inko
 RUN make install PREFIX='/usr'
 
-FROM fedora-minimal:38
+FROM registry.fedoraproject.org/fedora-minimal:38
 
 # libgcc is needed because libgcc is dynamically linked to the executable.
 RUN microdnf install --assumeyes libgcc
