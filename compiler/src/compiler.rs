@@ -194,7 +194,7 @@ impl Compiler {
         directories: &BuildDirectories,
         mir: &Mir,
     ) -> Result<(), CompileError> {
-        directories.create_dot().map_err(|e| CompileError::Internal(e))?;
+        directories.create_dot().map_err(CompileError::Internal)?;
 
         for module in mir.modules.values() {
             let mut methods = Vec::new();
@@ -241,7 +241,7 @@ impl Compiler {
         };
 
         let objects =
-            llvm::passes::Compile::run_all(&self.state, &directories, mir)
+            llvm::passes::Compile::run_all(&self.state, directories, mir)
                 .map_err(CompileError::Internal)?;
 
         link(&self.state.config, &exe, &objects)
