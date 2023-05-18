@@ -74,7 +74,31 @@ try ReadWriteFile.new('hello.txt')
 ```
 
 `try` is only available if the surrounding method or closure's return type is a
-`Result`.
+`Result` or `Option`. `try expr` works as follows:
+
+- If `expr` is a `Result` and the case is `Error`, return the `Error` case,
+  otherwise unwrap the `Ok`.
+- If `expr` is an `Option` and the case is `None`, return a `None`, otherwise
+  unwrap the `Some`.
+
+For example, this:
+
+```inko
+let result: Result[Int, String] = Result.Ok(42)
+
+try result
+```
+
+Is the same as this:
+
+```inko
+let result: Result[Int, String] = Result.Ok(42)
+
+match result {
+  case Ok(val) -> val
+  case Error(err) -> return Result.Error(err)
+}
+```
 
 We can also use methods, such as `unwrap` and `expect`, to get the underlying
 value and panic if an error is encountered:
@@ -211,6 +235,21 @@ isn't a big deal, we ignore the `Result` returned by it by assigning it to `_`.
     returned. In the future it will be an error to ignore `Result` values. To
     future-proof your code, make sure to assign `Result` values that can be
     ignored to `_`.
+
+## Producing errors
+
+When using the `Result` type for error handling, there are two ways we can
+signal an error:
+
+1. Using a regular `return`: `return Result.Error('oh no!')`
+1. Using the `throw` keyword: `throw 'oh no!'`
+
+Using `throw x` is the same as `return Result.Error(x)`, but saves you a bit of
+typing.
+
+If a method returns an `Option`, the `throw` keyword can't be used as the `None`
+case of `Option` doesn't wrap a value. In this case you have to use a regular
+`return Option.None`.
 
 ## The cost of error handling
 
