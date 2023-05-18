@@ -154,6 +154,13 @@ class enum Result[T, E: ToString + ToFoo + ToBar] {
 }
 ```
 
+Type parameters can also specify the `mut` requirement, restricting the types to
+those that allow mutations:
+
+```inko
+class MyBox[T: mut] {}
+```
+
 Processes are defined as async classes like so:
 
 ```inko
@@ -304,6 +311,13 @@ And like classes and methods, these can define required traits:
 
 ```inko
 trait ToArray[T: ToFoo + ToBar] {}
+```
+
+Type parameters can also specify the `mut` requirement, restricting the types to
+those that allow mutations:
+
+```inko
+trait ToArray[T: ToFoo + mut] {}
 ```
 
 ## Implementing traits

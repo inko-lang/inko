@@ -297,6 +297,51 @@ class List[T] {
 
 Classes, traits, methods and variants can all be made generic.
 
+When defining type parameters, you can specify a set of traits that must be
+implemented for a type to be compatible with the type parameter. For example:
+
+```inko
+import std::string::ToString
+
+class Container[T: ToString] {
+  # ...
+}
+```
+
+Here only types that implement `ToString` can be assigned to `T`.
+
+You can use the `mut` requirement to limit the types to those that allow
+mutations:
+
+```inko
+class Container[T: mut] {
+  let @value: T
+}
+
+# This is OK, because `Array[Int]` is mutable.
+Container { @value = [10, 20] }
+
+let nums = [10, 20]
+
+# This isn't OK, because `ref Array[Int]` doesn't allow mutations.
+Container { @value = ref nums }
+```
+
+If a type parameter doesn't specify the `mut` requirement, you can't create
+mutable references to values of the type:
+
+```inko
+class Container[T] {
+  let @value: T
+
+  fn mut mutate {
+    # This will produce a compile-time error, because `T` doesn't specify the
+    # `mut` requirement.
+    mut @value
+  }
+}
+```
+
 ## Type inference
 
 Inko supports type inference, removing the need for type annotations in most
