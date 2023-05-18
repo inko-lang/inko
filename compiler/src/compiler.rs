@@ -309,13 +309,7 @@ impl Compiler {
                 if path.is_dir() {
                     paths.push(path);
                 } else if path.is_file() && path.extension() == Some(src_ext) {
-                    let relative = path
-                        .strip_prefix(source)
-                        .or_else(|_| path.strip_prefix(tests))
-                        .unwrap();
-                    let name = ModuleName::from_relative_path(relative);
-
-                    modules.push((name, path));
+                    modules.push((self.module_name_from_path(&path), path));
                 }
             }
         }
