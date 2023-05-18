@@ -77,11 +77,11 @@ ivm install latest    # This will install the latest available version
     Make sure to set a default version after installing Inko, otherwise you have
     to use `ivm run VERSION inko ...` to use Inko.
 
-To uninstall a version:
+To remove a version:
 
 ```bash
-ivm uninstall 0.10.0    # This will uninstall version 0.10.0
-ivm uninstall latest    # This will uninstall the latest _installed_ version
+ivm remove 0.10.0    # This will remove version 0.10.0
+ivm remove latest    # This will remove the latest _installed_ version
 ```
 
 To list all installed versions:
