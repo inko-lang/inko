@@ -569,12 +569,7 @@ impl<'a> DefineFields<'a> {
                 continue;
             }
 
-            let vis = if class_id.kind(self.db()).is_async() {
-                Visibility::TypePrivate
-            } else {
-                Visibility::public(node.public)
-            };
-
+            let vis = Visibility::public(node.public);
             let rules = Rules {
                 allow_private_types: vis.is_private(),
                 ..Default::default()

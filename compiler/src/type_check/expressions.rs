@@ -3536,7 +3536,7 @@ impl<'a> CheckMethodBody<'a> {
             }
             MethodLookup::None if node.arguments.is_empty() => {
                 if let Some(typ) =
-                    self.field_with_receiver(node, receiver, rec_id, scope)
+                    self.field_with_receiver(node, receiver, rec_id)
                 {
                     return typ;
                 }
@@ -3694,38 +3694,26 @@ impl<'a> CheckMethodBody<'a> {
         node: &mut hir::Call,
         receiver: TypeRef,
         receiver_id: TypeId,
-        scope: &mut LexicalScope,
     ) -> Option<TypeRef> {
         let name = &node.name.name;
-
-        if receiver_id == self.self_type {
-            return if let Some((field, raw_type)) = self.field_type(name) {
-                let typ = self.field_reference(raw_type, scope, &node.location);
-
-                node.kind = CallKind::GetField(FieldInfo {
-                    class: receiver.class_id(self.db()).unwrap(),
-                    id: field,
-                    variable_type: typ,
-                });
-
-                Some(typ)
-            } else {
-                self.state.diagnostics.undefined_method(
-                    name,
-                    self.fmt(receiver),
-                    self.file(),
-                    node.location.clone(),
-                );
-
-                None
-            };
-        }
-
         let (ins, field) = if let TypeId::ClassInstance(ins) = receiver_id {
             ins.instance_of().field(self.db(), name).map(|field| (ins, field))
         } else {
             None
         }?;
+
+        // We disallow `receiver.field` even when `receiver` is `self`, because
+        // we can't tell the difference between two different instances of the
+        // same non-generic process (e.g. every instance `class async Foo {}`
+        // has the same TypeId).
+        if ins.instance_of().kind(self.db()).is_async() {
+            self.state.diagnostics.error(
+                DiagnosticId::InvalidSymbol,
+                "Process fields are only available inside the process itself",
+                self.file(),
+                node.location.clone(),
+            );
+        }
 
         if !field.is_visible_to(self.db(), self.module) {
             self.state.diagnostics.private_field(
