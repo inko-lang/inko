@@ -3,6 +3,7 @@ use crate::config::{Config, SOURCE, SOURCE_EXT};
 use crate::hir;
 use crate::linker::link;
 use crate::llvm;
+use crate::mir::printer::to_dot;
 use crate::mir::{passes as mir, Mir};
 use crate::modules_parser::{ModulesParser, ParsedModule};
 use crate::state::State;
@@ -20,6 +21,7 @@ use crate::type_check::methods::{
 };
 use std::env::current_dir;
 use std::ffi::OsStr;
+use std::fs::write;
 use std::path::{Path, PathBuf};
 use types::module_name::ModuleName;
 
@@ -73,7 +75,16 @@ impl Compiler {
         let mut mir = self.compile_mir(hir)?;
 
         self.optimise_mir(&mut mir);
-        self.compile_machine_code(&mir, file)
+
+        let dirs = BuildDirectories::new(&self.state.config);
+
+        dirs.create().map_err(CompileError::Internal)?;
+
+        if self.state.config.dot {
+            self.write_dot(&dirs, &mir)?;
+        }
+
+        self.compile_machine_code(&dirs, &mir, file)
     }
 
     pub fn print_diagnostics(&self) {
@@ -178,15 +189,44 @@ impl Compiler {
         mir::clean_up_basic_blocks(mir);
     }
 
+    fn write_dot(
+        &self,
+        directories: &BuildDirectories,
+        mir: &Mir,
+    ) -> Result<(), CompileError> {
+        directories.create_dot().map_err(|e| CompileError::Internal(e))?;
+
+        for module in mir.modules.values() {
+            let mut methods = Vec::new();
+
+            for cid in &module.classes {
+                for mid in &mir.classes[cid].methods {
+                    methods.push(&mir.methods[mid]);
+                }
+            }
+
+            let output = to_dot(&self.state.db, mir, &methods);
+            let name = module.id.name(&self.state.db).normalized_name();
+            let path = directories.dot.join(format!("{}.dot", name));
+
+            write(&path, output).map_err(|err| {
+                CompileError::Internal(format!(
+                    "Failed to write {}: {}",
+                    path.display(),
+                    err
+                ))
+            })?;
+        }
+
+        Ok(())
+    }
+
     fn compile_machine_code(
         &mut self,
+        directories: &BuildDirectories,
         mir: &Mir,
         main_file: PathBuf,
     ) -> Result<PathBuf, CompileError> {
-        let dirs = BuildDirectories::new(&self.state.config);
-
-        dirs.create().map_err(CompileError::Internal)?;
-
         let exe = match &self.state.config.output {
             Output::Derive => {
                 let name = main_file
@@ -194,14 +234,15 @@ impl Compiler {
                     .map(|s| s.to_string_lossy().into_owned())
                     .unwrap_or_else(|| "main".to_string());
 
-                dirs.bin.join(name)
+                directories.bin.join(name)
             }
-            Output::File(name) => dirs.bin.join(name),
+            Output::File(name) => directories.bin.join(name),
             Output::Path(path) => path.clone(),
         };
 
-        let objects = llvm::passes::Compile::run_all(&self.state, &dirs, mir)
-            .map_err(CompileError::Internal)?;
+        let objects =
+            llvm::passes::Compile::run_all(&self.state, &directories, mir)
+                .map_err(CompileError::Internal)?;
 
         link(&self.state.config, &exe, &objects)
             .map_err(CompileError::Internal)?;

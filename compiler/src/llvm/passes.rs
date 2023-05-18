@@ -4414,6 +4414,8 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                 self.indirect_call(ins.register, func_type, func_val, &args);
             }
             Instruction::Send(ins) => {
+                self.set_debug_location(ins.location);
+
                 let rec_var = self.variables[&ins.receiver];
                 let method_name = &self.names.methods[&ins.method];
                 let method = self

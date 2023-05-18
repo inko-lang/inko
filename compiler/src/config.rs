@@ -44,21 +44,29 @@ pub(crate) struct BuildDirectories {
 
     /// The directory to place executable files in.
     pub(crate) bin: PathBuf,
+
+    /// The directory to write DOT files to.
+    pub(crate) dot: PathBuf,
 }
 
 impl BuildDirectories {
     pub(crate) fn new(config: &Config) -> BuildDirectories {
         let build = config.build.join(config.mode.directory_name());
         let objects = build.join("objects");
+        let dot = build.join("dot");
         let bin = build.clone();
 
-        BuildDirectories { build, objects, bin }
+        BuildDirectories { build, objects, bin, dot }
     }
 
     pub(crate) fn create(&self) -> Result<(), String> {
         create_directory(&self.build)
             .and_then(|_| create_directory(&self.objects))
             .and_then(|_| create_directory(&self.bin))
+    }
+
+    pub(crate) fn create_dot(&self) -> Result<(), String> {
+        create_directory(&self.dot)
     }
 }
 
@@ -141,6 +149,9 @@ pub struct Config {
 
     /// The target to compile code for.
     pub(crate) target: Target,
+
+    /// If MIR should be printed to DOT files.
+    pub dot: bool,
 }
 
 impl Config {
@@ -161,6 +172,7 @@ impl Config {
             output: Output::Derive,
             target: Target::native(),
             mode: Mode::Debug,
+            dot: false,
         }
     }
 

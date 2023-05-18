@@ -52,6 +52,8 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         "PATH",
     );
 
+    options.optflag("", "dot", "Output the MIR of every module as DOT files");
+
     let matches = options.parse(arguments)?;
 
     if matches.opt_present("h") {
@@ -71,6 +73,10 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
 
     if matches.opt_present("release") {
         config.mode = Mode::Release;
+    }
+
+    if matches.opt_present("dot") {
+        config.dot = true;
     }
 
     for path in matches.opt_strs("i") {
