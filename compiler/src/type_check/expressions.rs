@@ -4282,13 +4282,33 @@ impl<'a> CheckMethodBody<'a> {
                     };
 
                 for closure in capturing {
-                    let capture_as = if closure.is_moving(self.db()) {
+                    let moving = closure.is_moving(self.db());
+                    let capture_as = if moving {
                         // Moving closures captures types as-is, instead of
                         // capturing them as references.
                         var_type
                     } else {
                         expose_as
                     };
+
+                    // `uni T` values can't be captured as a reference as that
+                    // would violate the uniqueness constraint.
+                    if !moving && var_type.is_uni(self.db()) {
+                        self.state.diagnostics.error(
+                            DiagnosticId::InvalidSymbol,
+                            format!(
+                                "The variable '{}' exists, but its type \
+                                ('{}') prohibits it from being captured by a \
+                                non-moving closure",
+                                name,
+                                self.fmt(var_type)
+                            ),
+                            self.file(),
+                            location.clone(),
+                        );
+
+                        continue;
+                    }
 
                     closure.add_capture(self.db_mut(), variable, capture_as);
                 }
