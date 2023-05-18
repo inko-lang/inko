@@ -145,14 +145,6 @@ sudo apk add libgcc
 
 #### Arch
 
-!!! warning
-    Arch Linux [no longer includes static libraries for
-    LLVM](https://bugs.archlinux.org/task/77691), resulting in an error when
-    building the compiler. We hope to support dynamic linking against LLVM in
-    the near future. For more information refer to [this feature
-    request](https://github.com/TheDan64/inkwell/issues/406) and [this
-    issue](https://gitlab.com/taricorp/llvm-sys.rs/-/issues/48).
-
 Two AUR packages are provided: `inko` and `inko-git`. These can be installed
 using your favourite AUR wrapper:
 
