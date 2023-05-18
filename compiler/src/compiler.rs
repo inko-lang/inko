@@ -62,7 +62,7 @@ impl Compiler {
         self.compile_mir(hir).map(|_| ())
     }
 
-    pub fn run(
+    pub fn build(
         &mut self,
         file: Option<PathBuf>,
     ) -> Result<PathBuf, CompileError> {

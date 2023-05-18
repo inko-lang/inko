@@ -43,7 +43,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     config.output = Output::File("inko-tests".to_string());
 
     let mut compiler = Compiler::new(config);
-    let result = compiler.run(Some(input));
+    let result = compiler.build(Some(input));
 
     compiler.print_diagnostics();
 

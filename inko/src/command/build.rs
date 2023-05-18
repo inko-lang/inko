@@ -89,7 +89,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
 
     let mut compiler = Compiler::new(config);
     let file = matches.free.get(0).map(PathBuf::from);
-    let result = compiler.run(file);
+    let result = compiler.build(file);
 
     compiler.print_diagnostics();
 
