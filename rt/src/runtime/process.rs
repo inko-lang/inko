@@ -14,9 +14,6 @@ use std::fmt::Write as _;
 use std::str;
 use std::time::Duration;
 
-const SEND_ERROR: &str = "Processes can't send messages to themselves, \
-    as this could result in deadlocks";
-
 /// Terminates the current program with an Inko panic (opposed to a panic
 /// triggered using the `panic!` macro).
 ///
@@ -92,10 +89,6 @@ pub unsafe extern "system" fn inko_process_send_message(
     mut receiver: ProcessPointer,
     message: *mut Message,
 ) {
-    if sender == receiver {
-        panic(sender, SEND_ERROR);
-    }
-
     let message = OwnedMessage::from_raw(message);
     let state = &*state;
     let reschedule = match receiver.send_message(message) {

@@ -413,6 +413,9 @@ impl<'a> GenerateDropper<'a> {
         let self_reg = lower.self_register;
         let nil_reg = lower.get_nil(loc);
 
+        // We don't need to increment here, because we only reach this point
+        // when all references are gone and no messages are in flight any more,
+        // thus no new messages can be produced.
         lower.current_block_mut().send(
             self_reg,
             async_dropper,
@@ -566,6 +569,8 @@ impl<'a> GenerateDropper<'a> {
         }
 
         if terminate {
+            // No need to decrement here, because we only reach this point when
+            // all references and pending messages are gone.
             lower.current_block_mut().finish(true, loc);
         } else {
             let nil_reg = lower.get_nil(loc);
@@ -1866,7 +1871,16 @@ impl<'a> LowerMethod<'a> {
         }
 
         if info.id.is_async(self.db()) {
-            self.current_block_mut().send(rec, info.id, arguments, location);
+            let rec_typ = self.register_type(rec);
+            let msg_rec = self.new_register(rec_typ);
+
+            // When sending messages we must increment the reference count,
+            // otherwise we may end up scheduling the async dropper prematurely
+            // (e.g. if new references are created before it runs).
+            self.current_block_mut().increment_atomic(msg_rec, rec, location);
+            self.current_block_mut()
+                .send(msg_rec, info.id, arguments, location);
+            self.mark_register_as_moved(msg_rec);
             self.current_block_mut().nil_literal(result, location);
         } else if info.dynamic {
             self.current_block_mut()
@@ -2283,6 +2297,10 @@ impl<'a> LowerMethod<'a> {
         if self.method.id.is_async(self.db()) {
             let terminate = self.method.id.is_main(self.db());
 
+            // The reference count is incremented before sending a message, so
+            // we must also decrement it when we finish, and (if needed)
+            // schedule the async dropper.
+            self.drop_register(self.self_register, location);
             self.current_block_mut().finish(terminate, location);
         } else {
             self.current_block_mut().return_value(register, location);
