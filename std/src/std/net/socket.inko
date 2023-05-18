@@ -628,7 +628,7 @@ class pub UdpSocket {
   #     let ip = IpAddress.parse('0.0.0.0').unwrap
   #
   #     UdpSocket.new(ip, port: 0).unwrap
-  fn pub static new(ip: IpAddress, port: Int) -> Result[UdpSocket, Error] {
+  fn pub static new(ip: ref IpAddress, port: Int) -> Result[UdpSocket, Error] {
     let socket = if ip.v6? {
       try Socket.ipv6(Type.DGRAM)
     } else {
@@ -786,7 +786,7 @@ class pub TcpClient {
   #     let ip = IpAddress.parse('127.0.0.1').unwrap
   #
   #     TcpClient.new(ip, port: 40_000).unwrap
-  fn pub static new(ip: IpAddress, port: Int) -> Result[TcpClient, Error] {
+  fn pub static new(ip: ref IpAddress, port: Int) -> Result[TcpClient, Error] {
     let socket = if ip.v6? {
       try Socket.ipv6(Type.STREAM)
     } else {
@@ -819,7 +819,7 @@ class pub TcpClient {
   #       )
   #       .unwrap
   fn pub static with_timeout(
-    ip: IpAddress,
+    ip: ref IpAddress,
     port: Int,
     timeout_after: ToInstant
   ) -> Result[TcpClient, Error] {
@@ -917,7 +917,7 @@ class pub TcpServer {
   #     let ip = IpAddress.parse('0.0.0.0').unwrap
   #
   #     TcpServer.new(ip, port: 40_000).unwrap
-  fn pub static new(ip: IpAddress, port: Int) -> Result[TcpServer, Error] {
+  fn pub static new(ip: ref IpAddress, port: Int) -> Result[TcpServer, Error] {
     let socket = if ip.v6? {
       try Socket.ipv6(Type.STREAM)
     } else {
