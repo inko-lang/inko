@@ -1520,23 +1520,7 @@ impl<'a> CheckMethodBody<'a> {
         scope: &mut LexicalScope,
     ) -> TypeRef {
         let name = &node.class_name.name;
-        let class = if name == "Self" {
-            match scope.surrounding_type {
-                TypeRef::Owned(TypeId::Class(id)) => id,
-                TypeRef::Owned(TypeId::ClassInstance(ins))
-                | TypeRef::Ref(TypeId::ClassInstance(ins)) => ins.instance_of(),
-                _ => {
-                    self.state.diagnostics.error(
-                    DiagnosticId::InvalidSymbol,
-                    "'Self' is only available to methods defined for a class",
-                    self.file(),
-                    node.class_name.location.clone(),
-                );
-
-                    return TypeRef::Error;
-                }
-            }
-        } else if let Some(Symbol::Class(id)) =
+        let class = if let Some(Symbol::Class(id)) =
             self.module.symbol(self.db(), name)
         {
             id
