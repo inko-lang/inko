@@ -84,7 +84,6 @@ ${SOURCE_TAR}: ${TMP_DIR}
 		std/src \
 		rt \
 		types \
-		pkg \
 		| gzip > "${@}"
 
 release/source: ${SOURCE_TAR}
