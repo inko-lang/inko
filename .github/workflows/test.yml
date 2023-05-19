@@ -1,32 +1,12 @@
 ---
-name: Tests
-
+name: Run tests
 on:
-  push:
-    branches:
-      - '**'
-    paths:
-      - '.cargo/**'
-      - '.github/**'
-      - 'ast/**'
-      - 'compiler/**'
-      - 'inko/**'
-      - 'ipm/**'
-      - 'std/**'
-      - 'types/**'
-      - 'vm/**'
-      - 'Cargo.*'
-      - '*.toml'
-      - 'Makefile'
-      - Dockerfile
-  workflow_dispatch:
+  workflow_call:
 
 env:
   # This directory must be named differently from `.cargo`, otherwise it will
   # conflict with our local Cargo configuration.
   CARGO_HOME: ${{ github.workspace }}/.cargo-home
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   cargo-deny:
@@ -134,30 +114,3 @@ jobs:
         run: |
           cd std
           ../target/release/inko test
-
-  nightly-container:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    needs:
-      - std
-    if: |
-      github.repository == 'inko-lang/inko' && github.ref_name == 'main'
-    steps:
-      - uses: actions/checkout@v3
-      - uses: docker/login-action@v2
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/metadata-action@v4
-        id: meta
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-      - uses: docker/build-push-action@v4
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}

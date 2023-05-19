@@ -10,8 +10,13 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  tests:
+    uses: ./.github/workflows/test.yml
+
   source:
     runs-on: ubuntu-latest
+    needs:
+      - tests
     env:
       AWS_REGION: eu-west-1
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -23,6 +28,8 @@ jobs:
 
   container:
     runs-on: ubuntu-latest
+    needs:
+      - tests
     permissions:
       contents: read
       packages: write
@@ -49,6 +56,8 @@ jobs:
 
   docs:
     runs-on: ubuntu-latest
+    needs:
+      - tests
     env:
       AWS_REGION: eu-west-1
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
