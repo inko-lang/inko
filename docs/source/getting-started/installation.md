@@ -182,9 +182,15 @@ sudo pacman -Sy gcc-libs
 
 #### Fedora
 
-Inko isn't included in the Fedora repositories, nor is there a
-[copr](https://copr.fedorainfracloud.org/coprs/) package (though [this is
-planned](https://github.com/inko-lang/inko/issues/364)).
+Inko isn't included in the Fedora repositories, but there's an official
+[copr](https://copr.fedorainfracloud.org/coprs/yorickpeterse/inko/) repository
+that you can use as follows:
+
+```bash
+sudo dnf install dnf-plugins-core
+sudo dnf copr enable yorickpeterse/inko
+sudo dnf install inko
+```
 
 When building from source, the compiler requires the following dependencies to
 be installed:
