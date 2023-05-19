@@ -1,6 +1,6 @@
 [package]
 name = "ast"
-version = "0.10.0" # VERSION
+version = "0.11.0" # VERSION
 authors = ["Yorick Peterse <yorick@yorickpeterse.com>"]
 edition = "2021"
 license = "MPL-2.0"

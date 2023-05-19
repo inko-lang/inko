@@ -6,6 +6,98 @@ Entries from before version 0.10.0 are no longer included, but can be viewed
 
 <!-- new section -->
 
+## 0.11.0 (2023-05-19)
+
+### Added
+
+* 452c07fb: Add dedicated instruction for static method calls
+* 0054f4f8: Implement cryptographic hash functions and ciphers
+* 4325ed9a: Add support for unsigned right shifting
+* a169a559: Add ByteArray.resize and apply in ByteArray.filled
+* cf4cf129: Refactor Range into separate types
+* c335285a: Add std::cmp.min and std::cmp.max
+* 1a320f53: Add ByteArray.copy_from
+* dac91cd9: Add methods for encoding integers as bytes
+* d9c0d64c: Add ByteArray.reverse
+* 3956f407: Add support for wrapping add/sub/mul
+* d71ffde8: Add Int.rotate_left and Int.rotate_right
+* 758497f4: Add support for bitwise NOT
+* 28706b5d: Automatically clone references to value types
+* 09d81780: Add support for parsing and generating JSON
+* 8bc96134: Add String.escaped
+* 6f2fcbcd: Add support for constant arrays
+* f02e29fe: Support up to six digits for Unicode escapes
+* b0354740: Add std::utf8 module
+* 441b5766: Add parsing support for Unicode escape sequences
+* 2609bbce: Add try_equal assertion to std::test
+* 9d0884c8: Add StringReader and ByteArrayReader
+* 8d361f36: Add support for socket deadlines/timeouts
+* b285df63: Add std::time::ToInstant
+* 8eac1595: Add Pointer.pointer
+* 9698cdae: Make 'ref Any' a valid type
+* ecafac68: Provide a package manager for Inko
+* 54782464: Allow setting a shuffle seed for unit tests
+* 6991a8d3: Move random number generation to the Random type
+* ee5429a9: Allow setting INKO_PROCESS_THREADS to zero
+* b7254f5f: Add documentation that compares Inko to others
+* 5ddc2e95: Add the VS Code extension to the manual
+* 92c635ce: Add String stripping and trimming methods
+
+### Fixed
+
+* 11ab2c3f: Fix type-checking against type placeholders
+* efdc6463: Disallow async calls using non-async methods
+* ea303b4d: Save instruction pointer for async messages
+* c362caf4: Insert CheckRefs after calling destructors
+* 8b670e60: Fix parsing negative hexadecimal integers
+* 7bee45f6: Fix passing value types around in several cases
+* da9c4784: Return nil for loop expressions in MIR
+* f9375d50: Fix checking type arguments for mut T and uni T
+* 68a5a868: Fix making closure arguments rigid
+* 4ea39fb0: Count assertion failures in test output
+* 7d0c79a2: Fix type-checking and inferring against traits
+* a6206937: Fix runaway recursion when inferring cyclic types
+* a8fdbe47: Fix STDOUT.print not returning the correct length
+* 3e62e9ef: Don't immediately drop ignored variables
+* a419af98: Fix instruction locations for raw panics
+* 6ab5ad77: Fix and document negative Duration objects
+* b41c2c80: Suspend after exiting a blocking call
+* d496aeac: Disallow processes sending messages to themselves
+* 9cee2ea3: Handle async messages for identifier calls
+* bbfaaf6a: Fix constant float equality for code generation
+* 2e9ce863: Simplify and fix debug info for stacktraces
+* 20dc8d4f: Refactor how processes are terminated
+
+### Changed
+
+* b6ce8e8f: Change ByteArray.from_array to take a ref
+* 4e26a2ae: Restrict Inko to little-endian architectures
+* e15e823c: Implement String.slice_bytes in Rust
+* 6620c448: Rework iterating over byte sequences
+* 923cb3a1: Lower binary expressions into regular method calls
+* c9375b66: Use shorter method names for Duration
+* 64d80971: Use nanoseconds for Instant and Duration
+* 30f77edb: Remove glob imports from the language
+* c0e67524: Remove the dirs-next dependency
+* f5f0b8ce: Remove the num_cpus dependency
+* c4a6b0c8: Make Test.failures public
+* 7ef1aa07: Remove the float-cmp dependency
+* 6d5580cd: Remove mention of INKO_BYTECODE_THREADS
+* 1c225b48: Remove alive tracking from the network poller
+* 1e0b0037: Remove alive tracking from the timeout worker
+* 5c57ddcd: Improve detecting modules names
+
+### Performance improvements
+
+* 2e398490: Avoid calling String droppers where possible
+* 366d7235: Don't call droppers for value types
+* 047eec78: Implement ByteArray.append in Rust
+* 47c7669c: Use ByteArray.reverse in Int.to_base
+* 110dd0a2: Implement ByteArray.slice in Rust
+* 44c00881: Support multiple network pollers
+* 89467afc: Automatically replace blocking threads
+* 4cf91016: Rewrite the process scheduler from the ground up
+
 ## 0.10.0 (2022-09-12)
 
 **NOTE:** this section appears a bit limited as for 0.10.0 we switched to a
