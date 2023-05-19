@@ -67,7 +67,6 @@ impl OperatingSystem {
 pub(crate) enum Abi {
     Native,
     Gnu,
-    Msvc,
 }
 
 impl Abi {
@@ -75,7 +74,6 @@ impl Abi {
         match input {
             "native" => Some(Abi::Native),
             "gnu" => Some(Abi::Gnu),
-            "msvc" => Some(Abi::Msvc),
             _ => None,
         }
     }
@@ -83,8 +81,6 @@ impl Abi {
     pub(crate) fn native() -> Abi {
         if cfg!(target_env = "gnu") {
             Abi::Gnu
-        } else if cfg!(target_env = "msvc") {
-            Abi::Msvc
         } else {
             Abi::Native
         }
@@ -162,7 +158,6 @@ impl Target {
                 _ => "native",
             },
             Abi::Gnu => "gnu",
-            Abi::Msvc => "msvc",
         }
     }
 
