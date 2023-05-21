@@ -4526,6 +4526,8 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                 self.builder.store_field(layout, rec, index, val);
             }
             Instruction::CheckRefs(ins) => {
+                self.set_debug_location(ins.location);
+
                 let var = self.variables[&ins.register];
                 let proc = self.builder.load_untyped_pointer(proc_var).into();
                 let check = self.builder.load_untyped_pointer(var).into();

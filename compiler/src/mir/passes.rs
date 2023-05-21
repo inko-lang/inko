@@ -1986,6 +1986,13 @@ impl<'a> LowerMethod<'a> {
                 let exp = info.variable_type;
                 let loc = self.add_location(node.location);
                 let arg = self.input_expression(node.value, Some(exp));
+                let old = self.new_register(info.variable_type);
+
+                if !info.variable_type.is_permanent(self.db()) {
+                    self.current_block_mut()
+                        .get_field(old, rec, info.class, info.id, loc);
+                    self.drop_register(old, loc);
+                }
 
                 self.current_block_mut()
                     .set_field(rec, info.class, info.id, arg, loc);
@@ -2013,13 +2020,17 @@ impl<'a> LowerMethod<'a> {
             self.current_block_mut().move_register(reg, val, loc);
         } else {
             let &field = self.variable_fields.get(&id).unwrap();
-            let &reg = self.field_mapping.get(&field).unwrap();
             let rec = self.surrounding_type_register;
             let class = self.register_type(rec).class_id(self.db()).unwrap();
 
-            if self.should_drop_register(reg) {
-                self.current_block_mut().get_field(reg, rec, class, field, loc);
-                self.drop_register(reg, loc);
+            if !exp.is_permanent(self.db()) {
+                // The captured variable may be exposed as a reference in `reg`,
+                // but if the value is owned we need to drop it, not decrement
+                // it.
+                let old = self.new_register(exp);
+
+                self.current_block_mut().get_field(old, rec, class, field, loc);
+                self.drop_register(old, loc);
             }
 
             self.current_block_mut().set_field(rec, class, field, val, loc);
@@ -2066,23 +2077,31 @@ impl<'a> LowerMethod<'a> {
             let rec = self.surrounding_type_register;
             let class = self.register_type(rec).class_id(self.db()).unwrap();
 
-            if self.should_drop_register(reg) {
-                self.current_block_mut().get_field(reg, rec, class, id, loc);
-                self.drop_register(reg, loc);
+            if !self.register_is_moved(reg) && !exp.is_permanent(self.db()) {
+                // `reg` may be a reference for a non-moving method, so we need
+                // a temporary register using the raw field type and drop that
+                // instead.
+                let old = self.new_register(exp);
+
+                self.current_block_mut().get_field(old, rec, class, id, loc);
+                self.drop_register(old, loc);
             }
 
             self.update_register_state(reg, RegisterState::Available);
             self.current_block_mut().set_field(rec, class, id, new_val, loc);
         } else {
-            let reg = self.new_register(node.resolved_type);
             let rec = self.self_register;
             let class = self.register_type(rec).class_id(self.db()).unwrap();
 
-            // Closures capture `self` as a whole, so we can't end up with a
-            // case where we try to drop an already dropped value here.
-            self.current_block_mut().get_field(reg, rec, class, id, loc);
-            self.drop_register(reg, loc);
-            self.mark_register_as_moved(reg);
+            if !exp.is_permanent(self.db()) {
+                let old = self.new_register(exp);
+
+                // Closures capture `self` as a whole, so we can't end up with a
+                // case where we try to drop an already dropped value here.
+                self.current_block_mut().get_field(old, rec, class, id, loc);
+                self.drop_register(old, loc);
+            }
+
             self.current_block_mut().set_field(rec, class, id, new_val, loc);
         };
 
@@ -4073,11 +4092,9 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn should_drop_register(&mut self, register: RegisterId) -> bool {
-        if self.register_is_moved(register) {
-            return false;
-        }
-
-        if self.register_type(register).is_permanent(self.db()) {
+        if self.register_is_moved(register)
+            || self.register_type(register).is_permanent(self.db())
+        {
             return false;
         }
 
