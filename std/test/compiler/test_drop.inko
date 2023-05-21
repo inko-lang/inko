@@ -1,0 +1,66 @@
+import std::test::Tests
+import std::drop::Drop
+
+class Value {
+  let @dropped: Int
+
+  fn static new -> Value {
+    Value { @dropped = 0 }
+  }
+}
+
+class ValueRef {
+  let @value: mut Value
+
+  fn static new(value: mut Value) -> ValueRef {
+    ValueRef { @value = value }
+  }
+}
+
+impl Drop for ValueRef {
+  fn mut drop {
+    @value.dropped += 1
+  }
+}
+
+class Box {
+  let @value: ValueRef
+
+  fn mut update(value: ValueRef) {
+    @value = value
+  }
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('Assigning a variable drops the old value') fn (t) {
+    let val = Value.new
+    let mut a = ValueRef.new(val)
+
+    a = ValueRef.new(val)
+    t.equal(val.dropped, 1)
+  }
+
+  t.test('Assigning a field drops the old value') fn (t) {
+    let val = Value.new
+    let box = Box { @value = ValueRef.new(val) }
+
+    box.update(ValueRef.new(val))
+    t.equal(val.dropped, 1)
+  }
+
+  t.test('Assigning a field with a receiver drops the old value') fn (t) {
+    let val = Value.new
+    let box = Box { @value = ValueRef.new(val) }
+
+    box.value = ValueRef.new(val)
+    t.equal(val.dropped, 1)
+  }
+
+  t.test('Assigning a captured value drops the old value') fn (t) {
+    let val = Value.new
+    let mut vref = Option.Some(ValueRef.new(val))
+
+    fn move { vref = Option.None }.call
+    t.equal(val.dropped, 1)
+  }
+}
