@@ -37,7 +37,7 @@ pub(crate) fn to_dot(db: &Database, mir: &Mir, methods: &[&Method]) -> String {
             format!("{}.{}()", rec_name, method.id.name(db))
         };
 
-        let _ = writeln!(buffer, "label=<{}>;", name);
+        let _ = writeln!(buffer, "label=\"{}\";", name);
 
         let reachable_blocks = method.body.reachable();
 
