@@ -1,4 +1,5 @@
 import std::test::Tests
+import std::drop::(drop)
 
 class enum Letter {
   case A
@@ -6,9 +7,14 @@ class enum Letter {
   case C
 }
 
+class enum State {
+  case Closed
+  case Button(State)
+}
+
 fn pub tests(t: mut Tests) {
   # https://github.com/inko-lang/inko/issues/363
-  t.test('Pattern matching with OR patterns with guards') fn (t) {
+  t.test('match with OR patterns and a guard') fn (t) {
     let number = 42
     let result = match Letter.A {
       case A or B if number == 42 -> true
@@ -16,5 +22,22 @@ fn pub tests(t: mut Tests) {
     }
 
     t.true(result)
+  }
+
+  # https://github.com/inko-lang/inko/issues/519
+  #
+  # This bug would result in a reference counting underflow. If you then created
+  # a new reference the count would be zero, instead of one, and that would
+  # allow the drop(), which is invalid. With the fixes in place, the drop() will
+  # correctly panic because references still exist.
+  t.panic("match doesn't drop match registers prematurely") fn {
+    let state = match State.Button(State.Closed) {
+      case Closed -> State.Closed
+      case state -> state
+    }
+
+    let temp = ref state
+
+    drop(state)
   }
 }

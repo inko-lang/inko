@@ -4636,6 +4636,7 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                     .builder
                     .load_field(self.layouts.header, header, HEADER_REFS_INDEX)
                     .into_int_value();
+
                 let one = self.builder.u32_literal(1);
                 let new_refs = self.builder.int_sub(old_refs, one);
 

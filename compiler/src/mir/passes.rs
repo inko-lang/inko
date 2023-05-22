@@ -287,13 +287,6 @@ struct DecisionState {
 
     /// Registers for which the reference count should be incremented when they
     /// are bound to a variable.
-    ///
-    /// This is needed as we don't always need to increment when matching
-    /// against a reference. For example, for the expression `let a = b` we
-    /// don't need to increment `b` upon binding, as we already create a
-    /// reference as part of the assignment. However, when matching against a
-    /// `ref (A, B)`, if A and/or B are assigned to a binding we _do_ need to
-    /// increment the reference count.
     increment: HashSet<RegisterId>,
 
     /// The basic blocks for every case body, and the code to compile for them.
@@ -339,17 +332,6 @@ impl DecisionState {
 
     fn input_register(&self) -> RegisterId {
         self.registers[0]
-    }
-
-    fn mark_as_increment(&mut self, register: RegisterId) {
-        // When matching against an owned value, fields don't need to be
-        // incremented (even if they are references), as the owned value is
-        // destructured/moved into its sub-components.
-        if self.owned {
-            return;
-        }
-
-        self.increment.insert(register);
     }
 }
 
@@ -464,6 +446,10 @@ impl<'a> GenerateDropper<'a> {
             lower.reduce_call(typ, loc);
         }
 
+        // We check _after_ the destructor to guard against new references to
+        // "self" being created.
+        lower.current_block_mut().check_refs(self_reg, loc);
+
         let variants = class.variants(lower.db());
         let mut blocks = Vec::new();
         let before_block = lower.current_block;
@@ -544,9 +530,8 @@ impl<'a> GenerateDropper<'a> {
             lower.reduce_call(typ, loc);
         }
 
-        // We check the ref count _after_ running the destructor, as otherwise a
-        // destructor might leak references of "self" through other mutable
-        // references (e.g. a field containing a mutable Array reference).
+        // We check _after_ the destructor to guard against new references to
+        // "self" being created.
         lower.current_block_mut().check_refs(self_reg, loc);
 
         for field in class.fields(lower.db()) {
@@ -2556,7 +2541,6 @@ impl<'a> LowerMethod<'a> {
                 // We don't need to increment if bindings capture references, as
                 // this is done when the bindings are passed around.
                 let mut restore = Vec::new();
-                let mut skip_fail = HashSet::new();
 
                 for bind in &ok.bindings {
                     if let pmatch::Binding::Named(id, pvar) = bind {
@@ -2565,19 +2549,8 @@ impl<'a> LowerMethod<'a> {
                             self.variable_mapping.insert(*id, new_reg).unwrap();
 
                         restore.push((*id, old_reg, new_reg));
-                        skip_fail.insert(new_reg);
                     }
                 }
-
-                // For the failure case we _don't_ want to pass down the OK
-                // case's binding registers, otherwise we may end up
-                // decrementing those without there being a corresponding/prior
-                // increment.
-                let fail_regs = registers
-                    .iter()
-                    .filter(|v| !skip_fail.contains(v))
-                    .cloned()
-                    .collect();
 
                 self.current_block = guard;
 
@@ -2595,7 +2568,7 @@ impl<'a> LowerMethod<'a> {
                 let guard_end = self.current_block;
                 let vars_block = self.add_block();
                 let fail_block =
-                    self.decision(state, *fail, guard_end, fail_regs);
+                    self.decision(state, *fail, guard_end, registers.clone());
 
                 self.add_edge(guard_end, vars_block);
                 self.block_mut(guard_end).branch(
@@ -2986,6 +2959,8 @@ impl<'a> LowerMethod<'a> {
             _ => unreachable!(),
         };
 
+        let test_type = self.register_type(test_reg);
+
         registers.push(test_reg);
 
         for (arg, field) in case.arguments.into_iter().zip(fields.into_iter()) {
@@ -2993,10 +2968,12 @@ impl<'a> LowerMethod<'a> {
             let class =
                 self.register_type(test_reg).class_id(self.db()).unwrap();
 
-            state.mark_as_increment(reg);
+            if !test_type.is_owned_or_uni(self.db()) {
+                state.increment.insert(reg);
+            }
+
             self.block_mut(parent_block)
                 .get_field(reg, test_reg, class, field, loc);
-            registers.push(reg);
         }
 
         self.decision(state, case.node, parent_block, registers)
@@ -3037,7 +3014,7 @@ impl<'a> LowerMethod<'a> {
         }
 
         for case in cases {
-            let mut case_registers = registers.clone();
+            let case_registers = registers.clone();
             let block = self.add_block();
 
             self.add_edge(test_block, block);
@@ -3048,14 +3025,12 @@ impl<'a> LowerMethod<'a> {
             {
                 let reg = state.registers[arg.0];
 
-                state.mark_as_increment(reg);
-                case_registers.push(reg);
-                self.register_states.set(
-                    block,
-                    member_reg,
-                    RegisterState::Moved,
-                );
+                if !test_type.is_owned_or_uni(self.db()) {
+                    state.increment.insert(reg);
+                }
+
                 self.block_mut(block).move_register(reg, member_reg, loc);
+                self.mark_register_as_moved_in_block(member_reg, block);
             }
 
             self.decision(state, case.node, block, case_registers);
@@ -4193,6 +4168,14 @@ impl<'a> LowerMethod<'a> {
 
     fn mark_register_as_moved(&mut self, register: RegisterId) {
         self.update_register_state(register, RegisterState::Moved);
+    }
+
+    fn mark_register_as_moved_in_block(
+        &mut self,
+        register: RegisterId,
+        block: BlockId,
+    ) {
+        self.register_states.set(block, register, RegisterState::Moved);
     }
 
     fn mark_register_as_available(&mut self, register: RegisterId) {
