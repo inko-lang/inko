@@ -938,7 +938,7 @@ impl Channel {
 mod tests {
     use super::*;
     use crate::mem::tagged_int;
-    use crate::test::{empty_class, empty_process_class, OwnedProcess};
+    use crate::test::{empty_class, empty_process_class, setup, OwnedProcess};
     use std::time::Duration;
 
     macro_rules! offset_of {
@@ -1077,62 +1077,65 @@ mod tests {
 
     #[test]
     fn test_process_state_has_same_timeout() {
-        let mut state = ProcessState::new();
-        let timeout = Timeout::with_rc(Duration::from_secs(0));
+        let state = setup();
+        let mut proc_state = ProcessState::new();
+        let timeout = Timeout::duration(&state, Duration::from_secs(0));
 
-        assert!(!state.has_same_timeout(&timeout));
+        assert!(!proc_state.has_same_timeout(&timeout));
 
-        state.timeout = Some(timeout.clone());
+        proc_state.timeout = Some(timeout.clone());
 
-        assert!(state.has_same_timeout(&timeout));
+        assert!(proc_state.has_same_timeout(&timeout));
     }
 
     #[test]
     fn test_process_state_try_reschedule_after_timeout() {
-        let mut state = ProcessState::new();
+        let state = setup();
+        let mut proc_state = ProcessState::new();
 
         assert_eq!(
-            state.try_reschedule_after_timeout(),
+            proc_state.try_reschedule_after_timeout(),
             RescheduleRights::Failed
         );
 
-        state.waiting_for_channel(None);
+        proc_state.waiting_for_channel(None);
 
         assert_eq!(
-            state.try_reschedule_after_timeout(),
+            proc_state.try_reschedule_after_timeout(),
             RescheduleRights::Acquired
         );
 
-        assert!(!state.status.is_waiting_for_channel());
-        assert!(!state.status.is_waiting());
+        assert!(!proc_state.status.is_waiting_for_channel());
+        assert!(!proc_state.status.is_waiting());
 
-        let timeout = Timeout::with_rc(Duration::from_secs(0));
+        let timeout = Timeout::duration(&state, Duration::from_secs(0));
 
-        state.waiting_for_channel(Some(timeout));
+        proc_state.waiting_for_channel(Some(timeout));
 
         assert_eq!(
-            state.try_reschedule_after_timeout(),
+            proc_state.try_reschedule_after_timeout(),
             RescheduleRights::AcquiredWithTimeout
         );
 
-        assert!(!state.status.is_waiting_for_channel());
-        assert!(!state.status.is_waiting());
+        assert!(!proc_state.status.is_waiting_for_channel());
+        assert!(!proc_state.status.is_waiting());
     }
 
     #[test]
     fn test_process_state_waiting_for_channel() {
-        let mut state = ProcessState::new();
-        let timeout = Timeout::with_rc(Duration::from_secs(0));
+        let state = setup();
+        let mut proc_state = ProcessState::new();
+        let timeout = Timeout::duration(&state, Duration::from_secs(0));
 
-        state.waiting_for_channel(None);
+        proc_state.waiting_for_channel(None);
 
-        assert!(state.status.is_waiting_for_channel());
-        assert!(state.timeout.is_none());
+        assert!(proc_state.status.is_waiting_for_channel());
+        assert!(proc_state.timeout.is_none());
 
-        state.waiting_for_channel(Some(timeout));
+        proc_state.waiting_for_channel(Some(timeout));
 
-        assert!(state.status.is_waiting_for_channel());
-        assert!(state.timeout.is_some());
+        assert!(proc_state.status.is_waiting_for_channel());
+        assert!(proc_state.timeout.is_some());
     }
 
     #[test]
@@ -1155,28 +1158,30 @@ mod tests {
 
     #[test]
     fn test_process_state_try_reschedule_for_channel() {
-        let mut state = ProcessState::new();
+        let state = setup();
+        let mut proc_state = ProcessState::new();
 
         assert_eq!(
-            state.try_reschedule_for_channel(),
+            proc_state.try_reschedule_for_channel(),
             RescheduleRights::Failed
         );
 
-        state.status.set_waiting_for_channel(true);
+        proc_state.status.set_waiting_for_channel(true);
         assert_eq!(
-            state.try_reschedule_for_channel(),
+            proc_state.try_reschedule_for_channel(),
             RescheduleRights::Acquired
         );
-        assert!(!state.status.is_waiting_for_channel());
+        assert!(!proc_state.status.is_waiting_for_channel());
 
-        state.status.set_waiting_for_channel(true);
-        state.timeout = Some(Timeout::with_rc(Duration::from_secs(0)));
+        proc_state.status.set_waiting_for_channel(true);
+        proc_state.timeout =
+            Some(Timeout::duration(&state, Duration::from_secs(0)));
 
         assert_eq!(
-            state.try_reschedule_for_channel(),
+            proc_state.try_reschedule_for_channel(),
             RescheduleRights::AcquiredWithTimeout
         );
-        assert!(!state.status.is_waiting_for_channel());
+        assert!(!proc_state.status.is_waiting_for_channel());
     }
 
     #[test]
@@ -1211,10 +1216,11 @@ mod tests {
 
     #[test]
     fn test_process_state_suspend() {
+        let state = setup();
         let class = empty_process_class("A");
         let stack = Stack::new(32);
         let process = OwnedProcess::new(Process::alloc(*class, stack));
-        let timeout = Timeout::with_rc(Duration::from_secs(0));
+        let timeout = Timeout::duration(&state, Duration::from_secs(0));
 
         process.state().suspend(timeout);
 
@@ -1224,10 +1230,11 @@ mod tests {
 
     #[test]
     fn test_process_timeout_expired() {
+        let state = setup();
         let class = empty_process_class("A");
         let stack = Stack::new(32);
         let process = OwnedProcess::new(Process::alloc(*class, stack));
-        let timeout = Timeout::with_rc(Duration::from_secs(0));
+        let timeout = Timeout::duration(&state, Duration::from_secs(0));
 
         assert!(!process.timeout_expired());
 
@@ -1325,6 +1332,7 @@ mod tests {
 
     #[test]
     fn test_channel_send_with_waiting_with_timeout() {
+        let state = setup();
         let process_class = empty_process_class("A");
         let process =
             OwnedProcess::new(Process::alloc(*process_class, Stack::new(32)));
@@ -1333,7 +1341,10 @@ mod tests {
         let chan = unsafe { &(*chan_ptr) };
         let msg = tagged_int(42);
 
-        chan.receive(*process, Some(Timeout::with_rc(Duration::from_secs(0))));
+        chan.receive(
+            *process,
+            Some(Timeout::duration(&state, Duration::from_secs(0))),
+        );
 
         assert_eq!(
             chan.send(*process, msg as _),

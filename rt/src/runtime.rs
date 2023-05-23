@@ -119,7 +119,7 @@ impl Runtime {
             .name("timeout".to_string())
             .spawn(move || {
                 pin_thread_to_core(0);
-                state.timeout_worker.run(&state.scheduler)
+                state.timeout_worker.run(&state)
             })
             .unwrap();
 

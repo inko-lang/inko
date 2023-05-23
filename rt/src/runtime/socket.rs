@@ -31,7 +31,7 @@ fn blocking<T>(
 
         // A deadline of -1 signals that we should wait indefinitely.
         if deadline >= 0 {
-            let time = Timeout::from_nanos_deadline(state, deadline as u64);
+            let time = Timeout::until(deadline as u64);
 
             proc_state.waiting_for_io(Some(time.clone()));
             state.timeout_worker.suspend(process, time);

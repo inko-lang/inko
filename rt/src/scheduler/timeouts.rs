@@ -9,47 +9,34 @@ use std::time::{Duration, Instant};
 
 /// An process that should be resumed after a certain point in time.
 pub(crate) struct Timeout {
-    /// The time after which the timeout expires.
-    resume_after: Instant,
+    /// The time after which to resume, in nanoseconds since the runtime epoch.
+    ///
+    /// We use a `u64` here rather than an Instant for two reasons:
+    ///
+    /// 1. It only needs 8 bytes instead of 16
+    /// 2. It makes some of the internal calculations easier due to the use of
+    ///    our own epoch
+    resume_after: u64,
 }
 
 impl Timeout {
-    pub(crate) fn from_nanos_deadline(
+    pub(crate) fn until(nanos: u64) -> ArcWithoutWeak<Self> {
+        ArcWithoutWeak::new(Timeout { resume_after: nanos })
+    }
+
+    pub(crate) fn duration(
         state: &State,
-        nanos: u64,
+        duration: Duration,
     ) -> ArcWithoutWeak<Self> {
-        let now = Instant::now();
+        let deadline =
+            (Instant::now() - state.start_time + duration).as_nanos() as u64;
 
-        // Our own monotonic clock is the time since the runtime epoch, which is
-        // roughly when the program first started running, so we can safely fit
-        // this in a Duration.
-        let dur = Duration::from_nanos(nanos);
-
-        // This calculates the difference between our own monotonic clock, and
-        // the clock of `std::time::Instant`. We can then turn that into a
-        // `Duration` and add it to our `Instant` to get our deadline.
-        //
-        // Should the deadline ever be before the runtime epoch, we fall back to
-        // just the current time. In practise this shouldn't happen, but it's
-        // better to be safe than sorry.
-        let resume_after = dur
-            .checked_sub(now - state.start_time)
-            .map(|diff| now + diff)
-            .unwrap_or_else(|| now);
-
-        ArcWithoutWeak::new(Self { resume_after })
+        Timeout::until(deadline)
     }
 
-    pub(crate) fn new(suspend_for: Duration) -> Self {
-        Timeout { resume_after: Instant::now() + suspend_for }
-    }
-
-    pub(crate) fn with_rc(suspend_for: Duration) -> ArcWithoutWeak<Self> {
-        ArcWithoutWeak::new(Self::new(suspend_for))
-    }
-
-    pub(crate) fn remaining_time(&self) -> Option<Duration> {
-        self.resume_after.checked_duration_since(Instant::now())
+    pub(crate) fn remaining_time(&self, state: &State) -> Option<Duration> {
+        (state.start_time + Duration::from_nanos(self.resume_after))
+            .checked_duration_since(Instant::now())
     }
 }
 
@@ -150,19 +137,20 @@ impl Timeouts {
 
     pub(crate) fn processes_to_reschedule(
         &mut self,
+        state: &State,
     ) -> (Vec<ProcessPointer>, Option<Duration>) {
         let mut reschedule = Vec::new();
         let mut time_until_expiration = None;
 
         while let Some(entry) = self.timeouts.pop() {
-            let mut state = entry.process.state();
+            let mut proc_state = entry.process.state();
 
-            if !state.has_same_timeout(&entry.timeout) {
+            if !proc_state.has_same_timeout(&entry.timeout) {
                 continue;
             }
 
-            if let Some(duration) = entry.timeout.remaining_time() {
-                drop(state);
+            if let Some(duration) = entry.timeout.remaining_time(state) {
+                drop(proc_state);
                 self.timeouts.push(entry);
 
                 time_until_expiration = Some(duration);
@@ -172,8 +160,8 @@ impl Timeouts {
                 break;
             }
 
-            if state.try_reschedule_after_timeout().are_acquired() {
-                drop(state);
+            if proc_state.try_reschedule_after_timeout().are_acquired() {
+                drop(proc_state);
                 reschedule.push(entry.process);
             }
         }
@@ -198,47 +186,35 @@ impl Drop for Timeouts {
 mod tests {
     use super::*;
     use crate::stack::Stack;
-    use crate::test::{empty_process_class, new_process};
+    use crate::test::{empty_process_class, new_process, setup};
+    use std::mem::size_of;
+    use std::thread::sleep;
 
     mod timeout {
         use super::*;
 
         #[test]
-        fn test_new() {
-            let timeout = Timeout::new(Duration::from_secs(10));
-
-            // Due to the above code taking a tiny bit of time to run we can't
-            // assert that the "resume_after" field is _exactly_ 10 seconds from
-            // now.
-            let after = Instant::now() + Duration::from_secs(9);
-
-            assert!(timeout.resume_after >= after);
-        }
-
-        #[test]
-        fn test_with_rc() {
-            let timeout = Timeout::with_rc(Duration::from_secs(10));
-            let after = Instant::now() + Duration::from_secs(9);
-
-            assert!(timeout.resume_after >= after);
+        fn test_type_size() {
+            assert_eq!(size_of::<Timeout>(), 8);
         }
 
         #[test]
         fn test_remaining_time_with_remaining_time() {
-            let timeout = Timeout::new(Duration::from_secs(10));
-            let remaining = timeout.remaining_time();
+            let state = setup();
+            let timeout = Timeout::duration(&state, Duration::from_secs(10));
+            let remaining = timeout.remaining_time(&state);
 
-            assert!(remaining.is_some());
-            assert!(remaining.unwrap() >= Duration::from_secs(9));
+            assert!(remaining >= Some(Duration::from_secs(9)));
         }
 
         #[test]
         fn test_remaining_time_without_remaining_time() {
-            let timeout = Timeout {
-                resume_after: Instant::now() - Duration::from_secs(1),
-            };
+            let state = setup();
+            let timeout = Timeout::duration(&state, Duration::from_nanos(0));
+            let remaining = timeout.remaining_time(&state);
 
-            assert!(timeout.remaining_time().is_none());
+            sleep(Duration::from_millis(10));
+            assert!(remaining.is_none());
         }
     }
 
@@ -249,16 +225,17 @@ mod tests {
 
         #[test]
         fn test_partial_cmp() {
+            let state = setup();
             let class = empty_process_class("A");
             let process = new_process(*class);
             let entry1 = TimeoutEntry::new(
                 *process,
-                Timeout::with_rc(Duration::from_secs(1)),
+                Timeout::duration(&state, Duration::from_secs(1)),
             );
 
             let entry2 = TimeoutEntry::new(
                 *process,
-                Timeout::with_rc(Duration::from_secs(5)),
+                Timeout::duration(&state, Duration::from_secs(5)),
             );
 
             assert_eq!(
@@ -271,16 +248,17 @@ mod tests {
 
         #[test]
         fn test_cmp() {
+            let state = setup();
             let class = empty_process_class("A");
             let process = new_process(*class);
             let entry1 = TimeoutEntry::new(
                 *process,
-                Timeout::with_rc(Duration::from_secs(1)),
+                Timeout::duration(&state, Duration::from_secs(1)),
             );
 
             let entry2 = TimeoutEntry::new(
                 *process,
-                Timeout::with_rc(Duration::from_secs(5)),
+                Timeout::duration(&state, Duration::from_secs(5)),
             );
 
             assert_eq!(entry1.cmp(&entry2), cmp::Ordering::Greater);
@@ -289,16 +267,17 @@ mod tests {
 
         #[test]
         fn test_eq() {
+            let state = setup();
             let class = empty_process_class("A");
             let process = new_process(*class);
             let entry1 = TimeoutEntry::new(
                 *process,
-                Timeout::with_rc(Duration::from_secs(1)),
+                Timeout::duration(&state, Duration::from_secs(1)),
             );
 
             let entry2 = TimeoutEntry::new(
                 *process,
-                Timeout::with_rc(Duration::from_secs(5)),
+                Timeout::duration(&state, Duration::from_secs(5)),
             );
 
             assert!(entry1 == entry1);
@@ -311,10 +290,11 @@ mod tests {
 
         #[test]
         fn test_insert() {
+            let state = setup();
             let class = empty_process_class("A");
             let process = new_process(*class);
             let mut timeouts = Timeouts::new();
-            let timeout = Timeout::with_rc(Duration::from_secs(10));
+            let timeout = Timeout::duration(&state, Duration::from_secs(10));
 
             timeouts.insert(*process, timeout);
 
@@ -323,10 +303,11 @@ mod tests {
 
         #[test]
         fn test_len() {
+            let state = setup();
             let class = empty_process_class("A");
             let process = new_process(*class);
             let mut timeouts = Timeouts::new();
-            let timeout = Timeout::with_rc(Duration::from_secs(10));
+            let timeout = Timeout::duration(&state, Duration::from_secs(10));
 
             timeouts.insert(*process, timeout);
 
@@ -335,10 +316,11 @@ mod tests {
 
         #[test]
         fn test_remove_invalid_entries_with_valid_entries() {
+            let state = setup();
             let class = empty_process_class("A");
             let process = Process::alloc(*class, Stack::new(1024));
             let mut timeouts = Timeouts::new();
-            let timeout = Timeout::with_rc(Duration::from_secs(10));
+            let timeout = Timeout::duration(&state, Duration::from_secs(10));
 
             process.state().waiting_for_channel(Some(timeout.clone()));
             timeouts.insert(process, timeout);
@@ -349,10 +331,11 @@ mod tests {
 
         #[test]
         fn test_remove_invalid_entries_with_invalid_entries() {
+            let state = setup();
             let class = empty_process_class("A");
             let process = new_process(*class);
             let mut timeouts = Timeouts::new();
-            let timeout = Timeout::with_rc(Duration::from_secs(10));
+            let timeout = Timeout::duration(&state, Duration::from_secs(10));
 
             timeouts.insert(*process, timeout);
 
@@ -362,14 +345,16 @@ mod tests {
 
         #[test]
         fn test_processes_to_reschedule_with_invalid_entries() {
+            let state = setup();
             let class = empty_process_class("A");
             let process = new_process(*class);
             let mut timeouts = Timeouts::new();
-            let timeout = Timeout::with_rc(Duration::from_secs(10));
+            let timeout = Timeout::duration(&state, Duration::from_secs(10));
 
             timeouts.insert(*process, timeout);
 
-            let (reschedule, expiration) = timeouts.processes_to_reschedule();
+            let (reschedule, expiration) =
+                timeouts.processes_to_reschedule(&state);
 
             assert!(reschedule.is_empty());
             assert!(expiration.is_none());
@@ -377,15 +362,17 @@ mod tests {
 
         #[test]
         fn test_processes_to_reschedule_with_remaining_time() {
+            let state = setup();
             let class = empty_process_class("A");
             let process = Process::alloc(*class, Stack::new(1024));
             let mut timeouts = Timeouts::new();
-            let timeout = Timeout::with_rc(Duration::from_secs(10));
+            let timeout = Timeout::duration(&state, Duration::from_secs(10));
 
             process.state().waiting_for_channel(Some(timeout.clone()));
             timeouts.insert(process, timeout);
 
-            let (reschedule, expiration) = timeouts.processes_to_reschedule();
+            let (reschedule, expiration) =
+                timeouts.processes_to_reschedule(&state);
 
             assert!(reschedule.is_empty());
             assert!(expiration.is_some());
@@ -394,15 +381,17 @@ mod tests {
 
         #[test]
         fn test_processes_to_reschedule_with_entries_to_reschedule() {
+            let state = setup();
             let class = empty_process_class("A");
             let process = new_process(*class);
             let mut timeouts = Timeouts::new();
-            let timeout = Timeout::with_rc(Duration::from_secs(0));
+            let timeout = Timeout::duration(&state, Duration::from_secs(0));
 
             process.state().waiting_for_channel(Some(timeout.clone()));
             timeouts.insert(*process, timeout);
 
-            let (reschedule, expiration) = timeouts.processes_to_reschedule();
+            let (reschedule, expiration) =
+                timeouts.processes_to_reschedule(&state);
 
             assert_eq!(reschedule.len(), 1);
             assert!(expiration.is_none());

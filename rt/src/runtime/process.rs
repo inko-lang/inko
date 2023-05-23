@@ -137,8 +137,8 @@ pub unsafe extern "system" fn inko_process_suspend(
     process: ProcessPointer,
     nanos: i64,
 ) -> *const Nil {
-    let timeout = Timeout::with_rc(Duration::from_nanos(nanos as _));
     let state = &*state;
+    let timeout = Timeout::duration(state, Duration::from_nanos(nanos as _));
 
     {
         let mut proc_state = process.state();
@@ -293,7 +293,7 @@ pub unsafe extern "system" fn inko_channel_receive_until(
     nanos: u64,
 ) -> InkoResult {
     let state = &(*state);
-    let deadline = Timeout::from_nanos_deadline(state, nanos);
+    let deadline = Timeout::until(nanos);
 
     loop {
         match (*channel).receive(process, Some(deadline.clone())) {

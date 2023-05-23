@@ -3,6 +3,7 @@ use crate::arc_without_weak::ArcWithoutWeak;
 use crate::process::ProcessPointer;
 use crate::scheduler::process::Scheduler;
 use crate::scheduler::timeouts::{Timeout, Timeouts};
+use crate::state::State;
 use std::cell::UnsafeCell;
 use std::collections::VecDeque;
 use std::mem::size_of;
@@ -88,11 +89,11 @@ impl TimeoutWorker {
         self.expired.fetch_add(1, Ordering::AcqRel);
     }
 
-    pub(crate) fn run(&self, scheduler: &Scheduler) {
-        while scheduler.is_alive() {
-            let timeout = self.run_iteration(scheduler);
+    pub(crate) fn run(&self, state: &State) {
+        while state.scheduler.is_alive() {
+            let timeout = self.run_iteration(state);
 
-            self.sleep(scheduler, timeout);
+            self.sleep(&state.scheduler, timeout);
         }
     }
 
@@ -107,12 +108,12 @@ impl TimeoutWorker {
         self.cvar.notify_one();
     }
 
-    fn run_iteration(&self, scheduler: &Scheduler) -> Option<Duration> {
+    fn run_iteration(&self, state: &State) -> Option<Duration> {
         self.move_messages();
         self.defragment_heap();
         self.handle_pending_messages();
 
-        if let Some(time) = self.reschedule_expired_processes(scheduler) {
+        if let Some(time) = self.reschedule_expired_processes(state) {
             if time.as_millis() < (MIN_SLEEP_TIME as u128) {
                 Some(Duration::from_millis(MIN_SLEEP_TIME))
             } else {
@@ -141,15 +142,12 @@ impl TimeoutWorker {
         }
     }
 
-    fn reschedule_expired_processes(
-        &self,
-        scheduler: &Scheduler,
-    ) -> Option<Duration> {
+    fn reschedule_expired_processes(&self, state: &State) -> Option<Duration> {
         let inner = self.inner_mut();
         let (expired, time_until_expiration) =
-            inner.timeouts.processes_to_reschedule();
+            inner.timeouts.processes_to_reschedule(state);
 
-        scheduler.schedule_multiple(expired);
+        state.scheduler.schedule_multiple(expired);
         time_until_expiration
     }
 
@@ -190,9 +188,8 @@ impl TimeoutWorker {
 mod tests {
     use super::*;
     use crate::process::Process;
-    use crate::scheduler::process::Scheduler;
     use crate::stack::Stack;
-    use crate::test::{empty_process_class, new_process};
+    use crate::test::{empty_process_class, new_process, setup};
 
     #[test]
     fn test_new() {
@@ -204,11 +201,15 @@ mod tests {
 
     #[test]
     fn test_suspend() {
+        let state = setup();
         let worker = TimeoutWorker::new();
         let class = empty_process_class("A");
         let process = new_process(*class);
 
-        worker.suspend(*process, Timeout::with_rc(Duration::from_secs(1)));
+        worker.suspend(
+            *process,
+            Timeout::duration(&state, Duration::from_secs(1)),
+        );
 
         assert!(!worker.queue.lock().unwrap().is_empty());
     }
@@ -224,13 +225,13 @@ mod tests {
 
     #[test]
     fn test_run_with_fragmented_heap() {
+        let state = setup();
         let class = empty_process_class("A");
         let process = Process::alloc(*class, Stack::new(1024));
         let worker = TimeoutWorker::new();
-        let scheduler = Scheduler::new(1, 1, 1024);
 
         for time in &[10_u64, 5_u64] {
-            let timeout = Timeout::with_rc(Duration::from_secs(*time));
+            let timeout = Timeout::duration(&state, Duration::from_secs(*time));
 
             process.state().waiting_for_channel(Some(timeout.clone()));
             worker.suspend(process, timeout);
@@ -242,7 +243,7 @@ mod tests {
         // loop.
         worker.move_messages();
         worker.handle_pending_messages();
-        worker.run_iteration(&scheduler);
+        worker.run_iteration(&state);
 
         assert_eq!(worker.inner().timeouts.len(), 1);
         assert_eq!(worker.expired.load(Ordering::Relaxed), 0);
@@ -250,40 +251,41 @@ mod tests {
 
     #[test]
     fn test_run_with_message() {
+        let state = setup();
         let class = empty_process_class("A");
         let process = Process::alloc(*class, Stack::new(1024));
         let worker = TimeoutWorker::new();
-        let scheduler = Scheduler::new(1, 1, 1024);
-        let timeout = Timeout::with_rc(Duration::from_secs(10));
+        let timeout = Timeout::duration(&state, Duration::from_secs(10));
 
         process.state().waiting_for_channel(Some(timeout.clone()));
         worker.suspend(process, timeout);
-        worker.run_iteration(&scheduler);
+        worker.run_iteration(&state);
 
         assert_eq!(worker.inner().timeouts.len(), 1);
     }
 
     #[test]
     fn test_run_with_reschedule() {
+        let state = setup();
         let class = empty_process_class("A");
         let process = Process::alloc(*class, Stack::new(1024));
         let worker = TimeoutWorker::new();
-        let scheduler = Scheduler::new(1, 1, 1024);
-        let timeout = Timeout::with_rc(Duration::from_secs(0));
+        let timeout = Timeout::duration(&state, Duration::from_secs(0));
 
         process.state().waiting_for_channel(Some(timeout.clone()));
         worker.suspend(process, timeout);
-        worker.run_iteration(&scheduler);
+        worker.run_iteration(&state);
 
         assert_eq!(worker.inner().timeouts.len(), 0);
     }
 
     #[test]
     fn test_defragment_heap_without_fragmentation() {
+        let state = setup();
         let class = empty_process_class("A");
         let process = Process::alloc(*class, Stack::new(1024));
         let worker = TimeoutWorker::new();
-        let timeout = Timeout::with_rc(Duration::from_secs(1));
+        let timeout = Timeout::duration(&state, Duration::from_secs(1));
 
         process.state().waiting_for_channel(Some(timeout.clone()));
         worker.suspend(process, timeout);
@@ -297,12 +299,13 @@ mod tests {
 
     #[test]
     fn test_defragment_heap_with_fragmentation() {
+        let state = setup();
         let class = empty_process_class("A");
         let process = Process::alloc(*class, Stack::new(1024));
         let worker = TimeoutWorker::new();
 
         for time in &[1_u64, 1_u64] {
-            let timeout = Timeout::with_rc(Duration::from_secs(*time));
+            let timeout = Timeout::duration(&state, Duration::from_secs(*time));
 
             process.state().waiting_for_channel(Some(timeout.clone()));
             worker.suspend(process, timeout);
