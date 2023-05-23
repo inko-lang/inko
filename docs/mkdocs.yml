@@ -27,6 +27,8 @@ markdown_extensions:
       alternate_style: true
   - admonition
   - footnotes
+  - def_list
+  - pymdownx.caret
 nav:
   - Home: index.md
   - Getting started:
@@ -49,6 +51,7 @@ nav:
     - guides/testing.md
     - guides/ffi.md
     - guides/operators.md
+    - guides/scaling.md
     - guides/contributing.md
   - Internals:
     - internals/compiler.md

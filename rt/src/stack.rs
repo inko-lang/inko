@@ -134,9 +134,10 @@ impl Stack {
 
         // There's nothing we can do at runtime in response to the guard pages
         // not being set up, so we just terminate if this ever happens.
-        mem.protect(0)
-            .and_then(|_| mem.protect(mem.len - page))
-            .expect("Failed to set up the stack's guard pages");
+        mem.protect(0).and_then(|_| mem.protect(mem.len - page)).expect(
+            "Failed to set up the stack's guard pages. \
+            You may need to increase the number of memory map areas allowed",
+        );
 
         Self { mem }
     }
