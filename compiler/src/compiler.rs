@@ -9,9 +9,10 @@ use crate::modules_parser::{ModulesParser, ParsedModule};
 use crate::state::State;
 use crate::type_check::define_types::{
     define_runtime_result_fields, CheckTraitImplementations,
-    CheckTypeParameters, DefineFields, DefineTraitRequirements,
-    DefineTypeParameterRequirements, DefineTypeParameters, DefineTypes,
-    DefineVariants, ImplementTraits, InsertPrelude,
+    CheckTraitRequirements, CheckTypeParameters, DefineFields,
+    DefineTraitRequirements, DefineTypeParameterRequirements,
+    DefineTypeParameters, DefineTypes, DefineVariants, ImplementTraits,
+    InsertPrelude,
 };
 use crate::type_check::expressions::{DefineConstants, Expressions};
 use crate::type_check::imports::DefineImportedTypes;
@@ -170,6 +171,7 @@ impl Compiler {
             && DefineTypeParameters::run_all(state, modules)
             && DefineTypeParameterRequirements::run_all(state, modules)
             && DefineTraitRequirements::run_all(state, modules)
+            && CheckTraitRequirements::run_all(state, modules)
             && ImplementTraits::run_all(state, modules)
             && CheckTraitImplementations::run_all(state, modules)
             && CheckTypeParameters::run_all(state, modules)

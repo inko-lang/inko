@@ -378,6 +378,41 @@ impl<'a> DefineTraitRequirements<'a> {
     }
 }
 
+/// A compiler pass that checks the trait requirements of each trait.
+pub(crate) struct CheckTraitRequirements<'a> {
+    state: &'a mut State,
+    module: ModuleId,
+}
+
+impl<'a> CheckTraitRequirements<'a> {
+    pub(crate) fn run_all(
+        state: &'a mut State,
+        modules: &mut Vec<hir::Module>,
+    ) -> bool {
+        for module in modules {
+            CheckTraitRequirements { state, module: module.module_id }
+                .run(module);
+        }
+
+        !state.diagnostics.has_errors()
+    }
+
+    fn run(mut self, module: &mut hir::Module) {
+        for expr in module.expressions.iter_mut() {
+            if let hir::TopLevelExpression::Trait(ref mut n) = expr {
+                self.define_trait(n);
+            }
+        }
+    }
+
+    fn define_trait(&mut self, node: &mut hir::DefineTrait) {
+        for req in &mut node.requirements {
+            CheckTypeSignature::new(self.state, self.module)
+                .check_type_name(req);
+        }
+    }
+}
+
 /// A compiler pass that verifies if all trait implementations are correct.
 pub(crate) struct CheckTraitImplementations<'a> {
     state: &'a mut State,
