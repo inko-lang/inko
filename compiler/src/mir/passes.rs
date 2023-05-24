@@ -1239,6 +1239,12 @@ impl<'a> LowerMethod<'a> {
         let ignore_ret = self.method.id.ignore_return_value(self.db());
 
         for (index, node) in nodes.into_iter().enumerate() {
+            // Lowering unreachable code is pointless, so we abort if we
+            // encounter unreachable code before reaching the last expression.
+            if !self.in_connected_block() {
+                break;
+            }
+
             if index < max {
                 self.expression(node);
                 continue;
@@ -1357,6 +1363,10 @@ impl<'a> LowerMethod<'a> {
         let max_index = if nodes.is_empty() { 0 } else { nodes.len() - 1 };
 
         for (index, n) in nodes.into_iter().enumerate() {
+            if !self.in_connected_block() {
+                break;
+            }
+
             let reg = if index == max_index {
                 // A body may capture an outer value type and return that. In
                 // this case we need to clone the value type, as the original
