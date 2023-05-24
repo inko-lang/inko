@@ -455,10 +455,12 @@ impl<'a> TypeChecker<'a> {
 
                     lhs.instance_of.type_parameters(self.db).into_iter().all(
                         |param| {
-                            let lhs = lhs_args.get(param).unwrap();
-                            let rhs = rhs_args.get(param).unwrap();
-
-                            self.check_type_ref(lhs, rhs, env, rules)
+                            lhs_args.get(param).zip(rhs_args.get(param)).map_or(
+                                false,
+                                |(lhs, rhs)| {
+                                    self.check_type_ref(lhs, rhs, env, rules)
+                                },
+                            )
                         },
                     )
                 }
@@ -775,10 +777,13 @@ impl<'a> TypeChecker<'a> {
 
         left.instance_of.type_parameters(self.db).into_iter().all(|param| {
             let rules = rules.infer_as_rigid();
-            let lhs = lhs_args.get(param).unwrap();
-            let rhs = rhs_args.get(param).unwrap();
 
-            self.check_type_ref(lhs, rhs, env, rules)
+            lhs_args
+                .get(param)
+                .zip(rhs_args.get(param))
+                .map_or(false, |(lhs, rhs)| {
+                    self.check_type_ref(lhs, rhs, env, rules)
+                })
         })
     }
 
@@ -1113,6 +1118,7 @@ mod tests {
         let vars = generic_instance_id(&mut db, array, vec![placeholder(var)]);
         let eq_things =
             generic_trait_instance_id(&mut db, equal, vec![owned(things1)]);
+        let things_empty = generic_instance_id(&mut db, array, Vec::new());
 
         check_ok(&db, owned(things1), owned(things1));
         check_ok(&db, owned(things1), owned(things2));
@@ -1127,6 +1133,7 @@ mod tests {
         check_ok(&db, owned(things1), infer(parameter(v_param)));
         check_ok(&db, owned(thing_refs), owned(parameter(v_param)));
 
+        check_err(&db, owned(things1), owned(things_empty));
         check_err(&db, owned(things1), owned(floats));
         check_err(&db, owned(floats), owned(trait_instance_id(to_string)));
         check_err(&db, owned(floats), infer(parameter(v_param)));
@@ -1563,11 +1570,15 @@ mod tests {
             vec![mutable(instance(thing))],
         ));
 
+        let eq_empty =
+            owned(generic_trait_instance_id(&mut db, equal, Vec::new()));
+
         check_ok(&db, eq_thing, eq_thing);
         check_ok(&db, eq_ref_thing, eq_ref_thing);
         check_ok(&db, eq_mut_thing, eq_mut_thing);
         check_err(&db, eq_thing, eq_ref_thing);
         check_err(&db, eq_thing, eq_mut_thing);
+        check_err(&db, eq_thing, eq_empty);
     }
 
     #[test]
