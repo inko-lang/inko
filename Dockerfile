@@ -17,8 +17,9 @@ RUN make install PREFIX='/usr'
 
 FROM registry.fedoraproject.org/fedora-minimal:38
 
-# libgcc is needed because libgcc is dynamically linked to the executable.
-RUN microdnf install --assumeyes libgcc
+# gcc is needed to link object files. This also pulls in libgcc, which the
+# generated code links against dynamically.
+RUN microdnf install --assumeyes gcc
 
 COPY --from=builder ["/usr/bin/inko", "/usr/bin/inko"]
 COPY --from=builder ["/usr/lib/inko", "/usr/lib/inko/"]
