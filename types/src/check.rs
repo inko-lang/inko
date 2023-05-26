@@ -226,6 +226,7 @@ impl<'a> TypeChecker<'a> {
         // This is OK because in practise, Infer() only shows up on the left in
         // a select few cases.
         let rules = rules.dont_infer_as_rigid();
+        let original_right = right;
         let right = self.resolve(right, &env.right, rules);
 
         // If at this point we encounter a type placeholder, it means the
@@ -272,7 +273,12 @@ impl<'a> TypeChecker<'a> {
                     }
                     TypeRef::Placeholder(id) => self
                         .check_type_id_with_placeholder(
-                            left, left_id, id, env, rules,
+                            left,
+                            left_id,
+                            original_right,
+                            id,
+                            env,
+                            rules,
                         ),
                     TypeRef::Any | TypeRef::Error => true,
                     _ => false,
@@ -291,7 +297,12 @@ impl<'a> TypeChecker<'a> {
                 }
                 TypeRef::Placeholder(id) => self
                     .check_type_id_with_placeholder(
-                        left, left_id, id, env, rules,
+                        left,
+                        left_id,
+                        original_right,
+                        id,
+                        env,
+                        rules,
                     ),
                 TypeRef::Any => {
                     if let TypeId::ClassInstance(ins) = left_id {
@@ -318,7 +329,12 @@ impl<'a> TypeChecker<'a> {
                 }
                 TypeRef::Placeholder(id) => self
                     .check_type_id_with_placeholder(
-                        left, left_id, id, env, rules,
+                        left,
+                        left_id,
+                        original_right,
+                        id,
+                        env,
+                        rules,
                     ),
                 TypeRef::Any => {
                     if let TypeId::ClassInstance(ins) = left_id {
@@ -341,7 +357,12 @@ impl<'a> TypeChecker<'a> {
                 }
                 TypeRef::Placeholder(id) => self
                     .check_type_id_with_placeholder(
-                        left, left_id, id, env, rules,
+                        left,
+                        left_id,
+                        original_right,
+                        id,
+                        env,
+                        rules,
                     ),
                 TypeRef::Any | TypeRef::Error => true,
                 _ => false,
@@ -373,7 +394,12 @@ impl<'a> TypeChecker<'a> {
                     }
 
                     self.check_type_id_with_placeholder(
-                        left, left_id, id, env, rules,
+                        left,
+                        left_id,
+                        original_right,
+                        id,
+                        env,
+                        rules,
                     )
                 }
                 TypeRef::Any | TypeRef::Error => true,
@@ -396,7 +422,12 @@ impl<'a> TypeChecker<'a> {
                 }
                 TypeRef::Placeholder(id) => self
                     .check_type_id_with_placeholder(
-                        left, left_id, id, env, rules,
+                        left,
+                        left_id,
+                        original_right,
+                        id,
+                        env,
+                        rules,
                     ),
                 TypeRef::Any | TypeRef::Error => true,
                 _ => false,
@@ -560,6 +591,7 @@ impl<'a> TypeChecker<'a> {
         &mut self,
         left: TypeRef,
         left_id: TypeId,
+        original_right: TypeRef,
         placeholder: TypePlaceholderId,
         env: &mut Environment,
         rules: Rules,
@@ -567,7 +599,15 @@ impl<'a> TypeChecker<'a> {
         // By assigning the placeholder first, recursive checks against the same
         // placeholder don't keep recursing into this method, instead checking
         // against the value on the left.
-        placeholder.assign(self.db, left);
+        //
+        // When comparing `ref A` with `ref B` or `mut A` with `mut B`, we want
+        // to assign `B` to `A`, not `ref A`/`mut A`.
+        if left.is_ref_or_mut(self.db) && original_right.is_ref_or_mut(self.db)
+        {
+            placeholder.assign(self.db, TypeRef::Owned(left_id));
+        } else {
+            placeholder.assign(self.db, left);
+        }
 
         let req = if let Some(req) = placeholder.required(self.db) {
             req
@@ -1398,6 +1438,26 @@ mod tests {
 
         check_err(&db, mutable(instance(thing)), owned(instance(thing)));
         check_err(&db, mutable(instance(thing)), uni(instance(thing)));
+    }
+
+    #[test]
+    fn test_mut_with_mut_type_parameter() {
+        let mut db = Database::new();
+        let param = new_parameter(&mut db, "T");
+        let var = TypePlaceholder::alloc(&mut db, None);
+
+        let mut env = Environment::new(
+            TypeArguments::new(),
+            type_arguments(vec![(param, placeholder(var))]),
+        );
+        let res = TypeChecker::new(&db).run(
+            mutable(rigid(param)),
+            mutable(parameter(param)),
+            &mut env,
+        );
+
+        assert!(res);
+        assert_eq!(var.value(&db), Some(owned(rigid(param))));
     }
 
     #[test]

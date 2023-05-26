@@ -3639,6 +3639,16 @@ impl TypeRef {
         }
     }
 
+    pub fn is_ref_or_mut(self, db: &Database) -> bool {
+        match self {
+            TypeRef::Mut(_) | TypeRef::Ref(_) => true,
+            TypeRef::Placeholder(id) => {
+                id.value(db).map_or(false, |v| v.is_ref_or_mut(db))
+            }
+            _ => false,
+        }
+    }
+
     pub fn is_mutable(self, db: &Database) -> bool {
         match self {
             TypeRef::Owned(_)
