@@ -6,9 +6,27 @@ use crate::{
 use std::collections::HashSet;
 
 #[derive(Copy, Clone)]
+enum TraitSubtyping {
+    /// Trait subtyping isn't allowed.
+    No,
+
+    /// Trait subtyping is allowed.
+    Yes,
+
+    /// Trait subtyping is allowed, but only for the first check.
+    Once,
+}
+
+impl TraitSubtyping {
+    fn allowed(self) -> bool {
+        matches!(self, TraitSubtyping::Yes | TraitSubtyping::Once)
+    }
+}
+
+#[derive(Copy, Clone)]
 struct Rules {
     /// When set to `true`, subtyping of types through traits is allowed.
-    subtyping: bool,
+    subtyping: TraitSubtyping,
 
     /// When set to `true`, owned types can be type checked against reference
     /// types.
@@ -21,14 +39,17 @@ struct Rules {
 impl Rules {
     fn new() -> Rules {
         Rules {
-            subtyping: true,
+            subtyping: TraitSubtyping::Yes,
             relaxed_ownership: false,
             infer_as_rigid: false,
         }
     }
 
     fn no_subtyping(mut self) -> Rules {
-        self.subtyping = false;
+        if let TraitSubtyping::Yes = self.subtyping {
+            self.subtyping = TraitSubtyping::No
+        }
+
         self
     }
 
@@ -114,6 +135,25 @@ impl<'a> TypeChecker<'a> {
         env: &mut Environment,
     ) -> bool {
         self.check_type_ref(left, right, env, Rules::new())
+    }
+
+    pub fn check_argument(
+        mut self,
+        left_original: TypeRef,
+        left: TypeRef,
+        right: TypeRef,
+        env: &mut Environment,
+    ) -> bool {
+        let mut rules = Rules::new();
+
+        // If we move an owned value into a mut/ref, we'll allow comparing with
+        // a trait but _only_ at the top (i.e `Cat -> mut Animal` is fine, but
+        // `Cat -> mut Array[Animal]` isn't).
+        if left_original.is_owned_or_uni(self.db) {
+            rules.subtyping = TraitSubtyping::Once;
+        }
+
+        self.check_type_ref(left, right, env, rules)
     }
 
     pub fn check_method(
@@ -461,8 +501,19 @@ impl<'a> TypeChecker<'a> {
         left_id: TypeId,
         right_id: TypeId,
         env: &mut Environment,
-        rules: Rules,
+        mut rules: Rules,
     ) -> bool {
+        // When sub-typing is allowed once (as is done when moving owned
+        // arguments into trait references), this one-time exception only
+        // applies when comparing a class against a trait. Here we disable the
+        // rule for every thing else in one go, so it's more difficult to
+        // accidentally apply the wrong rules for other comparisons.
+        let trait_rules = rules;
+
+        if let TraitSubtyping::Once = rules.subtyping {
+            rules.subtyping = TraitSubtyping::No;
+        }
+
         match left_id {
             TypeId::Class(_) | TypeId::Trait(_) | TypeId::Module(_) => {
                 // Classes, traits and modules themselves aren't treated as
@@ -498,7 +549,7 @@ impl<'a> TypeChecker<'a> {
                 TypeId::TraitInstance(rhs)
                     if !lhs.instance_of().kind(self.db).is_extern() =>
                 {
-                    self.check_class_with_trait(lhs, rhs, env, rules)
+                    self.check_class_with_trait(lhs, rhs, env, trait_rules)
                 }
                 TypeId::TypeParameter(rhs)
                     if !lhs.instance_of().kind(self.db).is_extern() =>
@@ -664,12 +715,16 @@ impl<'a> TypeChecker<'a> {
         left: ClassInstance,
         right: TraitInstance,
         env: &mut Environment,
-        rules: Rules,
+        mut rules: Rules,
     ) -> bool {
         // `Array[Cat]` isn't compatible with `mut Array[Animal]`, as that could
         // result in a `Dog` being added to the Array.
-        if !rules.subtyping {
-            return false;
+        match rules.subtyping {
+            TraitSubtyping::No => return false,
+            TraitSubtyping::Yes => {}
+            TraitSubtyping::Once => {
+                rules.subtyping = TraitSubtyping::No;
+            }
         }
 
         let imp = if let Some(found) =
@@ -798,7 +853,7 @@ impl<'a> TypeChecker<'a> {
         }
 
         if left.instance_of != right.instance_of {
-            return if rules.subtyping {
+            return if rules.subtyping.allowed() {
                 left.instance_of
                     .required_traits(self.db)
                     .into_iter()
@@ -2011,6 +2066,32 @@ mod tests {
         let res = TypeChecker::new(&db).run(
             owned(rigid(param1)),
             infer(parameter(param2)),
+            &mut env,
+        );
+
+        assert!(res);
+    }
+
+    #[test]
+    fn test_check_argument() {
+        let mut db = Database::new();
+        let thing = new_class(&mut db, "Thing");
+        let to_string = new_trait(&mut db, "ToString");
+
+        thing.add_trait_implementation(
+            &mut db,
+            TraitImplementation {
+                instance: trait_instance(to_string),
+                bounds: TypeBounds::new(),
+            },
+        );
+
+        let mut env =
+            Environment::new(TypeArguments::new(), TypeArguments::new());
+        let res = TypeChecker::new(&db).check_argument(
+            owned(instance(thing)),
+            mutable(instance(thing)),
+            mutable(trait_instance_id(to_string)),
             &mut env,
         );
 

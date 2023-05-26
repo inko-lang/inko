@@ -450,7 +450,9 @@ impl MethodCall {
             self.type_arguments.clone(),
         );
 
-        if !TypeChecker::new(&state.db).run(given, expected, &mut scope) {
+        if !TypeChecker::new(&state.db)
+            .check_argument(argument, given, expected, &mut scope)
+        {
             state.diagnostics.type_error(
                 format_type_with_arguments(&state.db, &scope.left, given),
                 format_type_with_arguments(&state.db, &scope.right, expected),
