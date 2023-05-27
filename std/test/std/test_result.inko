@@ -1,7 +1,16 @@
 import helpers::(fmt)
+import std::iter::Iter
 import std::test::Tests
 
 fn pub tests(t: mut Tests) {
+  t.test('Result.collect') fn (t) {
+    let foo = [Result.Ok(1), Result.Error('oops!'), Result.Ok(3)].into_iter
+    let bar: Iter[Result[Int, String]] = [Result.Ok(1), Result.Ok(2)].into_iter
+
+    t.equal(Result.collect(foo), Result.Error('oops!'))
+    t.equal(Result.collect(bar), Result.Ok([1, 2]))
+  }
+
   t.test('Result.ok?') fn (t) {
     let foo: Result[Int, String] = Result.Ok(42)
     let bar: Result[Int, String] = Result.Error('oops!')

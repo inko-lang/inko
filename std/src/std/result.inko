@@ -5,6 +5,7 @@
 import std::clone::Clone
 import std::cmp::Equal
 import std::fmt::(Format, Formatter)
+import std::iter::Iter
 
 # A type that represents either success (`Ok(T)`) or failure (`Error(E)`).
 class pub enum Result[T, E] {
@@ -13,6 +14,29 @@ class pub enum Result[T, E] {
 
   # The case and value for an error.
   case Error(E)
+
+  # Collects values from an `Iter[Result[T, E]]` into a `Result[Array[T, E]]`,
+  # returning the first `Error` encountered when iterating over the iterator.
+  #
+  # # Examples
+  #
+  #     let vals = [Result.Ok(1), Result.Error('oops!'), Result.Ok(2)].into_iter
+  #     let result = Result.collect(vals)
+  #
+  #     result.error? # => true
+  fn pub static collect(iter: Iter[Result[T, E]]) -> Result[Array[T], E] {
+    let vals = []
+
+    loop {
+      match iter.next {
+        case Some(Ok(val)) -> vals.push(val)
+        case Some(Error(err)) -> throw err
+        case _ -> break
+      }
+    }
+
+    Result.Ok(vals)
+  }
 
   # Returns `true` if `self` is an `Ok`.
   #
