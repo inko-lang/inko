@@ -146,10 +146,10 @@ impl<'a> TypeChecker<'a> {
     ) -> bool {
         let mut rules = Rules::new();
 
-        // If we move an owned value into a mut/ref, we'll allow comparing with
-        // a trait but _only_ at the top (i.e `Cat -> mut Animal` is fine, but
+        // If we pass an owned value to a mut, we'll allow comparing with a
+        // trait but _only_ at the top (i.e `Cat -> mut Animal` is fine, but
         // `Cat -> mut Array[Animal]` isn't).
-        if left_original.is_owned_or_uni(self.db) {
+        if left_original.is_owned_or_uni(self.db) && right.is_mut(self.db) {
             rules.subtyping = TraitSubtyping::Once;
         }
 
@@ -2073,7 +2073,7 @@ mod tests {
     }
 
     #[test]
-    fn test_check_argument() {
+    fn test_check_argument_with_mut() {
         let mut db = Database::new();
         let thing = new_class(&mut db, "Thing");
         let to_string = new_trait(&mut db, "ToString");
@@ -2088,13 +2088,49 @@ mod tests {
 
         let mut env =
             Environment::new(TypeArguments::new(), TypeArguments::new());
-        let res = TypeChecker::new(&db).check_argument(
+
+        assert!(TypeChecker::new(&db).check_argument(
             owned(instance(thing)),
             mutable(instance(thing)),
             mutable(trait_instance_id(to_string)),
             &mut env,
+        ));
+    }
+
+    #[test]
+    fn test_check_argument_with_ref() {
+        let mut db = Database::new();
+        let array = ClassId::array();
+        let int = ClassId::int();
+        let to_string = new_trait(&mut db, "ToString");
+
+        array.new_type_parameter(&mut db, "T".to_string());
+
+        int.add_trait_implementation(
+            &mut db,
+            TraitImplementation {
+                instance: trait_instance(to_string),
+                bounds: TypeBounds::new(),
+            },
         );
 
-        assert!(res);
+        let mut env =
+            Environment::new(TypeArguments::new(), TypeArguments::new());
+
+        let to_string_array = generic_instance_id(
+            &mut db,
+            array,
+            vec![owned(trait_instance_id(to_string))],
+        );
+
+        let int_array =
+            generic_instance_id(&mut db, array, vec![owned(instance(int))]);
+
+        assert!(TypeChecker::new(&db).check_argument(
+            owned(to_string_array),
+            immutable(int_array),
+            immutable(to_string_array),
+            &mut env,
+        ));
     }
 }
