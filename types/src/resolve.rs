@@ -30,7 +30,7 @@ pub struct TypeResolver<'a> {
     /// is produced when resolving the parameter.
     bounds: &'a TypeBounds,
 
-    /// If resolved types should be made immutable or not.
+    /// If the resolved type should be made immutable or not.
     immutable: bool,
 
     /// When set to true, non-rigid type parameters are turned into rigid
@@ -72,6 +72,16 @@ impl<'a> TypeResolver<'a> {
     }
 
     pub fn resolve(&mut self, value: TypeRef) -> TypeRef {
+        let typ = self.resolve_type_ref(value);
+
+        if self.immutable {
+            typ.as_ref(self.db)
+        } else {
+            typ
+        }
+    }
+
+    pub fn resolve_type_ref(&mut self, value: TypeRef) -> TypeRef {
         if let Some(&cached) = self.cached.get(&value) {
             return cached;
         }
@@ -86,7 +96,7 @@ impl<'a> TypeResolver<'a> {
         let resolved = match value {
             TypeRef::Owned(id) | TypeRef::Infer(id) => {
                 match self.resolve_type_id(id) {
-                    Either::Left(res) => self.owned(res),
+                    Either::Left(res) => TypeRef::Owned(res),
                     Either::Right(typ) => typ,
                 }
             }
@@ -101,14 +111,14 @@ impl<'a> TypeResolver<'a> {
                 Either::Right(typ) => typ,
             },
             TypeRef::Mut(id) => match self.resolve_type_id(id) {
-                Either::Left(res) => self.mutable(res),
-                Either::Right(TypeRef::Owned(typ)) => self.mutable(typ),
-                Either::Right(TypeRef::Uni(typ)) => self.mutable_uni(typ),
+                Either::Left(res) => TypeRef::Mut(res),
+                Either::Right(TypeRef::Owned(typ)) => TypeRef::Mut(typ),
+                Either::Right(TypeRef::Uni(typ)) => TypeRef::UniMut(typ),
                 Either::Right(typ) => typ,
             },
             TypeRef::Uni(id) => match self.resolve_type_id(id) {
-                Either::Left(res) => self.uni(res),
-                Either::Right(TypeRef::Owned(typ)) => self.uni(typ),
+                Either::Left(res) => TypeRef::Uni(res),
+                Either::Right(TypeRef::Owned(typ)) => TypeRef::Uni(typ),
                 Either::Right(typ) => typ,
             },
             TypeRef::UniRef(id) => match self.resolve_type_id(id) {
@@ -116,15 +126,16 @@ impl<'a> TypeResolver<'a> {
                 Either::Right(typ) => typ,
             },
             TypeRef::UniMut(id) => match self.resolve_type_id(id) {
-                Either::Left(res) => self.mutable_uni(res),
+                Either::Left(res) => TypeRef::UniMut(res),
                 Either::Right(typ) => typ,
             },
             // If a placeholder is unassigned we need to return it as-is. This
             // way future use of the placeholder allows us to infer the current
             // type.
-            TypeRef::Placeholder(id) => {
-                id.value(self.db).map(|v| self.resolve(v)).unwrap_or(value)
-            }
+            TypeRef::Placeholder(id) => id
+                .value(self.db)
+                .map(|v| self.resolve_type_ref(v))
+                .unwrap_or(value),
             _ => value,
         };
 
@@ -195,10 +206,10 @@ impl<'a> TypeResolver<'a> {
                 self.immutable = false;
 
                 for arg in new.arguments.mapping.values_mut() {
-                    arg.value_type = self.resolve(arg.value_type);
+                    arg.value_type = self.resolve_type_ref(arg.value_type);
                 }
 
-                new.return_type = self.resolve(new.return_type);
+                new.return_type = self.resolve_type_ref(new.return_type);
                 self.immutable = immutable;
                 Either::Left(TypeId::Closure(Closure::add(self.db, new)))
             }
@@ -208,7 +219,7 @@ impl<'a> TypeResolver<'a> {
 
     fn resolve_arguments(&mut self, arguments: &mut TypeArguments) {
         for value in arguments.mapping.values_mut() {
-            *value = self.resolve(*value);
+            *value = self.resolve_type_ref(*value);
         }
     }
 
@@ -222,7 +233,7 @@ impl<'a> TypeResolver<'a> {
         let key = id.original(self.db).unwrap_or(id);
 
         if let Some(arg) = self.type_arguments.get(key) {
-            return Some(self.resolve(arg));
+            return Some(self.resolve_type_ref(arg));
         }
 
         // Inside a trait we may end up referring to type parameters from a
@@ -232,7 +243,7 @@ impl<'a> TypeResolver<'a> {
             .surrounding_trait
             .and_then(|t| t.get(self.db).inherited_type_arguments.get(key))
         {
-            return Some(self.resolve(arg));
+            return Some(self.resolve_type_ref(arg));
         }
 
         None
@@ -240,38 +251,6 @@ impl<'a> TypeResolver<'a> {
 
     fn remap_type_parameter(&self, id: TypeParameterId) -> TypeParameterId {
         self.bounds.get(id).unwrap_or(id)
-    }
-
-    fn owned(&self, id: TypeId) -> TypeRef {
-        if self.immutable {
-            TypeRef::Ref(id)
-        } else {
-            TypeRef::Owned(id)
-        }
-    }
-
-    fn uni(&self, id: TypeId) -> TypeRef {
-        if self.immutable {
-            TypeRef::UniRef(id)
-        } else {
-            TypeRef::Uni(id)
-        }
-    }
-
-    fn mutable(&self, id: TypeId) -> TypeRef {
-        if self.immutable {
-            TypeRef::Ref(id)
-        } else {
-            TypeRef::Mut(id)
-        }
-    }
-
-    fn mutable_uni(&self, id: TypeId) -> TypeRef {
-        if self.immutable {
-            TypeRef::UniRef(id)
-        } else {
-            TypeRef::UniMut(id)
-        }
     }
 }
 
@@ -322,6 +301,32 @@ mod tests {
             resolve_immutable(&mut db, &args, &bounds, owned(instance(string))),
             immutable(instance(string))
         );
+    }
+
+    #[test]
+    fn test_immutable_nested_type() {
+        let mut db = Database::new();
+        let array = ClassId::array();
+        let int = ClassId::int();
+
+        array.new_type_parameter(&mut db, "T".to_string());
+
+        let int_array = owned(generic_instance_id(
+            &mut db,
+            array,
+            vec![owned(instance(int))],
+        ));
+
+        let input = owned(generic_instance_id(&mut db, array, vec![int_array]));
+        let resolved = resolve_immutable(
+            &mut db,
+            &TypeArguments::new(),
+            &TypeBounds::new(),
+            input,
+        );
+
+        assert!(resolved.is_ref(&db));
+        assert!(resolved.type_arguments(&db).pairs()[0].1.is_owned(&db));
     }
 
     #[test]

@@ -3803,7 +3803,7 @@ impl TypeRef {
             TypeRef::Owned(id) | TypeRef::Infer(id) | TypeRef::Mut(id) => {
                 TypeRef::Ref(id)
             }
-            TypeRef::Uni(id) => TypeRef::UniRef(id),
+            TypeRef::Uni(id) | TypeRef::UniMut(id) => TypeRef::UniRef(id),
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(self, |v| v.as_ref(db))
             }
