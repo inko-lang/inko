@@ -113,22 +113,19 @@ after
 
 We can represent this code using the following graph:
 
-```
-       A
-+--------------+
-| let a = [10] |
-+--------------+
-        |
-        v B            D
-    +---------+     +-----+
-    | if true | --> | bar | --+
-    +---------+     +-----+   |       E
-      |                       |   +-------+
-      |                       +-> | after |
-      v C                     |   +-------+
-    +-----------+             |
-    | let b = a | ----->------+
-    +-----------+
+```mermaid
+graph LR
+  A["<strong>A</strong><br>let a = [10]"];
+  B["<strong>B</strong><br>if true"];
+  C["<strong>C</strong><br>let b = a"];
+  D["<strong>D</strong><br>bar"];
+  E["<strong>E</strong><br>after"];
+
+  A --> B;
+  B -- "true" --> C;
+  B -- "false" --> D;
+  C --> E;
+  D --> E;
 ```
 
 Now say we want to look up the state of the register storing `a`. If we follow
