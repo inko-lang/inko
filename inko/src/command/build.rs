@@ -1,7 +1,7 @@
 use crate::error::Error;
 use crate::options::print_usage;
 use compiler::compiler::{CompileError, Compiler};
-use compiler::config::{Config, Mode, Output};
+use compiler::config::{Config, Output};
 use getopts::Options;
 use std::path::PathBuf;
 
@@ -52,6 +52,13 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         "PATH",
     );
 
+    options.optmulti(
+        "",
+        "opt",
+        "The amount of optimisations to apply",
+        "none,balanced,aggressive",
+    );
+
     options.optflag("", "dot", "Output the MIR of every module as DOT files");
 
     let matches = options.parse(arguments)?;
@@ -71,8 +78,8 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         config.set_target(&val)?;
     }
 
-    if matches.opt_present("release") {
-        config.mode = Mode::Release;
+    if let Some(val) = matches.opt_str("opt") {
+        config.set_opt(&val)?;
     }
 
     if matches.opt_present("dot") {

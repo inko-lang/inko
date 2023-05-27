@@ -1,7 +1,7 @@
 use crate::error::Error;
 use crate::options::print_usage;
 use compiler::compiler::{CompileError, Compiler};
-use compiler::config::{Config, Mode};
+use compiler::config::Config;
 use getopts::{Options, ParsingStyle};
 use std::env::temp_dir;
 use std::fs::{create_dir, remove_dir_all};
@@ -82,7 +82,6 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     }
 
     config.build = build_dir.clone();
-    config.mode = Mode::Release;
 
     let mut compiler = Compiler::new(config);
     let file = matches.free.get(0).map(PathBuf::from);

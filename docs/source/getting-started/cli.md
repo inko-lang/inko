@@ -31,14 +31,23 @@ using the `inko build` command:
 inko build hello.inko
 ```
 
-By default this produces a debug build, located in `./build/debug/hello`. To
-produce a release build instead, run the following:
+The resulting executable is located at `./build/hello`. By default the compiler
+enables a reasonable number of optimisations, without sacrificing compile times.
+You can either disable optimisations entirely, of enable more aggressively
+optimisations at the cost of compile times increasing:
 
 ```bash
-inko build --release hello.inko
+inko build --opt none hello.inko       # No optimisations
+inko build --opt aggressive hello.inko # Aggressive optimisations
 ```
 
-The resulting executable is now located in `./build/release/hello`.
+For `--opt none` the executable is placed in `./build/none/hello`, and
+`./build/aggressive/hello` for `--opt aggressive`.
+
+!!! tip
+    Only use `--opt aggressive` if you have determined the increase in compile
+    times is worth the increase in runtime performance. Most users will want to
+    avoid this option entirely.
 
 You can specify an alternative output path using the `-o` option:
 

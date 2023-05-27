@@ -51,7 +51,11 @@ pub(crate) struct BuildDirectories {
 
 impl BuildDirectories {
     pub(crate) fn new(config: &Config) -> BuildDirectories {
-        let build = config.build.join(config.mode.directory_name());
+        let build = config
+            .opt
+            .directory_name()
+            .map_or(config.build.clone(), |p| config.build.join(p));
+
         let objects = build.join("objects");
         let dot = build.join("dot");
         let bin = build.clone();
@@ -71,26 +75,26 @@ impl BuildDirectories {
 }
 
 /// A type describing to what degree a program should be optimised.
-#[derive(Clone, Copy)]
-pub enum Mode {
-    /// A mode suitable for development and debugging.
-    ///
-    /// This mode favours fast compile times over runtime performance. For
-    /// releases/deployments you should use the dedicated release mode.
-    Debug,
+#[derive(Copy, Clone)]
+pub enum Opt {
+    /// No optimisations are applied.
+    None,
 
-    /// A mode suitable for releases.
-    ///
-    /// In this mode a reasonable number of optimisations is enabled, such that
-    /// there's a healthy balance between runtime performance and compile times.
-    Release,
+    /// A decent number of optimisations is applied, providing a good balance
+    /// between runtime performance and compile times.
+    Balanced,
+
+    /// An aggressive number of optimisations is applied, favouring runtime
+    /// performance over compile times.
+    Aggressive,
 }
 
-impl Mode {
-    pub(crate) fn directory_name(self) -> &'static str {
+impl Opt {
+    pub(crate) fn directory_name(self) -> Option<&'static str> {
         match self {
-            Mode::Debug => "debug",
-            Mode::Release => "release",
+            Opt::None => Some("none"),
+            Opt::Balanced => None,
+            Opt::Aggressive => Some("aggressive"),
         }
     }
 }
@@ -139,7 +143,7 @@ pub struct Config {
     pub output: Output,
 
     /// The optimisation mode to apply when compiling code.
-    pub mode: Mode,
+    pub opt: Opt,
 
     /// The presenter to use for displaying diagnostics.
     pub(crate) presenter: Box<dyn Presenter>,
@@ -171,7 +175,7 @@ impl Config {
             implicit_imports: vec![],
             output: Output::Derive,
             target: Target::native(),
-            mode: Mode::Debug,
+            opt: Opt::Balanced,
             dot: false,
         }
     }
@@ -212,6 +216,22 @@ impl Config {
         } else {
             Err(format!("The target '{}' isn't supported", name))
         }
+    }
+
+    pub fn set_opt(&mut self, name: &str) -> Result<(), String> {
+        self.opt = match name {
+            "none" => Opt::None,
+            "balanced" => Opt::Balanced,
+            "aggressive" => Opt::Aggressive,
+            _ => {
+                return Err(format!(
+                    "The optimisation level '{}' isn't supported",
+                    name
+                ))
+            }
+        };
+
+        Ok(())
     }
 
     pub(crate) fn main_source_module(&self) -> PathBuf {
