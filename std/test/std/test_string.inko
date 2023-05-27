@@ -4,6 +4,12 @@ import std::iter::EOF
 import std::test::Tests
 
 fn pub tests(t: mut Tests) {
+  t.test('String.join') fn (t) {
+    let vals = [10, 20, 30]
+
+    t.equal(String.join(vals.iter, with: ', '), '10, 20, 30')
+  }
+
   t.test('String.to_upper') fn (t) {
     t.equal('hello'.to_upper, 'HELLO')
     t.equal('ä'.to_upper, 'Ä')

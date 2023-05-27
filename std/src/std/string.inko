@@ -87,6 +87,25 @@ trait pub ToString {
 
 # An UTF-8 encoded and immutable string type.
 class builtin String {
+  # Return a `String` that contains the values of the iterator, separated by the
+  # value of the `with` argument.
+  #
+  # # Examples
+  #
+  #     let vals = [10, 20, 30].into_iter
+  #
+  #     String.join(vals, with: ',') => '10,20,30'
+  fn pub static join[T: ToString](iter: Iter[T], with: String) -> String {
+    let result = iter.reduce(StringBuffer.new) fn (buff, val) {
+      if buff.length > 0 { buff.push(with) }
+
+      buff.push(val.to_string)
+      buff
+    }
+
+    result.to_string
+  }
+
   # Returns the uppercase equivalent of the current `String`.
   #
   # # Examples

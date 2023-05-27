@@ -1,4 +1,4 @@
-import std::iter::(Enum, join)
+import std::iter::Enum
 import std::test::Tests
 
 fn pub tests(t: mut Tests) {
@@ -154,11 +154,5 @@ fn pub tests(t: mut Tests) {
     let iter = Enum.indexed(vals.length) fn (index) { vals.get(index) }
 
     t.equal(iter.to_array, [mut 10, mut 20, mut 30])
-  }
-
-  t.test('iter.join') fn (t) {
-    let vals = [10, 20, 30]
-
-    t.equal(join(iter: vals.iter, with: ', '), '10, 20, 30')
   }
 }
