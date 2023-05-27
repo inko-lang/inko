@@ -24,7 +24,7 @@ versions = sorted(versions, reverse=True)
 latest = None
 entries = [
     {"version": "latest", "title": "latest", "aliases": []},
-    {"version": "master", "title": "master", "aliases": []},
+    {"version": "main", "title": "main", "aliases": []},
 ]
 
 if versions:
