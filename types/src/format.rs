@@ -340,12 +340,12 @@ impl FormatType for TypeRef {
                 buffer.write_ownership("uni ");
                 id.format_type(buffer);
             }
-            TypeRef::RefUni(id) => {
-                buffer.write_ownership("ref uni ");
+            TypeRef::UniRef(id) => {
+                buffer.write_ownership("uni ref ");
                 id.format_type(buffer);
             }
-            TypeRef::MutUni(id) => {
-                buffer.write_ownership("mut uni ");
+            TypeRef::UniMut(id) => {
+                buffer.write_ownership("uni mut ");
                 id.format_type(buffer);
             }
             TypeRef::Ref(id) => {
@@ -801,6 +801,18 @@ mod tests {
         assert_eq!(
             format_type(&db, TypeRef::Owned(string_ins)),
             "String".to_string()
+        );
+        assert_eq!(
+            format_type(&db, TypeRef::Uni(string_ins)),
+            "uni String".to_string()
+        );
+        assert_eq!(
+            format_type(&db, TypeRef::UniMut(string_ins)),
+            "uni mut String".to_string()
+        );
+        assert_eq!(
+            format_type(&db, TypeRef::UniRef(string_ins)),
+            "uni ref String".to_string()
         );
         assert_eq!(format_type(&db, TypeRef::Infer(param)), "T".to_string());
         assert_eq!(

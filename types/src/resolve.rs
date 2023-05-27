@@ -95,8 +95,8 @@ impl<'a> TypeResolver<'a> {
                 Either::Right(TypeRef::Owned(typ) | TypeRef::Mut(typ)) => {
                     TypeRef::Ref(typ)
                 }
-                Either::Right(TypeRef::Uni(typ) | TypeRef::MutUni(typ)) => {
-                    TypeRef::RefUni(typ)
+                Either::Right(TypeRef::Uni(typ) | TypeRef::UniMut(typ)) => {
+                    TypeRef::UniRef(typ)
                 }
                 Either::Right(typ) => typ,
             },
@@ -111,11 +111,11 @@ impl<'a> TypeResolver<'a> {
                 Either::Right(TypeRef::Owned(typ)) => self.uni(typ),
                 Either::Right(typ) => typ,
             },
-            TypeRef::RefUni(id) => match self.resolve_type_id(id) {
-                Either::Left(res) => TypeRef::RefUni(res),
+            TypeRef::UniRef(id) => match self.resolve_type_id(id) {
+                Either::Left(res) => TypeRef::UniRef(res),
                 Either::Right(typ) => typ,
             },
-            TypeRef::MutUni(id) => match self.resolve_type_id(id) {
+            TypeRef::UniMut(id) => match self.resolve_type_id(id) {
                 Either::Left(res) => self.mutable_uni(res),
                 Either::Right(typ) => typ,
             },
@@ -252,7 +252,7 @@ impl<'a> TypeResolver<'a> {
 
     fn uni(&self, id: TypeId) -> TypeRef {
         if self.immutable {
-            TypeRef::RefUni(id)
+            TypeRef::UniRef(id)
         } else {
             TypeRef::Uni(id)
         }
@@ -268,9 +268,9 @@ impl<'a> TypeResolver<'a> {
 
     fn mutable_uni(&self, id: TypeId) -> TypeRef {
         if self.immutable {
-            TypeRef::RefUni(id)
+            TypeRef::UniRef(id)
         } else {
-            TypeRef::MutUni(id)
+            TypeRef::UniMut(id)
         }
     }
 }

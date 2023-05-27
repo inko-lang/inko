@@ -3324,14 +3324,14 @@ pub enum TypeRef {
     /// An immutable reference to a type.
     Ref(TypeId),
 
-    /// An immutable reference to a `uni T`.
-    RefUni(TypeId),
+    /// An immutable, temporary and unique reference.
+    UniRef(TypeId),
 
     /// A mutable reference to a type.
     Mut(TypeId),
 
-    /// A mutable reference to a `uni T`.
-    MutUni(TypeId),
+    /// A mutable, temporary and unique reference.
+    UniMut(TypeId),
 
     /// A type of which the ownership should be inferred.
     ///
@@ -3429,8 +3429,8 @@ impl TypeRef {
             | TypeRef::Uni(id)
             | TypeRef::Ref(id)
             | TypeRef::Mut(id)
-            | TypeRef::RefUni(id)
-            | TypeRef::MutUni(id)
+            | TypeRef::UniRef(id)
+            | TypeRef::UniMut(id)
             | TypeRef::Infer(id) => Ok(id),
             TypeRef::Placeholder(id) => {
                 id.value(db).ok_or(self).and_then(|t| t.type_id(db))
@@ -3527,15 +3527,15 @@ impl TypeRef {
             | TypeRef::Ref(TypeId::TypeParameter(_))
             | TypeRef::Mut(TypeId::TypeParameter(_))
             | TypeRef::Infer(TypeId::TypeParameter(_))
-            | TypeRef::RefUni(TypeId::TypeParameter(_))
-            | TypeRef::MutUni(TypeId::TypeParameter(_))
+            | TypeRef::UniRef(TypeId::TypeParameter(_))
+            | TypeRef::UniMut(TypeId::TypeParameter(_))
             | TypeRef::Owned(TypeId::RigidTypeParameter(_))
             | TypeRef::Uni(TypeId::RigidTypeParameter(_))
             | TypeRef::Ref(TypeId::RigidTypeParameter(_))
             | TypeRef::Mut(TypeId::RigidTypeParameter(_))
             | TypeRef::Infer(TypeId::RigidTypeParameter(_))
-            | TypeRef::RefUni(TypeId::RigidTypeParameter(_))
-            | TypeRef::MutUni(TypeId::RigidTypeParameter(_)) => true,
+            | TypeRef::UniRef(TypeId::RigidTypeParameter(_))
+            | TypeRef::UniMut(TypeId::RigidTypeParameter(_)) => true,
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(false, |v| v.is_type_parameter(db))
             }
@@ -3549,8 +3549,8 @@ impl TypeRef {
             | TypeRef::Uni(TypeId::TraitInstance(_))
             | TypeRef::Ref(TypeId::TraitInstance(_))
             | TypeRef::Mut(TypeId::TraitInstance(_))
-            | TypeRef::RefUni(TypeId::TraitInstance(_))
-            | TypeRef::MutUni(TypeId::TraitInstance(_)) => true,
+            | TypeRef::UniRef(TypeId::TraitInstance(_))
+            | TypeRef::UniMut(TypeId::TraitInstance(_)) => true,
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(false, |v| v.is_trait_instance(db))
             }
@@ -3564,16 +3564,16 @@ impl TypeRef {
             | TypeRef::Uni(TypeId::TraitInstance(ins))
             | TypeRef::Ref(TypeId::TraitInstance(ins))
             | TypeRef::Mut(TypeId::TraitInstance(ins))
-            | TypeRef::RefUni(TypeId::TraitInstance(ins))
-            | TypeRef::MutUni(TypeId::TraitInstance(ins)) => {
+            | TypeRef::UniRef(TypeId::TraitInstance(ins))
+            | TypeRef::UniMut(TypeId::TraitInstance(ins)) => {
                 ins.instance_of.is_generic(db)
             }
             TypeRef::Owned(TypeId::ClassInstance(ins))
             | TypeRef::Uni(TypeId::ClassInstance(ins))
             | TypeRef::Ref(TypeId::ClassInstance(ins))
             | TypeRef::Mut(TypeId::ClassInstance(ins))
-            | TypeRef::RefUni(TypeId::ClassInstance(ins))
-            | TypeRef::MutUni(TypeId::ClassInstance(ins)) => {
+            | TypeRef::UniRef(TypeId::ClassInstance(ins))
+            | TypeRef::UniMut(TypeId::ClassInstance(ins)) => {
                 ins.instance_of.is_generic(db)
             }
             TypeRef::Placeholder(id) => {
@@ -3611,7 +3611,7 @@ impl TypeRef {
 
     pub fn require_sendable_arguments(self, db: &Database) -> bool {
         match self {
-            TypeRef::Uni(_) | TypeRef::RefUni(_) | TypeRef::MutUni(_) => true,
+            TypeRef::Uni(_) | TypeRef::UniRef(_) | TypeRef::UniMut(_) => true,
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(false, |v| v.require_sendable_arguments(db))
             }
@@ -3669,8 +3669,8 @@ impl TypeRef {
         match self {
             TypeRef::Ref(_)
             | TypeRef::Mut(_)
-            | TypeRef::RefUni(_)
-            | TypeRef::MutUni(_) => true,
+            | TypeRef::UniRef(_)
+            | TypeRef::UniMut(_) => true,
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(false, |v| v.use_reference_counting(db))
             }
@@ -3708,13 +3708,13 @@ impl TypeRef {
             TypeRef::Mut(_)
                 | TypeRef::Owned(_)
                 | TypeRef::Uni(_)
-                | TypeRef::MutUni(_)
+                | TypeRef::UniMut(_)
         )
     }
 
     pub fn allow_assignment(self, db: &Database) -> bool {
         match self {
-            TypeRef::RefUni(_) | TypeRef::MutUni(_) => false,
+            TypeRef::UniRef(_) | TypeRef::UniMut(_) => false,
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(true, |v| v.allow_assignment(db))
             }
@@ -3803,7 +3803,7 @@ impl TypeRef {
             TypeRef::Owned(id) | TypeRef::Infer(id) | TypeRef::Mut(id) => {
                 TypeRef::Ref(id)
             }
-            TypeRef::Uni(id) => TypeRef::RefUni(id),
+            TypeRef::Uni(id) => TypeRef::UniRef(id),
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(self, |v| v.as_ref(db))
             }
@@ -3844,7 +3844,7 @@ impl TypeRef {
                 }
             }
             TypeRef::Owned(id) => TypeRef::Mut(id),
-            TypeRef::Uni(id) => TypeRef::MutUni(id),
+            TypeRef::Uni(id) => TypeRef::UniMut(id),
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(self, |v| v.as_mut(db))
             }
@@ -3852,21 +3852,12 @@ impl TypeRef {
         }
     }
 
-    pub fn as_ref_uni(self, db: &Database) -> Self {
+    pub fn as_uni_ref(self, db: &Database) -> Self {
         match self {
-            TypeRef::Uni(id) => TypeRef::RefUni(id),
+            TypeRef::Owned(id) | TypeRef::Mut(id) => TypeRef::UniMut(id),
+            TypeRef::Ref(id) => TypeRef::UniRef(id),
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(self, |v| v.as_ref_uni(db))
-            }
-            _ => self,
-        }
-    }
-
-    pub fn as_mut_uni(self, db: &Database) -> Self {
-        match self {
-            TypeRef::Uni(id) => TypeRef::MutUni(id),
-            TypeRef::Placeholder(id) => {
-                id.value(db).map_or(self, |v| v.as_mut_uni(db))
+                id.value(db).map_or(self, |v| v.as_uni_ref(db))
             }
             _ => self,
         }
@@ -3891,8 +3882,8 @@ impl TypeRef {
             TypeRef::Uni(id)
             | TypeRef::Ref(id)
             | TypeRef::Mut(id)
-            | TypeRef::RefUni(id)
-            | TypeRef::MutUni(id) => TypeRef::Owned(id),
+            | TypeRef::UniRef(id)
+            | TypeRef::UniMut(id) => TypeRef::Owned(id),
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(self, |v| v.as_owned(db))
             }
@@ -3933,8 +3924,8 @@ impl TypeRef {
             | TypeRef::Uni(TypeId::RigidTypeParameter(id))
             | TypeRef::Ref(TypeId::RigidTypeParameter(id))
             | TypeRef::Mut(TypeId::RigidTypeParameter(id))
-            | TypeRef::RefUni(TypeId::RigidTypeParameter(id))
-            | TypeRef::MutUni(TypeId::RigidTypeParameter(id))
+            | TypeRef::UniRef(TypeId::RigidTypeParameter(id))
+            | TypeRef::UniMut(TypeId::RigidTypeParameter(id))
             | TypeRef::Infer(TypeId::RigidTypeParameter(id)) => Some(id),
             _ => None,
         }
@@ -3966,8 +3957,8 @@ impl TypeRef {
             TypeRef::Owned(TypeId::ClassInstance(ins))
             | TypeRef::Ref(TypeId::ClassInstance(ins))
             | TypeRef::Mut(TypeId::ClassInstance(ins))
-            | TypeRef::RefUni(TypeId::ClassInstance(ins))
-            | TypeRef::MutUni(TypeId::ClassInstance(ins))
+            | TypeRef::UniRef(TypeId::ClassInstance(ins))
+            | TypeRef::UniMut(TypeId::ClassInstance(ins))
             | TypeRef::Uni(TypeId::ClassInstance(ins)) => {
                 ins.instance_of().get(db).value_type
             }
@@ -3983,7 +3974,9 @@ impl TypeRef {
             TypeRef::Owned(TypeId::ClassInstance(ins))
             | TypeRef::Ref(TypeId::ClassInstance(ins))
             | TypeRef::Mut(TypeId::ClassInstance(ins))
-            | TypeRef::Uni(TypeId::ClassInstance(ins)) => {
+            | TypeRef::Uni(TypeId::ClassInstance(ins))
+            | TypeRef::UniMut(TypeId::ClassInstance(ins))
+            | TypeRef::UniRef(TypeId::ClassInstance(ins)) => {
                 ins.instance_of.kind(db).is_extern()
                     || matches!(ins.instance_of.0, BOOLEAN_ID | NIL_ID)
             }
@@ -4005,8 +3998,8 @@ impl TypeRef {
             | TypeRef::Uni(id)
             | TypeRef::Ref(id)
             | TypeRef::Mut(id)
-            | TypeRef::RefUni(id)
-            | TypeRef::MutUni(id)
+            | TypeRef::UniRef(id)
+            | TypeRef::UniMut(id)
             | TypeRef::Infer(id) => match id {
                 TypeId::ClassInstance(ins)
                     if ins.instance_of.is_generic(db) =>
@@ -4044,7 +4037,11 @@ impl TypeRef {
             TypeRef::Owned(TypeId::ClassInstance(ins))
             | TypeRef::Uni(TypeId::ClassInstance(ins))
             | TypeRef::Ref(TypeId::ClassInstance(ins))
-            | TypeRef::Mut(TypeId::ClassInstance(ins)) => Some(ins.instance_of),
+            | TypeRef::Mut(TypeId::ClassInstance(ins))
+            | TypeRef::UniMut(TypeId::ClassInstance(ins))
+            | TypeRef::UniRef(TypeId::ClassInstance(ins)) => {
+                Some(ins.instance_of)
+            }
             TypeRef::Placeholder(p) => p.value(db).and_then(|v| v.class_id(db)),
             _ => None,
         }
@@ -4055,7 +4052,9 @@ impl TypeRef {
             TypeRef::Owned(TypeId::ClassInstance(ins))
             | TypeRef::Uni(TypeId::ClassInstance(ins))
             | TypeRef::Ref(TypeId::ClassInstance(ins))
-            | TypeRef::Mut(TypeId::ClassInstance(ins)) => {
+            | TypeRef::Mut(TypeId::ClassInstance(ins))
+            | TypeRef::UniMut(TypeId::ClassInstance(ins))
+            | TypeRef::UniRef(TypeId::ClassInstance(ins)) => {
                 let opt_class = db.class_in_module(OPTION_MODULE, OPTION_CLASS);
                 let res_class = db.class_in_module(RESULT_MODULE, RESULT_CLASS);
                 let params = ins.instance_of.type_parameters(db);
@@ -4973,7 +4972,7 @@ mod tests {
         assert_eq!(owned(instance(int)).as_ref(&db), immutable(instance(int)));
         assert_eq!(
             uni(instance(int)).as_ref(&db),
-            TypeRef::RefUni(instance(int))
+            TypeRef::UniRef(instance(int))
         );
         assert_eq!(owned(rigid(param)).as_ref(&db), immutable(rigid(param)));
     }
@@ -4990,7 +4989,7 @@ mod tests {
         assert_eq!(owned(instance(int)).as_mut(&db), mutable(instance(int)));
         assert_eq!(
             uni(instance(int)).as_mut(&db),
-            TypeRef::MutUni(instance(int))
+            TypeRef::UniMut(instance(int))
         );
         assert_eq!(owned(rigid(param1)).as_mut(&db), owned(rigid(param1)));
         assert_eq!(owned(rigid(param2)).as_mut(&db), mutable(rigid(param2)));
@@ -5010,5 +5009,25 @@ mod tests {
 
         assert!(owned(closure(func1)).is_sendable(&db));
         assert!(!owned(closure(func2)).is_sendable(&db));
+    }
+
+    #[test]
+    fn test_type_ref_as_uni_ref() {
+        let db = Database::new();
+        let int = ClassId::int();
+
+        assert_eq!(
+            owned(instance(int)).as_uni_ref(&db),
+            TypeRef::UniMut(instance(int))
+        );
+        assert_eq!(
+            immutable(instance(int)).as_uni_ref(&db),
+            TypeRef::UniRef(instance(int))
+        );
+        assert_eq!(
+            mutable(instance(int)).as_uni_ref(&db),
+            TypeRef::UniMut(instance(int))
+        );
+        assert_eq!(uni(instance(int)).as_uni_ref(&db), uni(instance(int)));
     }
 }

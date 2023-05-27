@@ -472,15 +472,15 @@ impl<'a> TypeChecker<'a> {
                 TypeRef::Any | TypeRef::Error => true,
                 _ => false,
             },
-            TypeRef::RefUni(left_id) => match right {
-                TypeRef::RefUni(right_id) => {
+            TypeRef::UniRef(left_id) => match right {
+                TypeRef::UniRef(right_id) => {
                     self.check_type_id(left_id, right_id, env, rules)
                 }
                 TypeRef::Error => true,
                 _ => false,
             },
-            TypeRef::MutUni(left_id) => match right {
-                TypeRef::MutUni(right_id) => {
+            TypeRef::UniMut(left_id) => match right {
+                TypeRef::UniMut(right_id) => {
                     self.check_type_id(left_id, right_id, env, rules)
                 }
                 TypeRef::Error => true,
@@ -782,8 +782,8 @@ impl<'a> TypeChecker<'a> {
             | TypeRef::Uni(id)
             | TypeRef::Ref(id)
             | TypeRef::Mut(id)
-            | TypeRef::RefUni(id)
-            | TypeRef::MutUni(id)
+            | TypeRef::UniRef(id)
+            | TypeRef::UniMut(id)
             | TypeRef::Infer(id) => match id {
                 TypeId::ClassInstance(lhs) => {
                     self.check_class_with_trait(lhs, right, env, rules)
@@ -1523,18 +1523,18 @@ mod tests {
 
         check_ok(
             &db,
-            TypeRef::RefUni(instance(thing)),
-            TypeRef::RefUni(instance(thing)),
+            TypeRef::UniRef(instance(thing)),
+            TypeRef::UniRef(instance(thing)),
         );
-        check_ok(&db, TypeRef::RefUni(instance(thing)), TypeRef::Error);
+        check_ok(&db, TypeRef::UniRef(instance(thing)), TypeRef::Error);
 
         check_err(
             &db,
-            TypeRef::RefUni(instance(thing)),
-            TypeRef::MutUni(instance(thing)),
+            TypeRef::UniRef(instance(thing)),
+            TypeRef::UniMut(instance(thing)),
         );
-        check_err(&db, TypeRef::RefUni(instance(thing)), placeholder(var));
-        check_err(&db, TypeRef::RefUni(instance(thing)), TypeRef::Any);
+        check_err(&db, TypeRef::UniRef(instance(thing)), placeholder(var));
+        check_err(&db, TypeRef::UniRef(instance(thing)), TypeRef::Any);
     }
 
     #[test]
@@ -1545,18 +1545,18 @@ mod tests {
 
         check_ok(
             &db,
-            TypeRef::MutUni(instance(thing)),
-            TypeRef::MutUni(instance(thing)),
+            TypeRef::UniMut(instance(thing)),
+            TypeRef::UniMut(instance(thing)),
         );
-        check_ok(&db, TypeRef::MutUni(instance(thing)), TypeRef::Error);
+        check_ok(&db, TypeRef::UniMut(instance(thing)), TypeRef::Error);
 
         check_err(
             &db,
-            TypeRef::MutUni(instance(thing)),
-            TypeRef::RefUni(instance(thing)),
+            TypeRef::UniMut(instance(thing)),
+            TypeRef::UniRef(instance(thing)),
         );
-        check_err(&db, TypeRef::MutUni(instance(thing)), placeholder(var));
-        check_err(&db, TypeRef::MutUni(instance(thing)), TypeRef::Any);
+        check_err(&db, TypeRef::UniMut(instance(thing)), placeholder(var));
+        check_err(&db, TypeRef::UniMut(instance(thing)), TypeRef::Any);
     }
 
     #[test]

@@ -140,26 +140,37 @@ Unlike Pony, Inko doesn't have a long list of (complicated) reference
 capabilities, making it easier to use Inko while still achieving the same
 safety guarantees.
 
-Unique values are created using the `recover` expression. Within this
-expression, outside variables are only visible if they are unique values or
-value types; everything else is hidden. If the return value of a `recover`
-expression is an owned value, it's turned into a unique value. If the value
-already is a unique value, it's instead turned into an owned value.
+Unique values are created using the `recover` expression, and the return value
+of such an expression is turned from a `T` into `uni T`, or from a `uni T` into
+a `T`; depending on what the original type is:
 
 ```inko
-let a = [10, 20]
-let b = recover a        # Not possible, because `a` is owned and thus not visible
-let c = recover [10, 20] # `c` is of type `uni Array[Int]`
+let a = recover [10, 20] # => uni Array[Int]
+let b = recover a        # => Array[Int]
 ```
 
-This is safe because of the following: if the only outside values we can refer
-to are unique values, then any owned value returned must originate from inside
-the `recover` expression. This in turn means any references created to it are
-either stored inside the value (which is fine), or are discarded before the end
-of the `recover` expression. That in turn means that after the `recover`
-expression returns, we know for a fact no outside references to the unique value
-exist, nor can the unique value contain any references to values stored outside
-of itself.
+Variables defined outside of the `recover` expression are exposed as `uni mut T`
+or `uni ref T`, depending on what the original type is. Such values come with
+the same restriction as `uni T` values, which are discussed in detail in the section
+[Using unique values](#using-unique-values):
+
+```inko
+let nums = [10, 20, 30]
+
+recover {
+  nums # => uni mut Array[Int]
+  [10]
+}
+```
+
+Using `recover` we can statically guarantee it's safe to send values between
+processes: if the only outside values we can refer to are unique values, then
+any owned value returned must originate from inside the `recover` expression.
+This in turn means any references created to it are either stored inside the
+value (which is fine), or are discarded before the end of the `recover`
+expression. That in turn means that after the `recover` expression returns, we
+know for a fact no outside references to the unique value exist, nor can the
+unique value contain any references to values stored outside of itself.
 
 Values recovered using `recover` are moved, meaning that the old variable
 containing the owned value is no longer available:
@@ -175,17 +186,17 @@ In general recovery is only needed when sending values between processes.
 
 ## Using unique values
 
-When we said you can't create references to unique values this wasn't entirely
-true: you _can_ create references to such values (known as
-`ref uni T` or `mut uni T` references), but such references come with
-restrictions to ensure correctness. For example, such references can't be
-assigned to variables, nor are they allowed in explicit type signatures. This
-means the only place they can be used in is temporary/intermediate expressions
-not assigned to anything. This in turn means that it's safe to move a unique
-value afterwards, because the references no longer exist.
+Values of type `uni T`, `uni ref T` and `uni mut T` come with a variety of
+restrictions to ensure their uniqueness constraints are maintained.
 
-Both unique references and owned values allow you to call methods on them,
-though this comes with a set of rules. These rules are as follows:
+Values of type `uni ref T` and `uni mut T` can't be assigned to variables, nor
+can you pass them to arguments that expect `ref T` or `mut T`. You also can't
+use such types in type signatures. This means you can only use them as receivers
+for method calls. As such, these kind of references don't violate the uniqueness
+constraint of the `uni T` values they point to.
+
+All three unique reference types allow you to call methods on values of such
+types, provided the call meets the following criteria:
 
 1. If a method takes any arguments and/or specifies a return type, these types
    must be "sendable". If any of these types isn't sendable, the method isn't
@@ -228,10 +239,11 @@ import std::net::socket::TcpServer
 
 class async Main {
   fn async main {
-    let server = recover try! TcpServer
+    let server = recover TcpServer
       .new(ip: IpAddress.v4(127, 0, 0, 1), port: 40_000)
+      .unwrap
 
-    let client = recover try! server.accept
+    let client = recover server.accept.unwrap
   }
 }
 ```
@@ -239,7 +251,7 @@ class async Main {
 Here `server` is of type `uni TcpServer`. The expression `server.accept` is
 valid because `server` is unique and thus we can see it, and because `accept`
 meets rule two: it doesn't mutate its receiver, doesn't take any arguments, and
-the types it throws/returns only store sendable types.
+the types it returns only store sendable types.
 
 Here's an example of something that isn't valid:
 

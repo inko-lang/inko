@@ -53,11 +53,11 @@ pub(crate) fn uni(id: TypeId) -> TypeRef {
 }
 
 pub(crate) fn immutable_uni(id: TypeId) -> TypeRef {
-    TypeRef::RefUni(id)
+    TypeRef::UniRef(id)
 }
 
 pub(crate) fn mutable_uni(id: TypeId) -> TypeRef {
-    TypeRef::MutUni(id)
+    TypeRef::UniMut(id)
 }
 
 pub(crate) fn infer(id: TypeId) -> TypeRef {

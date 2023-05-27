@@ -522,25 +522,6 @@ impl Diagnostics {
         );
     }
 
-    pub(crate) fn unsendable_field(
-        &mut self,
-        field_name: &str,
-        type_name: String,
-        file: PathBuf,
-        location: SourceLocation,
-    ) {
-        self.error(
-            DiagnosticId::InvalidSymbol,
-            format!(
-                "The field '{}' can't be read as its type ('{}') \
-                isn't sendable",
-                field_name, type_name
-            ),
-            file,
-            location,
-        );
-    }
-
     pub(crate) fn unsendable_argument(
         &mut self,
         argument: String,

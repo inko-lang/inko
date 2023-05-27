@@ -3739,15 +3739,8 @@ impl<'a> CheckMethodBody<'a> {
             returns = returns.as_mut(self.db_mut());
         }
 
-        if receiver.require_sendable_arguments(self.db())
-            && !returns.is_sendable(self.db())
-        {
-            self.state.diagnostics.unsendable_field(
-                name,
-                self.fmt(returns),
-                self.file(),
-                node.location.clone(),
-            );
+        if receiver.require_sendable_arguments(self.db()) {
+            returns = returns.as_uni_ref(self.db());
         }
 
         node.kind = CallKind::GetField(FieldInfo {
@@ -4260,28 +4253,15 @@ impl<'a> CheckMethodBody<'a> {
         while let Some(current) = source {
             if let Some(variable) = current.variables.variable(name) {
                 let var_type = variable.value_type(db);
+                let mut expose_as = var_type;
 
-                if crossed_uni && !var_type.is_sendable(db) {
-                    self.state.diagnostics.error(
-                        DiagnosticId::InvalidSymbol,
-                        format!(
-                            "The variable '{}' exists, but its type ('{}') \
-                            prohibits it from being captured by a recover \
-                            expression",
-                            name,
-                            self.fmt(var_type)
-                        ),
-                        self.file(),
-                        location.clone(),
-                    );
+                if crossed_uni {
+                    expose_as = expose_as.as_uni_ref(self.db());
                 }
 
-                let expose_as =
-                    if captured && var_type.is_owned_or_uni(self.db()) {
-                        var_type.as_mut(self.db())
-                    } else {
-                        var_type
-                    };
+                if captured && var_type.is_owned_or_uni(self.db()) {
+                    expose_as = expose_as.as_mut(self.db());
+                }
 
                 for closure in capturing {
                     let moving = closure.is_moving(self.db());
