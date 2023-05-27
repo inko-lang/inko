@@ -110,7 +110,7 @@ When adding a new test module, follow this structure then add it to
 
 To run the stdlib tests:
 
-1. Enter the libstd directory `cd libstd`
+1. Enter the std directory `cd std`
 2. Run the tests using `cargo run -p inko --release -- test`
 
 ### Shell scripts
