@@ -3876,9 +3876,16 @@ impl<'a> LowerMethod<'a> {
 
             self.current_block = drop_block;
 
+            self.current_block_mut().false_literal(drop_flag, location);
             self.unconditional_drop_register(register, location);
 
             self.current_block = after_block;
+
+            // Successor blocks may still try to drop the register as the next
+            // successor will have two ancestors (the before and drop blocks),
+            // but this is redundant because we just dropped it, so we also mark
+            // it as moved here.
+            self.mark_register_as_moved(register);
         } else {
             self.unconditional_drop_register(register, location);
         }
@@ -3922,9 +3929,11 @@ impl<'a> LowerMethod<'a> {
 
             self.current_block = drop_block;
 
+            self.current_block_mut().false_literal(drop_flag, location);
             self.unconditional_drop_field(receiver, field, register, location);
 
             self.current_block = after_block;
+            self.mark_register_as_moved(register);
         } else {
             self.unconditional_drop_field(receiver, field, register, location);
         }
