@@ -1203,7 +1203,6 @@ impl<'a> LowerMethod<'a> {
     fn run(mut self, nodes: Vec<hir::Expression>, location: LocationId) {
         self.prepare(location);
         self.lower_method_body(nodes, location);
-        self.warn_unreachable();
     }
 
     fn run_with_captured_self(
@@ -1216,7 +1215,6 @@ impl<'a> LowerMethod<'a> {
         self.prepare(location);
         self.define_captured_self_register(self_field, self_type, location);
         self.lower_method_body(nodes, location);
-        self.warn_unreachable();
     }
 
     fn lower_method_body(
@@ -1242,6 +1240,7 @@ impl<'a> LowerMethod<'a> {
             // Lowering unreachable code is pointless, so we abort if we
             // encounter unreachable code before reaching the last expression.
             if !self.in_connected_block() {
+                self.warn_unreachable(node.location());
                 break;
             }
 
@@ -1337,23 +1336,6 @@ impl<'a> LowerMethod<'a> {
         self.self_register = captured;
     }
 
-    fn warn_unreachable(&mut self) {
-        let reachable = self.method.body.reachable();
-
-        for (index, block) in self.method.body.blocks.iter().enumerate() {
-            if reachable.contains(&BlockId(index)) {
-                continue;
-            }
-
-            if let Some(first) = block.instructions.first() {
-                let loc = self.mir.location(first.location()).clone();
-                let file = self.module.id.file(&self.state.db);
-
-                self.state.diagnostics.unreachable(file, loc);
-            }
-        }
-    }
-
     fn body(
         &mut self,
         nodes: Vec<hir::Expression>,
@@ -1364,6 +1346,7 @@ impl<'a> LowerMethod<'a> {
 
         for (index, n) in nodes.into_iter().enumerate() {
             if !self.in_connected_block() {
+                self.warn_unreachable(n.location());
                 break;
             }
 
@@ -4250,6 +4233,10 @@ impl<'a> LowerMethod<'a> {
         }
 
         self.current_block_mut().reduce_call(location);
+    }
+
+    fn warn_unreachable(&mut self, location: &SourceLocation) {
+        self.state.diagnostics.unreachable(self.file(), location.clone());
     }
 }
 
