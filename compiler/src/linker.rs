@@ -70,9 +70,13 @@ pub(crate) fn link(
     cmd.arg("-o");
     cmd.arg(output);
 
-    // On platforms where lld isn't the default (e.g. FreeBSD), we'll use it if
-    // available, speeding up the linking process.
     if let OperatingSystem::Linux = config.target.os {
+        // This removes the need for installing libgcc in deployment
+        // environments.
+        cmd.arg("-static-libgcc");
+
+        // On platforms where lld isn't the default (e.g. Linux), we'll use it
+        // if available, speeding up the linking process.
         if lld_is_available() {
             cmd.arg("-fuse-ld=lld");
         }
