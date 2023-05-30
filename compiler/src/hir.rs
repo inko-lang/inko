@@ -1354,9 +1354,11 @@ impl<'a> LowerToHir<'a> {
             ast::MethodKind::Static => ReopenClassExpression::StaticMethod(
                 self.define_static_method(node),
             ),
-            ast::MethodKind::Async => ReopenClassExpression::AsyncMethod(
-                self.define_async_method(node),
-            ),
+            ast::MethodKind::Async | ast::MethodKind::AsyncMutable => {
+                ReopenClassExpression::AsyncMethod(
+                    self.define_async_method(node),
+                )
+            }
             _ => ReopenClassExpression::InstanceMethod(Box::new(
                 self.define_instance_method(node),
             )),
@@ -4029,6 +4031,40 @@ mod tests {
                 ))],
                 bounds: Vec::new(),
                 location: cols(1, 26)
+            }))
+        );
+    }
+
+    #[test]
+    fn test_lower_reopen_class_with_async_mutable_method() {
+        let hir = lower_top_expr("impl A { fn async mut foo {} }").0;
+
+        assert_eq!(
+            hir,
+            TopLevelExpression::Reopen(Box::new(ReopenClass {
+                class_id: None,
+                class_name: Constant {
+                    name: "A".to_string(),
+                    location: cols(6, 6)
+                },
+                body: vec![ReopenClassExpression::AsyncMethod(Box::new(
+                    DefineAsyncMethod {
+                        mutable: true,
+                        public: false,
+                        name: Identifier {
+                            name: "foo".to_string(),
+                            location: cols(23, 25)
+                        },
+                        type_parameters: Vec::new(),
+                        arguments: Vec::new(),
+                        return_type: None,
+                        body: Vec::new(),
+                        method_id: None,
+                        location: cols(10, 28)
+                    }
+                ))],
+                bounds: Vec::new(),
+                location: cols(1, 30)
             }))
         );
     }
