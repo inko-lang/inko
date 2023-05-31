@@ -545,6 +545,20 @@ class pub Tests {
     }
   }
 
+  # Registers a new test that asserts the given closure doesn't panic.
+  fn pub mut no_panic(name: String, code: uni fn) {
+    fork(name, code) fn (test, process) {
+      let output = process.spawn
+      let code = output.status.to_int
+
+      if code != 101 { return }
+
+      let got = output.stderr.split("\n").last.unwrap_or('the process panicked')
+
+      test.failures.push(Failure.new(got, 'the process not to panic'))
+    }
+  }
+
   # Runs all the tests.
   fn pub move run {
     match env.opt(CHILD_VAR) {
