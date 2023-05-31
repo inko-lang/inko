@@ -380,6 +380,15 @@ trait pub Iter[T] {
   fn pub move count -> Int {
     reduce(0) fn (count, _) { count + 1 }
   }
+
+  # Returns the last value produced by this iterator.
+  #
+  # # Examples
+  #
+  #     [1, 2, 3].iter.last # => Option.Some(3)
+  fn pub move last -> Option[T] {
+    reduce(Option.None) fn (_, val) { Option.Some(val) }
+  }
 }
 
 # A type that can be moved into an iterator.

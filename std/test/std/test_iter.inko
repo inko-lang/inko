@@ -145,6 +145,10 @@ fn pub tests(t: mut Tests) {
     t.equal([10, 20, 30].iter.count, 3)
   }
 
+  t.test('Iter.last') fn (t) {
+    t.equal([10, 20, 30].iter.last, Option.Some(30))
+  }
+
   t.test('Enum.once') fn (t) {
     t.equal(Enum.once(42).to_array, [42])
   }
