@@ -3712,13 +3712,13 @@ impl TypeRef {
         )
     }
 
-    pub fn allow_assignment(self, db: &Database) -> bool {
+    pub fn is_uni_ref(self, db: &Database) -> bool {
         match self {
-            TypeRef::UniRef(_) | TypeRef::UniMut(_) => false,
+            TypeRef::UniRef(_) | TypeRef::UniMut(_) => true,
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(true, |v| v.allow_assignment(db))
+                id.value(db).map_or(false, |v| v.is_uni_ref(db))
             }
-            _ => true,
+            _ => false,
         }
     }
 

@@ -1681,7 +1681,7 @@ impl<'a> CheckMethodBody<'a> {
     ) -> TypeRef {
         let value_type = self.input_expression(&mut node.value, scope);
 
-        if !value_type.allow_assignment(self.db()) {
+        if value_type.is_uni_ref(self.db()) {
             self.state.diagnostics.cant_assign_type(
                 &format_type(self.db(), value_type),
                 self.file(),
@@ -2391,7 +2391,7 @@ impl<'a> CheckMethodBody<'a> {
 
         let val_type = self.expression(value_node, scope);
 
-        if !val_type.allow_assignment(self.db()) {
+        if val_type.is_uni_ref(self.db()) {
             self.state.diagnostics.cant_assign_type(
                 &format_type(self.db(), val_type),
                 self.file(),
@@ -2819,7 +2819,7 @@ impl<'a> CheckMethodBody<'a> {
     ) -> Option<(FieldId, TypeRef)> {
         let val_type = self.expression(value_node, scope);
 
-        if !val_type.allow_assignment(self.db()) {
+        if val_type.is_uni_ref(self.db()) {
             self.state.diagnostics.cant_assign_type(
                 &format_type(self.db(), val_type),
                 self.file(),
@@ -4239,75 +4239,71 @@ impl<'a> CheckMethodBody<'a> {
         location: &SourceLocation,
     ) -> Option<(VariableId, TypeRef, bool)> {
         let mut source = Some(scope);
-        let mut crossed_uni = false;
-        let mut captured = false;
-        let mut allow_assignment = true;
-        let db = self.db();
-
-        // The closures that capture a variable, if any.
-        //
-        // Variables may be captured by nested closures, in which case we need
-        // to track/pass it around accordingly for all such closures.
-        let mut capturing: Vec<ClosureId> = Vec::new();
+        let mut scopes = Vec::new();
+        let mut var = None;
 
         while let Some(current) = source {
-            if let Some(variable) = current.variables.variable(name) {
-                let var_type = variable.value_type(db);
-                let mut expose_as = var_type;
+            scopes.push(current);
 
-                if crossed_uni {
+            if let Some(variable) = current.variables.variable(name) {
+                var = Some(variable);
+                break;
+            }
+
+            source = current.parent;
+        }
+
+        let var = var?;
+        let mut capture_as = var.value_type(self.db());
+        let mut expose_as = capture_as;
+        let mut captured = false;
+        let mut allow_assignment = true;
+
+        // The scope the variable is defined in doesn't influence its type, so
+        // we ignore it.
+        scopes.pop();
+
+        // We now process the remaining sub scopes outside-in, which is needed
+        // so we can determine the correct type of the variable, and whether
+        // capturing is allowed or not.
+        while let Some(scope) = scopes.pop() {
+            match scope.kind {
+                ScopeKind::Recover => {
                     expose_as = expose_as.as_uni_ref(self.db());
                 }
-
-                if captured && var_type.is_owned_or_uni(self.db()) {
-                    expose_as = expose_as.as_mut(self.db());
-                }
-
-                for closure in capturing {
+                ScopeKind::Closure(closure) => {
                     let moving = closure.is_moving(self.db());
-                    let capture_as = if moving {
-                        // Moving closures captures types as-is, instead of
-                        // capturing them as references.
-                        var_type
-                    } else {
-                        expose_as
-                    };
 
-                    // `uni T` values can't be captured as a reference as that
-                    // would violate the uniqueness constraint.
-                    if !moving && var_type.is_uni(self.db()) {
+                    if (expose_as.is_uni(self.db()) && !moving)
+                        || expose_as.is_uni_ref(self.db())
+                    {
                         self.state.diagnostics.error(
                             DiagnosticId::InvalidSymbol,
                             format!(
                                 "The variable '{}' exists, but its type \
-                                ('{}') prohibits it from being captured by a \
-                                non-moving closure",
+                                ('{}') prevents it from being captured",
                                 name,
-                                self.fmt(var_type)
+                                self.fmt(expose_as)
                             ),
                             self.file(),
                             location.clone(),
                         );
-
-                        continue;
                     }
 
-                    closure.add_capture(self.db_mut(), variable, capture_as);
-                }
+                    // The outer-most closure may capture the value as an owned
+                    // value, if the closure is a moving closure. For nested
+                    // closures the capture type is always a reference.
+                    if captured {
+                        capture_as = expose_as;
+                    } else {
+                        if !moving {
+                            capture_as = capture_as.as_mut(self.db());
+                        }
 
-                // We return the variable even if it's from outside a recover
-                // expression. This way we can still type-check the use of the
-                // variable.
-                return Some((variable, expose_as, allow_assignment));
-            }
+                        expose_as = expose_as.as_mut(self.db());
+                    }
 
-            match current.kind {
-                ScopeKind::Recover => crossed_uni = true,
-                ScopeKind::Closure(closure) => {
-                    capturing.push(closure);
-
-                    // Captured variables are always read as references, because
-                    // they are stored in the capturing closure.
+                    closure.add_capture(self.db_mut(), var, capture_as);
                     captured = true;
 
                     // Captured variables can only be assigned by moving
@@ -4315,14 +4311,12 @@ impl<'a> CheckMethodBody<'a> {
                     // captured values, not the values themselves. We can't
                     // assign such captures a new value, as the value referred
                     // to (in most cases at least) wouldn't outlive the closure.
-                    allow_assignment = closure.is_moving(self.db());
+                    allow_assignment = moving;
                 }
                 _ => {}
             }
-
-            source = current.parent;
         }
 
-        None
+        Some((var, expose_as, allow_assignment))
     }
 }
