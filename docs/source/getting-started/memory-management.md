@@ -182,7 +182,7 @@ let b = recover a
 a # => this is an error, because `a` is moved into `b`
 ```
 
-In general recovery is only needed when sending values between processes.
+In general, recovery is only needed when sending values between processes.
 
 ## Using unique values
 
