@@ -10,12 +10,16 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  lints:
+    uses: ./.github/workflows/lint.yml
+
   tests:
     uses: ./.github/workflows/test.yml
 
   source:
     runs-on: ubuntu-latest
     needs:
+      - lints
       - tests
     env:
       AWS_REGION: eu-west-1
@@ -29,6 +33,7 @@ jobs:
   container:
     runs-on: ubuntu-latest
     needs:
+      - lints
       - tests
     permissions:
       contents: read
@@ -57,6 +62,7 @@ jobs:
   docs:
     runs-on: ubuntu-latest
     needs:
+      - lints
       - tests
     env:
       AWS_REGION: eu-west-1

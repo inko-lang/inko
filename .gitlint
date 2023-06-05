@@ -17,3 +17,9 @@ line-length=72
 
 [title-must-not-contain-word]
 words=wip
+
+
+[ignore-by-title]
+# This ensures that commit 77800fa58345c14fc1d8271446753e4c069307d0 is ignored, which at the time of writing
+# causes CI failures.
+regex=^Add another link to the Russ Cox article in modules.md$
