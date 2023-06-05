@@ -2187,7 +2187,6 @@ impl<'a> LowerMethod<'a> {
         self.current_block_mut().get_field(tag_reg, reg, class, tag_field, loc);
 
         let out_reg = match node.kind {
-            types::ThrowKind::Unknown => unreachable!(),
             types::ThrowKind::Option(typ) => {
                 let some_id = class
                     .variant(self.db(), OPTION_SOME)
@@ -2265,6 +2264,7 @@ impl<'a> LowerMethod<'a> {
                 self.current_block_mut().return_value(ret_reg, loc);
                 ok_reg
             }
+            _ => unreachable!(),
         };
 
         self.current_block = after_block;

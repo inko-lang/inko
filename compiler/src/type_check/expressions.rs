@@ -3014,23 +3014,28 @@ impl<'a> CheckMethodBody<'a> {
         }
 
         let ret_type = scope.return_type;
+        let throw_type = if scope.in_recover() && expr.is_owned(self.db()) {
+            expr.as_uni(self.db())
+        } else {
+            expr
+        };
 
         node.return_type = ret_type;
+        node.resolved_type = throw_type;
 
         match ret_type.throw_kind(self.db()) {
             ThrowKind::Unknown | ThrowKind::Option(_) => self
                 .state
                 .diagnostics
                 .throw_not_available(self.file(), node.location.clone()),
-            ThrowKind::Result(ret_ok, ret_err) => {
-                node.resolved_type =
-                    if scope.in_recover() && expr.is_owned(self.db()) {
-                        expr.as_uni(self.db())
-                    } else {
-                        expr
-                    };
+            ThrowKind::Infer(pid) => {
+                let var = TypeRef::placeholder(self.db_mut(), None);
+                let typ = TypeRef::result_type(self.db_mut(), var, expr);
 
-                if !TypeChecker::check(self.db(), expr, ret_err) {
+                pid.assign(self.db(), typ);
+            }
+            ThrowKind::Result(ret_ok, ret_err) => {
+                if !TypeChecker::check(self.db(), throw_type, ret_err) {
                     self.state.diagnostics.invalid_throw(
                         ThrowKind::Result(ret_ok, expr)
                             .throw_type_name(self.db(), ret_ok),
@@ -3857,6 +3862,18 @@ impl<'a> CheckMethodBody<'a> {
                 // no type-checking is necessary in this case.
                 return some;
             }
+            (ThrowKind::Option(some), ThrowKind::Infer(pid)) => {
+                let inferred = TypeRef::option_type(self.db_mut(), some);
+
+                pid.assign(self.db(), inferred);
+                return some;
+            }
+            (ThrowKind::Result(ok, err), ThrowKind::Infer(pid)) => {
+                let inferred = TypeRef::result_type(self.db_mut(), ok, err);
+
+                pid.assign(self.db(), inferred);
+                return ok;
+            }
             (
                 ThrowKind::Result(ok, expr_err),
                 ThrowKind::Result(ret_ok, ret_err),
@@ -3872,7 +3889,7 @@ impl<'a> CheckMethodBody<'a> {
                     node.location.clone(),
                 );
             }
-            (ThrowKind::Unknown, _) => {
+            (ThrowKind::Unknown | ThrowKind::Infer(_), _) => {
                 self.state.diagnostics.invalid_try(
                     format_type(self.db(), expr),
                     self.file(),

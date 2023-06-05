@@ -166,7 +166,7 @@ impl TypePlaceholderId {
         self.get(db).required
     }
 
-    fn assign(self, db: &Database, value: TypeRef) {
+    pub fn assign(self, db: &Database, value: TypeRef) {
         // Assigning placeholders to themselves isn't useful and results in
         // resolve() getting stuck.
         if let TypeRef::Placeholder(id) = value {
@@ -2864,6 +2864,7 @@ pub enum ConstantPatternKind {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ThrowKind {
     Unknown,
+    Infer(TypePlaceholderId),
     Option(TypeRef),
     Result(TypeRef, TypeRef),
 }
@@ -2871,7 +2872,6 @@ pub enum ThrowKind {
 impl ThrowKind {
     pub fn throw_type_name(self, db: &Database, ok: TypeRef) -> String {
         match self {
-            ThrowKind::Unknown => "?".to_string(),
             ThrowKind::Option(_) => {
                 format!("Option[{}]", format::format_type(db, ok))
             }
@@ -2882,6 +2882,7 @@ impl ThrowKind {
                     format::format_type(db, err)
                 )
             }
+            _ => "?".to_string(),
         }
     }
 
@@ -4075,10 +4076,39 @@ impl TypeRef {
                 }
             }
             TypeRef::Placeholder(p) => {
-                p.value(db).map_or(ThrowKind::Unknown, |v| v.throw_kind(db))
+                p.value(db).map_or(ThrowKind::Infer(p), |v| v.throw_kind(db))
             }
             _ => ThrowKind::Unknown,
         }
+    }
+
+    pub fn result_type(
+        db: &mut Database,
+        ok: TypeRef,
+        error: TypeRef,
+    ) -> TypeRef {
+        let class = db.class_in_module(RESULT_MODULE, RESULT_CLASS);
+        let params = class.type_parameters(db);
+        let mut args = TypeArguments::new();
+
+        args.assign(params[0], ok);
+        args.assign(params[1], error);
+
+        TypeRef::Owned(TypeId::ClassInstance(ClassInstance::generic(
+            db, class, args,
+        )))
+    }
+
+    pub fn option_type(db: &mut Database, some: TypeRef) -> TypeRef {
+        let class = db.class_in_module(OPTION_MODULE, OPTION_CLASS);
+        let params = class.type_parameters(db);
+        let mut args = TypeArguments::new();
+
+        args.assign(params[0], some);
+
+        TypeRef::Owned(TypeId::ClassInstance(ClassInstance::generic(
+            db, class, args,
+        )))
     }
 
     fn is_instance_of(self, db: &Database, id: ClassId) -> bool {
