@@ -40,4 +40,14 @@ fn pub tests(t: mut Tests) {
 
     drop(state)
   }
+
+  t.no_panic('match with a wildcard drops all components') fn {
+    let a = Letter.A
+    let b = Letter.B
+
+    match (ref a, ref b) {
+      case (A, A) -> true
+      case _ -> false
+    }
+  }
 }
