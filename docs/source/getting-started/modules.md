@@ -30,7 +30,7 @@ module:
 
 If a module isn't found, a compile-time error is produced.
 
-Inko doesn't supporting importing modules relative to another module.
+Inko doesn't support importing modules relative to another module.
 
 ## Third-party dependencies
 
