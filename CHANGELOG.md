@@ -10,133 +10,133 @@ Entries from before version 0.10.0 are no longer included, but can be viewed
 
 ### Added
 
-* 3de43cf0: Allow try/throw in closures without return types
-* c5af2196: Allow testing of code that shouldn't panic
-* 5f87a41b: Add Iter.last
-* d85d48af: Add Result.collect
-* f8bd2499: Make working with unique values easier
+* [3de43cf0](https://github.com/inko-lang/inko/commit/3de43cf0): Allow try/throw in closures without return types
+* [c5af2196](https://github.com/inko-lang/inko/commit/c5af2196): Allow testing of code that shouldn't panic
+* [5f87a41b](https://github.com/inko-lang/inko/commit/5f87a41b): Add Iter.last
+* [d85d48af](https://github.com/inko-lang/inko/commit/d85d48af): Add Result.collect
+* [f8bd2499](https://github.com/inko-lang/inko/commit/f8bd2499): Make working with unique values easier
 
 ### Fixed
 
-* a5a10f17: Fix match expressions not dropping all values
-* 9dd6bcbd: Fix capturing of variables
-* 884484b8: Fix unreachable code warnings not being generated
-* 3b756379: Fix parsing async mut methods in impl blocks
-* dd2f93f3: Fix double drops for conditionally dropped values
-* 227429b5: Fix resolving nested types as immutable
-* 893cab4a: Allow passing owned values to mutable traits
-* d6872834: Fix type inference when comparing references
-* a23cb932: Verify trait requirements
-* fd6eb2f7: Handle missing type arguments when checking types
-* cfa644a3: Don't lower unreachable code to MIR
-* 5b2980ab: Push global jobs back when trying to steal them
-* 8cbf6f10: Fix various reference counting underflows
-* 63e1d596: Fix dropping old values when assigning new ones
+* [a5a10f17](https://github.com/inko-lang/inko/commit/a5a10f17): Fix match expressions not dropping all values
+* [9dd6bcbd](https://github.com/inko-lang/inko/commit/9dd6bcbd): Fix capturing of variables
+* [884484b8](https://github.com/inko-lang/inko/commit/884484b8): Fix unreachable code warnings not being generated
+* [3b756379](https://github.com/inko-lang/inko/commit/3b756379): Fix parsing async mut methods in impl blocks
+* [dd2f93f3](https://github.com/inko-lang/inko/commit/dd2f93f3): Fix double drops for conditionally dropped values
+* [227429b5](https://github.com/inko-lang/inko/commit/227429b5): Fix resolving nested types as immutable
+* [893cab4a](https://github.com/inko-lang/inko/commit/893cab4a): Allow passing owned values to mutable traits
+* [d6872834](https://github.com/inko-lang/inko/commit/d6872834): Fix type inference when comparing references
+* [a23cb932](https://github.com/inko-lang/inko/commit/a23cb932): Verify trait requirements
+* [fd6eb2f7](https://github.com/inko-lang/inko/commit/fd6eb2f7): Handle missing type arguments when checking types
+* [cfa644a3](https://github.com/inko-lang/inko/commit/cfa644a3): Don't lower unreachable code to MIR
+* [5b2980ab](https://github.com/inko-lang/inko/commit/5b2980ab): Push global jobs back when trying to steal them
+* [8cbf6f10](https://github.com/inko-lang/inko/commit/8cbf6f10): Fix various reference counting underflows
+* [63e1d596](https://github.com/inko-lang/inko/commit/63e1d596): Fix dropping old values when assigning new ones
 
 ### Other
 
-* 395332bd: Start documenting some goals and non-goals
-* c21c4b7d: Correct outdated reference to libstd/
-* 8a56fd27: Enable optimisations by default
-* c0463c46: Move iter.join to String.join
-* 95bfb8d3: Document tuning the runtime
-* 01e5dcaa: Document using copr to install Inko on Fedora
+* [395332bd](https://github.com/inko-lang/inko/commit/395332bd): Start documenting some goals and non-goals
+* [c21c4b7d](https://github.com/inko-lang/inko/commit/c21c4b7d): Correct outdated reference to libstd/
+* [8a56fd27](https://github.com/inko-lang/inko/commit/8a56fd27): Enable optimisations by default
+* [c0463c46](https://github.com/inko-lang/inko/commit/c0463c46): Move iter.join to String.join
+* [95bfb8d3](https://github.com/inko-lang/inko/commit/95bfb8d3): Document tuning the runtime
+* [01e5dcaa](https://github.com/inko-lang/inko/commit/01e5dcaa): Document using copr to install Inko on Fedora
 
 ### Performance improvements
 
-* e611acec: Use a u64 for timeouts
+* [e611acec](https://github.com/inko-lang/inko/commit/e611acec): Use a u64 for timeouts
 
 ## 0.11.0 (2023-05-19)
 
 ### Added
 
-* 452c07fb: Add dedicated instruction for static method calls
-* 0054f4f8: Implement cryptographic hash functions and ciphers
-* 4325ed9a: Add support for unsigned right shifting
-* a169a559: Add ByteArray.resize and apply in ByteArray.filled
-* cf4cf129: Refactor Range into separate types
-* c335285a: Add std::cmp.min and std::cmp.max
-* 1a320f53: Add ByteArray.copy_from
-* dac91cd9: Add methods for encoding integers as bytes
-* d9c0d64c: Add ByteArray.reverse
-* 3956f407: Add support for wrapping add/sub/mul
-* d71ffde8: Add Int.rotate_left and Int.rotate_right
-* 758497f4: Add support for bitwise NOT
-* 28706b5d: Automatically clone references to value types
-* 09d81780: Add support for parsing and generating JSON
-* 8bc96134: Add String.escaped
-* 6f2fcbcd: Add support for constant arrays
-* f02e29fe: Support up to six digits for Unicode escapes
-* b0354740: Add std::utf8 module
-* 441b5766: Add parsing support for Unicode escape sequences
-* 2609bbce: Add try_equal assertion to std::test
-* 9d0884c8: Add StringReader and ByteArrayReader
-* 8d361f36: Add support for socket deadlines/timeouts
-* b285df63: Add std::time::ToInstant
-* 8eac1595: Add Pointer.pointer
-* 9698cdae: Make 'ref Any' a valid type
-* ecafac68: Provide a package manager for Inko
-* 54782464: Allow setting a shuffle seed for unit tests
-* 6991a8d3: Move random number generation to the Random type
-* ee5429a9: Allow setting INKO_PROCESS_THREADS to zero
-* b7254f5f: Add documentation that compares Inko to others
-* 5ddc2e95: Add the VS Code extension to the manual
-* 92c635ce: Add String stripping and trimming methods
+* [452c07fb](https://github.com/inko-lang/inko/commit/452c07fb): Add dedicated instruction for static method calls
+* [0054f4f8](https://github.com/inko-lang/inko/commit/0054f4f8): Implement cryptographic hash functions and ciphers
+* [4325ed9a](https://github.com/inko-lang/inko/commit/4325ed9a): Add support for unsigned right shifting
+* [a169a559](https://github.com/inko-lang/inko/commit/a169a559): Add ByteArray.resize and apply in ByteArray.filled
+* [cf4cf129](https://github.com/inko-lang/inko/commit/cf4cf129): Refactor Range into separate types
+* [c335285a](https://github.com/inko-lang/inko/commit/c335285a): Add std::cmp.min and std::cmp.max
+* [1a320f53](https://github.com/inko-lang/inko/commit/1a320f53): Add ByteArray.copy_from
+* [dac91cd9](https://github.com/inko-lang/inko/commit/dac91cd9): Add methods for encoding integers as bytes
+* [d9c0d64c](https://github.com/inko-lang/inko/commit/d9c0d64c): Add ByteArray.reverse
+* [3956f407](https://github.com/inko-lang/inko/commit/3956f407): Add support for wrapping add/sub/mul
+* [d71ffde8](https://github.com/inko-lang/inko/commit/d71ffde8): Add Int.rotate_left and Int.rotate_right
+* [758497f4](https://github.com/inko-lang/inko/commit/758497f4): Add support for bitwise NOT
+* [28706b5d](https://github.com/inko-lang/inko/commit/28706b5d): Automatically clone references to value types
+* [09d81780](https://github.com/inko-lang/inko/commit/09d81780): Add support for parsing and generating JSON
+* [8bc96134](https://github.com/inko-lang/inko/commit/8bc96134): Add String.escaped
+* [6f2fcbcd](https://github.com/inko-lang/inko/commit/6f2fcbcd): Add support for constant arrays
+* [f02e29fe](https://github.com/inko-lang/inko/commit/f02e29fe): Support up to six digits for Unicode escapes
+* [b0354740](https://github.com/inko-lang/inko/commit/b0354740): Add std::utf8 module
+* [441b5766](https://github.com/inko-lang/inko/commit/441b5766): Add parsing support for Unicode escape sequences
+* [2609bbce](https://github.com/inko-lang/inko/commit/2609bbce): Add try_equal assertion to std::test
+* [9d0884c8](https://github.com/inko-lang/inko/commit/9d0884c8): Add StringReader and ByteArrayReader
+* [8d361f36](https://github.com/inko-lang/inko/commit/8d361f36): Add support for socket deadlines/timeouts
+* [b285df63](https://github.com/inko-lang/inko/commit/b285df63): Add std::time::ToInstant
+* [8eac1595](https://github.com/inko-lang/inko/commit/8eac1595): Add Pointer.pointer
+* [9698cdae](https://github.com/inko-lang/inko/commit/9698cdae): Make 'ref Any' a valid type
+* [ecafac68](https://github.com/inko-lang/inko/commit/ecafac68): Provide a package manager for Inko
+* [54782464](https://github.com/inko-lang/inko/commit/54782464): Allow setting a shuffle seed for unit tests
+* [6991a8d3](https://github.com/inko-lang/inko/commit/6991a8d3): Move random number generation to the Random type
+* [ee5429a9](https://github.com/inko-lang/inko/commit/ee5429a9): Allow setting INKO_PROCESS_THREADS to zero
+* [b7254f5f](https://github.com/inko-lang/inko/commit/b7254f5f): Add documentation that compares Inko to others
+* [5ddc2e95](https://github.com/inko-lang/inko/commit/5ddc2e95): Add the VS Code extension to the manual
+* [92c635ce](https://github.com/inko-lang/inko/commit/92c635ce): Add String stripping and trimming methods
 
 ### Fixed
 
-* 11ab2c3f: Fix type-checking against type placeholders
-* efdc6463: Disallow async calls using non-async methods
-* ea303b4d: Save instruction pointer for async messages
-* c362caf4: Insert CheckRefs after calling destructors
-* 8b670e60: Fix parsing negative hexadecimal integers
-* 7bee45f6: Fix passing value types around in several cases
-* da9c4784: Return nil for loop expressions in MIR
-* f9375d50: Fix checking type arguments for mut T and uni T
-* 68a5a868: Fix making closure arguments rigid
-* 4ea39fb0: Count assertion failures in test output
-* 7d0c79a2: Fix type-checking and inferring against traits
-* a6206937: Fix runaway recursion when inferring cyclic types
-* a8fdbe47: Fix STDOUT.print not returning the correct length
-* 3e62e9ef: Don't immediately drop ignored variables
-* a419af98: Fix instruction locations for raw panics
-* 6ab5ad77: Fix and document negative Duration objects
-* b41c2c80: Suspend after exiting a blocking call
-* d496aeac: Disallow processes sending messages to themselves
-* 9cee2ea3: Handle async messages for identifier calls
-* bbfaaf6a: Fix constant float equality for code generation
-* 2e9ce863: Simplify and fix debug info for stacktraces
-* 20dc8d4f: Refactor how processes are terminated
+* [11ab2c3f](https://github.com/inko-lang/inko/commit/11ab2c3f): Fix type-checking against type placeholders
+* [efdc6463](https://github.com/inko-lang/inko/commit/efdc6463): Disallow async calls using non-async methods
+* [ea303b4d](https://github.com/inko-lang/inko/commit/ea303b4d): Save instruction pointer for async messages
+* [c362caf4](https://github.com/inko-lang/inko/commit/c362caf4): Insert CheckRefs after calling destructors
+* [8b670e60](https://github.com/inko-lang/inko/commit/8b670e60): Fix parsing negative hexadecimal integers
+* [7bee45f6](https://github.com/inko-lang/inko/commit/7bee45f6): Fix passing value types around in several cases
+* [da9c4784](https://github.com/inko-lang/inko/commit/da9c4784): Return nil for loop expressions in MIR
+* [f9375d50](https://github.com/inko-lang/inko/commit/f9375d50): Fix checking type arguments for mut T and uni T
+* [68a5a868](https://github.com/inko-lang/inko/commit/68a5a868): Fix making closure arguments rigid
+* [4ea39fb0](https://github.com/inko-lang/inko/commit/4ea39fb0): Count assertion failures in test output
+* [7d0c79a2](https://github.com/inko-lang/inko/commit/7d0c79a2): Fix type-checking and inferring against traits
+* [a6206937](https://github.com/inko-lang/inko/commit/a6206937): Fix runaway recursion when inferring cyclic types
+* [a8fdbe47](https://github.com/inko-lang/inko/commit/a8fdbe47): Fix STDOUT.print not returning the correct length
+* [3e62e9ef](https://github.com/inko-lang/inko/commit/3e62e9ef): Don't immediately drop ignored variables
+* [a419af98](https://github.com/inko-lang/inko/commit/a419af98): Fix instruction locations for raw panics
+* [6ab5ad77](https://github.com/inko-lang/inko/commit/6ab5ad77): Fix and document negative Duration objects
+* [b41c2c80](https://github.com/inko-lang/inko/commit/b41c2c80): Suspend after exiting a blocking call
+* [d496aeac](https://github.com/inko-lang/inko/commit/d496aeac): Disallow processes sending messages to themselves
+* [9cee2ea3](https://github.com/inko-lang/inko/commit/9cee2ea3): Handle async messages for identifier calls
+* [bbfaaf6a](https://github.com/inko-lang/inko/commit/bbfaaf6a): Fix constant float equality for code generation
+* [2e9ce863](https://github.com/inko-lang/inko/commit/2e9ce863): Simplify and fix debug info for stacktraces
+* [20dc8d4f](https://github.com/inko-lang/inko/commit/20dc8d4f): Refactor how processes are terminated
 
 ### Changed
 
-* b6ce8e8f: Change ByteArray.from_array to take a ref
-* 4e26a2ae: Restrict Inko to little-endian architectures
-* e15e823c: Implement String.slice_bytes in Rust
-* 6620c448: Rework iterating over byte sequences
-* 923cb3a1: Lower binary expressions into regular method calls
-* c9375b66: Use shorter method names for Duration
-* 64d80971: Use nanoseconds for Instant and Duration
-* 30f77edb: Remove glob imports from the language
-* c0e67524: Remove the dirs-next dependency
-* f5f0b8ce: Remove the num_cpus dependency
-* c4a6b0c8: Make Test.failures public
-* 7ef1aa07: Remove the float-cmp dependency
-* 6d5580cd: Remove mention of INKO_BYTECODE_THREADS
-* 1c225b48: Remove alive tracking from the network poller
-* 1e0b0037: Remove alive tracking from the timeout worker
-* 5c57ddcd: Improve detecting modules names
+* [b6ce8e8f](https://github.com/inko-lang/inko/commit/b6ce8e8f): Change ByteArray.from_array to take a ref
+* [4e26a2ae](https://github.com/inko-lang/inko/commit/4e26a2ae): Restrict Inko to little-endian architectures
+* [e15e823c](https://github.com/inko-lang/inko/commit/e15e823c): Implement String.slice_bytes in Rust
+* [6620c448](https://github.com/inko-lang/inko/commit/6620c448): Rework iterating over byte sequences
+* [923cb3a1](https://github.com/inko-lang/inko/commit/923cb3a1): Lower binary expressions into regular method calls
+* [c9375b66](https://github.com/inko-lang/inko/commit/c9375b66): Use shorter method names for Duration
+* [64d80971](https://github.com/inko-lang/inko/commit/64d80971): Use nanoseconds for Instant and Duration
+* [30f77edb](https://github.com/inko-lang/inko/commit/30f77edb): Remove glob imports from the language
+* [c0e67524](https://github.com/inko-lang/inko/commit/c0e67524): Remove the dirs-next dependency
+* [f5f0b8ce](https://github.com/inko-lang/inko/commit/f5f0b8ce): Remove the num_cpus dependency
+* [c4a6b0c8](https://github.com/inko-lang/inko/commit/c4a6b0c8): Make Test.failures public
+* [7ef1aa07](https://github.com/inko-lang/inko/commit/7ef1aa07): Remove the float-cmp dependency
+* [6d5580cd](https://github.com/inko-lang/inko/commit/6d5580cd): Remove mention of INKO_BYTECODE_THREADS
+* [1c225b48](https://github.com/inko-lang/inko/commit/1c225b48): Remove alive tracking from the network poller
+* [1e0b0037](https://github.com/inko-lang/inko/commit/1e0b0037): Remove alive tracking from the timeout worker
+* [5c57ddcd](https://github.com/inko-lang/inko/commit/5c57ddcd): Improve detecting modules names
 
 ### Performance improvements
 
-* 2e398490: Avoid calling String droppers where possible
-* 366d7235: Don't call droppers for value types
-* 047eec78: Implement ByteArray.append in Rust
-* 47c7669c: Use ByteArray.reverse in Int.to_base
-* 110dd0a2: Implement ByteArray.slice in Rust
-* 44c00881: Support multiple network pollers
-* 89467afc: Automatically replace blocking threads
-* 4cf91016: Rewrite the process scheduler from the ground up
+* [2e398490](https://github.com/inko-lang/inko/commit/2e398490): Avoid calling String droppers where possible
+* [366d7235](https://github.com/inko-lang/inko/commit/366d7235): Don't call droppers for value types
+* [047eec78](https://github.com/inko-lang/inko/commit/047eec78): Implement ByteArray.append in Rust
+* [47c7669c](https://github.com/inko-lang/inko/commit/47c7669c): Use ByteArray.reverse in Int.to_base
+* [110dd0a2](https://github.com/inko-lang/inko/commit/110dd0a2): Implement ByteArray.slice in Rust
+* [44c00881](https://github.com/inko-lang/inko/commit/44c00881): Support multiple network pollers
+* [89467afc](https://github.com/inko-lang/inko/commit/89467afc): Automatically replace blocking threads
+* [4cf91016](https://github.com/inko-lang/inko/commit/4cf91016): Rewrite the process scheduler from the ground up
 
 ## 0.10.0 (2022-09-12)
 
@@ -146,14 +146,14 @@ different approach for generating changelogs. For more details, refer to the
 
 ### Added
 
-* 40e7bd29: Add Map.iter_mut
+* [40e7bd29](https://github.com/inko-lang/inko/commit/40e7bd29): Add Map.iter_mut
 
 ### Fixed
 
-* be7794ff: Fix defining bindings in OR patterns
-* 82452f17: Fix building source archives
+* [be7794ff](https://github.com/inko-lang/inko/commit/be7794ff): Fix defining bindings in OR patterns
+* [82452f17](https://github.com/inko-lang/inko/commit/82452f17): Fix building source archives
 
 ### Changed
 
-* ab5a7866: Lower if to match expressions
-* c454fd4e: Update Docker build process
+* [ab5a7866](https://github.com/inko-lang/inko/commit/ab5a7866): Lower if to match expressions
+* [c454fd4e](https://github.com/inko-lang/inko/commit/c454fd4e): Update Docker build process
