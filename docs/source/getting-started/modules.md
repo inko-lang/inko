@@ -99,7 +99,7 @@ Using minimal version selection offers several benefits:
 - You won't end up using a version of a package that you never tested your code
   against.
 
-For more details we suggest reading through the article by Russ Cox.
+For more details we suggest reading through the [article by Russ Cox](https://research.swtch.com/vgo-mvs) (also linked to above).
 
 ### Handling security updates
 
