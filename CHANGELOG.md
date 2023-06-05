@@ -6,6 +6,46 @@ Entries from before version 0.10.0 are no longer included, but can be viewed
 
 <!-- new section -->
 
+## 0.12.0 (2023-06-05)
+
+### Added
+
+* 3de43cf0: Allow try/throw in closures without return types
+* c5af2196: Allow testing of code that shouldn't panic
+* 5f87a41b: Add Iter.last
+* d85d48af: Add Result.collect
+* f8bd2499: Make working with unique values easier
+
+### Fixed
+
+* a5a10f17: Fix match expressions not dropping all values
+* 9dd6bcbd: Fix capturing of variables
+* 884484b8: Fix unreachable code warnings not being generated
+* 3b756379: Fix parsing async mut methods in impl blocks
+* dd2f93f3: Fix double drops for conditionally dropped values
+* 227429b5: Fix resolving nested types as immutable
+* 893cab4a: Allow passing owned values to mutable traits
+* d6872834: Fix type inference when comparing references
+* a23cb932: Verify trait requirements
+* fd6eb2f7: Handle missing type arguments when checking types
+* cfa644a3: Don't lower unreachable code to MIR
+* 5b2980ab: Push global jobs back when trying to steal them
+* 8cbf6f10: Fix various reference counting underflows
+* 63e1d596: Fix dropping old values when assigning new ones
+
+### Other
+
+* 395332bd: Start documenting some goals and non-goals
+* c21c4b7d: Correct outdated reference to libstd/
+* 8a56fd27: Enable optimisations by default
+* c0463c46: Move iter.join to String.join
+* 95bfb8d3: Document tuning the runtime
+* 01e5dcaa: Document using copr to install Inko on Fedora
+
+### Performance improvements
+
+* e611acec: Use a u64 for timeouts
+
 ## 0.11.0 (2023-05-19)
 
 ### Added
