@@ -58,6 +58,7 @@ nav:
     - guides/operators.md
     - guides/scaling.md
     - guides/contributing.md
+    - guides/goals.md
   - Internals:
     - internals/compiler.md
     - internals/runtime.md

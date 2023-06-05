@@ -1,3 +1,8 @@
+---
+hide:
+  - navigation
+  - toc
+---
 # Introduction
 
 Inko is a programming language for building concurrent software with confidence,
