@@ -1,5 +1,5 @@
 ---
-name: Build and run tests
+name: Build
 
 on:
   push:
@@ -12,9 +12,6 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  lints:
-    uses: ./.github/workflows/lint.yml
-
   tests:
     uses: ./.github/workflows/test.yml
 
@@ -24,7 +21,6 @@ jobs:
       contents: read
       packages: write
     needs:
-      - lints
       - tests
     if: |
       github.repository == 'inko-lang/inko' && github.ref_name == 'main'
