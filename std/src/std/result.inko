@@ -15,7 +15,7 @@ class pub enum Result[T, E] {
   # The case and value for an error.
   case Error(E)
 
-  # Collects values from an `Iter[Result[T, E]]` into a `Result[Array[T, E]]`,
+  # Collects values from an `Iter[Result[T, E]]` into a `Result[Array[T], E]`,
   # returning the first `Error` encountered when iterating over the iterator.
   #
   # # Examples
