@@ -441,7 +441,7 @@ impl MethodCall {
     ) {
         let given = argument.cast_according_to(expected, &state.db);
 
-        if self.require_sendable {
+        if self.require_sendable || given.is_uni_ref(&state.db) {
             self.check_sendable.push((given, location.clone()));
         }
 
@@ -463,7 +463,7 @@ impl MethodCall {
     }
 
     fn check_sendable(&mut self, state: &mut State, location: &SourceLocation) {
-        if !self.require_sendable {
+        if self.check_sendable.is_empty() {
             return;
         }
 
@@ -472,12 +472,12 @@ impl MethodCall {
         // thus violating the uniqueness constraints.
         let ref_safe = self.method.is_immutable(&state.db)
             && self.check_sendable.iter().all(|(typ, _)| {
-                typ.is_sendable(&state.db) || typ.is_ref(&state.db)
+                typ.is_sendable(&state.db) || typ.is_sendable_ref(&state.db)
             });
 
         for (given, loc) in &self.check_sendable {
             if given.is_sendable(&state.db)
-                || (given.is_ref(&state.db) && ref_safe)
+                || (given.is_sendable_ref(&state.db) && ref_safe)
             {
                 continue;
             }
@@ -1471,13 +1471,18 @@ impl<'a> CheckMethodBody<'a> {
 
         // Since other types aren't compatible with Any, we only need to check
         // the first value's type.
-        if !types.is_empty() && types[0].is_any(self.db()) {
-            self.state.diagnostics.error(
-                DiagnosticId::InvalidType,
-                "Arrays can't store values of type 'Any'",
-                self.file(),
-                node.location.clone(),
-            );
+        if let Some(&first) = types.get(0) {
+            if !first.allow_in_array(self.db()) {
+                self.state.diagnostics.error(
+                    DiagnosticId::InvalidType,
+                    format!(
+                        "Values of type '{}' can't be stored in an Array",
+                        format_type(self.db(), first)
+                    ),
+                    self.file(),
+                    node.location.clone(),
+                );
+            }
         }
 
         let ins =

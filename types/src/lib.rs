@@ -3458,6 +3458,19 @@ impl TypeRef {
         }
     }
 
+    pub fn allow_in_array(self, db: &Database) -> bool {
+        match self {
+            TypeRef::Any
+            | TypeRef::RefAny
+            | TypeRef::UniRef(_)
+            | TypeRef::UniMut(_) => false,
+            TypeRef::Placeholder(id) => {
+                id.value(db).map_or(true, |v| v.allow_in_array(db))
+            }
+            _ => true,
+        }
+    }
+
     pub fn is_any(self, db: &Database) -> bool {
         match self {
             TypeRef::Any | TypeRef::RefAny => true,
@@ -3615,6 +3628,16 @@ impl TypeRef {
             TypeRef::Uni(_) | TypeRef::UniRef(_) | TypeRef::UniMut(_) => true,
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(false, |v| v.require_sendable_arguments(db))
+            }
+            _ => false,
+        }
+    }
+
+    pub fn is_sendable_ref(self, db: &Database) -> bool {
+        match self {
+            TypeRef::Ref(_) | TypeRef::UniRef(_) => true,
+            TypeRef::Placeholder(id) => {
+                id.value(db).map_or(false, |v| v.is_sendable_ref(db))
             }
             _ => false,
         }
@@ -3815,7 +3838,10 @@ impl TypeRef {
     pub fn allow_as_ref(self, db: &Database) -> bool {
         match self {
             TypeRef::Any => true,
-            TypeRef::Owned(_) | TypeRef::Mut(_) | TypeRef::Ref(_) => true,
+            TypeRef::Owned(_)
+            | TypeRef::Mut(_)
+            | TypeRef::Ref(_)
+            | TypeRef::Uni(_) => true,
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(false, |v| v.allow_as_ref(db))
             }
@@ -3827,7 +3853,7 @@ impl TypeRef {
         match self {
             TypeRef::Any => true,
             TypeRef::Owned(TypeId::RigidTypeParameter(id)) => id.is_mutable(db),
-            TypeRef::Owned(_) | TypeRef::Mut(_) => true,
+            TypeRef::Owned(_) | TypeRef::Mut(_) | TypeRef::Uni(_) => true,
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(false, |v| v.allow_as_mut(db))
             }
@@ -4969,7 +4995,7 @@ mod tests {
         assert!(placeholder(var).allow_as_ref(&db));
         assert!(owned(rigid(param)).allow_as_ref(&db));
         assert!(TypeRef::Any.allow_as_ref(&db));
-        assert!(!uni(instance(int)).allow_as_ref(&db));
+        assert!(uni(instance(int)).allow_as_ref(&db));
     }
 
     #[test]
@@ -4990,7 +5016,7 @@ mod tests {
         assert!(owned(rigid(param2)).allow_as_mut(&db));
         assert!(!immutable(instance(int)).allow_as_mut(&db));
         assert!(!owned(rigid(param1)).allow_as_mut(&db));
-        assert!(!uni(instance(int)).allow_as_mut(&db));
+        assert!(uni(instance(int)).allow_as_mut(&db));
     }
 
     #[test]

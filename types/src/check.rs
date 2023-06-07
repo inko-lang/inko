@@ -473,7 +473,7 @@ impl<'a> TypeChecker<'a> {
                 _ => false,
             },
             TypeRef::UniRef(left_id) => match right {
-                TypeRef::UniRef(right_id) => {
+                TypeRef::UniRef(right_id) | TypeRef::Ref(right_id) => {
                     self.check_type_id(left_id, right_id, env, rules)
                 }
                 TypeRef::Error => true,
@@ -1526,6 +1526,11 @@ mod tests {
             TypeRef::UniRef(instance(thing)),
             TypeRef::UniRef(instance(thing)),
         );
+        check_ok(
+            &db,
+            TypeRef::UniRef(instance(thing)),
+            TypeRef::Ref(instance(thing)),
+        );
         check_ok(&db, TypeRef::UniRef(instance(thing)), TypeRef::Error);
 
         check_err(
@@ -1554,6 +1559,11 @@ mod tests {
             &db,
             TypeRef::UniMut(instance(thing)),
             TypeRef::UniRef(instance(thing)),
+        );
+        check_err(
+            &db,
+            TypeRef::UniMut(instance(thing)),
+            TypeRef::Mut(instance(thing)),
         );
         check_err(&db, TypeRef::UniMut(instance(thing)), placeholder(var));
         check_err(&db, TypeRef::UniMut(instance(thing)), TypeRef::Any);
