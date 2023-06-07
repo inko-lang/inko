@@ -1080,6 +1080,15 @@ impl<'a> DefineVariants<'a> {
         }
 
         if is_enum {
+            if variants_count == 0 {
+                self.state.diagnostics.error(
+                    DiagnosticId::InvalidType,
+                    "Enum classes must define at least a single variant",
+                    self.file(),
+                    node.location.clone(),
+                );
+            }
+
             let module = self.module;
             let db = self.db_mut();
             let vis = Visibility::TypePrivate;
@@ -1222,6 +1231,16 @@ mod tests {
             modules[0].module_id.symbol(&state.db, "A"),
             Some(Symbol::Class(id))
         );
+    }
+
+    #[test]
+    fn test_define_empty_enum_class() {
+        let mut state = State::new(Config::new());
+        let mut modules = parse(&mut state, "class enum A {}");
+
+        assert!(DefineTypes::run_all(&mut state, &mut modules));
+        assert!(!DefineVariants::run_all(&mut state, &mut modules));
+        assert_eq!(state.diagnostics.iter().count(), 1);
     }
 
     #[test]
