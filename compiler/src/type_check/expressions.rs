@@ -1637,7 +1637,7 @@ impl<'a> CheckMethodBody<'a> {
         node: &mut hir::SelfObject,
         scope: &LexicalScope,
     ) -> TypeRef {
-        let typ = scope.surrounding_type;
+        let mut typ = scope.surrounding_type;
 
         if !self.method.is_instance_method(self.db()) {
             self.state.diagnostics.error(
@@ -1650,14 +1650,12 @@ impl<'a> CheckMethodBody<'a> {
             return TypeRef::Error;
         }
 
-        if scope.in_recover() && !typ.is_sendable(self.db()) {
-            self.state.diagnostics.unsendable_type_in_recover(
-                self.fmt(typ),
-                self.file(),
-                node.location.clone(),
-            );
+        // Closures inside a `recover` can't refer to `self`, because they can't
+        // capture `uni ref T` / `uni mut T` values.
+        self.check_if_self_is_allowed(scope, &node.location);
 
-            return TypeRef::Error;
+        if scope.in_recover() {
+            typ = typ.as_uni_ref(self.db());
         }
 
         scope.mark_closures_as_capturing_self(self.db_mut());
