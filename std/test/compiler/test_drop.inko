@@ -31,6 +31,18 @@ class Box {
   }
 }
 
+class CyclicClass {
+  let @backref: Backref[CyclicClass]
+}
+
+class Backref[T] {
+  let @target: Option[ref T]
+}
+
+class enum CyclicEnum {
+  case Backref(Backref[CyclicEnum])
+}
+
 fn pub tests(t: mut Tests) {
   t.test('Assigning a variable drops the old value') fn (t) {
     let val = Value.new
@@ -62,5 +74,21 @@ fn pub tests(t: mut Tests) {
 
     fn move { vref = Option.None }.call
     t.equal(val.dropped, 1)
+  }
+
+  t.no_panic('Dropping a class with a cyclic reference') fn {
+    let val_ref = Backref { @target = Option.None }
+    let val = CyclicClass { @backref = val_ref }
+
+    val.backref.target = Option.Some(ref val)
+  }
+
+  t.no_panic('Dropping an enum with a cyclic reference') fn {
+    let val_ref = Backref { @target = Option.None }
+    let val = CyclicEnum.Backref(val_ref)
+
+    match mut val {
+      case Backref(r) -> r.target = Option.Some(ref val)
+    }
   }
 }

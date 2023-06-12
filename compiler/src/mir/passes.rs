@@ -457,10 +457,6 @@ impl<'a> GenerateDropper<'a> {
             lower.reduce_call(typ, loc);
         }
 
-        // We check _after_ the destructor to guard against new references to
-        // "self" being created.
-        lower.current_block_mut().check_refs(self_reg, loc);
-
         let variants = class.variants(lower.db());
         let mut blocks = Vec::new();
         let before_block = lower.current_block;
@@ -498,6 +494,11 @@ impl<'a> GenerateDropper<'a> {
         lower.block_mut(before_block).switch(tag_reg, blocks, loc);
 
         lower.current_block = after_block;
+
+        // Destructors may introduce new references, so we have to check again.
+        // We do this _after_ processing fields so we can correctly drop cyclic
+        // types.
+        lower.current_block_mut().check_refs(self_reg, loc);
 
         lower.drop_register(tag_reg, loc);
         lower.current_block_mut().free(self_reg, loc);
@@ -541,10 +542,6 @@ impl<'a> GenerateDropper<'a> {
             lower.reduce_call(typ, loc);
         }
 
-        // We check _after_ the destructor to guard against new references to
-        // "self" being created.
-        lower.current_block_mut().check_refs(self_reg, loc);
-
         for field in class.fields(lower.db()) {
             let typ = field.value_type(lower.db());
 
@@ -559,6 +556,11 @@ impl<'a> GenerateDropper<'a> {
                 .get_field(reg, self_reg, class, field, loc);
             lower.drop_register(reg, loc);
         }
+
+        // Destructors may introduce new references, so we have to check again.
+        // We do this _after_ processing fields so we can correctly drop cyclic
+        // types.
+        lower.current_block_mut().check_refs(self_reg, loc);
 
         if free_self {
             lower.current_block_mut().free(self_reg, loc);
