@@ -2865,7 +2865,9 @@ impl Parser {
 
             values.push(func(self, token)?);
 
-            if self.peek().kind == TokenKind::Comma {
+            if values.len() >= 1 && self.peek().kind != close {
+                self.expect(TokenKind::Comma)?;
+            } else if self.peek().kind == TokenKind::Comma {
                 self.next();
             }
         }
@@ -4189,6 +4191,17 @@ mod tests {
                 location: cols(1, 1)
             }))
         );
+
+        assert_eq!(
+            expr("A\n{ @a = 10, }"),
+            Expression::Constant(Box::new(Constant {
+                source: None,
+                name: "A".to_string(),
+                location: cols(1, 1)
+            }))
+        );
+
+        assert_error_expr!("A { @a = 10 @b = 20 }", cols(13, 14));
     }
 
     #[test]
