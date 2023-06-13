@@ -2865,7 +2865,7 @@ impl Parser {
 
             values.push(func(self, token)?);
 
-            if values.len() >= 1 && self.peek().kind != close {
+            if !values.is_empty() && self.peek().kind != close {
                 self.expect(TokenKind::Comma)?;
             } else if self.peek().kind == TokenKind::Comma {
                 self.next();
