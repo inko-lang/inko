@@ -4,7 +4,7 @@ Inko supports pattern matching against a variety of types. Pattern matching is
 performed using the `match` keyword:
 
 ```inko
-match numbers.get(3) {
+match numbers.opt(3) {
   case Some(value) -> value * 2
   case None -> 0
 }
@@ -280,21 +280,26 @@ match Option.Some(42) {
 }
 ```
 
-For references we just drop the reference before entering the
-pattern body:
+For references we just drop the reference before entering the pattern body:
 
 ```inko
-match values.get(4) {
+match values.opt(4) {
   case Some(42) -> {
-    # This is valid because the `ref Option[Int]` returned by `values.get(4)` is
+    # This is valid because the `ref Option[Int]` returned by `values.opt(4)` is
     # dropped before we enter this body. If we didn't, the line below would
-    # panic, because we'd try to drop the old value of `values.get(4)` while a
+    # panic, because we'd try to drop the old value of `values.opt(4)` while a
     # reference to it still exists.
     values.set(4, Option.Some(0))
   }
   case _ -> nil
 }
 ```
+
+!!! warning
+    If a pattern contains any bindings (e.g. `Some(a)` in the above case), those
+    bindings are dropped _at the end_ of the body. This means that if you match
+    against a value, bind a sub value to a variable, then drop the value
+    (e.g. by assigning it a new value), you'll run into a drop panic.
 
 ## Limitations
 
