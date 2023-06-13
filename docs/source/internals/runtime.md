@@ -44,44 +44,6 @@ The default reduction count is 1000 and can be changed by setting the
 environment variable `INKO_REDUCTIONS` to a value between 1 and 65 535. The
 higher the value, the more time a process is allowed to run for.
 
-## IO operations
-
-### Sockets
-
-For network IO the runtime uses non-blocking sockets. When performing an
-operation that would block, the process and its socket are registered with "the
-network poller". This is a system/thread that polls a list of sockets until they
-are ready, rescheduling their corresponding processes. Polling is done using
-APIs such as epoll on Linux, kqueue on macOS/BSD, and IO completion ports on
-Windows.
-
-By default a single network poller thread is spawned, and each process thread
-uses the same poller. The number of poller threads is configured using the
-`INKO_NETPOLL_THREADS` environment variable. This variable can be set to a value
-between 1 and 127. When the value is greater than one, network poller threads
-are assigned to process threads in a round-robin fashion. Most programs won't
-need more than a single thread, but if you make heavy use of (many) sockets you
-may want to increase this value.
-
-### Blocking IO
-
-For blocking operations, such as file IO, Inko uses a fixed amount of backup
-threads. When an OS thread is about to enter a blocking operation, it sets a
-flag indicating when it did so. This is implemented such that it in most cases
-it won't take more than 100-200 nanoseconds.
-
-In the background a monitor thread periodically examines all OS threads. If it
-finds an OS thread is blocking for too long, it wakes up a backup thread to take
-over the work of this blocking OS thread. When the blocking OS thread finishes
-the blocking call it continues running its process. When the process is
-rescheduled and the OS thread would pick up new work, it becomes a backup thread
-instead.
-
-The number of backup threads is controlled using the environment variable
-`INKO_BACKUP_THREADS` and defaults to four times the number of CPU cores. The
-monitor thread runs at an interval of 100 microseconds, though the exact
-interval may differ between platforms. This interval can't be changed.
-
 ## Timeouts
 
 Processes can suspend themselves with a timeout, or await a future for up to a
