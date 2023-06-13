@@ -257,7 +257,8 @@ class pub Map[K: Hash + Equal[K], V] {
     iter.map fn (e) { e.key }
   }
 
-  # Returns an `Iter` visiting all the values in this `Map`.
+  # Returns an iterator that yields immutable references to the values in
+  # `self`.
   #
   # # Examples
   #
@@ -555,6 +556,23 @@ impl Map if V: mut {
       case EMPTY -> panic("The key doesn't exist")
       case index -> @entries.get_mut(index).value
     }
+  }
+
+  # Returns an iterator that yields mutable references to the values in `self`.
+  #
+  # # Examples
+  #
+  # Iterating over the values in a `Map`:
+  #
+  #     let mut map = Map.new
+  #
+  #     map.set('name', 'Alice')
+  #
+  #     map.values_mut.each fn (value) {
+  #       value # => 'Alice'
+  #     }
+  fn pub mut values_mut -> Iter[mut V] {
+    iter_mut.map fn (e) { e.value }
   }
 }
 

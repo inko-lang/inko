@@ -120,6 +120,16 @@ fn pub tests(t: mut Tests) {
     t.true(values.get(0) == 'Alice' or values.get(0) == 'Bla')
   }
 
+  t.test('Map.values_mut') fn (t) {
+    let map = Map.new
+
+    map.set('numbers', [10])
+
+    map.values_mut.each fn (nums) { nums.push(20) }
+
+    t.equal(map.opt('numbers'), Option.Some(ref [10, 20]))
+  }
+
   t.test('Map.opt') fn (t) {
     let map = Map.new
 
