@@ -120,13 +120,16 @@ ${INSTALL_STD}:
 	cp -r std/src/* "${@}"
 
 ${INSTALL_RT}:
-	install -D -m644 target/release/${RUNTIME_NAME} "${@}"
+	mkdir -p "$$(dirname ${@})"
+	install -m644 target/release/${RUNTIME_NAME} "${@}"
 
 ${INSTALL_INKO}:
-	install -D -m755 target/release/inko "${@}"
+	mkdir -p "$$(dirname ${@})"
+	install -m755 target/release/inko "${@}"
 
 ${INSTALL_LICENSE}:
-	install -D -m644 LICENSE "${@}"
+	mkdir -p "$$(dirname ${@})"
+	install -m644 LICENSE "${@}"
 
 install: ${INSTALL_STD} \
 	${INSTALL_RT} \
