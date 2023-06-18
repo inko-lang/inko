@@ -1,7 +1,19 @@
 import helpers::(fmt, hash)
+import std::cmp::(Compare, Ordering)
 import std::drop::(drop, Drop)
 import std::rand::Random
 import std::test::Tests
+
+class Person {
+  let @name: String
+  let @age: Int
+}
+
+impl Compare[Person] for Person {
+  fn pub cmp(other: ref Person) -> Ordering {
+    @age.cmp(other.age)
+  }
+}
 
 class Counter {
   let @value: Int
@@ -246,6 +258,32 @@ fn pub tests(t: mut Tests) {
     t.equal(fmt([] as Array[Int]), '[]')
     t.equal(fmt([10]), '[10]')
     t.equal(fmt([10, 20]), '[10, 20]')
+  }
+
+  t.test('Array.sort') fn (t) {
+    let nums = [56, 20, 28, 71, 42, 49, 1, 59, 19, 18, 27, 6, 31, 89, 32]
+    let people = [
+      Person { @name = 'Eve', @age = 22 },
+      Person { @name = 'Steve', @age = 22 },
+      Person { @name = 'Alice', @age = 20 },
+      Person { @name = 'Bob', @age = 21 },
+    ]
+
+    nums.sort
+    people.sort
+
+    t.equal(nums, [1, 6, 18, 19, 20, 27, 28, 31, 32, 42, 49, 56, 59, 71, 89])
+    t.equal(
+      people.iter.map fn (p) { p.name }.to_array,
+      ['Alice', 'Bob', 'Eve', 'Steve']
+    )
+  }
+
+  t.test('Array.sort') fn (t) {
+    let nums = [56, 20, 28, 71, 42, 49, 1, 59, 19, 18, 27, 6, 31, 89, 32]
+
+    nums.sort_by fn (a, b) { b.cmp(a) }
+    t.equal(nums, [89, 71, 59, 56, 49, 42, 32, 31, 28, 27, 20, 19, 18, 6, 1])
   }
 
   t.test('IntoIter.next') fn (t) {
