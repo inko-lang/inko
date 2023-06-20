@@ -798,7 +798,14 @@ impl<'a> Compiler<'a> {
         types: Vec<TypeRef>,
     ) -> Vec<Variable> {
         if !instance.instance_of().is_generic(self.db()) {
-            return types.into_iter().map(|t| self.new_variable(t)).collect();
+            return types
+                .into_iter()
+                .map(|t| {
+                    self.new_variable(
+                        t.cast_according_to(source_variable_type, self.db()),
+                    )
+                })
+                .collect();
         }
 
         let args = TypeArguments::for_class(self.db_mut(), instance);

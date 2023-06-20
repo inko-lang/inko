@@ -12,6 +12,13 @@ class enum State {
   case Button(State)
 }
 
+class Dummy {}
+
+class enum Transition {
+  case Empty(Dummy)
+  case Split(Transition)
+}
+
 fn pub tests(t: mut Tests) {
   # https://github.com/inko-lang/inko/issues/363
   t.test('match with OR patterns and a guard') fn (t) {
@@ -48,6 +55,15 @@ fn pub tests(t: mut Tests) {
     match (ref a, ref b) {
       case (A, A) -> true
       case _ -> false
+    }
+  }
+
+  t.no_panic("match doesn't drop deeply nested bindings prematurely") fn {
+    let trans = Transition.Split(Transition.Empty(Dummy {}))
+
+    match ref trans {
+      case Split(Empty(state1)) -> {}
+      case _ -> {}
     }
   }
 }
