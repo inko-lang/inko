@@ -278,20 +278,6 @@ class builtin Array[T] {
     result
   }
 
-  # TODO: remove
-  # fn pub mut swap_at(index: Int, with: Int) {
-  #   bounds_check(index, length)
-  #   bounds_check(with, length)
-  #
-  #   let index_val = _INKO.array_get(self, index)
-  #   let with_val = _INKO.array_get(self, with)
-  #
-  #   _INKO.array_set(self, index, with_val)
-  #   _INKO.array_set(self, with, index_val)
-  #   _INKO.moved(index_val)
-  #   _INKO.moved(with_val)
-  # }
-
   # Returns an iterator that yields immutable references to the values in
   # `self`.
   fn pub iter -> Iter[ref T] {
