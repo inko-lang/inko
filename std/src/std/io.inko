@@ -5,6 +5,9 @@
 import std::cmp::Equal
 import std::fmt::(Format, Formatter)
 import std::string::ToString
+import std::sys::bsd::errors if bsd
+import std::sys::linux::errors if linux
+import std::sys::mac::errors if mac
 
 # The initial number of bytes to read in `Read.read_all`
 let INITIAL_READ_ALL_SIZE = 1024
@@ -12,161 +15,195 @@ let INITIAL_READ_ALL_SIZE = 1024
 # The maximum number of bytes to read when using `Read.read_all`.
 let MAX_READ_ALL_SIZE = 1024 * 1024
 
-# An IO error.
-#
-# `Error` is thrown whenever an IO operation resulted in an error, such as when
-# trying to access a non-existing file.
-class pub enum Error {
-  case Other
-  case NotFound
-  case PermissionDenied
-  case ConnectionRefused
-  case ConnectionReset
-  case ConnectionAborted
-  case NotConnected
-  case AddressInUse
-  case AddressUnavailable
-  case BrokenPipe
-  case AlreadyExists
-  case InvalidInput
-  case InvalidData
-  case TimedOut
-  case WriteZero
-  case Interrupted
-  case UnexpectedEof
+fn extern inko_last_error -> Int32
 
-  # Returns a new `Error` according to the given error code.
-  fn pub static from_int(code: Int) -> Error {
+# An error type for I/O operations.
+#
+# This type is typically constructed from raw OS error codes such as `ENOENT` on
+# Unix systems. This enum doesn't define a variant for every possible error.
+# Instead, we define a variant for the most commonly used errors, and represent
+# other errors using the `Other` variant.
+class pub enum Error {
+  # The address is already in use.
+  case AddressInUse
+
+  # The address isn't available.
+  case AddressUnavailable
+
+  # A connection is already established.
+  case AlreadyConnected
+
+  # A resource already exists.
+  case AlreadyExists
+
+  # The operation failed because a pipe was closed.
+  case BrokenPipe
+
+  # The connection was aborted by the remote server.
+  case ConnectionAborted
+
+  # The connection was refused by the remote server.
+  case ConnectionRefused
+
+  # The connection was reset by the remote server.
+  case ConnectionReset
+
+  # An operation would result in a deadlock.
+  case Deadlock
+
+  # A directory isn't empty.
+  case DirectoryNotEmpty
+
+  # A file is too large.
+  case FileTooLarge
+
+  # The remote host is unreachable.
+  case HostUnreachable
+
+  # The operation is in progress.
+  case InProgress
+
+  # The operation was interrupted.
+  case Interrupted
+
+  # One or more arguments are invalid.
+  case InvalidArgument
+
+  # The file name is invalid.
+  case InvalidFileName
+
+  # The seek operation is invalid.
+  case InvalidSeek
+
+  # The resource is a directory.
+  case IsADirectory
+
+  # The network is down.
+  case NetworkDown
+
+  # The network is unreachable.
+  case NetworkUnreachable
+
+  # The resource isn't a directory.
+  case NotADirectory
+
+  # A connection isn't established.
+  case NotConnected
+
+  # The resource isn't found.
+  case NotFound
+
+  # The operation failed because not enough memory could be allocated.
+  case OutOfMemory
+
+  # The operation failed because it lacked the necessary privileges.
+  case PermissionDenied
+
+  # The filesystem is read-only.
+  case ReadOnlyFilesystem
+
+  # The resource is busy.
+  case ResourceBusy
+
+  # The underlying storage is full.
+  case StorageFull
+
+  # The operation timed out.
+  case TimedOut
+
+  # The operation would block.
+  case WouldBlock
+
+  # An error not covered by the other variants.
+  #
+  # The wrapped `Int` is the raw error code.
+  case Other(Int)
+
+  # Returns an `Error` from a raw OS error code.
+  #
+  # # Examples
+  #
+  #     import std::unix::errors::ENOENT
+  #
+  #     Error.from_os_error(ENOENT) # => Error.NotFound
+  fn pub static from_os_error(code: Int) -> Error {
     match code {
-      case 0 -> Other
-      case 1 -> NotFound
-      case 2 -> PermissionDenied
-      case 3 -> ConnectionRefused
-      case 4 -> ConnectionReset
-      case 5 -> ConnectionAborted
-      case 6 -> NotConnected
-      case 7 -> AddressInUse
-      case 8 -> AddressUnavailable
-      case 9 -> BrokenPipe
-      case 10 -> AlreadyExists
-      case 11 -> InvalidInput
-      case 12 -> InvalidData
-      case 13 -> TimedOut
-      case 14 -> WriteZero
-      case 15 -> Interrupted
-      case 16 -> UnexpectedEof
-      case _ -> Other
+      case errors::EPERM -> Error.PermissionDenied
+      case errors::ENOENT -> Error.NotFound
+      case errors::EINTR -> Error.Interrupted
+      case errors::EAGAIN -> Error.WouldBlock
+      case errors::ENOMEM -> Error.OutOfMemory
+      case errors::EACCES -> Error.PermissionDenied
+      case errors::EBUSY -> Error.ResourceBusy
+      case errors::EEXIST -> Error.AlreadyExists
+      case errors::ENOTDIR -> Error.NotADirectory
+      case errors::EISDIR -> Error.IsADirectory
+      case errors::EINVAL -> Error.InvalidArgument
+      case errors::EFBIG -> Error.FileTooLarge
+      case errors::ENOSPC -> Error.StorageFull
+      case errors::ESPIPE -> Error.InvalidSeek
+      case errors::EROFS -> Error.ReadOnlyFilesystem
+      case errors::EPIPE -> Error.BrokenPipe
+      case errors::EDEADLK -> Error.Deadlock
+      case errors::ENAMETOOLONG -> Error.InvalidFileName
+      case errors::ENOTEMPTY -> Error.DirectoryNotEmpty
+      case errors::ETIME -> Error.TimedOut
+      case errors::EADDRINUSE -> Error.AddressInUse
+      case errors::EADDRNOTAVAIL -> Error.AddressUnavailable
+      case errors::ENETDOWN -> Error.NetworkDown
+      case errors::ENETUNREACH -> Error.NetworkUnreachable
+      case errors::ECONNABORTED -> Error.ConnectionAborted
+      case errors::ECONNRESET -> Error.ConnectionReset
+      case errors::EISCONN -> Error.AlreadyConnected
+      case errors::ENOTCONN -> Error.NotConnected
+      case errors::ETIMEDOUT -> Error.TimedOut
+      case errors::ECONNREFUSED -> Error.ConnectionRefused
+      case errors::EHOSTUNREACH -> Error.HostUnreachable
+      case errors::EINPROGRESS -> Error.InProgress
+      case val -> Error.Other(val)
     }
+  }
+
+  # Returns the last OS error produced by the current OS thread.
+  fn pub static last_os_error -> Error {
+    from_os_error(inko_last_error as Int)
   }
 }
 
 impl ToString for Error {
   fn pub to_string -> String {
     match self {
-      case NotFound -> 'The resource could not be found'
-      case PermissionDenied -> {
-        'The operation lacked the necessary privileges to complete'
-      }
-      case ConnectionRefused -> {
-        'The connection was refused by the remote server'
-      }
-      case ConnectionReset -> 'The connection was reset by the remote server'
-      case ConnectionAborted -> {
-        'The connection was terminated by the remote server'
-      }
-      case NotConnected -> {
-        "The operation failed because the connection hasn't been established"
-      }
-      case AddressInUse -> 'The address is already in use'
-      case AddressUnavailable -> 'The address is not available'
-      case BrokenPipe -> 'The operation failed because a pipe was closed'
-      case AlreadyExists -> 'The resource already exists'
-      case InvalidInput -> 'An input parameter is invalid'
-      case InvalidData -> 'The supplied data is not valid for this operation'
-      case TimedOut -> 'The operation timed out'
-      case WriteZero -> {
-        'The operation failed because not enough bytes were written'
-      }
-      case Interrupted -> 'The operation was interrupted'
-      case UnexpectedEof -> {
-        'The operation failed because of an unexpected end-of-file'
-      }
-      case Other -> 'An unknown IO error occurred'
-    }
-  }
-}
-
-impl Equal[Error] for Error {
-  fn pub ==(other: ref Error) -> Bool {
-    match self {
-      case Other -> match other {
-        case Other -> true
-        case _ -> false
-      }
-      case NotFound -> match other {
-        case NotFound -> true
-        case _ -> false
-      }
-      case PermissionDenied -> match other {
-        case PermissionDenied -> true
-        case _ -> false
-      }
-      case ConnectionRefused -> match other {
-        case ConnectionRefused -> true
-        case _ -> false
-      }
-      case ConnectionReset -> match other {
-        case ConnectionReset -> true
-        case _ -> false
-      }
-      case ConnectionAborted -> match other {
-        case ConnectionAborted -> true
-        case _ -> false
-      }
-      case NotConnected -> match other {
-        case NotConnected -> true
-        case _ -> false
-      }
-      case AddressInUse -> match other {
-        case AddressInUse -> true
-        case _ -> false
-      }
-      case AddressUnavailable -> match other {
-        case AddressUnavailable -> true
-        case _ -> false
-      }
-      case BrokenPipe -> match other {
-        case BrokenPipe -> true
-        case _ -> false
-      }
-      case AlreadyExists -> match other {
-        case AlreadyExists -> true
-        case _ -> false
-      }
-      case InvalidInput -> match other {
-        case InvalidInput -> true
-        case _ -> false
-      }
-      case InvalidData -> match other {
-        case InvalidData -> true
-        case _ -> false
-      }
-      case TimedOut -> match other {
-        case TimedOut -> true
-        case _ -> false
-      }
-      case WriteZero -> match other {
-        case WriteZero -> true
-        case _ -> false
-      }
-      case Interrupted -> match other {
-        case Interrupted -> true
-        case _ -> false
-      }
-      case UnexpectedEof -> match other {
-        case UnexpectedEof -> true
-        case _ -> false
-      }
+      case AddressInUse -> 'the address is already in use'
+      case AddressUnavailable -> "the address isn't available"
+      case AlreadyConnected -> 'the connection is already established'
+      case AlreadyExists -> 'the resource already exists'
+      case BrokenPipe -> 'the operation failed because a pipe was closed'
+      case ConnectionAborted -> 'the connection was terminated by the server'
+      case ConnectionRefused -> 'the connection was refused by the server'
+      case ConnectionReset -> 'the connection was reset by the server'
+      case Deadlock -> 'the resource would deadlock'
+      case DirectoryNotEmpty -> "the directory isn't empty"
+      case FileTooLarge -> 'the file is too large'
+      case HostUnreachable -> 'the host is unreachable'
+      case InProgress -> 'the operation is in progress'
+      case Interrupted -> 'the operation was interrupted'
+      case InvalidArgument -> 'one or more arguments are invalid'
+      case InvalidFileName -> 'the file name is too long'
+      case InvalidSeek -> 'the seek operation is invalid'
+      case IsADirectory -> 'the resource is a directory'
+      case NetworkDown -> 'the network is down'
+      case NetworkUnreachable -> 'the network is unreachable'
+      case NotADirectory -> "the resource isn't a directory"
+      case NotConnected -> "a connection isn't established"
+      case NotFound -> "the resource isn't found"
+      case OutOfMemory -> 'we ran out of memory'
+      case PermissionDenied -> 'the operation lacks the necessary privileges'
+      case ReadOnlyFilesystem -> 'the file system is read-only'
+      case ResourceBusy -> 'the resource is busy'
+      case StorageFull -> 'the storage is full'
+      case TimedOut -> 'the operation timed out'
+      case WouldBlock -> 'the operation would block'
+      case Other(code) -> "an other error with code {code} occurred"
     }
   }
 }
@@ -174,26 +211,84 @@ impl Equal[Error] for Error {
 impl Format for Error {
   fn pub fmt(formatter: mut Formatter) {
     let string = match self {
-      case Other -> 'Other'
-      case NotFound -> 'NotFound'
-      case PermissionDenied -> 'PermissionDenied'
-      case ConnectionRefused -> 'ConnectionRefused'
-      case ConnectionReset -> 'ConnectionReset'
-      case ConnectionAborted -> 'ConnectionAborted'
-      case NotConnected -> 'NotConnected'
       case AddressInUse -> 'AddressInUse'
       case AddressUnavailable -> 'AddressUnavailable'
-      case BrokenPipe -> 'BrokenPipe'
+      case AlreadyConnected -> 'AlreadyConnected'
       case AlreadyExists -> 'AlreadyExists'
-      case InvalidInput -> 'InvalidInput'
-      case InvalidData -> 'InvalidData'
-      case TimedOut -> 'TimedOut'
-      case WriteZero -> 'WriteZero'
+      case BrokenPipe -> 'BrokenPipe'
+      case ConnectionAborted -> 'ConnectionAborted'
+      case ConnectionRefused -> 'ConnectionRefused'
+      case ConnectionReset -> 'ConnectionReset'
+      case Deadlock -> 'Deadlock'
+      case DirectoryNotEmpty -> 'DirectoryNotEmpty'
+      case FileTooLarge -> 'FileTooLarge'
+      case HostUnreachable -> 'HostUnreachable'
+      case InProgress -> 'InProgress'
       case Interrupted -> 'Interrupted'
-      case UnexpectedEof -> 'UnexpectedEof'
+      case InvalidArgument -> 'InvalidArgument'
+      case InvalidFileName -> 'InvalidFileName'
+      case InvalidSeek -> 'InvalidSeek'
+      case IsADirectory -> 'IsADirectory'
+      case NetworkDown -> 'NetworkDown'
+      case NetworkUnreachable -> 'NetworkUnreachable'
+      case NotADirectory -> 'NotADirectory'
+      case NotConnected -> 'NotConnected'
+      case NotFound -> 'NotFound'
+      case OutOfMemory -> 'OutOfMemory'
+      case PermissionDenied -> 'PermissionDenied'
+      case ReadOnlyFilesystem -> 'ReadOnlyFilesystem'
+      case ResourceBusy -> 'ResourceBusy'
+      case StorageFull -> 'StorageFull'
+      case TimedOut -> 'TimedOut'
+      case WouldBlock -> 'WouldBlock'
+      case Other(code) -> {
+        formatter.write('Other(')
+        code.fmt(formatter)
+        formatter.write(')')
+        return
+      }
     }
 
     formatter.write(string)
+  }
+}
+
+impl Equal[Error] for Error {
+  fn pub ==(other: ref Error) -> Bool {
+    match (self, other) {
+      case (AddressInUse, AddressInUse) -> true
+      case (AddressUnavailable, AddressUnavailable) -> true
+      case (AlreadyConnected, AlreadyConnected) -> true
+      case (AlreadyExists, AlreadyExists) -> true
+      case (BrokenPipe, BrokenPipe) -> true
+      case (ConnectionAborted, ConnectionAborted) -> true
+      case (ConnectionRefused, ConnectionRefused) -> true
+      case (ConnectionReset, ConnectionReset) -> true
+      case (Deadlock, Deadlock) -> true
+      case (DirectoryNotEmpty, DirectoryNotEmpty) -> true
+      case (FileTooLarge, FileTooLarge) -> true
+      case (HostUnreachable, HostUnreachable) -> true
+      case (InProgress, InProgress) -> true
+      case (Interrupted, Interrupted) -> true
+      case (InvalidArgument, InvalidArgument) -> true
+      case (InvalidFileName, InvalidFileName) -> true
+      case (InvalidSeek, InvalidSeek) -> true
+      case (IsADirectory, IsADirectory) -> true
+      case (NetworkDown, NetworkDown) -> true
+      case (NetworkUnreachable, NetworkUnreachable) -> true
+      case (NotADirectory, NotADirectory) -> true
+      case (NotConnected, NotConnected) -> true
+      case (NotFound, NotFound) -> true
+      case (OutOfMemory, OutOfMemory) -> true
+      case (PermissionDenied, PermissionDenied) -> true
+      case (ReadOnlyFilesystem, ReadOnlyFilesystem) -> true
+      case (ResourceBusy, ResourceBusy) -> true
+      case (StorageFull, StorageFull) -> true
+      case (TimedOut, TimedOut) -> true
+      case (WouldBlock, WouldBlock) -> true
+      case (Other(a), Other(b)) -> a == b
+      case _ -> false
+    }
   }
 }
 

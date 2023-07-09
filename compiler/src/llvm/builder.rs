@@ -441,16 +441,45 @@ impl<'ctx> Builder<'ctx> {
     pub(crate) fn int_to_float(
         &self,
         value: IntValue<'ctx>,
+        size: u32,
     ) -> FloatValue<'ctx> {
-        let typ = self.context.f64_type();
+        let typ = if size == 32 {
+            self.context.f32_type()
+        } else {
+            self.context.f64_type()
+        };
 
         self.inner
             .build_cast(InstructionOpcode::SIToFP, value, typ, "")
             .into_float_value()
     }
 
-    pub(crate) fn int_to_int(&self, value: IntValue<'ctx>) -> IntValue<'ctx> {
-        self.inner.build_int_cast(value, self.context.i64_type(), "")
+    pub(crate) fn int_to_int(
+        &self,
+        value: IntValue<'ctx>,
+        size: u32,
+    ) -> IntValue<'ctx> {
+        let target = match size {
+            8 => self.context.i8_type(),
+            16 => self.context.i16_type(),
+            32 => self.context.i32_type(),
+            _ => self.context.i64_type(),
+        };
+
+        self.inner.build_int_cast(value, target, "")
+    }
+
+    pub(crate) fn float_to_float(
+        &self,
+        value: FloatValue<'ctx>,
+        size: u32,
+    ) -> FloatValue<'ctx> {
+        let target = match size {
+            32 => self.context.f32_type(),
+            _ => self.context.f64_type(),
+        };
+
+        self.inner.build_float_cast(value, target, "")
     }
 
     pub(crate) fn int_to_pointer(

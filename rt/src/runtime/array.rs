@@ -23,12 +23,10 @@ pub unsafe extern "system" fn inko_array_new_permanent(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_array_reserve(
-    state: *const State,
     array: *mut Array,
     length: i64,
-) -> *const Nil {
+) {
     (*array).value.reserve_exact(length as _);
-    (*state).nil_singleton
 }
 
 #[no_mangle]
@@ -97,12 +95,8 @@ pub unsafe extern "system" fn inko_array_capacity(
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_array_clear(
-    state: *const State,
-    array: *mut Array,
-) -> *const Nil {
+pub unsafe extern "system" fn inko_array_clear(array: *mut Array) {
     (*array).value.clear();
-    (*state).nil_singleton
 }
 
 #[no_mangle]

@@ -63,6 +63,33 @@ import std::fmt::(Format, Formatter)
 import std::string::(StringBuffer, ToString)
 import std::utf8
 
+class extern IntResult {
+  let @tag: Int
+  let @value: Int
+}
+
+class extern AnyResult {
+  let @tag: Int
+  let @value: Any
+}
+
+fn extern inko_string_byte(string: String, index: Int) -> Int
+fn extern inko_string_to_int(
+  state: Pointer[Int8],
+  process: Pointer[Int8],
+  string: String,
+  radix: Int,
+  start: Int,
+  end: Int,
+) -> IntResult
+
+fn extern inko_string_to_float(
+  state: Pointer[Int8],
+  string: String,
+  start: Int,
+  end: Int,
+) -> AnyResult
+
 let EOF = -1
 let BRACKET_OPEN = 0x5B
 let BRACKET_CLOSE = 0x5D
@@ -506,8 +533,10 @@ class pub Parser {
       throw error("Expected four hexadecimal digits, but we ran out of input")
     }
 
-    match _INKO.string_to_int(@string, 16, start, @index) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
+    match inko_string_to_int(
+      _INKO.state, _INKO.process, @string, 16, start, @index
+    ) {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
       case _ -> Result.Error(
         error("'{slice_string(start)}' is an invalid Unicode codepoint")
       )
@@ -607,10 +636,12 @@ class pub Parser {
         # number parser. As part of parsing the JSON number we already validate
         # it. This means we can bypass `Int.from_base10` (and `Float.parse`
         # below), and instead use the underlying runtime functions.
-        match _INKO.string_to_int(@string, 10, start, @index) {
+        match inko_string_to_int(
+          _INKO.state, _INKO.process, @string, 10, start, @index
+        ) {
           # If the number is too big to fit in an integer, we'll promote the
           # number to a float.
-          case { @tag = 0, @value = v } -> return Result.Ok(Json.Int(v as Int))
+          case { @tag = 0, @value = v } -> return Result.Ok(Json.Int(v))
           case _ -> {}
         }
       }
@@ -620,7 +651,7 @@ class pub Parser {
     # compatible with the underlying float parser, so no extra checks are
     # needed.
     Result.Ok(Json.Float(
-      _INKO.string_to_float(@string, start, @index).value as Float
+      inko_string_to_float(_INKO.state, @string, start, @index).value as Float
     ))
   }
 
@@ -645,9 +676,7 @@ class pub Parser {
 
   fn current -> Int {
     if @index < @size {
-      # We use a raw instruction here to avoid the overhead of bounds checking;
-      # something not yet optimised away at the time of writing.
-      _INKO.string_byte(@string, @index)
+      inko_string_byte(@string, @index)
     } else {
       EOF
     }
@@ -656,7 +685,7 @@ class pub Parser {
   fn peek -> Int {
     let index = @index + 1
 
-    if index < @size { _INKO.string_byte(@string, index) } else { EOF }
+    if index < @size { inko_string_byte(@string, index) } else { EOF }
   }
 
   fn mut identifier(name: String) -> Result[Nil, Error] {

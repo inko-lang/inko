@@ -1,5 +1,5 @@
 use crate::immutable_string::ImmutableString;
-use crate::mem::{tagged_int, Bool, ByteArray, Int, Nil, String as InkoString};
+use crate::mem::{tagged_int, Bool, ByteArray, Int, String as InkoString};
 use crate::state::State;
 use std::cmp::min;
 
@@ -12,12 +12,10 @@ pub unsafe extern "system" fn inko_byte_array_new(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_byte_array_push(
-    state: *const State,
     bytes: *mut ByteArray,
     value: i64,
-) -> *const Nil {
+) {
     (*bytes).value.push(value as u8);
-    (*state).nil_singleton
 }
 
 #[no_mangle]
@@ -85,12 +83,8 @@ pub unsafe extern "system" fn inko_byte_array_eq(
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_byte_array_clear(
-    state: *const State,
-    bytes: *mut ByteArray,
-) -> *const Nil {
+pub unsafe extern "system" fn inko_byte_array_clear(bytes: *mut ByteArray) {
     (*bytes).value.clear();
-    (*state).nil_singleton
 }
 
 #[no_mangle]
@@ -102,12 +96,8 @@ pub unsafe extern "system" fn inko_byte_array_clone(
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_byte_array_drop(
-    state: *const State,
-    array: *mut ByteArray,
-) -> *const Nil {
+pub unsafe extern "system" fn inko_byte_array_drop(array: *mut ByteArray) {
     ByteArray::drop(array);
-    (*state).nil_singleton
 }
 
 #[no_mangle]
@@ -150,12 +140,10 @@ pub unsafe extern "system" fn inko_byte_array_slice(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_byte_array_append(
-    state: *const State,
     target: *mut ByteArray,
     source: *mut ByteArray,
-) -> *const Nil {
+) {
     (*target).value.append(&mut (*source).value);
-    (*state).nil_singleton
 }
 
 #[no_mangle]
@@ -178,11 +166,9 @@ pub unsafe extern "system" fn inko_byte_array_copy_from(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_byte_array_resize(
-    state: *const State,
     bytes: *mut ByteArray,
     size: i64,
     filler: i64,
-) -> *const Nil {
+) {
     (*bytes).value.resize(size as usize, filler as u8);
-    (*state).nil_singleton
 }

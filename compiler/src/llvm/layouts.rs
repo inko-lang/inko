@@ -4,8 +4,9 @@ use crate::llvm::method_hasher::MethodHasher;
 use crate::mir::Mir;
 use crate::state::State;
 use crate::target::OperatingSystem;
+use inkwell::targets::TargetData;
 use inkwell::types::{
-    BasicMetadataTypeEnum, BasicTypeEnum, FunctionType, StructType,
+    BasicMetadataTypeEnum, BasicType, FunctionType, StructType,
 };
 use inkwell::AddressSpace;
 use std::cmp::max;
@@ -61,6 +62,13 @@ pub(crate) struct MethodInfo<'ctx> {
     pub(crate) hash: u64,
     pub(crate) collision: bool,
     pub(crate) signature: FunctionType<'ctx>,
+
+    /// If the function returns a structure on the stack, its type is stored
+    /// here.
+    ///
+    /// This is needed separately because the signature's return type will be
+    /// `void` in this case.
+    pub(crate) struct_return: Option<StructType<'ctx>>,
     pub(crate) colliding: Vec<ClassId>,
 }
 
@@ -87,9 +95,6 @@ pub(crate) struct Layouts<'ctx> {
     /// The layout of object headers.
     pub(crate) header: StructType<'ctx>,
 
-    /// The layout of the runtime's result type.
-    pub(crate) result: StructType<'ctx>,
-
     /// The layout of the context type passed to async methods.
     pub(crate) context: StructType<'ctx>,
 
@@ -110,6 +115,7 @@ impl<'ctx> Layouts<'ctx> {
         state: &State,
         mir: &Mir,
         context: &'ctx Context,
+        target_data: TargetData,
     ) -> Self {
         let db = &state.db;
         let space = AddressSpace::default();
@@ -151,13 +157,6 @@ impl<'ctx> Layouts<'ctx> {
             context.pointer_type().into(),       // Process
             context.pointer_type().into(),       // Arguments pointer
         ]);
-
-        let result_layout = context.struct_type(&[
-            context.pointer_type().into(), // Tag
-            context.pointer_type().into(), // Value
-        ]);
-
-        instance_layouts.insert(ClassId::result(), result_layout);
 
         let method_counts_layout = context.struct_type(&[
             context.i16_type().into(), // Int
@@ -212,11 +211,17 @@ impl<'ctx> Layouts<'ctx> {
                         signature,
                         collision: false,
                         colliding: Vec::new(),
+                        struct_return: None,
                     },
                 );
             }
         }
 
+        let mut method_table_sizes = Vec::with_capacity(mir.classes.len());
+
+        // We generate the bare structs first, that way method signatures can
+        // refer to them, regardless of the order in which methods/classes are
+        // defined.
         for (id, mir_class) in &mir.classes {
             // We size classes larger than actually needed in an attempt to
             // reduce collisions when performing dynamic dispatch.
@@ -224,6 +229,9 @@ impl<'ctx> Layouts<'ctx> {
                 round_methods(mir_class.methods.len()) * METHOD_TABLE_FACTOR,
                 METHOD_TABLE_MIN_SIZE,
             );
+
+            method_table_sizes.push(methods_len);
+
             let name =
                 format!("{}::{}", id.module(db).name(db).as_str(), id.name(db));
             let class = context.class_type(
@@ -276,6 +284,87 @@ impl<'ctx> Layouts<'ctx> {
                 }
             };
 
+            class_layouts.insert(*id, class);
+            instance_layouts.insert(*id, instance);
+        }
+
+        let mut layouts = Self {
+            empty_class: context.class_type(0, "", method),
+            method,
+            classes: class_layouts,
+            instances: instance_layouts,
+            state: state_layout,
+            header,
+            context: context_layout,
+            method_counts: method_counts_layout,
+            methods,
+            message: message_layout,
+        };
+
+        let process_size =
+            if let OperatingSystem::Linux = state.config.target.os {
+                // Mutexes are smaller on Linux, resulting in a smaller process
+                // size, so we have to take that into account when calculating
+                // field offsets.
+                112
+            } else {
+                128
+            };
+
+        for id in mir.classes.keys() {
+            if id.is_builtin() {
+                continue;
+            }
+
+            let layout = layouts.instances[id];
+            let kind = id.kind(db);
+            let mut fields = Vec::new();
+
+            if kind.is_extern() {
+                for field in id.fields(db) {
+                    let typ = context
+                        .foreign_type(db, &layouts, field.value_type(db))
+                        .unwrap_or_else(|| {
+                            context.pointer_type().as_basic_type_enum()
+                        });
+
+                    fields.push(typ);
+                }
+            } else {
+                fields.push(header.into());
+
+                // For processes we need to take into account the space between
+                // the header and the first field. We don't actually care about
+                // that state in the generated code, so we just insert a single
+                // member that covers it.
+                if kind.is_async() {
+                    fields.push(
+                        context
+                            .i8_type()
+                            .array_type(process_size - HEADER_SIZE)
+                            .into(),
+                    );
+                }
+
+                for field in id.fields(db) {
+                    let typ = context
+                        .foreign_type(db, &layouts, field.value_type(db))
+                        .unwrap_or_else(|| {
+                            context.pointer_type().as_basic_type_enum()
+                        });
+
+                    fields.push(typ);
+                }
+            }
+
+            layout.set_body(&fields, false);
+        }
+
+        // Now that all the LLVM structs are defined, we can process all
+        // methods.
+        for (mir_class, methods_len) in
+            mir.classes.values().zip(method_table_sizes.into_iter())
+        {
             let mut buckets = vec![false; methods_len];
             let max_bucket = methods_len.saturating_sub(1);
 
@@ -330,8 +419,11 @@ impl<'ctx> Layouts<'ctx> {
                         // the trait, not the implementation defined for the
                         // class. This is because when we generate the dynamic
                         // dispatch code, we only know about the trait method.
-                        methods.get_mut(&orig).unwrap().collision = true;
-                        methods
+                        layouts.methods.get_mut(&orig).unwrap().collision =
+                            true;
+
+                        layouts
+                            .methods
                             .get_mut(&orig)
                             .unwrap()
                             .colliding
@@ -350,18 +442,31 @@ impl<'ctx> Layouts<'ctx> {
                         context.pointer_type().into(),       // Process
                     ];
 
+                    // For instance methods, the receiver is passed as an
+                    // explicit argument before any user-defined arguments.
                     if method.is_instance_method(db) {
                         args.push(context.pointer_type().into());
                     }
 
-                    for _ in 0..method.number_of_arguments(db) {
-                        args.push(context.pointer_type().into());
+                    for arg in method.arguments(db) {
+                        let typ = context
+                            .foreign_type(db, &layouts, arg.value_type)
+                            .unwrap_or_else(|| {
+                                context.pointer_type().as_basic_type_enum()
+                            });
+
+                        args.push(typ.into());
                     }
 
-                    context.pointer_type().fn_type(&args, false)
+                    context
+                        .return_type(db, &layouts, method)
+                        .map(|t| t.fn_type(&args, false))
+                        .unwrap_or_else(|| {
+                            context.void_type().fn_type(&args, false)
+                        })
                 };
 
-                methods.insert(
+                layouts.methods.insert(
                     method,
                     MethodInfo {
                         index: index as u16,
@@ -369,65 +474,91 @@ impl<'ctx> Layouts<'ctx> {
                         signature: typ,
                         collision,
                         colliding: Vec::new(),
+                        struct_return: None,
                     },
                 );
             }
-
-            class_layouts.insert(*id, class);
-            instance_layouts.insert(*id, instance);
         }
 
-        let process_size =
-            if let OperatingSystem::Linux = state.config.target.os {
-                // Mutexes are smaller on Linux, resulting in a smaller process
-                // size, so we have to take that into account when calculating
-                // field offsets.
-                112
-            } else {
-                128
-            };
+        for mod_id in mir.modules.keys() {
+            for &method in mod_id.extern_methods(db) {
+                let mut args: Vec<BasicMetadataTypeEnum> =
+                    Vec::with_capacity(method.number_of_arguments(db) + 1);
 
-        for id in mir.classes.keys() {
-            if id.is_builtin() {
-                continue;
-            }
+                // The regular return type, and the type of the structure to
+                // pass with the `sret` attribute. If `ret` is `None`, it means
+                // the function returns `void`. If `sret` is `None`, it means
+                // the function doesn't return a struct.
+                let mut ret = None;
+                let mut sret = None;
 
-            let layout = instance_layouts[id];
-            let mut fields: Vec<BasicTypeEnum> = vec![header.into()];
+                if let Some(typ) = context.return_type(db, &layouts, method) {
+                    // The C ABI mandates that structures are either passed
+                    // through registers (if small enough), or using a pointer.
+                    // LLVM doesn't detect when this is needed for us, so sadly
+                    // we (and everybody else using LLVM) have to do this
+                    // ourselves.
+                    //
+                    // In the future we may want/need to also handle this for
+                    // Inko methods, but for now they always return pointers.
+                    if typ.is_struct_type() {
+                        let typ = typ.into_struct_type();
 
-            // For processes we need to take into account the space between the
-            // header and the first field. We don't actually care about that
-            // state in the generated code, so we just insert a single member
-            // that covers it.
-            if id.kind(db).is_async() {
-                fields.push(
-                    context
-                        .i8_type()
-                        .array_type(process_size - HEADER_SIZE)
-                        .into(),
+                        if target_data.get_bit_size(&typ)
+                            > state.config.target.pass_struct_size()
+                        {
+                            args.push(
+                                typ.ptr_type(AddressSpace::default()).into(),
+                            );
+                            sret = Some(typ);
+                        } else {
+                            ret = Some(typ.as_basic_type_enum());
+                        }
+                    } else {
+                        ret = Some(typ);
+                    }
+                }
+
+                for arg in method.arguments(db) {
+                    let raw = arg.value_type;
+                    let arg = context
+                        .foreign_type(db, &layouts, raw)
+                        .unwrap_or_else(|| {
+                            // When an Int is expected as the argument, we read
+                            // it into an i64 so it's a bit easier to pass
+                            // around. This won't be needed any more when
+                            // https://github.com/inko-lang/inko/issues/525 is
+                            // implemented.
+                            if raw.is_int(db) {
+                                context.i64_type().as_basic_type_enum()
+                            } else {
+                                context.pointer_type().as_basic_type_enum()
+                            }
+                        });
+
+                    args.push(arg.into());
+                }
+
+                let sig =
+                    ret.map(|t| t.fn_type(&args, false)).unwrap_or_else(|| {
+                        context.void_type().fn_type(&args, false)
+                    });
+
+                layouts.methods.insert(
+                    method,
+                    MethodInfo {
+                        index: 0,
+                        hash: 0,
+                        signature: sig,
+                        collision: false,
+                        colliding: Vec::new(),
+                        struct_return: sret,
+                    },
                 );
             }
-
-            for _ in 0..id.number_of_fields(db) {
-                fields.push(context.pointer_type().into());
-            }
-
-            layout.set_body(&fields, false);
         }
 
-        Self {
-            empty_class: context.class_type(0, "", method),
-            method,
-            classes: class_layouts,
-            instances: instance_layouts,
-            state: state_layout,
-            header,
-            result: result_layout,
-            context: context_layout,
-            method_counts: method_counts_layout,
-            methods,
-            message: message_layout,
-        }
+        layouts
     }
 
     pub(crate) fn methods(&self, class: ClassId) -> u32 {

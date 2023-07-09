@@ -156,6 +156,9 @@ pub struct Config {
 
     /// If MIR should be printed to DOT files.
     pub dot: bool,
+
+    /// If C libraries should be linked statically or not.
+    pub static_linking: bool,
 }
 
 impl Config {
@@ -177,6 +180,7 @@ impl Config {
             target: Target::native(),
             opt: Opt::Balanced,
             dot: false,
+            static_linking: false,
         }
     }
 

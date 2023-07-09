@@ -70,5 +70,3 @@ pub(crate) const MESSAGE_ARGUMENTS_INDEX: u32 = 2;
 
 pub(crate) const DROPPER_INDEX: u32 = 0;
 pub(crate) const CLOSURE_CALL_INDEX: u32 = 1;
-pub(crate) const HASH_KEY0_INDEX: u32 = 11;
-pub(crate) const HASH_KEY1_INDEX: u32 = 12;

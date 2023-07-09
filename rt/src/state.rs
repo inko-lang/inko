@@ -47,12 +47,67 @@ pub struct MethodCounts {
     pub(crate) channel_class: u16,
 }
 
+pub(crate) struct Env {
+    pub(crate) keys: Vec<*const InkoString>,
+    pub(crate) mapping: HashMap<String, *const InkoString>,
+}
+
+impl Env {
+    fn new(class: ClassPointer) -> Env {
+        let mut keys = Vec::new();
+        let mut mapping = HashMap::new();
+
+        for (k, v) in env::vars_os() {
+            let raw_key = k.to_string_lossy().into_owned();
+            let key = InkoString::alloc_permanent(class, raw_key.clone());
+            let val = InkoString::alloc_permanent(
+                class,
+                v.to_string_lossy().into_owned(),
+            );
+
+            keys.push(key);
+            mapping.insert(raw_key, val);
+        }
+
+        Env { keys, mapping }
+    }
+
+    pub(crate) fn get(&self, key: &str) -> Option<*const InkoString> {
+        self.mapping.get(key).cloned()
+    }
+
+    pub(crate) fn key(&self, index: usize) -> Option<*const InkoString> {
+        self.keys.get(index).cloned()
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.mapping.len()
+    }
+}
+
+impl Drop for Env {
+    fn drop(&mut self) {
+        unsafe {
+            for &val in self.mapping.values() {
+                InkoString::drop_and_deallocate(val);
+            }
+
+            for &val in &self.keys {
+                InkoString::drop_and_deallocate(val);
+            }
+        }
+    }
+}
+
 /// The state of the Inko runtime.
 #[repr(C)]
 pub struct State {
     // These fields are exposed to the generated code directly, hence they're
     // marked as public. These fields must also come first so their offsets are
     // more reliable/stable.
+    //
+    // I repeat, _do not reorder_ these public fields without also updating both
+    // the compiler and standard library in the necessary places.
     pub true_singleton: *const Bool,
     pub false_singleton: *const Bool,
     pub nil_singleton: *const Nil,
@@ -86,7 +141,7 @@ pub struct State {
     /// (or through libraries) may call `setenv()` concurrently with `getenv()`
     /// calls, which is unsound. Caching the variables also means we can safely
     /// use `localtime_r()` (which internally may call `setenv()`).
-    pub(crate) environment: HashMap<String, *const InkoString>,
+    pub(crate) environment: Env,
 
     /// The scheduler to use for executing Inko processes.
     pub(crate) scheduler: Scheduler,
@@ -127,18 +182,7 @@ impl State {
         let mut rng = thread_rng();
         let hash_key0 = Int::new_permanent(int_class, rng.gen());
         let hash_key1 = Int::new_permanent(int_class, rng.gen());
-        let environment = env::vars_os()
-            .map(|(k, v)| {
-                (
-                    k.to_string_lossy().into_owned(),
-                    InkoString::alloc_permanent(
-                        string_class,
-                        v.to_string_lossy().into_owned(),
-                    ),
-                )
-            })
-            .collect::<HashMap<_, _>>();
-
+        let environment = Env::new(string_class);
         let scheduler = Scheduler::new(
             config.process_threads as usize,
             config.backup_threads as usize,
@@ -186,10 +230,6 @@ impl Drop for State {
                 InkoString::drop_and_deallocate(val)
             }
 
-            for &val in self.environment.values() {
-                InkoString::drop_and_deallocate(val);
-            }
-
             Bool::drop_and_deallocate(self.true_singleton);
             Bool::drop_and_deallocate(self.false_singleton);
             Nil::drop_and_deallocate(self.nil_singleton);
@@ -225,5 +265,10 @@ mod tests {
         assert_eq!(offset_of!(state, true_singleton), 0);
         assert_eq!(offset_of!(state, false_singleton), 8);
         assert_eq!(offset_of!(state, nil_singleton), 16);
+
+        // These offsets are tested against because the runtime makes use of
+        // them.
+        assert_eq!(offset_of!(state, hash_key0), 88);
+        assert_eq!(offset_of!(state, hash_key1), 96);
     }
 }

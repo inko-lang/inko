@@ -22,6 +22,76 @@ let FILE_APPEND_ONLY = 2
 let FILE_READ_WRITE = 3
 let FILE_READ_APPEND = 4
 
+class extern AnyResult {
+  let @tag: Int
+  let @value: Any
+}
+
+class extern IntResult {
+  let @tag: Int
+  let @value: Int
+}
+
+class extern PointerResult {
+  let @tag: Int
+  let @value: Pointer[Int8]
+}
+
+fn extern inko_file_flush(
+  process: Pointer[Int8],
+  file: Pointer[Int8],
+) -> AnyResult
+
+fn extern inko_file_drop(file: Pointer[Int8])
+fn extern inko_file_copy(
+  state: Pointer[Int8],
+  process: Pointer[Int8],
+  from: String,
+  to: String,
+) -> AnyResult
+
+fn extern inko_file_open(
+  process: Pointer[Int8],
+  path: String,
+  mode: Int,
+) -> PointerResult
+
+fn extern inko_file_read(
+  state: Pointer[Int8],
+  process: Pointer[Int8],
+  file: Pointer[Int8],
+  buffer: mut ByteArray,
+  size: Int,
+) -> IntResult
+
+fn extern inko_file_remove(process: Pointer[Int8], path: String) -> AnyResult
+fn extern inko_file_seek(
+  state: Pointer[Int8],
+  process: Pointer[Int8],
+  file: Pointer[Int8],
+  offset: Int,
+) -> IntResult
+
+fn extern inko_file_size(
+  state: Pointer[Int8],
+  process: Pointer[Int8],
+  path: String,
+) -> IntResult
+
+fn extern inko_file_write_bytes(
+  state: Pointer[Int8],
+  process: Pointer[Int8],
+  file: Pointer[Int8],
+  input: ref ByteArray,
+) -> IntResult
+
+fn extern inko_file_write_string(
+  state: Pointer[Int8],
+  process: Pointer[Int8],
+  file: Pointer[Int8],
+  input: String,
+) -> IntResult
+
 # Removes the file for the given file path.
 #
 # # Examples
@@ -35,9 +105,9 @@ let FILE_READ_APPEND = 4
 #     handle.write('hello').unwrap
 #     file.remove('/tmp/test.txt').unwrap
 fn pub remove(path: ref ToString) -> Result[Nil, Error] {
-  match _INKO.file_remove(path.to_string) {
-    case { @tag = 0, @value = _ } -> Result.Ok(nil)
-    case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+  match inko_file_remove(_INKO.process, path.to_string) {
+    case { @tag = 1, @value = _ } -> Result.Ok(nil)
+    case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e as Int))
   }
 }
 
@@ -55,9 +125,13 @@ fn pub remove(path: ref ToString) -> Result[Nil, Error] {
 #     handle.write('hello').unwrap
 #     file.copy(from: '/tmp/test.txt', to: '/tmp/test2.txt').unwrap
 fn pub copy(from: ref ToString, to: ref ToString) -> Result[Int, Error] {
-  match _INKO.file_copy(from.to_string, to.to_string) {
+  match inko_file_copy(
+    _INKO.state, _INKO.process, from.to_string, to.to_string
+  ) {
     case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-    case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    case { @tag = _, @value = e } -> Result.Error(
+      Error.from_os_error(e as Int)
+    )
   }
 }
 
@@ -67,7 +141,7 @@ class pub ReadOnlyFile {
   let pub @path: Path
 
   # The internal file descriptor.
-  let @fd: Any
+  let @fd: Pointer[Int8]
 
   # Returns a new `ReadOnlyFile`.
   #
@@ -81,44 +155,46 @@ class pub ReadOnlyFile {
   fn pub static new(path: IntoPath) -> Result[ReadOnlyFile, Error] {
     let path = path.into_path
 
-    match _INKO.file_open(path.to_string, FILE_READ_ONLY) {
+    match inko_file_open(_INKO.process, path.to_string, FILE_READ_ONLY) {
       case { @tag = 0, @value = v } -> Result.Ok(
         ReadOnlyFile { @path = path, @fd = v }
       )
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+      case { @tag = _, @value = e } -> Result.Error(
+        Error.from_os_error(e as Int)
+      )
     }
   }
 }
 
 impl Drop for ReadOnlyFile {
   fn mut drop {
-    _INKO.file_drop(@fd)
+    inko_file_drop(@fd)
   }
 }
 
 impl Read for ReadOnlyFile {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
-    match _INKO.file_read(@fd, into, size) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_file_read(_INKO.state, _INKO.process, @fd, into, size) {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 }
 
 impl Seek for ReadOnlyFile {
   fn pub mut seek(position: Int) -> Result[Int, Error] {
-    match _INKO.file_seek(@fd, position) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_file_seek(_INKO.state, _INKO.process, @fd, position) {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 }
 
 impl Size for ReadOnlyFile {
   fn pub size -> Result[Int, Error] {
-    match _INKO.file_size(@path.to_string) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_file_size(_INKO.state, _INKO.process, @path.to_string) {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 }
@@ -129,7 +205,7 @@ class pub WriteOnlyFile {
   let pub @path: Path
 
   # The internal file descriptor.
-  let @fd: Any
+  let @fd: Pointer[Int8]
 
   # Opens a file in write-only mode.
   #
@@ -141,11 +217,13 @@ class pub WriteOnlyFile {
   fn pub static new(path: IntoPath) -> Result[WriteOnlyFile, Error] {
     let path = path.into_path
 
-    match _INKO.file_open(path.to_string, FILE_WRITE_ONLY) {
+    match inko_file_open(_INKO.process, path.to_string, FILE_WRITE_ONLY) {
       case { @tag = 0, @value = v } -> Result.Ok(
         WriteOnlyFile { @path = path, @fd = v }
       )
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+      case { @tag = _, @value = e } -> Result.Error(
+        Error.from_os_error(e as Int)
+      )
     }
   }
 
@@ -159,49 +237,53 @@ class pub WriteOnlyFile {
   fn pub static append(path: IntoPath) -> Result[WriteOnlyFile, Error] {
     let path = path.into_path
 
-    match _INKO.file_open(path.to_string, FILE_APPEND_ONLY) {
+    match inko_file_open(_INKO.process, path.to_string, FILE_APPEND_ONLY) {
       case { @tag = 0, @value = v } -> Result.Ok(
         WriteOnlyFile { @path = path, @fd = v }
       )
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+      case { @tag = _, @value = e } -> Result.Error(
+        Error.from_os_error(e as Int)
+      )
     }
   }
 }
 
 impl Drop for WriteOnlyFile {
   fn mut drop {
-    _INKO.file_drop(@fd)
+    inko_file_drop(@fd)
   }
 }
 
 impl Write for WriteOnlyFile {
   fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
-    match _INKO.file_write_bytes(@fd, bytes) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_file_write_bytes(_INKO.state, _INKO.process, @fd, bytes) {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
   fn pub mut write_string(string: String) -> Result[Int, Error] {
-    match _INKO.file_write_string(@fd, string) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_file_write_string(_INKO.state, _INKO.process, @fd, string) {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
   fn pub mut flush -> Result[Nil, Error] {
-    match _INKO.file_flush(@fd) {
-      case { @tag = 0, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_file_flush(_INKO.process, @fd) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(
+        Error.from_os_error(e as Int)
+      )
     }
   }
 }
 
 impl Seek for WriteOnlyFile {
   fn pub mut seek(position: Int) -> Result[Int, Error] {
-    match _INKO.file_seek(@fd, position) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_file_seek(_INKO.state, _INKO.process, @fd, position) {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 }
@@ -212,7 +294,7 @@ class pub ReadWriteFile {
   let pub @path: Path
 
   # The internal file descriptor.
-  let @fd: Any
+  let @fd: Pointer[Int8]
 
   # Opens a file for both reading and writing:
   #
@@ -224,11 +306,13 @@ class pub ReadWriteFile {
   fn pub static new(path: IntoPath) -> Result[ReadWriteFile, Error] {
     let path = path.into_path
 
-    match _INKO.file_open(path.to_string, FILE_READ_WRITE) {
+    match inko_file_open(_INKO.process, path.to_string, FILE_READ_WRITE) {
       case { @tag = 0, @value = v } -> Result.Ok(
         ReadWriteFile { @path = path, @fd = v }
       )
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+      case { @tag = _, @value = e } -> Result.Error(
+        Error.from_os_error(e as Int)
+      )
     }
   }
 
@@ -242,67 +326,71 @@ class pub ReadWriteFile {
   fn pub static append(path: IntoPath) -> Result[ReadWriteFile, Error] {
     let path = path.into_path
 
-    match _INKO.file_open(path.to_string, FILE_READ_APPEND) {
+    match inko_file_open(_INKO.process, path.to_string, FILE_READ_APPEND) {
       case { @tag = 0, @value = v } -> Result.Ok(
         ReadWriteFile { @path = path, @fd = v }
       )
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+      case { @tag = _, @value = e } -> Result.Error(
+        Error.from_os_error(e as Int)
+      )
     }
   }
 }
 
 impl Drop for ReadWriteFile {
   fn mut drop {
-    _INKO.file_drop(@fd)
+    inko_file_drop(@fd)
   }
 }
 
 impl Read for ReadWriteFile {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
-    match _INKO.file_read(@fd, into, size) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_file_read(_INKO.state, _INKO.process, @fd, into, size) {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 }
 
 impl Write for ReadWriteFile {
   fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
-    match _INKO.file_write_bytes(@fd, bytes) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_file_write_bytes(_INKO.state, _INKO.process, @fd, bytes) {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
   fn pub mut write_string(string: String) -> Result[Int, Error] {
-    match _INKO.file_write_string(@fd, string) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_file_write_string(_INKO.state, _INKO.process, @fd, string) {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
   fn pub mut flush -> Result[Nil, Error] {
-    match _INKO.file_flush(@fd) {
-      case { @tag = 0, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_file_flush(_INKO.process, @fd) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(
+        Error.from_os_error(e as Int)
+      )
     }
   }
 }
 
 impl Seek for ReadWriteFile {
   fn pub mut seek(position: Int) -> Result[Int, Error] {
-    match _INKO.file_seek(@fd, position) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_file_seek(_INKO.state, _INKO.process, @fd, position) {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 }
 
 impl Size for ReadWriteFile {
   fn pub size -> Result[Int, Error] {
-    match _INKO.file_size(@path.to_string) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_file_size(_INKO.state, _INKO.process, @path.to_string) {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 }

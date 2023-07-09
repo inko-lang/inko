@@ -26,7 +26,7 @@ pub(crate) fn new_extern_class(db: &mut Database, name: &str) -> ClassId {
 }
 
 pub(crate) fn new_trait(db: &mut Database, name: &str) -> TraitId {
-    Trait::alloc(db, name.to_string(), ModuleId(0), Visibility::Public)
+    Trait::alloc(db, name.to_string(), Visibility::Public)
 }
 
 pub(crate) fn new_parameter(db: &mut Database, name: &str) -> TypeParameterId {

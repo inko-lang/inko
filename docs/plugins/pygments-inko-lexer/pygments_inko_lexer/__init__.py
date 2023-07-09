@@ -1,7 +1,7 @@
 from pygments.lexer import RegexLexer, words, bygroups
 from pygments import token
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 
 KEYWORDS = (
     "and",
@@ -35,6 +35,7 @@ KEYWORDS = (
     "try",
     "uni",
     "while",
+    "extern",
 )
 
 

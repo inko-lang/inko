@@ -1,8 +1,9 @@
 //! Formatting of types.
 use crate::{
     Arguments, ClassId, ClassInstance, ClassKind, ClosureId, Database,
-    MethodId, MethodKind, ModuleId, TraitId, TraitInstance, TypeArguments,
-    TypeId, TypeParameterId, TypePlaceholderId, TypeRef, Visibility,
+    ForeignType, MethodId, MethodKind, ModuleId, TraitId, TraitInstance,
+    TypeArguments, TypeId, TypeParameterId, TypePlaceholderId, TypeRef,
+    Visibility,
 };
 
 const MAX_FORMATTING_DEPTH: usize = 8;
@@ -137,6 +138,7 @@ impl<'a> TypeFormatter<'a> {
     pub(crate) fn return_type(&mut self, typ: TypeRef) {
         match typ {
             TypeRef::Placeholder(id) if id.value(self.db).is_none() => {}
+            TypeRef::Unknown => {}
             _ if typ == TypeRef::nil() => {}
             _ => {
                 self.write(" -> ");
@@ -282,7 +284,8 @@ impl FormatType for MethodId {
             MethodKind::Mutable | MethodKind::Destructor => {
                 buffer.write("mut ")
             }
-            _ => {}
+            MethodKind::Extern => buffer.write("extern "),
+            MethodKind::Instance => {}
         }
 
         buffer.write(&block.name);
@@ -358,10 +361,14 @@ impl FormatType for TypeRef {
             }
             TypeRef::Never => buffer.write("Never"),
             TypeRef::Any => buffer.write("Any"),
-            TypeRef::RefAny => buffer.write("ref Any"),
             TypeRef::Error => buffer.write("<error>"),
             TypeRef::Unknown => buffer.write("<unknown>"),
             TypeRef::Placeholder(id) => id.format_type(buffer),
+            TypeRef::Pointer(typ) => {
+                buffer.write("Pointer[");
+                typ.format_type(buffer);
+                buffer.write("]");
+            }
         };
     }
 }
@@ -379,6 +386,12 @@ impl FormatType for TypeId {
                 id.format_type_without_argument(buffer);
             }
             TypeId::Closure(id) => id.format_type(buffer),
+            TypeId::Foreign(ForeignType::Int(size)) => {
+                buffer.write(&format!("Int{}", size))
+            }
+            TypeId::Foreign(ForeignType::Float(size)) => {
+                buffer.write(&format!("Float{}", size))
+            }
         }
     }
 }
@@ -395,12 +408,8 @@ mod tests {
     #[test]
     fn test_trait_instance_format_type_with_regular_trait() {
         let mut db = Database::new();
-        let trait_id = Trait::alloc(
-            &mut db,
-            "A".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
+        let trait_id =
+            Trait::alloc(&mut db, "A".to_string(), Visibility::Private);
         let trait_ins = TraitInstance::new(trait_id);
 
         assert_eq!(format_type(&db, trait_ins), "A".to_string());
@@ -409,12 +418,8 @@ mod tests {
     #[test]
     fn test_trait_instance_format_type_with_generic_trait() {
         let mut db = Database::new();
-        let trait_id = Trait::alloc(
-            &mut db,
-            "ToString".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
+        let trait_id =
+            Trait::alloc(&mut db, "ToString".to_string(), Visibility::Private);
         let param1 = trait_id.new_type_parameter(&mut db, "A".to_string());
 
         trait_id.new_type_parameter(&mut db, "B".to_string());
@@ -584,7 +589,6 @@ mod tests {
         let id = TypeId::Trait(Trait::alloc(
             &mut db,
             "ToString".to_string(),
-            ModuleId(0),
             Visibility::Private,
         ));
 
@@ -644,12 +648,8 @@ mod tests {
     #[test]
     fn test_type_id_format_type_with_trait_instance() {
         let mut db = Database::new();
-        let id = Trait::alloc(
-            &mut db,
-            "ToString".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
+        let id =
+            Trait::alloc(&mut db, "ToString".to_string(), Visibility::Private);
         let ins = TypeId::TraitInstance(TraitInstance::new(id));
 
         assert_eq!(format_type(&db, ins), "ToString");
@@ -682,12 +682,8 @@ mod tests {
     #[test]
     fn test_type_id_format_type_with_generic_trait_instance() {
         let mut db = Database::new();
-        let id = Trait::alloc(
-            &mut db,
-            "ToFoo".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
+        let id =
+            Trait::alloc(&mut db, "ToFoo".to_string(), Visibility::Private);
         let param1 = id.new_type_parameter(&mut db, "T".to_string());
 
         id.new_type_parameter(&mut db, "E".to_string());
@@ -706,12 +702,8 @@ mod tests {
     fn test_type_id_format_type_with_type_parameter() {
         let mut db = Database::new();
         let param = TypeParameter::alloc(&mut db, "T".to_string());
-        let to_string = Trait::alloc(
-            &mut db,
-            "ToString".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
+        let to_string =
+            Trait::alloc(&mut db, "ToString".to_string(), Visibility::Private);
         let param_ins = TypeId::TypeParameter(param);
         let to_string_ins = TraitInstance::new(to_string);
 
@@ -724,12 +716,8 @@ mod tests {
     fn test_type_id_format_type_with_rigid_type_parameter() {
         let mut db = Database::new();
         let param = TypeParameter::alloc(&mut db, "T".to_string());
-        let to_string = Trait::alloc(
-            &mut db,
-            "ToString".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
+        let to_string =
+            Trait::alloc(&mut db, "ToString".to_string(), Visibility::Private);
         let param_ins = TypeId::RigidTypeParameter(param);
         let to_string_ins = TraitInstance::new(to_string);
 
@@ -823,5 +811,30 @@ mod tests {
         assert_eq!(format_type(&db, TypeRef::Any), "Any".to_string());
         assert_eq!(format_type(&db, TypeRef::Error), "<error>".to_string());
         assert_eq!(format_type(&db, TypeRef::Unknown), "<unknown>".to_string());
+    }
+
+    #[test]
+    fn test_ctype_format() {
+        let mut db = Database::new();
+        let foo = Class::alloc(
+            &mut db,
+            "Foo".to_string(),
+            ClassKind::Extern,
+            Visibility::Public,
+            ModuleId(0),
+        );
+
+        assert_eq!(format_type(&db, TypeRef::foreign_int(8)), "Int8");
+        assert_eq!(format_type(&db, TypeRef::foreign_int(16)), "Int16");
+        assert_eq!(format_type(&db, TypeRef::foreign_int(32)), "Int32");
+        assert_eq!(format_type(&db, TypeRef::foreign_int(64)), "Int64");
+        assert_eq!(
+            format_type(
+                &db,
+                TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8)))
+            ),
+            "Pointer[Int8]"
+        );
+        assert_eq!(format_type(&db, TypeRef::foreign_struct(foo)), "Foo");
     }
 }

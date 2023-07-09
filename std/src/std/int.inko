@@ -23,6 +23,23 @@ let pub MIN = -9_223_372_036_854_775_808
 # The maximum value an `Int` can represent.
 let pub MAX = 9_223_372_036_854_775_807
 
+class extern IntResult {
+  let @tag: Int
+  let @value: Int
+}
+
+fn extern inko_string_to_int(
+  state: Pointer[Int8],
+  process: Pointer[Int8],
+  string: String,
+  radix: Int,
+  start: Int,
+  end: Int,
+) -> IntResult
+
+fn extern inko_int_pow(process: Pointer[Int8], left: Int, right: Int) -> Int64
+fn extern inko_int_to_string(state: Pointer[Int8], value: Int) -> String
+
 # A 64-bits signed integer type.
 #
 # `Int` values can represent values in the range
@@ -42,8 +59,8 @@ class builtin Int {
   #     Int.from_base2('11') # => Option.Some(3)
   #     Int.from_base2('ff') # => Option.None
   fn pub static from_base2(string: String) -> Option[Int] {
-    match _INKO.string_to_int(string, 2, -1, -1) {
-      case { @tag = 0, @value = v } -> Option.Some(v as Int)
+    match inko_string_to_int(_INKO.state, _INKO.process, string, 2, -1, -1) {
+      case { @tag = 0, @value = v } -> Option.Some(v)
       case _ -> Option.None
     }
   }
@@ -58,8 +75,8 @@ class builtin Int {
   #     Int.from_base10('12') # => Option.Some(12)
   #     Int.from_base10('ff') # => Option.None
   fn pub static from_base10(string: String) -> Option[Int] {
-    match _INKO.string_to_int(string, 10, -1, -1) {
-      case { @tag = 0, @value = v } -> Option.Some(v as Int)
+    match inko_string_to_int(_INKO.state, _INKO.process, string, 10, -1, -1) {
+      case { @tag = 0, @value = v } -> Option.Some(v)
       case _ -> Option.None
     }
   }
@@ -78,8 +95,8 @@ class builtin Int {
   #     Int.from_base16('ef') # => Option.Some(239)
   #     Int.from_base16('zz') # => Option.None
   fn pub static from_base16(string: String) -> Option[Int] {
-    match _INKO.string_to_int(string, 16, -1, -1) {
-      case { @tag = 0, @value = v } -> Option.Some(v as Int)
+    match inko_string_to_int(_INKO.state, _INKO.process, string, 16, -1, -1) {
+      case { @tag = 0, @value = v } -> Option.Some(v)
       case _ -> Option.None
     }
   }
@@ -299,7 +316,7 @@ impl ToInt for Int {
 
 impl ToFloat for Int {
   fn pub to_float -> Float {
-    _INKO.int_to_float(self)
+    self as Float
   }
 }
 
@@ -345,7 +362,7 @@ impl Clone[Int] for Int {
 
 impl ToString for Int {
   fn pub to_string -> String {
-    _INKO.int_to_string(self)
+    inko_int_to_string(_INKO.state, self)
   }
 }
 
@@ -425,7 +442,7 @@ impl UnsignedShiftRight[Int, Int] for Int {
 
 impl Power[Int, Int] for Int {
   fn pub **(other: ref Int) -> Int {
-    _INKO.int_pow(self, other)
+    inko_int_pow(_INKO.process, self, other) as Int
   }
 }
 

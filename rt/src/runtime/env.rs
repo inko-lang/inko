@@ -1,4 +1,4 @@
-use crate::mem::{Array, String as InkoString};
+use crate::mem::String as InkoString;
 use crate::result::Result as InkoResult;
 use crate::state::State;
 use std::env;
@@ -15,25 +15,24 @@ pub unsafe extern "system" fn inko_env_get(
     state
         .environment
         .get(name)
-        .cloned()
-        .map(|path| InkoResult::ok(path as _))
+        .map(|val| InkoResult::ok(val as _))
         .unwrap_or_else(InkoResult::none)
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_env_variables(
+pub unsafe extern "system" fn inko_env_get_key(
     state: *const State,
-) -> *mut Array {
-    let state = &*state;
-    let names = state
-        .environment
-        .keys()
-        .map(|key| {
-            InkoString::alloc(state.string_class, key.clone()) as *mut u8
-        })
-        .collect();
+    index: i64,
+) -> *const InkoString {
+    // This is only used to populate a map of all variables, and for that we'll
+    // only use indexes that actually exist, so we can just unwrap here instead
+    // of returning a result value.
+    (*state).environment.key(index as _).unwrap()
+}
 
-    Array::alloc(state.array_class, names)
+#[no_mangle]
+pub unsafe extern "system" fn inko_env_length(state: *const State) -> i64 {
+    (*state).environment.len() as _
 }
 
 #[no_mangle]
@@ -50,7 +49,6 @@ pub unsafe extern "system" fn inko_env_home_directory(
     state
         .environment
         .get("HOME")
-        .cloned()
         .filter(|&path| !InkoString::read(path).is_empty())
         .map(|path| InkoResult::ok(path as _))
         .unwrap_or_else(InkoResult::none)
@@ -79,27 +77,28 @@ pub unsafe extern "system" fn inko_env_get_working_directory(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_env_set_working_directory(
-    state: *const State,
     directory: *const InkoString,
 ) -> InkoResult {
-    let state = &*state;
     let dir = InkoString::read(directory);
 
     env::set_current_dir(dir)
-        .map(|_| InkoResult::ok(state.nil_singleton as _))
+        .map(|_| InkoResult::none())
         .unwrap_or_else(InkoResult::io_error)
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_env_arguments(
+pub unsafe extern "system" fn inko_env_arguments_length(
     state: *const State,
-) -> *mut Array {
-    let state = &*state;
+) -> i64 {
+    (*state).arguments.len() as i64
+}
 
-    Array::alloc(
-        state.array_class,
-        state.arguments.iter().map(|&v| v as _).collect(),
-    )
+#[no_mangle]
+pub unsafe extern "system" fn inko_env_argument(
+    state: *const State,
+    index: i64,
+) -> *const InkoString {
+    *(*state).arguments.get_unchecked(index as usize)
 }
 
 #[no_mangle]

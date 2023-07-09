@@ -184,6 +184,12 @@ pub(crate) struct Import {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ExternImport {
+    pub(crate) source: String,
+    pub(crate) location: SourceLocation,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct DefineConstant {
     pub(crate) public: bool,
     pub(crate) constant_id: Option<types::ConstantId>,
@@ -226,6 +232,16 @@ pub(crate) struct DefineModuleMethod {
     pub(crate) arguments: Vec<MethodArgument>,
     pub(crate) return_type: Option<Type>,
     pub(crate) body: Vec<Expression>,
+    pub(crate) location: SourceLocation,
+    pub(crate) method_id: Option<types::MethodId>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct DefineExternFunction {
+    pub(crate) public: bool,
+    pub(crate) name: Identifier,
+    pub(crate) arguments: Vec<MethodArgument>,
+    pub(crate) return_type: Option<Type>,
     pub(crate) location: SourceLocation,
     pub(crate) method_id: Option<types::MethodId>,
 }
@@ -305,6 +321,15 @@ pub(crate) struct DefineClass {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct DefineExternClass {
+    pub(crate) public: bool,
+    pub(crate) class_id: Option<types::ClassId>,
+    pub(crate) name: Constant,
+    pub(crate) fields: Vec<DefineField>,
+    pub(crate) location: SourceLocation,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct DefineVariant {
     pub(crate) method_id: Option<types::MethodId>,
     pub(crate) variant_id: Option<types::VariantId>,
@@ -351,12 +376,15 @@ pub(crate) struct DefineTrait {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum TopLevelExpression {
     Class(Box<DefineClass>),
+    ExternClass(Box<DefineExternClass>),
     Constant(Box<DefineConstant>),
     ModuleMethod(Box<DefineModuleMethod>),
+    ExternFunction(Box<DefineExternFunction>),
     Trait(Box<DefineTrait>),
     Implement(Box<ImplementTrait>),
     Import(Box<Import>),
     Reopen(Box<ReopenClass>),
+    ExternImport(Box<ExternImport>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -570,6 +598,14 @@ pub(crate) struct NamedArgument {
 pub(crate) enum Argument {
     Positional(Box<Expression>),
     Named(Box<NamedArgument>),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ExternTypeName {
+    pub(crate) resolved_type: types::TypeRef,
+    pub(crate) name: Constant,
+    pub(crate) arguments: Vec<Type>,
+    pub(crate) location: SourceLocation,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1013,9 +1049,10 @@ impl<'a> LowerToHir<'a> {
         &mut self,
         nodes: Vec<ast::TopLevelExpression>,
     ) -> Vec<TopLevelExpression> {
-        nodes
-            .into_iter()
-            .map(|node| match node {
+        let mut exprs = Vec::new();
+
+        for node in nodes {
+            let expr = match node {
                 ast::TopLevelExpression::DefineConstant(node) => {
                     self.define_constant(*node)
                 }
@@ -1034,9 +1071,26 @@ impl<'a> LowerToHir<'a> {
                 ast::TopLevelExpression::ImplementTrait(node) => {
                     self.implement_trait(*node)
                 }
-                ast::TopLevelExpression::Import(node) => self.import(*node),
-            })
-            .collect()
+                ast::TopLevelExpression::Import(node) => {
+                    // Build tags are evaluated as modules are parsed and
+                    // imports are crawled. We ignore any imports filtered out
+                    // through those tags here, such that the rest of the
+                    // compilation pipeline doesn't need to care about them.
+                    if !node.include {
+                        continue;
+                    }
+
+                    self.import(*node)
+                }
+                ast::TopLevelExpression::ExternImport(node) => {
+                    self.extern_import(*node)
+                }
+            };
+
+            exprs.push(expr);
+        }
+
+        exprs
     }
 
     fn define_constant(
@@ -1063,17 +1117,28 @@ impl<'a> LowerToHir<'a> {
     ) -> TopLevelExpression {
         self.operator_method_not_allowed(node.operator, &node.location);
 
-        TopLevelExpression::ModuleMethod(Box::new(DefineModuleMethod {
-            public: node.public,
-            name: self.identifier(node.name),
-            type_parameters: self
-                .optional_type_parameters(node.type_parameters),
-            arguments: self.optional_method_arguments(node.arguments),
-            return_type: node.return_type.map(|n| self.type_reference(n)),
-            body: self.optional_expressions(node.body),
-            method_id: None,
-            location: node.location,
-        }))
+        if let ast::MethodKind::Extern = node.kind {
+            TopLevelExpression::ExternFunction(Box::new(DefineExternFunction {
+                public: node.public,
+                name: self.identifier(node.name),
+                arguments: self.optional_method_arguments(node.arguments),
+                return_type: node.return_type.map(|n| self.type_reference(n)),
+                method_id: None,
+                location: node.location,
+            }))
+        } else {
+            TopLevelExpression::ModuleMethod(Box::new(DefineModuleMethod {
+                public: node.public,
+                name: self.identifier(node.name),
+                type_parameters: self
+                    .optional_type_parameters(node.type_parameters),
+                arguments: self.optional_method_arguments(node.arguments),
+                return_type: node.return_type.map(|n| self.type_reference(n)),
+                body: self.optional_expressions(node.body),
+                method_id: None,
+                location: node.location,
+            }))
+        }
     }
 
     fn optional_method_arguments(
@@ -1096,6 +1161,10 @@ impl<'a> LowerToHir<'a> {
     }
 
     fn define_class(&mut self, node: ast::DefineClass) -> TopLevelExpression {
+        if let ast::ClassKind::Extern = node.kind {
+            return self.define_extern_class(node);
+        }
+
         TopLevelExpression::Class(Box::new(DefineClass {
             public: node.public,
             class_id: None,
@@ -1113,6 +1182,30 @@ impl<'a> LowerToHir<'a> {
         }))
     }
 
+    fn define_extern_class(
+        &mut self,
+        node: ast::DefineClass,
+    ) -> TopLevelExpression {
+        TopLevelExpression::ExternClass(Box::new(DefineExternClass {
+            public: node.public,
+            class_id: None,
+            name: self.constant(node.name),
+            fields: node
+                .body
+                .values
+                .into_iter()
+                .map(|expr| {
+                    if let ast::ClassExpression::DefineField(n) = expr {
+                        self.define_field(*n)
+                    } else {
+                        unreachable!()
+                    }
+                })
+                .collect(),
+            location: node.location,
+        }))
+    }
+
     fn class_expressions(
         &mut self,
         node: ast::ClassExpressions,
@@ -1124,7 +1217,7 @@ impl<'a> LowerToHir<'a> {
                     self.define_method_in_class(*node)
                 }
                 ast::ClassExpression::DefineField(node) => {
-                    self.define_field(*node)
+                    ClassExpression::Field(Box::new(self.define_field(*node)))
                 }
                 ast::ClassExpression::DefineVariant(node) => {
                     self.define_case(*node)
@@ -1133,14 +1226,14 @@ impl<'a> LowerToHir<'a> {
             .collect()
     }
 
-    fn define_field(&self, node: ast::DefineField) -> ClassExpression {
-        ClassExpression::Field(Box::new(DefineField {
+    fn define_field(&self, node: ast::DefineField) -> DefineField {
+        DefineField {
             public: node.public,
             field_id: None,
             name: self.identifier(node.name),
             value_type: self.type_reference(node.value_type),
             location: node.location,
-        }))
+        }
     }
 
     fn define_case(&mut self, node: ast::DefineVariant) -> ClassExpression {
@@ -1394,6 +1487,13 @@ impl<'a> LowerToHir<'a> {
         TopLevelExpression::Import(Box::new(Import {
             source: self.import_module_path(node.path),
             symbols: self.import_symbols(node.symbols),
+            location: node.location,
+        }))
+    }
+
+    fn extern_import(&self, node: ast::ExternImport) -> TopLevelExpression {
+        TopLevelExpression::ExternImport(Box::new(ExternImport {
+            source: node.path.path,
             location: node.location,
         }))
     }
@@ -3220,6 +3320,29 @@ mod tests {
     }
 
     #[test]
+    fn test_lower_function() {
+        let (hir, diags) = lower_top_expr("fn extern foo");
+
+        assert_eq!(diags, 0);
+        assert_eq!(
+            hir,
+            TopLevelExpression::ExternFunction(Box::new(
+                DefineExternFunction {
+                    public: false,
+                    name: Identifier {
+                        name: "foo".to_string(),
+                        location: cols(11, 13)
+                    },
+                    arguments: Vec::new(),
+                    return_type: None,
+                    method_id: None,
+                    location: cols(1, 13),
+                }
+            )),
+        );
+    }
+
+    #[test]
     fn test_lower_class() {
         let hir = lower_top_expr("class A[B: C] { let @a: B }").0;
 
@@ -3269,6 +3392,43 @@ mod tests {
                     location: cols(17, 25),
                 }))],
                 location: cols(1, 27)
+            })),
+        );
+    }
+
+    #[test]
+    fn test_lower_extern_class() {
+        let hir = lower_top_expr("class extern A { let @a: B }").0;
+
+        assert_eq!(
+            hir,
+            TopLevelExpression::ExternClass(Box::new(DefineExternClass {
+                public: false,
+                class_id: None,
+                name: Constant {
+                    name: "A".to_string(),
+                    location: cols(14, 14)
+                },
+                fields: vec![DefineField {
+                    public: false,
+                    field_id: None,
+                    name: Identifier {
+                        name: "a".to_string(),
+                        location: cols(22, 23)
+                    },
+                    value_type: Type::Named(Box::new(TypeName {
+                        source: None,
+                        resolved_type: types::TypeRef::Unknown,
+                        name: Constant {
+                            name: "B".to_string(),
+                            location: cols(26, 26)
+                        },
+                        arguments: Vec::new(),
+                        location: cols(26, 26)
+                    })),
+                    location: cols(18, 26),
+                }],
+                location: cols(1, 28)
             })),
         );
     }
@@ -4284,6 +4444,19 @@ mod tests {
                 }],
                 symbols: Vec::new(),
                 location: cols(1, 8)
+            }))
+        );
+    }
+
+    #[test]
+    fn test_lower_extern_import() {
+        let hir = lower_top_expr("import extern 'a'").0;
+
+        assert_eq!(
+            hir,
+            TopLevelExpression::ExternImport(Box::new(ExternImport {
+                source: "a".to_string(),
+                location: cols(1, 17)
             }))
         );
     }

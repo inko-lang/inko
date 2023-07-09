@@ -8,14 +8,13 @@ use crate::mir::{passes as mir, Mir};
 use crate::modules_parser::{ModulesParser, ParsedModule};
 use crate::state::State;
 use crate::type_check::define_types::{
-    define_runtime_result_fields, CheckTraitImplementations,
-    CheckTraitRequirements, CheckTypeParameters, DefineFields,
-    DefineTraitRequirements, DefineTypeParameterRequirements,
+    CheckTraitImplementations, CheckTraitRequirements, CheckTypeParameters,
+    DefineFields, DefineTraitRequirements, DefineTypeParameterRequirements,
     DefineTypeParameters, DefineTypes, DefineVariants, ImplementTraits,
     InsertPrelude,
 };
 use crate::type_check::expressions::{DefineConstants, Expressions};
-use crate::type_check::imports::DefineImportedTypes;
+use crate::type_check::imports::{CollectExternImports, DefineImportedTypes};
 use crate::type_check::methods::{
     CheckMainMethod, DefineMethods, DefineModuleMethodNames,
     ImplementTraitMethods,
@@ -165,6 +164,7 @@ impl Compiler {
         let state = &mut self.state;
 
         DefineTypes::run_all(state, modules)
+            && CollectExternImports::run_all(state, modules)
             && DefineModuleMethodNames::run_all(state, modules)
             && DefineImportedTypes::run_all(state, modules)
             && InsertPrelude::run_all(state, modules)
@@ -177,7 +177,6 @@ impl Compiler {
             && CheckTypeParameters::run_all(state, modules)
             && DefineVariants::run_all(state, modules)
             && DefineFields::run_all(state, modules)
-            && define_runtime_result_fields(state)
             && DefineMethods::run_all(state, modules)
             && CheckMainMethod::run(state)
             && ImplementTraitMethods::run_all(state, modules)
@@ -246,8 +245,7 @@ impl Compiler {
             llvm::passes::Compile::run_all(&self.state, directories, mir)
                 .map_err(CompileError::Internal)?;
 
-        link(&self.state.config, &exe, &objects)
-            .map_err(CompileError::Internal)?;
+        link(&self.state, &exe, &objects).map_err(CompileError::Internal)?;
         Ok(exe)
     }
 

@@ -59,6 +59,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         "none,balanced,aggressive",
     );
 
+    options.optflag("", "static", "Statically link imported C libraries");
     options.optflag("", "dot", "Output the MIR of every module as DOT files");
 
     let matches = options.parse(arguments)?;
@@ -84,6 +85,10 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
 
     if matches.opt_present("dot") {
         config.dot = true;
+    }
+
+    if matches.opt_present("static") {
+        config.static_linking = true;
     }
 
     for path in matches.opt_strs("i") {

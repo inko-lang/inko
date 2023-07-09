@@ -119,9 +119,13 @@ fn socket_type(kind: i64) -> io::Result<Type> {
 }
 
 /// A nonblocking socket that can be registered with a `NetworkPoller`.
+///
+/// When changing the layout of this type, don't forget to also update its
+/// definition in the standard library.
+#[repr(C)]
 pub struct Socket {
     /// The raw socket.
-    inner: RawSocket,
+    pub inner: RawSocket,
 
     /// The ID of the network poller we're registered with.
     ///
@@ -132,10 +136,10 @@ pub struct Socket {
     /// flags. For example, epoll requires the use of EPOLL_CTL_MOD when
     /// overwriting a registration, as using EPOLL_CTL_ADD will produce an error
     /// if a file descriptor is already registered.
-    registered: AtomicI8,
+    pub registered: AtomicI8,
 
     /// A flag indicating if we're dealing with a UNIX socket or not.
-    unix: bool,
+    pub unix: bool,
 }
 
 impl Socket {

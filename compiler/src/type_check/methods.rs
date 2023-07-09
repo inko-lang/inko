@@ -24,11 +24,16 @@ fn method_kind(kind: hir::MethodKind) -> MethodKind {
     }
 }
 
-fn receiver_type(type_id: TypeId, kind: hir::MethodKind) -> TypeRef {
-    match kind {
-        hir::MethodKind::Regular => TypeRef::Ref(type_id),
-        hir::MethodKind::Moving => TypeRef::Owned(type_id),
-        hir::MethodKind::Mutable => TypeRef::Mut(type_id),
+fn receiver_type(db: &Database, id: TypeId, kind: hir::MethodKind) -> TypeRef {
+    match id {
+        TypeId::ClassInstance(ins) if ins.instance_of().is_value_type(db) => {
+            TypeRef::Owned(id)
+        }
+        _ => match kind {
+            hir::MethodKind::Regular => TypeRef::Ref(id),
+            hir::MethodKind::Moving => TypeRef::Owned(id),
+            hir::MethodKind::Mutable => TypeRef::Mut(id),
+        },
     }
 }
 
@@ -219,7 +224,7 @@ trait MethodDefiner {
         &mut self,
         method: MethodId,
         class_id: ClassId,
-        name: &String,
+        name: &str,
         location: &SourceLocation,
     ) {
         if class_id.method_exists(self.db(), name) {
@@ -233,7 +238,7 @@ trait MethodDefiner {
                 location.clone(),
             );
         } else {
-            class_id.add_method(self.db_mut(), name.clone(), method);
+            class_id.add_method(self.db_mut(), name.to_string(), method);
         }
     }
 }
@@ -265,8 +270,14 @@ impl<'a> DefineModuleMethodNames<'a> {
 
     fn run(mut self, module: &mut hir::Module) {
         for expr in module.expressions.iter_mut() {
-            if let hir::TopLevelExpression::ModuleMethod(ref mut node) = expr {
-                self.define_module_method(node);
+            match expr {
+                hir::TopLevelExpression::ModuleMethod(ref mut node) => {
+                    self.define_module_method(node);
+                }
+                hir::TopLevelExpression::ExternFunction(ref mut node) => {
+                    self.define_extern_function(node);
+                }
+                _ => (),
             }
         }
     }
@@ -283,9 +294,8 @@ impl<'a> DefineModuleMethodNames<'a> {
         );
 
         if self.module.symbol_exists(self.db(), name) {
-            self.state.diagnostics.error(
-                DiagnosticId::DuplicateSymbol,
-                format!("The module method '{}' is already defined", name),
+            self.state.diagnostics.duplicate_symbol(
+                name,
                 self.file(),
                 node.location.clone(),
             );
@@ -300,6 +310,35 @@ impl<'a> DefineModuleMethodNames<'a> {
         module.add_method(self.db_mut(), name.clone(), method);
 
         node.method_id = Some(method);
+    }
+
+    fn define_extern_function(&mut self, node: &mut hir::DefineExternFunction) {
+        let name = &node.name.name;
+        let module = self.module;
+        let method = Method::alloc(
+            self.db_mut(),
+            module,
+            name.clone(),
+            Visibility::public(node.public),
+            MethodKind::Extern,
+        );
+
+        if self.module.symbol_exists(self.db(), name) {
+            self.state.diagnostics.duplicate_symbol(
+                name,
+                self.file(),
+                node.location.clone(),
+            );
+        } else {
+            self.module.new_symbol(
+                self.db_mut(),
+                name.clone(),
+                Symbol::Method(method),
+            );
+        }
+
+        node.method_id = Some(method);
+        self.module.add_extern_method(self.db_mut(), method);
     }
 
     fn file(&self) -> PathBuf {
@@ -344,6 +383,9 @@ impl<'a> DefineMethods<'a> {
                 }
                 hir::TopLevelExpression::ModuleMethod(ref mut node) => {
                     self.define_module_method(node);
+                }
+                hir::TopLevelExpression::ExternFunction(ref mut node) => {
+                    self.define_extern_function(node);
                 }
                 hir::TopLevelExpression::Reopen(ref mut node) => {
                     self.reopen_class(node);
@@ -514,6 +556,31 @@ impl<'a> DefineMethods<'a> {
         );
     }
 
+    fn define_extern_function(&mut self, node: &mut hir::DefineExternFunction) {
+        let self_type = TypeId::Module(self.module);
+        let func = node.method_id.unwrap();
+        let scope = TypeScope::new(self.module, self_type, None);
+        let rules = Rules {
+            allow_private_types: func.is_private(self.db()),
+            ..Default::default()
+        };
+
+        for arg in &mut node.arguments {
+            let name = arg.name.name.clone();
+            let typ = self.type_check(&mut arg.value_type, rules, &scope);
+
+            func.new_argument(self.db_mut(), name, typ, typ);
+        }
+
+        let ret = node
+            .return_type
+            .as_mut()
+            .map(|node| self.type_check(node, rules, &scope))
+            .unwrap_or_else(TypeRef::nil);
+
+        func.set_return_type(self.db_mut(), ret);
+    }
+
     fn define_static_method(
         &mut self,
         class_id: ClassId,
@@ -635,7 +702,7 @@ impl<'a> DefineMethods<'a> {
             class_id,
             &bounds,
         ));
-        let receiver = receiver_type(self_type, node.kind);
+        let receiver = receiver_type(self.db(), self_type, node.kind);
 
         method.set_receiver(self.db_mut(), receiver);
 
@@ -790,7 +857,7 @@ impl<'a> DefineMethods<'a> {
             trait_id,
             &bounds,
         ));
-        let receiver = receiver_type(self_type, node.kind);
+        let receiver = receiver_type(self.db(), self_type, node.kind);
 
         method.set_receiver(self.db_mut(), receiver);
 
@@ -857,7 +924,7 @@ impl<'a> DefineMethods<'a> {
             trait_id,
             &bounds,
         ));
-        let receiver = receiver_type(self_type, node.kind);
+        let receiver = receiver_type(self.db(), self_type, node.kind);
 
         method.set_receiver(self.db_mut(), receiver);
 
@@ -1210,7 +1277,7 @@ impl<'a> ImplementTraitMethods<'a> {
                 || method.is_private(self.db()),
             ..Default::default()
         };
-        let receiver = receiver_type(self_type, node.kind);
+        let receiver = receiver_type(self.db(), self_type, node.kind);
 
         method.set_receiver(self.db_mut(), receiver);
         method.set_source(

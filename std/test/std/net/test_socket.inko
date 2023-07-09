@@ -791,7 +791,11 @@ fn pub tests(t: mut Tests) {
 
   t.test('TcpServer.try_clone') fn (t) {
     let ip = IpAddress.V4(Ipv4Address.new(127, 0, 0, 1))
-    let server = TcpServer.new(ip: ip, port: 0).unwrap
+    # let server = TcpServer.new(ip: ip, port: 0).unwrap
+    let server = match TcpServer.new(ip: ip, port: 0) {
+      case Ok(v) -> v
+      case Error(e) -> panic(e.to_string)
+    }
 
     t.true(server.try_clone.ok?)
   }

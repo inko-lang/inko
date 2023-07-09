@@ -119,16 +119,26 @@ impl Parser {
         &mut self,
         start: Token,
     ) -> Result<TopLevelExpression, ParseError> {
+        if self.peek().kind == TokenKind::Extern {
+            return self.extern_import(start);
+        }
+
         let path = self.import_path()?;
         let symbols = self.import_symbols()?;
-        let end_loc =
-            symbols.as_ref().map(|x| &x.location).unwrap_or(&path.location);
-        let location = SourceLocation::start_end(&start.location, end_loc);
+        let tags = self.build_tags()?;
+        let location = SourceLocation::start_end(
+            &start.location,
+            location!(tags)
+                .or_else(|| location!(symbols))
+                .unwrap_or(&path.location),
+        );
 
         Ok(TopLevelExpression::Import(Box::new(Import {
             path,
             symbols,
+            tags,
             location,
+            include: true,
         })))
     }
 
@@ -237,6 +247,79 @@ impl Parser {
         }
 
         Ok(Some(ImportAlias { name: token.value, location: token.location }))
+    }
+
+    fn build_tags(&mut self) -> Result<Option<BuildTags>, ParseError> {
+        let start = if self.peek().kind == TokenKind::If {
+            self.next()
+        } else {
+            return Ok(None);
+        };
+
+        let mut values = Vec::new();
+
+        loop {
+            let token = self.expect(TokenKind::Identifier)?;
+            let tag =
+                Identifier { name: token.value, location: token.location };
+
+            values.push(tag);
+
+            if self.peek().kind == TokenKind::And {
+                self.next();
+            } else {
+                break;
+            }
+        }
+
+        let location = SourceLocation::start_end(
+            &start.location,
+            location!(values.last()).unwrap_or_else(|| &start.location),
+        );
+
+        Ok(Some(BuildTags { values, location }))
+    }
+
+    fn extern_import(
+        &mut self,
+        start: Token,
+    ) -> Result<TopLevelExpression, ParseError> {
+        // Skip the "extern".
+        self.next();
+
+        let path_start = self.require()?;
+        let path = self.extern_import_path(path_start)?;
+        let location =
+            SourceLocation::start_end(&start.location, &path.location);
+
+        Ok(TopLevelExpression::ExternImport(Box::new(ExternImport {
+            path,
+            location,
+        })))
+    }
+
+    fn extern_import_path(
+        &mut self,
+        start: Token,
+    ) -> Result<ExternImportPath, ParseError> {
+        let close = match start.kind {
+            TokenKind::SingleStringOpen => TokenKind::SingleStringClose,
+            TokenKind::DoubleStringOpen => TokenKind::DoubleStringClose,
+            _ => {
+                error!(
+                    start.location,
+                    "expected a single or double quote, found '{}' instead",
+                    start.kind.description()
+                );
+            }
+        };
+
+        let text = self.expect(TokenKind::StringText)?;
+        let close = self.expect(close)?;
+        let location =
+            SourceLocation::start_end(&start.location, &close.location);
+
+        Ok(ExternImportPath { path: text.value, location })
     }
 
     fn define_constant(
@@ -715,16 +798,38 @@ impl Parser {
         start: Token,
     ) -> Result<TopLevelExpression, ParseError> {
         let public = self.next_is_public();
-        let kind = MethodKind::Instance;
+        let kind = match self.peek().kind {
+            TokenKind::Extern => {
+                self.next();
+                MethodKind::Extern
+            }
+            _ => MethodKind::Instance,
+        };
+
         let name_token = self.require()?;
         let (name, operator) = self.method_name(name_token)?;
-        let type_parameters = self.optional_type_parameter_definitions()?;
+        let type_parameters = if let MethodKind::Extern = kind {
+            None
+        } else {
+            self.optional_type_parameter_definitions()?
+        };
         let arguments = self.optional_method_arguments()?;
         let return_type = self.optional_return_type()?;
-        let body_token = self.expect(TokenKind::CurlyOpen)?;
-        let body = self.expressions(body_token)?;
-        let location =
-            SourceLocation::start_end(&start.location, &body.location);
+        let body = if let MethodKind::Extern = kind {
+            None
+        } else {
+            let token = self.expect(TokenKind::CurlyOpen)?;
+
+            Some(self.expressions(token)?)
+        };
+
+        let location = SourceLocation::start_end(
+            &start.location,
+            location!(body)
+                .or_else(|| location!(return_type))
+                .or_else(|| location!(arguments))
+                .unwrap_or(&name.location),
+        );
 
         Ok(TopLevelExpression::DefineMethod(Box::new(DefineMethod {
             public,
@@ -734,7 +839,7 @@ impl Parser {
             arguments,
             return_type,
             location,
-            body: Some(body),
+            body,
             kind,
         })))
     }
@@ -884,11 +989,26 @@ impl Parser {
                 self.next();
                 ClassKind::Builtin
             }
+            TokenKind::Extern => {
+                self.next();
+                ClassKind::Extern
+            }
             _ => ClassKind::Regular,
         };
+
         let name = Constant::from(self.expect(TokenKind::Constant)?);
-        let type_parameters = self.optional_type_parameter_definitions()?;
-        let body = self.class_expressions()?;
+        let type_parameters = if let ClassKind::Extern = kind {
+            None
+        } else {
+            self.optional_type_parameter_definitions()?
+        };
+
+        let body = if let ClassKind::Extern = kind {
+            self.extern_class_expressions()?
+        } else {
+            self.class_expressions()?
+        };
+
         let location =
             SourceLocation::start_end(&start.location, &body.location);
 
@@ -941,6 +1061,38 @@ impl Parser {
             }
 
             values.push(self.class_expression(token)?);
+        }
+    }
+
+    fn extern_class_expressions(
+        &mut self,
+    ) -> Result<ClassExpressions, ParseError> {
+        let start = self.expect(TokenKind::CurlyOpen)?;
+        let mut values = Vec::new();
+
+        loop {
+            let token = self.require()?;
+
+            if token.kind == TokenKind::CurlyClose {
+                let location =
+                    SourceLocation::start_end(&start.location, &token.location);
+
+                return Ok(ClassExpressions { values, location });
+            }
+
+            let node = match token.kind {
+                TokenKind::Let => ClassExpression::DefineField(Box::new(
+                    self.define_field(token)?,
+                )),
+                _ => {
+                    error!(
+                        token.location,
+                        "Expected a 'let', found '{}' instead", token.value
+                    );
+                }
+            };
+
+            values.push(node);
         }
     }
 
@@ -1307,7 +1459,7 @@ impl Parser {
     }
 
     fn expression(&mut self, start: Token) -> Result<Expression, ParseError> {
-        self.type_cast(start)
+        self.boolean_and_or(start)
     }
 
     fn expression_without_trailing_block(
@@ -1318,27 +1470,6 @@ impl Parser {
 
             parser.expression(start)
         })
-    }
-
-    fn type_cast(&mut self, start: Token) -> Result<Expression, ParseError> {
-        let mut node = self.boolean_and_or(start)?;
-
-        while self.peek().kind == TokenKind::As {
-            self.next();
-
-            let cast_token = self.require()?;
-            let cast_to = self.type_reference(cast_token)?;
-            let location =
-                SourceLocation::start_end(node.location(), cast_to.location());
-
-            node = Expression::TypeCast(Box::new(TypeCast {
-                value: node,
-                cast_to,
-                location,
-            }));
-        }
-
-        Ok(node)
     }
 
     fn boolean_and_or(
@@ -1375,18 +1506,37 @@ impl Parser {
     fn binary(&mut self, start: Token) -> Result<Expression, ParseError> {
         let mut node = self.postfix(start)?;
 
-        while let Some(op) = self.binary_operator() {
-            let rhs_token = self.require()?;
-            let rhs = self.postfix(rhs_token)?;
-            let location =
-                SourceLocation::start_end(node.location(), rhs.location());
+        loop {
+            if let Some(op) = self.binary_operator() {
+                let rhs_token = self.require()?;
+                let rhs = self.postfix(rhs_token)?;
+                let location =
+                    SourceLocation::start_end(node.location(), rhs.location());
 
-            node = Expression::Binary(Box::new(Binary {
-                operator: op,
-                left: node,
-                right: rhs,
-                location,
-            }));
+                node = Expression::Binary(Box::new(Binary {
+                    operator: op,
+                    left: node,
+                    right: rhs,
+                    location,
+                }));
+            } else if self.peek().kind == TokenKind::As {
+                self.next();
+
+                let cast_token = self.require()?;
+                let cast_to = self.type_reference(cast_token)?;
+                let location = SourceLocation::start_end(
+                    node.location(),
+                    cast_to.location(),
+                );
+
+                node = Expression::TypeCast(Box::new(TypeCast {
+                    value: node,
+                    cast_to,
+                    location,
+                }));
+            } else {
+                break;
+            }
         }
 
         Ok(node)
@@ -2917,6 +3067,7 @@ mod tests {
         Parser::new(input.into(), "test.inko".into())
     }
 
+    #[track_caller]
     fn parse(input: &str) -> Module {
         parser(input)
             .parse()
@@ -3027,6 +3178,8 @@ mod tests {
                     location: cols(8, 10)
                 },
                 symbols: None,
+                tags: None,
+                include: true,
                 location: cols(1, 10)
             }))
         );
@@ -3042,6 +3195,8 @@ mod tests {
                     location: cols(8, 10)
                 },
                 symbols: None,
+                tags: None,
+                include: true,
                 location: cols(1, 10)
             }))
         );
@@ -3057,6 +3212,8 @@ mod tests {
                     location: cols(8, 10)
                 },
                 symbols: None,
+                tags: None,
+                include: true,
                 location: cols(1, 10)
             }))
         );
@@ -3078,9 +3235,71 @@ mod tests {
                     location: cols(8, 15)
                 },
                 symbols: None,
+                tags: None,
+                include: true,
                 location: cols(1, 15)
             }))
         );
+    }
+
+    #[test]
+    fn test_conditional_import() {
+        assert_eq!(
+            top(parse("import foo if foo and bar")),
+            TopLevelExpression::Import(Box::new(Import {
+                path: ImportPath {
+                    steps: vec![Identifier {
+                        name: "foo".to_string(),
+                        location: cols(8, 10)
+                    }],
+                    location: cols(8, 10)
+                },
+                symbols: None,
+                tags: Some(BuildTags {
+                    values: vec![
+                        Identifier {
+                            name: "foo".to_string(),
+                            location: cols(15, 17)
+                        },
+                        Identifier {
+                            name: "bar".to_string(),
+                            location: cols(23, 25)
+                        }
+                    ],
+                    location: cols(12, 25)
+                }),
+                include: true,
+                location: cols(1, 25)
+            }))
+        );
+    }
+
+    #[test]
+    fn test_extern_imports() {
+        assert_eq!(
+            top(parse("import extern 'foo'")),
+            TopLevelExpression::ExternImport(Box::new(ExternImport {
+                path: ExternImportPath {
+                    path: "foo".to_string(),
+                    location: cols(15, 19)
+                },
+                location: cols(1, 19)
+            }))
+        );
+
+        assert_eq!(
+            top(parse("import extern \"foo\"")),
+            TopLevelExpression::ExternImport(Box::new(ExternImport {
+                path: ExternImportPath {
+                    path: "foo".to_string(),
+                    location: cols(15, 19)
+                },
+                location: cols(1, 19)
+            }))
+        );
+
+        assert_error!("import extern ''", cols(16, 16));
+        assert_error!("import extern \"\"", cols(16, 16));
     }
 
     #[test]
@@ -3105,6 +3324,8 @@ mod tests {
                     values: Vec::new(),
                     location: cols(18, 19)
                 }),
+                tags: None,
+                include: true,
                 location: cols(1, 19)
             }))
         );
@@ -3127,6 +3348,8 @@ mod tests {
                     }],
                     location: cols(13, 17)
                 }),
+                tags: None,
+                include: true,
                 location: cols(1, 17)
             }))
         );
@@ -3156,6 +3379,8 @@ mod tests {
                     ],
                     location: cols(13, 22)
                 }),
+                tags: None,
+                include: true,
                 location: cols(1, 22)
             }))
         );
@@ -3185,6 +3410,8 @@ mod tests {
                     ],
                     location: cols(13, 23)
                 }),
+                tags: None,
+                include: true,
                 location: cols(1, 23)
             }))
         );
@@ -3210,6 +3437,8 @@ mod tests {
                     }],
                     location: cols(13, 18)
                 }),
+                tags: None,
+                include: true,
                 location: cols(1, 18)
             }))
         );
@@ -3238,6 +3467,8 @@ mod tests {
                     }],
                     location: cols(13, 24)
                 }),
+                tags: None,
+                include: true,
                 location: cols(1, 24)
             }))
         );
@@ -3263,6 +3494,8 @@ mod tests {
                     }],
                     location: cols(13, 24)
                 }),
+                tags: None,
+                include: true,
                 location: cols(1, 24)
             }))
         );
@@ -3288,6 +3521,8 @@ mod tests {
                     }],
                     location: cols(13, 25)
                 }),
+                tags: None,
+                include: true,
                 location: cols(1, 25)
             }))
         );
@@ -3313,6 +3548,8 @@ mod tests {
                     }],
                     location: cols(13, 23)
                 }),
+                tags: None,
+                include: true,
                 location: cols(1, 23)
             }))
         );
@@ -4107,6 +4344,27 @@ mod tests {
     }
 
     #[test]
+    fn test_extern_method() {
+        assert_eq!(
+            top(parse("fn extern foo")),
+            TopLevelExpression::DefineMethod(Box::new(DefineMethod {
+                public: false,
+                operator: false,
+                kind: MethodKind::Extern,
+                name: Identifier {
+                    name: "foo".to_string(),
+                    location: cols(11, 13)
+                },
+                type_parameters: None,
+                arguments: None,
+                return_type: None,
+                body: None,
+                location: cols(1, 13),
+            }))
+        );
+    }
+
+    #[test]
     fn test_invalid_methods() {
         assert_error!("fn foo [ {}", cols(10, 10));
         assert_error!("fn foo [A: ] {}", cols(12, 12));
@@ -4115,6 +4373,7 @@ mod tests {
         assert_error!("fn foo -> {}", cols(11, 11));
         assert_error!("fn foo {", cols(8, 8));
         assert_error!("fn foo", cols(6, 6));
+        assert_error!("fn extern foo[T](arg: T)", cols(14, 14));
     }
 
     #[test]
@@ -4154,6 +4413,28 @@ mod tests {
                     location: cols(13, 14)
                 },
                 location: cols(1, 14)
+            }))
+        );
+    }
+
+    #[test]
+    fn test_extern_class() {
+        assert_eq!(
+            top(parse("class extern A {}")),
+            TopLevelExpression::DefineClass(Box::new(DefineClass {
+                public: false,
+                name: Constant {
+                    source: None,
+                    name: "A".to_string(),
+                    location: cols(14, 14)
+                },
+                kind: ClassKind::Extern,
+                type_parameters: None,
+                body: ClassExpressions {
+                    values: Vec::new(),
+                    location: cols(16, 17)
+                },
+                location: cols(1, 17)
             }))
         );
     }
@@ -4681,6 +4962,8 @@ mod tests {
         assert_error!("class A { 10 }", cols(11, 12));
         assert_error!("class {}", cols(7, 7));
         assert_error!("class A {", cols(9, 9));
+        assert_error!("class extern A[T] {", cols(15, 15));
+        assert_error!("class extern A { fn foo {  } }", cols(18, 19));
     }
 
     #[test]

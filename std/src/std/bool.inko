@@ -49,7 +49,8 @@ impl Clone[Bool] for Bool {
 
 impl Equal[Bool] for Bool {
   fn pub ==(other: ref Bool) -> Bool {
-    _INKO.object_eq(self, other)
+    (self as Any as Pointer[Int8] as Int)
+      == (other as Any as Pointer[Int8] as Int)
   }
 }
 

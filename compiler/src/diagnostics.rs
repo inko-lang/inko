@@ -111,7 +111,7 @@ impl Diagnostic {
         self.id
     }
 
-    pub(crate) fn message(&self) -> &String {
+    pub(crate) fn message(&self) -> &str {
         &self.message
     }
 
@@ -209,13 +209,54 @@ impl Diagnostics {
 
     pub(crate) fn duplicate_symbol(
         &mut self,
-        name: &String,
+        name: &str,
         file: PathBuf,
         location: SourceLocation,
     ) {
         self.error(
             DiagnosticId::DuplicateSymbol,
             format!("The symbol '{}' is already defined", name),
+            file,
+            location,
+        );
+    }
+
+    pub(crate) fn duplicate_field(
+        &mut self,
+        name: &str,
+        file: PathBuf,
+        location: SourceLocation,
+    ) {
+        self.error(
+            DiagnosticId::DuplicateSymbol,
+            format!("The field '{}' is already defined", name),
+            file,
+            location,
+        );
+    }
+
+    pub(crate) fn fields_not_allowed(
+        &mut self,
+        name: &str,
+        file: PathBuf,
+        location: SourceLocation,
+    ) {
+        self.error(
+            DiagnosticId::DuplicateSymbol,
+            format!("Fields can't be defined for '{}'", name),
+            file,
+            location,
+        );
+    }
+
+    pub(crate) fn public_field_private_class(
+        &mut self,
+        file: PathBuf,
+        location: SourceLocation,
+    ) {
+        self.error(
+            DiagnosticId::DuplicateSymbol,
+            "Public fields can't be defined for private classes",
             file,
             location,
         );
@@ -237,7 +278,7 @@ impl Diagnostics {
 
     pub(crate) fn not_a_class(
         &mut self,
-        name: &String,
+        name: &str,
         file: PathBuf,
         location: SourceLocation,
     ) {
@@ -251,7 +292,7 @@ impl Diagnostics {
 
     pub(crate) fn duplicate_method(
         &mut self,
-        method_name: &String,
+        method_name: &str,
         type_name: String,
         file: PathBuf,
         location: SourceLocation,
@@ -827,6 +868,38 @@ impl Diagnostics {
                 returns a '{}'",
                 error, returns,
             ),
+            file,
+            location,
+        );
+    }
+
+    pub(crate) fn incorrect_number_of_type_arguments(
+        &mut self,
+        required: usize,
+        given: usize,
+        file: PathBuf,
+        location: SourceLocation,
+    ) {
+        self.error(
+            DiagnosticId::InvalidType,
+            format!(
+                "Incorrect number of type arguments: expected {}, found {}",
+                required, given
+            ),
+            file,
+            location,
+        );
+    }
+
+    pub(crate) fn invalid_c_type(
+        &mut self,
+        name: &str,
+        file: PathBuf,
+        location: SourceLocation,
+    ) {
+        self.error(
+            DiagnosticId::InvalidType,
+            format!("'{}' isn't a valid C type", name),
             file,
             location,
         );

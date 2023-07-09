@@ -32,6 +32,7 @@ fn pub tests(t: mut Tests) {
     t.equal(true, true)
     t.equal(false, false)
     t.not_equal(true, false)
+    t.not_equal(false, true)
   }
 
   t.test('Bool.cmp') fn (t) {

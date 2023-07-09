@@ -1,11 +1,13 @@
 use crate::mem::{
-    tagged_int, Array, Bool, ByteArray, Float, Int, Nil, String as InkoString,
+    tagged_int, Array, Bool, ByteArray, Float, Int, String as InkoString,
 };
 use crate::process::ProcessPointer;
 use crate::result::Result as InkoResult;
 use crate::runtime::process::panic;
 use crate::state::State;
 use std::cmp::min;
+use std::ffi::CStr;
+use std::os::raw::c_char;
 use std::slice;
 use unicode_segmentation::{Graphemes, UnicodeSegmentation};
 
@@ -75,12 +77,8 @@ pub unsafe extern "system" fn inko_string_byte(
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_string_drop(
-    state: *const State,
-    pointer: *const InkoString,
-) -> *const Nil {
+pub unsafe extern "system" fn inko_string_drop(pointer: *const InkoString) {
     InkoString::drop(pointer);
-    (*state).nil_singleton
 }
 
 #[no_mangle]
@@ -212,12 +210,8 @@ pub unsafe extern "system" fn inko_string_characters_next(
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_string_characters_drop(
-    state: *const State,
-    iter: *mut u8,
-) -> *const Nil {
+pub unsafe extern "system" fn inko_string_characters_drop(iter: *mut u8) {
     drop(Box::from_raw(iter as *mut Graphemes));
-    (*state).nil_singleton
 }
 
 #[no_mangle]
@@ -254,4 +248,21 @@ pub unsafe extern "system" fn inko_string_slice_bytes(
     };
 
     InkoString::alloc((*state).string_class, new_string)
+}
+
+#[no_mangle]
+pub unsafe extern "system" fn inko_string_to_pointer(
+    string: *const InkoString,
+) -> *const u8 {
+    (*string).value.as_ptr()
+}
+
+#[no_mangle]
+pub unsafe extern "system" fn inko_string_from_pointer(
+    state: *const State,
+    ptr: *const c_char,
+) -> *const InkoString {
+    let val = CStr::from_ptr(ptr).to_string_lossy().into_owned();
+
+    InkoString::alloc((*state).string_class, val)
 }

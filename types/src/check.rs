@@ -1,7 +1,8 @@
 //! Type checking of types.
 use crate::{
-    Arguments, ClassInstance, Database, MethodId, TraitInstance, TypeArguments,
-    TypeBounds, TypeId, TypeParameterId, TypePlaceholderId, TypeRef,
+    Arguments, ClassInstance, Database, ForeignType, MethodId, TraitInstance,
+    TypeArguments, TypeBounds, TypeId, TypeParameterId, TypePlaceholderId,
+    TypeRef, FLOAT_ID, INT_ID,
 };
 use std::collections::HashSet;
 
@@ -34,6 +35,11 @@ struct Rules {
 
     /// When encountering an Infer() type, turn it into a rigid type.
     infer_as_rigid: bool,
+
+    /// If we're performing a type-check as part of a type cast.
+    ///
+    /// When enabled, certain type-checking rules may be relaxed.
+    type_cast: bool,
 }
 
 impl Rules {
@@ -42,6 +48,7 @@ impl Rules {
             subtyping: TraitSubtyping::Yes,
             relaxed_ownership: false,
             infer_as_rigid: false,
+            type_cast: false,
         }
     }
 
@@ -63,12 +70,17 @@ impl Rules {
         self
     }
 
-    fn relaxed(mut self) -> Rules {
+    fn with_relaxed_ownership(mut self) -> Rules {
         self.relaxed_ownership = true;
         self
     }
 
-    fn strict(mut self) -> Rules {
+    fn with_type_cast(mut self) -> Rules {
+        self.type_cast = true;
+        self
+    }
+
+    fn with_strict_ownership(mut self) -> Rules {
         self.relaxed_ownership = false;
         self
     }
@@ -122,6 +134,16 @@ impl<'a> TypeChecker<'a> {
             Environment::new(left.type_arguments(db), right.type_arguments(db));
 
         TypeChecker::new(db).run(left, right, &mut env)
+    }
+
+    pub fn check_cast(db: &'a Database, left: TypeRef, right: TypeRef) -> bool {
+        let mut env =
+            Environment::new(left.type_arguments(db), right.type_arguments(db));
+
+        let mut checker = TypeChecker::new(db);
+        let rules = Rules::new().with_type_cast();
+
+        checker.check_type_ref(left, right, &mut env, rules)
     }
 
     pub fn new(db: &'a Database) -> TypeChecker<'a> {
@@ -226,7 +248,7 @@ impl<'a> TypeChecker<'a> {
             env.left.assign(bound, val);
 
             let mut env = env.with_left_as_right();
-            let rules = rules.relaxed();
+            let rules = rules.with_relaxed_ownership();
 
             if bound.is_mutable(self.db) && !val.is_mutable(self.db) {
                 return false;
@@ -253,7 +275,7 @@ impl<'a> TypeChecker<'a> {
         // sub checks. The approach we take here means we only need to "reset"
         // this once for the sub checks.
         let relaxed = rules.relaxed_ownership;
-        let rules = rules.strict();
+        let rules = rules.with_strict_ownership();
 
         // Resolve any assigned type parameters/placeholders to the types
         // they're assigned to.
@@ -353,6 +375,11 @@ impl<'a> TypeChecker<'a> {
 
                     true
                 }
+                TypeRef::Pointer(_) if rules.type_cast => match left_id {
+                    TypeId::ClassInstance(ins) => ins.instance_of().0 == INT_ID,
+                    TypeId::Foreign(ForeignType::Int(_)) => true,
+                    _ => false,
+                },
                 TypeRef::Error => true,
                 _ => false,
             },
@@ -492,6 +519,19 @@ impl<'a> TypeChecker<'a> {
                 left_id.assign(self.db, right);
                 true
             }
+            TypeRef::Pointer(left_id) => match right {
+                TypeRef::Pointer(right_id) => {
+                    rules.type_cast
+                        || self.check_type_id(left_id, right_id, env, rules)
+                }
+                TypeRef::Owned(TypeId::Foreign(ForeignType::Int(_))) => {
+                    rules.type_cast
+                }
+                TypeRef::Owned(TypeId::ClassInstance(ins)) => {
+                    rules.type_cast && ins.instance_of().0 == INT_ID
+                }
+                _ => false,
+            },
             _ => false,
         }
     }
@@ -525,6 +565,13 @@ impl<'a> TypeChecker<'a> {
             TypeId::ClassInstance(lhs) => match right_id {
                 TypeId::ClassInstance(rhs) => {
                     if lhs.instance_of != rhs.instance_of {
+                        if rules.type_cast
+                            && lhs.instance_of.is_numeric()
+                            && rhs.instance_of.is_numeric()
+                        {
+                            return true;
+                        }
+
                         return false;
                     }
 
@@ -558,6 +605,7 @@ impl<'a> TypeChecker<'a> {
                         self.check_class_with_trait(lhs, req, env, rules)
                     })
                 }
+                TypeId::Foreign(_) => rules.type_cast,
                 _ => false,
             },
             TypeId::TraitInstance(lhs) => match right_id {
@@ -610,6 +658,42 @@ impl<'a> TypeChecker<'a> {
                 }
                 _ => false,
             },
+            TypeId::Foreign(ForeignType::Int(lsize)) => {
+                if rules.type_cast {
+                    match right_id {
+                        TypeId::Foreign(_) => true,
+                        TypeId::ClassInstance(ins) => {
+                            matches!(ins.instance_of().0, INT_ID | FLOAT_ID)
+                        }
+                        _ => false,
+                    }
+                } else {
+                    match right_id {
+                        TypeId::Foreign(ForeignType::Int(rsize)) => {
+                            lsize == rsize
+                        }
+                        _ => false,
+                    }
+                }
+            }
+            TypeId::Foreign(ForeignType::Float(lsize)) => {
+                if rules.type_cast {
+                    match right_id {
+                        TypeId::Foreign(_) => true,
+                        TypeId::ClassInstance(ins) => {
+                            matches!(ins.instance_of().0, INT_ID | FLOAT_ID)
+                        }
+                        _ => false,
+                    }
+                } else {
+                    match right_id {
+                        TypeId::Foreign(ForeignType::Float(rsize)) => {
+                            lsize == rsize
+                        }
+                        _ => false,
+                    }
+                }
+            }
         }
     }
 
@@ -753,7 +837,7 @@ impl<'a> TypeChecker<'a> {
         // value), it's up to the implementation of the method to do so.
         // References in turn can be created from both owned values and other
         // references.
-        let rules = rules.relaxed();
+        let rules = rules.with_relaxed_ownership();
 
         if left.instance_of.is_generic(self.db) {
             // The implemented trait may refer to type parameters of the
@@ -974,12 +1058,24 @@ mod tests {
         type_arguments, type_bounds, uni,
     };
     use crate::{
-        Block, ClassId, Closure, TraitImplementation, TypePlaceholder,
+        Block, Class, ClassId, ClassKind, Closure, ModuleId,
+        TraitImplementation, TypePlaceholder, Visibility,
     };
 
     #[track_caller]
     fn check_ok(db: &Database, left: TypeRef, right: TypeRef) {
         if !TypeChecker::check(db, left, right) {
+            panic!(
+                "Expected {} to be compatible with {}",
+                format_type(db, left),
+                format_type(db, right)
+            );
+        }
+    }
+
+    #[track_caller]
+    fn check_ok_cast(db: &Database, left: TypeRef, right: TypeRef) {
+        if !TypeChecker::check_cast(db, left, right) {
             panic!(
                 "Expected {} to be compatible with {}",
                 format_type(db, left),
@@ -2142,5 +2238,97 @@ mod tests {
             immutable(to_string_array),
             &mut env,
         ));
+    }
+
+    #[test]
+    fn test_check_c_types() {
+        let mut db = Database::new();
+        let foo = Class::alloc(
+            &mut db,
+            "foo".to_string(),
+            ClassKind::Extern,
+            Visibility::Public,
+            ModuleId(0),
+        );
+
+        let bar = Class::alloc(
+            &mut db,
+            "bar".to_string(),
+            ClassKind::Extern,
+            Visibility::Public,
+            ModuleId(0),
+        );
+
+        check_ok(&db, TypeRef::foreign_int(8), TypeRef::foreign_int(8));
+        check_ok(&db, TypeRef::foreign_float(32), TypeRef::foreign_float(32));
+        check_ok(
+            &db,
+            TypeRef::foreign_struct(foo),
+            TypeRef::foreign_struct(foo),
+        );
+
+        check_ok_cast(&db, TypeRef::foreign_int(8), TypeRef::foreign_int(16));
+        check_ok_cast(
+            &db,
+            TypeRef::foreign_float(32),
+            TypeRef::foreign_float(64),
+        );
+        check_ok_cast(&db, TypeRef::foreign_int(32), TypeRef::int());
+        check_ok_cast(&db, TypeRef::foreign_float(32), TypeRef::int());
+        check_ok_cast(&db, TypeRef::int(), TypeRef::foreign_int(8));
+        check_ok_cast(&db, TypeRef::float(), TypeRef::foreign_float(32));
+        check_ok_cast(&db, TypeRef::float(), TypeRef::int());
+        check_ok_cast(&db, TypeRef::int(), TypeRef::float());
+        check_ok_cast(
+            &db,
+            TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8))),
+            TypeRef::foreign_int(8),
+        );
+        check_ok_cast(
+            &db,
+            TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8))),
+            TypeRef::int(),
+        );
+        check_ok_cast(
+            &db,
+            TypeRef::int(),
+            TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8))),
+        );
+        check_ok_cast(
+            &db,
+            TypeRef::foreign_int(8),
+            TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8))),
+        );
+        check_ok_cast(
+            &db,
+            TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8))),
+            TypeRef::pointer(TypeId::Foreign(ForeignType::Float(32))),
+        );
+
+        check_err(&db, TypeRef::foreign_int(32), TypeRef::foreign_int(8));
+        check_err(&db, TypeRef::foreign_int(8), TypeRef::foreign_int(16));
+        check_err(&db, TypeRef::foreign_float(32), TypeRef::foreign_float(64));
+        check_err(&db, TypeRef::foreign_int(8), TypeRef::foreign_float(32));
+        check_err(&db, TypeRef::foreign_float(8), TypeRef::foreign_int(32));
+        check_err(
+            &db,
+            TypeRef::foreign_struct(foo),
+            TypeRef::foreign_struct(bar),
+        );
+        check_err(
+            &db,
+            TypeRef::foreign_struct(foo),
+            TypeRef::pointer(TypeId::ClassInstance(ClassInstance::new(foo))),
+        );
+        check_err(
+            &db,
+            TypeRef::pointer(TypeId::ClassInstance(ClassInstance::new(foo))),
+            TypeRef::pointer(TypeId::ClassInstance(ClassInstance::new(bar))),
+        );
+        check_err(
+            &db,
+            TypeRef::pointer(TypeId::ClassInstance(ClassInstance::new(foo))),
+            TypeRef::Any,
+        );
     }
 }

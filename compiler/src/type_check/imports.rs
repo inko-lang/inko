@@ -153,6 +153,32 @@ impl<'a> DefineImportedTypes<'a> {
     }
 }
 
+/// A compiler pass that collects all externally imported libraries.
+pub(crate) struct CollectExternImports<'a> {
+    state: &'a mut State,
+}
+
+impl<'a> CollectExternImports<'a> {
+    pub(crate) fn run_all(
+        state: &'a mut State,
+        modules: &[hir::Module],
+    ) -> bool {
+        for module in modules {
+            CollectExternImports { state }.run(module);
+        }
+
+        !state.diagnostics.has_errors()
+    }
+
+    fn run(self, module: &hir::Module) {
+        for expr in &module.expressions {
+            if let hir::TopLevelExpression::ExternImport(ref node) = expr {
+                self.state.libraries.insert(node.source.clone());
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

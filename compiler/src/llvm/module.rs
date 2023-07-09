@@ -4,6 +4,7 @@ use crate::llvm::layouts::Layouts;
 use crate::llvm::runtime_function::RuntimeFunction;
 use crate::mir::Constant;
 use crate::symbol_names::SYMBOL_PREFIX;
+use inkwell::attributes::AttributeLoc;
 use inkwell::intrinsics::Intrinsic;
 use inkwell::types::BasicTypeEnum;
 use inkwell::values::{BasicValue, FunctionValue, GlobalValue};
@@ -99,11 +100,20 @@ impl<'a, 'ctx> Module<'a, 'ctx> {
         method: MethodId,
     ) -> FunctionValue<'ctx> {
         self.inner.get_function(name).unwrap_or_else(|| {
-            self.inner.add_function(
-                name,
-                self.layouts.methods[&method].signature,
-                None,
-            )
+            let info = &self.layouts.methods[&method];
+            let func = self.inner.add_function(name, info.signature, None);
+
+            if let Some(typ) = info.struct_return {
+                let sret = self.context.type_attribute("sret", typ.into());
+                let noalias = self.context.enum_attribute("noalias", 0);
+                let nocapt = self.context.enum_attribute("nocapture", 0);
+
+                func.add_attribute(AttributeLoc::Param(0), sret);
+                func.add_attribute(AttributeLoc::Param(0), noalias);
+                func.add_attribute(AttributeLoc::Param(0), nocapt);
+            }
+
+            func
         })
     }
 

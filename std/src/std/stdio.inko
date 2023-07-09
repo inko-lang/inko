@@ -1,6 +1,45 @@
 # STDIN, STDOUT, and STDERR streams.
 import std::io::(Error, Read, Write)
 
+class extern IntResult {
+  let @tag: Int
+  let @value: Int
+}
+
+fn extern inko_stdout_write_string(
+  state: Pointer[Int8],
+  process: Pointer[Int8],
+  input: String
+) -> IntResult
+
+fn extern inko_stdout_write_bytes(
+  state: Pointer[Int8],
+  process: Pointer[Int8],
+  input: ref ByteArray
+) -> IntResult
+
+fn extern inko_stderr_write_string(
+  state: Pointer[Int8],
+  process: Pointer[Int8],
+  input: String
+) -> IntResult
+
+fn extern inko_stderr_write_bytes(
+  state: Pointer[Int8],
+  process: Pointer[Int8],
+  input: ref ByteArray
+) -> IntResult
+
+fn extern inko_stdin_read(
+  state: Pointer[Int8],
+  process: Pointer[Int8],
+  buffer: mut ByteArray,
+  size: Int,
+) -> IntResult
+
+fn extern inko_stdout_flush(process: Pointer[Int8])
+fn extern inko_stderr_flush(process: Pointer[Int8])
+
 # The standard input stream of the current OS process.
 class pub STDIN {
   # Returns a new handle to the input stream.
@@ -11,9 +50,9 @@ class pub STDIN {
 
 impl Read for STDIN {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
-    match _INKO.stdin_read(into, size) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_stdin_read(_INKO.state, _INKO.process, into, size) {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 }
@@ -31,21 +70,21 @@ class pub STDOUT {
 
 impl Write for STDOUT {
   fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
-    match _INKO.stdout_write_bytes(bytes) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_stdout_write_bytes(_INKO.state, _INKO.process, bytes) {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
   fn pub mut write_string(string: String) -> Result[Int, Error] {
-    match _INKO.stdout_write_string(string) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_stdout_write_string(_INKO.state, _INKO.process, string) {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
   fn pub mut flush -> Result[Nil, Never] {
-    Result.Ok(_INKO.stdout_flush)
+    Result.Ok(inko_stdout_flush(_INKO.process))
   }
 }
 
@@ -62,20 +101,20 @@ class pub STDERR {
 
 impl Write for STDERR {
   fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
-    match _INKO.stderr_write_bytes(bytes) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_stderr_write_bytes(_INKO.state, _INKO.process, bytes) {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
   fn pub mut write_string(string: String) -> Result[Int, Error] {
-    match _INKO.stderr_write_string(string) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_stderr_write_string(_INKO.state, _INKO.process, string) {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
   fn pub mut flush -> Result[Nil, Never] {
-    Result.Ok(_INKO.stderr_flush)
+    Result.Ok(inko_stderr_flush(_INKO.process))
   }
 }

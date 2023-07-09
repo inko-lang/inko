@@ -1,6 +1,4 @@
-use crate::mem::{
-    tagged_int, Array, ByteArray, Int, Nil, String as InkoString,
-};
+use crate::mem::{tagged_int, Array, ByteArray, Int, String as InkoString};
 use crate::process::ProcessPointer;
 use crate::result::Result as InkoResult;
 use crate::runtime::helpers::read_into;
@@ -171,11 +169,9 @@ pub(crate) unsafe extern "system" fn inko_child_process_stdin_write_string(
 
 #[no_mangle]
 pub(crate) unsafe extern "system" fn inko_child_process_stdin_flush(
-    state: *const State,
     process: ProcessPointer,
     child: *mut Child,
 ) -> InkoResult {
-    let state = &*state;
     let child = &mut *child;
 
     child
@@ -183,44 +179,36 @@ pub(crate) unsafe extern "system" fn inko_child_process_stdin_flush(
         .as_mut()
         .map(|stream| process.blocking(|| stream.flush()))
         .unwrap_or(Ok(()))
-        .map(|_| InkoResult::ok(state.nil_singleton as _))
+        .map(|_| InkoResult::none())
         .unwrap_or_else(InkoResult::io_error)
 }
 
 #[no_mangle]
 pub(crate) unsafe extern "system" fn inko_child_process_stdout_close(
-    state: *const State,
     child: *mut Child,
-) -> *const Nil {
+) {
     (*child).stdout.take();
-    (*state).nil_singleton
 }
 
 #[no_mangle]
 pub(crate) unsafe extern "system" fn inko_child_process_stderr_close(
-    state: *const State,
     child: *mut Child,
-) -> *const Nil {
+) {
     (*child).stderr.take();
-    (*state).nil_singleton
 }
 
 #[no_mangle]
 pub(crate) unsafe extern "system" fn inko_child_process_stdin_close(
-    state: *const State,
     child: *mut Child,
-) -> *const Nil {
+) {
     (*child).stdin.take();
-    (*state).nil_singleton
 }
 
 #[no_mangle]
 pub(crate) unsafe extern "system" fn inko_child_process_drop(
-    state: *const State,
     child: *mut Child,
-) -> *const Nil {
+) {
     drop(Box::from_raw(child));
-    (*state).nil_singleton
 }
 
 #[no_mangle]

@@ -59,6 +59,196 @@ import std::net::ip::IpAddress
 import std::string::ToString
 import std::time::(Duration, ToInstant)
 
+class extern RawSocket {
+  let @inner: Int32
+  let @registered: Int8
+  let @unix: Int8
+}
+
+class extern RawAddress {
+  let @address: String
+  let @port: Int
+}
+
+class extern AnyResult {
+  let @tag: Int
+  let @value: Any
+}
+
+class extern IntResult {
+  let @tag: Int
+  let @value: Int
+}
+
+fn extern inko_socket_new(
+  proto: Int,
+  kind: Int,
+  out: Pointer[RawSocket],
+) -> Int64
+
+fn extern inko_socket_accept(
+  state: Pointer[Int8],
+  process: Pointer[Int8],
+  socket: Pointer[RawSocket],
+  deadline: Int,
+  out: Pointer[RawSocket],
+) -> Int64
+
+fn extern inko_socket_local_address(
+  state: Pointer[Int8],
+  socket: Pointer[RawSocket],
+  out: Pointer[RawAddress]
+) -> Int64
+
+fn extern inko_socket_peer_address(
+  state: Pointer[Int8],
+  socket: Pointer[RawSocket],
+  out: Pointer[RawAddress],
+) -> Int64
+
+fn extern inko_socket_receive_from(
+  state: Pointer[Int8],
+  process: Pointer[Int8],
+  socket: Pointer[RawSocket],
+  buffer: mut ByteArray,
+  amount: Int,
+  deadline: Int,
+  out: Pointer[RawAddress],
+) -> Int64
+
+fn extern inko_socket_bind(
+  socket: Pointer[RawSocket],
+  address: String,
+  port: Int
+) -> IntResult
+
+fn extern inko_socket_read(
+  state: Pointer[Int8],
+  process: Pointer[Int8],
+  socket: Pointer[RawSocket],
+  buffer: mut ByteArray,
+  amount: Int,
+  deadline: Int,
+) -> IntResult
+
+fn extern inko_socket_connect(
+  state: Pointer[Int8],
+  process: Pointer[Int8],
+  socket: Pointer[RawSocket],
+  address: String,
+  port: Int,
+  deadline: Int
+) -> IntResult
+
+fn extern inko_socket_listen(
+  socket: Pointer[RawSocket],
+  value: Int
+) -> IntResult
+
+fn extern inko_socket_drop(socket: Pointer[RawSocket])
+fn extern inko_socket_send_bytes_to(
+  state: Pointer[Int8],
+  process: Pointer[Int8],
+  socket: Pointer[RawSocket],
+  buffer: ref ByteArray,
+  address: String,
+  port: Int,
+  deadline: Int
+) -> IntResult
+
+fn extern inko_socket_send_string_to(
+  state: Pointer[Int8],
+  process: Pointer[Int8],
+  socket: Pointer[RawSocket],
+  buffer: String,
+  address: String,
+  port: Int,
+  deadline: Int
+) -> IntResult
+
+fn extern inko_socket_write_bytes(
+  state: Pointer[Int8],
+  process: Pointer[Int8],
+  socket: Pointer[RawSocket],
+  buffer: ref ByteArray,
+  deadline: Int
+) -> IntResult
+
+fn extern inko_socket_write_string(
+  state: Pointer[Int8],
+  process: Pointer[Int8],
+  socket: Pointer[RawSocket],
+  buffer: String,
+  deadline: Int
+) -> IntResult
+
+fn extern inko_socket_try_clone(
+  socket: Pointer[RawSocket],
+  out: Pointer[RawSocket],
+) -> Int64
+
+fn extern inko_socket_shutdown_read(socket: Pointer[RawSocket]) -> IntResult
+fn extern inko_socket_shutdown_write(socket: Pointer[RawSocket]) -> IntResult
+fn extern inko_socket_shutdown_read_write(
+  socket: Pointer[RawSocket]
+) -> IntResult
+
+fn extern inko_socket_set_broadcast(
+  state: Pointer[Int8],
+  socket: Pointer[RawSocket],
+  value: Bool,
+) -> IntResult
+
+fn extern inko_socket_set_keepalive(
+  state: Pointer[Int8],
+  socket: Pointer[RawSocket],
+  value: Bool,
+) -> IntResult
+
+fn extern inko_socket_set_linger(
+  socket: Pointer[RawSocket],
+  value: Int,
+) -> IntResult
+
+fn extern inko_socket_set_recv_size(
+  socket: Pointer[RawSocket],
+  value: Int,
+) -> IntResult
+
+fn extern inko_socket_set_send_size(
+  socket: Pointer[RawSocket],
+  value: Int,
+) -> IntResult
+
+fn extern inko_socket_set_ttl(
+  socket: Pointer[RawSocket],
+  value: Int,
+) -> IntResult
+
+fn extern inko_socket_set_nodelay(
+  state: Pointer[Int8],
+  socket: Pointer[RawSocket],
+  value: Bool,
+) -> IntResult
+
+fn extern inko_socket_set_only_v6(
+  state: Pointer[Int8],
+  socket: Pointer[RawSocket],
+  value: Bool,
+) -> IntResult
+
+fn extern inko_socket_set_reuse_address(
+  state: Pointer[Int8],
+  socket: Pointer[RawSocket],
+  value: Bool,
+) -> IntResult
+
+fn extern inko_socket_set_reuse_port(
+  state: Pointer[Int8],
+  socket: Pointer[RawSocket],
+  value: Bool,
+) -> IntResult
+
 # The maximum value valid for a listen() call.
 #
 # Linux and FreeBSD do not allow for values greater than this as they internally
@@ -146,7 +336,7 @@ impl Drop for SocketDeadlineGuard {
 
 # A low-level, non-blocking IPv4 or IPv6 socket.
 class pub Socket {
-  let @fd: Any
+  let @raw: RawSocket
 
   # A point in time after which socket operations time out.
   #
@@ -161,11 +351,15 @@ class pub Socket {
   #
   #     Socket.ipv4(Type.DGRAM).unwrap
   fn pub static ipv4(type: Type) -> Result[Socket, Error] {
-    match _INKO.socket_new(IPV4, type.into_int) {
-      case { @tag = 0, @value = v } -> Result.Ok(
-        Socket { @fd = v, @deadline = NO_DEADLINE }
-      )
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    let sock = RawSocket {
+      @inner = 0 as Int32,
+      @registered = 0 as Int8,
+      @unix = 0 as Int8,
+    }
+
+    match inko_socket_new(IPV4, type.into_int, mut sock) as Int {
+      case 0 -> Result.Ok(Socket { @raw = sock, @deadline = NO_DEADLINE })
+      case e -> Result.Error(Error.from_os_error(e))
     }
   }
 
@@ -177,11 +371,15 @@ class pub Socket {
   #
   #     Socket.ipv6(Type.DGRAM).unwrap
   fn pub static ipv6(type: Type) -> Result[Socket, Error] {
-    match _INKO.socket_new(IPV6, type.into_int) {
-      case { @tag = 0, @value = v } -> Result.Ok(
-        Socket { @fd = v, @deadline = NO_DEADLINE }
-      )
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    let sock = RawSocket {
+      @inner = 0 as Int32,
+      @registered = 0 as Int8,
+      @unix = 0 as Int8,
+    }
+
+    match inko_socket_new(IPV6, type.into_int, mut sock) as Int {
+      case 0 -> Result.Ok(Socket { @raw = sock, @deadline = NO_DEADLINE })
+      case e -> Result.Error(Error.from_os_error(e))
     }
   }
 
@@ -234,9 +432,9 @@ class pub Socket {
   #
   #     socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).unwrap
   fn pub mut bind(ip: ref ToString, port: Int) -> Result[Nil, Error] {
-    match _INKO.socket_bind(@fd, ip.to_string, port) {
-      case { @tag = 0, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_bind(@raw, ip.to_string, port) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
@@ -256,9 +454,11 @@ class pub Socket {
   #     socket.listen.unwrap
   #     client.connect(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).unwrap
   fn pub mut connect(ip: ref ToString, port: Int) -> Result[Nil, Error] {
-    match _INKO.socket_connect(@fd, ip.to_string, port, @deadline) {
-      case { @tag = 0, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_connect(
+      _INKO.state, _INKO.process, @raw, ip.to_string, port, @deadline
+    ) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
@@ -277,9 +477,9 @@ class pub Socket {
   #     socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).unwrap
   #     socket.listen.unwrap
   fn pub mut listen -> Result[Nil, Error] {
-    match _INKO.socket_listen(@fd, MAXIMUM_LISTEN_BACKLOG) {
-      case { @tag = 0, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_listen(@raw, MAXIMUM_LISTEN_BACKLOG) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
@@ -310,11 +510,17 @@ class pub Socket {
   #
   #     buffer.to_string # => 'ping'
   fn pub accept -> Result[Socket, Error] {
-    match _INKO.socket_accept(@fd, @deadline) {
-      case { @tag = 0, @value = fd } -> Result.Ok(
-        Socket { @fd = fd, @deadline = NO_DEADLINE }
-      )
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    let sock = RawSocket {
+      @inner = 0 as Int32,
+      @registered = 0 as Int8,
+      @unix = 0 as Int8,
+    }
+
+    match inko_socket_accept(
+      _INKO.state, _INKO.process, @raw, @deadline, mut sock
+    ) as Int {
+      case 0 -> Result.Ok(Socket { @raw = sock, @deadline = NO_DEADLINE })
+      case e -> Result.Error(Error.from_os_error(e))
     }
   }
 
@@ -342,9 +548,11 @@ class pub Socket {
     ip: ref ToString,
     port: Int
   ) -> Result[Int, Error] {
-    match _INKO.socket_send_string_to(@fd, string, ip.to_string, port, @deadline) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_send_string_to(
+      _INKO.state, _INKO.process, @raw, string, ip.to_string, port, @deadline
+    ) {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
@@ -369,13 +577,15 @@ class pub Socket {
   #       )
   #       .unwrap
   fn pub mut send_bytes_to(
-    bytes: ByteArray,
+    bytes: ref ByteArray,
     ip: ref ToString,
     port: Int
   ) -> Result[Int, Error] {
-    match _INKO.socket_send_bytes_to(@fd, bytes, ip.to_string, port, @deadline) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_send_bytes_to(
+      _INKO.state, _INKO.process, @raw, bytes, ip.to_string, port, @deadline
+    ) {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
@@ -409,118 +619,108 @@ class pub Socket {
   #     received_from.address # => '0.0.0.0'
   #     received_from.port    # => 9999
   fn pub mut receive_from(
-    bytes: ref ByteArray,
-    size: Int
+    bytes: mut ByteArray,
+    size: Int,
   ) -> Result[SocketAddress, Error] {
-    let raw_addr = match _INKO.socket_receive_from(@fd, bytes, size, @deadline) {
-      case { @tag = 0, @value = v } -> v
-      case { @tag = _, @value = e } -> throw Error.from_int(e as Int)
+    let raw = RawAddress { @address = '', @port = 0 }
+
+    match inko_socket_receive_from(
+      _INKO.state, _INKO.process, @raw, bytes, size, @deadline, mut raw
+    ) as Int {
+      case 0 -> Result.Ok(SocketAddress.new(raw.address, raw.port))
+      case e -> Result.Error(Error.from_os_error(e))
     }
-
-    let addr = _INKO.socket_address_pair_address(raw_addr)
-    let port = _INKO.socket_address_pair_port(raw_addr)
-
-    _INKO.socket_address_pair_drop(raw_addr)
-    Result.Ok(SocketAddress.new(addr, port))
   }
 
   # Returns the local address of this socket.
   fn pub local_address -> Result[SocketAddress, Error] {
-    let raw_addr = match _INKO.socket_local_address(@fd) {
-      case { @tag = 0, @value = v } -> v
-      case { @tag = _, @value = e } -> throw Error.from_int(e as Int)
+    let raw = RawAddress { @address = '', @port = 0 }
+
+    match inko_socket_local_address(_INKO.state, @raw, mut raw) as Int {
+      case 0 -> Result.Ok(SocketAddress.new(raw.address, raw.port))
+      case e -> Result.Error(Error.from_os_error(e))
     }
-
-    let addr = _INKO.socket_address_pair_address(raw_addr)
-    let port = _INKO.socket_address_pair_port(raw_addr)
-
-    _INKO.socket_address_pair_drop(raw_addr)
-    Result.Ok(SocketAddress.new(addr, port))
   }
 
   # Returns the peer address of this socket.
   fn pub peer_address -> Result[SocketAddress, Error] {
-    let raw_addr = match _INKO.socket_peer_address(@fd) {
-      case { @tag = 0, @value = v } -> v
-      case { @tag = _, @value = e } -> throw Error.from_int(e as Int)
+    let raw = RawAddress { @address = '', @port = 0 }
+
+    match inko_socket_peer_address(_INKO.state, @raw, mut raw) as Int {
+      case 0 -> Result.Ok(SocketAddress.new(raw.address, raw.port))
+      case e -> Result.Error(Error.from_os_error(e))
     }
-
-    let addr = _INKO.socket_address_pair_address(raw_addr)
-    let port = _INKO.socket_address_pair_port(raw_addr)
-
-    _INKO.socket_address_pair_drop(raw_addr)
-    Result.Ok(SocketAddress.new(addr, port))
   }
 
   # Sets the value of the `IP_TTL` option.
   fn pub mut ttl=(value: Int) -> Result[Nil, Error] {
-    match _INKO.socket_set_ttl(@fd, value) {
-      case { @tag = 0, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_set_ttl(@raw, value) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
   # Sets the value of the `IPV6_V6ONLY` option.
   fn pub mut only_ipv6=(value: Bool) -> Result[Nil, Error] {
-    match _INKO.socket_set_only_v6(@fd, value) {
-      case { @tag = 0, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_set_only_v6(_INKO.state, @raw, value) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
   # Sets the value of the `TCP_NODELAY` option.
   fn pub mut no_delay=(value: Bool) -> Result[Nil, Error] {
-    match _INKO.socket_set_nodelay(@fd, value) {
-      case { @tag = 0, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_set_nodelay(_INKO.state, @raw, value) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
   # Sets the value of the `SO_BROADCAST` option.
   fn pub mut broadcast=(value: Bool) -> Result[Nil, Error] {
-    match _INKO.socket_set_broadcast(@fd, value) {
-      case { @tag = 0, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_set_broadcast(_INKO.state, @raw, value) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
   # Sets the value of the `SO_LINGER` option.
   fn pub mut linger=(value: ref Duration) -> Result[Nil, Error] {
-    match _INKO.socket_set_linger(@fd, value.to_nanos) {
-      case { @tag = 0, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_set_linger(@raw, value.to_nanos) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
   # Sets the value of the `SO_RCVBUF` option.
   fn pub mut receive_buffer_size=(value: Int) -> Result[Nil, Error] {
-    match _INKO.socket_set_recv_size(@fd, value) {
-      case { @tag = 0, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_set_recv_size(@raw, value) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
   # Sets the value of the `SO_SNDBUF` option.
   fn pub mut send_buffer_size=(value: Int) -> Result[Nil, Error] {
-    match _INKO.socket_set_send_size(@fd, value) {
-      case { @tag = 0, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_set_send_size(@raw, value) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
   # Sets the value of the `SO_KEEPALIVE` option.
   fn pub mut keepalive=(value: Bool) -> Result[Nil, Error] {
-    match _INKO.socket_set_keepalive(@fd, value) {
-      case { @tag = 0, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_set_keepalive(_INKO.state, @raw, value) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
   # Sets the value of the `SO_REUSEADDR` option.
   fn pub mut reuse_address=(value: Bool) -> Result[Nil, Error] {
-    match _INKO.socket_set_reuse_address(@fd, value) {
-      case { @tag = 0, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_set_reuse_address(_INKO.state, @raw, value) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
@@ -529,33 +729,33 @@ class pub Socket {
   # Not all platforms may support this option, in which case the supplied
   # argument will be ignored.
   fn pub mut reuse_port=(value: Bool) -> Result[Nil, Error] {
-    match _INKO.socket_set_reuse_port(@fd, value) {
-      case { @tag = 0, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_set_reuse_port(_INKO.state, @raw, value) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
   # Shuts down the reading half of this socket.
   fn pub mut shutdown_read -> Result[Nil, Error] {
-    match _INKO.socket_shutdown_read(@fd) {
-      case { @tag = 0, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_shutdown_read(@raw) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
   # Shuts down the writing half of this socket.
   fn pub mut shutdown_write -> Result[Nil, Error] {
-    match _INKO.socket_shutdown_write(@fd) {
-      case { @tag = 0, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_shutdown_write(@raw) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
   # Shuts down both the reading and writing half of this socket.
   fn pub mut shutdown -> Result[Nil, Error] {
-    match _INKO.socket_shutdown_read_write(@fd) {
-      case { @tag = 0, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_shutdown_read_write(@raw) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
@@ -564,42 +764,52 @@ class pub Socket {
   # Cloning a socket may fail, such as when the program has too many open file
   # descriptors.
   fn pub try_clone -> Result[Socket, Error] {
-    match _INKO.socket_try_clone(@fd) {
-      case { @tag = 0, @value = fd } -> Result.Ok(
-        Socket { @fd = fd, @deadline = NO_DEADLINE }
-      )
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    let sock = RawSocket {
+      @inner = 0 as Int32,
+      @registered = 0 as Int8,
+      @unix = 0 as Int8,
+    }
+
+    match inko_socket_try_clone(@raw, mut sock) as Int {
+      case 0 -> Result.Ok(Socket { @raw = sock, @deadline = NO_DEADLINE })
+      case e -> Result.Error(Error.from_os_error(e))
     }
   }
 }
 
 impl Drop for Socket {
   fn mut drop {
-    _INKO.socket_drop(@fd)
+    inko_socket_drop(@raw)
   }
 }
 
 impl Read for Socket {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
-    match _INKO.socket_read(@fd, into, size, @deadline) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_read(
+      _INKO.state, _INKO.process, @raw, into, size, @deadline
+    ) {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 }
 
 impl Write for Socket {
   fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
-    match _INKO.socket_write_bytes(@fd, bytes, @deadline) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_write_bytes(
+      _INKO.state, _INKO.process, @raw, bytes, @deadline
+    ) {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
   fn pub mut write_string(string: String) -> Result[Int, Error] {
-    match _INKO.socket_write_string(@fd, string, @deadline) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_write_string(
+      _INKO.state, _INKO.process, @raw, string, @deadline
+    ) {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
@@ -710,7 +920,7 @@ class pub UdpSocket {
   #       )
   #       .unwrap
   fn pub mut send_bytes_to(
-    bytes: ByteArray,
+    bytes: ref ByteArray,
     ip: ref ToString,
     port: Int
   ) -> Result[Int, Error] {
@@ -722,8 +932,8 @@ class pub UdpSocket {
   #
   # See the documentation of `Socket.receive_from` for more information.
   fn pub mut receive_from(
-    bytes: ref ByteArray,
-    size: Int
+    bytes: mut ByteArray,
+    size: Int,
   ) -> Result[SocketAddress, Error] {
     @socket.receive_from(bytes, size)
   }
@@ -1107,7 +1317,7 @@ impl Drop for UnixSocketDeadlineGuard {
 
 # A low-level, non-blocking Unix domain socket.
 class pub UnixSocket {
-  let @fd: Any
+  let @raw: RawSocket
 
   # A point in time after which socket operations time out.
   #
@@ -1124,11 +1334,15 @@ class pub UnixSocket {
   #
   #     UnixSocket.new(Type.DGRAM).unwrap
   fn pub static new(type: Type) -> Result[UnixSocket, Error] {
-    match _INKO.socket_new(UNIX, type.into_int) {
-      case { @tag = 0, @value = fd } -> Result.Ok(
-        UnixSocket { @fd = fd, @deadline = NO_DEADLINE }
-      )
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    let sock = RawSocket {
+      @inner = 0 as Int32,
+      @registered = 0 as Int8,
+      @unix = 1 as Int8,
+    }
+
+    match inko_socket_new(UNIX, type.into_int, mut sock) as Int {
+      case 0 -> Result.Ok(UnixSocket { @raw = sock, @deadline = NO_DEADLINE })
+      case e -> Result.Error(Error.from_os_error(e))
     }
   }
 
@@ -1180,9 +1394,9 @@ class pub UnixSocket {
   #
   #     socket.bind('/tmp/test.sock').unwrap
   fn pub mut bind(path: ref ToString) -> Result[Nil, Error] {
-    match _INKO.socket_bind(@fd, path.to_string, 0, @deadline) {
-      case { @tag = 0, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_bind(@raw, path.to_string, 0) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
@@ -1202,9 +1416,11 @@ class pub UnixSocket {
   #
   #     stream.connect('/tmp/test.sock').unwrap
   fn pub mut connect(path: ref ToString) -> Result[Nil, Error] {
-    match _INKO.socket_connect(@fd, path.to_string, 0, @deadline) {
-      case { @tag = 0, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_connect(
+      _INKO.state, _INKO.process, @raw, path.to_string, 0, @deadline
+    ) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
@@ -1222,9 +1438,9 @@ class pub UnixSocket {
   #     socket.bind('/tmp/test.sock').unwrap
   #     socket.listen.unwrap
   fn pub mut listen -> Result[Nil, Error] {
-    match _INKO.socket_listen(@fd, MAXIMUM_LISTEN_BACKLOG) {
-      case { @tag = 0, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_listen(@raw, MAXIMUM_LISTEN_BACKLOG) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
@@ -1254,11 +1470,17 @@ class pub UnixSocket {
   #
   #     buffer.to_string # => 'ping'
   fn pub accept -> Result[UnixSocket, Error] {
-    match _INKO.socket_accept(@fd, @deadline) {
-      case { @tag = 0, @value = fd } -> Result.Ok(
-        UnixSocket { @fd = fd, @deadline = NO_DEADLINE }
-      )
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    let sock = RawSocket {
+      @inner = 0 as Int32,
+      @registered = 0 as Int8,
+      @unix = 1 as Int8,
+    }
+
+    match inko_socket_accept(
+      _INKO.state, _INKO.process, @raw, @deadline, mut sock
+    ) as Int {
+      case 0 -> Result.Ok(UnixSocket { @raw = sock, @deadline = NO_DEADLINE })
+      case e -> Result.Error(Error.from_os_error(e))
     }
   }
 
@@ -1280,9 +1502,11 @@ class pub UnixSocket {
   ) -> Result[Int, Error] {
     let addr = address.to_string
 
-    match _INKO.socket_send_string_to(@fd, string, addr, 0, @deadline) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_send_string_to(
+      _INKO.state, _INKO.process, @raw, string, addr, 0, @deadline
+    ) {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
@@ -1300,14 +1524,16 @@ class pub UnixSocket {
   #     socket.bind('/tmp/test.sock').unwrap
   #     socket.send_bytes_to(bytes: bytes, address: '/tmp/test.sock').unwrap
   fn pub mut send_bytes_to(
-    bytes: ByteArray,
+    bytes: ref ByteArray,
     address: ref ToString
   ) -> Result[Int, Error] {
     let addr = address.to_string
 
-    match _INKO.socket_send_bytes_to(@fd, bytes, addr, 0, @deadline) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_send_bytes_to(
+      _INKO.state, _INKO.process, @raw, bytes, addr, 0, @deadline
+    ) {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
@@ -1333,83 +1559,76 @@ class pub UnixSocket {
   #     bytes.to_string         # => 'hello'
   #     received_from.to_string # => '/tmp/test.sock'
   fn pub mut receive_from(
-    bytes: ref ByteArray,
-    size: Int
+    bytes: mut ByteArray,
+    size: Int,
   ) -> Result[UnixAddress, Error] {
-    let raw_addr = match _INKO.socket_receive_from(@fd, bytes, size, @deadline) {
-      case { @tag = 0, @value = v } -> v
-      case { @tag = _, @value = e } -> throw Error.from_int(e as Int)
+    let raw = RawAddress { @address = '', @port = 0 }
+
+    match inko_socket_receive_from(
+      _INKO.state, _INKO.process, @raw, bytes, size, @deadline, mut raw
+    ) as Int {
+      case 0 -> Result.Ok(UnixAddress.new(raw.address))
+      case e -> Result.Error(Error.from_os_error(e))
     }
-
-    let addr = _INKO.socket_address_pair_address(raw_addr)
-
-    _INKO.socket_address_pair_drop(raw_addr)
-    Result.Ok(UnixAddress.new(addr))
   }
 
   # Returns the local address of this socket.
   fn pub local_address -> Result[UnixAddress, Error] {
-    let raw_addr = match _INKO.socket_local_address(@fd) {
-      case { @tag = 0, @value = v } -> v
-      case { @tag = _, @value = e } -> throw Error.from_int(e as Int)
+    let raw = RawAddress { @address = '', @port = 0 }
+
+    match inko_socket_local_address(_INKO.state, @raw, mut raw) as Int {
+      case 0 -> Result.Ok(UnixAddress.new(raw.address))
+      case e -> Result.Error(Error.from_os_error(e))
     }
-
-    let addr = _INKO.socket_address_pair_address(raw_addr)
-
-    _INKO.socket_address_pair_drop(raw_addr)
-    Result.Ok(UnixAddress.new(addr))
   }
 
   # Returns the peer address of this socket.
   fn pub peer_address -> Result[UnixAddress, Error] {
-    let raw_addr = match _INKO.socket_peer_address(@fd) {
-      case { @tag = 0, @value = v } -> v
-      case { @tag = _, @value = e } -> throw Error.from_int(e as Int)
+    let raw = RawAddress { @address = '', @port = 0 }
+
+    match inko_socket_peer_address(_INKO.state, @raw, mut raw) as Int {
+      case 0 -> Result.Ok(UnixAddress.new(raw.address))
+      case e -> Result.Error(Error.from_os_error(e))
     }
-
-    let addr = _INKO.socket_address_pair_address(raw_addr)
-
-    _INKO.socket_address_pair_drop(raw_addr)
-    Result.Ok(UnixAddress.new(addr))
   }
 
   # Sets the value of the `SO_RCVBUF` option.
   fn pub mut receive_buffer_size=(value: Int) -> Result[Nil, Error] {
-    match _INKO.socket_set_recv_size(@fd, value) {
-      case { @tag = 0, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_set_recv_size(@raw, value) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
   # Sets the value of the `SO_SNDBUF` option.
   fn pub mut send_buffer_size=(value: Int) -> Result[Nil, Error] {
-    match _INKO.socket_set_send_size(@fd, value) {
-      case { @tag = 0, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_set_send_size(@raw, value) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
   # Shuts down the reading half of this socket.
   fn pub mut shutdown_read -> Result[Nil, Error] {
-    match _INKO.socket_shutdown_read(@fd) {
-      case { @tag = 0, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_shutdown_read(@raw) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
   # Shuts down the writing half of this socket.
   fn pub mut shutdown_write -> Result[Nil, Error] {
-    match _INKO.socket_shutdown_write(@fd) {
-      case { @tag = 0, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_shutdown_write(@raw) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
   # Shuts down both the reading and writing half of this socket.
   fn pub mut shutdown -> Result[Nil, Error] {
-    match _INKO.socket_shutdown_read_write(@fd) {
-      case { @tag = 0, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_shutdown_read_write(@raw) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
@@ -1418,42 +1637,52 @@ class pub UnixSocket {
   # Cloning a socket may fail, such as when the program has too many open file
   # descriptors.
   fn pub try_clone -> Result[UnixSocket, Error] {
-    match _INKO.socket_try_clone(@fd) {
-      case { @tag = 0, @value = fd } -> Result.Ok(
-        UnixSocket { @fd = fd, @deadline = NO_DEADLINE }
-      )
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    let sock = RawSocket {
+      @inner = 0 as Int32,
+      @registered = 0 as Int8,
+      @unix = 1 as Int8,
+    }
+
+    match inko_socket_try_clone(@raw, mut sock) as Int {
+      case 0 -> Result.Ok(UnixSocket { @raw = sock, @deadline = NO_DEADLINE })
+      case e -> Result.Error(Error.from_os_error(e))
     }
   }
 }
 
 impl Drop for UnixSocket {
   fn mut drop {
-    _INKO.socket_drop(@fd)
+    inko_socket_drop(@raw)
   }
 }
 
 impl Read for UnixSocket {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
-    match _INKO.socket_read(@fd, into, size, @deadline) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_read(
+      _INKO.state, _INKO.process, @raw, into, size, @deadline
+    ) {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 }
 
 impl Write for UnixSocket {
   fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
-    match _INKO.socket_write_bytes(@fd, bytes, @deadline) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_write_bytes(
+      _INKO.state, _INKO.process, @raw, bytes, @deadline
+    ) {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
   fn pub mut write_string(string: String) -> Result[Int, Error] {
-    match _INKO.socket_write_string(@fd, string, @deadline) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_socket_write_string(
+      _INKO.state, _INKO.process, @raw, string, @deadline
+    ) {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
@@ -1534,7 +1763,7 @@ class pub UnixDatagram {
   #
   #     socket.send_bytes_to(bytes: bytes, address: '/tmp/test.sock').unwrap
   fn pub mut send_bytes_to(
-    bytes: ByteArray,
+    bytes: ref ByteArray,
     address: ref ToString
   ) -> Result[Int, Error] {
     @socket.send_bytes_to(bytes, address)
@@ -1545,8 +1774,8 @@ class pub UnixDatagram {
   #
   # See the documentation of `UnixSocket.receive_from` for more information.
   fn pub mut receive_from(
-    bytes: ref ByteArray,
-    size: Int
+    bytes: mut ByteArray,
+    size: Int,
   ) -> Result[UnixAddress, Error] {
     @socket.receive_from(bytes, size)
   }

@@ -4,25 +4,25 @@ use std::{ffi::CStr, os::raw::c_char};
 #[no_mangle]
 pub unsafe extern "system" fn inko_class_object(
     name: *const c_char,
-    fields: u8,
+    size: u32,
     methods: u16,
 ) -> ClassPointer {
     let name =
         String::from_utf8_lossy(CStr::from_ptr(name).to_bytes()).into_owned();
 
-    Class::object(name, fields, methods)
+    Class::object(name, size, methods)
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_class_process(
     name: *const c_char,
-    fields: u8,
+    size: u32,
     methods: u16,
 ) -> ClassPointer {
     let name =
         String::from_utf8_lossy(CStr::from_ptr(name).to_bytes()).into_owned();
 
-    Class::process(name, fields, methods)
+    Class::process(name, size, methods)
 }
 
 #[no_mangle]

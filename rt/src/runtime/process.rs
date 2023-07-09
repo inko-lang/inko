@@ -1,5 +1,5 @@
 use crate::context;
-use crate::mem::{Array, ClassPointer, Int, Nil, String as InkoString};
+use crate::mem::{Array, ClassPointer, String as InkoString};
 use crate::process::{
     Channel, Message, NativeAsyncMethod, OwnedMessage, Process, ProcessPointer,
     ReceiveResult, RescheduleRights, SendResult, StackFrame,
@@ -136,7 +136,7 @@ pub unsafe extern "system" fn inko_process_suspend(
     state: *const State,
     process: ProcessPointer,
     nanos: i64,
-) -> *const Nil {
+) {
     let state = &*state;
     let timeout = Timeout::duration(state, Duration::from_nanos(nanos as _));
 
@@ -153,7 +153,6 @@ pub unsafe extern "system" fn inko_process_suspend(
     // We need to clear the timeout flag, otherwise future operations may time
     // out promaturely.
     process.clear_timeout();
-    state.nil_singleton
 }
 
 #[no_mangle]
@@ -187,30 +186,24 @@ pub unsafe extern "system" fn inko_process_stack_frame_path(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_process_stack_frame_line(
-    state: *const State,
     trace: *const Vec<StackFrame>,
     index: i64,
-) -> *const Int {
-    let val = (*trace).get_unchecked(index as usize).line;
-
-    Int::new((*state).int_class, val)
+) -> i64 {
+    (*trace).get_unchecked(index as usize).line
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_process_stacktrace_length(
-    state: *const State,
     trace: *const Vec<StackFrame>,
-) -> *const Int {
-    Int::new((*state).int_class, (*trace).len() as i64)
+) -> i64 {
+    (*trace).len() as i64
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_process_stacktrace_drop(
-    state: *const State,
     trace: *mut Vec<StackFrame>,
-) -> *const Nil {
+) {
     drop(Box::from_raw(trace));
-    (*state).nil_singleton
 }
 
 #[no_mangle]
@@ -227,7 +220,7 @@ pub unsafe extern "system" fn inko_channel_send(
     mut process: ProcessPointer,
     channel: *const Channel,
     message: *mut u8,
-) -> *const Nil {
+) {
     let state = &*state;
 
     loop {
@@ -245,8 +238,6 @@ pub unsafe extern "system" fn inko_channel_send(
             }
         }
     }
-
-    state.nil_singleton
 }
 
 #[no_mangle]
@@ -322,20 +313,15 @@ pub unsafe extern "system" fn inko_channel_receive_until(
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_channel_drop(
-    state: *const State,
-    channel: *mut Channel,
-) -> *const Nil {
+pub unsafe extern "system" fn inko_channel_drop(channel: *mut Channel) {
     Channel::drop(channel);
-    (*state).nil_singleton
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_channel_wait(
-    state: *const State,
     process: ProcessPointer,
     channels: *mut Array,
-) -> *const Nil {
+) {
     let channels = &mut *channels;
     let mut guards = Vec::with_capacity(channels.value.len());
 
@@ -344,7 +330,7 @@ pub unsafe extern "system" fn inko_channel_wait(
         let guard = chan.state.lock().unwrap();
 
         if guard.has_messages() {
-            return (*state).nil_singleton;
+            return;
         }
 
         guards.push(guard);
@@ -373,6 +359,4 @@ pub unsafe extern "system" fn inko_channel_wait(
 
         chan.state.lock().unwrap().remove_waiting_for_message(process);
     }
-
-    (*state).nil_singleton
 }

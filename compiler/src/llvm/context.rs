@@ -1,13 +1,16 @@
+use crate::llvm::layouts::Layouts;
+use inkwell::attributes::Attribute;
 use inkwell::basic_block::BasicBlock;
 use inkwell::builder::Builder;
 use inkwell::module::Module;
 use inkwell::types::{
-    ArrayType, BasicTypeEnum, FloatType, IntType, PointerType, StructType,
-    VoidType,
+    AnyTypeEnum, ArrayType, BasicType, BasicTypeEnum, FloatType, IntType,
+    PointerType, StructType, VoidType,
 };
 use inkwell::values::FunctionValue;
 use inkwell::{context, AddressSpace};
 use std::mem::size_of;
+use types::{Block, Database, ForeignType, MethodId, TypeId, TypeRef};
 
 /// A wrapper around an LLVM Context that provides some additional methods.
 pub(crate) struct Context {
@@ -17,6 +20,22 @@ pub(crate) struct Context {
 impl Context {
     pub(crate) fn new() -> Self {
         Self { inner: context::Context::create() }
+    }
+
+    pub(crate) fn type_attribute(
+        &self,
+        name: &str,
+        typ: AnyTypeEnum,
+    ) -> Attribute {
+        let id = Attribute::get_named_enum_kind_id(name);
+
+        self.inner.create_type_attribute(id, typ)
+    }
+
+    pub(crate) fn enum_attribute(&self, name: &str, value: u64) -> Attribute {
+        let id = Attribute::get_named_enum_kind_id(name);
+
+        self.inner.create_enum_attribute(id, value)
     }
 
     pub(crate) fn pointer_type(&self) -> PointerType<'_> {
@@ -41,6 +60,10 @@ impl Context {
 
     pub(crate) fn i64_type(&self) -> IntType {
         self.inner.i64_type()
+    }
+
+    pub(crate) fn f32_type(&self) -> FloatType {
+        self.inner.f32_type()
     }
 
     pub(crate) fn f64_type(&self) -> FloatType {
@@ -126,6 +149,76 @@ impl Context {
 
     pub(crate) fn create_module(&self, name: &str) -> Module {
         self.inner.create_module(name)
+    }
+
+    pub(crate) fn foreign_type<'a>(
+        &'a self,
+        db: &Database,
+        layouts: &Layouts<'a>,
+        type_ref: TypeRef,
+    ) -> Option<BasicTypeEnum<'a>> {
+        let space = AddressSpace::default();
+
+        match type_ref {
+            TypeRef::Owned(id) => self
+                .foreign_base_type(db, layouts, id)
+                .map(|v| v.as_basic_type_enum()),
+            TypeRef::Pointer(id) => self
+                .foreign_base_type(db, layouts, id)
+                .map(|v| v.ptr_type(space).as_basic_type_enum()),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn return_type<'a>(
+        &'a self,
+        db: &Database,
+        layouts: &Layouts<'a>,
+        method: MethodId,
+    ) -> Option<BasicTypeEnum<'a>> {
+        let ret = method.return_type(db);
+
+        self.foreign_type(db, layouts, ret).map(Some).unwrap_or_else(|| {
+            if method.returns_value(db) {
+                Some(self.pointer_type().as_basic_type_enum())
+            } else {
+                None
+            }
+        })
+    }
+
+    fn foreign_base_type<'a>(
+        &'a self,
+        db: &Database,
+        layouts: &Layouts<'a>,
+        id: TypeId,
+    ) -> Option<BasicTypeEnum<'a>> {
+        match id {
+            TypeId::Foreign(ForeignType::Int(size)) => {
+                let typ = match size {
+                    8 => self.i8_type(),
+                    16 => self.i16_type(),
+                    32 => self.i32_type(),
+                    _ => self.i64_type(),
+                };
+
+                Some(typ.as_basic_type_enum())
+            }
+            TypeId::Foreign(ForeignType::Float(size)) => {
+                let typ = match size {
+                    32 => self.f32_type(),
+                    _ => self.f64_type(),
+                };
+
+                Some(typ.as_basic_type_enum())
+            }
+            TypeId::ClassInstance(ins)
+                if ins.instance_of().kind(db).is_extern() =>
+            {
+                Some(layouts.instances[&ins.instance_of()].as_basic_type_enum())
+            }
+            _ => None,
+        }
     }
 }
 

@@ -1,9 +1,5 @@
 use crate::mem::tagged_int;
 use std::io;
-use std::ptr::null_mut;
-
-const INVALID_INPUT: i64 = 11;
-const TIMED_OUT: i64 = 13;
 
 const OK: i64 = 0;
 const NONE: i64 = 1;
@@ -42,7 +38,7 @@ impl Result {
     }
 
     pub(crate) fn none() -> Result {
-        Result { tag: tagged_int(NONE) as _, value: null_mut() }
+        Result { tag: tagged_int(NONE) as _, value: tagged_int(0) as _ }
     }
 
     pub(crate) fn ok_boxed<T>(value: T) -> Result {
@@ -50,27 +46,7 @@ impl Result {
     }
 
     pub(crate) fn io_error(error: io::Error) -> Result {
-        let code = match error.kind() {
-            io::ErrorKind::NotFound => 1,
-            io::ErrorKind::PermissionDenied => 2,
-            io::ErrorKind::ConnectionRefused => 3,
-            io::ErrorKind::ConnectionReset => 4,
-            io::ErrorKind::ConnectionAborted => 5,
-            io::ErrorKind::NotConnected => 6,
-            io::ErrorKind::AddrInUse => 7,
-            io::ErrorKind::AddrNotAvailable => 8,
-            io::ErrorKind::BrokenPipe => 9,
-            io::ErrorKind::AlreadyExists => 10,
-            io::ErrorKind::InvalidInput => INVALID_INPUT,
-            io::ErrorKind::InvalidData => 12,
-            io::ErrorKind::TimedOut => TIMED_OUT,
-            io::ErrorKind::WriteZero => 14,
-            io::ErrorKind::Interrupted => 15,
-            io::ErrorKind::UnexpectedEof => 16,
-            _ => 0,
-        };
-
-        Self::error(tagged_int(code) as _)
+        Self::error(tagged_int(error.raw_os_error().unwrap_or(-1) as _) as _)
     }
 }
 

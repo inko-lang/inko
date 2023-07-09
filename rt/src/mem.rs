@@ -1,5 +1,4 @@
 use crate::immutable_string::ImmutableString;
-use crate::process::Process;
 use std::alloc::{alloc, alloc_zeroed, dealloc, handle_alloc_error, Layout};
 use std::mem::{align_of, size_of, swap};
 use std::ops::Deref;
@@ -221,25 +220,19 @@ impl Class {
     /// Returns a new class for a regular object.
     pub(crate) fn object(
         name: RustString,
-        fields: u8,
+        size: u32,
         methods: u16,
     ) -> ClassPointer {
-        let size =
-            size_of::<Header>() + (fields as usize * size_of::<*mut u8>());
-
-        Self::alloc(name, methods, size as u32)
+        Self::alloc(name, methods, size)
     }
 
     /// Returns a new class for a process.
     pub(crate) fn process(
         name: RustString,
-        fields: u8,
+        size: u32,
         methods: u16,
     ) -> ClassPointer {
-        let size =
-            size_of::<Process>() + (fields as usize * size_of::<*mut u8>());
-
-        Self::alloc(name, methods, size as u32)
+        Self::alloc(name, methods, size)
     }
 
     /// Returns the `Layout` for a class itself.
@@ -605,7 +598,7 @@ mod tests {
 
     #[test]
     fn test_class_new_object() {
-        let class = Class::object("A".to_string(), 1, 0);
+        let class = Class::object("A".to_string(), 24, 0);
 
         assert_eq!(class.method_slots, 0);
         assert_eq!(class.instance_size, 24);
@@ -615,9 +608,10 @@ mod tests {
 
     #[test]
     fn test_class_new_process() {
-        let class = Class::process("A".to_string(), 1, 0);
+        let class = Class::process("A".to_string(), 24, 0);
 
         assert_eq!(class.method_slots, 0);
+        assert_eq!(class.instance_size, 24);
 
         unsafe { Class::drop(class) };
     }
