@@ -1,4 +1,4 @@
-use crate::mem::{Float, Int};
+use crate::mem::Float;
 use crate::state::State;
 use std::mem::MaybeUninit;
 
@@ -50,16 +50,13 @@ fn offset() -> i64 {
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_time_monotonic(
-    state: *const State,
-) -> *const Int {
+pub unsafe extern "system" fn inko_time_monotonic(state: *const State) -> i64 {
     // An i64 gives us roughly 292 years of time. That should be more than
     // enough for a monotonic clock, as an Inko program is unlikely to run for
     // that long.
     let state = &*state;
-    let nanos = state.start_time.elapsed().as_nanos() as i64;
 
-    Int::new(state.int_class, nanos)
+    state.start_time.elapsed().as_nanos() as i64
 }
 
 #[no_mangle]
@@ -70,10 +67,8 @@ pub unsafe extern "system" fn inko_time_system(
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_time_system_offset(
-    state: *const State,
-) -> *const Int {
-    Int::new((*state).int_class, offset())
+pub unsafe extern "system" fn inko_time_system_offset() -> i64 {
+    offset()
 }
 
 #[cfg(test)]

@@ -447,6 +447,21 @@ impl Block {
         )));
     }
 
+    pub(crate) fn call_extern(
+        &mut self,
+        register: RegisterId,
+        method: types::MethodId,
+        arguments: Vec<RegisterId>,
+        location: LocationId,
+    ) {
+        self.instructions.push(Instruction::CallExtern(Box::new(CallExtern {
+            register,
+            method,
+            arguments,
+            location,
+        })));
+    }
+
     pub(crate) fn call_dynamic(
         &mut self,
         register: RegisterId,
@@ -544,6 +559,41 @@ impl Block {
         })));
     }
 
+    pub(crate) fn pointer(
+        &mut self,
+        register: RegisterId,
+        value: RegisterId,
+        location: LocationId,
+    ) {
+        self.instructions.push(Instruction::Pointer(Box::new(Pointer {
+            register,
+            value,
+            location,
+        })))
+    }
+
+    pub(crate) fn read_pointer(
+        &mut self,
+        register: RegisterId,
+        pointer: RegisterId,
+        location: LocationId,
+    ) {
+        self.instructions.push(Instruction::ReadPointer(Box::new(
+            ReadPointer { register, pointer, location },
+        )));
+    }
+
+    pub(crate) fn write_pointer(
+        &mut self,
+        pointer: RegisterId,
+        value: RegisterId,
+        location: LocationId,
+    ) {
+        self.instructions.push(Instruction::WritePointer(Box::new(
+            WritePointer { pointer, value, location },
+        )));
+    }
+
     pub(crate) fn allocate(
         &mut self,
         register: RegisterId,
@@ -588,6 +638,23 @@ impl Block {
 
     pub(crate) fn reduce_call(&mut self, location: LocationId) {
         self.reduce(CALL_COST, location);
+    }
+
+    pub(crate) fn cast(
+        &mut self,
+        register: RegisterId,
+        source: RegisterId,
+        from: CastType,
+        to: CastType,
+        location: LocationId,
+    ) {
+        self.instructions.push(Instruction::Cast(Box::new(Cast {
+            register,
+            source,
+            from,
+            to,
+            location,
+        })));
     }
 }
 
@@ -846,6 +913,14 @@ pub(crate) struct CallInstance {
 }
 
 #[derive(Clone)]
+pub(crate) struct CallExtern {
+    pub(crate) register: RegisterId,
+    pub(crate) method: types::MethodId,
+    pub(crate) arguments: Vec<RegisterId>,
+    pub(crate) location: LocationId,
+}
+
+#[derive(Clone)]
 pub(crate) struct CallDynamic {
     pub(crate) register: RegisterId,
     pub(crate) receiver: RegisterId,
@@ -929,6 +1004,45 @@ pub(crate) struct Finish {
     pub(crate) location: LocationId,
 }
 
+#[derive(Clone)]
+pub(crate) struct Cast {
+    pub(crate) register: RegisterId,
+    pub(crate) source: RegisterId,
+    pub(crate) from: CastType,
+    pub(crate) to: CastType,
+    pub(crate) location: LocationId,
+}
+
+#[derive(Clone, Debug, Copy)]
+pub(crate) enum CastType {
+    Int(u32),
+    Float(u32),
+    InkoInt,
+    InkoFloat,
+    Pointer,
+}
+
+#[derive(Clone, Debug, Copy)]
+pub(crate) struct Pointer {
+    pub(crate) register: RegisterId,
+    pub(crate) value: RegisterId,
+    pub(crate) location: LocationId,
+}
+
+#[derive(Clone, Debug, Copy)]
+pub(crate) struct ReadPointer {
+    pub(crate) register: RegisterId,
+    pub(crate) pointer: RegisterId,
+    pub(crate) location: LocationId,
+}
+
+#[derive(Clone, Debug, Copy)]
+pub(crate) struct WritePointer {
+    pub(crate) pointer: RegisterId,
+    pub(crate) value: RegisterId,
+    pub(crate) location: LocationId,
+}
+
 /// A MIR instruction.
 ///
 /// When adding a new instruction that acts as an exit for a basic block, make
@@ -950,6 +1064,7 @@ pub(crate) enum Instruction {
     True(Box<TrueLiteral>),
     CallStatic(Box<CallStatic>),
     CallInstance(Box<CallInstance>),
+    CallExtern(Box<CallExtern>),
     CallDynamic(Box<CallDynamic>),
     CallClosure(Box<CallClosure>),
     CallDropper(Box<CallDropper>),
@@ -971,6 +1086,10 @@ pub(crate) enum Instruction {
     GetConstant(Box<GetConstant>),
     Reduce(Box<Reduce>),
     Finish(Box<Finish>),
+    Cast(Box<Cast>),
+    Pointer(Box<Pointer>),
+    ReadPointer(Box<ReadPointer>),
+    WritePointer(Box<WritePointer>),
 }
 
 impl Instruction {
@@ -991,6 +1110,7 @@ impl Instruction {
             Instruction::String(ref v) => v.location,
             Instruction::CallStatic(ref v) => v.location,
             Instruction::CallInstance(ref v) => v.location,
+            Instruction::CallExtern(ref v) => v.location,
             Instruction::CallDynamic(ref v) => v.location,
             Instruction::CallClosure(ref v) => v.location,
             Instruction::CallDropper(ref v) => v.location,
@@ -1012,6 +1132,10 @@ impl Instruction {
             Instruction::GetConstant(ref v) => v.location,
             Instruction::Reduce(ref v) => v.location,
             Instruction::Finish(ref v) => v.location,
+            Instruction::Cast(ref v) => v.location,
+            Instruction::Pointer(ref v) => v.location,
+            Instruction::ReadPointer(ref v) => v.location,
+            Instruction::WritePointer(ref v) => v.location,
         }
     }
 
@@ -1116,6 +1240,14 @@ impl Instruction {
                     join(&v.arguments)
                 )
             }
+            Instruction::CallExtern(ref v) => {
+                format!(
+                    "r{} = call_extern {}({})",
+                    v.register.0,
+                    v.method.name(db),
+                    join(&v.arguments)
+                )
+            }
             Instruction::CallDynamic(ref v) => {
                 format!(
                     "r{} = call_dynamic r{}.{}({})",
@@ -1197,6 +1329,18 @@ impl Instruction {
             Instruction::Reduce(ref v) => format!("reduce {}", v.amount),
             Instruction::Finish(v) => {
                 if v.terminate { "terminate" } else { "finish" }.to_string()
+            }
+            Instruction::Cast(v) => {
+                format!("r{} = r{} as {:?}", v.register.0, v.source.0, v.to)
+            }
+            Instruction::ReadPointer(v) => {
+                format!("r{} = *r{}", v.register.0, v.pointer.0)
+            }
+            Instruction::WritePointer(v) => {
+                format!("*r{} = r{}", v.pointer.0, v.value.0)
+            }
+            Instruction::Pointer(v) => {
+                format!("r{} = pointer r{}", v.register.0, v.value.0)
             }
         }
     }

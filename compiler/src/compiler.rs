@@ -15,7 +15,7 @@ use crate::type_check::define_types::{
     InsertPrelude,
 };
 use crate::type_check::expressions::{DefineConstants, Expressions};
-use crate::type_check::imports::DefineImportedTypes;
+use crate::type_check::imports::{CollectExternImports, DefineImportedTypes};
 use crate::type_check::methods::{
     CheckMainMethod, DefineMethods, DefineModuleMethodNames,
     ImplementTraitMethods,
@@ -165,6 +165,7 @@ impl Compiler {
         let state = &mut self.state;
 
         DefineTypes::run_all(state, modules)
+            && CollectExternImports::run_all(state, modules)
             && DefineModuleMethodNames::run_all(state, modules)
             && DefineImportedTypes::run_all(state, modules)
             && InsertPrelude::run_all(state, modules)
@@ -246,8 +247,7 @@ impl Compiler {
             llvm::passes::Compile::run_all(&self.state, directories, mir)
                 .map_err(CompileError::Internal)?;
 
-        link(&self.state.config, &exe, &objects)
-            .map_err(CompileError::Internal)?;
+        link(&self.state, &exe, &objects).map_err(CompileError::Internal)?;
         Ok(exe)
     }
 

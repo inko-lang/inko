@@ -8,6 +8,21 @@ import std::iter::(Enum, Iter)
 import std::option::Option
 import std::rand::Shuffle
 
+class extern AnyResult {
+  let @tag: Int
+  let @value: Any
+}
+
+fn extern inko_array_reserve(array: Any, length: Int)
+fn extern inko_array_set(array: Any, index: Int, value: Any) -> Any
+fn extern inko_array_get(array: Any, index: Int) -> Any
+fn extern inko_array_clear(array: Any)
+fn extern inko_array_pop(array: Any) -> AnyResult
+fn extern inko_array_remove(array: Any, index: Int) -> Any
+fn extern inko_array_capacity(state: Pointer[Int8], array: Any) -> Int
+fn extern inko_array_drop(state: Pointer[Int8], array: Any)
+fn extern inko_array_length(state: Pointer[Int8], array: Any) -> Int
+
 fn stable_sort[T: Compare[T]](
   array: mut Array[T],
   compare: mut fn (ref T, ref T) -> Bool,
@@ -24,7 +39,10 @@ fn stable_sort[T: Compare[T]](
   # values. This works because merge() doesn't perform any bounds checking.
   let tmp: Array[T] = Array.with_capacity(len)
 
-  len.times fn (i) { _INKO.array_set(tmp, i, _INKO.array_get(array, i)) }
+  len.times fn (i) {
+    inko_array_set(tmp, i, inko_array_get(array, i))
+  }
+
   merge_sort(tmp, array, start: 0, end: len, compare: compare)
 }
 
@@ -51,10 +69,10 @@ fn merge_sort[T: Compare[T]](
     if i < mid
       and (j >= end or compare.call(a.get_unchecked(i), a.get_unchecked(j)))
     {
-      _INKO.array_set(b, k, _INKO.array_get(a, i))
+      inko_array_set(b, k, inko_array_get(a, i))
       i += 1
     } else {
-      _INKO.array_set(b, k, _INKO.array_get(a, j))
+      inko_array_set(b, k, inko_array_get(a, j))
       j += 1
     }
 
@@ -95,7 +113,7 @@ class builtin Array[T] {
   fn pub static with_capacity(amount: Int) -> Array[T] {
     let vals = []
 
-    _INKO.array_reserve(vals, amount)
+    inko_array_reserve(vals, amount)
     vals
   }
 
@@ -131,10 +149,10 @@ class builtin Array[T] {
     let max = length
 
     while index < max {
-      _INKO.array_get(self, index := index + 1) as T
+      inko_array_get(self, (index := index + 1)) as T
     }
 
-    _INKO.array_clear(self)
+    inko_array_clear(self)
   }
 
   # Pushes a value to the back of the Array.
@@ -171,7 +189,7 @@ class builtin Array[T] {
   #
   #     array.pop # => Option.None
   fn pub mut pop -> Option[T] {
-    match _INKO.array_pop(self) {
+    match inko_array_pop(self) {
       case { @tag = 0, @value = v } -> Option.Some(v as T)
       case _ -> Option.None
     }
@@ -194,7 +212,7 @@ class builtin Array[T] {
   # This method panics if the index is out of bounds.
   fn pub mut remove_at(index: Int) -> T {
     bounds_check(index, length)
-    _INKO.array_remove(self, index) as T
+    inko_array_remove(self, index) as T
   }
 
   # Returns an optional immutable reference to the value at the given index.
@@ -253,7 +271,7 @@ class builtin Array[T] {
   #     array # => [10]
   fn pub mut set(index: Int, value: T) {
     bounds_check(index, length)
-    _INKO.array_set(self, index, value) as T
+    inko_array_set(self, index, value) as T
     _INKO.moved(value)
   }
 
@@ -272,7 +290,7 @@ class builtin Array[T] {
   fn pub mut swap(index: Int, with: T) -> T {
     bounds_check(index, length)
 
-    let result = _INKO.array_set(self, index, with) as T
+    let result = inko_array_set(self, index, with) as T
 
     _INKO.moved(with)
     result
@@ -353,7 +371,7 @@ class builtin Array[T] {
   #
   #     [10].length # => 1
   fn pub length -> Int {
-    _INKO.array_length(self)
+    inko_array_length(_INKO.state, self)
   }
 
   # Returns the number of values that can be stored in `self` before `self`
@@ -363,7 +381,7 @@ class builtin Array[T] {
   #
   #     Array.with_capacity(2).capacity # => 4
   fn pub capacity -> Int {
-    _INKO.array_capacity(self)
+    inko_array_capacity(_INKO.state, self)
   }
 
   # Returns `true` if `self` is empty.
@@ -402,17 +420,16 @@ class builtin Array[T] {
     let mut b = length - 1
 
     while a < b {
-      let a_val = _INKO.array_get(self, a)
+      let a_val = inko_array_get(self, a)
 
-      _INKO.array_set(self, a, _INKO.array_set(self, b, a_val))
-
+      inko_array_set(self, a, inko_array_set(self, b, a_val))
       a += 1
       b -= 1
     }
   }
 
   fn get_unchecked(index: Int) -> ref T {
-    (ref _INKO.array_get(self, index)) as ref T
+    (ref inko_array_get(self, index)) as ref T
   }
 }
 
@@ -460,7 +477,7 @@ impl Array if T: mut {
   }
 
   fn mut get_unchecked_mut(index: Int) -> mut T {
-    (mut _INKO.array_get(self, index)) as mut T
+    (mut inko_array_get(self, index)) as mut T
   }
 }
 
@@ -468,9 +485,11 @@ impl Drop for Array {
   fn mut drop {
     let mut index = 0
 
-    while index < length { _INKO.array_get(self, index := index + 1) as T }
+    while index < length {
+      inko_array_get(self, index := index + 1) as T
+    }
 
-    _INKO.array_drop(self)
+    inko_array_drop(_INKO.state, self)
   }
 }
 
@@ -604,11 +623,11 @@ class pub IntoIter[T] {
   let @index: Int
 
   fn mut take_next -> T {
-    _INKO.array_get(@array, @index := @index + 1) as T
+    inko_array_get(@array, @index := @index + 1) as T
   }
 
   fn length -> Int {
-    _INKO.array_length(@array)
+    inko_array_length(_INKO.state, @array)
   }
 }
 
@@ -616,7 +635,7 @@ impl Drop for IntoIter {
   fn mut drop {
     while @index < length { take_next }
 
-    _INKO.array_drop(@array)
+    inko_array_drop(_INKO.state, @array)
   }
 }
 

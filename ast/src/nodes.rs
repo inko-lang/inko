@@ -325,13 +325,45 @@ impl Node for ImportPath {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+pub struct BuildTags {
+    pub values: Vec<Identifier>,
+    pub location: SourceLocation,
+}
+
+impl Node for BuildTags {
+    fn location(&self) -> &SourceLocation {
+        &self.location
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub struct Import {
     pub path: ImportPath,
     pub symbols: Option<ImportSymbols>,
     pub location: SourceLocation,
+    pub tags: Option<BuildTags>,
+    pub include: bool,
 }
 
 impl Node for Import {
+    fn location(&self) -> &SourceLocation {
+        &self.location
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct ExternImportPath {
+    pub path: String,
+    pub location: SourceLocation,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct ExternImport {
+    pub path: ExternImportPath,
+    pub location: SourceLocation,
+}
+
+impl Node for ExternImport {
     fn location(&self) -> &SourceLocation {
         &self.location
     }
@@ -359,6 +391,7 @@ pub enum MethodKind {
     Moving,
     Mutable,
     AsyncMutable,
+    Extern,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -419,6 +452,7 @@ pub enum ClassKind {
     Builtin,
     Enum,
     Regular,
+    Extern,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -501,6 +535,7 @@ pub enum TopLevelExpression {
     ReopenClass(Box<ReopenClass>),
     ImplementTrait(Box<ImplementTrait>),
     Import(Box<Import>),
+    ExternImport(Box<ExternImport>),
 }
 
 impl Node for TopLevelExpression {
@@ -513,6 +548,7 @@ impl Node for TopLevelExpression {
             TopLevelExpression::ReopenClass(ref typ) => typ.location(),
             TopLevelExpression::ImplementTrait(ref typ) => typ.location(),
             TopLevelExpression::Import(ref typ) => typ.location(),
+            TopLevelExpression::ExternImport(ref typ) => typ.location(),
         }
     }
 }

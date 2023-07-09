@@ -69,6 +69,7 @@ pub const STRING_MODULE: &str = "std::string";
 pub const TO_STRING_TRAIT: &str = "ToString";
 pub const TO_STRING_METHOD: &str = "to_string";
 pub const CALL_METHOD: &str = "call";
+pub const EQ_METHOD: &str = "==";
 pub const MAIN_CLASS: &str = "Main";
 pub const MAIN_METHOD: &str = "main";
 pub const DROP_MODULE: &str = "std::drop";
@@ -84,6 +85,9 @@ pub const OPTION_SOME: &str = "Some";
 pub const OPTION_NONE: &str = "None";
 pub const RESULT_OK: &str = "Ok";
 pub const RESULT_ERROR: &str = "Error";
+
+/// The name of the pseudo field used to deference a pointer.
+pub const DEREF_POINTER_FIELD: &str = "0";
 
 pub const ENUM_TAG_FIELD: &str = "tag";
 pub const ENUM_TAG_INDEX: usize = 0;
@@ -355,7 +359,6 @@ impl TypeArguments {
 /// An Inko trait.
 pub struct Trait {
     name: String,
-    module: ModuleId,
     implemented_by: Vec<ClassId>,
     visibility: Visibility,
     type_parameters: IndexMap<String, TypeParameterId>,
@@ -401,22 +404,20 @@ impl Trait {
     pub fn alloc(
         db: &mut Database,
         name: String,
-        module: ModuleId,
         visibility: Visibility,
     ) -> TraitId {
         assert!(db.traits.len() <= u32::MAX as usize);
 
         let id = db.traits.len() as u32;
-        let trait_type = Trait::new(name, module, visibility);
+        let trait_type = Trait::new(name, visibility);
 
         db.traits.push(trait_type);
         TraitId(id)
     }
 
-    fn new(name: String, module: ModuleId, visibility: Visibility) -> Self {
+    fn new(name: String, visibility: Visibility) -> Self {
         Self {
             name,
-            module,
             visibility,
             implemented_by: Vec::new(),
             type_parameters: IndexMap::new(),
@@ -550,10 +551,6 @@ impl TraitId {
 
     pub fn is_private(self, db: &Database) -> bool {
         !self.is_public(db)
-    }
-
-    fn module(self, db: &Database) -> ModuleId {
-        self.get(db).module
     }
 
     fn named_type(self, db: &Database, name: &str) -> Option<Symbol> {
@@ -1110,6 +1107,10 @@ impl ClassId {
         self.get(db).kind
     }
 
+    pub fn allow_trait_implementations(self, db: &Database) -> bool {
+        !matches!(self.kind(db), ClassKind::Async | ClassKind::Extern)
+    }
+
     pub fn type_parameters(self, db: &Database) -> Vec<TypeParameterId> {
         self.get(db).type_parameters.values().clone()
     }
@@ -1296,6 +1297,14 @@ impl ClassId {
 
     pub fn is_builtin(self) -> bool {
         self.0 <= CHANNEL_ID
+    }
+
+    pub fn is_value_type(self, db: &Database) -> bool {
+        self.get(db).value_type
+    }
+
+    pub fn is_numeric(self) -> bool {
+        matches!(self.0, INT_ID | FLOAT_ID)
     }
 
     fn get(self, db: &Database) -> &Class {
@@ -1543,77 +1552,7 @@ impl Visibility {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum BuiltinFunction {
-    ArrayCapacity,
-    ArrayClear,
-    ArrayDrop,
-    ArrayGet,
-    ArrayLength,
-    ArrayPop,
     ArrayPush,
-    ArrayRemove,
-    ArrayReserve,
-    ArraySet,
-    ByteArrayAppend,
-    ByteArrayClear,
-    ByteArrayClone,
-    ByteArrayCopyFrom,
-    ByteArrayDrainToString,
-    ByteArrayDrop,
-    ByteArrayEq,
-    ByteArrayGet,
-    ByteArrayLength,
-    ByteArrayNew,
-    ByteArrayPop,
-    ByteArrayPush,
-    ByteArrayRemove,
-    ByteArrayResize,
-    ByteArraySet,
-    ByteArraySlice,
-    ByteArrayToString,
-    ChannelDrop,
-    ChannelNew,
-    ChannelReceive,
-    ChannelReceiveUntil,
-    ChannelSend,
-    ChannelTryReceive,
-    ChannelWait,
-    ChildProcessDrop,
-    ChildProcessSpawn,
-    ChildProcessStderrClose,
-    ChildProcessStderrRead,
-    ChildProcessStdinClose,
-    ChildProcessStdinFlush,
-    ChildProcessStdinWriteBytes,
-    ChildProcessStdinWriteString,
-    ChildProcessStdoutClose,
-    ChildProcessStdoutRead,
-    ChildProcessTryWait,
-    ChildProcessWait,
-    CpuCores,
-    DirectoryCreate,
-    DirectoryCreateRecursive,
-    DirectoryList,
-    DirectoryRemove,
-    DirectoryRemoveRecursive,
-    EnvArguments,
-    EnvExecutable,
-    EnvGet,
-    EnvGetWorkingDirectory,
-    EnvHomeDirectory,
-    EnvSetWorkingDirectory,
-    EnvTempDirectory,
-    EnvVariables,
-    Exit,
-    FileCopy,
-    FileDrop,
-    FileFlush,
-    FileOpen,
-    FileRead,
-    FileRemove,
-    FileSeek,
-    FileSize,
-    FileWriteBytes,
-    FileWriteString,
     FloatAdd,
     FloatCeil,
     FloatDiv,
@@ -1628,11 +1567,8 @@ pub enum BuiltinFunction {
     FloatLt,
     FloatMod,
     FloatMul,
-    FloatRound,
     FloatSub,
     FloatToBits,
-    FloatToInt,
-    FloatToString,
     IntAdd,
     IntBitAnd,
     IntBitNot,
@@ -1645,44 +1581,18 @@ pub enum BuiltinFunction {
     IntLe,
     IntLt,
     IntMul,
-    IntPow,
     IntRem,
     IntRotateLeft,
     IntRotateRight,
     IntShl,
     IntShr,
     IntSub,
-    IntToFloat,
-    IntToString,
     IntUnsignedShr,
     IntWrappingAdd,
     IntWrappingMul,
     IntWrappingSub,
     Moved,
-    ObjectEq,
     Panic,
-    PathAccessedAt,
-    PathCreatedAt,
-    PathExists,
-    PathIsDirectory,
-    PathIsFile,
-    PathModifiedAt,
-    PathExpand,
-    ProcessStackFrameLine,
-    ProcessStackFrameName,
-    ProcessStackFramePath,
-    ProcessStacktrace,
-    ProcessStacktraceDrop,
-    ProcessStacktraceLength,
-    ProcessSuspend,
-    RandomBytes,
-    RandomDrop,
-    RandomFloat,
-    RandomFloatRange,
-    RandomFromInt,
-    RandomInt,
-    RandomIntRange,
-    RandomNew,
     SocketAccept,
     SocketAddressPairAddress,
     SocketAddressPairDrop,
@@ -1714,102 +1624,15 @@ pub enum BuiltinFunction {
     SocketTryClone,
     SocketWriteBytes,
     SocketWriteString,
-    StderrFlush,
-    StderrWriteBytes,
-    StderrWriteString,
-    StdinRead,
-    StdoutFlush,
-    StdoutWriteBytes,
-    StdoutWriteString,
-    StringByte,
-    StringCharacters,
-    StringCharactersDrop,
-    StringCharactersNext,
     StringConcat,
-    StringConcatArray,
-    StringDrop,
-    StringEq,
-    StringSize,
-    StringSliceBytes,
-    StringToByteArray,
-    StringToFloat,
-    StringToInt,
-    StringToLower,
-    StringToUpper,
-    TimeMonotonic,
-    TimeSystem,
-    TimeSystemOffset,
-    HashKey0,
-    HashKey1,
+    State,
+    Process,
 }
 
 impl BuiltinFunction {
     pub fn mapping() -> HashMap<String, Self> {
         vec![
-            BuiltinFunction::ArrayCapacity,
-            BuiltinFunction::ArrayClear,
-            BuiltinFunction::ArrayDrop,
-            BuiltinFunction::ArrayGet,
-            BuiltinFunction::ArrayLength,
-            BuiltinFunction::ArrayPop,
             BuiltinFunction::ArrayPush,
-            BuiltinFunction::ArrayRemove,
-            BuiltinFunction::ArrayReserve,
-            BuiltinFunction::ArraySet,
-            BuiltinFunction::ByteArrayNew,
-            BuiltinFunction::ByteArrayAppend,
-            BuiltinFunction::ByteArrayClear,
-            BuiltinFunction::ByteArrayClone,
-            BuiltinFunction::ByteArrayCopyFrom,
-            BuiltinFunction::ByteArrayDrainToString,
-            BuiltinFunction::ByteArrayDrop,
-            BuiltinFunction::ByteArrayEq,
-            BuiltinFunction::ByteArrayGet,
-            BuiltinFunction::ByteArrayLength,
-            BuiltinFunction::ByteArrayPop,
-            BuiltinFunction::ByteArrayPush,
-            BuiltinFunction::ByteArrayRemove,
-            BuiltinFunction::ByteArrayResize,
-            BuiltinFunction::ByteArraySet,
-            BuiltinFunction::ByteArraySlice,
-            BuiltinFunction::ByteArrayToString,
-            BuiltinFunction::ChildProcessDrop,
-            BuiltinFunction::ChildProcessSpawn,
-            BuiltinFunction::ChildProcessStderrClose,
-            BuiltinFunction::ChildProcessStderrRead,
-            BuiltinFunction::ChildProcessStdinClose,
-            BuiltinFunction::ChildProcessStdinFlush,
-            BuiltinFunction::ChildProcessStdinWriteBytes,
-            BuiltinFunction::ChildProcessStdinWriteString,
-            BuiltinFunction::ChildProcessStdoutClose,
-            BuiltinFunction::ChildProcessStdoutRead,
-            BuiltinFunction::ChildProcessTryWait,
-            BuiltinFunction::ChildProcessWait,
-            BuiltinFunction::CpuCores,
-            BuiltinFunction::DirectoryCreate,
-            BuiltinFunction::DirectoryCreateRecursive,
-            BuiltinFunction::DirectoryList,
-            BuiltinFunction::DirectoryRemove,
-            BuiltinFunction::DirectoryRemoveRecursive,
-            BuiltinFunction::EnvArguments,
-            BuiltinFunction::EnvExecutable,
-            BuiltinFunction::EnvGet,
-            BuiltinFunction::EnvGetWorkingDirectory,
-            BuiltinFunction::EnvHomeDirectory,
-            BuiltinFunction::EnvSetWorkingDirectory,
-            BuiltinFunction::EnvTempDirectory,
-            BuiltinFunction::EnvVariables,
-            BuiltinFunction::Exit,
-            BuiltinFunction::FileCopy,
-            BuiltinFunction::FileDrop,
-            BuiltinFunction::FileFlush,
-            BuiltinFunction::FileOpen,
-            BuiltinFunction::FileRead,
-            BuiltinFunction::FileRemove,
-            BuiltinFunction::FileSeek,
-            BuiltinFunction::FileSize,
-            BuiltinFunction::FileWriteBytes,
-            BuiltinFunction::FileWriteString,
             BuiltinFunction::FloatAdd,
             BuiltinFunction::FloatCeil,
             BuiltinFunction::FloatDiv,
@@ -1824,18 +1647,8 @@ impl BuiltinFunction {
             BuiltinFunction::FloatLt,
             BuiltinFunction::FloatMod,
             BuiltinFunction::FloatMul,
-            BuiltinFunction::FloatRound,
             BuiltinFunction::FloatSub,
             BuiltinFunction::FloatToBits,
-            BuiltinFunction::FloatToInt,
-            BuiltinFunction::FloatToString,
-            BuiltinFunction::ChannelDrop,
-            BuiltinFunction::ChannelNew,
-            BuiltinFunction::ChannelReceive,
-            BuiltinFunction::ChannelReceiveUntil,
-            BuiltinFunction::ChannelSend,
-            BuiltinFunction::ChannelTryReceive,
-            BuiltinFunction::ChannelWait,
             BuiltinFunction::IntAdd,
             BuiltinFunction::IntBitAnd,
             BuiltinFunction::IntBitNot,
@@ -1849,43 +1662,17 @@ impl BuiltinFunction {
             BuiltinFunction::IntLt,
             BuiltinFunction::IntRem,
             BuiltinFunction::IntMul,
-            BuiltinFunction::IntPow,
             BuiltinFunction::IntRotateLeft,
             BuiltinFunction::IntRotateRight,
             BuiltinFunction::IntShl,
             BuiltinFunction::IntShr,
             BuiltinFunction::IntSub,
-            BuiltinFunction::IntToFloat,
-            BuiltinFunction::IntToString,
             BuiltinFunction::IntUnsignedShr,
             BuiltinFunction::IntWrappingAdd,
             BuiltinFunction::IntWrappingMul,
             BuiltinFunction::IntWrappingSub,
             BuiltinFunction::Moved,
-            BuiltinFunction::ObjectEq,
             BuiltinFunction::Panic,
-            BuiltinFunction::PathAccessedAt,
-            BuiltinFunction::PathCreatedAt,
-            BuiltinFunction::PathExists,
-            BuiltinFunction::PathIsDirectory,
-            BuiltinFunction::PathIsFile,
-            BuiltinFunction::PathModifiedAt,
-            BuiltinFunction::PathExpand,
-            BuiltinFunction::ProcessStackFrameLine,
-            BuiltinFunction::ProcessStackFrameName,
-            BuiltinFunction::ProcessStackFramePath,
-            BuiltinFunction::ProcessStacktrace,
-            BuiltinFunction::ProcessStacktraceDrop,
-            BuiltinFunction::ProcessStacktraceLength,
-            BuiltinFunction::ProcessSuspend,
-            BuiltinFunction::RandomBytes,
-            BuiltinFunction::RandomDrop,
-            BuiltinFunction::RandomFloat,
-            BuiltinFunction::RandomFloatRange,
-            BuiltinFunction::RandomFromInt,
-            BuiltinFunction::RandomInt,
-            BuiltinFunction::RandomIntRange,
-            BuiltinFunction::RandomNew,
             BuiltinFunction::SocketAccept,
             BuiltinFunction::SocketAddressPairAddress,
             BuiltinFunction::SocketAddressPairDrop,
@@ -1917,33 +1704,9 @@ impl BuiltinFunction {
             BuiltinFunction::SocketTryClone,
             BuiltinFunction::SocketWriteBytes,
             BuiltinFunction::SocketWriteString,
-            BuiltinFunction::StderrFlush,
-            BuiltinFunction::StderrWriteBytes,
-            BuiltinFunction::StderrWriteString,
-            BuiltinFunction::StdinRead,
-            BuiltinFunction::StdoutFlush,
-            BuiltinFunction::StdoutWriteBytes,
-            BuiltinFunction::StdoutWriteString,
-            BuiltinFunction::StringByte,
-            BuiltinFunction::StringCharacters,
-            BuiltinFunction::StringCharactersDrop,
-            BuiltinFunction::StringCharactersNext,
             BuiltinFunction::StringConcat,
-            BuiltinFunction::StringConcatArray,
-            BuiltinFunction::StringDrop,
-            BuiltinFunction::StringEq,
-            BuiltinFunction::StringSize,
-            BuiltinFunction::StringSliceBytes,
-            BuiltinFunction::StringToByteArray,
-            BuiltinFunction::StringToFloat,
-            BuiltinFunction::StringToInt,
-            BuiltinFunction::StringToLower,
-            BuiltinFunction::StringToUpper,
-            BuiltinFunction::TimeMonotonic,
-            BuiltinFunction::TimeSystem,
-            BuiltinFunction::TimeSystemOffset,
-            BuiltinFunction::HashKey0,
-            BuiltinFunction::HashKey1,
+            BuiltinFunction::State,
+            BuiltinFunction::Process,
         ]
         .into_iter()
         .fold(HashMap::new(), |mut map, func| {
@@ -1954,96 +1717,7 @@ impl BuiltinFunction {
 
     pub fn name(self) -> &'static str {
         match self {
-            BuiltinFunction::ArrayCapacity => "array_capacity",
-            BuiltinFunction::ArrayClear => "array_clear",
-            BuiltinFunction::ArrayDrop => "array_drop",
-            BuiltinFunction::ArrayGet => "array_get",
-            BuiltinFunction::ArrayLength => "array_length",
-            BuiltinFunction::ArrayPop => "array_pop",
             BuiltinFunction::ArrayPush => "array_push",
-            BuiltinFunction::ArrayRemove => "array_remove",
-            BuiltinFunction::ArrayReserve => "array_reserve",
-            BuiltinFunction::ArraySet => "array_set",
-            BuiltinFunction::ByteArrayNew => "byte_array_new",
-            BuiltinFunction::ByteArrayAppend => "byte_array_append",
-            BuiltinFunction::ByteArrayClear => "byte_array_clear",
-            BuiltinFunction::ByteArrayClone => "byte_array_clone",
-            BuiltinFunction::ByteArrayCopyFrom => "byte_array_copy_from",
-            BuiltinFunction::ByteArrayDrainToString => {
-                "byte_array_drain_to_string"
-            }
-            BuiltinFunction::ByteArrayDrop => "byte_array_drop",
-            BuiltinFunction::ByteArrayEq => "byte_array_eq",
-            BuiltinFunction::ByteArrayGet => "byte_array_get",
-            BuiltinFunction::ByteArrayLength => "byte_array_length",
-            BuiltinFunction::ByteArrayPop => "byte_array_pop",
-            BuiltinFunction::ByteArrayPush => "byte_array_push",
-            BuiltinFunction::ByteArrayRemove => "byte_array_remove",
-            BuiltinFunction::ByteArrayResize => "byte_array_resize",
-            BuiltinFunction::ByteArraySet => "byte_array_set",
-            BuiltinFunction::ByteArraySlice => "byte_array_slice",
-            BuiltinFunction::ByteArrayToString => "byte_array_to_string",
-            BuiltinFunction::ChildProcessDrop => "child_process_drop",
-            BuiltinFunction::ChildProcessSpawn => "child_process_spawn",
-            BuiltinFunction::ChildProcessStderrClose => {
-                "child_process_stderr_close"
-            }
-            BuiltinFunction::ChildProcessStderrRead => {
-                "child_process_stderr_read"
-            }
-            BuiltinFunction::ChildProcessStdinClose => {
-                "child_process_stdin_close"
-            }
-            BuiltinFunction::ChildProcessStdinFlush => {
-                "child_process_stdin_flush"
-            }
-            BuiltinFunction::ChildProcessStdinWriteBytes => {
-                "child_process_stdin_write_bytes"
-            }
-            BuiltinFunction::ChildProcessStdinWriteString => {
-                "child_process_stdin_write_string"
-            }
-            BuiltinFunction::ChildProcessStdoutClose => {
-                "child_process_stdout_close"
-            }
-            BuiltinFunction::ChildProcessStdoutRead => {
-                "child_process_stdout_read"
-            }
-            BuiltinFunction::ChildProcessTryWait => "child_process_try_wait",
-            BuiltinFunction::ChildProcessWait => "child_process_wait",
-            BuiltinFunction::CpuCores => "cpu_cores",
-            BuiltinFunction::DirectoryCreate => "directory_create",
-            BuiltinFunction::DirectoryCreateRecursive => {
-                "directory_create_recursive"
-            }
-            BuiltinFunction::DirectoryList => "directory_list",
-            BuiltinFunction::DirectoryRemove => "directory_remove",
-            BuiltinFunction::DirectoryRemoveRecursive => {
-                "directory_remove_recursive"
-            }
-            BuiltinFunction::EnvArguments => "env_arguments",
-            BuiltinFunction::EnvExecutable => "env_executable",
-            BuiltinFunction::EnvGet => "env_get",
-            BuiltinFunction::EnvGetWorkingDirectory => {
-                "env_get_working_directory"
-            }
-            BuiltinFunction::EnvHomeDirectory => "env_home_directory",
-            BuiltinFunction::EnvSetWorkingDirectory => {
-                "env_set_working_directory"
-            }
-            BuiltinFunction::EnvTempDirectory => "env_temp_directory",
-            BuiltinFunction::EnvVariables => "env_variables",
-            BuiltinFunction::Exit => "exit",
-            BuiltinFunction::FileCopy => "file_copy",
-            BuiltinFunction::FileDrop => "file_drop",
-            BuiltinFunction::FileFlush => "file_flush",
-            BuiltinFunction::FileOpen => "file_open",
-            BuiltinFunction::FileRead => "file_read",
-            BuiltinFunction::FileRemove => "file_remove",
-            BuiltinFunction::FileSeek => "file_seek",
-            BuiltinFunction::FileSize => "file_size",
-            BuiltinFunction::FileWriteBytes => "file_write_bytes",
-            BuiltinFunction::FileWriteString => "file_write_string",
             BuiltinFunction::FloatAdd => "float_add",
             BuiltinFunction::FloatCeil => "float_ceil",
             BuiltinFunction::FloatDiv => "float_div",
@@ -2058,18 +1732,8 @@ impl BuiltinFunction {
             BuiltinFunction::FloatLt => "float_lt",
             BuiltinFunction::FloatMod => "float_mod",
             BuiltinFunction::FloatMul => "float_mul",
-            BuiltinFunction::FloatRound => "float_round",
             BuiltinFunction::FloatSub => "float_sub",
             BuiltinFunction::FloatToBits => "float_to_bits",
-            BuiltinFunction::FloatToInt => "float_to_int",
-            BuiltinFunction::FloatToString => "float_to_string",
-            BuiltinFunction::ChannelReceive => "channel_receive",
-            BuiltinFunction::ChannelReceiveUntil => "channel_receive_until",
-            BuiltinFunction::ChannelDrop => "channel_drop",
-            BuiltinFunction::ChannelWait => "channel_wait",
-            BuiltinFunction::ChannelNew => "channel_new",
-            BuiltinFunction::ChannelSend => "channel_send",
-            BuiltinFunction::ChannelTryReceive => "channel_try_receive",
             BuiltinFunction::IntAdd => "int_add",
             BuiltinFunction::IntBitAnd => "int_bit_and",
             BuiltinFunction::IntBitNot => "int_bit_not",
@@ -2083,51 +1747,17 @@ impl BuiltinFunction {
             BuiltinFunction::IntLt => "int_lt",
             BuiltinFunction::IntRem => "int_rem",
             BuiltinFunction::IntMul => "int_mul",
-            BuiltinFunction::IntPow => "int_pow",
             BuiltinFunction::IntRotateLeft => "int_rotate_left",
             BuiltinFunction::IntRotateRight => "int_rotate_right",
             BuiltinFunction::IntShl => "int_shl",
             BuiltinFunction::IntShr => "int_shr",
             BuiltinFunction::IntSub => "int_sub",
-            BuiltinFunction::IntToFloat => "int_to_float",
-            BuiltinFunction::IntToString => "int_to_string",
             BuiltinFunction::IntUnsignedShr => "int_unsigned_shr",
             BuiltinFunction::IntWrappingAdd => "int_wrapping_add",
             BuiltinFunction::IntWrappingMul => "int_wrapping_mul",
             BuiltinFunction::IntWrappingSub => "int_wrapping_sub",
             BuiltinFunction::Moved => "moved",
-            BuiltinFunction::ObjectEq => "object_eq",
             BuiltinFunction::Panic => "panic",
-            BuiltinFunction::PathAccessedAt => "path_accessed_at",
-            BuiltinFunction::PathCreatedAt => "path_created_at",
-            BuiltinFunction::PathExists => "path_exists",
-            BuiltinFunction::PathIsDirectory => "path_is_directory",
-            BuiltinFunction::PathIsFile => "path_is_file",
-            BuiltinFunction::PathModifiedAt => "path_modified_at",
-            BuiltinFunction::PathExpand => "path_expand",
-            BuiltinFunction::ProcessStackFrameLine => {
-                "process_stack_frame_line"
-            }
-            BuiltinFunction::ProcessStackFrameName => {
-                "process_stack_frame_name"
-            }
-            BuiltinFunction::ProcessStackFramePath => {
-                "process_stack_frame_path"
-            }
-            BuiltinFunction::ProcessStacktrace => "process_stacktrace",
-            BuiltinFunction::ProcessStacktraceDrop => "process_stacktrace_drop",
-            BuiltinFunction::ProcessStacktraceLength => {
-                "process_stacktrace_length"
-            }
-            BuiltinFunction::ProcessSuspend => "process_suspend",
-            BuiltinFunction::RandomBytes => "random_bytes",
-            BuiltinFunction::RandomDrop => "random_drop",
-            BuiltinFunction::RandomFloat => "random_float",
-            BuiltinFunction::RandomFloatRange => "random_float_range",
-            BuiltinFunction::RandomFromInt => "random_from_int",
-            BuiltinFunction::RandomInt => "random_int",
-            BuiltinFunction::RandomIntRange => "random_int_range",
-            BuiltinFunction::RandomNew => "random_new",
             BuiltinFunction::SocketAccept => "socket_accept",
             BuiltinFunction::SocketAddressPairAddress => {
                 "socket_address_pair_address"
@@ -2169,106 +1799,17 @@ impl BuiltinFunction {
             BuiltinFunction::SocketTryClone => "socket_try_clone",
             BuiltinFunction::SocketWriteBytes => "socket_write_bytes",
             BuiltinFunction::SocketWriteString => "socket_write_string",
-            BuiltinFunction::StderrFlush => "stderr_flush",
-            BuiltinFunction::StderrWriteBytes => "stderr_write_bytes",
-            BuiltinFunction::StderrWriteString => "stderr_write_string",
-            BuiltinFunction::StdinRead => "stdin_read",
-            BuiltinFunction::StdoutFlush => "stdout_flush",
-            BuiltinFunction::StdoutWriteBytes => "stdout_write_bytes",
-            BuiltinFunction::StdoutWriteString => "stdout_write_string",
-            BuiltinFunction::StringByte => "string_byte",
-            BuiltinFunction::StringCharacters => "string_characters",
-            BuiltinFunction::StringCharactersDrop => "string_characters_drop",
-            BuiltinFunction::StringCharactersNext => "string_characters_next",
             BuiltinFunction::StringConcat => "string_concat",
-            BuiltinFunction::StringConcatArray => "string_concat_array",
-            BuiltinFunction::StringDrop => "string_drop",
-            BuiltinFunction::StringEq => "string_eq",
-            BuiltinFunction::StringSize => "string_size",
-            BuiltinFunction::StringSliceBytes => "string_slice_bytes",
-            BuiltinFunction::StringToByteArray => "string_to_byte_array",
-            BuiltinFunction::StringToFloat => "string_to_float",
-            BuiltinFunction::StringToInt => "string_to_int",
-            BuiltinFunction::StringToLower => "string_to_lower",
-            BuiltinFunction::StringToUpper => "string_to_upper",
-            BuiltinFunction::TimeMonotonic => "time_monotonic",
-            BuiltinFunction::TimeSystem => "time_system",
-            BuiltinFunction::TimeSystemOffset => "time_system_offset",
-            BuiltinFunction::HashKey0 => "hash_key0",
-            BuiltinFunction::HashKey1 => "hash_key1",
+            BuiltinFunction::State => "state",
+            BuiltinFunction::Process => "process",
         }
     }
 
     pub fn return_type(self) -> TypeRef {
-        let result = TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(
-            ClassId::result(),
-        )));
+        let result = TypeRef::foreign_struct(ClassId::result());
 
         match self {
-            BuiltinFunction::ArrayCapacity => TypeRef::int(),
-            BuiltinFunction::ArrayClear => TypeRef::nil(),
-            BuiltinFunction::ArrayDrop => TypeRef::nil(),
-            BuiltinFunction::ArrayGet => TypeRef::Any,
-            BuiltinFunction::ArrayLength => TypeRef::int(),
-            BuiltinFunction::ArrayPop => result,
             BuiltinFunction::ArrayPush => TypeRef::nil(),
-            BuiltinFunction::ArrayRemove => TypeRef::Any,
-            BuiltinFunction::ArrayReserve => TypeRef::nil(),
-            BuiltinFunction::ArraySet => TypeRef::Any,
-            BuiltinFunction::ByteArrayNew => TypeRef::byte_array(),
-            BuiltinFunction::ByteArrayAppend => TypeRef::nil(),
-            BuiltinFunction::ByteArrayClear => TypeRef::nil(),
-            BuiltinFunction::ByteArrayClone => TypeRef::byte_array(),
-            BuiltinFunction::ByteArrayCopyFrom => TypeRef::int(),
-            BuiltinFunction::ByteArrayDrainToString => TypeRef::string(),
-            BuiltinFunction::ByteArrayDrop => TypeRef::nil(),
-            BuiltinFunction::ByteArrayEq => TypeRef::boolean(),
-            BuiltinFunction::ByteArrayGet => TypeRef::int(),
-            BuiltinFunction::ByteArrayLength => TypeRef::int(),
-            BuiltinFunction::ByteArrayPop => TypeRef::int(),
-            BuiltinFunction::ByteArrayPush => TypeRef::nil(),
-            BuiltinFunction::ByteArrayRemove => TypeRef::int(),
-            BuiltinFunction::ByteArrayResize => TypeRef::nil(),
-            BuiltinFunction::ByteArraySet => TypeRef::int(),
-            BuiltinFunction::ByteArraySlice => TypeRef::byte_array(),
-            BuiltinFunction::ByteArrayToString => TypeRef::string(),
-            BuiltinFunction::ChildProcessDrop => TypeRef::nil(),
-            BuiltinFunction::ChildProcessSpawn => result,
-            BuiltinFunction::ChildProcessStderrClose => TypeRef::nil(),
-            BuiltinFunction::ChildProcessStderrRead => result,
-            BuiltinFunction::ChildProcessStdinClose => TypeRef::nil(),
-            BuiltinFunction::ChildProcessStdinFlush => result,
-            BuiltinFunction::ChildProcessStdinWriteBytes => result,
-            BuiltinFunction::ChildProcessStdinWriteString => result,
-            BuiltinFunction::ChildProcessStdoutClose => result,
-            BuiltinFunction::ChildProcessStdoutRead => result,
-            BuiltinFunction::ChildProcessTryWait => result,
-            BuiltinFunction::ChildProcessWait => result,
-            BuiltinFunction::CpuCores => TypeRef::int(),
-            BuiltinFunction::DirectoryCreate => result,
-            BuiltinFunction::DirectoryCreateRecursive => result,
-            BuiltinFunction::DirectoryList => result,
-            BuiltinFunction::DirectoryRemove => result,
-            BuiltinFunction::DirectoryRemoveRecursive => result,
-            BuiltinFunction::EnvArguments => TypeRef::Any,
-            BuiltinFunction::EnvExecutable => result,
-            BuiltinFunction::EnvGet => result,
-            BuiltinFunction::EnvGetWorkingDirectory => result,
-            BuiltinFunction::EnvHomeDirectory => result,
-            BuiltinFunction::EnvSetWorkingDirectory => result,
-            BuiltinFunction::EnvTempDirectory => TypeRef::string(),
-            BuiltinFunction::EnvVariables => TypeRef::Any,
-            BuiltinFunction::Exit => TypeRef::Never,
-            BuiltinFunction::FileCopy => result,
-            BuiltinFunction::FileDrop => TypeRef::nil(),
-            BuiltinFunction::FileFlush => result,
-            BuiltinFunction::FileOpen => result,
-            BuiltinFunction::FileRead => result,
-            BuiltinFunction::FileRemove => result,
-            BuiltinFunction::FileSeek => result,
-            BuiltinFunction::FileSize => result,
-            BuiltinFunction::FileWriteBytes => result,
-            BuiltinFunction::FileWriteString => result,
             BuiltinFunction::FloatAdd => TypeRef::float(),
             BuiltinFunction::FloatCeil => TypeRef::float(),
             BuiltinFunction::FloatDiv => TypeRef::float(),
@@ -2283,18 +1824,8 @@ impl BuiltinFunction {
             BuiltinFunction::FloatLt => TypeRef::boolean(),
             BuiltinFunction::FloatMod => TypeRef::float(),
             BuiltinFunction::FloatMul => TypeRef::float(),
-            BuiltinFunction::FloatRound => TypeRef::float(),
             BuiltinFunction::FloatSub => TypeRef::float(),
             BuiltinFunction::FloatToBits => TypeRef::int(),
-            BuiltinFunction::FloatToInt => TypeRef::int(),
-            BuiltinFunction::FloatToString => TypeRef::string(),
-            BuiltinFunction::ChannelReceive => TypeRef::Any,
-            BuiltinFunction::ChannelReceiveUntil => result,
-            BuiltinFunction::ChannelDrop => TypeRef::nil(),
-            BuiltinFunction::ChannelWait => TypeRef::nil(),
-            BuiltinFunction::ChannelNew => TypeRef::Any,
-            BuiltinFunction::ChannelSend => TypeRef::nil(),
-            BuiltinFunction::ChannelTryReceive => result,
             BuiltinFunction::IntAdd => TypeRef::int(),
             BuiltinFunction::IntBitAnd => TypeRef::int(),
             BuiltinFunction::IntBitNot => TypeRef::int(),
@@ -2308,43 +1839,17 @@ impl BuiltinFunction {
             BuiltinFunction::IntLt => TypeRef::boolean(),
             BuiltinFunction::IntRem => TypeRef::int(),
             BuiltinFunction::IntMul => TypeRef::int(),
-            BuiltinFunction::IntPow => TypeRef::int(),
             BuiltinFunction::IntRotateLeft => TypeRef::int(),
             BuiltinFunction::IntRotateRight => TypeRef::int(),
             BuiltinFunction::IntShl => TypeRef::int(),
             BuiltinFunction::IntShr => TypeRef::int(),
             BuiltinFunction::IntSub => TypeRef::int(),
-            BuiltinFunction::IntToFloat => TypeRef::float(),
-            BuiltinFunction::IntToString => TypeRef::string(),
             BuiltinFunction::IntUnsignedShr => TypeRef::int(),
             BuiltinFunction::IntWrappingAdd => TypeRef::int(),
             BuiltinFunction::IntWrappingMul => TypeRef::int(),
             BuiltinFunction::IntWrappingSub => TypeRef::int(),
             BuiltinFunction::Moved => TypeRef::nil(),
-            BuiltinFunction::ObjectEq => TypeRef::boolean(),
             BuiltinFunction::Panic => TypeRef::Never,
-            BuiltinFunction::PathAccessedAt => result,
-            BuiltinFunction::PathCreatedAt => result,
-            BuiltinFunction::PathExists => TypeRef::boolean(),
-            BuiltinFunction::PathIsDirectory => TypeRef::boolean(),
-            BuiltinFunction::PathIsFile => TypeRef::boolean(),
-            BuiltinFunction::PathModifiedAt => result,
-            BuiltinFunction::PathExpand => result,
-            BuiltinFunction::ProcessStackFrameLine => TypeRef::int(),
-            BuiltinFunction::ProcessStackFrameName => TypeRef::string(),
-            BuiltinFunction::ProcessStackFramePath => TypeRef::string(),
-            BuiltinFunction::ProcessStacktrace => TypeRef::Any,
-            BuiltinFunction::ProcessStacktraceDrop => TypeRef::nil(),
-            BuiltinFunction::ProcessStacktraceLength => TypeRef::int(),
-            BuiltinFunction::ProcessSuspend => TypeRef::nil(),
-            BuiltinFunction::RandomBytes => TypeRef::byte_array(),
-            BuiltinFunction::RandomDrop => TypeRef::nil(),
-            BuiltinFunction::RandomFloat => TypeRef::float(),
-            BuiltinFunction::RandomFloatRange => TypeRef::float(),
-            BuiltinFunction::RandomFromInt => TypeRef::Any,
-            BuiltinFunction::RandomInt => TypeRef::int(),
-            BuiltinFunction::RandomIntRange => TypeRef::int(),
-            BuiltinFunction::RandomNew => TypeRef::Any,
             BuiltinFunction::SocketAccept => result,
             BuiltinFunction::SocketAddressPairAddress => TypeRef::string(),
             BuiltinFunction::SocketAddressPairDrop => TypeRef::nil(),
@@ -2376,33 +1881,13 @@ impl BuiltinFunction {
             BuiltinFunction::SocketTryClone => result,
             BuiltinFunction::SocketWriteBytes => result,
             BuiltinFunction::SocketWriteString => result,
-            BuiltinFunction::StderrFlush => TypeRef::nil(),
-            BuiltinFunction::StderrWriteBytes => result,
-            BuiltinFunction::StderrWriteString => result,
-            BuiltinFunction::StdinRead => result,
-            BuiltinFunction::StdoutFlush => TypeRef::nil(),
-            BuiltinFunction::StdoutWriteBytes => result,
-            BuiltinFunction::StdoutWriteString => result,
-            BuiltinFunction::StringByte => TypeRef::int(),
-            BuiltinFunction::StringCharacters => TypeRef::Any,
-            BuiltinFunction::StringCharactersDrop => TypeRef::nil(),
-            BuiltinFunction::StringCharactersNext => result,
             BuiltinFunction::StringConcat => TypeRef::string(),
-            BuiltinFunction::StringConcatArray => TypeRef::string(),
-            BuiltinFunction::StringDrop => TypeRef::nil(),
-            BuiltinFunction::StringEq => TypeRef::boolean(),
-            BuiltinFunction::StringSize => TypeRef::int(),
-            BuiltinFunction::StringSliceBytes => TypeRef::string(),
-            BuiltinFunction::StringToByteArray => TypeRef::byte_array(),
-            BuiltinFunction::StringToFloat => result,
-            BuiltinFunction::StringToInt => result,
-            BuiltinFunction::StringToLower => TypeRef::string(),
-            BuiltinFunction::StringToUpper => TypeRef::string(),
-            BuiltinFunction::TimeMonotonic => TypeRef::int(),
-            BuiltinFunction::TimeSystem => TypeRef::float(),
-            BuiltinFunction::TimeSystemOffset => TypeRef::int(),
-            BuiltinFunction::HashKey0 => TypeRef::int(),
-            BuiltinFunction::HashKey1 => TypeRef::int(),
+            BuiltinFunction::State => {
+                TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8)))
+            }
+            BuiltinFunction::Process => {
+                TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8)))
+            }
         }
     }
 }
@@ -2463,6 +1948,9 @@ pub enum MethodKind {
 
     /// The method is a destructor.
     Destructor,
+
+    /// The method is an external/FFI function.
+    Extern,
 }
 
 #[derive(Copy, Clone)]
@@ -2524,19 +2012,7 @@ impl Method {
         kind: MethodKind,
     ) -> MethodId {
         let id = db.methods.len();
-        let method = Method::new(module, name, visibility, kind);
-
-        db.methods.push(method);
-        MethodId(id)
-    }
-
-    fn new(
-        module: ModuleId,
-        name: String,
-        visibility: Visibility,
-        kind: MethodKind,
-    ) -> Self {
-        Self {
+        let method = Method {
             module,
             name,
             kind,
@@ -2549,7 +2025,10 @@ impl Method {
             receiver: TypeRef::Unknown,
             field_types: HashMap::new(),
             main: false,
-        }
+        };
+
+        db.methods.push(method);
+        MethodId(id)
     }
 }
 
@@ -2630,6 +2109,10 @@ impl MethodId {
             self.get(db).kind,
             MethodKind::Async | MethodKind::AsyncMutable
         )
+    }
+
+    pub fn is_extern(self, db: &Database) -> bool {
+        matches!(self.get(db).kind, MethodKind::Extern)
     }
 
     pub fn is_moving(self, db: &Database) -> bool {
@@ -2734,6 +2217,19 @@ impl MethodId {
         self.get_mut(db).bounds = bounds;
     }
 
+    pub fn has_return_type(self, db: &Database) -> bool {
+        let method = self.get(db);
+
+        match method.kind {
+            MethodKind::Extern => method.return_type != TypeRef::nil(),
+            _ => true,
+        }
+    }
+
+    pub fn returns_value(self, db: &Database) -> bool {
+        self.has_return_type(db) && !self.return_type(db).is_never(db)
+    }
+
     fn get(self, db: &Database) -> &Method {
         &db.methods[self.0]
     }
@@ -2835,6 +2331,8 @@ pub enum CallKind {
     CallClosure(ClosureCallInfo),
     GetField(FieldInfo),
     SetField(FieldInfo),
+    ReadPointer(TypeRef),
+    WritePointer,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -2917,16 +2415,6 @@ impl Symbol {
         }
     }
 
-    pub fn defined_in(self, db: &Database, module: ModuleId) -> bool {
-        match self {
-            Symbol::Method(id) => id.module(db) == module,
-            Symbol::Class(id) => id.module(db) == module,
-            Symbol::Trait(id) => id.module(db) == module,
-            Symbol::Constant(id) => id.module(db) == module,
-            _ => false,
-        }
-    }
-
     pub fn is_private(self, db: &Database) -> bool {
         !self.is_public(db)
     }
@@ -2939,6 +2427,7 @@ pub struct Module {
     file: PathBuf,
     constants: Vec<ConstantId>,
     symbols: HashMap<String, Symbol>,
+    extern_methods: Vec<MethodId>,
 }
 
 impl Module {
@@ -2959,18 +2448,15 @@ impl Module {
         );
 
         db.module_mapping.insert(name.to_string(), id);
-        db.modules.push(Module::new(name, class_id, file));
-        id
-    }
-
-    fn new(name: ModuleName, class: ClassId, file: PathBuf) -> Module {
-        Module {
+        db.modules.push(Module {
             name,
-            class,
+            class: class_id,
             file,
             constants: Vec::new(),
             symbols: HashMap::default(),
-        }
+            extern_methods: Vec::new(),
+        });
+        id
     }
 }
 
@@ -3012,6 +2498,14 @@ impl ModuleId {
 
     pub fn add_method(self, db: &mut Database, name: String, method: MethodId) {
         self.get(db).class.add_method(db, name, method);
+    }
+
+    pub fn add_extern_method(self, db: &mut Database, method: MethodId) {
+        self.get_mut(db).extern_methods.push(method);
+    }
+
+    pub fn extern_methods(self, db: &Database) -> &Vec<MethodId> {
+        &self.get(db).extern_methods
     }
 
     pub fn is_std(self, db: &Database) -> bool {
@@ -3357,10 +2851,6 @@ pub enum TypeRef {
     /// library isn't allowed.
     Any,
 
-    /// A value that could be anything but shouldn't have its ownership
-    /// transferred.
-    RefAny,
-
     /// A value indicating a typing error.
     ///
     /// This type is produced whenever a type couldn't be produced, for example
@@ -3374,6 +2864,9 @@ pub enum TypeRef {
 
     /// A placeholder for a yet-to-infer type.
     Placeholder(TypePlaceholderId),
+
+    /// A pointer to a value.
+    Pointer(TypeId),
 }
 
 impl TypeRef {
@@ -3413,6 +2906,22 @@ impl TypeRef {
         )))
     }
 
+    pub fn foreign_int(size: u32) -> TypeRef {
+        TypeRef::Owned(TypeId::Foreign(ForeignType::Int(size)))
+    }
+
+    pub fn foreign_float(size: u32) -> TypeRef {
+        TypeRef::Owned(TypeId::Foreign(ForeignType::Float(size)))
+    }
+
+    pub fn pointer(of: TypeId) -> TypeRef {
+        TypeRef::Pointer(of)
+    }
+
+    pub fn foreign_struct(id: ClassId) -> TypeRef {
+        TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(id)))
+    }
+
     pub fn module(id: ModuleId) -> TypeRef {
         TypeRef::Owned(TypeId::Module(id))
     }
@@ -3426,7 +2935,8 @@ impl TypeRef {
 
     pub fn type_id(self, db: &Database) -> Result<TypeId, TypeRef> {
         match self {
-            TypeRef::Owned(id)
+            TypeRef::Pointer(id)
+            | TypeRef::Owned(id)
             | TypeRef::Uni(id)
             | TypeRef::Ref(id)
             | TypeRef::Mut(id)
@@ -3460,32 +2970,45 @@ impl TypeRef {
 
     pub fn allow_in_array(self, db: &Database) -> bool {
         match self {
-            TypeRef::Any
-            | TypeRef::RefAny
-            | TypeRef::UniRef(_)
-            | TypeRef::UniMut(_) => false,
+            TypeRef::Any | TypeRef::UniRef(_) | TypeRef::UniMut(_) => false,
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(true, |v| v.allow_in_array(db))
             }
-            _ => true,
+            _ => !self.is_foreign_type(db),
         }
     }
 
-    pub fn is_any(self, db: &Database) -> bool {
+    pub fn is_foreign_type(self, db: &Database) -> bool {
         match self {
-            TypeRef::Any | TypeRef::RefAny => true,
+            TypeRef::Owned(TypeId::ClassInstance(ins))
+                if ins.instance_of.kind(db).is_extern() =>
+            {
+                true
+            }
+            TypeRef::Owned(TypeId::Foreign(_)) => true,
+            TypeRef::Pointer(_) => true,
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.is_any(db))
+                id.value(db).map_or(false, |v| v.is_foreign_type(db))
             }
             _ => false,
         }
     }
 
-    pub fn is_ref_any(self, db: &Database) -> bool {
+    pub fn is_pointer(self, db: &Database) -> bool {
         match self {
-            TypeRef::RefAny => true,
+            TypeRef::Pointer(_) => true,
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(false, |v| v.is_ref_any(db))
+                id.value(db).map_or(false, |v| v.is_pointer(db))
+            }
+            _ => false,
+        }
+    }
+
+    pub fn is_any(self, db: &Database) -> bool {
+        match self {
+            TypeRef::Any => true,
+            TypeRef::Placeholder(id) => {
+                id.value(db).map_or(false, |v| v.is_any(db))
             }
             _ => false,
         }
@@ -3679,6 +3202,7 @@ impl TypeRef {
             | TypeRef::Uni(_)
             | TypeRef::Mut(_)
             | TypeRef::Infer(_)
+            | TypeRef::Pointer(_)
             | TypeRef::Error
             | TypeRef::Unknown
             | TypeRef::Never => true,
@@ -3733,6 +3257,7 @@ impl TypeRef {
                 | TypeRef::Owned(_)
                 | TypeRef::Uni(_)
                 | TypeRef::UniMut(_)
+                | TypeRef::Pointer(_)
         )
     }
 
@@ -3837,11 +3362,12 @@ impl TypeRef {
 
     pub fn allow_as_ref(self, db: &Database) -> bool {
         match self {
-            TypeRef::Any => true,
             TypeRef::Owned(_)
             | TypeRef::Mut(_)
             | TypeRef::Ref(_)
-            | TypeRef::Uni(_) => true,
+            | TypeRef::Uni(_)
+            | TypeRef::Any
+            | TypeRef::Error => true,
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(false, |v| v.allow_as_ref(db))
             }
@@ -3854,9 +3380,11 @@ impl TypeRef {
             TypeRef::Any => true,
             TypeRef::Owned(TypeId::RigidTypeParameter(id)) => id.is_mutable(db),
             TypeRef::Owned(_) | TypeRef::Mut(_) | TypeRef::Uni(_) => true,
+            TypeRef::Pointer(_) => true,
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(false, |v| v.allow_as_mut(db))
             }
+            TypeRef::Error => true,
             _ => false,
         }
     }
@@ -3874,6 +3402,16 @@ impl TypeRef {
             TypeRef::Uni(id) => TypeRef::UniMut(id),
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(self, |v| v.as_mut(db))
+            }
+            _ => self,
+        }
+    }
+
+    pub fn as_pointer(self, db: &Database) -> TypeRef {
+        match self {
+            TypeRef::Owned(id) | TypeRef::Uni(id) => TypeRef::Pointer(id),
+            TypeRef::Placeholder(id) => {
+                id.value(db).map_or(self, |v| v.as_pointer(db))
             }
             _ => self,
         }
@@ -3987,8 +3525,10 @@ impl TypeRef {
             | TypeRef::UniRef(TypeId::ClassInstance(ins))
             | TypeRef::UniMut(TypeId::ClassInstance(ins))
             | TypeRef::Uni(TypeId::ClassInstance(ins)) => {
-                ins.instance_of().get(db).value_type
+                ins.instance_of().is_value_type(db)
             }
+            TypeRef::Owned(TypeId::Foreign(_)) => true,
+            TypeRef::Pointer(_) => true,
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(true, |v| v.is_value_type(db))
             }
@@ -4007,14 +3547,15 @@ impl TypeRef {
                 ins.instance_of.kind(db).is_extern()
                     || matches!(ins.instance_of.0, BOOLEAN_ID | NIL_ID)
             }
+            TypeRef::Owned(TypeId::Foreign(_)) => true,
             TypeRef::Owned(TypeId::Module(_)) => true,
             TypeRef::Owned(TypeId::Class(_)) => true,
             TypeRef::Never => true,
             TypeRef::Any => true,
-            TypeRef::RefAny => true,
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(true, |v| v.is_permanent(db))
             }
+            TypeRef::Pointer(_) => true,
             _ => false,
         }
     }
@@ -4142,6 +3683,12 @@ impl TypeRef {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+pub enum ForeignType {
+    Int(u32),
+    Float(u32),
+}
+
 /// An ID pointing to a type.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum TypeId {
@@ -4153,6 +3700,7 @@ pub enum TypeId {
     TypeParameter(TypeParameterId),
     RigidTypeParameter(TypeParameterId),
     Closure(ClosureId),
+    Foreign(ForeignType),
 }
 
 impl TypeId {
@@ -4205,7 +3753,7 @@ impl TypeId {
             TypeId::TypeParameter(id) | TypeId::RigidTypeParameter(id) => {
                 id.method(db, name)
             }
-            TypeId::Closure(_) => None,
+            _ => None,
         }
     }
 
@@ -4426,6 +3974,7 @@ mod tests {
     fn test_type_sizes() {
         assert_eq!(size_of::<TypeId>(), 16);
         assert_eq!(size_of::<TypeRef>(), 24);
+        assert_eq!(size_of::<ForeignType>(), 8);
     }
 
     #[test]
@@ -4457,12 +4006,8 @@ mod tests {
     fn test_type_parameter_id_add_requirements() {
         let mut db = Database::new();
         let id = TypeParameter::alloc(&mut db, "A".to_string());
-        let trait_id = Trait::alloc(
-            &mut db,
-            "ToString".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
+        let trait_id =
+            Trait::alloc(&mut db, "ToString".to_string(), Visibility::Private);
         let requirement = TraitInstance::new(trait_id);
 
         id.add_requirements(&mut db, vec![requirement]);
@@ -4487,12 +4032,7 @@ mod tests {
     #[test]
     fn test_trait_alloc() {
         let mut db = Database::new();
-        let id = Trait::alloc(
-            &mut db,
-            "A".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
+        let id = Trait::alloc(&mut db, "A".to_string(), Visibility::Private);
 
         assert_eq!(id.0, 0);
         assert_eq!(&db.traits[0].name, &"A".to_string());
@@ -4500,8 +4040,7 @@ mod tests {
 
     #[test]
     fn test_trait_new() {
-        let trait_type =
-            Trait::new("A".to_string(), ModuleId(0), Visibility::Private);
+        let trait_type = Trait::new("A".to_string(), Visibility::Private);
 
         assert_eq!(&trait_type.name, &"A");
     }
@@ -4509,12 +4048,7 @@ mod tests {
     #[test]
     fn test_trait_id_new_type_parameter() {
         let mut db = Database::new();
-        let id = Trait::alloc(
-            &mut db,
-            "A".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
+        let id = Trait::alloc(&mut db, "A".to_string(), Visibility::Private);
         let param = id.new_type_parameter(&mut db, "A".to_string());
 
         assert_eq!(id.type_parameters(&db), vec![param]);
@@ -4523,12 +4057,7 @@ mod tests {
     #[test]
     fn test_trait_instance_new() {
         let mut db = Database::new();
-        let id = Trait::alloc(
-            &mut db,
-            "A".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
+        let id = Trait::alloc(&mut db, "A".to_string(), Visibility::Private);
         let ins = TraitInstance::new(id);
         let index = db.traits.len() as u32 - 1;
 
@@ -4539,12 +4068,7 @@ mod tests {
     #[test]
     fn test_trait_instance_generic() {
         let mut db = Database::new();
-        let id = Trait::alloc(
-            &mut db,
-            "A".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
+        let id = Trait::alloc(&mut db, "A".to_string(), Visibility::Private);
         let ins1 = TraitInstance::generic(&mut db, id, TypeArguments::new());
         let ins2 = TraitInstance::generic(&mut db, id, TypeArguments::new());
         let index = db.traits.len() as u32 - 1;
@@ -4810,12 +4334,8 @@ mod tests {
     #[test]
     fn test_type_id_named_type_with_trait() {
         let mut db = Database::new();
-        let to_array = Trait::alloc(
-            &mut db,
-            "ToArray".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
+        let to_array =
+            Trait::alloc(&mut db, "ToArray".to_string(), Visibility::Private);
         let param = to_array.new_type_parameter(&mut db, "T".to_string());
 
         assert_eq!(
@@ -4873,12 +4393,8 @@ mod tests {
     #[test]
     fn test_type_id_named_type_with_trait_instance() {
         let mut db = Database::new();
-        let to_array = Trait::alloc(
-            &mut db,
-            "ToArray".to_string(),
-            ModuleId(0),
-            Visibility::Private,
-        );
+        let to_array =
+            Trait::alloc(&mut db, "ToArray".to_string(), Visibility::Private);
         let param = to_array.new_type_parameter(&mut db, "T".to_string());
         let ins = TypeId::TraitInstance(TraitInstance::generic(
             &mut db,

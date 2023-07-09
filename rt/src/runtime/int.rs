@@ -1,4 +1,4 @@
-use crate::mem::{Float, Int, String as InkoString};
+use crate::mem::{Int, String as InkoString};
 use crate::process::ProcessPointer;
 use crate::runtime::process::panic;
 use crate::state::State;
@@ -55,14 +55,6 @@ pub unsafe extern "system" fn inko_int_clone(
     } else {
         Int::boxed((*state).int_class, obj.value)
     }
-}
-
-#[no_mangle]
-pub unsafe extern "system" fn inko_int_to_float(
-    state: *const State,
-    int: i64,
-) -> *const Float {
-    Float::alloc((*state).float_class, int as f64)
 }
 
 #[no_mangle]

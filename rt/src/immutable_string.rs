@@ -45,6 +45,11 @@ impl ImmutableString {
     pub(crate) fn len(&self) -> usize {
         self.bytes.len() - 1
     }
+
+    /// Returns a pointer to the bytes, including the NULL byte.
+    pub(crate) fn as_ptr(&self) -> *const u8 {
+        self.bytes.as_ptr() as *const _
+    }
 }
 
 impl Deref for ImmutableString {

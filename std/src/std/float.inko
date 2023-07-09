@@ -7,6 +7,25 @@ import std::int::(MAX, MIN, ToInt)
 import std::ops::(Add, Divide, Modulo, Multiply, Subtract)
 import std::string::ToString
 
+class extern FloatResult {
+  let @tag: Int
+  let @value: Float
+}
+
+fn extern inko_float_round(
+  state: Pointer[Int8],
+  value: Float64,
+  decimals: Int,
+) -> Float
+
+fn extern inko_float_to_string(state: Pointer[Int8], float: Float64) -> String
+fn extern inko_string_to_float(
+  state: Pointer[Int8],
+  string: String,
+  start: Int,
+  end: Int,
+) -> FloatResult
+
 # A type that can be converted to a Float.
 trait pub ToFloat {
   # Converts `self` to a `Float`
@@ -61,8 +80,8 @@ class builtin Float {
   #
   #     Float.parse('1.2e1') # => Option.Some(12.0)
   fn pub static parse(string: String) -> Option[Float] {
-    match _INKO.string_to_float(string, -1, -1) {
-      case { @tag = 0, @value = v } -> Option.Some(v as Float)
+    match inko_string_to_float(_INKO.state, string, -1, -1) {
+      case { @tag = 0, @value = v } -> Option.Some(v)
       case _ -> Option.None
     }
   }
@@ -172,7 +191,7 @@ class builtin Float {
   #
   #     Float.not_a_number.round.not_a_number? # => true
   fn pub round(decimals: Int) -> Float {
-    _INKO.float_round(self, decimals)
+    inko_float_round(_INKO.state, self as Float64, decimals)
   }
 
   # Returns the fractional part of this float.
@@ -203,7 +222,7 @@ class builtin Float {
 
 impl ToInt for Float {
   fn pub to_int -> Int {
-    _INKO.float_to_int(self)
+    self as Int
   }
 }
 
@@ -304,7 +323,7 @@ impl ToString for Float {
   #
   #     Float.infinity.to_string # => 'Infinity'
   fn pub to_string -> String {
-    _INKO.float_to_string(self)
+    inko_float_to_string(_INKO.state, self as Float64)
   }
 }
 

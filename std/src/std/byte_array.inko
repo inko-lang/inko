@@ -10,6 +10,62 @@ import std::iter::(Bytes as BytesTrait, EOF, Enum, Iter)
 import std::option::Option
 import std::string::(IntoString, ToString)
 
+fn extern inko_byte_array_new(state: Pointer[Int8]) -> ByteArray
+fn extern inko_byte_array_clear(bytes: mut ByteArray)
+fn extern inko_byte_array_append(target: mut ByteArray, source: mut ByteArray)
+fn extern inko_byte_array_clone(
+  state: Pointer[Int8],
+  bytes: ref ByteArray,
+) -> ByteArray
+
+fn extern inko_byte_array_copy_from(
+  state: Pointer[Int8],
+  target: mut ByteArray,
+  source: ref ByteArray,
+  start: Int,
+  length: Int,
+) -> Int
+
+fn extern inko_byte_array_drain_to_string(
+  state: Pointer[Int8],
+  bytes: mut ByteArray
+) -> String
+
+fn extern inko_byte_array_drop(bytes: mut ByteArray)
+fn extern inko_byte_array_eq(
+  state: Pointer[Int8],
+  left: ref ByteArray,
+  right: ref ByteArray,
+) -> Bool
+
+fn extern inko_byte_array_get(bytes: ref ByteArray, index: Int) -> Int
+fn extern inko_byte_array_length(
+  state: Pointer[Int8],
+  bytes: ref ByteArray,
+) -> Int
+
+fn extern inko_byte_array_push(bytes: mut ByteArray, byte: Int)
+fn extern inko_byte_array_pop(bytes: mut ByteArray) -> Int
+fn extern inko_byte_array_remove(bytes: mut ByteArray, index: Int) -> Int
+fn extern inko_byte_array_resize(bytes: mut ByteArray, size: Int, filler: Int)
+fn extern inko_byte_array_set(
+  bytes: mut ByteArray,
+  index: Int,
+  value: Int,
+) -> Int
+
+fn extern inko_byte_array_slice(
+  state: Pointer[Int8],
+  bytes: ref ByteArray,
+  start: Int,
+  length: Int
+) -> ByteArray
+
+fn extern inko_byte_array_to_string(
+  state: Pointer[Int8],
+  bytes: ref ByteArray,
+) -> String
+
 # A type from which a new `ByteArray` can be created.
 trait pub ToByteArray {
   fn pub to_byte_array -> ByteArray
@@ -32,7 +88,7 @@ trait pub IntoByteArray {
 class builtin ByteArray {
   # Returns a new empty `ByteArray`.
   fn pub static new -> ByteArray {
-    _INKO.byte_array_new
+    inko_byte_array_new(_INKO.state)
   }
 
   # Returns a new `ByteArray` created from the given `Array`.
@@ -74,7 +130,7 @@ class builtin ByteArray {
   fn pub mut clear {
     # Bytes always fit in a tagged pointer, so there's no need to run any
     # destructors them.
-    _INKO.byte_array_clear(self)
+    inko_byte_array_clear(self)
   }
 
   # Appends the bytes of the given `ByteArray` to `self`.
@@ -87,7 +143,7 @@ class builtin ByteArray {
   #     a.append(b)
   #     a # => ByteArray.from_array([10, 20])
   fn pub mut append(other: ByteArray) {
-    _INKO.byte_array_append(self, other)
+    inko_byte_array_append(self, other)
   }
 
   # Pushes a value to the back of the `ByteArray`, returning the pushed value.
@@ -101,7 +157,7 @@ class builtin ByteArray {
   #     bytes.push(10) # => 10
   #     bytes.length   # => 1
   fn pub mut push(value: Int) {
-    _INKO.byte_array_push(self, value)
+    inko_byte_array_push(self, value)
     _INKO.moved(value)
   }
 
@@ -125,7 +181,7 @@ class builtin ByteArray {
   #
   #     bytes.pop # => Option.None
   fn pub mut pop -> Option[Int] {
-    match _INKO.byte_array_pop(self) {
+    match inko_byte_array_pop(self) {
       case -1 -> Option.None
       case val -> Option.Some(val)
     }
@@ -147,7 +203,7 @@ class builtin ByteArray {
   # This method panics if the index is out of bounds.
   fn pub mut remove_at(index: Int) -> Int {
     bounds_check(index, length)
-    _INKO.byte_array_remove(self, index)
+    inko_byte_array_remove(self, index)
   }
 
   # Returns a new `String` using the bytes in this `ByteArray`, draining it in
@@ -166,7 +222,7 @@ class builtin ByteArray {
   #     bytes.drain_to_string # => 'inko'
   #     bytes.empty?          # => True
   fn pub mut drain_to_string -> String {
-    _INKO.byte_array_drain_to_string(self)
+    inko_byte_array_drain_to_string(_INKO.state, self)
   }
 
   # Slices `self` into a new `ByteArray`.
@@ -186,7 +242,7 @@ class builtin ByteArray {
   #     sliced[1] # => 3
   fn pub slice(start: Int, length: Int) -> ByteArray {
     bounds_check(start, self.length)
-    _INKO.byte_array_slice(self, start, length)
+    inko_byte_array_slice(_INKO.state, self, start, length)
   }
 
   # Returns the byte at the given index, returning None if the index is out of
@@ -208,7 +264,7 @@ class builtin ByteArray {
   fn pub opt(index: Int) -> Option[Int] {
     if index < 0 or index >= length { return Option.None }
 
-    Option.Some(_INKO.byte_array_get(self, index))
+    Option.Some(inko_byte_array_get(self, index))
   }
 
   # Returns the byte at the given index.
@@ -226,7 +282,7 @@ class builtin ByteArray {
   #     bytes[0] # => 10
   fn pub get(index: Int) -> Int {
     bounds_check(index, length)
-    _INKO.byte_array_get(self, index)
+    inko_byte_array_get(self, index)
   }
 
   # Stores a byte at the given index, then returns it.
@@ -245,7 +301,7 @@ class builtin ByteArray {
   #     bytes[0]      # => 30
   fn pub mut set(index: Int, value: Int) {
     bounds_check(index, length)
-    _INKO.byte_array_set(self, index, value)
+    inko_byte_array_set(self, index, value)
     _INKO.moved(value)
   }
 
@@ -258,7 +314,7 @@ class builtin ByteArray {
   #     ByteArray.new.length     # => 0
   #     ByteArray.from_array([10]).length # => 1
   fn pub length -> Int {
-    _INKO.byte_array_length(self)
+    inko_byte_array_length(_INKO.state, self)
   }
 
   # Returns `true` if `self` is empty.
@@ -302,10 +358,9 @@ class builtin ByteArray {
     let mut b = length - 1
 
     while a < b {
-      let a_val = _INKO.byte_array_get(self, a)
+      let a_val = inko_byte_array_get(self, a)
 
-      _INKO.byte_array_set(self, a, _INKO.byte_array_set(self, b, a_val))
-
+      inko_byte_array_set(self, a, inko_byte_array_set(self, b, a_val))
       a += 1
       b -= 1
     }
@@ -326,7 +381,7 @@ class builtin ByteArray {
   #
   #     b # => ByteArray.from_array([1, 2])
   fn pub mut copy_from(bytes: ref ByteArray, at: Int, length: Int) -> Int {
-    _INKO.byte_array_copy_from(self, bytes, at, length)
+    inko_byte_array_copy_from(_INKO.state, self, bytes, at, length)
   }
 
   # Resizes `self` to the new length.
@@ -351,7 +406,7 @@ class builtin ByteArray {
   fn pub mut resize(length: Int, value: Int) {
     if length < 0 { panic('The new length must be greater than zero') }
 
-    _INKO.byte_array_resize(self, length, value)
+    inko_byte_array_resize(self, length, value)
   }
 }
 
@@ -359,9 +414,9 @@ impl Drop for ByteArray {
   fn mut drop {
     let mut index = 0
 
-    while index < length { _INKO.byte_array_get(self, index := index + 1) }
+    while index < length { inko_byte_array_get(self, index := index + 1) }
 
-    _INKO.byte_array_drop(self)
+    inko_byte_array_drop(self)
   }
 }
 
@@ -391,7 +446,7 @@ impl ToString for ByteArray {
   #
   #     bytes.to_string # => 'inko'
   fn pub to_string -> String {
-    _INKO.byte_array_to_string(self)
+    inko_byte_array_to_string(_INKO.state, self)
   }
 }
 
@@ -414,13 +469,13 @@ impl Equal[ByteArray] for ByteArray {
   #     ByteArray.from_array([10]) == ByteArray.from_array([10]) # => True
   #     ByteArray.from_array([10]) == ByteArray.from_array([20]) # => False
   fn pub ==(other: ref ByteArray) -> Bool {
-    _INKO.byte_array_eq(self, other)
+    inko_byte_array_eq(_INKO.state, self, other)
   }
 }
 
 impl Clone[ByteArray] for ByteArray {
   fn pub clone -> ByteArray {
-    _INKO.byte_array_clone(self)
+    inko_byte_array_clone(_INKO.state, self)
   }
 }
 
@@ -478,7 +533,7 @@ impl Iter[Int] for Bytes {
 impl BytesTrait for Bytes {
   fn pub mut next_byte -> Int {
     if @index < @bytes.length {
-      _INKO.byte_array_get(@bytes, @index := @index + 1)
+      inko_byte_array_get(@bytes, @index := @index + 1)
     } else {
       EOF
     }

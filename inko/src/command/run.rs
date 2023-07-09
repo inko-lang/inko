@@ -46,6 +46,8 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         "PATH",
     );
 
+    options.optflag("", "static", "Statically link imported C libraries");
+
     let matches = options.parse(arguments)?;
 
     if matches.opt_present("h") {
@@ -63,6 +65,10 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
 
     for path in matches.opt_strs("i") {
         config.sources.add(path.into());
+    }
+
+    if matches.opt_present("static") {
+        config.static_linking = true;
     }
 
     let time = SystemTime::now()

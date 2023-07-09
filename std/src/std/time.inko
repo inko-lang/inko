@@ -6,6 +6,10 @@ import std::fmt::(Format, Formatter)
 import std::int::ToInt
 import std::ops::(Add, Subtract)
 
+fn extern inko_time_monotonic(state: Pointer[Int8]) -> Int64
+fn extern inko_time_system(state: Pointer[Int8]) -> Float
+fn extern inko_time_system_offset -> Int64
+
 let SECS_PER_MIN = 60
 let SECS_PER_HOUR = 3600
 let SECS_PER_DAY = 86_400
@@ -244,7 +248,10 @@ class pub DateTime {
   #
   #     DateTime.new
   fn pub static new -> DateTime {
-    from_timestamp(_INKO.time_system, _INKO.time_system_offset)
+    from_timestamp(
+      inko_time_system(_INKO.state),
+      inko_time_system_offset as Int
+    )
   }
 
   # Returns a new `DateTime` representing the current time using UTC as the
@@ -258,7 +265,7 @@ class pub DateTime {
   #
   #     DateTime.utc
   fn pub static utc -> DateTime {
-    from_timestamp(time: _INKO.time_system, utc_offset: 0)
+    from_timestamp(time: inko_time_system(_INKO.state), utc_offset: 0)
   }
 
   # Returns a new `DateTime` from a Unix timestamp and UTC offset.
@@ -520,7 +527,7 @@ class pub Instant {
 
   # Returns a new `Instant` representing the current time.
   fn pub static new -> Instant {
-    Instant { @nanos = _INKO.time_monotonic }
+    Instant { @nanos = inko_time_monotonic(_INKO.state) as Int }
   }
 
   # Returns a `Duration` measuring the time elapsed since the point in time
@@ -543,7 +550,7 @@ class pub Instant {
   #
   #     start.elapsed.to_secs >= 1.0 # => true
   fn pub elapsed -> Duration {
-    Duration { @nanos = _INKO.time_monotonic - @nanos }
+    Duration { @nanos = inko_time_monotonic(_INKO.state) as Int - @nanos }
   }
 
   # Returns a `Duration` measuring the time remaining until reaching `self`.
@@ -558,7 +565,7 @@ class pub Instant {
   #
   #     time.remaining # => Duration.from_secs(5)
   fn pub remaining -> Duration {
-    Duration { @nanos = @nanos - _INKO.time_monotonic }
+    Duration { @nanos = @nanos - (inko_time_monotonic(_INKO.state) as Int) }
   }
 }
 

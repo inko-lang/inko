@@ -2,6 +2,7 @@
 use crate::diagnostics::DiagnosticId;
 use crate::hir;
 use crate::state::State;
+use ast::source_location::SourceLocation;
 use std::path::PathBuf;
 use types::check::TypeChecker;
 use types::format::format_type;
@@ -105,6 +106,9 @@ pub(crate) struct Rules {
 
     /// If private types are allowed.
     pub(crate) allow_private_types: bool,
+
+    /// If references are allowed.
+    pub(crate) allow_refs: bool,
 }
 
 impl Default for Rules {
@@ -113,6 +117,7 @@ impl Default for Rules {
             type_parameters_as_owned: false,
             type_parameters_as_rigid: false,
             allow_private_types: true,
+            allow_refs: true,
         }
     }
 }
@@ -165,6 +170,15 @@ impl<'a> DefineTypeSignature<'a> {
         match node {
             hir::Type::Named(ref mut n) => {
                 self.define_type_name(n, RefKind::Owned)
+            }
+            hir::Type::Ref(_) | hir::Type::Mut(_) if !self.rules.allow_refs => {
+                self.state.diagnostics.error(
+                    DiagnosticId::DuplicateSymbol,
+                    "References to types aren't allowed here",
+                    self.file(),
+                    node.location().clone(),
+                );
+                TypeRef::Error
             }
             hir::Type::Ref(ref mut n) => {
                 self.define_reference_type(n, RefKind::Ref)
@@ -243,6 +257,9 @@ impl<'a> DefineTypeSignature<'a> {
             }
 
             match symbol {
+                Symbol::Class(id) if id.kind(&self.state.db).is_extern() => {
+                    TypeRef::foreign_struct(id)
+                }
                 Symbol::Class(id) => {
                     kind.into_type_ref(self.define_class_instance(id, node))
                 }
@@ -284,11 +301,10 @@ impl<'a> DefineTypeSignature<'a> {
                 }
                 "Any" => match kind {
                     RefKind::Owned => TypeRef::Any,
-                    RefKind::Ref | RefKind::Mut => TypeRef::RefAny,
-                    RefKind::Uni => {
+                    _ => {
                         self.state.diagnostics.error(
                             DiagnosticId::InvalidType,
-                            "'uni Any' isn't a valid type",
+                            "'Any' can only be used as an owned type",
                             self.file(),
                             node.location.clone(),
                         );
@@ -296,14 +312,16 @@ impl<'a> DefineTypeSignature<'a> {
                         return TypeRef::Error;
                     }
                 },
-                _ => {
-                    self.state.diagnostics.undefined_symbol(
+                name => {
+                    if let Some(ctype) = self.resolve_foreign_type(
                         name,
-                        self.file(),
-                        node.name.location.clone(),
-                    );
-
-                    return TypeRef::Error;
+                        &node.arguments,
+                        &node.location,
+                    ) {
+                        ctype
+                    } else {
+                        TypeRef::Error
+                    }
                 }
             }
         };
@@ -467,6 +485,96 @@ impl<'a> DefineTypeSignature<'a> {
         Some(targs)
     }
 
+    fn resolve_foreign_type(
+        &mut self,
+        name: &str,
+        arguments: &[hir::Type],
+        location: &SourceLocation,
+    ) -> Option<TypeRef> {
+        match name {
+            "Int8" => Some(TypeRef::foreign_int(8)),
+            "Int16" => Some(TypeRef::foreign_int(16)),
+            "Int32" => Some(TypeRef::foreign_int(32)),
+            "Int64" => Some(TypeRef::foreign_int(64)),
+            "Float32" => Some(TypeRef::foreign_float(32)),
+            "Float64" => Some(TypeRef::foreign_float(64)),
+            "Pointer" => {
+                if arguments.len() != 1 {
+                    self.state.diagnostics.incorrect_number_of_type_arguments(
+                        1,
+                        arguments.len(),
+                        self.file(),
+                        location.clone(),
+                    );
+
+                    return None;
+                }
+
+                let arg = if let hir::Type::Named(n) = &arguments[0] {
+                    self.resolve_foreign_type(
+                        &n.name.name,
+                        &n.arguments,
+                        &n.location,
+                    )
+                } else {
+                    None
+                }?;
+
+                // Pointers to Inko objects make no sense, as they're already
+                // represented as pointers.
+                if !arg.is_foreign_type(self.db()) {
+                    self.state.diagnostics.invalid_c_type(
+                        &format_type(self.db(), arg),
+                        self.file(),
+                        location.clone(),
+                    );
+                }
+
+                match arg {
+                    TypeRef::Owned(v) => Some(TypeRef::Pointer(v)),
+                    TypeRef::Pointer(_) => {
+                        self.state.diagnostics.error(
+                            DiagnosticId::InvalidType,
+                            "Nested pointers (e.g. 'Pointer[Pointer[Int8]]') \
+                            aren't supported, you should use regular \
+                            pointers instead",
+                            self.file(),
+                            location.clone(),
+                        );
+
+                        None
+                    }
+                    _ => Some(arg),
+                }
+            }
+            name => match self.scope.symbol(self.db(), name) {
+                Some(Symbol::Class(id))
+                    if id.kind(&self.state.db).is_extern() =>
+                {
+                    Some(TypeRef::foreign_struct(id))
+                }
+                Some(_) => {
+                    self.state.diagnostics.invalid_c_type(
+                        name,
+                        self.file(),
+                        location.clone(),
+                    );
+
+                    None
+                }
+                _ => {
+                    self.state.diagnostics.undefined_symbol(
+                        name,
+                        self.file(),
+                        location.clone(),
+                    );
+
+                    None
+                }
+            },
+        }
+    }
+
     fn db(&self) -> &Database {
         &self.state.db
     }
@@ -611,12 +719,9 @@ impl<'a> CheckTypeSignature<'a> {
         }
 
         if given != required {
-            self.state.diagnostics.error(
-                DiagnosticId::InvalidType,
-                format!(
-                    "Incorrect number of type arguments: expected {}, found {}",
-                    required, given
-                ),
+            self.state.diagnostics.incorrect_number_of_type_arguments(
+                required,
+                given,
                 self.file(),
                 node.location.clone(),
             );
@@ -910,7 +1015,6 @@ mod tests {
         let to_string = Trait::alloc(
             &mut state.db,
             "ToString".to_string(),
-            module,
             Visibility::Private,
         );
 
@@ -1229,7 +1333,6 @@ mod tests {
         let to_string = Trait::alloc(
             &mut state.db,
             "ToString".to_string(),
-            module,
             Visibility::Private,
         );
         let list_class = Class::alloc(

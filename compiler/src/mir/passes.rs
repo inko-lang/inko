@@ -3,8 +3,8 @@ use crate::diagnostics::DiagnosticId;
 use crate::hir;
 use crate::mir::pattern_matching as pmatch;
 use crate::mir::{
-    Block, BlockId, Class, CloneKind, Constant, Goto, Instruction, LocationId,
-    Method, Mir, Module, RegisterId, Trait,
+    Block, BlockId, CastType, Class, CloneKind, Constant, Goto, Instruction,
+    LocationId, Method, Mir, Module, RegisterId, Trait,
 };
 use crate::state::State;
 use ast::source_location::SourceLocation;
@@ -15,8 +15,9 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use types::format::format_type;
 use types::{
-    self, Block as _, TypeBounds, FIELDS_LIMIT, OPTION_NONE, OPTION_SOME,
-    RESULT_CLASS, RESULT_ERROR, RESULT_MODULE, RESULT_OK,
+    self, Block as _, ClassId, ForeignType, MethodId, TypeBounds, TypeId,
+    TypeRef, EQ_METHOD, FIELDS_LIMIT, OPTION_NONE, OPTION_SOME, RESULT_CLASS,
+    RESULT_ERROR, RESULT_MODULE, RESULT_OK,
 };
 
 const SELF_NAME: &str = "self";
@@ -415,7 +416,7 @@ impl<'a> GenerateDropper<'a> {
             Vec::new(),
             loc,
         );
-        lower.reduce_call(types::TypeRef::nil(), loc);
+        lower.reduce_call(TypeRef::nil(), loc);
         lower.current_block_mut().return_value(nil_reg, loc);
 
         assert_eq!(lower.method.arguments.len(), 1);
@@ -444,7 +445,7 @@ impl<'a> GenerateDropper<'a> {
         let self_reg = lower.self_register;
 
         if let Some(id) = drop_method_opt {
-            let typ = types::TypeRef::nil();
+            let typ = TypeRef::nil();
             let res = lower.new_register(typ);
 
             lower.current_block_mut().call_instance(
@@ -464,7 +465,7 @@ impl<'a> GenerateDropper<'a> {
         let enum_fields = class.enum_fields(lower.db());
         let tag_field =
             class.field_by_index(lower.db(), types::ENUM_TAG_INDEX).unwrap();
-        let tag_reg = lower.new_register(types::TypeRef::int());
+        let tag_reg = lower.new_register(TypeRef::int());
 
         for var in variants {
             let block = lower.add_current_block();
@@ -515,7 +516,7 @@ impl<'a> GenerateDropper<'a> {
         kind: types::MethodKind,
         free_self: bool,
         terminate: bool,
-    ) -> types::MethodId {
+    ) -> MethodId {
         let class = self.class.id;
         let drop_method_opt = class.method(&self.state.db, types::DROP_METHOD);
         let method_type = self.method_type(name, kind);
@@ -529,7 +530,7 @@ impl<'a> GenerateDropper<'a> {
         let self_reg = lower.self_register;
 
         if let Some(id) = drop_method_opt {
-            let typ = types::TypeRef::nil();
+            let typ = TypeRef::nil();
             let res = lower.new_register(typ);
 
             lower.current_block_mut().call_instance(
@@ -580,11 +581,7 @@ impl<'a> GenerateDropper<'a> {
         method_type
     }
 
-    fn method_type(
-        &mut self,
-        name: &str,
-        kind: types::MethodKind,
-    ) -> types::MethodId {
+    fn method_type(&mut self, name: &str, kind: types::MethodKind) -> MethodId {
         let id = types::Method::alloc(
             &mut self.state.db,
             self.module.id,
@@ -599,14 +596,14 @@ impl<'a> GenerateDropper<'a> {
                 self.class.id,
                 &types::TypeBounds::new(),
             ));
-        let receiver = types::TypeRef::Mut(self_type);
+        let receiver = TypeRef::Mut(self_type);
 
         id.set_receiver(&mut self.state.db, receiver);
-        id.set_return_type(&mut self.state.db, types::TypeRef::nil());
+        id.set_return_type(&mut self.state.db, TypeRef::nil());
         id
     }
 
-    fn add_method(&mut self, name: &str, id: types::MethodId, method: Method) {
+    fn add_method(&mut self, name: &str, id: MethodId, method: Method) {
         self.class.id.add_method(&mut self.state.db, name.to_string(), id);
         self.class.methods.push(id);
         self.mir.methods.insert(id, method);
@@ -845,6 +842,7 @@ impl<'a> LowerToMir<'a> {
                     v,
                     hir::TopLevelExpression::Trait(_)
                         | hir::TopLevelExpression::Class(_)
+                        | hir::TopLevelExpression::ExternClass(_)
                 )
             });
 
@@ -876,6 +874,9 @@ impl<'a> LowerToMir<'a> {
                 }
                 hir::TopLevelExpression::Class(n) => {
                     self.define_class(*n);
+                }
+                hir::TopLevelExpression::ExternClass(n) => {
+                    self.define_extern_class(*n);
                 }
                 _ => {}
             }
@@ -984,20 +985,24 @@ impl<'a> LowerToMir<'a> {
 
         let mut class = Class::new(id);
 
-        if !id.kind(self.db()).is_extern() {
-            GenerateDropper {
-                state: self.state,
-                mir: self.mir,
-                module: self.module,
-                class: &mut class,
-                location: node.location,
-            }
-            .run();
+        GenerateDropper {
+            state: self.state,
+            mir: self.mir,
+            module: self.module,
+            class: &mut class,
+            location: node.location,
         }
+        .run();
 
         class.add_methods(&methods);
         self.mir.add_methods(methods);
         self.add_class(id, class);
+    }
+
+    fn define_extern_class(&mut self, node: hir::DefineExternClass) {
+        let id = node.class_id.unwrap();
+
+        self.add_class(id, Class::new(id));
     }
 
     fn reopen_class(&mut self, node: hir::ReopenClass) {
@@ -1086,7 +1091,7 @@ impl<'a> LowerToMir<'a> {
         let mut method = Method::new(id, loc);
         let fields = class.enum_fields(self.db());
         let bounds = TypeBounds::new();
-        let ins = types::TypeRef::Owned(types::TypeId::ClassInstance(
+        let ins = TypeRef::Owned(types::TypeId::ClassInstance(
             types::ClassInstance::rigid(self.db_mut(), class, &bounds),
         ));
         let mut lower =
@@ -1095,7 +1100,7 @@ impl<'a> LowerToMir<'a> {
         lower.prepare(loc);
 
         let ins_reg = lower.new_register(ins);
-        let tag_reg = lower.new_register(types::TypeRef::int());
+        let tag_reg = lower.new_register(TypeRef::int());
         let tag_val = variant_id.id(lower.db()) as i64;
         let tag_field =
             class.field_by_index(lower.db(), types::ENUM_TAG_INDEX).unwrap();
@@ -1222,7 +1227,7 @@ impl<'a> LowerMethod<'a> {
         mut self,
         nodes: Vec<hir::Expression>,
         self_field: types::FieldId,
-        self_type: types::TypeRef,
+        self_type: TypeRef,
         location: LocationId,
     ) {
         self.prepare(location);
@@ -1334,7 +1339,7 @@ impl<'a> LowerMethod<'a> {
     fn define_captured_self_register(
         &mut self,
         field: types::FieldId,
-        field_type: types::TypeRef,
+        field_type: TypeRef,
         location: LocationId,
     ) {
         // Within a closure, explicit and implicit references to `self` should
@@ -1536,7 +1541,7 @@ impl<'a> LowerMethod<'a> {
             // of the `if`).
             self.get_nil(loc)
         } else {
-            self.new_register(types::TypeRef::Never)
+            self.new_register(TypeRef::Never)
         }
     }
 
@@ -1544,14 +1549,14 @@ impl<'a> LowerMethod<'a> {
         let target = self.loop_target().unwrap().1;
 
         self.jump_out_of_loop(target, node.location);
-        self.new_register(types::TypeRef::Never)
+        self.new_register(TypeRef::Never)
     }
 
     fn next_expression(&mut self, node: hir::Next) -> RegisterId {
         let target = self.loop_target().unwrap().0;
 
         self.jump_out_of_loop(target, node.location);
-        self.new_register(types::TypeRef::Never)
+        self.new_register(TypeRef::Never)
     }
 
     fn loop_target(&self) -> Option<(BlockId, BlockId)> {
@@ -1743,7 +1748,7 @@ impl<'a> LowerMethod<'a> {
         value: String,
         location: SourceLocation,
     ) -> RegisterId {
-        let reg = self.new_register(types::TypeRef::string());
+        let reg = self.new_register(TypeRef::string());
         let loc = self.add_location(location);
 
         self.current_block_mut().string_literal(reg, value, loc);
@@ -1765,9 +1770,7 @@ impl<'a> LowerMethod<'a> {
                 };
 
                 let args = self.call_arguments(&info, node.arguments);
-                let result = self.handle_call(info, rec, args, loc);
-
-                self.reduce_call(returns, loc);
+                let result = self.call_method(info, rec, args, loc);
 
                 if returns.is_never(self.db()) {
                     self.add_current_block();
@@ -1813,16 +1816,21 @@ impl<'a> LowerMethod<'a> {
 
                 res
             }
-            _ => {
-                unreachable!()
+            types::CallKind::ReadPointer(typ) => {
+                let rec = self.expression(node.receiver.unwrap());
+                let res = self.new_register(typ);
+
+                self.current_block_mut().read_pointer(res, rec, loc);
+                res
             }
+            _ => unreachable!(),
         };
 
         self.exit_call_scope(entered, reg);
         reg
     }
 
-    fn handle_call(
+    fn call_method(
         &mut self,
         info: types::CallInfo,
         receiver: Option<RegisterId>,
@@ -1848,10 +1856,31 @@ impl<'a> LowerMethod<'a> {
                 reg
             }
             types::Receiver::Class(id) => {
-                // Static methods can't move, be dynamic or async, so we can
-                // skip the code that comes after this.
-                self.current_block_mut()
-                    .call_static(result, id, info.id, arguments, location);
+                // These methods can't move, be dynamic or async, so we can skip
+                // the code that comes after this.
+                if info.id.is_extern(self.db()) {
+                    self.current_block_mut()
+                        .call_extern(result, info.id, arguments, location);
+
+                    if info.id.return_type(self.db()).is_never(self.db()) {
+                        self.add_current_block();
+                    } else if !info.id.has_return_type(self.db()) {
+                        self.current_block_mut().nil_literal(result, location);
+                    }
+
+                    // We don't reduce for extern calls for two reasons:
+                    //
+                    // 1. They are typically exposed through regular Inko
+                    //    methods, which would result in two reductions per call
+                    //    instead of one.
+                    // 2. This allows us to check `errno` after a call, without
+                    //    having to worry about the process being rescheduled in
+                    //    between the call and the check.
+                } else {
+                    self.current_block_mut()
+                        .call_static(result, id, info.id, arguments, location);
+                    self.reduce_call(info.returns, location);
+                }
 
                 return result;
             }
@@ -1881,6 +1910,7 @@ impl<'a> LowerMethod<'a> {
                 .call_instance(result, rec, info.id, arguments, location);
         }
 
+        self.reduce_call(info.returns, location);
         result
     }
 
@@ -1896,13 +1926,13 @@ impl<'a> LowerMethod<'a> {
                 hir::Argument::Positional(n) => {
                     let exp = self.expected_argument_type(info.id, index);
 
-                    args[index] = self.input_expression(*n, Some(exp));
+                    args[index] = self.argument_expression(info, *n, exp);
                 }
                 hir::Argument::Named(n) => {
                     let index = n.index;
                     let exp = self.expected_argument_type(info.id, index);
 
-                    args[index] = self.input_expression(n.value, Some(exp));
+                    args[index] = self.argument_expression(info, n.value, exp);
                 }
             }
         }
@@ -1910,11 +1940,7 @@ impl<'a> LowerMethod<'a> {
         args
     }
 
-    fn check_inferred(
-        &mut self,
-        typ: types::TypeRef,
-        location: &SourceLocation,
-    ) {
+    fn check_inferred(&mut self, typ: TypeRef, location: &SourceLocation) {
         if typ.is_inferred(self.db()) {
             return;
         }
@@ -1928,22 +1954,41 @@ impl<'a> LowerMethod<'a> {
 
     fn expected_argument_type(
         &self,
-        method: types::MethodId,
+        method: MethodId,
         index: usize,
-    ) -> types::TypeRef {
+    ) -> TypeRef {
         method.positional_argument_input_type(self.db(), index).unwrap()
     }
 
     fn input_expression(
         &mut self,
         expression: hir::Expression,
-        expected: Option<types::TypeRef>,
+        expected: Option<TypeRef>,
     ) -> RegisterId {
         let loc = self.add_location(expression.location().clone());
         let reg = self.expression(expression);
         let typ = self.register_type(reg);
 
         self.input_register(reg, typ, expected, loc)
+    }
+
+    fn argument_expression(
+        &mut self,
+        info: &types::CallInfo,
+        expression: hir::Expression,
+        expected: TypeRef,
+    ) -> RegisterId {
+        let loc = self.add_location(expression.location().clone());
+        let reg = self.expression(expression);
+
+        // Arguments passed to extern functions are passed as-is. This way we
+        // can pass values to the runtime's functions, without adjusting
+        // reference counts.
+        if info.id.is_extern(self.db()) {
+            return reg;
+        }
+
+        self.input_register(reg, self.register_type(reg), Some(expected), loc)
     }
 
     fn assign_setter(&mut self, node: hir::AssignSetter) -> RegisterId {
@@ -1962,9 +2007,7 @@ impl<'a> LowerMethod<'a> {
 
                 let args = vec![self.input_expression(node.value, Some(exp))];
                 let returns = info.returns;
-                let result = self.handle_call(info, rec, args, loc);
-
-                self.reduce_call(returns, loc);
+                let result = self.call_method(info, rec, args, loc);
 
                 if returns.is_never(self.db()) {
                     self.add_current_block();
@@ -1987,6 +2030,14 @@ impl<'a> LowerMethod<'a> {
 
                 self.current_block_mut()
                     .set_field(rec, info.class, info.id, arg, loc);
+                self.get_nil(loc)
+            }
+            types::CallKind::WritePointer => {
+                let rec = self.expression(node.receiver);
+                let arg = self.input_expression(node.value, None);
+                let loc = self.add_location(node.location);
+
+                self.current_block_mut().write_pointer(rec, arg, loc);
                 self.get_nil(loc)
             }
             _ => unreachable!(),
@@ -2139,8 +2190,9 @@ impl<'a> LowerMethod<'a> {
             name => {
                 let reg = self.new_register(returns);
 
+                // Builtin calls don't reduce as they're exposed through regular
+                // methods, which already trigger reductions.
                 self.current_block_mut().call_builtin(reg, name, args, loc);
-                self.reduce_call(returns, loc);
 
                 if returns.is_never(self.db()) {
                     self.add_current_block();
@@ -2163,14 +2215,14 @@ impl<'a> LowerMethod<'a> {
         self.drop_all_registers();
         self.return_register(reg, loc);
         self.add_current_block();
-        self.new_register(types::TypeRef::Never)
+        self.new_register(TypeRef::Never)
     }
 
     fn try_expression(&mut self, node: hir::Try) -> RegisterId {
         let loc = self.add_location(node.location);
         let reg = self.expression(node.expression);
         let class = self.register_type(reg).class_id(self.db()).unwrap();
-        let tag_reg = self.new_untracked_register(types::TypeRef::int());
+        let tag_reg = self.new_untracked_register(TypeRef::int());
         let tag_field =
             class.field_by_index(self.db(), types::ENUM_TAG_INDEX).unwrap();
         let val_field = class.enum_fields(self.db())[0];
@@ -2179,7 +2231,7 @@ impl<'a> LowerMethod<'a> {
         let after_block = self.add_block();
         let mut blocks = vec![BlockId(0), BlockId(0)];
         let ret_reg = self.new_untracked_register(node.return_type);
-        let err_tag = self.new_untracked_register(types::TypeRef::int());
+        let err_tag = self.new_untracked_register(TypeRef::int());
 
         self.add_edge(self.current_block, ok_block);
         self.add_edge(self.current_block, err_block);
@@ -2284,7 +2336,7 @@ impl<'a> LowerMethod<'a> {
             class.field_by_index(self.db(), types::ENUM_TAG_INDEX).unwrap();
         let val_field = class.enum_fields(self.db())[0];
         let result_reg = self.new_register(node.return_type);
-        let tag_reg = self.new_register(types::TypeRef::int());
+        let tag_reg = self.new_register(TypeRef::int());
 
         self.current_block_mut().allocate(result_reg, class, loc);
         self.current_block_mut().int_literal(tag_reg, err_id as _, loc);
@@ -2300,7 +2352,7 @@ impl<'a> LowerMethod<'a> {
         self.current_block_mut().return_value(result_reg, loc);
 
         self.add_current_block();
-        self.new_register(types::TypeRef::Never)
+        self.new_register(TypeRef::Never)
     }
 
     fn return_register(&mut self, register: RegisterId, location: LocationId) {
@@ -2321,9 +2373,21 @@ impl<'a> LowerMethod<'a> {
         let src = self.expression(node.value);
         let reg = self.new_register(node.resolved_type);
         let loc = self.add_location(node.location);
+        let from_type = self.register_type(src);
+        let to_type = node.resolved_type;
 
-        self.mark_register_as_moved(src);
-        self.current_block_mut().move_register(reg, src, loc);
+        match (self.cast_type(from_type), self.cast_type(to_type)) {
+            (Some(from), Some(to)) => {
+                self.current_block_mut().cast(reg, src, from, to, loc);
+            }
+            _ => {
+                let out = self.input_register(src, from_type, None, loc);
+
+                self.mark_register_as_moved(out);
+                self.current_block_mut().move_register(reg, out, loc);
+            }
+        }
+
         reg
     }
 
@@ -2332,13 +2396,22 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn mut_expression(&mut self, node: hir::Mut) -> RegisterId {
-        self.increment(node.value, node.resolved_type, node.location)
+        if node.resolved_type.is_pointer(self.db()) {
+            let loc = self.add_location(node.location);
+            let val = self.expression(node.value);
+            let reg = self.new_register(node.resolved_type);
+
+            self.current_block_mut().pointer(reg, val, loc);
+            reg
+        } else {
+            self.increment(node.value, node.resolved_type, node.location)
+        }
     }
 
     fn increment(
         &mut self,
         value: hir::Expression,
-        return_type: types::TypeRef,
+        return_type: TypeRef,
         location: SourceLocation,
     ) -> RegisterId {
         let loc = self.add_location(location);
@@ -2879,15 +2952,18 @@ impl<'a> LowerMethod<'a> {
                 fallback
             };
 
-            let res_reg =
-                self.new_untracked_register(types::TypeRef::boolean());
-            let val_reg = self.new_untracked_register(types::TypeRef::string());
+            let res_reg = self.new_untracked_register(TypeRef::boolean());
+            let val_reg = self.new_untracked_register(TypeRef::string());
+            let eq_method = ClassId::string()
+                .method(self.db(), EQ_METHOD)
+                .expect("String.== is undefined");
 
             self.block_mut(test_block).string_literal(val_reg, val, loc);
-            self.block_mut(test_block).call_builtin(
+            self.block_mut(test_block).call_instance(
                 res_reg,
-                types::BuiltinFunction::StringEq,
-                vec![test_reg, val_reg],
+                test_reg,
+                eq_method,
+                vec![val_reg],
                 loc,
             );
 
@@ -2933,12 +3009,11 @@ impl<'a> LowerMethod<'a> {
                 fallback
             };
 
-            let res_reg =
-                self.new_untracked_register(types::TypeRef::boolean());
+            let res_reg = self.new_untracked_register(TypeRef::boolean());
 
             let test_end_block = match case.constructor {
                 pmatch::Constructor::Int(val) => {
-                    let val_type = types::TypeRef::int();
+                    let val_type = TypeRef::int();
                     let val_reg = self.new_untracked_register(val_type);
 
                     self.block_mut(test_block).int_literal(val_reg, val, loc);
@@ -3025,7 +3100,7 @@ impl<'a> LowerMethod<'a> {
 
         let test_type = self.register_type(test_reg);
         let class = test_type.class_id(self.db()).unwrap();
-        let tag_reg = self.new_untracked_register(types::TypeRef::int());
+        let tag_reg = self.new_untracked_register(TypeRef::int());
         let tag_field =
             class.field_by_index(self.db(), types::ENUM_TAG_INDEX).unwrap();
         let member_fields = class.enum_fields(self.db());
@@ -3035,7 +3110,7 @@ impl<'a> LowerMethod<'a> {
             .get_field(tag_reg, test_reg, class, tag_field, loc);
 
         for &field in &member_fields {
-            let reg = self.new_untracked_register(types::TypeRef::Any);
+            let reg = self.new_untracked_register(TypeRef::Any);
 
             self.block_mut(test_block)
                 .get_field(reg, test_reg, class, field, loc);
@@ -3083,10 +3158,8 @@ impl<'a> LowerMethod<'a> {
             }
             types::IdentifierKind::Method(info) => {
                 let entered = self.enter_call_scope();
-                let ret = info.returns;
-                let reg = self.handle_call(info, None, Vec::new(), loc);
+                let reg = self.call_method(info, None, Vec::new(), loc);
 
-                self.reduce_call(ret, loc);
                 self.exit_call_scope(entered, reg);
                 reg
             }
@@ -3153,10 +3226,8 @@ impl<'a> LowerMethod<'a> {
             types::ConstantKind::Method(info) => {
                 let entered = self.enter_call_scope();
                 let loc = self.add_location(node.location);
-                let ret = info.returns;
-                let reg = self.handle_call(info, None, Vec::new(), loc);
+                let reg = self.call_method(info, None, Vec::new(), loc);
 
-                self.reduce_call(ret, loc);
                 self.exit_call_scope(entered, reg);
                 reg
             }
@@ -3196,7 +3267,7 @@ impl<'a> LowerMethod<'a> {
         let gen_class_ins =
             types::TypeId::ClassInstance(types::ClassInstance::new(class_id));
 
-        let call_rec_type = types::TypeRef::Mut(gen_class_ins);
+        let call_rec_type = TypeRef::Mut(gen_class_ins);
         let returns = closure_id.return_type(self.db());
 
         method_id.set_receiver(self.db_mut(), call_rec_type);
@@ -3216,7 +3287,7 @@ impl<'a> LowerMethod<'a> {
             method_id,
         );
 
-        let gen_class_type = types::TypeRef::Owned(gen_class_ins);
+        let gen_class_type = TypeRef::Owned(gen_class_ins);
         let gen_class_reg = self.new_register(gen_class_type);
         let loc = self.add_location(node.location.clone());
 
@@ -3379,7 +3450,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn get_nil(&mut self, location: LocationId) -> RegisterId {
-        let reg = self.new_register(types::TypeRef::nil());
+        let reg = self.new_register(TypeRef::nil());
 
         self.current_block_mut().nil_literal(reg, location);
         reg
@@ -3564,21 +3635,12 @@ impl<'a> LowerMethod<'a> {
     fn input_register(
         &mut self,
         register: RegisterId,
-        register_type: types::TypeRef,
-        expected: Option<types::TypeRef>,
+        register_type: TypeRef,
+        expected: Option<TypeRef>,
         location: LocationId,
     ) -> RegisterId {
         if register_type.is_permanent(self.db()) {
             return register;
-        }
-
-        // 'ref Any' is used to pass values through the FFI without giving up
-        // ownership. Because the value could be anything, we don't increment
-        // ref counts.
-        if let Some(exp) = expected {
-            if exp.is_ref_any(self.db()) {
-                return register;
-            }
         }
 
         // Value types are always passed as a new value, whether the receiving
@@ -3664,11 +3726,13 @@ impl<'a> LowerMethod<'a> {
     fn clone_value_type(
         &mut self,
         source: RegisterId,
-        typ: types::TypeRef,
+        typ: TypeRef,
         force_clone: bool,
         location: LocationId,
     ) -> RegisterId {
-        if self.register_kind(source).is_regular() && !force_clone {
+        if typ.is_permanent(self.db())
+            || (self.register_kind(source).is_regular() && !force_clone)
+        {
             self.mark_register_as_moved(source);
 
             // Value types not bound to any variables/fields don't need to be
@@ -3809,7 +3873,7 @@ impl<'a> LowerMethod<'a> {
         let self_reg = self.surrounding_type_register;
         let self_type = self.register_type(self_reg);
 
-        if !self_type.is_owned_or_uni(self.db())
+        if !self.method.id.is_moving(self.db())
             || self_type.is_permanent(self.db())
         {
             return;
@@ -3978,27 +4042,24 @@ impl<'a> LowerMethod<'a> {
             return;
         }
 
-        let flag = self.new_register(types::TypeRef::boolean());
+        let flag = self.new_register(TypeRef::boolean());
 
         self.current_block_mut().true_literal(flag, location);
         self.drop_flags.insert(register, flag);
     }
 
-    fn new_untracked_register(
-        &mut self,
-        value_type: types::TypeRef,
-    ) -> RegisterId {
+    fn new_untracked_register(&mut self, value_type: TypeRef) -> RegisterId {
         self.add_register(RegisterKind::Regular, value_type)
     }
 
     fn new_untracked_match_variable(
         &mut self,
-        value_type: types::TypeRef,
+        value_type: TypeRef,
     ) -> RegisterId {
         self.add_register(RegisterKind::MatchVariable, value_type)
     }
 
-    fn new_register(&mut self, value_type: types::TypeRef) -> RegisterId {
+    fn new_register(&mut self, value_type: TypeRef) -> RegisterId {
         let id = self.add_register(RegisterKind::Regular, value_type);
 
         self.scope.created.push(id);
@@ -4036,14 +4097,14 @@ impl<'a> LowerMethod<'a> {
     fn new_field(
         &mut self,
         id: types::FieldId,
-        value_type: types::TypeRef,
+        value_type: TypeRef,
     ) -> RegisterId {
         // We don't track these registers in a scope, as fields are dropped at
         // the end of the surrounding method, unless they are moved.
         self.add_register(RegisterKind::Field(id), value_type)
     }
 
-    fn new_self(&mut self, value_type: types::TypeRef) -> RegisterId {
+    fn new_self(&mut self, value_type: TypeRef) -> RegisterId {
         let id = self.add_register(RegisterKind::SelfObject, value_type);
 
         self.scope.created.push(id);
@@ -4053,7 +4114,7 @@ impl<'a> LowerMethod<'a> {
     fn add_register(
         &mut self,
         kind: RegisterKind,
-        value_type: types::TypeRef,
+        value_type: TypeRef,
     ) -> RegisterId {
         let id = self.method.registers.alloc(value_type);
         let block = self.current_block;
@@ -4066,7 +4127,7 @@ impl<'a> LowerMethod<'a> {
     fn field_register(
         &mut self,
         id: types::FieldId,
-        value_type: types::TypeRef,
+        value_type: TypeRef,
         location: LocationId,
     ) -> RegisterId {
         if let Some(reg) = self.field_mapping.get(&id).cloned() {
@@ -4080,7 +4141,7 @@ impl<'a> LowerMethod<'a> {
         val_reg
     }
 
-    fn register_type(&self, register: RegisterId) -> types::TypeRef {
+    fn register_type(&self, register: RegisterId) -> TypeRef {
         self.method.registers.value_type(register)
     }
 
@@ -4252,7 +4313,7 @@ impl<'a> LowerMethod<'a> {
         self.method.id.receiver_id(self.db())
     }
 
-    fn surrounding_type(&self) -> types::TypeRef {
+    fn surrounding_type(&self) -> TypeRef {
         self.register_type(self.surrounding_type_register)
     }
 
@@ -4260,7 +4321,7 @@ impl<'a> LowerMethod<'a> {
         self.self_register != self.surrounding_type_register
     }
 
-    fn reduce_call(&mut self, returns: types::TypeRef, location: LocationId) {
+    fn reduce_call(&mut self, returns: TypeRef, location: LocationId) {
         // If the method never returns there's no point in generating a
         // reduction. Doing this can also break the LLVM code generation
         // process.
@@ -4273,6 +4334,44 @@ impl<'a> LowerMethod<'a> {
 
     fn warn_unreachable(&mut self, location: &SourceLocation) {
         self.state.diagnostics.unreachable(self.file(), location.clone());
+    }
+
+    fn cast_type(&self, typ: TypeRef) -> Option<CastType> {
+        if let TypeRef::Pointer(_) = typ {
+            Some(CastType::Pointer)
+        } else {
+            match typ.type_id(self.db()) {
+                Ok(TypeId::Foreign(ForeignType::Int(8))) => {
+                    Some(CastType::Int(8))
+                }
+                Ok(TypeId::Foreign(ForeignType::Int(16))) => {
+                    Some(CastType::Int(16))
+                }
+                Ok(TypeId::Foreign(ForeignType::Int(32))) => {
+                    Some(CastType::Int(32))
+                }
+                Ok(TypeId::Foreign(ForeignType::Int(64))) => {
+                    Some(CastType::Int(64))
+                }
+                Ok(TypeId::Foreign(ForeignType::Float(32))) => {
+                    Some(CastType::Float(32))
+                }
+                Ok(TypeId::Foreign(ForeignType::Float(64))) => {
+                    Some(CastType::Float(64))
+                }
+                Ok(TypeId::ClassInstance(ins))
+                    if ins.instance_of() == ClassId::int() =>
+                {
+                    Some(CastType::InkoInt)
+                }
+                Ok(TypeId::ClassInstance(ins))
+                    if ins.instance_of() == ClassId::float() =>
+                {
+                    Some(CastType::InkoFloat)
+                }
+                _ => None,
+            }
+        }
     }
 }
 
@@ -4519,24 +4618,9 @@ impl<'a> ExpandDrop<'a> {
 
         check.decrement_atomic(value, drop_id, after_id, location);
 
-        if self.method.registers.value_type(value).is_string(self.db) {
-            // Strings can be dropped directly instead of going through the
-            // dropper.
-            let reg = self.method.registers.alloc(types::TypeRef::nil());
-
-            self.block_mut(drop_id).call_builtin(
-                reg,
-                types::BuiltinFunction::StringDrop,
-                vec![value],
-                location,
-            );
-            self.block_mut(drop_id).free(value, location);
-        } else {
-            // Atomic values can't be pattern matched into sub-values, so we can
-            // call the dropper unconditionally.
-            self.call_dropper(drop_id, value, location);
-        }
-
+        // Atomic values can't be pattern matched into sub-values, so we can
+        // call the dropper unconditionally.
+        self.call_dropper(drop_id, value, location);
         self.block_mut(drop_id).goto(after_id, location);
 
         self.method.body.add_edge(before_id, drop_id);
@@ -4549,7 +4633,7 @@ impl<'a> ExpandDrop<'a> {
         before_id: BlockId,
         after_id: BlockId,
         value: RegisterId,
-        value_type: types::TypeRef,
+        value_type: TypeRef,
         location: LocationId,
     ) {
         if value_type.use_atomic_reference_counting(self.db) {
@@ -4680,7 +4764,7 @@ impl<'a> ExpandDrop<'a> {
         location: LocationId,
     ) {
         let typ = self.method.registers.value_type(value);
-        let reg = self.method.registers.alloc(types::TypeRef::nil());
+        let reg = self.method.registers.alloc(TypeRef::nil());
 
         if let Some(class) = typ.class_id(self.db) {
             // If the type of the receiver is statically known to be a class, we

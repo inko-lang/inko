@@ -17,6 +17,52 @@ import std::io::Read
 import std::iter::(Bytes as BytesTrait, EOF, Enum, Iter)
 import std::ops::Add
 
+class extern StringResult {
+  let @tag: Int
+  let @value: String
+}
+
+fn extern inko_string_equals(
+  state: Pointer[Int8],
+  left: String,
+  right: String,
+) -> Bool
+
+fn extern inko_string_to_lower(state: Pointer[Int8], string: String) -> String
+fn extern inko_string_to_upper(state: Pointer[Int8], string: String) -> String
+fn extern inko_string_size(state: Pointer[Int8], string: String) -> Int
+fn extern inko_string_byte(string: String, index: Int) -> Int
+fn extern inko_string_slice_bytes(
+  state: Pointer[Int8],
+  string: String,
+  start: Int,
+  length: Int,
+) -> String
+
+fn extern inko_string_characters(string: String) -> Pointer[Int8]
+fn extern inko_string_characters_next(
+  state: Pointer[Int8],
+  iter: Pointer[Int8],
+) -> StringResult
+
+fn extern inko_string_characters_drop(iter: Pointer[Int8])
+fn extern inko_string_drop(string: String)
+fn extern inko_string_to_byte_array(
+  state: Pointer[Int8],
+  string: String,
+) -> ByteArray
+
+fn extern inko_string_concat_array(
+  state: Pointer[Int8],
+  strings: ref Array[String],
+) -> String
+
+fn extern inko_string_to_pointer(string: String) -> Pointer[Int8]
+fn extern inko_string_from_pointer(
+  state: Pointer[Int8],
+  pointer: Pointer[Int8],
+) -> String
+
 let TAB = 0x9
 let LF = 0xA
 let CR = 0xD
@@ -87,6 +133,22 @@ trait pub ToString {
 
 # An UTF-8 encoded and immutable string type.
 class builtin String {
+  # Returns a `String` created from the given NULL terminated pointer.
+  #
+  # The purpose of this method is to allow creating a `String` from a pointer
+  # returned by C code. While this method ensures the input is valid UTF-8, it
+  # may crash your program if given an invalid pointer (e.g. a NULL pointer).
+  #
+  # Do not use this method unless you have somehow verified that the pointer is
+  # a valid NULL terminated C string.
+  #
+  # # Examples
+  #
+  #     String.from_pointer("hello".to_pointer) == "hello" # => true
+  fn pub static from_pointer(pointer: Pointer[Int8]) -> String {
+    inko_string_from_pointer(_INKO.state, pointer)
+  }
+
   # Return a `String` that contains the values of the iterator, separated by the
   # value of the `with` argument.
   #
@@ -122,7 +184,7 @@ class builtin String {
   #
   #     'aä'.to_upper # => 'AÄ'
   fn pub to_upper -> String {
-    _INKO.string_to_upper(self)
+    inko_string_to_upper(_INKO.state, self)
   }
 
   # Returns the lowercase equivalent of the current `String`.
@@ -141,7 +203,7 @@ class builtin String {
   #
   #     'AÄ'.to_lower # => 'aä'
   fn pub to_lower -> String {
-    _INKO.string_to_lower(self)
+    inko_string_to_lower(_INKO.state, self)
   }
 
   # Returns the size of the `String` in bytes.
@@ -153,7 +215,7 @@ class builtin String {
   #     'foo'.size # => 3
   #     '😀'.size  # => 4
   fn pub size -> Int {
-    _INKO.string_size(self)
+    inko_string_size(_INKO.state, self)
   }
 
   # Returns the byte at the given byte index.
@@ -165,7 +227,7 @@ class builtin String {
   #     'inko'.byte(0) # => 105
   fn pub byte(index: Int) -> Int {
     bounds_check(index, size)
-    _INKO.string_byte(self, index)
+    inko_string_byte(self, index)
   }
 
   # Slices `self` into a substring.
@@ -202,7 +264,7 @@ class builtin String {
   #     '😊'.slice_bytes(start: 0, length: 4) # => '😊'
   #     '😊'.slice_bytes(start: 0, length: 3) # => "\u{FFFD}"
   fn pub slice_bytes(start: Int, length: Int) -> String {
-    _INKO.string_slice_bytes(self, start, length)
+    inko_string_slice_bytes(_INKO.state, self, start, length)
   }
 
   # Returns the _byte_ index of the first occurrence of the given `String`,
@@ -371,7 +433,7 @@ class builtin String {
   #
   #     '😀😃'.characters.next # => Option.Some('😀 ')
   fn pub characters -> Characters {
-    Characters { @string = self, @iter = _INKO.string_characters(self) }
+    Characters { @string = self, @iter = inko_string_characters(self) }
   }
 
   # Returns a new `String` without the given prefix.
@@ -488,6 +550,14 @@ class builtin String {
 
     buff.into_string
   }
+
+  # Returns a raw pointer to the bytes of `self`.
+  #
+  # This method is meant to be used when passing strings to foreign functions
+  # (i.e. `*char` arguments). You should avoid using it for anything else.
+  fn pub to_pointer -> Pointer[Int8] {
+    inko_string_to_pointer(self)
+  }
 }
 
 impl Contains[String] for String {
@@ -498,13 +568,13 @@ impl Contains[String] for String {
 
 impl Drop for String {
   fn mut drop {
-    _INKO.string_drop(self)
+    inko_string_drop(self)
   }
 }
 
 impl ToByteArray for String {
   fn pub to_byte_array -> ByteArray {
-    _INKO.string_to_byte_array(self)
+    inko_string_to_byte_array(_INKO.state, self)
   }
 }
 
@@ -545,7 +615,7 @@ impl Equal[String] for String {
   #
   #     'foo' == 'bar' # => false
   fn pub ==(other: ref String) -> Bool {
-    _INKO.string_eq(self, other)
+    inko_string_equals(_INKO.state, self, other)
   }
 }
 
@@ -554,7 +624,7 @@ impl Hash for String {
     let mut index = 0
 
     while index < size {
-      hasher.write(_INKO.string_byte(self, index))
+      hasher.write(inko_string_byte(self, index))
 
       index += 1
     }
@@ -606,13 +676,13 @@ class pub Characters {
   let @string: String
 
   # The native iterator provided by the VM.
-  let @iter: Any
+  let @iter: Pointer[Int8]
 }
 
 impl Iter[String] for Characters {
   fn pub mut next -> Option[String] {
-    match _INKO.string_characters_next(@iter) {
-      case { @tag = 0, @value = v } -> Option.Some(v as String)
+    match inko_string_characters_next(_INKO.state, @iter) {
+      case { @tag = 0, @value = v } -> Option.Some(v)
       case _ -> Option.None
     }
   }
@@ -620,7 +690,7 @@ impl Iter[String] for Characters {
 
 impl Drop for Characters {
   fn mut drop {
-    _INKO.string_characters_drop(@iter)
+    inko_string_characters_drop(@iter)
   }
 }
 
@@ -642,7 +712,7 @@ impl Iter[Int] for Bytes {
 impl BytesTrait for Bytes {
   fn pub mut next_byte -> Int {
     if @index < @string.size {
-      _INKO.string_byte(@string, @index := @index + 1)
+      inko_string_byte(@string, (@index := @index + 1))
     } else {
       EOF
     }
@@ -768,7 +838,7 @@ impl ToString for StringBuffer {
   #
   #     buffer.to_string # => 'hello world'
   fn pub to_string -> String {
-    _INKO.string_concat_array(@strings)
+    inko_string_concat_array(_INKO.state, @strings)
   }
 }
 

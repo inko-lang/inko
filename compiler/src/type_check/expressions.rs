@@ -16,7 +16,7 @@ use types::{
     Database, FieldId, FieldInfo, IdentifierKind, MethodId, MethodKind,
     MethodLookup, MethodSource, ModuleId, Receiver, Symbol, ThrowKind, TraitId,
     TraitInstance, TypeArguments, TypeBounds, TypeId, TypeRef, Variable,
-    VariableId, CALL_METHOD,
+    VariableId, CALL_METHOD, DEREF_POINTER_FIELD,
 };
 
 const IGNORE_VARIABLE: &str = "_";
@@ -1628,7 +1628,12 @@ impl<'a> CheckMethodBody<'a> {
         }
 
         node.class_id = Some(class);
-        node.resolved_type = TypeRef::Owned(TypeId::ClassInstance(ins));
+        node.resolved_type = if ins.instance_of().kind(self.db()).is_extern() {
+            TypeRef::foreign_struct(class)
+        } else {
+            TypeRef::Owned(TypeId::ClassInstance(ins))
+        };
+
         node.resolved_type
     }
 
@@ -3154,7 +3159,11 @@ impl<'a> CheckMethodBody<'a> {
         }
 
         node.resolved_type = if expr.is_value_type(self.db()) {
-            expr
+            if expr.is_foreign_type(self.db()) {
+                expr.as_pointer(self.db())
+            } else {
+                expr
+            }
         } else {
             expr.as_mut(self.db())
         };
@@ -3239,19 +3248,40 @@ impl<'a> CheckMethodBody<'a> {
                 return TypeRef::Error;
             }
             MethodLookup::None => {
-                return if self.assign_field_with_receiver(
+                if self.assign_field_with_receiver(
                     node, receiver, rec_id, value, scope,
                 ) {
-                    TypeRef::nil()
-                } else {
-                    self.state.diagnostics.undefined_method(
-                        &setter,
-                        self.fmt(receiver),
-                        self.file(),
-                        node.location.clone(),
-                    );
+                    return TypeRef::nil();
+                }
 
-                    TypeRef::Error
+                return match receiver {
+                    TypeRef::Pointer(id)
+                        if node.name.name == DEREF_POINTER_FIELD =>
+                    {
+                        let exp = TypeRef::Owned(id);
+
+                        if !TypeChecker::check(self.db(), value, exp) {
+                            self.state.diagnostics.type_error(
+                                self.fmt(value),
+                                self.fmt(exp),
+                                self.file(),
+                                node.location.clone(),
+                            );
+                        }
+
+                        node.kind = CallKind::WritePointer;
+                        TypeRef::nil()
+                    }
+                    _ => {
+                        self.state.diagnostics.undefined_method(
+                            &setter,
+                            self.fmt(receiver),
+                            self.file(),
+                            node.location.clone(),
+                        );
+
+                        TypeRef::Error
+                    }
                 };
             }
         };
@@ -3551,14 +3581,26 @@ impl<'a> CheckMethodBody<'a> {
                     return typ;
                 }
 
-                self.state.diagnostics.undefined_method(
-                    &node.name.name,
-                    self.fmt(receiver),
-                    self.file(),
-                    node.location.clone(),
-                );
+                return match receiver {
+                    TypeRef::Pointer(id)
+                        if node.name.name == DEREF_POINTER_FIELD =>
+                    {
+                        let ret = TypeRef::Owned(id);
 
-                return TypeRef::Error;
+                        node.kind = CallKind::ReadPointer(ret);
+                        ret
+                    }
+                    _ => {
+                        self.state.diagnostics.undefined_method(
+                            &node.name.name,
+                            self.fmt(receiver),
+                            self.file(),
+                            node.location.clone(),
+                        );
+
+                        TypeRef::Error
+                    }
+                };
             }
             MethodLookup::None => {
                 self.state.diagnostics.undefined_method(
@@ -3741,10 +3783,10 @@ impl<'a> CheckMethodBody<'a> {
             .with_immutable(immutable)
             .resolve(raw_type);
 
-        if returns.is_value_type(self.db_mut()) {
+        if returns.is_value_type(self.db()) {
             returns = returns.as_owned(self.db_mut());
-        } else if !immutable && raw_type.is_owned_or_uni(self.db_mut()) {
-            returns = returns.as_mut(self.db_mut());
+        } else if !immutable && raw_type.is_owned_or_uni(self.db()) {
+            returns = returns.as_mut(self.db());
         }
 
         if receiver.require_sendable_arguments(self.db()) {
@@ -3815,11 +3857,25 @@ impl<'a> CheckMethodBody<'a> {
         )
         .define_type(&mut node.cast_to);
 
+        if expr_type == cast_type {
+            self.state.diagnostics.error(
+                DiagnosticId::InvalidType,
+                format!(
+                    "Can't cast '{}' to itself",
+                    format_type(self.db(), expr_type),
+                ),
+                self.file(),
+                node.location.clone(),
+            );
+
+            return TypeRef::Error;
+        }
+
         // Casting to/from Any is dangerous but necessary to make the standard
         // library work.
         if !expr_type.is_any(self.db())
             && !cast_type.is_any(self.db())
-            && !TypeChecker::check(self.db_mut(), expr_type, cast_type)
+            && !TypeChecker::check_cast(self.db_mut(), expr_type, cast_type)
         {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidType,

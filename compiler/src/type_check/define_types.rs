@@ -47,6 +47,9 @@ impl<'a> DefineTypes<'a> {
                 hir::TopLevelExpression::Class(ref mut node) => {
                     self.define_class(node);
                 }
+                hir::TopLevelExpression::ExternClass(ref mut node) => {
+                    self.define_extern_class(node);
+                }
                 hir::TopLevelExpression::Trait(ref mut node) => {
                     self.define_trait(node);
                 }
@@ -123,13 +126,36 @@ impl<'a> DefineTypes<'a> {
         node.class_id = Some(id);
     }
 
-    fn define_trait(&mut self, node: &mut hir::DefineTrait) {
+    fn define_extern_class(&mut self, node: &mut hir::DefineExternClass) {
+        let name = node.name.name.clone();
         let module = self.module;
+        let vis = Visibility::public(node.public);
+        let id = Class::alloc(
+            self.db_mut(),
+            name.clone(),
+            ClassKind::Extern,
+            vis,
+            module,
+        );
+
+        if self.module.symbol_exists(self.db(), &name) {
+            self.state.diagnostics.duplicate_symbol(
+                &name,
+                self.file(),
+                node.name.location.clone(),
+            );
+        } else {
+            self.module.new_symbol(self.db_mut(), name, Symbol::Class(id));
+        }
+
+        node.class_id = Some(id);
+    }
+
+    fn define_trait(&mut self, node: &mut hir::DefineTrait) {
         let name = node.name.name.clone();
         let id = Trait::alloc(
             self.db_mut(),
             name.clone(),
-            module,
             Visibility::public(node.public),
         );
 
@@ -234,24 +260,15 @@ impl<'a> ImplementTraits<'a> {
             }
         };
 
-        if class_id.kind(self.db()).is_async() {
+        if !class_id.allow_trait_implementations(self.db()) {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidImplementation,
-                "Traits can't be implemented for async classes",
+                "Traits can't be implemented for this class",
                 self.file(),
                 node.location.clone(),
             );
 
             return;
-        }
-
-        if class_id.kind(self.db()).is_extern() {
-            self.state.diagnostics.error(
-                DiagnosticId::InvalidImplementation,
-                "Traits can't be implemented for extern classes",
-                self.file(),
-                node.location.clone(),
-            );
         }
 
         let bounds = define_type_bounds(
@@ -481,6 +498,8 @@ impl<'a> CheckTraitImplementations<'a> {
 }
 
 /// A compiler pass that defines the fields for the runtime's result type.
+///
+/// TODO: move this to `std::runtime`
 pub(crate) fn define_runtime_result_fields(state: &mut State) -> bool {
     let class = ClassId::result();
     let module = class.module(&state.db);
@@ -532,8 +551,14 @@ impl<'a> DefineFields<'a> {
 
     fn run(mut self, module: &mut hir::Module) {
         for expr in &mut module.expressions {
-            if let hir::TopLevelExpression::Class(ref mut node) = expr {
-                self.define_class(node);
+            match expr {
+                hir::TopLevelExpression::Class(ref mut node) => {
+                    self.define_class(node);
+                }
+                hir::TopLevelExpression::ExternClass(ref mut node) => {
+                    self.define_extern_class(node);
+                }
+                _ => (),
             }
         }
     }
@@ -552,24 +577,11 @@ impl<'a> DefineFields<'a> {
                 continue;
             };
 
-            if is_main {
-                self.state.diagnostics.error(
-                    DiagnosticId::InvalidSymbol,
-                    format!(
-                        "Fields can't be defined for the '{}' process",
-                        MAIN_CLASS
-                    ),
-                    self.file(),
-                    node.location.clone(),
-                );
+            let name = node.name.name.clone();
 
-                break;
-            }
-
-            if is_enum {
-                self.state.diagnostics.error(
-                    DiagnosticId::InvalidSymbol,
-                    "Fields can't be defined for enum classes",
+            if is_main || is_enum {
+                self.state.diagnostics.fields_not_allowed(
+                    &name,
                     self.file(),
                     node.location.clone(),
                 );
@@ -591,12 +603,9 @@ impl<'a> DefineFields<'a> {
                 break;
             }
 
-            let name = node.name.name.clone();
-
             if class_id.field(self.db(), &name).is_some() {
-                self.state.diagnostics.error(
-                    DiagnosticId::DuplicateSymbol,
-                    format!("The field '{}' is already defined", name),
+                self.state.diagnostics.duplicate_field(
+                    &name,
                     self.file(),
                     node.location.clone(),
                 );
@@ -619,9 +628,56 @@ impl<'a> DefineFields<'a> {
             .define_type(&mut node.value_type);
 
             if !class_id.is_public(self.db()) && vis == Visibility::Public {
-                self.state.diagnostics.error(
-                    DiagnosticId::InvalidSymbol,
-                    "Public fields can't be defined for private types",
+                self.state.diagnostics.public_field_private_class(
+                    self.file(),
+                    node.location.clone(),
+                );
+            }
+
+            let module = self.module;
+            let field =
+                class_id.new_field(self.db_mut(), name, id, typ, vis, module);
+
+            id += 1;
+            node.field_id = Some(field);
+        }
+    }
+
+    fn define_extern_class(&mut self, node: &mut hir::DefineExternClass) {
+        let class_id = node.class_id.unwrap();
+        let mut id: usize = 0;
+        let scope = TypeScope::new(self.module, TypeId::Class(class_id), None);
+
+        for node in &mut node.fields {
+            let name = node.name.name.clone();
+
+            if class_id.field(self.db(), &name).is_some() {
+                self.state.diagnostics.duplicate_field(
+                    &name,
+                    self.file(),
+                    node.location.clone(),
+                );
+
+                continue;
+            }
+
+            let vis = Visibility::public(node.public);
+            let rules = Rules {
+                allow_private_types: vis.is_private(),
+                allow_refs: false,
+                ..Default::default()
+            };
+
+            let typ = DefineAndCheckTypeSignature::new(
+                self.state,
+                self.module,
+                &scope,
+                rules,
+            )
+            .define_type(&mut node.value_type);
+
+            if !class_id.is_public(self.db()) && vis == Visibility::Public {
+                self.state.diagnostics.public_field_private_class(
                     self.file(),
                     node.location.clone(),
                 );
@@ -1269,7 +1325,6 @@ mod tests {
         let to_string = Trait::alloc(
             &mut state.db,
             "ToString".to_string(),
-            ModuleId(0),
             Visibility::Private,
         );
         let string = Class::alloc(
@@ -1309,7 +1364,6 @@ mod tests {
         let to_string = Trait::alloc(
             &mut state.db,
             "ToString".to_string(),
-            ModuleId(0),
             Visibility::Private,
         );
         let string = Class::alloc(
@@ -1357,7 +1411,6 @@ mod tests {
         let to_string = Trait::alloc(
             &mut state.db,
             "ToString".to_string(),
-            ModuleId(0),
             Visibility::Private,
         );
         let array = Class::alloc(
@@ -1399,7 +1452,6 @@ mod tests {
         let to_string = Trait::alloc(
             &mut state.db,
             "ToString".to_string(),
-            ModuleId(0),
             Visibility::Private,
         );
         let array = Class::alloc(
@@ -1438,7 +1490,6 @@ mod tests {
         let to_string = Trait::alloc(
             &mut state.db,
             "ToString".to_string(),
-            ModuleId(0),
             Visibility::Private,
         );
 
@@ -1465,7 +1516,6 @@ mod tests {
         let to_string = Trait::alloc(
             &mut state.db,
             "ToString".to_string(),
-            ModuleId(0),
             Visibility::Private,
         );
 
@@ -1497,7 +1547,6 @@ mod tests {
         let to_string = Trait::alloc(
             &mut state.db,
             "ToString".to_string(),
-            ModuleId(0),
             Visibility::Private,
         );
         let mut modules = parse(&mut state, "trait Debug: ToString {}");
@@ -1526,14 +1575,12 @@ mod tests {
         let to_str = Trait::alloc(
             &mut state.db,
             "ToString".to_string(),
-            ModuleId(0),
             Visibility::Private,
         );
         let to_str_ins = TraitInstance::new(to_str);
         let debug = Trait::alloc(
             &mut state.db,
             "Debug".to_string(),
-            ModuleId(0),
             Visibility::Private,
         );
         let string = Class::alloc(
@@ -1581,14 +1628,12 @@ mod tests {
         let to_string = Trait::alloc(
             &mut state.db,
             "ToString".to_string(),
-            ModuleId(0),
             Visibility::Private,
         );
         let to_string_ins = TraitInstance::new(to_string);
         let debug = Trait::alloc(
             &mut state.db,
             "Debug".to_string(),
-            ModuleId(0),
             Visibility::Private,
         );
         let string = Class::alloc(
@@ -1851,7 +1896,6 @@ mod tests {
         let debug = Trait::alloc(
             &mut state.db,
             "Debug".to_string(),
-            ModuleId(0),
             Visibility::Private,
         );
         let mut modules = parse(&mut state, "class Array[T: Debug] {}");
@@ -1883,7 +1927,6 @@ mod tests {
         let debug = Trait::alloc(
             &mut state.db,
             "Debug".to_string(),
-            module,
             Visibility::Private,
         );
         let mut modules = parse(&mut state, "trait ToArray[T: Debug] {}");
@@ -1915,7 +1958,6 @@ mod tests {
         let debug = Trait::alloc(
             &mut state.db,
             "Debug".to_string(),
-            module,
             Visibility::Private,
         );
 
@@ -1948,7 +1990,6 @@ mod tests {
         let debug = Trait::alloc(
             &mut state.db,
             "Debug".to_string(),
-            module,
             Visibility::Private,
         );
 

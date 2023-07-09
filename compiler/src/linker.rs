@@ -1,4 +1,5 @@
 use crate::config::Config;
+use crate::state::State;
 use crate::target::OperatingSystem;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -36,7 +37,7 @@ fn lld_is_available() -> bool {
 }
 
 pub(crate) fn link(
-    config: &Config,
+    state: &State,
     output: &Path,
     paths: &[PathBuf],
 ) -> Result<(), String> {
@@ -56,21 +57,60 @@ pub(crate) fn link(
         cmd.arg(path);
     }
 
-    match config.target.os {
+    match state.config.target.os {
         OperatingSystem::Linux
         | OperatingSystem::Freebsd
         | OperatingSystem::Openbsd => {
             // macOS includes libm in the standard C library, so there's no need
             // to explicitly include it.
+            //
+            // We don't support static linking as libm is part of glibc, libc
+            // doesn't really support (proper) static linking, and you can't
+            // statically link libm _without_ statically linking libc. See
+            // https://bugzilla.redhat.com/show_bug.cgi?id=1433347 for some
+            // extra details.
             cmd.arg("-lm");
         }
         _ => {}
     }
 
+    let mut static_linking = state.config.static_linking;
+
+    if let OperatingSystem::Mac = state.config.target.os {
+        // On macOS there's no equivalent of -l:libX.a as there is for GNU
+        // platforms. We also don't have the logic (nor want to implement this)
+        // to find where the .a files are for each library linked against.
+        println!(
+            "Static linking isn't supported on macOS, \
+            falling back to dynamic linking"
+        );
+
+        static_linking = false;
+    }
+
+    if static_linking {
+        cmd.arg("-Wl,-Bstatic");
+    }
+
+    for lib in &state.libraries {
+        // These libraries are already included if needed, and we can't
+        // statically link against them (if static linking is desired), so we
+        // skip them here.
+        if lib == "m" || lib == "c" {
+            continue;
+        }
+
+        cmd.arg(&(format!("-l{}", lib)));
+    }
+
+    if static_linking {
+        cmd.arg("-Wl,-Bdynamic");
+    }
+
     cmd.arg("-o");
     cmd.arg(output);
 
-    if let OperatingSystem::Linux = config.target.os {
+    if let OperatingSystem::Linux = state.config.target.os {
         // This removes the need for installing libgcc in deployment
         // environments.
         cmd.arg("-static-libgcc");
@@ -82,8 +122,8 @@ pub(crate) fn link(
         }
     }
 
-    let rt_path = runtime_library(config).ok_or_else(|| {
-        format!("No runtime is available for target '{}'", config.target)
+    let rt_path = runtime_library(&state.config).ok_or_else(|| {
+        format!("No runtime is available for target '{}'", state.config.target)
     })?;
 
     cmd.arg(&rt_path);

@@ -1,4 +1,4 @@
-use crate::mem::{ByteArray, Float, Int, Nil};
+use crate::mem::ByteArray;
 use crate::process::ProcessPointer;
 use crate::runtime::process::panic;
 use crate::state::State;
@@ -6,43 +6,39 @@ use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_random_int(
-    state: *const State,
-    rng: *mut StdRng,
-) -> *const Int {
-    Int::new((*state).int_class, (*rng).gen())
+pub unsafe extern "system" fn inko_random_int(rng: *mut StdRng) -> i64 {
+    (*rng).gen()
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_random_float(
-    state: *const State,
-    rng: *mut StdRng,
-) -> *const Float {
-    Float::alloc((*state).float_class, (*rng).gen())
+pub unsafe extern "system" fn inko_random_float(rng: *mut StdRng) -> f64 {
+    (*rng).gen()
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_random_int_range(
-    state: *const State,
     rng: *mut StdRng,
     min: i64,
     max: i64,
-) -> *const Int {
-    let val = if min < max { (*rng).gen_range(min..max) } else { 0 };
-
-    Int::new((*state).int_class, val)
+) -> i64 {
+    if min < max {
+        (*rng).gen_range(min..max)
+    } else {
+        0
+    }
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_random_float_range(
-    state: *const State,
     rng: *mut StdRng,
     min: f64,
     max: f64,
-) -> *const Float {
-    let val = if min < max { (*rng).gen_range(min..max) } else { 0.0 };
-
-    Float::alloc((*state).float_class, val)
+) -> f64 {
+    if min < max {
+        (*rng).gen_range(min..max)
+    } else {
+        0.0
+    }
 }
 
 #[no_mangle]
@@ -77,10 +73,6 @@ pub unsafe extern "system" fn inko_random_from_int(seed: i64) -> *mut StdRng {
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_random_drop(
-    state: *const State,
-    rng: *mut StdRng,
-) -> *const Nil {
+pub unsafe extern "system" fn inko_random_drop(rng: *mut StdRng) {
     drop(Box::from_raw(rng));
-    (*state).nil_singleton
 }

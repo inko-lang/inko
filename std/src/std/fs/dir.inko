@@ -3,6 +3,37 @@ import std::fs::path::Path
 import std::io::Error
 import std::string::ToString
 
+class extern AnyResult {
+  let @tag: Int
+  let @value: Any
+}
+
+fn extern inko_directory_create(
+  process: Pointer[Int8],
+  path: String,
+) -> AnyResult
+
+fn extern inko_directory_create_recursive(
+  process: Pointer[Int8],
+  path: String,
+) -> AnyResult
+
+fn extern inko_directory_list(
+  state: Pointer[Int8],
+  process: Pointer[Int8],
+  path: String,
+) -> AnyResult
+
+fn extern inko_directory_remove(
+  process: Pointer[Int8],
+  path: String,
+) -> AnyResult
+
+fn extern inko_directory_remove_recursive(
+  process: Pointer[Int8],
+  path: String,
+) -> AnyResult
+
 # Creates a new empty directory at the given path.
 #
 # # Errors
@@ -20,9 +51,9 @@ import std::string::ToString
 #
 #     dir.create('/tmp/test').unwrap
 fn pub create(path: ref ToString) -> Result[Nil, Error] {
-  match _INKO.directory_create(path.to_string) {
-    case { @tag = 0, @value = _ } -> Result.Ok(nil)
-    case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+  match inko_directory_create(_INKO.process, path.to_string) {
+    case { @tag = 1, @value = _ } -> Result.Ok(nil)
+    case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e as Int))
   }
 }
 
@@ -43,9 +74,9 @@ fn pub create(path: ref ToString) -> Result[Nil, Error] {
 #
 #     dir.create_all('/tmp/foo/bar/test').unwrap
 fn pub create_all(path: ref ToString) -> Result[Nil, Error] {
-  match _INKO.directory_create_recursive(path.to_string) {
-    case { @tag = 0, @value = _ } -> Result.Ok(nil)
-    case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+  match inko_directory_create_recursive(_INKO.process, path.to_string) {
+    case { @tag = 1, @value = _ } -> Result.Ok(nil)
+    case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e as Int))
   }
 }
 
@@ -68,9 +99,9 @@ fn pub create_all(path: ref ToString) -> Result[Nil, Error] {
 #     dir.create('/tmp/test').unwrap
 #     dir.remove('/tmp/test').unwrap
 fn pub remove(path: ref ToString) -> Result[Nil, Error] {
-  match _INKO.directory_remove(path.to_string) {
-    case { @tag = 0, @value = _ } -> Result.Ok(nil)
-    case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+  match inko_directory_remove(_INKO.process, path.to_string) {
+    case { @tag = 1, @value = _ } -> Result.Ok(nil)
+    case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e as Int))
   }
 }
 
@@ -92,9 +123,9 @@ fn pub remove(path: ref ToString) -> Result[Nil, Error] {
 #     dir.create_all('/tmp/foo/bar').unwrap
 #     dir.remove_all('/tmp/foo').unwrap
 fn pub remove_all(path: ref ToString) -> Result[Nil, Error] {
-  match _INKO.directory_remove_recursive(path.to_string) {
-    case { @tag = 0, @value = _ } -> Result.Ok(nil)
-    case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+  match inko_directory_remove_recursive(_INKO.process, path.to_string) {
+    case { @tag = 1, @value = _ } -> Result.Ok(nil)
+    case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e as Int))
   }
 }
 
@@ -118,10 +149,10 @@ fn pub remove_all(path: ref ToString) -> Result[Nil, Error] {
 #
 #     paths[0].to_string # => 'README.md'
 fn pub list(path: ref ToString) -> Result[Array[Path], Error] {
-  match _INKO.directory_list(path.to_string) {
+  match inko_directory_list(_INKO.state, _INKO.process, path.to_string) {
     case { @tag = 0, @value = v } -> Result.Ok(
       (v as Array[String]).into_iter.map fn (path) { Path.new(path) }.to_array
     )
-    case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e as Int))
   }
 }

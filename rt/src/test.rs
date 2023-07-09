@@ -4,7 +4,7 @@ use crate::mem::{Class, ClassPointer};
 use crate::process::{NativeAsyncMethod, Process, ProcessPointer};
 use crate::stack::Stack;
 use crate::state::{MethodCounts, RcState, State};
-use std::mem::forget;
+use std::mem::{forget, size_of};
 use std::ops::{Deref, DerefMut, Drop};
 
 /// Processes normally drop themselves when they finish running. But in tests we
@@ -102,5 +102,9 @@ pub(crate) fn empty_class(name: &str) -> OwnedClass {
 }
 
 pub(crate) fn empty_process_class(name: &str) -> OwnedClass {
-    OwnedClass::new(Class::process(name.to_string(), 0, 0))
+    OwnedClass::new(Class::process(
+        name.to_string(),
+        size_of::<Process>() as _,
+        0,
+    ))
 }

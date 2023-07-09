@@ -4,20 +4,20 @@ use crate::llvm::constants::{
     ATOMIC_KIND, BOXED_FLOAT_VALUE_INDEX, BOXED_INT_VALUE_INDEX,
     CLASS_METHODS_COUNT_INDEX, CLASS_METHODS_INDEX, CLOSURE_CALL_INDEX,
     CONTEXT_ARGS_INDEX, CONTEXT_PROCESS_INDEX, CONTEXT_STATE_INDEX,
-    DROPPER_INDEX, FALSE_INDEX, FIELD_OFFSET, FLOAT_KIND, HASH_KEY0_INDEX,
-    HASH_KEY1_INDEX, HEADER_CLASS_INDEX, HEADER_KIND_INDEX, HEADER_REFS_INDEX,
-    INT_KIND, INT_MASK, INT_SHIFT, LLVM_RESULT_STATUS_INDEX,
-    LLVM_RESULT_VALUE_INDEX, MAX_INT, MESSAGE_ARGUMENTS_INDEX,
-    METHOD_FUNCTION_INDEX, METHOD_HASH_INDEX, MIN_INT, NIL_INDEX, OWNED_KIND,
-    PERMANENT_KIND, PROCESS_FIELD_OFFSET, REF_KIND, REF_MASK, TAG_MASK,
-    TRUE_INDEX,
+    DROPPER_INDEX, FALSE_INDEX, FIELD_OFFSET, FLOAT_KIND, HEADER_CLASS_INDEX,
+    HEADER_KIND_INDEX, HEADER_REFS_INDEX, INT_KIND, INT_MASK, INT_SHIFT,
+    LLVM_RESULT_STATUS_INDEX, LLVM_RESULT_VALUE_INDEX, MAX_INT,
+    MESSAGE_ARGUMENTS_INDEX, METHOD_FUNCTION_INDEX, METHOD_HASH_INDEX, MIN_INT,
+    NIL_INDEX, OWNED_KIND, PERMANENT_KIND, PROCESS_FIELD_OFFSET, REF_KIND,
+    REF_MASK, TAG_MASK, TRUE_INDEX,
 };
 use crate::llvm::context::Context;
 use crate::llvm::layouts::Layouts;
 use crate::llvm::module::Module;
 use crate::llvm::runtime_function::RuntimeFunction;
 use crate::mir::{
-    CloneKind, Constant, Instruction, LocationId, Method, Mir, RegisterId,
+    CastType, CloneKind, Constant, Instruction, LocationId, Method, Mir,
+    RegisterId,
 };
 use crate::state::State;
 use crate::symbol_names::SymbolNames;
@@ -41,7 +41,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
 use types::module_name::ModuleName;
-use types::{BuiltinFunction, ClassId, Database};
+use types::{BuiltinFunction, ClassId, Database, TypeRef};
 
 /// A compiler pass that compiles Inko MIR into object files using LLVM.
 pub(crate) struct Compile<'a, 'b, 'ctx> {
@@ -215,11 +215,6 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
         for &class_id in &self.mir.modules[self.module_index].classes {
             let raw_name = class_id.name(self.db);
             let name_ptr = builder.string_literal(raw_name).0.into();
-            let fields_len = self
-                .context
-                .i8_type()
-                .const_int(class_id.number_of_fields(self.db) as _, false)
-                .into();
             let methods_len = self
                 .context
                 .i16_type()
@@ -256,8 +251,10 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
                     .load_field(self.layouts.state, state, class_id.0 + 3)
                     .into_pointer_value()
             } else {
+                let size = self.layouts.instances[&class_id].size_of().unwrap();
+
                 builder
-                    .call(class_new, &[name_ptr, fields_len, methods_len])
+                    .call(class_new, &[name_ptr, size.into(), methods_len])
                     .into_pointer_value()
             };
 
@@ -783,25 +780,6 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::IntPow => {
-                        let reg_var = self.variables[&ins.register];
-                        let lhs_var = self.variables[&ins.arguments[0]];
-                        let rhs_var = self.variables[&ins.arguments[1]];
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let lhs = self.read_int(lhs_var).into();
-                        let rhs = self.read_int(rhs_var).into();
-                        let func = self
-                            .module
-                            .runtime_function(RuntimeFunction::IntPow);
-                        let raw = self
-                            .builder
-                            .call(func, &[proc, lhs, rhs])
-                            .into_int_value();
-                        let res = self.new_int(state_var, raw);
-
-                        self.builder.store(reg_var, res);
-                    }
                     BuiltinFunction::FloatAdd => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
@@ -892,23 +870,6 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                             .call(func, &[val.into()])
                             .into_float_value();
                         let res = self.new_float(state_var, raw);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::FloatRound => {
-                        let reg_var = self.variables[&ins.register];
-                        let lhs_var = self.variables[&ins.arguments[0]];
-                        let rhs_var = self.variables[&ins.arguments[1]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let lhs = self.read_float(lhs_var).into();
-                        let rhs = self.read_int(rhs_var).into();
-                        let func = self
-                            .module
-                            .runtime_function(RuntimeFunction::FloatRound);
-                        let res = self.builder.call(func, &[state, lhs, rhs]);
 
                         self.builder.store(reg_var, res);
                     }
@@ -1026,123 +987,6 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::FloatToInt => {
-                        let reg_var = self.variables[&ins.register];
-                        let val_var = self.variables[&ins.arguments[0]];
-                        let val = self.read_float(val_var).into();
-                        let func = self.module.intrinsic(
-                            "llvm.fptosi.sat",
-                            &[
-                                self.builder.context.i64_type().into(),
-                                self.builder.context.f64_type().into(),
-                            ],
-                        );
-
-                        let raw =
-                            self.builder.call(func, &[val]).into_int_value();
-                        let res = self.new_int(state_var, raw);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::FloatToString => {
-                        let reg_var = self.variables[&ins.register];
-                        let val_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let val = self.read_float(val_var).into();
-                        let func = self
-                            .module
-                            .runtime_function(RuntimeFunction::FloatToString);
-                        let res = self.builder.call(func, &[state, val]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ArrayCapacity => {
-                        let reg_var = self.variables[&ins.register];
-                        let val_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let val = self.builder.load_untyped_pointer(val_var);
-                        let array = self.builder.untagged(val).into();
-                        let func_name = RuntimeFunction::ArrayCapacity;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, array]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ArrayClear => {
-                        let reg_var = self.variables[&ins.register];
-                        let val_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let val = self.builder.load_untyped_pointer(val_var);
-                        let array = self.builder.untagged(val).into();
-                        let func_name = RuntimeFunction::ArrayClear;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, array]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ArrayDrop => {
-                        let reg_var = self.variables[&ins.register];
-                        let val_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let val = self.builder.load_untyped_pointer(val_var);
-                        let array = self.builder.untagged(val).into();
-                        let func_name = RuntimeFunction::ArrayDrop;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, array]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ArrayGet => {
-                        let reg_var = self.variables[&ins.register];
-                        let val_var = self.variables[&ins.arguments[0]];
-                        let idx_var = self.variables[&ins.arguments[1]];
-                        let val = self.builder.load_untyped_pointer(val_var);
-                        let array = self.builder.untagged(val).into();
-                        let index = self.read_int(idx_var).into();
-                        let func_name = RuntimeFunction::ArrayGet;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[array, index]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ArrayLength => {
-                        let reg_var = self.variables[&ins.register];
-                        let val_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let val = self.builder.load_untyped_pointer(val_var);
-                        let array = self.builder.untagged(val).into();
-                        let func_name = RuntimeFunction::ArrayLength;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, array]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ArrayPop => {
-                        let reg_var = self.variables[&ins.register];
-                        let val_var = self.variables[&ins.arguments[0]];
-                        let val = self.builder.load_untyped_pointer(val_var);
-                        let array = self.builder.untagged(val).into();
-                        let func_name = RuntimeFunction::ArrayPop;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[array]);
-
-                        self.builder.store(reg_var, res);
-                    }
                     BuiltinFunction::ArrayPush => {
                         let reg_var = self.variables[&ins.register];
                         let array_var = self.variables[&ins.arguments[0]];
@@ -1160,1199 +1004,6 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let func = self.module.runtime_function(func_name);
                         let res =
                             self.builder.call(func, &[state, array, value]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ArrayRemove => {
-                        let reg_var = self.variables[&ins.register];
-                        let array_var = self.variables[&ins.arguments[0]];
-                        let idx_var = self.variables[&ins.arguments[1]];
-                        let val = self.builder.load_untyped_pointer(array_var);
-                        let array = self.builder.untagged(val).into();
-                        let idx = self.read_int(idx_var).into();
-                        let func_name = RuntimeFunction::ArrayRemove;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[array, idx]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ArrayReserve => {
-                        let reg_var = self.variables[&ins.register];
-                        let array_var = self.variables[&ins.arguments[0]];
-                        let amount_var = self.variables[&ins.arguments[1]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let val = self.builder.load_untyped_pointer(array_var);
-                        let array = self.builder.untagged(val).into();
-                        let amount = self.read_int(amount_var).into();
-                        let func_name = RuntimeFunction::ArrayReserve;
-                        let func = self.module.runtime_function(func_name);
-                        let res =
-                            self.builder.call(func, &[state, array, amount]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ArraySet => {
-                        let reg_var = self.variables[&ins.register];
-                        let array_var = self.variables[&ins.arguments[0]];
-                        let index_var = self.variables[&ins.arguments[1]];
-                        let value_var = self.variables[&ins.arguments[2]];
-                        let tagged =
-                            self.builder.load_untyped_pointer(array_var);
-                        let array = self.builder.untagged(tagged).into();
-                        let index = self.read_int(index_var).into();
-                        let value =
-                            self.builder.load_untyped_pointer(value_var).into();
-                        let func = self
-                            .module
-                            .runtime_function(RuntimeFunction::ArraySet);
-                        let res =
-                            self.builder.call(func, &[array, index, value]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ByteArrayNew => {
-                        let reg_var = self.variables[&ins.register];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let func = self
-                            .module
-                            .runtime_function(RuntimeFunction::ByteArrayNew);
-                        let res = self.builder.call(func, &[state]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ByteArrayAppend => {
-                        let reg_var = self.variables[&ins.register];
-                        let target_var = self.variables[&ins.arguments[0]];
-                        let source_var = self.variables[&ins.arguments[1]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let target = self
-                            .builder
-                            .untagged(
-                                self.builder.load_untyped_pointer(target_var),
-                            )
-                            .into();
-                        let source = self
-                            .builder
-                            .untagged(
-                                self.builder.load_untyped_pointer(source_var),
-                            )
-                            .into();
-                        let func = self
-                            .module
-                            .runtime_function(RuntimeFunction::ByteArrayAppend);
-                        let res =
-                            self.builder.call(func, &[state, target, source]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ByteArrayClear => {
-                        let reg_var = self.variables[&ins.register];
-                        let array_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let array = self
-                            .builder
-                            .untagged(
-                                self.builder.load_untyped_pointer(array_var),
-                            )
-                            .into();
-                        let func = self
-                            .module
-                            .runtime_function(RuntimeFunction::ByteArrayClear);
-                        let res = self.builder.call(func, &[state, array]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ByteArrayClone => {
-                        let reg_var = self.variables[&ins.register];
-                        let array_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let array = self
-                            .builder
-                            .untagged(
-                                self.builder.load_untyped_pointer(array_var),
-                            )
-                            .into();
-                        let func = self
-                            .module
-                            .runtime_function(RuntimeFunction::ByteArrayClone);
-                        let res = self.builder.call(func, &[state, array]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ByteArrayCopyFrom => {
-                        let reg_var = self.variables[&ins.register];
-                        let target_var = self.variables[&ins.arguments[0]];
-                        let source_var = self.variables[&ins.arguments[1]];
-                        let start_var = self.variables[&ins.arguments[2]];
-                        let length_var = self.variables[&ins.arguments[3]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let target = self
-                            .builder
-                            .untagged(
-                                self.builder.load_untyped_pointer(target_var),
-                            )
-                            .into();
-                        let source = self
-                            .builder
-                            .untagged(
-                                self.builder.load_untyped_pointer(source_var),
-                            )
-                            .into();
-                        let start = self.read_int(start_var).into();
-                        let length = self.read_int(length_var).into();
-                        let func = self.module.runtime_function(
-                            RuntimeFunction::ByteArrayCopyFrom,
-                        );
-                        let res = self.builder.call(
-                            func,
-                            &[state, target, source, start, length],
-                        );
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ByteArrayDrainToString => {
-                        let reg_var = self.variables[&ins.register];
-                        let array_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let array = self
-                            .builder
-                            .untagged(
-                                self.builder.load_untyped_pointer(array_var),
-                            )
-                            .into();
-                        let func = self.module.runtime_function(
-                            RuntimeFunction::ByteArrayDrainToString,
-                        );
-                        let res = self.builder.call(func, &[state, array]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ByteArrayToString => {
-                        let reg_var = self.variables[&ins.register];
-                        let array_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let array = self
-                            .builder
-                            .untagged(
-                                self.builder.load_untyped_pointer(array_var),
-                            )
-                            .into();
-                        let func = self.module.runtime_function(
-                            RuntimeFunction::ByteArrayToString,
-                        );
-                        let res = self.builder.call(func, &[state, array]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ByteArrayDrop => {
-                        let reg_var = self.variables[&ins.register];
-                        let array_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let array = self
-                            .builder
-                            .untagged(
-                                self.builder.load_untyped_pointer(array_var),
-                            )
-                            .into();
-                        let func = self
-                            .module
-                            .runtime_function(RuntimeFunction::ByteArrayDrop);
-                        let res = self.builder.call(func, &[state, array]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ByteArrayEq => {
-                        let reg_var = self.variables[&ins.register];
-                        let lhs_var = self.variables[&ins.arguments[0]];
-                        let rhs_var = self.variables[&ins.arguments[1]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let lhs = self
-                            .builder
-                            .untagged(
-                                self.builder.load_untyped_pointer(lhs_var),
-                            )
-                            .into();
-                        let rhs = self
-                            .builder
-                            .untagged(
-                                self.builder.load_untyped_pointer(rhs_var),
-                            )
-                            .into();
-                        let func = self
-                            .module
-                            .runtime_function(RuntimeFunction::ByteArrayEq);
-                        let res = self.builder.call(func, &[state, lhs, rhs]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ByteArrayGet => {
-                        let reg_var = self.variables[&ins.register];
-                        let array_var = self.variables[&ins.arguments[0]];
-                        let index_var = self.variables[&ins.arguments[1]];
-                        let array = self
-                            .builder
-                            .untagged(
-                                self.builder.load_untyped_pointer(array_var),
-                            )
-                            .into();
-                        let index = self.read_int(index_var).into();
-                        let func = self
-                            .module
-                            .runtime_function(RuntimeFunction::ByteArrayGet);
-                        let res = self.builder.call(func, &[array, index]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ByteArrayLength => {
-                        let reg_var = self.variables[&ins.register];
-                        let array_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let array = self
-                            .builder
-                            .untagged(
-                                self.builder.load_untyped_pointer(array_var),
-                            )
-                            .into();
-                        let func = self
-                            .module
-                            .runtime_function(RuntimeFunction::ByteArrayLength);
-                        let res = self.builder.call(func, &[state, array]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ByteArrayPop => {
-                        let reg_var = self.variables[&ins.register];
-                        let array_var = self.variables[&ins.arguments[0]];
-                        let array = self
-                            .builder
-                            .untagged(
-                                self.builder.load_untyped_pointer(array_var),
-                            )
-                            .into();
-                        let func = self
-                            .module
-                            .runtime_function(RuntimeFunction::ByteArrayPop);
-                        let res = self.builder.call(func, &[array]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ByteArrayPush => {
-                        let reg_var = self.variables[&ins.register];
-                        let array_var = self.variables[&ins.arguments[0]];
-                        let value_var = self.variables[&ins.arguments[1]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let array = self
-                            .builder
-                            .untagged(
-                                self.builder.load_untyped_pointer(array_var),
-                            )
-                            .into();
-                        let value = self.read_int(value_var).into();
-                        let func_name = RuntimeFunction::ByteArrayPush;
-                        let func = self.module.runtime_function(func_name);
-                        let res =
-                            self.builder.call(func, &[state, array, value]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ByteArrayRemove => {
-                        let reg_var = self.variables[&ins.register];
-                        let array_var = self.variables[&ins.arguments[0]];
-                        let index_var = self.variables[&ins.arguments[1]];
-                        let array = self
-                            .builder
-                            .untagged(
-                                self.builder.load_untyped_pointer(array_var),
-                            )
-                            .into();
-                        let index = self.read_int(index_var).into();
-                        let func = self
-                            .module
-                            .runtime_function(RuntimeFunction::ByteArrayRemove);
-                        let res = self.builder.call(func, &[array, index]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ByteArrayResize => {
-                        let reg_var = self.variables[&ins.register];
-                        let array_var = self.variables[&ins.arguments[0]];
-                        let size_var = self.variables[&ins.arguments[1]];
-                        let fill_var = self.variables[&ins.arguments[2]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let array = self
-                            .builder
-                            .untagged(
-                                self.builder.load_untyped_pointer(array_var),
-                            )
-                            .into();
-                        let size = self.read_int(size_var).into();
-                        let fill = self.read_int(fill_var).into();
-                        let func = self
-                            .module
-                            .runtime_function(RuntimeFunction::ByteArrayResize);
-                        let res = self
-                            .builder
-                            .call(func, &[state, array, size, fill]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ByteArraySet => {
-                        let reg_var = self.variables[&ins.register];
-                        let array_var = self.variables[&ins.arguments[0]];
-                        let index_var = self.variables[&ins.arguments[1]];
-                        let value_var = self.variables[&ins.arguments[2]];
-                        let array = self
-                            .builder
-                            .untagged(
-                                self.builder.load_untyped_pointer(array_var),
-                            )
-                            .into();
-                        let index = self.read_int(index_var).into();
-                        let value = self.read_int(value_var).into();
-                        let func = self
-                            .module
-                            .runtime_function(RuntimeFunction::ByteArraySet);
-                        let res =
-                            self.builder.call(func, &[array, index, value]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ByteArraySlice => {
-                        let reg_var = self.variables[&ins.register];
-                        let array_var = self.variables[&ins.arguments[0]];
-                        let start_var = self.variables[&ins.arguments[1]];
-                        let length_var = self.variables[&ins.arguments[2]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let array = self
-                            .builder
-                            .untagged(
-                                self.builder.load_untyped_pointer(array_var),
-                            )
-                            .into();
-                        let start = self.read_int(start_var).into();
-                        let length = self.read_int(length_var).into();
-                        let func = self
-                            .module
-                            .runtime_function(RuntimeFunction::ByteArraySlice);
-                        let res = self
-                            .builder
-                            .call(func, &[state, array, start, length]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ChildProcessSpawn => {
-                        let reg_var = self.variables[&ins.register];
-                        let program_var = self.variables[&ins.arguments[0]];
-                        let args_var = self.variables[&ins.arguments[1]];
-                        let env_var = self.variables[&ins.arguments[2]];
-                        let stdin_var = self.variables[&ins.arguments[3]];
-                        let stdout_var = self.variables[&ins.arguments[4]];
-                        let stderr_var = self.variables[&ins.arguments[5]];
-                        let dir_var = self.variables[&ins.arguments[6]];
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let program = self
-                            .builder
-                            .load_untyped_pointer(program_var)
-                            .into();
-                        let args =
-                            self.builder.load_untyped_pointer(args_var).into();
-                        let env =
-                            self.builder.load_untyped_pointer(env_var).into();
-                        let stdin = self.read_int(stdin_var).into();
-                        let stdout = self.read_int(stdout_var).into();
-                        let stderr = self.read_int(stderr_var).into();
-                        let dir =
-                            self.builder.load_untyped_pointer(dir_var).into();
-                        let func = self.module.runtime_function(
-                            RuntimeFunction::ChildProcessSpawn,
-                        );
-                        let res = self.builder.call(
-                            func,
-                            &[
-                                proc, program, args, env, stdin, stdout,
-                                stderr, dir,
-                            ],
-                        );
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ChildProcessDrop => {
-                        let reg_var = self.variables[&ins.register];
-                        let child_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let child =
-                            self.builder.load_untyped_pointer(child_var).into();
-                        let func = self.module.runtime_function(
-                            RuntimeFunction::ChildProcessDrop,
-                        );
-                        let res = self.builder.call(func, &[state, child]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ChildProcessStderrClose => {
-                        let reg_var = self.variables[&ins.register];
-                        let child_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let child =
-                            self.builder.load_untyped_pointer(child_var).into();
-                        let func = self.module.runtime_function(
-                            RuntimeFunction::ChildProcessStderrClose,
-                        );
-                        let res = self.builder.call(func, &[state, child]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ChildProcessStderrRead => {
-                        let reg_var = self.variables[&ins.register];
-                        let child_var = self.variables[&ins.arguments[0]];
-                        let buf_var = self.variables[&ins.arguments[1]];
-                        let size_var = self.variables[&ins.arguments[2]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let child =
-                            self.builder.load_untyped_pointer(child_var).into();
-                        let buf = self
-                            .builder
-                            .untagged(
-                                self.builder.load_untyped_pointer(buf_var),
-                            )
-                            .into();
-                        let size = self.read_int(size_var).into();
-                        let func = self.module.runtime_function(
-                            RuntimeFunction::ChildProcessStderrRead,
-                        );
-                        let res = self
-                            .builder
-                            .call(func, &[state, proc, child, buf, size]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ChildProcessStdinClose => {
-                        let reg_var = self.variables[&ins.register];
-                        let child_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let child =
-                            self.builder.load_untyped_pointer(child_var).into();
-                        let func = self.module.runtime_function(
-                            RuntimeFunction::ChildProcessStdinClose,
-                        );
-                        let res = self.builder.call(func, &[state, child]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ChildProcessStdinFlush => {
-                        let reg_var = self.variables[&ins.register];
-                        let child_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let child =
-                            self.builder.load_untyped_pointer(child_var).into();
-                        let func = self.module.runtime_function(
-                            RuntimeFunction::ChildProcessStdinFlush,
-                        );
-                        let res =
-                            self.builder.call(func, &[state, proc, child]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ChildProcessStdinWriteBytes => {
-                        let reg_var = self.variables[&ins.register];
-                        let child_var = self.variables[&ins.arguments[0]];
-                        let buf_var = self.variables[&ins.arguments[1]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let child =
-                            self.builder.load_untyped_pointer(child_var).into();
-                        let buf = self
-                            .builder
-                            .untagged(
-                                self.builder.load_untyped_pointer(buf_var),
-                            )
-                            .into();
-                        let func = self.module.runtime_function(
-                            RuntimeFunction::ChildProcessStdinWriteBytes,
-                        );
-                        let res =
-                            self.builder.call(func, &[state, proc, child, buf]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ChildProcessStdinWriteString => {
-                        let reg_var = self.variables[&ins.register];
-                        let child_var = self.variables[&ins.arguments[0]];
-                        let input_var = self.variables[&ins.arguments[1]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let child =
-                            self.builder.load_untyped_pointer(child_var).into();
-                        let input =
-                            self.builder.load_untyped_pointer(input_var).into();
-                        let func = self.module.runtime_function(
-                            RuntimeFunction::ChildProcessStdinWriteString,
-                        );
-                        let res = self
-                            .builder
-                            .call(func, &[state, proc, child, input]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ChildProcessStdoutClose => {
-                        let reg_var = self.variables[&ins.register];
-                        let child_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let child =
-                            self.builder.load_untyped_pointer(child_var).into();
-                        let func = self.module.runtime_function(
-                            RuntimeFunction::ChildProcessStdoutClose,
-                        );
-                        let res = self.builder.call(func, &[state, child]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ChildProcessStdoutRead => {
-                        let reg_var = self.variables[&ins.register];
-                        let child_var = self.variables[&ins.arguments[0]];
-                        let buf_var = self.variables[&ins.arguments[1]];
-                        let size_var = self.variables[&ins.arguments[2]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let child =
-                            self.builder.load_untyped_pointer(child_var).into();
-                        let buf = self
-                            .builder
-                            .untagged(
-                                self.builder.load_untyped_pointer(buf_var),
-                            )
-                            .into();
-                        let size = self.read_int(size_var).into();
-                        let func = self.module.runtime_function(
-                            RuntimeFunction::ChildProcessStdoutRead,
-                        );
-                        let res = self
-                            .builder
-                            .call(func, &[state, proc, child, buf, size]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ChildProcessTryWait => {
-                        let reg_var = self.variables[&ins.register];
-                        let child_var = self.variables[&ins.arguments[0]];
-                        let child =
-                            self.builder.load_untyped_pointer(child_var).into();
-                        let func = self.module.runtime_function(
-                            RuntimeFunction::ChildProcessTryWait,
-                        );
-                        let res = self.builder.call(func, &[child]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ChildProcessWait => {
-                        let reg_var = self.variables[&ins.register];
-                        let child_var = self.variables[&ins.arguments[0]];
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let child =
-                            self.builder.load_untyped_pointer(child_var).into();
-                        let func = self.module.runtime_function(
-                            RuntimeFunction::ChildProcessWait,
-                        );
-                        let res = self.builder.call(func, &[proc, child]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::CpuCores => {
-                        let reg_var = self.variables[&ins.register];
-                        let func = self
-                            .module
-                            .runtime_function(RuntimeFunction::CpuCores);
-                        let res = self.builder.call(func, &[]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::DirectoryCreate => {
-                        let reg_var = self.variables[&ins.register];
-                        let path_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let path =
-                            self.builder.load_untyped_pointer(path_var).into();
-                        let func_name = RuntimeFunction::DirectoryCreate;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, proc, path]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::DirectoryCreateRecursive => {
-                        let reg_var = self.variables[&ins.register];
-                        let path_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let path =
-                            self.builder.load_untyped_pointer(path_var).into();
-                        let func_name =
-                            RuntimeFunction::DirectoryCreateRecursive;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, proc, path]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::DirectoryList => {
-                        let reg_var = self.variables[&ins.register];
-                        let path_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let path =
-                            self.builder.load_untyped_pointer(path_var).into();
-                        let func_name = RuntimeFunction::DirectoryList;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, proc, path]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::DirectoryRemove => {
-                        let reg_var = self.variables[&ins.register];
-                        let path_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let path =
-                            self.builder.load_untyped_pointer(path_var).into();
-                        let func_name = RuntimeFunction::DirectoryRemove;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, proc, path]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::DirectoryRemoveRecursive => {
-                        let reg_var = self.variables[&ins.register];
-                        let path_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let path =
-                            self.builder.load_untyped_pointer(path_var).into();
-                        let func_name = RuntimeFunction::DirectoryRemoveAll;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, proc, path]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::EnvArguments => {
-                        let reg_var = self.variables[&ins.register];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let func_name = RuntimeFunction::EnvArguments;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::EnvExecutable => {
-                        let reg_var = self.variables[&ins.register];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let func_name = RuntimeFunction::EnvExecutable;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::EnvGet => {
-                        let reg_var = self.variables[&ins.register];
-                        let name_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let name =
-                            self.builder.load_untyped_pointer(name_var).into();
-                        let func_name = RuntimeFunction::EnvGet;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, name]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::EnvGetWorkingDirectory => {
-                        let reg_var = self.variables[&ins.register];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let func_name = RuntimeFunction::EnvGetWorkingDirectory;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::EnvHomeDirectory => {
-                        let reg_var = self.variables[&ins.register];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let func_name = RuntimeFunction::EnvHomeDirectory;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::EnvSetWorkingDirectory => {
-                        let reg_var = self.variables[&ins.register];
-                        let dir_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let dir =
-                            self.builder.load_untyped_pointer(dir_var).into();
-                        let func_name = RuntimeFunction::EnvSetWorkingDirectory;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, dir]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::EnvTempDirectory => {
-                        let reg_var = self.variables[&ins.register];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let func_name = RuntimeFunction::EnvTempDirectory;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::EnvVariables => {
-                        let reg_var = self.variables[&ins.register];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let func_name = RuntimeFunction::EnvVariables;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::Exit => {
-                        let status_var = self.variables[&ins.arguments[0]];
-                        let status = self.read_int(status_var).into();
-                        let func_name = RuntimeFunction::Exit;
-                        let func = self.module.runtime_function(func_name);
-
-                        self.builder.call_void(func, &[status]);
-                        self.builder.unreachable();
-                    }
-                    BuiltinFunction::FileCopy => {
-                        let reg_var = self.variables[&ins.register];
-                        let from_var = self.variables[&ins.arguments[0]];
-                        let to_var = self.variables[&ins.arguments[1]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let from =
-                            self.builder.load_untyped_pointer(from_var).into();
-                        let to =
-                            self.builder.load_untyped_pointer(to_var).into();
-                        let func_name = RuntimeFunction::FileCopy;
-                        let func = self.module.runtime_function(func_name);
-                        let res =
-                            self.builder.call(func, &[state, proc, from, to]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::FileDrop => {
-                        let reg_var = self.variables[&ins.register];
-                        let file_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let file =
-                            self.builder.load_untyped_pointer(file_var).into();
-                        let func_name = RuntimeFunction::FileDrop;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, file]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::FileFlush => {
-                        let reg_var = self.variables[&ins.register];
-                        let file_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let file =
-                            self.builder.load_untyped_pointer(file_var).into();
-                        let func_name = RuntimeFunction::FileFlush;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, proc, file]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::FileOpen => {
-                        let reg_var = self.variables[&ins.register];
-                        let path_var = self.variables[&ins.arguments[0]];
-                        let mode_var = self.variables[&ins.arguments[1]];
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let path =
-                            self.builder.load_untyped_pointer(path_var).into();
-                        let mode = self.read_int(mode_var).into();
-                        let func_name = RuntimeFunction::FileOpen;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[proc, path, mode]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::FileRead => {
-                        let reg_var = self.variables[&ins.register];
-                        let file_var = self.variables[&ins.arguments[0]];
-                        let buf_var = self.variables[&ins.arguments[1]];
-                        let size_var = self.variables[&ins.arguments[2]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let file =
-                            self.builder.load_untyped_pointer(file_var).into();
-                        let buf = self
-                            .builder
-                            .untagged(
-                                self.builder.load_untyped_pointer(buf_var),
-                            )
-                            .into();
-                        let size = self.read_int(size_var).into();
-                        let func_name = RuntimeFunction::FileRead;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self
-                            .builder
-                            .call(func, &[state, proc, file, buf, size]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::FileRemove => {
-                        let reg_var = self.variables[&ins.register];
-                        let path_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let path =
-                            self.builder.load_untyped_pointer(path_var).into();
-                        let func_name = RuntimeFunction::FileRemove;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, proc, path]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::FileSeek => {
-                        let reg_var = self.variables[&ins.register];
-                        let path_var = self.variables[&ins.arguments[0]];
-                        let off_var = self.variables[&ins.arguments[1]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let path =
-                            self.builder.load_untyped_pointer(path_var).into();
-                        let off = self.read_int(off_var).into();
-                        let func_name = RuntimeFunction::FileSeek;
-                        let func = self.module.runtime_function(func_name);
-                        let res =
-                            self.builder.call(func, &[state, proc, path, off]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::FileSize => {
-                        let reg_var = self.variables[&ins.register];
-                        let path_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let path =
-                            self.builder.load_untyped_pointer(path_var).into();
-                        let func_name = RuntimeFunction::FileSize;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, proc, path]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::FileWriteBytes => {
-                        let reg_var = self.variables[&ins.register];
-                        let file_var = self.variables[&ins.arguments[0]];
-                        let buf_var = self.variables[&ins.arguments[1]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let file =
-                            self.builder.load_untyped_pointer(file_var).into();
-                        let buf = self
-                            .builder
-                            .untagged(
-                                self.builder.load_untyped_pointer(buf_var),
-                            )
-                            .into();
-                        let func_name = RuntimeFunction::FileWriteBytes;
-                        let func = self.module.runtime_function(func_name);
-                        let res =
-                            self.builder.call(func, &[state, proc, file, buf]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::FileWriteString => {
-                        let reg_var = self.variables[&ins.register];
-                        let file_var = self.variables[&ins.arguments[0]];
-                        let buf_var = self.variables[&ins.arguments[1]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let file =
-                            self.builder.load_untyped_pointer(file_var).into();
-                        let buf =
-                            self.builder.load_untyped_pointer(buf_var).into();
-                        let func_name = RuntimeFunction::FileWriteString;
-                        let func = self.module.runtime_function(func_name);
-                        let res =
-                            self.builder.call(func, &[state, proc, file, buf]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ChannelReceive => {
-                        let reg_var = self.variables[&ins.register];
-                        let chan_var = self.variables[&ins.arguments[0]];
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let chan =
-                            self.builder.load_untyped_pointer(chan_var).into();
-                        let func_name = RuntimeFunction::ChannelReceive;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[proc, chan]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ChannelReceiveUntil => {
-                        let reg_var = self.variables[&ins.register];
-                        let chan_var = self.variables[&ins.arguments[0]];
-                        let time_var = self.variables[&ins.arguments[1]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let chan =
-                            self.builder.load_untyped_pointer(chan_var).into();
-                        let time = self.read_int(time_var).into();
-                        let func_name = RuntimeFunction::ChannelReceiveUntil;
-                        let func = self.module.runtime_function(func_name);
-                        let res =
-                            self.builder.call(func, &[state, proc, chan, time]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ChannelDrop => {
-                        let reg_var = self.variables[&ins.register];
-                        let chan_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let chan =
-                            self.builder.load_untyped_pointer(chan_var).into();
-                        let func_name = RuntimeFunction::ChannelDrop;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, chan]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ChannelWait => {
-                        let reg_var = self.variables[&ins.register];
-                        let chans_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var);
-                        let proc = self.builder.load_untyped_pointer(proc_var);
-
-                        // The standard library uses a reference in the wait()
-                        // method, so we need to clear the reference bit before
-                        // using the pointer.
-                        let chans = self.builder.untagged(
-                            self.builder.load_untyped_pointer(chans_var),
-                        );
-                        let func_name = RuntimeFunction::ChannelWait;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(
-                            func,
-                            &[state.into(), proc.into(), chans.into()],
-                        );
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ChannelNew => {
-                        let reg_var = self.variables[&ins.register];
-                        let cap_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let cap = self.read_int(cap_var).into();
-                        let func_name = RuntimeFunction::ChannelNew;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, cap]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ChannelSend => {
-                        let reg_var = self.variables[&ins.register];
-                        let chan_var = self.variables[&ins.arguments[0]];
-                        let msg_var = self.variables[&ins.arguments[1]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let chan =
-                            self.builder.load_untyped_pointer(chan_var).into();
-                        let msg =
-                            self.builder.load_untyped_pointer(msg_var).into();
-                        let func_name = RuntimeFunction::ChannelSend;
-                        let func = self.module.runtime_function(func_name);
-                        let res =
-                            self.builder.call(func, &[state, proc, chan, msg]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ChannelTryReceive => {
-                        let reg_var = self.variables[&ins.register];
-                        let chan_var = self.variables[&ins.arguments[0]];
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let chan =
-                            self.builder.load_untyped_pointer(chan_var).into();
-                        let func_name = RuntimeFunction::ChannelTryReceive;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[proc, chan]);
 
                         self.builder.store(reg_var, res);
                     }
@@ -2434,30 +1085,6 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::IntToFloat => {
-                        let reg_var = self.variables[&ins.register];
-                        let val_var = self.variables[&ins.arguments[0]];
-                        let val = self.read_int(val_var);
-                        let raw = self.builder.int_to_float(val);
-                        let res = self.new_float(state_var, raw);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::IntToString => {
-                        let reg_var = self.variables[&ins.register];
-                        let val_var = self.variables[&ins.arguments[0]];
-                        let func = self
-                            .module
-                            .runtime_function(RuntimeFunction::IntToString);
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let val = self.read_int(val_var).into();
-                        let ret = self.builder.call(func, &[state, val]);
-
-                        self.builder.store(reg_var, ret);
-                    }
                     BuiltinFunction::IntWrappingAdd => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
@@ -2491,20 +1118,6 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::ObjectEq => {
-                        let reg_var = self.variables[&ins.register];
-                        let lhs_var = self.variables[&ins.arguments[0]];
-                        let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.builder.load_untyped_pointer(lhs_var);
-                        let rhs = self.builder.load_untyped_pointer(rhs_var);
-                        let raw = self.builder.int_eq(
-                            self.builder.pointer_to_int(lhs),
-                            self.builder.pointer_to_int(rhs),
-                        );
-                        let res = self.new_bool(state_var, raw);
-
-                        self.builder.store(reg_var, res);
-                    }
                     BuiltinFunction::Panic => {
                         let val_var = self.variables[&ins.arguments[0]];
                         let proc =
@@ -2516,359 +1129,6 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
 
                         self.builder.call_void(func, &[proc, val]);
                         self.builder.unreachable();
-                    }
-                    BuiltinFunction::PathAccessedAt => {
-                        let reg_var = self.variables[&ins.register];
-                        let path_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let path =
-                            self.builder.load_untyped_pointer(path_var).into();
-                        let func_name = RuntimeFunction::PathAccessedAt;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, proc, path]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::PathCreatedAt => {
-                        let reg_var = self.variables[&ins.register];
-                        let path_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let path =
-                            self.builder.load_untyped_pointer(path_var).into();
-                        let func_name = RuntimeFunction::PathCreatedAt;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, proc, path]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::PathModifiedAt => {
-                        let reg_var = self.variables[&ins.register];
-                        let path_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let path =
-                            self.builder.load_untyped_pointer(path_var).into();
-                        let func_name = RuntimeFunction::PathModifiedAt;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, proc, path]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::PathExpand => {
-                        let reg_var = self.variables[&ins.register];
-                        let path_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let path =
-                            self.builder.load_untyped_pointer(path_var).into();
-                        let func_name = RuntimeFunction::PathExpand;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, path]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::PathExists => {
-                        let reg_var = self.variables[&ins.register];
-                        let path_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let path =
-                            self.builder.load_untyped_pointer(path_var).into();
-                        let func_name = RuntimeFunction::PathExists;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, proc, path]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::PathIsDirectory => {
-                        let reg_var = self.variables[&ins.register];
-                        let path_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let path =
-                            self.builder.load_untyped_pointer(path_var).into();
-                        let func_name = RuntimeFunction::PathIsDirectory;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, proc, path]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::PathIsFile => {
-                        let reg_var = self.variables[&ins.register];
-                        let path_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let path =
-                            self.builder.load_untyped_pointer(path_var).into();
-                        let func_name = RuntimeFunction::PathIsFile;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, proc, path]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ProcessStackFrameLine => {
-                        let reg_var = self.variables[&ins.register];
-                        let trace_var = self.variables[&ins.arguments[0]];
-                        let index_var = self.variables[&ins.arguments[1]];
-                        let func_name = RuntimeFunction::ProcessStackFrameLine;
-                        let func = self.module.runtime_function(func_name);
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let trace =
-                            self.builder.load_untyped_pointer(trace_var).into();
-                        let index = self.read_int(index_var).into();
-                        let res =
-                            self.builder.call(func, &[state, trace, index]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ProcessStackFrameName => {
-                        let reg_var = self.variables[&ins.register];
-                        let trace_var = self.variables[&ins.arguments[0]];
-                        let index_var = self.variables[&ins.arguments[1]];
-                        let func_name = RuntimeFunction::ProcessStackFrameName;
-                        let func = self.module.runtime_function(func_name);
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let trace =
-                            self.builder.load_untyped_pointer(trace_var).into();
-                        let index = self.read_int(index_var).into();
-                        let res =
-                            self.builder.call(func, &[state, trace, index]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ProcessStackFramePath => {
-                        let reg_var = self.variables[&ins.register];
-                        let trace_var = self.variables[&ins.arguments[0]];
-                        let index_var = self.variables[&ins.arguments[1]];
-                        let func_name = RuntimeFunction::ProcessStackFramePath;
-                        let func = self.module.runtime_function(func_name);
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let trace =
-                            self.builder.load_untyped_pointer(trace_var).into();
-                        let index = self.read_int(index_var).into();
-                        let res =
-                            self.builder.call(func, &[state, trace, index]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ProcessStacktrace => {
-                        let reg_var = self.variables[&ins.register];
-                        let func_name = RuntimeFunction::ProcessStacktrace;
-                        let func = self.module.runtime_function(func_name);
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let res = self.builder.call(func, &[proc]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ProcessStacktraceDrop => {
-                        let reg_var = self.variables[&ins.register];
-                        let trace_var = self.variables[&ins.arguments[0]];
-                        let func_name = RuntimeFunction::ProcessStacktraceDrop;
-                        let func = self.module.runtime_function(func_name);
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let trace =
-                            self.builder.load_untyped_pointer(trace_var).into();
-                        let res = self.builder.call(func, &[state, trace]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ProcessStacktraceLength => {
-                        let reg_var = self.variables[&ins.register];
-                        let trace_var = self.variables[&ins.arguments[0]];
-                        let func_name =
-                            RuntimeFunction::ProcessStacktraceLength;
-                        let func = self.module.runtime_function(func_name);
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let trace =
-                            self.builder.load_untyped_pointer(trace_var).into();
-                        let res = self.builder.call(func, &[state, trace]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::ProcessSuspend => {
-                        let reg_var = self.variables[&ins.register];
-                        let time_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let time = self.read_int(time_var).into();
-                        let func_name = RuntimeFunction::ProcessSuspend;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, proc, time]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::RandomBytes => {
-                        let reg_var = self.variables[&ins.register];
-                        let rng_var = self.variables[&ins.arguments[0]];
-                        let size_var = self.variables[&ins.arguments[1]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let rng =
-                            self.builder.load_untyped_pointer(rng_var).into();
-                        let size = self.read_int(size_var).into();
-                        let func_name = RuntimeFunction::RandomBytes;
-                        let func = self.module.runtime_function(func_name);
-                        let res =
-                            self.builder.call(func, &[state, proc, rng, size]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::RandomDrop => {
-                        let reg_var = self.variables[&ins.register];
-                        let rng_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let rng =
-                            self.builder.load_untyped_pointer(rng_var).into();
-                        let func_name = RuntimeFunction::RandomDrop;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, rng]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::RandomFloat => {
-                        let reg_var = self.variables[&ins.register];
-                        let rng_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let rng =
-                            self.builder.load_untyped_pointer(rng_var).into();
-                        let func_name = RuntimeFunction::RandomFloat;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, rng]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::RandomFloatRange => {
-                        let reg_var = self.variables[&ins.register];
-                        let rng_var = self.variables[&ins.arguments[0]];
-                        let min_var = self.variables[&ins.arguments[1]];
-                        let max_var = self.variables[&ins.arguments[2]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let rng =
-                            self.builder.load_untyped_pointer(rng_var).into();
-                        let min = self.read_float(min_var).into();
-                        let max = self.read_float(max_var).into();
-                        let func_name = RuntimeFunction::RandomFloatRange;
-                        let func = self.module.runtime_function(func_name);
-                        let res =
-                            self.builder.call(func, &[state, rng, min, max]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::RandomFromInt => {
-                        let reg_var = self.variables[&ins.register];
-                        let seed_var = self.variables[&ins.arguments[0]];
-                        let seed = self.read_int(seed_var).into();
-                        let func_name = RuntimeFunction::RandomFromInt;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[seed]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::RandomInt => {
-                        let reg_var = self.variables[&ins.register];
-                        let rng_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let rng =
-                            self.builder.load_untyped_pointer(rng_var).into();
-                        let func_name = RuntimeFunction::RandomInt;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, rng]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::RandomIntRange => {
-                        let reg_var = self.variables[&ins.register];
-                        let rng_var = self.variables[&ins.arguments[0]];
-                        let min_var = self.variables[&ins.arguments[1]];
-                        let max_var = self.variables[&ins.arguments[2]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let rng =
-                            self.builder.load_untyped_pointer(rng_var).into();
-                        let min = self.read_int(min_var).into();
-                        let max = self.read_int(max_var).into();
-                        let func_name = RuntimeFunction::RandomIntRange;
-                        let func = self.module.runtime_function(func_name);
-                        let res =
-                            self.builder.call(func, &[state, rng, min, max]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::RandomNew => {
-                        let reg_var = self.variables[&ins.register];
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let func_name = RuntimeFunction::RandomNew;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[proc]);
-
-                        self.builder.store(reg_var, res);
                     }
                     BuiltinFunction::SocketAccept => {
                         let reg_var = self.variables[&ins.register];
@@ -3458,199 +1718,6 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::StderrFlush => {
-                        let reg_var = self.variables[&ins.register];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let func_name = RuntimeFunction::StderrFlush;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, proc]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::StderrWriteBytes => {
-                        let reg_var = self.variables[&ins.register];
-                        let input_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let input = self
-                            .builder
-                            .untagged(
-                                self.builder.load_untyped_pointer(input_var),
-                            )
-                            .into();
-                        let func = self.module.runtime_function(
-                            RuntimeFunction::StderrWriteBytes,
-                        );
-
-                        let ret =
-                            self.builder.call(func, &[state, proc, input]);
-
-                        self.builder.store(reg_var, ret);
-                    }
-                    BuiltinFunction::StderrWriteString => {
-                        let reg_var = self.variables[&ins.register];
-                        let input_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let input =
-                            self.builder.load_untyped_pointer(input_var).into();
-                        let func = self.module.runtime_function(
-                            RuntimeFunction::StderrWriteString,
-                        );
-
-                        let ret =
-                            self.builder.call(func, &[state, proc, input]);
-
-                        self.builder.store(reg_var, ret);
-                    }
-                    BuiltinFunction::StdinRead => {
-                        let reg_var = self.variables[&ins.register];
-                        let buf_var = self.variables[&ins.arguments[0]];
-                        let size_var = self.variables[&ins.arguments[1]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let buf = self
-                            .builder
-                            .untagged(
-                                self.builder.load_untyped_pointer(buf_var),
-                            )
-                            .into();
-                        let size = self.read_int(size_var).into();
-                        let func_name = RuntimeFunction::StdinRead;
-                        let func = self.module.runtime_function(func_name);
-                        let res =
-                            self.builder.call(func, &[state, proc, buf, size]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::StdoutFlush => {
-                        let reg_var = self.variables[&ins.register];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let func_name = RuntimeFunction::StdoutFlush;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, proc]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::StdoutWriteBytes => {
-                        let reg_var = self.variables[&ins.register];
-                        let buf_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let buf = self
-                            .builder
-                            .untagged(
-                                self.builder.load_untyped_pointer(buf_var),
-                            )
-                            .into();
-                        let func_name = RuntimeFunction::StdoutWriteBytes;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, proc, buf]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::StdoutWriteString => {
-                        let reg_var = self.variables[&ins.register];
-                        let input_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let input =
-                            self.builder.load_untyped_pointer(input_var).into();
-                        let func_name = RuntimeFunction::StdoutWriteString;
-                        let func = self.module.runtime_function(func_name);
-                        let res =
-                            self.builder.call(func, &[state, proc, input]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::StringByte => {
-                        let reg_var = self.variables[&ins.register];
-                        let string_var = self.variables[&ins.arguments[0]];
-                        let index_var = self.variables[&ins.arguments[1]];
-                        let string = self
-                            .builder
-                            .load_untyped_pointer(string_var)
-                            .into();
-                        let index = self.read_int(index_var).into();
-                        let func_name = RuntimeFunction::StringByte;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[string, index]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::StringCharacters => {
-                        let reg_var = self.variables[&ins.register];
-                        let string_var = self.variables[&ins.arguments[0]];
-                        let string = self
-                            .builder
-                            .load_untyped_pointer(string_var)
-                            .into();
-                        let func_name = RuntimeFunction::StringCharacters;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[string]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::StringCharactersDrop => {
-                        let reg_var = self.variables[&ins.register];
-                        let iter_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let iter =
-                            self.builder.load_untyped_pointer(iter_var).into();
-                        let func_name = RuntimeFunction::StringCharactersDrop;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, iter]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::StringCharactersNext => {
-                        let reg_var = self.variables[&ins.register];
-                        let iter_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let iter =
-                            self.builder.load_untyped_pointer(iter_var).into();
-                        let func_name = RuntimeFunction::StringCharactersNext;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, iter]);
-
-                        self.builder.store(reg_var, res);
-                    }
                     BuiltinFunction::StringConcat => {
                         let reg_var = self.variables[&ins.register];
                         let len =
@@ -3684,252 +1751,19 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::StringConcatArray => {
-                        let reg_var = self.variables[&ins.register];
-                        let ary_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let ary =
-                            self.builder.load_untyped_pointer(ary_var).into();
-                        let func_name = RuntimeFunction::StringConcatArray;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, ary]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::StringDrop => {
-                        let reg_var = self.variables[&ins.register];
-                        let string_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let string = self
-                            .builder
-                            .load_untyped_pointer(string_var)
-                            .into();
-                        let func_name = RuntimeFunction::StringDrop;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, string]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::StringEq => {
-                        let reg_var = self.variables[&ins.register];
-                        let lhs_var = self.variables[&ins.arguments[0]];
-                        let rhs_var = self.variables[&ins.arguments[1]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let lhs =
-                            self.builder.load_untyped_pointer(lhs_var).into();
-                        let rhs =
-                            self.builder.load_untyped_pointer(rhs_var).into();
-                        let func = self
-                            .module
-                            .runtime_function(RuntimeFunction::StringEquals);
-                        let ret = self.builder.call(func, &[state, lhs, rhs]);
-
-                        self.builder.store(reg_var, ret);
-                    }
-                    BuiltinFunction::StringSize => {
-                        let reg_var = self.variables[&ins.register];
-                        let string_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let string = self
-                            .builder
-                            .load_untyped_pointer(string_var)
-                            .into();
-                        let func_name = RuntimeFunction::StringSize;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, string]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::StringSliceBytes => {
-                        let reg_var = self.variables[&ins.register];
-                        let string_var = self.variables[&ins.arguments[0]];
-                        let start_var = self.variables[&ins.arguments[1]];
-                        let len_var = self.variables[&ins.arguments[2]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let string = self
-                            .builder
-                            .load_untyped_pointer(string_var)
-                            .into();
-                        let start = self.read_int(start_var).into();
-                        let len = self.read_int(len_var).into();
-                        let func_name = RuntimeFunction::StringSliceBytes;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self
-                            .builder
-                            .call(func, &[state, string, start, len]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::StringToByteArray => {
-                        let reg_var = self.variables[&ins.register];
-                        let string_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let string = self
-                            .builder
-                            .load_untyped_pointer(string_var)
-                            .into();
-                        let func_name = RuntimeFunction::StringToByteArray;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, string]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::StringToFloat => {
-                        let reg_var = self.variables[&ins.register];
-                        let string_var = self.variables[&ins.arguments[0]];
-                        let start_var = self.variables[&ins.arguments[1]];
-                        let end_var = self.variables[&ins.arguments[2]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let string = self
-                            .builder
-                            .load_untyped_pointer(string_var)
-                            .into();
-                        let start = self.read_int(start_var).into();
-                        let end = self.read_int(end_var).into();
-                        let func_name = RuntimeFunction::StringToFloat;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self
-                            .builder
-                            .call(func, &[state, string, start, end]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::StringToInt => {
-                        let reg_var = self.variables[&ins.register];
-                        let string_var = self.variables[&ins.arguments[0]];
-                        let radix_var = self.variables[&ins.arguments[1]];
-                        let start_var = self.variables[&ins.arguments[2]];
-                        let end_var = self.variables[&ins.arguments[3]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let string = self
-                            .builder
-                            .load_untyped_pointer(string_var)
-                            .into();
-                        let radix = self.read_int(radix_var).into();
-                        let start = self.read_int(start_var).into();
-                        let end = self.read_int(end_var).into();
-                        let func_name = RuntimeFunction::StringToInt;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(
-                            func,
-                            &[state, proc, string, radix, start, end],
-                        );
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::StringToLower => {
-                        let reg_var = self.variables[&ins.register];
-                        let string_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let string = self
-                            .builder
-                            .load_untyped_pointer(string_var)
-                            .into();
-                        let func_name = RuntimeFunction::StringToLower;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, string]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::StringToUpper => {
-                        let reg_var = self.variables[&ins.register];
-                        let string_var = self.variables[&ins.arguments[0]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let string = self
-                            .builder
-                            .load_untyped_pointer(string_var)
-                            .into();
-                        let func_name = RuntimeFunction::StringToUpper;
-                        let func = self.module.runtime_function(func_name);
-                        let res = self.builder.call(func, &[state, string]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::TimeMonotonic => {
-                        let reg_var = self.variables[&ins.register];
-                        let func_name = RuntimeFunction::TimeMonotonic;
-                        let func = self.module.runtime_function(func_name);
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let res = self.builder.call(func, &[state]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::TimeSystem => {
-                        let reg_var = self.variables[&ins.register];
-                        let func_name = RuntimeFunction::TimeSystem;
-                        let func = self.module.runtime_function(func_name);
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let res = self.builder.call(func, &[state]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::TimeSystemOffset => {
-                        let reg_var = self.variables[&ins.register];
-                        let func_name = RuntimeFunction::TimeSystemOffset;
-                        let func = self.module.runtime_function(func_name);
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let res = self.builder.call(func, &[state]);
-
-                        self.builder.store(reg_var, res);
-                    }
-                    BuiltinFunction::HashKey0 => {
+                    BuiltinFunction::State => {
                         let reg_var = self.variables[&ins.register];
                         let typ = self.layouts.state;
                         let state = self.builder.load_pointer(typ, state_var);
-                        let index = HASH_KEY0_INDEX;
-                        let res = self.builder.load_field(typ, state, index);
 
-                        self.builder.store(reg_var, res);
+                        self.builder.store(reg_var, state);
                     }
-                    BuiltinFunction::HashKey1 => {
+                    BuiltinFunction::Process => {
                         let reg_var = self.variables[&ins.register];
                         let typ = self.layouts.state;
-                        let state = self.builder.load_pointer(typ, state_var);
-                        let index = HASH_KEY1_INDEX;
-                        let res = self.builder.load_field(typ, state, index);
+                        let state = self.builder.load_pointer(typ, proc_var);
 
-                        self.builder.store(reg_var, res);
+                        self.builder.store(reg_var, state);
                     }
                     BuiltinFunction::Moved => unreachable!(),
                 }
@@ -4118,6 +1952,52 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
 
                 self.builder.store(target, self.builder.load(typ, source));
             }
+            Instruction::CallExtern(ins) => {
+                self.set_debug_location(ins.location);
+
+                let func_name = ins.method.name(self.db);
+                let func = self.module.add_method(func_name, ins.method);
+                let args: Vec<BasicMetadataValueEnum> = ins
+                    .arguments
+                    .iter()
+                    .map(|&reg| {
+                        let reg_typ = self.register_type(reg);
+                        let arg_var = self.variables[&reg];
+
+                        // References and tagged integers are passed as their
+                        // raw versions (i.e. without a tag bit). This makes it
+                        // a little easier to pass such data to the runtime
+                        // functions.
+                        if reg_typ.is_int(self.db) {
+                            self.read_int(arg_var).into()
+                        } else if reg_typ.is_ref_or_mut(self.db) {
+                            let arg = self
+                                .builder
+                                .load(self.variable_types[&reg], arg_var);
+
+                            self.builder
+                                .untagged(arg.into_pointer_value())
+                                .into()
+                        } else {
+                            self.builder
+                                .load(self.variable_types[&reg], arg_var)
+                                .into()
+                        }
+                    })
+                    .collect();
+
+                if ins.method.returns_value(self.db) {
+                    let var = self.variables[&ins.register];
+
+                    self.builder.store(var, self.builder.call(func, &args));
+                } else {
+                    self.builder.call_void(func, &args);
+
+                    if self.register_type(ins.register).is_never(self.db) {
+                        self.builder.unreachable();
+                    }
+                }
+            }
             Instruction::CallStatic(ins) => {
                 self.set_debug_location(ins.location);
 
@@ -4196,6 +2076,7 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                             .into_int_value(),
                         self.builder.u16_literal(1),
                     ),
+                    64,
                 );
 
                 let hash = self.builder.u64_literal(info.hash);
@@ -4470,11 +2351,22 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
             {
                 let reg_var = self.variables[&ins.register];
                 let rec_var = self.variables[&ins.receiver];
+                let rec_typ = self.variable_types[&ins.receiver];
                 let layout = self.layouts.instances[&ins.class];
                 let index = ins.field.index(self.db) as u32;
-                let rec =
-                    self.builder.load(layout, rec_var).into_struct_value();
-                let field = self.builder.extract_field(rec, index);
+                let field = if rec_typ.is_pointer_type() {
+                    let rec = self
+                        .builder
+                        .load(rec_typ, rec_var)
+                        .into_pointer_value();
+
+                    self.builder.load_field(layout, rec, index)
+                } else {
+                    let rec =
+                        self.builder.load(rec_typ, rec_var).into_struct_value();
+
+                    self.builder.extract_field(rec, index)
+                };
 
                 self.builder.store(reg_var, field);
             }
@@ -4482,12 +2374,23 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                 if ins.class.kind(self.db).is_extern() =>
             {
                 let rec_var = self.variables[&ins.receiver];
+                let rec_typ = self.variable_types[&ins.receiver];
                 let val_var = self.variables[&ins.value];
                 let layout = self.layouts.instances[&ins.class];
                 let index = ins.field.index(self.db) as u32;
-                let val = self.builder.load_untyped_pointer(val_var);
+                let val_typ = self.variable_types[&ins.value];
+                let val = self.builder.load(val_typ, val_var);
 
-                self.builder.store_field(layout, rec_var, index, val);
+                if rec_typ.is_pointer_type() {
+                    let rec = self
+                        .builder
+                        .load(rec_typ, rec_var)
+                        .into_pointer_value();
+
+                    self.builder.store_field(layout, rec, index, val);
+                } else {
+                    self.builder.store_field(layout, rec_var, index, val);
+                }
             }
             Instruction::GetField(ins) => {
                 let reg_var = self.variables[&ins.register];
@@ -4759,6 +2662,170 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
 
                 self.builder.call_void(func, &[proc, terminate]);
                 self.builder.unreachable();
+            }
+            Instruction::Cast(ins) => {
+                let reg_var = self.variables[&ins.register];
+                let src_var = self.variables[&ins.source];
+                let src_typ = self.variable_types[&ins.source];
+                let res = match (ins.from, ins.to) {
+                    (CastType::Int(_), CastType::Int(size)) => {
+                        let src = self.builder.load(src_typ, src_var);
+
+                        self.builder
+                            .int_to_int(src.into_int_value(), size)
+                            .as_basic_value_enum()
+                    }
+                    (CastType::Int(_), CastType::Float(size)) => {
+                        let src = self.builder.load(src_typ, src_var);
+
+                        self.builder
+                            .int_to_float(src.into_int_value(), size)
+                            .as_basic_value_enum()
+                    }
+                    (CastType::Int(_), CastType::Pointer) => {
+                        let src = self
+                            .builder
+                            .load(src_typ, src_var)
+                            .into_int_value();
+
+                        self.builder.int_to_pointer(src).as_basic_value_enum()
+                    }
+                    (CastType::Float(_), CastType::Int(size)) => {
+                        let src = self.builder.load(src_typ, src_var);
+
+                        self.float_to_int(src.into_float_value(), size)
+                            .as_basic_value_enum()
+                    }
+                    (CastType::Float(_), CastType::Float(size)) => {
+                        let src = self.builder.load(src_typ, src_var);
+
+                        self.builder
+                            .float_to_float(src.into_float_value(), size)
+                            .as_basic_value_enum()
+                    }
+                    (CastType::Int(_), CastType::InkoInt) => {
+                        let src = self.builder.load(src_typ, src_var);
+                        let raw =
+                            self.builder.int_to_int(src.into_int_value(), 64);
+
+                        self.new_int(state_var, raw).as_basic_value_enum()
+                    }
+                    (CastType::Int(_), CastType::InkoFloat) => {
+                        let src = self.builder.load(src_typ, src_var);
+                        let raw =
+                            self.builder.int_to_float(src.into_int_value(), 64);
+
+                        self.new_float(state_var, raw).as_basic_value_enum()
+                    }
+                    (CastType::Float(_), CastType::InkoInt) => {
+                        let src = self.builder.load(src_typ, src_var);
+                        let raw = self.float_to_int(src.into_float_value(), 64);
+
+                        self.new_int(state_var, raw).as_basic_value_enum()
+                    }
+                    (CastType::Float(_), CastType::InkoFloat) => {
+                        let src = self.builder.load(src_typ, src_var);
+                        let raw = self
+                            .builder
+                            .float_to_float(src.into_float_value(), 64);
+
+                        self.new_float(state_var, raw).as_basic_value_enum()
+                    }
+                    (CastType::InkoInt, CastType::Int(size)) => {
+                        let raw = self.read_int(src_var);
+
+                        self.builder.int_to_int(raw, size).as_basic_value_enum()
+                    }
+                    (CastType::InkoInt, CastType::Float(size)) => {
+                        let raw = self.read_int(src_var);
+
+                        self.builder
+                            .int_to_float(raw, size)
+                            .as_basic_value_enum()
+                    }
+                    (CastType::InkoInt, CastType::Pointer) => {
+                        let raw = self.read_int(src_var);
+
+                        self.builder.int_to_pointer(raw).as_basic_value_enum()
+                    }
+                    (CastType::InkoFloat, CastType::Int(size)) => {
+                        let raw = self.read_float(src_var);
+
+                        self.float_to_int(raw, size).as_basic_value_enum()
+                    }
+                    (CastType::InkoFloat, CastType::Float(size)) => {
+                        let raw = self.read_float(src_var);
+
+                        self.builder
+                            .float_to_float(raw, size)
+                            .as_basic_value_enum()
+                    }
+                    (CastType::InkoInt, CastType::InkoFloat) => {
+                        let val = self.read_int(src_var);
+                        let raw = self.builder.int_to_float(val, 64);
+
+                        self.new_float(state_var, raw).as_basic_value_enum()
+                    }
+                    (CastType::InkoFloat, CastType::InkoInt) => {
+                        let val = self.read_float(src_var);
+                        let raw = self.float_to_int(val, 64);
+
+                        self.new_int(state_var, raw).as_basic_value_enum()
+                    }
+                    (CastType::Pointer, CastType::Int(size)) => {
+                        let src = self.builder.load(src_typ, src_var);
+                        let raw = self
+                            .builder
+                            .pointer_to_int(src.into_pointer_value());
+
+                        self.builder.int_to_int(raw, size).as_basic_value_enum()
+                    }
+                    (CastType::Pointer, CastType::InkoInt) => {
+                        let src = self.builder.load(src_typ, src_var);
+                        let raw = self
+                            .builder
+                            .pointer_to_int(src.into_pointer_value());
+
+                        self.new_int(state_var, raw).as_basic_value_enum()
+                    }
+                    (CastType::Pointer, CastType::Pointer) => {
+                        // Pointers are untyped at the LLVM level and instead
+                        // load/stores/etc use the types, so there's nothing
+                        // special we need to do in this case.
+                        self.builder.load(src_typ, src_var)
+                    }
+                    _ => unreachable!(),
+                };
+
+                self.builder.store(reg_var, res);
+            }
+            Instruction::ReadPointer(ins) => {
+                let reg_var = self.variables[&ins.register];
+                let reg_typ = self.variable_types[&ins.register];
+                let ptr_var = self.variables[&ins.pointer];
+                let ptr_typ = self.variable_types[&ins.pointer];
+                let ptr =
+                    self.builder.load(ptr_typ, ptr_var).into_pointer_value();
+                let val = self.builder.load(reg_typ, ptr);
+
+                self.builder.store(reg_var, val);
+            }
+            Instruction::WritePointer(ins) => {
+                let ptr_var = self.variables[&ins.pointer];
+                let ptr_typ = self.variable_types[&ins.pointer];
+                let val_var = self.variables[&ins.value];
+                let val_typ = self.variable_types[&ins.value];
+                let val = self.builder.load(val_typ, val_var);
+                let ptr =
+                    self.builder.load(ptr_typ, ptr_var).into_pointer_value();
+
+                self.builder.store(ptr, val);
+            }
+            Instruction::Pointer(ins) => {
+                let reg_var = self.variables[&ins.register];
+                let val_var = self.variables[&ins.value];
+
+                self.builder.store(reg_var, val_var);
             }
             Instruction::Reference(_) => unreachable!(),
             Instruction::Drop(_) => unreachable!(),
@@ -5154,25 +3221,27 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
 
         for index in 0..self.method.registers.len() {
             let id = RegisterId(index as _);
-            let typ = self.method.registers.value_type(id);
-            let alloca_typ = if let Some(id) = typ.class_id(self.db) {
-                let layout = self.layouts.instances[&id];
+            let raw = self.method.registers.value_type(id);
+            let typ = self
+                .builder
+                .context
+                .foreign_type(self.db, self.layouts, raw)
+                .unwrap_or_else(|| {
+                    if let Some(id) = raw.class_id(self.db) {
+                        self.layouts.instances[&id]
+                            .ptr_type(space)
+                            .as_basic_type_enum()
+                    } else {
+                        self.builder.context.pointer_type().as_basic_type_enum()
+                    }
+                });
 
-                if id.kind(self.db).is_extern() {
-                    layout.as_basic_type_enum()
-                } else {
-                    layout.ptr_type(space).as_basic_type_enum()
-                }
-            } else {
-                self.builder.context.pointer_type().as_basic_type_enum()
-            };
-
-            self.variables.insert(id, self.builder.alloca(alloca_typ));
-            self.variable_types.insert(id, alloca_typ);
+            self.variables.insert(id, self.builder.alloca(typ));
+            self.variable_types.insert(id, typ);
         }
     }
 
-    fn register_type(&self, register: RegisterId) -> types::TypeRef {
+    fn register_type(&self, register: RegisterId) -> TypeRef {
         self.method.registers.value_type(register)
     }
 
@@ -5222,6 +3291,26 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
         let loc = self.module.debug_builder.new_location(line, col, scope);
 
         self.builder.set_debug_location(loc);
+    }
+
+    fn float_to_int(
+        &mut self,
+        source: FloatValue<'ctx>,
+        size: u32,
+    ) -> IntValue<'ctx> {
+        let target = match size {
+            8 => self.builder.context.i8_type(),
+            16 => self.builder.context.i16_type(),
+            32 => self.builder.context.i32_type(),
+            _ => self.builder.context.i64_type(),
+        };
+
+        let func = self.module.intrinsic(
+            "llvm.fptosi.sat",
+            &[target.into(), source.get_type().into()],
+        );
+
+        self.builder.call(func, &[source.into()]).into_int_value()
     }
 }
 
@@ -5277,8 +3366,6 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
             self.module.runtime_function(RuntimeFunction::RuntimeState);
         let rt_drop =
             self.module.runtime_function(RuntimeFunction::RuntimeDrop);
-        let exit = self.module.runtime_function(RuntimeFunction::Exit);
-
         let runtime =
             self.builder.call(rt_new, &[counts.into()]).into_pointer_value();
         let state =
@@ -5328,8 +3415,7 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
         // any additional logic into that step at some point, though technically
         // this isn't necessary.
         self.builder.call_void(rt_drop, &[runtime.into()]);
-        self.builder.call_void(exit, &[self.builder.i64_literal(0).into()]);
-        self.builder.unreachable();
+        self.builder.return_value(None);
     }
 
     fn methods(&self, id: ClassId) -> IntValue<'ctx> {

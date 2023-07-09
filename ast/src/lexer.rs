@@ -170,6 +170,7 @@ pub enum TokenKind {
     UnsignedShrAssign,
     While,
     Whitespace,
+    Extern,
 }
 
 impl TokenKind {
@@ -274,6 +275,7 @@ impl TokenKind {
             TokenKind::Recover => "the 'recover' keyword",
             TokenKind::Nil => "the 'nil' keyword",
             TokenKind::Replace => "a '=:'",
+            TokenKind::Extern => "the 'extern' keyword",
         }
     }
 }
@@ -340,6 +342,7 @@ impl Token {
                 | TokenKind::False
                 | TokenKind::Case
                 | TokenKind::Enum
+                | TokenKind::Extern
         )
     }
 
@@ -995,6 +998,7 @@ impl Lexer {
                 "import" => TokenKind::Import,
                 "return" => TokenKind::Return,
                 "static" => TokenKind::Static,
+                "extern" => TokenKind::Extern,
                 _ => TokenKind::Identifier,
             },
             7 => match value.as_str() {
@@ -2073,6 +2077,7 @@ mod tests {
         assert_token!("import", Import, "import", 1..=1, 1..=6);
         assert_token!("return", Return, "return", 1..=1, 1..=6);
         assert_token!("static", Static, "static", 1..=1, 1..=6);
+        assert_token!("extern", Extern, "extern", 1..=1, 1..=6);
 
         assert_token!("builtin", Builtin, "builtin", 1..=1, 1..=7);
         assert_token!("recover", Recover, "recover", 1..=1, 1..=7);

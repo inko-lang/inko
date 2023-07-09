@@ -29,7 +29,16 @@ class pub SipHasher13 {
 
   # Returns a new hasher using two default keys.
   fn pub static default -> SipHasher13 {
-    new(_INKO.hash_key0, _INKO.hash_key1)
+    # These casts allow us to read the hash keys from the runtime state, but
+    # without having to declare the entire layout (including fields we have no
+    # interest in).
+    #
+    # The cast to `Any` is needed so we can simply reinterpret the result as an
+    # Int.
+    let key0 = (_INKO.state as Int + 88 as Pointer[Int64]).0 as Any as Int
+    let key1 = (_INKO.state as Int + 96 as Pointer[Int64]).0 as Any as Int
+
+    new(key0, key1)
   }
 
   # Returns a new hasher using the two keys.

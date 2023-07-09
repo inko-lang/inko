@@ -67,6 +67,7 @@ pub unsafe extern "system" fn inko_runtime_start(
 ) {
     ignore_sigpipe();
     (*runtime).start(class, method);
+    flush_stdout();
 }
 
 #[no_mangle]
@@ -76,11 +77,14 @@ pub unsafe extern "system" fn inko_runtime_state(
     (*runtime).state.as_ptr() as _
 }
 
-pub(crate) fn exit(status: i32) -> ! {
+fn flush_stdout() {
     // STDOUT is buffered by default, and not flushing it upon exit may result
     // in parent processes not observing the output.
     let _ = stdout().lock().flush();
+}
 
+pub(crate) fn exit(status: i32) -> ! {
+    flush_stdout();
     rust_exit(status);
 }
 

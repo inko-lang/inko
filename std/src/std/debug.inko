@@ -5,6 +5,26 @@
 import std::fs::path::Path
 import std::clone::Clone
 
+fn extern inko_process_stacktrace(process: Pointer[Int8]) -> Pointer[Int8]
+fn extern inko_process_stacktrace_length(trace: Pointer[Int8]) -> Int64
+fn extern inko_process_stacktrace_drop(trace: Pointer[Int8])
+fn extern inko_process_stack_frame_line(
+  trace: Pointer[Int8],
+  index: Int,
+) -> Int64
+
+fn extern inko_process_stack_frame_name(
+  state: Pointer[Int8],
+  trace: Pointer[Int8],
+  index: Int,
+) -> String
+
+fn extern inko_process_stack_frame_path(
+  state: Pointer[Int8],
+  trace: Pointer[Int8],
+  index: Int,
+) -> String
+
 # Details of a single stack frame in a stack trace.
 class pub StackFrame {
   # The path of the file the frame belongs to.
@@ -52,8 +72,8 @@ impl Clone[StackFrame] for StackFrame {
 #       frame.name # => 'second'
 #     }
 fn pub stacktrace(skip: Int) -> Array[StackFrame] {
-  let trace = _INKO.process_stacktrace
-  let len = _INKO.process_stacktrace_length(trace)
+  let trace = inko_process_stacktrace(_INKO.process)
+  let len = inko_process_stacktrace_length(trace) as Int
   let max = len - skip
   let mut index = 0
 
@@ -62,14 +82,15 @@ fn pub stacktrace(skip: Int) -> Array[StackFrame] {
   let frames = Array.with_capacity(max)
 
   while index < max {
-    let path = Path.new(_INKO.process_stack_frame_path(trace, index))
-    let name = _INKO.process_stack_frame_name(trace, index)
-    let line = _INKO.process_stack_frame_line(trace, index)
+    let path =
+      Path.new(inko_process_stack_frame_path(_INKO.state, trace, index))
+    let name = inko_process_stack_frame_name(_INKO.state, trace, index)
+    let line = inko_process_stack_frame_line(trace, index) as Int
 
     frames.push(StackFrame.new(path, name, line))
     index += 1
   }
 
-  _INKO.process_stacktrace_drop(trace)
+  inko_process_stacktrace_drop(trace)
   frames
 }

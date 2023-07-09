@@ -1,6 +1,4 @@
-use crate::mem::{
-    Array, Bool, ByteArray, Float, Int, Nil, String as InkoString,
-};
+use crate::mem::{Array, Bool, ByteArray, Float, Int, String as InkoString};
 use crate::process::ProcessPointer;
 use crate::result::Result as InkoResult;
 use crate::runtime::helpers::read_into;
@@ -11,12 +9,8 @@ use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_file_drop(
-    state: *const State,
-    file: *mut File,
-) -> *const Nil {
+pub unsafe extern "system" fn inko_file_drop(file: *mut File) {
     drop(Box::from_raw(file));
-    (*state).nil_singleton
 }
 
 #[no_mangle]
@@ -42,13 +36,12 @@ pub unsafe extern "system" fn inko_file_seek(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_file_flush(
-    state: *const State,
     process: ProcessPointer,
     file: *mut File,
 ) -> InkoResult {
     process
         .blocking(|| (*file).flush())
-        .map(|_| InkoResult::ok((*state).nil_singleton as _))
+        .map(|_| InkoResult::none())
         .unwrap_or_else(InkoResult::io_error)
 }
 
@@ -113,13 +106,12 @@ pub unsafe extern "system" fn inko_file_size(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_file_remove(
-    state: *const State,
     process: ProcessPointer,
     path: *const InkoString,
 ) -> InkoResult {
     process
         .blocking(|| fs::remove_file(InkoString::read(path)))
-        .map(|_| InkoResult::ok((*state).nil_singleton as _))
+        .map(|_| InkoResult::none())
         .unwrap_or_else(InkoResult::io_error)
 }
 
@@ -273,49 +265,45 @@ pub unsafe extern "system" fn inko_file_read(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_directory_create(
-    state: *const State,
     process: ProcessPointer,
     path: *const InkoString,
 ) -> InkoResult {
     process
         .blocking(|| fs::create_dir(InkoString::read(path)))
-        .map(|_| InkoResult::ok((*state).nil_singleton as _))
+        .map(|_| InkoResult::none())
         .unwrap_or_else(InkoResult::io_error)
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_directory_create_recursive(
-    state: *const State,
     process: ProcessPointer,
     path: *const InkoString,
 ) -> InkoResult {
     process
         .blocking(|| fs::create_dir_all(InkoString::read(path)))
-        .map(|_| InkoResult::ok((*state).nil_singleton as _))
+        .map(|_| InkoResult::none())
         .unwrap_or_else(InkoResult::io_error)
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_directory_remove(
-    state: *const State,
     process: ProcessPointer,
     path: *const InkoString,
 ) -> InkoResult {
     process
         .blocking(|| fs::remove_dir(InkoString::read(path)))
-        .map(|_| InkoResult::ok((*state).nil_singleton as _))
+        .map(|_| InkoResult::none())
         .unwrap_or_else(InkoResult::io_error)
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_directory_remove_all(
-    state: *const State,
+pub unsafe extern "system" fn inko_directory_remove_recursive(
     process: ProcessPointer,
     path: *const InkoString,
 ) -> InkoResult {
     process
         .blocking(|| fs::remove_dir_all(InkoString::read(path)))
-        .map(|_| InkoResult::ok((*state).nil_singleton as _))
+        .map(|_| InkoResult::none())
         .unwrap_or_else(InkoResult::io_error)
 }
 

@@ -1186,7 +1186,7 @@ mod tests {
     #[test]
     fn test_monitor_check_threads() {
         let scheduler = Scheduler::new(2, 2, 32);
-        let mut monitor = Monitor::new(&*scheduler.pool);
+        let mut monitor = Monitor::new(&scheduler.pool);
 
         assert!(!monitor.check_threads());
 
@@ -1214,7 +1214,7 @@ mod tests {
     #[test]
     fn test_monitor_update_epoch() {
         let scheduler = Scheduler::new(1, 1, 32);
-        let mut monitor = Monitor::new(&*scheduler.pool);
+        let mut monitor = Monitor::new(&scheduler.pool);
 
         assert_eq!(monitor.epoch, START_EPOCH);
         assert_eq!(scheduler.pool.epoch.load(Ordering::Acquire), START_EPOCH);
@@ -1228,7 +1228,7 @@ mod tests {
     #[test]
     fn test_monitor_sleep() {
         let scheduler = Scheduler::new(1, 1, 32);
-        let monitor = Monitor::new(&*scheduler.pool);
+        let monitor = Monitor::new(&scheduler.pool);
         let start = Instant::now();
 
         scheduler.pool.monitor.status.store(MonitorStatus::Notified);
@@ -1241,7 +1241,7 @@ mod tests {
     #[test]
     fn test_monitor_deep_sleep_with_termination() {
         let scheduler = Scheduler::new(1, 1, 32);
-        let monitor = Monitor::new(&*scheduler.pool);
+        let monitor = Monitor::new(&scheduler.pool);
 
         scheduler.terminate();
         monitor.deep_sleep();
@@ -1252,7 +1252,7 @@ mod tests {
     #[test]
     fn test_monitor_deep_sleep_with_notification() {
         let scheduler = Scheduler::new(1, 1, 32);
-        let monitor = Monitor::new(&*scheduler.pool);
+        let monitor = Monitor::new(&scheduler.pool);
         let _ = scope(|s| {
             s.spawn(|_| monitor.deep_sleep());
 
@@ -1274,7 +1274,7 @@ mod tests {
     #[test]
     fn test_monitor_deep_sleep_with_blocked_threads() {
         let scheduler = Scheduler::new(1, 1, 32);
-        let monitor = Monitor::new(&*scheduler.pool);
+        let monitor = Monitor::new(&scheduler.pool);
 
         scheduler.pool.threads[0].blocked_at.store(1, Ordering::Release);
         monitor.deep_sleep();

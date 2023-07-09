@@ -5,11 +5,80 @@ import std::int::ToInt
 import std::io::(Error, Read, Write)
 import std::string::IntoString
 
+class extern AnyResult {
+  let @tag: Int
+  let @value: Any
+}
+
+class extern IntResult {
+  let @tag: Int
+  let @value: Int
+}
+
+fn extern inko_child_process_spawn(
+  process: Pointer[Int8],
+  program: String,
+  args: ref Array[String],
+  env: ref Array[String],
+  stdin: Int,
+  stdout: Int,
+  stderr: Int,
+  directory: String
+) -> AnyResult
+
+fn extern inko_child_process_drop(child: Pointer[Int8])
+fn extern inko_child_process_stdout_close(child: Pointer[Int8])
+fn extern inko_child_process_stderr_close(child: Pointer[Int8])
+fn extern inko_child_process_stdin_close(child: Pointer[Int8])
+fn extern inko_child_process_stderr_read(
+  state: Pointer[Int8],
+  process: Pointer[Int8],
+  child: Pointer[Int8],
+  buffer: mut ByteArray,
+  size: Int
+) -> IntResult
+
+fn extern inko_child_process_stdout_read(
+  state: Pointer[Int8],
+  process: Pointer[Int8],
+  child: Pointer[Int8],
+  buffer: mut ByteArray,
+  size: Int
+) -> IntResult
+
+fn extern inko_child_process_stdin_flush(
+  process: Pointer[Int8],
+  child: Pointer[Int8],
+) -> AnyResult
+
+fn extern inko_child_process_stdin_write_bytes(
+  state: Pointer[Int8],
+  process: Pointer[Int8],
+  child: Pointer[Int8],
+  input: ref ByteArray,
+) -> IntResult
+
+fn extern inko_child_process_stdin_write_string(
+  state: Pointer[Int8],
+  process: Pointer[Int8],
+  child: Pointer[Int8],
+  input: String,
+) -> IntResult
+
+fn extern inko_child_process_try_wait(child: Pointer[Int8]) -> IntResult
+fn extern inko_child_process_wait(
+  process: Pointer[Int8],
+  child: Pointer[Int8],
+) -> IntResult
+
+fn extern inko_cpu_cores -> Int
+fn extern inko_exit(status: Int) -> Never
+
 # Returns the number of available CPU cores of the current system.
 #
 # This returns the number of _logical_ cores, with a minimum value of 1.
 fn pub cpu_cores -> Int {
-  _INKO.cpu_cores
+  inko_cpu_cores
 }
 
 # Terminates the program with the given exit status.
@@ -31,7 +100,7 @@ fn pub cpu_cores -> Int {
 #
 #     sys.exit(1)
 fn pub exit(status: Int) -> Never {
-  _INKO.exit(status)
+  inko_exit(status)
 }
 
 # A type that describes what to do with an input/output stream of a command.
@@ -276,7 +345,8 @@ class pub Command {
       vars.push(entry.value)
     }
 
-    match _INKO.child_process_spawn(
+    match inko_child_process_spawn(
+      _INKO.process,
       @program.to_string,
       @arguments,
       vars,
@@ -285,8 +355,12 @@ class pub Command {
       @stderr.to_int,
       @directory.as_ref.unwrap_or(ref ''),
     ) {
-      case { @tag = 0, @value = v } -> Result.Ok(ChildProcess { @raw = v })
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+      case { @tag = 0, @value = v } -> Result.Ok(
+        ChildProcess { @raw = v as Pointer[Int8] }
+      )
+      case { @tag = _, @value = e } -> Result.Error(
+        Error.from_os_error(e as Int)
+      )
     }
   }
 }
@@ -331,32 +405,35 @@ class pub Stdin {
 
 impl Drop for Stdin {
   fn mut drop {
-    _INKO.child_process_stdin_close(@process.raw)
+    inko_child_process_stdin_close(@process.raw)
   }
 }
 
 impl Write for Stdin {
   fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
-    match _INKO.child_process_stdin_write_bytes(@process.raw, bytes) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_child_process_stdin_write_bytes(
+      _INKO.state, _INKO.process, @process.raw, bytes
+    ) {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
   fn pub mut write_string(string: String) -> Result[Int, Error] {
-    match _INKO.child_process_stdin_write_string(
-      @process.raw,
-      string.to_string
+    match inko_child_process_stdin_write_string(
+      _INKO.state, _INKO.process, @process.raw, string.to_string
     ) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
   fn pub mut flush -> Result[Nil, Error] {
-    match _INKO.child_process_stdin_flush(@process.raw) {
-      case { @tag = 0, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_child_process_stdin_flush(_INKO.process, @process.raw) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(
+        Error.from_os_error(e as Int)
+      )
     }
   }
 }
@@ -373,15 +450,17 @@ class pub Stdout {
 
 impl Drop for Stdout {
   fn mut drop {
-    _INKO.child_process_stdout_close(@process.raw)
+    inko_child_process_stdout_close(@process.raw)
   }
 }
 
 impl Read for Stdout {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
-    match _INKO.child_process_stdout_read(@process.raw, into, size) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_child_process_stdout_read(
+      _INKO.state, _INKO.process, @process.raw, into, size
+    ) {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 }
@@ -398,15 +477,17 @@ class pub Stderr {
 
 impl Drop for Stderr {
   fn mut drop {
-    _INKO.child_process_stderr_close(@process.raw)
+    inko_child_process_stderr_close(@process.raw)
   }
 }
 
 impl Read for Stderr {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
-    match _INKO.child_process_stderr_read(@process.raw, into, size) {
-      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_child_process_stderr_read(
+      _INKO.state, _INKO.process, @process.raw, into, size
+    ) {
+      case { @tag = 0, @value = v } -> Result.Ok(v)
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 }
@@ -414,7 +495,7 @@ impl Read for Stderr {
 # A running or exited child OS process.
 class pub ChildProcess {
   # A raw pointer to the OS process.
-  let @raw: Any
+  let @raw: Pointer[Int8]
 
   # Returns a handle to the standard output stream.
   fn pub stdout -> Stdout {
@@ -435,9 +516,9 @@ class pub ChildProcess {
   #
   # The STDIN stream is closed before waiting.
   fn pub wait -> Result[ExitStatus, Error] {
-    match _INKO.child_process_wait(@raw) {
-      case { @tag = 0, @value = v } -> Result.Ok(ExitStatus.new(v as Int))
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_child_process_wait(_INKO.process, @raw) {
+      case { @tag = 0, @value = v } -> Result.Ok(ExitStatus.new(v))
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
@@ -447,14 +528,16 @@ class pub ChildProcess {
   #
   # This method doesn't close the STDIN stream before waiting.
   fn pub try_wait -> Result[Option[ExitStatus], Error] {
-    match _INKO.child_process_try_wait(@raw) {
-      case { @tag = 0, @value = v } if (v as Int) == -1 -> {
-        Result.Ok(Option.None)
-      }
-      case { @tag = 0, @value = v } -> {
-        Result.Ok(Option.Some(ExitStatus.new(v as Int)))
-      }
-      case { @tag = _, @value = e } -> Result.Error(Error.from_int(e as Int))
+    match inko_child_process_try_wait(@raw) {
+      case { @tag = 0, @value = v } if v == -1 -> Result.Ok(Option.None)
+      case { @tag = 0, @value = v } -> Result.Ok(Option.Some(ExitStatus.new(v)))
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
+  }
+}
+
+impl Drop for ChildProcess {
+  fn mut drop {
+    inko_child_process_drop(@raw)
   }
 }

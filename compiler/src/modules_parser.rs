@@ -1,6 +1,6 @@
 //! Parsing of Inko source code into ASTs.
 use crate::diagnostics::DiagnosticId;
-use crate::state::State;
+use crate::state::{BuildTags, State};
 use ast::nodes::{Module, Node, TopLevelExpression};
 use ast::parser::Parser;
 use ast::source_location::SourceLocation;
@@ -9,12 +9,23 @@ use std::fs::read;
 use std::path::PathBuf;
 use types::module_name::ModuleName;
 
-fn imported_modules(module: &Module) -> Vec<(ModuleName, SourceLocation)> {
+fn imported_modules(
+    module: &mut Module,
+    tags: &BuildTags,
+) -> Vec<(ModuleName, SourceLocation)> {
     let mut names = Vec::new();
 
-    for expr in &module.expressions {
+    for expr in &mut module.expressions {
         let (path, loc) = match expr {
-            TopLevelExpression::Import(ref node) => {
+            TopLevelExpression::Import(ref mut node) => {
+                node.include = node.tags.as_ref().map_or(true, |n| {
+                    n.values.iter().all(|i| tags.is_defined(&i.name))
+                });
+
+                if !node.include {
+                    continue;
+                }
+
                 (&node.path, node.location().clone())
             }
             _ => continue,
@@ -76,8 +87,8 @@ impl<'a> ModulesParser<'a> {
         }
 
         while let Some((qname, file)) = pending.pop() {
-            if let Some(ast) = self.parse(&file) {
-                let deps = imported_modules(&ast);
+            if let Some(mut ast) = self.parse(&file) {
+                let deps = imported_modules(&mut ast, &self.state.build_tags);
 
                 modules
                     .insert(qname.clone(), ParsedModule { name: qname, ast });

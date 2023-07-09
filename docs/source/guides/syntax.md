@@ -67,6 +67,25 @@ import std::process::(sleep)
 This always requires the use of parentheses in the symbol list, otherwise the
 compiler would think you're trying to import the module `std::process::sleep`.
 
+Imports may specify one or more build tags, resulting in the compiler only
+processing the `import` if all the build tags match:
+
+```inko
+import foo if linux and amd64
+```
+
+The syntax for the tags is `import FOO if TAG1 and TAG2 and ...`.
+
+## External imports
+
+The syntax `import extern "NAME"` is used to link against C libraries. The
+string `"NAME"` specifies the library _name_, not the file name or path of the
+library. For example, to import libm:
+
+```inko
+import extern "m"
+```
+
 ## Constants
 
 Constants are defined using `let` at the module top-level. Constants are limited
@@ -199,6 +218,16 @@ class async Counter {
 }
 ```
 
+C structures are defined using `class extern`. When used, the class can't define
+any methods or use generic type parameters:
+
+```inko
+class extern Timespec {
+  let @tv_sec: Int64
+  let @tv_nsec: Int64
+}
+```
+
 ## Methods
 
 Methods are defined using the `fn` keyword. At the top-level of a module only
@@ -263,6 +292,19 @@ The method's body is contained in the curly braces:
 fn method_name {
   [10, 20]
 }
+```
+
+## External functions
+
+Signatures for C functions are defined using the `fn extern` syntax. These
+functions can't define any generic type parameters, can only be defined at the
+top-level of a module (i.e. not in a class), can't specify the `mut`
+keyword, and can't have a body. For example:
+
+```inko
+import extern "m"
+
+fn extern ceil(value: Float64) -> Float64
 ```
 
 ## Traits
@@ -770,8 +812,8 @@ Type casting is done using `as` like so:
 expression as TypeName
 ```
 
-The `as` keyword has a higher precedence than the binary and logical operators,
-meaning that this:
+The `as` keyword has the same precedence as binary operators. This means that
+this:
 
 ```inko
 10 + 5 as ToString
@@ -781,4 +823,16 @@ Is parsed as this:
 
 ```inko
 (10 + 5) as ToString
+```
+
+And this:
+
+```inko
+foo as Int + 5 as Foo
+```
+
+Is parsed as this:
+
+```inko
+(foo as Int + 5) as Foo
 ```
