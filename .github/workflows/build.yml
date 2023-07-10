@@ -6,6 +6,7 @@ on:
     branches:
       - '**'
   workflow_dispatch:
+  pull_request:
 
 env:
   REGISTRY: ghcr.io
