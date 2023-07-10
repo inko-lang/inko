@@ -76,16 +76,19 @@ pub(crate) fn link(
 
     let mut static_linking = state.config.static_linking;
 
-    if let OperatingSystem::Mac = state.config.target.os {
-        // On macOS there's no equivalent of -l:libX.a as there is for GNU
-        // platforms. We also don't have the logic (nor want to implement this)
-        // to find where the .a files are for each library linked against.
-        println!(
-            "Static linking isn't supported on macOS, \
-            falling back to dynamic linking"
-        );
+    match state.config.target.os {
+        OperatingSystem::Mac if static_linking => {
+            // On macOS there's no equivalent of -l:libX.a as there is for GNU
+            // platforms. We also don't have the logic (nor want to implement this)
+            // to find where the .a files are for each library linked against.
+            println!(
+                "Static linking isn't supported on macOS, \
+                falling back to dynamic linking"
+            );
 
-        static_linking = false;
+            static_linking = false;
+        }
+        _ => (),
     }
 
     if static_linking {
