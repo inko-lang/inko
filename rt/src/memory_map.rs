@@ -1,7 +1,6 @@
 use crate::page::{multiple_of_page_size, page_size};
-use libc::{
-    c_int, mmap, mprotect, munmap, MAP_ANON, MAP_FAILED, MAP_PRIVATE,
-    PROT_NONE, PROT_READ, PROT_WRITE,
+use rustix::mm::{
+    mmap_anonymous, mprotect, munmap, MapFlags, MprotectFlags, ProtFlags,
 };
 use std::io::{Error, Result as IoResult};
 use std::ptr::null_mut;
@@ -12,8 +11,8 @@ pub(crate) struct MemoryMap {
     pub(crate) len: usize,
 }
 
-fn mmap_options(_stack: bool) -> c_int {
-    let base = MAP_PRIVATE | MAP_ANON;
+fn mmap_options(_stack: bool) -> MapFlags {
+    let base = MapFlags::PRIVATE;
 
     #[cfg(any(
         target_os = "linux",
@@ -21,7 +20,7 @@ fn mmap_options(_stack: bool) -> c_int {
         target_os = "openbsd"
     ))]
     if _stack {
-        return base | libc::MAP_STACK;
+        return base | MapFlags::STACK;
     }
 
     base
@@ -32,26 +31,36 @@ impl MemoryMap {
         let size = multiple_of_page_size(size);
         let opts = mmap_options(stack);
 
-        let ptr = unsafe {
-            mmap(null_mut(), size, PROT_READ | PROT_WRITE, opts, -1, 0)
+        let res = unsafe {
+            mmap_anonymous(
+                null_mut(),
+                size,
+                ProtFlags::READ | ProtFlags::WRITE,
+                opts,
+            )
         };
 
-        if ptr == MAP_FAILED {
-            panic!("mmap(2) failed: {}", Error::last_os_error());
+        match res {
+            Ok(ptr) => MemoryMap { ptr: ptr as *mut u8, len: size },
+            Err(e) => panic!(
+                "mmap(2) failed: {}",
+                Error::from_raw_os_error(e.raw_os_error())
+            ),
         }
-
-        MemoryMap { ptr: ptr as *mut u8, len: size }
     }
 
     pub(crate) fn protect(&mut self, start: usize) -> IoResult<()> {
         let res = unsafe {
-            mprotect(self.ptr.add(start) as _, page_size(), PROT_NONE)
+            mprotect(
+                self.ptr.add(start) as _,
+                page_size(),
+                MprotectFlags::empty(),
+            )
         };
 
-        if res == 0 {
-            Ok(())
-        } else {
-            Err(Error::last_os_error())
+        match res {
+            Ok(_) => Ok(()),
+            Err(e) => Err(Error::from_raw_os_error(e.raw_os_error())),
         }
     }
 }
@@ -59,7 +68,7 @@ impl MemoryMap {
 impl Drop for MemoryMap {
     fn drop(&mut self) {
         unsafe {
-            munmap(self.ptr as _, self.len);
+            let _ = munmap(self.ptr as _, self.len);
         }
     }
 }

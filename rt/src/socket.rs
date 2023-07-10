@@ -4,7 +4,7 @@ use crate::network_poller::Interest;
 use crate::process::ProcessPointer;
 use crate::socket::socket_address::SocketAddress;
 use crate::state::State;
-use libc::{EINPROGRESS, EISCONN};
+use rustix::io::Errno;
 use socket2::{Domain, SockAddr, Socket as RawSocket, Type};
 use std::io::{self, Read};
 use std::mem::transmute;
@@ -197,7 +197,8 @@ impl Socket {
             Ok(_) => Ok(()),
             Err(ref e)
                 if e.kind() == io::ErrorKind::WouldBlock
-                    || e.raw_os_error() == Some(EINPROGRESS) =>
+                    || e.raw_os_error()
+                        == Some(Errno::INPROGRESS.raw_os_error()) =>
             {
                 if let Ok(Some(err)) = self.inner.take_error() {
                     // When performing a connect(), the error returned may be
@@ -208,8 +209,10 @@ impl Socket {
 
                 Err(io::Error::from(io::ErrorKind::WouldBlock))
             }
-            Err(ref e) if e.raw_os_error() == Some(EISCONN) => {
-                // We may run into an EISCONN if a previous connect(2) attempt
+            Err(ref e)
+                if e.raw_os_error() == Some(Errno::ISCONN.raw_os_error()) =>
+            {
+                // We may run into an ISCONN if a previous connect(2) attempt
                 // would block. In this case we can just continue.
                 Ok(())
             }

@@ -5,19 +5,14 @@ pub mod timeouts;
 use std::thread::available_parallelism;
 
 #[cfg(target_os = "linux")]
-use {
-    libc::{cpu_set_t, sched_setaffinity, CPU_SET},
-    std::mem::{size_of, zeroed},
-};
+use rustix::process::{sched_setaffinity, CpuSet, Pid};
 
 #[cfg(target_os = "linux")]
 pub(crate) fn pin_thread_to_core(core: usize) {
-    unsafe {
-        let mut set: cpu_set_t = zeroed();
+    let mut set = CpuSet::new();
+    set.set(core);
 
-        CPU_SET(core, &mut set);
-        sched_setaffinity(0, size_of::<cpu_set_t>(), &set);
-    }
+    let _ = sched_setaffinity(Pid::from_raw(0), &set);
 }
 
 #[cfg(not(target_os = "linux"))]

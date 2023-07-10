@@ -2,40 +2,27 @@ use socket2::SockAddr;
 
 #[cfg(unix)]
 use {
-    libc::sockaddr_un,
-    std::ffi::OsStr,
-    std::mem::transmute,
-    std::os::{raw::c_char, unix::ffi::OsStrExt},
+    rustix::net::SocketAddrUnix, std::ffi::OsStr, std::os::unix::ffi::OsStrExt,
 };
 
 #[cfg(unix)]
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::uninit_assumed_init))]
-fn sun_path_offset(addr: &sockaddr_un) -> usize {
-    let base = addr as *const sockaddr_un as usize;
-    let path = &addr.sun_path as *const c_char as usize;
-
-    path - base
-}
-
-#[cfg(unix)]
 fn unix_socket_path(sockaddr: &SockAddr) -> String {
-    let raw_addr = unsafe { &*(sockaddr.as_ptr() as *const sockaddr_un) };
-    let len = sockaddr.len() as usize - sun_path_offset(raw_addr);
-    let path = unsafe { transmute::<&[c_char], &[u8]>(&raw_addr.sun_path) };
-
-    if len == 0 || (cfg!(not(target_os = "linux")) && raw_addr.sun_path[0] == 0)
-    {
-        return String::new();
-    }
-
-    let (start, stop) =
-        if raw_addr.sun_path[0] == 0 { (1, len) } else { (0, len - 1) };
-
-    // Abstract names might contain NULL bytes and invalid UTF8. Since Inko
-    // doesn't provide any better types at the moment we'll use a string and
-    // convert the data to UTF8. A byte array would technically be better, but
-    // these are mutable and make for an unpleasant runtime API.
-    OsStr::from_bytes(&path[start..stop]).to_string_lossy().into_owned()
+    sockaddr
+        .as_pathname()
+        .and_then(|p| SocketAddrUnix::new(p).ok())
+        .and_then(|addr| {
+            addr.path().map(|path| {
+                // Abstract names might contain NULL bytes and invalid UTF8.
+                // Since Inko doesn't provide any better types at the moment
+                // we'll use a string and convert the data to UTF8. A byte array
+                // would technically be better, but these are mutable and make
+                // for an unpleasant runtime API.
+                OsStr::from_bytes(path.to_bytes())
+                    .to_string_lossy()
+                    .into_owned()
+            })
+        })
+        .unwrap_or_default()
 }
 
 #[cfg(not(unix))]
