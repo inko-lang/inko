@@ -9,6 +9,17 @@ env:
   CARGO_HOME: ${{ github.workspace }}/.cargo-home
 
 jobs:
+  vale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: errata-ai/vale-action@reviewdog
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          reporter: github-check
+          vale_flags: '--no-wrap --sort'
+
   cargo-deny:
     runs-on: ubuntu-latest
     steps:
