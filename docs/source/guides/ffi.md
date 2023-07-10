@@ -66,7 +66,7 @@ structs (which we'll discuss later).
 
 ### Type casting
 
-These types can be past to/from Inko types:
+These types can be passed to/from Inko types:
 
 ```inko
 let a = 42 as Int32 # => Int32
@@ -138,7 +138,7 @@ statically linking others.
     Some platforms merge libc and libm together, such as macOS. In this case
     Inko only links against libc.
 
-To illustrate static linking, we'll use update our `test.inko` to import zlib
+To illustrate static linking, we'll update our `test.inko` to import zlib
 instead:
 
 ```inko
@@ -176,7 +176,7 @@ ldd /tmp/test
 
 ## Functions
 
-Importing libraries alone isn't useful, so let's define some functions from the
+Importing libraries alone isn't useful, so let's define bindings for some functions from the
 libm library and use them. Defining the signatures of C functions is done using
 `fn extern`. For example, if we want to use the `ceil()` function from libm,
 we'd define the signature as follows:
@@ -201,7 +201,7 @@ class async Main {
     let out = STDOUT.new
 
     # Float64 is a C type and we can't call methods on such types, so we must
-    # explicitly cast it to Float (Inko's floating point type).
+    # explicitly cast the returned value to Float (Inko's floating point type).
     let val = ceil(1.123 as Float64) as Float
 
     out.print(val.to_string)
@@ -253,7 +253,7 @@ class async Main {
 
 Structures are allocated on the stack and are value types, meaning a move
 results in a copy (unless this is optimised away). Reading and writing of
-structure fields used the same syntax as regular Inko classes:
+structure fields uses the same syntax as regular Inko classes:
 
 ```inko
 class extern Timespec {
@@ -528,7 +528,7 @@ of the C libraries out there. Most notably, the following isn't supported:
 - Using C globals, including thread-local globals. Relying on global state is
   going to cause trouble due to Inko's concurrent nature, so even if we did
   support this it wouldn't make your life easier.
-- Compiling C source code as part of the Ink build process, see [this
+- Compiling C source code as part of the Inko build process. See [this
   section](../goals/#compiling-c-code-when-installing-a-package) for more details.
 - Compile-time expressions such as `sizeof()` to automatically get type sizes.
 - Setting `errno` to a custom value. `errno` is implemented differently across
