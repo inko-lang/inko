@@ -11,6 +11,7 @@ const SPACE: u8 = 32;
 const EXCLAMATION: u8 = 33;
 const DOUBLE_QUOTE: u8 = 34;
 const HASH: u8 = 35;
+const DOLLAR: u8 = 36;
 const PERCENT: u8 = 37;
 const AMPERSAND: u8 = 38;
 const SINGLE_QUOTE: u8 = 39;
@@ -1226,7 +1227,8 @@ impl Lexer {
                 ZERO..=NINE
                 | LOWER_A..=LOWER_Z
                 | UPPER_A..=UPPER_Z
-                | UNDERSCORE => self.position += 1,
+                | UNDERSCORE
+                | DOLLAR => self.position += 1,
                 QUESTION => {
                     self.position += 1;
                     break;
@@ -2086,6 +2088,7 @@ mod tests {
     #[test]
     fn test_lexer_identifiers() {
         assert_token!("foo", Identifier, "foo", 1..=1, 1..=3);
+        assert_token!("foo$bar", Identifier, "foo$bar", 1..=1, 1..=7);
         assert_token!("baz", Identifier, "baz", 1..=1, 1..=3);
         assert_token!("foo_bar", Identifier, "foo_bar", 1..=1, 1..=7);
         assert_token!("foo_BAR", Identifier, "foo_BAR", 1..=1, 1..=7);

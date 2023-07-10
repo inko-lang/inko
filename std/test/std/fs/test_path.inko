@@ -1,5 +1,6 @@
 import helpers::(fmt)
 import std::env
+import std::fs::(DirectoryEntry, FileType)
 import std::fs::dir
 import std::fs::file::(self, WriteOnlyFile)
 import std::fs::path::(self, Path)
@@ -86,6 +87,7 @@ fn pub tests(t: mut Tests) {
   t.test('Path.join') fn (t) {
     t.equal(Path.new('foo').join('bar'), Path.new('foo/bar'))
     t.equal(Path.new('foo').join('/').join('bar'), Path.new('/bar'))
+    t.equal(Path.new('foo').join(''), Path.new('foo'))
   }
 
   t.test('Path.directory') fn (t) {
@@ -143,5 +145,32 @@ fn pub tests(t: mut Tests) {
     t.equal(Path.new('foo').join('bar.txt').tail, 'bar.txt')
     t.equal(Path.new('').tail, '')
     t.equal(Path.new('..').tail, '..')
+  }
+
+  t.test('Path.list with a valid directory') fn (t) {
+    let root = env.temporary_directory.join("inko-test-dir-{t.id}")
+    let foo = root.join('foo')
+
+    dir.create(root).unwrap
+    dir.create(foo).unwrap
+
+    let entry = root
+      .list
+      .unwrap
+      .select_map fn (e) { e.ok }
+      .find fn (e) { e.path == foo }
+
+    t.equal(
+      entry,
+      Option.Some(DirectoryEntry { @path = foo, @type = FileType.Directory })
+    )
+
+    let _ = dir.remove_all(root)
+  }
+
+  t.test('Path.list with an invalid directory') fn (t) {
+    let root = env.temporary_directory.join("inko-test-dir-{t.id}")
+
+    t.true(root.list.error?)
   }
 }

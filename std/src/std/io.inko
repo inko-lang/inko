@@ -5,9 +5,9 @@
 import std::cmp::Equal
 import std::fmt::(Format, Formatter)
 import std::string::ToString
-import std::sys::bsd::errors if bsd
-import std::sys::linux::errors if linux
-import std::sys::mac::errors if mac
+import std::libc::bsd::errors if bsd
+import std::libc::linux::errors if linux
+import std::libc::mac::errors if mac
 
 # The initial number of bytes to read in `Read.read_all`
 let INITIAL_READ_ALL_SIZE = 1024

@@ -2538,7 +2538,7 @@ impl<'a> CheckMethodBody<'a> {
             match rec_id.lookup_method(self.db(), name, module, false) {
                 MethodLookup::Ok(method) => {
                     let rec_info =
-                        Receiver::class_or_implicit(self.db(), method);
+                        Receiver::without_receiver(self.db(), method);
 
                     (rec, rec_id, rec_info, method)
                 }
@@ -2594,7 +2594,7 @@ impl<'a> CheckMethodBody<'a> {
                         (
                             TypeRef::module(id),
                             TypeId::Module(id),
-                            Receiver::Class(id.class(self.db())),
+                            Receiver::with_module(self.db(), id, method),
                             method,
                         )
                     } else {
@@ -2660,6 +2660,9 @@ impl<'a> CheckMethodBody<'a> {
             let rec_id = rec.type_id(self.db()).unwrap();
 
             match rec_id.lookup_method(self.db(), name, module, true) {
+                MethodLookup::Ok(method) if method.is_extern(self.db()) => {
+                    (rec, rec_id, Receiver::Extern, method)
+                }
                 MethodLookup::Ok(method) => {
                     self.check_if_self_is_allowed(scope, &node.location);
 
@@ -2668,7 +2671,7 @@ impl<'a> CheckMethodBody<'a> {
                     }
 
                     let rec_info =
-                        Receiver::class_or_implicit(self.db(), method);
+                        Receiver::without_receiver(self.db(), method);
 
                     (rec, rec_id, rec_info, method)
                 }
@@ -2712,7 +2715,7 @@ impl<'a> CheckMethodBody<'a> {
                         (
                             TypeRef::module(id),
                             TypeId::Module(id),
-                            Receiver::Class(id.class(self.db())),
+                            Receiver::with_module(self.db(), id, method),
                             method,
                         )
                     } else {
@@ -3314,8 +3317,7 @@ impl<'a> CheckMethodBody<'a> {
         call.check_sendable(self.state, &node.location);
 
         let returns = call.return_type;
-
-        let rec_info = Receiver::class_or_explicit(self.db(), receiver);
+        let rec_info = Receiver::with_receiver(self.db(), receiver, method);
 
         node.kind = CallKind::Call(CallInfo {
             id: method,
@@ -3643,8 +3645,7 @@ impl<'a> CheckMethodBody<'a> {
         call.check_sendable(self.state, &node.location);
 
         let returns = call.return_type;
-
-        let rec_info = Receiver::class_or_explicit(self.db(), receiver);
+        let rec_info = Receiver::with_receiver(self.db(), receiver, method);
 
         node.kind = CallKind::Call(CallInfo {
             id: method,
@@ -3675,7 +3676,7 @@ impl<'a> CheckMethodBody<'a> {
                     }
 
                     let rec_info =
-                        Receiver::class_or_implicit(self.db(), method);
+                        Receiver::without_receiver(self.db(), method);
 
                     (rec_info, rec, rec_id, method)
                 }
@@ -3708,7 +3709,7 @@ impl<'a> CheckMethodBody<'a> {
                         let mod_typ = TypeRef::Owned(id);
 
                         (
-                            Receiver::Class(mod_id.class(self.db())),
+                            Receiver::with_module(self.db(), mod_id, method),
                             mod_typ,
                             id,
                             method,

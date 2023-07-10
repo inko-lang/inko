@@ -1861,32 +1861,30 @@ impl<'a> LowerMethod<'a> {
 
                 reg
             }
-            types::Receiver::Class(id) => {
-                // These methods can't move, be dynamic or async, so we can skip
-                // the code that comes after this.
-                if info.id.is_extern(self.db()) {
-                    self.current_block_mut()
-                        .call_extern(result, info.id, arguments, location);
+            types::Receiver::Extern => {
+                self.current_block_mut()
+                    .call_extern(result, info.id, arguments, location);
 
-                    if info.id.return_type(self.db()).is_never(self.db()) {
-                        self.add_current_block();
-                    } else if !info.id.has_return_type(self.db()) {
-                        self.current_block_mut().nil_literal(result, location);
-                    }
-
-                    // We don't reduce for extern calls for two reasons:
-                    //
-                    // 1. They are typically exposed through regular Inko
-                    //    methods, which would result in two reductions per call
-                    //    instead of one.
-                    // 2. This allows us to check `errno` after a call, without
-                    //    having to worry about the process being rescheduled in
-                    //    between the call and the check.
-                } else {
-                    self.current_block_mut()
-                        .call_static(result, id, info.id, arguments, location);
-                    self.reduce_call(info.returns, location);
+                if info.id.return_type(self.db()).is_never(self.db()) {
+                    self.add_current_block();
+                } else if !info.id.has_return_type(self.db()) {
+                    self.current_block_mut().nil_literal(result, location);
                 }
+
+                // We don't reduce for extern calls for two reasons:
+                //
+                // 1. They are typically exposed through regular Inko
+                //    methods, which would result in two reductions per call
+                //    instead of one.
+                // 2. This allows us to check `errno` after a call, without
+                //    having to worry about the process being rescheduled in
+                //    between the call and the check.
+                return result;
+            }
+            types::Receiver::Class(id) => {
+                self.current_block_mut()
+                    .call_static(result, id, info.id, arguments, location);
+                self.reduce_call(info.returns, location);
 
                 return result;
             }

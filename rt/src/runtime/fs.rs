@@ -1,4 +1,4 @@
-use crate::mem::{Array, Bool, ByteArray, Float, Int, String as InkoString};
+use crate::mem::{Bool, ByteArray, Float, Int, String as InkoString};
 use crate::process::ProcessPointer;
 use crate::result::Result as InkoResult;
 use crate::runtime::helpers::read_into;
@@ -305,35 +305,6 @@ pub unsafe extern "system" fn inko_directory_remove_recursive(
         .blocking(|| fs::remove_dir_all(InkoString::read(path)))
         .map(|_| InkoResult::none())
         .unwrap_or_else(InkoResult::io_error)
-}
-
-#[no_mangle]
-pub unsafe extern "system" fn inko_directory_list(
-    state: *const State,
-    process: ProcessPointer,
-    path: *const InkoString,
-) -> InkoResult {
-    let state = &*state;
-    let mut paths = Vec::new();
-    let entries =
-        match process.blocking(|| fs::read_dir(InkoString::read(path))) {
-            Ok(entries) => entries,
-            Err(err) => return InkoResult::io_error(err),
-        };
-
-    for entry in entries {
-        let entry = match entry {
-            Ok(entry) => entry,
-            Err(err) => return InkoResult::io_error(err),
-        };
-
-        let path = entry.path().to_string_lossy().to_string();
-        let pointer = InkoString::alloc(state.string_class, path);
-
-        paths.push(pointer as *mut u8);
-    }
-
-    InkoResult::ok(Array::alloc(state.array_class, paths) as _)
 }
 
 unsafe fn open_file(

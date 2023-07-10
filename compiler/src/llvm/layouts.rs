@@ -481,7 +481,7 @@ impl<'ctx> Layouts<'ctx> {
         }
 
         for mod_id in mir.modules.keys() {
-            for &method in mod_id.extern_methods(db) {
+            for &method in mod_id.extern_methods(db).values() {
                 let mut args: Vec<BasicMetadataTypeEnum> =
                     Vec::with_capacity(method.number_of_arguments(db) + 1);
 

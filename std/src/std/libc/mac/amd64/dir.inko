@@ -1,0 +1,33 @@
+# https://docs.rs/libc/0.2.146/x86_64-apple-darwin/libc/struct.dirent.html
+class extern Dirent {
+  let @d_ino: Int64
+  let @d_seekoff: Int64
+  let @d_reclen: Int16
+  let @d_namlen: Int16
+  let @d_type: Int8
+}
+
+# When using macOS on an amd64 platform, opendir/readdir produce data using
+# 32-bit inodes, unless we use the $INODE64 suffix. See the following for more
+# information:
+#
+# - https://assert.cc/posts/darwin_use_64_bit_inode_vs_ctypes/
+# - https://github.com/rust-lang/libc/issues/414
+fn extern opendir$INODE64(path: Pointer[Int8]) -> Pointer[Int8]
+fn extern readdir$INODE64(stream: Pointer[Int8]) -> Pointer[Int8]
+
+fn pub opendir(path: Pointer[Int8]) -> Pointer[Int8] {
+  opendir$INODE64(path)
+}
+
+fn pub readdir(path: Pointer[Int8]) -> Pointer[Int8] {
+  readdir$INODE64(path)
+}
+
+fn pub dirent_type(pointer: Pointer[Int8]) -> Int {
+  (pointer as Pointer[Dirent]).d_type as Int
+}
+
+fn pub dirent_name(pointer: Pointer[Int8]) -> Pointer[Int8] {
+  pointer as Int + 21 as Pointer[Int8]
+}

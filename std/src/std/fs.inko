@@ -1,0 +1,77 @@
+# General types for filesystem operations.
+import std::cmp::Equal
+import std::fmt::(Format, Formatter)
+import std::fs::path::Path
+
+# A type describing the type of file, such as a file or directory.
+class pub enum FileType {
+  # The file is a file.
+  case File
+
+  # The file is a directory.
+  case Directory
+
+  # The file is a symbolic link.
+  case SymbolicLink
+
+  # The file is something else that isn't explicitly covered by this type.
+  case Other
+}
+
+impl Equal[FileType] for FileType {
+  fn pub ==(other: ref FileType) -> Bool {
+    match (self, other) {
+      case (File, File) -> true
+      case (Directory, Directory) -> true
+      case (SymbolicLink, SymbolicLink) -> true
+      case (Other, Other) -> true
+      case _ -> false
+    }
+  }
+}
+
+impl Format for FileType {
+  fn pub fmt(formatter: mut Formatter) {
+    let write = match self {
+      case File -> 'File'
+      case Directory -> 'Directory'
+      case SymbolicLink -> 'SymbolicLink'
+      case Other -> 'Other'
+    }
+
+    formatter.write(write)
+  }
+}
+
+# An entry in a directory.
+#
+# Instances of this type are typically produced by `std::fs::path::Path.list`,
+# so see that method's documentation for additional details.
+class pub DirectoryEntry {
+  # The path to the entry.
+  let pub @path: Path
+
+  # The type of this entry.
+  let pub @type: FileType
+}
+
+impl Equal[DirectoryEntry] for DirectoryEntry {
+  fn pub ==(other: ref DirectoryEntry) -> Bool {
+    @path == other.path and @type == other.type
+  }
+}
+
+impl Format for DirectoryEntry {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.write('DirectoryEntry { ')
+
+    formatter.descend fn {
+      formatter.write('@path = ')
+      @path.fmt(formatter)
+      formatter.write(', @type = ')
+      @type.fmt(formatter)
+    }
+
+    formatter.write(' }')
+  }
+}

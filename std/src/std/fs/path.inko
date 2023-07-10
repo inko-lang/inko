@@ -2,7 +2,10 @@
 import std::clone::Clone
 import std::cmp::Equal
 import std::fmt::(Format, Formatter)
+import std::fs::DirectoryEntry
 import std::io::(Error, Size)
+import std::iter::Iter
+import std::libc::unix::dir::(self as dir_imp) if unix
 import std::string::(ToString, IntoString)
 import std::sys
 import std::time::DateTime
@@ -104,6 +107,40 @@ fn bytes_before_last_separator(path: String) -> Int {
 # Returns `True` if the given file path is an absolute path.
 fn absolute_path?(path: String) -> Bool {
   path_separator?(path.byte(0))
+}
+
+fn join_strings(base: ref String, with: ref String) -> String {
+  if with.empty? { return base.clone }
+
+  if absolute_path?(with) {
+    with
+  } else if path_separator?(base.byte(base.size - 1)) {
+    "{base}{with}"
+  } else {
+    "{base}{SEPARATOR}{with}"
+  }
+}
+
+# An iterator over the entries in a directory.
+#
+# See the documentation of `std::fs::path::Path.list` for more details.
+class pub ReadDirectory {
+  let @path: String
+  let @inner: dir_imp::ReadDirectory
+}
+
+impl Iter[Result[DirectoryEntry, Error]] for ReadDirectory {
+  fn pub mut next -> Option[Result[DirectoryEntry, Error]] {
+    let ret = match try { @inner.next } {
+      case Ok((path, type)) -> Result.Ok(DirectoryEntry {
+        @path = Path.new(join_strings(@path, with: path)),
+        @type = type,
+      })
+      case Error(e) -> Result.Error(e)
+    }
+
+    Option.Some(ret)
+  }
 }
 
 # A path to a file or directory.
@@ -259,16 +296,7 @@ class pub Path {
   #
   #     Path.new('foo/bar').join(Path.new('bar')).to_string # => 'foo/bar/baz'
   fn pub join(path: ref ToString) -> Path {
-    let path_str = path.to_string
-    let new_path = if absolute_path?(path_str) {
-      path_str
-    } else if path_separator?(@path.byte(@path.size - 1)) {
-      "{@path}{path_str}"
-    } else {
-      "{@path}{SEPARATOR}{path_str}"
-    }
-
-    Path.new(new_path)
+    Path.new(join_strings(@path, with: path.to_string))
   }
 
   # Returns a `Path` to the directory of the current `Path`.
@@ -334,6 +362,48 @@ class pub Path {
       case { @tag = _, @value = e } -> Result.Error(
         Error.from_os_error(e as Int)
       )
+    }
+  }
+
+  # Returns an iterator yielding the entries in the directory `self` points to.
+  #
+  # The iterator yields values of type `Result[DirectoryEntry, Error]`, as
+  # errors may be produced during iteration (e.g. file permissions are changed
+  # such that we can no longer read the directory contents).
+  #
+  # # Errors
+  #
+  # This method returns an `Error` if any of the following conditions are met:
+  #
+  # 1. The user lacks the necessary permissions to read the contents of the
+  #    directory.
+  # 2. The path isn't a valid directory (i.e. it's a file or doesn't exist).
+  #
+  # # Examples
+  #
+  # This prints the files in the current working directory while ignoring
+  # directories:
+  #
+  #     import std::fs::path::Path
+  #     import std::stdio::STDOUT
+  #
+  #     let out = STDOUT.new
+  #     let path = Path.new('.')
+  #     let iter = path.list.expect('failed to create the iterator')
+  #
+  #     iter.each fn (result) {
+  #       match result {
+  #         case Ok({ @path = path, @type = File }) -> {
+  #           out.print(path.to_string)
+  #           nil
+  #         }
+  #         case Ok(_) -> {}
+  #         case Error(err) -> panic(err.to_string)
+  #       }
+  #     }
+  fn pub list -> Result[ReadDirectory, Error] {
+    dir_imp::ReadDirectory.new(@path).map fn (inner) {
+      ReadDirectory { @path = @path, @inner = inner }
     }
   }
 }

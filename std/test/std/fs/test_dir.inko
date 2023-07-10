@@ -44,21 +44,4 @@ fn pub tests(t: mut Tests) {
     t.true(dir.remove_all(root).error?)
     t.false(root.directory?)
   }
-
-  t.test('dir.list') fn (t) {
-    let root = env.temporary_directory.join("inko-test-dir-{t.id}")
-    let foo = root.join('foo')
-    let bar = root.join('bar')
-
-    dir.create(root).unwrap
-    dir.create(foo).unwrap
-    dir.create(bar).unwrap
-
-    let paths = dir.list(root).unwrap
-
-    t.true(paths.contains?(foo))
-    t.true(paths.contains?(bar))
-
-    dir.remove_all(root).unwrap
-  }
 }

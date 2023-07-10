@@ -396,8 +396,14 @@ Identifiers are referred to by just using their name:
 this_is_an_identifier
 ```
 
-Identifiers are limited to ASCII, though they may end in a `?` (used for
-predicate methods):
+Identifiers can contain the following characters: `a-z`, `A-Z`, `0-9`, `_`, `$`,
+and may end with a `?`.
+
+!!! warning
+    While identifiers can contain dollar signs (e.g. `foo$bar`), this is only
+    supported to allow use of C functions using a `$` in the name, such as
+    `readdir$INODE64` on macOS. **Do not** use dollar signs in regular Inko
+    method or variable names.
 
 The `self` keyword is used to refer to the receiver of a method. This keyword is
 available in all methods, including module and static methods.

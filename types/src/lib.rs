@@ -73,8 +73,8 @@ pub const MAIN_METHOD: &str = "main";
 pub const DROP_MODULE: &str = "std::drop";
 pub const DROP_TRAIT: &str = "Drop";
 pub const DROP_METHOD: &str = "drop";
-pub const DROPPER_METHOD: &str = "$dropper";
-pub const ASYNC_DROPPER_METHOD: &str = "$async_dropper";
+pub const DROPPER_METHOD: &str = "__inko_dropper";
+pub const ASYNC_DROPPER_METHOD: &str = "__inko_async_dropper";
 pub const OPTION_MODULE: &str = "std::option";
 pub const OPTION_CLASS: &str = "Option";
 pub const RESULT_MODULE: &str = "std::result";
@@ -2125,10 +2125,17 @@ pub enum Receiver {
     /// This is separate from an explicit receiver as we don't need to process
     /// the receiver expression in this case.
     Class(ClassId),
+
+    /// The call is an extern call, and there's no receiver.
+    Extern,
 }
 
 impl Receiver {
-    pub fn class_or_implicit(db: &Database, method: MethodId) -> Receiver {
+    pub fn without_receiver(db: &Database, method: MethodId) -> Receiver {
+        if method.is_extern(db) {
+            return Receiver::Extern;
+        }
+
         method
             .receiver(db)
             .as_class(db)
@@ -2136,8 +2143,28 @@ impl Receiver {
             .unwrap_or(Receiver::Implicit)
     }
 
-    pub fn class_or_explicit(db: &Database, receiver: TypeRef) -> Receiver {
+    pub fn with_receiver(
+        db: &Database,
+        receiver: TypeRef,
+        method: MethodId,
+    ) -> Receiver {
+        if method.is_extern(db) {
+            return Receiver::Extern;
+        }
+
         receiver.as_class(db).map(Receiver::Class).unwrap_or(Receiver::Explicit)
+    }
+
+    pub fn with_module(
+        db: &Database,
+        id: ModuleId,
+        method: MethodId,
+    ) -> Receiver {
+        if method.is_extern(db) {
+            return Receiver::Extern;
+        }
+
+        Receiver::Class(id.class(db))
     }
 
     pub fn is_explicit(&self) -> bool {
@@ -2277,7 +2304,7 @@ pub struct Module {
     file: PathBuf,
     constants: Vec<ConstantId>,
     symbols: HashMap<String, Symbol>,
-    extern_methods: Vec<MethodId>,
+    extern_methods: HashMap<String, MethodId>,
 }
 
 impl Module {
@@ -2304,7 +2331,7 @@ impl Module {
             file,
             constants: Vec::new(),
             symbols: HashMap::default(),
-            extern_methods: Vec::new(),
+            extern_methods: HashMap::new(),
         });
         id
     }
@@ -2351,10 +2378,16 @@ impl ModuleId {
     }
 
     pub fn add_extern_method(self, db: &mut Database, method: MethodId) {
-        self.get_mut(db).extern_methods.push(method);
+        let name = method.name(db).clone();
+
+        self.get_mut(db).extern_methods.insert(name, method);
     }
 
-    pub fn extern_methods(self, db: &Database) -> &Vec<MethodId> {
+    pub fn extern_method(self, db: &Database, name: &str) -> Option<MethodId> {
+        self.get(db).extern_methods.get(name).cloned()
+    }
+
+    pub fn extern_methods(self, db: &Database) -> &HashMap<String, MethodId> {
         &self.get(db).extern_methods
     }
 
@@ -3598,6 +3631,10 @@ impl TypeId {
             } else {
                 MethodLookup::Private
             }
+        } else if let TypeId::Module(id) = self {
+            id.extern_method(db, name)
+                .map(MethodLookup::Ok)
+                .unwrap_or(MethodLookup::None)
         } else {
             MethodLookup::None
         }

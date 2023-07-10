@@ -1,0 +1,38 @@
+import helpers::(fmt)
+import std::fs::(DirectoryEntry, FileType)
+import std::test::Tests
+
+fn pub tests(t: mut Tests) {
+  t.test('FileType.==') fn (t) {
+    t.equal(FileType.File, FileType.File)
+    t.equal(FileType.Directory, FileType.Directory)
+    t.equal(FileType.SymbolicLink, FileType.SymbolicLink)
+    t.equal(FileType.Other, FileType.Other)
+    t.not_equal(FileType.File, FileType.Other)
+  }
+
+  t.test('FileType.fmt') fn (t) {
+    t.equal(fmt(FileType.File), 'File')
+    t.equal(fmt(FileType.Directory), 'Directory')
+    t.equal(fmt(FileType.SymbolicLink), 'SymbolicLink')
+    t.equal(fmt(FileType.Other), 'Other')
+  }
+
+  t.test('DirectoryEntry.==') fn (t) {
+    let entry1 = DirectoryEntry { @path = 'foo'.to_path, @type = FileType.File }
+    let entry2 = DirectoryEntry { @path = 'foo'.to_path, @type = FileType.File }
+    let entry3 = DirectoryEntry { @path = 'bar'.to_path, @type = FileType.File }
+    let entry4 =
+      DirectoryEntry { @path = 'bar'.to_path, @type = FileType.Directory }
+
+    t.equal(entry1, entry2)
+    t.not_equal(entry1, entry3)
+    t.not_equal(entry3, entry4)
+  }
+
+  t.test('DirectoryEntry.fmt') fn (t) {
+    let entry = DirectoryEntry { @path = 'foo'.to_path, @type = FileType.File }
+
+    t.equal(fmt(entry), 'DirectoryEntry { @path = "foo", @type = File }')
+  }
+}

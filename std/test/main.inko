@@ -27,6 +27,7 @@ import std::test_debug
 import std::test_env
 import std::test_float
 import std::test_fmt
+import std::test_fs
 import std::test_int
 import std::test_io
 import std::test_iter
@@ -65,6 +66,7 @@ class async Main {
     test_file.tests(tests)
     test_float.tests(tests)
     test_fmt.tests(tests)
+    test_fs.tests(tests)
     test_hash.tests(tests)
     test_int.tests(tests)
     test_io.tests(tests)
