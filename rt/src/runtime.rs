@@ -27,8 +27,10 @@ use std::io::{stdout, Write as _};
 use std::process::exit as rust_exit;
 use std::thread;
 
-#[cfg(unix)]
-fn ignore_sigpipe() {
+const SIGPIPE: i32 = 13;
+const SIG_IGN: usize = 1;
+
+extern "C" {
     // Broken pipe errors default to terminating the entire program, making it
     // impossible to handle such errors. This is especially problematic for
     // sockets, as writing to a socket closed on the other end would terminate
@@ -37,14 +39,7 @@ fn ignore_sigpipe() {
     // While Rust handles this for us when compiling an executable, it doesn't
     // do so when compiling it to a static library and linking it to our
     // generated code, so we must handle this ourselves.
-    unsafe {
-        libc::signal(libc::SIGPIPE, libc::SIG_IGN);
-    }
-}
-
-#[cfg(not(unix))]
-fn ignore_sigpipe() {
-    // Not needed on these platforms
+    fn signal(sig: i32, handler: usize) -> usize;
 }
 
 #[no_mangle]
@@ -65,7 +60,7 @@ pub unsafe extern "system" fn inko_runtime_start(
     class: ClassPointer,
     method: NativeAsyncMethod,
 ) {
-    ignore_sigpipe();
+    signal(SIGPIPE, SIG_IGN);
     (*runtime).start(class, method);
     flush_stdout();
 }

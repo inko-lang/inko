@@ -1,19 +1,11 @@
 use crate::mem::Float;
 use crate::state::State;
+use rustix::time;
 use std::mem::MaybeUninit;
 
 fn utc() -> f64 {
-    unsafe {
-        let mut ts = MaybeUninit::uninit();
-
-        if libc::clock_gettime(libc::CLOCK_REALTIME, ts.as_mut_ptr()) != 0 {
-            panic!("clock_gettime() failed");
-        }
-
-        let ts = ts.assume_init();
-
-        ts.tv_sec as f64 + (ts.tv_nsec as f64 / 1_000_000_000.0)
-    }
+    let ts = time::clock_gettime(time::ClockId::Realtime);
+    ts.tv_sec as f64 + (ts.tv_nsec as f64 / 1_000_000_000.0)
 }
 
 fn offset() -> i64 {
@@ -22,16 +14,7 @@ fn offset() -> i64 {
             fn tzset();
         }
 
-        let ts = {
-            let mut ts = MaybeUninit::uninit();
-
-            if libc::clock_gettime(libc::CLOCK_REALTIME, ts.as_mut_ptr()) != 0 {
-                panic!("clock_gettime() failed");
-            }
-
-            ts.assume_init()
-        };
-
+        let ts = time::clock_gettime(time::ClockId::Realtime);
         let mut tm = MaybeUninit::uninit();
 
         // localtime_r() doesn't necessarily call tzset() for us.
