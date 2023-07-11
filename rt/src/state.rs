@@ -160,7 +160,7 @@ impl State {
     pub(crate) fn new(
         config: Config,
         counts: &MethodCounts,
-        args: &[String],
+        args: Vec<String>,
     ) -> RcState {
         let int_class = class!("Int", counts.int_class, Int);
         let float_class = class!("Float", counts.float_class, Float);
@@ -175,8 +175,8 @@ impl State {
         let false_singleton = Bool::alloc(bool_class);
         let nil_singleton = Nil::alloc(nil_class);
         let arguments = args
-            .iter()
-            .map(|arg| InkoString::alloc_permanent(string_class, arg.clone()))
+            .into_iter()
+            .map(|arg| InkoString::alloc_permanent(string_class, arg))
             .collect();
 
         let mut rng = thread_rng();
@@ -260,7 +260,7 @@ mod tests {
     #[test]
     fn test_field_offsets() {
         let config = Config::new();
-        let state = State::new(config, &MethodCounts::default(), &[]);
+        let state = State::new(config, &MethodCounts::default(), Vec::new());
 
         assert_eq!(offset_of!(state, true_singleton), 0);
         assert_eq!(offset_of!(state, false_singleton), 8);

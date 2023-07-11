@@ -2796,7 +2796,14 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
         context: &'ctx Context,
         module: &'a Module<'a, 'ctx>,
     ) -> GenerateMain<'a, 'ctx> {
-        let typ = context.i32_type().fn_type(&[], false);
+        let space = AddressSpace::default();
+        let typ = context.i32_type().fn_type(
+            &[
+                context.i32_type().into(),
+                context.i8_type().ptr_type(space).into(),
+            ],
+            false,
+        );
         let function = module.add_function("main", typ, None);
         let builder = Builder::new(context, function);
 
@@ -2809,6 +2816,16 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
 
         self.builder.switch_to_block(entry_block);
 
+        let argc_typ = self.builder.context.i32_type();
+        let argv_typ = self.builder.context.i8_type().ptr_type(space);
+        let argc_var = self.builder.alloca(argc_typ);
+        let argv_var = self.builder.alloca(argv_typ);
+
+        self.builder.store(argc_var, self.builder.argument(0));
+        self.builder.store(argv_var, self.builder.argument(1));
+
+        let argc = self.builder.load(argc_typ, argc_var);
+        let argv = self.builder.load(argv_typ, argv_var);
         let layout = self.layouts.method_counts;
         let counts = self.builder.alloca(layout);
 
@@ -2828,8 +2845,10 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
             self.module.runtime_function(RuntimeFunction::RuntimeState);
         let rt_drop =
             self.module.runtime_function(RuntimeFunction::RuntimeDrop);
-        let runtime =
-            self.builder.call(rt_new, &[counts.into()]).into_pointer_value();
+        let runtime = self
+            .builder
+            .call(rt_new, &[counts.into(), argc.into(), argv.into()])
+            .into_pointer_value();
         let state =
             self.builder.call(rt_state, &[runtime.into()]).into_pointer_value();
 

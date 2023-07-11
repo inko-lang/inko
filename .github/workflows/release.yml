@@ -10,13 +10,22 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  tests:
-    uses: ./.github/workflows/test.yml
+  lints:
+    uses: ./.github/workflows/lint.yml
+  linux:
+    uses: ./.github/workflows/linux.yml
+  mac:
+    uses: ./.github/workflows/mac.yml
+  freebsd:
+    uses: ./.github/workflows/freebsd.yml
 
   source:
     runs-on: ubuntu-latest
     needs:
-      - tests
+      - lints
+      - linux
+      - mac
+      - freebsd
     env:
       AWS_REGION: eu-west-1
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -29,7 +38,10 @@ jobs:
   container:
     runs-on: ubuntu-latest
     needs:
-      - tests
+      - lints
+      - linux
+      - mac
+      - freebsd
     permissions:
       contents: read
       packages: write
@@ -57,7 +69,10 @@ jobs:
   docs:
     runs-on: ubuntu-latest
     needs:
-      - tests
+      - lints
+      - linux
+      - mac
+      - freebsd
     env:
       AWS_REGION: eu-west-1
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}

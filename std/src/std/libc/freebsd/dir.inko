@@ -1,9 +1,12 @@
-# https://docs.rs/libc/latest/x86_64-unknown-freebsd/libc/struct.dirent.html
+# `man dirent` on FreeBSD. The documentation of Rust's libc crate appears to
+# define this structure incorrectly.
 class extern Dirent {
-  let @d_fileno: Int32
+  let @d_fileno: Int64
+  let @d_off: Int64
   let @d_reclen: Int16
   let @d_type: Int8
   let @d_namlen: Int8
+  let @d_pad0: Int32
 }
 
 fn pub extern opendir(path: Pointer[Int8]) -> Pointer[Int8]
@@ -14,5 +17,5 @@ fn pub dirent_type(pointer: Pointer[Int8]) -> Int {
 }
 
 fn pub dirent_name(pointer: Pointer[Int8]) -> Pointer[Int8] {
-  pointer as Int + 8 as Pointer[Int8]
+  pointer as Int + 24 as Pointer[Int8]
 }

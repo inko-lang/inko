@@ -18,7 +18,7 @@ impl BuildTags {
         values.insert(target.abi_name().to_string());
 
         match target.os {
-            OperatingSystem::Freebsd | OperatingSystem::Openbsd => {
+            OperatingSystem::Freebsd => {
                 values.insert("bsd".to_string());
                 values.insert("unix".to_string());
             }

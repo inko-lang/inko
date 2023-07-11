@@ -22,9 +22,10 @@ use crate::process::{NativeAsyncMethod, Process};
 use crate::scheduler::{number_of_cores, pin_thread_to_core};
 use crate::stack::Stack;
 use crate::state::{MethodCounts, RcState, State};
-use std::env::args_os;
+use std::ffi::CStr;
 use std::io::{stdout, Write as _};
 use std::process::exit as rust_exit;
+use std::slice;
 use std::thread;
 
 const SIGPIPE: i32 = 13;
@@ -45,8 +46,25 @@ extern "C" {
 #[no_mangle]
 pub unsafe extern "system" fn inko_runtime_new(
     counts: *mut MethodCounts,
+    argc: u32,
+    argv: *const *const i8,
 ) -> *mut Runtime {
-    Box::into_raw(Box::new(Runtime::new(&*counts)))
+    // The first argument is the executable. Rust already supports fetching this
+    // for us on all platforms, so we just discard it here and spare us having
+    // to deal with any platform specifics.
+    let mut args = Vec::with_capacity(argc as usize);
+
+    if !argv.is_null() {
+        for ptr in slice::from_raw_parts(argv, argc as usize).iter().skip(1) {
+            if ptr.is_null() {
+                break;
+            }
+
+            args.push(CStr::from_ptr(*ptr).to_string_lossy().into_owned());
+        }
+    }
+
+    Box::into_raw(Box::new(Runtime::new(&*counts, args)))
 }
 
 #[no_mangle]
@@ -94,14 +112,8 @@ impl Runtime {
     ///
     /// This method sets up the runtime and allocates the core classes, but
     /// doesn't start any threads.
-    fn new(counts: &MethodCounts) -> Self {
-        let config = Config::from_env();
-        let args: Vec<_> = args_os()
-            .skip(1)
-            .map(|v| v.to_string_lossy().into_owned())
-            .collect();
-
-        Self { state: State::new(config, counts, &args) }
+    fn new(counts: &MethodCounts, args: Vec<String>) -> Self {
+        Self { state: State::new(Config::from_env(), counts, args) }
     }
 
     /// Starts the runtime using the given process and method as the entry

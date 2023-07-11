@@ -957,7 +957,7 @@ mod tests {
         assert_eq!(size_of::<Message>(), 16);
         assert_eq!(size_of::<ManuallyDrop<Stack>>(), 16);
 
-        if cfg!(target_os = "linux") {
+        if cfg!(any(target_os = "linux", target_os = "freebsd")) {
             assert_eq!(size_of::<UnsafeCell<Mutex<()>>>(), 8);
             assert_eq!(size_of::<Process>(), 112);
             assert_eq!(size_of::<Channel>(), 104);
@@ -981,7 +981,11 @@ mod tests {
         assert_eq!(offset_of!(proc, header), 0);
         assert_eq!(
             offset_of!(proc, fields),
-            if cfg!(target_os = "linux") { 112 } else { 128 }
+            if cfg!(any(target_os = "linux", target_os = "freebsd")) {
+                112
+            } else {
+                128
+            }
         );
     }
 

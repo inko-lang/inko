@@ -33,7 +33,6 @@ pub(crate) enum OperatingSystem {
     Freebsd,
     Linux,
     Mac,
-    Openbsd,
 }
 
 impl OperatingSystem {
@@ -42,7 +41,6 @@ impl OperatingSystem {
             "freebsd" => Some(OperatingSystem::Freebsd),
             "linux" => Some(OperatingSystem::Linux),
             "mac" => Some(OperatingSystem::Mac),
-            "openbsd" => Some(OperatingSystem::Openbsd),
             _ => None,
         }
     }
@@ -54,8 +52,6 @@ impl OperatingSystem {
             OperatingSystem::Linux
         } else if cfg!(target_os = "macos") {
             OperatingSystem::Mac
-        } else if cfg!(target_os = "openbsd") {
-            OperatingSystem::Openbsd
         } else {
             panic!("The host operating system isn't supported");
         }
@@ -128,7 +124,6 @@ impl Target {
         let os = match self.os {
             OperatingSystem::Freebsd => "unknown-freebsd",
             OperatingSystem::Mac => "apple-darwin",
-            OperatingSystem::Openbsd => "unknown-openbsd",
             OperatingSystem::Linux => "unknown-linux-gnu",
         };
 
@@ -146,7 +141,6 @@ impl Target {
         match self.os {
             OperatingSystem::Freebsd => "freebsd",
             OperatingSystem::Mac => "mac",
-            OperatingSystem::Openbsd => "openbsd",
             OperatingSystem::Linux => "linux",
         }
     }
@@ -202,10 +196,6 @@ mod tests {
         assert_eq!(
             OperatingSystem::from_str("freebsd"),
             Some(OperatingSystem::Freebsd)
-        );
-        assert_eq!(
-            OperatingSystem::from_str("openbsd"),
-            Some(OperatingSystem::Openbsd)
         );
         assert_eq!(
             OperatingSystem::from_str("linux"),

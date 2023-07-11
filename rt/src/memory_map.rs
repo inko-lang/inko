@@ -14,11 +14,7 @@ pub(crate) struct MemoryMap {
 fn mmap_options(_stack: bool) -> MapFlags {
     let base = MapFlags::PRIVATE;
 
-    #[cfg(any(
-        target_os = "linux",
-        target_os = "freebsd",
-        target_os = "openbsd"
-    ))]
+    #[cfg(any(target_os = "linux", target_os = "freebsd",))]
     if _stack {
         return base | MapFlags::STACK;
     }

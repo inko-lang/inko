@@ -1,0 +1,74 @@
+---
+name: Run linters
+on:
+  workflow_call:
+
+env:
+  # This directory must be named differently from `.cargo`, otherwise it will
+  # conflict with our local Cargo configuration.
+  CARGO_HOME: ${{ github.workspace }}/.cargo-home
+
+jobs:
+  vale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: errata-ai/vale-action@reviewdog
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          reporter: github-check
+          vale_flags: '--no-wrap --sort'
+
+  cargo-deny:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: EmbarkStudios/cargo-deny-action@v1
+
+  gitlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 10
+      - run: pip install gitlint
+      - run: git config --global --add safe.directory $PWD
+      - run: gitlint --commits "HEAD~9..HEAD"
+
+  # Clippy uses a specific version as its lints change over time, which could
+  # result in random unrelated CI failures. We'll bump this version every now
+  # and then when needed.
+  cargo-clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ${{ env.CARGO_HOME }}
+            target
+          key: ubuntu-1.63
+      - name: Installing Rust
+        run: ./scripts/rust.sh 1.63
+      - name: Installing LLVM
+        run: ./scripts/llvm.sh ubuntu
+      - name: Installing clippy
+        run: rustup component add clippy
+      - run: 'cargo clippy -- -D warnings'
+
+  cargo-fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ${{ env.CARGO_HOME }}
+            target
+          key: ubuntu-stable
+      - name: Installing Rust
+        run: ./scripts/rust.sh stable
+      - name: Installing rustfmt
+        run: rustup component add rustfmt
+      - run: 'cargo fmt --all --check'

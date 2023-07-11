@@ -83,7 +83,7 @@ pub(crate) fn setup() -> RcState {
     // different platforms.
     config.process_threads = 2;
 
-    State::new(config, &MethodCounts::default(), &[])
+    State::new(config, &MethodCounts::default(), Vec::new())
 }
 
 pub(crate) fn new_process(class: ClassPointer) -> OwnedProcess {

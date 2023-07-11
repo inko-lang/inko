@@ -58,15 +58,14 @@ compiled for:
 | `arm64`     | The platform is a 64-bits ARM platform
 | `freebsd`   | The target OS is FreeBSD
 | `mac`       | The target OS is macOS
-| `openbsd`   | The target OS is OpenBSD
 | `linux`     | The target OS is Linux
 | `bsd`       | The target OS is any BSD
 | `unix`      | The target OS is any Unix system
 | `gnu`       | The target uses the GNU ABI
 | `native`    | The target uses the native ABI
 
-The bag `bsd` is essentially `(freebsd OR openbsd OR ...)`, while `unix` is
-essentially `(freebsd or openbsd or linux or mac or ...)`.
+The bag `bsd` is essentially `(freebsd OR ...)`, while `unix` is essentially
+`(freebsd or linux or mac or ...)`.
 
 For Linux targets using glibc, the ABI is `gnu` instead of `native`. For the
 time being the ABI tags aren't useful, but in the future we may support both

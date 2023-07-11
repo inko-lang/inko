@@ -1,0 +1,80 @@
+---
+name: FreeBSD tests
+on:
+  workflow_call:
+
+env:
+  CARGO_HOME: ${{ github.workspace }}/.cargo-home
+  LIBRARY_PATH: /usr/local/lib
+  LLVM_SYS_150_PREFIX: /usr/local/llvm15
+
+# Due to https://github.com/cross-platform-actions/action/issues/29, jobs should
+# use QEMU, instead of xhyve.
+jobs:
+  compiler:
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - '1.63'
+          - stable
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ${{ env.CARGO_HOME }}
+            target
+          key: freebsd-${{ matrix.version }}
+      - name: Run tests
+        uses: cross-platform-actions/action@v0.15.0
+        with:
+          operating_system: freebsd
+          version: '13.2'
+          environment_variables: 'CARGO_HOME LIBRARY_PATH LLVM_SYS_150_PREFIX'
+          hypervisor: qemu
+          run: |
+            ./scripts/rust.sh ${{ matrix.version }}
+            ./scripts/llvm.sh freebsd
+            setenv PATH "${CARGO_HOME}/bin:${PATH}"
+            echo "::group::Running tests"
+            cargo test
+            echo "::endgroup::"
+
+  std:
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - '1.63'
+          - stable
+    runs-on: macos-latest
+    needs:
+      - compiler
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ${{ env.CARGO_HOME }}
+            target
+          key: freebsd-${{ matrix.version }}
+      - name: Run tests
+        uses: cross-platform-actions/action@v0.15.0
+        with:
+          operating_system: freebsd
+          version: '13.2'
+          environment_variables: 'CARGO_HOME LIBRARY_PATH LLVM_SYS_150_PREFIX'
+          hypervisor: qemu
+          run: |
+            ./scripts/rust.sh ${{ matrix.version }}
+            ./scripts/llvm.sh freebsd
+            setenv PATH "${CARGO_HOME}/bin:${PATH}"
+            echo "::group::Compiling"
+            cargo build
+            echo "::endgroup::"
+            echo "::group::Running tests"
+            cd std
+            ../target/debug/inko test
+            echo "::endgroup::"

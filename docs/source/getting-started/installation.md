@@ -9,8 +9,8 @@ choice.
 
 ## Supported platforms
 
-Inko supports macOS and Linux. Inko _should_ also work on the various BSDs (e.g.
-FreeBSD), but at the moment we don't actively test on these platforms.
+Inko supports Linux, macOS, and FreeBSD (13.2 or newer). Inko might also work on
+other platforms, but we only provide support for the listed platforms.
 
 Inko historically also supported Windows, but we dropped support with the
 introduction of the native code compiler. Our knowledge of Windows is limited,
@@ -231,6 +231,34 @@ this doesn't always appear to be necessary:
 ```bash
 export LIBRARY_PATH="$(brew --prefix llvm@15)/lib"
 ```
+
+### FreeBSD
+
+There's no official package for Inko available on FreeBSD.
+
+When building from source, the compiler requires the following dependencies to
+be installed:
+
+```bash
+sudo pkg install llvm15 rust
+```
+
+To build from source, run the following command:
+
+```bash
+LIBRARY_PATH="/usr/local/lib" LLVM_SYS_150_PREFIX=/usr/local/llvm15 cargo build
+```
+
+The variable `LLVM_SYS_150_PREFIX` is needed as llvm-sys fails to find the LLVM
+libraries (see [this issue](https://gitlab.com/taricorp/llvm-sys.rs/-/issues/54)
+for more details).
+
+The variable `LIBRARY_PATH` is needed as otherwise the linker fails to find the
+zstd and libffi libraries, which are needed by LLVM on FreeBSD.
+
+!!! tip
+    These variables need to be set every time you run `cargo build`, `cargo
+    test`, etc, so consider exporting them to your shell ahead of time.
 
 ### Docker
 

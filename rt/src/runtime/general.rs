@@ -11,11 +11,7 @@ use std::io::Error;
 extern "C" {
     #[cfg_attr(any(target_os = "linux",), link_name = "__errno_location")]
     #[cfg_attr(
-        any(
-            target_os = "netbsd",
-            target_os = "openbsd",
-            target_os = "android",
-        ),
+        any(target_os = "netbsd", target_os = "android",),
         link_name = "__errno"
     )]
     #[cfg_attr(

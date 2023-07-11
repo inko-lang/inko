@@ -200,9 +200,11 @@ impl RuntimeFunction {
             RuntimeFunction::RuntimeNew => {
                 let counts =
                     module.layouts.method_counts.ptr_type(space).into();
+                let argc = context.i32_type().into();
+                let argv = context.i8_type().ptr_type(space).into();
                 let ret = context.pointer_type();
 
-                ret.fn_type(&[counts], false)
+                ret.fn_type(&[counts, argc, argv], false)
             }
             RuntimeFunction::RuntimeDrop => {
                 let runtime = context.pointer_type().into();

@@ -301,15 +301,15 @@ impl<'ctx> Layouts<'ctx> {
             message: message_layout,
         };
 
-        let process_size =
-            if let OperatingSystem::Linux = state.config.target.os {
+        let process_size = match state.config.target.os {
+            OperatingSystem::Linux | OperatingSystem::Freebsd => {
                 // Mutexes are smaller on Linux, resulting in a smaller process
                 // size, so we have to take that into account when calculating
                 // field offsets.
                 112
-            } else {
-                128
-            };
+            }
+            _ => 128,
+        };
 
         for id in mir.classes.keys() {
             if id.is_builtin() {

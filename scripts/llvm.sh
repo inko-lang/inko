@@ -2,18 +2,26 @@
 
 set -e
 
-if [ "$RUNNER_OS" = "Linux" ]
+echo "::group::Installing LLVM"
+
+if [ "${1}" = "ubuntu" ]
 then
     # libclang-common is needed because of
     # https://gitlab.com/taricorp/llvm-sys.rs/-/issues/16.
     sudo apt-get update
     sudo apt-get install --yes llvm-15 llvm-15-dev libstdc++-11-dev \
         libclang-common-15-dev zlib1g-dev
-elif [ "$RUNNER_OS" = "macOS" ]
+elif [ "${1}" = "mac" ]
 then
     brew install llvm@15
     echo "$(brew --prefix llvm@15)/bin" >> $GITHUB_PATH
+elif [ "${1}" = "freebsd" ]
+then
+    sudo pkg update
+    sudo pkg install --yes llvm15 git
 else
-    echo 'RUNNER_OS must be set to a supported value'
+    echo 'An OS to install LLVM for must be specified'
     exit 1
 fi
+
+echo "::endgroup::"

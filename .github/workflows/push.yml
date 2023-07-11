@@ -13,8 +13,14 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  tests:
-    uses: ./.github/workflows/test.yml
+  lints:
+    uses: ./.github/workflows/lint.yml
+  linux:
+    uses: ./.github/workflows/linux.yml
+  mac:
+    uses: ./.github/workflows/mac.yml
+  freebsd:
+    uses: ./.github/workflows/freebsd.yml
 
   nightly-container:
     runs-on: ubuntu-latest
@@ -22,7 +28,10 @@ jobs:
       contents: read
       packages: write
     needs:
-      - tests
+      - lints
+      - linux
+      - mac
+      - freebsd
     if: |
       github.repository == 'inko-lang/inko' && github.ref_name == 'main'
     steps:

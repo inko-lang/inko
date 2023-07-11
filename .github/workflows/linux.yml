@@ -1,0 +1,60 @@
+---
+name: Linux tests
+on:
+  workflow_call:
+
+env:
+  CARGO_HOME: ${{ github.workspace }}/.cargo-home
+
+jobs:
+  compiler:
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - '1.63'
+          - stable
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ${{ env.CARGO_HOME }}
+            target
+          key: ubuntu-${{ matrix.version }}
+      - name: Installing Rust
+        run: ./scripts/rust.sh ${{ matrix.version }}
+      - name: Installing LLVM
+        run: ./scripts/llvm.sh ubuntu
+      - name: Running tests
+        run: cargo test
+
+  std:
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - '1.63'
+          - stable
+    runs-on: ubuntu-latest
+    needs:
+      - compiler
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ${{ env.CARGO_HOME }}
+            target
+          key: ubuntu-${{ matrix.version }}
+      - name: Installing Rust
+        run: ./scripts/rust.sh ${{ matrix.version }}
+      - name: Installing LLVM
+        run: ./scripts/llvm.sh ubuntu
+      - name: Compiling
+        run: cargo build
+      - name: Running tests
+        run: |
+          cd std
+          ../target/debug/inko test

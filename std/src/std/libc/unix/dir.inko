@@ -11,7 +11,6 @@ import std::libc::freebsd::dir::(self as dir_imp) if freebsd
 import std::libc::linux::dir::(self as dir_imp) if linux
 import std::libc::mac::amd64::dir::(self as dir_imp) if mac and amd64
 import std::libc::mac::arm64::dir::(self as dir_imp) if mac and arm64
-import std::libc::openbsd::dir::(self as dir_imp) if openbsd
 
 # These constants are the same across the various Unix platforms we support, so
 # we can just define them here.

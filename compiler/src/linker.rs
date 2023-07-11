@@ -57,19 +57,24 @@ pub(crate) fn link(
         cmd.arg(path);
     }
 
+    // Include any extra platform specific libraries, such as libm on the
+    // various Unix platforms.
+    //
+    // macOS includes libm in the standard C library, so there's no need to
+    // explicitly include it.
+    //
+    // We don't support static linking as libm is part of glibc, libc doesn't
+    // really support (proper) static linking, and you can't statically link
+    // libm _without_ statically linking libc. See
+    // https://bugzilla.redhat.com/show_bug.cgi?id=1433347 for some extra
+    // details.
     match state.config.target.os {
-        OperatingSystem::Linux
-        | OperatingSystem::Freebsd
-        | OperatingSystem::Openbsd => {
-            // macOS includes libm in the standard C library, so there's no need
-            // to explicitly include it.
-            //
-            // We don't support static linking as libm is part of glibc, libc
-            // doesn't really support (proper) static linking, and you can't
-            // statically link libm _without_ statically linking libc. See
-            // https://bugzilla.redhat.com/show_bug.cgi?id=1433347 for some
-            // extra details.
+        OperatingSystem::Linux => {
             cmd.arg("-lm");
+        }
+        OperatingSystem::Freebsd => {
+            cmd.arg("-lm");
+            cmd.arg("-lpthread");
         }
         _ => {}
     }
