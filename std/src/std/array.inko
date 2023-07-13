@@ -7,21 +7,21 @@ import std::hash::(Hash, Hasher)
 import std::iter::(Enum, Iter)
 import std::option::Option
 import std::rand::Shuffle
+import std::libc::unix::alloc::(self as alloc_imp) if unix
 
 class extern AnyResult {
   let @tag: Int
   let @value: Any
 }
 
-fn extern inko_array_reserve(array: Any, length: Int)
-fn extern inko_array_set(array: Any, index: Int, value: Any) -> Any
-fn extern inko_array_get(array: Any, index: Int) -> Any
-fn extern inko_array_clear(array: Any)
-fn extern inko_array_pop(array: Any) -> AnyResult
-fn extern inko_array_remove(array: Any, index: Int) -> Any
-fn extern inko_array_capacity(state: Pointer[Int8], array: Any) -> Int
-fn extern inko_array_drop(state: Pointer[Int8], array: Any)
-fn extern inko_array_length(state: Pointer[Int8], array: Any) -> Int
+# The size of each value in an Array.
+#
+# Inko values stored in an Array are always heap allocated, thus each value is
+# the size of a pointer, or 8 bytes.
+let VALUE_SIZE = 8
+
+# The capacity to use when resizing an array for the first time.
+let START_CAPACITY = 4
 
 fn stable_sort[T: Compare[T]](
   array: mut Array[T],
@@ -36,11 +36,11 @@ fn stable_sort[T: Compare[T]](
 
   # We don't set a length for `tmp` so we don't drop any of the temporary
   # values in it, as that would result in `self` being left with invalid
-  # values. This works because merge() doesn't perform any bounds checking.
+  # values. This works because merge_sort() doesn't perform any bounds checking.
   let tmp: Array[T] = Array.with_capacity(len)
 
   len.times fn (i) {
-    inko_array_set(tmp, i, inko_array_get(array, i))
+    tmp.write_to(i, array.read_from(i))
   }
 
   merge_sort(tmp, array, start: 0, end: len, compare: compare)
@@ -69,10 +69,10 @@ fn merge_sort[T: Compare[T]](
     if i < mid
       and (j >= end or compare.call(a.get_unchecked(i), a.get_unchecked(j)))
     {
-      inko_array_set(b, k, inko_array_get(a, i))
+      b.write_to(k, a.read_from(i))
       i += 1
     } else {
-      inko_array_set(b, k, inko_array_get(a, j))
+      b.write_to(k, a.read_from(j))
       j += 1
     }
 
@@ -107,14 +107,21 @@ fn pub bounds_check(index: Int, length: Int) {
 # All values in an array must be of the same type, and the array's value type is
 # based on the type of the first value.
 class builtin Array[T] {
+  # The compiler depends on the order of these fields, so don't change it
+  # without also updating the compiler.
+
+  let @length: Int
+  let @capacity: Int
+  let @buffer: Pointer[Int8]
+
   # Returns a new `Array` with enough space for at least `amount` values.
   #
   # The actual capacity may be greater than the given value.
   fn pub static with_capacity(amount: Int) -> Array[T] {
-    let vals = []
+    let buffer = alloc_imp
+      .resize(0x0 as Pointer[Int8], size: amount * VALUE_SIZE)
 
-    inko_array_reserve(vals, amount)
-    vals
+    Array { @length = 0, @capacity = amount, @buffer = buffer }
   }
 
   # Returns an array filled with a certain amount of values.
@@ -146,13 +153,13 @@ class builtin Array[T] {
   #     array.empty? # => true
   fn pub mut clear {
     let mut index = 0
-    let max = length
+    let max = @length
 
     while index < max {
-      inko_array_get(self, (index := index + 1)) as T
+      read_from(index := index + 1)
     }
 
-    inko_array_clear(self)
+    @length = 0
   }
 
   # Pushes a value to the back of the Array.
@@ -166,8 +173,9 @@ class builtin Array[T] {
   #     array.push(10) # => Nil
   #     array[0]       # => 10
   fn pub mut push(value: T) {
-    _INKO.array_push(self, value)
-    _INKO.moved(value)
+    grow_buffer
+    write_to(@length, value)
+    @length += 1
   }
 
   # Removes a value from the back of the Array, returning the removed value.
@@ -189,13 +197,15 @@ class builtin Array[T] {
   #
   #     array.pop # => Option.None
   fn pub mut pop -> Option[T] {
-    match inko_array_pop(self) {
-      case { @tag = 0, @value = v } -> Option.Some(v as T)
-      case _ -> Option.None
-    }
+    if @length == 0 { return Option.None }
+
+    @length -= 1
+    Option.Some(read_from(@length))
   }
 
   # Removes the value at the given index, returning the removed value.
+  #
+  # Values to the right of the index are shifted to the left.
   #
   # # Examples
   #
@@ -211,8 +221,21 @@ class builtin Array[T] {
   #
   # This method panics if the index is out of bounds.
   fn pub mut remove_at(index: Int) -> T {
-    bounds_check(index, length)
-    inko_array_remove(self, index) as T
+    let len = length
+
+    bounds_check(index, len)
+
+    let addr = address_of(index)
+    let val = addr.0 as Any as T
+
+    alloc_imp.copy(
+      from: addr as Int + VALUE_SIZE as Pointer[Int8],
+      to: addr as Pointer[Int8],
+      size: len - index - 1 * VALUE_SIZE,
+    )
+
+    @length = len - 1
+    val
   }
 
   # Returns an optional immutable reference to the value at the given index.
@@ -231,7 +254,7 @@ class builtin Array[T] {
   #
   #     numbers.opt(5) # => Option.None
   fn pub opt(index: Int) -> Option[ref T] {
-    if index < 0 or index >= length { return Option.None }
+    if index < 0 or index >= @length { return Option.None }
 
     Option.Some(get_unchecked(index))
   }
@@ -248,7 +271,7 @@ class builtin Array[T] {
   #
   #     numbers.get(0) # => 10
   fn pub get(index: Int) -> ref T {
-    bounds_check(index, length)
+    bounds_check(index, @length)
     get_unchecked(index)
   }
 
@@ -270,9 +293,11 @@ class builtin Array[T] {
   #     array.set(0, 10)
   #     array # => [10]
   fn pub mut set(index: Int, value: T) {
-    bounds_check(index, length)
-    inko_array_set(self, index, value) as T
-    _INKO.moved(value)
+    bounds_check(index, @length)
+
+    # This drops the old value, then writes the new value.
+    read_from(index)
+    write_to(index, value)
   }
 
   # Inserts the value at the given index, returning the old value.
@@ -288,18 +313,38 @@ class builtin Array[T] {
   #     numbers.swap(index: 1, with: 40) # => 20
   #     numbers                          # => [10, 40, 30]
   fn pub mut swap(index: Int, with: T) -> T {
-    bounds_check(index, length)
+    bounds_check(index, @length)
 
-    let result = inko_array_set(self, index, with) as T
+    let old = read_from(index)
 
-    _INKO.moved(with)
-    result
+    write_to(index, with)
+    old
+  }
+
+  # Swaps the values at the given indexes.
+  #
+  # # Examples
+  #
+  #     let numbers = [10, 20, 30]
+  #
+  #     numbers.swap_indexes(index: 0, with: 2)
+  #
+  #     numbers # => [30, 20, 10]
+  fn pub mut swap_indexes(index: Int, with: Int) {
+    bounds_check(index, @length)
+    bounds_check(with, @length)
+
+    let a = read_from(index)
+    let b = read_from(with)
+
+    write_to(index, b)
+    write_to(with, a)
   }
 
   # Returns an iterator that yields immutable references to the values in
   # `self`.
   fn pub iter -> Iter[ref T] {
-    Enum.indexed(length) fn (index) { get(index) }
+    Enum.indexed(@length) fn (index) { get(index) }
   }
 
   # Returns an `Iter` that iterates over all values in `self`, returning them
@@ -371,7 +416,7 @@ class builtin Array[T] {
   #
   #     [10].length # => 1
   fn pub length -> Int {
-    inko_array_length(_INKO.state, self)
+    @length
   }
 
   # Returns the number of values that can be stored in `self` before `self`
@@ -381,7 +426,7 @@ class builtin Array[T] {
   #
   #     Array.with_capacity(2).capacity # => 4
   fn pub capacity -> Int {
-    inko_array_capacity(_INKO.state, self)
+    @capacity
   }
 
   # Returns `true` if `self` is empty.
@@ -391,7 +436,7 @@ class builtin Array[T] {
   #     [10].empty? # => false
   #     [].empty?     # => true
   fn pub empty? -> Bool {
-    length == 0
+    @length == 0
   }
 
   # Sorts the values in `self` such that they are in a random order.
@@ -417,19 +462,49 @@ class builtin Array[T] {
   #     a # => [30, 20, 10]
   fn pub mut reverse {
     let mut a = 0
-    let mut b = length - 1
+    let mut b = @length - 1
 
     while a < b {
-      let a_val = inko_array_get(self, a)
+      let a_val = read_from(a)
+      let b_val = read_from(b)
 
-      inko_array_set(self, a, inko_array_set(self, b, a_val))
+      write_to(b, a_val)
+      write_to(a, b_val)
       a += 1
       b -= 1
     }
   }
 
+  # Returns a pointer to the underlying memory buffer.
+  fn pub as_pointer -> Pointer[Int8] {
+    @buffer
+  }
+
   fn get_unchecked(index: Int) -> ref T {
-    (ref inko_array_get(self, index)) as ref T
+    let val = read_from(index)
+    let ret = ref val
+
+    _INKO.moved(val)
+    ret
+  }
+
+  fn read_from(index: Int) -> T {
+    address_of(index).0 as Any as T
+  }
+
+  fn mut write_to(index: Int, value: T) {
+    address_of(index).0 = value as Any as Int64
+  }
+
+  fn address_of(index: Int) -> Pointer[Int64] {
+    @buffer as Int + (index * VALUE_SIZE) as Pointer[Int64]
+  }
+
+  fn mut grow_buffer {
+    if @capacity > @length { return }
+
+    @capacity = if @capacity == 0 { START_CAPACITY } else { @capacity * 2 }
+    @buffer = alloc_imp.resize(@buffer, @capacity * VALUE_SIZE)
   }
 }
 
@@ -450,7 +525,7 @@ impl Array if T: mut {
   #
   #     numbers.opt_mut(5) # => Option.None
   fn pub mut opt_mut(index: Int) -> Option[mut T] {
-    if index < 0 or index >= length { return Option.None }
+    if index < 0 or index >= @length { return Option.None }
 
     Option.Some(get_unchecked_mut(index))
   }
@@ -467,29 +542,28 @@ impl Array if T: mut {
   #
   #     numbers.get_mut(0) # => 10
   fn pub mut get_mut(index: Int) -> mut T {
-    bounds_check(index, length)
+    bounds_check(index, @length)
     get_unchecked_mut(index)
   }
 
   # Returns an iterator that yields mutable references to the values in `self`.
   fn pub mut iter_mut -> Iter[mut T] {
-    Enum.indexed(length) fn (index) { get_mut(index) }
+    Enum.indexed(@length) fn (index) { get_mut(index) }
   }
 
   fn mut get_unchecked_mut(index: Int) -> mut T {
-    (mut inko_array_get(self, index)) as mut T
+    let val = read_from(index)
+    let ret = mut val
+
+    _INKO.moved(val)
+    ret
   }
 }
 
 impl Drop for Array {
   fn mut drop {
-    let mut index = 0
-
-    while index < length {
-      inko_array_get(self, index := index + 1) as T
-    }
-
-    inko_array_drop(_INKO.state, self)
+    clear
+    alloc_imp.free(@buffer)
   }
 }
 
@@ -508,11 +582,11 @@ impl Contains[T] for Array if T: Equal[T] {
 
 impl Clone[Array[T]] for Array if T: Clone[T] {
   fn pub clone -> Array[T] {
-    let copy = []
+    let len = @length
+    let copy = Array.with_capacity(len)
     let mut index = 0
-    let max = length
 
-    while index < max { copy.push(get(index := index + 1).clone) }
+    while index < len { copy.push(get(index := index + 1).clone) }
 
     copy
   }
@@ -535,10 +609,10 @@ impl Equal[Array[T]] for Array if T: Equal[T] {
   #
   #     [10, 20] == [20, 10] # => false
   fn pub ==(other: ref Array[T]) -> Bool {
-    if length != other.length { return false }
+    if @length != other.length { return false }
 
     let mut index = 0
-    let max = length
+    let max = @length
 
     while index < max {
       let ours = get(index)
@@ -556,7 +630,7 @@ impl Equal[Array[T]] for Array if T: Equal[T] {
 impl Hash for Array if T: Hash {
   fn pub hash(hasher: mut Hasher) {
     let mut index = 0
-    let max = length
+    let max = @length
 
     while index < max { get(index := index + 1).hash(hasher) }
   }
@@ -617,17 +691,15 @@ impl Array if T: Compare[T] {
 # When this iterator is dropped, any values not yet moved out of the `Array` are
 # dropped.
 class pub IntoIter[T] {
-  # The Array is typed as `Any` so we don't run its destructor. This way we can
-  # drop an `IntoIter` even when some values have been moved out of the Array.
-  let @array: Any
+  let @array: Array[T]
   let @index: Int
 
   fn mut take_next -> T {
-    inko_array_get(@array, @index := @index + 1) as T
+    @array.read_from(@index := @index + 1)
   }
 
   fn length -> Int {
-    inko_array_length(_INKO.state, @array)
+    @array.length
   }
 }
 
@@ -635,7 +707,9 @@ impl Drop for IntoIter {
   fn mut drop {
     while @index < length { take_next }
 
-    inko_array_drop(_INKO.state, @array)
+    # This is needed so we don't try to drop the values a second time when
+    # dropping the array itself.
+    @array.length = 0
   }
 }
 

@@ -1,15 +1,16 @@
 use crate::config::BuildDirectories;
 use crate::llvm::builder::Builder;
 use crate::llvm::constants::{
-    ATOMIC_KIND, BOXED_FLOAT_VALUE_INDEX, BOXED_INT_VALUE_INDEX,
-    CLASS_METHODS_COUNT_INDEX, CLASS_METHODS_INDEX, CLOSURE_CALL_INDEX,
-    CONTEXT_ARGS_INDEX, CONTEXT_PROCESS_INDEX, CONTEXT_STATE_INDEX,
-    DROPPER_INDEX, FALSE_INDEX, FIELD_OFFSET, FLOAT_KIND, HEADER_CLASS_INDEX,
-    HEADER_KIND_INDEX, HEADER_REFS_INDEX, INT_KIND, INT_MASK, INT_SHIFT,
-    LLVM_RESULT_STATUS_INDEX, LLVM_RESULT_VALUE_INDEX, MAX_INT,
-    MESSAGE_ARGUMENTS_INDEX, METHOD_FUNCTION_INDEX, METHOD_HASH_INDEX, MIN_INT,
-    NIL_INDEX, OWNED_KIND, PERMANENT_KIND, PROCESS_FIELD_OFFSET, REF_KIND,
-    REF_MASK, TAG_MASK, TRUE_INDEX,
+    ARRAY_BUF_INDEX, ARRAY_CAPA_INDEX, ARRAY_LENGTH_INDEX, ATOMIC_KIND,
+    BOXED_FLOAT_VALUE_INDEX, BOXED_INT_VALUE_INDEX, CLASS_METHODS_COUNT_INDEX,
+    CLASS_METHODS_INDEX, CLOSURE_CALL_INDEX, CONTEXT_ARGS_INDEX,
+    CONTEXT_PROCESS_INDEX, CONTEXT_STATE_INDEX, DROPPER_INDEX, FALSE_INDEX,
+    FIELD_OFFSET, FLOAT_KIND, HEADER_CLASS_INDEX, HEADER_KIND_INDEX,
+    HEADER_REFS_INDEX, INT_KIND, INT_MASK, INT_SHIFT, LLVM_RESULT_STATUS_INDEX,
+    LLVM_RESULT_VALUE_INDEX, MAX_INT, MESSAGE_ARGUMENTS_INDEX,
+    METHOD_FUNCTION_INDEX, METHOD_HASH_INDEX, MIN_INT, NIL_INDEX, OWNED_KIND,
+    PERMANENT_KIND, PROCESS_FIELD_OFFSET, REF_KIND, REF_MASK, TAG_MASK,
+    TRUE_INDEX,
 };
 use crate::llvm::context::Context;
 use crate::llvm::layouts::Layouts;
@@ -23,6 +24,7 @@ use crate::state::State;
 use crate::symbol_names::SymbolNames;
 use crate::target::Architecture;
 use inkwell::basic_block::BasicBlock;
+use inkwell::module::Linkage;
 use inkwell::passes::{PassManager, PassManagerBuilder};
 use inkwell::targets::{
     CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetTriple,
@@ -39,7 +41,6 @@ use inkwell::OptimizationLevel;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::Path;
 use std::path::PathBuf;
-use std::rc::Rc;
 use types::module_name::ModuleName;
 use types::{BuiltinFunction, ClassId, Database, TypeRef};
 
@@ -192,21 +193,15 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
             }
         }
 
-        self.generate_setup_function();
+        self.setup_classes();
+        self.setup_constants();
         self.module.debug_builder.finalize();
-        if let Err(err) = self.module.verify() {
-            println!(
-                "module {} is invalid: {}",
-                self.module.name,
-                err.to_string_lossy()
-            );
-        }
     }
 
-    fn generate_setup_function(&mut self) {
+    fn setup_classes(&mut self) {
         let mod_id = self.mir.modules[self.module_index].id;
         let space = AddressSpace::default();
-        let fn_name = &self.names.setup_functions[&mod_id];
+        let fn_name = &self.names.setup_classes[&mod_id];
         let fn_val = self.module.add_setup_function(fn_name);
         let builder = Builder::new(self.context, fn_val);
         let entry_block = self.context.append_basic_block(fn_val);
@@ -214,7 +209,6 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
         builder.switch_to_block(entry_block);
 
         let state_var = builder.alloca(self.layouts.state.ptr_type(space));
-        let method_var = builder.alloca(self.layouts.method);
 
         builder.store(state_var, fn_val.get_nth_param(0).unwrap());
 
@@ -296,11 +290,12 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
                 let layout = self.layouts.method;
                 let hash_idx = METHOD_HASH_INDEX;
                 let func_idx = METHOD_FUNCTION_INDEX;
+                let var = builder.alloca(self.layouts.method);
 
-                builder.store_field(layout, method_var, hash_idx, hash);
-                builder.store_field(layout, method_var, func_idx, func);
+                builder.store_field(layout, var, hash_idx, hash);
+                builder.store_field(layout, var, func_idx, func);
 
-                let method = builder.load(layout, method_var);
+                let method = builder.load(layout, var);
 
                 builder.store(method_addr, method);
             }
@@ -308,7 +303,28 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
             builder.store(global.as_pointer_value(), class_ptr);
         }
 
-        // Populate the globals for the constants defined in this module.
+        builder.return_value(None);
+    }
+
+    fn setup_constants(&mut self) {
+        let mod_id = self.mir.modules[self.module_index].id;
+        let space = AddressSpace::default();
+        let fn_name = &self.names.setup_constants[&mod_id];
+        let fn_val = self.module.add_setup_function(fn_name);
+        let builder = Builder::new(self.context, fn_val);
+        let entry_block = self.context.append_basic_block(fn_val);
+
+        builder.switch_to_block(entry_block);
+
+        let state_var = builder.alloca(self.layouts.state.ptr_type(space));
+
+        builder.store(state_var, fn_val.get_nth_param(0).unwrap());
+
+        let body = self.context.append_basic_block(fn_val);
+
+        builder.jump(body);
+        builder.switch_to_block(body);
+
         for &cid in &self.mir.modules[self.module_index].constants {
             let name = &self.names.constants[&cid];
             let global = self.module.add_constant(name);
@@ -320,16 +336,18 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
             self.set_constant_global(&builder, state_var, value, global);
         }
 
-        // Populate the globals for the literals defined in this module.
-        for (value, global) in &self.module.literals {
-            self.set_constant_global(&builder, state_var, value, *global);
+        for (value, global) in &self.module.strings {
+            let ptr = global.as_pointer_value();
+            let val = self.new_string(&builder, state_var, value);
+
+            builder.store(ptr, val);
         }
 
         builder.return_value(None);
     }
 
     fn set_constant_global(
-        &self,
+        &mut self,
         builder: &Builder<'ctx>,
         state_var: PointerValue<'ctx>,
         constant: &Constant,
@@ -343,7 +361,7 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
     }
 
     fn permanent_value(
-        &self,
+        &mut self,
         builder: &Builder<'ctx>,
         state_var: PointerValue<'ctx>,
         constant: &Constant,
@@ -371,41 +389,87 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
 
                 builder.call(func, &[state, val])
             }
-            Constant::String(val) => {
-                let bytes_typ =
-                    builder.context.i8_type().array_type(val.len() as _);
-                let bytes_var = builder.alloca(bytes_typ);
-                let bytes = builder.string_bytes(val);
-
-                builder.store(bytes_var, bytes);
-
-                let len = builder.u64_literal(val.len() as u64).into();
-                let func = self
-                    .module
-                    .runtime_function(RuntimeFunction::StringNewPermanent);
-
-                builder.call(func, &[state, bytes_var.into(), len])
-            }
+            Constant::String(val) => self.new_string(builder, state_var, val),
             Constant::Array(values) => {
-                let len = builder.u64_literal(values.len() as u64).into();
-                let new_func = self
+                let class_id = ClassId::array();
+                let layout = self.layouts.instances[&class_id];
+                let class_name = &self.names.classes[&class_id];
+                let class_global = self
                     .module
-                    .runtime_function(RuntimeFunction::ArrayNewPermanent);
-                let push_func =
-                    self.module.runtime_function(RuntimeFunction::ArrayPush);
-                let array = builder.call(new_func, &[state, len]);
+                    .add_class(class_id, class_name)
+                    .as_pointer_value();
+                let class = builder.load_untyped_pointer(class_global);
+                let alloc =
+                    self.module.runtime_function(RuntimeFunction::Allocate);
+                let array =
+                    builder.call(alloc, &[class.into()]).into_pointer_value();
+                let buf_typ = builder
+                    .context
+                    .pointer_type()
+                    .array_type(values.len() as _);
 
-                for val in values.iter() {
-                    let ptr = self
-                        .permanent_value(builder, state_var, val)
+                // The memory of array constants is statically allocated, as we
+                // never need to resize it. Using malloc() would also mean that
+                // we'd need to handle it failing, which means triggering a
+                // panic, which we can't do at this point as we don't have a
+                // process set up yet.
+                let buf_global = self.module.add_global(buf_typ, "");
+                let buf_ptr = buf_global.as_pointer_value();
+
+                // We use a private linkage so we don't need to generate a
+                // globally unique symbol name for the buffer global.
+                buf_global.set_linkage(Linkage::Private);
+                buf_global.set_initializer(
+                    &buf_typ.const_zero().as_basic_value_enum(),
+                );
+
+                for (index, arg) in values.iter().enumerate() {
+                    let val = self
+                        .permanent_value(builder, state_var, arg)
                         .into_pointer_value();
 
-                    builder.call(push_func, &[state, array.into(), ptr.into()]);
+                    builder
+                        .store_array_field(buf_typ, buf_ptr, index as _, val);
                 }
 
-                array
+                // Array sizes are limited to values that always fit in a tagged
+                // Int.
+                let len = builder.tagged_int(values.len() as _).unwrap();
+
+                builder.store_field(layout, array, ARRAY_LENGTH_INDEX, len);
+                builder.store_field(layout, array, ARRAY_CAPA_INDEX, len);
+                builder.store_field(layout, array, ARRAY_BUF_INDEX, buf_ptr);
+
+                // Arrays should have the ref bit set so we don't accidentally
+                // drop them in generic code, at least until we take care of
+                // https://github.com/inko-lang/inko/issues/525.
+                let mask = builder.i64_literal(REF_MASK);
+                let raw_addr = builder.pointer_to_int(array);
+                let new_addr = builder.bit_or(raw_addr, mask);
+
+                builder.int_to_pointer(new_addr).as_basic_value_enum()
             }
         }
+    }
+
+    fn new_string(
+        &self,
+        builder: &Builder<'ctx>,
+        state_var: PointerValue<'ctx>,
+        value: &String,
+    ) -> BasicValueEnum<'ctx> {
+        let state = builder.load_pointer(self.layouts.state, state_var);
+        let bytes_typ = builder.context.i8_type().array_type(value.len() as _);
+        let bytes_var = builder.alloca(bytes_typ);
+        let bytes = builder.string_bytes(value);
+
+        builder.store(bytes_var, bytes);
+
+        let len = builder.u64_literal(value.len() as u64).into();
+        let func =
+            self.module.runtime_function(RuntimeFunction::StringNewPermanent);
+
+        builder.call(func, &[state.into(), bytes_var.into(), len])
     }
 }
 
@@ -1003,26 +1067,6 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
-                    BuiltinFunction::ArrayPush => {
-                        let reg_var = self.variables[&ins.register];
-                        let array_var = self.variables[&ins.arguments[0]];
-                        let value_var = self.variables[&ins.arguments[1]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let tagged =
-                            self.builder.load_untyped_pointer(array_var);
-                        let array = self.builder.untagged(tagged).into();
-                        let value =
-                            self.builder.load_untyped_pointer(value_var).into();
-                        let func_name = RuntimeFunction::ArrayPush;
-                        let func = self.module.runtime_function(func_name);
-                        let res =
-                            self.builder.call(func, &[state, array, value]);
-
-                        self.builder.store(reg_var, res);
-                    }
                     BuiltinFunction::IntRotateLeft => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
@@ -1206,33 +1250,6 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
 
                 self.builder.return_value(Some(&val));
             }
-            Instruction::Array(ins) => {
-                let reg_var = self.variables[&ins.register];
-                let state = self
-                    .builder
-                    .load_pointer(self.layouts.state, state_var)
-                    .into();
-                let len =
-                    self.builder.u64_literal(ins.values.len() as u64).into();
-                let new_func =
-                    self.module.runtime_function(RuntimeFunction::ArrayNew);
-                let push_func =
-                    self.module.runtime_function(RuntimeFunction::ArrayPush);
-                let array = self.builder.call(new_func, &[state, len]);
-
-                for reg in ins.values.iter() {
-                    let var = self.variables[reg];
-                    let val = self
-                        .builder
-                        .load(self.builder.context.pointer_type(), var)
-                        .into_pointer_value()
-                        .into();
-
-                    self.builder.call(push_func, &[state, array.into(), val]);
-                }
-
-                self.builder.store(reg_var, array);
-            }
             Instruction::Branch(ins) => {
                 let cond_var = self.variables[&ins.condition];
                 let cond_ptr = self.builder.load_untyped_pointer(cond_var);
@@ -1344,31 +1361,23 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                 if let Some(ptr) = self.builder.tagged_int(ins.value) {
                     self.builder.store(var, ptr);
                 } else {
-                    let global = self
-                        .module
-                        .add_literal(&Constant::Int(ins.value))
-                        .as_pointer_value();
-                    let value = self.builder.load_untyped_pointer(global);
+                    let raw = self.builder.i64_literal(ins.value);
+                    let val = self.new_int(state_var, raw);
 
-                    self.builder.store(var, value);
+                    self.builder.store(var, val);
                 }
             }
             Instruction::Float(ins) => {
                 let var = self.variables[&ins.register];
-                let global = self
-                    .module
-                    .add_literal(&Constant::Float(ins.value))
-                    .as_pointer_value();
-                let value = self.builder.load_untyped_pointer(global);
+                let raw = self.builder.f64_literal(ins.value);
+                let val = self.new_float(state_var, raw);
 
-                self.builder.store(var, value);
+                self.builder.store(var, val);
             }
             Instruction::String(ins) => {
                 let var = self.variables[&ins.register];
-                let global = self
-                    .module
-                    .add_literal(&Constant::String(Rc::new(ins.value.clone())))
-                    .as_pointer_value();
+                let global =
+                    self.module.add_string(&ins.value).as_pointer_value();
                 let value = self.builder.load_untyped_pointer(global);
 
                 self.builder.store(var, value);
@@ -2832,7 +2841,6 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
         self.set_method_count(counts, ClassId::int());
         self.set_method_count(counts, ClassId::float());
         self.set_method_count(counts, ClassId::string());
-        self.set_method_count(counts, ClassId::array());
         self.set_method_count(counts, ClassId::boolean());
         self.set_method_count(counts, ClassId::nil());
         self.set_method_count(counts, ClassId::byte_array());
@@ -2852,10 +2860,19 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
         let state =
             self.builder.call(rt_state, &[runtime.into()]).into_pointer_value();
 
-        // Call all the module setup functions. This is used to populate
-        // constants, define classes, etc.
+        // Allocate and store all the classes in their corresponding globals.
         for &id in self.mir.modules.keys() {
-            let name = &self.names.setup_functions[&id];
+            let name = &self.names.setup_classes[&id];
+            let func = self.module.add_setup_function(name);
+
+            self.builder.call_void(func, &[state.into()]);
+        }
+
+        // Constants need to be defined in a separate pass, as they may depends
+        // on the classes (e.g. array constants need the Array class to be set
+        // up).
+        for &id in self.mir.modules.keys() {
+            let name = &self.names.setup_constants[&id];
             let func = self.module.add_setup_function(name);
 
             self.builder.call_void(func, &[state.into()]);
@@ -2865,7 +2882,7 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
         let main_method_id = self.db.main_method().unwrap();
         let main_class_ptr = self
             .module
-            .add_global(&self.names.classes[&main_class_id])
+            .add_global_pointer(&self.names.classes[&main_class_id])
             .as_pointer_value();
 
         let main_method = self

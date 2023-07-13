@@ -12,9 +12,8 @@ use inkwell::AddressSpace;
 use std::cmp::max;
 use std::collections::HashMap;
 use types::{
-    ClassId, MethodId, MethodSource, ARRAY_ID, BOOLEAN_ID, BYTE_ARRAY_ID,
-    CALL_METHOD, CHANNEL_ID, DROPPER_METHOD, FLOAT_ID, INT_ID, NIL_ID,
-    STRING_ID,
+    ClassId, MethodId, MethodSource, BOOLEAN_ID, BYTE_ARRAY_ID, CALL_METHOD,
+    CHANNEL_ID, DROPPER_METHOD, FLOAT_ID, INT_ID, NIL_ID, STRING_ID,
 };
 
 /// The size of an object header.
@@ -162,7 +161,6 @@ impl<'ctx> Layouts<'ctx> {
             context.i16_type().into(), // Int
             context.i16_type().into(), // Float
             context.i16_type().into(), // String
-            context.i16_type().into(), // Array
             context.i16_type().into(), // Bool
             context.i16_type().into(), // Nil
             context.i16_type().into(), // ByteArray
@@ -254,11 +252,6 @@ impl<'ctx> Layouts<'ctx> {
                     &name,
                     header,
                     context.pointer_type().into(),
-                ),
-                ARRAY_ID => context.builtin_type(
-                    &name,
-                    header,
-                    context.rust_vec_type().into(),
                 ),
                 BOOLEAN_ID | NIL_ID => {
                     let typ = context.opaque_struct(&name);

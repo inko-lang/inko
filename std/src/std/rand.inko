@@ -4,8 +4,6 @@ import std::drop::Drop
 fn extern inko_random_new(process: Pointer[Int8]) -> Pointer[Int8]
 fn extern inko_random_from_int(seed: Int) -> Pointer[Int8]
 fn extern inko_random_drop(rng: Pointer[Int8])
-fn extern inko_array_get(array: Any, index: Int) -> Any
-fn extern inko_array_set(array: Any, index: Int, value: Any) -> Any
 fn extern inko_random_int(rng: Pointer[Int8]) -> Int64
 fn extern inko_random_float(rng: Pointer[Int8]) -> Float64
 fn extern inko_random_int_range(rng: Pointer[Int8], min: Int, max: Int) -> Int64
@@ -154,11 +152,7 @@ class pub Shuffle {
     let mut swap = array.length - 1
 
     while swap > 0 {
-      let swap_with = @rng.int_between(min: 0, max: swap)
-      let swap_val = inko_array_get(array, swap)
-
-      inko_array_set(array, swap, inko_array_set(array, swap_with, swap_val))
-
+      array.swap_indexes(swap, with: @rng.int_between(min: 0, max: swap))
       swap -= 1
     }
   }

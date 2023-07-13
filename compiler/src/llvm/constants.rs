@@ -58,15 +58,14 @@ pub(crate) const ATOMIC_KIND: u8 = 2;
 pub(crate) const PERMANENT_KIND: u8 = 3;
 pub(crate) const INT_KIND: u8 = 4;
 pub(crate) const FLOAT_KIND: u8 = 5;
-
 pub(crate) const LLVM_RESULT_VALUE_INDEX: u32 = 0;
 pub(crate) const LLVM_RESULT_STATUS_INDEX: u32 = 1;
-
 pub(crate) const CONTEXT_STATE_INDEX: u32 = 0;
 pub(crate) const CONTEXT_PROCESS_INDEX: u32 = 1;
 pub(crate) const CONTEXT_ARGS_INDEX: u32 = 2;
-
 pub(crate) const MESSAGE_ARGUMENTS_INDEX: u32 = 2;
-
 pub(crate) const DROPPER_INDEX: u32 = 0;
 pub(crate) const CLOSURE_CALL_INDEX: u32 = 1;
+pub(crate) const ARRAY_LENGTH_INDEX: u32 = 1;
+pub(crate) const ARRAY_CAPA_INDEX: u32 = 2;
+pub(crate) const ARRAY_BUF_INDEX: u32 = 3;

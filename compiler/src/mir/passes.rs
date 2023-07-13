@@ -26,7 +26,6 @@ const SELF_ID: u32 = 0;
 const MODULES_LIMIT: usize = u32::MAX as usize;
 const CLASSES_LIMIT: usize = u32::MAX as usize;
 const METHODS_LIMIT: usize = u32::MAX as usize;
-const ARRAY_LIMIT: usize = u16::MAX as usize;
 
 fn modulo(lhs: i64, rhs: i64) -> Option<i64> {
     lhs.checked_rem(rhs)
@@ -1387,7 +1386,6 @@ impl<'a> LowerMethod<'a> {
     fn expression(&mut self, node: hir::Expression) -> RegisterId {
         match node {
             hir::Expression::And(n) => self.binary_and(*n),
-            hir::Expression::Array(n) => self.array_literal(*n),
             hir::Expression::AssignField(n) => self.assign_field(*n),
             hir::Expression::ReplaceField(n) => self.replace_field(*n),
             hir::Expression::AssignSetter(n) => self.assign_setter(*n),
@@ -1630,34 +1628,6 @@ impl<'a> LowerMethod<'a> {
         tup
     }
 
-    fn array_literal(&mut self, node: hir::ArrayLiteral) -> RegisterId {
-        self.check_inferred(node.resolved_type, &node.location);
-
-        let vals: Vec<RegisterId> = node
-            .values
-            .into_iter()
-            .map(|n| self.input_expression(n, Some(node.value_type)))
-            .collect();
-
-        if vals.len() > ARRAY_LIMIT {
-            self.state.diagnostics.error(
-                DiagnosticId::LimitReached,
-                format!(
-                    "Array literals are limited to a maximum of {} values",
-                    ARRAY_LIMIT
-                ),
-                self.file(),
-                node.location.clone(),
-            );
-        }
-
-        let loc = self.add_location(node.location);
-        let reg = self.new_register(node.resolved_type);
-
-        self.current_block_mut().array(reg, vals, loc);
-        reg
-    }
-
     fn true_literal(&mut self, node: hir::True) -> RegisterId {
         let loc = self.add_location(node.location);
         let reg = self.new_register(node.resolved_type);
@@ -1715,18 +1685,6 @@ impl<'a> LowerMethod<'a> {
                         }
                         hir::StringValue::Expression(n) => self.call(*n),
                     });
-                }
-
-                if vals.len() > ARRAY_LIMIT {
-                    self.state.diagnostics.error(
-                        DiagnosticId::LimitReached,
-                        format!(
-                        "String literals are limited to a maximum of {} values",
-                        ARRAY_LIMIT
-                    ),
-                        self.file(),
-                        node.location.clone(),
-                    );
                 }
 
                 let loc = self.add_location(node.location);

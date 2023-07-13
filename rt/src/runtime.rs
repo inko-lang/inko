@@ -1,4 +1,3 @@
-mod array;
 mod byte_array;
 mod class;
 mod env;

@@ -12,8 +12,9 @@ use types::format::format_type;
 use types::{
     Class, ClassId, ClassInstance, ClassKind, Constant, Database, ModuleId,
     Symbol, Trait, TraitId, TraitImplementation, TypeId, TypeRef, Visibility,
-    ENUM_TAG_FIELD, ENUM_TAG_INDEX, FIELDS_LIMIT, MAIN_CLASS, OPTION_CLASS,
-    OPTION_MODULE, RESULT_CLASS, RESULT_MODULE, VARIANTS_LIMIT,
+    ARRAY_INTERNAL_NAME, ENUM_TAG_FIELD, ENUM_TAG_INDEX, FIELDS_LIMIT,
+    MAIN_CLASS, OPTION_CLASS, OPTION_MODULE, RESULT_CLASS, RESULT_MODULE,
+    VARIANTS_LIMIT,
 };
 
 /// The maximum number of members a single variant can store. We subtract one as
@@ -921,14 +922,16 @@ impl<'a> InsertPrelude<'a> {
         self.add_class(ClassId::channel());
 
         self.import_class(OPTION_MODULE, OPTION_CLASS);
-
-        // $Result is used by try/throw to prevent name conflicts, while Result
-        // is meant to be used by developers.
-        self.import_class_as(RESULT_MODULE, RESULT_CLASS, "$Result");
         self.import_class(RESULT_MODULE, RESULT_CLASS);
-
         self.import_class("std::map", "Map");
         self.import_method("std::process", "panic");
+
+        // This name is used when desugaring array literals.
+        self.module.new_symbol(
+            self.db_mut(),
+            ARRAY_INTERNAL_NAME.to_string(),
+            Symbol::Class(ClassId::array()),
+        );
     }
 
     fn add_class(&mut self, id: ClassId) {
@@ -945,20 +948,6 @@ impl<'a> InsertPrelude<'a> {
         let id = self.state.db.class_in_module(module, class);
 
         self.add_class(id);
-    }
-
-    fn import_class_as(&mut self, module: &str, class: &str, alias: &str) {
-        let id = self.state.db.class_in_module(module, class);
-
-        if self.module.symbol_exists(self.db(), alias) {
-            return;
-        }
-
-        self.module.new_symbol(
-            self.db_mut(),
-            alias.to_string(),
-            Symbol::Class(id),
-        );
     }
 
     fn import_method(&mut self, module: &str, method: &str) {

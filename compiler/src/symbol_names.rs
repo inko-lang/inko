@@ -10,7 +10,8 @@ pub(crate) struct SymbolNames {
     pub(crate) classes: HashMap<ClassId, String>,
     pub(crate) methods: HashMap<MethodId, String>,
     pub(crate) constants: HashMap<ConstantId, String>,
-    pub(crate) setup_functions: HashMap<ModuleId, String>,
+    pub(crate) setup_classes: HashMap<ModuleId, String>,
+    pub(crate) setup_constants: HashMap<ModuleId, String>,
 }
 
 impl SymbolNames {
@@ -18,7 +19,9 @@ impl SymbolNames {
         let mut classes = HashMap::new();
         let mut methods = HashMap::new();
         let mut constants = HashMap::new();
-        let mut setup_functions = HashMap::new();
+        let mut setup_classes = HashMap::new();
+        let mut setup_constants = HashMap::new();
+        let prefix = SYMBOL_PREFIX;
 
         for module_index in 0..mir.modules.len() {
             let module = &mir.modules[module_index];
@@ -26,12 +29,8 @@ impl SymbolNames {
 
             for &class in &module.classes {
                 let is_mod = class.kind(db).is_module();
-                let class_name = format!(
-                    "{}T_{}::{}",
-                    SYMBOL_PREFIX,
-                    mod_name,
-                    class.name(db)
-                );
+                let class_name =
+                    format!("{}T_{}::{}", prefix, mod_name, class.name(db));
 
                 classes.insert(class, class_name);
 
@@ -41,16 +40,11 @@ impl SymbolNames {
                         // `std::process.sleep` aren't formatted as
                         // `std::process::std::process.sleep`. This in turn
                         // makes stack traces easier to read.
-                        format!(
-                            "{}M_{}.{}",
-                            SYMBOL_PREFIX,
-                            mod_name,
-                            method.name(db)
-                        )
+                        format!("{}M_{}.{}", prefix, mod_name, method.name(db))
                     } else {
                         format!(
                             "{}M_{}::{}.{}",
-                            SYMBOL_PREFIX,
+                            prefix,
                             mod_name,
                             class.name(db),
                             method.name(db)
@@ -66,19 +60,19 @@ impl SymbolNames {
             let mod_name = id.module(db).name(db).as_str();
             let name = id.name(db);
 
-            constants.insert(
-                *id,
-                format!("{}C_{}::{}", SYMBOL_PREFIX, mod_name, name),
-            );
+            constants
+                .insert(*id, format!("{}C_{}::{}", prefix, mod_name, name));
         }
 
         for &id in mir.modules.keys() {
-            let name =
-                format!("{}M_{}::$setup", SYMBOL_PREFIX, id.name(db).as_str());
+            let mod_name = id.name(db).as_str();
+            let classes = format!("{}M_{}::$classes", prefix, mod_name);
+            let constants = format!("{}M_{}::$constants", prefix, mod_name);
 
-            setup_functions.insert(id, name);
+            setup_classes.insert(id, classes);
+            setup_constants.insert(id, constants);
         }
 
-        Self { classes, methods, constants, setup_functions }
+        Self { classes, methods, constants, setup_classes, setup_constants }
     }
 }

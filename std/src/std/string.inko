@@ -52,9 +52,10 @@ fn extern inko_string_to_byte_array(
   string: String,
 ) -> ByteArray
 
-fn extern inko_string_concat_array(
+fn extern inko_string_concat(
   state: Pointer[Int8],
-  strings: ref Array[String],
+  strings: Pointer[Int8],
+  length: Int,
 ) -> String
 
 fn extern inko_string_to_pointer(string: String) -> Pointer[Int8]
@@ -838,7 +839,7 @@ impl ToString for StringBuffer {
   #
   #     buffer.to_string # => 'hello world'
   fn pub to_string -> String {
-    inko_string_concat_array(_INKO.state, @strings)
+    inko_string_concat(_INKO.state, @strings.as_pointer, @strings.length)
   }
 }
 

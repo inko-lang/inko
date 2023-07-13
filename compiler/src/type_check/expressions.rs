@@ -1268,7 +1268,6 @@ impl<'a> CheckMethodBody<'a> {
     ) -> TypeRef {
         match node {
             hir::Expression::And(ref mut n) => self.and_expression(n, scope),
-            hir::Expression::Array(ref mut n) => self.array_literal(n, scope),
             hir::Expression::AssignField(ref mut n) => {
                 self.assign_field(n, scope)
             }
@@ -1444,54 +1443,6 @@ impl<'a> CheckMethodBody<'a> {
         }
 
         node.resolved_type = TypeRef::string();
-        node.resolved_type
-    }
-
-    fn array_literal(
-        &mut self,
-        node: &mut hir::ArrayLiteral,
-        scope: &mut LexicalScope,
-    ) -> TypeRef {
-        let types = self.input_expressions(&mut node.values, scope);
-
-        if types.len() > 1 {
-            let &first = types.first().unwrap();
-
-            for (&typ, node) in types[1..].iter().zip(node.values[1..].iter()) {
-                if !TypeChecker::check(self.db(), typ, first) {
-                    self.state.diagnostics.type_error(
-                        format_type(self.db(), typ),
-                        format_type(self.db(), first),
-                        self.file(),
-                        node.location().clone(),
-                    );
-                }
-            }
-        }
-
-        // Since other types aren't compatible with Any, we only need to check
-        // the first value's type.
-        if let Some(&first) = types.get(0) {
-            if !first.allow_in_array(self.db()) {
-                self.state.diagnostics.error(
-                    DiagnosticId::InvalidType,
-                    format!(
-                        "Values of type '{}' can't be stored in an Array",
-                        format_type(self.db(), first)
-                    ),
-                    self.file(),
-                    node.location.clone(),
-                );
-            }
-        }
-
-        let ins =
-            ClassInstance::with_types(self.db_mut(), ClassId::array(), types);
-        let ary = TypeRef::Owned(TypeId::ClassInstance(ins));
-
-        node.value_type =
-            ins.first_type_argument(self.db()).unwrap_or(TypeRef::Unknown);
-        node.resolved_type = ary;
         node.resolved_type
     }
 

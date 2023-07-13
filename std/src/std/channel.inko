@@ -30,7 +30,11 @@ fn extern inko_channel_try_receive(
   channel: Any,
 ) -> AnyResult
 
-fn extern inko_channel_wait(process: Pointer[Int8], channels: Any)
+fn extern inko_channel_wait(
+  process: Pointer[Int8],
+  channels: Pointer[Int8],
+  length: Int,
+)
 
 # Blocks the current process until one or more of the given channels have a
 # message.
@@ -73,7 +77,7 @@ fn extern inko_channel_wait(process: Pointer[Int8], channels: Any)
 #     chan2.send(1)
 #     wait([chan1, chan2])
 fn pub wait[T](channels: ref Array[Channel[T]]) {
-  inko_channel_wait(_INKO.process, channels)
+  inko_channel_wait(_INKO.process, channels.as_pointer, channels.length)
 }
 
 # A multi-producer, multi-consumer FIFO queue.

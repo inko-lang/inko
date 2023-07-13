@@ -1,5 +1,5 @@
 use crate::context;
-use crate::mem::{Array, ClassPointer, String as InkoString};
+use crate::mem::{ClassPointer, String as InkoString};
 use crate::process::{
     Channel, Message, NativeAsyncMethod, OwnedMessage, Process, ProcessPointer,
     ReceiveResult, RescheduleRights, SendResult, StackFrame,
@@ -11,6 +11,7 @@ use crate::scheduler::timeouts::Timeout;
 use crate::state::State;
 use std::cmp::max;
 use std::fmt::Write as _;
+use std::slice;
 use std::str;
 use std::time::Duration;
 
@@ -320,13 +321,14 @@ pub unsafe extern "system" fn inko_channel_drop(channel: *mut Channel) {
 #[no_mangle]
 pub unsafe extern "system" fn inko_channel_wait(
     process: ProcessPointer,
-    channels: *mut Array,
+    channels: *const *const Channel,
+    length: i64,
 ) {
-    let channels = &mut *channels;
-    let mut guards = Vec::with_capacity(channels.value.len());
+    let channels = slice::from_raw_parts(channels, length as _);
+    let mut guards = Vec::with_capacity(length as _);
 
-    for &ptr in &channels.value {
-        let chan = &(*(ptr as *const Channel));
+    for &ptr in channels {
+        let chan = &*ptr;
         let guard = chan.state.lock().unwrap();
 
         if guard.has_messages() {
@@ -354,9 +356,7 @@ pub unsafe extern "system" fn inko_channel_wait(
     // releases the lock.
     context::switch(process);
 
-    for &ptr in &channels.value {
-        let chan = &(*(ptr as *const Channel));
-
-        chan.state.lock().unwrap().remove_waiting_for_message(process);
+    for &ptr in channels {
+        (*ptr).state.lock().unwrap().remove_waiting_for_message(process);
     }
 }

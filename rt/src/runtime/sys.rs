@@ -1,4 +1,4 @@
-use crate::mem::{tagged_int, Array, ByteArray, Int, String as InkoString};
+use crate::mem::{tagged_int, ByteArray, Int, String as InkoString};
 use crate::process::ProcessPointer;
 use crate::result::Result as InkoResult;
 use crate::runtime::helpers::read_into;
@@ -6,6 +6,7 @@ use crate::scheduler::number_of_cores;
 use crate::state::State;
 use std::io::Write;
 use std::process::{Child, Command, Stdio};
+use std::slice;
 
 fn stdio_for(value: i64) -> Stdio {
     match value {
@@ -19,16 +20,18 @@ fn stdio_for(value: i64) -> Stdio {
 pub(crate) unsafe extern "system" fn inko_child_process_spawn(
     process: ProcessPointer,
     program: *const InkoString,
-    args: *const Array,
-    env: *const Array,
+    args: *const *const InkoString,
+    args_length: i64,
+    env: *const *const InkoString,
+    env_length: i64,
     stdin: i64,
     stdout: i64,
     stderr: i64,
     directory: *const InkoString,
 ) -> InkoResult {
     let program = InkoString::read(program);
-    let args = &(*args).value;
-    let env = &(*env).value;
+    let args = slice::from_raw_parts(args, args_length as _);
+    let env = slice::from_raw_parts(env, env_length as _);
     let directory = InkoString::read(directory);
     let mut cmd = Command::new(program);
 

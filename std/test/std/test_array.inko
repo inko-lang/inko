@@ -113,6 +113,13 @@ fn pub tests(t: mut Tests) {
     t.equal(vals, [10, 40, 30])
   }
 
+  t.test('Array.swap_indexes') fn (t) {
+    let vals = [10, 20, 30]
+
+    vals.swap_indexes(index: 0, with: 2)
+    t.equal(vals, [30, 20, 10])
+  }
+
   t.panic('Array.swap with an invalid index') fn {
     [10].swap(index: 5, with: 42)
   }

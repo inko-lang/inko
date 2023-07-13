@@ -1,5 +1,5 @@
 use crate::mem::{
-    tagged_int, Array, Bool, ByteArray, Float, Int, String as InkoString,
+    tagged_int, Bool, ByteArray, Float, Int, String as InkoString,
 };
 use crate::process::ProcessPointer;
 use crate::result::Result as InkoResult;
@@ -212,23 +212,6 @@ pub unsafe extern "system" fn inko_string_characters_next(
 #[no_mangle]
 pub unsafe extern "system" fn inko_string_characters_drop(iter: *mut u8) {
     drop(Box::from_raw(iter as *mut Graphemes));
-}
-
-#[no_mangle]
-pub unsafe extern "system" fn inko_string_concat_array(
-    state: *const State,
-    array: *const Array,
-) -> *const InkoString {
-    let array = &*array;
-    let mut buffer = String::new();
-
-    for &ptr in &array.value {
-        let ptr = ptr as *const InkoString;
-
-        buffer.push_str(InkoString::read(ptr));
-    }
-
-    InkoString::alloc((*state).string_class, buffer)
 }
 
 #[no_mangle]

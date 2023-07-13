@@ -264,38 +264,6 @@ impl Deref for ClassPointer {
     }
 }
 
-/// A resizable array.
-#[repr(C)]
-pub struct Array {
-    pub(crate) header: Header,
-    pub(crate) value: Vec<*mut u8>,
-}
-
-impl Array {
-    pub(crate) unsafe fn drop(ptr: *mut Self) {
-        drop_in_place(ptr);
-    }
-
-    pub(crate) fn alloc(class: ClassPointer, value: Vec<*mut u8>) -> *mut Self {
-        let ptr = allocate(Layout::new::<Self>()) as *mut Self;
-        let obj = unsafe { &mut *ptr };
-
-        obj.header.init(class);
-        init!(obj.value => value);
-        ptr
-    }
-
-    pub(crate) fn alloc_permanent(
-        class: ClassPointer,
-        value: Vec<*mut u8>,
-    ) -> *mut Self {
-        let ptr = Self::alloc(class, value);
-
-        unsafe { header_of(ptr) }.set_permanent();
-        ptr
-    }
-}
-
 /// A resizable array of bytes.
 #[repr(C)]
 pub struct ByteArray {
@@ -561,7 +529,6 @@ mod tests {
         assert_eq!(size_of::<Int>(), 24);
         assert_eq!(size_of::<Float>(), 24);
         assert_eq!(size_of::<String>(), 32);
-        assert_eq!(size_of::<Array>(), 40);
         assert_eq!(size_of::<ByteArray>(), 40);
         assert_eq!(size_of::<Method>(), 16);
         assert_eq!(size_of::<Class>(), 32);
@@ -573,7 +540,6 @@ mod tests {
         assert_eq!(align_of::<Int>(), ALIGNMENT);
         assert_eq!(align_of::<Float>(), ALIGNMENT);
         assert_eq!(align_of::<String>(), ALIGNMENT);
-        assert_eq!(align_of::<Array>(), ALIGNMENT);
         assert_eq!(align_of::<ByteArray>(), ALIGNMENT);
         assert_eq!(align_of::<Method>(), ALIGNMENT);
         assert_eq!(align_of::<Class>(), ALIGNMENT);

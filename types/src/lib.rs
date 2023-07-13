@@ -24,22 +24,22 @@ use std::path::PathBuf;
 pub const INT_ID: u32 = 0;
 pub const FLOAT_ID: u32 = 1;
 pub const STRING_ID: u32 = 2;
-pub const ARRAY_ID: u32 = 3;
-pub const BOOLEAN_ID: u32 = 4;
-pub const NIL_ID: u32 = 5;
-pub const BYTE_ARRAY_ID: u32 = 6;
-pub const CHANNEL_ID: u32 = 7;
+pub const BOOLEAN_ID: u32 = 3;
+pub const NIL_ID: u32 = 4;
+pub const BYTE_ARRAY_ID: u32 = 5;
+pub const CHANNEL_ID: u32 = 6;
 
-const TUPLE1_ID: u32 = 8;
-const TUPLE2_ID: u32 = 9;
-const TUPLE3_ID: u32 = 10;
-const TUPLE4_ID: u32 = 11;
-const TUPLE5_ID: u32 = 12;
-const TUPLE6_ID: u32 = 13;
-const TUPLE7_ID: u32 = 14;
-const TUPLE8_ID: u32 = 15;
+const TUPLE1_ID: u32 = 7;
+const TUPLE2_ID: u32 = 8;
+const TUPLE3_ID: u32 = 9;
+const TUPLE4_ID: u32 = 10;
+const TUPLE5_ID: u32 = 11;
+const TUPLE6_ID: u32 = 12;
+const TUPLE7_ID: u32 = 13;
+const TUPLE8_ID: u32 = 14;
+const ARRAY_ID: u32 = 15;
 
-pub const FIRST_USER_CLASS_ID: u32 = TUPLE8_ID + 1;
+pub const FIRST_USER_CLASS_ID: u32 = ARRAY_ID + 1;
 
 /// The default module ID to assign to builtin types.
 ///
@@ -73,8 +73,8 @@ pub const MAIN_METHOD: &str = "main";
 pub const DROP_MODULE: &str = "std::drop";
 pub const DROP_TRAIT: &str = "Drop";
 pub const DROP_METHOD: &str = "drop";
-pub const DROPPER_METHOD: &str = "__inko_dropper";
-pub const ASYNC_DROPPER_METHOD: &str = "__inko_async_dropper";
+pub const DROPPER_METHOD: &str = "$dropper";
+pub const ASYNC_DROPPER_METHOD: &str = "$async_dropper";
 pub const OPTION_MODULE: &str = "std::option";
 pub const OPTION_CLASS: &str = "Option";
 pub const RESULT_MODULE: &str = "std::result";
@@ -83,6 +83,9 @@ pub const OPTION_SOME: &str = "Some";
 pub const OPTION_NONE: &str = "None";
 pub const RESULT_OK: &str = "Ok";
 pub const RESULT_ERROR: &str = "Error";
+pub const ARRAY_WITH_CAPACITY: &str = "with_capacity";
+pub const ARRAY_PUSH: &str = "push";
+pub const ARRAY_INTERNAL_NAME: &str = "$Array";
 
 /// The name of the pseudo field used to deference a pointer.
 pub const DEREF_POINTER_FIELD: &str = "0";
@@ -95,6 +98,9 @@ pub const VARIANTS_LIMIT: usize = u16::MAX as usize;
 
 /// The maximum number of fields a class can define.
 pub const FIELDS_LIMIT: usize = u8::MAX as usize;
+
+/// The maximum number of values that can be stored in an array literal.
+pub const ARRAY_LIMIT: usize = u16::MAX as usize;
 
 /// A type inference placeholder.
 ///
@@ -1397,41 +1403,6 @@ impl ClassInstance {
         &db.type_arguments[self.type_arguments as usize]
     }
 
-    pub fn first_type_argument(self, db: &Database) -> Option<TypeRef> {
-        db.type_arguments[self.type_arguments as usize]
-            .mapping
-            .values()
-            .cloned()
-            .next()
-    }
-
-    pub fn copy_new_arguments_from(
-        self,
-        db: &mut Database,
-        from: &TypeArguments,
-    ) {
-        if !self.instance_of.is_generic(db) {
-            return;
-        }
-
-        let params = self.instance_of.type_parameters(db);
-        let targs = &mut db.type_arguments[self.type_arguments as usize];
-
-        from.copy_assigned_into(params, targs);
-    }
-
-    pub fn copy_type_arguments_into(
-        self,
-        db: &Database,
-        target: &mut TypeArguments,
-    ) {
-        if !self.instance_of.is_generic(db) {
-            return;
-        }
-
-        self.type_arguments(db).copy_into(target);
-    }
-
     pub fn method(self, db: &Database, name: &str) -> Option<MethodId> {
         self.instance_of.method(db, name)
     }
@@ -1537,7 +1508,6 @@ impl Visibility {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum BuiltinFunction {
-    ArrayPush,
     FloatAdd,
     FloatCeil,
     FloatDiv,
@@ -1586,7 +1556,6 @@ pub enum BuiltinFunction {
 impl BuiltinFunction {
     pub fn mapping() -> HashMap<String, Self> {
         vec![
-            BuiltinFunction::ArrayPush,
             BuiltinFunction::FloatAdd,
             BuiltinFunction::FloatCeil,
             BuiltinFunction::FloatDiv,
@@ -1640,7 +1609,6 @@ impl BuiltinFunction {
 
     pub fn name(self) -> &'static str {
         match self {
-            BuiltinFunction::ArrayPush => "array_push",
             BuiltinFunction::FloatAdd => "float_add",
             BuiltinFunction::FloatCeil => "float_ceil",
             BuiltinFunction::FloatDiv => "float_div",
@@ -1689,7 +1657,6 @@ impl BuiltinFunction {
 
     pub fn return_type(self) -> TypeRef {
         match self {
-            BuiltinFunction::ArrayPush => TypeRef::nil(),
             BuiltinFunction::FloatAdd => TypeRef::float(),
             BuiltinFunction::FloatCeil => TypeRef::float(),
             BuiltinFunction::FloatDiv => TypeRef::float(),
@@ -3729,7 +3696,6 @@ impl Database {
                 Class::value_type(INT_NAME.to_string()),
                 Class::value_type(FLOAT_NAME.to_string()),
                 Class::atomic(STRING_NAME.to_string()),
-                Class::regular(ARRAY_NAME.to_string()),
                 Class::value_type(BOOLEAN_NAME.to_string()),
                 Class::value_type(NIL_NAME.to_string()),
                 Class::regular(BYTE_ARRAY_NAME.to_string()),
@@ -3742,6 +3708,7 @@ impl Database {
                 Class::tuple(TUPLE6_NAME.to_string()),
                 Class::tuple(TUPLE7_NAME.to_string()),
                 Class::tuple(TUPLE8_NAME.to_string()),
+                Class::regular(ARRAY_NAME.to_string()),
             ],
             type_parameters: Vec::new(),
             type_arguments: Vec::new(),
@@ -4328,14 +4295,14 @@ mod tests {
     fn test_database_new() {
         let db = Database::new();
 
-        assert_eq!(&db.classes[0].name, INT_NAME);
-        assert_eq!(&db.classes[1].name, FLOAT_NAME);
-        assert_eq!(&db.classes[2].name, STRING_NAME);
-        assert_eq!(&db.classes[3].name, ARRAY_NAME);
-        assert_eq!(&db.classes[4].name, BOOLEAN_NAME);
-        assert_eq!(&db.classes[5].name, NIL_NAME);
-        assert_eq!(&db.classes[6].name, BYTE_ARRAY_NAME);
-        assert_eq!(&db.classes[7].name, CHANNEL_NAME);
+        assert_eq!(&db.classes[INT_ID as usize].name, INT_NAME);
+        assert_eq!(&db.classes[FLOAT_ID as usize].name, FLOAT_NAME);
+        assert_eq!(&db.classes[STRING_ID as usize].name, STRING_NAME);
+        assert_eq!(&db.classes[ARRAY_ID as usize].name, ARRAY_NAME);
+        assert_eq!(&db.classes[BOOLEAN_ID as usize].name, BOOLEAN_NAME);
+        assert_eq!(&db.classes[NIL_ID as usize].name, NIL_NAME);
+        assert_eq!(&db.classes[BYTE_ARRAY_ID as usize].name, BYTE_ARRAY_NAME);
+        assert_eq!(&db.classes[CHANNEL_ID as usize].name, CHANNEL_NAME);
     }
 
     #[test]

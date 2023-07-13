@@ -1,0 +1,23 @@
+fn extern realloc(pointer: Pointer[Int8], size: Int) -> Pointer[Int8]
+fn extern memmove(
+  to: Pointer[Int8],
+  from: Pointer[Int8],
+  size: Int,
+) -> Pointer[Int8]
+
+fn pub extern free(pointer: Pointer[Int8])
+
+fn pub resize(buffer: Pointer[Int8], size: Int) -> Pointer[Int8] {
+  let ptr = realloc(buffer, size)
+
+  # In this case there's nothing we can do but abort.
+  if ptr as Int == 0 and size != 0 {
+    panic('std::libc::unix::alloc.resize() failed to allocate memory')
+  }
+
+  ptr
+}
+
+fn pub copy(from: Pointer[Int8], to: Pointer[Int8], size: Int) {
+  memmove(to, from, size)
+}

@@ -35,8 +35,8 @@ class pub SipHasher13 {
     #
     # The cast to `Any` is needed so we can simply reinterpret the result as an
     # Int.
-    let key0 = (_INKO.state as Int + 88 as Pointer[Int64]).0 as Any as Int
-    let key1 = (_INKO.state as Int + 96 as Pointer[Int64]).0 as Any as Int
+    let key0 = (_INKO.state as Int + 80 as Pointer[Int64]).0 as Any as Int
+    let key1 = (_INKO.state as Int + 88 as Pointer[Int64]).0 as Any as Int
 
     new(key0, key1)
   }

@@ -2,11 +2,10 @@ use crate::llvm::builder::DebugBuilder;
 use crate::llvm::context::Context;
 use crate::llvm::layouts::Layouts;
 use crate::llvm::runtime_function::RuntimeFunction;
-use crate::mir::Constant;
 use crate::symbol_names::SYMBOL_PREFIX;
 use inkwell::attributes::AttributeLoc;
 use inkwell::intrinsics::Intrinsic;
-use inkwell::types::BasicTypeEnum;
+use inkwell::types::{BasicType, BasicTypeEnum};
 use inkwell::values::{BasicValue, FunctionValue, GlobalValue};
 use inkwell::{module, AddressSpace};
 use std::collections::HashMap;
@@ -21,7 +20,7 @@ pub(crate) struct Module<'a, 'ctx> {
     pub(crate) context: &'ctx Context,
     pub(crate) name: ModuleName,
     pub(crate) layouts: &'a Layouts<'ctx>,
-    pub(crate) literals: HashMap<Constant, GlobalValue<'ctx>>,
+    pub(crate) strings: HashMap<String, GlobalValue<'ctx>>,
     pub(crate) debug_builder: DebugBuilder<'ctx>,
 }
 
@@ -40,45 +39,49 @@ impl<'a, 'ctx> Module<'a, 'ctx> {
             context,
             name,
             layouts,
-            literals: HashMap::new(),
+            strings: HashMap::new(),
             debug_builder,
         }
     }
 
-    pub(crate) fn add_global(&self, name: &str) -> GlobalValue<'ctx> {
-        let typ = self.context.pointer_type();
-        let space = AddressSpace::default();
-
-        self.inner.add_global(typ, Some(space), name)
+    pub(crate) fn add_global_pointer(&self, name: &str) -> GlobalValue<'ctx> {
+        self.add_global(self.context.pointer_type(), name)
     }
 
-    pub(crate) fn add_literal(
-        &mut self,
-        value: &Constant,
+    pub(crate) fn add_global<T: BasicType<'ctx>>(
+        &self,
+        typ: T,
+        name: &str,
     ) -> GlobalValue<'ctx> {
-        if let Some(&global) = self.literals.get(value) {
+        self.inner.add_global(typ, Some(AddressSpace::default()), name)
+    }
+
+    pub(crate) fn add_string(&mut self, value: &String) -> GlobalValue<'ctx> {
+        if let Some(&global) = self.strings.get(value) {
             global
         } else {
             let name = format!(
-                "{}L_{}_{}",
+                "{}S_{}_{}",
                 SYMBOL_PREFIX,
                 self.name,
-                self.literals.len()
+                self.strings.len()
             );
 
-            let global = self.add_global(&name);
+            let global = self.add_global_pointer(&name);
 
             global.set_initializer(
                 &self.context.pointer_type().const_null().as_basic_value_enum(),
             );
 
-            self.literals.insert(value.clone(), global);
+            self.strings.insert(value.clone(), global);
             global
         }
     }
 
     pub(crate) fn add_constant(&mut self, name: &str) -> GlobalValue<'ctx> {
-        self.inner.get_global(name).unwrap_or_else(|| self.add_global(name))
+        self.inner
+            .get_global(name)
+            .unwrap_or_else(|| self.add_global_pointer(name))
     }
 
     pub(crate) fn add_class(

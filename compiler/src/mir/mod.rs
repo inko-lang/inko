@@ -282,19 +282,6 @@ impl Block {
         })));
     }
 
-    pub(crate) fn array(
-        &mut self,
-        register: RegisterId,
-        values: Vec<RegisterId>,
-        location: LocationId,
-    ) {
-        self.instructions.push(Instruction::Array(Box::new(Array {
-            register,
-            values,
-            location,
-        })));
-    }
-
     pub(crate) fn move_register(
         &mut self,
         target: RegisterId,
@@ -874,13 +861,6 @@ pub(crate) struct NilLiteral {
 }
 
 #[derive(Clone)]
-pub(crate) struct Array {
-    pub(crate) register: RegisterId,
-    pub(crate) values: Vec<RegisterId>,
-    pub(crate) location: LocationId,
-}
-
-#[derive(Clone)]
 pub(crate) struct Return {
     pub(crate) register: RegisterId,
     pub(crate) location: LocationId,
@@ -1071,7 +1051,6 @@ pub(crate) struct WritePointer {
 /// sure to also update the compiler pass that removes empty basic blocks.
 #[derive(Clone)]
 pub(crate) enum Instruction {
-    Array(Box<Array>),
     Branch(Box<Branch>),
     Switch(Box<Switch>),
     SwitchKind(Box<SwitchKind>),
@@ -1127,7 +1106,6 @@ impl Instruction {
             Instruction::MoveRegister(ref v) => v.location,
             Instruction::Return(ref v) => v.location,
             Instruction::Nil(ref v) => v.location,
-            Instruction::Array(ref v) => v.location,
             Instruction::Int(ref v) => v.location,
             Instruction::Float(ref v) => v.location,
             Instruction::String(ref v) => v.location,
@@ -1242,9 +1220,6 @@ impl Instruction {
             }
             Instruction::Spawn(ref v) => {
                 format!("r{} = spawn {}", v.register.0, v.class.name(db))
-            }
-            Instruction::Array(ref v) => {
-                format!("r{} = array [{}]", v.register.0, join(&v.values))
             }
             Instruction::CallStatic(ref v) => {
                 format!(

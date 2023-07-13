@@ -1,8 +1,7 @@
 use crate::arc_without_weak::ArcWithoutWeak;
 use crate::config::Config;
 use crate::mem::{
-    Array, Bool, ByteArray, Class, ClassPointer, Float, Int, Nil,
-    String as InkoString,
+    Bool, ByteArray, Class, ClassPointer, Float, Int, Nil, String as InkoString,
 };
 use crate::network_poller::NetworkPoller;
 use crate::process::Channel;
@@ -40,7 +39,6 @@ pub struct MethodCounts {
     pub(crate) int_class: u16,
     pub(crate) float_class: u16,
     pub(crate) string_class: u16,
-    pub(crate) array_class: u16,
     pub(crate) boolean_class: u16,
     pub(crate) nil_class: u16,
     pub(crate) byte_array_class: u16,
@@ -111,10 +109,10 @@ pub struct State {
     pub true_singleton: *const Bool,
     pub false_singleton: *const Bool,
     pub nil_singleton: *const Nil,
+
     pub int_class: ClassPointer,
     pub float_class: ClassPointer,
     pub string_class: ClassPointer,
-    pub array_class: ClassPointer,
     pub bool_class: ClassPointer,
     pub nil_class: ClassPointer,
     pub byte_array_class: ClassPointer,
@@ -165,7 +163,6 @@ impl State {
         let int_class = class!("Int", counts.int_class, Int);
         let float_class = class!("Float", counts.float_class, Float);
         let string_class = class!("String", counts.string_class, InkoString);
-        let array_class = class!("Array", counts.array_class, Array);
         let bool_class = class!("Bool", counts.boolean_class, Bool);
         let nil_class = class!("Nil", counts.nil_class, Nil);
         let byte_array_class =
@@ -205,7 +202,6 @@ impl State {
             int_class,
             float_class,
             string_class,
-            array_class,
             bool_class,
             nil_class,
             byte_array_class,
@@ -237,7 +233,6 @@ impl Drop for State {
             Class::drop(self.int_class);
             Class::drop(self.float_class);
             Class::drop(self.string_class);
-            Class::drop(self.array_class);
             Class::drop(self.bool_class);
             Class::drop(self.nil_class);
             Class::drop(self.byte_array_class);
@@ -268,7 +263,7 @@ mod tests {
 
         // These offsets are tested against because the runtime makes use of
         // them.
-        assert_eq!(offset_of!(state, hash_key0), 88);
-        assert_eq!(offset_of!(state, hash_key1), 96);
+        assert_eq!(offset_of!(state, hash_key0), 80);
+        assert_eq!(offset_of!(state, hash_key1), 88);
     }
 }

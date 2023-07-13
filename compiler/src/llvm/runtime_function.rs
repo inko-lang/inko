@@ -4,9 +4,6 @@ use inkwell::AddressSpace;
 
 #[derive(Copy, Clone)]
 pub(crate) enum RuntimeFunction {
-    ArrayNew,
-    ArrayNewPermanent,
-    ArrayPush,
     CheckRefs,
     ClassObject,
     ClassProcess,
@@ -37,9 +34,6 @@ pub(crate) enum RuntimeFunction {
 impl RuntimeFunction {
     pub(crate) fn name(self) -> &'static str {
         match self {
-            RuntimeFunction::ArrayNew => "inko_array_new",
-            RuntimeFunction::ArrayNewPermanent => "inko_array_new_permanent",
-            RuntimeFunction::ArrayPush => "inko_array_push",
             RuntimeFunction::CheckRefs => "inko_check_refs",
             RuntimeFunction::ClassObject => "inko_class_object",
             RuntimeFunction::ClassProcess => "inko_class_process",
@@ -132,28 +126,6 @@ impl RuntimeFunction {
                 let val = context.pointer_type();
 
                 val.fn_type(&[state, val.into()], false)
-            }
-            RuntimeFunction::ArrayNewPermanent => {
-                let state = module.layouts.state.ptr_type(space).into();
-                let capa = context.i64_type().into();
-                let ret = context.pointer_type();
-
-                ret.fn_type(&[state, capa], false)
-            }
-            RuntimeFunction::ArrayNew => {
-                let state = module.layouts.state.ptr_type(space).into();
-                let capa = context.i64_type().into();
-                let ret = context.pointer_type();
-
-                ret.fn_type(&[state, capa], false)
-            }
-            RuntimeFunction::ArrayPush => {
-                let state = module.layouts.state.ptr_type(space).into();
-                let array = context.pointer_type().into();
-                let val = context.pointer_type().into();
-                let ret = context.pointer_type();
-
-                ret.fn_type(&[state, array, val], false)
             }
             RuntimeFunction::Reduce => {
                 let proc = context.pointer_type().into();
