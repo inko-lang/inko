@@ -43,12 +43,17 @@ fn pub tests(t: mut Tests) {
     t.equal(0.to_base2, '0')
     t.equal(123.to_base2, '1111011')
     t.equal(-123.to_base2, '-1111011')
+    t.equal(
+      -9223372036854775808.to_base2,
+      '-1000000000000000000000000000000000000000000000000000000000000000'
+    )
   }
 
   t.test('Int.to_base16') fn (t) {
     t.equal(0.to_base16, '0')
     t.equal(123.to_base16, '7b')
     t.equal(-123.to_base16, '-7b')
+    t.equal(-9223372036854775808.to_base16, '-8000000000000000')
   }
 
   t.test('Int.times') fn (t) {

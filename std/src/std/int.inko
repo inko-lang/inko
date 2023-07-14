@@ -108,7 +108,13 @@ class builtin Int {
   #     3.to_base2  # => '11'
   #     -3.to_base2 # => '-11'
   fn pub to_base2 -> String {
-    to_base(2)
+    if self == MIN {
+      # to_base() uses absolute(), which can't represent MIN as a positive
+      # value.
+      '-1000000000000000000000000000000000000000000000000000000000000000'
+    } else {
+      to_base(2)
+    }
   }
 
   # Formats `self` as a `String` using base 16.
@@ -118,7 +124,13 @@ class builtin Int {
   #     123.to_base16  # => '7b'
   #     -123.to_base16 # => '-7b'
   fn pub to_base16 -> String {
-    to_base(16)
+    if self == MIN {
+      # to_base() uses absolute(), which can't represent MIN as a positive
+      # value.
+      '-8000000000000000'
+    } else {
+      to_base(16)
+    }
   }
 
   # Calls the supplied closure `self` times.
