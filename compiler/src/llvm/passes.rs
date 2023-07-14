@@ -957,16 +957,10 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
-                        let lhs = self.read_float(lhs_var).into();
-                        let rhs = self.read_float(rhs_var).into();
-                        let func = self
-                            .module
-                            .runtime_function(RuntimeFunction::FloatEq);
-                        let res = self.builder.call(func, &[state, lhs, rhs]);
+                        let lhs = self.read_float(lhs_var);
+                        let rhs = self.read_float(rhs_var);
+                        let raw = self.builder.float_eq(lhs, rhs);
+                        let res = self.new_bool(state_var, raw);
 
                         self.builder.store(reg_var, res);
                     }

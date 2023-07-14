@@ -189,8 +189,15 @@ fn pub tests(t: mut Tests) {
 
   t.test('Float.==') fn (t) {
     t.equal(10.2, 10.2)
+    t.equal(-10.2, -10.2)
+    t.equal(Float.infinity, Float.infinity)
+    t.equal(0.0, 0.0)
+    t.equal(0.0, -0.0)
     t.equal(10.2999999999999999998, 10.3)
+    t.not_equal(Float.not_a_number, Float.not_a_number)
     t.not_equal(10.299999999999998, 10.3)
+    t.not_equal(-10.2, 10.2)
+    t.not_equal(Float.infinity, Float.negative_infinity)
   }
 
   t.test('Float.to_string') fn (t) {
@@ -215,5 +222,23 @@ fn pub tests(t: mut Tests) {
     t.equal(fmt(Float.not_a_number), 'NaN')
     t.equal(fmt(Float.infinity), 'Infinity')
     t.equal(fmt(Float.negative_infinity), '-Infinity')
+  }
+
+  t.test('Float.negative_sign?') fn (t) {
+    t.true(-1.2.negative_sign?)
+    t.true(-0.0.negative_sign?)
+    t.true(Float.negative_infinity.negative_sign?)
+    t.false(1.2.negative_sign?)
+    t.false(0.0.negative_sign?)
+    t.false(Float.infinity.negative_sign?)
+  }
+
+  t.test('Float.positive_sign?') fn (t) {
+    t.true(1.2.positive_sign?)
+    t.true(0.0.positive_sign?)
+    t.true(Float.infinity.positive_sign?)
+    t.false(-1.2.positive_sign?)
+    t.false(-0.0.positive_sign?)
+    t.false(Float.negative_infinity.positive_sign?)
   }
 }

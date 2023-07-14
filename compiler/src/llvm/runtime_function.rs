@@ -10,7 +10,6 @@ pub(crate) enum RuntimeFunction {
     FloatBoxed,
     FloatBoxedPermanent,
     FloatClone,
-    FloatEq,
     Free,
     IntBoxed,
     IntBoxedPermanent,
@@ -42,7 +41,6 @@ impl RuntimeFunction {
                 "inko_float_boxed_permanent"
             }
             RuntimeFunction::FloatClone => "inko_float_clone",
-            RuntimeFunction::FloatEq => "inko_float_eq",
             RuntimeFunction::Free => "inko_free",
             RuntimeFunction::IntBoxed => "inko_int_boxed",
             RuntimeFunction::IntBoxedPermanent => "inko_int_boxed_permanent",
@@ -153,14 +151,6 @@ impl RuntimeFunction {
                 let ret = context.pointer_type();
 
                 ret.fn_type(&[state, val], false)
-            }
-            RuntimeFunction::FloatEq => {
-                let state = module.layouts.state.ptr_type(space).into();
-                let lhs = context.f64_type().into();
-                let rhs = context.f64_type().into();
-                let ret = context.pointer_type();
-
-                ret.fn_type(&[state, lhs, rhs], false)
             }
             RuntimeFunction::ProcessFinishMessage => {
                 let proc = context.pointer_type().into();

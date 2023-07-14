@@ -218,6 +218,18 @@ class builtin Float {
   fn pub to_bits -> Int {
     _INKO.float_to_bits(self)
   }
+
+  # Returns `true` if `self` has a negative sign, including `-0.0`, NaNs with a
+  # negative sign bit, and negative infinity.
+  fn pub negative_sign? -> Bool {
+    to_bits & MIN != 0
+  }
+
+  # Returns `true` if `self` has a positive sign, including `+0.0`, NaNs with a
+  # positive sign bit, and positive infinity.
+  fn pub positive_sign? -> Bool {
+    negative_sign?.false?
+  }
 }
 
 impl ToInt for Float {
@@ -297,8 +309,26 @@ impl Compare[Float] for Float {
 }
 
 impl Equal[Float] for Float {
+  # Returns `true` if `self` and `other` are equal to each other.
+  #
+  # This method uses "Units in the Last Place" or ULPs to perform an approximate
+  # comparison when two values aren't exactly identical. This means most common
+  # floats _can_ be compared for equality and give consistent results, but you
+  # still shouldn't rely on it _always_ being accurate. Or to put it
+  # differently, if you need 100% accuracy, you should use either `Int` or some
+  # other data type.
+  #
+  # See https://randomascii.wordpress.com/2012/02/25/comparing-floating-point-numbers-2012-edition/
+  # for more details on how ULPs work.
   fn pub ==(other: ref Float) -> Bool {
-    _INKO.float_eq(self, other)
+    # Handle simple comparisons such as `1.2 == 1.2` and `0.0 == -0.0`.
+    if _INKO.float_eq(self, other) { return true }
+    if positive_sign? != other.positive_sign? { return false }
+    if not_a_number? or other.not_a_number? { return false }
+
+    let diff = to_bits.wrapping_sub(other.to_bits)
+
+    diff >= -1 and diff <= 1
   }
 }
 
