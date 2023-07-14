@@ -281,14 +281,31 @@ impl Modulo[Float, Float] for Float {
 }
 
 impl Compare[Float] for Float {
+  # Return the ordering between `self` and `other`.
+  #
+  # This method implements total ordering of floats as per the IEEE 754
+  # specification. Values are ordered in the following order:
+  #
+  # - negative quiet NaN
+  # - negative signaling NaN
+  # - negative infinity
+  # - negative numbers
+  # - negative subnormal numbers
+  # - negative zero
+  # - positive zero
+  # - positive subnormal numbers
+  # - positive numbers
+  # - positive infinity
+  # - positive signaling NaN
+  # - positive quiet NaN
   fn pub cmp(other: ref Float) -> Ordering {
-    if self > other {
-      Ordering.Greater
-    } else if self < other {
-      Ordering.Less
-    } else {
-      Ordering.Equal
-    }
+    let mut lhs = to_bits
+    let mut rhs = other.to_bits
+
+    lhs ^= lhs >> 63 >>> 1
+    rhs ^= rhs >> 63 >>> 1
+
+    lhs.cmp(rhs)
   }
 
   fn pub <(other: ref Float) -> Bool {

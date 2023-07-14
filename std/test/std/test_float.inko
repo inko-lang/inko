@@ -3,6 +3,8 @@ import std::cmp::Ordering
 import std::hash::Hasher
 import std::test::Tests
 
+let NAN = 0.0 / 0.0
+
 fn pub tests(t: mut Tests) {
   t.test('Float.not_a_number') fn (t) {
     t.not_equal(Float.not_a_number, Float.not_a_number)
@@ -24,6 +26,13 @@ fn pub tests(t: mut Tests) {
     t.equal(Float.from_bits(0), 0.0)
     t.equal(Float.from_bits(-123.4.to_bits), -123.4)
     t.equal(Float.from_bits(0x4029000000000000), 12.5)
+    t.equal(Float.from_bits(-4_503_599_627_370_496), Float.negative_infinity)
+    t.equal(Float.from_bits(9_218_868_437_227_405_312), Float.infinity)
+    t.true(Float.from_bits(9_221_120_237_041_090_560).not_a_number?)
+    t.equal(
+      Float.from_bits(9_221_120_237_041_090_560).to_bits,
+      9_221_120_237_041_090_560
+    )
   }
 
   t.test('Float.parse') fn (t) {
@@ -102,6 +111,8 @@ fn pub tests(t: mut Tests) {
 
   t.test('Float.to_bits') fn (t) {
     t.equal(10.5.to_bits, 4_622_100_592_565_682_176)
+    t.equal(Float.negative_infinity.to_bits, -4_503_599_627_370_496)
+    t.equal(Float.infinity.to_bits, 9_218_868_437_227_405_312)
   }
 
   t.test('Float.to_int') fn (t) {
@@ -157,12 +168,47 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('Float.cmp') fn (t) {
-    t.equal(1.0.cmp(2.0), Ordering.Less)
-    t.equal(2.0.cmp(1.0), Ordering.Greater)
-    t.equal(1.0.cmp(1.0), Ordering.Equal)
-    t.equal(Float.infinity.cmp(1.0), Ordering.Greater)
+    # These tests are based on similar tests used by Rust for their total_cmp()
+    # implementation. The bit pattern of NaN isn't necessarily guaranteed, so
+    # for the different NaNs we use the same bit pattern as used by the Rust
+    # tests.
+    let max = 1.7976931348623157E+308
+    let nan = 9_221_120_237_041_090_560
+    let q_nan = Float.from_bits(nan | 0x8_000_000_000_000)
+    let s_nan = Float.from_bits(nan & -2251799813685249 + 42)
+
+    t.equal(q_nan.opposite.cmp(q_nan.opposite), Ordering.Equal)
+    t.equal(s_nan.opposite.cmp(s_nan.opposite), Ordering.Equal)
+    t.equal(Float.negative_infinity.cmp(Float.negative_infinity), Ordering.Equal)
+    t.equal(max.cmp(max), Ordering.Equal)
+    t.equal(-2.5.cmp(-2.5), Ordering.Equal)
+    t.equal(-0.0.cmp(-0.0), Ordering.Equal)
+    t.equal(0.0.cmp(0.0), Ordering.Equal)
+    t.equal(2.5.cmp(2.5), Ordering.Equal)
     t.equal(Float.infinity.cmp(Float.infinity), Ordering.Equal)
-    t.equal(Float.negative_infinity.cmp(Float.infinity), Ordering.Less)
+    t.equal(s_nan.cmp(s_nan), Ordering.Equal)
+    t.equal(q_nan.cmp(q_nan), Ordering.Equal)
+
+    t.equal(q_nan.opposite.cmp(s_nan.opposite), Ordering.Less)
+    t.equal(s_nan.opposite.cmp(Float.negative_infinity), Ordering.Less)
+    t.equal(Float.negative_infinity.cmp(max.opposite), Ordering.Less)
+    t.equal(max.opposite.cmp(-2.5), Ordering.Less)
+    t.equal(-2.5.cmp(-1.5), Ordering.Less)
+    t.equal(-0.0.cmp(0.0), Ordering.Less)
+    t.equal(0.5.cmp(1.5), Ordering.Less)
+    t.equal(0.5.cmp(max), Ordering.Less)
+    t.equal(s_nan.cmp(q_nan), Ordering.Less)
+    t.equal(q_nan.opposite.cmp(1.0), Ordering.Less)
+    t.equal(s_nan.opposite.cmp(1.0), Ordering.Less)
+
+    t.equal(s_nan.opposite.cmp(q_nan.opposite), Ordering.Greater)
+    t.equal(Float.negative_infinity.cmp(s_nan.opposite), Ordering.Greater)
+    t.equal(max.opposite.cmp(Float.negative_infinity), Ordering.Greater)
+    t.equal(-1.5.cmp(-2.5), Ordering.Greater)
+    t.equal(2.5.cmp(1.5), Ordering.Greater)
+    t.equal(max.cmp(2.5), Ordering.Greater)
+    t.equal(s_nan.cmp(Float.infinity), Ordering.Greater)
+    t.equal(q_nan.cmp(s_nan), Ordering.Greater)
   }
 
   t.test('Float.<') fn (t) {
