@@ -22,16 +22,8 @@ class extern StringResult {
   let @value: String
 }
 
-fn extern inko_string_equals(
-  state: Pointer[Int8],
-  left: String,
-  right: String,
-) -> Bool
-
 fn extern inko_string_to_lower(state: Pointer[Int8], string: String) -> String
 fn extern inko_string_to_upper(state: Pointer[Int8], string: String) -> String
-fn extern inko_string_size(state: Pointer[Int8], string: String) -> Int
-fn extern inko_string_byte(string: String, index: Int) -> Int
 fn extern inko_string_slice_bytes(
   state: Pointer[Int8],
   string: String,
@@ -58,7 +50,6 @@ fn extern inko_string_concat(
   length: Int,
 ) -> String
 
-fn extern inko_string_to_pointer(string: String) -> Pointer[Int8]
 fn extern inko_string_from_pointer(
   state: Pointer[Int8],
   pointer: Pointer[Int8],
@@ -134,6 +125,12 @@ trait pub ToString {
 
 # An UTF-8 encoded and immutable string type.
 class builtin String {
+  # The size of the string in bytes, _excluding_ the trailing NULL byte.
+  let @size: Int64
+
+  # A pointer to the bytes of this string, including the trailing NULL byte.
+  let @bytes: Pointer[Int8]
+
   # Returns a `String` created from the given NULL terminated pointer.
   #
   # The purpose of this method is to allow creating a `String` from a pointer
@@ -216,7 +213,7 @@ class builtin String {
   #     'foo'.size # => 3
   #     '😀'.size  # => 4
   fn pub size -> Int {
-    inko_string_size(_INKO.state, self)
+    @size as Int
   }
 
   # Returns the byte at the given byte index.
@@ -228,7 +225,7 @@ class builtin String {
   #     'inko'.byte(0) # => 105
   fn pub byte(index: Int) -> Int {
     bounds_check(index, size)
-    inko_string_byte(self, index)
+    byte_unchecked(index)
   }
 
   # Slices `self` into a substring.
@@ -557,7 +554,11 @@ class builtin String {
   # This method is meant to be used when passing strings to foreign functions
   # (i.e. `*char` arguments). You should avoid using it for anything else.
   fn pub to_pointer -> Pointer[Int8] {
-    inko_string_to_pointer(self)
+    @bytes
+  }
+
+  fn byte_unchecked(index: Int) -> Int {
+    (@bytes as Int + index as Pointer[Int8]).0 as Int
   }
 }
 
@@ -616,7 +617,19 @@ impl Equal[String] for String {
   #
   #     'foo' == 'bar' # => false
   fn pub ==(other: ref String) -> Bool {
-    inko_string_equals(_INKO.state, self, other)
+    let size = self.size
+
+    if size != other.size { return false }
+
+    let mut idx = 0
+
+    while idx < size {
+      if byte_unchecked(idx) != other.byte_unchecked(idx) { return false }
+
+      idx += 1
+    }
+
+    true
   }
 }
 
@@ -625,8 +638,7 @@ impl Hash for String {
     let mut index = 0
 
     while index < size {
-      hasher.write(inko_string_byte(self, index))
-
+      hasher.write(byte_unchecked(index))
       index += 1
     }
   }
@@ -713,7 +725,7 @@ impl Iter[Int] for Bytes {
 impl BytesTrait for Bytes {
   fn pub mut next_byte -> Int {
     if @index < @string.size {
-      inko_string_byte(@string, (@index := @index + 1))
+      @string.byte_unchecked(@index := @index + 1)
     } else {
       EOF
     }

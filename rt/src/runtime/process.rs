@@ -60,9 +60,7 @@ pub unsafe extern "system" fn inko_process_panic(
     process: ProcessPointer,
     message: *const InkoString,
 ) {
-    let msg = &(*message).value;
-
-    panic(process, msg);
+    panic(process, (*message).as_slice());
 }
 
 #[no_mangle]

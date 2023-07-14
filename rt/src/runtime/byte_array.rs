@@ -1,4 +1,3 @@
-use crate::immutable_string::ImmutableString;
 use crate::mem::{tagged_int, Bool, ByteArray, Int, String as InkoString};
 use crate::state::State;
 use std::cmp::min;
@@ -105,10 +104,7 @@ pub unsafe extern "system" fn inko_byte_array_to_string(
     state: *const State,
     bytes: *const ByteArray,
 ) -> *const InkoString {
-    let bytes = &(*bytes).value;
-    let string = ImmutableString::from_utf8(bytes.clone());
-
-    InkoString::from_immutable_string((*state).string_class, string)
+    InkoString::from_bytes((*state).string_class, (*bytes).value.clone())
 }
 
 #[no_mangle]
@@ -116,10 +112,7 @@ pub unsafe extern "system" fn inko_byte_array_drain_to_string(
     state: *const State,
     bytes: *mut ByteArray,
 ) -> *const InkoString {
-    let bytes = &mut (*bytes);
-    let string = ImmutableString::from_utf8(bytes.take_bytes());
-
-    InkoString::from_immutable_string((*state).string_class, string)
+    InkoString::from_bytes((*state).string_class, (*bytes).take_bytes())
 }
 
 #[no_mangle]

@@ -8,7 +8,6 @@ pub mod macros;
 pub mod arc_without_weak;
 pub mod config;
 pub mod context;
-pub mod immutable_string;
 pub mod mem;
 pub mod memory_map;
 pub mod network_poller;

@@ -1,8 +1,9 @@
-use crate::immutable_string::ImmutableString;
 use std::alloc::{alloc, alloc_zeroed, dealloc, handle_alloc_error, Layout};
-use std::mem::{align_of, size_of, swap};
+use std::mem::{align_of, forget, size_of, swap};
 use std::ops::Deref;
 use std::ptr::drop_in_place;
+use std::slice;
+use std::str;
 use std::string::String as RustString;
 
 /// The alignment to use for Inko objects.
@@ -426,8 +427,9 @@ impl Float {
 /// atomic operations).
 #[repr(C)]
 pub struct String {
-    pub(crate) header: Header,
-    pub(crate) value: ImmutableString,
+    pub header: Header,
+    pub size: u64,
+    pub bytes: *mut u8,
 }
 
 impl String {
@@ -441,37 +443,84 @@ impl String {
     }
 
     pub(crate) unsafe fn read<'a>(ptr: *const String) -> &'a str {
-        (*ptr).value.as_slice()
+        (*ptr).as_slice()
     }
 
     pub(crate) fn alloc(
         class: ClassPointer,
         value: RustString,
     ) -> *const String {
-        Self::from_immutable_string(class, ImmutableString::from(value))
+        Self::new(class, value.into_bytes())
     }
 
     pub(crate) fn alloc_permanent(
         class: ClassPointer,
         value: RustString,
     ) -> *const String {
-        let ptr =
-            Self::from_immutable_string(class, ImmutableString::from(value));
+        let ptr = Self::new(class, value.into_bytes());
 
         unsafe { header_of(ptr) }.set_permanent();
         ptr
     }
 
-    pub(crate) fn from_immutable_string(
+    pub(crate) fn from_bytes(
         class: ClassPointer,
-        value: ImmutableString,
+        bytes: Vec<u8>,
     ) -> *const String {
+        let string = match RustString::from_utf8(bytes) {
+            Ok(string) => string,
+            Err(err) => {
+                RustString::from_utf8_lossy(&err.into_bytes()).into_owned()
+            }
+        };
+
+        String::new(class, string.into_bytes())
+    }
+
+    fn new(class: ClassPointer, mut bytes: Vec<u8>) -> *const String {
+        let len = bytes.len();
+
+        bytes.reserve_exact(1);
+        bytes.push(0);
+
+        // Vec and Box<[u8]> don't have a public/stable memory layout. To work
+        // around that we have to break the Vec apart into a buffer and length,
+        // and store the two separately.
+        let mut boxed = bytes.into_boxed_slice();
+        let buffer = boxed.as_mut_ptr();
+
+        forget(boxed);
+
         let ptr = allocate(Layout::new::<Self>()) as *mut Self;
         let obj = unsafe { &mut *ptr };
 
         obj.header.init_atomic(class);
-        init!(obj.value => value);
+        init!(obj.size => len as u64);
+        init!(obj.bytes => buffer);
         ptr as _
+    }
+
+    /// Returns a string slice pointing to the underlying bytes.
+    ///
+    /// The returned slice _does not_ include the NULL byte.
+    pub(crate) fn as_slice(&self) -> &str {
+        unsafe { str::from_utf8_unchecked(self.as_bytes()) }
+    }
+
+    /// Returns a slice to the underlying bytes, without the NULL byte.
+    fn as_bytes(&self) -> &[u8] {
+        unsafe { slice::from_raw_parts(self.bytes, self.size as usize) }
+    }
+}
+
+impl Drop for String {
+    fn drop(&mut self) {
+        unsafe {
+            drop(Box::from_raw(slice::from_raw_parts_mut(
+                self.bytes,
+                (self.size + 1) as usize,
+            )));
+        }
     }
 }
 
@@ -580,5 +629,34 @@ mod tests {
         assert_eq!(class.instance_size, 24);
 
         unsafe { Class::drop(class) };
+    }
+
+    #[test]
+    fn test_string_new() {
+        let class = Class::object("A".to_string(), 24, 0);
+        let string = String::new(class, vec![105, 110, 107, 111]);
+
+        unsafe {
+            assert_eq!((*string).as_bytes(), &[105, 110, 107, 111]);
+            assert_eq!(String::read(string), "inko");
+            Class::drop(class);
+        }
+    }
+
+    #[test]
+    fn test_string_from_bytes() {
+        let class = Class::object("A".to_string(), 24, 0);
+        let string = String::from_bytes(
+            class,
+            vec![
+                72, 101, 108, 108, 111, 32, 240, 144, 128, 87, 111, 114, 108,
+                100,
+            ],
+        );
+
+        unsafe {
+            assert_eq!(String::read(string), "Hello �World");
+            Class::drop(class);
+        }
     }
 }

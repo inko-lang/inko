@@ -1493,6 +1493,16 @@ impl<'a> CheckMethodBody<'a> {
             return TypeRef::Error;
         };
 
+        if class.is_builtin() {
+            self.state.diagnostics.error(
+                DiagnosticId::InvalidType,
+                "Instances of builtin classes can't be created using the \
+                class literal syntax",
+                self.file(),
+                node.location.clone(),
+            );
+        }
+
         let require_send = class.kind(self.db()).is_async();
         let ins = ClassInstance::empty(self.db_mut(), class);
         let mut assigned = HashSet::new();

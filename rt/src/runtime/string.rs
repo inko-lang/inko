@@ -1,6 +1,4 @@
-use crate::mem::{
-    tagged_int, Bool, ByteArray, Float, Int, String as InkoString,
-};
+use crate::mem::{ByteArray, Float, Int, String as InkoString};
 use crate::process::ProcessPointer;
 use crate::result::Result as InkoResult;
 use crate::runtime::process::panic;
@@ -24,31 +22,6 @@ pub unsafe extern "system" fn inko_string_new_permanent(
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_string_equals(
-    state: *const State,
-    left: *const InkoString,
-    right: *const InkoString,
-) -> *const Bool {
-    let state = &*state;
-
-    if InkoString::read(left) == InkoString::read(right) {
-        state.true_singleton
-    } else {
-        state.false_singleton
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "system" fn inko_string_size(
-    state: *const State,
-    string: *const InkoString,
-) -> *const Int {
-    let state = &*state;
-
-    Int::new(state.int_class, InkoString::read(string).len() as i64)
-}
-
-#[no_mangle]
 pub unsafe extern "system" fn inko_string_concat(
     state: *const State,
     strings: *const *const InkoString,
@@ -62,18 +35,6 @@ pub unsafe extern "system" fn inko_string_concat(
     }
 
     InkoString::alloc((*state).string_class, buffer)
-}
-
-#[no_mangle]
-pub unsafe extern "system" fn inko_string_byte(
-    string: *const InkoString,
-    index: i64,
-) -> *const Int {
-    let byte = i64::from(
-        *InkoString::read(string).as_bytes().get_unchecked(index as usize),
-    );
-
-    tagged_int(byte)
 }
 
 #[no_mangle]
@@ -231,13 +192,6 @@ pub unsafe extern "system" fn inko_string_slice_bytes(
     };
 
     InkoString::alloc((*state).string_class, new_string)
-}
-
-#[no_mangle]
-pub unsafe extern "system" fn inko_string_to_pointer(
-    string: *const InkoString,
-) -> *const u8 {
-    (*string).value.as_ptr()
 }
 
 #[no_mangle]

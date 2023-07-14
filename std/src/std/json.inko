@@ -73,7 +73,6 @@ class extern AnyResult {
   let @value: Any
 }
 
-fn extern inko_string_byte(string: String, index: Int) -> Int
 fn extern inko_string_to_int(
   state: Pointer[Int8],
   process: Pointer[Int8],
@@ -676,7 +675,7 @@ class pub Parser {
 
   fn current -> Int {
     if @index < @size {
-      inko_string_byte(@string, @index)
+      @string.byte(@index)
     } else {
       EOF
     }
@@ -685,7 +684,7 @@ class pub Parser {
   fn peek -> Int {
     let index = @index + 1
 
-    if index < @size { inko_string_byte(@string, index) } else { EOF }
+    if index < @size { @string.byte(index) } else { EOF }
   }
 
   fn mut identifier(name: String) -> Result[Nil, Error] {

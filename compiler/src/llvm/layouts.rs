@@ -13,7 +13,7 @@ use std::cmp::max;
 use std::collections::HashMap;
 use types::{
     ClassId, MethodId, MethodSource, BOOLEAN_ID, BYTE_ARRAY_ID, CALL_METHOD,
-    CHANNEL_ID, DROPPER_METHOD, FLOAT_ID, INT_ID, NIL_ID, STRING_ID,
+    CHANNEL_ID, DROPPER_METHOD, FLOAT_ID, INT_ID, NIL_ID,
 };
 
 /// The size of an object header.
@@ -248,11 +248,6 @@ impl<'ctx> Layouts<'ctx> {
                     header,
                     context.f64_type().into(),
                 ),
-                STRING_ID => context.builtin_type(
-                    &name,
-                    header,
-                    context.pointer_type().into(),
-                ),
                 BOOLEAN_ID | NIL_ID => {
                     let typ = context.opaque_struct(&name);
 
@@ -305,7 +300,9 @@ impl<'ctx> Layouts<'ctx> {
         };
 
         for id in mir.classes.keys() {
-            if id.is_builtin() {
+            // String _is_ builtin, but we still process it such that the
+            // standard library can define fields for it.
+            if id.is_builtin() && *id != ClassId::string() {
                 continue;
             }
 
