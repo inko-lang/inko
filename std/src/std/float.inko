@@ -4,19 +4,13 @@ import std::cmp::(Compare, Equal, Ordering)
 import std::fmt::(Format, Formatter)
 import std::hash::(Hash, Hasher)
 import std::int::(MAX, MIN, ToInt)
-import std::ops::(Add, Divide, Modulo, Multiply, Subtract)
+import std::ops::(Add, Divide, Modulo, Multiply, Power, Subtract)
 import std::string::ToString
 
 class extern AnyResult {
   let @tag: Int
   let @value: Any
 }
-
-fn extern inko_float_round(
-  state: Pointer[Int8],
-  value: Float64,
-  decimals: Int,
-) -> Float
 
 fn extern inko_float_to_string(state: Pointer[Int8], float: Float64) -> String
 fn extern inko_string_to_float(
@@ -191,7 +185,13 @@ class builtin Float {
   #
   #     Float.not_a_number.round.not_a_number? # => true
   fn pub round(decimals: Int) -> Float {
-    inko_float_round(_INKO.state, self as Float64, decimals)
+    if decimals <= 0 { return _INKO.float_round(self) }
+    if decimals > 4_294_967_295 { return self }
+
+    let pow = 10.0 ** decimals
+    let mul = self * pow
+
+    if mul.infinite? { self } else { _INKO.float_round(mul) / pow }
   }
 
   # Returns the fractional part of this float.
@@ -383,5 +383,11 @@ impl Hash for Float {
 impl Format for Float {
   fn pub fmt(formatter: mut Formatter) {
     formatter.write(to_string)
+  }
+}
+
+impl Power[Int, Float] for Float {
+  fn pub **(other: ref Int) -> Float {
+    _INKO.float_powi(self, other)
   }
 }

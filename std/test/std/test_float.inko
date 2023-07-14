@@ -1,6 +1,7 @@
 import helpers::(fmt, hash)
 import std::cmp::Ordering
 import std::hash::Hasher
+import std::int::(MAX as INT_MAX)
 import std::test::Tests
 
 let NAN = 0.0 / 0.0
@@ -99,9 +100,16 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('Float.round') fn (t) {
+    t.equal(10.123.round(0), 10.0)
     t.equal(10.123.round(1), 10.1)
     t.equal(10.123.round(2), 10.12)
     t.equal(10.123.round(3), 10.123)
+    t.equal(10.123.round(6), 10.123)
+    t.equal(10.123.round(INT_MAX), 10.123)
+    t.equal(10.123.round(-3), 10.0)
+    t.equal(Float.negative_infinity.round(3), Float.negative_infinity)
+    t.equal(Float.infinity.round(3), Float.infinity)
+    t.true(Float.not_a_number.round(3).not_a_number?)
   }
 
   t.test('Float.fractional') fn (t) {
@@ -286,5 +294,14 @@ fn pub tests(t: mut Tests) {
     t.false(-1.2.positive_sign?)
     t.false(-0.0.positive_sign?)
     t.false(Float.negative_infinity.positive_sign?)
+  }
+
+  t.test('Float.**') fn (t) {
+    t.equal(1.2 ** 2, 1.44)
+    t.equal(1.2 ** 0, 1.0)
+    t.equal(10.0 ** 2, 100.0)
+    t.equal(-1.2 ** 2, 1.44)
+    t.equal(-1.2 ** 0, 1.0)
+    t.equal(-10.0 ** 2, 100.0)
   }
 }

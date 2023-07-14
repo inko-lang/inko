@@ -1551,6 +1551,8 @@ pub enum BuiltinFunction {
     StringConcat,
     State,
     Process,
+    FloatRound,
+    FloatPowi,
 }
 
 impl BuiltinFunction {
@@ -1599,6 +1601,8 @@ impl BuiltinFunction {
             BuiltinFunction::StringConcat,
             BuiltinFunction::State,
             BuiltinFunction::Process,
+            BuiltinFunction::FloatRound,
+            BuiltinFunction::FloatPowi,
         ]
         .into_iter()
         .fold(HashMap::new(), |mut map, func| {
@@ -1652,6 +1656,8 @@ impl BuiltinFunction {
             BuiltinFunction::StringConcat => "string_concat",
             BuiltinFunction::State => "state",
             BuiltinFunction::Process => "process",
+            BuiltinFunction::FloatRound => "float_round",
+            BuiltinFunction::FloatPowi => "float_powi",
         }
     }
 
@@ -1704,6 +1710,8 @@ impl BuiltinFunction {
             BuiltinFunction::Process => {
                 TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8)))
             }
+            BuiltinFunction::FloatRound => TypeRef::float(),
+            BuiltinFunction::FloatPowi => TypeRef::float(),
         }
     }
 }

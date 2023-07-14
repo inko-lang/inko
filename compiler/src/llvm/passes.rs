@@ -1061,6 +1061,48 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
 
                         self.builder.store(reg_var, res);
                     }
+                    BuiltinFunction::FloatRound => {
+                        let reg_var = self.variables[&ins.register];
+                        let val_var = self.variables[&ins.arguments[0]];
+                        let val = self.read_float(val_var);
+                        let func = self.module.intrinsic(
+                            "llvm.round",
+                            &[self.builder.context.f64_type().into()],
+                        );
+
+                        let raw = self
+                            .builder
+                            .call(func, &[val.into()])
+                            .into_float_value();
+
+                        let res = self.new_float(state_var, raw);
+
+                        self.builder.store(reg_var, res);
+                    }
+                    BuiltinFunction::FloatPowi => {
+                        let reg_var = self.variables[&ins.register];
+                        let lhs_var = self.variables[&ins.arguments[0]];
+                        let rhs_var = self.variables[&ins.arguments[1]];
+                        let lhs = self.read_float(lhs_var);
+                        let raw_rhs = self.read_int(rhs_var);
+                        let rhs = self.builder.int_to_int(raw_rhs, 32);
+                        let func = self.module.intrinsic(
+                            "llvm.powi",
+                            &[
+                                self.builder.context.f64_type().into(),
+                                self.builder.context.i32_type().into(),
+                            ],
+                        );
+
+                        let raw = self
+                            .builder
+                            .call(func, &[lhs.into(), rhs.into()])
+                            .into_float_value();
+
+                        let res = self.new_float(state_var, raw);
+
+                        self.builder.store(reg_var, res);
+                    }
                     BuiltinFunction::IntRotateLeft => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
