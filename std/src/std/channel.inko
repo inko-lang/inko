@@ -77,7 +77,7 @@ fn extern inko_channel_wait(
 #     chan2.send(1)
 #     wait([chan1, chan2])
 fn pub wait[T](channels: ref Array[Channel[T]]) {
-  inko_channel_wait(_INKO.process, channels.as_pointer, channels.length)
+  inko_channel_wait(_INKO.process, channels.to_pointer, channels.length)
 }
 
 # A multi-producer, multi-consumer FIFO queue.

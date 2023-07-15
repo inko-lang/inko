@@ -476,7 +476,7 @@ class builtin Array[T] {
   }
 
   # Returns a pointer to the underlying memory buffer.
-  fn pub as_pointer -> Pointer[Int8] {
+  fn pub to_pointer -> Pointer[Int8] {
     @buffer
   }
 

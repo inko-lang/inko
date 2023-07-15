@@ -851,7 +851,7 @@ impl ToString for StringBuffer {
   #
   #     buffer.to_string # => 'hello world'
   fn pub to_string -> String {
-    inko_string_concat(_INKO.state, @strings.as_pointer, @strings.length)
+    inko_string_concat(_INKO.state, @strings.to_pointer, @strings.length)
   }
 }
 

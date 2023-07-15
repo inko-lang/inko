@@ -350,9 +350,9 @@ class pub Command {
     match inko_child_process_spawn(
       _INKO.process,
       @program.to_string,
-      @arguments.as_pointer,
+      @arguments.to_pointer,
       @arguments.length,
-      vars.as_pointer,
+      vars.to_pointer,
       vars.length,
       @stdin.to_int,
       @stdout.to_int,
