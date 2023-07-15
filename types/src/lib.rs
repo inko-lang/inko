@@ -1818,6 +1818,7 @@ pub struct Method {
     return_type: TypeRef,
     source: MethodSource,
     main: bool,
+    variadic: bool,
 
     /// The type of the receiver of the method, aka the type of `self` (not
     /// `Self`).
@@ -1849,6 +1850,7 @@ impl Method {
             receiver: TypeRef::Unknown,
             field_types: HashMap::new(),
             main: false,
+            variadic: false,
         };
 
         db.methods.push(method);
@@ -1941,6 +1943,14 @@ impl MethodId {
 
     pub fn is_moving(self, db: &Database) -> bool {
         matches!(self.get(db).kind, MethodKind::Moving)
+    }
+
+    pub fn set_variadic(self, db: &mut Database) {
+        self.get_mut(db).variadic = true;
+    }
+
+    pub fn is_variadic(self, db: &Database) -> bool {
+        self.get(db).variadic
     }
 
     pub fn positional_argument_input_type(

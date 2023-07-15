@@ -529,10 +529,11 @@ impl<'ctx> Layouts<'ctx> {
                     args.push(arg.into());
                 }
 
+                let variadic = method.is_variadic(db);
                 let sig =
-                    ret.map(|t| t.fn_type(&args, false)).unwrap_or_else(|| {
-                        context.void_type().fn_type(&args, false)
-                    });
+                    ret.map(|t| t.fn_type(&args, variadic)).unwrap_or_else(
+                        || context.void_type().fn_type(&args, variadic),
+                    );
 
                 layouts.methods.insert(
                     method,

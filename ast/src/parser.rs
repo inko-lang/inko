@@ -708,18 +708,47 @@ impl Parser {
 
     fn optional_method_arguments(
         &mut self,
+        allow_variadic: bool,
     ) -> Result<Option<MethodArguments>, ParseError> {
         if self.peek().kind != TokenKind::ParenOpen {
             return Ok(None);
         }
 
-        let (values, location) = self.list(
-            TokenKind::ParenOpen,
-            TokenKind::ParenClose,
-            |parser, token| parser.define_method_argument(token),
-        )?;
+        let mut values = Vec::new();
+        let mut variadic = false;
+        let open_token = self.expect(TokenKind::ParenOpen)?;
 
-        Ok(Some(MethodArguments { values, location }))
+        loop {
+            let mut token = self.require()?;
+
+            if allow_variadic && token.kind == TokenKind::Dot {
+                self.expect(TokenKind::Dot)?;
+                self.expect(TokenKind::Dot)?;
+                token = self.expect(TokenKind::ParenClose)?;
+                variadic = true;
+            }
+
+            if token.kind == TokenKind::ParenClose {
+                let location = SourceLocation::start_end(
+                    &open_token.location,
+                    &token.location,
+                );
+
+                return Ok(Some(MethodArguments {
+                    values,
+                    variadic,
+                    location,
+                }));
+            }
+
+            values.push(self.define_method_argument(token)?);
+
+            if !values.is_empty() && self.peek().kind != TokenKind::ParenClose {
+                self.expect(TokenKind::Comma)?;
+            } else if self.peek().kind == TokenKind::Comma {
+                self.next();
+            }
+        }
     }
 
     fn define_method_argument(
@@ -798,9 +827,11 @@ impl Parser {
         start: Token,
     ) -> Result<TopLevelExpression, ParseError> {
         let public = self.next_is_public();
+        let mut allow_variadic = false;
         let kind = match self.peek().kind {
             TokenKind::Extern => {
                 self.next();
+                allow_variadic = true;
                 MethodKind::Extern
             }
             _ => MethodKind::Instance,
@@ -813,7 +844,7 @@ impl Parser {
         } else {
             self.optional_type_parameter_definitions()?
         };
-        let arguments = self.optional_method_arguments()?;
+        let arguments = self.optional_method_arguments(allow_variadic)?;
         let return_type = self.optional_return_type()?;
         let body = if let MethodKind::Extern = kind {
             None
@@ -877,7 +908,7 @@ impl Parser {
         let name_token = self.require()?;
         let (name, operator) = self.method_name(name_token)?;
         let type_parameters = self.optional_type_parameter_definitions()?;
-        let arguments = self.optional_method_arguments()?;
+        let arguments = self.optional_method_arguments(false)?;
         let return_type = self.optional_return_type()?;
         let body_token = self.expect(TokenKind::CurlyOpen)?;
         let body = self.expressions(body_token)?;
@@ -916,7 +947,7 @@ impl Parser {
         let name_token = self.require()?;
         let (name, operator) = self.method_name(name_token)?;
         let type_parameters = self.optional_type_parameter_definitions()?;
-        let arguments = self.optional_method_arguments()?;
+        let arguments = self.optional_method_arguments(false)?;
         let return_type = self.optional_return_type()?;
         let body_token = self.expect(TokenKind::CurlyOpen)?;
         let body = self.expressions(body_token)?;
@@ -1397,7 +1428,7 @@ impl Parser {
         let name_token = self.require()?;
         let (name, operator) = self.method_name(name_token)?;
         let type_parameters = self.optional_type_parameter_definitions()?;
-        let arguments = self.optional_method_arguments()?;
+        let arguments = self.optional_method_arguments(false)?;
         let return_type = self.optional_return_type()?;
         let body = if self.peek().kind == TokenKind::CurlyOpen {
             let body_token = self.expect(TokenKind::CurlyOpen)?;
@@ -4272,6 +4303,7 @@ mod tests {
                             location: cols(15, 18),
                         }
                     ],
+                    variadic: false,
                     location: cols(8, 19)
                 }),
                 return_type: None,
@@ -4360,6 +4392,28 @@ mod tests {
                 return_type: None,
                 body: None,
                 location: cols(1, 13),
+            }))
+        );
+
+        assert_eq!(
+            top(parse("fn extern foo(...)")),
+            TopLevelExpression::DefineMethod(Box::new(DefineMethod {
+                public: false,
+                operator: false,
+                kind: MethodKind::Extern,
+                name: Identifier {
+                    name: "foo".to_string(),
+                    location: cols(11, 13)
+                },
+                type_parameters: None,
+                arguments: Some(MethodArguments {
+                    values: Vec::new(),
+                    variadic: true,
+                    location: cols(14, 18)
+                }),
+                return_type: None,
+                body: None,
+                location: cols(1, 18),
             }))
         );
     }
@@ -5644,6 +5698,7 @@ mod tests {
                                 })),
                                 location: cols(19, 22)
                             }],
+                            variadic: false,
                             location: cols(18, 23)
                         }),
                         return_type: None,

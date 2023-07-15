@@ -1918,8 +1918,8 @@ impl<'a> LowerMethod<'a> {
         &self,
         method: MethodId,
         index: usize,
-    ) -> TypeRef {
-        method.positional_argument_input_type(self.db(), index).unwrap()
+    ) -> Option<TypeRef> {
+        method.positional_argument_input_type(self.db(), index)
     }
 
     fn input_expression(
@@ -1938,7 +1938,7 @@ impl<'a> LowerMethod<'a> {
         &mut self,
         info: &types::CallInfo,
         expression: hir::Expression,
-        expected: TypeRef,
+        expected: Option<TypeRef>,
     ) -> RegisterId {
         let loc = self.add_location(expression.location().clone());
         let reg = self.expression(expression);
@@ -1950,7 +1950,7 @@ impl<'a> LowerMethod<'a> {
             return reg;
         }
 
-        self.input_register(reg, self.register_type(reg), Some(expected), loc)
+        self.input_register(reg, self.register_type(reg), expected, loc)
     }
 
     fn assign_setter(&mut self, node: hir::AssignSetter) -> RegisterId {
@@ -1960,7 +1960,7 @@ impl<'a> LowerMethod<'a> {
                 self.check_inferred(info.returns, &node.location);
 
                 let loc = self.add_location(node.location);
-                let exp = self.expected_argument_type(info.id, 0);
+                let exp = self.expected_argument_type(info.id, 0).unwrap();
                 let rec = if info.receiver.is_explicit() {
                     Some(self.expression(node.receiver))
                 } else {

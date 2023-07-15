@@ -307,6 +307,12 @@ import extern "m"
 fn extern ceil(value: Float64) -> Float64
 ```
 
+Variadic functions are defined using `...` as the last argument:
+
+```inko
+fn extern printf(format: Pointer[Int8], ...) -> Int32
+```
+
 ## Traits
 
 Traits are defined using the `trait` keyword, and like classes default to being

@@ -375,6 +375,10 @@ impl MethodCall {
     ) {
         let expected = self.method.number_of_arguments(&state.db);
 
+        if self.arguments > expected && self.method.is_variadic(&state.db) {
+            return;
+        }
+
         if self.arguments != expected {
             state.diagnostics.incorrect_call_arguments(
                 self.arguments,

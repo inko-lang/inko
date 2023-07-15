@@ -176,10 +176,10 @@ ldd /tmp/test
 
 ## Functions
 
-Importing libraries alone isn't useful, so let's define bindings for some functions from the
-libm library and use them. Defining the signatures of C functions is done using
-`fn extern`. For example, if we want to use the `ceil()` function from libm,
-we'd define the signature as follows:
+Importing libraries alone isn't useful, so let's define bindings for some
+functions from the libm library and use them. Defining the signatures of C
+functions is done using `fn extern`. For example, if we want to use the `ceil()`
+function from libm, we'd define the signature as follows:
 
 ```inko
 fn extern ceil(value: Float64) -> Float64
@@ -222,6 +222,24 @@ When running this program, the output will be `2.0`.
     Don't use types such as `ref T` and `mut T` in signatures. While this is
     supported, it's used to interact with Inko's runtime library written in
     Rust, and shouldn't be used outside of the standard library.
+
+Variadic functions are also supported, and are defined as follows:
+
+```inko
+fn extern printf(format: Pointer[Int8], ...) -> Int32
+
+class async Main {
+  fn async main {
+    printf("Hello %s\n".to_pointer, "Inko".to_pointer)
+  }
+}
+```
+
+This program prints "Hello Inko" to STDOUT.
+
+!!! warning
+    When using variadic functions, the compiler doesn't type-check any of the
+    additional arguments, because it doesn't know what the expected types are.
 
 ## Structures
 
@@ -524,7 +542,6 @@ allowing the scheduler to take care of blocking operations for you.
 The C FFI is a bit spartan, only offering what we believe is necessary for most
 of the C libraries out there. Most notably, the following isn't supported:
 
-- Calling variadic C functions (e.g. `printf`).
 - Using C globals, including thread-local globals. Relying on global state is
   going to cause trouble due to Inko's concurrent nature, so even if we did
   support this it wouldn't make your life easier.

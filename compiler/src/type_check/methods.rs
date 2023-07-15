@@ -323,6 +323,10 @@ impl<'a> DefineModuleMethodNames<'a> {
             MethodKind::Extern,
         );
 
+        if node.variadic {
+            method.set_variadic(self.db_mut());
+        }
+
         if self.module.symbol_exists(self.db(), name) {
             self.state.diagnostics.duplicate_symbol(
                 name,

@@ -237,6 +237,7 @@ pub(crate) struct DefineExternFunction {
     pub(crate) public: bool,
     pub(crate) name: Identifier,
     pub(crate) arguments: Vec<MethodArgument>,
+    pub(crate) variadic: bool,
     pub(crate) return_type: Option<Type>,
     pub(crate) location: SourceLocation,
     pub(crate) method_id: Option<types::MethodId>,
@@ -1115,6 +1116,7 @@ impl<'a> LowerToHir<'a> {
             TopLevelExpression::ExternFunction(Box::new(DefineExternFunction {
                 public: node.public,
                 name: self.identifier(node.name),
+                variadic: node.arguments.as_ref().map_or(false, |a| a.variadic),
                 arguments: self.optional_method_arguments(node.arguments),
                 return_type: node.return_type.map(|n| self.type_reference(n)),
                 method_id: None,
@@ -3386,7 +3388,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lower_function() {
+    fn test_lower_extern_function() {
         let (hir, diags) = lower_top_expr("fn extern foo");
 
         assert_eq!(diags, 0);
@@ -3400,9 +3402,34 @@ mod tests {
                         location: cols(11, 13)
                     },
                     arguments: Vec::new(),
+                    variadic: false,
                     return_type: None,
                     method_id: None,
                     location: cols(1, 13),
+                }
+            )),
+        );
+    }
+
+    #[test]
+    fn test_lower_extern_variadic_function() {
+        let (hir, diags) = lower_top_expr("fn extern foo(...)");
+
+        assert_eq!(diags, 0);
+        assert_eq!(
+            hir,
+            TopLevelExpression::ExternFunction(Box::new(
+                DefineExternFunction {
+                    public: false,
+                    name: Identifier {
+                        name: "foo".to_string(),
+                        location: cols(11, 13)
+                    },
+                    arguments: Vec::new(),
+                    variadic: true,
+                    return_type: None,
+                    method_id: None,
+                    location: cols(1, 18),
                 }
             )),
         );

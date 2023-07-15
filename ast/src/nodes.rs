@@ -877,6 +877,7 @@ impl Node for Arguments {
 #[derive(Debug, PartialEq, Eq)]
 pub struct MethodArguments {
     pub values: Vec<MethodArgument>,
+    pub variadic: bool,
     pub location: SourceLocation,
 }
 
