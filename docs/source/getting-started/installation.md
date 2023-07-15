@@ -246,19 +246,15 @@ sudo pkg install llvm15 rust
 To build from source, run the following command:
 
 ```bash
-LIBRARY_PATH="/usr/local/lib" LLVM_SYS_150_PREFIX=/usr/local/llvm15 cargo build
+LIBRARY_PATH="/usr/local/lib" cargo build
 ```
-
-The variable `LLVM_SYS_150_PREFIX` is needed as llvm-sys fails to find the LLVM
-libraries (see [this issue](https://gitlab.com/taricorp/llvm-sys.rs/-/issues/54)
-for more details).
 
 The variable `LIBRARY_PATH` is needed as otherwise the linker fails to find the
 zstd and libffi libraries, which are needed by LLVM on FreeBSD.
 
 !!! tip
-    These variables need to be set every time you run `cargo build`, `cargo
-    test`, etc, so consider exporting them to your shell ahead of time.
+    This variable needs to be set every time you run `cargo build`, `cargo
+    test`, etc, so consider exporting it to your shell ahead of time.
 
 ### Docker
 
