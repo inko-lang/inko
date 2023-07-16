@@ -60,7 +60,7 @@ pub unsafe extern "system" fn inko_byte_array_remove(
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_byte_array_length(
+pub unsafe extern "system" fn inko_byte_array_size(
     state: *const State,
     bytes: *const ByteArray,
 ) -> *const Int {

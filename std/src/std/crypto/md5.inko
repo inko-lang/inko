@@ -176,13 +176,13 @@ class pub Md5 {
 
 impl Hasher for Md5 {
   fn pub mut write(bytes: ref ByteArray) {
-    @size += bytes.length
+    @size += bytes.size
     @block.write_bytes(bytes) fn { compress }
   }
 
   fn pub move finish -> Hash {
     @block.add_padding(8) fn { compress }
-    @block.write_length_le(@size * 8, at: 56)
+    @block.write_size_le(@size * 8, at: 56)
     compress
 
     let out = ByteArray.filled(with: 0, times: 16)

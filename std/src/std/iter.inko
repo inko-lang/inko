@@ -343,7 +343,7 @@ trait pub Iter[T] {
     Enum.new fn move {
       let chunk = []
 
-      while chunk.length < size {
+      while chunk.size < size {
         match self.next {
           case Some(val) -> chunk.push(val)
           case _ -> break
@@ -464,7 +464,7 @@ class pub Enum[T] {
   #     import std::iter::Enum
   #
   #     let vals = [10, 20]
-  #     let iter = Enum.indexed(vals.length) fn (index) { vals[index] }
+  #     let iter = Enum.indexed(vals.size) fn (index) { vals[index] }
   #
   #     iter.next #=> Option.Some(10)
   #     iter.next #=> Option.Some(20)

@@ -34,20 +34,20 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('String.slice') fn (t) {
-    t.equal('hello_world'.slice(start: 0, length: 5), 'hello')
-    t.equal('hello_world'.slice(start: 3, length: 5), 'lo_wo')
-    t.equal('hello_world'.slice(start: 0, length: 20), 'hello_world')
-    t.equal('🇳🇱'.slice(start: 0, length: 1), '🇳🇱')
+    t.equal('hello_world'.slice(start: 0, chars: 5), 'hello')
+    t.equal('hello_world'.slice(start: 3, chars: 5), 'lo_wo')
+    t.equal('hello_world'.slice(start: 0, chars: 20), 'hello_world')
+    t.equal('🇳🇱'.slice(start: 0, chars: 1), '🇳🇱')
   }
 
   t.test('String.slice_bytes') fn (t) {
-    t.equal('hello_world'.slice_bytes(start: 0, length: 5), 'hello')
-    t.equal('hello_world'.slice_bytes(start: 0, length: 20), 'hello_world')
-    t.equal('→foo'.slice_bytes(start: 0, length: 2), "\u{FFFD}")
-    t.equal('→foo'.slice_bytes(start: 0, length: 6), '→foo')
-    t.equal('→foo'.slice_bytes(start: 0, length: 3), '→')
-    t.equal('foo'.slice_bytes(start: 42, length: 50), '')
-    t.equal('foo'.slice_bytes(start: -5, length: 50), '')
+    t.equal('hello_world'.slice_bytes(start: 0, size: 5), 'hello')
+    t.equal('hello_world'.slice_bytes(start: 0, size: 20), 'hello_world')
+    t.equal('→foo'.slice_bytes(start: 0, size: 2), "\u{FFFD}")
+    t.equal('→foo'.slice_bytes(start: 0, size: 6), '→foo')
+    t.equal('→foo'.slice_bytes(start: 0, size: 3), '→')
+    t.equal('foo'.slice_bytes(start: 42, size: 50), '')
+    t.equal('foo'.slice_bytes(start: -5, size: 50), '')
   }
 
   t.test('String.byte_index') fn (t) {
@@ -118,31 +118,31 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('String.pad_start') fn (t) {
-    t.equal('foo'.pad_start(with: '', length: 3), 'foo')
-    t.equal('foo'.pad_start(with: '', length: 4), 'foo')
-    t.equal('foo'.pad_start(with: '', length: 5), 'foo')
-    t.equal('foo'.pad_start(with: ' ', length: 3), 'foo')
-    t.equal('foo'.pad_start(with: ' ', length: 4), ' foo')
-    t.equal('foo'.pad_start(with: ' ', length: 5), '  foo')
-    t.equal('foo'.pad_start(with: 'ab', length: 3), 'foo')
-    t.equal('foo'.pad_start(with: 'ab', length: 4), 'afoo')
-    t.equal('foo'.pad_start(with: 'ab', length: 5), 'abfoo')
-    t.equal('foo'.pad_start(with: 'ab', length: 6), 'abafoo')
-    t.equal('foo'.pad_start(with: 'ab', length: 7), 'ababfoo')
+    t.equal('foo'.pad_start(with: '', chars: 3), 'foo')
+    t.equal('foo'.pad_start(with: '', chars: 4), 'foo')
+    t.equal('foo'.pad_start(with: '', chars: 5), 'foo')
+    t.equal('foo'.pad_start(with: ' ', chars: 3), 'foo')
+    t.equal('foo'.pad_start(with: ' ', chars: 4), ' foo')
+    t.equal('foo'.pad_start(with: ' ', chars: 5), '  foo')
+    t.equal('foo'.pad_start(with: 'ab', chars: 3), 'foo')
+    t.equal('foo'.pad_start(with: 'ab', chars: 4), 'afoo')
+    t.equal('foo'.pad_start(with: 'ab', chars: 5), 'abfoo')
+    t.equal('foo'.pad_start(with: 'ab', chars: 6), 'abafoo')
+    t.equal('foo'.pad_start(with: 'ab', chars: 7), 'ababfoo')
   }
 
   t.test('String.pad_end') fn (t) {
-    t.equal('foo'.pad_end(with: '', length: 3), 'foo')
-    t.equal('foo'.pad_end(with: '', length: 4), 'foo')
-    t.equal('foo'.pad_end(with: '', length: 5), 'foo')
-    t.equal('foo'.pad_end(with: ' ', length: 3), 'foo')
-    t.equal('foo'.pad_end(with: ' ', length: 4), 'foo ')
-    t.equal('foo'.pad_end(with: ' ', length: 5), 'foo  ')
-    t.equal('foo'.pad_end(with: 'ab', length: 3), 'foo')
-    t.equal('foo'.pad_end(with: 'ab', length: 4), 'fooa')
-    t.equal('foo'.pad_end(with: 'ab', length: 5), 'fooab')
-    t.equal('foo'.pad_end(with: 'ab', length: 6), 'fooaba')
-    t.equal('foo'.pad_end(with: 'ab', length: 7), 'fooabab')
+    t.equal('foo'.pad_end(with: '', chars: 3), 'foo')
+    t.equal('foo'.pad_end(with: '', chars: 4), 'foo')
+    t.equal('foo'.pad_end(with: '', chars: 5), 'foo')
+    t.equal('foo'.pad_end(with: ' ', chars: 3), 'foo')
+    t.equal('foo'.pad_end(with: ' ', chars: 4), 'foo ')
+    t.equal('foo'.pad_end(with: ' ', chars: 5), 'foo  ')
+    t.equal('foo'.pad_end(with: 'ab', chars: 3), 'foo')
+    t.equal('foo'.pad_end(with: 'ab', chars: 4), 'fooa')
+    t.equal('foo'.pad_end(with: 'ab', chars: 5), 'fooab')
+    t.equal('foo'.pad_end(with: 'ab', chars: 6), 'fooaba')
+    t.equal('foo'.pad_end(with: 'ab', chars: 7), 'fooabab')
   }
 
   t.test('String.repeat') fn (t) {
@@ -151,12 +151,12 @@ fn pub tests(t: mut Tests) {
     t.equal('foo'.repeat(2), 'foofoo')
   }
 
-  t.test('String.characters') fn (t) {
-    t.equal('foo'.characters.to_array, ['f', 'o', 'o'])
-    t.equal('fóó'.characters.to_array, ['f', 'ó', 'ó'])
-    t.equal('😀😃'.characters.to_array, ['😀', '😃'])
-    t.equal('😀x😃'.characters.to_array, ['😀', 'x', '😃'])
-    t.equal('🤦🏼‍♂️'.characters.to_array, ['🤦🏼‍♂️'])
+  t.test('String.chars') fn (t) {
+    t.equal('foo'.chars.to_array, ['f', 'o', 'o'])
+    t.equal('fóó'.chars.to_array, ['f', 'ó', 'ó'])
+    t.equal('😀😃'.chars.to_array, ['😀', '😃'])
+    t.equal('😀x😃'.chars.to_array, ['😀', 'x', '😃'])
+    t.equal('🤦🏼‍♂️'.chars.to_array, ['🤦🏼‍♂️'])
   }
 
   t.test('String.contains?') fn (t) {

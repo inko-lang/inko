@@ -149,7 +149,7 @@ class pub Shuffle {
     # Note that the types produced by `inko_array_get()` and `inko_array_set()`
     # are `Any`. These values aren't dropped automatically, so there's no need
     # to mark them as moved to prevent them from being dropped after the swap.
-    let mut swap = array.length - 1
+    let mut swap = array.size - 1
 
     while swap > 0 {
       array.swap_indexes(swap, with: @rng.int_between(min: 0, max: swap))

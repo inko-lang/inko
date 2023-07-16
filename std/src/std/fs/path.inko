@@ -318,11 +318,11 @@ class pub Path {
   #
   #     Path.new('/').directory # Path.new('/')
   fn pub directory -> Path {
-    let length = bytes_before_last_separator(@path)
+    let size = bytes_before_last_separator(@path)
 
-    if length < 0 { return Path.new('.') }
+    if size < 0 { return Path.new('.') }
 
-    Path.new(@path.slice_bytes(start: 0, length: length))
+    Path.new(@path.slice_bytes(start: 0, size: size))
   }
 
   # Returns the last component in `self`.
@@ -340,7 +340,7 @@ class pub Path {
 
     if len < 0 { return @path }
 
-    @path.slice_bytes(start: len + 1, length: @path.size - len)
+    @path.slice_bytes(start: len + 1, size: @path.size - len)
   }
 
   # Returns the canonical, absolute version of `self`.

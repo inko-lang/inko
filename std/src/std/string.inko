@@ -28,16 +28,16 @@ fn extern inko_string_slice_bytes(
   state: Pointer[Int8],
   string: String,
   start: Int,
-  length: Int,
+  size: Int,
 ) -> String
 
-fn extern inko_string_characters(string: String) -> Pointer[Int8]
-fn extern inko_string_characters_next(
+fn extern inko_string_chars(string: String) -> Pointer[Int8]
+fn extern inko_string_chars_next(
   state: Pointer[Int8],
   iter: Pointer[Int8],
 ) -> StringResult
 
-fn extern inko_string_characters_drop(iter: Pointer[Int8])
+fn extern inko_string_chars_drop(iter: Pointer[Int8])
 fn extern inko_string_drop(string: String)
 fn extern inko_string_to_byte_array(
   state: Pointer[Int8],
@@ -47,7 +47,7 @@ fn extern inko_string_to_byte_array(
 fn extern inko_string_concat(
   state: Pointer[Int8],
   strings: Pointer[Int8],
-  length: Int,
+  size: Int,
 ) -> String
 
 fn extern inko_string_from_pointer(
@@ -92,20 +92,20 @@ fn whitespace?(byte: Int) -> Bool {
   byte == TAB or byte == LF or byte == CR or byte == SPACE
 }
 
-fn padding(string: String, length: Int, pad_to: Int) -> String {
-  if length >= pad_to { return '' }
+fn padding(string: String, chars: Int, pad_to: Int) -> String {
+  if chars >= pad_to { return '' }
 
-  let pad_size = pad_to - length
+  let pad_size = pad_to - chars
   let pad_buf = StringBuffer.new
 
   pad_size.times fn (_) { pad_buf.push(string) }
 
   let mut pad = pad_buf.into_string
 
-  if pad.characters.count > pad_size {
+  if pad.chars.count > pad_size {
     # In case the `with` value contains multiple characters, we may need to
     # truncate the padding to produce the correct final size.
-    pad.slice(start: 0, length: pad_size)
+    pad.slice(start: 0, chars: pad_size)
   } else {
     pad
   }
@@ -157,7 +157,7 @@ class builtin String {
   #     String.join(vals, with: ',') => '10,20,30'
   fn pub static join[T: ToString](iter: Iter[T], with: String) -> String {
     let result = iter.reduce(StringBuffer.new) fn (buff, val) {
-      if buff.length > 0 { buff.push(with) }
+      if buff.size > 0 { buff.push(with) }
 
       buff.push(val.to_string)
       buff
@@ -236,13 +236,13 @@ class builtin String {
   #
   # # Examples
   #
-  #     'hello_world'.slice(start: 0, length: 5)   # => 'hello'
-  #     'hello_world'.slice(start: 0, length: 100) # => 'hello_world'
-  fn pub slice(start: Int, length: Int) -> String {
+  #     'hello_world'.slice(start: 0, chars: 5)   # => 'hello'
+  #     'hello_world'.slice(start: 0, chars: 100) # => 'hello_world'
+  fn pub slice(start: Int, chars: Int) -> String {
     let buff = StringBuffer.new
 
-    characters.each_with_index fn (index, char) {
-      if index >= start and buff.length < length { buff.push(char) }
+    self.chars.each_with_index fn (index, char) {
+      if index >= start and buff.size < chars { buff.push(char) }
     }
 
     buff.into_string
@@ -259,10 +259,10 @@ class builtin String {
   #
   # Slicing a string using a valid range:
   #
-  #     '😊'.slice_bytes(start: 0, length: 4) # => '😊'
-  #     '😊'.slice_bytes(start: 0, length: 3) # => "\u{FFFD}"
-  fn pub slice_bytes(start: Int, length: Int) -> String {
-    inko_string_slice_bytes(_INKO.state, self, start, length)
+  #     '😊'.slice_bytes(start: 0, size: 4) # => '😊'
+  #     '😊'.slice_bytes(start: 0, size: 3) # => "\u{FFFD}"
+  fn pub slice_bytes(start: Int, size: Int) -> String {
+    inko_string_slice_bytes(_INKO.state, self, start, size)
   }
 
   # Returns the _byte_ index of the first occurrence of the given `String`,
@@ -362,14 +362,14 @@ class builtin String {
         case Some(at) -> {
           let start = offset := at + separator.size
 
-          Option.Some(slice_bytes(start: start, length: at - start).into_string)
+          Option.Some(slice_bytes(start: start, size: at - start).into_string)
         }
         case _ if offset < size -> {
           # No separator found, but we haven't reached the end of the String
           # yet. In this case we return the remaining String.
           let at = offset := size
 
-          Option.Some(slice_bytes(start: at, length: size - at).into_string)
+          Option.Some(slice_bytes(start: at, size: size - at).into_string)
         }
         case _ -> Option.None
       }
@@ -387,29 +387,29 @@ class builtin String {
   }
 
   # Returns a new `String` that is padded with another `String` until the given
-  # length is reached.
+  # number of characters is reached.
   #
   # The padding is applied at the start of the new `String`.
   #
   # # Examples
   #
-  #     'hello'.pad_start(with: ' ', length: 7) # => '  hello'
-  #     'hello'.pad_start(with: ' ', length: 5) # => 'hello'
-  fn pub pad_start(with: String, length: Int) -> String {
-    padding(with, length: characters.count, pad_to: length) + self
+  #     'hello'.pad_start(with: ' ', chars: 7) # => '  hello'
+  #     'hello'.pad_start(with: ' ', chars: 5) # => 'hello'
+  fn pub pad_start(with: String, chars: Int) -> String {
+    padding(with, chars: self.chars.count, pad_to: chars) + self
   }
 
   # Returns a new `String` that is padded with another `String` until the given
-  # length is reached.
+  # number of characters is reached.
   #
   # The padding is applied at the end of the new `String`.
   #
   # # Examples
   #
-  #     'hello'.pad_end(with: ' ', length: 7) # => 'hello  '
-  #     'hello'.pad_end(with: ' ', length: 5) # => 'hello'
-  fn pub pad_end(with: String, length: Int) -> String {
-    self + padding(with, length: characters.count, pad_to: length)
+  #     'hello'.pad_end(with: ' ', chars: 7) # => 'hello  '
+  #     'hello'.pad_end(with: ' ', chars: 5) # => 'hello'
+  fn pub pad_end(with: String, chars: Int) -> String {
+    self + padding(with, chars: self.chars.count, pad_to: chars)
   }
 
   # Returns a new `String` that contains `self` multiple times.
@@ -429,9 +429,9 @@ class builtin String {
   #
   # # Examples
   #
-  #     '😀😃'.characters.next # => Option.Some('😀 ')
-  fn pub characters -> Characters {
-    Characters { @string = self, @iter = inko_string_characters(self) }
+  #     '😀😃'.chars.next # => Option.Some('😀 ')
+  fn pub chars -> Chars {
+    Chars { @string = self, @iter = inko_string_chars(self) }
   }
 
   # Returns a new `String` without the given prefix.
@@ -442,7 +442,7 @@ class builtin String {
   fn pub strip_prefix(prefix: String) -> String {
     if starts_with?(prefix).false? { return clone }
 
-    slice_bytes(start: prefix.size, length: size - prefix.size).into_string
+    slice_bytes(start: prefix.size, size: size - prefix.size).into_string
   }
 
   # Returns a new `String` without the given suffix.
@@ -453,7 +453,7 @@ class builtin String {
   fn pub strip_suffix(suffix: String) -> String {
     if ends_with?(suffix).false? { return clone }
 
-    slice_bytes(start: 0, length: size - suffix.size).into_string
+    slice_bytes(start: 0, size: size - suffix.size).into_string
   }
 
   # Returns a new `String` without any leading whitespace.
@@ -470,7 +470,7 @@ class builtin String {
       if whitespace?(byte(index)) { index += 1 } else { break }
     }
 
-    slice_bytes(start: index, length: size - index).into_string
+    slice_bytes(start: index, size: size - index).into_string
   }
 
   # Returns a new `String` without any trailing whitespace.
@@ -486,7 +486,7 @@ class builtin String {
       if whitespace?(byte(index)) { index -= 1 } else { break }
     }
 
-    slice_bytes(start: 0, length: index + 1).into_string
+    slice_bytes(start: 0, size: index + 1).into_string
   }
 
   # Returns a new `String` with both leading and trailing whitespace removed.
@@ -508,7 +508,7 @@ class builtin String {
       if whitespace?(byte(end)) { end -= 1 } else { break }
     }
 
-    slice_bytes(start: start, length: end + 1 - start).into_string
+    slice_bytes(start: start, size: end + 1 - start).into_string
   }
 
   # Returns a copy of `self` with all special characters escaped.
@@ -529,7 +529,7 @@ class builtin String {
   #     "hello\\world" # => 'hello\\world'
   fn pub escaped -> String {
     let buff = ByteArray.new
-    let max = ESCAPE_TABLE.length
+    let max = ESCAPE_TABLE.size
 
     bytes.each fn (byte) {
       if byte >= max {
@@ -681,7 +681,7 @@ impl Format for String {
 # as the Unicode specification changes. If you want to index into a `String` in
 # a stable way, it's best to calculate the character index, then translate that
 # to a more stable index such as the code point index, or the byte index.
-class pub Characters {
+class pub Chars {
   # The String we're iterating over.
   #
   # We need to maintain a reference to the String, otherwise the underlying
@@ -692,18 +692,18 @@ class pub Characters {
   let @iter: Pointer[Int8]
 }
 
-impl Iter[String] for Characters {
+impl Iter[String] for Chars {
   fn pub mut next -> Option[String] {
-    match inko_string_characters_next(_INKO.state, @iter) {
+    match inko_string_chars_next(_INKO.state, @iter) {
       case { @tag = 0, @value = v } -> Option.Some(v)
       case _ -> Option.None
     }
   }
 }
 
-impl Drop for Characters {
+impl Drop for Chars {
   fn mut drop {
-    inko_string_characters_drop(@iter)
+    inko_string_chars_drop(@iter)
   }
 }
 
@@ -830,8 +830,8 @@ class pub StringBuffer {
   }
 
   # Returns the number of values in `self`.
-  fn pub length -> Int {
-    @strings.length
+  fn pub size -> Int {
+    @strings.size
   }
 }
 
@@ -851,7 +851,7 @@ impl ToString for StringBuffer {
   #
   #     buffer.to_string # => 'hello world'
   fn pub to_string -> String {
-    inko_string_concat(_INKO.state, @strings.to_pointer, @strings.length)
+    inko_string_concat(_INKO.state, @strings.to_pointer, @strings.size)
   }
 }
 

@@ -92,7 +92,7 @@ class pub Set[V: Hash + Equal[V]] {
   #
   #     import std::set::Set
   #
-  #     Set.new.length # => 0
+  #     Set.new.size # => 0
   #
   # Using a `Set` with one value:
   #
@@ -100,9 +100,9 @@ class pub Set[V: Hash + Equal[V]] {
   #
   #     set.insert('Alice')
   #
-  #     set.length # => 1
-  fn pub length -> Int {
-    @map.length
+  #     set.size # => 1
+  fn pub size -> Int {
+    @map.size
   }
 }
 
@@ -124,7 +124,7 @@ impl Equal[Set[V]] for Set {
   #
   #     set1 == set2 # => True
   fn pub ==(other: ref Set[V]) -> Bool {
-    if length != other.length { return false }
+    if size != other.size { return false }
 
     iter.all? fn (val) { other.contains?(val) }
   }

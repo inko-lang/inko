@@ -14,7 +14,7 @@
 #
 #     json.parse('[10]').unwrap # => Json.Array([Json.Int(10)])
 #
-# The parser enforces limits on the number of nested objects and the length of
+# The parser enforces limits on the number of nested objects and the size of
 # strings. These limits can be adjusted by using the `Parser` type directly like
 # so:
 #
@@ -481,9 +481,9 @@ class pub Parser {
 
     advance
 
-    if buffer.length > @max_string_size {
+    if buffer.size > @max_string_size {
       throw error(
-        "The size of this string ({buffer.length} bytes) is greater than \
+        "The size of this string ({buffer.size} bytes) is greater than \
         the maximum of {@max_string_size} bytes"
       )
     }
@@ -741,7 +741,7 @@ class pub Parser {
   }
 
   fn slice_string(start: Int) -> String {
-    @string.slice_bytes(start, length: @index - start)
+    @string.slice_bytes(start, size: @index - start)
   }
 
   fn error(message: String) -> Error {
@@ -798,7 +798,7 @@ class pub Generator {
       case Array(vals) -> {
         @buffer.push('[')
 
-        if vals.length > 0 {
+        if vals.size > 0 {
           enter fn {
             vals.iter.each_with_index fn (index, val) {
               if index > 0 { separator }
@@ -815,7 +815,7 @@ class pub Generator {
       case Object(vals) -> {
         @buffer.push('{')
 
-        if vals.length > 0 {
+        if vals.size > 0 {
           enter fn {
             vals.iter.each_with_index fn (index, pair) {
               if index > 0 { separator }

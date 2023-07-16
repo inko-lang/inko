@@ -87,7 +87,7 @@ We moved away from this for the following reasons:
 
 Strings are immutable, and need at least 41 bytes of space. To allow easy
 passing of strings to C, each string ends with a NULL byte on top of storing its
-length. This NULL byte is ignored by Inko code. When passing a string to C, we
+size. This NULL byte is ignored by Inko code. When passing a string to C, we
 just pass the pointer to the string's bytes which includes the NULL byte.
 
 Since C strings must be NULL terminated, the alternative would've been to create

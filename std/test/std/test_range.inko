@@ -96,16 +96,16 @@ fn pub tests(t: mut Tests) {
     )
   }
 
-  t.test('InclusiveRange.length') fn (t) {
-    t.equal(InclusiveRange.new(0, 1).length, 2)
-    t.equal(InclusiveRange.new(0, 0).length, 1)
-    t.equal(InclusiveRange.new(0, -2).length, 0)
+  t.test('InclusiveRange.size') fn (t) {
+    t.equal(InclusiveRange.new(0, 1).size, 2)
+    t.equal(InclusiveRange.new(0, 0).size, 1)
+    t.equal(InclusiveRange.new(0, -2).size, 0)
   }
 
-  t.test('ExclusiveRange.length') fn (t) {
-    t.equal(ExclusiveRange.new(0, 1).length, 1)
-    t.equal(ExclusiveRange.new(0, 2).length, 2)
-    t.equal(ExclusiveRange.new(0, 0).length, 0)
-    t.equal(ExclusiveRange.new(0, -2).length, 0)
+  t.test('ExclusiveRange.size') fn (t) {
+    t.equal(ExclusiveRange.new(0, 1).size, 1)
+    t.equal(ExclusiveRange.new(0, 2).size, 2)
+    t.equal(ExclusiveRange.new(0, 0).size, 0)
+    t.equal(ExclusiveRange.new(0, -2).size, 0)
   }
 }

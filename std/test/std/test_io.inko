@@ -19,7 +19,7 @@ impl Read for Reader {
     let start = @index
     let mut max = @index + size
 
-    if max > @bytes.length { max = @bytes.length }
+    if max > @bytes.size { max = @bytes.size }
 
     while @index < max {
       into.push(@bytes.get(@index))
@@ -42,7 +42,7 @@ class Writer {
 impl Write for Writer {
   fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Never] {
     bytes.iter.each fn (byte) { @buffer.push(byte) }
-    Result.Ok(bytes.length)
+    Result.Ok(bytes.size)
   }
 
   fn pub mut write_string(string: String) -> Result[Int, Never] {

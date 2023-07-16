@@ -37,33 +37,33 @@ class pub Block {
 
   # Writes `bytes` into the block, calling `transform` if hashing is necessary.
   fn pub mut write_bytes(bytes: ref ByteArray, transform: fn) {
-    let mut length = bytes.length
+    let mut size = bytes.size
     let mut index = 0
 
-    while length > 0 {
+    while size > 0 {
       @bytes.set(@index := @index + 1, bytes.get(index))
 
-      if @index == @bytes.length {
+      if @index == @bytes.size {
         transform.call
         @index = 0
       }
 
       index += 1
-      length -= 1
+      size -= 1
     }
   }
 
   # Pads the block, calling the supplied closure if the block is full and
   # hashing is necessary.
   #
-  # This method expects the length to be written using a 64-bits integer.
-  fn pub mut add_padding(length_bytes: Int, transform: fn) {
-    let pad_to = @bytes.length - length_bytes
+  # This method expects the size to be written using a 64-bits integer.
+  fn pub mut add_padding(size: Int, transform: fn) {
+    let pad_to = @bytes.size - size
 
     if @index >= pad_to {
       @bytes.set(@index := @index + 1, 0x80)
 
-      while @index < @bytes.length { @bytes.set(@index := @index + 1, 0) }
+      while @index < @bytes.size { @bytes.set(@index := @index + 1, 0) }
 
       transform.call
       @index = 0
@@ -76,13 +76,13 @@ class pub Block {
     }
   }
 
-  # Writes a 64-bits little-endian message length into the block.
-  fn pub mut write_length_le(size: Int, at: Int) {
+  # Writes a 64-bits little-endian message size into the block.
+  fn pub mut write_size_le(size: Int, at: Int) {
     little.write_i64(size, into: @bytes, at: at)
   }
 
-  # Writes a 64-bits big-endian message length into the block.
-  fn pub mut write_length_be(size: Int, at: Int) {
+  # Writes a 64-bits big-endian message size into the block.
+  fn pub mut write_size_be(size: Int, at: Int) {
     big.write_i64(size, into: @bytes, at: at)
   }
 
@@ -132,7 +132,7 @@ impl ToString for Hash {
   fn pub to_string -> String {
     # We don't use Int.to_base16 here because we need extra padding, and to
     # avoid allocating a String for every byte.
-    let hex = ByteArray.filled(with: 0, times: @bytes.length * 2)
+    let hex = ByteArray.filled(with: 0, times: @bytes.size * 2)
 
     @bytes.iter.each_with_index fn (index, byte) {
       let hex_index = index * 2

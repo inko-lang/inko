@@ -32,7 +32,7 @@ fn pub tests(t: mut Tests) {
 
     block.write_bytes(bytes) fn { calls.push(true) }
 
-    t.equal(calls.length, 2)
+    t.equal(calls.size, 2)
   }
 
   t.test('Block.add_padding') fn (t) {
@@ -43,7 +43,7 @@ fn pub tests(t: mut Tests) {
     block.write_bytes(bytes) fn {}
     block.add_padding(8) fn { calls.push(true) }
 
-    t.equal(calls.length, 1)
+    t.equal(calls.size, 1)
     t.equal(block.get(10), 0x80)
   }
 

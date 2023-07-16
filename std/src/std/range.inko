@@ -41,7 +41,7 @@ trait pub Range: Contains[Int] + Hash + Format {
   fn pub step_by(amount: Int) -> Enum[Range]
 
   # Returns the number of values in this range.
-  fn pub length -> Int
+  fn pub size -> Int
 
   # Returns an iterator over the values in `self`.
   fn pub iter -> Iter[Int]
@@ -89,7 +89,7 @@ impl Range for InclusiveRange {
     }
   }
 
-  fn pub length -> Int {
+  fn pub size -> Int {
     if @end >= @start { @end - @start + 1 } else { 0 }
   }
 
@@ -195,7 +195,7 @@ impl Range for ExclusiveRange {
     }
   }
 
-  fn pub length -> Int {
+  fn pub size -> Int {
     if @end >= @start { @end - @start } else { 0 }
   }
 

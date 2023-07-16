@@ -310,7 +310,7 @@ fn pub tests(t: mut Tests) {
     let bytes = ByteArray.new
 
     t.equal(stream.read(into: bytes, size: 4).unwrap, 0)
-    t.equal(bytes.length, 0)
+    t.equal(bytes.size, 0)
   }
 
   t.test('Socket.shutdown_write') fn (t) {
@@ -358,7 +358,7 @@ fn pub tests(t: mut Tests) {
     let bytes = ByteArray.new
 
     t.equal(stream.read(into: bytes, size: 4).unwrap, 0)
-    t.equal(bytes.length, 0)
+    t.equal(bytes.size, 0)
   }
 
   t.test('Socket.try_clone') fn (t) {

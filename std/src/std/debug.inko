@@ -6,7 +6,7 @@ import std::fs::path::Path
 import std::clone::Clone
 
 fn extern inko_process_stacktrace(process: Pointer[Int8]) -> Pointer[Int8]
-fn extern inko_process_stacktrace_length(trace: Pointer[Int8]) -> Int64
+fn extern inko_process_stacktrace_size(trace: Pointer[Int8]) -> Int64
 fn extern inko_process_stacktrace_drop(trace: Pointer[Int8])
 fn extern inko_process_stack_frame_line(
   trace: Pointer[Int8],
@@ -67,13 +67,13 @@ impl Clone[StackFrame] for StackFrame {
 #
 #     fn second {
 #       let frames = stacktrace(skip: 1)
-#       let frame = frames.get(frames.length - 1)
+#       let frame = frames.get(frames.size - 1)
 #
 #       frame.name # => 'second'
 #     }
 fn pub stacktrace(skip: Int) -> Array[StackFrame] {
   let trace = inko_process_stacktrace(_INKO.process)
-  let len = inko_process_stacktrace_length(trace) as Int
+  let len = inko_process_stacktrace_size(trace) as Int
   let max = len - skip
   let mut index = 0
 

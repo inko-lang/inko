@@ -28,15 +28,15 @@ fn pub tests(t: mut Tests) {
     t.equal(set.iter.to_array, [ref 1, ref 2])
   }
 
-  t.test('Set.length') fn (t) {
+  t.test('Set.size') fn (t) {
     let set = Set.new
 
-    t.equal(set.length, 0)
+    t.equal(set.size, 0)
 
     set.insert(1)
     set.insert(2)
 
-    t.equal(set.length, 2)
+    t.equal(set.size, 2)
   }
 
   t.test('Set.==') fn (t) {

@@ -155,7 +155,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('Enum.indexed') fn (t) {
     let vals = [10, 20, 30]
-    let iter = Enum.indexed(vals.length) fn (index) { vals.get(index) }
+    let iter = Enum.indexed(vals.size) fn (index) { vals.get(index) }
 
     t.equal(iter.to_array, [mut 10, mut 20, mut 30])
   }

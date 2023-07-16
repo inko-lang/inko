@@ -51,11 +51,11 @@ let DEFAULT_COUNTER = 0
 # This method panics if `key` isn't exactly 32 bytes, or if `nonce` isn't
 # exactly 16 bytes.
 fn pub hchacha20(key: ref ByteArray, nonce: ref ByteArray) -> ByteArray {
-  if key.length != KEY_SIZE {
+  if key.size != KEY_SIZE {
     panic("HChaCha20 key sizes must be exactly {KEY_SIZE} bytes")
   }
 
-  if nonce.length != HCHACHA_NONCE_SIZE {
+  if nonce.size != HCHACHA_NONCE_SIZE {
     panic("HChaCha20 nonce sizes must be exactly {HCHACHA_NONCE_SIZE} bytes")
   }
 
@@ -128,8 +128,8 @@ class Matrix {
     }
   }
 
-  fn length -> Int {
-    @words.length
+  fn size -> Int {
+    @words.size
   }
 
   fn get(index: Int) -> Int {
@@ -233,11 +233,11 @@ class pub ChaCha20 {
   # key. Simply generating a random nonce isn't enough, as given enough time and
   # bad luck the same nonce may be produced.
   fn pub static new(key: ref ByteArray, nonce: ref ByteArray) -> ChaCha20 {
-    if key.length != KEY_SIZE {
+    if key.size != KEY_SIZE {
       panic("ChaCha20 key sizes must be exactly {KEY_SIZE} bytes")
     }
 
-    if nonce.length != CHACHA_NONCE_SIZE {
+    if nonce.size != CHACHA_NONCE_SIZE {
       panic("ChaCha20 nonce sizes must be exactly {CHACHA_NONCE_SIZE} bytes")
     }
 
@@ -280,10 +280,10 @@ class pub ChaCha20 {
   }
 
   fn mut apply(input: ref ByteArray) -> ByteArray {
-    let mut len = input.length
+    let mut len = input.size
     let mut offset = 0
     let buf = ByteArray.filled(with: 0, times: BLOCK_SIZE)
-    let out = ByteArray.filled(with: 0, times: input.length)
+    let out = ByteArray.filled(with: 0, times: input.size)
     let tmp = Matrix { @words = Array.filled(with: 0, times: MATRIX_SIZE) }
 
     loop {
@@ -297,7 +297,7 @@ class pub ChaCha20 {
       # This in itself can't overflow, as the Int type is a 64-bits signed
       # integer, and below we limit it to the range that fits in a 32-bits
       # unsigned integer.
-      let new_length = @matrix.get(12) + 1
+      let new_size = @matrix.get(12) + 1
 
       # The original implementation makes no attempt at protecting the user from
       # overflowing the counter, as it's unlikely to happen in the first place.
@@ -306,11 +306,11 @@ class pub ChaCha20 {
       # this to happen in practise we simply panic, instead of complicating the
       # API by forcing the user to handle errors that won't occur in 99.99999%
       # of all use cases.
-      if new_length > MAX_COUNTER {
+      if new_size > MAX_COUNTER {
         panic("The block counter overflowed after {MAX_COUNTER} blocks")
       }
 
-      @matrix.set(12, new_length)
+      @matrix.set(12, new_size)
 
       if len <= BLOCK_SIZE {
         len.times fn (i) {
@@ -378,15 +378,15 @@ class pub XChaCha20 {
   #
   #     XChaCha20.new(key, nonce)
   fn pub static new(key: ref ByteArray, nonce: ref ByteArray) -> XChaCha20 {
-    if key.length != KEY_SIZE {
+    if key.size != KEY_SIZE {
       panic("XChaCha20 key sizes must be exactly {KEY_SIZE} bytes")
     }
 
-    if nonce.length != XCHACHA_NONCE_SIZE {
+    if nonce.size != XCHACHA_NONCE_SIZE {
       panic("XChaCha20 nonce sizes must be exactly {XCHACHA_NONCE_SIZE} bytes")
     }
 
-    let sub_key = hchacha20(key, nonce.slice(start: 0, length: 16))
+    let sub_key = hchacha20(key, nonce.slice(start: 0, size: 16))
 
     XChaCha20 {
       @chacha = ChaCha20 {

@@ -27,14 +27,14 @@ fn stable_sort[T: Compare[T]](
   array: mut Array[T],
   compare: mut fn (ref T, ref T) -> Bool,
 ) {
-  let len = array.length
+  let len = array.size
 
   # The algorithm here is the recursive merge sort algorithm. While faster
   # algorithms exist (e.g. Timsort, at least in certain cases), merge sort is
   # the easiest to implement and still offers good performance.
   if len <= 1 { return }
 
-  # We don't set a length for `tmp` so we don't drop any of the temporary
+  # We don't set a size for `tmp` so we don't drop any of the temporary
   # values in it, as that would result in `self` being left with invalid
   # values. This works because merge_sort() doesn't perform any bounds checking.
   let tmp: Array[T] = Array.with_capacity(len)
@@ -80,15 +80,15 @@ fn merge_sort[T: Compare[T]](
   }
 }
 
-# Checks if `index` is in the range of zero up to (but excluding) `length`.
+# Checks if `index` is in the range of zero up to (but excluding) `size`.
 #
 # # Panics
 #
 # This method panics if the index is out of bounds.
-fn pub bounds_check(index: Int, length: Int) {
-  if index >= 0 and index < length { return }
+fn pub bounds_check(index: Int, size: Int) {
+  if index >= 0 and index < size { return }
 
-  _INKO.panic("The index {index} is out of bounds (length: {length})")
+  _INKO.panic("The index {index} is out of bounds (size: {size})")
 }
 
 # An ordered, integer-indexed generic collection of values.
@@ -110,7 +110,7 @@ class builtin Array[T] {
   # The compiler depends on the order of these fields, so don't change it
   # without also updating the compiler.
 
-  let @length: Int
+  let @size: Int
   let @capacity: Int
   let @buffer: Pointer[Int8]
 
@@ -121,7 +121,7 @@ class builtin Array[T] {
     let buffer = alloc_imp
       .resize(0x0 as Pointer[Int8], size: amount * VALUE_SIZE)
 
-    Array { @length = 0, @capacity = amount, @buffer = buffer }
+    Array { @size = 0, @capacity = amount, @buffer = buffer }
   }
 
   # Returns an array filled with a certain amount of values.
@@ -153,13 +153,13 @@ class builtin Array[T] {
   #     array.empty? # => true
   fn pub mut clear {
     let mut index = 0
-    let max = @length
+    let max = @size
 
     while index < max {
       read_from(index := index + 1)
     }
 
-    @length = 0
+    @size = 0
   }
 
   # Pushes a value to the back of the Array.
@@ -174,8 +174,8 @@ class builtin Array[T] {
   #     array[0]       # => 10
   fn pub mut push(value: T) {
     grow_buffer
-    write_to(@length, value)
-    @length += 1
+    write_to(@size, value)
+    @size += 1
   }
 
   # Removes a value from the back of the Array, returning the removed value.
@@ -197,10 +197,10 @@ class builtin Array[T] {
   #
   #     array.pop # => Option.None
   fn pub mut pop -> Option[T] {
-    if @length == 0 { return Option.None }
+    if @size == 0 { return Option.None }
 
-    @length -= 1
-    Option.Some(read_from(@length))
+    @size -= 1
+    Option.Some(read_from(@size))
   }
 
   # Removes the value at the given index, returning the removed value.
@@ -221,7 +221,7 @@ class builtin Array[T] {
   #
   # This method panics if the index is out of bounds.
   fn pub mut remove_at(index: Int) -> T {
-    let len = length
+    let len = size
 
     bounds_check(index, len)
 
@@ -234,7 +234,7 @@ class builtin Array[T] {
       size: len - index - 1 * VALUE_SIZE,
     )
 
-    @length = len - 1
+    @size = len - 1
     val
   }
 
@@ -254,7 +254,7 @@ class builtin Array[T] {
   #
   #     numbers.opt(5) # => Option.None
   fn pub opt(index: Int) -> Option[ref T] {
-    if index < 0 or index >= @length { return Option.None }
+    if index < 0 or index >= @size { return Option.None }
 
     Option.Some(get_unchecked(index))
   }
@@ -271,7 +271,7 @@ class builtin Array[T] {
   #
   #     numbers.get(0) # => 10
   fn pub get(index: Int) -> ref T {
-    bounds_check(index, @length)
+    bounds_check(index, @size)
     get_unchecked(index)
   }
 
@@ -293,7 +293,7 @@ class builtin Array[T] {
   #     array.set(0, 10)
   #     array # => [10]
   fn pub mut set(index: Int, value: T) {
-    bounds_check(index, @length)
+    bounds_check(index, @size)
 
     # This drops the old value, then writes the new value.
     read_from(index)
@@ -313,7 +313,7 @@ class builtin Array[T] {
   #     numbers.swap(index: 1, with: 40) # => 20
   #     numbers                          # => [10, 40, 30]
   fn pub mut swap(index: Int, with: T) -> T {
-    bounds_check(index, @length)
+    bounds_check(index, @size)
 
     let old = read_from(index)
 
@@ -331,8 +331,8 @@ class builtin Array[T] {
   #
   #     numbers # => [30, 20, 10]
   fn pub mut swap_indexes(index: Int, with: Int) {
-    bounds_check(index, @length)
-    bounds_check(with, @length)
+    bounds_check(index, @size)
+    bounds_check(with, @size)
 
     let a = read_from(index)
     let b = read_from(with)
@@ -344,7 +344,7 @@ class builtin Array[T] {
   # Returns an iterator that yields immutable references to the values in
   # `self`.
   fn pub iter -> Iter[ref T] {
-    Enum.indexed(@length) fn (index) { get(index) }
+    Enum.indexed(@size) fn (index) { get(index) }
   }
 
   # Returns an `Iter` that iterates over all values in `self`, returning them
@@ -378,7 +378,7 @@ class builtin Array[T] {
   #     iter.next # => Option.Some(10)
   #     iter.next # => Option.None
   fn pub reverse_iter -> Iter[ref T] {
-    let mut index = length - 1
+    let mut index = size - 1
 
     Enum.new fn move {
       if index > -1 {
@@ -399,7 +399,7 @@ class builtin Array[T] {
   #
   #     numbers.append([40, 50])
   #
-  #     numbers.length # => 5
+  #     numbers.size # => 5
   fn pub mut append(other: Array[T]) {
     other.into_iter.each fn (v) { push(v) }
   }
@@ -408,15 +408,15 @@ class builtin Array[T] {
   #
   # # Examples
   #
-  # Getting the length of an empty Array:
+  # Getting the size of an empty Array:
   #
-  #     [].length # => 0
+  #     [].size # => 0
   #
-  # Getting the length of an Array with values:
+  # Getting the size of an Array with values:
   #
-  #     [10].length # => 1
-  fn pub length -> Int {
-    @length
+  #     [10].size # => 1
+  fn pub size -> Int {
+    @size
   }
 
   # Returns the number of values that can be stored in `self` before `self`
@@ -436,7 +436,7 @@ class builtin Array[T] {
   #     [10].empty? # => false
   #     [].empty?     # => true
   fn pub empty? -> Bool {
-    @length == 0
+    @size == 0
   }
 
   # Sorts the values in `self` such that they are in a random order.
@@ -462,7 +462,7 @@ class builtin Array[T] {
   #     a # => [30, 20, 10]
   fn pub mut reverse {
     let mut a = 0
-    let mut b = @length - 1
+    let mut b = @size - 1
 
     while a < b {
       let a_val = read_from(a)
@@ -501,7 +501,7 @@ class builtin Array[T] {
   }
 
   fn mut grow_buffer {
-    if @capacity > @length { return }
+    if @capacity > @size { return }
 
     @capacity = if @capacity == 0 { START_CAPACITY } else { @capacity * 2 }
     @buffer = alloc_imp.resize(@buffer, @capacity * VALUE_SIZE)
@@ -525,7 +525,7 @@ impl Array if T: mut {
   #
   #     numbers.opt_mut(5) # => Option.None
   fn pub mut opt_mut(index: Int) -> Option[mut T] {
-    if index < 0 or index >= @length { return Option.None }
+    if index < 0 or index >= @size { return Option.None }
 
     Option.Some(get_unchecked_mut(index))
   }
@@ -542,13 +542,13 @@ impl Array if T: mut {
   #
   #     numbers.get_mut(0) # => 10
   fn pub mut get_mut(index: Int) -> mut T {
-    bounds_check(index, @length)
+    bounds_check(index, @size)
     get_unchecked_mut(index)
   }
 
   # Returns an iterator that yields mutable references to the values in `self`.
   fn pub mut iter_mut -> Iter[mut T] {
-    Enum.indexed(@length) fn (index) { get_mut(index) }
+    Enum.indexed(@size) fn (index) { get_mut(index) }
   }
 
   fn mut get_unchecked_mut(index: Int) -> mut T {
@@ -582,7 +582,7 @@ impl Contains[T] for Array if T: Equal[T] {
 
 impl Clone[Array[T]] for Array if T: Clone[T] {
   fn pub clone -> Array[T] {
-    let len = @length
+    let len = @size
     let copy = Array.with_capacity(len)
     let mut index = 0
 
@@ -601,18 +601,18 @@ impl Equal[Array[T]] for Array if T: Equal[T] {
   #
   #     [10, 20, 30] == [10, 20, 30] # => true
   #
-  # Comparing two arrays with a different length:
+  # Comparing two arrays with a different size:
   #
   #     [10] == [10, 20] # => false
   #
-  # Comparing two arrays with the same length but with different values:
+  # Comparing two arrays with the same size but with different values:
   #
   #     [10, 20] == [20, 10] # => false
   fn pub ==(other: ref Array[T]) -> Bool {
-    if @length != other.length { return false }
+    if @size != other.size { return false }
 
     let mut index = 0
-    let max = @length
+    let max = @size
 
     while index < max {
       let ours = get(index)
@@ -630,7 +630,7 @@ impl Equal[Array[T]] for Array if T: Equal[T] {
 impl Hash for Array if T: Hash {
   fn pub hash(hasher: mut Hasher) {
     let mut index = 0
-    let max = @length
+    let max = @size
 
     while index < max { get(index := index + 1).hash(hasher) }
   }
@@ -697,24 +697,20 @@ class pub IntoIter[T] {
   fn mut take_next -> T {
     @array.read_from(@index := @index + 1)
   }
-
-  fn length -> Int {
-    @array.length
-  }
 }
 
 impl Drop for IntoIter {
   fn mut drop {
-    while @index < length { take_next }
+    while @index < @array.size { take_next }
 
     # This is needed so we don't try to drop the values a second time when
     # dropping the array itself.
-    @array.length = 0
+    @array.size = 0
   }
 }
 
 impl Iter[T] for IntoIter {
   fn pub mut next -> Option[T] {
-    if @index < length { Option.Some(take_next) } else { Option.None }
+    if @index < @array.size { Option.Some(take_next) } else { Option.None }
   }
 }

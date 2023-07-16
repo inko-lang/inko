@@ -232,7 +232,7 @@ class pub Ipv6Address {
   fn pub static parse(input: String) -> Option[Ipv6Address] {
     let bytes = input.to_byte_array
     let mut cursor = 0
-    let max = bytes.length
+    let max = bytes.size
     let segments = []
     let ipv4_segments = []
     let segment_bytes = ByteArray.new
@@ -266,7 +266,7 @@ class pub Ipv6Address {
 
       # When the IP starts with a "::" we won't be able to read input, so the
       # byte buffer is empty.
-      if segment_bytes.length > 0 {
+      if segment_bytes.size > 0 {
         let segment = segment_bytes.drain_to_string
         let parsed = if base16 {
           Int.from_base16(segment)
@@ -296,7 +296,7 @@ class pub Ipv6Address {
 
         compressed = true
 
-        let mut pad = IPV6_HEXTETS - segments.length
+        let mut pad = IPV6_HEXTETS - segments.size
         let mut pad_cursor = cursor
         let mut ipv4_padded = false
         let look_ahead = cursor + 1 < max
@@ -332,12 +332,12 @@ class pub Ipv6Address {
       }
     }
 
-    if ipv4_segments.length == IPV4_OCTETS {
+    if ipv4_segments.size == IPV4_OCTETS {
       segments.push(octets_to_hextet(ipv4_segments.get(0), ipv4_segments.get(1)))
       segments.push(octets_to_hextet(ipv4_segments.get(2), ipv4_segments.get(3)))
     }
 
-    if segments.length != IPV6_HEXTETS { return Option.None }
+    if segments.size != IPV6_HEXTETS { return Option.None }
 
     Option.Some(Ipv6Address.new(
       segments.get(0),
@@ -545,7 +545,7 @@ impl ToString for Ipv6Address {
 
     # Find the longest sequence of empty hextets, which we will compress
     # together.
-    while index < segments.length {
+    while index < segments.size {
       let hextet = segments.get(index)
 
       if hextet == 0 {
@@ -653,7 +653,7 @@ class pub Ipv4Address {
       }
     }
 
-    if segments.length != IPV4_OCTETS { return Option.None }
+    if segments.size != IPV4_OCTETS { return Option.None }
 
     Option.Some(Ipv4Address {
       @a = segments.get(0),

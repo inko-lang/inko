@@ -31,7 +31,7 @@
 #         let tests = Tests.new
 #
 #         tests.test('This is the test description') fn (t) {
-#           t.equal('foo'.length, 3)
+#           t.equal('foo'.size, 3)
 #         }
 #
 #         tests.run
@@ -48,7 +48,7 @@
 #     class async Main {
 #       fn async main {
 #         let tests = Tests.new
-#         let block = recover fn (t: mut Tets) { t.equal('foo'.length, 3) }
+#         let block = recover fn (t: mut Tets) { t.equal('foo'.size, 3) }
 #
 #         tests.test('This is the test description', block)
 #         tests.run
@@ -219,13 +219,13 @@ impl Reporter for Plain {
   }
 
   fn pub move finished(duration: Duration, seed: Int) -> Bool {
-    if @failed.length > 0 {
+    if @failed.size > 0 {
       @out.print("\n\nFailures:").unwrap
 
       @failed.iter.each_with_index fn (test_index, test) {
         test.failures.iter.each_with_index fn (failure_index, fail) {
           let num = "{test_index + failure_index + 1}."
-          let indent = ' '.repeat(num.characters.count)
+          let indent = ' '.repeat(num.chars.count)
 
           @out
             .print(
@@ -248,7 +248,7 @@ impl Reporter for Plain {
       "{duration.to_millis} milliseconds"
     }
     let failed =
-      @failed.iter.reduce(0) fn (sum, test) { sum + test.failures.length }
+      @failed.iter.reduce(0) fn (sum, test) { sum + test.failures.size }
     let failures =
       if failed > 0 { red("{failed} failures") } else { green('0 failures') }
 
@@ -502,13 +502,13 @@ class pub Tests {
 
   # Registers a new test with the test tests.
   fn pub mut test(name: String, code: uni fn (mut Test)) {
-    let id = @tests.length
+    let id = @tests.size
     let test = recover {
       let trace = debug.stacktrace(skip: 2)
       let frame = trace
         .reverse_iter
         .find fn (frame) { frame.path.tail.starts_with?(TEST_PREFIX) }
-        .else fn { trace.opt(trace.length - 1) }
+        .else fn { trace.opt(trace.size - 1) }
         .expect('at least one stack frame must be present')
         .clone
 
@@ -524,7 +524,7 @@ class pub Tests {
   # the test executable is spawned such that it only runs the closure specified
   # in the `child` argument.
   fn pub mut fork(name: String, child: fn, test: uni fn (mut Test, Process)) {
-    let id = @children.length
+    let id = @children.size
 
     @children.push(child)
     test(name, fn move (t) { test.call(t, Process.new(id)) })
@@ -585,9 +585,9 @@ class pub Tests {
 
     let rep = @reporter
     let start = Instant.new
-    let input = Channel.new(tests.length)
-    let output = Channel.new(tests.length)
-    let size = tests.length
+    let input = Channel.new(tests.size)
+    let output = Channel.new(tests.size)
+    let size = tests.size
 
     # We send the tests first, as the test runners abort when the input channel
     # is empty.

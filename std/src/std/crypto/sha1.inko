@@ -170,13 +170,13 @@ class pub Sha1 {
 
 impl Hasher for Sha1 {
   fn pub mut write(bytes: ref ByteArray) {
-    @size += bytes.length
+    @size += bytes.size
     @block.write_bytes(bytes) fn { compress }
   }
 
   fn pub move finish -> Hash {
     @block.add_padding(8) fn { compress }
-    @block.write_length_be(@size * 8, at: 56)
+    @block.write_size_be(@size * 8, at: 56)
     compress
 
     let out = ByteArray.filled(with: 0, times: 20)

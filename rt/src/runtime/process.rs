@@ -192,7 +192,7 @@ pub unsafe extern "system" fn inko_process_stack_frame_line(
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_process_stacktrace_length(
+pub unsafe extern "system" fn inko_process_stacktrace_size(
     trace: *const Vec<StackFrame>,
 ) -> i64 {
     (*trace).len() as i64

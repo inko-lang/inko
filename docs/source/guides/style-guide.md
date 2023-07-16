@@ -227,7 +227,7 @@ Looking at this code, it's not clear what the values `0` and `2` are used for.
 Using keyword arguments this becomes obvious:
 
 ```inko
-'hello'.slice(start: 0, length: 2)
+'hello'.slice(start: 0, chars: 2)
 ```
 
 When passing variables with the same name as the arguments, you can leave out
@@ -235,10 +235,10 @@ named arguments:
 
 ```inko
 # This is redundant.
-'hello'.slice(start: start, length: length)
+'hello'.slice(start: start, chars: chars)
 
 # This is fine.
-'hello'.slice(start, length)
+'hello'.slice(start, chars)
 ```
 
 ## Comments

@@ -330,7 +330,7 @@ class pub Map[K: Hash + Equal[K], V] {
   #
   #     map.set('name', 'Alice') # => 'Alice'
   fn pub mut set(index: K, value: V) {
-    if length >= @resize_at { resize }
+    if size >= @resize_at { resize }
 
     let hash = hash_key(index)
     let entry =
@@ -370,7 +370,7 @@ class pub Map[K: Hash + Equal[K], V] {
   #
   #     let map = Map.new
   #
-  #     map.length # => 0
+  #     map.size # => 0
   #
   # Using a map with one key-value pair:
   #
@@ -378,9 +378,9 @@ class pub Map[K: Hash + Equal[K], V] {
   #
   #     map.set('name', 'Alice')
   #
-  #     map.length # => 1
-  fn pub length -> Int {
-    @entries.length
+  #     map.size # => 1
+  fn pub size -> Int {
+    @entries.size
   }
 
   # Returns the number of entries this map can store before needing a resize.
@@ -390,11 +390,11 @@ class pub Map[K: Hash + Equal[K], V] {
   #     Map.new.capacity              # => 4
   #     Map.with_capacity(8).capacity # => 8
   fn pub capacity -> Int {
-    @slots.length
+    @slots.size
   }
 
   fn mut resize {
-    let new_size = @slots.length * 2
+    let new_size = @slots.size * 2
 
     @resize_at = resize_threshold(new_size)
     @slots = Array.filled(with: EMPTY, times: new_size)
@@ -435,7 +435,7 @@ class pub Map[K: Hash + Equal[K], V] {
       let index = @slots.get(slot)
 
       if index == EMPTY {
-        @slots.set(slot, @entries.length)
+        @slots.set(slot, @entries.size)
 
         @entries.push(insert)
         return
@@ -450,7 +450,7 @@ class pub Map[K: Hash + Equal[K], V] {
       }
 
       if entry.distance < insert.distance {
-        @slots.set(slot, @entries.length)
+        @slots.set(slot, @entries.size)
 
         @entries.push(insert)
         shift_stolen_slots(slot, index)
@@ -533,7 +533,7 @@ class pub Map[K: Hash + Equal[K], V] {
   fn slot_index(hash: Int) -> Int {
     # Since the @slots Array is always a power of two, we can use & instead of
     # %, which is a bit faster.
-    hash & (@slots.length - 1)
+    hash & (@slots.size - 1)
   }
 }
 
@@ -592,7 +592,7 @@ impl Equal[Map[K, V]] for Map if V: Equal[V] {
   #
   #     map1 == map2 # => true
   fn pub ==(other: ref Map[K, V]) -> Bool {
-    if length != other.length { return false }
+    if size != other.size { return false }
 
     iter.all? fn (ours) {
       match other.entries_index(ours.key) {

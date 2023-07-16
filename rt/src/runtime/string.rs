@@ -138,7 +138,7 @@ pub unsafe extern "system" fn inko_string_to_int(
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_string_characters(
+pub unsafe extern "system" fn inko_string_chars(
     string: *const InkoString,
 ) -> *mut u8 {
     let string = InkoString::read(string);
@@ -154,7 +154,7 @@ pub unsafe extern "system" fn inko_string_characters(
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_string_characters_next(
+pub unsafe extern "system" fn inko_string_chars_next(
     state: *const State,
     iter: *mut u8,
 ) -> InkoResult {
@@ -171,7 +171,7 @@ pub unsafe extern "system" fn inko_string_characters_next(
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_string_characters_drop(iter: *mut u8) {
+pub unsafe extern "system" fn inko_string_chars_drop(iter: *mut u8) {
     drop(Box::from_raw(iter as *mut Graphemes));
 }
 

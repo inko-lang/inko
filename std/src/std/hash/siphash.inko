@@ -19,7 +19,7 @@ import std::hash::Hasher
 #     hasher.write(42)
 #     hasher.finish
 class pub SipHasher13 {
-  let @length: Int
+  let @size: Int
   let @m_index: Int
   let @m: Int
   let @v0: Int
@@ -47,7 +47,7 @@ class pub SipHasher13 {
   # be used to generate these keys.
   fn pub static new(key0: Int, key1: Int) -> SipHasher13 {
     SipHasher13 {
-      @length = 0,
+      @size = 0,
       @m_index = 0,
       @m = 0,
       @v0 = 0x736F6D6570736575 ^ key0,
@@ -80,7 +80,7 @@ class pub SipHasher13 {
 
 impl Hasher for SipHasher13 {
   fn pub mut write(value: Int) {
-    @length += 1
+    @size += 1
     @m |= (value & 0xFF) << ((@m_index := @m_index + 1) * 8)
 
     if @m_index < 8 { return }
@@ -93,7 +93,7 @@ impl Hasher for SipHasher13 {
   }
 
   fn pub move finish -> Int {
-    let len = @length
+    let len = @size
 
     while @m_index < 7 { write(0) }
 

@@ -211,13 +211,13 @@ class pub Sha256 {
 
 impl Hasher for Sha256 {
   fn pub mut write(bytes: ref ByteArray) {
-    @size += bytes.length
+    @size += bytes.size
     @block.write_bytes(bytes) fn { compress }
   }
 
   fn pub move finish -> Hash {
     @block.add_padding(8) fn { compress }
-    @block.write_length_be(@size * 8, at: 56)
+    @block.write_size_be(@size * 8, at: 56)
     compress
 
     let out = ByteArray.filled(with: 0, times: 32)
@@ -346,18 +346,18 @@ class pub Sha512 {
 
 impl Hasher for Sha512 {
   fn pub mut write(bytes: ref ByteArray) {
-    @size += bytes.length
+    @size += bytes.size
     @block.write_bytes(bytes) fn { compress }
   }
 
   fn pub move finish -> Hash {
     @block.add_padding(16) fn { compress }
 
-    # SHA512 wants a 128-bits length, but we internally maintain a 64-bits
-    # length, thus we must first write eight zero bytes, then write the 64-bits
-    # length.
-    @block.write_length_be(0, at: 112)
-    @block.write_length_be(@size * 8, at: 120)
+    # SHA512 wants a 128-bits size, but we internally maintain a 64-bits
+    # size, thus we must first write eight zero bytes, then write the 64-bits
+    # size.
+    @block.write_size_be(0, at: 112)
+    @block.write_size_be(@size * 8, at: 120)
     compress
 
     let out = ByteArray.filled(with: 0, times: 64)

@@ -58,7 +58,7 @@ fn pub tests(t: mut Tests) {
 
     vals.clear
 
-    t.equal(vals.length, 0)
+    t.equal(vals.size, 0)
     t.equal(count.value, 2)
   }
 
@@ -156,9 +156,9 @@ fn pub tests(t: mut Tests) {
     t.equal(vals, [10, 20, 30])
   }
 
-  t.test('Array.length') fn (t) {
-    t.equal(([] as Array[Int]).length, 0)
-    t.equal([10, 20].length, 2)
+  t.test('Array.size') fn (t) {
+    t.equal(([] as Array[Int]).size, 0)
+    t.equal([10, 20].size, 2)
   }
 
   t.test('Array.empty?') fn (t) {

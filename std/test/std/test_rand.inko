@@ -49,7 +49,7 @@ fn pub tests(t: mut Tests) {
   t.test('Random.bytes') fn (t) {
     let rng = Random.new
 
-    t.equal(rng.bytes(3).length, 3)
+    t.equal(rng.bytes(3).size, 3)
   }
 
   t.test('Shuffle.sort') fn (t) {

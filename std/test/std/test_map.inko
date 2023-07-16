@@ -59,7 +59,7 @@ fn pub tests(t: mut Tests) {
 
     let entries = map.iter.to_array
 
-    t.equal(entries.length, 2)
+    t.equal(entries.size, 2)
     t.equal(entries.get(0).key, 'name')
     t.equal(entries.get(0).value, 'Alice')
     t.equal(entries.get(1).key, 'city')
@@ -74,7 +74,7 @@ fn pub tests(t: mut Tests) {
 
     let entries = map.iter_mut.to_array
 
-    t.equal(entries.length, 2)
+    t.equal(entries.size, 2)
     t.equal(entries.get(0).key, 'name')
     t.equal(entries.get(0).value, 'Alice')
     t.equal(entries.get(1).key, 'city')
@@ -89,7 +89,7 @@ fn pub tests(t: mut Tests) {
 
     let entries = map.into_iter.to_array
 
-    t.equal(entries.length, 2)
+    t.equal(entries.size, 2)
     t.equal(entries.get(0).key, 'name')
     t.equal(entries.get(0).value, 'Alice')
     t.equal(entries.get(1).key, 'city')
@@ -104,7 +104,7 @@ fn pub tests(t: mut Tests) {
 
     let keys = map.keys.to_array
 
-    t.equal(keys.length, 2)
+    t.equal(keys.size, 2)
     t.true(keys.get(0) == 'name' or keys.get(0) == 'city')
   }
 
@@ -116,7 +116,7 @@ fn pub tests(t: mut Tests) {
 
     let values = map.values.to_array
 
-    t.equal(values.length, 2)
+    t.equal(values.size, 2)
     t.true(values.get(0) == 'Alice' or values.get(0) == 'Bla')
   }
 
@@ -161,14 +161,14 @@ fn pub tests(t: mut Tests) {
     t.equal(map1.get('city'), 'Bla')
   }
 
-  t.test('Map.length') fn (t) {
+  t.test('Map.size') fn (t) {
     let map = Map.new
 
-    t.equal(map.length, 0)
+    t.equal(map.size, 0)
 
     map.set('name', 'Alice')
 
-    t.equal(map.length, 1)
+    t.equal(map.size, 1)
   }
 
   t.test('Map.==') fn (t) {

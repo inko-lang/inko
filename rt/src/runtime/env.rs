@@ -31,7 +31,7 @@ pub unsafe extern "system" fn inko_env_get_key(
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_env_length(state: *const State) -> i64 {
+pub unsafe extern "system" fn inko_env_size(state: *const State) -> i64 {
     (*state).environment.len() as _
 }
 
@@ -87,7 +87,7 @@ pub unsafe extern "system" fn inko_env_set_working_directory(
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_env_arguments_length(
+pub unsafe extern "system" fn inko_env_arguments_size(
     state: *const State,
 ) -> i64 {
     (*state).arguments.len() as i64

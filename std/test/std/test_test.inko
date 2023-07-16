@@ -17,7 +17,7 @@ class Buffer {
 impl Write for Buffer {
   fn pub mut write_string(string: String) -> Result[Int, Never] {
     let bytes = string.to_byte_array
-    let size = bytes.length
+    let size = bytes.size
 
     @bytes.append(bytes)
     Result.Ok(size)
@@ -25,7 +25,7 @@ impl Write for Buffer {
 
   fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Never] {
     @bytes.append(bytes.clone)
-    Result.Ok(bytes.length)
+    Result.Ok(bytes.size)
   }
 
   fn pub mut flush -> Result[Nil, Never] {

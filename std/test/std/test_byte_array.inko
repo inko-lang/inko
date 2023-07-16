@@ -69,10 +69,10 @@ fn pub tests(t: mut Tests) {
   t.test('ByteArray.slice') fn (t) {
     let bytes = ByteArray.from_array([105, 110, 107, 111])
 
-    t.equal(bytes.slice(start: 0, length: 0), ByteArray.new)
-    t.equal(bytes.slice(start: 0, length: 1), ByteArray.from_array([105]))
-    t.equal(bytes.slice(start: 0, length: 4), bytes)
-    t.equal(bytes.slice(start: 0, length: 10), bytes)
+    t.equal(bytes.slice(start: 0, size: 0), ByteArray.new)
+    t.equal(bytes.slice(start: 0, size: 1), ByteArray.from_array([105]))
+    t.equal(bytes.slice(start: 0, size: 4), bytes)
+    t.equal(bytes.slice(start: 0, size: 10), bytes)
   }
 
   t.test('ByteArray.opt') fn (t) {
@@ -83,9 +83,9 @@ fn pub tests(t: mut Tests) {
     t.equal(bytes.opt(2), Option.None)
   }
 
-  t.test('ByteArray.length') fn (t) {
-    t.equal(ByteArray.new.length, 0)
-    t.equal(ByteArray.from_array([10]).length, 1)
+  t.test('ByteArray.size') fn (t) {
+    t.equal(ByteArray.new.size, 0)
+    t.equal(ByteArray.from_array([10]).size, 1)
   }
 
   t.test('ByteArray.empty?') fn (t) {
@@ -243,31 +243,31 @@ fn pub tests(t: mut Tests) {
     let a = ByteArray.from_array([1, 2, 3, 4])
     let b = ByteArray.new
 
-    t.equal(b.copy_from(a, at: 0, length: 2), 2)
+    t.equal(b.copy_from(a, at: 0, size: 2), 2)
     t.equal(a, ByteArray.from_array([1, 2, 3, 4]))
     t.equal(b, ByteArray.from_array([1, 2]))
 
-    t.equal(b.copy_from(b, at: 0, length: 2), 2)
+    t.equal(b.copy_from(b, at: 0, size: 2), 2)
     t.equal(b, ByteArray.from_array([1, 2, 1, 2]))
   }
 
   t.test('ByteArray.resize') fn (t) {
     let bytes = ByteArray.new
 
-    bytes.resize(length: 2, value: 1)
+    bytes.resize(size: 2, value: 1)
     t.equal(bytes, ByteArray.from_array([1, 1]))
 
-    bytes.resize(length: 0, value: 0)
+    bytes.resize(size: 0, value: 0)
     t.equal(bytes, ByteArray.new)
   }
 
-  t.panic('ByteArray.resize with an invalid length') fn {
-    ByteArray.new.resize(length: -5, value: 0)
+  t.panic('ByteArray.resize with an invalid size') fn {
+    ByteArray.new.resize(size: -5, value: 0)
   }
 
   t.test('ByteArray.from_pointer') fn (t) {
     let a = ByteArray.from_array([1, 2, 3, 4])
-    let b = ByteArray.from_pointer(a.to_pointer, length: 4)
+    let b = ByteArray.from_pointer(a.to_pointer, size: 4)
 
     t.equal(a, b)
   }

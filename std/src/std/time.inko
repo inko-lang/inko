@@ -424,20 +424,20 @@ impl Format for DateTime {
       ' UTC'
     } else {
       let hh =
-        (@utc_offset / SECS_PER_HOUR).to_string.pad_start(with: '0', length: 2)
+        (@utc_offset / SECS_PER_HOUR).to_string.pad_start(with: '0', chars: 2)
       let mm = (@utc_offset % SECS_PER_HOUR / 60)
         .to_string
-        .pad_start(with: '0', length: 2)
+        .pad_start(with: '0', chars: 2)
 
       " {sign}{hh}{mm}"
     }
 
-    let year = @year.to_string.pad_start(with: '0', length: 4)
-    let month = @month.to_string.pad_start(with: '0', length: 2)
-    let day = @day.to_string.pad_start(with: '0', length: 2)
-    let hour = @hour.to_string.pad_start(with: '0', length: 2)
-    let min = @minute.to_string.pad_start(with: '0', length: 2)
-    let secs = @second.to_string.pad_start(with: '0', length: 2)
+    let year = @year.to_string.pad_start(with: '0', chars: 4)
+    let month = @month.to_string.pad_start(with: '0', chars: 2)
+    let day = @day.to_string.pad_start(with: '0', chars: 2)
+    let hour = @hour.to_string.pad_start(with: '0', chars: 2)
+    let min = @minute.to_string.pad_start(with: '0', chars: 2)
+    let secs = @second.to_string.pad_start(with: '0', chars: 2)
 
     formatter.write("{year}-{month}-{day} {hour}:{min}:{secs}{offset}")
   }
