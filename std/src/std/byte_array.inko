@@ -66,6 +66,13 @@ fn extern inko_byte_array_to_string(
   bytes: ref ByteArray,
 ) -> String
 
+fn extern inko_byte_array_to_pointer(bytes: ref ByteArray) -> Pointer[Int8]
+fn extern inko_byte_array_from_pointer(
+  state: Pointer[Int8],
+  pointer: Pointer[Int8],
+  length: Int,
+) -> ByteArray
+
 # A type from which a new `ByteArray` can be created.
 trait pub ToByteArray {
   fn pub to_byte_array -> ByteArray
@@ -97,6 +104,17 @@ class builtin ByteArray {
 
     array.iter.each fn (v) { bytes.push(v) }
     bytes
+  }
+
+  # Returns a `ByteArray` created from a raw pointer.
+  #
+  # The `length` argument specifies the number of bytes to read starting at the
+  # given pointer.
+  #
+  # The purpose of this method is to allow creating a `ByteArray` from a pointer
+  # returned by C code. Avoid using this method for anything else.
+  fn pub static from_pointer(pointer: Pointer[Int8], length: Int) -> ByteArray {
+    inko_byte_array_from_pointer(_INKO.state, pointer, length)
   }
 
   # Returns a `ByteArray` filled with the given byte.
@@ -407,6 +425,14 @@ class builtin ByteArray {
     if length < 0 { panic('The new length must be greater than zero') }
 
     inko_byte_array_resize(self, length, value)
+  }
+
+  # Returns a raw pointer to the bytes of `self`.
+  #
+  # This method is meant to be used when passing strings to foreign functions.
+  # You should avoid using it for anything else.
+  fn pub to_pointer -> Pointer[Int8] {
+    inko_byte_array_to_pointer(self)
   }
 }
 

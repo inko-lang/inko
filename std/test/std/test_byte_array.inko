@@ -264,4 +264,11 @@ fn pub tests(t: mut Tests) {
   t.panic('ByteArray.resize with an invalid length') fn {
     ByteArray.new.resize(length: -5, value: 0)
   }
+
+  t.test('ByteArray.from_pointer') fn (t) {
+    let a = ByteArray.from_array([1, 2, 3, 4])
+    let b = ByteArray.from_pointer(a.to_pointer, length: 4)
+
+    t.equal(a, b)
+  }
 }

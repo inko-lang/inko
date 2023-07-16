@@ -1,6 +1,7 @@
 use crate::mem::{tagged_int, Bool, ByteArray, Int, String as InkoString};
 use crate::state::State;
 use std::cmp::min;
+use std::slice;
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_byte_array_new(
@@ -164,4 +165,22 @@ pub unsafe extern "system" fn inko_byte_array_resize(
     filler: i64,
 ) {
     (*bytes).value.resize(size as usize, filler as u8);
+}
+
+#[no_mangle]
+pub unsafe extern "system" fn inko_byte_array_to_pointer(
+    bytes: *mut ByteArray,
+) -> *mut u8 {
+    (*bytes).value.as_mut_ptr()
+}
+
+#[no_mangle]
+pub unsafe extern "system" fn inko_byte_array_from_pointer(
+    state: *const State,
+    pointer: *const u8,
+    length: i64,
+) -> *mut ByteArray {
+    let bytes = slice::from_raw_parts(pointer, length as usize).to_vec();
+
+    ByteArray::alloc((*state).byte_array_class, bytes)
 }

@@ -307,6 +307,13 @@ fn pub tests(t: mut Tests) {
     t.equal("hello\t\r\n\t".trim, 'hello')
   }
 
+  t.test('String.from_pointer') fn (t) {
+    let a = 'hello'
+    let b = String.from_pointer(a.to_pointer)
+
+    t.equal(a, b)
+  }
+
   t.test('Bytes.next') fn (t) {
     let string = 'abc'
     let iter = string.bytes
