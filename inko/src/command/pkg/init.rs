@@ -1,6 +1,6 @@
 use crate::error::Error;
 use crate::options::print_usage;
-use crate::pkg::manifest::MANIFEST_FILE;
+use compiler::pkg::manifest::MANIFEST_FILE;
 use getopts::Options;
 use std::env;
 use std::fs::File;

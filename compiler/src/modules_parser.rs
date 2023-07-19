@@ -73,8 +73,8 @@ impl<'a> ModulesParser<'a> {
         let mut modules = HashMap::new();
         let mut pending = initial;
 
-        for (name, _) in &pending {
-            scheduled.insert(name.clone());
+        for (_, path) in &pending {
+            scheduled.insert(path.clone());
         }
 
         for name in &self.state.config.implicit_imports {
@@ -82,7 +82,7 @@ impl<'a> ModulesParser<'a> {
             // don't need to search through all the source paths.
             let path = self.state.config.std.join(name.to_path());
 
-            scheduled.insert(name.clone());
+            scheduled.insert(path.clone());
             pending.push((name.clone(), path));
         }
 
@@ -94,16 +94,10 @@ impl<'a> ModulesParser<'a> {
                     .insert(qname.clone(), ParsedModule { name: qname, ast });
 
                 for (dep, location) in deps {
-                    if scheduled.contains(&dep) {
-                        continue;
-                    }
-
-                    scheduled.insert(dep.clone());
-
-                    if let Some(path) =
-                        self.state.config.sources.get(&dep.to_path())
+                    let path = if let Some(val) =
+                        self.state.module_path(file.clone(), &dep)
                     {
-                        pending.push((dep, path));
+                        val
                     } else {
                         self.state.diagnostics.error(
                             DiagnosticId::InvalidFile,
@@ -111,7 +105,16 @@ impl<'a> ModulesParser<'a> {
                             file.clone(),
                             location,
                         );
+
+                        continue;
+                    };
+
+                    if scheduled.contains(&path) {
+                        continue;
                     }
+
+                    scheduled.insert(path.clone());
+                    pending.push((dep, path));
                 }
             }
         }
@@ -198,7 +201,7 @@ mod tests {
 
         let mut state = State::new(Config::new());
 
-        state.config.sources.add(temp_dir());
+        state.config.sources.push(temp_dir());
         state.config.implicit_imports = Vec::new();
 
         let mut pass = ModulesParser::new(&mut state);
@@ -223,7 +226,7 @@ mod tests {
 
         let mut state = State::new(Config::new());
 
-        state.config.sources.add(temp_dir());
+        state.config.sources.push(temp_dir());
         state.config.implicit_imports = Vec::new();
 
         let mut pass = ModulesParser::new(&mut state);
@@ -242,7 +245,7 @@ mod tests {
 
         let mut state = State::new(Config::new());
 
-        state.config.sources.add(temp_dir());
+        state.config.sources.push(temp_dir());
         state.config.implicit_imports = Vec::new();
 
         let mut pass = ModulesParser::new(&mut state);

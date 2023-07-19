@@ -5,16 +5,16 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::Path;
 
-pub(crate) const MANIFEST_FILE: &str = "inko.pkg";
+pub const MANIFEST_FILE: &str = "inko.pkg";
 
 /// The URL of a package.
 #[derive(Eq, PartialEq, Debug, Clone, Hash)]
-pub(crate) struct Url {
-    pub(crate) value: String,
+pub struct Url {
+    pub value: String,
 }
 
 impl Url {
-    pub(crate) fn parse(input: &str) -> Option<Self> {
+    pub fn parse(input: &str) -> Option<Self> {
         if input.contains(' ') || input.is_empty() {
             return None;
         }
@@ -33,11 +33,11 @@ impl Url {
         Some(Url::new(value))
     }
 
-    pub(crate) fn new<S: Into<String>>(value: S) -> Self {
+    pub fn new<S: Into<String>>(value: S) -> Self {
         Self { value: value.into() }
     }
 
-    pub(crate) fn directory_name(&self) -> String {
+    pub fn directory_name(&self) -> String {
         // We don't need ultra long hashes, as all we care about is being able
         // to generate a directory name from a URL _without_ it colliding with
         // literally everything.
@@ -45,6 +45,24 @@ impl Url {
 
         hasher.update(&self.value);
         format!("{:x}", hasher.finalize())
+    }
+
+    pub fn import_name(&self) -> String {
+        let tail = self.value.split('/').last().unwrap();
+
+        // For generic names like "http" or "sqlite3", creating a repository
+        // with such a name may be confusing, as one might think it's e.g. a
+        // fork of a project, or perhaps the name conflicts with an existing
+        // project.
+        //
+        // To handle that, if a project is called "inko-http", we strip the
+        // "inko-" prefix. This way within the code you can just use "http" as
+        // the module name.
+        if let Some(name) = tail.strip_prefix("inko-") {
+            name.to_string()
+        } else {
+            tail.to_string()
+        }
     }
 }
 
@@ -56,12 +74,12 @@ impl fmt::Display for Url {
 
 /// A Git (SHA1) checksum.
 #[derive(Eq, PartialEq, Debug, Clone)]
-pub(crate) struct Checksum {
-    pub(crate) value: String,
+pub struct Checksum {
+    pub value: String,
 }
 
 impl Checksum {
-    pub(crate) fn parse(input: &str) -> Option<Self> {
+    pub fn parse(input: &str) -> Option<Self> {
         if input.len() != 40 {
             return None;
         }
@@ -69,7 +87,7 @@ impl Checksum {
         Some(Checksum::new(input))
     }
 
-    pub(crate) fn new<S: Into<String>>(value: S) -> Self {
+    pub fn new<S: Into<String>>(value: S) -> Self {
         Self { value: value.into() }
     }
 }
@@ -82,10 +100,11 @@ impl fmt::Display for Checksum {
 
 /// A dependency as specified in the manifest.
 #[derive(Eq, PartialEq, Debug, Clone)]
-pub(crate) struct Dependency {
-    pub(crate) url: Url,
-    pub(crate) version: Version,
-    pub(crate) checksum: Checksum,
+pub struct Dependency {
+    pub url: Url,
+    pub name: String,
+    pub version: Version,
+    pub checksum: Checksum,
 }
 
 impl fmt::Display for Dependency {
@@ -95,7 +114,7 @@ impl fmt::Display for Dependency {
 }
 
 #[derive(Eq, PartialEq, Debug)]
-pub(crate) enum Entry {
+pub enum Entry {
     Comment(String),
     Dependency(Dependency),
     EmptyLine,
@@ -113,12 +132,12 @@ impl fmt::Display for Entry {
 
 /// A dependency manifest parsed from a `inko.pkg` file.
 #[derive(Eq, PartialEq, Debug)]
-pub(crate) struct Manifest {
-    pub(crate) entries: Vec<Entry>,
+pub struct Manifest {
+    pub entries: Vec<Entry>,
 }
 
 impl Manifest {
-    pub(crate) fn load<P: AsRef<Path>>(path: &P) -> Result<Self, String> {
+    pub fn load<P: AsRef<Path>>(path: &P) -> Result<Self, String> {
         let path = path.as_ref();
 
         File::open(path)
@@ -126,7 +145,7 @@ impl Manifest {
             .and_then(|mut file| Self::parse(&mut file))
     }
 
-    pub(crate) fn parse<R: Read>(stream: &mut R) -> Result<Self, String> {
+    fn parse<R: Read>(stream: &mut R) -> Result<Self, String> {
         let reader = BufReader::new(stream);
         let mut manifest = Self { entries: Vec::new() };
 
@@ -165,6 +184,7 @@ impl Manifest {
             let url = Url::parse(chunks[1]).ok_or_else(|| {
                 format!("The URI on line {} is invalid", lnum)
             })?;
+            let name = url.import_name();
             let version = Version::parse(chunks[2]).ok_or_else(|| {
                 format!("The version on line {} is invalid", lnum)
             })?;
@@ -174,6 +194,7 @@ impl Manifest {
 
             manifest.entries.push(Entry::Dependency(Dependency {
                 url,
+                name,
                 version,
                 checksum,
             }));
@@ -182,36 +203,35 @@ impl Manifest {
         Ok(manifest)
     }
 
-    pub(crate) fn add_dependency(
+    pub fn add_dependency(
         &mut self,
         url: Url,
+        name: String,
         version: Version,
         checksum: Checksum,
     ) {
         self.entries.push(Entry::Dependency(Dependency {
             url,
+            name,
             version,
             checksum,
         }));
     }
 
-    pub(crate) fn find_dependency(
-        &mut self,
-        url: &Url,
-    ) -> Option<&mut Dependency> {
+    pub fn find_dependency(&mut self, url: &Url) -> Option<&mut Dependency> {
         self.entries.iter_mut().find_map(|entry| match entry {
             Entry::Dependency(dep) if &dep.url == url => Some(dep),
             _ => None,
         })
     }
 
-    pub(crate) fn remove_dependency(&mut self, url: &Url) {
+    pub fn remove_dependency(&mut self, url: &Url) {
         self.entries.retain(
             |val| !matches!(val, Entry::Dependency(dep) if &dep.url == url),
         )
     }
 
-    pub(crate) fn dependencies_mut(&mut self) -> Vec<&mut Dependency> {
+    pub fn dependencies_mut(&mut self) -> Vec<&mut Dependency> {
         self.entries
             .iter_mut()
             .filter_map(|entry| match entry {
@@ -221,7 +241,7 @@ impl Manifest {
             .collect()
     }
 
-    pub(crate) fn into_dependencies(self) -> Vec<Dependency> {
+    pub fn into_dependencies(self) -> Vec<Dependency> {
         self.entries
             .into_iter()
             .filter_map(|entry| match entry {
@@ -231,7 +251,7 @@ impl Manifest {
             .collect()
     }
 
-    pub(crate) fn save<P: AsRef<Path>>(&self, path: &P) -> Result<(), String> {
+    pub fn save<P: AsRef<Path>>(&self, path: &P) -> Result<(), String> {
         let path = path.as_ref();
 
         File::create(path)
@@ -294,6 +314,18 @@ mod tests {
     }
 
     #[test]
+    fn test_url_import_name() {
+        assert_eq!(
+            Url::new("https://gitlab.com/foo/bar").import_name(),
+            "bar".to_string()
+        );
+        assert_eq!(
+            Url::new("https://gitlab.com/foo/inko-http").import_name(),
+            "http".to_string()
+        );
+    }
+
+    #[test]
     fn test_manifest_parse_invalid() {
         let missing_chunks = "# Ignore me
         require https://gitlab.com/inko-lang/foo 1.2.3";
@@ -341,6 +373,7 @@ require https://gitlab.com/inko-lang/foo 1.2.3 633d02e92b2a96623c276b7d7fe09568f
                     Entry::EmptyLine,
                     Entry::Dependency(Dependency {
                         url: Url::new("https://gitlab.com/inko-lang/foo"),
+                        name: "foo".to_string(),
                         version: Version::new(1, 2, 3),
                         checksum: Checksum::new(
                             "633d02e92b2a96623c276b7d7fe09568f9f2e1ad"
@@ -360,11 +393,13 @@ require https://gitlab.com/inko-lang/foo 1.2.3 633d02e92b2a96623c276b7d7fe09568f
                 Entry::EmptyLine,
                 Entry::Dependency(Dependency {
                     url: Url::new("https://gitlab.com/inko-lang/foo"),
+                    name: "foo".to_string(),
                     version: Version::new(1, 2, 3),
                     checksum: Checksum::new("abc"),
                 }),
                 Entry::Dependency(Dependency {
                     url: Url::new("https://github.com/inko-lang/bar"),
+                    name: "bar".to_string(),
                     version: Version::new(4, 5, 6),
                     checksum: Checksum::new("def"),
                 }),
@@ -385,15 +420,17 @@ require https://github.com/inko-lang/bar 4.5.6 def
     fn test_manifest_add_dependency() {
         let mut manifest = Manifest { entries: Vec::new() };
         let url = Url::new("test");
+        let name = "test".to_string();
         let version = Version::new(1, 2, 3);
         let checksum = Checksum::new("abc");
 
-        manifest.add_dependency(url, version, checksum);
+        manifest.add_dependency(url, name, version, checksum);
 
         assert_eq!(
             manifest.entries,
             vec![Entry::Dependency(Dependency {
                 url: Url::new("test"),
+                name: "test".to_string(),
                 version: Version::new(1, 2, 3),
                 checksum: Checksum::new("abc")
             })]
@@ -404,15 +441,17 @@ require https://github.com/inko-lang/bar 4.5.6 def
     fn test_manifest_find_dependency() {
         let mut manifest = Manifest { entries: Vec::new() };
         let url = Url::new("test");
+        let name = "test".to_string();
         let version = Version::new(1, 2, 3);
         let checksum = Checksum::new("abc");
 
-        manifest.add_dependency(url.clone(), version, checksum);
+        manifest.add_dependency(url.clone(), name, version, checksum);
 
         assert_eq!(
             manifest.find_dependency(&url),
             Some(&mut Dependency {
                 url: Url::new("test"),
+                name: "test".to_string(),
                 version: Version::new(1, 2, 3),
                 checksum: Checksum::new("abc")
             })
@@ -423,10 +462,11 @@ require https://github.com/inko-lang/bar 4.5.6 def
     fn test_manifest_remove_dependency() {
         let mut manifest = Manifest { entries: Vec::new() };
         let url = Url::new("test");
+        let name = "test".to_string();
         let version = Version::new(1, 2, 3);
         let checksum = Checksum::new("abc");
 
-        manifest.add_dependency(url.clone(), version, checksum);
+        manifest.add_dependency(url.clone(), name, version, checksum);
         manifest.remove_dependency(&url);
 
         assert!(manifest.entries.is_empty());
@@ -436,15 +476,17 @@ require https://github.com/inko-lang/bar 4.5.6 def
     fn test_manifest_into_dependencies() {
         let mut manifest = Manifest { entries: Vec::new() };
         let url = Url::new("test");
+        let name = "test".to_string();
         let version = Version::new(1, 2, 3);
         let checksum = Checksum::new("abc");
 
-        manifest.add_dependency(url, version, checksum);
+        manifest.add_dependency(url, name, version, checksum);
 
         assert_eq!(
             manifest.into_dependencies(),
             vec![Dependency {
                 url: Url::new("test"),
+                name: "test".to_string(),
                 version: Version::new(1, 2, 3),
                 checksum: Checksum::new("abc")
             }]
@@ -455,15 +497,17 @@ require https://github.com/inko-lang/bar 4.5.6 def
     fn test_manifest_dependencies_mut() {
         let mut manifest = Manifest { entries: Vec::new() };
         let url = Url::new("test");
+        let name = "test".to_string();
         let version = Version::new(1, 2, 3);
         let checksum = Checksum::new("abc");
 
-        manifest.add_dependency(url, version, checksum);
+        manifest.add_dependency(url, name, version, checksum);
 
         assert_eq!(
             manifest.dependencies_mut(),
             vec![&Dependency {
                 url: Url::new("test"),
+                name: "test".to_string(),
                 version: Version::new(1, 2, 3),
                 checksum: Checksum::new("abc")
             }]

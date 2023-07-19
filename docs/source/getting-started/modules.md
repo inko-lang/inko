@@ -21,18 +21,20 @@ For more information about the syntax of `import` statements, refer to the
 ## Import paths
 
 When importing modules, the compiler looks in the following places to find the
-module:
+module (in this order):
 
-1. The standard library
 1. Your project's `src/` directory (see
    [Project structure](../guides/structure.md))
-1. Your project's `dep/src` directory
+1. The source directories of any dependencies of your project, as specified in
+   the `inko.pkg` package manifest
+1. Additional source directories specified using the `-i` / `--include` option,
+   including the standard library (which is added by default)
 
 If a module isn't found, a compile-time error is produced.
 
 Inko doesn't support importing modules relative to another module.
 
-## Third-party dependencies
+## Third-party packages
 
 Inko has a built-in package manager, available using the `inko pkg` command and
 its subcommands (e.g. `inko pkg add`). Packages are just Git repositories hosted
@@ -86,8 +88,9 @@ json >= 1.8.2
 Here the most recent version that satisfies all requirements is 1.8.2, so Inko
 will pick that version of the "json" package.
 
-If packages require different major versions of another package, Inko produces
-an error as we don't support using multiple major versions of the same package.
+Inko supports different major versions of the same package. This makes it
+possible for package `foo` to require `json` version 1.8.2 or newer, while
+package `bar` requires `json` version 2.0.0 or newer.
 
 Using minimal version selection offers several benefits:
 
@@ -99,7 +102,8 @@ Using minimal version selection offers several benefits:
 - You won't end up using a version of a package that you never tested your code
   against.
 
-For more details we suggest reading through the [article by Russ Cox](https://research.swtch.com/vgo-mvs) (also linked to above).
+For more details we suggest reading through the [article by Russ
+Cox](https://research.swtch.com/vgo-mvs) (also linked to above).
 
 ### Handling security updates
 
@@ -120,7 +124,7 @@ For a more in-depth overview of the available commands and flags, run `inko pkg
 
 Creating an empty `inko.pkg` is done using the `inko pkg init` command.
 
-### Adding dependencies
+### Adding packages
 
 Adding a package is done using `inko pkg add`, which takes the package URL and
 version to add. For example:
@@ -132,7 +136,15 @@ inko pkg add github.com/inko-lang/example-package 1.2.3
 This command only adds the package to your `inko.pkg` file, it doesn't install
 it into your project.
 
-### Removing dependencies
+!!! note
+    If the package already exists in the manifest, `inko pkg add` updates the
+    existing entry.
+
+!!! note
+    Inko doesn't support adding the same dependency multiple times to a project,
+    even when using different versions.
+
+### Removing packages
 
 The inverse of `inko pkg add` is the `inko pkg remove` command, which takes a
 package URL and removes it from your `inko.pkg`. For example:
@@ -141,16 +153,16 @@ package URL and removes it from your `inko.pkg`. For example:
 inko pkg remove github.com/inko-lang/example-package
 ```
 
-### Installing dependencies
+### Installing packages
 
 !!! warning
-    The `inko pkg sync` command removes all files in the `dep/src` directory
+    The `inko pkg sync` command removes all files in the `./dep` directory
     before installing the dependencies, so make sure to not place files not
     managed by Inko in this directory.
 
 Installing dependencies into your project is done using `inko pkg sync`. This
 command downloads all the necessary dependencies, selects the appropriate
-versions, then installs them in `./dep/src`. For example:
+versions, then installs them in `./dep`. For example:
 
 ```
 $ inko pkg sync
@@ -176,7 +188,7 @@ The `dep` directory shouldn't be tracked by Git, so make sure to add it to your
 /dep
 ```
 
-### Updating dependencies
+### Updating packages
 
 Updating dependencies to their latest version is done using the `inko pkg
 update` command. This command either takes a package URL and only updates that
@@ -192,10 +204,6 @@ the following:
 ```bash
 inko pkg update --major
 ```
-
-Note that if other packages depend on the previous major version of the package
-you're updating, you won't be able to update your `dep` directory using
-`inko pkg sync`.
 
 ## Publishing a package
 

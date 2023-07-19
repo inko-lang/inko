@@ -37,6 +37,10 @@ impl ModuleName {
         self.value.starts_with("std::")
     }
 
+    pub fn head(&self) -> &str {
+        self.value.split(SEPARATOR).next().unwrap()
+    }
+
     pub fn tail(&self) -> &str {
         self.value.split(SEPARATOR).last().unwrap()
     }
@@ -113,6 +117,13 @@ mod tests {
 
         assert!(!name1.is_std());
         assert!(name2.is_std());
+    }
+
+    #[test]
+    fn test_head() {
+        let name = ModuleName::new("foo::bar");
+
+        assert_eq!(name.head(), &"foo".to_string());
     }
 
     #[test]

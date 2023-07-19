@@ -1,11 +1,11 @@
 use crate::error::Error;
 use crate::options::print_usage;
 use crate::pkg::git::Repository;
-use crate::pkg::manifest::{
+use crate::pkg::util::data_dir;
+use compiler::pkg::manifest::{
     Checksum, Dependency, Manifest, Url, MANIFEST_FILE,
 };
-use crate::pkg::util::data_dir;
-use crate::pkg::version::Version;
+use compiler::pkg::version::Version;
 use getopts::Options;
 
 const USAGE: &str = "inko pkg update [OPTIONS] [PACKAGE]
@@ -128,6 +128,7 @@ mod tests {
         ];
         let dep = Dependency {
             url: Url::new("gitlab.com/foo/bar"),
+            name: "bar".to_string(),
             version: Version::new(1, 2, 3),
             checksum: Checksum::new("abc"),
         };

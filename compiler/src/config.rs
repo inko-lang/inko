@@ -1,6 +1,5 @@
 //! Configuration for the compiler.
 use crate::presenters::{JSONPresenter, Presenter, TextPresenter};
-use crate::source_paths::SourcePaths;
 use crate::target::Target;
 use std::env;
 use std::fs::create_dir_all;
@@ -135,9 +134,8 @@ pub struct Config {
     /// The directory to use for build output.
     pub build: PathBuf,
 
-    /// A list of directories to search for Inko source code, including
-    /// third-party dependencies.
-    pub sources: SourcePaths,
+    /// A list of base source directories to search through.
+    pub sources: Vec<PathBuf>,
 
     /// The path to save the executable at.
     pub output: Output,
@@ -172,8 +170,8 @@ impl Config {
             source: cwd.join(SOURCE),
             tests: cwd.join(TESTS),
             build: cwd.join(BUILD),
-            dependencies: cwd.join(DEP).join(SOURCE),
-            sources: SourcePaths::new(),
+            dependencies: cwd.join(DEP),
+            sources: Vec::new(),
             presenter: Box::new(TextPresenter::with_colors()),
             implicit_imports: vec![],
             output: Output::Derive,
@@ -186,15 +184,7 @@ impl Config {
 
     fn add_default_source_directories(&mut self) {
         if self.std.is_dir() {
-            self.sources.add(self.std.clone());
-        }
-
-        if self.source.is_dir() && self.source != self.std {
-            self.sources.add(self.source.clone());
-        }
-
-        if self.dependencies.is_dir() {
-            self.sources.add(self.dependencies.clone());
+            self.sources.push(self.std.clone());
         }
     }
 

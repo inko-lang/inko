@@ -11,14 +11,14 @@ use std::fmt;
 /// The maximum value for each component is (2^16)-1, which should prove more
 /// than sufficient for any software.
 #[derive(Eq, PartialEq, Debug, Clone, Hash)]
-pub(crate) struct Version {
-    pub(crate) major: u16,
-    pub(crate) minor: u16,
-    pub(crate) patch: u16,
+pub struct Version {
+    pub major: u16,
+    pub minor: u16,
+    pub patch: u16,
 }
 
 impl Version {
-    pub(crate) fn parse(input: &str) -> Option<Self> {
+    pub fn parse(input: &str) -> Option<Self> {
         let chunks: Vec<u16> = input
             .split('.')
             .filter_map(|v| {
@@ -45,11 +45,11 @@ impl Version {
         }
     }
 
-    pub(crate) fn new(major: u16, minor: u16, patch: u16) -> Self {
+    pub fn new(major: u16, minor: u16, patch: u16) -> Self {
         Self { major, minor, patch }
     }
 
-    pub(crate) fn tag_name(&self) -> String {
+    pub fn tag_name(&self) -> String {
         format!("v{}", self)
     }
 }
@@ -87,29 +87,20 @@ impl PartialOrd for Version {
 ///
 /// In this case the dependencies returned would be [json >= 1.0, http >= 1.2].
 ///
-/// Unlike Go and Futhark, we don't allow different major versions of the same
-/// package. This simplifies how imports are handled, and prevents subtle bugs
-/// where data from different major versions of a package is passed between
-/// those versions. When such a conflict is encountered, the return type is an
-/// `Err` wrapping the conflicting package.
-///
 /// For more information, refer to the following links:
 ///
 /// - https://research.swtch.com/vgo-mvs
 /// - https://github.com/diku-dk/futhark/blob/master/src/Futhark/Pkg/Solve.hs
 /// - https://github.com/diku-dk/smlpkg/blob/master/src/solve/solve.sml
-pub(crate) fn select<'a>(
+pub fn select<'a>(
     dependencies: impl Iterator<Item = &'a Dependency>,
-) -> Result<Vec<(Url, Version)>, Url> {
-    let mut versions: HashMap<&Url, &Version> = HashMap::new();
+) -> Vec<(Url, Version)> {
+    let mut versions: HashMap<(&Url, u16), &Version> = HashMap::new();
 
     for dep in dependencies {
-        let key = &dep.url;
+        let key = (&dep.url, dep.version.major);
 
         match versions.get(&key) {
-            Some(version) if dep.version.major != version.major => {
-                return Err(dep.url.clone());
-            }
             Some(version) if &dep.version > version => {
                 versions.insert(key, &dep.version);
             }
@@ -120,12 +111,10 @@ pub(crate) fn select<'a>(
         }
     }
 
-    let selected = versions
+    versions
         .into_iter()
-        .map(|(uri, ver)| (uri.clone(), ver.clone()))
-        .collect();
-
-    Ok(selected)
+        .map(|((uri, _), ver)| (uri.clone(), ver.clone()))
+        .collect()
 }
 
 #[cfg(test)]
@@ -200,26 +189,25 @@ mod tests {
             [
                 Dependency {
                     url: Url::new("https://gitlab.com/foo/bar"),
+                    name: "bar".to_string(),
                     version: Version::new(1, 2, 3),
                     checksum: Checksum::new("a"),
                 },
                 Dependency {
                     url: Url::new("https://gitlab.com/foo/bar"),
+                    name: "bar".to_string(),
                     version: Version::new(1, 2, 5),
                     checksum: Checksum::new("a"),
                 },
                 Dependency {
                     url: Url::new("https://gitlab.com/foo/json"),
+                    name: "json".to_string(),
                     version: Version::new(0, 1, 2),
                     checksum: Checksum::new("a"),
                 },
             ]
             .iter(),
         );
-
-        assert!(versions.is_ok());
-
-        let versions = versions.unwrap();
 
         assert_eq!(versions.len(), 2);
         assert!(versions.contains(&(
@@ -233,23 +221,33 @@ mod tests {
     }
 
     #[test]
-    fn test_select_invalid() {
+    fn test_select_multiple_major_versions() {
         let versions = select(
             [
                 Dependency {
                     url: Url::new("https://gitlab.com/foo/bar"),
+                    name: "bar".to_string(),
                     version: Version::new(1, 2, 3),
                     checksum: Checksum::new("a"),
                 },
                 Dependency {
                     url: Url::new("https://gitlab.com/foo/bar"),
-                    version: Version::new(2, 2, 0),
+                    name: "bar".to_string(),
+                    version: Version::new(2, 0, 0),
                     checksum: Checksum::new("a"),
                 },
             ]
             .iter(),
         );
 
-        assert_eq!(versions, Err(Url::new("https://gitlab.com/foo/bar")));
+        assert_eq!(versions.len(), 2);
+        assert!(versions.contains(&(
+            Url::new("https://gitlab.com/foo/bar"),
+            Version::new(1, 2, 3),
+        )));
+        assert!(versions.contains(&(
+            Url::new("https://gitlab.com/foo/bar"),
+            Version::new(2, 0, 0),
+        )));
     }
 }

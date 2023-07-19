@@ -64,7 +64,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     }
 
     for path in matches.opt_strs("i") {
-        config.sources.add(path.into());
+        config.sources.push(path.into());
     }
 
     if matches.opt_present("static") {

@@ -6,7 +6,7 @@ mod update;
 
 use crate::error::Error;
 use crate::options::print_usage;
-use getopts::Options;
+use getopts::{Options, ParsingStyle};
 
 const USAGE: &str = "inko pkg [OPTIONS] [COMMAND]
 
@@ -28,6 +28,7 @@ Examples:
 pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     let mut options = Options::new();
 
+    options.parsing_style(ParsingStyle::StopAtFirstFree);
     options.optflag("h", "help", "Show this help message");
 
     let matches = options.parse(arguments)?;

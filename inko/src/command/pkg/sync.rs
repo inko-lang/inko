@@ -1,22 +1,19 @@
 use crate::error::Error;
 use crate::options::print_usage;
 use crate::pkg::git::Repository;
-use crate::pkg::manifest::{Dependency, Manifest, Url, MANIFEST_FILE};
 use crate::pkg::util::{cp_r, data_dir};
-use crate::pkg::version::{select, Version};
 use compiler::config::Config;
+use compiler::pkg::manifest::{Dependency, Manifest, Url, MANIFEST_FILE};
+use compiler::pkg::version::{select, Version};
 use getopts::Options;
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::fs::remove_dir_all;
+use std::fs::{copy, remove_dir_all};
 use std::path::Path;
 
 /// The name of the directory to copy source files from and into the ./dep
 /// directory.
 const SRC_DIR: &str = "src";
-
-/// The dependant string to use for the root project.
-const ROOT_DEPENDANT: &str = "Your project";
 
 const USAGE: &str = "inko pkg sync [OPTIONS]
 
@@ -27,14 +24,7 @@ Examples:
 
     inko pkg sync";
 
-#[derive(Clone)]
-enum Dependant {
-    Project,
-    Package(Url),
-}
-
 struct Package {
-    dependant: Dependant,
     repository: Repository,
     dependency: Dependency,
 }
@@ -55,7 +45,7 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
 
     let config = Config::default();
     let packages = download_packages()?;
-    let versions = select_versions(&packages)?;
+    let versions = select(packages.iter().map(|p| &p.dependency));
 
     remove_dependencies(&config.dependencies)?;
     println!("Installing");
@@ -65,12 +55,11 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
 
 fn download_packages() -> Result<Vec<Package>, Error> {
     let data_dir = data_dir()?;
-    let mut manifests =
-        vec![(Dependant::Project, Manifest::load(&MANIFEST_FILE)?)];
+    let mut manifests = vec![Manifest::load(&MANIFEST_FILE)?];
     let mut packages = Vec::new();
     let mut downloaded = HashSet::new();
 
-    while let Some((dependant, manifest)) = manifests.pop() {
+    while let Some(manifest) = manifests.pop() {
         for dep in manifest.into_dependencies() {
             let key = (dep.url.clone(), dep.version.clone());
 
@@ -80,12 +69,9 @@ fn download_packages() -> Result<Vec<Package>, Error> {
                 downloaded.insert(key);
             }
 
-            match download_dependency(&data_dir, dependant.clone(), dep)? {
+            match download_dependency(&data_dir, dep)? {
                 (package, Some(manifest)) => {
-                    let dependant =
-                        Dependant::Package(package.dependency.url.clone());
-
-                    manifests.push((dependant, manifest));
+                    manifests.push(manifest);
                     packages.push(package);
                 }
                 (package, None) => packages.push(package),
@@ -98,7 +84,6 @@ fn download_packages() -> Result<Vec<Package>, Error> {
 
 fn download_dependency(
     cache_dir: &Path,
-    dependant: Dependant,
     dependency: Dependency,
 ) -> Result<(Package, Option<Manifest>), Error> {
     let dir = cache_dir.join(dependency.url.directory_name());
@@ -159,7 +144,7 @@ changes.",
         );
     }
 
-    let package = Package { dependant, repository: repo, dependency };
+    let package = Package { repository: repo, dependency };
     let manifest_path = dir.join(MANIFEST_FILE);
 
     if manifest_path.is_file() {
@@ -167,13 +152,6 @@ changes.",
     } else {
         Ok((package, None))
     }
-}
-
-fn select_versions(
-    packages: &[Package],
-) -> Result<Vec<(Url, Version)>, String> {
-    select(packages.iter().map(|p| &p.dependency))
-        .map_err(|url| conflicting_versions_error(url, packages))
 }
 
 fn remove_dependencies(directory: &Path) -> Result<(), String> {
@@ -209,47 +187,19 @@ fn install_packages(
             format!("Failed to check out {}: {}", tag_name, err)
         })?;
 
-        cp_r(&repo.path.join(SRC_DIR), directory)?;
+        let base_dir = directory
+            .join(url.directory_name())
+            .join(&format!("v{}", ver.major));
+
+        let manifest_src = repo.path.join(MANIFEST_FILE);
+
+        cp_r(&repo.path.join(SRC_DIR), &base_dir.join(SRC_DIR))?;
+
+        if manifest_src.is_file() {
+            copy(&manifest_src, &base_dir.join(MANIFEST_FILE))
+                .map_err(|e| format!("Failed to copy inko.pkg: {}", e))?;
+        }
     }
 
     Ok(())
-}
-
-fn conflicting_versions_error(url: Url, packages: &[Package]) -> String {
-    let reqs: Vec<_> = packages
-        .iter()
-        .filter_map(|pkg| {
-            if pkg.dependency.url == url {
-                let dependant = match &pkg.dependant {
-                    Dependant::Project => ROOT_DEPENDANT.to_string(),
-                    Dependant::Package(url) => url.to_string(),
-                };
-
-                Some(format!(
-                    "{} requires:\n    >= {}, < {}.0.0",
-                    dependant,
-                    pkg.dependency.version,
-                    pkg.dependency.version.major + 1
-                ))
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    format!(
-        "\
-The dependency graph contains conflicting major version requirements for the \
-package {}.
-
-These conflicting requirements are as follows:
-
-  {}
-
-To resolve these conflicts, you need to ensure all version requirements for \
-package {} require the same major version.",
-        url,
-        reqs.join("\n\n  "),
-        url
-    )
 }

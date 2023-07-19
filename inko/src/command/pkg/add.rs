@@ -1,9 +1,9 @@
 use crate::error::Error;
 use crate::options::print_usage;
 use crate::pkg::git::Repository;
-use crate::pkg::manifest::{Checksum, Manifest, Url, MANIFEST_FILE};
 use crate::pkg::util::data_dir;
-use crate::pkg::version::Version;
+use compiler::pkg::manifest::{Checksum, Manifest, Url, MANIFEST_FILE};
+use compiler::pkg::version::Version;
 use getopts::Options;
 
 const USAGE: &str = "inko pkg add [OPTIONS] [URL] [VERSION]
@@ -39,6 +39,7 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
         || Error::generic("The package URL is invalid".to_string()),
     )?;
 
+    let name = url.import_name();
     let version =
         matches.free.get(1).and_then(|uri| Version::parse(uri)).ok_or_else(
             || Error::generic("The package version is invalid".to_string()),
@@ -77,7 +78,7 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
         existing.version = version;
         existing.checksum = checksum;
     } else {
-        manifest.add_dependency(url, version, checksum);
+        manifest.add_dependency(url, name, version, checksum);
     }
 
     manifest.save(&MANIFEST_FILE)?;
