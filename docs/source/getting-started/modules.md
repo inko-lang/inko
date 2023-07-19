@@ -210,3 +210,15 @@ inko pkg update --major
 To publish your package, push it to a Git host and add a Git tag with the
 version number, prefixed by `v`. For example, if you are releasing 3.8.5, use
 `git tag v3.8.5`. Don't forget to push the tag with `git push --tags`.
+
+When naming your package repository, you can prefix the name with `inko-` (e.g.
+`inko-http`). This way it's clear the repository is an Inko package, and you
+don't have to worry about the repository name conflicting with existing
+repositories. When importing the main library module, the compiler strips the
+`inko-` prefix. Thus, if the package `inko-http` provides `src/http.inko`, you
+can import it using `import http`.
+
+!!! note
+    Package names should be restricted to letters, numbers and underscores, with
+    an optional `inko-` prefix. If the name includes other characters (e.g. a
+    hyphen), you won't be able to import it.

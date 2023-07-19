@@ -21,6 +21,9 @@ creating a library for interacting with [SQLite](https://sqlite.org/index.html),
 you should place the main module at `src/sqlite.inko`. This way users can import
 it using `import sqlite` when adding your library as a dependency.
 
+If you need to introduce additional modules, place them in a directory in `src`,
+named after the library (e.g. `src/sqlite/statement.inko`).
+
 ## Executables
 
 For executables, the main module must be placed at `src/main.inko`. When running
