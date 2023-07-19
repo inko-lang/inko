@@ -21,7 +21,7 @@
 import std::cmp::(Contains, Compare, Equal, min)
 import std::fmt::(Format, Formatter)
 import std::hash::(Hash, Hasher)
-import std::iter::(Enum, Iter)
+import std::iter::(Stream, Iter)
 
 # A range of integers.
 trait pub Range: Contains[Int] + Hash + Format {
@@ -38,7 +38,7 @@ trait pub Range: Contains[Int] + Hash + Format {
   #
   # If the number of values in `self` can't be evenly divided by `amount`, the
   # last range is shorter.
-  fn pub step_by(amount: Int) -> Enum[Range]
+  fn pub step_by(amount: Int) -> Stream[Range]
 
   # Returns the number of values in this range.
   fn pub size -> Int
@@ -74,11 +74,11 @@ impl Range for InclusiveRange {
     true
   }
 
-  fn pub step_by(amount: Int) -> Enum[InclusiveRange] {
+  fn pub step_by(amount: Int) -> Stream[InclusiveRange] {
     let mut current = @start
     let max = @end
 
-    Enum.new fn move {
+    Stream.new fn move {
       if current > max { return Option.None }
 
       let end = min(current + amount - 1, max)
@@ -93,11 +93,11 @@ impl Range for InclusiveRange {
     if @end >= @start { @end - @start + 1 } else { 0 }
   }
 
-  fn pub iter -> Enum[Int] {
+  fn pub iter -> Stream[Int] {
     let mut current = @start
     let end = @end
 
-    Enum.new fn move {
+    Stream.new fn move {
       if current <= end {
         Option.Some(current := current + 1)
       } else {
@@ -180,11 +180,11 @@ impl Range for ExclusiveRange {
     false
   }
 
-  fn pub step_by(amount: Int) -> Enum[ExclusiveRange] {
+  fn pub step_by(amount: Int) -> Stream[ExclusiveRange] {
     let mut current = @start
     let max = @end
 
-    Enum.new fn move {
+    Stream.new fn move {
       if current >= max { return Option.None }
 
       let end = min(current + amount - 1, end)
@@ -199,11 +199,11 @@ impl Range for ExclusiveRange {
     if @end >= @start { @end - @start } else { 0 }
   }
 
-  fn pub iter -> Enum[Int] {
+  fn pub iter -> Stream[Int] {
     let mut current = @start
     let end = @end
 
-    Enum.new fn move {
+    Stream.new fn move {
       if current < end {
         Option.Some(current := current + 1)
       } else {

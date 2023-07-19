@@ -6,7 +6,7 @@ import std::drop::Drop
 import std::fmt::(Format, Formatter)
 import std::hash::(Hash, Hasher)
 import std::io::Read
-import std::iter::(Bytes as BytesTrait, EOF, Enum, Iter)
+import std::iter::(Bytes as BytesTrait, EOF, Stream, Iter)
 import std::option::Option
 import std::string::(IntoString, ToString)
 

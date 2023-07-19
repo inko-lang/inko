@@ -1,10 +1,10 @@
 # A hash map using linear probing and Robin Hood entry stealing.
+import std::array::IntoIter
 import std::cmp::(Contains, Equal)
 import std::fmt::(Format, Formatter)
 import std::hash::(Hash, Hasher)
 import std::hash::siphash::SipHasher13
-import std::iter::Iter
-import std::process::(panic)
+import std::iter::Stream
 
 fn resize_threshold(size: Int) -> Int {
   # This produces a threshold of 90%, without the need to allocate floats.
@@ -201,7 +201,7 @@ class pub Map[K: Hash + Equal[K], V] {
   #       entry.key   # => 'name'
   #       entry.value # => 'Alice'
   #     }
-  fn pub iter -> Iter[ref Entry[K, V]] {
+  fn pub iter -> Stream[ref Entry[K, V]] {
     @entries.iter
   }
 
@@ -219,7 +219,7 @@ class pub Map[K: Hash + Equal[K], V] {
   #       entry.key   # => 'name'
   #       entry.value # => 'Alice'
   #     }
-  fn pub mut iter_mut -> Iter[mut Entry[K, V]] {
+  fn pub mut iter_mut -> Stream[mut Entry[K, V]] {
     @entries.iter_mut
   }
 
@@ -236,7 +236,7 @@ class pub Map[K: Hash + Equal[K], V] {
   #       e.key   # => 'name'
   #       e.value # => 'Alice'
   #     }
-  fn pub move into_iter -> Iter[Entry[K, V]] {
+  fn pub move into_iter -> IntoIter[Entry[K, V]] {
     @entries.into_iter
   }
 
@@ -253,7 +253,7 @@ class pub Map[K: Hash + Equal[K], V] {
   #     map.keys.each fn (key) {
   #       key # => 'name'
   #     }
-  fn pub keys -> Iter[ref K] {
+  fn pub keys -> Stream[ref K] {
     iter.map fn (e) { e.key }
   }
 
@@ -271,7 +271,7 @@ class pub Map[K: Hash + Equal[K], V] {
   #     map.values.each fn (value) {
   #       value # => 'Alice'
   #     }
-  fn pub values -> Iter[ref V] {
+  fn pub values -> Stream[ref V] {
     iter.map fn (e) { e.value }
   }
 
@@ -571,7 +571,7 @@ impl Map if V: mut {
   #     map.values_mut.each fn (value) {
   #       value # => 'Alice'
   #     }
-  fn pub mut values_mut -> Iter[mut V] {
+  fn pub mut values_mut -> Stream[mut V] {
     iter_mut.map fn (e) { e.value }
   }
 }

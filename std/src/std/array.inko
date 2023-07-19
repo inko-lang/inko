@@ -4,7 +4,7 @@ import std::cmp::(Compare, Contains, Equal, Ordering, min)
 import std::drop::Drop
 import std::fmt::(Format, Formatter)
 import std::hash::(Hash, Hasher)
-import std::iter::(Enum, Iter)
+import std::iter::(Stream, Iter)
 import std::option::Option
 import std::rand::Shuffle
 import std::libc::unix::alloc::(self as alloc_imp) if unix
@@ -343,8 +343,13 @@ class builtin Array[T] {
 
   # Returns an iterator that yields immutable references to the values in
   # `self`.
-  fn pub iter -> Iter[ref T] {
-    Enum.indexed(@size) fn (index) { get(index) }
+  fn pub iter -> Stream[ref T] {
+    let mut idx = 0
+    let max = @size
+
+    Stream.new fn move {
+      if idx < max { Option.Some(get(idx := idx + 1)) } else { Option.None }
+    }
   }
 
   # Returns an `Iter` that iterates over all values in `self`, returning them
@@ -377,10 +382,10 @@ class builtin Array[T] {
   #     iter.next # => Option.Some(20)
   #     iter.next # => Option.Some(10)
   #     iter.next # => Option.None
-  fn pub reverse_iter -> Iter[ref T] {
+  fn pub reverse_iter -> Stream[ref T] {
     let mut index = size - 1
 
-    Enum.new fn move {
+    Stream.new fn move {
       if index > -1 {
         Option.Some(get(index := index - 1))
       } else {
@@ -547,8 +552,13 @@ impl Array if T: mut {
   }
 
   # Returns an iterator that yields mutable references to the values in `self`.
-  fn pub mut iter_mut -> Iter[mut T] {
-    Enum.indexed(@size) fn (index) { get_mut(index) }
+  fn pub mut iter_mut -> Stream[mut T] {
+    let mut idx = 0
+    let max = @size
+
+    Stream.new fn move {
+      if idx < max { Option.Some(get_mut(idx := idx + 1)) } else { Option.None }
+    }
   }
 
   fn mut get_unchecked_mut(index: Int) -> mut T {

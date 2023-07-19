@@ -1,4 +1,4 @@
-import std::iter::Enum
+import std::iter::Stream
 import std::test::Tests
 
 fn pub tests(t: mut Tests) {
@@ -149,14 +149,13 @@ fn pub tests(t: mut Tests) {
     t.equal([10, 20, 30].iter.last, Option.Some(30))
   }
 
-  t.test('Enum.once') fn (t) {
-    t.equal(Enum.once(42).to_array, [42])
-  }
+  t.test('Stream.new') fn (t) {
+    let mut idx = 0
+    let iter = Stream.new fn move {
+      if idx == 0 { Option.Some(idx := idx + 1) } else { Option.None }
+    }
 
-  t.test('Enum.indexed') fn (t) {
-    let vals = [10, 20, 30]
-    let iter = Enum.indexed(vals.size) fn (index) { vals.get(index) }
-
-    t.equal(iter.to_array, [mut 10, mut 20, mut 30])
+    t.equal(iter.next, Option.Some(0))
+    t.equal(iter.next, Option.None)
   }
 }

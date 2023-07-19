@@ -10,7 +10,6 @@
 import std::clone::Clone
 import std::cmp::Equal
 import std::fmt::(Format, Formatter)
-import std::process::(panic)
 
 # An optional value.
 #

@@ -19,7 +19,7 @@
 # generators.
 #
 # Inko uses external iteration. To make it easier to write such iterators, it
-# provides the `Enum` type, which can create iterators from a closure.
+# provides the `Stream` type, which can create iterators from a closure.
 import std::cmp::Equal
 import std::option::Option
 import std::string::(ToString, StringBuffer)
@@ -35,7 +35,7 @@ trait pub Iter[T] {
   # be returned.
   fn pub mut next -> Option[T]
 
-  # Calls the block for every value in `self`.
+  # Calls the closure for every value in `self`.
   #
   # # Examples
   #
@@ -45,17 +45,17 @@ trait pub Iter[T] {
   #     iter.each fn (num) {
   #       num # => 10, 20, 30
   #     }
-  fn pub move each(block: fn (T)) {
+  fn pub move each(func: fn (T)) {
     loop {
       match self.next {
-        case Some(v) -> block.call(v)
+        case Some(v) -> func.call(v)
         case _ -> return
       }
     }
   }
 
-  # Calls the block for every value in `self`, passing an index and the value to
-  # the block.
+  # Calls the closure for every value in `self`, passing an index and the value
+  # to the closure.
   #
   # # Examples
   #
@@ -66,10 +66,10 @@ trait pub Iter[T] {
   #       index # => 0, 1, 2
   #       num   # => 10, 20, 30
   #     }
-  fn pub move each_with_index(block: fn (Int, T)) {
+  fn pub move each_with_index(func: fn (Int, T)) {
     with_index.each fn move (pair) {
       match pair {
-        case (index, value) -> block.call(index, value)
+        case (index, value) -> func.call(index, value)
       }
     }
   }
@@ -82,7 +82,7 @@ trait pub Iter[T] {
   #
   #     iter.next # => Option.Some((0, 10))
   #     iter.next # => Option.Some((1, 20))
-  fn pub move with_index -> Iter[(Int, T)] {
+  fn pub move with_index -> Stream[(Int, T)] {
     let mut index = 0
 
     map fn move (val) { (index := index + 1, val) }
@@ -98,9 +98,9 @@ trait pub Iter[T] {
   #     let values = [1, 2, 3]
   #
   #     values.iter.map fn (n) { n * 2 }.to_array # => [2, 4, 6]
-  fn pub move map[R](block: fn (T) -> R) -> Iter[R] {
-    Enum.new fn move {
-      self.next.map fn (v) { block.call(v) }
+  fn pub move map[R](func: fn (T) -> R) -> Stream[R] {
+    Stream.new fn move {
+      self.next.map fn (v) { func.call(v) }
     }
   }
 
@@ -116,10 +116,10 @@ trait pub Iter[T] {
   #     let numbers = [10, 20, 50, 80]
   #
   #     numbers.iter.find fn (number) { number > 50 } # => 80
-  fn pub mut find(block: fn (ref T) -> Bool) -> Option[T] {
+  fn pub mut find(func: fn (ref T) -> Bool) -> Option[T] {
     loop {
       match self.next {
-        case Some(v) -> if block.call(v) { return Option.Some(v) }
+        case Some(v) -> if func.call(v) { return Option.Some(v) }
         case _ -> return Option.None
       }
     }
@@ -138,10 +138,10 @@ trait pub Iter[T] {
   #     }
   #
   #     val # => Option.Some('20')
-  fn pub mut find_map[R](block: fn (T) -> Option[R]) -> Option[R] {
+  fn pub mut find_map[R](func: fn (T) -> Option[R]) -> Option[R] {
     loop {
       match self.next {
-        case Some(v) -> match block.call(v) {
+        case Some(v) -> match func.call(v) {
           case Some(r) -> return Option.Some(r)
           case _ -> {}
         }
@@ -150,7 +150,7 @@ trait pub Iter[T] {
     }
   }
 
-  # Returns `True` if `self` contains any value for which the `block` argument
+  # Returns `True` if `self` contains any value for which the `func` argument
   # returned `True`.
   #
   # This method stops iterating over the values after the first matching value.
@@ -160,16 +160,16 @@ trait pub Iter[T] {
   # Checking if an `Iter` contains a value:
   #
   #     [10, 20, 30].iter.any? fn (value) { value >= 20 } # => True
-  fn pub mut any?(block: fn (T) -> Bool) -> Bool {
+  fn pub mut any?(func: fn (T) -> Bool) -> Bool {
     loop {
       match self.next {
-        case Some(v) -> if block.call(v) { return true }
+        case Some(v) -> if func.call(v) { return true }
         case _ -> return false
       }
     }
   }
 
-  # Returns an `Iter` that only produces values for which the supplied block
+  # Returns an `Iter` that only produces values for which the supplied func
   # returned `True`.
   #
   # # Examples
@@ -180,11 +180,11 @@ trait pub Iter[T] {
   #       .iter
   #       .select fn (value) { value > 10 }
   #       .to_array # => [20, 30]
-  fn pub move select(block: fn (ref T) -> Bool) -> Iter[T] {
-    Enum.new fn move {
+  fn pub move select(func: fn (ref T) -> Bool) -> Stream[T] {
+    Stream.new fn move {
       loop {
         match self.next {
-          case Some(v) -> if block.call(v) { return Option.Some(v) }
+          case Some(v) -> if func.call(v) { return Option.Some(v) }
           case _ -> return Option.None
         }
       }
@@ -193,7 +193,7 @@ trait pub Iter[T] {
 
   # Returns an `Iter` that both filters and maps at the same time.
   #
-  # The new iterator yields the values for which the provided block returned a
+  # The new iterator yields the values for which the provided func returned a
   # `Some` value.
   #
   # # Examples
@@ -204,11 +204,11 @@ trait pub Iter[T] {
   #     iter.next # => Option.Some(10)
   #     iter.next # => Option.Some(30)
   #     iter.next # => Option.None
-  fn pub move select_map[R](block: fn (T) -> Option[R]) -> Iter[R] {
-    Enum.new fn move {
+  fn pub move select_map[R](func: fn (T) -> Option[R]) -> Stream[R] {
+    Stream.new fn move {
       loop {
         match self.next {
-          case Some(v) -> match block.call(v) {
+          case Some(v) -> match func.call(v) {
             case Some(r) -> return Option.Some(r)
             case _ -> next
           }
@@ -221,8 +221,8 @@ trait pub Iter[T] {
   # Partitions the `Iter` into a tuple of two `Array` objects.
   #
   # The first value of the tuple contains all values for which the supplied
-  # block returned `True`. The second value contains all values for which the
-  # block returned `False`.
+  # func returned `True`. The second value contains all values for which the
+  # func returned `False`.
   #
   # # Examples
   #
@@ -233,19 +233,19 @@ trait pub Iter[T] {
   #
   #     pair.0 # => [30, 40, 50]
   #     pair.1 # => [10, 20]
-  fn pub move partition(block: fn (ref T) -> Bool) -> (Array[T], Array[T]) {
+  fn pub move partition(func: fn (ref T) -> Bool) -> (Array[T], Array[T]) {
     reduce(([], [])) fn move (acc, val) {
-      if block.call(ref val) { acc.0.push(val) } else { acc.1.push(val) }
+      if func.call(ref val) { acc.0.push(val) } else { acc.1.push(val) }
 
       acc
     }
   }
 
-  # Returns `True` if the supplied block returns `True` for _all_ values in
+  # Returns `True` if the supplied func returns `True` for _all_ values in
   # `self`.
   #
   # This method stops iterating over the values after the first value for which
-  # the block returns `False`.
+  # the closure returns `False`.
   #
   # # Examples
   #
@@ -253,10 +253,10 @@ trait pub Iter[T] {
   #
   #     [10, 20].iter.all? fn (value) { value.positive? } # => True
   #     [-1, 20].iter.all? fn (value) { value.positive? } # => False
-  fn pub mut all?(block: fn (T) -> Bool) -> Bool {
+  fn pub mut all?(func: fn (T) -> Bool) -> Bool {
     loop {
       match self.next {
-        case Some(v) -> if block.call(v).false? { return false }
+        case Some(v) -> if func.call(v).false? { return false }
         case _ -> return true
       }
     }
@@ -285,8 +285,8 @@ trait pub Iter[T] {
   #     let zip = a.iter.zip(b.iter)
   #
   #     zip.next # => (10, 40)
-  fn pub move zip[U](other: Iter[U]) -> Iter[(T, U)] {
-    Enum.new fn move { self.next.zip(other.next) }
+  fn pub move zip[U](other: Iter[U]) -> Stream[(T, U)] {
+    Stream.new fn move { self.next.zip(other.next) }
   }
 
   # Combines all values in the iterator into the specified accumulator.
@@ -294,10 +294,10 @@ trait pub Iter[T] {
   # This method takes two arguments:
   #
   # 1. An accumulator to combine all values into.
-  # 2. A block that accepts two arguments: the accumulator and the current
+  # 2. A func that accepts two arguments: the accumulator and the current
   #    value.
   #
-  # The block returns the accumulator to return for the next value. The return
+  # The func returns the accumulator to return for the next value. The return
   # value of this method is the final accumulator.
   #
   # This method is called `inject` or `fold` in other languages.
@@ -312,7 +312,7 @@ trait pub Iter[T] {
   #
   #     total # => 6
   #
-  # At each step of the iteration, the `total` and `current` block arguments are
+  # At each step of the iteration, the `total` and `current` func arguments are
   # set to the following values:
   #
   # | Element | total | current | return value
@@ -323,12 +323,12 @@ trait pub Iter[T] {
   #
   # For the last element the return value is `6`, so the return value of the
   # reduce method is also `6`.
-  fn pub move reduce[A](accumulator: A, block: fn (A, T) -> A) -> A {
+  fn pub move reduce[A](accumulator: A, func: fn (A, T) -> A) -> A {
     let mut result = accumulator
 
     loop {
       match self.next {
-        case Some(v) -> result = block.call(result, v)
+        case Some(v) -> result = func.call(result, v)
         case _ -> return result
       }
     }
@@ -339,8 +339,8 @@ trait pub Iter[T] {
   # Each chunk is up to the amount specified by the `size` argument. If the
   # number of values can't be evenly divided, the last chunk may contain fewer
   # than `size` elements.
-  fn pub move chunks(size: Int) -> Iter[Array[T]] {
-    Enum.new fn move {
+  fn pub move chunks(size: Int) -> Stream[Array[T]] {
+    Stream.new fn move {
       let chunk = []
 
       while chunk.size < size {
@@ -397,20 +397,20 @@ trait pub IntoIter[T] {
   fn pub move into_iter -> Iter[T]
 }
 
-# A type for easily creating iterators using blocks.
+# A type for easily creating iterators using closures.
 #
-# `Enum` wraps a block that feeds the iterator the next value. This allows
-# for stateful iterators, without having to define explicit iterator types and
-# implementing the `Iter` trait for these types.
+# A `Stream` wraps a closure that feeds it values, which are then returned by
+# the implementation of `Iter.next`. This makes it easy to create custom
+# iterators, without unnecessary boilerplate.
 #
 # # Examples
 #
-#     import std::iter::(Iter, Enum)
+#     import std::iter::Stream
 #
-#     fn example(max: Int) -> Iter[Int] {
+#     fn example(max: Int) -> Stream[Int] {
 #       let mut index = 0
 #
-#       Enum.new fn move {
+#       Stream.new fn move {
 #         if index < max {
 #           Option.Some(index := index + 1)
 #         } else {
@@ -425,67 +425,18 @@ trait pub IntoIter[T] {
 #       nums.next # => Option.Some(0)
 #       nums.next # => Option.Some(1)
 #     }
-class pub Enum[T] {
-  let @block: fn -> Option[T]
+class pub Stream[T] {
+  let @func: fn -> Option[T]
 
-  # Returns a new iterator using the block.
-  fn pub static new(block: fn -> Option[T]) -> Enum[T] {
-    Enum { @block = block }
-  }
-
-  # Returns an iterator that produces the given value once.
-  #
-  # # Examples
-  #
-  #     import std::iter::Enum
-  #
-  #     let vals = Enum.once(42)
-  #
-  #     vals.next # => Option.Some(42)
-  #     vals.next # => Option.None
-  fn pub static once(value: T) -> Enum[T] {
-    let mut val = Option.Some(value)
-
-    Enum { @block = fn move { val := Option.None } }
-  }
-
-  # Returns an iterator that iterates from zero up to (but not including) the
-  # given limit.
-  #
-  # For each index in the range, the supplied block is called and passed the
-  # current index. The return value of the closure is wrapped in a Some. The
-  # iterator terminates when reaching the limit.
-  #
-  # Using this method once can easily create iterators over sequential values
-  # such as `Array`, without having to manually increment indexes.
-  #
-  # # Examples
-  #
-  #     import std::iter::Enum
-  #
-  #     let vals = [10, 20]
-  #     let iter = Enum.indexed(vals.size) fn (index) { vals[index] }
-  #
-  #     iter.next #=> Option.Some(10)
-  #     iter.next #=> Option.Some(20)
-  #     iter.next #=> Option.None
-  fn pub static indexed(limit: Int, block: fn (Int) -> T) -> Enum[T] {
-    let mut index = 0
-    let wrapper = fn move {
-      if index < limit {
-        Option.Some(block.call(index := index + 1))
-      } else {
-        Option.None
-      }
-    }
-
-    Enum { @block = wrapper }
+  # Returns a new iterator using the closure.
+  fn pub static new(func: fn -> Option[T]) -> Stream[T] {
+    Stream { @func = func }
   }
 }
 
-impl Iter[T] for Enum {
+impl Iter[T] for Stream {
   fn pub mut next -> Option[T] {
-    @block.call
+    @func.call
   }
 }
 

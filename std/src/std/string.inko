@@ -14,7 +14,7 @@ import std::fmt::(Format, Formatter)
 import std::fs::path::(IntoPath, Path, ToPath)
 import std::hash::(Hash, Hasher)
 import std::io::Read
-import std::iter::(Bytes as BytesTrait, EOF, Enum, Iter)
+import std::iter::(Bytes as BytesTrait, EOF, Stream, Iter)
 import std::ops::Add
 
 class extern StringResult {
@@ -354,10 +354,10 @@ class builtin String {
   #
   #     iter.next # => Option.Some('foo')
   #     iter.next # => Option.Some('bar')
-  fn pub split(separator: String) -> Enum[String] {
+  fn pub split(separator: String) -> Stream[String] {
     let mut offset = 0
 
-    Enum.new fn move {
+    Stream.new fn move {
       match byte_index(of: separator, starting_at: offset) {
         case Some(at) -> {
           let start = offset := at + separator.size
