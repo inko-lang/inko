@@ -1,8 +1,8 @@
-import helpers::(fmt, hash)
-import std::cmp::Ordering
-import std::hash::Hasher
-import std::int::(MAX as INT_MAX)
-import std::test::Tests
+import helpers.(fmt, hash)
+import std.cmp.Ordering
+import std.hash.Hasher
+import std.int.(MAX as INT_MAX)
+import std.test.Tests
 
 let NAN = 0.0 / 0.0
 

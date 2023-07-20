@@ -131,7 +131,7 @@ trait must implement the required methods, and is automatically given a copy of
 the default methods; unless the class overrides the implementation. Traits may
 also list other traits a class must implement.
 
-A simple example of a trait is `std::string::ToString`, defined as follows:
+A simple example of a trait is `std.string.ToString`, defined as follows:
 
 ```inko
 trait pub ToString {
@@ -144,7 +144,7 @@ compatible with the one of the trait. Here's what such an implementation might
 look like:
 
 ```inko
-import std::string::ToString
+import std.string.ToString
 
 class Person {
   let @name: String
@@ -225,7 +225,7 @@ The `Int` class is used for integers. Integers are 64 bits signed integers.
 ### Map
 
 `Map` is a hash map and can store key-value pairs of any type, as long as the
-keys implement the traits `std::hash::Hash` and `std::cmp::Equal`.
+keys implement the traits `std.hash.Hash` and `std.cmp.Equal`.
 
 ### Nil
 
@@ -301,7 +301,7 @@ When defining type parameters, you can specify a set of traits that must be
 implemented for a type to be compatible with the type parameter. For example:
 
 ```inko
-import std::string::ToString
+import std.string.ToString
 
 class Container[T: ToString] {
   # ...
@@ -380,15 +380,15 @@ The prelude includes the following types and methods:
 
 | Symbol              | Source module
 |:--------------------|:------------------------------------------------------
-| `Array`             | `std::array`
-| `Boolean`           | `std::bool`
-| `ByteArray`         | `std::byte_array`
-| `Channel`           | `std::channel`
-| `Float`             | `std::float`
-| `Int`               | `std::int`
-| `Map`               | `std::map`
-| `Nil`               | `std::nil`
-| `Option`            | `std::option`
-| `Result`            | `std::result`
-| `String`            | `std::string`
-| `panic`             | `std::process`
+| `Array`             | `std.array`
+| `Boolean`           | `std.bool`
+| `ByteArray`         | `std.byte_array`
+| `Channel`           | `std.channel`
+| `Float`             | `std.float`
+| `Int`               | `std.int`
+| `Map`               | `std.map`
+| `Nil`               | `std.nil`
+| `Option`            | `std.option`
+| `Result`            | `std.result`
+| `String`            | `std.string`
+| `panic`             | `std.process`

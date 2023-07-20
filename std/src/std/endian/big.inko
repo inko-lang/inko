@@ -8,7 +8,7 @@
 #
 # # Examples
 #
-#     import std::endian::big
+#     import std.endian.big
 #
 #     let bytes = ByteArray.filled(with: 0, times: 4)
 #
@@ -26,7 +26,7 @@ fn pub write_u32(value: Int, into: mut ByteArray, at: Int) {
 #
 # # Examples
 #
-#     import std::endian::big
+#     import std.endian.big
 #
 #     let bytes = ByteArray.filled(with: 0, times: 8)
 #
@@ -52,7 +52,7 @@ fn pub write_i64(value: Int, into: mut ByteArray, at: Int) {
 #
 # # Examples
 #
-#     import std::endian::big
+#     import std.endian.big
 #
 #     let bytes = ByteArray.filled(with: 0, times: 4)
 #
@@ -74,7 +74,7 @@ fn pub read_u32(from: ref ByteArray, at: Int) -> Int {
 #
 # # Examples
 #
-#     import std::endian::big
+#     import std.endian.big
 #
 #     let bytes = ByteArray.filled(with: 0, times: 8)
 #

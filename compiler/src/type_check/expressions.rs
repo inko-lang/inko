@@ -1291,7 +1291,7 @@ impl<'a> CheckMethodBody<'a> {
             hir::Expression::BuiltinCall(ref mut n) => {
                 self.builtin_call(n, scope)
             }
-            hir::Expression::Call(ref mut n) => self.call(n, scope),
+            hir::Expression::Call(ref mut n) => self.call(n, scope, false),
             hir::Expression::Closure(ref mut n) => self.closure(n, None, scope),
             hir::Expression::ConstantRef(ref mut n) => {
                 self.constant(n, scope, false)
@@ -1419,7 +1419,7 @@ impl<'a> CheckMethodBody<'a> {
         for value in &mut node.values {
             match value {
                 hir::StringValue::Expression(v) => {
-                    let val = self.call(v, scope);
+                    let val = self.call(v, scope, false);
 
                     if val != TypeRef::Error && !val.is_string(self.db()) {
                         self.state.diagnostics.error(
@@ -2488,19 +2488,23 @@ impl<'a> CheckMethodBody<'a> {
         node.resolved_type
     }
 
+    /// Processes a regular reference to a constant (i.e. `FOO`).
+    ///
+    /// If a constant has a source/receiver (e.g. `stdio.STDOUT`), it's
+    /// processed as a method call, and not by this method, hence we ignore the
+    /// `source` field of the HIR node.
     fn constant(
         &mut self,
         node: &mut hir::ConstantRef,
-        scope: &LexicalScope,
+        scope: &mut LexicalScope,
         receiver: bool,
     ) -> TypeRef {
-        let name = &node.name;
         let module = self.module;
         let (rec, rec_id, rec_kind, method) = {
             let rec = scope.surrounding_type;
             let rec_id = rec.type_id(self.db()).unwrap();
 
-            match rec_id.lookup_method(self.db(), name, module, false) {
+            match rec_id.lookup_method(self.db(), &node.name, module, false) {
                 MethodLookup::Ok(method) => {
                     let rec_info =
                         Receiver::without_receiver(self.db(), method);
@@ -2508,51 +2512,42 @@ impl<'a> CheckMethodBody<'a> {
                     (rec, rec_id, rec_info, method)
                 }
                 MethodLookup::StaticOnInstance => {
-                    self.invalid_static_call(name, rec, &node.location);
+                    self.invalid_static_call(&node.name, rec, &node.location);
 
                     return TypeRef::Error;
                 }
                 MethodLookup::InstanceOnStatic => {
-                    self.invalid_instance_call(name, rec, &node.location);
+                    self.invalid_instance_call(&node.name, rec, &node.location);
 
                     return TypeRef::Error;
                 }
                 _ => {
-                    let symbol =
-                        self.lookup_constant(name, node.source.as_ref());
-
-                    match symbol {
-                        Ok(Some(Symbol::Constant(id))) => {
+                    match self.module.symbol(self.db(), &node.name) {
+                        Some(Symbol::Constant(id)) => {
                             node.resolved_type = id.value_type(self.db());
                             node.kind = ConstantKind::Constant(id);
 
                             return node.resolved_type;
                         }
-                        Ok(Some(Symbol::Class(id))) if receiver => {
-                            node.resolved_type =
-                                TypeRef::Owned(TypeId::Class(id));
-
-                            return node.resolved_type;
+                        Some(Symbol::Class(id)) if receiver => {
+                            return TypeRef::Owned(TypeId::Class(id));
                         }
-                        Ok(Some(Symbol::Class(_) | Symbol::Trait(_)))
+                        Some(Symbol::Class(_) | Symbol::Trait(_))
                             if !receiver =>
                         {
                             self.state.diagnostics.symbol_not_a_value(
-                                name,
+                                &node.name,
                                 self.file(),
                                 node.location.clone(),
                             );
 
                             return TypeRef::Error;
                         }
-                        Err(_) => {
-                            return TypeRef::Error;
-                        }
                         _ => {}
                     }
 
                     if let Some(Symbol::Method(method)) =
-                        module.symbol(self.db(), name)
+                        module.symbol(self.db(), &node.name)
                     {
                         let id = method.module(self.db());
 
@@ -2564,7 +2559,7 @@ impl<'a> CheckMethodBody<'a> {
                         )
                     } else {
                         self.state.diagnostics.undefined_symbol(
-                            name,
+                            &node.name,
                             self.file(),
                             node.location.clone(),
                         );
@@ -3399,6 +3394,7 @@ impl<'a> CheckMethodBody<'a> {
         &mut self,
         node: &mut hir::Call,
         scope: &mut LexicalScope,
+        as_receiver: bool,
     ) -> TypeRef {
         if let Some((rec, allow_type_private)) =
             node.receiver.as_mut().map(|r| self.call_receiver(r, scope))
@@ -3406,7 +3402,13 @@ impl<'a> CheckMethodBody<'a> {
             if let Some(closure) = rec.closure_id(self.db()) {
                 self.call_closure(rec, closure, node, scope)
             } else {
-                self.call_with_receiver(rec, node, scope, allow_type_private)
+                self.call_with_receiver(
+                    rec,
+                    node,
+                    scope,
+                    allow_type_private,
+                    as_receiver,
+                )
             }
         } else {
             self.call_without_receiver(node, scope)
@@ -3515,6 +3517,7 @@ impl<'a> CheckMethodBody<'a> {
         node: &mut hir::Call,
         scope: &mut LexicalScope,
         allow_type_private: bool,
+        as_receiver: bool,
     ) -> TypeRef {
         let rec_id =
             if let Some(id) = self.receiver_id(receiver, &node.location) {
@@ -3558,6 +3561,31 @@ impl<'a> CheckMethodBody<'a> {
                     self.field_with_receiver(node, receiver, rec_id)
                 {
                     return typ;
+                }
+
+                if let TypeId::Module(id) = rec_id {
+                    match id.symbol(self.db(), &node.name.name) {
+                        Some(Symbol::Constant(id)) => {
+                            node.kind = CallKind::GetConstant(id);
+
+                            return id.value_type(self.db());
+                        }
+                        Some(Symbol::Class(id)) if as_receiver => {
+                            return TypeRef::Owned(TypeId::Class(id));
+                        }
+                        Some(Symbol::Class(_) | Symbol::Trait(_))
+                            if !as_receiver =>
+                        {
+                            self.state.diagnostics.symbol_not_a_value(
+                                &node.name.name,
+                                self.file(),
+                                node.location.clone(),
+                            );
+
+                            return TypeRef::Error;
+                        }
+                        _ => {}
+                    }
                 }
 
                 return match receiver {
@@ -4035,6 +4063,7 @@ impl<'a> CheckMethodBody<'a> {
             hir::Expression::IdentifierRef(ref mut n) => {
                 self.identifier(n, scope, true)
             }
+            hir::Expression::Call(ref mut n) => self.call(n, scope, true),
             _ => self.expression(node, scope),
         };
 

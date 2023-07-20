@@ -1,6 +1,6 @@
-import std::endian::little
-import std::int::(MIN, MAX)
-import std::test::Tests
+import std.endian.little
+import std.int.(MIN, MAX)
+import std.test.Tests
 
 fn pub tests(t: mut Tests) {
   t.test('little.write_u32') fn (t) {

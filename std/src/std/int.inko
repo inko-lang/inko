@@ -1,15 +1,15 @@
 # The Int type.
-import std::clone::Clone
-import std::cmp::(Compare, Equal, Ordering)
-import std::float::ToFloat
-import std::fmt::(Format, Formatter)
-import std::hash::(Hash, Hasher)
-import std::ops::(
+import std.clone.Clone
+import std.cmp.(Compare, Equal, Ordering)
+import std.float.ToFloat
+import std.fmt.(Format, Formatter)
+import std.hash.(Hash, Hasher)
+import std.ops.(
   Add, BitAnd, BitOr, BitXor, Divide, Modulo, Multiply, Power,
   ShiftLeft, ShiftRight, Subtract, UnsignedShiftRight
 )
-import std::range::(ExclusiveRange, InclusiveRange)
-import std::string::(ToString, StringBuffer)
+import std.range.(ExclusiveRange, InclusiveRange)
+import std.string.(ToString, StringBuffer)
 
 # A type that can be converted to a Int.
 trait pub ToInt {
@@ -287,7 +287,7 @@ class builtin Int {
   #
   # # Examples
   #
-  #     import std::int::(MAX, MIN)
+  #     import std.int.(MAX, MIN)
   #
   #     1.wrapping_add(1)   # => 2
   #     MAX.wrapping_add(1) # => MAX
@@ -299,7 +299,7 @@ class builtin Int {
   #
   # # Examples
   #
-  #     import std::int::(MAX, MIN)
+  #     import std.int.(MAX, MIN)
   #
   #     1.wrapping_sub(1)   # => 0
   #     MIN.wrapping_sub(1) # => MAX
@@ -311,7 +311,7 @@ class builtin Int {
   #
   # # Examples
   #
-  #     import std::int::(MAX, MIN)
+  #     import std.int.(MAX, MIN)
   #
   #     1.wrapping_mul(2)   # => 2
   #     MAX.wrapping_mul(2) # => -2

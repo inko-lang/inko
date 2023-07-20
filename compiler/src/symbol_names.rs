@@ -30,7 +30,7 @@ impl SymbolNames {
             for &class in &module.classes {
                 let is_mod = class.kind(db).is_module();
                 let class_name =
-                    format!("{}T_{}::{}", prefix, mod_name, class.name(db));
+                    format!("{}T_{}.{}", prefix, mod_name, class.name(db));
 
                 classes.insert(class, class_name);
 
@@ -43,7 +43,7 @@ impl SymbolNames {
                         format!("{}M_{}.{}", prefix, mod_name, method.name(db))
                     } else {
                         format!(
-                            "{}M_{}::{}.{}",
+                            "{}M_{}.{}.{}",
                             prefix,
                             mod_name,
                             class.name(db),
@@ -60,14 +60,13 @@ impl SymbolNames {
             let mod_name = id.module(db).name(db).as_str();
             let name = id.name(db);
 
-            constants
-                .insert(*id, format!("{}C_{}::{}", prefix, mod_name, name));
+            constants.insert(*id, format!("{}C_{}.{}", prefix, mod_name, name));
         }
 
         for &id in mir.modules.keys() {
             let mod_name = id.name(db).as_str();
-            let classes = format!("{}M_{}::$classes", prefix, mod_name);
-            let constants = format!("{}M_{}::$constants", prefix, mod_name);
+            let classes = format!("{}M_{}.$classes", prefix, mod_name);
+            let constants = format!("{}M_{}.$constants", prefix, mod_name);
 
             setup_classes.insert(id, classes);
             setup_constants.insert(id, constants);

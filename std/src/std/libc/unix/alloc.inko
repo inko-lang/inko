@@ -12,7 +12,7 @@ fn pub resize(buffer: Pointer[Int8], size: Int) -> Pointer[Int8] {
 
   # In this case there's nothing we can do but abort.
   if ptr as Int == 0 and size != 0 {
-    panic('std::libc::unix::alloc.resize() failed to allocate memory')
+    panic('std.libc.unix.alloc.resize() failed to allocate memory')
   }
 
   ptr

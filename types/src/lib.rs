@@ -63,21 +63,21 @@ const TUPLE6_NAME: &str = "Tuple6";
 const TUPLE7_NAME: &str = "Tuple7";
 const TUPLE8_NAME: &str = "Tuple8";
 
-pub const STRING_MODULE: &str = "std::string";
+pub const STRING_MODULE: &str = "std.string";
 pub const TO_STRING_TRAIT: &str = "ToString";
 pub const TO_STRING_METHOD: &str = "to_string";
 pub const CALL_METHOD: &str = "call";
 pub const EQ_METHOD: &str = "==";
 pub const MAIN_CLASS: &str = "Main";
 pub const MAIN_METHOD: &str = "main";
-pub const DROP_MODULE: &str = "std::drop";
+pub const DROP_MODULE: &str = "std.drop";
 pub const DROP_TRAIT: &str = "Drop";
 pub const DROP_METHOD: &str = "drop";
 pub const DROPPER_METHOD: &str = "$dropper";
 pub const ASYNC_DROPPER_METHOD: &str = "$async_dropper";
-pub const OPTION_MODULE: &str = "std::option";
+pub const OPTION_MODULE: &str = "std.option";
 pub const OPTION_CLASS: &str = "Option";
-pub const RESULT_MODULE: &str = "std::result";
+pub const RESULT_MODULE: &str = "std.result";
 pub const RESULT_CLASS: &str = "Result";
 pub const OPTION_SOME: &str = "Some";
 pub const OPTION_NONE: &str = "None";
@@ -2193,6 +2193,7 @@ pub enum CallKind {
     CallClosure(ClosureCallInfo),
     GetField(FieldInfo),
     SetField(FieldInfo),
+    GetConstant(ConstantId),
     ReadPointer(TypeRef),
     WritePointer,
 }
@@ -3788,7 +3789,7 @@ impl Database {
         {
             id
         } else {
-            panic!("The class {}::{} isn't defined", module, name)
+            panic!("The class {}.{} isn't defined", module, name)
         }
     }
 
@@ -3797,7 +3798,7 @@ impl Database {
         {
             id
         } else {
-            panic!("The trait {}::{} isn't defined", module, name)
+            panic!("The trait {}.{} isn't defined", module, name)
         }
     }
 

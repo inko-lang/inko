@@ -2,12 +2,12 @@
 #
 # The IO module provides the basic building blocks for IO operations such as
 # reading from and writing to a file.
-import std::cmp::Equal
-import std::fmt::(Format, Formatter)
-import std::string::ToString
-import std::libc::bsd::errors if bsd
-import std::libc::linux::errors if linux
-import std::libc::mac::errors if mac
+import std.cmp.Equal
+import std.fmt.(Format, Formatter)
+import std.string.ToString
+import std.libc.bsd.errors if bsd
+import std.libc.linux.errors if linux
+import std.libc.mac.errors if mac
 
 # The initial number of bytes to read in `Read.read_all`
 let INITIAL_READ_ALL_SIZE = 1024
@@ -123,43 +123,43 @@ class pub enum Error {
   #
   # # Examples
   #
-  #     import std::unix::errors::ENOENT
+  #     import std.unix.errors.ENOENT
   #
   #     Error.from_os_error(ENOENT) # => Error.NotFound
   fn pub static from_os_error(code: Int) -> Error {
     match code {
-      case errors::EPERM -> Error.PermissionDenied
-      case errors::ENOENT -> Error.NotFound
-      case errors::EINTR -> Error.Interrupted
-      case errors::EAGAIN -> Error.WouldBlock
-      case errors::ENOMEM -> Error.OutOfMemory
-      case errors::EACCES -> Error.PermissionDenied
-      case errors::EBUSY -> Error.ResourceBusy
-      case errors::EEXIST -> Error.AlreadyExists
-      case errors::ENOTDIR -> Error.NotADirectory
-      case errors::EISDIR -> Error.IsADirectory
-      case errors::EINVAL -> Error.InvalidArgument
-      case errors::EFBIG -> Error.FileTooLarge
-      case errors::ENOSPC -> Error.StorageFull
-      case errors::ESPIPE -> Error.InvalidSeek
-      case errors::EROFS -> Error.ReadOnlyFilesystem
-      case errors::EPIPE -> Error.BrokenPipe
-      case errors::EDEADLK -> Error.Deadlock
-      case errors::ENAMETOOLONG -> Error.InvalidFileName
-      case errors::ENOTEMPTY -> Error.DirectoryNotEmpty
-      case errors::ETIME -> Error.TimedOut
-      case errors::EADDRINUSE -> Error.AddressInUse
-      case errors::EADDRNOTAVAIL -> Error.AddressUnavailable
-      case errors::ENETDOWN -> Error.NetworkDown
-      case errors::ENETUNREACH -> Error.NetworkUnreachable
-      case errors::ECONNABORTED -> Error.ConnectionAborted
-      case errors::ECONNRESET -> Error.ConnectionReset
-      case errors::EISCONN -> Error.AlreadyConnected
-      case errors::ENOTCONN -> Error.NotConnected
-      case errors::ETIMEDOUT -> Error.TimedOut
-      case errors::ECONNREFUSED -> Error.ConnectionRefused
-      case errors::EHOSTUNREACH -> Error.HostUnreachable
-      case errors::EINPROGRESS -> Error.InProgress
+      case errors.EPERM -> Error.PermissionDenied
+      case errors.ENOENT -> Error.NotFound
+      case errors.EINTR -> Error.Interrupted
+      case errors.EAGAIN -> Error.WouldBlock
+      case errors.ENOMEM -> Error.OutOfMemory
+      case errors.EACCES -> Error.PermissionDenied
+      case errors.EBUSY -> Error.ResourceBusy
+      case errors.EEXIST -> Error.AlreadyExists
+      case errors.ENOTDIR -> Error.NotADirectory
+      case errors.EISDIR -> Error.IsADirectory
+      case errors.EINVAL -> Error.InvalidArgument
+      case errors.EFBIG -> Error.FileTooLarge
+      case errors.ENOSPC -> Error.StorageFull
+      case errors.ESPIPE -> Error.InvalidSeek
+      case errors.EROFS -> Error.ReadOnlyFilesystem
+      case errors.EPIPE -> Error.BrokenPipe
+      case errors.EDEADLK -> Error.Deadlock
+      case errors.ENAMETOOLONG -> Error.InvalidFileName
+      case errors.ENOTEMPTY -> Error.DirectoryNotEmpty
+      case errors.ETIME -> Error.TimedOut
+      case errors.EADDRINUSE -> Error.AddressInUse
+      case errors.EADDRNOTAVAIL -> Error.AddressUnavailable
+      case errors.ENETDOWN -> Error.NetworkDown
+      case errors.ENETUNREACH -> Error.NetworkUnreachable
+      case errors.ECONNABORTED -> Error.ConnectionAborted
+      case errors.ECONNRESET -> Error.ConnectionReset
+      case errors.EISCONN -> Error.AlreadyConnected
+      case errors.ENOTCONN -> Error.NotConnected
+      case errors.ETIMEDOUT -> Error.TimedOut
+      case errors.ECONNREFUSED -> Error.ConnectionRefused
+      case errors.EHOSTUNREACH -> Error.HostUnreachable
+      case errors.EINPROGRESS -> Error.InProgress
       case val -> Error.Other(val)
     }
   }

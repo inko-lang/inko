@@ -1,16 +1,16 @@
-import helpers::(fmt)
-import std::drop::Drop
-import std::env
-import std::fs::file
-import std::fs::path::Path
-import std::net::ip::(IpAddress, Ipv4Address, Ipv6Address)
-import std::net::socket::(
+import helpers.(fmt)
+import std.drop.Drop
+import std.env
+import std.fs.file
+import std.fs.path.Path
+import std.net.ip.(IpAddress, Ipv4Address, Ipv6Address)
+import std.net.socket.(
   Socket, SocketAddress, TcpServer, TcpClient, Type, UdpSocket, UnixAddress,
   UnixDatagram, UnixServer, UnixSocket, UnixClient
 )
-import std::string::ToString
-import std::test::Tests
-import std::time::(Duration, Instant)
+import std.string.ToString
+import std.test.Tests
+import std.time.(Duration, Instant)
 
 class SocketPath {
   let @path: Path
@@ -854,7 +854,7 @@ fn pub tests(t: mut Tests) {
     t.true(socket1.bind(path).ok?)
     t.true(socket2.bind(path).error?)
 
-    if env::OS == 'linux' {
+    if env.OS == 'linux' {
       let socket = UnixSocket.new(Type.STREAM).unwrap
 
       t.true(socket.bind("\0inko-test-{t.id}").ok?)
@@ -873,7 +873,7 @@ fn pub tests(t: mut Tests) {
 
     t.true(stream.connect(path).ok?)
 
-    if env::OS == 'linux' {
+    if env.OS == 'linux' {
       let listener = UnixSocket.new(Type.STREAM).unwrap
       let stream = UnixSocket.new(Type.STREAM).unwrap
       let addr = "\0inko-test-{t.id}"

@@ -8,7 +8,7 @@
 #
 # # Examples
 #
-#     import std::crypto::md5::Md5
+#     import std.crypto.md5.Md5
 #
 #     let hasher = Md5.new
 #
@@ -17,7 +17,7 @@
 #
 # You can also use `Md5.hash`:
 #
-#     import std::crypto::md5::Md5
+#     import std.crypto.md5.Md5
 #
 #     Md5.hash('hello'.to_byte_array).to_string # => '5d41402abc4b2a76b9719d911017c592'
 #
@@ -25,9 +25,9 @@
 #
 # The implementation of MD5 uses a 64-bits signed integer for tracking the
 # total message size in bytes. This limits the total message size to 1024 PiB.
-import std::crypto::hash::(Block, Hash, Hasher)
-import std::crypto::math::(rotate_left_u32, to_u32)
-import std::endian::little
+import std.crypto.hash.(Block, Hash, Hasher)
+import std.crypto.math.(rotate_left_u32, to_u32)
+import std.endian.little
 
 let TABLE = [
   # Round one
@@ -97,7 +97,7 @@ class pub Md5 {
   #
   # # Examples
   #
-  #     import std::crypto::md5::Md5
+  #     import std.crypto.md5.Md5
   #
   #     Md5.hash('hello')
   fn pub static hash(bytes: ref ByteArray) -> Hash {

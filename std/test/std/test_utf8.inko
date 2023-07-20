@@ -1,5 +1,5 @@
-import std::test::Tests
-import std::utf8
+import std.test.Tests
+import std.utf8
 
 fn pub tests(t: mut Tests) {
   t.test('utf8.encode_scalar') fn (t) {

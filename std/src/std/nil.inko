@@ -1,7 +1,7 @@
 # A type to signal the absence of a more meaningful value.
-import std::clone::Clone
-import std::cmp::Equal
-import std::fmt::(Format, Formatter)
+import std.clone.Clone
+import std.cmp.Equal
+import std.fmt.(Format, Formatter)
 
 # `Nil` is used as a placeholder when no more meaningful type is present.
 #

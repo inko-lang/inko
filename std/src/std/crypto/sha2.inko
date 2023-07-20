@@ -2,7 +2,7 @@
 #
 # # Examples
 #
-#     import std::crypto::sha2::Sha256
+#     import std.crypto.sha2.Sha256
 #
 #     let hasher = Sha256.new
 #
@@ -11,7 +11,7 @@
 #
 # Or when using the `hash` static method:
 #
-#     import std::crypto::sha2::Sha256
+#     import std.crypto.sha2.Sha256
 #
 #     Sha256.hash('hello'.to_byte_array).to_string # => '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824'
 #
@@ -20,9 +20,9 @@
 # The implementations of SHA256 and SHA512 use a 64-bits signed integer for
 # tracking the total message size in bytes. This limits the total message size
 # to 1024 PiB.
-import std::crypto::hash::(Block, Hash, Hasher)
-import std::crypto::math::(rotate_right_u32, shift_right_u32, to_u32)
-import std::endian::big
+import std.crypto.hash.(Block, Hash, Hasher)
+import std.crypto.math.(rotate_right_u32, shift_right_u32, to_u32)
+import std.endian.big
 
 let SHA256_BLOCK_SIZE = 64
 let SHA256_TABLE = [
@@ -95,7 +95,7 @@ class pub Sha256 {
   #
   # # Examples
   #
-  #     import std::crypto::sha2::Sha256
+  #     import std.crypto.sha2.Sha256
   #
   #     Sha256.hash('hello')
   fn pub static hash(bytes: ref ByteArray) -> Hash {
@@ -252,7 +252,7 @@ class pub Sha512 {
   #
   # # Examples
   #
-  #     import std::crypto::sha2::Sha512
+  #     import std.crypto.sha2.Sha512
   #
   #     Sha512.hash('hello')
   fn pub static hash(bytes: ref ByteArray) -> Hash {

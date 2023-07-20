@@ -94,7 +94,6 @@ pub enum TokenKind {
     Case,
     Class,
     Colon,
-    ColonColon,
     Comma,
     Comment,
     Constant,
@@ -195,7 +194,6 @@ impl TokenKind {
             TokenKind::Break => "the 'break' keyword",
             TokenKind::Class => "the 'class' keyword",
             TokenKind::Colon => "a ':'",
-            TokenKind::ColonColon => "a '::'",
             TokenKind::Comma => "a ','",
             TokenKind::Comment => "a comment",
             TokenKind::Constant => "a constant",
@@ -807,7 +805,6 @@ impl Lexer {
         let start = self.position;
         let line = self.line;
         let (incr, kind) = match self.next_byte() {
-            COLON => (2, TokenKind::ColonColon),
             EQUAL => (2, TokenKind::Replace),
             _ => (1, TokenKind::Colon),
         };
@@ -1928,7 +1925,6 @@ mod tests {
     #[test]
     fn test_lexer_colon() {
         assert_token!(":", Colon, ":", 1..=1, 1..=1);
-        assert_token!("::", ColonColon, "::", 1..=1, 1..=2);
         assert_token!(":=", Replace, ":=", 1..=1, 1..=2);
     }
 

@@ -1,16 +1,16 @@
-import std::drop::Drop
-import std::fs::FileType
-import std::io::Error
-import std::iter::Iter
+import std.drop.Drop
+import std.fs.FileType
+import std.io.Error
+import std.iter.Iter
 
 # Different implementations of libc use different `dirent` layouts, and even
 # different names for `readdir()` (e.g. `readdir$INODE64` on macOS). To handle
 # this, platform specific code (e.g. calculating the offset of `dirent.d_name`)
 # is pushed into specific modules.
-import std::libc::freebsd::dir::(self as dir_imp) if freebsd
-import std::libc::linux::dir::(self as dir_imp) if linux
-import std::libc::mac::amd64::dir::(self as dir_imp) if mac and amd64
-import std::libc::mac::arm64::dir::(self as dir_imp) if mac and arm64
+import std.libc.freebsd.dir.(self as dir_imp) if freebsd
+import std.libc.linux.dir.(self as dir_imp) if linux
+import std.libc.mac.amd64.dir.(self as dir_imp) if mac and amd64
+import std.libc.mac.arm64.dir.(self as dir_imp) if mac and arm64
 
 # These constants are the same across the various Unix platforms we support, so
 # we can just define them here.

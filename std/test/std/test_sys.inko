@@ -1,7 +1,7 @@
-import helpers::(compiler_path)
-import std::env
-import std::sys::(self, Command, ExitStatus, Stream)
-import std::test::Tests
+import helpers.(compiler_path)
+import std.env
+import std.sys.(self, Command, ExitStatus, Stream)
+import std.test.Tests
 
 fn pub tests(t: mut Tests) {
   t.test('sys.cpu_cores') fn (t) {

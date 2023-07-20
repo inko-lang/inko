@@ -1,6 +1,6 @@
-import helpers::(fmt)
-import std::json::(self, Error, Json, Parser)
-import std::test::Tests
+import helpers.(fmt)
+import std.json.(self, Error, Json, Parser)
+import std.test.Tests
 
 fn parse(input: String) -> Result[Json, Error] {
   Parser.new(input).parse

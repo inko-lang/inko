@@ -923,8 +923,8 @@ impl<'a> InsertPrelude<'a> {
 
         self.import_class(OPTION_MODULE, OPTION_CLASS);
         self.import_class(RESULT_MODULE, RESULT_CLASS);
-        self.import_class("std::map", "Map");
-        self.import_method("std::process", "panic");
+        self.import_class("std.map", "Map");
+        self.import_method("std.process", "panic");
 
         // This name is used when desugaring array literals.
         self.module.new_symbol(

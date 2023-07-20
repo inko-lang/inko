@@ -1,18 +1,18 @@
-import std::env
-import std::stdio::STDOUT
-import std::test::Tests
+import std.env
+import std.stdio.STDOUT
+import std.test.Tests
 
 fn pub tests(t: mut Tests) {
-  t.test('env::ARCH') fn (t) {
-    t.true(env::ARCH.size > 0)
+  t.test('env.ARCH') fn (t) {
+    t.true(env.ARCH.size > 0)
   }
 
-  t.test('env::OS') fn (t) {
-    t.true(env::OS.size > 0)
+  t.test('env.OS') fn (t) {
+    t.true(env.OS.size > 0)
   }
 
-  t.test('env::ABI') fn (t) {
-    t.true(env::ABI.size > 0)
+  t.test('env.ABI') fn (t) {
+    t.true(env.ABI.size > 0)
   }
 
   t.fork(

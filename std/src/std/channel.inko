@@ -1,7 +1,7 @@
 # A multi-producer, multi-consumer FIFO queue.
-import std::clone::Clone
-import std::drop::Drop
-import std::time::Instant
+import std.clone.Clone
+import std.drop.Drop
+import std.time.Instant
 
 class extern AnyResult {
   let @tag: Int
@@ -69,7 +69,7 @@ fn extern inko_channel_wait(
 #
 # # Examples
 #
-#     import std::channel::(wait)
+#     import std.channel.(wait)
 #
 #     let chan1 = Channel.new(size: 1)
 #     let chan2 = Channel.new(size: 2)
@@ -150,8 +150,8 @@ class builtin Channel[T] {
   # Receives a message, returning a `None` if no message is received when the
   # deadline is met.
   #
-  #     import std::time::Instant
-  #     import std::time::Duration
+  #     import std.time.Instant
+  #     import std.time.Duration
   #
   #     let duration = Duration.from_secs(1)
   #     let chan = Channel.new(size: 1)

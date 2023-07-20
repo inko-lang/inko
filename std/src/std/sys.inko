@@ -1,9 +1,9 @@
 # Types and methods for interacting with the underlying system.
-import std::drop::Drop
-import std::fs::path::Path
-import std::int::ToInt
-import std::io::(Error, Read, Write)
-import std::string::IntoString
+import std.drop.Drop
+import std.fs.path.Path
+import std.int.ToInt
+import std.io.(Error, Read, Write)
+import std.string.IntoString
 
 class extern AnyResult {
   let @tag: Int
@@ -98,7 +98,7 @@ fn pub cpu_cores -> Int {
 #
 # # Examples
 #
-#     import std::sys
+#     import std.sys
 #
 #     sys.exit(1)
 fn pub exit(status: Int) -> Never {
@@ -142,13 +142,13 @@ impl ToInt for Stream {
 # changed to being redirected to the null device, or to be piped to a buffer.
 # For example, to pipe STDOUT:
 #
-#     import std::sys::(Command, Stream)
+#     import std.sys.(Command, Stream)
 #
 #     Command.new('ls').stdout(Stream.Piped).spawn.unwrap
 #
 # We can also ignore a stream:
 #
-#     import std::sys::(Command, Stream)
+#     import std.sys.(Command, Stream)
 #
 #     Command.new('ls').stderr(Stream.Null).spawn.unwrap
 #
@@ -158,7 +158,7 @@ impl ToInt for Stream {
 # reading/writing the standard input/output streams, and to wait for the process
 # to terminate. Waiting for a process is done using `ChildProcess.wait`:
 #
-#     import std::sys::Command
+#     import std.sys.Command
 #
 #     let child = Command.new('ls').unwrap
 #
@@ -171,7 +171,7 @@ impl ToInt for Stream {
 # `ChildProcess.stdout`, and `ChildProcess.stderr`. For example, to read from
 # STDOUT:
 #
-#     import std::sys::Command
+#     import std.sys.Command
 #
 #     let child = Command.new('ls').unwrap
 #     let bytes = ByteArray.new
@@ -215,13 +215,13 @@ class pub Command {
   #
   # Using a command name:
   #
-  #     import std::sys::Command
+  #     import std.sys.Command
   #
   #     Command.new('ls')
   #
   # Using a command path:
   #
-  #     import std::sys::Command
+  #     import std.sys.Command
   #
   #     Command.new('/usr/bin/ls')
   fn pub static new(program: IntoString) -> Command {
@@ -245,7 +245,7 @@ class pub Command {
   #
   # # Examples
   #
-  #     import std::sys::Command
+  #     import std.sys.Command
   #
   #     Command.new('ls').directory('/tmp')
   fn pub mut directory(path: IntoString) {
@@ -261,7 +261,7 @@ class pub Command {
   #
   # # Examples
   #
-  #     import std::sys::Command
+  #     import std.sys.Command
   #
   #     Command.new('ls').argument('/tmp')
   fn pub mut argument(value: String) {
@@ -272,7 +272,7 @@ class pub Command {
   #
   # # Examples
   #
-  #     import std::sys::Command
+  #     import std.sys.Command
   #
   #     Command.new('ls').arguments(['/tmp', '/usr'])
   fn pub mut arguments(values: Array[String]) {
@@ -288,7 +288,7 @@ class pub Command {
   #
   # # Examples
   #
-  #     import std::sys::Command
+  #     import std.sys.Command
   #
   #     Command.new('env').variable(name: 'FOO', value: 'bar')
   fn pub mut variable(name: String, value: String) {
@@ -299,7 +299,7 @@ class pub Command {
   #
   # # Examples
   #
-  #     import std::sys::Command
+  #     import std.sys.Command
   #
   #     let vars = Map.new
   #
@@ -382,7 +382,7 @@ class pub ExitStatus {
   #
   # # Examples
   #
-  #     import std::sys::ExitStatus
+  #     import std.sys.ExitStatus
   #
   #     ExitStatus.new(0).success? # => True
   #     ExitStatus.new(1).success? # => False

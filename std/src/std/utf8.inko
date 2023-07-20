@@ -20,7 +20,7 @@ let MAX_THREE_B = 0x10000
 #
 # # Examples
 #
-#     import std::utf8
+#     import std.utf8
 #
 #     let bytes = ByteArray.new
 #
@@ -64,7 +64,7 @@ fn pub encode_scalar(scalar: Int, bytes: mut ByteArray) -> Int {
 #
 # # Examples
 #
-#     import std::utf8
+#     import std.utf8
 #
 #     utf8.codepoint_from_surrogates(0xD834, 0xDD1E) # => 0x1D11E
 fn pub codepoint_from_surrogates(high: Int, low: Int) -> Int {
@@ -76,7 +76,7 @@ fn pub codepoint_from_surrogates(high: Int, low: Int) -> Int {
 #
 # # Examples
 #
-#     import std::utf8
+#     import std.utf8
 #
 #     utf8.surrogate?(0xD834) # => true
 fn pub surrogate?(value: Int) -> Bool {
@@ -87,7 +87,7 @@ fn pub surrogate?(value: Int) -> Bool {
 #
 # # Examples
 #
-#     import std::utf8
+#     import std.utf8
 #
 #     utf8.valid_scalar?(0x5C) # => true
 #     utf8.valid_scalar?(0xDFFF) # => false
@@ -99,7 +99,7 @@ fn pub valid_scalar?(value: Int) -> Bool {
 #
 # # Examples
 #
-#     import std::utf8
+#     import std.utf8
 #
 #     utf8.codepoint_size(0x41) # => 1
 #     utf8.codepoint_size(0xDF) # => 2

@@ -88,7 +88,7 @@ another process.
 Here's how you'd define a message that just writes to STDOUT:
 
 ```inko
-import std::stdio::STDOUT
+import std.stdio.STDOUT
 
 class async Example {
   fn async write(message: String) {

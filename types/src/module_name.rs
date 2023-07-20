@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf, MAIN_SEPARATOR};
 
 const MAIN_MODULE: &str = "main";
 const SOURCE_EXT: &str = "inko";
-pub const SEPARATOR: &str = "::";
+pub const SEPARATOR: &str = ".";
 
 /// The fully qualified name of a module.
 #[derive(Eq, PartialEq, Hash, Clone, Ord, PartialOrd)]
@@ -26,7 +26,7 @@ impl ModuleName {
     }
 
     pub fn std_init() -> Self {
-        Self::new("std::init")
+        Self::new("std.init")
     }
 
     pub fn new<S: Into<String>>(value: S) -> Self {
@@ -34,7 +34,7 @@ impl ModuleName {
     }
 
     pub fn is_std(&self) -> bool {
-        self.value.starts_with("std::")
+        self.value.starts_with("std.")
     }
 
     pub fn head(&self) -> &str {
@@ -91,7 +91,7 @@ mod tests {
         let path = PathBuf::from("foo").join("bar.inko");
         let name = ModuleName::from_relative_path(&path);
 
-        assert_eq!(name, ModuleName::new("foo::bar"));
+        assert_eq!(name, ModuleName::new("foo.bar"));
     }
 
     #[test]
@@ -101,7 +101,7 @@ mod tests {
 
     #[test]
     fn test_to_path() {
-        let name = ModuleName::new("foo::bar");
+        let name = ModuleName::new("foo.bar");
         let path = name.to_path();
 
         assert_eq!(
@@ -112,8 +112,8 @@ mod tests {
 
     #[test]
     fn test_is_std() {
-        let name1 = ModuleName::new("foo::bar");
-        let name2 = ModuleName::new("std::bar");
+        let name1 = ModuleName::new("foo.bar");
+        let name2 = ModuleName::new("std.bar");
 
         assert!(!name1.is_std());
         assert!(name2.is_std());
@@ -121,36 +121,36 @@ mod tests {
 
     #[test]
     fn test_head() {
-        let name = ModuleName::new("foo::bar");
+        let name = ModuleName::new("foo.bar");
 
         assert_eq!(name.head(), &"foo".to_string());
     }
 
     #[test]
     fn test_tail() {
-        let name = ModuleName::new("foo::bar");
+        let name = ModuleName::new("foo.bar");
 
         assert_eq!(name.tail(), &"bar".to_string());
     }
 
     #[test]
     fn test_display() {
-        let name = ModuleName::new("foo::bar");
+        let name = ModuleName::new("foo.bar");
 
-        assert_eq!(format!("{}", name), "foo::bar".to_string());
+        assert_eq!(format!("{}", name), "foo.bar".to_string());
     }
 
     #[test]
     fn test_debug() {
-        let name = ModuleName::new("foo::bar");
+        let name = ModuleName::new("foo.bar");
 
-        assert_eq!(format!("{:?}", name), "ModuleName(foo::bar)".to_string());
+        assert_eq!(format!("{:?}", name), "ModuleName(foo.bar)".to_string());
     }
 
     #[test]
     fn test_normalized_name() {
         assert_eq!(
-            ModuleName::new("std::foo::bar").normalized_name(),
+            ModuleName::new("std.foo.bar").normalized_name(),
             "std_foo_bar"
         );
     }

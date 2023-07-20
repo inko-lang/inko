@@ -1,5 +1,5 @@
-import std::test::Tests
-import std::crypto::sha2::(Sha256, Sha512)
+import std.test.Tests
+import std.crypto.sha2.(Sha256, Sha512)
 
 fn pub tests(t: mut Tests) {
   t.test('Sha256.hash') fn (t) {

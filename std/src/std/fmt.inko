@@ -1,5 +1,5 @@
 # Types for formatting objects in a human-readable manner.
-import std::string::(IntoString, StringBuffer)
+import std.string.(IntoString, StringBuffer)
 
 # The value to use for objects if the nesting is too great.
 let PLACEHOLDER = '...'
@@ -12,7 +12,7 @@ let MAX_DEPTH = 16
 #
 # Examples
 #
-#     import std::fmt::(fmt)
+#     import std.fmt.(fmt)
 #
 #     fmt('hello') # => "hello"
 #     fmt([10, 20]) # => '[10, 20]'

@@ -18,10 +18,10 @@
 #     1.until(10)
 #
 # For more information refer to the documentation of `Int.to` and `Int.until`.
-import std::cmp::(Contains, Compare, Equal, min)
-import std::fmt::(Format, Formatter)
-import std::hash::(Hash, Hasher)
-import std::iter::(Stream, Iter)
+import std.cmp.(Contains, Compare, Equal, min)
+import std.fmt.(Format, Formatter)
+import std.hash.(Hash, Hasher)
+import std.iter.(Stream, Iter)
 
 # A range of integers.
 trait pub Range: Contains[Int] + Hash + Format {

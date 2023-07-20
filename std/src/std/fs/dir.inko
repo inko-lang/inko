@@ -1,7 +1,7 @@
 # Manipulating directories on a filesystem.
-import std::fs::path::Path
-import std::io::Error
-import std::string::ToString
+import std.fs.path.Path
+import std.io.Error
+import std.string.ToString
 
 class extern AnyResult {
   let @tag: Int
@@ -41,7 +41,7 @@ fn extern inko_directory_remove_recursive(
 #
 # Creating a directory:
 #
-#     import std::fs::dir
+#     import std.fs.dir
 #
 #     dir.create('/tmp/test').unwrap
 fn pub create(path: ref ToString) -> Result[Nil, Error] {
@@ -64,7 +64,7 @@ fn pub create(path: ref ToString) -> Result[Nil, Error] {
 #
 # Creating a directory:
 #
-#     import std::fs::dir
+#     import std.fs.dir
 #
 #     dir.create_all('/tmp/foo/bar/test').unwrap
 fn pub create_all(path: ref ToString) -> Result[Nil, Error] {
@@ -88,7 +88,7 @@ fn pub create_all(path: ref ToString) -> Result[Nil, Error] {
 #
 # Removing a directory:
 #
-#     import std::fs::dir
+#     import std.fs.dir
 #
 #     dir.create('/tmp/test').unwrap
 #     dir.remove('/tmp/test').unwrap
@@ -112,7 +112,7 @@ fn pub remove(path: ref ToString) -> Result[Nil, Error] {
 #
 # Removing a directory:
 #
-#     import std::fs::dir
+#     import std.fs.dir
 #
 #     dir.create_all('/tmp/foo/bar').unwrap
 #     dir.remove_all('/tmp/foo').unwrap

@@ -1,6 +1,6 @@
 # Types for for common comparison operations, such as equality, ordering,
 # inclusion, and others.
-import std::fmt::(Format, Formatter)
+import std.fmt.(Format, Formatter)
 
 # A type describing the ordering between two values.
 class pub enum Ordering {
@@ -111,7 +111,7 @@ trait pub Contains[T] {
 #
 # # Examples
 #
-#     import std::cmp::(min)
+#     import std.cmp.(min)
 #
 #     min(10, 5) # => 5
 fn pub min[T: Compare[T]](a: T, b: T) -> T {
@@ -122,7 +122,7 @@ fn pub min[T: Compare[T]](a: T, b: T) -> T {
 #
 # # Examples
 #
-#     import std::cmp::(max)
+#     import std.cmp.(max)
 #
 #     max(10, 5) # => 10
 fn pub max[T: Compare[T]](a: T, b: T) -> T {

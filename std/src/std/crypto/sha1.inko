@@ -5,7 +5,7 @@
 #
 # # Examples
 #
-#     import std::crypto::sha1::Sha1
+#     import std.crypto.sha1.Sha1
 #
 #     let hasher = Sha1.new
 #
@@ -14,7 +14,7 @@
 #
 # You can also use `Sha1.hash`:
 #
-#     import std::crypto::sha1::Sha1
+#     import std.crypto.sha1.Sha1
 #
 #     Sha1.hash('hello'.to_byte_array).to_string # => 'aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d'
 #
@@ -22,9 +22,9 @@
 #
 # The implementation of SHA1 uses a 64-bits signed integer for tracking the
 # total message size in bytes. This limits the total message size to 1024 PiB.
-import std::crypto::hash::(Block, Hash, Hasher)
-import std::crypto::math::(rotate_left_u32, to_u32)
-import std::endian::big
+import std.crypto.hash.(Block, Hash, Hasher)
+import std.crypto.math.(rotate_left_u32, to_u32)
+import std.endian.big
 
 let BLOCK_SIZE = 64
 
@@ -43,7 +43,7 @@ class pub Sha1 {
   #
   # # Examples
   #
-  #     import std::crypto::sha1::Sha1
+  #     import std.crypto.sha1.Sha1
   #
   #     Sha1.hash('hello')
   fn pub static hash(bytes: ref ByteArray) -> Hash {

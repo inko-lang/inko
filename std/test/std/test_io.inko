@@ -1,9 +1,9 @@
-import helpers::(fmt)
-import std::io::(Error, Read, Write)
-import std::libc::bsd::errors if bsd
-import std::libc::linux::errors if linux
-import std::libc::mac::errors if mac
-import std::test::Tests
+import helpers.(fmt)
+import std.io.(Error, Read, Write)
+import std.libc.bsd.errors if bsd
+import std.libc.linux.errors if linux
+import std.libc.mac.errors if mac
+import std.test.Tests
 
 class Reader {
   let @index: Int
@@ -57,38 +57,38 @@ impl Write for Writer {
 
 fn pub tests(t: mut Tests) {
   t.test('Error.from_os_error') fn (t) {
-    t.equal(Error.from_os_error(errors::EPERM), Error.PermissionDenied)
-    t.equal(Error.from_os_error(errors::ENOENT), Error.NotFound)
-    t.equal(Error.from_os_error(errors::EINTR), Error.Interrupted)
-    t.equal(Error.from_os_error(errors::EAGAIN), Error.WouldBlock)
-    t.equal(Error.from_os_error(errors::ENOMEM), Error.OutOfMemory)
-    t.equal(Error.from_os_error(errors::EACCES), Error.PermissionDenied)
-    t.equal(Error.from_os_error(errors::EBUSY), Error.ResourceBusy)
-    t.equal(Error.from_os_error(errors::EEXIST), Error.AlreadyExists)
-    t.equal(Error.from_os_error(errors::ENOTDIR), Error.NotADirectory)
-    t.equal(Error.from_os_error(errors::EISDIR), Error.IsADirectory)
-    t.equal(Error.from_os_error(errors::EINVAL), Error.InvalidArgument)
-    t.equal(Error.from_os_error(errors::EFBIG), Error.FileTooLarge)
-    t.equal(Error.from_os_error(errors::ENOSPC), Error.StorageFull)
-    t.equal(Error.from_os_error(errors::ESPIPE), Error.InvalidSeek)
-    t.equal(Error.from_os_error(errors::EROFS), Error.ReadOnlyFilesystem)
-    t.equal(Error.from_os_error(errors::EPIPE), Error.BrokenPipe)
-    t.equal(Error.from_os_error(errors::EDEADLK), Error.Deadlock)
-    t.equal(Error.from_os_error(errors::ENAMETOOLONG), Error.InvalidFileName)
-    t.equal(Error.from_os_error(errors::ENOTEMPTY), Error.DirectoryNotEmpty)
-    t.equal(Error.from_os_error(errors::ETIME), Error.TimedOut)
-    t.equal(Error.from_os_error(errors::EADDRINUSE), Error.AddressInUse)
-    t.equal(Error.from_os_error(errors::EADDRNOTAVAIL), Error.AddressUnavailable)
-    t.equal(Error.from_os_error(errors::ENETDOWN), Error.NetworkDown)
-    t.equal(Error.from_os_error(errors::ENETUNREACH), Error.NetworkUnreachable)
-    t.equal(Error.from_os_error(errors::ECONNABORTED), Error.ConnectionAborted)
-    t.equal(Error.from_os_error(errors::ECONNRESET), Error.ConnectionReset)
-    t.equal(Error.from_os_error(errors::EISCONN), Error.AlreadyConnected)
-    t.equal(Error.from_os_error(errors::ENOTCONN), Error.NotConnected)
-    t.equal(Error.from_os_error(errors::ETIMEDOUT), Error.TimedOut)
-    t.equal(Error.from_os_error(errors::ECONNREFUSED), Error.ConnectionRefused)
-    t.equal(Error.from_os_error(errors::EHOSTUNREACH), Error.HostUnreachable)
-    t.equal(Error.from_os_error(errors::EINPROGRESS), Error.InProgress)
+    t.equal(Error.from_os_error(errors.EPERM), Error.PermissionDenied)
+    t.equal(Error.from_os_error(errors.ENOENT), Error.NotFound)
+    t.equal(Error.from_os_error(errors.EINTR), Error.Interrupted)
+    t.equal(Error.from_os_error(errors.EAGAIN), Error.WouldBlock)
+    t.equal(Error.from_os_error(errors.ENOMEM), Error.OutOfMemory)
+    t.equal(Error.from_os_error(errors.EACCES), Error.PermissionDenied)
+    t.equal(Error.from_os_error(errors.EBUSY), Error.ResourceBusy)
+    t.equal(Error.from_os_error(errors.EEXIST), Error.AlreadyExists)
+    t.equal(Error.from_os_error(errors.ENOTDIR), Error.NotADirectory)
+    t.equal(Error.from_os_error(errors.EISDIR), Error.IsADirectory)
+    t.equal(Error.from_os_error(errors.EINVAL), Error.InvalidArgument)
+    t.equal(Error.from_os_error(errors.EFBIG), Error.FileTooLarge)
+    t.equal(Error.from_os_error(errors.ENOSPC), Error.StorageFull)
+    t.equal(Error.from_os_error(errors.ESPIPE), Error.InvalidSeek)
+    t.equal(Error.from_os_error(errors.EROFS), Error.ReadOnlyFilesystem)
+    t.equal(Error.from_os_error(errors.EPIPE), Error.BrokenPipe)
+    t.equal(Error.from_os_error(errors.EDEADLK), Error.Deadlock)
+    t.equal(Error.from_os_error(errors.ENAMETOOLONG), Error.InvalidFileName)
+    t.equal(Error.from_os_error(errors.ENOTEMPTY), Error.DirectoryNotEmpty)
+    t.equal(Error.from_os_error(errors.ETIME), Error.TimedOut)
+    t.equal(Error.from_os_error(errors.EADDRINUSE), Error.AddressInUse)
+    t.equal(Error.from_os_error(errors.EADDRNOTAVAIL), Error.AddressUnavailable)
+    t.equal(Error.from_os_error(errors.ENETDOWN), Error.NetworkDown)
+    t.equal(Error.from_os_error(errors.ENETUNREACH), Error.NetworkUnreachable)
+    t.equal(Error.from_os_error(errors.ECONNABORTED), Error.ConnectionAborted)
+    t.equal(Error.from_os_error(errors.ECONNRESET), Error.ConnectionReset)
+    t.equal(Error.from_os_error(errors.EISCONN), Error.AlreadyConnected)
+    t.equal(Error.from_os_error(errors.ENOTCONN), Error.NotConnected)
+    t.equal(Error.from_os_error(errors.ETIMEDOUT), Error.TimedOut)
+    t.equal(Error.from_os_error(errors.ECONNREFUSED), Error.ConnectionRefused)
+    t.equal(Error.from_os_error(errors.EHOSTUNREACH), Error.HostUnreachable)
+    t.equal(Error.from_os_error(errors.EINPROGRESS), Error.InProgress)
     t.equal(Error.from_os_error(999), Error.Other(999))
   }
 

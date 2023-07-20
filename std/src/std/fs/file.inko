@@ -11,10 +11,10 @@
 #
 # Files are automatically closed when they are dropped. Any errors that may
 # occur when closing a file are ignored.
-import std::drop::Drop
-import std::fs::path::(IntoPath, Path)
-import std::io::(Error, Read, Seek, Size, Write)
-import std::string::ToString
+import std.drop.Drop
+import std.fs.path.(IntoPath, Path)
+import std.io.(Error, Read, Seek, Size, Write)
+import std.string.ToString
 
 let FILE_READ_ONLY = 0
 let FILE_WRITE_ONLY = 1
@@ -98,7 +98,7 @@ fn extern inko_file_write_string(
 #
 # Removing a file:
 #
-#     import std::fs::file::(self, WriteOnlyFile)
+#     import std.fs.file.(self, WriteOnlyFile)
 #
 #     let handle = WriteOnlyFile.new('/tmp/test.txt').unwrap
 #
@@ -118,7 +118,7 @@ fn pub remove(path: ref ToString) -> Result[Nil, Error] {
 #
 # Copying a file:
 #
-#     import std::fs::file::(self, WriteOnlyFile)
+#     import std.fs.file.(self, WriteOnlyFile)
 #
 #     let handle = WriteOnlyFile.new('/tmp/test.txt').unwrap
 #
@@ -149,7 +149,7 @@ class pub ReadOnlyFile {
   #
   # Opening a file in read-only mode:
   #
-  #     import std::fs::file::ReadOnlyFile
+  #     import std.fs.file.ReadOnlyFile
   #
   #     let handle = ReadOnlyFile.new('/dev/null').unwrap
   fn pub static new(path: IntoPath) -> Result[ReadOnlyFile, Error] {
@@ -211,7 +211,7 @@ class pub WriteOnlyFile {
   #
   # # Examples
   #
-  #     import std::fs::file::WriteOnlyFile
+  #     import std.fs.file.WriteOnlyFile
   #
   #     let file = WriteOnlyFile.new('/dev/null').unwrap
   fn pub static new(path: IntoPath) -> Result[WriteOnlyFile, Error] {
@@ -231,7 +231,7 @@ class pub WriteOnlyFile {
   #
   # # Examples
   #
-  #     import std::fs::file::WriteOnlyFile
+  #     import std.fs.file.WriteOnlyFile
   #
   #     let file = WriteOnlyFile.append('/dev/null').unwrap
   fn pub static append(path: IntoPath) -> Result[WriteOnlyFile, Error] {
@@ -300,7 +300,7 @@ class pub ReadWriteFile {
   #
   # # Examples
   #
-  #     import std::fs::file::ReadWriteFile
+  #     import std.fs.file.ReadWriteFile
   #
   #     let handle = ReadWriteFile.new('/dev/null').unwrap
   fn pub static new(path: IntoPath) -> Result[ReadWriteFile, Error] {
@@ -320,7 +320,7 @@ class pub ReadWriteFile {
   #
   # # Examples
   #
-  #     import std::fs::file::ReadWriteFile
+  #     import std.fs.file.ReadWriteFile
   #
   #     let handle = ReadWriteFile.append('/dev/null').unwrap
   fn pub static append(path: IntoPath) -> Result[ReadWriteFile, Error] {

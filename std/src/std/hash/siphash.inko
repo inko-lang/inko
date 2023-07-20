@@ -2,16 +2,16 @@
 #
 # SipHash isn't cryptographically secure, instead it's intended for e.g. hashing
 # of objects as part of the `Map` type.
-import std::crypto::math::(rotate_left_u64)
-import std::endian::little::(read_i64)
-import std::hash::Hasher
+import std.crypto.math.(rotate_left_u64)
+import std.endian.little.(read_i64)
+import std.hash.Hasher
 
 # An implementation of the SipHash 1-3 algorithm.
 #
 # # Examples
 #
-#     import std::hash::siphash::SipHasher13
-#     import std::rand::Random
+#     import std.hash.siphash.SipHasher13
+#     import std.rand.Random
 #
 #     let rng = Random.new
 #     let hasher = SipHasher13.new(key0: rng.int, key1: rng.int)
@@ -43,7 +43,7 @@ class pub SipHasher13 {
 
   # Returns a new hasher using the two keys.
   #
-  # Both keys _should_ be randomly generated. The type `std::rand::Random` can
+  # Both keys _should_ be randomly generated. The type `std.rand.Random` can
   # be used to generate these keys.
   fn pub static new(key0: Int, key1: Int) -> SipHasher13 {
     SipHasher13 {

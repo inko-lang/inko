@@ -1,5 +1,5 @@
-import std::test::Tests
-import std::drop::(drop)
+import std.test.Tests
+import std.drop.(drop)
 
 class enum Letter {
   case A

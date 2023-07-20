@@ -1,6 +1,6 @@
-import helpers::(fmt)
-import std::iter::Iter
-import std::test::Tests
+import helpers.(fmt)
+import std.iter.Iter
+import std.test.Tests
 
 fn pub tests(t: mut Tests) {
   t.test('Result.collect') fn (t) {

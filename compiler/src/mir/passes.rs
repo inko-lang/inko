@@ -1787,6 +1787,13 @@ impl<'a> LowerMethod<'a> {
                 self.current_block_mut().read_pointer(res, rec, loc);
                 res
             }
+            types::CallKind::GetConstant(id) => {
+                let reg = self.new_register(id.value_type(self.db()));
+                let loc = self.add_location(node.location);
+
+                self.current_block_mut().get_constant(reg, id, loc);
+                reg
+            }
             _ => unreachable!(),
         };
 

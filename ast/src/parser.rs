@@ -154,7 +154,7 @@ impl Parser {
 
             steps.push(Identifier::from(token));
 
-            if self.peek().kind != TokenKind::ColonColon {
+            if self.peek().kind != TokenKind::Dot {
                 break;
             }
 
@@ -376,6 +376,22 @@ impl Parser {
             TokenKind::Constant => self.constant_ref(start),
             TokenKind::ParenOpen => self.const_group(start)?,
             TokenKind::BracketOpen => self.const_array(start)?,
+            TokenKind::Identifier => {
+                self.expect(TokenKind::Dot)?;
+
+                let source = Identifier::from(start);
+                let const_tok = self.expect(TokenKind::Constant)?;
+                let location = SourceLocation::start_end(
+                    &source.location,
+                    &const_tok.location,
+                );
+
+                Expression::Constant(Box::new(Constant {
+                    source: Some(source),
+                    name: const_tok.value,
+                    location,
+                }))
+            }
             _ => {
                 error!(
                     start.location,
@@ -479,7 +495,7 @@ impl Parser {
         &mut self,
         start: Token,
     ) -> Result<TypeName, ParseError> {
-        self.expect(TokenKind::ColonColon)?;
+        self.expect(TokenKind::Dot)?;
 
         let source = Identifier::from(start);
         let name_token = self.expect(TokenKind::Constant)?;
@@ -1943,9 +1959,6 @@ impl Parser {
             TokenKind::BitXorAssign => {
                 return self.binary_assign_variable(start, OperatorKind::BitXor)
             }
-            TokenKind::ColonColon => {
-                return self.namespaced_constant(start);
-            }
             _ => {}
         }
 
@@ -1963,21 +1976,6 @@ impl Parser {
         }
 
         Ok(Expression::Identifier(Box::new(Identifier::from(start))))
-    }
-
-    fn namespaced_constant(
-        &mut self,
-        start: Token,
-    ) -> Result<Expression, ParseError> {
-        self.next();
-
-        let const_token = self.expect(TokenKind::Constant)?;
-
-        Ok(Expression::Constant(Box::new(Constant {
-            source: Some(Identifier::from(start)),
-            name: const_token.value,
-            location: const_token.location,
-        })))
     }
 
     fn trailing_block_argument(
@@ -2716,9 +2714,7 @@ impl Parser {
                     location: token.location,
                 }))
             }
-            TokenKind::Identifier
-                if self.peek().kind == TokenKind::ColonColon =>
-            {
+            TokenKind::Identifier if self.peek().kind == TokenKind::Dot => {
                 let source = Identifier::from(token);
 
                 self.next();
@@ -3112,6 +3108,7 @@ mod tests {
             .expect("Expected at least a single top-level expression")
     }
 
+    #[track_caller]
     fn expr(input: &str) -> Expression {
         let mut parser = parser(input);
         let start = parser.require().unwrap();
@@ -3250,7 +3247,7 @@ mod tests {
         );
 
         assert_eq!(
-            top(parse("import foo::bar")),
+            top(parse("import foo.bar")),
             TopLevelExpression::Import(Box::new(Import {
                 path: ImportPath {
                     steps: vec![
@@ -3260,15 +3257,15 @@ mod tests {
                         },
                         Identifier {
                             name: "bar".to_string(),
-                            location: cols(13, 15)
+                            location: cols(12, 14)
                         }
                     ],
-                    location: cols(8, 15)
+                    location: cols(8, 14)
                 },
                 symbols: None,
                 tags: None,
                 include: true,
-                location: cols(1, 15)
+                location: cols(1, 14)
             }))
         );
     }
@@ -3336,7 +3333,7 @@ mod tests {
     #[test]
     fn test_imports_with_symbols() {
         assert_eq!(
-            top(parse("import foo::bar::()")),
+            top(parse("import foo.bar.()")),
             TopLevelExpression::Import(Box::new(Import {
                 path: ImportPath {
                     steps: vec![
@@ -3346,23 +3343,23 @@ mod tests {
                         },
                         Identifier {
                             name: "bar".to_string(),
-                            location: cols(13, 15)
+                            location: cols(12, 14)
                         }
                     ],
-                    location: cols(8, 15)
+                    location: cols(8, 14)
                 },
                 symbols: Some(ImportSymbols {
                     values: Vec::new(),
-                    location: cols(18, 19)
+                    location: cols(16, 17)
                 }),
                 tags: None,
                 include: true,
-                location: cols(1, 19)
+                location: cols(1, 17)
             }))
         );
 
         assert_eq!(
-            top(parse("import foo::(bar)")),
+            top(parse("import foo.(bar)")),
             TopLevelExpression::Import(Box::new(Import {
                 path: ImportPath {
                     steps: vec![Identifier {
@@ -3375,18 +3372,18 @@ mod tests {
                     values: vec![ImportSymbol {
                         name: "bar".to_string(),
                         alias: None,
-                        location: cols(14, 16)
+                        location: cols(13, 15)
                     }],
-                    location: cols(13, 17)
+                    location: cols(12, 16)
                 }),
                 tags: None,
                 include: true,
-                location: cols(1, 17)
+                location: cols(1, 16)
             }))
         );
 
         assert_eq!(
-            top(parse("import foo::(bar, baz)")),
+            top(parse("import foo.(bar, baz)")),
             TopLevelExpression::Import(Box::new(Import {
                 path: ImportPath {
                     steps: vec![Identifier {
@@ -3400,50 +3397,50 @@ mod tests {
                         ImportSymbol {
                             name: "bar".to_string(),
                             alias: None,
-                            location: cols(14, 16)
+                            location: cols(13, 15)
                         },
                         ImportSymbol {
                             name: "baz".to_string(),
                             alias: None,
-                            location: cols(19, 21)
+                            location: cols(18, 20)
                         }
                     ],
-                    location: cols(13, 22)
+                    location: cols(12, 21)
+                }),
+                tags: None,
+                include: true,
+                location: cols(1, 21)
+            }))
+        );
+
+        assert_eq!(
+            top(parse("import foo.(bar, baz,)")),
+            TopLevelExpression::Import(Box::new(Import {
+                path: ImportPath {
+                    steps: vec![Identifier {
+                        name: "foo".to_string(),
+                        location: cols(8, 10)
+                    }],
+                    location: cols(8, 10)
+                },
+                symbols: Some(ImportSymbols {
+                    values: vec![
+                        ImportSymbol {
+                            name: "bar".to_string(),
+                            alias: None,
+                            location: cols(13, 15)
+                        },
+                        ImportSymbol {
+                            name: "baz".to_string(),
+                            alias: None,
+                            location: cols(18, 20)
+                        }
+                    ],
+                    location: cols(12, 22)
                 }),
                 tags: None,
                 include: true,
                 location: cols(1, 22)
-            }))
-        );
-
-        assert_eq!(
-            top(parse("import foo::(bar, baz,)")),
-            TopLevelExpression::Import(Box::new(Import {
-                path: ImportPath {
-                    steps: vec![Identifier {
-                        name: "foo".to_string(),
-                        location: cols(8, 10)
-                    }],
-                    location: cols(8, 10)
-                },
-                symbols: Some(ImportSymbols {
-                    values: vec![
-                        ImportSymbol {
-                            name: "bar".to_string(),
-                            alias: None,
-                            location: cols(14, 16)
-                        },
-                        ImportSymbol {
-                            name: "baz".to_string(),
-                            alias: None,
-                            location: cols(19, 21)
-                        }
-                    ],
-                    location: cols(13, 23)
-                }),
-                tags: None,
-                include: true,
-                location: cols(1, 23)
             }))
         );
     }
@@ -3451,7 +3448,7 @@ mod tests {
     #[test]
     fn test_imports_with_self() {
         assert_eq!(
-            top(parse("import foo::(self)")),
+            top(parse("import foo.(self)")),
             TopLevelExpression::Import(Box::new(Import {
                 path: ImportPath {
                     steps: vec![Identifier {
@@ -3464,13 +3461,13 @@ mod tests {
                     values: vec![ImportSymbol {
                         name: "self".to_string(),
                         alias: None,
-                        location: cols(14, 17)
+                        location: cols(13, 16)
                     }],
-                    location: cols(13, 18)
+                    location: cols(12, 17)
                 }),
                 tags: None,
                 include: true,
-                location: cols(1, 18)
+                location: cols(1, 17)
             }))
         );
     }
@@ -3478,7 +3475,7 @@ mod tests {
     #[test]
     fn test_imports_with_aliases() {
         assert_eq!(
-            top(parse("import foo::(bar as baz)")),
+            top(parse("import foo.(bar as baz)")),
             TopLevelExpression::Import(Box::new(Import {
                 path: ImportPath {
                     steps: vec![Identifier {
@@ -3492,20 +3489,20 @@ mod tests {
                         name: "bar".to_string(),
                         alias: Some(ImportAlias {
                             name: "baz".to_string(),
-                            location: cols(21, 23)
+                            location: cols(20, 22)
                         }),
-                        location: cols(14, 16)
+                        location: cols(13, 15)
                     }],
-                    location: cols(13, 24)
+                    location: cols(12, 23)
                 }),
                 tags: None,
                 include: true,
-                location: cols(1, 24)
+                location: cols(1, 23)
             }))
         );
 
         assert_eq!(
-            top(parse("import foo::(Bar as Baz)")),
+            top(parse("import foo.(Bar as Baz)")),
             TopLevelExpression::Import(Box::new(Import {
                 path: ImportPath {
                     steps: vec![Identifier {
@@ -3519,20 +3516,20 @@ mod tests {
                         name: "Bar".to_string(),
                         alias: Some(ImportAlias {
                             name: "Baz".to_string(),
-                            location: cols(21, 23)
+                            location: cols(20, 22)
                         }),
-                        location: cols(14, 16)
+                        location: cols(13, 15)
                     }],
-                    location: cols(13, 24)
+                    location: cols(12, 23)
                 }),
                 tags: None,
                 include: true,
-                location: cols(1, 24)
+                location: cols(1, 23)
             }))
         );
 
         assert_eq!(
-            top(parse("import foo::(self as foo)")),
+            top(parse("import foo.(self as foo)")),
             TopLevelExpression::Import(Box::new(Import {
                 path: ImportPath {
                     steps: vec![Identifier {
@@ -3546,20 +3543,20 @@ mod tests {
                         name: "self".to_string(),
                         alias: Some(ImportAlias {
                             name: "foo".to_string(),
-                            location: cols(22, 24)
+                            location: cols(21, 23)
                         }),
-                        location: cols(14, 17)
+                        location: cols(13, 16)
                     }],
-                    location: cols(13, 25)
+                    location: cols(12, 24)
                 }),
                 tags: None,
                 include: true,
-                location: cols(1, 25)
+                location: cols(1, 24)
             }))
         );
 
         assert_eq!(
-            top(parse("import foo::(self as _)")),
+            top(parse("import foo.(self as _)")),
             TopLevelExpression::Import(Box::new(Import {
                 path: ImportPath {
                     steps: vec![Identifier {
@@ -3573,29 +3570,29 @@ mod tests {
                         name: "self".to_string(),
                         alias: Some(ImportAlias {
                             name: "_".to_string(),
-                            location: cols(22, 22)
+                            location: cols(21, 21)
                         }),
-                        location: cols(14, 17)
+                        location: cols(13, 16)
                     }],
-                    location: cols(13, 23)
+                    location: cols(12, 22)
                 }),
                 tags: None,
                 include: true,
-                location: cols(1, 23)
+                location: cols(1, 22)
             }))
         );
     }
 
     #[test]
     fn test_invalid_imports() {
-        assert_error!("import foo::(bar as Baz)", cols(21, 23));
-        assert_error!("import foo::(bar as *)", cols(21, 21));
-        assert_error!("import foo::(self as Baz)", cols(22, 24));
-        assert_error!("import foo::(Bar as baz)", cols(21, 23));
-        assert_error!("import foo::(,)", cols(14, 14));
-        assert_error!("import foo::", cols(12, 12));
-        assert_error!("import foo::(", cols(13, 13));
-        assert_error!("import foo::)", cols(13, 13));
+        assert_error!("import foo.(bar as Baz)", cols(20, 22));
+        assert_error!("import foo.(bar as *)", cols(20, 20));
+        assert_error!("import foo.(self as Baz)", cols(21, 23));
+        assert_error!("import foo.(Bar as baz)", cols(20, 22));
+        assert_error!("import foo.(,)", cols(13, 13));
+        assert_error!("import foo.", cols(11, 11));
+        assert_error!("import foo.(", cols(12, 12));
+        assert_error!("import foo.)", cols(12, 12));
     }
 
     #[test]
@@ -3654,6 +3651,30 @@ mod tests {
                     location: cols(9, 12)
                 })),
                 location: cols(1, 12)
+            }))
+        );
+    }
+
+    #[test]
+    fn test_constant_with_namespaced_constant_value() {
+        assert_eq!(
+            top(parse("let A = a.B")),
+            TopLevelExpression::DefineConstant(Box::new(DefineConstant {
+                public: false,
+                name: Constant {
+                    source: None,
+                    name: "A".to_string(),
+                    location: cols(5, 5)
+                },
+                value: Expression::Constant(Box::new(Constant {
+                    source: Some(Identifier {
+                        name: "a".to_string(),
+                        location: cols(9, 9)
+                    }),
+                    name: "B".to_string(),
+                    location: cols(9, 11)
+                })),
+                location: cols(1, 11)
             }))
         );
     }
@@ -3743,7 +3764,7 @@ mod tests {
 
     #[test]
     fn test_type_reference_with_named_type_with_source() {
-        let mut parser = parser("a::A");
+        let mut parser = parser("a.A");
         let start = parser.require().unwrap();
 
         assert_eq!(
@@ -3755,10 +3776,10 @@ mod tests {
                         location: cols(1, 1)
                     }),
                     name: "A".to_string(),
-                    location: cols(4, 4),
+                    location: cols(3, 3),
                 },
                 arguments: None,
-                location: cols(1, 4)
+                location: cols(1, 3)
             }))
         );
     }
@@ -3787,7 +3808,7 @@ mod tests {
 
     #[test]
     fn test_type_reference_with_namespaced_reference_type() {
-        let mut parser = parser("ref a::A");
+        let mut parser = parser("ref a.A");
         let start = parser.require().unwrap();
 
         assert_eq!(
@@ -3800,12 +3821,12 @@ mod tests {
                             location: cols(5, 5)
                         }),
                         name: "A".to_string(),
-                        location: cols(8, 8),
+                        location: cols(7, 7),
                     },
                     arguments: None,
-                    location: cols(5, 8)
+                    location: cols(5, 7)
                 })),
-                location: cols(1, 8)
+                location: cols(1, 7)
             }))
         );
     }
@@ -4693,7 +4714,7 @@ mod tests {
         );
 
         assert_eq!(
-            top(parse("class A[B: a::X] {}")),
+            top(parse("class A[B: a.X] {}")),
             TopLevelExpression::DefineClass(Box::new(DefineClass {
                 public: false,
                 name: Constant {
@@ -4717,22 +4738,22 @@ mod tests {
                                         location: cols(12, 12)
                                     }),
                                     name: "X".to_string(),
-                                    location: cols(15, 15),
+                                    location: cols(14, 14),
                                 },
                                 arguments: None,
-                                location: cols(12, 15)
+                                location: cols(12, 14)
                             })],
-                            location: cols(12, 15)
+                            location: cols(12, 14)
                         }),
-                        location: cols(9, 15)
+                        location: cols(9, 14)
                     },],
-                    location: cols(8, 16)
+                    location: cols(8, 15)
                 }),
                 body: ClassExpressions {
                     values: Vec::new(),
-                    location: cols(18, 19)
+                    location: cols(17, 18)
                 },
-                location: cols(1, 19)
+                location: cols(1, 18)
             }))
         );
     }
@@ -5457,7 +5478,7 @@ mod tests {
         );
 
         assert_eq!(
-            top(parse("trait A: a::B {}")),
+            top(parse("trait A: a.B {}")),
             TopLevelExpression::DefineTrait(Box::new(DefineTrait {
                 public: false,
                 name: Constant {
@@ -5474,18 +5495,18 @@ mod tests {
                                 location: cols(10, 10)
                             }),
                             name: "B".to_string(),
-                            location: cols(13, 13)
+                            location: cols(12, 12)
                         },
                         arguments: None,
-                        location: cols(10, 13)
+                        location: cols(10, 12)
                     },],
-                    location: cols(10, 13)
+                    location: cols(10, 12)
                 }),
                 body: TraitExpressions {
                     values: Vec::new(),
-                    location: cols(15, 16)
+                    location: cols(14, 15)
                 },
-                location: cols(1, 16)
+                location: cols(1, 15)
             }))
         );
     }
@@ -8932,7 +8953,7 @@ mod tests {
     #[test]
     fn test_match_namespaced_constant_pattern() {
         assert_eq!(
-            expr("match 1 { case a::B -> { 2 } }"),
+            expr("match 1 { case a.B -> { 2 } }"),
             Expression::Match(Box::new(Match {
                 expression: Expression::Int(Box::new(IntLiteral {
                     value: "1".to_string(),
@@ -8945,19 +8966,19 @@ mod tests {
                             location: cols(16, 16)
                         }),
                         name: "B".to_string(),
-                        location: cols(16, 19)
+                        location: cols(16, 18)
                     })),
                     guard: None,
                     body: Expressions {
                         values: vec![Expression::Int(Box::new(IntLiteral {
                             value: "2".to_string(),
-                            location: cols(26, 26)
+                            location: cols(25, 25)
                         }))],
-                        location: cols(24, 28)
+                        location: cols(23, 27)
                     },
-                    location: cols(11, 28)
+                    location: cols(11, 27)
                 }],
-                location: cols(1, 30)
+                location: cols(1, 29)
             }))
         );
     }
@@ -9258,14 +9279,18 @@ mod tests {
     #[test]
     fn test_namespaced_constant() {
         assert_eq!(
-            expr("a::B"),
-            Expression::Constant(Box::new(Constant {
-                source: Some(Identifier {
+            expr("a.B"),
+            Expression::Call(Box::new(Call {
+                receiver: Some(Expression::Identifier(Box::new(Identifier {
                     name: "a".to_string(),
                     location: cols(1, 1)
-                }),
-                name: "B".to_string(),
-                location: cols(4, 4)
+                }))),
+                name: Identifier {
+                    name: "B".to_string(),
+                    location: cols(3, 3)
+                },
+                arguments: None,
+                location: cols(1, 3)
             }))
         );
     }

@@ -12,7 +12,7 @@ reads it back, then writes it to STDOUT.
 We'll start with the following code:
 
 ```inko
-import std::fs::file::ReadWriteFile
+import std.fs.file.ReadWriteFile
 
 class async Main {
   fn async main {
@@ -22,7 +22,7 @@ class async Main {
 ```
 
 Instead of importing `STDOUT` we import `ReadWriteFile`. This is a type used for
-both reading and writing from and to a file. The `std::fs::file` module also
+both reading and writing from and to a file. The `std.fs.file` module also
 provides a type for just reading files (`ReadOnlyFile`), and a type for just
 writing files (`WriteOnlyFile`). In our case we need both, hence the use of
 `ReadWriteFile`.
@@ -30,7 +30,7 @@ writing files (`WriteOnlyFile`). In our case we need both, hence the use of
 Next we'll need to create our file:
 
 ```inko
-import std::fs::file::ReadWriteFile
+import std.fs.file.ReadWriteFile
 
 class async Main {
   fn async main {
@@ -45,7 +45,7 @@ doesn't exist.
 
 Creating a file may fail, such as when you don't have permissions to do so. As
 such, the `new` method returns a `Result[ReadWriteFile, Error]`, where `Error`
-is the `std::io::Error` type:
+is the `std.io.Error` type:
 
 ```inko
 fn pub static new(path: IntoPath) -> Result[ReadWriteFile, Error] {
@@ -117,7 +117,7 @@ For the sake of brevity we'll use `expect` in the rest of this guide.
 Moving on, let's write the message to the file:
 
 ```inko
-import std::fs::file::ReadWriteFile
+import std.fs.file.ReadWriteFile
 
 class async Main {
   fn async main {
@@ -140,8 +140,8 @@ Let's combine this with writing the message back to STDOUT. For this we'll need
 to import STDOUT again:
 
 ```inko
-import std::fs::file::ReadWriteFile
-import std::stdio::STDOUT
+import std.fs.file.ReadWriteFile
+import std.stdio.STDOUT
 
 class async Main {
   fn async main {
@@ -157,8 +157,8 @@ as reading continues where the last write (or read) ended; then we must read the
 contents into a `ByteArray`:
 
 ```inko
-import std::fs::file::ReadWriteFile
-import std::stdio::STDOUT
+import std.fs.file.ReadWriteFile
+import std.stdio.STDOUT
 
 class async Main {
   fn async main {
@@ -183,8 +183,8 @@ strings.
 To write the bytes back to STDOUT, we can use the `write_bytes` method:
 
 ```inko
-import std::fs::file::ReadWriteFile
-import std::stdio::STDOUT
+import std.fs.file.ReadWriteFile
+import std.stdio.STDOUT
 
 class async Main {
   fn async main {
@@ -206,8 +206,8 @@ back, then writes it to STDOUT. But what's missing is removing the file once
 we're done. And so for our next trick we'll make `hello.txt` disappear:
 
 ```inko
-import std::fs::file::(ReadWriteFile, remove)
-import std::stdio::STDOUT
+import std.fs.file.(ReadWriteFile, remove)
+import std.stdio.STDOUT
 
 class async Main {
   fn async main {
@@ -226,7 +226,7 @@ class async Main {
 }
 ```
 
-Removing files is done using the method `std::fs::file.remove`, which we now
+Removing files is done using the method `std.fs.file.remove`, which we now
 import along with the `ReadWriteFile` type. Because failing to remove the file
 isn't a big deal, we ignore the `Result` returned by it by assigning it to `_`.
 

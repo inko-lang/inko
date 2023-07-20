@@ -2928,8 +2928,9 @@ mod tests {
 
     use types::module_name::ModuleName;
 
+    #[track_caller]
     fn parse(input: &str) -> ParsedModule {
-        let name = ModuleName::new("std::foo");
+        let name = ModuleName::new("std.foo");
         let ast = Parser::new(input.into(), "test.inko".into())
             .parse()
             .expect("Failed to parse the module");
@@ -2937,6 +2938,7 @@ mod tests {
         ParsedModule { ast, name }
     }
 
+    #[track_caller]
     fn lower(input: &str) -> (Module, usize) {
         let mut state = State::new(Config::new());
         let ast = parse(input);
@@ -2945,12 +2947,14 @@ mod tests {
         (hir.pop().unwrap(), state.diagnostics.iter().count())
     }
 
+    #[track_caller]
     fn lower_top_expr(input: &str) -> (TopLevelExpression, usize) {
         let (mut module, diags) = lower(input);
 
         (module.expressions.pop().unwrap(), diags)
     }
 
+    #[track_caller]
     fn lower_type(input: &str) -> Type {
         let hir =
             lower(&format!("fn a(a: {}) {{}}", input)).0.expressions.remove(0);
@@ -2965,6 +2969,7 @@ mod tests {
         }
     }
 
+    #[track_caller]
     fn lower_expr(input: &str) -> (Expression, usize) {
         let (mut top, diags) = lower(input);
         let hir = top.expressions.remove(0);
@@ -3198,7 +3203,7 @@ mod tests {
 
     #[test]
     fn test_lower_namespaced_type_name() {
-        let hir = lower_type("a::B");
+        let hir = lower_type("a.B");
 
         assert_eq!(
             hir,
@@ -3210,10 +3215,10 @@ mod tests {
                 resolved_type: types::TypeRef::Unknown,
                 name: Constant {
                     name: "B".to_string(),
-                    location: cols(12, 12)
+                    location: cols(11, 11)
                 },
                 arguments: Vec::new(),
-                location: cols(9, 12)
+                location: cols(9, 11)
             }))
         );
     }
@@ -4556,7 +4561,7 @@ mod tests {
 
     #[test]
     fn test_lower_import_symbol() {
-        let hir = lower_top_expr("import a::(b)").0;
+        let hir = lower_top_expr("import a.(b)").0;
 
         assert_eq!(
             hir,
@@ -4568,22 +4573,22 @@ mod tests {
                 symbols: vec![ImportSymbol {
                     name: Identifier {
                         name: "b".to_string(),
-                        location: cols(12, 12)
+                        location: cols(11, 11)
                     },
                     import_as: Identifier {
                         name: "b".to_string(),
-                        location: cols(12, 12)
+                        location: cols(11, 11)
                     },
-                    location: cols(12, 12)
+                    location: cols(11, 11)
                 }],
-                location: cols(1, 13)
+                location: cols(1, 12)
             }))
         );
     }
 
     #[test]
     fn test_lower_import_symbol_with_alias() {
-        let hir = lower_top_expr("import a::(b as c)").0;
+        let hir = lower_top_expr("import a.(b as c)").0;
 
         assert_eq!(
             hir,
@@ -4595,22 +4600,22 @@ mod tests {
                 symbols: vec![ImportSymbol {
                     name: Identifier {
                         name: "b".to_string(),
-                        location: cols(12, 12)
+                        location: cols(11, 11)
                     },
                     import_as: Identifier {
                         name: "c".to_string(),
-                        location: cols(17, 17)
+                        location: cols(16, 16)
                     },
-                    location: cols(12, 17)
+                    location: cols(11, 16)
                 }],
-                location: cols(1, 18)
+                location: cols(1, 17)
             }))
         );
     }
 
     #[test]
     fn test_lower_import_self() {
-        let hir = lower_top_expr("import a::(self)").0;
+        let hir = lower_top_expr("import a.(self)").0;
 
         assert_eq!(
             hir,
@@ -4622,15 +4627,15 @@ mod tests {
                 symbols: vec![ImportSymbol {
                     name: Identifier {
                         name: "self".to_string(),
-                        location: cols(12, 15)
+                        location: cols(11, 14)
                     },
                     import_as: Identifier {
                         name: "self".to_string(),
-                        location: cols(12, 15)
+                        location: cols(11, 14)
                     },
-                    location: cols(12, 15)
+                    location: cols(11, 14)
                 }],
-                location: cols(1, 16)
+                location: cols(1, 15)
             }))
         );
     }
@@ -4921,19 +4926,25 @@ mod tests {
 
     #[test]
     fn test_lower_namespaced_constant() {
-        let hir = lower_expr("fn a { a::B }").0;
+        let hir = lower_expr("fn a { a.B }").0;
 
         assert_eq!(
             hir,
-            Expression::ConstantRef(Box::new(ConstantRef {
-                kind: types::ConstantKind::Unknown,
-                source: Some(Identifier {
-                    name: "a".to_string(),
-                    location: cols(8, 8)
-                }),
-                name: "B".to_string(),
-                resolved_type: types::TypeRef::Unknown,
-                location: cols(11, 11)
+            Expression::Call(Box::new(Call {
+                kind: types::CallKind::Unknown,
+                receiver: Some(Expression::IdentifierRef(Box::new(
+                    IdentifierRef {
+                        kind: types::IdentifierKind::Unknown,
+                        name: "a".to_string(),
+                        location: cols(8, 8)
+                    }
+                ))),
+                name: Identifier {
+                    name: "B".to_string(),
+                    location: cols(10, 10)
+                },
+                arguments: Vec::new(),
+                location: cols(8, 10)
             }))
         );
     }

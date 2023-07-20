@@ -1,8 +1,8 @@
-import helpers::(fmt, hash)
-import std::cmp::(Compare, Ordering)
-import std::drop::(drop, Drop)
-import std::rand::Random
-import std::test::Tests
+import helpers.(fmt, hash)
+import std.cmp.(Compare, Ordering)
+import std.drop.(drop, Drop)
+import std.rand.Random
+import std.test.Tests
 
 class Person {
   let @name: String

@@ -1,5 +1,5 @@
-import std::crypto::poly1305::Poly1305
-import std::test::Tests
+import std.crypto.poly1305.Poly1305
+import std.test.Tests
 
 fn test_data -> Array[(Array[Int], Array[Int], Array[Int])] {
   # Each tuple is in the form (key, input, output)

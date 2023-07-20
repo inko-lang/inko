@@ -10,7 +10,7 @@
 #
 # Parsing is done using the `parse` module method:
 #
-#     import std::json
+#     import std.json
 #
 #     json.parse('[10]').unwrap # => Json.Array([Json.Int(10)])
 #
@@ -18,7 +18,7 @@
 # strings. These limits can be adjusted by using the `Parser` type directly like
 # so:
 #
-#     import std::json::Parser
+#     import std.json.Parser
 #
 #     let parser = Parser.new('[10]')
 #
@@ -31,7 +31,7 @@
 # Generating JSON strings is done using `Json.to_string` and
 # `Json.to_pretty_string`:
 #
-#     import std::json::Json
+#     import std.json.Json
 #
 #     Json.Array([Json.Int(1), Json.Int(2)]).to_string # => '[1, 2]'
 #
@@ -39,7 +39,7 @@
 # indentation level. You can change this value by using the `Generator` type
 # directly:
 #
-#     import std::json::(Generator, Json)
+#     import std.json.(Generator, Json)
 #
 #     let val = Json.Array([Json.Int(1), Json.Int(2)])
 #     let gen = Generator.new(indent: 4)
@@ -58,10 +58,10 @@
 # The implementation provided by this module isn't optimised for maximum
 # performance or optimal memory usage. Instead this module aims to provide an
 # implementation that's good enough for most cases.
-import std::cmp::Equal
-import std::fmt::(Format, Formatter)
-import std::string::(StringBuffer, ToString)
-import std::utf8
+import std.cmp.Equal
+import std.fmt.(Format, Formatter)
+import std.string.(StringBuffer, ToString)
+import std.utf8
 
 class extern IntResult {
   let @tag: Int
@@ -222,7 +222,7 @@ class pub enum Json {
   #
   # # Examples
   #
-  #     import std::json::Json
+  #     import std.json.Json
   #     Json.Int(42).to_pretty_string               # => '42'
   #     Json.Array([Json.Int(42)]).to_pretty_string # => "[\n  42\n]"
   fn pub to_pretty_string -> String {
@@ -235,7 +235,7 @@ impl ToString for Json {
   #
   # # Examples
   #
-  #     import std::json::Json
+  #     import std.json.Json
   #
   #     Json.Int(42).to_string               # => '42'
   #     Json.Array([Json.Int(42)]).to_string # => '[42]'
@@ -371,7 +371,7 @@ class pub Parser {
   #
   # # Examples
   #
-  #     import std::json::Parser
+  #     import std.json.Parser
   #
   #     let parser = Parser.new('[10, 20]')
   #
@@ -778,7 +778,7 @@ class pub Generator {
   #
   # # Examples
   #
-  #     import std::json::Generator
+  #     import std.json.Generator
   #
   #     Generator.new(indent: 2).generate(Json.Array([Json.Int(1)])) # => '[1]'
   fn pub mut generate(value: ref Json) -> String {
@@ -862,7 +862,7 @@ class pub Generator {
 #
 # # Examples
 #
-#     import std::json
+#     import std.json
 #
 #     json.parse('[10]').unwrap # => Json.Array([Json.Int(10)])
 fn pub parse(string: String) -> Result[Json, Error] {

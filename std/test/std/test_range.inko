@@ -1,6 +1,6 @@
-import helpers::(fmt, hash)
-import std::range::(ExclusiveRange, InclusiveRange)
-import std::test::Tests
+import helpers.(fmt, hash)
+import std.range.(ExclusiveRange, InclusiveRange)
+import std.test.Tests
 
 fn pub tests(t: mut Tests) {
   t.test('InclusiveRange.new') fn (t) {

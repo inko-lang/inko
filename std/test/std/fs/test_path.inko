@@ -1,11 +1,11 @@
-import helpers::(fmt)
-import std::env
-import std::fs::(DirectoryEntry, FileType)
-import std::fs::dir
-import std::fs::file::(self, WriteOnlyFile)
-import std::fs::path::(self, Path)
-import std::sys
-import std::test::Tests
+import helpers.(fmt)
+import std.env
+import std.fs.(DirectoryEntry, FileType)
+import std.fs.dir
+import std.fs.file.(self, WriteOnlyFile)
+import std.fs.path.(self, Path)
+import std.sys
+import std.test.Tests
 
 fn created_at? -> Bool {
   env.temporary_directory.created_at.ok?
@@ -26,8 +26,8 @@ fn write(string: String, to: ref Path) {
 }
 
 fn pub tests(t: mut Tests) {
-  t.test('path::SEPARATOR') fn (t) {
-    t.equal(path::SEPARATOR, '/')
+  t.test('path.SEPARATOR') fn (t) {
+    t.equal(path.SEPARATOR, '/')
   }
 
   t.test('Path.file?') fn (t) {

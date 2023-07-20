@@ -231,10 +231,10 @@ impl<'ctx> Layouts<'ctx> {
             method_table_sizes.push(methods_len);
 
             let name =
-                format!("{}::{}", id.module(db).name(db).as_str(), id.name(db));
+                format!("{}.{}", id.module(db).name(db).as_str(), id.name(db));
             let class = context.class_type(
                 methods_len,
-                &format!("{}::class", name),
+                &format!("{}.class", name),
                 method,
             );
             let instance = match id.0 {

@@ -1,5 +1,5 @@
-import std::fmt::(DefaultFormatter, fmt)
-import std::test::Tests
+import std.fmt.(DefaultFormatter, fmt)
+import std.test.Tests
 
 fn pub tests(t: mut Tests) {
   t.test('DefaultFormatter.descend') fn (t) {

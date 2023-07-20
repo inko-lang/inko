@@ -264,7 +264,7 @@ before any imports:
 
 ```inko
 # The documentation of the module goes here.
-import std::stdio::STDOUT
+import std.stdio.STDOUT
 ```
 
 ## Imports
@@ -272,15 +272,15 @@ import std::stdio::STDOUT
 Imports should be placed at the top of a module, in alphabetical order:
 
 ```inko
-import std::fs::file
-import std::stdio::stdout
+import std.fs.file
+import std.stdio.stdout
 ```
 
 The symbols imported from a module should also be listed in alphabetical order.
 If `self` is imported, it should come first:
 
 ```inko
-import std::fs::file::(self, ReadOnlyFile)
+import std.fs.file.(self, ReadOnlyFile)
 ```
 
 ## Class literals

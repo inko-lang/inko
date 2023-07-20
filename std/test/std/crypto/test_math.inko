@@ -1,5 +1,5 @@
-import std::test::Tests
-import std::crypto::math
+import std.test.Tests
+import std.crypto.math
 
 fn pub tests(t: mut Tests) {
   t.test('math.rotate_left_u32') fn (t) {

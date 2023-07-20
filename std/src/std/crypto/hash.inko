@@ -1,9 +1,9 @@
 # Types for cryptographic hash functions.
-import std::cmp::Equal
-import std::endian::big
-import std::endian::little
-import std::fmt::(Format, Formatter)
-import std::string::(StringBuffer, ToString)
+import std.cmp.Equal
+import std.endian.big
+import std.endian.little
+import std.fmt.(Format, Formatter)
+import std.string.(StringBuffer, ToString)
 
 # The digits to use when converting a digest to a hexadecimal string.
 let HEX_DIGITS = '0123456789abcdef'
@@ -113,7 +113,7 @@ class pub Block {
 # The output of a cryptographic or (cryptography related) universal hash
 # function.
 #
-# Unlike `std::hash::Hash`, this type is _produced_ by hashers rather than a
+# Unlike `std.hash.Hash`, this type is _produced_ by hashers rather than a
 # trait to implement. In addition it's aimed at hasher related to cryptography,
 # such as SHA256 and Poly1305. This type isn't suitable for hashing arbitrary
 # Inko types.

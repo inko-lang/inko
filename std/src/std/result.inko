@@ -2,10 +2,10 @@
 #
 # The `Result` type is used for error handling, and wraps either an OK value or
 # an error value.
-import std::clone::Clone
-import std::cmp::Equal
-import std::fmt::(Format, Formatter)
-import std::iter::Iter
+import std.clone.Clone
+import std.cmp.Equal
+import std.fmt.(Format, Formatter)
+import std.iter.Iter
 
 # A type that represents either success (`Ok(T)`) or failure (`Error(E)`).
 class pub enum Result[T, E] {

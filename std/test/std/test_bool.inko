@@ -1,6 +1,6 @@
-import helpers::(fmt, hash)
-import std::cmp::Ordering
-import std::test::Tests
+import helpers.(fmt, hash)
+import std.cmp.Ordering
+import std.test.Tests
 
 fn pub tests(t: mut Tests) {
   t.test('Bool.true?') fn (t) {

@@ -1,7 +1,7 @@
-import helpers::(fmt, hash)
-import std::cmp::Ordering
-import std::int::(MIN, MAX)
-import std::test::Tests
+import helpers.(fmt, hash)
+import std.cmp.Ordering
+import std.int.(MIN, MAX)
+import std.test.Tests
 
 fn pub tests(t: mut Tests) {
   t.test('Int.from_base2') fn (t) {

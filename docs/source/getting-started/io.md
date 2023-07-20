@@ -23,7 +23,7 @@ configurable using the
 [`INKO_NETPOLL_THREADS`](../../guides/scaling/#environment-variables)
 environment variable.
 
-Sockets are provided by the module `std::net::socket`. The following socket
+Sockets are provided by the module `std.net.socket`. The following socket
 types exist in this module:
 
 - `Socket`: a low-level IPv4/IPv6 socket. You probably don't want to use this
@@ -54,7 +54,7 @@ variable.
 
 ### Files
 
-Types for working with files are provided in the module `std::fs::file`. The
+Types for working with files are provided in the module `std.fs.file`. The
 following types are provided:
 
 - `ReadOnlyFile`: opens a file that only allows reads
@@ -64,7 +64,7 @@ following types are provided:
 Instances of these types are created using the static `new` method, for example:
 
 ```inko
-import std::fs::file::WriteOnlyFile
+import std.fs.file.WriteOnlyFile
 
 WriteOnlyFile.new('test.txt').expect('failed to open the file')
 ```
@@ -74,14 +74,14 @@ file, overwriting existing content when writing. To instead append to the end of
 the file, use the `append` static method:
 
 ```inko
-import std::fs::file::WriteOnlyFile
+import std.fs.file.WriteOnlyFile
 
 WriteOnlyFile.append('test.txt').expect('failed to open the file')
 ```
 
 ### Standard input/output
 
-The module `std::stdio` provides types for working with standard input/output
+The module `std.stdio` provides types for working with standard input/output
 streams. These types are as follows:
 
 - `STDIN`: a type for reading from the standard input stream.
@@ -90,5 +90,5 @@ streams. These types are as follows:
 
 ## Other IO types
 
-The module `std::io` provides various traits implemented by other IO types. For
+The module `std.io` provides various traits implemented by other IO types. For
 example, the `Read` trait is implemented by IO types that support reads.

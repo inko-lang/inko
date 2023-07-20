@@ -1,7 +1,7 @@
-import std::channel
-import std::process::(sleep)
-import std::test::Tests
-import std::time::(Duration, Instant)
+import std.channel
+import std.process.(sleep)
+import std.test.Tests
+import std.time.(Duration, Instant)
 
 fn pub tests(t: mut Tests) {
   t.test('channel.wait') fn (t) {

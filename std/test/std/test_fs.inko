@@ -1,6 +1,6 @@
-import helpers::(fmt)
-import std::fs::(DirectoryEntry, FileType)
-import std::test::Tests
+import helpers.(fmt)
+import std.fs.(DirectoryEntry, FileType)
+import std.test.Tests
 
 fn pub tests(t: mut Tests) {
   t.test('FileType.==') fn (t) {

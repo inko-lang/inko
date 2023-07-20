@@ -5,14 +5,14 @@ Inko source file you can import into another file using the `import` keyword.
 For example:
 
 ```inko
-import std::stdio
+import std.stdio
 ```
 
-This imports the module `std::stdio` and exposes it using the name `stdio`. You
+This imports the module `std.stdio` and exposes it using the name `stdio`. You
 an also import specific symbols, such as types:
 
 ```inko
-import std::stdio::STDOUT
+import std.stdio.STDOUT
 ```
 
 For more information about the syntax of `import` statements, refer to the

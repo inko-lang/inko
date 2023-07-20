@@ -20,9 +20,9 @@
 #
 # Inko uses external iteration. To make it easier to write such iterators, it
 # provides the `Stream` type, which can create iterators from a closure.
-import std::cmp::Equal
-import std::option::Option
-import std::string::(ToString, StringBuffer)
+import std.cmp.Equal
+import std.option.Option
+import std.string.(ToString, StringBuffer)
 
 # The "byte" that signals the end in a `Bytes` iterator.
 let pub EOF = -1
@@ -405,7 +405,7 @@ trait pub IntoIter[T] {
 #
 # # Examples
 #
-#     import std::iter::Stream
+#     import std.iter.Stream
 #
 #     fn example(max: Int) -> Stream[Int] {
 #       let mut index = 0
@@ -469,6 +469,6 @@ impl Iter[T] for Stream {
 trait pub Bytes: Iter[Int] {
   # Returns the next byte in the iterator.
   #
-  # If all input is consumed, this method must return `std::iter::EOF`.
+  # If all input is consumed, this method must return `std.iter.EOF`.
   fn pub mut next_byte -> Int
 }

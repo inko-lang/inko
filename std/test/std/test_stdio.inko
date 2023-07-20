@@ -1,5 +1,5 @@
-import std::test::Tests
-import std::stdio::(STDERR, STDIN, STDOUT)
+import std.test.Tests
+import std.stdio.(STDERR, STDIN, STDOUT)
 
 fn pub tests(t: mut Tests) {
   t.fork(
