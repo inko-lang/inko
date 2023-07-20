@@ -224,7 +224,8 @@ impl<'ctx> Layouts<'ctx> {
             // We size classes larger than actually needed in an attempt to
             // reduce collisions when performing dynamic dispatch.
             let methods_len = max(
-                round_methods(mir_class.methods.len()) * METHOD_TABLE_FACTOR,
+                round_methods(mir_class.instance_methods_count(db))
+                    * METHOD_TABLE_FACTOR,
                 METHOD_TABLE_MIN_SIZE,
             );
 

@@ -269,6 +269,12 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
             };
 
             for method in &self.mir.classes[&class_id].methods {
+                // Static methods aren't stored in classes, nor can we call them
+                // through dynamic dispatch, so we can skip the rest.
+                if method.is_static(self.db) {
+                    continue;
+                }
+
                 let info = &self.layouts.methods[method];
                 let name = &self.names.methods[method];
                 let func = self

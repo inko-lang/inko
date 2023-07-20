@@ -8,7 +8,7 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 use types::collections::IndexMap;
-use types::BuiltinFunction;
+use types::{BuiltinFunction, Database};
 
 /// The number of reductions to perform after calling a method.
 const CALL_COST: u16 = 1;
@@ -407,14 +407,12 @@ impl Block {
     pub(crate) fn call_static(
         &mut self,
         register: RegisterId,
-        class: types::ClassId,
         method: types::MethodId,
         arguments: Vec<RegisterId>,
         location: LocationId,
     ) {
         self.instructions.push(Instruction::CallStatic(Box::new(CallStatic {
             register,
-            class,
             method,
             arguments,
             location,
@@ -890,7 +888,6 @@ pub(crate) struct StringLiteral {
 #[derive(Clone)]
 pub(crate) struct CallStatic {
     pub(crate) register: RegisterId,
-    pub(crate) class: types::ClassId,
     pub(crate) method: types::MethodId,
     pub(crate) arguments: Vec<RegisterId>,
     pub(crate) location: LocationId,
@@ -1223,9 +1220,8 @@ impl Instruction {
             }
             Instruction::CallStatic(ref v) => {
                 format!(
-                    "r{} = call_static {}.{}({})",
+                    "r{} = call_static {}({})",
                     v.register.0,
-                    v.class.name(db),
                     v.method.name(db),
                     join(&v.arguments)
                 )
@@ -1367,6 +1363,10 @@ impl Class {
         for method in methods {
             self.methods.push(method.id);
         }
+    }
+
+    pub(crate) fn instance_methods_count(&self, db: &Database) -> usize {
+        self.methods.iter().filter(|m| !m.is_static(db)).count()
     }
 }
 

@@ -1846,9 +1846,9 @@ impl<'a> LowerMethod<'a> {
                 //    between the call and the check.
                 return result;
             }
-            types::Receiver::Class(id) => {
+            types::Receiver::Class => {
                 self.current_block_mut()
-                    .call_static(result, id, info.id, arguments, location);
+                    .call_static(result, info.id, arguments, location);
                 self.reduce_call(info.returns, location);
 
                 return result;

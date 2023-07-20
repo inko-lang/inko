@@ -2554,7 +2554,7 @@ impl<'a> CheckMethodBody<'a> {
                         (
                             TypeRef::module(id),
                             TypeId::Module(id),
-                            Receiver::with_module(self.db(), id, method),
+                            Receiver::with_module(self.db(), method),
                             method,
                         )
                     } else {
@@ -2675,7 +2675,7 @@ impl<'a> CheckMethodBody<'a> {
                         (
                             TypeRef::module(id),
                             TypeId::Module(id),
-                            Receiver::with_module(self.db(), id, method),
+                            Receiver::with_module(self.db(), method),
                             method,
                         )
                     } else {
@@ -3702,7 +3702,7 @@ impl<'a> CheckMethodBody<'a> {
                         let mod_typ = TypeRef::Owned(id);
 
                         (
-                            Receiver::with_module(self.db(), mod_id, method),
+                            Receiver::with_module(self.db(), method),
                             mod_typ,
                             id,
                             method,

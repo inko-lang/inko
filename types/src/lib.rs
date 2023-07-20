@@ -1937,6 +1937,10 @@ impl MethodId {
         )
     }
 
+    pub fn is_static(self, db: &Database) -> bool {
+        matches!(self.get(db).kind, MethodKind::Static)
+    }
+
     pub fn is_extern(self, db: &Database) -> bool {
         matches!(self.get(db).kind, MethodKind::Extern)
     }
@@ -2109,7 +2113,7 @@ pub enum Receiver {
     ///
     /// This is separate from an explicit receiver as we don't need to process
     /// the receiver expression in this case.
-    Class(ClassId),
+    Class,
 
     /// The call is an extern call, and there's no receiver.
     Extern,
@@ -2124,7 +2128,7 @@ impl Receiver {
         method
             .receiver(db)
             .as_class(db)
-            .map(Receiver::Class)
+            .map(|_| Receiver::Class)
             .unwrap_or(Receiver::Implicit)
     }
 
@@ -2137,19 +2141,18 @@ impl Receiver {
             return Receiver::Extern;
         }
 
-        receiver.as_class(db).map(Receiver::Class).unwrap_or(Receiver::Explicit)
+        receiver
+            .as_class(db)
+            .map(|_| Receiver::Class)
+            .unwrap_or(Receiver::Explicit)
     }
 
-    pub fn with_module(
-        db: &Database,
-        id: ModuleId,
-        method: MethodId,
-    ) -> Receiver {
+    pub fn with_module(db: &Database, method: MethodId) -> Receiver {
         if method.is_extern(db) {
             return Receiver::Extern;
         }
 
-        Receiver::Class(id.class(db))
+        Receiver::Class
     }
 
     pub fn is_explicit(&self) -> bool {
