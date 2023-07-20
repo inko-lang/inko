@@ -3,6 +3,7 @@ import std.drop.Drop
 import std.env
 import std.fs.file
 import std.fs.path.Path
+import std.io.Error
 import std.net.ip.(IpAddress, Ipv4Address, Ipv6Address)
 import std.net.socket.(
   Socket, SocketAddress, TcpServer, TcpClient, Type, UdpSocket, UnixAddress,
@@ -582,16 +583,14 @@ fn pub tests(t: mut Tests) {
         .ok?
     )
 
-    t.true(
-      # This address is unroutable and so the connect times out.
-      TcpClient
-        .with_timeout(
-          ip: IpAddress.v4(192, 168, 0, 0),
-          port: addr.port,
-          timeout_after: Duration.from_micros(500)
-        )
-        .error?
+    # This address is unroutable and so the connect times out.
+    let timed_out = TcpClient.with_timeout(
+      ip: IpAddress.v4(192, 168, 0, 0),
+      port: addr.port,
+      timeout_after: Duration.from_micros(500)
     )
+
+    t.equal(timed_out.error, Option.Some(Error.TimedOut))
   }
 
   t.test('TcpClient.local_address') fn (t) {

@@ -1,9 +1,24 @@
 use crate::mem::tagged_int;
+use rustix::io::Errno;
 use std::io;
 
 const OK: i64 = 0;
 const NONE: i64 = 1;
 const ERROR: i64 = 2;
+
+pub(crate) fn error_to_int(error: io::Error) -> i64 {
+    let code = if let Some(code) = error.raw_os_error() {
+        code
+    } else if let io::ErrorKind::TimedOut = error.kind() {
+        // Socket deadlines produce a TimedOut manually, in which case
+        // raw_os_error() above returns a None.
+        Errno::TIMEDOUT.raw_os_error()
+    } else {
+        -1
+    };
+
+    code as i64
+}
 
 /// A result type that is FFI safe and wraps a pointer.
 ///
@@ -46,7 +61,7 @@ impl Result {
     }
 
     pub(crate) fn io_error(error: io::Error) -> Result {
-        Self::error(tagged_int(error.raw_os_error().unwrap_or(-1) as _) as _)
+        Self::error(tagged_int(error_to_int(error)) as _)
     }
 }
 

@@ -2,16 +2,12 @@ use crate::context;
 use crate::mem::{Bool, ByteArray, Int, String as InkoString};
 use crate::network_poller::Interest;
 use crate::process::ProcessPointer;
-use crate::result::Result;
+use crate::result::{error_to_int, Result};
 use crate::scheduler::timeouts::Timeout;
 use crate::socket::Socket;
 use crate::state::State;
-use std::io::{self, Error, Write};
+use std::io::{self, Write};
 use std::ptr::{drop_in_place, write};
-
-fn error_to_int(error: Error) -> i64 {
-    error.raw_os_error().unwrap_or(-1) as i64
-}
 
 #[repr(C)]
 pub struct RawAddress {
