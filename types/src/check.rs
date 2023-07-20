@@ -84,6 +84,11 @@ impl Rules {
         self.relaxed_ownership = false;
         self
     }
+
+    fn with_one_time_subtyping(mut self) -> Rules {
+        self.subtyping = TraitSubtyping::Once;
+        self
+    }
 }
 
 /// The type-checking environment.
@@ -756,6 +761,9 @@ impl<'a> TypeChecker<'a> {
             return true;
         }
 
+        // At this point no value is assigned yet, so it's safe to allow
+        // sub-typing through traits.
+        let rules = rules.with_one_time_subtyping();
         let res = match left_id {
             TypeId::ClassInstance(lhs) => reqs
                 .into_iter()
@@ -1609,6 +1617,36 @@ mod tests {
 
         assert!(res);
         assert_eq!(var.value(&db), Some(owned(rigid(param))));
+    }
+
+    #[test]
+    fn test_mut_with_mut_placeholder_with_requirements() {
+        let mut db = Database::new();
+        let param = new_parameter(&mut db, "T");
+        let to_foo = new_trait(&mut db, "ToFoo");
+        let array = ClassId::array();
+        let var = TypePlaceholder::alloc(&mut db, Some(param));
+
+        array.new_type_parameter(&mut db, "T".to_string());
+        param.add_requirements(&mut db, vec![trait_instance(to_foo)]);
+        ClassId::int().add_trait_implementation(
+            &mut db,
+            TraitImplementation {
+                instance: trait_instance(to_foo),
+                bounds: TypeBounds::new(),
+            },
+        );
+
+        let given =
+            mutable(generic_instance_id(&mut db, array, vec![TypeRef::int()]));
+
+        let exp = mutable(generic_instance_id(
+            &mut db,
+            array,
+            vec![placeholder(var)],
+        ));
+
+        check_ok(&db, given, exp);
     }
 
     #[test]
