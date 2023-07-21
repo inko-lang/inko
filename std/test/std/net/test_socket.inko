@@ -19,15 +19,15 @@ class SocketPath {
   fn static pair(id: Int) -> (SocketPath, SocketPath) {
     let p1 = env.temporary_directory.join("inko-test-{id}-1.sock")
     let p2 = env.temporary_directory.join("inko-test-{id}-2.sock")
-    let _ = file.remove(p1)
-    let _ = file.remove(p2)
+    let _ = p1.remove_file
+    let _ = p2.remove_file
 
     (SocketPath { @path = p1 }, SocketPath { @path = p2 })
   }
 
   fn static new(id: Int) -> SocketPath {
     let path = env.temporary_directory.join("inko-test-{id}.sock")
-    let _ = file.remove(path)
+    let _ = path.remove_file
 
     SocketPath { @path = path }
   }
@@ -41,7 +41,7 @@ impl ToString for SocketPath {
 
 impl Drop for SocketPath {
   fn mut drop {
-    let _ = file.remove(@path)
+    let _ = @path.remove_file
   }
 }
 

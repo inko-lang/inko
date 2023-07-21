@@ -14,7 +14,6 @@
 import std.drop.Drop
 import std.fs.path.(IntoPath, Path)
 import std.io.(Error, Read, Seek, Size, Write)
-import std.string.ToString
 
 let FILE_READ_ONLY = 0
 let FILE_WRITE_ONLY = 1
@@ -43,12 +42,6 @@ fn extern inko_file_flush(
 ) -> AnyResult
 
 fn extern inko_file_drop(file: Pointer[Int8])
-fn extern inko_file_copy(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
-  from: String,
-  to: String,
-) -> AnyResult
 
 fn extern inko_file_open(
   process: Pointer[Int8],
@@ -64,7 +57,6 @@ fn extern inko_file_read(
   size: Int,
 ) -> IntResult
 
-fn extern inko_file_remove(process: Pointer[Int8], path: String) -> AnyResult
 fn extern inko_file_seek(
   state: Pointer[Int8],
   process: Pointer[Int8],
@@ -91,49 +83,6 @@ fn extern inko_file_write_string(
   file: Pointer[Int8],
   input: String,
 ) -> IntResult
-
-# Removes the file for the given file path.
-#
-# # Examples
-#
-# Removing a file:
-#
-#     import std.fs.file.(self, WriteOnlyFile)
-#
-#     let handle = WriteOnlyFile.new('/tmp/test.txt').unwrap
-#
-#     handle.write('hello').unwrap
-#     file.remove('/tmp/test.txt').unwrap
-fn pub remove(path: ref ToString) -> Result[Nil, Error] {
-  match inko_file_remove(_INKO.process, path.to_string) {
-    case { @tag = 1, @value = _ } -> Result.Ok(nil)
-    case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e as Int))
-  }
-}
-
-# Copies a file from the source destination to the target destination,
-# returning the number of copied bytes.
-#
-# # Examples
-#
-# Copying a file:
-#
-#     import std.fs.file.(self, WriteOnlyFile)
-#
-#     let handle = WriteOnlyFile.new('/tmp/test.txt').unwrap
-#
-#     handle.write('hello').unwrap
-#     file.copy(from: '/tmp/test.txt', to: '/tmp/test2.txt').unwrap
-fn pub copy(from: ref ToString, to: ref ToString) -> Result[Int, Error] {
-  match inko_file_copy(
-    _INKO.state, _INKO.process, from.to_string, to.to_string
-  ) {
-    case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-    case { @tag = _, @value = e } -> Result.Error(
-      Error.from_os_error(e as Int)
-    )
-  }
-}
 
 # A file that can only be used for reads.
 class pub ReadOnlyFile {

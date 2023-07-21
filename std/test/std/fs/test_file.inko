@@ -19,30 +19,6 @@ fn read(from: ref Path) -> String {
 }
 
 fn pub tests(t: mut Tests) {
-  t.test('file.remove') fn (t) {
-    let path = env.temporary_directory.join("inko-test-{t.id}")
-
-    t.true(file.remove(path).error?)
-
-    write('test', to: path)
-
-    t.true(file.remove(path).ok?)
-    t.false(path.exists?)
-  }
-
-  t.test('file.copy') fn (t) {
-    let path1 = env.temporary_directory.join("inko-test-{t.id}-1")
-    let path2 = env.temporary_directory.join("inko-test-{t.id}-2")
-
-    write('test', to: path1)
-
-    t.true(file.copy(from: path1, to: path2).ok?)
-    t.equal(read(path2), 'test')
-
-    file.remove(path1).unwrap
-    file.remove(path2).unwrap
-  }
-
   t.test('ReadOnlyFile.new') fn (t) {
     let path = env.temporary_directory.join("inko-test-{t.id}")
 
@@ -52,7 +28,7 @@ fn pub tests(t: mut Tests) {
 
     t.true(ReadOnlyFile.new(path.clone).ok?)
 
-    file.remove(path).unwrap
+    path.remove_file.unwrap
   }
 
   t.test('ReadOnlyFile.read') fn (t) {
@@ -67,7 +43,7 @@ fn pub tests(t: mut Tests) {
 
     t.equal(bytes.into_string, 'test')
 
-    file.remove(path).unwrap
+    path.remove_file.unwrap
   }
 
   t.test('ReadOnlyFile.seek') fn (t) {
@@ -83,7 +59,7 @@ fn pub tests(t: mut Tests) {
 
     t.equal(bytes.into_string, 'est')
 
-    file.remove(path).unwrap
+    path.remove_file.unwrap
   }
 
   t.test('ReadOnlyFile.size') fn (t) {
@@ -95,7 +71,7 @@ fn pub tests(t: mut Tests) {
 
     t.true(handle.size.unwrap >= 0)
 
-    file.remove(path).unwrap
+    path.remove_file.unwrap
   }
 
   t.test('WriteOnlyFile.new') fn (t) {
@@ -104,7 +80,7 @@ fn pub tests(t: mut Tests) {
     t.true(WriteOnlyFile.new(path.clone).ok?)
     t.true(WriteOnlyFile.new(path.clone).ok?)
 
-    file.remove(path).unwrap
+    path.remove_file.unwrap
   }
 
   t.test('WriteOnlyFile.append') fn (t) {
@@ -113,7 +89,7 @@ fn pub tests(t: mut Tests) {
     t.true(WriteOnlyFile.append(path.clone).ok?)
     t.true(WriteOnlyFile.append(path.clone).ok?)
 
-    file.remove(path).unwrap
+    path.remove_file.unwrap
   }
 
   t.test('WriteOnlyFile.write_bytes') fn (t) {
@@ -133,7 +109,7 @@ fn pub tests(t: mut Tests) {
 
     t.equal(read(path), 'testing')
 
-    file.remove(path).unwrap
+    path.remove_file.unwrap
   }
 
   t.test('WriteOnlyFile.write_string') fn (t) {
@@ -153,7 +129,7 @@ fn pub tests(t: mut Tests) {
 
     t.equal(read(path), 'testing')
 
-    file.remove(path).unwrap
+    path.remove_file.unwrap
   }
 
   t.test('WriteOnlyFile.flush') fn (t) {
@@ -165,7 +141,7 @@ fn pub tests(t: mut Tests) {
 
     t.equal(read(path), 'test')
 
-    file.remove(path).unwrap
+    path.remove_file.unwrap
   }
 
   t.test('WriteOnlyFile.seek') fn (t) {
@@ -178,7 +154,7 @@ fn pub tests(t: mut Tests) {
 
     t.equal(read(path), 'ting')
 
-    file.remove(path).unwrap
+    path.remove_file.unwrap
   }
 
   t.test('ReadWriteFile.new') fn (t) {
@@ -187,7 +163,7 @@ fn pub tests(t: mut Tests) {
     t.true(ReadWriteFile.new(path.clone).ok?)
     t.true(ReadWriteFile.new(path.clone).ok?)
 
-    file.remove(path).unwrap
+    path.remove_file.unwrap
   }
 
   t.test('ReadWriteFile.append') fn (t) {
@@ -196,7 +172,7 @@ fn pub tests(t: mut Tests) {
     t.true(ReadWriteFile.append(path.clone).ok?)
     t.true(ReadWriteFile.append(path.clone).ok?)
 
-    file.remove(path).unwrap
+    path.remove_file.unwrap
   }
 
   t.test('ReadWriteFile.read') fn (t) {
@@ -211,7 +187,7 @@ fn pub tests(t: mut Tests) {
 
     t.equal(bytes.to_string, 'test')
 
-    file.remove(path).unwrap
+    path.remove_file.unwrap
   }
 
   t.test('ReadWriteFile.write_bytes') fn (t) {
@@ -231,7 +207,7 @@ fn pub tests(t: mut Tests) {
 
     t.equal(read(path), 'testing')
 
-    file.remove(path).unwrap
+    path.remove_file.unwrap
   }
 
   t.test('ReadWriteFile.write_string') fn (t) {
@@ -251,7 +227,7 @@ fn pub tests(t: mut Tests) {
 
     t.equal(read(path), 'testing')
 
-    file.remove(path).unwrap
+    path.remove_file.unwrap
   }
 
   t.test('ReadWriteFile.flush') fn (t) {
@@ -263,7 +239,7 @@ fn pub tests(t: mut Tests) {
 
     t.equal(read(path), 'test')
 
-    file.remove(path).unwrap
+    path.remove_file.unwrap
   }
 
   t.test('ReadWriteFile.seek') fn (t) {
@@ -276,7 +252,7 @@ fn pub tests(t: mut Tests) {
 
     t.equal(read(path), 'ting')
 
-    file.remove(path).unwrap
+    path.remove_file.unwrap
   }
 
   t.test('ReadWriteFile.size') fn (t) {
@@ -288,6 +264,6 @@ fn pub tests(t: mut Tests) {
 
     t.true(handle.size.unwrap >= 0)
 
-    file.remove(path).unwrap
+    path.remove_file.unwrap
   }
 }

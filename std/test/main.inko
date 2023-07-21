@@ -12,7 +12,6 @@ import std.crypto.test_sha1
 import std.crypto.test_sha2
 import std.endian.test_big
 import std.endian.test_little
-import std.fs.test_dir
 import std.fs.test_file
 import std.fs.test_path
 import std.hash.test_siphash
@@ -60,7 +59,6 @@ class async Main {
     test_channel.tests(tests)
     test_cmp.tests(tests)
     test_debug.tests(tests)
-    test_dir.tests(tests)
     test_drop.tests(tests)
     test_env.tests(tests)
     test_file.tests(tests)

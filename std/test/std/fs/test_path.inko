@@ -1,8 +1,7 @@
 import helpers.(fmt)
 import std.env
 import std.fs.(DirectoryEntry, FileType)
-import std.fs.dir
-import std.fs.file.(self, WriteOnlyFile)
+import std.fs.file.(self, ReadOnlyFile, WriteOnlyFile)
 import std.fs.path.(self, Path)
 import std.sys
 import std.test.Tests
@@ -17,6 +16,15 @@ fn modified_at? -> Bool {
 
 fn accessed_at? -> Bool {
   env.temporary_directory.accessed_at.ok?
+}
+
+fn read(from: ref Path) -> String {
+  let file = ReadOnlyFile.new(from.clone).unwrap
+  let bytes = ByteArray.new
+
+  file.read_all(bytes).unwrap
+
+  bytes.into_string
 }
 
 fn write(string: String, to: ref Path) {
@@ -37,7 +45,7 @@ fn pub tests(t: mut Tests) {
     write('test', to: path)
     t.true(path.file?)
 
-    file.remove(path).unwrap
+    path.remove_file.unwrap
   }
 
   t.test('Path.directory?') fn (t) {
@@ -131,12 +139,12 @@ fn pub tests(t: mut Tests) {
     let temp = env.temporary_directory
     let bar = temp.join('foo').join('bar')
 
-    dir.create_all(bar).unwrap
+    bar.create_directory_all.unwrap
 
     let expanded = bar.join('..').join('..').expand
 
     t.equal(expanded, Result.Ok(temp))
-    dir.remove_all(bar)
+    bar.remove_directory_all
   }
 
   t.test('Path.tail') fn (t) {
@@ -151,8 +159,8 @@ fn pub tests(t: mut Tests) {
     let root = env.temporary_directory.join("inko-test-dir-{t.id}")
     let foo = root.join('foo')
 
-    dir.create(root).unwrap
-    dir.create(foo).unwrap
+    root.create_directory.unwrap
+    foo.create_directory.unwrap
 
     let entry = root
       .list
@@ -165,12 +173,89 @@ fn pub tests(t: mut Tests) {
       Option.Some(DirectoryEntry { @path = foo, @type = FileType.Directory })
     )
 
-    let _ = dir.remove_all(root)
+    let _ = root.remove_directory_all
   }
 
   t.test('Path.list with an invalid directory') fn (t) {
     let root = env.temporary_directory.join("inko-test-dir-{t.id}")
 
     t.true(root.list.error?)
+  }
+
+  t.test('Path.remove_file') fn (t) {
+    let path = env.temporary_directory.join("inko-test-{t.id}")
+
+    t.true(path.remove_file.error?)
+
+    write('test', to: path)
+
+    t.true(path.remove_file.ok?)
+    t.false(path.exists?)
+  }
+
+  t.test('Path.remove_directory') fn (t) {
+    let path = env.temporary_directory.join("inko-test-dir-{t.id}")
+
+    t.true(path.remove_directory.error?)
+
+    path.create_directory.unwrap
+
+    t.true(path.remove_directory.ok?)
+    t.false(path.directory?)
+  }
+
+  t.test('Path.create_directory') fn (t) {
+    let path = env.temporary_directory.join("inko-test-dir-{t.id}")
+
+    t.true(path.create_directory.ok?)
+    t.true(path.directory?)
+    t.true(path.create_directory.error?)
+
+    path.remove_directory.unwrap
+  }
+
+  t.test('Path.create_directory_all') fn (t) {
+    let root = env.temporary_directory.join("inko-test-dir-{t.id}")
+    let path = root.join('foo').join('bar')
+
+    t.true(path.create_directory_all.ok?)
+    t.true(path.directory?)
+    t.true(path.create_directory_all.ok?)
+
+    root.remove_directory_all.unwrap
+  }
+
+  t.test('Path.remove_directory') fn (t) {
+    let path = env.temporary_directory.join("inko-test-dir-{t.id}")
+
+    path.create_directory.unwrap
+
+    t.true(path.remove_directory.ok?)
+    t.true(path.remove_directory.error?)
+    t.false(path.directory?)
+  }
+
+  t.test('Path.remove_directory_all') fn (t) {
+    let root = env.temporary_directory.join("inko-test-dir-{t.id}")
+    let path = root.join('foo').join('bar')
+
+    path.create_directory_all.unwrap
+
+    t.true(root.remove_directory_all.ok?)
+    t.true(root.remove_directory_all.error?)
+    t.false(root.directory?)
+  }
+
+  t.test('Path.copy') fn (t) {
+    let path1 = env.temporary_directory.join("inko-test-{t.id}-1")
+    let path2 = env.temporary_directory.join("inko-test-{t.id}-2")
+
+    write('test', to: path1)
+
+    t.true(path1.copy(to: path2).ok?)
+    t.equal(read(path2), 'test')
+
+    path1.remove_file.unwrap
+    path2.remove_file.unwrap
   }
 }

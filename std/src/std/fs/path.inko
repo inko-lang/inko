@@ -20,6 +20,35 @@ class extern AnyResult {
   let @value: Any
 }
 
+fn extern inko_file_remove(process: Pointer[Int8], path: String) -> AnyResult
+
+fn extern inko_file_copy(
+  state: Pointer[Int8],
+  process: Pointer[Int8],
+  from: String,
+  to: String,
+) -> AnyResult
+
+fn extern inko_directory_remove(
+  process: Pointer[Int8],
+  path: String,
+) -> AnyResult
+
+fn extern inko_directory_create(
+  process: Pointer[Int8],
+  path: String,
+) -> AnyResult
+
+fn extern inko_directory_create_recursive(
+  process: Pointer[Int8],
+  path: String,
+) -> AnyResult
+
+fn extern inko_directory_remove_recursive(
+  process: Pointer[Int8],
+  path: String,
+) -> AnyResult
+
 fn extern inko_file_size(
   state: Pointer[Int8],
   process: Pointer[Int8],
@@ -404,6 +433,146 @@ class pub Path {
   fn pub list -> Result[ReadDirectory, Error] {
     ReadDirectoryInner.new(@path).map fn (inner) {
       ReadDirectory { @path = @path, @inner = inner }
+    }
+  }
+
+  # Removes the file `self` points to.
+  #
+  # If `self` points to a directory, an error is returned.
+  #
+  # # Examples
+  #
+  #     import std.fs.file.WriteOnlyFile
+  #     import std.fs.path.Path
+  #
+  #     let path = Path.new('/tmp/test.txt')
+  #     let handle = WriteOnlyFile.new(path).unwrap
+  #
+  #     handle.write_string('hello').unwrap
+  #     path.remove_file.unwrap
+  fn pub remove_file -> Result[Nil, Error] {
+    match inko_file_remove(_INKO.process, @path) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(
+        Error.from_os_error(e as Int)
+      )
+    }
+  }
+
+  # Removes the directory `self` points to.
+  #
+  # If `self` points to a file, an error is returned.
+  #
+  # # Examples
+  #
+  #     import std.fs.path.Path
+  #
+  #     let path = Path.new('/tmp/foo')
+  #
+  #     path.create_directory.unwrap
+  #     path.remove_directory.unwrap
+  fn pub remove_directory -> Result[Nil, Error] {
+    match inko_directory_remove(_INKO.process, @path) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(
+        Error.from_os_error(e as Int)
+      )
+    }
+  }
+
+  # Removes the directory and its contents `self` points to.
+  #
+  # # Errors
+  #
+  # This method returns an `Error` if any of the following conditions are met:
+  #
+  # 1. The user lacks the necessary permissions to remove the directory.
+  # 2. The directory does not exist.
+  #
+  # # Examples
+  #
+  # Removing a directory:
+  #
+  #     import std.fs.path.Path
+  #
+  #     Path.new('/tmp/foo/bar').create_directory_all.unwrap
+  #     Path.new('/tmp/foo').remove_directory_all.unwrap
+  fn pub remove_directory_all -> Result[Nil, Error] {
+    match inko_directory_remove_recursive(_INKO.process, @path) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(
+        Error.from_os_error(e as Int)
+      )
+    }
+  }
+
+  # Creates a new empty directory at the path `self` points to.
+  #
+  # # Errors
+  #
+  # This method returns an `Error` if any of the following conditions are met:
+  #
+  # 1. The user lacks the necessary permissions to create the directory.
+  # 2. The directory already exists.
+  #
+  # # Examples
+  #
+  #     import std.fs.path.Path
+  #
+  #     Path.new('/tmp/test').create_directory.unwrap
+  fn pub create_directory -> Result[Nil, Error] {
+    match inko_directory_create(_INKO.process, @path) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(
+        Error.from_os_error(e as Int)
+      )
+    }
+  }
+
+  # Creates a new empty directory at the path `self` points to, while also
+  # creating any intermediate directories.
+  #
+  # # Errors
+  #
+  # This method returns an `Error` if any of the following conditions are met:
+  #
+  # 1. The user lacks the necessary permissions to create the directory.
+  #
+  # # Examples
+  #
+  #     import std.fs.path.Path
+  #
+  #     Path.new('/tmp/foo/bar/test').create_directory_all.unwrap
+  fn pub create_directory_all -> Result[Nil, Error] {
+    match inko_directory_create_recursive(_INKO.process, @path) {
+      case { @tag = 1, @value = _ } -> Result.Ok(nil)
+      case { @tag = _, @value = e } -> Result.Error(
+        Error.from_os_error(e as Int)
+      )
+    }
+  }
+
+  # Copies the file `self` points to the file `to` points to, returning the
+  # number of copied bytes.
+  #
+  # If `self` or `to` points to a directory, an error is returned.
+  #
+  # # Examples
+  #
+  #     import std.fs.file.WriteOnlyFile
+  #     import std.fs.path.Path
+  #
+  #     let path = Path.new('/tmp/test.txt')
+  #     let file = WriteOnlyFile.new(path).unwrap
+  #
+  #     file.write_string('hello').unwrap
+  #     path.copy(to: '/tmp/test2.txt').unwrap
+  fn pub copy(to: ref ToString) -> Result[Int, Error] {
+    match inko_file_copy(_INKO.state, _INKO.process, @path, to.to_string) {
+      case { @tag = 0, @value = v } -> Result.Ok(v as Int)
+      case { @tag = _, @value = e } -> Result.Error(
+        Error.from_os_error(e as Int)
+      )
     }
   }
 }
