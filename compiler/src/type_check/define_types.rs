@@ -154,10 +154,12 @@ impl<'a> DefineTypes<'a> {
 
     fn define_trait(&mut self, node: &mut hir::DefineTrait) {
         let name = node.name.name.clone();
+        let module = self.module;
         let id = Trait::alloc(
             self.db_mut(),
             name.clone(),
             Visibility::public(node.public),
+            module,
         );
 
         if self.module.symbol_exists(self.db(), &name) {
@@ -1291,6 +1293,7 @@ mod tests {
             &mut state.db,
             "ToString".to_string(),
             Visibility::Private,
+            module,
         );
         let string = Class::alloc(
             &mut state.db,
@@ -1330,6 +1333,7 @@ mod tests {
             &mut state.db,
             "ToString".to_string(),
             Visibility::Private,
+            module,
         );
         let string = Class::alloc(
             &mut state.db,
@@ -1377,6 +1381,7 @@ mod tests {
             &mut state.db,
             "ToString".to_string(),
             Visibility::Private,
+            module,
         );
         let array = Class::alloc(
             &mut state.db,
@@ -1418,6 +1423,7 @@ mod tests {
             &mut state.db,
             "ToString".to_string(),
             Visibility::Private,
+            module,
         );
         let array = Class::alloc(
             &mut state.db,
@@ -1456,6 +1462,7 @@ mod tests {
             &mut state.db,
             "ToString".to_string(),
             Visibility::Private,
+            module,
         );
 
         module.new_symbol(
@@ -1482,6 +1489,7 @@ mod tests {
             &mut state.db,
             "ToString".to_string(),
             Visibility::Private,
+            module,
         );
 
         module.new_symbol(
@@ -1513,6 +1521,7 @@ mod tests {
             &mut state.db,
             "ToString".to_string(),
             Visibility::Private,
+            module,
         );
         let mut modules = parse(&mut state, "trait Debug: ToString {}");
 
@@ -1541,12 +1550,14 @@ mod tests {
             &mut state.db,
             "ToString".to_string(),
             Visibility::Private,
+            module,
         );
         let to_str_ins = TraitInstance::new(to_str);
         let debug = Trait::alloc(
             &mut state.db,
             "Debug".to_string(),
             Visibility::Private,
+            module,
         );
         let string = Class::alloc(
             &mut state.db,
@@ -1594,12 +1605,14 @@ mod tests {
             &mut state.db,
             "ToString".to_string(),
             Visibility::Private,
+            module,
         );
         let to_string_ins = TraitInstance::new(to_string);
         let debug = Trait::alloc(
             &mut state.db,
             "Debug".to_string(),
             Visibility::Private,
+            module,
         );
         let string = Class::alloc(
             &mut state.db,
@@ -1862,6 +1875,7 @@ mod tests {
             &mut state.db,
             "Debug".to_string(),
             Visibility::Private,
+            module,
         );
         let mut modules = parse(&mut state, "class Array[T: Debug] {}");
 
@@ -1893,6 +1907,7 @@ mod tests {
             &mut state.db,
             "Debug".to_string(),
             Visibility::Private,
+            module,
         );
         let mut modules = parse(&mut state, "trait ToArray[T: Debug] {}");
 
@@ -1924,6 +1939,7 @@ mod tests {
             &mut state.db,
             "Debug".to_string(),
             Visibility::Private,
+            module,
         );
 
         debug.new_type_parameter(&mut state.db, "T".to_string());
@@ -1956,6 +1972,7 @@ mod tests {
             &mut state.db,
             "Debug".to_string(),
             Visibility::Private,
+            module,
         );
 
         debug.new_type_parameter(&mut state.db, "T".to_string());

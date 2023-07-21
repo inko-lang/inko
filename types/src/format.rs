@@ -408,8 +408,12 @@ mod tests {
     #[test]
     fn test_trait_instance_format_type_with_regular_trait() {
         let mut db = Database::new();
-        let trait_id =
-            Trait::alloc(&mut db, "A".to_string(), Visibility::Private);
+        let trait_id = Trait::alloc(
+            &mut db,
+            "A".to_string(),
+            Visibility::Private,
+            ModuleId(0),
+        );
         let trait_ins = TraitInstance::new(trait_id);
 
         assert_eq!(format_type(&db, trait_ins), "A".to_string());
@@ -418,8 +422,12 @@ mod tests {
     #[test]
     fn test_trait_instance_format_type_with_generic_trait() {
         let mut db = Database::new();
-        let trait_id =
-            Trait::alloc(&mut db, "ToString".to_string(), Visibility::Private);
+        let trait_id = Trait::alloc(
+            &mut db,
+            "ToString".to_string(),
+            Visibility::Private,
+            ModuleId(0),
+        );
         let param1 = trait_id.new_type_parameter(&mut db, "A".to_string());
 
         trait_id.new_type_parameter(&mut db, "B".to_string());
@@ -590,6 +598,7 @@ mod tests {
             &mut db,
             "ToString".to_string(),
             Visibility::Private,
+            ModuleId(0),
         ));
 
         assert_eq!(format_type(&db, id), "ToString");
@@ -648,8 +657,12 @@ mod tests {
     #[test]
     fn test_type_id_format_type_with_trait_instance() {
         let mut db = Database::new();
-        let id =
-            Trait::alloc(&mut db, "ToString".to_string(), Visibility::Private);
+        let id = Trait::alloc(
+            &mut db,
+            "ToString".to_string(),
+            Visibility::Private,
+            ModuleId(0),
+        );
         let ins = TypeId::TraitInstance(TraitInstance::new(id));
 
         assert_eq!(format_type(&db, ins), "ToString");
@@ -682,8 +695,12 @@ mod tests {
     #[test]
     fn test_type_id_format_type_with_generic_trait_instance() {
         let mut db = Database::new();
-        let id =
-            Trait::alloc(&mut db, "ToFoo".to_string(), Visibility::Private);
+        let id = Trait::alloc(
+            &mut db,
+            "ToFoo".to_string(),
+            Visibility::Private,
+            ModuleId(0),
+        );
         let param1 = id.new_type_parameter(&mut db, "T".to_string());
 
         id.new_type_parameter(&mut db, "E".to_string());
@@ -702,8 +719,12 @@ mod tests {
     fn test_type_id_format_type_with_type_parameter() {
         let mut db = Database::new();
         let param = TypeParameter::alloc(&mut db, "T".to_string());
-        let to_string =
-            Trait::alloc(&mut db, "ToString".to_string(), Visibility::Private);
+        let to_string = Trait::alloc(
+            &mut db,
+            "ToString".to_string(),
+            Visibility::Private,
+            ModuleId(0),
+        );
         let param_ins = TypeId::TypeParameter(param);
         let to_string_ins = TraitInstance::new(to_string);
 
@@ -716,8 +737,12 @@ mod tests {
     fn test_type_id_format_type_with_rigid_type_parameter() {
         let mut db = Database::new();
         let param = TypeParameter::alloc(&mut db, "T".to_string());
-        let to_string =
-            Trait::alloc(&mut db, "ToString".to_string(), Visibility::Private);
+        let to_string = Trait::alloc(
+            &mut db,
+            "ToString".to_string(),
+            Visibility::Private,
+            ModuleId(0),
+        );
         let param_ins = TypeId::RigidTypeParameter(param);
         let to_string_ins = TraitInstance::new(to_string);
 

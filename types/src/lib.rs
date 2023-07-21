@@ -363,6 +363,7 @@ impl TypeArguments {
 /// An Inko trait.
 pub struct Trait {
     name: String,
+    module: ModuleId,
     implemented_by: Vec<ClassId>,
     visibility: Visibility,
     type_parameters: IndexMap<String, TypeParameterId>,
@@ -409,20 +410,22 @@ impl Trait {
         db: &mut Database,
         name: String,
         visibility: Visibility,
+        module: ModuleId,
     ) -> TraitId {
         assert!(db.traits.len() <= u32::MAX as usize);
 
         let id = db.traits.len() as u32;
-        let trait_type = Trait::new(name, visibility);
+        let trait_type = Trait::new(name, visibility, module);
 
         db.traits.push(trait_type);
         TraitId(id)
     }
 
-    fn new(name: String, visibility: Visibility) -> Self {
+    fn new(name: String, visibility: Visibility, module: ModuleId) -> Self {
         Self {
             name,
             visibility,
+            module,
             implemented_by: Vec::new(),
             type_parameters: IndexMap::new(),
             required_traits: Vec::new(),
@@ -562,6 +565,10 @@ impl TraitId {
             .type_parameters
             .get(name)
             .map(|&id| Symbol::TypeParameter(id))
+    }
+
+    fn module(self, db: &Database) -> ModuleId {
+        self.get(db).module
     }
 
     fn get(self, db: &Database) -> &Trait {
@@ -722,7 +729,7 @@ impl FieldId {
 
         match field.visibility {
             Visibility::Public => true,
-            Visibility::Private => field.module == module,
+            Visibility::Private => field.module.has_same_root(db, module),
             // TypePrivate fields can only be accessed using the `@name` syntax,
             // which in turn is only available inside a class, thus not needing
             // any extra checks.
@@ -2284,6 +2291,22 @@ impl Symbol {
     pub fn is_private(self, db: &Database) -> bool {
         !self.is_public(db)
     }
+
+    pub fn is_visible_to(self, db: &Database, module: ModuleId) -> bool {
+        if self.is_public(db) {
+            return true;
+        }
+
+        let mod_id = match self {
+            Symbol::Method(id) => id.module(db),
+            Symbol::Class(id) => id.module(db),
+            Symbol::Trait(id) => id.module(db),
+            Symbol::Constant(id) => id.module(db),
+            _ => return true,
+        };
+
+        mod_id.has_same_root(db, module)
+    }
 }
 
 /// An Inko module.
@@ -2386,6 +2409,10 @@ impl ModuleId {
 
     pub fn class(self, db: &Database) -> ClassId {
         self.get(db).class
+    }
+
+    fn has_same_root(self, db: &Database, other: ModuleId) -> bool {
+        self.name(db).head() == other.name(db).head()
     }
 
     fn get(self, db: &Database) -> &Module {
@@ -3675,7 +3702,7 @@ impl TypeId {
 
         match m.visibility {
             Visibility::Public => true,
-            Visibility::Private => m.module == module,
+            Visibility::Private => m.module.has_same_root(db, module),
             Visibility::TypePrivate => allow_type_private,
         }
     }
@@ -3891,8 +3918,12 @@ mod tests {
     fn test_type_parameter_id_add_requirements() {
         let mut db = Database::new();
         let id = TypeParameter::alloc(&mut db, "A".to_string());
-        let trait_id =
-            Trait::alloc(&mut db, "ToString".to_string(), Visibility::Private);
+        let trait_id = Trait::alloc(
+            &mut db,
+            "ToString".to_string(),
+            Visibility::Private,
+            ModuleId(0),
+        );
         let requirement = TraitInstance::new(trait_id);
 
         id.add_requirements(&mut db, vec![requirement]);
@@ -3917,7 +3948,12 @@ mod tests {
     #[test]
     fn test_trait_alloc() {
         let mut db = Database::new();
-        let id = Trait::alloc(&mut db, "A".to_string(), Visibility::Private);
+        let id = Trait::alloc(
+            &mut db,
+            "A".to_string(),
+            Visibility::Private,
+            ModuleId(0),
+        );
 
         assert_eq!(id.0, 0);
         assert_eq!(&db.traits[0].name, &"A".to_string());
@@ -3925,7 +3961,8 @@ mod tests {
 
     #[test]
     fn test_trait_new() {
-        let trait_type = Trait::new("A".to_string(), Visibility::Private);
+        let trait_type =
+            Trait::new("A".to_string(), Visibility::Private, ModuleId(0));
 
         assert_eq!(&trait_type.name, &"A");
     }
@@ -3933,7 +3970,12 @@ mod tests {
     #[test]
     fn test_trait_id_new_type_parameter() {
         let mut db = Database::new();
-        let id = Trait::alloc(&mut db, "A".to_string(), Visibility::Private);
+        let id = Trait::alloc(
+            &mut db,
+            "A".to_string(),
+            Visibility::Private,
+            ModuleId(0),
+        );
         let param = id.new_type_parameter(&mut db, "A".to_string());
 
         assert_eq!(id.type_parameters(&db), vec![param]);
@@ -3942,7 +3984,12 @@ mod tests {
     #[test]
     fn test_trait_instance_new() {
         let mut db = Database::new();
-        let id = Trait::alloc(&mut db, "A".to_string(), Visibility::Private);
+        let id = Trait::alloc(
+            &mut db,
+            "A".to_string(),
+            Visibility::Private,
+            ModuleId(0),
+        );
         let ins = TraitInstance::new(id);
         let index = db.traits.len() as u32 - 1;
 
@@ -3953,7 +4000,12 @@ mod tests {
     #[test]
     fn test_trait_instance_generic() {
         let mut db = Database::new();
-        let id = Trait::alloc(&mut db, "A".to_string(), Visibility::Private);
+        let id = Trait::alloc(
+            &mut db,
+            "A".to_string(),
+            Visibility::Private,
+            ModuleId(0),
+        );
         let ins1 = TraitInstance::generic(&mut db, id, TypeArguments::new());
         let ins2 = TraitInstance::generic(&mut db, id, TypeArguments::new());
         let index = db.traits.len() as u32 - 1;
@@ -4219,8 +4271,12 @@ mod tests {
     #[test]
     fn test_type_id_named_type_with_trait() {
         let mut db = Database::new();
-        let to_array =
-            Trait::alloc(&mut db, "ToArray".to_string(), Visibility::Private);
+        let to_array = Trait::alloc(
+            &mut db,
+            "ToArray".to_string(),
+            Visibility::Private,
+            ModuleId(0),
+        );
         let param = to_array.new_type_parameter(&mut db, "T".to_string());
 
         assert_eq!(
@@ -4278,8 +4334,12 @@ mod tests {
     #[test]
     fn test_type_id_named_type_with_trait_instance() {
         let mut db = Database::new();
-        let to_array =
-            Trait::alloc(&mut db, "ToArray".to_string(), Visibility::Private);
+        let to_array = Trait::alloc(
+            &mut db,
+            "ToArray".to_string(),
+            Visibility::Private,
+            ModuleId(0),
+        );
         let param = to_array.new_type_parameter(&mut db, "T".to_string());
         let ins = TypeId::TraitInstance(TraitInstance::generic(
             &mut db,

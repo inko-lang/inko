@@ -1016,6 +1016,7 @@ mod tests {
             &mut state.db,
             "ToString".to_string(),
             Visibility::Private,
+            module,
         );
 
         module.new_symbol(
@@ -1334,6 +1335,7 @@ mod tests {
             &mut state.db,
             "ToString".to_string(),
             Visibility::Private,
+            module,
         );
         let list_class = Class::alloc(
             &mut state.db,

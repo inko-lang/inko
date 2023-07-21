@@ -124,8 +124,8 @@ class Person {
 }
 ```
 
-Classes default to being private to the module they are defined in. To make a
-class public, use `class pub` like so:
+Classes default to being private. To make a class public, use `class pub` like
+so:
 
 ```inko
 class pub Person {
@@ -232,7 +232,7 @@ class extern Timespec {
 
 Methods are defined using the `fn` keyword. At the top-level of a module only
 instance methods can be defined (i.e. static methods aren't valid directly in a
-module). Methods are private to their modules by default.
+module). Methods are private by default.
 
 Methods use the following syntax:
 
@@ -316,7 +316,7 @@ fn extern printf(format: Pointer[Int8], ...) -> Int32
 ## Traits
 
 Traits are defined using the `trait` keyword, and like classes default to being
-private to their modules.
+private.
 
 Traits are defined like so:
 

@@ -56,8 +56,12 @@ pub(crate) fn define_drop_trait(state: &mut State) {
         "drop.inko".into(),
     );
 
-    let drop_trait =
-        Trait::alloc(&mut state.db, DROP_TRAIT.to_string(), Visibility::Public);
+    let drop_trait = Trait::alloc(
+        &mut state.db,
+        DROP_TRAIT.to_string(),
+        Visibility::Public,
+        module,
+    );
 
     module.new_symbol(
         &mut state.db,

@@ -121,9 +121,11 @@ mod tests {
 
     #[test]
     fn test_head() {
-        let name = ModuleName::new("foo.bar");
+        let name1 = ModuleName::new("foo.bar");
+        let name2 = ModuleName::new("foo");
 
-        assert_eq!(name.head(), &"foo".to_string());
+        assert_eq!(name1.head(), &"foo".to_string());
+        assert_eq!(name2.head(), &"foo".to_string());
     }
 
     #[test]

@@ -100,8 +100,7 @@ Error.FileDoesntExit # Same as Error.FileDoesntExit()
 
 ### Fields
 
-Fields default to being private to the module the class is defined in. You can
-make them public using `let pub`:
+Fields are private by default. You can make them public using `let pub`:
 
 ```inko
 class Person {
@@ -160,11 +159,16 @@ impl ToString for Person {
 
 A class can only implement a trait once.
 
-## Type and method visibility
+## Visibility
 
-Types and methods default to being private to the module they are defined in,
-and can be made public using the `pub` keyword. For example, a public method is
-defined as follows:
+Types, methods, and fields are private by default. When something is private,
+it's only available to modules defined in the same root namespace. For example,
+a private class defined in `std.foo` is available to the modules `std`,
+`std.bar` and `std.foo.bar` (because their namespaces all start with `std`), but
+not to the module `http`.
+
+You can make something public using the `pub` keyword. For example, a public
+method is defined as follows:
 
 ```inko
 fn pub foo {

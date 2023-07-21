@@ -108,7 +108,7 @@ impl<'a> DefineImportedTypes<'a> {
                     self.file(),
                     node.import_as.location.clone(),
                 );
-            } else if symbol.is_private(self.db()) {
+            } else if !symbol.is_visible_to(self.db(), self.module) {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidSymbol,
                     format!(
@@ -507,10 +507,16 @@ mod tests {
             &mut state,
             ModuleName::new("foo"),
             vec![hir::TopLevelExpression::Import(Box::new(hir::Import {
-                source: vec![hir::Identifier {
-                    name: "bar".to_string(),
-                    location: cols(1, 1),
-                }],
+                source: vec![
+                    hir::Identifier {
+                        name: "foo".to_string(),
+                        location: cols(1, 1),
+                    },
+                    hir::Identifier {
+                        name: "bar".to_string(),
+                        location: cols(1, 1),
+                    },
+                ],
                 symbols: vec![
                     hir::ImportSymbol {
                         name: hir::Identifier {
@@ -541,7 +547,7 @@ mod tests {
 
         let bar_mod = Module::alloc(
             &mut state.db,
-            ModuleName::new("bar"),
+            ModuleName::new("foo.bar"),
             "bar.inko".into(),
         );
 

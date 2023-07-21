@@ -103,3 +103,12 @@ You can also filter by a file path, only running the tests in that file:
 ```bash
 inko test test_kittens.inko
 ```
+
+## Testing private types and methods
+
+Following the structure outlined above, you're able to test private types and
+methods, as tests and the modules they are testing both exist in the same root
+namespace. That is, tests for `std.foo` would be located in the module
+`std.test_foo`, and thus have access to private types and methods defined in any
+module under the `std` root namespace. This in turn removes the need to mark
+types or methods as public _just_ so you can test them.
