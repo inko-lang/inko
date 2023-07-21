@@ -19,7 +19,7 @@ pub(crate) const SOURCE: &str = "src";
 pub const DEP: &str = "dep";
 
 /// The name of the directory containing a project's unit tests.
-const TESTS: &str = "test";
+pub(crate) const TESTS: &str = "test";
 
 /// The name of the directory to store build files in.
 const BUILD: &str = "build";

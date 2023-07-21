@@ -1,5 +1,5 @@
 //! Compiler state accessible to compiler passes.
-use crate::config::{Config, SOURCE};
+use crate::config::{Config, SOURCE, TESTS};
 use crate::diagnostics::Diagnostics;
 use crate::pkg::manifest::{Manifest, MANIFEST_FILE};
 use crate::target::{OperatingSystem, Target};
@@ -62,14 +62,23 @@ impl Packages {
                 let mut root = path.to_path_buf();
 
                 // "Walk" up the path until we end up with a path that points to
-                // the directory the src/ directory resides in, i.e. the project
-                // root.
+                // the directory the src/ or test/ directory resides in, i.e.
+                // the project root.
                 loop {
                     if root.ends_with(SOURCE) {
                         if root.pop() {
                             break;
                         } else {
                             return None;
+                        }
+                    } else if root.ends_with(TESTS) {
+                        // We don't want some random /test/ component (e.g.
+                        // src/foo/test/bla.inko) to trick us into using the
+                        // wrong directory as the project root.
+                        match root.pop() {
+                            true if root.join(SOURCE).is_dir() => break,
+                            true => {}
+                            false => return None,
                         }
                     } else if !root.pop() {
                         return None;
