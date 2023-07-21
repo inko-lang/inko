@@ -15,9 +15,8 @@ class extern AnyResult {
 fn extern inko_float_to_string(state: Pointer[Int8], float: Float64) -> String
 fn extern inko_string_to_float(
   state: Pointer[Int8],
-  string: String,
-  start: Int,
-  end: Int,
+  bytes: Pointer[Int8],
+  size: Int,
 ) -> AnyResult
 
 # A type that can be converted to a Float.
@@ -74,7 +73,7 @@ class builtin Float {
   #
   #     Float.parse('1.2e1') # => Option.Some(12.0)
   fn pub static parse(string: String) -> Option[Float] {
-    match inko_string_to_float(_INKO.state, string, -1, -1) {
+    match inko_string_to_float(_INKO.state, string.to_pointer, string.size) {
       case { @tag = 0, @value = v } -> Option.Some(v as Float)
       case _ -> Option.None
     }

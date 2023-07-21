@@ -31,10 +31,9 @@ class extern IntResult {
 fn extern inko_string_to_int(
   state: Pointer[Int8],
   process: Pointer[Int8],
-  string: String,
+  bytes: Pointer[Int8],
+  size: Int,
   radix: Int,
-  start: Int,
-  end: Int,
 ) -> IntResult
 
 fn extern inko_int_pow(process: Pointer[Int8], left: Int, right: Int) -> Int64
@@ -59,7 +58,9 @@ class builtin Int {
   #     Int.from_base2('11') # => Option.Some(3)
   #     Int.from_base2('ff') # => Option.None
   fn pub static from_base2(string: String) -> Option[Int] {
-    match inko_string_to_int(_INKO.state, _INKO.process, string, 2, -1, -1) {
+    match inko_string_to_int(
+      _INKO.state, _INKO.process, string.to_pointer, string.size, 2
+    ) {
       case { @tag = 0, @value = v } -> Option.Some(v)
       case _ -> Option.None
     }
@@ -75,7 +76,9 @@ class builtin Int {
   #     Int.from_base10('12') # => Option.Some(12)
   #     Int.from_base10('ff') # => Option.None
   fn pub static from_base10(string: String) -> Option[Int] {
-    match inko_string_to_int(_INKO.state, _INKO.process, string, 10, -1, -1) {
+    match inko_string_to_int(
+      _INKO.state, _INKO.process, string.to_pointer, string.size, 10
+    ) {
       case { @tag = 0, @value = v } -> Option.Some(v)
       case _ -> Option.None
     }
@@ -95,7 +98,9 @@ class builtin Int {
   #     Int.from_base16('ef') # => Option.Some(239)
   #     Int.from_base16('zz') # => Option.None
   fn pub static from_base16(string: String) -> Option[Int] {
-    match inko_string_to_int(_INKO.state, _INKO.process, string, 16, -1, -1) {
+    match inko_string_to_int(
+      _INKO.state, _INKO.process, string.to_pointer, string.size, 16
+    ) {
       case { @tag = 0, @value = v } -> Option.Some(v)
       case _ -> Option.None
     }

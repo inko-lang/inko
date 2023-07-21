@@ -1,13 +1,17 @@
 import helpers.(fmt)
-import std.json.(self, Error, Json, Parser)
+import std.json.(Error, Json, Parser)
 import std.test.Tests
 
 fn parse(input: String) -> Result[Json, Error] {
-  Parser.new(input).parse
+  let bytes = input.to_byte_array
+
+  Parser.new(bytes).parse
 }
 
 fn parse_invalid(input: String) -> Option[String] {
-  Parser.new(input).parse.error.map fn (v) { v.to_string }
+  let bytes = input.to_byte_array
+
+  Parser.new(bytes).parse.error.map fn (v) { v.to_string }
 }
 
 fn pub tests(t: mut Tests) {
@@ -261,7 +265,8 @@ fn pub tests(t: mut Tests) {
     t.true(parse('[],').error?)
 
     {
-      let parser = Parser.new('[[[[10]]]]')
+      let bytes = '[[[[10]]]]'.to_byte_array
+      let parser = Parser.new(bytes)
 
       parser.max_depth = 2
       t.true(parser.parse.error?)
@@ -328,7 +333,8 @@ fn pub tests(t: mut Tests) {
     t.true(parse('"\uDFFF\uDFFF"').error?)
 
     {
-      let parser = Parser.new('"foo"')
+      let bytes = '"foo"'.to_byte_array
+      let parser = Parser.new(bytes)
 
       parser.max_string_size = 2
       t.true(parser.parse.error?)
@@ -380,7 +386,8 @@ fn pub tests(t: mut Tests) {
     t.true(parse('{"a": true} "x"').error?)
 
     {
-      let parser = Parser.new('{"a": {"b": {"c": 10}}}')
+      let bytes = '{"a": {"b": {"c": 10}}}'.to_byte_array
+      let parser = Parser.new(bytes)
 
       parser.max_depth = 2
       t.true(parser.parse.error?)
@@ -398,7 +405,13 @@ fn pub tests(t: mut Tests) {
     t.true(parse("\u{EF}\u{BB}\u{BF}10").error?)
   }
 
-  t.test('json.parse') fn (t) {
-    t.equal(json.parse('[10]'), Result.Ok(Json.Array([Json.Int(10)])))
+  t.test('Json.parse_string') fn (t) {
+    t.equal(Json.parse_string('[10]'), Result.Ok(Json.Array([Json.Int(10)])))
+  }
+
+  t.test('Json.parse_bytes') fn (t) {
+    let bytes = '[10]'.to_byte_array
+
+    t.equal(Json.parse_bytes(bytes), Result.Ok(Json.Array([Json.Int(10)])))
   }
 }

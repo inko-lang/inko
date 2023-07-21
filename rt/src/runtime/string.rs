@@ -7,6 +7,7 @@ use std::cmp::min;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::slice;
+use std::str;
 use unicode_segmentation::{Graphemes, UnicodeSegmentation};
 
 #[no_mangle]
@@ -77,16 +78,11 @@ pub unsafe extern "system" fn inko_string_to_byte_array(
 #[no_mangle]
 pub unsafe extern "system" fn inko_string_to_float(
     state: *const State,
-    string: *const InkoString,
-    start: i64,
-    end: i64,
+    bytes: *mut u8,
+    size: i64,
 ) -> InkoResult {
-    let string = InkoString::read(string);
-    let slice = if start >= 0 && end >= 0 {
-        &string[start as usize..end as usize]
-    } else {
-        string
-    };
+    let slice =
+        str::from_utf8_unchecked(slice::from_raw_parts(bytes, size as _));
 
     let parsed = match slice {
         "Infinity" => Ok(f64::INFINITY),
@@ -103,27 +99,21 @@ pub unsafe extern "system" fn inko_string_to_float(
 pub unsafe extern "system" fn inko_string_to_int(
     state: *const State,
     process: ProcessPointer,
-    string: *const InkoString,
+    bytes: *mut u8,
+    size: i64,
     radix: i64,
-    start: i64,
-    end: i64,
 ) -> InkoResult {
-    let string = InkoString::read(string);
-
     if !(2..=36).contains(&radix) {
         panic(process, &format!("The radix '{}' is invalid", radix));
     }
 
-    let slice = if start >= 0 && end >= 0 {
-        &string[start as usize..end as usize]
-    } else {
-        string
-    };
+    let slice =
+        str::from_utf8_unchecked(slice::from_raw_parts(bytes, size as _));
 
     // Rust doesn't handle parsing strings like "-0x4a3f043013b2c4d1" out of the
     // box.
     let parsed = if radix == 16 {
-        if let Some(tail) = string.strip_prefix("-0x") {
+        if let Some(tail) = slice.strip_prefix("-0x") {
             i64::from_str_radix(tail, 16).map(|v| 0_i64.wrapping_sub(v))
         } else {
             i64::from_str_radix(slice, 16)

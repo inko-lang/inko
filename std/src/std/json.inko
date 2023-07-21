@@ -76,17 +76,15 @@ class extern AnyResult {
 fn extern inko_string_to_int(
   state: Pointer[Int8],
   process: Pointer[Int8],
-  string: String,
+  bytes: Pointer[Int8],
+  size: Int,
   radix: Int,
-  start: Int,
-  end: Int,
 ) -> IntResult
 
 fn extern inko_string_to_float(
   state: Pointer[Int8],
-  string: String,
-  start: Int,
-  end: Int,
+  bytes: Pointer[Int8],
+  size: Int,
 ) -> AnyResult
 
 let EOF = -1
@@ -215,6 +213,30 @@ class pub enum Json {
   case Bool(Bool)
   case Null
 
+  # Parses a JSON `String` into a `Json` value.
+  #
+  # # Examples
+  #
+  #     import std.json.Json
+  #
+  #     Json.parse_string('[10]').unwrap # => Result.Ok(Json.Array([Json.Int(10)]))
+  fn pub static parse_string(string: String) -> Result[Json, Error] {
+    let bytes = string.to_byte_array
+
+    Parser.new(bytes).parse
+  }
+
+  # Parses a `ByteArra` into a `Json` value.
+  #
+  # # Examples
+  #
+  #     import std.json.Json
+  #
+  #     Json.parse_bytes('[10]'.to_byte_array) # => Result.Ok(Json.Array([Json.Int(10)]))
+  fn pub static parse_bytes(bytes: ref ByteArray) -> Result[Json, Error] {
+    Parser.new(bytes).parse
+  }
+
   # Formats `self` as a JSON string using indentation for nested objects.
   #
   # This method uses two spaces per indentation. To customise the amount of
@@ -319,7 +341,7 @@ impl Equal[Json] for Json {
 
 # A type for parsing a stream of bytes into a JSON object.
 #
-# This parser only supports parsing `String` values as input. If you need to
+# This parser only supports parsing `ByteArray` values as input. If you need to
 # parse very large documents, it's best to separate the objects on a per line
 # basis, then parse the document one line at a time.
 #
@@ -336,7 +358,7 @@ impl Equal[Json] for Json {
 # 10 MiB _per string_. You can change this limit by adjusting the value of the
 # `max_string_size` field.
 class pub Parser {
-  let @string: String
+  let @input: ref ByteArray
   let @index: Int
   let @size: Int
   let @line: Int
@@ -352,12 +374,12 @@ class pub Parser {
   # When parsing a string that exceeds this limit, an error is thrown.
   let pub @max_string_size: Int
 
-  # Returns a new parser that will parse the given `String`.
-  fn pub static new(string: String) -> Parser {
+  # Returns a new parser that will parse the given `ByteArray`.
+  fn pub static new(input: ref ByteArray) -> Parser {
     Parser {
-      @string = string,
+      @input = input,
       @index = 0,
-      @size = string.size,
+      @size = input.size,
       @line = 1,
       @depth = 0,
       @max_depth = 100,
@@ -451,8 +473,7 @@ class pub Parser {
   }
 
   fn mut string_with_escape_sequence(started_at: Int) -> Result[String, Error] {
-    let buffer =
-      @string.slice_bytes(started_at, @index - started_at).to_byte_array
+    let buffer = @input.slice(started_at, size: @index - started_at)
 
     loop {
       match current {
@@ -532,9 +553,10 @@ class pub Parser {
       throw error("Expected four hexadecimal digits, but we ran out of input")
     }
 
-    match inko_string_to_int(
-      _INKO.state, _INKO.process, @string, 16, start, @index
-    ) {
+    let ptr = @input.to_pointer as Int + start as Pointer[Int8]
+    let size = @index - start
+
+    match inko_string_to_int(_INKO.state, _INKO.process, ptr, size, 16) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case _ -> Result.Error(
         error("'{slice_string(start)}' is an invalid Unicode codepoint")
@@ -635,9 +657,10 @@ class pub Parser {
         # number parser. As part of parsing the JSON number we already validate
         # it. This means we can bypass `Int.from_base10` (and `Float.parse`
         # below), and instead use the underlying runtime functions.
-        match inko_string_to_int(
-          _INKO.state, _INKO.process, @string, 10, start, @index
-        ) {
+        let ptr = @input.to_pointer as Int + start as Pointer[Int8]
+        let size = @index - start
+
+        match inko_string_to_int(_INKO.state, _INKO.process, ptr, size, 10) {
           # If the number is too big to fit in an integer, we'll promote the
           # number to a float.
           case { @tag = 0, @value = v } -> return Result.Ok(Json.Int(v))
@@ -649,8 +672,11 @@ class pub Parser {
     # At this point we've already validated the input format, and it's
     # compatible with the underlying float parser, so no extra checks are
     # needed.
+    let ptr = @input.to_pointer as Int + start as Pointer[Int8]
+    let size = @index - start
+
     Result.Ok(Json.Float(
-      inko_string_to_float(_INKO.state, @string, start, @index).value as Float
+      inko_string_to_float(_INKO.state, ptr, size).value as Float
     ))
   }
 
@@ -675,7 +701,7 @@ class pub Parser {
 
   fn current -> Int {
     if @index < @size {
-      @string.byte(@index)
+      @input.get(@index)
     } else {
       EOF
     }
@@ -684,7 +710,7 @@ class pub Parser {
   fn peek -> Int {
     let index = @index + 1
 
-    if index < @size { @string.byte(index) } else { EOF }
+    if index < @size { @input.get(index) } else { EOF }
   }
 
   fn mut identifier(name: String) -> Result[Nil, Error] {
@@ -741,7 +767,7 @@ class pub Parser {
   }
 
   fn slice_string(start: Int) -> String {
-    @string.slice_bytes(start, size: @index - start)
+    @input.slice(start, size: @index - start).into_string
   }
 
   fn error(message: String) -> Error {
@@ -856,15 +882,4 @@ class pub Generator {
   fn mut separator {
     @buffer.push(if @pretty { ",\n" } else { ', ' })
   }
-}
-
-# Parses a JSON string into a `Json` value.
-#
-# # Examples
-#
-#     import std.json
-#
-#     json.parse('[10]').unwrap # => Json.Array([Json.Int(10)])
-fn pub parse(string: String) -> Result[Json, Error] {
-  Parser.new(string).parse
 }
