@@ -120,10 +120,6 @@ For a more in-depth overview of the available commands and flags, run `inko pkg
 --help`. This also works for the various sub-commands, such as `inko pkg sync
 --help`.
 
-### Setting up
-
-Creating an empty `inko.pkg` is done using the `inko pkg init` command.
-
 ### Adding packages
 
 Adding a package is done using `inko pkg add`, which takes the package URL and

@@ -1,7 +1,7 @@
 use crate::pkg::version::Version;
 use blake2::{digest::consts::U16, Blake2b, Digest};
 use std::fmt;
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::Path;
 
@@ -140,7 +140,11 @@ impl Manifest {
     pub fn load<P: AsRef<Path>>(path: &P) -> Result<Self, String> {
         let path = path.as_ref();
 
-        File::open(path)
+        OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(path)
             .map_err(|e| format!("Failed to read {}: {}", path.display(), e))
             .and_then(|mut file| Self::parse(&mut file))
     }

@@ -1,5 +1,4 @@
 mod add;
-mod init;
 mod remove;
 mod sync;
 mod update;
@@ -14,7 +13,6 @@ Package and dependency management for Inko.
 
 Commands:
 
-    init    Create a new package
     add     Add or update a dependency
     remove  Remove a dependency
     sync    Download and install dependencies
@@ -22,8 +20,8 @@ Commands:
 
 Examples:
 
-    inko pkg init
-    inko pkg add github.com/hello/world 1.2.3";
+    inko pkg add github.com/hello/world 1.2.3
+    inko pkg sync";
 
 pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     let mut options = Options::new();
@@ -39,7 +37,6 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     }
 
     match matches.free.get(0).map(|s| s.as_str()) {
-        Some("init") => init::run(&matches.free[1..]),
         Some("add") => add::run(&matches.free[1..]),
         Some("remove") => remove::run(&matches.free[1..]),
         Some("sync") => sync::run(&matches.free[1..]),

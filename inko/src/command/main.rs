@@ -17,7 +17,7 @@ Commands:
     build  Compile Inko source code
     test   Run Inko unit tests
     print  Print compiler details to STDOUT
-    pkg    Managing of Inko packages
+    pkg    Manage Inko packages
 
 Examples:
 
