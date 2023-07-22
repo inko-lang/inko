@@ -480,8 +480,7 @@ class builtin Array[T] {
     }
   }
 
-  # Returns a pointer to the underlying memory buffer.
-  fn pub to_pointer -> Pointer[Int8] {
+  fn to_pointer -> Pointer[Int8] {
     @buffer
   }
 
