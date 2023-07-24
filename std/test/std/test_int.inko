@@ -13,6 +13,8 @@ fn pub tests(t: mut Tests) {
     t.equal(Int.from_base2('ef'), Option.None)
     t.equal(Int.from_base2(' 11'), Option.None)
     t.equal(Int.from_base2('11 '), Option.None)
+    t.equal(Int.from_base2('1'.repeat(times: 70)), Option.None)
+    t.equal(Int.from_base2(''), Option.None)
   }
 
   t.test('Int.from_base10') fn (t) {
@@ -23,6 +25,8 @@ fn pub tests(t: mut Tests) {
     t.equal(Int.from_base10(' 11'), Option.None)
     t.equal(Int.from_base10('11 '), Option.None)
     t.equal(Int.from_base10('f'), Option.None)
+    t.equal(Int.from_base10('1'.repeat(times: 100)), Option.None)
+    t.equal(Int.from_base10(''), Option.None)
   }
 
   t.test('Int.from_base16') fn (t) {
@@ -37,6 +41,8 @@ fn pub tests(t: mut Tests) {
     t.equal(
       Int.from_base16('-0x4a3f043013b2c4d1'), Option.Some(-5349999486874862801)
     )
+    t.equal(Int.from_base16('f'.repeat(times: 100)), Option.None)
+    t.equal(Int.from_base16(''), Option.None)
   }
 
   t.test('Int.to_base2') fn (t) {
@@ -169,15 +175,32 @@ fn pub tests(t: mut Tests) {
     t.equal(-1 + 1, 0)
   }
 
+  t.panic('Int.+ with an overflow') fn {
+    MAX + 1
+  }
+
   t.test('Int.-') fn (t) {
     t.equal(1 - 1, 0)
     t.equal(0 - 1, -1)
+  }
+
+  t.panic('Int.- with an overflow') fn {
+    MIN - 1
   }
 
   t.test('Int./') fn (t) {
     t.equal(10 / 2, 5)
     t.equal(10 / -2, -5)
     t.equal(-10 / 2, -5)
+    t.equal(MIN / 1, MIN)
+  }
+
+  t.panic('Int./ when dividing by zero') fn {
+    10 / 0
+  }
+
+  t.panic('Int./ when dividing MIN by -1') fn {
+    MIN / -1
   }
 
   t.test('Int.*') fn (t) {
@@ -185,11 +208,27 @@ fn pub tests(t: mut Tests) {
     t.equal(-5 * 2, -10)
   }
 
+  t.panic('Int.* with an overflow') fn {
+    MAX * 2
+  }
+
   t.test('Int.%') fn (t) {
     t.equal(1 % 2, 1)
     t.equal(2 % 2, 0)
     t.equal(-1 % 2, 1)
     t.equal(-2 % 2, 0)
+  }
+
+  t.panic('Int.% with an overflow') fn {
+    9_223_372_036_854_775_806 % 9_223_372_036_854_775_807
+  }
+
+  t.panic('Int.% when dividing by zero') fn {
+    10 % 0
+  }
+
+  t.panic('Int.% when dividing MIN by -1') fn {
+    MIN % -1
   }
 
   t.test('Int.&') fn (t) {
@@ -214,10 +253,18 @@ fn pub tests(t: mut Tests) {
     t.equal(-1 << 8, -256)
   }
 
+  t.panic('Int.<< with an overflow') fn {
+    1 << 64
+  }
+
   t.test('Int.>>') fn (t) {
     t.equal(1 >> 16, 0)
     t.equal(65_536 >> 16, 1)
     t.equal(-123 >> 3, -16)
+  }
+
+  t.panic('Int.>> with an overflow') fn {
+    1 >> 64
   }
 
   t.test('Int.>>>') fn (t) {
@@ -226,9 +273,17 @@ fn pub tests(t: mut Tests) {
     t.equal(-123 >>> 3, 2305843009213693936)
   }
 
+  t.panic('Int.>>> with an overflow') fn {
+    1 >>> 64
+  }
+
   t.test('Int.**') fn (t) {
     t.equal(2 ** 2, 4)
     t.equal(2 ** 8, 256)
+  }
+
+  t.panic('Int.** with an overflow') fn {
+    MAX ** 2
   }
 
   t.test('Int.hash') fn (t) {
@@ -279,5 +334,31 @@ fn pub tests(t: mut Tests) {
   t.test('Int.wrapping_mul') fn (t) {
     t.equal(MAX.wrapping_mul(2), -2)
     t.equal(1.wrapping_mul(2), 2)
+  }
+
+  t.test('Int.checked_add') fn (t) {
+    t.equal(0.checked_add(5), Option.Some(5))
+    t.equal(MAX.checked_add(1), Option.None)
+  }
+
+  t.test('Int.checked_sub') fn (t) {
+    t.equal(0.checked_sub(5), Option.Some(-5))
+    t.equal(MIN.checked_sub(1), Option.None)
+  }
+
+  t.test('Int.checked_mul') fn (t) {
+    t.equal(5.checked_mul(2), Option.Some(10))
+    t.equal(MAX.checked_mul(2), Option.None)
+  }
+
+  t.test('Int.checked_div') fn (t) {
+    t.equal(10.checked_div(2), Option.Some(5))
+    t.equal(10.checked_div(0), Option.None)
+    t.equal(MIN.checked_div(-1), Option.None)
+  }
+
+  t.test('Int.checked_pow') fn (t) {
+    t.equal(2.checked_pow(2), Option.Some(4))
+    t.equal(MAX.checked_pow(2), Option.None)
   }
 }

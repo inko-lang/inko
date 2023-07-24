@@ -23,9 +23,21 @@ let pub MIN = -9_223_372_036_854_775_808
 # The maximum value an `Int` can represent.
 let pub MAX = 9_223_372_036_854_775_807
 
+let BITS = 64
+
 class extern IntResult {
   let @tag: Int
   let @value: Int
+}
+
+# The type returned by checked integer builtin functions, such as
+# `int_checked_add()`.
+#
+# This is the `{i64, i1}` type returned by the LLVM checked arithmetic
+# intrinsics, and must match its layout.
+class builtin CheckedIntResult {
+  let @value: Int64
+  let @tag: Int8
 }
 
 fn extern inko_string_to_int(
@@ -36,8 +48,12 @@ fn extern inko_string_to_int(
   radix: Int,
 ) -> IntResult
 
-fn extern inko_int_pow(process: Pointer[Int8], left: Int, right: Int) -> Int64
+fn extern inko_int_checked_pow(left: Int, right: Int) -> CheckedIntResult
 fn extern inko_int_to_string(state: Pointer[Int8], value: Int) -> String
+
+fn overflow(left: Int, op: String, right: Int) -> Never {
+  panic("'{left} {op} {right}' overflowed")
+}
 
 # A 64-bits signed integer type.
 #
@@ -295,7 +311,7 @@ class builtin Int {
   #     import std.int.(MAX, MIN)
   #
   #     1.wrapping_add(1)   # => 2
-  #     MAX.wrapping_add(1) # => MAX
+  #     MAX.wrapping_add(1) # => MIN
   fn pub wrapping_add(other: Int) -> Int {
     _INKO.int_wrapping_add(self, other)
   }
@@ -316,12 +332,113 @@ class builtin Int {
   #
   # # Examples
   #
-  #     import std.int.(MAX, MIN)
+  #     import std.int.MAX
   #
   #     1.wrapping_mul(2)   # => 2
   #     MAX.wrapping_mul(2) # => -2
   fn pub wrapping_mul(other: Int) -> Int {
     _INKO.int_wrapping_mul(self, other)
+  }
+
+  # Adds `other` to `self`, returning a `None` when overflowing.
+  #
+  # # Examples
+  #
+  #     import std.int.(MAX)
+  #
+  #     1.checked_add(5)   # => Option.Some(6)
+  #     MAX.checked_add(1) # => Option.None
+  fn pub checked_add(other: Int) -> Option[Int] {
+    let res = _INKO.int_checked_add(self, other)
+
+    if res.tag as Int == 0 {
+      Option.Some(res.value as Int)
+    } else {
+      Option.None
+    }
+  }
+
+  # Subtracts `other` from `self`, returning a `None` when overflowing.
+  #
+  # # Examples
+  #
+  #     import std.int.(MAX, MIN)
+  #
+  #     1.checked_sub(1)   # => Option.Some(0)
+  #     MIN.checked_sub(1) # => Option.None
+  fn pub checked_sub(other: Int) -> Option[Int] {
+    let res = _INKO.int_checked_sub(self, other)
+
+    if res.tag as Int == 0 {
+      Option.Some(res.value as Int)
+    } else {
+      Option.None
+    }
+  }
+
+  # Multiplies `other` with `self`, returning a `None` when overflowing.
+  #
+  # # Examples
+  #
+  #     import std.int.MAX
+  #
+  #     1.checked_mul(2)   # => Option.Some(2)
+  #     MAX.checked_mul(2) # => Option.None
+  fn pub checked_mul(other: Int) -> Option[Int] {
+    let res = _INKO.int_checked_mul(self, other)
+
+    if res.tag as Int == 0 {
+      Option.Some(res.value as Int)
+    } else {
+      Option.None
+    }
+  }
+
+  # Divides `self` by `other`, returning a `None` when overflowing or if `other`
+  # is zero.
+  #
+  # # Examples
+  #
+  #     import std.int.MAX
+  #
+  #     10.checked_div(0) # => Option.None
+  #     10.checked_div(2) # => Option.Some(5)
+  fn pub checked_div(other: Int) -> Option[Int] {
+    if other == 0 or (self == MIN and other == -1) {
+      Option.None
+    } else {
+      Option.Some(unchecked_div(other))
+    }
+  }
+
+  # Raises `self` to the power of `other`, returning a `None` when overflowing.
+  #
+  # # Examples
+  #
+  #     import std.int.MAX
+  #
+  #     2.checked_pow(2)   # => Option.Some(4)
+  #     MAX.checked_pow(2) # => Option.None
+  fn pub checked_pow(other: Int) -> Option[Int] {
+    let res = inko_int_checked_pow(self, other)
+
+    if res.tag as Int == 0 {
+      Option.Some(res.value as Int)
+    } else {
+      Option.None
+    }
+  }
+
+  fn unchecked_div(other: Int) -> Int {
+    # This implements floored division, rather than rounding towards zero. This
+    # makes division work more natural when using negative numbers.
+    #
+    # This code is based on the upcoming div_floor() implementation of the Rust
+    # standard library: https://github.com/rust-lang/rust/pull/88582.
+    let d = _INKO.int_div(self, other)
+    let r = _INKO.int_rem(self, other)
+
+    if (r > 0 and other < 0) or (r < 0 and other > 0) { d - 1 } else { d }
   }
 }
 
@@ -385,39 +502,63 @@ impl ToString for Int {
 
 impl Add[Int, Int] for Int {
   fn pub +(other: ref Int) -> Int {
-    _INKO.int_add(self, other)
+    let res = _INKO.int_checked_add(self, other)
+
+    if res.tag as Int == 0 {
+      res.value as Int
+    } else {
+      overflow(self, '+', other)
+    }
   }
 }
 
 impl Subtract[Int, Int] for Int {
   fn pub -(other: ref Int) -> Int {
-    _INKO.int_sub(self, other)
+    let res = _INKO.int_checked_sub(self, other)
+
+    if res.tag as Int == 0 {
+      res.value as Int
+    } else {
+      overflow(self, '-', other)
+    }
   }
 }
 
 impl Divide[Int, Int] for Int {
   fn pub /(other: ref Int) -> Int {
-    # This implements floored division, rather than rounding towards zero. This
-    # makes division work more natural when using negative numbers.
-    #
-    # This code is based on the upcoming div_floor() implementation of the Rust
-    # standard library: https://github.com/rust-lang/rust/pull/88582.
-    let d = _INKO.int_div(self, other)
-    let r = _INKO.int_rem(self, other)
+    if other == 0 or (self == MIN and other == -1) {
+      overflow(self, '-', other)
+    }
 
-    if (r > 0 and other < 0) or (r < 0 and other > 0) { d - 1 } else { d }
+    unchecked_div(other)
   }
 }
 
 impl Multiply[Int, Int] for Int {
   fn pub *(other: ref Int) -> Int {
-    _INKO.int_mul(self, other)
+    let res = _INKO.int_checked_mul(self, other)
+
+    if res.tag as Int == 0 {
+      res.value as Int
+    } else {
+      overflow(self, '*', other)
+    }
   }
 }
 
 impl Modulo[Int, Int] for Int {
   fn pub %(other: ref Int) -> Int {
-    _INKO.int_rem(_INKO.int_add(_INKO.int_rem(self, other), other), other)
+    if other == 0 or (self == MIN and other == -1) {
+      overflow(self, '%', other)
+    }
+
+    let sum = _INKO.int_checked_add(_INKO.int_rem(self, other), other)
+
+    if sum.tag as Int == 0 {
+      _INKO.int_rem(sum.value as Int, other)
+    } else {
+      overflow(self, '%', other)
+    }
   }
 }
 
@@ -441,25 +582,37 @@ impl BitXor[Int, Int] for Int {
 
 impl ShiftLeft[Int, Int] for Int {
   fn pub <<(other: ref Int) -> Int {
+    if other >= BITS { overflow(self, '<<', other) }
+
     _INKO.int_shl(self, other)
   }
 }
 
 impl ShiftRight[Int, Int] for Int {
   fn pub >>(other: ref Int) -> Int {
+    if other >= BITS { overflow(self, '>>', other) }
+
     _INKO.int_shr(self, other)
   }
 }
 
 impl UnsignedShiftRight[Int, Int] for Int {
   fn pub >>>(other: ref Int) -> Int {
+    if other >= BITS { overflow(self, '>>>', other) }
+
     _INKO.int_unsigned_shr(self, other)
   }
 }
 
 impl Power[Int, Int] for Int {
   fn pub **(other: ref Int) -> Int {
-    inko_int_pow(_INKO.process, self, other) as Int
+    let res = inko_int_checked_pow(self, other)
+
+    if res.tag as Int == 0 {
+      res.value as Int
+    } else {
+      overflow(self, '**', other)
+    }
   }
 }
 

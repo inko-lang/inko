@@ -6,11 +6,10 @@ use crate::llvm::constants::{
     CLASS_METHODS_INDEX, CLOSURE_CALL_INDEX, CONTEXT_ARGS_INDEX,
     CONTEXT_PROCESS_INDEX, CONTEXT_STATE_INDEX, DROPPER_INDEX, FALSE_INDEX,
     FIELD_OFFSET, FLOAT_KIND, HEADER_CLASS_INDEX, HEADER_KIND_INDEX,
-    HEADER_REFS_INDEX, INT_KIND, INT_MASK, INT_SHIFT, LLVM_RESULT_STATUS_INDEX,
-    LLVM_RESULT_VALUE_INDEX, MAX_INT, MESSAGE_ARGUMENTS_INDEX,
-    METHOD_FUNCTION_INDEX, METHOD_HASH_INDEX, MIN_INT, NIL_INDEX, OWNED_KIND,
-    PERMANENT_KIND, PROCESS_FIELD_OFFSET, REF_KIND, REF_MASK, TAG_MASK,
-    TRUE_INDEX,
+    HEADER_REFS_INDEX, INT_KIND, INT_MASK, INT_SHIFT, MAX_INT,
+    MESSAGE_ARGUMENTS_INDEX, METHOD_FUNCTION_INDEX, METHOD_HASH_INDEX, MIN_INT,
+    NIL_INDEX, OWNED_KIND, PERMANENT_KIND, PROCESS_FIELD_OFFSET, REF_KIND,
+    REF_MASK, TAG_MASK, TRUE_INDEX,
 };
 use crate::llvm::context::Context;
 use crate::llvm::layouts::Layouts;
@@ -711,45 +710,12 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                 self.set_debug_location(ins.location);
 
                 match ins.name {
-                    BuiltinFunction::IntAdd => {
-                        self.checked_int_operation(
-                            "llvm.sadd.with.overflow",
-                            state_var,
-                            proc_var,
-                            self.variables[&ins.register],
-                            self.variables[&ins.arguments[0]],
-                            self.variables[&ins.arguments[1]],
-                        );
-                    }
-                    BuiltinFunction::IntSub => {
-                        self.checked_int_operation(
-                            "llvm.ssub.with.overflow",
-                            state_var,
-                            proc_var,
-                            self.variables[&ins.register],
-                            self.variables[&ins.arguments[0]],
-                            self.variables[&ins.arguments[1]],
-                        );
-                    }
-                    BuiltinFunction::IntMul => {
-                        self.checked_int_operation(
-                            "llvm.smul.with.overflow",
-                            state_var,
-                            proc_var,
-                            self.variables[&ins.register],
-                            self.variables[&ins.arguments[0]],
-                            self.variables[&ins.arguments[1]],
-                        );
-                    }
                     BuiltinFunction::IntDiv => {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
                         let lhs = self.read_int(lhs_var);
                         let rhs = self.read_int(rhs_var);
-
-                        self.check_division_overflow(proc_var, lhs, rhs);
-
                         let raw = self.builder.int_div(lhs, rhs);
                         let res = self.new_int(state_var, raw);
 
@@ -761,9 +727,6 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let rhs_var = self.variables[&ins.arguments[1]];
                         let lhs = self.read_int(lhs_var);
                         let rhs = self.read_int(rhs_var);
-
-                        self.check_division_overflow(proc_var, lhs, rhs);
-
                         let raw = self.builder.int_rem(lhs, rhs);
                         let res = self.new_int(state_var, raw);
 
@@ -1151,9 +1114,6 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let rhs_var = self.variables[&ins.arguments[1]];
                         let lhs = self.read_int(lhs_var);
                         let rhs = self.read_int(rhs_var);
-
-                        self.check_shift_bits(proc_var, lhs, rhs);
-
                         let raw = self.builder.left_shift(lhs, rhs);
                         let res = self.new_int(state_var, raw);
 
@@ -1165,9 +1125,6 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let rhs_var = self.variables[&ins.arguments[1]];
                         let lhs = self.read_int(lhs_var);
                         let rhs = self.read_int(rhs_var);
-
-                        self.check_shift_bits(proc_var, lhs, rhs);
-
                         let raw = self.builder.signed_right_shift(lhs, rhs);
                         let res = self.new_int(state_var, raw);
 
@@ -1179,9 +1136,6 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let rhs_var = self.variables[&ins.arguments[1]];
                         let lhs = self.read_int(lhs_var);
                         let rhs = self.read_int(rhs_var);
-
-                        self.check_shift_bits(proc_var, lhs, rhs);
-
                         let raw = self.builder.right_shift(lhs, rhs);
                         let res = self.new_int(state_var, raw);
 
@@ -1217,6 +1171,60 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let rhs = self.read_int(rhs_var);
                         let raw = self.builder.int_sub(lhs, rhs);
                         let res = self.new_int(state_var, raw);
+
+                        self.builder.store(reg_var, res);
+                    }
+                    BuiltinFunction::IntCheckedAdd => {
+                        let reg_var = self.variables[&ins.register];
+                        let lhs_var = self.variables[&ins.arguments[0]];
+                        let rhs_var = self.variables[&ins.arguments[1]];
+                        let lhs = self.read_int(lhs_var);
+                        let rhs = self.read_int(rhs_var);
+                        let add = self.module.intrinsic(
+                            "llvm.sadd.with.overflow",
+                            &[self.builder.context.i64_type().into()],
+                        );
+
+                        let res = self
+                            .builder
+                            .call(add, &[lhs.into(), rhs.into()])
+                            .into_struct_value();
+
+                        self.builder.store(reg_var, res);
+                    }
+                    BuiltinFunction::IntCheckedMul => {
+                        let reg_var = self.variables[&ins.register];
+                        let lhs_var = self.variables[&ins.arguments[0]];
+                        let rhs_var = self.variables[&ins.arguments[1]];
+                        let lhs = self.read_int(lhs_var);
+                        let rhs = self.read_int(rhs_var);
+                        let add = self.module.intrinsic(
+                            "llvm.smul.with.overflow",
+                            &[self.builder.context.i64_type().into()],
+                        );
+
+                        let res = self
+                            .builder
+                            .call(add, &[lhs.into(), rhs.into()])
+                            .into_struct_value();
+
+                        self.builder.store(reg_var, res);
+                    }
+                    BuiltinFunction::IntCheckedSub => {
+                        let reg_var = self.variables[&ins.register];
+                        let lhs_var = self.variables[&ins.arguments[0]];
+                        let rhs_var = self.variables[&ins.arguments[1]];
+                        let lhs = self.read_int(lhs_var);
+                        let rhs = self.read_int(rhs_var);
+                        let add = self.module.intrinsic(
+                            "llvm.ssub.with.overflow",
+                            &[self.builder.context.i64_type().into()],
+                        );
+
+                        let res = self
+                            .builder
+                            .call(add, &[lhs.into(), rhs.into()])
+                            .into_struct_value();
 
                         self.builder.store(reg_var, res);
                     }
@@ -2512,62 +2520,6 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
             .into_pointer_value()
     }
 
-    fn checked_int_operation(
-        &mut self,
-        name: &str,
-        state_var: PointerValue<'ctx>,
-        proc_var: PointerValue<'ctx>,
-        reg_var: PointerValue<'ctx>,
-        lhs_var: PointerValue<'ctx>,
-        rhs_var: PointerValue<'ctx>,
-    ) {
-        let ok_block = self.builder.add_block();
-        let err_block = self.builder.add_block();
-        let after_block = self.builder.add_block();
-        let lhs = self.read_int(lhs_var);
-        let rhs = self.read_int(rhs_var);
-        let func = self.module.runtime_function(RuntimeFunction::IntOverflow);
-        let add = self
-            .module
-            .intrinsic(name, &[self.builder.context.i64_type().into()]);
-
-        let res = self
-            .builder
-            .call(add, &[lhs.into(), rhs.into()])
-            .into_struct_value();
-
-        // Check if we overflowed the operation.
-        let new_val = self
-            .builder
-            .extract_field(res, LLVM_RESULT_VALUE_INDEX)
-            .into_int_value();
-        let overflow = self
-            .builder
-            .extract_field(res, LLVM_RESULT_STATUS_INDEX)
-            .into_int_value();
-
-        self.builder.branch(overflow, err_block, ok_block);
-
-        // The block to jump to if the operation didn't overflow.
-        {
-            self.builder.switch_to_block(ok_block);
-
-            let val = self.new_int(state_var, new_val);
-
-            self.builder.store(reg_var, val);
-            self.builder.jump(after_block);
-        }
-
-        // The block to jump to if the operation overflowed.
-        self.builder.switch_to_block(err_block);
-
-        let proc = self.builder.load_untyped_pointer(proc_var);
-
-        self.builder.call_void(func, &[proc.into(), lhs.into(), rhs.into()]);
-        self.builder.unreachable();
-        self.builder.switch_to_block(after_block);
-    }
-
     fn new_int(
         &mut self,
         state_var: PointerValue<'ctx>,
@@ -2655,78 +2607,6 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
 
         self.builder.switch_to_block(after_block);
         self.builder.load_untyped_pointer(result)
-    }
-
-    fn check_division_overflow(
-        &self,
-        process_var: PointerValue<'ctx>,
-        lhs: IntValue<'ctx>,
-        rhs: IntValue<'ctx>,
-    ) {
-        let min = self.builder.i64_literal(i64::MIN);
-        let minus_one = self.builder.i64_literal(-1);
-        let zero = self.builder.i64_literal(0);
-        let and_block = self.builder.add_block();
-        let or_block = self.builder.add_block();
-        let overflow_block = self.builder.add_block();
-        let ok_block = self.builder.add_block();
-
-        // lhs == MIN AND rhs == -1
-        self.builder.branch(self.builder.int_eq(lhs, min), and_block, or_block);
-
-        self.builder.switch_to_block(and_block);
-        self.builder.branch(
-            self.builder.int_eq(rhs, minus_one),
-            overflow_block,
-            or_block,
-        );
-
-        // OR rhs == 0
-        self.builder.switch_to_block(or_block);
-        self.builder.branch(
-            self.builder.int_eq(rhs, zero),
-            overflow_block,
-            ok_block,
-        );
-
-        // The block to jump to if an overflow would occur.
-        self.builder.switch_to_block(overflow_block);
-
-        let func = self.module.runtime_function(RuntimeFunction::IntOverflow);
-        let proc = self.builder.load_untyped_pointer(process_var);
-
-        self.builder.call_void(func, &[proc.into(), lhs.into(), rhs.into()]);
-        self.builder.unreachable();
-
-        // The block to jump to when it's safe to perform the
-        // operation.
-        self.builder.switch_to_block(ok_block);
-    }
-
-    fn check_shift_bits(
-        &self,
-        process_var: PointerValue<'ctx>,
-        value: IntValue<'ctx>,
-        bits: IntValue<'ctx>,
-    ) {
-        let ok_block = self.builder.add_block();
-        let err_block = self.builder.add_block();
-        let min = self.builder.i64_literal((i64::BITS - 1) as _);
-        let cond = self.builder.int_gt(bits, min);
-
-        self.builder.branch(cond, err_block, ok_block);
-
-        // The block to jump to when the operation would overflow.
-        self.builder.switch_to_block(err_block);
-
-        let func = self.module.runtime_function(RuntimeFunction::IntOverflow);
-        let proc = self.builder.load_untyped_pointer(process_var);
-
-        self.builder.call_void(func, &[proc.into(), value.into(), bits.into()]);
-        self.builder.unreachable();
-
-        // The block to jump to when all is well.
-        self.builder.switch_to_block(ok_block);
     }
 
     fn define_register_variables(&mut self) {

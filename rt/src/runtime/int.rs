@@ -1,17 +1,10 @@
 use crate::mem::{Int, String as InkoString};
-use crate::process::ProcessPointer;
-use crate::runtime::process::panic;
 use crate::state::State;
 
-#[no_mangle]
-pub unsafe extern "system" fn inko_int_overflow(
-    process: ProcessPointer,
-    left: i64,
-    right: i64,
-) -> ! {
-    let message = format!("Int overflowed, left: {}, right: {}", left, right);
-
-    panic(process, &message);
+#[repr(C)]
+pub struct CheckedIntResult {
+    pub value: i64,
+    pub tag: u8,
 }
 
 #[no_mangle]
@@ -31,15 +24,14 @@ pub unsafe extern "system" fn inko_int_boxed_permanent(
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_int_pow(
-    process: ProcessPointer,
+pub unsafe extern "system" fn inko_int_checked_pow(
     left: i64,
     right: i64,
-) -> i64 {
-    if let Some(val) = left.checked_pow(right as u32) {
-        val
+) -> CheckedIntResult {
+    if let Some(value) = left.checked_pow(right as u32) {
+        CheckedIntResult { value, tag: 0 }
     } else {
-        inko_int_overflow(process, left, right);
+        CheckedIntResult { value: 0, tag: 1 }
     }
 }
 

@@ -14,7 +14,6 @@ pub(crate) enum RuntimeFunction {
     IntBoxed,
     IntBoxedPermanent,
     IntClone,
-    IntOverflow,
     MessageNew,
     Allocate,
     ProcessFinishMessage,
@@ -45,7 +44,6 @@ impl RuntimeFunction {
             RuntimeFunction::IntBoxed => "inko_int_boxed",
             RuntimeFunction::IntBoxedPermanent => "inko_int_boxed_permanent",
             RuntimeFunction::IntClone => "inko_int_clone",
-            RuntimeFunction::IntOverflow => "inko_int_overflow",
             RuntimeFunction::MessageNew => "inko_message_new",
             RuntimeFunction::Allocate => "inko_alloc",
             RuntimeFunction::ProcessFinishMessage => {
@@ -90,14 +88,6 @@ impl RuntimeFunction {
                 let val = context.pointer_type();
 
                 val.fn_type(&[state, val.into()], false)
-            }
-            RuntimeFunction::IntOverflow => {
-                let proc = context.pointer_type().into();
-                let lhs = context.i64_type().into();
-                let rhs = context.i64_type().into();
-                let ret = context.void_type();
-
-                ret.fn_type(&[proc, lhs, rhs], false)
             }
             RuntimeFunction::CheckRefs => {
                 let proc = context.pointer_type().into();

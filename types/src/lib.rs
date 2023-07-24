@@ -38,8 +38,9 @@ const TUPLE6_ID: u32 = 12;
 const TUPLE7_ID: u32 = 13;
 const TUPLE8_ID: u32 = 14;
 const ARRAY_ID: u32 = 15;
+const CHECKED_INT_RESULT_ID: u32 = 16;
 
-pub const FIRST_USER_CLASS_ID: u32 = ARRAY_ID + 1;
+pub const FIRST_USER_CLASS_ID: u32 = CHECKED_INT_RESULT_ID + 1;
 
 /// The default module ID to assign to builtin types.
 ///
@@ -62,6 +63,7 @@ const TUPLE5_NAME: &str = "Tuple5";
 const TUPLE6_NAME: &str = "Tuple6";
 const TUPLE7_NAME: &str = "Tuple7";
 const TUPLE8_NAME: &str = "Tuple8";
+const CHECKED_INT_RESULT_NAME: &str = "CheckedIntResult";
 
 pub const STRING_MODULE: &str = "std.string";
 pub const TO_STRING_TRAIT: &str = "ToString";
@@ -1083,6 +1085,10 @@ impl ClassId {
         ClassId(TUPLE8_ID)
     }
 
+    pub fn checked_int_result() -> ClassId {
+        ClassId(CHECKED_INT_RESULT_ID)
+    }
+
     pub fn tuple(len: usize) -> Option<ClassId> {
         match len {
             1 => Some(ClassId::tuple1()),
@@ -1531,7 +1537,6 @@ pub enum BuiltinFunction {
     FloatMul,
     FloatSub,
     FloatToBits,
-    IntAdd,
     IntBitAnd,
     IntBitNot,
     IntBitOr,
@@ -1542,13 +1547,11 @@ pub enum BuiltinFunction {
     IntGt,
     IntLe,
     IntLt,
-    IntMul,
     IntRem,
     IntRotateLeft,
     IntRotateRight,
     IntShl,
     IntShr,
-    IntSub,
     IntUnsignedShr,
     IntWrappingAdd,
     IntWrappingMul,
@@ -1560,6 +1563,9 @@ pub enum BuiltinFunction {
     Process,
     FloatRound,
     FloatPowi,
+    IntCheckedAdd,
+    IntCheckedMul,
+    IntCheckedSub,
 }
 
 impl BuiltinFunction {
@@ -1581,7 +1587,6 @@ impl BuiltinFunction {
             BuiltinFunction::FloatMul,
             BuiltinFunction::FloatSub,
             BuiltinFunction::FloatToBits,
-            BuiltinFunction::IntAdd,
             BuiltinFunction::IntBitAnd,
             BuiltinFunction::IntBitNot,
             BuiltinFunction::IntBitOr,
@@ -1593,16 +1598,17 @@ impl BuiltinFunction {
             BuiltinFunction::IntLe,
             BuiltinFunction::IntLt,
             BuiltinFunction::IntRem,
-            BuiltinFunction::IntMul,
             BuiltinFunction::IntRotateLeft,
             BuiltinFunction::IntRotateRight,
             BuiltinFunction::IntShl,
             BuiltinFunction::IntShr,
-            BuiltinFunction::IntSub,
             BuiltinFunction::IntUnsignedShr,
             BuiltinFunction::IntWrappingAdd,
             BuiltinFunction::IntWrappingMul,
             BuiltinFunction::IntWrappingSub,
+            BuiltinFunction::IntCheckedAdd,
+            BuiltinFunction::IntCheckedMul,
+            BuiltinFunction::IntCheckedSub,
             BuiltinFunction::Moved,
             BuiltinFunction::Panic,
             BuiltinFunction::StringConcat,
@@ -1636,7 +1642,6 @@ impl BuiltinFunction {
             BuiltinFunction::FloatMul => "float_mul",
             BuiltinFunction::FloatSub => "float_sub",
             BuiltinFunction::FloatToBits => "float_to_bits",
-            BuiltinFunction::IntAdd => "int_add",
             BuiltinFunction::IntBitAnd => "int_bit_and",
             BuiltinFunction::IntBitNot => "int_bit_not",
             BuiltinFunction::IntBitOr => "int_bit_or",
@@ -1648,16 +1653,17 @@ impl BuiltinFunction {
             BuiltinFunction::IntLe => "int_le",
             BuiltinFunction::IntLt => "int_lt",
             BuiltinFunction::IntRem => "int_rem",
-            BuiltinFunction::IntMul => "int_mul",
             BuiltinFunction::IntRotateLeft => "int_rotate_left",
             BuiltinFunction::IntRotateRight => "int_rotate_right",
             BuiltinFunction::IntShl => "int_shl",
             BuiltinFunction::IntShr => "int_shr",
-            BuiltinFunction::IntSub => "int_sub",
             BuiltinFunction::IntUnsignedShr => "int_unsigned_shr",
             BuiltinFunction::IntWrappingAdd => "int_wrapping_add",
             BuiltinFunction::IntWrappingMul => "int_wrapping_mul",
             BuiltinFunction::IntWrappingSub => "int_wrapping_sub",
+            BuiltinFunction::IntCheckedAdd => "int_checked_add",
+            BuiltinFunction::IntCheckedMul => "int_checked_mul",
+            BuiltinFunction::IntCheckedSub => "int_checked_sub",
             BuiltinFunction::Moved => "moved",
             BuiltinFunction::Panic => "panic",
             BuiltinFunction::StringConcat => "string_concat",
@@ -1669,6 +1675,9 @@ impl BuiltinFunction {
     }
 
     pub fn return_type(self) -> TypeRef {
+        let checked_result =
+            TypeRef::foreign_struct(ClassId::checked_int_result());
+
         match self {
             BuiltinFunction::FloatAdd => TypeRef::float(),
             BuiltinFunction::FloatCeil => TypeRef::float(),
@@ -1686,7 +1695,6 @@ impl BuiltinFunction {
             BuiltinFunction::FloatMul => TypeRef::float(),
             BuiltinFunction::FloatSub => TypeRef::float(),
             BuiltinFunction::FloatToBits => TypeRef::int(),
-            BuiltinFunction::IntAdd => TypeRef::int(),
             BuiltinFunction::IntBitAnd => TypeRef::int(),
             BuiltinFunction::IntBitNot => TypeRef::int(),
             BuiltinFunction::IntBitOr => TypeRef::int(),
@@ -1698,16 +1706,17 @@ impl BuiltinFunction {
             BuiltinFunction::IntLe => TypeRef::boolean(),
             BuiltinFunction::IntLt => TypeRef::boolean(),
             BuiltinFunction::IntRem => TypeRef::int(),
-            BuiltinFunction::IntMul => TypeRef::int(),
             BuiltinFunction::IntRotateLeft => TypeRef::int(),
             BuiltinFunction::IntRotateRight => TypeRef::int(),
             BuiltinFunction::IntShl => TypeRef::int(),
             BuiltinFunction::IntShr => TypeRef::int(),
-            BuiltinFunction::IntSub => TypeRef::int(),
             BuiltinFunction::IntUnsignedShr => TypeRef::int(),
             BuiltinFunction::IntWrappingAdd => TypeRef::int(),
             BuiltinFunction::IntWrappingMul => TypeRef::int(),
             BuiltinFunction::IntWrappingSub => TypeRef::int(),
+            BuiltinFunction::IntCheckedAdd => checked_result,
+            BuiltinFunction::IntCheckedMul => checked_result,
+            BuiltinFunction::IntCheckedSub => checked_result,
             BuiltinFunction::Moved => TypeRef::nil(),
             BuiltinFunction::Panic => TypeRef::Never,
             BuiltinFunction::StringConcat => TypeRef::string(),
@@ -3758,6 +3767,12 @@ impl Database {
                 Class::tuple(TUPLE7_NAME.to_string()),
                 Class::tuple(TUPLE8_NAME.to_string()),
                 Class::regular(ARRAY_NAME.to_string()),
+                Class::new(
+                    CHECKED_INT_RESULT_NAME.to_string(),
+                    ClassKind::Extern,
+                    Visibility::Private,
+                    ModuleId(DEFAULT_BUILTIN_MODULE_ID),
+                ),
             ],
             type_parameters: Vec::new(),
             type_arguments: Vec::new(),
@@ -3781,19 +3796,20 @@ impl Database {
             INT_NAME => Some(ClassId::int()),
             FLOAT_NAME => Some(ClassId::float()),
             STRING_NAME => Some(ClassId::string()),
-            ARRAY_NAME => Some(ClassId(ARRAY_ID)),
-            BOOLEAN_NAME => Some(ClassId(BOOLEAN_ID)),
-            NIL_NAME => Some(ClassId(NIL_ID)),
-            BYTE_ARRAY_NAME => Some(ClassId(BYTE_ARRAY_ID)),
-            CHANNEL_NAME => Some(ClassId(CHANNEL_ID)),
-            TUPLE1_NAME => Some(ClassId(TUPLE1_ID)),
-            TUPLE2_NAME => Some(ClassId(TUPLE2_ID)),
-            TUPLE3_NAME => Some(ClassId(TUPLE3_ID)),
-            TUPLE4_NAME => Some(ClassId(TUPLE4_ID)),
-            TUPLE5_NAME => Some(ClassId(TUPLE5_ID)),
-            TUPLE6_NAME => Some(ClassId(TUPLE6_ID)),
-            TUPLE7_NAME => Some(ClassId(TUPLE7_ID)),
-            TUPLE8_NAME => Some(ClassId(TUPLE8_ID)),
+            ARRAY_NAME => Some(ClassId::array()),
+            BOOLEAN_NAME => Some(ClassId::boolean()),
+            NIL_NAME => Some(ClassId::nil()),
+            BYTE_ARRAY_NAME => Some(ClassId::byte_array()),
+            CHANNEL_NAME => Some(ClassId::channel()),
+            TUPLE1_NAME => Some(ClassId::tuple1()),
+            TUPLE2_NAME => Some(ClassId::tuple2()),
+            TUPLE3_NAME => Some(ClassId::tuple3()),
+            TUPLE4_NAME => Some(ClassId::tuple4()),
+            TUPLE5_NAME => Some(ClassId::tuple5()),
+            TUPLE6_NAME => Some(ClassId::tuple6()),
+            TUPLE7_NAME => Some(ClassId::tuple7()),
+            TUPLE8_NAME => Some(ClassId::tuple8()),
+            CHECKED_INT_RESULT_NAME => Some(ClassId::checked_int_result()),
             _ => None,
         }
     }
