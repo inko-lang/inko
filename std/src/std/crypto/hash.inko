@@ -130,8 +130,8 @@ class pub Hash {
 impl ToString for Hash {
   # Returns a hexadecimal `String` of this digest.
   fn pub to_string -> String {
-    # We don't use Int.to_base16 here because we need extra padding, and to
-    # avoid allocating a String for every byte.
+    # We don't use Int.format here because we need extra padding, and to avoid
+    # allocating a String for every byte.
     let hex = ByteArray.filled(with: 0, times: @bytes.size * 2)
 
     @bytes.iter.each_with_index fn (index, byte) {

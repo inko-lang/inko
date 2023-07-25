@@ -81,6 +81,21 @@ pub unsafe extern "system" fn inko_string_to_float(
     bytes: *mut u8,
     size: i64,
 ) -> InkoResult {
+    // On paper this relies on undefined behaviour, should the slice cover a
+    // range bytes that's not valid UTF-8. But in reality this shouldn't pose a
+    // problem because:
+    //
+    // 1. The float parser almost immediately converts the `&str` to `&[u8]`
+    //    then operates on that, not caring about the encoding.
+    // 2. Simply storing invalid UTF-8 in a `&str` isn't undefined behaviour
+    //    (see https://github.com/rust-lang/rust/issues/71033), but using
+    //    certain methods that expect it to be valid UTF-8 _may_ lead to
+    //    undefined behaviour. Because of the previous item, this shouldn't be a
+    //    problem.
+    //
+    // Long term we want to replace this function with a pure Inko
+    // implementation, solving this problem entirely, but that proved to be too
+    // much work at the time of writing this comment.
     let slice =
         str::from_utf8_unchecked(slice::from_raw_parts(bytes, size as _));
 
@@ -115,6 +130,8 @@ pub unsafe extern "system" fn inko_string_to_int(
     let parsed = if radix == 16 {
         if let Some(tail) = slice.strip_prefix("-0x") {
             i64::from_str_radix(tail, 16).map(|v| 0_i64.wrapping_sub(v))
+        } else if let Some(tail) = slice.strip_prefix("0x") {
+            i64::from_str_radix(tail, 16)
         } else {
             i64::from_str_radix(slice, 16)
         }

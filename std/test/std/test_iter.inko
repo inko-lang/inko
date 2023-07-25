@@ -158,4 +158,47 @@ fn pub tests(t: mut Tests) {
     t.equal(iter.next, Option.Some(0))
     t.equal(iter.next, Option.None)
   }
+
+  t.test('Iter.peekable') fn (t) {
+    let vals = [1, 2, 3]
+
+    t.equal(vals.iter.peekable.to_array, [1, 2, 3])
+  }
+
+  t.test('Peekable.peek with an empty iterator') fn (t) {
+    let vals: Array[Int] = []
+    let iter = vals.iter.peekable
+
+    t.equal(iter.peek, Option.None)
+    t.equal(iter.next, Option.None)
+    t.equal(iter.next, Option.None)
+  }
+
+  t.test('Peekable.peek with an iterator with values') fn (t) {
+    let vals = [1, 2, 3]
+    let iter = vals.iter.peekable
+
+    t.equal(iter.peek, Option.Some(1))
+    t.equal(iter.peek, Option.Some(1))
+    t.equal(iter.next, Option.Some(1))
+    t.equal(iter.peek, Option.Some(2))
+    t.equal(iter.next, Option.Some(2))
+    t.equal(iter.next, Option.Some(3))
+    t.equal(iter.next, Option.None)
+    t.equal(iter.peek, Option.None)
+  }
+
+  t.test('Peekable.peek_mut with an iterator with values') fn (t) {
+    let vals = [1, 2, 3]
+    let iter = vals.iter_mut.peekable
+
+    t.equal(iter.peek_mut, Option.Some(1))
+    t.equal(iter.peek_mut, Option.Some(1))
+    t.equal(iter.next, Option.Some(1))
+    t.equal(iter.peek_mut, Option.Some(2))
+    t.equal(iter.next, Option.Some(2))
+    t.equal(iter.next, Option.Some(3))
+    t.equal(iter.next, Option.None)
+    t.equal(iter.peek_mut, Option.None)
+  }
 }

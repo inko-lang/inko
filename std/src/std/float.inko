@@ -5,7 +5,7 @@ import std.fmt.(Format, Formatter)
 import std.hash.(Hash, Hasher)
 import std.int.(MAX, MIN, ToInt)
 import std.ops.(Add, Divide, Modulo, Multiply, Power, Subtract)
-import std.string.ToString
+import std.string.(Bytes, ToString)
 
 class extern AnyResult {
   let @tag: Int
@@ -51,29 +51,29 @@ class builtin Float {
     _INKO.float_from_bits(bits)
   }
 
-  # Parses a `Float` from a `String`.
+  # Parses a `Bytes` into a `Float`, returning a `Some` if the value is valid,
+  # and a `None` otherwise.
   #
-  # # Error handling
+  # The input is expected to be a base 10 representation of a float. This method
+  # accepts inputs such as:
   #
-  # This method will throw if the input `String` is not in the right format.
+  # - `1.2`
+  # - `-1.2`
+  # - `+1.2`
+  # - `1.2e1` and `1.2E1`
+  # - `.5`
+  # - `5.`
+  # - `Infinity`, `-Infinity`, `inf`, `infinity`, `-inf`, `-infinity`
+  # - `NaN`
   #
-  # # Format
-  #
-  # The input `String` is expected to be in base 10. Leading and/or trailing
-  # whitespace is considered to be invalid, and will result in an error being
-  # thrown.
+  # Leading and/or trailing whitespace is considered invalid.
   #
   # # Examples
   #
-  # Parsing a `Float` from a `String`:
-  #
-  #     Float.parse('10.5') # => Option.Some(10.5)
-  #
-  # Parsing a `Float` with an exponent:
-  #
+  #     Float.parse('10.5')  # => Option.Some(10.5)
   #     Float.parse('1.2e1') # => Option.Some(12.0)
-  fn pub static parse(string: String) -> Option[Float] {
-    match inko_string_to_float(_INKO.state, string.to_pointer, string.size) {
+  fn pub static parse[T: Bytes](bytes: ref T) -> Option[Float] {
+    match inko_string_to_float(_INKO.state, bytes.to_pointer, bytes.size) {
       case { @tag = 0, @value = v } -> Option.Some(v as Float)
       case _ -> Option.None
     }

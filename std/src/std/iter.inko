@@ -22,7 +22,6 @@
 # provides the `Stream` type, which can create iterators from a closure.
 import std.cmp.Equal
 import std.option.Option
-import std.string.(ToString, StringBuffer)
 
 # The "byte" that signals the end in a `Bytes` iterator.
 let pub EOF = -1
@@ -389,6 +388,22 @@ trait pub Iter[T] {
   fn pub move last -> Option[T] {
     reduce(Option.None) fn (_, val) { Option.Some(val) }
   }
+
+  # Returns an iterator that allows looking at the next element of the iterator,
+  # without consuming it.
+  #
+  # # Examples
+  #
+  #     let vals = [1, 2, 3]
+  #     let iter = vals.iter.peekable
+  #
+  #     iter.peek # => Option.Some(1)
+  #     iter.peek # => Option.Some(1)
+  #     iter.next # => Option.Some(1)
+  #     iter.next # => Option.Some(2)
+  fn pub move peekable -> Peekable[T] {
+    Peekable { @iter = self, @peeked = Option.None }
+  }
 }
 
 # A type that can be moved into an iterator.
@@ -440,35 +455,54 @@ impl Iter[T] for Stream {
   }
 }
 
-# An iterator over a sequence of bytes.
-#
-# A `Bytes` is a regular iterator, but introduces the extra method `next_byte`.
-# This method is similar to `Iter.next` in that it advances the iterator, but
-# instead of returning an `Option[Int]` it returns an `Int`. This allows `Bytes`
-# to be used as both a regular iterator and a more specialised (and more
-# efficient) iterator over (large) sequences of bytes.
-#
-# When implementing `Bytes` for a type, you must also implement `Iter`. The
-# easiest way of doing this is to have `Iter.next` reuse the implementation of
-# `Bytes.next_byte` like so:
-#
-#     impl Iter[Int] for MyType {
-#       fn pub mut next -> Option[Int] {
-#         match next_byte {
-#           case EOF -> Option.None
-#           case byte -> Option.Some(byte)
-#         }
-#       }
-#     }
-#
-#     impl Bytes for MyType {
-#       fn pub mut next_byte -> Int {
-#         # ...
-#       }
-#     }
-trait pub Bytes: Iter[Int] {
-  # Returns the next byte in the iterator.
+# An iterator that allows looking at the next element in an iterator, without
+# consuming it.
+class pub Peekable[T] {
+  let @iter: Iter[T]
+  let @peeked: Option[Option[T]]
+
+  # Returns an optional immutable reference to the next item in the iterator,
+  # without consuming it.
   #
-  # If all input is consumed, this method must return `std.iter.EOF`.
-  fn pub mut next_byte -> Int
+  # This method advances the iterator if no value is peeked yet.
+  fn pub mut peek -> Option[ref T] {
+    match @peeked {
+      case Some(opt) -> opt.as_ref
+      case _ -> {
+        let val = @iter.next
+        let ret = val.as_ref
+
+        @peeked = Option.Some(val)
+        ret
+      }
+    }
+  }
+}
+
+impl Peekable if T: mut {
+  # Returns an optional mutable reference to the next item in the iterator,
+  # without consuming it.
+  #
+  # This method advances the iterator if no value is peeked yet.
+  fn pub mut peek_mut -> Option[mut T] {
+    match @peeked {
+      case Some(opt) -> opt.as_mut
+      case _ -> {
+        let val = @iter.next
+        let ret = val.as_mut
+
+        @peeked = Option.Some(val)
+        ret
+      }
+    }
+  }
+}
+
+impl Iter[T] for Peekable {
+  fn pub mut next -> Option[T] {
+    match @peeked := Option.None {
+      case Some(opt) -> opt
+      case _ -> @iter.next
+    }
+  }
 }

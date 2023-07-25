@@ -104,6 +104,12 @@ fn pub tests(t: mut Tests) {
     t.equal(bytes.iter.to_array, [10, 20])
   }
 
+  t.test('ByteArray.bytes') fn (t) {
+    let bytes = ByteArray.from_array([10, 20])
+
+    t.equal(bytes.bytes.to_array, [10, 20])
+  }
+
   t.test('ByteArray.get') fn (t) {
     let bytes = ByteArray.from_array([10, 20])
 
@@ -111,8 +117,19 @@ fn pub tests(t: mut Tests) {
     t.equal(bytes.get(1), 20)
   }
 
+  t.test('ByteArray.byte') fn (t) {
+    let bytes = ByteArray.from_array([10, 20])
+
+    t.equal(bytes.byte(0), 10)
+    t.equal(bytes.byte(1), 20)
+  }
+
   t.panic('ByteArray.get with an invalid index') fn {
     ByteArray.new.get(0)
+  }
+
+  t.panic('ByteArray.byte with an invalid index') fn {
+    ByteArray.new.byte(0)
   }
 
   t.test('ByteArray.set') fn (t) {
@@ -169,66 +186,6 @@ fn pub tests(t: mut Tests) {
     t.equal(fmt(ByteArray.new), '[]')
     t.equal(fmt(ByteArray.from_array([10])), '[10]')
     t.equal(fmt(ByteArray.from_array([10, 20])), '[10, 20]')
-  }
-
-  t.test('Bytes.next') fn (t) {
-    let bytes = 'abc'.to_byte_array
-    let iter = bytes.iter
-
-    t.equal(iter.next, Option.Some(97))
-    t.equal(iter.next, Option.Some(98))
-    t.equal(iter.next, Option.Some(99))
-    t.equal(iter.next, Option.None)
-  }
-
-  t.test('Bytes.next_byte') fn (t) {
-    let bytes = 'abc'.to_byte_array
-    let iter = bytes.iter
-
-    t.equal(iter.next_byte, 97)
-    t.equal(iter.next_byte, 98)
-    t.equal(iter.next_byte, 99)
-    t.equal(iter.next_byte, EOF)
-  }
-
-  t.test('Bytes.read') fn (t) {
-    let input = 'foo'.to_byte_array
-    let iter = input.iter
-    let buff = ByteArray.new
-
-    t.equal(iter.read(into: buff, size: 2), Result.Ok(2))
-    t.equal(buff.to_string, 'fo')
-    t.equal(iter.read(into: buff, size: 2), Result.Ok(1))
-    t.equal(buff.to_string, 'foo')
-    t.equal(iter.read(into: buff, size: 2), Result.Ok(0))
-    t.equal(buff.to_string, 'foo')
-  }
-
-  t.test('Bytes.read with a mutated ByteArray') fn (t) {
-    let input = 'foo'.to_byte_array
-    let iter = input.iter
-    let buff = ByteArray.new
-
-    t.equal(iter.read(into: buff, size: 1), Result.Ok(1))
-    t.equal(buff.to_string, 'f')
-
-    input.pop
-    t.equal(iter.read(into: buff, size: 2), Result.Ok(1))
-    t.equal(buff.to_string, 'fo')
-
-    input.push(111)
-    t.equal(iter.read(into: buff, size: 2), Result.Ok(1))
-    t.equal(buff.to_string, 'foo')
-  }
-
-  t.test('Bytes.read_all') fn (t) {
-    let input = 'foo'.to_byte_array
-    let iter = input.iter
-    let buff = ByteArray.new
-
-    t.equal(iter.read_all(buff), Result.Ok(3))
-    t.equal(iter.read_all(buff), Result.Ok(0))
-    t.equal(buff.to_string, 'foo')
   }
 
   t.test('ByteArray.reverse') fn (t) {

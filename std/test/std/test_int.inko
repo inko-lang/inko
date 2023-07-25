@@ -1,65 +1,119 @@
 import helpers.(fmt, hash)
 import std.cmp.Ordering
-import std.int.(MIN, MAX)
+import std.int.(Format, MAX, MIN)
 import std.test.Tests
 
 fn pub tests(t: mut Tests) {
-  t.test('Int.from_base2') fn (t) {
-    t.equal(Int.from_base2('1'), Option.Some(1))
-    t.equal(Int.from_base2('11'), Option.Some(3))
-    t.equal(Int.from_base2('1010'), Option.Some(10))
-    t.equal(Int.from_base2('+11'), Option.Some(3))
-    t.equal(Int.from_base2('-11'), Option.Some(-3))
-    t.equal(Int.from_base2('ef'), Option.None)
-    t.equal(Int.from_base2(' 11'), Option.None)
-    t.equal(Int.from_base2('11 '), Option.None)
-    t.equal(Int.from_base2('1'.repeat(times: 70)), Option.None)
-    t.equal(Int.from_base2(''), Option.None)
-  }
-
-  t.test('Int.from_base10') fn (t) {
-    t.equal(Int.from_base10('42'), Option.Some(42))
-    t.equal(Int.from_base10('11'), Option.Some(11))
-    t.equal(Int.from_base10('+11'), Option.Some(11))
-    t.equal(Int.from_base10('-11'), Option.Some(-11))
-    t.equal(Int.from_base10(' 11'), Option.None)
-    t.equal(Int.from_base10('11 '), Option.None)
-    t.equal(Int.from_base10('f'), Option.None)
-    t.equal(Int.from_base10('1'.repeat(times: 100)), Option.None)
-    t.equal(Int.from_base10(''), Option.None)
-  }
-
-  t.test('Int.from_base16') fn (t) {
-    t.equal(Int.from_base16('42'), Option.Some(66))
-    t.equal(Int.from_base16('11'), Option.Some(17))
-    t.equal(Int.from_base16('ef'), Option.Some(239))
-    t.equal(Int.from_base16('+ef'), Option.Some(239))
-    t.equal(Int.from_base16('-ef'), Option.Some(-239))
-    t.equal(Int.from_base16(' 11'), Option.None)
-    t.equal(Int.from_base16('11 '), Option.None)
-    t.equal(Int.from_base16('zz'), Option.None)
+  t.test('Int.parse with binary numbers') fn (t) {
+    t.equal(Int.parse('1', Format.Binary), Option.Some(1))
+    t.equal(Int.parse('11', Format.Binary), Option.Some(3))
+    t.equal(Int.parse('1010', Format.Binary), Option.Some(10))
+    t.equal(Int.parse('+11', Format.Binary), Option.Some(3))
+    t.equal(Int.parse('-11', Format.Binary), Option.Some(-3))
+    t.equal(Int.parse('1111111111111111', Format.Binary), Option.Some(65_535))
     t.equal(
-      Int.from_base16('-0x4a3f043013b2c4d1'), Option.Some(-5349999486874862801)
+      Int.parse(
+        '111111111111111111111111111111111111111111111111111111111111111',
+        Format.Binary
+      ),
+      Option.Some(9_223_372_036_854_775_807)
     )
-    t.equal(Int.from_base16('f'.repeat(times: 100)), Option.None)
-    t.equal(Int.from_base16(''), Option.None)
+
+    t.equal(
+      Int.parse(
+        '-1000000000000000000000000000000000000000000000000000000000000000',
+        Format.Binary
+      ),
+      Option.Some(-9_223_372_036_854_775_808)
+    )
+
+    t.equal(Int.parse('ef', Format.Binary), Option.None)
+    t.equal(Int.parse(' 11', Format.Binary), Option.None)
+    t.equal(Int.parse('11 ', Format.Binary), Option.None)
+    t.equal(Int.parse('1'.repeat(times: 70), Format.Binary), Option.None)
+    t.equal(Int.parse('', Format.Binary), Option.None)
+    t.equal(Int.parse('1_1', Format.Binary), Option.None)
   }
 
-  t.test('Int.to_base2') fn (t) {
-    t.equal(0.to_base2, '0')
-    t.equal(123.to_base2, '1111011')
-    t.equal(-123.to_base2, '-1111011')
+  t.test('Int.parse with decimal numbers') fn (t) {
+    t.equal(Int.parse('42', Format.Decimal), Option.Some(42))
+    t.equal(Int.parse('11', Format.Decimal), Option.Some(11))
+    t.equal(Int.parse('+11', Format.Decimal), Option.Some(11))
+    t.equal(Int.parse('-11', Format.Decimal), Option.Some(-11))
     t.equal(
-      -9223372036854775808.to_base2,
+      Int.parse('123456789123456789', Format.Decimal),
+      Option.Some(123_456_789_123_456_789)
+    )
+
+    t.equal(
+      Int.parse('-9223372036854775808', Format.Decimal),
+      Option.Some(-9_223_372_036_854_775_808)
+    )
+
+    t.equal(
+      Int.parse('9223372036854775807', Format.Decimal),
+      Option.Some(9_223_372_036_854_775_807)
+    )
+
+    t.equal(Int.parse(' 11', Format.Decimal), Option.None)
+    t.equal(Int.parse('11 ', Format.Decimal), Option.None)
+    t.equal(Int.parse('f', Format.Decimal), Option.None)
+    t.equal(Int.parse('1'.repeat(times: 100), Format.Decimal), Option.None)
+    t.equal(Int.parse('', Format.Decimal), Option.None)
+    t.equal(Int.parse('1_1', Format.Decimal), Option.None)
+    t.equal(Int.parse('+', Format.Decimal), Option.None)
+    t.equal(Int.parse('-', Format.Decimal), Option.None)
+  }
+
+  t.test('Int.parse with hexadecimal numbers') fn (t) {
+    t.equal(Int.parse('42', Format.Hex), Option.Some(66))
+    t.equal(Int.parse('11', Format.Hex), Option.Some(17))
+    t.equal(Int.parse('ef', Format.Hex), Option.Some(239))
+    t.equal(Int.parse('0xef', Format.Hex), Option.Some(239))
+    t.equal(Int.parse('-0xef', Format.Hex), Option.Some(-239))
+    t.equal(Int.parse('+ef', Format.Hex), Option.Some(239))
+    t.equal(Int.parse('-ef', Format.Hex), Option.Some(-239))
+    t.equal(Int.parse(' 11', Format.Hex), Option.None)
+    t.equal(Int.parse('11 ', Format.Hex), Option.None)
+    t.equal(Int.parse('zz', Format.Hex), Option.None)
+    t.equal(
+      Int.parse('-0x4a3f043013b2c4d1', Format.Hex),
+      Option.Some(-5349999486874862801)
+    )
+
+    t.equal(Int.parse('0x', Format.Hex), Option.None)
+    t.equal(Int.parse('f'.repeat(times: 100), Format.Hex), Option.None)
+    t.equal(Int.parse('', Format.Hex), Option.None)
+    t.equal(Int.parse('f_f', Format.Hex), Option.None)
+  }
+
+  t.test('Int.format when formatting as binary') fn (t) {
+    t.equal(0.format(Format.Binary), '0')
+    t.equal(123.format(Format.Binary), '1111011')
+    t.equal(-123.format(Format.Binary), '-1111011')
+    t.equal(
+      -9223372036854775808.format(Format.Binary),
       '-1000000000000000000000000000000000000000000000000000000000000000'
     )
   }
 
-  t.test('Int.to_base16') fn (t) {
-    t.equal(0.to_base16, '0')
-    t.equal(123.to_base16, '7b')
-    t.equal(-123.to_base16, '-7b')
-    t.equal(-9223372036854775808.to_base16, '-8000000000000000')
+  t.test('Int.format when formatting as decimal') fn (t) {
+    t.equal(42.format(Format.Decimal), '42')
+    t.equal(-42.format(Format.Decimal), '-42')
+    t.equal(-9223372036854775808.format(Format.Decimal), '-9223372036854775808')
+  }
+
+  t.test('Int.format when formatting as hexadecimal') fn (t) {
+    t.equal(0.format(Format.Hex), '0')
+    t.equal(123.format(Format.Hex), '7b')
+    t.equal(-123.format(Format.Hex), '-7b')
+    t.equal(-9223372036854775808.format(Format.Hex), '-8000000000000000')
+  }
+
+  t.test('Int.to_string') fn (t) {
+    t.equal(42.to_string, '42')
+    t.equal(-42.to_string, '-42')
+    t.equal(-9223372036854775808.to_string, '-9223372036854775808')
   }
 
   t.test('Int.times') fn (t) {
@@ -163,11 +217,6 @@ fn pub tests(t: mut Tests) {
 
   t.test('Int.clone') fn (t) {
     t.equal(42.clone, 42)
-  }
-
-  t.test('Int.to_string') fn (t) {
-    t.equal(42.to_string, '42')
-    t.equal(-42.to_string, '-42')
   }
 
   t.test('Int.+') fn (t) {

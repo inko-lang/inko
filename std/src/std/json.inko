@@ -59,7 +59,8 @@
 # performance or optimal memory usage. Instead this module aims to provide an
 # implementation that's good enough for most cases.
 import std.cmp.Equal
-import std.fmt.(Format, Formatter)
+import std.fmt.(Format as FormatTrait, Formatter)
+import std.int.Format
 import std.string.(StringBuffer, ToString)
 import std.utf8
 
@@ -191,7 +192,7 @@ impl Equal[Error] for Error {
   }
 }
 
-impl Format for Error {
+impl FormatTrait for Error {
   fn pub fmt(formatter: mut Formatter) {
     formatter.write(to_string)
   }
@@ -266,7 +267,7 @@ impl ToString for Json {
   }
 }
 
-impl Format for Json {
+impl FormatTrait for Json {
   fn pub fmt(formatter: mut Formatter) {
     match self {
       case Int(val) -> {
@@ -655,8 +656,8 @@ class pub Parser {
       case _ -> {
         # The integer and float format of JSON is also supported by our internal
         # number parser. As part of parsing the JSON number we already validate
-        # it. This means we can bypass `Int.from_base10` (and `Float.parse`
-        # below), and instead use the underlying runtime functions.
+        # it. This means we can bypass `Int.parse` (and `Float.parse` below),
+        # and instead use the underlying runtime functions.
         let ptr = @input.to_pointer as Int + start as Pointer[Int8]
         let size = @index - start
 
@@ -753,7 +754,7 @@ class pub Parser {
   }
 
   fn invalid_control(byte: Int) -> Error {
-    error("The control character {byte.to_base16} must be escaped")
+    error("The control character {byte.format(Format.Hex)} must be escaped")
   }
 
   fn unexpected(byte: Int) -> Error {

@@ -62,6 +62,7 @@ import std.debug
 import std.env
 import std.fmt.(DefaultFormatter, Format, Formatter)
 import std.fs.path.Path
+import std.int.(Format as IntFormat)
 import std.io.Write
 import std.process
 import std.rand.(Random, Shuffle)
@@ -611,7 +612,8 @@ class pub Tests {
   }
 
   fn pub move run_child(id: String) {
-    match Int.from_base10(id).then(fn (id) { @children.opt_mut(id) }) {
+    match Int.parse(id, IntFormat.Decimal).then(fn (v) { @children.opt_mut(v) })
+    {
       case Some(block) -> block.call
       case _ -> process.panic("The child ID '{id}' is invalid")
     }

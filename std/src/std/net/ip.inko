@@ -1,6 +1,7 @@
 import std.clone.Clone
 import std.cmp.Equal
-import std.fmt.(Format, Formatter)
+import std.fmt.(Format as FormatTrait, Formatter)
+import std.int.Format
 import std.string.(IntoString, StringBuffer, ToString)
 
 # The byte for a single dot (".").
@@ -200,7 +201,7 @@ impl Clone[IpAddress] for IpAddress {
   }
 }
 
-impl Format for IpAddress {
+impl FormatTrait for IpAddress {
   fn pub fmt(formatter: mut Formatter) {
     formatter.write(to_string)
   }
@@ -239,7 +240,7 @@ class pub Ipv6Address {
     let mut compressed = false
     let mut ipv4_mode = false
     let mut max_hextet_value = IPV6_HEXTET_MAXIMUM
-    let mut base16 = true
+    let mut format = Format.Hex
 
     # No point in parsing the input if we're certain it's not a valid address.
     if max > IPV6_STRING_MAXIMUM_LENGTH { return Option.None }
@@ -260,24 +261,16 @@ class pub Ipv6Address {
       # must be at the end of an IPv6 address.
       if ipv4_mode.false? and cursor < max and bytes.get(cursor) == DOT_BYTE {
         ipv4_mode = true
-        base16 = false
+        format = Format.Decimal
         max_hextet_value = IPV4_OCTET_MAXIMUM
       }
 
       # When the IP starts with a "::" we won't be able to read input, so the
       # byte buffer is empty.
       if segment_bytes.size > 0 {
-        let segment = segment_bytes.drain_to_string
-        let parsed = if base16 {
-          Int.from_base16(segment)
-        } else {
-          Int.from_base10(segment)
-        }
+        let int = try Int.parse(segment_bytes, format)
 
-        let int = match parsed {
-          case Some(int) -> int
-          case _ -> return Option.None
-        }
+        segment_bytes.clear
 
         if int < IP_MINIMUM_VALUE or int > max_hextet_value {
           return Option.None
@@ -469,7 +462,7 @@ class pub Ipv6Address {
   }
 }
 
-impl Format for Ipv6Address {
+impl FormatTrait for Ipv6Address {
   fn pub fmt(formatter: mut Formatter) {
     formatter.write(to_string)
   }
@@ -565,6 +558,8 @@ impl ToString for Ipv6Address {
       index += 1
     }
 
+    let format = Format.Hex
+
     if compression_len > 0 {
       let buffer = StringBuffer.new
       let compression_end = compression_start + compression_len
@@ -575,15 +570,16 @@ impl ToString for Ipv6Address {
         if index < compression_start or index >= compression_end {
           if index > 0 { buffer.push(':') }
 
-          buffer.push(hextet.to_base16)
+          buffer.push(hextet.format(format))
         }
       }
 
       return buffer.to_string
     }
 
-    "{@a.to_base16}:{@b.to_base16}:{@c.to_base16}:{@d.to_base16}:\
-      {@e.to_base16}:{@f.to_base16}:{@g.to_base16}:{@h.to_base16}"
+    "{@a.format(format)}:{@b.format(format)}:{@c.format(format)}:\
+      {@d.format(format)}:{@e.format(format)}:{@f.format(format)}:\
+      {@g.format(format)}:{@h.format(format)}"
   }
 }
 
@@ -631,6 +627,7 @@ class pub Ipv4Address {
     if input.size > 15 { return Option.None }
 
     let segments = []
+    let format = Format.Decimal
 
     input.split('.').each fn (segment) {
       # This handles inputs such as "." and "..."
@@ -639,11 +636,9 @@ class pub Ipv4Address {
       # We don't support octal formats, as it was never part of the spec.
       # Ignoring them can lead to security issues, as described in
       # https://www.bleepingcomputer.com/news/security/go-rust-net-library-affected-by-critical-ip-address-validation-vulnerability/.
-      if segment.byte(0) == ZERO_BYTE and segment.size > 1 {
-        return
-      }
+      if segment.byte(0) == ZERO_BYTE and segment.size > 1 { return }
 
-      match Int.from_base10(segment) {
+      match Int.parse(segment, format) {
         case Some(int)
           if int >= IP_MINIMUM_VALUE and int <= IPV4_OCTET_MAXIMUM ->
         {
@@ -840,7 +835,7 @@ class pub Ipv4Address {
   }
 }
 
-impl Format for Ipv4Address {
+impl FormatTrait for Ipv4Address {
   fn pub fmt(formatter: mut Formatter) {
     formatter.write(to_string)
   }

@@ -2,14 +2,15 @@
 import std.clone.Clone
 import std.cmp.(Compare, Equal, Ordering)
 import std.float.ToFloat
-import std.fmt.(Format, Formatter)
+import std.fmt.(Format as FormatTrait, Formatter)
 import std.hash.(Hash, Hasher)
+import std.iter.Peekable
 import std.ops.(
   Add, BitAnd, BitOr, BitXor, Divide, Modulo, Multiply, Power,
   ShiftLeft, ShiftRight, Subtract, UnsignedShiftRight
 )
 import std.range.(ExclusiveRange, InclusiveRange)
-import std.string.(ToString, StringBuffer)
+import std.string.(Bytes, ToString, StringBuffer)
 
 # A type that can be converted to a Int.
 trait pub ToInt {
@@ -24,11 +25,15 @@ let pub MIN = -9_223_372_036_854_775_808
 let pub MAX = 9_223_372_036_854_775_807
 
 let BITS = 64
-
-class extern IntResult {
-  let @tag: Int
-  let @value: Int
-}
+let PLUS = 43
+let MINUS = 45
+let ZERO = 48
+let NINE = 57
+let LOWER_A = 97
+let LOWER_F = 102
+let UPPER_A = 65
+let UPPER_F = 90
+let LOWER_X = 120
 
 # The type returned by checked integer builtin functions, such as
 # `int_checked_add()`.
@@ -40,19 +45,30 @@ class builtin CheckedIntResult {
   let @tag: Int8
 }
 
-fn extern inko_string_to_int(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
-  bytes: Pointer[Int8],
-  size: Int,
-  radix: Int,
-) -> IntResult
-
 fn extern inko_int_checked_pow(left: Int, right: Int) -> CheckedIntResult
-fn extern inko_int_to_string(state: Pointer[Int8], value: Int) -> String
 
 fn overflow(left: Int, op: String, right: Int) -> Never {
   panic("'{left} {op} {right}' overflowed")
+}
+
+# The format to use for parsing and formatting an `Int`.
+class pub enum Format {
+  # The `Int` is to be parsed or formatted as a binary number.
+  case Binary
+
+  # The `Int` is to be parsed or formatted as a decimal number.
+  case Decimal
+
+  # The `Int` is to be parsed or formatted as a hexadecimal number.
+  case Hex
+
+  fn pub to_base -> Int {
+    match self {
+      case Binary -> 2
+      case Decimal -> 10
+      case Hex -> 16
+    }
+  }
 }
 
 # A 64-bits signed integer type.
@@ -64,94 +80,165 @@ fn overflow(left: Int, op: String, right: Int) -> Never {
 #
 # Integer operations that would result in an overflow produce a panic.
 class builtin Int {
-  # Parses an `Int` from a `String`, using base 2.
+  # Parses a `Bytes` into an `Int` in the format specified in `format`,
+  # returning a `Some` if the value is valid, and a `None` otherwise.
   #
-  # The `String` may start with `+` or `-`. Leading and/or trailing whitespace
-  # is considered invalid.
+  # For numbers in binary, the valid digits are `0` and `1`. For decimal numbers,
+  # the valid digits are in the range `0-9`. For hexadecimal numbers, the valid
+  # digits are in the ranges `a-z`, `A-Z`, `0-9`, and the input may start with
+  # `0x`.
+  #
+  # In addition, the input may start with `+` or `-`, regardless of the input
+  # format.
+  #
+  # Leading and/or trailing whitespace is considered invalid.
   #
   # # Examples
   #
-  #     Int.from_base2('11') # => Option.Some(3)
-  #     Int.from_base2('ff') # => Option.None
-  fn pub static from_base2(string: String) -> Option[Int] {
-    match inko_string_to_int(
-      _INKO.state, _INKO.process, string.to_pointer, string.size, 2
-    ) {
-      case { @tag = 0, @value = v } -> Option.Some(v)
-      case _ -> Option.None
+  # Parsing a binary number:
+  #
+  #     import std.int.Style
+  #
+  #     Int.parse('11', Format.Binary)  # => Option.Some(3)
+  #     Int.parse('-11', Format.Binary) # => Option.Some(-3)
+  #     Int.parse('ff', Format.Binary)  # => Option.None
+  #
+  # Parsing a decimal number:
+  #
+  #     import std.int.Style
+  #
+  #     Int.parse('123', Format.Decimal)  # => Option.Some(123)
+  #     Int.parse('-123', Format.Decimal) # => Option.Some(-123)
+  #     Int.parse('abc', Format.Decimal)  # => Option.None
+  #
+  # Parsing a hexadecimal number:
+  #
+  #     import std.int.Style
+  #
+  #     Int.parse('ef', Format.Hex)    # => Option.Some(239)
+  #     Int.parse('0xef', Format.Hex)  # => Option.Some(239)
+  #     Int.parse('-0xef', Format.Hex) # => Option.Some(-239)
+  #     Int.parse('zz', Format.Hex)    # => Option.None
+  fn pub static parse[T: Bytes](
+    bytes: ref T,
+    format: ref Format,
+  ) -> Option[Int] {
+    let input = bytes.bytes.peekable
+    let base = format.to_base
+    let mut byte = -1
+    let pos = match input.next {
+      case Some(PLUS) -> {
+        byte = try input.next
+        true
+      }
+      case Some(MINUS) -> {
+        byte = try input.next
+        false
+      }
+      case Some(val) -> {
+        byte = val
+        true
+      }
+      case None -> return Option.None
+    }
+
+    let mut num = 0
+
+    # For base 16 numbers, we allow them to start with -0x and 0x, as most base
+    # 16 numbers will likely use the format 0xABC and not just ABC.
+    if base == 16 and byte == ZERO {
+      match input.peek {
+        case Some(LOWER_X) -> {
+          input.next
+          byte = try input.next
+        }
+        case _ -> {}
+      }
+    }
+
+    # Rust's approach is to check if an overflow is possible, and use wrapped
+    # arithmetic in that case, in an attempt to improve performance. This was
+    # implemented in https://github.com/rust-lang/rust/pull/95399, with
+    # https://github.com/rust-lang/rust/pull/83371 and
+    # https://github.com/rust-lang/rust/pull/83088 being related pull requests.
+    #
+    # I opted not to take this approach at the time of writing, as the
+    # performance improvements seem very small, and simply not worth the extra
+    # code at the time of writing. If this ever changes, we can consider taking
+    # a similar approach.
+    loop {
+      let digit = if base <= 10 {
+        byte.wrapping_sub(ZERO)
+      } else if byte >= ZERO and byte <= NINE {
+        byte - ZERO
+      } else if byte >= LOWER_A and byte <= LOWER_F {
+        byte - LOWER_A + 10
+      } else if byte >= UPPER_A and byte <= UPPER_F {
+        byte - UPPER_A + 10
+      } else {
+        return Option.None
+      }
+
+      if digit > base or digit < 0 { return Option.None }
+
+      num = try num.checked_mul(base)
+      num =
+        try if pos { num.checked_add(digit) } else { num.checked_sub(digit) }
+
+      match input.next {
+        case Some(val) -> byte = val
+        case _ -> return Option.Some(num)
+      }
     }
   }
 
-  # Parses an `Int` from a `String`, using base 10.
-  #
-  # The `String` may start with `+` or `-`. Leading and/or trailing whitespace
-  # is considered invalid.
+  # Formats `self` as a `String` in the given format.
   #
   # # Examples
   #
-  #     Int.from_base10('12') # => Option.Some(12)
-  #     Int.from_base10('ff') # => Option.None
-  fn pub static from_base10(string: String) -> Option[Int] {
-    match inko_string_to_int(
-      _INKO.state, _INKO.process, string.to_pointer, string.size, 10
-    ) {
-      case { @tag = 0, @value = v } -> Option.Some(v)
-      case _ -> Option.None
-    }
-  }
+  # Formatting an `Int` as binary number:
+  #
+  #     import std.int.Style
+  #
+  #     3.format(Format.Binary)  # => '11'
+  #     -1.format(Format.Binary) # => '-11'
+  #
+  # Formatting an `Int` as a a decimal number:
+  #
+  #     123.format(Format.Decimal) # => '123'
+  #     123.format(Format.Hex)     # => '7b'
+  #
+  # Formatting an `Int` as a hexadecimal number:
+  #
+  #     -123.format(Format.Hex) # => '-7b'
+  fn pub format(format: ref Format) -> String {
+    let base = format.to_base
 
-  # Parses an `Int` from a `String`, using base 16.
-  #
-  # The `String` may start with `+` or `-`. Leading and/or trailing whitespace
-  # is considered invalid.
-  #
-  # This method doesn't remove the usual `0x` prefix used for hexadecimal
-  # numbers. If your string starts with such a prefix (e.g. `0xFF`), you must
-  # remove it yourself.
-  #
-  # # Examples
-  #
-  #     Int.from_base16('ef') # => Option.Some(239)
-  #     Int.from_base16('zz') # => Option.None
-  fn pub static from_base16(string: String) -> Option[Int] {
-    match inko_string_to_int(
-      _INKO.state, _INKO.process, string.to_pointer, string.size, 16
-    ) {
-      case { @tag = 0, @value = v } -> Option.Some(v)
-      case _ -> Option.None
+    match self {
+      case 0 -> return '0'
+      # MIN can't be turned positive using absolute(), so we have to handle
+      # these cases explicitly.
+      case MIN if base == 2 -> {
+        return '-1000000000000000000000000000000000000000000000000000000000000000'
+      }
+      case MIN if base == 10 -> return '-9223372036854775808'
+      case MIN if base == 16 -> return '-8000000000000000'
+      case _ -> {}
     }
-  }
 
-  # Formats `self` as a `String` using base 2.
-  #
-  # # Examples
-  #
-  #     3.to_base2  # => '11'
-  #     -3.to_base2 # => '-11'
-  fn pub to_base2 -> String {
-    if self == MIN {
-      # to_base() uses absolute(), which can't represent MIN as a positive
-      # value.
-      '-1000000000000000000000000000000000000000000000000000000000000000'
-    } else {
-      to_base(2)
-    }
-  }
+    let alphabet = '0123456789abcdef'
+    let bytes = ByteArray.new
+    let mut int = absolute
 
-  # Formats `self` as a `String` using base 16.
-  #
-  # # Examples
-  #
-  #     123.to_base16  # => '7b'
-  #     -123.to_base16 # => '-7b'
-  fn pub to_base16 -> String {
-    if self == MIN {
-      # to_base() uses absolute(), which can't represent MIN as a positive
-      # value.
-      '-8000000000000000'
-    } else {
-      to_base(16)
+    while int > 0 {
+      bytes.push(alphabet.byte(int % base))
+      int /= base
     }
+
+    if self < 0 { bytes.push(0x2D) }
+
+    bytes.reverse
+    bytes.into_string
   }
 
   # Calls the supplied closure `self` times.
@@ -248,28 +335,6 @@ class builtin Int {
     rounded += 1
 
     rounded
-  }
-
-  # Formats `self` as a `String` in the given base.
-  #
-  # This method only supports a limited number of bases, and is marked as
-  # private so we have more control over what bases we publicly support.
-  fn to_base(base: Int) -> String {
-    if self == 0 { return '0' }
-
-    let alphabet = '0123456789abcdef'
-    let bytes = ByteArray.new
-    let mut int = absolute
-
-    while int > 0 {
-      bytes.push(alphabet.byte(int % base))
-      int /= base
-    }
-
-    if self < 0 { bytes.push(0x2D) }
-
-    bytes.reverse
-    bytes.into_string
   }
 
   # Returns the result of performing a bitwise `NOT` on `self`.
@@ -496,7 +561,7 @@ impl Clone[Int] for Int {
 
 impl ToString for Int {
   fn pub to_string -> String {
-    inko_int_to_string(_INKO.state, self)
+    format(Format.Decimal)
   }
 }
 
@@ -622,7 +687,7 @@ impl Hash for Int {
   }
 }
 
-impl Format for Int {
+impl FormatTrait for Int {
   fn pub fmt(formatter: mut Formatter) {
     formatter.write(to_string)
   }

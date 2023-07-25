@@ -37,6 +37,7 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('Float.parse') fn (t) {
+    t.equal(Float.parse('10.2'.to_byte_array), Option.Some(10.2))
     t.equal(Float.parse('10.2'), Option.Some(10.2))
     t.equal(Float.parse('1.2e1'), Option.Some(12.0))
     t.equal(Float.parse('1.2E1'), Option.Some(12.0))
@@ -51,6 +52,12 @@ fn pub tests(t: mut Tests) {
 
     t.equal(Float.parse(' 1.2'), Option.None)
     t.equal(Float.parse('1.2 '), Option.None)
+
+    # `inko_string_to_float()` doesn't validate if the input is valid UTF-8,
+    # because Rust's `f64::from_str()` doesn't actually care about this. This
+    # test is here to make sure we don't run into any weird behaviour if the
+    # behaviour of `from_str()` ever changes.
+    t.equal(Float.parse(ByteArray.from_array([239, 49, 46, 50])), Option.None)
   }
 
   t.test('Float.absolute') fn (t) {

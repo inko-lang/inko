@@ -1,4 +1,4 @@
-use crate::mem::{Int, String as InkoString};
+use crate::mem::Int;
 use crate::state::State;
 
 #[repr(C)]
@@ -47,12 +47,4 @@ pub unsafe extern "system" fn inko_int_clone(
     } else {
         Int::boxed((*state).int_class, obj.value)
     }
-}
-
-#[no_mangle]
-pub unsafe extern "system" fn inko_int_to_string(
-    state: *const State,
-    int: i64,
-) -> *const InkoString {
-    InkoString::alloc((*state).string_class, int.to_string())
 }
