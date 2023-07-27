@@ -6,6 +6,7 @@ on:
 env:
   CARGO_HOME: ${{ github.workspace }}/.cargo-home
   LIBRARY_PATH: /usr/local/lib
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
 
 # Due to https://github.com/cross-platform-actions/action/issues/29, jobs should
 # use QEMU, instead of xhyve.
@@ -31,7 +32,7 @@ jobs:
         with:
           operating_system: freebsd
           version: '13.2'
-          environment_variables: 'CARGO_HOME LIBRARY_PATH'
+          environment_variables: 'CARGO_HOME LIBRARY_PATH CARGO_REGISTRIES_CRATES_IO_PROTOCOL'
           hypervisor: qemu
           run: |
             ./scripts/rust.sh ${{ matrix.version }}
@@ -64,7 +65,7 @@ jobs:
         with:
           operating_system: freebsd
           version: '13.2'
-          environment_variables: 'CARGO_HOME LIBRARY_PATH'
+          environment_variables: 'CARGO_HOME LIBRARY_PATH CARGO_REGISTRIES_CRATES_IO_PROTOCOL'
           hypervisor: qemu
           run: |
             ./scripts/rust.sh ${{ matrix.version }}
