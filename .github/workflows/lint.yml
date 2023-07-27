@@ -48,9 +48,9 @@ jobs:
           path: |
             ${{ env.CARGO_HOME }}
             target
-          key: ubuntu-1.63
+          key: ubuntu-1.68
       - name: Installing Rust
-        run: ./scripts/rust.sh 1.63
+        run: ./scripts/rust.sh 1.68
       - name: Installing LLVM
         run: ./scripts/llvm.sh ubuntu
       - name: Installing clippy

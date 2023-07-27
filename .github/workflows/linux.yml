@@ -13,7 +13,7 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1.63'
+          - '1.68'
           - stable
     runs-on: ubuntu-latest
     steps:
@@ -36,7 +36,7 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1.63'
+          - '1.68'
           - stable
     runs-on: ubuntu-latest
     needs:

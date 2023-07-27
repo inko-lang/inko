@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1.63'
+          - '1.68'
           - stable
     runs-on: macos-latest
     steps:
@@ -47,7 +47,7 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1.63'
+          - '1.68'
           - stable
     runs-on: macos-latest
     needs:
