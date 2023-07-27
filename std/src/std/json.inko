@@ -8,11 +8,11 @@
 # https://seriot.ch/projects/parsing_json.html. Extensions such as parsing
 # `NaN`, `Infinity`, and comments are not supported.
 #
-# Parsing is done using the `parse` module method:
+# The easiest way to parse JSON is using `Json.parse`:
 #
-#     import std.json
+#     import std.json.Json
 #
-#     json.parse('[10]').unwrap # => Json.Array([Json.Int(10)])
+#     Json.parse('[10]').unwrap # => Json.Array([Json.Int(10)])
 #
 # The parser enforces limits on the number of nested objects and the size of
 # strings. These limits can be adjusted by using the `Parser` type directly like
@@ -61,32 +61,9 @@
 import std.cmp.Equal
 import std.fmt.(Format as FormatTrait, Formatter)
 import std.int.Format
-import std.string.(StringBuffer, ToString)
+import std.iter.Peekable
+import std.string.(Bytes, StringBuffer, ToString)
 import std.utf8
-
-class extern IntResult {
-  let @tag: Int
-  let @value: Int
-}
-
-class extern AnyResult {
-  let @tag: Int
-  let @value: Any
-}
-
-fn extern inko_string_to_int(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
-  bytes: Pointer[Int8],
-  size: Int,
-  radix: Int,
-) -> IntResult
-
-fn extern inko_string_to_float(
-  state: Pointer[Int8],
-  bytes: Pointer[Int8],
-  size: Int,
-) -> AnyResult
 
 let EOF = -1
 let BRACKET_OPEN = 0x5B
@@ -109,8 +86,11 @@ let CR = 0xD
 let FF = 0xC
 let ZERO = 0x30
 let NINE = 0x39
+let LOWER_A = 0x61
+let UPPER_A = 0x41
 let LOWER_E = 0x65
 let UPPER_E = 0x45
+let UPPER_F = 0x5a
 let LOWER_T = 0x74
 let LOWER_F = 0x66
 let LOWER_N = 0x6E
@@ -166,6 +146,10 @@ fn exponent?(byte: Int) -> Bool {
   byte == LOWER_E or byte == UPPER_E
 }
 
+fn char(byte: Int) -> String {
+  ByteArray.from_array([byte]).into_string
+}
+
 # A type describing an error produced while parsing a JSON document.
 class pub Error {
   # A human readable description of the error.
@@ -214,27 +198,22 @@ class pub enum Json {
   case Bool(Bool)
   case Null
 
-  # Parses a JSON `String` into a `Json` value.
+  # Parses a `Bytes` into a JSON object.
   #
   # # Examples
   #
-  #     import std.json.Json
-  #
-  #     Json.parse_string('[10]').unwrap # => Result.Ok(Json.Array([Json.Int(10)]))
-  fn pub static parse_string(string: String) -> Result[Json, Error] {
-    let bytes = string.to_byte_array
-
-    Parser.new(bytes).parse
-  }
-
-  # Parses a `ByteArra` into a `Json` value.
-  #
-  # # Examples
+  # Parsing a `String`:
   #
   #     import std.json.Json
   #
-  #     Json.parse_bytes('[10]'.to_byte_array) # => Result.Ok(Json.Array([Json.Int(10)]))
-  fn pub static parse_bytes(bytes: ref ByteArray) -> Result[Json, Error] {
+  #     Json.parse('[10]') # => Result.Ok(Json.Array([Json.Int(10)]))
+  #
+  # Parsing a `ByteArray`:
+  #
+  #     import std.json.Json
+  #
+  #     Json.parse('[10]'.to_byte_array) # => Result.Ok(Json.Array([Json.Int(10)]))
+  fn pub static parse[T: Bytes](bytes: ref T) -> Result[Json, Error] {
     Parser.new(bytes).parse
   }
 
@@ -246,6 +225,7 @@ class pub enum Json {
   # # Examples
   #
   #     import std.json.Json
+  #
   #     Json.Int(42).to_pretty_string               # => '42'
   #     Json.Array([Json.Int(42)]).to_pretty_string # => "[\n  42\n]"
   fn pub to_pretty_string -> String {
@@ -359,11 +339,12 @@ impl Equal[Json] for Json {
 # 10 MiB _per string_. You can change this limit by adjusting the value of the
 # `max_string_size` field.
 class pub Parser {
-  let @input: ref ByteArray
-  let @index: Int
+  let @input: Peekable[Int]
+  let @offset: Int
   let @size: Int
   let @line: Int
   let @depth: Int
+  let @buffer: ByteArray
 
   # The maximum number of nested values.
   #
@@ -375,16 +356,17 @@ class pub Parser {
   # When parsing a string that exceeds this limit, an error is thrown.
   let pub @max_string_size: Int
 
-  # Returns a new parser that will parse the given `ByteArray`.
-  fn pub static new(input: ref ByteArray) -> Parser {
+  # Returns a new parser that will parse the given `Bytes` value.
+  fn pub static new[T: Bytes](input: ref T) -> Parser {
     Parser {
-      @input = input,
-      @index = 0,
+      @input = input.bytes.peekable,
+      @offset = -1,
       @size = input.size,
       @line = 1,
       @depth = 0,
       @max_depth = 100,
       @max_string_size = 10 * 1024 * 1024,
+      @buffer = ByteArray.new,
     }
   }
 
@@ -405,7 +387,10 @@ class pub Parser {
     whitespace
 
     # Only trailing whitespace is allowed.
-    if current != EOF { throw unexpected(current) }
+    match peek {
+      case Some(val) -> throw unexpected(val)
+      case _ -> {}
+    }
 
     Result.Ok(result)
   }
@@ -418,19 +403,20 @@ class pub Parser {
     whitespace
 
     loop {
-      match current {
-        case MINUS -> return number
-        case BRACKET_OPEN -> return array
-        case CURLY_OPEN -> return object
-        case LOWER_T -> return self.true
-        case LOWER_F -> return self.false
-        case LOWER_N -> return null
-        case DQUOTE -> return string
-        case byte if digit?(byte) -> return number
+      match peek {
+        case Some(MINUS) -> return number
+        case Some(BRACKET_OPEN) -> return array
+        case Some(CURLY_OPEN) -> return object
+        case Some(LOWER_T) -> return self.true
+        case Some(LOWER_F) -> return self.false
+        case Some(LOWER_N) -> return null
+        case Some(DQUOTE) -> return string
+        case Some(byte) if digit?(byte) -> return number
         # This is to take care of any random garbage that may be included in the
         # JSON document, including Unicode BOMs. This also saves us from having
         # to explicitly check for all the different BOMs.
-        case byte -> throw unexpected(byte)
+        case Some(byte) -> throw unexpected(byte)
+        case _ -> throw unexpected_eof
       }
     }
   }
@@ -442,96 +428,48 @@ class pub Parser {
   fn mut string_value -> Result[String, Error] {
     advance
 
-    let start = @index
-
     loop {
-      match current {
-        # If a string contains a backslash we need to fall back to a slower
-        # method of parsing that supports escape sequences. Using this as a
-        # fallback instead of the default allows us to avoid unnecessary
-        # allocations for many strings.
-        case BSLASH -> return string_with_escape_sequence(start)
-        case DQUOTE -> break
-        case EOF -> throw unexpected(current)
-        case val if val >= 0x0 and val <= 0x001F -> throw invalid_control(val)
-        case _ -> advance
+      match advance {
+        case Some(BSLASH) -> match advance {
+          case Some(LOWER_U) -> try escaped_unicode
+          case Some(byte) -> match ESCAPE_TABLE.get(byte) {
+            case -1 -> throw unexpected(byte)
+            case val -> @buffer.push(val)
+          }
+          case _ -> throw unexpected_eof
+        }
+        case Some(DQUOTE) -> break
+        case Some(val) if val >= 0x0 and val <= 0x001F -> {
+          throw invalid_control(val)
+        }
+        case Some(byte) -> @buffer.push(byte)
+        case _ -> throw unexpected_eof
       }
     }
 
-    let size = @index - start
-
-    if size > @max_string_size {
+    if @buffer.size > @max_string_size {
       throw error(
-        "The size of this string ({size} bytes) is greater than \
+        "The size of this string ({@buffer.size} bytes) is greater than \
         the maximum of {@max_string_size} bytes"
       )
     }
 
-    let string = slice_string(start)
-
-    advance
-    Result.Ok(string)
+    Result.Ok(@buffer.drain_to_string)
   }
 
-  fn mut string_with_escape_sequence(started_at: Int) -> Result[String, Error] {
-    let buffer = @input.slice(started_at, size: @index - started_at)
-
-    loop {
-      match current {
-        case BSLASH -> match ESCAPE_TABLE.get(peek) {
-          case -1 if peek == LOWER_U -> try escaped_unicode(buffer)
-          case -1 -> {
-            let start = @index
-
-            @index += 2
-            throw error("'{slice_string(start)}' is an invalid escape sequence")
-          }
-          case replacement -> {
-            buffer.push(replacement)
-            @index += 2
-          }
-        }
-        case DQUOTE -> break
-        case EOF -> throw unexpected(current)
-        case val if val >= 0x0 and val <= 0x001F -> throw invalid_control(val)
-        case byte -> {
-          buffer.push(byte)
-          advance
-        }
-      }
-    }
-
-    advance
-
-    if buffer.size > @max_string_size {
-      throw error(
-        "The size of this string ({buffer.size} bytes) is greater than \
-        the maximum of {@max_string_size} bytes"
-      )
-    }
-
-    Result.Ok(buffer.into_string)
-  }
-
-  fn mut escaped_unicode(buffer: mut ByteArray) -> Result[Nil, Error] {
-    # Skip the "\u"
-    @index += 2
-
-    let start = @index
+  fn mut escaped_unicode -> Result[Nil, Error] {
     let high = try codepoint
 
-    if utf8.encode_scalar(high, buffer) > 0 { return Result.Ok(nil) }
+    if utf8.encode_scalar(high, @buffer) > 0 { return Result.Ok(nil) }
 
     # At this point the codepoint is either straight up invalid (e.g. "\uZZZZ"),
     # or it's a UTF-16 surrogate.
-    if utf8.surrogate?(high).false?
-      or (current == BSLASH and peek == LOWER_U).false?
-    {
-      throw error("'{slice_string(start)}' is an invalid Unicode codepoint")
+    if utf8.surrogate?(high).false? {
+      throw error("'{high.format(Format.Hex)}' is an invalid UTF-16 surrogate")
     }
 
-    # Skip the "\u" of the second pair.
-    @index += 2
+    try expect(BSLASH)
+    try expect(LOWER_U)
 
     let low = try codepoint
 
@@ -539,30 +477,39 @@ class pub Parser {
       let codepoint = utf8.codepoint_from_surrogates(high, low)
 
       # The encoding may fail for pairs such as "\uDFFF\uDFFF".
-      if utf8.encode_scalar(codepoint, buffer) > 0 { return Result.Ok(nil) }
+      if utf8.encode_scalar(codepoint, @buffer) > 0 { return Result.Ok(nil) }
     }
 
-    throw error("'{slice_string(start)}' is an invalid UTF-16 surrogate pair")
+    let pair = "\\u{high.format(Format.Hex)}\\u{low.format(Format.Hex)}"
+
+    throw error("'{pair}' is an invalid UTF-16 surrogate pair")
   }
 
   fn mut codepoint -> Result[Int, Error] {
-    let start = @index
+    let mut num = 0
+    let mut idx = 0
 
-    @index += 4
+    while idx < 4 {
+      let digit = match advance {
+        case Some(byte) -> {
+          if byte >= ZERO and byte <= NINE {
+            byte - ZERO
+          } else if byte >= LOWER_A and byte <= LOWER_F {
+            byte - LOWER_A + 10
+          } else if byte >= UPPER_A and byte <= UPPER_F {
+            byte - UPPER_A + 10
+          } else {
+            throw unexpected(byte)
+          }
+        }
+        case _ -> throw unexpected_eof
+      }
 
-    if @index >= @size {
-      throw error("Expected four hexadecimal digits, but we ran out of input")
+      num = num * 16 + digit
+      idx += 1
     }
 
-    let ptr = @input.to_pointer as Int + start as Pointer[Int8]
-    let size = @index - start
-
-    match inko_string_to_int(_INKO.state, _INKO.process, ptr, size, 16) {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case _ -> Result.Error(
-        error("'{slice_string(start)}' is an invalid Unicode codepoint")
-      )
-    }
+    Result.Ok(num)
   }
 
   fn mut true -> Result[Json, Error] {
@@ -587,9 +534,15 @@ class pub Parser {
 
     @depth += 1
 
-    while current != BRACKET_CLOSE {
-      values.push(try value)
-      try separator(BRACKET_CLOSE)
+    loop {
+      match peek {
+        case Some(BRACKET_CLOSE) -> break
+        case Some(_) -> {
+          values.push(try value)
+          try separator(BRACKET_CLOSE)
+        }
+        case _ -> throw unexpected_eof
+      }
     }
 
     @depth -= 1
@@ -605,18 +558,22 @@ class pub Parser {
 
     @depth += 1
 
-    while current != CURLY_CLOSE {
-      let key = try string_value
+    loop {
+      match peek {
+        case Some(CURLY_CLOSE) -> break
+        case Some(DQUOTE) -> {
+          let key = try string_value
 
-      if current != COLON { throw unexpected(current) }
+          try expect(COLON)
 
-      advance
+          let val = try value
 
-      let val = try value
-
-      try separator(CURLY_CLOSE)
-
-      map.set(key, val)
+          try separator(CURLY_CLOSE)
+          map.set(key, val)
+        }
+        case Some(byte) -> throw unexpected(byte)
+        case _ -> throw unexpected_eof
+      }
     }
 
     advance
@@ -625,105 +582,151 @@ class pub Parser {
   }
 
   fn mut number -> Result[Json, Error] {
-    let start = @index
+    match peek {
+      case Some(MINUS) -> {
+        advance_and_buffer
 
-    if current == MINUS {
-      advance
-
-      if digit?(current).false? { throw unexpected(current) }
+        match peek {
+          case Some(byte) if digit?(byte) -> {}
+          case Some(byte) -> throw unexpected(byte)
+          case _ -> throw unexpected_eof
+        }
+      }
+      case _ -> {}
     }
 
     # Numbers such as 001, 010, 01.0, etc are invalid.
-    if current == ZERO and digit?(peek) { throw unexpected(current) }
+    match peek {
+      case Some(ZERO) -> {
+        advance_and_buffer
 
-    while digit?(current) { advance }
-
-    match current {
-      # Examples: 1.2, 1.2e1, 1.2e+1
-      case DOT -> {
-        # Advance over the "."
-        advance
-
-        if digit?(current).false? { throw unexpected(current) }
-
-        while digit?(current) { advance }
-
-        if exponent?(current) { try exponent }
-      }
-      # Example: 1E4
-      case byte if exponent?(byte) -> try exponent
-      # Example: 123, 0123 (invalid), -0123 (also invalid)
-      case _ -> {
-        # The integer and float format of JSON is also supported by our internal
-        # number parser. As part of parsing the JSON number we already validate
-        # it. This means we can bypass `Int.parse` (and `Float.parse` below),
-        # and instead use the underlying runtime functions.
-        let ptr = @input.to_pointer as Int + start as Pointer[Int8]
-        let size = @index - start
-
-        match inko_string_to_int(_INKO.state, _INKO.process, ptr, size, 10) {
-          # If the number is too big to fit in an integer, we'll promote the
-          # number to a float.
-          case { @tag = 0, @value = v } -> return Result.Ok(Json.Int(v))
+        match peek {
+          case Some(byte) if digit?(byte) -> throw unexpected(byte)
           case _ -> {}
         }
+      }
+      case _ -> {}
+    }
+
+    buffer_digits
+
+    match peek {
+      # Examples: 1.2, 1.2e1, 1.2e+1
+      case Some(DOT) -> {
+        advance_and_buffer
+
+        match peek {
+          case Some(byte) if digit?(byte) -> {}
+          case Some(byte) -> throw unexpected(byte)
+          case _ -> throw unexpected_eof
+        }
+
+        buffer_digits
+
+        match peek {
+          case Some(byte) if exponent?(byte) -> try exponent
+          case _ -> {}
+        }
+      }
+      # Example: 1E4
+      case Some(byte) if exponent?(byte) -> try exponent
+      # Example: 123
+      #
+      # If the number is too big to fit in an Int, we'll promote it to a Float.
+      case _ -> match Int.parse(@buffer, Format.Decimal) {
+        case Some(val) -> {
+          @buffer.clear
+          return Result.Ok(Json.Int(val))
+        }
+        case _ -> {}
       }
     }
 
     # At this point we've already validated the input format, and it's
     # compatible with the underlying float parser, so no extra checks are
     # needed.
-    let ptr = @input.to_pointer as Int + start as Pointer[Int8]
-    let size = @index - start
+    let res = Result.Ok(Json.Float(Float.parse(@buffer).unwrap))
 
-    Result.Ok(Json.Float(
-      inko_string_to_float(_INKO.state, ptr, size).value as Float
-    ))
+    @buffer.clear
+    res
   }
 
   fn mut exponent -> Result[Nil, Error] {
-    advance
+    advance_and_buffer
 
-    if current == MINUS or current == PLUS { advance }
-    if digit?(current).false? { throw unexpected(current) }
+    match peek {
+      case Some(MINUS or PLUS) -> {
+        advance_and_buffer
+        nil
+      }
+      case _ -> {}
+    }
 
-    while digit?(current) { advance }
+    match peek {
+      case Some(byte) if digit?(byte) -> {}
+      case Some(byte) -> throw unexpected(byte)
+      case _ -> throw unexpected_eof
+    }
+
+    buffer_digits
     Result.Ok(nil)
   }
 
-  fn mut advance_line {
-    @index += 1
-    @line += 1
-  }
-
-  fn mut advance {
-    @index += 1
-  }
-
-  fn current -> Int {
-    if @index < @size {
-      @input.get(@index)
-    } else {
-      EOF
+  fn mut buffer_digits {
+    loop {
+      match peek {
+        case Some(byte) if digit?(byte) -> {
+          advance
+          @buffer.push(byte)
+        }
+        case _ -> break
+      }
     }
   }
 
-  fn peek -> Int {
-    let index = @index + 1
+  fn mut advance_line {
+    advance
+    @line += 1
+  }
 
-    if index < @size { @input.get(index) } else { EOF }
+  fn mut advance_and_buffer -> Option[Int] {
+    match advance {
+      case Some(val) -> {
+        @buffer.push(val)
+        Option.Some(val)
+      }
+      case _ -> Option.None
+    }
+  }
+
+  fn mut advance -> Option[Int] {
+    let res = @input.next
+
+    if res.some? { @offset += 1 }
+
+    res
+  }
+
+  fn mut expect(byte: Int) -> Result[Nil, Error] {
+    match advance {
+      case Some(val) if val == byte -> Result.Ok(nil)
+      case Some(val) -> throw error(
+        "The character '{char(byte)}' is expected, \
+          but '{char(val)}' was found instead"
+      )
+      case _ -> throw unexpected_eof
+    }
+  }
+
+  fn mut peek -> Option[Int] {
+    @input.peek
   }
 
   fn mut identifier(name: String) -> Result[Nil, Error] {
     let mut index = 0
     let max = name.size
 
-    while index < max {
-      if current != name.byte(index) { throw unexpected(current) }
-
-      advance
-      index += 1
-    }
+    while index < max { try expect(name.byte(index := index + 1)) }
 
     Result.Ok(nil)
   }
@@ -731,23 +734,30 @@ class pub Parser {
   fn mut separator(closing: Int) -> Result[Nil, Error] {
     whitespace
 
-    if current != closing {
-      if current != COMMA { throw unexpected(current) }
-
-      advance
-      whitespace
-
-      if current == closing { throw unexpected(current) }
+    match peek {
+      case Some(byte) if byte == closing -> return Result.Ok(nil)
+      case Some(COMMA) -> {
+        advance
+        whitespace
+      }
+      case Some(byte) -> throw unexpected(byte)
+      case _ -> throw unexpected_eof
     }
 
-    Result.Ok(nil)
+    match peek {
+      case Some(byte) if byte == closing -> throw unexpected(byte)
+      case _ -> Result.Ok(nil)
+    }
   }
 
   fn mut whitespace {
     loop {
-      match current {
-        case SPACE or CR or TAB -> advance
-        case LF -> advance_line
+      match peek {
+        case Some(SPACE or CR or TAB) -> {
+          advance
+          nil
+        }
+        case Some(LF) -> advance_line
         case _ -> break
       }
     }
@@ -758,21 +768,15 @@ class pub Parser {
   }
 
   fn unexpected(byte: Int) -> Error {
-    if byte == EOF {
-      return error("One or more tokens are required, but we ran out of input")
-    }
-
-    let char = ByteArray.from_array([byte]).into_string
-
-    error("The character '{char}' is unexpected")
+    error("The character '{ByteArray.from_array([byte])}' is unexpected")
   }
 
-  fn slice_string(start: Int) -> String {
-    @input.slice(start, size: @index - start).into_string
+  fn unexpected_eof -> Error {
+    error("One or more tokens are required, but we ran out of input")
   }
 
   fn error(message: String) -> Error {
-    Error { @message = message, @line = @line, @offset = @index }
+    Error { @message = message, @line = @line, @offset = @offset }
   }
 }
 

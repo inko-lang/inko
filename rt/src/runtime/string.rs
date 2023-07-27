@@ -1,7 +1,5 @@
-use crate::mem::{ByteArray, Float, Int, String as InkoString};
-use crate::process::ProcessPointer;
+use crate::mem::{ByteArray, Float, String as InkoString};
 use crate::result::Result as InkoResult;
-use crate::runtime::process::panic;
 use crate::state::State;
 use std::cmp::min;
 use std::ffi::CStr;
@@ -107,40 +105,6 @@ pub unsafe extern "system" fn inko_string_to_float(
 
     parsed
         .map(|v| InkoResult::ok(Float::alloc((*state).float_class, v) as _))
-        .unwrap_or_else(|_| InkoResult::none())
-}
-
-#[no_mangle]
-pub unsafe extern "system" fn inko_string_to_int(
-    state: *const State,
-    process: ProcessPointer,
-    bytes: *mut u8,
-    size: i64,
-    radix: i64,
-) -> InkoResult {
-    if !(2..=36).contains(&radix) {
-        panic(process, &format!("The radix '{}' is invalid", radix));
-    }
-
-    let slice =
-        str::from_utf8_unchecked(slice::from_raw_parts(bytes, size as _));
-
-    // Rust doesn't handle parsing strings like "-0x4a3f043013b2c4d1" out of the
-    // box.
-    let parsed = if radix == 16 {
-        if let Some(tail) = slice.strip_prefix("-0x") {
-            i64::from_str_radix(tail, 16).map(|v| 0_i64.wrapping_sub(v))
-        } else if let Some(tail) = slice.strip_prefix("0x") {
-            i64::from_str_radix(tail, 16)
-        } else {
-            i64::from_str_radix(slice, 16)
-        }
-    } else {
-        i64::from_str_radix(slice, radix as u32)
-    };
-
-    parsed
-        .map(|v| InkoResult::ok(Int::new((*state).int_class, v) as _))
         .unwrap_or_else(|_| InkoResult::none())
 }
 
