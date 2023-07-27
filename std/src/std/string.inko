@@ -22,37 +22,37 @@ class extern StringResult {
   let @value: String
 }
 
-fn extern inko_string_to_lower(state: Pointer[Int8], string: String) -> String
-fn extern inko_string_to_upper(state: Pointer[Int8], string: String) -> String
+fn extern inko_string_to_lower(state: Pointer[UInt8], string: String) -> String
+fn extern inko_string_to_upper(state: Pointer[UInt8], string: String) -> String
 fn extern inko_string_slice_bytes(
-  state: Pointer[Int8],
+  state: Pointer[UInt8],
   string: String,
   start: Int,
   size: Int,
 ) -> String
 
-fn extern inko_string_chars(string: String) -> Pointer[Int8]
+fn extern inko_string_chars(string: String) -> Pointer[UInt8]
 fn extern inko_string_chars_next(
-  state: Pointer[Int8],
-  iter: Pointer[Int8],
+  state: Pointer[UInt8],
+  iter: Pointer[UInt8],
 ) -> StringResult
 
-fn extern inko_string_chars_drop(iter: Pointer[Int8])
+fn extern inko_string_chars_drop(iter: Pointer[UInt8])
 fn extern inko_string_drop(string: String)
 fn extern inko_string_to_byte_array(
-  state: Pointer[Int8],
+  state: Pointer[UInt8],
   string: String,
 ) -> ByteArray
 
 fn extern inko_string_concat(
-  state: Pointer[Int8],
-  strings: Pointer[Int8],
+  state: Pointer[UInt8],
+  strings: Pointer[UInt8],
   size: Int,
 ) -> String
 
 fn extern inko_string_from_pointer(
-  state: Pointer[Int8],
-  pointer: Pointer[Int8],
+  state: Pointer[UInt8],
+  pointer: Pointer[UInt8],
 ) -> String
 
 let TAB = 0x9
@@ -146,16 +146,16 @@ trait pub Bytes {
   #
   # This method is meant for FFI purposes, and use of it should be avoided at
   # all costs.
-  fn pub to_pointer -> Pointer[Int8]
+  fn pub to_pointer -> Pointer[UInt8]
 }
 
 # An UTF-8 encoded and immutable string type.
 class builtin String {
   # The size of the string in bytes, _excluding_ the trailing NULL byte.
-  let @size: Int64
+  let @size: UInt64
 
   # A pointer to the bytes of this string, including the trailing NULL byte.
-  let @bytes: Pointer[Int8]
+  let @bytes: Pointer[UInt8]
 
   # Returns a `String` created from the given NULL terminated pointer.
   #
@@ -169,7 +169,7 @@ class builtin String {
   # # Examples
   #
   #     String.from_pointer("hello".to_pointer) == "hello" # => true
-  fn pub static from_pointer(pointer: Pointer[Int8]) -> String {
+  fn pub static from_pointer(pointer: Pointer[UInt8]) -> String {
     inko_string_from_pointer(_INKO.state, pointer)
   }
 
@@ -547,7 +547,7 @@ class builtin String {
   }
 
   fn byte_unchecked(index: Int) -> Int {
-    (@bytes as Int + index as Pointer[Int8]).0 as Int
+    (@bytes as Int + index as Pointer[UInt8]).0 as Int
   }
 }
 
@@ -594,7 +594,7 @@ impl Bytes for String {
   #
   # This method is meant to be used when passing strings to foreign functions
   # (i.e. `*char` arguments). You should avoid using it for anything else.
-  fn pub to_pointer -> Pointer[Int8] {
+  fn pub to_pointer -> Pointer[UInt8] {
     @bytes
   }
 }
@@ -726,7 +726,7 @@ class pub Chars {
   let @string: String
 
   # The native iterator provided by the VM.
-  let @iter: Pointer[Int8]
+  let @iter: Pointer[UInt8]
 }
 
 impl Iter[String] for Chars {

@@ -382,7 +382,7 @@ impl<'a> TypeChecker<'a> {
                 }
                 TypeRef::Pointer(_) if rules.type_cast => match left_id {
                     TypeId::ClassInstance(ins) => ins.instance_of().0 == INT_ID,
-                    TypeId::Foreign(ForeignType::Int(_)) => true,
+                    TypeId::Foreign(ForeignType::Int(_, _)) => true,
                     _ => false,
                 },
                 TypeRef::Error => true,
@@ -529,7 +529,7 @@ impl<'a> TypeChecker<'a> {
                     rules.type_cast
                         || self.check_type_id(left_id, right_id, env, rules)
                 }
-                TypeRef::Owned(TypeId::Foreign(ForeignType::Int(_))) => {
+                TypeRef::Owned(TypeId::Foreign(ForeignType::Int(_, _))) => {
                     rules.type_cast
                 }
                 TypeRef::Owned(TypeId::ClassInstance(ins)) => {
@@ -663,7 +663,7 @@ impl<'a> TypeChecker<'a> {
                 }
                 _ => false,
             },
-            TypeId::Foreign(ForeignType::Int(lsize)) => {
+            TypeId::Foreign(ForeignType::Int(lsize, lsigned)) => {
                 if rules.type_cast {
                     match right_id {
                         TypeId::Foreign(_) => true,
@@ -674,8 +674,8 @@ impl<'a> TypeChecker<'a> {
                     }
                 } else {
                     match right_id {
-                        TypeId::Foreign(ForeignType::Int(rsize)) => {
-                            lsize == rsize
+                        TypeId::Foreign(ForeignType::Int(rsize, rsigned)) => {
+                            lsize == rsize && lsigned == rsigned
                         }
                         _ => false,
                     }
@@ -2297,7 +2297,11 @@ mod tests {
             ModuleId(0),
         );
 
-        check_ok(&db, TypeRef::foreign_int(8), TypeRef::foreign_int(8));
+        check_ok(
+            &db,
+            TypeRef::foreign_signed_int(8),
+            TypeRef::foreign_signed_int(8),
+        );
         check_ok(&db, TypeRef::foreign_float(32), TypeRef::foreign_float(32));
         check_ok(
             &db,
@@ -2305,49 +2309,74 @@ mod tests {
             TypeRef::foreign_struct(foo),
         );
 
-        check_ok_cast(&db, TypeRef::foreign_int(8), TypeRef::foreign_int(16));
+        check_ok_cast(
+            &db,
+            TypeRef::foreign_signed_int(8),
+            TypeRef::foreign_signed_int(16),
+        );
         check_ok_cast(
             &db,
             TypeRef::foreign_float(32),
             TypeRef::foreign_float(64),
         );
-        check_ok_cast(&db, TypeRef::foreign_int(32), TypeRef::int());
+        check_ok_cast(&db, TypeRef::foreign_signed_int(32), TypeRef::int());
         check_ok_cast(&db, TypeRef::foreign_float(32), TypeRef::int());
-        check_ok_cast(&db, TypeRef::int(), TypeRef::foreign_int(8));
+        check_ok_cast(&db, TypeRef::int(), TypeRef::foreign_signed_int(8));
         check_ok_cast(&db, TypeRef::float(), TypeRef::foreign_float(32));
         check_ok_cast(&db, TypeRef::float(), TypeRef::int());
         check_ok_cast(&db, TypeRef::int(), TypeRef::float());
         check_ok_cast(
             &db,
-            TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8))),
-            TypeRef::foreign_int(8),
+            TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8, true))),
+            TypeRef::foreign_signed_int(8),
         );
         check_ok_cast(
             &db,
-            TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8))),
+            TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8, false))),
+            TypeRef::foreign_signed_int(8),
+        );
+        check_ok_cast(
+            &db,
+            TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8, true))),
             TypeRef::int(),
         );
         check_ok_cast(
             &db,
             TypeRef::int(),
-            TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8))),
+            TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8, true))),
         );
         check_ok_cast(
             &db,
-            TypeRef::foreign_int(8),
-            TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8))),
+            TypeRef::foreign_signed_int(8),
+            TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8, true))),
         );
         check_ok_cast(
             &db,
-            TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8))),
+            TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8, true))),
             TypeRef::pointer(TypeId::Foreign(ForeignType::Float(32))),
         );
 
-        check_err(&db, TypeRef::foreign_int(32), TypeRef::foreign_int(8));
-        check_err(&db, TypeRef::foreign_int(8), TypeRef::foreign_int(16));
+        check_err(
+            &db,
+            TypeRef::foreign_signed_int(32),
+            TypeRef::foreign_signed_int(8),
+        );
+        check_err(
+            &db,
+            TypeRef::foreign_signed_int(8),
+            TypeRef::foreign_signed_int(16),
+        );
         check_err(&db, TypeRef::foreign_float(32), TypeRef::foreign_float(64));
-        check_err(&db, TypeRef::foreign_int(8), TypeRef::foreign_float(32));
-        check_err(&db, TypeRef::foreign_float(8), TypeRef::foreign_int(32));
+        check_err(
+            &db,
+            TypeRef::foreign_signed_int(8),
+            TypeRef::foreign_float(32),
+        );
+        check_err(
+            &db,
+            TypeRef::foreign_float(8),
+            TypeRef::foreign_signed_int(32),
+        );
         check_err(
             &db,
             TypeRef::foreign_struct(foo),

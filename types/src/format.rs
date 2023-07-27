@@ -386,8 +386,11 @@ impl FormatType for TypeId {
                 id.format_type_without_argument(buffer);
             }
             TypeId::Closure(id) => id.format_type(buffer),
-            TypeId::Foreign(ForeignType::Int(size)) => {
+            TypeId::Foreign(ForeignType::Int(size, true)) => {
                 buffer.write(&format!("Int{}", size))
+            }
+            TypeId::Foreign(ForeignType::Int(size, false)) => {
+                buffer.write(&format!("UInt{}", size))
             }
             TypeId::Foreign(ForeignType::Float(size)) => {
                 buffer.write(&format!("Float{}", size))
@@ -849,16 +852,36 @@ mod tests {
             ModuleId(0),
         );
 
-        assert_eq!(format_type(&db, TypeRef::foreign_int(8)), "Int8");
-        assert_eq!(format_type(&db, TypeRef::foreign_int(16)), "Int16");
-        assert_eq!(format_type(&db, TypeRef::foreign_int(32)), "Int32");
-        assert_eq!(format_type(&db, TypeRef::foreign_int(64)), "Int64");
+        assert_eq!(format_type(&db, TypeRef::foreign_signed_int(8)), "Int8");
+        assert_eq!(format_type(&db, TypeRef::foreign_signed_int(16)), "Int16");
+        assert_eq!(format_type(&db, TypeRef::foreign_signed_int(32)), "Int32");
+        assert_eq!(format_type(&db, TypeRef::foreign_signed_int(64)), "Int64");
+        assert_eq!(format_type(&db, TypeRef::foreign_unsigned_int(8)), "UInt8");
+        assert_eq!(
+            format_type(&db, TypeRef::foreign_unsigned_int(16)),
+            "UInt16"
+        );
+        assert_eq!(
+            format_type(&db, TypeRef::foreign_unsigned_int(32)),
+            "UInt32"
+        );
+        assert_eq!(
+            format_type(&db, TypeRef::foreign_unsigned_int(64)),
+            "UInt64"
+        );
         assert_eq!(
             format_type(
                 &db,
-                TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8)))
+                TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8, true)))
             ),
             "Pointer[Int8]"
+        );
+        assert_eq!(
+            format_type(
+                &db,
+                TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8, false)))
+            ),
+            "Pointer[UInt8]"
         );
         assert_eq!(format_type(&db, TypeRef::foreign_struct(foo)), "Foo");
     }

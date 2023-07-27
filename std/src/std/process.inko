@@ -2,8 +2,8 @@
 import std.time.Duration
 
 fn extern inko_process_suspend(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
   time: Int,
 )
 

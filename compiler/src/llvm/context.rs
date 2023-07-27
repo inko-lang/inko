@@ -194,7 +194,7 @@ impl Context {
         id: TypeId,
     ) -> Option<BasicTypeEnum<'a>> {
         match id {
-            TypeId::Foreign(ForeignType::Int(size)) => {
+            TypeId::Foreign(ForeignType::Int(size, _)) => {
                 let typ = match size {
                     8 => self.i8_type(),
                     16 => self.i16_type(),

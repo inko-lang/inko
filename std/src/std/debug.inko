@@ -5,23 +5,23 @@
 import std.fs.path.Path
 import std.clone.Clone
 
-fn extern inko_process_stacktrace(process: Pointer[Int8]) -> Pointer[Int8]
-fn extern inko_process_stacktrace_size(trace: Pointer[Int8]) -> Int64
-fn extern inko_process_stacktrace_drop(trace: Pointer[Int8])
+fn extern inko_process_stacktrace(process: Pointer[UInt8]) -> Pointer[UInt8]
+fn extern inko_process_stacktrace_size(trace: Pointer[UInt8]) -> Int64
+fn extern inko_process_stacktrace_drop(trace: Pointer[UInt8])
 fn extern inko_process_stack_frame_line(
-  trace: Pointer[Int8],
+  trace: Pointer[UInt8],
   index: Int,
 ) -> Int64
 
 fn extern inko_process_stack_frame_name(
-  state: Pointer[Int8],
-  trace: Pointer[Int8],
+  state: Pointer[UInt8],
+  trace: Pointer[UInt8],
   index: Int,
 ) -> String
 
 fn extern inko_process_stack_frame_path(
-  state: Pointer[Int8],
-  trace: Pointer[Int8],
+  state: Pointer[UInt8],
+  trace: Pointer[UInt8],
   index: Int,
 ) -> String
 

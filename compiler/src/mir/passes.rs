@@ -4316,18 +4316,19 @@ impl<'a> LowerMethod<'a> {
         if let TypeRef::Pointer(_) = typ {
             Some(CastType::Pointer)
         } else {
+            // TODO: unsigned ints
             match typ.type_id(self.db()) {
-                Ok(TypeId::Foreign(ForeignType::Int(8))) => {
-                    Some(CastType::Int(8))
+                Ok(TypeId::Foreign(ForeignType::Int(8, signed))) => {
+                    Some(CastType::Int(8, signed))
                 }
-                Ok(TypeId::Foreign(ForeignType::Int(16))) => {
-                    Some(CastType::Int(16))
+                Ok(TypeId::Foreign(ForeignType::Int(16, signed))) => {
+                    Some(CastType::Int(16, signed))
                 }
-                Ok(TypeId::Foreign(ForeignType::Int(32))) => {
-                    Some(CastType::Int(32))
+                Ok(TypeId::Foreign(ForeignType::Int(32, signed))) => {
+                    Some(CastType::Int(32, signed))
                 }
-                Ok(TypeId::Foreign(ForeignType::Int(64))) => {
-                    Some(CastType::Int(64))
+                Ok(TypeId::Foreign(ForeignType::Int(64, signed))) => {
+                    Some(CastType::Int(64, signed))
                 }
                 Ok(TypeId::Foreign(ForeignType::Float(32))) => {
                     Some(CastType::Float(32))

@@ -1,6 +1,7 @@
 import std.env
 import std.test.(Filter, Tests)
 
+import compiler.test_casts
 import compiler.test_drop
 import compiler.test_pattern_matching
 import std.crypto.test_chacha
@@ -55,6 +56,7 @@ class async Main {
     test_big.tests(tests)
     test_bool.tests(tests)
     test_byte_array.tests(tests)
+    test_casts.tests(tests)
     test_chacha.tests(tests)
     test_channel.tests(tests)
     test_cmp.tests(tests)

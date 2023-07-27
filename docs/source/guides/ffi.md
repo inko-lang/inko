@@ -39,17 +39,20 @@ equivalents:
 | `Int16`      | 16          | `int16_t`
 | `Int32`      | 32          | `int32_t`
 | `Int64`      | 64          | `int64_t`
+| `UInt8`      | 8           | `uint8_t`
+| `UInt16`     | 16          | `uint16_t`
+| `UInt32`     | 32          | `uint32_t`
+| `UInt64`     | 64          | `uint64_t`
 | `Float32`    | 32          | `float`
 | `Float64`    | 64          | `double`
 | `Pointer[T]` | 64[^1]      | `T*`
 
-Integers don't care about whether they are signed or unsigned, so if a C
-function expects a `uint32_t`, it's fine to pass it a `Int32`. Pointer-pointers
-don't have a dedicated type (i.e. there's no `Pointer[Pointer[Int8]]`), instead
-they are represented as just regular pointers (e.g. `Pointer[Int8]`).
+Pointer-pointers don't have a dedicated type (i.e. there's no
+`Pointer[Pointer[Int8]]`), instead they are represented as just regular pointers
+(e.g. `Pointer[Int8]`).
 
 There's no equivalent of C's `size_t` type, as Inko only supports 64-bits
-platforms, and thus you can just use `Int64` instead.
+platforms, and thus you can just use `UInt64` instead.
 
 C types don't support methods or operators, nor can they be passed to
 generically typed values/arguments. For example, `Array[Int32]` isn't a valid
@@ -226,7 +229,7 @@ When running this program, the output will be `2.0`.
 Variadic functions are also supported, and are defined as follows:
 
 ```inko
-fn extern printf(format: Pointer[Int8], ...) -> Int32
+fn extern printf(format: Pointer[UInt8], ...) -> Int32
 
 class async Main {
   fn async main {

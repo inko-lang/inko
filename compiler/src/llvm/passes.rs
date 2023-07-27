@@ -260,6 +260,7 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
                 let size = builder.int_to_int(
                     self.layouts.instances[&class_id].size_of().unwrap(),
                     32,
+                    false,
                 );
 
                 builder
@@ -1054,7 +1055,7 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let rhs_var = self.variables[&ins.arguments[1]];
                         let lhs = self.read_float(lhs_var);
                         let raw_rhs = self.read_int(rhs_var);
-                        let rhs = self.builder.int_to_int(raw_rhs, 32);
+                        let rhs = self.builder.int_to_int(raw_rhs, 32, false);
                         let func = self.module.intrinsic(
                             "llvm.powi",
                             &[
@@ -1580,6 +1581,7 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         self.builder.u16_literal(1),
                     ),
                     64,
+                    false,
                 );
 
                 let hash = self.builder.u64_literal(info.hash);
@@ -2189,21 +2191,21 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                 let src_var = self.variables[&ins.source];
                 let src_typ = self.variable_types[&ins.source];
                 let res = match (ins.from, ins.to) {
-                    (CastType::Int(_), CastType::Int(size)) => {
+                    (CastType::Int(_, signed), CastType::Int(size, _)) => {
                         let src = self.builder.load(src_typ, src_var);
 
                         self.builder
-                            .int_to_int(src.into_int_value(), size)
+                            .int_to_int(src.into_int_value(), size, signed)
                             .as_basic_value_enum()
                     }
-                    (CastType::Int(_), CastType::Float(size)) => {
+                    (CastType::Int(_, _), CastType::Float(size)) => {
                         let src = self.builder.load(src_typ, src_var);
 
                         self.builder
                             .int_to_float(src.into_int_value(), size)
                             .as_basic_value_enum()
                     }
-                    (CastType::Int(_), CastType::Pointer) => {
+                    (CastType::Int(_, _), CastType::Pointer) => {
                         let src = self
                             .builder
                             .load(src_typ, src_var)
@@ -2211,7 +2213,7 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
 
                         self.builder.int_to_pointer(src).as_basic_value_enum()
                     }
-                    (CastType::Float(_), CastType::Int(size)) => {
+                    (CastType::Float(_), CastType::Int(size, _)) => {
                         let src = self.builder.load(src_typ, src_var);
 
                         self.float_to_int(src.into_float_value(), size)
@@ -2224,14 +2226,17 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                             .float_to_float(src.into_float_value(), size)
                             .as_basic_value_enum()
                     }
-                    (CastType::Int(_), CastType::InkoInt) => {
+                    (CastType::Int(_, signed), CastType::InkoInt) => {
                         let src = self.builder.load(src_typ, src_var);
-                        let raw =
-                            self.builder.int_to_int(src.into_int_value(), 64);
+                        let raw = self.builder.int_to_int(
+                            src.into_int_value(),
+                            64,
+                            signed,
+                        );
 
                         self.new_int(state_var, raw).as_basic_value_enum()
                     }
-                    (CastType::Int(_), CastType::InkoFloat) => {
+                    (CastType::Int(_, _), CastType::InkoFloat) => {
                         let src = self.builder.load(src_typ, src_var);
                         let raw =
                             self.builder.int_to_float(src.into_int_value(), 64);
@@ -2252,10 +2257,12 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
 
                         self.new_float(state_var, raw).as_basic_value_enum()
                     }
-                    (CastType::InkoInt, CastType::Int(size)) => {
+                    (CastType::InkoInt, CastType::Int(size, _)) => {
                         let raw = self.read_int(src_var);
 
-                        self.builder.int_to_int(raw, size).as_basic_value_enum()
+                        self.builder
+                            .int_to_int(raw, size, true)
+                            .as_basic_value_enum()
                     }
                     (CastType::InkoInt, CastType::Float(size)) => {
                         let raw = self.read_int(src_var);
@@ -2269,7 +2276,7 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
 
                         self.builder.int_to_pointer(raw).as_basic_value_enum()
                     }
-                    (CastType::InkoFloat, CastType::Int(size)) => {
+                    (CastType::InkoFloat, CastType::Int(size, _)) => {
                         let raw = self.read_float(src_var);
 
                         self.float_to_int(raw, size).as_basic_value_enum()
@@ -2293,13 +2300,15 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
 
                         self.new_int(state_var, raw).as_basic_value_enum()
                     }
-                    (CastType::Pointer, CastType::Int(size)) => {
+                    (CastType::Pointer, CastType::Int(size, _)) => {
                         let src = self.builder.load(src_typ, src_var);
                         let raw = self
                             .builder
                             .pointer_to_int(src.into_pointer_value());
 
-                        self.builder.int_to_int(raw, size).as_basic_value_enum()
+                        self.builder
+                            .int_to_int(raw, size, false)
+                            .as_basic_value_enum()
                     }
                     (CastType::Pointer, CastType::InkoInt) => {
                         let src = self.builder.load(src_typ, src_var);

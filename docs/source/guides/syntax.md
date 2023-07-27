@@ -310,7 +310,7 @@ fn extern ceil(value: Float64) -> Float64
 Variadic functions are defined using `...` as the last argument:
 
 ```inko
-fn extern printf(format: Pointer[Int8], ...) -> Int32
+fn extern printf(format: Pointer[UInt8], ...) -> Int32
 ```
 
 ## Traits

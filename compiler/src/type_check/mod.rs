@@ -492,10 +492,14 @@ impl<'a> DefineTypeSignature<'a> {
         location: &SourceLocation,
     ) -> Option<TypeRef> {
         match name {
-            "Int8" => Some(TypeRef::foreign_int(8)),
-            "Int16" => Some(TypeRef::foreign_int(16)),
-            "Int32" => Some(TypeRef::foreign_int(32)),
-            "Int64" => Some(TypeRef::foreign_int(64)),
+            "Int8" => Some(TypeRef::foreign_signed_int(8)),
+            "Int16" => Some(TypeRef::foreign_signed_int(16)),
+            "Int32" => Some(TypeRef::foreign_signed_int(32)),
+            "Int64" => Some(TypeRef::foreign_signed_int(64)),
+            "UInt8" => Some(TypeRef::foreign_unsigned_int(8)),
+            "UInt16" => Some(TypeRef::foreign_unsigned_int(16)),
+            "UInt32" => Some(TypeRef::foreign_unsigned_int(32)),
+            "UInt64" => Some(TypeRef::foreign_unsigned_int(64)),
             "Float32" => Some(TypeRef::foreign_float(32)),
             "Float64" => Some(TypeRef::foreign_float(64)),
             "Pointer" => {
@@ -535,7 +539,7 @@ impl<'a> DefineTypeSignature<'a> {
                     TypeRef::Pointer(_) => {
                         self.state.diagnostics.error(
                             DiagnosticId::InvalidType,
-                            "Nested pointers (e.g. 'Pointer[Pointer[Int8]]') \
+                            "Nested pointers (e.g. 'Pointer[Pointer[UInt8]]') \
                             aren't supported, you should use regular \
                             pointers instead",
                             self.file(),

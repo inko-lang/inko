@@ -12,10 +12,10 @@ class extern AnyResult {
   let @value: Any
 }
 
-fn extern inko_float_to_string(state: Pointer[Int8], float: Float64) -> String
+fn extern inko_float_to_string(state: Pointer[UInt8], float: Float64) -> String
 fn extern inko_string_to_float(
-  state: Pointer[Int8],
-  bytes: Pointer[Int8],
+  state: Pointer[UInt8],
+  bytes: Pointer[UInt8],
   size: Int,
 ) -> AnyResult
 

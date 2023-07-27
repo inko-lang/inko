@@ -61,8 +61,8 @@ import std.time.(Duration, ToInstant)
 
 class extern RawSocket {
   let @inner: Int32
-  let @registered: Int8
-  let @unix: Int8
+  let @registered: UInt8
+  let @unix: UInt8
 }
 
 class extern RawAddress {
@@ -87,28 +87,28 @@ fn extern inko_socket_new(
 ) -> Int64
 
 fn extern inko_socket_accept(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
   socket: Pointer[RawSocket],
   deadline: Int,
   out: Pointer[RawSocket],
 ) -> Int64
 
 fn extern inko_socket_local_address(
-  state: Pointer[Int8],
+  state: Pointer[UInt8],
   socket: Pointer[RawSocket],
   out: Pointer[RawAddress]
 ) -> Int64
 
 fn extern inko_socket_peer_address(
-  state: Pointer[Int8],
+  state: Pointer[UInt8],
   socket: Pointer[RawSocket],
   out: Pointer[RawAddress],
 ) -> Int64
 
 fn extern inko_socket_receive_from(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
   socket: Pointer[RawSocket],
   buffer: mut ByteArray,
   amount: Int,
@@ -123,8 +123,8 @@ fn extern inko_socket_bind(
 ) -> IntResult
 
 fn extern inko_socket_read(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
   socket: Pointer[RawSocket],
   buffer: mut ByteArray,
   amount: Int,
@@ -132,8 +132,8 @@ fn extern inko_socket_read(
 ) -> IntResult
 
 fn extern inko_socket_connect(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
   socket: Pointer[RawSocket],
   address: String,
   port: Int,
@@ -147,8 +147,8 @@ fn extern inko_socket_listen(
 
 fn extern inko_socket_drop(socket: Pointer[RawSocket])
 fn extern inko_socket_send_bytes_to(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
   socket: Pointer[RawSocket],
   buffer: ref ByteArray,
   address: String,
@@ -157,8 +157,8 @@ fn extern inko_socket_send_bytes_to(
 ) -> IntResult
 
 fn extern inko_socket_send_string_to(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
   socket: Pointer[RawSocket],
   buffer: String,
   address: String,
@@ -167,16 +167,16 @@ fn extern inko_socket_send_string_to(
 ) -> IntResult
 
 fn extern inko_socket_write_bytes(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
   socket: Pointer[RawSocket],
   buffer: ref ByteArray,
   deadline: Int
 ) -> IntResult
 
 fn extern inko_socket_write_string(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
   socket: Pointer[RawSocket],
   buffer: String,
   deadline: Int
@@ -194,13 +194,13 @@ fn extern inko_socket_shutdown_read_write(
 ) -> IntResult
 
 fn extern inko_socket_set_broadcast(
-  state: Pointer[Int8],
+  state: Pointer[UInt8],
   socket: Pointer[RawSocket],
   value: Bool,
 ) -> IntResult
 
 fn extern inko_socket_set_keepalive(
-  state: Pointer[Int8],
+  state: Pointer[UInt8],
   socket: Pointer[RawSocket],
   value: Bool,
 ) -> IntResult
@@ -226,25 +226,25 @@ fn extern inko_socket_set_ttl(
 ) -> IntResult
 
 fn extern inko_socket_set_nodelay(
-  state: Pointer[Int8],
+  state: Pointer[UInt8],
   socket: Pointer[RawSocket],
   value: Bool,
 ) -> IntResult
 
 fn extern inko_socket_set_only_v6(
-  state: Pointer[Int8],
+  state: Pointer[UInt8],
   socket: Pointer[RawSocket],
   value: Bool,
 ) -> IntResult
 
 fn extern inko_socket_set_reuse_address(
-  state: Pointer[Int8],
+  state: Pointer[UInt8],
   socket: Pointer[RawSocket],
   value: Bool,
 ) -> IntResult
 
 fn extern inko_socket_set_reuse_port(
-  state: Pointer[Int8],
+  state: Pointer[UInt8],
   socket: Pointer[RawSocket],
   value: Bool,
 ) -> IntResult
@@ -353,8 +353,8 @@ class pub Socket {
   fn pub static ipv4(type: Type) -> Result[Socket, Error] {
     let sock = RawSocket {
       @inner = 0 as Int32,
-      @registered = 0 as Int8,
-      @unix = 0 as Int8,
+      @registered = 0 as UInt8,
+      @unix = 0 as UInt8,
     }
 
     match inko_socket_new(IPV4, type.into_int, mut sock) as Int {
@@ -373,8 +373,8 @@ class pub Socket {
   fn pub static ipv6(type: Type) -> Result[Socket, Error] {
     let sock = RawSocket {
       @inner = 0 as Int32,
-      @registered = 0 as Int8,
-      @unix = 0 as Int8,
+      @registered = 0 as UInt8,
+      @unix = 0 as UInt8,
     }
 
     match inko_socket_new(IPV6, type.into_int, mut sock) as Int {
@@ -512,8 +512,8 @@ class pub Socket {
   fn pub accept -> Result[Socket, Error] {
     let sock = RawSocket {
       @inner = 0 as Int32,
-      @registered = 0 as Int8,
-      @unix = 0 as Int8,
+      @registered = 0 as UInt8,
+      @unix = 0 as UInt8,
     }
 
     match inko_socket_accept(
@@ -766,8 +766,8 @@ class pub Socket {
   fn pub try_clone -> Result[Socket, Error] {
     let sock = RawSocket {
       @inner = 0 as Int32,
-      @registered = 0 as Int8,
-      @unix = 0 as Int8,
+      @registered = 0 as UInt8,
+      @unix = 0 as UInt8,
     }
 
     match inko_socket_try_clone(@raw, mut sock) as Int {
@@ -1336,8 +1336,8 @@ class pub UnixSocket {
   fn pub static new(type: Type) -> Result[UnixSocket, Error] {
     let sock = RawSocket {
       @inner = 0 as Int32,
-      @registered = 0 as Int8,
-      @unix = 1 as Int8,
+      @registered = 0 as UInt8,
+      @unix = 1 as UInt8,
     }
 
     match inko_socket_new(UNIX, type.into_int, mut sock) as Int {
@@ -1472,8 +1472,8 @@ class pub UnixSocket {
   fn pub accept -> Result[UnixSocket, Error] {
     let sock = RawSocket {
       @inner = 0 as Int32,
-      @registered = 0 as Int8,
-      @unix = 1 as Int8,
+      @registered = 0 as UInt8,
+      @unix = 1 as UInt8,
     }
 
     match inko_socket_accept(
@@ -1639,8 +1639,8 @@ class pub UnixSocket {
   fn pub try_clone -> Result[UnixSocket, Error] {
     let sock = RawSocket {
       @inner = 0 as Int32,
-      @registered = 0 as Int8,
-      @unix = 1 as Int8,
+      @registered = 0 as UInt8,
+      @unix = 1 as UInt8,
     }
 
     match inko_socket_try_clone(@raw, mut sock) as Int {

@@ -7,38 +7,38 @@ class extern IntResult {
 }
 
 fn extern inko_stdout_write_string(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
   input: String
 ) -> IntResult
 
 fn extern inko_stdout_write_bytes(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
   input: ref ByteArray
 ) -> IntResult
 
 fn extern inko_stderr_write_string(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
   input: String
 ) -> IntResult
 
 fn extern inko_stderr_write_bytes(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
   input: ref ByteArray
 ) -> IntResult
 
 fn extern inko_stdin_read(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
   buffer: mut ByteArray,
   size: Int,
 ) -> IntResult
 
-fn extern inko_stdout_flush(process: Pointer[Int8])
-fn extern inko_stderr_flush(process: Pointer[Int8])
+fn extern inko_stdout_flush(process: Pointer[UInt8])
+fn extern inko_stderr_flush(process: Pointer[UInt8])
 
 # The standard input stream of the current OS process.
 class pub STDIN {

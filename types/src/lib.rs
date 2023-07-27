@@ -1721,10 +1721,10 @@ impl BuiltinFunction {
             BuiltinFunction::Panic => TypeRef::Never,
             BuiltinFunction::StringConcat => TypeRef::string(),
             BuiltinFunction::State => {
-                TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8)))
+                TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8, false)))
             }
             BuiltinFunction::Process => {
-                TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8)))
+                TypeRef::pointer(TypeId::Foreign(ForeignType::Int(8, false)))
             }
             BuiltinFunction::FloatRound => TypeRef::float(),
             BuiltinFunction::FloatPowi => TypeRef::float(),
@@ -2814,8 +2814,12 @@ impl TypeRef {
         )))
     }
 
-    pub fn foreign_int(size: u32) -> TypeRef {
-        TypeRef::Owned(TypeId::Foreign(ForeignType::Int(size)))
+    pub fn foreign_signed_int(size: u32) -> TypeRef {
+        TypeRef::Owned(TypeId::Foreign(ForeignType::Int(size, true)))
+    }
+
+    pub fn foreign_unsigned_int(size: u32) -> TypeRef {
+        TypeRef::Owned(TypeId::Foreign(ForeignType::Int(size, false)))
     }
 
     pub fn foreign_float(size: u32) -> TypeRef {
@@ -3603,7 +3607,8 @@ impl TypeRef {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum ForeignType {
-    Int(u32),
+    // An integer of a given bit size, that is optionally signed.
+    Int(u32, bool),
     Float(u32),
 }
 

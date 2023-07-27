@@ -9,30 +9,30 @@ class extern AnyResult {
 }
 
 fn extern inko_channel_drop(channel: Any)
-fn extern inko_channel_new(state: Pointer[Int8], size: Int) -> Any
-fn extern inko_channel_receive(process: Pointer[Int8], channel: Any) -> Any
+fn extern inko_channel_new(state: Pointer[UInt8], size: Int) -> Any
+fn extern inko_channel_receive(process: Pointer[UInt8], channel: Any) -> Any
 fn extern inko_channel_receive_until(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
   channel: Any,
   time: Int,
 ) -> AnyResult
 
 fn extern inko_channel_send(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
   channel: Any,
   message: Any,
 )
 
 fn extern inko_channel_try_receive(
-  process: Pointer[Int8],
+  process: Pointer[UInt8],
   channel: Any,
 ) -> AnyResult
 
 fn extern inko_channel_wait(
-  process: Pointer[Int8],
-  channels: Pointer[Int8],
+  process: Pointer[UInt8],
+  channels: Pointer[UInt8],
   size: Int,
 )
 

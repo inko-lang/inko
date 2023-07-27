@@ -20,78 +20,78 @@ class extern AnyResult {
   let @value: Any
 }
 
-fn extern inko_file_remove(process: Pointer[Int8], path: String) -> AnyResult
+fn extern inko_file_remove(process: Pointer[UInt8], path: String) -> AnyResult
 
 fn extern inko_file_copy(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
   from: String,
   to: String,
 ) -> AnyResult
 
 fn extern inko_directory_remove(
-  process: Pointer[Int8],
+  process: Pointer[UInt8],
   path: String,
 ) -> AnyResult
 
 fn extern inko_directory_create(
-  process: Pointer[Int8],
+  process: Pointer[UInt8],
   path: String,
 ) -> AnyResult
 
 fn extern inko_directory_create_recursive(
-  process: Pointer[Int8],
+  process: Pointer[UInt8],
   path: String,
 ) -> AnyResult
 
 fn extern inko_directory_remove_recursive(
-  process: Pointer[Int8],
+  process: Pointer[UInt8],
   path: String,
 ) -> AnyResult
 
 fn extern inko_file_size(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
   path: String,
 ) -> IntResult
 
 fn extern inko_path_accessed_at(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
   path: String,
 ) -> AnyResult
 
 fn extern inko_path_created_at(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
   path: String,
 ) -> AnyResult
 
 fn extern inko_path_modified_at(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
   path: String,
 ) -> AnyResult
 
 fn extern inko_path_exists(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
   path: String,
 ) -> Bool
 
 fn extern inko_path_is_file(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
   path: String,
 ) -> Bool
 
 fn extern inko_path_is_directory(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
   path: String,
 ) -> Bool
 
-fn extern inko_path_expand(state: Pointer[Int8], path: String) -> AnyResult
+fn extern inko_path_expand(state: Pointer[UInt8], path: String) -> AnyResult
 fn extern inko_time_system_offset -> Int64
 
 # The character used to separate components in a file path.

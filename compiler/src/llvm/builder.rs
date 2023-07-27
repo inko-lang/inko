@@ -458,6 +458,7 @@ impl<'ctx> Builder<'ctx> {
         &self,
         value: IntValue<'ctx>,
         size: u32,
+        signed: bool,
     ) -> IntValue<'ctx> {
         let target = match size {
             8 => self.context.i8_type(),
@@ -466,7 +467,7 @@ impl<'ctx> Builder<'ctx> {
             _ => self.context.i64_type(),
         };
 
-        self.inner.build_int_cast(value, target, "")
+        self.inner.build_int_cast_sign_flag(value, target, signed, "")
     }
 
     pub(crate) fn float_to_float(

@@ -33,54 +33,54 @@ class extern IntResult {
 
 class extern PointerResult {
   let @tag: Int
-  let @value: Pointer[Int8]
+  let @value: Pointer[UInt8]
 }
 
 fn extern inko_file_flush(
-  process: Pointer[Int8],
-  file: Pointer[Int8],
+  process: Pointer[UInt8],
+  file: Pointer[UInt8],
 ) -> AnyResult
 
-fn extern inko_file_drop(file: Pointer[Int8])
+fn extern inko_file_drop(file: Pointer[UInt8])
 
 fn extern inko_file_open(
-  process: Pointer[Int8],
+  process: Pointer[UInt8],
   path: String,
   mode: Int,
 ) -> PointerResult
 
 fn extern inko_file_read(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
-  file: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
+  file: Pointer[UInt8],
   buffer: mut ByteArray,
   size: Int,
 ) -> IntResult
 
 fn extern inko_file_seek(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
-  file: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
+  file: Pointer[UInt8],
   offset: Int,
 ) -> IntResult
 
 fn extern inko_file_size(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
   path: String,
 ) -> IntResult
 
 fn extern inko_file_write_bytes(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
-  file: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
+  file: Pointer[UInt8],
   input: ref ByteArray,
 ) -> IntResult
 
 fn extern inko_file_write_string(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
-  file: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
+  file: Pointer[UInt8],
   input: String,
 ) -> IntResult
 
@@ -90,7 +90,7 @@ class pub ReadOnlyFile {
   let pub @path: Path
 
   # The internal file descriptor.
-  let @fd: Pointer[Int8]
+  let @fd: Pointer[UInt8]
 
   # Returns a new `ReadOnlyFile`.
   #
@@ -154,7 +154,7 @@ class pub WriteOnlyFile {
   let pub @path: Path
 
   # The internal file descriptor.
-  let @fd: Pointer[Int8]
+  let @fd: Pointer[UInt8]
 
   # Opens a file in write-only mode.
   #
@@ -243,7 +243,7 @@ class pub ReadWriteFile {
   let pub @path: Path
 
   # The internal file descriptor.
-  let @fd: Pointer[Int8]
+  let @fd: Pointer[UInt8]
 
   # Opens a file for both reading and writing:
   #

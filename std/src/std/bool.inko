@@ -49,8 +49,8 @@ impl Clone[Bool] for Bool {
 
 impl Equal[Bool] for Bool {
   fn pub ==(other: ref Bool) -> Bool {
-    (self as Any as Pointer[Int8] as Int)
-      == (other as Any as Pointer[Int8] as Int)
+    (self as Any as Pointer[UInt8] as Int)
+      == (other as Any as Pointer[UInt8] as Int)
   }
 }
 

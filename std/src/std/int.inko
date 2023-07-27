@@ -42,7 +42,7 @@ let LOWER_X = 120
 # intrinsics, and must match its layout.
 class builtin CheckedIntResult {
   let @value: Int64
-  let @tag: Int8
+  let @tag: UInt8
 }
 
 fn extern inko_int_checked_pow(left: Int, right: Int) -> CheckedIntResult

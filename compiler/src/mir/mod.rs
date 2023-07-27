@@ -1005,7 +1005,10 @@ pub(crate) struct Cast {
 
 #[derive(Clone, Debug, Copy)]
 pub(crate) enum CastType {
-    Int(u32),
+    /// We're casting to/from an integer.
+    ///
+    /// The boolean indicates if the integer is signed or not.
+    Int(u32, bool),
     Float(u32),
     InkoInt,
     InkoFloat,

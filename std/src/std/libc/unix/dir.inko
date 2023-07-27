@@ -18,15 +18,15 @@ let DT_DIR = 4
 let DT_LNK = 10
 let DT_REG = 8
 
-fn extern closedir(stream: Pointer[Int8]) -> Int32
-fn extern strlen(pointer: Pointer[Int8]) -> Int64
+fn extern closedir(stream: Pointer[UInt8]) -> Int32
+fn extern strlen(pointer: Pointer[UInt8]) -> UInt64
 fn extern inko_reset_error
 
 # The byte of the "." character.
 let DOT = 46
 
 class pub ReadDirectory {
-  let @stream: Pointer[Int8]
+  let @stream: Pointer[UInt8]
 
   fn pub static new(path: String) -> Result[ReadDirectory, Error] {
     let stream = dir_imp.opendir(path.to_pointer)
@@ -67,7 +67,7 @@ impl Iter[Result[(String, FileType), Error]] for ReadDirectory {
       # Skip ".."
       if name_len == 2
         and first == DOT
-        and (name_ptr as Int + 1 as Pointer[Int8]).0 as Int == DOT
+        and (name_ptr as Int + 1 as Pointer[UInt8]).0 as Int == DOT
       {
         next
       }

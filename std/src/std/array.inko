@@ -112,14 +112,14 @@ class builtin Array[T] {
 
   let @size: Int
   let @capacity: Int
-  let @buffer: Pointer[Int8]
+  let @buffer: Pointer[UInt8]
 
   # Returns a new `Array` with enough space for at least `amount` values.
   #
   # The actual capacity may be greater than the given value.
   fn pub static with_capacity(amount: Int) -> Array[T] {
     let buffer = alloc_imp
-      .resize(0x0 as Pointer[Int8], size: amount * VALUE_SIZE)
+      .resize(0x0 as Pointer[UInt8], size: amount * VALUE_SIZE)
 
     Array { @size = 0, @capacity = amount, @buffer = buffer }
   }
@@ -229,8 +229,8 @@ class builtin Array[T] {
     let val = addr.0 as Any as T
 
     alloc_imp.copy(
-      from: addr as Int + VALUE_SIZE as Pointer[Int8],
-      to: addr as Pointer[Int8],
+      from: addr as Int + VALUE_SIZE as Pointer[UInt8],
+      to: addr as Pointer[UInt8],
       size: len - index - 1 * VALUE_SIZE,
     )
 
@@ -480,7 +480,7 @@ class builtin Array[T] {
     }
   }
 
-  fn to_pointer -> Pointer[Int8] {
+  fn to_pointer -> Pointer[UInt8] {
     @buffer
   }
 
@@ -497,11 +497,11 @@ class builtin Array[T] {
   }
 
   fn mut write_to(index: Int, value: T) {
-    address_of(index).0 = value as Any as Int64
+    address_of(index).0 = value as Any as UInt64
   }
 
-  fn address_of(index: Int) -> Pointer[Int64] {
-    @buffer as Int + (index * VALUE_SIZE) as Pointer[Int64]
+  fn address_of(index: Int) -> Pointer[UInt64] {
+    @buffer as Int + (index * VALUE_SIZE) as Pointer[UInt64]
   }
 
   fn mut grow_buffer {

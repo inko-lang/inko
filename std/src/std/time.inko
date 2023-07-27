@@ -6,8 +6,8 @@ import std.fmt.(Format, Formatter)
 import std.int.ToInt
 import std.ops.(Add, Subtract)
 
-fn extern inko_time_monotonic(state: Pointer[Int8]) -> Int64
-fn extern inko_time_system(state: Pointer[Int8]) -> Float
+fn extern inko_time_monotonic(state: Pointer[UInt8]) -> Int64
+fn extern inko_time_system(state: Pointer[UInt8]) -> Float
 fn extern inko_time_system_offset -> Int64
 
 let SECS_PER_MIN = 60

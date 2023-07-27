@@ -16,11 +16,11 @@ class extern IntResult {
 }
 
 fn extern inko_child_process_spawn(
-  process: Pointer[Int8],
+  process: Pointer[UInt8],
   program: String,
-  args: Pointer[Int8],
+  args: Pointer[UInt8],
   args_size: Int,
-  env: Pointer[Int8],
+  env: Pointer[UInt8],
   env_size: Int,
   stdin: Int,
   stdout: Int,
@@ -28,49 +28,49 @@ fn extern inko_child_process_spawn(
   directory: String
 ) -> AnyResult
 
-fn extern inko_child_process_drop(child: Pointer[Int8])
-fn extern inko_child_process_stdout_close(child: Pointer[Int8])
-fn extern inko_child_process_stderr_close(child: Pointer[Int8])
-fn extern inko_child_process_stdin_close(child: Pointer[Int8])
+fn extern inko_child_process_drop(child: Pointer[UInt8])
+fn extern inko_child_process_stdout_close(child: Pointer[UInt8])
+fn extern inko_child_process_stderr_close(child: Pointer[UInt8])
+fn extern inko_child_process_stdin_close(child: Pointer[UInt8])
 fn extern inko_child_process_stderr_read(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
-  child: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
+  child: Pointer[UInt8],
   buffer: mut ByteArray,
   size: Int
 ) -> IntResult
 
 fn extern inko_child_process_stdout_read(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
-  child: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
+  child: Pointer[UInt8],
   buffer: mut ByteArray,
   size: Int
 ) -> IntResult
 
 fn extern inko_child_process_stdin_flush(
-  process: Pointer[Int8],
-  child: Pointer[Int8],
+  process: Pointer[UInt8],
+  child: Pointer[UInt8],
 ) -> AnyResult
 
 fn extern inko_child_process_stdin_write_bytes(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
-  child: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
+  child: Pointer[UInt8],
   input: ref ByteArray,
 ) -> IntResult
 
 fn extern inko_child_process_stdin_write_string(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
-  child: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
+  child: Pointer[UInt8],
   input: String,
 ) -> IntResult
 
-fn extern inko_child_process_try_wait(child: Pointer[Int8]) -> IntResult
+fn extern inko_child_process_try_wait(child: Pointer[UInt8]) -> IntResult
 fn extern inko_child_process_wait(
-  process: Pointer[Int8],
-  child: Pointer[Int8],
+  process: Pointer[UInt8],
+  child: Pointer[UInt8],
 ) -> IntResult
 
 fn extern inko_cpu_cores -> Int
@@ -360,7 +360,7 @@ class pub Command {
       @directory.as_ref.unwrap_or(ref ''),
     ) {
       case { @tag = 0, @value = v } -> Result.Ok(
-        ChildProcess { @raw = v as Pointer[Int8] }
+        ChildProcess { @raw = v as Pointer[UInt8] }
       )
       case { @tag = _, @value = e } -> Result.Error(
         Error.from_os_error(e as Int)
@@ -499,7 +499,7 @@ impl Read for Stderr {
 # A running or exited child OS process.
 class pub ChildProcess {
   # A raw pointer to the OS process.
-  let @raw: Pointer[Int8]
+  let @raw: Pointer[UInt8]
 
   # Returns a handle to the standard output stream.
   fn pub stdout -> Stdout {

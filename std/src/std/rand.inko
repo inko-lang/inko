@@ -1,22 +1,27 @@
 # Cryptographically secure random number generation.
 import std.drop.Drop
 
-fn extern inko_random_new(process: Pointer[Int8]) -> Pointer[Int8]
-fn extern inko_random_from_int(seed: Int) -> Pointer[Int8]
-fn extern inko_random_drop(rng: Pointer[Int8])
-fn extern inko_random_int(rng: Pointer[Int8]) -> Int64
-fn extern inko_random_float(rng: Pointer[Int8]) -> Float64
-fn extern inko_random_int_range(rng: Pointer[Int8], min: Int, max: Int) -> Int64
+fn extern inko_random_new(process: Pointer[UInt8]) -> Pointer[UInt8]
+fn extern inko_random_from_int(seed: Int) -> Pointer[UInt8]
+fn extern inko_random_drop(rng: Pointer[UInt8])
+fn extern inko_random_int(rng: Pointer[UInt8]) -> Int64
+fn extern inko_random_float(rng: Pointer[UInt8]) -> Float64
+fn extern inko_random_int_range(
+  rng: Pointer[UInt8],
+  min: Int,
+  max: Int,
+) -> Int64
+
 fn extern inko_random_float_range(
-  rng: Pointer[Int8],
+  rng: Pointer[UInt8],
   min: Float64,
   max: Float64,
 ) -> Float64
 
 fn extern inko_random_bytes(
-  state: Pointer[Int8],
-  process: Pointer[Int8],
-  rng: Pointer[Int8],
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
+  rng: Pointer[UInt8],
   size: Int,
 ) -> ByteArray
 
@@ -26,7 +31,7 @@ fn extern inko_random_bytes(
 # secure.
 class pub Random {
   # The internal/low-level random number generator.
-  let @rng: Pointer[Int8]
+  let @rng: Pointer[UInt8]
 
   # Returns a new `Random` using the given `Int` as its seed.
   #

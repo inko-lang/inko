@@ -10,16 +10,16 @@ import std.iter.Stream
 import std.option.Option
 import std.string.(Bytes, IntoString, ToString)
 
-fn extern inko_byte_array_new(state: Pointer[Int8]) -> ByteArray
+fn extern inko_byte_array_new(state: Pointer[UInt8]) -> ByteArray
 fn extern inko_byte_array_clear(bytes: mut ByteArray)
 fn extern inko_byte_array_append(target: mut ByteArray, source: mut ByteArray)
 fn extern inko_byte_array_clone(
-  state: Pointer[Int8],
+  state: Pointer[UInt8],
   bytes: ref ByteArray,
 ) -> ByteArray
 
 fn extern inko_byte_array_copy_from(
-  state: Pointer[Int8],
+  state: Pointer[UInt8],
   target: mut ByteArray,
   source: ref ByteArray,
   start: Int,
@@ -27,20 +27,20 @@ fn extern inko_byte_array_copy_from(
 ) -> Int
 
 fn extern inko_byte_array_drain_to_string(
-  state: Pointer[Int8],
+  state: Pointer[UInt8],
   bytes: mut ByteArray
 ) -> String
 
 fn extern inko_byte_array_drop(bytes: mut ByteArray)
 fn extern inko_byte_array_eq(
-  state: Pointer[Int8],
+  state: Pointer[UInt8],
   left: ref ByteArray,
   right: ref ByteArray,
 ) -> Bool
 
 fn extern inko_byte_array_get(bytes: ref ByteArray, index: Int) -> Int
 fn extern inko_byte_array_size(
-  state: Pointer[Int8],
+  state: Pointer[UInt8],
   bytes: ref ByteArray,
 ) -> Int
 
@@ -55,21 +55,21 @@ fn extern inko_byte_array_set(
 ) -> Int
 
 fn extern inko_byte_array_slice(
-  state: Pointer[Int8],
+  state: Pointer[UInt8],
   bytes: ref ByteArray,
   start: Int,
   size: Int
 ) -> ByteArray
 
 fn extern inko_byte_array_to_string(
-  state: Pointer[Int8],
+  state: Pointer[UInt8],
   bytes: ref ByteArray,
 ) -> String
 
-fn extern inko_byte_array_to_pointer(bytes: ref ByteArray) -> Pointer[Int8]
+fn extern inko_byte_array_to_pointer(bytes: ref ByteArray) -> Pointer[UInt8]
 fn extern inko_byte_array_from_pointer(
-  state: Pointer[Int8],
-  pointer: Pointer[Int8],
+  state: Pointer[UInt8],
+  pointer: Pointer[UInt8],
   size: Int,
 ) -> ByteArray
 
@@ -113,7 +113,7 @@ class builtin ByteArray {
   #
   # The purpose of this method is to allow creating a `ByteArray` from a pointer
   # returned by C code. Avoid using this method for anything else.
-  fn pub static from_pointer(pointer: Pointer[Int8], size: Int) -> ByteArray {
+  fn pub static from_pointer(pointer: Pointer[UInt8], size: Int) -> ByteArray {
     inko_byte_array_from_pointer(_INKO.state, pointer, size)
   }
 
@@ -448,7 +448,7 @@ impl Bytes for ByteArray {
   #
   # This method is meant to be used when passing byte arrays to foreign
   # functions. You should avoid using it for anything else.
-  fn pub to_pointer -> Pointer[Int8] {
+  fn pub to_pointer -> Pointer[UInt8] {
     inko_byte_array_to_pointer(self)
   }
 }
