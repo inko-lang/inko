@@ -3168,15 +3168,22 @@ impl TypeRef {
         matches!(self, TypeRef::Owned(_) | TypeRef::Uni(_))
     }
 
-    pub fn allow_mutating(self) -> bool {
-        matches!(
-            self,
-            TypeRef::Mut(_)
-                | TypeRef::Owned(_)
-                | TypeRef::Uni(_)
-                | TypeRef::UniMut(_)
-                | TypeRef::Pointer(_)
-        )
+    pub fn allow_mutating(self, db: &Database) -> bool {
+        match self {
+            TypeRef::Mut(_) | TypeRef::UniMut(_) | TypeRef::Pointer(_) => true,
+            TypeRef::Owned(TypeId::TypeParameter(id))
+            | TypeRef::Uni(TypeId::TypeParameter(id))
+            | TypeRef::Owned(TypeId::RigidTypeParameter(id))
+            | TypeRef::Uni(TypeId::RigidTypeParameter(id)) => id.is_mutable(db),
+            TypeRef::Owned(_) => true,
+            TypeRef::Ref(TypeId::ClassInstance(ins)) => {
+                ins.instance_of.is_value_type(db)
+            }
+            TypeRef::Placeholder(id) => {
+                id.value(db).map_or(false, |v| v.allow_mutating(db))
+            }
+            _ => false,
+        }
     }
 
     pub fn is_uni_ref(self, db: &Database) -> bool {
@@ -3899,7 +3906,7 @@ mod tests {
     use super::*;
     use crate::test::{
         closure, immutable, instance, mutable, new_class, new_parameter, owned,
-        placeholder, rigid, uni,
+        parameter, placeholder, rigid, uni,
     };
     use std::mem::size_of;
 
@@ -4567,5 +4574,20 @@ mod tests {
             TypeRef::UniMut(instance(int))
         );
         assert_eq!(uni(instance(int)).as_uni_ref(&db), uni(instance(int)));
+    }
+
+    #[test]
+    fn test_type_ref_allow_mutating() {
+        let mut db = Database::new();
+        let param = new_parameter(&mut db, "T");
+
+        assert!(TypeRef::int().allow_mutating(&db));
+        assert!(owned(instance(ClassId::string())).allow_mutating(&db));
+        assert!(immutable(instance(ClassId::string())).allow_mutating(&db));
+        assert!(mutable(parameter(param)).allow_mutating(&db));
+        assert!(mutable(rigid(param)).allow_mutating(&db));
+        assert!(!owned(parameter(param)).allow_mutating(&db));
+        assert!(!owned(rigid(param)).allow_mutating(&db));
+        assert!(!immutable(parameter(param)).allow_mutating(&db));
     }
 }

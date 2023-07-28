@@ -417,7 +417,7 @@ impl MethodCall {
             return;
         }
 
-        if self.method.is_mutable(&state.db) && !rec.allow_mutating() {
+        if self.method.is_mutable(&state.db) && !rec.allow_mutating(&state.db) {
             state.diagnostics.error(
                 DiagnosticId::InvalidCall,
                 format!(
@@ -2829,7 +2829,7 @@ impl<'a> CheckMethodBody<'a> {
             );
         }
 
-        if !scope.surrounding_type.allow_mutating() {
+        if !scope.surrounding_type.allow_mutating(self.db()) {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidAssign,
                 format!(
@@ -3339,7 +3339,7 @@ impl<'a> CheckMethodBody<'a> {
             );
         }
 
-        if !receiver.allow_mutating() {
+        if !receiver.allow_mutating(self.db()) {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidCall,
                 format!(
@@ -3433,7 +3433,7 @@ impl<'a> CheckMethodBody<'a> {
             return TypeRef::Error;
         }
 
-        if !receiver.allow_mutating() {
+        if !receiver.allow_mutating(self.db()) {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidCall,
                 "Closures can only be called using owned or mutable references",
