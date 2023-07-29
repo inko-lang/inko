@@ -28,15 +28,16 @@ jobs:
             target
           key: freebsd-${{ matrix.version }}
       - name: Run tests
-        uses: cross-platform-actions/action@v0.15.0
+        # uses: cross-platform-actions/action@v0.15.0
+        uses: inko-lang/cross-platform-action@master
         with:
           operating_system: freebsd
           version: '13.2'
           environment_variables: 'CARGO_HOME LIBRARY_PATH CARGO_REGISTRIES_CRATES_IO_PROTOCOL'
           hypervisor: qemu
+          image_url: 'https://github.com/inko-lang/freebsd-builder/releases/download/v0.6.0/freebsd-13.2-x86-64.qcow2'
           run: |
             ./scripts/rust.sh ${{ matrix.version }}
-            ./scripts/llvm.sh freebsd
             setenv PATH "${CARGO_HOME}/bin:${PATH}"
             echo "::group::Running tests"
             cargo test
@@ -61,15 +62,16 @@ jobs:
             target
           key: freebsd-${{ matrix.version }}
       - name: Run tests
-        uses: cross-platform-actions/action@v0.15.0
+        # uses: cross-platform-actions/action@v0.15.0
+        uses: inko-lang/cross-platform-action@master
         with:
           operating_system: freebsd
           version: '13.2'
           environment_variables: 'CARGO_HOME LIBRARY_PATH CARGO_REGISTRIES_CRATES_IO_PROTOCOL'
           hypervisor: qemu
+          image_url: 'https://github.com/inko-lang/freebsd-builder/releases/download/v0.6.0/freebsd-13.2-x86-64.qcow2'
           run: |
             ./scripts/rust.sh ${{ matrix.version }}
-            ./scripts/llvm.sh freebsd
             setenv PATH "${CARGO_HOME}/bin:${PATH}"
             echo "::group::Compiling"
             cargo build

@@ -15,10 +15,6 @@ elif [ "${1}" = "mac" ]
 then
     brew install llvm@15
     echo "$(brew --prefix llvm@15)/bin" >> $GITHUB_PATH
-elif [ "${1}" = "freebsd" ]
-then
-    sudo pkg update
-    sudo pkg install --yes llvm15 git
 else
     echo 'An OS to install LLVM for must be specified'
     exit 1
