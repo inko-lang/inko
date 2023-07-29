@@ -1,5 +1,5 @@
 use crate::config::{BuildDirectories, Output};
-use crate::config::{Config, SOURCE, SOURCE_EXT};
+use crate::config::{Config, SOURCE, SOURCE_EXT, TESTS};
 use crate::hir;
 use crate::linker::link;
 use crate::llvm;
@@ -261,7 +261,9 @@ impl Compiler {
                 // `./std`.
                 let mut components = file.components();
 
-                if components.any(|c| c.as_os_str() == SOURCE) {
+                if components
+                    .any(|c| c.as_os_str() == SOURCE || c.as_os_str() == TESTS)
+                {
                     Some(components.as_path())
                 } else {
                     None
