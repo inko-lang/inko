@@ -117,11 +117,17 @@ class builtin Array[T] {
   # Returns a new `Array` with enough space for at least `amount` values.
   #
   # The actual capacity may be greater than the given value.
-  fn pub static with_capacity(amount: Int) -> Array[T] {
-    let buffer = alloc_imp
-      .resize(0x0 as Pointer[UInt8], size: amount * VALUE_SIZE)
+  #
+  # # Panics
+  #
+  # This method panics of `size` if less than zero.
+  fn pub static with_capacity(size: Int) -> Array[T] {
+    if size < 0 { panic('The capacity must be greater than or equal to zero') }
 
-    Array { @size = 0, @capacity = amount, @buffer = buffer }
+    let buffer = alloc_imp
+      .resize(0x0 as Pointer[UInt8], size: size * VALUE_SIZE)
+
+    Array { @size = 0, @capacity = size, @buffer = buffer }
   }
 
   # Returns an array filled with a certain amount of values.

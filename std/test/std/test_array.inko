@@ -46,6 +46,10 @@ fn pub tests(t: mut Tests) {
     t.equal(ary2.capacity, 2)
   }
 
+  t.panic('Array.with_capacity with an invalid size') fn {
+    Array.with_capacity(-4) as Array[Int]
+  }
+
   t.test('Array.filled') fn (t) {
     t.equal(Array.filled(with: 1, times: 0), [])
     t.equal(Array.filled(with: 1, times: 1), [1])
