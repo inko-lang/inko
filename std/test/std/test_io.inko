@@ -1,5 +1,5 @@
 import helpers.(fmt)
-import std.io.(Error, Read, Write)
+import std.io.(DEFAULT_BUFFER_SIZE, BufferedReader, Error, Read, Write)
 import std.libc.bsd.errors if bsd
 import std.libc.linux.errors if linux
 import std.libc.mac.errors if mac
@@ -11,6 +11,10 @@ class Reader {
 
   fn static new -> Reader {
     Reader { @index = 0, @bytes = ByteArray.from_array([1, 2, 3]) }
+  }
+
+  fn static from_array(bytes: Array[Int]) -> Reader {
+    Reader { @index = 0, @bytes = ByteArray.from_array(bytes) }
   }
 }
 
@@ -28,6 +32,14 @@ impl Read for Reader {
     }
 
     Result.Ok(@index - start)
+  }
+}
+
+class ErrorReader {}
+
+impl Read for ErrorReader {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
+    Result.Error(Error.TimedOut)
   }
 }
 
@@ -141,5 +153,120 @@ fn pub tests(t: mut Tests) {
     writer.print('foo').unwrap
 
     t.equal(writer.buffer, "foo\n".to_byte_array)
+  }
+
+  t.test('BufferedRead.read_until') fn (t) {
+    let reader = BufferedReader.new(Reader.from_array([1, 0xA, 2, 0xA, 3]))
+    let bytes = ByteArray.new
+
+    t.equal(reader.read_until(byte: 0xA, into: bytes), Result.Ok(2))
+    t.equal(bytes, ByteArray.from_array([1, 0xA]))
+
+    t.equal(reader.read_until(byte: 0xA, into: bytes), Result.Ok(2))
+    t.equal(bytes, ByteArray.from_array([1, 0xA, 2, 0xA]))
+
+    t.equal(reader.read_until(byte: 0xA, into: bytes), Result.Ok(1))
+    t.equal(bytes, ByteArray.from_array([1, 0xA, 2, 0xA, 3]))
+  }
+
+  t.test('BufferedRead.read_line') fn (t) {
+    let reader = BufferedReader.new(Reader.from_array([1, 0xA, 2, 0xA, 3]))
+    let bytes = ByteArray.new
+
+    t.equal(reader.read_line(bytes), Result.Ok(2))
+    t.equal(bytes, ByteArray.from_array([1, 0xA]))
+
+    t.equal(reader.read_line(bytes), Result.Ok(2))
+    t.equal(bytes, ByteArray.from_array([1, 0xA, 2, 0xA]))
+
+    t.equal(reader.read_line(bytes), Result.Ok(1))
+    t.equal(bytes, ByteArray.from_array([1, 0xA, 2, 0xA, 3]))
+  }
+
+  t.test('BufferedRead.read_line') fn (t) {
+    let reader = BufferedReader.new(Reader.new)
+
+    t.equal(reader.bytes.to_array, [Result.Ok(1), Result.Ok(2), Result.Ok(3)])
+  }
+
+  t.test('BufferedReader.new') fn (t) {
+    let reader = BufferedReader.new(Reader.new)
+
+    t.equal(reader.capacity, DEFAULT_BUFFER_SIZE)
+  }
+
+  t.test('BufferedReader.with_capacity') fn (t) {
+    let reader = BufferedReader.with_capacity(Reader.new, size: 32)
+
+    t.equal(reader.capacity, 32)
+  }
+
+  t.panic('BufferedReader.with_capacity with an invalid size') fn {
+    BufferedReader.with_capacity(Reader.new, size: 0)
+  }
+
+  t.test('BufferedReader.fill_buffer') fn (t) {
+    let reader = BufferedReader.with_capacity(Reader.new, size: 3)
+
+    t.equal(reader.fill_buffer, Result.Ok(3))
+    t.equal(reader.buffer, ByteArray.from_array([1, 2, 3]))
+
+    # This is to make sure fill_buffer() doesn't somehow mess up the buffer for
+    # repeated calls without reading from the buffer.
+    t.equal(reader.fill_buffer, Result.Ok(3))
+    t.equal(reader.buffer, ByteArray.from_array([1, 2, 3]))
+
+    # This is to make sure that if the buffer is consumed, a call to
+    # fill_buffer() resets it.
+    reader.read_buffer(into: ByteArray.new, size: 3)
+    reader.fill_buffer
+
+    t.true(reader.buffer.empty?)
+    t.equal(reader.offset, 0)
+  }
+
+  t.test('BufferedReader.read_buffer') fn (t) {
+    let reader = BufferedReader.new(Reader.new)
+    let bytes = ByteArray.new
+
+    reader.fill_buffer
+    t.equal(reader.read_buffer(into: bytes, size: 2), 2)
+    t.equal(reader.offset, 2)
+    t.equal(bytes, ByteArray.from_array([1, 2]))
+  }
+
+  t.test('BufferedReader.read_byte') fn (t) {
+    let ok = BufferedReader.new(Reader.new)
+    let err = BufferedReader.new(ErrorReader {})
+
+    t.equal(ok.read_byte, Result.Ok(Option.Some(1)))
+    t.equal(ok.read_byte, Result.Ok(Option.Some(2)))
+    t.equal(ok.read_byte, Result.Ok(Option.Some(3)))
+    t.equal(ok.read_byte, Result.Ok(Option.None))
+    t.equal(err.read_byte, Result.Error(Error.TimedOut))
+  }
+
+  t.test('BufferedReader.read with a small read size') fn (t) {
+    let reader = BufferedReader.new(Reader.new)
+    let bytes = ByteArray.new
+
+    t.equal(reader.read(into: bytes, size: 2), Result.Ok(2))
+    t.equal(bytes, ByteArray.from_array([1, 2]))
+    t.equal(reader.buffer, ByteArray.from_array([1, 2, 3]))
+    t.equal(reader.offset, 2)
+
+    t.equal(reader.read(into: bytes, size: 2), Result.Ok(1))
+    t.equal(bytes, ByteArray.from_array([1, 2, 3]))
+    t.equal(reader.buffer, ByteArray.from_array([1, 2, 3]))
+    t.equal(reader.offset, 3)
+  }
+
+  t.test('BufferedReader.read with a size larger than the buffer size') fn (t) {
+    let reader = BufferedReader.with_capacity(Reader.new, size: 1)
+    let bytes = ByteArray.new
+
+    t.equal(reader.read(into: bytes, size: 1), Result.Ok(1))
+    t.equal(reader.read(into: bytes, size: 10), Result.Ok(2))
+    t.equal(bytes, ByteArray.from_array([1, 2, 3]))
   }
 }
