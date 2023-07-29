@@ -1,5 +1,5 @@
 import helpers.(fmt)
-import std.io.(DEFAULT_BUFFER_SIZE, BufferedReader, Error, Read, Write)
+import std.io.(DEFAULT_BUFFER_SIZE, Buffer, BufferedReader, Error, Read, Write)
 import std.libc.bsd.errors if bsd
 import std.libc.linux.errors if linux
 import std.libc.mac.errors if mac
@@ -268,5 +268,58 @@ fn pub tests(t: mut Tests) {
     t.equal(reader.read(into: bytes, size: 1), Result.Ok(1))
     t.equal(reader.read(into: bytes, size: 10), Result.Ok(2))
     t.equal(bytes, ByteArray.from_array([1, 2, 3]))
+  }
+
+  t.test('Buffer.read') fn (t) {
+    let buffer = Buffer.new('hello')
+    let bytes = ByteArray.new
+
+    t.equal(buffer.read(into: bytes, size: 2), Result.Ok(2))
+    t.equal(bytes.to_string, 'he')
+
+    t.equal(buffer.read(into: bytes, size: 2), Result.Ok(2))
+    t.equal(bytes.to_string, 'hell')
+  }
+
+  t.test('Buffer.fill_buffer') fn (t) {
+    let buffer = Buffer.new('hello')
+
+    t.equal(buffer.fill_buffer, Result.Ok(5))
+    t.equal(buffer.read(into: ByteArray.new, size: 2), Result.Ok(2))
+    t.equal(buffer.fill_buffer, Result.Ok(3))
+  }
+
+  t.test('Buffer.read_buffer') fn (t) {
+    let buffer = Buffer.new('hello')
+    let bytes = ByteArray.new
+
+    buffer.fill_buffer
+    t.equal(buffer.read_buffer(into: bytes, size: 5), 5)
+    t.equal(bytes.to_string, 'hello')
+  }
+
+  t.test('Buffer.read_byte') fn (t) {
+    let buffer = Buffer.new('abc')
+
+    t.equal(buffer.read_byte, Result.Ok(Option.Some(97)))
+    t.equal(buffer.read_byte, Result.Ok(Option.Some(98)))
+    t.equal(buffer.read_byte, Result.Ok(Option.Some(99)))
+    t.equal(buffer.read_byte, Result.Ok(Option.None))
+  }
+
+  t.test('Buffer.seek') fn (t) {
+    let buffer = Buffer.new('abc')
+
+    t.equal(buffer.read_byte, Result.Ok(Option.Some(97)))
+
+    t.equal(buffer.seek(0), Result.Ok(0))
+    t.equal(buffer.read_byte, Result.Ok(Option.Some(97)))
+
+    t.equal(buffer.seek(10), Result.Ok(10))
+    t.equal(buffer.read_byte, Result.Ok(Option.None))
+
+    t.equal(buffer.seek(-1), Result.Ok(2))
+    t.equal(buffer.read_byte, Result.Ok(Option.Some(99)))
+    t.equal(buffer.read_byte, Result.Ok(Option.None))
   }
 }

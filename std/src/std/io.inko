@@ -8,7 +8,7 @@ import std.iter.Stream
 import std.libc.bsd.errors if bsd
 import std.libc.linux.errors if linux
 import std.libc.mac.errors if mac
-import std.string.ToString
+import std.string.(Bytes, ToString)
 
 # The initial number of bytes to read in `Read.read_all`
 let INITIAL_READ_ALL_SIZE = 1024
@@ -564,5 +564,78 @@ impl Read for BufferedReader {
     }
 
     Result.Ok(total)
+  }
+}
+
+# An in-memory buffer that supports reads and seeks.
+#
+# `Buffer` supports any `Bytes` type, such as `String` and `ByteArray`.
+#
+# The `Buffer` type is useful when a method operates on a `Read` type (e.g. a
+# `ReadOnlyFile`), and you want to test that method without performing actual IO
+# operations. For example:
+#
+#     import std.io.(Buffer, Read)
+#
+#     fn read_string[T: Read + mut](reader: T) -> String {
+#       let bytes = ByteArray.new
+#
+#       reader.read_all(bytes)
+#       bytes.into_string
+#     }
+#
+#     let reader = Buffer.new('hello')
+#
+#     read_string(reader) # => "hello"
+class pub Buffer[T: Bytes] {
+  let @bytes: T
+  let @offset: Int
+
+  # Returns a new `Buffer` wrapping the given `Bytes`.
+  fn pub static new(bytes: T) -> Buffer[T] {
+    Buffer { @bytes = bytes, @offset = 0 }
+  }
+}
+
+impl Read for Buffer {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Never] {
+    Result.Ok(read_buffer(into, size))
+  }
+}
+
+impl BufferedRead for Buffer {
+  fn mut fill_buffer -> Result[Int, Never] {
+    Result.Ok(@bytes.size - @offset)
+  }
+
+  fn mut read_buffer(into: mut ByteArray, size: Int) -> Int {
+    let mut total = 0
+
+    while total < size and @offset < @bytes.size {
+      into.push(@bytes.byte(@offset := @offset + 1))
+      total += 1
+    }
+
+    total
+  }
+
+  fn pub mut read_byte -> Result[Option[Int], Never] {
+    if @offset < @bytes.size {
+      Result.Ok(Option.Some(@bytes.byte(@offset := @offset + 1) ))
+    } else {
+      Result.Ok(Option.None )
+    }
+  }
+}
+
+impl Seek for Buffer {
+  fn pub mut seek(position: Int) -> Result[Int, Never] {
+    if position < 0 {
+      @offset = @bytes.size + position
+    } else {
+      @offset = position
+    }
+
+    Result.Ok(@offset)
   }
 }
