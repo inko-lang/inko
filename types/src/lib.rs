@@ -731,7 +731,9 @@ impl FieldId {
 
         match field.visibility {
             Visibility::Public => true,
-            Visibility::Private => field.module.has_same_root(db, module),
+            Visibility::Private => {
+                field.module.has_same_root_namespace(db, module)
+            }
             // TypePrivate fields can only be accessed using the `@name` syntax,
             // which in turn is only available inside a class, thus not needing
             // any extra checks.
@@ -2314,7 +2316,7 @@ impl Symbol {
             _ => return true,
         };
 
-        mod_id.has_same_root(db, module)
+        mod_id.has_same_root_namespace(db, module)
     }
 }
 
@@ -2420,8 +2422,25 @@ impl ModuleId {
         self.get(db).class
     }
 
-    fn has_same_root(self, db: &Database, other: ModuleId) -> bool {
-        self.name(db).head() == other.name(db).head()
+    fn has_same_root_namespace(self, db: &Database, other: ModuleId) -> bool {
+        let ours = self.name(db);
+        let theirs = other.name(db);
+
+        if ours.head() == theirs.head() {
+            return true;
+        }
+
+        if !theirs.is_root() {
+            return false;
+        }
+
+        // This allow the top-level test module `test_foo` to import private
+        // symbols from the top-level module `foo`, but not the other way
+        // around.
+        theirs
+            .as_str()
+            .strip_prefix("test_")
+            .map_or(false, |name| ours.head() == name)
     }
 
     fn get(self, db: &Database) -> &Module {
@@ -3723,7 +3742,7 @@ impl TypeId {
 
         match m.visibility {
             Visibility::Public => true,
-            Visibility::Private => m.module.has_same_root(db, module),
+            Visibility::Private => m.module.has_same_root_namespace(db, module),
             Visibility::TypePrivate => allow_type_private,
         }
     }
@@ -4589,5 +4608,35 @@ mod tests {
         assert!(!owned(parameter(param)).allow_mutating(&db));
         assert!(!owned(rigid(param)).allow_mutating(&db));
         assert!(!immutable(parameter(param)).allow_mutating(&db));
+    }
+
+    #[test]
+    fn test_module_id_has_same_root_namespace() {
+        let mut db = Database::new();
+        let foo_mod = Module::alloc(
+            &mut db,
+            ModuleName::new("std.foo"),
+            "foo.inko".into(),
+        );
+
+        let bar_mod = Module::alloc(
+            &mut db,
+            ModuleName::new("std.bar"),
+            "bar.inko".into(),
+        );
+
+        let bla_mod =
+            Module::alloc(&mut db, ModuleName::new("bla"), "bla.inko".into());
+
+        let test_mod = Module::alloc(
+            &mut db,
+            ModuleName::new("test_bla"),
+            "test_bla.inko".into(),
+        );
+
+        assert!(foo_mod.has_same_root_namespace(&db, bar_mod));
+        assert!(!foo_mod.has_same_root_namespace(&db, bla_mod));
+        assert!(bla_mod.has_same_root_namespace(&db, test_mod));
+        assert!(!test_mod.has_same_root_namespace(&db, bla_mod));
     }
 }

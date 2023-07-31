@@ -61,6 +61,10 @@ impl ModuleName {
     pub fn as_str(&self) -> &str {
         self.value.as_str()
     }
+
+    pub fn is_root(&self) -> bool {
+        !self.value.contains(SEPARATOR)
+    }
 }
 
 impl From<Vec<String>> for ModuleName {
@@ -155,5 +159,11 @@ mod tests {
             ModuleName::new("std.foo.bar").normalized_name(),
             "std_foo_bar"
         );
+    }
+
+    #[test]
+    fn test_is_root() {
+        assert!(!ModuleName::new("foo.bar").is_root());
+        assert!(ModuleName::new("foo").is_root());
     }
 }
