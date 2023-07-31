@@ -341,7 +341,6 @@ impl Equal[Json] for Json {
 class pub Parser {
   let @input: Peekable[Int]
   let @offset: Int
-  let @size: Int
   let @line: Int
   let @depth: Int
   let @buffer: ByteArray
@@ -361,7 +360,6 @@ class pub Parser {
     Parser {
       @input = input.bytes.peekable,
       @offset = -1,
-      @size = input.size,
       @line = 1,
       @depth = 0,
       @max_depth = 100,
