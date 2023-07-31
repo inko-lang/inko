@@ -1526,12 +1526,9 @@ impl<'a> CheckMethodBody<'a> {
                 continue;
             };
 
-            if !field_id.is_public(self.db())
-                && class.module(self.db()) != self.module
-            {
-                self.state.diagnostics.error(
-                    DiagnosticId::InvalidSymbol,
-                    format!("The field '{}' is private", name),
+            if !field_id.is_visible_to(self.db(), self.module) {
+                self.state.diagnostics.private_field(
+                    name,
                     self.file(),
                     node.location.clone(),
                 );
