@@ -51,8 +51,8 @@ jobs:
           key: ubuntu-1.68
       - name: Installing Rust
         run: ./scripts/rust.sh 1.68
-      - name: Installing LLVM
-        run: ./scripts/llvm.sh ubuntu
+      - name: Installing dependencies
+        run: sudo ./scripts/deps.sh ubuntu:latest
       - name: Installing clippy
         run: rustup component add clippy
       - run: 'cargo clippy -- -D warnings'

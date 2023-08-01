@@ -24,10 +24,10 @@ jobs:
             ${{ env.CARGO_HOME }}
             target
           key: mac-${{ matrix.version }}
+      - name: Installing dependencies
+        run: ./scripts/deps.sh mac
       - name: Installing Rust
         run: ./scripts/rust.sh ${{ matrix.version }}
-      - name: Installing LLVM
-        run: ./scripts/llvm.sh mac
       - name: Running tests
         run: cargo test
 
@@ -37,7 +37,6 @@ jobs:
       matrix:
         version:
           - '1.68'
-          - stable
     runs-on: macos-latest
     needs:
       - compiler
@@ -49,10 +48,10 @@ jobs:
             ${{ env.CARGO_HOME }}
             target
           key: mac-${{ matrix.version }}
+      - name: Installing dependencies
+        run: ./scripts/deps.sh mac
       - name: Installing Rust
         run: ./scripts/rust.sh ${{ matrix.version }}
-      - name: Installing LLVM
-        run: ./scripts/llvm.sh mac
       - name: Compiling
         run: cargo build
       - name: Running tests

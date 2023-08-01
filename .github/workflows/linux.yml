@@ -6,6 +6,8 @@ on:
 env:
   CARGO_HOME: ${{ github.workspace }}/.cargo-home
   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+  DEBIAN_FRONTEND: noninteractive
+  TZ: UTC
 
 jobs:
   compiler:
@@ -24,10 +26,10 @@ jobs:
             ${{ env.CARGO_HOME }}
             target
           key: ubuntu-${{ matrix.version }}
+      - name: Installing dependencies
+        run: sudo ./scripts/deps.sh ubuntu:latest
       - name: Installing Rust
         run: ./scripts/rust.sh ${{ matrix.version }}
-      - name: Installing LLVM
-        run: ./scripts/llvm.sh ubuntu
       - name: Running tests
         run: cargo test
 
@@ -37,8 +39,17 @@ jobs:
       matrix:
         version:
           - '1.68'
-          - stable
+        image:
+          - archlinux:latest
+          - debian:11
+          - debian:latest
+          - fedora:37
+          - fedora:latest
+          - ubuntu:20.04
+          - ubuntu:latest
     runs-on: ubuntu-latest
+    container:
+      image: ${{ matrix.image }}
     needs:
       - compiler
     steps:
@@ -48,11 +59,11 @@ jobs:
           path: |
             ${{ env.CARGO_HOME }}
             target
-          key: ubuntu-${{ matrix.version }}
+          key: ${{ matrix.image }}-${{ matrix.version }}
+      - name: Installing dependencies
+        run: ./scripts/deps.sh ${{ matrix.image }}
       - name: Installing Rust
         run: ./scripts/rust.sh ${{ matrix.version }}
-      - name: Installing LLVM
-        run: ./scripts/llvm.sh ubuntu
       - name: Compiling
         run: cargo build
       - name: Running tests

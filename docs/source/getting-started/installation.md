@@ -131,8 +131,7 @@ the case.
 
 There's no official package for Inko in the Alpine repositories.
 
-When building from source, the compiler requires the following dependencies to
-be installed:
+The compiler dependencies are installed as follows:
 
 ```bash
 sudo apk add build-base rust cargo llvm15 llvm15-dev llvm15-static git
@@ -141,33 +140,58 @@ sudo apk add build-base rust cargo llvm15 llvm15-dev llvm15-static git
 #### Arch
 
 Two AUR packages are provided: `inko` and `inko-git`. These can be installed
-using your favourite AUR wrapper:
+using your favourite AUR wrapper. For example, using
+[yay](https://github.com/Jguer/yay):
 
-=== "yay"
-    ```bash
-    yay -S inko
-    ```
-=== "pacaur"
-    ```bash
-    pacaur -S inko
-    ```
-=== "pikaur"
-    ```bash
-    pikaur -S inko
-    ```
-=== "Manually"
-    ```bash
-    git clone https://aur.archlinux.org/inko.git
-    cd inko
-    makepkg -si
-    ```
+```bash
+yay -S inko
+```
 
-When building from source, the compiler requires the following dependencies to
-be installed:
+Or manually:
+
+```bash
+git clone https://aur.archlinux.org/inko.git
+cd inko
+makepkg -si
+```
+
+The compiler dependencies are installed as follows:
 
 ```bash
 sudo pacman -Sy llvm rust git base-devel
 ```
+
+#### Debian
+
+There's no official package for Inko in the Debian repositories.
+
+For Debian 12, the compiler dependencies are installed as follows:
+
+```bash
+sudo apt-get install --yes rustc cargo git build-essential llvm-15 llvm-15-dev \
+    libstdc++-11-dev libclang-common-15-dev zlib1g-dev
+```
+
+For Debian 11, the process is a little different as the provided version of
+LLVM is too old. Installing the necessary dependencies is done as follows:
+
+```bash
+curl https://apt.llvm.org/llvm-snapshot.gpg.key | \
+    sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+sudo add-apt-repository \
+    "deb http://apt.llvm.org/bullseye/ llvm-toolchain-bullseye-15 main"
+sudo apt-get update
+```
+
+Now we can install the necessary dependencies:
+
+```bash
+sudo apt-get install --yes git build-essential llvm-15 llvm-15-dev \
+    libstdc++-10-dev libclang-common-15-dev zlib1g-dev libpolly-15-dev
+```
+
+The version of Rust provided by Debian 11 is also too old, so you'll need to use
+[rustup](https://rustup.rs/) to install the required Rust version.
 
 #### Fedora
 
@@ -181,23 +205,52 @@ sudo dnf copr enable yorickpeterse/inko
 sudo dnf install inko
 ```
 
-When building from source, the compiler requires the following dependencies to
-be installed:
+For version 38 and newer, the compiler dependencies are installed as follows:
 
 ```bash
-sudo dnf install gcc make rust cargo llvm15 llvm15-devel llvm15-static libstdc++-devel libstdc++-static libffi-devel zlib-devel git
+sudo dnf install gcc make rust cargo llvm15 llvm15-devel llvm15-static \
+    libstdc++-devel libstdc++-static libffi-devel zlib-devel git
+```
+
+For version 37, the compiler dependencies are instead installed as follows (note
+the different LLVM package names):
+
+```bash
+sudo dnf install gcc make rust cargo llvm llvm-devel llvm-static \
+    libstdc++-devel libstdc++-static libffi-devel zlib-devel git
 ```
 
 #### Ubuntu
 
 There's no official package for Inko in the Ubuntu repositories.
 
-When building from source, the compiler requires the following dependencies to
-be installed:
+For Ubuntu 22.04, the compiler dependencies are installed as follows:
 
 ```bash
-sudo apt-get install --yes rustc cargo git build-essential llvm-15 llvm-15-dev libstdc++-11-dev libclang-common-15-dev zlib1g-dev
+sudo apt-get install --yes rustc cargo git build-essential llvm-15 llvm-15-dev \
+    libstdc++-11-dev libclang-common-15-dev zlib1g-dev
 ```
+
+For Ubuntu 20.04, the process is a little different as the provided version of
+LLVM is too old. Installing the necessary dependencies is done as follows:
+
+```bash
+curl https://apt.llvm.org/llvm-snapshot.gpg.key | \
+    sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+sudo add-apt-repository \
+    "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-15 main"
+sudo apt-get update
+```
+
+Now we can install the necessary dependencies:
+
+```bash
+sudo apt-get install --yes git build-essential llvm-15 llvm-15-dev \
+    libstdc++-10-dev libclang-common-15-dev zlib1g-dev libpolly-15-dev
+```
+
+The version of Rust provided by 20.04 is also too old, so you'll need to use
+[rustup](https://rustup.rs/) to install the required Rust version.
 
 ### macOS
 
@@ -236,11 +289,10 @@ export LIBRARY_PATH="$(brew --prefix llvm@15)/lib"
 
 There's no official package for Inko available on FreeBSD.
 
-When building from source, the compiler requires the following dependencies to
-be installed:
+The compiler dependencies are installed as follows:
 
 ```bash
-sudo pkg install llvm15 rust
+sudo pkg install llvm15 rust git
 ```
 
 To build from source, run the following command:

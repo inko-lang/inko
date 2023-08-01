@@ -57,8 +57,15 @@ pub(crate) fn link(
         cmd.arg(path);
     }
 
+    let rt_path = runtime_library(&state.config).ok_or_else(|| {
+        format!("No runtime is available for target '{}'", state.config.target)
+    })?;
+
+    cmd.arg(&rt_path);
+
     // Include any extra platform specific libraries, such as libm on the
-    // various Unix platforms.
+    // various Unix platforms. These must come _after_ any object files and
+    // the runtime library path.
     //
     // macOS includes libm in the standard C library, so there's no need to
     // explicitly include it.
@@ -70,7 +77,14 @@ pub(crate) fn link(
     // details.
     match state.config.target.os {
         OperatingSystem::Linux => {
+            // Certain versions of Linux (e.g. Debian 11) also need libdl and
+            // libpthread to be linked in explicitly. We use the --as-needed
+            // flag here (supported by both gcc and clang) to only link these
+            // libraries if actually needed.
+            cmd.arg("-Wl,--as-needed");
+            cmd.arg("-ldl");
             cmd.arg("-lm");
+            cmd.arg("-lpthread");
         }
         OperatingSystem::Freebsd => {
             cmd.arg("-lm");
@@ -129,12 +143,6 @@ pub(crate) fn link(
             cmd.arg("-fuse-ld=lld");
         }
     }
-
-    let rt_path = runtime_library(&state.config).ok_or_else(|| {
-        format!("No runtime is available for target '{}'", state.config.target)
-    })?;
-
-    cmd.arg(&rt_path);
 
     cmd.stdin(Stdio::null());
     cmd.stderr(Stdio::piped());
