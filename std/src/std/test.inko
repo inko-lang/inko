@@ -539,10 +539,17 @@ class pub Tests {
 
       if code == 101 { return }
 
-      test.failures.push(Failure.new(
-        "the process exited with status {code}",
-        'the process to panic with exit status 101'
-      ))
+      # These tests run in a separate OS process, and `debug.stacktrace` won't
+      # include any frames pointing to the unit tests's source file. To work
+      # around that, we reuse the test's location.
+      let failure = Failure {
+        @got = "the process exited with status {code}",
+        @expected = 'the process to panic with exit status 101',
+        @path = test.path.clone,
+        @line = test.line,
+      }
+
+      test.failures.push(failure)
     }
   }
 
