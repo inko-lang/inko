@@ -583,7 +583,7 @@ impl Array if T: mut {
   #
   #     [].last_mut       # => Option.None
   #     [10, 20].last_mut # => Option.Some(20)
-  fn pub mut last_mut -> Option[ref T] {
+  fn pub mut last_mut -> Option[mut T] {
     opt_mut(size - 1)
   }
 
