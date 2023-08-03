@@ -1,6 +1,6 @@
 # An ordered, integer-indexed generic collection of values.
 import std.clone.Clone
-import std.cmp.(Compare, Contains, Equal, Ordering, min)
+import std.cmp.(Compare, Contains, Equal, Ordering, max, min)
 import std.drop.Drop
 import std.fmt.(Format, Formatter)
 import std.hash.(Hash, Hasher)
@@ -88,7 +88,7 @@ fn merge_sort[T: Compare[T]](
 fn pub bounds_check(index: Int, size: Int) {
   if index >= 0 and index < size { return }
 
-  _INKO.panic("The index {index} is out of bounds (size: {size})")
+  panic("The index {index} is out of bounds (size: {size})")
 }
 
 # An ordered, integer-indexed generic collection of values.
@@ -149,6 +149,21 @@ class builtin Array[T] {
     array
   }
 
+  # Reserves space for `size` additional values.
+  #
+  # The actual space reserved may be greater to prevent frequent reallocations.
+  # After calling this method, the capacity will be greater than or equal to
+  # `self.size + size`.
+  #
+  # If the capacity is great enough or the given size is less than zero, this
+  # method does nothing.
+  fn pub mut reserve(size: Int) {
+    if @capacity - @size >= size { return }
+
+    @capacity = max(@capacity * 2, @capacity + size)
+    @buffer = alloc_imp.resize(@buffer, @capacity * VALUE_SIZE)
+  }
+
   # Removes all values in the Array.
   #
   # # Examples
@@ -179,7 +194,7 @@ class builtin Array[T] {
   #     array.push(10) # => Nil
   #     array[0]       # => 10
   fn pub mut push(value: T) {
-    grow_buffer
+    reserve(1)
     write_to(@size, value)
     @size += 1
   }
@@ -496,6 +511,58 @@ class builtin Array[T] {
     opt(size - 1)
   }
 
+  # Inserts the value at the given index, shifting all values after it to the
+  # right.
+  #
+  # # Panics
+  #
+  # This method panics if the index is less than zero, or greater than the
+  # number of values in `self`.
+  #
+  # # Examples
+  #
+  # Inserting a value at the start:
+  #
+  #     let nums = [10, 20]
+  #
+  #     nums.insert(0, 30)
+  #     nums # => [30, 10, 20]
+  #
+  # Inserting a value at the end:
+  #
+  #     let nums = [10, 20]
+  #
+  #     nums.insert(2, 30)
+  #     nums # => [10, 20, 30]
+  fn pub mut insert(index: Int, value: T) {
+    if index < 0 or index > @size {
+      panic("The index {index} is out of bounds (size: {@size})")
+    }
+
+    reserve(1)
+
+    # Shift to the right if the insertion isn't at the end of the array. If we
+    # have values like this:
+    #
+    #     [A, B, C, D]
+    #
+    # And we want to insert at the index of B (index 1), this results in the
+    # following values:
+    #
+    #     [A, B, B, C, D]
+    #
+    # We can then overwrite index 1 with the value to insert.
+    if index < @size {
+      let from = address_of(index) as Pointer[UInt8]
+      let to = address_of(index + 1) as Pointer[UInt8]
+
+      alloc_imp.copy(from, to, size: @size - index * VALUE_SIZE)
+    }
+
+    write_to(index, value)
+    @size += 1
+  }
+
   fn to_pointer -> Pointer[UInt8] {
     @buffer
   }
@@ -518,13 +585,6 @@ class builtin Array[T] {
 
   fn address_of(index: Int) -> Pointer[UInt64] {
     @buffer as Int + (index * VALUE_SIZE) as Pointer[UInt64]
-  }
-
-  fn mut grow_buffer {
-    if @capacity > @size { return }
-
-    @capacity = if @capacity == 0 { START_CAPACITY } else { @capacity * 2 }
-    @buffer = alloc_imp.resize(@buffer, @capacity * VALUE_SIZE)
   }
 }
 

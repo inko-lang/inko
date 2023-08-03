@@ -307,6 +307,75 @@ fn pub tests(t: mut Tests) {
     t.equal([10, 20].last_mut, Option.Some(20))
   }
 
+  t.test('Array.reserve') fn (t) {
+    let vals: Array[Int] = []
+
+    t.equal(vals.capacity, 0)
+
+    vals.reserve(2)
+    t.equal(vals.capacity, 2)
+  }
+
+  t.test('Array.reserve with a size of zero') fn (t) {
+    let vals = [10]
+
+    vals.reserve(0)
+    t.equal(vals.capacity, 1)
+  }
+
+  t.test('Array.reserve with a negative size') fn (t) {
+    let a = [10]
+    let b: Array[Int] = []
+
+    a.reserve(-1)
+    b.reserve(-1)
+    t.equal(a.capacity, 1)
+    t.equal(b.capacity, 0)
+  }
+
+  t.test('Array.reserve with enough remaining capacity') fn (t) {
+    let vals = [10]
+
+    vals.reserve(4)
+    vals.reserve(4)
+    t.equal(vals.capacity, 5)
+  }
+
+  t.test('Array.reserve with a small extra size') fn (t) {
+    let vals = [10, 20, 30, 40]
+
+    vals.reserve(1)
+    t.equal(vals.capacity, 8)
+  }
+
+  t.test('Array.insert') fn (t) {
+    let vals = []
+
+    vals.insert(0, 10)
+    t.equal(vals, [10])
+
+    vals.insert(0, 20)
+    t.equal(vals, [20, 10])
+
+    vals.insert(1, 30)
+    t.equal(vals, [20, 30, 10])
+
+    vals.insert(3, 100)
+    t.equal(vals, [20, 30, 10, 100])
+  }
+
+  t.panic('Array.insert with an invalid positive index') fn {
+    let vals = [10]
+
+    vals.insert(5, 20)
+  }
+
+  t.panic('Array.insert with an invalid negative index') fn {
+    let vals = [10]
+
+    vals.insert(-5, 20)
+  }
+
   t.test('IntoIter.next') fn (t) {
     let vals = [10, 20].into_iter
 
