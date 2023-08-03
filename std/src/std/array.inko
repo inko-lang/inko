@@ -486,6 +486,16 @@ class builtin Array[T] {
     }
   }
 
+  # Returns an immutable reference to the last value in `self`.
+  #
+  # # Examples
+  #
+  #     [].last       # => Option.None
+  #     [10, 20].last # => Option.Some(20)
+  fn pub last -> Option[ref T] {
+    opt(size - 1)
+  }
+
   fn to_pointer -> Pointer[UInt8] {
     @buffer
   }
@@ -564,6 +574,17 @@ impl Array if T: mut {
     Stream.new fn move {
       if idx < max { Option.Some(get_mut(idx := idx + 1)) } else { Option.None }
     }
+  }
+
+
+  # Returns a mutable reference to the last value in `self`.
+  #
+  # # Examples
+  #
+  #     [].last_mut       # => Option.None
+  #     [10, 20].last_mut # => Option.Some(20)
+  fn pub mut last_mut -> Option[ref T] {
+    opt_mut(size - 1)
   }
 
   fn mut get_unchecked_mut(index: Int) -> mut T {
