@@ -415,10 +415,16 @@ class builtin String {
   #
   #     'a'.repeat(4) # => 'aaaa'
   fn pub repeat(times: Int) -> String {
-    let buf = StringBuffer.new
+    match times {
+      case 0 -> ''
+      case 1 -> self
+      case _ -> {
+        let buf = StringBuffer.new
 
-    times.times fn (_) { buf.push(clone) }
-    buf.into_string
+        times.times fn (_) { buf.push(clone) }
+        buf.into_string
+      }
+    }
   }
 
   # Returns an iterator over the characters (= extended grapheme clusters) in
