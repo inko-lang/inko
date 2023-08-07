@@ -172,7 +172,9 @@ class pub Error {
 
 impl Equal[Error] for Error {
   fn pub ==(other: ref Error) -> Bool {
-    @message == other.message and @line == other.line
+    @message == other.message
+      and @line == other.line
+      and @offset == other.offset
   }
 }
 
