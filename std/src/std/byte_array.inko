@@ -243,26 +243,6 @@ class builtin ByteArray {
     inko_byte_array_drain_to_string(_INKO.state, self)
   }
 
-  # Slices `self` into a new `ByteArray`.
-  #
-  # Similar to slicing a `String`, slicing a `ByteArray` allows one to extract
-  # a sub-array by providing a start position and the number of _bytes_ to
-  # include starting at the start position.
-  #
-  # # Examples
-  #
-  # Slicing a `ByteArray`:
-  #
-  #     let bytes = ByteArray.from_array([1, 2, 3, 4])
-  #     let sliced = bytes.slice(start: 1, size: 2)
-  #
-  #     sliced[0] # => 2
-  #     sliced[1] # => 3
-  fn pub slice(start: Int, size: Int) -> ByteArray {
-    bounds_check(start, self.size)
-    inko_byte_array_slice(_INKO.state, self, start, size)
-  }
-
   # Returns the byte at the given index, returning None if the index is out of
   # bounds.
   #
@@ -442,6 +422,26 @@ impl Bytes for ByteArray {
   #     ByteArray.from_array([10]).size # => 1
   fn pub size -> Int {
     inko_byte_array_size(_INKO.state, self)
+  }
+
+  # Slices `self` into a new `ByteArray`.
+  #
+  # Similar to slicing a `String`, slicing a `ByteArray` allows one to extract
+  # a sub-array by providing a start position and the number of _bytes_ to
+  # include starting at the start position.
+  #
+  # # Examples
+  #
+  # Slicing a `ByteArray`:
+  #
+  #     let bytes = ByteArray.from_array([1, 2, 3, 4])
+  #     let sliced = bytes.slice(start: 1, size: 2)
+  #
+  #     sliced[0] # => 2
+  #     sliced[1] # => 3
+  fn pub slice(start: Int, size: Int) -> ByteArray {
+    bounds_check(start, self.size)
+    inko_byte_array_slice(_INKO.state, self, start, size)
   }
 
   # Returns a raw pointer to the bytes of `self`.

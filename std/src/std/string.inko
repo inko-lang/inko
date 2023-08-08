@@ -105,7 +105,7 @@ fn padding(string: String, chars: Int, pad_to: Int) -> String {
   if pad.chars.count > pad_size {
     # In case the `with` value contains multiple characters, we may need to
     # truncate the padding to produce the correct final size.
-    pad.slice(start: 0, chars: pad_size)
+    pad.substring(start: 0, chars: pad_size)
   } else {
     pad
   }
@@ -141,6 +141,9 @@ trait pub Bytes {
 
   # Returns the number of bytes in `self`.
   fn pub size -> Int
+
+  # Slices `self` into a sub sequence of bytes, using a byte range.
+  fn pub slice(start: Int, size: Int) -> ByteArray
 
   # Returns a raw pointer to the bytes of `self`
   #
@@ -230,7 +233,8 @@ class builtin String {
     inko_string_to_lower(_INKO.state, self)
   }
 
-  # Slices `self` into a substring.
+  # Slices `self` into a substring, using a range of _characters_ and _not_
+  # bytes.
   #
   # Slicing a string allows one to extract a substring by providing a start
   # position and the number of characters. If the index is out of bounds, an
@@ -238,9 +242,9 @@ class builtin String {
   #
   # # Examples
   #
-  #     'hello_world'.slice(start: 0, chars: 5)   # => 'hello'
-  #     'hello_world'.slice(start: 0, chars: 100) # => 'hello_world'
-  fn pub slice(start: Int, chars: Int) -> String {
+  #     'hello_world'.substring(start: 0, chars: 5)   # => 'hello'
+  #     'hello_world'.substring(start: 0, chars: 100) # => 'hello_world'
+  fn pub substring(start: Int, chars: Int) -> String {
     let buff = StringBuffer.new
 
     self.chars.each_with_index fn (index, char) {
@@ -248,21 +252,6 @@ class builtin String {
     }
 
     buff.into_string
-  }
-
-  # Slices `self` into a substring using a _byte_ range.
-  #
-  # Whereas `String.slice` operates on a range of characters, this method
-  # operates on a range of _bytes_.
-  #
-  # # Examples
-  #
-  # Slicing a string using a valid range:
-  #
-  #     '😊'.slice_bytes(start: 0, size: 4) # => '😊'.to_byte_array
-  #     '😊'.slice_bytes(start: 0, size: 3) # => "\u{FFFD}".to_byte_array
-  fn pub slice_bytes(start: Int, size: Int) -> ByteArray {
-    inko_string_slice_bytes(_INKO.state, self, start, size)
   }
 
   # Returns the _byte_ index of the first occurrence of the given `String`,
@@ -357,14 +346,14 @@ class builtin String {
         case Some(at) -> {
           let start = offset := at + separator.size
 
-          Option.Some(slice_bytes(start: start, size: at - start).into_string)
+          Option.Some(slice(start: start, size: at - start).into_string)
         }
         case _ if offset < size -> {
           # No separator found, but we haven't reached the end of the String
           # yet. In this case we return the remaining String.
           let at = offset := size
 
-          Option.Some(slice_bytes(start: at, size: size - at).into_string)
+          Option.Some(slice(start: at, size: size - at).into_string)
         }
         case _ -> Option.None
       }
@@ -443,7 +432,7 @@ class builtin String {
   fn pub strip_prefix(prefix: String) -> String {
     if starts_with?(prefix).false? { return clone }
 
-    slice_bytes(start: prefix.size, size: size - prefix.size).into_string
+    slice(start: prefix.size, size: size - prefix.size).into_string
   }
 
   # Returns a new `String` without the given suffix.
@@ -454,7 +443,7 @@ class builtin String {
   fn pub strip_suffix(suffix: String) -> String {
     if ends_with?(suffix).false? { return clone }
 
-    slice_bytes(start: 0, size: size - suffix.size).into_string
+    slice(start: 0, size: size - suffix.size).into_string
   }
 
   # Returns a new `String` without any leading whitespace.
@@ -471,7 +460,7 @@ class builtin String {
       if whitespace?(byte(index)) { index += 1 } else { break }
     }
 
-    slice_bytes(start: index, size: size - index).into_string
+    slice(start: index, size: size - index).into_string
   }
 
   # Returns a new `String` without any trailing whitespace.
@@ -487,7 +476,7 @@ class builtin String {
       if whitespace?(byte(index)) { index -= 1 } else { break }
     }
 
-    slice_bytes(start: 0, size: index + 1).into_string
+    slice(start: 0, size: index + 1).into_string
   }
 
   # Returns a new `String` with both leading and trailing whitespace removed.
@@ -509,7 +498,7 @@ class builtin String {
       if whitespace?(byte(end)) { end -= 1 } else { break }
     }
 
-    slice_bytes(start: start, size: end + 1 - start).into_string
+    slice(start: start, size: end + 1 - start).into_string
   }
 
   # Returns a copy of `self` with all special characters escaped.
@@ -592,6 +581,21 @@ impl Bytes for String {
   #     '😀'.size  # => 4
   fn pub size -> Int {
     @size as Int
+  }
+
+  # Slices `self` into a substring using a _byte_ range.
+  #
+  # Whereas `String.slice` operates on a range of characters, this method
+  # operates on a range of _bytes_.
+  #
+  # # Examples
+  #
+  # Slicing a string using a valid range:
+  #
+  #     '😊'.slice_bytes(start: 0, size: 4) # => '😊'.to_byte_array
+  #     '😊'.slice_bytes(start: 0, size: 3) # => "\u{FFFD}".to_byte_array
+  fn pub slice(start: Int, size: Int) -> ByteArray {
+    inko_string_slice_bytes(_INKO.state, self, start, size)
   }
 
   # Returns a raw pointer to the bytes of `self`.

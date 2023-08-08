@@ -33,29 +33,29 @@ fn pub tests(t: mut Tests) {
     t.equal('foo'.byte(1), 111)
   }
 
-  t.test('String.slice') fn (t) {
-    t.equal('hello_world'.slice(start: 0, chars: 5), 'hello')
-    t.equal('hello_world'.slice(start: 3, chars: 5), 'lo_wo')
-    t.equal('hello_world'.slice(start: 0, chars: 20), 'hello_world')
-    t.equal('🇳🇱'.slice(start: 0, chars: 1), '🇳🇱')
+  t.test('String.substring') fn (t) {
+    t.equal('hello_world'.substring(start: 0, chars: 5), 'hello')
+    t.equal('hello_world'.substring(start: 3, chars: 5), 'lo_wo')
+    t.equal('hello_world'.substring(start: 0, chars: 20), 'hello_world')
+    t.equal('🇳🇱'.substring(start: 0, chars: 1), '🇳🇱')
   }
 
-  t.test('String.slice_bytes') fn (t) {
-    t.equal('hello_world'.slice_bytes(start: 0, size: 5), 'hello'.to_byte_array)
+  t.test('String.slice') fn (t) {
+    t.equal('hello_world'.slice(start: 0, size: 5), 'hello'.to_byte_array)
     t.equal(
-      'hello_world'.slice_bytes(start: 0, size: 20),
+      'hello_world'.slice(start: 0, size: 20),
       'hello_world'.to_byte_array
     )
 
     t.equal(
-      '→foo'.slice_bytes(start: 0, size: 2),
+      '→foo'.slice(start: 0, size: 2),
       ByteArray.from_array([226, 134])
     )
 
-    t.equal('→foo'.slice_bytes(start: 0, size: 6), '→foo'.to_byte_array)
-    t.equal('→foo'.slice_bytes(start: 0, size: 3), '→'.to_byte_array)
-    t.equal('foo'.slice_bytes(start: 42, size: 50), ''.to_byte_array)
-    t.equal('foo'.slice_bytes(start: -5, size: 50), ''.to_byte_array)
+    t.equal('→foo'.slice(start: 0, size: 6), '→foo'.to_byte_array)
+    t.equal('→foo'.slice(start: 0, size: 3), '→'.to_byte_array)
+    t.equal('foo'.slice(start: 42, size: 50), ''.to_byte_array)
+    t.equal('foo'.slice(start: -5, size: 50), ''.to_byte_array)
   }
 
   t.test('String.byte_index') fn (t) {
