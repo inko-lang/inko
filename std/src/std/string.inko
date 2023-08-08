@@ -29,7 +29,7 @@ fn extern inko_string_slice_bytes(
   string: String,
   start: Int,
   size: Int,
-) -> String
+) -> ByteArray
 
 fn extern inko_string_chars(string: String) -> Pointer[UInt8]
 fn extern inko_string_chars_next(
@@ -253,17 +253,15 @@ class builtin String {
   # Slices `self` into a substring using a _byte_ range.
   #
   # Whereas `String.slice` operates on a range of characters, this method
-  # operates on a range of _bytes_. If the range is such that the new slice
-  # contains invalid UTF-8, the invalid sequences are replaced with
-  # U+FFFD REPLACEMENT CHARACTER.
+  # operates on a range of _bytes_.
   #
   # # Examples
   #
   # Slicing a string using a valid range:
   #
-  #     '😊'.slice_bytes(start: 0, size: 4) # => '😊'
-  #     '😊'.slice_bytes(start: 0, size: 3) # => "\u{FFFD}"
-  fn pub slice_bytes(start: Int, size: Int) -> String {
+  #     '😊'.slice_bytes(start: 0, size: 4) # => '😊'.to_byte_array
+  #     '😊'.slice_bytes(start: 0, size: 3) # => "\u{FFFD}".to_byte_array
+  fn pub slice_bytes(start: Int, size: Int) -> ByteArray {
     inko_string_slice_bytes(_INKO.state, self, start, size)
   }
 

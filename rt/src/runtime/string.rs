@@ -152,17 +152,16 @@ pub unsafe extern "system" fn inko_string_slice_bytes(
     string: *const InkoString,
     start: i64,
     length: i64,
-) -> *const InkoString {
+) -> *const ByteArray {
     let string = InkoString::read(string);
     let end = min((start + length) as usize, string.len());
-    let new_string = if start < 0 || length <= 0 || start as usize >= end {
-        String::new()
+    let bytes = if start < 0 || length <= 0 || start as usize >= end {
+        Vec::new()
     } else {
-        String::from_utf8_lossy(&string.as_bytes()[start as usize..end])
-            .into_owned()
+        string.as_bytes()[start as usize..end].to_vec()
     };
 
-    InkoString::alloc((*state).string_class, new_string)
+    ByteArray::alloc((*state).byte_array_class, bytes)
 }
 
 #[no_mangle]
