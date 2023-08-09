@@ -1,5 +1,5 @@
+import std.fmt.(fmt)
 import std.test.Tests
-import helpers.(fmt)
 
 fn pub tests(t: mut Tests) {
   t.test('Nil.==') fn (t) {

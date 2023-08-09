@@ -1,4 +1,5 @@
-import helpers.(fmt, hash)
+import helpers.(hash)
+import std.fmt.(fmt)
 import std.range.(ExclusiveRange, InclusiveRange)
 import std.test.Tests
 

@@ -1,6 +1,6 @@
 import std.drop.(drop)
 import std.env
-import std.fmt.(DefaultFormatter, Format, Formatter)
+import std.fmt.(Format, Formatter)
 import std.fs.path.Path
 import std.hash.(Hash, Hasher)
 import std.hash.siphash.SipHasher13
@@ -10,13 +10,6 @@ fn pub hash(value: ref Hash) -> Int {
 
   value.hash(hasher)
   hasher.finish
-}
-
-fn pub fmt(value: ref Format) -> String {
-  let fmt: Formatter = DefaultFormatter.new
-
-  value.fmt(fmt)
-  fmt.into_string
 }
 
 fn pub compiler_path -> Path {

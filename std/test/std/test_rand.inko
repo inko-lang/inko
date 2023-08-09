@@ -1,4 +1,5 @@
-import helpers.(fmt, hash)
+import helpers.(hash)
+import std.fmt.(fmt)
 import std.rand.(Random, Shuffle)
 import std.test.Tests
 

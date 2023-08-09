@@ -1,5 +1,6 @@
-import helpers.(fmt, hash)
+import helpers.(hash)
 import std.cmp.Ordering
+import std.fmt.(fmt)
 import std.int.(Format, MAX, MIN)
 import std.test.Tests
 

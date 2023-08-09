@@ -1,4 +1,4 @@
-# Types for formatting objects in a human-readable manner.
+# Formatting of Inko values for debugging purposes.
 import std.string.(IntoString, StringBuffer)
 
 # The value to use for objects if the nesting is too great.
@@ -17,44 +17,23 @@ let MAX_DEPTH = 16
 #     fmt('hello') # => "hello"
 #     fmt([10, 20]) # => '[10, 20]'
 fn pub fmt[T: Format](value: ref T) -> String {
-  let formatter: Formatter = DefaultFormatter.new
+  let formatter = Formatter.new
 
   value.fmt(formatter)
   formatter.into_string
 }
 
-# A Formatter can be used to format an object for debugging purposes.
-trait pub Formatter: IntoString {
-  # Writes the given `String` into the underlying buffer.
-  fn pub mut write(string: String)
-
-  # Descends into a child object, running the supplied block if the object
-  # should be formatted.
-  #
-  # This method can be used to produce a placeholder when formatting an object
-  # that is too deeply nested.
-  fn pub mut descend(block: fn)
-}
-
 # The default formatter to use when formatting an object.
-class pub DefaultFormatter {
+class pub Formatter {
   let @buffer: StringBuffer
   let @nesting: Int
 
-  fn pub static new -> DefaultFormatter {
-    DefaultFormatter { @buffer = StringBuffer.new, @nesting = 0 }
+  # Returns a new `Formatter` with its default settings.
+  fn pub static new -> Formatter {
+    Formatter { @buffer = StringBuffer.new, @nesting = 0 }
   }
-}
 
-impl IntoString for DefaultFormatter {
-  # Returns a `String` containing the data pushed into this buffer so far.
-  fn pub move into_string -> String {
-    @buffer.into_string
-  }
-}
-
-impl Formatter for DefaultFormatter {
-  # Pushes a new `String` into the underlying buffer.
+  # Writes the given `String` into the underlying buffer.
   fn pub mut write(string: String) {
     @buffer.push(string)
   }
@@ -71,10 +50,15 @@ impl Formatter for DefaultFormatter {
     }
 
     @nesting += 1
-
     block.call
-
     @nesting -= 1
+  }
+}
+
+impl IntoString for Formatter {
+  # Moves `self` into a `String`, containing the formatted data.
+  fn pub move into_string -> String {
+    @buffer.into_string
   }
 }
 

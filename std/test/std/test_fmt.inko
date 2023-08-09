@@ -1,10 +1,10 @@
-import std.fmt.(DefaultFormatter, fmt)
+import std.fmt.(Formatter, fmt)
 import std.test.Tests
 
 fn pub tests(t: mut Tests) {
-  t.test('DefaultFormatter.descend') fn (t) {
-    let fmt1 = DefaultFormatter.new
-    let fmt2 = DefaultFormatter.new
+  t.test('Formatter.descend') fn (t) {
+    let fmt1 = Formatter.new
+    let fmt2 = Formatter.new
 
     fmt1.descend fn {
       fmt1.descend fn {
@@ -48,8 +48,8 @@ fn pub tests(t: mut Tests) {
     t.equal(fmt2.into_string, 'test')
   }
 
-  t.test('DefaultFormatter.write') fn (t) {
-    let fmt = DefaultFormatter.new
+  t.test('Formatter.write') fn (t) {
+    let fmt = Formatter.new
 
     fmt.write('test')
 

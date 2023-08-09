@@ -60,7 +60,7 @@
 import std.cmp.(Compare, Equal)
 import std.debug
 import std.env
-import std.fmt.(DefaultFormatter, Format, Formatter)
+import std.fmt.(Format, Formatter, fmt)
 import std.fs.path.Path
 import std.int.(Format as IntFormat)
 import std.io.Write
@@ -72,13 +72,6 @@ import std.time.(Duration, Instant)
 
 let CHILD_VAR = 'INKO_TEST_CHILD'
 let TEST_PREFIX = 'test_'
-
-fn format(value: ref Format) -> String {
-  let formatter: Formatter = DefaultFormatter.new
-
-  value.fmt(formatter)
-  formatter.into_string
-}
 
 # A single unit test.
 class pub Test {
@@ -126,21 +119,21 @@ class pub Test {
   fn pub mut equal[T: Equal[T] + Format](got: ref T, expected: ref T) {
     if got == expected { return }
 
-    @failures.push(Failure.new(format(got), format(expected)))
+    @failures.push(Failure.new(fmt(got), fmt(expected)))
   }
 
   # Asserts that the given arguments are not equal to each other.
   fn pub mut not_equal[T: Equal[T] + Format](got: ref T, expected: ref T) {
     if got != expected { return }
 
-    @failures.push(Failure.new(format(got), format(expected)))
+    @failures.push(Failure.new(fmt(got), fmt(expected)))
   }
 
   # Asserts that `got` is greater than `minimum`.
   fn pub mut greater[T: Compare[T] + Format](got: ref T, minimum: ref T) {
     if got > minimum { return }
 
-    @failures.push(Failure.new(format(got), "> {format(minimum)}"))
+    @failures.push(Failure.new(fmt(got), "> {fmt(minimum)}"))
   }
 
   # Asserts that the given value is `true`.

@@ -1,4 +1,5 @@
-import helpers.(fmt, hash)
+import helpers.(hash)
+import std.fmt.(fmt)
 import std.fs.path.Path
 import std.iter.EOF
 import std.test.Tests
