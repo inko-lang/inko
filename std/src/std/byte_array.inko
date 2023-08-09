@@ -543,14 +543,9 @@ impl Contains[Int] for ByteArray {
 
 impl Format for ByteArray {
   fn pub fmt(formatter: mut Formatter) {
-    formatter.write('[')
+    let fmt = formatter.array
 
-    iter.each_with_index fn (index, byte) {
-      if index > 0 { formatter.write(', ') }
-
-      formatter.write(byte.to_string)
-    }
-
-    formatter.write(']')
+    iter.each fn (byte) { fmt.value(byte) }
+    fmt.finish
   }
 }

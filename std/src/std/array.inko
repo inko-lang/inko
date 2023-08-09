@@ -734,15 +734,10 @@ impl Hash for Array if T: Hash {
 
 impl Format for Array if T: Format {
   fn pub fmt(formatter: mut Formatter) {
-    formatter.write('[')
+    let fmt = formatter.array
 
-    iter.each_with_index fn (index, value) {
-      if index > 0 { formatter.write(', ') }
-
-      value.fmt(formatter)
-    }
-
-    formatter.write(']')
+    iter.each fn (value) { fmt.value(value) }
+    fmt.finish
   }
 }
 

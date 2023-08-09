@@ -362,17 +362,9 @@ impl Equal[Filter] for Filter {
 impl Format for Filter {
   fn pub fmt(formatter: mut Formatter) {
     match self {
-      case Pattern(val) -> {
-        formatter.write('Pattern(')
-        val.fmt(formatter)
-        formatter.write(')')
-      }
-      case Location(path) -> {
-        formatter.write('Location(')
-        path.fmt(formatter)
-        formatter.write(')')
-      }
-      case None -> formatter.write('None')
+      case Pattern(val) -> formatter.tuple('Pattern').field(val).finish
+      case Location(path) -> formatter.tuple('Location').field(path).finish
+      case None -> formatter.tuple('None').finish
     }
   }
 }

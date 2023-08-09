@@ -180,7 +180,12 @@ impl Equal[Error] for Error {
 
 impl FormatTrait for Error {
   fn pub fmt(formatter: mut Formatter) {
-    formatter.write(to_string)
+    formatter
+      .object('Error')
+      .field('message', @message)
+      .field('line', @line)
+      .field('offset', @offset)
+      .finish
   }
 }
 
@@ -252,37 +257,13 @@ impl ToString for Json {
 impl FormatTrait for Json {
   fn pub fmt(formatter: mut Formatter) {
     match self {
-      case Int(val) -> {
-        formatter.write('Int(')
-        val.fmt(formatter)
-        formatter.write(')')
-      }
-      case Float(val) -> {
-        formatter.write('Float(')
-        val.fmt(formatter)
-        formatter.write(')')
-      }
-      case String(val) -> {
-        formatter.write('String(')
-        val.fmt(formatter)
-        formatter.write(')')
-      }
-      case Array(val) -> {
-        formatter.write('Array(')
-        val.fmt(formatter)
-        formatter.write(')')
-      }
-      case Object(val) -> {
-        formatter.write('Object(')
-        val.fmt(formatter)
-        formatter.write(')')
-      }
-      case Bool(val) -> {
-        formatter.write('Bool(')
-        val.fmt(formatter)
-        formatter.write(')')
-      }
-      case Null -> formatter.write('Null')
+      case Int(val) -> formatter.tuple('Int').field(val).finish
+      case Float(val) -> formatter.tuple('Float').field(val).finish
+      case String(val) -> formatter.tuple('String').field(val).finish
+      case Array(val) -> formatter.tuple('Array').field(val).finish
+      case Object(val) -> formatter.tuple('Object').field(val).finish
+      case Bool(val) -> formatter.tuple('Bool').field(val).finish
+      case Null -> formatter.tuple('Null').finish
     }
   }
 }

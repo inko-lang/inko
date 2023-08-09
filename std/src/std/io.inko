@@ -214,7 +214,7 @@ impl ToString for Error {
 
 impl Format for Error {
   fn pub fmt(formatter: mut Formatter) {
-    let string = match self {
+    let name = match self {
       case AddressInUse -> 'AddressInUse'
       case AddressUnavailable -> 'AddressUnavailable'
       case AlreadyConnected -> 'AlreadyConnected'
@@ -246,14 +246,12 @@ impl Format for Error {
       case TimedOut -> 'TimedOut'
       case WouldBlock -> 'WouldBlock'
       case Other(code) -> {
-        formatter.write('Other(')
-        code.fmt(formatter)
-        formatter.write(')')
+        formatter.tuple('Other').field(code).finish
         return
       }
     }
 
-    formatter.write(string)
+    formatter.tuple(name).finish
   }
 }
 

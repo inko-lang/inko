@@ -239,12 +239,8 @@ impl Clone[Option[T]] for Option if T: Clone[T] {
 impl Format for Option if T: Format {
   fn pub fmt(formatter: mut Formatter) {
     match self {
-      case Some(v) -> {
-        formatter.write('Some(')
-        v.fmt(formatter)
-        formatter.write(')')
-      }
-      case None -> formatter.write('None')
+      case Some(v) -> formatter.tuple('Some').field(v).finish
+      case None -> formatter.tuple('None').finish
     }
   }
 }

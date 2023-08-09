@@ -64,9 +64,7 @@ impl Clone[Tuple1[A]] for Tuple1 if A: Clone[A] {
 
 impl Format for Tuple1 if A: Format {
   fn pub fmt(formatter: mut Formatter) {
-    formatter.write('(')
-    @0.fmt(formatter)
-    formatter.write(')')
+    formatter.tuple('').field(@0).finish
   }
 }
 
@@ -97,11 +95,7 @@ impl Clone[Tuple2[A, B]] for Tuple2 if A: Clone[A], B: Clone[B] {
 
 impl Format for Tuple2 if A: Format, B: Format {
   fn pub fmt(formatter: mut Formatter) {
-    formatter.write('(')
-    @0.fmt(formatter)
-    formatter.write(', ')
-    @1.fmt(formatter)
-    formatter.write(')')
+    formatter.tuple('').field(@0).field(@1).finish
   }
 }
 
@@ -137,13 +131,7 @@ impl Clone[Tuple3[A, B, C]] for Tuple3 if A: Clone[A], B: Clone[B], C: Clone[C] 
 
 impl Format for Tuple3 if A: Format, B: Format, C: Format {
   fn pub fmt(formatter: mut Formatter) {
-    formatter.write('(')
-    @0.fmt(formatter)
-    formatter.write(', ')
-    @1.fmt(formatter)
-    formatter.write(', ')
-    @2.fmt(formatter)
-    formatter.write(')')
+    formatter.tuple('').field(@0).field(@1).field(@2).finish
   }
 }
 
@@ -184,15 +172,7 @@ if
 
 impl Format for Tuple4 if A: Format, B: Format, C: Format, D: Format {
   fn pub fmt(formatter: mut Formatter) {
-    formatter.write('(')
-    @0.fmt(formatter)
-    formatter.write(', ')
-    @1.fmt(formatter)
-    formatter.write(', ')
-    @2.fmt(formatter)
-    formatter.write(', ')
-    @3.fmt(formatter)
-    formatter.write(')')
+    formatter.tuple('').field(@0).field(@1).field(@2).field(@3).finish
   }
 }
 
@@ -242,17 +222,7 @@ if
   A: Format, B: Format, C: Format, D: Format, E: Format
 {
   fn pub fmt(formatter: mut Formatter) {
-    formatter.write('(')
-    @0.fmt(formatter)
-    formatter.write(', ')
-    @1.fmt(formatter)
-    formatter.write(', ')
-    @2.fmt(formatter)
-    formatter.write(', ')
-    @3.fmt(formatter)
-    formatter.write(', ')
-    @4.fmt(formatter)
-    formatter.write(')')
+    formatter.tuple('').field(@0).field(@1).field(@2).field(@3).field(@4).finish
   }
 }
 
@@ -306,19 +276,15 @@ if
   A: Format, B: Format, C: Format, D: Format, E: Format, F: Format
 {
   fn pub fmt(formatter: mut Formatter) {
-    formatter.write('(')
-    @0.fmt(formatter)
-    formatter.write(', ')
-    @1.fmt(formatter)
-    formatter.write(', ')
-    @2.fmt(formatter)
-    formatter.write(', ')
-    @3.fmt(formatter)
-    formatter.write(', ')
-    @4.fmt(formatter)
-    formatter.write(', ')
-    @5.fmt(formatter)
-    formatter.write(')')
+    formatter
+      .tuple('')
+      .field(@0)
+      .field(@1)
+      .field(@2)
+      .field(@3)
+      .field(@4)
+      .field(@5)
+      .finish
   }
 }
 
@@ -384,21 +350,16 @@ if
   A: Format, B: Format, C: Format, D: Format, E: Format, F: Format, G: Format
 {
   fn pub fmt(formatter: mut Formatter) {
-    formatter.write('(')
-    @0.fmt(formatter)
-    formatter.write(', ')
-    @1.fmt(formatter)
-    formatter.write(', ')
-    @2.fmt(formatter)
-    formatter.write(', ')
-    @3.fmt(formatter)
-    formatter.write(', ')
-    @4.fmt(formatter)
-    formatter.write(', ')
-    @5.fmt(formatter)
-    formatter.write(', ')
-    @6.fmt(formatter)
-    formatter.write(')')
+    formatter
+      .tuple('')
+      .field(@0)
+      .field(@1)
+      .field(@2)
+      .field(@3)
+      .field(@4)
+      .field(@5)
+      .field(@6)
+      .finish
   }
 }
 
@@ -478,22 +439,16 @@ if
   H: Format
 {
   fn pub fmt(formatter: mut Formatter) {
-    formatter.write('(')
-    @0.fmt(formatter)
-    formatter.write(', ')
-    @1.fmt(formatter)
-    formatter.write(', ')
-    @2.fmt(formatter)
-    formatter.write(', ')
-    @3.fmt(formatter)
-    formatter.write(', ')
-    @4.fmt(formatter)
-    formatter.write(', ')
-    @5.fmt(formatter)
-    formatter.write(', ')
-    @6.fmt(formatter)
-    formatter.write(', ')
-    @7.fmt(formatter)
-    formatter.write(')')
+    formatter
+      .tuple('')
+      .field(@0)
+      .field(@1)
+      .field(@2)
+      .field(@3)
+      .field(@4)
+      .field(@5)
+      .field(@6)
+      .field(@7)
+      .finish
   }
 }

@@ -1,6 +1,13 @@
 import std.fmt.(Formatter, fmt)
 import std.test.Tests
 
+fn format(func: fn (mut Formatter)) -> String {
+  let fmt = Formatter.new
+
+  func.call(fmt)
+  fmt.into_string
+}
+
 fn pub tests(t: mut Tests) {
   t.test('Formatter.descend') fn (t) {
     let fmt1 = Formatter.new
@@ -17,19 +24,7 @@ fn pub tests(t: mut Tests) {
                     fmt1.descend fn {
                       fmt1.descend fn {
                         fmt1.descend fn {
-                          fmt1.descend fn {
-                            fmt1.descend fn {
-                              fmt1.descend fn {
-                                fmt1.descend fn {
-                                  fmt1.descend fn {
-                                    fmt1.descend fn {
-                                      fmt1.write('test')
-                                    }
-                                  }
-                                }
-                              }
-                            }
-                          }
+                          fmt1.write('test')
                         }
                       }
                     }
@@ -58,5 +53,58 @@ fn pub tests(t: mut Tests) {
 
   t.test('fmt.fmt') fn (t) {
     t.equal(fmt('test').into_string, '"test"')
+  }
+
+  t.test('Formatter.tuple') fn (t) {
+    t.equal(format fn (f) { f.tuple('').finish }, '()')
+    t.equal(format fn (f) { f.tuple('A').finish }, 'A')
+    t.equal(format fn (f) { f.tuple('').field(10).finish }, '(10)')
+    t.equal(format fn (f) { f.tuple('A').field(10).finish }, 'A(10)')
+    t.equal(
+      format fn (f) { f.tuple('A').field(10).field(20).finish },
+      'A(10, 20)'
+    )
+
+    let fmt = Formatter.new
+
+    fmt.maximum_depth = 0
+    fmt.tuple('A').field(10).field(20).finish
+
+    t.equal(fmt.into_string, 'A(..., ...)')
+  }
+
+  t.test('Formatter.array') fn (t) {
+    t.equal(format fn (f) { f.array.finish }, '[]')
+    t.equal(format fn (f) { f.array.value(10).finish }, '[10]')
+    t.equal(format fn (f) { f.array.value(10).value(20).finish }, '[10, 20]')
+
+    let fmt = Formatter.new
+
+    fmt.maximum_depth = 0
+    fmt.array.value(10).value(20).finish
+
+    t.equal(fmt.into_string, '[..., ...]')
+  }
+
+  t.test('Formatter.object') fn (t) {
+    t.equal(format fn (f) { f.object('').finish }, '{}')
+    t.equal(format fn (f) { f.object('A').finish }, 'A')
+    t.equal(format fn (f) { f.object('').field('a', 10).finish }, '{ @a = 10 }')
+    t.equal(
+      format fn (f) { f.object('A').field('a', 10).finish },
+      'A { @a = 10 }'
+    )
+
+    t.equal(
+      format fn (f) { f.object('A').field('a', 10).field('b', 20).finish },
+      'A { @a = 10, @b = 20 }'
+    )
+
+    let fmt = Formatter.new
+
+    fmt.maximum_depth = 0
+    fmt.object('A').field('a', 10).field('b', 20).finish
+
+    t.equal(fmt.into_string, 'A { @a = ..., @b = ... }')
   }
 }

@@ -4,10 +4,6 @@ import std.string.(IntoString, StringBuffer)
 # The value to use for objects if the nesting is too great.
 let PLACEHOLDER = '...'
 
-# The maximum number of objects to recurse into when formatting an object,
-# before returning a placeholder.
-let MAX_DEPTH = 16
-
 # Formats a value using the default formatter.
 #
 # Examples
@@ -23,14 +19,111 @@ fn pub fmt[T: Format](value: ref T) -> String {
   formatter.into_string
 }
 
+# A type for making it easy to format tuple-like values, such as tuples and
+# enums.
+class pub TupleFormatter {
+  let @formatter: mut Formatter
+  let @named: Bool
+  let @fields: Int
+
+  # Adds a new formatted field to the output.
+  fn pub mut field(value: ref Format) -> mut TupleFormatter {
+    match @fields {
+      case 0 -> @formatter.write('(')
+      case _ -> @formatter.write(', ')
+    }
+
+    @formatter.descend fn { value.fmt(@formatter) }
+    @fields += 1
+    self
+  }
+
+  # Finishes formatting the tuple.
+  #
+  # This method is used instead of a `Drop` implementation, otherwise a call
+  # chain (e.g. `x.tuple('').field(10)`) results in a drop error, as the final
+  # reference returned by `field` would outlive the `TupleFormatter`.
+  fn pub mut finish {
+    match @fields {
+      case 0 if @named -> {}
+      case 0 -> @formatter.write('()')
+      case _ -> @formatter.write(')')
+    }
+  }
+}
+
+# A type for making it easy to format array-like values.
+class pub ArrayFormatter {
+  let @formatter: mut Formatter
+  let @fields: Int
+
+  # Adds a new formatted value to the output.
+  fn pub mut value(value: ref Format) -> mut ArrayFormatter {
+    if @fields > 0 { @formatter.write(', ') }
+
+    @formatter.descend fn { value.fmt(@formatter) }
+    @fields += 1
+    self
+  }
+
+  # Finishes formatting the tuple.
+  #
+  # This method is used instead of a `Drop` implementation, otherwise a call
+  # chain (e.g. `x.array.value(10)`) results in a drop error, as the final
+  # reference returned by `field` would outlive the `ArrayFormatter`.
+  fn pub mut finish {
+    @formatter.write(']')
+  }
+}
+
+# A type for making it easy to format regular objects.
+class pub ObjectFormatter {
+  let @formatter: mut Formatter
+  let @named: Bool
+  let @fields: Int
+
+  # Adds a new formatted field to the output.
+  fn pub mut field(name: String, value: ref Format) -> mut ObjectFormatter {
+    let start = match @fields {
+      case 0 if @named -> ' {'
+      case 0 -> '{'
+      case _ -> ','
+    }
+
+    @formatter.write(start)
+    @formatter.write(' @')
+    @formatter.write(name)
+    @formatter.write(' = ')
+    @formatter.descend fn { value.fmt(@formatter) }
+    @fields += 1
+    self
+  }
+
+  # Finishes formatting the object.
+  #
+  # This method is used instead of a `Drop` implementation, otherwise a call
+  # chain (e.g. `x.object('A').field('foo', 10)`) results in a drop error, as
+  # the final reference returned by `field` would outlive the `ObjectFormatter`.
+  fn pub mut finish {
+    match @fields {
+      case 0 if @named -> {}
+      case 0 -> @formatter.write('{}')
+      case _ -> @formatter.write(' }')
+    }
+  }
+}
+
 # The default formatter to use when formatting an object.
 class pub Formatter {
   let @buffer: StringBuffer
   let @nesting: Int
 
+  # The maximum object depth before object formatting stops.
+  let pub @maximum_depth: Int
+
   # Returns a new `Formatter` with its default settings.
   fn pub static new -> Formatter {
-    Formatter { @buffer = StringBuffer.new, @nesting = 0 }
+    Formatter { @buffer = StringBuffer.new, @nesting = 0, @maximum_depth = 10 }
   }
 
   # Writes the given `String` into the underlying buffer.
@@ -44,7 +137,7 @@ class pub Formatter {
   # If nesting _is_ too great, a placeholder value is added to the buffer, and
   # the supplied block is not executed.
   fn pub mut descend(block: fn) {
-    if @nesting >= MAX_DEPTH {
+    if @nesting >= @maximum_depth {
       write(PLACEHOLDER)
       return
     }
@@ -52,6 +145,63 @@ class pub Formatter {
     @nesting += 1
     block.call
     @nesting -= 1
+  }
+
+  # Returns a `TupleFormatter` to make formatting tuple-like values easy.
+  #
+  # The `name` argument can be used as the type name of the value. When
+  # formatting actual tuples, this can be set to an empty `String` to omit
+  # adding a name.
+  #
+  # # Examples
+  #
+  #     import std.fmt.Formatter
+  #
+  #     let fmt = Formatter.new
+  #
+  #     fmt.tuple('').field(10).field(20).finish
+  #     fmt.into_string # => '(10, 20)'
+  fn pub mut tuple(name: String) -> TupleFormatter {
+    let named = name.size > 0
+
+    if named { write(name) }
+
+    TupleFormatter { @formatter = self, @named = named, @fields = 0 }
+  }
+
+  # Returns a `ArrayFormatter` to make formatting array-like values easy.
+  #
+  # # Examples
+  #
+  #     import std.fmt.Formatter
+  #
+  #     let fmt = Formatter.new
+  #
+  #     fmt.array.value(10).value(20).finish
+  #     fmt.into_string # => '[10, 20]'
+  fn pub mut array -> ArrayFormatter {
+    write('[')
+    ArrayFormatter { @formatter = self, @fields = 0 }
+  }
+
+  # Returns a `ObjectFormatter` to make formatting regular objects easy.
+  #
+  # The `name` argument can be used as the type name of the value.
+  #
+  # # Examples
+  #
+  #     import std.fmt.Formatter
+  #
+  #     let fmt = Formatter.new
+  #
+  #     fmt.object('Person').field('name', 'Alice').field('age', 42).finish
+  #     fmt.into_string # => 'Person { @name = "Alice", @age = 42 }'
+  fn pub mut object(name: String) -> ObjectFormatter {
+    let named = name.size > 0
+
+    if named { write(name) }
+
+    ObjectFormatter { @formatter = self, @named = named, @fields = 0 }
   }
 }
 

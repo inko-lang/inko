@@ -267,16 +267,8 @@ impl Equal[Result[T, E]] for Result if T: Equal[T], E: Equal[E] {
 impl Format for Result if T: Format, E: Format {
   fn pub fmt(formatter: mut Formatter) {
     match self {
-      case Ok(v) -> {
-        formatter.write('Ok(')
-        v.fmt(formatter)
-        formatter.write(')')
-      }
-      case Error(v) -> {
-        formatter.write('Error(')
-        v.fmt(formatter)
-        formatter.write(')')
-      }
+      case Ok(v) -> formatter.tuple('Ok').field(v).finish
+      case Error(v) -> formatter.tuple('Error').field(v).finish
     }
   }
 }

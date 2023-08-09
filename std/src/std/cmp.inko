@@ -30,11 +30,13 @@ impl Equal[Ordering] for Ordering {
 
 impl Format for Ordering {
   fn pub fmt(formatter: mut Formatter) {
-    match self {
-      case Less -> formatter.write('Less')
-      case Equal -> formatter.write('Equal')
-      case Greater -> formatter.write('Greater')
+    let name = match self {
+      case Less -> 'Less'
+      case Equal -> 'Equal'
+      case Greater -> 'Greater'
     }
+
+    formatter.tuple(name).finish
   }
 }
 

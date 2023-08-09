@@ -32,14 +32,14 @@ impl Equal[FileType] for FileType {
 
 impl Format for FileType {
   fn pub fmt(formatter: mut Formatter) {
-    let write = match self {
+    let name = match self {
       case File -> 'File'
       case Directory -> 'Directory'
       case SymbolicLink -> 'SymbolicLink'
       case Other -> 'Other'
     }
 
-    formatter.write(write)
+    formatter.tuple(name).finish
   }
 }
 
@@ -63,15 +63,10 @@ impl Equal[DirectoryEntry] for DirectoryEntry {
 
 impl Format for DirectoryEntry {
   fn pub fmt(formatter: mut Formatter) {
-    formatter.write('DirectoryEntry { ')
-
-    formatter.descend fn {
-      formatter.write('@path = ')
-      @path.fmt(formatter)
-      formatter.write(', @type = ')
-      @type.fmt(formatter)
-    }
-
-    formatter.write(' }')
+    formatter
+      .object('DirectoryEntry')
+      .field('path', @path)
+      .field('type', @type)
+      .finish
   }
 }
