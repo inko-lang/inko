@@ -66,4 +66,15 @@ fn pub tests(t: mut Tests) {
       case _ -> {}
     }
   }
+
+  # This test checks if the `mut a` reference is dropped at the end of the match
+  # arm, because the first match case returns `Nil`.
+  t.no_panic('match drops case return values when they are to be ignored') fn {
+    let a = [10]
+
+    match 10 {
+      case 5 -> nil
+      case _ -> mut a
+    }
+  }
 }

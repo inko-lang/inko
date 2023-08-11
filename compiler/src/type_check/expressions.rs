@@ -3063,8 +3063,16 @@ impl<'a> CheckMethodBody<'a> {
                 let typ =
                     self.last_expression_type(&mut case.body, &mut new_scope);
 
-                // If an arm returns a Never type we'll ignore it. This way e.g.
-                // the first arm can return `Never` and the other arms can
+                // If the first case returns `Nil`, the value returned by other
+                // cases is to be ignored. In this case we also want to discard
+                // the case body's return values, so we have to overwrite the
+                // `write_result` field.
+                if typ.is_nil(self.db()) {
+                    node.write_result = false;
+                }
+
+                // If a case returns a Never type we'll ignore it. This way e.g.
+                // the first case can return `Never` and the other cases can
                 // return other types, as long as those types are compatible
                 // with the first non-Never type.
                 if !typ.is_never(self.db()) {
