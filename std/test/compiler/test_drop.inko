@@ -91,4 +91,10 @@ fn pub tests(t: mut Tests) {
       case Backref(r) -> r.target = Option.Some(ref val)
     }
   }
+
+  t.panic('Returning a reference in a call chain that outlives the pointee') fn {
+    # Here `Array.last` returns a `Option[ref Array[Int]]`, but this reference
+    # outlives the source Array/receiver, so this must panic at runtime.
+    [[10]].last
+  }
 }

@@ -1739,8 +1739,9 @@ impl<'a> LowerMethod<'a> {
             types::CallKind::GetField(info) => {
                 self.check_inferred(info.variable_type, &node.location);
 
+                let typ = info.variable_type;
                 let rec = self.expression(node.receiver.unwrap());
-                let reg = self.new_field(info.id, info.variable_type);
+                let reg = self.new_register(typ);
 
                 if info.as_pointer {
                     self.current_block_mut()
@@ -1750,7 +1751,24 @@ impl<'a> LowerMethod<'a> {
                         .get_field(reg, rec, info.class, info.id, loc);
                 }
 
-                reg
+                // When returning a field using the syntax `x.y`, we _must_ copy
+                // or create a reference, otherwise it's possible to drop `x`
+                // while the result of `y` is still in use.
+                if typ.is_permanent(self.db()) || info.as_pointer {
+                    reg
+                } else if typ.is_value_type(self.db()) {
+                    let copy = self.clone_value_type(reg, typ, true, loc);
+
+                    self.mark_register_as_moved(reg);
+                    self.mark_register_as_available(copy);
+                    copy
+                } else {
+                    let ref_reg = self.new_register(typ);
+
+                    self.current_block_mut().reference(ref_reg, reg, loc);
+                    self.mark_register_as_moved(reg);
+                    ref_reg
+                }
             }
             types::CallKind::CallClosure(info) => {
                 self.check_inferred(info.returns, &node.location);

@@ -332,8 +332,6 @@ class pub Command {
 
   # Spawns a child process that runs the command.
   #
-  # This method throws if the process couldn't be spawned.
-  #
   # # Examples
   #
   #     let child = Command.new('ls').spawn.unwrap
