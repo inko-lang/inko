@@ -934,6 +934,8 @@ impl<'a> CheckConstant<'a> {
             hir::ConstExpression::Int(ref mut n) => self.int_literal(n),
             hir::ConstExpression::Float(ref mut n) => self.float_literal(n),
             hir::ConstExpression::String(ref mut n) => self.string_literal(n),
+            hir::ConstExpression::True(ref mut n) => self.true_literal(n),
+            hir::ConstExpression::False(ref mut n) => self.false_literal(n),
             hir::ConstExpression::Binary(ref mut n) => self.binary(n),
             hir::ConstExpression::ConstantRef(ref mut n) => self.constant(n),
             hir::ConstExpression::Array(ref mut n) => self.array(n),
@@ -964,6 +966,16 @@ impl<'a> CheckConstant<'a> {
         }
 
         node.resolved_type = TypeRef::string();
+        node.resolved_type
+    }
+
+    fn true_literal(&mut self, node: &mut hir::True) -> TypeRef {
+        node.resolved_type = TypeRef::boolean();
+        node.resolved_type
+    }
+
+    fn false_literal(&mut self, node: &mut hir::False) -> TypeRef {
+        node.resolved_type = TypeRef::boolean();
         node.resolved_type
     }
 
