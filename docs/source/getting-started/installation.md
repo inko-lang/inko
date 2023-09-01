@@ -137,7 +137,7 @@ The compiler dependencies are installed as follows:
 sudo apk add build-base rust cargo llvm15 llvm15-dev llvm15-static git
 ```
 
-#### Arch
+#### Arch Linux
 
 Two AUR packages are provided: `inko` and `inko-git`. These can be installed
 using your favourite AUR wrapper. For example, using
@@ -158,7 +158,7 @@ makepkg -si
 The compiler dependencies are installed as follows:
 
 ```bash
-sudo pacman -Sy llvm rust git base-devel
+sudo pacman -Sy llvm15 rust git base-devel
 ```
 
 #### Debian

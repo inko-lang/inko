@@ -62,7 +62,7 @@ then
 
 elif [ "${1}" = "archlinux:latest" ]
 then
-    pacman -Syu --noconfirm llvm git base-devel curl
+    pacman -Syu --noconfirm llvm15 git base-devel curl
 
 elif [ "${1}" = "mac" ]
 then
