@@ -229,4 +229,9 @@ fn pub tests(t: mut Tests) {
 
     t.equal(a, b)
   }
+
+  t.test('ByteArray.last') fn (t) {
+    t.equal(ByteArray.new.last, Option.None)
+    t.equal(ByteArray.from_array([10, 20]).last, Option.Some(20))
+  }
 }

@@ -399,6 +399,16 @@ class builtin ByteArray {
 
     inko_byte_array_resize(self, size, value)
   }
+
+  # Returns the last byte in `self`
+  #
+  # # Examples
+  #
+  #     ByteArray.new.last                  # => Option.None
+  #     ByteArray.from_array([10, 20]).last # => Option.Some(20)
+  fn pub last -> Option[Int] {
+    opt(size - 1)
+  }
 }
 
 impl Bytes for ByteArray {
