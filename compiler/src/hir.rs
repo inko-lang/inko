@@ -540,6 +540,8 @@ pub(crate) enum ConstExpression {
     ConstantRef(Box<ConstantRef>),
     Array(Box<ConstArray>),
     Invalid(Box<SourceLocation>),
+    True(Box<True>),
+    False(Box<False>),
 }
 
 impl ConstExpression {
@@ -552,6 +554,8 @@ impl ConstExpression {
             Self::ConstantRef(ref n) => &n.location,
             Self::Array(ref n) => &n.location,
             Self::Invalid(ref l) => l,
+            Self::True(ref n) => &n.location,
+            Self::False(ref n) => &n.location,
         }
     }
 
@@ -561,6 +565,8 @@ impl ConstExpression {
             ConstExpression::Int(_)
                 | ConstExpression::Float(_)
                 | ConstExpression::String(_)
+                | ConstExpression::True(_)
+                | ConstExpression::False(_)
         )
     }
 }
@@ -1701,6 +1707,12 @@ impl<'a> LowerToHir<'a> {
             }
             ast::Expression::DoubleString(node) => {
                 self.const_double_string_literal(*node)
+            }
+            ast::Expression::True(node) => {
+                ConstExpression::True(self.true_literal(*node))
+            }
+            ast::Expression::False(node) => {
+                ConstExpression::False(self.false_literal(*node))
             }
             ast::Expression::Binary(node) => {
                 ConstExpression::Binary(self.const_binary(*node))
@@ -3172,6 +3184,36 @@ mod tests {
                     location: cols(9, 12)
                 })),
                 location: cols(1, 12)
+            }))
+        );
+    }
+
+    #[test]
+    fn test_lower_constant_with_boolean_array() {
+        let (hir, diags) = lower_top_expr("let A = [true, false]");
+
+        assert_eq!(diags, 0);
+        assert_eq!(
+            hir,
+            TopLevelExpression::Constant(Box::new(DefineConstant {
+                public: false,
+                constant_id: None,
+                name: Constant { name: "A".to_string(), location: cols(5, 5) },
+                value: ConstExpression::Array(Box::new(ConstArray {
+                    resolved_type: types::TypeRef::Unknown,
+                    values: vec![
+                        ConstExpression::True(Box::new(True {
+                            resolved_type: types::TypeRef::Unknown,
+                            location: cols(10, 13)
+                        })),
+                        ConstExpression::False(Box::new(False {
+                            resolved_type: types::TypeRef::Unknown,
+                            location: cols(16, 20)
+                        }))
+                    ],
+                    location: cols(9, 21)
+                })),
+                location: cols(1, 21)
             }))
         );
     }

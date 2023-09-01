@@ -371,6 +371,8 @@ impl Parser {
         let value = match start.kind {
             TokenKind::Float => self.float_literal(start),
             TokenKind::Integer => self.int_literal(start),
+            TokenKind::True => self.true_literal(start),
+            TokenKind::False => self.false_literal(start),
             TokenKind::SingleStringOpen => self.single_string_literal(start)?,
             TokenKind::DoubleStringOpen => self.double_string_literal(start)?,
             TokenKind::Constant => self.constant_ref(start),
@@ -3651,6 +3653,30 @@ mod tests {
                     location: cols(9, 12)
                 })),
                 location: cols(1, 12)
+            }))
+        );
+
+        assert_eq!(
+            top(parse("let A = [true, false]")),
+            TopLevelExpression::DefineConstant(Box::new(DefineConstant {
+                public: false,
+                name: Constant {
+                    source: None,
+                    name: "A".to_string(),
+                    location: cols(5, 5)
+                },
+                value: Expression::Array(Box::new(Array {
+                    values: vec![
+                        Expression::True(Box::new(True {
+                            location: cols(10, 13)
+                        })),
+                        Expression::False(Box::new(False {
+                            location: cols(16, 20)
+                        }))
+                    ],
+                    location: cols(9, 21)
+                })),
+                location: cols(1, 21)
             }))
         );
     }

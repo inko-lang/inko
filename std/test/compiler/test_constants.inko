@@ -1,0 +1,36 @@
+import std.test.Tests
+
+let TRUE = true
+let FALSE = false
+let BOOL_ARRAY = [true, false]
+let INT_ARRAY = [1, 2]
+let FLOAT_ARRAY = [1.0, 2.0]
+let STRING_ARRAY = ['foo', 'bar']
+let INT = 10 + 5
+let FLOAT = 10.0 + 5.0
+
+fn pub tests(t: mut Tests) {
+  t.test('Boolean constants') fn (t) {
+    t.true(TRUE)
+    t.false(FALSE)
+  }
+
+  t.test('Array constants') fn (t) {
+    t.equal(BOOL_ARRAY.get(0), true)
+    t.equal(BOOL_ARRAY.get(1), false)
+    t.equal(INT_ARRAY.get(0), 1)
+    t.equal(INT_ARRAY.get(1), 2)
+    t.equal(FLOAT_ARRAY.get(0), 1.0)
+    t.equal(FLOAT_ARRAY.get(1), 2.0)
+    t.equal(STRING_ARRAY.get(0), 'foo')
+    t.equal(STRING_ARRAY.get(1), 'bar')
+  }
+
+  t.test('Int constants') fn (t) {
+    t.equal(INT, 15)
+  }
+
+  t.test('Float constants') fn (t) {
+    t.equal(FLOAT, 15.0)
+  }
+}

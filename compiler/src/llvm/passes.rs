@@ -372,7 +372,7 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
         state_var: PointerValue<'ctx>,
         constant: &Constant,
     ) -> BasicValueEnum<'ctx> {
-        let state = builder.load_pointer(self.layouts.state, state_var).into();
+        let state = builder.load_pointer(self.layouts.state, state_var);
 
         match constant {
             Constant::Int(val) => {
@@ -384,7 +384,7 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
                         .module
                         .runtime_function(RuntimeFunction::IntBoxedPermanent);
 
-                    builder.call(func, &[state, val])
+                    builder.call(func, &[state.into(), val])
                 }
             }
             Constant::Float(val) => {
@@ -393,9 +393,15 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
                     .module
                     .runtime_function(RuntimeFunction::FloatBoxedPermanent);
 
-                builder.call(func, &[state, val])
+                builder.call(func, &[state.into(), val])
             }
             Constant::String(val) => self.new_string(builder, state_var, val),
+            Constant::Bool(true) => {
+                builder.load_field(self.layouts.state, state, TRUE_INDEX)
+            }
+            Constant::Bool(false) => {
+                builder.load_field(self.layouts.state, state, FALSE_INDEX)
+            }
             Constant::Array(values) => {
                 let class_id = ClassId::array();
                 let layout = self.layouts.instances[&class_id];

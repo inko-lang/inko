@@ -679,6 +679,8 @@ impl<'a> DefineConstants<'a> {
             }
             hir::ConstExpression::Float(ref n) => Constant::Float(n.value),
             hir::ConstExpression::Binary(ref n) => self.binary(n),
+            hir::ConstExpression::True(_) => Constant::Bool(true),
+            hir::ConstExpression::False(_) => Constant::Bool(false),
             hir::ConstExpression::ConstantRef(ref n) => match n.kind {
                 types::ConstantKind::Constant(id) => {
                     self.mir.constants.get(&id).cloned().unwrap()
@@ -778,10 +780,11 @@ impl<'a> DefineConstants<'a> {
                     Constant::String(Rc::new(String::new()))
                 }
             }
-            Constant::Array(_) => {
+            Constant::Array(_) | Constant::Bool(_) => {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidConstExpr,
-                    "Constant arrays don't support binary operations",
+                    "Constant Array and Bool values don't support \
+                    binary operations",
                     self.file(),
                     node.location.clone(),
                 );
