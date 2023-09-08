@@ -585,9 +585,6 @@ impl Bytes for String {
 
   # Slices `self` into a substring using a _byte_ range.
   #
-  # Whereas `String.slice` operates on a range of characters, this method
-  # operates on a range of _bytes_.
-  #
   # # Examples
   #
   # Slicing a string using a valid range:
