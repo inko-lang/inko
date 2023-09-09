@@ -21,10 +21,9 @@ Commands:
 
 Examples:
 
-    inko hello.inko        # Runs the file hello.inko
     inko run hello.inko    # Same
-    inko build hello.inko  # Compiles the file into a bytecode image
-    inko check hello.inko  # Checks hello.inko for errors
+    inko build hello.inko  # Compile the file into an executable
+    inko check hello.inko  # Check hello.inko for errors
     inko run --help        # Print the help message for the run command";
 
 pub(crate) fn run() -> Result<i32, Error> {

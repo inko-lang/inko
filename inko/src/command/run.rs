@@ -18,8 +18,6 @@ requires compiling source code from scratch every time. When distributing or
 deploying your Inko software, you should build it ahead of time using the
 \"inko build\" command.
 
-When running files directly, the executable is built in release mode.
-
 Arguments passed _after_ the file to run are passed to the resulting executable.
 
 Examples:

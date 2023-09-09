@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 const USAGE: &str = "Usage: inko build [OPTIONS] [FILE]
 
-Compile a source file and its dependencies into a bytecode file.
+Compile a source file and its dependencies into an executable.
 
 Examples:
 
@@ -32,16 +32,10 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         "TARGET",
     );
 
-    options.optflag(
-        "",
-        "release",
-        "Enable a release build instead of a debug build",
-    );
-
     options.optopt(
         "o",
         "output",
-        "The path to write the bytecode file to",
+        "The path to write the executable to",
         "FILE",
     );
 
