@@ -330,6 +330,25 @@ impl MethodCall {
             TypeBounds::new()
         };
 
+        // If the receiver is rigid, it may introduce additional type arguments
+        // through its type parameter requirements. These are typed as Infer(),
+        // but we want them as rigid types. In addition, we need to take care or
+        // remapping any bound parameters.
+        //
+        // We don't do this ahead of time (e.g. when defining the type
+        // parameters), as that would involve copying lots of data structures,
+        // and because it complicates looking up type parameters, so instead we
+        // handle it here when/if necessary.
+        if receiver.is_rigid_type_parameter(&state.db) {
+            for val in type_arguments.values_mut() {
+                if let TypeRef::Infer(TypeId::TypeParameter(id)) = val {
+                    *val = TypeRef::Owned(TypeId::RigidTypeParameter(
+                        bounds.get(*id).unwrap_or(*id),
+                    ));
+                }
+            }
+        }
+
         Self {
             module,
             method,
@@ -522,11 +541,13 @@ impl MethodCall {
 
     fn resolve_return_type(&mut self, state: &mut State) -> TypeRef {
         let raw = self.method.return_type(&state.db);
+        let rigid = self.receiver.is_rigid_type_parameter(&state.db);
         let typ = TypeResolver::new(
             &mut state.db,
             &self.type_arguments,
             &self.bounds,
         )
+        .with_rigid(rigid)
         .resolve(raw);
 
         self.return_type = typ;

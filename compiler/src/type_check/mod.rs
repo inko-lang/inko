@@ -4,7 +4,7 @@ use crate::hir;
 use crate::state::State;
 use ast::source_location::SourceLocation;
 use std::path::PathBuf;
-use types::check::TypeChecker;
+use types::check::{Environment, TypeChecker};
 use types::format::format_type;
 use types::{
     Block, ClassId, ClassInstance, Closure, Database, MethodId, ModuleId,
@@ -684,7 +684,8 @@ impl<'a> CheckTypeSignature<'a> {
             // not even be managed by Inko (e.g. when using the FFI).
             self.check_argument_types(
                 node,
-                instance.type_arguments(self.db()).pairs(),
+                instance.instance_of().type_parameters(self.db()),
+                instance.type_arguments(self.db()).clone(),
                 false,
             );
         }
@@ -705,7 +706,8 @@ impl<'a> CheckTypeSignature<'a> {
             // turn already disallows storing Any in generic contexts.
             self.check_argument_types(
                 node,
-                instance.type_arguments(self.db()).pairs(),
+                instance.instance_of().type_parameters(self.db()),
+                instance.type_arguments(self.db()).clone(),
                 true,
             );
         }
@@ -739,12 +741,19 @@ impl<'a> CheckTypeSignature<'a> {
     fn check_argument_types(
         &mut self,
         node: &hir::TypeName,
-        arguments: Vec<(TypeParameterId, TypeRef)>,
+        parameters: Vec<TypeParameterId>,
+        arguments: TypeArguments,
         allow_any: bool,
     ) {
-        for ((param, arg), node) in
-            arguments.into_iter().zip(node.arguments.iter())
-        {
+        let exp_args =
+            parameters.iter().fold(TypeArguments::new(), |mut args, &p| {
+                args.assign(p, TypeRef::placeholder(self.db_mut(), Some(p)));
+                args
+            });
+
+        for (param, node) in parameters.into_iter().zip(node.arguments.iter()) {
+            let arg = arguments.get(param).unwrap();
+
             if !allow_any && arg.is_any(self.db()) {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidType,
@@ -756,8 +765,12 @@ impl<'a> CheckTypeSignature<'a> {
             }
 
             let exp = TypeRef::Infer(TypeId::TypeParameter(param));
+            let mut env = Environment::new(
+                arg.type_arguments(self.db()),
+                exp_args.clone(),
+            );
 
-            if !TypeChecker::check(self.db(), arg, exp) {
+            if !TypeChecker::new(self.db()).run(arg, exp, &mut env) {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidType,
                     format!(
@@ -796,6 +809,10 @@ impl<'a> CheckTypeSignature<'a> {
 
     fn db(&self) -> &Database {
         &self.state.db
+    }
+
+    fn db_mut(&mut self) -> &mut Database {
+        &mut self.state.db
     }
 }
 
@@ -1361,7 +1378,11 @@ mod tests {
             Visibility::Private,
             ModuleId(0),
         );
-        let instance_a = TypeId::ClassInstance(ClassInstance::new(list_class));
+        let instance_a = TypeId::ClassInstance(ClassInstance::rigid(
+            &mut state.db,
+            list_class,
+            &TypeBounds::new(),
+        ));
 
         module.new_symbol(
             &mut state.db,

@@ -360,6 +360,10 @@ impl TypeArguments {
             }
         }
     }
+
+    pub fn values_mut(&mut self) -> impl Iterator<Item = &mut TypeRef> {
+        self.mapping.values_mut()
+    }
 }
 
 /// An Inko trait.
@@ -3017,6 +3021,10 @@ impl TypeRef {
         }
     }
 
+    pub fn is_rigid_type_parameter(self, db: &Database) -> bool {
+        matches!(self.type_id(db), Ok(TypeId::RigidTypeParameter(_)))
+    }
+
     pub fn is_trait_instance(self, db: &Database) -> bool {
         match self {
             TypeRef::Owned(TypeId::TraitInstance(_))
@@ -3068,6 +3076,20 @@ impl TypeRef {
                 if ins.instance_of.is_generic(db) =>
             {
                 ins.type_arguments(db).clone()
+            }
+            Ok(TypeId::TypeParameter(id) | TypeId::RigidTypeParameter(id)) => {
+                id.requirements(db)
+                    .into_iter()
+                    .filter(|r| r.instance_of.is_generic(db))
+                    .fold(TypeArguments::new(), |mut targs, req| {
+                        req.type_arguments(db).copy_into(&mut targs);
+                        req.instance_of()
+                            .get(db)
+                            .inherited_type_arguments
+                            .copy_into(&mut targs);
+
+                        targs
+                    })
             }
             _ => TypeArguments::new(),
         }
@@ -3924,8 +3946,9 @@ impl Database {
 mod tests {
     use super::*;
     use crate::test::{
-        closure, immutable, instance, mutable, new_class, new_parameter, owned,
-        parameter, placeholder, rigid, uni,
+        closure, generic_trait_instance, immutable, instance, mutable,
+        new_class, new_parameter, new_trait, owned, parameter, placeholder,
+        rigid, uni,
     };
     use std::mem::size_of;
 
@@ -4638,5 +4661,32 @@ mod tests {
         assert!(!foo_mod.has_same_root_namespace(&db, bla_mod));
         assert!(bla_mod.has_same_root_namespace(&db, test_mod));
         assert!(!test_mod.has_same_root_namespace(&db, bla_mod));
+    }
+
+    #[test]
+    fn test_type_ref_type_arguments_with_type_parameter() {
+        let mut db = Database::new();
+        let trait1 = new_trait(&mut db, "ToA");
+        let trait2 = new_trait(&mut db, "ToB");
+        let trait3 = new_trait(&mut db, "ToC");
+        let param = new_parameter(&mut db, "T");
+        let trait1_param = trait1.new_type_parameter(&mut db, "A".to_string());
+        let trait2_param = trait2.new_type_parameter(&mut db, "B".to_string());
+        let trait3_param = trait3.new_type_parameter(&mut db, "C".to_string());
+        let trait1_ins =
+            generic_trait_instance(&mut db, trait1, vec![TypeRef::int()]);
+        let trait2_ins =
+            generic_trait_instance(&mut db, trait2, vec![TypeRef::float()]);
+        let trait3_ins =
+            generic_trait_instance(&mut db, trait3, vec![TypeRef::string()]);
+
+        trait3.add_required_trait(&mut db, trait2_ins);
+        param.add_requirements(&mut db, vec![trait1_ins, trait3_ins]);
+
+        let targs = owned(parameter(param)).type_arguments(&db);
+
+        assert_eq!(targs.get(trait1_param), Some(TypeRef::int()));
+        assert_eq!(targs.get(trait2_param), Some(TypeRef::float()));
+        assert_eq!(targs.get(trait3_param), Some(TypeRef::string()));
     }
 }
