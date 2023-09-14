@@ -33,10 +33,7 @@ class pub Set[V: Hash + Equal[V]] {
   #
   #     set.insert(10)
   fn pub mut insert(value: V) -> Bool {
-    if @map.contains?(value) { return false }
-
-    @map.set(value, true)
-    true
+    @map.set(value, true).none?
   }
 
   # Removes a value from this `Set`.

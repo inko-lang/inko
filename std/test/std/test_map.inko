@@ -196,7 +196,14 @@ fn pub tests(t: mut Tests) {
     t.not_equal(map1, map4)
   }
 
-  t.test('Map.index') fn (t) {
+  t.test('Map.set') fn (t) {
+    let map = Map.new
+
+    t.equal(map.set('name', 'Alice'), Option.None)
+    t.equal(map.set('name', 'Bob'), Option.Some('Alice'))
+  }
+
+  t.test('Map.get') fn (t) {
     let map = Map.new
     let alias = ref map
 
@@ -205,7 +212,7 @@ fn pub tests(t: mut Tests) {
     t.equal(alias.get('name'), 'Alice')
   }
 
-  t.test('Map.index_mut') fn (t) {
+  t.test('Map.get_mut') fn (t) {
     let map = Map.new
 
     map.set('name', 'Alice')
