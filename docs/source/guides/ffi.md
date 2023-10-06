@@ -122,7 +122,7 @@ libc.so.6 => /lib64/libc.so.6 (0x00007feb7e97b000)
 
 By default, C libraries are linked _dynamically_. This is done because while
 dynamic libraries are widely available, not all platforms provide static
-equivalents, or require extra steps. For example, on many Linux distribution
+equivalents, or require extra steps. For example, on many Linux distributions
 installing the package "foo" only gives you a dynamic library, requiring an
 extra "foo-static" package to be installed to also get the static library.
 
@@ -323,7 +323,7 @@ class async Main {
 }
 ```
 
-If you want a copy anyway, you can deference the pointer (more on that in just a
+If you want a copy anyway, you can dereference the pointer (more on that in just a
 moment) to get a copy.
 
 ## Pointers

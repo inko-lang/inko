@@ -203,7 +203,7 @@ Inko's boolean type is `Bool`. Instances of `Bool` are created using `true` and
 
 ### ByteArray
 
-`ByteArray` is similar to `Array`, except its optimised for storing bytes. A
+`ByteArray` is similar to `Array`, except it's optimised for storing bytes. A
 `ByteArray` needs less memory compared to an `Array`, but can only store `Int`
 values in the range of 0 up to (and including) 255.
 

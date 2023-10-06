@@ -42,7 +42,7 @@ The easiest way to install Inko is to use Inko's own version manager:
     package manager, as ivm doesn't do this for you. You can find the list of
     the necessary packages to install below.
 
-Once ivm is installed installed, you can install Inko as follows:
+Once ivm is installed, you can install Inko as follows:
 
 ```bash
 ivm install latest
@@ -94,7 +94,7 @@ variables when running `cargo` build:
   link the generated code against, defaults to `./target/MODE` where `MODE` is
   either `debug` for debug builds or `release` for release builds.
 
-If you are building a package, it's recommended to use the provide `Makefile`
+If you are building a package, it's recommended to use the provided `Makefile`
 instead, as this simplifies the process of moving the necessary files in place
 and using the right paths. To compile a release build of Inko, run `make` and
 `make install` to install the files. This process can be customised by setting

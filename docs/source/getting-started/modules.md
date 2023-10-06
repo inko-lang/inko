@@ -9,7 +9,7 @@ import std.stdio
 ```
 
 This imports the module `std.stdio` and exposes it using the name `stdio`. You
-an also import specific symbols, such as types:
+can also import specific symbols, such as types:
 
 ```inko
 import std.stdio.STDOUT

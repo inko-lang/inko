@@ -122,7 +122,7 @@ unique value is unique in the sense that only a single reference to it can exist
 (= the value itself). The best way to explain this is to use a cardboard box as
 a metaphor: a unique value is a box with items in it. Within that box these
 items are allowed to refer to each other using references, but none of the items
-are allowed to refer to values outside of the box and vice-versa.
+are allowed to refer to values outside of the box and vice versa.
 
 This restriction means that when we have a unique value we can move it around
 knowing no references (outside of the unique value) exist that point to the

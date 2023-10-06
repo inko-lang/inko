@@ -129,7 +129,7 @@ graph LR
 ```
 
 Now say we want to look up the state of the register storing `a`. If we follow
-the path `A -> B -> C -> E`, it's state is "moved" because of the expression
+the path `A -> B -> C -> E`, its state is "moved" because of the expression
 `let b = a`. But if we follow the path `A -> B -> D -> E` the register is still
 available. The compiler handles this as follows: if we look up the state of a
 register and encounter multiple predecessor blocks, the state is a sum of the
