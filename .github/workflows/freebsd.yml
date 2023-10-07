@@ -28,7 +28,7 @@ jobs:
             target
           key: freebsd-${{ matrix.version }}
       - name: Run tests
-        uses: cross-platform-actions/action@v0.18.0
+        uses: cross-platform-actions/action@v0.19.1
         with:
           operating_system: freebsd
           version: '13.2'
@@ -60,7 +60,7 @@ jobs:
             target
           key: freebsd-${{ matrix.version }}
       - name: Run tests
-        uses: cross-platform-actions/action@v0.18.0
+        uses: cross-platform-actions/action@v0.19.1
         with:
           operating_system: freebsd
           version: '13.2'
