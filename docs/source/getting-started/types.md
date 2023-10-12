@@ -264,23 +264,13 @@ of a 1 GiB `String` only require 1 GiB of memory.
 
 `String` is a value type.
 
-## Special types
-
-Inko has two special types: `Any` and `Never`. These types are special in that
-they don't exist at runtime as some sort of structure, instead they only exist
-in the compiler.
-
-`Any` is a type used for a value that could be anything, including data not
-managed by the Inko runtime such as a pointer to a C structure. This is useful
-when working with Inko's FFI, but you should avoid `Any` anywhere else. `ref
-Any` is a variation of this type that doesn't take ownership of a value.
-
-!!! note
-    The `Any` type is likely to be removed in the future, so you should avoid
-    using it.
+## Never
 
 `Never` is a type that indicates something never happens. When used as a return
-type, it means the method never returns.
+type, it means the method never returns. An example of this is
+`std.process.panic()`: this method panics and thus returns a `Never`.
+
+You'll likely never need to use this type directly.
 
 ## Generic types
 

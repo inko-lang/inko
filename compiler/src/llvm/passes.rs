@@ -1,23 +1,19 @@
 use crate::config::BuildDirectories;
 use crate::llvm::builder::Builder;
 use crate::llvm::constants::{
-    ARRAY_BUF_INDEX, ARRAY_CAPA_INDEX, ARRAY_LENGTH_INDEX, ATOMIC_KIND,
-    BOXED_FLOAT_VALUE_INDEX, BOXED_INT_VALUE_INDEX, CLASS_METHODS_COUNT_INDEX,
-    CLASS_METHODS_INDEX, CLOSURE_CALL_INDEX, CONTEXT_ARGS_INDEX,
-    CONTEXT_PROCESS_INDEX, CONTEXT_STATE_INDEX, DROPPER_INDEX, FALSE_INDEX,
-    FIELD_OFFSET, FLOAT_KIND, HEADER_CLASS_INDEX, HEADER_KIND_INDEX,
-    HEADER_REFS_INDEX, INT_KIND, INT_MASK, INT_SHIFT, MAX_INT,
-    MESSAGE_ARGUMENTS_INDEX, METHOD_FUNCTION_INDEX, METHOD_HASH_INDEX, MIN_INT,
-    NIL_INDEX, OWNED_KIND, PERMANENT_KIND, PROCESS_FIELD_OFFSET, REF_KIND,
-    REF_MASK, TAG_MASK, TRUE_INDEX,
+    ARRAY_BUF_INDEX, ARRAY_CAPA_INDEX, ARRAY_LENGTH_INDEX,
+    CLASS_METHODS_COUNT_INDEX, CLASS_METHODS_INDEX, CLOSURE_CALL_INDEX,
+    CONTEXT_ARGS_INDEX, CONTEXT_PROCESS_INDEX, CONTEXT_STATE_INDEX,
+    DROPPER_INDEX, FIELD_OFFSET, HEADER_CLASS_INDEX, HEADER_REFS_INDEX,
+    MESSAGE_ARGUMENTS_INDEX, METHOD_FUNCTION_INDEX, METHOD_HASH_INDEX,
+    PROCESS_FIELD_OFFSET,
 };
 use crate::llvm::context::Context;
 use crate::llvm::layouts::Layouts;
 use crate::llvm::module::Module;
 use crate::llvm::runtime_function::RuntimeFunction;
 use crate::mir::{
-    CastType, CloneKind, Constant, Instruction, LocationId, Method, Mir,
-    RegisterId,
+    CastType, Constant, Instruction, LocationId, Method, Mir, RegisterId,
 };
 use crate::state::State;
 use crate::symbol_names::SymbolNames;
@@ -41,7 +37,10 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::Path;
 use std::path::PathBuf;
 use types::module_name::ModuleName;
-use types::{BuiltinFunction, ClassId, Database, TypeRef};
+use types::{
+    BuiltinFunction, ClassId, Database, Shape, TypeRef, BYTE_ARRAY_ID,
+    STRING_ID,
+};
 
 /// A compiler pass that compiles Inko MIR into object files using LLVM.
 pub(crate) struct Compile<'a, 'b, 'ctx> {
@@ -52,9 +51,6 @@ pub(crate) struct Compile<'a, 'b, 'ctx> {
     names: &'a SymbolNames,
     context: &'ctx Context,
     module: &'b mut Module<'a, 'ctx>,
-
-    /// All native functions and the class IDs they belong to.
-    functions: HashMap<ClassId, Vec<FunctionValue<'ctx>>>,
 }
 
 impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
@@ -112,7 +108,6 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
                 context: &context,
                 module: &mut module,
                 layouts: &types,
-                functions: HashMap::new(),
             }
             .run();
 
@@ -154,10 +149,38 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
 
         let mut paths = Vec::with_capacity(modules.len());
 
+        if state.config.write_llvm {
+            directories.create_llvm()?;
+        }
+
+        if state.config.write_llvm {
+            for module in &modules {
+                let name = module.name.normalized_name();
+                let path = directories.llvm_ir.join(format!("{}.ll", name));
+
+                module.print_to_file(&path).map_err(|err| {
+                    format!("Failed to create {}: {}", path.display(), err)
+                })?;
+            }
+        }
+
+        // We verify _after_ writing the LLVM IR (if enabled) such that the IR
+        // can be inspected in the event of a verification failure.
+        if state.config.verify_llvm {
+            for module in &modules {
+                if let Err(err) = module.verify() {
+                    panic!(
+                        "the LLVM module '{}' must be valid:\n\n{}\n",
+                        module.name,
+                        err.to_string(),
+                    );
+                }
+            }
+        }
+
         for module in &modules {
-            let path = directories
-                .objects
-                .join(format!("{}.o", module.name.normalized_name()));
+            let name = module.name.normalized_name();
+            let path = directories.objects.join(format!("{}.o", name));
 
             target_machine
                 .write_to_file(&module.inner, FileType::Object, path.as_path())
@@ -172,24 +195,17 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
     }
 
     pub(crate) fn run(mut self) {
-        for &class_id in &self.mir.modules[self.module_index].classes {
-            for method_id in &self.mir.classes[&class_id].methods {
-                let func = LowerMethod::new(
-                    self.db,
-                    self.mir,
-                    self.layouts,
-                    self.context,
-                    self.names,
-                    self.module,
-                    &self.mir.methods[method_id],
-                )
-                .run();
-
-                self.functions
-                    .entry(class_id)
-                    .or_insert_with(Vec::new)
-                    .push(func);
-            }
+        for method in &self.mir.modules[self.module_index].methods {
+            LowerMethod::new(
+                self.db,
+                self.mir,
+                self.layouts,
+                self.context,
+                self.names,
+                self.module,
+                &self.mir.methods[method],
+            )
+            .run();
         }
 
         self.setup_classes();
@@ -250,22 +266,24 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
 
             // Built-in classes are defined in the runtime library, so we should
             // look them up instead of creating a new one.
-            let class_ptr = if class_id.is_builtin() {
-                // The first three fields in the State type are the singletons,
-                // followed by the built-in classes, hence the offset of 3.
-                builder
-                    .load_field(self.layouts.state, state, class_id.0 + 3)
-                    .into_pointer_value()
-            } else {
-                let size = builder.int_to_int(
-                    self.layouts.instances[&class_id].size_of().unwrap(),
-                    32,
-                    false,
-                );
+            let class_ptr = match class_id.0 {
+                STRING_ID => builder
+                    .load_field(self.layouts.state, state, 0)
+                    .into_pointer_value(),
+                BYTE_ARRAY_ID => builder
+                    .load_field(self.layouts.state, state, 1)
+                    .into_pointer_value(),
+                _ => {
+                    let size = builder.int_to_int(
+                        self.layouts.instances[&class_id].size_of().unwrap(),
+                        32,
+                        false,
+                    );
 
-                builder
-                    .call(class_new, &[name_ptr, size.into(), methods_len])
-                    .into_pointer_value()
+                    builder
+                        .call(class_new, &[name_ptr, size.into(), methods_len])
+                        .into_pointer_value()
+                }
             };
 
             for method in &self.mir.classes[&class_id].methods {
@@ -372,38 +390,47 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
         state_var: PointerValue<'ctx>,
         constant: &Constant,
     ) -> BasicValueEnum<'ctx> {
-        let state = builder.load_pointer(self.layouts.state, state_var);
-
         match constant {
             Constant::Int(val) => {
-                if let Some(ptr) = builder.tagged_int(*val) {
-                    ptr.into()
-                } else {
-                    let val = builder.i64_literal(*val).into();
-                    let func = self
-                        .module
-                        .runtime_function(RuntimeFunction::IntBoxedPermanent);
-
-                    builder.call(func, &[state.into(), val])
-                }
+                builder.i64_literal(*val).as_basic_value_enum()
             }
             Constant::Float(val) => {
-                let val = builder.context.f64_type().const_float(*val).into();
-                let func = self
-                    .module
-                    .runtime_function(RuntimeFunction::FloatBoxedPermanent);
-
-                builder.call(func, &[state.into(), val])
+                builder.f64_literal(*val).as_basic_value_enum()
             }
             Constant::String(val) => self.new_string(builder, state_var, val),
             Constant::Bool(true) => {
-                builder.load_field(self.layouts.state, state, TRUE_INDEX)
+                builder.i64_literal(1).as_basic_value_enum()
             }
             Constant::Bool(false) => {
-                builder.load_field(self.layouts.state, state, FALSE_INDEX)
+                builder.i64_literal(0).as_basic_value_enum()
             }
             Constant::Array(values) => {
-                let class_id = ClassId::array();
+                let (shape, val_typ) = match values.first() {
+                    Some(Constant::Int(_)) => (
+                        Shape::Int,
+                        builder.context.i64_type().as_basic_type_enum(),
+                    ),
+                    Some(Constant::Bool(_)) => (
+                        Shape::Boolean,
+                        builder.context.i64_type().as_basic_type_enum(),
+                    ),
+                    Some(Constant::Float(_)) => (
+                        Shape::Float,
+                        builder.context.f64_type().as_basic_type_enum(),
+                    ),
+                    Some(Constant::String(_)) => (
+                        Shape::String,
+                        builder.context.pointer_type().as_basic_type_enum(),
+                    ),
+                    _ => (
+                        Shape::Owned,
+                        builder.context.pointer_type().as_basic_type_enum(),
+                    ),
+                };
+
+                let class_id =
+                    ClassId::array().specializations(self.db)[&vec![shape]];
+
                 let layout = self.layouts.instances[&class_id];
                 let class_name = &self.names.classes[&class_id];
                 let class_global = self
@@ -415,10 +442,8 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
                     self.module.runtime_function(RuntimeFunction::Allocate);
                 let array =
                     builder.call(alloc, &[class.into()]).into_pointer_value();
-                let buf_typ = builder
-                    .context
-                    .pointer_type()
-                    .array_type(values.len() as _);
+
+                let buf_typ = val_typ.array_type(values.len() as _);
 
                 // The memory of array constants is statically allocated, as we
                 // never need to resize it. Using malloc() would also mean that
@@ -436,30 +461,18 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
                 );
 
                 for (index, arg) in values.iter().enumerate() {
-                    let val = self
-                        .permanent_value(builder, state_var, arg)
-                        .into_pointer_value();
+                    let val = self.permanent_value(builder, state_var, arg);
 
                     builder
                         .store_array_field(buf_typ, buf_ptr, index as _, val);
                 }
 
-                // Array sizes are limited to values that always fit in a tagged
-                // Int.
-                let len = builder.tagged_int(values.len() as _).unwrap();
+                let len = builder.i64_literal(values.len() as _);
 
                 builder.store_field(layout, array, ARRAY_LENGTH_INDEX, len);
                 builder.store_field(layout, array, ARRAY_CAPA_INDEX, len);
                 builder.store_field(layout, array, ARRAY_BUF_INDEX, buf_ptr);
-
-                // Arrays should have the ref bit set so we don't accidentally
-                // drop them in generic code, at least until we take care of
-                // https://github.com/inko-lang/inko/issues/525.
-                let mask = builder.i64_literal(REF_MASK);
-                let raw_addr = builder.pointer_to_int(array);
-                let new_addr = builder.bit_or(raw_addr, mask);
-
-                builder.int_to_pointer(new_addr).as_basic_value_enum()
+                array.as_basic_value_enum()
             }
         }
     }
@@ -478,8 +491,7 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
         builder.store(bytes_var, bytes);
 
         let len = builder.u64_literal(value.len() as u64).into();
-        let func =
-            self.module.runtime_function(RuntimeFunction::StringNewPermanent);
+        let func = self.module.runtime_function(RuntimeFunction::StringNew);
 
         builder.call(func, &[state.into(), bytes_var.into(), len])
     }
@@ -538,14 +550,12 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
         }
     }
 
-    fn run(&mut self) -> FunctionValue<'ctx> {
+    fn run(&mut self) {
         if self.method.id.is_async(self.db) {
             self.async_method();
         } else {
             self.regular_method();
         }
-
-        self.builder.function
     }
 
     fn regular_method(&mut self) {
@@ -721,10 +731,9 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_int(lhs_var);
-                        let rhs = self.read_int(rhs_var);
-                        let raw = self.builder.int_div(lhs, rhs);
-                        let res = self.new_int(state_var, raw);
+                        let lhs = self.builder.load_int(lhs_var);
+                        let rhs = self.builder.load_int(rhs_var);
+                        let res = self.builder.int_div(lhs, rhs);
 
                         self.builder.store(reg_var, res);
                     }
@@ -732,10 +741,9 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_int(lhs_var);
-                        let rhs = self.read_int(rhs_var);
-                        let raw = self.builder.int_rem(lhs, rhs);
-                        let res = self.new_int(state_var, raw);
+                        let lhs = self.builder.load_int(lhs_var);
+                        let rhs = self.builder.load_int(rhs_var);
+                        let res = self.builder.int_rem(lhs, rhs);
 
                         self.builder.store(reg_var, res);
                     }
@@ -743,10 +751,9 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_int(lhs_var);
-                        let rhs = self.read_int(rhs_var);
-                        let raw = self.builder.bit_and(lhs, rhs);
-                        let res = self.new_int(state_var, raw);
+                        let lhs = self.builder.load_int(lhs_var);
+                        let rhs = self.builder.load_int(rhs_var);
+                        let res = self.builder.bit_and(lhs, rhs);
 
                         self.builder.store(reg_var, res);
                     }
@@ -754,19 +761,17 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_int(lhs_var);
-                        let rhs = self.read_int(rhs_var);
-                        let raw = self.builder.bit_or(lhs, rhs);
-                        let res = self.new_int(state_var, raw);
+                        let lhs = self.builder.load_int(lhs_var);
+                        let rhs = self.builder.load_int(rhs_var);
+                        let res = self.builder.bit_or(lhs, rhs);
 
                         self.builder.store(reg_var, res);
                     }
                     BuiltinFunction::IntBitNot => {
                         let reg_var = self.variables[&ins.register];
                         let val_var = self.variables[&ins.arguments[0]];
-                        let val = self.read_int(val_var);
-                        let raw = self.builder.bit_not(val);
-                        let res = self.new_int(state_var, raw);
+                        let val = self.builder.load_int(val_var);
+                        let res = self.builder.bit_not(val);
 
                         self.builder.store(reg_var, res);
                     }
@@ -774,10 +779,9 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_int(lhs_var);
-                        let rhs = self.read_int(rhs_var);
-                        let raw = self.builder.bit_xor(lhs, rhs);
-                        let res = self.new_int(state_var, raw);
+                        let lhs = self.builder.load_int(lhs_var);
+                        let rhs = self.builder.load_int(rhs_var);
+                        let res = self.builder.bit_xor(lhs, rhs);
 
                         self.builder.store(reg_var, res);
                     }
@@ -785,10 +789,10 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_int(lhs_var);
-                        let rhs = self.read_int(rhs_var);
+                        let lhs = self.builder.load_int(lhs_var);
+                        let rhs = self.builder.load_int(rhs_var);
                         let raw = self.builder.int_eq(lhs, rhs);
-                        let res = self.new_bool(state_var, raw);
+                        let res = self.builder.bool_to_int(raw);
 
                         self.builder.store(reg_var, res);
                     }
@@ -796,10 +800,10 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_int(lhs_var);
-                        let rhs = self.read_int(rhs_var);
+                        let lhs = self.builder.load_int(lhs_var);
+                        let rhs = self.builder.load_int(rhs_var);
                         let raw = self.builder.int_gt(lhs, rhs);
-                        let res = self.new_bool(state_var, raw);
+                        let res = self.builder.bool_to_int(raw);
 
                         self.builder.store(reg_var, res);
                     }
@@ -807,10 +811,10 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_int(lhs_var);
-                        let rhs = self.read_int(rhs_var);
+                        let lhs = self.builder.load_int(lhs_var);
+                        let rhs = self.builder.load_int(rhs_var);
                         let raw = self.builder.int_ge(lhs, rhs);
-                        let res = self.new_bool(state_var, raw);
+                        let res = self.builder.bool_to_int(raw);
 
                         self.builder.store(reg_var, res);
                     }
@@ -818,10 +822,10 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_int(lhs_var);
-                        let rhs = self.read_int(rhs_var);
+                        let lhs = self.builder.load_int(lhs_var);
+                        let rhs = self.builder.load_int(rhs_var);
                         let raw = self.builder.int_le(lhs, rhs);
-                        let res = self.new_bool(state_var, raw);
+                        let res = self.builder.bool_to_int(raw);
 
                         self.builder.store(reg_var, res);
                     }
@@ -829,10 +833,10 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_int(lhs_var);
-                        let rhs = self.read_int(rhs_var);
+                        let lhs = self.builder.load_int(lhs_var);
+                        let rhs = self.builder.load_int(rhs_var);
                         let raw = self.builder.int_lt(lhs, rhs);
-                        let res = self.new_bool(state_var, raw);
+                        let res = self.builder.bool_to_int(raw);
 
                         self.builder.store(reg_var, res);
                     }
@@ -840,10 +844,9 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_float(lhs_var);
-                        let rhs = self.read_float(rhs_var);
-                        let raw = self.builder.float_add(lhs, rhs);
-                        let res = self.new_float(state_var, raw);
+                        let lhs = self.builder.load_float(lhs_var);
+                        let rhs = self.builder.load_float(rhs_var);
+                        let res = self.builder.float_add(lhs, rhs);
 
                         self.builder.store(reg_var, res);
                     }
@@ -851,10 +854,9 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_float(lhs_var);
-                        let rhs = self.read_float(rhs_var);
-                        let raw = self.builder.float_sub(lhs, rhs);
-                        let res = self.new_float(state_var, raw);
+                        let lhs = self.builder.load_float(lhs_var);
+                        let rhs = self.builder.load_float(rhs_var);
+                        let res = self.builder.float_sub(lhs, rhs);
 
                         self.builder.store(reg_var, res);
                     }
@@ -862,10 +864,9 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_float(lhs_var);
-                        let rhs = self.read_float(rhs_var);
-                        let raw = self.builder.float_div(lhs, rhs);
-                        let res = self.new_float(state_var, raw);
+                        let lhs = self.builder.load_float(lhs_var);
+                        let rhs = self.builder.load_float(rhs_var);
+                        let res = self.builder.float_div(lhs, rhs);
 
                         self.builder.store(reg_var, res);
                     }
@@ -873,10 +874,9 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_float(lhs_var);
-                        let rhs = self.read_float(rhs_var);
-                        let raw = self.builder.float_mul(lhs, rhs);
-                        let res = self.new_float(state_var, raw);
+                        let lhs = self.builder.load_float(lhs_var);
+                        let rhs = self.builder.load_float(rhs_var);
+                        let res = self.builder.float_mul(lhs, rhs);
 
                         self.builder.store(reg_var, res);
                     }
@@ -884,48 +884,47 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_float(lhs_var);
-                        let rhs = self.read_float(rhs_var);
-                        let raw = self.builder.float_rem(
+                        let lhs = self.builder.load_float(lhs_var);
+                        let rhs = self.builder.load_float(rhs_var);
+                        let res = self.builder.float_rem(
                             self.builder.float_add(
                                 self.builder.float_rem(lhs, rhs),
                                 rhs,
                             ),
                             rhs,
                         );
-                        let res = self.new_float(state_var, raw);
 
                         self.builder.store(reg_var, res);
                     }
                     BuiltinFunction::FloatCeil => {
                         let reg_var = self.variables[&ins.register];
                         let val_var = self.variables[&ins.arguments[0]];
-                        let val = self.read_float(val_var);
+                        let val = self.builder.load_float(val_var);
                         let func = self.module.intrinsic(
                             "llvm.ceil",
                             &[self.builder.context.f64_type().into()],
                         );
-                        let raw = self
+
+                        let res = self
                             .builder
                             .call(func, &[val.into()])
                             .into_float_value();
-                        let res = self.new_float(state_var, raw);
 
                         self.builder.store(reg_var, res);
                     }
                     BuiltinFunction::FloatFloor => {
                         let reg_var = self.variables[&ins.register];
                         let val_var = self.variables[&ins.arguments[0]];
-                        let val = self.read_float(val_var);
+                        let val = self.builder.load_float(val_var);
                         let func = self.module.intrinsic(
                             "llvm.floor",
                             &[self.builder.context.f64_type().into()],
                         );
-                        let raw = self
+
+                        let res = self
                             .builder
                             .call(func, &[val.into()])
                             .into_float_value();
-                        let res = self.new_float(state_var, raw);
 
                         self.builder.store(reg_var, res);
                     }
@@ -933,34 +932,32 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_float(lhs_var);
-                        let rhs = self.read_float(rhs_var);
+                        let lhs = self.builder.load_float(lhs_var);
+                        let rhs = self.builder.load_float(rhs_var);
                         let raw = self.builder.float_eq(lhs, rhs);
-                        let res = self.new_bool(state_var, raw);
+                        let res = self.builder.bool_to_int(raw);
 
                         self.builder.store(reg_var, res);
                     }
                     BuiltinFunction::FloatToBits => {
                         let reg_var = self.variables[&ins.register];
                         let val_var = self.variables[&ins.arguments[0]];
-                        let val = self.read_float(val_var);
-                        let bits = self
+                        let val = self.builder.load_float(val_var);
+                        let res = self
                             .builder
                             .bitcast(val, self.builder.context.i64_type())
                             .into_int_value();
-                        let res = self.new_int(state_var, bits);
 
                         self.builder.store(reg_var, res);
                     }
                     BuiltinFunction::FloatFromBits => {
                         let reg_var = self.variables[&ins.register];
                         let val_var = self.variables[&ins.arguments[0]];
-                        let val = self.read_int(val_var);
-                        let bits = self
+                        let val = self.builder.load_int(val_var);
+                        let res = self
                             .builder
                             .bitcast(val, self.builder.context.f64_type())
                             .into_float_value();
-                        let res = self.new_float(state_var, bits);
 
                         self.builder.store(reg_var, res);
                     }
@@ -968,10 +965,10 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_float(lhs_var);
-                        let rhs = self.read_float(rhs_var);
+                        let lhs = self.builder.load_float(lhs_var);
+                        let rhs = self.builder.load_float(rhs_var);
                         let raw = self.builder.float_gt(lhs, rhs);
-                        let res = self.new_bool(state_var, raw);
+                        let res = self.builder.bool_to_int(raw);
 
                         self.builder.store(reg_var, res);
                     }
@@ -979,10 +976,10 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_float(lhs_var);
-                        let rhs = self.read_float(rhs_var);
+                        let lhs = self.builder.load_float(lhs_var);
+                        let rhs = self.builder.load_float(rhs_var);
                         let raw = self.builder.float_ge(lhs, rhs);
-                        let res = self.new_bool(state_var, raw);
+                        let res = self.builder.bool_to_int(raw);
 
                         self.builder.store(reg_var, res);
                     }
@@ -990,10 +987,10 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_float(lhs_var);
-                        let rhs = self.read_float(rhs_var);
+                        let lhs = self.builder.load_float(lhs_var);
+                        let rhs = self.builder.load_float(rhs_var);
                         let raw = self.builder.float_lt(lhs, rhs);
-                        let res = self.new_bool(state_var, raw);
+                        let res = self.builder.bool_to_int(raw);
 
                         self.builder.store(reg_var, res);
                     }
@@ -1001,17 +998,17 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_float(lhs_var);
-                        let rhs = self.read_float(rhs_var);
+                        let lhs = self.builder.load_float(lhs_var);
+                        let rhs = self.builder.load_float(rhs_var);
                         let raw = self.builder.float_le(lhs, rhs);
-                        let res = self.new_bool(state_var, raw);
+                        let res = self.builder.bool_to_int(raw);
 
                         self.builder.store(reg_var, res);
                     }
                     BuiltinFunction::FloatIsInf => {
                         let reg_var = self.variables[&ins.register];
                         let val_var = self.variables[&ins.arguments[0]];
-                        let val = self.read_float(val_var);
+                        let val = self.builder.load_float(val_var);
                         let fabs = self.module.intrinsic(
                             "llvm.fabs",
                             &[self.builder.context.f64_type().into()],
@@ -1024,34 +1021,32 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
 
                         let pos_inf = self.builder.f64_literal(f64::INFINITY);
                         let cond = self.builder.float_eq(pos_val, pos_inf);
-                        let res = self.new_bool(state_var, cond);
+                        let res = self.builder.bool_to_int(cond);
 
                         self.builder.store(reg_var, res);
                     }
                     BuiltinFunction::FloatIsNan => {
                         let reg_var = self.variables[&ins.register];
                         let val_var = self.variables[&ins.arguments[0]];
-                        let val = self.read_float(val_var);
+                        let val = self.builder.load_float(val_var);
                         let raw = self.builder.float_is_nan(val);
-                        let res = self.new_bool(state_var, raw);
+                        let res = self.builder.bool_to_int(raw);
 
                         self.builder.store(reg_var, res);
                     }
                     BuiltinFunction::FloatRound => {
                         let reg_var = self.variables[&ins.register];
                         let val_var = self.variables[&ins.arguments[0]];
-                        let val = self.read_float(val_var);
+                        let val = self.builder.load_float(val_var);
                         let func = self.module.intrinsic(
                             "llvm.round",
                             &[self.builder.context.f64_type().into()],
                         );
 
-                        let raw = self
+                        let res = self
                             .builder
                             .call(func, &[val.into()])
                             .into_float_value();
-
-                        let res = self.new_float(state_var, raw);
 
                         self.builder.store(reg_var, res);
                     }
@@ -1059,8 +1054,8 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_float(lhs_var);
-                        let raw_rhs = self.read_int(rhs_var);
+                        let lhs = self.builder.load_float(lhs_var);
+                        let raw_rhs = self.builder.load_int(rhs_var);
                         let rhs = self.builder.int_to_int(raw_rhs, 32, false);
                         let func = self.module.intrinsic(
                             "llvm.powi",
@@ -1070,12 +1065,10 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                             ],
                         );
 
-                        let raw = self
+                        let res = self
                             .builder
                             .call(func, &[lhs.into(), rhs.into()])
                             .into_float_value();
-
-                        let res = self.new_float(state_var, raw);
 
                         self.builder.store(reg_var, res);
                     }
@@ -1083,17 +1076,16 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_int(lhs_var).into();
-                        let rhs = self.read_int(rhs_var).into();
+                        let lhs = self.builder.load_int(lhs_var).into();
+                        let rhs = self.builder.load_int(rhs_var).into();
                         let func = self.module.intrinsic(
                             "llvm.fshl",
                             &[self.builder.context.i64_type().into()],
                         );
-                        let raw = self
+                        let res = self
                             .builder
                             .call(func, &[lhs, lhs, rhs])
                             .into_int_value();
-                        let res = self.new_int(state_var, raw);
 
                         self.builder.store(reg_var, res);
                     }
@@ -1101,17 +1093,16 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_int(lhs_var).into();
-                        let rhs = self.read_int(rhs_var).into();
+                        let lhs = self.builder.load_int(lhs_var).into();
+                        let rhs = self.builder.load_int(rhs_var).into();
                         let func = self.module.intrinsic(
                             "llvm.fshr",
                             &[self.builder.context.i64_type().into()],
                         );
-                        let raw = self
+                        let res = self
                             .builder
                             .call(func, &[lhs, lhs, rhs])
                             .into_int_value();
-                        let res = self.new_int(state_var, raw);
 
                         self.builder.store(reg_var, res);
                     }
@@ -1119,10 +1110,9 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_int(lhs_var);
-                        let rhs = self.read_int(rhs_var);
-                        let raw = self.builder.left_shift(lhs, rhs);
-                        let res = self.new_int(state_var, raw);
+                        let lhs = self.builder.load_int(lhs_var);
+                        let rhs = self.builder.load_int(rhs_var);
+                        let res = self.builder.left_shift(lhs, rhs);
 
                         self.builder.store(reg_var, res);
                     }
@@ -1130,10 +1120,9 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_int(lhs_var);
-                        let rhs = self.read_int(rhs_var);
-                        let raw = self.builder.signed_right_shift(lhs, rhs);
-                        let res = self.new_int(state_var, raw);
+                        let lhs = self.builder.load_int(lhs_var);
+                        let rhs = self.builder.load_int(rhs_var);
+                        let res = self.builder.signed_right_shift(lhs, rhs);
 
                         self.builder.store(reg_var, res);
                     }
@@ -1141,10 +1130,9 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_int(lhs_var);
-                        let rhs = self.read_int(rhs_var);
-                        let raw = self.builder.right_shift(lhs, rhs);
-                        let res = self.new_int(state_var, raw);
+                        let lhs = self.builder.load_int(lhs_var);
+                        let rhs = self.builder.load_int(rhs_var);
+                        let res = self.builder.right_shift(lhs, rhs);
 
                         self.builder.store(reg_var, res);
                     }
@@ -1152,10 +1140,9 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_int(lhs_var);
-                        let rhs = self.read_int(rhs_var);
-                        let raw = self.builder.int_add(lhs, rhs);
-                        let res = self.new_int(state_var, raw);
+                        let lhs = self.builder.load_int(lhs_var);
+                        let rhs = self.builder.load_int(rhs_var);
+                        let res = self.builder.int_add(lhs, rhs);
 
                         self.builder.store(reg_var, res);
                     }
@@ -1163,10 +1150,9 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_int(lhs_var);
-                        let rhs = self.read_int(rhs_var);
-                        let raw = self.builder.int_mul(lhs, rhs);
-                        let res = self.new_int(state_var, raw);
+                        let lhs = self.builder.load_int(lhs_var);
+                        let rhs = self.builder.load_int(rhs_var);
+                        let res = self.builder.int_mul(lhs, rhs);
 
                         self.builder.store(reg_var, res);
                     }
@@ -1174,10 +1160,9 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_int(lhs_var);
-                        let rhs = self.read_int(rhs_var);
-                        let raw = self.builder.int_sub(lhs, rhs);
-                        let res = self.new_int(state_var, raw);
+                        let lhs = self.builder.load_int(lhs_var);
+                        let rhs = self.builder.load_int(rhs_var);
+                        let res = self.builder.int_sub(lhs, rhs);
 
                         self.builder.store(reg_var, res);
                     }
@@ -1185,8 +1170,8 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_int(lhs_var);
-                        let rhs = self.read_int(rhs_var);
+                        let lhs = self.builder.load_int(lhs_var);
+                        let rhs = self.builder.load_int(rhs_var);
                         let add = self.module.intrinsic(
                             "llvm.sadd.with.overflow",
                             &[self.builder.context.i64_type().into()],
@@ -1203,8 +1188,8 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_int(lhs_var);
-                        let rhs = self.read_int(rhs_var);
+                        let lhs = self.builder.load_int(lhs_var);
+                        let rhs = self.builder.load_int(rhs_var);
                         let add = self.module.intrinsic(
                             "llvm.smul.with.overflow",
                             &[self.builder.context.i64_type().into()],
@@ -1221,8 +1206,8 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let reg_var = self.variables[&ins.register];
                         let lhs_var = self.variables[&ins.arguments[0]];
                         let rhs_var = self.variables[&ins.arguments[1]];
-                        let lhs = self.read_int(lhs_var);
-                        let rhs = self.read_int(rhs_var);
+                        let lhs = self.builder.load_int(lhs_var);
+                        let rhs = self.builder.load_int(rhs_var);
                         let add = self.module.intrinsic(
                             "llvm.ssub.with.overflow",
                             &[self.builder.context.i64_type().into()],
@@ -1259,9 +1244,9 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         let temp_var = self.builder.new_stack_slot(temp_type);
 
                         for (idx, reg) in ins.arguments.iter().enumerate() {
-                            let val = self
-                                .builder
-                                .load_untyped_pointer(self.variables[reg]);
+                            let var = self.variables[reg];
+                            let typ = self.variable_types[reg];
+                            let val = self.builder.load(typ, var);
 
                             self.builder.store_array_field(
                                 temp_type, temp_var, idx as _, val,
@@ -1302,42 +1287,25 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
             }
             Instruction::Return(ins) => {
                 let var = self.variables[&ins.register];
-                let val =
-                    self.builder.load(self.builder.context.pointer_type(), var);
+                let typ = self.variable_types[&ins.register];
+                let val = self.builder.load(typ, var);
 
                 self.builder.return_value(Some(&val));
             }
             Instruction::Branch(ins) => {
-                let cond_var = self.variables[&ins.condition];
-                let cond_ptr = self.builder.load_untyped_pointer(cond_var);
-
-                // Load the `true` singleton from `State`.
-                let state =
-                    self.builder.load_pointer(self.layouts.state, state_var);
-                let bool_ptr = self
-                    .builder
-                    .load_field(self.layouts.state, state, TRUE_INDEX)
-                    .into_pointer_value();
-
-                // Since our booleans are heap objects we have to
-                // compare pointer addresses, and as such first have to
-                // cast our pointers to ints.
-                let cond_int = self.builder.pointer_to_int(cond_ptr);
-                let bool_int = self.builder.pointer_to_int(bool_ptr);
-                let cond = self.builder.int_eq(cond_int, bool_int);
+                let var = self.variables[&ins.condition];
+                let val = self.builder.load_int(var);
+                let status = self.builder.int_to_bool(val);
 
                 self.builder.branch(
-                    cond,
+                    status,
                     all_blocks[ins.if_true.0],
                     all_blocks[ins.if_false.0],
                 );
             }
             Instruction::Switch(ins) => {
-                let reg_var = self.variables[&ins.register];
-                let val = self.builder.load_untyped_pointer(reg_var);
-                let addr = self.builder.pointer_to_int(val);
-                let shift = self.builder.i64_literal(INT_SHIFT as i64);
-                let untagged = self.builder.signed_right_shift(addr, shift);
+                let var = self.variables[&ins.register];
+                let val = self.builder.load_int(var);
                 let mut cases = Vec::with_capacity(ins.blocks.len());
 
                 for (index, block) in ins.blocks.iter().enumerate() {
@@ -1347,97 +1315,45 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                     ));
                 }
 
-                self.builder.exhaustive_switch(untagged, &cases);
-            }
-            Instruction::SwitchKind(ins) => {
-                let val_var = self.variables[&ins.register];
-                let kind_var = self.kind_of(val_var);
-                let kind = self
-                    .builder
-                    .load(self.builder.context.i8_type(), kind_var)
-                    .into_int_value();
-
-                // Now we can generate the switch that jumps to the correct
-                // block based on the value kind.
-                let owned_block = all_blocks[ins.blocks[0].0];
-                let ref_block = all_blocks[ins.blocks[1].0];
-                let atomic_block = all_blocks[ins.blocks[2].0];
-                let perm_block = all_blocks[ins.blocks[3].0];
-                let int_block = all_blocks[ins.blocks[4].0];
-                let float_block = all_blocks[ins.blocks[5].0];
-                let cases = [
-                    (self.builder.u8_literal(OWNED_KIND), owned_block),
-                    (self.builder.u8_literal(REF_KIND), ref_block),
-                    (self.builder.u8_literal(ATOMIC_KIND), atomic_block),
-                    (self.builder.u8_literal(PERMANENT_KIND), perm_block),
-                    (self.builder.u8_literal(INT_KIND), int_block),
-                    (self.builder.u8_literal(FLOAT_KIND), float_block),
-                ];
-
-                self.builder.exhaustive_switch(kind, &cases);
+                self.builder.exhaustive_switch(val, &cases);
             }
             Instruction::Nil(ins) => {
-                let result = self.variables[&ins.register];
-                let state =
-                    self.builder.load_pointer(self.layouts.state, state_var);
-                let val = self.builder.load_field(
-                    self.layouts.state,
-                    state,
-                    NIL_INDEX,
-                );
+                let var = self.variables[&ins.register];
+                let val = self.builder.i64_literal(0);
 
-                self.builder.store(result, val);
+                self.builder.store(var, val);
             }
             Instruction::True(ins) => {
-                let result = self.variables[&ins.register];
-                let state =
-                    self.builder.load_pointer(self.layouts.state, state_var);
-                let val = self.builder.load_field(
-                    self.layouts.state,
-                    state,
-                    TRUE_INDEX,
-                );
+                let var = self.variables[&ins.register];
+                let val = self.builder.i64_literal(1);
 
-                self.builder.store(result, val);
+                self.builder.store(var, val);
             }
             Instruction::False(ins) => {
-                let result = self.variables[&ins.register];
-                let state =
-                    self.builder.load_pointer(self.layouts.state, state_var);
-                let val = self.builder.load_field(
-                    self.layouts.state,
-                    state,
-                    FALSE_INDEX,
-                );
+                let var = self.variables[&ins.register];
+                let val = self.builder.i64_literal(0);
 
-                self.builder.store(result, val);
+                self.builder.store(var, val);
             }
             Instruction::Int(ins) => {
                 let var = self.variables[&ins.register];
+                let val = self.builder.i64_literal(ins.value);
 
-                if let Some(ptr) = self.builder.tagged_int(ins.value) {
-                    self.builder.store(var, ptr);
-                } else {
-                    let raw = self.builder.i64_literal(ins.value);
-                    let val = self.new_int(state_var, raw);
-
-                    self.builder.store(var, val);
-                }
+                self.builder.store(var, val);
             }
             Instruction::Float(ins) => {
                 let var = self.variables[&ins.register];
-                let raw = self.builder.f64_literal(ins.value);
-                let val = self.new_float(state_var, raw);
+                let val = self.builder.f64_literal(ins.value);
 
                 self.builder.store(var, val);
             }
             Instruction::String(ins) => {
                 let var = self.variables[&ins.register];
-                let global =
-                    self.module.add_string(&ins.value).as_pointer_value();
-                let value = self.builder.load_untyped_pointer(global);
+                let typ = self.variable_types[&ins.register];
+                let ptr = self.module.add_string(&ins.value).as_pointer_value();
+                let val = self.builder.load(typ, ptr);
 
-                self.builder.store(var, value);
+                self.builder.store(var, val);
             }
             Instruction::MoveRegister(ins) => {
                 let source = self.variables[&ins.source];
@@ -1466,28 +1382,10 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                 };
 
                 for &reg in &ins.arguments {
-                    let reg_typ = self.register_type(reg);
-                    let arg_var = self.variables[&reg];
+                    let typ = self.variable_types[&reg];
+                    let var = self.variables[&reg];
 
-                    // References and tagged integers are passed as their
-                    // raw versions (i.e. without a tag bit). This makes it
-                    // a little easier to pass such data to the runtime
-                    // functions.
-                    let arg = if reg_typ.is_int(self.db) {
-                        self.read_int(arg_var).into()
-                    } else if reg_typ.is_ref_or_mut(self.db) {
-                        let arg = self
-                            .builder
-                            .load(self.variable_types[&reg], arg_var);
-
-                        self.builder.untagged(arg.into_pointer_value()).into()
-                    } else {
-                        self.builder
-                            .load(self.variable_types[&reg], arg_var)
-                            .into()
-                    };
-
-                    args.push(arg);
+                    args.push(self.builder.load(typ, var).into());
                 }
 
                 if func.get_type().get_return_type().is_some() {
@@ -1521,11 +1419,10 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                 ];
 
                 for reg in &ins.arguments {
-                    args.push(
-                        self.builder
-                            .load_untyped_pointer(self.variables[reg])
-                            .into(),
-                    );
+                    let var = self.variables[reg];
+                    let typ = self.variable_types[reg];
+
+                    args.push(self.builder.load(typ, var).into());
                 }
 
                 self.call(ins.register, func, &args);
@@ -1534,6 +1431,7 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                 self.set_debug_location(ins.location);
 
                 let rec_var = self.variables[&ins.receiver];
+                let rec_typ = self.variable_types[&ins.receiver];
                 let func_name = &self.names.methods[&ins.method];
                 let func = self.module.add_method(func_name, ins.method);
                 let mut args: Vec<BasicMetadataValueEnum> = vec![
@@ -1541,15 +1439,14 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         .load_pointer(self.layouts.state, state_var)
                         .into(),
                     self.builder.load_untyped_pointer(proc_var).into(),
-                    self.builder.load_untyped_pointer(rec_var).into(),
+                    self.builder.load(rec_typ, rec_var).into(),
                 ];
 
                 for reg in &ins.arguments {
-                    args.push(
-                        self.builder
-                            .load_untyped_pointer(self.variables[reg])
-                            .into(),
-                    );
+                    let typ = self.variable_types[reg];
+                    let var = self.variables[reg];
+
+                    args.push(self.builder.load(typ, var).into());
                 }
 
                 self.call(ins.register, func, &args);
@@ -1564,14 +1461,21 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                 // possible for a certain hash.
                 let loop_start = self.builder.add_block();
                 let after_loop = self.builder.add_block();
-
-                let index_type = self.builder.context.i64_type();
-                let index_var = self.builder.new_stack_slot(index_type);
+                let idx_typ = self.builder.context.i64_type();
+                let idx_var = self.builder.new_stack_slot(idx_typ);
                 let rec_var = self.variables[&ins.receiver];
-
-                let rec = self.builder.load_untyped_pointer(rec_var);
+                let rec_typ = self.variable_types[&ins.receiver];
+                let rec = self.builder.load(rec_typ, rec_var);
                 let info = &self.layouts.methods[&ins.method];
-                let rec_class = self.class_of(rec);
+                let rec_class = self
+                    .builder
+                    .load_field(
+                        self.layouts.header,
+                        rec.into_pointer_value(),
+                        HEADER_CLASS_INDEX,
+                    )
+                    .into_pointer_value();
+
                 let rec_type = self.layouts.empty_class;
 
                 // (class.method_slots - 1) as u64
@@ -1592,12 +1496,12 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
 
                 let hash = self.builder.u64_literal(info.hash);
 
-                self.builder.store(index_var, hash);
+                self.builder.store(idx_var, hash);
 
                 let space = AddressSpace::default();
-                let func_type = info.signature;
-                let func_var =
-                    self.builder.new_stack_slot(func_type.ptr_type(space));
+                let fn_typ = info.signature;
+                let fn_var =
+                    self.builder.new_stack_slot(fn_typ.ptr_type(space));
 
                 self.builder.jump(loop_start);
 
@@ -1605,15 +1509,15 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                 self.builder.switch_to_block(loop_start);
 
                 // slot = index & len
-                let index =
-                    self.builder.load(index_type, index_var).into_int_value();
-                let slot = self.builder.bit_and(index, len);
+                let idx = self.builder.load(idx_typ, idx_var).into_int_value();
+                let slot = self.builder.bit_and(idx, len);
                 let method_addr = self.builder.array_field_index_address(
                     rec_type,
                     rec_class,
                     CLASS_METHODS_INDEX,
                     slot,
                 );
+
                 let method = self
                     .builder
                     .load(self.layouts.method, method_addr)
@@ -1637,9 +1541,8 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                     // The block to jump to when the hash codes didn't match.
                     self.builder.switch_to_block(ne_block);
                     self.builder.store(
-                        index_var,
-                        self.builder
-                            .int_add(index, self.builder.u64_literal(1)),
+                        idx_var,
+                        self.builder.int_add(idx, self.builder.u64_literal(1)),
                     );
                     self.builder.jump(loop_start);
                 } else {
@@ -1649,9 +1552,8 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                 // The block to jump to at the end of the loop, used for
                 // calling the native function.
                 self.builder.switch_to_block(after_loop);
-
                 self.builder.store(
-                    func_var,
+                    fn_var,
                     self.builder.extract_field(method, METHOD_FUNCTION_INDEX),
                 );
 
@@ -1664,23 +1566,22 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                 ];
 
                 for reg in &ins.arguments {
-                    let val = self
-                        .builder
-                        .load_untyped_pointer(self.variables[reg])
-                        .into();
+                    let typ = self.variable_types[reg];
+                    let var = self.variables[reg];
 
-                    args.push(val);
+                    args.push(self.builder.load(typ, var).into());
                 }
 
                 let func_val =
-                    self.builder.load_function_pointer(func_type, func_var);
+                    self.builder.load_function_pointer(fn_typ, fn_var);
 
-                self.indirect_call(ins.register, func_type, func_val, &args);
+                self.indirect_call(ins.register, fn_typ, func_val, &args);
             }
             Instruction::CallClosure(ins) => {
                 self.set_debug_location(ins.location);
 
                 let rec_var = self.variables[&ins.receiver];
+                let rec_typ = self.variable_types[&ins.receiver];
                 let space = AddressSpace::default();
 
                 // For closures we generate the signature on the fly, as the
@@ -1693,18 +1594,17 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                     self.builder.context.pointer_type().into(), // Closure
                 ];
 
-                for _ in &ins.arguments {
-                    sig_args.push(self.builder.context.pointer_type().into());
+                for reg in &ins.arguments {
+                    sig_args.push(self.variable_types[reg].into());
                 }
 
                 // Load the method from the method table.
-                let rec = self.builder.load_untyped_pointer(rec_var);
-                let untagged = self.builder.untagged(rec);
+                let rec = self.builder.load(rec_typ, rec_var);
                 let class = self
                     .builder
                     .load_field(
                         self.layouts.header,
-                        untagged,
+                        rec.into_pointer_value(),
                         HEADER_CLASS_INDEX,
                     )
                     .into_pointer_value();
@@ -1718,11 +1618,10 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                 ];
 
                 for reg in &ins.arguments {
-                    args.push(
-                        self.builder
-                            .load_untyped_pointer(self.variables[reg])
-                            .into(),
-                    );
+                    let typ = self.variable_types[reg];
+                    let var = self.variables[reg];
+
+                    args.push(self.builder.load(typ, var).into());
                 }
 
                 let slot = self.builder.u32_literal(CLOSURE_CALL_INDEX);
@@ -1755,6 +1654,7 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                 self.set_debug_location(ins.location);
 
                 let rec_var = self.variables[&ins.receiver];
+                let rec_typ = self.variable_types[&ins.receiver];
                 let space = AddressSpace::default();
                 let sig_args: Vec<BasicMetadataTypeEnum> = vec![
                     self.layouts.state.ptr_type(space).into(), // State
@@ -1762,13 +1662,12 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                     self.builder.context.pointer_type().into(), // Receiver
                 ];
 
-                let rec = self.builder.load_untyped_pointer(rec_var);
-                let untagged = self.builder.untagged(rec);
+                let rec = self.builder.load(rec_typ, rec_var);
                 let class = self
                     .builder
                     .load_field(
                         self.layouts.header,
-                        untagged,
+                        rec.into_pointer_value(),
                         HEADER_CLASS_INDEX,
                     )
                     .into_pointer_value();
@@ -1809,6 +1708,7 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                 self.set_debug_location(ins.location);
 
                 let rec_var = self.variables[&ins.receiver];
+                let rec_typ = self.variable_types[&ins.receiver];
                 let method_name = &self.names.methods[&ins.method];
                 let method = self
                     .module
@@ -1831,8 +1731,9 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                 // The receiver doesn't need to be stored in the message, as
                 // each async method sets `self` to the process running it.
                 for (index, reg) in ins.arguments.iter().enumerate() {
-                    let val =
-                        self.builder.load_untyped_pointer(self.variables[reg]);
+                    let typ = self.variable_types[reg];
+                    let var = self.variables[reg];
+                    let val = self.builder.load(typ, var);
                     let slot = self.builder.u32_literal(index as u32);
                     let addr = self.builder.array_field_index_address(
                         self.layouts.message,
@@ -1848,13 +1749,13 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                     .builder
                     .load_pointer(self.layouts.state, state_var)
                     .into();
+
                 let sender = self.builder.load_untyped_pointer(proc_var).into();
-                let receiver =
-                    self.builder.load_untyped_pointer(rec_var).into();
+                let rec = self.builder.load(rec_typ, rec_var).into();
 
                 self.builder.call_void(
                     send_message,
-                    &[state, sender, receiver, message.into()],
+                    &[state, sender, rec, message.into()],
                 );
             }
             Instruction::GetField(ins)
@@ -1906,6 +1807,7 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
             Instruction::GetField(ins) => {
                 let reg_var = self.variables[&ins.register];
                 let rec_var = self.variables[&ins.receiver];
+                let rec_typ = self.variable_types[&ins.receiver];
                 let base = if ins.class.kind(self.db).is_async() {
                     PROCESS_FIELD_OFFSET
                 } else {
@@ -1914,16 +1816,19 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
 
                 let index = (base + ins.field.index(self.db)) as u32;
                 let layout = self.layouts.instances[&ins.class];
-                let rec = self
-                    .builder
-                    .untagged(self.builder.load_untyped_pointer(rec_var));
-                let field = self.builder.load_field(layout, rec, index);
+                let rec = self.builder.load(rec_typ, rec_var);
+                let field = self.builder.load_field(
+                    layout,
+                    rec.into_pointer_value(),
+                    index,
+                );
 
                 self.builder.store(reg_var, field);
             }
             Instruction::FieldPointer(ins) => {
                 let reg_var = self.variables[&ins.register];
                 let rec_var = self.variables[&ins.receiver];
+                let rec_typ = self.variable_types[&ins.receiver];
                 let base = if ins.class.kind(self.db).is_async() {
                     PROCESS_FIELD_OFFSET
                 } else {
@@ -1932,16 +1837,20 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
 
                 let index = (base + ins.field.index(self.db)) as u32;
                 let layout = self.layouts.instances[&ins.class];
-                let rec = self
-                    .builder
-                    .untagged(self.builder.load_untyped_pointer(rec_var));
-                let addr = self.builder.field_address(layout, rec, index);
+                let rec = self.builder.load(rec_typ, rec_var);
+                let addr = self.builder.field_address(
+                    layout,
+                    rec.into_pointer_value(),
+                    index,
+                );
 
                 self.builder.store(reg_var, addr);
             }
             Instruction::SetField(ins) => {
                 let rec_var = self.variables[&ins.receiver];
+                let rec_typ = self.variable_types[&ins.receiver];
                 let val_var = self.variables[&ins.value];
+                let val_typ = self.variable_types[&ins.value];
                 let base = if ins.class.kind(self.db).is_async() {
                     PROCESS_FIELD_OFFSET
                 } else {
@@ -1949,13 +1858,16 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                 };
 
                 let index = (base + ins.field.index(self.db)) as u32;
-                let val = self.builder.load_untyped_pointer(val_var);
+                let val = self.builder.load(val_typ, val_var);
                 let layout = self.layouts.instances[&ins.class];
-                let rec = self
-                    .builder
-                    .untagged(self.builder.load_untyped_pointer(rec_var));
+                let rec = self.builder.load(rec_typ, rec_var);
 
-                self.builder.store_field(layout, rec, index, val);
+                self.builder.store_field(
+                    layout,
+                    rec.into_pointer_value(),
+                    index,
+                    val,
+                );
             }
             Instruction::CheckRefs(ins) => {
                 self.set_debug_location(ins.location);
@@ -1975,114 +1887,35 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
 
                 self.builder.call_void(func, &[free]);
             }
-            Instruction::Clone(ins) => {
-                let reg_var = self.variables[&ins.register];
-                let val_var = self.variables[&ins.source];
-                let val = self.builder.load_untyped_pointer(val_var);
-
-                match ins.kind {
-                    CloneKind::Float => {
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var);
-                        let func = self
-                            .module
-                            .runtime_function(RuntimeFunction::FloatClone);
-                        let result = self
-                            .builder
-                            .call(func, &[state.into(), val.into()])
-                            .into_pointer_value();
-
-                        self.builder.store(reg_var, result);
-                    }
-                    CloneKind::Int => {
-                        let addr = self.builder.pointer_to_int(val);
-                        let mask = self.builder.i64_literal(INT_MASK);
-                        let bits = self.builder.bit_and(addr, mask);
-                        let cond = self.builder.int_eq(bits, mask);
-                        let after_block = self.builder.add_block();
-                        let tagged_block = self.builder.add_block();
-                        let heap_block = self.builder.add_block();
-
-                        self.builder.branch(cond, tagged_block, heap_block);
-
-                        // The block to jump to when the Int is a tagged Int.
-                        self.builder.switch_to_block(tagged_block);
-                        self.builder.store(reg_var, val);
-                        self.builder.jump(after_block);
-
-                        // The block to jump to when the Int is a boxed Int.
-                        self.builder.switch_to_block(heap_block);
-
-                        let func = self
-                            .module
-                            .runtime_function(RuntimeFunction::IntClone);
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var);
-                        let result = self
-                            .builder
-                            .call(func, &[state.into(), val.into()])
-                            .into_pointer_value();
-
-                        self.builder.store(reg_var, result);
-                        self.builder.jump(after_block);
-
-                        self.builder.switch_to_block(after_block);
-                    }
-                }
-            }
             Instruction::Increment(ins) => {
                 let reg_var = self.variables[&ins.register];
-                let val_var = self.variables[&ins.value];
-                let val = self.builder.load_untyped_pointer(val_var);
-                let header = self.builder.untagged(val);
+                let val = self.builder.load_untyped_pointer(reg_var);
                 let one = self.builder.u32_literal(1);
-                let old = self
-                    .builder
-                    .load_field(self.layouts.header, header, HEADER_REFS_INDEX)
-                    .into_int_value();
+                let header = self.layouts.header;
+                let idx = HEADER_REFS_INDEX;
+                let old =
+                    self.builder.load_field(header, val, idx).into_int_value();
+
                 let new = self.builder.int_add(old, one);
 
-                self.builder.store_field(
-                    self.layouts.header,
-                    header,
-                    HEADER_REFS_INDEX,
-                    new,
-                );
-
-                let old_addr = self.builder.pointer_to_int(val);
-                let mask = self.builder.i64_literal(REF_MASK);
-                let new_addr = self.builder.bit_or(old_addr, mask);
-                let ref_ptr = self.builder.int_to_pointer(new_addr);
-
-                self.builder.store(reg_var, ref_ptr);
+                self.builder.store_field(header, val, idx, new);
             }
             Instruction::Decrement(ins) => {
                 let var = self.variables[&ins.register];
-                let header = self
-                    .builder
-                    .untagged(self.builder.load_untyped_pointer(var));
-
-                let old_refs = self
-                    .builder
-                    .load_field(self.layouts.header, header, HEADER_REFS_INDEX)
-                    .into_int_value();
+                let val = self.builder.load_untyped_pointer(var);
+                let header = self.layouts.header;
+                let idx = HEADER_REFS_INDEX;
+                let old_refs =
+                    self.builder.load_field(header, val, idx).into_int_value();
 
                 let one = self.builder.u32_literal(1);
                 let new_refs = self.builder.int_sub(old_refs, one);
 
-                self.builder.store_field(
-                    self.layouts.header,
-                    header,
-                    HEADER_REFS_INDEX,
-                    new_refs,
-                );
+                self.builder.store_field(header, val, idx, new_refs);
             }
             Instruction::IncrementAtomic(ins) => {
-                let reg_var = self.variables[&ins.register];
-                let val_var = self.variables[&ins.value];
-                let val = self.builder.load_untyped_pointer(val_var);
+                let var = self.variables[&ins.register];
+                let val = self.builder.load_untyped_pointer(var);
                 let one = self.builder.u32_literal(1);
                 let field = self.builder.field_address(
                     self.layouts.header,
@@ -2091,28 +1924,13 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                 );
 
                 self.builder.atomic_add(field, one);
-                self.builder.store(reg_var, val);
             }
             Instruction::DecrementAtomic(ins) => {
                 let var = self.variables[&ins.register];
                 let header =
                     self.builder.load_pointer(self.layouts.header, var);
-                let decr_block = self.builder.add_block();
                 let drop_block = all_blocks[ins.if_true.0];
                 let after_block = all_blocks[ins.if_false.0];
-                let kind = self
-                    .builder
-                    .load_field(self.layouts.header, header, HEADER_KIND_INDEX)
-                    .into_int_value();
-                let perm_kind = self.builder.u8_literal(PERMANENT_KIND);
-                let is_perm = self.builder.int_eq(kind, perm_kind);
-
-                self.builder.branch(is_perm, after_block, decr_block);
-
-                // The block to jump to when the value isn't a permanent value,
-                // and its reference count should be decremented.
-                self.builder.switch_to_block(decr_block);
-
                 let one = self.builder.u32_literal(1);
                 let refs = self.builder.field_address(
                     self.layouts.header,
@@ -2137,8 +1955,13 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                 let global =
                     self.module.add_class(ins.class, name).as_pointer_value();
                 let class = self.builder.load_untyped_pointer(global);
-                let func =
-                    self.module.runtime_function(RuntimeFunction::Allocate);
+                let func_name = if ins.class.is_atomic(self.db) {
+                    RuntimeFunction::AllocateAtomic
+                } else {
+                    RuntimeFunction::Allocate
+                };
+
+                let func = self.module.runtime_function(func_name);
                 let ptr = self.builder.call(func, &[class.into()]);
 
                 self.builder.store(reg_var, ptr);
@@ -2158,9 +1981,10 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
             }
             Instruction::GetConstant(ins) => {
                 let var = self.variables[&ins.register];
+                let typ = self.variable_types[&ins.register];
                 let name = &self.names.constants[&ins.id];
                 let global = self.module.add_constant(name).as_pointer_value();
-                let value = self.builder.load_untyped_pointer(global);
+                let value = self.builder.load(typ, global);
 
                 self.builder.store(var, value);
             }
@@ -2211,7 +2035,10 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                             .int_to_float(src.into_int_value(), size)
                             .as_basic_value_enum()
                     }
-                    (CastType::Int(_, _), CastType::Pointer) => {
+                    (
+                        CastType::Int(_, _),
+                        CastType::Pointer | CastType::Object,
+                    ) => {
                         let src = self
                             .builder
                             .load(src_typ, src_var)
@@ -2232,81 +2059,10 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                             .float_to_float(src.into_float_value(), size)
                             .as_basic_value_enum()
                     }
-                    (CastType::Int(_, signed), CastType::InkoInt) => {
-                        let src = self.builder.load(src_typ, src_var);
-                        let raw = self.builder.int_to_int(
-                            src.into_int_value(),
-                            64,
-                            signed,
-                        );
-
-                        self.new_int(state_var, raw).as_basic_value_enum()
-                    }
-                    (CastType::Int(_, _), CastType::InkoFloat) => {
-                        let src = self.builder.load(src_typ, src_var);
-                        let raw =
-                            self.builder.int_to_float(src.into_int_value(), 64);
-
-                        self.new_float(state_var, raw).as_basic_value_enum()
-                    }
-                    (CastType::Float(_), CastType::InkoInt) => {
-                        let src = self.builder.load(src_typ, src_var);
-                        let raw = self.float_to_int(src.into_float_value(), 64);
-
-                        self.new_int(state_var, raw).as_basic_value_enum()
-                    }
-                    (CastType::Float(_), CastType::InkoFloat) => {
-                        let src = self.builder.load(src_typ, src_var);
-                        let raw = self
-                            .builder
-                            .float_to_float(src.into_float_value(), 64);
-
-                        self.new_float(state_var, raw).as_basic_value_enum()
-                    }
-                    (CastType::InkoInt, CastType::Int(size, _)) => {
-                        let raw = self.read_int(src_var);
-
-                        self.builder
-                            .int_to_int(raw, size, true)
-                            .as_basic_value_enum()
-                    }
-                    (CastType::InkoInt, CastType::Float(size)) => {
-                        let raw = self.read_int(src_var);
-
-                        self.builder
-                            .int_to_float(raw, size)
-                            .as_basic_value_enum()
-                    }
-                    (CastType::InkoInt, CastType::Pointer) => {
-                        let raw = self.read_int(src_var);
-
-                        self.builder.int_to_pointer(raw).as_basic_value_enum()
-                    }
-                    (CastType::InkoFloat, CastType::Int(size, _)) => {
-                        let raw = self.read_float(src_var);
-
-                        self.float_to_int(raw, size).as_basic_value_enum()
-                    }
-                    (CastType::InkoFloat, CastType::Float(size)) => {
-                        let raw = self.read_float(src_var);
-
-                        self.builder
-                            .float_to_float(raw, size)
-                            .as_basic_value_enum()
-                    }
-                    (CastType::InkoInt, CastType::InkoFloat) => {
-                        let val = self.read_int(src_var);
-                        let raw = self.builder.int_to_float(val, 64);
-
-                        self.new_float(state_var, raw).as_basic_value_enum()
-                    }
-                    (CastType::InkoFloat, CastType::InkoInt) => {
-                        let val = self.read_float(src_var);
-                        let raw = self.float_to_int(val, 64);
-
-                        self.new_int(state_var, raw).as_basic_value_enum()
-                    }
-                    (CastType::Pointer, CastType::Int(size, _)) => {
+                    (
+                        CastType::Pointer | CastType::Object,
+                        CastType::Int(size, _),
+                    ) => {
                         let src = self.builder.load(src_typ, src_var);
                         let raw = self
                             .builder
@@ -2315,14 +2071,6 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                         self.builder
                             .int_to_int(raw, size, false)
                             .as_basic_value_enum()
-                    }
-                    (CastType::Pointer, CastType::InkoInt) => {
-                        let src = self.builder.load(src_typ, src_var);
-                        let raw = self
-                            .builder
-                            .pointer_to_int(src.into_pointer_value());
-
-                        self.new_int(state_var, raw).as_basic_value_enum()
                     }
                     (CastType::Pointer, CastType::Pointer) => {
                         // Pointers are untyped at the LLVM level and instead
@@ -2368,281 +2116,12 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
         }
     }
 
-    fn kind_of(
-        &mut self,
-        pointer_variable: PointerValue<'ctx>,
-    ) -> PointerValue<'ctx> {
-        // Instead of fiddling with phi nodes we just inject a new stack slot in
-        // the entry block and use that. clang takes a similar approach when
-        // building switch() statements.
-        let result =
-            self.builder.new_stack_slot(self.builder.context.i8_type());
-        let int_block = self.builder.add_block();
-        let ref_block = self.builder.add_block();
-        let header_block = self.builder.add_block();
-        let after_block = self.builder.add_block();
-        let pointer = self.builder.load_untyped_pointer(pointer_variable);
-        let addr = self.builder.pointer_to_int(pointer);
-        let mask = self.builder.i64_literal(TAG_MASK);
-        let bits = self.builder.bit_and(addr, mask);
-
-        // This generates the equivalent of the following:
-        //
-        //     match ptr as usize & MASK {
-        //       INT_MASK => ...
-        //       MASK     => ...
-        //       REF_MASK => ...
-        //       _        => ...
-        //     }
-        self.builder.switch(
-            bits,
-            &[
-                (self.builder.i64_literal(INT_MASK), int_block),
-                // Uneven tagged integers will have both the first and second
-                // bit set to 1, so we also need to handle such values here.
-                (self.builder.i64_literal(TAG_MASK), int_block),
-                (self.builder.i64_literal(REF_MASK), ref_block),
-            ],
-            header_block,
-        );
-
-        // The case for when the value is a tagged integer.
-        self.builder.switch_to_block(int_block);
-        self.builder.store(result, self.builder.u8_literal(INT_KIND));
-        self.builder.jump(after_block);
-
-        // The case for when the value is a reference.
-        self.builder.switch_to_block(ref_block);
-        self.builder.store(result, self.builder.u8_literal(REF_KIND));
-        self.builder.jump(after_block);
-
-        // The fallback case where we read the kind from the object header. This
-        // generates the equivalent of `(*(ptr as *mut Header)).kind`.
-        self.builder.switch_to_block(header_block);
-
-        let header_val = self
-            .builder
-            .load_field(self.layouts.header, pointer, HEADER_KIND_INDEX)
-            .into_int_value();
-
-        self.builder.store(result, header_val);
-        self.builder.jump(after_block);
-        self.builder.switch_to_block(after_block);
-        result
-    }
-
-    fn class_of(&mut self, receiver: PointerValue<'ctx>) -> PointerValue<'ctx> {
-        let tagged_block = self.builder.add_block();
-        let heap_block = self.builder.add_block();
-        let after_block = self.builder.add_block();
-        let class_var =
-            self.builder.new_stack_slot(self.builder.context.pointer_type());
-        let int_global = self
-            .module
-            .add_class(ClassId::int(), &self.names.classes[&ClassId::int()]);
-
-        let addr = self.builder.pointer_to_int(receiver);
-        let mask = self.builder.i64_literal(INT_MASK);
-        let bits = self.builder.bit_and(addr, mask);
-        let is_tagged = self.builder.int_eq(bits, mask);
-
-        self.builder.branch(is_tagged, tagged_block, heap_block);
-
-        // The block to jump to when the receiver is a tagged integer.
-        self.builder.switch_to_block(tagged_block);
-        self.builder.store(
-            class_var,
-            self.builder.load_untyped_pointer(int_global.as_pointer_value()),
-        );
-        self.builder.jump(after_block);
-
-        // The block to jump to when the receiver is a heap object. In this case
-        // we read the class from the (untagged) header.
-        self.builder.switch_to_block(heap_block);
-
-        let header = self.builder.untagged(receiver);
-        let class = self
-            .builder
-            .load_field(self.layouts.header, header, HEADER_CLASS_INDEX)
-            .into_pointer_value();
-
-        self.builder.store(class_var, class);
-        self.builder.jump(after_block);
-
-        // The block to jump to to load the method pointer.
-        self.builder.switch_to_block(after_block);
-        self.builder.load_pointer(self.layouts.empty_class, class_var)
-    }
-
-    fn read_int(&mut self, variable: PointerValue<'ctx>) -> IntValue<'ctx> {
-        let pointer = self.builder.load_untyped_pointer(variable);
-        let res_type = self.builder.context.i64_type();
-        let res_var = self.builder.new_stack_slot(res_type);
-        let tagged_block = self.builder.add_block();
-        let heap_block = self.builder.add_block();
-        let after_block = self.builder.add_block();
-
-        let addr = self.builder.pointer_to_int(pointer);
-        let mask = self.builder.i64_literal(INT_MASK);
-        let bits = self.builder.bit_and(addr, mask);
-        let cond = self.builder.int_eq(bits, mask);
-
-        self.builder.branch(cond, tagged_block, heap_block);
-
-        // The block to jump to when the Int is a tagged Int.
-        self.builder.switch_to_block(tagged_block);
-
-        let shift = self.builder.i64_literal(INT_SHIFT as i64);
-        let untagged = self.builder.signed_right_shift(addr, shift);
-
-        self.builder.store(res_var, untagged);
-        self.builder.jump(after_block);
-
-        // The block to jump to when the Int is a heap Int.
-        self.builder.switch_to_block(heap_block);
-
-        let layout = self.layouts.instances[&ClassId::int()];
-
-        self.builder.store(
-            res_var,
-            self.builder.load_field(layout, pointer, BOXED_INT_VALUE_INDEX),
-        );
-        self.builder.jump(after_block);
-
-        self.builder.switch_to_block(after_block);
-        self.builder.load(res_type, res_var).into_int_value()
-    }
-
-    fn read_float(&mut self, variable: PointerValue<'ctx>) -> FloatValue<'ctx> {
-        let layout = self.layouts.instances[&ClassId::float()];
-        let ptr = self.builder.load_pointer(layout, variable);
-
-        self.builder
-            .load_field(layout, ptr, BOXED_FLOAT_VALUE_INDEX)
-            .into_float_value()
-    }
-
-    fn new_float(
-        &mut self,
-        state_var: PointerValue<'ctx>,
-        value: FloatValue<'ctx>,
-    ) -> PointerValue<'ctx> {
-        let func = self.module.runtime_function(RuntimeFunction::FloatBoxed);
-        let state = self.builder.load_pointer(self.layouts.state, state_var);
-
-        self.builder
-            .call(func, &[state.into(), value.into()])
-            .into_pointer_value()
-    }
-
-    fn new_int(
-        &mut self,
-        state_var: PointerValue<'ctx>,
-        value: IntValue<'ctx>,
-    ) -> PointerValue<'ctx> {
-        let res_var =
-            self.builder.new_stack_slot(self.builder.context.pointer_type());
-        let tagged_block = self.builder.add_block();
-        let heap_block = self.builder.add_block();
-        let after_block = self.builder.add_block();
-        let and_block = self.builder.add_block();
-
-        let min = self.builder.i64_literal(MIN_INT);
-        let max = self.builder.i64_literal(MAX_INT);
-
-        self.builder.branch(
-            self.builder.int_ge(value, min),
-            and_block,
-            heap_block,
-        );
-
-        // The block to jump to when we're larger than or equal to the minimum
-        // value for a tagged Int.
-        self.builder.switch_to_block(and_block);
-        self.builder.branch(
-            self.builder.int_le(value, max),
-            tagged_block,
-            heap_block,
-        );
-
-        // The block to jump to when the Int fits in a tagged pointer.
-        self.builder.switch_to_block(tagged_block);
-
-        let shift = self.builder.i64_literal(INT_SHIFT as i64);
-        let mask = self.builder.i64_literal(INT_MASK);
-        let addr =
-            self.builder.bit_or(self.builder.left_shift(value, shift), mask);
-
-        self.builder.store(res_var, self.builder.int_to_pointer(addr));
-        self.builder.jump(after_block);
-
-        // The block to jump to when the Int must be boxed.
-        self.builder.switch_to_block(heap_block);
-
-        let func = self.module.runtime_function(RuntimeFunction::IntBoxed);
-        let state = self.builder.load_pointer(self.layouts.state, state_var);
-        let res = self.builder.call(func, &[state.into(), value.into()]);
-
-        self.builder.store(res_var, res);
-        self.builder.jump(after_block);
-
-        self.builder.switch_to_block(after_block);
-        self.builder.load_untyped_pointer(res_var)
-    }
-
-    fn new_bool(
-        &mut self,
-        state_var: PointerValue<'ctx>,
-        value: IntValue<'ctx>,
-    ) -> PointerValue<'ctx> {
-        let result =
-            self.builder.new_stack_slot(self.builder.context.pointer_type());
-        let state = self.builder.load_pointer(self.layouts.state, state_var);
-        let true_block = self.builder.add_block();
-        let false_block = self.builder.add_block();
-        let after_block = self.builder.add_block();
-
-        self.builder.branch(value, true_block, false_block);
-
-        // The block to jump to when the condition is true.
-        self.builder.switch_to_block(true_block);
-        self.builder.store(
-            result,
-            self.builder.load_field(self.layouts.state, state, TRUE_INDEX),
-        );
-        self.builder.jump(after_block);
-
-        // The block to jump to when the condition is false.
-        self.builder.switch_to_block(false_block);
-        self.builder.store(
-            result,
-            self.builder.load_field(self.layouts.state, state, FALSE_INDEX),
-        );
-        self.builder.jump(after_block);
-
-        self.builder.switch_to_block(after_block);
-        self.builder.load_untyped_pointer(result)
-    }
-
     fn define_register_variables(&mut self) {
-        let space = AddressSpace::default();
-
         for index in 0..self.method.registers.len() {
             let id = RegisterId(index as _);
             let raw = self.method.registers.value_type(id);
-            let typ = self
-                .builder
-                .context
-                .foreign_type(self.db, self.layouts, raw)
-                .unwrap_or_else(|| {
-                    if let Some(id) = raw.class_id(self.db) {
-                        self.layouts.instances[&id]
-                            .ptr_type(space)
-                            .as_basic_type_enum()
-                    } else {
-                        self.builder.context.pointer_type().as_basic_type_enum()
-                    }
-                });
+            let typ =
+                self.builder.context.llvm_type(self.db, self.layouts, raw);
 
             self.variables.insert(id, self.builder.alloca(typ));
             self.variable_types.insert(id, typ);
@@ -2775,13 +2254,8 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
         let layout = self.layouts.method_counts;
         let counts = self.builder.alloca(layout);
 
-        self.set_method_count(counts, ClassId::int());
-        self.set_method_count(counts, ClassId::float());
         self.set_method_count(counts, ClassId::string());
-        self.set_method_count(counts, ClassId::boolean());
-        self.set_method_count(counts, ClassId::nil());
         self.set_method_count(counts, ClassId::byte_array());
-        self.set_method_count(counts, ClassId::channel());
 
         let rt_new = self.module.runtime_function(RuntimeFunction::RuntimeNew);
         let rt_start =

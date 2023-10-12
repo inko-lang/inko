@@ -17,13 +17,12 @@ class extern IntResult {
 
 class extern AnyResult {
   let @tag: Int
-  let @value: Any
+  let @value: UInt64
 }
 
 fn extern inko_file_remove(process: Pointer[UInt8], path: String) -> AnyResult
 
 fn extern inko_file_copy(
-  state: Pointer[UInt8],
   process: Pointer[UInt8],
   from: String,
   to: String,
@@ -50,43 +49,36 @@ fn extern inko_directory_remove_recursive(
 ) -> AnyResult
 
 fn extern inko_file_size(
-  state: Pointer[UInt8],
   process: Pointer[UInt8],
   path: String,
 ) -> IntResult
 
 fn extern inko_path_accessed_at(
-  state: Pointer[UInt8],
   process: Pointer[UInt8],
   path: String,
 ) -> AnyResult
 
 fn extern inko_path_created_at(
-  state: Pointer[UInt8],
   process: Pointer[UInt8],
   path: String,
 ) -> AnyResult
 
 fn extern inko_path_modified_at(
-  state: Pointer[UInt8],
   process: Pointer[UInt8],
   path: String,
 ) -> AnyResult
 
 fn extern inko_path_exists(
-  state: Pointer[UInt8],
   process: Pointer[UInt8],
   path: String,
 ) -> Bool
 
 fn extern inko_path_is_file(
-  state: Pointer[UInt8],
   process: Pointer[UInt8],
   path: String,
 ) -> Bool
 
 fn extern inko_path_is_directory(
-  state: Pointer[UInt8],
   process: Pointer[UInt8],
   path: String,
 ) -> Bool
@@ -201,17 +193,17 @@ class pub Path {
 
   # Returns `True` if the path points to a file.
   fn pub file? -> Bool {
-    inko_path_is_file(_INKO.state, _INKO.process, @path)
+    inko_path_is_file(_INKO.process, @path)
   }
 
   # Returns `True` if the path points to a directory.
   fn pub directory? -> Bool {
-    inko_path_is_directory(_INKO.state, _INKO.process, @path)
+    inko_path_is_directory(_INKO.process, @path)
   }
 
   # Returns `True` if the path points to an existing file or directory.
   fn pub exists? -> Bool {
-    inko_path_exists(_INKO.state, _INKO.process, @path)
+    inko_path_exists(_INKO.process, @path)
   }
 
   # Returns the creation time of `self`.
@@ -226,7 +218,7 @@ class pub Path {
   #
   #     path.created_at.unwrap # => DateTime { ... }
   fn pub created_at -> Result[DateTime, Error] {
-    match inko_path_created_at(_INKO.state, _INKO.process, @path) {
+    match inko_path_created_at(_INKO.process, @path) {
       case { @tag = 0, @value = val } -> Result.Ok(
         DateTime.from_timestamp(val as Float, inko_time_system_offset as Int)
       )
@@ -248,7 +240,7 @@ class pub Path {
   #
   #     path.modified_at.unwrap # => DateTime { ... }
   fn pub modified_at -> Result[DateTime, Error] {
-    match inko_path_modified_at(_INKO.state, _INKO.process, @path) {
+    match inko_path_modified_at(_INKO.process, @path) {
       case { @tag = 0, @value = val } -> Result.Ok(
         DateTime.from_timestamp(val as Float, inko_time_system_offset as Int)
       )
@@ -270,7 +262,7 @@ class pub Path {
   #
   #     path.accessed_at.unwrap # => DateTime { ... }
   fn pub accessed_at -> Result[DateTime, Error] {
-    match inko_path_accessed_at(_INKO.state, _INKO.process, @path) {
+    match inko_path_accessed_at(_INKO.process, @path) {
       case { @tag = 0, @value = val } -> Result.Ok(
         DateTime.from_timestamp(val as Float, inko_time_system_offset as Int)
       )
@@ -324,7 +316,7 @@ class pub Path {
   #     import std.fs.path.Path
   #
   #     Path.new('foo/bar').join(Path.new('bar')).to_string # => 'foo/bar/baz'
-  fn pub join(path: ref ToString) -> Path {
+  fn pub join[T: ToString](path: ref T) -> Path {
     Path.new(join_strings(@path, with: path.to_string))
   }
 
@@ -567,8 +559,8 @@ class pub Path {
   #
   #     file.write_string('hello').unwrap
   #     path.copy(to: '/tmp/test2.txt').unwrap
-  fn pub copy(to: ref ToString) -> Result[Int, Error] {
-    match inko_file_copy(_INKO.state, _INKO.process, @path, to.to_string) {
+  fn pub copy[T: ToString](to: ref T) -> Result[Int, Error] {
+    match inko_file_copy(_INKO.process, @path, to.to_string) {
       case { @tag = 0, @value = v } -> Result.Ok(v as Int)
       case { @tag = _, @value = e } -> Result.Error(
         Error.from_os_error(e as Int)
@@ -646,7 +638,7 @@ impl Size for Path {
   #
   #     path.size.unwrap # => 0
   fn pub size -> Result[Int, Error] {
-    match inko_file_size(_INKO.state, _INKO.process, @path) {
+    match inko_file_size(_INKO.process, @path) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }

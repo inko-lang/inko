@@ -46,7 +46,7 @@ fn extern inko_string_to_byte_array(
 
 fn extern inko_string_concat(
   state: Pointer[UInt8],
-  strings: Pointer[UInt8],
+  strings: Pointer[String],
   size: Int,
 ) -> String
 
@@ -184,7 +184,10 @@ class builtin String {
   #     let vals = [10, 20, 30].into_iter
   #
   #     String.join(vals, with: ',') => '10,20,30'
-  fn pub static join[T: ToString](iter: Iter[T], with: String) -> String {
+  fn pub static join[T: ToString, I: mut + Iter[T]](
+    iter: I,
+    with: String,
+  ) -> String {
     let result = iter.reduce(StringBuffer.new) fn (buff, val) {
       if buff.size > 0 { buff.push(with) }
 
@@ -676,7 +679,7 @@ impl Equal[String] for String {
 }
 
 impl Hash for String {
-  fn pub hash(hasher: mut Hasher) {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
     let mut index = 0
 
     while index < size {

@@ -61,8 +61,7 @@ do anything with them, apart from passing them around.
 
 !!! note
     C types not being compatible with generics is a limitation due to how
-    generics are compiled. This may change in the future. See [this
-    issue](https://github.com/inko-lang/inko/issues/525) for more details.
+    generics are compiled.
 
 C types are treated as value types and are allocated on the stack, including
 structs (which we'll discuss later).

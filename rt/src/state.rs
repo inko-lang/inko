@@ -1,10 +1,7 @@
 use crate::arc_without_weak::ArcWithoutWeak;
 use crate::config::Config;
-use crate::mem::{
-    Bool, ByteArray, Class, ClassPointer, Float, Int, Nil, String as InkoString,
-};
+use crate::mem::{ByteArray, Class, ClassPointer, String as InkoString};
 use crate::network_poller::NetworkPoller;
-use crate::process::Channel;
 use crate::scheduler::process::Scheduler;
 use crate::scheduler::timeout_worker::TimeoutWorker;
 use rand::{thread_rng, Rng};
@@ -36,46 +33,37 @@ pub(crate) type RcState = ArcWithoutWeak<State>;
 #[derive(Default, Debug)]
 #[repr(C)]
 pub struct MethodCounts {
-    pub(crate) int_class: u16,
-    pub(crate) float_class: u16,
     pub(crate) string_class: u16,
-    pub(crate) boolean_class: u16,
-    pub(crate) nil_class: u16,
     pub(crate) byte_array_class: u16,
-    pub(crate) channel_class: u16,
 }
 
 pub(crate) struct Env {
-    pub(crate) keys: Vec<*const InkoString>,
-    pub(crate) mapping: HashMap<String, *const InkoString>,
+    pub(crate) keys: Vec<String>,
+    pub(crate) mapping: HashMap<String, String>,
 }
 
 impl Env {
-    fn new(class: ClassPointer) -> Env {
+    fn new() -> Env {
         let mut keys = Vec::new();
         let mut mapping = HashMap::new();
 
         for (k, v) in env::vars_os() {
-            let raw_key = k.to_string_lossy().into_owned();
-            let key = InkoString::alloc_permanent(class, raw_key.clone());
-            let val = InkoString::alloc_permanent(
-                class,
-                v.to_string_lossy().into_owned(),
-            );
+            let key = k.to_string_lossy().into_owned();
+            let val = v.to_string_lossy().into_owned();
 
-            keys.push(key);
-            mapping.insert(raw_key, val);
+            keys.push(key.clone());
+            mapping.insert(key, val);
         }
 
         Env { keys, mapping }
     }
 
-    pub(crate) fn get(&self, key: &str) -> Option<*const InkoString> {
-        self.mapping.get(key).cloned()
+    pub(crate) fn get(&self, key: &str) -> Option<&String> {
+        self.mapping.get(key)
     }
 
-    pub(crate) fn key(&self, index: usize) -> Option<*const InkoString> {
-        self.keys.get(index).cloned()
+    pub(crate) fn key(&self, index: usize) -> Option<&String> {
+        self.keys.get(index)
     }
 
     pub(crate) fn len(&self) -> usize {
@@ -83,46 +71,17 @@ impl Env {
     }
 }
 
-impl Drop for Env {
-    fn drop(&mut self) {
-        unsafe {
-            for &val in self.mapping.values() {
-                InkoString::drop_and_deallocate(val);
-            }
-
-            for &val in &self.keys {
-                InkoString::drop_and_deallocate(val);
-            }
-        }
-    }
-}
-
 /// The state of the Inko runtime.
 #[repr(C)]
 pub struct State {
-    // These fields are exposed to the generated code directly, hence they're
-    // marked as public. These fields must also come first so their offsets are
-    // more reliable/stable.
-    //
-    // I repeat, _do not reorder_ these public fields without also updating both
-    // the compiler and standard library in the necessary places.
-    pub true_singleton: *const Bool,
-    pub false_singleton: *const Bool,
-    pub nil_singleton: *const Nil,
-
-    pub int_class: ClassPointer,
-    pub float_class: ClassPointer,
     pub string_class: ClassPointer,
-    pub bool_class: ClassPointer,
-    pub nil_class: ClassPointer,
     pub byte_array_class: ClassPointer,
-    pub channel_class: ClassPointer,
 
     /// The first randomly generated key to use for hashers.
-    pub hash_key0: *const Int,
+    pub hash_key0: i64,
 
     /// The second randomly generated key to use for hashers.
-    pub hash_key1: *const Int,
+    pub hash_key1: i64,
 
     /// The runtime's configuration.
     pub(crate) config: Config,
@@ -131,7 +90,7 @@ pub struct State {
     pub(crate) start_time: time::Instant,
 
     /// The commandline arguments passed to an Inko program.
-    pub(crate) arguments: Vec<*const InkoString>,
+    pub(crate) arguments: Vec<String>,
 
     /// The environment variables defined when the VM started.
     ///
@@ -158,28 +117,16 @@ impl State {
     pub(crate) fn new(
         config: Config,
         counts: &MethodCounts,
-        args: Vec<String>,
+        arguments: Vec<String>,
     ) -> RcState {
-        let int_class = class!("Int", counts.int_class, Int);
-        let float_class = class!("Float", counts.float_class, Float);
         let string_class = class!("String", counts.string_class, InkoString);
-        let bool_class = class!("Bool", counts.boolean_class, Bool);
-        let nil_class = class!("Nil", counts.nil_class, Nil);
         let byte_array_class =
             class!("ByteArray", counts.byte_array_class, ByteArray);
-        let channel_class = class!("Channel", counts.channel_class, Channel);
-        let true_singleton = Bool::alloc(bool_class);
-        let false_singleton = Bool::alloc(bool_class);
-        let nil_singleton = Nil::alloc(nil_class);
-        let arguments = args
-            .into_iter()
-            .map(|arg| InkoString::alloc_permanent(string_class, arg))
-            .collect();
 
         let mut rng = thread_rng();
-        let hash_key0 = Int::new_permanent(int_class, rng.gen());
-        let hash_key1 = Int::new_permanent(int_class, rng.gen());
-        let environment = Env::new(string_class);
+        let hash_key0 = rng.gen();
+        let hash_key1 = rng.gen();
+        let environment = Env::new();
         let scheduler = Scheduler::new(
             config.process_threads as usize,
             config.backup_threads as usize,
@@ -199,16 +146,8 @@ impl State {
             timeout_worker: TimeoutWorker::new(),
             arguments,
             network_pollers,
-            int_class,
-            float_class,
             string_class,
-            bool_class,
-            nil_class,
             byte_array_class,
-            channel_class,
-            true_singleton,
-            false_singleton,
-            nil_singleton,
         };
 
         ArcWithoutWeak::new(state)
@@ -222,21 +161,8 @@ impl State {
 impl Drop for State {
     fn drop(&mut self) {
         unsafe {
-            for &val in &self.arguments {
-                InkoString::drop_and_deallocate(val)
-            }
-
-            Bool::drop_and_deallocate(self.true_singleton);
-            Bool::drop_and_deallocate(self.false_singleton);
-            Nil::drop_and_deallocate(self.nil_singleton);
-
-            Class::drop(self.int_class);
-            Class::drop(self.float_class);
             Class::drop(self.string_class);
-            Class::drop(self.bool_class);
-            Class::drop(self.nil_class);
             Class::drop(self.byte_array_class);
-            Class::drop(self.channel_class);
         }
     }
 }
@@ -257,13 +183,9 @@ mod tests {
         let config = Config::new();
         let state = State::new(config, &MethodCounts::default(), Vec::new());
 
-        assert_eq!(offset_of!(state, true_singleton), 0);
-        assert_eq!(offset_of!(state, false_singleton), 8);
-        assert_eq!(offset_of!(state, nil_singleton), 16);
-
         // These offsets are tested against because the runtime makes use of
         // them.
-        assert_eq!(offset_of!(state, hash_key0), 80);
-        assert_eq!(offset_of!(state, hash_key1), 88);
+        assert_eq!(offset_of!(state, hash_key0), 16);
+        assert_eq!(offset_of!(state, hash_key1), 24);
     }
 }

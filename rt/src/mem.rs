@@ -9,45 +9,6 @@ use std::string::String as RustString;
 /// The alignment to use for Inko objects.
 const ALIGNMENT: usize = align_of::<usize>();
 
-/// The number of bits to shift for tagged integers.
-const INT_SHIFT: usize = 1;
-
-/// The minimum integer value that can be stored as a tagged signed integer.
-pub(crate) const MIN_INT: i64 = i64::MIN >> INT_SHIFT;
-
-/// The maximum integer value that can be stored as a tagged signed integer.
-pub(crate) const MAX_INT: i64 = i64::MAX >> INT_SHIFT;
-
-/// The mask to use for tagged integers.
-const INT_MASK: usize = 0b01;
-
-/// A type indicating what sort of value we're dealing with in a certain place
-/// (e.g. a ref or a permanent value).
-///
-/// The values of the variants are specified explicitly to make it more explicit
-/// we depend on these exact values (e.g. in the compiler).
-#[repr(u8)]
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub enum Kind {
-    /// The value is a regular heap allocated, owned value.
-    Owned = 0,
-
-    /// The value is a reference to a heap allocated value.
-    Ref = 1,
-
-    /// The value is an owned value that uses atomic reference counting.
-    Atomic = 2,
-
-    /// The value musn't be dropped until the program stops.
-    Permanent = 3,
-
-    /// The value is a boxed Int.
-    Int = 4,
-
-    /// The value is a boxed Float.
-    Float = 5,
-}
-
 pub(crate) fn allocate(layout: Layout) -> *mut u8 {
     unsafe {
         let ptr = alloc(layout);
@@ -60,28 +21,8 @@ pub(crate) fn allocate(layout: Layout) -> *mut u8 {
     }
 }
 
-fn with_mask<T>(ptr: *const T, mask: usize) -> *const T {
-    (ptr as usize | mask) as _
-}
-
-fn mask_is_set<T>(ptr: *const T, mask: usize) -> bool {
-    (ptr as usize & mask) == mask
-}
-
 pub(crate) unsafe fn header_of<'a, T>(ptr: *const T) -> &'a mut Header {
     &mut *(ptr as *mut Header)
-}
-
-pub(crate) fn is_tagged_int<T>(ptr: *const T) -> bool {
-    mask_is_set(ptr, INT_MASK)
-}
-
-fn fits_in_tagged_int(value: i64) -> bool {
-    (MIN_INT..=MAX_INT).contains(&value)
-}
-
-pub(crate) fn tagged_int(value: i64) -> *const Int {
-    with_mask((value << INT_SHIFT) as *const Int, INT_MASK)
 }
 
 pub(crate) unsafe fn free<T>(ptr: *mut T) {
@@ -100,9 +41,6 @@ pub struct Header {
     /// The class of the object.
     pub class: ClassPointer,
 
-    /// A flag indicating what kind of pointer/object we're dealing with.
-    pub kind: Kind,
-
     /// The number of references to the object of this header.
     ///
     /// If this count overflows the program terminates. In practise this should
@@ -118,26 +56,16 @@ pub struct Header {
 impl Header {
     pub(crate) fn init(&mut self, class: ClassPointer) {
         self.class = class;
-        self.kind = Kind::Owned;
         self.references = 0;
     }
 
     pub(crate) fn init_atomic(&mut self, class: ClassPointer) {
         self.class = class;
-        self.kind = Kind::Atomic;
 
         // Atomic values start with a reference count of 1, so
         // `decrement_atomic()` returns the correct result for a value for which
         // no extra references have been created (instead of overflowing).
         self.references = 1;
-    }
-
-    pub(crate) fn set_permanent(&mut self) {
-        self.kind = Kind::Permanent;
-    }
-
-    pub(crate) fn is_permanent(&self) -> bool {
-        matches!(self.kind, Kind::Permanent)
     }
 
     pub(crate) fn references(&self) -> u32 {
@@ -294,132 +222,6 @@ impl ByteArray {
     }
 }
 
-/// A signed 64-bits integer.
-#[repr(C)]
-pub struct Int {
-    pub(crate) header: Header,
-    pub(crate) value: i64,
-}
-
-impl Int {
-    pub(crate) fn new(class: ClassPointer, value: i64) -> *const Self {
-        if fits_in_tagged_int(value) {
-            tagged_int(value)
-        } else {
-            Self::boxed(class, value)
-        }
-    }
-
-    pub(crate) fn new_permanent(
-        class: ClassPointer,
-        value: i64,
-    ) -> *const Self {
-        if fits_in_tagged_int(value) {
-            tagged_int(value)
-        } else {
-            Self::boxed_permanent(class, value)
-        }
-    }
-
-    pub(crate) fn boxed(class: ClassPointer, value: i64) -> *const Self {
-        let ptr = allocate(Layout::new::<Self>()) as *mut Self;
-        let obj = unsafe { &mut *ptr };
-
-        obj.header.init(class);
-        obj.header.kind = Kind::Int;
-        init!(obj.value => value);
-        ptr as _
-    }
-
-    pub(crate) fn boxed_permanent(
-        class: ClassPointer,
-        value: i64,
-    ) -> *const Self {
-        let ptr = allocate(Layout::new::<Self>()) as *mut Self;
-        let obj = unsafe { &mut *ptr };
-
-        obj.header.init(class);
-        obj.header.set_permanent();
-        init!(obj.value => value);
-        ptr as _
-    }
-}
-
-#[repr(C)]
-pub struct Bool {
-    pub(crate) header: Header,
-}
-
-impl Bool {
-    pub(crate) fn drop_and_deallocate(ptr: *const Self) {
-        unsafe {
-            drop_in_place(ptr as *mut Self);
-            dealloc(ptr as *mut u8, Layout::new::<Self>());
-        }
-    }
-
-    pub(crate) fn alloc(class: ClassPointer) -> *const Self {
-        let ptr = allocate(Layout::new::<Self>()) as *mut Self;
-        let obj = unsafe { &mut *ptr };
-
-        obj.header.init(class);
-        obj.header.set_permanent();
-        ptr as _
-    }
-}
-
-#[repr(C)]
-pub struct Nil {
-    pub(crate) header: Header,
-}
-
-impl Nil {
-    pub(crate) fn drop_and_deallocate(ptr: *const Self) {
-        unsafe {
-            drop_in_place(ptr as *mut Self);
-            dealloc(ptr as *mut u8, Layout::new::<Self>());
-        }
-    }
-
-    pub(crate) fn alloc(class: ClassPointer) -> *const Self {
-        let ptr = allocate(Layout::new::<Self>()) as *mut Self;
-        let obj = unsafe { &mut *ptr };
-
-        obj.header.init(class);
-        obj.header.set_permanent();
-        ptr as _
-    }
-}
-
-/// A heap allocated float.
-#[repr(C)]
-pub struct Float {
-    pub(crate) header: Header,
-    pub(crate) value: f64,
-}
-
-impl Float {
-    pub(crate) fn alloc(class: ClassPointer, value: f64) -> *const Float {
-        let ptr = allocate(Layout::new::<Self>()) as *mut Self;
-        let obj = unsafe { &mut *ptr };
-
-        obj.header.init(class);
-        obj.header.kind = Kind::Float;
-        init!(obj.value => value);
-        ptr as _
-    }
-
-    pub(crate) fn alloc_permanent(
-        class: ClassPointer,
-        value: f64,
-    ) -> *const Float {
-        let ptr = Self::alloc(class, value);
-
-        unsafe { header_of(ptr) }.set_permanent();
-        ptr
-    }
-}
-
 /// A heap allocated string.
 ///
 /// Strings use atomic reference counting as they are treated as value types,
@@ -437,11 +239,6 @@ impl String {
         drop_in_place(ptr as *mut Self);
     }
 
-    pub(crate) unsafe fn drop_and_deallocate(ptr: *const Self) {
-        Self::drop(ptr);
-        free(ptr as *mut u8);
-    }
-
     pub(crate) unsafe fn read<'a>(ptr: *const String) -> &'a str {
         (*ptr).as_slice()
     }
@@ -451,16 +248,6 @@ impl String {
         value: RustString,
     ) -> *const String {
         Self::new(class, value.into_bytes())
-    }
-
-    pub(crate) fn alloc_permanent(
-        class: ClassPointer,
-        value: RustString,
-    ) -> *const String {
-        let ptr = Self::new(class, value.into_bytes());
-
-        unsafe { header_of(ptr) }.set_permanent();
-        ptr
     }
 
     pub(crate) fn from_bytes(
@@ -534,17 +321,11 @@ mod tests {
 
     #[test]
     fn test_header_field_offsets() {
-        let header = Header {
-            class: ClassPointer(0x7 as _),
-            kind: Kind::Owned,
-            references: 42,
-        };
-
+        let header = Header { class: ClassPointer(0x7 as _), references: 42 };
         let base = addr_of!(header) as usize;
 
         assert_eq!(addr_of!(header.class) as usize - base, 0);
-        assert_eq!(addr_of!(header.kind) as usize - base, 8);
-        assert_eq!(addr_of!(header.references) as usize - base, 12);
+        assert_eq!(addr_of!(header.references) as usize - base, 8);
     }
 
     #[test]
@@ -575,8 +356,6 @@ mod tests {
     fn test_type_sizes() {
         assert_eq!(size_of::<Header>(), 16);
         assert_eq!(size_of::<Method>(), 16);
-        assert_eq!(size_of::<Int>(), 24);
-        assert_eq!(size_of::<Float>(), 24);
         assert_eq!(size_of::<String>(), 32);
         assert_eq!(size_of::<ByteArray>(), 40);
         assert_eq!(size_of::<Method>(), 16);
@@ -586,19 +365,10 @@ mod tests {
     #[test]
     fn test_type_alignments() {
         assert_eq!(align_of::<Header>(), ALIGNMENT);
-        assert_eq!(align_of::<Int>(), ALIGNMENT);
-        assert_eq!(align_of::<Float>(), ALIGNMENT);
         assert_eq!(align_of::<String>(), ALIGNMENT);
         assert_eq!(align_of::<ByteArray>(), ALIGNMENT);
         assert_eq!(align_of::<Method>(), ALIGNMENT);
         assert_eq!(align_of::<Class>(), ALIGNMENT);
-    }
-
-    #[test]
-    fn test_with_mask() {
-        let ptr = with_mask(0x4 as *const u8, 0b10);
-
-        assert_eq!(ptr as usize, 0x6);
     }
 
     #[test]

@@ -1,4 +1,4 @@
-use crate::mem::{tagged_int, Bool, ByteArray, Int, String as InkoString};
+use crate::mem::{ByteArray, String as InkoString};
 use crate::state::State;
 use std::cmp::min;
 use std::slice;
@@ -21,12 +21,8 @@ pub unsafe extern "system" fn inko_byte_array_push(
 #[no_mangle]
 pub unsafe extern "system" fn inko_byte_array_pop(
     bytes: *mut ByteArray,
-) -> *const Int {
-    if let Some(value) = (*bytes).value.pop() {
-        tagged_int(value as i64)
-    } else {
-        tagged_int(-1)
-    }
+) -> i64 {
+    (*bytes).value.pop().map(|v| v as i64).unwrap_or(-1_i64)
 }
 
 #[no_mangle]
@@ -34,52 +30,44 @@ pub unsafe extern "system" fn inko_byte_array_set(
     bytes: *mut ByteArray,
     index: i64,
     value: i64,
-) -> *const Int {
+) -> i64 {
     let bytes = &mut (*bytes).value;
     let index_ref = bytes.get_unchecked_mut(index as usize);
     let old_value = *index_ref;
 
     *index_ref = value as u8;
-    tagged_int(old_value as i64)
+    old_value as i64
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_byte_array_get(
     bytes: *mut ByteArray,
     index: i64,
-) -> *const Int {
-    tagged_int(*(*bytes).value.get_unchecked(index as usize) as i64)
+) -> i64 {
+    *(*bytes).value.get_unchecked(index as usize) as i64
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_byte_array_remove(
     bytes: *mut ByteArray,
     index: i64,
-) -> *const Int {
-    tagged_int((*bytes).value.remove(index as usize) as i64)
+) -> i64 {
+    (*bytes).value.remove(index as usize) as i64
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_byte_array_size(
-    state: *const State,
     bytes: *const ByteArray,
-) -> *const Int {
-    Int::new((*state).int_class, (*bytes).value.len() as i64)
+) -> i64 {
+    (*bytes).value.len() as i64
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_byte_array_eq(
-    state: *const State,
     lhs: *const ByteArray,
     rhs: *const ByteArray,
-) -> *const Bool {
-    let state = &*state;
-
-    if (*lhs).value == (*rhs).value {
-        state.true_singleton
-    } else {
-        state.false_singleton
-    }
+) -> i64 {
+    ((*lhs).value == (*rhs).value) as i64
 }
 
 #[no_mangle]
@@ -142,12 +130,11 @@ pub unsafe extern "system" fn inko_byte_array_append(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_byte_array_copy_from(
-    state: *const State,
     target: *mut ByteArray,
     source: *mut ByteArray,
     start: i64,
     length: i64,
-) -> *const Int {
+) -> i64 {
     let target = &mut *target;
     let source = &mut *source;
     let end = min((start + length) as usize, source.value.len());
@@ -155,7 +142,7 @@ pub unsafe extern "system" fn inko_byte_array_copy_from(
     let amount = slice.len() as i64;
 
     target.value.extend_from_slice(slice);
-    Int::new((*state).int_class, amount)
+    amount
 }
 
 #[no_mangle]

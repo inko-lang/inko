@@ -11,7 +11,6 @@ use crate::scheduler::timeouts::Timeout;
 use crate::state::State;
 use std::cmp::max;
 use std::fmt::Write as _;
-use std::slice;
 use std::str;
 use std::time::Duration;
 
@@ -206,11 +205,8 @@ pub unsafe extern "system" fn inko_process_stacktrace_drop(
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_channel_new(
-    state: *const State,
-    capacity: i64,
-) -> *mut Channel {
-    Channel::alloc((*state).channel_class, max(capacity, 1) as usize)
+pub unsafe extern "system" fn inko_channel_new(capacity: i64) -> *mut Channel {
+    Box::into_raw(Box::new(Channel::new(max(capacity, 1) as usize)))
 }
 
 #[no_mangle]
@@ -314,47 +310,4 @@ pub unsafe extern "system" fn inko_channel_receive_until(
 #[no_mangle]
 pub unsafe extern "system" fn inko_channel_drop(channel: *mut Channel) {
     Channel::drop(channel);
-}
-
-#[no_mangle]
-pub unsafe extern "system" fn inko_channel_wait(
-    process: ProcessPointer,
-    channels: *const *const Channel,
-    length: i64,
-) {
-    let channels = slice::from_raw_parts(channels, length as _);
-    let mut guards = Vec::with_capacity(length as _);
-
-    for &ptr in channels {
-        let chan = &*ptr;
-        let guard = chan.state.lock().unwrap();
-
-        if guard.has_messages() {
-            return;
-        }
-
-        guards.push(guard);
-    }
-
-    // We have to hold on to the process state lock until all channels are
-    // updated. If we don't do this, a process may write to a channel before
-    // observing that we want to wait for messages, thus never rescheduling our
-    // process.
-    let mut proc_state = process.state();
-
-    for mut guard in guards {
-        guard.add_waiting_for_message(process);
-    }
-
-    proc_state.waiting_for_channel(None);
-    drop(proc_state);
-
-    // Safety: the current thread is holding on to the run lock, so a process
-    // writing to one of the above channels can't reschedule us until the thread
-    // releases the lock.
-    context::switch(process);
-
-    for &ptr in channels {
-        (*ptr).state.lock().unwrap().remove_waiting_for_message(process);
-    }
 }

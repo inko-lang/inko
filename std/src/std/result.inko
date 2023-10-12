@@ -24,7 +24,9 @@ class pub enum Result[T, E] {
   #     let result = Result.collect(vals)
   #
   #     result.error? # => true
-  fn pub static collect(iter: Iter[Result[T, E]]) -> Result[Array[T], E] {
+  fn pub static collect[I: mut + Iter[Result[T, E]]](
+    iter: I
+  ) -> Result[Array[T], E] {
     let vals = []
 
     loop {

@@ -2,20 +2,28 @@
 //!
 //! MIR is used for various optimisations, analysing moves of values, compiling
 //! pattern matching into decision trees, and more.
+pub(crate) mod passes;
+pub(crate) mod pattern_matching;
+pub(crate) mod printer;
+pub(crate) mod specialize;
+
+use crate::symbol_names::{class_name, method_name};
 use ast::source_location::SourceLocation;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 use types::collections::IndexMap;
-use types::{BuiltinFunction, Database};
+use types::{
+    BuiltinFunction, Database, ForeignType, MethodId, Shape, TypeArguments,
+    TypeId, TypeRef, BOOL_ID, FLOAT_ID, INT_ID, NIL_ID,
+};
 
 /// The number of reductions to perform after calling a method.
 const CALL_COST: u16 = 1;
 
-pub(crate) mod passes;
-pub(crate) mod pattern_matching;
-pub(crate) mod printer;
+/// The register ID of the register that stores `self`.
+pub(crate) const SELF_ID: u32 = 0;
 
 fn join(values: &[RegisterId]) -> String {
     values.iter().map(|v| format!("r{}", v.0)).collect::<Vec<_>>().join(", ")
@@ -42,12 +50,20 @@ impl Registers {
         &self.values[register.0 as usize]
     }
 
+    pub(crate) fn get_mut(&mut self, register: RegisterId) -> &mut Register {
+        &mut self.values[register.0 as usize]
+    }
+
     pub(crate) fn value_type(&self, register: RegisterId) -> types::TypeRef {
         self.get(register).value_type
     }
 
     pub(crate) fn len(&self) -> usize {
         self.values.len()
+    }
+
+    pub(crate) fn iter_mut(&mut self) -> impl Iterator<Item = &mut Register> {
+        self.values.iter_mut()
     }
 }
 
@@ -181,19 +197,6 @@ impl Block {
         })));
     }
 
-    pub(crate) fn switch_kind(
-        &mut self,
-        register: RegisterId,
-        blocks: Vec<BlockId>,
-        location: LocationId,
-    ) {
-        self.instructions.push(Instruction::SwitchKind(Box::new(SwitchKind {
-            register,
-            blocks,
-            location,
-        })));
-    }
-
     pub(crate) fn return_value(
         &mut self,
         register: RegisterId,
@@ -308,13 +311,11 @@ impl Block {
 
     pub(crate) fn increment(
         &mut self,
-        register: RegisterId,
         value: RegisterId,
         location: LocationId,
     ) {
         self.instructions.push(Instruction::Increment(Box::new(Increment {
-            register,
-            value,
+            register: value,
             location,
         })));
     }
@@ -332,12 +333,11 @@ impl Block {
 
     pub(crate) fn increment_atomic(
         &mut self,
-        register: RegisterId,
         value: RegisterId,
         location: LocationId,
     ) {
         self.instructions.push(Instruction::IncrementAtomic(Box::new(
-            IncrementAtomic { register, value, location },
+            IncrementAtomic { register: value, location },
         )));
     }
 
@@ -378,21 +378,6 @@ impl Block {
             .push(Instruction::Free(Box::new(Free { register, location })));
     }
 
-    pub(crate) fn clone(
-        &mut self,
-        kind: CloneKind,
-        register: RegisterId,
-        source: RegisterId,
-        location: LocationId,
-    ) {
-        self.instructions.push(Instruction::Clone(Box::new(Clone {
-            kind,
-            register,
-            source,
-            location,
-        })));
-    }
-
     pub(crate) fn check_refs(
         &mut self,
         register: RegisterId,
@@ -409,12 +394,14 @@ impl Block {
         register: RegisterId,
         method: types::MethodId,
         arguments: Vec<RegisterId>,
+        type_arguments: Option<usize>,
         location: LocationId,
     ) {
         self.instructions.push(Instruction::CallStatic(Box::new(CallStatic {
             register,
             method,
             arguments,
+            type_arguments,
             location,
         })));
     }
@@ -425,10 +412,18 @@ impl Block {
         receiver: RegisterId,
         method: types::MethodId,
         arguments: Vec<RegisterId>,
+        type_arguments: Option<usize>,
         location: LocationId,
     ) {
         self.instructions.push(Instruction::CallInstance(Box::new(
-            CallInstance { register, receiver, method, arguments, location },
+            CallInstance {
+                register,
+                receiver,
+                method,
+                arguments,
+                type_arguments,
+                location,
+            },
         )));
     }
 
@@ -453,10 +448,18 @@ impl Block {
         receiver: RegisterId,
         method: types::MethodId,
         arguments: Vec<RegisterId>,
+        type_arguments: Option<usize>,
         location: LocationId,
     ) {
         self.instructions.push(Instruction::CallDynamic(Box::new(
-            CallDynamic { register, receiver, method, arguments, location },
+            CallDynamic {
+                register,
+                receiver,
+                method,
+                arguments,
+                type_arguments,
+                location,
+            },
         )));
     }
 
@@ -500,12 +503,14 @@ impl Block {
         receiver: RegisterId,
         method: types::MethodId,
         arguments: Vec<RegisterId>,
+        type_arguments: Option<usize>,
         location: LocationId,
     ) {
         self.instructions.push(Instruction::Send(Box::new(Send {
             receiver,
             method,
             arguments,
+            type_arguments,
             location,
         })));
     }
@@ -741,13 +746,6 @@ pub(crate) struct Switch {
 }
 
 #[derive(Clone)]
-pub(crate) struct SwitchKind {
-    pub(crate) register: RegisterId,
-    pub(crate) blocks: Vec<BlockId>,
-    pub(crate) location: LocationId,
-}
-
-#[derive(Clone)]
 pub(crate) struct Goto {
     pub(crate) block: BlockId,
     pub(crate) location: LocationId,
@@ -790,24 +788,6 @@ pub(crate) struct Free {
     pub(crate) location: LocationId,
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
-pub(crate) enum CloneKind {
-    Float,
-    Int,
-}
-
-/// Clones a value type.
-///
-/// This is a dedicated instruction in MIR so it's a bit easier to optimise
-/// (e.g. removing redundant clones) compared to regular method calls.
-#[derive(Clone)]
-pub(crate) struct Clone {
-    pub(crate) kind: CloneKind,
-    pub(crate) register: RegisterId,
-    pub(crate) source: RegisterId,
-    pub(crate) location: LocationId,
-}
-
 #[derive(Clone)]
 pub(crate) struct Reference {
     pub(crate) register: RegisterId,
@@ -818,7 +798,6 @@ pub(crate) struct Reference {
 #[derive(Clone)]
 pub(crate) struct Increment {
     pub(crate) register: RegisterId,
-    pub(crate) value: RegisterId,
     pub(crate) location: LocationId,
 }
 
@@ -831,7 +810,6 @@ pub(crate) struct Decrement {
 #[derive(Clone)]
 pub(crate) struct IncrementAtomic {
     pub(crate) register: RegisterId,
-    pub(crate) value: RegisterId,
     pub(crate) location: LocationId,
 }
 
@@ -893,6 +871,7 @@ pub(crate) struct CallStatic {
     pub(crate) register: RegisterId,
     pub(crate) method: types::MethodId,
     pub(crate) arguments: Vec<RegisterId>,
+    pub(crate) type_arguments: Option<usize>,
     pub(crate) location: LocationId,
 }
 
@@ -902,6 +881,7 @@ pub(crate) struct CallInstance {
     pub(crate) receiver: RegisterId,
     pub(crate) method: types::MethodId,
     pub(crate) arguments: Vec<RegisterId>,
+    pub(crate) type_arguments: Option<usize>,
     pub(crate) location: LocationId,
 }
 
@@ -919,6 +899,7 @@ pub(crate) struct CallDynamic {
     pub(crate) receiver: RegisterId,
     pub(crate) method: types::MethodId,
     pub(crate) arguments: Vec<RegisterId>,
+    pub(crate) type_arguments: Option<usize>,
     pub(crate) location: LocationId,
 }
 
@@ -943,6 +924,7 @@ pub(crate) struct Send {
     pub(crate) receiver: RegisterId,
     pub(crate) method: types::MethodId,
     pub(crate) arguments: Vec<RegisterId>,
+    pub(crate) type_arguments: Option<usize>,
     pub(crate) location: LocationId,
 }
 
@@ -1013,9 +995,43 @@ pub(crate) enum CastType {
     /// The boolean indicates if the integer is signed or not.
     Int(u32, bool),
     Float(u32),
-    InkoInt,
-    InkoFloat,
     Pointer,
+    Object,
+}
+
+impl CastType {
+    fn from(db: &Database, typ: TypeRef) -> CastType {
+        if let TypeRef::Pointer(_) = typ {
+            CastType::Pointer
+        } else {
+            match typ.type_id(db) {
+                Ok(TypeId::Foreign(ForeignType::Int(8, signed))) => {
+                    CastType::Int(8, signed)
+                }
+                Ok(TypeId::Foreign(ForeignType::Int(16, signed))) => {
+                    CastType::Int(16, signed)
+                }
+                Ok(TypeId::Foreign(ForeignType::Int(32, signed))) => {
+                    CastType::Int(32, signed)
+                }
+                Ok(TypeId::Foreign(ForeignType::Int(64, signed))) => {
+                    CastType::Int(64, signed)
+                }
+                Ok(TypeId::Foreign(ForeignType::Float(32))) => {
+                    CastType::Float(32)
+                }
+                Ok(TypeId::Foreign(ForeignType::Float(64))) => {
+                    CastType::Float(64)
+                }
+                Ok(TypeId::ClassInstance(ins)) => match ins.instance_of().0 {
+                    INT_ID | NIL_ID | BOOL_ID => CastType::Int(64, true),
+                    FLOAT_ID => CastType::Float(64),
+                    _ => CastType::Object,
+                },
+                _ => CastType::Object,
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, Copy)]
@@ -1056,7 +1072,6 @@ pub(crate) struct WritePointer {
 pub(crate) enum Instruction {
     Branch(Box<Branch>),
     Switch(Box<Switch>),
-    SwitchKind(Box<SwitchKind>),
     False(Box<FalseLiteral>),
     Float(Box<FloatLiteral>),
     Goto(Box<Goto>),
@@ -1079,7 +1094,6 @@ pub(crate) enum Instruction {
     CheckRefs(Box<CheckRefs>),
     Drop(Box<Drop>),
     Free(Box<Free>),
-    Clone(Box<Clone>),
     Reference(Box<Reference>),
     Increment(Box<Increment>),
     Decrement(Box<Decrement>),
@@ -1102,7 +1116,6 @@ impl Instruction {
         match self {
             Instruction::Branch(ref v) => v.location,
             Instruction::Switch(ref v) => v.location,
-            Instruction::SwitchKind(ref v) => v.location,
             Instruction::False(ref v) => v.location,
             Instruction::True(ref v) => v.location,
             Instruction::Goto(ref v) => v.location,
@@ -1125,7 +1138,6 @@ impl Instruction {
             Instruction::CheckRefs(ref v) => v.location,
             Instruction::Drop(ref v) => v.location,
             Instruction::Free(ref v) => v.location,
-            Instruction::Clone(ref v) => v.location,
             Instruction::Reference(ref v) => v.location,
             Instruction::Increment(ref v) => v.location,
             Instruction::Decrement(ref v) => v.location,
@@ -1155,18 +1167,6 @@ impl Instruction {
             Instruction::Switch(ref v) => {
                 format!(
                     "switch r{}, {}",
-                    v.register.0,
-                    v.blocks
-                        .iter()
-                        .enumerate()
-                        .map(|(idx, block)| format!("{} = b{}", idx, block.0))
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )
-            }
-            Instruction::SwitchKind(ref v) => {
-                format!(
-                    "switch_kind r{}, {}",
                     v.register.0,
                     v.blocks
                         .iter()
@@ -1206,12 +1206,6 @@ impl Instruction {
             Instruction::Free(ref v) => {
                 format!("free r{}", v.register.0)
             }
-            Instruction::Clone(ref v) => {
-                format!(
-                    "r{} = clone {:?}(r{})",
-                    v.register.0, v.kind, v.source.0
-                )
-            }
             Instruction::CheckRefs(ref v) => {
                 format!("check_refs r{}", v.register.0)
             }
@@ -1219,7 +1213,11 @@ impl Instruction {
                 format!("return r{}", v.register.0)
             }
             Instruction::Allocate(ref v) => {
-                format!("r{} = allocate {}", v.register.0, v.class.name(db))
+                format!(
+                    "r{} = allocate {}",
+                    v.register.0,
+                    class_name(db, v.class),
+                )
             }
             Instruction::Spawn(ref v) => {
                 format!("r{} = spawn {}", v.register.0, v.class.name(db))
@@ -1228,8 +1226,8 @@ impl Instruction {
                 format!(
                     "r{} = call_static {}({})",
                     v.register.0,
-                    v.method.name(db),
-                    join(&v.arguments)
+                    method_name(db, v.method),
+                    join(&v.arguments),
                 )
             }
             Instruction::CallInstance(ref v) => {
@@ -1237,8 +1235,8 @@ impl Instruction {
                     "r{} = call_instance r{}.{}({})",
                     v.register.0,
                     v.receiver.0,
-                    v.method.name(db),
-                    join(&v.arguments)
+                    method_name(db, v.method),
+                    join(&v.arguments),
                 )
             }
             Instruction::CallExtern(ref v) => {
@@ -1254,8 +1252,8 @@ impl Instruction {
                     "r{} = call_dynamic r{}.{}({})",
                     v.register.0,
                     v.receiver.0,
-                    v.method.name(db),
-                    join(&v.arguments)
+                    method_name(db, v.method),
+                    join(&v.arguments),
                 )
             }
             Instruction::CallClosure(ref v) => {
@@ -1281,8 +1279,8 @@ impl Instruction {
                 format!(
                     "send r{}.{}({})",
                     v.receiver.0,
-                    v.method.name(db),
-                    join(&v.arguments)
+                    method_name(db, v.method),
+                    join(&v.arguments),
                 )
             }
             Instruction::GetField(ref v) => {
@@ -1305,13 +1303,13 @@ impl Instruction {
                 format!("r{} = ref r{}", v.register.0, v.value.0)
             }
             Instruction::Increment(ref v) => {
-                format!("r{} = increment r{}", v.register.0, v.value.0)
+                format!("increment r{}", v.register.0)
             }
             Instruction::Decrement(ref v) => {
                 format!("decrement r{}", v.register.0)
             }
             Instruction::IncrementAtomic(ref v) => {
-                format!("r{} = increment_atomic r{}", v.register.0, v.value.0)
+                format!("increment_atomic r{}", v.register.0)
             }
             Instruction::DecrementAtomic(ref v) => {
                 format!(
@@ -1335,7 +1333,7 @@ impl Instruction {
                 format!("r{} = r{} as {:?}", v.register.0, v.source.0, v.to)
             }
             Instruction::ReadPointer(v) => {
-                format!("r{} = *r{}", v.register.0, v.pointer.0)
+                format!("r{} = read_pointer r{}", v.register.0, v.pointer.0)
             }
             Instruction::WritePointer(v) => {
                 format!("*r{} = r{}", v.pointer.0, v.value.0)
@@ -1376,33 +1374,22 @@ impl Class {
     }
 }
 
-pub(crate) struct Trait {
-    pub(crate) id: types::TraitId,
-    pub(crate) methods: Vec<types::MethodId>,
-}
-
-impl Trait {
-    pub(crate) fn new(id: types::TraitId) -> Self {
-        Self { id, methods: Vec::new() }
-    }
-
-    pub(crate) fn add_methods(&mut self, methods: &Vec<Method>) {
-        for method in methods {
-            self.methods.push(method.id);
-        }
-    }
-}
-
 #[derive(Clone)]
 pub(crate) struct Module {
     pub(crate) id: types::ModuleId,
     pub(crate) classes: Vec<types::ClassId>,
     pub(crate) constants: Vec<types::ConstantId>,
+    pub(crate) methods: Vec<types::MethodId>,
 }
 
 impl Module {
     pub(crate) fn new(id: types::ModuleId) -> Self {
-        Self { id, classes: Vec::new(), constants: Vec::new() }
+        Self {
+            id,
+            classes: Vec::new(),
+            constants: Vec::new(),
+            methods: Vec::new(),
+        }
     }
 }
 
@@ -1435,8 +1422,31 @@ pub(crate) struct Mir {
     pub(crate) constants: HashMap<types::ConstantId, Constant>,
     pub(crate) modules: IndexMap<types::ModuleId, Module>,
     pub(crate) classes: HashMap<types::ClassId, Class>,
-    pub(crate) traits: HashMap<types::TraitId, Trait>,
     pub(crate) methods: HashMap<types::MethodId, Method>,
+
+    /// Externally defined methods/functions that are called at some point.
+    ///
+    /// As part of specialization we "reset" the MIR database such that after
+    /// specialization, only used and specialized types/methods remain. This set
+    /// is used to track which external methods are called, such that we only
+    /// process those when generating machine code.
+    pub(crate) extern_methods: HashSet<types::MethodId>,
+
+    /// The type arguments to expose to call instructions, used to specialize
+    /// types and method calls.
+    ///
+    /// This data is stored out of bounds and addressed through an index, as
+    /// it's only needed by the specialization pass, and this makes it easy to
+    /// remove the data once we no longer need it.
+    pub(crate) type_arguments: Vec<TypeArguments>,
+
+    /// Methods called through traits/dynamic dispatch.
+    ///
+    /// This is used to determine what methods we need to generate dynamic
+    /// dispatch hashes for.
+    pub(crate) dynamic_calls:
+        HashMap<MethodId, HashSet<(MethodId, Vec<Shape>)>>,
+
     locations: Vec<SourceLocation>,
 }
 
@@ -1446,8 +1456,10 @@ impl Mir {
             constants: HashMap::new(),
             modules: IndexMap::new(),
             classes: HashMap::new(),
-            traits: HashMap::new(),
             methods: HashMap::new(),
+            extern_methods: HashSet::new(),
+            type_arguments: Vec::new(),
+            dynamic_calls: HashMap::new(),
             locations: Vec::new(),
         }
     }
@@ -1455,6 +1467,18 @@ impl Mir {
     pub(crate) fn add_methods(&mut self, methods: Vec<Method>) {
         for method in methods {
             self.methods.insert(method.id, method);
+        }
+    }
+
+    pub(crate) fn add_type_arguments(
+        &mut self,
+        arguments: TypeArguments,
+    ) -> Option<usize> {
+        if arguments.is_empty() {
+            None
+        } else {
+            self.type_arguments.push(arguments);
+            Some(self.type_arguments.len() - 1)
         }
     }
 

@@ -3,8 +3,10 @@ use crate::config::{Config, SOURCE, SOURCE_EXT, TESTS};
 use crate::hir;
 use crate::linker::link;
 use crate::llvm;
+use crate::mir::passes as mir;
 use crate::mir::printer::to_dot;
-use crate::mir::{passes as mir, Mir};
+use crate::mir::specialize::Specialize;
+use crate::mir::Mir;
 use crate::modules_parser::{ModulesParser, ParsedModule};
 use crate::state::State;
 use crate::type_check::define_types::{
@@ -131,12 +133,12 @@ impl Compiler {
         }
 
         let mut mir = Mir::new();
+        let state = &mut self.state;
 
-        mir::check_global_limits(&mut self.state)
-            .map_err(CompileError::Internal)?;
+        mir::check_global_limits(state).map_err(CompileError::Internal)?;
 
-        if mir::DefineConstants::run_all(&mut self.state, &mut mir, &modules)
-            && mir::LowerToMir::run_all(&mut self.state, &mut mir, modules)
+        if mir::DefineConstants::run_all(state, &mut mir, &modules)
+            && mir::LowerToMir::run_all(state, &mut mir, modules)
         {
             Ok(mir)
         } else {
@@ -185,8 +187,7 @@ impl Compiler {
     }
 
     fn optimise_mir(&mut self, mir: &mut Mir) {
-        mir::ExpandDrop::run_all(&self.state.db, mir);
-        mir::ExpandReference::run_all(&self.state.db, mir);
+        Specialize::run_all(&mut self.state, mir);
         mir::clean_up_basic_blocks(mir);
     }
 
@@ -198,13 +199,8 @@ impl Compiler {
         directories.create_dot().map_err(CompileError::Internal)?;
 
         for module in mir.modules.values() {
-            let mut methods = Vec::new();
-
-            for cid in &module.classes {
-                for mid in &mir.classes[cid].methods {
-                    methods.push(&mir.methods[mid]);
-                }
-            }
+            let methods: Vec<_> =
+                module.methods.iter().map(|m| &mir.methods[m]).collect();
 
             let output = to_dot(&self.state.db, mir, &methods);
             let name = module.id.name(&self.state.db).normalized_name();

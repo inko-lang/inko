@@ -15,7 +15,7 @@ class builtin Bool {
   #     true.true?  # => true
   #     false.true? # => false
   fn pub true? -> Bool {
-    if self { true } else { false }
+    self
   }
 
   # Returns `true` if `self` is `false`.
@@ -25,13 +25,13 @@ class builtin Bool {
   #     true.false?  # => false
   #     false.false? # => true
   fn pub false? -> Bool {
-    if self { false } else { true }
+    self == false
   }
 }
 
 impl ToInt for Bool {
   fn pub to_int -> Int {
-    if self { 1 } else { 0 }
+    self as Int64 as Int
   }
 }
 
@@ -43,14 +43,13 @@ impl ToString for Bool {
 
 impl Clone[Bool] for Bool {
   fn pub clone -> Bool {
-    if self { true } else { false }
+    self
   }
 }
 
 impl Equal[Bool] for Bool {
   fn pub ==(other: ref Bool) -> Bool {
-    (self as Any as Pointer[UInt8] as Int)
-      == (other as Any as Pointer[UInt8] as Int)
+    _INKO.int_eq(self, other)
   }
 }
 
@@ -61,7 +60,7 @@ impl Compare[Bool] for Bool {
 }
 
 impl Hash for Bool {
-  fn pub hash(hasher: mut Hasher) {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
     hasher.write(to_int)
   }
 }

@@ -71,7 +71,7 @@ impl<'a> DefineTypes<'a> {
                 if !self.module.is_std(self.db()) {
                     self.state.diagnostics.error(
                         DiagnosticId::InvalidType,
-                        "Builtin classes can only be defined in 'std' modules",
+                        "builtin classes can only be defined in 'std' modules",
                         self.file(),
                         node.location.clone(),
                     );
@@ -266,7 +266,7 @@ impl<'a> ImplementTraits<'a> {
         if !class_id.allow_trait_implementations(self.db()) {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidImplementation,
-                "Traits can't be implemented for this class",
+                "traits can't be implemented for this class",
                 self.file(),
                 node.location.clone(),
             );
@@ -303,7 +303,7 @@ impl<'a> ImplementTraits<'a> {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidImplementation,
                     format!(
-                        "The trait '{}' is already implemented for class '{}'",
+                        "the trait '{}' is already implemented for class '{}'",
                         name, class_name
                     ),
                     self.file(),
@@ -320,7 +320,7 @@ impl<'a> ImplementTraits<'a> {
                 if !node.bounds.is_empty() {
                     self.state.diagnostics.error(
                         DiagnosticId::InvalidImplementation,
-                        "The trait 'std::drop::Drop' doesn't support type \
+                        "the trait 'std::drop::Drop' doesn't support type \
                         parameter bounds",
                         self.file(),
                         node.location.clone(),
@@ -480,7 +480,7 @@ impl<'a> CheckTraitImplementations<'a> {
                 self.state.diagnostics.error(
                     DiagnosticId::MissingTrait,
                     format!(
-                        "The trait '{}' isn't implemented for class '{}'",
+                        "the trait '{}' isn't implemented for class '{}'",
                         format_type(self.db(), req),
                         class_ins.instance_of().name(self.db())
                     ),
@@ -569,7 +569,7 @@ impl<'a> DefineFields<'a> {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidType,
                     format!(
-                        "Classes can't define more than {} fields",
+                        "classes can't define more than {} fields",
                         FIELDS_LIMIT
                     ),
                     self.file(),
@@ -957,7 +957,7 @@ impl<'a> InsertPrelude<'a> {
         let method_id = if let Some(id) = mod_id.method(self.db(), method) {
             id
         } else {
-            panic!("The method {}.{} isn't defined", module, method);
+            panic!("the method {}.{} isn't defined", module, method);
         };
 
         if self.module.symbol_exists(self.db(), method) {
@@ -1025,7 +1025,7 @@ impl<'a> DefineVariants<'a> {
             if !is_enum {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidSymbol,
-                    "Variants can only be defined for enum classes",
+                    "variants can only be defined for enum classes",
                     self.file(),
                     node.location.clone(),
                 );
@@ -1038,7 +1038,7 @@ impl<'a> DefineVariants<'a> {
             if class_id.variant(self.db(), name).is_some() {
                 self.state.diagnostics.error(
                     DiagnosticId::DuplicateSymbol,
-                    format!("The variant '{}' is already defined", name),
+                    format!("the variant '{}' is already defined", name),
                     self.file(),
                     node.name.location.clone(),
                 );
@@ -1070,7 +1070,7 @@ impl<'a> DefineVariants<'a> {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidSymbol,
                     format!(
-                        "Enum variants can't contain more than {} members",
+                        "enum variants can't contain more than {} members",
                         MAX_MEMBERS
                     ),
                     self.file(),
@@ -1084,7 +1084,7 @@ impl<'a> DefineVariants<'a> {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidSymbol,
                     format!(
-                        "Enums can't specify more than {} variants",
+                        "enums can't specify more than {} variants",
                         VARIANTS_LIMIT
                     ),
                     self.file(),
@@ -1103,7 +1103,7 @@ impl<'a> DefineVariants<'a> {
             if variants_count == 0 {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidType,
-                    "Enum classes must define at least a single variant",
+                    "enum classes must define at least a single variant",
                     self.file(),
                     node.location.clone(),
                 );
@@ -1126,7 +1126,7 @@ impl<'a> DefineVariants<'a> {
 
             for index in 0..members_count {
                 let id = index + 1;
-                let typ = TypeRef::Any;
+                let typ = TypeRef::int();
 
                 class_id.new_field(db, id.to_string(), id, typ, vis, module);
             }
@@ -1165,7 +1165,7 @@ mod tests {
         if let Some(Symbol::Trait(id)) = module.symbol(db, name) {
             id
         } else {
-            panic!("Expected a Trait");
+            panic!("expected a Trait");
         }
     }
 
@@ -1173,28 +1173,28 @@ mod tests {
         if let Some(Symbol::Class(id)) = module.symbol(db, name) {
             id
         } else {
-            panic!("Expected a Class");
+            panic!("expected a Class");
         }
     }
 
     fn class_expr(module: &hir::Module) -> &hir::DefineClass {
         match &module.expressions[0] {
             hir::TopLevelExpression::Class(ref node) => node,
-            _ => panic!("Expected a DefineClass node"),
+            _ => panic!("expected a DefineClass node"),
         }
     }
 
     fn trait_expr(module: &hir::Module) -> &hir::DefineTrait {
         match &module.expressions[0] {
             hir::TopLevelExpression::Trait(ref node) => node,
-            _ => panic!("Expected a DefineTrait node"),
+            _ => panic!("expected a DefineTrait node"),
         }
     }
 
     fn parse<S: Into<String>>(state: &mut State, input: S) -> Vec<hir::Module> {
         let ast = Parser::new(input.into().into(), "test.inko".into())
             .parse()
-            .expect("Failed to parse the input");
+            .expect("failed to parse the input");
         let name = ModuleName::new("test");
         let module = ParsedModule { name, ast };
 

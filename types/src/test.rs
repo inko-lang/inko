@@ -15,6 +15,26 @@ pub(crate) fn new_class(db: &mut Database, name: &str) -> ClassId {
     )
 }
 
+pub(crate) fn new_async_class(db: &mut Database, name: &str) -> ClassId {
+    Class::alloc(
+        db,
+        name.to_string(),
+        ClassKind::Async,
+        Visibility::Public,
+        ModuleId(0),
+    )
+}
+
+pub(crate) fn new_enum_class(db: &mut Database, name: &str) -> ClassId {
+    Class::alloc(
+        db,
+        name.to_string(),
+        ClassKind::Enum,
+        Visibility::Public,
+        ModuleId(0),
+    )
+}
+
 pub(crate) fn new_extern_class(db: &mut Database, name: &str) -> ClassId {
     Class::alloc(
         db,
@@ -74,6 +94,10 @@ pub(crate) fn mutable(id: TypeId) -> TypeRef {
 
 pub(crate) fn placeholder(id: TypePlaceholderId) -> TypeRef {
     TypeRef::Placeholder(id)
+}
+
+pub(crate) fn pointer(id: TypeId) -> TypeRef {
+    TypeRef::Pointer(id)
 }
 
 pub(crate) fn instance(class: ClassId) -> TypeId {

@@ -647,17 +647,26 @@ impl Process {
         for frame in trace.frames() {
             backtrace::resolve(frame.ip(), |symbol| {
                 let name = if let Some(sym_name) = symbol.name() {
-                    let name = sym_name.as_str().unwrap_or("");
-
                     // We only want to include frames for Inko source code, not
                     // any additional frames introduced by the runtime library
                     // and its dependencies.
-                    if let Some(name) =
-                        name.strip_prefix(INKO_SYMBOL_IDENTIFIER)
+                    let base = if let Some(name) = sym_name
+                        .as_str()
+                        .unwrap_or("")
+                        .strip_prefix(INKO_SYMBOL_IDENTIFIER)
                     {
-                        name.to_string()
+                        name
                     } else {
                         return;
+                    };
+
+                    // Methods include the type IDs to prevent name conflicts.
+                    // We get rid of these to ensure the stacktraces are easier
+                    // to understand.
+                    if let Some(idx) = base.find('#') {
+                        base[0..idx].to_string()
+                    } else {
+                        base.to_string()
                     }
                 } else {
                     String::new()
@@ -750,7 +759,12 @@ pub(crate) struct ChannelState {
     receive_index: usize,
 
     /// The fixed-size ring buffer of messages.
+    ///
+    /// NULL is a valid value, as Inko uses 0x0/0 for `nil` and `false`.
     messages: Box<[*mut u8]>,
+
+    /// The number of messages in the channel.
+    len: usize,
 
     /// Processes waiting for a message to be sent to this channel.
     waiting_for_message: Vec<ProcessPointer>,
@@ -763,6 +777,7 @@ impl ChannelState {
     fn new(capacity: usize) -> ChannelState {
         ChannelState {
             messages: (0..capacity).map(|_| null_mut()).collect(),
+            len: 0,
             send_index: 0,
             receive_index: 0,
             waiting_for_message: Vec::new(),
@@ -770,27 +785,12 @@ impl ChannelState {
         }
     }
 
-    pub(crate) fn has_messages(&self) -> bool {
-        !self.messages[self.receive_index].is_null()
-    }
-
-    pub(crate) fn add_waiting_for_message(&mut self, process: ProcessPointer) {
-        self.waiting_for_message.push(process);
-    }
-
-    pub(crate) fn remove_waiting_for_message(
-        &mut self,
-        process: ProcessPointer,
-    ) {
-        self.waiting_for_message.retain(|&v| v != process);
-    }
-
     fn capacity(&self) -> usize {
         self.messages.len()
     }
 
     fn is_full(&self) -> bool {
-        !self.messages[self.send_index].is_null()
+        self.capacity() == self.len
     }
 
     fn send(&mut self, value: *mut u8) -> bool {
@@ -802,19 +802,20 @@ impl ChannelState {
 
         self.messages[index] = value;
         self.send_index = self.next_index(index);
+        self.len += 1;
         true
     }
 
     fn receive(&mut self) -> Option<*mut u8> {
-        let index = self.receive_index;
-        let value = self.messages[index];
-
-        if value.is_null() {
+        if self.len == 0 {
             return None;
         }
 
-        self.messages[index] = null_mut();
+        let index = self.receive_index;
+        let value = self.messages[index];
+
         self.receive_index = self.next_index(index);
+        self.len -= 1;
         Some(value)
     }
 
@@ -849,18 +850,12 @@ impl ChannelState {
 /// messages are to be suspended and woken up again when space is available.
 #[repr(C)]
 pub struct Channel {
-    pub(crate) header: Header,
     pub(crate) state: Mutex<ChannelState>,
 }
 
 impl Channel {
-    pub(crate) fn alloc(class: ClassPointer, capacity: usize) -> *mut Channel {
-        let ptr = allocate(Layout::new::<Self>()) as *mut Self;
-        let obj = unsafe { &mut *ptr };
-
-        obj.header.init_atomic(class);
-        init!(obj.state => Mutex::new(ChannelState::new(capacity)));
-        ptr as _
+    pub(crate) fn new(capacity: usize) -> Channel {
+        Channel { state: Mutex::new(ChannelState::new(capacity)) }
     }
 
     pub(crate) unsafe fn drop(ptr: *mut Channel) {
@@ -937,8 +932,7 @@ impl Channel {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mem::tagged_int;
-    use crate::test::{empty_class, empty_process_class, setup, OwnedProcess};
+    use crate::test::{empty_process_class, setup, OwnedProcess};
     use std::time::Duration;
 
     macro_rules! offset_of {
@@ -960,16 +954,16 @@ mod tests {
         if cfg!(any(target_os = "linux", target_os = "freebsd")) {
             assert_eq!(size_of::<UnsafeCell<Mutex<()>>>(), 8);
             assert_eq!(size_of::<Process>(), 112);
-            assert_eq!(size_of::<Channel>(), 104);
+            assert_eq!(size_of::<Channel>(), 96);
         } else {
             assert_eq!(size_of::<UnsafeCell<Mutex<()>>>(), 16);
             assert_eq!(size_of::<Process>(), 128);
-            assert_eq!(size_of::<Channel>(), 112);
+            assert_eq!(size_of::<Channel>(), 104);
         }
 
         assert_eq!(size_of::<ProcessState>(), 48);
         assert_eq!(size_of::<Option<NonNull<Thread>>>(), 8);
-        assert_eq!(size_of::<ChannelState>(), 80);
+        assert_eq!(size_of::<ChannelState>(), 88);
     }
 
     #[test]
@@ -1257,21 +1251,10 @@ mod tests {
 
     #[test]
     fn test_channel_alloc() {
-        let class = empty_class("Channel");
-        let chan = Channel::alloc(*class, 4);
+        let chan = Channel::new(4);
+        let state = chan.state.lock().unwrap();
 
-        unsafe {
-            let chan = &(*chan);
-            let state = chan.state.lock().unwrap();
-
-            assert_eq!(chan.header.class, *class);
-            assert_eq!(state.messages.len(), 4);
-        }
-
-        unsafe {
-            Channel::drop(chan);
-            free(chan);
-        }
+        assert_eq!(state.messages.len(), 4);
     }
 
     #[test]
@@ -1279,17 +1262,10 @@ mod tests {
         let process_class = empty_process_class("A");
         let sender =
             OwnedProcess::new(Process::alloc(*process_class, Stack::new(32)));
-        let class = empty_class("Channel");
-        let chan_ptr = Channel::alloc(*class, 4);
-        let chan = unsafe { &(*chan_ptr) };
-        let msg = tagged_int(42);
+        let chan = Channel::new(4);
+        let msg = 42;
 
         assert_eq!(chan.send(*sender, msg as _), SendResult::Sent);
-
-        unsafe {
-            Channel::drop(chan_ptr);
-            free(chan_ptr);
-        }
     }
 
     #[test]
@@ -1297,18 +1273,11 @@ mod tests {
         let process_class = empty_process_class("A");
         let process =
             OwnedProcess::new(Process::alloc(*process_class, Stack::new(32)));
-        let class = empty_class("Channel");
-        let chan_ptr = Channel::alloc(*class, 1);
-        let chan = unsafe { &(*chan_ptr) };
-        let msg = tagged_int(42);
+        let chan = Channel::new(1);
+        let msg = 42;
 
         assert_eq!(chan.send(*process, msg as _), SendResult::Sent);
         assert_eq!(chan.send(*process, msg as _), SendResult::Full);
-
-        unsafe {
-            Channel::drop(chan_ptr);
-            free(chan_ptr);
-        }
     }
 
     #[test]
@@ -1316,10 +1285,8 @@ mod tests {
         let process_class = empty_process_class("A");
         let process =
             OwnedProcess::new(Process::alloc(*process_class, Stack::new(32)));
-        let class = empty_class("Channel");
-        let chan_ptr = Channel::alloc(*class, 1);
-        let chan = unsafe { &(*chan_ptr) };
-        let msg = tagged_int(42);
+        let chan = Channel::new(1);
+        let msg = 42;
 
         chan.receive(*process, None);
 
@@ -1327,11 +1294,6 @@ mod tests {
             chan.send(*process, msg as _),
             SendResult::Reschedule(*process)
         );
-
-        unsafe {
-            Channel::drop(chan_ptr);
-            free(chan_ptr);
-        }
     }
 
     #[test]
@@ -1340,10 +1302,8 @@ mod tests {
         let process_class = empty_process_class("A");
         let process =
             OwnedProcess::new(Process::alloc(*process_class, Stack::new(32)));
-        let class = empty_class("Channel");
-        let chan_ptr = Channel::alloc(*class, 1);
-        let chan = unsafe { &(*chan_ptr) };
-        let msg = tagged_int(42);
+        let chan = Channel::new(1);
+        let msg = 42;
 
         chan.receive(
             *process,
@@ -1354,11 +1314,6 @@ mod tests {
             chan.send(*process, msg as _),
             SendResult::RescheduleWithTimeout(*process)
         );
-
-        unsafe {
-            Channel::drop(chan_ptr);
-            free(chan_ptr);
-        }
     }
 
     #[test]
@@ -1366,17 +1321,10 @@ mod tests {
         let process_class = empty_process_class("A");
         let process =
             OwnedProcess::new(Process::alloc(*process_class, Stack::new(32)));
-        let class = empty_class("Channel");
-        let chan_ptr = Channel::alloc(*class, 1);
-        let chan = unsafe { &(*chan_ptr) };
+        let chan = Channel::new(1);
 
         assert_eq!(chan.receive(*process, None), ReceiveResult::None);
         assert!(process.state().status.is_waiting_for_channel());
-
-        unsafe {
-            Channel::drop(chan_ptr);
-            free(chan_ptr);
-        }
     }
 
     #[test]
@@ -1384,17 +1332,10 @@ mod tests {
         let process_class = empty_process_class("A");
         let process =
             OwnedProcess::new(Process::alloc(*process_class, Stack::new(32)));
-        let class = empty_class("Channel");
-        let chan_ptr = Channel::alloc(*class, 1);
-        let chan = unsafe { &(*chan_ptr) };
+        let chan = Channel::new(1);
 
         assert_eq!(chan.try_receive(), ReceiveResult::None);
         assert!(!process.state().status.is_waiting_for_channel());
-
-        unsafe {
-            Channel::drop(chan_ptr);
-            free(chan_ptr);
-        }
     }
 
     #[test]
@@ -1402,19 +1343,12 @@ mod tests {
         let process_class = empty_process_class("A");
         let process =
             OwnedProcess::new(Process::alloc(*process_class, Stack::new(32)));
-        let class = empty_class("Channel");
-        let chan_ptr = Channel::alloc(*class, 1);
-        let chan = unsafe { &(*chan_ptr) };
-        let msg = tagged_int(42);
+        let chan = Channel::new(1);
+        let msg = 42;
 
         chan.send(*process, msg as _);
 
         assert_eq!(chan.receive(*process, None), ReceiveResult::Some(msg as _));
-
-        unsafe {
-            Channel::drop(chan_ptr);
-            free(chan_ptr);
-        }
     }
 
     #[test]
@@ -1422,10 +1356,8 @@ mod tests {
         let process_class = empty_process_class("A");
         let process =
             OwnedProcess::new(Process::alloc(*process_class, Stack::new(32)));
-        let class = empty_class("Channel");
-        let chan_ptr = Channel::alloc(*class, 1);
-        let chan = unsafe { &(*chan_ptr) };
-        let msg = tagged_int(42);
+        let chan = Channel::new(1);
+        let msg = 42;
 
         chan.send(*process, msg as _);
         chan.send(*process, msg as _);
@@ -1434,11 +1366,6 @@ mod tests {
             chan.receive(*process, None),
             ReceiveResult::Reschedule(msg as _, *process)
         );
-
-        unsafe {
-            Channel::drop(chan_ptr);
-            free(chan_ptr);
-        }
     }
 
     #[test]
@@ -1557,21 +1484,5 @@ mod tests {
         assert_eq!(state.receive(), Some(0x2 as _));
         assert_eq!(state.receive(), None);
         assert!(!state.is_full());
-    }
-
-    #[test]
-    fn test_channel_state_has_messages() {
-        let mut state = ChannelState::new(2);
-
-        assert!(!state.has_messages());
-
-        state.send(0x1 as _);
-        assert!(state.has_messages());
-
-        state.receive();
-        assert!(!state.has_messages());
-
-        state.send(0x1 as _);
-        assert!(state.has_messages());
     }
 }

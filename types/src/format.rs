@@ -68,10 +68,9 @@ impl<'a> TypeFormatter<'a> {
     }
 
     /// If a uni/ref/mut value wraps a type parameter, and that parameter is
-    /// assigned another value with ownership, you can end up with e.g.
-    /// `ref mut T` or `uni uni T`. This method provides a simple way of
-    /// preventing this from happening, without complicating the type formatting
-    /// process.
+    /// assigned another value with ownership, you can end up with e.g. `ref mut
+    /// T` or `uni uni T`. This method provides a simple way of preventing this
+    /// from happening, without complicating the type formatting process.
     pub(crate) fn write_ownership(&mut self, thing: &str) {
         if !self.buffer.ends_with(thing) {
             self.write(thing);
@@ -186,7 +185,9 @@ impl FormatType for TypeParameterId {
         if let Some(arg) = buffer.type_arguments.and_then(|a| a.get(*self)) {
             if let TypeRef::Placeholder(p) = arg {
                 match p.value(buffer.db) {
-                    Some(t) if t.as_type_parameter() == Some(*self) => {
+                    Some(t)
+                        if t.as_type_parameter(buffer.db) == Some(*self) =>
+                    {
                         self.format_type_without_argument(buffer)
                     }
                     Some(t) => t.format_type(buffer),
@@ -196,7 +197,7 @@ impl FormatType for TypeParameterId {
                 return;
             }
 
-            if arg.as_type_parameter() == Some(*self) {
+            if arg.as_type_parameter(buffer.db) == Some(*self) {
                 self.format_type_without_argument(buffer);
                 return;
             }
@@ -360,7 +361,6 @@ impl FormatType for TypeRef {
                 id.format_type(buffer);
             }
             TypeRef::Never => buffer.write("Never"),
-            TypeRef::Any => buffer.write("Any"),
             TypeRef::Error => buffer.write("<error>"),
             TypeRef::Unknown => buffer.write("<unknown>"),
             TypeRef::Placeholder(id) => id.format_type(buffer),
@@ -382,7 +382,8 @@ impl FormatType for TypeId {
             TypeId::ClassInstance(ins) => ins.format_type(buffer),
             TypeId::TraitInstance(id) => id.format_type(buffer),
             TypeId::TypeParameter(id) => id.format_type(buffer),
-            TypeId::RigidTypeParameter(id) => {
+            TypeId::RigidTypeParameter(id)
+            | TypeId::AtomicTypeParameter(id) => {
                 id.format_type_without_argument(buffer);
             }
             TypeId::Closure(id) => id.format_type(buffer),
@@ -437,11 +438,11 @@ mod tests {
 
         let mut targs = TypeArguments::new();
 
-        targs.assign(param1, TypeRef::Any);
+        targs.assign(param1, TypeRef::int());
 
         let trait_ins = TraitInstance::generic(&mut db, trait_id, targs);
 
-        assert_eq!(format_type(&db, trait_ins), "ToString[Any, B]");
+        assert_eq!(format_type(&db, trait_ins), "ToString[Int, B]");
     }
 
     #[test]
@@ -503,9 +504,9 @@ mod tests {
             MethodKind::Moving,
         );
 
-        block.set_return_type(&mut db, TypeRef::Any);
+        block.set_return_type(&mut db, TypeRef::int());
 
-        assert_eq!(format_type(&db, block), "fn move foo -> Any");
+        assert_eq!(format_type(&db, block), "fn move foo -> Int");
     }
 
     #[test]
@@ -521,9 +522,9 @@ mod tests {
 
         block.new_type_parameter(&mut db, "A".to_string());
         block.new_type_parameter(&mut db, "B".to_string());
-        block.set_return_type(&mut db, TypeRef::Any);
+        block.set_return_type(&mut db, TypeRef::int());
 
-        assert_eq!(format_type(&db, block), "fn static foo [A, B] -> Any");
+        assert_eq!(format_type(&db, block), "fn static foo [A, B] -> Int");
     }
 
     #[test]
@@ -540,12 +541,12 @@ mod tests {
         block.new_argument(
             &mut db,
             "a".to_string(),
-            TypeRef::Any,
-            TypeRef::Any,
+            TypeRef::int(),
+            TypeRef::int(),
         );
-        block.set_return_type(&mut db, TypeRef::Any);
+        block.set_return_type(&mut db, TypeRef::int());
 
-        assert_eq!(format_type(&db, block), "fn static foo (a: Any) -> Any");
+        assert_eq!(format_type(&db, block), "fn static foo (a: Int) -> Int");
     }
 
     #[test]
@@ -562,12 +563,12 @@ mod tests {
         block.new_argument(
             &mut db,
             "a".to_string(),
-            TypeRef::Any,
-            TypeRef::Any,
+            TypeRef::int(),
+            TypeRef::int(),
         );
-        block.set_return_type(&mut db, TypeRef::Any);
+        block.set_return_type(&mut db, TypeRef::int());
 
-        assert_eq!(format_type(&db, block), "fn async foo (a: Any) -> Any");
+        assert_eq!(format_type(&db, block), "fn async foo (a: Int) -> Int");
     }
 
     #[test]
@@ -648,13 +649,13 @@ mod tests {
         let param2 = id.new_type_parameter(&mut db, "B".to_string());
         let mut args = TypeArguments::new();
 
-        args.assign(param1, TypeRef::Any);
+        args.assign(param1, TypeRef::int());
         args.assign(param2, TypeRef::Never);
 
         let ins =
             TypeId::ClassInstance(ClassInstance::generic(&mut db, id, args));
 
-        assert_eq!(format_type(&db, ins), "(Any, Never)");
+        assert_eq!(format_type(&db, ins), "(Int, Never)");
     }
 
     #[test]
@@ -687,12 +688,12 @@ mod tests {
 
         let mut targs = TypeArguments::new();
 
-        targs.assign(param1, TypeRef::Any);
+        targs.assign(param1, TypeRef::int());
 
         let ins =
             TypeId::ClassInstance(ClassInstance::generic(&mut db, id, targs));
 
-        assert_eq!(format_type(&db, ins), "Thing[Any, E]");
+        assert_eq!(format_type(&db, ins), "Thing[Int, E]");
     }
 
     #[test]
@@ -710,12 +711,12 @@ mod tests {
 
         let mut targs = TypeArguments::new();
 
-        targs.assign(param1, TypeRef::Any);
+        targs.assign(param1, TypeRef::int());
 
         let ins =
             TypeId::TraitInstance(TraitInstance::generic(&mut db, id, targs));
 
-        assert_eq!(format_type(&db, ins), "ToFoo[Any, E]");
+        assert_eq!(format_type(&db, ins), "ToFoo[Int, E]");
     }
 
     #[test]
@@ -836,21 +837,13 @@ mod tests {
             "ref String".to_string()
         );
         assert_eq!(format_type(&db, TypeRef::Never), "Never".to_string());
-        assert_eq!(format_type(&db, TypeRef::Any), "Any".to_string());
         assert_eq!(format_type(&db, TypeRef::Error), "<error>".to_string());
         assert_eq!(format_type(&db, TypeRef::Unknown), "<unknown>".to_string());
     }
 
     #[test]
     fn test_ctype_format() {
-        let mut db = Database::new();
-        let foo = Class::alloc(
-            &mut db,
-            "Foo".to_string(),
-            ClassKind::Extern,
-            Visibility::Public,
-            ModuleId(0),
-        );
+        let db = Database::new();
 
         assert_eq!(format_type(&db, TypeRef::foreign_signed_int(8)), "Int8");
         assert_eq!(format_type(&db, TypeRef::foreign_signed_int(16)), "Int16");
@@ -883,6 +876,5 @@ mod tests {
             ),
             "Pointer[UInt8]"
         );
-        assert_eq!(format_type(&db, TypeRef::foreign_struct(foo)), "Foo");
     }
 }

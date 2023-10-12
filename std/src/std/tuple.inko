@@ -51,7 +51,7 @@ impl Equal[Tuple1[A]] for Tuple1 if A: Equal[A] {
 }
 
 impl Hash for Tuple1 if A: Hash {
-  fn pub hash(hasher: mut Hasher) {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
     @0.hash(hasher)
   }
 }
@@ -81,7 +81,7 @@ impl Equal[Tuple2[A, B]] for Tuple2 if A: Equal[A], B: Equal[B] {
 }
 
 impl Hash for Tuple2 if A: Hash, B: Hash {
-  fn pub hash(hasher: mut Hasher) {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
     @0.hash(hasher)
     @1.hash(hasher)
   }
@@ -116,7 +116,7 @@ if
 }
 
 impl Hash for Tuple3 if A: Hash, B: Hash, C: Hash {
-  fn pub hash(hasher: mut Hasher) {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
     @0.hash(hasher)
     @1.hash(hasher)
     @2.hash(hasher)
@@ -153,7 +153,7 @@ if
 }
 
 impl Hash for Tuple4 if A: Hash, B: Hash, C: Hash, D: Hash {
-  fn pub hash(hasher: mut Hasher) {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
     @0.hash(hasher)
     @1.hash(hasher)
     @2.hash(hasher)
@@ -199,7 +199,7 @@ if
 }
 
 impl Hash for Tuple5 if A: Hash, B: Hash, C: Hash, D: Hash, E: Hash {
-  fn pub hash(hasher: mut Hasher) {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
     @0.hash(hasher)
     @1.hash(hasher)
     @2.hash(hasher)
@@ -252,7 +252,7 @@ if
 
 impl Hash for Tuple6 if A: Hash, B: Hash, C: Hash, D: Hash, E: Hash, F: Hash
 {
-  fn pub hash(hasher: mut Hasher) {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
     @0.hash(hasher)
     @1.hash(hasher)
     @2.hash(hasher)
@@ -319,7 +319,7 @@ impl Hash for Tuple7
 if
   A: Hash, B: Hash, C: Hash, D: Hash, E: Hash, F: Hash, G: Hash
 {
-  fn pub hash(hasher: mut Hasher) {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
     @0.hash(hasher)
     @1.hash(hasher)
     @2.hash(hasher)
@@ -396,7 +396,7 @@ impl Hash for Tuple8
 if
   A: Hash, B: Hash, C: Hash, D: Hash, E: Hash, F: Hash, G: Hash, H: Hash
 {
-  fn pub hash(hasher: mut Hasher) {
+  fn pub hash[HASHER: mut + Hasher](hasher: mut HASHER) {
     @0.hash(hasher)
     @1.hash(hasher)
     @2.hash(hasher)

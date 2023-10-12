@@ -12,8 +12,8 @@ use inkwell::AddressSpace;
 use std::cmp::max;
 use std::collections::HashMap;
 use types::{
-    ClassId, MethodId, MethodSource, BOOLEAN_ID, BYTE_ARRAY_ID, CALL_METHOD,
-    CHANNEL_ID, DROPPER_METHOD, FLOAT_ID, INT_ID, NIL_ID,
+    ClassId, Database, MethodId, MethodSource, Shape, BOOL_ID, BYTE_ARRAY_ID,
+    CALL_METHOD, DROPPER_METHOD, FLOAT_ID, INT_ID, NIL_ID, STRING_ID,
 };
 
 /// The size of an object header.
@@ -56,6 +56,13 @@ fn round_methods(mut value: usize) -> usize {
     value
 }
 
+fn hash_key(db: &Database, method: MethodId, shapes: &[Shape]) -> String {
+    shapes.iter().fold(method.name(db).clone(), |mut name, shape| {
+        name.push_str(shape.identifier());
+        name
+    })
+}
+
 pub(crate) struct MethodInfo<'ctx> {
     pub(crate) index: u16,
     pub(crate) hash: u64,
@@ -68,7 +75,6 @@ pub(crate) struct MethodInfo<'ctx> {
     /// This is needed separately because the signature's return type will be
     /// `void` in this case.
     pub(crate) struct_return: Option<StructType<'ctx>>,
-    pub(crate) colliding: Vec<ClassId>,
 }
 
 /// Types and layout information to expose to all modules.
@@ -120,10 +126,8 @@ impl<'ctx> Layouts<'ctx> {
         let space = AddressSpace::default();
         let mut class_layouts = HashMap::new();
         let mut instance_layouts = HashMap::new();
-        let mut methods = HashMap::new();
         let header = context.struct_type(&[
             context.pointer_type().into(), // Class
-            context.i8_type().into(),      // Kind
             context.i32_type().into(),     // References
         ]);
 
@@ -136,17 +140,8 @@ impl<'ctx> Layouts<'ctx> {
         // fine/safe is we only use the state type through pointers, so the
         // exact size doesn't matter.
         let state_layout = context.struct_type(&[
-            context.pointer_type().into(), // true
-            context.pointer_type().into(), // false
-            context.pointer_type().into(), // nil
-            context.pointer_type().into(), // Int class
-            context.pointer_type().into(), // Float class
             context.pointer_type().into(), // String class
-            context.pointer_type().into(), // Array class
-            context.pointer_type().into(), // Bool class
-            context.pointer_type().into(), // Nil class
             context.pointer_type().into(), // ByteArray class
-            context.pointer_type().into(), // Channel class
             context.pointer_type().into(), // hash_key0
             context.pointer_type().into(), // hash_key1
         ]);
@@ -158,13 +153,8 @@ impl<'ctx> Layouts<'ctx> {
         ]);
 
         let method_counts_layout = context.struct_type(&[
-            context.i16_type().into(), // Int
-            context.i16_type().into(), // Float
             context.i16_type().into(), // String
-            context.i16_type().into(), // Bool
-            context.i16_type().into(), // Nil
             context.i16_type().into(), // ByteArray
-            context.i16_type().into(), // Channel
         ]);
 
         let message_layout = context.struct_type(&[
@@ -174,47 +164,6 @@ impl<'ctx> Layouts<'ctx> {
         ]);
 
         let mut method_hasher = MethodHasher::new();
-
-        // We need to define the method information for trait methods, as
-        // this information is necessary when generating dynamic dispatch code.
-        //
-        // This information is defined first so we can update the `collision`
-        // flag when generating this information for method implementations.
-        for mir_trait in mir.traits.values() {
-            for method in mir_trait
-                .id
-                .required_methods(db)
-                .into_iter()
-                .chain(mir_trait.id.default_methods(db))
-            {
-                let name = method.name(db);
-                let hash = method_hasher.hash(name);
-                let mut args: Vec<BasicMetadataTypeEnum> = vec![
-                    state_layout.ptr_type(space).into(), // State
-                    context.pointer_type().into(),       // Process
-                    context.pointer_type().into(),       // Receiver
-                ];
-
-                for _ in 0..method.number_of_arguments(db) {
-                    args.push(context.pointer_type().into());
-                }
-
-                let signature = context.pointer_type().fn_type(&args, false);
-
-                methods.insert(
-                    method,
-                    MethodInfo {
-                        index: 0,
-                        hash,
-                        signature,
-                        collision: false,
-                        colliding: Vec::new(),
-                        struct_return: None,
-                    },
-                );
-            }
-        }
-
         let mut method_table_sizes = Vec::with_capacity(mir.classes.len());
 
         // We generate the bare structs first, that way method signatures can
@@ -249,7 +198,7 @@ impl<'ctx> Layouts<'ctx> {
                     header,
                     context.f64_type().into(),
                 ),
-                BOOLEAN_ID | NIL_ID => {
+                BOOL_ID | NIL_ID => {
                     let typ = context.opaque_struct(&name);
 
                     typ.set_body(&[header.into()], false);
@@ -259,11 +208,6 @@ impl<'ctx> Layouts<'ctx> {
                     &name,
                     header,
                     context.rust_vec_type().into(),
-                ),
-                CHANNEL_ID => context.builtin_type(
-                    &name,
-                    header,
-                    context.pointer_type().into(),
                 ),
                 _ => {
                     // First we forward-declare the structures, as fields
@@ -286,7 +230,7 @@ impl<'ctx> Layouts<'ctx> {
             header,
             context: context_layout,
             method_counts: method_counts_layout,
-            methods,
+            methods: HashMap::new(),
             message: message_layout,
         };
 
@@ -301,9 +245,13 @@ impl<'ctx> Layouts<'ctx> {
         };
 
         for id in mir.classes.keys() {
-            // String _is_ builtin, but we still process it such that the
-            // standard library can define fields for it.
-            if id.is_builtin() && *id != ClassId::string() {
+            // String is a built-in class, but it's defined like a regular one,
+            // so we _don't_ want to skip it here.
+            //
+            // Channel is a generic class and as such is specialized, so the
+            // builtin check doesn't cover it and we process it as normal, as
+            // intended.
+            if id.is_builtin() && id.0 != STRING_ID {
                 continue;
             }
 
@@ -313,11 +261,8 @@ impl<'ctx> Layouts<'ctx> {
 
             if kind.is_extern() {
                 for field in id.fields(db) {
-                    let typ = context
-                        .foreign_type(db, &layouts, field.value_type(db))
-                        .unwrap_or_else(|| {
-                            context.pointer_type().as_basic_type_enum()
-                        });
+                    let typ =
+                        context.llvm_type(db, &layouts, field.value_type(db));
 
                     fields.push(typ);
                 }
@@ -338,17 +283,54 @@ impl<'ctx> Layouts<'ctx> {
                 }
 
                 for field in id.fields(db) {
-                    let typ = context
-                        .foreign_type(db, &layouts, field.value_type(db))
-                        .unwrap_or_else(|| {
-                            context.pointer_type().as_basic_type_enum()
-                        });
+                    let typ =
+                        context.llvm_type(db, &layouts, field.value_type(db));
 
                     fields.push(typ);
                 }
             }
 
             layout.set_body(&fields, false);
+        }
+
+        // We need to define the method information for trait methods, as
+        // this information is necessary when generating dynamic dispatch code.
+        //
+        // This information is defined first so we can update the `collision`
+        // flag when generating this information for method implementations.
+        for calls in mir.dynamic_calls.values() {
+            for (method, shapes) in calls {
+                let hash = method_hasher.hash(hash_key(db, *method, shapes));
+                let mut args: Vec<BasicMetadataTypeEnum> = vec![
+                    state_layout.ptr_type(space).into(), // State
+                    context.pointer_type().into(),       // Process
+                    context.pointer_type().into(),       // Receiver
+                ];
+
+                for arg in method.arguments(db) {
+                    args.push(
+                        context.llvm_type(db, &layouts, arg.value_type).into(),
+                    );
+                }
+
+                let signature = context
+                    .return_type(db, &layouts, *method)
+                    .map(|t| t.fn_type(&args, false))
+                    .unwrap_or_else(|| {
+                        context.void_type().fn_type(&args, false)
+                    });
+
+                layouts.methods.insert(
+                    *method,
+                    MethodInfo {
+                        index: 0,
+                        hash,
+                        signature,
+                        collision: false,
+                        struct_return: None,
+                    },
+                );
+            }
         }
 
         // Now that all the LLVM structs are defined, we can process all
@@ -366,14 +348,18 @@ impl<'ctx> Layouts<'ctx> {
                 buckets[DROPPER_INDEX as usize] = true;
             }
 
+            let is_closure = mir_class.id.is_closure(db);
+
             // Define the method signatures once (so we can cheaply retrieve
             // them whenever needed), and assign the methods to their method
             // table slots.
             for &method in &mir_class.methods {
                 let name = method.name(db);
-                let hash = method_hasher.hash(name);
+                let hash =
+                    method_hasher.hash(hash_key(db, method, method.shapes(db)));
+
                 let mut collision = false;
-                let index = if mir_class.id.kind(db).is_closure() {
+                let index = if is_closure {
                     // For closures we use a fixed layout so we can call its
                     // methods using virtual dispatch instead of dynamic
                     // dispatch.
@@ -406,19 +392,15 @@ impl<'ctx> Layouts<'ctx> {
                     if let MethodSource::Implementation(_, orig) =
                         method.source(db)
                     {
-                        // We have to track the original method as defined in
-                        // the trait, not the implementation defined for the
-                        // class. This is because when we generate the dynamic
-                        // dispatch code, we only know about the trait method.
-                        layouts.methods.get_mut(&orig).unwrap().collision =
-                            true;
-
-                        layouts
-                            .methods
-                            .get_mut(&orig)
-                            .unwrap()
-                            .colliding
-                            .push(mir_class.id);
+                        if let Some(calls) = mir.dynamic_calls.get(&orig) {
+                            for (id, _) in calls {
+                                if let Some(layout) =
+                                    layouts.methods.get_mut(id)
+                                {
+                                    layout.collision = true;
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -436,17 +418,19 @@ impl<'ctx> Layouts<'ctx> {
                     // For instance methods, the receiver is passed as an
                     // explicit argument before any user-defined arguments.
                     if method.is_instance_method(db) {
-                        args.push(context.pointer_type().into());
+                        args.push(
+                            context
+                                .llvm_type(db, &layouts, method.receiver(db))
+                                .into(),
+                        );
                     }
 
                     for arg in method.arguments(db) {
-                        let typ = context
-                            .foreign_type(db, &layouts, arg.value_type)
-                            .unwrap_or_else(|| {
-                                context.pointer_type().as_basic_type_enum()
-                            });
-
-                        args.push(typ.into());
+                        args.push(
+                            context
+                                .llvm_type(db, &layouts, arg.value_type)
+                                .into(),
+                        );
                     }
 
                     context
@@ -464,100 +448,106 @@ impl<'ctx> Layouts<'ctx> {
                         hash,
                         signature: typ,
                         collision,
-                        colliding: Vec::new(),
                         struct_return: None,
                     },
                 );
             }
         }
 
-        for mod_id in mir.modules.keys() {
-            for &method in mod_id.extern_methods(db).values() {
-                let mut args: Vec<BasicMetadataTypeEnum> =
-                    Vec::with_capacity(method.number_of_arguments(db) + 1);
+        for &method in mir.methods.keys().filter(|m| m.is_static(db)) {
+            let mut args: Vec<BasicMetadataTypeEnum> = vec![
+                state_layout.ptr_type(space).into(), // State
+                context.pointer_type().into(),       // Process
+            ];
 
-                // The regular return type, and the type of the structure to
-                // pass with the `sret` attribute. If `ret` is `None`, it means
-                // the function returns `void`. If `sret` is `None`, it means
-                // the function doesn't return a struct.
-                let mut ret = None;
-                let mut sret = None;
-
-                if let Some(typ) = context.return_type(db, &layouts, method) {
-                    // The C ABI mandates that structures are either passed
-                    // through registers (if small enough), or using a pointer.
-                    // LLVM doesn't detect when this is needed for us, so sadly
-                    // we (and everybody else using LLVM) have to do this
-                    // ourselves.
-                    //
-                    // In the future we may want/need to also handle this for
-                    // Inko methods, but for now they always return pointers.
-                    if typ.is_struct_type() {
-                        let typ = typ.into_struct_type();
-
-                        if target_data.get_bit_size(&typ)
-                            > state.config.target.pass_struct_size()
-                        {
-                            args.push(
-                                typ.ptr_type(AddressSpace::default()).into(),
-                            );
-                            sret = Some(typ);
-                        } else {
-                            ret = Some(typ.as_basic_type_enum());
-                        }
-                    } else {
-                        ret = Some(typ);
-                    }
-                }
-
-                for arg in method.arguments(db) {
-                    let raw = arg.value_type;
-                    let arg = context
-                        .foreign_type(db, &layouts, raw)
-                        .unwrap_or_else(|| {
-                            // When an Int is expected as the argument, we read
-                            // it into an i64 so it's a bit easier to pass
-                            // around. This won't be needed any more when
-                            // https://github.com/inko-lang/inko/issues/525 is
-                            // implemented.
-                            if raw.is_int(db) {
-                                context.i64_type().as_basic_type_enum()
-                            } else {
-                                context.pointer_type().as_basic_type_enum()
-                            }
-                        });
-
-                    args.push(arg.into());
-                }
-
-                let variadic = method.is_variadic(db);
-                let sig =
-                    ret.map(|t| t.fn_type(&args, variadic)).unwrap_or_else(
-                        || context.void_type().fn_type(&args, variadic),
-                    );
-
-                layouts.methods.insert(
-                    method,
-                    MethodInfo {
-                        index: 0,
-                        hash: 0,
-                        signature: sig,
-                        collision: false,
-                        colliding: Vec::new(),
-                        struct_return: sret,
-                    },
+            for arg in method.arguments(db) {
+                args.push(
+                    context.llvm_type(db, &layouts, arg.value_type).into(),
                 );
             }
+
+            let typ = context
+                .return_type(db, &layouts, method)
+                .map(|t| t.fn_type(&args, false))
+                .unwrap_or_else(|| context.void_type().fn_type(&args, false));
+
+            layouts.methods.insert(
+                method,
+                MethodInfo {
+                    index: 0,
+                    hash: 0,
+                    signature: typ,
+                    collision: false,
+                    struct_return: None,
+                },
+            );
+        }
+
+        for &method in &mir.extern_methods {
+            let mut args: Vec<BasicMetadataTypeEnum> =
+                Vec::with_capacity(method.number_of_arguments(db) + 1);
+
+            // The regular return type, and the type of the structure to pass
+            // with the `sret` attribute. If `ret` is `None`, it means the
+            // function returns `void`. If `sret` is `None`, it means the
+            // function doesn't return a struct.
+            let mut ret = None;
+            let mut sret = None;
+
+            if let Some(typ) = context.return_type(db, &layouts, method) {
+                // The C ABI mandates that structures are either passed through
+                // registers (if small enough), or using a pointer. LLVM doesn't
+                // detect when this is needed for us, so sadly we (and everybody
+                // else using LLVM) have to do this ourselves.
+                //
+                // In the future we may want/need to also handle this for Inko
+                // methods, but for now they always return pointers.
+                if typ.is_struct_type() {
+                    let typ = typ.into_struct_type();
+
+                    if target_data.get_bit_size(&typ)
+                        > state.config.target.pass_struct_size()
+                    {
+                        args.push(typ.ptr_type(AddressSpace::default()).into());
+                        sret = Some(typ);
+                    } else {
+                        ret = Some(typ.as_basic_type_enum());
+                    }
+                } else {
+                    ret = Some(typ);
+                }
+            }
+
+            for arg in method.arguments(db) {
+                args.push(
+                    context.llvm_type(db, &layouts, arg.value_type).into(),
+                );
+            }
+
+            let variadic = method.is_variadic(db);
+            let sig =
+                ret.map(|t| t.fn_type(&args, variadic)).unwrap_or_else(|| {
+                    context.void_type().fn_type(&args, variadic)
+                });
+
+            layouts.methods.insert(
+                method,
+                MethodInfo {
+                    index: 0,
+                    hash: 0,
+                    signature: sig,
+                    collision: false,
+                    struct_return: sret,
+                },
+            );
         }
 
         layouts
     }
 
     pub(crate) fn methods(&self, class: ClassId) -> u32 {
-        self.classes[&class]
-            .get_field_type_at_index(3)
-            .unwrap()
-            .into_array_type()
-            .len()
+        self.classes.get(&class).map_or(0, |c| {
+            c.get_field_type_at_index(3).unwrap().into_array_type().len()
+        })
     }
 }

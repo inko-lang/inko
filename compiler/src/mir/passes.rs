@@ -3,8 +3,8 @@ use crate::diagnostics::DiagnosticId;
 use crate::hir;
 use crate::mir::pattern_matching as pmatch;
 use crate::mir::{
-    Block, BlockId, CastType, Class, CloneKind, Constant, Goto, Instruction,
-    LocationId, Method, Mir, Module, RegisterId, Trait,
+    Block, BlockId, CastType, Class, Constant, Goto, Instruction, LocationId,
+    Method, Mir, Module, RegisterId, SELF_ID,
 };
 use crate::state::State;
 use ast::source_location::SourceLocation;
@@ -15,13 +15,12 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use types::format::format_type;
 use types::{
-    self, Block as _, ClassId, ForeignType, MethodId, TypeBounds, TypeId,
+    self, Block as _, ClassId, ConstantId, MethodId, ModuleId, TypeBounds,
     TypeRef, EQ_METHOD, FIELDS_LIMIT, OPTION_NONE, OPTION_SOME, RESULT_CLASS,
     RESULT_ERROR, RESULT_MODULE, RESULT_OK,
 };
 
 const SELF_NAME: &str = "self";
-const SELF_ID: u32 = 0;
 
 const MODULES_LIMIT: usize = u32::MAX as usize;
 const CLASSES_LIMIT: usize = u32::MAX as usize;
@@ -42,7 +41,7 @@ pub(crate) fn check_global_limits(state: &mut State) -> Result<(), String> {
 
     if num_mods > MODULES_LIMIT {
         return Err(format!(
-            "The total number of modules ({}) \
+            "the total number of modules ({}) \
             exceeds the maximum of {} modules",
             num_mods, MODULES_LIMIT
         ));
@@ -50,7 +49,7 @@ pub(crate) fn check_global_limits(state: &mut State) -> Result<(), String> {
 
     if num_classes > CLASSES_LIMIT {
         return Err(format!(
-            "The total number of classes ({}) \
+            "the total number of classes ({}) \
             exceeds the maximum of {} classes",
             num_classes, CLASSES_LIMIT
         ));
@@ -58,7 +57,7 @@ pub(crate) fn check_global_limits(state: &mut State) -> Result<(), String> {
 
     if num_methods > METHODS_LIMIT {
         return Err(format!(
-            "The total number of methods ({}) \
+            "the total number of methods ({}) \
             exceeds the maximum of {} methods",
             num_methods, METHODS_LIMIT
         ));
@@ -346,17 +345,17 @@ impl DecisionState {
     }
 }
 
-struct GenerateDropper<'a> {
-    state: &'a mut State,
-    mir: &'a mut Mir,
-    module: &'a mut Module,
-    class: &'a mut Class,
-    location: SourceLocation,
+pub(crate) struct GenerateDropper<'a> {
+    pub(crate) state: &'a mut State,
+    pub(crate) mir: &'a mut Mir,
+    pub(crate) module: ModuleId,
+    pub(crate) class: ClassId,
+    pub(crate) location: LocationId,
 }
 
 impl<'a> GenerateDropper<'a> {
-    fn run(mut self) {
-        match self.class.id.kind(&self.state.db) {
+    pub(crate) fn run(mut self) -> MethodId {
+        match self.class.kind(&self.state.db) {
             types::ClassKind::Async => self.async_class(),
             types::ClassKind::Enum => self.enum_class(),
             _ => self.regular_class(),
@@ -367,13 +366,13 @@ impl<'a> GenerateDropper<'a> {
     ///
     /// This version runs the destructor (if any), followed by running the
     /// dropper of every field. Finally, it frees the receiver.
-    fn regular_class(&mut self) {
+    fn regular_class(&mut self) -> MethodId {
         self.generate_dropper(
             types::DROPPER_METHOD,
             types::MethodKind::Mutable,
             true,
             false,
-        );
+        )
     }
 
     /// Generates the dropper methods for an async class.
@@ -383,8 +382,8 @@ impl<'a> GenerateDropper<'a> {
     /// Because this only runs when removing the last reference to the process,
     /// the async dropper is the last message. When run, it cleans up the object
     /// like a regular class, and the process shuts down.
-    fn async_class(&mut self) {
-        let loc = self.mir.add_location(self.location.clone());
+    fn async_class(&mut self) -> MethodId {
+        let loc = self.location;
         let async_dropper = self.generate_dropper(
             types::ASYNC_DROPPER_METHOD,
             types::MethodKind::AsyncMutable,
@@ -413,6 +412,7 @@ impl<'a> GenerateDropper<'a> {
             self_reg,
             async_dropper,
             Vec::new(),
+            None,
             loc,
         );
         lower.reduce_call(TypeRef::nil(), loc);
@@ -422,6 +422,7 @@ impl<'a> GenerateDropper<'a> {
         assert!(lower.method.id.is_instance_method(&self.state.db));
 
         self.add_method(types::DROPPER_METHOD, dropper_type, dropper_method);
+        dropper_type
     }
 
     /// Generates the dropper method for an enum class.
@@ -429,10 +430,10 @@ impl<'a> GenerateDropper<'a> {
     /// For enums the drop logic is a bit different: based on the value of the
     /// tag, certain fields may be set to NULL. As such we branch based on the
     /// tag value, and only drop the fields relevant for that tag.
-    fn enum_class(&mut self) {
-        let loc = self.mir.add_location(self.location.clone());
+    fn enum_class(&mut self) -> MethodId {
+        let loc = self.location;
         let name = types::DROPPER_METHOD;
-        let class = self.class.id;
+        let class = self.class;
         let drop_method_opt = class.method(&self.state.db, types::DROP_METHOD);
         let method_type = self.method_type(name, types::MethodKind::Mutable);
         let mut method = Method::new(method_type, loc);
@@ -452,6 +453,7 @@ impl<'a> GenerateDropper<'a> {
                 self_reg,
                 id,
                 Vec::new(),
+                None,
                 loc,
             );
             lower.reduce_call(typ, loc);
@@ -507,6 +509,7 @@ impl<'a> GenerateDropper<'a> {
 
         lower.current_block_mut().return_value(nil_reg, loc);
         self.add_method(name, method_type, method);
+        method_type
     }
 
     fn generate_dropper(
@@ -516,10 +519,10 @@ impl<'a> GenerateDropper<'a> {
         free_self: bool,
         terminate: bool,
     ) -> MethodId {
-        let class = self.class.id;
+        let class = self.class;
         let drop_method_opt = class.method(&self.state.db, types::DROP_METHOD);
         let method_type = self.method_type(name, kind);
-        let loc = self.mir.add_location(self.location.clone());
+        let loc = self.location;
         let mut method = Method::new(method_type, loc);
         let mut lower =
             LowerMethod::new(self.state, self.mir, self.module, &mut method);
@@ -537,8 +540,10 @@ impl<'a> GenerateDropper<'a> {
                 self_reg,
                 id,
                 Vec::new(),
+                None,
                 loc,
             );
+
             lower.reduce_call(typ, loc);
         }
 
@@ -554,6 +559,7 @@ impl<'a> GenerateDropper<'a> {
             lower
                 .current_block_mut()
                 .get_field(reg, self_reg, class, field, loc);
+
             lower.drop_register(reg, loc);
         }
 
@@ -583,7 +589,7 @@ impl<'a> GenerateDropper<'a> {
     fn method_type(&mut self, name: &str, kind: types::MethodKind) -> MethodId {
         let id = types::Method::alloc(
             &mut self.state.db,
-            self.module.id,
+            self.module,
             name.to_string(),
             types::Visibility::TypePrivate,
             kind,
@@ -592,7 +598,7 @@ impl<'a> GenerateDropper<'a> {
         let self_type =
             types::TypeId::ClassInstance(types::ClassInstance::rigid(
                 &mut self.state.db,
-                self.class.id,
+                self.class,
                 &types::TypeBounds::new(),
             ));
         let receiver = TypeRef::Mut(self_type);
@@ -603,8 +609,10 @@ impl<'a> GenerateDropper<'a> {
     }
 
     fn add_method(&mut self, name: &str, id: MethodId, method: Method) {
-        self.class.id.add_method(&mut self.state.db, name.to_string(), id);
-        self.class.methods.push(id);
+        let cid = self.class;
+
+        cid.add_method(&mut self.state.db, name.to_string(), id);
+        self.mir.classes.get_mut(&cid).unwrap().methods.push(id);
         self.mir.methods.insert(id, method);
     }
 }
@@ -783,7 +791,7 @@ impl<'a> DefineConstants<'a> {
             Constant::Array(_) | Constant::Bool(_) => {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidConstExpr,
-                    "Constant Array and Bool values don't support \
+                    "constant Array and Bool values don't support \
                     binary operations",
                     self.file(),
                     node.location.clone(),
@@ -823,7 +831,7 @@ impl<'a> DefineConstants<'a> {
 pub(crate) struct LowerToMir<'a> {
     state: &'a mut State,
     mir: &'a mut Mir,
-    module: &'a mut Module,
+    module: ModuleId,
 }
 
 impl<'a> LowerToMir<'a> {
@@ -848,21 +856,20 @@ impl<'a> LowerToMir<'a> {
                 )
             });
 
+            let id = module.module_id;
+
             mod_types.push(types);
             mod_nodes.push(rest);
-            modules.push(Module::new(module.module_id));
+            modules.push(id);
+            mir.modules.insert(id, Module::new(id));
         }
 
-        for (module, nodes) in modules.iter_mut().zip(mod_types.into_iter()) {
+        for (&module, nodes) in modules.iter().zip(mod_types.into_iter()) {
             LowerToMir { state, mir, module }.lower_types(nodes);
         }
 
-        for (module, nodes) in modules.iter_mut().zip(mod_nodes.into_iter()) {
+        for (&module, nodes) in modules.iter().zip(mod_nodes.into_iter()) {
             LowerToMir { state, mir, module }.lower_rest(nodes);
-        }
-
-        for module in modules {
-            mir.modules.insert(module.id, module);
         }
 
         !state.diagnostics.has_errors()
@@ -886,13 +893,20 @@ impl<'a> LowerToMir<'a> {
     }
 
     fn lower_rest(&mut self, nodes: Vec<hir::TopLevelExpression>) {
-        let id = self.module.id;
+        let id = self.module;
         let mut mod_methods = Vec::new();
 
         for expr in nodes {
             match expr {
                 hir::TopLevelExpression::Constant(n) => {
-                    self.module.constants.push(n.constant_id.unwrap())
+                    let mod_id = self.module;
+
+                    self.mir
+                        .modules
+                        .get_mut(&mod_id)
+                        .unwrap()
+                        .constants
+                        .push(n.constant_id.unwrap())
                 }
                 hir::TopLevelExpression::ModuleMethod(n) => {
                     mod_methods.push(self.define_module_method(*n));
@@ -916,7 +930,6 @@ impl<'a> LowerToMir<'a> {
     }
 
     fn define_trait(&mut self, node: hir::DefineTrait) {
-        let id = node.trait_id.unwrap();
         let mut methods = Vec::new();
 
         for expr in node.body {
@@ -925,11 +938,7 @@ impl<'a> LowerToMir<'a> {
             }
         }
 
-        let mut mir_trait = Trait::new(id);
-
-        mir_trait.add_methods(&methods);
         self.mir.add_methods(methods);
-        self.mir.traits.insert(id, mir_trait);
     }
 
     fn implement_trait(&mut self, node: hir::ImplementTrait) {
@@ -973,7 +982,7 @@ impl<'a> LowerToMir<'a> {
                     methods.push(self.define_instance_method(*n));
                 }
                 hir::ClassExpression::StaticMethod(n) => {
-                    methods.push(self.define_static_method(*n));
+                    self.define_static_method(*n);
                 }
                 hir::ClassExpression::AsyncMethod(n) => {
                     methods.push(self.define_async_method(*n));
@@ -986,19 +995,20 @@ impl<'a> LowerToMir<'a> {
         }
 
         let mut class = Class::new(id);
+        let loc = self.mir.add_location(node.location);
+
+        class.add_methods(&methods);
+        self.mir.add_methods(methods);
+        self.add_class(id, class);
 
         GenerateDropper {
             state: self.state,
             mir: self.mir,
             module: self.module,
-            class: &mut class,
-            location: node.location,
+            class: id,
+            location: loc,
         }
         .run();
-
-        class.add_methods(&methods);
-        self.mir.add_methods(methods);
-        self.add_class(id, class);
     }
 
     fn define_extern_class(&mut self, node: hir::DefineExternClass) {
@@ -1017,7 +1027,7 @@ impl<'a> LowerToMir<'a> {
                     methods.push(self.define_instance_method(*n));
                 }
                 hir::ReopenClassExpression::StaticMethod(n) => {
-                    methods.push(self.define_static_method(*n));
+                    self.define_static_method(*n);
                 }
                 hir::ReopenClassExpression::AsyncMethod(n) => {
                     methods.push(self.define_async_method(*n));
@@ -1068,10 +1078,7 @@ impl<'a> LowerToMir<'a> {
         method
     }
 
-    fn define_static_method(
-        &mut self,
-        node: hir::DefineStaticMethod,
-    ) -> Method {
+    fn define_static_method(&mut self, node: hir::DefineStaticMethod) {
         let id = node.method_id.unwrap();
         let loc = self.mir.add_location(node.location.clone());
         let mut method = Method::new(id, loc);
@@ -1079,7 +1086,7 @@ impl<'a> LowerToMir<'a> {
         LowerMethod::new(self.state, self.mir, self.module, &mut method)
             .run(node.body, loc);
 
-        method
+        self.mir.methods.insert(id, method);
     }
 
     fn define_variant_method(
@@ -1139,8 +1146,10 @@ impl<'a> LowerToMir<'a> {
     }
 
     fn add_class(&mut self, id: types::ClassId, class: Class) {
+        let mod_id = self.module;
+
         self.mir.classes.insert(id, class);
-        self.module.classes.push(id);
+        self.mir.modules.get_mut(&mod_id).unwrap().classes.push(id);
     }
 }
 
@@ -1148,7 +1157,7 @@ impl<'a> LowerToMir<'a> {
 pub(crate) struct LowerMethod<'a> {
     state: &'a mut State,
     mir: &'a mut Mir,
-    module: &'a mut Module,
+    module: ModuleId,
     method: &'a mut Method,
     scope: Box<Scope>,
     current_block: BlockId,
@@ -1193,7 +1202,7 @@ impl<'a> LowerMethod<'a> {
     fn new(
         state: &'a mut State,
         mir: &'a mut Mir,
-        module: &'a mut Module,
+        module: ModuleId,
         method: &'a mut Method,
     ) -> Self {
         let current_block = method.body.add_start_block();
@@ -1711,8 +1720,9 @@ impl<'a> LowerMethod<'a> {
     ) -> RegisterId {
         let reg = self.new_register(TypeRef::string());
         let loc = self.add_location(location);
+        let block = self.current_block;
 
-        self.current_block_mut().string_literal(reg, value, loc);
+        self.permanent_string(reg, value, block, loc);
         reg
     }
 
@@ -1812,7 +1822,7 @@ impl<'a> LowerMethod<'a> {
                 let reg = self.new_register(id.value_type(self.db()));
                 let loc = self.add_location(node.location);
 
-                self.current_block_mut().get_constant(reg, id, loc);
+                self.get_constant(reg, id, loc);
                 reg
             }
             _ => unreachable!(),
@@ -1868,8 +1878,11 @@ impl<'a> LowerMethod<'a> {
                 return result;
             }
             types::Receiver::Class => {
+                let targs = self.mir.add_type_arguments(info.type_arguments);
+
                 self.current_block_mut()
-                    .call_static(result, info.id, arguments, location);
+                    .call_static(result, info.id, arguments, targs, location);
+
                 self.reduce_call(info.returns, location);
 
                 return result;
@@ -1880,24 +1893,24 @@ impl<'a> LowerMethod<'a> {
             rec = self.receiver_for_moving_method(rec, location);
         }
 
-        if info.id.is_async(self.db()) {
-            let rec_typ = self.register_type(rec);
-            let msg_rec = self.new_register(rec_typ);
+        let targs = self.mir.add_type_arguments(info.type_arguments);
 
+        if info.id.is_async(self.db()) {
             // When sending messages we must increment the reference count,
             // otherwise we may end up scheduling the async dropper prematurely
             // (e.g. if new references are created before it runs).
-            self.current_block_mut().increment_atomic(msg_rec, rec, location);
+            self.current_block_mut().increment_atomic(rec, location);
             self.current_block_mut()
-                .send(msg_rec, info.id, arguments, location);
-            self.mark_register_as_moved(msg_rec);
+                .send(rec, info.id, arguments, targs, location);
+
             self.current_block_mut().nil_literal(result, location);
         } else if info.dynamic {
             self.current_block_mut()
-                .call_dynamic(result, rec, info.id, arguments, location);
+                .call_dynamic(result, rec, info.id, arguments, targs, location);
         } else {
-            self.current_block_mut()
-                .call_instance(result, rec, info.id, arguments, location);
+            self.current_block_mut().call_instance(
+                result, rec, info.id, arguments, targs, location,
+            );
         }
 
         self.reduce_call(info.returns, location);
@@ -2366,15 +2379,21 @@ impl<'a> LowerMethod<'a> {
         let from_type = self.register_type(src);
         let to_type = node.resolved_type;
 
-        match (self.cast_type(from_type), self.cast_type(to_type)) {
-            (Some(from), Some(to)) => {
-                self.current_block_mut().cast(reg, src, from, to, loc);
-            }
-            _ => {
+        match (
+            CastType::from(self.db(), from_type),
+            CastType::from(self.db(), to_type),
+        ) {
+            (CastType::Object, CastType::Object) => {
                 let out = self.input_register(src, from_type, None, loc);
 
-                self.mark_register_as_moved(out);
                 self.current_block_mut().move_register(reg, out, loc);
+            }
+            (from @ CastType::Object, to) => {
+                self.mark_register_as_moved(src);
+                self.current_block_mut().cast(reg, src, from, to, loc);
+            }
+            (from, to) => {
+                self.current_block_mut().cast(reg, src, from, to, loc);
             }
         }
 
@@ -2519,7 +2538,7 @@ impl<'a> LowerMethod<'a> {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidMatch,
                 format!(
-                    "Not all possible cases are covered, the following \
+                    "not all possible cases are covered, the following \
                     patterns are missing: {}",
                     missing
                         .into_iter()
@@ -2948,12 +2967,13 @@ impl<'a> LowerMethod<'a> {
                 .method(self.db(), EQ_METHOD)
                 .expect("String.== is undefined");
 
-            self.block_mut(test_block).string_literal(val_reg, val, loc);
+            self.permanent_string(val_reg, val, test_block, loc);
             self.block_mut(test_block).call_instance(
                 res_reg,
                 test_reg,
                 eq_method,
                 vec![val_reg],
+                None,
                 loc,
             );
 
@@ -3094,18 +3114,9 @@ impl<'a> LowerMethod<'a> {
         let tag_field =
             class.field_by_index(self.db(), types::ENUM_TAG_INDEX).unwrap();
         let member_fields = class.enum_fields(self.db());
-        let mut member_regs = Vec::new();
 
         self.block_mut(test_block)
             .get_field(tag_reg, test_reg, class, tag_field, loc);
-
-        for &field in &member_fields {
-            let reg = self.new_untracked_register(TypeRef::Any);
-
-            self.block_mut(test_block)
-                .get_field(reg, test_reg, class, field, loc);
-            member_regs.push(reg);
-        }
 
         for case in cases {
             let case_registers = registers.clone();
@@ -3114,8 +3125,7 @@ impl<'a> LowerMethod<'a> {
             self.add_edge(test_block, block);
             blocks.push(block);
 
-            for (arg, &member_reg) in
-                case.arguments.into_iter().zip(member_regs.iter())
+            for (arg, &field) in case.arguments.into_iter().zip(&member_fields)
             {
                 let reg = state.registers[arg.0];
                 let action = if test_type.is_owned_or_uni(self.db()) {
@@ -3125,8 +3135,8 @@ impl<'a> LowerMethod<'a> {
                 };
 
                 state.actions.insert(reg, action);
-                self.block_mut(block).move_register(reg, member_reg, loc);
-                self.mark_register_as_moved_in_block(member_reg, block);
+                self.block_mut(block)
+                    .get_field(reg, test_reg, class, field, loc);
             }
 
             self.decision(state, case.node, block, case_registers);
@@ -3217,7 +3227,7 @@ impl<'a> LowerMethod<'a> {
                 let reg = self.new_register(node.resolved_type);
                 let loc = self.add_location(node.location);
 
-                self.current_block_mut().get_constant(reg, id, loc);
+                self.get_constant(reg, id, loc);
                 reg
             }
             types::ConstantKind::Method(info) => {
@@ -3242,7 +3252,7 @@ impl<'a> LowerMethod<'a> {
     fn closure(&mut self, node: hir::Closure) -> RegisterId {
         self.check_inferred(node.resolved_type, &node.location);
 
-        let module = self.module.id;
+        let module = self.module;
         let closure_id = node.closure_id.unwrap();
         let moving = closure_id.is_moving(self.db());
         let class_id = types::Class::alloc(
@@ -3386,7 +3396,7 @@ impl<'a> LowerMethod<'a> {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidType,
                 format!(
-                    "Closures can't capture more than {} variables",
+                    "closures can't capture more than {} variables",
                     FIELDS_LIMIT
                 ),
                 self.file(),
@@ -3411,19 +3421,24 @@ impl<'a> LowerMethod<'a> {
             lower.run(node.body, loc);
         }
 
-        GenerateDropper {
-            state: self.state,
-            mir: self.mir,
-            module: self.module,
-            class: &mut mir_class,
-            location: node.location,
-        }
-        .run();
+        let mod_id = self.module;
 
         mir_class.methods.push(method_id);
         self.mir.methods.insert(method_id, mir_method);
         self.mir.classes.insert(class_id, mir_class);
-        self.module.classes.push(class_id);
+        self.mir.modules.get_mut(&mod_id).unwrap().classes.push(class_id);
+
+        let loc = self.mir.add_location(node.location);
+
+        GenerateDropper {
+            state: self.state,
+            mir: self.mir,
+            module: self.module,
+            class: class_id,
+            location: loc,
+        }
+        .run();
+
         gen_class_reg
     }
 
@@ -3593,7 +3608,7 @@ impl<'a> LowerMethod<'a> {
         self.state.diagnostics.error(
             DiagnosticId::Moved,
             format!(
-                "This value can't be moved out of '{}', \
+                "this value can't be moved out of '{}', \
                 as it defines a custom destructor",
                 format_type(self.db(), self.surrounding_type()),
             ),
@@ -3740,32 +3755,11 @@ impl<'a> LowerMethod<'a> {
         let reg = self.new_register(typ);
         let class = typ.class_id(self.db()).unwrap();
 
-        match class.0 {
-            types::INT_ID => {
-                self.current_block_mut().clone(
-                    CloneKind::Int,
-                    reg,
-                    source,
-                    location,
-                );
-            }
-            types::FLOAT_ID => {
-                self.current_block_mut().clone(
-                    CloneKind::Float,
-                    reg,
-                    source,
-                    location,
-                );
-            }
-            _ if class.kind(self.db()).is_extern() => {
-                self.current_block_mut().move_register(reg, source, location);
-            }
-            _ => {
-                self.current_block_mut()
-                    .increment_atomic(reg, source, location);
-            }
+        if class.is_atomic(self.db()) {
+            self.current_block_mut().increment_atomic(source, location);
         }
 
+        self.current_block_mut().move_register(reg, source, location);
         self.mark_register_as_moved(reg);
         reg
     }
@@ -3809,7 +3803,7 @@ impl<'a> LowerMethod<'a> {
             swap(&mut scope, &mut self.scope);
             scope
         } else {
-            panic!("Can't exit from the top-level scope");
+            panic!("can't exit from the top-level scope");
         }
     }
 
@@ -4266,14 +4260,6 @@ impl<'a> LowerMethod<'a> {
         self.update_register_state(register, RegisterState::Moved);
     }
 
-    fn mark_register_as_moved_in_block(
-        &mut self,
-        register: RegisterId,
-        block: BlockId,
-    ) {
-        self.register_states.set(block, register, RegisterState::Moved);
-    }
-
     fn mark_register_as_available(&mut self, register: RegisterId) {
         self.update_register_state(register, RegisterState::Available);
     }
@@ -4303,7 +4289,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn file(&self) -> PathBuf {
-        self.module.id.file(&self.state.db)
+        self.module.file(&self.state.db)
     }
 
     fn self_type(&self) -> types::TypeId {
@@ -4333,43 +4319,35 @@ impl<'a> LowerMethod<'a> {
         self.state.diagnostics.unreachable(self.file(), location.clone());
     }
 
-    fn cast_type(&self, typ: TypeRef) -> Option<CastType> {
-        if let TypeRef::Pointer(_) = typ {
-            Some(CastType::Pointer)
-        } else {
-            // TODO: unsigned ints
-            match typ.type_id(self.db()) {
-                Ok(TypeId::Foreign(ForeignType::Int(8, signed))) => {
-                    Some(CastType::Int(8, signed))
-                }
-                Ok(TypeId::Foreign(ForeignType::Int(16, signed))) => {
-                    Some(CastType::Int(16, signed))
-                }
-                Ok(TypeId::Foreign(ForeignType::Int(32, signed))) => {
-                    Some(CastType::Int(32, signed))
-                }
-                Ok(TypeId::Foreign(ForeignType::Int(64, signed))) => {
-                    Some(CastType::Int(64, signed))
-                }
-                Ok(TypeId::Foreign(ForeignType::Float(32))) => {
-                    Some(CastType::Float(32))
-                }
-                Ok(TypeId::Foreign(ForeignType::Float(64))) => {
-                    Some(CastType::Float(64))
-                }
-                Ok(TypeId::ClassInstance(ins))
-                    if ins.instance_of() == ClassId::int() =>
-                {
-                    Some(CastType::InkoInt)
-                }
-                Ok(TypeId::ClassInstance(ins))
-                    if ins.instance_of() == ClassId::float() =>
-                {
-                    Some(CastType::InkoFloat)
-                }
-                _ => None,
-            }
+    fn get_constant(
+        &mut self,
+        register: RegisterId,
+        id: ConstantId,
+        location: LocationId,
+    ) {
+        self.current_block_mut().get_constant(register, id, location);
+
+        // We don't need to handle Array here as it's exposed through a
+        // reference, and we never drop the underlying owned value.
+        if id.value_type(self.db()).is_string(self.db()) {
+            self.current_block_mut().increment_atomic(register, location);
         }
+    }
+
+    fn permanent_string(
+        &mut self,
+        register: RegisterId,
+        value: String,
+        block: BlockId,
+        location: LocationId,
+    ) {
+        self.block_mut(block).string_literal(register, value, location);
+
+        // This ensures that when the last reference to a string literal goes
+        // out of scope, the reference count remains 1, ensuring we don't
+        // accidentally drop a permanent string that may be referred to again
+        // later.
+        self.block_mut(block).increment_atomic(register, location);
     }
 }
 
@@ -4442,16 +4420,6 @@ pub(crate) fn clean_up_basic_blocks(mir: &mut Mir) {
 
                         ins.blocks.clone()
                     }
-                    Instruction::SwitchKind(ins) => {
-                        for index in 0..ins.blocks.len() {
-                            let old_id = ins.blocks[index];
-
-                            ins.blocks[index] =
-                                id_map[find_successor(blocks, old_id).0];
-                        }
-
-                        ins.blocks.clone()
-                    }
                     Instruction::Goto(ins) => {
                         ins.block = id_map[find_successor(blocks, ins.block).0];
 
@@ -4502,447 +4470,6 @@ pub(crate) fn clean_up_basic_blocks(mir: &mut Mir) {
         }
 
         method.body.blocks = new_blocks;
-    }
-}
-
-/// A compiler pass that expands drop instructions into their final
-/// instructions.
-///
-/// For example, a `drop()` instruction used on a type parameter is expanded
-/// into a conditional drop or decrement.
-///
-/// This pass exists because when initially generating MIR, we might not have
-/// enough information to generate the correct drop logic (e.g. we're depending
-/// on a class that has yet to be lowered to MIR).
-///
-/// This pass should be run after applying any optimisation on MIR, that way we
-/// can generate the most ideal drop code. For example, inlining a method may
-/// influence how certain values are dropped. Running this pass at the end means
-/// we don't have to undo some of the work this pass does.
-pub(crate) struct ExpandDrop<'a> {
-    db: &'a types::Database,
-    method: &'a mut Method,
-}
-
-impl<'a> ExpandDrop<'a> {
-    pub(crate) fn run_all(db: &'a types::Database, mir: &'a mut Mir) {
-        for method in mir.methods.values_mut() {
-            ExpandDrop { db, method }.run();
-        }
-    }
-
-    pub(crate) fn run(mut self) {
-        let mut block_idx = 0;
-
-        // We use a `while` loop here as both the list of blocks and
-        // instructions are modified during iteration, meaning we can't use a
-        // fixed range to iterate over.
-        while block_idx < self.method.body.blocks.len() {
-            let block_id = BlockId(block_idx);
-
-            if let Some(ins_idx) = self
-                .block_mut(block_id)
-                .instructions
-                .iter()
-                .position(|ins| matches!(ins, Instruction::Drop(_)))
-            {
-                let (ins, remaining_ins) = {
-                    let block = self.block_mut(block_id);
-
-                    if let Instruction::Drop(ins) =
-                        block.instructions.remove(ins_idx)
-                    {
-                        (ins, block.instructions.split_off(ins_idx))
-                    } else {
-                        unreachable!()
-                    }
-                };
-
-                let loc = ins.location;
-                let val = ins.register;
-                let typ = self.method.registers.value_type(val);
-                let mut succ = Vec::new();
-                let after_id = self.add_block();
-
-                swap(&mut succ, &mut self.block_mut(block_id).successors);
-
-                if typ.use_reference_counting(self.db) {
-                    self.drop_reference(block_id, after_id, val, typ, loc);
-                } else if typ.use_atomic_reference_counting(self.db) {
-                    self.drop_atomic(block_id, after_id, val, loc);
-                } else if typ.is_trait_instance(self.db) {
-                    self.drop_owned_trait_or_self(
-                        block_id,
-                        after_id,
-                        val,
-                        ins.dropper,
-                        loc,
-                    );
-                } else if typ.is_type_parameter(self.db) {
-                    self.drop_with_runtime_check(
-                        block_id,
-                        after_id,
-                        val,
-                        ins.dropper,
-                        loc,
-                    );
-                } else {
-                    self.drop_owned(block_id, after_id, val, ins.dropper, loc);
-                }
-
-                // The new end block must be properly connected to the block(s)
-                // the original block was connected to.
-                for succ_id in succ {
-                    self.method.body.remove_predecessor(succ_id, block_id);
-                    self.method.body.add_edge(after_id, succ_id);
-                }
-
-                self.block_mut(after_id).instructions = remaining_ins;
-            }
-
-            block_idx += 1;
-        }
-    }
-
-    fn drop_atomic(
-        &mut self,
-        before_id: BlockId,
-        after_id: BlockId,
-        value: RegisterId,
-        location: LocationId,
-    ) {
-        let drop_id = self.add_block();
-        let check = self.block_mut(before_id);
-
-        check.decrement_atomic(value, drop_id, after_id, location);
-
-        // Atomic values can't be pattern matched into sub-values, so we can
-        // call the dropper unconditionally.
-        self.call_dropper(drop_id, value, location);
-        self.block_mut(drop_id).goto(after_id, location);
-
-        self.method.body.add_edge(before_id, drop_id);
-        self.method.body.add_edge(before_id, after_id);
-        self.method.body.add_edge(drop_id, after_id);
-    }
-
-    fn drop_reference(
-        &mut self,
-        before_id: BlockId,
-        after_id: BlockId,
-        value: RegisterId,
-        value_type: TypeRef,
-        location: LocationId,
-    ) {
-        if value_type.use_atomic_reference_counting(self.db) {
-            self.drop_atomic(before_id, after_id, value, location);
-        } else if value_type.is_value_type(self.db) {
-            self.block_mut(before_id).free(value, location);
-            self.block_mut(before_id).goto(after_id, location);
-            self.method.body.add_edge(before_id, after_id);
-        } else if value_type.class_id(self.db).is_some() {
-            self.block_mut(before_id).decrement(value, location);
-            self.block_mut(before_id).goto(after_id, location);
-            self.method.body.add_edge(before_id, after_id);
-        } else {
-            // If the value is typed as a type parameter or trait, it may be
-            // passed a value type or a type that uses atomic reference
-            // counting. As such we fall back to a runtime check for such cases.
-            //
-            // Disabling the use of a dropper here ensures that _if_ the value
-            // is a value type (in which case it's treated as an owned value),
-            // we simply free it, as running its dropper is redundant in that
-            // case.
-            self.drop_with_runtime_check(
-                before_id, after_id, value, false, location,
-            );
-        }
-    }
-
-    fn drop_owned_trait_or_self(
-        &mut self,
-        before_id: BlockId,
-        after_id: BlockId,
-        value: RegisterId,
-        dropper: bool,
-        location: LocationId,
-    ) {
-        let atomic_id = self.add_block();
-        let owned_id = self.add_block();
-        let value_id = self.add_block();
-
-        self.block_mut(before_id).switch_kind(
-            value,
-            vec![owned_id, after_id, atomic_id, after_id, value_id, value_id],
-            location,
-        );
-
-        self.drop_owned(owned_id, after_id, value, dropper, location);
-        self.drop_atomic(atomic_id, after_id, value, location);
-        self.drop_value_type(value_id, after_id, value, location);
-
-        self.method.body.add_edge(before_id, atomic_id);
-        self.method.body.add_edge(before_id, owned_id);
-        self.method.body.add_edge(before_id, value_id);
-        self.method.body.add_edge(before_id, after_id);
-    }
-
-    fn drop_owned(
-        &mut self,
-        before_id: BlockId,
-        after_id: BlockId,
-        value: RegisterId,
-        dropper: bool,
-        location: LocationId,
-    ) {
-        // Value types such as Int and Float don't need to go through a dropper,
-        // as they don't have any sub-values of destructors.
-        if dropper
-            && !self.method.registers.value_type(value).is_value_type(self.db)
-        {
-            self.call_dropper(before_id, value, location);
-        } else {
-            self.block_mut(before_id).free(value, location);
-        }
-
-        self.block_mut(before_id).goto(after_id, location);
-        self.method.body.add_edge(before_id, after_id);
-    }
-
-    fn drop_value_type(
-        &mut self,
-        before_id: BlockId,
-        after_id: BlockId,
-        value: RegisterId,
-        location: LocationId,
-    ) {
-        self.block_mut(before_id).free(value, location);
-        self.block_mut(before_id).goto(after_id, location);
-        self.method.body.add_edge(before_id, after_id);
-    }
-
-    fn drop_with_runtime_check(
-        &mut self,
-        before_id: BlockId,
-        after_id: BlockId,
-        value: RegisterId,
-        dropper: bool,
-        location: LocationId,
-    ) {
-        let ref_id = self.add_block();
-        let atomic_id = self.add_block();
-        let owned_id = self.add_block();
-        let value_id = self.add_block();
-
-        self.block_mut(before_id).switch_kind(
-            value,
-            vec![owned_id, ref_id, atomic_id, after_id, value_id, value_id],
-            location,
-        );
-
-        self.block_mut(ref_id).decrement(value, location);
-        self.block_mut(ref_id).goto(after_id, location);
-
-        self.drop_owned(owned_id, after_id, value, dropper, location);
-        self.drop_atomic(atomic_id, after_id, value, location);
-        self.drop_value_type(value_id, after_id, value, location);
-
-        self.method.body.add_edge(before_id, ref_id);
-        self.method.body.add_edge(ref_id, after_id);
-        self.method.body.add_edge(before_id, atomic_id);
-        self.method.body.add_edge(before_id, owned_id);
-        self.method.body.add_edge(before_id, value_id);
-        self.method.body.add_edge(before_id, after_id);
-    }
-
-    fn call_dropper(
-        &mut self,
-        block: BlockId,
-        value: RegisterId,
-        location: LocationId,
-    ) {
-        let typ = self.method.registers.value_type(value);
-        let reg = self.method.registers.alloc(TypeRef::nil());
-
-        if let Some(class) = typ.class_id(self.db) {
-            // If the type of the receiver is statically known to be a class, we
-            // can just call the dropper directly.
-            let method = class.method(self.db, types::DROPPER_METHOD).unwrap();
-
-            self.block_mut(block).call_instance(
-                reg,
-                value,
-                method,
-                Vec::new(),
-                location,
-            );
-        } else if !typ.is_any(self.db) {
-            // Values of type `Any` could be, well, anything, and as such it's
-            // not safe to drop them.
-            self.block_mut(block).call_dropper(reg, value, location);
-        }
-
-        self.block_mut(block).reduce_call(location);
-    }
-
-    fn block_mut(&mut self, id: BlockId) -> &mut Block {
-        &mut self.method.body.blocks[id.0]
-    }
-
-    fn add_block(&mut self) -> BlockId {
-        self.method.body.add_block()
-    }
-}
-
-/// A compiler pass that expands the reference() instruction into the correct
-/// instruction to create an alias.
-pub(crate) struct ExpandReference<'a> {
-    db: &'a types::Database,
-    method: &'a mut Method,
-}
-
-impl<'a> ExpandReference<'a> {
-    pub(crate) fn run_all(db: &'a types::Database, mir: &'a mut Mir) {
-        for method in mir.methods.values_mut() {
-            ExpandReference { db, method }.run();
-        }
-    }
-
-    pub(crate) fn run(mut self) {
-        let mut block_idx = 0;
-
-        while block_idx < self.method.body.blocks.len() {
-            let block_id = BlockId(block_idx);
-
-            if let Some(ins_idx) = self
-                .block_mut(block_id)
-                .instructions
-                .iter()
-                .position(|ins| matches!(ins, Instruction::Reference(_)))
-            {
-                let (ins, remaining_ins) = {
-                    let block = self.block_mut(block_id);
-
-                    if let Instruction::Reference(ins) =
-                        block.instructions.remove(ins_idx)
-                    {
-                        (ins, block.instructions.split_off(ins_idx))
-                    } else {
-                        unreachable!()
-                    }
-                };
-
-                let loc = ins.location;
-                let reg = ins.register;
-                let val = ins.value;
-                let typ = self.method.registers.value_type(val);
-                let mut succ = Vec::new();
-                let after_id = self.add_block();
-
-                swap(&mut succ, &mut self.block_mut(block_id).successors);
-
-                if let Some(class) = typ.class_id(self.db) {
-                    self.increment_class(
-                        block_id, after_id, reg, val, class, loc,
-                    );
-                } else {
-                    self.increment_with_runtime_check(
-                        block_id, after_id, reg, val, loc,
-                    );
-                }
-
-                for succ_id in succ {
-                    self.method.body.remove_predecessor(succ_id, block_id);
-                    self.method.body.add_edge(after_id, succ_id);
-                }
-
-                self.block_mut(after_id).instructions = remaining_ins;
-            }
-
-            block_idx += 1;
-        }
-    }
-
-    fn increment_class(
-        &mut self,
-        block_id: BlockId,
-        after_id: BlockId,
-        register: RegisterId,
-        value: RegisterId,
-        class: types::ClassId,
-        location: LocationId,
-    ) {
-        if class.is_atomic(self.db) {
-            self.block_mut(block_id)
-                .increment_atomic(register, value, location);
-        } else {
-            self.block_mut(block_id).increment(register, value, location);
-        }
-
-        self.block_mut(block_id).goto(after_id, location);
-        self.method.body.add_edge(block_id, after_id);
-    }
-
-    fn increment_with_runtime_check(
-        &mut self,
-        block_id: BlockId,
-        after_id: BlockId,
-        register: RegisterId,
-        value: RegisterId,
-        location: LocationId,
-    ) {
-        let normal_id = self.add_block();
-        let atomic_id = self.add_block();
-        let int_id = self.add_block();
-        let float_id = self.add_block();
-        let perm_id = self.add_block();
-
-        self.block_mut(block_id).switch_kind(
-            value,
-            vec![normal_id, normal_id, atomic_id, perm_id, int_id, float_id],
-            location,
-        );
-
-        self.block_mut(normal_id).increment(register, value, location);
-        self.block_mut(normal_id).goto(after_id, location);
-
-        self.block_mut(atomic_id).increment_atomic(register, value, location);
-        self.block_mut(atomic_id).goto(after_id, location);
-
-        self.block_mut(int_id).clone(CloneKind::Int, register, value, location);
-        self.block_mut(int_id).goto(after_id, location);
-
-        self.block_mut(float_id).clone(
-            CloneKind::Float,
-            register,
-            value,
-            location,
-        );
-        self.block_mut(float_id).goto(after_id, location);
-
-        self.block_mut(perm_id).move_register(register, value, location);
-        self.block_mut(perm_id).goto(after_id, location);
-
-        self.method.body.add_edge(block_id, normal_id);
-        self.method.body.add_edge(block_id, atomic_id);
-        self.method.body.add_edge(block_id, after_id);
-        self.method.body.add_edge(block_id, int_id);
-        self.method.body.add_edge(block_id, float_id);
-        self.method.body.add_edge(block_id, perm_id);
-
-        self.method.body.add_edge(normal_id, after_id);
-        self.method.body.add_edge(atomic_id, after_id);
-        self.method.body.add_edge(int_id, after_id);
-        self.method.body.add_edge(float_id, after_id);
-        self.method.body.add_edge(perm_id, after_id);
-    }
-
-    fn block_mut(&mut self, id: BlockId) -> &mut Block {
-        &mut self.method.body.blocks[id.0]
-    }
-
-    fn add_block(&mut self) -> BlockId {
-        self.method.body.add_block()
     }
 }
 

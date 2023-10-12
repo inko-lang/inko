@@ -23,7 +23,7 @@ let FILE_READ_APPEND = 4
 
 class extern AnyResult {
   let @tag: Int
-  let @value: Any
+  let @value: UInt64
 }
 
 class extern IntResult {
@@ -50,7 +50,6 @@ fn extern inko_file_open(
 ) -> PointerResult
 
 fn extern inko_file_read(
-  state: Pointer[UInt8],
   process: Pointer[UInt8],
   file: Pointer[UInt8],
   buffer: mut ByteArray,
@@ -58,27 +57,23 @@ fn extern inko_file_read(
 ) -> IntResult
 
 fn extern inko_file_seek(
-  state: Pointer[UInt8],
   process: Pointer[UInt8],
   file: Pointer[UInt8],
   offset: Int,
 ) -> IntResult
 
 fn extern inko_file_size(
-  state: Pointer[UInt8],
   process: Pointer[UInt8],
   path: String,
 ) -> IntResult
 
 fn extern inko_file_write_bytes(
-  state: Pointer[UInt8],
   process: Pointer[UInt8],
   file: Pointer[UInt8],
   input: ref ByteArray,
 ) -> IntResult
 
 fn extern inko_file_write_string(
-  state: Pointer[UInt8],
   process: Pointer[UInt8],
   file: Pointer[UInt8],
   input: String,
@@ -101,7 +96,7 @@ class pub ReadOnlyFile {
   #     import std.fs.file.ReadOnlyFile
   #
   #     let handle = ReadOnlyFile.new('/dev/null').unwrap
-  fn pub static new(path: IntoPath) -> Result[ReadOnlyFile, Error] {
+  fn pub static new[T: IntoPath](path: T) -> Result[ReadOnlyFile, Error] {
     let path = path.into_path
 
     match inko_file_open(_INKO.process, path.to_string, FILE_READ_ONLY) {
@@ -123,7 +118,7 @@ impl Drop for ReadOnlyFile {
 
 impl Read for ReadOnlyFile {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
-    match inko_file_read(_INKO.state, _INKO.process, @fd, into, size) {
+    match inko_file_read(_INKO.process, @fd, into, size) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
@@ -132,7 +127,7 @@ impl Read for ReadOnlyFile {
 
 impl Seek for ReadOnlyFile {
   fn pub mut seek(position: Int) -> Result[Int, Error] {
-    match inko_file_seek(_INKO.state, _INKO.process, @fd, position) {
+    match inko_file_seek(_INKO.process, @fd, position) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
@@ -141,7 +136,7 @@ impl Seek for ReadOnlyFile {
 
 impl Size for ReadOnlyFile {
   fn pub size -> Result[Int, Error] {
-    match inko_file_size(_INKO.state, _INKO.process, @path.to_string) {
+    match inko_file_size(_INKO.process, @path.to_string) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
@@ -163,7 +158,7 @@ class pub WriteOnlyFile {
   #     import std.fs.file.WriteOnlyFile
   #
   #     let file = WriteOnlyFile.new('/dev/null').unwrap
-  fn pub static new(path: IntoPath) -> Result[WriteOnlyFile, Error] {
+  fn pub static new[T: IntoPath](path: T) -> Result[WriteOnlyFile, Error] {
     let path = path.into_path
 
     match inko_file_open(_INKO.process, path.to_string, FILE_WRITE_ONLY) {
@@ -183,7 +178,7 @@ class pub WriteOnlyFile {
   #     import std.fs.file.WriteOnlyFile
   #
   #     let file = WriteOnlyFile.append('/dev/null').unwrap
-  fn pub static append(path: IntoPath) -> Result[WriteOnlyFile, Error] {
+  fn pub static append[T: IntoPath](path: T) -> Result[WriteOnlyFile, Error] {
     let path = path.into_path
 
     match inko_file_open(_INKO.process, path.to_string, FILE_APPEND_ONLY) {
@@ -205,14 +200,14 @@ impl Drop for WriteOnlyFile {
 
 impl Write for WriteOnlyFile {
   fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
-    match inko_file_write_bytes(_INKO.state, _INKO.process, @fd, bytes) {
+    match inko_file_write_bytes(_INKO.process, @fd, bytes) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
   fn pub mut write_string(string: String) -> Result[Int, Error] {
-    match inko_file_write_string(_INKO.state, _INKO.process, @fd, string) {
+    match inko_file_write_string(_INKO.process, @fd, string) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
@@ -230,7 +225,7 @@ impl Write for WriteOnlyFile {
 
 impl Seek for WriteOnlyFile {
   fn pub mut seek(position: Int) -> Result[Int, Error] {
-    match inko_file_seek(_INKO.state, _INKO.process, @fd, position) {
+    match inko_file_seek(_INKO.process, @fd, position) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
@@ -252,7 +247,7 @@ class pub ReadWriteFile {
   #     import std.fs.file.ReadWriteFile
   #
   #     let handle = ReadWriteFile.new('/dev/null').unwrap
-  fn pub static new(path: IntoPath) -> Result[ReadWriteFile, Error] {
+  fn pub static new[T: IntoPath](path: T) -> Result[ReadWriteFile, Error] {
     let path = path.into_path
 
     match inko_file_open(_INKO.process, path.to_string, FILE_READ_WRITE) {
@@ -272,7 +267,7 @@ class pub ReadWriteFile {
   #     import std.fs.file.ReadWriteFile
   #
   #     let handle = ReadWriteFile.append('/dev/null').unwrap
-  fn pub static append(path: IntoPath) -> Result[ReadWriteFile, Error] {
+  fn pub static append[T: IntoPath](path: T) -> Result[ReadWriteFile, Error] {
     let path = path.into_path
 
     match inko_file_open(_INKO.process, path.to_string, FILE_READ_APPEND) {
@@ -294,7 +289,7 @@ impl Drop for ReadWriteFile {
 
 impl Read for ReadWriteFile {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
-    match inko_file_read(_INKO.state, _INKO.process, @fd, into, size) {
+    match inko_file_read(_INKO.process, @fd, into, size) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
@@ -303,14 +298,14 @@ impl Read for ReadWriteFile {
 
 impl Write for ReadWriteFile {
   fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
-    match inko_file_write_bytes(_INKO.state, _INKO.process, @fd, bytes) {
+    match inko_file_write_bytes(_INKO.process, @fd, bytes) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
   fn pub mut write_string(string: String) -> Result[Int, Error] {
-    match inko_file_write_string(_INKO.state, _INKO.process, @fd, string) {
+    match inko_file_write_string(_INKO.process, @fd, string) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
@@ -328,7 +323,7 @@ impl Write for ReadWriteFile {
 
 impl Seek for ReadWriteFile {
   fn pub mut seek(position: Int) -> Result[Int, Error] {
-    match inko_file_seek(_INKO.state, _INKO.process, @fd, position) {
+    match inko_file_seek(_INKO.process, @fd, position) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
@@ -337,7 +332,7 @@ impl Seek for ReadWriteFile {
 
 impl Size for ReadWriteFile {
   fn pub size -> Result[Int, Error] {
-    match inko_file_size(_INKO.state, _INKO.process, @path.to_string) {
+    match inko_file_size(_INKO.process, @path.to_string) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }

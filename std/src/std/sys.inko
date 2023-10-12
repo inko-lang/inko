@@ -7,7 +7,7 @@ import std.string.IntoString
 
 class extern AnyResult {
   let @tag: Int
-  let @value: Any
+  let @value: UInt64
 }
 
 class extern IntResult {
@@ -18,9 +18,9 @@ class extern IntResult {
 fn extern inko_child_process_spawn(
   process: Pointer[UInt8],
   program: String,
-  args: Pointer[UInt8],
+  args: Pointer[String],
   args_size: Int,
-  env: Pointer[UInt8],
+  env: Pointer[String],
   env_size: Int,
   stdin: Int,
   stdout: Int,
@@ -33,7 +33,6 @@ fn extern inko_child_process_stdout_close(child: Pointer[UInt8])
 fn extern inko_child_process_stderr_close(child: Pointer[UInt8])
 fn extern inko_child_process_stdin_close(child: Pointer[UInt8])
 fn extern inko_child_process_stderr_read(
-  state: Pointer[UInt8],
   process: Pointer[UInt8],
   child: Pointer[UInt8],
   buffer: mut ByteArray,
@@ -41,7 +40,6 @@ fn extern inko_child_process_stderr_read(
 ) -> IntResult
 
 fn extern inko_child_process_stdout_read(
-  state: Pointer[UInt8],
   process: Pointer[UInt8],
   child: Pointer[UInt8],
   buffer: mut ByteArray,
@@ -54,14 +52,12 @@ fn extern inko_child_process_stdin_flush(
 ) -> AnyResult
 
 fn extern inko_child_process_stdin_write_bytes(
-  state: Pointer[UInt8],
   process: Pointer[UInt8],
   child: Pointer[UInt8],
   input: ref ByteArray,
 ) -> IntResult
 
 fn extern inko_child_process_stdin_write_string(
-  state: Pointer[UInt8],
   process: Pointer[UInt8],
   child: Pointer[UInt8],
   input: String,
@@ -224,7 +220,7 @@ class pub Command {
   #     import std.sys.Command
   #
   #     Command.new('/usr/bin/ls')
-  fn pub static new(program: IntoString) -> Command {
+  fn pub static new[T: IntoString](program: T) -> Command {
     Command {
       @program = program.into_string,
       @stdin = Stream.Inherit,
@@ -248,7 +244,7 @@ class pub Command {
   #     import std.sys.Command
   #
   #     Command.new('ls').directory('/tmp')
-  fn pub mut directory(path: IntoString) {
+  fn pub mut directory[T: IntoString](path: T) {
     @directory = Option.Some(path.into_string)
   }
 
@@ -414,7 +410,7 @@ impl Drop for Stdin {
 impl Write for Stdin {
   fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
     match inko_child_process_stdin_write_bytes(
-      _INKO.state, _INKO.process, @process.raw, bytes
+      _INKO.process, @process.raw, bytes
     ) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
@@ -423,7 +419,7 @@ impl Write for Stdin {
 
   fn pub mut write_string(string: String) -> Result[Int, Error] {
     match inko_child_process_stdin_write_string(
-      _INKO.state, _INKO.process, @process.raw, string.to_string
+      _INKO.process, @process.raw, string.to_string
     ) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
@@ -459,7 +455,7 @@ impl Drop for Stdout {
 impl Read for Stdout {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     match inko_child_process_stdout_read(
-      _INKO.state, _INKO.process, @process.raw, into, size
+      _INKO.process, @process.raw, into, size
     ) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
@@ -486,7 +482,7 @@ impl Drop for Stderr {
 impl Read for Stderr {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     match inko_child_process_stderr_read(
-      _INKO.state, _INKO.process, @process.raw, into, size
+      _INKO.process, @process.raw, into, size
     ) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))

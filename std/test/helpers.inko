@@ -5,8 +5,8 @@ import std.fs.path.Path
 import std.hash.(Hash, Hasher)
 import std.hash.siphash.SipHasher13
 
-fn pub hash(value: ref Hash) -> Int {
-  let hasher: Hasher = SipHasher13.default
+fn pub hash[T: Hash](value: ref T) -> Int {
+  let hasher = SipHasher13.default
 
   value.hash(hasher)
   hasher.finish

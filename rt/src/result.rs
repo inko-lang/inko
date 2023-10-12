@@ -1,4 +1,3 @@
-use crate::mem::tagged_int;
 use rustix::io::Errno;
 use std::io;
 
@@ -45,15 +44,15 @@ pub struct Result {
 
 impl Result {
     pub(crate) fn ok(value: *mut u8) -> Result {
-        Result { tag: tagged_int(OK) as _, value }
+        Result { tag: OK as _, value }
     }
 
     pub(crate) fn error(value: *mut u8) -> Result {
-        Result { tag: tagged_int(ERROR) as _, value }
+        Result { tag: ERROR as _, value }
     }
 
     pub(crate) fn none() -> Result {
-        Result { tag: tagged_int(NONE) as _, value: tagged_int(0) as _ }
+        Result { tag: NONE as _, value: 0 as _ }
     }
 
     pub(crate) fn ok_boxed<T>(value: T) -> Result {
@@ -61,7 +60,7 @@ impl Result {
     }
 
     pub(crate) fn io_error(error: io::Error) -> Result {
-        Self::error(tagged_int(error_to_int(error)) as _)
+        Self::error({ error_to_int(error) } as _)
     }
 }
 

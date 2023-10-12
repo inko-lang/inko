@@ -9,23 +9,24 @@ pub(crate) enum DiagnosticId {
     DuplicateSymbol,
     InvalidAssign,
     InvalidCall,
+    InvalidCast,
     InvalidConstExpr,
     InvalidFile,
     InvalidImplementation,
-    InvalidMethod,
-    InvalidSyntax,
-    InvalidType,
-    MissingTrait,
-    InvalidSymbol,
     InvalidLoopKeyword,
-    InvalidThrow,
-    MissingField,
-    InvalidPattern,
-    Unreachable,
-    Moved,
     InvalidMatch,
+    InvalidMethod,
+    InvalidPattern,
+    InvalidSymbol,
+    InvalidSyntax,
+    InvalidThrow,
+    InvalidType,
     LimitReached,
+    MissingField,
     MissingMain,
+    MissingTrait,
+    Moved,
+    Unreachable,
 }
 
 impl fmt::Display for DiagnosticId {
@@ -51,6 +52,7 @@ impl fmt::Display for DiagnosticId {
             DiagnosticId::InvalidMatch => "invalid-match",
             DiagnosticId::LimitReached => "limit-reached",
             DiagnosticId::MissingMain => "missing-main",
+            DiagnosticId::InvalidCast => "invalid-cast",
         };
 
         write!(f, "{}", id)
@@ -187,7 +189,7 @@ impl Diagnostics {
     ) {
         self.error(
             DiagnosticId::InvalidSymbol,
-            format!("The symbol '{}' is undefined", name),
+            format!("the symbol '{}' is undefined", name),
             file,
             location,
         );
@@ -201,7 +203,7 @@ impl Diagnostics {
     ) {
         self.error(
             DiagnosticId::InvalidSymbol,
-            format!("The field '{}' is undefined", name),
+            format!("the field '{}' is undefined", name),
             file,
             location,
         );
@@ -215,7 +217,7 @@ impl Diagnostics {
     ) {
         self.error(
             DiagnosticId::DuplicateSymbol,
-            format!("The symbol '{}' is already defined", name),
+            format!("the symbol '{}' is already defined", name),
             file,
             location,
         );
@@ -229,7 +231,7 @@ impl Diagnostics {
     ) {
         self.error(
             DiagnosticId::DuplicateSymbol,
-            format!("The field '{}' is already defined", name),
+            format!("the field '{}' is already defined", name),
             file,
             location,
         );
@@ -243,7 +245,7 @@ impl Diagnostics {
     ) {
         self.error(
             DiagnosticId::DuplicateSymbol,
-            format!("Fields can't be defined for '{}'", name),
+            format!("fields can't be defined for '{}'", name),
             file,
             location,
         );
@@ -256,7 +258,7 @@ impl Diagnostics {
     ) {
         self.error(
             DiagnosticId::DuplicateSymbol,
-            "Public fields can't be defined for private classes",
+            "public fields can't be defined for private classes",
             file,
             location,
         );
@@ -270,7 +272,7 @@ impl Diagnostics {
     ) {
         self.error(
             DiagnosticId::DuplicateSymbol,
-            format!("The type parameter '{}' is already defined", name),
+            format!("the type parameter '{}' is already defined", name),
             file,
             location,
         );
@@ -300,7 +302,7 @@ impl Diagnostics {
         self.error(
             DiagnosticId::DuplicateSymbol,
             format!(
-                "The method '{}' is already defined for type '{}'",
+                "the method '{}' is already defined for type '{}'",
                 method_name, type_name
             ),
             file,
@@ -316,7 +318,7 @@ impl Diagnostics {
     ) {
         self.error(
             DiagnosticId::InvalidCall,
-            format!("The method '{}' exists but is private", name),
+            format!("the method '{}' exists but is private", name),
             file,
             location,
         );
@@ -330,7 +332,7 @@ impl Diagnostics {
     ) {
         self.error(
             DiagnosticId::InvalidSymbol,
-            format!("The field '{}' is private", name),
+            format!("the field '{}' is private", name),
             file,
             location,
         );
@@ -346,7 +348,7 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidType,
             format!(
-                "Expected a value of type '{}', found '{}'",
+                "expected a value of type '{}', found '{}'",
                 expected, given
             ),
             file,
@@ -364,7 +366,7 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidType,
             format!(
-                "This pattern expects a value of type '{}', \
+                "this pattern expects a value of type '{}', \
                 but the value's type is '{}'",
                 expected, given
             ),
@@ -383,7 +385,7 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidSymbol,
             format!(
-                "The method '{}' isn't defined for type '{}'",
+                "the method '{}' isn't defined for type '{}'",
                 name, receiver
             ),
             file,
@@ -398,7 +400,7 @@ impl Diagnostics {
     ) {
         self.error(
             DiagnosticId::InvalidCall,
-            "Builtin functions can only be used in the standard library",
+            "builtin functions can only be used in the standard library",
             file,
             location,
         );
@@ -411,7 +413,7 @@ impl Diagnostics {
     ) {
         self.error(
             DiagnosticId::InvalidType,
-            "Tuples are limited to up to 8 members",
+            "tuples are limited to up to 8 members",
             file,
             location,
         );
@@ -427,7 +429,7 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidCall,
             format!(
-                "Incorrect number of arguments: expected {}, found {}",
+                "incorrect number of arguments: expected {}, found {}",
                 expected, given
             ),
             file,
@@ -442,7 +444,7 @@ impl Diagnostics {
     ) {
         self.error(
             DiagnosticId::InvalidCall,
-            "Closures don't support named arguments",
+            "closures don't support named arguments",
             file,
             location,
         );
@@ -458,7 +460,7 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidPattern,
             format!(
-                "Incorrect number of pattern arguments: expected {}, found {}",
+                "incorrect number of pattern arguments: expected {}, found {}",
                 expected, given
             ),
             file,
@@ -476,7 +478,7 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidSymbol,
             format!(
-                "The variant '{}' doesn't exist for type '{}'",
+                "the variant '{}' doesn't exist for type '{}'",
                 name, type_name
             ),
             file,
@@ -492,7 +494,7 @@ impl Diagnostics {
     ) {
         self.error(
             DiagnosticId::InvalidSymbol,
-            format!("The symbol '{}' isn't a module", name),
+            format!("the symbol '{}' isn't a module", name),
             file,
             location,
         );
@@ -506,7 +508,7 @@ impl Diagnostics {
     ) {
         self.error(
             DiagnosticId::InvalidSymbol,
-            format!("The symbol '{}' is defined but isn't a value", name),
+            format!("the symbol '{}' is defined but isn't a value", name),
             file,
             location,
         )
@@ -522,7 +524,7 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidCall,
             format!(
-                "The method '{}' exists for type '{}', \
+                "the method '{}' exists for type '{}', \
                 but is an instance method",
                 name, receiver,
             ),
@@ -541,7 +543,7 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidCall,
             format!(
-                "The method '{}' exists for type '{}', \
+                "the method '{}' exists for type '{}', \
                 but is a static method",
                 name, receiver,
             ),
@@ -557,7 +559,7 @@ impl Diagnostics {
     ) {
         self.warn(
             DiagnosticId::Unreachable,
-            "This code is unreachable",
+            "this code is unreachable",
             file,
             location,
         );
@@ -572,7 +574,7 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidType,
             format!(
-                "The receiver of this call requires sendable arguments, \
+                "the receiver of this call requires sendable arguments, \
                 but '{}' isn't sendable",
                 argument,
             ),
@@ -590,7 +592,7 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidCall,
             format!(
-                "The receiver of this call requires a sendable return type, \
+                "the receiver of this call requires a sendable return type, \
                 but '{}' isn't sendable",
                 name
             ),
@@ -608,7 +610,7 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidType,
             format!(
-                "Values of type '{}' can't be sent between processes",
+                "values of type '{}' can't be sent between processes",
                 name
             ),
             file,
@@ -625,7 +627,7 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidType,
             format!(
-                "Values of type '{}' can't be captured by recover expressions",
+                "values of type '{}' can't be captured by recover expressions",
                 name
             ),
             file,
@@ -643,7 +645,7 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidSymbol,
             format!(
-                "The field '{}' can't be assigned a value of type '{}', \
+                "the field '{}' can't be assigned a value of type '{}', \
                 as it's not sendable",
                 field_name, type_name
             ),
@@ -659,7 +661,7 @@ impl Diagnostics {
     ) {
         self.error(
             DiagnosticId::InvalidType,
-            "Closures inside a 'recover' can't capture or use 'self'",
+            "closures inside a 'recover' can't capture or use 'self'",
             file,
             location,
         );
@@ -676,7 +678,7 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidConstExpr,
             format!(
-                "The constant expression '{} {} {}' is invalid",
+                "the constant expression '{} {} {}' is invalid",
                 left, operator, right
             ),
             file,
@@ -721,7 +723,7 @@ impl Diagnostics {
         self.error(
             DiagnosticId::Moved,
             format!(
-                "This closure can't capture '{}', as '{}' has been moved",
+                "this closure can't capture '{}', as '{}' has been moved",
                 name, name,
             ),
             file,
@@ -756,7 +758,7 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidType,
             format!(
-                "The type of this expression ('{}') can't be fully inferred",
+                "the type of this expression ('{}') can't be fully inferred",
                 name,
             ),
             file,
@@ -773,7 +775,7 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidType,
             format!(
-                "Values of type '{}' can't be assigned to variables or fields",
+                "values of type '{}' can't be assigned to variables or fields",
                 name
             ),
             file,
@@ -789,7 +791,7 @@ impl Diagnostics {
     ) {
         self.error(
             DiagnosticId::LimitReached,
-            format!("String literals can't be greater than {} bytes", limit),
+            format!("string literals can't be greater than {} bytes", limit),
             file,
             location,
         );
@@ -803,7 +805,7 @@ impl Diagnostics {
     ) {
         self.error(
             DiagnosticId::InvalidType,
-            format!("The type parameter '{}' is already mutable", name),
+            format!("the type parameter '{}' is already mutable", name),
             file,
             location,
         );
@@ -818,7 +820,7 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidThrow,
             format!(
-                "This expression must return an 'Option' or 'Result', \
+                "this expression must return an 'Option' or 'Result', \
                 found '{}'",
                 name
             ),
@@ -864,7 +866,7 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidThrow,
             format!(
-                "Can't throw '{}' as the surrounding method \
+                "can't throw '{}' as the surrounding method \
                 returns a '{}'",
                 error, returns,
             ),
@@ -883,7 +885,7 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidType,
             format!(
-                "Incorrect number of type arguments: expected {}, found {}",
+                "incorrect number of type arguments: expected {}, found {}",
                 required, given
             ),
             file,

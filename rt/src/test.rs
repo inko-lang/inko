@@ -97,10 +97,6 @@ pub(crate) fn new_main_process(
     OwnedProcess::new(Process::main(class, method, Stack::new(1024)))
 }
 
-pub(crate) fn empty_class(name: &str) -> OwnedClass {
-    OwnedClass::new(Class::alloc(name.to_string(), 0, 0))
-}
-
 pub(crate) fn empty_process_class(name: &str) -> OwnedClass {
     OwnedClass::new(Class::process(
         name.to_string(),

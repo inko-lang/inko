@@ -7,17 +7,13 @@ import std.int.(MAX, MIN, ToInt)
 import std.ops.(Add, Divide, Modulo, Multiply, Power, Subtract)
 import std.string.(Bytes, ToString)
 
-class extern AnyResult {
+class extern FloatResult {
   let @tag: Int
-  let @value: Any
+  let @value: Float
 }
 
 fn extern inko_float_to_string(state: Pointer[UInt8], float: Float64) -> String
-fn extern inko_string_to_float(
-  state: Pointer[UInt8],
-  bytes: Pointer[UInt8],
-  size: Int,
-) -> AnyResult
+fn extern inko_string_to_float(bytes: Pointer[UInt8], size: Int) -> FloatResult
 
 # A type that can be converted to a Float.
 trait pub ToFloat {
@@ -73,8 +69,8 @@ class builtin Float {
   #     Float.parse('10.5')  # => Option.Some(10.5)
   #     Float.parse('1.2e1') # => Option.Some(12.0)
   fn pub static parse[T: Bytes](bytes: ref T) -> Option[Float] {
-    match inko_string_to_float(_INKO.state, bytes.to_pointer, bytes.size) {
-      case { @tag = 0, @value = v } -> Option.Some(v as Float)
+    match inko_string_to_float(bytes.to_pointer, bytes.size) {
+      case { @tag = 0, @value = v } -> Option.Some(v)
       case _ -> Option.None
     }
   }
@@ -374,7 +370,7 @@ impl ToString for Float {
 }
 
 impl Hash for Float {
-  fn pub hash(hasher: mut Hasher) {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
     hasher.write(to_bits)
   }
 }

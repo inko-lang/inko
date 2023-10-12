@@ -1,14 +1,12 @@
-use crate::mem::{ByteArray, Int, String as InkoString};
+use crate::mem::{ByteArray, String as InkoString};
 use crate::process::ProcessPointer;
 use crate::result::Result as InkoResult;
 use crate::runtime::helpers::read_into;
-use crate::state::State;
 use std::io::Write;
 use std::io::{stderr, stdin, stdout};
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_stdout_write_string(
-    state: *const State,
     process: ProcessPointer,
     input: *const InkoString,
 ) -> InkoResult {
@@ -16,15 +14,12 @@ pub unsafe extern "system" fn inko_stdout_write_string(
 
     process
         .blocking(|| stdout().write(input))
-        .map(|size| {
-            InkoResult::ok(Int::new((*state).int_class, size as i64) as _)
-        })
+        .map(|size| InkoResult::ok(size as _))
         .unwrap_or_else(InkoResult::io_error)
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_stdout_write_bytes(
-    state: *const State,
     process: ProcessPointer,
     input: *mut ByteArray,
 ) -> InkoResult {
@@ -32,15 +27,12 @@ pub unsafe extern "system" fn inko_stdout_write_bytes(
 
     process
         .blocking(|| stdout().write(input))
-        .map(|size| {
-            InkoResult::ok(Int::new((*state).int_class, size as i64) as _)
-        })
+        .map(|size| InkoResult::ok(size as _))
         .unwrap_or_else(InkoResult::io_error)
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_stderr_write_string(
-    state: *const State,
     process: ProcessPointer,
     input: *const InkoString,
 ) -> InkoResult {
@@ -48,15 +40,12 @@ pub unsafe extern "system" fn inko_stderr_write_string(
 
     process
         .blocking(|| stderr().write(input))
-        .map(|size| {
-            InkoResult::ok(Int::new((*state).int_class, size as i64) as _)
-        })
+        .map(|size| InkoResult::ok(size as _))
         .unwrap_or_else(InkoResult::io_error)
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_stderr_write_bytes(
-    state: *const State,
     process: ProcessPointer,
     input: *mut ByteArray,
 ) -> InkoResult {
@@ -64,9 +53,7 @@ pub unsafe extern "system" fn inko_stderr_write_bytes(
 
     process
         .blocking(|| stderr().write(input))
-        .map(|size| {
-            InkoResult::ok(Int::new((*state).int_class, size as i64) as _)
-        })
+        .map(|size| InkoResult::ok(size as _))
         .unwrap_or_else(InkoResult::io_error)
 }
 
@@ -82,7 +69,6 @@ pub unsafe extern "system" fn inko_stderr_flush(process: ProcessPointer) {
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_stdin_read(
-    state: *const State,
     process: ProcessPointer,
     buffer: *mut ByteArray,
     size: i64,
@@ -91,6 +77,6 @@ pub unsafe extern "system" fn inko_stdin_read(
 
     process
         .blocking(|| read_into(&mut stdin(), buffer, size))
-        .map(|size| InkoResult::ok(Int::new((*state).int_class, size) as _))
+        .map(|size| InkoResult::ok(size as _))
         .unwrap_or_else(InkoResult::io_error)
 }

@@ -39,7 +39,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         )));
     }
 
-    config.sources.push(config.tests.clone());
+    config.add_source_directory(config.tests.clone());
     config.output = Output::File("inko-tests".to_string());
 
     let mut compiler = Compiler::new(config);

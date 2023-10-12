@@ -27,7 +27,7 @@ class pub TupleFormatter {
   let @fields: Int
 
   # Adds a new formatted field to the output.
-  fn pub mut field(value: ref Format) -> mut TupleFormatter {
+  fn pub mut field[T: Format](value: ref T) -> mut TupleFormatter {
     match @fields {
       case 0 -> @formatter.write('(')
       case _ -> @formatter.write(', ')
@@ -58,7 +58,7 @@ class pub ArrayFormatter {
   let @fields: Int
 
   # Adds a new formatted value to the output.
-  fn pub mut value(value: ref Format) -> mut ArrayFormatter {
+  fn pub mut value[T: Format](value: ref T) -> mut ArrayFormatter {
     if @fields > 0 { @formatter.write(', ') }
 
     @formatter.descend fn { value.fmt(@formatter) }
@@ -83,7 +83,10 @@ class pub ObjectFormatter {
   let @fields: Int
 
   # Adds a new formatted field to the output.
-  fn pub mut field(name: String, value: ref Format) -> mut ObjectFormatter {
+  fn pub mut field[T: Format](
+    name: String,
+    value: ref T,
+  ) -> mut ObjectFormatter {
     let start = match @fields {
       case 0 if @named -> ' {'
       case 0 -> '{'

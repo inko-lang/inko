@@ -174,7 +174,7 @@ impl<'a> DefineTypeSignature<'a> {
             hir::Type::Ref(_) | hir::Type::Mut(_) if !self.rules.allow_refs => {
                 self.state.diagnostics.error(
                     DiagnosticId::DuplicateSymbol,
-                    "References to types aren't allowed here",
+                    "references to types aren't allowed here",
                     self.file(),
                     node.location().clone(),
                 );
@@ -230,7 +230,7 @@ impl<'a> DefineTypeSignature<'a> {
             } else {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidSymbol,
-                    format!("The symbol '{}' isn't a module", source.name),
+                    format!("the symbol '{}' isn't a module", source.name),
                     self.file(),
                     source.location.clone(),
                 );
@@ -258,7 +258,9 @@ impl<'a> DefineTypeSignature<'a> {
 
             match symbol {
                 Symbol::Class(id) if id.kind(&self.state.db).is_extern() => {
-                    TypeRef::foreign_struct(id)
+                    TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(
+                        id,
+                    )))
                 }
                 Symbol::Class(id) => {
                     kind.into_type_ref(self.define_class_instance(id, node))
@@ -299,19 +301,6 @@ impl<'a> DefineTypeSignature<'a> {
                         return TypeRef::Error;
                     }
                 }
-                "Any" => match kind {
-                    RefKind::Owned => TypeRef::Any,
-                    _ => {
-                        self.state.diagnostics.error(
-                            DiagnosticId::InvalidType,
-                            "'Any' can only be used as an owned type",
-                            self.file(),
-                            node.location.clone(),
-                        );
-
-                        return TypeRef::Error;
-                    }
-                },
                 name => {
                     if let Some(ctype) = self.resolve_foreign_type(
                         name,
@@ -400,7 +389,7 @@ impl<'a> DefineTypeSignature<'a> {
         if !node.arguments.is_empty() {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidType,
-                "Type parameters don't support type arguments",
+                "type parameters don't support type arguments",
                 self.file(),
                 node.location.clone(),
             );
@@ -426,7 +415,7 @@ impl<'a> DefineTypeSignature<'a> {
                     self.state.diagnostics.error(
                         DiagnosticId::InvalidType,
                         format!(
-                            "The type 'mut {name}' is invalid, as '{name}' \
+                            "the type 'mut {name}' is invalid, as '{name}' \
                             might be immutable at runtime",
                             name = id.name(self.db()),
                         ),
@@ -524,22 +513,12 @@ impl<'a> DefineTypeSignature<'a> {
                     None
                 }?;
 
-                // Pointers to Inko objects make no sense, as they're already
-                // represented as pointers.
-                if !arg.is_foreign_type(self.db()) {
-                    self.state.diagnostics.invalid_c_type(
-                        &format_type(self.db(), arg),
-                        self.file(),
-                        location.clone(),
-                    );
-                }
-
                 match arg {
                     TypeRef::Owned(v) => Some(TypeRef::Pointer(v)),
                     TypeRef::Pointer(_) => {
                         self.state.diagnostics.error(
                             DiagnosticId::InvalidType,
-                            "Nested pointers (e.g. 'Pointer[Pointer[UInt8]]') \
+                            "nested pointers (e.g. 'Pointer[Pointer[UInt8]]') \
                             aren't supported, you should use regular \
                             pointers instead",
                             self.file(),
@@ -552,10 +531,17 @@ impl<'a> DefineTypeSignature<'a> {
                 }
             }
             name => match self.scope.symbol(self.db(), name) {
-                Some(Symbol::Class(id))
-                    if id.kind(&self.state.db).is_extern() =>
-                {
-                    Some(TypeRef::foreign_struct(id))
+                Some(Symbol::Class(id)) => Some(TypeRef::Owned(
+                    TypeId::ClassInstance(ClassInstance::new(id)),
+                )),
+                Some(Symbol::TypeParameter(id)) => {
+                    let tid = if self.rules.type_parameters_as_rigid {
+                        TypeId::RigidTypeParameter(id)
+                    } else {
+                        TypeId::TypeParameter(id)
+                    };
+
+                    Some(TypeRef::Owned(tid))
                 }
                 Some(_) => {
                     self.state.diagnostics.invalid_c_type(
@@ -686,7 +672,6 @@ impl<'a> CheckTypeSignature<'a> {
                 node,
                 instance.instance_of().type_parameters(self.db()),
                 instance.type_arguments(self.db()).clone(),
-                false,
             );
         }
     }
@@ -708,7 +693,6 @@ impl<'a> CheckTypeSignature<'a> {
                 node,
                 instance.instance_of().type_parameters(self.db()),
                 instance.type_arguments(self.db()).clone(),
-                true,
             );
         }
     }
@@ -743,7 +727,6 @@ impl<'a> CheckTypeSignature<'a> {
         node: &hir::TypeName,
         parameters: Vec<TypeParameterId>,
         arguments: TypeArguments,
-        allow_any: bool,
     ) {
         let exp_args =
             parameters.iter().fold(TypeArguments::new(), |mut args, &p| {
@@ -753,17 +736,6 @@ impl<'a> CheckTypeSignature<'a> {
 
         for (param, node) in parameters.into_iter().zip(node.arguments.iter()) {
             let arg = arguments.get(param).unwrap();
-
-            if !allow_any && arg.is_any(self.db()) {
-                self.state.diagnostics.error(
-                    DiagnosticId::InvalidType,
-                    "The 'Any' type can't be used as a type argument \
-                    in this context",
-                    self.file(),
-                    node.location().clone(),
-                );
-            }
-
             let exp = TypeRef::Infer(TypeId::TypeParameter(param));
             let mut env = Environment::new(
                 arg.type_arguments(self.db()),
@@ -895,7 +867,7 @@ pub(crate) fn define_type_bounds(
             state.diagnostics.error(
                 DiagnosticId::DuplicateSymbol,
                 format!(
-                    "Bounds are already defined for type parameter '{}'",
+                    "bounds are already defined for type parameter '{}'",
                     name
                 ),
                 module.file(&state.db),
@@ -949,7 +921,7 @@ mod tests {
             if let $pattern(ref node) = $enum {
                 node
             } else {
-                panic!("Unexpected enum variant")
+                panic!("unexpected enum variant")
             }
         }};
     }

@@ -1,5 +1,5 @@
 use crate::context;
-use crate::mem::{Bool, ByteArray, Int, String as InkoString};
+use crate::mem::{ByteArray, String as InkoString};
 use crate::network_poller::Interest;
 use crate::process::ProcessPointer;
 use crate::result::{error_to_int, Result};
@@ -12,14 +12,14 @@ use std::ptr::{drop_in_place, write};
 #[repr(C)]
 pub struct RawAddress {
     pub address: *const InkoString,
-    pub port: *const Int,
+    pub port: i64,
 }
 
 impl RawAddress {
     fn new(state: &State, address: String, port: i64) -> RawAddress {
         RawAddress {
             address: InkoString::alloc(state.string_class, address),
-            port: Int::new(state.int_class, port),
+            port,
         }
     }
 }
@@ -109,7 +109,7 @@ pub(crate) unsafe extern "system" fn inko_socket_write_string(
     blocking(state, process, &mut *socket, Interest::Write, deadline, |sock| {
         sock.write(InkoString::read(input).as_bytes())
     })
-    .map(|v| Result::ok(Int::new(state.int_class, v as i64) as _))
+    .map(|v| Result::ok(v as _))
     .unwrap_or_else(Result::io_error)
 }
 
@@ -126,7 +126,7 @@ pub(crate) unsafe extern "system" fn inko_socket_write_bytes(
     blocking(state, process, &mut *socket, Interest::Write, deadline, |sock| {
         sock.write(&(*input).value)
     })
-    .map(|v| Result::ok(Int::new(state.int_class, v as i64) as _))
+    .map(|v| Result::ok(v as _))
     .unwrap_or_else(Result::io_error)
 }
 
@@ -144,7 +144,7 @@ pub unsafe extern "system" fn inko_socket_read(
     blocking(state, process, &mut *socket, Interest::Read, deadline, |sock| {
         sock.read(&mut (*buffer).value, amount as usize)
     })
-    .map(|size| Result::ok(Int::new(state.int_class, size as i64) as _))
+    .map(|size| Result::ok(size as _))
     .unwrap_or_else(Result::io_error)
 }
 
@@ -262,7 +262,7 @@ pub unsafe extern "system" fn inko_socket_send_bytes_to(
     blocking(state, process, &mut *socket, Interest::Write, deadline, |sock| {
         sock.send_to(&(*buffer).value, addr, port as _)
     })
-    .map(|size| Result::ok(Int::new(state.int_class, size as i64) as _))
+    .map(|size| Result::ok(size as _))
     .unwrap_or_else(Result::io_error)
 }
 
@@ -282,7 +282,7 @@ pub unsafe extern "system" fn inko_socket_send_string_to(
     blocking(state, process, &mut *socket, Interest::Write, deadline, |sock| {
         sock.send_to(InkoString::read(buffer).as_bytes(), addr, port as _)
     })
-    .map(|size| Result::ok(Int::new(state.int_class, size as i64) as _))
+    .map(|size| Result::ok(size as _))
     .unwrap_or_else(Result::io_error)
 }
 
@@ -359,36 +359,33 @@ pub unsafe extern "system" fn inko_socket_set_ttl(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_socket_set_only_v6(
-    state: *const State,
     socket: *mut Socket,
-    value: *const Bool,
+    value: i64,
 ) -> Result {
     (*socket)
-        .set_only_v6(value == (*state).true_singleton)
+        .set_only_v6(value == 1)
         .map(|_| Result::none())
         .unwrap_or_else(Result::io_error)
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_socket_set_nodelay(
-    state: *const State,
     socket: *mut Socket,
-    value: *const Bool,
+    value: i64,
 ) -> Result {
     (*socket)
-        .set_nodelay(value == (*state).true_singleton)
+        .set_nodelay(value == 1)
         .map(|_| Result::none())
         .unwrap_or_else(Result::io_error)
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_socket_set_broadcast(
-    state: *const State,
     socket: *mut Socket,
-    value: *const Bool,
+    value: i64,
 ) -> Result {
     (*socket)
-        .set_broadcast(value == (*state).true_singleton)
+        .set_broadcast(value == 1)
         .map(|_| Result::none())
         .unwrap_or_else(Result::io_error)
 }
@@ -428,36 +425,33 @@ pub unsafe extern "system" fn inko_socket_set_send_size(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_socket_set_keepalive(
-    state: *const State,
     socket: *mut Socket,
-    value: *const Bool,
+    value: i64,
 ) -> Result {
     (*socket)
-        .set_keepalive(value == (*state).true_singleton)
+        .set_keepalive(value == 1)
         .map(|_| Result::none())
         .unwrap_or_else(Result::io_error)
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_socket_set_reuse_address(
-    state: *const State,
     socket: *mut Socket,
-    value: *const Bool,
+    value: i64,
 ) -> Result {
     (*socket)
-        .set_reuse_address(value == (*state).true_singleton)
+        .set_reuse_address(value == 1)
         .map(|_| Result::none())
         .unwrap_or_else(Result::io_error)
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_socket_set_reuse_port(
-    state: *const State,
     socket: *mut Socket,
-    value: *const Bool,
+    value: i64,
 ) -> Result {
     (*socket)
-        .set_reuse_port(value == (*state).true_singleton)
+        .set_reuse_port(value == 1)
         .map(|_| Result::none())
         .unwrap_or_else(Result::io_error)
 }

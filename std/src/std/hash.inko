@@ -15,5 +15,5 @@ trait pub Hasher {
 # A value that can be hashed.
 trait pub Hash {
   # Writes the hash for `self` into the given `Hasher`.
-  fn pub hash(hasher: mut Hasher)
+  fn pub hash[H: mut + Hasher](hasher: mut H)
 }

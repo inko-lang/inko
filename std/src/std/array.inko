@@ -9,11 +9,6 @@ import std.option.Option
 import std.rand.Shuffle
 import std.libc.unix.alloc.(self as alloc_imp) if unix
 
-class extern AnyResult {
-  let @tag: Int
-  let @value: Any
-}
-
 # The size of each value in an Array.
 #
 # Inko values stored in an Array are always heap allocated, thus each value is
@@ -112,7 +107,7 @@ class builtin Array[T] {
 
   let @size: Int
   let @capacity: Int
-  let @buffer: Pointer[UInt8]
+  let @buffer: Pointer[UInt64]
 
   # Returns a new `Array` with enough space for at least `amount` values.
   #
@@ -125,7 +120,7 @@ class builtin Array[T] {
     if size < 0 { panic('The capacity must be greater than or equal to zero') }
 
     let buffer = alloc_imp
-      .resize(0x0 as Pointer[UInt8], size: size * VALUE_SIZE)
+      .resize(0x0 as Pointer[T], size: size * VALUE_SIZE) as Pointer[UInt64]
 
     Array { @size = 0, @capacity = size, @buffer = buffer }
   }
@@ -247,11 +242,11 @@ class builtin Array[T] {
     bounds_check(index, len)
 
     let addr = address_of(index)
-    let val = addr.0 as Any as T
+    let val = addr.0
 
     alloc_imp.copy(
-      from: addr as Int + VALUE_SIZE as Pointer[UInt8],
-      to: addr as Pointer[UInt8],
+      from: addr as Int + VALUE_SIZE as Pointer[T],
+      to: addr,
       size: len - index - 1 * VALUE_SIZE,
     )
 
@@ -553,8 +548,8 @@ class builtin Array[T] {
     #
     # We can then overwrite index 1 with the value to insert.
     if index < @size {
-      let from = address_of(index) as Pointer[UInt8]
-      let to = address_of(index + 1) as Pointer[UInt8]
+      let from = address_of(index)
+      let to = address_of(index + 1)
 
       alloc_imp.copy(from, to, size: @size - index * VALUE_SIZE)
     }
@@ -563,8 +558,8 @@ class builtin Array[T] {
     @size += 1
   }
 
-  fn to_pointer -> Pointer[UInt8] {
-    @buffer
+  fn to_pointer -> Pointer[T] {
+    @buffer as Pointer[T]
   }
 
   fn get_unchecked(index: Int) -> ref T {
@@ -576,15 +571,15 @@ class builtin Array[T] {
   }
 
   fn read_from(index: Int) -> T {
-    address_of(index).0 as Any as T
+    address_of(index).0
   }
 
   fn mut write_to(index: Int, value: T) {
-    address_of(index).0 = value as Any as UInt64
+    address_of(index).0 = value
   }
 
-  fn address_of(index: Int) -> Pointer[UInt64] {
-    @buffer as Int + (index * VALUE_SIZE) as Pointer[UInt64]
+  fn address_of(index: Int) -> Pointer[T] {
+    @buffer as Int + (index * VALUE_SIZE) as Pointer[T]
   }
 }
 
@@ -659,7 +654,7 @@ impl Array if T: mut {
 impl Drop for Array {
   fn mut drop {
     clear
-    alloc_imp.free(@buffer)
+    alloc_imp.free(@buffer as Pointer[UInt8])
   }
 }
 
@@ -724,7 +719,7 @@ impl Equal[Array[T]] for Array if T: Equal[T] {
 }
 
 impl Hash for Array if T: Hash {
-  fn pub hash(hasher: mut Hasher) {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
     let mut index = 0
     let max = @size
 

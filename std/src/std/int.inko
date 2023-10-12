@@ -682,7 +682,7 @@ impl Power[Int, Int] for Int {
 }
 
 impl Hash for Int {
-  fn pub hash(hasher: mut Hasher) {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
     hasher.write(clone)
   }
 }

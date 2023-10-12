@@ -1,4 +1,4 @@
-use crate::mem::{ByteArray, Float, String as InkoString};
+use crate::mem::{ByteArray, String as InkoString};
 use crate::result::Result as InkoResult;
 use crate::state::State;
 use std::cmp::min;
@@ -9,7 +9,7 @@ use std::str;
 use unicode_segmentation::{Graphemes, UnicodeSegmentation};
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_string_new_permanent(
+pub unsafe extern "system" fn inko_string_new(
     state: *const State,
     bytes: *const u8,
     length: usize,
@@ -17,7 +17,7 @@ pub unsafe extern "system" fn inko_string_new_permanent(
     let bytes = slice::from_raw_parts(bytes, length).to_vec();
     let string = String::from_utf8_unchecked(bytes);
 
-    InkoString::alloc_permanent((*state).string_class, string)
+    InkoString::alloc((*state).string_class, string)
 }
 
 #[no_mangle]
@@ -75,7 +75,6 @@ pub unsafe extern "system" fn inko_string_to_byte_array(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_string_to_float(
-    state: *const State,
     bytes: *mut u8,
     size: i64,
 ) -> InkoResult {
@@ -104,7 +103,7 @@ pub unsafe extern "system" fn inko_string_to_float(
     };
 
     parsed
-        .map(|v| InkoResult::ok(Float::alloc((*state).float_class, v) as _))
+        .map(|v| InkoResult::ok(v.to_bits() as _))
         .unwrap_or_else(|_| InkoResult::none())
 }
 

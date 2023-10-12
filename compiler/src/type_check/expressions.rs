@@ -285,32 +285,32 @@ impl MethodCall {
             }
         }
 
+        // Method's called on traits may expose type parameters of parent
+        // traits, so we need to ensure those are mapped to the correct (rigid)
+        // types.
+        if let TypeId::TraitInstance(ins) = receiver_id {
+            let inherited =
+                ins.instance_of().inherited_type_arguments(&state.db);
+
+            for &param in inherited.keys() {
+                // We may have an assignment chain in the form
+                // `A = B = C = X`. In such a case we want A, B, and C all
+                // to resolve to X, hence the recursive get.
+                let arg = inherited.get_recursive(&state.db, param).unwrap();
+                let val = if let Some(id) = arg.as_type_parameter(&state.db) {
+                    type_arguments.get(id).unwrap()
+                } else {
+                    arg
+                };
+
+                type_arguments.assign(param, val);
+            }
+        }
+
         // When a method is implemented through a trait, it may depend on type
         // parameters of that trait. To ensure these are mapped to the final
         // inferred types, we have to copy them over into our temporary type
-        // arguments. To illustrate:
-        //
-        //     trait Example[R] {
-        //       fn example -> R {}
-        //     }
-        //
-        //     class List[T] {}
-        //
-        //     impl Example[T] for List {}
-        //
-        // When we call `example` on a `List[Int]`, the return type should be
-        // `Int` and not `R`. For a `List[Int]`, its own type arguments only
-        // consider its own type parameters (`T -> Int` in this case), not those
-        // of any traits that may be implemented.
-        //
-        // Copying the mapping of the implementation that introduced a method
-        // makes it possible to produce the right type: when we find `R` we see
-        // it's assigned to `T` (because of `impl Example[T] ...`), we then map
-        // that to its assigned value (`Int`), and we're good to go.
-        //
-        // We only need to do this when the receiver is a class (and thus the
-        // method has a source). If the receiver is a trait, we'll end up using
-        // its inherited type arguments when inferring a type parameter.
+        // arguments.
         if let MethodSource::Implementation(ins, _) = method.source(&state.db) {
             ins.copy_type_arguments_into(&state.db, &mut type_arguments);
         }
@@ -377,7 +377,7 @@ impl MethodCall {
             state.diagnostics.error(
                 DiagnosticId::InvalidSymbol,
                 format!(
-                    "The method '{}' exists but isn't available because \
+                    "the method '{}' exists but isn't available because \
                     one or more type parameter bounds aren't met",
                     self.method.name(&state.db),
                 ),
@@ -420,7 +420,7 @@ impl MethodCall {
             state.diagnostics.error(
                 DiagnosticId::InvalidCall,
                 format!(
-                    "The method '{}' takes ownership of its receiver, \
+                    "the method '{}' takes ownership of its receiver, \
                     but '{}' isn't an owned value",
                     name,
                     format_type_with_arguments(
@@ -440,7 +440,7 @@ impl MethodCall {
             state.diagnostics.error(
                 DiagnosticId::InvalidCall,
                 format!(
-                    "The method '{}' requires a mutable receiver, \
+                    "the method '{}' requires a mutable receiver, \
                     but '{}' isn't mutable",
                     name,
                     format_type_with_arguments(
@@ -474,7 +474,7 @@ impl MethodCall {
         );
 
         if !TypeChecker::new(&state.db)
-            .check_argument(argument, given, expected, &mut scope)
+            .check_argument(given, expected, &mut scope)
         {
             state.diagnostics.type_error(
                 format_type_with_arguments(&state.db, &scope.left, given),
@@ -660,7 +660,7 @@ impl<'a> Expressions<'a> {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidType,
                 format!(
-                    "The number of methods defined in this class ({}) \
+                    "the number of methods defined in this class ({}) \
                     exceeds the maximum of {} methods",
                     num_methods, METHODS_IN_CLASS_LIMIT
                 ),
@@ -918,7 +918,7 @@ impl<'a> Expressions<'a> {
                 self.state.diagnostics.error(
                     DiagnosticId::DuplicateSymbol,
                     format!(
-                        "The traits '{}' and '{}' both define a \
+                        "the traits '{}' and '{}' both define a \
                         method with the same name",
                         format_type(self.db(), id),
                         format_type(self.db(), req_id),
@@ -1109,7 +1109,7 @@ impl<'a> CheckConstant<'a> {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidConstExpr,
                 format!(
-                    "Constant arrays are limited to at most {} values",
+                    "constant arrays are limited to at most {} values",
                     CONST_ARRAY_LIMIT
                 ),
                 self.file(),
@@ -1458,7 +1458,7 @@ impl<'a> CheckMethodBody<'a> {
                         self.state.diagnostics.error(
                             DiagnosticId::InvalidType,
                             format!(
-                                "Expected a 'String', 'ref String' or \
+                                "expected a 'String', 'ref String' or \
                                 'mut String', found '{}' instead",
                                 format_type(self.db(), val)
                             ),
@@ -1530,10 +1530,10 @@ impl<'a> CheckMethodBody<'a> {
             return TypeRef::Error;
         };
 
-        if class.is_builtin() {
+        if class.is_builtin() && !self.module.is_std(self.db()) {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidType,
-                "Instances of builtin classes can't be created using the \
+                "instances of builtin classes can't be created using the \
                 class literal syntax",
                 self.file(),
                 node.location.clone(),
@@ -1551,7 +1551,7 @@ impl<'a> CheckMethodBody<'a> {
             } else {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidSymbol,
-                    format!("The field '{}' is undefined", name),
+                    format!("the field '{}' is undefined", name),
                     self.file(),
                     field.field.location.clone(),
                 );
@@ -1567,14 +1567,40 @@ impl<'a> CheckMethodBody<'a> {
                 );
             }
 
-            let expected = field_id.value_type(self.db());
+            let targs = ins.type_arguments(self.db()).clone();
+
+            // The field type is the _raw_ type, but we want one that takes into
+            // account what we have inferred thus far. Consider the following
+            // code:
+            //
+            //     class Foo[T] {
+            //       let @a: Option[Option[T]]
+            //     }
+            //
+            //     Foo { @a = Option.None } as Foo[Int]
+            //
+            // When comparing the `Option.None` against `Option[Option[T]]`, we
+            // want to make sure that the `T` is later (as part of the cast)
+            // inferred as `Int`. If we use the raw type as-is this won't
+            // happen, because the inner `Option[T]` won't use a type
+            // placeholder as the value assigned to `T`, instead using `T`
+            // itself.
+            //
+            // Failing to handle this correctly will break type specialization,
+            // as we'd end up trying to specialize the `T` in the inner
+            // `Option[T]` without a meaningful type being assigned to it.
+            let expected = {
+                let raw = field_id.value_type(self.db());
+                let bounds = TypeBounds::new();
+
+                TypeResolver::new(self.db_mut(), &targs, &bounds).resolve(raw)
+            };
+
             let value = self.expression(&mut field.value, scope);
             let value_casted = value.cast_according_to(expected, self.db());
             let checker = TypeChecker::new(self.db());
-            let mut env = Environment::new(
-                value_casted.type_arguments(self.db()),
-                ins.type_arguments(self.db()).clone(),
-            );
+            let mut env =
+                Environment::new(value_casted.type_arguments(self.db()), targs);
 
             if !checker.run(value_casted, expected, &mut env) {
                 self.state.diagnostics.type_error(
@@ -1597,7 +1623,7 @@ impl<'a> CheckMethodBody<'a> {
             if assigned.contains(name) {
                 self.state.diagnostics.error(
                     DiagnosticId::DuplicateSymbol,
-                    format!("The field '{}' is already assigned", name),
+                    format!("the field '{}' is already assigned", name),
                     self.file(),
                     field.field.location.clone(),
                 );
@@ -1616,19 +1642,14 @@ impl<'a> CheckMethodBody<'a> {
 
             self.state.diagnostics.error(
                 DiagnosticId::MissingField,
-                format!("The field '{}' must be assigned a value", field),
+                format!("the field '{}' must be assigned a value", field),
                 self.file(),
                 node.location.clone(),
             );
         }
 
         node.class_id = Some(class);
-        node.resolved_type = if ins.instance_of().kind(self.db()).is_extern() {
-            TypeRef::foreign_struct(class)
-        } else {
-            TypeRef::Owned(TypeId::ClassInstance(ins))
-        };
-
+        node.resolved_type = TypeRef::Owned(TypeId::ClassInstance(ins));
         node.resolved_type
     }
 
@@ -1818,7 +1839,7 @@ impl<'a> CheckMethodBody<'a> {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidType,
                     format!(
-                        "The type of this variable is defined as '{}' \
+                        "the type of this variable is defined as '{}' \
                         in another pattern, but here its type is '{}'",
                         format_type(self.db(), ex_type),
                         format_type(self.db(), var_type),
@@ -1831,7 +1852,7 @@ impl<'a> CheckMethodBody<'a> {
             if existing.is_mutable(self.db()) != node.mutable {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidPattern,
-                    "The mutability of this binding must be the same \
+                    "the mutability of this binding must be the same \
                     in all patterns",
                     self.file(),
                     node.location.clone(),
@@ -1909,7 +1930,7 @@ impl<'a> CheckMethodBody<'a> {
                     self.state.diagnostics.error(
                         DiagnosticId::InvalidPattern,
                         format!(
-                            "Expected a 'String' or 'Int', found '{}' instead",
+                            "expected a 'String' or 'Int', found '{}' instead",
                             format_type(self.db(), typ),
                         ),
                         self.file(),
@@ -1924,7 +1945,7 @@ impl<'a> CheckMethodBody<'a> {
             Ok(Some(_)) => {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidSymbol,
-                    format!("The symbol '{}' is not a constant", name),
+                    format!("the symbol '{}' is not a constant", name),
                     self.file(),
                     node.location.clone(),
                 );
@@ -1979,7 +2000,7 @@ impl<'a> CheckMethodBody<'a> {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidType,
                     format!(
-                        "This pattern expects a tuple, \
+                        "this pattern expects a tuple, \
                         but the input type is '{}'",
                         format_type(self.db(), value_type),
                     ),
@@ -1998,7 +2019,7 @@ impl<'a> CheckMethodBody<'a> {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidType,
                 format!(
-                    "This pattern requires {} tuple members, \
+                    "this pattern requires {} tuple members, \
                     but the input has {} members",
                     params,
                     node.values.len()
@@ -2052,7 +2073,7 @@ impl<'a> CheckMethodBody<'a> {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidType,
                     format!(
-                        "A regular or extern class instance is expected, \
+                        "a regular or extern class instance is expected, \
                         but the input type is an instance of type '{}'",
                         format_type(self.db(), value_type),
                     ),
@@ -2071,7 +2092,7 @@ impl<'a> CheckMethodBody<'a> {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidType,
                 format!(
-                    "The type '{}' can't be destructured as it defines \
+                    "the type '{}' can't be destructured as it defines \
                     a custom destructor",
                     format_type(self.db(), value_type)
                 ),
@@ -2083,7 +2104,7 @@ impl<'a> CheckMethodBody<'a> {
         if class.kind(self.db()).is_enum() {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidType,
-                "Enum classes don't support class patterns",
+                "enum classes don't support class patterns",
                 self.file(),
                 node.location.clone(),
             );
@@ -2100,7 +2121,7 @@ impl<'a> CheckMethodBody<'a> {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidSymbol,
                     format!(
-                        "The type '{}' doesn't define the field '{}'",
+                        "the type '{}' doesn't define the field '{}'",
                         format_type(self.db(), value_type),
                         name
                     ),
@@ -2173,7 +2194,7 @@ impl<'a> CheckMethodBody<'a> {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidType,
                 format!(
-                    "The type of this pattern is '{}', \
+                    "the type of this pattern is '{}', \
                     but the input type is '{}'",
                     format_type(self.db(), pattern_type),
                     format_type(self.db(), input_type),
@@ -2201,7 +2222,7 @@ impl<'a> CheckMethodBody<'a> {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidType,
                 format!(
-                    "This pattern expects an enum class, \
+                    "this pattern expects an enum class, \
                     but the input type is '{}'",
                     format_type(self.db(), value_type),
                 ),
@@ -2292,7 +2313,7 @@ impl<'a> CheckMethodBody<'a> {
 
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidPattern,
-                    format!("This pattern must define the variable '{}'", name),
+                    format!("this pattern must define the variable '{}'", name),
                     self.file(),
                     (*location).clone(),
                 );
@@ -2367,7 +2388,7 @@ impl<'a> CheckMethodBody<'a> {
         if !allow_assignment {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidAssign,
-                "Variables captured by non-moving closures can't be assigned \
+                "variables captured by non-moving closures can't be assigned \
                 new values"
                     .to_string(),
                 self.file(),
@@ -2381,7 +2402,7 @@ impl<'a> CheckMethodBody<'a> {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidAssign,
                 format!(
-                    "The variable '{}' is immutable and can't be \
+                    "the variable '{}' is immutable and can't be \
                     assigned a new value",
                     name
                 ),
@@ -2622,6 +2643,7 @@ impl<'a> CheckMethodBody<'a> {
             receiver: rec_kind,
             returns,
             dynamic: rec_id.use_dynamic_dispatch(),
+            type_arguments: call.type_arguments,
         });
 
         node.resolved_type = returns;
@@ -2742,6 +2764,7 @@ impl<'a> CheckMethodBody<'a> {
             receiver: rec_kind,
             returns,
             dynamic: rec_id.use_dynamic_dispatch(),
+            type_arguments: call.type_arguments,
         });
 
         returns
@@ -2863,7 +2886,7 @@ impl<'a> CheckMethodBody<'a> {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidAssign,
                 format!(
-                    "Can't assign a new value to field '{}', as the \
+                    "can't assign a new value to field '{}', as the \
                     surrounding method is immutable",
                     name
                 ),
@@ -2927,7 +2950,7 @@ impl<'a> CheckMethodBody<'a> {
         if !in_loop {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidLoopKeyword,
-                "The 'break' keyword can only be used inside loops",
+                "the 'break' keyword can only be used inside loops",
                 self.file(),
                 node.location.clone(),
             );
@@ -2944,7 +2967,7 @@ impl<'a> CheckMethodBody<'a> {
         if !scope.in_loop() {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidLoopKeyword,
-                "The 'next' keyword can only be used inside loops",
+                "the 'next' keyword can only be used inside loops",
                 self.file(),
                 node.location.clone(),
             );
@@ -3129,7 +3152,7 @@ impl<'a> CheckMethodBody<'a> {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidType,
                 format!(
-                    "A 'ref T' can't be created from a value of type '{}'",
+                    "a 'ref T' can't be created from a value of type '{}'",
                     self.fmt(expr)
                 ),
                 self.file(),
@@ -3159,7 +3182,7 @@ impl<'a> CheckMethodBody<'a> {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidType,
                 format!(
-                    "A 'mut T' can't be created from a value of type '{}'",
+                    "a 'mut T' can't be created from a value of type '{}'",
                     self.fmt(expr)
                 ),
                 self.file(),
@@ -3205,7 +3228,7 @@ impl<'a> CheckMethodBody<'a> {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidType,
                 format!(
-                    "Values of type '{}' can't be recovered",
+                    "values of type '{}' can't be recovered",
                     self.fmt(last_type)
                 ),
                 self.file(),
@@ -3322,6 +3345,7 @@ impl<'a> CheckMethodBody<'a> {
             receiver: rec_info,
             returns,
             dynamic: rec_id.use_dynamic_dispatch(),
+            type_arguments: call.type_arguments,
         });
 
         returns
@@ -3381,7 +3405,7 @@ impl<'a> CheckMethodBody<'a> {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidCall,
                 format!(
-                    "Can't assign a new value to field '{}', as its receiver \
+                    "can't assign a new value to field '{}', as its receiver \
                     is immutable",
                     name,
                 ),
@@ -3474,7 +3498,7 @@ impl<'a> CheckMethodBody<'a> {
         if !receiver.allow_mutating(self.db()) {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidCall,
-                "Closures can only be called using owned or mutable references",
+                "closures can only be called using owned or mutable references",
                 self.file(),
                 node.location.clone(),
             );
@@ -3683,6 +3707,7 @@ impl<'a> CheckMethodBody<'a> {
             receiver: rec_info,
             returns,
             dynamic: rec_id.use_dynamic_dispatch(),
+            type_arguments: call.type_arguments,
         });
 
         returns
@@ -3780,6 +3805,7 @@ impl<'a> CheckMethodBody<'a> {
             receiver: rec_info,
             returns,
             dynamic: rec_id.use_dynamic_dispatch(),
+            type_arguments: call.type_arguments,
         });
 
         returns
@@ -3805,7 +3831,7 @@ impl<'a> CheckMethodBody<'a> {
         if ins.instance_of().kind(self.db()).is_async() {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidSymbol,
-                "Process fields are only available inside the process itself",
+                "process fields are only available inside the process itself",
                 self.file(),
                 node.location.clone(),
             );
@@ -3887,12 +3913,12 @@ impl<'a> CheckMethodBody<'a> {
         scope: &mut LexicalScope,
     ) -> TypeRef {
         let expr_type = self.expression(&mut node.value, scope);
-
         let rules = Rules {
             type_parameters_as_rigid: true,
             type_parameters_as_owned: true,
             ..Default::default()
         };
+
         let type_scope = TypeScope::with_bounds(
             self.module,
             self.self_type,
@@ -3908,30 +3934,11 @@ impl<'a> CheckMethodBody<'a> {
         )
         .define_type(&mut node.cast_to);
 
-        if expr_type == cast_type {
+        if !TypeChecker::check_cast(self.db_mut(), expr_type, cast_type) {
             self.state.diagnostics.error(
-                DiagnosticId::InvalidType,
+                DiagnosticId::InvalidCast,
                 format!(
-                    "Can't cast '{}' to itself",
-                    format_type(self.db(), expr_type),
-                ),
-                self.file(),
-                node.location.clone(),
-            );
-
-            return TypeRef::Error;
-        }
-
-        // Casting to/from Any is dangerous but necessary to make the standard
-        // library work.
-        if !expr_type.is_any(self.db())
-            && !cast_type.is_any(self.db())
-            && !TypeChecker::check_cast(self.db_mut(), expr_type, cast_type)
-        {
-            self.state.diagnostics.error(
-                DiagnosticId::InvalidType,
-                format!(
-                    "The type '{}' can't be cast to type '{}'",
+                    "the type '{}' can't be cast to '{}'",
                     format_type(self.db(), expr_type),
                     format_type(self.db(), cast_type)
                 ),
@@ -4053,7 +4060,7 @@ impl<'a> CheckMethodBody<'a> {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidCall,
                     format!(
-                        "Methods can't be called on values of type '{}'",
+                        "methods can't be called on values of type '{}'",
                         self.fmt(typ)
                     ),
                     self.file(),
@@ -4177,7 +4184,7 @@ impl<'a> CheckMethodBody<'a> {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidCall,
                     format!(
-                        "The named argument '{}' is already specified",
+                        "the named argument '{}' is already specified",
                         name
                     ),
                     self.file(),
@@ -4199,7 +4206,7 @@ impl<'a> CheckMethodBody<'a> {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidCall,
                 format!(
-                    "The argument '{}' isn't defined by the method '{}'",
+                    "the argument '{}' isn't defined by the method '{}'",
                     name,
                     call.method.name(self.db()),
                 ),
@@ -4229,7 +4236,7 @@ impl<'a> CheckMethodBody<'a> {
         self.state.diagnostics.error(
             DiagnosticId::InvalidType,
             format!(
-                "Expected a 'Bool', 'ref Bool' or 'mut Bool', \
+                "expected a 'Bool', 'ref Bool' or 'mut Bool', \
                 found '{}' instead",
                 format_type(self.db(), typ),
             ),
@@ -4388,7 +4395,7 @@ impl<'a> CheckMethodBody<'a> {
                         self.state.diagnostics.error(
                             DiagnosticId::InvalidSymbol,
                             format!(
-                                "The variable '{}' exists, but its type \
+                                "the variable '{}' exists, but its type \
                                 ('{}') prevents it from being captured",
                                 name,
                                 self.fmt(expose_as)

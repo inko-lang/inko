@@ -100,6 +100,16 @@ impl<'a> TypeResolver<'a> {
                     Either::Right(typ) => typ,
                 }
             }
+            TypeRef::Pointer(id) => match self.resolve_type_id(id) {
+                Either::Left(res) => TypeRef::Pointer(res),
+                Either::Right(
+                    TypeRef::Owned(id)
+                    | TypeRef::Infer(id)
+                    | TypeRef::Pointer(id)
+                    | TypeRef::Uni(id),
+                ) => TypeRef::Pointer(id),
+                Either::Right(typ) => typ,
+            },
             TypeRef::Ref(id) => match self.resolve_type_id(id) {
                 Either::Left(res) => TypeRef::Ref(res),
                 Either::Right(TypeRef::Owned(typ) | TypeRef::Mut(typ)) => {
@@ -241,7 +251,7 @@ impl<'a> TypeResolver<'a> {
         // parameter chain until reaching the final type.
         if let Some(arg) = self
             .surrounding_trait
-            .and_then(|t| t.get(self.db).inherited_type_arguments.get(key))
+            .and_then(|t| t.inherited_type_arguments(self.db).get(key))
         {
             return Some(self.resolve_type_ref(arg));
         }
@@ -261,7 +271,7 @@ mod tests {
         closure, generic_instance_id, generic_trait_instance,
         generic_trait_instance_id, immutable, immutable_uni, infer, instance,
         mutable, mutable_uni, new_parameter, new_trait, owned, parameter,
-        placeholder, rigid, type_arguments, type_bounds, uni,
+        placeholder, pointer, rigid, type_arguments, type_bounds, uni,
     };
     use crate::{Block, ClassId, Closure, TypePlaceholder, TypePlaceholderId};
 
@@ -300,6 +310,19 @@ mod tests {
         assert_eq!(
             resolve_immutable(&mut db, &args, &bounds, owned(instance(string))),
             immutable(instance(string))
+        );
+    }
+
+    #[test]
+    fn test_pointer() {
+        let mut db = Database::new();
+        let string = ClassId::string();
+        let args = TypeArguments::new();
+        let bounds = TypeBounds::new();
+
+        assert_eq!(
+            resolve(&mut db, &args, &bounds, pointer(instance(string))),
+            pointer(instance(string))
         );
     }
 
@@ -496,6 +519,11 @@ mod tests {
         assert_eq!(
             resolve(&mut db, &args, &bounds, owned(parameter(param1))),
             owned(instance(string))
+        );
+
+        assert_eq!(
+            resolve(&mut db, &args, &bounds, pointer(parameter(param1))),
+            pointer(instance(string))
         );
 
         assert_eq!(
@@ -737,7 +765,7 @@ mod tests {
             infer(parameter(param)),
         );
 
-        let args = type_arguments(vec![(param, TypeRef::Any)]);
+        let args = type_arguments(vec![(param, TypeRef::int())]);
         let bounds = TypeBounds::new();
         let output = match resolve(&mut db, &args, &bounds, owned(closure(fun)))
         {
@@ -745,8 +773,8 @@ mod tests {
             _ => panic!("Expected the resolved value to be a closure"),
         };
 
-        assert_eq!(output.return_type(&db), TypeRef::Any);
-        assert_eq!(output.arguments(&db)[0].value_type, TypeRef::Any);
+        assert_eq!(output.return_type(&db), TypeRef::int());
+        assert_eq!(output.arguments(&db)[0].value_type, TypeRef::int());
     }
 
     #[test]
@@ -774,12 +802,12 @@ mod tests {
 
         bound.set_original(&mut db, param);
 
-        let args = type_arguments(vec![(param, TypeRef::Any)]);
+        let args = type_arguments(vec![(param, TypeRef::int())]);
         let bounds = TypeBounds::new();
 
         assert_eq!(
             resolve(&mut db, &args, &bounds, owned(parameter(bound))),
-            TypeRef::Any,
+            TypeRef::int(),
         );
     }
 

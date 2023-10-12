@@ -336,7 +336,7 @@ pub(crate) struct DefineVariant {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct AssignInstanceLiteralField {
+pub(crate) struct AssignClassLiteralField {
     pub(crate) resolved_type: types::TypeRef,
     pub(crate) field_id: Option<types::FieldId>,
     pub(crate) field: Field,
@@ -349,7 +349,7 @@ pub(crate) struct ClassLiteral {
     pub(crate) class_id: Option<types::ClassId>,
     pub(crate) resolved_type: types::TypeRef,
     pub(crate) class_name: Constant,
-    pub(crate) fields: Vec<AssignInstanceLiteralField>,
+    pub(crate) fields: Vec<AssignClassLiteralField>,
     pub(crate) location: SourceLocation,
 }
 
@@ -1727,7 +1727,7 @@ impl<'a> LowerToHir<'a> {
             node => {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidConstExpr,
-                    "Constant values are limited to constant expressions",
+                    "constant values are limited to constant expressions",
                     self.file(),
                     node.location().clone(),
                 );
@@ -1762,7 +1762,7 @@ impl<'a> LowerToHir<'a> {
             Err(e) => {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidSyntax,
-                    format!("This Int literal is invalid: {}", e),
+                    format!("this Int literal is invalid: {}", e),
                     self.file(),
                     node.location.clone(),
                 );
@@ -1790,7 +1790,7 @@ impl<'a> LowerToHir<'a> {
             Err(e) => {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidSyntax,
-                    format!("This Float literal is invalid: {}", e),
+                    format!("this Float literal is invalid: {}", e),
                     self.file(),
                     node.location.clone(),
                 );
@@ -1869,7 +1869,7 @@ impl<'a> LowerToHir<'a> {
             self.state.diagnostics.error(
                 DiagnosticId::LimitReached,
                 format!(
-                    "Array literals are limited to a maximum of {} values",
+                    "array literals are limited to a maximum of {} values",
                     ARRAY_LIMIT
                 ),
                 self.file(),
@@ -1987,7 +1987,7 @@ impl<'a> LowerToHir<'a> {
                 ast::DoubleStringValue::Expression(node) => {
                     self.state.diagnostics.error(
                         DiagnosticId::InvalidConstExpr,
-                        "Constant values don't support string interpolation",
+                        "constant values don't support string interpolation",
                         self.file(),
                         node.location.clone(),
                     );
@@ -2278,7 +2278,7 @@ impl<'a> LowerToHir<'a> {
                     ast::Argument::Named(node) => {
                         self.state.diagnostics.error(
                             DiagnosticId::InvalidCall,
-                            "Builtin calls don't support named arguments",
+                            "builtin calls don't support named arguments",
                             self.file(),
                             node.location,
                         );
@@ -2794,7 +2794,7 @@ impl<'a> LowerToHir<'a> {
             fields: node
                 .fields
                 .into_iter()
-                .map(|n| AssignInstanceLiteralField {
+                .map(|n| AssignClassLiteralField {
                     resolved_type: types::TypeRef::Unknown,
                     field_id: None,
                     field: self.field(n.field),
@@ -2861,7 +2861,7 @@ impl<'a> LowerToHir<'a> {
                     Pattern::False(self.false_literal(*n))
                 }
                 _ => {
-                    unreachable!("This pattern isn't supported")
+                    unreachable!("this pattern isn't supported")
                 }
             },
             ast::Pattern::Variant(n) => {
@@ -2923,7 +2923,7 @@ impl<'a> LowerToHir<'a> {
 
         self.state.diagnostics.error(
             DiagnosticId::InvalidMethod,
-            "Operator methods must be regular instance methods",
+            "operator methods must be regular instance methods",
             self.file(),
             location.clone(),
         );
@@ -2945,7 +2945,7 @@ mod tests {
         let name = ModuleName::new("std.foo");
         let ast = Parser::new(input.into(), "test.inko".into())
             .parse()
-            .expect("Failed to parse the module");
+            .expect("failed to parse the module");
 
         ParsedModule { ast, name }
     }
@@ -2976,7 +2976,7 @@ mod tests {
                 node.arguments.remove(0).value_type
             }
             _ => {
-                panic!("The top-level expression must be a module method")
+                panic!("the top-level expression must be a module method")
             }
         }
     }
@@ -2991,7 +2991,7 @@ mod tests {
                 (node.body.remove(0), diags)
             }
             _ => {
-                panic!("The top-level expression must be a module method")
+                panic!("the top-level expression must be a module method")
             }
         }
     }
@@ -5923,7 +5923,7 @@ mod tests {
                     name: "A".to_string(),
                     location: cols(8, 8)
                 },
-                fields: vec![AssignInstanceLiteralField {
+                fields: vec![AssignClassLiteralField {
                     resolved_type: types::TypeRef::Unknown,
                     field_id: None,
                     field: Field {

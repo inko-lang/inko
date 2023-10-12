@@ -185,6 +185,73 @@ to a process synchronously, the call is optimised into an instruction that
 doesn't allocate a future. MIR will also be used for future optimisations, such
 as inlining, devirtualisation, and dead code removal.
 
+### Generics
+
+Generic types and methods are specialized at the MIR level. Rather than
+specialize generics for every type (meaning `Array[Foo]` and `Array[Bar]` result
+in different specializations of `Array`), the compiler groups types into
+"shapes" and specializes over these shapes. This approach results in a better
+balance between compile times and runtime performance, instead of favoring
+runtime performance over compile times (often resulting in long compile times).
+
+The following shapes are used:
+
+| Shape   | Dispatch | Purpose
+|:--------|:---------|:-----------------------------------------------------
+| Owned   | Dynamic  | The default shape and used for owned values that aren't given a more specific shape.
+| Mut     | Dynamic  | Used for mutable references.
+| Ref     | Dynamic  | Used for immutable references.
+| Int     | Static   | Used for `Int`, removing the need for boxed integers.
+| Float   | Static   | Used for `Float`, removing the need for boxed floats.
+| Boolean | Static   | Used for the `Bool` type, which is internally represented as an unboxed `Int`.
+| Nil     | Static   | Used for the `Nil` type, which is internally represented as an unboxed `Int` similar to `Bool`.
+| String  | Static   | Used for the `String` type.
+| Atomic  | Dynamic  | Used for other types that use atomic reference counting, such as `Channel` and processes.
+
+This approach means that the following two methods compile to the same code,
+provided the `foo` method is given an owned value:
+
+```inko
+fn foo[T: ToString](value: T) {}
+
+fn bar(value: ToString) {}
+```
+
+If `foo` is instead given e.g. an `Int`, a version of `foo` is compiled that
+specifically handles `Int`, resulting in different code.
+
+Specialization is done in two stages: the initially generated MIR is generic.
+For example, drops are handled using a generic "drop" instruction that
+essentially acts as a placeholder to be replaced with a more specific
+instruction.
+
+After generating the initial MIR and verifying it, the compiler runs the pass
+`mir::specialize::Speciailze`. This pass processes one method at a time,
+starting with `Main.main`. The pass specializes types it encounters in
+registers, and analyzes method calls to determine what other methods need to be
+processed. This is done for both static and dynamic dispatch, and only takes
+into account methods that are called somewhere in a program.
+
+For dynamic dispatch, the compiler looks up the types that implement the
+receiving trait, then schedules the called method for all those types. This may
+result in the compiler processing more methods than strictly necessary, though
+this likely won't be a problem in practise.
+
+Once a method is specialized, two sub passes are run over the code:
+`mir::specialize::ExpandReference` and `mir::specialize::ExpandDrop`. These
+passes look for "reference" and "drop" instructions, and replace them with their
+specialized counterparts. For example, for `Int` a "drop" translates into a
+no-op, while for owned values it results in an instruction that calls the
+dropper method.
+
+The work finishes once there are no more methods to process. Once the pass
+finishes, the generic code used to create the specialized types and methods is
+removed.
+
+If you'd like to know more, take a look at `compiler/src/mir/specialize.rs`. The
+implementation is reasonably well documented, and may prove useful to other
+compiler authors looking to provide a similar implementation.
+
 ## Code generation
 
 Code generation is performed by lowering MIR into LLVM IR. This is done in a
@@ -214,6 +281,6 @@ to get the slot we use the following:
 slot = hash & (size - 1)
 ```
 
-To handle conflicts we use linear probing, resulting in a reasonably efficient
+To handle conflicts we use linear probing, resulting in an efficient
 implementation of dynamic dispatch. For more information, refer to the article
 ["Shenanigans With Hash Tables"](https://thume.ca/2019/07/29/shenanigans-with-hash-tables/).

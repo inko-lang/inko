@@ -139,7 +139,7 @@ impl Equal[InclusiveRange] for InclusiveRange {
 }
 
 impl Hash for InclusiveRange {
-  fn pub hash(hasher: mut Hasher) {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
     @start.hash(hasher)
     @end.hash(hasher)
   }
@@ -245,7 +245,7 @@ impl Equal[ExclusiveRange] for ExclusiveRange {
 }
 
 impl Hash for ExclusiveRange {
-  fn pub hash(hasher: mut Hasher) {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
     @start.hash(hasher)
     @end.hash(hasher)
   }

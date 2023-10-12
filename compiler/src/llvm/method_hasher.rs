@@ -8,13 +8,13 @@ use fnv::{FnvHashMap, FnvHashSet};
 ///
 /// The algorithm used by this hasher is FNV-1a, as it's one of the fastest
 /// not-so-terrible hash function for small inputs.
-pub(crate) struct MethodHasher<'a> {
-    hashes: FnvHashMap<&'a str, u64>,
+pub(crate) struct MethodHasher {
+    hashes: FnvHashMap<String, u64>,
     used: FnvHashSet<u64>,
 }
 
-impl<'a> MethodHasher<'a> {
-    pub(crate) fn new() -> MethodHasher<'a> {
+impl MethodHasher {
+    pub(crate) fn new() -> MethodHasher {
         // We can't predict how many unique method names there are without
         // counting them, which would involve hashing, which in turn likely
         // wouldn't make this hasher any faster.
@@ -36,8 +36,8 @@ impl<'a> MethodHasher<'a> {
         }
     }
 
-    pub(crate) fn hash(&mut self, name: &'a str) -> u64 {
-        if let Some(&hash) = self.hashes.get(name) {
+    pub(crate) fn hash(&mut self, name: String) -> u64 {
+        if let Some(&hash) = self.hashes.get(&name) {
             return hash;
         }
 
@@ -79,18 +79,24 @@ mod tests {
     fn test_hash() {
         let mut hasher = MethodHasher::new();
 
-        assert_eq!(hasher.hash("foo"), hasher.hash("foo"));
-        assert_ne!(hasher.hash("foo"), hasher.hash("bar"));
+        assert_eq!(
+            hasher.hash("foo".to_string()),
+            hasher.hash("foo".to_string())
+        );
+        assert_ne!(
+            hasher.hash("foo".to_string()),
+            hasher.hash("bar".to_string())
+        );
     }
 
     #[test]
     fn test_hash_conflict() {
         let mut hasher = MethodHasher::new();
 
-        let hash = hasher.hash("foo");
+        let hash = hasher.hash("foo".to_string());
 
         hasher.hashes.remove("foo");
 
-        assert_ne!(hasher.hash("foo"), hash);
+        assert_ne!(hasher.hash("foo".to_string()), hash);
     }
 }

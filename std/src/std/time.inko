@@ -7,7 +7,7 @@ import std.int.ToInt
 import std.ops.(Add, Subtract)
 
 fn extern inko_time_monotonic(state: Pointer[UInt8]) -> Int64
-fn extern inko_time_system(state: Pointer[UInt8]) -> Float
+fn extern inko_time_system() -> Float
 fn extern inko_time_system_offset -> Int64
 
 let SECS_PER_MIN = 60
@@ -51,7 +51,7 @@ class pub Duration {
   #     import std.time.Duration
   #
   #     Duration.from_secs(10.5)
-  fn pub static from_secs(secs: ToFloat) -> Duration {
+  fn pub static from_secs[T: ToFloat](secs: ref T) -> Duration {
     Duration { @nanos = (secs.to_float * NANOS_PER_SEC).to_int }
   }
 
@@ -62,7 +62,7 @@ class pub Duration {
   #     import std.time.Duration
   #
   #     Duration.from_millis(10)
-  fn pub static from_millis(millis: ToInt) -> Duration {
+  fn pub static from_millis[T: ToInt](millis: ref T) -> Duration {
     Duration { @nanos = millis.to_int * MICROS_PER_SEC }
   }
 
@@ -73,7 +73,7 @@ class pub Duration {
   #     import std.time.Duration
   #
   #     Duration.from_micros(10)
-  fn pub static from_micros(micros: ToInt) -> Duration {
+  fn pub static from_micros[T: ToInt](micros: ref T) -> Duration {
     Duration { @nanos = micros.to_int * MILLIS_PER_SEC }
   }
 
@@ -84,7 +84,7 @@ class pub Duration {
   #     import std.time.Duration
   #
   #     Duration.from_nanos(10)
-  fn pub static from_nanos(nanos: ToInt) -> Duration {
+  fn pub static from_nanos[T: ToInt](nanos: ref T) -> Duration {
     Duration { @nanos = nanos.to_int }
   }
 
@@ -248,10 +248,7 @@ class pub DateTime {
   #
   #     DateTime.new
   fn pub static new -> DateTime {
-    from_timestamp(
-      inko_time_system(_INKO.state),
-      inko_time_system_offset as Int
-    )
+    from_timestamp(inko_time_system(), inko_time_system_offset as Int)
   }
 
   # Returns a new `DateTime` representing the current time using UTC as the
@@ -265,7 +262,7 @@ class pub DateTime {
   #
   #     DateTime.utc
   fn pub static utc -> DateTime {
-    from_timestamp(time: inko_time_system(_INKO.state), utc_offset: 0)
+    from_timestamp(time: inko_time_system(), utc_offset: 0)
   }
 
   # Returns a new `DateTime` from a Unix timestamp and UTC offset.
@@ -277,7 +274,10 @@ class pub DateTime {
   #     import std.time.DateTime
   #
   #     DateTime.from_timestamp(time: 1661546853, utc_offset: 0).year # => 2022
-  fn pub static from_timestamp(time: ToFloat, utc_offset: Int) -> DateTime {
+  fn pub static from_timestamp[T: ToFloat](
+    time: ref T,
+    utc_offset: Int,
+  ) -> DateTime {
     # This implementation is based on the algorithms as described on
     # http://howardhinnant.github.io/date_algorithms.html, specifically the
     # `civil_from_days()` algorithm.

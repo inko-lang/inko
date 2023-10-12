@@ -26,7 +26,10 @@ fn method_kind(kind: hir::MethodKind) -> MethodKind {
 
 fn receiver_type(db: &Database, id: TypeId, kind: hir::MethodKind) -> TypeRef {
     match id {
-        TypeId::ClassInstance(ins) if ins.instance_of().is_value_type(db) => {
+        TypeId::ClassInstance(ins)
+            if ins.instance_of().is_value_type(db)
+                && !ins.instance_of().kind(db).is_async() =>
+        {
             TypeRef::Owned(id)
         }
         _ => match kind {
@@ -73,7 +76,7 @@ trait MethodDefiner {
                 self.state_mut().diagnostics.error(
                     DiagnosticId::DuplicateSymbol,
                     format!(
-                        "The type parameter '{}' is already defined for '{}', \
+                        "the type parameter '{}' is already defined for '{}', \
                         and shadowing type parameters isn't allowed",
                         name, rec_name
                     ),
@@ -159,7 +162,7 @@ trait MethodDefiner {
 
             self.state_mut().diagnostics.error(
                 DiagnosticId::InvalidMethod,
-                format!("Methods are limited to at most {} arguments", max),
+                format!("methods are limited to at most {} arguments", max),
                 file,
                 location,
             );
@@ -458,7 +461,7 @@ impl<'a> DefineMethods<'a> {
                 self.state.diagnostics.error(
                     DiagnosticId::DuplicateSymbol,
                     format!(
-                        "The required trait '{}' defines the method '{}', \
+                        "the required trait '{}' defines the method '{}', \
                         but this method is also defined in trait '{}'",
                         format_type(self.db(), requirement),
                         method.name(self.db()),
@@ -498,7 +501,7 @@ impl<'a> DefineMethods<'a> {
         if class_id.kind(self.db()).is_extern() {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidImplementation,
-                "Methods can't be defined for extern classes",
+                "methods can't be defined for extern classes",
                 self.file(),
                 node.location.clone(),
             );
@@ -653,7 +656,7 @@ impl<'a> DefineMethods<'a> {
         if node.kind.is_moving() && async_class {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidMethod,
-                "Moving methods can't be defined for async classes",
+                "moving methods can't be defined for async classes",
                 self.file(),
                 node.location.clone(),
             );
@@ -688,7 +691,7 @@ impl<'a> DefineMethods<'a> {
         if async_class && method.is_public(self.db()) {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidMethod,
-                "Regular instance methods for async classes must be private",
+                "regular instance methods for async classes must be private",
                 self.file(),
                 node.location.clone(),
             );
@@ -770,7 +773,7 @@ impl<'a> DefineMethods<'a> {
 
             self.state_mut().diagnostics.error(
                 DiagnosticId::InvalidMethod,
-                "Async methods can only be used in async classes".to_string(),
+                "async methods can only be used in async classes".to_string(),
                 file,
                 node.location.clone(),
             );
@@ -815,7 +818,7 @@ impl<'a> DefineMethods<'a> {
         if node.return_type.is_some() {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidMethod,
-                "Async methods can't return values",
+                "async methods can't return values",
                 self.file(),
                 node.location.clone(),
             );
@@ -1070,7 +1073,7 @@ impl<'a> CheckMainMethod<'a> {
             self.state.diagnostics.error(
                 DiagnosticId::MissingMain,
                 format!(
-                    "This module must define the async class '{}', \
+                    "this module must define the async class '{}', \
                     which must define the async method '{}'",
                     MAIN_CLASS, MAIN_METHOD
                 ),
@@ -1169,7 +1172,7 @@ impl<'a> ImplementTraitMethods<'a> {
             self.state_mut().diagnostics.error(
                 DiagnosticId::InvalidImplementation,
                 format!(
-                    "The trait '{}' can't be implemented for '{}', as its \
+                    "the trait '{}' can't be implemented for '{}', as its \
                     default method '{}' is already defined for '{}'",
                     trait_name, class_name, method_name, class_name
                 ),
@@ -1202,7 +1205,7 @@ impl<'a> ImplementTraitMethods<'a> {
             self.state_mut().diagnostics.error(
                 DiagnosticId::InvalidImplementation,
                 format!(
-                    "The method '{}' must be implemented for '{}'",
+                    "the method '{}' must be implemented for '{}'",
                     method_name, class_name
                 ),
                 file,
@@ -1219,7 +1222,14 @@ impl<'a> ImplementTraitMethods<'a> {
             let name = method.name(self.db()).clone();
             let copy = method.copy_method(self.db_mut());
 
+            // This is needed to ensure that the receiver of the default method
+            // is typed as the class that implements the trait, not as the trait
+            // itself.
+            let new_rec =
+                method.receiver_for_class_instance(self.db(), class_ins);
+
             copy.set_source(self.db_mut(), source);
+            copy.set_receiver(self.db_mut(), new_rec);
             class_id.add_method(self.db_mut(), name, copy);
         }
     }
@@ -1244,7 +1254,7 @@ impl<'a> ImplementTraitMethods<'a> {
             self.state_mut().diagnostics.error(
                 DiagnosticId::InvalidMethod,
                 format!(
-                    "The method '{}' isn't defined in the trait '{}'",
+                    "the method '{}' isn't defined in the trait '{}'",
                     name, trait_name
                 ),
                 file,
@@ -1322,7 +1332,7 @@ impl<'a> ImplementTraitMethods<'a> {
 
             self.state_mut().diagnostics.error(
                 DiagnosticId::InvalidMethod,
-                format!("The method '{}' isn't compatible with '{}'", lhs, rhs),
+                format!("the method '{}' isn't compatible with '{}'", lhs, rhs),
                 file,
                 node.location.clone(),
             );

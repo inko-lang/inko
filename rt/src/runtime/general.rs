@@ -1,5 +1,5 @@
 use crate::context;
-use crate::mem::{free, header_of, is_tagged_int, ClassPointer};
+use crate::mem::{free, header_of, ClassPointer};
 use crate::process::ProcessPointer;
 use crate::runtime::exit;
 use crate::runtime::process::panic;
@@ -37,16 +37,7 @@ pub unsafe extern "system" fn inko_check_refs(
     process: ProcessPointer,
     pointer: *const u8,
 ) {
-    if is_tagged_int(pointer) {
-        return;
-    }
-
     let header = header_of(pointer);
-
-    if header.is_permanent() {
-        return;
-    }
-
     let refs = header.references();
 
     if refs == 0 {
@@ -64,10 +55,6 @@ pub unsafe extern "system" fn inko_check_refs(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_free(pointer: *mut u8) {
-    if is_tagged_int(pointer) || header_of(pointer).is_permanent() {
-        return;
-    }
-
     free(pointer);
 }
 
@@ -92,6 +79,16 @@ pub unsafe extern "system" fn inko_alloc(class: ClassPointer) -> *mut u8 {
     let ptr = alloc(class.instance_layout());
 
     header_of(ptr).init(class);
+    ptr
+}
+
+#[no_mangle]
+pub unsafe extern "system" fn inko_alloc_atomic(
+    class: ClassPointer,
+) -> *mut u8 {
+    let ptr = alloc(class.instance_layout());
+
+    header_of(ptr).init_atomic(class);
     ptr
 }
 

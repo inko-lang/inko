@@ -41,6 +41,9 @@ pub(crate) struct BuildDirectories {
     /// The directory to store object files in.
     pub(crate) objects: PathBuf,
 
+    /// The directory to store LLVM IR files in.
+    pub(crate) llvm_ir: PathBuf,
+
     /// The directory to place executable files in.
     pub(crate) bin: PathBuf,
 
@@ -56,10 +59,11 @@ impl BuildDirectories {
             .map_or(config.build.clone(), |p| config.build.join(p));
 
         let objects = build.join("objects");
+        let llvm_ir = build.join("llvm");
         let dot = build.join("dot");
         let bin = build.clone();
 
-        BuildDirectories { build, objects, bin, dot }
+        BuildDirectories { build, objects, llvm_ir, bin, dot }
     }
 
     pub(crate) fn create(&self) -> Result<(), String> {
@@ -70,6 +74,10 @@ impl BuildDirectories {
 
     pub(crate) fn create_dot(&self) -> Result<(), String> {
         create_directory(&self.dot)
+    }
+
+    pub(crate) fn create_llvm(&self) -> Result<(), String> {
+        create_directory(&self.llvm_ir)
     }
 }
 
@@ -135,7 +143,7 @@ pub struct Config {
     pub build: PathBuf,
 
     /// A list of base source directories to search through.
-    pub sources: Vec<PathBuf>,
+    pub(crate) sources: Vec<PathBuf>,
 
     /// The path to save the executable at.
     pub output: Output,
@@ -154,6 +162,12 @@ pub struct Config {
 
     /// If MIR should be printed to DOT files.
     pub dot: bool,
+
+    /// If LLVM IR should be verified as part of code generation.
+    pub verify_llvm: bool,
+
+    /// If LLVM IR should be written to disk.
+    pub write_llvm: bool,
 
     /// If C libraries should be linked statically or not.
     pub static_linking: bool,
@@ -178,6 +192,8 @@ impl Config {
             target: Target::native(),
             opt: Opt::Balanced,
             dot: false,
+            verify_llvm: false,
+            write_llvm: false,
             static_linking: false,
         }
     }
@@ -190,6 +206,10 @@ impl Config {
 
     fn add_default_implicit_imports(&mut self) {
         self.implicit_imports.push(ModuleName::std_init());
+    }
+
+    pub fn add_source_directory(&mut self, path: PathBuf) {
+        self.sources.push(path.canonicalize().unwrap_or(path));
     }
 
     pub fn set_presenter(&mut self, format: &str) -> Result<(), String> {

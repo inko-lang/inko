@@ -1,4 +1,3 @@
-use crate::mem::Float;
 use crate::state::State;
 use rustix::time;
 use std::mem::MaybeUninit;
@@ -43,10 +42,8 @@ pub unsafe extern "system" fn inko_time_monotonic(state: *const State) -> i64 {
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_time_system(
-    state: *const State,
-) -> *const Float {
-    Float::alloc((*state).float_class, utc())
+pub unsafe extern "system" fn inko_time_system() -> f64 {
+    utc()
 }
 
 #[no_mangle]

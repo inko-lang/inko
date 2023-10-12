@@ -527,7 +527,7 @@ class pub Map[K: Hash + Equal[K], V] {
   }
 
   fn hash_key(key: ref K) -> Int {
-    let hasher: Hasher = SipHasher13.default
+    let hasher = SipHasher13.default
 
     key.hash(mut hasher)
     hasher.finish
@@ -607,7 +607,7 @@ impl Equal[Map[K, V]] for Map if V: Equal[V] {
 }
 
 impl Hash for Map if K: Hash, V: Hash {
-  fn pub hash(hasher: mut Hasher) {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
     iter.each fn (entry) {
       entry.key.hash(hasher)
       entry.value.hash(hasher)

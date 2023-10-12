@@ -15,7 +15,8 @@ pub unsafe extern "system" fn inko_env_get(
     state
         .environment
         .get(name)
-        .map(|val| InkoResult::ok(val as _))
+        .cloned()
+        .map(|v| InkoResult::ok(InkoString::alloc(state.string_class, v) as _))
         .unwrap_or_else(InkoResult::none)
 }
 
@@ -24,10 +25,14 @@ pub unsafe extern "system" fn inko_env_get_key(
     state: *const State,
     index: i64,
 ) -> *const InkoString {
+    let state = &(*state);
+
     // This is only used to populate a map of all variables, and for that we'll
     // only use indexes that actually exist, so we can just unwrap here instead
     // of returning a result value.
-    (*state).environment.key(index as _).unwrap()
+    let val = state.environment.key(index as _).unwrap().clone();
+
+    InkoString::alloc(state.string_class, val)
 }
 
 #[no_mangle]
@@ -49,8 +54,9 @@ pub unsafe extern "system" fn inko_env_home_directory(
     state
         .environment
         .get("HOME")
-        .filter(|&path| !InkoString::read(path).is_empty())
-        .map(|path| InkoResult::ok(path as _))
+        .filter(|&path| !path.is_empty())
+        .cloned()
+        .map(|v| InkoResult::ok(InkoString::alloc(state.string_class, v) as _))
         .unwrap_or_else(InkoResult::none)
 }
 
@@ -98,7 +104,12 @@ pub unsafe extern "system" fn inko_env_argument(
     state: *const State,
     index: i64,
 ) -> *const InkoString {
-    *(*state).arguments.get_unchecked(index as usize)
+    let state = &(*state);
+
+    InkoString::alloc(
+        state.string_class,
+        state.arguments.get_unchecked(index as usize).clone(),
+    )
 }
 
 #[no_mangle]

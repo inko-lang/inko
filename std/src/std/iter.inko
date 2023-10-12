@@ -284,7 +284,7 @@ trait pub Iter[T] {
   #     let zip = a.iter.zip(b.iter)
   #
   #     zip.next # => (10, 40)
-  fn pub move zip[U](other: Iter[U]) -> Stream[(T, U)] {
+  fn pub move zip[U, I: mut + Iter[U]](other: I) -> Stream[(T, U)] {
     Stream.new fn move { self.next.zip(other.next) }
   }
 

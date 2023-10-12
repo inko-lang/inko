@@ -1,6 +1,3 @@
-use crate::llvm::constants::{
-    INT_MASK, INT_SHIFT, MAX_INT, MIN_INT, UNTAG_MASK,
-};
 use crate::llvm::context::Context;
 use inkwell::basic_block::BasicBlock;
 use inkwell::builder;
@@ -171,6 +168,24 @@ impl<'ctx> Builder<'ctx> {
         variable: PointerValue<'ctx>,
     ) -> BasicValueEnum<'ctx> {
         self.inner.build_load(typ, variable, "")
+    }
+
+    pub(crate) fn load_int(
+        &self,
+        variable: PointerValue<'ctx>,
+    ) -> IntValue<'ctx> {
+        self.inner
+            .build_load(self.context.i64_type(), variable, "")
+            .into_int_value()
+    }
+
+    pub(crate) fn load_float(
+        &self,
+        variable: PointerValue<'ctx>,
+    ) -> FloatValue<'ctx> {
+        self.inner
+            .build_load(self.context.f64_type(), variable, "")
+            .into_float_value()
     }
 
     pub(crate) fn load_untyped_pointer(
@@ -461,6 +476,7 @@ impl<'ctx> Builder<'ctx> {
         signed: bool,
     ) -> IntValue<'ctx> {
         let target = match size {
+            1 => self.context.bool_type(),
             8 => self.context.i8_type(),
             16 => self.context.i16_type(),
             32 => self.context.i32_type(),
@@ -468,6 +484,18 @@ impl<'ctx> Builder<'ctx> {
         };
 
         self.inner.build_int_cast_sign_flag(value, target, signed, "")
+    }
+
+    pub(crate) fn bool_to_int(&self, value: IntValue<'ctx>) -> IntValue<'ctx> {
+        let typ = self.context.i64_type();
+
+        self.inner.build_int_cast_sign_flag(value, typ, false, "")
+    }
+
+    pub(crate) fn int_to_bool(&self, value: IntValue<'ctx>) -> IntValue<'ctx> {
+        let typ = self.context.bool_type();
+
+        self.inner.build_int_cast_sign_flag(value, typ, true, "")
     }
 
     pub(crate) fn float_to_float(
@@ -577,34 +605,12 @@ impl<'ctx> Builder<'ctx> {
         self.inner.build_float_compare(FloatPredicate::UNO, value, value, "")
     }
 
-    pub(crate) fn tagged_int(&self, value: i64) -> Option<PointerValue<'ctx>> {
-        if (MIN_INT..=MAX_INT).contains(&value) {
-            let addr = (value << INT_SHIFT) as u64 | (INT_MASK as u64);
-            let int = self.i64_literal(addr as i64);
-
-            Some(int.const_to_pointer(self.context.pointer_type()))
-        } else {
-            None
-        }
-    }
-
     pub(crate) fn bitcast<V: BasicValue<'ctx>, T: BasicType<'ctx>>(
         &self,
         value: V,
         typ: T,
     ) -> BasicValueEnum<'ctx> {
         self.inner.build_bitcast(value, typ, "")
-    }
-
-    pub(crate) fn untagged(
-        &self,
-        pointer: PointerValue<'ctx>,
-    ) -> PointerValue<'ctx> {
-        let tagged_addr = self.pointer_to_int(pointer);
-        let mask = self.u64_literal(UNTAG_MASK);
-        let addr = self.bit_and(tagged_addr, mask);
-
-        self.int_to_pointer(addr)
     }
 
     pub(crate) fn before_instruction(

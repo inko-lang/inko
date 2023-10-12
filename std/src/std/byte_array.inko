@@ -19,7 +19,6 @@ fn extern inko_byte_array_clone(
 ) -> ByteArray
 
 fn extern inko_byte_array_copy_from(
-  state: Pointer[UInt8],
   target: mut ByteArray,
   source: ref ByteArray,
   start: Int,
@@ -32,18 +31,9 @@ fn extern inko_byte_array_drain_to_string(
 ) -> String
 
 fn extern inko_byte_array_drop(bytes: mut ByteArray)
-fn extern inko_byte_array_eq(
-  state: Pointer[UInt8],
-  left: ref ByteArray,
-  right: ref ByteArray,
-) -> Bool
-
+fn extern inko_byte_array_eq(left: ref ByteArray, right: ref ByteArray) -> Bool
 fn extern inko_byte_array_get(bytes: ref ByteArray, index: Int) -> Int
-fn extern inko_byte_array_size(
-  state: Pointer[UInt8],
-  bytes: ref ByteArray,
-) -> Int
-
+fn extern inko_byte_array_size(bytes: ref ByteArray,) -> Int
 fn extern inko_byte_array_push(bytes: mut ByteArray, byte: Int)
 fn extern inko_byte_array_pop(bytes: mut ByteArray) -> Int
 fn extern inko_byte_array_remove(bytes: mut ByteArray, index: Int) -> Int
@@ -146,8 +136,6 @@ class builtin ByteArray {
   #     bytes.clear
   #     bytes.size # => 0
   fn pub mut clear {
-    # Bytes always fit in a tagged pointer, so there's no need to run any
-    # destructors them.
     inko_byte_array_clear(self)
   }
 
@@ -372,7 +360,7 @@ class builtin ByteArray {
   #
   #     b # => ByteArray.from_array([1, 2])
   fn pub mut copy_from(bytes: ref ByteArray, at: Int, size: Int) -> Int {
-    inko_byte_array_copy_from(_INKO.state, self, bytes, at, size)
+    inko_byte_array_copy_from(self, bytes, at, size)
   }
 
   # Resizes `self` to the new size.
@@ -431,7 +419,7 @@ impl Bytes for ByteArray {
   #     ByteArray.new.size     # => 0
   #     ByteArray.from_array([10]).size # => 1
   fn pub size -> Int {
-    inko_byte_array_size(_INKO.state, self)
+    inko_byte_array_size(self)
   }
 
   # Slices `self` into a new `ByteArray`.
@@ -522,7 +510,7 @@ impl Equal[ByteArray] for ByteArray {
   #     ByteArray.from_array([10]) == ByteArray.from_array([10]) # => True
   #     ByteArray.from_array([10]) == ByteArray.from_array([20]) # => False
   fn pub ==(other: ref ByteArray) -> Bool {
-    inko_byte_array_eq(_INKO.state, self, other)
+    inko_byte_array_eq(self, other)
   }
 }
 
@@ -533,7 +521,7 @@ impl Clone[ByteArray] for ByteArray {
 }
 
 impl Hash for ByteArray {
-  fn pub hash(hasher: mut Hasher) {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
     iter.each fn (v) { hasher.write(v) }
   }
 }

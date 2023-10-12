@@ -7,15 +7,10 @@ pub(crate) enum RuntimeFunction {
     CheckRefs,
     ClassObject,
     ClassProcess,
-    FloatBoxed,
-    FloatBoxedPermanent,
-    FloatClone,
     Free,
-    IntBoxed,
-    IntBoxedPermanent,
-    IntClone,
     MessageNew,
     Allocate,
+    AllocateAtomic,
     ProcessFinishMessage,
     ProcessNew,
     ProcessPanic,
@@ -26,7 +21,7 @@ pub(crate) enum RuntimeFunction {
     RuntimeStart,
     RuntimeState,
     StringConcat,
-    StringNewPermanent,
+    StringNew,
 }
 
 impl RuntimeFunction {
@@ -35,17 +30,10 @@ impl RuntimeFunction {
             RuntimeFunction::CheckRefs => "inko_check_refs",
             RuntimeFunction::ClassObject => "inko_class_object",
             RuntimeFunction::ClassProcess => "inko_class_process",
-            RuntimeFunction::FloatBoxed => "inko_float_boxed",
-            RuntimeFunction::FloatBoxedPermanent => {
-                "inko_float_boxed_permanent"
-            }
-            RuntimeFunction::FloatClone => "inko_float_clone",
             RuntimeFunction::Free => "inko_free",
-            RuntimeFunction::IntBoxed => "inko_int_boxed",
-            RuntimeFunction::IntBoxedPermanent => "inko_int_boxed_permanent",
-            RuntimeFunction::IntClone => "inko_int_clone",
             RuntimeFunction::MessageNew => "inko_message_new",
             RuntimeFunction::Allocate => "inko_alloc",
+            RuntimeFunction::AllocateAtomic => "inko_alloc_atomic",
             RuntimeFunction::ProcessFinishMessage => {
                 "inko_process_finish_message"
             }
@@ -58,7 +46,7 @@ impl RuntimeFunction {
             RuntimeFunction::RuntimeStart => "inko_runtime_start",
             RuntimeFunction::RuntimeState => "inko_runtime_state",
             RuntimeFunction::StringConcat => "inko_string_concat",
-            RuntimeFunction::StringNewPermanent => "inko_string_new_permanent",
+            RuntimeFunction::StringNew => "inko_string_new",
         }
     }
 
@@ -69,26 +57,6 @@ impl RuntimeFunction {
         let context = module.context;
         let space = AddressSpace::default();
         let fn_type = match self {
-            RuntimeFunction::IntBoxedPermanent => {
-                let state = module.layouts.state.ptr_type(space).into();
-                let val = context.i64_type().into();
-                let ret = context.pointer_type();
-
-                ret.fn_type(&[state, val], false)
-            }
-            RuntimeFunction::IntBoxed => {
-                let state = module.layouts.state.ptr_type(space).into();
-                let val = context.i64_type().into();
-                let ret = context.pointer_type();
-
-                ret.fn_type(&[state, val], false)
-            }
-            RuntimeFunction::IntClone => {
-                let state = module.layouts.state.ptr_type(space).into();
-                let val = context.pointer_type();
-
-                val.fn_type(&[state, val.into()], false)
-            }
             RuntimeFunction::CheckRefs => {
                 let proc = context.pointer_type().into();
                 let val = context.pointer_type().into();
@@ -102,19 +70,6 @@ impl RuntimeFunction {
 
                 ret.fn_type(&[val], false)
             }
-            RuntimeFunction::FloatBoxedPermanent => {
-                let state = module.layouts.state.ptr_type(space).into();
-                let val = context.f64_type().into();
-                let ret = context.pointer_type();
-
-                ret.fn_type(&[state, val], false)
-            }
-            RuntimeFunction::FloatClone => {
-                let state = module.layouts.state.ptr_type(space).into();
-                let val = context.pointer_type();
-
-                val.fn_type(&[state, val.into()], false)
-            }
             RuntimeFunction::Reduce => {
                 let proc = context.pointer_type().into();
                 let amount = context.i16_type().into();
@@ -122,7 +77,7 @@ impl RuntimeFunction {
 
                 ret.fn_type(&[proc, amount], false)
             }
-            RuntimeFunction::Allocate => {
+            RuntimeFunction::Allocate | RuntimeFunction::AllocateAtomic => {
                 let class = context.pointer_type().into();
                 let ret = context.pointer_type();
 
@@ -134,13 +89,6 @@ impl RuntimeFunction {
                 let ret = context.void_type();
 
                 ret.fn_type(&[proc, val], false)
-            }
-            RuntimeFunction::FloatBoxed => {
-                let state = module.layouts.state.ptr_type(space).into();
-                let val = context.f64_type().into();
-                let ret = context.pointer_type();
-
-                ret.fn_type(&[state, val], false)
             }
             RuntimeFunction::ProcessFinishMessage => {
                 let proc = context.pointer_type().into();
@@ -217,7 +165,7 @@ impl RuntimeFunction {
 
                 ret.fn_type(&[state, strings, length], false)
             }
-            RuntimeFunction::StringNewPermanent => {
+            RuntimeFunction::StringNew => {
                 let state = module.layouts.state.ptr_type(space).into();
                 let bytes = context.pointer_type().into();
                 let length = context.i64_type().into();

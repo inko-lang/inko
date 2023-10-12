@@ -25,7 +25,7 @@ use std::collections::{HashMap, HashSet};
 use types::resolve::TypeResolver;
 use types::{
     ClassInstance, ClassKind, Database, FieldId, TypeArguments, TypeBounds,
-    TypeId, TypeRef, VariableId, VariantId, BOOLEAN_ID, INT_ID, STRING_ID,
+    TypeId, TypeRef, VariableId, VariantId, BOOL_ID, INT_ID, STRING_ID,
 };
 
 fn add_missing_patterns(
@@ -836,7 +836,7 @@ impl<'a> Compiler<'a> {
         match class_id.0 {
             INT_ID => Type::Int,
             STRING_ID => Type::String,
-            BOOLEAN_ID => Type::Finite(vec![
+            BOOL_ID => Type::Finite(vec![
                 (Constructor::False, Vec::new(), Vec::new()),
                 (Constructor::True, Vec::new(), Vec::new()),
             ]),

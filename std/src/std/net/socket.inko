@@ -72,7 +72,7 @@ class extern RawAddress {
 
 class extern AnyResult {
   let @tag: Int
-  let @value: Any
+  let @value: UInt64
 }
 
 class extern IntResult {
@@ -194,13 +194,11 @@ fn extern inko_socket_shutdown_read_write(
 ) -> IntResult
 
 fn extern inko_socket_set_broadcast(
-  state: Pointer[UInt8],
   socket: Pointer[RawSocket],
   value: Bool,
 ) -> IntResult
 
 fn extern inko_socket_set_keepalive(
-  state: Pointer[UInt8],
   socket: Pointer[RawSocket],
   value: Bool,
 ) -> IntResult
@@ -226,25 +224,21 @@ fn extern inko_socket_set_ttl(
 ) -> IntResult
 
 fn extern inko_socket_set_nodelay(
-  state: Pointer[UInt8],
   socket: Pointer[RawSocket],
   value: Bool,
 ) -> IntResult
 
 fn extern inko_socket_set_only_v6(
-  state: Pointer[UInt8],
   socket: Pointer[RawSocket],
   value: Bool,
 ) -> IntResult
 
 fn extern inko_socket_set_reuse_address(
-  state: Pointer[UInt8],
   socket: Pointer[RawSocket],
   value: Bool,
 ) -> IntResult
 
 fn extern inko_socket_set_reuse_port(
-  state: Pointer[UInt8],
   socket: Pointer[RawSocket],
   value: Bool,
 ) -> IntResult
@@ -412,7 +406,7 @@ class pub Socket {
   #
   #     let socket = Socket.ipv4(Type.DGRAM)
   #     let _guard = socket.timeout_after = Instant.new + Duration.from_secs(5)
-  fn pub mut timeout_after=(deadline: ToInstant) -> SocketDeadlineGuard {
+  fn pub mut timeout_after=[T: ToInstant](deadline: T) -> SocketDeadlineGuard {
     if @deadline != NO_DEADLINE { panic('A deadline is already set') }
 
     @deadline = deadline.to_instant.to_int
@@ -431,7 +425,7 @@ class pub Socket {
   #     let socket = Socket.ipv4(Type.DGRAM).unwrap
   #
   #     socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).unwrap
-  fn pub mut bind(ip: ref ToString, port: Int) -> Result[Nil, Error] {
+  fn pub mut bind[T: ToString](ip: ref T, port: Int) -> Result[Nil, Error] {
     match inko_socket_bind(@raw, ip.to_string, port) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
@@ -453,7 +447,7 @@ class pub Socket {
   #     socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).unwrap
   #     socket.listen.unwrap
   #     client.connect(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).unwrap
-  fn pub mut connect(ip: ref ToString, port: Int) -> Result[Nil, Error] {
+  fn pub mut connect[T: ToString](ip: ref T, port: Int) -> Result[Nil, Error] {
     match inko_socket_connect(
       _INKO.state, _INKO.process, @raw, ip.to_string, port, @deadline
     ) {
@@ -543,9 +537,9 @@ class pub Socket {
   #         port: 9999
   #       )
   #       .unwrap
-  fn pub mut send_string_to(
+  fn pub mut send_string_to[T: ToString](
     string: String,
-    ip: ref ToString,
+    ip: ref T,
     port: Int
   ) -> Result[Int, Error] {
     match inko_socket_send_string_to(
@@ -576,9 +570,9 @@ class pub Socket {
   #         port: 9999
   #       )
   #       .unwrap
-  fn pub mut send_bytes_to(
+  fn pub mut send_bytes_to[T: ToString](
     bytes: ref ByteArray,
-    ip: ref ToString,
+    ip: ref T,
     port: Int
   ) -> Result[Int, Error] {
     match inko_socket_send_bytes_to(
@@ -662,7 +656,7 @@ class pub Socket {
 
   # Sets the value of the `IPV6_V6ONLY` option.
   fn pub mut only_ipv6=(value: Bool) -> Result[Nil, Error] {
-    match inko_socket_set_only_v6(_INKO.state, @raw, value) {
+    match inko_socket_set_only_v6(@raw, value) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
@@ -670,7 +664,7 @@ class pub Socket {
 
   # Sets the value of the `TCP_NODELAY` option.
   fn pub mut no_delay=(value: Bool) -> Result[Nil, Error] {
-    match inko_socket_set_nodelay(_INKO.state, @raw, value) {
+    match inko_socket_set_nodelay(@raw, value) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
@@ -678,7 +672,7 @@ class pub Socket {
 
   # Sets the value of the `SO_BROADCAST` option.
   fn pub mut broadcast=(value: Bool) -> Result[Nil, Error] {
-    match inko_socket_set_broadcast(_INKO.state, @raw, value) {
+    match inko_socket_set_broadcast(@raw, value) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
@@ -710,7 +704,7 @@ class pub Socket {
 
   # Sets the value of the `SO_KEEPALIVE` option.
   fn pub mut keepalive=(value: Bool) -> Result[Nil, Error] {
-    match inko_socket_set_keepalive(_INKO.state, @raw, value) {
+    match inko_socket_set_keepalive(@raw, value) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
@@ -718,7 +712,7 @@ class pub Socket {
 
   # Sets the value of the `SO_REUSEADDR` option.
   fn pub mut reuse_address=(value: Bool) -> Result[Nil, Error] {
-    match inko_socket_set_reuse_address(_INKO.state, @raw, value) {
+    match inko_socket_set_reuse_address(@raw, value) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
@@ -729,7 +723,7 @@ class pub Socket {
   # Not all platforms may support this option, in which case the supplied
   # argument will be ignored.
   fn pub mut reuse_port=(value: Bool) -> Result[Nil, Error] {
-    match inko_socket_set_reuse_port(_INKO.state, @raw, value) {
+    match inko_socket_set_reuse_port(@raw, value) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
@@ -868,7 +862,7 @@ class pub UdpSocket {
   #       UdpSocket.new(ip: IpAddress.v4(0, 0, 0, 0), port: 41_000).unwrap
   #
   #     socket1.connect(ip: IpAddress.v4(0, 0, 0, 0), port: 41_000).unwrap
-  fn pub mut connect(ip: ref ToString, port: Int) -> Result[Nil, Error] {
+  fn pub mut connect[T: ToString](ip: ref T, port: Int) -> Result[Nil, Error] {
     @socket.connect(ip, port)
   }
 
@@ -891,9 +885,9 @@ class pub UdpSocket {
   #         port: 9999
   #       )
   #       .unwrap
-  fn pub mut send_string_to(
+  fn pub mut send_string_to[T: ToString](
     string: String,
-    ip: ref ToString,
+    ip: ref T,
     port: Int
   ) -> Result[Int, Error] {
     @socket.send_string_to(string, ip, port)
@@ -919,9 +913,9 @@ class pub UdpSocket {
   #         port: 9999
   #       )
   #       .unwrap
-  fn pub mut send_bytes_to(
+  fn pub mut send_bytes_to[T: ToString](
     bytes: ref ByteArray,
-    ip: ref ToString,
+    ip: ref T,
     port: Int
   ) -> Result[Int, Error] {
     @socket.send_bytes_to(bytes, ip, port)
@@ -1028,10 +1022,10 @@ class pub TcpClient {
   #         timeout_after: Duration.from_secs(5)
   #       )
   #       .unwrap
-  fn pub static with_timeout(
+  fn pub static with_timeout[T: ToInstant](
     ip: ref IpAddress,
     port: Int,
-    timeout_after: ToInstant
+    timeout_after: T
   ) -> Result[TcpClient, Error] {
     let socket = if ip.v6? {
       try Socket.ipv6(Type.STREAM)
@@ -1214,7 +1208,7 @@ class pub UnixAddress {
   #     import std.net.socket.UnixAddress
   #
   #     UnixAddress.new("\0example")
-  fn pub static new(address: ref ToString) -> UnixAddress {
+  fn pub static new[T: ToString](address: ref T) -> UnixAddress {
     UnixAddress { @address = address.to_string }
   }
 
@@ -1375,7 +1369,9 @@ class pub UnixSocket {
   #
   #     let socket = UnixSocket.new(Type.DGRAM)
   #     let _guard = socket.timeout_after = Instant.new + Duration.from_secs(5)
-  fn pub mut timeout_after=(deadline: ToInstant) -> UnixSocketDeadlineGuard {
+  fn pub mut timeout_after=[T: ToInstant](
+    deadline: T
+  ) -> UnixSocketDeadlineGuard {
     if @deadline != NO_DEADLINE { panic('A deadline is already set') }
 
     @deadline = deadline.to_instant.to_int
@@ -1393,7 +1389,7 @@ class pub UnixSocket {
   #     let socket = UnixSocket.new(Type.DGRAM).unwrap
   #
   #     socket.bind('/tmp/test.sock').unwrap
-  fn pub mut bind(path: ref ToString) -> Result[Nil, Error] {
+  fn pub mut bind[T: ToString](path: ref T) -> Result[Nil, Error] {
     match inko_socket_bind(@raw, path.to_string, 0) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
@@ -1415,7 +1411,7 @@ class pub UnixSocket {
   #     listener.listen.unwrap
   #
   #     stream.connect('/tmp/test.sock').unwrap
-  fn pub mut connect(path: ref ToString) -> Result[Nil, Error] {
+  fn pub mut connect[T: ToString](path: ref T) -> Result[Nil, Error] {
     match inko_socket_connect(
       _INKO.state, _INKO.process, @raw, path.to_string, 0, @deadline
     ) {
@@ -1496,9 +1492,9 @@ class pub UnixSocket {
   #
   #     socket.bind('/tmp/test.sock').unwrap
   #     socket.send_string_to(string: 'hello', address: '/tmp/test.sock').unwrap
-  fn pub mut send_string_to(
+  fn pub mut send_string_to[T: ToString](
     string: String,
-    address: ref ToString
+    address: ref T
   ) -> Result[Int, Error] {
     let addr = address.to_string
 
@@ -1523,9 +1519,9 @@ class pub UnixSocket {
   #
   #     socket.bind('/tmp/test.sock').unwrap
   #     socket.send_bytes_to(bytes: bytes, address: '/tmp/test.sock').unwrap
-  fn pub mut send_bytes_to(
+  fn pub mut send_bytes_to[T: ToString](
     bytes: ref ByteArray,
-    address: ref ToString
+    address: ref T
   ) -> Result[Int, Error] {
     let addr = address.to_string
 
@@ -1705,7 +1701,9 @@ class pub UnixDatagram {
   #     import std.net.socket.UnixDatagram
   #
   #     UnixDatagram.new('/tmp/test.sock').unwrap
-  fn pub static new(address: ref ToString) -> Result[UnixDatagram, Error] {
+  fn pub static new[T: ToString](
+    address: ref T
+  ) -> Result[UnixDatagram, Error] {
     let socket = try UnixSocket.new(Type.DGRAM)
 
     try socket.bind(address)
@@ -1728,7 +1726,7 @@ class pub UnixDatagram {
   #     let socket2 = UnixDatagram.new('/tmp/test2.sock').unwrap
   #
   #     socket1.connect('/tmp/test2.sock').unwrap
-  fn pub mut connect(address: ref ToString) -> Result[Nil, Error] {
+  fn pub mut connect[T: ToString](address: ref T) -> Result[Nil, Error] {
     @socket.connect(address)
   }
 
@@ -1743,9 +1741,9 @@ class pub UnixDatagram {
   #     let socket = UnixDatagram.new('/tmp/test.sock').unwrap
   #
   #     socket.send_string_to(string: 'hello', address: '/tmp/test.sock').unwrap
-  fn pub mut send_string_to(
+  fn pub mut send_string_to[T: ToString](
     string: String,
-    address: ref ToString
+    address: ref T
   ) -> Result[Int, Error] {
     @socket.send_string_to(string, address)
   }
@@ -1762,9 +1760,9 @@ class pub UnixDatagram {
   #     let bytes = 'hello'.to_byte_array
   #
   #     socket.send_bytes_to(bytes: bytes, address: '/tmp/test.sock').unwrap
-  fn pub mut send_bytes_to(
+  fn pub mut send_bytes_to[T: ToString](
     bytes: ref ByteArray,
-    address: ref ToString
+    address: ref T
   ) -> Result[Int, Error] {
     @socket.send_bytes_to(bytes, address)
   }
@@ -1836,7 +1834,7 @@ class pub UnixClient {
   #     let listener = UnixServer.new('/tmp/test.sock').unwrap
   #
   #     UnixClient.new('/tmp/test.sock').unwrap
-  fn pub static new(address: ref ToString) -> Result[UnixClient, Error] {
+  fn pub static new[T: ToString](address: ref T) -> Result[UnixClient, Error] {
     let socket = try UnixSocket.new(Type.STREAM)
 
     try socket.connect(address)
@@ -1862,9 +1860,9 @@ class pub UnixClient {
   #         timeout_after: Duration.from_secs(5)
   #       )
   #       .unwrap
-  fn pub static with_timeout(
-    address: ref ToString,
-    timeout_after: ToInstant
+  fn pub static with_timeout[A: ToString, I: ToInstant](
+    address: ref A,
+    timeout_after: I
   ) -> Result[UnixClient, Error] {
     let socket = try UnixSocket.new(Type.STREAM)
 
@@ -1948,7 +1946,7 @@ class pub UnixServer {
   #     import std.net.socket.UnixServer
   #
   #     UnixServer.new('/tmp/test.sock').unwrap
-  fn pub static new(address: ref ToString) -> Result[UnixServer, Error] {
+  fn pub static new[T: ToString](address: ref T) -> Result[UnixServer, Error] {
     let socket = try UnixSocket.new(Type.STREAM)
 
     try socket.bind(address)

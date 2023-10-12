@@ -1,4 +1,4 @@
-use crate::mem::{Bool, ByteArray, Float, Int, String as InkoString};
+use crate::mem::{ByteArray, String as InkoString};
 use crate::process::ProcessPointer;
 use crate::result::Result as InkoResult;
 use crate::runtime::helpers::read_into;
@@ -15,7 +15,6 @@ pub unsafe extern "system" fn inko_file_drop(file: *mut File) {
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_file_seek(
-    state: *const State,
     process: ProcessPointer,
     file: *mut File,
     offset: i64,
@@ -28,9 +27,7 @@ pub unsafe extern "system" fn inko_file_seek(
 
     process
         .blocking(|| (*file).seek(seek))
-        .map(
-            |res| InkoResult::ok(Int::new((*state).int_class, res as i64) as _),
-        )
+        .map(|res| InkoResult::ok(res as _))
         .unwrap_or_else(InkoResult::io_error)
 }
 
@@ -47,60 +44,48 @@ pub unsafe extern "system" fn inko_file_flush(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_file_write_string(
-    state: *const State,
     process: ProcessPointer,
     file: *mut File,
     input: *const InkoString,
 ) -> InkoResult {
     process
         .blocking(|| (*file).write(InkoString::read(input).as_bytes()))
-        .map(|size| {
-            InkoResult::ok(Int::new((*state).int_class, size as i64) as _)
-        })
+        .map(|size| InkoResult::ok(size as _))
         .unwrap_or_else(InkoResult::io_error)
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_file_write_bytes(
-    state: *const State,
     process: ProcessPointer,
     file: *mut File,
     input: *mut ByteArray,
 ) -> InkoResult {
     process
         .blocking(|| (*file).write(&(*input).value))
-        .map(|size| {
-            InkoResult::ok(Int::new((*state).int_class, size as i64) as _)
-        })
+        .map(|size| InkoResult::ok(size as _))
         .unwrap_or_else(InkoResult::io_error)
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_file_copy(
-    state: *const State,
     process: ProcessPointer,
     from: *const InkoString,
     to: *const InkoString,
 ) -> InkoResult {
     process
         .blocking(|| fs::copy(InkoString::read(from), InkoString::read(to)))
-        .map(|size| {
-            InkoResult::ok(Int::new((*state).int_class, size as i64) as _)
-        })
+        .map(|size| InkoResult::ok(size as _))
         .unwrap_or_else(InkoResult::io_error)
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_file_size(
-    state: *const State,
     process: ProcessPointer,
     path: *const InkoString,
 ) -> InkoResult {
     process
         .blocking(|| fs::metadata(InkoString::read(path)))
-        .map(|meta| {
-            InkoResult::ok(Int::new((*state).int_class, meta.len() as i64) as _)
-        })
+        .map(|meta| InkoResult::ok(meta.len() as _))
         .unwrap_or_else(InkoResult::io_error)
 }
 
@@ -117,7 +102,6 @@ pub unsafe extern "system" fn inko_file_remove(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_path_created_at(
-    state: *const State,
     process: ProcessPointer,
     path: *const InkoString,
 ) -> InkoResult {
@@ -125,15 +109,12 @@ pub unsafe extern "system" fn inko_path_created_at(
         .blocking(|| fs::metadata(InkoString::read(path)))
         .and_then(|meta| meta.created())
         .map(system_time_to_timestamp)
-        .map(|time| {
-            InkoResult::ok(Float::alloc((*state).float_class, time) as _)
-        })
+        .map(|time| InkoResult::ok(time.to_bits() as _))
         .unwrap_or_else(InkoResult::io_error)
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_path_modified_at(
-    state: *const State,
     process: ProcessPointer,
     path: *const InkoString,
 ) -> InkoResult {
@@ -141,15 +122,12 @@ pub unsafe extern "system" fn inko_path_modified_at(
         .blocking(|| fs::metadata(InkoString::read(path)))
         .and_then(|meta| meta.modified())
         .map(system_time_to_timestamp)
-        .map(|time| {
-            InkoResult::ok(Float::alloc((*state).float_class, time) as _)
-        })
+        .map(|time| InkoResult::ok(time.to_bits() as _))
         .unwrap_or_else(InkoResult::io_error)
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_path_accessed_at(
-    state: *const State,
     process: ProcessPointer,
     path: *const InkoString,
 ) -> InkoResult {
@@ -157,9 +135,7 @@ pub unsafe extern "system" fn inko_path_accessed_at(
         .blocking(|| fs::metadata(InkoString::read(path)))
         .and_then(|meta| meta.accessed())
         .map(system_time_to_timestamp)
-        .map(|time| {
-            InkoResult::ok(Float::alloc((*state).float_class, time) as _)
-        })
+        .map(|time| InkoResult::ok(time.to_bits() as _))
         .unwrap_or_else(InkoResult::io_error)
 }
 
@@ -181,49 +157,43 @@ pub unsafe extern "system" fn inko_path_expand(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_path_is_file(
-    state: *const State,
     process: ProcessPointer,
     path: *const InkoString,
-) -> *const Bool {
-    let state = &*state;
+) -> i64 {
     let meta = process.blocking(|| fs::metadata(InkoString::read(path)));
 
     if meta.map(|m| m.is_file()).unwrap_or(false) {
-        state.true_singleton
+        1
     } else {
-        state.false_singleton
+        0
     }
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_path_is_directory(
-    state: *const State,
     process: ProcessPointer,
     path: *const InkoString,
-) -> *const Bool {
-    let state = &*state;
+) -> i64 {
     let meta = process.blocking(|| fs::metadata(InkoString::read(path)));
 
     if meta.map(|m| m.is_dir()).unwrap_or(false) {
-        state.true_singleton
+        1
     } else {
-        state.false_singleton
+        0
     }
 }
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_path_exists(
-    state: *const State,
     process: ProcessPointer,
     path: *const InkoString,
-) -> *const Bool {
-    let state = &*state;
+) -> i64 {
     let meta = process.blocking(|| fs::metadata(InkoString::read(path)));
 
     if meta.is_ok() {
-        state.true_singleton
+        1
     } else {
-        state.false_singleton
+        0
     }
 }
 
@@ -248,7 +218,6 @@ pub unsafe extern "system" fn inko_file_open(
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_file_read(
-    state: *const State,
     process: ProcessPointer,
     file: *mut File,
     buffer: *mut ByteArray,
@@ -259,7 +228,7 @@ pub unsafe extern "system" fn inko_file_read(
 
     process
         .blocking(|| read_into(file, buffer, size))
-        .map(|size| InkoResult::ok(Int::new((*state).int_class, size) as _))
+        .map(|size| InkoResult::ok(size as _))
         .unwrap_or_else(InkoResult::io_error)
 }
 

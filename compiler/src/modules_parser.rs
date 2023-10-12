@@ -101,7 +101,7 @@ impl<'a> ModulesParser<'a> {
                     } else {
                         self.state.diagnostics.error(
                             DiagnosticId::InvalidFile,
-                            format!("The module '{}' couldn't be found", dep),
+                            format!("the module '{}' couldn't be found", dep),
                             file.clone(),
                             location,
                         );
@@ -134,7 +134,7 @@ impl<'a> ModulesParser<'a> {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidFile,
                     format!(
-                        "Failed to read {:?}: {}",
+                        "failed to read {:?}: {}",
                         file.to_string_lossy(),
                         err
                     ),
@@ -201,7 +201,7 @@ mod tests {
 
         let mut state = State::new(Config::new());
 
-        state.config.sources.push(temp_dir());
+        state.config.add_source_directory(temp_dir());
         state.config.implicit_imports = Vec::new();
 
         let mut pass = ModulesParser::new(&mut state);
@@ -226,7 +226,7 @@ mod tests {
 
         let mut state = State::new(Config::new());
 
-        state.config.sources.push(temp_dir());
+        state.config.add_source_directory(temp_dir());
         state.config.implicit_imports = Vec::new();
 
         let mut pass = ModulesParser::new(&mut state);
@@ -245,7 +245,7 @@ mod tests {
 
         let mut state = State::new(Config::new());
 
-        state.config.sources.push(temp_dir());
+        state.config.add_source_directory(temp_dir());
         state.config.implicit_imports = Vec::new();
 
         let mut pass = ModulesParser::new(&mut state);

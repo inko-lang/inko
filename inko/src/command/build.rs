@@ -55,6 +55,8 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
 
     options.optflag("", "static", "Statically link imported C libraries");
     options.optflag("", "dot", "Output the MIR of every module as DOT files");
+    options.optflag("", "verify-llvm", "Verify LLVM IR when generating code");
+    options.optflag("", "write-llvm", "Write LLVM IR files to disk");
 
     let matches = options.parse(arguments)?;
 
@@ -81,12 +83,20 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         config.dot = true;
     }
 
+    if matches.opt_present("verify-llvm") {
+        config.verify_llvm = true;
+    }
+
+    if matches.opt_present("write-llvm") {
+        config.write_llvm = true;
+    }
+
     if matches.opt_present("static") {
         config.static_linking = true;
     }
 
     for path in matches.opt_strs("i") {
-        config.sources.push(path.into());
+        config.add_source_directory(path.into());
     }
 
     if let Some(path) = matches.opt_str("o") {

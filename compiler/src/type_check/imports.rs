@@ -112,7 +112,7 @@ impl<'a> DefineImportedTypes<'a> {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidSymbol,
                     format!(
-                        "The symbol '{}' is private and can't be imported",
+                        "the symbol '{}' is private and can't be imported",
                         name
                     ),
                     self.file(),

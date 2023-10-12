@@ -1,11 +1,6 @@
 //! Pretty-printing of MIR for debugging purposes.
-//!
-//! This module currently allows unused functions, as it's not yet clear how
-//! we're going to expose this in the compiler. See
-//! https://github.com/inko-lang/inko/issues/320 for more information.
-#![allow(unused)]
-
 use crate::mir::{BlockId, Method, Mir};
+use crate::symbol_names::method_name;
 use std::fmt::Write;
 use types::{Database, TypeId};
 
@@ -24,21 +19,20 @@ pub(crate) fn to_dot(db: &Database, mir: &Mir, methods: &[&Method]) -> String {
         buffer.push_str("edge[fontname=\"monospace\", fontsize=10];\n");
 
         let rec_name = match method.id.receiver_id(db) {
-            TypeId::Class(id) => id.name(db),
-            TypeId::Trait(id) => id.name(db),
-            TypeId::ClassInstance(ins) => ins.instance_of().name(db),
-            TypeId::TraitInstance(ins) => ins.instance_of().name(db),
-            _ => "",
+            TypeId::Class(id) => id.name(db).clone(),
+            TypeId::Trait(id) => id.name(db).clone(),
+            TypeId::ClassInstance(ins) => ins.instance_of().name(db).clone(),
+            TypeId::TraitInstance(ins) => ins.instance_of().name(db).clone(),
+            _ => String::new(),
         };
 
         let name = if rec_name.is_empty() {
-            format!("{}()", method.id.name(db))
+            format!("{}()", method_name(db, method.id),)
         } else {
-            format!("{}.{}()", rec_name, method.id.name(db))
+            format!("{}.{}()", rec_name, method_name(db, method.id),)
         };
 
         let _ = writeln!(buffer, "label=\"{}\";", name);
-
         let reachable_blocks = method.body.reachable();
 
         for (index, block) in method.body.blocks.iter().enumerate() {

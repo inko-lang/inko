@@ -216,6 +216,8 @@ fn pub tests(t: mut Tests) {
 
   t.test('Array.get') fn (t) {
     t.equal([10].get(0), 10)
+    t.equal([10.5].get(0), 10.5)
+    t.equal(['foo'].get(0), 'foo')
   }
 
   t.panic('Array.get with an invalid index') fn {

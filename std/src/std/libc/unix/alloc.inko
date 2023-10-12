@@ -7,17 +7,17 @@ fn extern memmove(
 
 fn pub extern free(pointer: Pointer[UInt8])
 
-fn pub resize(buffer: Pointer[UInt8], size: Int) -> Pointer[UInt8] {
-  let ptr = realloc(buffer, size)
+fn pub resize[T](buffer: Pointer[T], size: Int) -> Pointer[T] {
+  let ptr = realloc(buffer as Pointer[UInt8], size)
 
   # In this case there's nothing we can do but abort.
   if ptr as Int == 0 and size != 0 {
     panic('std.libc.unix.alloc.resize() failed to allocate memory')
   }
 
-  ptr
+  ptr as Pointer[T]
 }
 
-fn pub copy(from: Pointer[UInt8], to: Pointer[UInt8], size: Int) {
-  memmove(to, from, size)
+fn pub copy[T](from: Pointer[T], to: Pointer[T], size: Int) {
+  memmove(to as Pointer[UInt8], from as Pointer[UInt8], size)
 }

@@ -178,14 +178,14 @@ trait pub Reporter {
 }
 
 # A test reporter that prints results in a simple text based format.
-class pub Plain {
-  let @out: Write
+class pub Plain[T: mut + Write] {
+  let @out: T
   let @tests: Int
   let @failed: Array[Test]
   let @colors: Bool
 
   # Returns a new reporter that writes to the given output stream.
-  fn pub static new(out: Write, colors: Bool) -> Plain {
+  fn pub static new(out: T, colors: Bool) -> Plain[T] {
     Plain { @out = out, @tests = 0, @failed = [], @colors = colors }
   }
 
@@ -478,7 +478,7 @@ class pub Tests {
       @tests = [],
       @children = [],
       @concurrency = cpu_cores,
-      @reporter = Plain.new(out: STDOUT.new, colors: true),
+      @reporter = Plain.new(out: STDOUT.new, colors: true) as Reporter,
       @filter = Filter.None,
       @seed = Option.None,
     }

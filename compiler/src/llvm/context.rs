@@ -10,7 +10,10 @@ use inkwell::types::{
 use inkwell::values::FunctionValue;
 use inkwell::{context, AddressSpace};
 use std::mem::size_of;
-use types::{Block, Database, ForeignType, MethodId, TypeId, TypeRef};
+use types::{
+    Block, Database, ForeignType, MethodId, TypeId, TypeRef, BOOL_ID, FLOAT_ID,
+    INT_ID, NIL_ID,
+};
 
 /// A wrapper around an LLVM Context that provides some additional methods.
 pub(crate) struct Context {
@@ -151,22 +154,56 @@ impl Context {
         self.inner.create_module(name)
     }
 
-    pub(crate) fn foreign_type<'a>(
+    pub(crate) fn llvm_type<'a>(
         &'a self,
         db: &Database,
         layouts: &Layouts<'a>,
         type_ref: TypeRef,
-    ) -> Option<BasicTypeEnum<'a>> {
-        let space = AddressSpace::default();
+    ) -> BasicTypeEnum<'a> {
+        if let Ok(id) = type_ref.type_id(db) {
+            let base = match id {
+                TypeId::Foreign(ForeignType::Int(8, _)) => {
+                    self.i8_type().as_basic_type_enum()
+                }
+                TypeId::Foreign(ForeignType::Int(16, _)) => {
+                    self.i16_type().as_basic_type_enum()
+                }
+                TypeId::Foreign(ForeignType::Int(32, _)) => {
+                    self.i32_type().as_basic_type_enum()
+                }
+                TypeId::Foreign(ForeignType::Int(_, _)) => {
+                    self.i64_type().as_basic_type_enum()
+                }
+                TypeId::Foreign(ForeignType::Float(32)) => {
+                    self.f32_type().as_basic_type_enum()
+                }
+                TypeId::Foreign(ForeignType::Float(_)) => {
+                    self.f64_type().as_basic_type_enum()
+                }
+                TypeId::ClassInstance(ins)
+                    if ins.instance_of().kind(db).is_extern() =>
+                {
+                    layouts.instances[&ins.instance_of()].as_basic_type_enum()
+                }
+                TypeId::ClassInstance(ins) => match ins.instance_of().0 {
+                    INT_ID | BOOL_ID | NIL_ID => {
+                        self.i64_type().as_basic_type_enum()
+                    }
+                    FLOAT_ID => self.f64_type().as_basic_type_enum(),
+                    _ => layouts.instances[&ins.instance_of()]
+                        .ptr_type(AddressSpace::default())
+                        .as_basic_type_enum(),
+                },
+                _ => self.pointer_type().as_basic_type_enum(),
+            };
 
-        match type_ref {
-            TypeRef::Owned(id) => self
-                .foreign_base_type(db, layouts, id)
-                .map(|v| v.as_basic_type_enum()),
-            TypeRef::Pointer(id) => self
-                .foreign_base_type(db, layouts, id)
-                .map(|v| v.ptr_type(space).as_basic_type_enum()),
-            _ => None,
+            if let TypeRef::Pointer(_) = type_ref {
+                base.ptr_type(AddressSpace::default()).as_basic_type_enum()
+            } else {
+                base
+            }
+        } else {
+            self.pointer_type().as_basic_type_enum()
         }
     }
 
@@ -176,48 +213,10 @@ impl Context {
         layouts: &Layouts<'a>,
         method: MethodId,
     ) -> Option<BasicTypeEnum<'a>> {
-        let ret = method.return_type(db);
-
-        self.foreign_type(db, layouts, ret).map(Some).unwrap_or_else(|| {
-            if method.returns_value(db) {
-                Some(self.pointer_type().as_basic_type_enum())
-            } else {
-                None
-            }
-        })
-    }
-
-    fn foreign_base_type<'a>(
-        &'a self,
-        db: &Database,
-        layouts: &Layouts<'a>,
-        id: TypeId,
-    ) -> Option<BasicTypeEnum<'a>> {
-        match id {
-            TypeId::Foreign(ForeignType::Int(size, _)) => {
-                let typ = match size {
-                    8 => self.i8_type(),
-                    16 => self.i16_type(),
-                    32 => self.i32_type(),
-                    _ => self.i64_type(),
-                };
-
-                Some(typ.as_basic_type_enum())
-            }
-            TypeId::Foreign(ForeignType::Float(size)) => {
-                let typ = match size {
-                    32 => self.f32_type(),
-                    _ => self.f64_type(),
-                };
-
-                Some(typ.as_basic_type_enum())
-            }
-            TypeId::ClassInstance(ins)
-                if ins.instance_of().kind(db).is_extern() =>
-            {
-                Some(layouts.instances[&ins.instance_of()].as_basic_type_enum())
-            }
-            _ => None,
+        if method.returns_value(db) {
+            Some(self.llvm_type(db, layouts, method.return_type(db)))
+        } else {
+            None
         }
     }
 }

@@ -1,4 +1,3 @@
-//! Type checking of types.
 use crate::{
     Arguments, ClassInstance, Database, ForeignType, MethodId, TraitInstance,
     TypeArguments, TypeBounds, TypeId, TypeParameterId, TypePlaceholderId,
@@ -7,27 +6,17 @@ use crate::{
 use std::collections::HashSet;
 
 #[derive(Copy, Clone)]
-enum TraitSubtyping {
-    /// Trait subtyping isn't allowed.
+enum Subtyping {
     No,
-
-    /// Trait subtyping is allowed.
     Yes,
-
-    /// Trait subtyping is allowed, but only for the first check.
     Once,
-}
-
-impl TraitSubtyping {
-    fn allowed(self) -> bool {
-        matches!(self, TraitSubtyping::Yes | TraitSubtyping::Once)
-    }
 }
 
 #[derive(Copy, Clone)]
 struct Rules {
-    /// When set to `true`, subtyping of types through traits is allowed.
-    subtyping: TraitSubtyping,
+    /// The rules to apply when type checking a class instance against a trait
+    /// instance.
+    class_subtyping: Subtyping,
 
     /// When set to `true`, owned types can be type checked against reference
     /// types.
@@ -45,16 +34,16 @@ struct Rules {
 impl Rules {
     fn new() -> Rules {
         Rules {
-            subtyping: TraitSubtyping::Yes,
+            class_subtyping: Subtyping::No,
             relaxed_ownership: false,
             infer_as_rigid: false,
             type_cast: false,
         }
     }
 
-    fn no_subtyping(mut self) -> Rules {
-        if let TraitSubtyping::Yes = self.subtyping {
-            self.subtyping = TraitSubtyping::No
+    fn without_subtyping(mut self) -> Rules {
+        if let Subtyping::Yes = self.class_subtyping {
+            self.class_subtyping = Subtyping::No
         }
 
         self
@@ -86,7 +75,12 @@ impl Rules {
     }
 
     fn with_one_time_subtyping(mut self) -> Rules {
-        self.subtyping = TraitSubtyping::Once;
+        self.class_subtyping = Subtyping::Once;
+        self
+    }
+
+    fn with_subtyping(mut self) -> Rules {
+        self.class_subtyping = Subtyping::Yes;
         self
     }
 }
@@ -146,7 +140,7 @@ impl<'a> TypeChecker<'a> {
             Environment::new(left.type_arguments(db), right.type_arguments(db));
 
         let mut checker = TypeChecker::new(db);
-        let rules = Rules::new().with_type_cast();
+        let rules = Rules::new().with_type_cast().with_one_time_subtyping();
 
         checker.check_type_ref(left, right, &mut env, rules)
     }
@@ -166,21 +160,11 @@ impl<'a> TypeChecker<'a> {
 
     pub fn check_argument(
         mut self,
-        left_original: TypeRef,
         left: TypeRef,
         right: TypeRef,
         env: &mut Environment,
     ) -> bool {
-        let mut rules = Rules::new();
-
-        // If we pass an owned value to a mut, we'll allow comparing with a
-        // trait but _only_ at the top (i.e `Cat -> mut Animal` is fine, but
-        // `Cat -> mut Array[Animal]` isn't).
-        if left_original.is_owned_or_uni(self.db) && right.is_mut(self.db) {
-            rules.subtyping = TraitSubtyping::Once;
-        }
-
-        self.check_type_ref(left, right, env, rules)
+        self.check_type_ref(left, right, env, Rules::new().without_subtyping())
     }
 
     pub fn check_method(
@@ -209,23 +193,32 @@ impl<'a> TypeChecker<'a> {
             return false;
         }
 
-        let param_rules = rules.no_subtyping();
-
-        lhs.type_parameters
+        if !lhs
+            .type_parameters
             .values()
             .iter()
             .zip(rhs.type_parameters.values().iter())
-            .all(|(&lhs, &rhs)| {
-                self.check_parameters(lhs, rhs, env, param_rules)
-            })
-            && self.check_arguments(
-                &lhs.arguments,
-                &rhs.arguments,
-                env,
-                rules,
-                true,
-            )
-            && self.check_type_ref(lhs.return_type, rhs.return_type, env, rules)
+            .all(|(&lhs, &rhs)| self.check_parameters(lhs, rhs, env, rules))
+        {
+            return false;
+        }
+
+        if !self.check_arguments(
+            &lhs.arguments,
+            &rhs.arguments,
+            env,
+            rules,
+            true,
+        ) {
+            return false;
+        }
+
+        self.check_type_ref(
+            lhs.return_type,
+            rhs.return_type,
+            env,
+            rules.with_subtyping(),
+        )
     }
 
     pub fn check_bounds(
@@ -233,8 +226,6 @@ impl<'a> TypeChecker<'a> {
         bounds: &TypeBounds,
         env: &mut Environment,
     ) -> bool {
-        let rules = Rules::new();
-
         // When verifying bounds, the type on the right-hand side is the bound.
         // This bound may indirectly refer to type parameters from the type on
         // the left (e.g. through a required trait). As such we must expose
@@ -253,7 +244,7 @@ impl<'a> TypeChecker<'a> {
             env.left.assign(bound, val);
 
             let mut env = env.with_left_as_right();
-            let rules = rules.with_relaxed_ownership();
+            let rules = Rules::new().with_relaxed_ownership().with_subtyping();
 
             if bound.is_mutable(self.db) && !val.is_mutable(self.db) {
                 return false;
@@ -299,15 +290,6 @@ impl<'a> TypeChecker<'a> {
         // If at this point we encounter a type placeholder, it means the
         // placeholder is yet to be assigned a value.
         match left {
-            TypeRef::Any => match right {
-                TypeRef::Any | TypeRef::Error => true,
-                TypeRef::Placeholder(id) => {
-                    id.assign(self.db, left);
-                    id.required(self.db)
-                        .map_or(true, |p| p.requirements(self.db).is_empty())
-                }
-                _ => false,
-            },
             // A `Never` can't be passed around because it, well, would never
             // happen. We allow the comparison so code such as `try else panic`
             // (where `panic` returns `Never`) is valid.
@@ -347,7 +329,8 @@ impl<'a> TypeChecker<'a> {
                             env,
                             rules,
                         ),
-                    TypeRef::Any | TypeRef::Error => true,
+                    TypeRef::Error => true,
+                    TypeRef::Owned(TypeId::Foreign(_)) => true,
                     _ => false,
                 }
             }
@@ -371,15 +354,6 @@ impl<'a> TypeChecker<'a> {
                         env,
                         rules,
                     ),
-                TypeRef::Any => {
-                    if let TypeId::ClassInstance(ins) = left_id {
-                        if ins.instance_of().kind(self.db).is_extern() {
-                            return false;
-                        }
-                    }
-
-                    true
-                }
                 TypeRef::Pointer(_) if rules.type_cast => match left_id {
                     TypeId::ClassInstance(ins) => ins.instance_of().0 == INT_ID,
                     TypeId::Foreign(ForeignType::Int(_, _)) => true,
@@ -408,15 +382,6 @@ impl<'a> TypeChecker<'a> {
                         env,
                         rules,
                     ),
-                TypeRef::Any => {
-                    if let TypeId::ClassInstance(ins) = left_id {
-                        if ins.instance_of().kind(self.db).is_extern() {
-                            return false;
-                        }
-                    }
-
-                    true
-                }
                 TypeRef::Error => true,
                 _ => false,
             },
@@ -436,7 +401,7 @@ impl<'a> TypeChecker<'a> {
                         env,
                         rules,
                     ),
-                TypeRef::Any | TypeRef::Error => true,
+                TypeRef::Error => true,
                 _ => false,
             },
             TypeRef::Ref(left_id) => match right {
@@ -474,7 +439,7 @@ impl<'a> TypeChecker<'a> {
                         rules,
                     )
                 }
-                TypeRef::Any | TypeRef::Error => true,
+                TypeRef::Error => true,
                 _ => false,
             },
             TypeRef::Mut(left_id) => match right {
@@ -485,7 +450,7 @@ impl<'a> TypeChecker<'a> {
                     left_id,
                     right_id,
                     env,
-                    rules.no_subtyping(),
+                    rules.without_subtyping(),
                 ),
                 TypeRef::Owned(right_id) | TypeRef::Uni(right_id)
                     if left.is_value_type(self.db) =>
@@ -501,7 +466,7 @@ impl<'a> TypeChecker<'a> {
                         env,
                         rules,
                     ),
-                TypeRef::Any | TypeRef::Error => true,
+                TypeRef::Error => true,
                 _ => false,
             },
             TypeRef::UniRef(left_id) => match right {
@@ -535,6 +500,15 @@ impl<'a> TypeChecker<'a> {
                 TypeRef::Owned(TypeId::ClassInstance(ins)) => {
                     rules.type_cast && ins.instance_of().0 == INT_ID
                 }
+                TypeRef::Placeholder(right_id) => self
+                    .check_type_id_with_placeholder(
+                        left,
+                        left_id,
+                        original_right,
+                        right_id,
+                        env,
+                        rules,
+                    ),
                 _ => false,
             },
             _ => false,
@@ -548,15 +522,10 @@ impl<'a> TypeChecker<'a> {
         env: &mut Environment,
         mut rules: Rules,
     ) -> bool {
-        // When sub-typing is allowed once (as is done when moving owned
-        // arguments into trait references), this one-time exception only
-        // applies when comparing a class against a trait. Here we disable the
-        // rule for every thing else in one go, so it's more difficult to
-        // accidentally apply the wrong rules for other comparisons.
         let trait_rules = rules;
 
-        if let TraitSubtyping::Once = rules.subtyping {
-            rules.subtyping = TraitSubtyping::No;
+        if let Subtyping::Once = rules.class_subtyping {
+            rules.class_subtyping = Subtyping::No;
         }
 
         match left_id {
@@ -601,13 +570,27 @@ impl<'a> TypeChecker<'a> {
                 TypeId::TraitInstance(rhs)
                     if !lhs.instance_of().kind(self.db).is_extern() =>
                 {
+                    if rules.type_cast && !lhs.instance_of().allow_cast(self.db)
+                    {
+                        return false;
+                    }
+
                     self.check_class_with_trait(lhs, rhs, env, trait_rules)
                 }
+                TypeId::TypeParameter(_) if rules.type_cast => false,
                 TypeId::TypeParameter(rhs)
                     if !lhs.instance_of().kind(self.db).is_extern() =>
                 {
                     rhs.requirements(self.db).into_iter().all(|req| {
-                        self.check_class_with_trait(lhs, req, env, rules)
+                        // One-time subtyping is enabled because we want to
+                        // allow passing classes to type parameters with
+                        // requirements.
+                        self.check_class_with_trait(
+                            lhs,
+                            req,
+                            env,
+                            rules.with_one_time_subtyping(),
+                        )
                     })
                 }
                 TypeId::Foreign(_) => rules.type_cast,
@@ -617,6 +600,7 @@ impl<'a> TypeChecker<'a> {
                 TypeId::TraitInstance(rhs) => {
                     self.check_traits(lhs, rhs, env, rules)
                 }
+                TypeId::TypeParameter(_) if rules.type_cast => false,
                 TypeId::TypeParameter(rhs) => rhs
                     .requirements(self.db)
                     .into_iter()
@@ -624,15 +608,14 @@ impl<'a> TypeChecker<'a> {
                 _ => false,
             },
             TypeId::TypeParameter(lhs) => match right_id {
-                TypeId::TraitInstance(rhs) => {
-                    self.check_parameter_with_trait(lhs, rhs, env, rules)
-                }
                 TypeId::TypeParameter(rhs) => {
                     self.check_parameters(lhs, rhs, env, rules)
                 }
+                TypeId::Foreign(_) => rules.type_cast,
                 _ => false,
             },
-            TypeId::RigidTypeParameter(lhs) => {
+            TypeId::RigidTypeParameter(lhs)
+            | TypeId::AtomicTypeParameter(lhs) => {
                 self.check_rigid_with_type_id(lhs, right_id, env, rules)
             }
             TypeId::Closure(lhs) => match right_id {
@@ -668,9 +651,12 @@ impl<'a> TypeChecker<'a> {
                     match right_id {
                         TypeId::Foreign(_) => true,
                         TypeId::ClassInstance(ins) => {
+                            // 64-bits integers can be cast to Inko objects, as
+                            // this is needed when interfacing with C.
                             matches!(ins.instance_of().0, INT_ID | FLOAT_ID)
+                                || lsize == 64
                         }
-                        _ => false,
+                        _ => lsize == 64,
                     }
                 } else {
                     match right_id {
@@ -711,9 +697,6 @@ impl<'a> TypeChecker<'a> {
     ) -> bool {
         match right {
             TypeId::RigidTypeParameter(rhs) => left == rhs,
-            TypeId::TraitInstance(rhs) => {
-                self.check_parameter_with_trait(left, rhs, env, rules)
-            }
             TypeId::TypeParameter(rhs) => {
                 if left == rhs {
                     return true;
@@ -723,6 +706,7 @@ impl<'a> TypeChecker<'a> {
                     self.check_parameter_with_trait(left, req, env, rules)
                 })
             }
+            TypeId::Foreign(_) => rules.type_cast,
             _ => false,
         }
     }
@@ -799,7 +783,9 @@ impl<'a> TypeChecker<'a> {
             TypeArguments::for_trait(self.db, right),
         );
 
-        self.check_class_with_trait(left, right, &mut env, Rules::new())
+        let rules = Rules::new().with_one_time_subtyping();
+
+        self.check_class_with_trait(left, right, &mut env, rules)
     }
 
     fn check_class_with_trait(
@@ -811,11 +797,11 @@ impl<'a> TypeChecker<'a> {
     ) -> bool {
         // `Array[Cat]` isn't compatible with `mut Array[Animal]`, as that could
         // result in a `Dog` being added to the Array.
-        match rules.subtyping {
-            TraitSubtyping::No => return false,
-            TraitSubtyping::Yes => {}
-            TraitSubtyping::Once => {
-                rules.subtyping = TraitSubtyping::No;
+        match rules.class_subtyping {
+            Subtyping::No => return false,
+            Subtyping::Yes => {}
+            Subtyping::Once => {
+                rules.class_subtyping = Subtyping::No;
             }
         }
 
@@ -945,14 +931,11 @@ impl<'a> TypeChecker<'a> {
         }
 
         if left.instance_of != right.instance_of {
-            return if rules.subtyping.allowed() {
-                left.instance_of
-                    .required_traits(self.db)
-                    .into_iter()
-                    .any(|lhs| self.check_traits(lhs, right, env, rules))
-            } else {
-                false
-            };
+            return left
+                .instance_of
+                .required_traits(self.db)
+                .into_iter()
+                .any(|lhs| self.check_traits(lhs, right, env, rules));
         }
 
         if !left.instance_of.is_generic(self.db) {
@@ -1011,7 +994,8 @@ impl<'a> TypeChecker<'a> {
         let result = match typ {
             TypeRef::Owned(TypeId::TypeParameter(id))
             | TypeRef::Uni(TypeId::TypeParameter(id))
-            | TypeRef::Infer(TypeId::TypeParameter(id)) => {
+            | TypeRef::Infer(TypeId::TypeParameter(id))
+            | TypeRef::Pointer(TypeId::TypeParameter(id)) => {
                 self.resolve_type_parameter(typ, id, arguments, rules)
             }
             TypeRef::Ref(TypeId::TypeParameter(id)) => self
@@ -1062,8 +1046,8 @@ mod tests {
         closure, generic_instance_id, generic_trait_instance,
         generic_trait_instance_id, immutable, implement, infer, instance,
         mutable, new_class, new_extern_class, new_parameter, new_trait, owned,
-        parameter, placeholder, rigid, trait_instance, trait_instance_id,
-        type_arguments, type_bounds, uni,
+        parameter, placeholder, pointer, rigid, trait_instance,
+        trait_instance_id, type_arguments, type_bounds, uni,
     };
     use crate::{
         Block, Class, ClassId, ClassKind, Closure, ModuleId,
@@ -1093,6 +1077,17 @@ mod tests {
     }
 
     #[track_caller]
+    fn check_err_cast(db: &Database, left: TypeRef, right: TypeRef) {
+        if TypeChecker::check_cast(db, left, right) {
+            panic!(
+                "Expected {} not to be compatible with {}",
+                format_type(db, left),
+                format_type(db, right)
+            );
+        }
+    }
+
+    #[track_caller]
     fn check_err(db: &Database, left: TypeRef, right: TypeRef) {
         assert!(
             !TypeChecker::check(db, left, right),
@@ -1100,27 +1095,6 @@ mod tests {
             format_type(db, left),
             format_type(db, right)
         );
-    }
-
-    #[test]
-    fn test_any() {
-        let mut db = Database::new();
-        let to_string = new_trait(&mut db, "ToString");
-        let param1 = new_parameter(&mut db, "T");
-        let param2 = new_parameter(&mut db, "T");
-        let var1 = TypePlaceholder::alloc(&mut db, None);
-        let var2 = TypePlaceholder::alloc(&mut db, Some(param1));
-        let var3 = TypePlaceholder::alloc(&mut db, Some(param2));
-
-        param2.add_requirements(&mut db, vec![trait_instance(to_string)]);
-
-        check_ok(&db, TypeRef::Any, TypeRef::Any);
-        check_ok(&db, TypeRef::Any, TypeRef::Error);
-        check_ok(&db, TypeRef::Any, placeholder(var1));
-        check_ok(&db, TypeRef::Any, placeholder(var2));
-
-        check_err(&db, TypeRef::Any, placeholder(var3));
-        check_err(&db, TypeRef::Any, TypeRef::Never);
     }
 
     #[test]
@@ -1135,7 +1109,6 @@ mod tests {
 
         check_ok(&db, TypeRef::Never, placeholder(var1));
         check_ok(&db, TypeRef::Never, placeholder(var2));
-        check_ok(&db, TypeRef::Never, TypeRef::Any);
         check_ok(&db, TypeRef::Never, TypeRef::Never);
     }
 
@@ -1178,10 +1151,7 @@ mod tests {
         check_ok(&db, owned(instance(int)), immutable(instance(int)));
         check_ok(&db, owned(instance(int)), mutable(instance(int)));
         check_ok(&db, owned(instance(int)), uni(instance(int)));
-
-        check_ok(&db, owned(instance(foo)), TypeRef::Any);
         check_ok(&db, owned(instance(foo)), TypeRef::Error);
-
         check_err(&db, owned(instance(foo)), immutable(instance(foo)));
         check_err(&db, owned(instance(foo)), mutable(instance(foo)));
         check_err(&db, owned(instance(foo)), owned(instance(bar)));
@@ -1198,7 +1168,6 @@ mod tests {
         check_ok(&db, owned(instance(foo)), owned(instance(foo)));
 
         check_err(&db, owned(instance(foo)), owned(instance(bar)));
-        check_err(&db, owned(instance(foo)), TypeRef::Any);
         check_err(&db, owned(instance(foo)), owned(parameter(param)));
         check_err(&db, uni(instance(foo)), owned(parameter(param)));
     }
@@ -1321,17 +1290,16 @@ mod tests {
 
         check_ok(&db, owned(things1), owned(things1));
         check_ok(&db, owned(things1), owned(things2));
-        check_ok(&db, owned(things1), owned(trait_instance_id(length)));
-        check_ok(&db, owned(floats), owned(trait_instance_id(length)));
-        check_ok(&db, owned(things1), owned(trait_instance_id(to_string)));
-
-        check_ok(&db, owned(vars), owned(trait_instance_id(to_string)));
-        assert!(var.value(&db).is_none());
-
-        check_ok(&db, owned(things1), owned(eq_things));
         check_ok(&db, owned(things1), infer(parameter(v_param)));
         check_ok(&db, owned(thing_refs), owned(parameter(v_param)));
 
+        check_err(&db, owned(things1), owned(trait_instance_id(length)));
+        check_err(&db, owned(floats), owned(trait_instance_id(length)));
+        check_err(&db, owned(things1), owned(trait_instance_id(to_string)));
+        check_err(&db, owned(vars), owned(trait_instance_id(to_string)));
+        assert!(var.value(&db).is_none());
+
+        check_err(&db, owned(things1), owned(eq_things));
         check_err(&db, owned(things1), owned(things_empty));
         check_err(&db, owned(things1), owned(floats));
         check_err(&db, owned(floats), owned(trait_instance_id(to_string)));
@@ -1377,10 +1345,7 @@ mod tests {
         // Value types can be passed to a reference.
         check_ok(&db, uni(instance(int)), immutable(instance(int)));
         check_ok(&db, uni(instance(int)), mutable(instance(int)));
-
-        check_ok(&db, uni(instance(foo)), TypeRef::Any);
         check_ok(&db, uni(instance(foo)), TypeRef::Error);
-
         check_err(&db, uni(instance(foo)), immutable(instance(foo)));
         check_err(&db, uni(instance(foo)), mutable(instance(foo)));
         check_err(&db, uni(instance(foo)), uni(instance(bar)));
@@ -1504,17 +1469,15 @@ mod tests {
 
         check_ok(&db, uni(things1), uni(things1));
         check_ok(&db, uni(things1), uni(things2));
-        check_ok(&db, uni(things1), uni(trait_instance_id(length)));
-        check_ok(&db, uni(floats), uni(trait_instance_id(length)));
-        check_ok(&db, uni(things1), uni(trait_instance_id(to_string)));
-
-        check_ok(&db, uni(vars), uni(trait_instance_id(to_string)));
-        assert!(var.value(&db).is_none());
-
-        check_ok(&db, uni(things1), uni(eq_things));
         check_ok(&db, uni(things1), infer(parameter(v_param)));
         check_ok(&db, uni(things1), uni(parameter(v_param)));
 
+        check_err(&db, uni(things1), uni(eq_things));
+        check_err(&db, uni(things1), uni(trait_instance_id(length)));
+        check_err(&db, uni(floats), uni(trait_instance_id(length)));
+        check_err(&db, uni(things1), uni(trait_instance_id(to_string)));
+        check_err(&db, uni(vars), uni(trait_instance_id(to_string)));
+        assert!(var.value(&db).is_none());
         check_err(&db, uni(thing_refs), uni(parameter(v_param)));
         check_err(&db, uni(things1), uni(floats));
         check_err(&db, uni(floats), uni(trait_instance_id(to_string)));
@@ -1530,9 +1493,7 @@ mod tests {
 
         check_ok(&db, infer(parameter(param1)), infer(parameter(param2)));
         check_ok(&db, infer(parameter(param1)), immutable(parameter(param2)));
-        check_ok(&db, infer(parameter(param1)), TypeRef::Any);
         check_ok(&db, infer(parameter(param1)), TypeRef::Error);
-
         check_ok(&db, infer(parameter(param1)), placeholder(var));
         assert_eq!(var.value(&db), Some(infer(parameter(param1))));
 
@@ -1563,7 +1524,6 @@ mod tests {
         check_ok(&db, immutable(instance(thing)), placeholder(var));
         assert_eq!(var.value(&db), Some(immutable(instance(thing))));
 
-        check_ok(&db, immutable(instance(thing)), TypeRef::Any);
         check_ok(&db, immutable(instance(thing)), TypeRef::Error);
         check_ok(&db, immutable(instance(int)), infer(parameter(param)));
         check_ok(&db, immutable(instance(int)), placeholder(mutable_var));
@@ -1592,7 +1552,6 @@ mod tests {
         check_ok(&db, mutable(instance(thing)), placeholder(var));
         assert_eq!(var.value(&db), Some(mutable(instance(thing))));
 
-        check_ok(&db, mutable(instance(thing)), TypeRef::Any);
         check_ok(&db, mutable(instance(thing)), TypeRef::Error);
 
         check_err(&db, mutable(instance(thing)), owned(instance(thing)));
@@ -1673,7 +1632,6 @@ mod tests {
             TypeRef::UniMut(instance(thing)),
         );
         check_err(&db, TypeRef::UniRef(instance(thing)), placeholder(var));
-        check_err(&db, TypeRef::UniRef(instance(thing)), TypeRef::Any);
     }
 
     #[test]
@@ -1700,7 +1658,6 @@ mod tests {
             TypeRef::Mut(instance(thing)),
         );
         check_err(&db, TypeRef::UniMut(instance(thing)), placeholder(var));
-        check_err(&db, TypeRef::UniMut(instance(thing)), TypeRef::Any);
     }
 
     #[test]
@@ -1710,6 +1667,30 @@ mod tests {
 
         check_ok(&db, placeholder(var), TypeRef::int());
         assert_eq!(var.value(&db), Some(TypeRef::int()));
+    }
+
+    #[test]
+    fn test_pointer_with_placeholder() {
+        let mut db = Database::new();
+        let var1 = TypePlaceholder::alloc(&mut db, None);
+        let var2 = TypePlaceholder::alloc(&mut db, None);
+        let int_ptr = pointer(instance(ClassId::int()));
+
+        check_ok(&db, placeholder(var1), int_ptr);
+        check_ok(&db, int_ptr, placeholder(var2));
+        assert_eq!(var1.value(&db), Some(int_ptr));
+        assert_eq!(var2.value(&db), Some(int_ptr));
+    }
+
+    #[test]
+    fn test_pointer_with_rigid_parameter() {
+        let mut db = Database::new();
+        let param1 = new_parameter(&mut db, "A");
+        let param2 = new_parameter(&mut db, "B");
+
+        check_ok(&db, pointer(rigid(param1)), pointer(rigid(param1)));
+        check_err(&db, pointer(rigid(param1)), pointer(rigid(param2)));
+        check_err(&db, pointer(parameter(param1)), pointer(rigid(param1)));
     }
 
     #[test]
@@ -1764,11 +1745,10 @@ mod tests {
             vec![owned(trait_instance_id(animal))],
         ));
 
-        check_ok(&db, cats, animals);
-        check_ok(&db, ref_cats, ref_animals);
-        check_ok(&db, mut_cats, ref_animals);
-
-        // This isn't OK as this could result in a Dog being added to the Array.
+        check_ok(&db, animals, animals);
+        check_err(&db, cats, animals);
+        check_err(&db, ref_cats, ref_animals);
+        check_err(&db, mut_cats, ref_animals);
         check_err(&db, mut_cats, mut_animals);
     }
 
@@ -1853,17 +1833,17 @@ mod tests {
         param3.add_requirements(&mut db, vec![trait_instance(equal)]);
         param3.add_requirements(&mut db, vec![trait_instance(to_string)]);
 
-        check_ok(
+        check_err(
             &db,
             owned(parameter(param1)),
             owned(trait_instance_id(equal)),
         );
-        check_ok(
+        check_err(
             &db,
             owned(parameter(param3)),
             owned(trait_instance_id(equal)),
         );
-        check_ok(
+        check_err(
             &db,
             owned(parameter(param3)),
             owned(trait_instance_id(to_string)),
@@ -1946,7 +1926,6 @@ mod tests {
         let param2 = new_parameter(&mut db, "B");
         let var = TypePlaceholder::alloc(&mut db, None);
 
-        check_ok(&db, owned(rigid(param1)), TypeRef::Any);
         check_ok(&db, owned(rigid(param1)), TypeRef::Error);
         check_ok(&db, immutable(rigid(param1)), immutable(rigid(param1)));
         check_ok(&db, owned(rigid(param1)), owned(rigid(param1)));
@@ -1972,7 +1951,7 @@ mod tests {
 
         param1.add_requirements(&mut db, vec![trait_instance(to_string)]);
 
-        check_ok(
+        check_err(
             &db,
             immutable(rigid(param1)),
             immutable(trait_instance_id(to_string)),
@@ -1993,8 +1972,8 @@ mod tests {
         let fun1 = Closure::alloc(&mut db, false);
         let fun2 = Closure::alloc(&mut db, false);
 
-        fun1.set_return_type(&mut db, TypeRef::Any);
-        fun2.set_return_type(&mut db, TypeRef::Any);
+        fun1.set_return_type(&mut db, TypeRef::int());
+        fun2.set_return_type(&mut db, TypeRef::int());
 
         check_ok(&db, owned(closure(fun1)), owned(closure(fun2)));
     }
@@ -2012,10 +1991,10 @@ mod tests {
         fun1.new_argument(&mut db, "a".to_string(), int, int);
         fun2.new_argument(&mut db, "b".to_string(), int, int);
         fun4.new_argument(&mut db, "a".to_string(), float, float);
-        fun1.set_return_type(&mut db, TypeRef::Any);
-        fun2.set_return_type(&mut db, TypeRef::Any);
-        fun3.set_return_type(&mut db, TypeRef::Any);
-        fun4.set_return_type(&mut db, TypeRef::Any);
+        fun1.set_return_type(&mut db, TypeRef::int());
+        fun2.set_return_type(&mut db, TypeRef::int());
+        fun3.set_return_type(&mut db, TypeRef::int());
+        fun4.set_return_type(&mut db, TypeRef::int());
 
         check_ok(&db, owned(closure(fun1)), owned(closure(fun2)));
         check_err(&db, owned(closure(fun3)), owned(closure(fun2)));
@@ -2087,15 +2066,17 @@ mod tests {
         let array = ClassId::array();
         let thing = new_class(&mut db, "Thing");
         let update = new_trait(&mut db, "Update");
-        let param = array.new_type_parameter(&mut db, "T".to_string());
-        let bound = new_parameter(&mut db, "T");
+        let array_param = array.new_type_parameter(&mut db, "T".to_string());
+        let array_bounds = new_parameter(&mut db, "T");
+        let exp_param = new_parameter(&mut db, "Expected");
 
-        bound.set_mutable(&mut db);
+        exp_param.add_requirements(&mut db, vec![trait_instance(update)]);
+        array_bounds.set_mutable(&mut db);
         array.add_trait_implementation(
             &mut db,
             TraitImplementation {
                 instance: trait_instance(update),
-                bounds: type_bounds(vec![(param, bound)]),
+                bounds: type_bounds(vec![(array_param, array_bounds)]),
             },
         );
 
@@ -2113,10 +2094,10 @@ mod tests {
             vec![immutable(instance(thing))],
         ));
 
-        check_ok(&db, owned_things, owned(trait_instance_id(update)));
+        check_ok(&db, owned_things, owned(parameter(exp_param)));
 
         // `ref Thing` isn't mutable, so this check should fail.
-        check_err(&db, ref_things, owned(trait_instance_id(update)));
+        check_err(&db, ref_things, owned(parameter(exp_param)));
     }
 
     #[test]
@@ -2160,7 +2141,7 @@ mod tests {
         // Array[Iter[Int]]
         let rhs = owned(generic_instance_id(&mut db, array, vec![int_iter]));
 
-        check_ok(&db, lhs, rhs);
+        check_err(&db, lhs, rhs);
     }
 
     #[test]
@@ -2233,8 +2214,7 @@ mod tests {
         let mut env =
             Environment::new(TypeArguments::new(), TypeArguments::new());
 
-        assert!(TypeChecker::new(&db).check_argument(
-            owned(instance(thing)),
+        assert!(!TypeChecker::new(&db).check_argument(
             mutable(instance(thing)),
             mutable(trait_instance_id(to_string)),
             &mut env,
@@ -2270,8 +2250,7 @@ mod tests {
         let int_array =
             generic_instance_id(&mut db, array, vec![owned(instance(int))]);
 
-        assert!(TypeChecker::new(&db).check_argument(
-            owned(to_string_array),
+        assert!(!TypeChecker::new(&db).check_argument(
             immutable(int_array),
             immutable(to_string_array),
             &mut env,
@@ -2279,7 +2258,7 @@ mod tests {
     }
 
     #[test]
-    fn test_check_c_types() {
+    fn test_check_foreign_types() {
         let mut db = Database::new();
         let foo = Class::alloc(
             &mut db,
@@ -2297,29 +2276,43 @@ mod tests {
             ModuleId(0),
         );
 
+        let param = new_parameter(&mut db, "T");
+
         check_ok(
             &db,
             TypeRef::foreign_signed_int(8),
             TypeRef::foreign_signed_int(8),
         );
         check_ok(&db, TypeRef::foreign_float(32), TypeRef::foreign_float(32));
-        check_ok(
-            &db,
-            TypeRef::foreign_struct(foo),
-            TypeRef::foreign_struct(foo),
-        );
+        check_ok(&db, owned(instance(foo)), owned(instance(foo)));
 
         check_ok_cast(
             &db,
             TypeRef::foreign_signed_int(8),
             TypeRef::foreign_signed_int(16),
         );
+
         check_ok_cast(
             &db,
             TypeRef::foreign_float(32),
             TypeRef::foreign_float(64),
         );
+
         check_ok_cast(&db, TypeRef::foreign_signed_int(32), TypeRef::int());
+        check_ok_cast(&db, TypeRef::foreign_signed_int(64), TypeRef::string());
+        check_ok_cast(
+            &db,
+            TypeRef::foreign_signed_int(64),
+            owned(parameter(param)),
+        );
+
+        check_ok_cast(&db, TypeRef::string(), TypeRef::foreign_signed_int(64));
+        check_ok_cast(
+            &db,
+            owned(parameter(param)),
+            TypeRef::foreign_signed_int(64),
+        );
+
         check_ok_cast(&db, TypeRef::foreign_float(32), TypeRef::int());
         check_ok_cast(&db, TypeRef::int(), TypeRef::foreign_signed_int(8));
         check_ok_cast(&db, TypeRef::float(), TypeRef::foreign_float(32));
@@ -2377,14 +2370,10 @@ mod tests {
             TypeRef::foreign_float(8),
             TypeRef::foreign_signed_int(32),
         );
+        check_err(&db, owned(instance(foo)), owned(instance(bar)));
         check_err(
             &db,
-            TypeRef::foreign_struct(foo),
-            TypeRef::foreign_struct(bar),
-        );
-        check_err(
-            &db,
-            TypeRef::foreign_struct(foo),
+            owned(instance(foo)),
             TypeRef::pointer(TypeId::ClassInstance(ClassInstance::new(foo))),
         );
         check_err(
@@ -2392,10 +2381,45 @@ mod tests {
             TypeRef::pointer(TypeId::ClassInstance(ClassInstance::new(foo))),
             TypeRef::pointer(TypeId::ClassInstance(ClassInstance::new(bar))),
         );
-        check_err(
-            &db,
-            TypeRef::pointer(TypeId::ClassInstance(ClassInstance::new(foo))),
-            TypeRef::Any,
-        );
+    }
+
+    #[test]
+    fn test_invalid_casts() {
+        let mut db = Database::new();
+        let to_string = new_trait(&mut db, "ToString");
+        let param = new_parameter(&mut db, "T");
+
+        for class in [
+            ClassId::int(),
+            ClassId::float(),
+            ClassId::boolean(),
+            ClassId::nil(),
+            ClassId::string(),
+            ClassId::channel(),
+        ] {
+            class.add_trait_implementation(
+                &mut db,
+                TraitImplementation {
+                    instance: trait_instance(to_string),
+                    bounds: TypeBounds::new(),
+                },
+            );
+        }
+
+        let to_string_ins = owned(trait_instance_id(to_string));
+        let chan = owned(generic_instance_id(
+            &mut db,
+            ClassId::channel(),
+            vec![TypeRef::int()],
+        ));
+
+        check_err_cast(&db, TypeRef::int(), to_string_ins);
+        check_err_cast(&db, TypeRef::float(), to_string_ins);
+        check_err_cast(&db, TypeRef::boolean(), to_string_ins);
+        check_err_cast(&db, TypeRef::nil(), to_string_ins);
+        check_err_cast(&db, TypeRef::string(), to_string_ins);
+        check_err_cast(&db, chan, to_string_ins);
+        check_err_cast(&db, TypeRef::int(), owned(parameter(param)));
+        check_err_cast(&db, to_string_ins, owned(parameter(param)));
     }
 }
