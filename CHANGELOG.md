@@ -6,6 +6,17 @@ Entries from before version 0.10.0 are no longer included, but can be viewed
 
 <!-- new section -->
 
+## 0.13.1 (2023-10-14)
+
+### Fixed
+
+* [9217464e](https://github.com/inko-lang/inko/commit/9217464e): Fix float parsing on ARM64 macOS
+* [a0a9d248](https://github.com/inko-lang/inko/commit/a0a9d248): Fix type error for ARM64 platforms
+
+### Other
+
+* [f3370cb6](https://github.com/inko-lang/inko/commit/f3370cb6): Add mention of zstd missing on macOS
+
 ## 0.13.0 (2023-10-14)
 
 ### Added

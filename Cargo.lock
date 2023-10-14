@@ -28,7 +28,7 @@ dependencies = [
 
 [[package]]
 name = "ast"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "getopts",
  "similar-asserts",
@@ -111,7 +111,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "compiler"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "ast",
  "blake2",
@@ -262,7 +262,7 @@ checksum = "ad0a93d233ebf96623465aad4046a8d3aa4da22d4f4beba5388838c8a434bbb4"
 
 [[package]]
 name = "inko"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "compiler",
  "getopts",
@@ -506,7 +506,7 @@ checksum = "a5996294f19bd3aae0453a862ad728f60e6600695733dd5df01da90c54363a3c"
 
 [[package]]
 name = "rt"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "backtrace",
  "crossbeam-queue",
@@ -611,7 +611,7 @@ checksum = "497961ef93d974e23eb6f433eb5fe1b7930b659f06d12dec6fc44a8f554c0bba"
 
 [[package]]
 name = "types"
-version = "0.13.0"
+version = "0.13.1"
 
 [[package]]
 name = "unicode-ident"
