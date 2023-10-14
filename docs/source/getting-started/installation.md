@@ -285,6 +285,13 @@ this doesn't always appear to be necessary:
 export LIBRARY_PATH="$(brew --prefix llvm@15)/lib"
 ```
 
+If the zstd library can't be found, even though it's installed, you can use the
+following instead:
+
+```bash
+export LIBRARY_PATH="$(brew --prefix llvm@15)/lib:$(brew --prefix zstd)/lib"
+```
+
 ### FreeBSD
 
 There's no official package for Inko available on FreeBSD.
