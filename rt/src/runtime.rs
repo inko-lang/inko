@@ -54,12 +54,12 @@ pub unsafe extern "system" fn inko_runtime_new(
     let mut args = Vec::with_capacity(argc as usize);
 
     if !argv.is_null() {
-        for ptr in slice::from_raw_parts(argv, argc as usize).iter().skip(1) {
+        for &ptr in slice::from_raw_parts(argv, argc as usize).iter().skip(1) {
             if ptr.is_null() {
                 break;
             }
 
-            args.push(CStr::from_ptr(*ptr).to_string_lossy().into_owned());
+            args.push(CStr::from_ptr(ptr as _).to_string_lossy().into_owned());
         }
     }
 
