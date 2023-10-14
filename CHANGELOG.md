@@ -6,6 +6,85 @@ Entries from before version 0.10.0 are no longer included, but can be viewed
 
 <!-- new section -->
 
+## 0.13.0 (2023-10-14)
+
+### Added
+
+* [97c7fb38](https://github.com/inko-lang/inko/commit/97c7fb38): Add ByteArray.last
+* [4098fd05](https://github.com/inko-lang/inko/commit/4098fd05): Add support for boolean constants
+* [3b8534c6](https://github.com/inko-lang/inko/commit/3b8534c6): Add types to make debug formatting easier
+* [1d174b02](https://github.com/inko-lang/inko/commit/1d174b02): Add Array.insert and Array.reserve
+* [0c4d7e6b](https://github.com/inko-lang/inko/commit/0c4d7e6b): Add Array.last and Array.last_mut
+* [2b87e4d2](https://github.com/inko-lang/inko/commit/2b87e4d2): Add std.io.Buffer
+* [085ee32a](https://github.com/inko-lang/inko/commit/085ee32a): Add BufferedRead and BufferedReader
+* [256e8166](https://github.com/inko-lang/inko/commit/256e8166): Support multiple major package versions
+* [10277d5f](https://github.com/inko-lang/inko/commit/10277d5f): Add ByteArray.from_pointer & ByteArray.to_pointer
+* [ba7217ba](https://github.com/inko-lang/inko/commit/ba7217ba): Add proper support for FreeBSD
+* [df66fef7](https://github.com/inko-lang/inko/commit/df66fef7): Add support for interfacing with C libraries
+* [31a8a17a](https://github.com/inko-lang/inko/commit/31a8a17a): Add Array.sort and Array.sort_by
+* [97d195a7](https://github.com/inko-lang/inko/commit/97d195a7): Add Map.values_mut
+* [007495be](https://github.com/inko-lang/inko/commit/007495be): Allow `self` in `recover` expressions
+* [be0d8304](https://github.com/inko-lang/inko/commit/be0d8304): Allow passing uni ref T to ref T in certain cases
+
+### Fixed
+
+* [2ce41f09](https://github.com/inko-lang/inko/commit/2ce41f09): Fix type inference for type parameter requirements
+* [37bc3f17](https://github.com/inko-lang/inko/commit/37bc3f17): Fix missing drops when ignoring match values
+* [ad267487](https://github.com/inko-lang/inko/commit/ad267487): Increment/copy fields when used with a receiver
+* [c757d6e5](https://github.com/inko-lang/inko/commit/c757d6e5): Fix json.Error.== not including the byte offset
+* [bb541de7](https://github.com/inko-lang/inko/commit/bb541de7): Fix failure locations for panic tests
+* [9cc1131d](https://github.com/inko-lang/inko/commit/9cc1131d): Test multiple Linux distributions for the stdlib
+* [59f65ddd](https://github.com/inko-lang/inko/commit/59f65ddd): Handle Array.with_capacity with negative sizes
+* [00dd2fd6](https://github.com/inko-lang/inko/commit/00dd2fd6): Fix module names for test files in sub directories
+* [176bbd89](https://github.com/inko-lang/inko/commit/176bbd89): Fix calling mutable methods on type parameters
+* [bc1273c8](https://github.com/inko-lang/inko/commit/bc1273c8): Fix type-checking with mutable type parameters
+* [c7567417](https://github.com/inko-lang/inko/commit/c7567417): Fix socket timeouts producing the wrong error code
+* [cf87e5a7](https://github.com/inko-lang/inko/commit/cf87e5a7): Implement Float.cmp per IEEE 784
+* [3afdcd4b](https://github.com/inko-lang/inko/commit/3afdcd4b): Fix formatting of Int::MIN as base2/base10
+* [20fa7f63](https://github.com/inko-lang/inko/commit/20fa7f63): Fix "match" not incrementing certain bindings
+* [5469f220](https://github.com/inko-lang/inko/commit/5469f220): Revert using `install -D` in the Makefile
+* [6c0c6997](https://github.com/inko-lang/inko/commit/6c0c6997): Fix parsing comma separated lists
+* [1e4566e7](https://github.com/inko-lang/inko/commit/1e4566e7): Recheck refs after processing fields
+* [c3f3385f](https://github.com/inko-lang/inko/commit/c3f3385f): Error for enums without variants
+
+### Changed
+
+* [3057ba7e](https://github.com/inko-lang/inko/commit/3057ba7e): Implement specialization of generics
+* [b0bbc434](https://github.com/inko-lang/inko/commit/b0bbc434): Merge Format and DefaultFormatter into Formatter
+* [85b213e5](https://github.com/inko-lang/inko/commit/85b213e5): Unify up String and ByteArray slicing
+* [ac696b9c](https://github.com/inko-lang/inko/commit/ac696b9c): String.slice_bytes returns a ByteArray
+* [948c5f0f](https://github.com/inko-lang/inko/commit/948c5f0f): Bump the Rust requirement to 1.68
+* [afa39c0c](https://github.com/inko-lang/inko/commit/afa39c0c): Refactor std.json.Parser to use a Bytes/iterator
+* [95434442](https://github.com/inko-lang/inko/commit/95434442): Rework Int parsing and formatting
+* [05aff9a3](https://github.com/inko-lang/inko/commit/05aff9a3): Move checked arithmetic to the standard library
+* [6f7a3780](https://github.com/inko-lang/inko/commit/6f7a3780): Remove the need for `inko pkg init`
+* [81bae997](https://github.com/inko-lang/inko/commit/81bae997): Make types namespace private by default
+* [c78555ef](https://github.com/inko-lang/inko/commit/c78555ef): Use ByteArray as input for json.Parser
+* [5ce44a5e](https://github.com/inko-lang/inko/commit/5ce44a5e): Move file/directory related methods to Path
+* [d455d8f0](https://github.com/inko-lang/inko/commit/d455d8f0): Remove ClassId from the CallStatic instruction
+* [8026b29d](https://github.com/inko-lang/inko/commit/8026b29d): Remove use of :: for namespaces
+* [70728b63](https://github.com/inko-lang/inko/commit/70728b63): Refactor Enum and rename to Stream
+* [2771a63e](https://github.com/inko-lang/inko/commit/2771a63e): Replace "length" with "size"
+* [f08169d5](https://github.com/inko-lang/inko/commit/f08169d5): Define more of String in Inko
+* [524626e6](https://github.com/inko-lang/inko/commit/524626e6): Implement Float.round in Inko
+* [449af85d](https://github.com/inko-lang/inko/commit/449af85d): Implement Float.== in Inko
+* [13e8e557](https://github.com/inko-lang/inko/commit/13e8e557): Implement Array entirely in Inko
+* [f2379c62](https://github.com/inko-lang/inko/commit/f2379c62): Replace use of the `libc` by the `rustix` crate
+* [0c963af0](https://github.com/inko-lang/inko/commit/0c963af0): Implement listing directories in Inko
+
+### Other
+
+* [c136e78f](https://github.com/inko-lang/inko/commit/c136e78f): Fix outdated CLI documentation in a few places
+* [73e1dc99](https://github.com/inko-lang/inko/commit/73e1dc99): Remove outdated comment from String.slice
+* [99b22c56](https://github.com/inko-lang/inko/commit/99b22c56): Clarify docs about pattern matching and ownership
+* [269e77d6](https://github.com/inko-lang/inko/commit/269e77d6): Add IO documentation to "Getting started"
+* [88e197dc](https://github.com/inko-lang/inko/commit/88e197dc): Fix incorrect documentation of Result.collect
+
+### Performance improvements
+
+* [58fc4ef2](https://github.com/inko-lang/inko/commit/58fc4ef2): Return the old value in Map.set
+* [fb040c22](https://github.com/inko-lang/inko/commit/fb040c22): Optimize String.count for counts of 0 and 1
+
 ## 0.12.0 (2023-06-05)
 
 ### Added
