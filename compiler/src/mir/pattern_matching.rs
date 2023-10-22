@@ -560,7 +560,7 @@ impl<'a> Compiler<'a> {
             };
         }
 
-        let branch_var = self.branch_variable(&rows[0], &rows);
+        let branch_var = self.branch_variable(&rows);
 
         match self.variable_type(&branch_var) {
             Type::Int => {
@@ -775,7 +775,7 @@ impl<'a> Compiler<'a> {
 
     /// Given a row, returns the variable in that row that's referred to the
     /// most across all rows.
-    fn branch_variable(&self, row: &Row, rows: &[Row]) -> Variable {
+    fn branch_variable(&self, rows: &[Row]) -> Variable {
         let mut counts = HashMap::new();
 
         for row in rows {
@@ -784,7 +784,8 @@ impl<'a> Compiler<'a> {
             }
         }
 
-        row.columns
+        rows[0]
+            .columns
             .iter()
             .map(|col| col.variable)
             .max_by_key(|var| counts[var])
