@@ -529,17 +529,16 @@ impl<'a> Compiler<'a> {
         self.variables.new_variable(value_type)
     }
 
-    fn compile_rows(&mut self, rows: Vec<Row>) -> Decision {
+    fn compile_rows(&mut self, mut rows: Vec<Row>) -> Decision {
         if rows.is_empty() {
             self.missing = true;
 
             return Decision::Fail;
         }
 
-        let mut rows = rows
-            .into_iter()
-            .map(|row| self.move_variable_patterns(row))
-            .collect::<Vec<_>>();
+        for row in &mut rows {
+            self.move_variable_patterns(row);
+        }
 
         // There may be multiple rows, but if the first one has no patterns
         // those extra rows are redundant, as a row without columns/patterns
@@ -743,34 +742,18 @@ impl<'a> Compiler<'a> {
 
     /// Moves variable-only patterns/tests into the right-hand side/body of a
     /// case.
-    fn move_variable_patterns(&self, row: Row) -> Row {
-        let mut bindings = row.body.bindings;
-
-        for col in &row.columns {
-            match &col.pattern {
-                Pattern::Variable(id) => {
-                    bindings.push(Binding::Named(*id, col.variable))
-                }
-                Pattern::Wildcard => {
-                    bindings.push(Binding::Ignored(col.variable))
-                }
-                _ => {}
+    fn move_variable_patterns(&self, row: &mut Row) {
+        row.columns.retain(|col| match &col.pattern {
+            Pattern::Variable(id) => {
+                row.body.bindings.push(Binding::Named(*id, col.variable));
+                false
             }
-        }
-
-        let columns = row
-            .columns
-            .into_iter()
-            .filter(|col| {
-                !matches!(col.pattern, Pattern::Variable(_) | Pattern::Wildcard)
-            })
-            .collect();
-
-        Row {
-            columns,
-            guard: row.guard,
-            body: Body { bindings, block_id: row.body.block_id },
-        }
+            Pattern::Wildcard => {
+                row.body.bindings.push(Binding::Ignored(col.variable));
+                false
+            }
+            _ => true,
+        });
     }
 
     /// Given a row, returns the variable in that row that's referred to the
