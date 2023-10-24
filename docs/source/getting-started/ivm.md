@@ -46,22 +46,43 @@ cargo install ivm
 ```
 
 This installs the `ivm` executable in `$HOME/.cargo/bin`, where `$HOME` is your
-home directory. You need to add this to your shell's PATH if not done already.
-You also need to add the directory containing Inko executables to your path:
+home directory. You need to add this to your shell's PATH if not done already:
 
 === "Bash"
     ```bash
-    export PATH="$HOME/.cargo/bin:$HOME/.local/share/ivm/bin:$PATH"
+    export PATH="$HOME/.cargo/bin:$PATH"
     ```
 === "Fish"
     ```bash
-    set -x PATH $HOME/.cargo/bin $HOME/.local/share/ivm/bin $PATH
+    fish_add_path --path $HOME/.cargo/bin
     ```
+
+For more information, refer to [this rustup documentation
+page](https://rust-lang.github.io/rustup/installation/index.html).
 
 To update ivm, run the following:
 
 ```bash
 cargo install ivm --force
+```
+
+## Setting up your PATH
+
+Once ivm is installed, you need to add its bin path to your `PATH` variable.
+This is needed to ensure that executables such as `inko` are available. To add
+the path, run `ivm show bin`, then add the path it prints out to your `PATH`
+variable. For example:
+
+```bash
+$ ivm show bin
+/var/home/yorickpeterse/homes/fedora/.local/share/ivm/bin
+```
+
+Assuming you're using Bash as your shell, you'd add the following to your
+`.bashrc`:
+
+```bash
+export PATH="$HOME/.local/share/ivm/bin:$PATH"
 ```
 
 ## Usage
@@ -111,7 +132,7 @@ ivm clean
 To run a command with a specific Inko version:
 
 ```bash
-ivm run 0.10.0 inko --version    # This will run `inko --version` using Inko 0.10.0
+ivm run 0.10.0 inko --version # This will run `inko --version` using Inko 0.10.0
 ivm run latest inko
 ```
 
@@ -129,14 +150,3 @@ The `default` command is used to set a default Inko version to use. When set,
 ivm will create a symbolic link in its `bin/` directory to the `inko` executable
 of the default version. By setting a default version you can just use `inko ...`
 instead of the much more verbose `ivm run VERSION inko ...`.
-
-For this to work the `bin` directory must be in your path, as covered in the
-installation instructions. If you aren't sure where that directory is located,
-run the following:
-
-```bash
-ivm show bin
-```
-
-This will print the path to the `bin` directory, which you can then add to your
-PATH variable.
