@@ -364,7 +364,11 @@ class builtin Array[T] {
     let max = @size
 
     Stream.new fn move {
-      if idx < max { Option.Some(get(idx := idx + 1)) } else { Option.None }
+      if idx < max {
+        Option.Some(get_unchecked(idx := idx + 1))
+      } else {
+        Option.None
+      }
     }
   }
 
@@ -627,7 +631,11 @@ impl Array if T: mut {
     let max = @size
 
     Stream.new fn move {
-      if idx < max { Option.Some(get_mut(idx := idx + 1)) } else { Option.None }
+      if idx < max {
+        Option.Some(get_unchecked_mut(idx := idx + 1))
+      } else {
+        Option.None
+      }
     }
   }
 
