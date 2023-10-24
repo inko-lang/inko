@@ -23,9 +23,6 @@
 import std.cmp.Equal
 import std.option.Option
 
-# The "byte" that signals the end in a `Bytes` iterator.
-let pub EOF = -1
-
 # A generic iterator over a sequence of values of type `T`.
 trait pub Iter[T] {
   # Returns the next value in the iterator.

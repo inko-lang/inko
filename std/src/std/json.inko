@@ -65,7 +65,6 @@ import std.iter.Peekable
 import std.string.(Bytes, StringBuffer, ToString)
 import std.utf8
 
-let EOF = -1
 let BRACKET_OPEN = 0x5B
 let BRACKET_CLOSE = 0x5D
 let CURLY_OPEN = 0x7B
