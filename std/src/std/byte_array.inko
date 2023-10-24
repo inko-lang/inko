@@ -527,14 +527,14 @@ impl Hash for ByteArray {
 }
 
 impl Contains[Int] for ByteArray {
+  # Returns `true` if the given byte is contained in `self`.
+  #
+  # # Examples
+  #
+  #     let bytes = ByteArray.from_array([10, 20])
+  #
+  #     bytes.contains?(10) # => true
   fn pub contains?(value: ref Int) -> Bool {
-    # Returns `true` if the given byte is contained in `self`.
-    #
-    # # Examples
-    #
-    #     let bytes = ByteArray.from_array([10, 20])
-    #
-    #     bytes.contains?(10) # => true
     iter.any? fn (ours) { ours == value }
   }
 }
