@@ -1378,6 +1378,7 @@ pub struct WildcardPattern {
 pub struct IdentifierPattern {
     pub name: Identifier,
     pub mutable: bool,
+    pub used: bool,
     pub value_type: Option<Type>,
     pub location: SourceLocation,
 }

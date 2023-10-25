@@ -922,6 +922,7 @@ pub(crate) struct IdentifierPattern {
     pub(crate) variable_id: Option<types::VariableId>,
     pub(crate) name: Identifier,
     pub(crate) mutable: bool,
+    pub(crate) used: bool,
     pub(crate) value_type: Option<Type>,
     pub(crate) location: SourceLocation,
 }
@@ -2841,6 +2842,7 @@ impl<'a> LowerToHir<'a> {
                     variable_id: None,
                     name: self.identifier(n.name),
                     mutable: n.mutable,
+                    used: n.used,
                     value_type: n.value_type.map(|n| self.type_reference(n)),
                     location: n.location,
                 }))

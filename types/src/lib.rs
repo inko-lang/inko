@@ -2332,7 +2332,8 @@ impl Block for MethodId {
         variable_type: TypeRef,
         argument_type: TypeRef,
     ) -> VariableId {
-        let var = Variable::alloc(db, name.clone(), variable_type, false);
+        let var =
+            Variable::alloc(db, name.clone(), variable_type, false, false);
 
         self.get_mut(db).arguments.new_argument(name, argument_type, var);
         var
@@ -2692,6 +2693,9 @@ pub struct Variable {
 
     /// A flat set to `true` if the variable can be assigned a new value.
     mutable: bool,
+
+    /// A flag set to `true` if the variable is used.
+    used: bool,
 }
 
 impl Variable {
@@ -2700,10 +2704,11 @@ impl Variable {
         name: String,
         value_type: TypeRef,
         mutable: bool,
+        used: bool,
     ) -> VariableId {
         let id = VariableId(db.variables.len());
 
-        db.variables.push(Self { name, value_type, mutable });
+        db.variables.push(Self { name, value_type, mutable, used });
         id
     }
 }
@@ -2956,7 +2961,8 @@ impl Block for ClosureId {
         variable_type: TypeRef,
         argument_type: TypeRef,
     ) -> VariableId {
-        let var = Variable::alloc(db, name.clone(), variable_type, false);
+        let var =
+            Variable::alloc(db, name.clone(), variable_type, false, false);
 
         self.get_mut(db).arguments.new_argument(name, argument_type, var);
         var
@@ -4996,8 +5002,13 @@ mod tests {
         let func2 = Closure::alloc(&mut db, false);
         let thing = new_class(&mut db, "Thing");
         let var_type = immutable(instance(thing));
-        let var =
-            Variable::alloc(&mut db, "thing".to_string(), var_type, false);
+        let var = Variable::alloc(
+            &mut db,
+            "thing".to_string(),
+            var_type,
+            false,
+            false,
+        );
 
         func2.add_capture(&mut db, var, var_type);
 

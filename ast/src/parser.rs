@@ -2824,6 +2824,7 @@ impl Parser {
                 name,
                 value_type,
                 mutable: true,
+                used: true,
                 location,
             });
         }
@@ -2839,6 +2840,7 @@ impl Parser {
                 name,
                 value_type,
                 mutable: false,
+                used: false,
                 location,
             });
         }
@@ -8899,6 +8901,7 @@ mod tests {
                             location: cols(16, 16)
                         },
                         mutable: false,
+                        used: false,
                         value_type: None,
                         location: cols(16, 16)
                     })),
@@ -8930,6 +8933,7 @@ mod tests {
                             location: cols(20, 20)
                         },
                         mutable: true,
+                        used: true,
                         value_type: None,
                         location: cols(16, 20)
                     })),

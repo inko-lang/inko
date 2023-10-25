@@ -46,7 +46,7 @@ impl<'a> Pattern<'a> {
 /// A collection of variables defined in a lexical scope.
 struct VariableScope {
     /// The variables defined in this scope.
-    variables: HashMap<String, VariableId>,
+    variables: HashMap<String, (VariableId, bool)>,
 }
 
 impl VariableScope {
@@ -60,23 +60,30 @@ impl VariableScope {
         name: String,
         value_type: TypeRef,
         mutable: bool,
+        used: bool,
     ) -> VariableId {
-        let var = Variable::alloc(db, name.clone(), value_type, mutable);
+        let var = Variable::alloc(db, name.clone(), value_type, mutable, used);
 
         self.add_variable(name, var);
         var
     }
 
     fn add_variable(&mut self, name: String, variable: VariableId) {
-        self.variables.insert(name, variable);
+        self.variables.insert(name, (variable, false));
     }
 
     fn variable(&self, name: &str) -> Option<VariableId> {
-        self.variables.get(name).cloned()
+        self.variables.get(name).map(|(var_id, _)| *var_id)
     }
 
     fn names(&self) -> Vec<&String> {
         self.variables.keys().collect()
+    }
+
+    fn mark_variable_as_used(&mut self, var_name: &str) {
+        if let Some((var_id, used)) = self.variables.get_mut(var_name) {
+            *used = true;
+        }
     }
 }
 
@@ -1705,6 +1712,15 @@ impl<'a> CheckMethodBody<'a> {
     ) -> TypeRef {
         let value_type = self.input_expression(&mut node.value, scope);
 
+        // Use the existing method to add the variable to the scope
+        // Record the variable and its source location for later checking of unused variables.
+        let variable_name_str = &node.name.name;
+        if !variable_name_str.starts_with("_") {
+            scope
+                .variables
+                .add_variable(node.name.name.clone(), node.variable_id.unwrap())
+        }
+
         if value_type.is_uni_ref(self.db()) {
             self.state.diagnostics.cant_assign_type(
                 &format_type(self.db(), value_type),
@@ -1746,6 +1762,7 @@ impl<'a> CheckMethodBody<'a> {
             name.clone(),
             var_type,
             node.mutable,
+            false,
         );
 
         node.variable_id = Some(id);
@@ -1870,6 +1887,7 @@ impl<'a> CheckMethodBody<'a> {
             name.clone(),
             var_type,
             node.mutable,
+            node.used,
         );
 
         node.variable_id = Some(id);
@@ -2323,7 +2341,7 @@ impl<'a> CheckMethodBody<'a> {
         // Since we use a sub Pattern for tracking defined variables per OR
         // branch, we have to copy those to the parent Pattern.
         for (key, val) in &pattern.variable_scope.variables {
-            pattern.variables.insert(key.clone(), *val);
+            pattern.variables.insert(key.clone(), val.0);
         }
     }
 
@@ -4350,7 +4368,7 @@ impl<'a> CheckMethodBody<'a> {
     fn lookup_variable(
         &mut self,
         name: &str,
-        scope: &LexicalScope,
+        scope: &mut LexicalScope,
         location: &SourceLocation,
     ) -> Option<(VariableId, TypeRef, bool)> {
         let mut source = Some(scope);
@@ -4361,6 +4379,9 @@ impl<'a> CheckMethodBody<'a> {
             scopes.push(current);
 
             if let Some(variable) = current.variables.variable(name) {
+                // Mark the variable as used after successfully retrieving it
+                scope.variables.mark_variable_as_used(name);
+
                 var = Some(variable);
                 break;
             }

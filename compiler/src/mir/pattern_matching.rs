@@ -1136,6 +1136,7 @@ mod tests {
             "a".to_string(),
             TypeRef::int(),
             false,
+            false,
         );
         let mut compiler = compiler(&mut state);
         let input = compiler.new_variable(TypeRef::int());
