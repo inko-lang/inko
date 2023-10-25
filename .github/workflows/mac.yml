@@ -17,7 +17,7 @@ jobs:
           - stable
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/cache@v3
         with:
           path: |
@@ -41,7 +41,7 @@ jobs:
     needs:
       - compiler
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/cache@v3
         with:
           path: |
