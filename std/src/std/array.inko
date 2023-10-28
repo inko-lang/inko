@@ -187,7 +187,7 @@ class builtin Array[T] {
   #     let array = []
   #
   #     array.push(10) # => Nil
-  #     array[0]       # => 10
+  #     array.get(0)   # => 10
   fn pub mut push(value: T) {
     reserve(1)
     write_to(@size, value)
@@ -459,7 +459,7 @@ class builtin Array[T] {
   # # Examples
   #
   #     [10].empty? # => false
-  #     [].empty?     # => true
+  #     [].empty?   # => true
   fn pub empty? -> Bool {
     @size == 0
   }
