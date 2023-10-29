@@ -88,7 +88,7 @@ trait pub Compare[T] {
 
 # A type that can be compared for equality.
 trait pub Equal[T] {
-  # Returns `True` if `self` and the given object are equal to each other.
+  # Returns `true` if `self` and the given object are equal to each other.
   #
   # This operator is used to perform structural equality. This means two objects
   # residing in different memory locations may be considered equal, provided
@@ -97,7 +97,7 @@ trait pub Equal[T] {
   # values.
   fn pub ==(other: ref T) -> Bool
 
-  # Returns `True` if `self` and the given object are not equal to each other.
+  # Returns `true` if `self` and the given object are not equal to each other.
   fn pub !=(other: ref T) -> Bool {
     (self == other).false?
   }

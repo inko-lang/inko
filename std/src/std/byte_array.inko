@@ -226,7 +226,7 @@ class builtin ByteArray {
   #     let bytes = ByteArray.from_array([105, 110, 107, 111])
   #
   #     bytes.drain_to_string # => 'inko'
-  #     bytes.empty?          # => True
+  #     bytes.empty?          # => true
   fn pub mut drain_to_string -> String {
     inko_byte_array_drain_to_string(_INKO.state, self)
   }
@@ -502,7 +502,7 @@ impl IntoString for ByteArray {
 }
 
 impl Equal[ByteArray] for ByteArray {
-  # Returns `True` if two `ByteArray` objects are equal to each other.
+  # Returns `true` if two `ByteArray` objects are equal to each other.
   #
   # Two `ByteArray` objects are considered equal if they have the exact same
   # values in the exact same order.
@@ -511,8 +511,8 @@ impl Equal[ByteArray] for ByteArray {
   #
   # Comparing two `ByteArray` objects:
   #
-  #     ByteArray.from_array([10]) == ByteArray.from_array([10]) # => True
-  #     ByteArray.from_array([10]) == ByteArray.from_array([20]) # => False
+  #     ByteArray.from_array([10]) == ByteArray.from_array([10]) # => true
+  #     ByteArray.from_array([10]) == ByteArray.from_array([20]) # => false
   fn pub ==(other: ref ByteArray) -> Bool {
     inko_byte_array_eq(self, other)
   }

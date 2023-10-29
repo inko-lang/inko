@@ -12,7 +12,7 @@ class pub Set[V: Hash + Equal[V]] {
   # The Map used for storing values.
   #
   # The keys are the values inserted in this `Set`, the values are always set to
-  # `True`.
+  # `true`.
   let @map: Map[V, Bool]
 
   fn pub static new -> Set[V] {
@@ -21,7 +21,7 @@ class pub Set[V: Hash + Equal[V]] {
 
   # Inserts a new value into the `Set`.
   #
-  # The returned value is `True` if the value was inserted, `False` otherwise.
+  # The returned value is `true` if the value was inserted, `false` otherwise.
   #
   # # Examples
   #
@@ -38,7 +38,7 @@ class pub Set[V: Hash + Equal[V]] {
 
   # Removes a value from this `Set`.
   #
-  # If the value was removed `True` is returned, otherwise `False` is returned.
+  # If the value was removed `true` is returned, otherwise `false` is returned.
   #
   # # Examples
   #
@@ -49,8 +49,8 @@ class pub Set[V: Hash + Equal[V]] {
   #     let set = Set.new
   #
   #     set.insert(10)
-  #     set.remove(10) # => True
-  #     set.remove(10) # => False
+  #     set.remove(10) # => true
+  #     set.remove(10) # => false
   #
   # Removing a non-existing value from a `Set`:
   #
@@ -58,7 +58,7 @@ class pub Set[V: Hash + Equal[V]] {
   #
   #     let set = Set.new
   #
-  #     set.remove(10) # => False
+  #     set.remove(10) # => false
   fn pub mut remove(value: ref V) -> Bool {
     @map.remove(value).some?
   }
@@ -104,7 +104,7 @@ class pub Set[V: Hash + Equal[V]] {
 }
 
 impl Equal[Set[V]] for Set {
-  # Returns `True` if `self` and the given `Set` are identical to each
+  # Returns `true` if `self` and the given `Set` are identical to each
   # other.
   #
   # # Examples
@@ -119,7 +119,7 @@ impl Equal[Set[V]] for Set {
   #     set1.insert(10)
   #     set2.insert(10)
   #
-  #     set1 == set2 # => True
+  #     set1 == set2 # => true
   fn pub ==(other: ref Set[V]) -> Bool {
     if size != other.size { return false }
 
@@ -128,7 +128,7 @@ impl Equal[Set[V]] for Set {
 }
 
 impl Contains[V] for Set {
-  # Returns `True` if this `Set` contains the given value.
+  # Returns `true` if this `Set` contains the given value.
   #
   # # Examples
   #
@@ -138,9 +138,9 @@ impl Contains[V] for Set {
   #
   #     let set = Set.new
   #
-  #     set.contains?(10) # => False
+  #     set.contains?(10) # => false
   #     set.insert(10)
-  #     set.contains?(10) # => True
+  #     set.contains?(10) # => true
   fn pub contains?(value: ref V) -> Bool {
     @map.contains?(value)
   }
