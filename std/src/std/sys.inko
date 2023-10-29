@@ -372,14 +372,14 @@ class pub ExitStatus {
     ExitStatus { @code = code }
   }
 
-  # Returns `True` if the status signals success.
+  # Returns `true` if the status signals success.
   #
   # # Examples
   #
   #     import std.sys.ExitStatus
   #
-  #     ExitStatus.new(0).success? # => True
-  #     ExitStatus.new(1).success? # => False
+  #     ExitStatus.new(0).success? # => true
+  #     ExitStatus.new(1).success? # => false
   fn pub success? -> Bool {
     @code == 0
   }

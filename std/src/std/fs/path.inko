@@ -89,7 +89,7 @@ fn extern inko_time_system_offset -> Int64
 # The character used to separate components in a file path.
 let pub SEPARATOR = '/'
 
-# Returns `True` if the byte is a valid path separator byte.
+# Returns `true` if the byte is a valid path separator byte.
 fn path_separator?(byte: Int) -> Bool {
   byte == 47
 }
@@ -125,7 +125,7 @@ fn bytes_before_last_separator(path: String) -> Int {
   if in_separator { 1 } else { -1 }
 }
 
-# Returns `True` if the given file path is an absolute path.
+# Returns `true` if the given file path is an absolute path.
 fn absolute_path?(path: String) -> Bool {
   path_separator?(path.byte(0))
 }
@@ -191,17 +191,17 @@ class pub Path {
     Path { @path = path }
   }
 
-  # Returns `True` if the path points to a file.
+  # Returns `true` if the path points to a file.
   fn pub file? -> Bool {
     inko_path_is_file(_INKO.process, @path)
   }
 
-  # Returns `True` if the path points to a directory.
+  # Returns `true` if the path points to a directory.
   fn pub directory? -> Bool {
     inko_path_is_directory(_INKO.process, @path)
   }
 
-  # Returns `True` if the path points to an existing file or directory.
+  # Returns `true` if the path points to an existing file or directory.
   fn pub exists? -> Bool {
     inko_path_exists(_INKO.process, @path)
   }
@@ -272,7 +272,7 @@ class pub Path {
     }
   }
 
-  # Returns `True` if this `Path` is an absolute path.
+  # Returns `true` if this `Path` is an absolute path.
   #
   # # Examples
   #
@@ -280,13 +280,13 @@ class pub Path {
   #
   #     import std.fs.path.Path
   #
-  #     Path.new('foo').absolute?  # => False
-  #     Path.new('/foo').absolute? # => True
+  #     Path.new('foo').absolute?  # => false
+  #     Path.new('/foo').absolute? # => true
   fn pub absolute? -> Bool {
     absolute_path?(@path)
   }
 
-  # Returns `True` if this `Path` is a relative path.
+  # Returns `true` if this `Path` is a relative path.
   #
   # # Examples
   #
@@ -294,9 +294,9 @@ class pub Path {
   #
   #     import std.fs.path.Path
   #
-  #     Path.new('foo').relative?  # => True
-  #     Path.new('../').relative?  # => True
-  #     Path.new('/foo').relative? # => False
+  #     Path.new('foo').relative?  # => true
+  #     Path.new('../').relative?  # => true
+  #     Path.new('/foo').relative? # => false
   fn pub relative? -> Bool {
     absolute?.false?
   }
@@ -585,7 +585,7 @@ trait pub IntoPath {
 }
 
 impl Equal[Path] for Path {
-  # Returns `True` if `self` is equal to the given `Path`.
+  # Returns `true` if `self` is equal to the given `Path`.
   #
   # # Examples
   #
@@ -596,7 +596,7 @@ impl Equal[Path] for Path {
   #     let path1 = Path.new('foo')
   #     let path2 = Path.new('foo')
   #
-  #     path1 == path2 # => True
+  #     path1 == path2 # => true
   fn pub ==(other: ref Path) -> Bool {
     @path == other.to_string
   }

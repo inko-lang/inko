@@ -100,7 +100,7 @@ trait pub Iter[T] {
     }
   }
 
-  # Returns the first value for which the supplied `Block` returns `True`.
+  # Returns the first value for which the supplied `Block` returns `true`.
   #
   # This method will advance the `Iter` until either a value is found or we
   # run out of values.
@@ -146,8 +146,8 @@ trait pub Iter[T] {
     }
   }
 
-  # Returns `True` if `self` contains any value for which the `func` argument
-  # returned `True`.
+  # Returns `true` if `self` contains any value for which the `func` argument
+  # returned `true`.
   #
   # This method stops iterating over the values after the first matching value.
   #
@@ -155,7 +155,7 @@ trait pub Iter[T] {
   #
   # Checking if an `Iter` contains a value:
   #
-  #     [10, 20, 30].iter.any? fn (value) { value >= 20 } # => True
+  #     [10, 20, 30].iter.any? fn (value) { value >= 20 } # => true
   fn pub mut any?(func: fn (T) -> Bool) -> Bool {
     loop {
       match self.next {
@@ -166,7 +166,7 @@ trait pub Iter[T] {
   }
 
   # Returns an `Iter` that only produces values for which the supplied func
-  # returned `True`.
+  # returned `true`.
   #
   # # Examples
   #
@@ -217,8 +217,8 @@ trait pub Iter[T] {
   # Partitions the `Iter` into a tuple of two `Array` objects.
   #
   # The first value of the tuple contains all values for which the supplied
-  # func returned `True`. The second value contains all values for which the
-  # func returned `False`.
+  # func returned `true`. The second value contains all values for which the
+  # func returned `false`.
   #
   # # Examples
   #
@@ -237,18 +237,18 @@ trait pub Iter[T] {
     }
   }
 
-  # Returns `True` if the supplied func returns `True` for _all_ values in
+  # Returns `true` if the supplied func returns `true` for _all_ values in
   # `self`.
   #
   # This method stops iterating over the values after the first value for which
-  # the closure returns `False`.
+  # the closure returns `false`.
   #
   # # Examples
   #
   # Checking if all values in an `Iter` match a condition:
   #
-  #     [10, 20].iter.all? fn (value) { value.positive? } # => True
-  #     [-1, 20].iter.all? fn (value) { value.positive? } # => False
+  #     [10, 20].iter.all? fn (value) { value.positive? } # => true
+  #     [-1, 20].iter.all? fn (value) { value.positive? } # => false
   fn pub mut all?(func: fn (T) -> Bool) -> Bool {
     loop {
       match self.next {
