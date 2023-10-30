@@ -10,6 +10,25 @@ ivm itself only requires Rust 1.68 or newer, but to build Inko itself you'll
 need to also meet the requirements listed in the [installation
 guide](installation.md).
 
+### Linux
+
+#### Arch Linux
+
+ivm can be installed using the AUR using an AUR wrapper of your choice. For
+example, using [yay](https://github.com/Jguer/yay):
+
+```bash
+yay -S ivm
+```
+
+Or manually:
+
+```bash
+git clone https://aur.archlinux.org/ivm.git
+cd ivm
+makepkg -si
+```
+
 ### From source
 
 Clone the repository:
@@ -22,21 +41,12 @@ cargo build --release
 
 The resulting executable is found in `target/release/ivm`.
 
-If you are building a package of ivm, you can use the provided `Makefile`
-instead of `cargo build`:
-
-```bash
-make
-make install
-```
-
-This process can be customised by setting the following Make variables:
-
-- `DESTDIR`: the directory to install files into when running `make install`.
-- `PREFIX`: the path prefix to use for all files, defaults to `/usr`. When
-  combined with `DESTDIR`, the value of `DESTDIR` prefixes this value.
-
 ### Using crates.io
+
+!!! note
+    If a package is available for your platform, we recommend installing ivm
+    through your platform's package manager instead. Once ivm is available on
+    enough platforms, we may stop publishing it to crates.io.
 
 ivm is available on [crates.io](https://crates.io/), and you can install it as
 follows:
@@ -150,3 +160,20 @@ The `default` command is used to set a default Inko version to use. When set,
 ivm will create a symbolic link in its `bin/` directory to the `inko` executable
 of the default version. By setting a default version you can just use `inko ...`
 instead of the much more verbose `ivm run VERSION inko ...`.
+
+## Packaging ivm
+
+If you are building a package of ivm (e.g. for Debian), you can use the provided
+`Makefile` instead of `cargo build`:
+
+```bash
+make
+make install
+```
+
+This process can be customised by setting the following Make variables:
+
+- `DESTDIR`: the directory to install files into when running `make install`.
+- `PREFIX`: the path prefix to use for all files, defaults to `/usr`. When
+  combined with `DESTDIR`, the value of `DESTDIR` prefixes this value.
+
