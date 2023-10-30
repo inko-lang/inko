@@ -17,7 +17,7 @@ variables must be set at run-time, not at compile-time.
 |:---------------------|:--------|:----------|:--------------------
 | INKO_PROCESS_THREADS | CPU     | 2^16^ - 1 | The number of OS threads to use for running processes.
 | INKO_BACKUP_THREADS  | CPU * 4 | 2^16^ - 1 | The number of OS threads to use for replacing OS threads performing blocking operations.
-| INKO_NETPOLL_THRADS  | 1       | 128       | The number of OS threads to use for polling sockets for readiness.
+| INKO_NETPOLL_THREADS  | 1       | 128       | The number of OS threads to use for polling sockets for readiness.
 | INKO_STACK_SIZE      | 1048576 | 2^32^ - 1 | The size (in bytes) of each process' stack. Stacks don't grow, so be careful to not set this too low or too high.
 
 ## Kernel settings
