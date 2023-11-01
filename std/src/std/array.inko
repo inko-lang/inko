@@ -744,6 +744,26 @@ impl Format for Array if T: Format {
   }
 }
 
+impl Array if T: Equal[T] {
+  # Returns the index of `value` as a `Some` if present, otherwise it returns a
+  # `None`.
+  #
+  # # Examples
+  #
+  #     [10, 20, 30].index_of(20) # => Option.Some(1)
+  #     [10, 20, 30].index_of(50) # => Option.None
+  fn pub index_of(value: ref T) -> Option[Int] {
+    let mut idx = 0
+
+    while idx < @size {
+      if get_unchecked(idx) == value { return Option.Some(idx) }
+      idx += 1
+    }
+
+    Option.None
+  }
+}
+
 impl Array if T: Compare[T] {
   # Sorts the values in `self` in ascending order.
   #

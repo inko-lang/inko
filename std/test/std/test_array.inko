@@ -379,6 +379,12 @@ fn pub tests(t: mut Tests) {
     vals.insert(-5, 20)
   }
 
+  t.test('Array.index_of') fn (t) {
+    t.equal([].index_of(10), Option.None)
+    t.equal([10, 20, 30].index_of(20), Option.Some(1))
+    t.equal([10, 20, 30].index_of(40), Option.None)
+  }
+
   t.test('IntoIter.next') fn (t) {
     let vals = [10, 20].into_iter
 
