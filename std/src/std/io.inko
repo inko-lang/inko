@@ -431,7 +431,7 @@ trait pub BufferedRead: Read {
   }
 
   # Read bytes into `into` up to and including the newline byte (0xA aka
-  # `"\a"`).
+  # `"\n"`).
   #
   # Upon success, the return value is `Ok(n)` where `n` is the number of bytes
   # read into `into`.
