@@ -149,6 +149,38 @@ fn pub tests(t: mut Tests) {
     t.equal([10, 20, 30].iter.last, Option.Some(30))
   }
 
+  t.test('Iter.try_each') fn (t) {
+    let vals = []
+    let res = [10, 0, 30].into_iter.try_each fn (val) {
+      if val > 0 {
+        vals.push(val)
+        Result.Ok(nil)
+      } else {
+        Result.Error('test')
+      }
+    }
+
+    t.equal(res, Result.Error('test'))
+    t.equal(vals, [10])
+  }
+
+  t.test('Iter.try_reduce') fn (t) {
+    let iter = [Result.Ok(10), Result.Error('test'), Result.Ok(20)].into_iter
+    let vals = []
+    let result = iter.try_reduce(0) fn (acc, val) {
+      match val {
+        case Ok(val) -> {
+          vals.push(val)
+          Result.Ok(acc + val)
+        }
+        case err -> err
+      }
+    }
+
+    t.equal(result, Result.Error('test'))
+    t.equal(vals, [10])
+  }
+
   t.test('Stream.new') fn (t) {
     let mut idx = 0
     let iter = Stream.new fn move {

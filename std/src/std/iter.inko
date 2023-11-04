@@ -50,6 +50,25 @@ trait pub Iter[T] {
     }
   }
 
+  # Calls the closure for every value in `self`, stopping at the first `Error`
+  # returned by the closure.
+  #
+  # # Examples
+  #
+  #     let res = [10, 0, 30].into_iter.try_each fn (val) {
+  #       if val > 0 { Result.Ok(nil) } else { Result.Error('test') }
+  #     }
+  #
+  #     res # => Result.Error('test')
+  fn pub mut try_each[E](func: fn (T) -> Result[Nil, E]) -> Result[Nil, E] {
+    loop {
+      match self.next {
+        case Some(v) -> try func.call(v)
+        case _ -> return Result.Ok(nil)
+      }
+    }
+  }
+
   # Calls the closure for every value in `self`, passing an index and the value
   # to the closure.
   #
@@ -324,6 +343,39 @@ trait pub Iter[T] {
       match self.next {
         case Some(v) -> result = func.call(result, v)
         case _ -> return result
+      }
+    }
+  }
+
+  # Combines all values in the iterator into the specified accumulator, stopping
+  # at the first `Error` that is encountered.
+  #
+  # This method is similar to `Iter.reduce`, except the given closure is
+  # expected to return a `Result` wrapping the accumulator. If the return value
+  # is an `Ok`, iteration continues. If the return value is an `Error`,
+  # iteration stops and the `Error` is returned.
+  #
+  # # Examples
+  #
+  #     let iter = [Result.Ok(1), Result.Error('test'), Result.Ok(2)].into_iter
+  #     let result = iter.try_reduce(0) fn (acc, val) {
+  #       match val {
+  #         case Ok(val) -> Result.Ok(acc + val)
+  #         case err -> err
+  #       }
+  #     }
+  #
+  #     result # => Result.Error('test')
+  fn pub mut try_reduce[A, E](
+    accumulator: A,
+    func: fn (A, T) -> Result[A, E],
+  ) -> Result[A, E] {
+    let mut result = accumulator
+
+    loop {
+      match self.next {
+        case Some(v) -> result = try func.call(result, v)
+        case _ -> return Result.Ok(result)
       }
     }
   }
