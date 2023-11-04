@@ -27,6 +27,17 @@ class builtin Bool {
   fn pub false? -> Bool {
     self == false
   }
+
+  # Calls the supplied closure and wraps its return value in a `Some` if `self`
+  # is `true`, otherwise returns a `None`.
+  #
+  # # Examples
+  #
+  #     true.then fn { 10 }  # => Option.Some(10)
+  #     false.then fn { 10 } # => Option.None
+  fn pub then[T](func: fn -> T) -> Option[T] {
+    if self { Option.Some(func.call) } else { Option.None }
+  }
 }
 
 impl ToInt for Bool {

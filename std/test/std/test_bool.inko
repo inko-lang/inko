@@ -54,4 +54,9 @@ fn pub tests(t: mut Tests) {
     t.equal(fmt(true), 'true')
     t.equal(fmt(false), 'false')
   }
+
+  t.test('Bool.then') fn (t) {
+    t.equal(true.then fn { 10 }, Option.Some(10))
+    t.equal(false.then fn { 10 }, Option.None)
+  }
 }
