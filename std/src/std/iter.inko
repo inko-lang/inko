@@ -63,11 +63,9 @@ trait pub Iter[T] {
   #       num   # => 10, 20, 30
   #     }
   fn pub move each_with_index(func: fn (Int, T)) {
-    with_index.each fn move (pair) {
-      match pair {
-        case (index, value) -> func.call(index, value)
-      }
-    }
+    let mut idx = 0
+
+    each fn move (value) { func.call(idx := idx + 1, value) }
   }
 
   # Returns an `Iter` that yields a tuple of the index and the iterator value.
