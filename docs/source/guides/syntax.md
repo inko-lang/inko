@@ -347,7 +347,7 @@ trait ToString {
 }
 ```
 
-Traits aren't allowed to define static methods.
+Traits can't specify static or async methods.
 
 Traits can also define type parameters:
 
@@ -632,6 +632,8 @@ match foo {
   case _ -> bar
 }
 ```
+
+The receiver of the `match` expression cannot be a trait.
 
 ### Closures
 
