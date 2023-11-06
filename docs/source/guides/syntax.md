@@ -347,7 +347,7 @@ trait ToString {
 }
 ```
 
-Traits aren't allowed to define static methods and cannot be used to specify async method interfaces.
+Traits can't specify static or async methods.
 
 Traits can also define type parameters:
 
