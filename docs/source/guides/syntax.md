@@ -635,7 +635,6 @@ match foo {
 
 The receiver of the `match` expression cannot be a trait.
 
-
 ### Closures
 
 Closures are created using the `fn` keyword:
