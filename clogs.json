@@ -1,0 +1,11 @@
+{
+  "url": "https://github.com/inko-lang/inko/commit/%s",
+  "changelog": "CHANGELOG.md",
+  "categories": {
+    "added": "Added",
+    "fixed": "Fixed",
+    "changed": "Changed",
+    "performance": "Performance improvements",
+    "other": "Other"
+  }
+}

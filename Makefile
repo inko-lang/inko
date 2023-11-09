@@ -99,7 +99,7 @@ release/manifest: ${TMP_DIR}
 		--distribution-id ${RELEASES_CLOUDFRONT_ID} --paths "/*"
 
 release/changelog:
-	ruby scripts/changelog.rb "${VERSION}"
+	clogs "${VERSION}"
 
 release/versions:
 	ruby scripts/update_versions.rb ${VERSION}

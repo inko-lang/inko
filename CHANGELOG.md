@@ -4,8 +4,6 @@
 Entries from before version 0.10.0 are no longer included, but can be viewed
 [here](https://github.com/inko-lang/inko/blob/f9c01b86af70596021e649be5d43ec2a22b6d298/CHANGELOG.md).
 
-<!-- new section -->
-
 ## 0.13.1 (2023-10-14)
 
 ### Fixed
