@@ -111,7 +111,7 @@ impl RegisterStates {
     ) {
         self.mapping
             .entry(block)
-            .or_insert_with(HashMap::new)
+            .or_default()
             .insert(register, state);
     }
 

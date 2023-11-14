@@ -1962,7 +1962,7 @@ impl<'a> LowerToHir<'a> {
         node: ast::StringLiteral,
     ) -> Box<ConstStringLiteral> {
         let value =
-            node.value.map(|n| n.value).unwrap_or_else(|| "".to_string());
+            node.value.map(|n| n.value).unwrap_or_default();
 
         Box::new(ConstStringLiteral {
             value,

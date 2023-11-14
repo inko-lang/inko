@@ -156,7 +156,7 @@ impl DynamicCalls {
     ) {
         self.mapping
             .entry(class)
-            .or_insert_with(HashSet::new)
+            .or_default()
             .insert(DynamicCall { method, key, shapes });
     }
 
@@ -399,7 +399,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
 
                             mir.dynamic_calls
                                 .entry(call.method)
-                                .or_insert_with(HashSet::new)
+                                .or_default()
                                 .insert((method, shapes));
 
                             call.method = method;
@@ -580,7 +580,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
     ) -> MethodId {
         let mut shapes = type_arguments
             .map(|args| self.type_argument_shapes(method, args))
-            .unwrap_or_else(HashMap::new);
+            .unwrap_or_default();
 
         self.add_implementation_shapes(method, &mut shapes);
 
@@ -615,7 +615,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
 
         let base_shapes = type_arguments
             .map(|args| self.type_argument_shapes(method, args))
-            .unwrap_or_else(HashMap::new);
+            .unwrap_or_default();
 
         let mut method_params = HashSet::new();
         let mut method_shapes = Vec::new();
@@ -732,7 +732,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
 
         let mut shapes = type_arguments
             .map(|args| self.type_argument_shapes(call.method, args))
-            .unwrap_or_else(HashMap::new);
+            .unwrap_or_default();
 
         for (param, &shape) in class
             .type_parameters(&self.state.db)

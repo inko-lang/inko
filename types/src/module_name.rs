@@ -1,6 +1,6 @@
 //! Types to represent module names.
 use std::fmt;
-use std::path::{Path, PathBuf, MAIN_SEPARATOR};
+use std::path::{Path, PathBuf, MAIN_SEPARATOR, MAIN_SEPARATOR_STR};
 
 const MAIN_MODULE: &str = "main";
 const SOURCE_EXT: &str = "inko";
@@ -46,9 +46,8 @@ impl ModuleName {
     }
 
     pub fn to_path(&self) -> PathBuf {
-        let mut path = PathBuf::from(
-            self.value.replace(SEPARATOR, &MAIN_SEPARATOR.to_string()),
-        );
+        let mut path =
+            PathBuf::from(self.value.replace(SEPARATOR, MAIN_SEPARATOR_STR));
 
         path.set_extension(SOURCE_EXT);
         path

@@ -675,7 +675,7 @@ impl Process {
                 let path = symbol
                     .filename()
                     .map(|v| v.to_string_lossy().into_owned())
-                    .unwrap_or_else(String::new);
+                    .unwrap_or_default();
 
                 let line = symbol.lineno().unwrap_or(0) as i64;
 
