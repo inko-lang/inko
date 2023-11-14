@@ -3622,7 +3622,7 @@ impl TypeRef {
                 if pid.is_mutable(db) {
                     TypeRef::Mut(id)
                 } else {
-                    self
+                    TypeRef::Ref(id)
                 }
             }
             TypeRef::Owned(id) => TypeRef::Mut(id),
@@ -4981,7 +4981,7 @@ mod tests {
             uni(instance(int)).as_mut(&db),
             TypeRef::UniMut(instance(int))
         );
-        assert_eq!(owned(rigid(param1)).as_mut(&db), owned(rigid(param1)));
+        assert_eq!(owned(rigid(param1)).as_mut(&db), immutable(rigid(param1)));
         assert_eq!(owned(rigid(param2)).as_mut(&db), mutable(rigid(param2)));
         assert_eq!(
             owned(parameter(param2)).as_mut(&db),
