@@ -1745,11 +1745,8 @@ impl<'a> LowerMethod<'a> {
                     None
                 };
 
-                let args = node
-                    .arguments
-                    .into_iter()
-                    .map(|n| Argument::Regular(n))
-                    .collect();
+                let args =
+                    node.arguments.into_iter().map(Argument::Regular).collect();
 
                 let result = self.call_method(info, rec, args, loc);
 
