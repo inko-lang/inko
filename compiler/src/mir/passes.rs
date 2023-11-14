@@ -66,6 +66,11 @@ pub(crate) fn check_global_limits(state: &mut State) -> Result<(), String> {
     Ok(())
 }
 
+enum Argument {
+    Regular(hir::Argument),
+    Input(hir::Expression),
+}
+
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 enum RegisterState {
     /// The register is available, and should be dropped at the end of its
@@ -1740,7 +1745,12 @@ impl<'a> LowerMethod<'a> {
                     None
                 };
 
-                let args = self.call_arguments(&info, node.arguments);
+                let args = node
+                    .arguments
+                    .into_iter()
+                    .map(|n| Argument::Regular(n))
+                    .collect();
+
                 let result = self.call_method(info, rec, args, loc);
 
                 if returns.is_never(self.db()) {
@@ -1836,10 +1846,9 @@ impl<'a> LowerMethod<'a> {
         &mut self,
         info: types::CallInfo,
         receiver: Option<RegisterId>,
-        arguments: Vec<RegisterId>,
+        arguments: Vec<Argument>,
         location: LocationId,
     ) -> RegisterId {
-        let result = self.new_register(info.returns);
         let mut rec = match info.receiver {
             types::Receiver::Explicit => receiver.unwrap(),
             types::Receiver::Implicit => {
@@ -1858,8 +1867,11 @@ impl<'a> LowerMethod<'a> {
                 reg
             }
             types::Receiver::Extern => {
+                let arg_regs = self.call_arguments(info.id, arguments);
+                let result = self.new_register(info.returns);
+
                 self.current_block_mut()
-                    .call_extern(result, info.id, arguments, location);
+                    .call_extern(result, info.id, arg_regs, location);
 
                 if info.id.return_type(self.db()).is_never(self.db()) {
                     self.add_current_block();
@@ -1878,10 +1890,12 @@ impl<'a> LowerMethod<'a> {
                 return result;
             }
             types::Receiver::Class => {
+                let arg_regs = self.call_arguments(info.id, arguments);
                 let targs = self.mir.add_type_arguments(info.type_arguments);
+                let result = self.new_register(info.returns);
 
                 self.current_block_mut()
-                    .call_static(result, info.id, arguments, targs, location);
+                    .call_static(result, info.id, arg_regs, targs, location);
 
                 self.reduce_call(info.returns, location);
 
@@ -1889,10 +1903,18 @@ impl<'a> LowerMethod<'a> {
             }
         };
 
+        // We must handle moving methods _before_ processing arguments, that way
+        // we can prevent using the moved receiver as one of the arguments,
+        // which would be unsound.
         if info.id.is_moving(self.db()) {
             rec = self.receiver_for_moving_method(rec, location);
         }
 
+        // Argument registers must be defined _before_ the receiver register,
+        // ensuring we drop them _after_ dropping the receiver (i.e in
+        // reverse-lexical order).
+        let arg_regs = self.call_arguments(info.id, arguments);
+        let result = self.new_register(info.returns);
         let targs = self.mir.add_type_arguments(info.type_arguments);
 
         if info.id.is_async(self.db()) {
@@ -1901,16 +1923,15 @@ impl<'a> LowerMethod<'a> {
             // (e.g. if new references are created before it runs).
             self.current_block_mut().increment_atomic(rec, location);
             self.current_block_mut()
-                .send(rec, info.id, arguments, targs, location);
+                .send(rec, info.id, arg_regs, targs, location);
 
             self.current_block_mut().nil_literal(result, location);
         } else if info.dynamic {
             self.current_block_mut()
-                .call_dynamic(result, rec, info.id, arguments, targs, location);
+                .call_dynamic(result, rec, info.id, arg_regs, targs, location);
         } else {
-            self.current_block_mut().call_instance(
-                result, rec, info.id, arguments, targs, location,
-            );
+            self.current_block_mut()
+                .call_instance(result, rec, info.id, arg_regs, targs, location);
         }
 
         self.reduce_call(info.returns, location);
@@ -1919,23 +1940,29 @@ impl<'a> LowerMethod<'a> {
 
     fn call_arguments(
         &mut self,
-        info: &types::CallInfo,
-        nodes: Vec<hir::Argument>,
+        method: MethodId,
+        nodes: Vec<Argument>,
     ) -> Vec<RegisterId> {
         let mut args = vec![RegisterId(0); nodes.len()];
 
         for (index, arg) in nodes.into_iter().enumerate() {
             match arg {
-                hir::Argument::Positional(n) => {
-                    let exp = self.expected_argument_type(info.id, index);
+                Argument::Regular(hir::Argument::Positional(n)) => {
+                    let exp = self.expected_argument_type(method, index);
 
-                    args[index] = self.argument_expression(info, *n, exp);
+                    args[index] = self.argument_expression(method, *n, exp);
                 }
-                hir::Argument::Named(n) => {
+                Argument::Regular(hir::Argument::Named(n)) => {
                     let index = n.index;
-                    let exp = self.expected_argument_type(info.id, index);
+                    let exp = self.expected_argument_type(method, index);
 
-                    args[index] = self.argument_expression(info, n.value, exp);
+                    args[index] =
+                        self.argument_expression(method, n.value, exp);
+                }
+                Argument::Input(n) => {
+                    let exp = self.expected_argument_type(method, index);
+
+                    args[index] = self.input_expression(n, exp);
                 }
             }
         }
@@ -1977,7 +2004,7 @@ impl<'a> LowerMethod<'a> {
 
     fn argument_expression(
         &mut self,
-        info: &types::CallInfo,
+        method: MethodId,
         expression: hir::Expression,
         expected: Option<TypeRef>,
     ) -> RegisterId {
@@ -1987,7 +2014,7 @@ impl<'a> LowerMethod<'a> {
         // Arguments passed to extern functions are passed as-is. This way we
         // can pass values to the runtime's functions, without adjusting
         // reference counts.
-        if info.id.is_extern(self.db()) {
+        if method.is_extern(self.db()) {
             return reg;
         }
 
@@ -2001,15 +2028,14 @@ impl<'a> LowerMethod<'a> {
                 self.check_inferred(info.returns, &node.location);
 
                 let loc = self.add_location(node.location);
-                let exp = self.expected_argument_type(info.id, 0).unwrap();
                 let rec = if info.receiver.is_explicit() {
                     Some(self.expression(node.receiver))
                 } else {
                     None
                 };
 
-                let args = vec![self.input_expression(node.value, Some(exp))];
                 let returns = info.returns;
+                let args = vec![Argument::Input(node.value)];
                 let result = self.call_method(info, rec, args, loc);
 
                 if returns.is_never(self.db()) {
