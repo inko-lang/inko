@@ -29,6 +29,28 @@ const CONST_ARRAY_LIMIT: usize = u16::MAX as usize;
 /// are generated later.
 const METHODS_IN_CLASS_LIMIT: usize = (u16::MAX - 1) as usize;
 
+fn copy_inherited_type_arguments(
+    db: &Database,
+    source: TraitInstance,
+    target: &mut TypeArguments,
+) {
+    let inherited = source.instance_of().inherited_type_arguments(db);
+
+    for &param in inherited.keys() {
+        // We may have an assignment chain in the form `A = B = C = X`. In such
+        // a case we want A, B, and C all to resolve to X, hence the recursive
+        // get.
+        let arg = inherited.get_recursive(db, param).unwrap();
+        let val = if let Some(id) = arg.as_type_parameter(db) {
+            target.get(id).unwrap()
+        } else {
+            arg
+        };
+
+        target.assign(param, val);
+    }
+}
+
 struct Pattern<'a> {
     /// The variable scope to use for defining variables introduced by patterns.
     variable_scope: &'a mut VariableScope,
@@ -285,26 +307,26 @@ impl MethodCall {
             }
         }
 
-        // Method's called on traits may expose type parameters of parent
-        // traits, so we need to ensure those are mapped to the correct (rigid)
-        // types.
-        if let TypeId::TraitInstance(ins) = receiver_id {
-            let inherited =
-                ins.instance_of().inherited_type_arguments(&state.db);
-
-            for &param in inherited.keys() {
-                // We may have an assignment chain in the form
-                // `A = B = C = X`. In such a case we want A, B, and C all
-                // to resolve to X, hence the recursive get.
-                let arg = inherited.get_recursive(&state.db, param).unwrap();
-                let val = if let Some(id) = arg.as_type_parameter(&state.db) {
-                    type_arguments.get(id).unwrap()
-                } else {
-                    arg
-                };
-
-                type_arguments.assign(param, val);
+        // When calling a method on a trait or a type parameter, the method may
+        // end up referring to a type parameter from a parent trait. We need to
+        // make sure those type parameters are mapped to the correct final
+        // values, so we have to expose them to the call's type arguments.
+        match receiver_id {
+            TypeId::TraitInstance(ins) => copy_inherited_type_arguments(
+                &state.db,
+                ins,
+                &mut type_arguments,
+            ),
+            TypeId::TypeParameter(id) | TypeId::RigidTypeParameter(id) => {
+                for ins in id.requirements(&state.db) {
+                    copy_inherited_type_arguments(
+                        &state.db,
+                        ins,
+                        &mut type_arguments,
+                    );
+                }
             }
+            _ => {}
         }
 
         // When a method is implemented through a trait, it may depend on type
