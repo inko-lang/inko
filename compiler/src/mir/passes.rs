@@ -109,10 +109,7 @@ impl RegisterStates {
         register: RegisterId,
         state: RegisterState,
     ) {
-        self.mapping
-            .entry(block)
-            .or_default()
-            .insert(register, state);
+        self.mapping.entry(block).or_default().insert(register, state);
     }
 
     fn get(

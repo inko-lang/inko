@@ -154,10 +154,11 @@ impl DynamicCalls {
         key: Vec<Shape>,
         shapes: Vec<(TypeParameterId, Shape)>,
     ) {
-        self.mapping
-            .entry(class)
-            .or_default()
-            .insert(DynamicCall { method, key, shapes });
+        self.mapping.entry(class).or_default().insert(DynamicCall {
+            method,
+            key,
+            shapes,
+        });
     }
 
     fn get(&self, class: ClassId) -> Option<&HashSet<DynamicCall>> {
