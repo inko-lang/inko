@@ -33,7 +33,7 @@ inko build hello.inko
 
 The resulting executable is located at `./build/hello`. By default the compiler
 enables a reasonable number of optimisations, without sacrificing compile times.
-You can either disable optimisations entirely, of enable more aggressively
+You can either disable optimisations entirely, or enable more aggressive
 optimisations at the cost of compile times increasing:
 
 ```bash
