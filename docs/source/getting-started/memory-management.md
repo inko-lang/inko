@@ -298,9 +298,9 @@ anything important.
 
 The third benefit is that single ownership can lead to better memory usage, or
 at least more consistent memory usage. This isn't a hard guarantee as it depends
-on the program's behaviour, but it's easier to achieve. For example, in typical
-a garbage collected language the garbage collector doesn't kick in until a set
-of conditions are met, such as the amount of memory allocated since the last
+on the program's behaviour, but it's easier to achieve. For example, in a
+typical garbage collected language the garbage collector doesn't kick in until a
+set of conditions are met, such as the amount of memory allocated since the last
 garbage collection run. This results in memory usage following a sawtooth
 pattern, with memory usage increasing until the GC kicks in, at which point
 memory usage _may_ be reduced (this is up to the GC implementation). When using
