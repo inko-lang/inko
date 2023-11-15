@@ -64,10 +64,10 @@ needed, only the reference is discarded; not the value it points to. Creating a
 reference is known as "borrowing", because you borrow the value the reference
 points to.
 
-Inko supports two types of references: immutable (`ref T`) and mutable (`mut T`)
-references. Immutable references, as the name suggests, don't allow you to
-mutate the value pointed to, while mutable references do allow this. References
-can only be created from an owned value, not from another reference.
+Inko supports two types of references: immutable (`ref T`) and mutable (`mut T`).
+Immutable references, as the name suggests, don't allow you to mutate the value
+pointed to, while mutable references do. References can only be created from an
+owned value, not from another reference.
 
 References are created using the `ref` and `mut` keywords:
 
