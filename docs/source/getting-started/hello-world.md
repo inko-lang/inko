@@ -58,7 +58,7 @@ class async Main {
 ```
 
 Inko uses lightweight processes (more on that later), which are defined using
-the syntax `async class NAME { ... }`. The main process is always called "Main",
+the syntax `class async NAME { ... }`. The main process is always called "Main",
 and is required to define an "async" instance method called "main".
 
 The final line writes the message to STDOUT:
