@@ -60,7 +60,7 @@ compile-time error is produced.
 
 Besides owned values, Inko also supports references. A reference allows you to
 temporarily use a value without moving it. When the reference is no longer
-needed, only the reference is discarded; not the value it points to. Creating a
+needed, only the reference is discarded, not the value it points to. Creating a
 reference is known as "borrowing", because you borrow the value the reference
 points to.
 
@@ -102,7 +102,7 @@ class List[T] {
 To ensure correctness, Inko maintains a reference count at runtime. This count
 tracks the amount of `ref` and `mut` references that exist for an owned value.
 If the owned value is dropped but references to it still exist, a panic is
-produced and the program is aborted; protecting you against use-after-free
+produced and the program is aborted, protecting you against use-after-free
 errors.
 
 The compiler tries to optimise code such that the amount of reference count
@@ -142,7 +142,7 @@ safety guarantees.
 
 Unique values are created using the `recover` expression, and the return value
 of such an expression is turned from a `T` into `uni T`, or from a `uni T` into
-a `T`; depending on what the original type is:
+a `T`, depending on what the original type is:
 
 ```inko
 let a = recover [10, 20] # => uni Array[Int]
