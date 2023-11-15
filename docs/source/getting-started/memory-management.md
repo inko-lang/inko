@@ -64,9 +64,9 @@ needed, only the reference is discarded; not the value it points to. Creating a
 reference is known as "borrowing", because you borrow the value the reference
 points to.
 
-Inko supports two types of references: immutable (`ref T`) and mutable (`mut T`).
-Immutable references, as the name suggests, don't allow you to
-mutate the value pointed to, while mutable references do. References
+Inko supports two types of references: immutable (`ref T`) and mutable (`mut T`)
+references. Immutable references, as the name suggests, don't allow you to
+mutate the value pointed to, while mutable references do allow this. References
 can only be created from an owned value, not from another reference.
 
 References are created using the `ref` and `mut` keywords:
@@ -321,6 +321,5 @@ There's also a mental cost that comes with single ownership: as a developer
 you're forced to decide who owns what value, when to transfer ownership, when to
 use references, etc. In Rust this can be a challenge, as Rust is rather strict
 about ownership. Inko tries to reduce this cost by being more forgiving and
-shifting some compile-time work to work done at runtime. While this may not be
-suitable for all types of programs, we believe it to be good enough for most of
-them.
+shifting some compile-time work to runtime. While this may not be suitable for
+all types of programs, we believe it to be good enough for most of them.
