@@ -1,9 +1,14 @@
 use crate::{
-    Class, ClassId, ClassInstance, ClassKind, ClosureId, Database, ModuleId,
-    Trait, TraitId, TraitImplementation, TraitInstance, TypeArguments,
-    TypeBounds, TypeId, TypeParameter, TypeParameterId, TypePlaceholderId,
-    TypeRef, Visibility,
+    Class, ClassId, ClassInstance, ClassKind, ClosureId, Database, Module,
+    ModuleId, ModuleName, Trait, TraitId, TraitImplementation, TraitInstance,
+    TypeArguments, TypeBounds, TypeId, TypeParameter, TypeParameterId,
+    TypePlaceholderId, TypeRef, Visibility,
 };
+use std::path::PathBuf;
+
+pub(crate) fn new_module(db: &mut Database, name: &str) -> ModuleId {
+    Module::alloc(db, ModuleName::new(name), PathBuf::from("foo.inko"))
+}
 
 pub(crate) fn new_class(db: &mut Database, name: &str) -> ClassId {
     Class::alloc(

@@ -2619,10 +2619,7 @@ impl ModuleId {
     }
 
     pub fn import_symbol(self, db: &Database, name: &str) -> Option<Symbol> {
-        let Some(symbol) = self.symbol(db, name) else {
-            return None;
-        };
-
+        let symbol = self.symbol(db, name)?;
         let module_id = match symbol {
             Symbol::Class(id) => id.module(db),
             Symbol::Trait(id) => id.module(db),
@@ -4338,8 +4335,8 @@ mod tests {
     use super::*;
     use crate::test::{
         closure, generic_instance_id, generic_trait_instance, immutable, infer,
-        instance, mutable, new_async_class, new_class, new_parameter,
-        new_trait, owned, parameter, placeholder, rigid, uni,
+        instance, mutable, new_async_class, new_class, new_module,
+        new_parameter, new_trait, owned, parameter, placeholder, rigid, uni,
     };
     use std::mem::size_of;
 
@@ -4705,6 +4702,71 @@ mod tests {
         id.new_symbol(&mut db, "A".to_string(), Symbol::Module(id));
 
         assert_eq!(id.symbol(&db, "A"), Some(Symbol::Module(id)));
+    }
+
+    #[test]
+    fn test_module_id_import_symbol_with_class() {
+        let mut db = Database::new();
+        let foo = new_module(&mut db, "foo");
+        let bar = new_module(&mut db, "bar");
+        let fizz = new_module(&mut db, "fizz");
+        let class = new_class(&mut db, "A");
+        let trait_ =
+            Trait::alloc(&mut db, "B".to_string(), Visibility::Public, foo);
+        let constant = Constant::alloc(
+            &mut db,
+            foo,
+            "C".to_string(),
+            Visibility::Public,
+            TypeRef::Unknown,
+        );
+        let method = Method::alloc(
+            &mut db,
+            foo,
+            "D".to_string(),
+            Visibility::Public,
+            MethodKind::Extern,
+        );
+        let type_param = TypeParameter::alloc(&mut db, "E".to_string());
+
+        class.set_module(&mut db, foo);
+        foo.new_symbol(&mut db, "A".to_string(), Symbol::Class(class));
+        foo.new_symbol(&mut db, "B".to_string(), Symbol::Trait(trait_));
+        foo.new_symbol(&mut db, "C".to_string(), Symbol::Constant(constant));
+        foo.new_symbol(&mut db, "D".to_string(), Symbol::Method(method));
+        foo.new_symbol(
+            &mut db,
+            "E".to_string(),
+            Symbol::TypeParameter(type_param),
+        );
+        foo.new_symbol(&mut db, "fizz".to_string(), Symbol::Module(fizz));
+
+        bar.new_symbol(&mut db, "A".to_string(), Symbol::Class(class));
+        bar.new_symbol(&mut db, "B".to_string(), Symbol::Trait(trait_));
+        bar.new_symbol(&mut db, "C".to_string(), Symbol::Constant(constant));
+        bar.new_symbol(&mut db, "D".to_string(), Symbol::Method(method));
+        bar.new_symbol(
+            &mut db,
+            "E".to_string(),
+            Symbol::TypeParameter(type_param),
+        );
+
+        assert_eq!(foo.import_symbol(&db, "unknown"), None);
+
+        assert_eq!(foo.import_symbol(&db, "A"), Some(Symbol::Class(class)));
+        assert_eq!(bar.import_symbol(&db, "A"), None);
+        assert_eq!(foo.import_symbol(&db, "B"), Some(Symbol::Trait(trait_)));
+        assert_eq!(bar.import_symbol(&db, "B"), None);
+        assert_eq!(
+            foo.import_symbol(&db, "C"),
+            Some(Symbol::Constant(constant))
+        );
+        assert_eq!(bar.import_symbol(&db, "C"), None);
+        assert_eq!(foo.import_symbol(&db, "D"), Some(Symbol::Method(method)));
+        assert_eq!(bar.import_symbol(&db, "D"), None);
+        assert_eq!(foo.import_symbol(&db, "E"), None);
+        assert_eq!(bar.import_symbol(&db, "E"), None);
+        assert_eq!(foo.import_symbol(&db, "fizz"), None);
     }
 
     #[test]
