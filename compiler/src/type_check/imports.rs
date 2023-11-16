@@ -101,7 +101,7 @@ impl<'a> DefineImportedTypes<'a> {
         let name = &node.name.name;
         let import_as = &node.import_as.name;
 
-        if let Some(symbol) = source.symbol(self.db(), name) {
+        if let Some(symbol) = source.import_symbol(self.db(), name) {
             if self.module.symbol_exists(self.db(), import_as) {
                 self.state.diagnostics.duplicate_symbol(
                     import_as,
@@ -713,5 +713,81 @@ mod tests {
         assert_eq!(error.id(), DiagnosticId::InvalidSymbol);
         assert_eq!(error.file(), &PathBuf::from("test.inko"));
         assert_eq!(error.location(), &cols(3, 3));
+    }
+
+    #[test]
+    fn test_import_symbol_from_another_module() {
+        let symbol = "fizz".to_string();
+        let mut state = State::new(Config::new());
+        let mut modules = vec![
+            hir_module(
+                &mut state,
+                ModuleName::new("foo"),
+                vec![hir::TopLevelExpression::Import(Box::new(hir::Import {
+                    source: vec![hir::Identifier {
+                        name: "fizz".to_string(),
+                        location: cols(1, 1),
+                    }],
+                    symbols: vec![hir::ImportSymbol {
+                        name: hir::Identifier {
+                            name: symbol.clone(),
+                            location: cols(4, 4),
+                        },
+                        import_as: hir::Identifier {
+                            name: symbol.clone(),
+                            location: cols(1, 1),
+                        },
+                        location: cols(1, 1),
+                    }],
+                    location: cols(1, 1),
+                }))],
+            ),
+            hir_module(
+                &mut state,
+                ModuleName::new("bar"),
+                vec![hir::TopLevelExpression::Import(Box::new(hir::Import {
+                    source: vec![hir::Identifier {
+                        name: "foo".to_string(),
+                        location: cols(1, 1),
+                    }],
+                    symbols: vec![hir::ImportSymbol {
+                        name: hir::Identifier {
+                            name: symbol.clone(),
+                            location: cols(4, 4),
+                        },
+                        import_as: hir::Identifier {
+                            name: symbol.clone(),
+                            location: cols(1, 1),
+                        },
+                        location: cols(1, 1),
+                    }],
+                    location: cols(1, 1),
+                }))],
+            ),
+        ];
+
+        let fizz_mod = Module::alloc(
+            &mut state.db,
+            ModuleName::new("fizz"),
+            "fizz.inko".into(),
+        );
+
+        let fizz = Method::alloc(
+            &mut state.db,
+            fizz_mod,
+            symbol.clone(),
+            Visibility::Public,
+            MethodKind::Instance,
+        );
+
+        fizz_mod.new_symbol(&mut state.db, symbol, Symbol::Method(fizz));
+
+        assert!(!DefineImportedTypes::run_all(&mut state, &mut modules));
+
+        let error = state.diagnostics.iter().next().unwrap();
+
+        assert_eq!(error.id(), DiagnosticId::InvalidSymbol);
+        assert_eq!(error.file(), &PathBuf::from("test.inko"));
+        assert_eq!(error.location(), &cols(4, 4));
     }
 }
