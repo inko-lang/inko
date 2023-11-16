@@ -221,7 +221,7 @@ class async Main {
     file.read_all(bytes).expect('failed to read the file')
     STDOUT.new.write_bytes(bytes).expect('failed to write to STDOUT')
 
-    let _ = remove(file.path)
+    let _ = file.path.remove_file
   }
 }
 ```
