@@ -39,7 +39,6 @@ tests for the standard library are organised as follows:
 
 ```
 std/test/
-├── main.inko
 └── std
     ├── fs
     │   ├── test_dir.inko
@@ -53,37 +52,6 @@ std/test/
     ├── ...
     └── test_tuple.inko
 ```
-
-In a test directory you should create a `main.inko` file. This file imports and
-registers all your tests, and is run when using the `inko test` command. Here's
-what such a file might look like:
-
-```inko
-import std.env
-import std.test.(Filter, Tests)
-
-import std.test_array
-import std.test_bool
-import std.test_byte_array
-import std.test_tuple
-
-class async Main {
-  fn async main {
-    let tests = Tests.new
-
-    test_array.tests(tests)
-    test_bool.tests(tests)
-    test_byte_array.tests(tests)
-    test_tuple.tests(tests)
-
-    tests.filter = Filter.from_string(env.arguments.opt(0).unwrap_or(''))
-    tests.run
-  }
-}
-```
-
-In the future Inko may generate this file for you, but for the time being it
-needs to be maintained manually.
 
 ## Running tests
 

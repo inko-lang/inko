@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use types::module_name::ModuleName;
 
 /// The extension to use for source files.
-pub(crate) const SOURCE_EXT: &str = "inko";
+pub const SOURCE_EXT: &str = "inko";
 
 /// The name of the module to compile if no explicit file/module is provided.
 pub(crate) const MAIN_MODULE: &str = "main";
@@ -20,6 +20,9 @@ pub const DEP: &str = "dep";
 
 /// The name of the directory containing a project's unit tests.
 pub(crate) const TESTS: &str = "test";
+
+/// The name of the module that runs tests.
+const MAIN_TEST_MODULE: &str = "inko-tests";
 
 /// The name of the directory to store build files in.
 const BUILD: &str = "build";
@@ -67,9 +70,13 @@ impl BuildDirectories {
     }
 
     pub(crate) fn create(&self) -> Result<(), String> {
-        create_directory(&self.build)
+        self.create_build()
             .and_then(|_| create_directory(&self.objects))
             .and_then(|_| create_directory(&self.bin))
+    }
+
+    pub(crate) fn create_build(&self) -> Result<(), String> {
+        create_directory(&self.build)
     }
 
     pub(crate) fn create_dot(&self) -> Result<(), String> {
@@ -256,7 +263,7 @@ impl Config {
     }
 
     pub fn main_test_module(&self) -> PathBuf {
-        let mut main_file = self.tests.join(MAIN_MODULE);
+        let mut main_file = self.build.join(MAIN_TEST_MODULE);
 
         main_file.set_extension(SOURCE_EXT);
         main_file

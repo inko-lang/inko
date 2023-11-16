@@ -8,3 +8,4 @@ license = "MPL-2.0"
 [dependencies]
 getopts = "^0.2"
 compiler = { path = "../compiler" }
+types = { path = "../types" }

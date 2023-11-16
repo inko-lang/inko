@@ -93,6 +93,10 @@ impl Compiler {
         self.state.config.presenter.present(&self.state.diagnostics);
     }
 
+    pub fn create_build_directory(&self) -> Result<(), String> {
+        BuildDirectories::new(&self.state.config).create_build()
+    }
+
     fn main_module_path(
         &mut self,
         file: Option<PathBuf>,
