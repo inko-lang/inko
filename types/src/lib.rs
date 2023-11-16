@@ -2618,6 +2618,28 @@ impl ModuleId {
         self.get(db).symbols.contains_key(name)
     }
 
+    pub fn import_symbol(self, db: &Database, name: &str) -> Option<Symbol> {
+        let Some(symbol) = self.symbol(db, name) else {
+            return None;
+        };
+
+        let module_id = match symbol {
+            Symbol::Class(id) => id.module(db),
+            Symbol::Trait(id) => id.module(db),
+            Symbol::Constant(id) => id.module(db),
+            Symbol::Method(id) => id.module(db),
+            Symbol::Module(id) => id,
+            // Type parameters can't be imported.
+            Symbol::TypeParameter(_) => return None,
+        };
+
+        if self == module_id {
+            Some(symbol)
+        } else {
+            None
+        }
+    }
+
     pub fn new_symbol(self, db: &mut Database, name: String, symbol: Symbol) {
         self.get_mut(db).symbols.insert(name, symbol);
     }
