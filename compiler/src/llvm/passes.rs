@@ -1,4 +1,4 @@
-use crate::config::BuildDirectories;
+use crate::config::{BuildDirectories, Opt};
 use crate::llvm::builder::Builder;
 use crate::llvm::constants::{
     ARRAY_BUF_INDEX, ARRAY_CAPA_INDEX, ARRAY_LENGTH_INDEX,
@@ -75,7 +75,20 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
         // of those may not be relevant to Inko, while slowing down compile
         // times. Thus instead of using this knob, we provide our own list of
         // passes. Swift and Rust (and possibly others) take a similar approach.
-        let opt = OptimizationLevel::None;
+        //
+        // For the aggressive mode we simply enable the full suite of LLVM
+        // optimizations, likely greatly increasing the compilation times.
+        let opt = match state.config.opt {
+            Opt::None => OptimizationLevel::None,
+
+            // We have yet to figure out what optimizations we want to enable
+            // here, hence we don't apply any at all.
+            Opt::Balanced => OptimizationLevel::None,
+
+            // This is the equivalent of -O3 for clang.
+            Opt::Aggressive => OptimizationLevel::Aggressive,
+        };
+
         let reloc = RelocMode::PIC;
         let model = CodeModel::Default;
         let triple = TargetTriple::create(&state.config.target.llvm_triple());

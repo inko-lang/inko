@@ -45,9 +45,8 @@ For `--opt none` the executable is placed in `./build/none/hello`, and
 `./build/aggressive/hello` for `--opt aggressive`.
 
 !!! tip
-    Only use `--opt aggressive` if you have determined the increase in compile
-    times is worth the increase in runtime performance. Most users will want to
-    avoid this option entirely.
+    Only use `--opt aggressive` if you have determined a significant increase in
+    compile times is worth the increase in runtime performance.
 
 You can specify an alternative output path using the `-o` option:
 
