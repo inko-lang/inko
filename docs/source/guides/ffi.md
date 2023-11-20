@@ -548,7 +548,8 @@ of the C libraries out there. Most notably, the following isn't supported:
   going to cause trouble due to Inko's concurrent nature, so even if we did
   support this it wouldn't make your life easier.
 - Compiling C source code as part of the Inko build process. See [this
-  section](../goals/#compiling-c-code-when-installing-a-package) for more details.
+  section](goals.md/#compiling-c-code-when-installing-a-package) for more
+  details.
 - Compile-time expressions such as `sizeof()` to automatically get type sizes.
 - Setting `errno` to a custom value. `errno` is implemented differently across
   libc implementations, and Rust (which we use for getting the value) doesn't

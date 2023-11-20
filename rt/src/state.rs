@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::env;
 use std::mem::size_of;
 use std::panic::RefUnwindSafe;
+use std::sync::atomic::AtomicU32;
 use std::time;
 
 /// Allocates a new class, returning a tuple containing the owned pointer and a
@@ -83,6 +84,17 @@ pub struct State {
     /// The second randomly generated key to use for hashers.
     pub hash_key1: i64,
 
+    /// The scheduler epoch.
+    ///
+    /// When starting/resuming a process, this value is read into a
+    /// process-local field. The process periodically compares its local value
+    /// with this global value, and yields back to the scheduler if the
+    /// difference is too great.
+    ///
+    /// This field is stored here and not in the `Scheduler` so it's easier to
+    /// access from the generated code.
+    pub scheduler_epoch: AtomicU32,
+
     /// The runtime's configuration.
     pub(crate) config: Config,
 
@@ -139,6 +151,7 @@ impl State {
         let state = State {
             hash_key0,
             hash_key1,
+            scheduler_epoch: AtomicU32::new(0),
             scheduler,
             environment,
             config,

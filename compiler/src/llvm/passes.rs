@@ -6,7 +6,7 @@ use crate::llvm::constants::{
     CONTEXT_ARGS_INDEX, CONTEXT_PROCESS_INDEX, CONTEXT_STATE_INDEX,
     DROPPER_INDEX, FIELD_OFFSET, HEADER_CLASS_INDEX, HEADER_REFS_INDEX,
     MESSAGE_ARGUMENTS_INDEX, METHOD_FUNCTION_INDEX, METHOD_HASH_INDEX,
-    PROCESS_FIELD_OFFSET,
+    PROCESS_EPOCH_OFFSET, PROCESS_FIELD_OFFSET, STATE_EPOCH_OFFSET,
 };
 use crate::llvm::context::Context;
 use crate::llvm::layouts::Layouts;
@@ -2001,18 +2001,49 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
 
                 self.builder.store(var, value);
             }
-            Instruction::Reduce(ins) => {
-                let amount = self
-                    .builder
-                    .context
-                    .i16_type()
-                    .const_int(ins.amount as u64, false)
-                    .into();
-                let proc = self.builder.load_untyped_pointer(proc_var).into();
-                let func =
-                    self.module.runtime_function(RuntimeFunction::Reduce);
+            Instruction::Preempt(_) => {
+                let state = self.builder.load_untyped_pointer(state_var);
+                let proc = self.builder.load_untyped_pointer(proc_var);
 
-                self.builder.call_void(func, &[proc, amount]);
+                // To access the process' epoch we need a process layout. Since
+                // we don't care which one as the epoch is in a fixed place, we
+                // just use the layout of the main class, which is a process and
+                // is always present at this point.
+                let layout =
+                    self.layouts.instances[&self.db.main_class().unwrap()];
+
+                let state_epoch_addr = self.builder.field_address(
+                    self.layouts.state,
+                    state,
+                    STATE_EPOCH_OFFSET,
+                );
+
+                let state_epoch =
+                    self.builder.load_atomic_counter(state_epoch_addr);
+
+                let proc_epoch = self
+                    .builder
+                    .load_field(layout, proc, PROCESS_EPOCH_OFFSET)
+                    .into_int_value();
+
+                let is_eq = self.builder.int_eq(state_epoch, proc_epoch);
+                let cont_block = self.builder.add_block();
+                let yield_block = self.builder.add_block();
+
+                self.builder.branch(is_eq, cont_block, yield_block);
+
+                // The block to jump to if we need to yield back to the
+                // scheduler.
+                self.builder.switch_to_block(yield_block);
+
+                let func =
+                    self.module.runtime_function(RuntimeFunction::ProcessYield);
+
+                self.builder.call_void(func, &[proc.into()]);
+                self.builder.jump(cont_block);
+
+                // The block to jump to if we can continue running.
+                self.builder.switch_to_block(cont_block);
             }
             Instruction::Finish(ins) => {
                 let proc = self.builder.load_untyped_pointer(proc_var).into();

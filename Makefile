@@ -143,7 +143,7 @@ clean:
 	cargo clean
 
 docs/install:
-	cd docs && poetry install
+	cd docs && poetry install --no-root
 
 docs/build:
 	cd docs && poetry run mkdocs build

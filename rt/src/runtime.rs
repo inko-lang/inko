@@ -122,8 +122,8 @@ impl Runtime {
     /// though this thread itself doesn't run any processes (= it just
     /// waits/blocks until completion).
     fn start(&self, main_class: ClassPointer, main_method: NativeAsyncMethod) {
-        let state = self.state.clone();
         let cores = number_of_cores();
+        let state = self.state.clone();
 
         thread::Builder::new()
             .name("timeout".to_string())

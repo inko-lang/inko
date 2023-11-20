@@ -1205,8 +1205,6 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
         } else if !typ.is_permanent(self.db) {
             self.block_mut(block).call_dropper(reg, value, location);
         }
-
-        self.block_mut(block).reduce_call(location);
     }
 
     fn block_mut(&mut self, id: BlockId) -> &mut Block {

@@ -20,7 +20,7 @@ and the various BSDs.
 
 By default a single network poller thread is used, but the amount is
 configurable using the
-[`INKO_NETPOLL_THREADS`](../../guides/scaling/#environment-variables)
+[`INKO_NETPOLL_THREADS`](../guides/scaling.md/#environment-variables)
 environment variable.
 
 Sockets are provided by the module `std.net.socket`. The following socket
@@ -49,7 +49,7 @@ the blocked thread wakes up again it reschedules the process, then turns itself
 into a backup thread.
 
 The amount of backup threads used is configured using the
-[`INKO_BACKUP_THREADS`](../../guides/scaling/#environment-variables) environment
+[`INKO_BACKUP_THREADS`](../guides/scaling.md/#environment-variables) environment
 variable.
 
 ### Files

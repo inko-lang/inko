@@ -1,4 +1,3 @@
-use crate::context;
 use crate::mem::{free, header_of, ClassPointer};
 use crate::process::ProcessPointer;
 use crate::runtime::exit;
@@ -56,22 +55,6 @@ pub unsafe extern "system" fn inko_check_refs(
 #[no_mangle]
 pub unsafe extern "system" fn inko_free(pointer: *mut u8) {
     free(pointer);
-}
-
-#[no_mangle]
-pub unsafe extern "system" fn inko_reduce(
-    mut process: ProcessPointer,
-    amount: u16,
-) {
-    let thread = process.thread();
-
-    thread.reductions = thread.reductions.saturating_sub(amount);
-
-    if thread.reductions == 0 {
-        // Safety: the current thread is holding on to the run lock
-        thread.schedule(process);
-        context::switch(process);
-    }
 }
 
 #[no_mangle]

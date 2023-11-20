@@ -321,6 +321,22 @@ impl<'ctx> Builder<'ctx> {
             .unwrap()
     }
 
+    pub(crate) fn load_atomic_counter(
+        &self,
+        variable: PointerValue<'ctx>,
+    ) -> IntValue<'ctx> {
+        let res = self.inner.build_load(self.context.i32_type(), variable, "");
+        let ins = res.as_instruction_value().unwrap();
+
+        // If the alignment doesn't match the value size, LLVM compiles this to
+        // an __atomic_load() function call. For the sake of
+        // clarity/future-proofing, we set the alignment explicitly, even though
+        // this is technically redundant.
+        ins.set_alignment(4).unwrap();
+        ins.set_atomic_ordering(AtomicOrdering::Monotonic).unwrap();
+        res.into_int_value()
+    }
+
     pub(crate) fn int_eq(
         &self,
         lhs: IntValue<'ctx>,

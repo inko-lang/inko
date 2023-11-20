@@ -417,7 +417,7 @@ impl<'a> GenerateDropper<'a> {
             None,
             loc,
         );
-        lower.reduce_call(TypeRef::nil(), loc);
+
         lower.current_block_mut().return_value(nil_reg, loc);
 
         assert_eq!(lower.method.arguments.len(), 1);
@@ -458,7 +458,6 @@ impl<'a> GenerateDropper<'a> {
                 None,
                 loc,
             );
-            lower.reduce_call(typ, loc);
         }
 
         let variants = class.variants(lower.db());
@@ -545,8 +544,6 @@ impl<'a> GenerateDropper<'a> {
                 None,
                 loc,
             );
-
-            lower.reduce_call(typ, loc);
         }
 
         for field in class.fields(lower.db()) {
@@ -1540,6 +1537,7 @@ impl<'a> LowerMethod<'a> {
 
         if self.in_connected_block() {
             self.add_edge(loop_end, loop_start);
+            self.current_block_mut().preempt(loc);
             self.current_block_mut().goto(loop_start, loc);
         }
 
@@ -1590,6 +1588,7 @@ impl<'a> LowerMethod<'a> {
         let loc = self.add_location(location);
 
         self.drop_loop_registers(loc);
+        self.current_block_mut().preempt(loc);
         self.current_block_mut().goto(target, loc);
         self.add_edge(source, target);
         self.add_current_block();
@@ -1807,7 +1806,6 @@ impl<'a> LowerMethod<'a> {
                 let res = self.new_register(returns);
 
                 self.current_block_mut().call_closure(res, rec, args, loc);
-                self.reduce_call(returns, loc);
 
                 if returns.is_never(self.db()) {
                     self.add_current_block();
@@ -1891,8 +1889,6 @@ impl<'a> LowerMethod<'a> {
                 self.current_block_mut()
                     .call_static(result, info.id, arg_regs, targs, location);
 
-                self.reduce_call(info.returns, location);
-
                 return result;
             }
         };
@@ -1928,7 +1924,6 @@ impl<'a> LowerMethod<'a> {
                 .call_instance(result, rec, info.id, arg_regs, targs, location);
         }
 
-        self.reduce_call(info.returns, location);
         result
     }
 
@@ -4322,17 +4317,6 @@ impl<'a> LowerMethod<'a> {
 
     fn in_closure(&self) -> bool {
         self.self_register != self.surrounding_type_register
-    }
-
-    fn reduce_call(&mut self, returns: TypeRef, location: LocationId) {
-        // If the method never returns there's no point in generating a
-        // reduction. Doing this can also break the LLVM code generation
-        // process.
-        if returns.is_never(self.db()) {
-            return;
-        }
-
-        self.current_block_mut().reduce_call(location);
     }
 
     fn warn_unreachable(&mut self, location: &SourceLocation) {

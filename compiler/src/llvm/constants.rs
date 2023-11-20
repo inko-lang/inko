@@ -1,11 +1,9 @@
-/// The offset to apply to access a regular field.
-///
-/// The object header occupies the first field (as an inline struct), so all
-/// user-defined fields start at the next field.
+pub(crate) const STATE_EPOCH_OFFSET: u32 = 4;
+pub(crate) const PROCESS_EPOCH_OFFSET: u32 = 1;
+
 pub(crate) const FIELD_OFFSET: usize = 1;
 
-/// The offset to apply to access a process field.
-pub(crate) const PROCESS_FIELD_OFFSET: usize = 2;
+pub(crate) const PROCESS_FIELD_OFFSET: usize = 3;
 
 pub(crate) const HEADER_CLASS_INDEX: u32 = 0;
 pub(crate) const HEADER_REFS_INDEX: u32 = 1;

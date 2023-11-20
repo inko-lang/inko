@@ -16,46 +16,14 @@ use std::mem::{size_of, swap};
 use std::ops::Drop;
 use std::sync::atomic::{AtomicBool, AtomicU16, AtomicU64, Ordering};
 use std::sync::{Condvar, Mutex};
+use std::thread::sleep;
 use std::time::{Duration, Instant};
 
-/// The number of reductions a process can perform before it needs to suspend
-/// itself.
+/// The interval to wait (in milliseconds) between scheduling epoch updates.
 ///
-/// The number here is derived as follows:
-///
-/// - We assume a static or virtual method call takes <= 5 nsec
-/// - We want to restrict processes to time slices of roughly 10 µsec
-const REDUCTIONS: u16 = 2000;
-
-/// A type describing what a thread should do in response to a process yielding
-/// back control.
-///
-/// This type exists as processes may need to perform certain operations that
-/// aren't safe to perform while the process is still running. For example, a
-/// process may want to send a message to a receiver and wait for the result. If
-/// the receiver is still running, it may end up trying to reschedule the
-/// sender. If this happens while the sender is still wrapping up, all sorts of
-/// things can go wrong.
-///
-/// To prevent such problems, processes yield control back to the thread and let
-/// the thread perform such operations using its own stack.
-#[derive(Debug)]
-pub(crate) enum Action {
-    /// The thread shouldn't do anything with the process it was running.
-    Ignore,
-
-    /// The thread should terminate the process.
-    Terminate,
-}
-
-impl Action {
-    fn take(&mut self) -> Self {
-        let mut old_val = Action::Ignore;
-
-        swap(self, &mut old_val);
-        old_val
-    }
-}
+/// This is the interval at which the epoch thread wakes up. The time for which
+/// a process is allowed to run is likely a little higher than this.
+const EPOCH_INTERVAL: u64 = 10;
 
 /// The starting capacity of the global queue.
 ///
@@ -115,6 +83,43 @@ const MONITOR_INTERVAL: u64 = 100;
 /// we perform a number of regular cycles before entering a deep sleep.
 const MAX_IDLE_CYCLES: u64 = 1_000_000 / MONITOR_INTERVAL;
 
+pub(crate) fn epoch_loop(state: &State) {
+    while state.scheduler.pool.is_alive() {
+        sleep(Duration::from_millis(EPOCH_INTERVAL));
+        state.scheduler_epoch.fetch_add(1, Ordering::Relaxed);
+    }
+}
+
+/// A type describing what a thread should do in response to a process yielding
+/// back control.
+///
+/// This type exists as processes may need to perform certain operations that
+/// aren't safe to perform while the process is still running. For example, a
+/// process may want to send a message to a receiver and wait for the result. If
+/// the receiver is still running, it may end up trying to reschedule the
+/// sender. If this happens while the sender is still wrapping up, all sorts of
+/// things can go wrong.
+///
+/// To prevent such problems, processes yield control back to the thread and let
+/// the thread perform such operations using its own stack.
+#[derive(Debug)]
+pub(crate) enum Action {
+    /// The thread shouldn't do anything with the process it was running.
+    Ignore,
+
+    /// The thread should terminate the process.
+    Terminate,
+}
+
+impl Action {
+    fn take(&mut self) -> Self {
+        let mut old_val = Action::Ignore;
+
+        swap(self, &mut old_val);
+        old_val
+    }
+}
+
 /// The shared half of a thread.
 struct Shared {
     /// The queue threads can steal work from.
@@ -143,7 +148,7 @@ pub struct Thread {
     pool: ArcWithoutWeak<Pool>,
 
     /// A flag indicating this thread is or will become a backup thread.
-    pub(crate) backup: bool,
+    backup: bool,
 
     /// The epoch at which we started blocking.
     ///
@@ -171,9 +176,6 @@ pub struct Thread {
     /// The default is to not do anything with a process after it yields back to
     /// the thread.
     pub(crate) action: Action,
-
-    /// The amount of reductions left before a process needs to be suspended.
-    pub(crate) reductions: u16,
 }
 
 impl Thread {
@@ -191,7 +193,6 @@ impl Thread {
             rng: thread_rng(),
             stacks: StackPool::new(pool.stack_size),
             action: Action::Ignore,
-            reductions: REDUCTIONS,
             pool,
         }
     }
@@ -208,7 +209,6 @@ impl Thread {
             rng: thread_rng(),
             stacks: StackPool::new(pool.stack_size),
             action: Action::Ignore,
-            reductions: REDUCTIONS,
             pool,
         }
     }
@@ -499,11 +499,11 @@ impl Thread {
 
             match process.next_task() {
                 Task::Resume => {
-                    process.set_thread(self);
+                    process.resume(state, self);
                     unsafe { context::switch(process) }
                 }
                 Task::Start(func, args) => {
-                    process.set_thread(self);
+                    process.resume(state, self);
                     unsafe { context::start(state, process, func, args) }
                 }
                 Task::Wait => return,
@@ -511,8 +511,6 @@ impl Thread {
 
             process.unset_thread();
         }
-
-        self.reductions = REDUCTIONS;
 
         match self.action.take() {
             Action::Terminate => {
@@ -918,6 +916,14 @@ impl Scheduler {
                     // this thread to a different core.
                     pin_thread_to_core(2 % cores);
                     Monitor::new(&self.pool).run()
+                })
+                .unwrap();
+
+            s.builder()
+                .name("epoch".to_string())
+                .spawn(move |_| {
+                    pin_thread_to_core(3 % cores);
+                    epoch_loop(state);
                 })
                 .unwrap();
 

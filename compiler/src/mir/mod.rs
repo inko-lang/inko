@@ -19,9 +19,6 @@ use types::{
     TypeId, TypeRef, BOOL_ID, FLOAT_ID, INT_ID, NIL_ID,
 };
 
-/// The number of reductions to perform after calling a method.
-const CALL_COST: u16 = 1;
-
 /// The register ID of the register that stores `self`.
 pub(crate) const SELF_ID: u32 = 0;
 
@@ -634,13 +631,9 @@ impl Block {
         )));
     }
 
-    pub(crate) fn reduce(&mut self, amount: u16, location: LocationId) {
+    pub(crate) fn preempt(&mut self, location: LocationId) {
         self.instructions
-            .push(Instruction::Reduce(Box::new(Reduce { amount, location })))
-    }
-
-    pub(crate) fn reduce_call(&mut self, location: LocationId) {
-        self.reduce(CALL_COST, location);
+            .push(Instruction::Preempt(Box::new(Preempt { location })))
     }
 
     pub(crate) fn cast(
@@ -968,8 +961,7 @@ pub(crate) struct Spawn {
 }
 
 #[derive(Clone)]
-pub(crate) struct Reduce {
-    pub(crate) amount: u16,
+pub(crate) struct Preempt {
     pub(crate) location: LocationId,
 }
 
@@ -1102,7 +1094,7 @@ pub(crate) enum Instruction {
     Allocate(Box<Allocate>),
     Spawn(Box<Spawn>),
     GetConstant(Box<GetConstant>),
-    Reduce(Box<Reduce>),
+    Preempt(Box<Preempt>),
     Finish(Box<Finish>),
     Cast(Box<Cast>),
     Pointer(Box<Pointer>),
@@ -1146,7 +1138,7 @@ impl Instruction {
             Instruction::Allocate(ref v) => v.location,
             Instruction::Spawn(ref v) => v.location,
             Instruction::GetConstant(ref v) => v.location,
-            Instruction::Reduce(ref v) => v.location,
+            Instruction::Preempt(ref v) => v.location,
             Instruction::Finish(ref v) => v.location,
             Instruction::Cast(ref v) => v.location,
             Instruction::Pointer(ref v) => v.location,
@@ -1325,7 +1317,7 @@ impl Instruction {
                     v.id.name(db)
                 )
             }
-            Instruction::Reduce(ref v) => format!("reduce {}", v.amount),
+            Instruction::Preempt(_) => "preempt".to_string(),
             Instruction::Finish(v) => {
                 if v.terminate { "terminate" } else { "finish" }.to_string()
             }

@@ -2,7 +2,7 @@
 
 While Inko code is portable across platforms and architectures, sometimes you
 need to handle differences in the underlying platforms, most commonly when using
-the [FFI](../ffi).
+the [FFI](ffi.md).
 
 Inko supports conditional compilation at the `import` level only. This makes it
 easier to understand the code, as platform specific code ends up in dedicated
@@ -28,7 +28,7 @@ import foo if mac
 
 Build tags are applied when parsing Inko source modules to an AST, and imports
 that should be ignored based on the build tags are removed when lowering to
-[HIR](../..//internals/compiler/#hir).
+[HIR](../internals/compiler.md/#hir).
 
 This means that if a conditionally compiled module includes any errors (e.g. a
 type error), those errors won't surface until you compile the code such that all

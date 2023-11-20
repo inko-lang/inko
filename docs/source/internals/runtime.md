@@ -33,16 +33,20 @@ these steps:
 1. Steal processes from the global queue
 1. Go to sleep until new work is pushed onto the global queue
 
-### Reductions
+## Multitasking
 
-Processes maintain a reduction counter, starting at a pre-determined value.
-Certain operations reduce this counter. When the counter reaches zero it's
-reset and the process is rescheduled. This ensures processes performing CPU
-intensive work can't block OS threads indefinitely.
+The scheduler uses cooperative multitasking, driven by the compiler. At various
+points in the code, the compiler injects some extra code (called a "preemption
+point") that checks if control should be yielded back to the scheduler.
 
-The default reduction count is 1000 and can be changed by setting the
-environment variable `INKO_REDUCTIONS` to a value between 1 and 65 535. The
-higher the value, the more time a process is allowed to run for.
+Processes are given a time slice of 10 milliseconds, but may take a little
+longer to run depending on their workload. The end goal is not to guarantee a
+time slice of an exact amount of time, but rather to prevent a process from
+never yielding back to the scheduler (i.e. when running an infinite loop).
+
+Past versions used a fuel/reduction based approach similar to Erlang, but the
+overhead was too great, see [this
+issue](https://github.com/inko-lang/inko/issues/522) for more details.
 
 ## Timeouts
 

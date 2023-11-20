@@ -144,6 +144,7 @@ impl<'ctx> Layouts<'ctx> {
             context.pointer_type().into(), // ByteArray class
             context.pointer_type().into(), // hash_key0
             context.pointer_type().into(), // hash_key1
+            context.i32_type().into(),     // scheduler_epoch
         ]);
 
         let context_layout = context.struct_type(&[
@@ -239,10 +240,15 @@ impl<'ctx> Layouts<'ctx> {
                 // Mutexes are smaller on Linux, resulting in a smaller process
                 // size, so we have to take that into account when calculating
                 // field offsets.
-                112
+                120
             }
-            _ => 128,
+            _ => 136,
         };
+
+        // The size of the data of a process that isn't exposed to the generated
+        // code (i.e. because it involves Rust types of which the layout isn't
+        // stable).
+        let process_private_size = process_size - HEADER_SIZE - 4;
 
         for id in mir.classes.keys() {
             // String is a built-in class, but it's defined like a regular one,
@@ -269,15 +275,23 @@ impl<'ctx> Layouts<'ctx> {
             } else {
                 fields.push(header.into());
 
-                // For processes we need to take into account the space between
-                // the header and the first field. We don't actually care about
-                // that state in the generated code, so we just insert a single
-                // member that covers it.
+                // For processes, the memory layout is as follows:
+                //
+                //     +--------------------------+
+                //     |     header (16 bytes)    |
+                //     +--------------------------+
+                //     |   start epoch (4 bytes)  |
+                //     +--------------------------+
+                //     |  private data (N bytes)  |
+                //     +--------------------------+
+                //     |    user-defined fields   |
+                //     +--------------------------+
                 if kind.is_async() {
+                    fields.push(context.i32_type().into());
                     fields.push(
                         context
                             .i8_type()
-                            .array_type(process_size - HEADER_SIZE)
+                            .array_type(process_private_size)
                             .into(),
                     );
                 }

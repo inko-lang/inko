@@ -15,7 +15,7 @@ pub(crate) enum RuntimeFunction {
     ProcessNew,
     ProcessPanic,
     ProcessSendMessage,
-    Reduce,
+    ProcessYield,
     RuntimeDrop,
     RuntimeNew,
     RuntimeStart,
@@ -40,7 +40,7 @@ impl RuntimeFunction {
             RuntimeFunction::ProcessNew => "inko_process_new",
             RuntimeFunction::ProcessPanic => "inko_process_panic",
             RuntimeFunction::ProcessSendMessage => "inko_process_send_message",
-            RuntimeFunction::Reduce => "inko_reduce",
+            RuntimeFunction::ProcessYield => "inko_process_yield",
             RuntimeFunction::RuntimeDrop => "inko_runtime_drop",
             RuntimeFunction::RuntimeNew => "inko_runtime_new",
             RuntimeFunction::RuntimeStart => "inko_runtime_start",
@@ -70,12 +70,11 @@ impl RuntimeFunction {
 
                 ret.fn_type(&[val], false)
             }
-            RuntimeFunction::Reduce => {
+            RuntimeFunction::ProcessYield => {
                 let proc = context.pointer_type().into();
-                let amount = context.i16_type().into();
                 let ret = context.void_type();
 
-                ret.fn_type(&[proc, amount], false)
+                ret.fn_type(&[proc], false)
             }
             RuntimeFunction::Allocate | RuntimeFunction::AllocateAtomic => {
                 let class = context.pointer_type().into();

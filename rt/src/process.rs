@@ -3,6 +3,7 @@ use crate::mem::{allocate, free, ClassPointer, Header};
 use crate::scheduler::process::Thread;
 use crate::scheduler::timeouts::Timeout;
 use crate::stack::Stack;
+use crate::state::State;
 use backtrace;
 use std::alloc::{alloc, dealloc, handle_alloc_error, Layout};
 use std::cell::UnsafeCell;
@@ -12,6 +13,7 @@ use std::ops::Drop;
 use std::ops::{Deref, DerefMut};
 use std::ptr::{drop_in_place, null_mut, NonNull};
 use std::slice;
+use std::sync::atomic::Ordering;
 use std::sync::{Mutex, MutexGuard};
 
 const INKO_SYMBOL_IDENTIFIER: &str = "_IM_";
@@ -403,6 +405,9 @@ impl ProcessState {
 pub struct Process {
     pub header: Header,
 
+    /// The scheduler epoch at which this process started running.
+    pub started_at: u32,
+
     /// A lock acquired when running a process.
     ///
     /// Processes may perform operations that result in the process being
@@ -484,6 +489,7 @@ impl Process {
 
         obj.header.init_atomic(class);
 
+        init!(obj.started_at => 0);
         init!(obj.run_lock => UnsafeCell::new(Mutex::new(())));
         init!(obj.stack_pointer => stack.stack_pointer());
         init!(obj.stack => ManuallyDrop::new(stack));
@@ -615,10 +621,6 @@ impl Process {
         unsafe { (*self.run_lock.get()).lock().unwrap() }
     }
 
-    pub(crate) fn set_thread(&mut self, thread: &mut Thread) {
-        self.thread = Some(NonNull::from(thread));
-    }
-
     pub(crate) fn unset_thread(&mut self) {
         self.thread = None;
     }
@@ -685,6 +687,11 @@ impl Process {
 
         frames.reverse();
         frames
+    }
+
+    pub(crate) fn resume(&mut self, state: &State, thread: &mut Thread) {
+        self.started_at = state.scheduler_epoch.load(Ordering::Relaxed);
+        self.thread = Some(NonNull::from(thread));
     }
 }
 
@@ -953,11 +960,11 @@ mod tests {
 
         if cfg!(any(target_os = "linux", target_os = "freebsd")) {
             assert_eq!(size_of::<UnsafeCell<Mutex<()>>>(), 8);
-            assert_eq!(size_of::<Process>(), 112);
+            assert_eq!(size_of::<Process>(), 120);
             assert_eq!(size_of::<Channel>(), 96);
         } else {
             assert_eq!(size_of::<UnsafeCell<Mutex<()>>>(), 16);
-            assert_eq!(size_of::<Process>(), 128);
+            assert_eq!(size_of::<Process>(), 136);
             assert_eq!(size_of::<Channel>(), 104);
         }
 
@@ -976,9 +983,9 @@ mod tests {
         assert_eq!(
             offset_of!(proc, fields),
             if cfg!(any(target_os = "linux", target_os = "freebsd")) {
-                112
+                120
             } else {
-                128
+                136
             }
         );
     }
