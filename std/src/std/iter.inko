@@ -492,6 +492,60 @@ trait pub Iter[T] {
       if (pending := pending - 1) > 0 { self.next } else { Option.None }
     }
   }
+
+  # Returns a new iterator that skips values for which `func` returns `true`.
+  #
+  # Once `func` returns `false`, the remaining values in the iterator are
+  # yielded, and `func` is no longer called.
+  #
+  # # Examples
+  #
+  #     [1, 2, 3].into_iter.skip_while fn (v) { v <= 2 }.to_array # => [3]
+  fn pub move skip_while(func: fn (ref T) -> Bool) -> Stream[T] {
+    let mut skip = true
+
+    Stream.new fn move {
+      while skip {
+        match self.next {
+          case Some(v) if func.call(v) -> {}
+          case Some(v) -> {
+            skip = false
+            return Option.Some(v)
+          }
+          case _ -> return Option.None
+        }
+      }
+
+      self.next
+    }
+  }
+
+  # Returns a new iterator that yields values for which `func` returns `true`.
+  #
+  # When `func` returns `false`, any remaining values in the iterator are
+  # ignored and the iterator is no longer advanced.
+  #
+  # # Examples
+  #
+  #     [1, 2, 3].into_iter.take_while fn (v) { v <= 2 }.to_array # => [1, 2]
+  fn pub move take_while(func: fn (ref T) -> Bool) -> Stream[T] {
+    let mut take = true
+
+    Stream.new fn move {
+      if take {
+        match self.next {
+          case Some(v) if func.call(v) -> Option.Some(v)
+          case Some(_) -> {
+            take = false
+            Option.None
+          }
+          case _ -> Option.None
+        }
+      } else {
+        Option.None
+      }
+    }
+  }
 }
 
 # A type that can be moved into an iterator.
