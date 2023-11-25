@@ -451,6 +451,32 @@ trait pub Iter[T] {
   fn pub move peekable -> Peekable[T] {
     Peekable { @iter = self, @peeked = Option.None }
   }
+
+  # Returns a new iterator that skips the first `amount` values yielded, then
+  # yields any remaining values.
+  #
+  # The first time `next` is called on the returned iterator, the iterator is
+  # advanced `amount` times. The new iterator yields a `None` if there are fewer
+  # than `amount` items in the iterator.
+  #
+  # # Examples
+  #
+  #     [1, 2, 3].into_iter.skip(1).to_array # => [2, 3]
+  #     [1].into_iter.skip(10).to_array      # => []
+  fn pub move skip(amount: Int) -> Stream[T] {
+    let mut pending = amount
+
+    Stream.new fn move {
+      while pending > 0 {
+        match self.next {
+          case Some(_) -> pending -= 1
+          case _ -> break
+        }
+      }
+
+      self.next
+    }
+  }
 }
 
 # A type that can be moved into an iterator.
