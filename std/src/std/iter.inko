@@ -477,6 +477,21 @@ trait pub Iter[T] {
       self.next
     }
   }
+
+  # Returns a new iterator that yields the first `amount` items, or fewer if
+  # `amount` is greater than the number of values in the iterator.
+  #
+  # # Examples
+  #
+  #     [1, 2, 3].into_iter.take(2).to_array # => [1, 2]
+  #     [1].into_iter.take(2).to_array       # => [1]
+  fn pub move take(amount: Int) -> Stream[T] {
+    let mut pending = amount
+
+    Stream.new fn move {
+      if (pending := pending - 1) > 0 { self.next } else { Option.None }
+    }
+  }
 }
 
 # A type that can be moved into an iterator.
