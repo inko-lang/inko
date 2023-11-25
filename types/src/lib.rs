@@ -2186,10 +2186,11 @@ impl MethodId {
         self.get(db).arguments.len()
     }
 
-    pub fn copy_method(self, db: &mut Database) -> MethodId {
-        let copy = self.get(db).clone();
+    pub fn copy_method(self, db: &mut Database, module: ModuleId) -> MethodId {
+        let mut copy = self.get(db).clone();
         let id = db.methods.len();
 
+        copy.module = module;
         db.methods.push(copy);
         MethodId(id)
     }

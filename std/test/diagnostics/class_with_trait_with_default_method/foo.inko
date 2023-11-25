@@ -1,0 +1,5 @@
+trait pub Foo {
+  fn foo {
+    42
+  }
+}
