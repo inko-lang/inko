@@ -1,0 +1,282 @@
+import helpers.(compiler_path)
+import std.cmp.Equal
+import std.env
+import std.fmt.(Format, Formatter)
+import std.fs.file.ReadOnlyFile
+import std.fs.path.Path
+import std.int
+import std.io.BufferedReader
+import std.json.Json
+import std.sys.(Command, Stream)
+import std.test.Tests
+
+let EOF = -1
+let LF = 10
+let HASH = 35
+let SPACE = 32
+let LPAREN = 40
+let RPAREN = 41
+let COLON = 58
+
+fn parse_test(file: ReadOnlyFile) -> Result[Array[Diagnostic], String] {
+  let reader = BufferedReader.new(mut file)
+  let buffer = ByteArray.new
+  let diags = []
+
+  loop {
+    match reader.read_line(buffer) {
+      case Ok(0) -> break
+      case Ok(_) -> {}
+      case Error(e) -> throw "failed to read a line from {file.path}: {e}"
+    }
+
+    match buffer.opt(0) {
+      case Some(HASH) -> match Parser.new(buffer).parse {
+        case Some(v) -> diags.push(v)
+        case _ -> throw "the diagnostic line `{buffer.into_string}` is invalid"
+      }
+      case _ -> {}
+    }
+
+    buffer.clear
+  }
+
+  Result.Ok(diags)
+}
+
+fn parse_output(
+  directory: String,
+  bytes: ref ByteArray,
+) -> Result[Array[Diagnostic], String] {
+  match Json.parse(bytes) {
+    case Ok(Array(vals)) -> vals.into_iter.try_reduce([]) fn (diags, entry) {
+      diags.push(try Diagnostic.from_json(directory, entry))
+      Result.Ok(diags)
+    }
+    case _ -> throw 'the top-level value must be an array'
+  }
+}
+
+fn check(compiler: String, name: String, file: Path) -> Array[Diagnostic] {
+  let cmd = Command.new(compiler)
+  let dir = file.directory
+
+  cmd.stdout(Stream.Null)
+  cmd.stdin(Stream.Null)
+  cmd.stderr(Stream.Piped)
+  cmd.directory(dir.clone)
+  cmd.arguments(['check', '--format=json', file.to_string])
+
+  # Given a test called `foo.inko`, if the directory `foo` exists we add it to
+  # the include path. This way you can move separate files that are imported
+  # (e.g. when testing importing of private symbols) into such a sub directory.
+  let extra_src = dir.join(name)
+
+  if extra_src.directory? {
+    cmd.argument('--include')
+    cmd.argument(extra_src.to_string)
+  }
+
+  let child = cmd.spawn.expect('failed to start the compiler')
+  let output = ByteArray.new
+
+  child.wait.expect('failed to wait for the compiler')
+  child.stderr.read_all(output)
+
+  match parse_output(dir.to_string, output) {
+    case Ok(v) -> v
+    case Error(e) -> panic("failed to parse the JSON diagnostics: {e}")
+  }
+}
+
+fn string(map: ref Map[String, Json], key: String) -> Result[String, String] {
+  match map.opt(key) {
+    case Some(String(v)) -> Result.Ok(v)
+    case _ -> throw "the \"{key}\" field must be a string"
+  }
+}
+
+fn location(map: ref Map[String, Json], key: String) -> Result[Int, String] {
+  match map.opt(key) {
+    case Some(Array(vals)) -> match vals.opt(0) {
+      case Some(Int(v)) -> return Result.Ok(v)
+      case _ -> {}
+    }
+    case _ -> {}
+  }
+
+  throw 'the \"{key}\" field must be an array of two integers'
+}
+
+class Parser {
+  let @bytes: ref ByteArray
+  let @index: Int
+
+  fn static new(bytes: ref ByteArray) -> Parser {
+    Parser { @index = 0, @bytes = bytes }
+  }
+
+  fn move parse -> Option[Diagnostic] {
+    if current != HASH { return Option.None }
+    @index += 1
+    skip_spaces
+
+    let file = try read_until(COLON)
+    let line = try read_number_until(COLON)
+    let col = try read_number_until(SPACE)
+
+    skip_spaces
+
+    let level = try read_until(LPAREN)
+    let id = try read_until(RPAREN)
+
+    if current != COLON { return Option.None }
+    @index += 1
+    skip_spaces
+
+    let last = match @bytes.last {
+      case Some(LF) -> @bytes.size - 1
+      case _ -> @bytes.size
+    }
+
+    Option.Some(Diagnostic {
+      @id = id,
+      @file = file,
+      @level = level,
+      @message = @bytes.slice(@index, last - @index).into_string,
+      @line = line,
+      @column = col,
+    })
+  }
+
+  fn current -> Int {
+    if @index < @bytes.size { @bytes.byte(@index) } else { EOF }
+  }
+
+  fn mut skip_spaces {
+    while current == SPACE { @index += 1 }
+  }
+
+  fn mut read_until(byte: Int) -> Option[String] {
+    let start = @index
+
+    loop {
+      match current {
+        case EOF -> return Option.None
+        case v if v == byte -> {
+          return Option.Some(
+            @bytes
+              .slice(start, size: (@index := @index + 1) - start)
+              .into_string
+          )
+        }
+        case _ -> @index += 1
+      }
+    }
+  }
+
+  fn mut read_number_until(byte: Int) -> Option[Int] {
+    read_until(byte).then fn (v) { Int.parse(v, int.Format.Decimal) }
+  }
+}
+
+class Diagnostic {
+  let @id: String
+  let @file: String
+  let @level: String
+  let @line: Int
+  let @column: Int
+  let @message: String
+
+  fn static from_json(
+    directory: String,
+    value: Json,
+  ) -> Result[Diagnostic, String] {
+    let map = match value {
+      case Object(v) -> v
+      case _ -> throw 'each diagnostic must be a JSON object'
+    }
+
+    let id = try string(map, 'id')
+    let level = try string(map, 'level')
+
+    # We remove the directory leading up to the file, that way the diagnostic
+    # lines in the test file don't need to specify the full file paths, and
+    # debugging failing tests is a little less annoying due to noisy output.
+    let file = (try string(map, 'file')).strip_prefix("{directory}/")
+    let line = try location(map, 'lines')
+    let column = try location(map, 'columns')
+    let message = try string(map, 'message')
+
+    Result.Ok(Diagnostic {
+      @id = id,
+      @file = file,
+      @level = level,
+      @line = line,
+      @column = column,
+      @message = message,
+    })
+  }
+}
+
+impl Equal[Diagnostic] for Diagnostic {
+  fn pub ==(other: ref Diagnostic) -> Bool {
+    @id == other.id
+      and @file == other.file
+      and @level == other.level
+      and @message == other.message
+      and @line == other.line
+      and @column == other.column
+  }
+}
+
+impl Format for Diagnostic {
+  fn pub fmt(formatter: mut Formatter) {
+    formatter.write(@file)
+    formatter.write(':')
+    formatter.write(@line.to_string)
+    formatter.write(':')
+    formatter.write(@column.to_string)
+    formatter.write(' ')
+    formatter.write(@level)
+    formatter.write('(')
+    formatter.write(@id)
+    formatter.write('): ')
+    @message.fmt(formatter)
+  }
+}
+
+fn pub tests(t: mut Tests) {
+  let base = env
+    .working_directory
+    .unwrap_or_else fn { '.'.to_path }
+    .join('test')
+    .join('diagnostics')
+
+  let compiler = compiler_path.to_string
+
+  base
+    .list
+    .expect("the test/diagnostics directory couldn't be found")
+    .each fn (entry) {
+      let test_file = match entry {
+        case Ok({ @path = path, @type = File })
+          if path.tail.ends_with?('.inko') -> recover path.clone
+        case Ok(_) -> return
+        case Error(e) -> panic("failed to read the diagnostics directory: {e}")
+      }
+
+      let name = test_file.tail.strip_suffix('.inko')
+
+      t.test("{name} diagnostics") fn move (t) {
+        let file = ReadOnlyFile
+          .new(test_file.clone)
+          .expect("the test file {test_file} must exist")
+
+        match parse_test(file) {
+          case Ok(exp) -> t.equal(check(compiler, name, test_file.clone), exp)
+          case Error(e) -> panic("failed to parse {test_file}: {e}")
+        }
+      }
+    }
+}

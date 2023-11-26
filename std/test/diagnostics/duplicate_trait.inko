@@ -1,0 +1,4 @@
+trait A {}
+trait A {}
+
+# duplicate_trait.inko:2:7 error(duplicate-symbol): the symbol 'A' is already defined
