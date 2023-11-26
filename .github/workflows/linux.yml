@@ -44,6 +44,7 @@ jobs:
           - debian:11
           - debian:latest
           - fedora:37
+          - fedora:38
           - fedora:latest
           - ubuntu:20.04
           - ubuntu:latest
