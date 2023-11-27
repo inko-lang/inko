@@ -1,0 +1,4 @@
+fn a {}
+fn a {}
+
+# duplicate_method.inko:2:1 error(duplicate-symbol): the symbol 'a' is already defined

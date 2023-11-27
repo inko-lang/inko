@@ -53,6 +53,13 @@ then
         llvm llvm-devel llvm-static libstdc++-devel libstdc++-static \
         libffi-devel zlib-devel
 
+elif [ "${1}" = "fedora:38" ]
+then
+    dnf install --assumeyes gcc make tar git \
+        llvm${LLVM_VERSION} llvm${LLVM_VERSION}-devel \
+        llvm${LLVM_VERSION}-static libstdc++-devel libstdc++-static \
+        libffi-devel zlib-devel
+
 elif [ "${1}" = "fedora:latest" ]
 then
     dnf install --assumeyes gcc make tar git \

@@ -90,6 +90,8 @@ For contributing changes to Inko source code, please follow [the Inko style
 guide](style-guide.md). We don't have any tools yet to enforce the style guide,
 so this is done manually during code review.
 
+#### Standard library tests
+
 Unit tests for Inko are located in `std/test` and are named `test_X.inko`,
 where `X` is the module to test. For example, the tests for `std.string` are
 located in `std/test/std/test_string.inko`. Test modules are structured as
@@ -105,13 +107,63 @@ fn pub tests(t: mut Tests) {
 }
 ```
 
-When adding a new test module, follow this structure then add it to
-`std/test/main.inko`, following the same style as the existing tests.
-
 To run the stdlib tests:
 
 1. Enter the std directory `cd std`
 2. Run the tests using `cargo run -p inko --release -- test`
+
+#### Compiler diagnostic tests
+
+The test suite also contains tests for the compiler. These tests are structured
+differently, and are meant to test the diagnostics the compiler produces based
+on the input it's provided. We write such tests in Inko instead of Rust, as
+writing them in Rust requires a lot of boilerplate for every test. These
+diagnostic tests are located in `std/test/diagnostics`. The test files can be
+anything as long as they _don't_ start with `test_`, for example:
+
+```
+$ ls std/test/diagnostics/
+duplicate_class.inko  duplicate_method.inko  duplicate_trait.inko ...
+```
+
+The contents of these files can be anything. If a directory with the same name
+as the test (minus the extension) exists, it's automatically added to the
+include path. This allows you to import files specific to the test, without
+cluttering the diagnostics directory.
+
+Assertions are defined by adding comments at the end of the file using this
+format:
+
+```inko
+# FILE.inko:LINE:COLUMN LEVEL(ID): MESSAGE
+```
+
+When running `inko test`, these lines are parsed into a list of expected
+diagnostics, which is then compared to the list of diagnostics produced by
+running `inko check` with the test file (e.g. `duplicate_method.inko`) as its
+input. An example of such a test is the following:
+
+```inko
+fn a {}
+fn a {}
+
+# duplicate_method.inko:2:1 error(duplicate-symbol): the symbol 'a' is already defined
+```
+
+Writing diagnostic tests is simple:
+
+1. Create the file in `std/test/diagnostics/NAME.inko`, where `NAME` is the name
+   of the test (e.g. `duplicate_class` or `undefined_local_variable`)
+1. If you need additional files, place them in `std/test/diagnostics/NAME/`, you
+   can then import these files as usual
+1. Run `inko check` on the `NAME.inko` file to get a list of diagnostics
+1. Copy these to the end of the file as shown in the example above
+1. Make sure the paths of the diagnostics are relative to
+   `std/test/diagnostics`
+1. Run `inko test` to run all tests or `inko test diagnostics` to run all
+   diagnostics tests, and make sure they all pass. You can run a specific
+   diagnostics test using `inko test NAME diagnostics` (e.g. `inko test
+   duplicate_method diagnostics`)
 
 ### Shell scripts
 

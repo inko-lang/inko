@@ -197,6 +197,42 @@ fn pub tests(t: mut Tests) {
     t.equal(vals.iter.peekable.to_array, [1, 2, 3])
   }
 
+  t.test('Iter.skip') fn (t) {
+    t.equal([1, 2, 3].into_iter.skip(1).to_array, [2, 3])
+    t.equal([1, 2, 3].into_iter.skip(10).to_array, [])
+    t.equal([1, 2, 3].into_iter.skip(0).to_array, [1, 2, 3])
+    t.equal([1, 2, 3].into_iter.skip(-1).to_array, [1, 2, 3])
+    t.equal(([] as Array[Int]).into_iter.skip(1).to_array, [])
+  }
+
+  t.test('Iter.take') fn (t) {
+    t.equal([1, 2, 3].into_iter.take(2).to_array, [1, 2])
+    t.equal([1, 2, 3].into_iter.take(10).to_array, [1, 2, 3])
+    t.equal([1, 2, 3].into_iter.take(0).to_array, [])
+    t.equal([1, 2, 3].into_iter.take(-1).to_array, [])
+    t.equal(([] as Array[Int]).into_iter.take(2).to_array, [])
+  }
+
+  t.test('Iter.skip_while') fn (t) {
+    t.equal([1, 2, 3].into_iter.skip_while fn (_) { false }.to_array, [1, 2, 3])
+    t.equal([1, 2, 3].into_iter.skip_while fn (_) { true }.to_array, [])
+    t.equal([1, 2, 3].into_iter.skip_while fn (v) { v <= 2 }.to_array, [3])
+    t.equal(
+      ([] as Array[Int]).into_iter.skip_while fn (_) { true }.to_array,
+      []
+    )
+  }
+
+  t.test('Iter.take_while') fn (t) {
+    t.equal([1, 2, 3].into_iter.take_while fn (_) { false }.to_array, [])
+    t.equal([1, 2, 3].into_iter.take_while fn (_) { true }.to_array, [1, 2, 3])
+    t.equal([1, 2, 3].into_iter.take_while fn (v) { v <= 2 }.to_array, [1, 2])
+    t.equal(
+      ([] as Array[Int]).into_iter.take_while fn (_) { true }.to_array,
+      []
+    )
+  }
+
   t.test('Peekable.peek with an empty iterator') fn (t) {
     let vals: Array[Int] = []
     let iter = vals.iter.peekable

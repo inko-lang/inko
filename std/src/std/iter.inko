@@ -451,6 +451,101 @@ trait pub Iter[T] {
   fn pub move peekable -> Peekable[T] {
     Peekable { @iter = self, @peeked = Option.None }
   }
+
+  # Returns a new iterator that skips the first `amount` values yielded, then
+  # yields any remaining values.
+  #
+  # The first time `next` is called on the returned iterator, the iterator is
+  # advanced `amount` times. The new iterator yields a `None` if there are fewer
+  # than `amount` items in the iterator.
+  #
+  # # Examples
+  #
+  #     [1, 2, 3].into_iter.skip(1).to_array # => [2, 3]
+  #     [1].into_iter.skip(10).to_array      # => []
+  fn pub move skip(amount: Int) -> Stream[T] {
+    let mut pending = amount
+
+    Stream.new fn move {
+      while pending > 0 {
+        match self.next {
+          case Some(_) -> pending -= 1
+          case _ -> break
+        }
+      }
+
+      self.next
+    }
+  }
+
+  # Returns a new iterator that yields the first `amount` items, or fewer if
+  # `amount` is greater than the number of values in the iterator.
+  #
+  # # Examples
+  #
+  #     [1, 2, 3].into_iter.take(2).to_array # => [1, 2]
+  #     [1].into_iter.take(2).to_array       # => [1]
+  fn pub move take(amount: Int) -> Stream[T] {
+    let mut pending = amount
+
+    Stream.new fn move {
+      if (pending := pending - 1) > 0 { self.next } else { Option.None }
+    }
+  }
+
+  # Returns a new iterator that skips values for which `func` returns `true`.
+  #
+  # Once `func` returns `false`, the remaining values in the iterator are
+  # yielded, and `func` is no longer called.
+  #
+  # # Examples
+  #
+  #     [1, 2, 3].into_iter.skip_while fn (v) { v <= 2 }.to_array # => [3]
+  fn pub move skip_while(func: fn (ref T) -> Bool) -> Stream[T] {
+    let mut skip = true
+
+    Stream.new fn move {
+      while skip {
+        match self.next {
+          case Some(v) if func.call(v) -> {}
+          case Some(v) -> {
+            skip = false
+            return Option.Some(v)
+          }
+          case _ -> return Option.None
+        }
+      }
+
+      self.next
+    }
+  }
+
+  # Returns a new iterator that yields values for which `func` returns `true`.
+  #
+  # When `func` returns `false`, any remaining values in the iterator are
+  # ignored and the iterator is no longer advanced.
+  #
+  # # Examples
+  #
+  #     [1, 2, 3].into_iter.take_while fn (v) { v <= 2 }.to_array # => [1, 2]
+  fn pub move take_while(func: fn (ref T) -> Bool) -> Stream[T] {
+    let mut take = true
+
+    Stream.new fn move {
+      if take {
+        match self.next {
+          case Some(v) if func.call(v) -> Option.Some(v)
+          case Some(_) -> {
+            take = false
+            Option.None
+          }
+          case _ -> Option.None
+        }
+      } else {
+        Option.None
+      }
+    }
+  }
 }
 
 # A type that can be moved into an iterator.
