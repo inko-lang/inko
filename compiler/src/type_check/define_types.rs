@@ -1158,7 +1158,7 @@ mod tests {
     use types::module_name::ModuleName;
     use types::{
         ClassId, ConstantId, TraitId, TraitInstance, TypeBounds,
-        FIRST_USER_CLASS_ID, Method, Module,
+        FIRST_USER_CLASS_ID,
     };
 
     fn get_trait(db: &Database, module: ModuleId, name: &str) -> TraitId {
@@ -1995,62 +1995,5 @@ mod tests {
 
         assert_eq!(error.id(), DiagnosticId::InvalidType);
         assert_eq!(error.location(), &cols(16, 20));
-    }
-
-
-    #[test]
-    fn test_check_class_with_trait_and_default_method() {
-        let mut state = State::new(Config::new());
-        let foo_module = Module::alloc(
-            &mut state.db,
-            ModuleName::new("foo"),
-            "foo.inko".into(),
-        );
-        let foo_trait = Trait::alloc(
-            &mut state.db,
-            "Foo".to_string(),
-            Visibility::Public,
-            foo_module,
-        );
-        let method = Method::alloc(&mut state.db, foo_module, "foo".to_string(), Visibility::TypePrivate, MethodKind::Static);
-        foo_trait.add_default_method(&mut state.db, "foo".to_string(), method);
-
-        let foo_trait_ins = TraitInstance::new(foo_trait);
-
-        foo_module.new_symbol(&mut state.db, "Foo".to_string(), Symbol::Trait(foo_trait));
-
-        // let bar_module = module_type(&mut state, "foo");
-
-        // let bar_class = Class::alloc(
-        //     &mut state.db,
-        //     "Bar".to_string(),
-        //     ClassKind::Regular,
-        //     Visibility::Private,
-        //     bar_module,
-        // );
-        
-        // bar_class.add_trait_implementation(&mut state.db, TraitImplementation {
-        //     instance: foo_trait_ins,
-        //     bounds: TypeBounds::new(),
-        // })
-
-        let mut modules = parse(&mut state, r#"import foo.Foo
-
-class Bar {
-    fn baz()
-}
-
-impl Foo for Bar {}
-
-fn example(value: Bar) {
-    value.foo
-}
-"#);
-
-        define_drop_trait(&mut state);
-        DefineTypes::run_all(&mut state, &mut modules);
-        ImplementTraits::run_all(&mut state, &mut modules);
-
-        assert!(CheckTraitImplementations::run_all(&mut state, &mut modules));
     }
 }

@@ -1,0 +1,11 @@
+import foo.Foo
+
+class Bar {
+  fn baz {}
+}
+
+impl Foo for Bar {}
+
+fn example(value: Bar) {
+  value.foo
+}

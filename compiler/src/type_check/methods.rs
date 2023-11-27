@@ -1220,7 +1220,8 @@ impl<'a> ImplementTraitMethods<'a> {
 
             let source = MethodSource::Implementation(trait_ins, method);
             let name = method.name(self.db()).clone();
-            let copy = method.copy_method(self.db_mut());
+            let module_id = class_id.module(self.db());
+            let copy = method.copy_method(self.db_mut(), module_id);
 
             // This is needed to ensure that the receiver of the default method
             // is typed as the class that implements the trait, not as the trait
