@@ -20,6 +20,61 @@ pub fn format_type_with_arguments<T: FormatType>(
     TypeFormatter::new(db, Some(arguments)).format(typ)
 }
 
+fn format_type_parameter_without_argument(
+    id: TypeParameterId,
+    buffer: &mut TypeFormatter,
+    owned: bool,
+) {
+    let param = id.get(buffer.db);
+
+    if owned {
+        buffer.write_ownership("move ");
+    }
+
+    buffer.write(&param.name);
+
+    if param.mutable {
+        buffer.write(": mut");
+    }
+}
+
+fn format_type_parameter(
+    param: TypeParameterId,
+    buffer: &mut TypeFormatter,
+    owned: bool,
+) {
+    // Formatting type parameters is a bit tricky, as they may be assigned
+    // to themselves directly or through a placeholder. The below code isn't
+    // going to win any awards, but it should ensure we don't blow the stack
+    // when trying to format recursive type parameters, such as
+    // `T -> placeholder -> T`.
+    if let Some(arg) = buffer.type_arguments.and_then(|a| a.get(param)) {
+        if let TypeRef::Placeholder(p) = arg {
+            match p.value(buffer.db) {
+                Some(t) if t.as_type_parameter(buffer.db) == Some(param) => {
+                    format_type_parameter_without_argument(param, buffer, owned)
+                }
+                Some(t) => if owned { t.as_owned(buffer.db) } else { t }
+                    .format_type(buffer),
+                None => {
+                    format_type_parameter_without_argument(param, buffer, owned)
+                }
+            }
+
+            return;
+        }
+
+        if arg.as_type_parameter(buffer.db) == Some(param) {
+            format_type_parameter_without_argument(param, buffer, owned);
+            return;
+        }
+
+        if owned { arg.as_owned(buffer.db) } else { arg }.format_type(buffer);
+    } else {
+        format_type_parameter_without_argument(param, buffer, owned);
+    };
+}
+
 /// A buffer for formatting type names.
 ///
 /// We use a simple wrapper around a String so we can more easily change the
@@ -99,7 +154,9 @@ impl<'a> TypeFormatter<'a> {
                     // `Array[Array[T]]`), and we don't want to display that
                     // assignment as it's only to be used for the outer most
                     // type. As such, we don't use format_type() here.
-                    param.format_type_without_argument(self);
+                    format_type_parameter_without_argument(
+                        param, self, id.owned,
+                    );
                 }
                 Some(typ) => typ.format_type(self),
                 _ => param.format_type(self),
@@ -156,56 +213,17 @@ impl FormatType for TypePlaceholderId {
     fn format_type(&self, buffer: &mut TypeFormatter) {
         if let Some(value) = self.value(buffer.db) {
             value.format_type(buffer);
+        } else if let Some(req) = self.required(buffer.db) {
+            req.format_type(buffer);
         } else {
             buffer.write("?");
         }
     }
 }
 
-impl TypeParameterId {
-    fn format_type_without_argument(&self, buffer: &mut TypeFormatter) {
-        let param = self.get(buffer.db);
-
-        buffer.write(&param.name);
-
-        if param.mutable {
-            buffer.write(": mut");
-        }
-    }
-}
-
 impl FormatType for TypeParameterId {
     fn format_type(&self, buffer: &mut TypeFormatter) {
-        // Formatting type parameters is a bit tricky, as they may be assigned
-        // to themselves directly or through a placeholder. The below code isn't
-        // going to win any awards, but it should ensure we don't blow the stack
-        // when trying to format recursive type parameters, such as
-        // `T -> placeholder -> T`.
-
-        if let Some(arg) = buffer.type_arguments.and_then(|a| a.get(*self)) {
-            if let TypeRef::Placeholder(p) = arg {
-                match p.value(buffer.db) {
-                    Some(t)
-                        if t.as_type_parameter(buffer.db) == Some(*self) =>
-                    {
-                        self.format_type_without_argument(buffer)
-                    }
-                    Some(t) => t.format_type(buffer),
-                    None => self.format_type_without_argument(buffer),
-                }
-
-                return;
-            }
-
-            if arg.as_type_parameter(buffer.db) == Some(*self) {
-                self.format_type_without_argument(buffer);
-                return;
-            }
-
-            arg.format_type(buffer);
-        } else {
-            self.format_type_without_argument(buffer);
-        };
+        format_type_parameter(*self, buffer, false);
     }
 }
 
@@ -338,8 +356,14 @@ impl FormatType for ClosureId {
 impl FormatType for TypeRef {
     fn format_type(&self, buffer: &mut TypeFormatter) {
         match self {
+            TypeRef::Owned(TypeId::TypeParameter(id)) => {
+                format_type_parameter(*id, buffer, true);
+            }
+            TypeRef::Owned(TypeId::RigidTypeParameter(id)) => {
+                format_type_parameter_without_argument(*id, buffer, true);
+            }
             TypeRef::Owned(id) => id.format_type(buffer),
-            TypeRef::Infer(id) => id.format_type(buffer),
+            TypeRef::Any(id) => id.format_type(buffer),
             TypeRef::Uni(id) => {
                 buffer.write_ownership("uni ");
                 id.format_type(buffer);
@@ -384,7 +408,7 @@ impl FormatType for TypeId {
             TypeId::TypeParameter(id) => id.format_type(buffer),
             TypeId::RigidTypeParameter(id)
             | TypeId::AtomicTypeParameter(id) => {
-                id.format_type_without_argument(buffer);
+                format_type_parameter_without_argument(*id, buffer, false);
             }
             TypeId::Closure(id) => id.format_type(buffer),
             TypeId::Foreign(ForeignType::Int(size, true)) => {
@@ -735,6 +759,7 @@ mod tests {
         param.add_requirements(&mut db, vec![to_string_ins]);
 
         assert_eq!(format_type(&db, param_ins), "T");
+        assert_eq!(format_type(&db, TypeRef::Owned(param_ins)), "move T");
     }
 
     #[test]
@@ -831,7 +856,7 @@ mod tests {
             format_type(&db, TypeRef::UniRef(string_ins)),
             "uni ref String".to_string()
         );
-        assert_eq!(format_type(&db, TypeRef::Infer(param)), "T".to_string());
+        assert_eq!(format_type(&db, TypeRef::Any(param)), "T".to_string());
         assert_eq!(
             format_type(&db, TypeRef::Ref(string_ins)),
             "ref String".to_string()

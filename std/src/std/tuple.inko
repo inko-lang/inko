@@ -44,7 +44,7 @@ class builtin Tuple1[A] {
   let pub @0: A
 }
 
-impl Equal[Tuple1[A]] for Tuple1 if A: Equal[A] {
+impl Equal[ref Tuple1[A]] for Tuple1 if A: Equal[ref A] {
   fn pub ==(other: ref Tuple1[A]) -> Bool {
     @0 == other.0
   }
@@ -74,7 +74,7 @@ class builtin Tuple2[A, B] {
   let pub @1: B
 }
 
-impl Equal[Tuple2[A, B]] for Tuple2 if A: Equal[A], B: Equal[B] {
+impl Equal[ref Tuple2[A, B]] for Tuple2 if A: Equal[ref A], B: Equal[ref B] {
   fn pub ==(other: ref Tuple2[A, B]) -> Bool {
     @0 == other.0 and @1 == other.1
   }
@@ -106,9 +106,9 @@ class builtin Tuple3[A, B, C] {
   let pub @2: C
 }
 
-impl Equal[Tuple3[A, B, C]] for Tuple3
+impl Equal[ref Tuple3[A, B, C]] for Tuple3
 if
-  A: Equal[A], B: Equal[B], C: Equal[C]
+  A: Equal[ref A], B: Equal[ref B], C: Equal[ref C]
 {
   fn pub ==(other: ref Tuple3[A, B, C]) -> Bool {
     @0 == other.0 and @1 == other.1 and @2 == other.2
@@ -123,7 +123,10 @@ impl Hash for Tuple3 if A: Hash, B: Hash, C: Hash {
   }
 }
 
-impl Clone[Tuple3[A, B, C]] for Tuple3 if A: Clone[A], B: Clone[B], C: Clone[C] {
+impl Clone[Tuple3[A, B, C]] for Tuple3
+if
+  A: Clone[A], B: Clone[B], C: Clone[C]
+{
   fn pub clone -> Tuple3[A, B, C] {
     (@0.clone, @1.clone, @2.clone)
   }
@@ -143,9 +146,9 @@ class builtin Tuple4[A, B, C, D] {
   let pub @3: D
 }
 
-impl Equal[Tuple4[A, B, C, D]] for Tuple4
+impl Equal[ref Tuple4[A, B, C, D]] for Tuple4
 if
-  A: Equal[A], B: Equal[B], C: Equal[C], D: Equal[D]
+  A: Equal[ref A], B: Equal[ref B], C: Equal[ref C], D: Equal[ref D]
 {
   fn pub ==(other: ref Tuple4[A, B, C, D]) -> Bool {
     @0 == other.0 and @1 == other.1 and @2 == other.2 and @3 == other.3
@@ -185,9 +188,13 @@ class builtin Tuple5[A, B, C, D, E] {
   let pub @4: E
 }
 
-impl Equal[Tuple5[A, B, C, D, E]] for Tuple5
+impl Equal[ref Tuple5[A, B, C, D, E]] for Tuple5
 if
-  A: Equal[A], B: Equal[B], C: Equal[C], D: Equal[D], E: Equal[E]
+  A: Equal[ref A],
+  B: Equal[ref B],
+  C: Equal[ref C],
+  D: Equal[ref D],
+  E: Equal[ref E]
 {
   fn pub ==(other: ref Tuple5[A, B, C, D, E]) -> Bool {
     @0 == other.0
@@ -236,9 +243,14 @@ class builtin Tuple6[A, B, C, D, E, F] {
   let pub @5: F
 }
 
-impl Equal[Tuple6[A, B, C, D, E, F]] for Tuple6
+impl Equal[ref Tuple6[A, B, C, D, E, F]] for Tuple6
 if
-  A: Equal[A], B: Equal[B], C: Equal[C], D: Equal[D], E: Equal[E], F: Equal[F]
+  A: Equal[ref A],
+  B: Equal[ref B],
+  C: Equal[ref C],
+  D: Equal[ref D],
+  E: Equal[ref E],
+  F: Equal[ref F]
 {
   fn pub ==(other: ref Tuple6[A, B, C, D, E, F]) -> Bool {
     @0 == other.0
@@ -299,10 +311,15 @@ class builtin Tuple7[A, B, C, D, E, F, G] {
   let pub @6: G
 }
 
-impl Equal[Tuple7[A, B, C, D, E, F, G]] for Tuple7
+impl Equal[ref Tuple7[A, B, C, D, E, F, G]] for Tuple7
 if
-  A: Equal[A], B: Equal[B], C: Equal[C], D: Equal[D], E: Equal[E], F: Equal[F],
-  G: Equal[G]
+  A: Equal[ref A],
+  B: Equal[ref B],
+  C: Equal[ref C],
+  D: Equal[ref D],
+  E: Equal[ref E],
+  F: Equal[ref F],
+  G: Equal[ref G]
 {
   fn pub ==(other: ref Tuple7[A, B, C, D, E, F, G]) -> Bool {
     @0 == other.0
@@ -375,10 +392,16 @@ class builtin Tuple8[A, B, C, D, E, F, G, H] {
   let pub @7: H
 }
 
-impl Equal[Tuple8[A, B, C, D, E, F, G, H]] for Tuple8
+impl Equal[ref Tuple8[A, B, C, D, E, F, G, H]] for Tuple8
 if
-  A: Equal[A], B: Equal[B], C: Equal[C], D: Equal[D], E: Equal[E], F: Equal[F],
-  G: Equal[G], H: Equal[H]
+  A: Equal[ref A],
+  B: Equal[ref B],
+  C: Equal[ref C],
+  D: Equal[ref D],
+  E: Equal[ref E],
+  F: Equal[ref F],
+  G: Equal[ref G],
+  H: Equal[ref H]
 {
   fn pub ==(other: ref Tuple8[A, B, C, D, E, F, G, H]) -> Bool {
     @0 == other.0
@@ -435,7 +458,13 @@ if
 
 impl Format for Tuple8
 if
-  A: Format, B: Format, C: Format, D: Format, E: Format, F: Format, G: Format,
+  A: Format,
+  B: Format,
+  C: Format,
+  D: Format,
+  E: Format,
+  F: Format,
+  G: Format,
   H: Format
 {
   fn pub fmt(formatter: mut Formatter) {

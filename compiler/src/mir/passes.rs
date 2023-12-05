@@ -68,7 +68,7 @@ pub(crate) fn check_global_limits(state: &mut State) -> Result<(), String> {
 
 enum Argument {
     Regular(hir::Argument),
-    Input(hir::Expression),
+    Input(hir::Expression, TypeRef),
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -1609,7 +1609,7 @@ impl<'a> LowerMethod<'a> {
 
         for field in node.fields {
             let id = field.field_id.unwrap();
-            let exp = id.value_type(self.db());
+            let exp = field.expected_type;
             let val = self.input_expression(field.value, Some(exp));
             let loc = self.add_location(field.location);
 
@@ -1793,13 +1793,11 @@ impl<'a> LowerMethod<'a> {
                 let rec = self.expression(node.receiver.unwrap());
                 let mut args = Vec::new();
 
-                for (arg, exp) in node
-                    .arguments
-                    .into_iter()
-                    .zip(info.expected_arguments.into_iter())
-                {
-                    if let hir::Argument::Positional(expr) = arg {
-                        args.push(self.input_expression(*expr, Some(exp)));
+                for arg in node.arguments.into_iter() {
+                    if let hir::Argument::Positional(n) = arg {
+                        let exp = n.expected_type;
+
+                        args.push(self.input_expression(n.value, Some(exp)));
                     }
                 }
 
@@ -1937,21 +1935,21 @@ impl<'a> LowerMethod<'a> {
         for (index, arg) in nodes.into_iter().enumerate() {
             match arg {
                 Argument::Regular(hir::Argument::Positional(n)) => {
-                    let exp = self.expected_argument_type(method, index);
-
-                    args[index] = self.argument_expression(method, *n, exp);
+                    args[index] = self.argument_expression(
+                        method,
+                        n.value,
+                        Some(n.expected_type),
+                    );
                 }
                 Argument::Regular(hir::Argument::Named(n)) => {
-                    let index = n.index;
-                    let exp = self.expected_argument_type(method, index);
-
-                    args[index] =
-                        self.argument_expression(method, n.value, exp);
+                    args[n.index] = self.argument_expression(
+                        method,
+                        n.value,
+                        Some(n.expected_type),
+                    );
                 }
-                Argument::Input(n) => {
-                    let exp = self.expected_argument_type(method, index);
-
-                    args[index] = self.input_expression(n, exp);
+                Argument::Input(n, exp) => {
+                    args[index] = self.input_expression(n, Some(exp));
                 }
             }
         }
@@ -1969,14 +1967,6 @@ impl<'a> LowerMethod<'a> {
             self.file(),
             location.clone(),
         );
-    }
-
-    fn expected_argument_type(
-        &self,
-        method: MethodId,
-        index: usize,
-    ) -> Option<TypeRef> {
-        method.positional_argument_input_type(self.db(), index)
     }
 
     fn input_expression(
@@ -2024,7 +2014,8 @@ impl<'a> LowerMethod<'a> {
                 };
 
                 let returns = info.returns;
-                let args = vec![Argument::Input(node.value)];
+                let args =
+                    vec![Argument::Input(node.value, node.expected_type)];
                 let result = self.call_method(info, rec, args, loc);
 
                 if returns.is_never(self.db()) {

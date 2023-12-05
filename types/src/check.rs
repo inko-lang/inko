@@ -14,16 +14,19 @@ enum Subtyping {
 
 #[derive(Copy, Clone)]
 struct Rules {
-    /// The rules to apply when type checking a class instance against a trait
-    /// instance.
-    class_subtyping: Subtyping,
+    /// The rules to apply when performing sub-typing checks.
+    subtyping: Subtyping,
 
-    /// When set to `true`, owned types can be type checked against reference
-    /// types.
-    relaxed_ownership: bool,
+    /// If the root/outer-most type is implicitly compatible with a reference
+    /// (i.e. `T -> ref T` is allowed).
+    implicit_root_ref: bool,
 
-    /// When encountering an Infer() type, turn it into a rigid type.
-    infer_as_rigid: bool,
+    /// If a `uni T` is compatible with a `T` value.
+    uni_compatible_with_owned: bool,
+
+    /// If type parameters should be turned into rigid parameters in various
+    /// contexts (e.g. when comparing trait implementations).
+    rigid_parameters: bool,
 
     /// If we're performing a type-check as part of a type cast.
     ///
@@ -34,33 +37,29 @@ struct Rules {
 impl Rules {
     fn new() -> Rules {
         Rules {
-            class_subtyping: Subtyping::No,
-            relaxed_ownership: false,
-            infer_as_rigid: false,
+            subtyping: Subtyping::No,
+            implicit_root_ref: false,
+            uni_compatible_with_owned: true,
+            rigid_parameters: false,
             type_cast: false,
         }
     }
 
     fn without_subtyping(mut self) -> Rules {
-        if let Subtyping::Yes = self.class_subtyping {
-            self.class_subtyping = Subtyping::No
+        if let Subtyping::Yes = self.subtyping {
+            self.subtyping = Subtyping::No
         }
 
         self
     }
 
     fn infer_as_rigid(mut self) -> Rules {
-        self.infer_as_rigid = true;
+        self.rigid_parameters = true;
         self
     }
 
     fn dont_infer_as_rigid(mut self) -> Rules {
-        self.infer_as_rigid = false;
-        self
-    }
-
-    fn with_relaxed_ownership(mut self) -> Rules {
-        self.relaxed_ownership = true;
+        self.rigid_parameters = false;
         self
     }
 
@@ -69,18 +68,23 @@ impl Rules {
         self
     }
 
-    fn with_strict_ownership(mut self) -> Rules {
-        self.relaxed_ownership = false;
-        self
-    }
-
     fn with_one_time_subtyping(mut self) -> Rules {
-        self.class_subtyping = Subtyping::Once;
+        self.subtyping = Subtyping::Once;
         self
     }
 
     fn with_subtyping(mut self) -> Rules {
-        self.class_subtyping = Subtyping::Yes;
+        self.subtyping = Subtyping::Yes;
+        self
+    }
+
+    fn with_implicit_root_ref(mut self) -> Rules {
+        self.implicit_root_ref = true;
+        self
+    }
+
+    fn without_implicit_root_ref(mut self) -> Rules {
+        self.implicit_root_ref = false;
         self
     }
 }
@@ -139,10 +143,9 @@ impl<'a> TypeChecker<'a> {
         let mut env =
             Environment::new(left.type_arguments(db), right.type_arguments(db));
 
-        let mut checker = TypeChecker::new(db);
         let rules = Rules::new().with_type_cast().with_one_time_subtyping();
 
-        checker.check_type_ref(left, right, &mut env, rules)
+        TypeChecker::new(db).check_type_ref(left, right, &mut env, rules)
     }
 
     pub fn new(db: &'a Database) -> TypeChecker<'a> {
@@ -164,7 +167,12 @@ impl<'a> TypeChecker<'a> {
         right: TypeRef,
         env: &mut Environment,
     ) -> bool {
-        self.check_type_ref(left, right, env, Rules::new().without_subtyping())
+        self.check_type_ref(
+            left,
+            right,
+            env,
+            Rules::new().without_subtyping().with_implicit_root_ref(),
+        )
     }
 
     pub fn check_method(
@@ -244,7 +252,7 @@ impl<'a> TypeChecker<'a> {
             env.left.assign(bound, val);
 
             let mut env = env.with_left_as_right();
-            let rules = Rules::new().with_relaxed_ownership().with_subtyping();
+            let rules = Rules::new().with_subtyping();
 
             if bound.is_mutable(self.db) && !val.is_mutable(self.db) {
                 return false;
@@ -267,23 +275,18 @@ impl<'a> TypeChecker<'a> {
             return true;
         }
 
-        // Relaxed ownership only applies to the check we perform below, not any
-        // sub checks. The approach we take here means we only need to "reset"
-        // this once for the sub checks.
-        let relaxed = rules.relaxed_ownership;
-        let rules = rules.with_strict_ownership();
-
         // Resolve any assigned type parameters/placeholders to the types
         // they're assigned to.
         let left = self.resolve(left, &env.left, rules);
+        let implicit_root_ref = rules.implicit_root_ref;
 
         // We only apply the "infer as rigid" rule to the type on the left,
         // otherwise we may end up comparing e.g. a class instance to the rigid
         // type parameter on the right, which would always fail.
         //
-        // This is OK because in practise, Infer() only shows up on the left in
+        // This is OK because in practise, Any() only shows up on the left in
         // a select few cases.
-        let rules = rules.dont_infer_as_rigid();
+        let rules = rules.dont_infer_as_rigid().without_implicit_root_ref();
         let original_right = right;
         let right = self.resolve(right, &env.right, rules);
 
@@ -309,40 +312,18 @@ impl<'a> TypeChecker<'a> {
                 }
                 _ => true,
             },
-            // Rigid values are more restrictive when it comes to ownership, as
-            // at compile-time we can't always know the exact ownership (i.e.
-            // the parameter may be a ref at runtime).
-            TypeRef::Owned(left_id @ TypeId::RigidTypeParameter(lhs)) => {
-                match right {
-                    TypeRef::Owned(TypeId::RigidTypeParameter(rhs)) => {
-                        lhs == rhs
-                    }
-                    TypeRef::Infer(right_id) => {
-                        self.check_rigid_with_type_id(lhs, right_id, env, rules)
-                    }
-                    TypeRef::Placeholder(id) => self
-                        .check_type_id_with_placeholder(
-                            left,
-                            left_id,
-                            original_right,
-                            id,
-                            env,
-                            rules,
-                        ),
-                    TypeRef::Error => true,
-                    TypeRef::Owned(TypeId::Foreign(_)) => true,
-                    _ => false,
-                }
-            }
             TypeRef::Owned(left_id) => match right {
-                TypeRef::Owned(right_id) | TypeRef::Infer(right_id) => {
+                TypeRef::Owned(right_id) | TypeRef::Any(right_id) => {
                     self.check_type_id(left_id, right_id, env, rules)
                 }
-                TypeRef::Ref(right_id)
-                | TypeRef::Mut(right_id)
-                | TypeRef::Uni(right_id)
-                    if left.is_value_type(self.db) || relaxed =>
+                TypeRef::Ref(right_id) | TypeRef::Mut(right_id)
+                    if left.is_value_type(self.db) || implicit_root_ref =>
                 {
+                    let rules = rules.without_implicit_root_ref();
+
+                    self.check_type_id(left_id, right_id, env, rules)
+                }
+                TypeRef::Uni(right_id) if left.is_value_type(self.db) => {
                     self.check_type_id(left_id, right_id, env, rules)
                 }
                 TypeRef::Placeholder(id) => self
@@ -364,8 +345,12 @@ impl<'a> TypeChecker<'a> {
             },
             TypeRef::Uni(left_id) => match right {
                 TypeRef::Owned(right_id)
-                | TypeRef::Infer(right_id)
-                | TypeRef::Uni(right_id) => {
+                    if rules.uni_compatible_with_owned
+                        || left.is_value_type(self.db) =>
+                {
+                    self.check_type_id(left_id, right_id, env, rules)
+                }
+                TypeRef::Any(right_id) | TypeRef::Uni(right_id) => {
                     self.check_type_id(left_id, right_id, env, rules)
                 }
                 TypeRef::Ref(right_id) | TypeRef::Mut(right_id)
@@ -385,43 +370,54 @@ impl<'a> TypeChecker<'a> {
                 TypeRef::Error => true,
                 _ => false,
             },
-            TypeRef::Infer(left_id) => match right {
+            TypeRef::Any(left_id) => match right {
                 // Mut and Owned are not allowed because we don't know the
                 // runtime ownership of our value. Ref is fine, because we can
                 // always turn an Owned/Ref/Mut/etc into a Ref.
-                TypeRef::Infer(right_id) | TypeRef::Ref(right_id) => {
+                TypeRef::Any(right_id) | TypeRef::Ref(right_id) => {
                     self.check_type_id(left_id, right_id, env, rules)
                 }
-                TypeRef::Placeholder(id) => self
-                    .check_type_id_with_placeholder(
+                TypeRef::Placeholder(id) => {
+                    if id.owned {
+                        return false;
+                    }
+
+                    self.check_type_id_with_placeholder(
                         left,
                         left_id,
                         original_right,
                         id,
                         env,
                         rules,
-                    ),
+                    )
+                }
                 TypeRef::Error => true,
                 _ => false,
             },
             TypeRef::Ref(left_id) => match right {
-                TypeRef::Infer(TypeId::TypeParameter(pid))
+                TypeRef::Any(TypeId::TypeParameter(pid))
                     if pid.is_mutable(self.db)
                         && !left.is_value_type(self.db) =>
                 {
                     false
                 }
-                TypeRef::Ref(right_id) | TypeRef::Infer(right_id) => {
+                TypeRef::Ref(right_id) | TypeRef::Any(right_id) => {
                     self.check_type_id(left_id, right_id, env, rules)
                 }
                 TypeRef::Owned(right_id)
                 | TypeRef::Uni(right_id)
                 | TypeRef::Mut(right_id)
+                | TypeRef::UniMut(right_id)
+                | TypeRef::UniRef(right_id)
                     if left.is_value_type(self.db) =>
                 {
                     self.check_type_id(left_id, right_id, env, rules)
                 }
                 TypeRef::Placeholder(id) => {
+                    if id.owned && !left.is_value_type(self.db) {
+                        return false;
+                    }
+
                     if let Some(req) = id.required(self.db) {
                         if req.is_mutable(self.db)
                             && !left.is_value_type(self.db)
@@ -443,7 +439,7 @@ impl<'a> TypeChecker<'a> {
                 _ => false,
             },
             TypeRef::Mut(left_id) => match right {
-                TypeRef::Ref(right_id) | TypeRef::Infer(right_id) => {
+                TypeRef::Ref(right_id) | TypeRef::Any(right_id) => {
                     self.check_type_id(left_id, right_id, env, rules)
                 }
                 TypeRef::Mut(right_id) => self.check_type_id(
@@ -452,20 +448,28 @@ impl<'a> TypeChecker<'a> {
                     env,
                     rules.without_subtyping(),
                 ),
-                TypeRef::Owned(right_id) | TypeRef::Uni(right_id)
+                TypeRef::Owned(right_id)
+                | TypeRef::Uni(right_id)
+                | TypeRef::UniRef(right_id)
+                | TypeRef::UniMut(right_id)
                     if left.is_value_type(self.db) =>
                 {
                     self.check_type_id(left_id, right_id, env, rules)
                 }
-                TypeRef::Placeholder(id) => self
-                    .check_type_id_with_placeholder(
+                TypeRef::Placeholder(id) => {
+                    if id.owned && !left.is_value_type(self.db) {
+                        return false;
+                    }
+
+                    self.check_type_id_with_placeholder(
                         left,
                         left_id,
                         original_right,
                         id,
                         env,
                         rules,
-                    ),
+                    )
+                }
                 TypeRef::Error => true,
                 _ => false,
             },
@@ -500,15 +504,20 @@ impl<'a> TypeChecker<'a> {
                 TypeRef::Owned(TypeId::ClassInstance(ins)) => {
                     rules.type_cast && ins.instance_of().0 == INT_ID
                 }
-                TypeRef::Placeholder(right_id) => self
-                    .check_type_id_with_placeholder(
+                TypeRef::Placeholder(right_id) => {
+                    if right_id.owned {
+                        return false;
+                    }
+
+                    self.check_type_id_with_placeholder(
                         left,
                         left_id,
                         original_right,
                         right_id,
                         env,
                         rules,
-                    ),
+                    )
+                }
                 _ => false,
             },
             _ => false,
@@ -524,8 +533,8 @@ impl<'a> TypeChecker<'a> {
     ) -> bool {
         let trait_rules = rules;
 
-        if let Subtyping::Once = rules.class_subtyping {
-            rules.class_subtyping = Subtyping::No;
+        if let Subtyping::Once = rules.subtyping {
+            rules.subtyping = Subtyping::No;
         }
 
         match left_id {
@@ -795,13 +804,34 @@ impl<'a> TypeChecker<'a> {
         env: &mut Environment,
         mut rules: Rules,
     ) -> bool {
+        // When checking trait implementations we don't know exactly how a `uni
+        // T` value is used, and thus can't know if it's safe to compare it to a
+        // `T`. Consider this example:
+        //
+        //     trait Equal[T] {
+        //       fn ==(other: T) -> Bool
+        //     }
+        //
+        //     class Thing {}
+        //
+        //     impl Equal[uni Thing] for Thing {
+        //       fn ==(other: uni Thing) -> Bool {
+        //         true
+        //       }
+        //     }
+        //
+        // If we end up comparing `Equal[uni Thing]` with `Equal[Thing]` we
+        // can't allow this, because the argument of `==` could then be given a
+        // `Thing` when we instead expect a `uni Thing`.
+        rules.uni_compatible_with_owned = false;
+
         // `Array[Cat]` isn't compatible with `mut Array[Animal]`, as that could
         // result in a `Dog` being added to the Array.
-        match rules.class_subtyping {
+        match rules.subtyping {
             Subtyping::No => return false,
             Subtyping::Yes => {}
             Subtyping::Once => {
-                rules.class_subtyping = Subtyping::No;
+                rules.subtyping = Subtyping::No;
             }
         }
 
@@ -812,26 +842,6 @@ impl<'a> TypeChecker<'a> {
         } else {
             return false;
         };
-
-        // Trait implementations may be over owned values (e.g.
-        // `impl Equal[Foo] for Foo`). We allow such implementations to be
-        // compatible with those over references (e.g. `Equal[ref Foo]`), as
-        // otherwise the type system becomes to painful to work with.
-        //
-        // The reason this is sound is as follows:
-        //
-        // In the trait's methods, we can only refer to conrete types (in which
-        // case the type arguments of the implementation are irrelevant), or to
-        // the type parameters (if any) of the trait. These type parameters
-        // either have their ownership inferred, or use whatever ownership is
-        // explicitly provided.
-        //
-        // If any arguments need e.g. a reference then this is handled at the
-        // call site. If a reference needs to be produced (e.g. as the return
-        // value), it's up to the implementation of the method to do so.
-        // References in turn can be created from both owned values and other
-        // references.
-        let rules = rules.with_relaxed_ownership();
 
         if left.instance_of.is_generic(self.db) {
             // The implemented trait may refer to type parameters of the
@@ -862,7 +872,7 @@ impl<'a> TypeChecker<'a> {
             | TypeRef::Mut(id)
             | TypeRef::UniRef(id)
             | TypeRef::UniMut(id)
-            | TypeRef::Infer(id) => match id {
+            | TypeRef::Any(id) => match id {
                 TypeId::ClassInstance(lhs) => {
                     self.check_class_with_trait(lhs, right, env, rules)
                 }
@@ -924,8 +934,12 @@ impl<'a> TypeChecker<'a> {
         left: TraitInstance,
         right: TraitInstance,
         env: &mut Environment,
-        rules: Rules,
+        mut rules: Rules,
     ) -> bool {
+        // Similar to when checking classes with traits, we have to be more
+        // strict about comparing `uni T` values with `T` values.
+        rules.uni_compatible_with_owned = false;
+
         if left == right {
             return true;
         }
@@ -946,13 +960,11 @@ impl<'a> TypeChecker<'a> {
         let rhs_args = right.type_arguments(self.db);
 
         left.instance_of.type_parameters(self.db).into_iter().all(|param| {
-            let rules = rules.infer_as_rigid();
-
             lhs_args
                 .get(param)
                 .zip(rhs_args.get(param))
-                .map_or(false, |(lhs, rhs)| {
-                    self.check_type_ref(lhs, rhs, env, rules)
+                .map_or(false, |(l, r)| {
+                    self.check_type_ref(l, r, env, rules.infer_as_rigid())
                 })
         })
     }
@@ -992,9 +1004,45 @@ impl<'a> TypeChecker<'a> {
         rules: Rules,
     ) -> TypeRef {
         let result = match typ {
-            TypeRef::Owned(TypeId::TypeParameter(id))
-            | TypeRef::Uni(TypeId::TypeParameter(id))
-            | TypeRef::Infer(TypeId::TypeParameter(id))
+            TypeRef::Owned(TypeId::TypeParameter(id)) => {
+                // Owned type parameters should only be assigned owned types.
+                // This check ensures that if we have e.g. `move T` and
+                // `T = ref User`, we don't turn that into `User`, as this could
+                // allow certain invalid type-checks to pass. An example of that
+                // is this:
+                //
+                //     trait Foo[T] {
+                //       fn foo -> move T
+                //     }
+                //
+                //     class Thing {}
+                //
+                //     impl Foo[ref Thing] for Thing {
+                //       fn foo -> ref Thing {
+                //         self
+                //       }
+                //     }
+                //
+                // Here `Thing.foo` should be invalid because `Foo.foo` mandates
+                // the return type is owned, but `ref Thing` isn't. If we just
+                // returned the resolved type as-is, we'd turn `move T` into
+                // `ref Thing` and allow the implementation, which isn't
+                // correct.
+                //
+                // We return `Unknown` here so we can guarantee the check fails,
+                // as this type isn't compatible with anything.
+                match self.resolve_type_parameter(typ, id, arguments, rules) {
+                    res @ TypeRef::Owned(_) => res,
+                    TypeRef::Placeholder(id) => {
+                        // We reach this point if the type parameter is assigned
+                        // an unassigned placeholder.
+                        TypeRef::Placeholder(id.as_owned())
+                    }
+                    _ => TypeRef::Unknown,
+                }
+            }
+            TypeRef::Uni(TypeId::TypeParameter(id))
+            | TypeRef::Any(TypeId::TypeParameter(id))
             | TypeRef::Pointer(TypeId::TypeParameter(id)) => {
                 self.resolve_type_parameter(typ, id, arguments, rules)
             }
@@ -1010,13 +1058,10 @@ impl<'a> TypeChecker<'a> {
             _ => typ,
         };
 
-        match result {
-            TypeRef::Infer(TypeId::TypeParameter(id))
-                if rules.infer_as_rigid =>
-            {
-                TypeRef::Owned(TypeId::RigidTypeParameter(id))
-            }
-            _ => result,
+        if rules.rigid_parameters {
+            result.as_rigid_type_parameter()
+        } else {
+            result
         }
     }
 
@@ -1043,11 +1088,12 @@ mod tests {
     use super::*;
     use crate::format::format_type;
     use crate::test::{
-        closure, generic_instance_id, generic_trait_instance,
-        generic_trait_instance_id, immutable, implement, infer, instance,
-        mutable, new_class, new_extern_class, new_parameter, new_trait, owned,
-        parameter, placeholder, pointer, rigid, trait_instance,
-        trait_instance_id, type_arguments, type_bounds, uni,
+        any, closure, generic_instance_id, generic_trait_instance,
+        generic_trait_instance_id, immutable, immutable_uni, implement,
+        instance, mutable, mutable_uni, new_class, new_extern_class,
+        new_parameter, new_trait, owned, parameter, placeholder, pointer,
+        rigid, trait_instance, trait_instance_id, type_arguments, type_bounds,
+        uni,
     };
     use crate::{
         Block, Class, ClassId, ClassKind, Closure, ModuleId,
@@ -1103,6 +1149,7 @@ mod tests {
         let param = new_parameter(&mut db, "T");
         let to_string = new_trait(&mut db, "ToString");
         let var1 = TypePlaceholder::alloc(&mut db, None);
+
         let var2 = TypePlaceholder::alloc(&mut db, Some(param));
 
         param.add_requirements(&mut db, vec![trait_instance(to_string)]);
@@ -1128,7 +1175,7 @@ mod tests {
         implement(&mut db, trait_instance(to_string), bar);
 
         check_ok(&db, owned(instance(foo)), owned(instance(foo)));
-        check_ok(&db, owned(instance(foo)), infer(instance(foo)));
+        check_ok(&db, owned(instance(foo)), any(instance(foo)));
 
         // This placeholder doesn't have any requirements
         check_ok(&db, owned(instance(foo)), placeholder(var1));
@@ -1193,7 +1240,7 @@ mod tests {
             let req = generic_trait_instance(
                 &mut db,
                 equal,
-                vec![infer(parameter(v_param))],
+                vec![any(parameter(v_param))],
             );
 
             v_param.add_requirements(&mut db, vec![req]);
@@ -1251,7 +1298,7 @@ mod tests {
             let bound_eq = generic_trait_instance(
                 &mut db,
                 equal,
-                vec![infer(parameter(bound))],
+                vec![any(parameter(bound))],
             );
 
             bound.add_requirements(&mut db, vec![bound_eq]);
@@ -1259,7 +1306,7 @@ mod tests {
             let array_t = owned(generic_instance_id(
                 &mut db,
                 array,
-                vec![infer(parameter(bound))],
+                vec![any(parameter(bound))],
             ));
 
             let impl_ins =
@@ -1290,9 +1337,9 @@ mod tests {
 
         check_ok(&db, owned(things1), owned(things1));
         check_ok(&db, owned(things1), owned(things2));
-        check_ok(&db, owned(things1), infer(parameter(v_param)));
-        check_ok(&db, owned(thing_refs), owned(parameter(v_param)));
+        check_ok(&db, owned(things1), any(parameter(v_param)));
 
+        check_err(&db, owned(thing_refs), owned(parameter(v_param)));
         check_err(&db, owned(things1), owned(trait_instance_id(length)));
         check_err(&db, owned(floats), owned(trait_instance_id(length)));
         check_err(&db, owned(things1), owned(trait_instance_id(to_string)));
@@ -1303,7 +1350,7 @@ mod tests {
         check_err(&db, owned(things1), owned(things_empty));
         check_err(&db, owned(things1), owned(floats));
         check_err(&db, owned(floats), owned(trait_instance_id(to_string)));
-        check_err(&db, owned(floats), infer(parameter(v_param)));
+        check_err(&db, owned(floats), any(parameter(v_param)));
     }
 
     #[test]
@@ -1323,7 +1370,7 @@ mod tests {
 
         check_ok(&db, uni(instance(foo)), uni(instance(foo)));
         check_ok(&db, uni(instance(foo)), owned(instance(foo)));
-        check_ok(&db, uni(instance(foo)), infer(instance(foo)));
+        check_ok(&db, uni(instance(foo)), any(instance(foo)));
 
         // This placeholder doesn't have any requirements
         check_ok(&db, uni(instance(foo)), placeholder(var1));
@@ -1373,7 +1420,7 @@ mod tests {
             let req = generic_trait_instance(
                 &mut db,
                 equal,
-                vec![infer(parameter(v_param))],
+                vec![any(parameter(v_param))],
             );
 
             v_param.add_requirements(&mut db, vec![req]);
@@ -1431,7 +1478,7 @@ mod tests {
             let bound_eq = generic_trait_instance(
                 &mut db,
                 equal,
-                vec![infer(parameter(bound))],
+                vec![any(parameter(bound))],
             );
 
             bound.add_requirements(&mut db, vec![bound_eq]);
@@ -1439,7 +1486,7 @@ mod tests {
             let array_t = uni(generic_instance_id(
                 &mut db,
                 array,
-                vec![infer(parameter(bound))],
+                vec![any(parameter(bound))],
             ));
 
             let impl_ins =
@@ -1469,7 +1516,7 @@ mod tests {
 
         check_ok(&db, uni(things1), uni(things1));
         check_ok(&db, uni(things1), uni(things2));
-        check_ok(&db, uni(things1), infer(parameter(v_param)));
+        check_ok(&db, uni(things1), any(parameter(v_param)));
         check_ok(&db, uni(things1), uni(parameter(v_param)));
 
         check_err(&db, uni(things1), uni(eq_things));
@@ -1481,7 +1528,7 @@ mod tests {
         check_err(&db, uni(thing_refs), uni(parameter(v_param)));
         check_err(&db, uni(things1), uni(floats));
         check_err(&db, uni(floats), uni(trait_instance_id(to_string)));
-        check_err(&db, uni(floats), infer(parameter(v_param)));
+        check_err(&db, uni(floats), any(parameter(v_param)));
     }
 
     #[test]
@@ -1491,15 +1538,15 @@ mod tests {
         let param2 = new_parameter(&mut db, "B");
         let var = TypePlaceholder::alloc(&mut db, None);
 
-        check_ok(&db, infer(parameter(param1)), infer(parameter(param2)));
-        check_ok(&db, infer(parameter(param1)), immutable(parameter(param2)));
-        check_ok(&db, infer(parameter(param1)), TypeRef::Error);
-        check_ok(&db, infer(parameter(param1)), placeholder(var));
-        assert_eq!(var.value(&db), Some(infer(parameter(param1))));
+        check_ok(&db, any(parameter(param1)), any(parameter(param2)));
+        check_ok(&db, any(parameter(param1)), immutable(parameter(param2)));
+        check_ok(&db, any(parameter(param1)), TypeRef::Error);
+        check_ok(&db, any(parameter(param1)), placeholder(var));
+        assert_eq!(var.value(&db), Some(any(parameter(param1))));
 
-        check_err(&db, infer(parameter(param1)), owned(parameter(param2)));
-        check_err(&db, infer(parameter(param1)), uni(parameter(param2)));
-        check_err(&db, infer(parameter(param1)), mutable(parameter(param2)));
+        check_err(&db, any(parameter(param1)), owned(parameter(param2)));
+        check_err(&db, any(parameter(param1)), uni(parameter(param2)));
+        check_err(&db, any(parameter(param1)), mutable(parameter(param2)));
     }
 
     #[test]
@@ -1514,7 +1561,7 @@ mod tests {
         param.set_mutable(&mut db);
 
         check_ok(&db, immutable(instance(thing)), immutable(instance(thing)));
-        check_ok(&db, immutable(instance(thing)), infer(instance(thing)));
+        check_ok(&db, immutable(instance(thing)), any(instance(thing)));
 
         // Value types can be passed around this way.
         check_ok(&db, immutable(instance(int)), mutable(instance(int)));
@@ -1525,12 +1572,12 @@ mod tests {
         assert_eq!(var.value(&db), Some(immutable(instance(thing))));
 
         check_ok(&db, immutable(instance(thing)), TypeRef::Error);
-        check_ok(&db, immutable(instance(int)), infer(parameter(param)));
+        check_ok(&db, immutable(instance(int)), any(parameter(param)));
         check_ok(&db, immutable(instance(int)), placeholder(mutable_var));
 
         check_err(&db, immutable(instance(thing)), mutable(instance(thing)));
         check_err(&db, immutable(instance(thing)), owned(instance(thing)));
-        check_err(&db, immutable(instance(thing)), infer(parameter(param)));
+        check_err(&db, immutable(instance(thing)), any(parameter(param)));
         check_err(&db, immutable(instance(thing)), placeholder(mutable_var));
     }
 
@@ -1543,7 +1590,7 @@ mod tests {
 
         check_ok(&db, mutable(instance(thing)), immutable(instance(thing)));
         check_ok(&db, mutable(instance(thing)), mutable(instance(thing)));
-        check_ok(&db, mutable(instance(thing)), infer(instance(thing)));
+        check_ok(&db, mutable(instance(thing)), any(instance(thing)));
 
         // Value types can be passed around this way.
         check_ok(&db, mutable(instance(int)), owned(instance(int)));
@@ -1563,11 +1610,11 @@ mod tests {
         let mut db = Database::new();
         let param = new_parameter(&mut db, "T");
         let var = TypePlaceholder::alloc(&mut db, None);
-
         let mut env = Environment::new(
             TypeArguments::new(),
             type_arguments(vec![(param, placeholder(var))]),
         );
+
         let res = TypeChecker::new(&db).run(
             mutable(rigid(param)),
             mutable(parameter(param)),
@@ -1576,6 +1623,27 @@ mod tests {
 
         assert!(res);
         assert_eq!(var.value(&db), Some(owned(rigid(param))));
+    }
+
+    #[test]
+    fn test_ref_instance_with_ref_type_parameter() {
+        let mut db = Database::new();
+        let thing = new_class(&mut db, "Thing");
+        let param = new_parameter(&mut db, "T");
+        let var = TypePlaceholder::alloc(&mut db, None);
+        let mut env = Environment::new(
+            TypeArguments::new(),
+            type_arguments(vec![(param, placeholder(var))]),
+        );
+
+        let res = TypeChecker::new(&db).run(
+            immutable(instance(thing)),
+            immutable(parameter(param)),
+            &mut env,
+        );
+
+        assert!(res);
+        assert_eq!(var.value(&db), Some(owned(instance(thing))));
     }
 
     #[test]
@@ -1929,16 +1997,16 @@ mod tests {
         check_ok(&db, owned(rigid(param1)), TypeRef::Error);
         check_ok(&db, immutable(rigid(param1)), immutable(rigid(param1)));
         check_ok(&db, owned(rigid(param1)), owned(rigid(param1)));
-        check_ok(&db, owned(rigid(param1)), infer(rigid(param1)));
-        check_ok(&db, owned(rigid(param1)), infer(parameter(param1)));
+        check_ok(&db, owned(rigid(param1)), any(rigid(param1)));
+        check_ok(&db, owned(rigid(param1)), any(parameter(param1)));
         check_ok(&db, immutable(rigid(param1)), immutable(parameter(param1)));
+        check_ok(&db, owned(rigid(param1)), owned(parameter(param1)));
 
         check_ok(&db, owned(rigid(param1)), placeholder(var));
         assert_eq!(var.value(&db), Some(owned(rigid(param1))));
 
         check_err(&db, owned(rigid(param1)), owned(rigid(param2)));
         check_err(&db, immutable(rigid(param1)), immutable(rigid(param2)));
-        check_err(&db, owned(rigid(param1)), owned(parameter(param1)));
     }
 
     #[test]
@@ -1956,7 +2024,7 @@ mod tests {
             immutable(rigid(param1)),
             immutable(trait_instance_id(to_string)),
         );
-        check_ok(&db, owned(rigid(param1)), infer(parameter(param2)));
+        check_ok(&db, owned(rigid(param1)), any(parameter(param2)));
 
         // A doesn't implement Equal
         check_err(
@@ -2118,7 +2186,7 @@ mod tests {
             instance: generic_trait_instance(
                 &mut db,
                 iter,
-                vec![infer(parameter(iterator_param))],
+                vec![any(parameter(iterator_param))],
             ),
             bounds: TypeBounds::new(),
         };
@@ -2158,29 +2226,29 @@ mod tests {
         );
 
         assert!(!res);
-        check_ok(&db, owned(rigid(param)), infer(parameter(param)));
+        check_ok(&db, owned(rigid(param)), any(parameter(param)));
     }
 
     #[test]
     fn test_rigid_type_parameter_with_requirements_with_placeholder() {
         let mut db = Database::new();
         let equal = new_trait(&mut db, "Equal");
-        let param1 = new_parameter(&mut db, "T");
-        let param2 = new_parameter(&mut db, "T");
+        let param1 = new_parameter(&mut db, "P1");
+        let param2 = new_parameter(&mut db, "P2");
         let var = TypePlaceholder::alloc(&mut db, Some(param2));
 
-        equal.new_type_parameter(&mut db, "T".to_string());
+        equal.new_type_parameter(&mut db, "EQ".to_string());
 
         let param1_req = generic_trait_instance(
             &mut db,
             equal,
-            vec![infer(parameter(param1))],
+            vec![any(parameter(param1))],
         );
 
         let param2_req = generic_trait_instance(
             &mut db,
             equal,
-            vec![infer(parameter(param2))],
+            vec![any(parameter(param2))],
         );
 
         param1.add_requirements(&mut db, vec![param1_req]);
@@ -2190,11 +2258,11 @@ mod tests {
         let mut env = Environment::new(TypeArguments::new(), args);
         let res = TypeChecker::new(&db).run(
             owned(rigid(param1)),
-            infer(parameter(param2)),
+            any(parameter(param2)),
             &mut env,
         );
 
-        assert!(res);
+        assert!(!res);
     }
 
     #[test]
@@ -2421,5 +2489,58 @@ mod tests {
         check_err_cast(&db, chan, to_string_ins);
         check_err_cast(&db, TypeRef::int(), owned(parameter(param)));
         check_err_cast(&db, to_string_ins, owned(parameter(param)));
+    }
+
+    #[test]
+    fn test_ref_value_type_with_uni_reference() {
+        let db = Database::new();
+        let int = ClassId::int();
+
+        check_ok(&db, immutable(instance(int)), immutable_uni(instance(int)));
+        check_ok(&db, mutable(instance(int)), mutable_uni(instance(int)));
+    }
+
+    #[test]
+    fn test_check_ref_against_owned_parameter_with_assigned_type() {
+        let mut db = Database::new();
+        let thing = new_class(&mut db, "Thing");
+        let param = new_parameter(&mut db, "T");
+        let mut env =
+            Environment::new(TypeArguments::new(), TypeArguments::new());
+
+        env.right.assign(param, immutable(instance(thing)));
+        assert!(!TypeChecker::new(&db).check_argument(
+            immutable(instance(thing)),
+            owned(parameter(param)),
+            &mut env,
+        ));
+    }
+
+    #[test]
+    fn test_check_ref_against_owned_parameter_with_assigned_placeholder() {
+        let mut db = Database::new();
+        let thing = new_class(&mut db, "Thing");
+        let var = TypePlaceholder::alloc(&mut db, None);
+        let param = new_parameter(&mut db, "T");
+        let mut env1 =
+            Environment::new(TypeArguments::new(), TypeArguments::new());
+
+        let mut env2 =
+            Environment::new(TypeArguments::new(), TypeArguments::new());
+
+        env1.right.assign(param, placeholder(var));
+        env2.right.assign(param, placeholder(var));
+
+        assert!(TypeChecker::new(&db).check_argument(
+            owned(instance(thing)),
+            owned(parameter(param)),
+            &mut env1,
+        ));
+
+        assert!(!TypeChecker::new(&db).check_argument(
+            immutable(instance(thing)),
+            owned(parameter(param)),
+            &mut env1,
+        ));
     }
 }

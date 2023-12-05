@@ -336,6 +336,58 @@ class Container[T] {
 }
 ```
 
+When using type parameters, values with any ownership (`ref`, `mut`, etc) can be
+assigned to the parameter, provided the type implements the necessary
+requirements:
+
+```inko
+fn example[T](value: T) {}
+
+# All of these calls are valid.
+example([10])
+example(ref [10])
+example(mut [10])
+example(recover [10])
+```
+
+You can restrict the ownership to owned values using the syntax `move T`. The
+`move` annotation is only available to type parameters (e.g. `move User` is a
+compile-time error):
+
+```inko
+fn example[T](value: move T) {}
+
+example([10])         # OK
+example(ref [10])     # not OK
+example(mut [10])     # not OK
+example(recover [10]) # OK, as `uni` values can be moved into owned values
+```
+
+When used in a return type signature, `move T` returns the owned equivalent of
+the type assigned to `T`:
+
+```inko
+fn example[T](value: T) -> move T { ... }
+
+example(ref [10]) # The return type is inferred as `Array[Int]`.
+```
+
+An example of where `move T` is useful is `String.join`, defined using the
+following signature:
+
+```inko
+fn pub static join[T: ToString, I: Iter[T]](
+  iter: move I,
+  with: String
+) -> String
+```
+
+The implementation calls `Iter.reduce` on the `iter` variable. Without the
+`move` annotation it would be possible to pass a `ref Iter`, which doesn't allow
+the use of moving methods as one can't move out of a reference. Using `move I`
+instead of `I` solves this problem by restricting values passed to `iter` to
+owned values.
+
 ## Type inference
 
 Inko supports type inference, removing the need for type annotations in most

@@ -105,6 +105,14 @@ pub const FIELDS_LIMIT: usize = u8::MAX as usize;
 /// The maximum number of values that can be stored in an array literal.
 pub const ARRAY_LIMIT: usize = u16::MAX as usize;
 
+/// The requirement of a type inference placeholder.
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum PlaceholderRequirement {
+    None,
+    Owned(TypeParameterId),
+    Any(TypeParameterId),
+}
+
 /// A type inference placeholder.
 ///
 /// A type placeholder reprents a value of which the exact type isn't
@@ -136,8 +144,8 @@ pub struct TypePlaceholder {
     /// fields).
     value: Cell<TypeRef>,
 
-    /// The type parameter a type must be compatible with before it can be
-    /// assigned to this type variable.
+    /// The type parameter requirement that must be met before a type is
+    /// compatible with this placeholder.
     required: Option<TypeParameterId>,
 }
 
@@ -146,19 +154,36 @@ impl TypePlaceholder {
         db: &mut Database,
         required: Option<TypeParameterId>,
     ) -> TypePlaceholderId {
-        let id = db.type_placeholders.len();
+        assert!(db.type_placeholders.len() <= u32::MAX as usize);
+
+        let id = db.type_placeholders.len() as u32;
         let typ =
             TypePlaceholder { value: Cell::new(TypeRef::Unknown), required };
 
         db.type_placeholders.push(typ);
-        TypePlaceholderId(id)
+        TypePlaceholderId { id, owned: false }
     }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct TypePlaceholderId(pub(crate) usize);
+pub struct TypePlaceholderId {
+    id: u32,
+
+    /// A flag that indicates a value must be owned for it to be compatible with
+    /// this placeholder.
+    ///
+    /// This is stored in the ID/reference as in various instances type
+    /// placeholders are created ahead of time, at which point we do not yet
+    /// know if a value must be owned or not. By storing this in the ID we can
+    /// adjust it accordingly where necessary.
+    owned: bool,
+}
 
 impl TypePlaceholderId {
+    pub fn as_owned(self) -> TypePlaceholderId {
+        TypePlaceholderId { id: self.id, owned: true }
+    }
+
     pub fn value(self, db: &Database) -> Option<TypeRef> {
         // Chains of type variables are very rare in practise, but they _can_
         // occur and thus must be handled. Because they are so rare and unlikely
@@ -181,7 +206,7 @@ impl TypePlaceholderId {
         // Assigning placeholders to themselves isn't useful and results in
         // resolve() getting stuck.
         if let TypeRef::Placeholder(id) = value {
-            if id.0 == self.0 {
+            if id.id == self.id {
                 return;
             }
         }
@@ -190,7 +215,7 @@ impl TypePlaceholderId {
     }
 
     fn get(self, db: &Database) -> &TypePlaceholder {
-        &db.type_placeholders[self.0]
+        &db.type_placeholders[self.id as usize]
     }
 }
 
@@ -292,8 +317,8 @@ impl TypeParameterId {
         &mut db.type_parameters[self.0]
     }
 
-    fn as_owned_rigid(self) -> TypeRef {
-        TypeRef::Owned(TypeId::RigidTypeParameter(self))
+    fn as_rigid(self) -> TypeRef {
+        TypeRef::Any(TypeId::RigidTypeParameter(self))
     }
 }
 
@@ -660,7 +685,7 @@ impl TraitInstance {
             for param in instance_of.type_parameters(db) {
                 arguments.assign(
                     param,
-                    bounds.get(param).unwrap_or(param).as_owned_rigid(),
+                    bounds.get(param).unwrap_or(param).as_rigid(),
                 );
             }
 
@@ -1479,7 +1504,7 @@ impl ClassInstance {
             for param in instance_of.type_parameters(db) {
                 arguments.assign(
                     param,
-                    bounds.get(param).unwrap_or(param).as_owned_rigid(),
+                    bounds.get(param).unwrap_or(param).as_rigid(),
                 );
             }
 
@@ -2420,7 +2445,6 @@ pub struct CallInfo {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ClosureCallInfo {
     pub id: ClosureId,
-    pub expected_arguments: Vec<TypeRef>,
     pub returns: TypeRef,
 }
 
@@ -3065,12 +3089,12 @@ pub enum TypeRef {
     /// A mutable, temporary and unique reference.
     UniMut(TypeId),
 
-    /// A type of which the ownership should be inferred.
+    /// A type of which the ownership can be anything.
     ///
     /// This variant is only used with type parameters. We wrap a TypeId here so
     /// we can reuse various functions more easily, such as those used for
     /// type-checking; instead of having to special-case this variant.
-    Infer(TypeId),
+    Any(TypeId),
 
     /// A type that signals something never happens.
     ///
@@ -3168,7 +3192,7 @@ impl TypeRef {
             | TypeRef::Mut(id)
             | TypeRef::UniRef(id)
             | TypeRef::UniMut(id)
-            | TypeRef::Infer(id) => Ok(id),
+            | TypeRef::Any(id) => Ok(id),
             TypeRef::Placeholder(id) => {
                 id.value(db).ok_or(self).and_then(|t| t.type_id(db))
             }
@@ -3258,7 +3282,7 @@ impl TypeRef {
 
     pub fn is_owned_or_uni(self, db: &Database) -> bool {
         match self {
-            TypeRef::Owned(_) | TypeRef::Uni(_) | TypeRef::Infer(_) => true,
+            TypeRef::Owned(_) | TypeRef::Uni(_) | TypeRef::Any(_) => true,
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(false, |v| v.is_owned_or_uni(db))
             }
@@ -3268,7 +3292,7 @@ impl TypeRef {
 
     pub fn is_owned(self, db: &Database) -> bool {
         match self {
-            TypeRef::Owned(_) | TypeRef::Infer(_) => true,
+            TypeRef::Owned(_) => true,
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(false, |v| v.is_owned(db))
             }
@@ -3298,7 +3322,7 @@ impl TypeRef {
                 | TypeId::RigidTypeParameter(_)
                 | TypeId::AtomicTypeParameter(_),
             )
-            | TypeRef::Infer(
+            | TypeRef::Any(
                 TypeId::TypeParameter(_)
                 | TypeId::RigidTypeParameter(_)
                 | TypeId::AtomicTypeParameter(_),
@@ -3434,7 +3458,7 @@ impl TypeRef {
             TypeRef::Owned(_)
             | TypeRef::Uni(_)
             | TypeRef::Mut(_)
-            | TypeRef::Infer(_)
+            | TypeRef::Any(_)
             | TypeRef::Pointer(_)
             | TypeRef::Error
             | TypeRef::Unknown
@@ -3487,8 +3511,10 @@ impl TypeRef {
         match self {
             TypeRef::Mut(_) | TypeRef::UniMut(_) | TypeRef::Pointer(_) => true,
             TypeRef::Owned(TypeId::TypeParameter(id))
+            | TypeRef::Any(TypeId::TypeParameter(id))
             | TypeRef::Uni(TypeId::TypeParameter(id))
             | TypeRef::Owned(TypeId::RigidTypeParameter(id))
+            | TypeRef::Any(TypeId::RigidTypeParameter(id))
             | TypeRef::Uni(TypeId::RigidTypeParameter(id)) => id.is_mutable(db),
             TypeRef::Owned(_) | TypeRef::Uni(_) => true,
             TypeRef::Ref(TypeId::ClassInstance(ins)) => {
@@ -3591,7 +3617,7 @@ impl TypeRef {
 
     pub fn as_ref(self, db: &Database) -> Self {
         match self {
-            TypeRef::Owned(id) | TypeRef::Infer(id) | TypeRef::Mut(id) => {
+            TypeRef::Owned(id) | TypeRef::Any(id) | TypeRef::Mut(id) => {
                 TypeRef::Ref(id)
             }
             TypeRef::Uni(id) | TypeRef::UniMut(id) => TypeRef::UniRef(id),
@@ -3608,6 +3634,7 @@ impl TypeRef {
             | TypeRef::Mut(_)
             | TypeRef::Ref(_)
             | TypeRef::Uni(_)
+            | TypeRef::Any(_)
             | TypeRef::Error => true,
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(false, |v| v.allow_as_ref(db))
@@ -3618,7 +3645,8 @@ impl TypeRef {
 
     pub fn allow_as_mut(self, db: &Database) -> bool {
         match self {
-            TypeRef::Owned(TypeId::RigidTypeParameter(id)) => id.is_mutable(db),
+            TypeRef::Owned(TypeId::RigidTypeParameter(id))
+            | TypeRef::Any(TypeId::RigidTypeParameter(id)) => id.is_mutable(db),
             TypeRef::Owned(_) | TypeRef::Mut(_) | TypeRef::Uni(_) => true,
             TypeRef::Pointer(_) => true,
             TypeRef::Placeholder(id) => {
@@ -3635,7 +3663,7 @@ impl TypeRef {
                 id @ TypeId::RigidTypeParameter(pid)
                 | id @ TypeId::TypeParameter(pid),
             )
-            | TypeRef::Infer(
+            | TypeRef::Any(
                 id @ TypeId::RigidTypeParameter(pid)
                 | id @ TypeId::TypeParameter(pid),
             ) => {
@@ -3656,7 +3684,7 @@ impl TypeRef {
 
     pub fn force_as_mut(self, db: &Database) -> Self {
         match self {
-            TypeRef::Owned(id) | TypeRef::Infer(id) => TypeRef::Mut(id),
+            TypeRef::Owned(id) | TypeRef::Any(id) => TypeRef::Mut(id),
             TypeRef::Uni(id) => TypeRef::UniMut(id),
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(self, |v| v.as_mut(db))
@@ -3689,7 +3717,7 @@ impl TypeRef {
     pub fn as_uni(self, db: &Database) -> Self {
         match self {
             TypeRef::Owned(id)
-            | TypeRef::Infer(id)
+            | TypeRef::Any(id)
             | TypeRef::Uni(id)
             | TypeRef::Mut(id)
             | TypeRef::Ref(id) => TypeRef::Uni(id),
@@ -3703,6 +3731,7 @@ impl TypeRef {
     pub fn as_owned(self, db: &Database) -> Self {
         match self {
             TypeRef::Uni(id)
+            | TypeRef::Any(id)
             | TypeRef::Ref(id)
             | TypeRef::Mut(id)
             | TypeRef::UniRef(id)
@@ -3758,14 +3787,14 @@ impl TypeRef {
             | TypeRef::Uni(TypeId::TypeParameter(id))
             | TypeRef::Ref(TypeId::TypeParameter(id))
             | TypeRef::Mut(TypeId::TypeParameter(id))
-            | TypeRef::Infer(TypeId::TypeParameter(id))
+            | TypeRef::Any(TypeId::TypeParameter(id))
             | TypeRef::Owned(TypeId::RigidTypeParameter(id))
             | TypeRef::Uni(TypeId::RigidTypeParameter(id))
             | TypeRef::Ref(TypeId::RigidTypeParameter(id))
             | TypeRef::Mut(TypeId::RigidTypeParameter(id))
             | TypeRef::UniRef(TypeId::RigidTypeParameter(id))
             | TypeRef::UniMut(TypeId::RigidTypeParameter(id))
-            | TypeRef::Infer(TypeId::RigidTypeParameter(id)) => Some(id),
+            | TypeRef::Any(TypeId::RigidTypeParameter(id)) => Some(id),
             TypeRef::Placeholder(id) => {
                 id.value(db).and_then(|v| v.as_type_parameter(db))
             }
@@ -3792,6 +3821,33 @@ impl TypeRef {
         TypeResolver::new(db, &TypeArguments::new(), bounds)
             .with_rigid(true)
             .resolve(self)
+    }
+
+    pub fn as_rigid_type_parameter(self) -> TypeRef {
+        match self {
+            TypeRef::Owned(TypeId::TypeParameter(id)) => {
+                TypeRef::Owned(TypeId::RigidTypeParameter(id))
+            }
+            TypeRef::Any(TypeId::TypeParameter(id)) => {
+                TypeRef::Any(TypeId::RigidTypeParameter(id))
+            }
+            TypeRef::Ref(TypeId::TypeParameter(id)) => {
+                TypeRef::Ref(TypeId::RigidTypeParameter(id))
+            }
+            TypeRef::Mut(TypeId::TypeParameter(id)) => {
+                TypeRef::Mut(TypeId::RigidTypeParameter(id))
+            }
+            TypeRef::Uni(TypeId::TypeParameter(id)) => {
+                TypeRef::Uni(TypeId::RigidTypeParameter(id))
+            }
+            TypeRef::UniRef(TypeId::TypeParameter(id)) => {
+                TypeRef::UniRef(TypeId::RigidTypeParameter(id))
+            }
+            TypeRef::UniMut(TypeId::TypeParameter(id)) => {
+                TypeRef::UniMut(TypeId::RigidTypeParameter(id))
+            }
+            _ => self,
+        }
     }
 
     pub fn is_value_type(self, db: &Database) -> bool {
@@ -3843,7 +3899,7 @@ impl TypeRef {
             | TypeRef::Mut(id)
             | TypeRef::UniRef(id)
             | TypeRef::UniMut(id)
-            | TypeRef::Infer(id) => match id {
+            | TypeRef::Any(id) => match id {
                 TypeId::ClassInstance(ins)
                     if ins.instance_of.is_generic(db) =>
                 {
@@ -3974,7 +4030,7 @@ impl TypeRef {
             | TypeRef::UniRef(TypeId::ClassInstance(ins)) => {
                 ins.instance_of.shape(db, Shape::Ref)
             }
-            TypeRef::Infer(
+            TypeRef::Any(
                 TypeId::TypeParameter(id) | TypeId::RigidTypeParameter(id),
             )
             | TypeRef::Owned(
@@ -4131,6 +4187,14 @@ impl TypeId {
             id.instance_of().has_destructor(db)
         } else {
             false
+        }
+    }
+
+    pub fn as_type_for_pointer(self) -> TypeRef {
+        if let TypeId::TypeParameter(_) | TypeId::RigidTypeParameter(_) = self {
+            TypeRef::Any(self)
+        } else {
+            TypeRef::Owned(self)
         }
     }
 
@@ -4335,7 +4399,7 @@ impl Database {
 mod tests {
     use super::*;
     use crate::test::{
-        closure, generic_instance_id, generic_trait_instance, immutable, infer,
+        any, closure, generic_instance_id, generic_trait_instance, immutable,
         instance, mutable, new_async_class, new_class, new_module,
         new_parameter, new_trait, owned, parameter, placeholder, rigid, uni,
     };
@@ -4417,7 +4481,7 @@ mod tests {
         let param7 = new_parameter(&mut db, "G");
         let param8 = new_parameter(&mut db, "H");
 
-        targs.assign(param1, infer(parameter(param2)));
+        targs.assign(param1, any(parameter(param2)));
         targs.assign(param2, owned(rigid(param3)));
         targs.assign(param3, TypeRef::int());
         targs.assign(param5, TypeRef::float());
@@ -5293,5 +5357,12 @@ mod tests {
             method.receiver_for_class_instance(&db, ClassInstance::new(proc));
 
         assert_eq!(rec, mutable(instance(proc)));
+    }
+
+    #[test]
+    fn test_type_placeholder_id_as_owned() {
+        let id = TypePlaceholderId { id: 1, owned: false };
+
+        assert_eq!(id.as_owned(), TypePlaceholderId { id: 1, owned: true });
     }
 }

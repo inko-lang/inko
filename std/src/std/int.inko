@@ -547,7 +547,7 @@ impl Compare[Int] for Int {
   }
 }
 
-impl Equal[Int] for Int {
+impl Equal[ref Int] for Int {
   fn pub ==(other: ref Int) -> Bool {
     _INKO.int_eq(self, other)
   }

@@ -19,6 +19,7 @@ pub(crate) mod methods;
 
 #[derive(Eq, PartialEq)]
 enum RefKind {
+    Default,
     Owned,
     Ref,
     Mut,
@@ -28,6 +29,12 @@ enum RefKind {
 impl RefKind {
     fn into_type_ref(self, id: TypeId) -> TypeRef {
         match self {
+            Self::Default => match id {
+                TypeId::TypeParameter(_) | TypeId::RigidTypeParameter(_) => {
+                    TypeRef::Any(id)
+                }
+                _ => TypeRef::Owned(id),
+            },
             Self::Owned => TypeRef::Owned(id),
             Self::Ref => TypeRef::Ref(id),
             Self::Mut => TypeRef::Mut(id),
@@ -97,10 +104,6 @@ impl<'a> TypeScope<'a> {
 /// Rules to apply when defining and checking the types of type signatures.
 #[derive(Copy, Clone)]
 pub(crate) struct Rules {
-    /// When set to `true`, type parameters are defined as owned values; rather
-    /// than allowing both owned values and references.
-    pub(crate) type_parameters_as_owned: bool,
-
     /// When set to `true`, type parameters are defined as rigid parameters.
     pub(crate) type_parameters_as_rigid: bool,
 
@@ -114,7 +117,6 @@ pub(crate) struct Rules {
 impl Default for Rules {
     fn default() -> Self {
         Self {
-            type_parameters_as_owned: false,
             type_parameters_as_rigid: false,
             allow_private_types: true,
             allow_refs: true,
@@ -169,7 +171,7 @@ impl<'a> DefineTypeSignature<'a> {
     fn define_type(&mut self, node: &mut hir::Type) -> TypeRef {
         match node {
             hir::Type::Named(ref mut n) => {
-                self.define_type_name(n, RefKind::Owned)
+                self.define_type_name(n, RefKind::Default)
             }
             hir::Type::Ref(_) | hir::Type::Mut(_) if !self.rules.allow_refs => {
                 self.state.diagnostics.error(
@@ -188,6 +190,9 @@ impl<'a> DefineTypeSignature<'a> {
             }
             hir::Type::Uni(ref mut n) => {
                 self.define_reference_type(n, RefKind::Uni)
+            }
+            hir::Type::Owned(ref mut n) => {
+                self.define_reference_type(n, RefKind::Owned)
             }
             hir::Type::Closure(ref mut n) => {
                 self.define_closure_type(n, RefKind::Owned)
@@ -288,7 +293,7 @@ impl<'a> DefineTypeSignature<'a> {
             // handling them first.
             match name.as_str() {
                 "Never" => {
-                    if kind == RefKind::Owned {
+                    if kind == RefKind::Default {
                         TypeRef::Never
                     } else {
                         self.state.diagnostics.error(
@@ -397,36 +402,29 @@ impl<'a> DefineTypeSignature<'a> {
 
         let param_id =
             self.scope.bounds.as_ref().and_then(|b| b.get(id)).unwrap_or(id);
+
         let type_id = if self.rules.type_parameters_as_rigid {
             TypeId::RigidTypeParameter(param_id)
         } else {
             TypeId::TypeParameter(param_id)
         };
 
-        match kind {
-            RefKind::Owned if self.rules.type_parameters_as_owned => {
-                TypeRef::Owned(type_id)
-            }
-            RefKind::Owned => TypeRef::Infer(type_id),
-            RefKind::Uni => TypeRef::Uni(type_id),
-            RefKind::Ref => TypeRef::Ref(type_id),
-            RefKind::Mut => {
-                if !param_id.is_mutable(self.db()) {
-                    self.state.diagnostics.error(
-                        DiagnosticId::InvalidType,
-                        format!(
-                            "the type 'mut {name}' is invalid, as '{name}' \
+        if let RefKind::Mut = kind {
+            if !param_id.is_mutable(self.db()) {
+                self.state.diagnostics.error(
+                    DiagnosticId::InvalidType,
+                    format!(
+                        "the type 'mut {name}' is invalid, as '{name}' \
                             might be immutable at runtime",
-                            name = id.name(self.db()),
-                        ),
-                        self.file(),
-                        node.location.clone(),
-                    );
-                }
-
-                TypeRef::Mut(type_id)
+                        name = id.name(self.db()),
+                    ),
+                    self.file(),
+                    node.location.clone(),
+                );
             }
         }
+
+        kind.into_type_ref(type_id)
     }
 
     fn define_closure_type(
@@ -623,6 +621,7 @@ impl<'a> CheckTypeSignature<'a> {
             hir::Type::Ref(ref n) => self.check_reference_type(n),
             hir::Type::Uni(ref n) => self.check_reference_type(n),
             hir::Type::Mut(ref n) => self.check_reference_type(n),
+            hir::Type::Owned(ref n) => self.check_reference_type(n),
             hir::Type::Closure(ref n) => self.check_closure_type(n),
             hir::Type::Tuple(ref n) => self.check_tuple_type(n),
         }
@@ -736,7 +735,7 @@ impl<'a> CheckTypeSignature<'a> {
 
         for (param, node) in parameters.into_iter().zip(node.arguments.iter()) {
             let arg = arguments.get(param).unwrap();
-            let exp = TypeRef::Infer(TypeId::TypeParameter(param));
+            let exp = TypeRef::Any(TypeId::TypeParameter(param));
             let mut env = Environment::new(
                 arg.type_arguments(self.db()),
                 exp_args.clone(),

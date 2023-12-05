@@ -85,8 +85,8 @@ pub(crate) fn mutable_uni(id: TypeId) -> TypeRef {
     TypeRef::UniMut(id)
 }
 
-pub(crate) fn infer(id: TypeId) -> TypeRef {
-    TypeRef::Infer(id)
+pub(crate) fn any(id: TypeId) -> TypeRef {
+    TypeRef::Any(id)
 }
 
 pub(crate) fn immutable(id: TypeId) -> TypeRef {

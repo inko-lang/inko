@@ -666,7 +666,7 @@ impl Drop for Array {
   }
 }
 
-impl Contains[T] for Array if T: Equal[T] {
+impl Contains[T] for Array if T: Equal[ref T] {
   # Returns `true` if `self` contains the given value.
   #
   # # Examples
@@ -691,7 +691,7 @@ impl Clone[Array[T]] for Array if T: Clone[T] {
   }
 }
 
-impl Equal[Array[T]] for Array if T: Equal[T] {
+impl Equal[ref Array[T]] for Array if T: Equal[ref T] {
   # Returns `true` if `self` and the given `Array` are identical.
   #
   # # Examples
@@ -744,7 +744,7 @@ impl Format for Array if T: Format {
   }
 }
 
-impl Array if T: Equal[T] {
+impl Array if T: Equal[ref T] {
   # Returns the index of `value` as a `Some` if present, otherwise it returns a
   # `None`.
   #

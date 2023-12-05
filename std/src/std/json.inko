@@ -169,7 +169,7 @@ class pub Error {
   let pub @offset: Int
 }
 
-impl Equal[Error] for Error {
+impl Equal[ref Error] for Error {
   fn pub ==(other: ref Error) -> Bool {
     @message == other.message
       and @line == other.line
@@ -267,7 +267,7 @@ impl FormatTrait for Json {
   }
 }
 
-impl Equal[Json] for Json {
+impl Equal[ref Json] for Json {
   fn pub ==(other: ref Json) -> Bool {
     match self {
       case Int(lhs) -> match other {

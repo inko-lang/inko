@@ -191,7 +191,7 @@ impl Option if T: mut {
   }
 }
 
-impl Equal[Option[T]] for Option if T: Equal[T] {
+impl Equal[ref Option[T]] for Option if T: Equal[ref T] {
   # Returns `true` if `self` and the given `Option` are equal.
   #
   # Two options are considered equal to each other if:

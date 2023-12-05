@@ -219,7 +219,7 @@ class Diagnostic {
   }
 }
 
-impl Equal[Diagnostic] for Diagnostic {
+impl Equal[ref Diagnostic] for Diagnostic {
   fn pub ==(other: ref Diagnostic) -> Bool {
     @id == other.id
       and @file == other.file

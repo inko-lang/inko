@@ -22,7 +22,7 @@ impl Compare[Letter] for Letter {
   }
 }
 
-impl Equal[Letter] for Letter {
+impl Equal[ref Letter] for Letter {
   fn pub ==(other: ref Letter) -> Bool {
     match self {
       case A -> match other {

@@ -584,7 +584,7 @@ trait pub IntoPath {
   fn pub move into_path -> Path
 }
 
-impl Equal[Path] for Path {
+impl Equal[ref Path] for Path {
   # Returns `true` if `self` is equal to the given `Path`.
   #
   # # Examples

@@ -9,7 +9,7 @@ class pub enum Ordering {
   case Greater
 }
 
-impl Equal[Ordering] for Ordering {
+impl Equal[ref Ordering] for Ordering {
   fn pub ==(other: ref Ordering) -> Bool {
     match self {
       case Less -> match other {
@@ -95,10 +95,10 @@ trait pub Equal[T] {
   # their structure is equal. For example, two different arrays may be
   # considered to have structural equality if they contain the exact same
   # values.
-  fn pub ==(other: ref T) -> Bool
+  fn pub ==(other: T) -> Bool
 
   # Returns `true` if `self` and the given object are not equal to each other.
-  fn pub !=(other: ref T) -> Bool {
+  fn pub !=(other: T) -> Bool {
     (self == other).false?
   }
 }

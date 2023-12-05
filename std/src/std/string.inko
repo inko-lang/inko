@@ -184,8 +184,8 @@ class builtin String {
   #     let vals = [10, 20, 30].into_iter
   #
   #     String.join(vals, with: ',') => '10,20,30'
-  fn pub static join[T: ToString, I: mut + Iter[T]](
-    iter: I,
+  fn pub static join[T: ToString, I: Iter[T]](
+    iter: move I,
     with: String,
   ) -> String {
     let result = iter.reduce(StringBuffer.new) fn (buff, val) {
@@ -649,7 +649,7 @@ impl IntoString for String {
   }
 }
 
-impl Equal[String] for String {
+impl Equal[ref String] for String {
   # Returns `true` if the current `String` and `other` are equal to each other.
   #
   # # Examples

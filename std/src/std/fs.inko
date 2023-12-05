@@ -18,7 +18,7 @@ class pub enum FileType {
   case Other
 }
 
-impl Equal[FileType] for FileType {
+impl Equal[ref FileType] for FileType {
   fn pub ==(other: ref FileType) -> Bool {
     match (self, other) {
       case (File, File) -> true
@@ -55,7 +55,7 @@ class pub DirectoryEntry {
   let pub @type: FileType
 }
 
-impl Equal[DirectoryEntry] for DirectoryEntry {
+impl Equal[ref DirectoryEntry] for DirectoryEntry {
   fn pub ==(other: ref DirectoryEntry) -> Bool {
     @path == other.path and @type == other.type
   }

@@ -972,6 +972,7 @@ pub enum Type {
     Ref(Box<ReferenceType>),
     Mut(Box<ReferenceType>),
     Uni(Box<ReferenceType>),
+    Owned(Box<ReferenceType>),
     Closure(Box<ClosureType>),
     Tuple(Box<TupleType>),
 }
@@ -983,6 +984,7 @@ impl Node for Type {
             Type::Ref(ref typ) => typ.location(),
             Type::Mut(ref typ) => typ.location(),
             Type::Uni(ref typ) => typ.location(),
+            Type::Owned(ref typ) => typ.location(),
             Type::Closure(ref typ) => typ.location(),
             Type::Tuple(ref typ) => typ.location(),
         }

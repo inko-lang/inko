@@ -353,9 +353,9 @@ impl MethodCall {
         };
 
         // If the receiver is rigid, it may introduce additional type arguments
-        // through its type parameter requirements. These are typed as Infer(),
-        // but we want them as rigid types. In addition, we need to take care or
-        // remapping any bound parameters.
+        // through its type parameter requirements. We need to ensure that these
+        // are all returned as rigid parameters as well. In addition, we need to
+        // take care or remapping any bound parameters.
         //
         // We don't do this ahead of time (e.g. when defining the type
         // parameters), as that would involve copying lots of data structures,
@@ -363,11 +363,19 @@ impl MethodCall {
         // handle it here when/if necessary.
         if receiver.is_rigid_type_parameter(&state.db) {
             for val in type_arguments.values_mut() {
-                if let TypeRef::Infer(TypeId::TypeParameter(id)) = val {
-                    *val = TypeRef::Owned(TypeId::RigidTypeParameter(
-                        bounds.get(*id).unwrap_or(*id),
-                    ));
-                }
+                *val = match val {
+                    TypeRef::Any(TypeId::TypeParameter(id)) => {
+                        TypeRef::Any(TypeId::RigidTypeParameter(
+                            bounds.get(*id).unwrap_or(*id),
+                        ))
+                    }
+                    TypeRef::Owned(TypeId::TypeParameter(id)) => {
+                        TypeRef::Owned(TypeId::RigidTypeParameter(
+                            bounds.get(*id).unwrap_or(*id),
+                        ))
+                    }
+                    _ => *val,
+                };
             }
         }
 
@@ -477,34 +485,40 @@ impl MethodCall {
         }
     }
 
+    /// Checks if an argument is compatible with the expected argument type.
+    ///
+    /// The return type is the resolved _expected_ type.
     fn check_argument(
         &mut self,
         state: &mut State,
         argument: TypeRef,
         expected: TypeRef,
         location: &SourceLocation,
-    ) {
+    ) -> TypeRef {
         let given = argument.cast_according_to(expected, &state.db);
 
         if self.require_sendable || given.is_uni_ref(&state.db) {
             self.check_sendable.push((given, location.clone()));
         }
 
-        let mut scope = Environment::new(
+        let mut env = Environment::new(
             given.type_arguments(&state.db),
             self.type_arguments.clone(),
         );
 
         if !TypeChecker::new(&state.db)
-            .check_argument(given, expected, &mut scope)
+            .check_argument(given, expected, &mut env)
         {
             state.diagnostics.type_error(
-                format_type_with_arguments(&state.db, &scope.left, given),
-                format_type_with_arguments(&state.db, &scope.right, expected),
+                format_type_with_arguments(&state.db, &env.left, given),
+                format_type_with_arguments(&state.db, &env.right, expected),
                 self.module.file(&state.db),
                 location.clone(),
             );
         }
+
+        TypeResolver::new(&mut state.db, &env.right, &self.bounds)
+            .resolve(expected)
     }
 
     fn check_sendable(&mut self, state: &mut State, location: &SourceLocation) {
@@ -564,16 +578,17 @@ impl MethodCall {
     fn resolve_return_type(&mut self, state: &mut State) -> TypeRef {
         let raw = self.method.return_type(&state.db);
         let rigid = self.receiver.is_rigid_type_parameter(&state.db);
-        let typ = TypeResolver::new(
+
+        self.return_type = TypeResolver::new(
             &mut state.db,
             &self.type_arguments,
             &self.bounds,
         )
         .with_rigid(rigid)
+        .with_owned()
         .resolve(raw);
 
-        self.return_type = typ;
-        typ
+        self.return_type
     }
 }
 
@@ -1617,6 +1632,8 @@ impl<'a> CheckMethodBody<'a> {
 
                 TypeResolver::new(self.db_mut(), &targs, &bounds).resolve(raw)
             };
+
+            field.expected_type = expected;
 
             let value = self.expression(&mut field.value, scope);
             let value_casted = value.cast_according_to(expected, self.db());
@@ -3314,7 +3331,7 @@ impl<'a> CheckMethodBody<'a> {
                     TypeRef::Pointer(id)
                         if node.name.name == DEREF_POINTER_FIELD =>
                     {
-                        let exp = TypeRef::Owned(id);
+                        let exp = id.as_type_for_pointer();
 
                         if !TypeChecker::check(self.db(), value, exp) {
                             self.state.diagnostics.type_error(
@@ -3354,7 +3371,9 @@ impl<'a> CheckMethodBody<'a> {
 
         call.check_mutability(self.state, loc);
         call.check_type_bounds(self.state, loc);
-        self.positional_argument(&mut call, 0, &mut node.value, scope);
+        node.expected_type =
+            self.positional_argument(&mut call, 0, &mut node.value, scope);
+
         call.check_arguments(self.state, loc);
         call.resolve_return_type(self.state);
         call.check_sendable(self.state, &node.location);
@@ -3543,7 +3562,6 @@ impl<'a> CheckMethodBody<'a> {
         }
 
         let targs = TypeArguments::new();
-        let mut exp_args = Vec::new();
 
         for (index, arg_node) in node.arguments.iter_mut().enumerate() {
             let exp = closure
@@ -3551,7 +3569,7 @@ impl<'a> CheckMethodBody<'a> {
                 .unwrap()
                 .as_rigid_type(&mut self.state.db, self.bounds);
 
-            let arg_expr_node = match arg_node {
+            let pos_node = match arg_node {
                 hir::Argument::Positional(expr) => expr,
                 hir::Argument::Named(n) => {
                     self.state.diagnostics.closure_with_named_argument(
@@ -3564,7 +3582,7 @@ impl<'a> CheckMethodBody<'a> {
             };
 
             let given = self
-                .argument_expression(exp, arg_expr_node, scope, &targs)
+                .argument_expression(exp, &mut pos_node.value, scope, &targs)
                 .cast_according_to(exp, self.db());
 
             if !TypeChecker::check(self.db(), given, exp) {
@@ -3572,11 +3590,11 @@ impl<'a> CheckMethodBody<'a> {
                     format_type(self.db(), given),
                     format_type(self.db(), exp),
                     self.file(),
-                    arg_expr_node.location().clone(),
+                    pos_node.value.location().clone(),
                 );
             }
 
-            exp_args.push(exp);
+            pos_node.expected_type = exp;
         }
 
         let returns = {
@@ -3586,11 +3604,8 @@ impl<'a> CheckMethodBody<'a> {
                 .resolve(raw)
         };
 
-        node.kind = CallKind::CallClosure(ClosureCallInfo {
-            id: closure,
-            expected_arguments: exp_args,
-            returns,
-        });
+        node.kind =
+            CallKind::CallClosure(ClosureCallInfo { id: closure, returns });
 
         returns
     }
@@ -3676,7 +3691,7 @@ impl<'a> CheckMethodBody<'a> {
                     TypeRef::Pointer(id)
                         if node.name.name == DEREF_POINTER_FIELD =>
                     {
-                        let ret = TypeRef::Owned(id);
+                        let ret = id.as_type_for_pointer();
 
                         node.kind = CallKind::ReadPointer(ret);
                         ret
@@ -3935,11 +3950,8 @@ impl<'a> CheckMethodBody<'a> {
         scope: &mut LexicalScope,
     ) -> TypeRef {
         let expr_type = self.expression(&mut node.value, scope);
-        let rules = Rules {
-            type_parameters_as_rigid: true,
-            type_parameters_as_owned: true,
-            ..Default::default()
-        };
+        let rules =
+            Rules { type_parameters_as_rigid: true, ..Default::default() };
 
         let type_scope = TypeScope::with_bounds(
             self.module,
@@ -4146,10 +4158,15 @@ impl<'a> CheckMethodBody<'a> {
         for (index, arg) in nodes.iter_mut().enumerate() {
             match arg {
                 hir::Argument::Positional(ref mut n) => {
-                    self.positional_argument(call, index, n, scope);
+                    n.expected_type = self.positional_argument(
+                        call,
+                        index,
+                        &mut n.value,
+                        scope,
+                    );
                 }
                 hir::Argument::Named(ref mut n) => {
-                    self.named_argument(call, n, scope);
+                    n.expected_type = self.named_argument(call, n, scope);
                 }
             }
         }
@@ -4161,7 +4178,7 @@ impl<'a> CheckMethodBody<'a> {
         index: usize,
         node: &mut hir::Expression,
         scope: &mut LexicalScope,
-    ) {
+    ) -> TypeRef {
         call.arguments += 1;
 
         if let Some(expected) =
@@ -4174,9 +4191,9 @@ impl<'a> CheckMethodBody<'a> {
                 &call.type_arguments,
             );
 
-            call.check_argument(self.state, given, expected, node.location());
+            call.check_argument(self.state, given, expected, node.location())
         } else {
-            self.expression(node, scope);
+            self.expression(node, scope)
         }
     }
 
@@ -4185,7 +4202,7 @@ impl<'a> CheckMethodBody<'a> {
         call: &mut MethodCall,
         node: &mut hir::NamedArgument,
         scope: &mut LexicalScope,
-    ) {
+    ) -> TypeRef {
         let name = &node.name.name;
 
         if let Some((index, expected)) =
@@ -4223,7 +4240,7 @@ impl<'a> CheckMethodBody<'a> {
                 given,
                 expected,
                 node.value.location(),
-            );
+            )
         } else {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidCall,
@@ -4235,6 +4252,8 @@ impl<'a> CheckMethodBody<'a> {
                 self.file(),
                 node.name.location.clone(),
             );
+
+            TypeRef::Error
         }
     }
 
@@ -4272,11 +4291,8 @@ impl<'a> CheckMethodBody<'a> {
         node: &mut hir::Type,
         self_type: TypeId,
     ) -> TypeRef {
-        let rules = Rules {
-            type_parameters_as_rigid: true,
-            type_parameters_as_owned: true,
-            ..Default::default()
-        };
+        let rules =
+            Rules { type_parameters_as_rigid: true, ..Default::default() };
         let type_scope = TypeScope::with_bounds(
             self.module,
             self_type,

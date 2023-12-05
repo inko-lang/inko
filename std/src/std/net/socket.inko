@@ -304,7 +304,7 @@ class pub SocketAddress {
   }
 }
 
-impl Equal[SocketAddress] for SocketAddress {
+impl Equal[ref SocketAddress] for SocketAddress {
   # Returns `true` if `self` and `other` are the same.
   fn pub ==(other: ref SocketAddress) -> Bool {
     @address == other.address and @port == other.port
@@ -1266,7 +1266,7 @@ impl Format for UnixAddress {
   }
 }
 
-impl Equal[UnixAddress] for UnixAddress {
+impl Equal[ref UnixAddress] for UnixAddress {
   # Returns `true` if `self` and `other` are the same socket addresses.
   #
   # # Examples

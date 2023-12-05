@@ -57,7 +57,7 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
             TypeRef::Owned(
                 TypeId::TypeParameter(pid) | TypeId::RigidTypeParameter(pid),
             )
-            | TypeRef::Infer(
+            | TypeRef::Any(
                 TypeId::TypeParameter(pid) | TypeId::RigidTypeParameter(pid),
             )
             | TypeRef::Uni(
@@ -109,7 +109,7 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
                 _ => value.force_as_mut(self.db),
             },
 
-            TypeRef::Owned(id) | TypeRef::Infer(id) => {
+            TypeRef::Owned(id) | TypeRef::Any(id) => {
                 TypeRef::Owned(self.specialize_type_id(id))
             }
             TypeRef::Uni(id) => TypeRef::Uni(self.specialize_type_id(id)),
@@ -348,8 +348,8 @@ mod tests {
     use super::*;
     use crate::format::format_type;
     use crate::test::{
-        generic_instance_id, immutable, infer, instance, mutable,
-        new_enum_class, new_parameter, owned, parameter, rigid, uni,
+        any, generic_instance_id, immutable, instance, mutable, new_enum_class,
+        new_parameter, owned, parameter, rigid, uni,
     };
     use crate::{ClassId, ModuleId, Visibility};
 
@@ -453,7 +453,7 @@ mod tests {
             &mut db,
             "0".to_string(),
             0,
-            infer(parameter(param1)),
+            any(parameter(param1)),
             Visibility::Public,
             ModuleId(0),
         );
@@ -462,7 +462,7 @@ mod tests {
             &mut db,
             "1".to_string(),
             1,
-            infer(parameter(param2)),
+            any(parameter(param2)),
             Visibility::Public,
             ModuleId(0),
         );
@@ -471,7 +471,7 @@ mod tests {
             &mut db,
             "2".to_string(),
             2,
-            infer(parameter(param3)),
+            any(parameter(param3)),
             Visibility::Public,
             ModuleId(0),
         );
@@ -531,7 +531,7 @@ mod tests {
         opt.new_variant(
             &mut db,
             "Some".to_string(),
-            vec![infer(parameter(opt_param))],
+            vec![any(parameter(opt_param))],
         );
 
         opt.new_variant(&mut db, "None".to_string(), Vec::new());

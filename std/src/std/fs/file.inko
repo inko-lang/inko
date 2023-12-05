@@ -12,7 +12,7 @@
 # Files are automatically closed when they are dropped. Any errors that may
 # occur when closing a file are ignored.
 import std.drop.Drop
-import std.fs.path.(IntoPath, Path)
+import std.fs.path.(ToPath, Path)
 import std.io.(Error, Read, Seek, Size, Write)
 
 let FILE_READ_ONLY = 0
@@ -96,8 +96,8 @@ class pub ReadOnlyFile {
   #     import std.fs.file.ReadOnlyFile
   #
   #     let handle = ReadOnlyFile.new('/dev/null').unwrap
-  fn pub static new[T: IntoPath](path: T) -> Result[ReadOnlyFile, Error] {
-    let path = path.into_path
+  fn pub static new[T: ToPath](path: ref T) -> Result[ReadOnlyFile, Error] {
+    let path = path.to_path
 
     match inko_file_open(_INKO.process, path.to_string, FILE_READ_ONLY) {
       case { @tag = 0, @value = v } -> Result.Ok(
@@ -158,8 +158,8 @@ class pub WriteOnlyFile {
   #     import std.fs.file.WriteOnlyFile
   #
   #     let file = WriteOnlyFile.new('/dev/null').unwrap
-  fn pub static new[T: IntoPath](path: T) -> Result[WriteOnlyFile, Error] {
-    let path = path.into_path
+  fn pub static new[T: ToPath](path: ref T) -> Result[WriteOnlyFile, Error] {
+    let path = path.to_path
 
     match inko_file_open(_INKO.process, path.to_string, FILE_WRITE_ONLY) {
       case { @tag = 0, @value = v } -> Result.Ok(
@@ -178,8 +178,8 @@ class pub WriteOnlyFile {
   #     import std.fs.file.WriteOnlyFile
   #
   #     let file = WriteOnlyFile.append('/dev/null').unwrap
-  fn pub static append[T: IntoPath](path: T) -> Result[WriteOnlyFile, Error] {
-    let path = path.into_path
+  fn pub static append[T: ToPath](path: ref T) -> Result[WriteOnlyFile, Error] {
+    let path = path.to_path
 
     match inko_file_open(_INKO.process, path.to_string, FILE_APPEND_ONLY) {
       case { @tag = 0, @value = v } -> Result.Ok(
@@ -247,8 +247,8 @@ class pub ReadWriteFile {
   #     import std.fs.file.ReadWriteFile
   #
   #     let handle = ReadWriteFile.new('/dev/null').unwrap
-  fn pub static new[T: IntoPath](path: T) -> Result[ReadWriteFile, Error] {
-    let path = path.into_path
+  fn pub static new[T: ToPath](path: ref T) -> Result[ReadWriteFile, Error] {
+    let path = path.to_path
 
     match inko_file_open(_INKO.process, path.to_string, FILE_READ_WRITE) {
       case { @tag = 0, @value = v } -> Result.Ok(
@@ -267,8 +267,8 @@ class pub ReadWriteFile {
   #     import std.fs.file.ReadWriteFile
   #
   #     let handle = ReadWriteFile.append('/dev/null').unwrap
-  fn pub static append[T: IntoPath](path: T) -> Result[ReadWriteFile, Error] {
-    let path = path.into_path
+  fn pub static append[T: ToPath](path: ref T) -> Result[ReadWriteFile, Error] {
+    let path = path.to_path
 
     match inko_file_open(_INKO.process, path.to_string, FILE_READ_APPEND) {
       case { @tag = 0, @value = v } -> Result.Ok(

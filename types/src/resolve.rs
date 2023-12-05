@@ -33,9 +33,13 @@ pub struct TypeResolver<'a> {
     /// If the resolved type should be made immutable or not.
     immutable: bool,
 
-    /// When set to true, non-rigid type parameters are turned into rigid
+    /// When set to `true`, non-rigid type parameters are turned into rigid
     /// parameters instead of placeholders.
     rigid: bool,
+
+    /// When set to `true`, types assigned to `move T` type parameters have
+    /// their ownership changed to `T`, i.e. `ref Foo` becomes `Foo`.
+    owned: bool,
 
     /// The surrounding trait definition, if any.
     ///
@@ -56,6 +60,7 @@ impl<'a> TypeResolver<'a> {
             bounds,
             immutable: false,
             rigid: false,
+            owned: false,
             surrounding_trait: None,
             cached: HashMap::new(),
         }
@@ -68,6 +73,11 @@ impl<'a> TypeResolver<'a> {
 
     pub fn with_rigid(mut self, rigid: bool) -> TypeResolver<'a> {
         self.rigid = rigid;
+        self
+    }
+
+    pub fn with_owned(mut self) -> TypeResolver<'a> {
+        self.owned = true;
         self
     }
 
@@ -94,17 +104,28 @@ impl<'a> TypeResolver<'a> {
         self.cached.insert(value, value);
 
         let resolved = match value {
-            TypeRef::Owned(id) | TypeRef::Infer(id) => {
-                match self.resolve_type_id(id) {
-                    Either::Left(res) => TypeRef::Owned(res),
-                    Either::Right(typ) => typ,
+            TypeRef::Owned(id) => match self.resolve_type_id(id) {
+                Either::Left(res) => TypeRef::Owned(res),
+                // For types such as `move T`, values can only be assigned to
+                // the placeholder if they are owned.
+                Either::Right(TypeRef::Placeholder(id)) => {
+                    TypeRef::Placeholder(id.as_owned())
                 }
-            }
+                // For e.g. return types we want `move T` to be resolved such
+                // that if `T = ref User`, the return type is `User`, not
+                // `ref User`.
+                Either::Right(typ) if self.owned => typ.as_owned(self.db),
+                Either::Right(typ) => typ,
+            },
+            TypeRef::Any(id) => match self.resolve_type_id(id) {
+                Either::Left(res) => TypeRef::Any(res),
+                Either::Right(typ) => typ,
+            },
             TypeRef::Pointer(id) => match self.resolve_type_id(id) {
                 Either::Left(res) => TypeRef::Pointer(res),
                 Either::Right(
                     TypeRef::Owned(id)
-                    | TypeRef::Infer(id)
+                    | TypeRef::Any(id)
                     | TypeRef::Pointer(id)
                     | TypeRef::Uni(id),
                 ) => TypeRef::Pointer(id),
@@ -112,9 +133,9 @@ impl<'a> TypeResolver<'a> {
             },
             TypeRef::Ref(id) => match self.resolve_type_id(id) {
                 Either::Left(res) => TypeRef::Ref(res),
-                Either::Right(TypeRef::Owned(typ) | TypeRef::Mut(typ)) => {
-                    TypeRef::Ref(typ)
-                }
+                Either::Right(
+                    TypeRef::Owned(typ) | TypeRef::Any(typ) | TypeRef::Mut(typ),
+                ) => TypeRef::Ref(typ),
                 Either::Right(TypeRef::Uni(typ) | TypeRef::UniMut(typ)) => {
                     TypeRef::UniRef(typ)
                 }
@@ -122,13 +143,17 @@ impl<'a> TypeResolver<'a> {
             },
             TypeRef::Mut(id) => match self.resolve_type_id(id) {
                 Either::Left(res) => TypeRef::Mut(res),
-                Either::Right(TypeRef::Owned(typ)) => TypeRef::Mut(typ),
+                Either::Right(TypeRef::Owned(typ) | TypeRef::Any(typ)) => {
+                    TypeRef::Mut(typ)
+                }
                 Either::Right(TypeRef::Uni(typ)) => TypeRef::UniMut(typ),
                 Either::Right(typ) => typ,
             },
             TypeRef::Uni(id) => match self.resolve_type_id(id) {
                 Either::Left(res) => TypeRef::Uni(res),
-                Either::Right(TypeRef::Owned(typ)) => TypeRef::Uni(typ),
+                Either::Right(TypeRef::Owned(typ) | TypeRef::Any(typ)) => {
+                    TypeRef::Uni(typ)
+                }
                 Either::Right(typ) => typ,
             },
             TypeRef::UniRef(id) => match self.resolve_type_id(id) {
@@ -268,10 +293,10 @@ impl<'a> TypeResolver<'a> {
 mod tests {
     use super::*;
     use crate::test::{
-        closure, generic_instance_id, generic_trait_instance,
-        generic_trait_instance_id, immutable, immutable_uni, infer, instance,
-        mutable, mutable_uni, new_parameter, new_trait, owned, parameter,
-        placeholder, pointer, rigid, type_arguments, type_bounds, uni,
+        any, closure, generic_instance_id, generic_trait_instance,
+        generic_trait_instance_id, immutable, immutable_uni, instance, mutable,
+        mutable_uni, new_parameter, new_trait, owned, parameter, placeholder,
+        pointer, rigid, type_arguments, type_bounds, uni,
     };
     use crate::{Block, ClassId, Closure, TypePlaceholder, TypePlaceholderId};
 
@@ -360,12 +385,12 @@ mod tests {
         let bounds = TypeBounds::new();
 
         assert_eq!(
-            resolve(&mut db, &args, &bounds, infer(instance(string))),
-            owned(instance(string))
+            resolve(&mut db, &args, &bounds, any(instance(string))),
+            any(instance(string))
         );
 
         assert_eq!(
-            resolve_immutable(&mut db, &args, &bounds, infer(instance(string))),
+            resolve_immutable(&mut db, &args, &bounds, any(instance(string))),
             immutable(instance(string))
         );
     }
@@ -532,17 +557,12 @@ mod tests {
         );
 
         assert_eq!(
-            resolve(&mut db, &args, &bounds, infer(parameter(param1))),
+            resolve(&mut db, &args, &bounds, any(parameter(param1))),
             owned(instance(string))
         );
 
         assert_eq!(
-            resolve_immutable(
-                &mut db,
-                &args,
-                &bounds,
-                infer(parameter(param1))
-            ),
+            resolve_immutable(&mut db, &args, &bounds, any(parameter(param1))),
             immutable(instance(string))
         );
 
@@ -762,7 +782,7 @@ mod tests {
             &mut db,
             "a".to_string(),
             owned(rigid(param)),
-            infer(parameter(param)),
+            any(parameter(param)),
         );
 
         let args = type_arguments(vec![(param, TypeRef::int())]);
@@ -829,9 +849,12 @@ mod tests {
 
         assert_eq!(
             resolve(&mut db, &args, &bounds, owned(parameter(param))),
-            placeholder(TypePlaceholderId(0))
+            placeholder(TypePlaceholderId { id: 0, owned: true })
         );
 
-        assert_eq!(TypePlaceholderId(0).required(&db), Some(bound));
+        assert_eq!(
+            TypePlaceholderId { id: 0, owned: false }.required(&db),
+            Some(bound)
+        );
     }
 }

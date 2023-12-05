@@ -3,7 +3,7 @@ import std.drop.Drop
 import std.fs.path.Path
 import std.int.ToInt
 import std.io.(Error, Read, Write)
-import std.string.IntoString
+import std.string.ToString
 
 class extern AnyResult {
   let @tag: Int
@@ -220,9 +220,9 @@ class pub Command {
   #     import std.sys.Command
   #
   #     Command.new('/usr/bin/ls')
-  fn pub static new[T: IntoString](program: T) -> Command {
+  fn pub static new[T: ToString](program: ref T) -> Command {
     Command {
-      @program = program.into_string,
+      @program = program.to_string,
       @stdin = Stream.Inherit,
       @stdout = Stream.Inherit,
       @stderr = Stream.Inherit,
@@ -244,8 +244,8 @@ class pub Command {
   #     import std.sys.Command
   #
   #     Command.new('ls').directory('/tmp')
-  fn pub mut directory[T: IntoString](path: T) {
-    @directory = Option.Some(path.into_string)
+  fn pub mut directory[T: ToString](path: ref T) {
+    @directory = Option.Some(path.to_string)
   }
 
   # Returns the current working directory, if any was set.

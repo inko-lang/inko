@@ -163,6 +163,7 @@ pub(crate) struct AssignSetter {
     pub(crate) name: Identifier,
     pub(crate) value: Expression,
     pub(crate) location: SourceLocation,
+    pub(crate) expected_type: types::TypeRef,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -342,6 +343,7 @@ pub(crate) struct AssignClassLiteralField {
     pub(crate) field: Field,
     pub(crate) value: Expression,
     pub(crate) location: SourceLocation,
+    pub(crate) expected_type: types::TypeRef,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -588,16 +590,23 @@ pub(crate) struct MethodArgument {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct PositionalArgument {
+    pub(crate) value: Expression,
+    pub(crate) expected_type: types::TypeRef,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct NamedArgument {
     pub(crate) index: usize,
     pub(crate) name: Identifier,
     pub(crate) value: Expression,
+    pub(crate) expected_type: types::TypeRef,
     pub(crate) location: SourceLocation,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Argument {
-    Positional(Box<Expression>),
+    Positional(Box<PositionalArgument>),
     Named(Box<NamedArgument>),
 }
 
@@ -658,6 +667,7 @@ pub(crate) enum Type {
     Ref(Box<ReferenceType>),
     Mut(Box<ReferenceType>),
     Uni(Box<ReferenceType>),
+    Owned(Box<ReferenceType>),
     Closure(Box<ClosureType>),
     Tuple(Box<TupleType>),
 }
@@ -669,6 +679,7 @@ impl Type {
             Type::Ref(ref node) => &node.location,
             Type::Mut(ref node) => &node.location,
             Type::Uni(ref node) => &node.location,
+            Type::Owned(ref node) => &node.location,
             Type::Closure(ref node) => &node.location,
             Type::Tuple(ref node) => &node.location,
         }
@@ -1542,6 +1553,7 @@ impl<'a> LowerToHir<'a> {
             }
             ast::Type::Ref(node) => Type::Ref(self.reference_type(*node)),
             ast::Type::Mut(node) => Type::Mut(self.reference_type(*node)),
+            ast::Type::Owned(node) => Type::Owned(self.reference_type(*node)),
             ast::Type::Uni(node) => Type::Uni(self.reference_type(*node)),
             ast::Type::Closure(node) => Type::Closure(self.closure_type(*node)),
             ast::Type::Tuple(node) => Type::Tuple(self.tuple_type(*node)),
@@ -1902,11 +1914,14 @@ impl<'a> LowerToHir<'a> {
                     location: node.location.clone(),
                 },
                 arguments: vec![Argument::Positional(Box::new(
-                    Expression::Int(Box::new(IntLiteral {
-                        value: node.values.len() as _,
-                        resolved_type: types::TypeRef::Unknown,
-                        location: node.location.clone(),
-                    })),
+                    PositionalArgument {
+                        value: Expression::Int(Box::new(IntLiteral {
+                            value: node.values.len() as _,
+                            resolved_type: types::TypeRef::Unknown,
+                            location: node.location.clone(),
+                        })),
+                        expected_type: types::TypeRef::Unknown,
+                    },
                 ))],
                 location: node.location.clone(),
             })),
@@ -1931,7 +1946,12 @@ impl<'a> LowerToHir<'a> {
                     name: ARRAY_PUSH.to_string(),
                     location: node.location.clone(),
                 },
-                arguments: vec![Argument::Positional(Box::new(arg))],
+                arguments: vec![Argument::Positional(Box::new(
+                    PositionalArgument {
+                        value: arg,
+                        expected_type: types::TypeRef::Unknown,
+                    },
+                ))],
                 location: loc,
             }));
 
@@ -2205,7 +2225,10 @@ impl<'a> LowerToHir<'a> {
                 location: node.operator.location,
             },
             arguments: vec![Argument::Positional(Box::new(
-                self.expression(node.right),
+                PositionalArgument {
+                    value: self.expression(node.right),
+                    expected_type: types::TypeRef::Unknown,
+                },
             ))],
             location: node.location,
         })
@@ -2310,7 +2333,10 @@ impl<'a> LowerToHir<'a> {
                 .into_iter()
                 .map(|n| match n {
                     ast::Argument::Positional(node) => {
-                        Argument::Positional(Box::new(self.expression(node)))
+                        Argument::Positional(Box::new(PositionalArgument {
+                            value: self.expression(node),
+                            expected_type: types::TypeRef::Unknown,
+                        }))
                     }
                     ast::Argument::Named(node) => {
                         Argument::Named(Box::new(NamedArgument {
@@ -2318,6 +2344,7 @@ impl<'a> LowerToHir<'a> {
                             name: self.identifier(node.name),
                             value: self.expression(node.value),
                             location: node.location,
+                            expected_type: types::TypeRef::Unknown,
                         }))
                     }
                 })
@@ -2396,7 +2423,10 @@ impl<'a> LowerToHir<'a> {
                 },
                 receiver: Some(receiver),
                 arguments: vec![Argument::Positional(Box::new(
-                    self.expression(node.value),
+                    PositionalArgument {
+                        value: self.expression(node.value),
+                        expected_type: types::TypeRef::Unknown,
+                    },
                 ))],
                 location: node.location.clone(),
             })),
@@ -2429,7 +2459,10 @@ impl<'a> LowerToHir<'a> {
                 },
                 receiver: Some(receiver),
                 arguments: vec![Argument::Positional(Box::new(
-                    self.expression(node.value),
+                    PositionalArgument {
+                        value: self.expression(node.value),
+                        expected_type: types::TypeRef::Unknown,
+                    },
                 ))],
                 location: node.location.clone(),
             })),
@@ -2445,6 +2478,7 @@ impl<'a> LowerToHir<'a> {
             name: self.identifier(node.name),
             value: self.expression(node.value),
             location: node.location,
+            expected_type: types::TypeRef::Unknown,
         })
     }
 
@@ -2473,7 +2507,10 @@ impl<'a> LowerToHir<'a> {
                 kind: types::CallKind::Unknown,
                 receiver: Some(getter_rec),
                 arguments: vec![Argument::Positional(Box::new(
-                    self.expression(node.value),
+                    PositionalArgument {
+                        value: self.expression(node.value),
+                        expected_type: types::TypeRef::Unknown,
+                    },
                 ))],
                 name: Identifier {
                     name: op.method_name().to_string(),
@@ -2482,6 +2519,7 @@ impl<'a> LowerToHir<'a> {
                 location: node.location.clone(),
             })),
             location: node.location,
+            expected_type: types::TypeRef::Unknown,
         })
     }
 
@@ -2799,6 +2837,7 @@ impl<'a> LowerToHir<'a> {
                     field: self.field(n.field),
                     value: self.expression(n.value),
                     location: n.location,
+                    expected_type: types::TypeRef::Unknown,
                 })
                 .collect(),
             location: node.location,
@@ -3326,6 +3365,28 @@ mod tests {
                     location: cols(13, 13)
                 })),
                 location: cols(9, 13)
+            }))
+        );
+    }
+
+    #[test]
+    fn test_lower_owned_reference_type() {
+        let hir = lower_type("move B");
+
+        assert_eq!(
+            hir,
+            Type::Owned(Box::new(ReferenceType {
+                type_reference: ReferrableType::Named(Box::new(TypeName {
+                    source: None,
+                    resolved_type: types::TypeRef::Unknown,
+                    name: Constant {
+                        name: "B".to_string(),
+                        location: cols(14, 14)
+                    },
+                    arguments: Vec::new(),
+                    location: cols(14, 14)
+                })),
+                location: cols(9, 14)
             }))
         );
     }
@@ -4842,11 +4903,17 @@ mod tests {
                                 location: cols(8, 11),
                             },
                             arguments: vec![Argument::Positional(Box::new(
-                                Expression::Int(Box::new(IntLiteral {
-                                    value: 1,
-                                    resolved_type: types::TypeRef::Unknown,
-                                    location: cols(8, 11),
-                                }))
+                                PositionalArgument {
+                                    value: Expression::Int(Box::new(
+                                        IntLiteral {
+                                            value: 1,
+                                            resolved_type:
+                                                types::TypeRef::Unknown,
+                                            location: cols(8, 11),
+                                        }
+                                    )),
+                                    expected_type: types::TypeRef::Unknown,
+                                }
                             ))],
                             location: cols(8, 11),
                         },)),
@@ -4866,11 +4933,14 @@ mod tests {
                             location: cols(8, 11),
                         },
                         arguments: vec![Argument::Positional(Box::new(
-                            Expression::Int(Box::new(IntLiteral {
-                                value: 10,
-                                resolved_type: types::TypeRef::Unknown,
-                                location: cols(9, 10),
-                            })),
+                            PositionalArgument {
+                                value: Expression::Int(Box::new(IntLiteral {
+                                    value: 10,
+                                    resolved_type: types::TypeRef::Unknown,
+                                    location: cols(9, 10),
+                                })),
+                                expected_type: types::TypeRef::Unknown,
+                            },
                         ))],
                         location: cols(9, 10),
                     })),
@@ -4919,11 +4989,14 @@ mod tests {
                     location: cols(8, 8)
                 }))),
                 arguments: vec![Argument::Positional(Box::new(
-                    Expression::Int(Box::new(IntLiteral {
-                        value: 2,
-                        resolved_type: types::TypeRef::Unknown,
-                        location: cols(12, 12)
-                    }))
+                    PositionalArgument {
+                        value: Expression::Int(Box::new(IntLiteral {
+                            value: 2,
+                            resolved_type: types::TypeRef::Unknown,
+                            location: cols(12, 12)
+                        })),
+                        expected_type: types::TypeRef::Unknown,
+                    }
                 ))],
                 name: Identifier {
                     name: Operator::Add.method_name().to_string(),
@@ -5018,11 +5091,14 @@ mod tests {
                     location: cols(8, 8)
                 },
                 arguments: vec![Argument::Positional(Box::new(
-                    Expression::Int(Box::new(IntLiteral {
-                        value: 10,
-                        resolved_type: types::TypeRef::Unknown,
-                        location: cols(10, 11)
-                    }))
+                    PositionalArgument {
+                        value: Expression::Int(Box::new(IntLiteral {
+                            value: 10,
+                            resolved_type: types::TypeRef::Unknown,
+                            location: cols(10, 11)
+                        })),
+                        expected_type: types::TypeRef::Unknown,
+                    }
                 ))],
                 location: cols(8, 12)
             }))
@@ -5053,7 +5129,8 @@ mod tests {
                         resolved_type: types::TypeRef::Unknown,
                         location: cols(13, 14)
                     })),
-                    location: cols(10, 14)
+                    location: cols(10, 14),
+                    expected_type: types::TypeRef::Unknown,
                 }))],
                 location: cols(8, 15)
             }))
@@ -5254,11 +5331,14 @@ mod tests {
                         }
                     ))),
                     arguments: vec![Argument::Positional(Box::new(
-                        Expression::Int(Box::new(IntLiteral {
-                            value: 1,
-                            resolved_type: types::TypeRef::Unknown,
-                            location: cols(13, 13)
-                        }))
+                        PositionalArgument {
+                            value: Expression::Int(Box::new(IntLiteral {
+                                value: 1,
+                                resolved_type: types::TypeRef::Unknown,
+                                location: cols(13, 13)
+                            })),
+                            expected_type: types::TypeRef::Unknown,
+                        }
                     ))],
                     name: Identifier {
                         name: Operator::Add.method_name().to_string(),
@@ -5294,7 +5374,8 @@ mod tests {
                     value: 1,
                     location: cols(14, 14)
                 })),
-                location: cols(8, 14)
+                location: cols(8, 14),
+                expected_type: types::TypeRef::Unknown,
             }))
         );
     }
@@ -5335,11 +5416,14 @@ mod tests {
                         location: cols(8, 10)
                     }))),
                     arguments: vec![Argument::Positional(Box::new(
-                        Expression::Int(Box::new(IntLiteral {
-                            resolved_type: types::TypeRef::Unknown,
-                            value: 1,
-                            location: cols(15, 15)
-                        }))
+                        PositionalArgument {
+                            value: Expression::Int(Box::new(IntLiteral {
+                                resolved_type: types::TypeRef::Unknown,
+                                value: 1,
+                                location: cols(15, 15)
+                            })),
+                            expected_type: types::TypeRef::Unknown,
+                        }
                     ))],
                     name: Identifier {
                         name: Operator::Add.method_name().to_string(),
@@ -5347,7 +5431,8 @@ mod tests {
                     },
                     location: cols(8, 15)
                 })),
-                location: cols(8, 15)
+                location: cols(8, 15),
+                expected_type: types::TypeRef::Unknown,
             }))
         );
     }
@@ -5370,11 +5455,14 @@ mod tests {
                         location: cols(8, 9)
                     }))),
                     arguments: vec![Argument::Positional(Box::new(
-                        Expression::Int(Box::new(IntLiteral {
-                            value: 1,
-                            resolved_type: types::TypeRef::Unknown,
-                            location: cols(14, 14)
-                        }))
+                        PositionalArgument {
+                            value: Expression::Int(Box::new(IntLiteral {
+                                value: 1,
+                                resolved_type: types::TypeRef::Unknown,
+                                location: cols(14, 14)
+                            })),
+                            expected_type: types::TypeRef::Unknown
+                        }
                     ))],
                     name: Identifier {
                         name: Operator::Add.method_name().to_string(),
@@ -5934,7 +6022,8 @@ mod tests {
                         resolved_type: types::TypeRef::Unknown,
                         location: cols(17, 18)
                     })),
-                    location: cols(12, 18)
+                    location: cols(12, 18),
+                    expected_type: types::TypeRef::Unknown,
                 }],
                 location: cols(8, 20)
             }))

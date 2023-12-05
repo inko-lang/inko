@@ -1007,7 +1007,7 @@ impl<'a> DefineMethods<'a> {
             let args = class_id
                 .type_parameters(self.db())
                 .into_iter()
-                .map(|param| TypeRef::Infer(TypeId::TypeParameter(param)))
+                .map(|param| TypeRef::Any(TypeId::TypeParameter(param)))
                 .collect();
 
             ClassInstance::with_types(self.db_mut(), class_id, args)

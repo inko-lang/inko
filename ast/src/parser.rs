@@ -466,6 +466,9 @@ impl Parser {
             TokenKind::Fn => Type::Closure(Box::new(self.closure_type(start)?)),
             TokenKind::Ref => Type::Ref(Box::new(self.reference_type(start)?)),
             TokenKind::Mut => Type::Mut(Box::new(self.reference_type(start)?)),
+            TokenKind::Move => {
+                Type::Owned(Box::new(self.reference_type(start)?))
+            }
             TokenKind::Uni => Type::Uni(Box::new(self.reference_type(start)?)),
             TokenKind::ParenOpen => {
                 Type::Tuple(Box::new(self.tuple_type(start)?))
@@ -3875,6 +3878,28 @@ mod tests {
                     location: cols(5, 5)
                 })),
                 location: cols(1, 5)
+            }))
+        );
+    }
+
+    #[test]
+    fn test_type_reference_with_owned_reference_type() {
+        let mut parser = parser("move A");
+        let start = parser.require().unwrap();
+
+        assert_eq!(
+            parser.type_reference(start).unwrap(),
+            Type::Owned(Box::new(ReferenceType {
+                type_reference: ReferrableType::Named(Box::new(TypeName {
+                    name: Constant {
+                        source: None,
+                        name: "A".to_string(),
+                        location: cols(6, 6),
+                    },
+                    arguments: None,
+                    location: cols(6, 6)
+                })),
+                location: cols(1, 6)
             }))
         );
     }

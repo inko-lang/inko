@@ -501,7 +501,7 @@ impl IntoString for ByteArray {
   }
 }
 
-impl Equal[ByteArray] for ByteArray {
+impl Equal[ref ByteArray] for ByteArray {
   # Returns `true` if two `ByteArray` objects are equal to each other.
   #
   # Two `ByteArray` objects are considered equal if they have the exact same

@@ -116,14 +116,14 @@ class pub Test {
   }
 
   # Asserts that the given arguments are equal to each other.
-  fn pub mut equal[T: Equal[T] + Format](got: ref T, expected: ref T) {
+  fn pub mut equal[T: Equal[ref T] + Format](got: ref T, expected: ref T) {
     if got == expected { return }
 
     @failures.push(Failure.new(fmt(got), fmt(expected)))
   }
 
   # Asserts that the given arguments are not equal to each other.
-  fn pub mut not_equal[T: Equal[T] + Format](got: ref T, expected: ref T) {
+  fn pub mut not_equal[T: Equal[ref T] + Format](got: ref T, expected: ref T) {
     if got != expected { return }
 
     @failures.push(Failure.new(fmt(got), fmt(expected)))
@@ -340,7 +340,7 @@ class pub enum Filter {
   }
 }
 
-impl Equal[Filter] for Filter {
+impl Equal[ref Filter] for Filter {
   fn pub ==(other: ref Filter) -> Bool {
     match self {
       case Pattern(lhs) -> match other {

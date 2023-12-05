@@ -19,7 +19,7 @@ class builtin Nil {
   }
 }
 
-impl Equal[Nil] for Nil {
+impl Equal[ref Nil] for Nil {
   fn pub ==(other: ref Nil) -> Bool {
     true
   }

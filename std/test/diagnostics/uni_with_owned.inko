@@ -1,0 +1,28 @@
+trait Eq[T] {
+  fn eq(other: T)
+}
+
+class Thing {}
+
+impl Eq[uni Thing] for Thing {
+  fn eq(other: uni Thing) {}
+}
+
+impl Eq[uni Int] for Int {
+  fn eq(other: uni Int) {}
+}
+
+fn eq[F: Eq[F]](value: F) {}
+
+fn bar {
+  # This isn't valid because `Thing` implements `Eq[uni Thing]`. Passing
+  # `Thing` `F: Eq[F]` results in `F: Eq[Thing]`. If we allowed this, we'd be
+  # able to pass a `Thing` to `Thing.eq` which violates the `uni` constraint of
+  # the `other` argument.
+  eq(Thing {})
+
+  # This _is_ valid because Int is a value type.
+  eq(42)
+}
+
+# uni_with_owned.inko:22:6 error(invalid-type): expected a value of type 'F', found 'Thing'

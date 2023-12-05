@@ -1,0 +1,37 @@
+trait Eq[T] {
+  fn eq(other: T)
+}
+
+class enum Opt[T] {
+  case Some(T)
+  case None
+}
+
+class Thing {}
+
+impl Eq[ref Thing] for Thing {
+  fn eq(other: ref Thing) {}
+}
+
+impl Eq[ref Opt[T]] for Opt if T: Eq[ref T] {
+  fn eq(other: ref Opt[T]) {}
+}
+
+impl Eq[ref Int] for Int {
+  fn eq(other: ref Int) {}
+}
+
+fn eq[T: Eq[ref T]](value: ref T) {}
+
+fn test {
+  # This results in `uni Int` being compared to `uni ref Int`, because of `ref
+  # T` in the implementation for `Opt`. This is fine because `Int` is a value
+  # type.
+  eq(Opt.Some(42) as Opt[uni Int])
+
+  # This isn't fine because `Thing.eq` expects a `ref Thing`, and we don't know
+  # if that `ref` to the `uni Thing` outlives the call.
+  eq(Opt.Some(recover Thing {}) as Opt[uni Thing])
+}
+
+# ref_value_type_with_uni_ref.inko:34:6 error(invalid-type): expected a value of type 'ref T', found 'ref Opt[uni Thing]'

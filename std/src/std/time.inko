@@ -178,7 +178,7 @@ impl Compare[Duration] for Duration {
   }
 }
 
-impl Equal[Duration] for Duration {
+impl Equal[ref Duration] for Duration {
   fn pub ==(other: ref Duration) -> Bool {
     @nanos == other.nanos
   }
@@ -490,7 +490,7 @@ impl Compare[DateTime] for DateTime {
   }
 }
 
-impl Equal[DateTime] for DateTime {
+impl Equal[ref DateTime] for DateTime {
   fn pub ==(other: ref DateTime) -> Bool {
     @year == other.year
       and @month == other.month
@@ -619,7 +619,7 @@ impl Compare[Instant] for Instant {
   }
 }
 
-impl Equal[Instant] for Instant {
+impl Equal[ref Instant] for Instant {
   fn pub ==(other: ref Instant) -> Bool {
     @nanos == other.nanos
   }

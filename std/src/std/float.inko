@@ -320,7 +320,7 @@ impl Compare[Float] for Float {
   }
 }
 
-impl Equal[Float] for Float {
+impl Equal[ref Float] for Float {
   # Returns `true` if `self` and `other` are equal to each other.
   #
   # This method uses "Units in the Last Place" or ULPs to perform an approximate
