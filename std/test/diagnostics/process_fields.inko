@@ -1,0 +1,19 @@
+class async Foo {
+  let @value: Int
+
+  fn async mut update(value: Int) {
+    # This is OK because it's safe to assign fields from within the process that
+    # owns them.
+    @value = value
+  }
+}
+
+fn example {
+  let foo = Foo { @value = 42 }
+
+  foo.value
+  foo.value = 50
+}
+
+# process_fields.inko:14:3 error(invalid-symbol): the field 'value' can only be used by the owning process
+# process_fields.inko:15:3 error(invalid-symbol): the field 'value' can only be used by the owning process

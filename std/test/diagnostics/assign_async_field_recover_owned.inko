@@ -1,0 +1,10 @@
+class async Thing[A, B] {
+  let @a: A
+  let @b: B
+
+  fn static new(a: A, b: uni B) -> Thing[A, B] {
+    Thing { @a = a, @b = recover b }
+  }
+}
+
+# assign_async_field_recover_owned.inko:6:18 error(invalid-symbol): the field 'a' can't be assigned a value of type 'A', as it's not sendable

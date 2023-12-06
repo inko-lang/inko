@@ -209,6 +209,23 @@ impl Diagnostics {
         );
     }
 
+    pub(crate) fn unavailable_process_field(
+        &mut self,
+        name: &str,
+        file: PathBuf,
+        location: SourceLocation,
+    ) {
+        self.error(
+            DiagnosticId::InvalidSymbol,
+            format!(
+                "the field '{}' can only be used by the owning process",
+                name
+            ),
+            file,
+            location,
+        );
+    }
+
     pub(crate) fn duplicate_symbol(
         &mut self,
         name: &str,

@@ -531,6 +531,10 @@ impl Expression {
     pub(crate) fn is_self(&self) -> bool {
         matches!(self, Expression::SelfObject(_))
     }
+
+    pub(crate) fn is_recover(&self) -> bool {
+        matches!(self, Expression::Recover(_))
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -6127,5 +6131,23 @@ mod tests {
                 location: cols(1, 47)
             }))
         );
+    }
+
+    #[test]
+    fn test_expression_is_recover() {
+        let int = Expression::Int(Box::new(IntLiteral {
+            value: 0,
+            resolved_type: types::TypeRef::Unknown,
+            location: cols(1, 1),
+        }));
+
+        let recover = Expression::Recover(Box::new(Recover {
+            resolved_type: types::TypeRef::Unknown,
+            body: vec![int.clone()],
+            location: cols(1, 1),
+        }));
+
+        assert!(!int.is_recover());
+        assert!(recover.is_recover());
     }
 }

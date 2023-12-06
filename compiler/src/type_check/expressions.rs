@@ -1650,7 +1650,14 @@ impl<'a> CheckMethodBody<'a> {
                 );
             }
 
-            if require_send && !value.is_sendable(self.db()) {
+            // The values assigned to fields of processes must be sendable as
+            // part of the assignment. If the value is a `recover` expression
+            // that returns an owned value we _do_ allow this, because at that
+            // point the owned value is sendable.
+            if require_send
+                && !value.is_sendable(self.db())
+                && !field.value.is_recover()
+            {
                 self.state.diagnostics.unsendable_field_value(
                     name,
                     format_type(self.db(), value),
@@ -3401,6 +3408,23 @@ impl<'a> CheckMethodBody<'a> {
         scope: &mut LexicalScope,
     ) -> bool {
         let name = &node.name.name;
+        let (ins, field) = if let TypeId::ClassInstance(ins) = receiver_id {
+            if let Some(field) = ins.instance_of().field(self.db(), name) {
+                (ins, field)
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        };
+
+        if ins.instance_of().kind(self.db()).is_async() {
+            self.state.diagnostics.unavailable_process_field(
+                name,
+                self.file(),
+                node.location.clone(),
+            );
+        }
 
         // When using `self.field = value`, none of the below is applicable, nor
         // do we need to calculate the field type as it's already cached.
@@ -3423,16 +3447,6 @@ impl<'a> CheckMethodBody<'a> {
                 false
             };
         }
-
-        let (ins, field) = if let TypeId::ClassInstance(ins) = receiver_id {
-            if let Some(field) = ins.instance_of().field(self.db(), name) {
-                (ins, field)
-            } else {
-                return false;
-            }
-        } else {
-            return false;
-        };
 
         if !field.is_visible_to(self.db(), self.module) {
             self.state.diagnostics.private_field(
@@ -3866,9 +3880,8 @@ impl<'a> CheckMethodBody<'a> {
         // same non-generic process (e.g. every instance `class async Foo {}`
         // has the same TypeId).
         if ins.instance_of().kind(self.db()).is_async() {
-            self.state.diagnostics.error(
-                DiagnosticId::InvalidSymbol,
-                "process fields are only available inside the process itself",
+            self.state.diagnostics.unavailable_process_field(
+                name,
                 self.file(),
                 node.location.clone(),
             );
