@@ -1,7 +1,7 @@
 use crate::{
-    Arguments, ClassInstance, Database, ForeignType, MethodId, TraitInstance,
-    TypeArguments, TypeBounds, TypeId, TypeParameterId, TypePlaceholderId,
-    TypeRef, FLOAT_ID, INT_ID,
+    Arguments, ClassInstance, Database, ForeignType, MethodId, Ownership,
+    TraitInstance, TypeArguments, TypeBounds, TypeId, TypeParameterId,
+    TypePlaceholderId, TypeRef, FLOAT_ID, INT_ID,
 };
 use std::collections::HashSet;
 
@@ -278,7 +278,7 @@ impl<'a> TypeChecker<'a> {
         // Resolve any assigned type parameters/placeholders to the types
         // they're assigned to.
         let left = self.resolve(left, &env.left, rules);
-        let implicit_root_ref = rules.implicit_root_ref;
+        let allow_ref = rules.implicit_root_ref;
 
         // We only apply the "infer as rigid" rule to the type on the left,
         // otherwise we may end up comparing e.g. a class instance to the rigid
@@ -287,8 +287,12 @@ impl<'a> TypeChecker<'a> {
         // This is OK because in practise, Any() only shows up on the left in
         // a select few cases.
         let rules = rules.dont_infer_as_rigid().without_implicit_root_ref();
-        let original_right = right;
+        let orig_right = right;
         let right = self.resolve(right, &env.right, rules);
+
+        // This indicates if the value on the left of the check is a value type
+        // (e.g. Int or String).
+        let is_val = left.is_value_type(self.db);
 
         // If at this point we encounter a type placeholder, it means the
         // placeholder is yet to be assigned a value.
@@ -317,24 +321,28 @@ impl<'a> TypeChecker<'a> {
                     self.check_type_id(left_id, right_id, env, rules)
                 }
                 TypeRef::Ref(right_id) | TypeRef::Mut(right_id)
-                    if left.is_value_type(self.db) || implicit_root_ref =>
+                    if is_val || allow_ref =>
                 {
                     let rules = rules.without_implicit_root_ref();
 
                     self.check_type_id(left_id, right_id, env, rules)
                 }
-                TypeRef::Uni(right_id) if left.is_value_type(self.db) => {
+                TypeRef::Uni(right_id) if is_val => {
                     self.check_type_id(left_id, right_id, env, rules)
                 }
-                TypeRef::Placeholder(id) => self
-                    .check_type_id_with_placeholder(
-                        left,
-                        left_id,
-                        original_right,
-                        id,
-                        env,
-                        rules,
-                    ),
+                TypeRef::Placeholder(id) => {
+                    let allow = match id.ownership {
+                        Ownership::Any | Ownership::Owned => true,
+                        Ownership::Ref | Ownership::Mut => is_val || allow_ref,
+                        Ownership::Uni => is_val,
+                        _ => false,
+                    };
+
+                    allow
+                        && self.check_type_id_with_placeholder(
+                            left, left_id, orig_right, id, env, rules,
+                        )
+                }
                 TypeRef::Pointer(_) if rules.type_cast => match left_id {
                     TypeId::ClassInstance(ins) => ins.instance_of().0 == INT_ID,
                     TypeId::Foreign(ForeignType::Int(_, _)) => true,
@@ -345,28 +353,31 @@ impl<'a> TypeChecker<'a> {
             },
             TypeRef::Uni(left_id) => match right {
                 TypeRef::Owned(right_id)
-                    if rules.uni_compatible_with_owned
-                        || left.is_value_type(self.db) =>
+                    if rules.uni_compatible_with_owned || is_val =>
                 {
                     self.check_type_id(left_id, right_id, env, rules)
                 }
                 TypeRef::Any(right_id) | TypeRef::Uni(right_id) => {
                     self.check_type_id(left_id, right_id, env, rules)
                 }
-                TypeRef::Ref(right_id) | TypeRef::Mut(right_id)
-                    if left.is_value_type(self.db) =>
-                {
+                TypeRef::Ref(right_id) | TypeRef::Mut(right_id) if is_val => {
                     self.check_type_id(left_id, right_id, env, rules)
                 }
-                TypeRef::Placeholder(id) => self
-                    .check_type_id_with_placeholder(
-                        left,
-                        left_id,
-                        original_right,
-                        id,
-                        env,
-                        rules,
-                    ),
+                TypeRef::Placeholder(id) => {
+                    let allow = match id.ownership {
+                        Ownership::Owned => {
+                            rules.uni_compatible_with_owned || is_val
+                        }
+                        Ownership::Any | Ownership::Uni => true,
+                        Ownership::Ref | Ownership::Mut => is_val,
+                        _ => false,
+                    };
+
+                    allow
+                        && self.check_type_id_with_placeholder(
+                            left, left_id, orig_right, id, env, rules,
+                        )
+                }
                 TypeRef::Error => true,
                 _ => false,
             },
@@ -378,26 +389,17 @@ impl<'a> TypeChecker<'a> {
                     self.check_type_id(left_id, right_id, env, rules)
                 }
                 TypeRef::Placeholder(id) => {
-                    if id.owned {
-                        return false;
-                    }
-
-                    self.check_type_id_with_placeholder(
-                        left,
-                        left_id,
-                        original_right,
-                        id,
-                        env,
-                        rules,
-                    )
+                    matches!(id.ownership, Ownership::Any | Ownership::Ref)
+                        && self.check_type_id_with_placeholder(
+                            left, left_id, orig_right, id, env, rules,
+                        )
                 }
                 TypeRef::Error => true,
                 _ => false,
             },
             TypeRef::Ref(left_id) => match right {
                 TypeRef::Any(TypeId::TypeParameter(pid))
-                    if pid.is_mutable(self.db)
-                        && !left.is_value_type(self.db) =>
+                    if pid.is_mutable(self.db) && !is_val =>
                 {
                     false
                 }
@@ -409,30 +411,25 @@ impl<'a> TypeChecker<'a> {
                 | TypeRef::Mut(right_id)
                 | TypeRef::UniMut(right_id)
                 | TypeRef::UniRef(right_id)
-                    if left.is_value_type(self.db) =>
+                    if is_val =>
                 {
                     self.check_type_id(left_id, right_id, env, rules)
                 }
                 TypeRef::Placeholder(id) => {
-                    if id.owned && !left.is_value_type(self.db) {
-                        return false;
+                    match id.ownership {
+                        Ownership::Any | Ownership::Ref => {}
+                        _ if is_val => {}
+                        _ => return false,
                     }
 
                     if let Some(req) = id.required(self.db) {
-                        if req.is_mutable(self.db)
-                            && !left.is_value_type(self.db)
-                        {
+                        if req.is_mutable(self.db) && !is_val {
                             return false;
                         }
                     }
 
                     self.check_type_id_with_placeholder(
-                        left,
-                        left_id,
-                        original_right,
-                        id,
-                        env,
-                        rules,
+                        left, left_id, orig_right, id, env, rules,
                     )
                 }
                 TypeRef::Error => true,
@@ -452,23 +449,22 @@ impl<'a> TypeChecker<'a> {
                 | TypeRef::Uni(right_id)
                 | TypeRef::UniRef(right_id)
                 | TypeRef::UniMut(right_id)
-                    if left.is_value_type(self.db) =>
+                    if is_val =>
                 {
                     self.check_type_id(left_id, right_id, env, rules)
                 }
                 TypeRef::Placeholder(id) => {
-                    if id.owned && !left.is_value_type(self.db) {
-                        return false;
-                    }
+                    let allow = match id.ownership {
+                        Ownership::Any | Ownership::Ref | Ownership::Mut => {
+                            true
+                        }
+                        _ => is_val,
+                    };
 
-                    self.check_type_id_with_placeholder(
-                        left,
-                        left_id,
-                        original_right,
-                        id,
-                        env,
-                        rules,
-                    )
+                    allow
+                        && self.check_type_id_with_placeholder(
+                            left, left_id, orig_right, id, env, rules,
+                        )
                 }
                 TypeRef::Error => true,
                 _ => false,
@@ -488,10 +484,61 @@ impl<'a> TypeChecker<'a> {
                 _ => false,
             },
             TypeRef::Placeholder(left_id) => {
-                // If we reach this point it means the placeholder isn't
-                // assigned a value.
-                left_id.assign(self.db, right);
-                true
+                use Ownership::*;
+
+                let rval = right.is_value_type(self.db);
+                let allow = match (left_id.ownership, right) {
+                    (_, TypeRef::Error | TypeRef::Never) => true,
+                    (exp, TypeRef::Placeholder(id)) => {
+                        match (exp, id.ownership) {
+                            // If the placeholder on the left doesn't have an
+                            // ownership requirement, it can safely be assigned
+                            // the placeholder on the right, because in doing so
+                            // we infer it as whatever type is assigned to the
+                            // placeholder on the right.
+                            (Any, _) => true,
+                            (Owned, Owned | Any) => true,
+                            (Uni, Owned) => rules.uni_compatible_with_owned,
+                            (Uni, Uni | Any) => true,
+                            (Ref, Any) => id
+                                .required(self.db)
+                                .map_or(true, |p| !p.is_mutable(self.db)),
+                            (Ref, Ref) => true,
+                            (Mut, Any | Ref | Mut) => true,
+                            _ => false,
+                        }
+                    }
+                    (Any, _) => true,
+                    (Owned, TypeRef::Owned(_) | TypeRef::Any(_)) => true,
+                    (Owned, TypeRef::Ref(_) | TypeRef::Mut(_)) => {
+                        allow_ref || rval
+                    }
+                    (Uni, TypeRef::Owned(_)) => {
+                        rules.uni_compatible_with_owned || rval
+                    }
+                    (Uni, TypeRef::Ref(_) | TypeRef::Mut(_)) => rval,
+                    (Uni, TypeRef::Uni(_)) => true,
+                    (Ref, TypeRef::Any(TypeId::TypeParameter(pid))) => {
+                        !pid.is_mutable(self.db) || rval
+                    }
+                    (Ref, TypeRef::Ref(_) | TypeRef::Any(_)) => true,
+                    (
+                        Ref,
+                        TypeRef::Owned(_) | TypeRef::Uni(_) | TypeRef::Mut(_),
+                    ) => rval,
+                    (
+                        Mut,
+                        TypeRef::Any(_) | TypeRef::Ref(_) | TypeRef::Mut(_),
+                    ) => true,
+                    (Mut, TypeRef::Owned(_) | TypeRef::Uni(_)) => rval,
+                    _ => false,
+                };
+
+                if allow {
+                    left_id.assign(self.db, right);
+                }
+
+                allow
             }
             TypeRef::Pointer(left_id) => match right {
                 TypeRef::Pointer(right_id) => {
@@ -505,17 +552,13 @@ impl<'a> TypeChecker<'a> {
                     rules.type_cast && ins.instance_of().0 == INT_ID
                 }
                 TypeRef::Placeholder(right_id) => {
-                    if right_id.owned {
-                        return false;
+                    match right_id.ownership {
+                        Ownership::Any => {}
+                        _ => return false,
                     }
 
                     self.check_type_id_with_placeholder(
-                        left,
-                        left_id,
-                        original_right,
-                        right_id,
-                        env,
-                        rules,
+                        left, left_id, orig_right, right_id, env, rules,
                     )
                 }
                 _ => false,
@@ -735,7 +778,7 @@ impl<'a> TypeChecker<'a> {
         //
         // When comparing `ref A` with `ref B` or `mut A` with `mut B`, we want
         // to assign `B` to `A`, not `ref A`/`mut A`.
-        if left.is_ref_or_mut(self.db) && original_right.is_ref_or_mut(self.db)
+        if left.has_ownership(self.db) && original_right.has_ownership(self.db)
         {
             placeholder.assign(self.db, TypeRef::Owned(left_id));
         } else {
@@ -1120,6 +1163,26 @@ mod tests {
                 format_type(db, right)
             );
         }
+    }
+
+    #[track_caller]
+    fn check_ok_placeholder(
+        db: &Database,
+        left: TypePlaceholderId,
+        right: TypeRef,
+    ) {
+        check_ok(db, placeholder(left), right);
+        left.assign(db, TypeRef::Unknown);
+    }
+
+    #[track_caller]
+    fn check_err_placeholder(
+        db: &Database,
+        left: TypePlaceholderId,
+        right: TypeRef,
+    ) {
+        check_err(db, placeholder(left), right);
+        left.assign(db, TypeRef::Unknown);
     }
 
     #[track_caller]
@@ -1735,6 +1798,93 @@ mod tests {
 
         check_ok(&db, placeholder(var), TypeRef::int());
         assert_eq!(var.value(&db), Some(TypeRef::int()));
+    }
+
+    #[test]
+    fn test_placeholder_with_ownership() {
+        let mut db = Database::new();
+        let int = ClassId::int();
+        let thing = new_class(&mut db, "Thing");
+        let any_var = TypePlaceholder::alloc(&mut db, None);
+        let owned_var = TypePlaceholder::alloc(&mut db, None).as_owned();
+        let ref_var = TypePlaceholder::alloc(&mut db, None).as_ref();
+        let mut_var = TypePlaceholder::alloc(&mut db, None).as_mut();
+        let uni_var = TypePlaceholder::alloc(&mut db, None).as_uni();
+
+        check_ok(&db, owned(instance(thing)), placeholder(any_var));
+        check_ok(&db, owned(instance(thing)), placeholder(owned_var));
+
+        check_err(&db, owned(instance(thing)), placeholder(ref_var));
+        check_err(&db, owned(instance(thing)), placeholder(mut_var));
+        check_err(&db, owned(instance(thing)), placeholder(uni_var));
+
+        check_ok(&db, owned(instance(int)), placeholder(ref_var));
+        check_ok(&db, owned(instance(int)), placeholder(mut_var));
+        check_ok(&db, owned(instance(int)), placeholder(uni_var));
+    }
+
+    #[test]
+    fn test_placeholder_with_placeholder() {
+        let mut db = Database::new();
+        let param = new_parameter(&mut db, "T");
+
+        param.set_mutable(&mut db);
+
+        let p1 = TypePlaceholder::alloc(&mut db, None);
+        let p2 = TypePlaceholder::alloc(&mut db, None);
+        let p3 = TypePlaceholder::alloc(&mut db, Some(param));
+
+        check_ok_placeholder(&db, p1, placeholder(p2));
+        check_ok_placeholder(&db, p1, placeholder(p2.as_owned()));
+        check_ok_placeholder(&db, p1.as_owned(), placeholder(p2));
+        check_ok_placeholder(&db, p1.as_owned(), placeholder(p2.as_owned()));
+        check_ok_placeholder(&db, p1.as_uni(), placeholder(p2));
+        check_ok_placeholder(&db, p1.as_uni(), placeholder(p2.as_owned()));
+        check_ok_placeholder(&db, p1.as_uni(), placeholder(p2.as_uni()));
+        check_ok_placeholder(&db, p1.as_ref(), placeholder(p2));
+        check_err_placeholder(&db, p1.as_ref(), placeholder(p3));
+        check_ok_placeholder(&db, p1.as_ref(), placeholder(p2.as_ref()));
+        check_ok_placeholder(&db, p1.as_mut(), placeholder(p2));
+        check_ok_placeholder(&db, p1.as_mut(), placeholder(p2.as_ref()));
+        check_ok_placeholder(&db, p1.as_mut(), placeholder(p2.as_mut()));
+    }
+
+    #[test]
+    fn test_placeholder_with_type() {
+        let mut db = Database::new();
+        let param1 = new_parameter(&mut db, "T");
+        let param2 = new_parameter(&mut db, "T");
+
+        param2.set_mutable(&mut db);
+
+        let p1 = TypePlaceholder::alloc(&mut db, None);
+        let int = ClassId::int();
+        let thing = new_class(&mut db, "Thing");
+
+        check_ok_placeholder(&db, p1, owned(instance(int)));
+        check_ok_placeholder(&db, p1.as_owned(), owned(instance(int)));
+        check_ok_placeholder(&db, p1.as_owned(), any(instance(int)));
+        check_ok_placeholder(&db, p1.as_uni(), owned(instance(int)));
+        check_ok_placeholder(&db, p1.as_uni(), immutable(instance(int)));
+        check_ok_placeholder(&db, p1.as_uni(), mutable(instance(int)));
+        check_ok_placeholder(&db, p1.as_uni(), uni(instance(int)));
+        check_ok_placeholder(&db, p1.as_ref(), any(parameter(param1)));
+        check_ok_placeholder(&db, p1.as_ref(), immutable(instance(int)));
+        check_ok_placeholder(&db, p1.as_ref(), any(instance(int)));
+        check_ok_placeholder(&db, p1.as_ref(), owned(instance(int)));
+        check_ok_placeholder(&db, p1.as_ref(), uni(instance(int)));
+        check_ok_placeholder(&db, p1.as_ref(), mutable(instance(int)));
+        check_ok_placeholder(&db, p1.as_mut(), any(instance(int)));
+        check_ok_placeholder(&db, p1.as_mut(), immutable(instance(int)));
+        check_ok_placeholder(&db, p1.as_mut(), mutable(instance(int)));
+        check_ok_placeholder(&db, p1.as_mut(), owned(instance(int)));
+        check_ok_placeholder(&db, p1.as_mut(), uni(instance(int)));
+        check_ok_placeholder(&db, p1.as_uni(), owned(instance(thing)));
+
+        check_err_placeholder(&db, p1.as_uni(), immutable(instance(thing)));
+        check_err_placeholder(&db, p1.as_uni(), mutable(instance(thing)));
+        check_err_placeholder(&db, p1.as_ref(), any(parameter(param2)));
+        check_err_placeholder(&db, p1.as_ref(), owned(instance(thing)));
     }
 
     #[test]

@@ -161,27 +161,67 @@ impl TypePlaceholder {
             TypePlaceholder { value: Cell::new(TypeRef::Unknown), required };
 
         db.type_placeholders.push(typ);
-        TypePlaceholderId { id, owned: false }
+        TypePlaceholderId { id, ownership: Ownership::Any }
     }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[repr(u8)]
+enum Ownership {
+    Any,
+    Owned,
+    Uni,
+    Ref,
+    Mut,
+    UniRef,
+    UniMut,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TypePlaceholderId {
     id: u32,
 
-    /// A flag that indicates a value must be owned for it to be compatible with
-    /// this placeholder.
+    /// The ownership values must have before they can be assigned to the
+    /// placeholder.
     ///
     /// This is stored in the ID/reference as in various instances type
     /// placeholders are created ahead of time, at which point we do not yet
-    /// know if a value must be owned or not. By storing this in the ID we can
-    /// adjust it accordingly where necessary.
-    owned: bool,
+    /// know the desired ownership. In addition, based on how a type parameter
+    /// is used its ownership may be inferred after it's created.
+    ///
+    /// By storing this in the ID we can adjust it accordingly where necessary.
+    /// When resolving placeholder values, their ownership is adjusted according
+    /// to the ownership of the placeholder.
+    ownership: Ownership,
 }
 
 impl TypePlaceholderId {
-    pub fn as_owned(self) -> TypePlaceholderId {
-        TypePlaceholderId { id: self.id, owned: true }
+    fn with_ownership(self, ownership: Ownership) -> TypePlaceholderId {
+        TypePlaceholderId { id: self.id, ownership }
+    }
+
+    fn as_owned(self) -> TypePlaceholderId {
+        self.with_ownership(Ownership::Owned)
+    }
+
+    fn as_uni(self) -> TypePlaceholderId {
+        self.with_ownership(Ownership::Uni)
+    }
+
+    fn as_ref(self) -> TypePlaceholderId {
+        self.with_ownership(Ownership::Ref)
+    }
+
+    fn as_mut(self) -> TypePlaceholderId {
+        self.with_ownership(Ownership::Mut)
+    }
+
+    fn as_uni_ref(self) -> TypePlaceholderId {
+        self.with_ownership(Ownership::UniRef)
+    }
+
+    fn as_uni_mut(self) -> TypePlaceholderId {
+        self.with_ownership(Ownership::UniMut)
     }
 
     pub fn value(self, db: &Database) -> Option<TypeRef> {
@@ -194,7 +234,19 @@ impl TypePlaceholderId {
         match typ {
             TypeRef::Placeholder(id) => id.value(db),
             TypeRef::Unknown => None,
-            _ => Some(typ),
+            _ => {
+                let res = match self.ownership {
+                    Ownership::Any => typ,
+                    Ownership::Owned => typ.as_owned(db),
+                    Ownership::Uni => typ.as_uni(db),
+                    Ownership::Ref => typ.as_ref(db),
+                    Ownership::Mut => typ.force_as_mut(db),
+                    Ownership::UniRef => typ.as_uni_ref(db),
+                    Ownership::UniMut => typ.force_as_uni_mut(db),
+                };
+
+                Some(res)
+            }
         }
     }
 
@@ -3453,6 +3505,19 @@ impl TypeRef {
         }
     }
 
+    pub fn has_ownership(self, db: &Database) -> bool {
+        match self {
+            TypeRef::Owned(_)
+            | TypeRef::Uni(_)
+            | TypeRef::Ref(_)
+            | TypeRef::Mut(_) => true,
+            TypeRef::Placeholder(id) => {
+                id.value(db).map_or(false, |v| v.has_ownership(db))
+            }
+            _ => false,
+        }
+    }
+
     pub fn is_mutable(self, db: &Database) -> bool {
         match self {
             TypeRef::Owned(_)
@@ -3703,12 +3768,40 @@ impl TypeRef {
         }
     }
 
-    pub fn as_uni_ref(self, db: &Database) -> Self {
+    pub fn as_uni_reference(self, db: &Database) -> Self {
         match self {
             TypeRef::Owned(id) | TypeRef::Mut(id) => TypeRef::UniMut(id),
             TypeRef::Ref(id) => TypeRef::UniRef(id),
             TypeRef::Placeholder(id) => {
+                id.value(db).map_or(self, |v| v.as_uni_reference(db))
+            }
+            _ => self,
+        }
+    }
+
+    pub fn as_uni_ref(self, db: &Database) -> Self {
+        match self {
+            TypeRef::Owned(id)
+            | TypeRef::Any(id)
+            | TypeRef::Uni(id)
+            | TypeRef::Mut(id)
+            | TypeRef::Ref(id) => TypeRef::UniRef(id),
+            TypeRef::Placeholder(id) => {
                 id.value(db).map_or(self, |v| v.as_uni_ref(db))
+            }
+            _ => self,
+        }
+    }
+
+    pub fn force_as_uni_mut(self, db: &Database) -> Self {
+        match self {
+            TypeRef::Owned(id)
+            | TypeRef::Any(id)
+            | TypeRef::Uni(id)
+            | TypeRef::Mut(id)
+            | TypeRef::Ref(id) => TypeRef::UniMut(id),
+            TypeRef::Placeholder(id) => {
+                id.value(db).map_or(self, |v| v.force_as_uni_mut(db))
             }
             _ => self,
         }
@@ -4400,8 +4493,9 @@ mod tests {
     use super::*;
     use crate::test::{
         any, closure, generic_instance_id, generic_trait_instance, immutable,
-        instance, mutable, new_async_class, new_class, new_module,
-        new_parameter, new_trait, owned, parameter, placeholder, rigid, uni,
+        immutable_uni, instance, mutable, mutable_uni, new_async_class,
+        new_class, new_module, new_parameter, new_trait, owned, parameter,
+        placeholder, rigid, uni,
     };
     use std::mem::size_of;
 
@@ -5053,6 +5147,37 @@ mod tests {
     }
 
     #[test]
+    fn test_type_placeholder_id_assign_with_ownership() {
+        let mut db = Database::new();
+        let mut var = TypePlaceholder::alloc(&mut db, None);
+        let thing = new_class(&mut db, "Thing");
+
+        var.ownership = Ownership::Owned;
+        var.assign(&db, immutable(instance(thing)));
+        assert_eq!(var.value(&db), Some(owned(instance(thing))));
+
+        var.ownership = Ownership::Ref;
+        var.assign(&db, owned(instance(thing)));
+        assert_eq!(var.value(&db), Some(immutable(instance(thing))));
+
+        var.ownership = Ownership::Mut;
+        var.assign(&db, owned(instance(thing)));
+        assert_eq!(var.value(&db), Some(mutable(instance(thing))));
+
+        var.ownership = Ownership::Uni;
+        var.assign(&db, owned(instance(thing)));
+        assert_eq!(var.value(&db), Some(uni(instance(thing))));
+
+        var.ownership = Ownership::UniRef;
+        var.assign(&db, owned(instance(thing)));
+        assert_eq!(var.value(&db), Some(immutable_uni(instance(thing))));
+
+        var.ownership = Ownership::UniMut;
+        var.assign(&db, owned(instance(thing)));
+        assert_eq!(var.value(&db), Some(mutable_uni(instance(thing))));
+    }
+
+    #[test]
     fn test_type_placeholder_id_resolve() {
         let mut db = Database::new();
         let var1 = TypePlaceholder::alloc(&mut db, None);
@@ -5158,23 +5283,26 @@ mod tests {
     }
 
     #[test]
-    fn test_type_ref_as_uni_ref() {
+    fn test_type_ref_as_uni_reference() {
         let db = Database::new();
         let int = ClassId::int();
 
         assert_eq!(
-            owned(instance(int)).as_uni_ref(&db),
+            owned(instance(int)).as_uni_reference(&db),
             TypeRef::UniMut(instance(int))
         );
         assert_eq!(
-            immutable(instance(int)).as_uni_ref(&db),
+            immutable(instance(int)).as_uni_reference(&db),
             TypeRef::UniRef(instance(int))
         );
         assert_eq!(
-            mutable(instance(int)).as_uni_ref(&db),
+            mutable(instance(int)).as_uni_reference(&db),
             TypeRef::UniMut(instance(int))
         );
-        assert_eq!(uni(instance(int)).as_uni_ref(&db), uni(instance(int)));
+        assert_eq!(
+            uni(instance(int)).as_uni_reference(&db),
+            uni(instance(int))
+        );
     }
 
     #[test]
@@ -5361,8 +5489,11 @@ mod tests {
 
     #[test]
     fn test_type_placeholder_id_as_owned() {
-        let id = TypePlaceholderId { id: 1, owned: false };
+        let id = TypePlaceholderId { id: 1, ownership: Ownership::Any };
 
-        assert_eq!(id.as_owned(), TypePlaceholderId { id: 1, owned: true });
+        assert_eq!(
+            id.as_owned(),
+            TypePlaceholderId { id: 1, ownership: Ownership::Owned }
+        );
     }
 }

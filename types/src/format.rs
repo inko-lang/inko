@@ -1,9 +1,9 @@
 //! Formatting of types.
 use crate::{
     Arguments, ClassId, ClassInstance, ClassKind, ClosureId, Database,
-    ForeignType, MethodId, MethodKind, ModuleId, TraitId, TraitInstance,
-    TypeArguments, TypeId, TypeParameterId, TypePlaceholderId, TypeRef,
-    Visibility,
+    ForeignType, MethodId, MethodKind, ModuleId, Ownership, TraitId,
+    TraitInstance, TypeArguments, TypeId, TypeParameterId, TypePlaceholderId,
+    TypeRef, Visibility,
 };
 
 const MAX_FORMATTING_DEPTH: usize = 8;
@@ -146,17 +146,7 @@ impl<'a> TypeFormatter<'a> {
                 Some(TypeRef::Placeholder(id))
                     if id.value(self.db).is_none() =>
                 {
-                    // Placeholders without values aren't useful to show to the
-                    // developer, so we show the type parameter instead.
-                    //
-                    // The parameter itself may be assigned a value through the
-                    // type context (e.g. when a type is nested such as
-                    // `Array[Array[T]]`), and we don't want to display that
-                    // assignment as it's only to be used for the outer most
-                    // type. As such, we don't use format_type() here.
-                    format_type_parameter_without_argument(
-                        param, self, id.owned,
-                    );
+                    id.format_type(self);
                 }
                 Some(typ) => typ.format_type(self),
                 _ => param.format_type(self),
@@ -213,7 +203,24 @@ impl FormatType for TypePlaceholderId {
     fn format_type(&self, buffer: &mut TypeFormatter) {
         if let Some(value) = self.value(buffer.db) {
             value.format_type(buffer);
-        } else if let Some(req) = self.required(buffer.db) {
+            return;
+        }
+
+        let ownership = match self.ownership {
+            Ownership::Any => "",
+            Ownership::Owned => "move ",
+            Ownership::Uni => "uni ",
+            Ownership::Ref => "ref ",
+            Ownership::Mut => "mut ",
+            Ownership::UniMut => "uni mut ",
+            Ownership::UniRef => "uni ref ",
+        };
+
+        if !ownership.is_empty() {
+            buffer.write_ownership(ownership);
+        }
+
+        if let Some(req) = self.required(buffer.db) {
             req.format_type(buffer);
         } else {
             buffer.write("?");
@@ -427,10 +434,12 @@ impl FormatType for TypeId {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test::{new_parameter, placeholder};
     use crate::{
         Block, Class, ClassInstance, ClassKind, Closure, Database, Method,
         MethodKind, Module, ModuleId, ModuleName, Trait, TraitInstance,
-        TypeArguments, TypeId, TypeParameter, TypeRef, Visibility,
+        TypeArguments, TypeId, TypeParameter, TypePlaceholder, TypeRef,
+        Visibility,
     };
 
     #[test]
@@ -901,5 +910,46 @@ mod tests {
             ),
             "Pointer[UInt8]"
         );
+    }
+
+    #[test]
+    fn test_format_placeholder_with_ownership() {
+        let mut db = Database::new();
+        let param = new_parameter(&mut db, "T");
+        let mut p1 = TypePlaceholder::alloc(&mut db, Some(param));
+        let tests = vec![
+            (Ownership::Any, "T"),
+            (Ownership::Owned, "move T"),
+            (Ownership::Uni, "uni T"),
+            (Ownership::Ref, "ref T"),
+            (Ownership::Mut, "mut T"),
+            (Ownership::UniRef, "uni ref T"),
+            (Ownership::UniMut, "uni mut T"),
+        ];
+
+        for (ownership, format) in tests {
+            p1.ownership = ownership;
+            assert_eq!(format_type(&db, placeholder(p1)), format);
+        }
+    }
+
+    #[test]
+    fn test_format_placeholder_with_ownership_without_requirement() {
+        let mut db = Database::new();
+        let mut p1 = TypePlaceholder::alloc(&mut db, None);
+        let tests = vec![
+            (Ownership::Any, "?"),
+            (Ownership::Owned, "move ?"),
+            (Ownership::Uni, "uni ?"),
+            (Ownership::Ref, "ref ?"),
+            (Ownership::Mut, "mut ?"),
+            (Ownership::UniRef, "uni ref ?"),
+            (Ownership::UniMut, "uni mut ?"),
+        ];
+
+        for (ownership, format) in tests {
+            p1.ownership = ownership;
+            assert_eq!(format_type(&db, placeholder(p1)), format);
+        }
     }
 }

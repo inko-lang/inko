@@ -133,6 +133,9 @@ impl<'a> TypeResolver<'a> {
             },
             TypeRef::Ref(id) => match self.resolve_type_id(id) {
                 Either::Left(res) => TypeRef::Ref(res),
+                Either::Right(TypeRef::Placeholder(id)) => {
+                    TypeRef::Placeholder(id.as_ref())
+                }
                 Either::Right(
                     TypeRef::Owned(typ) | TypeRef::Any(typ) | TypeRef::Mut(typ),
                 ) => TypeRef::Ref(typ),
@@ -143,6 +146,9 @@ impl<'a> TypeResolver<'a> {
             },
             TypeRef::Mut(id) => match self.resolve_type_id(id) {
                 Either::Left(res) => TypeRef::Mut(res),
+                Either::Right(TypeRef::Placeholder(id)) => {
+                    TypeRef::Placeholder(id.as_mut())
+                }
                 Either::Right(TypeRef::Owned(typ) | TypeRef::Any(typ)) => {
                     TypeRef::Mut(typ)
                 }
@@ -151,6 +157,9 @@ impl<'a> TypeResolver<'a> {
             },
             TypeRef::Uni(id) => match self.resolve_type_id(id) {
                 Either::Left(res) => TypeRef::Uni(res),
+                Either::Right(TypeRef::Placeholder(id)) => {
+                    TypeRef::Placeholder(id.as_uni())
+                }
                 Either::Right(TypeRef::Owned(typ) | TypeRef::Any(typ)) => {
                     TypeRef::Uni(typ)
                 }
@@ -158,10 +167,16 @@ impl<'a> TypeResolver<'a> {
             },
             TypeRef::UniRef(id) => match self.resolve_type_id(id) {
                 Either::Left(res) => TypeRef::UniRef(res),
+                Either::Right(TypeRef::Placeholder(id)) => {
+                    TypeRef::Placeholder(id.as_uni_ref())
+                }
                 Either::Right(typ) => typ,
             },
             TypeRef::UniMut(id) => match self.resolve_type_id(id) {
                 Either::Left(res) => TypeRef::UniMut(res),
+                Either::Right(TypeRef::Placeholder(id)) => {
+                    TypeRef::Placeholder(id.as_uni_mut())
+                }
                 Either::Right(typ) => typ,
             },
             // If a placeholder is unassigned we need to return it as-is. This
@@ -298,7 +313,9 @@ mod tests {
         mutable_uni, new_parameter, new_trait, owned, parameter, placeholder,
         pointer, rigid, type_arguments, type_bounds, uni,
     };
-    use crate::{Block, ClassId, Closure, TypePlaceholder, TypePlaceholderId};
+    use crate::{
+        Block, ClassId, Closure, Ownership, TypePlaceholder, TypePlaceholderId,
+    };
 
     fn resolve(
         db: &mut Database,
@@ -849,11 +866,15 @@ mod tests {
 
         assert_eq!(
             resolve(&mut db, &args, &bounds, owned(parameter(param))),
-            placeholder(TypePlaceholderId { id: 0, owned: true })
+            placeholder(TypePlaceholderId {
+                id: 0,
+                ownership: Ownership::Owned
+            })
         );
 
         assert_eq!(
-            TypePlaceholderId { id: 0, owned: false }.required(&db),
+            TypePlaceholderId { id: 0, ownership: Ownership::Any }
+                .required(&db),
             Some(bound)
         );
     }

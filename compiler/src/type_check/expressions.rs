@@ -1722,7 +1722,7 @@ impl<'a> CheckMethodBody<'a> {
         self.check_if_self_is_allowed(scope, &node.location);
 
         if scope.in_recover() {
-            typ = typ.as_uni_ref(self.db());
+            typ = typ.as_uni_reference(self.db());
         }
 
         scope.mark_closures_as_capturing_self(self.db_mut());
@@ -3916,7 +3916,7 @@ impl<'a> CheckMethodBody<'a> {
         }
 
         if receiver.require_sendable_arguments(self.db()) {
-            returns = returns.as_uni_ref(self.db());
+            returns = returns.as_uni_reference(self.db());
         }
 
         node.kind = CallKind::GetField(FieldInfo {
@@ -4435,7 +4435,7 @@ impl<'a> CheckMethodBody<'a> {
         while let Some(scope) = scopes.pop() {
             match scope.kind {
                 ScopeKind::Recover => {
-                    expose_as = expose_as.as_uni_ref(self.db());
+                    expose_as = expose_as.as_uni_reference(self.db());
                 }
                 ScopeKind::Closure(closure) => {
                     let moving = closure.is_moving(self.db());
