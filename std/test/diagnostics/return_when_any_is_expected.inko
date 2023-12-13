@@ -1,0 +1,20 @@
+class Box[V] {
+  let @value: V
+
+  fn foo -> V {
+    @value
+  }
+
+  fn move bar -> V {
+    @value
+  }
+}
+
+impl Box if V: mut {
+  fn mut baz -> V {
+    @value
+  }
+}
+
+# return_when_any_is_expected.inko:5:5 error(invalid-type): expected a value of type 'V', found 'ref V'
+# return_when_any_is_expected.inko:15:5 error(invalid-type): expected a value of type 'V: mut', found 'mut V: mut'

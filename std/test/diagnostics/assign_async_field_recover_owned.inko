@@ -2,7 +2,7 @@ class async Thing[A, B] {
   let @a: A
   let @b: B
 
-  fn static new(a: A, b: uni B) -> Thing[A, B] {
+  fn static new(a: A, b: uni B) -> Thing[A, move B] {
     Thing { @a = a, @b = recover b }
   }
 }

@@ -1324,7 +1324,7 @@ impl<'a> CheckMethodBody<'a> {
             return;
         }
 
-        if !TypeChecker::check(self.db(), typ, returns) {
+        if !TypeChecker::check_return(self.db(), typ, returns) {
             let loc =
                 nodes.last().map(|n| n.location()).unwrap_or(fallback_location);
 
@@ -3071,7 +3071,7 @@ impl<'a> CheckMethodBody<'a> {
 
         let expected = scope.return_type;
 
-        if !TypeChecker::check(self.db(), returned, expected) {
+        if !TypeChecker::check_return(self.db(), returned, expected) {
             self.state.diagnostics.type_error(
                 format_type(self.db(), returned),
                 format_type(self.db(), expected),
@@ -3117,7 +3117,7 @@ impl<'a> CheckMethodBody<'a> {
                 pid.assign(self.db(), typ);
             }
             ThrowKind::Result(ret_ok, ret_err) => {
-                if !TypeChecker::check(self.db(), throw_type, ret_err) {
+                if !TypeChecker::check_return(self.db(), throw_type, ret_err) {
                     self.state.diagnostics.invalid_throw(
                         ThrowKind::Result(ret_ok, expr)
                             .throw_type_name(self.db(), ret_ok),
@@ -4044,7 +4044,7 @@ impl<'a> CheckMethodBody<'a> {
                 ThrowKind::Result(ok, expr_err),
                 ThrowKind::Result(ret_ok, ret_err),
             ) => {
-                if TypeChecker::check(self.db(), expr_err, ret_err) {
+                if TypeChecker::check_return(self.db(), expr_err, ret_err) {
                     return ok;
                 }
 

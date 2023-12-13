@@ -13,6 +13,28 @@ enum Subtyping {
 }
 
 #[derive(Copy, Clone)]
+enum Kind {
+    /// A regular type check.
+    Regular,
+
+    /// A type check as part of a type cast.
+    Cast,
+
+    /// A type check for a return value.
+    Return,
+}
+
+impl Kind {
+    fn is_return(self) -> bool {
+        matches!(self, Kind::Return)
+    }
+
+    fn is_cast(self) -> bool {
+        matches!(self, Kind::Cast)
+    }
+}
+
+#[derive(Copy, Clone)]
 struct Rules {
     /// The rules to apply when performing sub-typing checks.
     subtyping: Subtyping,
@@ -28,10 +50,8 @@ struct Rules {
     /// contexts (e.g. when comparing trait implementations).
     rigid_parameters: bool,
 
-    /// If we're performing a type-check as part of a type cast.
-    ///
-    /// When enabled, certain type-checking rules may be relaxed.
-    type_cast: bool,
+    /// What kind of type check we're performing.
+    kind: Kind,
 }
 
 impl Rules {
@@ -41,7 +61,7 @@ impl Rules {
             implicit_root_ref: false,
             uni_compatible_with_owned: true,
             rigid_parameters: false,
-            type_cast: false,
+            kind: Kind::Regular,
         }
     }
 
@@ -63,8 +83,8 @@ impl Rules {
         self
     }
 
-    fn with_type_cast(mut self) -> Rules {
-        self.type_cast = true;
+    fn with_kind(mut self, kind: Kind) -> Rules {
+        self.kind = kind;
         self
     }
 
@@ -143,7 +163,20 @@ impl<'a> TypeChecker<'a> {
         let mut env =
             Environment::new(left.type_arguments(db), right.type_arguments(db));
 
-        let rules = Rules::new().with_type_cast().with_one_time_subtyping();
+        let rules =
+            Rules::new().with_kind(Kind::Cast).with_one_time_subtyping();
+
+        TypeChecker::new(db).check_type_ref(left, right, &mut env, rules)
+    }
+
+    pub fn check_return(
+        db: &'a Database,
+        left: TypeRef,
+        right: TypeRef,
+    ) -> bool {
+        let rules = Rules::new().with_kind(Kind::Return);
+        let mut env =
+            Environment::new(left.type_arguments(db), right.type_arguments(db));
 
         TypeChecker::new(db).check_type_ref(left, right, &mut env, rules)
     }
@@ -317,7 +350,10 @@ impl<'a> TypeChecker<'a> {
                 _ => true,
             },
             TypeRef::Owned(left_id) => match right {
-                TypeRef::Owned(right_id) | TypeRef::Any(right_id) => {
+                TypeRef::Any(right_id) if !rules.kind.is_return() => {
+                    self.check_type_id(left_id, right_id, env, rules)
+                }
+                TypeRef::Owned(right_id) => {
                     self.check_type_id(left_id, right_id, env, rules)
                 }
                 TypeRef::Ref(right_id) | TypeRef::Mut(right_id)
@@ -343,7 +379,7 @@ impl<'a> TypeChecker<'a> {
                             left, left_id, orig_right, id, env, rules,
                         )
                 }
-                TypeRef::Pointer(_) if rules.type_cast => match left_id {
+                TypeRef::Pointer(_) if rules.kind.is_cast() => match left_id {
                     TypeId::ClassInstance(ins) => ins.instance_of().0 == INT_ID,
                     TypeId::Foreign(ForeignType::Int(_, _)) => true,
                     _ => false,
@@ -357,7 +393,10 @@ impl<'a> TypeChecker<'a> {
                 {
                     self.check_type_id(left_id, right_id, env, rules)
                 }
-                TypeRef::Any(right_id) | TypeRef::Uni(right_id) => {
+                TypeRef::Any(right_id) if !rules.kind.is_return() => {
+                    self.check_type_id(left_id, right_id, env, rules)
+                }
+                TypeRef::Uni(right_id) => {
                     self.check_type_id(left_id, right_id, env, rules)
                 }
                 TypeRef::Ref(right_id) | TypeRef::Mut(right_id) if is_val => {
@@ -403,7 +442,10 @@ impl<'a> TypeChecker<'a> {
                 {
                     false
                 }
-                TypeRef::Ref(right_id) | TypeRef::Any(right_id) => {
+                TypeRef::Any(right_id) if !rules.kind.is_return() => {
+                    self.check_type_id(left_id, right_id, env, rules)
+                }
+                TypeRef::Ref(right_id) => {
                     self.check_type_id(left_id, right_id, env, rules)
                 }
                 TypeRef::Owned(right_id)
@@ -436,7 +478,10 @@ impl<'a> TypeChecker<'a> {
                 _ => false,
             },
             TypeRef::Mut(left_id) => match right {
-                TypeRef::Ref(right_id) | TypeRef::Any(right_id) => {
+                TypeRef::Any(right_id) if !rules.kind.is_return() => {
+                    self.check_type_id(left_id, right_id, env, rules)
+                }
+                TypeRef::Ref(right_id) => {
                     self.check_type_id(left_id, right_id, env, rules)
                 }
                 TypeRef::Mut(right_id) => self.check_type_id(
@@ -509,7 +554,8 @@ impl<'a> TypeChecker<'a> {
                         }
                     }
                     (Any, _) => true,
-                    (Owned, TypeRef::Owned(_) | TypeRef::Any(_)) => true,
+                    (Owned, TypeRef::Any(_)) => !rules.kind.is_return(),
+                    (Owned, TypeRef::Owned(_)) => true,
                     (Owned, TypeRef::Ref(_) | TypeRef::Mut(_)) => {
                         allow_ref || rval
                     }
@@ -521,15 +567,14 @@ impl<'a> TypeChecker<'a> {
                     (Ref, TypeRef::Any(TypeId::TypeParameter(pid))) => {
                         !pid.is_mutable(self.db) || rval
                     }
-                    (Ref, TypeRef::Ref(_) | TypeRef::Any(_)) => true,
+                    (Ref, TypeRef::Any(_)) => !rules.kind.is_return(),
+                    (Ref, TypeRef::Ref(_)) => true,
                     (
                         Ref,
                         TypeRef::Owned(_) | TypeRef::Uni(_) | TypeRef::Mut(_),
                     ) => rval,
-                    (
-                        Mut,
-                        TypeRef::Any(_) | TypeRef::Ref(_) | TypeRef::Mut(_),
-                    ) => true,
+                    (Mut, TypeRef::Any(_)) => !rules.kind.is_return(),
+                    (Mut, TypeRef::Ref(_) | TypeRef::Mut(_)) => true,
                     (Mut, TypeRef::Owned(_) | TypeRef::Uni(_)) => rval,
                     _ => false,
                 };
@@ -542,14 +587,14 @@ impl<'a> TypeChecker<'a> {
             }
             TypeRef::Pointer(left_id) => match right {
                 TypeRef::Pointer(right_id) => {
-                    rules.type_cast
+                    rules.kind.is_cast()
                         || self.check_type_id(left_id, right_id, env, rules)
                 }
                 TypeRef::Owned(TypeId::Foreign(ForeignType::Int(_, _))) => {
-                    rules.type_cast
+                    rules.kind.is_cast()
                 }
                 TypeRef::Owned(TypeId::ClassInstance(ins)) => {
-                    rules.type_cast && ins.instance_of().0 == INT_ID
+                    rules.kind.is_cast() && ins.instance_of().0 == INT_ID
                 }
                 TypeRef::Placeholder(right_id) => {
                     match right_id.ownership {
@@ -591,7 +636,7 @@ impl<'a> TypeChecker<'a> {
             TypeId::ClassInstance(lhs) => match right_id {
                 TypeId::ClassInstance(rhs) => {
                     if lhs.instance_of != rhs.instance_of {
-                        if rules.type_cast
+                        if rules.kind.is_cast()
                             && lhs.instance_of.is_numeric()
                             && rhs.instance_of.is_numeric()
                         {
@@ -622,14 +667,15 @@ impl<'a> TypeChecker<'a> {
                 TypeId::TraitInstance(rhs)
                     if !lhs.instance_of().kind(self.db).is_extern() =>
                 {
-                    if rules.type_cast && !lhs.instance_of().allow_cast(self.db)
+                    if rules.kind.is_cast()
+                        && !lhs.instance_of().allow_cast(self.db)
                     {
                         return false;
                     }
 
                     self.check_class_with_trait(lhs, rhs, env, trait_rules)
                 }
-                TypeId::TypeParameter(_) if rules.type_cast => false,
+                TypeId::TypeParameter(_) if rules.kind.is_cast() => false,
                 TypeId::TypeParameter(rhs)
                     if !lhs.instance_of().kind(self.db).is_extern() =>
                 {
@@ -645,14 +691,14 @@ impl<'a> TypeChecker<'a> {
                         )
                     })
                 }
-                TypeId::Foreign(_) => rules.type_cast,
+                TypeId::Foreign(_) => rules.kind.is_cast(),
                 _ => false,
             },
             TypeId::TraitInstance(lhs) => match right_id {
                 TypeId::TraitInstance(rhs) => {
                     self.check_traits(lhs, rhs, env, rules)
                 }
-                TypeId::TypeParameter(_) if rules.type_cast => false,
+                TypeId::TypeParameter(_) if rules.kind.is_cast() => false,
                 TypeId::TypeParameter(rhs) => rhs
                     .requirements(self.db)
                     .into_iter()
@@ -663,7 +709,7 @@ impl<'a> TypeChecker<'a> {
                 TypeId::TypeParameter(rhs) => {
                     self.check_parameters(lhs, rhs, env, rules)
                 }
-                TypeId::Foreign(_) => rules.type_cast,
+                TypeId::Foreign(_) => rules.kind.is_cast(),
                 _ => false,
             },
             TypeId::RigidTypeParameter(lhs)
@@ -699,7 +745,7 @@ impl<'a> TypeChecker<'a> {
                 _ => false,
             },
             TypeId::Foreign(ForeignType::Int(lsize, lsigned)) => {
-                if rules.type_cast {
+                if rules.kind.is_cast() {
                     match right_id {
                         TypeId::Foreign(_) => true,
                         TypeId::ClassInstance(ins) => {
@@ -720,7 +766,7 @@ impl<'a> TypeChecker<'a> {
                 }
             }
             TypeId::Foreign(ForeignType::Float(lsize)) => {
-                if rules.type_cast {
+                if rules.kind.is_cast() {
                     match right_id {
                         TypeId::Foreign(_) => true,
                         TypeId::ClassInstance(ins) => {
@@ -758,7 +804,7 @@ impl<'a> TypeChecker<'a> {
                     self.check_parameter_with_trait(left, req, env, rules)
                 })
             }
-            TypeId::Foreign(_) => rules.type_cast,
+            TypeId::Foreign(_) => rules.kind.is_cast(),
             _ => false,
         }
     }
@@ -1200,6 +1246,16 @@ mod tests {
     fn check_err(db: &Database, left: TypeRef, right: TypeRef) {
         assert!(
             !TypeChecker::check(db, left, right),
+            "Expected {} to not be compatible with {}",
+            format_type(db, left),
+            format_type(db, right)
+        );
+    }
+
+    #[track_caller]
+    fn check_err_return(db: &Database, left: TypeRef, right: TypeRef) {
+        assert!(
+            !TypeChecker::check_return(db, left, right),
             "Expected {} to not be compatible with {}",
             format_type(db, left),
             format_type(db, right)
@@ -2713,5 +2769,24 @@ mod tests {
             owned(instance(thing)),
             &mut env
         ));
+    }
+
+    #[test]
+    fn test_check_return() {
+        let mut db = Database::new();
+        let thing = new_class(&mut db, "Thing");
+        let owned_var = TypePlaceholder::alloc(&mut db, None).as_owned();
+        let uni_var = TypePlaceholder::alloc(&mut db, None).as_uni();
+        let ref_var = TypePlaceholder::alloc(&mut db, None).as_ref();
+        let mut_var = TypePlaceholder::alloc(&mut db, None).as_mut();
+
+        check_err_return(&db, owned(instance(thing)), any(instance(thing)));
+        check_err_return(&db, uni(instance(thing)), any(instance(thing)));
+        check_err_return(&db, immutable(instance(thing)), any(instance(thing)));
+        check_err_return(&db, mutable(instance(thing)), any(instance(thing)));
+        check_err_return(&db, placeholder(owned_var), any(instance(thing)));
+        check_err_return(&db, placeholder(uni_var), any(instance(thing)));
+        check_err_return(&db, placeholder(ref_var), any(instance(thing)));
+        check_err_return(&db, placeholder(mut_var), any(instance(thing)));
     }
 }
