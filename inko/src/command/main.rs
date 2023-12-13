@@ -13,11 +13,12 @@ const USAGE: &str = "Usage: inko [OPTIONS] [COMMAND | FILE]
 
 Commands:
 
-    run    Compile and run Inko source code directly
     build  Compile Inko source code
-    test   Run Inko unit tests
-    print  Print compiler details to STDOUT
+    check  Check a project or single file for correctness
     pkg    Manage Inko packages
+    print  Print compiler details to STDOUT
+    run    Compile and run source code directly
+    test   Run Inko unit tests
 
 Examples:
 
