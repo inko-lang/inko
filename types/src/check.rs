@@ -1115,7 +1115,7 @@ impl<'a> TypeChecker<'a> {
         arguments: &TypeArguments,
         rules: Rules,
     ) -> TypeRef {
-        match arguments.get(id) {
+        match arguments.get(id.original(self.db).unwrap_or(id)) {
             Some(arg @ TypeRef::Placeholder(id)) => id
                 .value(self.db)
                 .map(|v| self.resolve(v, arguments, rules))
@@ -2691,6 +2691,27 @@ mod tests {
             immutable(instance(thing)),
             owned(parameter(param)),
             &mut env1,
+        ));
+    }
+
+    #[test]
+    fn test_check_bounded_type_parameter() {
+        let mut db = Database::new();
+        let thing = new_class(&mut db, "Thing");
+        let param = new_parameter(&mut db, "T");
+        let bound = new_parameter(&mut db, "T");
+
+        bound.set_original(&mut db, param);
+
+        let mut env =
+            Environment::new(TypeArguments::new(), TypeArguments::new());
+
+        env.left.assign(param, owned(instance(thing)));
+
+        assert!(TypeChecker::new(&db).run(
+            any(parameter(bound)),
+            owned(instance(thing)),
+            &mut env
         ));
     }
 }

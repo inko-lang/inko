@@ -340,16 +340,18 @@ impl MethodCall {
         let require_sendable = receiver.require_sendable_arguments(&state.db)
             && !method.is_moving(&state.db);
 
+        let rec_is_rigid = receiver.is_rigid_type_parameter(&state.db);
         let bounds = if let Some((self_id, self_method)) = surrounding_scope {
-            // When calling a method on `self`, we need to take any surrounding
-            // bounds into account when resolving types.
-            if self_id == receiver_id {
+            // If the receiver is `self` or a field (in which case it's rigid),
+            // we need to take the bounds of the surrounding method into
+            // account.
+            if self_id == receiver_id || rec_is_rigid {
                 self_method.bounds(&state.db).union(method.bounds(&state.db))
             } else {
-                self_method.bounds(&state.db).clone()
+                method.bounds(&state.db).clone()
             }
         } else {
-            TypeBounds::new()
+            method.bounds(&state.db).clone()
         };
 
         // If the receiver is rigid, it may introduce additional type arguments
@@ -361,7 +363,7 @@ impl MethodCall {
         // parameters), as that would involve copying lots of data structures,
         // and because it complicates looking up type parameters, so instead we
         // handle it here when/if necessary.
-        if receiver.is_rigid_type_parameter(&state.db) {
+        if rec_is_rigid {
             for val in type_arguments.values_mut() {
                 *val = match val {
                     TypeRef::Any(TypeId::TypeParameter(id)) => {
