@@ -134,7 +134,10 @@ fn pub tests(t: mut Tests) {
   t.test('Iter.chunks') fn (t) {
     let vals = [10, 20, 30, 40]
 
-    t.equal(vals.iter.chunks(2).to_array, [[ref 10, ref 20], [ref 30, ref 40]])
+    t.equal(vals.iter.chunks(1).to_array, [[10], [20], [30], [40]])
+    t.equal(vals.iter.chunks(2).to_array, [[10, 20], [30, 40]])
+    t.equal(vals.iter.chunks(3).to_array, [[10, 20, 30], [40]])
+    t.equal(vals.iter.chunks(4).to_array, [[10, 20, 30, 40]])
   }
 
   t.test('Iter.to_array') fn (t) {

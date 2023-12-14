@@ -34,12 +34,6 @@ trait pub Range: Contains[Int] + Hash + Format {
   # Returns `true` if the range is an inclusive range.
   fn pub inclusive? -> Bool
 
-  # Returns an iterator that yields ranges of up to `amount` values.
-  #
-  # If the number of values in `self` can't be evenly divided by `amount`, the
-  # last range is shorter.
-  fn pub step_by(amount: Int) -> Stream[Range]
-
   # Returns the number of values in this range.
   fn pub size -> Int
 
@@ -72,21 +66,6 @@ impl Range for InclusiveRange {
 
   fn pub inclusive? -> Bool {
     true
-  }
-
-  fn pub step_by(amount: Int) -> Stream[InclusiveRange] {
-    let mut current = @start
-    let max = @end
-
-    Stream.new fn move {
-      if current > max { return Option.None }
-
-      let end = min(current + amount - 1, max)
-      let range = Option.Some(InclusiveRange.new(current, end))
-
-      current = end + 1
-      range
-    }
   }
 
   fn pub size -> Int {
@@ -178,21 +157,6 @@ impl Range for ExclusiveRange {
 
   fn pub inclusive? -> Bool {
     false
-  }
-
-  fn pub step_by(amount: Int) -> Stream[ExclusiveRange] {
-    let mut current = @start
-    let max = @end
-
-    Stream.new fn move {
-      if current >= max { return Option.None }
-
-      let end = min(current + amount - 1, end)
-      let range = Option.Some(ExclusiveRange.new(current, end))
-
-      current = end + 1
-      range
-    }
   }
 
   fn pub size -> Int {
