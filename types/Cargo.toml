@@ -1,6 +1,6 @@
 [package]
 name = "types"
-version = "0.13.1" # VERSION
+version = "0.13.2" # VERSION
 authors = ["Yorick Peterse <yorick@yorickpeterse.com>"]
 edition = "2021"
 license = "MPL-2.0"

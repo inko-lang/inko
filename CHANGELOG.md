@@ -4,6 +4,54 @@
 Entries from before version 0.10.0 are no longer included, but can be viewed
 [here](https://github.com/inko-lang/inko/blob/f9c01b86af70596021e649be5d43ec2a22b6d298/CHANGELOG.md).
 
+## 0.13.2 (2023-12-14)
+
+### Added
+
+- [1b61961](https://github.com/inko-lang/inko/commit/1b619615be160b29d97c123a4fa2e5e1d977e880): Recovering to owned values when assigning fields
+- [c9c01ac](https://github.com/inko-lang/inko/commit/c9c01acb92080570bbce12cfa3bf7eda3f3425c6): Add the `move` keyword for type parameters
+- [c42baf4](https://github.com/inko-lang/inko/commit/c42baf42420b3851638b2e2062ad50e941922a79): Add Iter.skip_while and Iter.take_while
+- [6c7da74](https://github.com/inko-lang/inko/commit/6c7da745c34a5ca62f1ef93e2617002b6e81b18c): Add Iter.take
+- [7a967b0](https://github.com/inko-lang/inko/commit/7a967b03d41186a891253d6296e42928c16537a3): Add Iter.skip
+- [da6ea1c](https://github.com/inko-lang/inko/commit/da6ea1c31150b92aa0094de0c8417875e24ac32f): Automatically generate main file for unit tests
+- [7314fd3](https://github.com/inko-lang/inko/commit/7314fd3bb6be1c7315af4c64c7a50e5d8c950cee): Add Iter.try_each and Iter.try_reduce
+- [4fe8a03](https://github.com/inko-lang/inko/commit/4fe8a032b8310251ac6409bb751e42eb7f790499): Add Bool.then
+- [317c3c7](https://github.com/inko-lang/inko/commit/317c3c7bf97b7017940531067548e53249a2778d): Add Array.index_of
+
+### Fixed
+
+- [1abb3d9](https://github.com/inko-lang/inko/commit/1abb3d91988a5db6d9d4d7524bf554cc24454003): Document the "check" command in `inko --help`
+- [6f2341e](https://github.com/inko-lang/inko/commit/6f2341e6ea0dbd7813c954cc09af375aa84726d1): Make type checking return types sound
+- [7138301](https://github.com/inko-lang/inko/commit/71383016d3ac829f1170ed3a742e69f371c78747): Fix type inference involving type parameter bounds
+- [47e4c0b](https://github.com/inko-lang/inko/commit/47e4c0b299979e505668d1e6c3158e2b06158e1a): Fix inferring placeholders with ownership
+- [aa615ed](https://github.com/inko-lang/inko/commit/aa615edfe0927b42a2283687c04d6d2bb95ff97f): Allow to use private default method from a trait
+- [b3783be](https://github.com/inko-lang/inko/commit/b3783be41c66e0568c0ead0310b696ad8557d35c): Disallow symbol imports from another module
+- [9e4f82b](https://github.com/inko-lang/inko/commit/9e4f82b37c3a05d57bd0aa708e7e06bc8060b1b2): Fix usage of undefined function "remove"
+- [3cc6683](https://github.com/inko-lang/inko/commit/3cc66833b636842dc6b1cad2fd535668dc17f545): Return references as ref T if T isn't mutable
+- [b7a368d](https://github.com/inko-lang/inko/commit/b7a368d8e043518898a99995afc5482e532382c5): Expose inherited arguments to type parameter calls
+- [e026d91](https://github.com/inko-lang/inko/commit/e026d91c71785aa5047b0d184b6d684a9181e389): Mark receivers as moving before handling arguments
+
+### Changed
+
+- [1c96a7d](https://github.com/inko-lang/inko/commit/1c96a7d293dacd0a2700bc15d5b16b21228ebb97): Remove Range.step_by
+- [c1a5760](https://github.com/inko-lang/inko/commit/c1a5760f84a08ac6575d9d9fb7cfca1534f74fe5): Clean up Iter.each_with_index a bit
+
+### Performance improvements
+
+- [cc8c6fe](https://github.com/inko-lang/inko/commit/cc8c6feb09adce56f71e34931936eb087f121d9a): Replace reductions with time slices
+- [1a30de9](https://github.com/inko-lang/inko/commit/1a30de95ae23c5fa54a04a535b94bd3c74d60a9c): Enable the equivalent of -O3 for --opt=aggressive
+- [e3886ae](https://github.com/inko-lang/inko/commit/e3886ae1c1988b144811dd4dff57d9d36a71a963): Optimize Array.iter and Array.iter_mut a bit
+- [07632a3](https://github.com/inko-lang/inko/commit/07632a3286be4842db9d4689572003961bd077e3): Optimize ByteArray.iter a little bit
+
+### Other
+
+- [1687c75](https://github.com/inko-lang/inko/commit/1687c7585e237fbe8e017334905dcd6508dee0b8): Update the rustix version to use
+- [3ace1b8](https://github.com/inko-lang/inko/commit/3ace1b8c71fdefa2ea8df334911bbbb2fd41c298): Fix documentation of read_line()
+- [6acdbe4](https://github.com/inko-lang/inko/commit/6acdbe4a874cf6fadc725c994252178b9b817c72): Tweak the ivm installation guide
+- [c782563](https://github.com/inko-lang/inko/commit/c78256335e9956d7c99e8df282bd67401c907523): Improve ivm installation documentation a bit
+- [de6a4de](https://github.com/inko-lang/inko/commit/de6a4dead69ecfc4f399d10133899f4b2ffeb615): Remove unused EOF constants
+- [61dd8c7](https://github.com/inko-lang/inko/commit/61dd8c7f35b9d6fd88662c17b2d4ddcb7020526f): Fix documentation for ByteArray.contains?
+
 ## 0.13.1 (2023-10-14)
 
 ### Fixed
