@@ -86,6 +86,9 @@ fn extern inko_path_is_directory(
 fn extern inko_path_expand(state: Pointer[UInt8], path: String) -> AnyResult
 fn extern inko_time_system_offset -> Int64
 
+# The byte used to represent a single dot/period.
+let DOT_BYTE = 46
+
 # The character used to separate components in a file path.
 let pub SEPARATOR = '/'
 
@@ -362,6 +365,59 @@ class pub Path {
     if len < 0 { return @path }
 
     @path.slice(start: len + 1, size: @path.size - len).into_string
+  }
+
+  # Returns the file extension of this path (without the leading `.`), if there
+  # is any.
+  #
+  # # Examples
+  #
+  #     import std.fs.path.Path
+  #
+  #     Path.new('foo.txt').extension # => Option.Some('txt')
+  #     Path.new('foo').extension     # => Option.None
+  fn pub extension -> Option[String] {
+    let size = @path.size
+    let mut min = match bytes_before_last_separator(@path) {
+      case -1 -> 0
+      case n -> n + 1
+    }
+
+    if min >= size { return Option.None }
+
+    # If the name starts with a dot, we work our way backwards until the _next_
+    # byte. This way we don't treat `.foo` as having the extension `foo`.
+    if @path.byte(min) == DOT_BYTE { min += 1 }
+
+    let max = size - 1
+    let mut idx = max
+
+    # We consider something an extension if it has at least one non-dot byte,
+    # meaning `foo.` is a path _without_ an extension. Different languages
+    # handle this differently:
+    #
+    #     Language     Path      Extension    Leading dot included
+    #     ---------------------------------------------------------
+    #     Elixir       'foo.'    '.'          Yes
+    #     Go           'foo.'    '.'          Yes
+    #     Node.js      'foo.'    '.'          Yes
+    #     Python       'foo.'    NONE         No
+    #     Ruby         'foo.'    '.'          Yes
+    #     Rust         'foo.'    NONE         No
+    #     Vimscript    'foo.'    NONE         No
+    #
+    # Things get more inconsistent for paths such as `...`, with some treating
+    # it as a file called `..` with the extension `.`, while others consider it
+    # a path without an extension.
+    while idx > min {
+      if @path.byte(idx) == DOT_BYTE { break } else { idx -= 1 }
+    }
+
+    if idx < max and idx > min {
+      Option.Some(@path.slice(idx + 1, size).into_string)
+    } else {
+      Option.None
+    }
   }
 
   # Returns the canonical, absolute version of `self`.

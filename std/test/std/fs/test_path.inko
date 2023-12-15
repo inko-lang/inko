@@ -261,4 +261,35 @@ fn pub tests(t: mut Tests) {
     path1.remove_file.unwrap
     path2.remove_file.unwrap
   }
+
+  t.test('Path.extension') fn (t) {
+    t.equal(Path.new('').extension, Option.None)
+    t.equal(Path.new(' ').extension, Option.None)
+    t.equal(Path.new('/').extension, Option.None)
+    t.equal(Path.new('//').extension, Option.None)
+    t.equal(Path.new('/a/').extension, Option.None)
+    t.equal(Path.new('.').extension, Option.None)
+    t.equal(Path.new('.a').extension, Option.None)
+    t.equal(Path.new('foo').extension, Option.None)
+    t.equal(Path.new('.foo').extension, Option.None)
+    t.equal(Path.new('..').extension, Option.None)
+    t.equal(Path.new('...').extension, Option.None)
+    t.equal(Path.new('..a.').extension, Option.None)
+    t.equal(Path.new('..a..').extension, Option.None)
+    t.equal(Path.new('foo.').extension, Option.None)
+
+    t.equal(Path.new('.foo.txt').extension, Option.Some('txt'))
+    t.equal(Path.new('.foo.html.md').extension, Option.Some('md'))
+    t.equal(Path.new('foo.txt').extension, Option.Some('txt'))
+    t.equal(Path.new('foo.a b').extension, Option.Some('a b'))
+    t.equal(Path.new('foo.html.md').extension, Option.Some('md'))
+    t.equal(Path.new('a/foo.txt').extension, Option.Some('txt'))
+    t.equal(Path.new('a/foo.html.md').extension, Option.Some('md'))
+    t.equal(Path.new('/foo.txt').extension, Option.Some('txt'))
+    t.equal(Path.new('/foo.html.md').extension, Option.Some('md'))
+    t.equal(Path.new('/a/b.txt').extension, Option.Some('txt'))
+    t.equal(Path.new('//b.txt').extension, Option.Some('txt'))
+    t.equal(Path.new('foo.a😀a').extension, Option.Some('a😀a'))
+    t.equal(Path.new('...a').extension, Option.Some('a'))
+  }
 }
