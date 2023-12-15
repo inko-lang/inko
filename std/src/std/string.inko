@@ -24,12 +24,12 @@ class extern StringResult {
 
 fn extern inko_string_to_lower(state: Pointer[UInt8], string: String) -> String
 fn extern inko_string_to_upper(state: Pointer[UInt8], string: String) -> String
-fn extern inko_string_slice_bytes(
-  state: Pointer[UInt8],
+fn extern inko_string_slice_bytes_into(
   string: String,
+  into: mut ByteArray,
   start: Int,
   size: Int,
-) -> ByteArray
+)
 
 fn extern inko_string_chars(string: String) -> Pointer[UInt8]
 fn extern inko_string_chars_next(
@@ -255,6 +255,25 @@ class builtin String {
     }
 
     buff.into_string
+  }
+
+  # Slices `self` into a sequence of bytes using a _byte_ range, appending the
+  # bytes to `bytes` argument.
+  #
+  # This method is useful if you want to slice a `String` into a `ByteArray`,
+  # but wish to reuse the same `ByteArray` rather than allocating a new one for
+  # each slice. Unless you've determined you indeed need to reuse the same
+  # `ByteArray`, you're probably better off using `String.slice` instead.
+  #
+  # # Examples
+  #
+  #     let bytes = ByteArray.new
+  #
+  #     '😊'.slice_into(bytes, start: 0, size: 4)
+  #
+  #     bytes # => '😊'.to_byte_array
+  fn pub slice_into(bytes: mut ByteArray, start: Int, size: Int) {
+    inko_string_slice_bytes_into(self, bytes, start, size)
   }
 
   # Returns the _byte_ index of the first occurrence of the given `String`,
@@ -542,6 +561,48 @@ class builtin String {
     buff.into_string
   }
 
+  # Replaces all occurrences of `string` with the value in `with`, returning the
+  # result as a new `String`.
+  #
+  # If the `string` argument is an empty `String`, this method doesn't perform
+  # any replacements and instead returns a copy of `self`.
+  #
+  # # Examples
+  #
+  #     'foo foo'.replace('foo', with: 'bar') # => 'bar bar'
+  fn pub replace(string: String, with: String) -> String {
+    # Different languages handle the pattern being empty differently. For
+    # example, Javascript and Node only match the start of the string if the
+    # pattern is empty. Other languages such as Ruby and Python appear to inject
+    # the replacement in between every character, such that
+    # `'AB'.replace('', ',')` results in `,A,B,`.
+    #
+    # We make the decision to just _not_ do any replacements in this case, as
+    # replacing an empty string is nonsensical to begin with.
+    if string.size == 0 { return self }
+
+    let buf = ByteArray.new
+    let mut start = 0
+    let mut last = 0
+
+    loop {
+      match byte_index(string, start) {
+        case Some(i) -> {
+          if i > last { slice_into(buf, start: last, size: i - last) }
+          with.slice_into(buf, start: 0, size: with.size)
+          start = i + string.size
+          last = start
+        }
+        case _ -> {
+          if start < size { slice_into(buf, start, size) }
+          break
+        }
+      }
+    }
+
+    buf.into_string
+  }
+
   fn byte_unchecked(index: Int) -> Int {
     (@bytes as Int + index as Pointer[UInt8]).0 as Int
   }
@@ -586,7 +647,7 @@ impl Bytes for String {
     @size as Int
   }
 
-  # Slices `self` into a substring using a _byte_ range.
+  # Slices `self` into a sequence of bytes using a _byte_ range.
   #
   # # Examples
   #
@@ -595,7 +656,10 @@ impl Bytes for String {
   #     '😊'.slice_bytes(start: 0, size: 4) # => '😊'.to_byte_array
   #     '😊'.slice_bytes(start: 0, size: 3) # => "\u{FFFD}".to_byte_array
   fn pub slice(start: Int, size: Int) -> ByteArray {
-    inko_string_slice_bytes(_INKO.state, self, start, size)
+    let bytes = ByteArray.new
+
+    slice_into(bytes, start, size)
+    bytes
   }
 
   # Returns a raw pointer to the bytes of `self`.

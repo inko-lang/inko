@@ -58,6 +58,18 @@ fn pub tests(t: mut Tests) {
     t.equal('foo'.slice(start: -5, size: 50), ''.to_byte_array)
   }
 
+  t.test('String.slice_into') fn (t) {
+    let bytes = ByteArray.new
+    let string = 'hello_world'
+
+    # String.slice_into and String.slice use the same underlying function, so
+    # there's no need in duplicating many test cases here.
+    string.slice_into(bytes, start: 0, size: 3)
+    string.slice_into(bytes, start: 3, size: 2)
+
+    t.equal(bytes, 'hello'.to_byte_array)
+  }
+
   t.test('String.byte_index') fn (t) {
     t.equal('hello'.byte_index(of: 'h', starting_at: 0), Option.Some(0))
     t.equal('hello'.byte_index(of: 'e', starting_at: 0), Option.Some(1))
@@ -320,5 +332,24 @@ fn pub tests(t: mut Tests) {
     let b = String.from_pointer(a.to_pointer)
 
     t.equal(a, b)
+  }
+
+  t.test('String.replace') fn (t) {
+    t.equal(''.replace('', ''), '')
+    t.equal(''.replace('', 'foo'), '')
+    t.equal('foo'.replace('', 'bar'), 'foo')
+    t.equal(''.replace('foo', 'bar'), '')
+    t.equal(''.replace('foo', ''), '')
+    t.equal('foo'.replace('foo', 'bar'), 'bar')
+    t.equal('foo baz'.replace('foo', 'bar'), 'bar baz')
+    t.equal('foo foo'.replace('foo', 'bar'), 'bar bar')
+    t.equal('foo'.replace('foo', ''), '')
+    t.equal('foo bar'.replace('foo', ''), ' bar')
+    t.equal('foo'.replace('fo', 'FO'), 'FOo')
+    t.equal('foo'.replace('FOO', 'BAR'), 'foo')
+    t.equal('a😃a'.replace('😃', 'X'), 'aXa')
+    t.equal('foo'.replace('foo', '😃'), '😃')
+    t.equal('foo'.replace('foo', 'foobar'), 'foobar')
+    t.equal('a,b,c,d'.replace(',', '  '), 'a  b  c  d')
   }
 }

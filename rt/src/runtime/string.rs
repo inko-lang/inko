@@ -146,21 +146,20 @@ pub unsafe extern "system" fn inko_string_chars_drop(iter: *mut u8) {
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_string_slice_bytes(
-    state: *const State,
+pub unsafe extern "system" fn inko_string_slice_bytes_into(
     string: *const InkoString,
+    into: *mut ByteArray,
     start: i64,
     length: i64,
-) -> *const ByteArray {
+) {
     let string = InkoString::read(string);
     let end = min((start + length) as usize, string.len());
-    let bytes = if start < 0 || length <= 0 || start as usize >= end {
-        Vec::new()
-    } else {
-        string.as_bytes()[start as usize..end].to_vec()
-    };
 
-    ByteArray::alloc((*state).byte_array_class, bytes)
+    if start < 0 || length <= 0 || start as usize >= end {
+        return;
+    }
+
+    (*into).value.extend_from_slice(&string.as_bytes()[start as usize..end]);
 }
 
 #[no_mangle]
