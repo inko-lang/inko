@@ -1,0 +1,25 @@
+fn example1 {
+  let a = [10]
+  let b = mut a
+
+  {
+    if true { mut a } else { b }
+  }
+
+  b # This is fine because `b` is a _reference_.
+}
+
+fn example2 {
+  let a = [10]
+  let b = [20]
+
+  {
+    if true { a } else { b }
+  }
+
+  a
+  b
+}
+
+# scope_move.inko:20:3 error(moved): 'a' can't be used as it has been moved
+# scope_move.inko:21:3 error(moved): 'b' can't be used as it has been moved

@@ -156,8 +156,13 @@ impl RegisterKind {
         matches!(self, RegisterKind::Field(_))
     }
 
-    pub(crate) fn is_field_or_self(self) -> bool {
-        matches!(self, RegisterKind::Field(_) | RegisterKind::SelfObject)
+    pub(crate) fn new_reference_on_return(self) -> bool {
+        matches!(
+            self,
+            RegisterKind::Field(_)
+                | RegisterKind::SelfObject
+                | RegisterKind::Variable(_, _)
+        )
     }
 
     pub(crate) fn is_regular(self) -> bool {
@@ -1379,10 +1384,6 @@ impl<'a> LowerMethod<'a> {
             }
 
             let reg = if index == max_index {
-                // A body may capture an outer value type and return that. In
-                // this case we need to clone the value type, as the original
-                // value may still be in use after the body, hence the clone
-                // argument is set to `true`.
                 self.output_expression(n)
             } else {
                 self.expression(n)
@@ -3557,9 +3558,13 @@ impl<'a> LowerMethod<'a> {
             return reg;
         }
 
-        // When returning/throwing a field or `self` as a reference, we must
-        // return a new reference.
-        if self.register_kind(reg).is_field_or_self() {
+        // When returning `self`, a reference to a field, or a local variable
+        // that stores a reference, we return a new reference. This is needed
+        // because for the first two cases we don't create references
+        // immediately as that's redundant. It's needed in the last case so we
+        // don't mark variables storing references as moved, preventing them
+        // from being used afterwards.
+        if self.register_kind(reg).new_reference_on_return() {
             let res = self.new_register(typ);
 
             self.current_block_mut().reference(res, reg, loc);
