@@ -1514,29 +1514,24 @@ impl<'a> LowerMethod<'a> {
         self.enter_loop_scope(loop_start, after_loop);
 
         for node in node.body {
+            if !self.in_connected_block() {
+                self.warn_unreachable(node.location());
+                break;
+            }
+
             self.expression(node);
         }
 
-        let loop_scope = self.exit_scope();
+        let connected = self.in_connected_block();
 
-        for (reg, loc) in loop_scope.moved_in_loop {
-            if self.register_is_available(reg) {
-                continue;
-            }
-
-            if let Some(name) = self.register_kind(reg).name(self.db()) {
-                self.state.diagnostics.moved_variable_in_loop(
-                    &name,
-                    self.file(),
-                    self.mir.location(loc).clone(),
-                );
-            }
+        if connected {
+            self.check_loop_moves();
         }
 
-        let loop_end = self.current_block;
+        self.exit_scope();
 
-        if self.in_connected_block() {
-            self.add_edge(loop_end, loop_start);
+        if connected {
+            self.add_edge(self.current_block, loop_start);
             self.current_block_mut().preempt(loc);
             self.current_block_mut().goto(loop_start, loc);
         }
@@ -1555,6 +1550,29 @@ impl<'a> LowerMethod<'a> {
         }
     }
 
+    fn check_loop_moves(&mut self) {
+        let mut moved = HashMap::new();
+
+        // We remove the existing list of registers such that we don't produce
+        // duplicate errors when moving in a loop that containes a `next` _and_
+        // at some point breaks out of the loop.
+        swap(&mut moved, &mut self.scope.moved_in_loop);
+
+        for (reg, loc) in moved {
+            if self.register_is_available(reg) {
+                continue;
+            }
+
+            if let Some(name) = self.register_kind(reg).name(self.db()) {
+                self.state.diagnostics.moved_variable_in_loop(
+                    &name,
+                    self.file(),
+                    self.mir.location(loc).clone(),
+                );
+            }
+        }
+    }
+
     fn break_expression(&mut self, node: hir::Break) -> RegisterId {
         let target = self.loop_target().unwrap().1;
 
@@ -1565,6 +1583,7 @@ impl<'a> LowerMethod<'a> {
     fn next_expression(&mut self, node: hir::Next) -> RegisterId {
         let target = self.loop_target().unwrap().0;
 
+        self.check_loop_moves();
         self.jump_out_of_loop(target, node.location);
         self.new_register(TypeRef::Never)
     }

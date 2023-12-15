@@ -1,0 +1,79 @@
+fn example1 {
+  let a = [10]
+
+  loop {
+    let b = a
+
+    next
+  }
+}
+
+fn example2 {
+  let a = [10]
+
+  loop {
+    let b = a
+
+    next
+    next # This is to make sure we don't produce the errors twice
+  }
+}
+
+fn example3 {
+  let a = [10]
+
+  loop {
+    let b = a # No error because we break out of the loop
+
+    break
+  }
+}
+
+fn example4 {
+  let a = [10]
+
+  loop {
+    let b = a # No error as we return from the loop
+
+    return
+  }
+}
+
+fn example5 {
+  let mut a = [10]
+
+  loop {
+    let b = a # No error because we assign `a` a new value unconditionally
+
+    a = [20]
+    break
+  }
+}
+
+fn example6 {
+  let a = [10]
+
+  loop {
+    let b = a
+
+    next
+    break # This to make sure the `break` doesn't somehow mess things up
+  }
+}
+
+fn example7 {
+  let a = [10]
+
+  loop {
+    let b = a
+
+    if true { break }
+  }
+}
+
+# loop_move.inko:5:13 error(moved): 'a' can't be moved inside a loop, as its value would be unavailable in the next iteration
+# loop_move.inko:15:13 error(moved): 'a' can't be moved inside a loop, as its value would be unavailable in the next iteration
+# loop_move.inko:18:5 warning(unreachable): this code is unreachable
+# loop_move.inko:57:13 error(moved): 'a' can't be moved inside a loop, as its value would be unavailable in the next iteration
+# loop_move.inko:60:5 warning(unreachable): this code is unreachable
+# loop_move.inko:68:13 error(moved): 'a' can't be moved inside a loop, as its value would be unavailable in the next iteration
