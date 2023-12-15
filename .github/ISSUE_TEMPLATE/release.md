@@ -15,3 +15,4 @@ labels: release
 - [ ] Announce in /r/ProgrammingLanguages
 - [ ] Announce in `#announcements` in Discord
 - [ ] Announce in `#inko` in the /r/ProgrammingLanguages Discord
+- [ ] Create a [GitHub announcement](https://github.com/orgs/inko-lang/discussions/new?category=announcements)
