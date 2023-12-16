@@ -194,6 +194,161 @@ impl ToString for Error {
   }
 }
 
+# A type used to query/fetch data from a JSON value.
+#
+# Manually extracting values from JSON objects can be cumbersome. Take the
+# following JSON for example:
+#
+#     {
+#       "name": "Alice",
+#       "address": {
+#         "street": "Sesame Street"
+#       }
+#     }
+#
+# If we want to get the value of the `street` key, we'd have to write the
+# following:
+#
+#     match json {
+#       case Object(root) -> match root.opt('address') {
+#         case Some(Object(addr)) -> match addr.opt('street') {
+#           case Some(String(v)) -> Option.Some(v)
+#           case _ -> Option.None
+#         }
+#         case _ -> Option.None
+#       }
+#       case _ -> Option.None
+#     }
+#
+# In contrast, using the `Query` type we can instead write the following:
+#
+#     json.query.key('address').key('street').as_string
+#
+# Querying is done using the methods `Query.key` to get an object key's value,
+# and `Query.index` to get the value of an array index. Methods such as
+# `Query.as_string` and `Query.as_int` are used to extract the final value as a
+# certain type, if such a value is present.
+class pub Query {
+  let @value: Option[ref Json]
+
+  # Returns a `Query` that matches the value assigned to the object key `name`,
+  # if the current value the query matches against is an object.
+  #
+  # # Examples
+  #
+  #     import std.json.Json
+  #
+  #     let map = Map.new
+  #
+  #     map.set('name', 'Alice')
+  #     Json.Object(map).query.key('name').as_string # => Option.Some('alice')
+  #     Json.Int(42).query.key('name').as_string     # => Option.None
+  fn pub move key(name: String) -> Query {
+    @value = match ref @value {
+      case Some(Object(v)) -> v.opt(name)
+      case _ -> Option.None
+    }
+
+    self
+  }
+
+  # Returns a `Query` that matches the value assigned to the array index
+  # `index`, if the current value the query matches against is an array.
+  #
+  # # Examples
+  #
+  #     import std.json.Json
+  #
+  #     Json.Array([Json.Int(10)]).query.index(0).as_int # => Option.Some(10)
+  #     Json.Int(42).query.index(0).as_int               # => Option.None
+  fn pub move index(index: Int) -> Query {
+    @value = match ref @value {
+      case Some(Array(v)) -> v.opt(index)
+      case _ -> Option.None
+    }
+
+    self
+  }
+
+  # Returns the value `self` matches against if it's a `String`.
+  #
+  # # Examples
+  #
+  #     import std.json.Json
+  #
+  #     Json.Int(42).query.as_string        # => Option.None
+  #     Json.String('test').query.as_string # => Option.Some('test')
+  fn pub move as_string -> Option[String] {
+    match @value {
+      case Some(String(v)) -> Option.Some(v)
+      case _ -> Option.None
+    }
+  }
+
+  # Returns the value `self` matches against if it's an `Int`.
+  #
+  # # Examples
+  #
+  #     import std.json.Json
+  #
+  #     Json.String('test').query.as_int # => Option.None
+  #     Json.Int(42).query.as_int        # => Option.Some(42)
+  fn pub move as_int -> Option[Int] {
+    match @value {
+      case Some(Int(v)) -> Option.Some(v)
+      case _ -> Option.None
+    }
+  }
+
+  # Returns the value `self` matches against if it's a `Float`.
+  #
+  # # Examples
+  #
+  #     import std.json.Json
+  #
+  #     Json.String('test').query.as_float # => Option.None
+  #     Json.Float(42.0).query.as_float    # => Option.Some(42.0)
+  fn pub move as_float -> Option[Float] {
+    match @value {
+      case Some(Float(v)) -> Option.Some(v)
+      case _ -> Option.None
+    }
+  }
+
+  # Returns the value `self` matches against if it's an `Object`.
+  #
+  # # Examples
+  #
+  #     import std.json.Json
+  #
+  #     let map = Map.new
+  #
+  #     map.set('name', 'Alice')
+  #     Json.Object(map).query.as_object # => Option.Some(...)
+  #     Json.Int(42).query.as_object     # => Option.None
+  fn pub move as_object -> Option[ref Map[String, Json]] {
+    match @value {
+      case Some(Object(v)) -> Option.Some(v)
+      case _ -> Option.None
+    }
+  }
+
+  # Returns the value `self` matches against if it's an `Array`.
+  #
+  # # Examples
+  #
+  #     import std.json.Json
+  #
+  #     Json.Array([Json.Int(42)]).query.as_array # => Option.Some(...)
+  #     Json.Int(42).query.as_array               # => Option.None
+  fn pub move as_array -> Option[ref Array[Json]] {
+    match @value {
+      case Some(Array(v)) -> Option.Some(v)
+      case _ -> Option.None
+    }
+  }
+}
+
 # A JSON value, such as `true` or an array.
 class pub enum Json {
   case Int(Int)
@@ -236,6 +391,19 @@ class pub enum Json {
   #     Json.Array([Json.Int(42)]).to_pretty_string # => "[\n  42\n]"
   fn pub to_pretty_string -> String {
     Generator.new(DEFAULT_PRETTY_INDENT).generate(self)
+  }
+
+  # Returns a new `Query` that starts at `self`.
+  #
+  # See the documentation of the `Query` type for more information.
+  #
+  # # Examples
+  #
+  #     import std.json.Json
+  #
+  #     Json.Int(42).query.as_int # => Option.Some(42)
+  fn pub query -> Query {
+    Query { @value = Option.Some(self) }
   }
 }
 

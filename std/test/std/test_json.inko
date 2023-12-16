@@ -412,4 +412,74 @@ fn pub tests(t: mut Tests) {
     t.true(Json.parse("\u{FFFE}10").error?)
     t.true(Json.parse("\u{EF}\u{BB}\u{BF}10").error?)
   }
+
+  t.test('Json.query') fn (t) {
+    t.equal(Json.Int(42).query.as_int, Option.Some(42))
+    t.equal(Json.String('test').query.as_int, Option.None)
+  }
+
+  t.test('Query.key') fn (t) {
+    let map = Map.new
+
+    map.set('name', Json.String('Alice'))
+
+    let obj = Json.Object(map)
+
+    t.equal(obj.query.key('name').as_string, Option.Some('Alice'))
+    t.equal(obj.query.key('city').as_string, Option.None)
+    t.equal(Json.Int(42).query.key('name').as_string, Option.None)
+  }
+
+  t.test('Query.index') fn (t) {
+    t.equal(Json.Array([Json.Int(42)]).query.index(0).as_int, Option.Some(42))
+    t.equal(Json.Array([Json.Int(42)]).query.index(1).as_int, Option.None)
+    t.equal(Json.Int(42).query.index(0).as_int, Option.None)
+  }
+
+  t.test('Query.as_int') fn (t) {
+    t.equal(Json.String('test').query.as_int, Option.None)
+    t.equal(Json.Float(1.2).query.as_int, Option.None)
+    t.equal(Json.Null.query.as_int, Option.None)
+    t.equal(Json.Array([]).query.as_int, Option.None)
+    t.equal(Json.Object(Map.new).query.as_int, Option.None)
+    t.equal(Json.Int(42).query.as_int, Option.Some(42))
+  }
+
+  t.test('Query.as_float') fn (t) {
+    t.equal(Json.String('test').query.as_float, Option.None)
+    t.equal(Json.Null.query.as_float, Option.None)
+    t.equal(Json.Int(42).query.as_float, Option.None)
+    t.equal(Json.Array([]).query.as_float, Option.None)
+    t.equal(Json.Object(Map.new).query.as_float, Option.None)
+    t.equal(Json.Float(1.2).query.as_float, Option.Some(1.2))
+  }
+
+  t.test('Query.as_string') fn (t) {
+    t.equal(Json.Null.query.as_string, Option.None)
+    t.equal(Json.Int(42).query.as_string, Option.None)
+    t.equal(Json.Float(1.2).query.as_string, Option.None)
+    t.equal(Json.Array([]).query.as_string, Option.None)
+    t.equal(Json.Object(Map.new).query.as_string, Option.None)
+    t.equal(Json.String('test').query.as_string, Option.Some('test'))
+  }
+
+  t.test('Query.as_array') fn (t) {
+    t.equal(Json.Null.query.as_array, Option.None)
+    t.equal(Json.Int(42).query.as_array, Option.None)
+    t.equal(Json.Float(1.2).query.as_array, Option.None)
+    t.equal(Json.Object(Map.new).query.as_array, Option.None)
+    t.equal(Json.String('test').query.as_array, Option.None)
+    t.equal(
+      Json.Array([Json.Int(42)]).query.as_array, Option.Some(ref [Json.Int(42)])
+    )
+  }
+
+  t.test('Query.as_object') fn (t) {
+    t.equal(Json.Null.query.as_object, Option.None)
+    t.equal(Json.Int(42).query.as_object, Option.None)
+    t.equal(Json.Float(1.2).query.as_object, Option.None)
+    t.equal(Json.String('test').query.as_object, Option.None)
+    t.equal(Json.Array([Json.Int(42)]).query.as_object, Option.None)
+    t.equal(Json.Object(Map.new).query.as_object, Option.Some(ref Map.new))
+  }
 }
