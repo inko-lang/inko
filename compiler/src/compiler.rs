@@ -25,7 +25,61 @@ use std::env::current_dir;
 use std::ffi::OsStr;
 use std::fs::write;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 use types::module_name::ModuleName;
+
+fn format_timing(duration: Duration, total: Option<Duration>) -> String {
+    let base = if duration.as_secs() >= 1 {
+        format!("{:.2} sec ", duration.as_secs_f64())
+    } else if duration.as_millis() >= 1 {
+        format!("{} msec", duration.as_millis())
+    } else if duration.as_micros() >= 1 {
+        format!("{} µsec", duration.as_micros())
+    } else {
+        format!("{} nsec", duration.as_nanos())
+    };
+
+    if let Some(total) = total {
+        let percent =
+            ((duration.as_secs_f64() / total.as_secs_f64()) * 100.0) as u64;
+
+        let line = format!("{} ({}%)", base, percent);
+
+        if percent >= 20 {
+            format!("\x1b[31m{}\x1b[0m", line)
+        } else {
+            line
+        }
+    } else {
+        base
+    }
+}
+
+struct Timings {
+    ast: Duration,
+    hir: Duration,
+    type_check: Duration,
+    mir: Duration,
+    optimize_mir: Duration,
+    llvm: Duration,
+    link: Duration,
+    total: Duration,
+}
+
+impl Timings {
+    fn new() -> Timings {
+        Timings {
+            ast: Duration::from_secs(0),
+            hir: Duration::from_secs(0),
+            type_check: Duration::from_secs(0),
+            mir: Duration::from_secs(0),
+            optimize_mir: Duration::from_secs(0),
+            llvm: Duration::from_secs(0),
+            link: Duration::from_secs(0),
+            total: Duration::from_secs(0),
+        }
+    }
+}
 
 pub enum CompileError {
     /// The input program is invalid (e.g. there are type errors).
@@ -37,14 +91,17 @@ pub enum CompileError {
 
 pub struct Compiler {
     state: State,
+    timings: Timings,
 }
 
 impl Compiler {
     pub fn new(config: Config) -> Self {
-        Self { state: State::new(config) }
+        Self { state: State::new(config), timings: Timings::new() }
     }
 
     pub fn check(&mut self, file: Option<PathBuf>) -> Result<(), CompileError> {
+        let start = Instant::now();
+
         // When checking a project we want to fall back to checking _all_ files
         // including tests, not just the main module.
         //
@@ -58,21 +115,22 @@ impl Compiler {
             self.all_source_modules()?
         };
 
-        let ast = ModulesParser::new(&mut self.state).run(input);
+        let ast = self.parse(input);
         let hir = self.compile_hir(ast)?;
+        let res = self.compile_mir(hir).map(|_| ());
 
-        self.compile_mir(hir).map(|_| ())
+        self.timings.total = start.elapsed();
+        res
     }
 
     pub fn build(
         &mut self,
         file: Option<PathBuf>,
     ) -> Result<PathBuf, CompileError> {
+        let start = Instant::now();
         let file = self.main_module_path(file)?;
         let main_mod = self.state.db.main_module().unwrap().clone();
-        let ast = ModulesParser::new(&mut self.state)
-            .run(vec![(main_mod, file.clone())]);
-
+        let ast = self.parse(vec![(main_mod, file.clone())]);
         let hir = self.compile_hir(ast)?;
         let mut mir = self.compile_mir(hir)?;
 
@@ -86,11 +144,42 @@ impl Compiler {
             self.write_dot(&dirs, &mir)?;
         }
 
-        self.compile_machine_code(&dirs, &mir, file)
+        let res = self.compile_machine_code(&dirs, &mir, file);
+
+        self.timings.total = start.elapsed();
+        res
     }
 
     pub fn print_diagnostics(&self) {
         self.state.config.presenter.present(&self.state.diagnostics);
+    }
+
+    pub fn print_timings(&self) {
+        let total = self.timings.total;
+
+        // Diagnostics go to STDERR, so we print to STDOUT here, allowing users
+        // to still get the diagnostics without these timings messing things up.
+        println!(
+            "\
+\x1b[1mStage\x1b[0m            \x1b[1mTime\x1b[0m
+Source to AST    {ast}
+AST to HIR       {hir}
+Type check       {type_check}
+HIR to MIR       {mir}
+Optimize MIR     {optimize}
+Generate LLVM    {llvm}
+Link             {link}
+Total            {total}\
+            ",
+            ast = format_timing(self.timings.ast, Some(total)),
+            hir = format_timing(self.timings.hir, Some(total)),
+            type_check = format_timing(self.timings.type_check, Some(total)),
+            mir = format_timing(self.timings.mir, Some(total)),
+            optimize = format_timing(self.timings.optimize_mir, Some(total)),
+            llvm = format_timing(self.timings.llvm, Some(total)),
+            link = format_timing(self.timings.link, Some(total)),
+            total = format_timing(self.timings.total, None),
+        );
     }
 
     pub fn create_build_directory(&self) -> Result<(), String> {
@@ -136,25 +225,43 @@ impl Compiler {
             return Err(CompileError::Invalid);
         }
 
+        let start = Instant::now();
         let mut mir = Mir::new();
         let state = &mut self.state;
 
         mir::check_global_limits(state).map_err(CompileError::Internal)?;
 
-        if mir::DefineConstants::run_all(state, &mut mir, &modules)
-            && mir::LowerToMir::run_all(state, &mut mir, modules)
-        {
+        let ok = mir::DefineConstants::run_all(state, &mut mir, &modules)
+            && mir::LowerToMir::run_all(state, &mut mir, modules);
+
+        self.timings.mir = start.elapsed();
+
+        if ok {
             Ok(mir)
         } else {
             Err(CompileError::Invalid)
         }
     }
 
+    fn parse(
+        &mut self,
+        input: Vec<(ModuleName, PathBuf)>,
+    ) -> Vec<ParsedModule> {
+        let start = Instant::now();
+        let res = ModulesParser::new(&mut self.state).run(input);
+
+        self.timings.ast = start.elapsed();
+        res
+    }
+
     fn compile_hir(
         &mut self,
         modules: Vec<ParsedModule>,
     ) -> Result<Vec<hir::Module>, CompileError> {
+        let start = Instant::now();
         let hir = hir::LowerToHir::run_all(&mut self.state, modules);
+
+        self.timings.hir = start.elapsed();
 
         // Errors produced at this state are likely to result in us not being
         // able to compile the program properly (e.g. imported modules don't
@@ -168,8 +275,8 @@ impl Compiler {
 
     fn check_types(&mut self, modules: &mut Vec<hir::Module>) -> bool {
         let state = &mut self.state;
-
-        DefineTypes::run_all(state, modules)
+        let start = Instant::now();
+        let res = DefineTypes::run_all(state, modules)
             && CollectExternImports::run_all(state, modules)
             && DefineModuleMethodNames::run_all(state, modules)
             && DefineImportedTypes::run_all(state, modules)
@@ -187,12 +294,18 @@ impl Compiler {
             && CheckMainMethod::run(state)
             && ImplementTraitMethods::run_all(state, modules)
             && DefineConstants::run_all(state, modules)
-            && Expressions::run_all(state, modules)
+            && Expressions::run_all(state, modules);
+
+        self.timings.type_check = start.elapsed();
+        res
     }
 
     fn optimise_mir(&mut self, mir: &mut Mir) {
+        let start = Instant::now();
+
         Specialize::run_all(&mut self.state, mir);
         mir::clean_up_basic_blocks(mir);
+        self.timings.optimize_mir = start.elapsed();
     }
 
     fn write_dot(
@@ -228,6 +341,7 @@ impl Compiler {
         mir: &Mir,
         main_file: PathBuf,
     ) -> Result<PathBuf, CompileError> {
+        let start = Instant::now();
         let exe = match &self.state.config.output {
             Output::Derive => {
                 let name = main_file
@@ -245,7 +359,13 @@ impl Compiler {
             llvm::passes::Compile::run_all(&self.state, directories, mir)
                 .map_err(CompileError::Internal)?;
 
+        self.timings.llvm = start.elapsed();
+
+        let start = Instant::now();
+
         link(&self.state, &exe, &objects).map_err(CompileError::Internal)?;
+        self.timings.link = start.elapsed();
+
         Ok(exe)
     }
 

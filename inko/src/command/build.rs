@@ -57,6 +57,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     options.optflag("", "dot", "Output the MIR of every module as DOT files");
     options.optflag("", "verify-llvm", "Verify LLVM IR when generating code");
     options.optflag("", "write-llvm", "Write LLVM IR files to disk");
+    options.optflag("", "timings", "Display the time spent compiling code");
 
     let matches = options.parse(arguments)?;
 
@@ -108,6 +109,10 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     let result = compiler.build(file);
 
     compiler.print_diagnostics();
+
+    if matches.opt_present("timings") {
+        compiler.print_timings();
+    }
 
     match result {
         Ok(_) => Ok(0),

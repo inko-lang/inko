@@ -104,6 +104,7 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
             &context,
             target_machine.get_target_data(),
         );
+
         let names = SymbolNames::new(&state.db, mir);
         let mut modules = Vec::with_capacity(mir.modules.len());
 
