@@ -30,7 +30,7 @@ use types::module_name::ModuleName;
 
 fn format_timing(duration: Duration, total: Option<Duration>) -> String {
     let base = if duration.as_secs() >= 1 {
-        format!("{:.2} sec ", duration.as_secs_f64())
+        format!("{:.2} sec", duration.as_secs_f64())
     } else if duration.as_millis() >= 1 {
         format!("{} msec", duration.as_millis())
     } else if duration.as_micros() >= 1 {
