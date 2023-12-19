@@ -69,7 +69,7 @@ This also works for fields:
 class Person {
   let @name: String
 
-  fn replace_name(new_name: String) -> String {
+  fn mut replace_name(new_name: String) -> String {
     @name := new_name
   }
 }
