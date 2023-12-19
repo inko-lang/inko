@@ -599,6 +599,7 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
         let debug_func = self.module.debug_builder.new_function(
             self.method.id.name(self.db),
             &self.names.methods[&self.method.id],
+            &self.method.id.source_file(self.db),
             line,
             self.method.id.is_private(self.db),
             false,
@@ -684,6 +685,7 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
         let debug_func = self.module.debug_builder.new_function(
             self.method.id.name(self.db),
             &self.names.methods[&self.method.id],
+            &self.method.id.source_file(self.db),
             line,
             self.method.id.is_private(self.db),
             false,

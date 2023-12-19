@@ -14,7 +14,7 @@ use types::{
     Block, BuiltinCallInfo, CallInfo, CallKind, ClassId, ClassInstance,
     Closure, ClosureCallInfo, ClosureId, ConstantKind, ConstantPatternKind,
     Database, FieldId, FieldInfo, IdentifierKind, MethodId, MethodKind,
-    MethodLookup, MethodSource, ModuleId, Receiver, Symbol, ThrowKind, TraitId,
+    MethodLookup, ModuleId, Receiver, Symbol, ThrowKind, TraitId,
     TraitInstance, TypeArguments, TypeBounds, TypeId, TypeRef, Variable,
     VariableId, CALL_METHOD, DEREF_POINTER_FIELD,
 };
@@ -333,7 +333,7 @@ impl MethodCall {
         // parameters of that trait. To ensure these are mapped to the final
         // inferred types, we have to copy them over into our temporary type
         // arguments.
-        if let MethodSource::Implementation(ins, _) = method.source(&state.db) {
+        if let Some(ins) = method.implemented_trait_instance(&state.db) {
             ins.copy_type_arguments_into(&state.db, &mut type_arguments);
         }
 

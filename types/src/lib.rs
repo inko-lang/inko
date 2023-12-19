@@ -2004,8 +2004,11 @@ pub enum MethodSource {
     /// The method is directly defined for a type.
     Direct,
 
-    /// The method is defined using a trait implementation.
-    Implementation(TraitInstance, MethodId),
+    /// The method is a default method implemented through a trait.
+    Implemented(TraitInstance, MethodId),
+
+    /// The method is a default method that was inherited by not overwriting it.
+    Inherited(TraitInstance, MethodId),
 }
 
 pub enum MethodLookup {
@@ -2391,6 +2394,49 @@ impl MethodId {
 
     pub fn is_generic(self, db: &Database) -> bool {
         self.get(db).type_parameters.len() > 0
+    }
+
+    pub fn original_method(self, db: &Database) -> Option<MethodId> {
+        match self.get(db).source {
+            MethodSource::Direct => None,
+            MethodSource::Implemented(_, v) | MethodSource::Inherited(_, v) => {
+                Some(v)
+            }
+        }
+    }
+
+    pub fn implemented_trait_instance(
+        self,
+        db: &Database,
+    ) -> Option<TraitInstance> {
+        match self.get(db).source {
+            MethodSource::Direct => None,
+            MethodSource::Implemented(v, _) | MethodSource::Inherited(v, _) => {
+                Some(v)
+            }
+        }
+    }
+
+    /// Returns the module in which the method is defined.
+    ///
+    /// For default trait methods that aren't overwritten, this returns the
+    /// module in which the trait is defined, _not_ the module in which it was
+    /// implemented.
+    pub fn source_module(self, db: &Database) -> ModuleId {
+        let m = self.get(db);
+
+        match m.source {
+            MethodSource::Direct | MethodSource::Implemented(_, _) => m.module,
+            MethodSource::Inherited(ins, _) => ins.instance_of().module(db),
+        }
+    }
+
+    /// Returns the file path in which the method is defined.
+    ///
+    /// For default trait methods that aren't overwritten, this returns the path
+    /// of the module the trait is defined in.
+    pub fn source_file(self, db: &Database) -> PathBuf {
+        self.source_module(db).file(db)
     }
 
     fn get(self, db: &Database) -> &Method {
@@ -4491,7 +4537,7 @@ mod tests {
         any, closure, generic_instance_id, generic_trait_instance, immutable,
         immutable_uni, instance, mutable, mutable_uni, new_async_class,
         new_class, new_module, new_parameter, new_trait, owned, parameter,
-        placeholder, rigid, uni,
+        placeholder, rigid, trait_instance, uni,
     };
     use std::mem::size_of;
 
@@ -4820,6 +4866,45 @@ mod tests {
             method.named_type(&db, "A"),
             Some(Symbol::TypeParameter(param))
         );
+    }
+
+    #[test]
+    fn test_method_id_file() {
+        let mut db = Database::new();
+        let mod1 = new_module(&mut db, "A");
+        let mod2 = new_module(&mut db, "B");
+        let to_foo = Trait::alloc(
+            &mut db,
+            "ToFoo".to_string(),
+            Visibility::Public,
+            mod2,
+        );
+
+        mod2.get_mut(&mut db).file = PathBuf::from("bar.inko");
+
+        let m1 = Method::alloc(
+            &mut db,
+            mod1,
+            "a".to_string(),
+            Visibility::Private,
+            MethodKind::Instance,
+        );
+
+        let m2 = Method::alloc(
+            &mut db,
+            mod1,
+            "a".to_string(),
+            Visibility::Private,
+            MethodKind::Instance,
+        );
+
+        m2.set_source(
+            &mut db,
+            MethodSource::Inherited(trait_instance(to_foo), m1),
+        );
+
+        assert_eq!(m1.source_file(&db).to_str(), Some("foo.inko"));
+        assert_eq!(m2.source_file(&db).to_str(), Some("bar.inko"));
     }
 
     #[test]

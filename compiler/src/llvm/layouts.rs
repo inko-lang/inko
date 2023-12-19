@@ -12,8 +12,8 @@ use inkwell::AddressSpace;
 use std::cmp::max;
 use std::collections::HashMap;
 use types::{
-    ClassId, Database, MethodId, MethodSource, Shape, BOOL_ID, BYTE_ARRAY_ID,
-    CALL_METHOD, DROPPER_METHOD, FLOAT_ID, INT_ID, NIL_ID, STRING_ID,
+    ClassId, Database, MethodId, Shape, BOOL_ID, BYTE_ARRAY_ID, CALL_METHOD,
+    DROPPER_METHOD, FLOAT_ID, INT_ID, NIL_ID, STRING_ID,
 };
 
 /// The size of an object header.
@@ -403,9 +403,7 @@ impl<'ctx> Layouts<'ctx> {
                 // dispatch code if we statically know one method never collides
                 // with another method in the same class.
                 if collision {
-                    if let MethodSource::Implementation(_, orig) =
-                        method.source(db)
-                    {
+                    if let Some(orig) = method.original_method(db) {
                         if let Some(calls) = mir.dynamic_calls.get(&orig) {
                             for (id, _) in calls {
                                 if let Some(layout) =

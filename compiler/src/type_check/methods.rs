@@ -1218,7 +1218,7 @@ impl<'a> ImplementTraitMethods<'a> {
                 continue;
             }
 
-            let source = MethodSource::Implementation(trait_ins, method);
+            let source = MethodSource::Inherited(trait_ins, method);
             let name = method.name(self.db()).clone();
             let module_id = class_id.module(self.db());
             let copy = method.copy_method(self.db_mut(), module_id);
@@ -1297,7 +1297,7 @@ impl<'a> ImplementTraitMethods<'a> {
         method.set_receiver(self.db_mut(), receiver);
         method.set_source(
             self.db_mut(),
-            MethodSource::Implementation(trait_instance, original),
+            MethodSource::Implemented(trait_instance, original),
         );
 
         let scope = TypeScope::with_bounds(

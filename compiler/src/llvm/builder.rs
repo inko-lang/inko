@@ -755,8 +755,7 @@ impl<'ctx> DebugBuilder<'ctx> {
 
         let file_name =
             path.file_name().and_then(|p| p.to_str()).unwrap_or("unknown");
-        let dir_name =
-            path.parent().and_then(|p| p.to_str()).unwrap_or("unknown");
+        let dir_name = path.parent().and_then(|p| p.to_str()).unwrap_or(".");
         let (inner, unit) = module.create_debug_info_builder(
             true,
             DWARFSourceLanguage::C,
@@ -797,11 +796,20 @@ impl<'ctx> DebugBuilder<'ctx> {
         &self,
         name: &str,
         mangled_name: &str,
+        path: &Path,
         line: usize,
         private: bool,
         optimised: bool,
     ) -> DISubprogram<'ctx> {
-        let file = self.unit.get_file();
+        // LLVM caches the file data so we don't have to worry about creating
+        // too many redundant files here. Of course instead of doing the obvious
+        // thing and taking _just_ a path to the file, LLVM wants us to provide
+        // a path to the directory and the file name separately. Brilliant.
+        let dir = path.parent().and_then(|p| p.to_str()).unwrap_or(".");
+        let file_name =
+            path.file_name().and_then(|p| p.to_str()).unwrap_or("unknown");
+
+        let file = self.inner.create_file(file_name, dir);
         let typ =
             self.inner.create_subroutine_type(file, None, &[], DIFlags::PUBLIC);
         let scope = self.unit.as_debug_info_scope();

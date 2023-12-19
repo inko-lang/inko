@@ -7,9 +7,8 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::mem::swap;
 use types::specialize::{ordered_shapes_from_map, TypeSpecializer};
 use types::{
-    Block as _, ClassId, ClassInstance, Database, MethodId, MethodSource,
-    Shape, TypeArguments, TypeParameterId, TypeRef, CALL_METHOD,
-    DROPPER_METHOD,
+    Block as _, ClassId, ClassInstance, Database, MethodId, Shape,
+    TypeArguments, TypeParameterId, TypeRef, CALL_METHOD, DROPPER_METHOD,
 };
 
 fn argument_shape(
@@ -1001,9 +1000,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
         method: MethodId,
         shapes: &mut HashMap<TypeParameterId, Shape>,
     ) {
-        if let MethodSource::Implementation(tins, _) =
-            method.source(&self.state.db)
-        {
+        if let Some(tins) = method.implemented_trait_instance(&self.state.db) {
             // Regular types may implement generic traits, such as Int
             // implementing Equal[Int]. The traits may provide default methods
             // that use the trait's type parameters in their signature or body

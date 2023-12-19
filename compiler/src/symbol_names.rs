@@ -15,7 +15,7 @@ pub(crate) fn method_name(db: &Database, id: MethodId) -> String {
 
 fn mangled_method_name(db: &Database, method: MethodId) -> String {
     let class = method.receiver(db).class_id(db).unwrap();
-    let mod_name = method.module(db).name(db).as_str();
+    let mod_name = method.source_module(db).name(db).as_str();
 
     // Method names include their IDs to ensure specialized methods with the
     // same name and type don't conflict with each other.
