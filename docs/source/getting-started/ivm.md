@@ -29,6 +29,17 @@ cd ivm
 makepkg -si
 ```
 
+#### Fedora
+
+Inko's [Copr repository](https://copr.fedorainfracloud.org/coprs/yorickpeterse/inko/)
+can be used to install ivm as follows:
+
+```bash
+sudo dnf install dnf-plugins-core
+sudo dnf copr enable yorickpeterse/inko
+sudo dnf install ivm
+```
+
 ### From source
 
 Clone the repository:
