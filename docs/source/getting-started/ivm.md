@@ -1,4 +1,4 @@
-# Using Inko's version manager
+# The Inko version manager
 
 Inko has its own version manager: [ivm](https://github.com/inko-lang/ivm).
 Using ivm you can install and manage multiple versions of Inko. ivm is written
@@ -10,9 +10,7 @@ ivm itself only requires Rust 1.68 or newer, but to build Inko itself you'll
 need to also meet the requirements listed in the [installation
 guide](installation.md).
 
-### Linux
-
-#### Arch Linux
+### Arch Linux
 
 ivm can be installed using the AUR using an AUR wrapper of your choice. For
 example, using [yay](https://github.com/Jguer/yay):
@@ -21,15 +19,7 @@ example, using [yay](https://github.com/Jguer/yay):
 yay -S ivm
 ```
 
-Or manually:
-
-```bash
-git clone https://aur.archlinux.org/ivm.git
-cd ivm
-makepkg -si
-```
-
-#### Fedora
+### Fedora
 
 Inko's [Copr repository](https://copr.fedorainfracloud.org/coprs/yorickpeterse/inko/)
 can be used to install ivm as follows:
