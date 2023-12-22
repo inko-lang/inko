@@ -11,7 +11,7 @@ use inkwell::types::{ArrayType, BasicType, FunctionType, StructType};
 use inkwell::values::{
     AggregateValue, ArrayValue, BasicMetadataValueEnum, BasicValue,
     BasicValueEnum, CallSiteValue, FloatValue, FunctionValue,
-    InstructionOpcode, InstructionValue, IntValue, PointerValue,
+    InstructionOpcode, IntValue, PointerValue,
 };
 use inkwell::{
     AddressSpace, AtomicOrdering, AtomicRMWBinOp, FloatPredicate, IntPredicate,
@@ -629,13 +629,6 @@ impl<'ctx> Builder<'ctx> {
         self.inner.build_bitcast(value, typ, "")
     }
 
-    pub(crate) fn before_instruction(
-        &self,
-        instruction: InstructionValue<'ctx>,
-    ) {
-        self.inner.position_before(&instruction);
-    }
-
     pub(crate) fn first_block(&self) -> BasicBlock<'ctx> {
         self.function.get_first_basic_block().unwrap()
     }
@@ -648,7 +641,7 @@ impl<'ctx> Builder<'ctx> {
         self.inner.position_at_end(block);
     }
 
-    pub(crate) fn alloca<T: BasicType<'ctx>>(
+    pub(crate) fn new_temporary<T: BasicType<'ctx>>(
         &self,
         typ: T,
     ) -> PointerValue<'ctx> {
@@ -710,12 +703,12 @@ impl<'ctx> Builder<'ctx> {
         let block = self.first_block();
 
         if let Some(ins) = block.get_first_instruction() {
-            builder.before_instruction(ins);
+            builder.inner.position_before(&ins);
         } else {
             builder.switch_to_block(block);
         }
 
-        builder.alloca(value_type)
+        builder.new_temporary(value_type)
     }
 
     pub(crate) fn debug_scope(&self) -> DIScope<'ctx> {

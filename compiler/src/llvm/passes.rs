@@ -237,7 +237,8 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
 
         builder.switch_to_block(entry_block);
 
-        let state_var = builder.alloca(self.layouts.state.ptr_type(space));
+        let state_var =
+            builder.new_temporary(self.layouts.state.ptr_type(space));
 
         builder.store(state_var, fn_val.get_nth_param(0).unwrap());
 
@@ -328,7 +329,7 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
                 let layout = self.layouts.method;
                 let hash_idx = METHOD_HASH_INDEX;
                 let func_idx = METHOD_FUNCTION_INDEX;
-                let var = builder.alloca(self.layouts.method);
+                let var = builder.new_temporary(self.layouts.method);
 
                 builder.store_field(layout, var, hash_idx, hash);
                 builder.store_field(layout, var, func_idx, func);
@@ -354,7 +355,8 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
 
         builder.switch_to_block(entry_block);
 
-        let state_var = builder.alloca(self.layouts.state.ptr_type(space));
+        let state_var =
+            builder.new_temporary(self.layouts.state.ptr_type(space));
 
         builder.store(state_var, fn_val.get_nth_param(0).unwrap());
 
@@ -499,7 +501,7 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
     ) -> BasicValueEnum<'ctx> {
         let state = builder.load_pointer(self.layouts.state, state_var);
         let bytes_typ = builder.context.i8_type().array_type(value.len() as _);
-        let bytes_var = builder.alloca(bytes_typ);
+        let bytes_var = builder.new_temporary(bytes_typ);
         let bytes = builder.string_bytes(value);
 
         builder.store(bytes_var, bytes);
@@ -2170,7 +2172,7 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
             let typ =
                 self.builder.context.llvm_type(self.db, self.layouts, raw);
 
-            self.variables.insert(id, self.builder.alloca(typ));
+            self.variables.insert(id, self.builder.new_temporary(typ));
             self.variable_types.insert(id, typ);
         }
     }
@@ -2290,8 +2292,8 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
 
         let argc_typ = self.builder.context.i32_type();
         let argv_typ = self.builder.context.i8_type().ptr_type(space);
-        let argc_var = self.builder.alloca(argc_typ);
-        let argv_var = self.builder.alloca(argv_typ);
+        let argc_var = self.builder.new_temporary(argc_typ);
+        let argv_var = self.builder.new_temporary(argv_typ);
 
         self.builder.store(argc_var, self.builder.argument(0));
         self.builder.store(argv_var, self.builder.argument(1));
@@ -2299,7 +2301,7 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
         let argc = self.builder.load(argc_typ, argc_var);
         let argv = self.builder.load(argv_typ, argv_var);
         let layout = self.layouts.method_counts;
-        let counts = self.builder.alloca(layout);
+        let counts = self.builder.new_temporary(layout);
 
         self.set_method_count(counts, ClassId::string());
         self.set_method_count(counts, ClassId::byte_array());
