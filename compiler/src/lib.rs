@@ -1,6 +1,7 @@
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::new_without_default))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::enum_variant_names))]
 
+mod codegen;
 mod diagnostics;
 mod hir;
 mod linker;

@@ -163,6 +163,8 @@ impl Target {
     /// through registers.
     ///
     /// If a struct is larger than this size, it must be passed using a pointer.
+    ///
+    /// TODO: return as _bytes_
     pub(crate) fn pass_struct_size(&self) -> u64 {
         // The exact size may differ per platform, but both amd64 and arm64 have
         // the same requirement, and those are the only platforms we support at

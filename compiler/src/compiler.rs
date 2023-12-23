@@ -1,3 +1,4 @@
+use crate::codegen;
 use crate::config::{BuildDirectories, Output};
 use crate::config::{Config, SOURCE, SOURCE_EXT, TESTS};
 use crate::hir;
@@ -360,6 +361,9 @@ Total            {total}\
                 .map_err(CompileError::Internal)?;
 
         self.timings.llvm = start.elapsed();
+
+        // TODO: use
+        codegen::passes::Lower::run_all(&self.state, directories, mir);
 
         let start = Instant::now();
 

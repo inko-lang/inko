@@ -18,6 +18,9 @@ fnv = "^1.0"
 inkwell = { version = "^0.1", features = ["llvm15-0"] }
 llvm-sys-150 = { package = "llvm-sys", version = "150.1.2", features = ["prefer-static"] }
 blake2 = "^0.10"
+cranelift-object = "^0.103"
+cranelift-frontend = "^0.103"
+cranelift-codegen = "^0.103"
 
 [dev-dependencies]
 similar-asserts = "^1.1"
