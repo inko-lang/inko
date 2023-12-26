@@ -254,7 +254,12 @@ impl TypePlaceholderId {
         self.get(db).required
     }
 
-    pub fn assign(self, db: &Database, value: TypeRef) {
+    /// Assigns the placeholder the given value, relying on interior mutability.
+    ///
+    /// This method exists so we can assign a placeholder a type during type
+    /// checking. We can't use a `&mut Database` there as doing so results in
+    /// borrowing errors.
+    pub(crate) fn assign_internal(self, db: &Database, value: TypeRef) {
         // Assigning placeholders to themselves isn't useful and results in
         // resolve() getting stuck.
         if let TypeRef::Placeholder(id) = value {
@@ -266,10 +271,29 @@ impl TypePlaceholderId {
         self.get(db).value.set(value);
     }
 
+    /// Assigns the placeholder the given value.
+    ///
+    /// This method differs from `assign_internal` in that it requires a
+    /// `&mut Database`. This is meant to be used outside of this crate and
+    /// ensures one can't concurrently modify a `TypePlaceholder`.
+    pub fn assign(self, db: &mut Database, value: TypeRef) {
+        self.assign_internal(db, value);
+    }
+
     fn get(self, db: &Database) -> &TypePlaceholder {
         &db.type_placeholders[self.id as usize]
     }
 }
+
+// TypePlaceholder uses interior mutability for storing the type assigned to a
+// placeholder, thus making it `!Sync` by default. This prevents us from
+// using a `&Database` in multiple threads, even if they never mutate a
+// `TypePlaceholder`.
+//
+// To make this possible and safe, only code in this crate can assign types
+// through a `&Database`, while code in other crates must go through
+// `TypePlaceholder::assign()`, which requires a `&mut Database`.
+unsafe impl Sync for TypePlaceholder {}
 
 /// A type parameter for a method or class.
 #[derive(Clone)]
@@ -4541,11 +4565,19 @@ mod tests {
     };
     use std::mem::size_of;
 
+    fn assert_sync<T: Sync>() {}
+
     #[test]
     fn test_type_sizes() {
         assert_eq!(size_of::<TypeId>(), 16);
         assert_eq!(size_of::<TypeRef>(), 24);
         assert_eq!(size_of::<ForeignType>(), 8);
+    }
+
+    #[test]
+    fn test_sync() {
+        assert_sync::<TypePlaceholder>();
+        assert_sync::<Database>();
     }
 
     #[test]
@@ -5220,8 +5252,8 @@ mod tests {
         let p1 = TypePlaceholder::alloc(&mut db, Some(param));
         let p2 = TypePlaceholder::alloc(&mut db, Some(param));
 
-        p1.assign(&db, TypeRef::int());
-        p2.assign(&db, TypeRef::Placeholder(p2));
+        p1.assign(&mut db, TypeRef::int());
+        p2.assign(&mut db, TypeRef::Placeholder(p2));
 
         assert_eq!(p1.value(&db), Some(TypeRef::int()));
         assert!(p2.value(&db).is_none());
@@ -5234,27 +5266,27 @@ mod tests {
         let thing = new_class(&mut db, "Thing");
 
         var.ownership = Ownership::Owned;
-        var.assign(&db, immutable(instance(thing)));
+        var.assign(&mut db, immutable(instance(thing)));
         assert_eq!(var.value(&db), Some(owned(instance(thing))));
 
         var.ownership = Ownership::Ref;
-        var.assign(&db, owned(instance(thing)));
+        var.assign(&mut db, owned(instance(thing)));
         assert_eq!(var.value(&db), Some(immutable(instance(thing))));
 
         var.ownership = Ownership::Mut;
-        var.assign(&db, owned(instance(thing)));
+        var.assign(&mut db, owned(instance(thing)));
         assert_eq!(var.value(&db), Some(mutable(instance(thing))));
 
         var.ownership = Ownership::Uni;
-        var.assign(&db, owned(instance(thing)));
+        var.assign(&mut db, owned(instance(thing)));
         assert_eq!(var.value(&db), Some(uni(instance(thing))));
 
         var.ownership = Ownership::UniRef;
-        var.assign(&db, owned(instance(thing)));
+        var.assign(&mut db, owned(instance(thing)));
         assert_eq!(var.value(&db), Some(immutable_uni(instance(thing))));
 
         var.ownership = Ownership::UniMut;
-        var.assign(&db, owned(instance(thing)));
+        var.assign(&mut db, owned(instance(thing)));
         assert_eq!(var.value(&db), Some(mutable_uni(instance(thing))));
     }
 
@@ -5265,9 +5297,9 @@ mod tests {
         let var2 = TypePlaceholder::alloc(&mut db, None);
         let var3 = TypePlaceholder::alloc(&mut db, None);
 
-        var1.assign(&db, TypeRef::int());
-        var2.assign(&db, TypeRef::Placeholder(var1));
-        var3.assign(&db, TypeRef::Placeholder(var2));
+        var1.assign(&mut db, TypeRef::int());
+        var2.assign(&mut db, TypeRef::Placeholder(var1));
+        var3.assign(&mut db, TypeRef::Placeholder(var2));
 
         assert_eq!(var1.value(&db), Some(TypeRef::int()));
         assert_eq!(var2.value(&db), Some(TypeRef::int()));
@@ -5281,7 +5313,7 @@ mod tests {
         let var = TypePlaceholder::alloc(&mut db, None);
         let param = new_parameter(&mut db, "A");
 
-        var.assign(&db, owned(instance(int)));
+        var.assign(&mut db, owned(instance(int)));
 
         assert!(owned(instance(int)).allow_as_ref(&db));
         assert!(mutable(instance(int)).allow_as_ref(&db));
@@ -5300,7 +5332,7 @@ mod tests {
         let param2 = new_parameter(&mut db, "A");
 
         param2.set_mutable(&mut db);
-        var.assign(&db, owned(instance(int)));
+        var.assign(&mut db, owned(instance(int)));
 
         assert!(owned(instance(int)).allow_as_mut(&db));
         assert!(mutable(instance(int)).allow_as_mut(&db));
@@ -5489,7 +5521,7 @@ mod tests {
         let mut shapes = HashMap::new();
 
         shapes.insert(param1, Shape::Int);
-        var.assign(&db, TypeRef::int());
+        var.assign(&mut db, TypeRef::int());
 
         assert_eq!(TypeRef::int().shape(&db, &shapes), Shape::Int);
         assert_eq!(TypeRef::float().shape(&db, &shapes), Shape::Float);

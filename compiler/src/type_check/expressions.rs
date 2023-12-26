@@ -3114,7 +3114,7 @@ impl<'a> CheckMethodBody<'a> {
                 let var = TypeRef::placeholder(self.db_mut(), None);
                 let typ = TypeRef::result_type(self.db_mut(), var, expr);
 
-                pid.assign(self.db(), typ);
+                pid.assign(self.db_mut(), typ);
             }
             ThrowKind::Result(ret_ok, ret_err) => {
                 if !TypeChecker::check_return(self.db(), throw_type, ret_err) {
@@ -4031,13 +4031,13 @@ impl<'a> CheckMethodBody<'a> {
             (ThrowKind::Option(some), ThrowKind::Infer(pid)) => {
                 let inferred = TypeRef::option_type(self.db_mut(), some);
 
-                pid.assign(self.db(), inferred);
+                pid.assign(self.db_mut(), inferred);
                 return some;
             }
             (ThrowKind::Result(ok, err), ThrowKind::Infer(pid)) => {
                 let inferred = TypeRef::result_type(self.db_mut(), ok, err);
 
-                pid.assign(self.db(), inferred);
+                pid.assign(self.db_mut(), inferred);
                 return ok;
             }
             (

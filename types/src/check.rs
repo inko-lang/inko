@@ -335,7 +335,7 @@ impl<'a> TypeChecker<'a> {
             // (where `panic` returns `Never`) is valid.
             TypeRef::Never => match right {
                 TypeRef::Placeholder(id) => {
-                    id.assign(self.db, left);
+                    id.assign_internal(self.db, left);
                     true
                 }
                 _ => true,
@@ -344,7 +344,7 @@ impl<'a> TypeChecker<'a> {
             // cascade of type errors.
             TypeRef::Error => match right {
                 TypeRef::Placeholder(id) => {
-                    id.assign(self.db, left);
+                    id.assign_internal(self.db, left);
                     true
                 }
                 _ => true,
@@ -580,7 +580,7 @@ impl<'a> TypeChecker<'a> {
                 };
 
                 if allow {
-                    left_id.assign(self.db, right);
+                    left_id.assign_internal(self.db, right);
                 }
 
                 allow
@@ -826,9 +826,9 @@ impl<'a> TypeChecker<'a> {
         // to assign `B` to `A`, not `ref A`/`mut A`.
         if left.has_ownership(self.db) && original_right.has_ownership(self.db)
         {
-            placeholder.assign(self.db, TypeRef::Owned(left_id));
+            placeholder.assign_internal(self.db, TypeRef::Owned(left_id));
         } else {
-            placeholder.assign(self.db, left);
+            placeholder.assign_internal(self.db, left);
         }
 
         let req = if let Some(req) = placeholder.required(self.db) {
@@ -865,7 +865,7 @@ impl<'a> TypeChecker<'a> {
         // errors may be confusing as they would report the left-hand side as
         // the expected value, rather than the underlying type parameter.
         if !res {
-            placeholder.assign(self.db, TypeRef::Unknown);
+            placeholder.assign_internal(self.db, TypeRef::Unknown);
         }
 
         res
@@ -1218,7 +1218,7 @@ mod tests {
         right: TypeRef,
     ) {
         check_ok(db, placeholder(left), right);
-        left.assign(db, TypeRef::Unknown);
+        left.assign_internal(db, TypeRef::Unknown);
     }
 
     #[track_caller]
@@ -1228,7 +1228,7 @@ mod tests {
         right: TypeRef,
     ) {
         check_err(db, placeholder(left), right);
-        left.assign(db, TypeRef::Unknown);
+        left.assign_internal(db, TypeRef::Unknown);
     }
 
     #[track_caller]
@@ -2330,7 +2330,7 @@ mod tests {
             owned(generic_instance_id(&mut db, array, vec![TypeRef::int()]));
         let exp = owned(generic_instance_id(&mut db, array, vec![ints]));
 
-        var.assign(&db, given);
+        var.assign(&mut db, given);
         check_err(&db, given, exp);
     }
 

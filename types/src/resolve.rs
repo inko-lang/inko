@@ -531,7 +531,7 @@ mod tests {
         let var1 = TypePlaceholder::alloc(&mut db, None);
         let var2 = TypePlaceholder::alloc(&mut db, None);
 
-        var1.assign(&db, owned(instance(string)));
+        var1.assign(&mut db, owned(instance(string)));
 
         assert_eq!(
             resolve(&mut db, &args, &bounds, placeholder(var1)),
@@ -820,7 +820,7 @@ mod tests {
         let param = new_parameter(&mut db, "A");
         let var = TypePlaceholder::alloc(&mut db, None);
 
-        var.assign(&db, owned(parameter(param)));
+        var.assign(&mut db, owned(parameter(param)));
 
         let args = type_arguments(vec![(param, placeholder(var))]);
         let bounds = TypeBounds::new();
