@@ -232,6 +232,13 @@ mod tests {
     use super::*;
     use crate::target::{Abi, Architecture, Target};
 
+    fn assert_sync<T: Sync>() {}
+
+    #[test]
+    fn test_sync() {
+        assert_sync::<State>();
+    }
+
     #[test]
     fn test_build_tags() {
         let linux = BuildTags::new(&Target {

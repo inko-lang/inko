@@ -93,9 +93,9 @@ impl Presenter for TextPresenter {
 }
 
 /// A type that presents diagnostics as JSON.
-pub(crate) struct JSONPresenter {}
+pub(crate) struct JsonPresenter {}
 
-impl JSONPresenter {
+impl JsonPresenter {
     pub(crate) fn new() -> Self {
         Self {}
     }
@@ -117,7 +117,7 @@ impl JSONPresenter {
     }
 }
 
-impl Presenter for JSONPresenter {
+impl Presenter for JsonPresenter {
     fn present(&self, diagnostics: &Diagnostics) {
         let mut entries = Vec::new();
 

@@ -1,5 +1,5 @@
 //! Configuration for the compiler.
-use crate::presenters::{JSONPresenter, Presenter, TextPresenter};
+use crate::presenters::{JsonPresenter, Presenter, TextPresenter};
 use crate::target::Target;
 use std::env;
 use std::fs::create_dir_all;
@@ -159,7 +159,7 @@ pub struct Config {
     pub opt: Opt,
 
     /// The presenter to use for displaying diagnostics.
-    pub(crate) presenter: Box<dyn Presenter>,
+    pub(crate) presenter: Box<dyn Presenter + Sync>,
 
     /// Modules to implicitly import and process.
     pub(crate) implicit_imports: Vec<ModuleName>,
@@ -223,7 +223,7 @@ impl Config {
         self.presenter = match format {
             "text" => Box::new(TextPresenter::with_colors()),
             "plain" => Box::new(TextPresenter::without_colors()),
-            "json" => Box::new(JSONPresenter::new()),
+            "json" => Box::new(JsonPresenter::new()),
             _ => return Err(format!("The presenter {:?} is invalid", format)),
         };
 
