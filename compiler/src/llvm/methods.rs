@@ -2,8 +2,7 @@ use crate::llvm::constants::{CLOSURE_CALL_INDEX, DROPPER_INDEX};
 use crate::llvm::method_hasher::MethodHasher;
 use crate::mir::Mir;
 use std::cmp::max;
-use std::collections::HashMap;
-use types::{ClassId, Database, MethodId, Shape, CALL_METHOD, DROPPER_METHOD};
+use types::{Database, MethodId, Shape, CALL_METHOD, DROPPER_METHOD};
 
 /// Method table sizes are multiplied by this value in an attempt to reduce the
 /// amount of collisions when performing dynamic dispatch.
@@ -49,6 +48,7 @@ fn hash_key(db: &Database, method: MethodId, shapes: &[Shape]) -> String {
     })
 }
 
+#[derive(Copy, Clone)]
 pub(crate) struct Method {
     /// The index of this method in the owning class' method table.
     pub(crate) index: u16,
@@ -64,16 +64,21 @@ pub(crate) struct Method {
 pub(crate) struct Methods {
     /// All methods along with their details such as their indexes and hash
     /// codes.
-    pub(crate) info: HashMap<MethodId, Method>,
+    ///
+    /// This `Vec` is indexed using `MethodId` values.
+    pub(crate) info: Vec<Method>,
 
     /// The number of method slots for each class.
-    pub(crate) counts: HashMap<ClassId, usize>,
+    ///
+    /// This `Vec` is indexed using `ClassId` values.
+    pub(crate) counts: Vec<usize>,
 }
 
 impl Methods {
     pub(crate) fn new(db: &Database, mir: &Mir) -> Methods {
-        let mut info = HashMap::with_capacity(mir.methods.len());
-        let mut counts = HashMap::with_capacity(mir.classes.len());
+        let dummy_method = Method { index: 0, hash: 0, collision: false };
+        let mut info = vec![dummy_method; db.number_of_methods()];
+        let mut counts = vec![0; db.number_of_classes()];
         let mut method_hasher = MethodHasher::new();
 
         // This information is defined first so we can update the `collision`
@@ -82,10 +87,8 @@ impl Methods {
             for (method, shapes) in calls {
                 let hash = method_hasher.hash(hash_key(db, *method, shapes));
 
-                info.insert(
-                    *method,
-                    Method { index: 0, hash, collision: false },
-                );
+                info[method.0 as usize] =
+                    Method { index: 0, hash, collision: false };
             }
         }
 
@@ -98,7 +101,7 @@ impl Methods {
                 METHOD_TABLE_MIN_SIZE,
             );
 
-            counts.insert(id, methods_len);
+            counts[id.0 as usize] = methods_len;
 
             let mut buckets = vec![false; methods_len];
             let max_bucket = methods_len.saturating_sub(1);
@@ -154,18 +157,14 @@ impl Methods {
                     if let Some(orig) = method.original_method(db) {
                         if let Some(calls) = mir.dynamic_calls.get(&orig) {
                             for (id, _) in calls {
-                                if let Some(m) = info.get_mut(id) {
-                                    m.collision = true;
-                                }
+                                info[id.0 as usize].collision = true;
                             }
                         }
                     }
                 }
 
-                info.insert(
-                    method,
-                    Method { index: index as u16, hash, collision },
-                );
+                info[method.0 as usize] =
+                    Method { index: index as u16, hash, collision };
             }
         }
 

@@ -154,7 +154,7 @@ impl TypePlaceholder {
         db: &mut Database,
         required: Option<TypeParameterId>,
     ) -> TypePlaceholderId {
-        assert!(db.type_placeholders.len() <= u32::MAX as usize);
+        assert!(db.type_placeholders.len() < u32::MAX as usize);
 
         let id = db.type_placeholders.len() as u32;
         let typ =
@@ -558,7 +558,7 @@ impl Trait {
         visibility: Visibility,
         module: ModuleId,
     ) -> TraitId {
-        assert!(db.traits.len() <= u32::MAX as usize);
+        assert!(db.traits.len() < u32::MAX as usize);
 
         let id = db.traits.len() as u32;
         let trait_type = Trait::new(name, visibility, module);
@@ -776,7 +776,7 @@ impl TraitInstance {
         instance_of: TraitId,
         arguments: TypeArguments,
     ) -> Self {
-        assert!(db.type_arguments.len() <= u32::MAX as usize);
+        assert!(db.type_arguments.len() < u32::MAX as usize);
 
         let type_args_id = db.type_arguments.len() as u32;
 
@@ -1126,7 +1126,7 @@ impl Class {
         visibility: Visibility,
         module: ModuleId,
     ) -> ClassId {
-        assert!(db.classes.len() <= u32::MAX as usize);
+        assert!(db.classes.len() < u32::MAX as usize);
 
         let id = db.classes.len() as u32;
         let class = Class::new(name, kind, visibility, module);
@@ -1595,7 +1595,7 @@ impl ClassInstance {
         instance_of: ClassId,
         arguments: TypeArguments,
     ) -> Self {
-        assert!(db.type_arguments.len() <= u32::MAX as usize);
+        assert!(db.type_arguments.len() < u32::MAX as usize);
 
         let args_id = db.type_arguments.len() as u32;
 
@@ -2096,6 +2096,8 @@ impl Method {
         visibility: Visibility,
         kind: MethodKind,
     ) -> MethodId {
+        assert!(db.methods.len() < u32::MAX as usize);
+
         let id = db.methods.len();
         let method = Method {
             module,
@@ -2116,12 +2118,12 @@ impl Method {
         };
 
         db.methods.push(method);
-        MethodId(id)
+        MethodId(id as _)
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
-pub struct MethodId(pub usize);
+pub struct MethodId(pub u32);
 
 impl MethodId {
     pub fn named_type(self, db: &Database, name: &str) -> Option<Symbol> {
@@ -2265,6 +2267,13 @@ impl MethodId {
         self.get(db).arguments.mapping.values().clone()
     }
 
+    pub fn argument_types(
+        self,
+        db: &Database,
+    ) -> impl Iterator<Item = &TypeRef> {
+        self.get(db).arguments.mapping.values().iter().map(|a| &a.value_type)
+    }
+
     pub fn update_argument_types(
         self,
         db: &mut Database,
@@ -2291,12 +2300,14 @@ impl MethodId {
     }
 
     pub fn copy_method(self, db: &mut Database, module: ModuleId) -> MethodId {
+        assert!(db.methods.len() < u32::MAX as usize);
+
         let mut copy = self.get(db).clone();
         let id = db.methods.len();
 
         copy.module = module;
         db.methods.push(copy);
-        MethodId(id)
+        MethodId(id as _)
     }
 
     pub fn mark_as_destructor(self, db: &mut Database) {
@@ -2464,11 +2475,11 @@ impl MethodId {
     }
 
     fn get(self, db: &Database) -> &Method {
-        &db.methods[self.0]
+        &db.methods[self.0 as usize]
     }
 
     fn get_mut(self, db: &mut Database) -> &mut Method {
-        &mut db.methods[self.0]
+        &mut db.methods[self.0 as usize]
     }
 }
 
@@ -2713,7 +2724,7 @@ impl Module {
         name: ModuleName,
         file: PathBuf,
     ) -> ModuleId {
-        assert!(db.modules.len() <= u32::MAX as usize);
+        assert!(db.modules.len() < u32::MAX as usize);
 
         let id = ModuleId(db.modules.len() as u32);
         let class_id = Class::alloc(

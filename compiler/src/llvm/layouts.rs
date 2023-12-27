@@ -7,15 +7,12 @@ use inkwell::types::{
     BasicMetadataTypeEnum, BasicType, FunctionType, StructType,
 };
 use inkwell::AddressSpace;
-use std::collections::HashMap;
-use types::{
-    ClassId, MethodId, BOOL_ID, BYTE_ARRAY_ID, FLOAT_ID, INT_ID, NIL_ID,
-    STRING_ID,
-};
+use types::{BOOL_ID, BYTE_ARRAY_ID, FLOAT_ID, INT_ID, NIL_ID, STRING_ID};
 
 /// The size of an object header.
 const HEADER_SIZE: u32 = 16;
 
+#[derive(Copy, Clone)]
 pub(crate) struct Method<'ctx> {
     pub(crate) signature: FunctionType<'ctx>,
 
@@ -39,10 +36,14 @@ pub(crate) struct Layouts<'ctx> {
     pub(crate) method: StructType<'ctx>,
 
     /// All MIR classes and their corresponding structure layouts.
-    pub(crate) classes: HashMap<ClassId, StructType<'ctx>>,
+    ///
+    /// This `Vec` is indexed using `ClassId` values.
+    pub(crate) classes: Vec<StructType<'ctx>>,
 
     /// The structure layouts for all class instances.
-    pub(crate) instances: HashMap<ClassId, StructType<'ctx>>,
+    ///
+    /// This `Vec` is indexed using `ClassId` values.
+    pub(crate) instances: Vec<StructType<'ctx>>,
 
     /// The structure layout of the runtime's `State` type.
     pub(crate) state: StructType<'ctx>,
@@ -58,7 +59,9 @@ pub(crate) struct Layouts<'ctx> {
     pub(crate) method_counts: StructType<'ctx>,
 
     /// Type information of all the defined methods.
-    pub(crate) methods: HashMap<MethodId, Method<'ctx>>,
+    ///
+    /// This `Vec` is indexed using `MethodId` values.
+    pub(crate) methods: Vec<Method<'ctx>>,
 
     /// The layout of messages sent to processes.
     pub(crate) message: StructType<'ctx>,
@@ -73,8 +76,17 @@ impl<'ctx> Layouts<'ctx> {
     ) -> Self {
         let db = &state.db;
         let space = AddressSpace::default();
-        let mut class_layouts = HashMap::new();
-        let mut instance_layouts = HashMap::new();
+        let empty_struct = context.struct_type(&[]);
+        let num_classes = db.number_of_classes();
+
+        // Instead of using a HashMap, we use a Vec that's indexed using a
+        // ClassId. This works since class IDs are sequential numbers starting
+        // at zero.
+        //
+        // This may over-allocate the number of classes, depending on how many
+        // are removed through optimizations, but at worst we'd waste a few KiB.
+        let mut classes = vec![empty_struct; num_classes];
+        let mut instances = vec![empty_struct; num_classes];
         let header = context.struct_type(&[
             context.pointer_type().into(), // Class
             context.i32_type().into(),     // References
@@ -117,55 +129,52 @@ impl<'ctx> Layouts<'ctx> {
         // refer to them, regardless of the order in which methods/classes are
         // defined.
         for &id in mir.classes.keys() {
-            let name =
-                format!("{}.{}", id.module(db).name(db).as_str(), id.name(db));
-
-            let class = context.class_type(&format!("{}.class", name), method);
-
             let instance = match id.0 {
-                INT_ID => context.builtin_type(
-                    &name,
-                    header,
-                    context.i64_type().into(),
-                ),
-                FLOAT_ID => context.builtin_type(
-                    &name,
-                    header,
-                    context.f64_type().into(),
-                ),
+                INT_ID => {
+                    context.builtin_type(header, context.i64_type().into())
+                }
+                FLOAT_ID => {
+                    context.builtin_type(header, context.f64_type().into())
+                }
                 BOOL_ID | NIL_ID => {
-                    let typ = context.opaque_struct(&name);
+                    let typ = context.opaque_struct("");
 
                     typ.set_body(&[header.into()], false);
                     typ
                 }
-                BYTE_ARRAY_ID => context.builtin_type(
-                    &name,
-                    header,
-                    context.rust_vec_type().into(),
-                ),
+                BYTE_ARRAY_ID => {
+                    context.builtin_type(header, context.rust_vec_type().into())
+                }
                 _ => {
-                    // First we forward-declare the structures, as fields
-                    // may need to refer to other classes regardless of
-                    // ordering.
-                    context.opaque_struct(&name)
+                    // First we forward-declare the structures, as fields may
+                    // need to refer to other classes regardless of ordering.
+                    context.opaque_struct("")
                 }
             };
 
-            class_layouts.insert(id, class);
-            instance_layouts.insert(id, instance);
+            classes[id.0 as usize] = context.class_type(method);
+            instances[id.0 as usize] = instance;
         }
 
+        // This may over-allocate if many methods are removed through
+        // optimizations, but that's OK as in the worst case we just waste a few
+        // KiB.
+        let num_methods = db.number_of_methods();
+        let dummy_method = Method {
+            signature: context.void_type().fn_type(&[], false),
+            struct_return: None,
+        };
+
         let mut layouts = Self {
-            empty_class: context.class_type("", method),
+            empty_class: context.class_type(method),
             method,
-            classes: class_layouts,
-            instances: instance_layouts,
+            classes,
+            instances,
             state: state_layout,
             header,
             context: context_layout,
             method_counts: method_counts_layout,
-            methods: HashMap::new(),
+            methods: vec![dummy_method; num_methods],
             message: message_layout,
         };
 
@@ -195,19 +204,23 @@ impl<'ctx> Layouts<'ctx> {
                 continue;
             }
 
-            let layout = layouts.instances[id];
+            let layout = layouts.instances[id.0 as usize];
             let kind = id.kind(db);
-            let mut fields = Vec::new();
+            let fields = id.fields(db);
+
+            // We add 1 to account for the header that almost all classes
+            // processed here will have.
+            let mut types = Vec::with_capacity(fields.len() + 1);
 
             if kind.is_extern() {
-                for field in id.fields(db) {
+                for field in fields {
                     let typ =
                         context.llvm_type(db, &layouts, field.value_type(db));
 
-                    fields.push(typ);
+                    types.push(typ);
                 }
             } else {
-                fields.push(header.into());
+                types.push(header.into());
 
                 // For processes, the memory layout is as follows:
                 //
@@ -221,8 +234,8 @@ impl<'ctx> Layouts<'ctx> {
                 //     |    user-defined fields   |
                 //     +--------------------------+
                 if kind.is_async() {
-                    fields.push(context.i32_type().into());
-                    fields.push(
+                    types.push(context.i32_type().into());
+                    types.push(
                         context
                             .i8_type()
                             .array_type(process_private_size)
@@ -230,15 +243,15 @@ impl<'ctx> Layouts<'ctx> {
                     );
                 }
 
-                for field in id.fields(db) {
+                for field in fields {
                     let typ =
                         context.llvm_type(db, &layouts, field.value_type(db));
 
-                    fields.push(typ);
+                    types.push(typ);
                 }
             }
 
-            layout.set_body(&fields, false);
+            layout.set_body(&types, false);
         }
 
         for calls in mir.dynamic_calls.values() {
@@ -249,10 +262,8 @@ impl<'ctx> Layouts<'ctx> {
                     context.pointer_type().into(),       // Receiver
                 ];
 
-                for arg in method.arguments(db) {
-                    args.push(
-                        context.llvm_type(db, &layouts, arg.value_type).into(),
-                    );
+                for &typ in method.argument_types(db) {
+                    args.push(context.llvm_type(db, &layouts, typ).into());
                 }
 
                 let signature = context
@@ -262,9 +273,8 @@ impl<'ctx> Layouts<'ctx> {
                         context.void_type().fn_type(&args, false)
                     });
 
-                layouts
-                    .methods
-                    .insert(*method, Method { signature, struct_return: None });
+                layouts.methods[method.0 as usize] =
+                    Method { signature, struct_return: None };
             }
         }
 
@@ -296,12 +306,8 @@ impl<'ctx> Layouts<'ctx> {
                         );
                     }
 
-                    for arg in method.arguments(db) {
-                        args.push(
-                            context
-                                .llvm_type(db, &layouts, arg.value_type)
-                                .into(),
-                        );
+                    for &typ in method.argument_types(db) {
+                        args.push(context.llvm_type(db, &layouts, typ).into());
                     }
 
                     context
@@ -312,10 +318,8 @@ impl<'ctx> Layouts<'ctx> {
                         })
                 };
 
-                layouts.methods.insert(
-                    method,
-                    Method { signature: typ, struct_return: None },
-                );
+                layouts.methods[method.0 as usize] =
+                    Method { signature: typ, struct_return: None };
             }
         }
 
@@ -325,10 +329,8 @@ impl<'ctx> Layouts<'ctx> {
                 context.pointer_type().into(),       // Process
             ];
 
-            for arg in method.arguments(db) {
-                args.push(
-                    context.llvm_type(db, &layouts, arg.value_type).into(),
-                );
+            for &typ in method.argument_types(db) {
+                args.push(context.llvm_type(db, &layouts, typ).into());
             }
 
             let typ = context
@@ -336,9 +338,8 @@ impl<'ctx> Layouts<'ctx> {
                 .map(|t| t.fn_type(&args, false))
                 .unwrap_or_else(|| context.void_type().fn_type(&args, false));
 
-            layouts
-                .methods
-                .insert(method, Method { signature: typ, struct_return: None });
+            layouts.methods[method.0 as usize] =
+                Method { signature: typ, struct_return: None };
         }
 
         for &method in &mir.extern_methods {
@@ -376,10 +377,8 @@ impl<'ctx> Layouts<'ctx> {
                 }
             }
 
-            for arg in method.arguments(db) {
-                args.push(
-                    context.llvm_type(db, &layouts, arg.value_type).into(),
-                );
+            for &typ in method.argument_types(db) {
+                args.push(context.llvm_type(db, &layouts, typ).into());
             }
 
             let variadic = method.is_variadic(db);
@@ -388,9 +387,8 @@ impl<'ctx> Layouts<'ctx> {
                     context.void_type().fn_type(&args, variadic)
                 });
 
-            layouts
-                .methods
-                .insert(method, Method { signature: sig, struct_return: sret });
+            layouts.methods[method.0 as usize] =
+                Method { signature: sig, struct_return: sret };
         }
 
         layouts

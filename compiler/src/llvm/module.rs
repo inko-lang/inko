@@ -91,7 +91,7 @@ impl<'a, 'ctx> Module<'a, 'ctx> {
     ) -> GlobalValue<'ctx> {
         self.inner.get_global(name).unwrap_or_else(|| {
             let space = AddressSpace::default();
-            let typ = self.layouts.classes[&id].ptr_type(space);
+            let typ = self.layouts.classes[id.0 as usize].ptr_type(space);
 
             self.inner.add_global(typ, Some(space), name)
         })
@@ -103,7 +103,7 @@ impl<'a, 'ctx> Module<'a, 'ctx> {
         method: MethodId,
     ) -> FunctionValue<'ctx> {
         self.inner.get_function(name).unwrap_or_else(|| {
-            let info = &self.layouts.methods[&method];
+            let info = &self.layouts.methods[method.0 as usize];
             let func = self.inner.add_function(name, info.signature, None);
 
             if let Some(typ) = info.struct_return {

@@ -259,7 +259,7 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
             let methods_len = self
                 .context
                 .i16_type()
-                .const_int(self.methods.counts[&class_id] as _, false)
+                .const_int(self.methods.counts[class_id.0 as usize] as _, false)
                 .into();
 
             let class_new = if class_id.kind(self.db).is_async() {
@@ -268,7 +268,7 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
                 self.module.runtime_function(RuntimeFunction::ClassObject)
             };
 
-            let layout = self.layouts.classes[&class_id];
+            let layout = self.layouts.classes[class_id.0 as usize];
             let global_name = &self.names.classes[&class_id];
             let global = self.module.add_class(class_id, global_name);
 
@@ -291,7 +291,9 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
                     .into_pointer_value(),
                 _ => {
                     let size = builder.int_to_int(
-                        self.layouts.instances[&class_id].size_of().unwrap(),
+                        self.layouts.instances[class_id.0 as usize]
+                            .size_of()
+                            .unwrap(),
                         32,
                         false,
                     );
@@ -309,7 +311,7 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
                     continue;
                 }
 
-                let info = &self.methods.info[method];
+                let info = &self.methods.info[method.0 as usize];
                 let name = &self.names.methods[method];
                 let func = self
                     .module
@@ -448,7 +450,7 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
                 let class_id =
                     ClassId::array().specializations(self.db)[&vec![shape]];
 
-                let layout = self.layouts.instances[&class_id];
+                let layout = self.layouts.instances[class_id.0 as usize];
                 let class_name = &self.names.classes[&class_id];
                 let class_global = self
                     .module
@@ -1392,7 +1394,7 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                     Vec::with_capacity(ins.arguments.len() + 1);
 
                 let sret = if let Some(typ) =
-                    self.layouts.methods[&ins.method].struct_return
+                    self.layouts.methods[ins.method.0 as usize].struct_return
                 {
                     let var = self.builder.new_stack_slot(typ);
 
@@ -1487,8 +1489,10 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                 let rec_var = self.variables[&ins.receiver];
                 let rec_typ = self.variable_types[&ins.receiver];
                 let rec = self.builder.load(rec_typ, rec_var);
-                let info = &self.methods.info[&ins.method];
-                let fn_typ = self.layouts.methods[&ins.method].signature;
+                let info = &self.methods.info[ins.method.0 as usize];
+                let fn_typ =
+                    self.layouts.methods[ins.method.0 as usize].signature;
+
                 let rec_class = self
                     .builder
                     .load_field(
@@ -1785,7 +1789,7 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                 let reg_var = self.variables[&ins.register];
                 let rec_var = self.variables[&ins.receiver];
                 let rec_typ = self.variable_types[&ins.receiver];
-                let layout = self.layouts.instances[&ins.class];
+                let layout = self.layouts.instances[ins.class.0 as usize];
                 let index = ins.field.index(self.db) as u32;
                 let field = if rec_typ.is_pointer_type() {
                     let rec = self
@@ -1809,7 +1813,7 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                 let rec_var = self.variables[&ins.receiver];
                 let rec_typ = self.variable_types[&ins.receiver];
                 let val_var = self.variables[&ins.value];
-                let layout = self.layouts.instances[&ins.class];
+                let layout = self.layouts.instances[ins.class.0 as usize];
                 let index = ins.field.index(self.db) as u32;
                 let val_typ = self.variable_types[&ins.value];
                 let val = self.builder.load(val_typ, val_var);
@@ -1836,7 +1840,7 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                 };
 
                 let index = (base + ins.field.index(self.db)) as u32;
-                let layout = self.layouts.instances[&ins.class];
+                let layout = self.layouts.instances[ins.class.0 as usize];
                 let rec = self.builder.load(rec_typ, rec_var);
                 let field = self.builder.load_field(
                     layout,
@@ -1857,7 +1861,7 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                 };
 
                 let index = (base + ins.field.index(self.db)) as u32;
-                let layout = self.layouts.instances[&ins.class];
+                let layout = self.layouts.instances[ins.class.0 as usize];
                 let rec = self.builder.load(rec_typ, rec_var);
                 let addr = self.builder.field_address(
                     layout,
@@ -1880,7 +1884,7 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
 
                 let index = (base + ins.field.index(self.db)) as u32;
                 let val = self.builder.load(val_typ, val_var);
-                let layout = self.layouts.instances[&ins.class];
+                let layout = self.layouts.instances[ins.class.0 as usize];
                 let rec = self.builder.load(rec_typ, rec_var);
 
                 self.builder.store_field(
@@ -2017,8 +2021,8 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                 // we don't care which one as the epoch is in a fixed place, we
                 // just use the layout of the main class, which is a process and
                 // is always present at this point.
-                let layout =
-                    self.layouts.instances[&self.db.main_class().unwrap()];
+                let layout = self.layouts.instances
+                    [self.db.main_class().unwrap().0 as usize];
 
                 let state_epoch_addr = self.builder.field_address(
                     self.layouts.state,
@@ -2385,7 +2389,7 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
             .module
             .context
             .i16_type()
-            .const_int(self.methods.counts[&class] as _, false);
+            .const_int(self.methods.counts[class.0 as usize] as _, false);
 
         self.builder.store_field(layout, counts, class.0, count);
     }

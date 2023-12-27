@@ -98,11 +98,10 @@ impl Context {
 
     pub(crate) fn class_type<'a>(
         &'a self,
-        name: &str,
         method_type: StructType<'a>,
     ) -> StructType<'a> {
         let name_type = self.rust_string_type();
-        let class_type = self.inner.opaque_struct_type(name);
+        let class_type = self.inner.opaque_struct_type("");
 
         class_type.set_body(
             &[
@@ -126,11 +125,10 @@ impl Context {
     /// with only a single value field).
     pub(crate) fn builtin_type<'a>(
         &'a self,
-        name: &str,
         header: StructType<'a>,
         value: BasicTypeEnum,
     ) -> StructType<'a> {
-        let typ = self.opaque_struct(name);
+        let typ = self.opaque_struct("");
 
         typ.set_body(&[header.into(), value], false);
         typ
@@ -157,50 +155,54 @@ impl Context {
         layouts: &Layouts<'a>,
         type_ref: TypeRef,
     ) -> BasicTypeEnum<'a> {
-        if let Ok(id) = type_ref.type_id(db) {
-            let base = match id {
-                TypeId::Foreign(ForeignType::Int(8, _)) => {
-                    self.i8_type().as_basic_type_enum()
-                }
-                TypeId::Foreign(ForeignType::Int(16, _)) => {
-                    self.i16_type().as_basic_type_enum()
-                }
-                TypeId::Foreign(ForeignType::Int(32, _)) => {
-                    self.i32_type().as_basic_type_enum()
-                }
-                TypeId::Foreign(ForeignType::Int(_, _)) => {
-                    self.i64_type().as_basic_type_enum()
-                }
-                TypeId::Foreign(ForeignType::Float(32)) => {
-                    self.f32_type().as_basic_type_enum()
-                }
-                TypeId::Foreign(ForeignType::Float(_)) => {
-                    self.f64_type().as_basic_type_enum()
-                }
-                TypeId::ClassInstance(ins)
-                    if ins.instance_of().kind(db).is_extern() =>
-                {
-                    layouts.instances[&ins.instance_of()].as_basic_type_enum()
-                }
-                TypeId::ClassInstance(ins) => match ins.instance_of().0 {
-                    INT_ID | BOOL_ID | NIL_ID => {
-                        self.i64_type().as_basic_type_enum()
-                    }
-                    FLOAT_ID => self.f64_type().as_basic_type_enum(),
-                    _ => layouts.instances[&ins.instance_of()]
-                        .ptr_type(AddressSpace::default())
-                        .as_basic_type_enum(),
-                },
-                _ => self.pointer_type().as_basic_type_enum(),
-            };
+        let Ok(id) = type_ref.type_id(db) else {
+            return self.pointer_type().as_basic_type_enum();
+        };
 
-            if let TypeRef::Pointer(_) = type_ref {
-                base.ptr_type(AddressSpace::default()).as_basic_type_enum()
-            } else {
-                base
+        let base = match id {
+            TypeId::Foreign(ForeignType::Int(8, _)) => {
+                self.i8_type().as_basic_type_enum()
             }
+            TypeId::Foreign(ForeignType::Int(16, _)) => {
+                self.i16_type().as_basic_type_enum()
+            }
+            TypeId::Foreign(ForeignType::Int(32, _)) => {
+                self.i32_type().as_basic_type_enum()
+            }
+            TypeId::Foreign(ForeignType::Int(_, _)) => {
+                self.i64_type().as_basic_type_enum()
+            }
+            TypeId::Foreign(ForeignType::Float(32)) => {
+                self.f32_type().as_basic_type_enum()
+            }
+            TypeId::Foreign(ForeignType::Float(_)) => {
+                self.f64_type().as_basic_type_enum()
+            }
+            TypeId::ClassInstance(ins) => {
+                let cls = ins.instance_of();
+
+                if cls.kind(db).is_extern() {
+                    layouts.instances[ins.instance_of().0 as usize]
+                        .as_basic_type_enum()
+                } else {
+                    match cls.0 {
+                        INT_ID | BOOL_ID | NIL_ID => {
+                            self.i64_type().as_basic_type_enum()
+                        }
+                        FLOAT_ID => self.f64_type().as_basic_type_enum(),
+                        _ => layouts.instances[ins.instance_of().0 as usize]
+                            .ptr_type(AddressSpace::default())
+                            .as_basic_type_enum(),
+                    }
+                }
+            }
+            _ => self.pointer_type().as_basic_type_enum(),
+        };
+
+        if let TypeRef::Pointer(_) = type_ref {
+            base.ptr_type(AddressSpace::default()).as_basic_type_enum()
         } else {
-            self.pointer_type().as_basic_type_enum()
+            base
         }
     }
 
