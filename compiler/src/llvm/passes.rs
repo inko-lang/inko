@@ -10,6 +10,7 @@ use crate::llvm::constants::{
 };
 use crate::llvm::context::Context;
 use crate::llvm::layouts::Layouts;
+use crate::llvm::methods::Methods;
 use crate::llvm::module::Module;
 use crate::llvm::runtime_function::RuntimeFunction;
 use crate::mir::{
@@ -48,6 +49,7 @@ pub(crate) struct Compile<'a, 'b, 'ctx> {
     mir: &'a Mir,
     module_index: usize,
     layouts: &'a Layouts<'ctx>,
+    methods: &'a Methods,
     names: &'a SymbolNames,
     context: &'ctx Context,
     module: &'b mut Module<'a, 'ctx>,
@@ -98,7 +100,8 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
             .unwrap();
 
         let context = Context::new();
-        let types = Layouts::new(
+        let methods = Methods::new(&state.db, mir);
+        let layouts = Layouts::new(
             state,
             mir,
             &context,
@@ -112,7 +115,7 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
             let mod_id = mir.modules[module_index].id;
             let name = mod_id.name(&state.db).clone();
             let path = mod_id.file(&state.db);
-            let mut module = Module::new(&context, &types, name, &path);
+            let mut module = Module::new(&context, &layouts, name, &path);
 
             Compile {
                 db: &state.db,
@@ -121,7 +124,8 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
                 names: &names,
                 context: &context,
                 module: &mut module,
-                layouts: &types,
+                layouts: &layouts,
+                methods: &methods,
             }
             .run();
 
@@ -130,7 +134,7 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
 
         let main_module = Module::new(
             &context,
-            &types,
+            &layouts,
             ModuleName::new("$main"),
             Path::new("$main.inko"),
         );
@@ -138,9 +142,9 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
         GenerateMain::new(
             &state.db,
             mir,
-            &types,
+            &layouts,
+            &methods,
             &names,
-            &context,
             &main_module,
         )
         .run();
@@ -214,7 +218,7 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
                 self.db,
                 self.mir,
                 self.layouts,
-                self.context,
+                self.methods,
                 self.names,
                 self.module,
                 &self.mir.methods[method],
@@ -255,10 +259,7 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
             let methods_len = self
                 .context
                 .i16_type()
-                .const_int(
-                    (self.layouts.methods(class_id) as usize) as _,
-                    false,
-                )
+                .const_int(self.methods.counts[&class_id] as _, false)
                 .into();
 
             let class_new = if class_id.kind(self.db).is_async() {
@@ -308,7 +309,7 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
                     continue;
                 }
 
-                let info = &self.layouts.methods[method];
+                let info = &self.methods.info[method];
                 let name = &self.names.methods[method];
                 let func = self
                     .module
@@ -518,6 +519,7 @@ pub struct LowerMethod<'a, 'b, 'ctx> {
     db: &'a Database,
     mir: &'a Mir,
     layouts: &'a Layouts<'ctx>,
+    methods: &'a Methods,
 
     /// The MIR method that we're lowering to LLVM.
     method: &'b Method,
@@ -545,18 +547,19 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
         db: &'a Database,
         mir: &'a Mir,
         layouts: &'a Layouts<'ctx>,
-        context: &'ctx Context,
+        methods: &'a Methods,
         names: &'a SymbolNames,
         module: &'b mut Module<'a, 'ctx>,
         method: &'b Method,
     ) -> Self {
         let function = module.add_method(&names.methods[&method.id], method.id);
-        let builder = Builder::new(context, function);
+        let builder = Builder::new(module.context, function);
 
         LowerMethod {
             db,
             mir,
             layouts,
+            methods,
             method,
             names,
             module,
@@ -1484,7 +1487,8 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                 let rec_var = self.variables[&ins.receiver];
                 let rec_typ = self.variable_types[&ins.receiver];
                 let rec = self.builder.load(rec_typ, rec_var);
-                let info = &self.layouts.methods[&ins.method];
+                let info = &self.methods.info[&ins.method];
+                let fn_typ = self.layouts.methods[&ins.method].signature;
                 let rec_class = self
                     .builder
                     .load_field(
@@ -1517,7 +1521,6 @@ impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
                 self.builder.store(idx_var, hash);
 
                 let space = AddressSpace::default();
-                let fn_typ = info.signature;
                 let fn_var =
                     self.builder.new_stack_slot(fn_typ.ptr_type(space));
 
@@ -2255,8 +2258,8 @@ pub(crate) struct GenerateMain<'a, 'ctx> {
     db: &'a Database,
     mir: &'a Mir,
     layouts: &'a Layouts<'ctx>,
+    methods: &'a Methods,
     names: &'a SymbolNames,
-    context: &'ctx Context,
     module: &'a Module<'a, 'ctx>,
     builder: Builder<'ctx>,
 }
@@ -2266,22 +2269,22 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
         db: &'a Database,
         mir: &'a Mir,
         layouts: &'a Layouts<'ctx>,
+        methods: &'a Methods,
         names: &'a SymbolNames,
-        context: &'ctx Context,
         module: &'a Module<'a, 'ctx>,
     ) -> GenerateMain<'a, 'ctx> {
         let space = AddressSpace::default();
-        let typ = context.i32_type().fn_type(
+        let typ = module.context.i32_type().fn_type(
             &[
-                context.i32_type().into(),
-                context.i8_type().ptr_type(space).into(),
+                module.context.i32_type().into(),
+                module.context.i8_type().ptr_type(space).into(),
             ],
             false,
         );
         let function = module.add_function("main", typ, None);
-        let builder = Builder::new(context, function);
+        let builder = Builder::new(module.context, function);
 
-        GenerateMain { db, mir, layouts, names, context, module, builder }
+        GenerateMain { db, mir, layouts, methods, names, module, builder }
     }
 
     fn run(self) {
@@ -2349,7 +2352,7 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
             .module
             .add_function(
                 &self.names.methods[&main_method_id],
-                self.context.void_type().fn_type(
+                self.module.context.void_type().fn_type(
                     &[self.layouts.context.ptr_type(space).into()],
                     false,
                 ),
@@ -2376,13 +2379,14 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
         self.builder.return_value(Some(&self.builder.u32_literal(0)));
     }
 
-    fn methods(&self, id: ClassId) -> IntValue<'ctx> {
-        self.context.i16_type().const_int(self.layouts.methods(id) as _, false)
-    }
-
     fn set_method_count(&self, counts: PointerValue<'ctx>, class: ClassId) {
         let layout = self.layouts.method_counts;
+        let count = self
+            .module
+            .context
+            .i16_type()
+            .const_int(self.methods.counts[&class] as _, false);
 
-        self.builder.store_field(layout, counts, class.0, self.methods(class));
+        self.builder.store_field(layout, counts, class.0, count);
     }
 }

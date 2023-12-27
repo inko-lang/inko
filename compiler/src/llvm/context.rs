@@ -98,7 +98,6 @@ impl Context {
 
     pub(crate) fn class_type<'a>(
         &'a self,
-        methods: usize,
         name: &str,
         method_type: StructType<'a>,
     ) -> StructType<'a> {
@@ -115,10 +114,8 @@ impl Context {
                 self.inner.i16_type().into(),
                 // The method table entries. We use an array instead of one
                 // field per method, as this allows us to generate indexes
-                // (using `getelementptr`) that are out of bounds. This is
-                // necessary for dynamic dispatch as we don't statically know
-                // the number of methods a receiver's class has.
-                method_type.array_type(methods as _).into(),
+                // (using `getelementptr`) that are out of bounds.
+                method_type.array_type(0).into(),
             ],
             false,
         );

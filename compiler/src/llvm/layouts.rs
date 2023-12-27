@@ -1,6 +1,4 @@
-use crate::llvm::constants::{CLOSURE_CALL_INDEX, DROPPER_INDEX};
 use crate::llvm::context::Context;
-use crate::llvm::method_hasher::MethodHasher;
 use crate::mir::Mir;
 use crate::state::State;
 use crate::target::OperatingSystem;
@@ -9,64 +7,16 @@ use inkwell::types::{
     BasicMetadataTypeEnum, BasicType, FunctionType, StructType,
 };
 use inkwell::AddressSpace;
-use std::cmp::max;
 use std::collections::HashMap;
 use types::{
-    ClassId, Database, MethodId, Shape, BOOL_ID, BYTE_ARRAY_ID, CALL_METHOD,
-    DROPPER_METHOD, FLOAT_ID, INT_ID, NIL_ID, STRING_ID,
+    ClassId, MethodId, BOOL_ID, BYTE_ARRAY_ID, FLOAT_ID, INT_ID, NIL_ID,
+    STRING_ID,
 };
 
 /// The size of an object header.
 const HEADER_SIZE: u32 = 16;
 
-/// Method table sizes are multiplied by this value in an attempt to reduce the
-/// amount of collisions when performing dynamic dispatch.
-///
-/// While this increases the amount of memory needed per method table, it's not
-/// really significant: each slot only takes up one word of memory. On a 64-bits
-/// system this means you can fit a total of 131 072 slots in 1 MiB. In
-/// addition, this cost is a one-time and constant cost, whereas collisions
-/// introduce a cost that you may have to pay every time you perform dynamic
-/// dispatch.
-const METHOD_TABLE_FACTOR: usize = 4;
-
-/// The minimum number of slots in a method table.
-///
-/// This value is used to ensure that even types with few methods have as few
-/// collisions as possible.
-///
-/// This value _must_ be a power of two.
-const METHOD_TABLE_MIN_SIZE: usize = 64;
-
-/// Rounds the given value to the nearest power of two.
-fn round_methods(mut value: usize) -> usize {
-    if value == 0 {
-        return 0;
-    }
-
-    value -= 1;
-    value |= value >> 1;
-    value |= value >> 2;
-    value |= value >> 4;
-    value |= value >> 8;
-    value |= value >> 16;
-    value |= value >> 32;
-    value += 1;
-
-    value
-}
-
-fn hash_key(db: &Database, method: MethodId, shapes: &[Shape]) -> String {
-    shapes.iter().fold(method.name(db).clone(), |mut name, shape| {
-        name.push_str(shape.identifier());
-        name
-    })
-}
-
-pub(crate) struct MethodInfo<'ctx> {
-    pub(crate) index: u16,
-    pub(crate) hash: u64,
-    pub(crate) collision: bool,
+pub(crate) struct Method<'ctx> {
     pub(crate) signature: FunctionType<'ctx>,
 
     /// If the function returns a structure on the stack, its type is stored
@@ -107,9 +57,8 @@ pub(crate) struct Layouts<'ctx> {
     /// counts.
     pub(crate) method_counts: StructType<'ctx>,
 
-    /// Information about methods defined on classes, such as their signatures
-    /// and hash codes.
-    pub(crate) methods: HashMap<MethodId, MethodInfo<'ctx>>,
+    /// Type information of all the defined methods.
+    pub(crate) methods: HashMap<MethodId, Method<'ctx>>,
 
     /// The layout of messages sent to processes.
     pub(crate) message: StructType<'ctx>,
@@ -164,30 +113,15 @@ impl<'ctx> Layouts<'ctx> {
             context.pointer_type().array_type(0).into(), // Arguments
         ]);
 
-        let mut method_hasher = MethodHasher::new();
-        let mut method_table_sizes = Vec::with_capacity(mir.classes.len());
-
         // We generate the bare structs first, that way method signatures can
         // refer to them, regardless of the order in which methods/classes are
         // defined.
-        for (id, mir_class) in &mir.classes {
-            // We size classes larger than actually needed in an attempt to
-            // reduce collisions when performing dynamic dispatch.
-            let methods_len = max(
-                round_methods(mir_class.instance_methods_count(db))
-                    * METHOD_TABLE_FACTOR,
-                METHOD_TABLE_MIN_SIZE,
-            );
-
-            method_table_sizes.push(methods_len);
-
+        for &id in mir.classes.keys() {
             let name =
                 format!("{}.{}", id.module(db).name(db).as_str(), id.name(db));
-            let class = context.class_type(
-                methods_len,
-                &format!("{}.class", name),
-                method,
-            );
+
+            let class = context.class_type(&format!("{}.class", name), method);
+
             let instance = match id.0 {
                 INT_ID => context.builtin_type(
                     &name,
@@ -218,12 +152,12 @@ impl<'ctx> Layouts<'ctx> {
                 }
             };
 
-            class_layouts.insert(*id, class);
-            instance_layouts.insert(*id, instance);
+            class_layouts.insert(id, class);
+            instance_layouts.insert(id, instance);
         }
 
         let mut layouts = Self {
-            empty_class: context.class_type(0, "", method),
+            empty_class: context.class_type("", method),
             method,
             classes: class_layouts,
             instances: instance_layouts,
@@ -307,14 +241,8 @@ impl<'ctx> Layouts<'ctx> {
             layout.set_body(&fields, false);
         }
 
-        // We need to define the method information for trait methods, as
-        // this information is necessary when generating dynamic dispatch code.
-        //
-        // This information is defined first so we can update the `collision`
-        // flag when generating this information for method implementations.
         for calls in mir.dynamic_calls.values() {
-            for (method, shapes) in calls {
-                let hash = method_hasher.hash(hash_key(db, *method, shapes));
+            for (method, _) in calls {
                 let mut args: Vec<BasicMetadataTypeEnum> = vec![
                     state_layout.ptr_type(space).into(), // State
                     context.pointer_type().into(),       // Process
@@ -334,88 +262,19 @@ impl<'ctx> Layouts<'ctx> {
                         context.void_type().fn_type(&args, false)
                     });
 
-                layouts.methods.insert(
-                    *method,
-                    MethodInfo {
-                        index: 0,
-                        hash,
-                        signature,
-                        collision: false,
-                        struct_return: None,
-                    },
-                );
+                layouts
+                    .methods
+                    .insert(*method, Method { signature, struct_return: None });
             }
         }
 
         // Now that all the LLVM structs are defined, we can process all
         // methods.
-        for (mir_class, methods_len) in
-            mir.classes.values().zip(method_table_sizes.into_iter())
-        {
-            let mut buckets = vec![false; methods_len];
-            let max_bucket = methods_len.saturating_sub(1);
-
-            // The slot for the dropper method has to be set first to ensure
-            // other methods are never hashed into this slot, regardless of the
-            // order we process them in.
-            if !buckets.is_empty() {
-                buckets[DROPPER_INDEX as usize] = true;
-            }
-
-            let is_closure = mir_class.id.is_closure(db);
-
+        for mir_class in mir.classes.values() {
             // Define the method signatures once (so we can cheaply retrieve
             // them whenever needed), and assign the methods to their method
             // table slots.
             for &method in &mir_class.methods {
-                let name = method.name(db);
-                let hash =
-                    method_hasher.hash(hash_key(db, method, method.shapes(db)));
-
-                let mut collision = false;
-                let index = if is_closure {
-                    // For closures we use a fixed layout so we can call its
-                    // methods using virtual dispatch instead of dynamic
-                    // dispatch.
-                    match method.name(db).as_str() {
-                        DROPPER_METHOD => DROPPER_INDEX as usize,
-                        CALL_METHOD => CLOSURE_CALL_INDEX as usize,
-                        _ => unreachable!(),
-                    }
-                } else if name == DROPPER_METHOD {
-                    // Droppers always go in slot 0 so we can efficiently call
-                    // them even when types aren't statically known.
-                    DROPPER_INDEX as usize
-                } else {
-                    let mut index = hash as usize & (methods_len - 1);
-
-                    while buckets[index] {
-                        collision = true;
-                        index = (index + 1) & max_bucket;
-                    }
-
-                    index
-                };
-
-                buckets[index] = true;
-
-                // We track collisions so we can generate more optimal dynamic
-                // dispatch code if we statically know one method never collides
-                // with another method in the same class.
-                if collision {
-                    if let Some(orig) = method.original_method(db) {
-                        if let Some(calls) = mir.dynamic_calls.get(&orig) {
-                            for (id, _) in calls {
-                                if let Some(layout) =
-                                    layouts.methods.get_mut(id)
-                                {
-                                    layout.collision = true;
-                                }
-                            }
-                        }
-                    }
-                }
-
                 let typ = if method.is_async(db) {
                     context.void_type().fn_type(
                         &[context_layout.ptr_type(space).into()],
@@ -455,13 +314,7 @@ impl<'ctx> Layouts<'ctx> {
 
                 layouts.methods.insert(
                     method,
-                    MethodInfo {
-                        index: index as u16,
-                        hash,
-                        signature: typ,
-                        collision,
-                        struct_return: None,
-                    },
+                    Method { signature: typ, struct_return: None },
                 );
             }
         }
@@ -483,16 +336,9 @@ impl<'ctx> Layouts<'ctx> {
                 .map(|t| t.fn_type(&args, false))
                 .unwrap_or_else(|| context.void_type().fn_type(&args, false));
 
-            layouts.methods.insert(
-                method,
-                MethodInfo {
-                    index: 0,
-                    hash: 0,
-                    signature: typ,
-                    collision: false,
-                    struct_return: None,
-                },
-            );
+            layouts
+                .methods
+                .insert(method, Method { signature: typ, struct_return: None });
         }
 
         for &method in &mir.extern_methods {
@@ -542,24 +388,11 @@ impl<'ctx> Layouts<'ctx> {
                     context.void_type().fn_type(&args, variadic)
                 });
 
-            layouts.methods.insert(
-                method,
-                MethodInfo {
-                    index: 0,
-                    hash: 0,
-                    signature: sig,
-                    collision: false,
-                    struct_return: sret,
-                },
-            );
+            layouts
+                .methods
+                .insert(method, Method { signature: sig, struct_return: sret });
         }
 
         layouts
-    }
-
-    pub(crate) fn methods(&self, class: ClassId) -> u32 {
-        self.classes.get(&class).map_or(0, |c| {
-            c.get_field_type_at_index(3).unwrap().into_array_type().len()
-        })
     }
 }
