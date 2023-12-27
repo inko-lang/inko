@@ -1064,7 +1064,12 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
                     if let Instruction::Drop(ins) =
                         block.instructions.remove(ins_idx)
                     {
-                        (ins, block.instructions.split_off(ins_idx))
+                        let ret = (ins, block.instructions.split_off(ins_idx));
+
+                        // This ensures we don't keep redundant memory around if
+                        // the number of instructions was very large.
+                        block.instructions.shrink_to_fit();
+                        ret
                     } else {
                         unreachable!()
                     }
@@ -1237,7 +1242,12 @@ impl<'a, 'b, 'c> ExpandReference<'a, 'b, 'c> {
                     if let Instruction::Reference(ins) =
                         block.instructions.remove(ins_idx)
                     {
-                        (ins, block.instructions.split_off(ins_idx))
+                        let ret = (ins, block.instructions.split_off(ins_idx));
+
+                        // This ensures we don't keep redundant memory around if
+                        // the number of instructions was very large.
+                        block.instructions.shrink_to_fit();
+                        ret
                     } else {
                         unreachable!()
                     }
