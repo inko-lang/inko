@@ -23,7 +23,8 @@ use inkwell::basic_block::BasicBlock;
 use inkwell::module::Linkage;
 use inkwell::passes::{PassManager, PassManagerBuilder};
 use inkwell::targets::{
-    CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetTriple,
+    CodeModel, FileType, InitializationConfig, RelocMode, Target,
+    TargetMachine, TargetTriple,
 };
 use inkwell::types::{
     BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType,
@@ -37,183 +38,305 @@ use inkwell::OptimizationLevel;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::thread::scope;
+use std::time::{Duration, Instant};
 use types::module_name::ModuleName;
 use types::{
     BuiltinFunction, ClassId, Database, Shape, TypeRef, BYTE_ARRAY_ID,
     STRING_ID,
 };
 
-/// A compiler pass that compiles Inko MIR into object files using LLVM.
-pub(crate) struct Compile<'a, 'b, 'ctx> {
-    db: &'a Database,
-    mir: &'a Mir,
-    module_index: usize,
-    layouts: &'a Layouts<'ctx>,
-    methods: &'a Methods,
-    names: &'a SymbolNames,
-    context: &'ctx Context,
-    module: &'b mut Module<'a, 'ctx>,
+pub(crate) struct CompileResult {
+    /// The file paths to the generated object files to link together.
+    pub(crate) objects: Vec<PathBuf>,
+
+    /// The timings of each module that is compiled.
+    pub(crate) timings: Vec<(ModuleName, Duration)>,
 }
 
-impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
-    /// Compiles all the modules into object files.
-    ///
-    /// The return value is a list of file paths of the object files.
-    pub(crate) fn run_all(
-        state: &'a State,
-        directories: &BuildDirectories,
-        mir: &'a Mir,
-    ) -> Result<Vec<PathBuf>, String> {
-        match state.config.target.arch {
-            Architecture::Amd64 => {
-                Target::initialize_x86(&InitializationConfig::default());
-            }
-            Architecture::Arm64 => {
-                Target::initialize_aarch64(&InitializationConfig::default());
+/// Compiles all the modules into object files.
+///
+/// The return value is a list of file paths to the generated object files.
+pub(crate) fn run_all(
+    state: &State,
+    directories: &BuildDirectories,
+    mir: Mir,
+) -> Result<CompileResult, String> {
+    if state.config.write_llvm {
+        directories.create_llvm()?;
+    }
+
+    match state.config.target.arch {
+        Architecture::Amd64 => {
+            Target::initialize_x86(&InitializationConfig::default());
+        }
+        Architecture::Arm64 => {
+            Target::initialize_aarch64(&InitializationConfig::default());
+        }
+    }
+
+    // LLVM's optimisation level controls which passes to run, but some/many of
+    // those may not be relevant to Inko, while slowing down compile times. Thus
+    // instead of using this knob, we provide our own list of passes. Swift and
+    // Rust (and possibly others) take a similar approach.
+    //
+    // For the aggressive mode we simply enable the full suite of LLVM
+    // optimizations, likely greatly increasing the compilation times.
+    let level = match state.config.opt {
+        Opt::None => OptimizationLevel::None,
+
+        // We have yet to figure out what optimizations we want to enable
+        // here, hence we don't apply any at all.
+        Opt::Balanced => OptimizationLevel::None,
+
+        // This is the equivalent of -O3 for clang.
+        Opt::Aggressive => OptimizationLevel::Aggressive,
+    };
+
+    let methods = Methods::new(&state.db, &mir);
+    let names = SymbolNames::new(&state.db, &mir);
+
+    // Our "queue" is just an atomic integer in the range 0..N where N is the
+    // number of MIR modules. These integers are then used to index the list of
+    // MIR modules, removing the need for some sort of synchronized queue.
+    let queue = AtomicUsize::new(0);
+    let shared = SharedState {
+        state,
+        mir: &mir,
+        methods: &methods,
+        names: &names,
+        queue: &queue,
+        directories,
+        level,
+    };
+
+    let mut paths = Vec::with_capacity(mir.modules.len());
+    let mut timings = Vec::with_capacity(mir.modules.len());
+
+    scope(|s| -> Result<(), String> {
+        let handles: Vec<_> = (0..shared.state.config.threads)
+            .map(|i| {
+                let shared = &shared;
+
+                s.spawn(move || Worker::new(shared, i == 0).run())
+            })
+            .collect();
+
+        for handle in handles {
+            // If the thread panics we don't need to panic here _again_, as that
+            // just clutters the output.
+            if let Ok(res) = handle.join() {
+                let mut res = res?;
+
+                paths.append(&mut res.paths);
+                timings.extend(res.timings.into_iter());
             }
         }
 
-        // LLVM's optimisation level controls which passes to run, but some/many
-        // of those may not be relevant to Inko, while slowing down compile
-        // times. Thus instead of using this knob, we provide our own list of
-        // passes. Swift and Rust (and possibly others) take a similar approach.
-        //
-        // For the aggressive mode we simply enable the full suite of LLVM
-        // optimizations, likely greatly increasing the compilation times.
-        let opt = match state.config.opt {
-            Opt::None => OptimizationLevel::None,
+        Ok(())
+    })?;
 
-            // We have yet to figure out what optimizations we want to enable
-            // here, hence we don't apply any at all.
-            Opt::Balanced => OptimizationLevel::None,
+    Ok(CompileResult { objects: paths, timings })
+}
 
-            // This is the equivalent of -O3 for clang.
-            Opt::Aggressive => OptimizationLevel::Aggressive,
-        };
+/// The state shared between worker threads.
+struct SharedState<'a> {
+    state: &'a State,
+    mir: &'a Mir,
+    methods: &'a Methods,
+    names: &'a SymbolNames,
+    queue: &'a AtomicUsize,
+    directories: &'a BuildDirectories,
+    level: OptimizationLevel,
+}
 
+struct WorkerResult {
+    timings: HashMap<ModuleName, Duration>,
+    paths: Vec<PathBuf>,
+}
+
+/// A worker thread for turning MIR modules into object files.
+struct Worker<'a> {
+    shared: &'a SharedState<'a>,
+    machine: TargetMachine,
+    timings: HashMap<ModuleName, Duration>,
+
+    /// If this worker should also generate the main module that sets everything
+    /// up.
+    main: bool,
+}
+
+impl<'a> Worker<'a> {
+    fn new(shared: &'a SharedState<'a>, main: bool) -> Worker<'a> {
         let reloc = RelocMode::PIC;
         let model = CodeModel::Default;
-        let triple = TargetTriple::create(&state.config.target.llvm_triple());
-        let target = Target::from_triple(&triple).unwrap();
-        let target_machine = target
-            .create_target_machine(&triple, "", "", opt, reloc, model)
+        let triple_name = shared.state.config.target.llvm_triple();
+        let triple = TargetTriple::create(&triple_name);
+        let machine = Target::from_triple(&triple)
+            .unwrap()
+            .create_target_machine(&triple, "", "", shared.level, reloc, model)
             .unwrap();
 
+        Worker { shared, main, machine, timings: HashMap::new() }
+    }
+
+    fn run(mut self) -> Result<WorkerResult, String> {
+        let mut paths = Vec::new();
+        let max = self.shared.mir.modules.len();
+
+        // This data can't be stored in `self` as `Layouts` retains references
+        // to `Context`, preventing it from being moved into `self`. Thus, we
+        // create this data here and pass it as arguments.
         let context = Context::new();
-        let methods = Methods::new(&state.db, mir);
         let layouts = Layouts::new(
-            state,
-            mir,
+            self.shared.state,
+            self.shared.mir,
             &context,
-            target_machine.get_target_data(),
+            self.machine.get_target_data(),
         );
 
-        let names = SymbolNames::new(&state.db, mir);
-        let mut modules = Vec::with_capacity(mir.modules.len());
+        loop {
+            let index = self.shared.queue.fetch_add(1, Ordering::AcqRel);
 
-        for module_index in 0..mir.modules.len() {
-            let mod_id = mir.modules[module_index].id;
-            let name = mod_id.name(&state.db).clone();
-            let path = mod_id.file(&state.db);
-            let mut module = Module::new(&context, &layouts, name, &path);
-
-            Compile {
-                db: &state.db,
-                mir,
-                module_index,
-                names: &names,
-                context: &context,
-                module: &mut module,
-                layouts: &layouts,
-                methods: &methods,
+            if index >= max {
+                break;
             }
-            .run();
 
-            modules.push(module);
+            paths.push(self.lower(index, &context, &layouts)?);
         }
 
-        let main_module = Module::new(
-            &context,
-            &layouts,
-            ModuleName::new("$main"),
-            Path::new("$main.inko"),
-        );
+        if self.main {
+            paths.push(self.generate_main(&context, &layouts)?);
+        }
+
+        Ok(WorkerResult { paths, timings: self.timings })
+    }
+
+    fn lower(
+        &mut self,
+        index: usize,
+        context: &Context,
+        layouts: &Layouts,
+    ) -> Result<PathBuf, String> {
+        let start = Instant::now();
+        let mod_id = self.shared.mir.modules[index].id;
+        let name = mod_id.name(&self.shared.state.db).clone();
+        let path = mod_id.file(&self.shared.state.db);
+        let mut module = Module::new(context, layouts, name.clone(), &path);
+
+        LowerModule {
+            db: &self.shared.state.db,
+            mir: self.shared.mir,
+            index,
+            names: self.shared.names,
+            module: &mut module,
+            layouts,
+            methods: self.shared.methods,
+        }
+        .run();
+
+        let res = self.process_module(&module);
+
+        self.timings.insert(name, start.elapsed());
+        res
+    }
+
+    fn generate_main(
+        &mut self,
+        context: &Context,
+        layouts: &Layouts,
+    ) -> Result<PathBuf, String> {
+        let start = Instant::now();
+        let name = ModuleName::new("$main");
+        let path = Path::new("$main.inko");
+        let main = Module::new(context, layouts, name.clone(), path);
 
         GenerateMain::new(
-            &state.db,
-            mir,
-            &layouts,
-            &methods,
-            &names,
-            &main_module,
+            &self.shared.state.db,
+            self.shared.mir,
+            layouts,
+            self.shared.methods,
+            self.shared.names,
+            &main,
         )
         .run();
 
-        modules.push(main_module);
+        let res = self.process_module(&main);
 
-        let layout = target_machine.get_target_data().get_data_layout();
-        let pm_builder = PassManagerBuilder::create();
-        let pm = PassManager::create(());
-
-        pm_builder.set_optimization_level(opt);
-        pm_builder.populate_module_pass_manager(&pm);
-        pm.add_promote_memory_to_register_pass();
-
-        for module in &modules {
-            module.set_data_layout(&layout);
-            module.set_triple(&triple);
-            pm.run_on(&module.inner);
-        }
-
-        let mut paths = Vec::with_capacity(modules.len());
-
-        if state.config.write_llvm {
-            directories.create_llvm()?;
-        }
-
-        if state.config.write_llvm {
-            for module in &modules {
-                let name = module.name.normalized_name();
-                let path = directories.llvm_ir.join(format!("{}.ll", name));
-
-                module.print_to_file(&path).map_err(|err| {
-                    format!("Failed to create {}: {}", path.display(), err)
-                })?;
-            }
-        }
-
-        // We verify _after_ writing the LLVM IR (if enabled) such that the IR
-        // can be inspected in the event of a verification failure.
-        if state.config.verify_llvm {
-            for module in &modules {
-                if let Err(err) = module.verify() {
-                    panic!(
-                        "the LLVM module '{}' must be valid:\n\n{}\n",
-                        module.name,
-                        err.to_string(),
-                    );
-                }
-            }
-        }
-
-        for module in &modules {
-            let name = module.name.normalized_name();
-            let path = directories.objects.join(format!("{}.o", name));
-
-            target_machine
-                .write_to_file(&module.inner, FileType::Object, path.as_path())
-                .map_err(|err| {
-                    format!("Failed to create {}: {}", path.display(), err)
-                })?;
-
-            paths.push(path);
-        }
-
-        Ok(paths)
+        self.timings.insert(name, start.elapsed());
+        res
     }
 
+    fn process_module(&self, module: &Module) -> Result<PathBuf, String> {
+        self.run_passes(module);
+        self.write_object_file(module)
+    }
+
+    fn run_passes(&self, module: &Module) {
+        let layout = self.machine.get_target_data().get_data_layout();
+        let builder = PassManagerBuilder::create();
+        let manager = PassManager::create(());
+
+        module.set_data_layout(&layout);
+        module.set_triple(&self.machine.get_triple());
+
+        builder.set_optimization_level(self.shared.level);
+        builder.populate_module_pass_manager(&manager);
+
+        manager.add_promote_memory_to_register_pass();
+        manager.run_on(&module.inner);
+    }
+
+    fn write_object_file(&self, module: &Module) -> Result<PathBuf, String> {
+        if self.shared.state.config.write_llvm {
+            let name = module.name.normalized_name();
+            let path =
+                self.shared.directories.llvm_ir.join(format!("{}.ll", name));
+
+            module.print_to_file(&path).map_err(|e| {
+                format!("failed to write LLVM IR to {}: {}", path.display(), e)
+            })?;
+        }
+
+        // We verify _after_ writing the IR such that one can inspect the IR in
+        // the event it's invalid.
+        if self.shared.state.config.verify_llvm {
+            module.verify().map_err(|e| {
+                format!(
+                    "the LLVM module '{}' is invalid:\n\n{}\n",
+                    module.name,
+                    e.to_string()
+                )
+            })?;
+        }
+
+        let name = module.name.normalized_name();
+        let path = self.shared.directories.objects.join(format!("{}.o", name));
+
+        self.machine
+            .write_to_file(&module.inner, FileType::Object, &path)
+            .map_err(|e| {
+                format!("failed to write object file {}: {}", path.display(), e)
+            })
+            .map(|_| path)
+    }
+}
+
+/// A pass that lowers a single Inko module into an LLVM module.
+pub(crate) struct LowerModule<'a, 'b, 'mir, 'ctx> {
+    db: &'a Database,
+    mir: &'mir Mir,
+    index: usize,
+    layouts: &'ctx Layouts<'ctx>,
+    methods: &'a Methods,
+    names: &'a SymbolNames,
+    module: &'b mut Module<'a, 'ctx>,
+}
+
+impl<'a, 'b, 'mir, 'ctx> LowerModule<'a, 'b, 'mir, 'ctx> {
     pub(crate) fn run(mut self) {
-        for method in &self.mir.modules[self.module_index].methods {
+        for method in &self.mir.modules[self.index].methods {
             LowerMethod::new(
                 self.db,
                 self.mir,
@@ -232,12 +355,12 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
     }
 
     fn setup_classes(&mut self) {
-        let mod_id = self.mir.modules[self.module_index].id;
+        let mod_id = self.mir.modules[self.index].id;
         let space = AddressSpace::default();
         let fn_name = &self.names.setup_classes[&mod_id];
         let fn_val = self.module.add_setup_function(fn_name);
-        let builder = Builder::new(self.context, fn_val);
-        let entry_block = self.context.append_basic_block(fn_val);
+        let builder = Builder::new(self.module.context, fn_val);
+        let entry_block = self.module.context.append_basic_block(fn_val);
 
         builder.switch_to_block(entry_block);
 
@@ -246,17 +369,18 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
 
         builder.store(state_var, fn_val.get_nth_param(0).unwrap());
 
-        let body = self.context.append_basic_block(fn_val);
+        let body = self.module.context.append_basic_block(fn_val);
 
         builder.jump(body);
         builder.switch_to_block(body);
 
         // Allocate all classes defined in this module, and store them in their
         // corresponding globals.
-        for &class_id in &self.mir.modules[self.module_index].classes {
+        for &class_id in &self.mir.modules[self.index].classes {
             let raw_name = class_id.name(self.db);
             let name_ptr = builder.string_literal(raw_name).0.into();
             let methods_len = self
+                .module
                 .context
                 .i16_type()
                 .const_int(self.methods.counts[class_id.0 as usize] as _, false)
@@ -349,12 +473,12 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
     }
 
     fn setup_constants(&mut self) {
-        let mod_id = self.mir.modules[self.module_index].id;
+        let mod_id = self.mir.modules[self.index].id;
         let space = AddressSpace::default();
         let fn_name = &self.names.setup_constants[&mod_id];
         let fn_val = self.module.add_setup_function(fn_name);
-        let builder = Builder::new(self.context, fn_val);
-        let entry_block = self.context.append_basic_block(fn_val);
+        let builder = Builder::new(self.module.context, fn_val);
+        let entry_block = self.module.context.append_basic_block(fn_val);
 
         builder.switch_to_block(entry_block);
 
@@ -363,18 +487,23 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
 
         builder.store(state_var, fn_val.get_nth_param(0).unwrap());
 
-        let body = self.context.append_basic_block(fn_val);
+        let body = self.module.context.append_basic_block(fn_val);
 
         builder.jump(body);
         builder.switch_to_block(body);
 
-        for &cid in &self.mir.modules[self.module_index].constants {
+        for &cid in &self.mir.modules[self.index].constants {
             let name = &self.names.constants[&cid];
             let global = self.module.add_constant(name);
             let value = &self.mir.constants[&cid];
 
             global.set_initializer(
-                &self.context.pointer_type().const_null().as_basic_value_enum(),
+                &self
+                    .module
+                    .context
+                    .pointer_type()
+                    .const_null()
+                    .as_basic_value_enum(),
             );
             self.set_constant_global(&builder, state_var, value, global);
         }
@@ -516,15 +645,15 @@ impl<'a, 'b, 'ctx> Compile<'a, 'b, 'ctx> {
     }
 }
 
-/// A pass for lowering the MIR of a single method.
-pub struct LowerMethod<'a, 'b, 'ctx> {
+/// A pass that lowers a single Inko method into an LLVM method.
+pub struct LowerMethod<'a, 'b, 'mir, 'ctx> {
     db: &'a Database,
-    mir: &'a Mir,
-    layouts: &'a Layouts<'ctx>,
+    mir: &'mir Mir,
+    layouts: &'ctx Layouts<'ctx>,
     methods: &'a Methods,
 
     /// The MIR method that we're lowering to LLVM.
-    method: &'b Method,
+    method: &'mir Method,
 
     /// A map of method names to their mangled names.
     ///
@@ -544,15 +673,15 @@ pub struct LowerMethod<'a, 'b, 'ctx> {
     variable_types: HashMap<RegisterId, BasicTypeEnum<'ctx>>,
 }
 
-impl<'a, 'b, 'ctx> LowerMethod<'a, 'b, 'ctx> {
+impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
     fn new(
         db: &'a Database,
-        mir: &'a Mir,
-        layouts: &'a Layouts<'ctx>,
+        mir: &'mir Mir,
+        layouts: &'ctx Layouts<'ctx>,
         methods: &'a Methods,
         names: &'a SymbolNames,
         module: &'b mut Module<'a, 'ctx>,
-        method: &'b Method,
+        method: &'mir Method,
     ) -> Self {
         let function = module.add_method(&names.methods[&method.id], method.id);
         let builder = Builder::new(module.context, function);

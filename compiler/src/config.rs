@@ -4,6 +4,7 @@ use crate::target::Target;
 use std::env;
 use std::fs::create_dir_all;
 use std::path::{Path, PathBuf};
+use std::thread::available_parallelism;
 use types::module_name::ModuleName;
 
 /// The extension to use for source files.
@@ -178,6 +179,9 @@ pub struct Config {
 
     /// If C libraries should be linked statically or not.
     pub static_linking: bool,
+
+    /// The number of threads to use when performing work in parallel.
+    pub threads: usize,
 }
 
 impl Config {
@@ -202,6 +206,7 @@ impl Config {
             verify_llvm: false,
             write_llvm: false,
             static_linking: false,
+            threads: available_parallelism().map(|v| v.get()).unwrap_or(1),
         }
     }
 

@@ -225,9 +225,7 @@ impl Pattern {
             hir::Pattern::Constant(n) => match n.kind {
                 types::ConstantPatternKind::String(id) => {
                     match mir.constants.get(&id) {
-                        Some(Constant::String(v)) => {
-                            Pattern::String(v.as_ref().clone())
-                        }
+                        Some(Constant::String(v)) => Pattern::String(v.clone()),
                         _ => unreachable!(),
                     }
                 }

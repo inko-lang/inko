@@ -62,6 +62,7 @@ struct Timings {
     mir: Duration,
     optimize_mir: Duration,
     llvm: Duration,
+    llvm_modules: Vec<(ModuleName, Duration)>,
     link: Duration,
     total: Duration,
 }
@@ -75,6 +76,7 @@ impl Timings {
             mir: Duration::from_secs(0),
             optimize_mir: Duration::from_secs(0),
             llvm: Duration::from_secs(0),
+            llvm_modules: Vec::new(),
             link: Duration::from_secs(0),
             total: Duration::from_secs(0),
         }
@@ -144,7 +146,7 @@ impl Compiler {
             self.write_dot(&dirs, &mir)?;
         }
 
-        let res = self.compile_machine_code(&dirs, &mir, file);
+        let res = self.compile_machine_code(&dirs, mir, file);
 
         self.timings.total = start.elapsed();
         res
@@ -161,6 +163,8 @@ impl Compiler {
         // to still get the diagnostics without these timings messing things up.
         println!(
             "\
+Compilation stages:
+
 \x1b[1mStage\x1b[0m            \x1b[1mTime\x1b[0m
 Source to AST    {ast}
 AST to HIR       {hir}
@@ -180,6 +184,37 @@ Total            {total}\
             link = format_timing(self.timings.link, Some(total)),
             total = format_timing(self.timings.total, None),
         );
+    }
+
+    pub fn print_full_timings(&self) {
+        self.print_timings();
+
+        let width = self
+            .timings
+            .llvm_modules
+            .iter()
+            .map(|v| v.0.as_str().len())
+            .max()
+            .unwrap_or(0);
+
+        println!(
+            "
+LLVM module timings:
+
+\x1b[1m{:width$}\x1b[0m    \x1b[1mTime\x1b[0m\
+            ",
+            "Module",
+            width = width
+        );
+
+        for (name, dur) in &self.timings.llvm_modules {
+            println!(
+                "{:width$}    {}",
+                name.as_str(),
+                format_timing(*dur, Some(self.timings.llvm)),
+                width = width
+            );
+        }
     }
 
     pub fn create_build_directory(&self) -> Result<(), String> {
@@ -338,7 +373,7 @@ Total            {total}\
     fn compile_machine_code(
         &mut self,
         directories: &BuildDirectories,
-        mir: &Mir,
+        mir: Mir,
         main_file: PathBuf,
     ) -> Result<PathBuf, CompileError> {
         let start = Instant::now();
@@ -355,15 +390,17 @@ Total            {total}\
             Output::Path(path) => path.clone(),
         };
 
-        let objects =
-            llvm::passes::Compile::run_all(&self.state, directories, mir)
-                .map_err(CompileError::Internal)?;
+        let mut res = llvm::passes::run_all(&self.state, directories, mir)
+            .map_err(CompileError::Internal)?;
 
         self.timings.llvm = start.elapsed();
+        self.timings.llvm_modules.append(&mut res.timings);
+        self.timings.llvm_modules.sort_by(|a, b| a.0.cmp(&b.0));
 
         let start = Instant::now();
 
-        link(&self.state, &exe, &objects).map_err(CompileError::Internal)?;
+        link(&self.state, &exe, &res.objects)
+            .map_err(CompileError::Internal)?;
         self.timings.link = start.elapsed();
 
         Ok(exe)

@@ -12,7 +12,6 @@ use std::collections::{HashMap, HashSet};
 use std::iter::repeat_with;
 use std::mem::swap;
 use std::path::PathBuf;
-use std::rc::Rc;
 use types::format::format_type;
 use types::{
     self, Block as _, ClassId, ConstantId, MethodId, ModuleId, TypeBounds,
@@ -658,7 +657,7 @@ impl<'a> DefineConstants<'a> {
                 let val = match n.value {
                     hir::ConstExpression::Int(ref n) => Constant::Int(n.value),
                     hir::ConstExpression::String(ref n) => {
-                        Constant::String(Rc::new(n.value.clone()))
+                        Constant::String(n.value.clone())
                     }
                     hir::ConstExpression::Float(ref n) => {
                         Constant::Float(n.value)
@@ -687,7 +686,7 @@ impl<'a> DefineConstants<'a> {
         match node {
             hir::ConstExpression::Int(ref n) => Constant::Int(n.value),
             hir::ConstExpression::String(ref n) => {
-                Constant::String(Rc::new(n.value.clone()))
+                Constant::String(n.value.clone())
             }
             hir::ConstExpression::Float(ref n) => Constant::Float(n.value),
             hir::ConstExpression::Binary(ref n) => self.binary(n),
@@ -698,21 +697,21 @@ impl<'a> DefineConstants<'a> {
                     self.mir.constants.get(&id).cloned().unwrap()
                 }
                 types::ConstantKind::Builtin(id) => match id {
-                    types::BuiltinConstant::Arch => Constant::String(Rc::new(
+                    types::BuiltinConstant::Arch => Constant::String(
                         self.state.config.target.arch_name().to_string(),
-                    )),
-                    types::BuiltinConstant::Os => Constant::String(Rc::new(
+                    ),
+                    types::BuiltinConstant::Os => Constant::String(
                         self.state.config.target.os_name().to_string(),
-                    )),
-                    types::BuiltinConstant::Abi => Constant::String(Rc::new(
+                    ),
+                    types::BuiltinConstant::Abi => Constant::String(
                         self.state.config.target.abi_name().to_string(),
-                    )),
+                    ),
                 },
                 _ => unreachable!(),
             },
-            hir::ConstExpression::Array(ref n) => Constant::Array(Rc::new(
+            hir::ConstExpression::Array(ref n) => Constant::Array(
                 n.values.iter().map(|n| self.expression(n)).collect(),
-            )),
+            ),
             hir::ConstExpression::Invalid(_) => unreachable!(),
         }
     }
@@ -786,10 +785,10 @@ impl<'a> DefineConstants<'a> {
                 }
 
                 if let Some(val) = res {
-                    Constant::String(Rc::new(val))
+                    Constant::String(val)
                 } else {
                     self.const_expr_error(&left, op, &right, loc);
-                    Constant::String(Rc::new(String::new()))
+                    Constant::String(String::new())
                 }
             }
             Constant::Array(_) | Constant::Bool(_) => {

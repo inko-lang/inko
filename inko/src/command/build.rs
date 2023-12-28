@@ -14,6 +14,22 @@ Examples:
     inko build             # Compile src/main.inko
     inko build hello.inko  # Compile the file hello.inko";
 
+enum Timings {
+    None,
+    Basic,
+    Full,
+}
+
+impl Timings {
+    fn parse(value: &str) -> Option<Timings> {
+        match value {
+            "basic" => Some(Timings::Basic),
+            "full" => Some(Timings::Full),
+            _ => None,
+        }
+    }
+}
+
 pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     let mut options = Options::new();
 
@@ -46,7 +62,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         "PATH",
     );
 
-    options.optmulti(
+    options.optopt(
         "",
         "opt",
         "The amount of optimisations to apply",
@@ -57,7 +73,19 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     options.optflag("", "dot", "Output the MIR of every module as DOT files");
     options.optflag("", "verify-llvm", "Verify LLVM IR when generating code");
     options.optflag("", "write-llvm", "Write LLVM IR files to disk");
-    options.optflag("", "timings", "Display the time spent compiling code");
+    options.optflagopt(
+        "",
+        "timings",
+        "Display the time spent compiling code",
+        "basic,full",
+    );
+
+    options.optopt(
+        "",
+        "threads",
+        "The number of threads to use for parallel compilation",
+        "NUM",
+    );
 
     let matches = options.parse(arguments)?;
 
@@ -104,14 +132,39 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         config.output = Output::Path(PathBuf::from(path));
     }
 
+    if let Some(val) = matches.opt_str("threads") {
+        match val.parse::<usize>() {
+            Ok(0) | Err(_) => {
+                return Err(Error::generic(format!(
+                    "'{}' isn't a valid number of threads",
+                    val
+                )));
+            }
+            Ok(n) => config.threads = n,
+        };
+    }
+
+    let timings = match matches.opt_str("timings") {
+        Some(val) => Timings::parse(&val).ok_or_else(|| {
+            Error::generic(format!(
+                "'{}' is an invalid --timings argument",
+                val
+            ))
+        })?,
+        _ if matches.opt_present("timings") => Timings::Basic,
+        _ => Timings::None,
+    };
+
     let mut compiler = Compiler::new(config);
     let file = matches.free.get(0).map(PathBuf::from);
     let result = compiler.build(file);
 
     compiler.print_diagnostics();
 
-    if matches.opt_present("timings") {
-        compiler.print_timings();
+    match timings {
+        Timings::Basic => compiler.print_timings(),
+        Timings::Full => compiler.print_full_timings(),
+        _ => {}
     }
 
     match result {

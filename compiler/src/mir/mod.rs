@@ -12,7 +12,6 @@ use ast::source_location::SourceLocation;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::hash::{Hash, Hasher};
-use std::rc::Rc;
 use types::collections::IndexMap;
 use types::{
     BuiltinFunction, Database, ForeignType, MethodId, Shape, TypeArguments,
@@ -658,8 +657,8 @@ impl Block {
 pub(crate) enum Constant {
     Int(i64),
     Float(f64),
-    String(Rc<String>),
-    Array(Rc<Vec<Constant>>),
+    String(String),
+    Array(Vec<Constant>),
     Bool(bool),
 }
 
