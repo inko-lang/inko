@@ -1,4 +1,4 @@
-use crate::config::Config;
+use crate::config::{Config, Linker};
 use crate::state::State;
 use crate::target::OperatingSystem;
 use std::path::{Path, PathBuf};
@@ -25,8 +25,8 @@ fn runtime_library(config: &Config) -> Option<PathBuf> {
     })
 }
 
-fn lld_is_available() -> bool {
-    Command::new("ld.lld")
+fn linker_is_available(linker: &str) -> bool {
+    Command::new(linker)
         .arg("--version")
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -34,6 +34,14 @@ fn lld_is_available() -> bool {
         .spawn()
         .and_then(|mut child| child.wait())
         .map_or(false, |status| status.success())
+}
+
+fn lld_is_available() -> bool {
+    linker_is_available("ld.lld")
+}
+
+fn mold_is_available() -> bool {
+    linker_is_available("ld.mold")
 }
 
 pub(crate) fn link(
@@ -136,12 +144,26 @@ pub(crate) fn link(
         // This removes the need for installing libgcc in deployment
         // environments.
         cmd.arg("-static-libgcc");
+    }
 
-        // On platforms where lld isn't the default (e.g. Linux), we'll use it
-        // if available, speeding up the linking process.
-        if lld_is_available() {
+    let mut linker = state.config.linker;
+
+    if let Linker::Detect = linker {
+        if mold_is_available() {
+            linker = Linker::Mold;
+        } else if lld_is_available() {
+            linker = Linker::Lld;
+        }
+    }
+
+    match linker {
+        Linker::Lld => {
             cmd.arg("-fuse-ld=lld");
         }
+        Linker::Mold => {
+            cmd.arg("-fuse-ld=mold");
+        }
+        _ => {}
     }
 
     cmd.stdin(Stdio::null());

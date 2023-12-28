@@ -1,7 +1,7 @@
 use crate::error::Error;
 use crate::options::print_usage;
 use compiler::compiler::{CompileError, Compiler};
-use compiler::config::{Config, Output};
+use compiler::config::{Config, Linker, Output};
 use getopts::Options;
 use std::path::PathBuf;
 
@@ -87,6 +87,13 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         "NUM",
     );
 
+    options.optopt(
+        "",
+        "linker",
+        "The specific linker to use, instead of detecting the linker automatically",
+        "system,lld,mold",
+    );
+
     let matches = options.parse(arguments)?;
 
     if matches.opt_present("h") {
@@ -142,6 +149,12 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
             }
             Ok(n) => config.threads = n,
         };
+    }
+
+    if let Some(val) = matches.opt_str("linker") {
+        config.linker = Linker::parse(&val).ok_or_else(|| {
+            Error::generic(format!("'{}' isn't a valid linker", val))
+        })?;
     }
 
     let timings = match matches.opt_str("timings") {

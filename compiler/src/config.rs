@@ -128,6 +128,33 @@ pub enum Output {
     Path(PathBuf),
 }
 
+/// A type describing which linker to use.
+#[derive(Copy, Clone)]
+pub enum Linker {
+    /// Detect which linker to use.
+    Detect,
+
+    /// Always use the system linker.
+    System,
+
+    /// Always use LLD.
+    Lld,
+
+    /// Always use Mold.
+    Mold,
+}
+
+impl Linker {
+    pub fn parse(value: &str) -> Option<Linker> {
+        match value {
+            "system" => Some(Linker::System),
+            "lld" => Some(Linker::Lld),
+            "mold" => Some(Linker::Mold),
+            _ => None,
+        }
+    }
+}
+
 /// A type for storing compiler configuration, such as the source directories to
 /// search for modules.
 pub struct Config {
@@ -182,6 +209,9 @@ pub struct Config {
 
     /// The number of threads to use when performing work in parallel.
     pub threads: usize,
+
+    /// The linker to use.
+    pub linker: Linker,
 }
 
 impl Config {
@@ -207,6 +237,7 @@ impl Config {
             write_llvm: false,
             static_linking: false,
             threads: available_parallelism().map(|v| v.get()).unwrap_or(1),
+            linker: Linker::Detect,
         }
     }
 

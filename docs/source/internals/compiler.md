@@ -256,8 +256,7 @@ compiler authors looking to provide a similar implementation.
 
 Code generation is performed by lowering MIR into LLVM IR. This is done in a
 single pass over all the MIR. This IR is then optimised using LLVM, and
-converted into object files. These object files are then linked together using
-the system's linker.
+converted into object files. These object files are then linked together.
 
 ### Methods
 
