@@ -185,6 +185,41 @@ fn pub tests(t: mut Tests) {
     t.true(root.list.error?)
   }
 
+  t.test('Path.list_recursive with a valid directory') fn (t) {
+    let root = env.temporary_directory.join("inko-test-dir-{t.id}")
+    let foo = root.join('foo')
+    let bar = foo.join('bar')
+    let baz = bar.join('baz')
+
+    baz.create_directory_all.unwrap
+    write('a', foo.join('a.txt'))
+    write('b', foo.join('b.txt'))
+    write('c', bar.join('c.txt'))
+    write('d', baz.join('d.txt'))
+
+    let paths = root
+      .list_all
+      .map fn (i) {
+        i
+          .select_map fn (r) { r.ok }
+          .map fn (e) { match e { case { @path = p } -> p } }
+          .to_array
+      }
+      .unwrap_or_else fn { [] }
+
+    t.equal(paths.size, 4)
+    t.true(paths.contains?(foo.join('a.txt')))
+    t.true(paths.contains?(foo.join('b.txt')))
+    t.true(paths.contains?(bar.join('c.txt')))
+    t.true(paths.contains?(baz.join('d.txt')))
+  }
+
+  t.test('Path.list_recursive with an invalid directory') fn (t) {
+    let root = env.temporary_directory.join("inko-test-dir-{t.id}")
+
+    t.true(root.list_all.error?)
+  }
+
   t.test('Path.remove_file') fn (t) {
     let path = env.temporary_directory.join("inko-test-{t.id}")
 

@@ -4,7 +4,7 @@ import std.cmp.Equal
 import std.fmt.(Format, Formatter)
 import std.fs.DirectoryEntry
 import std.io.(Error, Size)
-import std.iter.Iter
+import std.iter.(Iter, Stream)
 import std.libc.unix.dir.(ReadDirectory as ReadDirectoryInner) if unix
 import std.string.(ToString, IntoString)
 import std.sys
@@ -481,6 +481,47 @@ class pub Path {
   fn pub list -> Result[ReadDirectory, Error] {
     ReadDirectoryInner.new(@path).map fn (inner) {
       ReadDirectory { @path = @path, @inner = inner }
+    }
+  }
+
+  # Returns an iterator that yields all non-directory entries in `self` and in
+  # any sub directories.
+  #
+  # The order in which entries are returned is unspecified and shouldn't be
+  # relied upon, and may change at any given point.
+  #
+  # If this iterator fails to read a sub directory (e.g. `bar` in `./foo/bar`
+  # isn't readable) a `Some(Error(std.io.Error))` is returned. Because a `Some`
+  # is returned the iterator can advance when encountering an error, similar to
+  # the iterator returned by `Path.list`.
+  #
+  # # Examples
+  #
+  #     import std.fs.path.Path
+  #
+  #     Path.new('/tmp').list_all.unwrap.next
+  #     # => Option.Some(Result.Ok(DirectoryEntry { ... }))
+  fn pub list_all -> Result[Stream[Result[DirectoryEntry, Error]], Error] {
+    list.map fn (iter) {
+      let dirs = []
+      let mut current = iter
+
+      Stream.new fn move {
+        loop {
+          match current.next {
+            case Some(Ok({ @path = p, @type = Directory })) -> dirs.push(p)
+            case Some(Ok(entry)) -> return Option.Some(Result.Ok(entry))
+            case Some(Error(e)) -> return Option.Some(Result.Error(e))
+            case None -> match dirs.pop {
+              case Some(dir) -> match dir.list {
+                case Ok(iter) -> current = iter
+                case Error(e) -> return Option.Some(Result.Error(e))
+              }
+              case _ -> return Option.None
+            }
+          }
+        }
+      }
     }
   }
 
