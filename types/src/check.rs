@@ -329,7 +329,7 @@ impl<'a> TypeChecker<'a> {
 
         // If at this point we encounter a type placeholder, it means the
         // placeholder is yet to be assigned a value.
-        match left {
+        let x = match left {
             // A `Never` can't be passed around because it, well, would never
             // happen. We allow the comparison so code such as `try else panic`
             // (where `panic` returns `Never`) is valid.
@@ -609,7 +609,19 @@ impl<'a> TypeChecker<'a> {
                 _ => false,
             },
             _ => false,
+        };
+
+        // TODO: remove
+        if !x {
+            println!(
+                "{} -> {} ({:?} -> {:?})",
+                crate::format::format_type(self.db, left),
+                crate::format::format_type(self.db, right),
+                left,
+                right
+            );
         }
+        x
     }
 
     fn check_type_id(
