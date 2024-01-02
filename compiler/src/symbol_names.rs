@@ -1,36 +1,59 @@
 //! Mangled symbol names for native code.
 use crate::mir::Mir;
 use std::collections::HashMap;
-use types::{ClassId, ConstantId, Database, MethodId, ModuleId};
+use types::{ClassId, ConstantId, Database, MethodId, ModuleId, Shape};
 
 pub(crate) const SYMBOL_PREFIX: &str = "_I";
 
-pub(crate) fn class_name(db: &Database, id: ClassId) -> String {
-    format!("{}#{}", id.name(db), id.0)
+fn shapes(shapes: &[Shape]) -> String {
+    shapes.iter().fold(String::new(), |res, shape| res + shape.identifier())
 }
 
-pub(crate) fn method_name(db: &Database, id: MethodId) -> String {
-    format!("{}#{}", id.name(db), id.0)
+pub(crate) fn class_name(db: &Database, id: ClassId) -> String {
+    format!("{}#{}", id.name(db), shapes(id.shapes(db)))
+}
+
+pub(crate) fn method_name(
+    db: &Database,
+    class: ClassId,
+    id: MethodId,
+) -> String {
+    format!(
+        "{}#{}{}",
+        id.name(db),
+        shapes(class.shapes(db)),
+        shapes(id.shapes(db)),
+    )
 }
 
 fn mangled_method_name(db: &Database, method: MethodId) -> String {
     let class = method.receiver(db).class_id(db).unwrap();
-    let mod_name = method.source_module(db).name(db).as_str();
 
-    // Method names include their IDs to ensure specialized methods with the
-    // same name and type don't conflict with each other.
+    // We don't use MethodId::source_module() here as for default methods that
+    // may point to the module that defined the trait, rather than the module
+    // the trait is implemented in. That could result in symbol name conflicts
+    // when two different modules implement the same trait.
+    let mod_name = method.module(db).name(db).as_str();
+
+    // We don't use type IDs in the name as this would couple the symbol names
+    // to the order in which modules are processed.
     if class.kind(db).is_module() {
         // This ensures that methods such as `std::process.sleep` aren't
         // formatted as `std::process::std::process.sleep`. This in turn makes
         // stack traces easier to read.
-        format!("{}M_{}.{}", SYMBOL_PREFIX, mod_name, method_name(db, method))
+        format!(
+            "{}M_{}.{}",
+            SYMBOL_PREFIX,
+            mod_name,
+            method_name(db, class, method)
+        )
     } else {
         format!(
             "{}M_{}.{}.{}",
             SYMBOL_PREFIX,
             mod_name,
             class.name(db),
-            method_name(db, method)
+            method_name(db, class, method)
         )
     }
 }

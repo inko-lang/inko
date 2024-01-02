@@ -2083,8 +2083,9 @@ pub struct Method {
 
     /// The shapes of this method's type parameters, if any.
     ///
-    /// The shapes of the receiver's type parameters are _not_ included in this
-    /// list.
+    /// For static methods this list starts with the shapes of the surrounding
+    /// class' type parameters, if any. For instance methods, we only include
+    /// the shapes of the method's type parameters.
     shapes: Vec<Shape>,
 }
 

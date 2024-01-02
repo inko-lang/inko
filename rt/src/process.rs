@@ -662,9 +662,9 @@ impl Process {
                         return;
                     };
 
-                    // Methods include the type IDs to prevent name conflicts.
-                    // We get rid of these to ensure the stacktraces are easier
-                    // to understand.
+                    // Methods include the shape identifiers to prevent name
+                    // conflicts. We get rid of these to ensure the stacktraces
+                    // are easier to understand.
                     if let Some(idx) = base.find('#') {
                         base[0..idx].to_string()
                     } else {

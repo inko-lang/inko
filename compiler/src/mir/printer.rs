@@ -1,8 +1,11 @@
 //! Pretty-printing of MIR for debugging purposes.
 use crate::mir::{BlockId, Method, Mir};
-use crate::symbol_names::method_name;
 use std::fmt::Write;
-use types::{Database, TypeId};
+use types::{Database, MethodId, TypeId};
+
+fn method_name(db: &Database, id: MethodId) -> String {
+    format!("{}#{}", id.name(db), id.0,)
+}
 
 /// Returns a String containing Dot/graphviz code for visualising the MIR of one
 /// or more methods.

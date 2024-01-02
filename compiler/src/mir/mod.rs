@@ -7,7 +7,6 @@ pub(crate) mod pattern_matching;
 pub(crate) mod printer;
 pub(crate) mod specialize;
 
-use crate::symbol_names::{class_name, method_name};
 use ast::source_location::SourceLocation;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -20,6 +19,10 @@ use types::{
 
 /// The register ID of the register that stores `self`.
 pub(crate) const SELF_ID: u32 = 0;
+
+fn method_name(db: &Database, id: MethodId) -> String {
+    format!("{}#{}", id.name(db), id.0,)
+}
 
 fn join(values: &[RegisterId]) -> String {
     values.iter().map(|v| format!("r{}", v.0)).collect::<Vec<_>>().join(", ")
@@ -1205,9 +1208,10 @@ impl Instruction {
             }
             Instruction::Allocate(ref v) => {
                 format!(
-                    "r{} = allocate {}",
+                    "r{} = allocate {}#{}",
                     v.register.0,
-                    class_name(db, v.class),
+                    v.class.name(db),
+                    v.class.0,
                 )
             }
             Instruction::Spawn(ref v) => {

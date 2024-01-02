@@ -865,8 +865,21 @@ impl<'a, 'b> Specialize<'a, 'b> {
         key: Vec<Shape>,
         shapes: &HashMap<TypeParameterId, Shape>,
     ) -> MethodId {
-        let method_shapes = method
-            .type_parameters(&self.state.db)
+        // For static methods we include the class' type parameter shapes such
+        // that we can generate unique names using just the shapes for
+        // non-generic static methods. If we didn't do this, then two different
+        // instances of e.g. `Result.Ok` would produce the same symbol name
+        let shape_params = if method.is_static(&self.state.db) {
+            let class = receiver.class_id(&self.state.db).unwrap();
+            let mut params = class.type_parameters(&self.state.db);
+
+            params.append(&mut method.type_parameters(&self.state.db));
+            params
+        } else {
+            method.type_parameters(&self.state.db)
+        };
+
+        let method_shapes = shape_params
             .into_iter()
             .map(|p| *shapes.get(&p).unwrap())
             .collect();
