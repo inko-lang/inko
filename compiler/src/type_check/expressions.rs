@@ -2838,14 +2838,11 @@ impl<'a> CheckMethodBody<'a> {
 
         node.field_id = Some(field);
 
-        let ret = raw_type.cast_according_to(scope.surrounding_type, self.db());
+        let mut ret =
+            raw_type.cast_according_to(scope.surrounding_type, self.db());
 
-        if scope.in_recover() && !ret.is_sendable(self.db()) {
-            self.state.diagnostics.unsendable_type_in_recover(
-                self.fmt(ret),
-                self.file(),
-                node.location.clone(),
-            );
+        if scope.in_recover() {
+            ret = ret.as_uni_reference(self.db());
         }
 
         scope.mark_closures_as_capturing_self(self.db_mut());
@@ -2943,9 +2940,10 @@ impl<'a> CheckMethodBody<'a> {
             );
         }
 
-        if scope.in_recover() && !var_type.is_sendable(self.db()) {
-            self.state.diagnostics.unsendable_type_in_recover(
-                self.fmt(var_type),
+        if scope.in_recover() && !val_type.is_sendable(self.db()) {
+            self.state.diagnostics.unsendable_field_value(
+                name,
+                self.fmt(val_type),
                 self.file(),
                 location.clone(),
             );

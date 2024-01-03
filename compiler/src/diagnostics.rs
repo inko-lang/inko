@@ -635,23 +635,6 @@ impl Diagnostics {
         );
     }
 
-    pub(crate) fn unsendable_type_in_recover(
-        &mut self,
-        name: String,
-        file: PathBuf,
-        location: SourceLocation,
-    ) {
-        self.error(
-            DiagnosticId::InvalidType,
-            format!(
-                "values of type '{}' can't be captured by recover expressions",
-                name
-            ),
-            file,
-            location,
-        );
-    }
-
     pub(crate) fn unsendable_field_value(
         &mut self,
         field_name: &str,
