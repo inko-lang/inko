@@ -2,7 +2,7 @@
 use crate::arc_without_weak::ArcWithoutWeak;
 use crate::context;
 use crate::process::{Process, ProcessPointer, Task};
-use crate::scheduler::{number_of_cores, pin_thread_to_core};
+use crate::scheduler::pin_thread_to_core;
 use crate::stack::StackPool;
 use crate::state::State;
 use crossbeam_queue::ArrayQueue;
@@ -906,7 +906,7 @@ impl Scheduler {
 
     pub(crate) fn run(&self, state: &State, process: ProcessPointer) {
         let pollers = state.network_pollers.len();
-        let cores = number_of_cores();
+        let cores = state.cores as usize;
         let _ = scope(move |s| {
             s.builder()
                 .name("proc monitor".to_string())

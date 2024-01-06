@@ -2,7 +2,6 @@ use crate::mem::{ByteArray, String as InkoString};
 use crate::process::ProcessPointer;
 use crate::result::Result as InkoResult;
 use crate::runtime::helpers::read_into;
-use crate::scheduler::number_of_cores;
 use std::io::Write;
 use std::process::{Child, Command, Stdio};
 use std::slice;
@@ -203,9 +202,4 @@ pub(crate) unsafe extern "system" fn inko_child_process_drop(
     child: *mut Child,
 ) {
     drop(Box::from_raw(child));
-}
-
-#[no_mangle]
-pub(crate) unsafe extern "system" fn inko_cpu_cores() -> i64 {
-    number_of_cores() as i64
 }

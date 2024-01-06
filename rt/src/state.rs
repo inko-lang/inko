@@ -10,6 +10,7 @@ use std::env;
 use std::mem::size_of;
 use std::panic::RefUnwindSafe;
 use std::sync::atomic::AtomicU32;
+use std::thread::available_parallelism;
 use std::time;
 
 /// Allocates a new class, returning a tuple containing the owned pointer and a
@@ -95,6 +96,13 @@ pub struct State {
     /// access from the generated code.
     pub scheduler_epoch: AtomicU32,
 
+    /// The number of logical cores available to the current program.
+    ///
+    /// We retrieve this value once and store it, as `available_parallelism()`
+    /// is affected by `sched_setaffinity(2)`, which is used for e.g. pinning
+    /// worker threads to cores.
+    pub cores: i64,
+
     /// The runtime's configuration.
     pub(crate) config: Config,
 
@@ -152,6 +160,7 @@ impl State {
             hash_key0,
             hash_key1,
             scheduler_epoch: AtomicU32::new(0),
+            cores: available_parallelism().map(|v| v.get()).unwrap_or(1) as i64,
             scheduler,
             environment,
             config,
@@ -200,5 +209,6 @@ mod tests {
         // them.
         assert_eq!(offset_of!(state, hash_key0), 16);
         assert_eq!(offset_of!(state, hash_key1), 24);
+        assert_eq!(offset_of!(state, cores), 40);
     }
 }

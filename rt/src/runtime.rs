@@ -18,7 +18,7 @@ use crate::config::Config;
 use crate::mem::ClassPointer;
 use crate::network_poller::Worker as NetworkPollerWorker;
 use crate::process::{NativeAsyncMethod, Process};
-use crate::scheduler::{number_of_cores, pin_thread_to_core};
+use crate::scheduler::{pin_thread_to_core, reset_affinity};
 use crate::stack::Stack;
 use crate::state::{MethodCounts, RcState, State};
 use std::ffi::CStr;
@@ -62,6 +62,16 @@ pub unsafe extern "system" fn inko_runtime_new(
             args.push(CStr::from_ptr(ptr as _).to_string_lossy().into_owned());
         }
     }
+
+    // The scheduler pins threads to specific cores. If those threads spawn a
+    // new Inko process, those processes inherit the affinity and thus are
+    // pinned to the same thread. This also result in Rust's
+    // `available_parallelism()` function reporting 1, instead of e.g. 8 on a
+    // system with 8 cores/threads.
+    //
+    // To fix this, we first reset the affinity so the default/current mask
+    // allows use of all available cores/threads.
+    reset_affinity();
 
     Box::into_raw(Box::new(Runtime::new(&*counts, args)))
 }
@@ -122,7 +132,7 @@ impl Runtime {
     /// though this thread itself doesn't run any processes (= it just
     /// waits/blocks until completion).
     fn start(&self, main_class: ClassPointer, main_method: NativeAsyncMethod) {
-        let cores = number_of_cores();
+        let cores = self.state.cores as usize;
         let state = self.state.clone();
 
         thread::Builder::new()
