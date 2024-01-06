@@ -2149,6 +2149,10 @@ impl MethodId {
         param
     }
 
+    pub fn set_module(self, db: &mut Database, module: ModuleId) {
+        self.get_mut(db).module = module;
+    }
+
     pub fn set_receiver(self, db: &mut Database, receiver: TypeRef) {
         self.get_mut(db).receiver = receiver;
     }
@@ -2712,6 +2716,13 @@ impl Symbol {
 /// An Inko module.
 pub struct Module {
     name: ModuleName,
+
+    /// The name of this module to use when generating method symbol names.
+    ///
+    /// The compiler may generate new modules with generated names. This field
+    /// is used when generating symbol names for methods, such that debug info
+    /// uses a human readable name instead of the generated one.
+    method_symbol_name: ModuleName,
     class: ClassId,
     file: PathBuf,
     constants: Vec<ConstantId>,
@@ -2738,7 +2749,8 @@ impl Module {
 
         db.module_mapping.insert(name.to_string(), id);
         db.modules.push(Module {
-            name,
+            name: name.clone(),
+            method_symbol_name: name,
             class: class_id,
             file,
             constants: Vec::new(),
@@ -2755,6 +2767,14 @@ pub struct ModuleId(pub u32);
 impl ModuleId {
     pub fn name(self, db: &Database) -> &ModuleName {
         &self.get(db).name
+    }
+
+    pub fn method_symbol_name(self, db: &Database) -> &ModuleName {
+        &self.get(db).method_symbol_name
+    }
+
+    pub fn set_method_symbol_name(self, db: &mut Database, name: ModuleName) {
+        self.get_mut(db).method_symbol_name = name;
     }
 
     pub fn file(self, db: &Database) -> PathBuf {

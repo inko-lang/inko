@@ -40,6 +40,10 @@ fn format_timing(duration: Duration, total: Option<Duration>) -> String {
     };
 
     if let Some(total) = total {
+        if total.as_nanos() == 0 {
+            return base;
+        }
+
         let percent =
             ((duration.as_secs_f64() / total.as_secs_f64()) * 100.0) as u64;
 
@@ -373,7 +377,7 @@ LLVM module timings:
     fn compile_machine_code(
         &mut self,
         directories: &BuildDirectories,
-        mir: Mir,
+        mut mir: Mir,
         main_file: PathBuf,
     ) -> Result<PathBuf, CompileError> {
         let start = Instant::now();
@@ -390,8 +394,12 @@ LLVM module timings:
             Output::Path(path) => path.clone(),
         };
 
-        let mut res = llvm::passes::run_all(&self.state, directories, mir)
+        llvm::passes::split_modules(&mut self.state, &mut mir)
             .map_err(CompileError::Internal)?;
+
+        let mut res =
+            llvm::passes::lower_all(&mut self.state, directories, mir)
+                .map_err(CompileError::Internal)?;
 
         self.timings.llvm = start.elapsed();
         self.timings.llvm_modules.append(&mut res.timings);

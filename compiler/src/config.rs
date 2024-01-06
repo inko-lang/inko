@@ -5,6 +5,7 @@ use std::env;
 use std::fs::create_dir_all;
 use std::path::{Path, PathBuf};
 use std::thread::available_parallelism;
+use std::time::SystemTime;
 use types::module_name::ModuleName;
 
 /// The extension to use for source files.
@@ -189,8 +190,9 @@ pub struct Config {
     /// The presenter to use for displaying diagnostics.
     pub(crate) presenter: Box<dyn Presenter + Sync>,
 
-    /// Modules to implicitly import and process.
-    pub(crate) implicit_imports: Vec<ModuleName>,
+    /// The name of the initialization module to import into every module
+    /// implicitly.
+    pub(crate) init_module: ModuleName,
 
     /// The target to compile code for.
     pub(crate) target: Target,
@@ -212,12 +214,27 @@ pub struct Config {
 
     /// The linker to use.
     pub linker: Linker,
+
+    /// If incremental compilation is enabled or not.
+    pub incremental: bool,
+
+    /// The time at which the compiler executable was compiled.
+    ///
+    /// This is used to determine if incremental caches can be used or not. It's
+    /// set here such that we can mock it when writing tests, should that be
+    /// necessary, and to decouple the compiler logic from the command line as
+    /// much as possible.
+    pub compiled_at: SystemTime,
 }
 
 impl Config {
     pub(crate) fn new() -> Self {
         let cwd = env::current_dir().unwrap_or_else(|_| PathBuf::new());
         let std = PathBuf::from(env!("INKO_STD"));
+        let compiled_at = env::current_exe()
+            .and_then(|p| p.metadata())
+            .and_then(|m| m.modified())
+            .unwrap_or_else(|_| SystemTime::now());
 
         Self {
             std,
@@ -228,7 +245,7 @@ impl Config {
             dependencies: cwd.join(DEP),
             sources: Vec::new(),
             presenter: Box::new(TextPresenter::with_colors()),
-            implicit_imports: vec![],
+            init_module: ModuleName::std_init(),
             output: Output::Derive,
             target: Target::native(),
             opt: Opt::Balanced,
@@ -238,6 +255,8 @@ impl Config {
             static_linking: false,
             threads: available_parallelism().map(|v| v.get()).unwrap_or(1),
             linker: Linker::Detect,
+            incremental: true,
+            compiled_at,
         }
     }
 
@@ -245,10 +264,6 @@ impl Config {
         if self.std.is_dir() {
             self.sources.push(self.std.clone());
         }
-    }
-
-    fn add_default_implicit_imports(&mut self) {
-        self.implicit_imports.push(ModuleName::std_init());
     }
 
     pub fn add_source_directory(&mut self, path: PathBuf) {
@@ -311,7 +326,6 @@ impl Default for Config {
         let mut cfg = Config::new();
 
         cfg.add_default_source_directories();
-        cfg.add_default_implicit_imports();
         cfg
     }
 }

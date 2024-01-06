@@ -12,6 +12,13 @@ fn pub hash[T: Hash](value: ref T) -> Int {
   hasher.finish
 }
 
+fn pub with_directory(id: Int, func: fn (ref Path)) {
+  let path = env.temporary_directory.join("inko-test-directory-{id}")
+
+  func.call(path)
+  path.remove_directory_all
+}
+
 fn pub compiler_path -> Path {
   let base = match env.working_directory {
     case Ok(path) -> path

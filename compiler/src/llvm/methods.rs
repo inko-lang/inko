@@ -92,7 +92,18 @@ impl Methods {
             }
         }
 
-        for (&id, mir_class) in &mir.classes {
+        // `mir.classes` is a HashMap, and the order of iterating over a HashMap
+        // isn't consistent. Should there be conflicting hashes, the order in
+        // which classes (and thus methods) are processed may affect the hash
+        // code. By sorting the list of IDs first and iterating over that, we
+        // ensure we always process the data in a consistent order.
+        let mut ids = mir.classes.keys().cloned().collect::<Vec<_>>();
+
+        ids.sort_by_key(|i| i.name(db));
+
+        for id in ids {
+            let mir_class = &mir.classes[&id];
+
             // We size classes larger than actually needed in an attempt to
             // reduce collisions when performing dynamic dispatch.
             let methods_len = max(

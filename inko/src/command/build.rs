@@ -94,6 +94,12 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         "system,lld,mold",
     );
 
+    options.optflag(
+        "",
+        "disable-incremental",
+        "Disables incremental compilation",
+    );
+
     let matches = options.parse(arguments)?;
 
     if matches.opt_present("h") {
@@ -137,6 +143,10 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
 
     if let Some(path) = matches.opt_str("o") {
         config.output = Output::Path(PathBuf::from(path));
+    }
+
+    if matches.opt_present("disable-incremental") {
+        config.incremental = false;
     }
 
     if let Some(val) = matches.opt_str("threads") {

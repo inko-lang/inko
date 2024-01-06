@@ -1,3 +1,4 @@
+import helpers.(with_directory)
 import std.env
 import std.fmt.(fmt)
 import std.fs.(DirectoryEntry, FileType)
@@ -159,65 +160,61 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('Path.list with a valid directory') fn (t) {
-    let root = env.temporary_directory.join("inko-test-dir-{t.id}")
-    let foo = root.join('foo')
+    with_directory(t.id) fn (root) {
+      let foo = root.join('foo')
 
-    root.create_directory.unwrap
-    foo.create_directory.unwrap
+      root.create_directory.unwrap
+      foo.create_directory.unwrap
 
-    let entry = root
-      .list
-      .unwrap
-      .select_map fn (e) { e.ok }
-      .find fn (e) { e.path == foo }
+      let entry = root
+        .list
+        .unwrap
+        .select_map fn (e) { e.ok }
+        .find fn (e) { e.path == foo }
 
-    t.equal(
-      entry,
-      Option.Some(DirectoryEntry { @path = foo, @type = FileType.Directory })
-    )
-
-    let _ = root.remove_directory_all
+      t.equal(
+        entry,
+        Option.Some(DirectoryEntry { @path = foo, @type = FileType.Directory })
+      )
+    }
   }
 
   t.test('Path.list with an invalid directory') fn (t) {
-    let root = env.temporary_directory.join("inko-test-dir-{t.id}")
-
-    t.true(root.list.error?)
+    with_directory(t.id) fn (root) { t.true(root.list.error?) }
   }
 
   t.test('Path.list_recursive with a valid directory') fn (t) {
-    let root = env.temporary_directory.join("inko-test-dir-{t.id}")
-    let foo = root.join('foo')
-    let bar = foo.join('bar')
-    let baz = bar.join('baz')
+    with_directory(t.id) fn (root) {
+      let foo = root.join('foo')
+      let bar = foo.join('bar')
+      let baz = bar.join('baz')
 
-    baz.create_directory_all.unwrap
-    write('a', foo.join('a.txt'))
-    write('b', foo.join('b.txt'))
-    write('c', bar.join('c.txt'))
-    write('d', baz.join('d.txt'))
+      baz.create_directory_all.unwrap
+      write('a', foo.join('a.txt'))
+      write('b', foo.join('b.txt'))
+      write('c', bar.join('c.txt'))
+      write('d', baz.join('d.txt'))
 
-    let paths = root
-      .list_all
-      .map fn (i) {
-        i
-          .select_map fn (r) { r.ok }
-          .map fn (e) { match e { case { @path = p } -> p } }
-          .to_array
-      }
-      .unwrap_or_else fn { [] }
+      let paths = root
+        .list_all
+        .map fn (i) {
+          i
+            .select_map fn (r) { r.ok }
+            .map fn (e) { match e { case { @path = p } -> p } }
+            .to_array
+        }
+        .unwrap_or_else fn { [] }
 
-    t.equal(paths.size, 4)
-    t.true(paths.contains?(foo.join('a.txt')))
-    t.true(paths.contains?(foo.join('b.txt')))
-    t.true(paths.contains?(bar.join('c.txt')))
-    t.true(paths.contains?(baz.join('d.txt')))
+      t.equal(paths.size, 4)
+      t.true(paths.contains?(foo.join('a.txt')))
+      t.true(paths.contains?(foo.join('b.txt')))
+      t.true(paths.contains?(bar.join('c.txt')))
+      t.true(paths.contains?(baz.join('d.txt')))
+    }
   }
 
   t.test('Path.list_recursive with an invalid directory') fn (t) {
-    let root = env.temporary_directory.join("inko-test-dir-{t.id}")
-
-    t.true(root.list_all.error?)
+    with_directory(t.id) fn (root) { t.true(root.list_all.error?) }
   }
 
   t.test('Path.remove_file') fn (t) {
@@ -232,56 +229,54 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('Path.remove_directory') fn (t) {
-    let path = env.temporary_directory.join("inko-test-dir-{t.id}")
+    with_directory(t.id) fn (path) {
+      t.true(path.remove_directory.error?)
 
-    t.true(path.remove_directory.error?)
+      path.create_directory.unwrap
 
-    path.create_directory.unwrap
-
-    t.true(path.remove_directory.ok?)
-    t.false(path.directory?)
+      t.true(path.remove_directory.ok?)
+      t.false(path.directory?)
+    }
   }
 
   t.test('Path.create_directory') fn (t) {
-    let path = env.temporary_directory.join("inko-test-dir-{t.id}")
-
-    t.true(path.create_directory.ok?)
-    t.true(path.directory?)
-    t.true(path.create_directory.error?)
-
-    path.remove_directory.unwrap
+    with_directory(t.id) fn (path) {
+      t.true(path.create_directory.ok?)
+      t.true(path.directory?)
+      t.true(path.create_directory.error?)
+    }
   }
 
   t.test('Path.create_directory_all') fn (t) {
-    let root = env.temporary_directory.join("inko-test-dir-{t.id}")
-    let path = root.join('foo').join('bar')
+    with_directory(t.id) fn (root) {
+      let path = root.join('foo').join('bar')
 
-    t.true(path.create_directory_all.ok?)
-    t.true(path.directory?)
-    t.true(path.create_directory_all.ok?)
-
-    root.remove_directory_all.unwrap
+      t.true(path.create_directory_all.ok?)
+      t.true(path.directory?)
+      t.true(path.create_directory_all.ok?)
+    }
   }
 
   t.test('Path.remove_directory') fn (t) {
-    let path = env.temporary_directory.join("inko-test-dir-{t.id}")
+    with_directory(t.id) fn (path) {
+      path.create_directory.unwrap
 
-    path.create_directory.unwrap
-
-    t.true(path.remove_directory.ok?)
-    t.true(path.remove_directory.error?)
-    t.false(path.directory?)
+      t.true(path.remove_directory.ok?)
+      t.true(path.remove_directory.error?)
+      t.false(path.directory?)
+    }
   }
 
   t.test('Path.remove_directory_all') fn (t) {
-    let root = env.temporary_directory.join("inko-test-dir-{t.id}")
-    let path = root.join('foo').join('bar')
+    with_directory(t.id) fn (root) {
+      let path = root.join('foo').join('bar')
 
-    path.create_directory_all.unwrap
+      path.create_directory_all.unwrap
 
-    t.true(root.remove_directory_all.ok?)
-    t.true(root.remove_directory_all.error?)
-    t.false(root.directory?)
+      t.true(root.remove_directory_all.ok?)
+      t.true(root.remove_directory_all.error?)
+      t.false(root.directory?)
+    }
   }
 
   t.test('Path.copy') fn (t) {

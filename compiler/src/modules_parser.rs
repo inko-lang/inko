@@ -77,18 +77,25 @@ impl<'a> ModulesParser<'a> {
             scheduled.insert(path.clone());
         }
 
-        for name in &self.state.config.implicit_imports {
-            // Implicitly imported modules are always part of std, so we
-            // don't need to search through all the source paths.
-            let path = self.state.config.std.join(name.to_path());
+        let init = &self.state.config.init_module;
+        let init_id = self.state.dependency_graph.add_module(init.clone());
+
+        {
+            let path = self.state.config.std.join(init.to_path());
 
             scheduled.insert(path.clone());
-            pending.push((name.clone(), path));
+            pending.push((init.clone(), path));
         }
 
         while let Some((qname, file)) = pending.pop() {
             if let Some(mut ast) = self.parse(&file) {
                 let deps = imported_modules(&mut ast, &self.state.build_tags);
+                let depending_id =
+                    self.state.dependency_graph.add_module(qname.clone());
+
+                self.state
+                    .dependency_graph
+                    .add_depending(init_id, depending_id);
 
                 modules
                     .insert(qname.clone(), ParsedModule { name: qname, ast });
@@ -108,6 +115,13 @@ impl<'a> ModulesParser<'a> {
 
                         continue;
                     };
+
+                    let dependency_id =
+                        self.state.dependency_graph.add_module(dep.clone());
+
+                    self.state
+                        .dependency_graph
+                        .add_depending(dependency_id, depending_id);
 
                     if scheduled.contains(&path) {
                         continue;
@@ -195,19 +209,22 @@ mod tests {
     fn test_run_with_existing_modules() {
         let file1 = TempFile::new("parsing1a");
         let file2 = TempFile::new("parsing2a");
+        let file3 = TempFile::new("inita");
 
         write(file1.path(), "import parsing2a").unwrap();
         write(file2.path(), "let A = 10").unwrap();
+        write(file3.path(), "").unwrap();
 
         let mut state = State::new(Config::new());
 
+        state.config.std = temp_dir();
         state.config.add_source_directory(temp_dir());
-        state.config.implicit_imports = Vec::new();
+        state.config.init_module = ModuleName::new("inita");
 
         let mut pass = ModulesParser::new(&mut state);
         let mods = pass.run(vec![(ModuleName::main(), file1.path().clone())]);
 
-        assert_eq!(mods.len(), 2);
+        assert_eq!(mods.len(), 3);
 
         let names = mods.iter().map(|m| m.name.clone()).collect::<Vec<_>>();
 
@@ -220,64 +237,47 @@ mod tests {
     fn test_run_with_syntax_error() {
         let file1 = TempFile::new("parsing1b");
         let file2 = TempFile::new("parsing2b");
+        let file3 = TempFile::new("initb");
 
         write(file1.path(), "import parsing2b").unwrap();
         write(file2.path(), "10").unwrap();
+        write(file3.path(), "").unwrap();
 
         let mut state = State::new(Config::new());
 
         state.config.add_source_directory(temp_dir());
-        state.config.implicit_imports = Vec::new();
+        state.config.std = temp_dir();
+        state.config.init_module = ModuleName::new("initb");
 
         let mut pass = ModulesParser::new(&mut state);
         let mods = pass.run(vec![(ModuleName::main(), file1.path().clone())]);
 
-        assert_eq!(mods.len(), 1);
-        assert_eq!(mods[0].name, ModuleName::main());
+        assert_eq!(mods.len(), 2);
+        assert_eq!(mods[0].name, ModuleName::new("initb"));
+        assert_eq!(mods[1].name, ModuleName::main());
         assert_eq!(state.diagnostics.iter().count(), 1);
     }
 
     #[test]
     fn test_run_with_missing_file() {
         let file1 = TempFile::new("parsing1c");
+        let file2 = TempFile::new("initc");
 
         write(file1.path(), "import parsing2c").unwrap();
+        write(file2.path(), "").unwrap();
 
         let mut state = State::new(Config::new());
 
         state.config.add_source_directory(temp_dir());
-        state.config.implicit_imports = Vec::new();
-
-        let mut pass = ModulesParser::new(&mut state);
-        let mods = pass.run(vec![(ModuleName::main(), file1.path().clone())]);
-
-        assert_eq!(mods.len(), 1);
-        assert_eq!(mods[0].name, ModuleName::main());
-        assert_eq!(state.diagnostics.iter().count(), 1);
-    }
-
-    #[test]
-    fn test_run_with_implicit_imports() {
-        let file1 = TempFile::new("parsing1d");
-        let file2 = TempFile::new("parsing2d");
-
-        write(file1.path(), "").unwrap();
-        write(file2.path(), "let A = 10").unwrap();
-
-        let mut state = State::new(Config::new());
-
         state.config.std = temp_dir();
-        state.config.implicit_imports = vec![ModuleName::new("parsing2d")];
+        state.config.init_module = ModuleName::new("initc");
 
         let mut pass = ModulesParser::new(&mut state);
         let mods = pass.run(vec![(ModuleName::main(), file1.path().clone())]);
 
         assert_eq!(mods.len(), 2);
-
-        let names = mods.iter().map(|m| m.name.clone()).collect::<Vec<_>>();
-
-        assert!(names.contains(&ModuleName::main()));
-        assert!(names.contains(&ModuleName::new("parsing2d")));
-        assert_eq!(state.diagnostics.iter().count(), 0);
+        assert_eq!(mods[0].name, ModuleName::new("initc"));
+        assert_eq!(mods[1].name, ModuleName::main());
+        assert_eq!(state.diagnostics.iter().count(), 1);
     }
 }

@@ -14,11 +14,14 @@ use crate::llvm::methods::Methods;
 use crate::llvm::module::Module;
 use crate::llvm::runtime_function::RuntimeFunction;
 use crate::mir::{
-    CastType, Constant, Instruction, LocationId, Method, Mir, RegisterId,
+    CastType, Constant, Instruction, LocationId, Method, Mir,
+    Module as MirModule, RegisterId,
 };
 use crate::state::State;
-use crate::symbol_names::SymbolNames;
+use crate::symbol_names::{shapes, SymbolNames};
 use crate::target::Architecture;
+use blake2::digest::consts::U16;
+use blake2::{Blake2b, Digest as _};
 use inkwell::basic_block::BasicBlock;
 use inkwell::module::Linkage;
 use inkwell::passes::{PassManager, PassManagerBuilder};
@@ -36,33 +39,339 @@ use inkwell::values::{
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::fs::{read, write};
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread::scope;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use types::module_name::ModuleName;
 use types::{
-    BuiltinFunction, ClassId, Database, Shape, TypeRef, BYTE_ARRAY_ID,
-    STRING_ID,
+    BuiltinFunction, ClassId, Database, Module as ModuleType, Shape, TypeRef,
+    BYTE_ARRAY_ID, STRING_ID,
 };
 
-pub(crate) struct CompileResult {
-    /// The file paths to the generated object files to link together.
-    pub(crate) objects: Vec<PathBuf>,
+fn object_path(directories: &BuildDirectories, name: &ModuleName) -> PathBuf {
+    let digest = Blake2b::<U16>::digest(name.as_str());
 
-    /// The timings of each module that is compiled.
-    pub(crate) timings: Vec<(ModuleName, Duration)>,
+    directories.objects.join(format!("{:x}.o", digest))
+}
+
+fn check_object_cache(
+    state: &mut State,
+    symbol_names: &SymbolNames,
+    methods: &Methods,
+    directories: &BuildDirectories,
+    object_paths: &[PathBuf],
+    mir: &Mir,
+) -> Result<(), String> {
+    let now = SystemTime::now();
+    let mut force = !state.config.incremental
+        || state.config.write_llvm
+        || state.config.verify_llvm;
+
+    // We don't have a stable ABI of any sort, so we force a flush every time
+    // the compiler's executable is compiled again. This may be overly
+    // conservative, but it ensures we don't end up using existing object files
+    // that are in a state the current compiler version doesn't expect.
+    //
+    // We also take into account the version number, in case somebody tries to
+    // compile a previously compiled project using an older version of the
+    // compiler.
+    let time = state
+        .config
+        .compiled_at
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+
+    let new_ver = format!("{}-{}", env!("CARGO_PKG_VERSION"), time);
+    let ver_path = directories.objects.join("version");
+    let ver_changed = if ver_path.is_file() {
+        read(&ver_path)
+            .ok()
+            .and_then(|b| String::from_utf8(b).ok())
+            .map_or(true, |old_ver| old_ver != new_ver)
+    } else {
+        true
+    };
+
+    if ver_changed {
+        force = true;
+        write(&ver_path, new_ver).map_err(|e| {
+            format!(
+                "failed to write the compiler version to {}: {}",
+                ver_path.display(),
+                e
+            )
+        })?;
+    }
+
+    for (module, obj_path) in mir.modules.values().iter().zip(object_paths) {
+        let name = module.id.name(&state.db);
+        let src_path = module.id.file(&state.db);
+        let mut changed = force;
+
+        // We only check the timestamp if we aren't forced to flush the cache
+        // already.
+        if !changed {
+            let src_time =
+                src_path.metadata().and_then(|m| m.modified()).unwrap_or(now);
+
+            // We default to the Unix epoch such that a missing object file is
+            // treated as one created in 1970. This way we don't need to wrap
+            // things in an extra Option or a similar type.
+            let obj_time = obj_path
+                .metadata()
+                .and_then(|m| m.modified())
+                .unwrap_or(UNIX_EPOCH);
+
+            changed = src_time > obj_time;
+        }
+
+        // It's possible the source file remains unchanged relative to the
+        // object file, but the list of symbols we wish to write to the object
+        // file has changed. This can happen if module A imports module B, B
+        // introduces some generic type used in A, and A introduces a new
+        // specialization of that type.
+        //
+        // We solve this by maintaining hashes of the sorted list of symbol
+        // names, and compare those between compilations to see if the list has
+        // changed. If so, we flush the cache.
+        //
+        // An alternative approach involves reading the symbol names from
+        // existing object files, sorting those and comparing them to the list
+        // we build here. This likely would be much slower though, as object
+        // files can get pretty large and modules can easily have hundreds of
+        // symbol names. Blake2 on the other hand is fast enough, and we only
+        // need to perform one final comparison instead of potentially many
+        // comparisons per module.
+        let mut names = Vec::new();
+
+        for id in &module.constants {
+            names.push(&symbol_names.constants[id]);
+        }
+
+        for id in &module.classes {
+            names.push(&symbol_names.classes[id]);
+        }
+
+        for id in &module.methods {
+            names.push(&symbol_names.methods[id]);
+        }
+
+        names.sort();
+
+        let mut hasher: Blake2b<U16> = Blake2b::new();
+
+        for name in names {
+            hasher.update(name);
+        }
+
+        // The module may contain dynamic dispatch call sites. If the need for
+        // probing changes, we need to update the module's code accordingly. We
+        // do this by hashing the collision states of all dynamic calls in the
+        // current module, such that if any of them change, so does the hash.
+        for &mid in &module.methods {
+            hasher.update(methods.info[mid.0 as usize].hash.to_le_bytes());
+
+            for block in &mir.methods[&mid].body.blocks {
+                for ins in &block.instructions {
+                    if let Instruction::CallDynamic(op) = ins {
+                        let val = methods.info[op.method.0 as usize].collision;
+
+                        hasher.update([val as u8]);
+                    }
+                }
+            }
+        }
+
+        let new_hash = format!("{:x}", hasher.finalize());
+        let hash_path = obj_path.with_extension("o.blake2");
+
+        // We don't need to perform this check if another check already
+        // determined the object file needs to be refreshed.
+        //
+        // If we can't read the file for some reason or its contents are
+        // invalid, the only safe assumption we can make is that the object file
+        // has changed.
+        if !changed {
+            changed = if hash_path.is_file() {
+                read(&hash_path)
+                    .ok()
+                    .and_then(|b| String::from_utf8(b).ok())
+                    .map_or(true, |old_hash| old_hash != new_hash)
+            } else {
+                true
+            };
+        }
+
+        if !changed {
+            continue;
+        }
+
+        // We only need to write to the hash file if there are any changes.
+        write(&hash_path, new_hash).map_err(|err| {
+            format!(
+                "failed to write the object file hash to {}: {}",
+                hash_path.display(),
+                err,
+            )
+        })?;
+
+        let mut work = vec![state.dependency_graph.module_id(name).unwrap()];
+
+        while let Some(id) = work.pop() {
+            if state.dependency_graph.mark_as_changed(id) {
+                work.append(&mut state.dependency_graph.depending(id));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn sort_mir(db: &Database, mir: &mut Mir, names: &SymbolNames) {
+    // We sort the data by their generated symbol names, as these are already
+    // unique for each ID and take into account data such as the shapes. If we
+    // sorted just by IDs we'd get an inconsistent order between compilations,
+    // and if we just sorted by names we may get an inconsistent order when many
+    // values share the same name.
+    for module in mir.modules.values_mut() {
+        module.constants.sort_by_key(|i| &names.constants[i]);
+        module.classes.sort_by_key(|i| &names.classes[i]);
+        module.methods.sort_by_key(|i| &names.methods[i]);
+    }
+
+    for class in mir.classes.values_mut() {
+        class.methods.sort_by_key(|i| &names.methods[i]);
+    }
+
+    // When populating object caches we need to be able to iterate over the MIR
+    // modules in a stable order. We do this here (and once) such that from this
+    // point forward, we can rely on a stable order, as it's too easy to forget
+    // to first sort this list every time we want to iterate over it.
+    //
+    // Because `mir.modules` is an IndexMap, sorting it is a bit more involved
+    // compared to just sorting a `Vec`.
+    let mut values = mir.modules.take_values();
+
+    values.sort_by_key(|m| m.id.name(db));
+
+    for module in values {
+        mir.modules.insert(module.id, module);
+    }
+}
+
+/// A pass that splits modules into smaller ones, such that each specialized
+/// type has its own module.
+///
+/// This pass is used to make caching and parallel compilation more effective,
+/// such that adding a newly specialized type won't flush many caches
+/// unnecessarily.
+pub(crate) fn split_modules(
+    state: &mut State,
+    mir: &mut Mir,
+) -> Result<(), String> {
+    let mut new_modules = Vec::new();
+
+    for old_module in mir.modules.values_mut() {
+        let mut moved_classes = HashSet::new();
+        let mut moved_methods = HashSet::new();
+
+        for &class_id in &old_module.classes {
+            if class_id.specialization_source(&state.db).unwrap_or(class_id)
+                == class_id
+                || class_id.kind(&state.db).is_closure()
+            {
+                // Non-generic and closure classes always originate from the
+                // source modules, so there's no need to move them elsewhere.
+                continue;
+            }
+
+            let file = old_module.id.file(&state.db);
+            let orig_name = old_module.id.name(&state.db).clone();
+            let name = ModuleName::new(format!(
+                "{}({}#{})",
+                orig_name,
+                class_id.name(&state.db),
+                shapes(class_id.shapes(&state.db))
+            ));
+
+            let new_mod_id =
+                ModuleType::alloc(&mut state.db, name.clone(), file);
+
+            // For symbols/stack traces we want to use the original name, not
+            // the generated one.
+            new_mod_id.set_method_symbol_name(&mut state.db, orig_name.clone());
+
+            // We have to record the new module in the dependency graph, that
+            // way a change to the original module also affects these generated
+            // modules.
+            let new_node_id = state.dependency_graph.add_module(name);
+            let old_node_id =
+                state.dependency_graph.module_id(&orig_name).unwrap();
+
+            state.dependency_graph.add_depending(old_node_id, new_node_id);
+
+            let mut new_module = MirModule::new(new_mod_id);
+
+            // We don't deal with static methods as those have their receiver
+            // typed as the original class ID, because they don't really belong
+            // to a class (i.e. they're basically scoped module methods).
+            new_module.methods = mir.classes[&class_id].methods.clone();
+            new_module.classes.push(class_id);
+            moved_classes.insert(class_id);
+
+            // When generating symbol names we use the module as stored in the
+            // method, so we need to make sure that's set to our newly generated
+            // module.
+            for &id in &new_module.methods {
+                id.set_module(&mut state.db, new_mod_id);
+                moved_methods.insert(id);
+            }
+
+            class_id.set_module(&mut state.db, new_mod_id);
+            new_modules.push(new_module);
+        }
+
+        old_module.methods.retain(|id| !moved_methods.contains(id));
+        old_module.classes.retain(|i| !moved_classes.contains(i));
+    }
+
+    for module in new_modules {
+        mir.modules.insert(module.id, module);
+    }
+
+    Ok(())
 }
 
 /// Compiles all the modules into object files.
 ///
 /// The return value is a list of file paths to the generated object files.
-pub(crate) fn run_all(
-    state: &State,
+pub(crate) fn lower_all(
+    state: &mut State,
     directories: &BuildDirectories,
-    mir: Mir,
+    mut mir: Mir,
 ) -> Result<CompileResult, String> {
+    let names = SymbolNames::new(&state.db, &mir);
+
+    sort_mir(&state.db, &mut mir, &names);
+
+    let methods = Methods::new(&state.db, &mir);
+
+    // The object paths are generated using Blake2, and are needed in several
+    // places. We generate them once here, then reuse the data by indexing this
+    // Vec based on the index of the MIR module being processed.
+    let obj_paths: Vec<PathBuf> = mir
+        .modules
+        .values()
+        .iter()
+        .map(|m| object_path(directories, m.id.name(&state.db)))
+        .collect();
+
+    check_object_cache(state, &names, &methods, directories, &obj_paths, &mir)?;
+
     if state.config.write_llvm {
         directories.create_llvm()?;
     }
@@ -94,9 +403,6 @@ pub(crate) fn run_all(
         Opt::Aggressive => OptimizationLevel::Aggressive,
     };
 
-    let methods = Methods::new(&state.db, &mir);
-    let names = SymbolNames::new(&state.db, &mir);
-
     // Our "queue" is just an atomic integer in the range 0..N where N is the
     // number of MIR modules. These integers are then used to index the list of
     // MIR modules, removing the need for some sort of synchronized queue.
@@ -108,6 +414,7 @@ pub(crate) fn run_all(
         names: &names,
         queue: &queue,
         directories,
+        object_paths: &obj_paths,
         level,
     };
 
@@ -137,7 +444,22 @@ pub(crate) fn run_all(
         Ok(())
     })?;
 
+    // To ensure the resulting executable is the same between different
+    // compilations (assuming no code changes), we sort the paths so they're
+    // provided to the linker in a consistent order. This makes inspecting the
+    // resulting executable easier, as the code locations don't randomly change
+    // based on what order object files are linked in.
+    paths.sort();
+
     Ok(CompileResult { objects: paths, timings })
+}
+
+pub(crate) struct CompileResult {
+    /// The file paths to the generated object files to link together.
+    pub(crate) objects: Vec<PathBuf>,
+
+    /// The timings of each module that is compiled.
+    pub(crate) timings: Vec<(ModuleName, Duration)>,
 }
 
 /// The state shared between worker threads.
@@ -148,6 +470,7 @@ struct SharedState<'a> {
     names: &'a SymbolNames,
     queue: &'a AtomicUsize,
     directories: &'a BuildDirectories,
+    object_paths: &'a Vec<PathBuf>,
     level: OptimizationLevel,
 }
 
@@ -221,7 +544,14 @@ impl<'a> Worker<'a> {
     ) -> Result<PathBuf, String> {
         let start = Instant::now();
         let mod_id = self.shared.mir.modules[index].id;
-        let name = mod_id.name(&self.shared.state.db).clone();
+        let name = mod_id.name(&self.shared.state.db);
+        let obj_path = self.shared.object_paths[index].clone();
+
+        if !self.shared.state.dependency_graph.module_changed(name) {
+            self.timings.insert(name.clone(), start.elapsed());
+            return Ok(obj_path);
+        }
+
         let path = mod_id.file(&self.shared.state.db);
         let mut module = Module::new(context, layouts, name.clone(), &path);
 
@@ -236,9 +566,9 @@ impl<'a> Worker<'a> {
         }
         .run();
 
-        let res = self.process_module(&module);
+        let res = self.process_module(&module, obj_path);
 
-        self.timings.insert(name, start.elapsed());
+        self.timings.insert(name.clone(), start.elapsed());
         res
     }
 
@@ -262,15 +592,20 @@ impl<'a> Worker<'a> {
         )
         .run();
 
-        let res = self.process_module(&main);
+        let path = object_path(self.shared.directories, &name);
+        let res = self.process_module(&main, path);
 
         self.timings.insert(name, start.elapsed());
         res
     }
 
-    fn process_module(&self, module: &Module) -> Result<PathBuf, String> {
+    fn process_module(
+        &self,
+        module: &Module,
+        path: PathBuf,
+    ) -> Result<PathBuf, String> {
         self.run_passes(module);
-        self.write_object_file(module)
+        self.write_object_file(module, path)
     }
 
     fn run_passes(&self, module: &Module) {
@@ -288,7 +623,11 @@ impl<'a> Worker<'a> {
         manager.run_on(&module.inner);
     }
 
-    fn write_object_file(&self, module: &Module) -> Result<PathBuf, String> {
+    fn write_object_file(
+        &self,
+        module: &Module,
+        path: PathBuf,
+    ) -> Result<PathBuf, String> {
         if self.shared.state.config.write_llvm {
             let name = module.name.normalized_name();
             let path =
@@ -310,9 +649,6 @@ impl<'a> Worker<'a> {
                 )
             })?;
         }
-
-        let name = module.name.normalized_name();
-        let path = self.shared.directories.objects.join(format!("{}.o", name));
 
         self.machine
             .write_to_file(&module.inner, FileType::Object, &path)
@@ -508,7 +844,14 @@ impl<'a, 'b, 'mir, 'ctx> LowerModule<'a, 'b, 'mir, 'ctx> {
             self.set_constant_global(&builder, state_var, value, global);
         }
 
-        for (value, global) in &self.module.strings {
+        // We sort this list so different compilations always produce this list
+        // in a consistent order, making it easier to compare the output of
+        // incremental vs non-incremental builds.
+        let mut strings: Vec<_> = self.module.strings.iter().collect();
+
+        strings.sort_by_key(|p| p.0);
+
+        for (value, global) in strings {
             let ptr = global.as_pointer_value();
             let val = self.new_string(&builder, state_var, value);
 
@@ -2457,8 +2800,12 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
             self.builder.call(rt_state, &[runtime.into()]).into_pointer_value();
 
         // Allocate and store all the classes in their corresponding globals.
-        for &id in self.mir.modules.keys() {
-            let name = &self.names.setup_classes[&id];
+        // We iterate over the values here and below such that the order is
+        // stable between compilations. This doesn't matter for the code that we
+        // generate here, but it makes it easier to inspect the resulting
+        // executable (e.g. using `objdump --disassemble`).
+        for module in self.mir.modules.values() {
+            let name = &self.names.setup_classes[&module.id];
             let func = self.module.add_setup_function(name);
 
             self.builder.call_void(func, &[state.into()]);
@@ -2467,8 +2814,8 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
         // Constants need to be defined in a separate pass, as they may depends
         // on the classes (e.g. array constants need the Array class to be set
         // up).
-        for &id in self.mir.modules.keys() {
-            let name = &self.names.setup_constants[&id];
+        for module in self.mir.modules.values() {
+            let name = &self.names.setup_constants[&module.id];
             let func = self.module.add_setup_function(name);
 
             self.builder.call_void(func, &[state.into()]);

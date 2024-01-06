@@ -85,9 +85,7 @@ fn check(compiler: String, name: String, file: Path) -> Array[Diagnostic] {
 
   match parse_output(dir.to_string, output) {
     case Ok(v) -> v
-    case Error(e) -> panic(
-      "failed to parse the JSON diagnostics for {file}: {e}"
-    )
+    case Error(e) -> panic("failed to parse the JSON for {file.tail}: {e}")
   }
 }
 

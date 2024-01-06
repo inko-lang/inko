@@ -5,7 +5,7 @@ use types::{ClassId, ConstantId, Database, MethodId, ModuleId, Shape};
 
 pub(crate) const SYMBOL_PREFIX: &str = "_I";
 
-fn shapes(shapes: &[Shape]) -> String {
+pub(crate) fn shapes(shapes: &[Shape]) -> String {
     shapes.iter().fold(String::new(), |res, shape| res + shape.identifier())
 }
 
@@ -33,7 +33,7 @@ fn mangled_method_name(db: &Database, method: MethodId) -> String {
     // may point to the module that defined the trait, rather than the module
     // the trait is implemented in. That could result in symbol name conflicts
     // when two different modules implement the same trait.
-    let mod_name = method.module(db).name(db).as_str();
+    let mod_name = method.module(db).method_symbol_name(db).as_str();
 
     // We don't use type IDs in the name as this would couple the symbol names
     // to the order in which modules are processed.

@@ -3,6 +3,7 @@
 
 mod diagnostics;
 mod hir;
+mod incremental;
 mod linker;
 mod llvm;
 mod mir;

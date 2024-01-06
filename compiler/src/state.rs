@@ -1,6 +1,7 @@
 //! Compiler state accessible to compiler passes.
 use crate::config::{Config, SOURCE, TESTS};
 use crate::diagnostics::Diagnostics;
+use crate::incremental::DependencyGraph;
 use crate::pkg::manifest::{Manifest, MANIFEST_FILE};
 use crate::target::{OperatingSystem, Target};
 use std::collections::{HashMap, HashSet};
@@ -168,6 +169,7 @@ pub(crate) struct State {
     pub(crate) db: Database,
     pub(crate) build_tags: BuildTags,
     pub(crate) libraries: HashSet<String>,
+    pub(crate) dependency_graph: DependencyGraph,
     packages: Packages,
     exists: Exists,
 }
@@ -186,6 +188,7 @@ impl State {
             libraries: HashSet::new(),
             packages: Packages::new(),
             exists: Exists::new(),
+            dependency_graph: DependencyGraph::new(),
         }
     }
 

@@ -2,6 +2,7 @@
 use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::hash::Hash;
+use std::mem::swap;
 use std::ops::{Index, IndexMut};
 
 /// A hash map that can be accessed both by a key and an index.
@@ -56,6 +57,14 @@ impl<K: Eq + Hash, V> IndexMap<K, V> {
 
     pub fn get_index(&self, index: usize) -> Option<&V> {
         self.values.get(index)
+    }
+
+    pub fn take_values(&mut self) -> Vec<V> {
+        let mut values = Vec::new();
+
+        swap(&mut values, &mut self.values);
+        self.mapping.clear();
+        values
     }
 
     pub fn values(&self) -> &Vec<V> {

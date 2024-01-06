@@ -258,6 +258,17 @@ Code generation is performed by lowering MIR into LLVM IR. This is done in a
 single pass over all the MIR. This IR is then optimised using LLVM, and
 converted into object files. These object files are then linked together.
 
+Generating object files is done in parallel and incrementally. By default the
+compiler uses as many threads as there are cores. A custom number of threads is
+specified using `inko build --threads=N` where `N` is a value greater than zero.
+
+Incremental compilation is used to only regenerate object files for which this
+is necessary, greatly reducing the time spent in LLVM. Caches used by
+incremental compilation are tied to the version of Inko used to compile them.
+This means that when upgrading to a newer version of Inko, the cache is
+refreshed automatically. Incremental compilation can be disabled using
+`inko build --disable-incremental`.
+
 ### Methods
 
 As part of code generation, methods are stored in a class such that we can
