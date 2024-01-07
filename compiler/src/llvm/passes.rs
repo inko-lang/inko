@@ -85,7 +85,12 @@ fn check_object_cache(
         .map(|d| d.as_secs())
         .unwrap_or(0);
 
-    let new_ver = format!("{}-{}", env!("CARGO_PKG_VERSION"), time);
+    let new_ver = format!(
+        "{}-{}-{}",
+        env!("CARGO_PKG_VERSION"),
+        time,
+        state.config.target
+    );
     let ver_path = directories.objects.join("version");
     let ver_changed = if ver_path.is_file() {
         read(&ver_path)
