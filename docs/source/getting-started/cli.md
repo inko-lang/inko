@@ -54,4 +54,10 @@ You can specify an alternative output path using the `-o` option:
 inko build -o /tmp/hello hello.inko
 ```
 
+When compiling for the host/native target, build output is placed in `./build`
+directly, but when building for a different architecture the output is scoped to
+a directory named after that architecture. For example, when compiling for
+arm64-linux-gnu on an amd64-linux-gnu host, build files are placed in
+`./build/arm64-linux-gnu`.
+
 For more information, run `inko --help`.

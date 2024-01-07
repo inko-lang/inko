@@ -58,10 +58,14 @@ pub(crate) struct BuildDirectories {
 
 impl BuildDirectories {
     pub(crate) fn new(config: &Config) -> BuildDirectories {
-        let build = config
-            .opt
-            .directory_name()
-            .map_or(config.build.clone(), |p| config.build.join(p));
+        let root = if config.target.is_native() {
+            config.build.clone()
+        } else {
+            config.build.join(config.target.to_string())
+        };
+
+        let build =
+            config.opt.directory_name().map(|p| root.join(p)).unwrap_or(root);
 
         let objects = build.join("objects");
         let llvm_ir = build.join("llvm");
