@@ -29,7 +29,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         return Ok(0);
     }
 
-    match matches.free.get(0).map(|s| s.as_str()) {
+    match matches.free.first().map(|s| s.as_str()) {
         Some("target") => {
             println!("{}", Target::native());
             Ok(0)

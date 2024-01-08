@@ -38,7 +38,7 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
     let major = matches.opt_present("m");
     let mut manifest = Manifest::load(&MANIFEST_FILE)?;
     let update = if let Some(url) =
-        matches.free.get(0).and_then(|uri| Url::parse(uri))
+        matches.free.first().and_then(|uri| Url::parse(uri))
     {
         if let Some(dep) = manifest.find_dependency(&url) {
             vec![dep]

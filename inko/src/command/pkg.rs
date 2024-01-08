@@ -36,7 +36,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         return Ok(0);
     }
 
-    match matches.free.get(0).map(|s| s.as_str()) {
+    match matches.free.first().map(|s| s.as_str()) {
         Some("add") => add::run(&matches.free[1..]),
         Some("remove") => remove::run(&matches.free[1..]),
         Some("sync") => sync::run(&matches.free[1..]),

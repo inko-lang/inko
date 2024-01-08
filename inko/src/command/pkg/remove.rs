@@ -29,7 +29,7 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
 
     let url = matches
         .free
-        .get(0)
+        .first()
         .and_then(|uri| Url::parse(uri))
         .ok_or_else(|| "The package URL is invalid".to_string())?;
 

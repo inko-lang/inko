@@ -47,7 +47,7 @@ pub(crate) fn run() -> Result<i32, Error> {
         return Ok(0);
     }
 
-    match matches.free.get(0).map(|s| s.as_str()) {
+    match matches.free.first().map(|s| s.as_str()) {
         Some("run") => run::run(&matches.free[1..]),
         Some("build") => build::run(&matches.free[1..]),
         Some("check") => check::run(&matches.free[1..]),

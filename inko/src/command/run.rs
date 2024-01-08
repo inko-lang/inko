@@ -88,7 +88,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     config.build = build_dir.clone();
 
     let mut compiler = Compiler::new(config);
-    let file = matches.free.get(0).map(PathBuf::from);
+    let file = matches.free.first().map(PathBuf::from);
     let result = compiler.build(file);
 
     compiler.print_diagnostics();
