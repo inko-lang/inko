@@ -63,6 +63,7 @@ impl OperatingSystem {
 pub(crate) enum Abi {
     Native,
     Gnu,
+    Musl,
 }
 
 impl Abi {
@@ -70,6 +71,7 @@ impl Abi {
         match input {
             "native" => Some(Abi::Native),
             "gnu" => Some(Abi::Gnu),
+            "musl" => Some(Abi::Musl),
             _ => None,
         }
     }
@@ -77,6 +79,8 @@ impl Abi {
     pub(crate) fn native() -> Abi {
         if cfg!(target_env = "gnu") {
             Abi::Gnu
+        } else if cfg!(target_env = "musl") {
+            Abi::Musl
         } else {
             Abi::Native
         }
@@ -124,7 +128,13 @@ impl Target {
         let os = match self.os {
             OperatingSystem::Freebsd => "unknown-freebsd",
             OperatingSystem::Mac => "apple-darwin",
-            OperatingSystem::Linux => "unknown-linux-gnu",
+            OperatingSystem::Linux => {
+                if let Abi::Musl = self.abi {
+                    "unknown-linux-musl"
+                } else {
+                    "unknown-linux-gnu"
+                }
+            }
         };
 
         format!("{}-{}", arch, os)
@@ -148,10 +158,17 @@ impl Target {
     pub(crate) fn abi_name(&self) -> &'static str {
         match self.abi {
             Abi::Native => match self.os {
-                OperatingSystem::Linux => "gnu",
+                OperatingSystem::Linux => {
+                    if cfg!(target_env = "musl") {
+                        "musl"
+                    } else {
+                        "gnu"
+                    }
+                }
                 _ => "native",
             },
             Abi::Gnu => "gnu",
+            Abi::Musl => "musl",
         }
     }
 
@@ -227,9 +244,15 @@ mod tests {
         );
         assert_eq!(
             Target::from_str("arm64-linux-gnu"),
-            Some(
-                target(Architecture::Arm64, OperatingSystem::Linux, Abi::Gnu,)
-            )
+            Some(target(Architecture::Arm64, OperatingSystem::Linux, Abi::Gnu))
+        );
+        assert_eq!(
+            Target::from_str("arm64-linux-musl"),
+            Some(target(
+                Architecture::Arm64,
+                OperatingSystem::Linux,
+                Abi::Musl
+            ))
         );
 
         assert_eq!(Target::from_str("bla-linux-native"), None);
@@ -253,6 +276,11 @@ mod tests {
             "x86_64-unknown-linux-gnu"
         );
         assert_eq!(
+            target(Architecture::Amd64, OperatingSystem::Linux, Abi::Musl)
+                .llvm_triple(),
+            "x86_64-unknown-linux-musl"
+        );
+        assert_eq!(
             target(Architecture::Amd64, OperatingSystem::Freebsd, Abi::Native)
                 .llvm_triple(),
             "x86_64-unknown-freebsd"
@@ -270,6 +298,11 @@ mod tests {
             target(Architecture::Amd64, OperatingSystem::Linux, Abi::Native)
                 .to_string(),
             "amd64-linux-gnu"
+        );
+        assert_eq!(
+            target(Architecture::Amd64, OperatingSystem::Linux, Abi::Musl)
+                .to_string(),
+            "amd64-linux-musl"
         );
         assert_eq!(
             target(Architecture::Amd64, OperatingSystem::Freebsd, Abi::Native)
