@@ -48,9 +48,9 @@ jobs:
           path: |
             ${{ env.CARGO_HOME }}
             target
-          key: ubuntu-1.68
+          key: ubuntu-1.70
       - name: Installing Rust
-        run: ./scripts/rust.sh 1.68
+        run: ./scripts/rust.sh 1.70
       - name: Installing dependencies
         run: sudo ./scripts/deps.sh ubuntu:latest
       - name: Installing clippy

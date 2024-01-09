@@ -6,7 +6,7 @@ in Rust.
 
 ## Installing
 
-ivm itself only requires Rust 1.68 or newer, but to build Inko itself you'll
+ivm itself only requires Rust 1.70 or newer, but to build Inko itself you'll
 need to also meet the requirements listed in the [installation
 guide](installation.md).
 
