@@ -77,7 +77,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
 
     if !build_dir.is_dir() {
         create_dir(&build_dir).map_err(|err| {
-            Error::generic(format!(
+            Error::from(format!(
                 "Failed to create {}: {}",
                 build_dir.display(),
                 err
@@ -100,7 +100,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
                 .spawn()
                 .and_then(|mut child| child.wait())
                 .map_err(|err| {
-                    Error::generic(format!(
+                    Error::from(format!(
                         "Failed to run the executable: {}",
                         err
                     ))
@@ -116,6 +116,6 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
             status
         }
         Err(CompileError::Invalid) => Ok(1),
-        Err(CompileError::Internal(msg)) => Err(Error::generic(msg)),
+        Err(CompileError::Internal(msg)) => Err(Error::from(msg)),
     }
 }

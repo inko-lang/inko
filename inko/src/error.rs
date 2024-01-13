@@ -11,26 +11,20 @@ pub(crate) struct Error {
     pub(crate) message: Option<String>,
 }
 
-impl Error {
-    pub(crate) fn generic(message: String) -> Self {
-        Error { status: 1, message: Some(message) }
-    }
-}
-
 impl From<Fail> for Error {
     fn from(fail: Fail) -> Self {
-        Self::generic(fail.to_string())
-    }
-}
-
-impl From<io::Error> for Error {
-    fn from(error: io::Error) -> Self {
-        Self::generic(error.to_string())
+        Self::from(fail.to_string())
     }
 }
 
 impl From<String> for Error {
     fn from(message: String) -> Self {
-        Self::generic(message)
+        Error { status: 1, message: Some(message) }
+    }
+}
+
+impl From<io::Error> for Error {
+    fn from(error: io::Error) -> Self {
+        Error { status: 1, message: Some(error.to_string()) }
     }
 }

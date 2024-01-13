@@ -17,9 +17,9 @@ crossbeam-queue = "^0.3"
 libc = "^0.2"
 rand = { version = "^0.8", features = ["default", "small_rng"] }
 polling = "^2.8"
-unicode-segmentation = "^1.8"
+unicode-segmentation = "^1.10"
 backtrace = "^0.3"
-rustix = { version = "^0.38.24", features = ["fs", "mm", "param", "process", "net", "std", "time"], default-features = false }
+rustix = { version = "^0.38", features = ["fs", "mm", "param", "process", "net", "std", "time"], default-features = false }
 
 [dependencies.socket2]
 version = "^0.5"

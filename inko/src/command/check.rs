@@ -63,6 +63,6 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     match result {
         Ok(_) => Ok(0),
         Err(CompileError::Invalid) => Ok(1),
-        Err(CompileError::Internal(msg)) => Err(Error::generic(msg)),
+        Err(CompileError::Internal(msg)) => Err(Error::from(msg)),
     }
 }

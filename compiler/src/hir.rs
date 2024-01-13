@@ -2979,7 +2979,6 @@ mod tests {
     use crate::test::cols;
     use ::ast::parser::Parser;
     use similar_asserts::assert_eq;
-
     use types::module_name::ModuleName;
 
     #[track_caller]

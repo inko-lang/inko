@@ -90,8 +90,15 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     options.optopt(
         "",
         "linker",
-        "The specific linker to use, instead of detecting the linker automatically",
-        "system,lld,mold",
+        "A custom linker to use, instead of detecting the linker automatically",
+        "LINKER",
+    );
+
+    options.optmulti(
+        "",
+        "linker-arg",
+        "An extra argument to pass to the linker",
+        "ARG",
     );
 
     options.optflag(
@@ -152,7 +159,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     if let Some(val) = matches.opt_str("threads") {
         match val.parse::<usize>() {
             Ok(0) | Err(_) => {
-                return Err(Error::generic(format!(
+                return Err(Error::from(format!(
                     "'{}' isn't a valid number of threads",
                     val
                 )));
@@ -163,16 +170,17 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
 
     if let Some(val) = matches.opt_str("linker") {
         config.linker = Linker::parse(&val).ok_or_else(|| {
-            Error::generic(format!("'{}' isn't a valid linker", val))
+            Error::from(format!("'{}' isn't a valid linker", val))
         })?;
+    }
+
+    for arg in matches.opt_strs("linker-arg") {
+        config.linker_arguments.push(arg);
     }
 
     let timings = match matches.opt_str("timings") {
         Some(val) => Timings::parse(&val).ok_or_else(|| {
-            Error::generic(format!(
-                "'{}' is an invalid --timings argument",
-                val
-            ))
+            Error::from(format!("'{}' is an invalid --timings argument", val))
         })?,
         _ if matches.opt_present("timings") => Timings::Basic,
         _ => Timings::None,
@@ -193,6 +201,6 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     match result {
         Ok(_) => Ok(0),
         Err(CompileError::Invalid) => Ok(1),
-        Err(CompileError::Internal(msg)) => Err(Error::generic(msg)),
+        Err(CompileError::Internal(msg)) => Err(Error::from(msg)),
     }
 }

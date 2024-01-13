@@ -42,7 +42,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
         Some("sync") => sync::run(&matches.free[1..]),
         Some("update") => update::run(&matches.free[1..]),
         Some(cmd) => {
-            Err(Error::generic(format!("The command {:?} is invalid", cmd)))
+            Err(Error::from(format!("The command {:?} is invalid", cmd)))
         }
         None => {
             print_usage(&options, USAGE);

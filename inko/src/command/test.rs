@@ -36,7 +36,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     let input = config.main_test_module();
 
     if !config.tests.is_dir() {
-        return Err(Error::generic(format!(
+        return Err(Error::from(format!(
             "The tests directory {:?} doesn't exist",
             config.tests
         )));
@@ -46,7 +46,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     config.output = Output::File("inko-tests".to_string());
 
     let tests = test_module_names(&config.tests).map_err(|err| {
-        Error::generic(format!("Failed to find test modules: {}", err))
+        Error::from(format!("Failed to find test modules: {}", err))
     })?;
 
     let mut compiler = Compiler::new(config);
@@ -56,7 +56,7 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
     compiler.create_build_directory()?;
 
     write(&input, generate_main_test_module(tests)).map_err(|err| {
-        Error::generic(format!("Failed to write {}: {}", input.display(), err))
+        Error::from(format!("Failed to write {}: {}", input.display(), err))
     })?;
 
     let result = compiler.build(Some(input));
@@ -69,11 +69,11 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
             .spawn()
             .and_then(|mut child| child.wait())
             .map_err(|err| {
-                Error::generic(format!("Failed to run the tests: {}", err))
+                Error::from(format!("Failed to run the tests: {}", err))
             })
             .map(|status| status.code().unwrap_or(0)),
         Err(CompileError::Invalid) => Ok(1),
-        Err(CompileError::Internal(msg)) => Err(Error::generic(msg)),
+        Err(CompileError::Internal(msg)) => Err(Error::from(msg)),
     }
 }
 

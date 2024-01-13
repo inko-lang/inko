@@ -11,10 +11,12 @@ ignore = []
 [licenses]
 unlicensed = "deny"
 allow = [
-    "MIT",
     "Apache-2.0",
+    "BSD-2-Clause",
+    "ISC",
+    "MIT",
     "MPL-2.0",
-    "BSD-3-Clause",
+    "OpenSSL",
     "Unicode-DFS-2016",
 ]
 copyleft = "deny"
@@ -22,14 +24,23 @@ allow-osi-fsf-free = "neither"
 default = "deny"
 confidence-threshold = 0.8
 
+[[licenses.clarify]]
+name = "ring"
+expression = "OpenSSL"
+license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
+
 [bans]
 multiple-versions = "warn"
 wildcards = "allow"
 highlight = "all"
-skip = []
+skip = [{ name = "bitflags" }]
+skip-tree = [
+    { name = "windows-sys", depth = 5 },
+]
+allow = []
 
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-allow-git = []
+allow-git = ["https://github.com/TheDan64/inkwell.git"]

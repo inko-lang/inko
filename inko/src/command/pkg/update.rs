@@ -43,7 +43,7 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
         if let Some(dep) = manifest.find_dependency(&url) {
             vec![dep]
         } else {
-            return Err(Error::generic(format!(
+            return Err(Error::from(format!(
                 "The package {} isn't listed in {}",
                 url, MANIFEST_FILE
             )));
@@ -66,7 +66,7 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
         let tag_names = repo.version_tag_names();
 
         if tag_names.is_empty() {
-            return Err(Error::generic(format!(
+            return Err(Error::from(format!(
                 "The package {} doesn't have any versions",
                 dep.url
             )));

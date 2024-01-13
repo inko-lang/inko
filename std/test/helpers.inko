@@ -5,6 +5,9 @@ import std.fs.path.Path
 import std.hash.(Hash, Hasher)
 import std.hash.siphash.SipHasher13
 
+import std.fmt.(fmt)
+import std.stdio.STDOUT
+
 fn pub hash[T: Hash](value: ref T) -> Int {
   let hasher = SipHasher13.default
 
@@ -36,7 +39,7 @@ fn pub compiler_path -> Path {
   let debug = target.join('debug').join('inko')
   let release = target.join('release').join('inko')
 
-  match (debug.created_at, release.created_at) {
+  match (debug.modified_at, release.modified_at) {
     case (Ok(deb), Ok(rel)) -> if deb >= rel { debug } else { release }
     case (Ok(_), Error(_)) -> debug
     case (Error(_), Ok(_)) -> release

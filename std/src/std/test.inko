@@ -136,6 +136,16 @@ class pub Test {
     @failures.push(Failure.new(fmt(got), "> {fmt(minimum)}"))
   }
 
+  # Asserts that `got` is greater than or equal to `minimum`.
+  fn pub mut greater_or_equal[T: Compare[T] + Format](
+    got: ref T,
+    minimum: ref T,
+  ) {
+    if got >= minimum { return }
+
+    @failures.push(Failure.new(fmt(got), ">= {fmt(minimum)}"))
+  }
+
   # Asserts that the given value is `true`.
   fn pub mut true(value: Bool) {
     if value { return }
@@ -500,6 +510,54 @@ class pub Tests {
     }
 
     @tests.push(test)
+  }
+
+  # Registers a new test that returns a `Result`.
+  #
+  # If the test closure returns an `Error`, an additional test failure is added.
+  #
+  # This is useful when writing tests that perform operations that might fail
+  # but in general shouldn't, such as connecting to a socket that's expected to
+  # be available. Such tests could sporadically fail, resulting in any
+  # unwrapping terminating the entire test suite. Using this method, you can
+  # instead use the `try` operator. So instead of this:
+  #
+  #     t.test('Foo') fn (t) {
+  #       let a = foo.unwrap
+  #       let b = bar(a).unwrap
+  #       ...
+  #     }
+  #
+  # You'd write this:
+  #
+  #     t.ok('Foo') fn (t) {
+  #       let a = try foo
+  #       let b = try bar(a)
+  #       ...
+  #     }
+  #
+  # Using this method comes with the following trade-offs:
+  #
+  # 1. All error values must be of the same type
+  # 2. The test failure location points to the location at which the test is
+  #    defined, not the location at which the error is produced
+  # 3. If the last expression doesn't return a `Result`, you'll need to use
+  #    `Result.Ok(nil)` as the last expression
+  fn pub mut ok[T, E: Format](
+    name: String,
+    code: uni fn (mut Test) -> Result[T, E],
+  ) {
+    test(name) fn move (t) {
+      match code.call(t) {
+        case Error(e) -> t.failures.push(Failure {
+          @got = "Result.Error({fmt(e)})",
+          @expected = 'a value matching the pattern Result.Ok(_)',
+          @path = t.path.clone,
+          @line = t.line,
+        })
+        case _ -> {}
+      }
+    }
   }
 
   # Registers a new test using a fork/subprocess.

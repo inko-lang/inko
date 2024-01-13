@@ -30,19 +30,20 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
     }
 
     if matches.free.len() != 2 {
-        return Err(Error::generic(
+        return Err(Error::from(
             "You must specify a package and version to add".to_string(),
         ));
     }
 
-    let url = matches.free.first().and_then(|uri| Url::parse(uri)).ok_or_else(
-        || Error::generic("The package URL is invalid".to_string()),
-    )?;
+    let url =
+        matches.free.first().and_then(|uri| Url::parse(uri)).ok_or_else(
+            || Error::from("The package URL is invalid".to_string()),
+        )?;
 
     let name = url.import_name();
     let version =
         matches.free.get(1).and_then(|uri| Version::parse(uri)).ok_or_else(
-            || Error::generic("The package version is invalid".to_string()),
+            || Error::from("The package version is invalid".to_string()),
         )?;
 
     let dir = data_dir()?.join(url.directory_name());
@@ -68,7 +69,7 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
     };
 
     let hash = tag.map(|t| t.target).ok_or_else(|| {
-        Error::generic(format!("Version {} doesn't exist", version))
+        Error::from(format!("Version {} doesn't exist", version))
     })?;
 
     let checksum = Checksum::new(hash);

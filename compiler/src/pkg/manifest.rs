@@ -1,5 +1,5 @@
 use crate::pkg::version::Version;
-use blake2::{digest::consts::U16, Blake2b, Digest};
+use blake3;
 use std::fmt;
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Read, Write};
@@ -38,13 +38,7 @@ impl Url {
     }
 
     pub fn directory_name(&self) -> String {
-        // We don't need ultra long hashes, as all we care about is being able
-        // to generate a directory name from a URL _without_ it colliding with
-        // literally everything.
-        let mut hasher: Blake2b<U16> = Blake2b::new();
-
-        hasher.update(&self.value);
-        format!("{:x}", hasher.finalize())
+        blake3::hash(self.value.as_bytes()).to_string()
     }
 
     pub fn import_name(&self) -> String {
@@ -309,11 +303,13 @@ mod tests {
     fn test_url_directory_name() {
         assert_eq!(
             Url::new("https://gitlab.com/foo/bar").directory_name(),
-            "4efb5ddfa8b68f5e1885fc8b75838f43".to_string()
+            "6c95f3810d546c9b4137d8291af2abe47019f97b8643ae0800db9da680ce811e"
+                .to_string()
         );
         assert_eq!(
             Url::new("http://gitlab.com/foo/bar").directory_name(),
-            "2334066f1e6f5fea14ebf3fb71f714ca".to_string()
+            "6100c5254dd22a9f5577da816f5df90cff0e535e2d7c9fa7356e945d4c364107"
+                .to_string()
         );
     }
 

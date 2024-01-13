@@ -165,18 +165,10 @@ docs/versions:
 		--distribution-id ${DOCS_CLOUDFRONT_ID} --paths "/manual/versions.json"
 	rm versions.json
 
-clippy:
-	touch */src/lib.rs */src/main.rs
-	cargo clippy -- -D warnings
-
-rustfmt-check:
-	rustfmt --check */src/lib.rs */src/main.rs
-
-rustfmt:
-	rustfmt --emit files */src/lib.rs */src/main.rs
+runtimes:
+	bash scripts/runtimes.sh ${VERSION}
 
 .PHONY: release/source release/manifest release/changelog release/versions
 .PHONY: release/commit release/publish release/tag
-.PHONY: build install clean
-.PHONY: rustfmt rustfmt-check clippy
+.PHONY: build install clean runtimes
 .PHONY: docs/install docs/build docs/server docs/publish docs/versions

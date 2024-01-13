@@ -211,6 +211,9 @@ class pub Path {
 
   # Returns the creation time of `self`.
   #
+  # The target platform may not supported getting the creation time, in which
+  # case an `Error` is returned. musl targets are an example of such a platform.
+  #
   # # Examples
   #
   # Obtaining the creation time of a `Path`:
@@ -233,6 +236,9 @@ class pub Path {
 
   # Returns the modification time of `self`.
   #
+  # The target platform may not supported getting the creation time, in which
+  # case an `Error` is returned.
+  #
   # # Examples
   #
   # Obtaining the modification time of a `Path`:
@@ -254,6 +260,9 @@ class pub Path {
   }
 
   # Returns the access time of `self`.
+  #
+  # The target platform may not supported getting the creation time, in which
+  # case an `Error` is returned.
   #
   # # Examples
   #

@@ -60,7 +60,7 @@ impl<'ctx> Builder<'ctx> {
         let vtype = receiver_type.get_field_type_at_index(index).unwrap();
         let field_ptr = self.field_address(receiver_type, receiver, index);
 
-        self.inner.build_load(vtype, field_ptr, "")
+        self.inner.build_load(vtype, field_ptr, "").unwrap()
     }
 
     pub(crate) fn field_address(
@@ -90,12 +90,14 @@ impl<'ctx> Builder<'ctx> {
         }
 
         unsafe {
-            self.inner.build_gep(
-                receiver_type,
-                receiver,
-                &[self.u32_literal(0), self.u32_literal(field), index],
-                "",
-            )
+            self.inner
+                .build_gep(
+                    receiver_type,
+                    receiver,
+                    &[self.u32_literal(0), self.u32_literal(field), index],
+                    "",
+                )
+                .unwrap()
         }
     }
 
@@ -106,18 +108,20 @@ impl<'ctx> Builder<'ctx> {
         index: usize,
     ) -> BasicValueEnum<'ctx> {
         let ptr = unsafe {
-            self.inner.build_gep(
-                array_type,
-                array,
-                &[
-                    self.context.i32_type().const_int(0, false),
-                    self.context.i32_type().const_int(index as _, false),
-                ],
-                "",
-            )
+            self.inner
+                .build_gep(
+                    array_type,
+                    array,
+                    &[
+                        self.context.i32_type().const_int(0, false),
+                        self.context.i32_type().const_int(index as _, false),
+                    ],
+                    "",
+                )
+                .unwrap()
         };
 
-        self.inner.build_load(array_type.get_element_type(), ptr, "")
+        self.inner.build_load(array_type.get_element_type(), ptr, "").unwrap()
     }
 
     pub(crate) fn store_array_field<V: BasicValue<'ctx>>(
@@ -128,15 +132,17 @@ impl<'ctx> Builder<'ctx> {
         value: V,
     ) {
         let ptr = unsafe {
-            self.inner.build_gep(
-                array_type,
-                array,
-                &[
-                    self.context.i32_type().const_int(0, false),
-                    self.context.i32_type().const_int(index as _, false),
-                ],
-                "",
-            )
+            self.inner
+                .build_gep(
+                    array_type,
+                    array,
+                    &[
+                        self.context.i32_type().const_int(0, false),
+                        self.context.i32_type().const_int(index as _, false),
+                    ],
+                    "",
+                )
+                .unwrap()
         };
 
         self.store(ptr, value);
@@ -159,7 +165,7 @@ impl<'ctx> Builder<'ctx> {
         variable: PointerValue<'ctx>,
         value: V,
     ) {
-        self.inner.build_store(variable, value);
+        self.inner.build_store(variable, value).unwrap();
     }
 
     pub(crate) fn load<T: BasicType<'ctx>>(
@@ -167,7 +173,7 @@ impl<'ctx> Builder<'ctx> {
         typ: T,
         variable: PointerValue<'ctx>,
     ) -> BasicValueEnum<'ctx> {
-        self.inner.build_load(typ, variable, "")
+        self.inner.build_load(typ, variable, "").unwrap()
     }
 
     pub(crate) fn load_int(
@@ -176,6 +182,7 @@ impl<'ctx> Builder<'ctx> {
     ) -> IntValue<'ctx> {
         self.inner
             .build_load(self.context.i64_type(), variable, "")
+            .unwrap()
             .into_int_value()
     }
 
@@ -185,6 +192,7 @@ impl<'ctx> Builder<'ctx> {
     ) -> FloatValue<'ctx> {
         self.inner
             .build_load(self.context.f64_type(), variable, "")
+            .unwrap()
             .into_float_value()
     }
 
@@ -227,6 +235,7 @@ impl<'ctx> Builder<'ctx> {
     ) -> BasicValueEnum<'ctx> {
         self.inner
             .build_call(function, arguments, "")
+            .unwrap()
             .try_as_basic_value()
             .left()
             .unwrap()
@@ -238,7 +247,7 @@ impl<'ctx> Builder<'ctx> {
         func: PointerValue<'ctx>,
         args: &[BasicMetadataValueEnum<'ctx>],
     ) -> CallSiteValue<'ctx> {
-        self.inner.build_indirect_call(typ, func, args, "")
+        self.inner.build_indirect_call(typ, func, args, "").unwrap()
     }
 
     pub(crate) fn call_void(
@@ -246,14 +255,14 @@ impl<'ctx> Builder<'ctx> {
         function: FunctionValue<'ctx>,
         arguments: &[BasicMetadataValueEnum<'ctx>],
     ) {
-        self.inner.build_call(function, arguments, "");
+        self.inner.build_call(function, arguments, "").unwrap();
     }
 
     pub(crate) fn pointer_to_int(
         &self,
         value: PointerValue<'ctx>,
     ) -> IntValue<'ctx> {
-        self.inner.build_ptr_to_int(value, self.context.i64_type(), "")
+        self.inner.build_ptr_to_int(value, self.context.i64_type(), "").unwrap()
     }
 
     pub(crate) fn u8_literal(&self, value: u8) -> IntValue<'ctx> {
@@ -284,8 +293,12 @@ impl<'ctx> Builder<'ctx> {
         &self,
         value: &str,
     ) -> (PointerValue<'ctx>, IntValue<'ctx>) {
-        let string =
-            self.inner.build_global_string_ptr(value, "").as_pointer_value();
+        let string = self
+            .inner
+            .build_global_string_ptr(value, "")
+            .unwrap()
+            .as_pointer_value();
+
         let len = self.u64_literal(value.len() as _);
 
         (string, len)
@@ -325,7 +338,10 @@ impl<'ctx> Builder<'ctx> {
         &self,
         variable: PointerValue<'ctx>,
     ) -> IntValue<'ctx> {
-        let res = self.inner.build_load(self.context.i32_type(), variable, "");
+        let res = self
+            .inner
+            .build_load(self.context.i32_type(), variable, "")
+            .unwrap();
         let ins = res.as_instruction_value().unwrap();
 
         // If the alignment doesn't match the value size, LLVM compiles this to
@@ -342,7 +358,7 @@ impl<'ctx> Builder<'ctx> {
         lhs: IntValue<'ctx>,
         rhs: IntValue<'ctx>,
     ) -> IntValue<'ctx> {
-        self.inner.build_int_compare(IntPredicate::EQ, lhs, rhs, "")
+        self.inner.build_int_compare(IntPredicate::EQ, lhs, rhs, "").unwrap()
     }
 
     pub(crate) fn int_gt(
@@ -350,7 +366,7 @@ impl<'ctx> Builder<'ctx> {
         lhs: IntValue<'ctx>,
         rhs: IntValue<'ctx>,
     ) -> IntValue<'ctx> {
-        self.inner.build_int_compare(IntPredicate::SGT, lhs, rhs, "")
+        self.inner.build_int_compare(IntPredicate::SGT, lhs, rhs, "").unwrap()
     }
 
     pub(crate) fn int_ge(
@@ -358,7 +374,7 @@ impl<'ctx> Builder<'ctx> {
         lhs: IntValue<'ctx>,
         rhs: IntValue<'ctx>,
     ) -> IntValue<'ctx> {
-        self.inner.build_int_compare(IntPredicate::SGE, lhs, rhs, "")
+        self.inner.build_int_compare(IntPredicate::SGE, lhs, rhs, "").unwrap()
     }
 
     pub(crate) fn int_lt(
@@ -366,7 +382,7 @@ impl<'ctx> Builder<'ctx> {
         lhs: IntValue<'ctx>,
         rhs: IntValue<'ctx>,
     ) -> IntValue<'ctx> {
-        self.inner.build_int_compare(IntPredicate::SLT, lhs, rhs, "")
+        self.inner.build_int_compare(IntPredicate::SLT, lhs, rhs, "").unwrap()
     }
 
     pub(crate) fn int_le(
@@ -374,7 +390,7 @@ impl<'ctx> Builder<'ctx> {
         lhs: IntValue<'ctx>,
         rhs: IntValue<'ctx>,
     ) -> IntValue<'ctx> {
-        self.inner.build_int_compare(IntPredicate::SLE, lhs, rhs, "")
+        self.inner.build_int_compare(IntPredicate::SLE, lhs, rhs, "").unwrap()
     }
 
     pub(crate) fn int_sub(
@@ -382,7 +398,7 @@ impl<'ctx> Builder<'ctx> {
         lhs: IntValue<'ctx>,
         rhs: IntValue<'ctx>,
     ) -> IntValue<'ctx> {
-        self.inner.build_int_sub(lhs, rhs, "")
+        self.inner.build_int_sub(lhs, rhs, "").unwrap()
     }
 
     pub(crate) fn int_add(
@@ -390,7 +406,7 @@ impl<'ctx> Builder<'ctx> {
         lhs: IntValue<'ctx>,
         rhs: IntValue<'ctx>,
     ) -> IntValue<'ctx> {
-        self.inner.build_int_add(lhs, rhs, "")
+        self.inner.build_int_add(lhs, rhs, "").unwrap()
     }
 
     pub(crate) fn int_mul(
@@ -398,7 +414,7 @@ impl<'ctx> Builder<'ctx> {
         lhs: IntValue<'ctx>,
         rhs: IntValue<'ctx>,
     ) -> IntValue<'ctx> {
-        self.inner.build_int_mul(lhs, rhs, "")
+        self.inner.build_int_mul(lhs, rhs, "").unwrap()
     }
 
     pub(crate) fn int_div(
@@ -406,7 +422,7 @@ impl<'ctx> Builder<'ctx> {
         lhs: IntValue<'ctx>,
         rhs: IntValue<'ctx>,
     ) -> IntValue<'ctx> {
-        self.inner.build_int_signed_div(lhs, rhs, "")
+        self.inner.build_int_signed_div(lhs, rhs, "").unwrap()
     }
 
     pub(crate) fn int_rem(
@@ -414,7 +430,7 @@ impl<'ctx> Builder<'ctx> {
         lhs: IntValue<'ctx>,
         rhs: IntValue<'ctx>,
     ) -> IntValue<'ctx> {
-        self.inner.build_int_signed_rem(lhs, rhs, "")
+        self.inner.build_int_signed_rem(lhs, rhs, "").unwrap()
     }
 
     pub(crate) fn bit_and(
@@ -422,7 +438,7 @@ impl<'ctx> Builder<'ctx> {
         lhs: IntValue<'ctx>,
         rhs: IntValue<'ctx>,
     ) -> IntValue<'ctx> {
-        self.inner.build_and(lhs, rhs, "")
+        self.inner.build_and(lhs, rhs, "").unwrap()
     }
 
     pub(crate) fn bit_or(
@@ -430,7 +446,7 @@ impl<'ctx> Builder<'ctx> {
         lhs: IntValue<'ctx>,
         rhs: IntValue<'ctx>,
     ) -> IntValue<'ctx> {
-        self.inner.build_or(lhs, rhs, "")
+        self.inner.build_or(lhs, rhs, "").unwrap()
     }
 
     pub(crate) fn bit_xor(
@@ -438,11 +454,11 @@ impl<'ctx> Builder<'ctx> {
         lhs: IntValue<'ctx>,
         rhs: IntValue<'ctx>,
     ) -> IntValue<'ctx> {
-        self.inner.build_xor(lhs, rhs, "")
+        self.inner.build_xor(lhs, rhs, "").unwrap()
     }
 
     pub(crate) fn bit_not(&self, value: IntValue<'ctx>) -> IntValue<'ctx> {
-        self.inner.build_not(value, "")
+        self.inner.build_not(value, "").unwrap()
     }
 
     pub(crate) fn left_shift(
@@ -450,7 +466,7 @@ impl<'ctx> Builder<'ctx> {
         lhs: IntValue<'ctx>,
         rhs: IntValue<'ctx>,
     ) -> IntValue<'ctx> {
-        self.inner.build_left_shift(lhs, rhs, "")
+        self.inner.build_left_shift(lhs, rhs, "").unwrap()
     }
 
     pub(crate) fn right_shift(
@@ -458,7 +474,7 @@ impl<'ctx> Builder<'ctx> {
         lhs: IntValue<'ctx>,
         rhs: IntValue<'ctx>,
     ) -> IntValue<'ctx> {
-        self.inner.build_right_shift(lhs, rhs, false, "")
+        self.inner.build_right_shift(lhs, rhs, false, "").unwrap()
     }
 
     pub(crate) fn signed_right_shift(
@@ -466,7 +482,7 @@ impl<'ctx> Builder<'ctx> {
         lhs: IntValue<'ctx>,
         rhs: IntValue<'ctx>,
     ) -> IntValue<'ctx> {
-        self.inner.build_right_shift(lhs, rhs, true, "")
+        self.inner.build_right_shift(lhs, rhs, true, "").unwrap()
     }
 
     pub(crate) fn int_to_float(
@@ -482,6 +498,7 @@ impl<'ctx> Builder<'ctx> {
 
         self.inner
             .build_cast(InstructionOpcode::SIToFP, value, typ, "")
+            .unwrap()
             .into_float_value()
     }
 
@@ -499,19 +516,19 @@ impl<'ctx> Builder<'ctx> {
             _ => self.context.i64_type(),
         };
 
-        self.inner.build_int_cast_sign_flag(value, target, signed, "")
+        self.inner.build_int_cast_sign_flag(value, target, signed, "").unwrap()
     }
 
     pub(crate) fn bool_to_int(&self, value: IntValue<'ctx>) -> IntValue<'ctx> {
         let typ = self.context.i64_type();
 
-        self.inner.build_int_cast_sign_flag(value, typ, false, "")
+        self.inner.build_int_cast_sign_flag(value, typ, false, "").unwrap()
     }
 
     pub(crate) fn int_to_bool(&self, value: IntValue<'ctx>) -> IntValue<'ctx> {
         let typ = self.context.bool_type();
 
-        self.inner.build_int_cast_sign_flag(value, typ, true, "")
+        self.inner.build_int_cast_sign_flag(value, typ, true, "").unwrap()
     }
 
     pub(crate) fn float_to_float(
@@ -524,14 +541,16 @@ impl<'ctx> Builder<'ctx> {
             _ => self.context.f64_type(),
         };
 
-        self.inner.build_float_cast(value, target, "")
+        self.inner.build_float_cast(value, target, "").unwrap()
     }
 
     pub(crate) fn int_to_pointer(
         &self,
         value: IntValue<'ctx>,
     ) -> PointerValue<'ctx> {
-        self.inner.build_int_to_ptr(value, self.context.pointer_type(), "")
+        self.inner
+            .build_int_to_ptr(value, self.context.pointer_type(), "")
+            .unwrap()
     }
 
     pub(crate) fn float_add(
@@ -539,7 +558,7 @@ impl<'ctx> Builder<'ctx> {
         lhs: FloatValue<'ctx>,
         rhs: FloatValue<'ctx>,
     ) -> FloatValue<'ctx> {
-        self.inner.build_float_add(lhs, rhs, "")
+        self.inner.build_float_add(lhs, rhs, "").unwrap()
     }
 
     pub(crate) fn float_sub(
@@ -547,7 +566,7 @@ impl<'ctx> Builder<'ctx> {
         lhs: FloatValue<'ctx>,
         rhs: FloatValue<'ctx>,
     ) -> FloatValue<'ctx> {
-        self.inner.build_float_sub(lhs, rhs, "")
+        self.inner.build_float_sub(lhs, rhs, "").unwrap()
     }
 
     pub(crate) fn float_div(
@@ -555,7 +574,7 @@ impl<'ctx> Builder<'ctx> {
         lhs: FloatValue<'ctx>,
         rhs: FloatValue<'ctx>,
     ) -> FloatValue<'ctx> {
-        self.inner.build_float_div(lhs, rhs, "")
+        self.inner.build_float_div(lhs, rhs, "").unwrap()
     }
 
     pub(crate) fn float_mul(
@@ -563,7 +582,7 @@ impl<'ctx> Builder<'ctx> {
         lhs: FloatValue<'ctx>,
         rhs: FloatValue<'ctx>,
     ) -> FloatValue<'ctx> {
-        self.inner.build_float_mul(lhs, rhs, "")
+        self.inner.build_float_mul(lhs, rhs, "").unwrap()
     }
 
     pub(crate) fn float_rem(
@@ -571,7 +590,7 @@ impl<'ctx> Builder<'ctx> {
         lhs: FloatValue<'ctx>,
         rhs: FloatValue<'ctx>,
     ) -> FloatValue<'ctx> {
-        self.inner.build_float_rem(lhs, rhs, "")
+        self.inner.build_float_rem(lhs, rhs, "").unwrap()
     }
 
     pub(crate) fn float_eq(
@@ -579,7 +598,9 @@ impl<'ctx> Builder<'ctx> {
         lhs: FloatValue<'ctx>,
         rhs: FloatValue<'ctx>,
     ) -> IntValue<'ctx> {
-        self.inner.build_float_compare(FloatPredicate::OEQ, lhs, rhs, "")
+        self.inner
+            .build_float_compare(FloatPredicate::OEQ, lhs, rhs, "")
+            .unwrap()
     }
 
     pub(crate) fn float_lt(
@@ -587,7 +608,9 @@ impl<'ctx> Builder<'ctx> {
         lhs: FloatValue<'ctx>,
         rhs: FloatValue<'ctx>,
     ) -> IntValue<'ctx> {
-        self.inner.build_float_compare(FloatPredicate::OLT, lhs, rhs, "")
+        self.inner
+            .build_float_compare(FloatPredicate::OLT, lhs, rhs, "")
+            .unwrap()
     }
 
     pub(crate) fn float_le(
@@ -595,7 +618,9 @@ impl<'ctx> Builder<'ctx> {
         lhs: FloatValue<'ctx>,
         rhs: FloatValue<'ctx>,
     ) -> IntValue<'ctx> {
-        self.inner.build_float_compare(FloatPredicate::OLE, lhs, rhs, "")
+        self.inner
+            .build_float_compare(FloatPredicate::OLE, lhs, rhs, "")
+            .unwrap()
     }
 
     pub(crate) fn float_gt(
@@ -603,7 +628,9 @@ impl<'ctx> Builder<'ctx> {
         lhs: FloatValue<'ctx>,
         rhs: FloatValue<'ctx>,
     ) -> IntValue<'ctx> {
-        self.inner.build_float_compare(FloatPredicate::OGT, lhs, rhs, "")
+        self.inner
+            .build_float_compare(FloatPredicate::OGT, lhs, rhs, "")
+            .unwrap()
     }
 
     pub(crate) fn float_ge(
@@ -611,14 +638,18 @@ impl<'ctx> Builder<'ctx> {
         lhs: FloatValue<'ctx>,
         rhs: FloatValue<'ctx>,
     ) -> IntValue<'ctx> {
-        self.inner.build_float_compare(FloatPredicate::OGE, lhs, rhs, "")
+        self.inner
+            .build_float_compare(FloatPredicate::OGE, lhs, rhs, "")
+            .unwrap()
     }
 
     pub(crate) fn float_is_nan(
         &self,
         value: FloatValue<'ctx>,
     ) -> IntValue<'ctx> {
-        self.inner.build_float_compare(FloatPredicate::UNO, value, value, "")
+        self.inner
+            .build_float_compare(FloatPredicate::UNO, value, value, "")
+            .unwrap()
     }
 
     pub(crate) fn bitcast<V: BasicValue<'ctx>, T: BasicType<'ctx>>(
@@ -626,7 +657,7 @@ impl<'ctx> Builder<'ctx> {
         value: V,
         typ: T,
     ) -> BasicValueEnum<'ctx> {
-        self.inner.build_bitcast(value, typ, "")
+        self.inner.build_bitcast(value, typ, "").unwrap()
     }
 
     pub(crate) fn first_block(&self) -> BasicBlock<'ctx> {
@@ -645,15 +676,15 @@ impl<'ctx> Builder<'ctx> {
         &self,
         typ: T,
     ) -> PointerValue<'ctx> {
-        self.inner.build_alloca(typ, "")
+        self.inner.build_alloca(typ, "").unwrap()
     }
 
     pub(crate) fn jump(&self, block: BasicBlock<'ctx>) {
-        self.inner.build_unconditional_branch(block);
+        self.inner.build_unconditional_branch(block).unwrap();
     }
 
     pub(crate) fn return_value(&self, val: Option<&dyn BasicValue<'ctx>>) {
-        self.inner.build_return(val);
+        self.inner.build_return(val).unwrap();
     }
 
     pub(crate) fn branch(
@@ -662,7 +693,9 @@ impl<'ctx> Builder<'ctx> {
         true_block: BasicBlock<'ctx>,
         false_block: BasicBlock<'ctx>,
     ) {
-        self.inner.build_conditional_branch(condition, true_block, false_block);
+        self.inner
+            .build_conditional_branch(condition, true_block, false_block)
+            .unwrap();
     }
 
     pub(crate) fn switch(
@@ -671,7 +704,7 @@ impl<'ctx> Builder<'ctx> {
         cases: &[(IntValue<'ctx>, BasicBlock<'ctx>)],
         fallback: BasicBlock<'ctx>,
     ) {
-        self.inner.build_switch(value, fallback, cases);
+        self.inner.build_switch(value, fallback, cases).unwrap();
     }
 
     pub(crate) fn exhaustive_switch(
@@ -683,7 +716,7 @@ impl<'ctx> Builder<'ctx> {
     }
 
     pub(crate) fn unreachable(&self) {
-        self.inner.build_unreachable();
+        self.inner.build_unreachable().unwrap();
     }
 
     pub(crate) fn string_bytes(&self, value: &str) -> ArrayValue<'ctx> {

@@ -56,6 +56,14 @@ impl OperatingSystem {
             panic!("The host operating system isn't supported");
         }
     }
+
+    pub(crate) fn is_mac(&self) -> bool {
+        matches!(self, OperatingSystem::Mac)
+    }
+
+    pub(crate) fn is_linux(&self) -> bool {
+        matches!(self, OperatingSystem::Linux)
+    }
 }
 
 /// The ABI to target.
@@ -85,6 +93,10 @@ impl Abi {
             Abi::Native
         }
     }
+
+    pub(crate) fn is_musl(&self) -> bool {
+        matches!(self, Abi::Musl)
+    }
 }
 
 /// A type describing the compile target, such as the operating system and
@@ -97,10 +109,35 @@ pub struct Target {
 }
 
 impl Target {
+    /// Returns a list of all the targets we officially support.
+    pub fn supported() -> Vec<Target> {
+        use Abi::*;
+        use Architecture::*;
+        use OperatingSystem::*;
+
+        vec![
+            Target::new(Amd64, Freebsd, Native),
+            Target::new(Amd64, Linux, Gnu),
+            Target::new(Amd64, Linux, Musl),
+            Target::new(Arm64, Linux, Gnu),
+            Target::new(Arm64, Linux, Musl),
+            Target::new(Amd64, Mac, Native),
+            Target::new(Arm64, Mac, Native),
+        ]
+    }
+
+    pub(crate) fn new(
+        arch: Architecture,
+        os: OperatingSystem,
+        abi: Abi,
+    ) -> Target {
+        Target { arch, os, abi }
+    }
+
     /// Parses a target from a string.
     ///
     /// If the target is invalid, a None is returned.
-    pub(crate) fn from_str(input: &str) -> Option<Target> {
+    pub fn parse(input: &str) -> Option<Target> {
         let mut iter = input.split('-');
         let arch = iter.next().and_then(Architecture::from_str)?;
         let os = iter.next().and_then(OperatingSystem::from_str)?;
@@ -118,6 +155,10 @@ impl Target {
         }
     }
 
+    pub fn runtime_file_name(&self) -> String {
+        format!("libinko-{}.a", self)
+    }
+
     /// Returns a String describing the target using the LLVM triple format.
     pub(crate) fn llvm_triple(&self) -> String {
         let arch = match self.arch {
@@ -128,13 +169,25 @@ impl Target {
         let os = match self.os {
             OperatingSystem::Freebsd => "unknown-freebsd",
             OperatingSystem::Mac => "apple-darwin",
-            OperatingSystem::Linux => {
-                if let Abi::Musl = self.abi {
-                    "unknown-linux-musl"
-                } else {
-                    "unknown-linux-gnu"
-                }
-            }
+            OperatingSystem::Linux if self.abi.is_musl() => "linux-musl",
+            OperatingSystem::Linux => "linux-gnu",
+        };
+
+        format!("{}-{}", arch, os)
+    }
+
+    /// Returns a String describing the target using Zig's triple format.
+    pub(crate) fn zig_triple(&self) -> String {
+        let arch = match self.arch {
+            Architecture::Amd64 => "x86_64",
+            Architecture::Arm64 => "aarch64",
+        };
+
+        let os = match self.os {
+            OperatingSystem::Freebsd => "freebsd-none",
+            OperatingSystem::Mac => "macos-none",
+            OperatingSystem::Linux if self.abi.is_musl() => "linux-musl",
+            OperatingSystem::Linux => "linux-gnu",
         };
 
         format!("{}-{}", arch, os)
@@ -172,7 +225,7 @@ impl Target {
         }
     }
 
-    pub(crate) fn is_native(&self) -> bool {
+    pub fn is_native(&self) -> bool {
         self == &Target::native()
     }
 
@@ -204,10 +257,6 @@ impl fmt::Display for Target {
 mod tests {
     use super::*;
 
-    fn target(arch: Architecture, os: OperatingSystem, abi: Abi) -> Target {
-        Target { arch, os, abi }
-    }
-
     #[test]
     fn test_operating_system_from_str() {
         assert_eq!(
@@ -235,29 +284,33 @@ mod tests {
     #[test]
     fn test_target_from_str() {
         assert_eq!(
-            Target::from_str("amd64-freebsd-native"),
-            Some(target(
+            Target::parse("amd64-freebsd-native"),
+            Some(Target::new(
                 Architecture::Amd64,
                 OperatingSystem::Freebsd,
                 Abi::Native
             ))
         );
         assert_eq!(
-            Target::from_str("arm64-linux-gnu"),
-            Some(target(Architecture::Arm64, OperatingSystem::Linux, Abi::Gnu))
+            Target::parse("arm64-linux-gnu"),
+            Some(Target::new(
+                Architecture::Arm64,
+                OperatingSystem::Linux,
+                Abi::Gnu
+            ))
         );
         assert_eq!(
-            Target::from_str("arm64-linux-musl"),
-            Some(target(
+            Target::parse("arm64-linux-musl"),
+            Some(Target::new(
                 Architecture::Arm64,
                 OperatingSystem::Linux,
                 Abi::Musl
             ))
         );
 
-        assert_eq!(Target::from_str("bla-linux-native"), None);
-        assert_eq!(Target::from_str("amd64-bla-native"), None);
-        assert_eq!(Target::from_str("amd64-linux"), None);
+        assert_eq!(Target::parse("bla-linux-native"), None);
+        assert_eq!(Target::parse("amd64-bla-native"), None);
+        assert_eq!(Target::parse("amd64-linux"), None);
     }
 
     #[test]
@@ -271,46 +324,94 @@ mod tests {
     #[test]
     fn test_target_llvm_triple() {
         assert_eq!(
-            target(Architecture::Amd64, OperatingSystem::Linux, Abi::Native)
-                .llvm_triple(),
-            "x86_64-unknown-linux-gnu"
+            Target::new(
+                Architecture::Amd64,
+                OperatingSystem::Linux,
+                Abi::Native
+            )
+            .llvm_triple(),
+            "x86_64-linux-gnu"
         );
         assert_eq!(
-            target(Architecture::Amd64, OperatingSystem::Linux, Abi::Musl)
+            Target::new(Architecture::Amd64, OperatingSystem::Linux, Abi::Musl)
                 .llvm_triple(),
-            "x86_64-unknown-linux-musl"
+            "x86_64-linux-musl"
         );
         assert_eq!(
-            target(Architecture::Amd64, OperatingSystem::Freebsd, Abi::Native)
-                .llvm_triple(),
+            Target::new(
+                Architecture::Amd64,
+                OperatingSystem::Freebsd,
+                Abi::Native
+            )
+            .llvm_triple(),
             "x86_64-unknown-freebsd"
         );
         assert_eq!(
-            target(Architecture::Arm64, OperatingSystem::Mac, Abi::Native)
+            Target::new(Architecture::Arm64, OperatingSystem::Mac, Abi::Native)
                 .llvm_triple(),
             "aarch64-apple-darwin"
         );
     }
 
     #[test]
+    fn test_target_zig_triple() {
+        assert_eq!(
+            Target::new(
+                Architecture::Amd64,
+                OperatingSystem::Linux,
+                Abi::Native
+            )
+            .zig_triple(),
+            "x86_64-linux-gnu"
+        );
+        assert_eq!(
+            Target::new(Architecture::Amd64, OperatingSystem::Linux, Abi::Musl)
+                .zig_triple(),
+            "x86_64-linux-musl"
+        );
+        assert_eq!(
+            Target::new(
+                Architecture::Amd64,
+                OperatingSystem::Freebsd,
+                Abi::Native
+            )
+            .zig_triple(),
+            "x86_64-freebsd-none"
+        );
+        assert_eq!(
+            Target::new(Architecture::Arm64, OperatingSystem::Mac, Abi::Native)
+                .zig_triple(),
+            "aarch64-macos-none"
+        );
+    }
+
+    #[test]
     fn test_target_to_string() {
         assert_eq!(
-            target(Architecture::Amd64, OperatingSystem::Linux, Abi::Native)
-                .to_string(),
+            Target::new(
+                Architecture::Amd64,
+                OperatingSystem::Linux,
+                Abi::Native
+            )
+            .to_string(),
             "amd64-linux-gnu"
         );
         assert_eq!(
-            target(Architecture::Amd64, OperatingSystem::Linux, Abi::Musl)
+            Target::new(Architecture::Amd64, OperatingSystem::Linux, Abi::Musl)
                 .to_string(),
             "amd64-linux-musl"
         );
         assert_eq!(
-            target(Architecture::Amd64, OperatingSystem::Freebsd, Abi::Native)
-                .to_string(),
+            Target::new(
+                Architecture::Amd64,
+                OperatingSystem::Freebsd,
+                Abi::Native
+            )
+            .to_string(),
             "amd64-freebsd-native"
         );
         assert_eq!(
-            target(Architecture::Arm64, OperatingSystem::Mac, Abi::Native)
+            Target::new(Architecture::Arm64, OperatingSystem::Mac, Abi::Native)
                 .to_string(),
             "arm64-mac-native"
         );

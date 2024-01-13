@@ -3,6 +3,8 @@ use crate::command::check;
 use crate::command::pkg;
 use crate::command::print;
 use crate::command::run;
+use crate::command::runtime;
+use crate::command::targets;
 use crate::command::test;
 use crate::error::Error;
 use crate::options::print_usage;
@@ -13,12 +15,14 @@ const USAGE: &str = "Usage: inko [OPTIONS] [COMMAND | FILE]
 
 Commands:
 
-    build  Compile Inko source code
-    check  Check a project or single file for correctness
-    pkg    Manage Inko packages
-    print  Print compiler details to STDOUT
-    run    Compile and run source code directly
-    test   Run Inko unit tests
+    build    Compile Inko source code
+    check    Check a project or single file for correctness
+    pkg      Manage Inko packages
+    print    Print compiler details to STDOUT
+    run      Compile and run source code directly
+    runtime  Manage runtimes for the available targets
+    targets  List the supported target triples
+    test     Run Inko unit tests
 
 Examples:
 
@@ -54,8 +58,10 @@ pub(crate) fn run() -> Result<i32, Error> {
         Some("test") => test::run(&matches.free[1..]),
         Some("print") => print::run(&matches.free[1..]),
         Some("pkg") => pkg::run(&matches.free[1..]),
+        Some("runtime") => runtime::run(&matches.free[1..]),
+        Some("targets") => targets::run(&matches.free[1..]),
         Some(cmd) => {
-            Err(Error::generic(format!("The command '{}' is invalid", cmd)))
+            Err(Error::from(format!("The command '{}' is invalid", cmd)))
         }
         None => {
             print_usage(&options, USAGE);

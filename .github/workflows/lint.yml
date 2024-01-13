@@ -48,9 +48,9 @@ jobs:
           path: |
             ${{ env.CARGO_HOME }}
             target
-          key: ubuntu-1.70
+          key: ubuntu-1.74
       - name: Installing Rust
-        run: ./scripts/rust.sh 1.70
+        run: ./scripts/rust.sh 1.74
       - name: Installing dependencies
         run: sudo ./scripts/deps.sh ubuntu:latest
       - name: Installing clippy
@@ -66,9 +66,9 @@ jobs:
           path: |
             ${{ env.CARGO_HOME }}
             target
-          key: ubuntu-stable
+          key: ubuntu-1.74
       - name: Installing Rust
-        run: ./scripts/rust.sh stable
+        run: ./scripts/rust.sh 1.74
       - name: Installing rustfmt
         run: rustup component add rustfmt
       - run: 'cargo fmt --all --check'

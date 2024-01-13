@@ -29,6 +29,29 @@ const MAIN_TEST_MODULE: &str = "inko-tests";
 /// The name of the directory to store build files in.
 const BUILD: &str = "build";
 
+fn home_dir() -> Option<PathBuf> {
+    env::var_os("HOME").filter(|v| !v.is_empty()).map(PathBuf::from)
+}
+
+pub fn data_directory() -> Option<PathBuf> {
+    let base = if cfg!(target_os = "macos") {
+        home_dir().map(|h| h.join("Library").join("Application Support"))
+    } else {
+        env::var_os("XDG_DATA_HOME")
+            .filter(|v| !v.is_empty())
+            .map(PathBuf::from)
+            .or_else(|| home_dir().map(|h| h.join(".local").join("share")))
+    };
+
+    base.map(|p| p.join("inko"))
+}
+
+pub fn local_runtimes_directory() -> Option<PathBuf> {
+    // The Inko ABI isn't stable, so runtimes are scoped to the Inko version
+    // they were compiled for.
+    data_directory().map(|p| p.join("runtimes").join(env!("CARGO_PKG_VERSION")))
+}
+
 fn create_directory(path: &Path) -> Result<(), String> {
     if path.is_dir() {
         return Ok(());
@@ -134,7 +157,7 @@ pub enum Output {
 }
 
 /// A type describing which linker to use.
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub enum Linker {
     /// Detect which linker to use.
     Detect,
@@ -147,6 +170,12 @@ pub enum Linker {
 
     /// Always use Mold.
     Mold,
+
+    /// Always use Zig.
+    Zig,
+
+    /// Use a custom linker with any extra arguments.
+    Custom(String),
 }
 
 impl Linker {
@@ -155,8 +184,14 @@ impl Linker {
             "system" => Some(Linker::System),
             "lld" => Some(Linker::Lld),
             "mold" => Some(Linker::Mold),
+            "zig" => Some(Linker::Zig),
+            _ if !value.is_empty() => Some(Linker::Custom(value.to_string())),
             _ => None,
         }
+    }
+
+    pub(crate) fn is_zig(&self) -> bool {
+        matches!(self, Linker::Zig)
     }
 }
 
@@ -166,8 +201,7 @@ pub struct Config {
     /// The directory containing the Inko's standard library.
     pub(crate) std: PathBuf,
 
-    /// The directory containing runtime library files to link to the generated
-    /// code.
+    /// The path to the global runtime directory.
     pub runtime: PathBuf,
 
     /// The directory containing the project's source code.
@@ -219,6 +253,9 @@ pub struct Config {
     /// The linker to use.
     pub linker: Linker,
 
+    /// Extra arguments to pass to the linker.
+    pub linker_arguments: Vec<String>,
+
     /// If incremental compilation is enabled or not.
     pub incremental: bool,
 
@@ -259,6 +296,7 @@ impl Config {
             static_linking: false,
             threads: available_parallelism().map(|v| v.get()).unwrap_or(1),
             linker: Linker::Detect,
+            linker_arguments: Vec::new(),
             incremental: true,
             compiled_at,
         }
@@ -286,7 +324,7 @@ impl Config {
     }
 
     pub fn set_target(&mut self, name: &str) -> Result<(), String> {
-        if let Some(val) = Target::from_str(name) {
+        if let Some(val) = Target::parse(name) {
             self.target = val;
             Ok(())
         } else {

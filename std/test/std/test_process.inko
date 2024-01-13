@@ -7,6 +7,6 @@ fn pub tests(t: mut Tests) {
     let start = Instant.new
 
     process.sleep(Duration.from_millis(10))
-    t.true(start.elapsed.to_millis >= 10)
+    t.greater_or_equal(start.elapsed.to_millis, 10)
   }
 }

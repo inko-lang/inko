@@ -1,6 +1,6 @@
 use crate::error::Error;
 use crate::options::print_usage;
-use compiler::config::Config;
+use compiler::config::{local_runtimes_directory, Config};
 use compiler::target::Target;
 use getopts::Options;
 
@@ -11,7 +11,7 @@ Print compiler details, such as the target, to STDOUT.
 Available values:
 
     target   # Print the host's target triple (e.g. amd64-linux-gnu)
-    runtime  # Print the path to the static runtime library
+    runtimes # Print the paths to search for the runtime library
 
 Examples:
 
@@ -34,15 +34,19 @@ pub(crate) fn run(arguments: &[String]) -> Result<i32, Error> {
             println!("{}", Target::native());
             Ok(0)
         }
-        Some("runtime") => {
+        Some("runtimes") => {
+            if let Some(dir) = local_runtimes_directory() {
+                println!("{}", dir.display());
+            }
+
             println!("{}", Config::default().runtime.display());
+
             Ok(0)
         }
-        Some(val) => Err(Error::generic(format!(
-            "'{}' isn't a valid value to print",
-            val
-        ))),
-        None => Err(Error::generic(
+        Some(val) => {
+            Err(Error::from(format!("'{}' isn't a valid value to print", val)))
+        }
+        None => Err(Error::from(
             "You must specify a type of value to print".to_string(),
         )),
     }

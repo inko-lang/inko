@@ -20,8 +20,7 @@ use crate::mir::{
 use crate::state::State;
 use crate::symbol_names::{shapes, SymbolNames};
 use crate::target::Architecture;
-use blake2::digest::consts::U16;
-use blake2::{Blake2b, Digest as _};
+use blake3::{hash, Hasher};
 use inkwell::basic_block::BasicBlock;
 use inkwell::module::Linkage;
 use inkwell::passes::{PassManager, PassManagerBuilder};
@@ -52,9 +51,9 @@ use types::{
 };
 
 fn object_path(directories: &BuildDirectories, name: &ModuleName) -> PathBuf {
-    let digest = Blake2b::<U16>::digest(name.as_str());
+    let hash = hash(name.as_str().as_bytes()).to_string();
 
-    directories.objects.join(format!("{:x}.o", digest))
+    directories.objects.join(format!("{}.o", hash))
 }
 
 fn check_object_cache(
@@ -167,10 +166,10 @@ fn check_object_cache(
 
         names.sort();
 
-        let mut hasher: Blake2b<U16> = Blake2b::new();
+        let mut hasher = Hasher::new();
 
         for name in names {
-            hasher.update(name);
+            hasher.update(name.as_bytes());
         }
 
         // The module may contain dynamic dispatch call sites. If the need for
@@ -178,21 +177,21 @@ fn check_object_cache(
         // do this by hashing the collision states of all dynamic calls in the
         // current module, such that if any of them change, so does the hash.
         for &mid in &module.methods {
-            hasher.update(methods.info[mid.0 as usize].hash.to_le_bytes());
+            hasher.update(&methods.info[mid.0 as usize].hash.to_le_bytes());
 
             for block in &mir.methods[&mid].body.blocks {
                 for ins in &block.instructions {
                     if let Instruction::CallDynamic(op) = ins {
                         let val = methods.info[op.method.0 as usize].collision;
 
-                        hasher.update([val as u8]);
+                        hasher.update(&[val as u8]);
                     }
                 }
             }
         }
 
-        let new_hash = format!("{:x}", hasher.finalize());
-        let hash_path = obj_path.with_extension("o.blake2");
+        let new_hash = format!("{}", hasher.finalize());
+        let hash_path = obj_path.with_extension("o.blake3");
 
         // We don't need to perform this check if another check already
         // determined the object file needs to be refreshed.

@@ -1,22 +1,10 @@
-use std::env;
+use compiler::config;
 use std::fs::{copy, create_dir_all, read_dir};
 use std::path::{Path, PathBuf};
 
-fn home_dir() -> Option<PathBuf> {
-    env::var_os("HOME").filter(|v| !v.is_empty()).map(PathBuf::from)
-}
-
 pub(crate) fn data_dir() -> Result<PathBuf, String> {
-    let base = if cfg!(target_os = "macos") {
-        home_dir().map(|h| h.join("Library").join("Application Support"))
-    } else {
-        env::var_os("XDG_DATA_HOME")
-            .filter(|v| !v.is_empty())
-            .map(PathBuf::from)
-            .or_else(|| home_dir().map(|h| h.join(".local").join("share")))
-    };
-
-    base.map(|p| p.join("inko").join("packages"))
+    config::data_directory()
+        .map(|p| p.join("packages"))
         .ok_or_else(|| "No data directory could be determined".to_string())
 }
 

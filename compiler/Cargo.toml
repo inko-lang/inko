@@ -10,14 +10,18 @@ build = "build.rs"
 doctest = false
 
 [dependencies]
-unicode-segmentation = "^1.8"
+unicode-segmentation = "^1.10"
 getopts = "^0.2"
 ast = { path = "../ast" }
 types = { path = "../types" }
 fnv = "^1.0"
-inkwell = { version = "^0.1", features = ["llvm15-0"] }
-llvm-sys-150 = { package = "llvm-sys", version = "150.1.2", features = ["prefer-static"] }
-blake2 = "^0.10"
+
+# Inkwell only sees a release every now and then. The pinned commit removes the
+# parking_lot dependency, reducing the number of crates that need to be
+# compiled. We'll revert back to a crates.io version once this is released.
+inkwell = { git = "https://github.com/TheDan64/inkwell.git", rev = "c18e3e8", features = ["llvm15-0"] }
+llvm-sys-150 = { package = "llvm-sys", version = "^150.1", features = ["prefer-static"] }
+blake3 = "^1.5"
 
 [dev-dependencies]
 similar-asserts = "^1.1"
