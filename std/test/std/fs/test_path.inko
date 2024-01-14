@@ -1,4 +1,4 @@
-import helpers.(with_directory)
+import helpers.(hash, with_directory)
 import std.env
 import std.fmt.(fmt)
 import std.fs.(DirectoryEntry, FileType)
@@ -321,5 +321,9 @@ fn pub tests(t: mut Tests) {
     t.equal(Path.new('//b.txt').extension, Option.Some('txt'))
     t.equal(Path.new('foo.a😀a').extension, Option.Some('a😀a'))
     t.equal(Path.new('...a').extension, Option.Some('a'))
+  }
+
+  t.test('Path.hash') fn (t) {
+    t.equal(hash(Path.new('foo')), hash(Path.new('foo')))
   }
 }
