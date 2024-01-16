@@ -104,10 +104,26 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('Path.directory') fn (t) {
-    t.equal(Path.new('foo').join('bar').directory, Path.new('foo'))
     t.equal(Path.new('foo').directory, Path.new('.'))
-    t.equal(Path.new('/foo').directory, Path.new('/'))
-    t.equal(Path.new('~/foo').directory, Path.new('~'))
+    t.equal(Path.new('foo/').directory, Path.new('.'))
+    t.equal(Path.new('foo//').directory, Path.new('.'))
+    t.equal(Path.new('foo/bar').directory, Path.new('foo'))
+    t.equal(Path.new('foo/a/.').directory, Path.new('foo'))
+    t.equal(Path.new('foo/bar.txt').directory, Path.new('foo'))
+    t.equal(Path.new('foo//bar.txt').directory, Path.new('foo'))
+    t.equal(Path.new('foo/./bar.txt').directory, Path.new('foo'))
+    t.equal(Path.new('./foo.txt').directory, Path.new('.'))
+    t.equal(Path.new('/foo/./bar.txt').directory, Path.new('/foo'))
+    t.equal(Path.new('/foo/./bar/baz.txt').directory, Path.new('/foo/bar'))
+    t.equal(Path.new('a/b/..').directory, Path.new('a/b'))
+    t.equal(Path.new('').directory, Path.new('.'))
+    t.equal(Path.new('..').directory, Path.new('.'))
+    t.equal(Path.new('/..').directory, Path.new('/'))
+    t.equal(Path.new('/').directory, Path.new('/'))
+    t.equal(Path.new('/.').directory, Path.new('/'))
+    t.equal(Path.new('a/.').directory, Path.new('.'))
+    t.equal(Path.new('//').directory, Path.new('/'))
+    t.equal(Path.new('.//').directory, Path.new('.'))
   }
 
   t.test('Path.==') fn (t) {
@@ -157,10 +173,22 @@ fn pub tests(t: mut Tests) {
 
   t.test('Path.tail') fn (t) {
     t.equal(Path.new('foo').tail, 'foo')
-    t.equal(Path.new('foo').join('bar').tail, 'bar')
-    t.equal(Path.new('foo').join('bar.txt').tail, 'bar.txt')
+    t.equal(Path.new('foo/').tail, 'foo')
+    t.equal(Path.new('foo//').tail, 'foo')
+    t.equal(Path.new('foo/bar').tail, 'bar')
+    t.equal(Path.new('foo/a/.').tail, 'a')
+    t.equal(Path.new('foo/bar.txt').tail, 'bar.txt')
+    t.equal(Path.new('foo//bar.txt').tail, 'bar.txt')
+    t.equal(Path.new('foo/./bar.txt').tail, 'bar.txt')
+    t.equal(Path.new('/foo/./bar.txt').tail, 'bar.txt')
     t.equal(Path.new('').tail, '')
     t.equal(Path.new('..').tail, '..')
+    t.equal(Path.new('/..').tail, '..')
+    t.equal(Path.new('/').tail, '')
+    t.equal(Path.new('/.').tail, '')
+    t.equal(Path.new('a/.').tail, 'a')
+    t.equal(Path.new('//').tail, '')
+    t.equal(Path.new('.//').tail, '')
   }
 
   t.test('Path.list with a valid directory') fn (t) {
@@ -325,6 +353,7 @@ fn pub tests(t: mut Tests) {
     t.equal(Path.new('//b.txt').extension, Option.Some('txt'))
     t.equal(Path.new('foo.a😀a').extension, Option.Some('a😀a'))
     t.equal(Path.new('...a').extension, Option.Some('a'))
+    t.equal(Path.new('/./b.txt').extension, Option.Some('txt'))
   }
 
   t.test('Path.hash') fn (t) {
@@ -344,7 +373,13 @@ fn pub tests(t: mut Tests) {
     t.equal(Path.new('/.').components.to_array, ['/'])
     t.equal(Path.new('/./').components.to_array, ['/'])
     t.equal(Path.new('/./a').components.to_array, ['/', 'a'])
+    t.equal(Path.new('/./a/.').components.to_array, ['/', 'a'])
     t.equal(Path.new('//').components.to_array, ['/'])
+    t.equal(Path.new('./').components.to_array, [])
+    t.equal(Path.new('.//').components.to_array, [])
+    t.equal(Path.new('.///').components.to_array, [])
+    t.equal(Path.new('.//./').components.to_array, [])
+    t.equal(Path.new('./././').components.to_array, [])
     t.equal(Path.new('/a/b/c').components.to_array, ['/', 'a', 'b', 'c'])
     t.equal(Path.new('/./a/b/c').components.to_array, ['/', 'a', 'b', 'c'])
     t.equal(Path.new('//a/b/c').components.to_array, ['/', 'a', 'b', 'c'])
@@ -371,5 +406,23 @@ fn pub tests(t: mut Tests) {
     t.equal(strip_prefix('', ''), Option.Some(Path.new('')))
     t.equal(strip_prefix('foo/bar', 'wat'), Option.None)
     t.equal(strip_prefix('', 'foo'), Option.None)
+  }
+
+  t.test('Path.with_extension') fn (t) {
+    t.equal(Path.new('a').with_extension('b'), Path.new('a.b'))
+    t.equal(Path.new('a.a').with_extension('b'), Path.new('a.b'))
+    t.equal(Path.new('a.a.b').with_extension('c'), Path.new('a.a.c'))
+    t.equal(Path.new('a.a.b').with_extension(''), Path.new('a.a'))
+    t.equal(Path.new('a.a').with_extension(''), Path.new('a'))
+    t.equal(Path.new('a').with_extension(''), Path.new('a'))
+    t.equal(Path.new('.a').with_extension('b'), Path.new('.a.b'))
+    t.equal(Path.new('').with_extension(''), Path.new(''))
+    t.equal(Path.new('').with_extension('a'), Path.new(''))
+    t.equal(Path.new('/').with_extension('a'), Path.new('/'))
+    t.equal(Path.new('./').with_extension('a'), Path.new('./'))
+  }
+
+  t.panic('Path.with_extension with an invalid extension') fn {
+    Path.new('a.txt').with_extension('txt/foo')
   }
 }

@@ -7,7 +7,7 @@ import std.hash.(Hash, Hasher)
 import std.io.(Error, Size)
 import std.iter.(Iter, Stream)
 import std.libc.unix.dir.(ReadDirectory as ReadDirectoryInner) if unix
-import std.string.(ToString, IntoString)
+import std.string.(StringBuffer, ToString, IntoString)
 import std.sys
 import std.time.DateTime
 
@@ -170,23 +170,20 @@ impl Iter[Result[DirectoryEntry, Error]] for ReadDirectory {
 class pub Components {
   let @path: ref Path
   let @index: Int
-  let @start: Int
   let @size: Int
+  let @root: Bool
 
   fn static new(path: ref Path) -> Components {
-    let mut index = 0
     let size = path.path.size
+    let root = size > 0 and path.path.byte(0) == SEPARATOR_BYTE
+    let comp =
+      Components { @path = path, @index = 0, @size = size, @root = root }
 
-    # This ensures paths such as `./a/b` are treated the same way as `a/b`,
-    # without needing extra work while iterating.
-    if size >= 2
-      and path.path.byte_unchecked(0) == DOT_BYTE
-      and path.path.byte_unchecked(1) == SEPARATOR_BYTE
-    {
-      index += 2
-    }
-
-    Components { @path = path, @index = index, @start = index, @size = size }
+    # If we start with a sequence such as `.//././.`, we skip over those. We
+    # only need to do this once, so we take care of that here instead of
+    # performing this check every time `next` is called.
+    comp.skip_relative_start
+    comp
   }
 
   fn byte(index: Int) -> Int {
@@ -197,16 +194,28 @@ class pub Components {
     byte(index) == SEPARATOR_BYTE
   }
 
+  fn mut skip_relative_start {
+    if @size > 0
+      and byte(@index) == DOT_BYTE
+      and @index + 1 < @size
+      and separator?(@index + 1)
+    {
+      @index += 1
+      advance_separator
+    }
+  }
+
   fn mut advance_separator {
     while @index < @size and separator?(@index) {
       @index += 1
 
-      let after = @index + 1
-
-      # This ensures that `a/./b` is treated as `a/b`, but `a/../b` isn't.
-      if @index < @size
+      # This turns sequences such as `a/./././b` into `a/b`, while leaving
+      # `a/../b` alone.
+      while @index < @size
         and byte(@index) == DOT_BYTE
-        and (after < @size and separator?(after) or after == @size)
+        and (
+          @index + 1 < @size and separator?(@index + 1) or @index + 1 == @size
+        )
       {
         @index += 2
       }
@@ -218,19 +227,25 @@ impl Iter[String] for Components {
   fn pub mut next -> Option[String] {
     if @index >= @size { return Option.None }
 
-    if @index == @start and separator?(@index) {
+    if @index == 0 and @root {
       advance_separator
       return Option.Some(SEPARATOR)
     }
 
     let start = @index
+    let mut size = 0
 
-    while @index < @size and separator?(@index).false? { @index += 1 }
+    while @index < @size and separator?(@index).false? {
+      @index += 1
+      size += 1
+    }
 
-    let val = @path.path.slice(start, @index - start).into_string
-
-    advance_separator
-    Option.Some(val)
+    if size > 0 {
+      advance_separator
+      Option.Some(@path.path.slice(start, size).into_string)
+    } else {
+      Option.None
+    }
   }
 }
 
@@ -404,6 +419,9 @@ class pub Path {
   # This method does not touch the filesystem, and thus does not resolve paths
   # like `..` and symbolic links to their real paths.
   #
+  # This method normalizes the returned `Path` similar to `Path.components`.
+  # Refer to the documentation of `Path.components` for more details.
+  #
   # # Examples
   #
   # Obtaining the directory of a path:
@@ -418,11 +436,27 @@ class pub Path {
   #
   #     Path.new('/').directory # Path.new('/')
   fn pub directory -> Path {
-    let size = bytes_before_last_separator(@path)
+    let buf = StringBuffer.new
+    let comp = Components.new(self).peekable
+    let mut root = false
 
-    if size < 0 { return Path.new('.') }
+    loop {
+      match comp.next {
+        case Some(SEPARATOR) -> {
+          root = true
+          buf.push(SEPARATOR)
+        }
+        case Some(v) if comp.peek.some? -> {
+          let any = buf.size > 0
 
-    Path.new(@path.slice(start: 0, size: size).into_string)
+          if any and root { root = false } else if any { buf.push(SEPARATOR) }
+          buf.push(v)
+        }
+        case _ -> break
+      }
+    }
+
+    if buf.size == 0 { Path.new('.') } else { Path.new(buf.into_string) }
   }
 
   # Returns the last component in `self`.
@@ -436,11 +470,27 @@ class pub Path {
   #
   #     Path.new('foo/bar/baz.txt') # => 'baz.txt'
   fn pub tail -> String {
-    let len = bytes_before_last_separator(@path)
+    let comp = Components.new(self)
+    let mut start = -1
+    let mut size = 0
 
-    if len < 0 { return @path }
+    # This finds the range of the last component, taking into account path
+    # normalization.
+    while comp.index < comp.size {
+      comp.advance_separator
 
-    @path.slice(start: len + 1, size: @path.size - len).into_string
+      if comp.index < comp.size {
+        start = comp.index
+        size = 0
+      }
+
+      while comp.index < comp.size and comp.separator?(comp.index).false? {
+        comp.index += 1
+        size += 1
+      }
+    }
+
+    if start == -1 { '' } else { @path.slice(start, size).into_string }
   }
 
   # Returns the file extension of this path (without the leading `.`), if there
@@ -494,6 +544,43 @@ class pub Path {
     } else {
       Option.None
     }
+  }
+
+  # Returns a copy of `self` with the given extension.
+  #
+  # If `self` already has an extension, it's overwritten the given extension. If
+  # the given extension is an empty `String`, the new `Path` contains no
+  # extension.
+  #
+  # # Panics
+  #
+  # This method panics if the extension contains a path separator.
+  #
+  # # Examples
+  #
+  #     import std.fs.path.Path
+  #
+  #     Path.new('a').with_extension('txt')    # => Path.new('a.txt')
+  #     Path.new('a.txt').with_extension('md') # => Path.new('a.md')
+  fn pub with_extension(name: String) -> Path {
+    if name.contains?(SEPARATOR) {
+      panic("file extensions can't contain path separators")
+    }
+
+    if @path.empty? { return clone }
+
+    let raw = match extension {
+      case Some(v) if name.empty? -> {
+        @path.slice(start: 0, size: @path.size - v.size - 1).into_string
+      }
+      case Some(v) -> {
+        "{@path.slice(start: 0, size: @path.size - v.size - 1)}.{name}"
+      }
+      case _ if name.empty? or @path.ends_with?(SEPARATOR) -> @path
+      case _ -> "{@path}.{name}"
+    }
+
+    Path.new(raw)
   }
 
   # Returns the canonical, absolute version of `self`.
