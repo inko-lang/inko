@@ -93,10 +93,8 @@ let DOT_BYTE = 46
 # The character used to separate components in a file path.
 let pub SEPARATOR = '/'
 
-# Returns `true` if the byte is a valid path separator byte.
-fn path_separator?(byte: Int) -> Bool {
-  byte == 47
-}
+# The byte used to represent the path separator.
+let SEPARATOR_BYTE = 47
 
 # Returns the number of bytes leading up to the last path separator.
 #
@@ -108,7 +106,7 @@ fn bytes_before_last_separator(path: String) -> Int {
 
   # Trailing separators should be ignored, so we'll skip over them until the
   # first non-separator byte.
-  while index > 0 and path_separator?(path.byte(index)) {
+  while index > 0 and path.byte(index) == SEPARATOR_BYTE {
     index -= 1
   }
 
@@ -117,7 +115,7 @@ fn bytes_before_last_separator(path: String) -> Int {
   while index > -1 {
     let byte = path.byte(index)
 
-    if path_separator?(byte) {
+    if byte == SEPARATOR_BYTE {
       in_separator = true
     } else if in_separator {
       return index + 1
@@ -131,7 +129,7 @@ fn bytes_before_last_separator(path: String) -> Int {
 
 # Returns `true` if the given file path is an absolute path.
 fn absolute_path?(path: String) -> Bool {
-  path_separator?(path.byte(0))
+  path.byte(0) == SEPARATOR_BYTE
 }
 
 fn join_strings(base: ref String, with: ref String) -> String {
@@ -139,7 +137,7 @@ fn join_strings(base: ref String, with: ref String) -> String {
 
   if absolute_path?(with) {
     with
-  } else if path_separator?(base.byte(base.size - 1)) {
+  } else if base.byte(base.size - 1) == SEPARATOR_BYTE {
     "{base}{with}"
   } else {
     "{base}{SEPARATOR}{with}"
@@ -165,6 +163,74 @@ impl Iter[Result[DirectoryEntry, Error]] for ReadDirectory {
     }
 
     Option.Some(ret)
+  }
+}
+
+# An iterator over the components in a `Path`.
+class pub Components {
+  let @path: ref Path
+  let @index: Int
+  let @start: Int
+  let @size: Int
+
+  fn static new(path: ref Path) -> Components {
+    let mut index = 0
+    let size = path.path.size
+
+    # This ensures paths such as `./a/b` are treated the same way as `a/b`,
+    # without needing extra work while iterating.
+    if size >= 2
+      and path.path.byte_unchecked(0) == DOT_BYTE
+      and path.path.byte_unchecked(1) == SEPARATOR_BYTE
+    {
+      index += 2
+    }
+
+    Components { @path = path, @index = index, @start = index, @size = size }
+  }
+
+  fn byte(index: Int) -> Int {
+    @path.path.byte(index)
+  }
+
+  fn separator?(index: Int) -> Bool {
+    byte(index) == SEPARATOR_BYTE
+  }
+
+  fn mut advance_separator {
+    while @index < @size and separator?(@index) {
+      @index += 1
+
+      let after = @index + 1
+
+      # This ensures that `a/./b` is treated as `a/b`, but `a/../b` isn't.
+      if @index < @size
+        and byte(@index) == DOT_BYTE
+        and (after < @size and separator?(after) or after == @size)
+      {
+        @index += 2
+      }
+    }
+  }
+}
+
+impl Iter[String] for Components {
+  fn pub mut next -> Option[String] {
+    if @index >= @size { return Option.None }
+
+    if @index == @start and separator?(@index) {
+      advance_separator
+      return Option.Some(SEPARATOR)
+    }
+
+    let start = @index
+
+    while @index < @size and separator?(@index).false? { @index += 1 }
+
+    let val = @path.path.slice(start, @index - start).into_string
+
+    advance_separator
+    Option.Some(val)
   }
 }
 
@@ -672,6 +738,57 @@ class pub Path {
       case { @tag = _, @value = e } -> Result.Error(
         Error.from_os_error(e as Int)
       )
+    }
+  }
+
+  # Returns an iterator over the components in `self`.
+  #
+  # When parsing the path as part of the iteration, the following normalization
+  # is applied:
+  #
+  # - Repeated separators are treated as a single separator, such as `a/b` and
+  #   `a//b` produce the same components
+  # - Instances of `.` are normalized away except at the start, such that
+  #   `a/./b` and `a/b` produce the same components
+  # - Trailing separators are removed, such that `a/b//` and `a/b` produce the
+  #   same components
+  #
+  # If the path starts with the path separator (e.g. `/` on Unix), the first
+  # component returned by the iterator is the separator itself.
+  #
+  # # Examples
+  #
+  #     import std.fs.path.Path
+  #
+  #     Path.new('a/b/c').components.to_array  # => ['a', 'b', 'c']
+  #     Path.new('/a/b/c').components.to_array # => ['/', 'a', 'b', 'c']
+  fn pub components -> Components {
+    Components.new(self)
+  }
+
+  # Returns a new `Path` with the prefix `prefix` removed from it.
+  #
+  # If `self` doesn't start with `prefix`, a `None` is returned.
+  #
+  # This method operates on the in-memory representation of `self`, and doesn't
+  # expand the path, follow symbolic links, etc.
+  #
+  # # Examples
+  #
+  #     import std.fs.path.Path
+  #
+  #     Path.new('a/b').strip_prefix(Path.new('a'))   # => Path.new('b')
+  #     Path.new('/a/b').strip_prefix(Path.new('/a')) # => Path.new('b')
+  fn pub strip_prefix(prefix: ref Path) -> Option[Path] {
+    let comp = components
+    let valid = prefix.components.all? fn (theirs) {
+      match comp.next { case Some(ours) -> ours == theirs, case _ -> false }
+    }
+
+    if valid {
+      Option.Some(Path.new(String.join(comp, SEPARATOR)))
+    } else {
+      Option.None
     }
   }
 }

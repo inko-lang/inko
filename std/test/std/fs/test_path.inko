@@ -34,6 +34,10 @@ fn write(string: String, to: ref Path) {
   file.write_string(string).unwrap
 }
 
+fn strip_prefix(path: String, prefix: String) -> Option[Path] {
+  Path.new(path).strip_prefix(Path.new(prefix))
+}
+
 fn pub tests(t: mut Tests) {
   t.test('path.SEPARATOR') fn (t) {
     t.equal(path.SEPARATOR, '/')
@@ -325,5 +329,47 @@ fn pub tests(t: mut Tests) {
 
   t.test('Path.hash') fn (t) {
     t.equal(hash(Path.new('foo')), hash(Path.new('foo')))
+  }
+
+  t.test('Path.components') fn (t) {
+    t.equal(Path.new('').components.to_array, [])
+    t.equal(Path.new('a').components.to_array, ['a'])
+    t.equal(Path.new('a/b/c').components.to_array, ['a', 'b', 'c'])
+    t.equal(Path.new('a//b//c').components.to_array, ['a', 'b', 'c'])
+    t.equal(Path.new('a/./b/c').components.to_array, ['a', 'b', 'c'])
+    t.equal(Path.new('a/.b/c').components.to_array, ['a', '.b', 'c'])
+    t.equal(Path.new('a/../b/c').components.to_array, ['a', '..', 'b', 'c'])
+    t.equal(Path.new('./a/b/c').components.to_array, ['a', 'b', 'c'])
+    t.equal(Path.new('/').components.to_array, ['/'])
+    t.equal(Path.new('/.').components.to_array, ['/'])
+    t.equal(Path.new('/./').components.to_array, ['/'])
+    t.equal(Path.new('/./a').components.to_array, ['/', 'a'])
+    t.equal(Path.new('//').components.to_array, ['/'])
+    t.equal(Path.new('/a/b/c').components.to_array, ['/', 'a', 'b', 'c'])
+    t.equal(Path.new('/./a/b/c').components.to_array, ['/', 'a', 'b', 'c'])
+    t.equal(Path.new('//a/b/c').components.to_array, ['/', 'a', 'b', 'c'])
+    t.equal(Path.new('//a/./b/c').components.to_array, ['/', 'a', 'b', 'c'])
+    t.equal(Path.new('a/😀/b').components.to_array, ['a', '😀', 'b'])
+  }
+
+  t.test('Path.strip_prefix') fn (t) {
+    t.equal(strip_prefix('foo/bar', 'foo'), Option.Some(Path.new('bar')))
+    t.equal(strip_prefix('foo/bar', 'foo/'), Option.Some(Path.new('bar')))
+    t.equal(strip_prefix('foo/bar', 'foo/bar'), Option.Some(Path.new('')))
+    t.equal(strip_prefix('foo/bar', 'foo/bar/'), Option.Some(Path.new('')))
+    t.equal(strip_prefix('/foo/bar', '/'), Option.Some(Path.new('foo/bar')))
+    t.equal(strip_prefix('/foo/bar', '/foo'), Option.Some(Path.new('bar')))
+    t.equal(strip_prefix('/foo/bar', '/foo/'), Option.Some(Path.new('bar')))
+    t.equal(strip_prefix('/foo/bar', '//foo//'), Option.Some(Path.new('bar')))
+    t.equal(strip_prefix('/😀/foo', '/😀'), Option.Some(Path.new('foo')))
+    t.equal(strip_prefix('./foo/bar', './'), Option.Some(Path.new('foo/bar')))
+    t.equal(strip_prefix('./foo/bar', './foo'), Option.Some(Path.new('bar')))
+    t.equal(strip_prefix('~/foo/bar', '~/foo'), Option.Some(Path.new('bar')))
+    t.equal(strip_prefix('~/foo/bar', '~'), Option.Some(Path.new('foo/bar')))
+    t.equal(strip_prefix('~/foo/bar', '~/'), Option.Some(Path.new('foo/bar')))
+    t.equal(strip_prefix('foo/bar', ''), Option.Some(Path.new('foo/bar')))
+    t.equal(strip_prefix('', ''), Option.Some(Path.new('')))
+    t.equal(strip_prefix('foo/bar', 'wat'), Option.None)
+    t.equal(strip_prefix('', 'foo'), Option.None)
   }
 }
