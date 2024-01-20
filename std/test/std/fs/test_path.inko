@@ -4,8 +4,10 @@ import std.fmt.(fmt)
 import std.fs.(DirectoryEntry, FileType)
 import std.fs.file.(self, ReadOnlyFile, WriteOnlyFile)
 import std.fs.path.(self, Path)
+import std.io.Error
 import std.sys
 import std.test.Tests
+import std.time.DateTime
 
 fn created_at? -> Bool {
   env.temporary_directory.created_at.ok?
@@ -17,6 +19,17 @@ fn modified_at? -> Bool {
 
 fn accessed_at? -> Bool {
   env.temporary_directory.accessed_at.ok?
+}
+
+fn valid_date?(time: Result[DateTime, Error]) -> Bool {
+  match time {
+    case Ok(t) -> {
+      1990.to(2100).contains?(t.year)
+        and 1.to(12).contains?(t.month)
+        and 1.to(31).contains?(t.day)
+    }
+    case _ -> false
+  }
 }
 
 fn read(from: ref Path) -> String {
@@ -65,25 +78,19 @@ fn pub tests(t: mut Tests) {
 
   if created_at? {
     t.test('Path.created_at') fn (t) {
-      let path = env.temporary_directory
-
-      t.true(path.created_at.ok?)
+      t.true(valid_date?(env.temporary_directory.created_at))
     }
   }
 
   if modified_at? {
     t.test('Path.modified_at') fn (t) {
-      let path = env.temporary_directory
-
-      t.true(path.modified_at.ok?)
+      t.true(valid_date?(env.temporary_directory.modified_at))
     }
   }
 
   if accessed_at? {
     t.test('Path.accessed_at') fn (t) {
-      let path = env.temporary_directory
-
-      t.true(path.accessed_at.ok?)
+      t.true(valid_date?(env.temporary_directory.accessed_at))
     }
   }
 

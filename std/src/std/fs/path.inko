@@ -307,9 +307,10 @@ class pub Path {
   #     path.created_at.unwrap # => DateTime { ... }
   fn pub created_at -> Result[DateTime, Error] {
     match inko_path_created_at(_INKO.process, @path) {
-      case { @tag = 0, @value = val } -> Result.Ok(
-        DateTime.from_timestamp(val as Float, inko_time_system_offset as Int)
-      )
+      case { @tag = 0, @value = val } -> Result.Ok(DateTime.from_timestamp(
+        Float.from_bits(val as Int),
+        inko_time_system_offset as Int
+      ))
       case { @tag = _, @value = e } -> Result.Error(
         Error.from_os_error(e as Int)
       )
@@ -332,9 +333,10 @@ class pub Path {
   #     path.modified_at.unwrap # => DateTime { ... }
   fn pub modified_at -> Result[DateTime, Error] {
     match inko_path_modified_at(_INKO.process, @path) {
-      case { @tag = 0, @value = val } -> Result.Ok(
-        DateTime.from_timestamp(val as Float, inko_time_system_offset as Int)
-      )
+      case { @tag = 0, @value = val } -> Result.Ok(DateTime.from_timestamp(
+        Float.from_bits(val as Int),
+        inko_time_system_offset as Int
+      ))
       case { @tag = _, @value = e } -> Result.Error(
         Error.from_os_error(e as Int)
       )
@@ -357,9 +359,10 @@ class pub Path {
   #     path.accessed_at.unwrap # => DateTime { ... }
   fn pub accessed_at -> Result[DateTime, Error] {
     match inko_path_accessed_at(_INKO.process, @path) {
-      case { @tag = 0, @value = val } -> Result.Ok(
-        DateTime.from_timestamp(val as Float, inko_time_system_offset as Int)
-      )
+      case { @tag = 0, @value = val } -> Result.Ok(DateTime.from_timestamp(
+        Float.from_bits(val as Int),
+        inko_time_system_offset as Int
+      ))
       case { @tag = _, @value = e } -> Result.Error(
         Error.from_os_error(e as Int)
       )
