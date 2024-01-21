@@ -18,10 +18,7 @@ let VALUE_SIZE = 8
 # The capacity to use when resizing an array for the first time.
 let START_CAPACITY = 4
 
-fn stable_sort[T: Compare[T]](
-  array: mut Array[T],
-  compare: mut fn (ref T, ref T) -> Bool,
-) {
+fn stable_sort[T](array: mut Array[T], compare: mut fn (ref T, ref T) -> Bool) {
   let len = array.size
 
   # The algorithm here is the recursive merge sort algorithm. While faster
@@ -41,7 +38,7 @@ fn stable_sort[T: Compare[T]](
   merge_sort(tmp, array, start: 0, end: len, compare: compare)
 }
 
-fn merge_sort[T: Compare[T]](
+fn merge_sort[T](
   a: mut Array[T],
   b: mut Array[T],
   start: Int,
@@ -562,6 +559,25 @@ class builtin Array[T] {
     @size += 1
   }
 
+  # Sorts the values in `self` using a custom comparison closure.
+  #
+  # Like `Array.sort`, this method performs a stable sort.
+  #
+  # # Examples
+  #
+  #     let nums = [0, 3, 3, 5, 9, 1]
+  #
+  #     nums.sort_by fn (a, b) { b.cmp(a) }
+  #     nums # => [9, 5, 3, 3, 1, 0]
+  fn pub mut sort_by(block: fn (ref T, ref T) -> Ordering) {
+    stable_sort(self) fn (a, b) {
+      match block.call(a, b) {
+        case Less or Equal -> true
+        case _ -> false
+      }
+    }
+  }
+
   fn to_pointer -> Pointer[T] {
     @buffer as Pointer[T]
   }
@@ -778,25 +794,6 @@ impl Array if T: Compare[T] {
   #     nums # => [0, 1, 3, 3, 5, 9]
   fn pub mut sort {
     stable_sort(self) fn (a, b) { a <= b }
-  }
-
-  # Sorts the values in `self` using a custom comparison closure.
-  #
-  # Like `Array.sort`, this method performs a stable sort.
-  #
-  # # Examples
-  #
-  #     let nums = [0, 3, 3, 5, 9, 1]
-  #
-  #     nums.sort_by fn (a, b) { b.cmp(a) }
-  #     nums # => [9, 5, 3, 3, 1, 0]
-  fn pub mut sort_by(block: fn (ref T, ref T) -> Ordering) {
-    stable_sort(self) fn (a, b) {
-      match block.call(a, b) {
-        case Less or Equal -> true
-        case _ -> false
-      }
-    }
   }
 }
 

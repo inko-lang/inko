@@ -293,7 +293,7 @@ fn pub tests(t: mut Tests) {
     )
   }
 
-  t.test('Array.sort') fn (t) {
+  t.test('Array.sort_by') fn (t) {
     let nums = [56, 20, 28, 71, 42, 49, 1, 59, 19, 18, 27, 6, 31, 89, 32]
 
     nums.sort_by fn (a, b) { b.cmp(a) }
