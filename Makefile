@@ -110,7 +110,7 @@ release/commit:
 	git push origin "$$(git rev-parse --abbrev-ref HEAD)"
 
 release/tag:
-	git tag -s -a -m "Release v${VERSION}" "v${VERSION}"
+	git tag -a -m "Release v${VERSION}" "v${VERSION}"
 	git push origin "v${VERSION}"
 
 release/publish: release/versions release/changelog release/commit release/tag
