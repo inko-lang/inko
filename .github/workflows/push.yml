@@ -78,6 +78,9 @@ jobs:
             docs/build
             ~/.local/share/inko/packages
           key: docs-main
+      # This is needed so the paths-filter action doesn't fail with a "dubious
+      # path" error.
+      - run: git config --global --add safe.directory $PWD
       - uses: dorny/paths-filter@v3
         id: changes
         with:
