@@ -8,12 +8,7 @@ env:
   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
 
 jobs:
-  compiler:
-    strategy:
-      fail-fast: false
-      matrix:
-        version:
-          - '1.70'
+  test:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,38 +17,10 @@ jobs:
           path: |
             ${{ env.CARGO_HOME }}
             target
-          key: mac-${{ matrix.version }}
-      - name: Installing dependencies
-        run: ./scripts/deps.sh mac
-      - name: Installing Rust
-        run: ./scripts/rust.sh ${{ matrix.version }}
-      - name: Running tests
+          key: mac
+      - name: Install dependencies
+        run: ./ci/mac.sh
+      - name: Run compiler tests
         run: cargo test
-
-  std:
-    strategy:
-      fail-fast: false
-      matrix:
-        version:
-          - '1.70'
-    runs-on: macos-latest
-    needs:
-      - compiler
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ${{ env.CARGO_HOME }}
-            target
-          key: mac-${{ matrix.version }}
-      - name: Installing dependencies
-        run: ./scripts/deps.sh mac
-      - name: Installing Rust
-        run: ./scripts/rust.sh ${{ matrix.version }}
-      - name: Compiling
-        run: cargo build
-      - name: Running tests
-        run: |
-          cd std
-          ../target/debug/inko test
+      - name: Run stdlib tests
+        run: 'cd std && cargo run -- test'

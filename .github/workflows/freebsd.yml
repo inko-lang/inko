@@ -11,12 +11,7 @@ env:
 # Due to https://github.com/cross-platform-actions/action/issues/29, jobs should
 # use QEMU, instead of xhyve.
 jobs:
-  compiler:
-    strategy:
-      fail-fast: false
-      matrix:
-        version:
-          - '1.70'
+  test:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,7 +20,7 @@ jobs:
           path: |
             ${{ env.CARGO_HOME }}
             target
-          key: freebsd-${{ matrix.version }}
+          key: freebsd
       - name: Run tests
         uses: cross-platform-actions/action@v0.22.0
         with:
@@ -34,45 +29,4 @@ jobs:
           environment_variables: 'CARGO_HOME LIBRARY_PATH CARGO_REGISTRIES_CRATES_IO_PROTOCOL'
           hypervisor: qemu
           image_url: 'https://github.com/inko-lang/freebsd-builder/releases/download/v0.6.5/freebsd-13.2-x86-64.qcow2'
-          run: |
-            ./scripts/rust.sh ${{ matrix.version }}
-            setenv PATH "${CARGO_HOME}/bin:${PATH}"
-            echo "::group::Running tests"
-            cargo test
-            echo "::endgroup::"
-
-  std:
-    strategy:
-      fail-fast: false
-      matrix:
-        version:
-          - '1.70'
-    runs-on: macos-latest
-    needs:
-      - compiler
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ${{ env.CARGO_HOME }}
-            target
-          key: freebsd-${{ matrix.version }}
-      - name: Run tests
-        uses: cross-platform-actions/action@v0.22.0
-        with:
-          operating_system: freebsd
-          version: '13.2'
-          environment_variables: 'CARGO_HOME LIBRARY_PATH CARGO_REGISTRIES_CRATES_IO_PROTOCOL'
-          hypervisor: qemu
-          image_url: 'https://github.com/inko-lang/freebsd-builder/releases/download/v0.6.5/freebsd-13.2-x86-64.qcow2'
-          run: |
-            ./scripts/rust.sh ${{ matrix.version }}
-            setenv PATH "${CARGO_HOME}/bin:${PATH}"
-            echo "::group::Compiling"
-            cargo build
-            echo "::endgroup::"
-            echo "::group::Running tests"
-            cd std
-            ../target/debug/inko test
-            echo "::endgroup::"
+          run: ./ci/freebsd.sh

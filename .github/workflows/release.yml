@@ -68,6 +68,7 @@ jobs:
 
   runtimes:
     runs-on: ubuntu-latest
+    image: ghcr.io/inko-lang/ci:fedora
     needs:
       - lints
       - linux
@@ -79,10 +80,6 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
     steps:
       - uses: actions/checkout@v4
-      - name: Installing dependencies
-        run: sudo ./scripts/deps.sh ubuntu:latest
-      - name: Installing Rust
-        run: ./scripts/rust.sh 1.70
       - name: Generating runtimes
         run: make runtimes
 

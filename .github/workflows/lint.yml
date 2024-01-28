@@ -3,11 +3,6 @@ name: Run linters
 on:
   workflow_call:
 
-env:
-  # This directory must be named differently from `.cargo`, otherwise it will
-  # conflict with our local Cargo configuration.
-  CARGO_HOME: ${{ github.workspace }}/.cargo-home
-
 jobs:
   vale:
     runs-on: ubuntu-latest
@@ -36,11 +31,10 @@ jobs:
       - run: git config --global --add safe.directory $PWD
       - run: gitlint --commits "HEAD~9..HEAD"
 
-  # Clippy uses a specific version as its lints change over time, which could
-  # result in random unrelated CI failures. We'll bump this version every now
-  # and then when needed.
   cargo-clippy:
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/inko-lang/ci:fedora
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -48,17 +42,14 @@ jobs:
           path: |
             ${{ env.CARGO_HOME }}
             target
-          key: ubuntu-1.74
-      - name: Installing Rust
-        run: ./scripts/rust.sh 1.74
-      - name: Installing dependencies
-        run: sudo ./scripts/deps.sh ubuntu:latest
-      - name: Installing clippy
-        run: rustup component add clippy
-      - run: 'cargo clippy -- -D warnings'
+          key: fedora
+      - name: Run clippy
+        run: 'cargo clippy -- -D warnings'
 
   cargo-fmt:
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/inko-lang/ci:fedora
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -66,9 +57,6 @@ jobs:
           path: |
             ${{ env.CARGO_HOME }}
             target
-          key: ubuntu-1.74
-      - name: Installing Rust
-        run: ./scripts/rust.sh 1.74
-      - name: Installing rustfmt
-        run: rustup component add rustfmt
-      - run: 'cargo fmt --all --check'
+          key: fedora
+      - name: Run rustfmt
+        run: 'cargo fmt --all --check'

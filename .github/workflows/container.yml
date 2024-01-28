@@ -1,0 +1,31 @@
+---
+name: CI container
+on:
+  workflow_call:
+    inputs:
+      name:
+        description: 'The name of the image to build'
+        required: true
+
+env:
+  REGISTRY: ghcr.io
+  NAMESPACE: inko-lang/ci
+
+jobs:
+  container:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v4
+        with:
+          context: ci/docker/${{ inputs.name }}
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}:${{ inputs.name }}
