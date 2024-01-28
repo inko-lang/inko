@@ -70,7 +70,7 @@ jobs:
       github.repository == 'inko-lang/inko' && github.ref_name == 'main'
     steps:
       - name: Install dependencies
-        run: sudo microdnf install --quiet --assumeyes rclone awscli2 git tar make
+        run: microdnf install --quiet --assumeyes rclone awscli2 git tar make
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
         with:

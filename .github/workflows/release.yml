@@ -102,7 +102,7 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
     steps:
       - name: Install dependencies
-        run: sudo microdnf install --quiet --assumeyes rclone awscli2 git tar make
+        run: microdnf install --quiet --assumeyes rclone awscli2 git tar make
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
