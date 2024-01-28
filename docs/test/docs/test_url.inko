@@ -1,0 +1,36 @@
+import docs.url.(link_from)
+import markdown.Document
+import std.fs.path.Path
+import std.test.Tests
+import std.time.DateTime
+import wobsite.(FrontMatter, Page)
+
+fn page(url: String) -> Page {
+  Page {
+    @front_matter = FrontMatter {
+      @title = 'Foo',
+      @date = DateTime.utc,
+    },
+    @url = url,
+    @source_path = Path.new('foo'),
+    @body = Document {
+      @children = [],
+      @references = Map.new,
+      @footnotes = Map.new
+    },
+  }
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('url.link_from') fn (t) {
+    t.equal(link_from(page('/'), '/css/main.css'), 'css/main.css')
+    t.equal(link_from(page('/'), 'test.md'), 'test.md')
+    t.equal(link_from(page('/'), 'foo/test.md'), 'foo/test.md')
+    t.equal(link_from(page('/foo/'), '/css/main.css'), '../css/main.css')
+    t.equal(link_from(page('/foo'), '/css/main.css'), '../css/main.css')
+    t.equal(link_from(page('/foo'), 'test.md'), '../test.md')
+    t.equal(link_from(page('/foo/bar'), 'test.md'), '../test.md')
+    t.equal(link_from(page('/foo/bar'), '../test.md'), '../../test.md')
+    t.equal(link_from(page('/setup/ivm'), 'installation'), '../installation')
+  }
+}

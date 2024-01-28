@@ -1,0 +1,3 @@
+require https://github.com/yorickpeterse/inko-wobsite 0.10.0 d67b267deec594515188b5f38cecd34f2d989c8f
+require https://github.com/yorickpeterse/inko-builder 0.11.0 ae7b8cf3476dfc401408c493bd6d795bd0ac3ab2
+require https://github.com/yorickpeterse/inko-markdown 0.13.0 cc6b10c03fbe18f44e7ad0eb9adc23d0b0f043e0

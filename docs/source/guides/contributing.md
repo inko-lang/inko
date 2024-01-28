@@ -1,6 +1,8 @@
-# Contributing to Inko
-
-Thank you for contributing to Inko!
+---
+{
+  "title": "Contributing to Inko"
+}
+---
 
 Before you continue reading this document, please familiarise yourself with our
 [Code of Conduct](https://inko-lang.org/code-of-conduct/). All contributors are
@@ -17,12 +19,26 @@ specific to Inko's version manager should be reported in the project
 [inko-lang/ivm](https://github.com/inko-lang/ivm/issues). Here are a few of
 our projects:
 
-| Project            | Description               | Issue tracker
-|:-------------------|:--------------------------|:----------------------------
-| inko-lang/inko     | The main project for Inko | <https://github.com/inko-lang/inko/issues>
-| inko-lang/ivm      | Inko's version manager    | <https://github.com/inko-lang/ivm/issues>
-| inko-lang/inko.vim | Vim integration for Inko  | <https://github.com/inko-lang/inko.vim/issues>
-| inko-lang/website  | The Inko website          | <https://github.com/inko-lang/website/issues>
+|=
+| Project
+| Description
+| Issue tracker
+|-
+| inko-lang/inko
+| The main project for Inko
+| <https://github.com/inko-lang/inko/issues>
+|-
+| inko-lang/ivm
+| Inko's version manager
+| <https://github.com/inko-lang/ivm/issues>
+|-
+| inko-lang/inko.vim
+| Vim integration for Inko
+| <https://github.com/inko-lang/inko.vim/issues>
+|-
+| inko-lang/website
+| The Inko website
+| <https://github.com/inko-lang/website/issues>
 
 For an up to date list, take a look at the [inko-lang GitHub
 group](https://github.com/inko-lang).
@@ -55,13 +71,13 @@ how other languages implement the feature (if applicable), and so on.
 
 ## Submitting changes
 
-!!! note
-    Before submitting code changes, please note that we only accept merge
-    requests for issues labelled as "Accepting contributions".
+::: note
+Before submitting code changes, please note that we only accept merge requests
+for issues labelled as "Accepting contributions".
+:::
 
 To submit changes to Inko, you'll need a local Git clone of the repository. If
-you want to contribute to inko-lang/inko, you need to [build Inko from
-source](../getting-started/installation.md#building-from-source).
+you want to contribute to inko-lang/inko, you need to build Inko from source.
 
 ### Rust code
 
@@ -87,8 +103,8 @@ Clippy can be run using the command `cargo clippy`. Unit tests are run using the
 ### Inko code
 
 For contributing changes to Inko source code, please follow [the Inko style
-guide](style-guide.md). We don't have any tools yet to enforce the style guide,
-so this is done manually during code review.
+guide](../references/style). We don't have any tools yet to enforce the style
+guide, so this is done manually during code review.
 
 #### Standard library tests
 
@@ -196,7 +212,7 @@ Commit messages follow these rules:
 
 1. The first line is the subject, and must not be longer than 50 characters.
 1. The second line is empty.
-3. The third and following lines make up the commit body. These lines must not
+1. The third and following lines make up the commit body. These lines must not
    be longer than 72 characters.
 
 The second and all following lines can be left out if the subject is explanatory

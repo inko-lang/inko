@@ -1,0 +1,36 @@
+@font-face {
+  font-family: 'icons';
+  src: url(data:font/woff2;base64,d09GMgABAAAAAAUEAAsAAAAACLQAAAS5AAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAABmAAdBEIColYiDQLFAABNgIkAyQEIAWCbgcgGzsHID4NcHK76gfI8srYRpikabpkmJAS9kTyyUHXefpFSA4e+v3Rn4sFNZ0drqCb74vrvEnsauu0s8nJDfw/vz/yPl/iSRYSb8SJUpnf+tRjZ4fG5d1TaNBApS2qEQxp1aFt2uWloSc0Fi/gLtFJgfRrkYzSXk/4p4fHrjCJLEiy4oRSDHGehgTy+3/ga2tqqRkmQA9bAo/3D38/00UURtuABzijt/cXVVhpUbhLwAS5AV1EWpXI8R3YqYDnyCqdL14BpYLEFDgAch59Bua6ScQbyQJPp094s24a8L1DG2mKQBgBLkS7VJgKB7JcJAgbRdT/9oUGEhQEpe80ZA1Avb2w8zr12hEcFqwVlJ/YyCEqQMABXjHFBacvqYgFQK4YIQtp2DiYCAVTJzoHONCjheTkhST19UVV3JDhc0oLI4KAhe20Fght3SzdPQdMIrb3cV3fIowoTmPgsFlikYjIvkNi+wyb9iyDXgH3M4rGJ7tBH2YRVuGf6oMxwgp0udqagi9XY7HrZAR3IxZWJO9W7DYV/vXaOcxNDWpc9bS8RbGqACeXXlYsceVFbqixLf573GqevrjmpllwpJcDFvrefib9vtEy3Wf5fXoNxeazYP1dn3pYYK6bk2c5FxfYuyZMclnz+8R2y5sXfLX9f9AaFbxf0GnmCG29sJZjrH2d9lfgZhlMr56HVzI7nk1nYFZ9WmCPX8XETZ51cYnbtyBrvujOvojmB4CprBDVE30I/QWr7VBQA2v7uHkwxA/lGmc54cqfG8689IfblPfDtZzDcNbLdDY2OpG3t72OMNnkgEz3MTcXFkNbqSMiPcZsT0n3/4+ZXZNPCxy2ViWU96jKgVOK4M7AQP/wCxW8VsvpZdoygT6m9uJonNNK5duzLEixzjYgMS97ZleBct0Cp5P8f5WKQOXAigoaVYmNjUEPRKgEoaEaZYLxQpAdLChmHDuFNbzuu7GrdL7zKUVIJ/QDrcAFNShVjHAy3qdrY5TFMFyD4xOd7XxEgEkB2P/7914S2V3CZMTKrANVlza7LqTjFgmSQ+6o9iWiDal0h6Fe0d7+0DAwEIFbbaZjIRVumKfXIqJDkoA9SLoYvDnJVrMqFZMJaNXi9WmSwfl9nnRwChVL9mvJlMgN89SMqPaE6QWzUmVWPktaQkBTd9Us0zWM1TVSfu/u0NDMy31PtOnKuYtVC7d+Nhc61jvSR/88Qfdi7nLeenJ+fw+jyP72j10bWjNSGMrdrhtRogqp/Reh8PcRX8lR4dTdbwByS2b0/twdvOcPjmvq2XSN5Tq7GFtaGLuwfzk2AcYNAGygDgO6atDRQ9OQZX5cAORWL+f+F/rvTNQA8PT6P7S4teAMCmTIGaEThzG6RTPPRYtkpE81EFwPNJNlvk8ATlBNCbvRQ8KT1QrCUwQgKiQUAQoFgRFa41MVDrAIKhwhcDzeFRk6wUC0CwgMRKBAESBcgcFgjsbxWQoCCQQKEga3AoMZY5du25VCNqkUUkDpLd91jA2MoIh0SrAj2WRK2LFgcxmlMb2p3i9BCOlkUk4eyZT08L7+odtHVm8M/AsVAxADtZehRDPpFCyCZjJlpJPWXEc1SiRnl/CnsF65AUgG);
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+i {
+  font-family: 'icons' !important;
+  speak: never;
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.icon-pencil:before {
+  content: "\f040";
+}
+.icon-info-circle:before {
+  content: "\f05a";
+}
+.icon-exclamation-circle:before {
+  content: "\f06a";
+}
+.icon-comments:before {
+  content: "\f086";
+}
+.icon-lightbulb-o:before {
+  content: "\f0eb";
+}

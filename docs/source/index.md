@@ -1,9 +1,8 @@
 ---
-hide:
-  - navigation
-  - toc
+{
+  "title": "Introduction"
+}
 ---
-# Introduction
 
 Inko is a programming language for building concurrent software with confidence,
 and has been under development since 2015.

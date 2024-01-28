@@ -55,3 +55,35 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+  docs:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/inko-lang/inko:main
+    env:
+      AWS_REGION: eu-west-1
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    needs:
+      - nightly-container
+    if: |
+      github.repository == 'inko-lang/inko' && github.ref_name == 'main'
+    steps:
+      - name: Install dependencies
+        run: sudo microdnf install --quiet --assumeyes rclone awscli2 git tar make
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v3
+        with:
+          path: |
+            docs/build
+            ~/.local/share/inko/packages
+          key: docs-main
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            docs:
+              - 'docs/**'
+      - name: Deploy the documentation
+        if: steps.changes.outputs.docs == 'true'
+        run: make docs/publish

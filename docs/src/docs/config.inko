@@ -1,0 +1,41 @@
+import docs.menu.Menu
+import std.clone.Clone
+import std.fs.path.Path
+import wobsite.Page
+
+let MENU_FILE = 'menu.json'
+
+class pub Config {
+  # The name of the website.
+  let pub @title: String
+
+  # The base URL of the website.
+  let pub @base_url: String
+
+  # The navigation menu to display at the top, the side, etc.
+  let @menu: Menu
+
+  fn pub static new(source: ref Path) -> Result[Config, String] {
+    let menu = try Menu.parse(source, Path.new(MENU_FILE))
+
+    Result.Ok({Config {
+      @title = 'The Inko manual',
+      @base_url = 'https://docs.inko-lang.org/manual',
+      @menu = menu,
+    }})
+  }
+
+  fn canonical_url(page: ref Page) -> String {
+    "{@base_url}/latest{page.url}"
+  }
+}
+
+impl Clone[Config] for Config {
+  fn pub clone -> Config {
+    Config {
+      @title = @title,
+      @base_url = @base_url,
+      @menu = @menu.clone,
+    }
+  }
+}

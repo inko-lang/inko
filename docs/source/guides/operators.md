@@ -1,7 +1,10 @@
-# Operator overloading
+---
+{
+  "title": "Operator overloading"
+}
+---
 
-Inko supports a variety of operators (see [this
-section](../guides/syntax.md#binary-expressions) for the full list),
+Inko supports a variety of operators (see [](syntax) for the full list),
 and these can be implemented for your own types. In fact, operators are just
 regular methods, though the compiler may choose to optimise some of them
 whenever possible.

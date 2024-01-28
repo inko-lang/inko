@@ -1,11 +1,9 @@
 .*.rustfmt
-*.ibi
-/libstd/build
-/tmp
-/target
-/docs/build
-*.egg-info/
-__pycache__
-/docs/plugins/pygments-inko-lexer/poetry.lock
 /build
+/docs/build
+/docs/dep
+/docs/public
 /std/build
+/target
+/tmp
+__pycache__

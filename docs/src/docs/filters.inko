@@ -1,0 +1,78 @@
+import builder.html.(Document, Element)
+import docs.menu.Menu
+import docs.url.(link_from, relative?)
+import markdown.html.(Filter, TableOfContents)
+import wobsite.Page
+import wobsite.url.(relative_to_absolute)
+
+# A filter that automatically inserts a table of contents.
+class AutoTableOfContents {
+  fn static new -> AutoTableOfContents {
+    AutoTableOfContents {}
+  }
+
+  fn add_marker(document: mut Document) {
+    document.div.attr('class', 'toc')
+  }
+}
+
+impl Filter for AutoTableOfContents {
+  fn pub mut run(document: mut Document) {
+    add_marker(document)
+    TableOfContents.new.run(document)
+  }
+}
+
+# A filter that turns relative document links (e.g. `[](ivm)`) into the correct
+# URLs, optionally setting the link text if left out. This makes it easier to
+# link to different documents.
+class RelativeLinks {
+  let @menu: ref Menu
+  let @page: ref Page
+
+  fn update(element: mut Element) {
+    if element.name != 'a' { return }
+
+    let href = match element.attributes.opt('href') {
+      case Some(v) if relative?(v) -> v
+      case _ -> return
+    }
+
+    let rel = link_from(@page, href)
+    let title = match title(rel) {
+      case Some(v) -> v
+      case _ -> return
+    }
+
+    if element.nodes.empty? {
+      element.nodes.clear
+      element.text(title)
+    }
+
+    element.attributes.set('href', rel)
+  }
+
+  fn title(relative: String) -> Option[String] {
+    let mut abs = relative_to_absolute(@page.url, relative, as_file: false)
+
+    if abs.ends_with?('/').false? { abs = abs + '/' }
+    @menu.titles.opt(abs)
+  }
+}
+
+impl Filter for RelativeLinks {
+  fn pub mut run(document: mut Document) {
+    let nodes = document.nodes.iter_mut.to_array
+
+    loop {
+      match nodes.pop {
+        case Some(Element(el)) -> {
+          update(el)
+          nodes.append(el.nodes.iter_mut.to_array)
+        }
+        case Some(_) -> {}
+        case _ -> break
+      }
+    }
+  }
+}

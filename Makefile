@@ -140,30 +140,28 @@ clean:
 	rm -rf "${TMP_DIR}"
 	rm -rf build
 	rm -rf std/build
+	rm -rf docs/public
 	cargo clean
 
 docs/install:
-	cd docs && poetry install --no-root
+	cd docs && inko pkg sync
 
 docs/build:
-	cd docs && poetry run mkdocs build
+	rm -rf docs/public
+	cd docs && inko run
 
-docs/server:
-	cd docs && poetry run mkdocs serve
+docs/watch:
+	cd docs && bash scripts/watch.sh
 
 docs/publish: docs/install docs/build
-	aws s3 sync docs/build s3://${DOCS_S3_BUCKET}/manual/${DOCS_FOLDER} \
-		--acl=public-read --delete --cache-control max-age=86400 --no-progress
+	cd docs && rclone sync \
+		--config rclone.conf \
+		--checksum \
+		--header-upload 'Cache-Control:max-age=604800' \
+		--s3-acl 'public-read' \
+		public "production:${DOCS_S3_BUCKET}/manual/${DOCS_FOLDER}"
 	aws cloudfront create-invalidation \
 		--distribution-id ${DOCS_CLOUDFRONT_ID} --paths "/*"
-
-docs/versions:
-	git tag | python ./scripts/docs_versions.py > versions.json
-	aws s3 cp versions.json s3://${DOCS_S3_BUCKET}/manual/versions.json \
-		--acl=public-read --cache-control max-age=86400
-	aws cloudfront create-invalidation \
-		--distribution-id ${DOCS_CLOUDFRONT_ID} --paths "/manual/versions.json"
-	rm versions.json
 
 runtimes:
 	bash scripts/runtimes.sh ${VERSION}
@@ -171,4 +169,4 @@ runtimes:
 .PHONY: release/source release/manifest release/changelog release/versions
 .PHONY: release/commit release/publish release/tag
 .PHONY: build install clean runtimes
-.PHONY: docs/install docs/build docs/server docs/publish docs/versions
+.PHONY: docs/install docs/build docs/watch docs/publish

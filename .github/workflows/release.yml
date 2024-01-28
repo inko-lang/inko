@@ -88,30 +88,35 @@ jobs:
 
   docs:
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/inko-lang/inko:latest
     needs:
       - lints
       - linux
       - mac
       - freebsd
+      - container
     env:
       AWS_REGION: eu-west-1
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
     steps:
+      - name: Install dependencies
+        run: sudo microdnf install --quiet --assumeyes rclone awscli2 git tar make
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - uses: actions/cache@v3
         with:
           path: |
-            docs/.venv
-          key: ${{ runner.os }}-docs-release
-      - run: pip install poetry
-      - run: poetry config virtualenvs.in-project true
-      - run: cd docs && poetry install
-      - run: make docs/publish DOCS_FOLDER=${{ github.ref_name }}
-      - run: >
+            docs/build
+            ~/.local/share/inko/packages
+          key: docs-release
+      - name: Deploy the documentation
+        run: make docs/publish DOCS_FOLDER=${{ github.ref_name }}
+      - name: Update the latest tag
+        run: >
           if [[ ${{ github.ref_name }} = $(git tag -l --sort=-v:refname | head -n1) ]]
-            then make docs/publish DOCS_FOLDER=latest
+          then
+            make docs/publish DOCS_FOLDER=latest
           fi
-      - run: make docs/versions

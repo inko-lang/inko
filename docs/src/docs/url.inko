@@ -1,0 +1,27 @@
+import wobsite.Page
+import wobsite.url.(relative_to_absolute)
+
+fn link_from(page: ref Page, to: String) -> String {
+  if page.url == '/' {
+    to.strip_prefix('/')
+  } else {
+    let mut steps = page.url.split('/').select fn (v) { v != '' }.count
+    let to_abs = to.starts_with?('/')
+
+    # The source/current URLs are directories (e.g. /foo/bar is in fact
+    # /foo/bar/index.html). This ensures that if we are at /foo/bar and link to
+    # test, the URL is ../test instead of ../../test.
+    if steps > 1 and to_abs.false? { steps -= 1 }
+
+    let up = String.join(0.until(steps).iter.map fn (_) { '..' }, '/')
+    let sep = if to_abs { '' } else { '/' }
+
+    "{up}{sep}{to}"
+  }
+}
+
+fn relative?(url: String) -> Bool {
+  url.starts_with?('https:').false?
+    and url.starts_with?('http:').false?
+    and url.starts_with?('#').false?
+}
