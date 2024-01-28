@@ -17,8 +17,8 @@ server](https://discord.gg/seeURxHxCb).
 
 Details about how to install Inko and its requirements can be found in the
 ["Installing
-Inko"](https://docs.inko-lang.org/manual/main/getting-started/installation/)
-guide in the Inko manual.
+Inko"](https://docs.inko-lang.org/manual/main/setup/installation/) guide in the
+Inko manual.
 
 ## License
 
