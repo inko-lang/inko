@@ -16,7 +16,6 @@ jobs:
       matrix:
         version:
           - '1.70'
-          - stable
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
