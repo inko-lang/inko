@@ -33,7 +33,7 @@ jobs:
           version: '13.2'
           environment_variables: 'CARGO_HOME LIBRARY_PATH CARGO_REGISTRIES_CRATES_IO_PROTOCOL'
           hypervisor: qemu
-          image_url: 'https://github.com/inko-lang/freebsd-builder/releases/download/v0.6.1/freebsd-13.2-x86-64.qcow2'
+          image_url: 'https://github.com/inko-lang/freebsd-builder/releases/download/v0.6.4/freebsd-13.2-x86-64.qcow2'
           run: |
             ./scripts/rust.sh ${{ matrix.version }}
             setenv PATH "${CARGO_HOME}/bin:${PATH}"
@@ -65,7 +65,7 @@ jobs:
           version: '13.2'
           environment_variables: 'CARGO_HOME LIBRARY_PATH CARGO_REGISTRIES_CRATES_IO_PROTOCOL'
           hypervisor: qemu
-          image_url: 'https://github.com/inko-lang/freebsd-builder/releases/download/v0.6.1/freebsd-13.2-x86-64.qcow2'
+          image_url: 'https://github.com/inko-lang/freebsd-builder/releases/download/v0.6.4/freebsd-13.2-x86-64.qcow2'
           run: |
             ./scripts/rust.sh ${{ matrix.version }}
             setenv PATH "${CARGO_HOME}/bin:${PATH}"
