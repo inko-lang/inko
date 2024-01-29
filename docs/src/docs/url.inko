@@ -24,4 +24,5 @@ fn relative?(url: String) -> Bool {
   url.starts_with?('https:').false?
     and url.starts_with?('http:').false?
     and url.starts_with?('#').false?
+    and url.starts_with?('/').false?
 }

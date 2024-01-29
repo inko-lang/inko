@@ -3,7 +3,6 @@ import builder.xml
 import docs.config.Config
 import docs.filters.(AutoTableOfContents, RelativeLinks)
 import docs.menu.(Item, Menu)
-import docs.post_process
 import docs.url.(link_from)
 import markdown.html.(Filter, TableOfContents)
 import std.string.StringBuffer
@@ -20,9 +19,21 @@ fn filters(menu: ref Menu, page: ref Page) -> Array[Filter] {
   ]
 }
 
+fn extract_toc(document: mut html.Document) -> Option[html.Node] {
+  match document.nodes.last {
+    case Some(Element({ @name = 'ul', @attributes = attr })) -> {
+      match attr.opt('class') {
+        case Some('toc') -> document.nodes.pop
+        case _ -> Option.None
+      }
+    }
+    case _ -> Option.None
+  }
+}
+
 fn content(menu: ref Menu, page: ref Page, root: mut html.Element) {
   let body = page.to_html(filters(menu, page))
-  let toc = post_process.extract_toc(body)
+  let toc = extract_toc(body)
   let left = root.article.attr('class', 'content')
 
   left.header.h1.text(page.title)
@@ -158,15 +169,9 @@ fn header(config: ref Config, page: ref Page) -> html.Element {
         let item =
           match pair.value.opt(0) { case Some(v) -> v, case _ -> return }
 
-        let chunks = item.url.split('/').to_array
-
-        chunks.pop
-
-        let dir = String.join(chunks.into_iter, '/') #+ '/'
-
         ul.li.a.attr('href', link_from(page, item.url)).with fn (a) {
           a.text(pair.key)
-          if page.url.starts_with?(dir) or page.url == item.url {
+          if page.url.starts_with?(item.parent_url) or page.url == item.url {
             a.attr('class', 'current')
           }
         }

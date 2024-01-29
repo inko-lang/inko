@@ -1,4 +1,4 @@
-import docs.url.(link_from)
+import docs.url
 import markdown.Document
 import std.fs.path.Path
 import std.test.Tests
@@ -23,14 +23,24 @@ fn page(url: String) -> Page {
 
 fn pub tests(t: mut Tests) {
   t.test('url.link_from') fn (t) {
-    t.equal(link_from(page('/'), '/css/main.css'), 'css/main.css')
-    t.equal(link_from(page('/'), 'test.md'), 'test.md')
-    t.equal(link_from(page('/'), 'foo/test.md'), 'foo/test.md')
-    t.equal(link_from(page('/foo/'), '/css/main.css'), '../css/main.css')
-    t.equal(link_from(page('/foo'), '/css/main.css'), '../css/main.css')
-    t.equal(link_from(page('/foo'), 'test.md'), '../test.md')
-    t.equal(link_from(page('/foo/bar'), 'test.md'), '../test.md')
-    t.equal(link_from(page('/foo/bar'), '../test.md'), '../../test.md')
-    t.equal(link_from(page('/setup/ivm'), 'installation'), '../installation')
+    t.equal(url.link_from(page('/'), '/css/main.css'), 'css/main.css')
+    t.equal(url.link_from(page('/'), 'test.md'), 'test.md')
+    t.equal(url.link_from(page('/'), 'foo/test.md'), 'foo/test.md')
+    t.equal(url.link_from(page('/foo/'), '/css/main.css'), '../css/main.css')
+    t.equal(url.link_from(page('/foo'), '/css/main.css'), '../css/main.css')
+    t.equal(url.link_from(page('/foo'), 'test.md'), '../test.md')
+    t.equal(url.link_from(page('/foo/bar'), 'test.md'), '../test.md')
+    t.equal(url.link_from(page('/foo/bar'), '../test.md'), '../../test.md')
+    t.equal(url.link_from(page('/setup/ivm'), 'installation'), '../installation')
+  }
+
+  t.test('url.relative?') fn (t) {
+    t.true(url.relative?('foo'))
+    t.true(url.relative?('./foo'))
+    t.true(url.relative?('../foo'))
+    t.false(url.relative?('#foo'))
+    t.false(url.relative?('/foo'))
+    t.false(url.relative?('https://example.com'))
+    t.false(url.relative?('http://example.com'))
   }
 }
