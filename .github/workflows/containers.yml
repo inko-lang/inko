@@ -8,6 +8,10 @@ on:
     paths:
       - 'ci/**/*'
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   arch:
     uses: ./.github/workflows/container.yml
