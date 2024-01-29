@@ -6,6 +6,7 @@ on:
       name:
         description: 'The name of the image to build'
         required: true
+        type: string
 
 env:
   REGISTRY: ghcr.io
