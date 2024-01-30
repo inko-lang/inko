@@ -1130,8 +1130,10 @@ impl<'a> TypeChecker<'a> {
                     _ => TypeRef::Unknown,
                 }
             }
-            TypeRef::Uni(TypeId::TypeParameter(id))
-            | TypeRef::Any(TypeId::TypeParameter(id))
+            TypeRef::Uni(TypeId::TypeParameter(id)) => self
+                .resolve_type_parameter(typ, id, arguments, rules)
+                .as_uni(self.db),
+            TypeRef::Any(TypeId::TypeParameter(id))
             | TypeRef::Pointer(TypeId::TypeParameter(id)) => {
                 self.resolve_type_parameter(typ, id, arguments, rules)
             }
@@ -2747,6 +2749,23 @@ mod tests {
             immutable(instance(thing)),
             owned(parameter(param)),
             &mut env1,
+        ));
+    }
+
+    #[test]
+    fn test_check_owned_against_uni_placeholder() {
+        let mut db = Database::new();
+        let thing = new_class(&mut db, "Thing");
+        let param = new_parameter(&mut db, "T");
+        let var = TypePlaceholder::alloc(&mut db, Some(param));
+        let mut env =
+            Environment::new(TypeArguments::new(), TypeArguments::new());
+
+        env.right.assign(param, placeholder(var));
+        assert!(!TypeChecker::new(&db).check_argument(
+            owned(instance(thing)),
+            uni(parameter(param)),
+            &mut env,
         ));
     }
 

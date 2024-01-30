@@ -1,0 +1,8 @@
+class Thing {}
+
+class async Foo {
+  fn async foo(value: Channel[Thing]) {}
+  fn async bar(value: Channel[uni Thing]) {}
+}
+
+# channel_in_async_method.inko:4:16 error(invalid-type): values of type 'Channel[Thing]' can't be sent between processes

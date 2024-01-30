@@ -3706,34 +3706,43 @@ impl TypeRef {
     }
 
     pub fn is_sendable(self, db: &Database) -> bool {
-        if self.is_value_type(db) {
-            return true;
-        }
-
         match self {
             TypeRef::Uni(_) | TypeRef::Never | TypeRef::Error => true,
             TypeRef::Owned(TypeId::Closure(id)) => id.can_infer_as_uni(db),
+            TypeRef::Owned(TypeId::ClassInstance(id))
+            | TypeRef::Ref(TypeId::ClassInstance(id))
+            | TypeRef::Mut(TypeId::ClassInstance(id))
+                if id.instance_of.0 == CHANNEL_ID =>
+            {
+                // Channels may contain non-sendable types.
+                id.type_arguments(db).iter().all(|(_, typ)| typ.is_sendable(db))
+            }
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(true, |v| v.is_sendable(db))
             }
-            _ => false,
+            _ => self.is_value_type(db),
         }
     }
 
     pub fn is_sendable_output(self, db: &Database) -> bool {
-        if self.is_value_type(db) {
-            return true;
-        }
-
         match self {
             TypeRef::Uni(_) | TypeRef::Never | TypeRef::Error => true,
+            TypeRef::Owned(TypeId::ClassInstance(id))
+            | TypeRef::Ref(TypeId::ClassInstance(id))
+            | TypeRef::Mut(TypeId::ClassInstance(id))
+                if id.instance_of.0 == CHANNEL_ID =>
+            {
+                // Channels may contain non-sendable types.
+                id.type_arguments(db)
+                    .iter()
+                    .all(|(_, typ)| typ.is_sendable_output(db))
+            }
             TypeRef::Owned(TypeId::ClassInstance(id)) => {
                 let class = id.instance_of;
 
                 if class.is_generic(db)
                     && !id
                         .type_arguments(db)
-                        .mapping
                         .iter()
                         .all(|(_, v)| v.is_sendable_output(db))
                 {
@@ -3748,7 +3757,7 @@ impl TypeRef {
             TypeRef::Placeholder(id) => {
                 id.value(db).map_or(true, |v| v.is_sendable_output(db))
             }
-            _ => false,
+            _ => self.is_value_type(db),
         }
     }
 
@@ -3789,7 +3798,11 @@ impl TypeRef {
             }
             TypeRef::Uni(id) | TypeRef::UniMut(id) => TypeRef::UniRef(id),
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(self, |v| v.as_ref(db))
+                if let Some(v) = id.value(db) {
+                    v.as_ref(db)
+                } else {
+                    TypeRef::Placeholder(id.as_ref())
+                }
             }
             _ => self,
         }
@@ -3839,7 +3852,11 @@ impl TypeRef {
             TypeRef::Owned(id) => TypeRef::Mut(id),
             TypeRef::Uni(id) => TypeRef::UniMut(id),
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(self, |v| v.as_mut(db))
+                if let Some(v) = id.value(db) {
+                    v.as_mut(db)
+                } else {
+                    TypeRef::Placeholder(id.as_mut())
+                }
             }
             _ => self,
         }
@@ -3850,7 +3867,11 @@ impl TypeRef {
             TypeRef::Owned(id) | TypeRef::Any(id) => TypeRef::Mut(id),
             TypeRef::Uni(id) => TypeRef::UniMut(id),
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(self, |v| v.as_mut(db))
+                if let Some(v) = id.value(db) {
+                    v.force_as_mut(db)
+                } else {
+                    TypeRef::Placeholder(id.as_mut())
+                }
             }
             _ => self,
         }
@@ -3871,7 +3892,11 @@ impl TypeRef {
             TypeRef::Owned(id) | TypeRef::Mut(id) => TypeRef::UniMut(id),
             TypeRef::Ref(id) => TypeRef::UniRef(id),
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(self, |v| v.as_uni_reference(db))
+                if let Some(v) = id.value(db) {
+                    v.as_uni_reference(db)
+                } else {
+                    TypeRef::Placeholder(id.as_uni_mut())
+                }
             }
             _ => self,
         }
@@ -3885,7 +3910,11 @@ impl TypeRef {
             | TypeRef::Mut(id)
             | TypeRef::Ref(id) => TypeRef::UniRef(id),
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(self, |v| v.as_uni_ref(db))
+                if let Some(v) = id.value(db) {
+                    v.as_uni_ref(db)
+                } else {
+                    TypeRef::Placeholder(id.as_uni_ref())
+                }
             }
             _ => self,
         }
@@ -3899,7 +3928,11 @@ impl TypeRef {
             | TypeRef::Mut(id)
             | TypeRef::Ref(id) => TypeRef::UniMut(id),
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(self, |v| v.force_as_uni_mut(db))
+                if let Some(v) = id.value(db) {
+                    v.force_as_uni_mut(db)
+                } else {
+                    TypeRef::Placeholder(id.as_uni_mut())
+                }
             }
             _ => self,
         }
@@ -3913,7 +3946,11 @@ impl TypeRef {
             | TypeRef::Mut(id)
             | TypeRef::Ref(id) => TypeRef::Uni(id),
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(self, |v| v.as_uni(db))
+                if let Some(v) = id.value(db) {
+                    v.as_uni(db)
+                } else {
+                    TypeRef::Placeholder(id.as_uni())
+                }
             }
             _ => self,
         }
@@ -3928,7 +3965,11 @@ impl TypeRef {
             | TypeRef::UniRef(id)
             | TypeRef::UniMut(id) => TypeRef::Owned(id),
             TypeRef::Placeholder(id) => {
-                id.value(db).map_or(self, |v| v.as_owned(db))
+                if let Some(v) = id.value(db) {
+                    v.as_owned(db)
+                } else {
+                    TypeRef::Placeholder(id.as_owned())
+                }
             }
             _ => self,
         }
@@ -5419,6 +5460,30 @@ mod tests {
     }
 
     #[test]
+    fn test_type_ref_is_sendable_with_channel() {
+        let mut db = Database::new();
+        let foo = new_class(&mut db, "Foo");
+        let cls = ClassId::channel();
+
+        cls.new_type_parameter(&mut db, "T".to_string());
+
+        let chan_with_ref =
+            generic_instance_id(&mut db, cls, vec![immutable(instance(foo))]);
+        let chan_with_owned =
+            generic_instance_id(&mut db, cls, vec![owned(instance(foo))]);
+        let chan_with_uni =
+            generic_instance_id(&mut db, cls, vec![uni(instance(foo))]);
+
+        assert!(!owned(chan_with_ref).is_sendable(&db));
+        assert!(!owned(chan_with_owned).is_sendable(&db));
+        assert!(owned(chan_with_uni).is_sendable(&db));
+
+        assert!(!owned(chan_with_ref).is_sendable_output(&db));
+        assert!(owned(chan_with_owned).is_sendable_output(&db));
+        assert!(owned(chan_with_uni).is_sendable_output(&db));
+    }
+
+    #[test]
     fn test_type_ref_is_sendable_with_closure() {
         let mut db = Database::new();
         let func1 = Closure::alloc(&mut db, false);
@@ -5432,6 +5497,72 @@ mod tests {
 
         assert!(owned(closure(func1)).is_sendable(&db));
         assert!(!owned(closure(func2)).is_sendable(&db));
+    }
+
+    #[test]
+    fn test_test_type_ref_as_owned_with_placeholder() {
+        let mut db = Database::new();
+        let var = TypePlaceholder::alloc(&mut db, None);
+
+        assert!(matches!(
+            placeholder(var).as_owned(&db),
+            TypeRef::Placeholder(id) if id.ownership == Ownership::Owned,
+        ));
+    }
+
+    #[test]
+    fn test_test_type_ref_as_uni_with_placeholder() {
+        let mut db = Database::new();
+        let var = TypePlaceholder::alloc(&mut db, None);
+
+        assert!(matches!(
+            placeholder(var).as_uni(&db),
+            TypeRef::Placeholder(id) if id.ownership == Ownership::Uni,
+        ));
+    }
+
+    #[test]
+    fn test_test_type_ref_as_ref_with_placeholder() {
+        let mut db = Database::new();
+        let var = TypePlaceholder::alloc(&mut db, None);
+
+        assert!(matches!(
+            placeholder(var).as_ref(&db),
+            TypeRef::Placeholder(id) if id.ownership == Ownership::Ref,
+        ));
+    }
+
+    #[test]
+    fn test_test_type_ref_as_mut_with_placeholder() {
+        let mut db = Database::new();
+        let var = TypePlaceholder::alloc(&mut db, None);
+
+        assert!(matches!(
+            placeholder(var).as_mut(&db),
+            TypeRef::Placeholder(id) if id.ownership == Ownership::Mut,
+        ));
+    }
+
+    #[test]
+    fn test_test_type_ref_as_uni_ref_with_placeholder() {
+        let mut db = Database::new();
+        let var = TypePlaceholder::alloc(&mut db, None);
+
+        assert!(matches!(
+            placeholder(var).as_uni_ref(&db),
+            TypeRef::Placeholder(id) if id.ownership == Ownership::UniRef,
+        ));
+    }
+
+    #[test]
+    fn test_test_type_ref_force_as_uni_mut_with_placeholder() {
+        let mut db = Database::new();
+        let var = TypePlaceholder::alloc(&mut db, None);
+
+        assert!(matches!(
+            placeholder(var).force_as_uni_mut(&db),
+            TypeRef::Placeholder(id) if id.ownership == Ownership::UniMut,
+        ));
     }
 
     #[test]
