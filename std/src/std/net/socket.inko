@@ -12,8 +12,8 @@
 #
 # Socket timeouts are supported through a mechanism known as a "deadline". A
 # deadline specifies the time after which socket operations must time out. While
-# deadlines can be constructed from durations (e.g. using
-# `std.time.Duration`), they represent fixed points in time.
+# deadlines can be constructed from durations (e.g. using `std.time.Duration`),
+# they represent fixed points in time.
 #
 # The use of deadlines instead of timeouts makes it easier to apply time limits
 # to multiple operations. Consider the following chain of events:
@@ -33,17 +33,16 @@
 # seconds using a deadline that's 10 seconds in the future.
 #
 # Deadlines are set using `Socket.timeout_after` and `UnixSocket.timeout_after`.
-# These methods return a guard that clears the deadline when dropped, removing
-# the need for doing so manually (and ensuring you can't forget to clear the
-# deadline). Here's an example using deadlines to limit the time spent waiting
-# for a client to connect:
+# Here's an example using deadlines to limit the time spent waiting for a client
+# to connect:
 #
 #     import std.net.ip.IpAddress
 #     import std.net.socket.TcpServer
 #     import std.time.Duration
 #
 #     let server = TcpServer.new(ip: IpAddress.v4(0, 0, 0, 0), port: 9000).unwrap
-#     let _guard = server.socket.timeout_after = Duration.from_secs(3)
+#
+#     server.socket.timeout_after = Duration.from_secs(3)
 #
 #     # This times out after roughly three seconds.
 #     server.accept.unwrap
@@ -317,17 +316,6 @@ impl Format for SocketAddress {
   }
 }
 
-# A guard that clears the deadline of a `Socket` when dropped.
-class pub SocketDeadlineGuard {
-  let @socket: mut Socket
-}
-
-impl Drop for SocketDeadlineGuard {
-  fn mut drop {
-    @socket.deadline = NO_DEADLINE
-  }
-}
-
 # A low-level, non-blocking IPv4 or IPv6 socket.
 class pub Socket {
   let @raw: RawSocket
@@ -380,13 +368,6 @@ class pub Socket {
   # Sets the point in time after which socket operations must time out, known as
   # a "deadline".
   #
-  # The return value is a guard which clears the deadline when dropped.
-  #
-  # # Panics
-  #
-  # This method panics if a deadline is already set, as nested deadlines aren't
-  # supported.
-  #
   # # Examples
   #
   # Using a `Duration` results in this method calculating the absolute time
@@ -405,12 +386,15 @@ class pub Socket {
   #     import std.time.(Duration, Instant)
   #
   #     let socket = Socket.ipv4(Type.DGRAM)
-  #     let _guard = socket.timeout_after = Instant.new + Duration.from_secs(5)
-  fn pub mut timeout_after=[T: ToInstant](deadline: T) -> SocketDeadlineGuard {
-    if @deadline != NO_DEADLINE { panic('A deadline is already set') }
-
+  #
+  #     socket.timeout_after = Instant.new + Duration.from_secs(5)
+  fn pub mut timeout_after=[T: ToInstant](deadline: ref T) {
     @deadline = deadline.to_instant.to_int
-    SocketDeadlineGuard { @socket = self }
+  }
+
+  # Clears the deadline to apply to socket operations.
+  fn pub mut reset_deadline {
+    @deadline = NO_DEADLINE
   }
 
   # Binds this socket to the specified address.
@@ -1298,17 +1282,6 @@ impl ToString for UnixAddress {
   }
 }
 
-# A guard that clears the deadline of a `UnixSocket` when dropped.
-class pub UnixSocketDeadlineGuard {
-  let @socket: mut UnixSocket
-}
-
-impl Drop for UnixSocketDeadlineGuard {
-  fn mut drop {
-    @socket.deadline = NO_DEADLINE
-  }
-}
-
 # A low-level, non-blocking Unix domain socket.
 class pub UnixSocket {
   let @raw: RawSocket
@@ -1343,13 +1316,6 @@ class pub UnixSocket {
   # Sets the point in time after which socket operations must time out, known as
   # a "deadline".
   #
-  # The return value is a guard which clears the deadline when dropped.
-  #
-  # # Panics
-  #
-  # This method panics if a deadline is already set, as nested deadlines aren't
-  # supported.
-  #
   # # Examples
   #
   # Using a `Duration` results in this method calculating the absolute time
@@ -1368,14 +1334,15 @@ class pub UnixSocket {
   #     import std.time.(Duration, Instant)
   #
   #     let socket = UnixSocket.new(Type.DGRAM)
-  #     let _guard = socket.timeout_after = Instant.new + Duration.from_secs(5)
-  fn pub mut timeout_after=[T: ToInstant](
-    deadline: T
-  ) -> UnixSocketDeadlineGuard {
-    if @deadline != NO_DEADLINE { panic('A deadline is already set') }
-
+  #
+  #     socket.timeout_after = Instant.new + Duration.from_secs(5)
+  fn pub mut timeout_after=[T: ToInstant](deadline: ref T) {
     @deadline = deadline.to_instant.to_int
-    UnixSocketDeadlineGuard { @socket = self }
+  }
+
+  # Clears the deadline to apply to socket operations.
+  fn pub mut reset_deadline {
+    @deadline = NO_DEADLINE
   }
 
   # Binds this socket to the specified path or abstract address.

@@ -6,8 +6,8 @@ import std.fs.path.Path
 import std.io.Error
 import std.net.ip.(IpAddress, Ipv4Address, Ipv6Address)
 import std.net.socket.(
-  Socket, SocketAddress, TcpServer, TcpClient, Type, UdpSocket, UnixAddress,
-  UnixDatagram, UnixServer, UnixSocket, UnixClient
+ NO_DEADLINE, Socket, SocketAddress, TcpClient, TcpServer, Type, UdpSocket,
+ UnixAddress, UnixClient, UnixDatagram, UnixServer, UnixSocket
 )
 import std.string.ToString
 import std.test.Tests
@@ -424,6 +424,26 @@ fn pub tests(t: mut Tests) {
     let socket = Socket.ipv4(Type.STREAM).unwrap
 
     t.equal(socket.flush, Result.Ok(nil))
+  }
+
+  t.test('Socket.timeout_after=') fn (t) {
+    let server = Socket.ipv4(Type.STREAM).unwrap
+
+    server.bind(ip: '127.0.0.1', port: 0).unwrap
+    server.listen.unwrap
+    server.timeout_after = Duration.from_secs(0)
+
+    t.true(server.accept.error?)
+  }
+
+  t.test('Socket.reset_deadline') fn (t) {
+    let socket = Socket.ipv4(Type.STREAM).unwrap
+
+    socket.timeout_after = Duration.from_secs(10)
+    t.true(socket.deadline > 0)
+
+    socket.reset_deadline
+    t.equal(socket.deadline, NO_DEADLINE)
   }
 
   t.test('UdpSocket.new') fn (t) {
@@ -1120,6 +1140,28 @@ fn pub tests(t: mut Tests) {
     let socket = UnixSocket.new(Type.STREAM).unwrap
 
     t.true(socket.try_clone.ok?)
+  }
+
+  t.test('UnixSocket.timeout_after=') fn (t) {
+    let path = SocketPath.new(t.id)
+    let server = UnixSocket.new(Type.STREAM).unwrap
+
+    server.bind(path).unwrap
+    server.listen
+    server.timeout_after = Duration.from_secs(0)
+
+    t.true(server.accept.error?)
+  }
+
+  t.test('UnixSocket.reset_deadline') fn (t) {
+    let path = SocketPath.new(t.id)
+    let socket = UnixSocket.new(Type.STREAM).unwrap
+
+    socket.timeout_after = Duration.from_secs(10)
+    t.true(socket.deadline > 0)
+
+    socket.reset_deadline
+    t.equal(socket.deadline, NO_DEADLINE)
   }
 
   t.test('UnixDatagram.new') fn (t) {
