@@ -6,10 +6,10 @@ use std::ops::RangeInclusive;
 #[derive(PartialEq, Eq, Clone)]
 pub struct SourceLocation {
     /// The first and last line of the expression.
-    pub line_range: RangeInclusive<usize>,
+    pub lines: RangeInclusive<usize>,
 
     /// The first and last column of the expression.
-    pub column_range: RangeInclusive<usize>,
+    pub columns: RangeInclusive<usize>,
 }
 
 impl SourceLocation {
@@ -17,19 +17,18 @@ impl SourceLocation {
         line_range: RangeInclusive<usize>,
         column_range: RangeInclusive<usize>,
     ) -> Self {
-        Self { line_range, column_range }
+        Self { lines: line_range, columns: column_range }
     }
 
     pub fn start_end(start: &Self, end: &Self) -> Self {
         Self {
-            line_range: (*start.line_range.start())..=(*end.line_range.end()),
-            column_range: (*start.column_range.start())
-                ..=(*end.column_range.end()),
+            lines: (*start.lines.start())..=(*end.lines.end()),
+            columns: (*start.columns.start())..=(*end.columns.end()),
         }
     }
 
     pub fn line_column(&self) -> (usize, usize) {
-        (*self.line_range.start(), *self.column_range.start())
+        (*self.lines.start(), *self.columns.start())
     }
 }
 
@@ -38,10 +37,10 @@ impl fmt::Debug for SourceLocation {
         write!(
             f,
             "lines {}..{}, columns {}..{}",
-            self.line_range.start(),
-            self.line_range.end(),
-            self.column_range.start(),
-            self.column_range.end()
+            self.lines.start(),
+            self.lines.end(),
+            self.columns.start(),
+            self.columns.end()
         )
     }
 }
@@ -54,10 +53,10 @@ impl PartialOrd for SourceLocation {
 
 impl Ord for SourceLocation {
     fn cmp(&self, other: &Self) -> Ordering {
-        let ord = self.line_range.start().cmp(other.line_range.start());
+        let ord = self.lines.start().cmp(other.lines.start());
 
         if ord == Ordering::Equal {
-            return self.column_range.start().cmp(other.column_range.start());
+            return self.columns.start().cmp(other.columns.start());
         }
 
         ord

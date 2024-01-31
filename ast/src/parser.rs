@@ -1996,9 +1996,7 @@ impl Parser {
 
         // Trailing blocks are only treated as an argument if they occur on the
         // same line as the call.
-        if peeked.location.line_range.start()
-            > start_location.line_range.start()
-        {
+        if peeked.location.lines.start() > start_location.lines.start() {
             return Ok(None);
         }
 
@@ -2029,8 +2027,7 @@ impl Parser {
         let peeked = self.peek();
 
         if peeked.kind != TokenKind::ParenOpen
-            || peeked.location.line_range.start()
-                != start_location.line_range.start()
+            || peeked.location.lines.start() != start_location.lines.start()
         {
             return Ok(None);
         }
@@ -2540,8 +2537,8 @@ impl Parser {
         start: Token,
     ) -> Result<Expression, ParseError> {
         let peeked = self.peek();
-        let same_line = peeked.location.line_range.start()
-            == start.location.line_range.start();
+        let same_line =
+            peeked.location.lines.start() == start.location.lines.start();
 
         let value = match peeked.kind {
             TokenKind::BracketOpen

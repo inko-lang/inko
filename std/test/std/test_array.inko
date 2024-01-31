@@ -225,8 +225,6 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('Array.get_mut') fn (t) {
-    let vals = [10, 20, 30]
-
     t.equal([10].get_mut(0), 10)
   }
 

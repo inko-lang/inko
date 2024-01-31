@@ -76,7 +76,9 @@ fn pub tests(t: mut Tests) {
     cmd.argument('--help')
 
     let child = cmd.spawn.unwrap
-    let status = child.wait.unwrap
+
+    child.wait.unwrap
+
     let bytes = ByteArray.new
 
     child.stdout.read_all(bytes).unwrap

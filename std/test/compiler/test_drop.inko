@@ -46,9 +46,9 @@ class enum CyclicEnum {
 fn pub tests(t: mut Tests) {
   t.test('Assigning a variable drops the old value') fn (t) {
     let val = Value.new
-    let mut a = ValueRef.new(val)
+    let mut _a = ValueRef.new(val)
 
-    a = ValueRef.new(val)
+    _a = ValueRef.new(val)
     t.equal(val.dropped, 1)
   }
 

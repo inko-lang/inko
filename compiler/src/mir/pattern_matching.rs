@@ -888,7 +888,7 @@ mod tests {
     use types::module_name::ModuleName;
     use types::{
         Class, ClassInstance, ClassKind, Module, TypeId,
-        Variable as VariableType, Visibility,
+        Variable as VariableType, VariableLocation, Visibility,
     };
 
     fn state() -> State {
@@ -1129,11 +1129,13 @@ mod tests {
     #[test]
     fn test_variable() {
         let mut state = state();
+        let loc = VariableLocation::new(1, 1, 1);
         let bind = VariableType::alloc(
             &mut state.db,
             "a".to_string(),
             TypeRef::int(),
             false,
+            loc,
         );
         let mut compiler = compiler(&mut state);
         let input = compiler.new_variable(TypeRef::int());

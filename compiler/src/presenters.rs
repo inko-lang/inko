@@ -56,8 +56,8 @@ impl TextPresenter {
         eprintln!(
             "{}:{}:{} {}: {}",
             rel_path,
-            loc.line_range.start(),
-            loc.column_range.start(),
+            loc.lines.start(),
+            loc.columns.start(),
             kind,
             diagnostic.message()
         );
@@ -108,10 +108,10 @@ impl JsonPresenter {
             diagnostic.id().to_string(),
             diagnostic.kind().to_string(),
             diagnostic.file().to_string_lossy(),
-            loc.line_range.start(),
-            loc.line_range.end(),
-            loc.column_range.start(),
-            loc.column_range.end(),
+            loc.lines.start(),
+            loc.lines.end(),
+            loc.columns.start(),
+            loc.columns.end(),
             diagnostic.message()
         )
     }

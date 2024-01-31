@@ -43,7 +43,7 @@ fn pub tests(t: mut Tests) {
       case state -> state
     }
 
-    let temp = ref state
+    let _temp = ref state
 
     drop(state)
   }
@@ -62,7 +62,7 @@ fn pub tests(t: mut Tests) {
     let trans = Transition.Split(Transition.Empty(Dummy {}))
 
     match ref trans {
-      case Split(Empty(state1)) -> {}
+      case Split(Empty(_state1)) -> {}
       case _ -> {}
     }
   }

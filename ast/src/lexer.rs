@@ -370,7 +370,7 @@ impl Token {
     }
 
     pub fn same_line_as(&self, token: &Token) -> bool {
-        self.location.line_range.start() == token.location.line_range.start()
+        self.location.lines.start() == token.location.lines.start()
     }
 }
 

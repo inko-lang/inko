@@ -1,0 +1,32 @@
+fn example1(arguments_are_always_considered_used: Bool) {
+  let a = 10
+  let b = 10
+
+  b.to_string
+}
+
+fn example2(pair: (Int, Int)) {
+  match pair {
+    case (a, b) -> b.to_string
+  }
+}
+
+fn example3 {
+  let a = 10
+
+  fn { a.to_string }
+}
+
+fn example4 {
+  let mut a = 10
+
+  a = 20
+}
+
+fn example5 {
+  fn (a: Int) {}
+}
+
+# unused_variables.inko:2:7 warning(unused-variable): the variable 'a' is unused
+# unused_variables.inko:10:11 warning(unused-variable): the variable 'a' is unused
+# unused_variables.inko:21:11 warning(unused-variable): the variable 'a' is unused

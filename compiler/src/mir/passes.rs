@@ -1184,6 +1184,9 @@ pub(crate) struct LowerMethod<'a> {
     /// A mapping of variable type IDs to their MIR registers.
     variable_mapping: HashMap<types::VariableId, RegisterId>,
 
+    /// The variables used in this method.
+    used_variables: HashSet<types::VariableId>,
+
     /// The registers to write field values to.
     ///
     /// Field values may change between reads, so we can't just read a field
@@ -1225,6 +1228,7 @@ impl<'a> LowerMethod<'a> {
             surrounding_type_register: RegisterId(SELF_ID),
             self_register: RegisterId(SELF_ID),
             variable_fields: HashMap::new(),
+            used_variables: HashSet::new(),
         }
     }
 
@@ -1250,18 +1254,14 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn lower_method_body(
-        &mut self,
+        mut self,
         nodes: Vec<hir::Expression>,
         location: LocationId,
     ) {
         if nodes.is_empty() {
             let reg = self.get_nil(location);
 
-            self.mark_register_as_moved(reg);
-            self.partially_move_self_if_field(reg);
-            self.drop_all_registers();
-            self.return_register(reg, location);
-
+            self.end_of_method_body(reg, location);
             return;
         }
 
@@ -1273,7 +1273,7 @@ impl<'a> LowerMethod<'a> {
             // encounter unreachable code before reaching the last expression.
             if !self.in_connected_block() {
                 self.warn_unreachable(node.location());
-                break;
+                return;
             }
 
             if index < max {
@@ -1290,16 +1290,27 @@ impl<'a> LowerMethod<'a> {
             };
 
             if !self.in_connected_block() {
-                break;
+                self.check_for_unused_variables();
+                return;
             }
 
             let reg = if ignore_ret || !rets { self.get_nil(loc) } else { ret };
 
-            self.mark_register_as_moved(reg);
-            self.partially_move_self_if_field(reg);
-            self.drop_all_registers();
-            self.return_register(reg, loc);
+            self.end_of_method_body(reg, loc);
+            return;
         }
+    }
+
+    fn end_of_method_body(
+        mut self,
+        register: RegisterId,
+        location: LocationId,
+    ) {
+        self.mark_register_as_moved(register);
+        self.partially_move_self_if_field(register);
+        self.drop_all_registers();
+        self.check_for_unused_variables();
+        self.return_register(register, location);
     }
 
     fn define_base_registers(&mut self, location: LocationId) {
@@ -1324,6 +1335,12 @@ impl<'a> LowerMethod<'a> {
         for arg in self.method.id.arguments(self.db()) {
             let reg = self.new_variable(arg.variable);
 
+            // Arguments are part of the public API due to the presence of named
+            // arguments. This may result in arguments being unused by design
+            // (i.e. when implementing a trait method of which not all arguments
+            // apply to the implementation), without the ability to prefix them
+            // with an underscore. As such, we consider arguments as used.
+            self.used_variables.insert(arg.variable);
             self.method.arguments.push(reg);
             self.variable_mapping.insert(arg.variable, reg);
             args.push(reg);
@@ -3472,6 +3489,8 @@ impl<'a> LowerMethod<'a> {
         id: types::VariableId,
         location: LocationId,
     ) -> RegisterId {
+        self.mark_variable_as_used(id);
+
         if let Some(&reg) = self.variable_mapping.get(&id) {
             reg
         } else {
@@ -4334,6 +4353,7 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn warn_unreachable(&mut self, location: &SourceLocation) {
+        self.check_for_unused_variables();
         self.state.diagnostics.unreachable(self.file(), location.clone());
     }
 
@@ -4366,6 +4386,39 @@ impl<'a> LowerMethod<'a> {
         // accidentally drop a permanent string that may be referred to again
         // later.
         self.block_mut(block).increment_atomic(register, location);
+    }
+
+    fn mark_variable_as_used(&mut self, id: types::VariableId) {
+        self.used_variables.insert(id);
+    }
+
+    fn check_for_unused_variables(&mut self) {
+        // If dependencies use unused variables there's nothing a project itself
+        // can do about it, as changes to ./dep are lost the next time a sync is
+        // run. As such, we don't emit unused warnings for dependencies.
+        if self.file().starts_with(&self.state.config.dependencies) {
+            return;
+        }
+
+        let unused = self
+            .variable_mapping
+            .keys()
+            .filter(|&id| {
+                !id.name(self.db()).starts_with('_')
+                    && !self.used_variables.contains(id)
+            })
+            .collect::<Vec<_>>();
+
+        for id in unused {
+            let name = id.name(self.db()).clone();
+            let var_loc = id.location(self.db());
+            let src_loc = SourceLocation::new(
+                var_loc.line..=var_loc.line,
+                var_loc.start_column..=var_loc.end_column,
+            );
+
+            self.state.diagnostics.unused_variable(&name, self.file(), src_loc);
+        }
     }
 }
 

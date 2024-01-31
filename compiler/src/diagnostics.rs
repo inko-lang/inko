@@ -27,6 +27,7 @@ pub(crate) enum DiagnosticId {
     MissingTrait,
     Moved,
     Unreachable,
+    UnusedVariable,
 }
 
 impl fmt::Display for DiagnosticId {
@@ -53,6 +54,7 @@ impl fmt::Display for DiagnosticId {
             DiagnosticId::LimitReached => "limit-reached",
             DiagnosticId::MissingMain => "missing-main",
             DiagnosticId::InvalidCast => "invalid-cast",
+            DiagnosticId::UnusedVariable => "unused-variable",
         };
 
         write!(f, "{}", id)
@@ -902,6 +904,20 @@ impl Diagnostics {
         self.error(
             DiagnosticId::InvalidType,
             format!("'{}' isn't a valid C type", name),
+            file,
+            location,
+        );
+    }
+
+    pub(crate) fn unused_variable(
+        &mut self,
+        name: &str,
+        file: PathBuf,
+        location: SourceLocation,
+    ) {
+        self.warn(
+            DiagnosticId::UnusedVariable,
+            format!("the variable '{}' is unused", name),
             file,
             location,
         );

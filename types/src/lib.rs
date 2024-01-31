@@ -18,6 +18,7 @@ use crate::module_name::ModuleName;
 use crate::resolve::TypeResolver;
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
+use std::ops::RangeInclusive;
 use std::path::PathBuf;
 
 // The IDs of these built-in types must match the order of the fields in the
@@ -1717,6 +1718,7 @@ pub trait Block {
         name: String,
         variable_type: TypeRef,
         argument_type: TypeRef,
+        location: VariableLocation,
     ) -> VariableId;
     fn return_type(&self, db: &Database) -> TypeRef;
     fn set_return_type(&self, db: &mut Database, typ: TypeRef);
@@ -2495,8 +2497,10 @@ impl Block for MethodId {
         name: String,
         variable_type: TypeRef,
         argument_type: TypeRef,
+        location: VariableLocation,
     ) -> VariableId {
-        let var = Variable::alloc(db, name.clone(), variable_type, false);
+        let var =
+            Variable::alloc(db, name.clone(), variable_type, false, location);
 
         self.get_mut(db).arguments.new_argument(name, argument_type, var);
         var
@@ -2880,6 +2884,30 @@ impl ModuleId {
     }
 }
 
+#[derive(Copy, Clone)]
+pub struct VariableLocation {
+    pub line: usize,
+    pub start_column: usize,
+    pub end_column: usize,
+}
+
+impl VariableLocation {
+    pub fn from_ranges(
+        lines: &RangeInclusive<usize>,
+        columns: &RangeInclusive<usize>,
+    ) -> VariableLocation {
+        VariableLocation::new(*lines.start(), *columns.start(), *columns.end())
+    }
+
+    pub fn new(
+        line: usize,
+        start_column: usize,
+        end_column: usize,
+    ) -> VariableLocation {
+        VariableLocation { line, start_column, end_column }
+    }
+}
+
 /// A local variable.
 pub struct Variable {
     /// The user-defined name of the variable.
@@ -2890,6 +2918,9 @@ pub struct Variable {
 
     /// A flat set to `true` if the variable can be assigned a new value.
     mutable: bool,
+
+    /// The location of the variable.
+    location: VariableLocation,
 }
 
 impl Variable {
@@ -2898,10 +2929,11 @@ impl Variable {
         name: String,
         value_type: TypeRef,
         mutable: bool,
+        location: VariableLocation,
     ) -> VariableId {
         let id = VariableId(db.variables.len());
 
-        db.variables.push(Self { name, value_type, mutable });
+        db.variables.push(Self { name, value_type, mutable, location });
         id
     }
 }
@@ -2924,6 +2956,10 @@ impl VariableId {
 
     pub fn is_mutable(self, db: &Database) -> bool {
         self.get(db).mutable
+    }
+
+    pub fn location(self, db: &Database) -> &VariableLocation {
+        &self.get(db).location
     }
 
     fn get(self, db: &Database) -> &Variable {
@@ -3153,8 +3189,10 @@ impl Block for ClosureId {
         name: String,
         variable_type: TypeRef,
         argument_type: TypeRef,
+        location: VariableLocation,
     ) -> VariableId {
-        let var = Variable::alloc(db, name.clone(), variable_type, false);
+        let var =
+            Variable::alloc(db, name.clone(), variable_type, false, location);
 
         self.get_mut(db).arguments.new_argument(name, argument_type, var);
         var
@@ -5490,8 +5528,9 @@ mod tests {
         let func2 = Closure::alloc(&mut db, false);
         let thing = new_class(&mut db, "Thing");
         let var_type = immutable(instance(thing));
+        let loc = VariableLocation::new(1, 1, 1);
         let var =
-            Variable::alloc(&mut db, "thing".to_string(), var_type, false);
+            Variable::alloc(&mut db, "thing".to_string(), var_type, false, loc);
 
         func2.add_capture(&mut db, var, var_type);
 

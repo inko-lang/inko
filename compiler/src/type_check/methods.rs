@@ -12,8 +12,8 @@ use types::format::{format_type, format_type_with_arguments};
 use types::{
     Block, ClassId, ClassInstance, Database, Method, MethodId, MethodKind,
     MethodSource, ModuleId, Symbol, TraitId, TraitInstance, TypeArguments,
-    TypeBounds, TypeId, TypeRef, Visibility, DROP_METHOD, MAIN_CLASS,
-    MAIN_METHOD,
+    TypeBounds, TypeId, TypeRef, VariableLocation, Visibility, DROP_METHOD,
+    MAIN_CLASS, MAIN_METHOD,
 };
 
 fn method_kind(kind: hir::MethodKind) -> MethodKind {
@@ -186,11 +186,17 @@ trait MethodDefiner {
                 scope.bounds.unwrap_or(&empty_bounds),
             );
 
+            let var_loc = VariableLocation::from_ranges(
+                &node.location.lines,
+                &node.location.columns,
+            );
+
             method.new_argument(
                 self.db_mut(),
                 node.name.name.clone(),
                 var_type,
                 arg_type,
+                var_loc,
             );
         }
     }
@@ -575,8 +581,12 @@ impl<'a> DefineMethods<'a> {
         for arg in &mut node.arguments {
             let name = arg.name.name.clone();
             let typ = self.type_check(&mut arg.value_type, rules, &scope);
+            let loc = VariableLocation::from_ranges(
+                &arg.location.lines,
+                &arg.location.columns,
+            );
 
-            func.new_argument(self.db_mut(), name, typ, typ);
+            func.new_argument(self.db_mut(), name, typ, typ, loc);
         }
 
         let ret = node
@@ -992,12 +1002,17 @@ impl<'a> DefineMethods<'a> {
 
         for (index, typ) in variant.members(self.db()).into_iter().enumerate() {
             let var_type = typ.as_rigid_type(self.db_mut(), &bounds);
+            let loc = VariableLocation::from_ranges(
+                &node.location.lines,
+                &node.location.columns,
+            );
 
             method.new_argument(
                 self.db_mut(),
                 format!("arg{}", index),
                 var_type,
                 typ,
+                loc,
             );
         }
 

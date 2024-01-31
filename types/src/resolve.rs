@@ -315,6 +315,7 @@ mod tests {
     };
     use crate::{
         Block, ClassId, Closure, Ownership, TypePlaceholder, TypePlaceholderId,
+        VariableLocation,
     };
 
     fn resolve(
@@ -793,6 +794,7 @@ mod tests {
         let mut db = Database::new();
         let fun = Closure::alloc(&mut db, false);
         let param = new_parameter(&mut db, "T");
+        let loc = VariableLocation::new(1, 1, 1);
 
         fun.set_return_type(&mut db, owned(parameter(param)));
         fun.new_argument(
@@ -800,6 +802,7 @@ mod tests {
             "a".to_string(),
             owned(rigid(param)),
             any(parameter(param)),
+            loc,
         );
 
         let args = type_arguments(vec![(param, TypeRef::int())]);

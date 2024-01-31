@@ -1188,7 +1188,7 @@ mod tests {
     };
     use crate::{
         Block, Class, ClassId, ClassKind, Closure, ModuleId,
-        TraitImplementation, TypePlaceholder, Visibility,
+        TraitImplementation, TypePlaceholder, VariableLocation, Visibility,
     };
 
     #[track_caller]
@@ -2263,10 +2263,11 @@ mod tests {
         let fun4 = Closure::alloc(&mut db, false);
         let int = TypeRef::int();
         let float = TypeRef::float();
+        let loc = VariableLocation::new(1, 1, 1);
 
-        fun1.new_argument(&mut db, "a".to_string(), int, int);
-        fun2.new_argument(&mut db, "b".to_string(), int, int);
-        fun4.new_argument(&mut db, "a".to_string(), float, float);
+        fun1.new_argument(&mut db, "a".to_string(), int, int, loc);
+        fun2.new_argument(&mut db, "b".to_string(), int, int, loc);
+        fun4.new_argument(&mut db, "a".to_string(), float, float, loc);
         fun1.set_return_type(&mut db, TypeRef::int());
         fun2.set_return_type(&mut db, TypeRef::int());
         fun3.set_return_type(&mut db, TypeRef::int());

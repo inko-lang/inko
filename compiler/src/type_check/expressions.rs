@@ -16,7 +16,7 @@ use types::{
     Database, FieldId, FieldInfo, IdentifierKind, MethodId, MethodKind,
     MethodLookup, ModuleId, Receiver, Symbol, ThrowKind, TraitId,
     TraitInstance, TypeArguments, TypeBounds, TypeId, TypeRef, Variable,
-    VariableId, CALL_METHOD, DEREF_POINTER_FIELD,
+    VariableId, VariableLocation, CALL_METHOD, DEREF_POINTER_FIELD,
 };
 
 const IGNORE_VARIABLE: &str = "_";
@@ -82,8 +82,10 @@ impl VariableScope {
         name: String,
         value_type: TypeRef,
         mutable: bool,
+        location: VariableLocation,
     ) -> VariableId {
-        let var = Variable::alloc(db, name.clone(), value_type, mutable);
+        let var =
+            Variable::alloc(db, name.clone(), value_type, mutable, location);
 
         self.add_variable(name, var);
         var
@@ -1794,6 +1796,10 @@ impl<'a> CheckMethodBody<'a> {
             name.clone(),
             var_type,
             node.mutable,
+            VariableLocation::from_ranges(
+                &node.name.location.lines,
+                &node.name.location.columns,
+            ),
         );
 
         node.variable_id = Some(id);
@@ -1918,6 +1924,10 @@ impl<'a> CheckMethodBody<'a> {
             name.clone(),
             var_type,
             node.mutable,
+            VariableLocation::from_ranges(
+                &node.name.location.lines,
+                &node.name.location.columns,
+            ),
         );
 
         node.variable_id = Some(id);
@@ -2552,8 +2562,14 @@ impl<'a> CheckMethodBody<'a> {
                     .unwrap_or_else(|| TypeRef::placeholder(db, None))
             };
 
-            let var =
-                closure.new_argument(self.db_mut(), name.clone(), typ, typ);
+            let loc = &arg.location;
+            let var = closure.new_argument(
+                self.db_mut(),
+                name.clone(),
+                typ,
+                typ,
+                VariableLocation::from_ranges(&loc.lines, &loc.columns),
+            );
 
             new_scope.variables.add_variable(name, var);
         }

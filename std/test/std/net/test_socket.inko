@@ -392,8 +392,8 @@ fn pub tests(t: mut Tests) {
     let addr = listener.local_address.unwrap
 
     t.equal(stream.connect(addr.address, addr.port), Result.Ok(nil))
+    stream.write_bytes('ping'.to_byte_array).unwrap
 
-    let written = stream.write_bytes('ping'.to_byte_array).unwrap
     let connection = listener.accept.unwrap
     let bytes = ByteArray.new
 
@@ -411,8 +411,8 @@ fn pub tests(t: mut Tests) {
     let addr = listener.local_address.unwrap
 
     t.equal(stream.connect(addr.address, addr.port), Result.Ok(nil))
+    stream.write_string('ping').unwrap
 
-    let written = stream.write_string('ping').unwrap
     let connection = listener.accept.unwrap
     let bytes = ByteArray.new
 
@@ -1033,8 +1033,8 @@ fn pub tests(t: mut Tests) {
     listener.bind(path).unwrap
     listener.listen.unwrap
     t.equal(stream.connect(path), Result.Ok(nil))
+    stream.write_bytes('ping'.to_byte_array).unwrap
 
-    let written = stream.write_bytes('ping'.to_byte_array).unwrap
     let connection = listener.accept.unwrap
     let bytes = ByteArray.new
 
@@ -1050,8 +1050,8 @@ fn pub tests(t: mut Tests) {
     listener.bind(path).unwrap
     listener.listen.unwrap
     t.equal(stream.connect(path), Result.Ok(nil))
+    stream.write_string('ping').unwrap
 
-    let written = stream.write_string('ping').unwrap
     let connection = listener.accept.unwrap
     let bytes = ByteArray.new
 
@@ -1136,7 +1136,6 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('UnixSocket.try_clone') fn (t) {
-    let path = SocketPath.new(t.id)
     let socket = UnixSocket.new(Type.STREAM).unwrap
 
     t.true(socket.try_clone.ok?)
@@ -1154,7 +1153,6 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('UnixSocket.reset_deadline') fn (t) {
-    let path = SocketPath.new(t.id)
     let socket = UnixSocket.new(Type.STREAM).unwrap
 
     socket.timeout_after = Duration.from_secs(10)
@@ -1173,7 +1171,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('UnixDatagram.connect') fn (t) {
     let pair = SocketPath.pair(t.id)
-    let socket1 = UnixDatagram.new(pair.0).unwrap
+    let _socket1 = UnixDatagram.new(pair.0).unwrap
     let socket2 = UnixDatagram.new(pair.1).unwrap
 
     t.true(socket2.connect(pair.0).ok?)

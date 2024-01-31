@@ -71,7 +71,7 @@ pub(crate) fn to_dot(db: &Database, mir: &Mir, methods: &[&Method]) -> String {
                     buffer,
                     "<tr><td>{}</td><td>{}</td></tr>",
                     ins.format(db).replace('>', "&gt;").replace('<', "&lt;"),
-                    mir.location(ins.location()).line_range.start(),
+                    mir.location(ins.location()).lines.start(),
                 );
             }
 

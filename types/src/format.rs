@@ -439,7 +439,7 @@ mod tests {
         Block, Class, ClassInstance, ClassKind, Closure, Database, Method,
         MethodKind, Module, ModuleId, ModuleName, Trait, TraitInstance,
         TypeArguments, TypeId, TypeParameter, TypePlaceholder, TypeRef,
-        Visibility,
+        VariableLocation, Visibility,
     };
 
     #[test]
@@ -519,8 +519,10 @@ mod tests {
         let ins_d =
             TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(class_d)));
 
-        block.new_argument(&mut db, "a".to_string(), ins_a, ins_a);
-        block.new_argument(&mut db, "b".to_string(), ins_b, ins_b);
+        let loc = VariableLocation::new(1, 1, 1);
+
+        block.new_argument(&mut db, "a".to_string(), ins_a, ins_a, loc);
+        block.new_argument(&mut db, "b".to_string(), ins_b, ins_b, loc);
         block.set_return_type(&mut db, ins_d);
 
         assert_eq!(format_type(&db, block), "fn foo (a: A, b: B) -> D");
@@ -563,6 +565,7 @@ mod tests {
     #[test]
     fn test_method_id_format_type_with_static_method() {
         let mut db = Database::new();
+        let loc = VariableLocation::new(1, 1, 1);
         let block = Method::alloc(
             &mut db,
             ModuleId(0),
@@ -576,6 +579,7 @@ mod tests {
             "a".to_string(),
             TypeRef::int(),
             TypeRef::int(),
+            loc,
         );
         block.set_return_type(&mut db, TypeRef::int());
 
@@ -585,6 +589,7 @@ mod tests {
     #[test]
     fn test_method_id_format_type_with_async_method() {
         let mut db = Database::new();
+        let loc = VariableLocation::new(1, 1, 1);
         let block = Method::alloc(
             &mut db,
             ModuleId(0),
@@ -598,6 +603,7 @@ mod tests {
             "a".to_string(),
             TypeRef::int(),
             TypeRef::int(),
+            loc,
         );
         block.set_return_type(&mut db, TypeRef::int());
 
@@ -792,6 +798,7 @@ mod tests {
     #[test]
     fn test_type_id_format_type_with_closure() {
         let mut db = Database::new();
+        let loc = VariableLocation::new(1, 1, 1);
         let class_a = Class::alloc(
             &mut db,
             "A".to_string(),
@@ -824,8 +831,8 @@ mod tests {
         let ins_d =
             TypeRef::Owned(TypeId::ClassInstance(ClassInstance::new(class_d)));
 
-        block.new_argument(&mut db, "a".to_string(), ins_a, ins_a);
-        block.new_argument(&mut db, "b".to_string(), ins_b, ins_b);
+        block.new_argument(&mut db, "a".to_string(), ins_a, ins_a, loc);
+        block.new_argument(&mut db, "b".to_string(), ins_b, ins_b, loc);
         block.set_return_type(&mut db, ins_d);
 
         let block_ins = TypeId::Closure(block);

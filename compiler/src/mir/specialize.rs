@@ -896,6 +896,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
             .specialize(arg.value_type);
 
             let raw_var_type = arg.variable.value_type(&self.state.db);
+            let var_loc = *arg.variable.location(&self.state.db);
             let var_type = TypeSpecializer::new(
                 &mut self.state.db,
                 shapes,
@@ -903,7 +904,13 @@ impl<'a, 'b> Specialize<'a, 'b> {
             )
             .specialize(raw_var_type);
 
-            new.new_argument(&mut self.state.db, arg.name, var_type, arg_type);
+            new.new_argument(
+                &mut self.state.db,
+                arg.name,
+                var_type,
+                arg_type,
+                var_loc,
+            );
         }
 
         let new_ret =
