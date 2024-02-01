@@ -305,14 +305,14 @@ impl Variable {
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub(crate) struct Row {
     columns: Vec<Column>,
-    guard: Option<BlockId>,
+    guard: Option<hir::Expression>,
     body: Body,
 }
 
 impl Row {
     pub(crate) fn new(
         columns: Vec<Column>,
-        guard: Option<BlockId>,
+        guard: Option<hir::Expression>,
         body: Body,
     ) -> Self {
         Self { columns, guard, body }
@@ -378,7 +378,7 @@ pub(crate) enum Decision {
     /// 1. The guard to evaluate.
     /// 2. The body to evaluate if the guard matches.
     /// 3. The sub tree to evaluate when the guard fails.
-    Guard(BlockId, Body, Box<Decision>),
+    Guard(hir::Expression, Body, Box<Decision>),
 
     /// Checks if a value is any of the given patterns.
     ///
@@ -884,12 +884,21 @@ impl<'a> Compiler<'a> {
 mod tests {
     use super::*;
     use crate::config::Config;
+    use ast::source_location::SourceLocation;
     use similar_asserts::assert_eq;
     use types::module_name::ModuleName;
     use types::{
         Class, ClassInstance, ClassKind, Module, TypeId,
         Variable as VariableType, VariableLocation, Visibility,
     };
+
+    fn expr(value: i64) -> hir::Expression {
+        hir::Expression::Int(Box::new(hir::IntLiteral {
+            resolved_type: types::TypeRef::Unknown,
+            value,
+            location: SourceLocation::new(1..=1, 1..=1),
+        }))
+    }
 
     fn state() -> State {
         State::new(Config::new())
@@ -906,7 +915,7 @@ mod tests {
 
     fn rules_with_guard(
         input: Variable,
-        patterns: Vec<(Pattern, Option<BlockId>, BlockId)>,
+        patterns: Vec<(Pattern, Option<hir::Expression>, BlockId)>,
     ) -> Vec<Row> {
         patterns
             .into_iter()
@@ -924,18 +933,22 @@ mod tests {
         Decision::Success(Body::new(block))
     }
 
-    fn guard(block: BlockId, body: BlockId, fallback: Decision) -> Decision {
-        Decision::Guard(block, Body::new(body), Box::new(fallback))
+    fn guard(
+        code: hir::Expression,
+        body: BlockId,
+        fallback: Decision,
+    ) -> Decision {
+        Decision::Guard(code, Body::new(body), Box::new(fallback))
     }
 
     fn guard_with_bindings(
-        block: BlockId,
+        code: hir::Expression,
         bindings: Vec<Binding>,
         body: BlockId,
         fallback: Decision,
     ) -> Decision {
         Decision::Guard(
-            block,
+            code,
             Body { bindings, block_id: body },
             Box::new(fallback),
         )
@@ -1612,7 +1625,7 @@ mod tests {
             input,
             vec![
                 (Pattern::Int(4), None, BlockId(1)),
-                (Pattern::Wildcard, Some(BlockId(3)), BlockId(2)),
+                (Pattern::Wildcard, Some(expr(3)), BlockId(2)),
             ],
         ));
 
@@ -1626,7 +1639,7 @@ mod tests {
                     success(BlockId(1))
                 )],
                 Some(Box::new(guard_with_bindings(
-                    BlockId(3),
+                    expr(3),
                     vec![Binding::Ignored(input)],
                     BlockId(2),
                     fail()
@@ -1645,7 +1658,7 @@ mod tests {
         let result = compiler.compile(rules_with_guard(
             input,
             vec![
-                (Pattern::Int(4), Some(BlockId(3)), BlockId(1)),
+                (Pattern::Int(4), Some(expr(3)), BlockId(1)),
                 (Pattern::Wildcard, None, BlockId(2)),
             ],
         ));
@@ -1658,7 +1671,7 @@ mod tests {
                     Constructor::Int(4),
                     Vec::new(),
                     guard(
-                        BlockId(3),
+                        expr(3),
                         BlockId(1),
                         success_with_bindings(
                             vec![Binding::Ignored(input)],
@@ -1675,6 +1688,49 @@ mod tests {
     }
 
     #[test]
+    fn test_guard_with_or_pattern() {
+        let mut state = state();
+        let mut compiler = compiler(&mut state);
+        let input = compiler.new_variable(TypeRef::int());
+        let result = compiler.compile(rules_with_guard(
+            input,
+            vec![
+                (
+                    Pattern::Or(vec![Pattern::Int(4), Pattern::Int(5)]),
+                    Some(expr(42)),
+                    BlockId(1),
+                ),
+                (Pattern::Int(4), None, BlockId(2)),
+                (Pattern::Int(5), None, BlockId(3)),
+                (Pattern::Wildcard, None, BlockId(4)),
+            ],
+        ));
+
+        assert_eq!(
+            result.tree,
+            Decision::Switch(
+                input,
+                vec![
+                    Case::new(
+                        Constructor::Int(4),
+                        Vec::new(),
+                        guard(expr(42), BlockId(1), success(BlockId(2)))
+                    ),
+                    Case::new(
+                        Constructor::Int(5),
+                        Vec::new(),
+                        guard(expr(42), BlockId(1), success(BlockId(3)))
+                    )
+                ],
+                Some(Box::new(success_with_bindings(
+                    vec![Binding::Ignored(input)],
+                    BlockId(4)
+                )))
+            )
+        );
+    }
+
+    #[test]
     fn test_guard_with_same_int() {
         let mut state = state();
         let mut compiler = compiler(&mut state);
@@ -1682,8 +1738,8 @@ mod tests {
         let result = compiler.compile(rules_with_guard(
             input,
             vec![
-                (Pattern::Int(4), Some(BlockId(10)), BlockId(1)),
-                (Pattern::Int(4), Some(BlockId(20)), BlockId(2)),
+                (Pattern::Int(4), Some(expr(10)), BlockId(1)),
+                (Pattern::Int(4), Some(expr(20)), BlockId(2)),
                 (Pattern::Wildcard, None, BlockId(3)),
             ],
         ));
@@ -1696,10 +1752,10 @@ mod tests {
                     Constructor::Int(4),
                     Vec::new(),
                     guard(
-                        BlockId(10),
+                        expr(10),
                         BlockId(1),
                         guard(
-                            BlockId(20),
+                            expr(20),
                             BlockId(2),
                             success_with_bindings(
                                 vec![Binding::Ignored(input)],
@@ -1724,16 +1780,8 @@ mod tests {
         let result = compiler.compile(rules_with_guard(
             input,
             vec![
-                (
-                    Pattern::String("a".to_string()),
-                    Some(BlockId(3)),
-                    BlockId(1),
-                ),
-                (
-                    Pattern::String("a".to_string()),
-                    Some(BlockId(4)),
-                    BlockId(2),
-                ),
+                (Pattern::String("a".to_string()), Some(expr(3)), BlockId(1)),
+                (Pattern::String("a".to_string()), Some(expr(4)), BlockId(2)),
                 (Pattern::Wildcard, None, BlockId(3)),
             ],
         ));
@@ -1746,10 +1794,10 @@ mod tests {
                     Constructor::String("a".to_string()),
                     Vec::new(),
                     guard(
-                        BlockId(3),
+                        expr(3),
                         BlockId(1),
                         guard(
-                            BlockId(4),
+                            expr(4),
                             BlockId(2),
                             success_with_bindings(
                                 vec![Binding::Ignored(input)],

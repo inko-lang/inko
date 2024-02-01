@@ -316,10 +316,6 @@ struct DecisionState {
         (Vec<hir::Expression>, Vec<RegisterId>, SourceLocation),
     >,
 
-    /// The basic blocks for every guard, and the expression to compile for
-    /// them.
-    guards: HashMap<BlockId, hir::Expression>,
-
     /// The location of the `match` expression.
     location: LocationId,
 
@@ -340,7 +336,6 @@ impl DecisionState {
             registers: Vec::new(),
             actions: HashMap::new(),
             bodies: HashMap::new(),
-            guards: HashMap::new(),
             location,
             write_result,
         }
@@ -2553,13 +2548,6 @@ impl<'a> LowerMethod<'a> {
 
         for case in node.cases {
             let var_regs = self.match_binding_registers(case.variable_ids);
-            let guard = case.guard.map(|expr| {
-                let block = self.add_block();
-
-                state.guards.insert(block, expr);
-                block
-            });
-
             let block = self.add_block();
             let pat =
                 pmatch::Pattern::from_hir(self.db(), self.mir, case.pattern);
@@ -2567,7 +2555,7 @@ impl<'a> LowerMethod<'a> {
             let body = pmatch::Body::new(block);
 
             state.bodies.insert(block, (case.body, var_regs, case.location));
-            rows.push(pmatch::Row::new(vec![col], guard, body));
+            rows.push(pmatch::Row::new(vec![col], case.guard, body));
         }
 
         let bounds = self.method.id.bounds(self.db()).clone();
@@ -2639,22 +2627,10 @@ impl<'a> LowerMethod<'a> {
                 self.decision_body(state, self.current_block, body_block);
                 vars_block
             }
-            pmatch::Decision::Guard(guard, ok, fail) => {
+            pmatch::Decision::Guard(guard_node, ok, fail) => {
+                let guard = self.add_block();
+
                 self.add_edge(parent_block, guard);
-
-                let guard_node = if let Some(node) = state.guards.remove(&guard)
-                {
-                    node
-                } else {
-                    // It's possible we visit the same guard twice, such as when
-                    // encountering the case `case A or B if X -> {}`, as the
-                    // guard is visited for every pattern in the OR pattern. In
-                    // this case we compile the guard on the first visit, then
-                    // return the block as-is (making sure to still connect the
-                    // parent block above).
-                    return guard;
-                };
-
                 self.enter_scope();
 
                 // Bindings are defined _after_ the guard, otherwise the failure
