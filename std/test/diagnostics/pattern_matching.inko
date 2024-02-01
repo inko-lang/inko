@@ -1,0 +1,25 @@
+class enum Letter {
+  case A
+  case B
+}
+
+fn example1(x: (Int, Letter)) {
+  match x {
+    case (_a, A or B) -> {}
+  }
+}
+
+fn example2(x: (Int, Letter)) {
+  match x {
+    case (_a, A or B) -> {}
+  }
+}
+
+fn example3(x: (Int, Letter)) {
+  match x {
+    case (_a, b or B) -> {}
+  }
+}
+
+# pattern_matching.inko:20:20 warning(unreachable): this pattern is unreachable
+# pattern_matching.inko:20:20 error(invalid-pattern): this pattern must define the variable 'b'

@@ -584,6 +584,19 @@ impl Diagnostics {
         );
     }
 
+    pub(crate) fn unreachable_pattern(
+        &mut self,
+        file: PathBuf,
+        location: SourceLocation,
+    ) {
+        self.warn(
+            DiagnosticId::Unreachable,
+            "this pattern is unreachable",
+            file,
+            location,
+        );
+    }
+
     pub(crate) fn unsendable_argument(
         &mut self,
         argument: String,

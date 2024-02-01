@@ -98,10 +98,6 @@ impl VariableScope {
     fn variable(&self, name: &str) -> Option<VariableId> {
         self.variables.get(name).cloned()
     }
-
-    fn names(&self) -> Vec<&String> {
-        self.variables.keys().collect()
-    }
 }
 
 #[derive(Eq, PartialEq)]
@@ -2345,18 +2341,31 @@ impl<'a> CheckMethodBody<'a> {
         value_type: TypeRef,
         pattern: &mut Pattern,
     ) {
-        let patterns: Vec<_> = node
-            .patterns
-            .iter_mut()
-            .map(|node| {
-                let mut new_pattern = Pattern::new(pattern.variable_scope);
+        let mut patterns = Vec::new();
+        let mut all_vars = Vec::new();
+        let mut unreachable = false;
 
-                self.pattern(node, value_type, &mut new_pattern);
-                (new_pattern.variables, node.location())
-            })
-            .collect();
+        for node in node.patterns.iter_mut() {
+            // Patterns such as `a or a` are rare and likely unintentional. As
+            // the pattern matching compiler handles this fine, we emit a
+            // warning instead of an error.
+            if unreachable {
+                self.state
+                    .diagnostics
+                    .unreachable_pattern(self.file(), node.location().clone());
+            } else if matches!(
+                node,
+                hir::Pattern::Wildcard(_) | hir::Pattern::Identifier(_)
+            ) {
+                unreachable = true;
+            }
 
-        let all_var_names = pattern.variable_scope.names();
+            let mut new_pattern = Pattern::new(pattern.variable_scope);
+
+            self.pattern(node, value_type, &mut new_pattern);
+            all_vars.extend(new_pattern.variables.keys().cloned());
+            patterns.push((new_pattern.variables, node.location()));
+        }
 
         // Now that all patterns have defined their variables, we can check
         // each pattern to ensure they all define the same variables. This
@@ -2364,7 +2373,7 @@ impl<'a> CheckMethodBody<'a> {
         // as the variable could be undefined depending on which pattern
         // matched.
         for (vars, location) in &patterns {
-            for &name in &all_var_names {
+            for name in &all_vars {
                 if vars.contains_key(name) {
                     continue;
                 }

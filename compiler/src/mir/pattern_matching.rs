@@ -110,6 +110,59 @@ fn add_missing_patterns(
     }
 }
 
+/// Expands rows containing OR patterns into individual rows, such that each
+/// branch in the OR produces its own row.
+///
+/// For each column that tests against an OR pattern, each sub pattern is
+/// translated into a new row. This work repeats itself until no more OR
+/// patterns remain in the rows.
+fn expand_or_patterns(rows: &mut Vec<Row>) {
+    // If none of the rows contain any OR patterns, we can avoid the below work
+    // loop, saving some allocations and time.
+    if !rows
+        .iter()
+        .any(|r| r.columns.iter().any(|c| matches!(c.pattern, Pattern::Or(_))))
+    {
+        return;
+    }
+
+    let mut new_rows = Vec::with_capacity(rows.len());
+    let mut found = true;
+
+    while found {
+        found = false;
+
+        for row in rows.drain(0..) {
+            // Find the first column containing an OR pattern. We process this
+            // one column at a time, as that's (much) easier to implement
+            // compared to handling all columns at once (as multiple columns may
+            // contain OR patterns).
+            let res = row.columns.iter().enumerate().find_map(|(idx, col)| {
+                if let Pattern::Or(pats) = &col.pattern {
+                    Some((idx, col.variable, pats))
+                } else {
+                    None
+                }
+            });
+
+            if let Some((idx, var, pats)) = res {
+                found = true;
+
+                for pat in pats {
+                    let mut new_row = row.clone();
+
+                    new_row.columns[idx] = Column::new(var, pat.clone());
+                    new_rows.push(new_row);
+                }
+            } else {
+                new_rows.push(row);
+            }
+        }
+
+        std::mem::swap(rows, &mut new_rows);
+    }
+}
+
 /// A binding to define as part of a pattern.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub(crate) enum Binding {
@@ -281,14 +334,6 @@ impl Pattern {
             ),
         }
     }
-
-    fn flatten_or(self, row: Row) -> Vec<(Pattern, Row)> {
-        if let Pattern::Or(args) = self {
-            args.into_iter().map(|p| (p, row.clone())).collect()
-        } else {
-            vec![(self, row)]
-        }
-    }
 }
 
 /// A variable used in a match expression.
@@ -323,6 +368,22 @@ impl Row {
             .iter()
             .position(|c| &c.variable == variable)
             .map(|idx| self.columns.remove(idx))
+    }
+
+    /// Moves variable-only patterns/tests into the right-hand side/body of a
+    /// case.
+    fn move_variable_patterns(&mut self) {
+        self.columns.retain(|col| match &col.pattern {
+            Pattern::Variable(id) => {
+                self.body.bindings.push(Binding::Named(*id, col.variable));
+                false
+            }
+            Pattern::Wildcard => {
+                self.body.bindings.push(Binding::Ignored(col.variable));
+                false
+            }
+            _ => true,
+        });
     }
 }
 
@@ -534,8 +595,10 @@ impl<'a> Compiler<'a> {
             return Decision::Fail;
         }
 
+        expand_or_patterns(&mut rows);
+
         for row in &mut rows {
-            self.move_variable_patterns(row);
+            row.move_variable_patterns();
         }
 
         // There may be multiple rows, but if the first one has no patterns
@@ -598,20 +661,18 @@ impl<'a> Compiler<'a> {
                 continue;
             };
 
-            for (pat, row) in col.pattern.flatten_or(row) {
-                let (key, cons) = match pat {
-                    Pattern::Int(val) => ((val, val), Constructor::Int(val)),
-                    _ => unreachable!(),
-                };
+            let (key, cons) = match col.pattern {
+                Pattern::Int(val) => ((val, val), Constructor::Int(val)),
+                _ => unreachable!(),
+            };
 
-                if let Some(&index) = indexes.get(&key) {
-                    raw_cases[index].2.push(row);
-                    continue;
-                }
-
-                indexes.insert(key, raw_cases.len());
-                raw_cases.push((cons, Vec::new(), vec![row]));
+            if let Some(&index) = indexes.get(&key) {
+                raw_cases[index].2.push(row);
+                continue;
             }
+
+            indexes.insert(key, raw_cases.len());
+            raw_cases.push((cons, Vec::new(), vec![row]));
         }
 
         self.compile_literal_cases(raw_cases, fallback_rows)
@@ -635,24 +696,18 @@ impl<'a> Compiler<'a> {
                 continue;
             };
 
-            for (pat, row) in col.pattern.flatten_or(row) {
-                let key = match pat {
-                    Pattern::String(val) => val,
-                    _ => unreachable!(),
-                };
+            let key = match col.pattern {
+                Pattern::String(val) => val,
+                _ => unreachable!(),
+            };
 
-                if let Some(&index) = indexes.get(&key) {
-                    raw_cases[index].2.push(row);
-                    continue;
-                }
-
-                indexes.insert(key.clone(), raw_cases.len());
-                raw_cases.push((
-                    Constructor::String(key),
-                    Vec::new(),
-                    vec![row],
-                ));
+            if let Some(&index) = indexes.get(&key) {
+                raw_cases[index].2.push(row);
+                continue;
             }
+
+            indexes.insert(key.clone(), raw_cases.len());
+            raw_cases.push((Constructor::String(key), Vec::new(), vec![row]));
         }
 
         self.compile_literal_cases(raw_cases, fallback_rows)
@@ -696,18 +751,16 @@ impl<'a> Compiler<'a> {
                 continue;
             };
 
-            for (pat, row) in col.pattern.flatten_or(row) {
-                if let Pattern::Constructor(cons, args) = pat {
-                    let idx = cons.index(self.db());
-                    let mut cols = row.columns;
-                    let case = &mut cases[idx];
+            if let Pattern::Constructor(cons, args) = col.pattern {
+                let idx = cons.index(self.db());
+                let mut cols = row.columns;
+                let case = &mut cases[idx];
 
-                    for (var, pat) in case.1.iter().zip(args.into_iter()) {
-                        cols.push(Column::new(*var, pat));
-                    }
-
-                    case.2.push(Row::new(cols, row.guard, row.body));
+                for (var, pat) in case.1.iter().zip(args.into_iter()) {
+                    cols.push(Column::new(*var, pat));
                 }
+
+                case.2.push(Row::new(cols, row.guard, row.body));
             }
         }
 
@@ -736,22 +789,6 @@ impl<'a> Compiler<'a> {
             .collect();
 
         (cases, Box::new(self.compile_rows(fallback)))
-    }
-
-    /// Moves variable-only patterns/tests into the right-hand side/body of a
-    /// case.
-    fn move_variable_patterns(&self, row: &mut Row) {
-        row.columns.retain(|col| match &col.pattern {
-            Pattern::Variable(id) => {
-                row.body.bindings.push(Binding::Named(*id, col.variable));
-                false
-            }
-            Pattern::Wildcard => {
-                row.body.bindings.push(Binding::Ignored(col.variable));
-                false
-            }
-            _ => true,
-        });
     }
 
     /// Given a row, returns the variable in that row that's referred to the
@@ -2054,6 +2091,84 @@ mod tests {
                             ],
                             BlockId(2)
                         )))
+                    ),
+                )],
+                None
+            )
+        );
+    }
+
+    #[test]
+    fn test_tuple_with_or_and_bindings() {
+        let mut state = state();
+        let module = Module::alloc(
+            &mut state.db,
+            ModuleName::new("test"),
+            "test.inko".into(),
+        );
+        let tuple2 = Class::alloc(
+            &mut state.db,
+            "Tuple2".to_string(),
+            ClassKind::Tuple,
+            Visibility::Public,
+            module,
+        );
+
+        tuple2.new_field(
+            &mut state.db,
+            "0".to_string(),
+            0,
+            TypeRef::int(),
+            Visibility::Public,
+            module,
+        );
+
+        tuple2.new_field(
+            &mut state.db,
+            "1".to_string(),
+            1,
+            TypeRef::int(),
+            Visibility::Public,
+            module,
+        );
+
+        let tuple_fields = tuple2.fields(&state.db);
+        let mut compiler = compiler(&mut state);
+        let input = compiler.new_variable(TypeRef::Owned(
+            TypeId::ClassInstance(ClassInstance::new(tuple2)),
+        ));
+        let var1 = Variable(1);
+        let var2 = Variable(2);
+        let result = compiler.compile(rules(
+            input,
+            vec![(
+                Pattern::Constructor(
+                    Constructor::Tuple(tuple_fields.clone()),
+                    vec![
+                        Pattern::Variable(VariableId(0)),
+                        Pattern::Or(vec![
+                            Pattern::Variable(VariableId(1)),
+                            Pattern::Variable(VariableId(2)),
+                        ]),
+                    ],
+                ),
+                BlockId(1),
+            )],
+        ));
+
+        assert_eq!(
+            result.tree,
+            Decision::Switch(
+                input,
+                vec![Case::new(
+                    Constructor::Tuple(tuple_fields),
+                    vec![var1, var2],
+                    success_with_bindings(
+                        vec![
+                            Binding::Named(VariableId(0), var1),
+                            Binding::Named(VariableId(1), var2)
+                        ],
+                        BlockId(1)
                     ),
                 )],
                 None
