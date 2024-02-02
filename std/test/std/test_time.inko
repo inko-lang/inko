@@ -4,6 +4,19 @@ import std.process.(sleep)
 import std.test.Tests
 import std.time.(DateTime, Duration, Instant)
 
+fn ymd(year: Int, month: Int, day: Int) -> DateTime {
+  DateTime {
+    @year = year,
+    @month = month,
+    @day = day,
+    @hour = 12,
+    @minute = 0,
+    @second = 0,
+    @sub_second = 0.0,
+    @utc_offset = 0,
+  }
+}
+
 fn pub tests(t: mut Tests) {
   t.test('Duration.from_secs') fn (t) {
     t.equal(Duration.from_secs(1.2).to_secs, 1.2)
@@ -186,10 +199,12 @@ fn pub tests(t: mut Tests) {
     let t1 = DateTime.from_timestamp(time: 1661538868, utc_offset: 7200)
     let t2 = DateTime.from_timestamp(time: 0, utc_offset: 0)
     let t3 = DateTime.from_timestamp(time: -3600, utc_offset: 0)
+    let t4 = ymd(2024, 2, 3)
 
     t.equal(t1.days_since_unix_epoch, 19_230)
     t.equal(t2.days_since_unix_epoch, 0)
     t.equal(t3.days_since_unix_epoch, -1)
+    t.equal(t4.days_since_unix_epoch, 19_756)
   }
 
   t.test('DateTime.leap_year?') fn (t) {
@@ -232,10 +247,12 @@ fn pub tests(t: mut Tests) {
     let t1 = DateTime.from_timestamp(time: 1661538868, utc_offset: 7200)
     let t2 = DateTime.from_timestamp(time: 0, utc_offset: 0)
     let t3 = DateTime.from_timestamp(time: -3600, utc_offset: 0)
+    let t4 = ymd(2024, 2, 3)
 
     t.equal(t1.to_int, 1661538868)
     t.equal(t2.to_int, 0)
     t.equal(t3.to_int, -3600)
+    t.equal(t4.to_int, 1706961600)
   }
 
   t.test('DateTime.to_float') fn (t) {
@@ -269,6 +286,7 @@ fn pub tests(t: mut Tests) {
     t.equal(t1.cmp(t2), Ordering.Greater)
     t.equal(t2.cmp(t1), Ordering.Less)
     t.equal(t1.cmp(t1), Ordering.Equal)
+    t.equal(ymd(2024, 2, 3).cmp(ymd(2023, 12, 14)), Ordering.Greater)
   }
 
   t.test('DateTime.==') fn (t) {

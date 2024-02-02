@@ -376,7 +376,7 @@ class pub DateTime {
     let month = @month
     let era = if year >= 0 { year } else { year - 399 } / 400
     let yoe = year - (era * 400)
-    let doy = (((153 * if month >= 2 { month - 3 } else { month + 9 }) + 2) / 5)
+    let doy = (((153 * if month > 2 { month - 3 } else { month + 9 }) + 2) / 5)
       + @day - 1
     let doe = (yoe * 365) + (yoe / 4) - (yoe / 100) + doy
 
