@@ -4,7 +4,7 @@ on:
   workflow_call:
 
 jobs:
-  test:
+  amd64:
     strategy:
       fail-fast: false
       matrix:

@@ -11,7 +11,7 @@ env:
 # Due to https://github.com/cross-platform-actions/action/issues/29, jobs should
 # use QEMU, instead of xhyve.
 jobs:
-  test:
+  amd64:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4

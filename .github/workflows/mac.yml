@@ -8,8 +8,8 @@ env:
   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
 
 jobs:
-  test:
-    runs-on: macos-latest
+  amd64:
+    runs-on: macos-12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -17,7 +17,23 @@ jobs:
           path: |
             ${{ env.CARGO_HOME }}
             target
-          key: mac
+          key: mac-amd64
+      - name: Install dependencies
+        run: ./ci/mac.sh
+      - name: Run compiler tests
+        run: cargo test
+      - name: Run stdlib tests
+        run: 'cd std && cargo run -- test'
+  arm64:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.CARGO_HOME }}
+            target
+          key: mac-arm64
       - name: Install dependencies
         run: ./ci/mac.sh
       - name: Run compiler tests
