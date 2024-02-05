@@ -68,7 +68,8 @@ jobs:
 
   runtimes:
     runs-on: ubuntu-latest
-    image: ghcr.io/inko-lang/ci:fedora
+    container:
+      image: ghcr.io/inko-lang/ci:fedora
     needs:
       - lints
       - linux
