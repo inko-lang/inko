@@ -30,6 +30,7 @@
 }
 
 html {
+  color: var(--black);
   font-family: var(--font);
   font-size: var(--font-size);
   line-height: 1.5;
