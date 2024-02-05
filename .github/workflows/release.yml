@@ -80,7 +80,11 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
     steps:
+      - name: Install dependencies
+        run: microdnf install --quiet --assumeyes awscli2 git tar make
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Generating runtimes
         run: make runtimes
 
@@ -94,6 +98,7 @@ jobs:
       - mac
       - freebsd
       - container
+      - runtimes
     env:
       AWS_REGION: eu-west-1
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
