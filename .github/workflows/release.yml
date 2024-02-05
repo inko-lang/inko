@@ -115,6 +115,7 @@ jobs:
             docs/build
             ~/.local/share/inko/packages
           key: docs-release
+      - run: git config --global --add safe.directory $PWD
       - name: Deploy the documentation
         run: make docs/publish DOCS_FOLDER=${{ github.ref_name }}
       - name: Update the latest tag
