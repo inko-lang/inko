@@ -4,6 +4,58 @@
 Entries from before version 0.10.0 are no longer included, but can be viewed
 [here](https://github.com/inko-lang/inko/blob/f9c01b86af70596021e649be5d43ec2a22b6d298/CHANGELOG.md).
 
+## 0.14.0 (2024-02-05)
+
+### Added
+
+- [ac24bcc](https://github.com/inko-lang/inko/commit/ac24bcc38f16df9f43fdbc0ae9e29394072d939a): Warn for unused variables
+- [4ee577a](https://github.com/inko-lang/inko/commit/4ee577a09c8e21446b7ccf9ba05fec2772c1d46a): Add Path.with_extension and refactor Path
+- [23495ba](https://github.com/inko-lang/inko/commit/23495bad104f5ebdfa8aa58512d24cf69e0cda96): Add Path.components and Path.strip_prefix
+- [6ac179f](https://github.com/inko-lang/inko/commit/6ac179f0dbfeff309b45b603acbd1220f03b89f5): Implement Hash for Path
+- [03ef71f](https://github.com/inko-lang/inko/commit/03ef71f59c6178d6438e5546d8e1139bc4a4a16b): Add support for cross-compilation
+- [7b5ed3c](https://github.com/inko-lang/inko/commit/7b5ed3c223b39b0de4c37a03b224a18e9852e5b3): Add musl as a supported compiler target
+- [46b5fc2](https://github.com/inko-lang/inko/commit/46b5fc284006cc7bc41f08eb6f0ee43f21635fb7): Add Path.list_all
+- [67d44f1](https://github.com/inko-lang/inko/commit/67d44f174859928fcb65116e8fee89b832693ea9): Add a flag to show compiler stage timings
+- [7f5bcac](https://github.com/inko-lang/inko/commit/7f5bcac69345f95d3f2471f736d841c6438c0daf): Add methods for querying JSON values
+- [e287956](https://github.com/inko-lang/inko/commit/e2879560e387631a14bf13f73aaf1cd7cd761e1a): Add String.replace and String.slice_into
+- [f4d3c5a](https://github.com/inko-lang/inko/commit/f4d3c5aa10e7cb135a31cf777ad79b1449d1ec0d): Add Path.extension
+
+### Fixed
+
+- [c278334](https://github.com/inko-lang/inko/commit/c2783346b1b72ba955f827c56dc9f23912106af6): Fix DateTime.days_since_unix_epoch
+- [8b7f0d2](https://github.com/inko-lang/inko/commit/8b7f0d2eea85bbece2338a0aafa8c7f266d032aa): Fix compiling OR patterns
+- [895826b](https://github.com/inko-lang/inko/commit/895826b25b757b32e38af40e3034a0d3ac1d2f49): Refactor how guard patterns are compiled
+- [4a4edb1](https://github.com/inko-lang/inko/commit/4a4edb1a440543c7fa04398c1ac7bfc1f9fa7c73): Fix uniqueness checks for Channel and arguments
+- [6a985ad](https://github.com/inko-lang/inko/commit/6a985ad8acb34ba36a2ec7df1643b2e244147fe6): Don't require T: Compare for Array.sort_by
+- [db33be8](https://github.com/inko-lang/inko/commit/db33be8406ebe6eb0a79ae3b0096b8e76423b2ed): Fix Path creation/access/modification times
+- [1593176](https://github.com/inko-lang/inko/commit/15931766697536bb1b3c1ab5d554982be51ec18d): Fix getting core counts
+- [a0924cc](https://github.com/inko-lang/inko/commit/a0924cc5cdca8ca1f21ae4d114fd8636bea664bc): Fix accessing fields in recover expressions
+- [fd0a0b9](https://github.com/inko-lang/inko/commit/fd0a0b9bf57be8251753a86c9d86657563e5e361): Fix build script for custom profile names
+- [e3c3b9a](https://github.com/inko-lang/inko/commit/e3c3b9a67ea86ed55e0b4806359569ede5173b45): Fix debug info for default trait methods
+- [c709b59](https://github.com/inko-lang/inko/commit/c709b5984cf6d261ba0cdf881b9dab0426dde9ce): Increment references when returning variables
+- [b0e53b2](https://github.com/inko-lang/inko/commit/b0e53b229002b1250f47dfa68ff3a64816d75ac1): Fix checking for moved variables inside loops
+- [084b354](https://github.com/inko-lang/inko/commit/084b35412eacd550245e5c26985a836e50c7b55c): Fix calling mutating methods on owned parameters
+- [ff8c0f2](https://github.com/inko-lang/inko/commit/ff8c0f2061d0df173a2dc612dc3f6487730dd99b): Fix mutable references to owned parameters
+
+### Changed
+
+- [b733f01](https://github.com/inko-lang/inko/commit/b733f01e4c7fe626630cbdfbfbff2225bf736004): Scope build files for non-native targets
+- [83713aa](https://github.com/inko-lang/inko/commit/83713aa9d9ccb3022c769c079e4208850eedb211): Decouple symbol names from type and method IDs
+
+### Performance improvements
+
+- [137304d](https://github.com/inko-lang/inko/commit/137304d1cdf6db7d04350fe5675d540fc5543618): Cache and reuse object files
+- [76cf292](https://github.com/inko-lang/inko/commit/76cf292cabdfa3a3b23e7465968b55c05e8debe5): Support linking using Mold
+- [9162406](https://github.com/inko-lang/inko/commit/91624062fa842362eafba3c8388922d89e9d713c): Generate LLVM IR and object files in parallel
+- [3c3c73a](https://github.com/inko-lang/inko/commit/3c3c73adcf73eaf77a3eabf82bb07aa394719ef1): Reduce memory usage of expanding instructions
+- [afd72e0](https://github.com/inko-lang/inko/commit/afd72e0f798f80e5630c4fb59afd07b6fa4d1ce4): Optimize LLVM code generation a bit
+
+### Other
+
+- [a605bf0](https://github.com/inko-lang/inko/commit/a605bf0819d9a03b0821a2311363ec42c9aa5181): Revamp the documentation
+- [a69b423](https://github.com/inko-lang/inko/commit/a69b423121fc744b84402ccd36b8123d2b24b3a0): Bump Rust requirement to 1.70.0
+- [a31bd3f](https://github.com/inko-lang/inko/commit/a31bd3f33367f767c84637e33108929fec47c7b7): Add missing "mut" keyword to the documentation
+
 ## 0.13.2 (2023-12-14)
 
 ### Added
