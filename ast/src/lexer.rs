@@ -405,7 +405,6 @@ enum State {
     Default,
     SingleString,
     DoubleString,
-    EscapedWhitespace,
 }
 
 /// A lexer for Inko source code.
@@ -459,10 +458,6 @@ impl Lexer {
         match self.states.last().cloned() {
             Some(State::SingleString) => self.next_single_string_token(),
             Some(State::DoubleString) => self.next_double_string_token(),
-            Some(State::EscapedWhitespace) => {
-                self.consume_escaped_whitespace();
-                self.next_token()
-            }
             _ => self.next_regular_token(),
         }
     }
@@ -1055,10 +1050,6 @@ impl Lexer {
                 BACKSLASH => {
                     let next = self.next_byte();
 
-                    if self.enter_escaped_whitespace(next) {
-                        break;
-                    }
-
                     if self.replace_escape_sequence(
                         &mut buffer,
                         next,
@@ -1107,10 +1098,6 @@ impl Lexer {
 
                     let next = self.next_byte();
 
-                    if self.enter_escaped_whitespace(next) {
-                        break;
-                    }
-
                     if self.replace_escape_sequence(
                         &mut buffer,
                         next,
@@ -1150,28 +1137,6 @@ impl Lexer {
         self.curly_braces += 1;
 
         self.single_character_token(TokenKind::StringExprOpen)
-    }
-
-    fn enter_escaped_whitespace(&mut self, byte: u8) -> bool {
-        if !self.is_whitespace(byte) {
-            return false;
-        }
-
-        self.advance_char();
-        self.states.push(State::EscapedWhitespace);
-        true
-    }
-
-    fn consume_escaped_whitespace(&mut self) {
-        loop {
-            match self.current_byte() {
-                SPACE | TAB | CARRIAGE_RETURN => self.advance_char(),
-                NEWLINE => self.advance_line(),
-                _ => break,
-            }
-        }
-
-        self.states.pop();
     }
 
     fn replace_escape_sequence(
@@ -1233,10 +1198,6 @@ impl Lexer {
                 _ => break,
             }
         }
-    }
-
-    fn is_whitespace(&self, byte: u8) -> bool {
-        matches!(byte, SPACE | TAB | CARRIAGE_RETURN | NEWLINE)
     }
 
     fn next_is_unicode_escape(&self) -> bool {
@@ -1897,28 +1858,6 @@ mod tests {
             tok(Whitespace, " ", 1..=1, 8..=8),
             tok(Add, "+", 1..=1, 9..=9),
             tok(DoubleStringOpen, "\"", 1..=1, 10..=10)
-        );
-    }
-
-    #[test]
-    fn test_lexer_single_quoted_string_with_escaped_whitespace() {
-        assert_tokens!(
-            "'foo \\\n  bar'",
-            tok(SingleStringOpen, "'", 1..=1, 1..=1),
-            tok(StringText, "foo ", 1..=1, 2..=6),
-            tok(StringText, "bar", 2..=2, 3..=5),
-            tok(SingleStringClose, "'", 2..=2, 6..=6)
-        );
-    }
-
-    #[test]
-    fn test_lexer_double_quoted_string_with_escaped_whitespace() {
-        assert_tokens!(
-            "\"foo \\\n  bar\"",
-            tok(DoubleStringOpen, "\"", 1..=1, 1..=1),
-            tok(StringText, "foo ", 1..=1, 2..=6),
-            tok(StringText, "bar", 2..=2, 3..=5),
-            tok(DoubleStringClose, "\"", 2..=2, 6..=6)
         );
     }
 

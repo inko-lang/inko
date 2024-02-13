@@ -597,8 +597,7 @@ class pub Parser {
 
     if @buffer.size > @max_string_size {
       throw error(
-        "The size of this string ({@buffer.size} bytes) is greater than \
-        the maximum of {@max_string_size} bytes"
+        "The size of this string ({@buffer.size} bytes) is greater than the maximum of {@max_string_size} bytes"
       )
     }
 
@@ -859,8 +858,7 @@ class pub Parser {
     match advance {
       case Some(val) if val == byte -> Result.Ok(nil)
       case Some(val) -> throw error(
-        "The character '{char(byte)}' is expected, \
-          but '{char(val)}' was found instead"
+        "The character '{char(byte)}' is expected, but '{char(val)}' was found instead"
       )
       case _ -> throw unexpected_eof
     }

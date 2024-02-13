@@ -522,11 +522,12 @@ impl ToString for Ipv6Address {
       # an octet of 255.
       let hextet_to_octet_modulo = IPV4_OCTET_MAXIMUM + 1
       let prefix = if ipv4_compatible { '::' } else { '::ffff:' }
+      let a = @g >> IPV4_TOIPV6_SHIFT
+      let b = @g % hextet_to_octet_modulo
+      let c = @h >> IPV4_TOIPV6_SHIFT
+      let d = @h % hextet_to_octet_modulo
 
-      return "{prefix}{@g >> IPV4_TOIPV6_SHIFT}\
-        .{@g % hextet_to_octet_modulo}\
-        .{@h >> IPV4_TOIPV6_SHIFT}\
-        .{@h % hextet_to_octet_modulo}"
+      return "{prefix}{a}.{b}.{c}.{d}"
     }
 
     let mut compression_start = 0
@@ -577,9 +578,16 @@ impl ToString for Ipv6Address {
       return buffer.to_string
     }
 
-    "{@a.format(format)}:{@b.format(format)}:{@c.format(format)}:\
-      {@d.format(format)}:{@e.format(format)}:{@f.format(format)}:\
-      {@g.format(format)}:{@h.format(format)}"
+    let a = @a.format(format)
+    let b = @b.format(format)
+    let c = @c.format(format)
+    let d = @d.format(format)
+    let e = @e.format(format)
+    let f = @f.format(format)
+    let g = @g.format(format)
+    let h = @h.format(format)
+
+    "{a}:{b}:{c}:{d}:{e}:{f}:{g}:{h}"
   }
 }
 

@@ -41,10 +41,10 @@ fn pub tests(t: mut Tests) {
         '50abf5706a150990a08b2c5ea40fa0e585554732',
       ),
       (
-        'Inko is a language for building concurrent software with confidence. \
-          Inko makes it easy to build concurrent software, without having to \
-          worry about unpredictable performance, unexpected runtime errors, \
-          race conditions, and type errors.',
+        'Inko is a language for building concurrent software with confidence. '
+          + 'Inko makes it easy to build concurrent software, without having to '
+          + 'worry about unpredictable performance, unexpected runtime errors, '
+          + 'race conditions, and type errors.',
         'a5e718cce8889c9b06394c3736663cc245b068df'
       ),
       (

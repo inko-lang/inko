@@ -504,15 +504,6 @@ multiple
 lines"
 ```
 
-If a string spans multiple lines and a line ends with a `\`, the newline and any
-whitespace that follows is ignored:
-
-```inko
-"foo \
-bar \
-baz" # => "foo bar baz"
-```
-
 Double quoted strings support Unicode escape sequences using the syntax
 `\u{XXXXX}`, such as this:
 

@@ -245,8 +245,7 @@ fn pub tests(t: mut Tests) {
     t.equal(
       parse_invalid("\n1.2e"),
       Option.Some(
-        'One or more tokens are required, but we ran out of input, \
-          on line 2 at byte offset 4'
+        'One or more tokens are required, but we ran out of input, on line 2 at byte offset 4'
       )
     )
   }
@@ -347,8 +346,7 @@ fn pub tests(t: mut Tests) {
     t.equal(
       parse_invalid('"a'),
       Option.Some(
-        'One or more tokens are required, but we ran out of input, \
-          on line 1 at byte offset 1'
+        'One or more tokens are required, but we ran out of input, on line 1 at byte offset 1'
       )
     )
   }
@@ -401,8 +399,7 @@ fn pub tests(t: mut Tests) {
     t.equal(
       parse_invalid('{"a"}'),
       Option.Some(
-        "The character ':' is expected, but '}' was found instead, \
-          on line 1 at byte offset 4"
+        "The character ':' is expected, but '}' was found instead, on line 1 at byte offset 4"
       )
     )
   }
