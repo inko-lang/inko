@@ -1853,6 +1853,12 @@ impl<'a> LowerToHir<'a> {
             .into_iter()
             .map(|n| match n {
                 ast::DoubleStringValue::Text(node) => self.string_text(*node),
+                ast::DoubleStringValue::Unicode(node) => {
+                    StringValue::Text(Box::new(StringText {
+                        value: node.value,
+                        location: node.location,
+                    }))
+                }
                 ast::DoubleStringValue::Expression(node) => {
                     let rec = self.expression(node.value);
                     let loc = rec.location().clone();
@@ -2011,7 +2017,8 @@ impl<'a> LowerToHir<'a> {
         // library, and one here in the compiler.
         for val in node.values {
             match val {
-                ast::DoubleStringValue::Text(node) => value += &node.value,
+                ast::DoubleStringValue::Text(n) => value += &n.value,
+                ast::DoubleStringValue::Unicode(n) => value += &n.value,
                 ast::DoubleStringValue::Expression(node) => {
                     self.state.diagnostics.error(
                         DiagnosticId::InvalidConstExpr,
@@ -4891,6 +4898,29 @@ mod tests {
                 }))],
                 resolved_type: types::TypeRef::Unknown,
                 location: cols(8, 10)
+            }))
+        );
+    }
+
+    #[test]
+    fn test_lower_double_string_with_escape() {
+        let hir = lower_expr("fn a { \"a\\u{AC}\" }").0;
+
+        assert_eq!(
+            hir,
+            Expression::String(Box::new(StringLiteral {
+                values: vec![
+                    StringValue::Text(Box::new(StringText {
+                        value: "a".to_string(),
+                        location: cols(9, 9)
+                    })),
+                    StringValue::Text(Box::new(StringText {
+                        value: "\u{AC}".to_string(),
+                        location: cols(10, 15)
+                    }))
+                ],
+                resolved_type: types::TypeRef::Unknown,
+                location: cols(8, 16)
             }))
         );
     }

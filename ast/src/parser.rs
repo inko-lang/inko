@@ -1736,10 +1736,15 @@ impl Parser {
 
                     return Ok(Expression::DoubleString(Box::new(string)));
                 }
-                TokenKind::StringText | TokenKind::UnicodeEscape => {
+                TokenKind::StringText => {
                     values.push(DoubleStringValue::Text(Box::new(
                         self.string_text(token),
                     )));
+                }
+                TokenKind::UnicodeEscape => {
+                    values.push(DoubleStringValue::Unicode(
+                        self.unicode_escape(token),
+                    ));
                 }
                 TokenKind::StringExprOpen => {
                     let value_token = self.require()?;
@@ -1778,10 +1783,7 @@ impl Parser {
         let mut value = start.value;
         let mut end_loc = start.location.clone();
 
-        while matches!(
-            self.peek().kind,
-            TokenKind::StringText | TokenKind::UnicodeEscape
-        ) {
+        while matches!(self.peek().kind, TokenKind::StringText) {
             let token = self.next();
 
             value += &token.value;
@@ -1791,6 +1793,10 @@ impl Parser {
         let location = SourceLocation::start_end(&start.location, &end_loc);
 
         StringText { value, location }
+    }
+
+    fn unicode_escape(&self, start: Token) -> Box<UnicodeEscape> {
+        Box::new(UnicodeEscape { value: start.value, location: start.location })
     }
 
     fn array_literal(
@@ -6153,10 +6159,20 @@ mod tests {
         assert_eq!(
             expr("\"foo\\u{AC}bar\""),
             Expression::DoubleString(Box::new(DoubleStringLiteral {
-                values: vec![DoubleStringValue::Text(Box::new(StringText {
-                    value: "foo\u{AC}bar".to_string(),
-                    location: location(1..=1, 2..=13)
-                })),],
+                values: vec![
+                    DoubleStringValue::Text(Box::new(StringText {
+                        value: "foo".to_string(),
+                        location: location(1..=1, 2..=4)
+                    })),
+                    DoubleStringValue::Unicode(Box::new(UnicodeEscape {
+                        value: "\u{AC}".to_string(),
+                        location: location(1..=1, 5..=10)
+                    })),
+                    DoubleStringValue::Text(Box::new(StringText {
+                        value: "bar".to_string(),
+                        location: location(1..=1, 11..=13)
+                    }))
+                ],
                 location: location(1..=1, 1..=14)
             }))
         );
@@ -6164,10 +6180,16 @@ mod tests {
         assert_eq!(
             expr("\"foo\\u{AC}\""),
             Expression::DoubleString(Box::new(DoubleStringLiteral {
-                values: vec![DoubleStringValue::Text(Box::new(StringText {
-                    value: "foo\u{AC}".to_string(),
-                    location: location(1..=1, 2..=10)
-                })),],
+                values: vec![
+                    DoubleStringValue::Text(Box::new(StringText {
+                        value: "foo".to_string(),
+                        location: location(1..=1, 2..=4)
+                    })),
+                    DoubleStringValue::Unicode(Box::new(UnicodeEscape {
+                        value: "\u{AC}".to_string(),
+                        location: location(1..=1, 5..=10)
+                    }))
+                ],
                 location: location(1..=1, 1..=11)
             }))
         );
@@ -6175,10 +6197,16 @@ mod tests {
         assert_eq!(
             expr("\"\\u{AC}bar\""),
             Expression::DoubleString(Box::new(DoubleStringLiteral {
-                values: vec![DoubleStringValue::Text(Box::new(StringText {
-                    value: "\u{AC}bar".to_string(),
-                    location: location(1..=1, 2..=10)
-                })),],
+                values: vec![
+                    DoubleStringValue::Unicode(Box::new(UnicodeEscape {
+                        value: "\u{AC}".to_string(),
+                        location: location(1..=1, 2..=7)
+                    })),
+                    DoubleStringValue::Text(Box::new(StringText {
+                        value: "bar".to_string(),
+                        location: location(1..=1, 8..=10)
+                    })),
+                ],
                 location: location(1..=1, 1..=11)
             }))
         );

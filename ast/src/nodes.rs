@@ -74,8 +74,15 @@ impl Node for StringExpression {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+pub struct UnicodeEscape {
+    pub value: String,
+    pub location: SourceLocation,
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub enum DoubleStringValue {
     Text(Box<StringText>),
+    Unicode(Box<UnicodeEscape>),
     Expression(Box<StringExpression>),
 }
 
