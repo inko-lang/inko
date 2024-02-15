@@ -158,10 +158,6 @@ fn pub tests(t: mut Tests) {
     t.equal(Path.new('foo').to_path, Path.new('foo'))
   }
 
-  t.test('Path.into_path') fn (t) {
-    t.equal(Path.new('foo').into_path, Path.new('foo'))
-  }
-
   t.test('Path.fmt') fn (t) {
     t.equal(fmt(Path.new('foo')), '"foo"')
   }

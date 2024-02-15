@@ -243,10 +243,6 @@ fn pub tests(t: mut Tests) {
     t.equal('foo.inko'.to_path, Path.new('foo.inko'))
   }
 
-  t.test('String.into_path') fn (t) {
-    t.equal('foo'.into_path, Path.new('foo'))
-  }
-
   t.test('String.escaped') fn (t) {
     t.equal('foo'.escaped, 'foo')
     t.equal('"foo"'.escaped, '\"foo\"')

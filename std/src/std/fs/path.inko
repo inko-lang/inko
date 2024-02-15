@@ -889,15 +889,6 @@ trait pub ToPath {
   fn pub to_path -> Path
 }
 
-# A type that can be moved into a `Path`
-#
-# `IntoPath` is useful when you want to accept any type that can be converted to
-# a `Path`, including a `Path` itself, but don't unnecessary allocations.
-trait pub IntoPath {
-  # Moves `self` into a `Path`.
-  fn pub move into_path -> Path
-}
-
 impl Equal[ref Path] for Path {
   # Returns `true` if `self` is equal to the given `Path`.
   #
@@ -968,12 +959,6 @@ impl Clone[Path] for Path {
 impl ToPath for Path {
   fn pub to_path -> Path {
     clone
-  }
-}
-
-impl IntoPath for Path {
-  fn pub move into_path -> Path {
-    self
   }
 }
 
