@@ -1194,6 +1194,7 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
         if dropper {
             self.call_dropper(before_id, value, location);
         } else {
+            self.block_mut(before_id).check_refs(value, location);
             self.block_mut(before_id).free(value, location);
         }
 

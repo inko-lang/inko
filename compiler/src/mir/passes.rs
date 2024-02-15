@@ -2300,7 +2300,7 @@ impl<'a> LowerMethod<'a> {
                 // The block to jump to for a Some.
                 self.block_mut(ok_block)
                     .get_field(ok_reg, reg, class, val_field, loc);
-                self.block_mut(ok_block).free(reg, loc);
+                self.block_mut(ok_block).drop_without_dropper(reg, loc);
                 self.block_mut(ok_block).goto(after_block, loc);
 
                 // The block to jump to for a None
@@ -2314,7 +2314,7 @@ impl<'a> LowerMethod<'a> {
                 );
                 self.current_block_mut()
                     .set_field(ret_reg, class, tag_field, err_tag, loc);
-                self.current_block_mut().free(reg, loc);
+                self.current_block_mut().drop_without_dropper(reg, loc);
 
                 self.drop_all_registers();
                 self.current_block_mut().return_value(ret_reg, loc);
@@ -2338,7 +2338,7 @@ impl<'a> LowerMethod<'a> {
                 // The block to jump to for an Ok.
                 self.block_mut(ok_block)
                     .get_field(ok_reg, reg, class, val_field, loc);
-                self.block_mut(ok_block).free(reg, loc);
+                self.block_mut(ok_block).drop_without_dropper(reg, loc);
                 self.block_mut(ok_block).goto(after_block, loc);
 
                 // The block to jump to for an Error.
@@ -2352,7 +2352,7 @@ impl<'a> LowerMethod<'a> {
                     .set_field(ret_reg, class, tag_field, err_tag, loc);
                 self.current_block_mut()
                     .set_field(ret_reg, class, val_field, err_val, loc);
-                self.current_block_mut().free(reg, loc);
+                self.current_block_mut().drop_without_dropper(reg, loc);
 
                 self.drop_all_registers();
                 self.current_block_mut().return_value(ret_reg, loc);

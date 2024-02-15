@@ -19,6 +19,10 @@ class enum Transition {
   case Split(Transition)
 }
 
+class Person {
+  let @name: String
+}
+
 fn pub tests(t: mut Tests) {
   # https://github.com/inko-lang/inko/issues/363
   t.test('match with OR patterns and a guard') fn (t) {
@@ -75,6 +79,17 @@ fn pub tests(t: mut Tests) {
     match 10 {
       case 5 -> nil
       case _ -> mut a
+    }
+  }
+
+  # This fails because `_b` still contains a ref to `a`, which would be invalid
+  # after the match expression.
+  t.panic('Destructuring an owned value with existing references') fn {
+    let a = Person { @name = 'Alice' }
+    let _b = ref a
+
+    match a {
+      case { @name = _ } -> nil
     }
   }
 }
