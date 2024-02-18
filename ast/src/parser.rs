@@ -866,13 +866,17 @@ impl Parser {
             self.optional_type_parameter_definitions()?
         };
         let arguments = self.optional_method_arguments(allow_variadic)?;
+        let variadic = arguments.as_ref().map_or(false, |v| v.variadic);
         let return_type = self.optional_return_type()?;
-        let body = if let MethodKind::Extern = kind {
-            None
-        } else {
+        let body = if (self.peek().kind == TokenKind::CurlyOpen
+            || kind != MethodKind::Extern)
+            && !variadic
+        {
             let token = self.expect(TokenKind::CurlyOpen)?;
 
             Some(self.expressions(token)?)
+        } else {
+            None
         };
 
         let location = SourceLocation::start_end(
@@ -4466,6 +4470,27 @@ mod tests {
         );
 
         assert_eq!(
+            top(parse("fn extern foo {}")),
+            TopLevelExpression::DefineMethod(Box::new(DefineMethod {
+                public: false,
+                operator: false,
+                kind: MethodKind::Extern,
+                name: Identifier {
+                    name: "foo".to_string(),
+                    location: cols(11, 13)
+                },
+                type_parameters: None,
+                arguments: None,
+                return_type: None,
+                body: Some(Expressions {
+                    values: Vec::new(),
+                    location: cols(15, 16)
+                }),
+                location: cols(1, 16),
+            }))
+        );
+
+        assert_eq!(
             top(parse("fn extern foo(...)")),
             TopLevelExpression::DefineMethod(Box::new(DefineMethod {
                 public: false,
@@ -4498,6 +4523,7 @@ mod tests {
         assert_error!("fn foo {", cols(8, 8));
         assert_error!("fn foo", cols(6, 6));
         assert_error!("fn extern foo[T](arg: T)", cols(14, 14));
+        assert_error!("fn extern foo(...) {}", cols(20, 20));
     }
 
     #[test]

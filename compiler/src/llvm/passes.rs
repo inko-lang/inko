@@ -2347,6 +2347,14 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
 
                 self.builder.store(reg_var, addr);
             }
+            Instruction::MethodPointer(ins) => {
+                let reg_var = self.variables[&ins.register];
+                let func_name = &self.names.methods[&ins.method];
+                let func = self.module.add_method(func_name, ins.method);
+                let ptr = func.as_global_value().as_pointer_value();
+
+                self.builder.store(reg_var, ptr);
+            }
             Instruction::SetField(ins) => {
                 let rec_var = self.variables[&ins.receiver];
                 let rec_typ = self.variable_types[&ins.receiver];

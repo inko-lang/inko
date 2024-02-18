@@ -2056,12 +2056,30 @@ pub enum MethodLookup {
     None,
 }
 
+/// The call convention of a method.
+#[derive(Copy, Clone)]
+pub enum CallConvention {
+    Inko,
+    C,
+}
+
+impl CallConvention {
+    pub fn new(c: bool) -> CallConvention {
+        if c {
+            CallConvention::C
+        } else {
+            CallConvention::Inko
+        }
+    }
+}
+
 /// A static or instance method.
 #[derive(Clone)]
 pub struct Method {
     module: ModuleId,
     name: String,
     kind: MethodKind,
+    call_convention: CallConvention,
     visibility: Visibility,
     type_parameters: IndexMap<String, TypeParameterId>,
     arguments: Arguments,
@@ -2101,11 +2119,18 @@ impl Method {
     ) -> MethodId {
         assert!(db.methods.len() < u32::MAX as usize);
 
+        let call_convention = if let MethodKind::Extern = kind {
+            CallConvention::C
+        } else {
+            CallConvention::Inko
+        };
+
         let id = db.methods.len();
         let method = Method {
             module,
             name,
             kind,
+            call_convention,
             visibility,
             type_parameters: IndexMap::new(),
             bounds: TypeBounds::new(),
@@ -2386,9 +2411,10 @@ impl MethodId {
     pub fn has_return_type(self, db: &Database) -> bool {
         let method = self.get(db);
 
-        match method.kind {
-            MethodKind::Extern => method.return_type != TypeRef::nil(),
-            _ => true,
+        if matches!(method.call_convention, CallConvention::C) {
+            method.return_type != TypeRef::nil()
+        } else {
+            true
         }
     }
 
@@ -2479,6 +2505,18 @@ impl MethodId {
     /// of the module the trait is defined in.
     pub fn source_file(self, db: &Database) -> PathBuf {
         self.source_module(db).file(db)
+    }
+
+    pub fn uses_c_calling_convention(self, db: &Database) -> bool {
+        matches!(self.get(db).call_convention, CallConvention::C)
+    }
+
+    pub fn use_c_calling_convention(self, db: &mut Database) {
+        self.get_mut(db).call_convention = CallConvention::C;
+    }
+
+    pub fn call_convention(self, db: &Database) -> CallConvention {
+        self.get(db).call_convention
     }
 
     fn get(self, db: &Database) -> &Method {

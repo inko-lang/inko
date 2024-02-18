@@ -3247,6 +3247,19 @@ impl<'a> CheckMethodBody<'a> {
         node: &mut hir::Mut,
         scope: &mut LexicalScope,
     ) -> TypeRef {
+        if let hir::Expression::IdentifierRef(n) = &mut node.value {
+            if let Some(m) = self.module.method(self.db(), &n.name) {
+                if m.uses_c_calling_convention(self.db()) {
+                    node.pointer_to_method = Some(m);
+                    node.resolved_type = TypeRef::pointer(TypeId::Foreign(
+                        types::ForeignType::Int(8, false),
+                    ));
+
+                    return node.resolved_type;
+                }
+            }
+        }
+
         let expr = self.expression(&mut node.value, scope);
 
         if !expr.allow_as_mut(self.db()) {

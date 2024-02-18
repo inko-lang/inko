@@ -1,0 +1,11 @@
+fn extern example -> Int {
+  42
+}
+
+fn foo {
+  let a = mut example
+
+  a.TEST
+}
+
+# pointer_to_method.inko:8:3 error(invalid-symbol): the method 'TEST' isn't defined for type 'Pointer[UInt8]'

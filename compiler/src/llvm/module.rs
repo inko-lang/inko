@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::path::Path;
 use types::module_name::ModuleName;
-use types::{ClassId, MethodId};
+use types::{CallConvention, ClassId, MethodId};
 
 /// A wrapper around an LLVM Module that provides some additional methods.
 pub(crate) struct Module<'a, 'ctx> {
@@ -105,6 +105,16 @@ impl<'a, 'ctx> Module<'a, 'ctx> {
         self.inner.get_function(name).unwrap_or_else(|| {
             let info = &self.layouts.methods[method.0 as usize];
             let func = self.inner.add_function(name, info.signature, None);
+            let conv = match info.call_convention {
+                // LLVM uses 0 for the C calling convention.
+                CallConvention::C => 0,
+
+                // For the time being the Inko calling convention is the same as
+                // the C calling convention, but this may change in the future.
+                CallConvention::Inko => 0,
+            };
+
+            func.set_call_conventions(conv);
 
             if let Some(typ) = info.struct_return {
                 let sret = self.context.type_attribute("sret", typ.into());

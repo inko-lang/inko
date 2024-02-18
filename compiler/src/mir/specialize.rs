@@ -446,6 +446,12 @@ impl<'a, 'b> Specialize<'a, 'b> {
                             .class_id(&self.state.db)
                             .unwrap();
                     }
+                    Instruction::MethodPointer(ins) => {
+                        let rec = ins.method.receiver(&self.state.db);
+                        let cls = rec.class_id(&self.state.db).unwrap();
+
+                        ins.method = self.call_static(cls, ins.method, None);
+                    }
                     Instruction::Cast(ins) => {
                         let from = method.registers.value_type(ins.source);
                         let to = method.registers.value_type(ins.register);

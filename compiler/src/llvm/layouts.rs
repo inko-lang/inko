@@ -7,7 +7,9 @@ use inkwell::types::{
     BasicMetadataTypeEnum, BasicType, FunctionType, StructType,
 };
 use inkwell::AddressSpace;
-use types::{BOOL_ID, BYTE_ARRAY_ID, FLOAT_ID, INT_ID, NIL_ID, STRING_ID};
+use types::{
+    CallConvention, BOOL_ID, BYTE_ARRAY_ID, FLOAT_ID, INT_ID, NIL_ID, STRING_ID,
+};
 
 /// The size of an object header.
 const HEADER_SIZE: u32 = 16;
@@ -15,6 +17,9 @@ const HEADER_SIZE: u32 = 16;
 #[derive(Copy, Clone)]
 pub(crate) struct Method<'ctx> {
     pub(crate) signature: FunctionType<'ctx>,
+
+    /// The calling convention to use for this method.
+    pub(crate) call_convention: CallConvention,
 
     /// If the function returns a structure on the stack, its type is stored
     /// here.
@@ -161,6 +166,7 @@ impl<'ctx> Layouts<'ctx> {
         // KiB.
         let num_methods = db.number_of_methods();
         let dummy_method = Method {
+            call_convention: CallConvention::Inko,
             signature: context.void_type().fn_type(&[], false),
             struct_return: None,
         };
@@ -273,8 +279,11 @@ impl<'ctx> Layouts<'ctx> {
                         context.void_type().fn_type(&args, false)
                     });
 
-                layouts.methods[method.0 as usize] =
-                    Method { signature, struct_return: None };
+                layouts.methods[method.0 as usize] = Method {
+                    call_convention: CallConvention::new(method.is_extern(db)),
+                    signature,
+                    struct_return: None,
+                };
             }
         }
 
@@ -318,8 +327,11 @@ impl<'ctx> Layouts<'ctx> {
                         })
                 };
 
-                layouts.methods[method.0 as usize] =
-                    Method { signature: typ, struct_return: None };
+                layouts.methods[method.0 as usize] = Method {
+                    call_convention: CallConvention::new(method.is_extern(db)),
+                    signature: typ,
+                    struct_return: None,
+                };
             }
         }
 
@@ -338,8 +350,11 @@ impl<'ctx> Layouts<'ctx> {
                 .map(|t| t.fn_type(&args, false))
                 .unwrap_or_else(|| context.void_type().fn_type(&args, false));
 
-            layouts.methods[method.0 as usize] =
-                Method { signature: typ, struct_return: None };
+            layouts.methods[method.0 as usize] = Method {
+                call_convention: CallConvention::new(method.is_extern(db)),
+                signature: typ,
+                struct_return: None,
+            };
         }
 
         for &method in &mir.extern_methods {
@@ -387,8 +402,11 @@ impl<'ctx> Layouts<'ctx> {
                     context.void_type().fn_type(&args, variadic)
                 });
 
-            layouts.methods[method.0 as usize] =
-                Method { signature: sig, struct_return: sret };
+            layouts.methods[method.0 as usize] = Method {
+                call_convention: CallConvention::C,
+                signature: sig,
+                struct_return: sret,
+            };
         }
 
         layouts

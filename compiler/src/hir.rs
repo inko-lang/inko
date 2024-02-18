@@ -224,6 +224,7 @@ pub(crate) struct DefineInstanceMethod {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct DefineModuleMethod {
     pub(crate) public: bool,
+    pub(crate) c_calling_convention: bool,
     pub(crate) name: Identifier,
     pub(crate) type_parameters: Vec<TypeParameter>,
     pub(crate) arguments: Vec<MethodArgument>,
@@ -846,6 +847,7 @@ pub(crate) struct Ref {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Mut {
+    pub(crate) pointer_to_method: Option<types::MethodId>,
     pub(crate) resolved_type: types::TypeRef,
     pub(crate) value: Expression,
     pub(crate) location: SourceLocation,
@@ -1133,7 +1135,9 @@ impl<'a> LowerToHir<'a> {
     ) -> TopLevelExpression {
         self.operator_method_not_allowed(node.operator, &node.location);
 
-        if let ast::MethodKind::Extern = node.kind {
+        let external = matches!(node.kind, ast::MethodKind::Extern);
+
+        if external && node.body.is_none() {
             TopLevelExpression::ExternFunction(Box::new(DefineExternFunction {
                 public: node.public,
                 name: self.identifier(node.name),
@@ -1146,6 +1150,7 @@ impl<'a> LowerToHir<'a> {
         } else {
             TopLevelExpression::ModuleMethod(Box::new(DefineModuleMethod {
                 public: node.public,
+                c_calling_convention: external,
                 name: self.identifier(node.name),
                 type_parameters: self
                     .optional_type_parameters(node.type_parameters),
@@ -2624,6 +2629,7 @@ impl<'a> LowerToHir<'a> {
 
     fn mut_reference(&mut self, node: ast::Mut) -> Box<Mut> {
         Box::new(Mut {
+            pointer_to_method: None,
             resolved_type: types::TypeRef::Unknown,
             value: self.expression(node.value),
             location: node.location,
@@ -3436,6 +3442,7 @@ mod tests {
             hir,
             TopLevelExpression::ModuleMethod(Box::new(DefineModuleMethod {
                 public: false,
+                c_calling_convention: false,
                 name: Identifier {
                     name: "foo".to_string(),
                     location: cols(4, 6)
@@ -3518,6 +3525,59 @@ mod tests {
                     location: cols(1, 13),
                 }
             )),
+        );
+    }
+
+    #[test]
+    fn test_lower_extern_method_with_body() {
+        let (hir, diags) = lower_top_expr("fn extern foo(a: A) -> B { 10 }");
+
+        assert_eq!(diags, 0);
+        assert_eq!(
+            hir,
+            TopLevelExpression::ModuleMethod(Box::new(DefineModuleMethod {
+                public: false,
+                c_calling_convention: true,
+                name: Identifier {
+                    name: "foo".to_string(),
+                    location: cols(11, 13)
+                },
+                type_parameters: Vec::new(),
+                arguments: vec![MethodArgument {
+                    name: Identifier {
+                        name: "a".to_string(),
+                        location: cols(15, 15)
+                    },
+                    value_type: Type::Named(Box::new(TypeName {
+                        source: None,
+                        resolved_type: types::TypeRef::Unknown,
+                        name: Constant {
+                            name: "A".to_string(),
+                            location: cols(18, 18)
+                        },
+                        arguments: Vec::new(),
+                        location: cols(18, 18)
+                    })),
+                    location: cols(15, 18)
+                }],
+                return_type: Some(Type::Named(Box::new(TypeName {
+                    source: None,
+                    resolved_type: types::TypeRef::Unknown,
+                    name: Constant {
+                        name: "B".to_string(),
+                        location: cols(24, 24)
+                    },
+                    arguments: Vec::new(),
+                    location: cols(24, 24)
+                }))),
+                body: vec![Expression::Int(Box::new(IntLiteral {
+                    value: 10,
+                    resolved_type: types::TypeRef::Unknown,
+                    location: cols(28, 29)
+                }))],
+                method_id: None,
+                location: cols(1, 31),
+            })),
         );
     }
 
@@ -5672,6 +5732,7 @@ mod tests {
         assert_eq!(
             hir,
             Expression::Mut(Box::new(Mut {
+                pointer_to_method: None,
                 resolved_type: types::TypeRef::Unknown,
                 value: Expression::Int(Box::new(IntLiteral {
                     value: 10,

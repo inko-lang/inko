@@ -414,6 +414,30 @@ variable. This means that if you use `mut object.field`, and `field` returns
 e.g. a structure, you create a pointer to that newly copied structure, not the
 original structure stored in `field`.
 
+### Pointers to methods
+
+If a module method is defined using the `extern` keyword, you can create a
+pointer to the method using `mut method_name`:
+
+```inko
+# This guarantees this method uses the C calling convention.
+fn extern example(value: Int) -> Int {
+  value
+}
+
+class async Main {
+  fn async main {
+    let pointer_to_method = mut example
+  }
+}
+```
+
+For this to work, you must leave out the arguments and parentheses in the `mut`
+expression, otherwise you get a reference or pointer to the _result_ of
+_calling_ the method. The use of the `extern` keyword for the method definition
+is required as this guarantees the use of the C calling convention, instead of
+Inko's calling convention (which may not necessarily be the same).
+
 ### Dereferencing
 
 Dereferencing a pointer is done by reading from and writing to the pseudo field

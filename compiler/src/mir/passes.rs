@@ -2442,7 +2442,13 @@ impl<'a> LowerMethod<'a> {
     }
 
     fn mut_expression(&mut self, node: hir::Mut) -> RegisterId {
-        if node.resolved_type.is_pointer(self.db()) {
+        if let Some(id) = node.pointer_to_method {
+            let loc = self.add_location(node.location);
+            let reg = self.new_register(node.resolved_type);
+
+            self.current_block_mut().method_pointer(reg, id, loc);
+            reg
+        } else if node.resolved_type.is_pointer(self.db()) {
             let loc = self.add_location(node.location);
             let val = self.expression(node.value);
             let reg = self.new_register(node.resolved_type);

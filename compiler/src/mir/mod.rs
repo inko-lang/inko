@@ -574,6 +574,17 @@ impl Block {
         )));
     }
 
+    pub(crate) fn method_pointer(
+        &mut self,
+        register: RegisterId,
+        method: types::MethodId,
+        location: LocationId,
+    ) {
+        self.instructions.push(Instruction::MethodPointer(Box::new(
+            MethodPointer { register, method, location },
+        )))
+    }
+
     pub(crate) fn read_pointer(
         &mut self,
         register: RegisterId,
@@ -1035,6 +1046,13 @@ pub(crate) struct Pointer {
     pub(crate) location: LocationId,
 }
 
+#[derive(Clone, Debug, Copy)]
+pub(crate) struct MethodPointer {
+    pub(crate) register: RegisterId,
+    pub(crate) method: types::MethodId,
+    pub(crate) location: LocationId,
+}
+
 #[derive(Clone)]
 pub(crate) struct FieldPointer {
     pub(crate) class: types::ClassId,
@@ -1103,6 +1121,7 @@ pub(crate) enum Instruction {
     ReadPointer(Box<ReadPointer>),
     WritePointer(Box<WritePointer>),
     FieldPointer(Box<FieldPointer>),
+    MethodPointer(Box<MethodPointer>),
 }
 
 impl Instruction {
@@ -1147,6 +1166,7 @@ impl Instruction {
             Instruction::ReadPointer(ref v) => v.location,
             Instruction::WritePointer(ref v) => v.location,
             Instruction::FieldPointer(ref v) => v.location,
+            Instruction::MethodPointer(ref v) => v.location,
         }
     }
 
@@ -1342,6 +1362,13 @@ impl Instruction {
                     v.register.0,
                     v.receiver.0,
                     v.field.name(db)
+                )
+            }
+            Instruction::MethodPointer(v) => {
+                format!(
+                    "r{} = method_pointer {}",
+                    v.register.0,
+                    method_name(db, v.method)
                 )
             }
         }

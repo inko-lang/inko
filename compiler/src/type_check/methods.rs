@@ -302,6 +302,10 @@ impl<'a> DefineModuleMethodNames<'a> {
             MethodKind::Static,
         );
 
+        if node.c_calling_convention {
+            method.use_c_calling_convention(self.db_mut());
+        }
+
         if self.module.symbol_exists(self.db(), name) {
             self.state.diagnostics.duplicate_symbol(
                 name,

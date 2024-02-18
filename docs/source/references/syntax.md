@@ -169,8 +169,8 @@ fn method_name {
 
 Signatures for C functions are defined using the `fn extern` syntax. These
 functions can't define any generic type parameters, can only be defined at the
-top-level of a module (i.e. not in a class), can't specify the `mut`
-keyword, and can't have a body. For example:
+top-level of a module (i.e. not in a class), and can't specify the `mut`
+keyword. For example:
 
 ```inko
 import extern "m"
@@ -183,6 +183,17 @@ Variadic functions are defined using `...` as the last argument:
 ```inko
 fn extern printf(format: Pointer[UInt8], ...) -> Int32
 ```
+
+If a body is given, the method is instead _defined_ instead of the compiler
+expecting it to be defined elsewhere:
+
+```inko
+fn extern example -> Int {
+  42
+}
+```
+
+In this case, variadic arguments are _not_ supported.
 
 ## Classes
 
