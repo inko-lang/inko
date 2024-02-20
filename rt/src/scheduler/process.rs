@@ -908,19 +908,12 @@ impl Scheduler {
         let _ = scope(move |s| {
             s.builder()
                 .name("proc monitor".to_string())
-                .spawn(move |_| {
-                    // Cores 0 and 1 are used for the timeout and network poller
-                    // threads. Since we may be running quite often we'll pin
-                    // this thread to a different core.
-                    pin_thread_to_core(2 % cores);
-                    Monitor::new(&self.pool).run()
-                })
+                .spawn(move |_| Monitor::new(&self.pool).run())
                 .unwrap();
 
             s.builder()
                 .name("epoch".to_string())
                 .spawn(move |_| {
-                    pin_thread_to_core(3 % cores);
                     epoch_loop(state);
                 })
                 .unwrap();

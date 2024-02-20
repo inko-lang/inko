@@ -18,7 +18,7 @@ use crate::config::Config;
 use crate::mem::ClassPointer;
 use crate::network_poller::Worker as NetworkPollerWorker;
 use crate::process::{NativeAsyncMethod, Process};
-use crate::scheduler::{pin_thread_to_core, reset_affinity};
+use crate::scheduler::reset_affinity;
 use crate::stack::total_stack_size;
 use crate::stack::Stack;
 use crate::state::{MethodCounts, RcState, State};
@@ -144,15 +144,11 @@ impl Runtime {
     /// though this thread itself doesn't run any processes (= it just
     /// waits/blocks until completion).
     fn start(&self, main_class: ClassPointer, main_method: NativeAsyncMethod) {
-        let cores = self.state.cores as usize;
         let state = self.state.clone();
 
         thread::Builder::new()
             .name("timeout".to_string())
-            .spawn(move || {
-                pin_thread_to_core(0);
-                state.timeout_worker.run(&state)
-            })
+            .spawn(move || state.timeout_worker.run(&state))
             .unwrap();
 
         for id in 0..self.state.network_pollers.len() {
@@ -160,10 +156,7 @@ impl Runtime {
 
             thread::Builder::new()
                 .name(format!("netpoll {}", id))
-                .spawn(move || {
-                    pin_thread_to_core(1 % cores);
-                    NetworkPollerWorker::new(id, state).run()
-                })
+                .spawn(move || NetworkPollerWorker::new(id, state).run())
                 .unwrap();
         }
 
