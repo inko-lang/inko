@@ -91,6 +91,42 @@ We moved away from this for the following reasons:
   as jemalloc, so we figured we may as well use an existing allocator and direct
   our attention elsewhere
 
+## Stacks
+
+Inko processes use fixed-size stacks created using `mmap()`. The default size is
+1 MiB, but this can be changed at runtime. The size is always rounded up to the
+nearest multiple of the page size. When allocating memory for a stack, the
+runtime allocates some additional space for a guard page and additional private
+data.
+
+Stack memory is only committed as needed. This means that if a process only
+needs 128 KiB of stack space, it only physically allocates 128 KiB; not the
+entire 1 MiB. On Linux, the virtual address space limit is 128 TiB, enough for
+134 217 728 Inko processes.
+
+The layout of each stack is as follows:
+
+```
+╭───────────────────╮
+│    Private page   │
+├───────────────────┤
+│     Guard page    │
+├───────────────────┤
+│                   │
+│     Stack data    │ ↑ Stack grows towards the guard
+│                   │
+╰───────────────────╯
+```
+
+Stack values are allocated into the "Stack data" region. The guard page protects
+against stack overflows. The private page contains data such as a pointer to the
+process that owns the stack. The entire block is aligned to its size. This makes
+it possible to get a pointer to the private page from the current stack pointer.
+
+When a process finishes, its stack is put back into a thread-local stack pool
+for future reuse. Threads periodically inspect the number of reusable stacks
+they have, and may release the memory back to the operating system if needed.
+
 ## Strings
 
 Strings are immutable, and need at least 41 bytes of space. To allow easy

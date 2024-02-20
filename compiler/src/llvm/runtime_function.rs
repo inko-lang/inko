@@ -22,6 +22,7 @@ pub(crate) enum RuntimeFunction {
     RuntimeState,
     StringConcat,
     StringNew,
+    RuntimeStackMask,
 }
 
 impl RuntimeFunction {
@@ -47,6 +48,7 @@ impl RuntimeFunction {
             RuntimeFunction::RuntimeState => "inko_runtime_state",
             RuntimeFunction::StringConcat => "inko_string_concat",
             RuntimeFunction::StringNew => "inko_string_new",
+            RuntimeFunction::RuntimeStackMask => "inko_runtime_stack_mask",
         }
     }
 
@@ -171,6 +173,12 @@ impl RuntimeFunction {
                 let ret = context.pointer_type();
 
                 ret.fn_type(&[state, bytes, length], false)
+            }
+            RuntimeFunction::RuntimeStackMask => {
+                let state = module.layouts.state.ptr_type(space).into();
+                let ret = context.i64_type();
+
+                ret.fn_type(&[state], false)
             }
         };
 

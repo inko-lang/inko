@@ -1,5 +1,5 @@
 use crate::memory_map::MemoryMap;
-use crate::page::page_size;
+use rustix::param::page_size;
 use std::collections::VecDeque;
 
 /// The age of a reusable stack after which we deem it too old to keep around.
@@ -14,6 +14,13 @@ const SHRINK_AGE: u16 = 10;
 /// The value here is arbitrary and mostly meant to avoid the shrinking overhead
 /// for cases where it's pretty much just a waste of time.
 const MIN_STACKS: usize = 4;
+
+pub(crate) fn total_stack_size(size: usize, page: usize) -> usize {
+    let total = page + page + size;
+
+    // Rounds up to the nearest multiple of the page size.
+    (total + (page - 1)) & !(page - 1)
+}
 
 /// A pool of `Stack` objects to reuse.
 ///
@@ -41,10 +48,12 @@ const MIN_STACKS: usize = 4;
 /// The amount of reusable stacks is reduced every now and then to prevent a
 /// pool from using excessive amounts of memory.
 pub(crate) struct StackPool {
-    /// The amount of bytes to allocate for every stack, excluding guard pages.
+    /// The size of memory pages.
     ///
-    /// The actual size used may be slightly larger depending on the OS' page
-    /// size.
+    /// We store and reuse this value to avoid the system call overhead.
+    page_size: usize,
+
+    /// The amount of bytes to allocate for every stack, excluding guard pages.
     size: usize,
 
     /// Any stacks that can be reused.
@@ -66,6 +75,7 @@ pub(crate) struct StackPool {
 impl StackPool {
     pub fn new(size: usize) -> Self {
         Self {
+            page_size: page_size(),
             size,
             stacks: VecDeque::new(),
             epoch: 0,
@@ -79,7 +89,7 @@ impl StackPool {
             self.epochs.pop_back();
             stack
         } else {
-            Stack::new(self.size)
+            Stack::new(self.size, self.page_size)
         }
     }
 
@@ -122,28 +132,51 @@ impl StackPool {
 ///
 /// A `Stack` represents a chunk of memory of a certain size that can be used
 /// as a process' stack memory. The exact implementation differs per platform.
+///
+/// The layout of the stack is as follows:
+///
+///     +--------------+
+///     | private page |
+///     +--------------+
+///     |  guard page  |
+///     +--------------+
+///     |              | ^
+///     |     stack    | | stack growth direction
+///     |              |
+///     +--------------+
+///
+/// The private page is used for storing data that generated code needs easy
+/// access to, such as a pointer to the currently running process.
+///
+/// The entire memory region is aligned to its size, such that for any function
+/// `stack pointer & -SIZE` produces an address that points to the start of the
+/// private page.
 #[repr(C)]
 pub struct Stack {
     mem: MemoryMap,
 }
 
 impl Stack {
-    pub(crate) fn new(size: usize) -> Self {
-        let page = page_size();
-        let mut mem = MemoryMap::new(page + size + page, true);
+    pub(crate) fn new(size: usize, page_size: usize) -> Self {
+        let size = total_stack_size(size, page_size);
+        let mut mem = MemoryMap::new(size, true);
 
-        // There's nothing we can do at runtime in response to the guard pages
+        // There's nothing we can do at runtime in response to the guard page
         // not being set up, so we just terminate if this ever happens.
-        mem.protect(0).and_then(|_| mem.protect(mem.len - page)).expect(
-            "Failed to set up the stack's guard pages. \
+        mem.protect(page_size, page_size).expect(
+            "Failed to set up the stack's guard page. \
             You may need to increase the number of memory map areas allowed",
         );
 
         Self { mem }
     }
 
+    pub(crate) fn private_data_pointer(&self) -> *mut u8 {
+        self.mem.ptr
+    }
+
     pub(crate) fn stack_pointer(&self) -> *mut u8 {
-        unsafe { self.mem.ptr.add(self.mem.len - page_size()) }
+        unsafe { self.mem.ptr.add(self.mem.len) }
     }
 }
 
@@ -174,8 +207,8 @@ mod tests {
         assert!(pool.stacks.is_empty());
         assert!(pool.epochs.is_empty());
 
-        pool.add(Stack::new(size));
-        pool.add(Stack::new(size));
+        pool.add(Stack::new(size, page_size()));
+        pool.add(Stack::new(size, page_size()));
         pool.alloc();
         pool.alloc();
 
@@ -189,18 +222,18 @@ mod tests {
 
         pool.epoch = 14;
 
-        pool.add(Stack::new(size));
-        pool.add(Stack::new(size));
+        pool.add(Stack::new(size, page_size()));
+        pool.add(Stack::new(size, page_size()));
         pool.epochs[0] = 1;
         pool.epochs[1] = 2;
 
         // Not enough stacks, so no shrinking is performed.
         pool.shrink();
 
-        pool.add(Stack::new(size));
-        pool.add(Stack::new(size));
-        pool.add(Stack::new(size));
-        pool.add(Stack::new(size));
+        pool.add(Stack::new(size, page_size()));
+        pool.add(Stack::new(size, page_size()));
+        pool.add(Stack::new(size, page_size()));
+        pool.add(Stack::new(size, page_size()));
 
         pool.epochs[2] = 3;
         pool.epochs[3] = 4;

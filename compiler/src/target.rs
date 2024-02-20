@@ -239,6 +239,13 @@ impl Target {
         // this time.
         128
     }
+
+    pub(crate) fn stack_pointer_register_name(&self) -> &str {
+        match self.arch {
+            Architecture::Amd64 => "rsp",
+            Architecture::Arm64 => "sp",
+        }
+    }
 }
 
 impl fmt::Display for Target {

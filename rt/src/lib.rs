@@ -11,7 +11,6 @@ pub mod context;
 pub mod mem;
 pub mod memory_map;
 pub mod network_poller;
-pub mod page;
 pub mod process;
 pub mod result;
 pub mod runtime;

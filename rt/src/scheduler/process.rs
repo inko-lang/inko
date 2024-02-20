@@ -504,12 +504,10 @@ impl Thread {
                 }
                 Task::Start(func, args) => {
                     process.resume(state, self);
-                    unsafe { context::start(state, process, func, args) }
+                    unsafe { context::start(process, func, args) }
                 }
                 Task::Wait => return,
             }
-
-            process.unset_thread();
         }
 
         match self.action.take() {
@@ -967,9 +965,10 @@ mod tests {
 
     unsafe extern "system" fn method(ctx: *mut u8) {
         let ctx = &mut *(ctx as *mut Context);
+        let mut proc = *(ctx.arguments as *mut ProcessPointer);
 
-        ctx.process.thread().action = Action::Terminate;
-        context::switch(ctx.process);
+        proc.thread().action = Action::Terminate;
+        context::switch(proc);
     }
 
     #[test]

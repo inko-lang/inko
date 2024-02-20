@@ -3,10 +3,10 @@ use crate::llvm::builder::Builder;
 use crate::llvm::constants::{
     ARRAY_BUF_INDEX, ARRAY_CAPA_INDEX, ARRAY_LENGTH_INDEX,
     CLASS_METHODS_COUNT_INDEX, CLASS_METHODS_INDEX, CLOSURE_CALL_INDEX,
-    CONTEXT_ARGS_INDEX, CONTEXT_PROCESS_INDEX, CONTEXT_STATE_INDEX,
-    DROPPER_INDEX, FIELD_OFFSET, HEADER_CLASS_INDEX, HEADER_REFS_INDEX,
-    MESSAGE_ARGUMENTS_INDEX, METHOD_FUNCTION_INDEX, METHOD_HASH_INDEX,
-    PROCESS_EPOCH_OFFSET, PROCESS_FIELD_OFFSET, STATE_EPOCH_OFFSET,
+    CONTEXT_ARGS_INDEX, DROPPER_INDEX, FIELD_OFFSET, HEADER_CLASS_INDEX,
+    HEADER_REFS_INDEX, MESSAGE_ARGUMENTS_INDEX, METHOD_FUNCTION_INDEX,
+    METHOD_HASH_INDEX, PROCESS_FIELD_OFFSET, STACK_DATA_PROCESS_INDEX,
+    STATE_EPOCH_INDEX,
 };
 use crate::llvm::context::Context;
 use crate::llvm::layouts::Layouts;
@@ -18,7 +18,9 @@ use crate::mir::{
     Module as MirModule, RegisterId,
 };
 use crate::state::State;
-use crate::symbol_names::{shapes, SymbolNames};
+use crate::symbol_names::{
+    shapes, SymbolNames, STACK_MASK_GLOBAL, STATE_GLOBAL,
+};
 use crate::target::Architecture;
 use blake3::{hash, Hasher};
 use inkwell::basic_block::BasicBlock;
@@ -49,6 +51,8 @@ use types::{
     BuiltinFunction, ClassId, Database, Module as ModuleType, Shape, TypeRef,
     BYTE_ARRAY_ID, STRING_ID,
 };
+
+use super::constants::STACK_DATA_EPOCH_INDEX;
 
 fn object_path(directories: &BuildDirectories, name: &ModuleName) -> PathBuf {
     let hash = hash(name.as_str().as_bytes()).to_string();
@@ -560,7 +564,7 @@ impl<'a> Worker<'a> {
         let mut module = Module::new(context, layouts, name.clone(), &path);
 
         LowerModule {
-            db: &self.shared.state.db,
+            state: self.shared.state,
             mir: self.shared.mir,
             index,
             names: self.shared.names,
@@ -665,7 +669,7 @@ impl<'a> Worker<'a> {
 
 /// A pass that lowers a single Inko module into an LLVM module.
 pub(crate) struct LowerModule<'a, 'b, 'mir, 'ctx> {
-    db: &'a Database,
+    state: &'a State,
     mir: &'mir Mir,
     index: usize,
     layouts: &'ctx Layouts<'ctx>,
@@ -678,7 +682,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerModule<'a, 'b, 'mir, 'ctx> {
     pub(crate) fn run(mut self) {
         for method in &self.mir.modules[self.index].methods {
             LowerMethod::new(
-                self.db,
+                self.state,
                 self.mir,
                 self.layouts,
                 self.methods,
@@ -704,11 +708,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerModule<'a, 'b, 'mir, 'ctx> {
 
         builder.switch_to_block(entry_block);
 
-        let state_var =
-            builder.new_temporary(self.layouts.state.ptr_type(space));
-
-        builder.store(state_var, fn_val.get_nth_param(0).unwrap());
-
+        let state = self.load_state(&builder);
         let body = self.module.context.append_basic_block(fn_val);
 
         builder.jump(body);
@@ -717,7 +717,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerModule<'a, 'b, 'mir, 'ctx> {
         // Allocate all classes defined in this module, and store them in their
         // corresponding globals.
         for &class_id in &self.mir.modules[self.index].classes {
-            let raw_name = class_id.name(self.db);
+            let raw_name = class_id.name(&self.state.db);
             let name_ptr = builder.string_literal(raw_name).0.into();
             let methods_len = self
                 .module
@@ -726,7 +726,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerModule<'a, 'b, 'mir, 'ctx> {
                 .const_int(self.methods.counts[class_id.0 as usize] as _, false)
                 .into();
 
-            let class_new = if class_id.kind(self.db).is_async() {
+            let class_new = if class_id.kind(&self.state.db).is_async() {
                 self.module.runtime_function(RuntimeFunction::ClassProcess)
             } else {
                 self.module.runtime_function(RuntimeFunction::ClassObject)
@@ -741,8 +741,6 @@ impl<'a, 'b, 'mir, 'ctx> LowerModule<'a, 'b, 'mir, 'ctx> {
             global.set_initializer(
                 &layout.ptr_type(space).const_null().as_basic_value_enum(),
             );
-
-            let state = builder.load_pointer(self.layouts.state, state_var);
 
             // Built-in classes are defined in the runtime library, so we should
             // look them up instead of creating a new one.
@@ -771,7 +769,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerModule<'a, 'b, 'mir, 'ctx> {
             for method in &self.mir.classes[&class_id].methods {
                 // Static methods aren't stored in classes, nor can we call them
                 // through dynamic dispatch, so we can skip the rest.
-                if method.is_static(self.db) {
+                if method.is_static(&self.state.db) {
                     continue;
                 }
 
@@ -814,7 +812,6 @@ impl<'a, 'b, 'mir, 'ctx> LowerModule<'a, 'b, 'mir, 'ctx> {
 
     fn setup_constants(&mut self) {
         let mod_id = self.mir.modules[self.index].id;
-        let space = AddressSpace::default();
         let fn_name = &self.names.setup_constants[&mod_id];
         let fn_val = self.module.add_setup_function(fn_name);
         let builder = Builder::new(self.module.context, fn_val);
@@ -822,11 +819,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerModule<'a, 'b, 'mir, 'ctx> {
 
         builder.switch_to_block(entry_block);
 
-        let state_var =
-            builder.new_temporary(self.layouts.state.ptr_type(space));
-
-        builder.store(state_var, fn_val.get_nth_param(0).unwrap());
-
+        let state = self.load_state(&builder);
         let body = self.module.context.append_basic_block(fn_val);
 
         builder.jump(body);
@@ -845,7 +838,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerModule<'a, 'b, 'mir, 'ctx> {
                     .const_null()
                     .as_basic_value_enum(),
             );
-            self.set_constant_global(&builder, state_var, value, global);
+            self.set_constant_global(&builder, state, value, global);
         }
 
         // We sort this list so different compilations always produce this list
@@ -857,7 +850,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerModule<'a, 'b, 'mir, 'ctx> {
 
         for (value, global) in strings {
             let ptr = global.as_pointer_value();
-            let val = self.new_string(&builder, state_var, value);
+            let val = self.new_string(&builder, state, value);
 
             builder.store(ptr, val);
         }
@@ -868,12 +861,12 @@ impl<'a, 'b, 'mir, 'ctx> LowerModule<'a, 'b, 'mir, 'ctx> {
     fn set_constant_global(
         &mut self,
         builder: &Builder<'ctx>,
-        state_var: PointerValue<'ctx>,
+        state: PointerValue<'ctx>,
         constant: &Constant,
         global: GlobalValue<'ctx>,
     ) -> PointerValue<'ctx> {
         let global = global.as_pointer_value();
-        let value = self.permanent_value(builder, state_var, constant);
+        let value = self.permanent_value(builder, state, constant);
 
         builder.store(global, value);
         global
@@ -882,7 +875,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerModule<'a, 'b, 'mir, 'ctx> {
     fn permanent_value(
         &mut self,
         builder: &Builder<'ctx>,
-        state_var: PointerValue<'ctx>,
+        state: PointerValue<'ctx>,
         constant: &Constant,
     ) -> BasicValueEnum<'ctx> {
         match constant {
@@ -892,7 +885,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerModule<'a, 'b, 'mir, 'ctx> {
             Constant::Float(val) => {
                 builder.f64_literal(*val).as_basic_value_enum()
             }
-            Constant::String(val) => self.new_string(builder, state_var, val),
+            Constant::String(val) => self.new_string(builder, state, val),
             Constant::Bool(true) => {
                 builder.i64_literal(1).as_basic_value_enum()
             }
@@ -923,8 +916,8 @@ impl<'a, 'b, 'mir, 'ctx> LowerModule<'a, 'b, 'mir, 'ctx> {
                     ),
                 };
 
-                let class_id =
-                    ClassId::array().specializations(self.db)[&vec![shape]];
+                let class_id = ClassId::array().specializations(&self.state.db)
+                    [&vec![shape]];
 
                 let layout = self.layouts.instances[class_id.0 as usize];
                 let class_name = &self.names.classes[&class_id];
@@ -956,7 +949,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerModule<'a, 'b, 'mir, 'ctx> {
                 );
 
                 for (index, arg) in values.iter().enumerate() {
-                    let val = self.permanent_value(builder, state_var, arg);
+                    let val = self.permanent_value(builder, state, arg);
 
                     builder
                         .store_array_field(buf_typ, buf_ptr, index as _, val);
@@ -975,10 +968,9 @@ impl<'a, 'b, 'mir, 'ctx> LowerModule<'a, 'b, 'mir, 'ctx> {
     fn new_string(
         &self,
         builder: &Builder<'ctx>,
-        state_var: PointerValue<'ctx>,
+        state: PointerValue<'ctx>,
         value: &String,
     ) -> BasicValueEnum<'ctx> {
-        let state = builder.load_pointer(self.layouts.state, state_var);
         let bytes_typ = builder.context.i8_type().array_type(value.len() as _);
         let bytes_var = builder.new_temporary(bytes_typ);
         let bytes = builder.string_bytes(value);
@@ -990,11 +982,18 @@ impl<'a, 'b, 'mir, 'ctx> LowerModule<'a, 'b, 'mir, 'ctx> {
 
         builder.call(func, &[state.into(), bytes_var.into(), len])
     }
+
+    fn load_state(&mut self, builder: &Builder<'ctx>) -> PointerValue<'ctx> {
+        let state_global = self.module.add_constant(STATE_GLOBAL);
+
+        builder
+            .load_pointer(self.layouts.state, state_global.as_pointer_value())
+    }
 }
 
 /// A pass that lowers a single Inko method into an LLVM method.
 pub struct LowerMethod<'a, 'b, 'mir, 'ctx> {
-    db: &'a Database,
+    state: &'a State,
     mir: &'mir Mir,
     layouts: &'ctx Layouts<'ctx>,
     methods: &'a Methods,
@@ -1022,7 +1021,7 @@ pub struct LowerMethod<'a, 'b, 'mir, 'ctx> {
 
 impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
     fn new(
-        db: &'a Database,
+        state: &'a State,
         mir: &'mir Mir,
         layouts: &'ctx Layouts<'ctx>,
         methods: &'a Methods,
@@ -1034,7 +1033,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
         let builder = Builder::new(module.context, function);
 
         LowerMethod {
-            db,
+            state,
             mir,
             layouts,
             methods,
@@ -1048,7 +1047,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
     }
 
     fn run(&mut self) {
-        if self.method.id.is_async(self.db) {
+        if self.method.id.is_async(&self.state.db) {
             self.async_method();
         } else {
             self.regular_method();
@@ -1059,37 +1058,26 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
         let entry_block = self.builder.add_block();
 
         self.builder.switch_to_block(entry_block);
-
-        let space = AddressSpace::default();
-        let state_var =
-            self.builder.new_stack_slot(self.layouts.state.ptr_type(space));
-        let proc_var =
-            self.builder.new_stack_slot(self.builder.context.pointer_type());
-
-        // Build the stores for all the arguments, including the generated ones.
-        self.builder.store(state_var, self.builder.argument(0));
-        self.builder.store(proc_var, self.builder.argument(1));
-
         self.define_register_variables();
 
         for (arg, reg) in
-            self.builder.arguments().skip(2).zip(self.method.arguments.iter())
+            self.builder.arguments().zip(self.method.arguments.iter())
         {
             self.builder.store(self.variables[reg], arg);
         }
 
         let (line, _) = self.mir.location(self.method.location).line_column();
         let debug_func = self.module.debug_builder.new_function(
-            self.method.id.name(self.db),
+            self.method.id.name(&self.state.db),
             &self.names.methods[&self.method.id],
-            &self.method.id.source_file(self.db),
+            &self.method.id.source_file(&self.state.db),
             line,
-            self.method.id.is_private(self.db),
+            self.method.id.is_private(&self.state.db),
             false,
         );
 
         self.builder.set_debug_function(debug_func);
-        self.method_body(state_var, proc_var);
+        self.method_body();
     }
 
     fn async_method(&mut self) {
@@ -1098,10 +1086,6 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
         self.builder.switch_to_block(entry_block);
 
         let space = AddressSpace::default();
-        let state_typ = self.layouts.state.ptr_type(space);
-        let state_var = self.builder.new_stack_slot(state_typ);
-        let proc_var =
-            self.builder.new_stack_slot(self.builder.context.pointer_type());
         let num_args = self.method.arguments.len() as u32;
         let args_type =
             self.builder.context.pointer_type().array_type(num_args);
@@ -1116,24 +1100,6 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
         self.builder.store(ctx_var, self.builder.argument(0));
 
         let ctx = self.builder.load_pointer(self.layouts.context, ctx_var);
-
-        self.builder.store(
-            state_var,
-            self.builder.load_field(
-                self.layouts.context,
-                ctx,
-                CONTEXT_STATE_INDEX,
-            ),
-        );
-        self.builder.store(
-            proc_var,
-            self.builder.load_field(
-                self.layouts.context,
-                ctx,
-                CONTEXT_PROCESS_INDEX,
-            ),
-        );
-
         let args = self
             .builder
             .load_field(self.layouts.context, ctx, CONTEXT_ARGS_INDEX)
@@ -1142,14 +1108,11 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
         self.builder.store(args_var, args);
 
         // For async methods we don't include the receiver in the message, as
-        // this is redundant, and keeps message sizes as compact as possible.
-        // Instead, we load the receiver from the context.
+        // we can instead just read the process from the private stack data.
         let self_var = self.variables[&self.method.arguments[0]];
+        let proc = self.load_process();
 
-        self.builder.store(
-            self_var,
-            self.builder.load(self.builder.context.pointer_type(), proc_var),
-        );
+        self.builder.store(self_var, proc);
 
         // Populate the argument stack variables according to the values stored
         // in the context structure.
@@ -1166,23 +1129,19 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
 
         let (line, _) = self.mir.location(self.method.location).line_column();
         let debug_func = self.module.debug_builder.new_function(
-            self.method.id.name(self.db),
+            self.method.id.name(&self.state.db),
             &self.names.methods[&self.method.id],
-            &self.method.id.source_file(self.db),
+            &self.method.id.source_file(&self.state.db),
             line,
-            self.method.id.is_private(self.db),
+            self.method.id.is_private(&self.state.db),
             false,
         );
 
         self.builder.set_debug_function(debug_func);
-        self.method_body(state_var, proc_var);
+        self.method_body();
     }
 
-    fn method_body(
-        &mut self,
-        state_var: PointerValue<'ctx>,
-        proc_var: PointerValue<'ctx>,
-    ) {
+    fn method_body(&mut self) {
         let mut queue = VecDeque::new();
         let mut visited = HashSet::new();
         let mut llvm_blocks = Vec::with_capacity(self.method.body.blocks.len());
@@ -1203,7 +1162,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
             self.builder.switch_to_block(llvm_block);
 
             for ins in &mir_block.instructions {
-                self.instruction(&llvm_blocks, state_var, proc_var, ins);
+                self.instruction(&llvm_blocks, ins);
             }
 
             for &child in &mir_block.successors {
@@ -1214,13 +1173,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
         }
     }
 
-    fn instruction(
-        &mut self,
-        all_blocks: &[BasicBlock],
-        state_var: PointerValue<'ctx>,
-        proc_var: PointerValue<'ctx>,
-        ins: &Instruction,
-    ) {
+    fn instruction(&mut self, all_blocks: &[BasicBlock], ins: &Instruction) {
         match ins {
             Instruction::CallBuiltin(ins) => {
                 self.set_debug_location(ins.location);
@@ -1721,14 +1674,12 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
                     }
                     BuiltinFunction::Panic => {
                         let val_var = self.variables[&ins.arguments[0]];
-                        let proc =
-                            self.builder.load_untyped_pointer(proc_var).into();
-                        let val =
-                            self.builder.load_untyped_pointer(val_var).into();
+                        let val = self.builder.load_untyped_pointer(val_var);
                         let func_name = RuntimeFunction::ProcessPanic;
                         let func = self.module.runtime_function(func_name);
+                        let proc = self.load_process().into();
 
-                        self.builder.call_void(func, &[proc, val]);
+                        self.builder.call_void(func, &[proc, val.into()]);
                         self.builder.unreachable();
                     }
                     BuiltinFunction::StringConcat => {
@@ -1752,31 +1703,27 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
                             );
                         }
 
-                        let state = self
-                            .builder
-                            .load_pointer(self.layouts.state, state_var)
-                            .into();
+                        let state = self.load_state();
                         let func_name = RuntimeFunction::StringConcat;
                         let func = self.module.runtime_function(func_name);
-                        let res = self
-                            .builder
-                            .call(func, &[state, temp_var.into(), len.into()]);
+                        let res = self.builder.call(
+                            func,
+                            &[state.into(), temp_var.into(), len.into()],
+                        );
 
                         self.builder.store(reg_var, res);
                     }
                     BuiltinFunction::State => {
                         let reg_var = self.variables[&ins.register];
-                        let typ = self.layouts.state;
-                        let state = self.builder.load_pointer(typ, state_var);
+                        let state = self.load_state();
 
                         self.builder.store(reg_var, state);
                     }
                     BuiltinFunction::Process => {
                         let reg_var = self.variables[&ins.register];
-                        let typ = self.layouts.state;
-                        let state = self.builder.load_pointer(typ, proc_var);
+                        let proc = self.load_process();
 
-                        self.builder.store(reg_var, state);
+                        self.builder.store(reg_var, proc);
                     }
                     BuiltinFunction::Moved => unreachable!(),
                 }
@@ -1864,7 +1811,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
             Instruction::CallExtern(ins) => {
                 self.set_debug_location(ins.location);
 
-                let func_name = ins.method.name(self.db);
+                let func_name = ins.method.name(&self.state.db);
                 let func = self.module.add_method(func_name, ins.method);
                 let mut args: Vec<BasicMetadataValueEnum> =
                     Vec::with_capacity(ins.arguments.len() + 1);
@@ -1900,7 +1847,8 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
                         self.builder.store(ret, self.builder.load(typ, temp));
                     }
 
-                    if self.register_type(ins.register).is_never(self.db) {
+                    if self.register_type(ins.register).is_never(&self.state.db)
+                    {
                         self.builder.unreachable();
                     }
                 }
@@ -1910,12 +1858,8 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
 
                 let func_name = &self.names.methods[&ins.method];
                 let func = self.module.add_method(func_name, ins.method);
-                let mut args: Vec<BasicMetadataValueEnum> = vec![
-                    self.builder
-                        .load_pointer(self.layouts.state, state_var)
-                        .into(),
-                    self.builder.load_untyped_pointer(proc_var).into(),
-                ];
+                let mut args: Vec<BasicMetadataValueEnum> =
+                    Vec::with_capacity(ins.arguments.len());
 
                 for reg in &ins.arguments {
                     let var = self.variables[reg];
@@ -1933,13 +1877,8 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
                 let rec_typ = self.variable_types[&ins.receiver];
                 let func_name = &self.names.methods[&ins.method];
                 let func = self.module.add_method(func_name, ins.method);
-                let mut args: Vec<BasicMetadataValueEnum> = vec![
-                    self.builder
-                        .load_pointer(self.layouts.state, state_var)
-                        .into(),
-                    self.builder.load_untyped_pointer(proc_var).into(),
-                    self.builder.load(rec_typ, rec_var).into(),
-                ];
+                let mut args: Vec<BasicMetadataValueEnum> =
+                    vec![self.builder.load(rec_typ, rec_var).into()];
 
                 for reg in &ins.arguments {
                     let typ = self.variable_types[reg];
@@ -2058,13 +1997,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
                     self.builder.extract_field(method, METHOD_FUNCTION_INDEX),
                 );
 
-                let mut args: Vec<BasicMetadataValueEnum> = vec![
-                    self.builder
-                        .load_pointer(self.layouts.state, state_var)
-                        .into(),
-                    self.builder.load_untyped_pointer(proc_var).into(),
-                    rec.into(),
-                ];
+                let mut args: Vec<BasicMetadataValueEnum> = vec![rec.into()];
 
                 for reg in &ins.arguments {
                     let typ = self.variable_types[reg];
@@ -2083,15 +2016,12 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
 
                 let rec_var = self.variables[&ins.receiver];
                 let rec_typ = self.variable_types[&ins.receiver];
-                let space = AddressSpace::default();
 
                 // For closures we generate the signature on the fly, as the
                 // method for `call` isn't always clearly defined: for an
                 // argument typed as a closure, we don't know what the actual
                 // method is, thus we can't retrieve an existing signature.
                 let mut sig_args: Vec<BasicMetadataTypeEnum> = vec![
-                    self.layouts.state.ptr_type(space).into(), // State
-                    self.builder.context.pointer_type().into(), // Process
                     self.builder.context.pointer_type().into(), // Closure
                 ];
 
@@ -2110,13 +2040,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
                     )
                     .into_pointer_value();
 
-                let mut args: Vec<BasicMetadataValueEnum> = vec![
-                    self.builder
-                        .load_pointer(self.layouts.state, state_var)
-                        .into(),
-                    self.builder.load_untyped_pointer(proc_var).into(),
-                    rec.into(),
-                ];
+                let mut args: Vec<BasicMetadataValueEnum> = vec![rec.into()];
 
                 for reg in &ins.arguments {
                     let typ = self.variable_types[reg];
@@ -2156,10 +2080,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
 
                 let rec_var = self.variables[&ins.receiver];
                 let rec_typ = self.variable_types[&ins.receiver];
-                let space = AddressSpace::default();
                 let sig_args: Vec<BasicMetadataTypeEnum> = vec![
-                    self.layouts.state.ptr_type(space).into(), // State
-                    self.builder.context.pointer_type().into(), // Process
                     self.builder.context.pointer_type().into(), // Receiver
                 ];
 
@@ -2173,11 +2094,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
                     )
                     .into_pointer_value();
 
-                let state =
-                    self.builder.load_pointer(self.layouts.state, state_var);
-                let proc = self.builder.load_untyped_pointer(proc_var);
-                let args: Vec<BasicMetadataValueEnum> =
-                    vec![state.into(), proc.into(), rec.into()];
+                let args: Vec<BasicMetadataValueEnum> = vec![rec.into()];
 
                 let slot = self.builder.u32_literal(DROPPER_INDEX);
                 let method_addr = self.builder.array_field_index_address(
@@ -2246,27 +2163,23 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
                     self.builder.store(addr, val);
                 }
 
-                let state = self
-                    .builder
-                    .load_pointer(self.layouts.state, state_var)
-                    .into();
-
-                let sender = self.builder.load_untyped_pointer(proc_var).into();
+                let state = self.load_state();
+                let sender = self.load_process().into();
                 let rec = self.builder.load(rec_typ, rec_var).into();
 
                 self.builder.call_void(
                     send_message,
-                    &[state, sender, rec, message.into()],
+                    &[state.into(), sender, rec, message.into()],
                 );
             }
             Instruction::GetField(ins)
-                if ins.class.kind(self.db).is_extern() =>
+                if ins.class.kind(&self.state.db).is_extern() =>
             {
                 let reg_var = self.variables[&ins.register];
                 let rec_var = self.variables[&ins.receiver];
                 let rec_typ = self.variable_types[&ins.receiver];
                 let layout = self.layouts.instances[ins.class.0 as usize];
-                let index = ins.field.index(self.db) as u32;
+                let index = ins.field.index(&self.state.db) as u32;
                 let field = if rec_typ.is_pointer_type() {
                     let rec = self
                         .builder
@@ -2284,13 +2197,13 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
                 self.builder.store(reg_var, field);
             }
             Instruction::SetField(ins)
-                if ins.class.kind(self.db).is_extern() =>
+                if ins.class.kind(&self.state.db).is_extern() =>
             {
                 let rec_var = self.variables[&ins.receiver];
                 let rec_typ = self.variable_types[&ins.receiver];
                 let val_var = self.variables[&ins.value];
                 let layout = self.layouts.instances[ins.class.0 as usize];
-                let index = ins.field.index(self.db) as u32;
+                let index = ins.field.index(&self.state.db) as u32;
                 let val_typ = self.variable_types[&ins.value];
                 let val = self.builder.load(val_typ, val_var);
 
@@ -2309,13 +2222,13 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
                 let reg_var = self.variables[&ins.register];
                 let rec_var = self.variables[&ins.receiver];
                 let rec_typ = self.variable_types[&ins.receiver];
-                let base = if ins.class.kind(self.db).is_async() {
+                let base = if ins.class.kind(&self.state.db).is_async() {
                     PROCESS_FIELD_OFFSET
                 } else {
                     FIELD_OFFSET
                 };
 
-                let index = (base + ins.field.index(self.db)) as u32;
+                let index = (base + ins.field.index(&self.state.db)) as u32;
                 let layout = self.layouts.instances[ins.class.0 as usize];
                 let rec = self.builder.load(rec_typ, rec_var);
                 let field = self.builder.load_field(
@@ -2330,13 +2243,13 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
                 let reg_var = self.variables[&ins.register];
                 let rec_var = self.variables[&ins.receiver];
                 let rec_typ = self.variable_types[&ins.receiver];
-                let base = if ins.class.kind(self.db).is_async() {
+                let base = if ins.class.kind(&self.state.db).is_async() {
                     PROCESS_FIELD_OFFSET
                 } else {
                     FIELD_OFFSET
                 };
 
-                let index = (base + ins.field.index(self.db)) as u32;
+                let index = (base + ins.field.index(&self.state.db)) as u32;
                 let layout = self.layouts.instances[ins.class.0 as usize];
                 let rec = self.builder.load(rec_typ, rec_var);
                 let addr = self.builder.field_address(
@@ -2360,13 +2273,13 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
                 let rec_typ = self.variable_types[&ins.receiver];
                 let val_var = self.variables[&ins.value];
                 let val_typ = self.variable_types[&ins.value];
-                let base = if ins.class.kind(self.db).is_async() {
+                let base = if ins.class.kind(&self.state.db).is_async() {
                     PROCESS_FIELD_OFFSET
                 } else {
                     FIELD_OFFSET
                 };
 
-                let index = (base + ins.field.index(self.db)) as u32;
+                let index = (base + ins.field.index(&self.state.db)) as u32;
                 let val = self.builder.load(val_typ, val_var);
                 let layout = self.layouts.instances[ins.class.0 as usize];
                 let rec = self.builder.load(rec_typ, rec_var);
@@ -2382,7 +2295,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
                 self.set_debug_location(ins.location);
 
                 let var = self.variables[&ins.register];
-                let proc = self.builder.load_untyped_pointer(proc_var).into();
+                let proc = self.load_process().into();
                 let check = self.builder.load_untyped_pointer(var).into();
                 let func =
                     self.module.runtime_function(RuntimeFunction::CheckRefs);
@@ -2452,7 +2365,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
                 self.builder.branch(is_zero, drop_block, after_block);
             }
             Instruction::Allocate(ins)
-                if ins.class.kind(self.db).is_extern() =>
+                if ins.class.kind(&self.state.db).is_extern() =>
             {
                 // Defining the alloca already reserves (uninitialised) memory,
                 // so there's nothing we actually need to do here. Setting the
@@ -2464,7 +2377,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
                 let global =
                     self.module.add_class(ins.class, name).as_pointer_value();
                 let class = self.builder.load_untyped_pointer(global);
-                let func_name = if ins.class.is_atomic(self.db) {
+                let func_name = if ins.class.is_atomic(&self.state.db) {
                     RuntimeFunction::AllocateAtomic
                 } else {
                     RuntimeFunction::Allocate
@@ -2481,7 +2394,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
                 let global =
                     self.module.add_class(ins.class, name).as_pointer_value();
                 let class = self.builder.load_untyped_pointer(global).into();
-                let proc = self.builder.load_untyped_pointer(proc_var).into();
+                let proc = self.load_process().into();
                 let func =
                     self.module.runtime_function(RuntimeFunction::ProcessNew);
                 let ptr = self.builder.call(func, &[proc, class]);
@@ -2498,30 +2411,24 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
                 self.builder.store(var, value);
             }
             Instruction::Preempt(_) => {
-                let state = self.builder.load_untyped_pointer(state_var);
-                let proc = self.builder.load_untyped_pointer(proc_var);
-
-                // To access the process' epoch we need a process layout. Since
-                // we don't care which one as the epoch is in a fixed place, we
-                // just use the layout of the main class, which is a process and
-                // is always present at this point.
-                let layout = self.layouts.instances
-                    [self.db.main_class().unwrap().0 as usize];
-
+                let state = self.load_state();
+                let data = self.process_stack_data_pointer();
+                let layout = self.layouts.process_stack_data;
+                let proc = self
+                    .builder
+                    .load_field(layout, data, STACK_DATA_PROCESS_INDEX)
+                    .into_pointer_value();
+                let proc_epoch = self
+                    .builder
+                    .load_field(layout, data, STACK_DATA_EPOCH_INDEX)
+                    .into_int_value();
                 let state_epoch_addr = self.builder.field_address(
                     self.layouts.state,
                     state,
-                    STATE_EPOCH_OFFSET,
+                    STATE_EPOCH_INDEX,
                 );
-
                 let state_epoch =
                     self.builder.load_atomic_counter(state_epoch_addr);
-
-                let proc_epoch = self
-                    .builder
-                    .load_field(layout, proc, PROCESS_EPOCH_OFFSET)
-                    .into_int_value();
-
                 let is_eq = self.builder.int_eq(state_epoch, proc_epoch);
                 let cont_block = self.builder.add_block();
                 let yield_block = self.builder.add_block();
@@ -2542,7 +2449,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
                 self.builder.switch_to_block(cont_block);
             }
             Instruction::Finish(ins) => {
-                let proc = self.builder.load_untyped_pointer(proc_var).into();
+                let proc = self.load_process().into();
                 let terminate = self
                     .builder
                     .context
@@ -2660,8 +2567,11 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
         for index in 0..self.method.registers.len() {
             let id = RegisterId(index as _);
             let raw = self.method.registers.value_type(id);
-            let typ =
-                self.builder.context.llvm_type(self.db, self.layouts, raw);
+            let typ = self.builder.context.llvm_type(
+                &self.state.db,
+                self.layouts,
+                raw,
+            );
 
             self.variables.insert(id, self.builder.new_temporary(typ));
             self.variable_types.insert(id, typ);
@@ -2680,7 +2590,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
     ) {
         let var = self.variables[&register];
 
-        if self.register_type(register).is_never(self.db) {
+        if self.register_type(register).is_never(&self.state.db) {
             self.builder.call_void(function, arguments);
             self.builder.unreachable();
         } else {
@@ -2697,7 +2607,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
     ) {
         let var = self.variables[&register];
 
-        if self.register_type(register).is_never(self.db) {
+        if self.register_type(register).is_never(&self.state.db) {
             self.builder.indirect_call(function_type, function, arguments);
             self.builder.unreachable();
         } else {
@@ -2738,6 +2648,65 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
         );
 
         self.builder.call(func, &[source.into()]).into_int_value()
+    }
+
+    fn load_process(&mut self) -> PointerValue<'ctx> {
+        let data = self.process_stack_data_pointer();
+        let typ = self.layouts.process_stack_data;
+
+        self.builder
+            .load_field(typ, data, STACK_DATA_PROCESS_INDEX)
+            .into_pointer_value()
+    }
+
+    fn process_stack_data_pointer(&mut self) -> PointerValue<'ctx> {
+        // When using llvm.read_register(), LLVM segfaults for reasons not quite
+        // known. The llvm.frameaddress instruction in turn does a bit more
+        // work, so instead we use raw assembly to read the RSP register.
+        let ptr_type = self.builder.context.pointer_type();
+        let fn_type = self
+            .builder
+            .context
+            .pointer_type()
+            .fn_type(&[ptr_type.into()], false);
+        let rsp_name = self.state.config.target.stack_pointer_register_name();
+        let asm = self.builder.context.inner.create_inline_asm(
+            fn_type,
+            format!("mov {}, $0", rsp_name),
+            "=r".to_string(),
+            false,
+            false,
+            None,
+            false,
+        );
+        let rsp = self.builder.new_stack_slot(ptr_type);
+
+        self.builder
+            .indirect_call(fn_type, asm, &[rsp.into()])
+            .try_as_basic_value()
+            .left()
+            .unwrap()
+            .into_pointer_value();
+
+        let rsp_addr = self.builder.pointer_to_int(rsp);
+        let mask = self.load_stack_mask();
+        let addr = self.builder.bit_and(rsp_addr, mask);
+
+        self.builder.int_to_pointer(addr)
+    }
+
+    fn load_state(&mut self) -> PointerValue<'ctx> {
+        let var = self.module.add_constant(STATE_GLOBAL);
+
+        self.builder.load_pointer(self.layouts.state, var.as_pointer_value())
+    }
+
+    fn load_stack_mask(&mut self) -> IntValue<'ctx> {
+        let var = self.module.add_constant(STACK_MASK_GLOBAL);
+
+        self.builder
+            .load(self.builder.context.i64_type(), var.as_pointer_value())
+            .into_int_value()
     }
 }
 
@@ -2804,12 +2773,50 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
             self.module.runtime_function(RuntimeFunction::RuntimeState);
         let rt_drop =
             self.module.runtime_function(RuntimeFunction::RuntimeDrop);
+        let rt_stack_mask =
+            self.module.runtime_function(RuntimeFunction::RuntimeStackMask);
         let runtime = self
             .builder
             .call(rt_new, &[counts.into(), argc.into(), argv.into()])
             .into_pointer_value();
+
+        // The state is needed by various runtime functions. Because this data
+        // is the same throughout the program's lifetime, we store it in a
+        // global and thus remove the need to pass it as a hidden argument to
+        // every Inko method.
+        let state_global = self.module.add_global_pointer(STATE_GLOBAL);
         let state =
             self.builder.call(rt_state, &[runtime.into()]).into_pointer_value();
+
+        state_global.set_initializer(
+            &self
+                .layouts
+                .state
+                .ptr_type(AddressSpace::default())
+                .const_null()
+                .as_basic_value_enum(),
+        );
+
+        self.builder.store(state_global.as_pointer_value(), state);
+
+        // We need the stack size in order to get the current process. This
+        // value relies on the page size, and the page size can only be reliably
+        // retrieved at runtime. Not all platforms use the same size either,
+        // such as ARM64 macOS which uses 16 KiB pages instead of 4 KiB.
+        let stack_size_global = self
+            .module
+            .add_global(self.builder.context.i64_type(), STACK_MASK_GLOBAL);
+
+        stack_size_global.set_initializer(
+            &self.builder.context.i64_type().const_zero().as_basic_value_enum(),
+        );
+
+        let stack_size = self
+            .builder
+            .call(rt_stack_mask, &[runtime.into()])
+            .into_int_value();
+
+        self.builder.store(stack_size_global.as_pointer_value(), stack_size);
 
         // Allocate and store all the classes in their corresponding globals.
         // We iterate over the values here and below such that the order is
@@ -2820,7 +2827,7 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
             let name = &self.names.setup_classes[&module.id];
             let func = self.module.add_setup_function(name);
 
-            self.builder.call_void(func, &[state.into()]);
+            self.builder.call_void(func, &[]);
         }
 
         // Constants need to be defined in a separate pass, as they may depends
@@ -2830,7 +2837,7 @@ impl<'a, 'ctx> GenerateMain<'a, 'ctx> {
             let name = &self.names.setup_constants[&module.id];
             let func = self.module.add_setup_function(name);
 
-            self.builder.call_void(func, &[state.into()]);
+            self.builder.call_void(func, &[]);
         }
 
         let main_class_id = self.db.main_class().unwrap();

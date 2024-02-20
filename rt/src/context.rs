@@ -11,7 +11,6 @@
 //! This type is dropped after the first yield, so the native code must load its
 //! components into variables/registers in order to continue using them.
 use crate::process::{NativeAsyncMethod, ProcessPointer};
-use crate::state::State;
 mod unix;
 
 /// A type storing state used when first starting a process.
@@ -24,8 +23,6 @@ mod unix;
 /// thread.
 #[repr(C)]
 pub struct Context {
-    pub state: *const State,
-    pub process: ProcessPointer,
     pub arguments: *mut u8,
 }
 
@@ -41,18 +38,13 @@ extern "system" {
     fn inko_context_switch(stack: *mut *mut u8);
 }
 
-#[inline(never)]
+#[inline(always)]
 pub(crate) unsafe fn start(
-    state: &State,
     mut process: ProcessPointer,
     func: NativeAsyncMethod,
     mut args: Vec<*mut u8>,
 ) {
-    let ctx = Context {
-        state: state as _,
-        process,
-        arguments: args.as_mut_ptr() as _,
-    };
+    let ctx = Context { arguments: args.as_mut_ptr() as _ };
 
     inko_context_init(
         &mut process.stack_pointer,
@@ -61,7 +53,7 @@ pub(crate) unsafe fn start(
     );
 }
 
-#[inline(never)]
+#[inline(always)]
 pub(crate) unsafe fn switch(mut process: ProcessPointer) {
     inko_context_switch(&mut process.stack_pointer);
 }

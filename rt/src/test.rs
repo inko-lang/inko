@@ -1,9 +1,10 @@
 //! Helper functions for writing unit tests.
 use crate::config::Config;
 use crate::mem::{Class, ClassPointer};
-use crate::process::{NativeAsyncMethod, Process, ProcessPointer};
+use crate::process::{Message, NativeAsyncMethod, Process, ProcessPointer};
 use crate::stack::Stack;
 use crate::state::{MethodCounts, RcState, State};
+use rustix::param::page_size;
 use std::mem::{forget, size_of};
 use std::ops::{Deref, DerefMut, Drop};
 
@@ -87,14 +88,28 @@ pub(crate) fn setup() -> RcState {
 }
 
 pub(crate) fn new_process(class: ClassPointer) -> OwnedProcess {
-    OwnedProcess::new(Process::alloc(class, Stack::new(1024)))
+    OwnedProcess::new(Process::alloc(class, Stack::new(1024, page_size())))
 }
 
 pub(crate) fn new_main_process(
     class: ClassPointer,
     method: NativeAsyncMethod,
 ) -> OwnedProcess {
-    OwnedProcess::new(Process::main(class, method, Stack::new(1024)))
+    let stack = Stack::new(1024, page_size());
+    let mut proc = Process::alloc(class, stack);
+
+    // We use a custom message that takes the process as an argument. This way
+    // the tests have access to the current process, without needing to fiddle
+    // with the stack like the generated code does.
+    let mut message = Message::alloc(method, 1);
+
+    unsafe {
+        *message.arguments.as_mut_ptr() = proc.as_ptr() as _;
+    }
+
+    proc.set_main();
+    proc.send_message(message);
+    OwnedProcess::new(proc)
 }
 
 pub(crate) fn empty_process_class(name: &str) -> OwnedClass {

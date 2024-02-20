@@ -134,9 +134,7 @@ impl<'a, 'ctx> Module<'a, 'ctx> {
         if let Some(func) = self.inner.get_function(name) {
             func
         } else {
-            let space = AddressSpace::default();
-            let args = [self.layouts.state.ptr_type(space).into()];
-            let typ = self.context.void_type().fn_type(&args, false);
+            let typ = self.context.void_type().fn_type(&[], false);
 
             self.inner.add_function(name, typ, None)
         }

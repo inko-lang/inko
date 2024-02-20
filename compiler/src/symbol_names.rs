@@ -5,6 +5,12 @@ use types::{ClassId, ConstantId, Database, MethodId, ModuleId, Shape};
 
 pub(crate) const SYMBOL_PREFIX: &str = "_I";
 
+/// The name of the global variable that stores the runtime state.
+pub(crate) const STATE_GLOBAL: &str = "_IG_INKO_STATE";
+
+/// The name of the global variable that stores the stack mask.
+pub(crate) const STACK_MASK_GLOBAL: &str = "_IG_INKO_STACK_MASK";
+
 pub(crate) fn shapes(shapes: &[Shape]) -> String {
     shapes.iter().fold(String::new(), |res, shape| res + shape.identifier())
 }

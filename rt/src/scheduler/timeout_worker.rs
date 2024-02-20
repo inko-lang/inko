@@ -190,6 +190,7 @@ mod tests {
     use crate::process::Process;
     use crate::stack::Stack;
     use crate::test::{empty_process_class, new_process, setup};
+    use rustix::param::page_size;
 
     #[test]
     fn test_new() {
@@ -227,7 +228,7 @@ mod tests {
     fn test_run_with_fragmented_heap() {
         let state = setup();
         let class = empty_process_class("A");
-        let process = Process::alloc(*class, Stack::new(1024));
+        let process = Process::alloc(*class, Stack::new(1024, page_size()));
         let worker = TimeoutWorker::new();
 
         for time in &[10_u64, 5_u64] {
@@ -253,7 +254,7 @@ mod tests {
     fn test_run_with_message() {
         let state = setup();
         let class = empty_process_class("A");
-        let process = Process::alloc(*class, Stack::new(1024));
+        let process = Process::alloc(*class, Stack::new(1024, page_size()));
         let worker = TimeoutWorker::new();
         let timeout = Timeout::duration(&state, Duration::from_secs(10));
 
@@ -268,7 +269,7 @@ mod tests {
     fn test_run_with_reschedule() {
         let state = setup();
         let class = empty_process_class("A");
-        let process = Process::alloc(*class, Stack::new(1024));
+        let process = Process::alloc(*class, Stack::new(1024, page_size()));
         let worker = TimeoutWorker::new();
         let timeout = Timeout::duration(&state, Duration::from_secs(0));
 
@@ -283,7 +284,7 @@ mod tests {
     fn test_defragment_heap_without_fragmentation() {
         let state = setup();
         let class = empty_process_class("A");
-        let process = Process::alloc(*class, Stack::new(1024));
+        let process = Process::alloc(*class, Stack::new(1024, page_size()));
         let worker = TimeoutWorker::new();
         let timeout = Timeout::duration(&state, Duration::from_secs(1));
 
@@ -301,7 +302,7 @@ mod tests {
     fn test_defragment_heap_with_fragmentation() {
         let state = setup();
         let class = empty_process_class("A");
-        let process = Process::alloc(*class, Stack::new(1024));
+        let process = Process::alloc(*class, Stack::new(1024, page_size()));
         let worker = TimeoutWorker::new();
 
         for time in &[1_u64, 1_u64] {

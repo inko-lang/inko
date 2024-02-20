@@ -11,7 +11,7 @@ use std::collections::VecDeque;
 use std::mem::{align_of, forget, size_of, ManuallyDrop};
 use std::ops::Drop;
 use std::ops::{Deref, DerefMut};
-use std::ptr::{drop_in_place, null_mut, NonNull};
+use std::ptr::{drop_in_place, null_mut, write, NonNull};
 use std::slice;
 use std::sync::atomic::Ordering;
 use std::sync::{Mutex, MutexGuard};
@@ -46,13 +46,13 @@ pub struct StackFrame {
 #[repr(C)]
 pub struct Message {
     /// The native function to run.
-    method: NativeAsyncMethod,
+    pub method: NativeAsyncMethod,
 
     /// The number of arguments of this message.
-    length: u8,
+    pub length: u8,
 
     /// The arguments of the message.
-    arguments: [*mut u8; 0],
+    pub arguments: [*mut u8; 0],
 }
 
 impl Message {
@@ -400,13 +400,29 @@ impl ProcessState {
     }
 }
 
+/// Data about a process stored in its stack.
+///
+/// This data is stored in the stack such that the generated code can easily
+/// retrieve it, without needing thread-locals, globals, etc.
+#[repr(C)]
+pub struct StackData {
+    /// A pointer back to the process that owns this data.
+    pub process: ProcessPointer,
+
+    /// A pointer to the thread that is running this process.
+    ///
+    /// The value of this field is only relevant/correct when the process is in
+    /// fact running.
+    pub thread: *mut Thread,
+
+    /// The scheduler epoch at which this process started running.
+    pub started_at: u32,
+}
+
 /// A lightweight process.
 #[repr(C)]
 pub struct Process {
     pub header: Header,
-
-    /// The scheduler epoch at which this process started running.
-    pub started_at: u32,
 
     /// A lock acquired when running a process.
     ///
@@ -453,9 +469,6 @@ pub struct Process {
     /// certain a stack is present.
     pub(crate) stack: ManuallyDrop<Stack>,
 
-    /// A pointer to the thread running this process.
-    thread: Option<NonNull<Thread>>,
-
     /// The shared state of the process.
     ///
     /// Multiple processes/threads may try to access this state, such as when
@@ -487,13 +500,21 @@ impl Process {
         // is set accordingly.
         state.status.set_waiting_for_message(true);
 
-        obj.header.init_atomic(class);
+        unsafe {
+            write(
+                stack.private_data_pointer() as *mut StackData,
+                StackData {
+                    process: ProcessPointer::new(ptr),
+                    started_at: 0,
+                    thread: null_mut(),
+                },
+            );
+        }
 
-        init!(obj.started_at => 0);
+        obj.header.init_atomic(class);
         init!(obj.run_lock => UnsafeCell::new(Mutex::new(())));
         init!(obj.stack_pointer => stack.stack_pointer());
         init!(obj.stack => ManuallyDrop::new(stack));
-        init!(obj.thread => None);
         init!(obj.state => Mutex::new(state));
 
         unsafe { ProcessPointer::new(ptr) }
@@ -621,10 +642,6 @@ impl Process {
         unsafe { (*self.run_lock.get()).lock().unwrap() }
     }
 
-    pub(crate) fn unset_thread(&mut self) {
-        self.thread = None;
-    }
-
     /// Returns a mutable reference to the thread that's running this process.
     ///
     /// This method is unsafe as it assumes a thread is set, and the pointer
@@ -636,7 +653,7 @@ impl Process {
     /// remains valid even when moving the process around, as a thread always
     /// outlives a process.
     pub(crate) unsafe fn thread<'a>(&mut self) -> &'a mut Thread {
-        &mut *self.thread.unwrap_unchecked().as_ptr()
+        &mut *self.stack_data().thread
     }
 
     pub(crate) fn stacktrace(&self) -> Vec<StackFrame> {
@@ -690,8 +707,19 @@ impl Process {
     }
 
     pub(crate) fn resume(&mut self, state: &State, thread: &mut Thread) {
-        self.started_at = state.scheduler_epoch.load(Ordering::Relaxed);
-        self.thread = Some(NonNull::from(thread));
+        let data = self.stack_data();
+
+        data.started_at = state.scheduler_epoch.load(Ordering::Relaxed);
+        data.thread = thread as *mut _;
+    }
+
+    /// Returns a mutable reference to the process state stored on its stack.
+    ///
+    /// This method is safe because `self.stack` always points to the stack
+    /// page, regardless of whether or not the process is running. We also
+    /// ensure the data is set in `Process::alloc`.
+    pub(crate) fn stack_data(&mut self) -> &mut StackData {
+        unsafe { &mut *(self.stack.private_data_pointer() as *mut StackData) }
     }
 }
 
@@ -708,8 +736,12 @@ impl ProcessPointer {
         Self(NonNull::new_unchecked(pointer))
     }
 
+    pub(crate) fn as_ptr(self) -> *mut Process {
+        self.0.as_ptr()
+    }
+
     pub(crate) fn identifier(self) -> usize {
-        self.0.as_ptr() as usize
+        self.as_ptr() as usize
     }
 
     pub(crate) fn blocking<R>(mut self, function: impl FnOnce() -> R) -> R {
@@ -940,6 +972,7 @@ impl Channel {
 mod tests {
     use super::*;
     use crate::test::{empty_process_class, setup, OwnedProcess};
+    use rustix::param::page_size;
     use std::time::Duration;
 
     macro_rules! offset_of {
@@ -957,14 +990,15 @@ mod tests {
     fn test_type_sizes() {
         assert_eq!(size_of::<Message>(), 16);
         assert_eq!(size_of::<ManuallyDrop<Stack>>(), 16);
+        assert!(size_of::<StackData>() <= page_size());
 
         if cfg!(any(target_os = "linux", target_os = "freebsd")) {
             assert_eq!(size_of::<UnsafeCell<Mutex<()>>>(), 8);
-            assert_eq!(size_of::<Process>(), 120);
+            assert_eq!(size_of::<Process>(), 104);
             assert_eq!(size_of::<Channel>(), 96);
         } else {
             assert_eq!(size_of::<UnsafeCell<Mutex<()>>>(), 16);
-            assert_eq!(size_of::<Process>(), 136);
+            assert_eq!(size_of::<Process>(), 120);
             assert_eq!(size_of::<Channel>(), 104);
         }
 
@@ -976,16 +1010,16 @@ mod tests {
     #[test]
     fn test_field_offsets() {
         let proc_class = empty_process_class("A");
-        let stack = Stack::new(32);
+        let stack = Stack::new(32, page_size());
         let proc = OwnedProcess::new(Process::alloc(*proc_class, stack));
 
         assert_eq!(offset_of!(proc, header), 0);
         assert_eq!(
             offset_of!(proc, fields),
             if cfg!(any(target_os = "linux", target_os = "freebsd")) {
-                120
+                104
             } else {
-                136
+                120
             }
         );
     }
@@ -1192,7 +1226,10 @@ mod tests {
     #[test]
     fn test_process_new() {
         let class = empty_process_class("A");
-        let process = OwnedProcess::new(Process::alloc(*class, Stack::new(32)));
+        let process = OwnedProcess::new(Process::alloc(
+            *class,
+            Stack::new(32, page_size()),
+        ));
 
         assert_eq!(process.header.class, class.0);
     }
@@ -1200,7 +1237,7 @@ mod tests {
     #[test]
     fn test_process_main() {
         let proc_class = empty_process_class("A");
-        let stack = Stack::new(32);
+        let stack = Stack::new(32, page_size());
         let process =
             OwnedProcess::new(Process::main(*proc_class, method, stack));
 
@@ -1210,7 +1247,7 @@ mod tests {
     #[test]
     fn test_process_set_main() {
         let class = empty_process_class("A");
-        let stack = Stack::new(32);
+        let stack = Stack::new(32, page_size());
         let mut process = OwnedProcess::new(Process::alloc(*class, stack));
 
         assert!(!process.is_main());
@@ -1223,7 +1260,7 @@ mod tests {
     fn test_process_state_suspend() {
         let state = setup();
         let class = empty_process_class("A");
-        let stack = Stack::new(32);
+        let stack = Stack::new(32, page_size());
         let process = OwnedProcess::new(Process::alloc(*class, stack));
         let timeout = Timeout::duration(&state, Duration::from_secs(0));
 
@@ -1237,7 +1274,7 @@ mod tests {
     fn test_process_timeout_expired() {
         let state = setup();
         let class = empty_process_class("A");
-        let stack = Stack::new(32);
+        let stack = Stack::new(32, page_size());
         let process = OwnedProcess::new(Process::alloc(*class, stack));
         let timeout = Timeout::duration(&state, Duration::from_secs(0));
 
@@ -1267,8 +1304,10 @@ mod tests {
     #[test]
     fn test_channel_send_empty() {
         let process_class = empty_process_class("A");
-        let sender =
-            OwnedProcess::new(Process::alloc(*process_class, Stack::new(32)));
+        let sender = OwnedProcess::new(Process::alloc(
+            *process_class,
+            Stack::new(32, page_size()),
+        ));
         let chan = Channel::new(4);
         let msg = 42;
 
@@ -1278,8 +1317,10 @@ mod tests {
     #[test]
     fn test_channel_send_full() {
         let process_class = empty_process_class("A");
-        let process =
-            OwnedProcess::new(Process::alloc(*process_class, Stack::new(32)));
+        let process = OwnedProcess::new(Process::alloc(
+            *process_class,
+            Stack::new(32, page_size()),
+        ));
         let chan = Channel::new(1);
         let msg = 42;
 
@@ -1290,8 +1331,10 @@ mod tests {
     #[test]
     fn test_channel_send_with_waiting() {
         let process_class = empty_process_class("A");
-        let process =
-            OwnedProcess::new(Process::alloc(*process_class, Stack::new(32)));
+        let process = OwnedProcess::new(Process::alloc(
+            *process_class,
+            Stack::new(32, page_size()),
+        ));
         let chan = Channel::new(1);
         let msg = 42;
 
@@ -1307,8 +1350,10 @@ mod tests {
     fn test_channel_send_with_waiting_with_timeout() {
         let state = setup();
         let process_class = empty_process_class("A");
-        let process =
-            OwnedProcess::new(Process::alloc(*process_class, Stack::new(32)));
+        let process = OwnedProcess::new(Process::alloc(
+            *process_class,
+            Stack::new(32, page_size()),
+        ));
         let chan = Channel::new(1);
         let msg = 42;
 
@@ -1326,8 +1371,10 @@ mod tests {
     #[test]
     fn test_channel_receive_empty() {
         let process_class = empty_process_class("A");
-        let process =
-            OwnedProcess::new(Process::alloc(*process_class, Stack::new(32)));
+        let process = OwnedProcess::new(Process::alloc(
+            *process_class,
+            Stack::new(32, page_size()),
+        ));
         let chan = Channel::new(1);
 
         assert_eq!(chan.receive(*process, None), ReceiveResult::None);
@@ -1337,8 +1384,10 @@ mod tests {
     #[test]
     fn test_channel_try_receive_empty() {
         let process_class = empty_process_class("A");
-        let process =
-            OwnedProcess::new(Process::alloc(*process_class, Stack::new(32)));
+        let process = OwnedProcess::new(Process::alloc(
+            *process_class,
+            Stack::new(32, page_size()),
+        ));
         let chan = Channel::new(1);
 
         assert_eq!(chan.try_receive(), ReceiveResult::None);
@@ -1348,8 +1397,10 @@ mod tests {
     #[test]
     fn test_channel_receive_with_messages() {
         let process_class = empty_process_class("A");
-        let process =
-            OwnedProcess::new(Process::alloc(*process_class, Stack::new(32)));
+        let process = OwnedProcess::new(Process::alloc(
+            *process_class,
+            Stack::new(32, page_size()),
+        ));
         let chan = Channel::new(1);
         let msg = 42;
 
@@ -1361,8 +1412,10 @@ mod tests {
     #[test]
     fn test_channel_receive_with_messages_with_blocked_sender() {
         let process_class = empty_process_class("A");
-        let process =
-            OwnedProcess::new(Process::alloc(*process_class, Stack::new(32)));
+        let process = OwnedProcess::new(Process::alloc(
+            *process_class,
+            Stack::new(32, page_size()),
+        ));
         let chan = Channel::new(1);
         let msg = 42;
 
@@ -1394,7 +1447,7 @@ mod tests {
     #[test]
     fn test_process_send_message() {
         let proc_class = empty_process_class("A");
-        let stack = Stack::new(32);
+        let stack = Stack::new(32, page_size());
         let mut process = OwnedProcess::new(Process::alloc(*proc_class, stack));
         let msg = Message::alloc(method, 0);
 
@@ -1405,7 +1458,7 @@ mod tests {
     #[test]
     fn test_process_next_task_without_messages() {
         let proc_class = empty_process_class("A");
-        let stack = Stack::new(32);
+        let stack = Stack::new(32, page_size());
         let mut process = OwnedProcess::new(Process::alloc(*proc_class, stack));
 
         assert!(matches!(process.next_task(), Task::Wait));
@@ -1414,7 +1467,7 @@ mod tests {
     #[test]
     fn test_process_next_task_with_new_message() {
         let proc_class = empty_process_class("A");
-        let stack = Stack::new(32);
+        let stack = Stack::new(32, page_size());
         let mut process = OwnedProcess::new(Process::alloc(*proc_class, stack));
         let msg = Message::alloc(method, 0);
 
@@ -1426,7 +1479,7 @@ mod tests {
     #[test]
     fn test_process_next_task_with_existing_message() {
         let proc_class = empty_process_class("A");
-        let stack = Stack::new(32);
+        let stack = Stack::new(32, page_size());
         let mut process = OwnedProcess::new(Process::alloc(*proc_class, stack));
         let msg1 = Message::alloc(method, 0);
         let msg2 = Message::alloc(method, 0);
@@ -1441,7 +1494,7 @@ mod tests {
     #[test]
     fn test_process_take_stack() {
         let proc_class = empty_process_class("A");
-        let stack = Stack::new(32);
+        let stack = Stack::new(32, page_size());
         let mut process = OwnedProcess::new(Process::alloc(*proc_class, stack));
 
         assert!(process.take_stack().is_some());
@@ -1451,7 +1504,7 @@ mod tests {
     #[test]
     fn test_process_finish_message() {
         let proc_class = empty_process_class("A");
-        let stack = Stack::new(32);
+        let stack = Stack::new(32, page_size());
         let mut process = OwnedProcess::new(Process::alloc(*proc_class, stack));
 
         assert!(!process.finish_message());

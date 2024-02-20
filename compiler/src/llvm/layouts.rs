@@ -70,6 +70,9 @@ pub(crate) struct Layouts<'ctx> {
 
     /// The layout of messages sent to processes.
     pub(crate) message: StructType<'ctx>,
+
+    /// The layout of a process' stack data.
+    pub(crate) process_stack_data: StructType<'ctx>,
 }
 
 impl<'ctx> Layouts<'ctx> {
@@ -114,9 +117,7 @@ impl<'ctx> Layouts<'ctx> {
         ]);
 
         let context_layout = context.struct_type(&[
-            state_layout.ptr_type(space).into(), // State
-            context.pointer_type().into(),       // Process
-            context.pointer_type().into(),       // Arguments pointer
+            context.pointer_type().into(), // Arguments pointer
         ]);
 
         let method_counts_layout = context.struct_type(&[
@@ -128,6 +129,12 @@ impl<'ctx> Layouts<'ctx> {
             context.pointer_type().into(), // Function
             context.i8_type().into(),      // Length
             context.pointer_type().array_type(0).into(), // Arguments
+        ]);
+
+        let stack_data_layout = context.struct_type(&[
+            context.pointer_type().into(), // Process
+            context.pointer_type().into(), // Thread
+            context.i32_type().into(),     // Epoch
         ]);
 
         // We generate the bare structs first, that way method signatures can
@@ -182,6 +189,7 @@ impl<'ctx> Layouts<'ctx> {
             method_counts: method_counts_layout,
             methods: vec![dummy_method; num_methods],
             message: message_layout,
+            process_stack_data: stack_data_layout,
         };
 
         let process_size = match state.config.target.os {
@@ -189,15 +197,15 @@ impl<'ctx> Layouts<'ctx> {
                 // Mutexes are smaller on Linux, resulting in a smaller process
                 // size, so we have to take that into account when calculating
                 // field offsets.
-                120
+                104
             }
-            _ => 136,
+            _ => 120,
         };
 
         // The size of the data of a process that isn't exposed to the generated
         // code (i.e. because it involves Rust types of which the layout isn't
         // stable).
-        let process_private_size = process_size - HEADER_SIZE - 4;
+        let process_private_size = process_size - HEADER_SIZE;
 
         for id in mir.classes.keys() {
             // String is a built-in class, but it's defined like a regular one,
@@ -233,14 +241,11 @@ impl<'ctx> Layouts<'ctx> {
                 //     +--------------------------+
                 //     |     header (16 bytes)    |
                 //     +--------------------------+
-                //     |   start epoch (4 bytes)  |
-                //     +--------------------------+
                 //     |  private data (N bytes)  |
                 //     +--------------------------+
                 //     |    user-defined fields   |
                 //     +--------------------------+
                 if kind.is_async() {
-                    types.push(context.i32_type().into());
                     types.push(
                         context
                             .i8_type()
@@ -263,9 +268,7 @@ impl<'ctx> Layouts<'ctx> {
         for calls in mir.dynamic_calls.values() {
             for (method, _) in calls {
                 let mut args: Vec<BasicMetadataTypeEnum> = vec![
-                    state_layout.ptr_type(space).into(), // State
-                    context.pointer_type().into(),       // Process
-                    context.pointer_type().into(),       // Receiver
+                    context.pointer_type().into(), // Receiver
                 ];
 
                 for &typ in method.argument_types(db) {
@@ -300,10 +303,7 @@ impl<'ctx> Layouts<'ctx> {
                         false,
                     )
                 } else {
-                    let mut args: Vec<BasicMetadataTypeEnum> = vec![
-                        state_layout.ptr_type(space).into(), // State
-                        context.pointer_type().into(),       // Process
-                    ];
+                    let mut args: Vec<BasicMetadataTypeEnum> = Vec::new();
 
                     // For instance methods, the receiver is passed as an
                     // explicit argument before any user-defined arguments.
@@ -336,10 +336,7 @@ impl<'ctx> Layouts<'ctx> {
         }
 
         for &method in mir.methods.keys().filter(|m| m.is_static(db)) {
-            let mut args: Vec<BasicMetadataTypeEnum> = vec![
-                state_layout.ptr_type(space).into(), // State
-                context.pointer_type().into(),       // Process
-            ];
+            let mut args: Vec<BasicMetadataTypeEnum> = Vec::new();
 
             for &typ in method.argument_types(db) {
                 args.push(context.llvm_type(db, &layouts, typ).into());

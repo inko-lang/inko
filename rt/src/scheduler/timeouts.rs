@@ -187,6 +187,7 @@ mod tests {
     use super::*;
     use crate::stack::Stack;
     use crate::test::{empty_process_class, new_process, setup};
+    use rustix::param::page_size;
     use std::mem::size_of;
     use std::thread::sleep;
 
@@ -318,7 +319,7 @@ mod tests {
         fn test_remove_invalid_entries_with_valid_entries() {
             let state = setup();
             let class = empty_process_class("A");
-            let process = Process::alloc(*class, Stack::new(1024));
+            let process = Process::alloc(*class, Stack::new(1024, page_size()));
             let mut timeouts = Timeouts::new();
             let timeout = Timeout::duration(&state, Duration::from_secs(10));
 
@@ -364,7 +365,7 @@ mod tests {
         fn test_processes_to_reschedule_with_remaining_time() {
             let state = setup();
             let class = empty_process_class("A");
-            let process = Process::alloc(*class, Stack::new(1024));
+            let process = Process::alloc(*class, Stack::new(1024, page_size()));
             let mut timeouts = Timeouts::new();
             let timeout = Timeout::duration(&state, Duration::from_secs(10));
 
