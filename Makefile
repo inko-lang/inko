@@ -159,6 +159,7 @@ docs/publish: docs/install docs/build
 		--checksum \
 		--header-upload 'Cache-Control:max-age=604800' \
 		--s3-acl 'public-read' \
+		--verbose \
 		public "production:${DOCS_S3_BUCKET}/manual/${DOCS_FOLDER}"
 	aws cloudfront create-invalidation \
 		--distribution-id ${DOCS_CLOUDFRONT_ID} --paths "/*"
