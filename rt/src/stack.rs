@@ -16,10 +16,12 @@ const SHRINK_AGE: u16 = 10;
 const MIN_STACKS: usize = 4;
 
 pub(crate) fn total_stack_size(size: usize, page: usize) -> usize {
-    let total = page + page + size;
+    // Round the user-provided size up to the nearest multiple of the page size.
+    let rounded = (size + (page - 1)) & !(page - 1);
 
-    // Rounds up to the nearest multiple of the page size.
-    (total + (page - 1)) & !(page - 1)
+    // To allow masking stack pointers such that we get a pointer to the private
+    // page, we need to ensure the size is a power of two.
+    (page + page + rounded).next_power_of_two()
 }
 
 /// A pool of `Stack` objects to reuse.
@@ -190,7 +192,7 @@ mod tests {
         let size = page_size();
         let stack = pool.alloc();
 
-        assert_eq!(stack.mem.len, size * 3);
+        assert_eq!(stack.mem.len, (size * 3).next_power_of_two());
     }
 
     #[test]

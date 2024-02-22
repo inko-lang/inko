@@ -58,11 +58,17 @@ The number of OS threads to use for polling sockets for readiness.
 | Default
 | Max
 |-
-| 1048576
+| 524288
 | 2^32^ - 1
 
 The size (in bytes) of each process' stack. Stacks don't grow, so be careful to
 not set this too low or too high.
+
+This value specifies the base stack size. The final stack size is the next
+multiple of the system's page size, rounded to the nearest power of two. For a
+system with a page size of 4096 bytes, the resulting stack size is 1 MiB. Note
+that this size includes a guard page and some data used by the runtime, so the
+amount of space available for stack values is a little less.
 
 ## Kernel settings
 

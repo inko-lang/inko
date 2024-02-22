@@ -148,7 +148,7 @@ docs/setup:
 
 docs/build:
 	rm -rf docs/public
-	cd docs && inko run
+	cd docs && inko build && ./build/main
 
 docs/watch:
 	cd docs && bash scripts/watch.sh

@@ -31,7 +31,10 @@ const MAX_NETPOLL_THREADS: u8 = 127;
 ///
 /// The default size is chosen as we believe it to be large enough for most
 /// cases, and to ensure foreign function calls don't overflow the stack.
-const DEFAULT_STACK_SIZE: u32 = 1024 * 1024;
+///
+/// This size is _excluding_ the padding introduced by guard pages, multiplying
+/// by the page size, and rounding to the nearest power of two.
+const DEFAULT_STACK_SIZE: u32 = 512 * 1024;
 
 /// Structure containing the configuration settings for the virtual machine.
 pub struct Config {

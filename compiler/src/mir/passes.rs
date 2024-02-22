@@ -418,10 +418,6 @@ impl<'a> GenerateDropper<'a> {
         );
 
         lower.current_block_mut().return_value(nil_reg, loc);
-
-        assert_eq!(lower.method.arguments.len(), 1);
-        assert!(lower.method.id.is_instance_method(&self.state.db));
-
         self.add_method(types::DROPPER_METHOD, dropper_type, dropper_method);
         dropper_type
     }
