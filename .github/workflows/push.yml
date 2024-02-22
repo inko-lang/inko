@@ -87,6 +87,7 @@ jobs:
           filters: |
             docs:
               - 'docs/**'
+              - Makefile
       - name: Deploy the documentation
         if: steps.changes.outputs.docs == 'true'
         run: make docs/publish
