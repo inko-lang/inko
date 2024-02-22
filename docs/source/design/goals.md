@@ -154,3 +154,11 @@ commonly used.
 
 Embedded platforms are not a goal for the time being, but might be in the
 future.
+
+### Pinning processes to OS threads
+
+Inko guarantees that the `Main` process is always run on the main thread, but
+beyond that doesn't support pinning of processes to OS threads. This is by
+design as support for such a feature incurs additional scheduler complexity and
+overhead, and may result in processes not running when too many other processes
+are pinned to the available threads.

@@ -587,14 +587,17 @@ let err = Error.last_os_error
 if res as Int == -1 { panic("clock_gettime() failed: {err}") }
 ```
 
-## C and the Inko scheduler
+## Thread-local storage and the scheduler
 
 The Inko scheduler is free to reschedule Inko processes on different OS threads.
-This means that if C libraries depend on (thread-local) state, such as for a
-cache, the state observed may differ as a process is moved between threads. As
-Inko doesn't offer a mechanism to pin Inko processes to OS threads (and we
-likely won't introduce one either), your best bet is to avoid C libraries that
-make use of global state.
+This means that if C libraries depend on thread-local state, the state observed
+may differ as a process is moved between threads. Some GUI libraries outright
+break when used on a thread different from the one the thread-local state is set
+up for.
+
+The `Main` process on is guaranteed to always run on the main thread. As such,
+you should only use such libraries from the `Main` process. Pinning processes to
+arbitrary OS threads isn't supported.
 
 ## Runtime performance
 
