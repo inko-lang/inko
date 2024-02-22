@@ -91,7 +91,7 @@ pub(crate) fn new_process(class: ClassPointer) -> OwnedProcess {
     OwnedProcess::new(Process::alloc(class, Stack::new(1024, page_size())))
 }
 
-pub(crate) fn new_main_process(
+pub(crate) fn new_process_with_message(
     class: ClassPointer,
     method: NativeAsyncMethod,
 ) -> OwnedProcess {
@@ -107,7 +107,6 @@ pub(crate) fn new_main_process(
         *message.arguments.as_mut_ptr() = proc.as_ptr() as _;
     }
 
-    proc.set_main();
     proc.send_message(message);
     OwnedProcess::new(proc)
 }
