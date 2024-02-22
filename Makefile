@@ -143,7 +143,7 @@ clean:
 	rm -rf docs/public
 	cargo clean
 
-docs/install:
+docs/setup:
 	cd docs && inko pkg sync
 
 docs/build:
@@ -153,7 +153,7 @@ docs/build:
 docs/watch:
 	cd docs && bash scripts/watch.sh
 
-docs/publish: docs/install docs/build
+docs/publish: docs/setup docs/build
 	cd docs && rclone sync \
 		--config rclone.conf \
 		--checksum \
@@ -170,4 +170,4 @@ runtimes:
 .PHONY: release/source release/manifest release/changelog release/versions
 .PHONY: release/commit release/publish release/tag
 .PHONY: build install clean runtimes
-.PHONY: docs/install docs/build docs/watch docs/publish
+.PHONY: docs/setup docs/build docs/watch docs/publish
