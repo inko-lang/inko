@@ -18,29 +18,29 @@ fn pub tests(t: mut Tests) {
     t.equal(b.as_mut, Option.None)
   }
 
-  t.test('Option.unwrap with a Some') fn (t) {
-    t.equal(Option.Some(42).unwrap, 42)
+  t.test('Option.get with a Some') fn (t) {
+    t.equal(Option.Some(42).get, 42)
   }
 
   t.test('Option.expect with a Some') fn (t) {
-    t.equal(Option.Some(42).expect('foo'), 42)
+    t.equal(Option.Some(42).or_panic('foo'), 42)
   }
 
-  t.panic('Option.unwrap with a None') fn {
+  t.panic('Option.get with a None') fn {
     let opt: Option[Int] = Option.None
 
-    opt.unwrap
+    opt.get
   }
 
   t.panic('Option.expect with a None') fn {
     let opt: Option[Int] = Option.None
 
-    opt.expect('foo')
+    opt.or_panic('foo')
   }
 
-  t.test('Option.unwrap_or') fn (t) {
-    t.equal(Option.Some(42).unwrap_or(0), 42)
-    t.equal(Option.None.unwrap_or(0), 0)
+  t.test('Option.or') fn (t) {
+    t.equal(Option.Some(42).or(0), 42)
+    t.equal(Option.None.or(0), 0)
   }
 
   t.test('Option.map') fn (t) {

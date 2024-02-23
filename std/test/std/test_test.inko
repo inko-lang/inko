@@ -139,7 +139,7 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('Filter.from_string') fn (t) {
-    let exe = env.executable.unwrap
+    let exe = env.executable.get
 
     t.equal(Filter.from_string(''), Filter.None)
     t.equal(Filter.from_string('foo'), Filter.Pattern('foo'))

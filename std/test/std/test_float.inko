@@ -49,7 +49,7 @@ fn pub tests(t: mut Tests) {
     t.equal(Float.parse('Infinity'), Option.Some(Float.infinity))
     t.equal(Float.parse('-inf'), Option.Some(Float.negative_infinity))
     t.equal(Float.parse('-Infinity'), Option.Some(Float.negative_infinity))
-    t.true(Float.parse('NaN').unwrap.not_a_number?)
+    t.true(Float.parse('NaN').get.not_a_number?)
 
     t.equal(Float.parse(' 1.2'), Option.None)
     t.equal(Float.parse('1.2 '), Option.None)

@@ -18,17 +18,17 @@ import std.stdio.STDOUT
 class async Main {
   fn async main {
     let stdout = STDOUT.new
-    let server = UdpSocket.new(IpAddress.v4(0, 0, 0, 0), port: 0).unwrap
-    let client = UdpSocket.new(IpAddress.v4(0, 0, 0, 0), port: 0).unwrap
-    let addr = server.local_address.unwrap
+    let server = UdpSocket.new(IpAddress.v4(0, 0, 0, 0), port: 0).get
+    let client = UdpSocket.new(IpAddress.v4(0, 0, 0, 0), port: 0).get
+    let addr = server.local_address.get
 
-    client.connect(addr.ip.unwrap, addr.port).unwrap
-    client.write_string('Hello, world!').unwrap
+    client.connect(addr.ip.get, addr.port).get
+    client.write_string('Hello, world!').get
 
     let bytes = ByteArray.new
 
-    server.read(into: bytes, size: 32).unwrap
-    stdout.write_bytes(bytes).unwrap
+    server.read(into: bytes, size: 32).get
+    stdout.write_bytes(bytes).get
   }
 }
 ```
@@ -52,8 +52,8 @@ possible.
 Our sockets are created as follows:
 
 ```inko
-let server = UdpSocket.new(IpAddress.v4(0, 0, 0, 0), port: 0).unwrap
-let client = UdpSocket.new(IpAddress.v4(0, 0, 0, 0), port: 0).unwrap
+let server = UdpSocket.new(IpAddress.v4(0, 0, 0, 0), port: 0).get
+let client = UdpSocket.new(IpAddress.v4(0, 0, 0, 0), port: 0).get
 ```
 
 What happens here is that we create two sockets that bind themselves to IP
@@ -64,10 +64,10 @@ worry about using a port that's already in use.
 Next, we encounter the following:
 
 ```inko
-let addr = server.local_address.unwrap
+let addr = server.local_address.get
 
-client.connect(addr.ip.unwrap, addr.port).unwrap
-client.write_string('Hello, world!').unwrap
+client.connect(addr.ip.get, addr.port).get
+client.write_string('Hello, world!').get
 ```
 
 Here we get the address of the server we need to connect the client to, which we
@@ -79,14 +79,14 @@ We then read the data back from the server:
 ```inko
 let bytes = ByteArray.new
 
-server.read(into: bytes, size: 32).unwrap
-stdout.write_bytes(bytes).unwrap
+server.read(into: bytes, size: 32).get
+stdout.write_bytes(bytes).get
 ```
 
 When using sockets you shouldn't use `read_all` as we did in the files tutorial,
 because `read_all` won't return until the socket is disconnected.
 
-Just as in the files tutorial, we use `unwrap` to handle errors for the sake of
+Just as in the files tutorial, we use `get` to handle errors for the sake of
 brevity.
 
 ## Using TCP sockets
@@ -102,12 +102,12 @@ import std.stdio.STDOUT
 class async Main {
   fn async main {
     let stdout = STDOUT.new
-    let server = TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 9999).unwrap
-    let client = server.accept.unwrap
+    let server = TcpServer.new(IpAddress.v4(0, 0, 0, 0), port: 9999).get
+    let client = server.accept.get
     let bytes = ByteArray.new
 
-    client.read(into: bytes, size: 32).unwrap
-    stdout.write_bytes(bytes).unwrap
+    client.read(into: bytes, size: 32).get
+    stdout.write_bytes(bytes).get
   }
 }
 ```
@@ -124,9 +124,9 @@ import std.net.socket.TcpClient
 
 class async Main {
   fn async main {
-    let client = TcpClient.new(IpAddress.v4(0, 0, 0, 0), port: 9999).unwrap
+    let client = TcpClient.new(IpAddress.v4(0, 0, 0, 0), port: 9999).get
 
-    client.write_string('Hello, world!').unwrap
+    client.write_string('Hello, world!').get
   }
 }
 ```

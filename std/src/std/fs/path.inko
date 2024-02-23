@@ -305,7 +305,7 @@ class pub Path {
   #
   #     let path = Path.new('README.md')
   #
-  #     path.created_at.unwrap # => DateTime { ... }
+  #     path.created_at.get # => DateTime { ... }
   fn pub created_at -> Result[DateTime, Error] {
     match inko_path_created_at(_INKO.process, @path) {
       case { @tag = 0, @value = val } -> Result.Ok(DateTime.from_timestamp(
@@ -331,7 +331,7 @@ class pub Path {
   #
   #     let path = Path.new('README.md')
   #
-  #     path.modified_at.unwrap # => DateTime { ... }
+  #     path.modified_at.get # => DateTime { ... }
   fn pub modified_at -> Result[DateTime, Error] {
     match inko_path_modified_at(_INKO.process, @path) {
       case { @tag = 0, @value = val } -> Result.Ok(DateTime.from_timestamp(
@@ -357,7 +357,7 @@ class pub Path {
   #
   #     let path = Path.new('README.md')
   #
-  #     path.accessed_at.unwrap # => DateTime { ... }
+  #     path.accessed_at.get # => DateTime { ... }
   fn pub accessed_at -> Result[DateTime, Error] {
     match inko_path_accessed_at(_INKO.process, @path) {
       case { @tag = 0, @value = val } -> Result.Ok(DateTime.from_timestamp(
@@ -599,7 +599,7 @@ class pub Path {
   #
   #     import std.fs.path.Path
   #
-  #     Path.new('/foo/../bar').expand.unwrap # => Path.new('/bar')
+  #     Path.new('/foo/../bar').expand.get # => Path.new('/bar')
   fn pub expand -> Result[Path, Error] {
     match inko_path_expand(_INKO.state, @path) {
       case { @tag = 0, @value = v } -> Result.Ok(Path.new(v as String))
@@ -633,7 +633,7 @@ class pub Path {
   #
   #     let out = STDOUT.new
   #     let path = Path.new('.')
-  #     let iter = path.list.expect('failed to create the iterator')
+  #     let iter = path.list.or_panic('failed to create the iterator')
   #
   #     iter.each fn (result) {
   #       match result {
@@ -666,7 +666,7 @@ class pub Path {
   #
   #     import std.fs.path.Path
   #
-  #     Path.new('/tmp').list_all.unwrap.next
+  #     Path.new('/tmp').list_all.get.next
   #     # => Option.Some(Result.Ok(DirectoryEntry { ... }))
   fn pub list_all -> Result[Stream[Result[DirectoryEntry, Error]], Error] {
     list.map fn (iter) {
@@ -702,10 +702,10 @@ class pub Path {
   #     import std.fs.path.Path
   #
   #     let path = Path.new('/tmp/test.txt')
-  #     let handle = WriteOnlyFile.new(path).unwrap
+  #     let handle = WriteOnlyFile.new(path).get
   #
-  #     handle.write_string('hello').unwrap
-  #     path.remove_file.unwrap
+  #     handle.write_string('hello').get
+  #     path.remove_file.get
   fn pub remove_file -> Result[Nil, Error] {
     match inko_file_remove(_INKO.process, @path) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
@@ -725,8 +725,8 @@ class pub Path {
   #
   #     let path = Path.new('/tmp/foo')
   #
-  #     path.create_directory.unwrap
-  #     path.remove_directory.unwrap
+  #     path.create_directory.get
+  #     path.remove_directory.get
   fn pub remove_directory -> Result[Nil, Error] {
     match inko_directory_remove(_INKO.process, @path) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
@@ -751,8 +751,8 @@ class pub Path {
   #
   #     import std.fs.path.Path
   #
-  #     Path.new('/tmp/foo/bar').create_directory_all.unwrap
-  #     Path.new('/tmp/foo').remove_directory_all.unwrap
+  #     Path.new('/tmp/foo/bar').create_directory_all.get
+  #     Path.new('/tmp/foo').remove_directory_all.get
   fn pub remove_directory_all -> Result[Nil, Error] {
     match inko_directory_remove_recursive(_INKO.process, @path) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
@@ -775,7 +775,7 @@ class pub Path {
   #
   #     import std.fs.path.Path
   #
-  #     Path.new('/tmp/test').create_directory.unwrap
+  #     Path.new('/tmp/test').create_directory.get
   fn pub create_directory -> Result[Nil, Error] {
     match inko_directory_create(_INKO.process, @path) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
@@ -798,7 +798,7 @@ class pub Path {
   #
   #     import std.fs.path.Path
   #
-  #     Path.new('/tmp/foo/bar/test').create_directory_all.unwrap
+  #     Path.new('/tmp/foo/bar/test').create_directory_all.get
   fn pub create_directory_all -> Result[Nil, Error] {
     match inko_directory_create_recursive(_INKO.process, @path) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
@@ -819,10 +819,10 @@ class pub Path {
   #     import std.fs.path.Path
   #
   #     let path = Path.new('/tmp/test.txt')
-  #     let file = WriteOnlyFile.new(path).unwrap
+  #     let file = WriteOnlyFile.new(path).get
   #
-  #     file.write_string('hello').unwrap
-  #     path.copy(to: '/tmp/test2.txt').unwrap
+  #     file.write_string('hello').get
+  #     path.copy(to: '/tmp/test2.txt').get
   fn pub copy[T: ToString](to: ref T) -> Result[Int, Error] {
     match inko_file_copy(_INKO.process, @path, to.to_string) {
       case { @tag = 0, @value = v } -> Result.Ok(v as Int)
@@ -942,7 +942,7 @@ impl Size for Path {
   #
   #     let path = Path.new('/dev/null')
   #
-  #     path.size.unwrap # => 0
+  #     path.size.get # => 0
   fn pub size -> Result[Int, Error] {
     match inko_file_size(_INKO.process, @path) {
       case { @tag = 0, @value = v } -> Result.Ok(v)

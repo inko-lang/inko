@@ -40,12 +40,12 @@
 #     import std.net.socket.TcpServer
 #     import std.time.Duration
 #
-#     let server = TcpServer.new(ip: IpAddress.v4(0, 0, 0, 0), port: 9000).unwrap
+#     let server = TcpServer.new(ip: IpAddress.v4(0, 0, 0, 0), port: 9000).get
 #
 #     server.socket.timeout_after = Duration.from_secs(3)
 #
 #     # This times out after roughly three seconds.
-#     server.accept.unwrap
+#     server.accept.get
 #
 # For more information about timeouts versus deadlines, consider reading [this
 # article](https://vorpus.org/blog/timeouts-and-cancellation-for-humans/).
@@ -331,7 +331,7 @@ class pub Socket {
   #
   #     import std.net.socket.(Type, Socket)
   #
-  #     Socket.ipv4(Type.DGRAM).unwrap
+  #     Socket.ipv4(Type.DGRAM).get
   fn pub static ipv4(type: Type) -> Result[Socket, Error] {
     let sock = RawSocket {
       @inner = 0 as Int32,
@@ -351,7 +351,7 @@ class pub Socket {
   #
   #     import std.net.socket.(Type, Socket)
   #
-  #     Socket.ipv6(Type.DGRAM).unwrap
+  #     Socket.ipv6(Type.DGRAM).get
   fn pub static ipv6(type: Type) -> Result[Socket, Error] {
     let sock = RawSocket {
       @inner = 0 as Int32,
@@ -406,9 +406,9 @@ class pub Socket {
   #     import std.net.socket.(Socket, Type)
   #     import std.net.ip.IpAddress
   #
-  #     let socket = Socket.ipv4(Type.DGRAM).unwrap
+  #     let socket = Socket.ipv4(Type.DGRAM).get
   #
-  #     socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).unwrap
+  #     socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
   fn pub mut bind[T: ToString](ip: ref T, port: Int) -> Result[Nil, Error] {
     match inko_socket_bind(@raw, ip.to_string, port) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
@@ -425,12 +425,12 @@ class pub Socket {
   #     import std.net.socket.(Socket, Type)
   #     import std.net.ip.IpAddress
   #
-  #     let listener = Socket.ipv4(Type.STREAM).unwrap
-  #     let client = Socket.ipv4(Type.STREAM).unwrap
+  #     let listener = Socket.ipv4(Type.STREAM).get
+  #     let client = Socket.ipv4(Type.STREAM).get
   #
-  #     socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).unwrap
-  #     socket.listen.unwrap
-  #     client.connect(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).unwrap
+  #     socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
+  #     socket.listen.get
+  #     client.connect(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
   fn pub mut connect[T: ToString](ip: ref T, port: Int) -> Result[Nil, Error] {
     match inko_socket_connect(
       _INKO.state, _INKO.process, @raw, ip.to_string, port, @deadline
@@ -450,10 +450,10 @@ class pub Socket {
   #     import std.net.socket.(Socket, Type)
   #     import std.net.ip.IpAddress
   #
-  #     let socket = Socket.ipv4(Type.STREAM).unwrap
+  #     let socket = Socket.ipv4(Type.STREAM).get
   #
-  #     socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).unwrap
-  #     socket.listen.unwrap
+  #     socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
+  #     socket.listen.get
   fn pub mut listen -> Result[Nil, Error] {
     match inko_socket_listen(@raw, MAXIMUM_LISTEN_BACKLOG) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
@@ -472,19 +472,19 @@ class pub Socket {
   #     import std.net.socket.(Socket, Type)
   #     import std.net.ip.IpAddress
   #
-  #     let listener = Socket.ipv4(Type.STREAM).unwrap
-  #     let stream = Socket.ipv4(Type.STREAM).unwrap
+  #     let listener = Socket.ipv4(Type.STREAM).get
+  #     let stream = Socket.ipv4(Type.STREAM).get
   #
-  #     listener.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).unwrap
-  #     listener.listen.unwrap
+  #     listener.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
+  #     listener.listen.get
   #
-  #     stream.connect(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).unwrap
-  #     stream.write_string('ping').unwrap
+  #     stream.connect(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
+  #     stream.write_string('ping').get
   #
-  #     let client = listener.accept.unwrap
+  #     let client = listener.accept.get
   #     let buffer = ByteArray.new
   #
-  #     client.read(into: buffer, size: 4).unwrap
+  #     client.read(into: buffer, size: 4).get
   #
   #     buffer.to_string # => 'ping'
   fn pub accept -> Result[Socket, Error] {
@@ -511,16 +511,16 @@ class pub Socket {
   #     import std.net.socket.(Socket, Type)
   #     import std.net.ip.IpAddress
   #
-  #     let socket = Socket.ipv4(Type.DGRAM).unwrap
+  #     let socket = Socket.ipv4(Type.DGRAM).get
   #
-  #     socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).unwrap
+  #     socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
   #     socket
   #       .send_string_to(
   #         string: 'hello',
   #         ip: IpAddress.v4(0, 0, 0, 0),
   #         port: 9999
   #       )
-  #       .unwrap
+  #       .get
   fn pub mut send_string_to[T: ToString](
     string: String,
     ip: ref T,
@@ -543,17 +543,17 @@ class pub Socket {
   #     import std.net.socket.(Socket, Type)
   #     import std.net.ip.IpAddress
   #
-  #     let socket = Socket.ipv4(Type.DGRAM).unwrap
+  #     let socket = Socket.ipv4(Type.DGRAM).get
   #     let bytes = 'hello'.to_byte_array
   #
-  #     socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).unwrap
+  #     socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
   #     socket
   #       .send_bytes_to(
   #         bytes: bytes,
   #         ip: IpAddress.v4(0, 0, 0, 0),
   #         port: 9999
   #       )
-  #       .unwrap
+  #       .get
   fn pub mut send_bytes_to[T: ToString](
     bytes: ref ByteArray,
     ip: ref T,
@@ -580,7 +580,7 @@ class pub Socket {
   #     import std.net.socket.(Socket, Type)
   #     import std.net.ip.IpAddress
   #
-  #     let socket = Socket.ipv4(Type.DGRAM).unwrap
+  #     let socket = Socket.ipv4(Type.DGRAM).get
   #     let bytes = ByteArray.new
   #
   #     socket
@@ -589,9 +589,9 @@ class pub Socket {
   #         ip: IpAddress.v4(0, 0, 0, 0),
   #         port: 9999
   #       )
-  #       .unwrap
+  #       .get
   #
-  #     let received_from = socket.receive_from(bytes: bytes, size: 5).unwrap
+  #     let received_from = socket.receive_from(bytes: bytes, size: 5).get
   #
   #     bytes.to_string       # => 'hello'
   #     received_from.address # => '0.0.0.0'
@@ -813,9 +813,9 @@ class pub UdpSocket {
   #     import std.net.socket.UdpSocket
   #     import std.net.ip.IpAddress
   #
-  #     let ip = IpAddress.parse('0.0.0.0').unwrap
+  #     let ip = IpAddress.parse('0.0.0.0').get
   #
-  #     UdpSocket.new(ip, port: 0).unwrap
+  #     UdpSocket.new(ip, port: 0).get
   fn pub static new(ip: ref IpAddress, port: Int) -> Result[UdpSocket, Error] {
     let socket = if ip.v6? {
       try Socket.ipv6(Type.DGRAM)
@@ -841,11 +841,11 @@ class pub UdpSocket {
   #     import std.net.ip.IpAddress
   #
   #     let socket1 =
-  #       UdpSocket.new(ip: IpAddress.v4(0, 0, 0, 0), port: 40_000).unwrap
+  #       UdpSocket.new(ip: IpAddress.v4(0, 0, 0, 0), port: 40_000).get
   #     let socket2 =
-  #       UdpSocket.new(ip: IpAddress.v4(0, 0, 0, 0), port: 41_000).unwrap
+  #       UdpSocket.new(ip: IpAddress.v4(0, 0, 0, 0), port: 41_000).get
   #
-  #     socket1.connect(ip: IpAddress.v4(0, 0, 0, 0), port: 41_000).unwrap
+  #     socket1.connect(ip: IpAddress.v4(0, 0, 0, 0), port: 41_000).get
   fn pub mut connect[T: ToString](ip: ref T, port: Int) -> Result[Nil, Error] {
     @socket.connect(ip, port)
   }
@@ -860,7 +860,7 @@ class pub UdpSocket {
   #     import std.net.ip.IpAddress
   #
   #     let socket =
-  #       UdpSocket.new(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).unwrap
+  #       UdpSocket.new(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
   #
   #     socket
   #       .send_string_to(
@@ -868,7 +868,7 @@ class pub UdpSocket {
   #         ip: IpAddress.v4(0, 0, 0, 0),
   #         port: 9999
   #       )
-  #       .unwrap
+  #       .get
   fn pub mut send_string_to[T: ToString](
     string: String,
     ip: ref T,
@@ -887,7 +887,7 @@ class pub UdpSocket {
   #     import std.net.ip.IpAddress
   #
   #     let socket =
-  #       UdpSocket.new(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).unwrap
+  #       UdpSocket.new(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
   #     let bytes = 'hello'.to_byte_array
   #
   #     socket
@@ -896,7 +896,7 @@ class pub UdpSocket {
   #         ip: IpAddress.v4(0, 0, 0, 0),
   #         port: 9999
   #       )
-  #       .unwrap
+  #       .get
   fn pub mut send_bytes_to[T: ToString](
     bytes: ref ByteArray,
     ip: ref T,
@@ -971,9 +971,9 @@ class pub TcpClient {
   #     import std.net.socket.TcpClient
   #     import std.net.ip.IpAddress
   #
-  #     let ip = IpAddress.parse('127.0.0.1').unwrap
+  #     let ip = IpAddress.parse('127.0.0.1').get
   #
-  #     TcpClient.new(ip, port: 40_000).unwrap
+  #     TcpClient.new(ip, port: 40_000).get
   fn pub static new(ip: ref IpAddress, port: Int) -> Result[TcpClient, Error] {
     let socket = if ip.v6? {
       try Socket.ipv6(Type.STREAM)
@@ -1005,7 +1005,7 @@ class pub TcpClient {
   #         port: 40_000,
   #         timeout_after: Duration.from_secs(5)
   #       )
-  #       .unwrap
+  #       .get
   fn pub static with_timeout[T: ToInstant](
     ip: ref IpAddress,
     port: Int,
@@ -1102,9 +1102,9 @@ class pub TcpServer {
   #     import std.net.socket.TcpServer
   #     import std.net.ip.IpAddress
   #
-  #     let ip = IpAddress.parse('0.0.0.0').unwrap
+  #     let ip = IpAddress.parse('0.0.0.0').get
   #
-  #     TcpServer.new(ip, port: 40_000).unwrap
+  #     TcpServer.new(ip, port: 40_000).get
   fn pub static new(ip: ref IpAddress, port: Int) -> Result[TcpServer, Error] {
     let socket = if ip.v6? {
       try Socket.ipv6(Type.STREAM)
@@ -1131,16 +1131,16 @@ class pub TcpServer {
   #     import std.net.ip.IpAddress
   #
   #     let listener =
-  #       TcpServer.new(ip: IpAddress.v4(127, 0, 0, 1), port: 40_000).unwrap
+  #       TcpServer.new(ip: IpAddress.v4(127, 0, 0, 1), port: 40_000).get
   #     let client =
-  #       TcpClient.new(ip: IpAddress.v4(127, 0, 0, 1), port: 40_000).unwrap
+  #       TcpClient.new(ip: IpAddress.v4(127, 0, 0, 1), port: 40_000).get
   #
   #     client.write_string('ping')
   #
-  #     let connection = listener.accept.unwrap
+  #     let connection = listener.accept.get
   #     let buffer = ByteArray.new
   #
-  #     connection.read(into: buffer, size: 4).unwrap
+  #     connection.read(into: buffer, size: 4).get
   #
   #     buffer.to_string # => 'ping'
   fn pub accept -> Result[TcpClient, Error] {
@@ -1299,7 +1299,7 @@ class pub UnixSocket {
   #
   #     import std.net.socket.(Type, UnixSocket)
   #
-  #     UnixSocket.new(Type.DGRAM).unwrap
+  #     UnixSocket.new(Type.DGRAM).get
   fn pub static new(type: Type) -> Result[UnixSocket, Error] {
     let sock = RawSocket {
       @inner = 0 as Int32,
@@ -1353,9 +1353,9 @@ class pub UnixSocket {
   #
   #     import std.net.socket.(Type, UnixSocket)
   #
-  #     let socket = UnixSocket.new(Type.DGRAM).unwrap
+  #     let socket = UnixSocket.new(Type.DGRAM).get
   #
-  #     socket.bind('/tmp/test.sock').unwrap
+  #     socket.bind('/tmp/test.sock').get
   fn pub mut bind[T: ToString](path: ref T) -> Result[Nil, Error] {
     match inko_socket_bind(@raw, path.to_string, 0) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
@@ -1371,13 +1371,13 @@ class pub UnixSocket {
   #
   #     import std.net.socket.(Type, UnixSocket)
   #
-  #     let listener = UnixSocket.new(Type.STREAM).unwrap
-  #     let stream = UnixSocket.new(Type.STREAM).unwrap
+  #     let listener = UnixSocket.new(Type.STREAM).get
+  #     let stream = UnixSocket.new(Type.STREAM).get
   #
-  #     listener.bind('/tmp/test.sock').unwrap
-  #     listener.listen.unwrap
+  #     listener.bind('/tmp/test.sock').get
+  #     listener.listen.get
   #
-  #     stream.connect('/tmp/test.sock').unwrap
+  #     stream.connect('/tmp/test.sock').get
   fn pub mut connect[T: ToString](path: ref T) -> Result[Nil, Error] {
     match inko_socket_connect(
       _INKO.state, _INKO.process, @raw, path.to_string, 0, @deadline
@@ -1396,10 +1396,10 @@ class pub UnixSocket {
   #
   #     import std.net.socket.(Type, UnixSocket)
   #
-  #     let socket = UnixSocket.new(Type.STREAM).unwrap
+  #     let socket = UnixSocket.new(Type.STREAM).get
   #
-  #     socket.bind('/tmp/test.sock').unwrap
-  #     socket.listen.unwrap
+  #     socket.bind('/tmp/test.sock').get
+  #     socket.listen.get
   fn pub mut listen -> Result[Nil, Error] {
     match inko_socket_listen(@raw, MAXIMUM_LISTEN_BACKLOG) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
@@ -1417,19 +1417,19 @@ class pub UnixSocket {
   #
   #     import std.net.socket.(Type, UnixSocket)
   #
-  #     let listener = UnixSocket.new(Type.STREAM).unwrap
-  #     let stream = UnixSocket.new(Type.STREAM).unwrap
+  #     let listener = UnixSocket.new(Type.STREAM).get
+  #     let stream = UnixSocket.new(Type.STREAM).get
   #
-  #     listener.bind('/tmp/test.sock').unwrap
-  #     listener.listen.unwrap
+  #     listener.bind('/tmp/test.sock').get
+  #     listener.listen.get
   #
-  #     stream.connect('/tmp/test.sock').unwrap
-  #     stream.write_string('ping').unwrap
+  #     stream.connect('/tmp/test.sock').get
+  #     stream.write_string('ping').get
   #
-  #     let client = listener.accept.unwrap
+  #     let client = listener.accept.get
   #     let buffer = ByteArray.new
   #
-  #     client.read(into: buffer, size: 4).unwrap
+  #     client.read(into: buffer, size: 4).get
   #
   #     buffer.to_string # => 'ping'
   fn pub accept -> Result[UnixSocket, Error] {
@@ -1455,10 +1455,10 @@ class pub UnixSocket {
   #
   #     import std.net.socket.(Type, UnixSocket)
   #
-  #     let socket = UnixSocket.new(Type.DGRAM).unwrap
+  #     let socket = UnixSocket.new(Type.DGRAM).get
   #
-  #     socket.bind('/tmp/test.sock').unwrap
-  #     socket.send_string_to(string: 'hello', address: '/tmp/test.sock').unwrap
+  #     socket.bind('/tmp/test.sock').get
+  #     socket.send_string_to(string: 'hello', address: '/tmp/test.sock').get
   fn pub mut send_string_to[T: ToString](
     string: String,
     address: ref T
@@ -1481,11 +1481,11 @@ class pub UnixSocket {
   #
   #     import std.net.socket.(Type, UnixSocket)
   #
-  #     let socket = UnixSocket.new(Type.DGRAM).unwrap
+  #     let socket = UnixSocket.new(Type.DGRAM).get
   #     let bytes = 'hello'.to_byte_array
   #
-  #     socket.bind('/tmp/test.sock').unwrap
-  #     socket.send_bytes_to(bytes: bytes, address: '/tmp/test.sock').unwrap
+  #     socket.bind('/tmp/test.sock').get
+  #     socket.send_bytes_to(bytes: bytes, address: '/tmp/test.sock').get
   fn pub mut send_bytes_to[T: ToString](
     bytes: ref ByteArray,
     address: ref T
@@ -1512,12 +1512,12 @@ class pub UnixSocket {
   #
   #     import std.net.socket.(Type, UnixSocket)
   #
-  #     let socket = UnixSocket.new(Type.DGRAM).unwrap
+  #     let socket = UnixSocket.new(Type.DGRAM).get
   #     let bytes = ByteArray.new
   #
-  #     socket.send_string_to('hello', address: '/tmp/test.sock').unwrap
+  #     socket.send_string_to('hello', address: '/tmp/test.sock').get
   #
-  #     let received_from = socket.receive_from(bytes: bytes, size: 5).unwrap
+  #     let received_from = socket.receive_from(bytes: bytes, size: 5).get
   #
   #     bytes.to_string         # => 'hello'
   #     received_from.to_string # => '/tmp/test.sock'
@@ -1667,7 +1667,7 @@ class pub UnixDatagram {
   #
   #     import std.net.socket.UnixDatagram
   #
-  #     UnixDatagram.new('/tmp/test.sock').unwrap
+  #     UnixDatagram.new('/tmp/test.sock').get
   fn pub static new[T: ToString](
     address: ref T
   ) -> Result[UnixDatagram, Error] {
@@ -1689,10 +1689,10 @@ class pub UnixDatagram {
   #
   #     import std.net.socket.UnixDatagram
   #
-  #     let socket1 = UnixDatagram.new('/tmp/test1.sock').unwrap
-  #     let socket2 = UnixDatagram.new('/tmp/test2.sock').unwrap
+  #     let socket1 = UnixDatagram.new('/tmp/test1.sock').get
+  #     let socket2 = UnixDatagram.new('/tmp/test2.sock').get
   #
-  #     socket1.connect('/tmp/test2.sock').unwrap
+  #     socket1.connect('/tmp/test2.sock').get
   fn pub mut connect[T: ToString](address: ref T) -> Result[Nil, Error] {
     @socket.connect(address)
   }
@@ -1705,9 +1705,9 @@ class pub UnixDatagram {
   #
   #     import std.net.socket.UnixDatagram
   #
-  #     let socket = UnixDatagram.new('/tmp/test.sock').unwrap
+  #     let socket = UnixDatagram.new('/tmp/test.sock').get
   #
-  #     socket.send_string_to(string: 'hello', address: '/tmp/test.sock').unwrap
+  #     socket.send_string_to(string: 'hello', address: '/tmp/test.sock').get
   fn pub mut send_string_to[T: ToString](
     string: String,
     address: ref T
@@ -1723,10 +1723,10 @@ class pub UnixDatagram {
   #
   #     import std.net.socket.UnixDatagram
   #
-  #     let socket = UnixDatagram.new('/tmp/test.sock').unwrap
+  #     let socket = UnixDatagram.new('/tmp/test.sock').get
   #     let bytes = 'hello'.to_byte_array
   #
-  #     socket.send_bytes_to(bytes: bytes, address: '/tmp/test.sock').unwrap
+  #     socket.send_bytes_to(bytes: bytes, address: '/tmp/test.sock').get
   fn pub mut send_bytes_to[T: ToString](
     bytes: ref ByteArray,
     address: ref T
@@ -1798,9 +1798,9 @@ class pub UnixClient {
   #
   #     import std.net.socket.(UnixServer, UnixClient)
   #
-  #     let listener = UnixServer.new('/tmp/test.sock').unwrap
+  #     let listener = UnixServer.new('/tmp/test.sock').get
   #
-  #     UnixClient.new('/tmp/test.sock').unwrap
+  #     UnixClient.new('/tmp/test.sock').get
   fn pub static new[T: ToString](address: ref T) -> Result[UnixClient, Error] {
     let socket = try UnixSocket.new(Type.STREAM)
 
@@ -1826,7 +1826,7 @@ class pub UnixClient {
   #         address: '/tmp/test.sock'
   #         timeout_after: Duration.from_secs(5)
   #       )
-  #       .unwrap
+  #       .get
   fn pub static with_timeout[A: ToString, I: ToInstant](
     address: ref A,
     timeout_after: I
@@ -1912,7 +1912,7 @@ class pub UnixServer {
   #
   #     import std.net.socket.UnixServer
   #
-  #     UnixServer.new('/tmp/test.sock').unwrap
+  #     UnixServer.new('/tmp/test.sock').get
   fn pub static new[T: ToString](address: ref T) -> Result[UnixServer, Error] {
     let socket = try UnixSocket.new(Type.STREAM)
 
@@ -1931,15 +1931,15 @@ class pub UnixServer {
   #
   #     import std.net.socket.(UnixServer, UnixClient)
   #
-  #     let listener = UnixServer.new('/tmp/test.sock').unwrap
-  #     let client = UnixClient.new('/tmp/test.sock').unwrap
+  #     let listener = UnixServer.new('/tmp/test.sock').get
+  #     let client = UnixClient.new('/tmp/test.sock').get
   #
   #     client.write_string('ping')
   #
-  #     let connection = listener.accept.unwrap
+  #     let connection = listener.accept.get
   #     let buffer = ByteArray.new
   #
-  #     connection.read(into: buffer, size: 4).unwrap
+  #     connection.read(into: buffer, size: 4).get
   #
   #     buffer.to_string # => 'ping'
   fn pub accept -> Result[UnixClient, Error] {

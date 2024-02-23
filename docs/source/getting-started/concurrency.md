@@ -161,9 +161,9 @@ class async Main {
   fn async main {
     let server = recover TcpServer
       .new(IpAddress.v4(127, 0, 0, 1), port: 40_000)
-      .unwrap
+      .get
 
-    let client = recover server.accept.unwrap
+    let client = recover server.accept.get
   }
 }
 ```

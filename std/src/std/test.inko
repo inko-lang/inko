@@ -211,20 +211,20 @@ class pub Plain[T: mut + Write] {
 impl Reporter for Plain {
   fn pub mut passed(test: Test) {
     @tests += 1
-    @out.write_string(green('.')).unwrap
-    @out.flush.unwrap
+    @out.write_string(green('.')).get
+    @out.flush.get
   }
 
   fn pub mut failed(test: Test) {
     @tests += 1
     @failed.push(test)
-    @out.write_string(red('F')).unwrap
-    @out.flush.unwrap
+    @out.write_string(red('F')).get
+    @out.flush.get
   }
 
   fn pub move finished(duration: Duration, seed: Int) -> Bool {
     if @failed.size > 0 {
-      @out.print("\n\nFailures:").unwrap
+      @out.print("\n\nFailures:").get
 
       @failed.iter.each_with_index fn (test_index, test) {
         test.failures.iter.each_with_index fn (failure_index, fail) {
@@ -240,7 +240,7 @@ impl Reporter for Plain {
 {indent}   {green("expected:")} {fail.expected}
 {indent}        {red("got:")} {fail.got}"
             )
-            .unwrap
+            .get
         }
       }
     }
@@ -260,7 +260,7 @@ impl Reporter for Plain {
       .print(
         "\nFinished running {@tests} tests in {dur}, {failures}, seed: {seed}"
       )
-      .unwrap
+      .get
 
     @failed.empty?
   }
@@ -312,7 +312,7 @@ class pub Failure {
     let frame = debug
       .stacktrace(skip: 3)
       .pop
-      .expect('at least one stack frame must be present')
+      .or_panic('at least one stack frame must be present')
 
     match frame {
       case { @path = path, @line = line } -> Failure {
@@ -385,7 +385,7 @@ class pub Process {
   let @stdin: String
 
   fn static new(id: Int) -> Process {
-    let cmd = Command.new(env.executable.unwrap)
+    let cmd = Command.new(env.executable.get)
 
     cmd.stdin(Stream.Piped)
     cmd.stdout(Stream.Piped)
@@ -503,7 +503,7 @@ class pub Tests {
         .reverse_iter
         .find fn (frame) { frame.path.tail.starts_with?(TEST_PREFIX) }
         .else fn { trace.opt(trace.size - 1) }
-        .expect('at least one stack frame must be present')
+        .or_panic('at least one stack frame must be present')
         .clone
 
       Test.new(id, name, frame.path.clone, frame.line, code)
@@ -519,12 +519,12 @@ class pub Tests {
   # This is useful when writing tests that perform operations that might fail
   # but in general shouldn't, such as connecting to a socket that's expected to
   # be available. Such tests could sporadically fail, resulting in any
-  # unwrapping terminating the entire test suite. Using this method, you can
+  # getping terminating the entire test suite. Using this method, you can
   # instead use the `try` operator. So instead of this:
   #
   #     t.test('Foo') fn (t) {
-  #       let a = foo.unwrap
-  #       let b = bar(a).unwrap
+  #       let a = foo.get
+  #       let b = bar(a).get
   #       ...
   #     }
   #
@@ -602,7 +602,7 @@ class pub Tests {
 
       if code != 101 { return }
 
-      let got = output.stderr.split("\n").last.unwrap_or('the process panicked')
+      let got = output.stderr.split("\n").last.or('the process panicked')
 
       test.failures.push(Failure.new(got, 'the process not to panic'))
     }

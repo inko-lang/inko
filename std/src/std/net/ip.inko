@@ -229,7 +229,7 @@ class pub Ipv6Address {
   #
   #     import std.net.ip.Ipv6Address
   #
-  #     Ipv6Address.parse('::1').unwrap.v6? # => true
+  #     Ipv6Address.parse('::1').get.v6? # => true
   fn pub static parse(input: String) -> Option[Ipv6Address] {
     let bytes = input.to_byte_array
     let mut cursor = 0
@@ -619,7 +619,7 @@ class pub Ipv4Address {
   #
   #     import std.net.ip.Ipv4Address
   #
-  #     let addr = Ipv4Address.parse('1.2.3.4').unwrap
+  #     let addr = Ipv4Address.parse('1.2.3.4').get
   #
   #     addr.v4? # => true
   fn pub static parse(input: String) -> Option[Ipv4Address] {

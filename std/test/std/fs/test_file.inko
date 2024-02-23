@@ -4,16 +4,16 @@ import std.fs.path.Path
 import std.test.Tests
 
 fn write(string: String, to: ref Path) {
-  let file = WriteOnlyFile.new(to.clone).unwrap
+  let file = WriteOnlyFile.new(to.clone).get
 
-  file.write_string(string).unwrap
+  file.write_string(string).get
 }
 
 fn read(from: ref Path) -> String {
-  let file = ReadOnlyFile.new(from.clone).unwrap
+  let file = ReadOnlyFile.new(from.clone).get
   let bytes = ByteArray.new
 
-  file.read_all(bytes).unwrap
+  file.read_all(bytes).get
 
   bytes.into_string
 }
@@ -28,7 +28,7 @@ fn pub tests(t: mut Tests) {
 
     t.true(ReadOnlyFile.new(path.clone).ok?)
 
-    path.remove_file.unwrap
+    path.remove_file.get
   }
 
   t.test('ReadOnlyFile.read') fn (t) {
@@ -36,14 +36,14 @@ fn pub tests(t: mut Tests) {
 
     write('test', to: path)
 
-    let handle = ReadOnlyFile.new(path.clone).unwrap
+    let handle = ReadOnlyFile.new(path.clone).get
     let bytes = ByteArray.new
 
-    handle.read(into: bytes, size: 4).unwrap
+    handle.read(into: bytes, size: 4).get
 
     t.equal(bytes.into_string, 'test')
 
-    path.remove_file.unwrap
+    path.remove_file.get
   }
 
   t.test('ReadOnlyFile.seek') fn (t) {
@@ -51,15 +51,15 @@ fn pub tests(t: mut Tests) {
 
     write('test', to: path)
 
-    let handle = ReadOnlyFile.new(path.clone).unwrap
+    let handle = ReadOnlyFile.new(path.clone).get
     let bytes = ByteArray.new
 
-    handle.seek(1).unwrap
-    handle.read(into: bytes, size: 4).unwrap
+    handle.seek(1).get
+    handle.read(into: bytes, size: 4).get
 
     t.equal(bytes.into_string, 'est')
 
-    path.remove_file.unwrap
+    path.remove_file.get
   }
 
   t.test('ReadOnlyFile.size') fn (t) {
@@ -67,11 +67,11 @@ fn pub tests(t: mut Tests) {
 
     write('test', to: path)
 
-    let handle = ReadOnlyFile.new(path.clone).unwrap
+    let handle = ReadOnlyFile.new(path.clone).get
 
-    t.true(handle.size.unwrap >= 0)
+    t.true(handle.size.get >= 0)
 
-    path.remove_file.unwrap
+    path.remove_file.get
   }
 
   t.test('WriteOnlyFile.new') fn (t) {
@@ -80,7 +80,7 @@ fn pub tests(t: mut Tests) {
     t.true(WriteOnlyFile.new(path.clone).ok?)
     t.true(WriteOnlyFile.new(path.clone).ok?)
 
-    path.remove_file.unwrap
+    path.remove_file.get
   }
 
   t.test('WriteOnlyFile.append') fn (t) {
@@ -89,72 +89,72 @@ fn pub tests(t: mut Tests) {
     t.true(WriteOnlyFile.append(path.clone).ok?)
     t.true(WriteOnlyFile.append(path.clone).ok?)
 
-    path.remove_file.unwrap
+    path.remove_file.get
   }
 
   t.test('WriteOnlyFile.write_bytes') fn (t) {
     let path = env.temporary_directory.join("inko-test-{t.id}")
 
     {
-      let handle = WriteOnlyFile.new(path.clone).unwrap
+      let handle = WriteOnlyFile.new(path.clone).get
 
-      handle.write_bytes('test'.to_byte_array).unwrap
+      handle.write_bytes('test'.to_byte_array).get
     }
 
     {
-      let handle = WriteOnlyFile.append(path.clone).unwrap
+      let handle = WriteOnlyFile.append(path.clone).get
 
-      handle.write_bytes('ing'.to_byte_array).unwrap
+      handle.write_bytes('ing'.to_byte_array).get
     }
 
     t.equal(read(path), 'testing')
 
-    path.remove_file.unwrap
+    path.remove_file.get
   }
 
   t.test('WriteOnlyFile.write_string') fn (t) {
     let path = env.temporary_directory.join("inko-test-{t.id}")
 
     {
-      let handle = WriteOnlyFile.new(path.clone).unwrap
+      let handle = WriteOnlyFile.new(path.clone).get
 
-      handle.write_string('test').unwrap
+      handle.write_string('test').get
     }
 
     {
-      let handle = WriteOnlyFile.append(path.clone).unwrap
+      let handle = WriteOnlyFile.append(path.clone).get
 
-      handle.write_string('ing').unwrap
+      handle.write_string('ing').get
     }
 
     t.equal(read(path), 'testing')
 
-    path.remove_file.unwrap
+    path.remove_file.get
   }
 
   t.test('WriteOnlyFile.flush') fn (t) {
     let path = env.temporary_directory.join("inko-test-{t.id}")
-    let handle = WriteOnlyFile.new(path.clone).unwrap
+    let handle = WriteOnlyFile.new(path.clone).get
 
-    handle.write_string('test').unwrap
-    handle.flush.unwrap
+    handle.write_string('test').get
+    handle.flush.get
 
     t.equal(read(path), 'test')
 
-    path.remove_file.unwrap
+    path.remove_file.get
   }
 
   t.test('WriteOnlyFile.seek') fn (t) {
     let path = env.temporary_directory.join("inko-test-{t.id}")
-    let handle = WriteOnlyFile.new(path.clone).unwrap
+    let handle = WriteOnlyFile.new(path.clone).get
 
-    handle.write_string('test').unwrap
-    handle.seek(1).unwrap
-    handle.write_string('ing').unwrap
+    handle.write_string('test').get
+    handle.seek(1).get
+    handle.write_string('ing').get
 
     t.equal(read(path), 'ting')
 
-    path.remove_file.unwrap
+    path.remove_file.get
   }
 
   t.test('ReadWriteFile.new') fn (t) {
@@ -163,7 +163,7 @@ fn pub tests(t: mut Tests) {
     t.true(ReadWriteFile.new(path.clone).ok?)
     t.true(ReadWriteFile.new(path.clone).ok?)
 
-    path.remove_file.unwrap
+    path.remove_file.get
   }
 
   t.test('ReadWriteFile.append') fn (t) {
@@ -172,7 +172,7 @@ fn pub tests(t: mut Tests) {
     t.true(ReadWriteFile.append(path.clone).ok?)
     t.true(ReadWriteFile.append(path.clone).ok?)
 
-    path.remove_file.unwrap
+    path.remove_file.get
   }
 
   t.test('ReadWriteFile.read') fn (t) {
@@ -180,79 +180,79 @@ fn pub tests(t: mut Tests) {
 
     write('test', to: path)
 
-    let handle = ReadWriteFile.new(path.clone).unwrap
+    let handle = ReadWriteFile.new(path.clone).get
     let bytes = ByteArray.new
 
-    handle.read(bytes, size: 4).unwrap
+    handle.read(bytes, size: 4).get
 
     t.equal(bytes.to_string, 'test')
 
-    path.remove_file.unwrap
+    path.remove_file.get
   }
 
   t.test('ReadWriteFile.write_bytes') fn (t) {
     let path = env.temporary_directory.join("inko-test-{t.id}")
 
     {
-      let handle = ReadWriteFile.new(path.clone).unwrap
+      let handle = ReadWriteFile.new(path.clone).get
 
-      handle.write_bytes('test'.to_byte_array).unwrap
+      handle.write_bytes('test'.to_byte_array).get
     }
 
     {
-      let handle = ReadWriteFile.append(path.clone).unwrap
+      let handle = ReadWriteFile.append(path.clone).get
 
-      handle.write_bytes('ing'.to_byte_array).unwrap
+      handle.write_bytes('ing'.to_byte_array).get
     }
 
     t.equal(read(path), 'testing')
 
-    path.remove_file.unwrap
+    path.remove_file.get
   }
 
   t.test('ReadWriteFile.write_string') fn (t) {
     let path = env.temporary_directory.join("inko-test-{t.id}")
 
     {
-      let handle = ReadWriteFile.new(path.clone).unwrap
+      let handle = ReadWriteFile.new(path.clone).get
 
-      handle.write_string('test').unwrap
+      handle.write_string('test').get
     }
 
     {
-      let handle = ReadWriteFile.append(path.clone).unwrap
+      let handle = ReadWriteFile.append(path.clone).get
 
-      handle.write_string('ing').unwrap
+      handle.write_string('ing').get
     }
 
     t.equal(read(path), 'testing')
 
-    path.remove_file.unwrap
+    path.remove_file.get
   }
 
   t.test('ReadWriteFile.flush') fn (t) {
     let path = env.temporary_directory.join("inko-test-{t.id}")
-    let handle = ReadWriteFile.new(path.clone).unwrap
+    let handle = ReadWriteFile.new(path.clone).get
 
-    handle.write_string('test').unwrap
-    handle.flush.unwrap
+    handle.write_string('test').get
+    handle.flush.get
 
     t.equal(read(path), 'test')
 
-    path.remove_file.unwrap
+    path.remove_file.get
   }
 
   t.test('ReadWriteFile.seek') fn (t) {
     let path = env.temporary_directory.join("inko-test-{t.id}")
-    let handle = ReadWriteFile.new(path.clone).unwrap
+    let handle = ReadWriteFile.new(path.clone).get
 
-    handle.write_string('test').unwrap
-    handle.seek(1).unwrap
-    handle.write_string('ing').unwrap
+    handle.write_string('test').get
+    handle.seek(1).get
+    handle.write_string('ing').get
 
     t.equal(read(path), 'ting')
 
-    path.remove_file.unwrap
+    path.remove_file.get
   }
 
   t.test('ReadWriteFile.size') fn (t) {
@@ -260,10 +260,10 @@ fn pub tests(t: mut Tests) {
 
     write('test', to: path)
 
-    let handle = ReadWriteFile.new(path.clone).unwrap
+    let handle = ReadWriteFile.new(path.clone).get
 
-    t.true(handle.size.unwrap >= 0)
+    t.true(handle.size.get >= 0)
 
-    path.remove_file.unwrap
+    path.remove_file.get
   }
 }

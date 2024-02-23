@@ -181,7 +181,7 @@ The `throw` keyword is only available in methods of which the return type is a
 ## try
 
 `try` takes an expression of which the type is either `std.result.Result` or
-`std.option.Option`, and unwraps it. If the value is a `Result.Error` or an
+`std.option.Option`, and gets it. If the value is a `Result.Error` or an
 `Option.None`, the value is returned as-is.
 
 Consider this example of using `try` with an `Option` value:

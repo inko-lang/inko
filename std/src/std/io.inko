@@ -390,7 +390,7 @@ trait pub BufferedRead: Read {
   #     import std.fs.file.ReadOnlyFile
   #     import std.io.BufferedReader
   #
-  #     let file = ReadOnlyFile.new('README.md').unwrap
+  #     let file = ReadOnlyFile.new('README.md').get
   #     let reader = BufferedReader.new(file)
   #
   #     reader.read_byte # => Result.Ok(Option.Some(35))
@@ -407,7 +407,7 @@ trait pub BufferedRead: Read {
   #     import std.fs.file.ReadOnlyFile
   #     import std.io.BufferedReader
   #
-  #     let file = ReadOnlyFile.new('README.md').unwrap
+  #     let file = ReadOnlyFile.new('README.md').get
   #     let reader = BufferedReader.new(file)
   #     let bytes = ByteArray.new
   #
@@ -441,7 +441,7 @@ trait pub BufferedRead: Read {
   #     import std.fs.file.ReadOnlyFile
   #     import std.io.BufferedReader
   #
-  #     let file = ReadOnlyFile.new('README.md').unwrap
+  #     let file = ReadOnlyFile.new('README.md').get
   #     let reader = BufferedReader.new(file)
   #     let bytes = ByteArray.new
   #
@@ -459,7 +459,7 @@ trait pub BufferedRead: Read {
   #     import std.fs.file.ReadOnlyFile
   #     import std.io.BufferedReader
   #
-  #     let file = ReadOnlyFile.new('README.md').unwrap
+  #     let file = ReadOnlyFile.new('README.md').get
   #     let reader = BufferedReader.new(file)
   #
   #     reader.bytes.next # => Option.Some(Result.Ok(35))

@@ -141,7 +141,7 @@ fn pub tests(t: mut Tests) {
   t.test('Read.read_all') fn (t) {
     let reader = Reader.new
     let bytes = ByteArray.new
-    let size = reader.read_all(bytes).unwrap
+    let size = reader.read_all(bytes).get
 
     t.equal(size, 3)
     t.equal(bytes, ByteArray.from_array([1, 2, 3]))
@@ -150,7 +150,7 @@ fn pub tests(t: mut Tests) {
   t.test('Write.print') fn (t) {
     let writer = Writer.new
 
-    writer.print('foo').unwrap
+    writer.print('foo').get
 
     t.equal(writer.buffer, "foo\n".to_byte_array)
   }

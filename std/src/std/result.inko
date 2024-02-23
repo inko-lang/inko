@@ -102,7 +102,8 @@ class pub enum Result[T, E] {
     }
   }
 
-  # Unwraps `self` into its `Ok` value.
+  # Returns the value wrapped by the `Ok` case, or panics if `self` is an
+  # `Error`.
   #
   # # Panics
   #
@@ -112,60 +113,59 @@ class pub enum Result[T, E] {
   #
   #     let res: Result[Int, String] = Result.Ok(42)
   #
-  #     res.unwrap # => 42
-  fn pub move unwrap -> T {
-    match self {
-      case Ok(val) -> val
-      case _ -> panic("Result.unwrap can't unwrap an Error")
-    }
+  #     res.get # => 42
+  fn pub move get -> T {
+    or_panic('Result.get expects an Ok(_), but an Error(_) is found')
   }
 
-  # Returns the wrapped `Ok` value, triggering a panic with a custom message for
-  # a `Error`.
+  # Returns the value wrapped by `Ok`, or panics with the given message if
+  # `self` is an `Error`.
   #
   # # Examples
   #
   #     let res: Result[Int, String] = Result.Ok(10)
   #
-  #     res.expect('a number must be present') # => 10
-  fn pub move expect(message: String) -> T {
+  #     res.or_panic('a number must be present') # => 10
+  fn pub move or_panic(message: String) -> T {
     match self {
       case Ok(v) -> v
       case _ -> panic(message)
     }
   }
 
-  # Unwraps `self` into its `Ok` value, returning a default value if `self` is
-  # an `Error`.
+  # Returns the value wrapped by `Ok`, or returns `default` if `self` is an
+  # `Error`.
   #
   # # Examples
   #
   #     let foo: Result[Int, String] = Result.Ok(42)
   #     let bar: Result[Int, String] = Result.Error('oops!')
   #
-  #     foo.unwrap_or(0) # => 42
-  #     bar.unwrap_or(0) # => 0
-  fn pub move unwrap_or(default: T) -> T {
+  #     foo.or(0) # => 42
+  #     bar.or(0) # => 0
+  fn pub move or(default: T) -> T {
     match self {
       case Ok(val) -> val
       case _ -> default
     }
   }
 
-  # Unwraps `self` into its `Ok` value, returning a default value if `self` is
-  # an `Error`.
+  # Returns the value wrapped by `Ok`, or returns the closure's return value if
+  # `self` is an `Error`.
+  #
+  # The argument passed to the closure is the value wrapped by the `Error` case.
   #
   # # Examples
   #
   #     let foo: Result[Int, String] = Result.Ok(42)
   #     let bar: Result[Int, String] = Result.Error('oops!')
   #
-  #     foo.unwrap_or_else fn { 0 } # => 42
-  #     bar.unwrap_or_else fn { 0 } # => 0
-  fn pub move unwrap_or_else(block: fn -> T) -> T {
+  #     foo.or_else fn (_) { 0 } # => 42
+  #     bar.or_else fn (_) { 0 } # => 0
+  fn pub move or_else(block: fn (E) -> T) -> T {
     match self {
-      case Ok(val) -> val
-      case _ -> block.call
+      case Ok(v) -> v
+      case Error(v) -> block.call(v)
     }
   }
 

@@ -9,7 +9,7 @@ fn pub tests(t: mut Tests) {
 
     map.set('name', 'Alice')
 
-    let entry = map.iter.next.unwrap
+    let entry = map.iter.next.get
 
     t.equal(entry.key, 'name')
   }
@@ -19,7 +19,7 @@ fn pub tests(t: mut Tests) {
 
     map.set('name', 'Alice')
 
-    let entry = map.iter.next.unwrap
+    let entry = map.iter.next.get
 
     t.equal(entry.value, 'Alice')
   }

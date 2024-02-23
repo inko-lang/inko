@@ -95,7 +95,7 @@ class pub ReadOnlyFile {
   #
   #     import std.fs.file.ReadOnlyFile
   #
-  #     let handle = ReadOnlyFile.new('/dev/null').unwrap
+  #     let handle = ReadOnlyFile.new('/dev/null').get
   fn pub static new[T: ToPath](path: ref T) -> Result[ReadOnlyFile, Error] {
     let path = path.to_path
 
@@ -157,7 +157,7 @@ class pub WriteOnlyFile {
   #
   #     import std.fs.file.WriteOnlyFile
   #
-  #     let file = WriteOnlyFile.new('/dev/null').unwrap
+  #     let file = WriteOnlyFile.new('/dev/null').get
   fn pub static new[T: ToPath](path: ref T) -> Result[WriteOnlyFile, Error] {
     let path = path.to_path
 
@@ -177,7 +177,7 @@ class pub WriteOnlyFile {
   #
   #     import std.fs.file.WriteOnlyFile
   #
-  #     let file = WriteOnlyFile.append('/dev/null').unwrap
+  #     let file = WriteOnlyFile.append('/dev/null').get
   fn pub static append[T: ToPath](path: ref T) -> Result[WriteOnlyFile, Error] {
     let path = path.to_path
 
@@ -246,7 +246,7 @@ class pub ReadWriteFile {
   #
   #     import std.fs.file.ReadWriteFile
   #
-  #     let handle = ReadWriteFile.new('/dev/null').unwrap
+  #     let handle = ReadWriteFile.new('/dev/null').get
   fn pub static new[T: ToPath](path: ref T) -> Result[ReadWriteFile, Error] {
     let path = path.to_path
 
@@ -266,7 +266,7 @@ class pub ReadWriteFile {
   #
   #     import std.fs.file.ReadWriteFile
   #
-  #     let handle = ReadWriteFile.append('/dev/null').unwrap
+  #     let handle = ReadWriteFile.append('/dev/null').get
   fn pub static append[T: ToPath](path: ref T) -> Result[ReadWriteFile, Error] {
     let path = path.to_path
 

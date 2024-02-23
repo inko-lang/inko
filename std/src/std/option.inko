@@ -35,54 +35,50 @@ class pub enum Option[T] {
     }
   }
 
-  # Returns the wrapped value.
-  #
-  # This method panics when used with a `None`.
+  # Returns the value wrapped by `Some`, or panics if `self` is a `None`.
   #
   # # Examples
   #
-  #     Option.Some(10).unwrap # => 10
-  fn pub move unwrap -> T {
-    match self {
-      case Some(v) -> v
-      case _ -> panic("Option.unwrap can't unwrap a None")
-    }
+  #     Option.Some(10).get # => 10
+  fn pub move get -> T {
+    or_panic('Option.get expects a Some(_), but a None is found')
   }
 
-  # Returns the wrapped value, triggering a panic with a custom message for a
-  # `None`.
+  # Returns the value wrapped by `Some`, or panics with the given message if
+  # `self` is a `None`.
   #
   # # Examples
   #
-  #     Option.Some(10).expect('a number must be present') # => 10
-  fn pub move expect(message: String) -> T {
+  #     Option.Some(10).or_panic('a number must be present') # => 10
+  fn pub move or_panic(message: String) -> T {
     match self {
       case Some(v) -> v
       case _ -> panic(message)
     }
   }
 
-  # Returns the wrapped value for a `Some`, or the argument for a `None`.
+  # Returns the value wrapped by `Some`, or returns `default` if `self` is a
+  # `None`.
   #
   # # Examples
   #
-  #     Option.Some(10).unwrap_or(0) # => 10
-  #     Option.None.unwrap_or(0)     # => 0
-  fn pub move unwrap_or(default: T) -> T {
+  #     Option.Some(10).or(0) # => 10
+  #     Option.None.or(0)     # => 0
+  fn pub move or(default: T) -> T {
     match self {
       case Some(v) -> v
       case None -> default
     }
   }
 
-  # Returns the wrapped value for a `Some`, or calls the closure and returns its
-  # value.
+  # Returns the value wrapped by `Some`, or returns the closure's return value
+  # if `self` is a `None`.
   #
   # # Examples
   #
-  #     Option.Some(10).unwrap_or_else fn { 0 } # => 10
-  #     Option.None.unwrap_or_else fn { 0 }     # => 0
-  fn pub move unwrap_or_else(block: fn -> T) -> T {
+  #     Option.Some(10).or_else fn { 0 } # => 10
+  #     Option.None.or_else fn { 0 }     # => 0
+  fn pub move or_else(block: fn -> T) -> T {
     match self {
       case Some(v) -> v
       case None -> block.call

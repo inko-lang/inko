@@ -17,7 +17,7 @@ fn pub tests(t: mut Tests) {
 
   t.fork(
     'env.opt',
-    child: fn { STDOUT.new.write_string(env.opt('INKO_TEST').unwrap_or('?')) },
+    child: fn { STDOUT.new.write_string(env.opt('INKO_TEST').or('?')) },
     test: fn (test, process) {
       process.variable('INKO_TEST', 'foo')
       test.equal(process.spawn.stdout, 'foo')
@@ -51,7 +51,7 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('env.working_directory') fn (t) {
-    let path = env.working_directory.unwrap
+    let path = env.working_directory.get
 
     t.true(path.directory?)
   }
@@ -62,7 +62,7 @@ fn pub tests(t: mut Tests) {
       let out = STDOUT.new
 
       env.working_directory = env.temporary_directory
-      out.write_string(env.working_directory.unwrap.to_string)
+      out.write_string(env.working_directory.get.to_string)
     },
     test: fn (test, process) {
       test.equal(process.spawn.stdout, env.temporary_directory.to_string)
@@ -86,7 +86,7 @@ fn pub tests(t: mut Tests) {
   )
 
   t.test('env.executable') fn (t) {
-    let path = env.executable.unwrap
+    let path = env.executable.get
 
     t.true(path.file?)
   }

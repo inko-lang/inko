@@ -33,18 +33,18 @@ fn valid_date?(time: Result[DateTime, Error]) -> Bool {
 }
 
 fn read(from: ref Path) -> String {
-  let file = ReadOnlyFile.new(from.clone).unwrap
+  let file = ReadOnlyFile.new(from.clone).get
   let bytes = ByteArray.new
 
-  file.read_all(bytes).unwrap
+  file.read_all(bytes).get
 
   bytes.into_string
 }
 
 fn write(string: String, to: ref Path) {
-  let file = WriteOnlyFile.new(to.clone).unwrap
+  let file = WriteOnlyFile.new(to.clone).get
 
-  file.write_string(string).unwrap
+  file.write_string(string).get
 }
 
 fn strip_prefix(path: String, prefix: String) -> Option[Path] {
@@ -63,7 +63,7 @@ fn pub tests(t: mut Tests) {
     write('test', to: path)
     t.true(path.file?)
 
-    path.remove_file.unwrap
+    path.remove_file.get
   }
 
   t.test('Path.directory?') fn (t) {
@@ -149,7 +149,7 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('Path.size') fn (t) {
-    t.true(env.temporary_directory.size.unwrap >= 0)
+    t.true(env.temporary_directory.size.get >= 0)
   }
 
   t.test('Path.clone') fn (t) {
@@ -168,7 +168,7 @@ fn pub tests(t: mut Tests) {
     let temp = env.temporary_directory
     let bar = temp.join('foo').join('bar')
 
-    bar.create_directory_all.unwrap
+    bar.create_directory_all.get
 
     let expanded = bar.join('..').join('..').expand
 
@@ -200,12 +200,12 @@ fn pub tests(t: mut Tests) {
     with_directory(t.id) fn (root) {
       let foo = root.join('foo')
 
-      root.create_directory.unwrap
-      foo.create_directory.unwrap
+      root.create_directory.get
+      foo.create_directory.get
 
       let entry = root
         .list
-        .unwrap
+        .get
         .select_map fn (e) { e.ok }
         .find fn (e) { e.path == foo }
 
@@ -226,7 +226,7 @@ fn pub tests(t: mut Tests) {
       let bar = foo.join('bar')
       let baz = bar.join('baz')
 
-      baz.create_directory_all.unwrap
+      baz.create_directory_all.get
       write('a', foo.join('a.txt'))
       write('b', foo.join('b.txt'))
       write('c', bar.join('c.txt'))
@@ -240,7 +240,7 @@ fn pub tests(t: mut Tests) {
             .map fn (e) { match e { case { @path = p } -> p } }
             .to_array
         }
-        .unwrap_or_else fn { [] }
+        .or_else fn (_) { [] }
 
       t.equal(paths.size, 4)
       t.true(paths.contains?(foo.join('a.txt')))
@@ -269,7 +269,7 @@ fn pub tests(t: mut Tests) {
     with_directory(t.id) fn (path) {
       t.true(path.remove_directory.error?)
 
-      path.create_directory.unwrap
+      path.create_directory.get
 
       t.true(path.remove_directory.ok?)
       t.false(path.directory?)
@@ -296,7 +296,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('Path.remove_directory') fn (t) {
     with_directory(t.id) fn (path) {
-      path.create_directory.unwrap
+      path.create_directory.get
 
       t.true(path.remove_directory.ok?)
       t.true(path.remove_directory.error?)
@@ -308,7 +308,7 @@ fn pub tests(t: mut Tests) {
     with_directory(t.id) fn (root) {
       let path = root.join('foo').join('bar')
 
-      path.create_directory_all.unwrap
+      path.create_directory_all.get
 
       t.true(root.remove_directory_all.ok?)
       t.true(root.remove_directory_all.error?)
@@ -325,8 +325,8 @@ fn pub tests(t: mut Tests) {
     t.true(path1.copy(to: path2).ok?)
     t.equal(read(path2), 'test')
 
-    path1.remove_file.unwrap
-    path2.remove_file.unwrap
+    path1.remove_file.get
+    path2.remove_file.get
   }
 
   t.test('Path.extension') fn (t) {

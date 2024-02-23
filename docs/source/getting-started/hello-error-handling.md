@@ -16,14 +16,14 @@ import std.stdio.STDOUT
 
 class async Main {
   fn async main {
-    STDOUT.new.print('Hello, world!').unwrap
+    STDOUT.new.print('Hello, world!').get
   }
 }
 ```
 
-The change made here compared to the previous tutorial is the addition of
-`.unwrap` at the end of the `print()` line. We'll look into what this does
-later. Now run the program as follows:
+The change made here compared to the previous tutorial is the addition of `.get`
+at the end of the `print()` line. We'll look into what this does later. Now run
+the program as follows:
 
 ```bash
 inko run hello.inko | true
@@ -34,16 +34,16 @@ The output of this program should be something similar to the following:
 ```
 Stack trace (the most recent call comes last):
   [...]/hello.inko:5 in main.Main.main
-  [...]/std/src/std/result.inko:119 in std.result.Result.unwrap
+  [...]/std/src/std/result.inko:119 in std.result.Result.get
   [...]/std/src/std/process.inko:15 in std.process.panic
-Process 'Main' (0x5637caa83150) panicked: Result.unwrap can't unwrap an Error
+Process 'Main' (0x5637caa83150) panicked: Result.get expects an Ok(_), but an Error(_) is found
 ```
 
 What happened here is that the `print()` failed to write to the standard output
-stream. The `unwrap` method call turns such an error into a "panic". A panic is
-a type of error that terminates the program. Panics are the result of bugs in
-your code, and as such can't be handled at runtime. In a well written program,
-such errors shouldn't occur.
+stream. The `get` method call turns such an error into a "panic". A panic is a
+type of error that terminates the program. Panics are the result of bugs in your
+code, and as such can't be handled at runtime. In a well written program, such
+errors shouldn't occur.
 
 ## Handling the error
 
@@ -81,8 +81,8 @@ If all went well, the program should run _without_ printing anything to the
 terminal.
 
 This may seem surprising at first, but is indeed the correct behaviour: the
-`print()` call still fails, but instead of calling `unwrap` we assign the result
-to the variable `_`. By assigning the result of `print()` to `_`, the compiler
+`print()` call still fails, but instead of calling `get` we assign the result to
+the variable `_`. By assigning the result of `print()` to `_`, the compiler
 won't emit any warnings because the result isn't used, nor will it emit any
 warnings because the variable assigned to isn't used.
 

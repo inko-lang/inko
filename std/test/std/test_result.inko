@@ -44,44 +44,46 @@ fn pub tests(t: mut Tests) {
     t.equal(bar.error, Option.Some('oops!'))
   }
 
-  t.test('Result.unwrap with an Ok') fn (t) {
+  t.test('Result.get with an Ok') fn (t) {
     let res: Result[Int, String] = Result.Ok(42)
 
-    t.equal(res.unwrap, 42)
+    t.equal(res.get, 42)
   }
 
-  t.panic('Result.unwrap with an Error') fn {
+  t.panic('Result.get with an Error') fn {
     let res: Result[Int, Int] = Result.Error(0)
 
-    res.unwrap
+    res.get
   }
 
   t.test('Result.expect with an Ok') fn (t) {
     let res: Result[Int, String] = Result.Ok(42)
 
-    t.equal(res.expect('foo'), 42)
+    t.equal(res.or_panic('foo'), 42)
   }
 
   t.panic('Result.expect with an Error') fn {
     let res: Result[Int, Int] = Result.Error(0)
 
-    res.expect('foo')
+    res.or_panic('foo')
   }
 
-  t.test('Result.unwrap_or') fn (t) {
+  t.test('Result.or') fn (t) {
     let foo: Result[Int, String] = Result.Ok(42)
     let bar: Result[Int, String] = Result.Error('oops!')
 
-    t.equal(foo.unwrap_or(0), 42)
-    t.equal(bar.unwrap_or(0), 0)
+    t.equal(foo.or(0), 42)
+    t.equal(bar.or(0), 0)
   }
 
-  t.test('Result.unwrap_or_else') fn (t) {
+  t.test('Result.or_else') fn (t) {
     let foo: Result[Int, String] = Result.Ok(42)
     let bar: Result[Int, String] = Result.Error('oops!')
+    let baz: Result[Int, Int] = Result.Error(42)
 
-    t.equal(foo.unwrap_or_else fn { 0 }, 42)
-    t.equal(bar.unwrap_or_else fn { 0 }, 0)
+    t.equal(foo.or_else fn (_) { 0 }, 42)
+    t.equal(bar.or_else fn (_) { 0 }, 0)
+    t.equal(baz.or_else fn (v) { v }, 42)
   }
 
   t.test('Result.map') fn (t) {

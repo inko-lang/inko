@@ -139,13 +139,13 @@ impl ToInt for Stream {
 #
 #     import std.sys.(Command, Stream)
 #
-#     Command.new('ls').stdout(Stream.Piped).spawn.unwrap
+#     Command.new('ls').stdout(Stream.Piped).spawn.get
 #
 # We can also ignore a stream:
 #
 #     import std.sys.(Command, Stream)
 #
-#     Command.new('ls').stderr(Stream.Null).spawn.unwrap
+#     Command.new('ls').stderr(Stream.Null).spawn.get
 #
 # # Waiting for the child process
 #
@@ -155,9 +155,9 @@ impl ToInt for Stream {
 #
 #     import std.sys.Command
 #
-#     let child = Command.new('ls').unwrap
+#     let child = Command.new('ls').get
 #
-#     child.wait.unwrap
+#     child.wait.get
 #
 # There's also `ChildProcess.try_wait`, which returns immediately if the process
 # is still running; instead of waiting for it to finish.
@@ -168,11 +168,11 @@ impl ToInt for Stream {
 #
 #     import std.sys.Command
 #
-#     let child = Command.new('ls').unwrap
+#     let child = Command.new('ls').get
 #     let bytes = ByteArray.new
 #
-#     child.wait.unwrap
-#     child.stdout.read_all(bytes).unwrap
+#     child.wait.get
+#     child.stdout.read_all(bytes).get
 class pub Command {
   # The path to the program to spawn.
   let @program: String
@@ -329,9 +329,9 @@ class pub Command {
   #
   # # Examples
   #
-  #     let child = Command.new('ls').spawn.unwrap
+  #     let child = Command.new('ls').spawn.get
   #
-  #     child.wait.unwrap
+  #     child.wait.get
   fn pub spawn -> Result[ChildProcess, Error] {
     let vars = []
 
@@ -350,7 +350,7 @@ class pub Command {
       @stdin.to_int,
       @stdout.to_int,
       @stderr.to_int,
-      @directory.as_ref.unwrap_or(ref ''),
+      @directory.as_ref.or(ref ''),
     ) {
       case { @tag = 0, @value = v } -> Result.Ok(
         ChildProcess { @raw = v as Pointer[UInt8] }

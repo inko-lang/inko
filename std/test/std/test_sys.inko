@@ -75,13 +75,13 @@ fn pub tests(t: mut Tests) {
     cmd.stdout(Stream.Piped)
     cmd.argument('--help')
 
-    let child = cmd.spawn.unwrap
+    let child = cmd.spawn.get
 
-    child.wait.unwrap
+    child.wait.get
 
     let bytes = ByteArray.new
 
-    child.stdout.read_all(bytes).unwrap
+    child.stdout.read_all(bytes).get
     t.true(bytes.into_string.contains?('Usage: inko'))
   }
 

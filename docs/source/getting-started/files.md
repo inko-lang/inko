@@ -16,13 +16,13 @@ import std.stdio.STDOUT
 class async Main {
   fn async main {
     let out = STDOUT.new
-    let file = ReadWriteFile.new('hello.txt').unwrap
+    let file = ReadWriteFile.new('hello.txt').get
     let bytes = ByteArray.new
 
-    file.write_string('Hello, world!').unwrap
-    file.seek(0).unwrap
-    file.read_all(bytes).unwrap
-    out.write_bytes(bytes).unwrap
+    file.write_string('Hello, world!').get
+    file.seek(0).get
+    file.read_all(bytes).get
+    out.write_bytes(bytes).get
   }
 }
 ```
@@ -43,7 +43,7 @@ We used `ReadWriteFile` to open a file for both reading and writing, using
 the cursor to the start of the file, then read the data back, and write it to
 the terminal.
 
-For the sake of brevity we've ignored error handling by using `unwrap`,
+For the sake of brevity we've ignored error handling by using `get`,
 resulting in the program terminating in the event of an error. Of course in a
 real program you'll want more fine-grained error handling, but for the sake of
 brevity we'll pretend our program won't produce any errors.
@@ -62,11 +62,11 @@ import std.stdio.STDOUT
 class async Main {
   fn async main {
     let out = STDOUT.new
-    let file = ReadOnlyFile.new('hello.txt').unwrap
+    let file = ReadOnlyFile.new('hello.txt').get
     let bytes = ByteArray.new
 
-    file.read_all(bytes).unwrap
-    out.write_bytes(bytes).unwrap
+    file.read_all(bytes).get
+    out.write_bytes(bytes).get
   }
 }
 ```
@@ -78,9 +78,9 @@ an error such as this:
 ```
 Stack trace (the most recent call comes last):
   [...]/files.inko:7 in main.Main.main
-  [...]/std/src/std/result.inko:119 in std.result.Result.unwrap
+  [...]/std/src/std/result.inko:119 in std.result.Result.get
   [...]/std/src/std/process.inko:15 in std.process.panic
-Process 'Main' (0x5645bdf31740) panicked: Result.unwrap can't unwrap an Error
+Process 'Main' (0x5645bdf31740) panicked: Result.get expects an Ok(_), but an Error(_) is found
 ```
 
 ## Write-only files
@@ -92,7 +92,7 @@ import std.fs.file.WriteOnlyFile
 
 class async Main {
   fn async main {
-    let file = WriteOnlyFile.new('hello.txt').unwrap
+    let file = WriteOnlyFile.new('hello.txt').get
 
     file.write_string('Hello, world!')
   }

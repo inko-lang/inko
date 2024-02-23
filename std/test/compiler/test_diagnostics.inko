@@ -77,10 +77,10 @@ fn check(compiler: String, name: String, file: Path) -> Array[Diagnostic] {
     cmd.argument(extra_src.to_string)
   }
 
-  let child = cmd.spawn.expect('failed to start the compiler')
+  let child = cmd.spawn.or_panic('failed to start the compiler')
   let output = ByteArray.new
 
-  child.wait.expect('failed to wait for the compiler')
+  child.wait.or_panic('failed to wait for the compiler')
   child.stderr.read_all(output)
 
   match parse_output(dir.to_string, output) {
@@ -249,7 +249,7 @@ impl Format for Diagnostic {
 fn pub tests(t: mut Tests) {
   let base = env
     .working_directory
-    .unwrap_or_else fn { '.'.to_path }
+    .or_else fn (_) { '.'.to_path }
     .join('test')
     .join('diagnostics')
 
@@ -257,7 +257,7 @@ fn pub tests(t: mut Tests) {
 
   base
     .list
-    .expect("the test/diagnostics directory couldn't be found")
+    .or_panic("the test/diagnostics directory couldn't be found")
     .each fn (entry) {
       let test_file = match entry {
         case Ok({ @path = path, @type = File })
@@ -271,7 +271,7 @@ fn pub tests(t: mut Tests) {
       t.test("{name} diagnostics") fn move (t) {
         let file = ReadOnlyFile
           .new(test_file.clone)
-          .expect("the test file {test_file} must exist")
+          .or_panic("the test file {test_file} must exist")
 
         match parse_test(file) {
           case Ok(exp) -> t.equal(check(compiler, name, test_file.clone), exp)
