@@ -108,6 +108,8 @@ fn pub tests(t: mut Tests) {
     t.equal(Path.new('foo').join('bar'), Path.new('foo/bar'))
     t.equal(Path.new('foo').join('/').join('bar'), Path.new('/bar'))
     t.equal(Path.new('foo').join(''), Path.new('foo'))
+    t.equal(Path.new('').join('foo'), Path.new('foo'))
+    t.equal(Path.new('').join('/foo'), Path.new('/foo'))
   }
 
   t.test('Path.directory') fn (t) {

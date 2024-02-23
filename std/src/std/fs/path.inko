@@ -133,6 +133,7 @@ fn absolute_path?(path: String) -> Bool {
 }
 
 fn join_strings(base: ref String, with: ref String) -> String {
+  if base.empty? { return with.clone }
   if with.empty? { return base.clone }
 
   if absolute_path?(with) {
