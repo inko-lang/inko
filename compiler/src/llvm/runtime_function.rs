@@ -4,7 +4,7 @@ use inkwell::AddressSpace;
 
 #[derive(Copy, Clone)]
 pub(crate) enum RuntimeFunction {
-    CheckRefs,
+    ReferenceCountError,
     ClassObject,
     ClassProcess,
     Free,
@@ -28,7 +28,9 @@ pub(crate) enum RuntimeFunction {
 impl RuntimeFunction {
     pub(crate) fn name(self) -> &'static str {
         match self {
-            RuntimeFunction::CheckRefs => "inko_check_refs",
+            RuntimeFunction::ReferenceCountError => {
+                "inko_reference_count_error"
+            }
             RuntimeFunction::ClassObject => "inko_class_object",
             RuntimeFunction::ClassProcess => "inko_class_process",
             RuntimeFunction::Free => "inko_free",
@@ -59,7 +61,7 @@ impl RuntimeFunction {
         let context = module.context;
         let space = AddressSpace::default();
         let fn_type = match self {
-            RuntimeFunction::CheckRefs => {
+            RuntimeFunction::ReferenceCountError => {
                 let proc = context.pointer_type().into();
                 let val = context.pointer_type().into();
                 let ret = context.void_type();

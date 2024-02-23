@@ -32,16 +32,12 @@ pub unsafe extern "system" fn inko_exit(status: i64) {
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_check_refs(
+pub unsafe extern "system" fn inko_reference_count_error(
     process: ProcessPointer,
     pointer: *const u8,
 ) {
     let header = header_of(pointer);
     let refs = header.references();
-
-    if refs == 0 {
-        return;
-    }
 
     panic(
         process,

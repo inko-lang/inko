@@ -2295,12 +2295,32 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
                 self.set_debug_location(ins.location);
 
                 let var = self.variables[&ins.register];
-                let proc = self.load_process().into();
-                let check = self.builder.load_untyped_pointer(var).into();
-                let func =
-                    self.module.runtime_function(RuntimeFunction::CheckRefs);
+                let val = self.builder.load_untyped_pointer(var);
+                let zero = self.builder.u32_literal(0);
+                let header = self.layouts.header;
+                let idx = HEADER_REFS_INDEX;
+                let count =
+                    self.builder.load_field(header, val, idx).into_int_value();
 
-                self.builder.call_void(func, &[proc, check]);
+                let is_zero = self.builder.int_eq(count, zero);
+                let panic_block = self.builder.add_block();
+                let ok_block = self.builder.add_block();
+
+                self.builder.branch(is_zero, ok_block, panic_block);
+
+                // The block to jump to when the count is _not_ zero.
+                self.builder.switch_to_block(panic_block);
+
+                let proc = self.load_process();
+                let func = self
+                    .module
+                    .runtime_function(RuntimeFunction::ReferenceCountError);
+
+                self.builder.call_void(func, &[proc.into(), val.into()]);
+                self.builder.unreachable();
+
+                // The block to jump to when the count is zero.
+                self.builder.switch_to_block(ok_block);
             }
             Instruction::Free(ins) => {
                 let var = self.variables[&ins.register];
