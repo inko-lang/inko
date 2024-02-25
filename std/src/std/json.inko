@@ -616,8 +616,8 @@ class pub Parser {
       throw error("'{high.format(Format.Hex)}' is an invalid UTF-16 surrogate")
     }
 
-    try or_panic(BSLASH)
-    try or_panic(LOWER_U)
+    try expect(BSLASH)
+    try expect(LOWER_U)
 
     let low = try codepoint
 
@@ -712,7 +712,7 @@ class pub Parser {
         case Some(DQUOTE) -> {
           let key = try string_value
 
-          try or_panic(COLON)
+          try expect(COLON)
 
           let val = try value
 
@@ -855,7 +855,7 @@ class pub Parser {
     res
   }
 
-  fn mut or_panic(byte: Int) -> Result[Nil, Error] {
+  fn mut expect(byte: Int) -> Result[Nil, Error] {
     match advance {
       case Some(val) if val == byte -> Result.Ok(nil)
       case Some(val) -> throw error(
@@ -874,7 +874,7 @@ class pub Parser {
     let mut index = 0
     let max = name.size
 
-    while index < max { try or_panic(name.byte(index := index + 1)) }
+    while index < max { try expect(name.byte(index := index + 1)) }
 
     Result.Ok(nil)
   }
