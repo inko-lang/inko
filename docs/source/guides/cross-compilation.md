@@ -203,7 +203,7 @@ compiling our code. We'll cross compile the following program located in the
 file `test.inko`:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 class async Main {
   fn async main {

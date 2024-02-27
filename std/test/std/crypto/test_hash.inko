@@ -1,8 +1,8 @@
-import std.crypto.hash.(Block, Hash)
+import std.crypto.hash (Block, Hash)
 import std.endian.big
 import std.endian.little
-import std.fmt.(fmt)
-import std.test.Tests
+import std.fmt (fmt)
+import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
   t.test('Block.read_u32_le') fn (t) {

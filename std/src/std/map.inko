@@ -1,10 +1,10 @@
 # A hash map using linear probing and Robin Hood entry stealing.
-import std.array.IntoIter
-import std.cmp.(Contains, Equal)
-import std.fmt.(Format, Formatter)
-import std.hash.(Hash, Hasher)
-import std.hash.siphash.SipHasher13
-import std.iter.Stream
+import std.array (IntoIter)
+import std.cmp (Contains, Equal)
+import std.fmt (Format, Formatter)
+import std.hash (Hash, Hasher)
+import std.hash.siphash (SipHasher13)
+import std.iter (Stream)
 
 fn resize_threshold(size: Int) -> Int {
   # This produces a threshold of 90%, without the need to allocate floats.

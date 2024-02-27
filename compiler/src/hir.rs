@@ -4733,7 +4733,7 @@ mod tests {
 
     #[test]
     fn test_lower_import_symbol() {
-        let hir = lower_top_expr("import a.(b)").0;
+        let hir = lower_top_expr("import a (b)").0;
 
         assert_eq!(
             hir,
@@ -4760,7 +4760,7 @@ mod tests {
 
     #[test]
     fn test_lower_import_symbol_with_alias() {
-        let hir = lower_top_expr("import a.(b as c)").0;
+        let hir = lower_top_expr("import a (b as c)").0;
 
         assert_eq!(
             hir,
@@ -4787,7 +4787,7 @@ mod tests {
 
     #[test]
     fn test_lower_import_self() {
-        let hir = lower_top_expr("import a.(self)").0;
+        let hir = lower_top_expr("import a (self)").0;
 
         assert_eq!(
             hir,

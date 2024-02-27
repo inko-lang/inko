@@ -1,5 +1,5 @@
-import std.test.Tests
-import std.crypto.chacha.(ChaCha20, hchacha20, XChaCha20)
+import std.test (Tests)
+import std.crypto.chacha (ChaCha20, hchacha20, XChaCha20)
 
 fn chacha_test_data -> Array[
   (Array[Int], Array[Int], Int, Array[Int], Array[Int])

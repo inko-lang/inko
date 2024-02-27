@@ -1,13 +1,13 @@
 # An ordered, integer-indexed generic collection of values.
-import std.clone.Clone
-import std.cmp.(Compare, Contains, Equal, Ordering, max, min)
-import std.drop.Drop
-import std.fmt.(Format, Formatter)
-import std.hash.(Hash, Hasher)
-import std.iter.(Stream, Iter)
-import std.option.Option
-import std.rand.Shuffle
-import std.libc.unix.alloc.(self as alloc_imp) if unix
+import std.clone (Clone)
+import std.cmp (Compare, Contains, Equal, Ordering, max, min)
+import std.drop (Drop)
+import std.fmt (Format, Formatter)
+import std.hash (Hash, Hasher)
+import std.iter (Stream, Iter)
+import std.option (Option)
+import std.rand (Shuffle)
+import std.libc.unix.alloc (self as alloc_imp) if unix
 
 # The size of each value in an Array.
 #

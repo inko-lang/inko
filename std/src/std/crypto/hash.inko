@@ -1,9 +1,9 @@
 # Types for cryptographic hash functions.
-import std.cmp.Equal
+import std.cmp (Equal)
 import std.endian.big
 import std.endian.little
-import std.fmt.(Format, Formatter)
-import std.string.(StringBuffer, ToString)
+import std.fmt (Format, Formatter)
+import std.string (StringBuffer, ToString)
 
 # The digits to use when converting a digest to a hexadecimal string.
 let HEX_DIGITS = '0123456789abcdef'

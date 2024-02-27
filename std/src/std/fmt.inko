@@ -1,5 +1,5 @@
 # Formatting of Inko values for debugging purposes.
-import std.string.(IntoString, StringBuffer)
+import std.string (IntoString, StringBuffer)
 
 # The value to use for objects if the nesting is too great.
 let PLACEHOLDER = '...'
@@ -8,7 +8,7 @@ let PLACEHOLDER = '...'
 #
 # Examples
 #
-#     import std.fmt.(fmt)
+#     import std.fmt (fmt)
 #
 #     fmt('hello') # => "hello"
 #     fmt([10, 20]) # => '[10, 20]'
@@ -158,7 +158,7 @@ class pub Formatter {
   #
   # # Examples
   #
-  #     import std.fmt.Formatter
+  #     import std.fmt (Formatter)
   #
   #     let fmt = Formatter.new
   #
@@ -176,7 +176,7 @@ class pub Formatter {
   #
   # # Examples
   #
-  #     import std.fmt.Formatter
+  #     import std.fmt (Formatter)
   #
   #     let fmt = Formatter.new
   #
@@ -193,7 +193,7 @@ class pub Formatter {
   #
   # # Examples
   #
-  #     import std.fmt.Formatter
+  #     import std.fmt (Formatter)
   #
   #     let fmt = Formatter.new
   #

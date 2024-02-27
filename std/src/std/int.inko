@@ -1,16 +1,16 @@
 # The Int type.
-import std.clone.Clone
-import std.cmp.(Compare, Equal, Ordering)
-import std.float.ToFloat
-import std.fmt.(Format as FormatTrait, Formatter)
-import std.hash.(Hash, Hasher)
-import std.iter.Peekable
-import std.ops.(
+import std.clone (Clone)
+import std.cmp (Compare, Equal, Ordering)
+import std.float (ToFloat)
+import std.fmt (Format as FormatTrait, Formatter)
+import std.hash (Hash, Hasher)
+import std.iter (Peekable)
+import std.ops (
   Add, BitAnd, BitOr, BitXor, Divide, Modulo, Multiply, Power,
   ShiftLeft, ShiftRight, Subtract, UnsignedShiftRight
 )
-import std.range.(ExclusiveRange, InclusiveRange)
-import std.string.(Bytes, ToString, StringBuffer)
+import std.range (ExclusiveRange, InclusiveRange)
+import std.string (Bytes, ToString, StringBuffer)
 
 # A type that can be converted to a Int.
 trait pub ToInt {
@@ -97,7 +97,7 @@ class builtin Int {
   #
   # Parsing a binary number:
   #
-  #     import std.int.Style
+  #     import std.int (Style)
   #
   #     Int.parse('11', Format.Binary)  # => Option.Some(3)
   #     Int.parse('-11', Format.Binary) # => Option.Some(-3)
@@ -105,7 +105,7 @@ class builtin Int {
   #
   # Parsing a decimal number:
   #
-  #     import std.int.Style
+  #     import std.int (Style)
   #
   #     Int.parse('123', Format.Decimal)  # => Option.Some(123)
   #     Int.parse('-123', Format.Decimal) # => Option.Some(-123)
@@ -113,7 +113,7 @@ class builtin Int {
   #
   # Parsing a hexadecimal number:
   #
-  #     import std.int.Style
+  #     import std.int (Style)
   #
   #     Int.parse('ef', Format.Hex)    # => Option.Some(239)
   #     Int.parse('0xef', Format.Hex)  # => Option.Some(239)
@@ -198,7 +198,7 @@ class builtin Int {
   #
   # Formatting an `Int` as binary number:
   #
-  #     import std.int.Style
+  #     import std.int (Style)
   #
   #     3.format(Format.Binary)  # => '11'
   #     -1.format(Format.Binary) # => '-11'
@@ -373,7 +373,7 @@ class builtin Int {
   #
   # # Examples
   #
-  #     import std.int.(MAX, MIN)
+  #     import std.int (MAX, MIN)
   #
   #     1.wrapping_add(1)   # => 2
   #     MAX.wrapping_add(1) # => MIN
@@ -385,7 +385,7 @@ class builtin Int {
   #
   # # Examples
   #
-  #     import std.int.(MAX, MIN)
+  #     import std.int (MAX, MIN)
   #
   #     1.wrapping_sub(1)   # => 0
   #     MIN.wrapping_sub(1) # => MAX
@@ -397,7 +397,7 @@ class builtin Int {
   #
   # # Examples
   #
-  #     import std.int.MAX
+  #     import std.int (MAX)
   #
   #     1.wrapping_mul(2)   # => 2
   #     MAX.wrapping_mul(2) # => -2
@@ -409,7 +409,7 @@ class builtin Int {
   #
   # # Examples
   #
-  #     import std.int.(MAX)
+  #     import std.int (MAX)
   #
   #     1.checked_add(5)   # => Option.Some(6)
   #     MAX.checked_add(1) # => Option.None
@@ -427,7 +427,7 @@ class builtin Int {
   #
   # # Examples
   #
-  #     import std.int.(MAX, MIN)
+  #     import std.int (MAX, MIN)
   #
   #     1.checked_sub(1)   # => Option.Some(0)
   #     MIN.checked_sub(1) # => Option.None
@@ -445,7 +445,7 @@ class builtin Int {
   #
   # # Examples
   #
-  #     import std.int.MAX
+  #     import std.int (MAX)
   #
   #     1.checked_mul(2)   # => Option.Some(2)
   #     MAX.checked_mul(2) # => Option.None
@@ -464,7 +464,7 @@ class builtin Int {
   #
   # # Examples
   #
-  #     import std.int.MAX
+  #     import std.int (MAX)
   #
   #     10.checked_div(0) # => Option.None
   #     10.checked_div(2) # => Option.Some(5)
@@ -480,7 +480,7 @@ class builtin Int {
   #
   # # Examples
   #
-  #     import std.int.MAX
+  #     import std.int (MAX)
   #
   #     2.checked_pow(2)   # => Option.Some(4)
   #     MAX.checked_pow(2) # => Option.None

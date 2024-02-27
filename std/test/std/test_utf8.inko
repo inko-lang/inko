@@ -1,4 +1,4 @@
-import std.test.Tests
+import std.test (Tests)
 import std.utf8
 
 fn pub tests(t: mut Tests) {

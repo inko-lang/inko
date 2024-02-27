@@ -20,8 +20,8 @@
 #
 # Inko uses external iteration. To make it easier to write such iterators, it
 # provides the `Stream` type, which can create iterators from a closure.
-import std.cmp.Equal
-import std.option.Option
+import std.cmp (Equal)
+import std.option (Option)
 
 # A generic iterator over a sequence of values of type `T`.
 trait pub Iter[T] {
@@ -562,7 +562,7 @@ trait pub IntoIter[T] {
 #
 # # Examples
 #
-#     import std.iter.Stream
+#     import std.iter (Stream)
 #
 #     fn example(max: Int) -> Stream[Int] {
 #       let mut index = 0

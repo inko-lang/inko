@@ -1,6 +1,6 @@
 import std.process
-import std.test.Tests
-import std.time.(Duration, Instant)
+import std.test (Tests)
+import std.time (Duration, Instant)
 
 fn pub tests(t: mut Tests) {
   t.test('process.sleep') fn (t) {

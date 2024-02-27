@@ -1,6 +1,6 @@
-import std.fmt.(fmt)
-import std.set.Set
-import std.test.Tests
+import std.fmt (fmt)
+import std.set (Set)
+import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
   t.test('Set.insert') fn (t) {

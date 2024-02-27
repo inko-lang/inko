@@ -245,7 +245,7 @@ anonymous functions that (optionally) capture data, and can be moved around as
 values. Closures are defined using the `fn` keyword while leaving out a name:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 class async Main {
   fn async main {
@@ -261,7 +261,7 @@ regular methods, closures can also define arguments. Unlike regular methods, the
 argument types and the return type are inferred:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 class async Main {
   fn async main {
@@ -276,7 +276,7 @@ The compiler might not always be able to infer the types though, in which case
 explicit type signatures are necessary:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 class async Main {
   fn async main {

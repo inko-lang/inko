@@ -234,7 +234,7 @@ the C type `void` (i.e. no value is returned).
 C functions are called like regular Inko methods:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 import extern "m"
 
 fn extern ceil(value: Float64) -> Float64
@@ -344,7 +344,7 @@ copy, instead you get a pointer to the structure. This makes it easier to work
 with structures stored in Inko classes:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 class extern Timespec {
   let @tv_sec: Int64
@@ -382,7 +382,7 @@ the libc function `clock_gettime()`, which expects a `timespec` pointer as its
 second argument:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 let CLOCK_REALTIME = 0
 
@@ -444,7 +444,7 @@ Dereferencing a pointer is done by reading from and writing to the pseudo field
 `0`. Doing so returns a copy of the value pointed to:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 class extern Timespec {
   let @tv_sec: Int64
@@ -472,7 +472,7 @@ Inko objects. This avoids the need for intermediate copies, allowing you to
 mutate data pointed to in-place:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 class extern Timespec {
   let @tv_sec: Int64
@@ -509,7 +509,7 @@ pointer to an `Int`, perform the computation, then cast the result back to a
 pointer. For example, here we mutate `tv_nsec` using such an approach:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 class extern Timespec {
   let @tv_sec: Int64
@@ -541,8 +541,8 @@ Many C functions return some sort of flag upon encountering an error, and set
 `std.io.Error.last_os_error`:
 
 ```inko
-import std.stdio.STDOUT
-import std.io.Error
+import std.stdio (STDOUT)
+import std.io (Error)
 
 let CLOCK_REALTIME = 0
 

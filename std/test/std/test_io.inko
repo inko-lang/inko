@@ -1,9 +1,9 @@
-import std.fmt.(fmt)
-import std.io.(DEFAULT_BUFFER_SIZE, Buffer, BufferedReader, Error, Read, Write)
+import std.fmt (fmt)
+import std.io (DEFAULT_BUFFER_SIZE, Buffer, BufferedReader, Error, Read, Write)
 import std.libc.bsd.errors if bsd
 import std.libc.linux.errors if linux
 import std.libc.mac.errors if mac
-import std.test.Tests
+import std.test (Tests)
 
 class Reader {
   let @index: Int

@@ -1,17 +1,17 @@
-import std.drop.Drop
+import std.drop (Drop)
 import std.env
-import std.fmt.(fmt)
+import std.fmt (fmt)
 import std.fs.file
-import std.fs.path.Path
-import std.io.Error
-import std.net.ip.(IpAddress, Ipv4Address, Ipv6Address)
-import std.net.socket.(
+import std.fs.path (Path)
+import std.io (Error)
+import std.net.ip (IpAddress, Ipv4Address, Ipv6Address)
+import std.net.socket (
  NO_DEADLINE, Socket, SocketAddress, TcpClient, TcpServer, Type, UdpSocket,
  UnixAddress, UnixClient, UnixDatagram, UnixServer, UnixSocket
 )
-import std.string.ToString
-import std.test.Tests
-import std.time.(Duration, Instant)
+import std.string (ToString)
+import std.test (Tests)
+import std.time (Duration, Instant)
 
 class SocketPath {
   let @path: Path

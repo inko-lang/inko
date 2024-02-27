@@ -1,7 +1,7 @@
-import helpers.(hash)
-import std.fmt.(fmt)
-import std.fs.path.Path
-import std.test.Tests
+import helpers (hash)
+import std.fmt (fmt)
+import std.fs.path (Path)
+import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
   t.test('String.join') fn (t) {

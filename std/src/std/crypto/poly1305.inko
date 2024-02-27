@@ -8,8 +8,8 @@
 #
 # For more information about Poly1305, refer to RFC 8439
 # (https://datatracker.ietf.org/doc/html/rfc8439).
-import std.crypto.hash.(Block, Hash, Hasher)
-import std.crypto.math.(to_u32)
+import std.crypto.hash (Block, Hash, Hasher)
+import std.crypto.math (to_u32)
 import std.endian.little
 
 # The key size in bytes.
@@ -58,8 +58,8 @@ class pub Poly1305 {
   #
   # # Examples
   #
-  #     import std.rand.Random
-  #     import std.crypto.poly1305.Poly1305
+  #     import std.rand (Random)
+  #     import std.crypto.poly1305 (Poly1305)
   #
   #     let key = Random.new.bytes(size: 32)
   #     let msg = 'This is a test'.to_byte_array

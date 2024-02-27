@@ -34,7 +34,7 @@ If all went well, no output is produced.
 Let's adjust the program to print the number of cats to the terminal:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 class Cat {}
 
@@ -52,7 +52,7 @@ If we run this again, the output is "2 cats".
 Now we'll change the program to the following:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 class Cat {}
 
@@ -92,7 +92,7 @@ as "borrows": immutable borrows, and mutable borrows.
 Immutable borrows are created using the `ref` keyword:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 class Cat {}
 
@@ -109,7 +109,7 @@ class async Main {
 Mutable borrows are created using the `mut` keyword:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 class Cat {}
 
@@ -132,7 +132,7 @@ The difference between immutable and mutable borrows is simple: mutable borrows
 allow mutating of the borrowed data, while immutable borrows don't. For example:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 class Cat {}
 
@@ -156,7 +156,7 @@ cats.inko:10:5 error(invalid-call): the method 'pop' requires a mutable receiver
 To fix this, we need to use a mutable borrow:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 class Cat {}
 
@@ -227,7 +227,7 @@ exist. If an owned value is dropped while borrows to it still exist, a runtime
 error known as a "panic" is produced, terminating the program:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 class Cat {}
 
@@ -266,7 +266,7 @@ exist when the unique reference is moved around. To illustrate this, change the
 `cats.inko` program to the following:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 class Cat {}
 
@@ -306,7 +306,7 @@ both the old and new version. To illustrate, create `values.inko` with these
 contents:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 class async Main {
   fn async main {

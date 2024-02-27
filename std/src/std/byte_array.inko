@@ -1,14 +1,14 @@
 # Arrays of bytes
-import std.array.(bounds_check)
-import std.clone.Clone
-import std.cmp.(Contains, Equal)
-import std.drop.Drop
-import std.fmt.(Format, Formatter)
-import std.hash.(Hash, Hasher)
-import std.io.Read
-import std.iter.Stream
-import std.option.Option
-import std.string.(Bytes, IntoString, ToString)
+import std.array (bounds_check)
+import std.clone (Clone)
+import std.cmp (Contains, Equal)
+import std.drop (Drop)
+import std.fmt (Format, Formatter)
+import std.hash (Hash, Hasher)
+import std.io (Read)
+import std.iter (Stream)
+import std.option (Option)
+import std.string (Bytes, IntoString, ToString)
 
 fn extern inko_byte_array_new(state: Pointer[UInt8]) -> ByteArray
 fn extern inko_byte_array_clear(bytes: mut ByteArray)

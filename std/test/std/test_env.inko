@@ -1,6 +1,6 @@
 import std.env
-import std.stdio.STDOUT
-import std.test.Tests
+import std.stdio (STDOUT)
+import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
   t.test('env.ARCH') fn (t) {

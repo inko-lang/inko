@@ -114,7 +114,7 @@ located in `std/test/std/test_string.inko`. Test modules are structured as
 follows:
 
 ```inko
-import std.test.Tests
+import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
   t.test('Test name') fn (t) {

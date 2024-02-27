@@ -1,6 +1,6 @@
-import std.fmt.(fmt)
-import std.net.ip.(self, IpAddress, Ipv4Address, Ipv6Address)
-import std.test.Tests
+import std.fmt (fmt)
+import std.net.ip (self, IpAddress, Ipv4Address, Ipv6Address)
+import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
   t.test('IpAddress.v4') fn (t) {

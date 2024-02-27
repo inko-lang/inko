@@ -1,5 +1,5 @@
-import std.test.Tests
-import std.hash.siphash.SipHasher13
+import std.test (Tests)
+import std.hash.siphash (SipHasher13)
 
 let KEY0 = 0x0706050403020100
 let KEY1 = 0x0F0E0D0C0B0A0908

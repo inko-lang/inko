@@ -1,15 +1,15 @@
 # Cross-platform path manipulation.
-import std.clone.Clone
-import std.cmp.Equal
-import std.fmt.(Format, Formatter)
-import std.fs.DirectoryEntry
-import std.hash.(Hash, Hasher)
-import std.io.(Error, Size)
-import std.iter.(Iter, Stream)
-import std.libc.unix.dir.(ReadDirectory as ReadDirectoryInner) if unix
-import std.string.(StringBuffer, ToString, IntoString)
+import std.clone (Clone)
+import std.cmp (Equal)
+import std.fmt (Format, Formatter)
+import std.fs (DirectoryEntry)
+import std.hash (Hash, Hasher)
+import std.io (Error, Size)
+import std.iter (Iter, Stream)
+import std.libc.unix.dir (ReadDirectory as ReadDirectoryInner) if unix
+import std.string (StringBuffer, ToString, IntoString)
 import std.sys
-import std.time.DateTime
+import std.time (DateTime)
 
 class extern IntResult {
   let @tag: Int
@@ -260,13 +260,13 @@ impl Iter[String] for Components {
 #
 # Creating a new `Path` using a `String`:
 #
-#     import std.fs.path.Path
+#     import std.fs.path (Path)
 #
 #     Path.new('/tmp/hello.txt')
 #
 # Converting a `String` to a `Path`:
 #
-#     import std.fs.path.Path
+#     import std.fs.path (Path)
 #
 #     '/tmp/hello.txt'.to_path
 class pub Path {
@@ -301,7 +301,7 @@ class pub Path {
   #
   # Obtaining the creation time of a `Path`:
   #
-  #     import std.fs.path.Path
+  #     import std.fs.path (Path)
   #
   #     let path = Path.new('README.md')
   #
@@ -327,7 +327,7 @@ class pub Path {
   #
   # Obtaining the modification time of a `Path`:
   #
-  #     import std.fs.path.Path
+  #     import std.fs.path (Path)
   #
   #     let path = Path.new('README.md')
   #
@@ -353,7 +353,7 @@ class pub Path {
   #
   # Obtaining the access time of a `Path`:
   #
-  #     import std.fs.path.Path
+  #     import std.fs.path (Path)
   #
   #     let path = Path.new('README.md')
   #
@@ -376,7 +376,7 @@ class pub Path {
   #
   # Checking if a `Path` is absolute:
   #
-  #     import std.fs.path.Path
+  #     import std.fs.path (Path)
   #
   #     Path.new('foo').absolute?  # => false
   #     Path.new('/foo').absolute? # => true
@@ -390,7 +390,7 @@ class pub Path {
   #
   # Checking if a `Path` is relative:
   #
-  #     import std.fs.path.Path
+  #     import std.fs.path (Path)
   #
   #     Path.new('foo').relative?  # => true
   #     Path.new('../').relative?  # => true
@@ -405,13 +405,13 @@ class pub Path {
   #
   # Joining a `Path` with a `String`:
   #
-  #     import std.fs.path.Path
+  #     import std.fs.path (Path)
   #
   #     Path.new('foo/bar').join('baz').to_string # => 'foo/bar/baz'
   #
   # Joining a `Path` with another `Path`:
   #
-  #     import std.fs.path.Path
+  #     import std.fs.path (Path)
   #
   #     Path.new('foo/bar').join(Path.new('bar')).to_string # => 'foo/bar/baz'
   fn pub join[T: ToString](path: ref T) -> Path {
@@ -430,13 +430,13 @@ class pub Path {
   #
   # Obtaining the directory of a path:
   #
-  #     import std.fs.path.Path
+  #     import std.fs.path (Path)
   #
   #     Path.new('/foo/bar').directory # => Path.new('/foo')
   #
   # Obtaining the directory of the root directory:
   #
-  #     import std.fs.path.Path
+  #     import std.fs.path (Path)
   #
   #     Path.new('/').directory # Path.new('/')
   fn pub directory -> Path {
@@ -470,7 +470,7 @@ class pub Path {
   #
   # # Examples
   #
-  #     import std.fs.path.Path
+  #     import std.fs.path (Path)
   #
   #     Path.new('foo/bar/baz.txt') # => 'baz.txt'
   fn pub tail -> String {
@@ -502,7 +502,7 @@ class pub Path {
   #
   # # Examples
   #
-  #     import std.fs.path.Path
+  #     import std.fs.path (Path)
   #
   #     Path.new('foo.txt').extension # => Option.Some('txt')
   #     Path.new('foo').extension     # => Option.None
@@ -562,7 +562,7 @@ class pub Path {
   #
   # # Examples
   #
-  #     import std.fs.path.Path
+  #     import std.fs.path (Path)
   #
   #     Path.new('a').with_extension('txt')    # => Path.new('a.txt')
   #     Path.new('a.txt').with_extension('md') # => Path.new('a.md')
@@ -597,7 +597,7 @@ class pub Path {
   #
   # # Examples
   #
-  #     import std.fs.path.Path
+  #     import std.fs.path (Path)
   #
   #     Path.new('/foo/../bar').expand.get # => Path.new('/bar')
   fn pub expand -> Result[Path, Error] {
@@ -628,8 +628,8 @@ class pub Path {
   # This prints the files in the current working directory while ignoring
   # directories:
   #
-  #     import std.fs.path.Path
-  #     import std.stdio.STDOUT
+  #     import std.fs.path (Path)
+  #     import std.stdio (STDOUT)
   #
   #     let out = STDOUT.new
   #     let path = Path.new('.')
@@ -664,7 +664,7 @@ class pub Path {
   #
   # # Examples
   #
-  #     import std.fs.path.Path
+  #     import std.fs.path (Path)
   #
   #     Path.new('/tmp').list_all.get.next
   #     # => Option.Some(Result.Ok(DirectoryEntry { ... }))
@@ -698,8 +698,8 @@ class pub Path {
   #
   # # Examples
   #
-  #     import std.fs.file.WriteOnlyFile
-  #     import std.fs.path.Path
+  #     import std.fs.file (WriteOnlyFile)
+  #     import std.fs.path (Path)
   #
   #     let path = Path.new('/tmp/test.txt')
   #     let handle = WriteOnlyFile.new(path).get
@@ -721,7 +721,7 @@ class pub Path {
   #
   # # Examples
   #
-  #     import std.fs.path.Path
+  #     import std.fs.path (Path)
   #
   #     let path = Path.new('/tmp/foo')
   #
@@ -749,7 +749,7 @@ class pub Path {
   #
   # Removing a directory:
   #
-  #     import std.fs.path.Path
+  #     import std.fs.path (Path)
   #
   #     Path.new('/tmp/foo/bar').create_directory_all.get
   #     Path.new('/tmp/foo').remove_directory_all.get
@@ -773,7 +773,7 @@ class pub Path {
   #
   # # Examples
   #
-  #     import std.fs.path.Path
+  #     import std.fs.path (Path)
   #
   #     Path.new('/tmp/test').create_directory.get
   fn pub create_directory -> Result[Nil, Error] {
@@ -796,7 +796,7 @@ class pub Path {
   #
   # # Examples
   #
-  #     import std.fs.path.Path
+  #     import std.fs.path (Path)
   #
   #     Path.new('/tmp/foo/bar/test').create_directory_all.get
   fn pub create_directory_all -> Result[Nil, Error] {
@@ -815,8 +815,8 @@ class pub Path {
   #
   # # Examples
   #
-  #     import std.fs.file.WriteOnlyFile
-  #     import std.fs.path.Path
+  #     import std.fs.file (WriteOnlyFile)
+  #     import std.fs.path (Path)
   #
   #     let path = Path.new('/tmp/test.txt')
   #     let file = WriteOnlyFile.new(path).get
@@ -849,7 +849,7 @@ class pub Path {
   #
   # # Examples
   #
-  #     import std.fs.path.Path
+  #     import std.fs.path (Path)
   #
   #     Path.new('a/b/c').components.to_array  # => ['a', 'b', 'c']
   #     Path.new('/a/b/c').components.to_array # => ['/', 'a', 'b', 'c']
@@ -866,7 +866,7 @@ class pub Path {
   #
   # # Examples
   #
-  #     import std.fs.path.Path
+  #     import std.fs.path (Path)
   #
   #     Path.new('a/b').strip_prefix(Path.new('a'))   # => Path.new('b')
   #     Path.new('/a/b').strip_prefix(Path.new('/a')) # => Path.new('b')
@@ -897,7 +897,7 @@ impl Equal[ref Path] for Path {
   #
   # Comparing two paths:
   #
-  #     import std.fs.path.Path
+  #     import std.fs.path (Path)
   #
   #     let path1 = Path.new('foo')
   #     let path2 = Path.new('foo')
@@ -915,7 +915,7 @@ impl ToString for Path {
   #
   # Converting a `Path`:
   #
-  #     import std.fs.path.Path
+  #     import std.fs.path (Path)
   #
   #     let path = Path.new('/dev/null')
   #
@@ -938,7 +938,7 @@ impl Size for Path {
   #
   # Getting the size of a path:
   #
-  #     import std.fs.path.Path
+  #     import std.fs.path (Path)
   #
   #     let path = Path.new('/dev/null')
   #

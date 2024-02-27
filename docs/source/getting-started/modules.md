@@ -12,7 +12,7 @@ keyword. For example, in the tutorials covered so far we've seen instances of
 this such as:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 class async Main {
   fn async main {
@@ -37,7 +37,7 @@ class async Main {
 Importing multiple symbols at once is also possible:
 
 ```inko
-import std.stdio.(STDERR, STDOUT)
+import std.stdio (STDERR, STDOUT)
 
 class async Main {
   fn async main {
@@ -51,7 +51,7 @@ When importing different symbols with the same name, you can prevent name
 conflicts by using a custom alias:
 
 ```inko
-import std.stdio.(STDERR as ERR, STDOUT as OUT)
+import std.stdio (STDERR as ERR, STDOUT as OUT)
 
 class async Main {
   fn async main {

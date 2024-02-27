@@ -10,7 +10,7 @@
 #
 # The easiest way to parse JSON is using `Json.parse`:
 #
-#     import std.json.Json
+#     import std.json (Json)
 #
 #     Json.parse('[10]').get # => Json.Array([Json.Int(10)])
 #
@@ -18,7 +18,7 @@
 # strings. These limits can be adjusted by using the `Parser` type directly like
 # so:
 #
-#     import std.json.Parser
+#     import std.json (Parser)
 #
 #     let parser = Parser.new('[10]')
 #
@@ -31,7 +31,7 @@
 # Generating JSON strings is done using `Json.to_string` and
 # `Json.to_pretty_string`:
 #
-#     import std.json.Json
+#     import std.json (Json)
 #
 #     Json.Array([Json.Int(1), Json.Int(2)]).to_string # => '[1, 2]'
 #
@@ -39,7 +39,7 @@
 # indentation level. You can change this value by using the `Generator` type
 # directly:
 #
-#     import std.json.(Generator, Json)
+#     import std.json (Generator, Json)
 #
 #     let val = Json.Array([Json.Int(1), Json.Int(2)])
 #     let gen = Generator.new(indent: 4)
@@ -58,11 +58,11 @@
 # The implementation provided by this module isn't optimised for maximum
 # performance or optimal memory usage. Instead this module aims to provide an
 # implementation that's good enough for most cases.
-import std.cmp.Equal
-import std.fmt.(Format as FormatTrait, Formatter)
-import std.int.Format
-import std.iter.Peekable
-import std.string.(Bytes, StringBuffer, ToString)
+import std.cmp (Equal)
+import std.fmt (Format as FormatTrait, Formatter)
+import std.int (Format)
+import std.iter (Peekable)
+import std.string (Bytes, StringBuffer, ToString)
 import std.utf8
 
 let BRACKET_OPEN = 0x5B
@@ -236,7 +236,7 @@ class pub Query {
   #
   # # Examples
   #
-  #     import std.json.Json
+  #     import std.json (Json)
   #
   #     let map = Map.new
   #
@@ -257,7 +257,7 @@ class pub Query {
   #
   # # Examples
   #
-  #     import std.json.Json
+  #     import std.json (Json)
   #
   #     Json.Array([Json.Int(10)]).query.index(0).as_int # => Option.Some(10)
   #     Json.Int(42).query.index(0).as_int               # => Option.None
@@ -274,7 +274,7 @@ class pub Query {
   #
   # # Examples
   #
-  #     import std.json.Json
+  #     import std.json (Json)
   #
   #     Json.Int(42).query.as_string        # => Option.None
   #     Json.String('test').query.as_string # => Option.Some('test')
@@ -289,7 +289,7 @@ class pub Query {
   #
   # # Examples
   #
-  #     import std.json.Json
+  #     import std.json (Json)
   #
   #     Json.String('test').query.as_int # => Option.None
   #     Json.Int(42).query.as_int        # => Option.Some(42)
@@ -304,7 +304,7 @@ class pub Query {
   #
   # # Examples
   #
-  #     import std.json.Json
+  #     import std.json (Json)
   #
   #     Json.String('test').query.as_float # => Option.None
   #     Json.Float(42.0).query.as_float    # => Option.Some(42.0)
@@ -319,7 +319,7 @@ class pub Query {
   #
   # # Examples
   #
-  #     import std.json.Json
+  #     import std.json (Json)
   #
   #     let map = Map.new
   #
@@ -337,7 +337,7 @@ class pub Query {
   #
   # # Examples
   #
-  #     import std.json.Json
+  #     import std.json (Json)
   #
   #     Json.Array([Json.Int(42)]).query.as_array # => Option.Some(...)
   #     Json.Int(42).query.as_array               # => Option.None
@@ -365,13 +365,13 @@ class pub enum Json {
   #
   # Parsing a `String`:
   #
-  #     import std.json.Json
+  #     import std.json (Json)
   #
   #     Json.parse('[10]') # => Result.Ok(Json.Array([Json.Int(10)]))
   #
   # Parsing a `ByteArray`:
   #
-  #     import std.json.Json
+  #     import std.json (Json)
   #
   #     Json.parse('[10]'.to_byte_array) # => Result.Ok(Json.Array([Json.Int(10)]))
   fn pub static parse[T: Bytes](bytes: ref T) -> Result[Json, Error] {
@@ -385,7 +385,7 @@ class pub enum Json {
   #
   # # Examples
   #
-  #     import std.json.Json
+  #     import std.json (Json)
   #
   #     Json.Int(42).to_pretty_string               # => '42'
   #     Json.Array([Json.Int(42)]).to_pretty_string # => "[\n  42\n]"
@@ -399,7 +399,7 @@ class pub enum Json {
   #
   # # Examples
   #
-  #     import std.json.Json
+  #     import std.json (Json)
   #
   #     Json.Int(42).query.as_int # => Option.Some(42)
   fn pub query -> Query {
@@ -412,7 +412,7 @@ impl ToString for Json {
   #
   # # Examples
   #
-  #     import std.json.Json
+  #     import std.json (Json)
   #
   #     Json.Int(42).to_string               # => '42'
   #     Json.Array([Json.Int(42)]).to_string # => '[42]'
@@ -524,7 +524,7 @@ class pub Parser {
   #
   # # Examples
   #
-  #     import std.json.Parser
+  #     import std.json (Parser)
   #
   #     let parser = Parser.new('[10, 20]')
   #
@@ -955,7 +955,7 @@ class pub Generator {
   #
   # # Examples
   #
-  #     import std.json.Generator
+  #     import std.json (Generator)
   #
   #     Generator.new(indent: 2).generate(Json.Array([Json.Int(1)])) # => '[1]'
   fn pub mut generate(value: ref Json) -> String {

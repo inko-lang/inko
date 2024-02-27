@@ -12,7 +12,7 @@ Inko has the following control flow constructs: `if`, `and`, `or`, `while`,
 For conditionals we use `if`:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 class async Main {
   fn async main {
@@ -30,7 +30,7 @@ to e.g. `50`, the output is instead "no".
 Inko also supports `else if` like so:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 class async Main {
   fn async main {
@@ -54,7 +54,7 @@ To perform boolean AND and OR operations, you can use the `and` and `or`
 keywords:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 class async Main {
   fn async main {
@@ -83,7 +83,7 @@ and conditional loops that use the `while` keyword.
 Here we use a conditional loop to print a number 10 times:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 class async Main {
   fn async main {
@@ -117,9 +117,9 @@ The following program loops indefinitely, printing an ever increasing number
 every 500 milliseconds:
 
 ```inko
-import std.process.(sleep)
-import std.stdio.STDOUT
-import std.time.Duration
+import std.process (sleep)
+import std.stdio (STDOUT)
+import std.time (Duration)
 
 class async Main {
   fn async main {
@@ -140,7 +140,7 @@ You can control the iteration of a loop using the `next` and `break` keywords:
 the inner-most loop:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 class async Main {
   fn async main {

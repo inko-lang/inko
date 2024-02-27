@@ -12,7 +12,7 @@ can't fail? Well, it can! To showcase this, we'll start with our `hello.inko`
 from the previous tutorial and change it to the following:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 class async Main {
   fn async main {
@@ -62,7 +62,7 @@ much to cover, so we'll go with the first option.
 To ignore the error, change `hello.inko` to the following:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 class async Main {
   fn async main {

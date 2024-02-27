@@ -1,4 +1,4 @@
-import std.test.Tests
+import std.test (Tests)
 import std.crypto.math
 
 fn pub tests(t: mut Tests) {

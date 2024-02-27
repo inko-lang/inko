@@ -1,6 +1,6 @@
-import std.fmt.(fmt)
-import std.json.(Error, Json, Parser)
-import std.test.Tests
+import std.fmt (fmt)
+import std.json (Error, Json, Parser)
+import std.test (Tests)
 
 fn parse_invalid(input: String) -> Option[String] {
   let bytes = input.to_byte_array

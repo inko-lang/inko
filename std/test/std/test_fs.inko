@@ -1,6 +1,6 @@
-import std.fmt.(fmt)
-import std.fs.(DirectoryEntry, FileType)
-import std.test.Tests
+import std.fmt (fmt)
+import std.fs (DirectoryEntry, FileType)
+import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
   t.test('FileType.==') fn (t) {

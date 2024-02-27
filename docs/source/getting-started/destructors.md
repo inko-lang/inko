@@ -9,8 +9,8 @@ Types can define a method to run when before they are dropped, known as a
 `std.drop` module like so:
 
 ```inko
-import std.drop.Drop
-import std.stdio.STDOUT
+import std.drop (Drop)
+import std.stdio (STDOUT)
 
 class Person {
   let @name: String
@@ -41,8 +41,8 @@ Destructors are mutable methods, which may result in a value that's to be
 dropped escaping the `drop` call:
 
 ```inko
-import std.drop.Drop
-import std.stdio.STDOUT
+import std.drop (Drop)
+import std.stdio (STDOUT)
 
 class Person {
   let @name: String

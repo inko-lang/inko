@@ -10,8 +10,8 @@ read it back, _then_ write that to the terminal. Isn't that exciting!
 To start, create the file `files.inko` with the following contents:
 
 ```inko
-import std.fs.file.ReadWriteFile
-import std.stdio.STDOUT
+import std.fs.file (ReadWriteFile)
+import std.stdio (STDOUT)
 
 class async Main {
   fn async main {
@@ -56,8 +56,8 @@ this is done automatically. Neat!
 If we just want to read a file, we'd do so as follows:
 
 ```inko
-import std.fs.file.ReadOnlyFile
-import std.stdio.STDOUT
+import std.fs.file (ReadOnlyFile)
+import std.stdio (STDOUT)
 
 class async Main {
   fn async main {
@@ -88,7 +88,7 @@ Process 'Main' (0x5645bdf31740) panicked: Result.get expects an Ok(_), but an Er
 If you just want to write to a file, you'd use the `WriteOnlyFile` type:
 
 ```inko
-import std.fs.file.WriteOnlyFile
+import std.fs.file (WriteOnlyFile)
 
 class async Main {
   fn async main {

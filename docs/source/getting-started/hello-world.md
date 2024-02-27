@@ -8,7 +8,7 @@ For our first program, we'll start off simple by printing "Hello, world!" to the
 terminal. Create a file called `hello.inko` with the following contents:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 class async Main {
   fn async main {
@@ -30,7 +30,7 @@ If all went well, the output is "Hello, world!".
 Let's explore what the program does. We first encounter the following line:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 ```
 
 This imports the `STDOUT` type, used for writing text to the terminal's standard

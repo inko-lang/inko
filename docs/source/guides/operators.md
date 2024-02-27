@@ -14,7 +14,7 @@ example, the `+` operator is provided by the `Add` trait. Here's how we might
 implement this operator for a custom type:
 
 ```inko
-import std.ops.Add
+import std.ops (Add)
 
 class Rational {
   let @numerator: Int

@@ -11,9 +11,9 @@
 #
 # Files are automatically closed when they are dropped. Any errors that may
 # occur when closing a file are ignored.
-import std.drop.Drop
-import std.fs.path.(ToPath, Path)
-import std.io.(Error, Read, Seek, Size, Write)
+import std.drop (Drop)
+import std.fs.path (ToPath, Path)
+import std.io (Error, Read, Seek, Size, Write)
 
 let FILE_READ_ONLY = 0
 let FILE_WRITE_ONLY = 1
@@ -93,7 +93,7 @@ class pub ReadOnlyFile {
   #
   # Opening a file in read-only mode:
   #
-  #     import std.fs.file.ReadOnlyFile
+  #     import std.fs.file (ReadOnlyFile)
   #
   #     let handle = ReadOnlyFile.new('/dev/null').get
   fn pub static new[T: ToPath](path: ref T) -> Result[ReadOnlyFile, Error] {
@@ -155,7 +155,7 @@ class pub WriteOnlyFile {
   #
   # # Examples
   #
-  #     import std.fs.file.WriteOnlyFile
+  #     import std.fs.file (WriteOnlyFile)
   #
   #     let file = WriteOnlyFile.new('/dev/null').get
   fn pub static new[T: ToPath](path: ref T) -> Result[WriteOnlyFile, Error] {
@@ -175,7 +175,7 @@ class pub WriteOnlyFile {
   #
   # # Examples
   #
-  #     import std.fs.file.WriteOnlyFile
+  #     import std.fs.file (WriteOnlyFile)
   #
   #     let file = WriteOnlyFile.append('/dev/null').get
   fn pub static append[T: ToPath](path: ref T) -> Result[WriteOnlyFile, Error] {
@@ -244,7 +244,7 @@ class pub ReadWriteFile {
   #
   # # Examples
   #
-  #     import std.fs.file.ReadWriteFile
+  #     import std.fs.file (ReadWriteFile)
   #
   #     let handle = ReadWriteFile.new('/dev/null').get
   fn pub static new[T: ToPath](path: ref T) -> Result[ReadWriteFile, Error] {
@@ -264,7 +264,7 @@ class pub ReadWriteFile {
   #
   # # Examples
   #
-  #     import std.fs.file.ReadWriteFile
+  #     import std.fs.file (ReadWriteFile)
   #
   #     let handle = ReadWriteFile.append('/dev/null').get
   fn pub static append[T: ToPath](path: ref T) -> Result[ReadWriteFile, Error] {

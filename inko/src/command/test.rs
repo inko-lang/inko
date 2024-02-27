@@ -131,12 +131,12 @@ fn generate_main_test_module(tests: Vec<ModuleName>) -> String {
     let mut calls = Vec::with_capacity(tests.len());
 
     for (idx, test) in tests.iter().enumerate() {
-        imports.push(format!("import {}.(self as tests{})\n", test, idx));
+        imports.push(format!("import {} (self as tests{})\n", test, idx));
         calls.push(format!("    tests{}.tests(tests)\n", idx));
     }
 
     let mut source =
-        "import std.env\nimport std.test.(Filter, Tests)\n".to_string();
+        "import std.env\nimport std.test (Filter, Tests)\n".to_string();
 
     for line in imports {
         source.push_str(&line);

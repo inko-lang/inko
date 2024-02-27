@@ -36,9 +36,9 @@
 # Here's an example using deadlines to limit the time spent waiting for a client
 # to connect:
 #
-#     import std.net.ip.IpAddress
-#     import std.net.socket.TcpServer
-#     import std.time.Duration
+#     import std.net.ip (IpAddress)
+#     import std.net.socket (TcpServer)
+#     import std.time (Duration)
 #
 #     let server = TcpServer.new(ip: IpAddress.v4(0, 0, 0, 0), port: 9000).get
 #
@@ -49,14 +49,14 @@
 #
 # For more information about timeouts versus deadlines, consider reading [this
 # article](https://vorpus.org/blog/timeouts-and-cancellation-for-humans/).
-import std.cmp.Equal
-import std.drop.Drop
-import std.fmt.(Format, Formatter)
-import std.fs.path.Path
-import std.io.(Error, Read, Write)
-import std.net.ip.IpAddress
-import std.string.ToString
-import std.time.(Duration, ToInstant)
+import std.cmp (Equal)
+import std.drop (Drop)
+import std.fmt (Format, Formatter)
+import std.fs.path (Path)
+import std.io (Error, Read, Write)
+import std.net.ip (IpAddress)
+import std.string (ToString)
+import std.time (Duration, ToInstant)
 
 class extern RawSocket {
   let @inner: Int32
@@ -329,7 +329,7 @@ class pub Socket {
   #
   # # Examples
   #
-  #     import std.net.socket.(Type, Socket)
+  #     import std.net.socket (Type, Socket)
   #
   #     Socket.ipv4(Type.DGRAM).get
   fn pub static ipv4(type: Type) -> Result[Socket, Error] {
@@ -349,7 +349,7 @@ class pub Socket {
   #
   # # Examples
   #
-  #     import std.net.socket.(Type, Socket)
+  #     import std.net.socket (Type, Socket)
   #
   #     Socket.ipv6(Type.DGRAM).get
   fn pub static ipv6(type: Type) -> Result[Socket, Error] {
@@ -373,8 +373,8 @@ class pub Socket {
   # Using a `Duration` results in this method calculating the absolute time
   # after which operations time out:
   #
-  #     import std.net.socket.(Socket, Type)
-  #     import std.time.Duration
+  #     import std.net.socket (Socket, Type)
+  #     import std.time (Duration)
   #
   #     let socket = Socket.ipv4(Type.DGRAM)
   #
@@ -382,8 +382,8 @@ class pub Socket {
   #
   # We can also use an `Instant`:
   #
-  #     import std.net.socket.(Socket, Type)
-  #     import std.time.(Duration, Instant)
+  #     import std.net.socket (Socket, Type)
+  #     import std.time (Duration, Instant)
   #
   #     let socket = Socket.ipv4(Type.DGRAM)
   #
@@ -403,8 +403,8 @@ class pub Socket {
   #
   # Binding a socket:
   #
-  #     import std.net.socket.(Socket, Type)
-  #     import std.net.ip.IpAddress
+  #     import std.net.socket (Socket, Type)
+  #     import std.net.ip (IpAddress)
   #
   #     let socket = Socket.ipv4(Type.DGRAM).get
   #
@@ -422,8 +422,8 @@ class pub Socket {
   #
   # Connecting a socket:
   #
-  #     import std.net.socket.(Socket, Type)
-  #     import std.net.ip.IpAddress
+  #     import std.net.socket (Socket, Type)
+  #     import std.net.ip (IpAddress)
   #
   #     let listener = Socket.ipv4(Type.STREAM).get
   #     let client = Socket.ipv4(Type.STREAM).get
@@ -447,8 +447,8 @@ class pub Socket {
   #
   # Marking a socket as a listener:
   #
-  #     import std.net.socket.(Socket, Type)
-  #     import std.net.ip.IpAddress
+  #     import std.net.socket (Socket, Type)
+  #     import std.net.ip (IpAddress)
   #
   #     let socket = Socket.ipv4(Type.STREAM).get
   #
@@ -469,8 +469,8 @@ class pub Socket {
   #
   # Accepting a connection and reading data from the connection:
   #
-  #     import std.net.socket.(Socket, Type)
-  #     import std.net.ip.IpAddress
+  #     import std.net.socket (Socket, Type)
+  #     import std.net.ip (IpAddress)
   #
   #     let listener = Socket.ipv4(Type.STREAM).get
   #     let stream = Socket.ipv4(Type.STREAM).get
@@ -508,8 +508,8 @@ class pub Socket {
   #
   # # Examples
   #
-  #     import std.net.socket.(Socket, Type)
-  #     import std.net.ip.IpAddress
+  #     import std.net.socket (Socket, Type)
+  #     import std.net.ip (IpAddress)
   #
   #     let socket = Socket.ipv4(Type.DGRAM).get
   #
@@ -540,8 +540,8 @@ class pub Socket {
   #
   # # Examples
   #
-  #     import std.net.socket.(Socket, Type)
-  #     import std.net.ip.IpAddress
+  #     import std.net.socket (Socket, Type)
+  #     import std.net.ip (IpAddress)
   #
   #     let socket = Socket.ipv4(Type.DGRAM).get
   #     let bytes = 'hello'.to_byte_array
@@ -577,8 +577,8 @@ class pub Socket {
   #
   # Sending a message to ourselves and receiving it:
   #
-  #     import std.net.socket.(Socket, Type)
-  #     import std.net.ip.IpAddress
+  #     import std.net.socket (Socket, Type)
+  #     import std.net.ip (IpAddress)
   #
   #     let socket = Socket.ipv4(Type.DGRAM).get
   #     let bytes = ByteArray.new
@@ -810,8 +810,8 @@ class pub UdpSocket {
   #
   # Creating a new bound UDP socket:
   #
-  #     import std.net.socket.UdpSocket
-  #     import std.net.ip.IpAddress
+  #     import std.net.socket (UdpSocket)
+  #     import std.net.ip (IpAddress)
   #
   #     let ip = IpAddress.parse('0.0.0.0').get
   #
@@ -837,8 +837,8 @@ class pub UdpSocket {
   #
   # Connecting a UDP socket:
   #
-  #     import std.net.socket.UdpSocket
-  #     import std.net.ip.IpAddress
+  #     import std.net.socket (UdpSocket)
+  #     import std.net.ip (IpAddress)
   #
   #     let socket1 =
   #       UdpSocket.new(ip: IpAddress.v4(0, 0, 0, 0), port: 40_000).get
@@ -856,8 +856,8 @@ class pub UdpSocket {
   #
   # # Examples
   #
-  #     import std.net.socket.UdpSocket
-  #     import std.net.ip.IpAddress
+  #     import std.net.socket (UdpSocket)
+  #     import std.net.ip (IpAddress)
   #
   #     let socket =
   #       UdpSocket.new(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
@@ -883,8 +883,8 @@ class pub UdpSocket {
   #
   # # Examples
   #
-  #     import std.net.socket.UdpSocket
-  #     import std.net.ip.IpAddress
+  #     import std.net.socket (UdpSocket)
+  #     import std.net.ip (IpAddress)
   #
   #     let socket =
   #       UdpSocket.new(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
@@ -968,8 +968,8 @@ class pub TcpClient {
   #
   # Connecting a `TcpClient`:
   #
-  #     import std.net.socket.TcpClient
-  #     import std.net.ip.IpAddress
+  #     import std.net.socket (TcpClient)
+  #     import std.net.ip (IpAddress)
   #
   #     let ip = IpAddress.parse('127.0.0.1').get
   #
@@ -995,9 +995,9 @@ class pub TcpClient {
   #
   # # Examples
   #
-  #     import std.net.socket.TcpClient
-  #     import std.net.ip.IpAddress
-  #     import std.time.Duration
+  #     import std.net.socket (TcpClient)
+  #     import std.net.ip (IpAddress)
+  #     import std.time (Duration)
   #
   #     TcpClient
   #       .with_timeout(
@@ -1099,8 +1099,8 @@ class pub TcpServer {
   #
   # Creating a `TcpServer`:
   #
-  #     import std.net.socket.TcpServer
-  #     import std.net.ip.IpAddress
+  #     import std.net.socket (TcpServer)
+  #     import std.net.ip (IpAddress)
   #
   #     let ip = IpAddress.parse('0.0.0.0').get
   #
@@ -1127,8 +1127,8 @@ class pub TcpServer {
   #
   # Accepting a new connection:
   #
-  #     import std.net.socket.(TcpServer, TcpClient)
-  #     import std.net.ip.IpAddress
+  #     import std.net.socket (TcpServer, TcpClient)
+  #     import std.net.ip (IpAddress)
   #
   #     let listener =
   #       TcpServer.new(ip: IpAddress.v4(127, 0, 0, 1), port: 40_000).get
@@ -1177,19 +1177,19 @@ class pub UnixAddress {
   #
   # Creating a `UnixAddress` that uses a path:
   #
-  #     import std.net.socket.UnixAddress
+  #     import std.net.socket (UnixAddress)
   #
   #     UnixAddress.new('/tmp/test.sock')
   #
   # Creating a `UnixAddress` that uses an unnamed address:
   #
-  #     import std.net.socket.UnixAddress
+  #     import std.net.socket (UnixAddress)
   #
   #     UnixAddress.new('')
   #
   # Creating a `UnixAddress` that uses an abstract address:
   #
-  #     import std.net.socket.UnixAddress
+  #     import std.net.socket (UnixAddress)
   #
   #     UnixAddress.new("\0example")
   fn pub static new[T: ToString](address: ref T) -> UnixAddress {
@@ -1213,7 +1213,7 @@ class pub UnixAddress {
   #
   # Checking if an address is abstract:
   #
-  #     import std.net.socket.UnixAddress
+  #     import std.net.socket (UnixAddress)
   #
   #     UnixAddress.new('/tmp/test.sock').abstract?    # => false
   #     UnixAddress.new("\0example-address").abstract? # => true
@@ -1227,7 +1227,7 @@ class pub UnixAddress {
   #
   # Checking if an address is unnamed:
   #
-  #     import std.net.socket.UnixAddress
+  #     import std.net.socket (UnixAddress)
   #
   #     UnixAddress.new('/tmp/test.sock').unnamed? # => false
   #     UnixAddress.new('').unnamed?               # => true
@@ -1257,7 +1257,7 @@ impl Equal[ref UnixAddress] for UnixAddress {
   #
   # Comparing two `UnixAddress` objects:
   #
-  #     import std.net.socket.UnixAddress
+  #     import std.net.socket (UnixAddress)
   #
   #     UnixAddress.new('a.sock') == UnixAddress.new('a.sock') # => true
   #     UnixAddress.new('a.sock') == UnixAddress.new('b.sock') # => false
@@ -1273,7 +1273,7 @@ impl ToString for UnixAddress {
   #
   # Converting a `UnixAddress` to a `String`:
   #
-  #     import std.net.socket.UnixAddress
+  #     import std.net.socket (UnixAddress)
   #
   #     UnixAddress.new('/tmp/test.sock').to_string # => '/tmp/test.sock'
   #     UnixAddress.new("\0example").to_string      # => "\0example"
@@ -1297,7 +1297,7 @@ class pub UnixSocket {
   #
   # Creating a new socket:
   #
-  #     import std.net.socket.(Type, UnixSocket)
+  #     import std.net.socket (Type, UnixSocket)
   #
   #     UnixSocket.new(Type.DGRAM).get
   fn pub static new(type: Type) -> Result[UnixSocket, Error] {
@@ -1321,8 +1321,8 @@ class pub UnixSocket {
   # Using a `Duration` results in this method calculating the absolute time
   # after which operations time out:
   #
-  #     import std.net.socket.(UnixSocket, Type)
-  #     import std.time.Duration
+  #     import std.net.socket (UnixSocket, Type)
+  #     import std.time (Duration)
   #
   #     let socket = UnixSocket.new(Type.DGRAM)
   #
@@ -1330,8 +1330,8 @@ class pub UnixSocket {
   #
   # We can also use an `Instant`:
   #
-  #     import std.net.socket.(UnixSocket, Type)
-  #     import std.time.(Duration, Instant)
+  #     import std.net.socket (UnixSocket, Type)
+  #     import std.time (Duration, Instant)
   #
   #     let socket = UnixSocket.new(Type.DGRAM)
   #
@@ -1351,7 +1351,7 @@ class pub UnixSocket {
   #
   # Binding a Unix socket to a path:
   #
-  #     import std.net.socket.(Type, UnixSocket)
+  #     import std.net.socket (Type, UnixSocket)
   #
   #     let socket = UnixSocket.new(Type.DGRAM).get
   #
@@ -1369,7 +1369,7 @@ class pub UnixSocket {
   #
   # Connecting a Unix socket:
   #
-  #     import std.net.socket.(Type, UnixSocket)
+  #     import std.net.socket (Type, UnixSocket)
   #
   #     let listener = UnixSocket.new(Type.STREAM).get
   #     let stream = UnixSocket.new(Type.STREAM).get
@@ -1394,7 +1394,7 @@ class pub UnixSocket {
   #
   # Marking a socket as a listener:
   #
-  #     import std.net.socket.(Type, UnixSocket)
+  #     import std.net.socket (Type, UnixSocket)
   #
   #     let socket = UnixSocket.new(Type.STREAM).get
   #
@@ -1415,7 +1415,7 @@ class pub UnixSocket {
   #
   # Accepting a connection and reading data from the connection:
   #
-  #     import std.net.socket.(Type, UnixSocket)
+  #     import std.net.socket (Type, UnixSocket)
   #
   #     let listener = UnixSocket.new(Type.STREAM).get
   #     let stream = UnixSocket.new(Type.STREAM).get
@@ -1453,7 +1453,7 @@ class pub UnixSocket {
   #
   # # Examples
   #
-  #     import std.net.socket.(Type, UnixSocket)
+  #     import std.net.socket (Type, UnixSocket)
   #
   #     let socket = UnixSocket.new(Type.DGRAM).get
   #
@@ -1479,7 +1479,7 @@ class pub UnixSocket {
   #
   # # Examples
   #
-  #     import std.net.socket.(Type, UnixSocket)
+  #     import std.net.socket (Type, UnixSocket)
   #
   #     let socket = UnixSocket.new(Type.DGRAM).get
   #     let bytes = 'hello'.to_byte_array
@@ -1510,7 +1510,7 @@ class pub UnixSocket {
   #
   # Sending a message to ourselves and receiving it:
   #
-  #     import std.net.socket.(Type, UnixSocket)
+  #     import std.net.socket (Type, UnixSocket)
   #
   #     let socket = UnixSocket.new(Type.DGRAM).get
   #     let bytes = ByteArray.new
@@ -1665,7 +1665,7 @@ class pub UnixDatagram {
   #
   # Creating a new Unix datagram socket:
   #
-  #     import std.net.socket.UnixDatagram
+  #     import std.net.socket (UnixDatagram)
   #
   #     UnixDatagram.new('/tmp/test.sock').get
   fn pub static new[T: ToString](
@@ -1687,7 +1687,7 @@ class pub UnixDatagram {
   #
   # Connecting a Unix datagram socket:
   #
-  #     import std.net.socket.UnixDatagram
+  #     import std.net.socket (UnixDatagram)
   #
   #     let socket1 = UnixDatagram.new('/tmp/test1.sock').get
   #     let socket2 = UnixDatagram.new('/tmp/test2.sock').get
@@ -1703,7 +1703,7 @@ class pub UnixDatagram {
   #
   # # Examples
   #
-  #     import std.net.socket.UnixDatagram
+  #     import std.net.socket (UnixDatagram)
   #
   #     let socket = UnixDatagram.new('/tmp/test.sock').get
   #
@@ -1721,7 +1721,7 @@ class pub UnixDatagram {
   #
   # # Examples
   #
-  #     import std.net.socket.UnixDatagram
+  #     import std.net.socket (UnixDatagram)
   #
   #     let socket = UnixDatagram.new('/tmp/test.sock').get
   #     let bytes = 'hello'.to_byte_array
@@ -1796,7 +1796,7 @@ class pub UnixClient {
   #
   # Connecting a `UnixClient`:
   #
-  #     import std.net.socket.(UnixServer, UnixClient)
+  #     import std.net.socket (UnixServer, UnixClient)
   #
   #     let listener = UnixServer.new('/tmp/test.sock').get
   #
@@ -1818,8 +1818,8 @@ class pub UnixClient {
   #
   # # Examples
   #
-  #     import std.net.socket.UnixClient
-  #     import std.time.Duration
+  #     import std.net.socket (UnixClient)
+  #     import std.time (Duration)
   #
   #     UnixClient
   #       .with_timeout(
@@ -1910,7 +1910,7 @@ class pub UnixServer {
   #
   # Creating a `UnixServer`:
   #
-  #     import std.net.socket.UnixServer
+  #     import std.net.socket (UnixServer)
   #
   #     UnixServer.new('/tmp/test.sock').get
   fn pub static new[T: ToString](address: ref T) -> Result[UnixServer, Error] {
@@ -1929,7 +1929,7 @@ class pub UnixServer {
   #
   # Accepting a new connection:
   #
-  #     import std.net.socket.(UnixServer, UnixClient)
+  #     import std.net.socket (UnixServer, UnixClient)
   #
   #     let listener = UnixServer.new('/tmp/test.sock').get
   #     let client = UnixClient.new('/tmp/test.sock').get

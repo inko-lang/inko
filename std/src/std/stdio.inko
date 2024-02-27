@@ -1,5 +1,5 @@
 # STDIN, STDOUT, and STDERR streams.
-import std.io.(Error, Read, Write)
+import std.io (Error, Read, Write)
 
 class extern IntResult {
   let @tag: Int

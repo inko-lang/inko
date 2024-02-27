@@ -8,7 +8,7 @@ Inko's standard library provides a module used for writing unit tests:
 `std.test`. Using this module one writes their unit tests like so:
 
 ```inko
-import std.test.Tests
+import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
   t.test('The name of the test') fn (t) {

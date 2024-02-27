@@ -5,9 +5,9 @@
 #
 # - https://datatracker.ietf.org/doc/html/rfc8439
 # - https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-xchacha
-import std.crypto.cipher.Cipher
-import std.crypto.hash.(Hash, Hasher)
-import std.crypto.math.(rotate_left_u32, to_u32)
+import std.crypto.cipher (Cipher)
+import std.crypto.hash (Hash, Hasher)
+import std.crypto.math (rotate_left_u32, to_u32)
 import std.endian.little
 
 # The ChaCha key size in bytes.
@@ -166,8 +166,8 @@ class Matrix {
 #
 # Encrypting and decrypting using the same cipher:
 #
-#     import std.crypto.chacha.ChaCha20
-#     import std.rand.Random
+#     import std.crypto.chacha (ChaCha20)
+#     import std.rand (Random)
 #
 #     let rand = Random.new
 #     let key = rand.bytes(size: 32)
@@ -185,8 +185,8 @@ class Matrix {
 # You can also decrypt using a new cipher, as long as the key, nonce and
 # starting block counter are the same:
 #
-#     import std.crypto.chacha.ChaCha20
-#     import std.rand.Random
+#     import std.crypto.chacha (ChaCha20)
+#     import std.rand (Random)
 #
 #     let rand = Random.new
 #     let key = rand.bytes(size: 32)
@@ -219,8 +219,8 @@ class pub ChaCha20 {
   #
   # # Examples
   #
-  #     import std.crypto.chacha.ChaCha20
-  #     import std.rand.Random
+  #     import std.crypto.chacha (ChaCha20)
+  #     import std.rand (Random)
   #
   #     let rand = Random.new
   #     let key = rand.bytes(size: 32)
@@ -369,8 +369,8 @@ class pub XChaCha20 {
   #
   # # Examples
   #
-  #     import std.crypto.chacha.XChaCha20
-  #     import std.rand.Random
+  #     import std.crypto.chacha (XChaCha20)
+  #     import std.rand (Random)
   #
   #     let rand = Random.new
   #     let key = rand.bytes(size: 32)

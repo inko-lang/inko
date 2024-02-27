@@ -1,4 +1,4 @@
-import std.test.Tests
+import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
   # These tests exist to make sure casting between C and Inko integers types

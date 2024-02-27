@@ -1,8 +1,8 @@
 # A hash set implemented using a Map.
-import std.cmp.(Contains, Equal)
-import std.fmt.(Format, Formatter)
-import std.hash.Hash
-import std.iter.Stream
+import std.cmp (Contains, Equal)
+import std.fmt (Format, Formatter)
+import std.hash (Hash)
+import std.iter (Stream)
 
 # A hash set implemented using a Map.
 #
@@ -27,7 +27,7 @@ class pub Set[V: Hash + Equal[ref V]] {
   #
   # Inserting a value into a `Set`:
   #
-  #     import std.set.Set
+  #     import std.set (Set)
   #
   #     let set = Set.new
   #
@@ -44,7 +44,7 @@ class pub Set[V: Hash + Equal[ref V]] {
   #
   # Removing an existing value from a `Set`:
   #
-  #     import std.set.Set
+  #     import std.set (Set)
   #
   #     let set = Set.new
   #
@@ -54,7 +54,7 @@ class pub Set[V: Hash + Equal[ref V]] {
   #
   # Removing a non-existing value from a `Set`:
   #
-  #     import std.set.Set
+  #     import std.set (Set)
   #
   #     let set = Set.new
   #
@@ -69,7 +69,7 @@ class pub Set[V: Hash + Equal[ref V]] {
   #
   # Creating an `Iter` for the values:
   #
-  #     import std.set.Set
+  #     import std.set (Set)
   #
   #     let set = Set.new
   #
@@ -87,7 +87,7 @@ class pub Set[V: Hash + Equal[ref V]] {
   #
   # Using an empty `Set`:
   #
-  #     import std.set.Set
+  #     import std.set (Set)
   #
   #     Set.new.size # => 0
   #
@@ -111,7 +111,7 @@ impl Equal[ref Set[V]] for Set {
   #
   # Comparing two `Set` instances:
   #
-  #     import std.set.Set
+  #     import std.set (Set)
   #
   #     let set1 = Set.new
   #     let set2 = Set.new
@@ -134,7 +134,7 @@ impl Contains[V] for Set {
   #
   # Checking if a `Set` contains a value:
   #
-  #     import std.set.Set
+  #     import std.set (Set)
   #
   #     let set = Set.new
   #

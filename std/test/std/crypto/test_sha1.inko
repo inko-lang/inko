@@ -1,5 +1,5 @@
-import std.test.Tests
-import std.crypto.sha1.Sha1
+import std.test (Tests)
+import std.crypto.sha1 (Sha1)
 
 fn pub tests(t: mut Tests) {
   t.test('Sha1.hash') fn (t) {

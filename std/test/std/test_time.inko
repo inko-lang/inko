@@ -1,8 +1,8 @@
-import std.cmp.Ordering
-import std.fmt.(fmt)
-import std.process.(sleep)
-import std.test.Tests
-import std.time.(DateTime, Duration, Instant)
+import std.cmp (Ordering)
+import std.fmt (fmt)
+import std.process (sleep)
+import std.test (Tests)
+import std.time (DateTime, Duration, Instant)
 
 fn ymd(year: Int, month: Int, day: Int) -> DateTime {
   DateTime {

@@ -1,5 +1,5 @@
-import std.test.Tests
-import std.crypto.md5.Md5
+import std.test (Tests)
+import std.crypto.md5 (Md5)
 
 fn pub tests(t: mut Tests) {
   t.test('Md5.hash') fn (t) {

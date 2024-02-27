@@ -1,6 +1,6 @@
-import std.debug.(StackFrame, stacktrace)
+import std.debug (StackFrame, stacktrace)
 import std.env
-import std.test.Tests
+import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
   t.test('StackFrame.clone') fn (t) {

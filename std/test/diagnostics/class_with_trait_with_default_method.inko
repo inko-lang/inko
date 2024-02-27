@@ -1,4 +1,4 @@
-import foo.Foo
+import foo (Foo)
 
 class Bar {
   fn baz {}

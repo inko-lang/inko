@@ -14,7 +14,7 @@ Let's say we want to convert different class instances into strings. We can do
 so using traits:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 trait ToString {
   fn to_string -> String
@@ -50,7 +50,7 @@ implementation of the `to_string` method.
 Default trait methods are defined as follows:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 trait ToString {
   fn to_string -> String {
@@ -83,7 +83,7 @@ still "Garfield". Because the method is a default method, we can use it as-is as
 follows:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 trait ToString {
   fn to_string -> String {

@@ -1,5 +1,5 @@
-import std.fmt.(Formatter, fmt)
-import std.test.Tests
+import std.fmt (Formatter, fmt)
+import std.test (Tests)
 
 fn format(func: fn (mut Formatter)) -> String {
   let fmt = Formatter.new

@@ -1,8 +1,8 @@
-import helpers.(hash)
-import std.cmp.Ordering
-import std.fmt.(fmt)
-import std.int.(Format, MAX, MIN)
-import std.test.Tests
+import helpers (hash)
+import std.cmp (Ordering)
+import std.fmt (fmt)
+import std.int (Format, MAX, MIN)
+import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
   t.test('Int.parse with binary numbers') fn (t) {

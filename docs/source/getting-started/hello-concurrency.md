@@ -9,9 +9,9 @@ concurrently. We'll start with creating the file `hello.inko` with the following
 contents:
 
 ```inko
-import std.process.(sleep)
-import std.stdio.STDOUT
-import std.time.Duration
+import std.process (sleep)
+import std.stdio (STDOUT)
+import std.time (Duration)
 
 class async Printer {
   fn async print(message: String) {
@@ -64,7 +64,7 @@ stop right away when the output is produced. We achieve this by changing the
 program to the following:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 class async Printer {
   fn async print(message: String, channel: Channel[Nil]) {

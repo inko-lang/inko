@@ -1,5 +1,5 @@
 # Cryptographically secure random number generation.
-import std.drop.Drop
+import std.drop (Drop)
 
 fn extern inko_random_new(process: Pointer[UInt8]) -> Pointer[UInt8]
 fn extern inko_random_from_int(seed: Int) -> Pointer[UInt8]
@@ -41,7 +41,7 @@ class pub Random {
   #
   # # Examples
   #
-  #     import std.rand.Random
+  #     import std.rand (Random)
   #
   #     Random.from_int(42)
   fn pub static from_int(seed: Int) -> Random {
@@ -55,7 +55,7 @@ class pub Random {
   #
   # # Examples
   #
-  #     import std.rand.Random
+  #     import std.rand (Random)
   #
   #     Random.new
   fn pub static new -> Random {
@@ -66,7 +66,7 @@ class pub Random {
   #
   # # Examples
   #
-  #     import std.rand.Random
+  #     import std.rand (Random)
   #
   #     Random.new.int
   fn pub mut int -> Int {
@@ -77,7 +77,7 @@ class pub Random {
   #
   # # Examples
   #
-  #     import std.rand.Random
+  #     import std.rand (Random)
   #
   #     Random.new.float
   fn pub mut float -> Float {
@@ -144,7 +144,7 @@ class pub Shuffle {
   #
   # # Examples
   #
-  #     import std.rand.Shuffle
+  #     import std.rand (Shuffle)
   #
   #     let a = [10, 20]
   #

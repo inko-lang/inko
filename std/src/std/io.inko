@@ -2,13 +2,13 @@
 #
 # The IO module provides the basic building blocks for IO operations such as
 # reading from and writing to a file.
-import std.cmp.Equal
-import std.fmt.(Format, Formatter)
-import std.iter.Stream
+import std.cmp (Equal)
+import std.fmt (Format, Formatter)
+import std.iter (Stream)
 import std.libc.bsd.errors if bsd
 import std.libc.linux.errors if linux
 import std.libc.mac.errors if mac
-import std.string.(Bytes, ToString)
+import std.string (Bytes, ToString)
 
 # The initial number of bytes to read in `Read.read_all`
 let INITIAL_READ_ALL_SIZE = 1024
@@ -127,7 +127,7 @@ class pub enum Error {
   #
   # # Examples
   #
-  #     import std.unix.errors.ENOENT
+  #     import std.unix.errors (ENOENT)
   #
   #     Error.from_os_error(ENOENT) # => Error.NotFound
   fn pub static from_os_error(code: Int) -> Error {
@@ -387,8 +387,8 @@ trait pub BufferedRead: Read {
   #
   # # Examples
   #
-  #     import std.fs.file.ReadOnlyFile
-  #     import std.io.BufferedReader
+  #     import std.fs.file (ReadOnlyFile)
+  #     import std.io (BufferedReader)
   #
   #     let file = ReadOnlyFile.new('README.md').get
   #     let reader = BufferedReader.new(file)
@@ -404,8 +404,8 @@ trait pub BufferedRead: Read {
   #
   # # Examples
   #
-  #     import std.fs.file.ReadOnlyFile
-  #     import std.io.BufferedReader
+  #     import std.fs.file (ReadOnlyFile)
+  #     import std.io (BufferedReader)
   #
   #     let file = ReadOnlyFile.new('README.md').get
   #     let reader = BufferedReader.new(file)
@@ -438,8 +438,8 @@ trait pub BufferedRead: Read {
   #
   # # Examples
   #
-  #     import std.fs.file.ReadOnlyFile
-  #     import std.io.BufferedReader
+  #     import std.fs.file (ReadOnlyFile)
+  #     import std.io (BufferedReader)
   #
   #     let file = ReadOnlyFile.new('README.md').get
   #     let reader = BufferedReader.new(file)
@@ -456,8 +456,8 @@ trait pub BufferedRead: Read {
   #
   # # Examples
   #
-  #     import std.fs.file.ReadOnlyFile
-  #     import std.io.BufferedReader
+  #     import std.fs.file (ReadOnlyFile)
+  #     import std.io (BufferedReader)
   #
   #     let file = ReadOnlyFile.new('README.md').get
   #     let reader = BufferedReader.new(file)
@@ -573,7 +573,7 @@ impl Read for BufferedReader {
 # `ReadOnlyFile`), and you want to test that method without performing actual IO
 # operations. For example:
 #
-#     import std.io.(Buffer, Read)
+#     import std.io (Buffer, Read)
 #
 #     fn read_string[T: Read + mut](reader: T) -> String {
 #       let bytes = ByteArray.new

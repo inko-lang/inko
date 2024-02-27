@@ -1,6 +1,6 @@
-import std.fmt.(fmt)
-import std.iter.Iter
-import std.test.Tests
+import std.fmt (fmt)
+import std.iter (Iter)
+import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
   t.test('Result.collect') fn (t) {

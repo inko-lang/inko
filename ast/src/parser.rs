@@ -159,13 +159,6 @@ impl Parser {
             }
 
             self.next();
-
-            match self.peek().kind {
-                TokenKind::ParenOpen | TokenKind::Constant | TokenKind::Mul => {
-                    break
-                }
-                _ => {}
-            }
         }
 
         let start_loc = steps.first().map(|s| &s.location).unwrap();
@@ -176,20 +169,6 @@ impl Parser {
     }
 
     fn import_symbols(&mut self) -> Result<Option<ImportSymbols>, ParseError> {
-        if self.peek().kind == TokenKind::Constant {
-            let token = self.next();
-            let symbol = ImportSymbol {
-                name: token.value,
-                alias: None,
-                location: token.location,
-            };
-
-            return Ok(Some(ImportSymbols {
-                location: symbol.location.clone(),
-                values: vec![symbol],
-            }));
-        }
-
         if self.peek().kind != TokenKind::ParenOpen {
             return Ok(None);
         }
@@ -3346,7 +3325,7 @@ mod tests {
     #[test]
     fn test_imports_with_symbols() {
         assert_eq!(
-            top(parse("import foo.bar.()")),
+            top(parse("import foo.bar ()")),
             TopLevelExpression::Import(Box::new(Import {
                 path: ImportPath {
                     steps: vec![
@@ -3372,7 +3351,7 @@ mod tests {
         );
 
         assert_eq!(
-            top(parse("import foo.(bar)")),
+            top(parse("import foo (bar)")),
             TopLevelExpression::Import(Box::new(Import {
                 path: ImportPath {
                     steps: vec![Identifier {
@@ -3396,7 +3375,7 @@ mod tests {
         );
 
         assert_eq!(
-            top(parse("import foo.(bar, baz)")),
+            top(parse("import foo (bar, baz)")),
             TopLevelExpression::Import(Box::new(Import {
                 path: ImportPath {
                     steps: vec![Identifier {
@@ -3427,7 +3406,7 @@ mod tests {
         );
 
         assert_eq!(
-            top(parse("import foo.(bar, baz,)")),
+            top(parse("import foo (bar, baz,)")),
             TopLevelExpression::Import(Box::new(Import {
                 path: ImportPath {
                     steps: vec![Identifier {
@@ -3461,7 +3440,7 @@ mod tests {
     #[test]
     fn test_imports_with_self() {
         assert_eq!(
-            top(parse("import foo.(self)")),
+            top(parse("import foo (self)")),
             TopLevelExpression::Import(Box::new(Import {
                 path: ImportPath {
                     steps: vec![Identifier {
@@ -3488,7 +3467,7 @@ mod tests {
     #[test]
     fn test_imports_with_aliases() {
         assert_eq!(
-            top(parse("import foo.(bar as baz)")),
+            top(parse("import foo (bar as baz)")),
             TopLevelExpression::Import(Box::new(Import {
                 path: ImportPath {
                     steps: vec![Identifier {
@@ -3515,7 +3494,7 @@ mod tests {
         );
 
         assert_eq!(
-            top(parse("import foo.(Bar as Baz)")),
+            top(parse("import foo (Bar as Baz)")),
             TopLevelExpression::Import(Box::new(Import {
                 path: ImportPath {
                     steps: vec![Identifier {
@@ -3542,7 +3521,7 @@ mod tests {
         );
 
         assert_eq!(
-            top(parse("import foo.(self as foo)")),
+            top(parse("import foo (self as foo)")),
             TopLevelExpression::Import(Box::new(Import {
                 path: ImportPath {
                     steps: vec![Identifier {
@@ -3569,7 +3548,7 @@ mod tests {
         );
 
         assert_eq!(
-            top(parse("import foo.(self as _)")),
+            top(parse("import foo (self as _)")),
             TopLevelExpression::Import(Box::new(Import {
                 path: ImportPath {
                     steps: vec![Identifier {
@@ -3598,14 +3577,14 @@ mod tests {
 
     #[test]
     fn test_invalid_imports() {
-        assert_error!("import foo.(bar as Baz)", cols(20, 22));
-        assert_error!("import foo.(bar as *)", cols(20, 20));
-        assert_error!("import foo.(self as Baz)", cols(21, 23));
-        assert_error!("import foo.(Bar as baz)", cols(20, 22));
-        assert_error!("import foo.(,)", cols(13, 13));
+        assert_error!("import foo (bar as Baz)", cols(20, 22));
+        assert_error!("import foo (bar as *)", cols(20, 20));
+        assert_error!("import foo (self as Baz)", cols(21, 23));
+        assert_error!("import foo (Bar as baz)", cols(20, 22));
+        assert_error!("import foo (,)", cols(13, 13));
         assert_error!("import foo.", cols(11, 11));
-        assert_error!("import foo.(", cols(12, 12));
-        assert_error!("import foo.)", cols(12, 12));
+        assert_error!("import foo (", cols(12, 12));
+        assert_error!("import foo )", cols(12, 12));
     }
 
     #[test]

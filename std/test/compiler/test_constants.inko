@@ -1,4 +1,4 @@
-import std.test.Tests
+import std.test (Tests)
 
 let TRUE = true
 let FALSE = false

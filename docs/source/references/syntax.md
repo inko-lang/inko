@@ -23,7 +23,7 @@ Unlike languages such as Ruby and Python, it's not valid to include expressions
 directly in a module, i.e. this is invalid:
 
 ```inko
-import std.stdio.STDOUT
+import std.stdio (STDOUT)
 
 STDOUT.new.print('hello')
 
@@ -39,25 +39,22 @@ syntax is as follows:
 
 ```inko
 import mod1.mod2        # This imports `mod1.mod2` and exposes it as `mod2`
-import mod1.mod2.A      # This imports the symbol `A`
-import mod1.mod2.(A, B) # This imports the symbol `A` and `B`
-import mod1.mod2.(self) # This imports `mod2` from module `mod1`
+import mod1.mod2 (A)    # This imports the symbol `A`
+import mod1.mod2 (A, B) # This imports the symbols `A` and `B`
+import mod1.mod2 (self) # This imports `mod2` from module `mod1`
 ```
 
 You can also alias symbols when importing them:
 
 ```inko
-import mod1.mod2.(A as B) # `A` is now exposed as `B`
+import mod1.mod2 (A as B) # `A` is now exposed as `B`
 ```
 
 You can also import module methods:
 
 ```inko
-import std.process.(sleep)
+import std.process (sleep)
 ```
-
-This always requires the use of parentheses in the symbol list, otherwise the
-compiler would think you're trying to import the module `std.process.sleep`.
 
 Imports may specify one or more build tags, resulting in the compiler only
 processing the `import` if all the build tags match:

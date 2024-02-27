@@ -11,9 +11,9 @@ To start things off, create a file called `socket.inko` with the following
 contents:
 
 ```inko
-import std.net.ip.IpAddress
-import std.net.socket.UdpSocket
-import std.stdio.STDOUT
+import std.net.ip (IpAddress)
+import std.net.socket (UdpSocket)
+import std.stdio (STDOUT)
 
 class async Main {
   fn async main {
@@ -95,9 +95,9 @@ Let's change the program to use TCP sockets instead. We'll start by changing
 `sockets.inko` to the following:
 
 ```inko
-import std.net.ip.IpAddress
-import std.net.socket.TcpServer
-import std.stdio.STDOUT
+import std.net.ip (IpAddress)
+import std.net.socket (TcpServer)
+import std.stdio (STDOUT)
 
 class async Main {
   fn async main {
@@ -119,8 +119,8 @@ Next, we'll create another file called `client.inko` with the following
 contents:
 
 ```inko
-import std.net.ip.IpAddress
-import std.net.socket.TcpClient
+import std.net.ip (IpAddress)
+import std.net.socket (TcpClient)
 
 class async Main {
   fn async main {

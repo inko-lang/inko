@@ -34,10 +34,10 @@
 # tuples you can always nest them:
 #
 #     (1, 2, 3, 4, 5, 6, 7, (8, 9, 10))
-import std.clone.Clone
-import std.cmp.Equal
-import std.fmt.(Format, Formatter)
-import std.hash.(Hash, Hasher)
+import std.clone (Clone)
+import std.cmp (Equal)
+import std.fmt (Format, Formatter)
+import std.hash (Hash, Hasher)
 
 # A 1-ary tuple.
 class builtin Tuple1[A] {

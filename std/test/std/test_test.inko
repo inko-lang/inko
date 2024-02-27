@@ -1,10 +1,10 @@
 import std.env
-import std.fmt.(fmt)
-import std.fs.path.Path
-import std.io.Write
+import std.fmt (fmt)
+import std.fs.path (Path)
+import std.io (Write)
 import std.sys
-import std.test.(Filter, Plain, Test, Tests)
-import std.time.Duration
+import std.test (Filter, Plain, Test, Tests)
+import std.time (Duration)
 
 class Buffer {
   let @bytes: mut ByteArray
