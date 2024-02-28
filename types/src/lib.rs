@@ -1,6 +1,6 @@
 //! Structures for the various Inko types.
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::new_without_default))]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::len_without_is_empty))]
+#![allow(clippy::new_without_default)]
+#![allow(clippy::len_without_is_empty)]
 
 #[cfg(test)]
 pub mod test;

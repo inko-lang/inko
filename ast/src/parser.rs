@@ -1757,7 +1757,7 @@ impl Parser {
         }
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::redundant_clone))]
+    #[allow(clippy::redundant_clone)]
     fn string_text(&mut self, start: Token) -> StringText {
         let mut value = start.value;
         let mut end_loc = start.location.clone();

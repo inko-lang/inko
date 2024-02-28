@@ -1,5 +1,5 @@
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::new_without_default))]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::enum_variant_names))]
+#![allow(clippy::new_without_default)]
+#![allow(clippy::enum_variant_names)]
 
 mod diagnostics;
 mod hir;

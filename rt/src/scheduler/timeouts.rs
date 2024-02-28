@@ -97,7 +97,7 @@ pub(crate) struct Timeouts {
     timeouts: BinaryHeap<TimeoutEntry>,
 }
 
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::len_without_is_empty))]
+#[allow(clippy::len_without_is_empty)]
 impl Timeouts {
     pub(crate) fn new() -> Self {
         Timeouts { timeouts: BinaryHeap::new() }

@@ -178,7 +178,7 @@ impl TimeoutWorker {
         unsafe { &*self.inner.get() }
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::mut_from_ref))]
+    #[allow(clippy::mut_from_ref)]
     fn inner_mut(&self) -> &mut Inner {
         unsafe { &mut *self.inner.get() }
     }

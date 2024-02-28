@@ -1,7 +1,7 @@
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::new_without_default))]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::needless_range_loop))]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::missing_safety_doc))]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::too_many_arguments))]
+#![allow(clippy::new_without_default)]
+#![allow(clippy::needless_range_loop)]
+#![allow(clippy::missing_safety_doc)]
+#![allow(clippy::too_many_arguments)]
 
 pub mod macros;
 

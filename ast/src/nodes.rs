@@ -586,7 +586,7 @@ impl Node for ReopenClass {
     }
 }
 
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::large_enum_variant))]
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, PartialEq, Eq)]
 pub enum Requirement {
     Trait(TypeName),
