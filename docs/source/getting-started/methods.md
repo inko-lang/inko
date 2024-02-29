@@ -289,3 +289,66 @@ class async Main {
   }
 }
 ```
+
+### Capturing variables
+
+By default, closures capture borrows of variables _by value_. What this means is
+that the variable can still be used outside of the closure, but assignments to
+the variable inside the closure aren't available outside of it. To prevent this
+from causing bugs, the compiler produces a compile-time error when you try to
+assign captured variables a new value:
+
+```inko
+class async Main {
+  fn async main {
+    let mut a = 10
+
+    fn { a = 20 }.call
+  }
+}
+```
+
+This produces:
+
+```
+test.inko:5:10 error(invalid-assign): variables captured by non-moving closures can't be assigned new values
+```
+
+To resolve this, we have to _move_ the captured variable into the closure. This
+is done by using the `fn move` keyword. When using `fn move`, you _can_ assign
+the captured variable a new value:
+
+```inko
+class async Main {
+  fn async main {
+    let mut nums = [10]
+
+    fn move { nums = [20] }.call
+  }
+}
+```
+
+Because `nums` is _moved_ into the closure, you can no longer use it outside of
+it.
+
+A common pattern is to loop over some data using an iterator and assign a
+variable a new value for each iteration:
+
+```inko
+let mut number = 0
+
+[10, 20, 30].iter.each fn move (num) {
+  number += num
+}
+
+# `number` is still zero because the assignment is local to the closure. We
+# can also still use it because `Int` is a value type.
+number
+```
+
+Because of how capturing works, such patterns won't work in Inko. Instead, use
+methods such as `Iter.reduce` like so:
+
+```inko
+let number = [10, 20, 30].iter.reduce(0) fn (total, num) { total + num }
+```
