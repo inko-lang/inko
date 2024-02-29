@@ -77,8 +77,8 @@ This prints "A" if you run the program as-is, and "B" if you change `num` to
 
 ## Loops
 
-Inko has two types of loops: unconditional loops which use the `loop` keyword,
-and conditional loops that use the `while` keyword.
+Inko has two types of built-in loops: unconditional loops which use the `loop`
+keyword, and conditional loops that use the `while` keyword.
 
 Here we use a conditional loop to print a number 10 times:
 
@@ -155,6 +155,24 @@ class async Main {
 ```
 
 This program prints "hello", then stops the loop.
+
+Various types in the standard library also provide ways of looping. For example,
+`Int.times` takes a closure that it calls N times:
+
+```inko
+10.times fn (i) {
+  i # => 0, 1, 2, ...
+}
+```
+
+Similarly, we can use `Int.until` to create an exclusive range (or `Int.to` for
+an inclusive range) that we can then iterate over:
+
+```inko
+3.until(5).iter.each fn (i) {
+  i # => 3, 4
+}
+```
 
 ## throw
 
