@@ -18,7 +18,7 @@ class Person {
 
 impl Drop for Person {
   fn mut drop {
-    STDOUT.new.print("dropping {@name}")
+    STDOUT.new.print('dropping ${@name}')
   }
 }
 
@@ -52,7 +52,7 @@ class Person {
 impl Drop for Person {
   fn mut drop {
     @people.push(self)
-    STDOUT.new.print("dropping {@name}")
+    STDOUT.new.print('dropping ${@name}')
   }
 }
 

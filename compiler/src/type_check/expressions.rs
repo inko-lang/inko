@@ -997,7 +997,6 @@ impl<'a> CheckConstant<'a> {
             hir::ConstExpression::Binary(ref mut n) => self.binary(n),
             hir::ConstExpression::ConstantRef(ref mut n) => self.constant(n),
             hir::ConstExpression::Array(ref mut n) => self.array(n),
-            _ => TypeRef::Error,
         }
     }
 

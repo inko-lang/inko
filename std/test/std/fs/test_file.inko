@@ -20,7 +20,7 @@ fn read(from: ref Path) -> String {
 
 fn pub tests(t: mut Tests) {
   t.test('ReadOnlyFile.new') fn (t) {
-    let path = env.temporary_directory.join("inko-test-{t.id}")
+    let path = env.temporary_directory.join("inko-test-${t.id}")
 
     t.true(ReadOnlyFile.new(path.clone).error?)
 
@@ -32,7 +32,7 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('ReadOnlyFile.read') fn (t) {
-    let path = env.temporary_directory.join("inko-test-{t.id}")
+    let path = env.temporary_directory.join("inko-test-${t.id}")
 
     write('test', to: path)
 
@@ -47,7 +47,7 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('ReadOnlyFile.seek') fn (t) {
-    let path = env.temporary_directory.join("inko-test-{t.id}")
+    let path = env.temporary_directory.join("inko-test-${t.id}")
 
     write('test', to: path)
 
@@ -63,7 +63,7 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('ReadOnlyFile.size') fn (t) {
-    let path = env.temporary_directory.join("inko-test-{t.id}")
+    let path = env.temporary_directory.join("inko-test-${t.id}")
 
     write('test', to: path)
 
@@ -75,7 +75,7 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('WriteOnlyFile.new') fn (t) {
-    let path = env.temporary_directory.join("inko-test-{t.id}")
+    let path = env.temporary_directory.join("inko-test-${t.id}")
 
     t.true(WriteOnlyFile.new(path.clone).ok?)
     t.true(WriteOnlyFile.new(path.clone).ok?)
@@ -84,7 +84,7 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('WriteOnlyFile.append') fn (t) {
-    let path = env.temporary_directory.join("inko-test-{t.id}")
+    let path = env.temporary_directory.join("inko-test-${t.id}")
 
     t.true(WriteOnlyFile.append(path.clone).ok?)
     t.true(WriteOnlyFile.append(path.clone).ok?)
@@ -93,7 +93,7 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('WriteOnlyFile.write_bytes') fn (t) {
-    let path = env.temporary_directory.join("inko-test-{t.id}")
+    let path = env.temporary_directory.join("inko-test-${t.id}")
 
     {
       let handle = WriteOnlyFile.new(path.clone).get
@@ -113,7 +113,7 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('WriteOnlyFile.write_string') fn (t) {
-    let path = env.temporary_directory.join("inko-test-{t.id}")
+    let path = env.temporary_directory.join("inko-test-${t.id}")
 
     {
       let handle = WriteOnlyFile.new(path.clone).get
@@ -133,7 +133,7 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('WriteOnlyFile.flush') fn (t) {
-    let path = env.temporary_directory.join("inko-test-{t.id}")
+    let path = env.temporary_directory.join("inko-test-${t.id}")
     let handle = WriteOnlyFile.new(path.clone).get
 
     handle.write_string('test').get
@@ -145,7 +145,7 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('WriteOnlyFile.seek') fn (t) {
-    let path = env.temporary_directory.join("inko-test-{t.id}")
+    let path = env.temporary_directory.join("inko-test-${t.id}")
     let handle = WriteOnlyFile.new(path.clone).get
 
     handle.write_string('test').get
@@ -158,7 +158,7 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('ReadWriteFile.new') fn (t) {
-    let path = env.temporary_directory.join("inko-test-{t.id}")
+    let path = env.temporary_directory.join("inko-test-${t.id}")
 
     t.true(ReadWriteFile.new(path.clone).ok?)
     t.true(ReadWriteFile.new(path.clone).ok?)
@@ -167,7 +167,7 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('ReadWriteFile.append') fn (t) {
-    let path = env.temporary_directory.join("inko-test-{t.id}")
+    let path = env.temporary_directory.join("inko-test-${t.id}")
 
     t.true(ReadWriteFile.append(path.clone).ok?)
     t.true(ReadWriteFile.append(path.clone).ok?)
@@ -176,7 +176,7 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('ReadWriteFile.read') fn (t) {
-    let path = env.temporary_directory.join("inko-test-{t.id}")
+    let path = env.temporary_directory.join("inko-test-${t.id}")
 
     write('test', to: path)
 
@@ -191,7 +191,7 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('ReadWriteFile.write_bytes') fn (t) {
-    let path = env.temporary_directory.join("inko-test-{t.id}")
+    let path = env.temporary_directory.join("inko-test-${t.id}")
 
     {
       let handle = ReadWriteFile.new(path.clone).get
@@ -211,7 +211,7 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('ReadWriteFile.write_string') fn (t) {
-    let path = env.temporary_directory.join("inko-test-{t.id}")
+    let path = env.temporary_directory.join("inko-test-${t.id}")
 
     {
       let handle = ReadWriteFile.new(path.clone).get
@@ -231,7 +231,7 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('ReadWriteFile.flush') fn (t) {
-    let path = env.temporary_directory.join("inko-test-{t.id}")
+    let path = env.temporary_directory.join("inko-test-${t.id}")
     let handle = ReadWriteFile.new(path.clone).get
 
     handle.write_string('test').get
@@ -243,7 +243,7 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('ReadWriteFile.seek') fn (t) {
-    let path = env.temporary_directory.join("inko-test-{t.id}")
+    let path = env.temporary_directory.join("inko-test-${t.id}")
     let handle = ReadWriteFile.new(path.clone).get
 
     handle.write_string('test').get
@@ -256,7 +256,7 @@ fn pub tests(t: mut Tests) {
   }
 
   t.test('ReadWriteFile.size') fn (t) {
-    let path = env.temporary_directory.join("inko-test-{t.id}")
+    let path = env.temporary_directory.join("inko-test-${t.id}")
 
     write('test', to: path)
 

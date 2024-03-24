@@ -133,7 +133,7 @@ class pub Test {
   fn pub mut greater[T: Compare[T] + Format](got: ref T, minimum: ref T) {
     if got > minimum { return }
 
-    @failures.push(Failure.new(fmt(got), "> {fmt(minimum)}"))
+    @failures.push(Failure.new(fmt(got), "> ${fmt(minimum)}"))
   }
 
   # Asserts that `got` is greater than or equal to `minimum`.
@@ -143,7 +143,7 @@ class pub Test {
   ) {
     if got >= minimum { return }
 
-    @failures.push(Failure.new(fmt(got), ">= {fmt(minimum)}"))
+    @failures.push(Failure.new(fmt(got), ">= ${fmt(minimum)}"))
   }
 
   # Asserts that the given value is `true`.
@@ -200,11 +200,11 @@ class pub Plain[T: mut + Write] {
   }
 
   fn red(value: String) -> String {
-    if @colors { "\e[31m{value}\e[0m" } else { value }
+    if @colors { "\e[31m${value}\e[0m" } else { value }
   }
 
   fn green(value: String) -> String {
-    if @colors { "\e[32m{value}\e[0m" } else { value }
+    if @colors { "\e[32m${value}\e[0m" } else { value }
   }
 }
 
@@ -228,17 +228,17 @@ impl Reporter for Plain {
 
       @failed.iter.each_with_index fn (test_index, test) {
         test.failures.iter.each_with_index fn (failure_index, fail) {
-          let num = "{test_index + failure_index + 1}."
+          let num = "${test_index + failure_index + 1}."
           let indent = ' '.repeat(num.chars.count)
 
           @out
             .print(
               "
-{num} Test: {test.name}
-{indent} Line: {fail.path}:{fail.line}
+${num} Test: ${test.name}
+${indent} Line: ${fail.path}:${fail.line}
 
-{indent}   {green("expected:")} {fail.expected}
-{indent}        {red("got:")} {fail.got}"
+${indent}   ${green("expected:")} ${fail.expected}
+${indent}        ${red("got:")} ${fail.got}"
             )
             .get
         }
@@ -247,18 +247,18 @@ impl Reporter for Plain {
 
     let decimals = 4
     let dur = if duration.to_secs >= 1.0 {
-      "{duration.to_secs.round(decimals)} seconds"
+      "${duration.to_secs.round(decimals)} seconds"
     } else {
-      "{duration.to_millis} milliseconds"
+      "${duration.to_millis} milliseconds"
     }
     let failed =
       @failed.iter.reduce(0) fn (sum, test) { sum + test.failures.size }
     let failures =
-      if failed > 0 { red("{failed} failures") } else { green('0 failures') }
+      if failed > 0 { red("${failed} failures") } else { green('0 failures') }
 
     @out
       .print(
-        "\nFinished running {@tests} tests in {dur}, {failures}, seed: {seed}"
+        "\nFinished running ${@tests} tests in ${dur}, ${failures}, seed: ${seed}"
       )
       .get
 
@@ -414,7 +414,7 @@ class pub Process {
   fn pub move spawn -> Output {
     let child = match @cmd.spawn {
       case Ok(child) -> child
-      case Error(err) -> panic("Failed to spawn the child process: {err}")
+      case Error(err) -> panic("Failed to spawn the child process: ${err}")
     }
 
     let _ = child.stdin.write_string(@stdin)
@@ -424,7 +424,7 @@ class pub Process {
     let _ = child.stderr.read_all(stderr)
     let status = match child.wait {
       case Ok(val) -> val
-      case Error(err) -> panic("Failed to wait for the child process: {err}")
+      case Error(err) -> panic("Failed to wait for the child process: ${err}")
     }
 
     Output {
@@ -550,7 +550,7 @@ class pub Tests {
     test(name) fn move (t) {
       match code.call(t) {
         case Error(e) -> t.failures.push(Failure {
-          @got = "Result.Error({fmt(e)})",
+          @got = "Result.Error(${fmt(e)})",
           @expected = 'a value matching the pattern Result.Ok(_)',
           @path = t.path.clone,
           @line = t.line,
@@ -584,7 +584,7 @@ class pub Tests {
       # include any frames pointing to the unit tests's source file. To work
       # around that, we reuse the test's location.
       let failure = Failure {
-        @got = "the process exited with status {code}",
+        @got = "the process exited with status ${code}",
         @expected = 'the process to panic with exit status 101',
         @path = test.path.clone,
         @line = test.line,
@@ -663,7 +663,7 @@ class pub Tests {
     match Int.parse(id, IntFormat.Decimal).then(fn (v) { @children.opt_mut(v) })
     {
       case Some(block) -> block.call
-      case _ -> process.panic("The child ID '{id}' is invalid")
+      case _ -> process.panic("The child ID '${id}' is invalid")
     }
   }
 }

@@ -80,7 +80,7 @@ fn merge_sort[T](
 fn pub bounds_check(index: Int, size: Int) {
   if index >= 0 and index < size { return }
 
-  panic("The index {index} is out of bounds (size: {size})")
+  panic("The index ${index} is out of bounds (size: ${size})")
 }
 
 # An ordered, integer-indexed generic collection of values.
@@ -532,7 +532,7 @@ class builtin Array[T] {
   #     nums # => [10, 20, 30]
   fn pub mut insert(index: Int, value: T) {
     if index < 0 or index > @size {
-      panic("The index {index} is out of bounds (size: {@size})")
+      panic("The index ${index} is out of bounds (size: ${@size})")
     }
 
     reserve(1)

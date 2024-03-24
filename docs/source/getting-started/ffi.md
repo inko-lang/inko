@@ -560,7 +560,7 @@ class async Main {
     let res = clock_gettime(CLOCK_REALTIME as Int32, mut spec)
     let err = Error.last_os_error
 
-    if res as Int == -1 { panic("clock_gettime() failed: {err}") }
+    if res as Int == -1 { panic('clock_gettime() failed: ${err}') }
 
     out.print((spec.tv_sec as Int).to_string)
   }
@@ -584,7 +584,7 @@ do_something_else()
 
 let err = Error.last_os_error
 
-if res as Int == -1 { panic("clock_gettime() failed: {err}") }
+if res as Int == -1 { panic('clock_gettime() failed: ${err}') }
 ```
 
 ## Thread-local storage and the scheduler

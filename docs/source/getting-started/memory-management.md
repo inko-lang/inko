@@ -42,7 +42,7 @@ class async Main {
   fn async main {
     let cats = [Cat {}, Cat {}]
 
-    STDOUT.new.print("{cats.size} cats")
+    STDOUT.new.print('${cats.size} cats')
   }
 }
 ```
@@ -61,7 +61,7 @@ class async Main {
     let cats = [Cat {}, Cat {}]
     let more_cats = cats
 
-    STDOUT.new.print("{cats.size} cats")
+    STDOUT.new.print('${cats.size} cats')
   }
 }
 ```
@@ -101,7 +101,7 @@ class async Main {
     let cats = [Cat {}, Cat {}]
     let more_cats = ref cats
 
-    STDOUT.new.print("{cats.size} cats")
+    STDOUT.new.print('${cats.size} cats')
   }
 }
 ```
@@ -118,7 +118,7 @@ class async Main {
     let cats = [Cat {}, Cat {}]
     let more_cats = mut cats
 
-    STDOUT.new.print("{cats.size} cats")
+    STDOUT.new.print('${cats.size} cats')
   }
 }
 ```
@@ -237,8 +237,8 @@ class async Main {
     let borrow = ref cats
     let more_cats = cats
 
-    STDOUT.new.print("{borrow.size} cats")
-    STDOUT.new.print("{more_cats.size} cats")
+    STDOUT.new.print('${borrow.size} cats')
+    STDOUT.new.print('${more_cats.size} cats')
   }
 }
 ```
@@ -275,7 +275,7 @@ class async Main {
     let cats = recover [Cat {}, Cat {}]
     let borrow = ref cats
 
-    STDOUT.new.print("{cats.size} cats")
+    STDOUT.new.print('${cats.size} cats')
   }
 }
 ```

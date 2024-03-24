@@ -126,20 +126,20 @@ let map = Map.new
 map.set('name', 'Donald Duck')
 map.set('city', 'Duckburg')
 
-map.iter.each fn (pair) {
+map.iter.each(fn (pair) {
   pair.key   # => 'name', 'city'
   pair.value # => 'Donald Duck', 'Duckburg'
-}
+})
 
-map.iter_mut.each fn (pair) {
+map.iter_mut.each(fn (pair) {
   pair.key   # => 'name', 'city'
   pair.value # => 'Donald Duck', 'Duckburg'
-}
+})
 
-map.into_iter.each fn (pair) {
+map.into_iter.each(fn (pair) {
   pair.key   # => 'name', 'city'
   pair.value # => 'Donald Duck', 'Duckburg'
-}
+})
 ```
 
 Maps preserve the order in which keys are inserted, meaning the order of

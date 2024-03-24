@@ -48,7 +48,7 @@ class builtin CheckedIntResult {
 fn extern inko_int_checked_pow(left: Int, right: Int) -> CheckedIntResult
 
 fn overflow(left: Int, op: String, right: Int) -> Never {
-  panic("'{left} {op} {right}' overflowed")
+  panic("'${left} ${op} ${right}' overflowed")
 }
 
 # The format to use for parsing and formatting an `Int`.

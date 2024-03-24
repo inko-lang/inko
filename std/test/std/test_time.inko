@@ -396,7 +396,7 @@ fn pub tests(t: mut Tests) {
   t.test('Instant.fmt') fn (t) {
     let t1 = Instant.new
 
-    t.equal(fmt(t1), "+{t1.to_int}")
+    t.equal(fmt(t1), "+${t1.to_int}")
   }
 
   t.test('Instant.to_instant') fn (t) {

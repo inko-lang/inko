@@ -5,7 +5,7 @@ use getopts::Options;
 pub(crate) fn print_usage(options: &Options, brief: &str) {
     let out = options.usage_with_format(|opts| {
         format!(
-            "{}\n\nOptions:\n\n{}\n",
+            "{}\n\nOptions:\n\n{}",
             brief,
             opts.collect::<Vec<String>>().join("\n")
         )

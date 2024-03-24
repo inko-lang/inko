@@ -245,22 +245,22 @@ fn pub tests(t: mut Tests) {
 
   t.test('String.escaped') fn (t) {
     t.equal('foo'.escaped, 'foo')
-    t.equal('"foo"'.escaped, '\"foo\"')
+    t.equal('"foo"'.escaped, '\\"foo\\"')
     t.equal("'foo'".escaped, "'foo'")
-    t.equal("foo\nbar".escaped, 'foo\nbar')
-    t.equal("foo\tbar".escaped, 'foo\tbar')
-    t.equal("foo\rbar".escaped, 'foo\rbar')
-    t.equal("foo\u{C}bar".escaped, 'foo\fbar')
-    t.equal("foo\u{8}bar".escaped, 'foo\bbar')
+    t.equal("foo\nbar".escaped, 'foo\\nbar')
+    t.equal("foo\tbar".escaped, 'foo\\tbar')
+    t.equal("foo\rbar".escaped, 'foo\\rbar')
+    t.equal("foo\u{C}bar".escaped, 'foo\\fbar')
+    t.equal("foo\u{8}bar".escaped, 'foo\\bbar')
   }
 
   t.test('String.fmt') fn (t) {
     t.equal(fmt('foo'), '"foo"')
-    t.equal(fmt('"foo"'), '"\"foo\""')
+    t.equal(fmt('"foo"'), '"\\"foo\\""')
     t.equal(fmt("'foo'"), "\"'foo'\"")
-    t.equal(fmt("foo\nbar"), '"foo\nbar"')
-    t.equal(fmt("foo\tbar"), '"foo\tbar"')
-    t.equal(fmt("foo\rbar"), '"foo\rbar"')
+    t.equal(fmt("foo\nbar"), '"foo\\nbar"')
+    t.equal(fmt("foo\tbar"), '"foo\\tbar"')
+    t.equal(fmt("foo\rbar"), '"foo\\rbar"')
   }
 
   t.test('String.strip_prefix') fn (t) {

@@ -4,8 +4,38 @@
 }
 ---
 
-This guide documents the best practises to follow when writing Inko source code,
-such as what indentation method to use, and when to use keyword arguments.
+This document provides a high-level overview of Inko's style guide, covering
+topics such as when to wrap lines, what indentation to use, and more. This guide
+is _not_ a low-level specification of how to precisely format every syntax
+construct, instead the `inko fmt` command acts as the specification.
+
+## Using inko fmt
+
+The `inko fmt` command formats source files according to the Inko style guide.
+You can use it to format specific files as follows:
+
+```bash
+inko fmt foo.inko bar.inko
+```
+
+You can also format the entire project like so:
+
+```bash
+inko fmt
+```
+
+Source code can also be passed through STDIN, in which case you need to use
+`inko fmt -`:
+
+```bash
+echo 'fn example() {}' | inko fmt -
+```
+
+In this case the output is written to STDOUT.
+
+You can check for any files that need formatting using `inko fmt --check`. This
+won't update any files, instead it prints any files that need to be formatted
+and exits with exit code 1 (or 0 if all files are formatted correctly).
 
 ## Encoding
 
@@ -19,10 +49,8 @@ not supported.
 
 ## Line length
 
-Lines should be hard wrapped at 80 characters per line. It's OK if a line is a
-few characters longer, but only if wrapping the line makes it less readable. For
-example, if a line's length is dominated by a string, then it's OK to keep that
-on a single line.
+Lines should be hard wrapped at 80 characters per line. If a string literal
+doesn't fit on a single line, it's fine to leave it as-is.
 
 ## Indentation
 
@@ -31,21 +59,6 @@ tabs. Different programs use different widths for tabs (sometimes with no way of
 changing this), potentially making source code harder to read. By using spaces
 _only_ we prevent the accidental mixing of tabs and spaces, and ensure Inko code
 always looks consistent.
-
-Inko relies heavily on blocks, which can lead to lots of indentation levels.
-Using 4 spaces per indentation level would consume too much horizontal space, so
-we use 2 spaces instead.
-
-Place opening curly braces on the same line as the expression that precedes
-them:
-
-```inko
-if foo {
-
-}
-```
-
-This applies to all expressions, such as `if`, `try`, `while`, etc.
 
 ## Naming
 
@@ -58,10 +71,10 @@ class AddressFormatter {}
 Methods, local variables, instance attributes, and arguments all use snake\_case
 for naming, such as `to_string` and `write_bytes`:
 
-### Let constants
+### Constants
 
-Constants defined using `let` use SCREAMING_SNAKE_CASE, such as `DAY_OF_WEEK` or
-`NUMBER`:
+Constants defined using `let` use `SCREAMING_SNAKE_CASE`, such as `DAY_OF_WEEK`
+or `NUMBER`:
 
 ```inko
 let FIRST_DAY_OF_WEEK = 'Monday'
@@ -99,64 +112,7 @@ followed by a short name of the type. Examples include `to_array`, `to_string`,
 `to_coordinates`, etc. If a value is _moved into_ another type, use `into_` as
 the prefix instead.
 
-## Defining methods
-
-If a method does not take any arguments, leave out the parentheses:
-
-```inko
-fn example {}
-```
-
-If a method definition does not fit on a single line, place every argument on a
-separate line, followed by a comma. The last argument should also be followed by
-a comma:
-
-```inko
-fn example(
-  foo: A,
-  bar: B,
-) {
-
-}
-```
-
-If a return type is given, place it on the same line as the closing parenthesis,
-if possible:
-
-```inko
-fn example(
-  foo: A,
-  bar: B,
-) -> ReturnType {
-
-}
-```
-
-Type arguments should be placed on the same line as the method name.
-
-```inko
-fn example[A, B](foo: A, bar: B) {
-
-}
-```
-
-If this doesn't fit, the same rules apply as used for regular arguments:
-
-```inko
-fn example[
-  A,
-  B,
-](foo: A, bar: B) {
-
-}
-```
-
-Again, such code is best avoided, as it can be a bit hard to read.
-
-## Parentheses
-
-Inko allows you to leave out the parentheses when a method doesn't take any
-arguments, or when only a single argument is provided and it's a closure.
+## Arguments
 
 When calling a method without arguments, leave out the parentheses:
 
@@ -164,25 +120,16 @@ When calling a method without arguments, leave out the parentheses:
 [10, 20, 30].pop
 ```
 
-If the only argument is a closure, leave out the parentheses:
+If the last argument of a method call is a closure, format it like so:
 
 ```inko
-[10, 20, 30].each fn (number) {
+[10, 20, 30].each(fn (number) {
   # ...
-}
-```
-
-If there are multiple arguments, and the last one is a closure, use parentheses
-and place the closure outside them:
-
-```inko
-t.test('This is a test') fn (t) {
-
-}
+})
 ```
 
 When the number of arguments don't fit on a single line, place each argument on
-its own line like so:
+its own line and use a trailing comma for the last argument:
 
 ```inko
 some_object.some_message_name(
@@ -190,32 +137,6 @@ some_object.some_message_name(
   20,
   30,
 )
-```
-
-When spreading arguments across multiple lines, end the last argument with a
-comma:
-
-```inko
-some_object.some_message_name(
-  10,
-  20,
-  30,
-)
-```
-
-By using a trailing comma, adding a new argument is easier as you
-don't need to first add a comma to the current last argument, before adding a
-new argument. When removing lines this also leads to smaller diffs.
-
-## Message chains
-
-When chaining multiple messages together that don't fit on a single line,
-place every message on a separate line:
-
-```inko
-foo
-  .bar
-  .baz
 ```
 
 ## Named arguments
@@ -285,33 +206,4 @@ If `self` is imported, it should come first:
 
 ```inko
 import std.fs.file (self, ReadOnlyFile)
-```
-
-## Class literals
-
-Constructing an instance of a class uses the following syntax:
-
-```inko
-TypeName { @attribute = 'value' }
-```
-
-When constructing an instance, place the expression on a single line if it fits:
-
-```inko
-Person { @name = 'Alice', @age = 32 }
-```
-
-If it doesn't fit, put every attribute assignment on a separate line:
-
-```inko
-Person {
-  @name = 'Alice',
-  @age = 32,
-}
-```
-
-If a class doesn't define any attributes, construct your instance as follows:
-
-```inko
-Person {}
 ```

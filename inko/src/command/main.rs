@@ -1,5 +1,6 @@
 use crate::command::build;
 use crate::command::check;
+use crate::command::fmt;
 use crate::command::pkg;
 use crate::command::print;
 use crate::command::run;
@@ -17,6 +18,7 @@ Commands:
 
     build    Compile Inko source code
     check    Check a project or single file for correctness
+    fmt      Format Inko source code
     pkg      Manage Inko packages
     print    Print compiler details to STDOUT
     run      Compile and run source code directly
@@ -60,6 +62,7 @@ pub(crate) fn run() -> Result<i32, Error> {
         Some("pkg") => pkg::run(&matches.free[1..]),
         Some("runtime") => runtime::run(&matches.free[1..]),
         Some("targets") => targets::run(&matches.free[1..]),
+        Some("fmt") => fmt::run(&matches.free[1..]),
         Some(cmd) => {
             Err(Error::from(format!("The command '{}' is invalid", cmd)))
         }

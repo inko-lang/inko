@@ -117,9 +117,9 @@ follows:
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
-  t.test('Test name') fn (t) {
+  t.test('Test name', fn (t) {
     t.equal(foo, bar)
-  }
+  })
 }
 ```
 

@@ -133,21 +133,21 @@ You can iterate over values in an array using `Array.iter`, `Array.iter_mut`,
 ```inko
 let nums = [10, 20, 30]
 
-nums.iter.each fn (num) {
+nums.iter.each(fn (num) {
   num # => 10, 20, 30
-}
+})
 
-nums.iter_mut.each fn (num) {
+nums.iter_mut.each(fn (num) {
   num # => 10, 20, 30
-}
+})
 
-nums.reverse_iter.each fn (num) {
+nums.reverse_iter.each(fn (num) {
   num # => 30, 20 ,10
-}
+})
 
-nums.into_iter.each fn (num) {
+nums.into_iter.each(fn (num) {
   num # => 10, 20, 30
-}
+})
 ```
 
 The `iter` method returns an iterator that yields immutable borrows to each

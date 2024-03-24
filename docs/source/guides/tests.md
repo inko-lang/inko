@@ -11,9 +11,9 @@ Inko's standard library provides a module used for writing unit tests:
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
-  t.test('The name of the test') fn (t) {
+  t.test('The name of the test', fn (t) {
     t.equal(10, 20)
-  }
+  })
 }
 ```
 

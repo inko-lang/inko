@@ -144,14 +144,10 @@ impl<'a> ModulesParser<'a> {
     fn parse(&mut self, file: &PathBuf) -> Option<Module> {
         let input = match read(file) {
             Ok(result) => result,
-            Err(err) => {
+            Err(e) => {
                 self.state.diagnostics.error(
                     DiagnosticId::InvalidFile,
-                    format!(
-                        "failed to read {:?}: {}",
-                        file.to_string_lossy(),
-                        err
-                    ),
+                    e.to_string(),
                     file.clone(),
                     SourceLocation::new(1..=1, 1..=1),
                 );

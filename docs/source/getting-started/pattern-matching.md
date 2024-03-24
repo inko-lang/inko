@@ -186,6 +186,18 @@ match number {
 }
 ```
 
+Bindings are made mutable (allowing them to be assigned new values) using `mut`:
+
+```inko
+match number {
+  case 10 -> 20
+  case mut num -> {
+    num = 40
+    num
+  }
+}
+```
+
 ### Nested patterns
 
 Nested patterns are also supported:
@@ -443,3 +455,4 @@ detect that the second `case` is redundant.
 - `async` classes can't be matched against.
 - Matching against `Float` isn't supported, as you'll likely run into
   precision/rounding errors.
+- The value matched against can't be a trait.

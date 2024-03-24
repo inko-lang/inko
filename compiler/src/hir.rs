@@ -546,7 +546,6 @@ pub(crate) enum ConstExpression {
     Binary(Box<ConstBinary>),
     ConstantRef(Box<ConstantRef>),
     Array(Box<ConstArray>),
-    Invalid(Box<SourceLocation>),
     True(Box<True>),
     False(Box<False>),
 }
@@ -560,7 +559,6 @@ impl ConstExpression {
             Self::Binary(ref n) => &n.location,
             Self::ConstantRef(ref n) => &n.location,
             Self::Array(ref n) => &n.location,
-            Self::Invalid(ref l) => l,
             Self::True(ref n) => &n.location,
             Self::False(ref n) => &n.location,
         }
@@ -714,6 +712,31 @@ pub(crate) enum Operator {
 }
 
 impl Operator {
+    pub(crate) fn from_ast(kind: ast::OperatorKind) -> Operator {
+        // This isn't ideal, but I also don't want to introduce a standalone
+        // Operator enum in its own module _just_ so we don't need this match.
+        match kind {
+            ast::OperatorKind::Add => Operator::Add,
+            ast::OperatorKind::BitAnd => Operator::BitAnd,
+            ast::OperatorKind::BitOr => Operator::BitOr,
+            ast::OperatorKind::BitXor => Operator::BitXor,
+            ast::OperatorKind::Div => Operator::Div,
+            ast::OperatorKind::Eq => Operator::Eq,
+            ast::OperatorKind::Gt => Operator::Gt,
+            ast::OperatorKind::Ge => Operator::Ge,
+            ast::OperatorKind::Lt => Operator::Lt,
+            ast::OperatorKind::Le => Operator::Le,
+            ast::OperatorKind::Mod => Operator::Mod,
+            ast::OperatorKind::Mul => Operator::Mul,
+            ast::OperatorKind::Ne => Operator::Ne,
+            ast::OperatorKind::Pow => Operator::Pow,
+            ast::OperatorKind::Shl => Operator::Shl,
+            ast::OperatorKind::Shr => Operator::Shr,
+            ast::OperatorKind::Sub => Operator::Sub,
+            ast::OperatorKind::UnsignedShr => Operator::UnsignedShr,
+        }
+    }
+
     pub(crate) fn method_name(self) -> &'static str {
         match self {
             Operator::Add => "+",
@@ -1103,6 +1126,9 @@ impl<'a> LowerToHir<'a> {
                 ast::TopLevelExpression::ExternImport(node) => {
                     self.extern_import(*node)
                 }
+                ast::TopLevelExpression::Comment(_) => {
+                    panic!("comments can't be lowered to HIR");
+                }
             };
 
             exprs.push(expr);
@@ -1243,6 +1269,9 @@ impl<'a> LowerToHir<'a> {
                 }
                 ast::ClassExpression::DefineVariant(node) => {
                     self.define_case(*node)
+                }
+                ast::ClassExpression::Comment(_) => {
+                    panic!("comments can't be lowered to HIR");
                 }
             })
             .collect()
@@ -1423,7 +1452,14 @@ impl<'a> LowerToHir<'a> {
     ) -> Vec<TraitExpression> {
         node.values
             .into_iter()
-            .map(|node| self.define_method_in_trait(node))
+            .map(|node| match node {
+                ast::TraitExpression::DefineMethod(n) => {
+                    self.define_method_in_trait(*n)
+                }
+                ast::TraitExpression::Comment(_) => {
+                    panic!("comments can't be lowered to HIR");
+                }
+            })
             .collect()
     }
 
@@ -1457,7 +1493,14 @@ impl<'a> LowerToHir<'a> {
         nodes
             .values
             .into_iter()
-            .map(|node| self.define_method_in_reopen_class(node))
+            .map(|node| match node {
+                ast::ImplementationExpression::DefineMethod(n) => {
+                    self.define_method_in_reopen_class(*n)
+                }
+                ast::ImplementationExpression::Comment(_) => {
+                    panic!("comments can't be lowered to HIR");
+                }
+            })
             .collect()
     }
 
@@ -1501,7 +1544,14 @@ impl<'a> LowerToHir<'a> {
     ) -> Vec<DefineInstanceMethod> {
         node.values
             .into_iter()
-            .map(|n| self.define_instance_method(n))
+            .map(|node| match node {
+                ast::ImplementationExpression::DefineMethod(n) => {
+                    self.define_instance_method(*n)
+                }
+                ast::ImplementationExpression::Comment(_) => {
+                    panic!("comments can't be lowered to HIR");
+                }
+            })
             .collect()
     }
 
@@ -1723,12 +1773,7 @@ impl<'a> LowerToHir<'a> {
             ast::Expression::Float(node) => {
                 ConstExpression::Float(self.float_literal(*node))
             }
-            ast::Expression::SingleString(node) => {
-                ConstExpression::String(self.const_single_string_literal(*node))
-            }
-            ast::Expression::DoubleString(node) => {
-                self.const_double_string_literal(*node)
-            }
+            ast::Expression::String(node) => self.const_string_literal(*node),
             ast::Expression::True(node) => {
                 ConstExpression::True(self.true_literal(*node))
             }
@@ -1745,16 +1790,7 @@ impl<'a> LowerToHir<'a> {
             ast::Expression::Array(node) => {
                 ConstExpression::Array(self.const_array(*node))
             }
-            node => {
-                self.state.diagnostics.error(
-                    DiagnosticId::InvalidConstExpr,
-                    "constant values are limited to constant expressions",
-                    self.file(),
-                    node.location().clone(),
-                );
-
-                ConstExpression::Invalid(Box::new(node.location().clone()))
-            }
+            _ => unreachable!(),
         }
     }
 
@@ -1827,43 +1863,28 @@ impl<'a> LowerToHir<'a> {
         })
     }
 
-    fn single_string_literal(
-        &self,
+    fn string_literal(
+        &mut self,
         node: ast::StringLiteral,
     ) -> Box<StringLiteral> {
+        let mut text_node: Option<StringText> = None;
         let mut values = Vec::new();
 
-        if let Some(value) = node.value {
-            values.push(self.string_text(value))
-        }
+        // We concatenate consecutive Text and Escape nodes into a single
+        // StringText node, such that when we lower to MIR we can avoid
+        // unnecessary runtime concatenations.
+        for n in node.values {
+            let (val, loc) = match n {
+                ast::StringValue::Text(n) => (n.value, n.location),
+                ast::StringValue::Escape(n) => (n.value, n.location),
+                ast::StringValue::Expression(node) => {
+                    if let Some(text_node) = text_node.take() {
+                        values.push(StringValue::Text(Box::new(text_node)));
+                    }
 
-        Box::new(StringLiteral {
-            values,
-            resolved_type: types::TypeRef::Unknown,
-            location: node.location,
-        })
-    }
-
-    fn double_string_literal(
-        &mut self,
-        node: ast::DoubleStringLiteral,
-    ) -> Box<StringLiteral> {
-        let values = node
-            .values
-            .into_iter()
-            .map(|n| match n {
-                ast::DoubleStringValue::Text(node) => self.string_text(*node),
-                ast::DoubleStringValue::Unicode(node) => {
-                    StringValue::Text(Box::new(StringText {
-                        value: node.value,
-                        location: node.location,
-                    }))
-                }
-                ast::DoubleStringValue::Expression(node) => {
                     let rec = self.expression(node.value);
                     let loc = rec.location().clone();
-
-                    StringValue::Expression(Box::new(Call {
+                    let val = StringValue::Expression(Box::new(Call {
                         kind: types::CallKind::Unknown,
                         receiver: Some(rec),
                         name: Identifier {
@@ -1872,23 +1893,30 @@ impl<'a> LowerToHir<'a> {
                         },
                         arguments: Vec::new(),
                         location: loc,
-                    }))
+                    }));
+
+                    values.push(val);
+                    continue;
                 }
-            })
-            .collect();
+            };
+
+            if let Some(text) = text_node.as_mut() {
+                text.value.push_str(&val);
+                text.location = SourceLocation::start_end(&text.location, &loc);
+            } else {
+                text_node = Some(StringText { value: val, location: loc });
+            }
+        }
+
+        if let Some(node) = text_node {
+            values.push(StringValue::Text(Box::new(node)));
+        }
 
         Box::new(StringLiteral {
             values,
             resolved_type: types::TypeRef::Unknown,
             location: node.location,
         })
-    }
-
-    fn string_text(&self, node: ast::StringText) -> StringValue {
-        StringValue::Text(Box::new(StringText {
-            value: node.value,
-            location: node.location,
-        }))
     }
 
     fn array_literal(&mut self, node: ast::Array) -> Expression {
@@ -1992,22 +2020,9 @@ impl<'a> LowerToHir<'a> {
         })
     }
 
-    fn const_single_string_literal(
-        &self,
-        node: ast::StringLiteral,
-    ) -> Box<ConstStringLiteral> {
-        let value = node.value.map(|n| n.value).unwrap_or_default();
-
-        Box::new(ConstStringLiteral {
-            value,
-            resolved_type: types::TypeRef::Unknown,
-            location: node.location,
-        })
-    }
-
-    fn const_double_string_literal(
+    fn const_string_literal(
         &mut self,
-        node: ast::DoubleStringLiteral,
+        node: ast::StringLiteral,
     ) -> ConstExpression {
         let mut value = String::new();
 
@@ -2017,18 +2032,9 @@ impl<'a> LowerToHir<'a> {
         // library, and one here in the compiler.
         for val in node.values {
             match val {
-                ast::DoubleStringValue::Text(n) => value += &n.value,
-                ast::DoubleStringValue::Unicode(n) => value += &n.value,
-                ast::DoubleStringValue::Expression(node) => {
-                    self.state.diagnostics.error(
-                        DiagnosticId::InvalidConstExpr,
-                        "constant values don't support string interpolation",
-                        self.file(),
-                        node.location.clone(),
-                    );
-
-                    return ConstExpression::Invalid(Box::new(node.location));
-                }
+                ast::StringValue::Text(n) => value += &n.value,
+                ast::StringValue::Escape(n) => value += &n.value,
+                ast::StringValue::Expression(_) => unreachable!(),
             }
         }
 
@@ -2044,7 +2050,7 @@ impl<'a> LowerToHir<'a> {
         let right = self.const_value(node.right);
         let location = node.location;
         let resolved_type = types::TypeRef::Unknown;
-        let operator = self.binary_operator(&node.operator);
+        let operator = Operator::from_ast(node.operator.kind);
 
         Box::new(ConstBinary { left, right, operator, resolved_type, location })
     }
@@ -2058,31 +2064,6 @@ impl<'a> LowerToHir<'a> {
             values,
             location: node.location,
         })
-    }
-
-    fn binary_operator(&self, operator: &ast::Operator) -> Operator {
-        // This isn't ideal, but I also don't want to introduce a standalone
-        // Operator enum in its own module _just_ so we don't need this match.
-        match operator.kind {
-            ast::OperatorKind::Add => Operator::Add,
-            ast::OperatorKind::BitAnd => Operator::BitAnd,
-            ast::OperatorKind::BitOr => Operator::BitOr,
-            ast::OperatorKind::BitXor => Operator::BitXor,
-            ast::OperatorKind::Div => Operator::Div,
-            ast::OperatorKind::Eq => Operator::Eq,
-            ast::OperatorKind::Gt => Operator::Gt,
-            ast::OperatorKind::Ge => Operator::Ge,
-            ast::OperatorKind::Lt => Operator::Lt,
-            ast::OperatorKind::Le => Operator::Le,
-            ast::OperatorKind::Mod => Operator::Mod,
-            ast::OperatorKind::Mul => Operator::Mul,
-            ast::OperatorKind::Ne => Operator::Ne,
-            ast::OperatorKind::Pow => Operator::Pow,
-            ast::OperatorKind::Shl => Operator::Shl,
-            ast::OperatorKind::Shr => Operator::Shr,
-            ast::OperatorKind::Sub => Operator::Sub,
-            ast::OperatorKind::UnsignedShr => Operator::UnsignedShr,
-        }
     }
 
     fn optional_expressions(
@@ -2109,11 +2090,8 @@ impl<'a> LowerToHir<'a> {
             ast::Expression::Int(node) => {
                 Expression::Int(Box::new(self.int_literal(*node)))
             }
-            ast::Expression::SingleString(node) => {
-                Expression::String(self.single_string_literal(*node))
-            }
-            ast::Expression::DoubleString(node) => {
-                Expression::String(self.double_string_literal(*node))
+            ast::Expression::String(node) => {
+                Expression::String(self.string_literal(*node))
             }
             ast::Expression::Float(node) => {
                 Expression::Float(self.float_literal(*node))
@@ -2227,11 +2205,14 @@ impl<'a> LowerToHir<'a> {
             ast::Expression::Tuple(node) => {
                 Expression::Tuple(self.tuple_literal(*node))
             }
+            ast::Expression::Comment(_) => {
+                panic!("comments can't be lowered to HIR");
+            }
         }
     }
 
     fn binary(&mut self, node: ast::Binary) -> Box<Call> {
-        let op = self.binary_operator(&node.operator);
+        let op = Operator::from_ast(node.operator.kind);
 
         Box::new(Call {
             kind: types::CallKind::Unknown,
@@ -2420,7 +2401,7 @@ impl<'a> LowerToHir<'a> {
         &mut self,
         node: ast::BinaryAssignVariable,
     ) -> Box<AssignVariable> {
-        let op = self.binary_operator(&node.operator);
+        let op = Operator::from_ast(node.operator.kind);
         let variable = self.identifier(node.variable);
         let receiver = Expression::IdentifierRef(Box::new(IdentifierRef {
             kind: types::IdentifierKind::Unknown,
@@ -2455,7 +2436,7 @@ impl<'a> LowerToHir<'a> {
         &mut self,
         node: ast::BinaryAssignField,
     ) -> Box<AssignField> {
-        let op = self.binary_operator(&node.operator);
+        let op = Operator::from_ast(node.operator.kind);
         let field = self.field(node.field);
         let receiver = Expression::FieldRef(Box::new(FieldRef {
             field_id: None,
@@ -2502,7 +2483,7 @@ impl<'a> LowerToHir<'a> {
         &mut self,
         node: ast::BinaryAssignSetter,
     ) -> Box<AssignSetter> {
-        let op = self.binary_operator(&node.operator);
+        let op = Operator::from_ast(node.operator.kind);
         let name = self.identifier(node.name);
         let setter_rec = self.expression(node.receiver);
         let getter_loc =
@@ -2699,7 +2680,7 @@ impl<'a> LowerToHir<'a> {
 
     fn try_expression(&mut self, node: ast::Try) -> Expression {
         Expression::Try(Box::new(Try {
-            expression: self.expression(node.expression),
+            expression: self.expression(node.value),
             kind: types::ThrowKind::Unknown,
             location: node.location,
             return_type: types::TypeRef::Unknown,
@@ -2866,14 +2847,22 @@ impl<'a> LowerToHir<'a> {
             resolved_type: types::TypeRef::Unknown,
             expression: self.expression(node.expression),
             cases: node
-                .cases
+                .expressions
                 .into_iter()
-                .map(|node| MatchCase {
-                    variable_ids: Vec::new(),
-                    pattern: self.pattern(node.pattern),
-                    guard: node.guard.map(|n| self.expression(n)),
-                    body: self.expressions(node.body),
-                    location: node.location,
+                .map(|node| {
+                    let node = if let ast::MatchExpression::Case(n) = node {
+                        n
+                    } else {
+                        panic!("comments can't be lowered to HIR")
+                    };
+
+                    MatchCase {
+                        variable_ids: Vec::new(),
+                        pattern: self.pattern(node.pattern),
+                        guard: node.guard.map(|n| self.expression(n)),
+                        body: self.expressions(node.body),
+                        location: node.location,
+                    }
                 })
                 .collect(),
             location: node.location,
@@ -2905,20 +2894,11 @@ impl<'a> LowerToHir<'a> {
                     location: n.location,
                 }))
             }
-            ast::Pattern::Expression(n) => match *n {
-                ast::Expression::Int(n) => {
-                    Pattern::Int(Box::new(self.int_literal(*n)))
-                }
-                ast::Expression::True(n) => {
-                    Pattern::True(self.true_literal(*n))
-                }
-                ast::Expression::False(n) => {
-                    Pattern::False(self.false_literal(*n))
-                }
-                _ => {
-                    unreachable!("this pattern isn't supported")
-                }
-            },
+            ast::Pattern::Int(n) => {
+                Pattern::Int(Box::new(self.int_literal(*n)))
+            }
+            ast::Pattern::True(n) => Pattern::True(self.true_literal(*n)),
+            ast::Pattern::False(n) => Pattern::False(self.false_literal(*n)),
             ast::Pattern::Variant(n) => {
                 Pattern::Variant(Box::new(VariantPattern {
                     variant_id: None,
@@ -2951,8 +2931,18 @@ impl<'a> LowerToHir<'a> {
                 location: n.location,
             })),
             ast::Pattern::String(n) => {
+                let mut value = String::new();
+
+                for val in n.values {
+                    match val {
+                        ast::StringValue::Text(n) => value += &n.value,
+                        ast::StringValue::Escape(n) => value += &n.value,
+                        ast::StringValue::Expression(_) => unreachable!(),
+                    }
+                }
+
                 Pattern::String(Box::new(StringPattern {
-                    value: n.value,
+                    value,
                     location: n.location,
                 }))
             }
@@ -3124,23 +3114,6 @@ mod tests {
                 })),
                 location: cols(1, 13)
             })),
-        );
-    }
-
-    #[test]
-    fn test_lower_constant_with_string_interpolation() {
-        let (hir, diags) = lower_top_expr("let A = \"{10}\"");
-
-        assert_eq!(diags, 1);
-        assert_eq!(
-            hir,
-            TopLevelExpression::Constant(Box::new(DefineConstant {
-                public: false,
-                constant_id: None,
-                name: Constant { name: "A".to_string(), location: cols(5, 5) },
-                value: ConstExpression::Invalid(Box::new(cols(10, 13))),
-                location: cols(1, 14)
-            }))
         );
     }
 
@@ -4909,16 +4882,10 @@ mod tests {
         assert_eq!(
             hir,
             Expression::String(Box::new(StringLiteral {
-                values: vec![
-                    StringValue::Text(Box::new(StringText {
-                        value: "a".to_string(),
-                        location: cols(9, 9)
-                    })),
-                    StringValue::Text(Box::new(StringText {
-                        value: "\u{AC}".to_string(),
-                        location: cols(10, 15)
-                    }))
-                ],
+                values: vec![StringValue::Text(Box::new(StringText {
+                    value: "a\u{AC}".to_string(),
+                    location: cols(9, 15)
+                })),],
                 resolved_type: types::TypeRef::Unknown,
                 location: cols(8, 16)
             }))
@@ -4927,7 +4894,7 @@ mod tests {
 
     #[test]
     fn test_lower_double_string_with_interpolation() {
-        let hir = lower_expr("fn a { \"a{10}b\" }").0;
+        let hir = lower_expr("fn a { \"a${10}b\" }").0;
 
         assert_eq!(
             hir,
@@ -4942,22 +4909,22 @@ mod tests {
                         receiver: Some(Expression::Int(Box::new(IntLiteral {
                             value: 10,
                             resolved_type: types::TypeRef::Unknown,
-                            location: cols(11, 12)
+                            location: cols(12, 13)
                         }))),
                         name: Identifier {
                             name: types::TO_STRING_METHOD.to_string(),
-                            location: cols(11, 12)
+                            location: cols(12, 13)
                         },
                         arguments: Vec::new(),
-                        location: cols(11, 12)
+                        location: cols(12, 13)
                     })),
                     StringValue::Text(Box::new(StringText {
                         value: "b".to_string(),
-                        location: cols(14, 14)
+                        location: cols(15, 15)
                     }))
                 ],
                 resolved_type: types::TypeRef::Unknown,
-                location: cols(8, 15)
+                location: cols(8, 16)
             }))
         );
     }

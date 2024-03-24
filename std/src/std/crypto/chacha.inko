@@ -52,11 +52,11 @@ let DEFAULT_COUNTER = 0
 # exactly 16 bytes.
 fn pub hchacha20(key: ref ByteArray, nonce: ref ByteArray) -> ByteArray {
   if key.size != KEY_SIZE {
-    panic("HChaCha20 key sizes must be exactly {KEY_SIZE} bytes")
+    panic("HChaCha20 key sizes must be exactly ${KEY_SIZE} bytes")
   }
 
   if nonce.size != HCHACHA_NONCE_SIZE {
-    panic("HChaCha20 nonce sizes must be exactly {HCHACHA_NONCE_SIZE} bytes")
+    panic("HChaCha20 nonce sizes must be exactly ${HCHACHA_NONCE_SIZE} bytes")
   }
 
   let out = ByteArray.filled(with: 0, times: 32)
@@ -234,11 +234,11 @@ class pub ChaCha20 {
   # bad luck the same nonce may be produced.
   fn pub static new(key: ref ByteArray, nonce: ref ByteArray) -> ChaCha20 {
     if key.size != KEY_SIZE {
-      panic("ChaCha20 key sizes must be exactly {KEY_SIZE} bytes")
+      panic("ChaCha20 key sizes must be exactly ${KEY_SIZE} bytes")
     }
 
     if nonce.size != CHACHA_NONCE_SIZE {
-      panic("ChaCha20 nonce sizes must be exactly {CHACHA_NONCE_SIZE} bytes")
+      panic("ChaCha20 nonce sizes must be exactly ${CHACHA_NONCE_SIZE} bytes")
     }
 
     ChaCha20 {
@@ -273,7 +273,7 @@ class pub ChaCha20 {
   # unsigned 32-bits integer.
   fn pub mut counter=(value: Int) {
     if value < 0 or value > MAX_COUNTER {
-      panic("ChaCha block counters must be between 0 and {MAX_COUNTER}")
+      panic("ChaCha block counters must be between 0 and ${MAX_COUNTER}")
     } else {
       @matrix.set(12, value)
     }
@@ -307,7 +307,7 @@ class pub ChaCha20 {
       # API by forcing the user to handle errors that won't occur in 99.99999%
       # of all use cases.
       if new_size > MAX_COUNTER {
-        panic("The block counter overflowed after {MAX_COUNTER} blocks")
+        panic("The block counter overflowed after ${MAX_COUNTER} blocks")
       }
 
       @matrix.set(12, new_size)
@@ -379,11 +379,11 @@ class pub XChaCha20 {
   #     XChaCha20.new(key, nonce)
   fn pub static new(key: ref ByteArray, nonce: ref ByteArray) -> XChaCha20 {
     if key.size != KEY_SIZE {
-      panic("XChaCha20 key sizes must be exactly {KEY_SIZE} bytes")
+      panic("XChaCha20 key sizes must be exactly ${KEY_SIZE} bytes")
     }
 
     if nonce.size != XCHACHA_NONCE_SIZE {
-      panic("XChaCha20 nonce sizes must be exactly {XCHACHA_NONCE_SIZE} bytes")
+      panic("XChaCha20 nonce sizes must be exactly ${XCHACHA_NONCE_SIZE} bytes")
     }
 
     let sub_key = hchacha20(key, nonce.slice(start: 0, size: 16))

@@ -527,7 +527,7 @@ impl ToString for Ipv6Address {
       let c = @h >> IPV4_TOIPV6_SHIFT
       let d = @h % hextet_to_octet_modulo
 
-      return "{prefix}{a}.{b}.{c}.{d}"
+      return "${prefix}${a}.${b}.${c}.${d}"
     }
 
     let mut compression_start = 0
@@ -587,7 +587,7 @@ impl ToString for Ipv6Address {
     let g = @g.format(format)
     let h = @h.format(format)
 
-    "{a}:{b}:{c}:{d}:{e}:{f}:{g}:{h}"
+    "${a}:${b}:${c}:${d}:${e}:${f}:${g}:${h}"
   }
 }
 
@@ -881,7 +881,7 @@ impl ToString for Ipv4Address {
   #     Ipv4Address.new.to_string # => '0.0.0.0'
   #     Ipv4Address.new(127, 0, 0, 1) # => '127.0.0.1'
   fn pub to_string -> String {
-    "{@a}.{@b}.{@c}.{@d}"
+    "${@a}.${@b}.${@c}.${@d}"
   }
 }
 

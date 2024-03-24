@@ -8,6 +8,18 @@ pub trait Node {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+pub struct Comment {
+    pub value: String,
+    pub location: SourceLocation,
+}
+
+impl Node for Comment {
+    fn location(&self) -> &SourceLocation {
+        &self.location
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub struct IntLiteral {
     pub value: String,
     pub location: SourceLocation,
@@ -50,18 +62,6 @@ impl Node for StringText {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct StringLiteral {
-    pub value: Option<StringText>,
-    pub location: SourceLocation,
-}
-
-impl Node for StringLiteral {
-    fn location(&self) -> &SourceLocation {
-        &self.location
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
 pub struct StringExpression {
     pub value: Expression,
     pub location: SourceLocation,
@@ -74,25 +74,25 @@ impl Node for StringExpression {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct UnicodeEscape {
+pub struct StringEscape {
     pub value: String,
     pub location: SourceLocation,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum DoubleStringValue {
+pub enum StringValue {
     Text(Box<StringText>),
-    Unicode(Box<UnicodeEscape>),
+    Escape(Box<StringEscape>),
     Expression(Box<StringExpression>),
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct DoubleStringLiteral {
-    pub values: Vec<DoubleStringValue>,
+pub struct StringLiteral {
+    pub values: Vec<StringValue>,
     pub location: SourceLocation,
 }
 
-impl Node for DoubleStringLiteral {
+impl Node for StringLiteral {
     fn location(&self) -> &SourceLocation {
         &self.location
     }
@@ -439,6 +439,18 @@ pub enum ClassExpression {
     DefineMethod(Box<DefineMethod>),
     DefineField(Box<DefineField>),
     DefineVariant(Box<DefineVariant>),
+    Comment(Box<Comment>),
+}
+
+impl Node for ClassExpression {
+    fn location(&self) -> &SourceLocation {
+        match self {
+            ClassExpression::DefineMethod(n) => &n.location,
+            ClassExpression::DefineField(n) => &n.location,
+            ClassExpression::DefineVariant(n) => &n.location,
+            ClassExpression::Comment(n) => &n.location,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -506,8 +518,23 @@ impl Node for ClassLiteral {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+pub enum TraitExpression {
+    DefineMethod(Box<DefineMethod>),
+    Comment(Box<Comment>),
+}
+
+impl Node for TraitExpression {
+    fn location(&self) -> &SourceLocation {
+        match self {
+            TraitExpression::DefineMethod(n) => &n.location,
+            TraitExpression::Comment(n) => &n.location,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub struct TraitExpressions {
-    pub values: Vec<DefineMethod>,
+    pub values: Vec<TraitExpression>,
     pub location: SourceLocation,
 }
 
@@ -543,26 +570,43 @@ pub enum TopLevelExpression {
     ImplementTrait(Box<ImplementTrait>),
     Import(Box<Import>),
     ExternImport(Box<ExternImport>),
+    Comment(Box<Comment>),
 }
 
 impl Node for TopLevelExpression {
     fn location(&self) -> &SourceLocation {
         match self {
-            TopLevelExpression::DefineConstant(ref typ) => typ.location(),
-            TopLevelExpression::DefineMethod(ref typ) => typ.location(),
-            TopLevelExpression::DefineClass(ref typ) => typ.location(),
-            TopLevelExpression::DefineTrait(ref typ) => typ.location(),
-            TopLevelExpression::ReopenClass(ref typ) => typ.location(),
-            TopLevelExpression::ImplementTrait(ref typ) => typ.location(),
-            TopLevelExpression::Import(ref typ) => typ.location(),
-            TopLevelExpression::ExternImport(ref typ) => typ.location(),
+            TopLevelExpression::DefineConstant(ref n) => n.location(),
+            TopLevelExpression::DefineMethod(ref n) => n.location(),
+            TopLevelExpression::DefineClass(ref n) => n.location(),
+            TopLevelExpression::DefineTrait(ref n) => n.location(),
+            TopLevelExpression::ReopenClass(ref n) => n.location(),
+            TopLevelExpression::ImplementTrait(ref n) => n.location(),
+            TopLevelExpression::Import(ref n) => n.location(),
+            TopLevelExpression::ExternImport(ref n) => n.location(),
+            TopLevelExpression::Comment(ref n) => n.location(),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum ImplementationExpression {
+    DefineMethod(Box<DefineMethod>),
+    Comment(Box<Comment>),
+}
+
+impl Node for ImplementationExpression {
+    fn location(&self) -> &SourceLocation {
+        match self {
+            ImplementationExpression::DefineMethod(n) => &n.location,
+            ImplementationExpression::Comment(n) => &n.location,
         }
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct ImplementationExpressions {
-    pub values: Vec<DefineMethod>,
+    pub values: Vec<ImplementationExpression>,
     pub location: SourceLocation,
 }
 
@@ -669,8 +713,7 @@ impl Node for Scope {
 #[derive(Debug, PartialEq, Eq)]
 pub enum Expression {
     Int(Box<IntLiteral>),
-    SingleString(Box<StringLiteral>),
-    DoubleString(Box<DoubleStringLiteral>),
+    String(Box<StringLiteral>),
     Float(Box<FloatLiteral>),
     Binary(Box<Binary>),
     Field(Box<Field>),
@@ -711,6 +754,7 @@ pub enum Expression {
     Scope(Box<Scope>),
     Array(Box<Array>),
     Tuple(Box<Tuple>),
+    Comment(Box<Comment>),
 }
 
 impl Expression {
@@ -726,6 +770,31 @@ impl Expression {
             SourceLocation::start_end(left.location(), right.location());
 
         Expression::Or(Box::new(Or { left, right, location }))
+    }
+
+    pub fn is_trailing_comment(&self, location: &SourceLocation) -> bool {
+        match self {
+            Expression::Comment(c) => c.location.is_trailing(location),
+            _ => false,
+        }
+    }
+
+    pub fn is_conditional(&self) -> bool {
+        matches!(
+            self,
+            Expression::While(_)
+                | Expression::Loop(_)
+                | Expression::If(_)
+                | Expression::Match(_)
+        )
+    }
+
+    pub fn is_let(&self) -> bool {
+        matches!(self, Expression::DefineVariable(_))
+    }
+
+    pub fn is_comment(&self) -> bool {
+        matches!(self, Expression::Comment(_))
     }
 }
 
@@ -749,7 +818,7 @@ impl Node for Expression {
             Expression::Closure(ref typ) => typ.location(),
             Expression::Constant(ref typ) => typ.location(),
             Expression::DefineVariable(ref typ) => typ.location(),
-            Expression::DoubleString(ref typ) => typ.location(),
+            Expression::String(ref typ) => typ.location(),
             Expression::False(ref typ) => typ.location(),
             Expression::Field(ref typ) => typ.location(),
             Expression::Float(ref typ) => typ.location(),
@@ -765,7 +834,6 @@ impl Node for Expression {
             Expression::Return(ref typ) => typ.location(),
             Expression::Scope(ref typ) => typ.location(),
             Expression::SelfObject(ref typ) => typ.location(),
-            Expression::SingleString(ref typ) => typ.location(),
             Expression::Throw(ref typ) => typ.location(),
             Expression::True(ref typ) => typ.location(),
             Expression::Nil(ref typ) => typ.location(),
@@ -775,6 +843,7 @@ impl Node for Expression {
             Expression::While(ref typ) => typ.location(),
             Expression::Mut(ref typ) => typ.location(),
             Expression::Recover(ref typ) => typ.location(),
+            Expression::Comment(ref n) => n.location(),
         }
     }
 }
@@ -1010,7 +1079,7 @@ impl Node for Expressions {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum OperatorKind {
     Add,
     BitAnd,
@@ -1328,7 +1397,7 @@ impl Node for Return {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Try {
-    pub expression: Expression,
+    pub value: Expression,
     pub location: SourceLocation,
 }
 
@@ -1421,12 +1490,14 @@ pub enum Pattern {
     Constant(Box<Constant>),
     Variant(Box<VariantPattern>),
     Class(Box<ClassPattern>),
-    Expression(Box<Expression>),
+    Int(Box<IntLiteral>),
+    True(Box<True>),
+    False(Box<False>),
     Identifier(Box<IdentifierPattern>),
     Tuple(Box<TuplePattern>),
     Wildcard(Box<WildcardPattern>),
     Or(Box<OrPattern>),
-    String(Box<StringPattern>),
+    String(Box<StringLiteral>),
 }
 
 impl Pattern {
@@ -1435,7 +1506,9 @@ impl Pattern {
             Pattern::Constant(ref n) => &n.location,
             Pattern::Variant(ref n) => &n.location,
             Pattern::Class(ref n) => &n.location,
-            Pattern::Expression(ref n) => n.location(),
+            Pattern::Int(ref n) => n.location(),
+            Pattern::True(ref n) => n.location(),
+            Pattern::False(ref n) => n.location(),
             Pattern::Identifier(ref n) => &n.location,
             Pattern::Tuple(ref n) => &n.location,
             Pattern::Wildcard(ref n) => &n.location,
@@ -1454,9 +1527,24 @@ pub struct MatchCase {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+pub enum MatchExpression {
+    Case(Box<MatchCase>),
+    Comment(Box<Comment>),
+}
+
+impl Node for MatchExpression {
+    fn location(&self) -> &SourceLocation {
+        match self {
+            MatchExpression::Case(n) => &n.location,
+            MatchExpression::Comment(n) => &n.location,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub struct Match {
     pub expression: Expression,
-    pub cases: Vec<MatchCase>,
+    pub expressions: Vec<MatchExpression>,
     pub location: SourceLocation,
 }
 

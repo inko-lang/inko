@@ -54,14 +54,9 @@ const CURLY_OPEN: u8 = 123;
 const PIPE: u8 = 124;
 const CURLY_CLOSE: u8 = 125;
 
-/// The escape sequence literals supported by a single quoted string, and their
+/// The escape sequence literals supported by a string literal, and their
 /// replacement bytes.
-const SINGLE_ESCAPES: EscapeMap =
-    EscapeMap::new().map(SINGLE_QUOTE, SINGLE_QUOTE).map(BACKSLASH, BACKSLASH);
-
-/// The escape sequence literals supported by a double quoted string, and their
-/// replacement bytes.
-const DOUBLE_ESCAPES: EscapeMap = EscapeMap::new()
+const ESCAPES: EscapeMap = EscapeMap::new()
     .map(DOUBLE_QUOTE, DOUBLE_QUOTE)
     .map(SINGLE_QUOTE, SINGLE_QUOTE)
     .map(ZERO, NULL)
@@ -70,7 +65,7 @@ const DOUBLE_ESCAPES: EscapeMap = EscapeMap::new()
     .map(LOWER_N, NEWLINE)
     .map(LOWER_R, CARRIAGE_RETURN)
     .map(LOWER_T, TAB)
-    .map(CURLY_OPEN, CURLY_OPEN);
+    .map(DOLLAR, DOLLAR);
 
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]
 pub enum TokenKind {
@@ -121,7 +116,7 @@ pub enum TokenKind {
     Import,
     Integer,
     Invalid,
-    InvalidUnicodeEscape,
+    InvalidStringEscape,
     Le,
     Let,
     Loop,
@@ -165,7 +160,7 @@ pub enum TokenKind {
     True,
     Try,
     Uni,
-    UnicodeEscape,
+    StringEscape,
     UnsignedShr,
     UnsignedShrAssign,
     While,
@@ -220,9 +215,7 @@ impl TokenKind {
             TokenKind::Import => "the 'import' keyword",
             TokenKind::Integer => "an integer",
             TokenKind::Invalid => "an invalid token",
-            TokenKind::InvalidUnicodeEscape => {
-                "an invalid Unicode escape sequence"
-            }
+            TokenKind::InvalidStringEscape => "an invalid escape sequence",
             TokenKind::Lt => "a '<'",
             TokenKind::Le => "a '<='",
             TokenKind::Let => "the 'let' keyword",
@@ -253,14 +246,14 @@ impl TokenKind {
             TokenKind::SingleStringOpen => "a '''",
             TokenKind::Static => "the 'static' keyword",
             TokenKind::StringExprClose => "a closing curly brace",
-            TokenKind::StringExprOpen => "an opening curly brace",
+            TokenKind::StringExprOpen => "a '${'",
             TokenKind::StringText => "the text of a string",
             TokenKind::Sub => "a '-'",
             TokenKind::SubAssign => "a '-='",
             TokenKind::Throw => "the 'throw' keyword",
             TokenKind::Trait => "the 'trait' keyword",
             TokenKind::Try => "the 'try' keyword",
-            TokenKind::UnicodeEscape => "an Unicode escape sequence",
+            TokenKind::StringEscape => "an escape sequence",
             TokenKind::While => "the 'while' keyword",
             TokenKind::Whitespace => "whitespace",
             TokenKind::Mut => "the 'mut' keyword",
@@ -456,8 +449,10 @@ impl Lexer {
 
     pub fn next_token(&mut self) -> Token {
         match self.states.last().cloned() {
-            Some(State::SingleString) => self.next_single_string_token(),
-            Some(State::DoubleString) => self.next_double_string_token(),
+            Some(State::SingleString) => self
+                .next_string_token(SINGLE_QUOTE, TokenKind::SingleStringClose),
+            Some(State::DoubleString) => self
+                .next_string_token(DOUBLE_QUOTE, TokenKind::DoubleStringClose),
             _ => self.next_regular_token(),
         }
     }
@@ -517,30 +512,41 @@ impl Lexer {
         self.position < self.max_position
     }
 
-    fn next_double_string_token(&mut self) -> Token {
+    fn next_string_token(&mut self, quote: u8, close: TokenKind) -> Token {
         match self.current_byte() {
-            DOUBLE_QUOTE => {
+            BACKSLASH => match self.next_byte() {
+                LOWER_U if self.peek(2) == CURLY_OPEN => {
+                    self.unicode_escape_token()
+                }
+                byte => self.escape_token(byte),
+            },
+            DOLLAR if self.peek(1) == CURLY_OPEN => self.string_expression(),
+            byte if byte == quote => {
                 self.states.pop();
-                self.single_character_token(TokenKind::DoubleStringClose)
+                self.single_character_token(close)
             }
-            BACKSLASH if self.next_is_unicode_escape() => {
-                self.unicode_escape_token()
-            }
-            CURLY_OPEN => self.double_string_expression_open(),
-            _ if self.has_next() => self.double_string_text(),
+            _ if self.has_next() => self.double_string_text(quote),
             _ => self.null(),
         }
     }
 
-    fn next_single_string_token(&mut self) -> Token {
-        match self.current_byte() {
-            SINGLE_QUOTE => {
-                self.states.pop();
-                self.single_character_token(TokenKind::SingleStringClose)
-            }
-            _ if self.has_next() => self.single_string_text(),
-            _ => self.null(),
-        }
+    fn escape_token(&mut self, byte: u8) -> Token {
+        let (kind, replacement) = if let Some(replacement) = ESCAPES.get(byte) {
+            (TokenKind::StringEscape, replacement)
+        } else {
+            (TokenKind::InvalidStringEscape, byte)
+        };
+
+        let line = self.line;
+        let col = self.column;
+
+        self.position += 2;
+        self.column += 2;
+
+        let loc = self.source_location(line, col);
+        let val = String::from_utf8_lossy(&[replacement]).into_owned();
+
+        Token::new(kind, val, loc)
     }
 
     fn unicode_escape_token(&mut self) -> Token {
@@ -571,7 +577,7 @@ impl Lexer {
             buffer.push(byte);
         }
 
-        let mut kind = TokenKind::InvalidUnicodeEscape;
+        let mut kind = TokenKind::InvalidStringEscape;
         let mut value = String::from_utf8_lossy(&buffer).into_owned();
 
         self.advance_column(&value);
@@ -584,7 +590,7 @@ impl Lexer {
                 .and_then(char::from_u32)
                 .map(|chr| chr.to_string())
             {
-                kind = TokenKind::UnicodeEscape;
+                kind = TokenKind::StringEscape;
                 value = parsed;
             }
         }
@@ -771,7 +777,6 @@ impl Lexer {
         if count == Some(self.curly_braces) {
             self.curly_brace_stack.pop();
             self.states.pop();
-
             self.single_character_token(TokenKind::StringExprClose)
         } else {
             self.single_character_token(TokenKind::CurlyClose)
@@ -1038,7 +1043,7 @@ impl Lexer {
         }
     }
 
-    fn single_string_text(&mut self) -> Token {
+    fn double_string_text(&mut self, quote: u8) -> Token {
         let kind = TokenKind::StringText;
         let mut buffer = Vec::new();
         let mut new_line = false;
@@ -1047,30 +1052,15 @@ impl Lexer {
 
         while self.has_next() {
             match self.current_byte() {
-                BACKSLASH => {
-                    let next = self.next_byte();
-
-                    if self.replace_escape_sequence(
-                        &mut buffer,
-                        next,
-                        &SINGLE_ESCAPES,
-                    ) {
-                        continue;
-                    }
-
-                    buffer.push(BACKSLASH);
-
-                    self.position += 1;
-                }
+                BACKSLASH => break,
                 NEWLINE => {
                     new_line = true;
 
                     buffer.push(NEWLINE);
                     break;
                 }
-                SINGLE_QUOTE => {
-                    break;
-                }
+                DOLLAR if self.peek(1) == CURLY_OPEN => break,
+                byte if byte == quote => break,
                 byte => {
                     buffer.push(byte);
 
@@ -1082,82 +1072,15 @@ impl Lexer {
         self.string_text_token(kind, buffer, line, column, new_line)
     }
 
-    fn double_string_text(&mut self) -> Token {
-        let kind = TokenKind::StringText;
-        let mut buffer = Vec::new();
-        let mut new_line = false;
+    fn string_expression(&mut self) -> Token {
+        let start = self.position;
         let line = self.line;
-        let column = self.column;
 
-        while self.has_next() {
-            match self.current_byte() {
-                BACKSLASH => {
-                    if self.next_is_unicode_escape() {
-                        break;
-                    }
-
-                    let next = self.next_byte();
-
-                    if self.replace_escape_sequence(
-                        &mut buffer,
-                        next,
-                        &DOUBLE_ESCAPES,
-                    ) {
-                        continue;
-                    }
-
-                    buffer.push(BACKSLASH);
-
-                    self.position += 1;
-                }
-                NEWLINE => {
-                    new_line = true;
-
-                    buffer.push(NEWLINE);
-                    break;
-                }
-                DOUBLE_QUOTE | CURLY_OPEN => {
-                    break;
-                }
-                byte => {
-                    buffer.push(byte);
-
-                    self.position += 1;
-                }
-            }
-        }
-
-        self.string_text_token(kind, buffer, line, column, new_line)
-    }
-
-    fn double_string_expression_open(&mut self) -> Token {
         self.states.push(State::Default);
         self.curly_brace_stack.push(self.curly_braces);
-
         self.curly_braces += 1;
-
-        self.single_character_token(TokenKind::StringExprOpen)
-    }
-
-    fn replace_escape_sequence(
-        &mut self,
-        buffer: &mut Vec<u8>,
-        byte: u8,
-        replacements: &EscapeMap,
-    ) -> bool {
-        if let Some(replace) = replacements.get(byte) {
-            buffer.push(replace);
-
-            // The replacement is included in the buffer, meaning we'll also
-            // include it for advancing column numbers.  As such we only need to
-            // advance for the backslash here.
-            self.column += 1;
-            self.position += 2;
-
-            true
-        } else {
-            false
-        }
+        self.position += 2;
+        self.token(TokenKind::StringExprOpen, start, line)
     }
 
     fn string_text_token(
@@ -1198,10 +1121,6 @@ impl Lexer {
                 _ => break,
             }
         }
-    }
-
-    fn next_is_unicode_escape(&self) -> bool {
-        self.next_byte() == LOWER_U && self.peek(2) == CURLY_OPEN
     }
 
     fn triple_operator(
@@ -1598,25 +1517,49 @@ mod tests {
         assert_tokens!(
             "'foo\\xbar'",
             tok(SingleStringOpen, "'", 1..=1, 1..=1),
-            tok(StringText, "foo\\xbar", 1..=1, 2..=9),
+            tok(StringText, "foo", 1..=1, 2..=4),
+            tok(InvalidStringEscape, "x", 1..=1, 5..=6),
+            tok(StringText, "bar", 1..=1, 7..=9),
             tok(SingleStringClose, "'", 1..=1, 10..=10)
         );
         assert_tokens!(
             "'foo\\'bar'",
             tok(SingleStringOpen, "'", 1..=1, 1..=1),
-            tok(StringText, "foo\'bar", 1..=1, 2..=9),
+            tok(StringText, "foo", 1..=1, 2..=4),
+            tok(StringEscape, "'", 1..=1, 5..=6),
+            tok(StringText, "bar", 1..=1, 7..=9),
             tok(SingleStringClose, "'", 1..=1, 10..=10)
         );
         assert_tokens!(
             "'foo\\\\bar'",
             tok(SingleStringOpen, "'", 1..=1, 1..=1),
-            tok(StringText, "foo\\bar", 1..=1, 2..=9),
+            tok(StringText, "foo", 1..=1, 2..=4),
+            tok(StringEscape, "\\", 1..=1, 5..=6),
+            tok(StringText, "bar", 1..=1, 7..=9),
             tok(SingleStringClose, "'", 1..=1, 10..=10)
         );
         assert_tokens!(
             "'foo\\nbar'",
             tok(SingleStringOpen, "'", 1..=1, 1..=1),
-            tok(StringText, "foo\\nbar", 1..=1, 2..=9),
+            tok(StringText, "foo", 1..=1, 2..=4),
+            tok(StringEscape, "\n", 1..=1, 5..=6),
+            tok(StringText, "bar", 1..=1, 7..=9),
+            tok(SingleStringClose, "'", 1..=1, 10..=10)
+        );
+        assert_tokens!(
+            "'foo\\tbar'",
+            tok(SingleStringOpen, "'", 1..=1, 1..=1),
+            tok(StringText, "foo", 1..=1, 2..=4),
+            tok(StringEscape, "\t", 1..=1, 5..=6),
+            tok(StringText, "bar", 1..=1, 7..=9),
+            tok(SingleStringClose, "'", 1..=1, 10..=10)
+        );
+        assert_tokens!(
+            "'foo\\rbar'",
+            tok(SingleStringOpen, "'", 1..=1, 1..=1),
+            tok(StringText, "foo", 1..=1, 2..=4),
+            tok(StringEscape, "\r", 1..=1, 5..=6),
+            tok(StringText, "bar", 1..=1, 7..=9),
             tok(SingleStringClose, "'", 1..=1, 10..=10)
         );
         assert_tokens!(
@@ -1636,6 +1579,13 @@ mod tests {
             "'foo",
             tok(SingleStringOpen, "'", 1..=1, 1..=1),
             tok(StringText, "foo", 1..=1, 2..=4)
+        );
+        assert_tokens!(
+            "'\\${}'",
+            tok(SingleStringOpen, "'", 1..=1, 1..=1),
+            tok(StringEscape, "$", 1..=1, 2..=3),
+            tok(StringText, "{}", 1..=1, 4..=5),
+            tok(SingleStringClose, "'", 1..=1, 6..=6)
         );
     }
 
@@ -1682,37 +1632,49 @@ mod tests {
         assert_tokens!(
             "\"foo\\xbar\"",
             tok(DoubleStringOpen, "\"", 1..=1, 1..=1),
-            tok(StringText, "foo\\xbar", 1..=1, 2..=9),
+            tok(StringText, "foo", 1..=1, 2..=4),
+            tok(InvalidStringEscape, "x", 1..=1, 5..=6),
+            tok(StringText, "bar", 1..=1, 7..=9),
             tok(DoubleStringClose, "\"", 1..=1, 10..=10)
         );
         assert_tokens!(
             "\"foo\\\"bar\"",
             tok(DoubleStringOpen, "\"", 1..=1, 1..=1),
-            tok(StringText, "foo\"bar", 1..=1, 2..=9),
+            tok(StringText, "foo", 1..=1, 2..=4),
+            tok(StringEscape, "\"", 1..=1, 5..=6),
+            tok(StringText, "bar", 1..=1, 7..=9),
             tok(DoubleStringClose, "\"", 1..=1, 10..=10)
         );
         assert_tokens!(
             "\"foo\\\\bar\"",
             tok(DoubleStringOpen, "\"", 1..=1, 1..=1),
-            tok(StringText, "foo\\bar", 1..=1, 2..=9),
+            tok(StringText, "foo", 1..=1, 2..=4),
+            tok(StringEscape, "\\", 1..=1, 5..=6),
+            tok(StringText, "bar", 1..=1, 7..=9),
             tok(DoubleStringClose, "\"", 1..=1, 10..=10)
         );
         assert_tokens!(
             "\"foo\\nbar\"",
             tok(DoubleStringOpen, "\"", 1..=1, 1..=1),
-            tok(StringText, "foo\nbar", 1..=1, 2..=9),
+            tok(StringText, "foo", 1..=1, 2..=4),
+            tok(StringEscape, "\n", 1..=1, 5..=6),
+            tok(StringText, "bar", 1..=1, 7..=9),
             tok(DoubleStringClose, "\"", 1..=1, 10..=10)
         );
         assert_tokens!(
             "\"foo\\tbar\"",
             tok(DoubleStringOpen, "\"", 1..=1, 1..=1),
-            tok(StringText, "foo\tbar", 1..=1, 2..=9),
+            tok(StringText, "foo", 1..=1, 2..=4),
+            tok(StringEscape, "\t", 1..=1, 5..=6),
+            tok(StringText, "bar", 1..=1, 7..=9),
             tok(DoubleStringClose, "\"", 1..=1, 10..=10)
         );
         assert_tokens!(
             "\"foo\\rbar\"",
             tok(DoubleStringOpen, "\"", 1..=1, 1..=1),
-            tok(StringText, "foo\rbar", 1..=1, 2..=9),
+            tok(StringText, "foo", 1..=1, 2..=4),
+            tok(StringEscape, "\r", 1..=1, 5..=6),
+            tok(StringText, "bar", 1..=1, 7..=9),
             tok(DoubleStringClose, "\"", 1..=1, 10..=10)
         );
         assert_tokens!(
@@ -1734,10 +1696,11 @@ mod tests {
             tok(StringText, "foo", 1..=1, 2..=4)
         );
         assert_tokens!(
-            "\"\\{}\"",
+            "\"\\${}\"",
             tok(DoubleStringOpen, "\"", 1..=1, 1..=1),
-            tok(StringText, "{}", 1..=1, 2..=4),
-            tok(DoubleStringClose, "\"", 1..=1, 5..=5)
+            tok(StringEscape, "$", 1..=1, 2..=3),
+            tok(StringText, "{}", 1..=1, 4..=5),
+            tok(DoubleStringClose, "\"", 1..=1, 6..=6)
         );
     }
 
@@ -1746,14 +1709,14 @@ mod tests {
         assert_tokens!(
             "\"\\u{AC}\"",
             tok(DoubleStringOpen, "\"", 1..=1, 1..=1),
-            tok(UnicodeEscape, "\u{AC}", 1..=1, 2..=7),
+            tok(StringEscape, "\u{AC}", 1..=1, 2..=7),
             tok(DoubleStringClose, "\"", 1..=1, 8..=8)
         );
         assert_tokens!(
             "\"a\\u{AC}b\"",
             tok(DoubleStringOpen, "\"", 1..=1, 1..=1),
             tok(StringText, "a", 1..=1, 2..=2),
-            tok(UnicodeEscape, "\u{AC}", 1..=1, 3..=8),
+            tok(StringEscape, "\u{AC}", 1..=1, 3..=8),
             tok(StringText, "b", 1..=1, 9..=9),
             tok(DoubleStringClose, "\"", 1..=1, 10..=10)
         );
@@ -1761,7 +1724,7 @@ mod tests {
             "\"a\\u{FFFFF}b\"",
             tok(DoubleStringOpen, "\"", 1..=1, 1..=1),
             tok(StringText, "a", 1..=1, 2..=2),
-            tok(UnicodeEscape, "\u{FFFFF}", 1..=1, 3..=11),
+            tok(StringEscape, "\u{FFFFF}", 1..=1, 3..=11),
             tok(StringText, "b", 1..=1, 12..=12),
             tok(DoubleStringClose, "\"", 1..=1, 13..=13)
         );
@@ -1769,7 +1732,7 @@ mod tests {
             "\"a\\u{10FFFF}b\"",
             tok(DoubleStringOpen, "\"", 1..=1, 1..=1),
             tok(StringText, "a", 1..=1, 2..=2),
-            tok(UnicodeEscape, "\u{10FFFF}", 1..=1, 3..=12),
+            tok(StringEscape, "\u{10FFFF}", 1..=1, 3..=12),
             tok(StringText, "b", 1..=1, 13..=13),
             tok(DoubleStringClose, "\"", 1..=1, 14..=14)
         );
@@ -1777,7 +1740,7 @@ mod tests {
             "\"a\\u{XXXXX}b\"",
             tok(DoubleStringOpen, "\"", 1..=1, 1..=1),
             tok(StringText, "a", 1..=1, 2..=2),
-            tok(InvalidUnicodeEscape, "XXXXX", 1..=1, 3..=11),
+            tok(InvalidStringEscape, "XXXXX", 1..=1, 3..=11),
             tok(StringText, "b", 1..=1, 12..=12),
             tok(DoubleStringClose, "\"", 1..=1, 13..=13)
         );
@@ -1785,7 +1748,7 @@ mod tests {
             "\"a\\u{FFFFFF}b\"",
             tok(DoubleStringOpen, "\"", 1..=1, 1..=1),
             tok(StringText, "a", 1..=1, 2..=2),
-            tok(InvalidUnicodeEscape, "FFFFFF", 1..=1, 3..=12),
+            tok(InvalidStringEscape, "FFFFFF", 1..=1, 3..=12),
             tok(StringText, "b", 1..=1, 13..=13),
             tok(DoubleStringClose, "\"", 1..=1, 14..=14)
         );
@@ -1793,7 +1756,7 @@ mod tests {
             "\"a\\u{AAAAA #}b\"",
             tok(DoubleStringOpen, "\"", 1..=1, 1..=1),
             tok(StringText, "a", 1..=1, 2..=2),
-            tok(InvalidUnicodeEscape, "AAAAA #", 1..=1, 3..=13),
+            tok(InvalidStringEscape, "AAAAA #", 1..=1, 3..=13),
             tok(StringText, "b", 1..=1, 14..=14),
             tok(DoubleStringClose, "\"", 1..=1, 15..=15)
         );
@@ -1801,7 +1764,7 @@ mod tests {
             "\"a\\u{€}b\"",
             tok(DoubleStringOpen, "\"", 1..=1, 1..=1),
             tok(StringText, "a", 1..=1, 2..=2),
-            tok(InvalidUnicodeEscape, "€", 1..=1, 3..=7),
+            tok(InvalidStringEscape, "€", 1..=1, 3..=7),
             tok(StringText, "b", 1..=1, 8..=8),
             tok(DoubleStringClose, "\"", 1..=1, 9..=9)
         );
@@ -1809,14 +1772,14 @@ mod tests {
             "\"a\\u{🇳🇱}b\"",
             tok(DoubleStringOpen, "\"", 1..=1, 1..=1),
             tok(StringText, "a", 1..=1, 2..=2),
-            tok(InvalidUnicodeEscape, "🇳🇱", 1..=1, 3..=7),
+            tok(InvalidStringEscape, "🇳🇱", 1..=1, 3..=7),
             tok(StringText, "b", 1..=1, 8..=8),
             tok(DoubleStringClose, "\"", 1..=1, 9..=9)
         );
         assert_tokens!(
             "\"\\u{AA\"",
             tok(DoubleStringOpen, "\"", 1..=1, 1..=1),
-            tok(InvalidUnicodeEscape, "AA", 1..=1, 2..=6),
+            tok(InvalidStringEscape, "AA", 1..=1, 2..=6),
             tok(DoubleStringClose, "\"", 1..=1, 7..=7)
         );
     }
@@ -1824,40 +1787,40 @@ mod tests {
     #[test]
     fn test_lexer_double_string_with_expressions() {
         assert_tokens!(
-            "\"foo{10}baz\"",
+            "\"foo${10}baz\"",
             tok(DoubleStringOpen, "\"", 1..=1, 1..=1),
             tok(StringText, "foo", 1..=1, 2..=4),
-            tok(StringExprOpen, "{", 1..=1, 5..=5),
-            tok(Integer, "10", 1..=1, 6..=7),
-            tok(StringExprClose, "}", 1..=1, 8..=8),
-            tok(StringText, "baz", 1..=1, 9..=11),
-            tok(DoubleStringClose, "\"", 1..=1, 12..=12)
+            tok(StringExprOpen, "${", 1..=1, 5..=6),
+            tok(Integer, "10", 1..=1, 7..=8),
+            tok(StringExprClose, "}", 1..=1, 9..=9),
+            tok(StringText, "baz", 1..=1, 10..=12),
+            tok(DoubleStringClose, "\"", 1..=1, 13..=13)
         );
         assert_tokens!(
-            "\"{\"{10}\"}\"",
+            "\"${\"${10}\"}\"",
             tok(DoubleStringOpen, "\"", 1..=1, 1..=1),
-            tok(StringExprOpen, "{", 1..=1, 2..=2),
-            tok(DoubleStringOpen, "\"", 1..=1, 3..=3),
-            tok(StringExprOpen, "{", 1..=1, 4..=4),
-            tok(Integer, "10", 1..=1, 5..=6),
-            tok(StringExprClose, "}", 1..=1, 7..=7),
-            tok(DoubleStringClose, "\"", 1..=1, 8..=8),
+            tok(StringExprOpen, "${", 1..=1, 2..=3),
+            tok(DoubleStringOpen, "\"", 1..=1, 4..=4),
+            tok(StringExprOpen, "${", 1..=1, 5..=6),
+            tok(Integer, "10", 1..=1, 7..=8),
             tok(StringExprClose, "}", 1..=1, 9..=9),
-            tok(DoubleStringClose, "\"", 1..=1, 10..=10)
+            tok(DoubleStringClose, "\"", 1..=1, 10..=10),
+            tok(StringExprClose, "}", 1..=1, 11..=11),
+            tok(DoubleStringClose, "\"", 1..=1, 12..=12)
         );
     }
 
     #[test]
     fn test_lexer_double_string_with_unclosed_expression() {
         assert_tokens!(
-            "\"foo{10 +\"",
+            "\"foo${10 +\"",
             tok(DoubleStringOpen, "\"", 1..=1, 1..=1),
             tok(StringText, "foo", 1..=1, 2..=4),
-            tok(StringExprOpen, "{", 1..=1, 5..=5),
-            tok(Integer, "10", 1..=1, 6..=7),
-            tok(Whitespace, " ", 1..=1, 8..=8),
-            tok(Add, "+", 1..=1, 9..=9),
-            tok(DoubleStringOpen, "\"", 1..=1, 10..=10)
+            tok(StringExprOpen, "${", 1..=1, 5..=6),
+            tok(Integer, "10", 1..=1, 7..=8),
+            tok(Whitespace, " ", 1..=1, 9..=9),
+            tok(Add, "+", 1..=1, 10..=10),
+            tok(DoubleStringOpen, "\"", 1..=1, 11..=11)
         );
     }
 

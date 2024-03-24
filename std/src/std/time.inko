@@ -188,13 +188,13 @@ impl Format for Duration {
   fn pub fmt(formatter: mut Formatter) {
     let abs = @nanos.absolute
     let write = if abs >= 1_000_000_000 {
-      "{to_secs} sec"
+      "${to_secs} sec"
     } else if abs >= 1_000_000 {
-      "{to_millis} msec"
+      "${to_millis} msec"
     } else if abs >= 1_000 {
-      "{to_micros} µsec"
+      "${to_micros} µsec"
     } else {
-      "{@nanos} nsec"
+      "${@nanos} nsec"
     }
 
     formatter.write(write)
@@ -429,7 +429,7 @@ impl Format for DateTime {
         .to_string
         .pad_start(with: '0', chars: 2)
 
-      " {sign}{hh}{mm}"
+      " ${sign}${hh}${mm}"
     }
 
     let year = @year.to_string.pad_start(with: '0', chars: 4)
@@ -439,7 +439,7 @@ impl Format for DateTime {
     let min = @minute.to_string.pad_start(with: '0', chars: 2)
     let secs = @second.to_string.pad_start(with: '0', chars: 2)
 
-    formatter.write("{year}-{month}-{day} {hour}:{min}:{secs}{offset}")
+    formatter.write("${year}-${month}-${day} ${hour}:${min}:${secs}${offset}")
   }
 }
 
@@ -597,7 +597,7 @@ impl Add[Duration, Instant] for Instant {
   fn pub +(other: ref Duration) -> Instant {
     let nanos = @nanos + other.nanos
 
-    if nanos < 0 { panic("Instant can't represent a negative time ({nanos})") }
+    if nanos < 0 { panic("Instant can't represent a negative time (${nanos})") }
 
     Instant { @nanos = nanos }
   }
@@ -607,7 +607,7 @@ impl Subtract[Duration, Instant] for Instant {
   fn pub -(other: ref Duration) -> Instant {
     let nanos = @nanos - other.nanos
 
-    if nanos < 0 { panic("Instant can't represent a negative time ({nanos})") }
+    if nanos < 0 { panic("Instant can't represent a negative time (${nanos})") }
 
     Instant { @nanos = nanos }
   }
@@ -627,6 +627,6 @@ impl Equal[ref Instant] for Instant {
 
 impl Format for Instant {
   fn pub fmt(formatter: mut Formatter) {
-    formatter.write("+{@nanos}")
+    formatter.write("+${@nanos}")
   }
 }

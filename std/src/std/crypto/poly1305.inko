@@ -82,7 +82,7 @@ class pub Poly1305 {
   # This method panics if the key isn't exactly 32 bytes long.
   fn pub static new(key: ref ByteArray) -> Poly1305 {
     if key.size != KEY_SIZE {
-      panic("Poly1305 keys must be exactly {KEY_SIZE} bytes")
+      panic("Poly1305 keys must be exactly ${KEY_SIZE} bytes")
     }
 
     Poly1305 {

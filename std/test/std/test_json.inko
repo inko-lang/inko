@@ -91,11 +91,11 @@ fn pub tests(t: mut Tests) {
     t.equal(Json.Int(42).to_string, '42')
     t.equal(Json.Float(1.2).to_string, '1.2')
     t.equal(Json.String('foo').to_string, '"foo"')
-    t.equal(Json.String("a\nb").to_string, '"a\nb"')
-    t.equal(Json.String("a\rb").to_string, '"a\rb"')
-    t.equal(Json.String("a\tb").to_string, '"a\tb"')
-    t.equal(Json.String("a\u{C}b").to_string, '"a\fb"')
-    t.equal(Json.String("a\u{8}b").to_string, '"a\bb"')
+    t.equal(Json.String("a\nb").to_string, '"a\\nb"')
+    t.equal(Json.String("a\rb").to_string, '"a\\rb"')
+    t.equal(Json.String("a\tb").to_string, '"a\\tb"')
+    t.equal(Json.String("a\u{C}b").to_string, '"a\\fb"')
+    t.equal(Json.String("a\u{8}b").to_string, '"a\\bb"')
     t.equal(Json.String('a\\b').to_string, '"a\\\\b"')
     t.equal(Json.Array([]).to_string, '[]')
     t.equal(Json.Array([Json.Int(1), Json.Int(2)]).to_string, '[1, 2]')
@@ -110,11 +110,11 @@ fn pub tests(t: mut Tests) {
     t.equal(Json.Int(42).to_pretty_string, '42')
     t.equal(Json.Float(1.2).to_pretty_string, '1.2')
     t.equal(Json.String('foo').to_pretty_string, '"foo"')
-    t.equal(Json.String("a\nb").to_pretty_string, '"a\nb"')
-    t.equal(Json.String("a\rb").to_pretty_string, '"a\rb"')
-    t.equal(Json.String("a\tb").to_pretty_string, '"a\tb"')
-    t.equal(Json.String("a\u{C}b").to_pretty_string, '"a\fb"')
-    t.equal(Json.String("a\u{8}b").to_pretty_string, '"a\bb"')
+    t.equal(Json.String("a\nb").to_pretty_string, '"a\\nb"')
+    t.equal(Json.String("a\rb").to_pretty_string, '"a\\rb"')
+    t.equal(Json.String("a\tb").to_pretty_string, '"a\\tb"')
+    t.equal(Json.String("a\u{C}b").to_pretty_string, '"a\\fb"')
+    t.equal(Json.String("a\u{8}b").to_pretty_string, '"a\\bb"')
     t.equal(Json.String('a\\b').to_pretty_string, '"a\\\\b"')
     t.equal(Json.Bool(true).to_pretty_string, 'true')
     t.equal(Json.Bool(false).to_pretty_string, 'false')
@@ -300,22 +300,22 @@ fn pub tests(t: mut Tests) {
   t.test('Json.parse with strings') fn (t) {
     t.equal(Json.parse('"foo"'), Result.Ok(Json.String('foo')))
     t.equal(Json.parse('"foo bar"'), Result.Ok(Json.String('foo bar')))
-    t.equal(Json.parse('"foo\nbar"'), Result.Ok(Json.String("foo\nbar")))
-    t.equal(Json.parse('"foo\tbar"'), Result.Ok(Json.String("foo\tbar")))
-    t.equal(Json.parse('"foo\rbar"'), Result.Ok(Json.String("foo\rbar")))
-    t.equal(Json.parse('"foo\bbar"'), Result.Ok(Json.String("foo\u{0008}bar")))
-    t.equal(Json.parse('"foo\fbar"'), Result.Ok(Json.String("foo\u{000C}bar")))
+    t.equal(Json.parse('"foo\\nbar"'), Result.Ok(Json.String("foo\nbar")))
+    t.equal(Json.parse('"foo\\tbar"'), Result.Ok(Json.String("foo\tbar")))
+    t.equal(Json.parse('"foo\\rbar"'), Result.Ok(Json.String("foo\rbar")))
+    t.equal(Json.parse('"foo\\bbar"'), Result.Ok(Json.String("foo\u{8}bar")))
+    t.equal(Json.parse('"foo\\fbar"'), Result.Ok(Json.String("foo\u{c}bar")))
     t.equal(Json.parse('"foo\\"bar"'), Result.Ok(Json.String('foo"bar')))
     t.equal(Json.parse('"foo\\/bar"'), Result.Ok(Json.String('foo/bar')))
     t.equal(Json.parse('"foo\\\\bar"'), Result.Ok(Json.String("foo\\bar")))
-    t.equal(Json.parse('"foo\u005Cbar"'), Result.Ok(Json.String('foo\\bar')))
+    t.equal(Json.parse('"foo\\u005Cbar"'), Result.Ok(Json.String('foo\\bar')))
     t.equal(
       Json.parse('"foo\\u001Fbar"'),
       Result.Ok(Json.String("foo\u{001F}bar"))
     )
-    t.equal(Json.parse('"\uD834\uDD1E"'), Result.Ok(Json.String("\u{1D11E}")))
+    t.equal(Json.parse('"\\uD834\\uDD1E"'), Result.Ok(Json.String("\u{1D11E}")))
     t.equal(
-      Json.parse('"\uE000\uE000"'),
+      Json.parse('"\\uE000\\uE000"'),
       Result.Ok(Json.String("\u{E000}\u{E000}"))
     )
 
@@ -326,14 +326,14 @@ fn pub tests(t: mut Tests) {
     t.true(Json.parse("\"\u{8}\"").error?) # \b
     t.true(Json.parse("\"\u{c}\"").error?) # \f
 
-    t.true(Json.parse('"\x42"').error?)
-    t.true(Json.parse('"\u1"').error?)
-    t.true(Json.parse('"\u12"').error?)
-    t.true(Json.parse('"\u123"').error?)
-    t.true(Json.parse('"\u{XXXX}"').error?)
-    t.true(Json.parse('"\uD834\uE000"').error?)
-    t.true(Json.parse('"\uD834\uZZZZ"').error?)
-    t.true(Json.parse('"\uDFFF\uDFFF"').error?)
+    t.true(Json.parse('"\\x42"').error?)
+    t.true(Json.parse('"\\u1"').error?)
+    t.true(Json.parse('"\\u12"').error?)
+    t.true(Json.parse('"\\u123"').error?)
+    t.true(Json.parse('"\\u{XXXX}"').error?)
+    t.true(Json.parse('"\\uD834\\uE000"').error?)
+    t.true(Json.parse('"\\uD834\\uZZZZ"').error?)
+    t.true(Json.parse('"\\uDFFF\\uDFFF"').error?)
 
     {
       let bytes = '"foo"'.to_byte_array

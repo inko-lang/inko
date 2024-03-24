@@ -5,8 +5,8 @@ use crate::llvm::constants::{
     CLASS_METHODS_COUNT_INDEX, CLASS_METHODS_INDEX, CLOSURE_CALL_INDEX,
     CONTEXT_ARGS_INDEX, DROPPER_INDEX, FIELD_OFFSET, HEADER_CLASS_INDEX,
     HEADER_REFS_INDEX, MESSAGE_ARGUMENTS_INDEX, METHOD_FUNCTION_INDEX,
-    METHOD_HASH_INDEX, PROCESS_FIELD_OFFSET, STACK_DATA_PROCESS_INDEX,
-    STATE_EPOCH_INDEX,
+    METHOD_HASH_INDEX, PROCESS_FIELD_OFFSET, STACK_DATA_EPOCH_INDEX,
+    STACK_DATA_PROCESS_INDEX, STATE_EPOCH_INDEX,
 };
 use crate::llvm::context::Context;
 use crate::llvm::layouts::Layouts;
@@ -51,8 +51,6 @@ use types::{
     BuiltinFunction, ClassId, Database, Module as ModuleType, Shape, TypeRef,
     BYTE_ARRAY_ID, STRING_ID,
 };
-
-use super::constants::STACK_DATA_EPOCH_INDEX;
 
 fn object_path(directories: &BuildDirectories, name: &ModuleName) -> PathBuf {
     let hash = hash(name.as_str().as_bytes()).to_string();
@@ -969,7 +967,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerModule<'a, 'b, 'mir, 'ctx> {
         &self,
         builder: &Builder<'ctx>,
         state: PointerValue<'ctx>,
-        value: &String,
+        value: &str,
     ) -> BasicValueEnum<'ctx> {
         let bytes_typ = builder.context.i8_type().array_type(value.len() as _);
         let bytes_var = builder.new_temporary(bytes_typ);

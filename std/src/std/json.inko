@@ -190,7 +190,7 @@ impl FormatTrait for Error {
 
 impl ToString for Error {
   fn pub to_string -> String {
-    "{@message}, on line {@line} at byte offset {@offset}"
+    "${@message}, on line ${@line} at byte offset ${@offset}"
   }
 }
 
@@ -545,7 +545,7 @@ class pub Parser {
 
   fn mut value -> Result[Json, Error] {
     if @depth >= @max_depth {
-      throw error("Only up to {@max_depth} nested objects/arrays are allowed")
+      throw error("Only up to ${@max_depth} nested objects/arrays are allowed")
     }
 
     whitespace
@@ -597,7 +597,7 @@ class pub Parser {
 
     if @buffer.size > @max_string_size {
       throw error(
-        "The size of this string ({@buffer.size} bytes) is greater than the maximum of {@max_string_size} bytes"
+        "The size of this string (${@buffer.size} bytes) is greater than the maximum of ${@max_string_size} bytes"
       )
     }
 
@@ -612,7 +612,7 @@ class pub Parser {
     # At this point the codepoint is either straight up invalid (e.g. "\uZZZZ"),
     # or it's a UTF-16 surrogate.
     if utf8.surrogate?(high).false? {
-      throw error("'{high.format(Format.Hex)}' is an invalid UTF-16 surrogate")
+      throw error("'${high.format(Format.Hex)}' is an invalid UTF-16 surrogate")
     }
 
     try expect(BSLASH)
@@ -627,9 +627,9 @@ class pub Parser {
       if utf8.encode_scalar(codepoint, @buffer) > 0 { return Result.Ok(nil) }
     }
 
-    let pair = "\\u{high.format(Format.Hex)}\\u{low.format(Format.Hex)}"
+    let pair = "\\u${high.format(Format.Hex)}\\u${low.format(Format.Hex)}"
 
-    throw error("'{pair}' is an invalid UTF-16 surrogate pair")
+    throw error("'${pair}' is an invalid UTF-16 surrogate pair")
   }
 
   fn mut codepoint -> Result[Int, Error] {
@@ -858,7 +858,7 @@ class pub Parser {
     match advance {
       case Some(val) if val == byte -> Result.Ok(nil)
       case Some(val) -> throw error(
-        "The character '{char(byte)}' is expected, but '{char(val)}' was found instead"
+        "The character '${char(byte)}' is expected, but '${char(val)}' was found instead"
       )
       case _ -> throw unexpected_eof
     }
@@ -910,11 +910,11 @@ class pub Parser {
   }
 
   fn invalid_control(byte: Int) -> Error {
-    error("The control character {byte.format(Format.Hex)} must be escaped")
+    error("The control character ${byte.format(Format.Hex)} must be escaped")
   }
 
   fn unexpected(byte: Int) -> Error {
-    error("The character '{ByteArray.from_array([byte])}' is unexpected")
+    error("The character '${ByteArray.from_array([byte])}' is unexpected")
   }
 
   fn unexpected_eof -> Error {

@@ -207,7 +207,7 @@ impl ToString for Error {
       case StorageFull -> 'the storage is full'
       case TimedOut -> 'the operation timed out'
       case WouldBlock -> 'the operation would block'
-      case Other(code) -> "an other error with code {code} occurred"
+      case Other(code) -> "an other error with code ${code} occurred"
     }
   }
 }

@@ -312,7 +312,7 @@ impl Equal[ref SocketAddress] for SocketAddress {
 
 impl Format for SocketAddress {
   fn pub fmt(formatter: mut Formatter) {
-    formatter.write("{@address}:{@port}")
+    formatter.write("${@address}:${@port}")
   }
 }
 
@@ -1239,7 +1239,7 @@ class pub UnixAddress {
 impl Format for UnixAddress {
   fn pub fmt(formatter: mut Formatter) {
     let write = if abstract? {
-      "@{@address.slice(start: 1, size: @address.size - 1)}"
+      "@${@address.slice(start: 1, size: @address.size - 1)}"
     } else if unnamed? {
       'unnamed'
     } else {

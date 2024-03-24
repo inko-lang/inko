@@ -139,9 +139,9 @@ fn join_strings(base: ref String, with: ref String) -> String {
   if absolute_path?(with) {
     with
   } else if base.byte(base.size - 1) == SEPARATOR_BYTE {
-    "{base}{with}"
+    "${base}${with}"
   } else {
-    "{base}{SEPARATOR}{with}"
+    "${base}${SEPARATOR}${with}"
   }
 }
 
@@ -578,10 +578,10 @@ class pub Path {
         @path.slice(start: 0, size: @path.size - v.size - 1).into_string
       }
       case Some(v) -> {
-        "{@path.slice(start: 0, size: @path.size - v.size - 1)}.{name}"
+        "${@path.slice(start: 0, size: @path.size - v.size - 1)}.${name}"
       }
       case _ if name.empty? or @path.ends_with?(SEPARATOR) -> @path
-      case _ -> "{@path}.{name}"
+      case _ -> "${@path}.${name}"
     }
 
     Path.new(raw)

@@ -653,8 +653,8 @@ impl Bytes for String {
   #
   # Slicing a string using a valid range:
   #
-  #     '😊'.slice_bytes(start: 0, size: 4) # => '😊'.to_byte_array
-  #     '😊'.slice_bytes(start: 0, size: 3) # => "\u{FFFD}".to_byte_array
+  #     '😊'.slice(start: 0, size: 4) # => '😊'.to_byte_array
+  #     '😊'.slice(start: 0, size: 3) # => "\u{FFFD}".to_byte_array
   fn pub slice(start: Int, size: Int) -> ByteArray {
     let bytes = ByteArray.new
 

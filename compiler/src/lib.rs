@@ -2,6 +2,7 @@
 #![allow(clippy::enum_variant_names)]
 
 mod diagnostics;
+pub mod format;
 mod hir;
 mod incremental;
 mod linker;

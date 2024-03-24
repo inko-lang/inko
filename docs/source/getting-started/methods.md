@@ -337,9 +337,9 @@ variable a new value for each iteration:
 ```inko
 let mut number = 0
 
-[10, 20, 30].iter.each fn move (num) {
+[10, 20, 30].iter.each(fn move (num) {
   number += num
-}
+})
 
 # `number` is still zero because the assignment is local to the closure. We
 # can also still use it because `Int` is a value type.
@@ -350,5 +350,5 @@ Because of how capturing works, such patterns won't work in Inko. Instead, use
 methods such as `Iter.reduce` like so:
 
 ```inko
-let number = [10, 20, 30].iter.reduce(0) fn (total, num) { total + num }
+let number = [10, 20, 30].iter.reduce(0, fn (total, num) { total + num })
 ```

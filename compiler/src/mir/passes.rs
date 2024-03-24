@@ -703,7 +703,6 @@ impl<'a> DefineConstants<'a> {
             hir::ConstExpression::Array(ref n) => Constant::Array(
                 n.values.iter().map(|n| self.expression(n)).collect(),
             ),
-            hir::ConstExpression::Invalid(_) => unreachable!(),
         }
     }
 

@@ -17,8 +17,8 @@ class SocketPath {
   let @path: Path
 
   fn static pair(id: Int) -> (SocketPath, SocketPath) {
-    let p1 = env.temporary_directory.join("inko-test-{id}-1.sock")
-    let p2 = env.temporary_directory.join("inko-test-{id}-2.sock")
+    let p1 = env.temporary_directory.join("inko-test-${id}-1.sock")
+    let p2 = env.temporary_directory.join("inko-test-${id}-2.sock")
     let _ = p1.remove_file
     let _ = p2.remove_file
 
@@ -26,7 +26,7 @@ class SocketPath {
   }
 
   fn static new(id: Int) -> SocketPath {
-    let path = env.temporary_directory.join("inko-test-{id}.sock")
+    let path = env.temporary_directory.join("inko-test-${id}.sock")
     let _ = path.remove_file
 
     SocketPath { @path = path }
@@ -105,13 +105,13 @@ fn pub tests(t: mut Tests) {
 
     let stream2 = Socket.ipv4(Type.STREAM).get
 
+    # connect() may not immediately raise a "connection refused" error, due to
+    # connect() being non-blocking. In this case the "connection refused" error
+    # is raised on the next operation.
+    #
+    # Since a connect() _might_ still raise the error right away, we have to
+    # both connect and try to use the socket in some way.
     t.true(
-      # connect() may not immediately raise a "connection refused" error, due
-      # to connect() being non-blocking. In this case the "connection refused"
-      # error is raised on the next operation.
-      #
-      # Since a connect() _might_ still raise the error right away, we have to
-      # both connect and try to use the socket in some way.
       stream2.connect(ip: '0.0.0.0', port: 40_000).error?
         or stream2.write_string('ping').error?
     )
@@ -886,7 +886,7 @@ fn pub tests(t: mut Tests) {
     if env.OS == 'linux' {
       let socket = UnixSocket.new(Type.STREAM).get
 
-      t.true(socket.bind("\0inko-test-{t.id}").ok?)
+      t.true(socket.bind("\0inko-test-${t.id}").ok?)
     }
   }
 
@@ -905,7 +905,7 @@ fn pub tests(t: mut Tests) {
     if env.OS == 'linux' {
       let listener = UnixSocket.new(Type.STREAM).get
       let stream = UnixSocket.new(Type.STREAM).get
-      let addr = "\0inko-test-{t.id}"
+      let addr = "\0inko-test-${t.id}"
 
       listener.bind(addr).get
       listener.listen.get

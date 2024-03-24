@@ -28,6 +28,70 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use types::module_name::ModuleName;
 
+fn module_name_from_path(config: &Config, file: &Path) -> ModuleName {
+    file.strip_prefix(&config.source)
+        .ok()
+        .or_else(|| file.strip_prefix(&config.tests).ok())
+        .or_else(|| {
+            // This allows us to check e.g. `./std/src/std/string.inko`
+            // while the current working directory is `.`. This is useful
+            // when e.g. checking files using a text editor, as they would
+            // likely have the working directory set to `.` and not
+            // `./std`.
+            let mut components = file.components();
+
+            if components
+                .any(|c| c.as_os_str() == SOURCE || c.as_os_str() == TESTS)
+            {
+                Some(components.as_path())
+            } else {
+                None
+            }
+        })
+        .map(ModuleName::from_relative_path)
+        .unwrap_or_else(ModuleName::main)
+}
+
+pub(crate) fn all_source_modules(
+    config: &Config,
+) -> Result<Vec<(ModuleName, PathBuf)>, String> {
+    let mut modules = Vec::new();
+    let mut paths = Vec::new();
+    let src_ext = OsStr::new(SOURCE_EXT);
+    let source = &config.source;
+    let tests = &config.tests;
+
+    if source.is_dir() {
+        paths.push(source.clone());
+    }
+
+    if tests.is_dir() {
+        paths.push(tests.clone());
+    }
+
+    while let Some(path) = paths.pop() {
+        let iter = path.read_dir().map_err(|e| {
+            format!("failed to read directory {:?}: {}", path, e)
+        })?;
+
+        for entry in iter {
+            let path = entry
+                .map_err(|e| {
+                    format!("failed to read the contents of {:?}: {}", path, e)
+                })?
+                .path();
+
+            if path.is_dir() {
+                paths.push(path);
+            } else if path.is_file() && path.extension() == Some(src_ext) {
+                modules.push((module_name_from_path(config, &path), path));
+            }
+        }
+    }
+
+    Ok(modules)
+}
+
 fn format_timing(duration: Duration, total: Option<Duration>) -> String {
     let base = if duration.as_secs() >= 1 {
         format!("{:.2} sec", duration.as_secs_f64())
@@ -116,9 +180,10 @@ impl Compiler {
         let input = if let Some(file) = file {
             let file = file.canonicalize().unwrap_or(file);
 
-            vec![(self.module_name_from_path(&file), file)]
+            vec![(module_name_from_path(&self.state.config, &file), file)]
         } else {
-            self.all_source_modules()?
+            all_source_modules(&self.state.config)
+                .map_err(CompileError::Internal)?
         };
 
         let ast = self.parse(input);
@@ -252,7 +317,9 @@ LLVM module timings:
             }
         };
 
-        self.state.db.set_main_module(self.module_name_from_path(&path));
+        self.state
+            .db
+            .set_main_module(module_name_from_path(&self.state.config, &path));
         Ok(path)
     }
 
@@ -412,75 +479,5 @@ LLVM module timings:
         self.timings.link = start.elapsed();
 
         Ok(exe)
-    }
-
-    fn module_name_from_path(&self, file: &Path) -> ModuleName {
-        file.strip_prefix(&self.state.config.source)
-            .ok()
-            .or_else(|| file.strip_prefix(&self.state.config.tests).ok())
-            .or_else(|| {
-                // This allows us to check e.g. `./std/src/std/string.inko`
-                // while the current working directory is `.`. This is useful
-                // when e.g. checking files using a text editor, as they would
-                // likely have the working directory set to `.` and not
-                // `./std`.
-                let mut components = file.components();
-
-                if components
-                    .any(|c| c.as_os_str() == SOURCE || c.as_os_str() == TESTS)
-                {
-                    Some(components.as_path())
-                } else {
-                    None
-                }
-            })
-            .map(ModuleName::from_relative_path)
-            .unwrap_or_else(ModuleName::main)
-    }
-
-    fn all_source_modules(
-        &self,
-    ) -> Result<Vec<(ModuleName, PathBuf)>, CompileError> {
-        let mut modules = Vec::new();
-        let mut paths = Vec::new();
-        let src_ext = OsStr::new(SOURCE_EXT);
-        let source = &self.state.config.source;
-        let tests = &self.state.config.tests;
-
-        if source.is_dir() {
-            paths.push(source.clone());
-        }
-
-        if tests.is_dir() {
-            paths.push(tests.clone());
-        }
-
-        while let Some(path) = paths.pop() {
-            let iter = path.read_dir().map_err(|err| {
-                CompileError::Internal(format!(
-                    "Failed to read directory {:?}: {}",
-                    path, err
-                ))
-            })?;
-
-            for entry in iter {
-                let path = entry
-                    .map_err(|err| {
-                        CompileError::Internal(format!(
-                            "Failed to read the contents of {:?}: {}",
-                            path, err
-                        ))
-                    })?
-                    .path();
-
-                if path.is_dir() {
-                    paths.push(path);
-                } else if path.is_file() && path.extension() == Some(src_ext) {
-                    modules.push((self.module_name_from_path(&path), path));
-                }
-            }
-        }
-
-        Ok(modules)
     }
 }

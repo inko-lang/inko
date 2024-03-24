@@ -96,6 +96,8 @@ Constants are made public using `let pub`:
 let pub A = 10
 ```
 
+Strings used as constant values don't support string interpolation.
+
 ## Methods
 
 Methods are defined using the `fn` keyword. At the top-level of a module only
@@ -483,14 +485,25 @@ Scopes are created using curly braces:
 
 ## Strings
 
-Inko has two types of strings: single quoted strings and double quoted strings.
-Double quoted strings allow the use of escape sequences such as `\n` and support
-string interpolation:
+Inko has two types of strings: single quoted and double quoted strings. Both
+types of strings are the same semantically. Strings support the following escape
+sequences:
+
+- `\"`
+- `\'`
+- `\0`
+- `\\`
+- `\e`
+- `\n`
+- `\r`
+- `\t`
+- `\#`
+
+For example:
 
 ```inko
-'foo\nbar'       # => "foo\\nbar" (as in a literal \n, not a newline)
-"foo\nbar"       # => "foo\nbar"
-"foo{10 + 5}bar" # => "foo15bar"
+'hello\nbar'
+"hello\nbar"
 ```
 
 Strings can span multiple lines:
@@ -501,11 +514,28 @@ multiple
 lines"
 ```
 
-Double quoted strings support Unicode escape sequences using the syntax
-`\u{XXXXX}`, such as this:
+Strings support Unicode escape sequences using the syntax `\u{XXXXX}`:
 
 ```inko
-"foo\u{AC}bar"
+'foo\u{AC}bar'
+```
+
+Strings support string interpolation:
+
+```inko
+let name = 'Alice'
+
+"hello ${name}" # => 'hello Alice'
+'hello ${name}' # => 'hello Alice'
+```
+
+Here `${` marks the start of the embedded expression, and `}` the end. To use a
+literal `${`, escape the `$` sign:
+
+```inko
+let name = 'Alice'
+
+'hello \${name}' # => 'hello \${name}'
 ```
 
 ## Integers
@@ -633,7 +663,7 @@ The following patterns are supported:
 - Integer literals: `case 10 -> BODY`
 - String literals: `case 'foo' -> BODY`
 - Constants: `case FOO -> BODY`
-- Bindings: `case v -> BODY`
+- Bindings: `case v -> BODY`, `case mut v -> BODY` (allows reassigning of `v`)
 - Wildcards: `case _ -> BODY`
 - Enum constructors: `case Some(v) -> BODY`
 - Classes: `case { @name = name } -> BODY`
@@ -649,7 +679,7 @@ match foo {
 }
 ```
 
-The expression matched against using `match` can't be a trait.
+String literals used as patterns _don't_ support string interpolation.
 
 ## Closures
 
@@ -797,12 +827,6 @@ When using named arguments, they must come _after_ positional arguments:
 
 ```inko
 foo(10, bar: 20)
-```
-
-If the last argument is a closure, it can be specified after the parentheses:
-
-```inko
-foo(10) fn { bar } # Same as `foo(10, fn { bar })`
 ```
 
 ## Binary expressions

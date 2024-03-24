@@ -30,6 +30,11 @@ impl SourceLocation {
     pub fn line_column(&self) -> (usize, usize) {
         (*self.lines.start(), *self.columns.start())
     }
+
+    pub fn is_trailing(&self, other: &SourceLocation) -> bool {
+        self.lines.start() == other.lines.start()
+            || self.lines.start() == other.lines.end()
+    }
 }
 
 impl fmt::Debug for SourceLocation {
