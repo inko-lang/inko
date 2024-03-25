@@ -60,3 +60,22 @@ jobs:
           key: fedora
       - name: Run rustfmt
         run: 'cargo fmt --all --check'
+
+  inko-fmt:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/inko-lang/ci:fedora
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.CARGO_HOME }}
+            target
+          key: fedora
+      - name: Show version info
+        run: rustc --version
+      - name: Build the compiler
+        run: cargo build
+      - name: Check the formatting
+        run: 'cd std && cargo run -- fmt --check'
