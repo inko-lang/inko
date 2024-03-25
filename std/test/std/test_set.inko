@@ -3,32 +3,32 @@ import std.set (Set)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
-  t.test('Set.insert') fn (t) {
+  t.test('Set.insert', fn (t) {
     let set = Set.new
 
     t.true(set.insert(1))
     t.false(set.insert(1))
-  }
+  })
 
-  t.test('Set.remove') fn (t) {
+  t.test('Set.remove', fn (t) {
     let set = Set.new
 
     set.insert(1)
 
     t.true(set.remove(1))
     t.false(set.remove(1))
-  }
+  })
 
-  t.test('Set.iter') fn (t) {
+  t.test('Set.iter', fn (t) {
     let set = Set.new
 
     set.insert(1)
     set.insert(2)
 
     t.equal(set.iter.to_array, [ref 1, ref 2])
-  }
+  })
 
-  t.test('Set.size') fn (t) {
+  t.test('Set.size', fn (t) {
     let set = Set.new
 
     t.equal(set.size, 0)
@@ -37,9 +37,9 @@ fn pub tests(t: mut Tests) {
     set.insert(2)
 
     t.equal(set.size, 2)
-  }
+  })
 
-  t.test('Set.==') fn (t) {
+  t.test('Set.==', fn (t) {
     let set1 = Set.new
     let set2 = Set.new
 
@@ -48,17 +48,17 @@ fn pub tests(t: mut Tests) {
     t.not_equal(set1, set2)
     set2.insert(1)
     t.equal(set1, set2)
-  }
+  })
 
-  t.test('Set.contains?') fn (t) {
+  t.test('Set.contains?', fn (t) {
     let set = Set.new
 
     set.insert(1)
     t.true(set.contains?(1))
     t.false(set.contains?(2))
-  }
+  })
 
-  t.test('Set.fmt') fn (t) {
+  t.test('Set.fmt', fn (t) {
     let set = Set.new
 
     t.equal(fmt(set), '{}')
@@ -66,5 +66,5 @@ fn pub tests(t: mut Tests) {
     t.equal(fmt(set), '{1}')
     set.insert(2)
     t.equal(fmt(set), '{1, 2}')
-  }
+  })
 }

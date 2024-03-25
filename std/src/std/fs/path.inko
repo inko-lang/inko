@@ -7,7 +7,7 @@ import std.hash (Hash, Hasher)
 import std.io (Error, Size)
 import std.iter (Iter, Stream)
 import std.libc.unix.dir (ReadDirectory as ReadDirectoryInner) if unix
-import std.string (StringBuffer, ToString, IntoString)
+import std.string (IntoString, StringBuffer, ToString)
 import std.sys
 import std.time (DateTime)
 
@@ -49,10 +49,7 @@ fn extern inko_directory_remove_recursive(
   path: String,
 ) -> AnyResult
 
-fn extern inko_file_size(
-  process: Pointer[UInt8],
-  path: String,
-) -> IntResult
+fn extern inko_file_size(process: Pointer[UInt8], path: String) -> IntResult
 
 fn extern inko_path_accessed_at(
   process: Pointer[UInt8],
@@ -69,22 +66,14 @@ fn extern inko_path_modified_at(
   path: String,
 ) -> AnyResult
 
-fn extern inko_path_exists(
-  process: Pointer[UInt8],
-  path: String,
-) -> Bool
+fn extern inko_path_exists(process: Pointer[UInt8], path: String) -> Bool
 
-fn extern inko_path_is_file(
-  process: Pointer[UInt8],
-  path: String,
-) -> Bool
+fn extern inko_path_is_file(process: Pointer[UInt8], path: String) -> Bool
 
-fn extern inko_path_is_directory(
-  process: Pointer[UInt8],
-  path: String,
-) -> Bool
+fn extern inko_path_is_directory(process: Pointer[UInt8], path: String) -> Bool
 
 fn extern inko_path_expand(state: Pointer[UInt8], path: String) -> AnyResult
+
 fn extern inko_time_system_offset -> Int64
 
 # The byte used to represent a single dot/period.
@@ -106,9 +95,7 @@ fn bytes_before_last_separator(path: String) -> Int {
 
   # Trailing separators should be ignored, so we'll skip over them until the
   # first non-separator byte.
-  while index > 0 and path.byte(index) == SEPARATOR_BYTE {
-    index -= 1
-  }
+  while index > 0 and path.byte(index) == SEPARATOR_BYTE { index -= 1 }
 
   let mut in_separator = false
 
@@ -134,14 +121,15 @@ fn absolute_path?(path: String) -> Bool {
 
 fn join_strings(base: ref String, with: ref String) -> String {
   if base.empty? { return with.clone }
+
   if with.empty? { return base.clone }
 
   if absolute_path?(with) {
     with
   } else if base.byte(base.size - 1) == SEPARATOR_BYTE {
-    "${base}${with}"
+    '${base}${with}'
   } else {
-    "${base}${SEPARATOR}${with}"
+    '${base}${SEPARATOR}${with}'
   }
 }
 
@@ -156,10 +144,14 @@ class pub ReadDirectory {
 impl Iter[Result[DirectoryEntry, Error]] for ReadDirectory {
   fn pub mut next -> Option[Result[DirectoryEntry, Error]] {
     let ret = match try { @inner.next } {
-      case Ok((path, type)) -> Result.Ok(DirectoryEntry {
-        @path = Path.new(join_strings(@path, with: path)),
-        @type = type,
-      })
+      case Ok((path, type)) -> {
+        Result.Ok(
+          DirectoryEntry {
+            @path = Path.new(join_strings(@path, with: path)),
+            @type = type,
+          },
+        )
+      }
       case Error(e) -> Result.Error(e)
     }
 
@@ -177,8 +169,12 @@ class pub Components {
   fn static new(path: ref Path) -> Components {
     let size = path.path.size
     let root = size > 0 and path.path.byte(0) == SEPARATOR_BYTE
-    let comp =
-      Components { @path = path, @index = 0, @size = size, @root = root }
+    let comp = Components {
+      @path = path,
+      @index = 0,
+      @size = size,
+      @root = root,
+    }
 
     # If we start with a sequence such as `.//././.`, we skip over those. We
     # only need to do this once, so we take care of that here instead of
@@ -308,13 +304,17 @@ class pub Path {
   #     path.created_at.get # => DateTime { ... }
   fn pub created_at -> Result[DateTime, Error] {
     match inko_path_created_at(_INKO.process, @path) {
-      case { @tag = 0, @value = val } -> Result.Ok(DateTime.from_timestamp(
-        Float.from_bits(val as Int),
-        inko_time_system_offset as Int
-      ))
-      case { @tag = _, @value = e } -> Result.Error(
-        Error.from_os_error(e as Int)
-      )
+      case { @tag = 0, @value = val } -> {
+        Result.Ok(
+          DateTime.from_timestamp(
+            Float.from_bits(val as Int),
+            inko_time_system_offset as Int,
+          ),
+        )
+      }
+      case { @tag = _, @value = e } -> {
+        Result.Error(Error.from_os_error(e as Int))
+      }
     }
   }
 
@@ -334,13 +334,17 @@ class pub Path {
   #     path.modified_at.get # => DateTime { ... }
   fn pub modified_at -> Result[DateTime, Error] {
     match inko_path_modified_at(_INKO.process, @path) {
-      case { @tag = 0, @value = val } -> Result.Ok(DateTime.from_timestamp(
-        Float.from_bits(val as Int),
-        inko_time_system_offset as Int
-      ))
-      case { @tag = _, @value = e } -> Result.Error(
-        Error.from_os_error(e as Int)
-      )
+      case { @tag = 0, @value = val } -> {
+        Result.Ok(
+          DateTime.from_timestamp(
+            Float.from_bits(val as Int),
+            inko_time_system_offset as Int,
+          ),
+        )
+      }
+      case { @tag = _, @value = e } -> {
+        Result.Error(Error.from_os_error(e as Int))
+      }
     }
   }
 
@@ -360,13 +364,17 @@ class pub Path {
   #     path.accessed_at.get # => DateTime { ... }
   fn pub accessed_at -> Result[DateTime, Error] {
     match inko_path_accessed_at(_INKO.process, @path) {
-      case { @tag = 0, @value = val } -> Result.Ok(DateTime.from_timestamp(
-        Float.from_bits(val as Int),
-        inko_time_system_offset as Int
-      ))
-      case { @tag = _, @value = e } -> Result.Error(
-        Error.from_os_error(e as Int)
-      )
+      case { @tag = 0, @value = val } -> {
+        Result.Ok(
+          DateTime.from_timestamp(
+            Float.from_bits(val as Int),
+            inko_time_system_offset as Int,
+          ),
+        )
+      }
+      case { @tag = _, @value = e } -> {
+        Result.Error(Error.from_os_error(e as Int))
+      }
     }
   }
 
@@ -454,6 +462,7 @@ class pub Path {
           let any = buf.size > 0
 
           if any and root { root = false } else if any { buf.push(SEPARATOR) }
+
           buf.push(v)
         }
         case _ -> break
@@ -578,10 +587,10 @@ class pub Path {
         @path.slice(start: 0, size: @path.size - v.size - 1).into_string
       }
       case Some(v) -> {
-        "${@path.slice(start: 0, size: @path.size - v.size - 1)}.${name}"
+        '${@path.slice(start: 0, size: @path.size - v.size - 1)}.${name}'
       }
       case _ if name.empty? or @path.ends_with?(SEPARATOR) -> @path
-      case _ -> "${@path}.${name}"
+      case _ -> '${@path}.${name}'
     }
 
     Path.new(raw)
@@ -603,9 +612,9 @@ class pub Path {
   fn pub expand -> Result[Path, Error] {
     match inko_path_expand(_INKO.state, @path) {
       case { @tag = 0, @value = v } -> Result.Ok(Path.new(v as String))
-      case { @tag = _, @value = e } -> Result.Error(
-        Error.from_os_error(e as Int)
-      )
+      case { @tag = _, @value = e } -> {
+        Result.Error(Error.from_os_error(e as Int))
+      }
     }
   }
 
@@ -646,9 +655,9 @@ class pub Path {
   #       }
   #     }
   fn pub list -> Result[ReadDirectory, Error] {
-    ReadDirectoryInner.new(@path).map fn (inner) {
+    ReadDirectoryInner.new(@path).map(fn (inner) {
       ReadDirectory { @path = @path, @inner = inner }
-    }
+    })
   }
 
   # Returns an iterator that yields all non-directory entries in `self` and in
@@ -669,27 +678,31 @@ class pub Path {
   #     Path.new('/tmp').list_all.get.next
   #     # => Option.Some(Result.Ok(DirectoryEntry { ... }))
   fn pub list_all -> Result[Stream[Result[DirectoryEntry, Error]], Error] {
-    list.map fn (iter) {
+    list.map(fn (iter) {
       let dirs = []
       let mut current = iter
 
-      Stream.new fn move {
+      Stream.new(fn move {
         loop {
           match current.next {
             case Some(Ok({ @path = p, @type = Directory })) -> dirs.push(p)
             case Some(Ok(entry)) -> return Option.Some(Result.Ok(entry))
             case Some(Error(e)) -> return Option.Some(Result.Error(e))
-            case None -> match dirs.pop {
-              case Some(dir) -> match dir.list {
-                case Ok(iter) -> current = iter
-                case Error(e) -> return Option.Some(Result.Error(e))
+            case None -> {
+              match dirs.pop {
+                case Some(dir) -> {
+                  match dir.list {
+                    case Ok(iter) -> current = iter
+                    case Error(e) -> return Option.Some(Result.Error(e))
+                  }
+                }
+                case _ -> return Option.None
               }
-              case _ -> return Option.None
             }
           }
         }
-      }
-    }
+      })
+    })
   }
 
   # Removes the file `self` points to.
@@ -709,9 +722,9 @@ class pub Path {
   fn pub remove_file -> Result[Nil, Error] {
     match inko_file_remove(_INKO.process, @path) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(
-        Error.from_os_error(e as Int)
-      )
+      case { @tag = _, @value = e } -> {
+        Result.Error(Error.from_os_error(e as Int))
+      }
     }
   }
 
@@ -730,9 +743,9 @@ class pub Path {
   fn pub remove_directory -> Result[Nil, Error] {
     match inko_directory_remove(_INKO.process, @path) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(
-        Error.from_os_error(e as Int)
-      )
+      case { @tag = _, @value = e } -> {
+        Result.Error(Error.from_os_error(e as Int))
+      }
     }
   }
 
@@ -756,9 +769,9 @@ class pub Path {
   fn pub remove_directory_all -> Result[Nil, Error] {
     match inko_directory_remove_recursive(_INKO.process, @path) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(
-        Error.from_os_error(e as Int)
-      )
+      case { @tag = _, @value = e } -> {
+        Result.Error(Error.from_os_error(e as Int))
+      }
     }
   }
 
@@ -779,9 +792,9 @@ class pub Path {
   fn pub create_directory -> Result[Nil, Error] {
     match inko_directory_create(_INKO.process, @path) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(
-        Error.from_os_error(e as Int)
-      )
+      case { @tag = _, @value = e } -> {
+        Result.Error(Error.from_os_error(e as Int))
+      }
     }
   }
 
@@ -802,9 +815,9 @@ class pub Path {
   fn pub create_directory_all -> Result[Nil, Error] {
     match inko_directory_create_recursive(_INKO.process, @path) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(
-        Error.from_os_error(e as Int)
-      )
+      case { @tag = _, @value = e } -> {
+        Result.Error(Error.from_os_error(e as Int))
+      }
     }
   }
 
@@ -826,9 +839,9 @@ class pub Path {
   fn pub copy[T: ToString](to: ref T) -> Result[Int, Error] {
     match inko_file_copy(_INKO.process, @path, to.to_string) {
       case { @tag = 0, @value = v } -> Result.Ok(v as Int)
-      case { @tag = _, @value = e } -> Result.Error(
-        Error.from_os_error(e as Int)
-      )
+      case { @tag = _, @value = e } -> {
+        Result.Error(Error.from_os_error(e as Int))
+      }
     }
   }
 
@@ -872,9 +885,12 @@ class pub Path {
   #     Path.new('/a/b').strip_prefix(Path.new('/a')) # => Path.new('b')
   fn pub strip_prefix(prefix: ref Path) -> Option[Path] {
     let comp = components
-    let valid = prefix.components.all? fn (theirs) {
-      match comp.next { case Some(ours) -> ours == theirs, case _ -> false }
-    }
+    let valid = prefix.components.all?(fn (theirs) {
+      match comp.next {
+        case Some(ours) -> ours == theirs
+        case _ -> false
+      }
+    })
 
     if valid {
       Option.Some(Path.new(String.join(comp, SEPARATOR)))

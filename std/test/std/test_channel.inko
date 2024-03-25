@@ -3,21 +3,21 @@ import std.test (Tests)
 import std.time (Duration, Instant)
 
 fn pub tests(t: mut Tests) {
-  t.test('Channel.send') fn (t) {
+  t.test('Channel.send', fn (t) {
     let chan = Channel.new(size: 1)
 
     chan.send(42)
     t.equal(chan.receive, 42)
-  }
+  })
 
-  t.test('Channel.send with nil') fn (t) {
+  t.test('Channel.send with nil', fn (t) {
     let chan = Channel.new(size: 1)
 
     chan.send(nil)
     t.equal(chan.receive, nil)
-  }
+  })
 
-  t.test('Channel.send with booleans') fn (t) {
+  t.test('Channel.send with booleans', fn (t) {
     let chan = Channel.new(size: 1)
 
     chan.send(true)
@@ -25,17 +25,17 @@ fn pub tests(t: mut Tests) {
 
     chan.send(false)
     t.false(chan.receive)
-  }
+  })
 
-  t.test('Channel.try_receive') fn (t) {
+  t.test('Channel.try_receive', fn (t) {
     let chan = Channel.new(size: 1)
 
     t.true(chan.try_receive.none?)
     chan.send(42)
     t.equal(chan.try_receive, Option.Some(42))
-  }
+  })
 
-  t.test('Channel.receive_until') fn (t) {
+  t.test('Channel.receive_until', fn (t) {
     let chan = Channel.new(size: 1)
     let time = Instant.new
 
@@ -46,5 +46,5 @@ fn pub tests(t: mut Tests) {
     let deadline = Instant.new + Duration.from_secs(10)
 
     t.equal(chan.receive_until(deadline), Option.Some(42))
-  }
+  })
 }

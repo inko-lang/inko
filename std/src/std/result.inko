@@ -25,7 +25,7 @@ class pub enum Result[T, E] {
   #
   #     result.error? # => true
   fn pub static collect[I: mut + Iter[Result[T, E]]](
-    iter: I
+    iter: I,
   ) -> Result[Array[T], E] {
     let vals = []
 
@@ -254,13 +254,17 @@ impl Clone[Result[T, E]] for Result if T: Clone[T], E: Clone[E] {
 impl Equal[ref Result[T, E]] for Result if T: Equal[ref T], E: Equal[ref E] {
   fn pub ==(other: ref Result[T, E]) -> Bool {
     match self {
-      case Ok(ours) -> match other {
-        case Ok(theirs) -> ours == theirs
-        case _ -> false
+      case Ok(ours) -> {
+        match other {
+          case Ok(theirs) -> ours == theirs
+          case _ -> false
+        }
       }
-      case Error(ours) -> match other {
-        case Error(theirs) -> ours == theirs
-        case _ -> false
+      case Error(ours) -> {
+        match other {
+          case Error(theirs) -> ours == theirs
+          case _ -> false
+        }
       }
     }
   }

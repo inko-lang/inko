@@ -8,22 +8,22 @@ class extern IntResult {
 
 fn extern inko_stdout_write_string(
   process: Pointer[UInt8],
-  input: String
+  input: String,
 ) -> IntResult
 
 fn extern inko_stdout_write_bytes(
   process: Pointer[UInt8],
-  input: ref ByteArray
+  input: ref ByteArray,
 ) -> IntResult
 
 fn extern inko_stderr_write_string(
   process: Pointer[UInt8],
-  input: String
+  input: String,
 ) -> IntResult
 
 fn extern inko_stderr_write_bytes(
   process: Pointer[UInt8],
-  input: ref ByteArray
+  input: ref ByteArray,
 ) -> IntResult
 
 fn extern inko_stdin_read(
@@ -33,6 +33,7 @@ fn extern inko_stdin_read(
 ) -> IntResult
 
 fn extern inko_stdout_flush(process: Pointer[UInt8])
+
 fn extern inko_stderr_flush(process: Pointer[UInt8])
 
 # The standard input stream of the current OS process.

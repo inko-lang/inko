@@ -103,7 +103,7 @@ class pub Test {
     name: String,
     path: Path,
     line: Int,
-    code: uni fn (mut Test)
+    code: uni fn (mut Test),
   ) -> Test {
     Test {
       @id = id,
@@ -111,7 +111,7 @@ class pub Test {
       @path = path,
       @line = line,
       @failures = [],
-      @code = code
+      @code = code,
     }
   }
 
@@ -133,7 +133,7 @@ class pub Test {
   fn pub mut greater[T: Compare[T] + Format](got: ref T, minimum: ref T) {
     if got > minimum { return }
 
-    @failures.push(Failure.new(fmt(got), "> ${fmt(minimum)}"))
+    @failures.push(Failure.new(fmt(got), '> ${fmt(minimum)}'))
   }
 
   # Asserts that `got` is greater than or equal to `minimum`.
@@ -143,7 +143,7 @@ class pub Test {
   ) {
     if got >= minimum { return }
 
-    @failures.push(Failure.new(fmt(got), ">= ${fmt(minimum)}"))
+    @failures.push(Failure.new(fmt(got), '>= ${fmt(minimum)}'))
   }
 
   # Asserts that the given value is `true`.
@@ -200,11 +200,11 @@ class pub Plain[T: mut + Write] {
   }
 
   fn red(value: String) -> String {
-    if @colors { "\e[31m${value}\e[0m" } else { value }
+    if @colors { '\e[31m${value}\e[0m' } else { value }
   }
 
   fn green(value: String) -> String {
-    if @colors { "\e[32m${value}\e[0m" } else { value }
+    if @colors { '\e[32m${value}\e[0m' } else { value }
   }
 }
 
@@ -224,41 +224,45 @@ impl Reporter for Plain {
 
   fn pub move finished(duration: Duration, seed: Int) -> Bool {
     if @failed.size > 0 {
-      @out.print("\n\nFailures:").get
+      @out.print('\n\nFailures:').get
 
-      @failed.iter.each_with_index fn (test_index, test) {
-        test.failures.iter.each_with_index fn (failure_index, fail) {
-          let num = "${test_index + failure_index + 1}."
+      @failed.iter.each_with_index(fn (test_index, test) {
+        test.failures.iter.each_with_index(fn (failure_index, fail) {
+          let num = '${test_index + failure_index + 1}.'
           let indent = ' '.repeat(num.chars.count)
 
           @out
             .print(
-              "
+              '
 ${num} Test: ${test.name}
 ${indent} Line: ${fail.path}:${fail.line}
 
-${indent}   ${green("expected:")} ${fail.expected}
-${indent}        ${red("got:")} ${fail.got}"
+${indent}   ${green('expected:')} ${fail.expected}
+${indent}        ${red('got:')} ${fail.got}',
             )
             .get
-        }
-      }
+        })
+      })
     }
 
     let decimals = 4
     let dur = if duration.to_secs >= 1.0 {
-      "${duration.to_secs.round(decimals)} seconds"
+      '${duration.to_secs.round(decimals)} seconds'
     } else {
-      "${duration.to_millis} milliseconds"
+      '${duration.to_millis} milliseconds'
     }
-    let failed =
-      @failed.iter.reduce(0) fn (sum, test) { sum + test.failures.size }
-    let failures =
-      if failed > 0 { red("${failed} failures") } else { green('0 failures') }
+    let failed = @failed.iter.reduce(0, fn (sum, test) {
+      sum + test.failures.size
+    })
+    let failures = if failed > 0 {
+      red('${failed} failures')
+    } else {
+      green('0 failures')
+    }
 
     @out
       .print(
-        "\nFinished running ${@tests} tests in ${dur}, ${failures}, seed: ${seed}"
+        '\nFinished running ${@tests} tests in ${dur}, ${failures}, seed: ${seed}',
       )
       .get
 
@@ -309,17 +313,13 @@ class pub Failure {
   fn pub static new(got: String, expected: String) -> Failure {
     # This skips the call to stacktrace(), the call to this new(), and its
     # caller (which would be e.g. `assert_equal`).
-    let frame = debug
-      .stacktrace(skip: 3)
-      .pop
-      .or_panic('at least one stack frame must be present')
+    let frame = debug.stacktrace(skip: 3).pop.or_panic(
+      'at least one stack frame must be present',
+    )
 
     match frame {
-      case { @path = path, @line = line } -> Failure {
-        @got = got,
-        @expected = expected,
-        @path = path,
-        @line = line
+      case { @path = path, @line = line } -> {
+        Failure { @got = got, @expected = expected, @path = path, @line = line }
       }
     }
   }
@@ -353,17 +353,23 @@ class pub enum Filter {
 impl Equal[ref Filter] for Filter {
   fn pub ==(other: ref Filter) -> Bool {
     match self {
-      case Pattern(lhs) -> match other {
-        case Pattern(rhs) -> lhs == rhs
-        case _ -> false
+      case Pattern(lhs) -> {
+        match other {
+          case Pattern(rhs) -> lhs == rhs
+          case _ -> false
+        }
       }
-      case Location(lhs) -> match other {
-        case Location(rhs) -> lhs == rhs
-        case _ -> false
+      case Location(lhs) -> {
+        match other {
+          case Location(rhs) -> lhs == rhs
+          case _ -> false
+        }
       }
-      case None -> match other {
-        case None -> true
-        case _ -> false
+      case None -> {
+        match other {
+          case None -> true
+          case _ -> false
+        }
       }
     }
   }
@@ -414,7 +420,7 @@ class pub Process {
   fn pub move spawn -> Output {
     let child = match @cmd.spawn {
       case Ok(child) -> child
-      case Error(err) -> panic("Failed to spawn the child process: ${err}")
+      case Error(err) -> panic('Failed to spawn the child process: ${err}')
     }
 
     let _ = child.stdin.write_string(@stdin)
@@ -424,13 +430,13 @@ class pub Process {
     let _ = child.stderr.read_all(stderr)
     let status = match child.wait {
       case Ok(val) -> val
-      case Error(err) -> panic("Failed to wait for the child process: ${err}")
+      case Error(err) -> panic('Failed to wait for the child process: ${err}')
     }
 
     Output {
       @status = status,
       @stdout = stdout.into_string,
-      @stderr = stderr.into_string
+      @stderr = stderr.into_string,
     }
   }
 }
@@ -501,8 +507,8 @@ class pub Tests {
       let trace = debug.stacktrace(skip: 2)
       let frame = trace
         .reverse_iter
-        .find fn (frame) { frame.path.tail.starts_with?(TEST_PREFIX) }
-        .else fn { trace.opt(trace.size - 1) }
+        .find(fn (frame) { frame.path.tail.starts_with?(TEST_PREFIX) })
+        .else(fn { trace.opt(trace.size - 1) })
         .or_panic('at least one stack frame must be present')
         .clone
 
@@ -547,17 +553,21 @@ class pub Tests {
     name: String,
     code: uni fn (mut Test) -> Result[T, E],
   ) {
-    test(name) fn move (t) {
+    test(name, fn move (t) {
       match code.call(t) {
-        case Error(e) -> t.failures.push(Failure {
-          @got = "Result.Error(${fmt(e)})",
-          @expected = 'a value matching the pattern Result.Ok(_)',
-          @path = t.path.clone,
-          @line = t.line,
-        })
+        case Error(e) -> {
+          t.failures.push(
+            Failure {
+              @got = 'Result.Error(${fmt(e)})',
+              @expected = 'a value matching the pattern Result.Ok(_)',
+              @path = t.path.clone,
+              @line = t.line,
+            },
+          )
+        }
         case _ -> {}
       }
-    }
+    })
   }
 
   # Registers a new test using a fork/subprocess.
@@ -574,7 +584,7 @@ class pub Tests {
 
   # Registers a new test that asserts the given closure triggers a panic.
   fn pub mut panic(name: String, code: uni fn) {
-    fork(name, code) fn (test, process) {
+    fork(name, code, fn (test, process) {
       let output = process.spawn
       let code = output.status.to_int
 
@@ -584,28 +594,28 @@ class pub Tests {
       # include any frames pointing to the unit tests's source file. To work
       # around that, we reuse the test's location.
       let failure = Failure {
-        @got = "the process exited with status ${code}",
+        @got = 'the process exited with status ${code}',
         @expected = 'the process to panic with exit status 101',
         @path = test.path.clone,
         @line = test.line,
       }
 
       test.failures.push(failure)
-    }
+    })
   }
 
   # Registers a new test that asserts the given closure doesn't panic.
   fn pub mut no_panic(name: String, code: uni fn) {
-    fork(name, code) fn (test, process) {
+    fork(name, code, fn (test, process) {
       let output = process.spawn
       let code = output.status.to_int
 
       if code != 101 { return }
 
-      let got = output.stderr.split("\n").last.or('the process panicked')
+      let got = output.stderr.split('\n').last.or('the process panicked')
 
       test.failures.push(Failure.new(got, 'the process not to panic'))
-    }
+    })
   }
 
   # Runs all the tests.
@@ -618,9 +628,9 @@ class pub Tests {
     let filter = @filter
     let tests = @tests
       .into_iter
-      .select_map fn (test) {
+      .select_map(fn (test) {
         if test.matches?(filter) { Option.Some(test) } else { Option.None }
-      }
+      })
       .to_array
 
     let seed = match @seed {
@@ -640,17 +650,17 @@ class pub Tests {
 
     # We send the tests first, as the test runners abort when the input channel
     # is empty.
-    tests.into_iter.each fn (test) { input.send(test) }
+    tests.into_iter.each(fn (test) { input.send(test) })
 
-    @concurrency.times fn (_) {
+    @concurrency.times(fn (_) {
       Runner { @input = input, @output = output }.run
-    }
+    })
 
-    size.times fn (_) {
+    size.times(fn (_) {
       let test = recover output.receive
 
       if test.failures.empty? { rep.passed(test) } else { rep.failed(test) }
-    }
+    })
 
     if rep.finished(start.elapsed, seed) {
       exit(status: 0)

@@ -96,7 +96,7 @@ fn extern inko_socket_accept(
 fn extern inko_socket_local_address(
   state: Pointer[UInt8],
   socket: Pointer[RawSocket],
-  out: Pointer[RawAddress]
+  out: Pointer[RawAddress],
 ) -> Int64
 
 fn extern inko_socket_peer_address(
@@ -118,7 +118,7 @@ fn extern inko_socket_receive_from(
 fn extern inko_socket_bind(
   socket: Pointer[RawSocket],
   address: String,
-  port: Int
+  port: Int,
 ) -> IntResult
 
 fn extern inko_socket_read(
@@ -136,15 +136,16 @@ fn extern inko_socket_connect(
   socket: Pointer[RawSocket],
   address: String,
   port: Int,
-  deadline: Int
+  deadline: Int,
 ) -> IntResult
 
 fn extern inko_socket_listen(
   socket: Pointer[RawSocket],
-  value: Int
+  value: Int,
 ) -> IntResult
 
 fn extern inko_socket_drop(socket: Pointer[RawSocket])
+
 fn extern inko_socket_send_bytes_to(
   state: Pointer[UInt8],
   process: Pointer[UInt8],
@@ -152,7 +153,7 @@ fn extern inko_socket_send_bytes_to(
   buffer: ref ByteArray,
   address: String,
   port: Int,
-  deadline: Int
+  deadline: Int,
 ) -> IntResult
 
 fn extern inko_socket_send_string_to(
@@ -162,7 +163,7 @@ fn extern inko_socket_send_string_to(
   buffer: String,
   address: String,
   port: Int,
-  deadline: Int
+  deadline: Int,
 ) -> IntResult
 
 fn extern inko_socket_write_bytes(
@@ -170,7 +171,7 @@ fn extern inko_socket_write_bytes(
   process: Pointer[UInt8],
   socket: Pointer[RawSocket],
   buffer: ref ByteArray,
-  deadline: Int
+  deadline: Int,
 ) -> IntResult
 
 fn extern inko_socket_write_string(
@@ -178,7 +179,7 @@ fn extern inko_socket_write_string(
   process: Pointer[UInt8],
   socket: Pointer[RawSocket],
   buffer: String,
-  deadline: Int
+  deadline: Int,
 ) -> IntResult
 
 fn extern inko_socket_try_clone(
@@ -187,9 +188,11 @@ fn extern inko_socket_try_clone(
 ) -> Int64
 
 fn extern inko_socket_shutdown_read(socket: Pointer[RawSocket]) -> IntResult
+
 fn extern inko_socket_shutdown_write(socket: Pointer[RawSocket]) -> IntResult
+
 fn extern inko_socket_shutdown_read_write(
-  socket: Pointer[RawSocket]
+  socket: Pointer[RawSocket],
 ) -> IntResult
 
 fn extern inko_socket_set_broadcast(
@@ -252,7 +255,6 @@ let MAXIMUM_LISTEN_BACKLOG = 65_535
 
 # A value that signals the lack of a socket deadline.
 let NO_DEADLINE = -1
-
 let IPV4 = 0
 let IPV6 = 1
 let UNIX = 2
@@ -312,7 +314,7 @@ impl Equal[ref SocketAddress] for SocketAddress {
 
 impl Format for SocketAddress {
   fn pub fmt(formatter: mut Formatter) {
-    formatter.write("${@address}:${@port}")
+    formatter.write('${@address}:${@port}')
   }
 }
 
@@ -433,7 +435,12 @@ class pub Socket {
   #     client.connect(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
   fn pub mut connect[T: ToString](ip: ref T, port: Int) -> Result[Nil, Error] {
     match inko_socket_connect(
-      _INKO.state, _INKO.process, @raw, ip.to_string, port, @deadline
+      _INKO.state,
+      _INKO.process,
+      @raw,
+      ip.to_string,
+      port,
+      @deadline,
     ) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
@@ -495,8 +502,13 @@ class pub Socket {
     }
 
     match inko_socket_accept(
-      _INKO.state, _INKO.process, @raw, @deadline, mut sock
-    ) as Int {
+      _INKO.state,
+      _INKO.process,
+      @raw,
+      @deadline,
+      mut sock,
+    )
+      as Int {
       case 0 -> Result.Ok(Socket { @raw = sock, @deadline = NO_DEADLINE })
       case e -> Result.Error(Error.from_os_error(e))
     }
@@ -524,10 +536,16 @@ class pub Socket {
   fn pub mut send_string_to[T: ToString](
     string: String,
     ip: ref T,
-    port: Int
+    port: Int,
   ) -> Result[Int, Error] {
     match inko_socket_send_string_to(
-      _INKO.state, _INKO.process, @raw, string, ip.to_string, port, @deadline
+      _INKO.state,
+      _INKO.process,
+      @raw,
+      string,
+      ip.to_string,
+      port,
+      @deadline,
     ) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
@@ -557,10 +575,16 @@ class pub Socket {
   fn pub mut send_bytes_to[T: ToString](
     bytes: ref ByteArray,
     ip: ref T,
-    port: Int
+    port: Int,
   ) -> Result[Int, Error] {
     match inko_socket_send_bytes_to(
-      _INKO.state, _INKO.process, @raw, bytes, ip.to_string, port, @deadline
+      _INKO.state,
+      _INKO.process,
+      @raw,
+      bytes,
+      ip.to_string,
+      port,
+      @deadline,
     ) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
@@ -603,8 +627,15 @@ class pub Socket {
     let raw = RawAddress { @address = '', @port = 0 }
 
     match inko_socket_receive_from(
-      _INKO.state, _INKO.process, @raw, bytes, size, @deadline, mut raw
-    ) as Int {
+      _INKO.state,
+      _INKO.process,
+      @raw,
+      bytes,
+      size,
+      @deadline,
+      mut raw,
+    )
+      as Int {
       case 0 -> Result.Ok(SocketAddress.new(raw.address, raw.port))
       case e -> Result.Error(Error.from_os_error(e))
     }
@@ -764,7 +795,12 @@ impl Drop for Socket {
 impl Read for Socket {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     match inko_socket_read(
-      _INKO.state, _INKO.process, @raw, into, size, @deadline
+      _INKO.state,
+      _INKO.process,
+      @raw,
+      into,
+      size,
+      @deadline,
     ) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
@@ -775,7 +811,11 @@ impl Read for Socket {
 impl Write for Socket {
   fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
     match inko_socket_write_bytes(
-      _INKO.state, _INKO.process, @raw, bytes, @deadline
+      _INKO.state,
+      _INKO.process,
+      @raw,
+      bytes,
+      @deadline,
     ) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
@@ -784,7 +824,11 @@ impl Write for Socket {
 
   fn pub mut write_string(string: String) -> Result[Int, Error] {
     match inko_socket_write_string(
-      _INKO.state, _INKO.process, @raw, string, @deadline
+      _INKO.state,
+      _INKO.process,
+      @raw,
+      string,
+      @deadline,
     ) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
@@ -872,7 +916,7 @@ class pub UdpSocket {
   fn pub mut send_string_to[T: ToString](
     string: String,
     ip: ref T,
-    port: Int
+    port: Int,
   ) -> Result[Int, Error] {
     @socket.send_string_to(string, ip, port)
   }
@@ -900,7 +944,7 @@ class pub UdpSocket {
   fn pub mut send_bytes_to[T: ToString](
     bytes: ref ByteArray,
     ip: ref T,
-    port: Int
+    port: Int,
   ) -> Result[Int, Error] {
     @socket.send_bytes_to(bytes, ip, port)
   }
@@ -928,7 +972,7 @@ class pub UdpSocket {
   # Cloning a socket may fail, such as when the program has too many open file
   # descriptors.
   fn pub try_clone -> Result[UdpSocket, Error] {
-    @socket.try_clone.map fn (sock) { UdpSocket { @socket = sock } }
+    @socket.try_clone.map(fn (sock) { UdpSocket { @socket = sock } })
   }
 }
 
@@ -1009,7 +1053,7 @@ class pub TcpClient {
   fn pub static with_timeout[T: ToInstant](
     ip: ref IpAddress,
     port: Int,
-    timeout_after: T
+    timeout_after: T,
   ) -> Result[TcpClient, Error] {
     let socket = if ip.v6? {
       try Socket.ipv6(Type.STREAM)
@@ -1057,7 +1101,7 @@ class pub TcpClient {
   # Cloning a socket may fail, such as when the program has too many open file
   # descriptors.
   fn pub try_clone -> Result[TcpClient, Error] {
-    @socket.try_clone.map fn (sock) { TcpClient { @socket = sock } }
+    @socket.try_clone.map(fn (sock) { TcpClient { @socket = sock } })
   }
 }
 
@@ -1144,7 +1188,7 @@ class pub TcpServer {
   #
   #     buffer.to_string # => 'ping'
   fn pub accept -> Result[TcpClient, Error] {
-    @socket.accept.map fn (sock) { TcpClient { @socket = sock } }
+    @socket.accept.map(fn (sock) { TcpClient { @socket = sock } })
   }
 
   # Returns the local address of this socket.
@@ -1159,7 +1203,7 @@ class pub TcpServer {
   # Cloning a socket may fail, such as when the program has too many open file
   # descriptors.
   fn pub try_clone -> Result[TcpServer, Error] {
-    @socket.try_clone.map fn (sock) { TcpServer { @socket = sock } }
+    @socket.try_clone.map(fn (sock) { TcpServer { @socket = sock } })
   }
 }
 
@@ -1218,7 +1262,7 @@ class pub UnixAddress {
   #     UnixAddress.new('/tmp/test.sock').abstract?    # => false
   #     UnixAddress.new("\0example-address").abstract? # => true
   fn pub abstract? -> Bool {
-    @address.starts_with?("\0")
+    @address.starts_with?('\0')
   }
 
   # Returns `true` if `self` is an unnamed address.
@@ -1239,7 +1283,7 @@ class pub UnixAddress {
 impl Format for UnixAddress {
   fn pub fmt(formatter: mut Formatter) {
     let write = if abstract? {
-      "@${@address.slice(start: 1, size: @address.size - 1)}"
+      '@${@address.slice(start: 1, size: @address.size - 1)}'
     } else if unnamed? {
       'unnamed'
     } else {
@@ -1380,7 +1424,12 @@ class pub UnixSocket {
   #     stream.connect('/tmp/test.sock').get
   fn pub mut connect[T: ToString](path: ref T) -> Result[Nil, Error] {
     match inko_socket_connect(
-      _INKO.state, _INKO.process, @raw, path.to_string, 0, @deadline
+      _INKO.state,
+      _INKO.process,
+      @raw,
+      path.to_string,
+      0,
+      @deadline,
     ) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
@@ -1440,8 +1489,13 @@ class pub UnixSocket {
     }
 
     match inko_socket_accept(
-      _INKO.state, _INKO.process, @raw, @deadline, mut sock
-    ) as Int {
+      _INKO.state,
+      _INKO.process,
+      @raw,
+      @deadline,
+      mut sock,
+    )
+      as Int {
       case 0 -> Result.Ok(UnixSocket { @raw = sock, @deadline = NO_DEADLINE })
       case e -> Result.Error(Error.from_os_error(e))
     }
@@ -1461,12 +1515,18 @@ class pub UnixSocket {
   #     socket.send_string_to(string: 'hello', address: '/tmp/test.sock').get
   fn pub mut send_string_to[T: ToString](
     string: String,
-    address: ref T
+    address: ref T,
   ) -> Result[Int, Error] {
     let addr = address.to_string
 
     match inko_socket_send_string_to(
-      _INKO.state, _INKO.process, @raw, string, addr, 0, @deadline
+      _INKO.state,
+      _INKO.process,
+      @raw,
+      string,
+      addr,
+      0,
+      @deadline,
     ) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
@@ -1488,12 +1548,18 @@ class pub UnixSocket {
   #     socket.send_bytes_to(bytes: bytes, address: '/tmp/test.sock').get
   fn pub mut send_bytes_to[T: ToString](
     bytes: ref ByteArray,
-    address: ref T
+    address: ref T,
   ) -> Result[Int, Error] {
     let addr = address.to_string
 
     match inko_socket_send_bytes_to(
-      _INKO.state, _INKO.process, @raw, bytes, addr, 0, @deadline
+      _INKO.state,
+      _INKO.process,
+      @raw,
+      bytes,
+      addr,
+      0,
+      @deadline,
     ) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
@@ -1528,8 +1594,15 @@ class pub UnixSocket {
     let raw = RawAddress { @address = '', @port = 0 }
 
     match inko_socket_receive_from(
-      _INKO.state, _INKO.process, @raw, bytes, size, @deadline, mut raw
-    ) as Int {
+      _INKO.state,
+      _INKO.process,
+      @raw,
+      bytes,
+      size,
+      @deadline,
+      mut raw,
+    )
+      as Int {
       case 0 -> Result.Ok(UnixAddress.new(raw.address))
       case e -> Result.Error(Error.from_os_error(e))
     }
@@ -1622,7 +1695,12 @@ impl Drop for UnixSocket {
 impl Read for UnixSocket {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     match inko_socket_read(
-      _INKO.state, _INKO.process, @raw, into, size, @deadline
+      _INKO.state,
+      _INKO.process,
+      @raw,
+      into,
+      size,
+      @deadline,
     ) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
@@ -1633,7 +1711,11 @@ impl Read for UnixSocket {
 impl Write for UnixSocket {
   fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
     match inko_socket_write_bytes(
-      _INKO.state, _INKO.process, @raw, bytes, @deadline
+      _INKO.state,
+      _INKO.process,
+      @raw,
+      bytes,
+      @deadline,
     ) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
@@ -1642,7 +1724,11 @@ impl Write for UnixSocket {
 
   fn pub mut write_string(string: String) -> Result[Int, Error] {
     match inko_socket_write_string(
-      _INKO.state, _INKO.process, @raw, string, @deadline
+      _INKO.state,
+      _INKO.process,
+      @raw,
+      string,
+      @deadline,
     ) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
@@ -1669,7 +1755,7 @@ class pub UnixDatagram {
   #
   #     UnixDatagram.new('/tmp/test.sock').get
   fn pub static new[T: ToString](
-    address: ref T
+    address: ref T,
   ) -> Result[UnixDatagram, Error] {
     let socket = try UnixSocket.new(Type.DGRAM)
 
@@ -1710,7 +1796,7 @@ class pub UnixDatagram {
   #     socket.send_string_to(string: 'hello', address: '/tmp/test.sock').get
   fn pub mut send_string_to[T: ToString](
     string: String,
-    address: ref T
+    address: ref T,
   ) -> Result[Int, Error] {
     @socket.send_string_to(string, address)
   }
@@ -1729,7 +1815,7 @@ class pub UnixDatagram {
   #     socket.send_bytes_to(bytes: bytes, address: '/tmp/test.sock').get
   fn pub mut send_bytes_to[T: ToString](
     bytes: ref ByteArray,
-    address: ref T
+    address: ref T,
   ) -> Result[Int, Error] {
     @socket.send_bytes_to(bytes, address)
   }
@@ -1757,7 +1843,7 @@ class pub UnixDatagram {
   # Cloning a socket may fail, such as when the program has too many open file
   # descriptors.
   fn pub try_clone -> Result[UnixDatagram, Error] {
-    @socket.try_clone.map fn (sock) { UnixDatagram { @socket = sock } }
+    @socket.try_clone.map(fn (sock) { UnixDatagram { @socket = sock } })
   }
 }
 
@@ -1829,7 +1915,7 @@ class pub UnixClient {
   #       .get
   fn pub static with_timeout[A: ToString, I: ToInstant](
     address: ref A,
-    timeout_after: I
+    timeout_after: I,
   ) -> Result[UnixClient, Error] {
     let socket = try UnixSocket.new(Type.STREAM)
 
@@ -1873,7 +1959,7 @@ class pub UnixClient {
   # Cloning a socket may fail, such as when the program has too many open file
   # descriptors.
   fn pub try_clone -> Result[UnixClient, Error] {
-    @socket.try_clone.map fn (sock) { UnixClient { @socket = sock } }
+    @socket.try_clone.map(fn (sock) { UnixClient { @socket = sock } })
   }
 }
 
@@ -1943,7 +2029,7 @@ class pub UnixServer {
   #
   #     buffer.to_string # => 'ping'
   fn pub accept -> Result[UnixClient, Error] {
-    @socket.accept.map fn (sock) { UnixClient { @socket = sock } }
+    @socket.accept.map(fn (sock) { UnixClient { @socket = sock } })
   }
 
   # Returns the local address of this socket.
@@ -1958,6 +2044,6 @@ class pub UnixServer {
   # Cloning a socket may fail, such as when the program has too many open file
   # descriptors.
   fn pub try_clone -> Result[UnixServer, Error] {
-    @socket.try_clone.map fn (sock) { UnixServer { @socket = sock } }
+    @socket.try_clone.map(fn (sock) { UnixServer { @socket = sock } })
   }
 }

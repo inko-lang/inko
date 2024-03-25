@@ -1,5 +1,5 @@
 import std.fmt (fmt)
-import std.io (DEFAULT_BUFFER_SIZE, Buffer, BufferedReader, Error, Read, Write)
+import std.io (Buffer, BufferedReader, DEFAULT_BUFFER_SIZE, Error, Read, Write)
 import std.libc.bsd.errors if bsd
 import std.libc.linux.errors if linux
 import std.libc.mac.errors if mac
@@ -53,12 +53,12 @@ class Writer {
 
 impl Write for Writer {
   fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Never] {
-    bytes.iter.each fn (byte) { @buffer.push(byte) }
+    bytes.iter.each(fn (byte) { @buffer.push(byte) })
     Result.Ok(bytes.size)
   }
 
   fn pub mut write_string(string: String) -> Result[Int, Never] {
-    string.to_byte_array.iter.each fn (byte) { @buffer.push(byte) }
+    string.to_byte_array.iter.each(fn (byte) { @buffer.push(byte) })
     Result.Ok(string.size)
   }
 
@@ -68,7 +68,7 @@ impl Write for Writer {
 }
 
 fn pub tests(t: mut Tests) {
-  t.test('Error.from_os_error') fn (t) {
+  t.test('Error.from_os_error', fn (t) {
     t.equal(Error.from_os_error(errors.EPERM), Error.PermissionDenied)
     t.equal(Error.from_os_error(errors.ENOENT), Error.NotFound)
     t.equal(Error.from_os_error(errors.EINTR), Error.Interrupted)
@@ -102,9 +102,9 @@ fn pub tests(t: mut Tests) {
     t.equal(Error.from_os_error(errors.EHOSTUNREACH), Error.HostUnreachable)
     t.equal(Error.from_os_error(errors.EINPROGRESS), Error.InProgress)
     t.equal(Error.from_os_error(999), Error.Other(999))
-  }
+  })
 
-  t.test('Error.fmt') fn (t) {
+  t.test('Error.fmt', fn (t) {
     t.equal(fmt(Error.AddressInUse), 'AddressInUse')
     t.equal(fmt(Error.AddressUnavailable), 'AddressUnavailable')
     t.equal(fmt(Error.AlreadyConnected), 'AlreadyConnected')
@@ -136,26 +136,26 @@ fn pub tests(t: mut Tests) {
     t.equal(fmt(Error.TimedOut), 'TimedOut')
     t.equal(fmt(Error.WouldBlock), 'WouldBlock')
     t.equal(fmt(Error.Other(999)), 'Other(999)')
-  }
+  })
 
-  t.test('Read.read_all') fn (t) {
+  t.test('Read.read_all', fn (t) {
     let reader = Reader.new
     let bytes = ByteArray.new
     let size = reader.read_all(bytes).get
 
     t.equal(size, 3)
     t.equal(bytes, ByteArray.from_array([1, 2, 3]))
-  }
+  })
 
-  t.test('Write.print') fn (t) {
+  t.test('Write.print', fn (t) {
     let writer = Writer.new
 
     writer.print('foo').get
 
-    t.equal(writer.buffer, "foo\n".to_byte_array)
-  }
+    t.equal(writer.buffer, 'foo\n'.to_byte_array)
+  })
 
-  t.test('BufferedRead.read_until') fn (t) {
+  t.test('BufferedRead.read_until', fn (t) {
     let reader = BufferedReader.new(Reader.from_array([1, 0xA, 2, 0xA, 3]))
     let bytes = ByteArray.new
 
@@ -167,9 +167,9 @@ fn pub tests(t: mut Tests) {
 
     t.equal(reader.read_until(byte: 0xA, into: bytes), Result.Ok(1))
     t.equal(bytes, ByteArray.from_array([1, 0xA, 2, 0xA, 3]))
-  }
+  })
 
-  t.test('BufferedRead.read_line') fn (t) {
+  t.test('BufferedRead.read_line', fn (t) {
     let reader = BufferedReader.new(Reader.from_array([1, 0xA, 2, 0xA, 3]))
     let bytes = ByteArray.new
 
@@ -181,31 +181,31 @@ fn pub tests(t: mut Tests) {
 
     t.equal(reader.read_line(bytes), Result.Ok(1))
     t.equal(bytes, ByteArray.from_array([1, 0xA, 2, 0xA, 3]))
-  }
+  })
 
-  t.test('BufferedRead.read_line') fn (t) {
+  t.test('BufferedRead.read_line', fn (t) {
     let reader = BufferedReader.new(Reader.new)
 
     t.equal(reader.bytes.to_array, [Result.Ok(1), Result.Ok(2), Result.Ok(3)])
-  }
+  })
 
-  t.test('BufferedReader.new') fn (t) {
+  t.test('BufferedReader.new', fn (t) {
     let reader = BufferedReader.new(Reader.new)
 
     t.equal(reader.capacity, DEFAULT_BUFFER_SIZE)
-  }
+  })
 
-  t.test('BufferedReader.with_capacity') fn (t) {
+  t.test('BufferedReader.with_capacity', fn (t) {
     let reader = BufferedReader.with_capacity(Reader.new, size: 32)
 
     t.equal(reader.capacity, 32)
-  }
+  })
 
-  t.panic('BufferedReader.with_capacity with an invalid size') fn {
+  t.panic('BufferedReader.with_capacity with an invalid size', fn {
     BufferedReader.with_capacity(Reader.new, size: 0)
-  }
+  })
 
-  t.test('BufferedReader.fill_buffer') fn (t) {
+  t.test('BufferedReader.fill_buffer', fn (t) {
     let reader = BufferedReader.with_capacity(Reader.new, size: 3)
 
     t.equal(reader.fill_buffer, Result.Ok(3))
@@ -223,9 +223,9 @@ fn pub tests(t: mut Tests) {
 
     t.true(reader.buffer.empty?)
     t.equal(reader.offset, 0)
-  }
+  })
 
-  t.test('BufferedReader.read_buffer') fn (t) {
+  t.test('BufferedReader.read_buffer', fn (t) {
     let reader = BufferedReader.new(Reader.new)
     let bytes = ByteArray.new
 
@@ -233,9 +233,9 @@ fn pub tests(t: mut Tests) {
     t.equal(reader.read_buffer(into: bytes, size: 2), 2)
     t.equal(reader.offset, 2)
     t.equal(bytes, ByteArray.from_array([1, 2]))
-  }
+  })
 
-  t.test('BufferedReader.read_byte') fn (t) {
+  t.test('BufferedReader.read_byte', fn (t) {
     let ok = BufferedReader.new(Reader.new)
     let err = BufferedReader.new(ErrorReader {})
 
@@ -244,9 +244,9 @@ fn pub tests(t: mut Tests) {
     t.equal(ok.read_byte, Result.Ok(Option.Some(3)))
     t.equal(ok.read_byte, Result.Ok(Option.None))
     t.equal(err.read_byte, Result.Error(Error.TimedOut))
-  }
+  })
 
-  t.test('BufferedReader.read with a small read size') fn (t) {
+  t.test('BufferedReader.read with a small read size', fn (t) {
     let reader = BufferedReader.new(Reader.new)
     let bytes = ByteArray.new
 
@@ -259,18 +259,21 @@ fn pub tests(t: mut Tests) {
     t.equal(bytes, ByteArray.from_array([1, 2, 3]))
     t.equal(reader.buffer, ByteArray.from_array([1, 2, 3]))
     t.equal(reader.offset, 3)
-  }
+  })
 
-  t.test('BufferedReader.read with a size larger than the buffer size') fn (t) {
-    let reader = BufferedReader.with_capacity(Reader.new, size: 1)
-    let bytes = ByteArray.new
+  t.test(
+    'BufferedReader.read with a size larger than the buffer size',
+    fn (t) {
+      let reader = BufferedReader.with_capacity(Reader.new, size: 1)
+      let bytes = ByteArray.new
 
-    t.equal(reader.read(into: bytes, size: 1), Result.Ok(1))
-    t.equal(reader.read(into: bytes, size: 10), Result.Ok(2))
-    t.equal(bytes, ByteArray.from_array([1, 2, 3]))
-  }
+      t.equal(reader.read(into: bytes, size: 1), Result.Ok(1))
+      t.equal(reader.read(into: bytes, size: 10), Result.Ok(2))
+      t.equal(bytes, ByteArray.from_array([1, 2, 3]))
+    },
+  )
 
-  t.test('Buffer.read') fn (t) {
+  t.test('Buffer.read', fn (t) {
     let buffer = Buffer.new('hello')
     let bytes = ByteArray.new
 
@@ -279,35 +282,35 @@ fn pub tests(t: mut Tests) {
 
     t.equal(buffer.read(into: bytes, size: 2), Result.Ok(2))
     t.equal(bytes.to_string, 'hell')
-  }
+  })
 
-  t.test('Buffer.fill_buffer') fn (t) {
+  t.test('Buffer.fill_buffer', fn (t) {
     let buffer = Buffer.new('hello')
 
     t.equal(buffer.fill_buffer, Result.Ok(5))
     t.equal(buffer.read(into: ByteArray.new, size: 2), Result.Ok(2))
     t.equal(buffer.fill_buffer, Result.Ok(3))
-  }
+  })
 
-  t.test('Buffer.read_buffer') fn (t) {
+  t.test('Buffer.read_buffer', fn (t) {
     let buffer = Buffer.new('hello')
     let bytes = ByteArray.new
 
     buffer.fill_buffer
     t.equal(buffer.read_buffer(into: bytes, size: 5), 5)
     t.equal(bytes.to_string, 'hello')
-  }
+  })
 
-  t.test('Buffer.read_byte') fn (t) {
+  t.test('Buffer.read_byte', fn (t) {
     let buffer = Buffer.new('abc')
 
     t.equal(buffer.read_byte, Result.Ok(Option.Some(97)))
     t.equal(buffer.read_byte, Result.Ok(Option.Some(98)))
     t.equal(buffer.read_byte, Result.Ok(Option.Some(99)))
     t.equal(buffer.read_byte, Result.Ok(Option.None))
-  }
+  })
 
-  t.test('Buffer.seek') fn (t) {
+  t.test('Buffer.seek', fn (t) {
     let buffer = Buffer.new('abc')
 
     t.equal(buffer.read_byte, Result.Ok(Option.Some(97)))
@@ -321,5 +324,5 @@ fn pub tests(t: mut Tests) {
     t.equal(buffer.seek(-1), Result.Ok(2))
     t.equal(buffer.read_byte, Result.Ok(Option.Some(99)))
     t.equal(buffer.read_byte, Result.Ok(Option.None))
-  }
+  })
 }

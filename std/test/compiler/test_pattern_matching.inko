@@ -1,5 +1,5 @@
-import std.test (Tests)
 import std.drop (drop)
+import std.test (Tests)
 
 class enum Letter {
   case A
@@ -25,7 +25,7 @@ class Person {
 
 fn pub tests(t: mut Tests) {
   # https://github.com/inko-lang/inko/issues/363
-  t.test('match with OR patterns and a guard') fn (t) {
+  t.test('match with OR patterns and a guard', fn (t) {
     let number = 42
     let result = match Letter.A {
       case A or B if number == 42 -> true
@@ -33,7 +33,7 @@ fn pub tests(t: mut Tests) {
     }
 
     t.true(result)
-  }
+  })
 
   # https://github.com/inko-lang/inko/issues/519
   #
@@ -41,7 +41,7 @@ fn pub tests(t: mut Tests) {
   # a new reference the count would be zero, instead of one, and that would
   # allow the drop(), which is invalid. With the fixes in place, the drop() will
   # correctly panic because references still exist.
-  t.panic("match doesn't drop match registers prematurely") fn {
+  t.panic("match doesn't drop match registers prematurely", fn {
     let state = match State.Button(State.Closed) {
       case Closed -> State.Closed
       case state -> state
@@ -50,9 +50,9 @@ fn pub tests(t: mut Tests) {
     let _temp = ref state
 
     drop(state)
-  }
+  })
 
-  t.no_panic('match with a wildcard drops all components') fn {
+  t.no_panic('match with a wildcard drops all components', fn {
     let a = Letter.A
     let b = Letter.B
 
@@ -60,36 +60,36 @@ fn pub tests(t: mut Tests) {
       case (A, A) -> true
       case _ -> false
     }
-  }
+  })
 
-  t.no_panic("match doesn't drop deeply nested bindings prematurely") fn {
+  t.no_panic("match doesn't drop deeply nested bindings prematurely", fn {
     let trans = Transition.Split(Transition.Empty(Dummy {}))
 
     match ref trans {
       case Split(Empty(_state1)) -> {}
       case _ -> {}
     }
-  }
+  })
 
   # This test checks if the `mut a` reference is dropped at the end of the match
   # arm, because the first match case returns `Nil`.
-  t.no_panic('match drops case return values when they are to be ignored') fn {
+  t.no_panic('match drops case return values when they are to be ignored', fn {
     let a = [10]
 
     match 10 {
       case 5 -> nil
       case _ -> mut a
     }
-  }
+  })
 
   # This fails because `_b` still contains a ref to `a`, which would be invalid
   # after the match expression.
-  t.panic('Destructuring an owned value with existing references') fn {
+  t.panic('Destructuring an owned value with existing references', fn {
     let a = Person { @name = 'Alice' }
     let _b = ref a
 
     match a {
       case { @name = _ } -> nil
     }
-  }
+  })
 }

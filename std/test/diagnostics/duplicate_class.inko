@@ -1,4 +1,5 @@
 class A {}
+
 class A {}
 
-# duplicate_class.inko:2:7 error(duplicate-symbol): the symbol 'A' is already defined
+# duplicate_class.inko:3:7 error(duplicate-symbol): the symbol 'A' is already defined

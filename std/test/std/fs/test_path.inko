@@ -52,67 +52,65 @@ fn strip_prefix(path: String, prefix: String) -> Option[Path] {
 }
 
 fn pub tests(t: mut Tests) {
-  t.test('path.SEPARATOR') fn (t) {
-    t.equal(path.SEPARATOR, '/')
-  }
+  t.test('path.SEPARATOR', fn (t) { t.equal(path.SEPARATOR, '/') })
 
-  t.test('Path.file?') fn (t) {
-    let path = env.temporary_directory.join("inko-test-${t.id}")
+  t.test('Path.file?', fn (t) {
+    let path = env.temporary_directory.join('inko-test-${t.id}')
 
     t.false(path.file?)
     write('test', to: path)
     t.true(path.file?)
 
     path.remove_file.get
-  }
+  })
 
-  t.test('Path.directory?') fn (t) {
+  t.test('Path.directory?', fn (t) {
     t.true(env.temporary_directory.directory?)
     t.false(Path.new('inko-test-doesnt-exist').directory?)
-  }
+  })
 
-  t.test('Path.exists?') fn (t) {
+  t.test('Path.exists?', fn (t) {
     t.true(env.temporary_directory.exists?)
     t.false(Path.new('inko-test-doesnt-exist').exists?)
-  }
+  })
 
   if created_at? {
-    t.test('Path.created_at') fn (t) {
+    t.test('Path.created_at', fn (t) {
       t.true(valid_date?(env.temporary_directory.created_at))
-    }
+    })
   }
 
   if modified_at? {
-    t.test('Path.modified_at') fn (t) {
+    t.test('Path.modified_at', fn (t) {
       t.true(valid_date?(env.temporary_directory.modified_at))
-    }
+    })
   }
 
   if accessed_at? {
-    t.test('Path.accessed_at') fn (t) {
+    t.test('Path.accessed_at', fn (t) {
       t.true(valid_date?(env.temporary_directory.accessed_at))
-    }
+    })
   }
 
-  t.test('Path.absolute?') fn (t) {
+  t.test('Path.absolute?', fn (t) {
     t.true(Path.new('/foo').absolute?)
     t.false(Path.new('foo').absolute?)
-  }
+  })
 
-  t.test('Path.relative?') fn (t) {
+  t.test('Path.relative?', fn (t) {
     t.true(Path.new('foo').relative?)
     t.false(Path.new('/foo').relative?)
-  }
+  })
 
-  t.test('Path.join') fn (t) {
+  t.test('Path.join', fn (t) {
     t.equal(Path.new('foo').join('bar'), Path.new('foo/bar'))
     t.equal(Path.new('foo').join('/').join('bar'), Path.new('/bar'))
     t.equal(Path.new('foo').join(''), Path.new('foo'))
     t.equal(Path.new('').join('foo'), Path.new('foo'))
     t.equal(Path.new('').join('/foo'), Path.new('/foo'))
-  }
+  })
 
-  t.test('Path.directory') fn (t) {
+  t.test('Path.directory', fn (t) {
     t.equal(Path.new('foo').directory, Path.new('.'))
     t.equal(Path.new('foo/').directory, Path.new('.'))
     t.equal(Path.new('foo//').directory, Path.new('.'))
@@ -133,38 +131,32 @@ fn pub tests(t: mut Tests) {
     t.equal(Path.new('a/.').directory, Path.new('.'))
     t.equal(Path.new('//').directory, Path.new('/'))
     t.equal(Path.new('.//').directory, Path.new('.'))
-  }
+  })
 
-  t.test('Path.==') fn (t) {
+  t.test('Path.==', fn (t) {
     t.equal(Path.new('foo'), Path.new('foo'))
     t.not_equal(Path.new('foo'), Path.new('bar'))
-  }
+  })
 
-  t.test('Path.to_string') fn (t) {
-    t.equal(Path.new('foo').to_string, 'foo')
-  }
+  t.test('Path.to_string', fn (t) { t.equal(Path.new('foo').to_string, 'foo') })
 
-  t.test('Path.into_string') fn (t) {
+  t.test('Path.into_string', fn (t) {
     t.equal(Path.new('foo').into_string, 'foo')
-  }
+  })
 
-  t.test('Path.size') fn (t) {
-    t.true(env.temporary_directory.size.get >= 0)
-  }
+  t.test('Path.size', fn (t) { t.true(env.temporary_directory.size.get >= 0) })
 
-  t.test('Path.clone') fn (t) {
+  t.test('Path.clone', fn (t) {
     t.equal(Path.new('foo').clone, Path.new('foo'))
-  }
+  })
 
-  t.test('Path.to_path') fn (t) {
+  t.test('Path.to_path', fn (t) {
     t.equal(Path.new('foo').to_path, Path.new('foo'))
-  }
+  })
 
-  t.test('Path.fmt') fn (t) {
-    t.equal(fmt(Path.new('foo')), '"foo"')
-  }
+  t.test('Path.fmt', fn (t) { t.equal(fmt(Path.new('foo')), '"foo"') })
 
-  t.test('Path.expand') fn (t) {
+  t.test('Path.expand', fn (t) {
     let temp = env.temporary_directory
     let bar = temp.join('foo').join('bar')
 
@@ -174,9 +166,9 @@ fn pub tests(t: mut Tests) {
 
     t.equal(expanded, Result.Ok(temp))
     bar.remove_directory_all
-  }
+  })
 
-  t.test('Path.tail') fn (t) {
+  t.test('Path.tail', fn (t) {
     t.equal(Path.new('foo').tail, 'foo')
     t.equal(Path.new('foo/').tail, 'foo')
     t.equal(Path.new('foo//').tail, 'foo')
@@ -194,34 +186,32 @@ fn pub tests(t: mut Tests) {
     t.equal(Path.new('a/.').tail, 'a')
     t.equal(Path.new('//').tail, '')
     t.equal(Path.new('.//').tail, '')
-  }
+  })
 
-  t.test('Path.list with a valid directory') fn (t) {
-    with_directory(t.id) fn (root) {
+  t.test('Path.list with a valid directory', fn (t) {
+    with_directory(t.id, fn (root) {
       let foo = root.join('foo')
 
       root.create_directory.get
       foo.create_directory.get
 
-      let entry = root
-        .list
-        .get
-        .select_map fn (e) { e.ok }
-        .find fn (e) { e.path == foo }
+      let entry = root.list.get.select_map(fn (e) { e.ok }).find(fn (e) {
+        e.path == foo
+      })
 
       t.equal(
         entry,
-        Option.Some(DirectoryEntry { @path = foo, @type = FileType.Directory })
+        Option.Some(DirectoryEntry { @path = foo, @type = FileType.Directory }),
       )
-    }
-  }
+    })
+  })
 
-  t.test('Path.list with an invalid directory') fn (t) {
-    with_directory(t.id) fn (root) { t.true(root.list.error?) }
-  }
+  t.test('Path.list with an invalid directory', fn (t) {
+    with_directory(t.id, fn (root) { t.true(root.list.error?) })
+  })
 
-  t.test('Path.list_recursive with a valid directory') fn (t) {
-    with_directory(t.id) fn (root) {
+  t.test('Path.list_recursive with a valid directory', fn (t) {
+    with_directory(t.id, fn (root) {
       let foo = root.join('foo')
       let bar = foo.join('bar')
       let baz = bar.join('baz')
@@ -234,28 +224,32 @@ fn pub tests(t: mut Tests) {
 
       let paths = root
         .list_all
-        .map fn (i) {
+        .map(fn (i) {
           i
-            .select_map fn (r) { r.ok }
-            .map fn (e) { match e { case { @path = p } -> p } }
+            .select_map(fn (r) { r.ok })
+            .map(fn (e) {
+              match e {
+                case { @path = p } -> p
+              }
+            })
             .to_array
-        }
-        .or_else fn (_) { [] }
+        })
+        .or_else(fn (_) { [] })
 
       t.equal(paths.size, 4)
       t.true(paths.contains?(foo.join('a.txt')))
       t.true(paths.contains?(foo.join('b.txt')))
       t.true(paths.contains?(bar.join('c.txt')))
       t.true(paths.contains?(baz.join('d.txt')))
-    }
-  }
+    })
+  })
 
-  t.test('Path.list_recursive with an invalid directory') fn (t) {
-    with_directory(t.id) fn (root) { t.true(root.list_all.error?) }
-  }
+  t.test('Path.list_recursive with an invalid directory', fn (t) {
+    with_directory(t.id, fn (root) { t.true(root.list_all.error?) })
+  })
 
-  t.test('Path.remove_file') fn (t) {
-    let path = env.temporary_directory.join("inko-test-${t.id}")
+  t.test('Path.remove_file', fn (t) {
+    let path = env.temporary_directory.join('inko-test-${t.id}')
 
     t.true(path.remove_file.error?)
 
@@ -263,49 +257,49 @@ fn pub tests(t: mut Tests) {
 
     t.true(path.remove_file.ok?)
     t.false(path.exists?)
-  }
+  })
 
-  t.test('Path.remove_directory') fn (t) {
-    with_directory(t.id) fn (path) {
+  t.test('Path.remove_directory', fn (t) {
+    with_directory(t.id, fn (path) {
       t.true(path.remove_directory.error?)
 
       path.create_directory.get
 
       t.true(path.remove_directory.ok?)
       t.false(path.directory?)
-    }
-  }
+    })
+  })
 
-  t.test('Path.create_directory') fn (t) {
-    with_directory(t.id) fn (path) {
+  t.test('Path.create_directory', fn (t) {
+    with_directory(t.id, fn (path) {
       t.true(path.create_directory.ok?)
       t.true(path.directory?)
       t.true(path.create_directory.error?)
-    }
-  }
+    })
+  })
 
-  t.test('Path.create_directory_all') fn (t) {
-    with_directory(t.id) fn (root) {
+  t.test('Path.create_directory_all', fn (t) {
+    with_directory(t.id, fn (root) {
       let path = root.join('foo').join('bar')
 
       t.true(path.create_directory_all.ok?)
       t.true(path.directory?)
       t.true(path.create_directory_all.ok?)
-    }
-  }
+    })
+  })
 
-  t.test('Path.remove_directory') fn (t) {
-    with_directory(t.id) fn (path) {
+  t.test('Path.remove_directory', fn (t) {
+    with_directory(t.id, fn (path) {
       path.create_directory.get
 
       t.true(path.remove_directory.ok?)
       t.true(path.remove_directory.error?)
       t.false(path.directory?)
-    }
-  }
+    })
+  })
 
-  t.test('Path.remove_directory_all') fn (t) {
-    with_directory(t.id) fn (root) {
+  t.test('Path.remove_directory_all', fn (t) {
+    with_directory(t.id, fn (root) {
       let path = root.join('foo').join('bar')
 
       path.create_directory_all.get
@@ -313,12 +307,12 @@ fn pub tests(t: mut Tests) {
       t.true(root.remove_directory_all.ok?)
       t.true(root.remove_directory_all.error?)
       t.false(root.directory?)
-    }
-  }
+    })
+  })
 
-  t.test('Path.copy') fn (t) {
-    let path1 = env.temporary_directory.join("inko-test-${t.id}-1")
-    let path2 = env.temporary_directory.join("inko-test-${t.id}-2")
+  t.test('Path.copy', fn (t) {
+    let path1 = env.temporary_directory.join('inko-test-${t.id}-1')
+    let path2 = env.temporary_directory.join('inko-test-${t.id}-2')
 
     write('test', to: path1)
 
@@ -327,9 +321,9 @@ fn pub tests(t: mut Tests) {
 
     path1.remove_file.get
     path2.remove_file.get
-  }
+  })
 
-  t.test('Path.extension') fn (t) {
+  t.test('Path.extension', fn (t) {
     t.equal(Path.new('').extension, Option.None)
     t.equal(Path.new(' ').extension, Option.None)
     t.equal(Path.new('/').extension, Option.None)
@@ -359,13 +353,13 @@ fn pub tests(t: mut Tests) {
     t.equal(Path.new('foo.a😀a').extension, Option.Some('a😀a'))
     t.equal(Path.new('...a').extension, Option.Some('a'))
     t.equal(Path.new('/./b.txt').extension, Option.Some('txt'))
-  }
+  })
 
-  t.test('Path.hash') fn (t) {
+  t.test('Path.hash', fn (t) {
     t.equal(hash(Path.new('foo')), hash(Path.new('foo')))
-  }
+  })
 
-  t.test('Path.components') fn (t) {
+  t.test('Path.components', fn (t) {
     t.equal(Path.new('').components.to_array, [])
     t.equal(Path.new('a').components.to_array, ['a'])
     t.equal(Path.new('a/b/c').components.to_array, ['a', 'b', 'c'])
@@ -390,9 +384,9 @@ fn pub tests(t: mut Tests) {
     t.equal(Path.new('//a/b/c').components.to_array, ['/', 'a', 'b', 'c'])
     t.equal(Path.new('//a/./b/c').components.to_array, ['/', 'a', 'b', 'c'])
     t.equal(Path.new('a/😀/b').components.to_array, ['a', '😀', 'b'])
-  }
+  })
 
-  t.test('Path.strip_prefix') fn (t) {
+  t.test('Path.strip_prefix', fn (t) {
     t.equal(strip_prefix('foo/bar', 'foo'), Option.Some(Path.new('bar')))
     t.equal(strip_prefix('foo/bar', 'foo/'), Option.Some(Path.new('bar')))
     t.equal(strip_prefix('foo/bar', 'foo/bar'), Option.Some(Path.new('')))
@@ -411,9 +405,9 @@ fn pub tests(t: mut Tests) {
     t.equal(strip_prefix('', ''), Option.Some(Path.new('')))
     t.equal(strip_prefix('foo/bar', 'wat'), Option.None)
     t.equal(strip_prefix('', 'foo'), Option.None)
-  }
+  })
 
-  t.test('Path.with_extension') fn (t) {
+  t.test('Path.with_extension', fn (t) {
     t.equal(Path.new('a').with_extension('b'), Path.new('a.b'))
     t.equal(Path.new('a.a').with_extension('b'), Path.new('a.b'))
     t.equal(Path.new('a.a.b').with_extension('c'), Path.new('a.a.c'))
@@ -425,9 +419,9 @@ fn pub tests(t: mut Tests) {
     t.equal(Path.new('').with_extension('a'), Path.new(''))
     t.equal(Path.new('/').with_extension('a'), Path.new('/'))
     t.equal(Path.new('./').with_extension('a'), Path.new('./'))
-  }
+  })
 
-  t.panic('Path.with_extension with an invalid extension') fn {
+  t.panic('Path.with_extension with an invalid extension', fn {
     Path.new('a.txt').with_extension('txt/foo')
-  }
+  })
 }

@@ -14,6 +14,7 @@ class extern Dirent {
 # - https://assert.cc/posts/darwin_use_64_bit_inode_vs_ctypes/
 # - https://github.com/rust-lang/libc/issues/414
 fn extern opendir$INODE64(path: Pointer[UInt8]) -> Pointer[UInt8]
+
 fn extern readdir$INODE64(stream: Pointer[UInt8]) -> Pointer[UInt8]
 
 fn pub opendir(path: Pointer[UInt8]) -> Pointer[UInt8] {

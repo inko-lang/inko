@@ -4,61 +4,56 @@ import std.fs.path (Path)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
-  t.test('String.join') fn (t) {
+  t.test('String.join', fn (t) {
     let vals = [10, 20, 30]
 
     t.equal(String.join(vals.iter, with: ', '), '10, 20, 30')
-  }
+  })
 
-  t.test('String.to_upper') fn (t) {
+  t.test('String.to_upper', fn (t) {
     t.equal('hello'.to_upper, 'HELLO')
     t.equal('ä'.to_upper, 'Ä')
     t.equal('aä'.to_upper, 'AÄ')
-  }
+  })
 
-  t.test('String.to_lower') fn (t) {
+  t.test('String.to_lower', fn (t) {
     t.equal('HELLO'.to_lower, 'hello')
     t.equal('Ä'.to_lower, 'ä')
     t.equal('AÄ'.to_lower, 'aä')
-  }
+  })
 
-  t.test('String.size') fn (t) {
+  t.test('String.size', fn (t) {
     t.equal('foo'.size, 3)
     t.equal('Ä'.size, 2)
     t.equal('AÄ'.size, 3)
-  }
+  })
 
-  t.test('String.byte') fn (t) {
+  t.test('String.byte', fn (t) {
     t.equal('foo'.byte(0), 102)
     t.equal('foo'.byte(1), 111)
-  }
+  })
 
-  t.test('String.substring') fn (t) {
+  t.test('String.substring', fn (t) {
     t.equal('hello_world'.substring(start: 0, chars: 5), 'hello')
     t.equal('hello_world'.substring(start: 3, chars: 5), 'lo_wo')
     t.equal('hello_world'.substring(start: 0, chars: 20), 'hello_world')
     t.equal('🇳🇱'.substring(start: 0, chars: 1), '🇳🇱')
-  }
+  })
 
-  t.test('String.slice') fn (t) {
+  t.test('String.slice', fn (t) {
     t.equal('hello_world'.slice(start: 0, size: 5), 'hello'.to_byte_array)
     t.equal(
       'hello_world'.slice(start: 0, size: 20),
-      'hello_world'.to_byte_array
+      'hello_world'.to_byte_array,
     )
-
-    t.equal(
-      '→foo'.slice(start: 0, size: 2),
-      ByteArray.from_array([226, 134])
-    )
-
+    t.equal('→foo'.slice(start: 0, size: 2), ByteArray.from_array([226, 134]))
     t.equal('→foo'.slice(start: 0, size: 6), '→foo'.to_byte_array)
     t.equal('→foo'.slice(start: 0, size: 3), '→'.to_byte_array)
     t.equal('foo'.slice(start: 42, size: 50), ''.to_byte_array)
     t.equal('foo'.slice(start: -5, size: 50), ''.to_byte_array)
-  }
+  })
 
-  t.test('String.slice_into') fn (t) {
+  t.test('String.slice_into', fn (t) {
     let bytes = ByteArray.new
     let string = 'hello_world'
 
@@ -68,9 +63,9 @@ fn pub tests(t: mut Tests) {
     string.slice_into(bytes, start: 3, size: 2)
 
     t.equal(bytes, 'hello'.to_byte_array)
-  }
+  })
 
-  t.test('String.byte_index') fn (t) {
+  t.test('String.byte_index', fn (t) {
     t.equal('hello'.byte_index(of: 'h', starting_at: 0), Option.Some(0))
     t.equal('hello'.byte_index(of: 'e', starting_at: 0), Option.Some(1))
     t.equal('hello'.byte_index(of: 'l', starting_at: 0), Option.Some(2))
@@ -83,9 +78,9 @@ fn pub tests(t: mut Tests) {
     t.equal('hello'.byte_index(of: 'l', starting_at: 2), Option.Some(2))
     t.equal('hello'.byte_index(of: 'l', starting_at: 3), Option.Some(3))
     t.equal('hello'.byte_index(of: 'h', starting_at: 1), Option.None)
-  }
+  })
 
-  t.test('String.starts_with?') fn (t) {
+  t.test('String.starts_with?', fn (t) {
     t.true('hello'.starts_with?('hello'))
     t.true('😀foo'.starts_with?('😀'))
     t.true('foo😀'.starts_with?('foo'))
@@ -95,9 +90,9 @@ fn pub tests(t: mut Tests) {
     t.false('hello'.starts_with?(''))
     t.false('hello'.starts_with?('x'))
     t.false('😀foo'.starts_with?('foo'))
-  }
+  })
 
-  t.test('String.ends_with?') fn (t) {
+  t.test('String.ends_with?', fn (t) {
     t.true('hello_world'.ends_with?('world'))
     t.true('hello_world'.ends_with?('d'))
     t.true('foo😀'.ends_with?('😀'))
@@ -107,14 +102,14 @@ fn pub tests(t: mut Tests) {
     t.false('hello_world'.ends_with?('x'))
     t.false(''.ends_with?('x'))
     t.false(''.ends_with?(''))
-  }
+  })
 
-  t.test('String.bytes') fn (t) {
+  t.test('String.bytes', fn (t) {
     t.equal(''.bytes.to_array, [])
     t.equal('inko'.bytes.to_array, [105, 110, 107, 111])
-  }
+  })
 
-  t.test('String.split') fn (t) {
+  t.test('String.split', fn (t) {
     t.equal('foo/bar/baz'.split('/').to_array, ['foo', 'bar', 'baz'])
     t.equal('foo::bar::baz'.split('::').to_array, ['foo', 'bar', 'baz'])
     t.equal('foo'.split('/').to_array, ['foo'])
@@ -129,15 +124,15 @@ fn pub tests(t: mut Tests) {
     t.equal('foo//'.split('//').to_array, ['foo'])
     t.equal('foo///'.split('//').to_array, ['foo', '/'])
     t.equal(''.split('/').to_array, [])
-  }
+  })
 
-  t.test('String.empty?') fn (t) {
+  t.test('String.empty?', fn (t) {
     t.true(''.empty?)
     t.false('foo'.empty?)
     t.false('😀'.empty?)
-  }
+  })
 
-  t.test('String.pad_start') fn (t) {
+  t.test('String.pad_start', fn (t) {
     t.equal('foo'.pad_start(with: '', chars: 3), 'foo')
     t.equal('foo'.pad_start(with: '', chars: 4), 'foo')
     t.equal('foo'.pad_start(with: '', chars: 5), 'foo')
@@ -149,9 +144,9 @@ fn pub tests(t: mut Tests) {
     t.equal('foo'.pad_start(with: 'ab', chars: 5), 'abfoo')
     t.equal('foo'.pad_start(with: 'ab', chars: 6), 'abafoo')
     t.equal('foo'.pad_start(with: 'ab', chars: 7), 'ababfoo')
-  }
+  })
 
-  t.test('String.pad_end') fn (t) {
+  t.test('String.pad_end', fn (t) {
     t.equal('foo'.pad_end(with: '', chars: 3), 'foo')
     t.equal('foo'.pad_end(with: '', chars: 4), 'foo')
     t.equal('foo'.pad_end(with: '', chars: 5), 'foo')
@@ -163,23 +158,23 @@ fn pub tests(t: mut Tests) {
     t.equal('foo'.pad_end(with: 'ab', chars: 5), 'fooab')
     t.equal('foo'.pad_end(with: 'ab', chars: 6), 'fooaba')
     t.equal('foo'.pad_end(with: 'ab', chars: 7), 'fooabab')
-  }
+  })
 
-  t.test('String.repeat') fn (t) {
+  t.test('String.repeat', fn (t) {
     t.equal('foo'.repeat(0), '')
     t.equal('foo'.repeat(1), 'foo')
     t.equal('foo'.repeat(2), 'foofoo')
-  }
+  })
 
-  t.test('String.chars') fn (t) {
+  t.test('String.chars', fn (t) {
     t.equal('foo'.chars.to_array, ['f', 'o', 'o'])
     t.equal('fóó'.chars.to_array, ['f', 'ó', 'ó'])
     t.equal('😀😃'.chars.to_array, ['😀', '😃'])
     t.equal('😀x😃'.chars.to_array, ['😀', 'x', '😃'])
     t.equal('🤦🏼‍♂️'.chars.to_array, ['🤦🏼‍♂️'])
-  }
+  })
 
-  t.test('String.contains?') fn (t) {
+  t.test('String.contains?', fn (t) {
     t.true('foo'.contains?('foo'))
     t.true('foo'.contains?('o'))
     t.true('😀'.contains?('😀'))
@@ -190,32 +185,32 @@ fn pub tests(t: mut Tests) {
     t.false(''.contains?('x'))
     t.false('foo'.contains?('x'))
     t.false('foo'.contains?('😃'))
-  }
+  })
 
-  t.test('String.to_byte_array') fn (t) {
+  t.test('String.to_byte_array', fn (t) {
     t.equal('inko'.to_byte_array, ByteArray.from_array([105, 110, 107, 111]))
-  }
+  })
 
-  t.test('String.into_byte_array') fn (t) {
+  t.test('String.into_byte_array', fn (t) {
     t.equal('inko'.into_byte_array, ByteArray.from_array([105, 110, 107, 111]))
-  }
+  })
 
-  t.test('String.clone') fn (t) {
+  t.test('String.clone', fn (t) {
     t.equal('foo'.clone, 'foo')
     t.equal('😃'.clone, '😃')
-  }
+  })
 
-  t.test('String.to_string') fn (t) {
+  t.test('String.to_string', fn (t) {
     t.equal('foo'.to_string, 'foo')
     t.equal('😃'.to_string, '😃')
-  }
+  })
 
-  t.test('String.into_string') fn (t) {
+  t.test('String.into_string', fn (t) {
     t.equal('foo'.into_string, 'foo')
     t.equal('😃'.into_string, '😃')
-  }
+  })
 
-  t.test('String.==') fn (t) {
+  t.test('String.==', fn (t) {
     t.equal('foo', 'foo')
     t.equal('Ä', 'Ä')
     t.equal('AÄ', 'AÄ')
@@ -225,45 +220,43 @@ fn pub tests(t: mut Tests) {
     t.not_equal('Ä', '쿠')
     t.not_equal('AÄ', 'A쿠')
     t.not_equal('쿠Ä', '쿠키')
-  }
+  })
 
-  t.test('String.hash') fn (t) {
-    t.equal(hash('foo'), hash('foo'))
-  }
+  t.test('String.hash', fn (t) { t.equal(hash('foo'), hash('foo')) })
 
-  t.test('String.+') fn (t) {
+  t.test('String.+', fn (t) {
     t.equal('foo' + 'bar', 'foobar')
     t.equal('Ä' + 'Ä', 'ÄÄ')
     t.equal('A' + 'Ä', 'AÄ')
     t.equal('쿠' + '키', '쿠키')
     t.equal('😃' + '😃', '😃😃')
-  }
+  })
 
-  t.test('String.to_path') fn (t) {
+  t.test('String.to_path', fn (t) {
     t.equal('foo.inko'.to_path, Path.new('foo.inko'))
-  }
+  })
 
-  t.test('String.escaped') fn (t) {
+  t.test('String.escaped', fn (t) {
     t.equal('foo'.escaped, 'foo')
     t.equal('"foo"'.escaped, '\\"foo\\"')
     t.equal("'foo'".escaped, "'foo'")
-    t.equal("foo\nbar".escaped, 'foo\\nbar')
-    t.equal("foo\tbar".escaped, 'foo\\tbar')
-    t.equal("foo\rbar".escaped, 'foo\\rbar')
-    t.equal("foo\u{C}bar".escaped, 'foo\\fbar')
-    t.equal("foo\u{8}bar".escaped, 'foo\\bbar')
-  }
+    t.equal('foo\nbar'.escaped, 'foo\\nbar')
+    t.equal('foo\tbar'.escaped, 'foo\\tbar')
+    t.equal('foo\rbar'.escaped, 'foo\\rbar')
+    t.equal('foo\u{C}bar'.escaped, 'foo\\fbar')
+    t.equal('foo\u{8}bar'.escaped, 'foo\\bbar')
+  })
 
-  t.test('String.fmt') fn (t) {
+  t.test('String.fmt', fn (t) {
     t.equal(fmt('foo'), '"foo"')
     t.equal(fmt('"foo"'), '"\\"foo\\""')
     t.equal(fmt("'foo'"), "\"'foo'\"")
-    t.equal(fmt("foo\nbar"), '"foo\\nbar"')
-    t.equal(fmt("foo\tbar"), '"foo\\tbar"')
-    t.equal(fmt("foo\rbar"), '"foo\\rbar"')
-  }
+    t.equal(fmt('foo\nbar'), '"foo\\nbar"')
+    t.equal(fmt('foo\tbar'), '"foo\\tbar"')
+    t.equal(fmt('foo\rbar'), '"foo\\rbar"')
+  })
 
-  t.test('String.strip_prefix') fn (t) {
+  t.test('String.strip_prefix', fn (t) {
     t.equal('hello'.strip_prefix('xxxxxxxxx'), 'hello')
     t.equal('hello'.strip_prefix('x'), 'hello')
     t.equal('hello'.strip_prefix(''), 'hello')
@@ -273,9 +266,9 @@ fn pub tests(t: mut Tests) {
     t.equal('xhellox'.strip_prefix('x'), 'hellox')
     t.equal('xxhelloxx'.strip_prefix('xx'), 'helloxx')
     t.equal('😃hello😃'.strip_prefix('😃'), 'hello😃')
-  }
+  })
 
-  t.test('String.strip_suffix') fn (t) {
+  t.test('String.strip_suffix', fn (t) {
     t.equal('hello'.strip_suffix('xxxxxxxxx'), 'hello')
     t.equal('hello'.strip_suffix('x'), 'hello')
     t.equal('hello'.strip_suffix(''), 'hello')
@@ -285,52 +278,52 @@ fn pub tests(t: mut Tests) {
     t.equal('xhellox'.strip_suffix('x'), 'xhello')
     t.equal('xxhelloxx'.strip_suffix('xx'), 'xxhello')
     t.equal('😃hello😃'.strip_suffix('😃'), '😃hello')
-  }
+  })
 
-  t.test('String.trim_start') fn (t) {
+  t.test('String.trim_start', fn (t) {
     t.equal(''.trim_start, '')
     t.equal('hello'.trim_start, 'hello')
     t.equal(' hello '.trim_start, 'hello ')
     t.equal('  hello  '.trim_start, 'hello  ')
     t.equal('  '.trim_start, '')
-    t.equal("\thello\t".trim_start, "hello\t")
-    t.equal("\rhello\r".trim_start, "hello\r")
-    t.equal("\nhello\n".trim_start, "hello\n")
-    t.equal("\t\r\n\thello".trim_start, 'hello')
-  }
+    t.equal('\thello\t'.trim_start, 'hello\t')
+    t.equal('\rhello\r'.trim_start, 'hello\r')
+    t.equal('\nhello\n'.trim_start, 'hello\n')
+    t.equal('\t\r\n\thello'.trim_start, 'hello')
+  })
 
-  t.test('String.trim_end') fn (t) {
+  t.test('String.trim_end', fn (t) {
     t.equal(''.trim_end, '')
     t.equal('hello'.trim_end, 'hello')
     t.equal(' hello '.trim_end, ' hello')
     t.equal('  hello  '.trim_end, '  hello')
     t.equal('  '.trim_end, '')
-    t.equal("\thello\t".trim_end, "\thello")
-    t.equal("\rhello\r".trim_end, "\rhello")
-    t.equal("\nhello\n".trim_end, "\nhello")
-    t.equal("hello\t\r\n\t".trim_end, 'hello')
-  }
+    t.equal('\thello\t'.trim_end, '\thello')
+    t.equal('\rhello\r'.trim_end, '\rhello')
+    t.equal('\nhello\n'.trim_end, '\nhello')
+    t.equal('hello\t\r\n\t'.trim_end, 'hello')
+  })
 
-  t.test('String.trim') fn (t) {
+  t.test('String.trim', fn (t) {
     t.equal(''.trim, '')
     t.equal('hello'.trim, 'hello')
     t.equal(' hello '.trim, 'hello')
     t.equal('  hello  '.trim, 'hello')
     t.equal('  '.trim, '')
-    t.equal("\thello\t".trim, "hello")
-    t.equal("\rhello\r".trim, "hello")
-    t.equal("\nhello\n".trim, "hello")
-    t.equal("hello\t\r\n\t".trim, 'hello')
-  }
+    t.equal('\thello\t'.trim, 'hello')
+    t.equal('\rhello\r'.trim, 'hello')
+    t.equal('\nhello\n'.trim, 'hello')
+    t.equal('hello\t\r\n\t'.trim, 'hello')
+  })
 
-  t.test('String.from_pointer') fn (t) {
+  t.test('String.from_pointer', fn (t) {
     let a = 'hello'
     let b = String.from_pointer(a.to_pointer)
 
     t.equal(a, b)
-  }
+  })
 
-  t.test('String.replace') fn (t) {
+  t.test('String.replace', fn (t) {
     t.equal(''.replace('', ''), '')
     t.equal(''.replace('', 'foo'), '')
     t.equal('foo'.replace('', 'bar'), 'foo')
@@ -347,5 +340,5 @@ fn pub tests(t: mut Tests) {
     t.equal('foo'.replace('foo', '😃'), '😃')
     t.equal('foo'.replace('foo', 'foobar'), 'foobar')
     t.equal('a,b,c,d'.replace(',', '  '), 'a  b  c  d')
-  }
+  })
 }

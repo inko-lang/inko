@@ -3,35 +3,35 @@ import std.test (Tests)
 fn pub tests(t: mut Tests) {
   # These tests exist to make sure casting between C and Inko integers types
   # takes signedness into consideration.
-  t.test('Casting Int to Int8') fn (t) {
+  t.test('Casting Int to Int8', fn (t) {
     t.equal(-64 as Int8 as Int, -64)
     t.equal(-16 as Int8 as Int, -16)
     t.equal(127 as Int8 as Int, 127)
     t.equal(240 as Int8 as Int, -16)
     t.equal(255 as Int8 as Int, -1)
-  }
+  })
 
-  t.test('Casting Int to UInt8') fn (t) {
+  t.test('Casting Int to UInt8', fn (t) {
     t.equal(-64 as UInt8 as Int, 192)
     t.equal(-16 as UInt8 as Int, 240)
     t.equal(127 as UInt8 as Int, 127)
     t.equal(240 as UInt8 as Int, 240)
     t.equal(255 as UInt8 as Int, 255)
-  }
+  })
 
-  t.test('Casting Int to Int16') fn (t) {
+  t.test('Casting Int to Int16', fn (t) {
     t.equal(-64 as Int16 as Int, -64)
     t.equal(-16 as Int16 as Int, -16)
     t.equal(127 as Int16 as Int, 127)
     t.equal(240 as Int16 as Int, 240)
     t.equal(255 as Int16 as Int, 255)
-  }
+  })
 
-  t.test('Casting Int to UInt16') fn (t) {
+  t.test('Casting Int to UInt16', fn (t) {
     t.equal(-64 as UInt16 as Int, 65_472)
     t.equal(-16 as UInt16 as Int, 65_520)
     t.equal(127 as UInt16 as Int, 127)
     t.equal(240 as UInt16 as Int, 240)
     t.equal(255 as UInt16 as Int, 255)
-  }
+  })
 }

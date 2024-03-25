@@ -2,10 +2,15 @@
 import std.drop (Drop)
 
 fn extern inko_random_new(process: Pointer[UInt8]) -> Pointer[UInt8]
+
 fn extern inko_random_from_int(seed: Int) -> Pointer[UInt8]
+
 fn extern inko_random_drop(rng: Pointer[UInt8])
+
 fn extern inko_random_int(rng: Pointer[UInt8]) -> Int64
+
 fn extern inko_random_float(rng: Pointer[UInt8]) -> Float64
+
 fn extern inko_random_int_range(
   rng: Pointer[UInt8],
   min: Int,

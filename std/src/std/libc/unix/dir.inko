@@ -19,7 +19,9 @@ let DT_LNK = 10
 let DT_REG = 8
 
 fn extern closedir(stream: Pointer[UInt8]) -> Int32
+
 fn extern strlen(pointer: Pointer[UInt8]) -> UInt64
+
 fn extern inko_reset_error
 
 # The byte of the "." character.

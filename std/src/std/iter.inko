@@ -84,7 +84,7 @@ trait pub Iter[T] {
   fn pub move each_with_index(func: fn (Int, T)) {
     let mut idx = 0
 
-    each fn move (value) { func.call(idx := idx + 1, value) }
+    each(fn move (value) { func.call(idx := idx + 1, value) })
   }
 
   # Returns an `Iter` that yields a tuple of the index and the iterator value.
@@ -98,7 +98,7 @@ trait pub Iter[T] {
   fn pub move with_index -> Stream[(Int, T)] {
     let mut index = 0
 
-    map fn move (val) { (index := index + 1, val) }
+    map(fn move (val) { (index := index + 1, val) })
   }
 
   # Returns an `Iter` that transforms values of type `T` to values of type
@@ -112,9 +112,7 @@ trait pub Iter[T] {
   #
   #     values.iter.map fn (n) { n * 2 }.to_array # => [2, 4, 6]
   fn pub move map[R](func: fn (T) -> R) -> Stream[R] {
-    Stream.new fn move {
-      self.next.map fn (v) { func.call(v) }
-    }
+    Stream.new(fn move { self.next.map(fn (v) { func.call(v) }) })
   }
 
   # Returns the first value for which the supplied `Block` returns `true`.
@@ -154,9 +152,11 @@ trait pub Iter[T] {
   fn pub mut find_map[R](func: fn (T) -> Option[R]) -> Option[R] {
     loop {
       match self.next {
-        case Some(v) -> match func.call(v) {
-          case Some(r) -> return Option.Some(r)
-          case _ -> {}
+        case Some(v) -> {
+          match func.call(v) {
+            case Some(r) -> return Option.Some(r)
+            case _ -> {}
+          }
         }
         case _ -> return Option.None
       }
@@ -194,14 +194,14 @@ trait pub Iter[T] {
   #       .select fn (value) { value > 10 }
   #       .to_array # => [20, 30]
   fn pub move select(func: fn (ref T) -> Bool) -> Stream[T] {
-    Stream.new fn move {
+    Stream.new(fn move {
       loop {
         match self.next {
           case Some(v) -> if func.call(v) { return Option.Some(v) }
           case _ -> return Option.None
         }
       }
-    }
+    })
   }
 
   # Returns an `Iter` that both filters and maps at the same time.
@@ -218,17 +218,19 @@ trait pub Iter[T] {
   #     iter.next # => Option.Some(30)
   #     iter.next # => Option.None
   fn pub move select_map[R](func: fn (T) -> Option[R]) -> Stream[R] {
-    Stream.new fn move {
+    Stream.new(fn move {
       loop {
         match self.next {
-          case Some(v) -> match func.call(v) {
-            case Some(r) -> return Option.Some(r)
-            case _ -> next
+          case Some(v) -> {
+            match func.call(v) {
+              case Some(r) -> return Option.Some(r)
+              case _ -> next
+            }
           }
           case _ -> return Option.None
         }
       }
-    }
+    })
   }
 
   # Partitions the `Iter` into a tuple of two `Array` objects.
@@ -247,11 +249,11 @@ trait pub Iter[T] {
   #     pair.0 # => [30, 40, 50]
   #     pair.1 # => [10, 20]
   fn pub move partition(func: fn (ref T) -> Bool) -> (Array[T], Array[T]) {
-    reduce(([], [])) fn move (acc, val) {
+    reduce(([], []), fn move (acc, val) {
       if func.call(ref val) { acc.0.push(val) } else { acc.1.push(val) }
 
       acc
-    }
+    })
   }
 
   # Returns `true` if the supplied func returns `true` for _all_ values in
@@ -299,7 +301,7 @@ trait pub Iter[T] {
   #
   #     zip.next # => (10, 40)
   fn pub move zip[U, I: mut + Iter[U]](other: I) -> Stream[(T, U)] {
-    Stream.new fn move { self.next.zip(other.next) }
+    Stream.new(fn move { self.next.zip(other.next) })
   }
 
   # Combines all values in the iterator into the specified accumulator.
@@ -386,7 +388,7 @@ trait pub Iter[T] {
   # number of values can't be evenly divided, the last chunk may contain fewer
   # than `size` elements.
   fn pub move chunks(size: Int) -> Stream[Array[T]] {
-    Stream.new fn move {
+    Stream.new(fn move {
       let chunk = []
 
       while chunk.size < size {
@@ -397,7 +399,7 @@ trait pub Iter[T] {
       }
 
       if chunk.empty? { Option.None } else { Option.Some(chunk) }
-    }
+    })
   }
 
   # Collects all values in the `Iter` in an `Array`.
@@ -410,10 +412,10 @@ trait pub Iter[T] {
   #
   #     [1, 2, 3].iter.to_array # => [1, 2, 3]
   fn pub move to_array -> Array[T] {
-    reduce([]) fn (values, value) {
+    reduce([], fn (values, value) {
       values.push(value)
       values
-    }
+    })
   }
 
   # Returns the number of values remaining in this iterator.
@@ -424,7 +426,7 @@ trait pub Iter[T] {
   #
   #     [1, 2, 3].iter.count # => 3
   fn pub move count -> Int {
-    reduce(0) fn (count, _) { count + 1 }
+    reduce(0, fn (count, _) { count + 1 })
   }
 
   # Returns the last value produced by this iterator.
@@ -433,7 +435,7 @@ trait pub Iter[T] {
   #
   #     [1, 2, 3].iter.last # => Option.Some(3)
   fn pub move last -> Option[T] {
-    reduce(Option.None) fn (_, val) { Option.Some(val) }
+    reduce(Option.None, fn (_, val) { Option.Some(val) })
   }
 
   # Returns an iterator that allows looking at the next element of the iterator,
@@ -466,7 +468,7 @@ trait pub Iter[T] {
   fn pub move skip(amount: Int) -> Stream[T] {
     let mut pending = amount
 
-    Stream.new fn move {
+    Stream.new(fn move {
       while pending > 0 {
         match self.next {
           case Some(_) -> pending -= 1
@@ -475,7 +477,7 @@ trait pub Iter[T] {
       }
 
       self.next
-    }
+    })
   }
 
   # Returns a new iterator that yields the first `amount` items, or fewer if
@@ -488,9 +490,9 @@ trait pub Iter[T] {
   fn pub move take(amount: Int) -> Stream[T] {
     let mut pending = amount
 
-    Stream.new fn move {
+    Stream.new(fn move {
       if (pending := pending - 1) > 0 { self.next } else { Option.None }
-    }
+    })
   }
 
   # Returns a new iterator that skips values for which `func` returns `true`.
@@ -504,7 +506,7 @@ trait pub Iter[T] {
   fn pub move skip_while(func: fn (ref T) -> Bool) -> Stream[T] {
     let mut skip = true
 
-    Stream.new fn move {
+    Stream.new(fn move {
       while skip {
         match self.next {
           case Some(v) if func.call(v) -> {}
@@ -517,7 +519,7 @@ trait pub Iter[T] {
       }
 
       self.next
-    }
+    })
   }
 
   # Returns a new iterator that yields values for which `func` returns `true`.
@@ -531,7 +533,7 @@ trait pub Iter[T] {
   fn pub move take_while(func: fn (ref T) -> Bool) -> Stream[T] {
     let mut take = true
 
-    Stream.new fn move {
+    Stream.new(fn move {
       if take {
         match self.next {
           case Some(v) if func.call(v) -> Option.Some(v)
@@ -544,7 +546,7 @@ trait pub Iter[T] {
       } else {
         Option.None
       }
-    }
+    })
   }
 }
 

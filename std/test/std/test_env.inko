@@ -3,17 +3,11 @@ import std.stdio (STDOUT)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
-  t.test('env.ARCH') fn (t) {
-    t.true(env.ARCH.size > 0)
-  }
+  t.test('env.ARCH', fn (t) { t.true(env.ARCH.size > 0) })
 
-  t.test('env.OS') fn (t) {
-    t.true(env.OS.size > 0)
-  }
+  t.test('env.OS', fn (t) { t.true(env.OS.size > 0) })
 
-  t.test('env.ABI') fn (t) {
-    t.true(env.ABI.size > 0)
-  }
+  t.test('env.ABI', fn (t) { t.true(env.ABI.size > 0) })
 
   t.fork(
     'env.opt',
@@ -21,7 +15,7 @@ fn pub tests(t: mut Tests) {
     test: fn (test, process) {
       process.variable('INKO_TEST', 'foo')
       test.equal(process.spawn.stdout, 'foo')
-    }
+    },
   )
 
   t.fork(
@@ -36,11 +30,11 @@ fn pub tests(t: mut Tests) {
     test: fn (test, process) {
       process.variable('INKO_FOO', 'foo')
       process.variable('INKO_BAR', 'bar')
-      test.equal(process.spawn.stdout, "foo\nbar\n")
-    }
+      test.equal(process.spawn.stdout, 'foo\nbar\n')
+    },
   )
 
-  t.test('env.home_directory') fn (t) {
+  t.test('env.home_directory', fn (t) {
     # Home directories are optional, and even if they're set the actual path may
     # not exist. As such there's not really anything we can test for, other than
     # asserting the path isn't empty.
@@ -48,13 +42,13 @@ fn pub tests(t: mut Tests) {
       case Some(path) -> t.true(path.to_string.size > 0)
       case _ -> {}
     }
-  }
+  })
 
-  t.test('env.working_directory') fn (t) {
+  t.test('env.working_directory', fn (t) {
     let path = env.working_directory.get
 
     t.true(path.directory?)
-  }
+  })
 
   t.fork(
     'env.working_directory=',
@@ -66,7 +60,7 @@ fn pub tests(t: mut Tests) {
     },
     test: fn (test, process) {
       test.equal(process.spawn.stdout, env.temporary_directory.to_string)
-    }
+    },
   )
 
   t.fork(
@@ -81,13 +75,13 @@ fn pub tests(t: mut Tests) {
     test: fn (test, process) {
       process.argument('foo')
       process.argument('bar')
-      test.equal(process.spawn.stdout, "foo\nbar\n")
-    }
+      test.equal(process.spawn.stdout, 'foo\nbar\n')
+    },
   )
 
-  t.test('env.executable') fn (t) {
+  t.test('env.executable', fn (t) {
     let path = env.executable.get
 
     t.true(path.file?)
-  }
+  })
 }

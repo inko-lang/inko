@@ -2,175 +2,173 @@ import std.iter (Stream)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
-  t.test('Iter.each') fn (t) {
+  t.test('Iter.each', fn (t) {
     let a = [10, 20]
     let b = []
 
-    a.iter.each fn (val) { b.push(val) }
+    a.iter.each(fn (val) { b.push(val) })
     t.equal(b, [ref 10, ref 20])
-  }
+  })
 
-  t.test('Iter.each_with_index') fn (t) {
+  t.test('Iter.each_with_index', fn (t) {
     let a = [10, 20]
     let b = []
 
-    a.iter.each_with_index fn (idx, val) {
+    a.iter.each_with_index(fn (idx, val) {
       b.push(idx)
       b.push(val.clone)
-    }
+    })
 
     t.equal(b, [0, 10, 1, 20])
-  }
+  })
 
-  t.test('Iter.with_index') fn (t) {
+  t.test('Iter.with_index', fn (t) {
     let vals = [10, 20]
 
     t.equal(vals.iter.with_index.to_array, [(0, ref 10), (1, ref 20)])
-  }
+  })
 
-  t.test('Iter.map') fn (t) {
+  t.test('Iter.map', fn (t) {
     let vals = [10, 20]
 
-    t.equal(vals.iter.map fn (val) { val * 2 }.to_array, [20, 40])
-  }
+    t.equal(vals.iter.map(fn (val) { val * 2 }).to_array, [20, 40])
+  })
 
-  t.test('Iter.find') fn (t) {
+  t.test('Iter.find', fn (t) {
     let vals = [10, 20]
 
-    t.equal(vals.iter.find fn (val) { val == 20 }, Option.Some(ref 20))
-    t.equal(vals.iter.find fn (val) { val == 50 }, Option.None)
+    t.equal(vals.iter.find(fn (val) { val == 20 }), Option.Some(ref 20))
+    t.equal(vals.iter.find(fn (val) { val == 50 }), Option.None)
 
     let iter = vals.iter
 
-    iter.find fn (val) { val == 10 }
+    iter.find(fn (val) { val == 10 })
     t.equal(iter.next, Option.Some(ref 20))
-  }
+  })
 
-  t.test('Iter.find_map') fn (t) {
+  t.test('Iter.find_map', fn (t) {
     let vals = [10, 20]
 
     t.equal(
-      vals.iter.find_map fn (val) {
+      vals.iter.find_map(fn (val) {
         if val == 20 { Option.Some('yes') } else { Option.None }
-      },
-      Option.Some('yes')
+      }),
+      Option.Some('yes'),
     )
 
     t.equal(
-      vals.iter.find_map fn (val) { Option.None as Option[Int] },
-      Option.None
+      vals.iter.find_map(fn (val) { Option.None as Option[Int] }),
+      Option.None,
     )
 
     let iter = vals.iter
 
-    iter.find_map fn (val) {
+    iter.find_map(fn (val) {
       if val == 10 { Option.Some(val) } else { Option.None }
-    }
+    })
 
     t.equal(iter.next, Option.Some(ref 20))
-  }
+  })
 
-  t.test('Iter.any?') fn (t) {
+  t.test('Iter.any?', fn (t) {
     let vals = [10, 20]
 
-    t.true(vals.iter.any? fn (val) { val == 10 })
-    t.false(vals.iter.any? fn (val) { val == 50 })
+    t.true(vals.iter.any?(fn (val) { val == 10 }))
+    t.false(vals.iter.any?(fn (val) { val == 50 }))
 
     let iter = vals.iter
 
-    iter.any? fn (val) { val == 10 }
+    iter.any?(fn (val) { val == 10 })
     t.equal(iter.next, Option.Some(ref 20))
-  }
+  })
 
-  t.test('Iter.select') fn (t) {
+  t.test('Iter.select', fn (t) {
     let vals = [10, 20, 30]
 
-    t.equal(vals.into_iter.select fn (val) { val < 30 }.to_array, [10, 20])
-  }
+    t.equal(vals.into_iter.select(fn (val) { val < 30 }).to_array, [10, 20])
+  })
 
-  t.test('Iter.select_map') fn (t) {
+  t.test('Iter.select_map', fn (t) {
     let a = [10, 20, 30]
-    let b = a.into_iter.select_map fn (val) {
+    let b = a.into_iter.select_map(fn (val) {
       if val < 30 { Option.Some(val) } else { Option.None }
-    }
+    })
 
     t.equal(b.to_array, [10, 20])
-  }
+  })
 
-  t.test('Iter.partition') fn (t) {
+  t.test('Iter.partition', fn (t) {
     let vals = [10, 20, 30]
 
-    t.equal(vals.into_iter.partition fn (val) { val < 30 }, ([10, 20], [30]))
-  }
+    t.equal(vals.into_iter.partition(fn (val) { val < 30 }), ([10, 20], [30]))
+  })
 
-  t.test('Iter.all?') fn (t) {
+  t.test('Iter.all?', fn (t) {
     let vals = [10, 20, 30]
 
-    t.true(vals.iter.all? fn (val) { val > 0 })
-    t.false(vals.iter.all? fn (val) { val > 10 })
+    t.true(vals.iter.all?(fn (val) { val > 0 }))
+    t.false(vals.iter.all?(fn (val) { val > 10 }))
 
     let iter = vals.iter
 
-    iter.all? fn (val) { val > 10 }
+    iter.all?(fn (val) { val > 10 })
     t.equal(iter.next, Option.Some(ref 20))
     t.equal(iter.next, Option.Some(ref 30))
-  }
+  })
 
-  t.test('Iter.zip') fn (t) {
+  t.test('Iter.zip', fn (t) {
     let a = [10, 20]
     let b = [30, 40]
     let c = [50]
 
     t.equal(a.iter.zip(b.iter).to_array, [(ref 10, ref 30), (ref 20, ref 40)])
     t.equal(a.iter.zip(c.iter).to_array, [(ref 10, ref 50)])
-  }
+  })
 
-  t.test('Iter.reduce') fn (t) {
+  t.test('Iter.reduce', fn (t) {
     let vals = [10, 20]
 
-    t.equal(vals.iter.reduce(0) fn (sum, val) { sum + val }, 30)
-  }
+    t.equal(vals.iter.reduce(0, fn (sum, val) { sum + val }), 30)
+  })
 
-  t.test('Iter.chunks') fn (t) {
+  t.test('Iter.chunks', fn (t) {
     let vals = [10, 20, 30, 40]
 
     t.equal(vals.iter.chunks(1).to_array, [[10], [20], [30], [40]])
     t.equal(vals.iter.chunks(2).to_array, [[10, 20], [30, 40]])
     t.equal(vals.iter.chunks(3).to_array, [[10, 20, 30], [40]])
     t.equal(vals.iter.chunks(4).to_array, [[10, 20, 30, 40]])
-  }
+  })
 
-  t.test('Iter.to_array') fn (t) {
+  t.test('Iter.to_array', fn (t) {
     t.equal([10, 20].into_iter.to_array, [10, 20])
-  }
+  })
 
-  t.test('Iter.count') fn (t) {
-    t.equal([10, 20, 30].iter.count, 3)
-  }
+  t.test('Iter.count', fn (t) { t.equal([10, 20, 30].iter.count, 3) })
 
-  t.test('Iter.last') fn (t) {
+  t.test('Iter.last', fn (t) {
     t.equal([10, 20, 30].iter.last, Option.Some(30))
-  }
+  })
 
-  t.test('Iter.try_each') fn (t) {
+  t.test('Iter.try_each', fn (t) {
     let vals = []
-    let res = [10, 0, 30].into_iter.try_each fn (val) {
+    let res = [10, 0, 30].into_iter.try_each(fn (val) {
       if val > 0 {
         vals.push(val)
         Result.Ok(nil)
       } else {
         Result.Error('test')
       }
-    }
+    })
 
     t.equal(res, Result.Error('test'))
     t.equal(vals, [10])
-  }
+  })
 
-  t.test('Iter.try_reduce') fn (t) {
+  t.test('Iter.try_reduce', fn (t) {
     let iter = [Result.Ok(10), Result.Error('test'), Result.Ok(20)].into_iter
     let vals = []
-    let result = iter.try_reduce(0) fn (acc, val) {
+    let result = iter.try_reduce(0, fn (acc, val) {
       match val {
         case Ok(val) -> {
           vals.push(val)
@@ -178,74 +176,77 @@ fn pub tests(t: mut Tests) {
         }
         case err -> err
       }
-    }
+    })
 
     t.equal(result, Result.Error('test'))
     t.equal(vals, [10])
-  }
+  })
 
-  t.test('Stream.new') fn (t) {
+  t.test('Stream.new', fn (t) {
     let mut idx = 0
-    let iter = Stream.new fn move {
+    let iter = Stream.new(fn move {
       if idx == 0 { Option.Some(idx := idx + 1) } else { Option.None }
-    }
+    })
 
     t.equal(iter.next, Option.Some(0))
     t.equal(iter.next, Option.None)
-  }
+  })
 
-  t.test('Iter.peekable') fn (t) {
+  t.test('Iter.peekable', fn (t) {
     let vals = [1, 2, 3]
 
     t.equal(vals.iter.peekable.to_array, [1, 2, 3])
-  }
+  })
 
-  t.test('Iter.skip') fn (t) {
+  t.test('Iter.skip', fn (t) {
     t.equal([1, 2, 3].into_iter.skip(1).to_array, [2, 3])
     t.equal([1, 2, 3].into_iter.skip(10).to_array, [])
     t.equal([1, 2, 3].into_iter.skip(0).to_array, [1, 2, 3])
     t.equal([1, 2, 3].into_iter.skip(-1).to_array, [1, 2, 3])
     t.equal(([] as Array[Int]).into_iter.skip(1).to_array, [])
-  }
+  })
 
-  t.test('Iter.take') fn (t) {
+  t.test('Iter.take', fn (t) {
     t.equal([1, 2, 3].into_iter.take(2).to_array, [1, 2])
     t.equal([1, 2, 3].into_iter.take(10).to_array, [1, 2, 3])
     t.equal([1, 2, 3].into_iter.take(0).to_array, [])
     t.equal([1, 2, 3].into_iter.take(-1).to_array, [])
     t.equal(([] as Array[Int]).into_iter.take(2).to_array, [])
-  }
+  })
 
-  t.test('Iter.skip_while') fn (t) {
-    t.equal([1, 2, 3].into_iter.skip_while fn (_) { false }.to_array, [1, 2, 3])
-    t.equal([1, 2, 3].into_iter.skip_while fn (_) { true }.to_array, [])
-    t.equal([1, 2, 3].into_iter.skip_while fn (v) { v <= 2 }.to_array, [3])
+  t.test('Iter.skip_while', fn (t) {
     t.equal(
-      ([] as Array[Int]).into_iter.skip_while fn (_) { true }.to_array,
-      []
+      [1, 2, 3].into_iter.skip_while(fn (_) { false }).to_array,
+      [1, 2, 3],
     )
-  }
-
-  t.test('Iter.take_while') fn (t) {
-    t.equal([1, 2, 3].into_iter.take_while fn (_) { false }.to_array, [])
-    t.equal([1, 2, 3].into_iter.take_while fn (_) { true }.to_array, [1, 2, 3])
-    t.equal([1, 2, 3].into_iter.take_while fn (v) { v <= 2 }.to_array, [1, 2])
+    t.equal([1, 2, 3].into_iter.skip_while(fn (_) { true }).to_array, [])
+    t.equal([1, 2, 3].into_iter.skip_while(fn (v) { v <= 2 }).to_array, [3])
     t.equal(
-      ([] as Array[Int]).into_iter.take_while fn (_) { true }.to_array,
-      []
+      ([] as Array[Int]).into_iter.skip_while(fn (_) { true }).to_array,
+      [],
     )
-  }
+  })
 
-  t.test('Peekable.peek with an empty iterator') fn (t) {
+  t.test('Iter.take_while', fn (t) {
+    t.equal([1, 2, 3].into_iter.take_while(fn (_) { false }).to_array, [])
+    t.equal([1, 2, 3].into_iter.take_while(fn (_) { true }).to_array, [1, 2, 3])
+    t.equal([1, 2, 3].into_iter.take_while(fn (v) { v <= 2 }).to_array, [1, 2])
+    t.equal(
+      ([] as Array[Int]).into_iter.take_while(fn (_) { true }).to_array,
+      [],
+    )
+  })
+
+  t.test('Peekable.peek with an empty iterator', fn (t) {
     let vals: Array[Int] = []
     let iter = vals.iter.peekable
 
     t.equal(iter.peek, Option.None)
     t.equal(iter.next, Option.None)
     t.equal(iter.next, Option.None)
-  }
+  })
 
-  t.test('Peekable.peek with an iterator with values') fn (t) {
+  t.test('Peekable.peek with an iterator with values', fn (t) {
     let vals = [1, 2, 3]
     let iter = vals.iter.peekable
 
@@ -257,9 +258,9 @@ fn pub tests(t: mut Tests) {
     t.equal(iter.next, Option.Some(3))
     t.equal(iter.next, Option.None)
     t.equal(iter.peek, Option.None)
-  }
+  })
 
-  t.test('Peekable.peek_mut with an iterator with values') fn (t) {
+  t.test('Peekable.peek_mut with an iterator with values', fn (t) {
     let vals = [1, 2, 3]
     let iter = vals.iter_mut.peekable
 
@@ -271,5 +272,5 @@ fn pub tests(t: mut Tests) {
     t.equal(iter.next, Option.Some(3))
     t.equal(iter.next, Option.None)
     t.equal(iter.peek_mut, Option.None)
-  }
+  })
 }

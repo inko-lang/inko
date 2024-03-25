@@ -2,7 +2,6 @@
 
 # The maximum value of a Unicode code point
 let pub MAX_CODEPOINT = 0x10FFFF
-
 let TAG_CONT = 0x80
 let TAG_TWO_B = 0xC0
 let TAG_THREE_B = 0xE0

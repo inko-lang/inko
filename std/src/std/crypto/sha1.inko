@@ -70,9 +70,9 @@ class pub Sha1 {
   fn mut compress {
     let words = @words
 
-    0.until(16).iter.each fn (i) { words.set(i, @block.read_u32_be(i * 4)) }
+    0.until(16).iter.each(fn (i) { words.set(i, @block.read_u32_be(i * 4)) })
 
-    16.until(80).iter.each fn (i) {
+    16.until(80).iter.each(fn (i) {
       words.set(
         i,
         rotate_left_u32(
@@ -80,10 +80,10 @@ class pub Sha1 {
             ^ words.get(i - 8)
             ^ words.get(i - 14)
             ^ words.get(i - 16),
-          1
-        )
+          1,
+        ),
       )
-    }
+    })
 
     let mut a = @a
     let mut b = @b
@@ -98,7 +98,7 @@ class pub Sha1 {
           .wrapping_add((b & c) | (b.not & d))
           .wrapping_add(e)
           .wrapping_add(words.get(i))
-          .wrapping_add(0x5A827999)
+          .wrapping_add(0x5A827999),
       )
 
       e = d
@@ -115,7 +115,7 @@ class pub Sha1 {
           .wrapping_add(b ^ c ^ d)
           .wrapping_add(e)
           .wrapping_add(words.get(i))
-          .wrapping_add(0x6ED9EBA1)
+          .wrapping_add(0x6ED9EBA1),
       )
 
       e = d
@@ -132,7 +132,7 @@ class pub Sha1 {
           .wrapping_add((b & c) | (b & d) | (c & d))
           .wrapping_add(e)
           .wrapping_add(words.get(i))
-          .wrapping_add(0x8F1BBCDC)
+          .wrapping_add(0x8F1BBCDC),
       )
 
       e = d
@@ -149,7 +149,7 @@ class pub Sha1 {
           .wrapping_add(b ^ c ^ d)
           .wrapping_add(e)
           .wrapping_add(words.get(i))
-          .wrapping_add(0xCA62C1D6)
+          .wrapping_add(0xCA62C1D6),
       )
 
       e = d
@@ -171,11 +171,11 @@ class pub Sha1 {
 impl Hasher for Sha1 {
   fn pub mut write(bytes: ref ByteArray) {
     @size += bytes.size
-    @block.write_bytes(bytes) fn { compress }
+    @block.write_bytes(bytes, fn { compress })
   }
 
   fn pub move finish -> Hash {
-    @block.add_padding(8) fn { compress }
+    @block.add_padding(8, fn { compress })
     @block.write_size_be(@size * 8, at: 56)
     compress
 

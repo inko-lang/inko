@@ -25,25 +25,29 @@ fn extern inko_child_process_spawn(
   stdin: Int,
   stdout: Int,
   stderr: Int,
-  directory: String
+  directory: String,
 ) -> AnyResult
 
 fn extern inko_child_process_drop(child: Pointer[UInt8])
+
 fn extern inko_child_process_stdout_close(child: Pointer[UInt8])
+
 fn extern inko_child_process_stderr_close(child: Pointer[UInt8])
+
 fn extern inko_child_process_stdin_close(child: Pointer[UInt8])
+
 fn extern inko_child_process_stderr_read(
   process: Pointer[UInt8],
   child: Pointer[UInt8],
   buffer: mut ByteArray,
-  size: Int
+  size: Int,
 ) -> IntResult
 
 fn extern inko_child_process_stdout_read(
   process: Pointer[UInt8],
   child: Pointer[UInt8],
   buffer: mut ByteArray,
-  size: Int
+  size: Int,
 ) -> IntResult
 
 fn extern inko_child_process_stdin_flush(
@@ -64,6 +68,7 @@ fn extern inko_child_process_stdin_write_string(
 ) -> IntResult
 
 fn extern inko_child_process_try_wait(child: Pointer[UInt8]) -> IntResult
+
 fn extern inko_child_process_wait(
   process: Pointer[UInt8],
   child: Pointer[UInt8],
@@ -227,7 +232,7 @@ class pub Command {
       @stderr = Stream.Inherit,
       @arguments = [],
       @variables = Map.new,
-      @directory = Option.None
+      @directory = Option.None,
     }
   }
 
@@ -335,10 +340,10 @@ class pub Command {
   fn pub spawn -> Result[ChildProcess, Error] {
     let vars = []
 
-    @variables.iter.each fn (entry) {
+    @variables.iter.each(fn (entry) {
       vars.push(entry.key)
       vars.push(entry.value)
-    }
+    })
 
     match inko_child_process_spawn(
       _INKO.process,
@@ -352,12 +357,12 @@ class pub Command {
       @stderr.to_int,
       @directory.as_ref.or(ref ''),
     ) {
-      case { @tag = 0, @value = v } -> Result.Ok(
-        ChildProcess { @raw = v as Pointer[UInt8] }
-      )
-      case { @tag = _, @value = e } -> Result.Error(
-        Error.from_os_error(e as Int)
-      )
+      case { @tag = 0, @value = v } -> {
+        Result.Ok(ChildProcess { @raw = v as Pointer[UInt8] })
+      }
+      case { @tag = _, @value = e } -> {
+        Result.Error(Error.from_os_error(e as Int))
+      }
     }
   }
 }
@@ -409,7 +414,9 @@ impl Drop for Stdin {
 impl Write for Stdin {
   fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
     match inko_child_process_stdin_write_bytes(
-      _INKO.process, @process.raw, bytes
+      _INKO.process,
+      @process.raw,
+      bytes,
     ) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
@@ -418,7 +425,9 @@ impl Write for Stdin {
 
   fn pub mut write_string(string: String) -> Result[Int, Error] {
     match inko_child_process_stdin_write_string(
-      _INKO.process, @process.raw, string.to_string
+      _INKO.process,
+      @process.raw,
+      string.to_string,
     ) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
@@ -428,9 +437,9 @@ impl Write for Stdin {
   fn pub mut flush -> Result[Nil, Error] {
     match inko_child_process_stdin_flush(_INKO.process, @process.raw) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(
-        Error.from_os_error(e as Int)
-      )
+      case { @tag = _, @value = e } -> {
+        Result.Error(Error.from_os_error(e as Int))
+      }
     }
   }
 }
@@ -454,7 +463,10 @@ impl Drop for Stdout {
 impl Read for Stdout {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     match inko_child_process_stdout_read(
-      _INKO.process, @process.raw, into, size
+      _INKO.process,
+      @process.raw,
+      into,
+      size,
     ) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
@@ -481,7 +493,10 @@ impl Drop for Stderr {
 impl Read for Stderr {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
     match inko_child_process_stderr_read(
-      _INKO.process, @process.raw, into, size
+      _INKO.process,
+      @process.raw,
+      into,
+      size,
     ) {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))

@@ -52,11 +52,11 @@ let DEFAULT_COUNTER = 0
 # exactly 16 bytes.
 fn pub hchacha20(key: ref ByteArray, nonce: ref ByteArray) -> ByteArray {
   if key.size != KEY_SIZE {
-    panic("HChaCha20 key sizes must be exactly ${KEY_SIZE} bytes")
+    panic('HChaCha20 key sizes must be exactly ${KEY_SIZE} bytes')
   }
 
   if nonce.size != HCHACHA_NONCE_SIZE {
-    panic("HChaCha20 nonce sizes must be exactly ${HCHACHA_NONCE_SIZE} bytes")
+    panic('HChaCha20 nonce sizes must be exactly ${HCHACHA_NONCE_SIZE} bytes')
   }
 
   let out = ByteArray.filled(with: 0, times: 32)
@@ -78,7 +78,7 @@ fn pub hchacha20(key: ref ByteArray, nonce: ref ByteArray) -> ByteArray {
       little.read_u32(from: nonce, at: 4),
       little.read_u32(from: nonce, at: 8),
       little.read_u32(from: nonce, at: 12),
-    ]
+    ],
   }
 
   matrix.perform_rounds
@@ -115,7 +115,7 @@ class Matrix {
   fn mut perform_rounds {
     # ChaCha20 consists of 10 iterations of one column round and one diagonal
     # round, producing a total of 20 rounds (hence the name).
-    10.times fn (_) {
+    10.times(fn (_) {
       quarter_round(0, 4, 8, 12)
       quarter_round(1, 5, 9, 13)
       quarter_round(2, 6, 10, 14)
@@ -125,7 +125,7 @@ class Matrix {
       quarter_round(1, 6, 11, 12)
       quarter_round(2, 7, 8, 13)
       quarter_round(3, 4, 9, 14)
-    }
+    })
   }
 
   fn size -> Int {
@@ -234,11 +234,11 @@ class pub ChaCha20 {
   # bad luck the same nonce may be produced.
   fn pub static new(key: ref ByteArray, nonce: ref ByteArray) -> ChaCha20 {
     if key.size != KEY_SIZE {
-      panic("ChaCha20 key sizes must be exactly ${KEY_SIZE} bytes")
+      panic('ChaCha20 key sizes must be exactly ${KEY_SIZE} bytes')
     }
 
     if nonce.size != CHACHA_NONCE_SIZE {
-      panic("ChaCha20 nonce sizes must be exactly ${CHACHA_NONCE_SIZE} bytes")
+      panic('ChaCha20 nonce sizes must be exactly ${CHACHA_NONCE_SIZE} bytes')
     }
 
     ChaCha20 {
@@ -260,8 +260,8 @@ class pub ChaCha20 {
           little.read_u32(from: nonce, at: 0),
           little.read_u32(from: nonce, at: 4),
           little.read_u32(from: nonce, at: 8),
-        ]
-      }
+        ],
+      },
     }
   }
 
@@ -273,7 +273,7 @@ class pub ChaCha20 {
   # unsigned 32-bits integer.
   fn pub mut counter=(value: Int) {
     if value < 0 or value > MAX_COUNTER {
-      panic("ChaCha block counters must be between 0 and ${MAX_COUNTER}")
+      panic('ChaCha block counters must be between 0 and ${MAX_COUNTER}')
     } else {
       @matrix.set(12, value)
     }
@@ -287,12 +287,12 @@ class pub ChaCha20 {
     let tmp = Matrix { @words = Array.filled(with: 0, times: MATRIX_SIZE) }
 
     loop {
-      MATRIX_SIZE.times fn (i) { tmp.set(i, @matrix.get(i)) }
+      MATRIX_SIZE.times(fn (i) { tmp.set(i, @matrix.get(i)) })
       tmp.perform_rounds
-      MATRIX_SIZE.times fn (i) {
+      MATRIX_SIZE.times(fn (i) {
         tmp.set(i, to_u32(tmp.get(i).wrapping_add(@matrix.get(i))))
         little.write_u32(tmp.get(i), into: buf, at: i * 4)
-      }
+      })
 
       # This in itself can't overflow, as the Int type is a 64-bits signed
       # integer, and below we limit it to the range that fits in a 32-bits
@@ -307,21 +307,21 @@ class pub ChaCha20 {
       # API by forcing the user to handle errors that won't occur in 99.99999%
       # of all use cases.
       if new_size > MAX_COUNTER {
-        panic("The block counter overflowed after ${MAX_COUNTER} blocks")
+        panic('The block counter overflowed after ${MAX_COUNTER} blocks')
       }
 
       @matrix.set(12, new_size)
 
       if len <= BLOCK_SIZE {
-        len.times fn (i) {
+        len.times(fn (i) {
           out.set(offset + i, input.get(offset + i) ^ buf.get(i))
-        }
+        })
         return out
       }
 
-      BLOCK_SIZE.times fn (i) {
+      BLOCK_SIZE.times(fn (i) {
         out.set(offset + i, input.get(offset + i) ^ buf.get(i))
-      }
+      })
 
       len -= BLOCK_SIZE
       offset += BLOCK_SIZE
@@ -379,11 +379,11 @@ class pub XChaCha20 {
   #     XChaCha20.new(key, nonce)
   fn pub static new(key: ref ByteArray, nonce: ref ByteArray) -> XChaCha20 {
     if key.size != KEY_SIZE {
-      panic("XChaCha20 key sizes must be exactly ${KEY_SIZE} bytes")
+      panic('XChaCha20 key sizes must be exactly ${KEY_SIZE} bytes')
     }
 
     if nonce.size != XCHACHA_NONCE_SIZE {
-      panic("XChaCha20 nonce sizes must be exactly ${XCHACHA_NONCE_SIZE} bytes")
+      panic('XChaCha20 nonce sizes must be exactly ${XCHACHA_NONCE_SIZE} bytes')
     }
 
     let sub_key = hchacha20(key, nonce.slice(start: 0, size: 16))
@@ -408,9 +408,9 @@ class pub XChaCha20 {
             0,
             little.read_u32(from: nonce, at: 16),
             little.read_u32(from: nonce, at: 20),
-          ]
-        }
-      }
+          ],
+        },
+      },
     }
   }
 

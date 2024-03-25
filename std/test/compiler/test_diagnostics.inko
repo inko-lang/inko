@@ -27,13 +27,17 @@ fn parse_test(file: ReadOnlyFile) -> Result[Array[Diagnostic], String] {
     match reader.read_line(buffer) {
       case Ok(0) -> break
       case Ok(_) -> {}
-      case Error(e) -> throw "failed to read a line from ${file.path}: ${e}"
+      case Error(e) -> throw 'failed to read a line from ${file.path}: ${e}'
     }
 
     match buffer.opt(0) {
-      case Some(HASH) -> match Parser.new(buffer).parse {
-        case Some(v) -> diags.push(v)
-        case _ -> throw "the diagnostic line `${buffer.into_string}` is invalid"
+      case Some(HASH) -> {
+        match Parser.new(buffer).parse {
+          case Some(v) -> diags.push(v)
+          case _ -> {
+            throw 'the diagnostic line `${buffer.into_string}` is invalid'
+          }
+        }
       }
       case _ -> {}
     }
@@ -49,9 +53,11 @@ fn parse_output(
   bytes: ref ByteArray,
 ) -> Result[Array[Diagnostic], String] {
   match Json.parse(bytes) {
-    case Ok(Array(vals)) -> vals.into_iter.try_reduce([]) fn (diags, entry) {
-      diags.push(try Diagnostic.from_json(directory, entry))
-      Result.Ok(diags)
+    case Ok(Array(vals)) -> {
+      vals.into_iter.try_reduce([], fn (diags, entry) {
+        diags.push(try Diagnostic.from_json(directory, entry))
+        Result.Ok(diags)
+      })
     }
     case _ -> throw 'the top-level value must be an array'
   }
@@ -85,27 +91,29 @@ fn check(compiler: String, name: String, file: Path) -> Array[Diagnostic] {
 
   match parse_output(dir.to_string, output) {
     case Ok(v) -> v
-    case Error(e) -> panic("failed to parse the JSON for ${file.tail}: ${e}")
+    case Error(e) -> panic('failed to parse the JSON for ${file.tail}: ${e}')
   }
 }
 
 fn string(map: ref Map[String, Json], key: String) -> Result[String, String] {
   match map.opt(key) {
     case Some(String(v)) -> Result.Ok(v)
-    case _ -> throw "the \"${key}\" field must be a string"
+    case _ -> throw 'the "${key}" field must be a string'
   }
 }
 
 fn location(map: ref Map[String, Json], key: String) -> Result[Int, String] {
   match map.opt(key) {
-    case Some(Array(vals)) -> match vals.opt(0) {
-      case Some(Int(v)) -> return Result.Ok(v)
-      case _ -> {}
+    case Some(Array(vals)) -> {
+      match vals.opt(0) {
+        case Some(Int(v)) -> return Result.Ok(v)
+        case _ -> {}
+      }
     }
     case _ -> {}
   }
 
-  throw 'the \"${key}\" field must be an array of two integers'
+  throw 'the "${key}" field must be an array of two integers'
 }
 
 class Parser {
@@ -118,6 +126,7 @@ class Parser {
 
   fn move parse -> Option[Diagnostic] {
     if current != HASH { return Option.None }
+
     @index += 1
     skip_spaces
 
@@ -131,6 +140,7 @@ class Parser {
     let id = try read_until(RPAREN)
 
     if current != COLON { return Option.None }
+
     @index += 1
     skip_spaces
 
@@ -139,14 +149,16 @@ class Parser {
       case _ -> @bytes.size
     }
 
-    Option.Some(Diagnostic {
-      @id = id,
-      @file = file,
-      @level = level,
-      @message = @bytes.slice(@index, last - @index).into_string,
-      @line = line,
-      @column = col,
-    })
+    Option.Some(
+      Diagnostic {
+        @id = id,
+        @file = file,
+        @level = level,
+        @message = @bytes.slice(@index, last - @index).into_string,
+        @line = line,
+        @column = col,
+      },
+    )
   }
 
   fn current -> Int {
@@ -167,7 +179,7 @@ class Parser {
           return Option.Some(
             @bytes
               .slice(start, size: (@index := @index + 1) - start)
-              .into_string
+              .into_string,
           )
         }
         case _ -> @index += 1
@@ -176,7 +188,7 @@ class Parser {
   }
 
   fn mut read_number_until(byte: Int) -> Option[Int] {
-    read_until(byte).then fn (v) { Int.parse(v, int.Format.Decimal) }
+    read_until(byte).then(fn (v) { Int.parse(v, int.Format.Decimal) })
   }
 }
 
@@ -203,19 +215,21 @@ class Diagnostic {
     # We remove the directory leading up to the file, that way the diagnostic
     # lines in the test file don't need to specify the full file paths, and
     # debugging failing tests is a little less annoying due to noisy output.
-    let file = (try string(map, 'file')).strip_prefix("${directory}/")
+    let file = (try string(map, 'file')).strip_prefix('${directory}/')
     let line = try location(map, 'lines')
     let column = try location(map, 'columns')
     let message = try string(map, 'message')
 
-    Result.Ok(Diagnostic {
-      @id = id,
-      @file = file,
-      @level = level,
-      @line = line,
-      @column = column,
-      @message = message,
-    })
+    Result.Ok(
+      Diagnostic {
+        @id = id,
+        @file = file,
+        @level = level,
+        @line = line,
+        @column = column,
+        @message = message,
+      },
+    )
   }
 }
 
@@ -249,34 +263,35 @@ impl Format for Diagnostic {
 fn pub tests(t: mut Tests) {
   let base = env
     .working_directory
-    .or_else fn (_) { '.'.to_path }
+    .or_else(fn (_) { '.'.to_path })
     .join('test')
     .join('diagnostics')
 
   let compiler = compiler_path.to_string
 
-  base
-    .list
-    .or_panic("the test/diagnostics directory couldn't be found")
-    .each fn (entry) {
+  base.list.or_panic("the test/diagnostics directory couldn't be found").each(
+    fn (entry) {
       let test_file = match entry {
-        case Ok({ @path = path, @type = File })
-          if path.tail.ends_with?('.inko') -> recover path.clone
+        case Ok({ @path = path, @type = File }) if path.tail.ends_with?('.inko')
+        -> {
+          recover path.clone
+        }
         case Ok(_) -> return
-        case Error(e) -> panic("failed to read the diagnostics directory: ${e}")
+        case Error(e) -> panic('failed to read the diagnostics directory: ${e}')
       }
 
       let name = test_file.tail.strip_suffix('.inko')
 
-      t.test("${name} diagnostics") fn move (t) {
-        let file = ReadOnlyFile
-          .new(test_file.clone)
-          .or_panic("the test file ${test_file} must exist")
+      t.test('${name} diagnostics', fn move (t) {
+        let file = ReadOnlyFile.new(test_file.clone).or_panic(
+          'the test file ${test_file} must exist',
+        )
 
         match parse_test(file) {
           case Ok(exp) -> t.equal(check(compiler, name, test_file.clone), exp)
-          case Error(e) -> panic("failed to parse ${test_file}: ${e}")
+          case Error(e) -> panic('failed to parse ${test_file}: ${e}')
         }
-      }
-    }
+      })
+    },
+  )
 }

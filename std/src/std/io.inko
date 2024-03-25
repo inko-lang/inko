@@ -207,7 +207,7 @@ impl ToString for Error {
       case StorageFull -> 'the storage is full'
       case TimedOut -> 'the operation timed out'
       case WouldBlock -> 'the operation would block'
-      case Other(code) -> "an other error with code ${code} occurred"
+      case Other(code) -> 'an other error with code ${code} occurred'
     }
   }
 }
@@ -344,7 +344,7 @@ trait pub Write {
 
   # Writes a `String` followed by a Unix newline to the stream.
   fn pub mut print(string: String) -> Result[Int, Error] {
-    Result.Ok((try write_string(string)) + (try write_string("\n")))
+    Result.Ok((try write_string(string)) + (try write_string('\n')))
   }
 
   # Flushes any pending writes.
@@ -464,13 +464,13 @@ trait pub BufferedRead: Read {
   #
   #     reader.bytes.next # => Option.Some(Result.Ok(35))
   fn pub mut bytes -> Stream[Result[Int, Error]] {
-    Stream.new fn move {
+    Stream.new(fn move {
       match read_byte {
         case Ok(Some(num)) -> Option.Some(Result.Ok(num))
         case Ok(None) -> Option.None
         case Error(err) -> Option.Some(Result.Error(err))
       }
-    }
+    })
   }
 }
 
@@ -480,7 +480,7 @@ trait pub BufferedRead: Read {
 # may involve many system calls. `BufferedReader` wraps a `Read` and buffers
 # data into an internal buffer, reducing the total amount of system calls, at
 # the cost of needing to maintain an in-memory buffer.
-class pub BufferedReader[T: Read + mut] {
+class pub BufferedReader[T: mut + Read] {
   let @reader: T
   let @buffer: ByteArray
   let @capacity: Int
@@ -619,9 +619,9 @@ impl BufferedRead for Buffer {
 
   fn pub mut read_byte -> Result[Option[Int], Never] {
     if @offset < @bytes.size {
-      Result.Ok(Option.Some(@bytes.byte(@offset := @offset + 1) ))
+      Result.Ok(Option.Some(@bytes.byte(@offset := @offset + 1)))
     } else {
-      Result.Ok(Option.None )
+      Result.Ok(Option.None)
     }
   }
 }

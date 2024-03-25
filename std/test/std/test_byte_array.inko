@@ -3,200 +3,196 @@ import std.fmt (fmt)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
-  t.test('ByteArray.new') fn (t) {
+  t.test('ByteArray.new', fn (t) {
     t.equal(ByteArray.new, ByteArray.from_array([]))
-  }
+  })
 
-  t.test('ByteArray.from_array') fn (t) {
+  t.test('ByteArray.from_array', fn (t) {
     let bytes = ByteArray.from_array([10, 20])
 
     t.equal(bytes.get(0), 10)
     t.equal(bytes.get(1), 20)
-  }
+  })
 
-  t.test('ByteArray.filled') fn (t) {
+  t.test('ByteArray.filled', fn (t) {
     t.equal(ByteArray.filled(with: 0, times: 0), ByteArray.new)
     t.equal(ByteArray.filled(with: 0, times: 2), ByteArray.from_array([0, 0]))
-  }
+  })
 
-  t.test('ByteArray.clear') fn (t) {
+  t.test('ByteArray.clear', fn (t) {
     let bytes = ByteArray.from_array([10, 20])
 
     bytes.clear
 
     t.equal(bytes, ByteArray.new)
-  }
+  })
 
-  t.test('ByteArray.append') fn (t) {
+  t.test('ByteArray.append', fn (t) {
     let a = ByteArray.from_array([10])
     let b = ByteArray.from_array([20])
 
     a.append(b)
     t.equal(a, ByteArray.from_array([10, 20]))
-  }
+  })
 
-  t.test('ByteArray.push') fn (t) {
+  t.test('ByteArray.push', fn (t) {
     let bytes = ByteArray.new
 
     bytes.push(10)
     bytes.push(20)
 
     t.equal(bytes, ByteArray.from_array([10, 20]))
-  }
+  })
 
-  t.test('ByteArray.pop') fn (t) {
+  t.test('ByteArray.pop', fn (t) {
     let bytes = ByteArray.from_array([10, 20])
 
     t.equal(bytes.pop, Option.Some(20))
     t.equal(bytes.pop, Option.Some(10))
     t.equal(bytes.pop, Option.None)
-  }
+  })
 
-  t.test('ByteArray.remove_at') fn (t) {
+  t.test('ByteArray.remove_at', fn (t) {
     let bytes = ByteArray.from_array([10, 20, 30])
 
     t.equal(bytes.remove_at(1), 20)
     t.equal(bytes, ByteArray.from_array([10, 30]))
-  }
+  })
 
-  t.test('ByteArray.drain_to_string') fn (t) {
+  t.test('ByteArray.drain_to_string', fn (t) {
     let bytes = ByteArray.from_array([105, 110, 107, 111])
 
     t.equal(bytes.drain_to_string, 'inko')
     t.equal(bytes, ByteArray.new)
-  }
+  })
 
-  t.test('ByteArray.slice') fn (t) {
+  t.test('ByteArray.slice', fn (t) {
     let bytes = ByteArray.from_array([105, 110, 107, 111])
 
     t.equal(bytes.slice(start: 0, size: 0), ByteArray.new)
     t.equal(bytes.slice(start: 0, size: 1), ByteArray.from_array([105]))
     t.equal(bytes.slice(start: 0, size: 4), bytes)
     t.equal(bytes.slice(start: 0, size: 10), bytes)
-  }
+  })
 
-  t.test('ByteArray.opt') fn (t) {
+  t.test('ByteArray.opt', fn (t) {
     let bytes = ByteArray.from_array([105, 110])
 
     t.equal(bytes.opt(0), Option.Some(105))
     t.equal(bytes.opt(1), Option.Some(110))
     t.equal(bytes.opt(2), Option.None)
-  }
+  })
 
-  t.test('ByteArray.size') fn (t) {
+  t.test('ByteArray.size', fn (t) {
     t.equal(ByteArray.new.size, 0)
     t.equal(ByteArray.from_array([10]).size, 1)
-  }
+  })
 
-  t.test('ByteArray.empty?') fn (t) {
+  t.test('ByteArray.empty?', fn (t) {
     t.true(ByteArray.new.empty?)
     t.false(ByteArray.from_array([10]).empty?)
-  }
+  })
 
-  t.test('ByteArray.to_array') fn (t) {
+  t.test('ByteArray.to_array', fn (t) {
     t.equal(ByteArray.new.to_array, [])
     t.equal(ByteArray.from_array([10, 20]).to_array, [10, 20])
-  }
+  })
 
-  t.test('ByteArray.iter') fn (t) {
+  t.test('ByteArray.iter', fn (t) {
     let bytes = ByteArray.from_array([10, 20])
 
     t.equal(bytes.iter.to_array, [10, 20])
-  }
+  })
 
-  t.test('ByteArray.bytes') fn (t) {
+  t.test('ByteArray.bytes', fn (t) {
     let bytes = ByteArray.from_array([10, 20])
 
     t.equal(bytes.bytes.to_array, [10, 20])
-  }
+  })
 
-  t.test('ByteArray.get') fn (t) {
+  t.test('ByteArray.get', fn (t) {
     let bytes = ByteArray.from_array([10, 20])
 
     t.equal(bytes.get(0), 10)
     t.equal(bytes.get(1), 20)
-  }
+  })
 
-  t.test('ByteArray.byte') fn (t) {
+  t.test('ByteArray.byte', fn (t) {
     let bytes = ByteArray.from_array([10, 20])
 
     t.equal(bytes.byte(0), 10)
     t.equal(bytes.byte(1), 20)
-  }
+  })
 
-  t.panic('ByteArray.get with an invalid index') fn {
-    ByteArray.new.get(0)
-  }
+  t.panic('ByteArray.get with an invalid index', fn { ByteArray.new.get(0) })
 
-  t.panic('ByteArray.byte with an invalid index') fn {
-    ByteArray.new.byte(0)
-  }
+  t.panic('ByteArray.byte with an invalid index', fn { ByteArray.new.byte(0) })
 
-  t.test('ByteArray.set') fn (t) {
+  t.test('ByteArray.set', fn (t) {
     let bytes = ByteArray.from_array([10, 20])
 
     bytes.set(0, 50)
 
     t.equal(bytes.get(0), 50)
-  }
+  })
 
-  t.test('ByteArray.to_byte_array') fn (t) {
+  t.test('ByteArray.to_byte_array', fn (t) {
     let bytes = ByteArray.from_array([10, 20])
 
     t.equal(bytes.to_byte_array, bytes)
-  }
+  })
 
-  t.test('ByteArray.into_byte_array') fn (t) {
+  t.test('ByteArray.into_byte_array', fn (t) {
     t.equal(
       ByteArray.from_array([10, 20]).into_byte_array,
-      ByteArray.from_array([10, 20])
+      ByteArray.from_array([10, 20]),
     )
-  }
+  })
 
-  t.test('ByteArray.to_string') fn (t) {
+  t.test('ByteArray.to_string', fn (t) {
     t.equal(ByteArray.from_array([105, 110, 107, 111]).to_string, 'inko')
-  }
+  })
 
-  t.test('ByteArray.==') fn (t) {
+  t.test('ByteArray.==', fn (t) {
     t.equal(ByteArray.new, ByteArray.new)
     t.equal(ByteArray.from_array([10]), ByteArray.from_array([10]))
     t.not_equal(ByteArray.from_array([10]), ByteArray.new)
-  }
+  })
 
-  t.test('ByteArray.clone') fn (t) {
+  t.test('ByteArray.clone', fn (t) {
     let bytes = ByteArray.from_array([10, 20])
 
     t.equal(bytes.clone, bytes)
-  }
+  })
 
-  t.test('ByteArray.hash') fn (t) {
+  t.test('ByteArray.hash', fn (t) {
     t.equal(hash(ByteArray.from_array([10])), hash(ByteArray.from_array([10])))
     t.not_equal(hash(ByteArray.from_array([10, 20])), hash(ByteArray.new))
-  }
+  })
 
-  t.test('ByteArray.contains?') fn (t) {
+  t.test('ByteArray.contains?', fn (t) {
     let bytes = ByteArray.from_array([10, 20])
 
     t.true(bytes.contains?(10))
     t.true(bytes.contains?(20))
     t.false(bytes.contains?(30))
-  }
+  })
 
-  t.test('ByteArray.fmt') fn (t) {
+  t.test('ByteArray.fmt', fn (t) {
     t.equal(fmt(ByteArray.new), '[]')
     t.equal(fmt(ByteArray.from_array([10])), '[10]')
     t.equal(fmt(ByteArray.from_array([10, 20])), '[10, 20]')
-  }
+  })
 
-  t.test('ByteArray.reverse') fn (t) {
+  t.test('ByteArray.reverse', fn (t) {
     let vals = ByteArray.from_array([10, 20, 30])
 
     vals.reverse
 
     t.equal(vals, ByteArray.from_array([30, 20, 10]))
-  }
+  })
 
-  t.test('ByteArray.copy_from') fn (t) {
+  t.test('ByteArray.copy_from', fn (t) {
     let a = ByteArray.from_array([1, 2, 3, 4])
     let b = ByteArray.new
 
@@ -206,9 +202,9 @@ fn pub tests(t: mut Tests) {
 
     t.equal(b.copy_from(b, at: 0, size: 2), 2)
     t.equal(b, ByteArray.from_array([1, 2, 1, 2]))
-  }
+  })
 
-  t.test('ByteArray.resize') fn (t) {
+  t.test('ByteArray.resize', fn (t) {
     let bytes = ByteArray.new
 
     bytes.resize(size: 2, value: 1)
@@ -216,21 +212,21 @@ fn pub tests(t: mut Tests) {
 
     bytes.resize(size: 0, value: 0)
     t.equal(bytes, ByteArray.new)
-  }
+  })
 
-  t.panic('ByteArray.resize with an invalid size') fn {
+  t.panic('ByteArray.resize with an invalid size', fn {
     ByteArray.new.resize(size: -5, value: 0)
-  }
+  })
 
-  t.test('ByteArray.from_pointer') fn (t) {
+  t.test('ByteArray.from_pointer', fn (t) {
     let a = ByteArray.from_array([1, 2, 3, 4])
     let b = ByteArray.from_pointer(a.to_pointer, size: 4)
 
     t.equal(a, b)
-  }
+  })
 
-  t.test('ByteArray.last') fn (t) {
+  t.test('ByteArray.last', fn (t) {
     t.equal(ByteArray.new.last, Option.None)
     t.equal(ByteArray.from_array([10, 20]).last, Option.Some(20))
-  }
+  })
 }

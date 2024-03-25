@@ -7,14 +7,15 @@ import std.int (ToInt)
 import std.ops (Add, Subtract)
 
 fn extern inko_time_monotonic(state: Pointer[UInt8]) -> Int64
-fn extern inko_time_system() -> Float
+
+fn extern inko_time_system -> Float
+
 fn extern inko_time_system_offset -> Int64
 
 let SECS_PER_MIN = 60
 let SECS_PER_HOUR = 3600
 let SECS_PER_DAY = 86_400
 let DAYS_PER_WEEK = 7
-
 let NANOS_PER_SEC = 1_000_000_000.0
 let MICROS_PER_SEC = 1_000_000
 let MILLIS_PER_SEC = 1_000
@@ -188,13 +189,13 @@ impl Format for Duration {
   fn pub fmt(formatter: mut Formatter) {
     let abs = @nanos.absolute
     let write = if abs >= 1_000_000_000 {
-      "${to_secs} sec"
+      '${to_secs} sec'
     } else if abs >= 1_000_000 {
-      "${to_millis} msec"
+      '${to_millis} msec'
     } else if abs >= 1_000 {
-      "${to_micros} µsec"
+      '${to_micros} µsec'
     } else {
-      "${@nanos} nsec"
+      '${@nanos} nsec'
     }
 
     formatter.write(write)
@@ -248,7 +249,7 @@ class pub DateTime {
   #
   #     DateTime.new
   fn pub static new -> DateTime {
-    from_timestamp(inko_time_system(), inko_time_system_offset as Int)
+    from_timestamp(inko_time_system, inko_time_system_offset as Int)
   }
 
   # Returns a new `DateTime` representing the current time using UTC as the
@@ -262,7 +263,7 @@ class pub DateTime {
   #
   #     DateTime.utc
   fn pub static utc -> DateTime {
-    from_timestamp(time: inko_time_system(), utc_offset: 0)
+    from_timestamp(time: inko_time_system, utc_offset: 0)
   }
 
   # Returns a new `DateTime` from a Unix timestamp and UTC offset.
@@ -292,8 +293,8 @@ class pub DateTime {
     let time = time.to_float
     let epoch_secs = time.to_int + utc_offset
     let epoch_days = (epoch_secs / SECS_PER_DAY) + 719_468
-    let era =
-      if epoch_days >= 0 { epoch_days } else { epoch_days - 146_096 } / 146_097
+    let era = if epoch_days >= 0 { epoch_days } else { epoch_days - 146_096 }
+      / 146_097
     let doe = epoch_days - (era * 146_097)
     let yoe = (doe - (doe / 1460) + (doe / 36_524) - (doe / 146_096)) / 365
     let doy = doe - ((365 * yoe) + (yoe / 4) - (yoe / 100))
@@ -318,7 +319,7 @@ class pub DateTime {
       @minute = minute,
       @second = second,
       @sub_second = time.fractional,
-      @utc_offset = utc_offset
+      @utc_offset = utc_offset,
     }
   }
 
@@ -377,7 +378,8 @@ class pub DateTime {
     let era = if year >= 0 { year } else { year - 399 } / 400
     let yoe = year - (era * 400)
     let doy = (((153 * if month > 2 { month - 3 } else { month + 9 }) + 2) / 5)
-      + @day - 1
+      + @day
+      - 1
     let doe = (yoe * 365) + (yoe / 4) - (yoe / 100) + doy
 
     (era * 146_097) + doe - 719_468
@@ -412,7 +414,7 @@ impl Clone[DateTime] for DateTime {
       @minute = @minute,
       @second = @second,
       @sub_second = @sub_second,
-      @utc_offset = @utc_offset
+      @utc_offset = @utc_offset,
     }
   }
 }
@@ -423,13 +425,16 @@ impl Format for DateTime {
     let offset = if @utc_offset == 0 {
       ' UTC'
     } else {
-      let hh =
-        (@utc_offset / SECS_PER_HOUR).to_string.pad_start(with: '0', chars: 2)
-      let mm = (@utc_offset % SECS_PER_HOUR / 60)
-        .to_string
-        .pad_start(with: '0', chars: 2)
+      let hh = (@utc_offset / SECS_PER_HOUR).to_string.pad_start(
+        with: '0',
+        chars: 2,
+      )
+      let mm = (@utc_offset % SECS_PER_HOUR / 60).to_string.pad_start(
+        with: '0',
+        chars: 2,
+      )
 
-      " ${sign}${hh}${mm}"
+      ' ${sign}${hh}${mm}'
     }
 
     let year = @year.to_string.pad_start(with: '0', chars: 4)
@@ -439,7 +444,7 @@ impl Format for DateTime {
     let min = @minute.to_string.pad_start(with: '0', chars: 2)
     let secs = @second.to_string.pad_start(with: '0', chars: 2)
 
-    formatter.write("${year}-${month}-${day} ${hour}:${min}:${secs}${offset}")
+    formatter.write('${year}-${month}-${day} ${hour}:${min}:${secs}${offset}')
   }
 }
 
@@ -452,8 +457,11 @@ impl ToInt for DateTime {
     let days = days_since_unix_epoch
     let days_sec = days.absolute * SECS_PER_DAY
     let time_sec = (@hour * SECS_PER_HOUR) + (@minute * SECS_PER_MIN) + @second
-    let timestamp =
-      if days < 0 { 0 - (days_sec - time_sec) } else { days_sec + time_sec }
+    let timestamp = if days < 0 {
+      0 - (days_sec - time_sec)
+    } else {
+      days_sec + time_sec
+    }
 
     # Timestamps are always in UTC, not in the local time.
     timestamp - @utc_offset
@@ -627,6 +635,6 @@ impl Equal[ref Instant] for Instant {
 
 impl Format for Instant {
   fn pub fmt(formatter: mut Formatter) {
-    formatter.write("+${@nanos}")
+    formatter.write('+${@nanos}')
   }
 }

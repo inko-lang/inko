@@ -2,6 +2,7 @@ class Thing {}
 
 class async Foo {
   fn async foo(value: Channel[Thing]) {}
+
   fn async bar(value: Channel[uni Thing]) {}
 }
 

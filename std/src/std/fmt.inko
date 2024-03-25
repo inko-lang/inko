@@ -33,7 +33,7 @@ class pub TupleFormatter {
       case _ -> @formatter.write(', ')
     }
 
-    @formatter.descend fn { value.fmt(@formatter) }
+    @formatter.descend(fn { value.fmt(@formatter) })
     @fields += 1
     self
   }
@@ -61,7 +61,7 @@ class pub ArrayFormatter {
   fn pub mut value[T: Format](value: ref T) -> mut ArrayFormatter {
     if @fields > 0 { @formatter.write(', ') }
 
-    @formatter.descend fn { value.fmt(@formatter) }
+    @formatter.descend(fn { value.fmt(@formatter) })
     @fields += 1
     self
   }
@@ -97,7 +97,7 @@ class pub ObjectFormatter {
     @formatter.write(' @')
     @formatter.write(name)
     @formatter.write(' = ')
-    @formatter.descend fn { value.fmt(@formatter) }
+    @formatter.descend(fn { value.fmt(@formatter) })
     @fields += 1
     self
   }

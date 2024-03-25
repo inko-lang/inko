@@ -4,59 +4,55 @@ import std.sys (self, Command, ExitStatus, Stream)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
-  t.test('sys.cpu_cores') fn (t) {
-    t.true(sys.cpu_cores > 0)
-  }
+  t.test('sys.cpu_cores', fn (t) { t.true(sys.cpu_cores > 0) })
 
   t.fork(
     'sys.exit',
     child: fn { sys.exit(4) },
-    test: fn (test, process) { test.equal(process.spawn.status.to_int, 4) }
+    test: fn (test, process) { test.equal(process.spawn.status.to_int, 4) },
   )
 
-  t.test('Stream.to_int') fn (t) {
+  t.test('Stream.to_int', fn (t) {
     t.equal(Stream.Null.to_int, 0)
     t.equal(Stream.Inherit.to_int, 1)
     t.equal(Stream.Piped.to_int, 2)
-  }
+  })
 
-  t.test('Command.program') fn (t) {
-    t.equal(Command.new('ls').program, 'ls')
-  }
+  t.test('Command.program', fn (t) { t.equal(Command.new('ls').program, 'ls') })
 
-  t.test('Command.directory') fn (t) {
+  t.test('Command.directory', fn (t) {
     let cmd = Command.new('ls')
 
     t.equal(cmd.current_directory, Option.None)
     cmd.directory('/foo')
     t.equal(cmd.current_directory, Option.Some('/foo'))
-  }
+  })
 
-  t.test('Command.argument') fn (t) {
+  t.test('Command.argument', fn (t) {
     let cmd = Command.new('ls')
 
     t.equal(cmd.current_arguments, [])
     cmd.argument('foo')
     t.equal(cmd.current_arguments, ['foo'])
-  }
+  })
 
-  t.test('Command.arguments') fn (t) {
+  t.test('Command.arguments', fn (t) {
     let cmd = Command.new('ls')
 
     t.equal(cmd.current_arguments, [])
     cmd.arguments(['foo'])
     t.equal(cmd.current_arguments, ['foo'])
-  }
+  })
 
-  t.test('Command.variable') fn (t) {
+  t.test('Command.variable', fn (t) {
     let cmd = Command.new('ls')
 
     t.equal(cmd.current_variables, Map.new)
     cmd.variable('TEST', 'foo')
     t.equal(cmd.current_variables.get('TEST'), 'foo')
-  }
+  })
 
-  t.test('Command.variables') fn (t) {
+  t.test('Command.variables', fn (t) {
     let cmd = Command.new('ls')
     let vars = Map.new
 
@@ -65,9 +61,9 @@ fn pub tests(t: mut Tests) {
     t.equal(cmd.current_variables, Map.new)
     cmd.variables(vars)
     t.equal(cmd.current_variables.get('TEST'), 'foo')
-  }
+  })
 
-  t.test('Command.spawn with a valid command') fn (t) {
+  t.test('Command.spawn with a valid command', fn (t) {
     let cmd = Command.new(compiler_path)
 
     cmd.stdin(Stream.Null)
@@ -83,18 +79,16 @@ fn pub tests(t: mut Tests) {
 
     child.stdout.read_all(bytes).get
     t.true(bytes.into_string.contains?('Usage: inko'))
-  }
+  })
 
-  t.test('Command.spawn with an invalid command') fn (t) {
+  t.test('Command.spawn with an invalid command', fn (t) {
     t.true(Command.new('inko-test-invalid').spawn.error?)
-  }
+  })
 
-  t.test('ExitStatus.to_int') fn (t) {
-    t.equal(ExitStatus.new(42).to_int, 42)
-  }
+  t.test('ExitStatus.to_int', fn (t) { t.equal(ExitStatus.new(42).to_int, 42) })
 
-  t.test('ExitStatus.success?') fn (t) {
+  t.test('ExitStatus.success?', fn (t) {
     t.true(ExitStatus.new(0).success?)
     t.false(ExitStatus.new(4).success?)
-  }
+  })
 }

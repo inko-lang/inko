@@ -4,10 +4,10 @@ import std.cmp (Compare, Contains, Equal, Ordering, max, min)
 import std.drop (Drop)
 import std.fmt (Format, Formatter)
 import std.hash (Hash, Hasher)
-import std.iter (Stream, Iter)
+import std.iter (Iter, Stream)
+import std.libc.unix.alloc (self as alloc_imp) if unix
 import std.option (Option)
 import std.rand (Shuffle)
-import std.libc.unix.alloc (self as alloc_imp) if unix
 
 # The size of each value in an Array.
 #
@@ -31,9 +31,7 @@ fn stable_sort[T](array: mut Array[T], compare: mut fn (ref T, ref T) -> Bool) {
   # values. This works because merge_sort() doesn't perform any bounds checking.
   let tmp: Array[T] = Array.with_capacity(len)
 
-  len.times fn (i) {
-    tmp.write_to(i, array.read_from(i))
-  }
+  len.times(fn (i) { tmp.write_to(i, array.read_from(i)) })
 
   merge_sort(tmp, array, start: 0, end: len, compare: compare)
 }
@@ -43,7 +41,7 @@ fn merge_sort[T](
   b: mut Array[T],
   start: Int,
   end: Int,
-  compare: mut fn (ref T, ref T) -> Bool
+  compare: mut fn (ref T, ref T) -> Bool,
 ) {
   if end - start <= 1 { return }
 
@@ -80,7 +78,7 @@ fn merge_sort[T](
 fn pub bounds_check(index: Int, size: Int) {
   if index >= 0 and index < size { return }
 
-  panic("The index ${index} is out of bounds (size: ${size})")
+  panic('The index ${index} is out of bounds (size: ${size})')
 }
 
 # An ordered, integer-indexed generic collection of values.
@@ -101,7 +99,6 @@ fn pub bounds_check(index: Int, size: Int) {
 class builtin Array[T] {
   # The compiler depends on the order of these fields, so don't change it
   # without also updating the compiler.
-
   let @size: Int
   let @capacity: Int
   let @buffer: Pointer[UInt64]
@@ -116,8 +113,8 @@ class builtin Array[T] {
   fn pub static with_capacity(size: Int) -> Array[T] {
     if size < 0 { panic('The capacity must be greater than or equal to zero') }
 
-    let buffer = alloc_imp
-      .resize(0x0 as Pointer[T], size: size * VALUE_SIZE) as Pointer[UInt64]
+    let buffer = alloc_imp.resize(0x0 as Pointer[T], size: size * VALUE_SIZE)
+      as Pointer[UInt64]
 
     Array { @size = 0, @capacity = size, @buffer = buffer }
   }
@@ -136,7 +133,7 @@ class builtin Array[T] {
     let array = with_capacity(times)
     let temp = ref with
 
-    (times - 1).times fn (_) { array.push(temp.clone) }
+    (times - 1).times(fn (_) { array.push(temp.clone) })
     array.push(with)
     array
   }
@@ -168,9 +165,7 @@ class builtin Array[T] {
     let mut index = 0
     let max = @size
 
-    while index < max {
-      read_from(index := index + 1)
-    }
+    while index < max { read_from(index := index + 1) }
 
     @size = 0
   }
@@ -360,13 +355,13 @@ class builtin Array[T] {
     let mut idx = 0
     let max = @size
 
-    Stream.new fn move {
+    Stream.new(fn move {
       if idx < max {
         Option.Some(get_unchecked(idx := idx + 1))
       } else {
         Option.None
       }
-    }
+    })
   }
 
   # Returns an `Iter` that iterates over all values in `self`, returning them
@@ -402,13 +397,13 @@ class builtin Array[T] {
   fn pub reverse_iter -> Stream[ref T] {
     let mut index = size - 1
 
-    Stream.new fn move {
+    Stream.new(fn move {
       if index > -1 {
         Option.Some(get(index := index - 1))
       } else {
         Option.None
       }
-    }
+    })
   }
 
   # Appends the values of the given `Array` to `self`.
@@ -423,7 +418,7 @@ class builtin Array[T] {
   #
   #     numbers.size # => 5
   fn pub mut append(other: Array[T]) {
-    other.into_iter.each fn (v) { push(v) }
+    other.into_iter.each(fn (v) { push(v) })
   }
 
   # Returns the number of values in this Array.
@@ -532,7 +527,7 @@ class builtin Array[T] {
   #     nums # => [10, 20, 30]
   fn pub mut insert(index: Int, value: T) {
     if index < 0 or index > @size {
-      panic("The index ${index} is out of bounds (size: ${@size})")
+      panic('The index ${index} is out of bounds (size: ${@size})')
     }
 
     reserve(1)
@@ -570,12 +565,12 @@ class builtin Array[T] {
   #     nums.sort_by fn (a, b) { b.cmp(a) }
   #     nums # => [9, 5, 3, 3, 1, 0]
   fn pub mut sort_by(block: fn (ref T, ref T) -> Ordering) {
-    stable_sort(self) fn (a, b) {
+    stable_sort(self, fn (a, b) {
       match block.call(a, b) {
         case Less or Equal -> true
         case _ -> false
       }
-    }
+    })
   }
 
   fn to_pointer -> Pointer[T] {
@@ -646,15 +641,14 @@ impl Array if T: mut {
     let mut idx = 0
     let max = @size
 
-    Stream.new fn move {
+    Stream.new(fn move {
       if idx < max {
         Option.Some(get_unchecked_mut(idx := idx + 1))
       } else {
         Option.None
       }
-    }
+    })
   }
-
 
   # Returns a mutable reference to the last value in `self`.
   #
@@ -691,7 +685,7 @@ impl Contains[T] for Array if T: Equal[ref T] {
   #
   #     [10, 20, 30].contains?(10) # => true
   fn pub contains?(value: ref T) -> Bool {
-    iter.any? fn (ours) { ours == value }
+    iter.any?(fn (ours) { ours == value })
   }
 }
 
@@ -755,7 +749,7 @@ impl Format for Array if T: Format {
   fn pub fmt(formatter: mut Formatter) {
     let fmt = formatter.array
 
-    iter.each fn (value) { fmt.value(value) }
+    iter.each(fn (value) { fmt.value(value) })
     fmt.finish
   }
 }
@@ -773,6 +767,7 @@ impl Array if T: Equal[ref T] {
 
     while idx < @size {
       if get_unchecked(idx) == value { return Option.Some(idx) }
+
       idx += 1
     }
 
@@ -793,7 +788,7 @@ impl Array if T: Compare[T] {
   #     nums.sort
   #     nums # => [0, 1, 3, 3, 5, 9]
   fn pub mut sort {
-    stable_sort(self) fn (a, b) { a <= b }
+    stable_sort(self, fn (a, b) { a <= b })
   }
 }
 

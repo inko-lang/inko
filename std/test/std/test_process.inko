@@ -3,10 +3,10 @@ import std.test (Tests)
 import std.time (Duration, Instant)
 
 fn pub tests(t: mut Tests) {
-  t.test('process.sleep') fn (t) {
+  t.test('process.sleep', fn (t) {
     let start = Instant.new
 
     process.sleep(Duration.from_millis(10))
     t.greater_or_equal(start.elapsed.to_millis, 10)
-  }
+  })
 }

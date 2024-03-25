@@ -123,7 +123,7 @@ class pub Hash {
 
   # Returns a new empty `Digest`.
   fn pub static new(bytes: ByteArray) -> Hash {
-    Hash { @bytes = bytes}
+    Hash { @bytes = bytes }
   }
 }
 
@@ -134,12 +134,12 @@ impl ToString for Hash {
     # allocating a String for every byte.
     let hex = ByteArray.filled(with: 0, times: @bytes.size * 2)
 
-    @bytes.iter.each_with_index fn (index, byte) {
+    @bytes.iter.each_with_index(fn (index, byte) {
       let hex_index = index * 2
 
       hex.set(hex_index, HEX_DIGITS.byte(byte >> 4))
       hex.set(hex_index + 1, HEX_DIGITS.byte(byte & 0x0F))
-    }
+    })
 
     hex.into_string
   }

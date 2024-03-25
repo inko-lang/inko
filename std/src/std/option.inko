@@ -138,9 +138,11 @@ class pub enum Option[T] {
   # returned.
   fn pub move zip[O](other: Option[O]) -> Option[(T, O)] {
     match self {
-      case Some(ours) -> match other {
-        case Some(theirs) -> Option.Some((ours, theirs))
-        case _ -> Option.None
+      case Some(ours) -> {
+        match other {
+          case Some(theirs) -> Option.Some((ours, theirs))
+          case _ -> Option.None
+        }
       }
       case _ -> Option.None
     }
@@ -211,13 +213,17 @@ impl Equal[ref Option[T]] for Option if T: Equal[ref T] {
   #     Option.None == Option.None # => true
   fn pub ==(other: ref Option[T]) -> Bool {
     match self {
-      case Some(ours) -> match other {
-        case Some(theirs) -> ours == theirs
-        case _ -> false
+      case Some(ours) -> {
+        match other {
+          case Some(theirs) -> ours == theirs
+          case _ -> false
+        }
       }
-      case None -> match other {
-        case None -> true
-        case _ -> false
+      case None -> {
+        match other {
+          case None -> true
+          case _ -> false
+        }
       }
     }
   }

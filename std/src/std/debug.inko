@@ -2,12 +2,15 @@
 #
 # This module provides various facilities for debugging programs during
 # runtime, such as obtaining stack traces.
-import std.fs.path (Path)
 import std.clone (Clone)
+import std.fs.path (Path)
 
 fn extern inko_process_stacktrace(process: Pointer[UInt8]) -> Pointer[UInt8]
+
 fn extern inko_process_stacktrace_size(trace: Pointer[UInt8]) -> Int64
+
 fn extern inko_process_stacktrace_drop(trace: Pointer[UInt8])
+
 fn extern inko_process_stack_frame_line(
   trace: Pointer[UInt8],
   index: Int,
@@ -82,8 +85,9 @@ fn pub stacktrace(skip: Int) -> Array[StackFrame] {
   let frames = Array.with_capacity(max)
 
   while index < max {
-    let path =
-      Path.new(inko_process_stack_frame_path(_INKO.state, trace, index))
+    let path = Path.new(
+      inko_process_stack_frame_path(_INKO.state, trace, index),
+    )
     let name = inko_process_stack_frame_name(_INKO.state, trace, index)
     let line = inko_process_stack_frame_line(trace, index) as Int
 

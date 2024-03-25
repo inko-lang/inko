@@ -13,6 +13,7 @@ class extern FloatResult {
 }
 
 fn extern inko_float_to_string(state: Pointer[UInt8], float: Float64) -> String
+
 fn extern inko_string_to_float(bytes: Pointer[UInt8], size: Int) -> FloatResult
 
 # A type that can be converted to a Float.
@@ -181,6 +182,7 @@ class builtin Float {
   #     Float.not_a_number.round.not_a_number? # => true
   fn pub round(decimals: Int) -> Float {
     if decimals <= 0 { return _INKO.float_round(self) }
+
     if decimals > 4_294_967_295 { return self }
 
     let pow = 10.0 ** decimals
@@ -335,7 +337,9 @@ impl Equal[ref Float] for Float {
   fn pub ==(other: ref Float) -> Bool {
     # Handle simple comparisons such as `1.2 == 1.2` and `0.0 == -0.0`.
     if _INKO.float_eq(self, other) { return true }
+
     if positive_sign? != other.positive_sign? { return false }
+
     if not_a_number? or other.not_a_number? { return false }
 
     let diff = to_bits.wrapping_sub(other.to_bits)

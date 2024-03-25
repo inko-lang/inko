@@ -4,7 +4,7 @@ import std.hash (Hasher)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
-  t.test('Entry.key') fn (t) {
+  t.test('Entry.key', fn (t) {
     let map = Map.new
 
     map.set('name', 'Alice')
@@ -12,9 +12,9 @@ fn pub tests(t: mut Tests) {
     let entry = map.iter.next.get
 
     t.equal(entry.key, 'name')
-  }
+  })
 
-  t.test('Entry.value') fn (t) {
+  t.test('Entry.value', fn (t) {
     let map = Map.new
 
     map.set('name', 'Alice')
@@ -22,9 +22,9 @@ fn pub tests(t: mut Tests) {
     let entry = map.iter.next.get
 
     t.equal(entry.value, 'Alice')
-  }
+  })
 
-  t.test('Map.with_capacity') fn (t) {
+  t.test('Map.with_capacity', fn (t) {
     let map1: Map[Int, Int] = Map.new
     let map2: Map[Int, Int] = Map.with_capacity(0)
     let map3: Map[Int, Int] = Map.with_capacity(1)
@@ -36,9 +36,9 @@ fn pub tests(t: mut Tests) {
     t.equal(map3.capacity, 1)
     t.equal(map4.capacity, 4)
     t.equal(map5.capacity, 8)
-  }
+  })
 
-  t.test('Map.remove') fn (t) {
+  t.test('Map.remove', fn (t) {
     let map = Map.new
 
     map.set('name', 'Alice')
@@ -50,9 +50,9 @@ fn pub tests(t: mut Tests) {
     t.equal(map.remove('city'), Option.None)
     t.equal(map.keys.to_array, [ref 'name', ref 'foo', ref 'bar'])
     t.equal(map.values.to_array, [ref 'Alice', ref 'bar', ref 'baz'])
-  }
+  })
 
-  t.test('Map.iter') fn (t) {
+  t.test('Map.iter', fn (t) {
     let map = Map.new
 
     map.set('name', 'Alice')
@@ -65,9 +65,9 @@ fn pub tests(t: mut Tests) {
     t.equal(entries.get(0).value, 'Alice')
     t.equal(entries.get(1).key, 'city')
     t.equal(entries.get(1).value, 'Bla')
-  }
+  })
 
-  t.test('Map.iter_mut') fn (t) {
+  t.test('Map.iter_mut', fn (t) {
     let map = Map.new
 
     map.set('name', 'Alice')
@@ -80,9 +80,9 @@ fn pub tests(t: mut Tests) {
     t.equal(entries.get(0).value, 'Alice')
     t.equal(entries.get(1).key, 'city')
     t.equal(entries.get(1).value, 'Bla')
-  }
+  })
 
-  t.test('Map.into_iter') fn (t) {
+  t.test('Map.into_iter', fn (t) {
     let map = Map.new
 
     map.set('name', 'Alice')
@@ -95,9 +95,9 @@ fn pub tests(t: mut Tests) {
     t.equal(entries.get(0).value, 'Alice')
     t.equal(entries.get(1).key, 'city')
     t.equal(entries.get(1).value, 'Bla')
-  }
+  })
 
-  t.test('Map.keys') fn (t) {
+  t.test('Map.keys', fn (t) {
     let map = Map.new
 
     map.set('name', 'Alice')
@@ -107,9 +107,9 @@ fn pub tests(t: mut Tests) {
 
     t.equal(keys.size, 2)
     t.true(keys.get(0) == 'name' or keys.get(0) == 'city')
-  }
+  })
 
-  t.test('Map.values') fn (t) {
+  t.test('Map.values', fn (t) {
     let map = Map.new
 
     map.set('name', 'Alice')
@@ -119,37 +119,37 @@ fn pub tests(t: mut Tests) {
 
     t.equal(values.size, 2)
     t.true(values.get(0) == 'Alice' or values.get(0) == 'Bla')
-  }
+  })
 
-  t.test('Map.values_mut') fn (t) {
+  t.test('Map.values_mut', fn (t) {
     let map = Map.new
 
     map.set('numbers', [10])
 
-    map.values_mut.each fn (nums) { nums.push(20) }
+    map.values_mut.each(fn (nums) { nums.push(20) })
 
     t.equal(map.opt('numbers'), Option.Some(ref [10, 20]))
-  }
+  })
 
-  t.test('Map.opt') fn (t) {
+  t.test('Map.opt', fn (t) {
     let map = Map.new
 
     map.set('name', 'Alice')
 
     t.equal(map.opt('name'), Option.Some(ref 'Alice'))
     t.equal(map.opt('city'), Option.None)
-  }
+  })
 
-  t.test('Map.opt_mut') fn (t) {
+  t.test('Map.opt_mut', fn (t) {
     let map = Map.new
 
     map.set('name', 'Alice')
 
     t.equal(map.opt_mut('name'), Option.Some(mut 'Alice'))
     t.equal(map.opt_mut('city'), Option.None)
-  }
+  })
 
-  t.test('Map.merge') fn (t) {
+  t.test('Map.merge', fn (t) {
     let map1 = Map.new
     let map2 = Map.new
 
@@ -160,9 +160,9 @@ fn pub tests(t: mut Tests) {
 
     t.equal(map1.get('name'), 'Alice')
     t.equal(map1.get('city'), 'Bla')
-  }
+  })
 
-  t.test('Map.size') fn (t) {
+  t.test('Map.size', fn (t) {
     let map = Map.new
 
     t.equal(map.size, 0)
@@ -170,9 +170,9 @@ fn pub tests(t: mut Tests) {
     map.set('name', 'Alice')
 
     t.equal(map.size, 1)
-  }
+  })
 
-  t.test('Map.==') fn (t) {
+  t.test('Map.==', fn (t) {
     let map1 = Map.new
     let map2 = Map.new
     let map3 = Map.new
@@ -194,33 +194,33 @@ fn pub tests(t: mut Tests) {
     t.equal(map5, map6)
     t.not_equal(map1, map3)
     t.not_equal(map1, map4)
-  }
+  })
 
-  t.test('Map.set') fn (t) {
+  t.test('Map.set', fn (t) {
     let map = Map.new
 
     t.equal(map.set('name', 'Alice'), Option.None)
     t.equal(map.set('name', 'Bob'), Option.Some('Alice'))
-  }
+  })
 
-  t.test('Map.get') fn (t) {
+  t.test('Map.get', fn (t) {
     let map = Map.new
     let alias = ref map
 
     map.set('name', 'Alice')
 
     t.equal(alias.get('name'), 'Alice')
-  }
+  })
 
-  t.test('Map.get_mut') fn (t) {
+  t.test('Map.get_mut', fn (t) {
     let map = Map.new
 
     map.set('name', 'Alice')
 
     t.equal(map.get('name'), 'Alice')
-  }
+  })
 
-  t.test('Map.hash') fn (t) {
+  t.test('Map.hash', fn (t) {
     let map1 = Map.new
     let map2 = Map.new
     let map3: Map[String, String] = Map.new
@@ -230,9 +230,9 @@ fn pub tests(t: mut Tests) {
 
     t.equal(hash(map1), hash(map2))
     t.not_equal(hash(map1), hash(map3))
-  }
+  })
 
-  t.test('Map.contains?') fn (t) {
+  t.test('Map.contains?', fn (t) {
     let map1 = Map.new
     let map2: Map[String, String] = Map.new
 
@@ -240,9 +240,9 @@ fn pub tests(t: mut Tests) {
 
     t.true(map1.contains?('name'))
     t.false(map2.contains?('name'))
-  }
+  })
 
-  t.test('Map.fmt') fn (t) {
+  t.test('Map.fmt', fn (t) {
     let map1: Map[String, String] = Map.new
     let map2 = Map.new
     let map3 = Map.new
@@ -254,5 +254,5 @@ fn pub tests(t: mut Tests) {
     t.equal(fmt(map1), '{}')
     t.equal(fmt(map2), '{"name": "Alice"}')
     t.equal(fmt(map3), '{"name": "Alice", "city": "Bla"}')
-  }
+  })
 }

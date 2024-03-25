@@ -1,5 +1,5 @@
-import std.test (Tests)
 import std.drop (Drop)
+import std.test (Tests)
 
 class Value {
   let @dropped: Int
@@ -44,57 +44,60 @@ class enum CyclicEnum {
 }
 
 fn pub tests(t: mut Tests) {
-  t.test('Assigning a variable drops the old value') fn (t) {
+  t.test('Assigning a variable drops the old value', fn (t) {
     let val = Value.new
     let mut _a = ValueRef.new(val)
 
     _a = ValueRef.new(val)
     t.equal(val.dropped, 1)
-  }
+  })
 
-  t.test('Assigning a field drops the old value') fn (t) {
+  t.test('Assigning a field drops the old value', fn (t) {
     let val = Value.new
     let box = Box { @value = ValueRef.new(val) }
 
     box.update(ValueRef.new(val))
     t.equal(val.dropped, 1)
-  }
+  })
 
-  t.test('Assigning a field with a receiver drops the old value') fn (t) {
+  t.test('Assigning a field with a receiver drops the old value', fn (t) {
     let val = Value.new
     let box = Box { @value = ValueRef.new(val) }
 
     box.value = ValueRef.new(val)
     t.equal(val.dropped, 1)
-  }
+  })
 
-  t.test('Assigning a captured value drops the old value') fn (t) {
+  t.test('Assigning a captured value drops the old value', fn (t) {
     let val = Value.new
     let mut vref = Option.Some(ValueRef.new(val))
 
     fn move { vref = Option.None }.call
     t.equal(val.dropped, 1)
-  }
+  })
 
-  t.no_panic('Dropping a class with a cyclic reference') fn {
+  t.no_panic('Dropping a class with a cyclic reference', fn {
     let val_ref = Backref { @target = Option.None }
     let val = CyclicClass { @backref = val_ref }
 
     val.backref.target = Option.Some(ref val)
-  }
+  })
 
-  t.no_panic('Dropping an enum with a cyclic reference') fn {
+  t.no_panic('Dropping an enum with a cyclic reference', fn {
     let val_ref = Backref { @target = Option.None }
     let val = CyclicEnum.Backref(val_ref)
 
     match mut val {
       case Backref(r) -> r.target = Option.Some(ref val)
     }
-  }
+  })
 
-  t.panic('Returning a reference in a call chain that outlives the pointee') fn {
-    # Here `Array.last` returns a `Option[ref Array[Int]]`, but this reference
-    # outlives the source Array/receiver, so this must panic at runtime.
-    [[10]].last
-  }
+  t.panic(
+    'Returning a reference in a call chain that outlives the pointee',
+    fn {
+      # Here `Array.last` returns a `Option[ref Array[Int]]`, but this reference
+      # outlives the source Array/receiver, so this must panic at runtime.
+      [[10]].last
+    },
+  )
 }

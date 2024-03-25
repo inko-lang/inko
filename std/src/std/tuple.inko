@@ -108,7 +108,9 @@ class builtin Tuple3[A, B, C] {
 
 impl Equal[ref Tuple3[A, B, C]] for Tuple3
 if
-  A: Equal[ref A], B: Equal[ref B], C: Equal[ref C]
+  A: Equal[ref A],
+  B: Equal[ref B],
+  C: Equal[ref C],
 {
   fn pub ==(other: ref Tuple3[A, B, C]) -> Bool {
     @0 == other.0 and @1 == other.1 and @2 == other.2
@@ -123,9 +125,7 @@ impl Hash for Tuple3 if A: Hash, B: Hash, C: Hash {
   }
 }
 
-impl Clone[Tuple3[A, B, C]] for Tuple3
-if
-  A: Clone[A], B: Clone[B], C: Clone[C]
+impl Clone[Tuple3[A, B, C]] for Tuple3 if A: Clone[A], B: Clone[B], C: Clone[C]
 {
   fn pub clone -> Tuple3[A, B, C] {
     (@0.clone, @1.clone, @2.clone)
@@ -148,7 +148,10 @@ class builtin Tuple4[A, B, C, D] {
 
 impl Equal[ref Tuple4[A, B, C, D]] for Tuple4
 if
-  A: Equal[ref A], B: Equal[ref B], C: Equal[ref C], D: Equal[ref D]
+  A: Equal[ref A],
+  B: Equal[ref B],
+  C: Equal[ref C],
+  D: Equal[ref D],
 {
   fn pub ==(other: ref Tuple4[A, B, C, D]) -> Bool {
     @0 == other.0 and @1 == other.1 and @2 == other.2 and @3 == other.3
@@ -166,7 +169,10 @@ impl Hash for Tuple4 if A: Hash, B: Hash, C: Hash, D: Hash {
 
 impl Clone[Tuple4[A, B, C, D]] for Tuple4
 if
-  A: Clone[A], B: Clone[B], C: Clone[C], D: Clone[D]
+  A: Clone[A],
+  B: Clone[B],
+  C: Clone[C],
+  D: Clone[D],
 {
   fn pub clone -> Tuple4[A, B, C, D] {
     (@0.clone, @1.clone, @2.clone, @3.clone)
@@ -194,7 +200,7 @@ if
   B: Equal[ref B],
   C: Equal[ref C],
   D: Equal[ref D],
-  E: Equal[ref E]
+  E: Equal[ref E],
 {
   fn pub ==(other: ref Tuple5[A, B, C, D, E]) -> Bool {
     @0 == other.0
@@ -217,16 +223,18 @@ impl Hash for Tuple5 if A: Hash, B: Hash, C: Hash, D: Hash, E: Hash {
 
 impl Clone[Tuple5[A, B, C, D, E]] for Tuple5
 if
-  A: Clone[A], B: Clone[B], C: Clone[C], D: Clone[D], E: Clone[E]
+  A: Clone[A],
+  B: Clone[B],
+  C: Clone[C],
+  D: Clone[D],
+  E: Clone[E],
 {
   fn pub clone -> Tuple5[A, B, C, D, E] {
     (@0.clone, @1.clone, @2.clone, @3.clone, @4.clone)
   }
 }
 
-impl Format for Tuple5
-if
-  A: Format, B: Format, C: Format, D: Format, E: Format
+impl Format for Tuple5 if A: Format, B: Format, C: Format, D: Format, E: Format
 {
   fn pub fmt(formatter: mut Formatter) {
     formatter.tuple('').field(@0).field(@1).field(@2).field(@3).field(@4).finish
@@ -250,7 +258,7 @@ if
   C: Equal[ref C],
   D: Equal[ref D],
   E: Equal[ref E],
-  F: Equal[ref F]
+  F: Equal[ref F],
 {
   fn pub ==(other: ref Tuple6[A, B, C, D, E, F]) -> Bool {
     @0 == other.0
@@ -262,8 +270,7 @@ if
   }
 }
 
-impl Hash for Tuple6 if A: Hash, B: Hash, C: Hash, D: Hash, E: Hash, F: Hash
-{
+impl Hash for Tuple6 if A: Hash, B: Hash, C: Hash, D: Hash, E: Hash, F: Hash {
   fn pub hash[H: mut + Hasher](hasher: mut H) {
     @0.hash(hasher)
     @1.hash(hasher)
@@ -276,7 +283,12 @@ impl Hash for Tuple6 if A: Hash, B: Hash, C: Hash, D: Hash, E: Hash, F: Hash
 
 impl Clone[Tuple6[A, B, C, D, E, F]] for Tuple6
 if
-  A: Clone[A], B: Clone[B], C: Clone[C], D: Clone[D], E: Clone[E], F: Clone[F]
+  A: Clone[A],
+  B: Clone[B],
+  C: Clone[C],
+  D: Clone[D],
+  E: Clone[E],
+  F: Clone[F],
 {
   fn pub clone -> Tuple6[A, B, C, D, E, F] {
     (@0.clone, @1.clone, @2.clone, @3.clone, @4.clone, @5.clone)
@@ -285,7 +297,12 @@ if
 
 impl Format for Tuple6
 if
-  A: Format, B: Format, C: Format, D: Format, E: Format, F: Format
+  A: Format,
+  B: Format,
+  C: Format,
+  D: Format,
+  E: Format,
+  F: Format,
 {
   fn pub fmt(formatter: mut Formatter) {
     formatter
@@ -319,7 +336,7 @@ if
   D: Equal[ref D],
   E: Equal[ref E],
   F: Equal[ref F],
-  G: Equal[ref G]
+  G: Equal[ref G],
 {
   fn pub ==(other: ref Tuple7[A, B, C, D, E, F, G]) -> Bool {
     @0 == other.0
@@ -334,7 +351,13 @@ if
 
 impl Hash for Tuple7
 if
-  A: Hash, B: Hash, C: Hash, D: Hash, E: Hash, F: Hash, G: Hash
+  A: Hash,
+  B: Hash,
+  C: Hash,
+  D: Hash,
+  E: Hash,
+  F: Hash,
+  G: Hash,
 {
   fn pub hash[H: mut + Hasher](hasher: mut H) {
     @0.hash(hasher)
@@ -355,7 +378,7 @@ if
   D: Clone[D],
   E: Clone[E],
   F: Clone[F],
-  G: Clone[G]
+  G: Clone[G],
 {
   fn pub clone -> Tuple7[A, B, C, D, E, F, G] {
     (@0.clone, @1.clone, @2.clone, @3.clone, @4.clone, @5.clone, @6.clone)
@@ -364,7 +387,13 @@ if
 
 impl Format for Tuple7
 if
-  A: Format, B: Format, C: Format, D: Format, E: Format, F: Format, G: Format
+  A: Format,
+  B: Format,
+  C: Format,
+  D: Format,
+  E: Format,
+  F: Format,
+  G: Format,
 {
   fn pub fmt(formatter: mut Formatter) {
     formatter
@@ -401,7 +430,7 @@ if
   E: Equal[ref E],
   F: Equal[ref F],
   G: Equal[ref G],
-  H: Equal[ref H]
+  H: Equal[ref H],
 {
   fn pub ==(other: ref Tuple8[A, B, C, D, E, F, G, H]) -> Bool {
     @0 == other.0
@@ -417,7 +446,14 @@ if
 
 impl Hash for Tuple8
 if
-  A: Hash, B: Hash, C: Hash, D: Hash, E: Hash, F: Hash, G: Hash, H: Hash
+  A: Hash,
+  B: Hash,
+  C: Hash,
+  D: Hash,
+  E: Hash,
+  F: Hash,
+  G: Hash,
+  H: Hash,
 {
   fn pub hash[HASHER: mut + Hasher](hasher: mut HASHER) {
     @0.hash(hasher)
@@ -440,7 +476,7 @@ if
   E: Clone[E],
   F: Clone[F],
   G: Clone[G],
-  H: Clone[H]
+  H: Clone[H],
 {
   fn pub clone -> Tuple8[A, B, C, D, E, F, G, H] {
     (
@@ -451,7 +487,7 @@ if
       @4.clone,
       @5.clone,
       @6.clone,
-      @7.clone
+      @7.clone,
     )
   }
 }
@@ -465,7 +501,7 @@ if
   E: Format,
   F: Format,
   G: Format,
-  H: Format
+  H: Format,
 {
   fn pub fmt(formatter: mut Formatter) {
     formatter

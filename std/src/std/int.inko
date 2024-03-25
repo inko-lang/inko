@@ -6,11 +6,11 @@ import std.fmt (Format as FormatTrait, Formatter)
 import std.hash (Hash, Hasher)
 import std.iter (Peekable)
 import std.ops (
-  Add, BitAnd, BitOr, BitXor, Divide, Modulo, Multiply, Power,
-  ShiftLeft, ShiftRight, Subtract, UnsignedShiftRight
+  Add, BitAnd, BitOr, BitXor, Divide, Modulo, Multiply, Power, ShiftLeft,
+  ShiftRight, Subtract, UnsignedShiftRight,
 )
 import std.range (ExclusiveRange, InclusiveRange)
-import std.string (Bytes, ToString, StringBuffer)
+import std.string (Bytes, StringBuffer, ToString)
 
 # A type that can be converted to a Int.
 trait pub ToInt {
@@ -23,7 +23,6 @@ let pub MIN = -9_223_372_036_854_775_808
 
 # The maximum value an `Int` can represent.
 let pub MAX = 9_223_372_036_854_775_807
-
 let BITS = 64
 let PLUS = 43
 let MINUS = 45
@@ -182,8 +181,11 @@ class builtin Int {
       if digit > base or digit < 0 { return Option.None }
 
       num = try num.checked_mul(base)
-      num =
-        try if pos { num.checked_add(digit) } else { num.checked_sub(digit) }
+      num = try if pos {
+        num.checked_add(digit)
+      } else {
+        num.checked_sub(digit)
+      }
 
       match input.next {
         case Some(val) -> byte = val
@@ -216,6 +218,7 @@ class builtin Int {
 
     match self {
       case 0 -> return '0'
+
       # MIN can't be turned positive using absolute(), so we have to handle
       # these cases explicitly.
       case MIN if base == 2 -> {
@@ -355,7 +358,7 @@ class builtin Int {
   # # Examples
   #
   #     0xaa00000000006e1.rotate_left(12) # => 0x6e10aa
-  fn pub rotate_left(amount: Int) -> Int  {
+  fn pub rotate_left(amount: Int) -> Int {
     _INKO.int_rotate_left(self, amount)
   }
 
@@ -365,7 +368,7 @@ class builtin Int {
   # # Examples
   #
   #     0x6e10aa.rotate_right(12) # => 0xaa00000000006e1
-  fn pub rotate_right(amount: Int) -> Int  {
+  fn pub rotate_right(amount: Int) -> Int {
     _INKO.int_rotate_right(self, amount)
   }
 

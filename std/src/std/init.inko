@@ -2,6 +2,7 @@
 import std.array
 import std.bool
 import std.byte_array
+import std.channel
 import std.clone
 import std.drop
 import std.float
@@ -11,7 +12,6 @@ import std.map
 import std.nil
 import std.option
 import std.process
+import std.result
 import std.string
 import std.tuple
-import std.channel
-import std.result

@@ -4,16 +4,13 @@ class List {
 
   fn example1 {
     recover {
-      @values # Referring to a field is fine, as we expose it as `uni ref` or
-              # `uni mut`.
+      @values # This is fine, as the field is exposed as `uni ref` or `uni mut`
       nil
     }
   }
 
   fn example2 {
-    recover @values.clone # This _is_ allowed, because cloning returns a new
-                          # owned value, and in this case the sub values (Int)
-                          # are sendable.
+    recover @values.clone # This _is_ allowed, as cloning returns a new value
   }
 
   fn example3 {
@@ -22,9 +19,8 @@ class List {
 
   fn mut example4 {
     recover {
-      @values = [10, 20] # Assignments aren't allowed, as references to the
-                         # value returned by `recover` may escape through the
-                         # assignment
+      @values = [10, 20] # Not allowed, as references might escape
+
       nil
     }
   }
@@ -44,6 +40,6 @@ class List {
   }
 }
 
-# field_in_recover.inko:20:5 error(invalid-type): values of type 'uni ref Array[Int]' can't be recovered
-# field_in_recover.inko:25:7 error(invalid-symbol): the field 'values' can't be assigned a value of type 'Array[Int]', as it's not sendable
-# field_in_recover.inko:41:12 error(invalid-symbol): the field 'values' can't be assigned a value of type 'Array[Int]', as it's not sendable
+# field_in_recover.inko:17:5 error(invalid-type): values of type 'uni ref Array[Int]' can't be recovered
+# field_in_recover.inko:22:7 error(invalid-symbol): the field 'values' can't be assigned a value of type 'Array[Int]', as it's not sendable
+# field_in_recover.inko:37:12 error(invalid-symbol): the field 'values' can't be assigned a value of type 'Array[Int]', as it's not sendable

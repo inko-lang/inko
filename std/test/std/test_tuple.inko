@@ -3,315 +3,289 @@ import std.fmt (fmt)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
-  t.test('Tuple1.0') fn (t) {
+  t.test('Tuple1.0', fn (t) {
     let tup = (1,)
 
     t.equal(tup.0, 1)
-  }
+  })
 
-  t.test('Tuple1.==') fn (t) {
-    t.equal((1,), (1,))
-  }
+  t.test('Tuple1.==', fn (t) { t.equal((1,), (1,)) })
 
-  t.test('Tuple1.hash') fn (t) {
-    t.equal(hash((1,)), hash((1,)))
-  }
+  t.test('Tuple1.hash', fn (t) { t.equal(hash((1,)), hash((1,))) })
 
-  t.test('Tuple1.fmt') fn (t) {
-    t.equal(fmt((1,)), '(1)')
-  }
+  t.test('Tuple1.fmt', fn (t) { t.equal(fmt((1,)), '(1)') })
 
-  t.test('Tuple2.0') fn (t) {
+  t.test('Tuple2.0', fn (t) {
     let tup = (1, 2)
 
     t.equal(tup.0, 1)
-  }
+  })
 
-  t.test('Tuple2.1') fn (t) {
+  t.test('Tuple2.1', fn (t) {
     let tup = (1, 2)
 
     t.equal(tup.1, 2)
-  }
+  })
 
-  t.test('Tuple2.==') fn (t) {
-    t.equal((1, 2), (1, 2))
-  }
+  t.test('Tuple2.==', fn (t) { t.equal((1, 2), (1, 2)) })
 
-  t.test('Tuple2.hash') fn (t) {
-    t.equal(hash((1, 2)), hash((1, 2)))
-  }
+  t.test('Tuple2.hash', fn (t) { t.equal(hash((1, 2)), hash((1, 2))) })
 
-  t.test('Tuple2.fmt') fn (t) {
-    t.equal(fmt((1, 2)), '(1, 2)')
-  }
+  t.test('Tuple2.fmt', fn (t) { t.equal(fmt((1, 2)), '(1, 2)') })
 
-  t.test('Tuple3.0') fn (t) {
+  t.test('Tuple3.0', fn (t) {
     let tup = (1, 2, 3)
 
     t.equal(tup.0, 1)
-  }
+  })
 
-  t.test('Tuple3.1') fn (t) {
+  t.test('Tuple3.1', fn (t) {
     let tup = (1, 2, 3)
 
     t.equal(tup.1, 2)
-  }
+  })
 
-  t.test('Tuple3.2') fn (t) {
+  t.test('Tuple3.2', fn (t) {
     let tup = (1, 2, 3)
 
     t.equal(tup.2, 3)
-  }
+  })
 
-  t.test('Tuple3.==') fn (t) {
-    t.equal((1, 2, 3), (1, 2, 3))
-  }
+  t.test('Tuple3.==', fn (t) { t.equal((1, 2, 3), (1, 2, 3)) })
 
-  t.test('Tuple3.hash') fn (t) {
-    t.equal(hash((1, 2, 3)), hash((1, 2, 3)))
-  }
+  t.test('Tuple3.hash', fn (t) { t.equal(hash((1, 2, 3)), hash((1, 2, 3))) })
 
-  t.test('Tuple3.fmt') fn (t) {
-    t.equal(fmt((1, 2, 3)), '(1, 2, 3)')
-  }
+  t.test('Tuple3.fmt', fn (t) { t.equal(fmt((1, 2, 3)), '(1, 2, 3)') })
 
-  t.test('Tuple4.0') fn (t) {
+  t.test('Tuple4.0', fn (t) {
     let tup = (1, 2, 3, 4)
 
     t.equal(tup.0, 1)
-  }
+  })
 
-  t.test('Tuple4.1') fn (t) {
+  t.test('Tuple4.1', fn (t) {
     let tup = (1, 2, 3, 4)
 
     t.equal(tup.1, 2)
-  }
+  })
 
-  t.test('Tuple4.2') fn (t) {
+  t.test('Tuple4.2', fn (t) {
     let tup = (1, 2, 3, 4)
 
     t.equal(tup.2, 3)
-  }
+  })
 
-  t.test('Tuple4.3') fn (t) {
+  t.test('Tuple4.3', fn (t) {
     let tup = (1, 2, 3, 4)
 
     t.equal(tup.3, 4)
-  }
+  })
 
-  t.test('Tuple4.==') fn (t) {
-    t.equal((1, 2, 3, 4), (1, 2, 3, 4))
-  }
+  t.test('Tuple4.==', fn (t) { t.equal((1, 2, 3, 4), (1, 2, 3, 4)) })
 
-  t.test('Tuple4.hash') fn (t) {
+  t.test('Tuple4.hash', fn (t) {
     t.equal(hash((1, 2, 3, 4)), hash((1, 2, 3, 4)))
-  }
+  })
 
-  t.test('Tuple4.fmt') fn (t) {
-    t.equal(fmt((1, 2, 3, 4)), '(1, 2, 3, 4)')
-  }
+  t.test('Tuple4.fmt', fn (t) { t.equal(fmt((1, 2, 3, 4)), '(1, 2, 3, 4)') })
 
-  t.test('Tuple5.0') fn (t) {
+  t.test('Tuple5.0', fn (t) {
     let tup = (1, 2, 3, 4, 5)
 
     t.equal(tup.0, 1)
-  }
+  })
 
-  t.test('Tuple5.1') fn (t) {
+  t.test('Tuple5.1', fn (t) {
     let tup = (1, 2, 3, 4, 5)
 
     t.equal(tup.1, 2)
-  }
+  })
 
-  t.test('Tuple5.2') fn (t) {
+  t.test('Tuple5.2', fn (t) {
     let tup = (1, 2, 3, 4, 5)
 
     t.equal(tup.2, 3)
-  }
+  })
 
-  t.test('Tuple5.3') fn (t) {
+  t.test('Tuple5.3', fn (t) {
     let tup = (1, 2, 3, 4, 5)
 
     t.equal(tup.3, 4)
-  }
+  })
 
-  t.test('Tuple5.4') fn (t) {
+  t.test('Tuple5.4', fn (t) {
     let tup = (1, 2, 3, 4, 5)
 
     t.equal(tup.4, 5)
-  }
+  })
 
-  t.test('Tuple5.==') fn (t) {
-    t.equal((1, 2, 3, 4, 5), (1, 2, 3, 4, 5))
-  }
+  t.test('Tuple5.==', fn (t) { t.equal((1, 2, 3, 4, 5), (1, 2, 3, 4, 5)) })
 
-  t.test('Tuple5.hash') fn (t) {
+  t.test('Tuple5.hash', fn (t) {
     t.equal(hash((1, 2, 3, 4, 5)), hash((1, 2, 3, 4, 5)))
-  }
+  })
 
-  t.test('Tuple5.fmt') fn (t) {
+  t.test('Tuple5.fmt', fn (t) {
     t.equal(fmt((1, 2, 3, 4, 5)), '(1, 2, 3, 4, 5)')
-  }
+  })
 
-  t.test('Tuple6.0') fn (t) {
+  t.test('Tuple6.0', fn (t) {
     let tup = (1, 2, 3, 4, 5, 6)
 
     t.equal(tup.0, 1)
-  }
+  })
 
-  t.test('Tuple6.1') fn (t) {
+  t.test('Tuple6.1', fn (t) {
     let tup = (1, 2, 3, 4, 5, 6)
 
     t.equal(tup.1, 2)
-  }
+  })
 
-  t.test('Tuple6.2') fn (t) {
+  t.test('Tuple6.2', fn (t) {
     let tup = (1, 2, 3, 4, 5, 6)
 
     t.equal(tup.2, 3)
-  }
+  })
 
-  t.test('Tuple6.3') fn (t) {
+  t.test('Tuple6.3', fn (t) {
     let tup = (1, 2, 3, 4, 5, 6)
 
     t.equal(tup.3, 4)
-  }
+  })
 
-  t.test('Tuple6.4') fn (t) {
+  t.test('Tuple6.4', fn (t) {
     let tup = (1, 2, 3, 4, 5, 6)
 
     t.equal(tup.4, 5)
-  }
+  })
 
-  t.test('Tuple6.5') fn (t) {
+  t.test('Tuple6.5', fn (t) {
     let tup = (1, 2, 3, 4, 5, 6)
 
     t.equal(tup.5, 6)
-  }
+  })
 
-  t.test('Tuple6.==') fn (t) {
-    t.equal((1, 2, 3, 4, 5, 6), (1, 2, 3, 4, 5, 6))
-  }
+  t.test('Tuple6.==', fn (t) { t.equal((1, 2, 3, 4, 5, 6), (1, 2, 3, 4, 5, 6)) })
 
-  t.test('Tuple6.hash') fn (t) {
+  t.test('Tuple6.hash', fn (t) {
     t.equal(hash((1, 2, 3, 4, 5, 6)), hash((1, 2, 3, 4, 5, 6)))
-  }
+  })
 
-  t.test('Tuple6.fmt') fn (t) {
+  t.test('Tuple6.fmt', fn (t) {
     t.equal(fmt((1, 2, 3, 4, 5, 6)), '(1, 2, 3, 4, 5, 6)')
-  }
+  })
 
-  t.test('Tuple7.0') fn (t) {
+  t.test('Tuple7.0', fn (t) {
     let tup = (1, 2, 3, 4, 5, 6, 7)
 
     t.equal(tup.0, 1)
-  }
+  })
 
-  t.test('Tuple7.1') fn (t) {
+  t.test('Tuple7.1', fn (t) {
     let tup = (1, 2, 3, 4, 5, 6, 7)
 
     t.equal(tup.1, 2)
-  }
+  })
 
-  t.test('Tuple7.2') fn (t) {
+  t.test('Tuple7.2', fn (t) {
     let tup = (1, 2, 3, 4, 5, 6, 7)
 
     t.equal(tup.2, 3)
-  }
+  })
 
-  t.test('Tuple7.3') fn (t) {
+  t.test('Tuple7.3', fn (t) {
     let tup = (1, 2, 3, 4, 5, 6, 7)
 
     t.equal(tup.3, 4)
-  }
+  })
 
-  t.test('Tuple7.4') fn (t) {
+  t.test('Tuple7.4', fn (t) {
     let tup = (1, 2, 3, 4, 5, 6, 7)
 
     t.equal(tup.4, 5)
-  }
+  })
 
-  t.test('Tuple7.5') fn (t) {
+  t.test('Tuple7.5', fn (t) {
     let tup = (1, 2, 3, 4, 5, 6, 7)
 
     t.equal(tup.5, 6)
-  }
+  })
 
-  t.test('Tuple7.6') fn (t) {
+  t.test('Tuple7.6', fn (t) {
     let tup = (1, 2, 3, 4, 5, 6, 7)
 
     t.equal(tup.6, 7)
-  }
+  })
 
-  t.test('Tuple7.==') fn (t) {
+  t.test('Tuple7.==', fn (t) {
     t.equal((1, 2, 3, 4, 5, 6, 7), (1, 2, 3, 4, 5, 6, 7))
-  }
+  })
 
-  t.test('Tuple7.hash') fn (t) {
+  t.test('Tuple7.hash', fn (t) {
     t.equal(hash((1, 2, 3, 4, 5, 6, 7)), hash((1, 2, 3, 4, 5, 6, 7)))
-  }
+  })
 
-  t.test('Tuple7.fmt') fn (t) {
+  t.test('Tuple7.fmt', fn (t) {
     t.equal(fmt((1, 2, 3, 4, 5, 6, 7)), '(1, 2, 3, 4, 5, 6, 7)')
-  }
+  })
 
-  t.test('Tuple8.0') fn (t) {
+  t.test('Tuple8.0', fn (t) {
     let tup = (1, 2, 3, 4, 5, 6, 7, 8)
 
     t.equal(tup.0, 1)
-  }
+  })
 
-  t.test('Tuple8.1') fn (t) {
+  t.test('Tuple8.1', fn (t) {
     let tup = (1, 2, 3, 4, 5, 6, 7, 8)
 
     t.equal(tup.1, 2)
-  }
+  })
 
-  t.test('Tuple8.2') fn (t) {
+  t.test('Tuple8.2', fn (t) {
     let tup = (1, 2, 3, 4, 5, 6, 7, 8)
 
     t.equal(tup.2, 3)
-  }
+  })
 
-  t.test('Tuple8.3') fn (t) {
+  t.test('Tuple8.3', fn (t) {
     let tup = (1, 2, 3, 4, 5, 6, 7, 8)
 
     t.equal(tup.3, 4)
-  }
+  })
 
-  t.test('Tuple8.4') fn (t) {
+  t.test('Tuple8.4', fn (t) {
     let tup = (1, 2, 3, 4, 5, 6, 7, 8)
 
     t.equal(tup.4, 5)
-  }
+  })
 
-  t.test('Tuple8.5') fn (t) {
+  t.test('Tuple8.5', fn (t) {
     let tup = (1, 2, 3, 4, 5, 6, 7, 8)
 
     t.equal(tup.5, 6)
-  }
+  })
 
-  t.test('Tuple8.6') fn (t) {
+  t.test('Tuple8.6', fn (t) {
     let tup = (1, 2, 3, 4, 5, 6, 7, 8)
 
     t.equal(tup.6, 7)
-  }
+  })
 
-  t.test('Tuple8.7') fn (t) {
+  t.test('Tuple8.7', fn (t) {
     let tup = (1, 2, 3, 4, 5, 6, 7, 8)
 
     t.equal(tup.7, 8)
-  }
+  })
 
-  t.test('Tuple8.==') fn (t) {
+  t.test('Tuple8.==', fn (t) {
     t.equal((1, 2, 3, 4, 5, 6, 7, 8), (1, 2, 3, 4, 5, 6, 7, 8))
-  }
+  })
 
-  t.test('Tuple8.hash') fn (t) {
+  t.test('Tuple8.hash', fn (t) {
     t.equal(hash((1, 2, 3, 4, 5, 6, 7, 8)), hash((1, 2, 3, 4, 5, 6, 7, 8)))
-  }
+  })
 
-  t.test('Tuple8.fmt') fn (t) {
+  t.test('Tuple8.fmt', fn (t) {
     t.equal(fmt((1, 2, 3, 4, 5, 6, 7, 8)), '(1, 2, 3, 4, 5, 6, 7, 8)')
-  }
+  })
 }

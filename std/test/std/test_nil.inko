@@ -2,15 +2,9 @@ import std.fmt (fmt)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
-  t.test('Nil.==') fn (t) {
-    t.equal(nil, nil)
-  }
+  t.test('Nil.==', fn (t) { t.equal(nil, nil) })
 
-  t.test('Nil.clone') fn (t) {
-    t.equal(nil.clone, nil)
-  }
+  t.test('Nil.clone', fn (t) { t.equal(nil.clone, nil) })
 
-  t.test('Nil.fmt') fn (t) {
-    t.equal(fmt(nil), 'nil')
-  }
+  t.test('Nil.fmt', fn (t) { t.equal(fmt(nil), 'nil') })
 }

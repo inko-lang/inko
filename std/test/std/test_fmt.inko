@@ -9,60 +9,56 @@ fn format(func: fn (mut Formatter)) -> String {
 }
 
 fn pub tests(t: mut Tests) {
-  t.test('Formatter.descend') fn (t) {
+  t.test('Formatter.descend', fn (t) {
     let fmt1 = Formatter.new
     let fmt2 = Formatter.new
 
-    fmt1.descend fn {
-      fmt1.descend fn {
-        fmt1.descend fn {
-          fmt1.descend fn {
-            fmt1.descend fn {
-              fmt1.descend fn {
-                fmt1.descend fn {
-                  fmt1.descend fn {
-                    fmt1.descend fn {
-                      fmt1.descend fn {
-                        fmt1.descend fn {
-                          fmt1.write('test')
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
+    fmt1.descend(fn {
+      fmt1.descend(fn {
+        fmt1.descend(fn {
+          fmt1.descend(fn {
+            fmt1.descend(fn {
+              fmt1.descend(fn {
+                fmt1.descend(fn {
+                  fmt1.descend(fn {
+                    fmt1.descend(fn {
+                      fmt1.descend(fn {
+                        fmt1.descend(fn { fmt1.write('test') })
+                      })
+                    })
+                  })
+                })
+              })
+            })
+          })
+        })
+      })
+    })
 
-    fmt2.descend fn { fmt2.write('test') }
+    fmt2.descend(fn { fmt2.write('test') })
 
     t.equal(fmt1.into_string, '...')
     t.equal(fmt2.into_string, 'test')
-  }
+  })
 
-  t.test('Formatter.write') fn (t) {
+  t.test('Formatter.write', fn (t) {
     let fmt = Formatter.new
 
     fmt.write('test')
 
     t.equal(fmt.into_string, 'test')
-  }
+  })
 
-  t.test('fmt.fmt') fn (t) {
-    t.equal(fmt('test').into_string, '"test"')
-  }
+  t.test('fmt.fmt', fn (t) { t.equal(fmt('test').into_string, '"test"') })
 
-  t.test('Formatter.tuple') fn (t) {
-    t.equal(format fn (f) { f.tuple('').finish }, '()')
-    t.equal(format fn (f) { f.tuple('A').finish }, 'A')
-    t.equal(format fn (f) { f.tuple('').field(10).finish }, '(10)')
-    t.equal(format fn (f) { f.tuple('A').field(10).finish }, 'A(10)')
+  t.test('Formatter.tuple', fn (t) {
+    t.equal(format(fn (f) { f.tuple('').finish }), '()')
+    t.equal(format(fn (f) { f.tuple('A').finish }), 'A')
+    t.equal(format(fn (f) { f.tuple('').field(10).finish }), '(10)')
+    t.equal(format(fn (f) { f.tuple('A').field(10).finish }), 'A(10)')
     t.equal(
-      format fn (f) { f.tuple('A').field(10).field(20).finish },
-      'A(10, 20)'
+      format(fn (f) { f.tuple('A').field(10).field(20).finish }),
+      'A(10, 20)',
     )
 
     let fmt = Formatter.new
@@ -71,12 +67,12 @@ fn pub tests(t: mut Tests) {
     fmt.tuple('A').field(10).field(20).finish
 
     t.equal(fmt.into_string, 'A(..., ...)')
-  }
+  })
 
-  t.test('Formatter.array') fn (t) {
-    t.equal(format fn (f) { f.array.finish }, '[]')
-    t.equal(format fn (f) { f.array.value(10).finish }, '[10]')
-    t.equal(format fn (f) { f.array.value(10).value(20).finish }, '[10, 20]')
+  t.test('Formatter.array', fn (t) {
+    t.equal(format(fn (f) { f.array.finish }), '[]')
+    t.equal(format(fn (f) { f.array.value(10).finish }), '[10]')
+    t.equal(format(fn (f) { f.array.value(10).value(20).finish }), '[10, 20]')
 
     let fmt = Formatter.new
 
@@ -84,20 +80,23 @@ fn pub tests(t: mut Tests) {
     fmt.array.value(10).value(20).finish
 
     t.equal(fmt.into_string, '[..., ...]')
-  }
+  })
 
-  t.test('Formatter.object') fn (t) {
-    t.equal(format fn (f) { f.object('').finish }, '{}')
-    t.equal(format fn (f) { f.object('A').finish }, 'A')
-    t.equal(format fn (f) { f.object('').field('a', 10).finish }, '{ @a = 10 }')
+  t.test('Formatter.object', fn (t) {
+    t.equal(format(fn (f) { f.object('').finish }), '{}')
+    t.equal(format(fn (f) { f.object('A').finish }), 'A')
     t.equal(
-      format fn (f) { f.object('A').field('a', 10).finish },
-      'A { @a = 10 }'
+      format(fn (f) { f.object('').field('a', 10).finish }),
+      '{ @a = 10 }',
+    )
+    t.equal(
+      format(fn (f) { f.object('A').field('a', 10).finish }),
+      'A { @a = 10 }',
     )
 
     t.equal(
-      format fn (f) { f.object('A').field('a', 10).field('b', 20).finish },
-      'A { @a = 10, @b = 20 }'
+      format(fn (f) { f.object('A').field('a', 10).field('b', 20).finish }),
+      'A { @a = 10, @b = 20 }',
     )
 
     let fmt = Formatter.new
@@ -106,5 +105,5 @@ fn pub tests(t: mut Tests) {
     fmt.object('A').field('a', 10).field('b', 20).finish
 
     t.equal(fmt.into_string, 'A { @a = ..., @b = ... }')
-  }
+  })
 }

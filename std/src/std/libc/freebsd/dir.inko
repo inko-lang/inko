@@ -10,6 +10,7 @@ class extern Dirent {
 }
 
 fn pub extern opendir(path: Pointer[UInt8]) -> Pointer[UInt8]
+
 fn pub extern readdir(stream: Pointer[UInt8]) -> Pointer[UInt8]
 
 fn pub dirent_type(pointer: Pointer[UInt8]) -> Int {

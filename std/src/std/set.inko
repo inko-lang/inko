@@ -8,7 +8,7 @@ import std.iter (Stream)
 #
 # The order of values in this Set are not guaranteed. For values to be stored in
 # a `Set` they must implement the `Hash` and `Equal` traits.
-class pub Set[V: Hash + Equal[ref V]] {
+class pub Set[V: Equal[ref V] + Hash] {
   # The Map used for storing values.
   #
   # The keys are the values inserted in this `Set`, the values are always set to
@@ -123,7 +123,7 @@ impl Equal[ref Set[V]] for Set {
   fn pub ==(other: ref Set[V]) -> Bool {
     if size != other.size { return false }
 
-    iter.all? fn (val) { other.contains?(val) }
+    iter.all?(fn (val) { other.contains?(val) })
   }
 }
 
@@ -150,11 +150,11 @@ impl Format for Set if V: Format {
   fn pub fmt(formatter: mut Formatter) {
     formatter.write('{')
 
-    iter.each_with_index fn (index, value) {
+    iter.each_with_index(fn (index, value) {
       if index > 0 { formatter.write(', ') }
 
       value.fmt(formatter)
-    }
+    })
 
     formatter.write('}')
   }

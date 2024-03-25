@@ -11,8 +11,11 @@ import std.option (Option)
 import std.string (Bytes, IntoString, ToString)
 
 fn extern inko_byte_array_new(state: Pointer[UInt8]) -> ByteArray
+
 fn extern inko_byte_array_clear(bytes: mut ByteArray)
+
 fn extern inko_byte_array_append(target: mut ByteArray, source: mut ByteArray)
+
 fn extern inko_byte_array_clone(
   state: Pointer[UInt8],
   bytes: ref ByteArray,
@@ -27,17 +30,25 @@ fn extern inko_byte_array_copy_from(
 
 fn extern inko_byte_array_drain_to_string(
   state: Pointer[UInt8],
-  bytes: mut ByteArray
+  bytes: mut ByteArray,
 ) -> String
 
 fn extern inko_byte_array_drop(bytes: mut ByteArray)
+
 fn extern inko_byte_array_eq(left: ref ByteArray, right: ref ByteArray) -> Bool
+
 fn extern inko_byte_array_get(bytes: ref ByteArray, index: Int) -> Int
-fn extern inko_byte_array_size(bytes: ref ByteArray,) -> Int
+
+fn extern inko_byte_array_size(bytes: ref ByteArray) -> Int
+
 fn extern inko_byte_array_push(bytes: mut ByteArray, byte: Int)
+
 fn extern inko_byte_array_pop(bytes: mut ByteArray) -> Int
+
 fn extern inko_byte_array_remove(bytes: mut ByteArray, index: Int) -> Int
+
 fn extern inko_byte_array_resize(bytes: mut ByteArray, size: Int, filler: Int)
+
 fn extern inko_byte_array_set(
   bytes: mut ByteArray,
   index: Int,
@@ -48,7 +59,7 @@ fn extern inko_byte_array_slice(
   state: Pointer[UInt8],
   bytes: ref ByteArray,
   start: Int,
-  size: Int
+  size: Int,
 ) -> ByteArray
 
 fn extern inko_byte_array_to_string(
@@ -57,6 +68,7 @@ fn extern inko_byte_array_to_string(
 ) -> String
 
 fn extern inko_byte_array_to_pointer(bytes: ref ByteArray) -> Pointer[UInt8]
+
 fn extern inko_byte_array_from_pointer(
   state: Pointer[UInt8],
   pointer: Pointer[UInt8],
@@ -92,7 +104,7 @@ class builtin ByteArray {
   fn pub static from_array(array: ref Array[Int]) -> ByteArray {
     let bytes = ByteArray.new
 
-    array.iter.each fn (v) { bytes.push(v) }
+    array.iter.each(fn (v) { bytes.push(v) })
     bytes
   }
 
@@ -318,13 +330,13 @@ class builtin ByteArray {
     let mut idx = 0
     let max = size
 
-    Stream.new fn move {
+    Stream.new(fn move {
       if idx < max {
         Option.Some(inko_byte_array_get(self, idx := idx + 1))
       } else {
         Option.None
       }
-    }
+    })
   }
 
   # Reverses `self` in-place
@@ -526,7 +538,7 @@ impl Clone[ByteArray] for ByteArray {
 
 impl Hash for ByteArray {
   fn pub hash[H: mut + Hasher](hasher: mut H) {
-    iter.each fn (v) { hasher.write(v) }
+    iter.each(fn (v) { hasher.write(v) })
   }
 }
 
@@ -539,7 +551,7 @@ impl Contains[Int] for ByteArray {
   #
   #     bytes.contains?(10) # => true
   fn pub contains?(value: ref Int) -> Bool {
-    iter.any? fn (ours) { ours == value }
+    iter.any?(fn (ours) { ours == value })
   }
 }
 
@@ -547,7 +559,7 @@ impl Format for ByteArray {
   fn pub fmt(formatter: mut Formatter) {
     let fmt = formatter.array
 
-    iter.each fn (byte) { fmt.value(byte) }
+    iter.each(fn (byte) { fmt.value(byte) })
     fmt.finish
   }
 }

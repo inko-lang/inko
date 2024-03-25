@@ -1,11 +1,10 @@
 import std.drop (drop)
 import std.env
 import std.fmt (Format, Formatter)
+import std.fmt (fmt)
 import std.fs.path (Path)
 import std.hash (Hash, Hasher)
 import std.hash.siphash (SipHasher13)
-
-import std.fmt (fmt)
 import std.stdio (STDOUT)
 
 fn pub hash[T: Hash](value: ref T) -> Int {
@@ -16,7 +15,7 @@ fn pub hash[T: Hash](value: ref T) -> Int {
 }
 
 fn pub with_directory(id: Int, func: fn (ref Path)) {
-  let path = env.temporary_directory.join("inko-test-directory-${id}")
+  let path = env.temporary_directory.join('inko-test-directory-${id}')
 
   func.call(path)
   path.remove_directory_all
@@ -25,7 +24,9 @@ fn pub with_directory(id: Int, func: fn (ref Path)) {
 fn pub compiler_path -> Path {
   let base = match env.working_directory {
     case Ok(path) -> path
-    case Error(err) -> panic("Failed to determine the working directory: ${err}")
+    case Error(err) -> {
+      panic('Failed to determine the working directory: ${err}')
+    }
   }
 
   let target = if base.join('test').directory? {

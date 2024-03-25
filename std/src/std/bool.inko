@@ -1,6 +1,6 @@
 # Boolean true and false.
 import std.clone (Clone)
-import std.cmp (Equal, Compare, Ordering)
+import std.cmp (Compare, Equal, Ordering)
 import std.fmt (Format, Formatter)
 import std.hash (Hash, Hasher)
 import std.int (ToInt)

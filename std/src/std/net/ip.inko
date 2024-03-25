@@ -79,7 +79,7 @@ class pub enum IpAddress {
     e: Int,
     f: Int,
     g: Int,
-    h: Int
+    h: Int,
   ) -> IpAddress {
     V6(Ipv6Address.new(a, b, c, d, e, f, g, h))
   }
@@ -104,9 +104,9 @@ class pub enum IpAddress {
   #     IpAddress.parse('::1') # => Option.Some(IpAddress.V6(Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)))
   fn pub static parse(address: String) -> Option[IpAddress] {
     if address.contains?(':') {
-      Ipv6Address.parse(address).map fn (v) { V6(v) }
+      Ipv6Address.parse(address).map(fn (v) { V6(v) })
     } else {
-      Ipv4Address.parse(address).map fn (v) { V4(v) }
+      Ipv4Address.parse(address).map(fn (v) { V4(v) })
     }
   }
 
@@ -162,13 +162,17 @@ class pub enum IpAddress {
 impl Equal[ref IpAddress] for IpAddress {
   fn pub ==(other: ref IpAddress) -> Bool {
     match self {
-      case V4(a) -> match other {
-        case V4(b) -> a == b
-        case _ -> false
+      case V4(a) -> {
+        match other {
+          case V4(b) -> a == b
+          case _ -> false
+        }
       }
-      case V6(a) -> match other {
-        case V6(b) -> a == b
-        case _ -> false
+      case V6(a) -> {
+        match other {
+          case V6(b) -> a == b
+          case _ -> false
+        }
       }
     }
   }
@@ -326,22 +330,28 @@ class pub Ipv6Address {
     }
 
     if ipv4_segments.size == IPV4_OCTETS {
-      segments.push(octets_to_hextet(ipv4_segments.get(0), ipv4_segments.get(1)))
-      segments.push(octets_to_hextet(ipv4_segments.get(2), ipv4_segments.get(3)))
+      segments.push(
+        octets_to_hextet(ipv4_segments.get(0), ipv4_segments.get(1)),
+      )
+      segments.push(
+        octets_to_hextet(ipv4_segments.get(2), ipv4_segments.get(3)),
+      )
     }
 
     if segments.size != IPV6_HEXTETS { return Option.None }
 
-    Option.Some(Ipv6Address.new(
-      segments.get(0),
-      segments.get(1),
-      segments.get(2),
-      segments.get(3),
-      segments.get(4),
-      segments.get(5),
-      segments.get(6),
-      segments.get(7),
-    ))
+    Option.Some(
+      Ipv6Address.new(
+        segments.get(0),
+        segments.get(1),
+        segments.get(2),
+        segments.get(3),
+        segments.get(4),
+        segments.get(5),
+        segments.get(6),
+        segments.get(7),
+      ),
+    )
   }
 
   # Returns a new IPv6 address using the given hextets.
@@ -353,10 +363,17 @@ class pub Ipv6Address {
     e: Int,
     f: Int,
     g: Int,
-    h: Int
+    h: Int,
   ) -> Ipv6Address {
     Ipv6Address {
-      @a = a, @b = b, @c = c, @d = d, @e = e, @f = f, @g = g, @h = h
+      @a = a,
+      @b = b,
+      @c = c,
+      @d = d,
+      @e = e,
+      @f = f,
+      @g = g,
+      @h = h,
     }
   }
 
@@ -511,6 +528,7 @@ impl ToString for Ipv6Address {
   #     Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1) # => '::1'
   fn pub to_string -> String {
     if unspecified? { return '::' }
+
     if loopback? { return '::1' }
 
     let ipv4_compatible = ipv4_compatible?
@@ -527,7 +545,7 @@ impl ToString for Ipv6Address {
       let c = @h >> IPV4_TOIPV6_SHIFT
       let d = @h % hextet_to_octet_modulo
 
-      return "${prefix}${a}.${b}.${c}.${d}"
+      return '${prefix}${a}.${b}.${c}.${d}'
     }
 
     let mut compression_start = 0
@@ -565,7 +583,7 @@ impl ToString for Ipv6Address {
       let buffer = StringBuffer.new
       let compression_end = compression_start + compression_len
 
-      segments.iter.each_with_index fn (index, hextet) {
+      segments.iter.each_with_index(fn (index, hextet) {
         if index == compression_start { buffer.push(':') }
 
         if index < compression_start or index >= compression_end {
@@ -573,7 +591,7 @@ impl ToString for Ipv6Address {
 
           buffer.push(hextet.format(format))
         }
-      }
+      })
 
       return buffer.to_string
     }
@@ -587,7 +605,7 @@ impl ToString for Ipv6Address {
     let g = @g.format(format)
     let h = @h.format(format)
 
-    "${a}:${b}:${c}:${d}:${e}:${f}:${g}:${h}"
+    '${a}:${b}:${c}:${d}:${e}:${f}:${g}:${h}'
   }
 }
 
@@ -637,7 +655,7 @@ class pub Ipv4Address {
     let segments = []
     let format = Format.Decimal
 
-    input.split('.').each fn (segment) {
+    input.split('.').each(fn (segment) {
       # This handles inputs such as "." and "..."
       if segment.empty? { return }
 
@@ -647,23 +665,24 @@ class pub Ipv4Address {
       if segment.byte(0) == ZERO_BYTE and segment.size > 1 { return }
 
       match Int.parse(segment, format) {
-        case Some(int)
-          if int >= IP_MINIMUM_VALUE and int <= IPV4_OCTET_MAXIMUM ->
-        {
+        case Some(int) if int >= IP_MINIMUM_VALUE and int <= IPV4_OCTET_MAXIMUM
+        -> {
           segments.push(int)
         }
         case _ -> {}
       }
-    }
+    })
 
     if segments.size != IPV4_OCTETS { return Option.None }
 
-    Option.Some(Ipv4Address {
-      @a = segments.get(0),
-      @b = segments.get(1),
-      @c = segments.get(2),
-      @d = segments.get(3),
-    })
+    Option.Some(
+      Ipv4Address {
+        @a = segments.get(0),
+        @b = segments.get(1),
+        @c = segments.get(2),
+        @d = segments.get(3),
+      },
+    )
   }
 
   # Returns a new IPv4 address using the given octets.
@@ -722,9 +741,7 @@ class pub Ipv4Address {
   fn pub private? -> Bool {
     if @a == 10 { return true }
 
-    if @a == 172 and @b >= 16 and @b <= 31  {
-      return true
-    }
+    if @a == 172 and @b >= 16 and @b <= 31 { return true }
 
     @a == 192 and @b == 168
   }
@@ -785,13 +802,9 @@ class pub Ipv4Address {
   #     Ipv4Address.new(192, 0, 2, 0).documentation? # => true
   #     Ipv4Address.new(192, 1, 2, 0).documentation? # => false
   fn pub documentation? -> Bool {
-    if @a == 192 and @b == 0 and @c == 2 {
-      return true
-    }
+    if @a == 192 and @b == 0 and @c == 2 { return true }
 
-    if @a == 198 and @b == 51 and @c == 100 {
-      return true
-    }
+    if @a == 198 and @b == 51 and @c == 100 { return true }
 
     @a == 203 and @b == 0 and @c == 113
   }
@@ -836,10 +849,7 @@ class pub Ipv4Address {
   #     Ipv4Address.new(0, 0, 0, 0).unspecified? # => true
   #     Ipv4Address.new(0, 0, 0, 1).unspecified? # => false
   fn pub unspecified? -> Bool {
-    @a == 0
-      and @b == 0
-      and @c == 0
-      and @d == 0
+    @a == 0 and @b == 0 and @c == 0 and @d == 0
   }
 }
 
@@ -881,7 +891,7 @@ impl ToString for Ipv4Address {
   #     Ipv4Address.new.to_string # => '0.0.0.0'
   #     Ipv4Address.new(127, 0, 0, 1) # => '127.0.0.1'
   fn pub to_string -> String {
-    "${@a}.${@b}.${@c}.${@d}"
+    '${@a}.${@b}.${@c}.${@d}'
   }
 }
 

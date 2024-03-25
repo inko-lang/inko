@@ -12,7 +12,7 @@
 # Files are automatically closed when they are dropped. Any errors that may
 # occur when closing a file are ignored.
 import std.drop (Drop)
-import std.fs.path (ToPath, Path)
+import std.fs.path (Path, ToPath)
 import std.io (Error, Read, Seek, Size, Write)
 
 let FILE_READ_ONLY = 0
@@ -62,10 +62,7 @@ fn extern inko_file_seek(
   offset: Int,
 ) -> IntResult
 
-fn extern inko_file_size(
-  process: Pointer[UInt8],
-  path: String,
-) -> IntResult
+fn extern inko_file_size(process: Pointer[UInt8], path: String) -> IntResult
 
 fn extern inko_file_write_bytes(
   process: Pointer[UInt8],
@@ -100,12 +97,12 @@ class pub ReadOnlyFile {
     let path = path.to_path
 
     match inko_file_open(_INKO.process, path.to_string, FILE_READ_ONLY) {
-      case { @tag = 0, @value = v } -> Result.Ok(
-        ReadOnlyFile { @path = path, @fd = v }
-      )
-      case { @tag = _, @value = e } -> Result.Error(
-        Error.from_os_error(e as Int)
-      )
+      case { @tag = 0, @value = v } -> {
+        Result.Ok(ReadOnlyFile { @path = path, @fd = v })
+      }
+      case { @tag = _, @value = e } -> {
+        Result.Error(Error.from_os_error(e as Int))
+      }
     }
   }
 }
@@ -162,12 +159,12 @@ class pub WriteOnlyFile {
     let path = path.to_path
 
     match inko_file_open(_INKO.process, path.to_string, FILE_WRITE_ONLY) {
-      case { @tag = 0, @value = v } -> Result.Ok(
-        WriteOnlyFile { @path = path, @fd = v }
-      )
-      case { @tag = _, @value = e } -> Result.Error(
-        Error.from_os_error(e as Int)
-      )
+      case { @tag = 0, @value = v } -> {
+        Result.Ok(WriteOnlyFile { @path = path, @fd = v })
+      }
+      case { @tag = _, @value = e } -> {
+        Result.Error(Error.from_os_error(e as Int))
+      }
     }
   }
 
@@ -182,12 +179,12 @@ class pub WriteOnlyFile {
     let path = path.to_path
 
     match inko_file_open(_INKO.process, path.to_string, FILE_APPEND_ONLY) {
-      case { @tag = 0, @value = v } -> Result.Ok(
-        WriteOnlyFile { @path = path, @fd = v }
-      )
-      case { @tag = _, @value = e } -> Result.Error(
-        Error.from_os_error(e as Int)
-      )
+      case { @tag = 0, @value = v } -> {
+        Result.Ok(WriteOnlyFile { @path = path, @fd = v })
+      }
+      case { @tag = _, @value = e } -> {
+        Result.Error(Error.from_os_error(e as Int))
+      }
     }
   }
 }
@@ -216,9 +213,9 @@ impl Write for WriteOnlyFile {
   fn pub mut flush -> Result[Nil, Error] {
     match inko_file_flush(_INKO.process, @fd) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(
-        Error.from_os_error(e as Int)
-      )
+      case { @tag = _, @value = e } -> {
+        Result.Error(Error.from_os_error(e as Int))
+      }
     }
   }
 }
@@ -251,12 +248,12 @@ class pub ReadWriteFile {
     let path = path.to_path
 
     match inko_file_open(_INKO.process, path.to_string, FILE_READ_WRITE) {
-      case { @tag = 0, @value = v } -> Result.Ok(
-        ReadWriteFile { @path = path, @fd = v }
-      )
-      case { @tag = _, @value = e } -> Result.Error(
-        Error.from_os_error(e as Int)
-      )
+      case { @tag = 0, @value = v } -> {
+        Result.Ok(ReadWriteFile { @path = path, @fd = v })
+      }
+      case { @tag = _, @value = e } -> {
+        Result.Error(Error.from_os_error(e as Int))
+      }
     }
   }
 
@@ -271,12 +268,12 @@ class pub ReadWriteFile {
     let path = path.to_path
 
     match inko_file_open(_INKO.process, path.to_string, FILE_READ_APPEND) {
-      case { @tag = 0, @value = v } -> Result.Ok(
-        ReadWriteFile { @path = path, @fd = v }
-      )
-      case { @tag = _, @value = e } -> Result.Error(
-        Error.from_os_error(e as Int)
-      )
+      case { @tag = 0, @value = v } -> {
+        Result.Ok(ReadWriteFile { @path = path, @fd = v })
+      }
+      case { @tag = _, @value = e } -> {
+        Result.Error(Error.from_os_error(e as Int))
+      }
     }
   }
 }
@@ -314,9 +311,9 @@ impl Write for ReadWriteFile {
   fn pub mut flush -> Result[Nil, Error] {
     match inko_file_flush(_INKO.process, @fd) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(
-        Error.from_os_error(e as Int)
-      )
+      case { @tag = _, @value = e } -> {
+        Result.Error(Error.from_os_error(e as Int))
+      }
     }
   }
 }

@@ -9,7 +9,9 @@ class extern AnyResult {
 }
 
 fn extern inko_channel_drop(channel: Pointer[UInt8])
+
 fn extern inko_channel_new(size: Int) -> Pointer[UInt8]
+
 fn extern inko_channel_receive(
   process: Pointer[UInt8],
   channel: Pointer[UInt8],
@@ -120,7 +122,10 @@ class builtin Channel[T] {
   #     chan.receive_until(deadline: Instant.new + duration) # => Option.Some(1)
   fn pub receive_until(deadline: ref Instant) -> Option[uni T] {
     match inko_channel_receive_until(
-      _INKO.state, _INKO.process, @state, deadline.to_int
+      _INKO.state,
+      _INKO.process,
+      @state,
+      deadline.to_int,
     ) {
       case { @tag = 0, @value = v } -> Option.Some(v as uni T)
       case _ -> Option.None

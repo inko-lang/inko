@@ -100,37 +100,20 @@ let LOWER_U = 0x75
 # A table mapping bytes that follow a "\", and the types to replace the sequence
 # with. A value of `-1` means there's no replacement.
 let ESCAPE_TABLE = [
-  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  -1,     -1, DQUOTE,     -1,     -1,     -1,     -1,     -1,
-  -1,     -1,     -1,     -1,     -1,     -1,     -1,  SLASH,
-  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  -1,     -1,     -1,     -1, BSLASH,     -1,     -1,     -1,
-  -1,     -1,     BS,     -1,     -1,     -1,     FF,     -1,
-  -1,     -1,     -1,     -1,     -1,     -1,     LF,     -1,
-  -1,     -1,     CR,     -1,    TAB,     -1,     -1,     -1,
-  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,
-  -1,     -1,     -1,     -1,     -1,     -1,     -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, DQUOTE, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, SLASH, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, BSLASH,
+  -1, -1, -1, -1, -1, BS, -1, -1, -1, FF, -1, -1, -1, -1, -1, -1, -1, LF, -1,
+  -1, -1, CR, -1, TAB, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1,
 ]
 
 # The default amount of spaces to use for indentation when pretty-printing JSON
@@ -190,7 +173,7 @@ impl FormatTrait for Error {
 
 impl ToString for Error {
   fn pub to_string -> String {
-    "${@message}, on line ${@line} at byte offset ${@offset}"
+    '${@message}, on line ${@line} at byte offset ${@offset}'
   }
 }
 
@@ -438,33 +421,47 @@ impl FormatTrait for Json {
 impl Equal[ref Json] for Json {
   fn pub ==(other: ref Json) -> Bool {
     match self {
-      case Int(lhs) -> match other {
-        case Int(rhs) -> lhs == rhs
-        case _ -> false
+      case Int(lhs) -> {
+        match other {
+          case Int(rhs) -> lhs == rhs
+          case _ -> false
+        }
       }
-      case Float(lhs) -> match other {
-        case Float(rhs) -> lhs == rhs
-        case _ -> false
+      case Float(lhs) -> {
+        match other {
+          case Float(rhs) -> lhs == rhs
+          case _ -> false
+        }
       }
-      case String(lhs) -> match other {
-        case String(rhs) -> lhs == rhs
-        case _ -> false
+      case String(lhs) -> {
+        match other {
+          case String(rhs) -> lhs == rhs
+          case _ -> false
+        }
       }
-      case Array(lhs) -> match other {
-        case Array(rhs) -> lhs == rhs
-        case _ -> false
+      case Array(lhs) -> {
+        match other {
+          case Array(rhs) -> lhs == rhs
+          case _ -> false
+        }
       }
-      case Object(lhs) -> match other {
-        case Object(rhs) -> lhs == rhs
-        case _ -> false
+      case Object(lhs) -> {
+        match other {
+          case Object(rhs) -> lhs == rhs
+          case _ -> false
+        }
       }
-      case Bool(lhs) -> match other {
-        case Bool(rhs) -> lhs == rhs
-        case _ -> false
+      case Bool(lhs) -> {
+        match other {
+          case Bool(rhs) -> lhs == rhs
+          case _ -> false
+        }
       }
-      case Null -> match other {
-        case Null -> true
-        case _ -> false
+      case Null -> {
+        match other {
+          case Null -> true
+          case _ -> false
+        }
       }
     }
   }
@@ -545,7 +542,7 @@ class pub Parser {
 
   fn mut value -> Result[Json, Error] {
     if @depth >= @max_depth {
-      throw error("Only up to ${@max_depth} nested objects/arrays are allowed")
+      throw error('Only up to ${@max_depth} nested objects/arrays are allowed')
     }
 
     whitespace
@@ -560,6 +557,7 @@ class pub Parser {
         case Some(LOWER_N) -> return null
         case Some(DQUOTE) -> return string
         case Some(byte) if digit?(byte) -> return number
+
         # This is to take care of any random garbage that may be included in the
         # JSON document, including Unicode BOMs. This also saves us from having
         # to explicitly check for all the different BOMs.
@@ -570,7 +568,7 @@ class pub Parser {
   }
 
   fn mut string -> Result[Json, Error] {
-    string_value.map fn (val) { Json.String(val) }
+    string_value.map(fn (val) { Json.String(val) })
   }
 
   fn mut string_value -> Result[String, Error] {
@@ -578,13 +576,17 @@ class pub Parser {
 
     loop {
       match advance {
-        case Some(BSLASH) -> match advance {
-          case Some(LOWER_U) -> try escaped_unicode
-          case Some(byte) -> match ESCAPE_TABLE.get(byte) {
-            case -1 -> throw unexpected(byte)
-            case val -> @buffer.push(val)
+        case Some(BSLASH) -> {
+          match advance {
+            case Some(LOWER_U) -> try escaped_unicode
+            case Some(byte) -> {
+              match ESCAPE_TABLE.get(byte) {
+                case -1 -> throw unexpected(byte)
+                case val -> @buffer.push(val)
+              }
+            }
+            case _ -> throw unexpected_eof
           }
-          case _ -> throw unexpected_eof
         }
         case Some(DQUOTE) -> break
         case Some(val) if val >= 0x0 and val <= 0x001F -> {
@@ -597,7 +599,7 @@ class pub Parser {
 
     if @buffer.size > @max_string_size {
       throw error(
-        "The size of this string (${@buffer.size} bytes) is greater than the maximum of ${@max_string_size} bytes"
+        'The size of this string (${@buffer.size} bytes) is greater than the maximum of ${@max_string_size} bytes',
       )
     }
 
@@ -627,7 +629,7 @@ class pub Parser {
       if utf8.encode_scalar(codepoint, @buffer) > 0 { return Result.Ok(nil) }
     }
 
-    let pair = "\\u${high.format(Format.Hex)}\\u${low.format(Format.Hex)}"
+    let pair = '\\u${high.format(Format.Hex)}\\u${low.format(Format.Hex)}'
 
     throw error("'${pair}' is an invalid UTF-16 surrogate pair")
   }
@@ -775,17 +777,21 @@ class pub Parser {
           case _ -> {}
         }
       }
+
       # Example: 1E4
       case Some(byte) if exponent?(byte) -> try exponent
+
       # Example: 123
       #
       # If the number is too big to fit in an Int, we'll promote it to a Float.
-      case _ -> match Int.parse(@buffer, Format.Decimal) {
-        case Some(val) -> {
-          @buffer.clear
-          return Result.Ok(Json.Int(val))
+      case _ -> {
+        match Int.parse(@buffer, Format.Decimal) {
+          case Some(val) -> {
+            @buffer.clear
+            return Result.Ok(Json.Int(val))
+          }
+          case _ -> {}
         }
-        case _ -> {}
       }
     }
 
@@ -857,9 +863,11 @@ class pub Parser {
   fn mut expect(byte: Int) -> Result[Nil, Error] {
     match advance {
       case Some(val) if val == byte -> Result.Ok(nil)
-      case Some(val) -> throw error(
-        "The character '${char(byte)}' is expected, but '${char(val)}' was found instead"
-      )
+      case Some(val) -> {
+        throw error(
+          "The character '${char(byte)}' is expected, but '${char(val)}' was found instead",
+        )
+      }
       case _ -> throw unexpected_eof
     }
   }
@@ -910,7 +918,7 @@ class pub Parser {
   }
 
   fn invalid_control(byte: Int) -> Error {
-    error("The control character ${byte.format(Format.Hex)} must be escaped")
+    error('The control character ${byte.format(Format.Hex)} must be escaped')
   }
 
   fn unexpected(byte: Int) -> Error {
@@ -918,7 +926,7 @@ class pub Parser {
   }
 
   fn unexpected_eof -> Error {
-    error("One or more tokens are required, but we ran out of input")
+    error('One or more tokens are required, but we ran out of input')
   }
 
   fn error(message: String) -> Error {
@@ -947,7 +955,7 @@ class pub Generator {
       @pretty = indent > 0,
       @spaces = ' '.repeat(indent),
       @depth = 0,
-      @buffer = StringBuffer.new
+      @buffer = StringBuffer.new,
     }
   }
 
@@ -976,14 +984,14 @@ class pub Generator {
         @buffer.push('[')
 
         if vals.size > 0 {
-          enter fn {
-            vals.iter.each_with_index fn (index, val) {
+          enter(fn {
+            vals.iter.each_with_index(fn (index, val) {
               if index > 0 { separator }
 
               indent
               generate_value(val)
-            }
-          }
+            })
+          })
         }
 
         indent
@@ -993,8 +1001,8 @@ class pub Generator {
         @buffer.push('{')
 
         if vals.size > 0 {
-          enter fn {
-            vals.iter.each_with_index fn (index, pair) {
+          enter(fn {
+            vals.iter.each_with_index(fn (index, pair) {
               if index > 0 { separator }
 
               indent
@@ -1002,8 +1010,8 @@ class pub Generator {
               @buffer.push(pair.key.escaped)
               @buffer.push('": ')
               generate_value(pair.value)
-            }
-          }
+            })
+          })
         }
 
         indent
@@ -1023,14 +1031,14 @@ class pub Generator {
   }
 
   fn mut indent {
-    if @pretty { @depth.times fn (_) { @buffer.push(@spaces) } }
+    if @pretty { @depth.times(fn (_) { @buffer.push(@spaces) }) }
   }
 
   fn mut newline {
-    if @pretty { @buffer.push("\n") }
+    if @pretty { @buffer.push('\n') }
   }
 
   fn mut separator {
-    @buffer.push(if @pretty { ",\n" } else { ', ' })
+    @buffer.push(if @pretty { ',\n' } else { ', ' })
   }
 }

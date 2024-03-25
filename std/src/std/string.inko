@@ -14,7 +14,7 @@ import std.fmt (Format, Formatter)
 import std.fs.path (Path, ToPath)
 import std.hash (Hash, Hasher)
 import std.io (Read)
-import std.iter (Stream, Iter)
+import std.iter (Iter, Stream)
 import std.ops (Add)
 
 class extern StringResult {
@@ -23,7 +23,9 @@ class extern StringResult {
 }
 
 fn extern inko_string_to_lower(state: Pointer[UInt8], string: String) -> String
+
 fn extern inko_string_to_upper(state: Pointer[UInt8], string: String) -> String
+
 fn extern inko_string_slice_bytes_into(
   string: String,
   into: mut ByteArray,
@@ -32,13 +34,16 @@ fn extern inko_string_slice_bytes_into(
 )
 
 fn extern inko_string_chars(string: String) -> Pointer[UInt8]
+
 fn extern inko_string_chars_next(
   state: Pointer[UInt8],
   iter: Pointer[UInt8],
 ) -> StringResult
 
 fn extern inko_string_chars_drop(iter: Pointer[UInt8])
+
 fn extern inko_string_drop(string: String)
+
 fn extern inko_string_to_byte_array(
   state: Pointer[UInt8],
   string: String,
@@ -61,7 +66,6 @@ let CR = 0xD
 let SPACE = 0x20
 let DQUOTE = 0x22
 let BSLASH = 0x5C
-
 let LOWER_B = 0x62
 let LOWER_N = 0x6e
 let LOWER_F = 0x66
@@ -70,22 +74,12 @@ let LOWER_T = 0x74
 
 # A table mapping bytes to their replacements for `String.escaped`.
 let ESCAPE_TABLE = [
-       -1,         -1,         -1,         -1,         -1,         -1,
-       -1,         -1,    LOWER_B,    LOWER_T,    LOWER_N,         -1,
-  LOWER_F,    LOWER_R,         -1,         -1,         -1,         -1,
-       -1,         -1,         -1,         -1,         -1,         -1,
-       -1,         -1,         -1,         -1,         -1,         -1,
-       -1,         -1,         -1,         -1,     DQUOTE,         -1,
-       -1,         -1,         -1,         -1,         -1,         -1,
-       -1,         -1,         -1,         -1,         -1,         -1,
-       -1,         -1,         -1,         -1,         -1,         -1,
-       -1,         -1,         -1,         -1,         -1,         -1,
-       -1,         -1,         -1,         -1,         -1,         -1,
-       -1,         -1,         -1,         -1,         -1,         -1,
-       -1,         -1,         -1,         -1,         -1,         -1,
-       -1,         -1,         -1,         -1,         -1,         -1,
-       -1,         -1,         -1,         -1,         -1,         -1,
-       -1,         -1,     BSLASH,         -1,         -1,         -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, LOWER_B, LOWER_T, LOWER_N, -1, LOWER_F,
+  LOWER_R, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, DQUOTE, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, BSLASH, -1, -1, -1,
 ]
 
 fn whitespace?(byte: Int) -> Bool {
@@ -98,7 +92,7 @@ fn padding(string: String, chars: Int, pad_to: Int) -> String {
   let pad_size = pad_to - chars
   let pad_buf = StringBuffer.new
 
-  pad_size.times fn (_) { pad_buf.push(string) }
+  pad_size.times(fn (_) { pad_buf.push(string) })
 
   let mut pad = pad_buf.into_string
 
@@ -188,12 +182,12 @@ class builtin String {
     iter: move I,
     with: String,
   ) -> String {
-    let result = iter.reduce(StringBuffer.new) fn (buff, val) {
+    let result = iter.reduce(StringBuffer.new, fn (buff, val) {
       if buff.size > 0 { buff.push(with) }
 
       buff.push(val.to_string)
       buff
-    }
+    })
 
     result.to_string
   }
@@ -250,9 +244,9 @@ class builtin String {
   fn pub substring(start: Int, chars: Int) -> String {
     let buff = StringBuffer.new
 
-    self.chars.each_with_index fn (index, char) {
+    self.chars.each_with_index(fn (index, char) {
       if index >= start and buff.size < chars { buff.push(char) }
-    }
+    })
 
     buff.into_string
   }
@@ -363,7 +357,7 @@ class builtin String {
   fn pub split(separator: String) -> Stream[String] {
     let mut offset = 0
 
-    Stream.new fn move {
+    Stream.new(fn move {
       match byte_index(of: separator, starting_at: offset) {
         case Some(at) -> {
           let start = offset := at + separator.size
@@ -379,7 +373,7 @@ class builtin String {
         }
         case _ -> Option.None
       }
-    }
+    })
   }
 
   # Returns `true` if `self` is an empty `String`.
@@ -430,7 +424,7 @@ class builtin String {
       case _ -> {
         let buf = StringBuffer.new
 
-        times.times fn (_) { buf.push(clone) }
+        times.times(fn (_) { buf.push(clone) })
         buf.into_string
       }
     }
@@ -543,7 +537,7 @@ class builtin String {
     let buff = ByteArray.new
     let max = ESCAPE_TABLE.size
 
-    bytes.each fn (byte) {
+    bytes.each(fn (byte) {
       if byte >= max {
         buff.push(byte)
         return
@@ -556,7 +550,7 @@ class builtin String {
           buff.push(byte)
         }
       }
-    }
+    })
 
     buff.into_string
   }
@@ -589,12 +583,14 @@ class builtin String {
       match byte_index(string, start) {
         case Some(i) -> {
           if i > last { slice_into(buf, start: last, size: i - last) }
+
           with.slice_into(buf, start: 0, size: with.size)
           start = i + string.size
           last = start
         }
         case _ -> {
           if start < size { slice_into(buf, start, size) }
+
           break
         }
       }
@@ -630,9 +626,9 @@ impl Bytes for String {
     let mut idx = 0
     let max = size
 
-    Stream.new fn move {
+    Stream.new(fn move {
       if idx < max { Option.Some(byte(idx := idx + 1)) } else { Option.None }
-    }
+    })
   }
 
   # Returns the size of the `String` in bytes.

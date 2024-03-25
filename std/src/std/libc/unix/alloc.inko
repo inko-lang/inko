@@ -1,4 +1,5 @@
 fn extern realloc(pointer: Pointer[UInt8], size: Int) -> Pointer[UInt8]
+
 fn extern memmove(
   to: Pointer[UInt8],
   from: Pointer[UInt8],

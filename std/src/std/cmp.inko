@@ -12,17 +12,23 @@ class pub enum Ordering {
 impl Equal[ref Ordering] for Ordering {
   fn pub ==(other: ref Ordering) -> Bool {
     match self {
-      case Less -> match other {
-        case Less -> true
-        case _ -> false
+      case Less -> {
+        match other {
+          case Less -> true
+          case _ -> false
+        }
       }
-      case Equal -> match other {
-        case Equal -> true
-        case _ -> false
+      case Equal -> {
+        match other {
+          case Equal -> true
+          case _ -> false
+        }
       }
-      case Greater -> match other {
-        case Greater -> true
-        case _ -> false
+      case Greater -> {
+        match other {
+          case Greater -> true
+          case _ -> false
+        }
       }
     }
   }
