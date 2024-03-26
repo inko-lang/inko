@@ -256,7 +256,7 @@ Debian 12:
 
 ```bash
 sudo apt-get install --yes git build-essential llvm-16 llvm-16-dev \
-    libstdc++-11-dev libclang-common-16-dev zlib1g-dev
+    libstdc++-11-dev libclang-common-16-dev zlib1g-dev libzstd-dev
 ```
 
 Debian 11:
@@ -268,7 +268,8 @@ sudo add-apt-repository \
     "deb http://apt.llvm.org/bullseye/ llvm-toolchain-bullseye-16 main"
 sudo apt-get update
 sudo apt-get install --yes git build-essential llvm-16 llvm-16-dev \
-    libstdc++-10-dev libclang-common-16-dev zlib1g-dev libpolly-16-dev
+    libstdc++-10-dev libclang-common-16-dev zlib1g-dev libpolly-16-dev \
+    libzstd-dev
 ```
 
 The version of Rust provided by Debian is too old, so you'll need to use
@@ -303,7 +304,7 @@ For Ubuntu 23.04 and newer:
 
 ```bash
 sudo apt-get install --yes rustc cargo git build-essential llvm-16 llvm-16-dev \
-    libstdc++-11-dev libclang-common-16-dev zlib1g-dev
+    libstdc++-11-dev libclang-common-16-dev zlib1g-dev libzstd-dev
 ```
 
 For older versions:
@@ -315,5 +316,6 @@ sudo add-apt-repository \
     "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-15 main"
 sudo apt-get update
 sudo apt-get install --yes rustc cargo git build-essential llvm-16 llvm-16-dev \
-    libstdc++-10-dev libclang-common-16-dev zlib1g-dev libpolly-16-dev
+    libstdc++-10-dev libclang-common-16-dev zlib1g-dev libpolly-16-dev \
+    libzstd-dev
 ```
