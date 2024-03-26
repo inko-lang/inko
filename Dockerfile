@@ -1,4 +1,4 @@
-FROM registry.fedoraproject.org/fedora-minimal:38 AS builder
+FROM registry.fedoraproject.org/fedora-minimal:39 AS builder
 
 ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL sparse
 
@@ -7,7 +7,7 @@ ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL sparse
 # here. See https://gitlab.com/taricorp/llvm-sys.rs/-/issues/41 for some extra
 # details.
 RUN microdnf install --assumeyes gcc make rust cargo \
-    llvm15 llvm15-devel llvm15-static libstdc++-devel libstdc++-static \
+    llvm16 llvm16-devel llvm16-static libstdc++-devel libstdc++-static \
     libffi-devel zlib-devel
 ADD . /inko/
 WORKDIR /inko
@@ -15,7 +15,7 @@ RUN make build PREFIX='/usr'
 RUN strip target/release/inko
 RUN make install PREFIX='/usr'
 
-FROM registry.fedoraproject.org/fedora-minimal:38
+FROM registry.fedoraproject.org/fedora-minimal:39
 
 # gcc is needed to link object files. This also pulls in libgcc, which the
 # generated code links against dynamically.
