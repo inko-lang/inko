@@ -1,7 +1,7 @@
 FROM archlinux:latest
 
 ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL sparse
-ENV LLVM_VERSION 15
+ENV LLVM_VERSION 16
 ENV RUST_VERSION 1.70
 
 ENV PATH /opt/cargo/bin:$PATH
@@ -11,7 +11,7 @@ ENV RUSTUP_HOME /opt/rustup
 RUN pacman-key --init && \
     pacman-key --populate && \
     pacman -Sy --noconfirm archlinux-keyring && \
-    pacman -Syu --noconfirm rustup tar git base-devel curl llvm15
+    pacman -Syu --noconfirm rustup tar git base-devel curl llvm$LLVM_VERSION
 
 RUN rustup toolchain install --profile minimal $RUST_VERSION && \
     rustup default $RUST_VERSION

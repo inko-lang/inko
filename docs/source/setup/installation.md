@@ -21,7 +21,7 @@ isn't supported.
 
 - A 64-bits little-endian platform
 - Rust 1.70 or newer
-- LLVM 15
+- LLVM 16
 - A C compiler such as [GCC](https://gcc.gnu.org/) or
   [clang](https://clang.llvm.org/)
 - Git, for managing packages using the `inko pkg` command
@@ -96,6 +96,11 @@ yay -S inko     # Latest stable release
 yay -S inko-git # Latest Git commit
 ```
 
+::: tip
+We recommend using [Chaotic-AUR](https://aur.chaotic.cx/) to speed up the build
+process.
+:::
+
 ## Fedora
 
 Inko is available as a
@@ -126,14 +131,14 @@ brew install inko
 You may need to add the LLVM `bin` directory to your `PATH` as follows:
 
 ```bash
-export PATH="$(brew --prefix llvm@15)/bin:$PATH"
+export PATH="$(brew --prefix llvm@16)/bin:$PATH"
 ```
 
 You may also need to set the `LIBRARY_PATH` to the following, though this
 doesn't appear to always be needed:
 
 ```bash
-export LIBRARY_PATH="$(brew --prefix llvm@15)/lib:$(brew --prefix zstd)/lib"
+export LIBRARY_PATH="$(brew --prefix llvm@16)/lib:$(brew --prefix zstd)/lib"
 ```
 
 ## From source
@@ -148,7 +153,7 @@ cd inko
 Or use a release tarball:
 
 ```bash
-VER='0.13.2' # Replace this with the latest version of Inko
+VER='0.15.0' # Replace this with the latest version of Inko
 
 mkdir $VER
 curl https://releases.inko-lang.org/$VER.tar.gz -o $VER.tar.gz
@@ -224,8 +229,13 @@ the compiler's dependencies.
 ### Arch Linux
 
 ```bash
-sudo pacman -Sy llvm15 rust git base-devel
+sudo pacman -Sy llvm16 rust git base-devel
 ```
+
+If the llvm16 package is no longer available in the official repository, you'll
+need to install it from the [AUR](https://aur.archlinux.org/). Compiling LLVM
+from source can take a long time, so we recommend using
+[Chaotic-AUR](https://aur.chaotic.cx/) to speed up the build process.
 
 ### Alpine
 
@@ -237,71 +247,66 @@ perhaps an -L flag is missing?".
 :::
 
 ```bash
-sudo apk add build-base rust cargo llvm15 llvm15-dev llvm15-static git
+sudo apk add build-base rust cargo llvm16 llvm16-dev llvm16-static git
 ```
 
 ### Debian
 
-For Debian 12:
+Debian 12:
 
 ```bash
-sudo apt-get install --yes rustc cargo git build-essential llvm-15 llvm-15-dev \
-    libstdc++-11-dev libclang-common-15-dev zlib1g-dev
+sudo apt-get install --yes git build-essential llvm-16 llvm-16-dev \
+    libstdc++-11-dev libclang-common-16-dev zlib1g-dev
 ```
 
-For Debian 11:
+Debian 11:
 
 ```bash
 curl https://apt.llvm.org/llvm-snapshot.gpg.key | \
     sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
 sudo add-apt-repository \
-    "deb http://apt.llvm.org/bullseye/ llvm-toolchain-bullseye-15 main"
+    "deb http://apt.llvm.org/bullseye/ llvm-toolchain-bullseye-16 main"
 sudo apt-get update
-sudo apt-get install --yes git build-essential llvm-15 llvm-15-dev \
-    libstdc++-10-dev libclang-common-15-dev zlib1g-dev libpolly-15-dev
+sudo apt-get install --yes git build-essential llvm-16 llvm-16-dev \
+    libstdc++-10-dev libclang-common-16-dev zlib1g-dev libpolly-16-dev
 ```
 
-The version of Rust provided by Debian 11 is too old, so you'll need to use
+The version of Rust provided by Debian is too old, so you'll need to use
 [rustup](https://rustup.rs/) to install the required Rust version.
 
 ### Fedora
 
-For version 38 and newer:
+For Fedora 38 and newer:
 
 ```bash
-sudo dnf install gcc make rust cargo llvm15 llvm15-devel llvm15-static \
+sudo dnf install gcc make rust cargo llvm16 llvm16-devel llvm16-static \
     libstdc++-devel libstdc++-static libffi-devel zlib-devel git
 ```
 
-For version 37:
-
-```bash
-sudo dnf install gcc make rust cargo llvm llvm-devel llvm-static \
-    libstdc++-devel libstdc++-static libffi-devel zlib-devel git
-```
+Older versions of Fedora (e.g. Fedora 37) aren't supported.
 
 ### FreeBSD
 
 ```bash
-sudo pkg install llvm15 rust git
+sudo pkg install llvm16 rust git
 ```
 
 ### macOS
 
 ```bash
-brew install llvm@15 rust git
+brew install llvm@16 rust git
 ```
 
 ### Ubuntu
 
-For Ubuntu 22.04:
+For Ubuntu 23.04 and newer:
 
 ```bash
-sudo apt-get install --yes rustc cargo git build-essential llvm-15 llvm-15-dev \
-    libstdc++-11-dev libclang-common-15-dev zlib1g-dev
+sudo apt-get install --yes rustc cargo git build-essential llvm-16 llvm-16-dev \
+    libstdc++-11-dev libclang-common-16-dev zlib1g-dev
 ```
 
-For Ubuntu 20.04:
+For older versions:
 
 ```bash
 curl https://apt.llvm.org/llvm-snapshot.gpg.key | \
@@ -309,9 +314,6 @@ curl https://apt.llvm.org/llvm-snapshot.gpg.key | \
 sudo add-apt-repository \
     "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-15 main"
 sudo apt-get update
-sudo apt-get install --yes git build-essential llvm-15 llvm-15-dev \
-    libstdc++-10-dev libclang-common-15-dev zlib1g-dev libpolly-15-dev
+sudo apt-get install --yes rustc cargo git build-essential llvm-16 llvm-16-dev \
+    libstdc++-10-dev libclang-common-16-dev zlib1g-dev libpolly-16-dev
 ```
-
-The version of Rust provided by 20.04 is too old, so you'll need to use
-[rustup](https://rustup.rs/) to install the required Rust version.

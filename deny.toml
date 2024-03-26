@@ -1,27 +1,19 @@
 [advisories]
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
-vulnerability = "deny"
-unmaintained = "warn"
-yanked = "warn"
-notice = "warn"
-unsound = "warn"
 ignore = []
 
 [licenses]
-unlicensed = "deny"
 allow = [
     "Apache-2.0",
     "BSD-2-Clause",
+    "BSD-3-Clause",
     "ISC",
     "MIT",
     "MPL-2.0",
     "OpenSSL",
     "Unicode-DFS-2016",
 ]
-copyleft = "deny"
-allow-osi-fsf-free = "neither"
-default = "deny"
 confidence-threshold = 0.8
 
 [[licenses.clarify]]
@@ -43,4 +35,4 @@ allow = []
 unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-allow-git = ["https://github.com/TheDan64/inkwell.git"]
+allow-git = []

@@ -25,7 +25,7 @@ use crate::target::Architecture;
 use blake3::{hash, Hasher};
 use inkwell::basic_block::BasicBlock;
 use inkwell::module::Linkage;
-use inkwell::passes::{PassManager, PassManagerBuilder};
+use inkwell::passes::PassBuilderOptions;
 use inkwell::targets::{
     CodeModel, FileType, InitializationConfig, RelocMode, Target,
     TargetMachine, TargetTriple,
@@ -616,17 +616,14 @@ impl<'a> Worker<'a> {
 
     fn run_passes(&self, module: &Module) {
         let layout = self.machine.get_target_data().get_data_layout();
-        let builder = PassManagerBuilder::create();
-        let manager = PassManager::create(());
+        let opts = PassBuilderOptions::create();
+        let passes = &["mem2reg"];
 
         module.set_data_layout(&layout);
         module.set_triple(&self.machine.get_triple());
-
-        builder.set_optimization_level(self.shared.level);
-        builder.populate_module_pass_manager(&manager);
-
-        manager.add_promote_memory_to_register_pass();
-        manager.run_on(&module.inner);
+        module
+            .run_passes(passes.join(",").as_str(), &self.machine, opts)
+            .unwrap();
     }
 
     fn write_object_file(
