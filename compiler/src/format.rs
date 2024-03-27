@@ -1233,14 +1233,26 @@ impl Document {
                     // they deem to be better (e.g. by separating method calls
                     // with an empty line).
                     Node::EmptyLine
-                } else if expr.is_comment() {
-                    Node::HardLine
-                } else if expr.is_conditional() || next.is_conditional() {
-                    // Conditionals are surrounded by an empty line to make them
-                    // stand out more from the rest of the code.
-                    Node::EmptyLine
                 } else {
-                    Node::HardLine
+                    match (expr, next) {
+                        (Expression::Comment(_), _) => Node::HardLine,
+                        // Conditionals are surrounded by an empty line as to
+                        // make them stand out more.
+                        _ if expr.is_conditional() || next.is_conditional() => {
+                            Node::EmptyLine
+                        }
+                        // `let` and comments are grouped together.
+                        (
+                            Expression::DefineVariable(_),
+                            Expression::DefineVariable(_)
+                            | Expression::Comment(_),
+                        ) => Node::HardLine,
+                        // `let` followed by anything else, or something
+                        // followed by a `let` is separated by an empty line.
+                        (Expression::DefineVariable(_), _)
+                        | (_, Expression::DefineVariable(_)) => Node::EmptyLine,
+                        _ => Node::HardLine,
+                    }
                 };
 
                 vals.push(sep);
