@@ -557,7 +557,6 @@ class pub Parser {
         case Some(LOWER_N) -> return null
         case Some(DQUOTE) -> return string
         case Some(byte) if digit?(byte) -> return number
-
         # This is to take care of any random garbage that may be included in the
         # JSON document, including Unicode BOMs. This also saves us from having
         # to explicitly check for all the different BOMs.
@@ -777,10 +776,8 @@ class pub Parser {
           case _ -> {}
         }
       }
-
       # Example: 1E4
       case Some(byte) if exponent?(byte) -> try exponent
-
       # Example: 123
       #
       # If the number is too big to fit in an Int, we'll promote it to a Float.

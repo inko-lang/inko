@@ -1223,28 +1223,21 @@ impl Document {
             }
 
             if let Some(next) = iter.peek() {
-                // This formats expressions such that:
-                //
-                // - Conditionals such as `if` and `while` are surrounded by an
-                //   empty line
-                // - `let` statements are grouped together, separated from other
-                //   expressions by an empty line
-                // - Other expressions are grouped together
-                let sep = if expr.is_comment() {
-                    Node::HardLine
-                } else if expr.is_conditional()
-                    || next.is_conditional()
-                    || (expr.is_let() != next.is_let())
-                    || next.is_comment()
+                let sep = if next.location().lines.start()
+                    - expr.location().lines.end()
+                    > 1
+                {
                     // Multiple empty lines are condensed into a single empty
                     // line. This keeps the code style consistent, while still
                     // giving users some option to group code together in a way
                     // they deem to be better (e.g. by separating method calls
                     // with an empty line).
-                    || next.location().lines.start()
-                        - expr.location().lines.end()
-                        > 1
-                {
+                    Node::EmptyLine
+                } else if expr.is_comment() {
+                    Node::HardLine
+                } else if expr.is_conditional() || next.is_conditional() {
+                    // Conditionals are surrounded by an empty line to make them
+                    // stand out more from the rest of the code.
                     Node::EmptyLine
                 } else {
                     Node::HardLine
@@ -1976,22 +1969,14 @@ impl Document {
                         cases.push(Node::text(" "));
                         cases.push(node);
                     }
-
-                    match iter.peek() {
-                        Some(nodes::MatchExpression::Comment(_)) => {
-                            cases.push(Node::EmptyLine);
-                        }
-                        Some(_) => cases.push(Node::HardLine),
-                        _ => {}
-                    }
                 }
                 nodes::MatchExpression::Comment(n) => {
                     cases.push(self.comment(n));
-
-                    if iter.peek().is_some() {
-                        cases.push(Node::HardLine);
-                    }
                 }
+            }
+
+            if iter.peek().is_some() {
+                cases.push(Node::HardLine);
             }
         }
 

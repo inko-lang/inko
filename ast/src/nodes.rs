@@ -789,10 +789,6 @@ impl Expression {
         )
     }
 
-    pub fn is_let(&self) -> bool {
-        matches!(self, Expression::DefineVariable(_))
-    }
-
     pub fn is_comment(&self) -> bool {
         matches!(self, Expression::Comment(_))
     }

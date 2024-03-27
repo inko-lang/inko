@@ -218,7 +218,6 @@ class builtin Int {
 
     match self {
       case 0 -> return '0'
-
       # MIN can't be turned positive using absolute(), so we have to handle
       # these cases explicitly.
       case MIN if base == 2 -> {
