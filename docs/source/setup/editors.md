@@ -4,23 +4,19 @@
 }
 ---
 
+## Emacs
+
+No official plugin exists for Emacs, but a syntax definition for Inko is [found
+in this discussion](https://github.com/orgs/inko-lang/discussions/697).
+
 ## (Neo)Vim
 
 For Vim and Neovim we provide [an official
 plugin](https://github.com/inko-lang/inko.vim). This plugin adds support for
 syntax highlighting, file type detection, folding, and indentation.
 
-### vim-plug
-
-```vim
-Plug 'inko-lang/inko.vim'
-```
-
-### packer.nvim
-
-```lua
-use 'inko-lang/inko.vim'
-```
+The plugin [conform.nvim](https://github.com/stevearc/conform.nvim) adds support
+for automatic formatting of source code using `inko fmt`.
 
 ## Visual Studio Code
 
