@@ -1,4 +1,5 @@
 pub mod process;
+pub mod signal;
 pub mod timeout_worker;
 pub mod timeouts;
 

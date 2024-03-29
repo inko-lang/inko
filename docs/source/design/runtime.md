@@ -142,3 +142,34 @@ additional cost.
 
 Strings use atomic reference counting when copying, meaning that a copy of a
 string increments the reference count instead of creating a full copy.
+
+## Signal handling
+
+Signals are handled by a dedicated thread while other threads mask all signals
+such that they don't receive any. This thread is known as the "signal handler".
+The signal handler loops indefinitely, waiting for a signal to arrive at the
+start of each iteration. When a signal is received, any processes waiting for
+that signal are rescheduled. Waiting for a signal is performed using
+`sigwait(3)`. If a signal is received for which no process is waiting, its
+default behaviour is invoked, which in most cases means the process is
+terminated.
+
+When a process registers itself with the signal handler, the signal handling
+thread may be waiting for a signal and needs to be woken up, such that it
+observes the change in the list of processes waiting for a signal. This is
+achieved by sending the SIGURG signal to the signal thread each time a process
+waits for a signal to arrive. The signal SIGURG is used because of the following
+reasons:
+
+1. It's part of the POSIX 2001 specification, meaning it's well supported by
+   POSIX compatible systems.
+1. By default it's ignored, so our use won't conflict with what the system or
+   user might expect by default.
+1. Applications aren't likely to use it (if at all), in contrast to commonly
+   used signals such as SIGUSR1 and SIGUSR2.
+
+The standard library only allows waiting for a limited number of signals such as
+SIGHUP, SIGUSR1, and SIGXFSZ. This is done to increase portability, and to make
+it more difficult to shoot oneself in the foot (i.e. by waiting for SIGSEGV).
+Waiting for SIGPIPE isn't supported as doing so may conflict with the use of
+non-blocking sockets, and in general isn't useful to begin with.

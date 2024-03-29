@@ -3,6 +3,7 @@ use crate::config::Config;
 use crate::mem::{ByteArray, Class, ClassPointer, String as InkoString};
 use crate::network_poller::NetworkPoller;
 use crate::scheduler::process::Scheduler;
+use crate::scheduler::signal::Signals;
 use crate::scheduler::timeout_worker::TimeoutWorker;
 use rand::{thread_rng, Rng};
 use std::collections::HashMap;
@@ -128,6 +129,8 @@ pub struct State {
 
     /// The network pollers to use for process threads.
     pub(crate) network_pollers: Vec<NetworkPoller>,
+
+    pub(crate) signals: Signals,
 }
 
 unsafe impl Sync for State {}
@@ -170,6 +173,7 @@ impl State {
             network_pollers,
             string_class,
             byte_array_class,
+            signals: Signals::new(),
         };
 
         ArcWithoutWeak::new(state)

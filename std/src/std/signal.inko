@@ -1,0 +1,242 @@
+# Handling of Unix signals.
+#
+# This module allows processes to wait for Unix signals to be received,
+# overriding their default behaviour in the process. To do so, create an
+# instance of the `Signal` enum and call `Signal.wait` on it:
+#
+#     import std.signal (Signal)
+#
+#     Signal.User1.wait
+#
+# Signals are handled asynchronously, meaning there may be a small delay between
+# receiving the signal and `Signal.wait` returning. The order in which signals
+# are received is unspecified. The underlying platform may also coalesce
+# multiple instances of the same signal being received into a single receive,
+# such that sending e.g. `SIGHUP` 3 times in a short period results in it only
+# being received once.
+#
+# # Default signal handlers
+#
+# If no process is waiting for a specific signal and the signal is received,
+# it's default behaviour according to the underlying platform is invoked. For
+# example, the default signal handler for SIGUSR1 terminates the current
+# process.
+#
+# # Supported signals
+#
+# To increase portability and to prevent users from handling problematic signals
+# (SIGSEGV or SIGFPE for example), this module only supports a limited number of
+# signals.
+#
+# Handling of SIGPIPE isn't supported as this is almost always a terrible idea,
+# and the runtime disables/masks this signal as to not interfere with (amongst
+# other things) non-blocking sockets.
+#
+# # Waiting for multiple signals
+#
+# If you need to wait for multiple signals at once, you can do so using a
+# `Channel` and a process for each signal. For example:
+#
+#     import std.signal (Signal)
+#
+#     class async Waiter {
+#       let @channel: Channel[Signal]
+#
+#       fn async wait(signal: uni Signal) {
+#         signal.wait
+#         @channel.send(signal)
+#       }
+#     }
+#
+#     class async Main {
+#       fn async main {
+#         let chan = Channel.new(size: 2)
+#
+#         Waiter { @channel = chan }.wait(recover Signal.User1)
+#         Waiter { @channel = chan }.wait(recover Signal.User2)
+#         chan.receive
+#       }
+#     }
+#
+# In this example the `chan.receive` line returns either `uni Signal.User1` or
+# `uni Signal.User2`, depending on which signal is received first.
+import std.clone (Clone)
+import std.cmp (Equal)
+import std.fmt (Format, Formatter)
+import std.hash (Hash, Hasher)
+
+fn extern inko_signal_wait(
+  state: Pointer[UInt8],
+  process: Pointer[UInt8],
+  signal: Int,
+)
+
+let SIGHUP = 1
+let SIGINT = 2
+let SIGQUIT = 3
+let SIGABRT = 6
+let SIGUSR1 = 10
+let SIGUSR2 = 12
+let SIGTERM = 15
+let SIGCHLD = 17
+let SIGCONT = 18
+let SIGTSTP = 20
+let SIGTTIN = 21
+let SIGTTOU = 22
+let SIGXFSZ = 25
+let SIGWINCH = 28
+
+# A Unix signal.
+#
+# This type doesn't support all possible signals, instead it only supports the
+# signals deemed useful and safe to use. Refer to the module documentation for
+# more details.
+class pub enum Signal {
+  # The SIGHUP signal.
+  case Hangup
+
+  # The SIGINT signal.
+  case Interrupt
+
+  # The SIGQUIT signal.
+  case Quit
+
+  # The SIGABRT signal.
+  case Abort
+
+  # The SIGUSR1 signal.
+  case User1
+
+  # The SIGUSR2 signal.
+  case User2
+
+  # The SIGTERM signal.
+  case Terminate
+
+  # The SIGCHLD signal.
+  case Child
+
+  # The SIGCONT signal.
+  case Continue
+
+  # The SIGTSTP signal.
+  case Stop
+
+  # The SIGTTIN signal.
+  case Input
+
+  # The SIGTTOU signal.
+  case Output
+
+  # The SIGXFSZ signal.
+  case FileSizeExceeded
+
+  # The SIGWINCH signal.
+  case Resize
+
+  # Waits for the signal to arrive before returning.
+  #
+  # If the signal is sent _before_ this call finishes setting up the signal
+  # handler, this method _doesn't_ return until the _next_ time the signal is
+  # received.
+  #
+  # It's possible for multiple processes to call `Signal.wait` using the same
+  # signal. In this case receiving the signal results in _all_ those
+  # `Signal.wait` calls returning. However, the order in which those calls
+  # return is unspecified and shouldn't be relied upon.
+  #
+  # No guarantees are made as to the time between receiving the signal and this
+  # method returning: it may be more or less instantly, or it could take some
+  # time.
+  #
+  # When returning from this method and no other processes are waiting for the
+  # same signal to be received, the default signal handler is restored.
+  #
+  # # Examples
+  #
+  #     import std.signal (Signal)
+  #
+  #     Signal.User1.wait
+  fn pub wait {
+    inko_signal_wait(_INKO.state, _INKO.process, id)
+  }
+
+  # Returns the raw signal ID.
+  #
+  # This method is private as the values might be platform specific and as such
+  # shouldn't be relied upon.
+  fn id -> Int {
+    match self {
+      case Hangup -> SIGHUP
+      case Interrupt -> SIGINT
+      case Quit -> SIGQUIT
+      case Abort -> SIGABRT
+      case User1 -> SIGUSR1
+      case User2 -> SIGUSR2
+      case Terminate -> SIGTERM
+      case Child -> SIGCHLD
+      case Continue -> SIGCONT
+      case Stop -> SIGTSTP
+      case Input -> SIGTTIN
+      case Output -> SIGTTOU
+      case FileSizeExceeded -> SIGXFSZ
+      case Resize -> SIGWINCH
+    }
+  }
+}
+
+impl Clone[Signal] for Signal {
+  fn pub clone -> Signal {
+    match self {
+      case Hangup -> Signal.Hangup
+      case Interrupt -> Signal.Interrupt
+      case Quit -> Signal.Quit
+      case Abort -> Signal.Abort
+      case User1 -> Signal.User1
+      case User2 -> Signal.User2
+      case Terminate -> Signal.Terminate
+      case Child -> Signal.Child
+      case Continue -> Signal.Continue
+      case Stop -> Signal.Stop
+      case Input -> Signal.Input
+      case Output -> Signal.Output
+      case FileSizeExceeded -> Signal.FileSizeExceeded
+      case Resize -> Signal.Resize
+    }
+  }
+}
+
+impl Equal[ref Signal] for Signal {
+  fn pub ==(other: ref Signal) -> Bool {
+    id == other.id
+  }
+}
+
+impl Hash for Signal {
+  fn pub hash[H: mut + Hasher](hasher: mut H) {
+    hasher.write(id)
+  }
+}
+
+impl Format for Signal {
+  fn pub fmt(formatter: mut Formatter) {
+    let name = match self {
+      case Hangup -> 'Hangup'
+      case Interrupt -> 'Interrupt'
+      case Quit -> 'Quit'
+      case Abort -> 'Abort'
+      case User1 -> 'User1'
+      case User2 -> 'User2'
+      case Terminate -> 'Terminate'
+      case Child -> 'Child'
+      case Continue -> 'Continue'
+      case Stop -> 'Stop'
+      case Input -> 'Input'
+      case Output -> 'Output'
+      case FileSizeExceeded -> 'FileSizeExceeded'
+      case Resize -> 'Resize'
+    }
+
+    formatter.tuple(name).finish
+  }
+}

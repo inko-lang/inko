@@ -8,6 +8,7 @@ mod helpers;
 mod int;
 mod process;
 mod random;
+mod signal;
 mod socket;
 mod stdio;
 mod string;
@@ -19,6 +20,7 @@ use crate::mem::ClassPointer;
 use crate::network_poller::Worker as NetworkPollerWorker;
 use crate::process::{NativeAsyncMethod, Process};
 use crate::scheduler::reset_affinity;
+use crate::scheduler::signal as signal_sched;
 use crate::stack::total_stack_size;
 use crate::stack::Stack;
 use crate::state::{MethodCounts, RcState, State};
@@ -28,21 +30,6 @@ use std::io::{stdout, Write as _};
 use std::process::exit as rust_exit;
 use std::slice;
 use std::thread;
-
-const SIGPIPE: i32 = 13;
-const SIG_IGN: usize = 1;
-
-extern "C" {
-    // Broken pipe errors default to terminating the entire program, making it
-    // impossible to handle such errors. This is especially problematic for
-    // sockets, as writing to a socket closed on the other end would terminate
-    // the program.
-    //
-    // While Rust handles this for us when compiling an executable, it doesn't
-    // do so when compiling it to a static library and linking it to our
-    // generated code, so we must handle this ourselves.
-    fn signal(sig: i32, handler: usize) -> usize;
-}
 
 #[no_mangle]
 pub unsafe extern "system" fn inko_runtime_new(
@@ -75,6 +62,11 @@ pub unsafe extern "system" fn inko_runtime_new(
     // allows use of all available cores/threads.
     reset_affinity();
 
+    // We ignore all signals by default so they're routed to the signal handler
+    // thread. This also takes care of ignoring SIGPIPE, which Rust normally
+    // does for us when compiling an executable.
+    signal_sched::block_all();
+
     Box::into_raw(Box::new(Runtime::new(&*counts, args)))
 }
 
@@ -89,7 +81,6 @@ pub unsafe extern "system" fn inko_runtime_start(
     class: ClassPointer,
     method: NativeAsyncMethod,
 ) {
-    signal(SIGPIPE, SIG_IGN);
     (*runtime).start(class, method);
     flush_stdout();
 }
@@ -157,6 +148,20 @@ impl Runtime {
             thread::Builder::new()
                 .name(format!("netpoll {}", id))
                 .spawn(move || NetworkPollerWorker::new(id, state).run())
+                .unwrap();
+        }
+
+        // Signal handling is very racy, meaning that if we notify the signal
+        // handler to shut down it may not observe the signal correctly,
+        // resulting in the program hanging. To prevent this from happening, we
+        // simply don't wait for the signal handler thread to stop during
+        // shutdown.
+        {
+            let state = self.state.clone();
+
+            thread::Builder::new()
+                .name("signals".to_string())
+                .spawn(move || signal_sched::Worker::new(state).run())
                 .unwrap();
         }
 
