@@ -1,0 +1,75 @@
+import helpers (compiler_path)
+import std.env
+import std.fs.file (ReadOnlyFile)
+import std.stdio (STDOUT)
+import std.sys (Command, Stream)
+import std.test (Test, Tests)
+
+fn format(compiler: String, given: String) -> Result[String, String] {
+  let cmd = Command.new(compiler)
+
+  cmd.arguments(['fmt', '-'])
+  cmd.stdin(Stream.Piped)
+  cmd.stderr(Stream.Null)
+  cmd.stdout(Stream.Piped)
+
+  let child = try cmd.spawn.map_error(fn (e) {
+    'failed to spawn the compiler: {e}'
+  })
+
+  let status = try child
+    .stdin
+    .write_string(given)
+    .then(fn (_) { child.wait })
+    .map_error(fn (e) { 'failed to format the input: {e}' })
+
+  if status.success? {
+    let out = ByteArray.new
+
+    try child.stdout.read_all(out).map_error(fn (e) {
+      'failed to read STDOUT: {e}'
+    })
+
+    Result.Ok(out.into_string)
+  } else {
+    Result.Error('the compiler failed with exit code ${status.to_int}')
+  }
+}
+
+fn pub tests(t: mut Tests) {
+  let base = env
+    .working_directory
+    .or_else(fn (_) { '.'.to_path })
+    .join('fixtures')
+    .join('fmt')
+  let compiler = compiler_path.to_string
+
+  base.list.or_panic("the fixtures/fmt directory doesn't exist").each(fn (e) {
+    let dir = match e {
+      case Ok({ @path = p, @type = Directory }) -> recover p.clone
+      case Ok(_) -> return
+      case Error(e) -> panic('failed to read the directory: ${e}')
+    }
+
+    if dir.join('input.inko').file?.false? { return }
+
+    t.ok('inko fmt ${dir.tail}', fn move (t) {
+      let in_file = dir.join('input.inko')
+      let out_file = dir.join('output.inko')
+      let input = ByteArray.new
+      let output = ByteArray.new
+
+      try ReadOnlyFile
+        .new(in_file)
+        .then(fn (f) { f.read_all(input) })
+        .then(fn (_) { ReadOnlyFile.new(out_file) })
+        .then(fn (f) { f.read_all(output) })
+        .map_error(fn (e) { 'failed to read the input and output files: {e}' })
+
+      let result = try format(compiler, input.into_string)
+
+      t.equal(result, output.into_string)
+      Result.Ok(nil)
+    })
+  })
+}

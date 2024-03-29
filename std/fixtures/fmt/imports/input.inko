@@ -1,0 +1,4 @@
+import b (B, C, self)
+import a (self, A, B)
+import c if foo and bar
+import d (AAAAAAAAAAAAAAAAAAAAAAAAAAAA, BBBBBBBBBBBBBBBBBBBBBBBB, CCCCCCCCCCCCCCCCCCCCCCCCCC) if foo and bar and baz
