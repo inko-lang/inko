@@ -264,34 +264,30 @@ fn pub tests(t: mut Tests) {
   let base = env
     .working_directory
     .or_else(fn (_) { '.'.to_path })
-    .join('test')
+    .join('fixtures')
     .join('diagnostics')
-
   let compiler = compiler_path.to_string
 
-  base.list.or_panic("the test/diagnostics directory couldn't be found").each(
-    fn (entry) {
-      let test_file = match entry {
-        case Ok({ @path = path, @type = File }) if path.tail.ends_with?('.inko')
-        -> {
-          recover path.clone
-        }
-        case Ok(_) -> return
-        case Error(e) -> panic('failed to read the diagnostics directory: ${e}')
+  base.list.or_panic("the fixtures/diagnostics doesn't exist").each(fn (e) {
+    let test_file = match e {
+      case Ok({ @path = p, @type = File }) if p.tail.ends_with?('.inko') -> {
+        recover p.clone
       }
+      case Ok(_) -> return
+      case Error(e) -> panic('failed to read the diagnostics directory: ${e}')
+    }
 
-      let name = test_file.tail.strip_suffix('.inko')
+    let name = test_file.tail.strip_suffix('.inko')
 
-      t.test('${name} diagnostics', fn move (t) {
-        let file = ReadOnlyFile.new(test_file.clone).or_panic(
-          'the test file ${test_file} must exist',
-        )
+    t.test('inko check ${name}', fn move (t) {
+      let file = ReadOnlyFile.new(test_file.clone).or_panic(
+        'the test file ${test_file} must exist',
+      )
 
-        match parse_test(file) {
-          case Ok(exp) -> t.equal(check(compiler, name, test_file.clone), exp)
-          case Error(e) -> panic('failed to parse ${test_file}: ${e}')
-        }
-      })
-    },
-  )
+      match parse_test(file) {
+        case Ok(exp) -> t.equal(check(compiler, name, test_file.clone), exp)
+        case Error(e) -> panic('failed to parse ${test_file}: ${e}')
+      }
+    })
+  })
 }

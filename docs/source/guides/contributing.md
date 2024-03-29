@@ -134,11 +134,11 @@ The test suite also contains tests for the compiler. These tests are structured
 differently, and are meant to test the diagnostics the compiler produces based
 on the input it's provided. We write such tests in Inko instead of Rust, as
 writing them in Rust requires a lot of boilerplate for every test. These
-diagnostic tests are located in `std/test/diagnostics`. The test files can be
-anything as long as they _don't_ start with `test_`, for example:
+diagnostic tests are located in `std/fixtures/diagnostics`. The test files can
+be anything as long as they _don't_ start with `test_`, for example:
 
 ```
-$ ls std/test/diagnostics/
+$ ls std/fixtures/diagnostics/
 duplicate_class.inko  duplicate_method.inko  duplicate_trait.inko ...
 ```
 
@@ -168,18 +168,18 @@ fn a {}
 
 Writing diagnostic tests is simple:
 
-1. Create the file in `std/test/diagnostics/NAME.inko`, where `NAME` is the name
-   of the test (e.g. `duplicate_class` or `undefined_local_variable`)
-1. If you need additional files, place them in `std/test/diagnostics/NAME/`, you
-   can then import these files as usual
+1. Create the file in `std/fixtures/diagnostics/NAME.inko`, where `NAME` is the
+   name of the test (e.g. `duplicate_class` or `undefined_local_variable`)
+1. If you need additional files, place them in `std/fixtures/diagnostics/NAME/`,
+   you can then import these files as usual
 1. Run `inko check` on the `NAME.inko` file to get a list of diagnostics
 1. Copy these to the end of the file as shown in the example above
 1. Make sure the paths of the diagnostics are relative to
-   `std/test/diagnostics`
-1. Run `inko test` to run all tests or `inko test diagnostics` to run all
+   `std/fixtures/diagnostics`
+1. Run `inko test` to run all tests or `inko test 'inko check'` to run all
    diagnostics tests, and make sure they all pass. You can run a specific
-   diagnostics test using `inko test NAME diagnostics` (e.g. `inko test
-   duplicate_method diagnostics`)
+   diagnostics test using `inko test 'inko check NAME'` (e.g.
+   `inko test 'inko check duplicate_method'`)
 
 ### Shell scripts
 
