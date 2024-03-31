@@ -28,40 +28,6 @@ const INDENT: char = ' ';
 /// 3. At least for prose it's generally considered the ideal line limit
 const LIMIT: usize = 80;
 
-fn separator_for_condition(expression: &Expression, node: &Node) -> Node {
-    // If an expression wrap across lines we place the opening curly brace on a
-    // separate line like so:
-    //
-    //     while foo
-    //       + bar
-    //     {
-    //       ...
-    //     }
-    //
-    // For other expressions we place the curly brace on the same line, as such
-    // expressions have a clear ending delimiter (e.g. a "]" or ")"), i.e. like
-    // so:
-    //
-    //     while foo(
-    //       ...
-    //     ) {
-    //       ...
-    //     }
-    let (wrapped, default) = match expression {
-        Expression::Binary(_) | Expression::And(_) | Expression::Or(_) => {
-            (Node::SpaceOrLine, Node::SpaceOrLine)
-        }
-        Expression::Call(_) => (Node::text(" "), Node::SpaceOrLine),
-        _ => (Node::text(" "), Node::text(" ")),
-    };
-
-    if let Node::Group(id, _) | Node::Call(id, _, _, _) = node {
-        Node::IfWrap(*id, Box::new(wrapped), Box::new(default))
-    } else {
-        default
-    }
-}
-
 #[derive(Clone, Debug)]
 enum Node {
     /// A node for which to (recursively) disable wrapping.
@@ -614,7 +580,9 @@ impl Document {
             }
         }
 
-        for import in imports {
+        let max = imports.len() - 1;
+
+        for (idx, import) in imports.into_iter().enumerate() {
             let mut nodes =
                 vec![Node::text("import "), Node::Text(import.path)];
             let syms_id = self.new_group_id();
@@ -652,8 +620,8 @@ impl Document {
             }
 
             if let Some(tag_names) = import.tags {
-                let mut group = vec![Node::SpaceOrLine];
-                let mut tags = vec![Node::text("if ")];
+                let mut group = vec![Node::SpaceOrLine, Node::text("if")];
+                let mut tags = vec![Node::SpaceOrLine];
 
                 for (idx, tag) in tag_names.into_iter().enumerate() {
                     let mut pair = Vec::new();
@@ -672,7 +640,15 @@ impl Document {
                     }
                 }
 
-                group.push(Node::Indent(tags));
+                group.push(self.group(vec![Node::Indent(tags)]));
+
+                // If the `import` is followed by another import and the tags
+                // don't fit on a single line, we insert an empty line in
+                // between such that it's more clear the `if` applies to the
+                // _current_ import and not the next one.
+                if idx < max {
+                    group.push(Node::Line);
+                }
 
                 // If the list of symbols doesn't fit on a single line, we also
                 // wrap the tags, otherwise the list can be difficult to read.
@@ -1993,8 +1969,13 @@ impl Document {
         }
 
         let expr = self.expression(&node.expression);
-        let sep = separator_for_condition(&node.expression, &expr);
-        let header = vec![Node::text("match "), expr, sep, Node::text("{")];
+        let header = vec![
+            Node::text("match"),
+            Node::SpaceOrLine,
+            Node::Indent(vec![expr]),
+            Node::SpaceOrLine,
+            Node::text("{"),
+        ];
         let group = if cases.is_empty() {
             vec![self.group(header), Node::text("}")]
         } else {
@@ -2013,7 +1994,11 @@ impl Document {
     fn match_case(&mut self, node: &nodes::MatchCase) -> Node {
         let head_id = self.new_group_id();
         let body_id = self.new_group_id();
-        let mut head = vec![Node::text("case "), self.pattern(&node.pattern)];
+        let mut head = vec![
+            Node::text("case"),
+            Node::SpaceOrLine,
+            Node::Indent(vec![self.pattern(&node.pattern)]),
+        ];
 
         if let Some(node) = &node.guard {
             let guard = vec![
@@ -2387,12 +2372,11 @@ impl Document {
         body: &nodes::Expressions,
     ) -> Vec<Node> {
         let expr = self.expression(condition);
-        let sep = separator_for_condition(condition, &expr);
         let header = vec![
             Node::text(keyword),
-            Node::text(" "),
-            expr,
-            sep,
+            Node::SpaceOrLine,
+            Node::Indent(vec![expr]),
+            Node::SpaceOrLine,
             Node::text("{"),
         ];
 

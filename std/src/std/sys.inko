@@ -345,18 +345,20 @@ class pub Command {
       vars.push(entry.value)
     })
 
-    match inko_child_process_spawn(
-      _INKO.process,
-      @program.to_string,
-      @arguments.to_pointer,
-      @arguments.size,
-      vars.to_pointer,
-      vars.size,
-      @stdin.to_int,
-      @stdout.to_int,
-      @stderr.to_int,
-      @directory.as_ref.or(ref ''),
-    ) {
+    match
+      inko_child_process_spawn(
+        _INKO.process,
+        @program.to_string,
+        @arguments.to_pointer,
+        @arguments.size,
+        vars.to_pointer,
+        vars.size,
+        @stdin.to_int,
+        @stdout.to_int,
+        @stderr.to_int,
+        @directory.as_ref.or(ref ''),
+      )
+    {
       case { @tag = 0, @value = v } -> {
         Result.Ok(ChildProcess { @raw = v as Pointer[UInt8] })
       }
@@ -413,22 +415,22 @@ impl Drop for Stdin {
 
 impl Write for Stdin {
   fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
-    match inko_child_process_stdin_write_bytes(
-      _INKO.process,
-      @process.raw,
-      bytes,
-    ) {
+    match
+      inko_child_process_stdin_write_bytes(_INKO.process, @process.raw, bytes)
+    {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 
   fn pub mut write_string(string: String) -> Result[Int, Error] {
-    match inko_child_process_stdin_write_string(
-      _INKO.process,
-      @process.raw,
-      string.to_string,
-    ) {
+    match
+      inko_child_process_stdin_write_string(
+        _INKO.process,
+        @process.raw,
+        string.to_string,
+      )
+    {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
@@ -462,12 +464,9 @@ impl Drop for Stdout {
 
 impl Read for Stdout {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
-    match inko_child_process_stdout_read(
-      _INKO.process,
-      @process.raw,
-      into,
-      size,
-    ) {
+    match
+      inko_child_process_stdout_read(_INKO.process, @process.raw, into, size)
+    {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
@@ -492,12 +491,9 @@ impl Drop for Stderr {
 
 impl Read for Stderr {
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error] {
-    match inko_child_process_stderr_read(
-      _INKO.process,
-      @process.raw,
-      into,
-      size,
-    ) {
+    match
+      inko_child_process_stderr_read(_INKO.process, @process.raw, into, size)
+    {
       case { @tag = 0, @value = v } -> Result.Ok(v)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }

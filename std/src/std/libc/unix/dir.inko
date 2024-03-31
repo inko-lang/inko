@@ -67,9 +67,10 @@ impl Iter[Result[(String, FileType), Error]] for ReadDirectory {
       if name_len == 1 and first == 46 { next }
 
       # Skip ".."
-      if name_len == 2
-        and first == DOT
-        and (name_ptr as Int + 1 as Pointer[UInt8]).0 as Int == DOT
+      if
+        name_len == 2
+          and first == DOT
+          and (name_ptr as Int + 1 as Pointer[UInt8]).0 as Int == DOT
       {
         next
       }

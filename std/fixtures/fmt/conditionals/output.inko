@@ -1,0 +1,44 @@
+fn example {
+  match
+    foo.bar('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa').then(
+      'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    )
+  {
+    case _ -> {}
+  }
+
+  if
+    foo.bar('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa').then(
+      'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    )
+  {
+    # ...
+  }
+
+  if
+    foo
+      .bar('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+      .foooooooooooo
+      .baaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaar
+      .baaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaz
+  {
+    # ...
+  }
+
+  if
+    fooooooooooooooooooooooooooooooooooooo(
+      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    )
+  {
+    # ...
+  }
+
+  if
+    foooooooooooooooooooooo
+      and baaaaaaaaaaaaaaaaaar
+      and baaaaaaaaaaaaaaaaaz
+      and quuuuuuuuuiiiiiiix
+  {
+    # ...
+  }
+}

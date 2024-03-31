@@ -192,10 +192,11 @@ class pub Components {
   }
 
   fn mut skip_relative_start {
-    if @size > 0
-      and byte(@index) == DOT_BYTE
-      and @index + 1 < @size
-      and separator?(@index + 1)
+    if
+      @size > 0
+        and byte(@index) == DOT_BYTE
+        and @index + 1 < @size
+        and separator?(@index + 1)
     {
       @index += 1
       advance_separator
@@ -208,11 +209,12 @@ class pub Components {
 
       # This turns sequences such as `a/./././b` into `a/b`, while leaving
       # `a/../b` alone.
-      while @index < @size
-        and byte(@index) == DOT_BYTE
-        and (
-          @index + 1 < @size and separator?(@index + 1) or @index + 1 == @size
-        )
+      while
+        @index < @size
+          and byte(@index) == DOT_BYTE
+          and (
+            @index + 1 < @size and separator?(@index + 1) or @index + 1 == @size
+          )
       {
         @index += 2
       }

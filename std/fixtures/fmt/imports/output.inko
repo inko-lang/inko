@@ -5,6 +5,18 @@ import d (
   AAAAAAAAAAAAAAAAAAAAAAAAAAAA, BBBBBBBBBBBBBBBBBBBBBBBB,
   CCCCCCCCCCCCCCCCCCCCCCCCCC,
 )
-  if foo
+if foo and bar and baz
+
+import e (
+  AAAAAAAAAAAAAAAAAAAAAAAAAAAA, BBBBBBBBBBBBBBBBBBBBBBBB,
+  CCCCCCCCCCCCCCCCCCCCCCCCCC,
+)
+if  
+  foo
     and bar
     and baz
+    and aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    and bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    and cccccccccccccccccccc
+
+import last

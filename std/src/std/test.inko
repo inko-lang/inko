@@ -670,7 +670,8 @@ class pub Tests {
   }
 
   fn pub move run_child(id: String) {
-    match Int.parse(id, IntFormat.Decimal).then(fn (v) { @children.opt_mut(v) })
+    match
+      Int.parse(id, IntFormat.Decimal).then(fn (v) { @children.opt_mut(v) })
     {
       case Some(block) -> block.call
       case _ -> process.panic("The child ID '${id}' is invalid")

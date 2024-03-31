@@ -1,50 +1,62 @@
 import helpers (compiler_path)
 import std.env
 import std.fs.file (ReadOnlyFile)
+import std.fs.path (Path)
 import std.stdio (STDOUT)
 import std.sys (Command, Stream)
-import std.test (Test, Tests)
+import std.test (Failure, Test, Tests)
 
-fn format(compiler: String, given: String) -> Result[String, String] {
-  let cmd = Command.new(compiler)
+fn run(
+  name: String,
+  arguments: Array[String],
+  input: String,
+) -> Result[String, String] {
+  let cmd = Command.new(name)
 
-  cmd.arguments(['fmt', '-'])
+  cmd.arguments(arguments)
   cmd.stdin(Stream.Piped)
-  cmd.stderr(Stream.Null)
+  cmd.stderr(Stream.Piped)
   cmd.stdout(Stream.Piped)
 
-  let child = try cmd.spawn.map_error(fn (e) {
-    'failed to spawn the compiler: {e}'
-  })
+  let child = try cmd.spawn.map_error(fn (e) { 'failed to spawn ${name}: {e}' })
 
-  let status = try child
-    .stdin
-    .write_string(given)
-    .then(fn (_) { child.wait })
-    .map_error(fn (e) { 'failed to format the input: {e}' })
+  try child.stdin.write_string(input).then(fn (_) { child.wait }).map_error(
+    fn (e) { '${name} failed: ${e}' },
+  )
 
-  if status.success? {
-    let out = ByteArray.new
+  let out = ByteArray.new
 
-    try child.stdout.read_all(out).map_error(fn (e) {
-      'failed to read STDOUT: {e}'
-    })
+  try child
+    .stdout
+    .read_all(out)
+    .then(fn (_) { child.stderr.read_all(out) })
+    .map_error(fn (e) { 'failed reading the output: ${e}' })
+  Result.Ok(out.into_string)
+}
 
-    Result.Ok(out.into_string)
-  } else {
-    Result.Error('the compiler failed with exit code ${status.to_int}')
-  }
+fn format(compiler: String, given: String) -> Result[String, String] {
+  run(compiler, ['fmt', '-'], given)
+}
+
+fn diff(given: String, expected: ref Path) -> Result[String, String] {
+  let out = try run(
+    'diff',
+    ['-u', '--color=never', expected.to_string, '-'],
+    given,
+  )
+
+  # This skips the patch header, which isn't useful for the purpose of debugging
+  # a failing test.
+  Result.Ok(String.join(out.split('\n').skip(3), '\n'))
 }
 
 fn pub tests(t: mut Tests) {
-  let base = env
-    .working_directory
-    .or_else(fn (_) { '.'.to_path })
-    .join('fixtures')
-    .join('fmt')
+  let cwd = env.working_directory.or_else(fn (_) { '.'.to_path })
+  let base = cwd.join('fixtures').join('fmt')
   let compiler = compiler_path.to_string
 
   base.list.or_panic("the fixtures/fmt directory doesn't exist").each(fn (e) {
+    let cwd = recover cwd.clone
     let dir = match e {
       case Ok({ @path = p, @type = Directory }) -> recover p.clone
       case Ok(_) -> return
@@ -67,8 +79,23 @@ fn pub tests(t: mut Tests) {
         .map_error(fn (e) { 'failed to read the input and output files: {e}' })
 
       let result = try format(compiler, input.into_string)
+      let exp = output.into_string
 
-      t.equal(result, output.into_string)
+      # The test files can contain many lines, so showing them as-is isn't
+      # useful/too noisy. Instead, we'll show the path to the expected output
+      # file and a diff of what we actually got.
+      if result != exp {
+        let rel = out_file.strip_prefix(cwd).get
+        let diff = try diff(result, out_file)
+
+        t.failures.push(
+          Failure.new(
+            'output matching the following diff:\n${diff}',
+            'the formatting as used in ${rel}',
+          ),
+        )
+      }
+
       Result.Ok(nil)
     })
   })

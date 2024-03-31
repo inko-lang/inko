@@ -121,12 +121,14 @@ class builtin Channel[T] {
   #     chan.send(1)
   #     chan.receive_until(deadline: Instant.new + duration) # => Option.Some(1)
   fn pub receive_until(deadline: ref Instant) -> Option[uni T] {
-    match inko_channel_receive_until(
-      _INKO.state,
-      _INKO.process,
-      @state,
-      deadline.to_int,
-    ) {
+    match
+      inko_channel_receive_until(
+        _INKO.state,
+        _INKO.process,
+        @state,
+        deadline.to_int,
+      )
+    {
       case { @tag = 0, @value = v } -> Option.Some(v as uni T)
       case _ -> Option.None
     }

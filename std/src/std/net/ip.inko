@@ -252,9 +252,10 @@ class pub Ipv6Address {
     while cursor < max {
       # IPv6 addresses can embed IPv4 addresses, so instead of reading until we
       # encounter a ":" we will also stop reading when running into a ".".
-      while cursor < max
-        and bytes.get(cursor) != COLON_BYTE
-        and bytes.get(cursor) != DOT_BYTE
+      while
+        cursor < max
+          and bytes.get(cursor) != COLON_BYTE
+          and bytes.get(cursor) != DOT_BYTE
       {
         segment_bytes.push(bytes.get(cursor))
         cursor += 1
