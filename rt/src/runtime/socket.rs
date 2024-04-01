@@ -97,34 +97,19 @@ pub(crate) unsafe extern "system" fn inko_socket_new(
 }
 
 #[no_mangle]
-pub(crate) unsafe extern "system" fn inko_socket_write_string(
+pub(crate) unsafe extern "system" fn inko_socket_write(
     state: *const State,
     process: ProcessPointer,
     socket: *mut Socket,
-    input: *const InkoString,
+    data: *mut u8,
+    size: i64,
     deadline: i64,
 ) -> Result {
     let state = &*state;
+    let slice = std::slice::from_raw_parts(data, size as _);
 
     blocking(state, process, &mut *socket, Interest::Write, deadline, |sock| {
-        sock.write(InkoString::read(input).as_bytes())
-    })
-    .map(|v| Result::ok(v as _))
-    .unwrap_or_else(Result::io_error)
-}
-
-#[no_mangle]
-pub(crate) unsafe extern "system" fn inko_socket_write_bytes(
-    state: *const State,
-    process: ProcessPointer,
-    socket: *mut Socket,
-    input: *mut ByteArray,
-    deadline: i64,
-) -> Result {
-    let state = &*state;
-
-    blocking(state, process, &mut *socket, Interest::Write, deadline, |sock| {
-        sock.write(&(*input).value)
+        sock.write(slice)
     })
     .map(|v| Result::ok(v as _))
     .unwrap_or_else(Result::io_error)

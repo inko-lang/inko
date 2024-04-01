@@ -2,7 +2,7 @@
 import std.drop (Drop)
 import std.fs.path (Path)
 import std.int (ToInt)
-import std.io (Error, Read, Write)
+import std.io (Error, Read, Write, WriteInternal)
 import std.string (ToString)
 
 class extern AnyResult {
@@ -53,18 +53,13 @@ fn extern inko_child_process_stdout_read(
 fn extern inko_child_process_stdin_flush(
   process: Pointer[UInt8],
   child: Pointer[UInt8],
-) -> AnyResult
-
-fn extern inko_child_process_stdin_write_bytes(
-  process: Pointer[UInt8],
-  child: Pointer[UInt8],
-  input: ref ByteArray,
 ) -> IntResult
 
-fn extern inko_child_process_stdin_write_string(
+fn extern inko_child_process_stdin_write(
   process: Pointer[UInt8],
   child: Pointer[UInt8],
-  input: String,
+  data: Pointer[UInt8],
+  size: Int,
 ) -> IntResult
 
 fn extern inko_child_process_try_wait(child: Pointer[UInt8]) -> IntResult
@@ -413,35 +408,30 @@ impl Drop for Stdin {
   }
 }
 
-impl Write for Stdin {
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
+impl WriteInternal for Stdin {
+  fn mut write_internal(data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
     match
-      inko_child_process_stdin_write_bytes(_INKO.process, @process.raw, bytes)
+      inko_child_process_stdin_write(_INKO.process, @process.raw, data, size)
     {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
+      case { @tag = 0, @value = n } -> Result.Ok(n)
+      case { @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
+}
 
-  fn pub mut write_string(string: String) -> Result[Int, Error] {
-    match
-      inko_child_process_stdin_write_string(
-        _INKO.process,
-        @process.raw,
-        string.to_string,
-      )
-    {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+impl Write for Stdin {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
+    write_all_internal(bytes.to_pointer, bytes.size)
+  }
+
+  fn pub mut write_string(string: String) -> Result[Nil, Error] {
+    write_all_internal(string.to_pointer, string.size)
   }
 
   fn pub mut flush -> Result[Nil, Error] {
     match inko_child_process_stdin_flush(_INKO.process, @process.raw) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> {
-        Result.Error(Error.from_os_error(e as Int))
-      }
+      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
 }

@@ -1,29 +1,21 @@
 # STDIN, STDOUT, and STDERR streams.
-import std.io (Error, Read, Write)
+import std.io (Error, Read, Write, WriteInternal)
 
 class extern IntResult {
   let @tag: Int
   let @value: Int
 }
 
-fn extern inko_stdout_write_string(
+fn extern inko_stdout_write(
   process: Pointer[UInt8],
-  input: String,
+  data: Pointer[UInt8],
+  size: Int,
 ) -> IntResult
 
-fn extern inko_stdout_write_bytes(
+fn extern inko_stderr_write(
   process: Pointer[UInt8],
-  input: ref ByteArray,
-) -> IntResult
-
-fn extern inko_stderr_write_string(
-  process: Pointer[UInt8],
-  input: String,
-) -> IntResult
-
-fn extern inko_stderr_write_bytes(
-  process: Pointer[UInt8],
-  input: ref ByteArray,
+  data: Pointer[UInt8],
+  size: Int,
 ) -> IntResult
 
 fn extern inko_stdin_read(
@@ -54,9 +46,6 @@ impl Read for STDIN {
 }
 
 # The standard output stream of the current OS process.
-#
-# To make it easier to write to STDOUT, any errors produced while writing are
-# ignored.
 class pub STDOUT {
   # Returns a new handle to the output stream.
   fn pub static new -> STDOUT {
@@ -64,19 +53,22 @@ class pub STDOUT {
   }
 }
 
-impl Write for STDOUT {
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
-    match inko_stdout_write_bytes(_INKO.process, bytes) {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
+impl WriteInternal for STDOUT {
+  fn mut write_internal(data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
+    match inko_stdout_write(_INKO.process, data, size) {
+      case { @tag = 0, @value = n } -> Result.Ok(n)
+      case { @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
+}
 
-  fn pub mut write_string(string: String) -> Result[Int, Error] {
-    match inko_stdout_write_string(_INKO.process, string) {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+impl Write for STDOUT {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
+    write_all_internal(bytes.to_pointer, bytes.size)
+  }
+
+  fn pub mut write_string(string: String) -> Result[Nil, Error] {
+    write_all_internal(string.to_pointer, string.size)
   }
 
   fn pub mut flush -> Result[Nil, Never] {
@@ -85,9 +77,6 @@ impl Write for STDOUT {
 }
 
 # The standard error stream of the current OS process.
-#
-# To make it easier to write to STDERR, any errors produced while writing are
-# ignored.
 class pub STDERR {
   # Returns a new handle to the error stream.
   fn pub static new -> STDERR {
@@ -95,19 +84,22 @@ class pub STDERR {
   }
 }
 
-impl Write for STDERR {
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
-    match inko_stderr_write_bytes(_INKO.process, bytes) {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
+impl WriteInternal for STDERR {
+  fn mut write_internal(data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
+    match inko_stderr_write(_INKO.process, data, size) {
+      case { @tag = 0, @value = n } -> Result.Ok(n)
+      case { @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
+}
 
-  fn pub mut write_string(string: String) -> Result[Int, Error] {
-    match inko_stderr_write_string(_INKO.process, string) {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+impl Write for STDERR {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
+    write_all_internal(bytes.to_pointer, bytes.size)
+  }
+
+  fn pub mut write_string(string: String) -> Result[Nil, Error] {
+    write_all_internal(string.to_pointer, string.size)
   }
 
   fn pub mut flush -> Result[Nil, Never] {

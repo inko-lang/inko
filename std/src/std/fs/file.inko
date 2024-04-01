@@ -13,7 +13,7 @@
 # occur when closing a file are ignored.
 import std.drop (Drop)
 import std.fs.path (Path, ToPath)
-import std.io (Error, Read, Seek, Size, Write)
+import std.io (Error, Read, Seek, Size, Write, WriteInternal)
 
 let FILE_READ_ONLY = 0
 let FILE_WRITE_ONLY = 1
@@ -64,16 +64,11 @@ fn extern inko_file_seek(
 
 fn extern inko_file_size(process: Pointer[UInt8], path: String) -> IntResult
 
-fn extern inko_file_write_bytes(
+fn extern inko_file_write(
   process: Pointer[UInt8],
   file: Pointer[UInt8],
-  input: ref ByteArray,
-) -> IntResult
-
-fn extern inko_file_write_string(
-  process: Pointer[UInt8],
-  file: Pointer[UInt8],
-  input: String,
+  data: Pointer[UInt8],
+  size: Int,
 ) -> IntResult
 
 # A file that can only be used for reads.
@@ -195,19 +190,22 @@ impl Drop for WriteOnlyFile {
   }
 }
 
-impl Write for WriteOnlyFile {
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
-    match inko_file_write_bytes(_INKO.process, @fd, bytes) {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
+impl WriteInternal for WriteOnlyFile {
+  fn mut write_internal(data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
+    match inko_file_write(_INKO.process, @fd, data, size) {
+      case { @tag = 0, @value = n } -> Result.Ok(n)
+      case { @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
+}
 
-  fn pub mut write_string(string: String) -> Result[Int, Error] {
-    match inko_file_write_string(_INKO.process, @fd, string) {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+impl Write for WriteOnlyFile {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
+    write_all_internal(bytes.to_pointer, bytes.size)
+  }
+
+  fn pub mut write_string(string: String) -> Result[Nil, Error] {
+    write_all_internal(string.to_pointer, string.size)
   }
 
   fn pub mut flush -> Result[Nil, Error] {
@@ -293,19 +291,22 @@ impl Read for ReadWriteFile {
   }
 }
 
-impl Write for ReadWriteFile {
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
-    match inko_file_write_bytes(_INKO.process, @fd, bytes) {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
+impl WriteInternal for ReadWriteFile {
+  fn mut write_internal(data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
+    match inko_file_write(_INKO.process, @fd, data, size) {
+      case { @tag = 0, @value = n } -> Result.Ok(n)
+      case { @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
+}
 
-  fn pub mut write_string(string: String) -> Result[Int, Error] {
-    match inko_file_write_string(_INKO.process, @fd, string) {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+impl Write for ReadWriteFile {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
+    write_all_internal(bytes.to_pointer, bytes.size)
+  }
+
+  fn pub mut write_string(string: String) -> Result[Nil, Error] {
+    write_all_internal(string.to_pointer, string.size)
   }
 
   fn pub mut flush -> Result[Nil, Error] {

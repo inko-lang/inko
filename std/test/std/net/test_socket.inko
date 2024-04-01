@@ -666,7 +666,7 @@ fn pub tests(t: mut Tests) {
     let connection = try listener.accept
     let bytes = ByteArray.new
 
-    t.equal(stream.write_bytes('ping'.to_byte_array), Result.Ok(4))
+    t.equal(stream.write_bytes('ping'.to_byte_array), Result.Ok(nil))
     t.equal(connection.read(into: bytes, size: 4), Result.Ok(4))
     t.equal(bytes.into_string, 'ping')
     Result.Ok(nil)
@@ -683,7 +683,7 @@ fn pub tests(t: mut Tests) {
     let connection = try listener.accept
     let bytes = ByteArray.new
 
-    t.equal(stream.write_string('ping'), Result.Ok(4))
+    t.equal(stream.write_string('ping'), Result.Ok(nil))
     t.equal(connection.read(into: bytes, size: 4), Result.Ok(4))
     t.equal(bytes.into_string, 'ping')
     Result.Ok(nil)
@@ -1232,7 +1232,7 @@ fn pub tests(t: mut Tests) {
 
     let bytes = ByteArray.new
 
-    t.equal(client.write_bytes('ping'.to_byte_array), Result.Ok(4))
+    t.equal(client.write_bytes('ping'.to_byte_array), Result.Ok(nil))
     t.equal(server.read(into: bytes, size: 4), Result.Ok(4))
     t.equal(bytes.into_string, 'ping')
   })
@@ -1307,7 +1307,7 @@ fn pub tests(t: mut Tests) {
     let stream = try UnixClient.new(path)
     let connection = try listener.accept
 
-    t.equal(connection.write_string('ping'), Result.Ok(4))
+    t.equal(connection.write_string('ping'), Result.Ok(nil))
 
     let bytes = ByteArray.new
 
@@ -1327,7 +1327,7 @@ fn pub tests(t: mut Tests) {
     let connection = try listener.accept
     let bytes = ByteArray.new
 
-    t.equal(stream.write_bytes('ping'.to_byte_array), Result.Ok(4))
+    t.equal(stream.write_bytes('ping'.to_byte_array), Result.Ok(nil))
     t.equal(connection.read(into: bytes, size: 4), Result.Ok(4))
     t.equal(bytes.into_string, 'ping')
     Result.Ok(nil)
@@ -1344,7 +1344,7 @@ fn pub tests(t: mut Tests) {
     let connection = try listener.accept
     let bytes = ByteArray.new
 
-    t.equal(stream.write_string('ping'), Result.Ok(4))
+    t.equal(stream.write_string('ping'), Result.Ok(nil))
     t.equal(connection.read(into: bytes, size: 4), Result.Ok(4))
     t.equal(bytes.into_string, 'ping')
     Result.Ok(nil)

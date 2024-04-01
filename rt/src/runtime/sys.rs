@@ -125,36 +125,19 @@ pub(crate) unsafe extern "system" fn inko_child_process_stderr_read(
 }
 
 #[no_mangle]
-pub(crate) unsafe extern "system" fn inko_child_process_stdin_write_bytes(
+pub(crate) unsafe extern "system" fn inko_child_process_stdin_write(
     process: ProcessPointer,
     child: *mut Child,
-    input: *mut ByteArray,
+    data: *mut u8,
+    size: i64,
 ) -> InkoResult {
     let child = &mut *child;
-    let input = &(*input).value;
+    let slice = std::slice::from_raw_parts(data, size as _);
 
     child
         .stdin
         .as_mut()
-        .map(|stream| process.blocking(|| stream.write(input)))
-        .unwrap_or(Ok(0))
-        .map(|size| InkoResult::ok(size as _))
-        .unwrap_or_else(InkoResult::io_error)
-}
-
-#[no_mangle]
-pub(crate) unsafe extern "system" fn inko_child_process_stdin_write_string(
-    process: ProcessPointer,
-    child: *mut Child,
-    input: *mut InkoString,
-) -> InkoResult {
-    let child = &mut *child;
-    let input = InkoString::read(input);
-
-    child
-        .stdin
-        .as_mut()
-        .map(|stream| process.blocking(|| stream.write(input.as_bytes())))
+        .map(|stream| process.blocking(|| stream.write(slice)))
         .unwrap_or(Ok(0))
         .map(|size| InkoResult::ok(size as _))
         .unwrap_or_else(InkoResult::io_error)

@@ -52,14 +52,14 @@ class Writer {
 }
 
 impl Write for Writer {
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Never] {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Never] {
     bytes.iter.each(fn (byte) { @buffer.push(byte) })
-    Result.Ok(bytes.size)
+    Result.Ok(nil)
   }
 
-  fn pub mut write_string(string: String) -> Result[Int, Never] {
+  fn pub mut write_string(string: String) -> Result[Nil, Never] {
     string.to_byte_array.iter.each(fn (byte) { @buffer.push(byte) })
-    Result.Ok(string.size)
+    Result.Ok(nil)
   }
 
   fn pub mut flush -> Result[Nil, Never] {

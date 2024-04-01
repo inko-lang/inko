@@ -53,7 +53,7 @@ import std.cmp (Equal)
 import std.drop (Drop)
 import std.fmt (Format, Formatter)
 import std.fs.path (Path)
-import std.io (Error, Read, Write)
+import std.io (Error, Read, Write, WriteInternal)
 import std.net.ip (IpAddress)
 import std.string (ToString)
 import std.time (Duration, ToInstant)
@@ -166,19 +166,12 @@ fn extern inko_socket_send_string_to(
   deadline: Int,
 ) -> IntResult
 
-fn extern inko_socket_write_bytes(
+fn extern inko_socket_write(
   state: Pointer[UInt8],
   process: Pointer[UInt8],
   socket: Pointer[RawSocket],
-  buffer: ref ByteArray,
-  deadline: Int,
-) -> IntResult
-
-fn extern inko_socket_write_string(
-  state: Pointer[UInt8],
-  process: Pointer[UInt8],
-  socket: Pointer[RawSocket],
-  buffer: String,
+  data: Pointer[UInt8],
+  size: Int,
   deadline: Int,
 ) -> IntResult
 
@@ -807,35 +800,25 @@ impl Read for Socket {
   }
 }
 
-impl Write for Socket {
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
-    match
-      inko_socket_write_bytes(
-        _INKO.state,
-        _INKO.process,
-        @raw,
-        bytes,
-        @deadline,
-      )
-    {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
+impl WriteInternal for Socket {
+  fn mut write_internal(data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
+    let state = _INKO.state
+    let proc = _INKO.process
+
+    match inko_socket_write(state, proc, @raw, data, size, @deadline) {
+      case { @tag = 0, @value = n } -> Result.Ok(n)
+      case { @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
+}
 
-  fn pub mut write_string(string: String) -> Result[Int, Error] {
-    match
-      inko_socket_write_string(
-        _INKO.state,
-        _INKO.process,
-        @raw,
-        string,
-        @deadline,
-      )
-    {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+impl Write for Socket {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
+    write_all_internal(bytes.to_pointer, bytes.size)
+  }
+
+  fn pub mut write_string(string: String) -> Result[Nil, Error] {
+    write_all_internal(string.to_pointer, string.size)
   }
 
   fn pub mut flush -> Result[Nil, Never] {
@@ -986,11 +969,11 @@ impl Read for UdpSocket {
 }
 
 impl Write for UdpSocket {
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
     @socket.write_bytes(bytes)
   }
 
-  fn pub mut write_string(string: String) -> Result[Int, Error] {
+  fn pub mut write_string(string: String) -> Result[Nil, Error] {
     @socket.write_string(string)
   }
 
@@ -1115,11 +1098,11 @@ impl Read for TcpClient {
 }
 
 impl Write for TcpClient {
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
     @socket.write_bytes(bytes)
   }
 
-  fn pub mut write_string(string: String) -> Result[Int, Error] {
+  fn pub mut write_string(string: String) -> Result[Nil, Error] {
     @socket.write_string(string)
   }
 
@@ -1710,35 +1693,25 @@ impl Read for UnixSocket {
   }
 }
 
-impl Write for UnixSocket {
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
-    match
-      inko_socket_write_bytes(
-        _INKO.state,
-        _INKO.process,
-        @raw,
-        bytes,
-        @deadline,
-      )
-    {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
+impl WriteInternal for UnixSocket {
+  fn mut write_internal(data: Pointer[UInt8], size: Int) -> Result[Int, Error] {
+    let state = _INKO.state
+    let proc = _INKO.process
+
+    match inko_socket_write(state, proc, @raw, data, size, @deadline) {
+      case { @tag = 0, @value = n } -> Result.Ok(n)
+      case { @value = e } -> Result.Error(Error.from_os_error(e))
     }
   }
+}
 
-  fn pub mut write_string(string: String) -> Result[Int, Error] {
-    match
-      inko_socket_write_string(
-        _INKO.state,
-        _INKO.process,
-        @raw,
-        string,
-        @deadline,
-      )
-    {
-      case { @tag = 0, @value = v } -> Result.Ok(v)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+impl Write for UnixSocket {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
+    write_all_internal(bytes.to_pointer, bytes.size)
+  }
+
+  fn pub mut write_string(string: String) -> Result[Nil, Error] {
+    write_all_internal(string.to_pointer, string.size)
   }
 
   fn pub mut flush -> Result[Nil, Never] {
@@ -1860,11 +1833,11 @@ impl Read for UnixDatagram {
 }
 
 impl Write for UnixDatagram {
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
     @socket.write_bytes(bytes)
   }
 
-  fn pub mut write_string(string: String) -> Result[Int, Error] {
+  fn pub mut write_string(string: String) -> Result[Nil, Error] {
     @socket.write_string(string)
   }
 
@@ -1976,11 +1949,11 @@ impl Read for UnixClient {
 }
 
 impl Write for UnixClient {
-  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Int, Error] {
+  fn pub mut write_bytes(bytes: ref ByteArray) -> Result[Nil, Error] {
     @socket.write_bytes(bytes)
   }
 
-  fn pub mut write_string(string: String) -> Result[Int, Error] {
+  fn pub mut write_string(string: String) -> Result[Nil, Error] {
     @socket.write_string(string)
   }
 

@@ -43,25 +43,16 @@ pub unsafe extern "system" fn inko_file_flush(
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_file_write_string(
+pub unsafe extern "system" fn inko_file_write(
     process: ProcessPointer,
     file: *mut File,
-    input: *const InkoString,
+    data: *mut u8,
+    size: i64,
 ) -> InkoResult {
-    process
-        .blocking(|| (*file).write(InkoString::read(input).as_bytes()))
-        .map(|size| InkoResult::ok(size as _))
-        .unwrap_or_else(InkoResult::io_error)
-}
+    let slice = std::slice::from_raw_parts(data, size as _);
 
-#[no_mangle]
-pub unsafe extern "system" fn inko_file_write_bytes(
-    process: ProcessPointer,
-    file: *mut File,
-    input: *mut ByteArray,
-) -> InkoResult {
     process
-        .blocking(|| (*file).write(&(*input).value))
+        .blocking(|| (*file).write(slice))
         .map(|size| InkoResult::ok(size as _))
         .unwrap_or_else(InkoResult::io_error)
 }
