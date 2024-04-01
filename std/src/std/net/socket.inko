@@ -11,9 +11,9 @@
 # # Deadlines and timeouts
 #
 # Socket timeouts are supported through a mechanism known as a "deadline". A
-# deadline specifies the time after which socket operations must time out. While
-# deadlines can be constructed from durations (e.g. using `std.time.Duration`),
-# they represent fixed points in time.
+# deadline specifies the time after which socket operations must time out when
+# waiting for them to complete. Deadlines represent a fixed point in time, and
+# can be created from both `Duration` and `Instant` values.
 #
 # The use of deadlines instead of timeouts makes it easier to apply time limits
 # to multiple operations. Consider the following chain of events:
@@ -32,9 +32,9 @@
 # our above example that means we can easily limit the total runtime to 10
 # seconds using a deadline that's 10 seconds in the future.
 #
-# Deadlines are set using `Socket.timeout_after` and `UnixSocket.timeout_after`.
-# Here's an example using deadlines to limit the time spent waiting for a client
-# to connect:
+# Deadlines are set using `Socket.timeout_after` and
+# `UnixSocket.timeout_after=`. Here's an example using deadlines to limit the
+# time spent waiting for a client to connect:
 #
 #     import std.net.ip (IpAddress)
 #     import std.net.socket (TcpServer)
@@ -46,6 +46,14 @@
 #
 #     # This times out after roughly three seconds.
 #     server.accept.get
+#
+# It's important to keep in mind that deadlines only apply when an operation
+# must wait, i.e. a read is performed but no data is available. If the operation
+# completes immediately (i.e. a read is performed and enough data _is_
+# available), the deadline is ignored. This means that if you perform an
+# operation in a loop and set a deadline, and data is always available such that
+# the operation never blocks, the loop may run indefinitely; depending on what
+# the loop does of course.
 #
 # For more information about timeouts versus deadlines, consider reading [this
 # article](https://vorpus.org/blog/timeouts-and-cancellation-for-humans/).
