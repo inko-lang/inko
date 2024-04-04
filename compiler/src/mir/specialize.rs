@@ -1128,7 +1128,7 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
 
         match typ.shape(self.db, self.shapes) {
             Shape::Int | Shape::Float | Shape::Nil | Shape::Boolean => {
-                self.ignore_value(block_id, after_id, loc);
+                self.ignore_value(block_id, after_id);
             }
             Shape::Mut | Shape::Ref => {
                 self.drop_reference(block_id, after_id, val, loc);
@@ -1137,7 +1137,7 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
                 self.drop_atomic(block_id, after_id, val, loc);
             }
             Shape::Owned if typ.is_permanent(self.db) => {
-                self.ignore_value(block_id, after_id, loc);
+                self.ignore_value(block_id, after_id);
             }
             Shape::Owned => {
                 self.drop_owned(block_id, after_id, val, ins.dropper, loc);
@@ -1145,13 +1145,13 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
         }
     }
 
-    fn ignore_value(
-        &mut self,
-        before_id: BlockId,
-        after_id: BlockId,
-        location: LocationId,
-    ) {
-        self.block_mut(before_id).goto(after_id, location);
+    fn ignore_value(&mut self, before_id: BlockId, after_id: BlockId) {
+        // We don't generate a goto() here because:
+        //
+        // 1. If there are other instructions in the current block, the cleanup
+        //    phase connects the current and next block explicitly for us.
+        // 2. If the current block is empty, this prevents a redundant basic
+        //    block that only contains a goto to the next block.
         self.method.body.add_edge(before_id, after_id);
     }
 

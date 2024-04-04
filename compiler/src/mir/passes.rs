@@ -4407,9 +4407,8 @@ impl<'a> LowerMethod<'a> {
 /// 2. Basic blocks that implicitly flow into another block are updated to end
 ///    with a goto to said block.
 ///
-/// These changes make it a bit easier to generate code from a MIR graph, as the
-/// order in which we process blocks (besides starting with the root block) no
-/// longer matters. It also makes the graph less noisy when visualising it.
+/// These changes make it easier to visualize the MIR code, and result in a
+/// smaller IR to pass to LLVM.
 pub(crate) fn clean_up_basic_blocks(mir: &mut Mir) {
     for method in mir.methods.values_mut() {
         let blocks = &method.body.blocks;
