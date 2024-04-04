@@ -617,7 +617,11 @@ impl<'a> Worker<'a> {
     fn run_passes(&self, module: &Module) {
         let layout = self.machine.get_target_data().get_data_layout();
         let opts = PassBuilderOptions::create();
-        let passes = &["mem2reg"];
+        let passes = if let Opt::Aggressive = self.shared.state.config.opt {
+            &["default<O3>"]
+        } else {
+            &["mem2reg"]
+        };
 
         module.set_data_layout(&layout);
         module.set_triple(&self.machine.get_triple());
