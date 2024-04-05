@@ -226,7 +226,7 @@ impl Socket {
         process: ProcessPointer,
         thread_poller_id: usize,
         interest: Interest,
-    ) -> io::Result<()> {
+    ) {
         let existing_id = self.registered.load(Ordering::Acquire);
 
         // Once registered, the process might be rescheduled immediately if
@@ -242,11 +242,11 @@ impl Socket {
 
             self.registered.store(thread_poller_id as i8, Ordering::Release);
 
-            poller.add(process, &self.inner, interest)
+            poller.add(process, &self.inner, interest);
         } else {
             let poller = &state.network_pollers[existing_id as usize];
 
-            poller.modify(process, &self.inner, interest)
+            poller.modify(process, &self.inner, interest);
         }
         // *DO NOT* use "self" from here on, as the socket/process may already
         // be running on a different thread.
@@ -254,7 +254,8 @@ impl Socket {
 
     pub(crate) fn deregister(&mut self, state: &State) {
         let poller_id = self.registered.load(Ordering::Acquire) as usize;
-        let _ = state.network_pollers[poller_id].delete(&self.inner);
+
+        state.network_pollers[poller_id].delete(&self.inner);
     }
 
     pub(crate) fn accept(&self) -> io::Result<Self> {

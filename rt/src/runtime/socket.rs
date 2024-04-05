@@ -55,7 +55,7 @@ fn blocking<T>(
             proc_state.waiting_for_io(None);
         }
 
-        socket.register(state, process, poll_id, interest)?;
+        socket.register(state, process, poll_id, interest);
     }
 
     // Safety: the current thread is holding on to the process' run lock, so if

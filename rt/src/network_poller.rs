@@ -1,64 +1,33 @@
 //! Polling of non-blocking sockets using the system's polling mechanism.
-use crate::process::{ProcessPointer, RescheduleRights};
+use crate::process::RescheduleRights;
 use crate::state::RcState;
-use polling::{Event, Poller, Source};
-use std::io;
+
+#[cfg(target_os = "linux")]
+mod epoll;
+
+#[cfg(any(target_os = "freebsd", target_os = "macos"))]
+mod kqueue;
+
+#[cfg(target_os = "linux")]
+use crate::network_poller::epoll as sys;
+
+#[cfg(any(target_os = "freebsd", target_os = "macos"))]
+use crate::network_poller::kqueue as sys;
+
+/// The maximum number of events to poll in a single call.
+///
+/// We deliberately use a large capacity here in order to reduce the amount of
+/// poll wakeups, improving performance when many sockets become available at
+/// the same time.
+const CAPACITY: usize = 1024;
+
+/// A poller for non-blocking sockets.
+pub(crate) type NetworkPoller = sys::Poller;
 
 /// The type of event a poller should wait for.
 pub(crate) enum Interest {
-    /// We're only interested in read operations.
     Read,
-
-    /// We're only interested in write operations.
     Write,
-}
-
-/// A poller for non-blocking sockets.
-pub(crate) struct NetworkPoller {
-    poller: Poller,
-}
-
-impl NetworkPoller {
-    pub(crate) fn new() -> Self {
-        NetworkPoller {
-            poller: Poller::new().expect("Failed to set up the network poller"),
-        }
-    }
-
-    pub(crate) fn poll(&self, events: &mut Vec<Event>) -> io::Result<usize> {
-        self.poller.wait(events, None)
-    }
-
-    pub(crate) fn add(
-        &self,
-        process: ProcessPointer,
-        source: impl Source,
-        interest: Interest,
-    ) -> io::Result<()> {
-        self.poller.add(source, self.event(process, interest))
-    }
-
-    pub(crate) fn modify(
-        &self,
-        process: ProcessPointer,
-        source: impl Source,
-        interest: Interest,
-    ) -> io::Result<()> {
-        self.poller.modify(source, self.event(process, interest))
-    }
-
-    pub(crate) fn delete(&self, source: impl Source) -> io::Result<()> {
-        self.poller.delete(source)
-    }
-
-    fn event(&self, process: ProcessPointer, interest: Interest) -> Event {
-        let key = process.identifier();
-
-        match interest {
-            Interest::Read => Event::readable(key),
-            Interest::Write => Event::writable(key),
-        }
-    }
 }
 
 /// A thread that polls a poller and reschedules processes.
@@ -72,47 +41,32 @@ impl Worker {
         Worker { id, state }
     }
 
-    pub(crate) fn run(&self) {
-        let mut events = Vec::new();
+    pub(crate) fn run(&mut self) {
+        let mut events = sys::Events::with_capacity(CAPACITY);
         let poller = &self.state.network_pollers[self.id];
 
         loop {
-            if let Err(err) = poller.poll(&mut events) {
-                if err.kind() != io::ErrorKind::Interrupted {
-                    // It's not entirely clear if/when we ever run into this,
-                    // but should we run into any error that's _not_ an
-                    // interrupt then there's probably more going on, and all we
-                    // can do is abort.
-                    panic!("Polling for IO events failed: {:?}", err);
-                }
-            }
+            let mut processes = poller.poll(&mut events);
 
-            let processes = events
-                .iter()
-                .filter_map(|ev| {
-                    let proc = unsafe { ProcessPointer::new(ev.key as *mut _) };
-                    let mut state = proc.state();
-                    let rights = state.try_reschedule_for_io();
+            processes.retain(|proc| {
+                let mut state = proc.state();
+                let rights = state.try_reschedule_for_io();
 
-                    // A process may have also been registered with the timeout
-                    // thread (e.g. when using a timeout). As such we should
-                    // only reschedule the process if the timout thread didn't
-                    // already do this for us.
-                    match rights {
-                        RescheduleRights::Failed => None,
-                        RescheduleRights::Acquired => Some(proc),
-                        RescheduleRights::AcquiredWithTimeout => {
-                            self.state
-                                .timeout_worker
-                                .increase_expired_timeouts();
-                            Some(proc)
-                        }
+                // A process may have also been registered with the timeout
+                // thread (e.g. when using a timeout). As such we should only
+                // reschedule the process if the timout thread didn't already do
+                // this for us.
+                match rights {
+                    RescheduleRights::Failed => false,
+                    RescheduleRights::Acquired => true,
+                    RescheduleRights::AcquiredWithTimeout => {
+                        self.state.timeout_worker.increase_expired_timeouts();
+                        true
                     }
-                })
-                .collect();
+                }
+            });
 
             self.state.scheduler.schedule_multiple(processes);
-            events.clear();
         }
     }
 }
@@ -122,7 +76,6 @@ mod tests {
     use super::*;
     use crate::test::{empty_process_class, new_process};
     use std::net::UdpSocket;
-    use std::time::Duration;
 
     #[test]
     fn test_add() {
@@ -131,7 +84,7 @@ mod tests {
         let output = UdpSocket::bind("0.0.0.0:0").unwrap();
         let poller = NetworkPoller::new();
 
-        assert!(poller.add(*process, &output, Interest::Read).is_ok());
+        poller.add(*process, &output, Interest::Read);
     }
 
     #[test]
@@ -141,8 +94,8 @@ mod tests {
         let class = empty_process_class("A");
         let process = new_process(*class);
 
-        assert!(poller.add(*process, &output, Interest::Read).is_ok());
-        assert!(poller.modify(*process, &output, Interest::Write).is_ok());
+        poller.add(*process, &output, Interest::Read);
+        poller.modify(*process, &output, Interest::Write);
     }
 
     #[test]
@@ -151,18 +104,9 @@ mod tests {
         let poller = NetworkPoller::new();
         let class = empty_process_class("A");
         let process = new_process(*class);
-        let mut events = Vec::with_capacity(1);
 
-        assert!(poller.add(*process, &output, Interest::Write).is_ok());
-        assert!(poller.delete(&output).is_ok());
-
-        let len = poller
-            .poller
-            .wait(&mut events, Some(Duration::from_millis(10)))
-            .unwrap();
-
-        assert_eq!(len, 0);
-        assert_eq!(events.len(), 0);
+        poller.add(*process, &output, Interest::Write);
+        poller.delete(&output);
     }
 
     #[test]
@@ -171,14 +115,13 @@ mod tests {
         let poller = NetworkPoller::new();
         let class = empty_process_class("A");
         let process = new_process(*class);
-        let mut events = Vec::with_capacity(1);
+        let mut events = sys::Events::with_capacity(1);
 
-        poller.add(*process, &output, Interest::Write).unwrap();
+        poller.add(*process, &output, Interest::Write);
+        let procs = poller.poll(&mut events);
 
-        assert!(poller.poll(&mut events).is_ok());
-        assert_eq!(events.capacity(), 1);
-        assert_eq!(events.len(), 1);
-        assert_eq!(events[0].key, process.identifier());
+        assert_eq!(procs.len(), 1);
+        assert_eq!(events.len(), 0);
     }
 
     #[test]
@@ -187,14 +130,21 @@ mod tests {
         let sock2 = UdpSocket::bind("0.0.0.0:0").unwrap();
         let poller = NetworkPoller::new();
         let class = empty_process_class("A");
-        let process = new_process(*class);
-        let mut events = Vec::with_capacity(1);
+        let proc1 = new_process(*class);
+        let proc2 = new_process(*class);
+        let mut events = sys::Events::with_capacity(1);
 
-        poller.add(*process, &sock1, Interest::Write).unwrap();
-        poller.add(*process, &sock2, Interest::Write).unwrap();
+        poller.add(*proc1, &sock1, Interest::Write);
+        poller.add(*proc2, &sock2, Interest::Write);
 
-        assert!(poller.poll(&mut events).is_ok());
-        assert!(events.capacity() >= 2);
-        assert_eq!(events.len(), 2);
+        let procs = poller.poll(&mut events);
+
+        assert_eq!(procs.len(), 1);
+        assert_eq!(events.len(), 0);
+
+        let procs = poller.poll(&mut events);
+
+        assert_eq!(procs.len(), 1);
+        assert_eq!(events.len(), 0);
     }
 }
