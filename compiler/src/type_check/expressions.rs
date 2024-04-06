@@ -3160,15 +3160,14 @@ impl<'a> CheckMethodBody<'a> {
         scope: &mut LexicalScope,
     ) -> TypeRef {
         let input_type = self.expression(&mut node.expression, scope);
-        let mut rtype =
-            if node.write_result { None } else { Some(TypeRef::nil()) };
+        let mut types = Vec::new();
+        let mut has_nil = false;
 
         for case in &mut node.cases {
             let mut new_scope = scope.inherit(ScopeKind::Regular);
             let mut pattern = Pattern::new(&mut new_scope.variables);
 
             self.pattern(&mut case.pattern, input_type, &mut pattern);
-
             case.variable_ids = pattern.variables.values().cloned().collect();
 
             if let Some(guard) = case.guard.as_mut() {
@@ -3178,36 +3177,44 @@ impl<'a> CheckMethodBody<'a> {
                 self.require_boolean(typ, guard.location());
             }
 
-            if let Some(expected) = rtype {
-                self.expressions_with_return(
-                    expected,
-                    &mut case.body,
-                    &mut new_scope,
-                    &case.location,
-                );
-            } else {
-                let typ =
-                    self.last_expression_type(&mut case.body, &mut new_scope);
+            let typ = self.last_expression_type(&mut case.body, &mut new_scope);
 
-                // If the first case returns `Nil`, the value returned by other
-                // cases is to be ignored. In this case we also want to discard
-                // the case body's return values, so we have to overwrite the
-                // `write_result` field.
-                if typ.is_nil(self.db()) {
-                    node.write_result = false;
-                }
+            // If a `case` returns `Nil`, we ignore the return values of all
+            // cases. If a case returns `Never`, we only ignore that `case` when
+            // type checking.
+            if typ.is_nil(self.db()) {
+                has_nil = true;
+            } else if !typ.is_never(self.db()) {
+                let loc = case
+                    .body
+                    .last()
+                    .map_or(&case.location, |n| n.location())
+                    .clone();
 
-                // If a case returns a Never type we'll ignore it. This way e.g.
-                // the first case can return `Never` and the other cases can
-                // return other types, as long as those types are compatible
-                // with the first non-Never type.
-                if !typ.is_never(self.db()) {
-                    rtype = Some(typ);
+                types.push((typ, loc));
+            }
+        }
+
+        if has_nil || types.is_empty() {
+            node.write_result = false;
+            node.resolved_type = TypeRef::nil();
+        } else {
+            let first = types[0].0;
+
+            node.resolved_type = first;
+
+            for (typ, loc) in types.drain(1..) {
+                if !TypeChecker::check_return(self.db(), typ, first) {
+                    self.state.diagnostics.type_error(
+                        format_type(self.db(), typ),
+                        format_type(self.db(), first),
+                        self.file(),
+                        loc,
+                    );
                 }
             }
         }
 
-        node.resolved_type = rtype.unwrap_or(TypeRef::Error);
         node.resolved_type
     }
 
