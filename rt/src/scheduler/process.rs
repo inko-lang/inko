@@ -246,12 +246,6 @@ impl Thread {
     }
 
     pub(crate) fn start_blocking(&mut self) {
-        // We have to push our work away before entering the blocking operation.
-        // If we do this after returning from the blocking operation, another
-        // thread may already be using our queue, at which point we'd slow it
-        // down by moving its work to the global queue.
-        self.move_work_to_global_queue();
-
         let epoch = self.pool.current_epoch();
         let shared = &self.pool.threads[self.id];
 
@@ -337,22 +331,6 @@ impl Thread {
         }
 
         res
-    }
-
-    fn move_work_to_global_queue(&mut self) {
-        let len = self.work.len();
-
-        if len == 0 {
-            return;
-        }
-
-        let mut work = Vec::with_capacity(len);
-
-        while let Some(process) = self.work.pop() {
-            work.push(process);
-        }
-
-        self.pool.schedule_multiple(work);
     }
 
     fn run(&mut self, state: &State) {
@@ -1209,7 +1187,6 @@ mod tests {
         assert_eq!(thread.blocked_at, 4);
         assert_eq!(pool.threads[1].blocked_at.load(Ordering::Acquire), 4);
         assert_eq!(pool.monitor.status.load(), MonitorStatus::Notified);
-        assert!(thread.work.is_empty());
     }
 
     #[test]
@@ -1229,21 +1206,6 @@ mod tests {
 
         assert!(thread.backup);
         assert_eq!(thread.blocked_at, NOT_BLOCKING);
-    }
-
-    #[test]
-    fn test_thread_move_work_to_global_queue() {
-        let class = empty_process_class("A");
-        let proc = new_process(*class).take_and_forget();
-        let state = setup();
-        let pool = &state.scheduler.pool;
-        let mut thread = Thread::new(1, 0, pool.clone());
-
-        thread.schedule(proc);
-        thread.move_work_to_global_queue();
-
-        assert!(thread.work.is_empty());
-        assert_eq!(pool.global.lock().unwrap().len(), 1);
     }
 
     #[test]
