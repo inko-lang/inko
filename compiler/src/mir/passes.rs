@@ -472,7 +472,7 @@ impl<'a> GenerateDropper<'a> {
             let members = var.members(lower.db());
             let fields = &enum_fields[0..members.len()];
 
-            for (&field, typ) in fields.iter().zip(members.into_iter()) {
+            for (&field, typ) in fields.iter().zip(members.into_iter()).rev() {
                 let reg = lower.new_register(typ);
 
                 lower
@@ -541,7 +541,7 @@ impl<'a> GenerateDropper<'a> {
             );
         }
 
-        for field in class.fields(lower.db()) {
+        for field in class.fields(lower.db()).into_iter().rev() {
             let typ = field.value_type(lower.db());
 
             if typ.is_permanent(lower.db()) {

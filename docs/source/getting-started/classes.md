@@ -221,7 +221,7 @@ class async Cat {
 ## Drop order
 
 When dropping an instance of a class with fields, the fields are dropped in
-definition order:
+reverse-definition order:
 
 ```inko
 class Person {
@@ -230,4 +230,17 @@ class Person {
 }
 ```
 
-When dropping an instance of this class, `@name` is dropped before `@age`.
+When dropping an instance of this class, `@age` is dropped before `@name`.
+
+When dropping an `enum` with one or more cases that store data, the data stored
+in each case is dropped in reverse-definition order:
+
+```inko
+class enum Example {
+  case Foo(Int, String)
+  case Bar
+}
+```
+
+When dropping an instance of `Example.Foo`, the `String` value is dropped before
+the `Int` value.

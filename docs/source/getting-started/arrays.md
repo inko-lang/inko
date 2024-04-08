@@ -157,3 +157,9 @@ as-is and takes over ownership of the underlying array.
 
 For more information, refer to the [source
 code](https://github.com/inko-lang/inko/blob/main/std/src/std/array.inko).
+
+## Drop order
+
+When an `Array` is dropped, any remaining values are dropped in the order in
+which they are stored in the `Array`. For example, for `[foo, bar]`, `foo` is
+dropped before `bar`.
