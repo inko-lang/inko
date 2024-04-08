@@ -1,0 +1,19 @@
+class Thing {
+  let @a: Array[Int]
+  let @b: Array[Int]
+
+  fn move invalid {
+    let _a = @a
+
+    self
+  }
+
+  fn move valid {
+    let _a = @a
+
+    @a = []
+    self
+  }
+}
+
+# assign_field_after_move_with_self.inko:8:5 error(moved): 'self' can't be used as it has been moved

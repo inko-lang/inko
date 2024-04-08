@@ -1192,6 +1192,9 @@ pub(crate) struct LowerMethod<'a> {
     /// Variables to remap to field reads, and the types to expose the fields
     /// as.
     variable_fields: HashMap<types::VariableId, types::FieldId>,
+
+    /// The number of fields that are moved.
+    moved_fields: usize,
 }
 
 impl<'a> LowerMethod<'a> {
@@ -1219,6 +1222,7 @@ impl<'a> LowerMethod<'a> {
             self_register: RegisterId(SELF_ID),
             variable_fields: HashMap::new(),
             used_variables: HashSet::new(),
+            moved_fields: 0,
         }
     }
 
@@ -2153,8 +2157,9 @@ impl<'a> LowerMethod<'a> {
         if let Some(&reg) = self.field_mapping.get(&id) {
             let rec = self.surrounding_type_register;
             let class = self.register_type(rec).class_id(self.db()).unwrap();
+            let is_moved = self.register_is_moved(reg);
 
-            if !self.register_is_moved(reg) && !exp.is_permanent(self.db()) {
+            if !is_moved && !exp.is_permanent(self.db()) {
                 // `reg` may be a reference for a non-moving method, so we need
                 // a temporary register using the raw field type and drop that
                 // instead.
@@ -2162,6 +2167,16 @@ impl<'a> LowerMethod<'a> {
 
                 self.current_block_mut().get_field(old, rec, class, id, loc);
                 self.drop_register(old, loc);
+            }
+
+            // We allow the use of `self` again once all moved fields are
+            // assigned a new value.
+            if is_moved {
+                self.moved_fields -= 1;
+
+                if self.moved_fields == 0 {
+                    self.mark_register_as_available(self.self_register);
+                }
             }
 
             self.update_register_state(reg, RegisterState::Available);
@@ -3757,6 +3772,7 @@ impl<'a> LowerMethod<'a> {
             return;
         }
 
+        self.moved_fields += 1;
         self.mark_register_as_partially_moved(self.self_register);
     }
 
