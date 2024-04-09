@@ -2679,35 +2679,16 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
     }
 
     fn process_stack_data_pointer(&mut self) -> PointerValue<'ctx> {
-        // When using llvm.read_register(), LLVM segfaults for reasons not quite
-        // known. The llvm.frameaddress instruction in turn does a bit more
-        // work, so instead we use raw assembly to read the RSP register.
-        let ptr_type = self.builder.context.pointer_type();
-        let fn_type = self
-            .builder
-            .context
-            .pointer_type()
-            .fn_type(&[ptr_type.into()], false);
-        let rsp_name = self.state.config.target.stack_pointer_register_name();
-        let asm = self.builder.context.inner.create_inline_asm(
-            fn_type,
-            format!("mov {}, $0", rsp_name),
-            "=r".to_string(),
-            false,
-            false,
-            None,
-            false,
+        let func = self.module.intrinsic(
+            "llvm.read_register",
+            &[self.builder.context.i64_type().into()],
         );
-        let rsp = self.builder.new_stack_slot(ptr_type);
 
-        self.builder
-            .indirect_call(fn_type, asm, &[rsp.into()])
-            .try_as_basic_value()
-            .left()
-            .unwrap()
-            .into_pointer_value();
-
-        let rsp_addr = self.builder.pointer_to_int(rsp);
+        let rsp_name = self.state.config.target.stack_pointer_register_name();
+        let mname = self.builder.context.inner.metadata_string(rsp_name);
+        let mnode = self.builder.context.inner.metadata_node(&[mname.into()]);
+        let rsp_addr =
+            self.builder.call(func, &[mnode.into()]).into_int_value();
         let mask = self.load_stack_mask();
         let addr = self.builder.bit_and(rsp_addr, mask);
 
