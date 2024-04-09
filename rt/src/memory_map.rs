@@ -4,14 +4,6 @@ use rustix::mm::{
 use std::io::{Error, Result as IoResult};
 use std::ptr::null_mut;
 
-/// A chunk of memory created using `mmap` and similar functions.
-///
-/// The alignment of the memory mapping is equal to its size.
-pub(crate) struct MemoryMap {
-    pub(crate) ptr: *mut u8,
-    pub(crate) len: usize,
-}
-
 fn mmap_options(_stack: bool) -> MapFlags {
     let base = MapFlags::PRIVATE;
 
@@ -30,15 +22,22 @@ fn mmap_options(_stack: bool) -> MapFlags {
     base
 }
 
+/// A chunk of memory created using `mmap` and similar functions.
+pub(crate) struct MemoryMap {
+    pub(crate) ptr: *mut u8,
+    pub(crate) len: usize,
+}
+
 impl MemoryMap {
-    /// Allocates a new memory mapping.
+    /// Allocates a new memory mapping suitable for use as stack memory.
     ///
-    /// This method expects that `size` is a multiple of the page size.
-    pub(crate) fn new(size: usize, stack: bool) -> Self {
+    /// This method expects that `size` is a multiple of the page size. The
+    /// alignment of the memory mapping is equal to its size.
+    pub(crate) fn stack(size: usize) -> MemoryMap {
         // In order to align the desired region to its size, we have to allocate
         // more and manually align the resulting pointer.
         let alloc_size = size * 2;
-        let opts = mmap_options(stack);
+        let opts = mmap_options(true);
         let res = unsafe {
             mmap_anonymous(
                 null_mut(),
@@ -109,8 +108,8 @@ mod tests {
 
     #[test]
     fn test_new() {
-        let map1 = MemoryMap::new(page_size(), false);
-        let map2 = MemoryMap::new(page_size() * 3, false);
+        let map1 = MemoryMap::stack(page_size());
+        let map2 = MemoryMap::stack(page_size() * 3);
 
         assert_eq!(map1.len, page_size());
         assert_eq!(map2.len, page_size() * 3);
@@ -118,7 +117,7 @@ mod tests {
 
     #[test]
     fn test_protect() {
-        let mut map = MemoryMap::new(page_size() * 2, false);
+        let mut map = MemoryMap::stack(page_size() * 2);
 
         assert!(map.protect(0, page_size()).is_ok());
     }

@@ -109,11 +109,6 @@ enum Node {
     Indent(Vec<Node>),
 
     /// A node of which the width should be reported as zero.
-    ///
-    /// TODO: this node causes too many weird formatting issues, such as when a
-    /// ZeroWidth argument is followed by an array. This is because when
-    /// rendering, we think we have more space than we actually do, so we wrap
-    /// too late.
     ZeroWidth(Box<Node>),
 
     /// Indent the given nodes recursively, but only starting the next line.

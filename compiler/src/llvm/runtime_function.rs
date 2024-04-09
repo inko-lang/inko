@@ -7,10 +7,7 @@ pub(crate) enum RuntimeFunction {
     ReferenceCountError,
     ClassObject,
     ClassProcess,
-    Free,
     MessageNew,
-    Allocate,
-    AllocateAtomic,
     ProcessFinishMessage,
     ProcessNew,
     ProcessPanic,
@@ -23,6 +20,9 @@ pub(crate) enum RuntimeFunction {
     StringConcat,
     StringNew,
     RuntimeStackMask,
+    Allocate,
+    Free,
+    AllocationError,
 }
 
 impl RuntimeFunction {
@@ -33,10 +33,7 @@ impl RuntimeFunction {
             }
             RuntimeFunction::ClassObject => "inko_class_object",
             RuntimeFunction::ClassProcess => "inko_class_process",
-            RuntimeFunction::Free => "inko_free",
             RuntimeFunction::MessageNew => "inko_message_new",
-            RuntimeFunction::Allocate => "inko_alloc",
-            RuntimeFunction::AllocateAtomic => "inko_alloc_atomic",
             RuntimeFunction::ProcessFinishMessage => {
                 "inko_process_finish_message"
             }
@@ -51,6 +48,9 @@ impl RuntimeFunction {
             RuntimeFunction::StringConcat => "inko_string_concat",
             RuntimeFunction::StringNew => "inko_string_new",
             RuntimeFunction::RuntimeStackMask => "inko_runtime_stack_mask",
+            RuntimeFunction::Allocate => "malloc",
+            RuntimeFunction::Free => "free",
+            RuntimeFunction::AllocationError => "inko_alloc_error",
         }
     }
 
@@ -68,23 +68,11 @@ impl RuntimeFunction {
 
                 ret.fn_type(&[proc, val], false)
             }
-            RuntimeFunction::Free => {
-                let val = context.pointer_type().into();
-                let ret = context.void_type();
-
-                ret.fn_type(&[val], false)
-            }
             RuntimeFunction::ProcessYield => {
                 let proc = context.pointer_type().into();
                 let ret = context.void_type();
 
                 ret.fn_type(&[proc], false)
-            }
-            RuntimeFunction::Allocate | RuntimeFunction::AllocateAtomic => {
-                let class = context.pointer_type().into();
-                let ret = context.pointer_type();
-
-                ret.fn_type(&[class], false)
             }
             RuntimeFunction::ProcessPanic => {
                 let proc = context.pointer_type().into();
@@ -181,6 +169,24 @@ impl RuntimeFunction {
                 let ret = context.i64_type();
 
                 ret.fn_type(&[state], false)
+            }
+            RuntimeFunction::Allocate => {
+                let size = context.i64_type().into();
+                let ret = context.pointer_type();
+
+                ret.fn_type(&[size], false)
+            }
+            RuntimeFunction::Free => {
+                let ptr = context.pointer_type().into();
+                let ret = context.void_type();
+
+                ret.fn_type(&[ptr], false)
+            }
+            RuntimeFunction::AllocationError => {
+                let ptr = context.pointer_type().into();
+                let ret = context.void_type();
+
+                ret.fn_type(&[ptr], false)
             }
         };
 

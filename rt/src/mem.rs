@@ -25,12 +25,6 @@ pub(crate) unsafe fn header_of<'a, T>(ptr: *const T) -> &'a mut Header {
     &mut *(ptr as *mut Header)
 }
 
-pub(crate) unsafe fn free<T>(ptr: *mut T) {
-    let layout = header_of(ptr).class.instance_layout();
-
-    dealloc(ptr as *mut u8, layout);
-}
-
 /// The header used by heap allocated objects.
 ///
 /// The layout is fixed to ensure we can safely assume certain fields are at
@@ -50,6 +44,11 @@ pub struct Header {
     /// overflowing a u32 is very tiny, but overflowing a u16 is something that
     /// _could_ happen (i.e. a process reference shared with many other
     /// processes).
+    ///
+    /// For regular objects, this field is initially set to 0, while for atomic
+    /// values it defaults to 1. The latter is done as atomics always use a
+    /// checked decrement, so starting with 1 ensures we don't underflow this
+    /// value.
     pub references: u32,
 }
 
@@ -61,15 +60,7 @@ impl Header {
 
     pub(crate) fn init_atomic(&mut self, class: ClassPointer) {
         self.class = class;
-
-        // Atomic values start with a reference count of 1, so
-        // `decrement_atomic()` returns the correct result for a value for which
-        // no extra references have been created (instead of overflowing).
         self.references = 1;
-    }
-
-    pub(crate) fn references(&self) -> u32 {
-        self.references
     }
 }
 

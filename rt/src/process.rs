@@ -1,5 +1,5 @@
 use crate::arc_without_weak::ArcWithoutWeak;
-use crate::mem::{allocate, free, ClassPointer, Header};
+use crate::mem::{allocate, header_of, ClassPointer, Header};
 use crate::scheduler::process::Thread;
 use crate::scheduler::timeouts::Timeout;
 use crate::stack::Stack;
@@ -486,8 +486,11 @@ pub struct Process {
 impl Process {
     pub(crate) fn drop_and_deallocate(ptr: ProcessPointer) {
         unsafe {
-            drop_in_place(ptr.0.as_ptr());
-            free(ptr.0.as_ptr());
+            let raw = ptr.as_ptr();
+            let layout = header_of(raw).class.instance_layout();
+
+            drop_in_place(raw);
+            dealloc(raw as *mut u8, layout);
         }
     }
 

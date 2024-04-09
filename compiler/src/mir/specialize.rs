@@ -415,6 +415,15 @@ impl<'a, 'b> Specialize<'a, 'b> {
                         ins.class = cls;
                         self.schedule_regular_dropper(cls);
                     }
+                    Instruction::Free(ins) => {
+                        let cls = method
+                            .registers
+                            .value_type(ins.register)
+                            .class_id(&self.state.db)
+                            .unwrap();
+
+                        ins.class = cls;
+                    }
                     Instruction::Spawn(ins) => {
                         let cls = method
                             .registers
@@ -1200,8 +1209,15 @@ impl<'a, 'b, 'c> ExpandDrop<'a, 'b, 'c> {
         if dropper {
             self.call_dropper(before_id, value, location);
         } else {
+            let class = self
+                .method
+                .registers
+                .value_type(value)
+                .class_id(self.db)
+                .unwrap();
+
             self.block_mut(before_id).check_refs(value, location);
-            self.block_mut(before_id).free(value, location);
+            self.block_mut(before_id).free(value, class, location);
         }
 
         self.block_mut(before_id).goto(after_id, location);

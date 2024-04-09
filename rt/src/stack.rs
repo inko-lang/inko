@@ -161,7 +161,7 @@ pub struct Stack {
 impl Stack {
     pub(crate) fn new(size: usize, page_size: usize) -> Self {
         let size = total_stack_size(size, page_size);
-        let mut mem = MemoryMap::new(size, true);
+        let mut mem = MemoryMap::stack(size);
 
         // There's nothing we can do at runtime in response to the guard page
         // not being set up, so we just terminate if this ever happens.

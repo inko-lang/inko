@@ -372,9 +372,17 @@ impl Block {
         })));
     }
 
-    pub(crate) fn free(&mut self, register: RegisterId, location: LocationId) {
-        self.instructions
-            .push(Instruction::Free(Box::new(Free { register, location })));
+    pub(crate) fn free(
+        &mut self,
+        register: RegisterId,
+        class: types::ClassId,
+        location: LocationId,
+    ) {
+        self.instructions.push(Instruction::Free(Box::new(Free {
+            register,
+            class,
+            location,
+        })));
     }
 
     pub(crate) fn check_refs(
@@ -790,6 +798,7 @@ pub(crate) struct CallDropper {
 
 #[derive(Clone)]
 pub(crate) struct Free {
+    pub(crate) class: types::ClassId,
     pub(crate) register: RegisterId,
     pub(crate) location: LocationId,
 }
@@ -1218,7 +1227,12 @@ impl Instruction {
                 format!("drop r{}", v.register.0)
             }
             Instruction::Free(ref v) => {
-                format!("free r{}", v.register.0)
+                format!(
+                    "free r{} {}#{}",
+                    v.register.0,
+                    v.class.name(db),
+                    v.class.0
+                )
             }
             Instruction::CheckRefs(ref v) => {
                 format!("check_refs r{}", v.register.0)

@@ -1,4 +1,7 @@
+use crate::llvm::constants::{HEADER_CLASS_INDEX, HEADER_REFS_INDEX};
 use crate::llvm::context::Context;
+use crate::llvm::module::Module;
+use crate::llvm::runtime_function::RuntimeFunction;
 use inkwell::basic_block::BasicBlock;
 use inkwell::builder;
 use inkwell::debug_info::{
@@ -17,6 +20,7 @@ use inkwell::{
     AddressSpace, AtomicOrdering, AtomicRMWBinOp, FloatPredicate, IntPredicate,
 };
 use std::path::Path;
+use types::{ClassId, Database};
 
 /// A wrapper around an LLVM Builder that provides some additional methods.
 pub(crate) struct Builder<'ctx> {
@@ -652,6 +656,13 @@ impl<'ctx> Builder<'ctx> {
             .unwrap()
     }
 
+    pub(crate) fn pointer_is_null(
+        &self,
+        value: PointerValue<'ctx>,
+    ) -> IntValue<'ctx> {
+        self.inner.build_is_null(value, "").unwrap()
+    }
+
     pub(crate) fn bitcast<V: BasicValue<'ctx>, T: BasicType<'ctx>>(
         &self,
         value: V,
@@ -754,6 +765,49 @@ impl<'ctx> Builder<'ctx> {
 
     pub(crate) fn set_debug_function(&self, function: DISubprogram) {
         self.function.set_subprogram(function);
+    }
+
+    pub(crate) fn allocate<'a, 'b>(
+        &self,
+        module: &'a mut Module<'b, 'ctx>,
+        db: &Database,
+        names: &crate::symbol_names::SymbolNames,
+        class: ClassId,
+    ) -> PointerValue<'ctx> {
+        let atomic = class.is_atomic(db);
+        let name = &names.classes[&class];
+        let global = module.add_class(class, name).as_pointer_value();
+        let class_ptr = self.load_untyped_pointer(global);
+        let size = module.layouts.size_of_class(class);
+        let err_func =
+            module.runtime_function(RuntimeFunction::AllocationError);
+        let alloc_func = module.runtime_function(RuntimeFunction::Allocate);
+        let size = self.u64_literal(size).into();
+        let res = self.call(alloc_func, &[size]).into_pointer_value();
+
+        let err_block = self.add_block();
+        let ok_block = self.add_block();
+        let is_null = self.pointer_is_null(res);
+        let header = module.layouts.header;
+
+        self.branch(is_null, err_block, ok_block);
+
+        // The block to jump to when the allocation failed.
+        self.switch_to_block(err_block);
+        self.call_void(err_func, &[class_ptr.into()]);
+        self.unreachable();
+
+        // The block to jump to when the allocation succeeds.
+        self.switch_to_block(ok_block);
+
+        // Atomic values start with a reference count of 1, so atomic decrements
+        // returns the correct result for a value for which no extra references
+        // have been created (instead of underflowing).
+        let refs = self.u32_literal(if atomic { 1 } else { 0 });
+
+        self.store_field(header, res, HEADER_CLASS_INDEX, class_ptr);
+        self.store_field(header, res, HEADER_REFS_INDEX, refs);
+        res
     }
 }
 

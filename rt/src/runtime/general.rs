@@ -1,8 +1,8 @@
-use crate::mem::{free, header_of, ClassPointer};
+use crate::mem::{header_of, ClassPointer};
 use crate::process::ProcessPointer;
 use crate::runtime::exit;
 use crate::runtime::process::panic;
-use std::alloc::alloc;
+use std::alloc::handle_alloc_error;
 use std::io::Error;
 
 // Taken from Rust's standard library, with some removals of platforms we don't
@@ -37,38 +37,19 @@ pub unsafe extern "system" fn inko_reference_count_error(
     pointer: *const u8,
 ) {
     let header = header_of(pointer);
-    let refs = header.references();
 
     panic(
         process,
         &format!(
             "can't drop a value of type '{}' as it still has {} reference(s)",
-            &header.class.name, refs
+            &header.class.name, header.references
         ),
     );
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_free(pointer: *mut u8) {
-    free(pointer);
-}
-
-#[no_mangle]
-pub unsafe extern "system" fn inko_alloc(class: ClassPointer) -> *mut u8 {
-    let ptr = alloc(class.instance_layout());
-
-    header_of(ptr).init(class);
-    ptr
-}
-
-#[no_mangle]
-pub unsafe extern "system" fn inko_alloc_atomic(
-    class: ClassPointer,
-) -> *mut u8 {
-    let ptr = alloc(class.instance_layout());
-
-    header_of(ptr).init_atomic(class);
-    ptr
+pub unsafe extern "system" fn inko_alloc_error(class: ClassPointer) -> ! {
+    handle_alloc_error(class.instance_layout());
 }
 
 #[no_mangle]

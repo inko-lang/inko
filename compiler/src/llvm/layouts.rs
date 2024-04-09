@@ -8,7 +8,8 @@ use inkwell::types::{
 };
 use inkwell::AddressSpace;
 use types::{
-    CallConvention, BOOL_ID, BYTE_ARRAY_ID, FLOAT_ID, INT_ID, NIL_ID, STRING_ID,
+    CallConvention, ClassId, BOOL_ID, BYTE_ARRAY_ID, FLOAT_ID, INT_ID, NIL_ID,
+    STRING_ID,
 };
 
 /// The size of an object header.
@@ -31,6 +32,8 @@ pub(crate) struct Method<'ctx> {
 
 /// Types and layout information to expose to all modules.
 pub(crate) struct Layouts<'ctx> {
+    pub(crate) target_data: &'ctx TargetData,
+
     /// The layout of an empty class.
     ///
     /// This is used for generating dynamic dispatch code, as we don't know the
@@ -80,7 +83,7 @@ impl<'ctx> Layouts<'ctx> {
         state: &State,
         mir: &Mir,
         context: &'ctx Context,
-        target_data: TargetData,
+        target_data: &'ctx TargetData,
     ) -> Self {
         let db = &state.db;
         let space = AddressSpace::default();
@@ -179,6 +182,7 @@ impl<'ctx> Layouts<'ctx> {
         };
 
         let mut layouts = Self {
+            target_data,
             empty_class: context.class_type(method),
             method,
             classes,
@@ -407,5 +411,12 @@ impl<'ctx> Layouts<'ctx> {
         }
 
         layouts
+    }
+
+    pub(crate) fn size_of_class(&self, class: ClassId) -> u64 {
+        let layout = &self.instances[class.0 as usize];
+
+        self.target_data.get_bit_size(layout)
+            / (self.target_data.get_pointer_byte_size(None) as u64)
     }
 }

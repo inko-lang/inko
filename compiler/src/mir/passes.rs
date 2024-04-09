@@ -499,7 +499,7 @@ impl<'a> GenerateDropper<'a> {
         lower.current_block_mut().check_refs(self_reg, loc);
 
         lower.drop_register(tag_reg, loc);
-        lower.current_block_mut().free(self_reg, loc);
+        lower.current_block_mut().free(self_reg, class, loc);
 
         let nil_reg = lower.get_nil(loc);
 
@@ -563,7 +563,7 @@ impl<'a> GenerateDropper<'a> {
         lower.current_block_mut().check_refs(self_reg, loc);
 
         if free_self {
-            lower.current_block_mut().free(self_reg, loc);
+            lower.current_block_mut().free(self_reg, class, loc);
         }
 
         if terminate {

@@ -518,11 +518,12 @@ impl<'a> Worker<'a> {
         // to `Context`, preventing it from being moved into `self`. Thus, we
         // create this data here and pass it as arguments.
         let context = Context::new();
+        let target_data = self.machine.get_target_data();
         let layouts = Layouts::new(
             self.shared.state,
             self.shared.mir,
             &context,
-            self.machine.get_target_data(),
+            &target_data,
         );
 
         loop {
@@ -562,17 +563,14 @@ impl<'a> Worker<'a> {
         let mut module = Module::new(context, layouts, name.clone(), &path);
 
         LowerModule {
-            state: self.shared.state,
-            mir: self.shared.mir,
+            shared: self.shared,
             index,
-            names: self.shared.names,
             module: &mut module,
             layouts,
-            methods: self.shared.methods,
         }
         .run();
 
-        let res = self.process_module(&module, obj_path);
+        let res = self.process_module(&module, layouts, obj_path);
 
         self.timings.insert(name.clone(), start.elapsed());
         res
@@ -599,7 +597,7 @@ impl<'a> Worker<'a> {
         .run();
 
         let path = object_path(self.shared.directories, &name);
-        let res = self.process_module(&main, path);
+        let res = self.process_module(&main, layouts, path);
 
         self.timings.insert(name, start.elapsed());
         res
@@ -608,14 +606,15 @@ impl<'a> Worker<'a> {
     fn process_module(
         &self,
         module: &Module,
+        layouts: &Layouts,
         path: PathBuf,
     ) -> Result<PathBuf, String> {
-        self.run_passes(module);
+        self.run_passes(module, layouts);
         self.write_object_file(module, path)
     }
 
-    fn run_passes(&self, module: &Module) {
-        let layout = self.machine.get_target_data().get_data_layout();
+    fn run_passes(&self, module: &Module, layouts: &Layouts) {
+        let layout = layouts.target_data.get_data_layout();
         let opts = PassBuilderOptions::create();
         let passes = if let Opt::Aggressive = self.shared.state.config.opt {
             &["default<O3>"]
@@ -667,27 +666,21 @@ impl<'a> Worker<'a> {
 }
 
 /// A pass that lowers a single Inko module into an LLVM module.
-pub(crate) struct LowerModule<'a, 'b, 'mir, 'ctx> {
-    state: &'a State,
-    mir: &'mir Mir,
+pub(crate) struct LowerModule<'shared, 'module, 'ctx> {
+    shared: &'shared SharedState<'shared>,
     index: usize,
     layouts: &'ctx Layouts<'ctx>,
-    methods: &'a Methods,
-    names: &'a SymbolNames,
-    module: &'b mut Module<'a, 'ctx>,
+    module: &'module mut Module<'shared, 'ctx>,
 }
 
-impl<'a, 'b, 'mir, 'ctx> LowerModule<'a, 'b, 'mir, 'ctx> {
+impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
     pub(crate) fn run(mut self) {
-        for method in &self.mir.modules[self.index].methods {
+        for method in &self.shared.mir.modules[self.index].methods {
             LowerMethod::new(
-                self.state,
-                self.mir,
+                self.shared,
                 self.layouts,
-                self.methods,
-                self.names,
                 self.module,
-                &self.mir.methods[method],
+                &self.shared.mir.methods[method],
             )
             .run();
         }
@@ -698,9 +691,9 @@ impl<'a, 'b, 'mir, 'ctx> LowerModule<'a, 'b, 'mir, 'ctx> {
     }
 
     fn setup_classes(&mut self) {
-        let mod_id = self.mir.modules[self.index].id;
+        let mod_id = self.shared.mir.modules[self.index].id;
         let space = AddressSpace::default();
-        let fn_name = &self.names.setup_classes[&mod_id];
+        let fn_name = &self.shared.names.setup_classes[&mod_id];
         let fn_val = self.module.add_setup_function(fn_name);
         let builder = Builder::new(self.module.context, fn_val);
         let entry_block = self.module.context.append_basic_block(fn_val);
@@ -715,24 +708,27 @@ impl<'a, 'b, 'mir, 'ctx> LowerModule<'a, 'b, 'mir, 'ctx> {
 
         // Allocate all classes defined in this module, and store them in their
         // corresponding globals.
-        for &class_id in &self.mir.modules[self.index].classes {
-            let raw_name = class_id.name(&self.state.db);
+        for &class_id in &self.shared.mir.modules[self.index].classes {
+            let raw_name = class_id.name(&self.shared.state.db);
             let name_ptr = builder.string_literal(raw_name).0.into();
             let methods_len = self
                 .module
                 .context
                 .i16_type()
-                .const_int(self.methods.counts[class_id.0 as usize] as _, false)
+                .const_int(
+                    self.shared.methods.counts[class_id.0 as usize] as _,
+                    false,
+                )
                 .into();
 
-            let class_new = if class_id.kind(&self.state.db).is_async() {
+            let class_new = if class_id.kind(&self.shared.state.db).is_async() {
                 self.module.runtime_function(RuntimeFunction::ClassProcess)
             } else {
                 self.module.runtime_function(RuntimeFunction::ClassObject)
             };
 
             let layout = self.layouts.classes[class_id.0 as usize];
-            let global_name = &self.names.classes[&class_id];
+            let global_name = &self.shared.names.classes[&class_id];
             let global = self.module.add_class(class_id, global_name);
 
             // The class globals must have an initializer, otherwise LLVM treats
@@ -765,15 +761,15 @@ impl<'a, 'b, 'mir, 'ctx> LowerModule<'a, 'b, 'mir, 'ctx> {
                 }
             };
 
-            for method in &self.mir.classes[&class_id].methods {
+            for method in &self.shared.mir.classes[&class_id].methods {
                 // Static methods aren't stored in classes, nor can we call them
                 // through dynamic dispatch, so we can skip the rest.
-                if method.is_static(&self.state.db) {
+                if method.is_static(&self.shared.state.db) {
                     continue;
                 }
 
-                let info = &self.methods.info[method.0 as usize];
-                let name = &self.names.methods[method];
+                let info = &self.shared.methods.info[method.0 as usize];
+                let name = &self.shared.names.methods[method];
                 let func = self
                     .module
                     .get_function(name)
@@ -810,8 +806,8 @@ impl<'a, 'b, 'mir, 'ctx> LowerModule<'a, 'b, 'mir, 'ctx> {
     }
 
     fn setup_constants(&mut self) {
-        let mod_id = self.mir.modules[self.index].id;
-        let fn_name = &self.names.setup_constants[&mod_id];
+        let mod_id = self.shared.mir.modules[self.index].id;
+        let fn_name = &self.shared.names.setup_constants[&mod_id];
         let fn_val = self.module.add_setup_function(fn_name);
         let builder = Builder::new(self.module.context, fn_val);
         let entry_block = self.module.context.append_basic_block(fn_val);
@@ -824,10 +820,10 @@ impl<'a, 'b, 'mir, 'ctx> LowerModule<'a, 'b, 'mir, 'ctx> {
         builder.jump(body);
         builder.switch_to_block(body);
 
-        for &cid in &self.mir.modules[self.index].constants {
-            let name = &self.names.constants[&cid];
+        for &cid in &self.shared.mir.modules[self.index].constants {
+            let name = &self.shared.names.constants[&cid];
             let global = self.module.add_constant(name);
-            let value = &self.mir.constants[&cid];
+            let value = &self.shared.mir.constants[&cid];
 
             global.set_initializer(
                 &self
@@ -915,20 +911,15 @@ impl<'a, 'b, 'mir, 'ctx> LowerModule<'a, 'b, 'mir, 'ctx> {
                     ),
                 };
 
-                let class_id = ClassId::array().specializations(&self.state.db)
-                    [&vec![shape]];
-
+                let class_id = ClassId::array()
+                    .specializations(&self.shared.state.db)[&vec![shape]];
                 let layout = self.layouts.instances[class_id.0 as usize];
-                let class_name = &self.names.classes[&class_id];
-                let class_global = self
-                    .module
-                    .add_class(class_id, class_name)
-                    .as_pointer_value();
-                let class = builder.load_untyped_pointer(class_global);
-                let alloc =
-                    self.module.runtime_function(RuntimeFunction::Allocate);
-                let array =
-                    builder.call(alloc, &[class.into()]).into_pointer_value();
+                let array = builder.allocate(
+                    self.module,
+                    &self.shared.state.db,
+                    self.shared.names,
+                    class_id,
+                );
 
                 let buf_typ = val_typ.array_type(values.len() as _);
 
@@ -991,25 +982,18 @@ impl<'a, 'b, 'mir, 'ctx> LowerModule<'a, 'b, 'mir, 'ctx> {
 }
 
 /// A pass that lowers a single Inko method into an LLVM method.
-pub struct LowerMethod<'a, 'b, 'mir, 'ctx> {
-    state: &'a State,
-    mir: &'mir Mir,
+pub struct LowerMethod<'shared, 'module, 'ctx> {
+    shared: &'shared SharedState<'shared>,
     layouts: &'ctx Layouts<'ctx>,
-    methods: &'a Methods,
 
     /// The MIR method that we're lowering to LLVM.
-    method: &'mir Method,
-
-    /// A map of method names to their mangled names.
-    ///
-    /// We cache these so we don't have to recalculate them on every reference.
-    names: &'a SymbolNames,
+    method: &'shared Method,
 
     /// The builder to use for generating instructions.
     builder: Builder<'ctx>,
 
     /// The LLVM module the generated code belongs to.
-    module: &'b mut Module<'a, 'ctx>,
+    module: &'module mut Module<'shared, 'ctx>,
 
     /// MIR registers and their corresponding LLVM stack variables.
     variables: HashMap<RegisterId, PointerValue<'ctx>>,
@@ -1018,26 +1002,21 @@ pub struct LowerMethod<'a, 'b, 'mir, 'ctx> {
     variable_types: HashMap<RegisterId, BasicTypeEnum<'ctx>>,
 }
 
-impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
+impl<'shared, 'module, 'ctx> LowerMethod<'shared, 'module, 'ctx> {
     fn new(
-        state: &'a State,
-        mir: &'mir Mir,
+        shared: &'shared SharedState<'shared>,
         layouts: &'ctx Layouts<'ctx>,
-        methods: &'a Methods,
-        names: &'a SymbolNames,
-        module: &'b mut Module<'a, 'ctx>,
-        method: &'mir Method,
+        module: &'module mut Module<'shared, 'ctx>,
+        method: &'shared Method,
     ) -> Self {
-        let function = module.add_method(&names.methods[&method.id], method.id);
+        let function =
+            module.add_method(&shared.names.methods[&method.id], method.id);
         let builder = Builder::new(module.context, function);
 
         LowerMethod {
-            state,
-            mir,
+            shared,
             layouts,
-            methods,
             method,
-            names,
             module,
             builder,
             variables: HashMap::new(),
@@ -1046,7 +1025,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
     }
 
     fn run(&mut self) {
-        if self.method.id.is_async(&self.state.db) {
+        if self.method.id.is_async(&self.shared.state.db) {
             self.async_method();
         } else {
             self.regular_method();
@@ -1065,13 +1044,14 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
             self.builder.store(self.variables[reg], arg);
         }
 
-        let (line, _) = self.mir.location(self.method.location).line_column();
+        let (line, _) =
+            self.shared.mir.location(self.method.location).line_column();
         let debug_func = self.module.debug_builder.new_function(
-            self.method.id.name(&self.state.db),
-            &self.names.methods[&self.method.id],
-            &self.method.id.source_file(&self.state.db),
+            self.method.id.name(&self.shared.state.db),
+            &self.shared.names.methods[&self.method.id],
+            &self.method.id.source_file(&self.shared.state.db),
             line,
-            self.method.id.is_private(&self.state.db),
+            self.method.id.is_private(&self.shared.state.db),
             false,
         );
 
@@ -1126,13 +1106,14 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
             self.builder.store(var, val);
         }
 
-        let (line, _) = self.mir.location(self.method.location).line_column();
+        let (line, _) =
+            self.shared.mir.location(self.method.location).line_column();
         let debug_func = self.module.debug_builder.new_function(
-            self.method.id.name(&self.state.db),
-            &self.names.methods[&self.method.id],
-            &self.method.id.source_file(&self.state.db),
+            self.method.id.name(&self.shared.state.db),
+            &self.shared.names.methods[&self.method.id],
+            &self.method.id.source_file(&self.shared.state.db),
             line,
-            self.method.id.is_private(&self.state.db),
+            self.method.id.is_private(&self.shared.state.db),
             false,
         );
 
@@ -1810,7 +1791,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
             Instruction::CallExtern(ins) => {
                 self.set_debug_location(ins.location);
 
-                let func_name = ins.method.name(&self.state.db);
+                let func_name = ins.method.name(&self.shared.state.db);
                 let func = self.module.add_method(func_name, ins.method);
                 let mut args: Vec<BasicMetadataValueEnum> =
                     Vec::with_capacity(ins.arguments.len() + 1);
@@ -1846,7 +1827,9 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
                         self.builder.store(ret, self.builder.load(typ, temp));
                     }
 
-                    if self.register_type(ins.register).is_never(&self.state.db)
+                    if self
+                        .register_type(ins.register)
+                        .is_never(&self.shared.state.db)
                     {
                         self.builder.unreachable();
                     }
@@ -1855,7 +1838,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
             Instruction::CallStatic(ins) => {
                 self.set_debug_location(ins.location);
 
-                let func_name = &self.names.methods[&ins.method];
+                let func_name = &self.shared.names.methods[&ins.method];
                 let func = self.module.add_method(func_name, ins.method);
                 let mut args: Vec<BasicMetadataValueEnum> =
                     Vec::with_capacity(ins.arguments.len());
@@ -1874,7 +1857,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
 
                 let rec_var = self.variables[&ins.receiver];
                 let rec_typ = self.variable_types[&ins.receiver];
-                let func_name = &self.names.methods[&ins.method];
+                let func_name = &self.shared.names.methods[&ins.method];
                 let func = self.module.add_method(func_name, ins.method);
                 let mut args: Vec<BasicMetadataValueEnum> =
                     vec![self.builder.load(rec_typ, rec_var).into()];
@@ -1903,7 +1886,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
                 let rec_var = self.variables[&ins.receiver];
                 let rec_typ = self.variable_types[&ins.receiver];
                 let rec = self.builder.load(rec_typ, rec_var);
-                let info = &self.methods.info[ins.method.0 as usize];
+                let info = &self.shared.methods.info[ins.method.0 as usize];
                 let fn_typ =
                     self.layouts.methods[ins.method.0 as usize].signature;
 
@@ -2126,7 +2109,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
 
                 let rec_var = self.variables[&ins.receiver];
                 let rec_typ = self.variable_types[&ins.receiver];
-                let method_name = &self.names.methods[&ins.method];
+                let method_name = &self.shared.names.methods[&ins.method];
                 let method = self
                     .module
                     .add_method(method_name, ins.method)
@@ -2172,13 +2155,13 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
                 );
             }
             Instruction::GetField(ins)
-                if ins.class.kind(&self.state.db).is_extern() =>
+                if ins.class.kind(&self.shared.state.db).is_extern() =>
             {
                 let reg_var = self.variables[&ins.register];
                 let rec_var = self.variables[&ins.receiver];
                 let rec_typ = self.variable_types[&ins.receiver];
                 let layout = self.layouts.instances[ins.class.0 as usize];
-                let index = ins.field.index(&self.state.db) as u32;
+                let index = ins.field.index(&self.shared.state.db) as u32;
                 let field = if rec_typ.is_pointer_type() {
                     let rec = self
                         .builder
@@ -2196,13 +2179,13 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
                 self.builder.store(reg_var, field);
             }
             Instruction::SetField(ins)
-                if ins.class.kind(&self.state.db).is_extern() =>
+                if ins.class.kind(&self.shared.state.db).is_extern() =>
             {
                 let rec_var = self.variables[&ins.receiver];
                 let rec_typ = self.variable_types[&ins.receiver];
                 let val_var = self.variables[&ins.value];
                 let layout = self.layouts.instances[ins.class.0 as usize];
-                let index = ins.field.index(&self.state.db) as u32;
+                let index = ins.field.index(&self.shared.state.db) as u32;
                 let val_typ = self.variable_types[&ins.value];
                 let val = self.builder.load(val_typ, val_var);
 
@@ -2221,13 +2204,14 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
                 let reg_var = self.variables[&ins.register];
                 let rec_var = self.variables[&ins.receiver];
                 let rec_typ = self.variable_types[&ins.receiver];
-                let base = if ins.class.kind(&self.state.db).is_async() {
+                let base = if ins.class.kind(&self.shared.state.db).is_async() {
                     PROCESS_FIELD_OFFSET
                 } else {
                     FIELD_OFFSET
                 };
 
-                let index = (base + ins.field.index(&self.state.db)) as u32;
+                let index =
+                    (base + ins.field.index(&self.shared.state.db)) as u32;
                 let layout = self.layouts.instances[ins.class.0 as usize];
                 let rec = self.builder.load(rec_typ, rec_var);
                 let field = self.builder.load_field(
@@ -2242,13 +2226,14 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
                 let reg_var = self.variables[&ins.register];
                 let rec_var = self.variables[&ins.receiver];
                 let rec_typ = self.variable_types[&ins.receiver];
-                let base = if ins.class.kind(&self.state.db).is_async() {
+                let base = if ins.class.kind(&self.shared.state.db).is_async() {
                     PROCESS_FIELD_OFFSET
                 } else {
                     FIELD_OFFSET
                 };
 
-                let index = (base + ins.field.index(&self.state.db)) as u32;
+                let index =
+                    (base + ins.field.index(&self.shared.state.db)) as u32;
                 let layout = self.layouts.instances[ins.class.0 as usize];
                 let rec = self.builder.load(rec_typ, rec_var);
                 let addr = self.builder.field_address(
@@ -2261,7 +2246,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
             }
             Instruction::MethodPointer(ins) => {
                 let reg_var = self.variables[&ins.register];
-                let func_name = &self.names.methods[&ins.method];
+                let func_name = &self.shared.names.methods[&ins.method];
                 let func = self.module.add_method(func_name, ins.method);
                 let ptr = func.as_global_value().as_pointer_value();
 
@@ -2272,13 +2257,14 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
                 let rec_typ = self.variable_types[&ins.receiver];
                 let val_var = self.variables[&ins.value];
                 let val_typ = self.variable_types[&ins.value];
-                let base = if ins.class.kind(&self.state.db).is_async() {
+                let base = if ins.class.kind(&self.shared.state.db).is_async() {
                     PROCESS_FIELD_OFFSET
                 } else {
                     FIELD_OFFSET
                 };
 
-                let index = (base + ins.field.index(&self.state.db)) as u32;
+                let index =
+                    (base + ins.field.index(&self.shared.state.db)) as u32;
                 let val = self.builder.load(val_typ, val_var);
                 let layout = self.layouts.instances[ins.class.0 as usize];
                 let rec = self.builder.load(rec_typ, rec_var);
@@ -2323,10 +2309,10 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
             }
             Instruction::Free(ins) => {
                 let var = self.variables[&ins.register];
-                let free = self.builder.load_untyped_pointer(var).into();
+                let ptr = self.builder.load_untyped_pointer(var);
                 let func = self.module.runtime_function(RuntimeFunction::Free);
 
-                self.builder.call_void(func, &[free]);
+                self.builder.call_void(func, &[ptr.into()]);
             }
             Instruction::Increment(ins) => {
                 let reg_var = self.variables[&ins.register];
@@ -2384,7 +2370,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
                 self.builder.branch(is_zero, drop_block, after_block);
             }
             Instruction::Allocate(ins)
-                if ins.class.kind(&self.state.db).is_extern() =>
+                if ins.class.kind(&self.shared.state.db).is_extern() =>
             {
                 // Defining the alloca already reserves (uninitialised) memory,
                 // so there's nothing we actually need to do here. Setting the
@@ -2392,24 +2378,13 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
             }
             Instruction::Allocate(ins) => {
                 let reg_var = self.variables[&ins.register];
-                let name = &self.names.classes[&ins.class];
-                let global =
-                    self.module.add_class(ins.class, name).as_pointer_value();
-                let class = self.builder.load_untyped_pointer(global);
-                let func_name = if ins.class.is_atomic(&self.state.db) {
-                    RuntimeFunction::AllocateAtomic
-                } else {
-                    RuntimeFunction::Allocate
-                };
-
-                let func = self.module.runtime_function(func_name);
-                let ptr = self.builder.call(func, &[class.into()]);
+                let ptr = self.allocate(ins.class).as_basic_value_enum();
 
                 self.builder.store(reg_var, ptr);
             }
             Instruction::Spawn(ins) => {
                 let reg_var = self.variables[&ins.register];
-                let name = &self.names.classes[&ins.class];
+                let name = &self.shared.names.classes[&ins.class];
                 let global =
                     self.module.add_class(ins.class, name).as_pointer_value();
                 let class = self.builder.load_untyped_pointer(global).into();
@@ -2423,7 +2398,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
             Instruction::GetConstant(ins) => {
                 let var = self.variables[&ins.register];
                 let typ = self.variable_types[&ins.register];
-                let name = &self.names.constants[&ins.id];
+                let name = &self.shared.names.constants[&ins.id];
                 let global = self.module.add_constant(name).as_pointer_value();
                 let value = self.builder.load(typ, global);
 
@@ -2587,7 +2562,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
             let id = RegisterId(index as _);
             let raw = self.method.registers.value_type(id);
             let typ = self.builder.context.llvm_type(
-                &self.state.db,
+                &self.shared.state.db,
                 self.layouts,
                 raw,
             );
@@ -2609,7 +2584,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
     ) {
         let var = self.variables[&register];
 
-        if self.register_type(register).is_never(&self.state.db) {
+        if self.register_type(register).is_never(&self.shared.state.db) {
             self.builder.call_void(function, arguments);
             self.builder.unreachable();
         } else {
@@ -2626,7 +2601,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
     ) {
         let var = self.variables[&register];
 
-        if self.register_type(register).is_never(&self.state.db) {
+        if self.register_type(register).is_never(&self.shared.state.db) {
             self.builder.indirect_call(function_type, function, arguments);
             self.builder.unreachable();
         } else {
@@ -2643,7 +2618,7 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
 
     fn set_debug_location(&self, location_id: LocationId) {
         let scope = self.builder.debug_scope();
-        let (line, col) = self.mir.location(location_id).line_column();
+        let (line, col) = self.shared.mir.location(location_id).line_column();
         let loc = self.module.debug_builder.new_location(line, col, scope);
 
         self.builder.set_debug_location(loc);
@@ -2684,7 +2659,8 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
             &[self.builder.context.i64_type().into()],
         );
 
-        let rsp_name = self.state.config.target.stack_pointer_register_name();
+        let rsp_name =
+            self.shared.state.config.target.stack_pointer_register_name();
         let mname = self.builder.context.inner.metadata_string(rsp_name);
         let mnode = self.builder.context.inner.metadata_node(&[mname.into()]);
         let rsp_addr =
@@ -2707,6 +2683,15 @@ impl<'a, 'b, 'mir, 'ctx> LowerMethod<'a, 'b, 'mir, 'ctx> {
         self.builder
             .load(self.builder.context.i64_type(), var.as_pointer_value())
             .into_int_value()
+    }
+
+    fn allocate(&mut self, class: ClassId) -> PointerValue<'ctx> {
+        self.builder.allocate(
+            self.module,
+            &self.shared.state.db,
+            self.shared.names,
+            class,
+        )
     }
 }
 
