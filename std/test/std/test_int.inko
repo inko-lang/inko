@@ -385,4 +385,6 @@ fn pub tests(t: mut Tests) {
     t.equal(2.checked_pow(2), Option.Some(4))
     t.equal(MAX.checked_pow(2), Option.None)
   })
+
+  t.test('Int.sum', fn (t) { t.equal(Int.sum([10, 20, 30].into_iter), 60) })
 }

@@ -4,7 +4,7 @@ import std.cmp (Compare, Equal, Ordering)
 import std.float (ToFloat)
 import std.fmt (Format as FormatTrait, Formatter)
 import std.hash (Hash, Hasher)
-import std.iter (Peekable)
+import std.iter (Iter, Peekable)
 import std.ops (
   Add, BitAnd, BitOr, BitXor, Divide, Modulo, Multiply, Power, ShiftLeft,
   ShiftRight, Subtract, UnsignedShiftRight,
@@ -192,6 +192,15 @@ class builtin Int {
         case _ -> return Option.Some(num)
       }
     }
+  }
+
+  # Sums the values of `iterator` into a single `Int`.
+  #
+  # # Examples
+  #
+  #     Int.sum([10, 20, 30].into_iter) => 60
+  fn pub static sum[I: Iter[Int]](iterator: move I) -> Int {
+    iterator.reduce(0, fn (acc, val) { acc + val })
   }
 
   # Formats `self` as a `String` in the given format.
