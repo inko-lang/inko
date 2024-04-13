@@ -1,0 +1,1011 @@
+# Parsing of command-line options and arguments.
+#
+# This module provides an opinionated and lightweight command-line argument and
+# option, inspired by getopts, with full support for Unicode options.
+#
+# Both short and long options are supported, using the syntax `-o` and
+# `--option` for short and long options respectively. Long option pairs
+# (`--option=value`) are also supported. Short option pairs (`-o=v`) are parsed
+# such that the value includes the `=`, so `-o=v` is parsed the same way as `-o
+# "=v"`. There are no plans to support parsing these in such a way that the
+# value doesn't include the `=` (i.e. parsing `-o=v` as `-o v`).
+#
+# Short option names are restricted to single extended grapheme clusters
+# ("characters"), meaning `-foo` isn't a valid option. Long option names must
+# contain at least two characters, so `--h` isn't a valid option.
+#
+# The optparse module supports parsing `--` as an argument. Upon encountering
+# this argument, all arguments that follow are kept as-is. This allows passing
+# these arguments to subcommands or other processes.
+#
+# # Usage
+#
+# The `Options` type is used to define options, using the methods `Options.flag`
+# for flags (e.g. `-h`/`--help`), `Options.single` for options that require a
+# single value (e.g. `--config=foo.json`), and `Options.multiple` for options
+# that accept multiple values (e.g. `--include=foo --include=bar`).
+#
+# Once your options are defined, you can parse a list of arguments (e.g. the
+# return value of `std.env.arguments`) into a `Matches` type using
+# `Options.parse`:
+#
+# ```inko
+# import std.env
+# import std.optparse (Options)
+#
+# class async Main {
+#   fn async main {
+#     let opts = Options.new
+#
+#     opts.flag('h', 'help', 'Show this help message')
+#
+#     let matches = opts.parse(env.arguments).get
+#   }
+# }
+# ```
+#
+# Using `Matches.contains?` you can check if an option is specified, using
+# either the short or long name. `Matches.value` returns the first argument of
+# an option (provided it accepts arguments), while `Matches.values` returns all
+# the arguments specified. Any remaining arguments are stored in
+# `Matches.remaining`.
+#
+# By default, `Options` parses any options it encounters and will throw an error
+# for any invalid options. The option `Options.stop_at_first_non_option` can be
+# used to customize this behaviour: when set to `true`, the first value
+# encountered that isn't an option argument results in it and any arguments that
+# follow it being stored in `Matches.remaining`:
+#
+# ```inko
+# import std.env
+# import std.fmt (fmt)
+# import std.optparse (Options)
+# import std.stdio (STDOUT)
+#
+# class async Main {
+#   fn async main {
+#     let opts = Options.new
+#
+#     opts.flag('h', 'help', 'Show this help message')
+#     opts.stop_at_first_non_option = true
+#
+#     let matches = opts.parse(env.arguments).get
+#
+#     STDOUT.new.print(fmt(matches.remaining))
+#   }
+# }
+# ```
+#
+# When run with the command-line arguments `['foo', '--bar']`, instead of
+# producing an error (or panic in the case of this example, due to the `get`),
+# the output is `['foo', '--bar']`. This is useful if you want to support
+# subcommands with their own options, using the syntax `root-command
+# --root-option [...] sub-command --sub-option [...]`.
+#
+# # Help messages
+#
+# Help messages are generated using the `Help` type:
+#
+# ```inko
+# import std.env
+# import std.fmt (fmt)
+# import std.optparse (Help, Options)
+# import std.stdio (STDERR, STDOUT)
+# import std.sys
+#
+# class async Main {
+#   fn async main {
+#     let opts = Options.new
+#
+#     opts.flag('h', 'help', 'Show this help message')
+#     opts.single('c', 'config', 'PATH', 'Use a custom configuration file')
+#     opts.multiple('i', 'include', 'DIR', 'Add the directory')
+#     opts.multiple('I', 'ignore', '', 'Ignore something')
+#     opts.flag('', 'verbose', 'Use verbose output,\nlorem ipsum')
+#     opts.flag('', 'example', '')
+#     opts.flag('x', '', 'Foo')
+#
+#     let matches = match opts.parse(env.arguments) {
+#       case Ok(v) -> v
+#       case Error(e) -> {
+#         STDERR.new.print('test: ${e}')
+#         sys.exit(1)
+#       }
+#     }
+#
+#     if matches.contains?('help') {
+#       let help = Help
+#         .new('test')
+#         .description(
+#           'This is an example program to showcase the optparse library.',
+#         )
+#         .section('Examples')
+#         .line('test --help')
+#         .section('Options')
+#         .options(opts)
+#         .to_string
+#
+#       STDOUT.new.write_string(help)
+#     } else {
+#       STDOUT.new.print(fmt(matches.remaining))
+#     }
+#   }
+# }
+# ```
+#
+# When running this program with the `--help` option, the output is as follows:
+#
+# ```
+# Usage: test [OPTIONS]
+#
+# This is an example program to showcase the optparse library.
+#
+# Examples:
+#
+#   test --help
+#
+# Options:
+#
+#   -h, --help           Show this help message
+#   -c, --config=PATH    Use a custom configuration file
+#   -i, --include=DIR    Add the directory
+#   -I, --ignore         Ignore something
+#       --verbose        Use verbose output,
+#                        lorem ipsum
+#       --example
+#   -x                   Foo
+# ```
+import std.clone (Clone)
+import std.cmp (Equal)
+import std.fmt (Format, Formatter)
+import std.iter (Iter, Stream)
+import std.string (StringBuffer, ToString)
+
+let INDENT = '  '
+let HYPHEN = 45
+
+fn basic_latin?(byte: Int) -> Bool {
+  byte <= 127
+}
+
+class enum Token {
+  # A short option, such as `-h`.
+  case Short(String)
+
+  # A long option, such as `--help`.
+  case Long(String)
+
+  # A long option with a value using the syntax `--option=value`.
+  case LongPair(String, String)
+
+  # A regular standalone value.
+  case Value(String)
+
+  # The "--" separator.
+  case Separator
+}
+
+impl Equal[ref Token] for Token {
+  fn pub ==(other: ref Token) -> Bool {
+    match (self, other) {
+      case (Short(a), Short(b)) -> a == b
+      case (Long(a), Long(b)) -> a == b
+      case (LongPair(a1, b1), LongPair(a2, b2)) -> a1 == a2 and b1 == b2
+      case (Value(a), Value(b)) -> a == b
+      case (Separator, Separator) -> true
+      case _ -> false
+    }
+  }
+}
+
+impl Format for Token {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case Short(v) -> formatter.tuple('Short').field(v).finish
+      case Long(v) -> formatter.tuple('Long').field(v).finish
+      case LongPair(k, v) -> {
+        formatter.tuple('LongPair').field(k).field(v).finish
+      }
+      case Value(v) -> formatter.tuple('Value').field(v).finish
+      case Separator -> formatter.tuple('Separator').finish
+    }
+  }
+}
+
+class enum State {
+  case Default
+  case Rest
+  case Value(String)
+}
+
+# A type that breaks up a list of command-line arguments into a series of
+# tokens.
+class Lexer {
+  let @input: Stream[String]
+  let @state: State
+
+  fn static new(input: ref Array[String]) -> Lexer {
+    Lexer { @input = input.iter, @state = State.Default }
+  }
+
+  fn mut buffer(value: ByteArray) {
+    @state = State.Value(value.into_string)
+  }
+}
+
+impl Iter[Token] for Lexer {
+  fn pub mut next -> Option[Token] {
+    let token = match @state {
+      case Value(val) -> {
+        @state = State.Default
+        Token.Value(val)
+      }
+      case Rest -> {
+        match @input.next {
+          case Some(val) -> Token.Value(val)
+          case _ -> return Option.None
+        }
+      }
+      case _ -> {
+        match @input.next {
+          case Some('--') -> {
+            @state = State.Rest
+            Token.Separator
+          }
+          case
+            Some(val)
+          if val.size >= 3 and val.byte(0) == HYPHEN and val.byte(1) == HYPHEN
+          -> {
+            match val.byte_index(of: '=', starting_at: 2) {
+              # Example: --foo=bar
+              case Some(idx) -> {
+                let name = val.slice(start: 2, size: idx - 2).into_string
+                let value = val.slice(idx + 1, val.size).into_string
+
+                Token.LongPair(name, value)
+              }
+              # Example: --foo
+              case _ -> {
+                Token.Long(val.slice(start: 2, size: val.size).into_string)
+              }
+            }
+          }
+          case Some(val) if val.size >= 2 and val.byte(0) == HYPHEN -> {
+            match val.byte_index(of: '=', starting_at: 1) {
+              # Example: -a=b, parsed as `-a "=b"` to match getopts behaviour
+              case Some(_) if basic_latin?(val.byte(1)) -> {
+                let name = val.slice(start: 1, size: 1).into_string
+
+                buffer(val.slice(2, val.size))
+                Token.Short(name)
+              }
+              # Example: -á=b, parsed as `-á "=b"` to mtach getopts behaviour.
+              case Some(_) -> {
+                let chars = val.chars
+
+                chars.next # Skip the '-'
+
+                let name = chars.next.get
+                let offset = name.size + 1
+
+                buffer(val.slice(offset, val.size))
+                Token.Short(name)
+              }
+              # Example: -a
+              case _ if basic_latin?(val.byte(1)) -> {
+                let name = val.slice(start: 1, size: 1).into_string
+                let offset = name.size + 1
+
+                if offset < val.size { buffer(val.slice(offset, val.size)) }
+
+                Token.Short(name)
+              }
+              # Example: -á
+              case _ -> {
+                let chars = val.chars
+
+                chars.next # Skip the '-'
+
+                let name = chars.next.get
+                let offset = name.size + 1
+
+                if offset < val.size { buffer(val.slice(offset, val.size)) }
+
+                Token.Short(name)
+              }
+            }
+          }
+          case Some(val) -> Token.Value(val)
+          case _ -> return Option.None
+        }
+      }
+    }
+
+    Option.Some(token)
+  }
+}
+
+fn character_count(string: String) -> Int {
+  if string.bytes.all?(fn (b) { basic_latin?(b) }) {
+    string.size
+  } else {
+    string.chars.count
+  }
+}
+
+fn consume_remaining(lexer: Lexer, remaining: mut Array[String]) {
+  lexer.each(fn (token) {
+    match token {
+      case Short(n) -> remaining.push('-${n}')
+      case Long(n) -> remaining.push('--${n}')
+      case LongPair(k, v) -> remaining.push('--${k}=${v}')
+      case Value(v) -> remaining.push(v)
+      case Separator -> remaining.push('--')
+    }
+  })
+}
+
+# A type that describes a parsing error.
+class pub enum Error {
+  # The given option isn't recognized.
+  case InvalidOption(String)
+
+  # The given option is recognized, but occurs more times than is expected.
+  case DuplicateOption(String)
+
+  # The given option is missing a value.
+  case MissingValue(String)
+
+  # A value is passed to the given option, but the option doesn't accept any
+  # values.
+  case UnexpectedValue(String)
+}
+
+impl ToString for Error {
+  fn pub to_string -> String {
+    match self {
+      case InvalidOption(name) -> "the option '${name}' is unrecognized"
+      case DuplicateOption(name) -> "the option '${name}' is already specified"
+      case MissingValue(name) -> "the option '${name}' requires an argument"
+      case UnexpectedValue(name) -> {
+        "the option '${name}' doesn't accept any arguments"
+      }
+    }
+  }
+}
+
+impl Equal[ref Error] for Error {
+  fn pub ==(other: ref Error) -> Bool {
+    match (self, other) {
+      case (InvalidOption(a), InvalidOption(b)) -> a == b
+      case (DuplicateOption(a), DuplicateOption(b)) -> a == b
+      case (MissingValue(a), MissingValue(b)) -> a == b
+      case (UnexpectedValue(a), UnexpectedValue(b)) -> a == b
+      case _ -> false
+    }
+  }
+}
+
+impl Format for Error {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case InvalidOption(v) -> formatter.tuple('InvalidOption').field(v).finish
+      case DuplicateOption(v) -> {
+        formatter.tuple('DuplicateOption').field(v).finish
+      }
+      case MissingValue(v) -> formatter.tuple('MissingValue').field(v).finish
+      case UnexpectedValue(v) -> {
+        formatter.tuple('UnexpectedValue').field(v).finish
+      }
+    }
+  }
+}
+
+class enum Value {
+  case String(String)
+  case Flag
+
+  fn as_string -> Option[String] {
+    match self {
+      case String(v) -> Option.Some(v)
+      case _ -> Option.None
+    }
+  }
+}
+
+impl Clone[Value] for Value {
+  fn pub clone -> Value {
+    match self {
+      case String(v) -> Value.String(v)
+      case Flag -> Value.Flag
+    }
+  }
+}
+
+# A type containing the parsed options and any remaining arguments.
+class pub Matches {
+  # The remaining/unparsed arguments.
+  let pub @remaining: Array[String]
+
+  # A mapping of short and long options names that have been parsed, along with
+  # their arguments.
+  let @options: Map[String, Array[Value]]
+
+  # Returns `true` if the given option is given.
+  #
+  # The `name` argument can be either the short or long name of an option.
+  #
+  # # Examples
+  #
+  #     import optparse.Options
+  #
+  #     let opts = Options.new
+  #
+  #     opts.flag('h', 'help', 'Show this help message')
+  #
+  #     let matches = opts.parse(['-h']).unwrap
+  #
+  #     matches.contains?('h')    # => true
+  #     matches.contains?('help') # => true
+  fn pub contains?(name: String) -> Bool {
+    @options.contains?(name)
+  }
+
+  # Returns a single value for the option, if any.
+  #
+  # The `name` argument can be either the short or long name of an option.
+  #
+  # If the option doesn't accept any arguments, this method returns `None`. If
+  # the option has multiple arguments assigned, this method returns the first
+  # argument.
+  #
+  # # Examples
+  #
+  #     import optparse.Options
+  #
+  #     let opts = Options.new
+  #
+  #     opts.single('c', 'config', 'PATH', 'Use a custom configuration file')
+  #
+  #     let matches = opts.parse(['-c', 'foo.json']).unwrap
+  #
+  #     matches.value('c')      # => Option.Some('foo.json')
+  #     matches.value('config') # => Option.Some('foo.json')
+  fn pub value(name: String) -> Option[String] {
+    @options.opt(name).then(fn (v) { v.opt(0) }).then(fn (v) { v.as_string })
+  }
+
+  # Returns the values for the option.
+  #
+  # If no values are present or the option doesn't take any arguments, an empty
+  # `Array` is returned.
+  #
+  # # Examples
+  #
+  #     import optparse.Options
+  #
+  #     let opts = Options.new
+  #
+  #     opts.multiple('i', 'include', 'PATH', 'Include the given directory')
+  #
+  #     let matches = opts.parse(['-i', 'test', '-i', 'src']).unwrap
+  #
+  #     matches.values('i')       # => ['test', 'src']
+  #     matches.values('include') # => ['test', 'src']
+  fn pub values(name: String) -> Array[String] {
+    match @options.opt(name) {
+      case Some(vals) -> vals.iter.select_map(fn (v) { v.as_string }).to_array
+      case _ -> []
+    }
+  }
+
+  fn mut add(opt: ref Opt, value: Value) {
+    if opt.short.size > 0 { add_or_append(opt.short, value.clone) }
+
+    if opt.long.size > 0 { add_or_append(opt.long, value) }
+  }
+
+  fn mut add_or_append(key: String, value: Value) {
+    match @options.opt_mut(key) {
+      case Some(vals) -> vals.push(value)
+      case _ -> @options.set(key, [value])
+    }
+  }
+}
+
+class enum Kind {
+  case Flag
+  case Single
+  case Multiple
+}
+
+class Opt {
+  let @kind: Kind
+  let @short: String
+  let @long: String
+  let @description: String
+  let @hint: String
+}
+
+# A type that describes the options to parse.
+class pub Options {
+  # All options that have been defined.
+  let @options: Array[Opt]
+
+  # If parsing of arguments and options should stop when encountering the first
+  # non-option argument.
+  #
+  # When set and a non-option is encountered, any remaining options and
+  # arguments are stored as-is in `Matches.remaining`.
+  let pub @stop_at_first_non_option: Bool
+
+  # A mapping of short and long option names to their corresponding option
+  # definitions.
+  let @mapping: Map[String, ref Opt]
+
+  # Returns a new empty `Options`.
+  fn pub static new -> Options {
+    Options {
+      @mapping = Map.new,
+      @options = [],
+      @stop_at_first_non_option = false,
+    }
+  }
+
+  # Adds a boolean option that can be specified once.
+  #
+  # The `short` argument is the short name of the option, such as "h" or "v".
+  # This value must be a single character long.
+  #
+  # The `long` argument is the long name of the option, such as "help" or
+  # "version".
+  #
+  # The `description` argument is the description of the option, displayed when
+  # formatting the list of options as a `String`.
+  #
+  # # Panics
+  #
+  # This method panics if:
+  #
+  # - Both `short` and `long` are empty.
+  # - An option is already defined for the `short` or `long` option name.
+  # - `short` contains more than one character.
+  #
+  # # Examples
+  #
+  #     import optparse.Options
+  #
+  #     let opts = Options.new
+  #
+  #     opts.flag('h', 'help', 'Show this help message')
+  fn pub mut flag(short: String, long: String, description: String) {
+    add(
+      Opt {
+        @kind = Kind.Flag,
+        @short = short,
+        @long = long,
+        @description = description,
+        @hint = '',
+      },
+    )
+  }
+
+  # Adds an option that can be specified at most once, and requires a value.
+  #
+  # The `short` argument is the short name of the option, such as "h" or "v".
+  # This value must be a single character long.
+  #
+  # The `long` argument is the long name of the option, such as "help" or
+  # "version".
+  #
+  # The `hint` argument is an arbitrary `String` that describes the type of
+  # value that is expected, such as "CONFIG" for a configuration file option.
+  #
+  # The `description` argument is the description of the option, displayed when
+  # formatting the list of options as a `String`.
+  #
+  # # Panics
+  #
+  # This method panics if:
+  #
+  # - Both `short` and `long` are empty.
+  # - An option is already defined for the `short` or `long` option name.
+  # - `short` contains more than one character.
+  #
+  # # Examples
+  #
+  #     import optparse.Options
+  #
+  #     let opts = Options.new
+  #
+  #     opts.single('c', 'config', 'PATH', 'Use a custom configuration file')
+  fn pub mut single(
+    short: String,
+    long: String,
+    hint: String,
+    description: String,
+  ) {
+    add(
+      Opt {
+        @kind = Kind.Single,
+        @short = short,
+        @long = long,
+        @description = description,
+        @hint = hint,
+      },
+    )
+  }
+
+  # Adds an option that can be specified multiple times, and requires a value.
+  #
+  # The `short` argument is the short name of the option, such as "h" or "v".
+  # This value must be a single character long.
+  #
+  # The `long` argument is the long name of the option, such as "help" or
+  # "version".
+  #
+  # The `hint` argument is an arbitrary `String` that describes the type of
+  # value that is expected, such as "CONFIG" for a configuration file option.
+  #
+  # The `description` argument is the description of the option, displayed when
+  # formatting the list of options as a `String`.
+  #
+  # # Panics
+  #
+  # This method panics if:
+  #
+  # - Both `short` and `long` are empty.
+  # - An option is already defined for the `short` or `long` option name.
+  # - `short` contains more than one character.
+  #
+  # # Examples
+  #
+  #     import optparse.Options
+  #
+  #     let opts = Options.new
+  #
+  #     opts.multiple('i', 'include', 'PATH', 'Include the given directory')
+  fn pub mut multiple(
+    short: String,
+    long: String,
+    hint: String,
+    description: String,
+  ) {
+    add(
+      Opt {
+        @kind = Kind.Multiple,
+        @short = short,
+        @long = long,
+        @description = description,
+        @hint = hint,
+      },
+    )
+  }
+
+  # Parses the given command-line arguments according to the options defined
+  # thus far.
+  #
+  # # Examples
+  #
+  #     import optparse.Options
+  #
+  #     let opts = Options.new
+  #
+  #     opts.flag('h', 'help', 'Show this help message')
+  #     opts.multiple('i', 'include', 'PATH', 'Include the given directory')
+  #
+  #     let matches = opts.parse(['-i', 'test', '-i', 'src']).unwrap
+  fn pub parse(arguments: ref Array[String]) -> Result[Matches, Error] {
+    let lexer = Lexer.new(arguments)
+    let matches = Matches { @remaining = [], @options = Map.new }
+
+    loop {
+      match lexer.next {
+        case Some(Short(name) or Long(name)) -> {
+          match @mapping.opt(name) {
+            case Some(opt) -> {
+              match opt.kind {
+                case Flag if matches.contains?(name) -> {
+                  throw Error.DuplicateOption(name)
+                }
+                case Single if matches.contains?(name) -> {
+                  throw Error.DuplicateOption(name)
+                }
+                case Flag -> matches.add(opt, Value.Flag)
+                case Single or Multiple -> {
+                  match lexer.next {
+                    case Some(Value(val)) -> matches.add(opt, Value.String(val))
+                    case _ -> throw Error.MissingValue(name)
+                  }
+                }
+              }
+            }
+            case _ -> throw Error.InvalidOption(name)
+          }
+        }
+        case Some(LongPair(name, val)) -> {
+          match @mapping.opt(name) {
+            case Some(opt) -> {
+              match opt.kind {
+                case Flag -> throw Error.UnexpectedValue(name)
+                case Single if matches.contains?(name) -> {
+                  throw Error.DuplicateOption(name)
+                }
+                case Single or Multiple -> matches.add(opt, Value.String(val))
+              }
+            }
+            case _ -> throw Error.InvalidOption(name)
+          }
+        }
+        case Some(Value(val)) -> {
+          matches.remaining.push(val)
+
+          if @stop_at_first_non_option {
+            consume_remaining(lexer, matches.remaining)
+            break
+          }
+        }
+        case Some(Separator) -> {
+          consume_remaining(lexer, matches.remaining)
+          break
+        }
+        case _ -> break
+      }
+    }
+
+    Result.Ok(matches)
+  }
+
+  fn mut add(option: Opt) {
+    if option.short.empty? and option.long.empty? {
+      panic('options require either a short or long option name')
+    }
+
+    if option.short.size > 0 {
+      if character_count(option.short) > 1 {
+        panic('the short option name must be a single character')
+      }
+
+      if @mapping.contains?(option.short) {
+        panic("the short option '${option.short}' is already defined")
+      }
+
+      @mapping.set(option.short, ref option)
+    }
+
+    if option.long.size > 0 {
+      if character_count(option.long) == 1 {
+        panic('the long option name must contain at least two characters')
+      }
+
+      if @mapping.contains?(option.long) {
+        panic("the long option '${option.long}' is already defined")
+      }
+
+      @mapping.set(option.long, ref option)
+    }
+
+    @options.push(option)
+  }
+}
+
+impl ToString for Options {
+  # Returns a `String` describing all the options defined thus far.
+  fn pub to_string -> String {
+    let opts = []
+    let descs = []
+
+    @options.iter.each(fn (opt) {
+      let short = if opt.short.size > 0 { '-${opt.short}' } else { '' }
+      let long = if opt.long.size > 0 and opt.hint.size > 0 {
+        '--${opt.long}=${opt.hint}'
+      } else if opt.long.size > 0 {
+        '--${opt.long}'
+      } else {
+        ''
+      }
+
+      if short.size > 0 and long.size > 0 {
+        opts.push('${short}, ${long}')
+      } else if long.size > 0 {
+        opts.push('    ${long}')
+      } else {
+        opts.push(short)
+      }
+
+      descs.push(opt.description)
+    })
+
+    let max_size = opts.iter.reduce(0, fn (max, line) {
+      let chars = character_count(line)
+
+      if chars > max { chars } else { max }
+    })
+
+    let buf = StringBuffer.new
+
+    opts.into_iter.each_with_index(fn (idx, opt) {
+      let desc = descs.get(idx)
+      let has_desc = desc.size > 0
+
+      if idx > 0 { buf.push('\n') }
+
+      buf.push(INDENT)
+
+      if has_desc {
+        buf.push(opt.pad_end(with: ' ', chars: max_size + 4))
+        desc.split('\n').each_with_index(fn (index, line) {
+          if index > 0 {
+            buf.push('\n')
+            buf.push(' '.repeat(max_size + 6))
+          }
+
+          buf.push(line)
+        })
+      } else {
+        buf.push(opt)
+      }
+    })
+
+    buf.into_string
+  }
+}
+
+# A type for generating help messages easily.
+#
+# # Examples
+#
+# A simple but complete overview of how to use this type:
+#
+#     import optparse.(Help, Options)
+#
+#     let opts = Options.new
+#
+#     opts.flag('h', 'help', 'Show this help message')
+#     opts.flag('v', 'version', 'Show the version')
+#
+#     Help
+#       .new('a')
+#       .description('This is an example')
+#       .section('Examples')
+#       .line('foo')
+#       .line('bar')
+#       .section('Options')
+#       .options(opts)
+#       .to_string
+#
+# This returns the following:
+#
+#     a: [OPTIONS]
+#
+#     This is an example
+#
+#     Examples:
+#
+#       foo
+#       bar
+#
+#     Options:
+#
+#       -h, --help       Show this help message
+#       -v, --version    Show the version
+class pub Help {
+  # The name of the program/executable.
+  let @name: String
+
+  # The description of the command.
+  let @description: String
+
+  # The usage section of the help message.
+  #
+  # This field defaults to the value `'[OPTIONS]'`.
+  let @usage: String
+
+  # The lines to display in the help message.
+  let @lines: StringBuffer
+
+  # Returns a new `Help` instance with the given program name.
+  #
+  # # Examples
+  #
+  #     import optparse.Help
+  #
+  #     Help.new('ls')
+  fn pub static new(name: String) -> Help {
+    Help {
+      @name = name,
+      @description = '',
+      @usage = '[OPTIONS]',
+      @lines = StringBuffer.new,
+    }
+  }
+
+  # Sets the usage `String` to the given argument.
+  #
+  # # Examples
+  #
+  #     import optparse.Help
+  #
+  #     Help.new('ls').usage('[OPTIONS]')
+  fn pub mut usage(value: String) -> mut Help {
+    @usage = value
+    self
+  }
+
+  # Adds a section to the output.
+  #
+  # # Examples
+  #
+  #     import optparse.Help
+  #
+  #     Help.new('ls').section('Examples')
+  fn pub mut section(name: String) -> mut Help {
+    @lines.push('\n')
+    @lines.push(name)
+    @lines.push(':\n\n')
+    self
+  }
+
+  # Adds a regular line to the output.
+  #
+  # Indentation is added automatically to the start of the line.
+  #
+  # # Examples
+  #
+  #     import optparse.Help
+  #
+  #     Help.new('ls').section('Examples').line('ls # Show files and folders')
+  fn pub mut line(value: String) -> mut Help {
+    @lines.push(INDENT)
+    @lines.push(value)
+    @lines.push('\n')
+    self
+  }
+
+  # Sets the description of the command.
+  #
+  # Unlike `Help.line()`, the text isn't indented, and always comes after the
+  # usage line.
+  #
+  # # Examples
+  #
+  #     import optparse.Help
+  #
+  #     Help.new('ls').description('List files and folders')
+  fn pub mut description(value: String) -> mut Help {
+    @description = value
+    self
+  }
+
+  # Formats and adds a list of options to the output.
+  #
+  # # Examples
+  #
+  #     import optparse.(Help, Options)
+  #
+  #     let opts = Options.new
+  #
+  #     opts.flag('h', 'help', 'Show this help message')
+  #
+  #     Help.new('ls').options(opts)
+  fn pub mut options(value: ref Options) -> mut Help {
+    @lines.push(value.to_string)
+    @lines.push('\n')
+    self
+  }
+}
+
+impl ToString for Help {
+  fn pub to_string -> String {
+    let out = StringBuffer.from_array(['Usage: ', @name, ' ', @usage, '\n'])
+
+    if @description.size > 0 {
+      out.push('\n')
+      out.push(@description)
+      out.push('\n')
+    }
+
+    out.push(@lines.to_string)
+    out.into_string
+  }
+}

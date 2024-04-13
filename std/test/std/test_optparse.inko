@@ -1,0 +1,630 @@
+import std.fmt (fmt)
+import std.optparse (Error, Help, Lexer, Options, Token)
+import std.test (Tests)
+
+fn lex(input: Array[String]) -> Array[Token] {
+  Lexer.new(input).to_array
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('Lexer.next', fn (t) {
+    t.equal(lex([]), [])
+    t.equal(lex(['foo']), [Token.Value('foo')])
+    t.equal(lex(['-h']), [Token.Short('h')])
+    t.equal(lex(['-é']), [Token.Short('é')])
+    t.equal(lex(['-😮']), [Token.Short('😮')])
+    t.equal(lex(['--😮']), [Token.Long('😮')])
+    t.equal(lex(['--éé']), [Token.Long('éé')])
+    t.equal(lex(['--help']), [Token.Long('help')])
+    t.equal(lex(['--h']), [Token.Long('h')])
+    t.equal(lex(['-help']), [Token.Short('h'), Token.Value('elp')])
+    t.equal(lex(['-😮elp']), [Token.Short('😮'), Token.Value('elp')])
+    t.equal(lex(['-']), [Token.Value('-')])
+    t.equal(lex(['-v', '-v']), [Token.Short('v'), Token.Short('v')])
+    t.equal(lex(['-v', '--v']), [Token.Short('v'), Token.Long('v')])
+    t.equal(lex(['-v', 'foo']), [Token.Short('v'), Token.Value('foo')])
+    t.equal(
+      lex(['-v', '=', 'foo']),
+      [Token.Short('v'), Token.Value('='), Token.Value('foo')],
+    )
+
+    t.equal(lex(['-v=']), [Token.Short('v'), Token.Value('=')])
+    t.equal(lex(['-v=foo']), [Token.Short('v'), Token.Value('=foo')])
+    t.equal(lex(['-😮=']), [Token.Short('😮'), Token.Value('=')])
+    t.equal(lex(['-😮=foo']), [Token.Short('😮'), Token.Value('=foo')])
+    t.equal(lex(['-help=']), [Token.Short('h'), Token.Value('elp=')])
+    t.equal(lex(['-help=foo']), [Token.Short('h'), Token.Value('elp=foo')])
+    t.equal(lex(['-😮a=']), [Token.Short('😮'), Token.Value('a=')])
+    t.equal(lex(['-😮a=foo']), [Token.Short('😮'), Token.Value('a=foo')])
+    t.equal(lex(['--v=']), [Token.LongPair('v', '')])
+    t.equal(lex(['--v=foo']), [Token.LongPair('v', 'foo')])
+    t.equal(lex(['--😮=foo']), [Token.LongPair('😮', 'foo')])
+    t.equal(lex(['-é=foo']), [Token.Short('é'), Token.Value('=foo')])
+    t.equal(lex(['--éé=foo']), [Token.LongPair('éé', 'foo')])
+    t.equal(
+      lex(['-v', 'a', 'b']),
+      [Token.Short('v'), Token.Value('a'), Token.Value('b')],
+    )
+
+    t.equal(
+      lex(['-v', '--', '-a', 'b']),
+      [Token.Short('v'), Token.Separator, Token.Value('-a'), Token.Value('b')],
+    )
+
+    t.equal(
+      lex(['-v', '--', '-a=b']),
+      [Token.Short('v'), Token.Separator, Token.Value('-a=b')],
+    )
+  })
+
+  t.test('Error.to_string', fn (t) {
+    t.equal(
+      Error.InvalidOption('a').to_string,
+      "the option 'a' is unrecognized",
+    )
+
+    t.equal(
+      Error.DuplicateOption('a').to_string,
+      "the option 'a' is already specified",
+    )
+
+    t.equal(
+      Error.MissingValue('a').to_string,
+      "the option 'a' requires an argument",
+    )
+
+    t.equal(
+      Error.UnexpectedValue('a').to_string,
+      "the option 'a' doesn't accept any arguments",
+    )
+  })
+
+  t.test('Error.==', fn (t) {
+    t.equal(Error.InvalidOption('a'), Error.InvalidOption('a'))
+    t.not_equal(Error.InvalidOption('a'), Error.InvalidOption('b'))
+    t.equal(Error.DuplicateOption('a'), Error.DuplicateOption('a'))
+    t.not_equal(Error.DuplicateOption('a'), Error.DuplicateOption('b'))
+    t.equal(Error.MissingValue('a'), Error.MissingValue('a'))
+    t.not_equal(Error.MissingValue('a'), Error.MissingValue('b'))
+    t.equal(Error.UnexpectedValue('a'), Error.UnexpectedValue('a'))
+    t.not_equal(Error.UnexpectedValue('a'), Error.UnexpectedValue('b'))
+    t.not_equal(Error.InvalidOption('a'), Error.DuplicateOption('a'))
+  })
+
+  t.test('Error.fmt', fn (t) {
+    t.equal(fmt(Error.InvalidOption('a')), 'InvalidOption("a")')
+    t.equal(fmt(Error.DuplicateOption('a')), 'DuplicateOption("a")')
+    t.equal(fmt(Error.MissingValue('a')), 'MissingValue("a")')
+    t.equal(fmt(Error.UnexpectedValue('a')), 'UnexpectedValue("a")')
+  })
+
+  t.test('Options.flag', fn (t) {
+    let opts = Options.new
+
+    opts.flag('h', 'help', 'Show this help message')
+
+    let short = opts.mapping.get('h')
+    let long = opts.mapping.get('help')
+
+    t.true(
+      match short.kind {
+        case Flag -> true
+        case _ -> false
+      },
+    )
+    t.equal(short.short, 'h')
+    t.equal(short.long, 'help')
+    t.equal(short.description, 'Show this help message')
+    t.equal(short.hint, '')
+
+    t.true(
+      match long.kind {
+        case Flag -> true
+        case _ -> false
+      },
+    )
+    t.equal(long.short, 'h')
+    t.equal(long.long, 'help')
+    t.equal(long.description, 'Show this help message')
+    t.equal(long.hint, '')
+  })
+
+  t.test('Options.single', fn (t) {
+    let opts = Options.new
+
+    opts.single('c', 'config', 'PATH', 'A config file')
+
+    let short = opts.mapping.get('c')
+    let long = opts.mapping.get('config')
+
+    t.true(
+      match short.kind {
+        case Single -> true
+        case _ -> false
+      },
+    )
+    t.equal(short.short, 'c')
+    t.equal(short.long, 'config')
+    t.equal(short.description, 'A config file')
+    t.equal(short.hint, 'PATH')
+
+    t.true(
+      match long.kind {
+        case Single -> true
+        case _ -> false
+      },
+    )
+    t.equal(long.short, 'c')
+    t.equal(long.long, 'config')
+    t.equal(long.description, 'A config file')
+    t.equal(long.hint, 'PATH')
+  })
+
+  t.test('Options.multiple', fn (t) {
+    let opts = Options.new
+
+    opts.multiple('c', 'config', 'PATH', 'A config file')
+
+    let short = opts.mapping.get('c')
+    let long = opts.mapping.get('config')
+
+    t.true(
+      match short.kind {
+        case Multiple -> true
+        case _ -> false
+      },
+    )
+    t.equal(short.short, 'c')
+    t.equal(short.long, 'config')
+    t.equal(short.description, 'A config file')
+    t.equal(short.hint, 'PATH')
+
+    t.true(
+      match long.kind {
+        case Multiple -> true
+        case _ -> false
+      },
+    )
+    t.equal(long.short, 'c')
+    t.equal(long.long, 'config')
+    t.equal(long.description, 'A config file')
+    t.equal(long.hint, 'PATH')
+  })
+
+  t.panic('Options.add with missing option names', fn {
+    let opts = Options.new
+
+    opts.flag(short: '', long: '', description: '')
+  })
+
+  t.panic('Options.add with an invalid ASCII short name', fn {
+    let opts = Options.new
+
+    opts.flag('short', 'long', description: '')
+  })
+
+  t.panic('Options.add with an invalid Unicode short name', fn {
+    let opts = Options.new
+
+    opts.flag('ábc', 'long', description: '')
+  })
+
+  t.panic('Options.add with an invalid ASCII long name', fn {
+    let opts = Options.new
+
+    opts.flag('a', 'b', description: '')
+  })
+
+  t.panic('Options.add with an invalid Unicode long name', fn {
+    let opts = Options.new
+
+    opts.flag('a', 'á', description: '')
+  })
+
+  t.panic('Options.add with a duplicate short name', fn {
+    let opts = Options.new
+
+    opts.flag('h', 'foo', description: '')
+    opts.flag('h', 'bar', description: '')
+  })
+
+  t.panic('Options.add with a duplicate long name', fn {
+    let opts = Options.new
+
+    opts.flag('a', 'help', description: '')
+    opts.flag('b', 'help', description: '')
+  })
+
+  t.test('Options.parse without any options and arguments', fn (t) {
+    let opts = Options.new
+
+    t.equal(opts.parse([]).get.remaining, [])
+  })
+
+  t.test('Options.parse without any options defined and arguments', fn (t) {
+    let opts = Options.new
+
+    t.equal(opts.parse(['foo']).get.remaining, ['foo'])
+  })
+
+  t.test('Options.parse with a short flag', fn (t) {
+    let opts = Options.new
+
+    opts.flag('h', 'help', 'Show this help message')
+
+    let matches = opts.parse(['-h']).get
+
+    t.true(matches.contains?('h'))
+    t.true(matches.contains?('help'))
+  })
+
+  t.test('Options.parse with a long flag', fn (t) {
+    let opts = Options.new
+
+    opts.flag('h', 'help', 'Show this help message')
+
+    let matches = opts.parse(['--help']).get
+
+    t.true(matches.contains?('h'))
+    t.true(matches.contains?('help'))
+  })
+
+  t.test('Options.parse with a short option with a single value', fn (t) {
+    let opts = Options.new
+
+    opts.single('c', 'config', 'PATH', description: '')
+
+    let matches = opts.parse(['-c', 'foo']).get
+
+    t.true(matches.contains?('c'))
+    t.true(matches.contains?('config'))
+    t.equal(matches.value('c'), Option.Some('foo'))
+    t.equal(matches.value('config'), Option.Some('foo'))
+  })
+
+  t.test('Options.parse with a long option with a single value', fn (t) {
+    let opts = Options.new
+
+    opts.single('c', 'config', 'PATH', description: '')
+
+    let matches = opts.parse(['--config', 'foo']).get
+
+    t.true(matches.contains?('c'))
+    t.true(matches.contains?('config'))
+    t.equal(matches.value('c'), Option.Some('foo'))
+    t.equal(matches.value('config'), Option.Some('foo'))
+  })
+
+  t.test('Options.parse with a short option with multiple values', fn (t) {
+    let opts = Options.new
+
+    opts.multiple('c', 'config', 'PATH', description: '')
+
+    let matches = opts.parse(['-c', 'foo', '-c', 'bar']).get
+
+    t.true(matches.contains?('c'))
+    t.true(matches.contains?('config'))
+    t.equal(matches.value('c'), Option.Some('foo'))
+    t.equal(matches.value('config'), Option.Some('foo'))
+    t.equal(matches.values('c'), ['foo', 'bar'])
+    t.equal(matches.values('config'), ['foo', 'bar'])
+  })
+
+  t.test('Options.parse with a long option with multiple values', fn (t) {
+    let opts = Options.new
+
+    opts.multiple('c', 'config', 'PATH', description: '')
+
+    let matches = opts.parse(['--config', 'foo', '--config', 'bar']).get
+
+    t.true(matches.contains?('c'))
+    t.true(matches.contains?('config'))
+    t.equal(matches.value('c'), Option.Some('foo'))
+    t.equal(matches.value('config'), Option.Some('foo'))
+    t.equal(matches.values('c'), ['foo', 'bar'])
+    t.equal(matches.values('config'), ['foo', 'bar'])
+  })
+
+  t.test('Options.parse with mixed options with multiple values', fn (t) {
+    let opts = Options.new
+
+    opts.multiple('c', 'config', 'PATH', description: '')
+
+    let matches = opts.parse(['--config', 'foo', '-c', 'bar']).get
+
+    t.true(matches.contains?('c'))
+    t.true(matches.contains?('config'))
+    t.equal(matches.values('c'), ['foo', 'bar'])
+    t.equal(matches.values('config'), ['foo', 'bar'])
+  })
+
+  t.test('Options.parse with a flag followed by an argument', fn (t) {
+    let opts = Options.new
+
+    opts.flag('h', 'help', 'Show this help message')
+
+    let matches = opts.parse(['-h', 'foo']).get
+
+    t.true(matches.contains?('h'))
+    t.true(matches.contains?('help'))
+    t.equal(matches.remaining, ['foo'])
+  })
+
+  t.test('Options.parse with a short flag using the -K=V syntax', fn (t) {
+    let opts = Options.new
+
+    opts.flag('h', 'help', 'Show this help message')
+
+    let matches = opts.parse(['-h=foo']).get
+
+    t.true(matches.contains?('h'))
+    t.equal(matches.remaining, ['=foo'])
+  })
+
+  t.test('Options.parse with a separator', fn (t) {
+    let opts = Options.new
+
+    opts.flag('h', 'help', 'Show this help message')
+
+    let matches = opts.parse(['-h', '--', '-h', '-a']).get
+
+    t.true(matches.contains?('h'))
+    t.equal(matches.remaining, ['-h', '-a'])
+  })
+
+  t.test('Options.parse with a separator and a long option pair', fn (t) {
+    let opts = Options.new
+
+    opts.flag('h', 'help', 'Show this help message')
+
+    let matches = opts.parse(['-h', '--', '--foo=bar']).get
+
+    t.true(matches.contains?('h'))
+    t.equal(matches.remaining, ['--foo=bar'])
+  })
+
+  t.test('Options.parse with a long option pair', fn (t) {
+    let opts = Options.new
+
+    opts.single('c', 'config', 'PATH', description: '')
+
+    let result = opts.parse(['--config=a']).get
+
+    t.equal(result.value('c'), Option.Some('a'))
+    t.equal(result.value('config'), Option.Some('a'))
+  })
+
+  t.test('Options.parse with multiple long option pairs', fn (t) {
+    let opts = Options.new
+
+    opts.multiple('c', 'config', 'PATH', description: '')
+
+    let result = opts.parse(['--config=a', '--config=b']).get
+
+    t.equal(result.values('c'), ['a', 'b'])
+    t.equal(result.values('config'), ['a', 'b'])
+  })
+
+  t.test(
+    'Options.parse when stopping at the first non-option argument',
+    fn (t) {
+      let opts = Options.new
+
+      opts.stop_at_first_non_option = true
+      opts.flag('e', 'example', 'Description')
+
+      let result = opts
+        .parse(['--example', 'foo', '--bar', '--foo=bar', '-c', '--'])
+        .get
+
+      t.true(result.contains?('example'))
+      t.equal(result.remaining, ['foo', '--bar', '--foo=bar', '-c', '--'])
+    },
+  )
+
+  t.test('Options.parse with a long flag that is given a value', fn (t) {
+    let opts = Options.new
+
+    opts.flag('h', 'help', 'Show this help message')
+
+    let result = opts.parse(['--help=foo'])
+
+    t.equal(result.error, Option.Some(Error.UnexpectedValue('help')))
+  })
+
+  t.test('Options.parse with a duplicate short option', fn (t) {
+    let opts = Options.new
+
+    opts.single('c', 'config', 'PATH', description: '')
+
+    let result = opts.parse(['-c', 'foo', '-c', 'bar'])
+
+    t.equal(result.error, Option.Some(Error.DuplicateOption('c')))
+  })
+
+  t.test('Options.parse with a duplicate long option', fn (t) {
+    let opts = Options.new
+
+    opts.single('c', 'config', 'PATH', description: '')
+
+    let result = opts.parse(['--config', 'foo', '--config', 'bar'])
+
+    t.equal(result.error, Option.Some(Error.DuplicateOption('config')))
+  })
+
+  t.test('Options.parse with a duplicate mixed option', fn (t) {
+    let opts = Options.new
+
+    opts.single('c', 'config', 'PATH', description: '')
+
+    let result = opts.parse(['-c', 'foo', '--config', 'bar'])
+
+    t.equal(result.error, Option.Some(Error.DuplicateOption('config')))
+  })
+
+  t.test('Options.parse with a short option with a missing value', fn (t) {
+    let opts = Options.new
+
+    opts.single('c', 'config', 'PATH', description: '')
+
+    let result = opts.parse(['-c'])
+
+    t.equal(result.error, Option.Some(Error.MissingValue('c')))
+  })
+
+  t.test('Options.parse with a long option with a missing value', fn (t) {
+    let opts = Options.new
+
+    opts.single('c', 'config', 'PATH', description: '')
+
+    let result = opts.parse(['--config'])
+
+    t.equal(result.error, Option.Some(Error.MissingValue('config')))
+  })
+
+  t.test('Options.parse with an unrecognized short option', fn (t) {
+    let opts = Options.new
+    let result = opts.parse(['-h'])
+
+    t.equal(result.error, Option.Some(Error.InvalidOption('h')))
+  })
+
+  t.test('Options.parse with an unrecognized long option', fn (t) {
+    let opts = Options.new
+    let result = opts.parse(['--help'])
+
+    t.equal(result.error, Option.Some(Error.InvalidOption('help')))
+  })
+
+  t.test('Options.parse with an unrecognized long option pair', fn (t) {
+    let opts = Options.new
+    let result = opts.parse(['--foo=bar'])
+
+    t.equal(result.error, Option.Some(Error.InvalidOption('foo')))
+  })
+
+  t.test('Options.parse with a duplicate long option pair', fn (t) {
+    let opts = Options.new
+
+    opts.single('c', 'config', 'PATH', description: '')
+
+    let result = opts.parse(['--config=a', '--config=b'])
+
+    t.equal(result.error, Option.Some(Error.DuplicateOption('config')))
+  })
+
+  t.test('Options.to_string', fn (t) {
+    let opts = Options.new
+
+    opts.flag('h', 'help', 'Show this help message')
+    opts.single('c', 'config', 'PATH', 'Use a custom configuration file')
+    opts.multiple('i', 'include', 'DIR', 'Add the directory')
+    opts.multiple('I', 'ignore', '', 'Ignore something')
+    opts.flag('', 'verbose', 'Use verbose output,\nlorem ipsum')
+    opts.flag('', 'example', '')
+    opts.flag('x', '', 'Foo')
+
+    t.equal(
+      opts.to_string,
+      '
+  -h, --help           Show this help message
+  -c, --config=PATH    Use a custom configuration file
+  -i, --include=DIR    Add the directory
+  -I, --ignore         Ignore something
+      --verbose        Use verbose output,
+                       lorem ipsum
+      --example
+  -x                   Foo'
+        .strip_prefix('\n'),
+    )
+
+    opts.single('o', 'option-with-a-much-longer-name', '', 'Example')
+
+    t.equal(
+      opts.to_string,
+      '
+  -h, --help                              Show this help message
+  -c, --config=PATH                       Use a custom configuration file
+  -i, --include=DIR                       Add the directory
+  -I, --ignore                            Ignore something
+      --verbose                           Use verbose output,
+                                          lorem ipsum
+      --example
+  -x                                      Foo
+  -o, --option-with-a-much-longer-name    Example'
+        .strip_prefix('\n'),
+    )
+  })
+
+  t.test('Help.new', fn (t) {
+    t.equal(Help.new('a').to_string, 'Usage: a [OPTIONS]\n')
+  })
+
+  t.test('Help.usage', fn (t) {
+    t.equal(Help.new('a').usage('[CMD]').to_string, 'Usage: a [CMD]\n')
+  })
+
+  t.test('Help.section', fn (t) {
+    t.equal(
+      Help.new('a').section('Examples').to_string,
+      'Usage: a [OPTIONS]\n\nExamples:\n\n',
+    )
+  })
+
+  t.test('Help.line', fn (t) {
+    t.equal(Help.new('a').line('foo').to_string, 'Usage: a [OPTIONS]\n  foo\n')
+  })
+
+  t.test('Help.description', fn (t) {
+    t.equal(
+      Help.new('a').description('foo').to_string,
+      'Usage: a [OPTIONS]\n\nfoo\n',
+    )
+  })
+
+  t.test('Help.options', fn (t) {
+    let opts = Options.new
+
+    opts.flag('h', 'help', 'Show this help message')
+
+    t.equal(
+      Help.new('a').options(opts).to_string,
+      'Usage: a [OPTIONS]\n  -h, --help    Show this help message\n',
+    )
+  })
+
+  t.test('Help.to_string', fn (t) {
+    let opts = Options.new
+
+    opts.flag('h', 'help', 'Show this help message')
+    opts.flag('v', 'version', 'Show the version')
+
+    let help = Help
+      .new('a')
+      .description('This is an example')
+      .section('Examples')
+      .line('foo')
+      .line('bar')
+      .section('Options')
+      .options(opts)
+      .to_string
+
+    t.equal(
+      help,
+      'Usage: a [OPTIONS]
+
+This is an example
+
+Examples:
+
+  foo
+  bar
+
+Options:
+
+  -h, --help       Show this help message
+  -v, --version    Show the version
+',
+    )
+  })
+}
