@@ -255,4 +255,14 @@ fn pub tests(t: mut Tests) {
     t.equal(fmt(map2), '{"name": "Alice"}')
     t.equal(fmt(map3), '{"name": "Alice", "city": "Bla"}')
   })
+
+  t.test('Map.clone', fn (t) {
+    let map1 = Map.new
+
+    map1.set('numbers', [10, 20])
+
+    let map2 = map1.clone
+
+    t.equal(map1, map2)
+  })
 }

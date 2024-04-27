@@ -270,7 +270,7 @@ impl MethodCall {
     fn new(
         state: &mut State,
         module: ModuleId,
-        surrounding_scope: Option<(TypeId, MethodId)>,
+        caller: Option<(MethodId, &HashSet<TypeId>)>,
         receiver: TypeRef,
         receiver_id: TypeId,
         method: MethodId,
@@ -339,12 +339,22 @@ impl MethodCall {
             && !method.is_moving(&state.db);
 
         let rec_is_rigid = receiver.is_rigid_type_parameter(&state.db);
-        let bounds = if let Some((self_id, self_method)) = surrounding_scope {
-            // If the receiver is `self` or a field (in which case it's rigid),
-            // we need to take the bounds of the surrounding method into
-            // account.
-            if self_id == receiver_id || rec_is_rigid {
-                self_method.bounds(&state.db).union(method.bounds(&state.db))
+        let bounds = if let Some((caller, self_types)) = caller {
+            // If the receiver is `self`, a field from `self`, or a type
+            // parameter that originates from a field in `self` (in which case
+            // it's rigid), we need to take the bounds of the surrounding method
+            // into account.
+            if self_types.contains(&receiver_id) || rec_is_rigid {
+                // The bounds of the surrounding method need to be exposed as
+                // type arguments, such that if we return a bounded parameter
+                // from some deeply nested type (e.g. a type parameter
+                // requirement), we still remap it correctly.
+                for (&k, &v) in caller.bounds(&state.db).iter() {
+                    type_arguments
+                        .assign(k, TypeRef::Any(TypeId::RigidTypeParameter(v)));
+                }
+
+                caller.bounds(&state.db).union(method.bounds(&state.db))
             } else {
                 method.bounds(&state.db).clone()
             }
@@ -398,12 +408,11 @@ impl MethodCall {
         state: &mut State,
         location: &SourceLocation,
     ) {
-        let bounds = self.method.bounds(&state.db);
         let args = self.type_arguments.clone();
         let mut scope = Environment::new(args.clone(), args);
         let mut checker = TypeChecker::new(&state.db);
 
-        if !checker.check_bounds(bounds, &mut scope) {
+        if !checker.check_bounds(&self.bounds, &mut scope) {
             state.diagnostics.error(
                 DiagnosticId::InvalidSymbol,
                 format!(
@@ -1266,6 +1275,9 @@ struct CheckMethodBody<'a> {
 
     /// Any bounds to apply to type parameters.
     bounds: &'a TypeBounds,
+
+    /// The type IDs that are or originate from `self`.
+    self_types: HashSet<TypeId>,
 }
 
 impl<'a> CheckMethodBody<'a> {
@@ -1276,7 +1288,14 @@ impl<'a> CheckMethodBody<'a> {
         self_type: TypeId,
         bounds: &'a TypeBounds,
     ) -> Self {
-        Self { state, module, method, self_type, bounds }
+        let mut self_types: HashSet<TypeId> = method
+            .fields(&state.db)
+            .into_iter()
+            .filter_map(|(_, typ)| typ.type_id(&state.db).ok())
+            .collect();
+
+        self_types.insert(self_type);
+        Self { state, module, method, self_type, bounds, self_types }
     }
 
     fn expressions(
@@ -2696,7 +2715,7 @@ impl<'a> CheckMethodBody<'a> {
         let mut call = MethodCall::new(
             self.state,
             module,
-            Some((self.self_type, self.method)),
+            Some((self.method, &self.self_types)),
             rec,
             rec_id,
             method,
@@ -2818,7 +2837,7 @@ impl<'a> CheckMethodBody<'a> {
         let mut call = MethodCall::new(
             self.state,
             module,
-            Some((self.self_type, self.method)),
+            Some((self.method, &self.self_types)),
             rec,
             rec_id,
             method,
@@ -3414,7 +3433,7 @@ impl<'a> CheckMethodBody<'a> {
         let mut call = MethodCall::new(
             self.state,
             self.module,
-            Some((self.self_type, self.method)),
+            Some((self.method, &self.self_types)),
             receiver,
             rec_id,
             method,
@@ -3781,7 +3800,7 @@ impl<'a> CheckMethodBody<'a> {
         let mut call = MethodCall::new(
             self.state,
             self.module,
-            Some((self.self_type, self.method)),
+            Some((self.method, &self.self_types)),
             receiver,
             rec_id,
             method,
@@ -3880,7 +3899,7 @@ impl<'a> CheckMethodBody<'a> {
         let mut call = MethodCall::new(
             self.state,
             self.module,
-            Some((self.self_type, self.method)),
+            Some((self.method, &self.self_types)),
             rec,
             rec_id,
             method,
