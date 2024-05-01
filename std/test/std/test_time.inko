@@ -5,16 +5,16 @@ import std.test (Tests)
 import std.time (DateTime, Duration, Instant)
 
 fn ymd(year: Int, month: Int, day: Int) -> DateTime {
-  DateTime {
-    @year = year,
-    @month = month,
-    @day = day,
-    @hour = 12,
-    @minute = 0,
-    @second = 0,
-    @sub_second = 0.0,
-    @utc_offset = 0,
-  }
+  DateTime(
+    year: year,
+    month: month,
+    day: day,
+    hour: 12,
+    minute: 0,
+    second: 0,
+    sub_second: 0.0,
+    utc_offset: 0,
+  )
 }
 
 fn pub tests(t: mut Tests) {

@@ -117,7 +117,7 @@ class builtin Array[T] {
     let buffer = alloc_imp.resize(0x0 as Pointer[T], size: size * VALUE_SIZE)
       as Pointer[UInt64]
 
-    Array { @size = 0, @capacity = size, @buffer = buffer }
+    Array(size: 0, capacity: size, buffer: buffer)
   }
 
   # Returns an array filled with a certain amount of values.
@@ -378,7 +378,7 @@ class builtin Array[T] {
   #     iter.next # => Option.Some(30)
   #     iter.next # => Option.None
   fn pub move into_iter -> IntoIter[T] {
-    IntoIter { @array = self, @index = 0 }
+    IntoIter(array: self, index: 0)
   }
 
   # Returns an `Iter` that iterates over all values in `self` in reverse

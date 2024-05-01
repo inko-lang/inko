@@ -3,7 +3,7 @@ class Thing {}
 fn foo[T](value: uni T) {}
 
 fn bar {
-  foo(Thing {})
+  foo(Thing())
 }
 
 # uni_type_parameter_with_owned.inko:6:7 error(invalid-type): expected a value of type 'uni T', found 'Thing'

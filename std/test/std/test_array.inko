@@ -20,7 +20,7 @@ class Counter {
   let @value: Int
 
   fn static new -> Counter {
-    Counter { @value = 0 }
+    Counter(0)
   }
 }
 
@@ -28,7 +28,7 @@ class TrackDrop {
   let @counter: mut Counter
 
   fn static new(counter: mut Counter) -> TrackDrop {
-    TrackDrop { @counter = counter }
+    TrackDrop(counter)
   }
 }
 
@@ -265,10 +265,10 @@ fn pub tests(t: mut Tests) {
   t.test('Array.sort', fn (t) {
     let nums = [56, 20, 28, 71, 42, 49, 1, 59, 19, 18, 27, 6, 31, 89, 32]
     let people = [
-      Person { @name = 'Eve', @age = 22 },
-      Person { @name = 'Steve', @age = 22 },
-      Person { @name = 'Alice', @age = 20 },
-      Person { @name = 'Bob', @age = 21 },
+      Person(name: 'Eve', age: 22),
+      Person(name: 'Steve', age: 22),
+      Person(name: 'Alice', age: 20),
+      Person(name: 'Bob', age: 21),
     ]
 
     nums.sort

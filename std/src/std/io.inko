@@ -532,12 +532,12 @@ class pub BufferedReader[T: mut + Read] {
   fn pub static with_capacity(reader: T, size: Int) -> BufferedReader[T] {
     if size <= 0 { panic('The buffer size must be greater than zero') }
 
-    BufferedReader {
-      @reader = reader,
-      @buffer = ByteArray.new,
-      @capacity = size,
-      @offset = 0,
-    }
+    BufferedReader(
+      reader: reader,
+      buffer: ByteArray.new,
+      capacity: size,
+      offset: 0,
+    )
   }
 }
 
@@ -623,7 +623,7 @@ class pub Buffer[T: Bytes] {
 
   # Returns a new `Buffer` wrapping the given `Bytes`.
   fn pub static new(bytes: T) -> Buffer[T] {
-    Buffer { @bytes = bytes, @offset = 0 }
+    Buffer(bytes: bytes, offset: 0)
   }
 }
 

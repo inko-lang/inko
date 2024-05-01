@@ -52,8 +52,8 @@
 #       fn async main {
 #         let chan = Channel.new(size: 2)
 #
-#         Waiter { @channel = chan }.wait(recover Signal.User1)
-#         Waiter { @channel = chan }.wait(recover Signal.User2)
+#         Waiter(chan).wait(recover Signal.User1)
+#         Waiter(chan).wait(recover Signal.User2)
 #         chan.receive
 #       }
 #     }

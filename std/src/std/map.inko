@@ -53,12 +53,12 @@ class pub Entry[K: Equal[ref K] + Hash, V] {
 
 impl Clone[Entry[K, V]] for Entry if K: Clone[K], V: Clone[V] {
   fn pub clone -> Entry[K, V] {
-    Entry {
-      @key = @key.clone,
-      @value = @value.clone,
-      @hash = @hash,
-      @distance = @distance,
-    }
+    Entry(
+      key: @key.clone,
+      value: @value.clone,
+      hash: @hash,
+      distance: @distance,
+    )
   }
 }
 
@@ -127,7 +127,7 @@ class pub Map[K: Equal[ref K] + Hash, V] {
     let slots = Array.filled(with: EMPTY, times: size)
     let resize_at = resize_threshold(size)
 
-    Map { @slots = slots, @entries = [], @resize_at = resize_at }
+    Map(slots: slots, entries: [], resize_at: resize_at)
   }
 
   # Removes the given key, returning its value if the key was present.
@@ -353,12 +353,7 @@ class pub Map[K: Equal[ref K] + Hash, V] {
     if size >= @resize_at { resize }
 
     let hash = hash_key(key)
-    let entry = Entry {
-      @key = key,
-      @value = value,
-      @hash = hash,
-      @distance = 0,
-    }
+    let entry = Entry(key: key, value: value, hash: hash, distance: 0)
 
     insert_entry(entry)
   }
@@ -670,10 +665,6 @@ impl Format for Map if K: Format, V: Format {
 
 impl Clone[Map[K, V]] for Map if K: Clone[K], V: Clone[V] {
   fn pub clone -> Map[K, V] {
-    Map {
-      @slots = @slots.clone,
-      @entries = @entries.clone,
-      @resize_at = @resize_at,
-    }
+    Map(slots: @slots.clone, entries: @entries.clone, resize_at: @resize_at)
   }
 }

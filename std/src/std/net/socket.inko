@@ -297,7 +297,7 @@ class pub SocketAddress {
   let pub @port: Int
 
   fn pub static new(address: String, port: Int) -> SocketAddress {
-    SocketAddress { @address = address, @port = port }
+    SocketAddress(address: address, port: port)
   }
 
   # Returns the IPv4/IPv6 address associated with `self`.
@@ -336,14 +336,14 @@ class pub Socket {
   #
   #     Socket.ipv4(Type.DGRAM).get
   fn pub static ipv4(type: Type) -> Result[Socket, Error] {
-    let sock = RawSocket {
-      @inner = 0 as Int32,
-      @registered = 0 as UInt8,
-      @unix = 0 as UInt8,
-    }
+    let sock = RawSocket(
+      inner: 0 as Int32,
+      registered: 0 as UInt8,
+      unix: 0 as UInt8,
+    )
 
     match inko_socket_new(IPV4, type.into_int, mut sock) as Int {
-      case 0 -> Result.Ok(Socket { @raw = sock, @deadline = NO_DEADLINE })
+      case 0 -> Result.Ok(Socket(raw: sock, deadline: NO_DEADLINE))
       case e -> Result.Error(Error.from_os_error(e))
     }
   }
@@ -356,14 +356,14 @@ class pub Socket {
   #
   #     Socket.ipv6(Type.DGRAM).get
   fn pub static ipv6(type: Type) -> Result[Socket, Error] {
-    let sock = RawSocket {
-      @inner = 0 as Int32,
-      @registered = 0 as UInt8,
-      @unix = 0 as UInt8,
-    }
+    let sock = RawSocket(
+      inner: 0 as Int32,
+      registered: 0 as UInt8,
+      unix: 0 as UInt8,
+    )
 
     match inko_socket_new(IPV6, type.into_int, mut sock) as Int {
-      case 0 -> Result.Ok(Socket { @raw = sock, @deadline = NO_DEADLINE })
+      case 0 -> Result.Ok(Socket(raw: sock, deadline: NO_DEADLINE))
       case e -> Result.Error(Error.from_os_error(e))
     }
   }
@@ -498,17 +498,17 @@ class pub Socket {
   #
   #     buffer.to_string # => 'ping'
   fn pub accept -> Result[Socket, Error] {
-    let sock = RawSocket {
-      @inner = 0 as Int32,
-      @registered = 0 as UInt8,
-      @unix = 0 as UInt8,
-    }
+    let sock = RawSocket(
+      inner: 0 as Int32,
+      registered: 0 as UInt8,
+      unix: 0 as UInt8,
+    )
 
     match
       inko_socket_accept(_INKO.state, _INKO.process, @raw, @deadline, mut sock)
         as Int
     {
-      case 0 -> Result.Ok(Socket { @raw = sock, @deadline = NO_DEADLINE })
+      case 0 -> Result.Ok(Socket(raw: sock, deadline: NO_DEADLINE))
       case e -> Result.Error(Error.from_os_error(e))
     }
   }
@@ -627,7 +627,7 @@ class pub Socket {
     bytes: mut ByteArray,
     size: Int,
   ) -> Result[SocketAddress, Error] {
-    let raw = RawAddress { @address = '', @port = 0 }
+    let raw = RawAddress(address: '', port: 0)
 
     match
       inko_socket_receive_from(
@@ -648,7 +648,7 @@ class pub Socket {
 
   # Returns the local address of this socket.
   fn pub local_address -> Result[SocketAddress, Error] {
-    let raw = RawAddress { @address = '', @port = 0 }
+    let raw = RawAddress(address: '', port: 0)
 
     match inko_socket_local_address(_INKO.state, @raw, mut raw) as Int {
       case 0 -> Result.Ok(SocketAddress.new(raw.address, raw.port))
@@ -658,7 +658,7 @@ class pub Socket {
 
   # Returns the peer address of this socket.
   fn pub peer_address -> Result[SocketAddress, Error] {
-    let raw = RawAddress { @address = '', @port = 0 }
+    let raw = RawAddress(address: '', port: 0)
 
     match inko_socket_peer_address(_INKO.state, @raw, mut raw) as Int {
       case 0 -> Result.Ok(SocketAddress.new(raw.address, raw.port))
@@ -778,14 +778,14 @@ class pub Socket {
   # Cloning a socket may fail, such as when the program has too many open file
   # descriptors.
   fn pub try_clone -> Result[Socket, Error] {
-    let sock = RawSocket {
-      @inner = 0 as Int32,
-      @registered = 0 as UInt8,
-      @unix = 0 as UInt8,
-    }
+    let sock = RawSocket(
+      inner: 0 as Int32,
+      registered: 0 as UInt8,
+      unix: 0 as UInt8,
+    )
 
     match inko_socket_try_clone(@raw, mut sock) as Int {
-      case 0 -> Result.Ok(Socket { @raw = sock, @deadline = NO_DEADLINE })
+      case 0 -> Result.Ok(Socket(raw: sock, deadline: NO_DEADLINE))
       case e -> Result.Error(Error.from_os_error(e))
     }
   }
@@ -862,7 +862,7 @@ class pub UdpSocket {
     }
 
     try socket.bind(ip, port)
-    Result.Ok(UdpSocket { @socket = socket })
+    Result.Ok(UdpSocket(socket))
   }
 
   # Connects `self` to the remote address.
@@ -966,7 +966,7 @@ class pub UdpSocket {
   # Cloning a socket may fail, such as when the program has too many open file
   # descriptors.
   fn pub try_clone -> Result[UdpSocket, Error] {
-    @socket.try_clone.map(fn (sock) { UdpSocket { @socket = sock } })
+    @socket.try_clone.map(fn (sock) { UdpSocket(sock) })
   }
 }
 
@@ -1020,7 +1020,7 @@ class pub TcpClient {
     }
 
     try socket.connect(ip, port)
-    Result.Ok(TcpClient { @socket = socket })
+    Result.Ok(TcpClient(socket))
   }
 
   # Creates a new `TcpClient` but limits the amount of time spent waiting for
@@ -1058,7 +1058,7 @@ class pub TcpClient {
     let _ = socket.timeout_after = timeout_after
 
     try socket.connect(ip, port)
-    Result.Ok(TcpClient { @socket = socket })
+    Result.Ok(TcpClient(socket))
   }
 
   # Returns the local address of this socket.
@@ -1095,7 +1095,7 @@ class pub TcpClient {
   # Cloning a socket may fail, such as when the program has too many open file
   # descriptors.
   fn pub try_clone -> Result[TcpClient, Error] {
-    @socket.try_clone.map(fn (sock) { TcpClient { @socket = sock } })
+    @socket.try_clone.map(fn (sock) { TcpClient(sock) })
   }
 }
 
@@ -1154,7 +1154,7 @@ class pub TcpServer {
     try socket.reuse_port = true
     try socket.bind(ip, port)
     try socket.listen
-    Result.Ok(TcpServer { @socket = socket })
+    Result.Ok(TcpServer(socket))
   }
 
   # Accepts a new incoming connection from `self`.
@@ -1182,7 +1182,7 @@ class pub TcpServer {
   #
   #     buffer.to_string # => 'ping'
   fn pub accept -> Result[TcpClient, Error] {
-    @socket.accept.map(fn (sock) { TcpClient { @socket = sock } })
+    @socket.accept.map(fn (sock) { TcpClient(sock) })
   }
 
   # Returns the local address of this socket.
@@ -1197,7 +1197,7 @@ class pub TcpServer {
   # Cloning a socket may fail, such as when the program has too many open file
   # descriptors.
   fn pub try_clone -> Result[TcpServer, Error] {
-    @socket.try_clone.map(fn (sock) { TcpServer { @socket = sock } })
+    @socket.try_clone.map(fn (sock) { TcpServer(sock) })
   }
 }
 
@@ -1231,7 +1231,7 @@ class pub UnixAddress {
   #
   #     UnixAddress.new("\0example")
   fn pub static new[T: ToString](address: ref T) -> UnixAddress {
-    UnixAddress { @address = address.to_string }
+    UnixAddress(address.to_string)
   }
 
   # Returns the path of this address.
@@ -1339,14 +1339,14 @@ class pub UnixSocket {
   #
   #     UnixSocket.new(Type.DGRAM).get
   fn pub static new(type: Type) -> Result[UnixSocket, Error] {
-    let sock = RawSocket {
-      @inner = 0 as Int32,
-      @registered = 0 as UInt8,
-      @unix = 1 as UInt8,
-    }
+    let sock = RawSocket(
+      inner: 0 as Int32,
+      registered: 0 as UInt8,
+      unix: 1 as UInt8,
+    )
 
     match inko_socket_new(UNIX, type.into_int, mut sock) as Int {
-      case 0 -> Result.Ok(UnixSocket { @raw = sock, @deadline = NO_DEADLINE })
+      case 0 -> Result.Ok(UnixSocket(raw: sock, deadline: NO_DEADLINE))
       case e -> Result.Error(Error.from_os_error(e))
     }
   }
@@ -1478,17 +1478,17 @@ class pub UnixSocket {
   #
   #     buffer.to_string # => 'ping'
   fn pub accept -> Result[UnixSocket, Error] {
-    let sock = RawSocket {
-      @inner = 0 as Int32,
-      @registered = 0 as UInt8,
-      @unix = 1 as UInt8,
-    }
+    let sock = RawSocket(
+      inner: 0 as Int32,
+      registered: 0 as UInt8,
+      unix: 1 as UInt8,
+    )
 
     match
       inko_socket_accept(_INKO.state, _INKO.process, @raw, @deadline, mut sock)
         as Int
     {
-      case 0 -> Result.Ok(UnixSocket { @raw = sock, @deadline = NO_DEADLINE })
+      case 0 -> Result.Ok(UnixSocket(raw: sock, deadline: NO_DEADLINE))
       case e -> Result.Error(Error.from_os_error(e))
     }
   }
@@ -1587,7 +1587,7 @@ class pub UnixSocket {
     bytes: mut ByteArray,
     size: Int,
   ) -> Result[UnixAddress, Error] {
-    let raw = RawAddress { @address = '', @port = 0 }
+    let raw = RawAddress(address: '', port: 0)
 
     match
       inko_socket_receive_from(
@@ -1608,7 +1608,7 @@ class pub UnixSocket {
 
   # Returns the local address of this socket.
   fn pub local_address -> Result[UnixAddress, Error] {
-    let raw = RawAddress { @address = '', @port = 0 }
+    let raw = RawAddress(address: '', port: 0)
 
     match inko_socket_local_address(_INKO.state, @raw, mut raw) as Int {
       case 0 -> Result.Ok(UnixAddress.new(raw.address))
@@ -1618,7 +1618,7 @@ class pub UnixSocket {
 
   # Returns the peer address of this socket.
   fn pub peer_address -> Result[UnixAddress, Error] {
-    let raw = RawAddress { @address = '', @port = 0 }
+    let raw = RawAddress(address: '', port: 0)
 
     match inko_socket_peer_address(_INKO.state, @raw, mut raw) as Int {
       case 0 -> Result.Ok(UnixAddress.new(raw.address))
@@ -1671,14 +1671,14 @@ class pub UnixSocket {
   # Cloning a socket may fail, such as when the program has too many open file
   # descriptors.
   fn pub try_clone -> Result[UnixSocket, Error] {
-    let sock = RawSocket {
-      @inner = 0 as Int32,
-      @registered = 0 as UInt8,
-      @unix = 1 as UInt8,
-    }
+    let sock = RawSocket(
+      inner: 0 as Int32,
+      registered: 0 as UInt8,
+      unix: 1 as UInt8,
+    )
 
     match inko_socket_try_clone(@raw, mut sock) as Int {
-      case 0 -> Result.Ok(UnixSocket { @raw = sock, @deadline = NO_DEADLINE })
+      case 0 -> Result.Ok(UnixSocket(raw: sock, deadline: NO_DEADLINE))
       case e -> Result.Error(Error.from_os_error(e))
     }
   }
@@ -1747,7 +1747,7 @@ class pub UnixDatagram {
     let socket = try UnixSocket.new(Type.DGRAM)
 
     try socket.bind(address)
-    Result.Ok(UnixDatagram { @socket = socket })
+    Result.Ok(UnixDatagram(socket))
   }
 
   # Connects `self` to the remote addres.s
@@ -1830,7 +1830,7 @@ class pub UnixDatagram {
   # Cloning a socket may fail, such as when the program has too many open file
   # descriptors.
   fn pub try_clone -> Result[UnixDatagram, Error] {
-    @socket.try_clone.map(fn (sock) { UnixDatagram { @socket = sock } })
+    @socket.try_clone.map(fn (sock) { UnixDatagram(sock) })
   }
 }
 
@@ -1878,7 +1878,7 @@ class pub UnixClient {
     let socket = try UnixSocket.new(Type.STREAM)
 
     try socket.connect(address)
-    Result.Ok(UnixClient { @socket = socket })
+    Result.Ok(UnixClient(socket))
   }
 
   # Creates a new `UnixClient` but limits the amount of time spent waiting for
@@ -1909,7 +1909,7 @@ class pub UnixClient {
     let _ = socket.timeout_after = timeout_after
 
     try socket.connect(address)
-    Result.Ok(UnixClient { @socket = socket })
+    Result.Ok(UnixClient(socket))
   }
 
   # Returns the local address of this socket.
@@ -1946,7 +1946,7 @@ class pub UnixClient {
   # Cloning a socket may fail, such as when the program has too many open file
   # descriptors.
   fn pub try_clone -> Result[UnixClient, Error] {
-    @socket.try_clone.map(fn (sock) { UnixClient { @socket = sock } })
+    @socket.try_clone.map(fn (sock) { UnixClient(sock) })
   }
 }
 
@@ -1991,7 +1991,7 @@ class pub UnixServer {
 
     try socket.bind(address)
     try socket.listen
-    Result.Ok(UnixServer { @socket = socket })
+    Result.Ok(UnixServer(socket))
   }
 
   # Accepts a new incoming connection from `self`.
@@ -2016,7 +2016,7 @@ class pub UnixServer {
   #
   #     buffer.to_string # => 'ping'
   fn pub accept -> Result[UnixClient, Error] {
-    @socket.accept.map(fn (sock) { UnixClient { @socket = sock } })
+    @socket.accept.map(fn (sock) { UnixClient(sock) })
   }
 
   # Returns the local address of this socket.
@@ -2031,6 +2031,6 @@ class pub UnixServer {
   # Cloning a socket may fail, such as when the program has too many open file
   # descriptors.
   fn pub try_clone -> Result[UnixServer, Error] {
-    @socket.try_clone.map(fn (sock) { UnixServer { @socket = sock } })
+    @socket.try_clone.map(fn (sock) { UnixServer(sock) })
   }
 }

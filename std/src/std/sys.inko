@@ -220,15 +220,15 @@ class pub Command {
   #
   #     Command.new('/usr/bin/ls')
   fn pub static new[T: ToString](program: ref T) -> Command {
-    Command {
-      @program = program.to_string,
-      @stdin = Stream.Inherit,
-      @stdout = Stream.Inherit,
-      @stderr = Stream.Inherit,
-      @arguments = [],
-      @variables = Map.new,
-      @directory = Option.None,
-    }
+    Command(
+      program: program.to_string,
+      stdin: Stream.Inherit,
+      stdout: Stream.Inherit,
+      stderr: Stream.Inherit,
+      arguments: [],
+      variables: Map.new,
+      directory: Option.None,
+    )
   }
 
   # Returns the program to start.
@@ -355,7 +355,7 @@ class pub Command {
       )
     {
       case { @tag = 0, @value = v } -> {
-        Result.Ok(ChildProcess { @raw = v as Pointer[UInt8] })
+        Result.Ok(ChildProcess(v as Pointer[UInt8]))
       }
       case { @tag = _, @value = e } -> {
         Result.Error(Error.from_os_error(e as Int))
@@ -370,7 +370,7 @@ class pub ExitStatus {
   let @code: Int
 
   fn pub static new(code: Int) -> ExitStatus {
-    ExitStatus { @code = code }
+    ExitStatus(code)
   }
 
   # Returns `true` if the status signals success.
@@ -398,7 +398,7 @@ class pub Stdin {
   let @process: ref ChildProcess
 
   fn pub static new(process: ref ChildProcess) -> Stdin {
-    Stdin { @process = process }
+    Stdin(process)
   }
 }
 
@@ -442,7 +442,7 @@ class pub Stdout {
   let @process: ref ChildProcess
 
   fn pub static new(process: ref ChildProcess) -> Stdout {
-    Stdout { @process = process }
+    Stdout(process)
   }
 }
 
@@ -469,7 +469,7 @@ class pub Stderr {
   let @process: ref ChildProcess
 
   fn pub static new(process: ref ChildProcess) -> Stderr {
-    Stderr { @process = process }
+    Stderr(process)
   }
 }
 

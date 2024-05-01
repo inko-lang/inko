@@ -105,14 +105,7 @@ class pub Test {
     line: Int,
     code: uni fn (mut Test),
   ) -> Test {
-    Test {
-      @id = id,
-      @name = name,
-      @path = path,
-      @line = line,
-      @failures = [],
-      @code = code,
-    }
+    Test(id: id, name: name, path: path, line: line, failures: [], code: code)
   }
 
   # Asserts that the given arguments are equal to each other.
@@ -196,7 +189,7 @@ class pub Plain[T: mut + Write] {
 
   # Returns a new reporter that writes to the given output stream.
   fn pub static new(out: T, colors: Bool) -> Plain[T] {
-    Plain { @out = out, @tests = 0, @failed = [], @colors = colors }
+    Plain(out: out, tests: 0, failed: [], colors: colors)
   }
 
   fn red(value: String) -> String {
@@ -319,7 +312,7 @@ class pub Failure {
 
     match frame {
       case { @path = path, @line = line } -> {
-        Failure { @got = got, @expected = expected, @path = path, @line = line }
+        Failure(got: got, expected: expected, path: path, line: line)
       }
     }
   }
@@ -397,7 +390,7 @@ class pub Process {
     cmd.stdout(Stream.Piped)
     cmd.stderr(Stream.Piped)
     cmd.variable(CHILD_VAR, id.to_string)
-    Process { @cmd = cmd, @stdin = '' }
+    Process(cmd: cmd, stdin: '')
   }
 
   # Adds an argument to the process.
@@ -433,11 +426,11 @@ class pub Process {
       case Error(err) -> panic('Failed to wait for the child process: ${err}')
     }
 
-    Output {
-      @status = status,
-      @stdout = stdout.into_string,
-      @stderr = stderr.into_string,
-    }
+    Output(
+      status: status,
+      stdout: stdout.into_string,
+      stderr: stderr.into_string,
+    )
   }
 }
 
@@ -490,14 +483,14 @@ class pub Tests {
 
   # Returns a new test tests with its default settings.
   fn pub static new -> Tests {
-    Tests {
-      @tests = [],
-      @children = [],
-      @concurrency = cpu_cores,
-      @reporter = Plain.new(out: STDOUT.new, colors: true) as Reporter,
-      @filter = Filter.None,
-      @seed = Option.None,
-    }
+    Tests(
+      tests: [],
+      children: [],
+      concurrency: cpu_cores,
+      reporter: Plain.new(out: STDOUT.new, colors: true) as Reporter,
+      filter: Filter.None,
+      seed: Option.None,
+    )
   }
 
   # Registers a new test with the test tests.
@@ -557,12 +550,12 @@ class pub Tests {
       match code.call(t) {
         case Error(e) -> {
           t.failures.push(
-            Failure {
-              @got = 'Result.Error(${fmt(e)})',
-              @expected = 'a value matching the pattern Result.Ok(_)',
-              @path = t.path.clone,
-              @line = t.line,
-            },
+            Failure(
+              got: 'Result.Error(${fmt(e)})',
+              expected: 'a value matching the pattern Result.Ok(_)',
+              path: t.path.clone,
+              line: t.line,
+            ),
           )
         }
         case _ -> {}
@@ -593,12 +586,12 @@ class pub Tests {
       # These tests run in a separate OS process, and `debug.stacktrace` won't
       # include any frames pointing to the unit tests's source file. To work
       # around that, we reuse the test's location.
-      let failure = Failure {
-        @got = 'the process exited with status ${code}',
-        @expected = 'the process to panic with exit status 101',
-        @path = test.path.clone,
-        @line = test.line,
-      }
+      let failure = Failure(
+        got: 'the process exited with status ${code}',
+        expected: 'the process to panic with exit status 101',
+        path: test.path.clone,
+        line: test.line,
+      )
 
       test.failures.push(failure)
     })
@@ -652,9 +645,7 @@ class pub Tests {
     # is empty.
     tests.into_iter.each(fn (test) { input.send(test) })
 
-    @concurrency.times(fn (_) {
-      Runner { @input = input, @output = output }.run
-    })
+    @concurrency.times(fn (_) { Runner(input: input, output: output).run })
 
     size.times(fn (_) {
       let test = recover output.receive

@@ -1,20 +1,42 @@
 fn example {
   foo(10)
   bar(10, 20)
-  baz('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb')
-  foo('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb').bar(100, 200, fn { 'test' }).baz(100, fn {
-    100
-    200
-  }).quix(fn { 'first' }, fn { 'second' }).bla('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'bbbbbbbbbbbbbbbbbbbbbbbbb', fn { 'ccccccc' })
+  baz(
+    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+  )
+  foo(
+    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+  )
+    .bar(100, 200, fn { 'test' })
+    .baz(100, fn {
+      100
+      200
+    })
+    .quix(fn { 'first' }, fn { 'second' })
+    .bla(
+      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      'bbbbbbbbbbbbbbbbbbbbbbbbb',
+      fn { 'ccccccc' },
+    )
 
   a_call_separated_by_an_empty_line(10)
 
-  testing.bar('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa').then('bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb')
+  testing.bar('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa').then(
+    'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+  )
 
-  testing.bar('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa').baz('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa').then('bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb')
+  testing
+    .bar('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+    .baz('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+    .then('bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb')
 
-  testing.bar('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa').then('bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', fn {
-    100
-    200
-  })
+  testing.bar('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa').then(
+    'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    fn {
+      100
+      200
+    },
+  )
 }

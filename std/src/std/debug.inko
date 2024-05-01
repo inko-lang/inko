@@ -40,13 +40,13 @@ class pub StackFrame {
   let pub @line: Int
 
   fn pub static new(path: Path, name: String, line: Int) -> StackFrame {
-    StackFrame { @path = path, @name = name, @line = line }
+    StackFrame(path: path, name: name, line: line)
   }
 }
 
 impl Clone[StackFrame] for StackFrame {
   fn pub clone -> StackFrame {
-    StackFrame { @path = @path.clone, @name = @name, @line = @line }
+    StackFrame(path: @path.clone, name: @name, line: @line)
   }
 }
 

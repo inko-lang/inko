@@ -31,7 +31,7 @@ fn test {
 
   # This isn't fine because `Thing.eq` expects a `ref Thing`, and we don't know
   # if that `ref` to the `uni Thing` outlives the call.
-  eq(Opt.Some(recover Thing {}) as Opt[uni Thing])
+  eq(Opt.Some(recover Thing()) as Opt[uni Thing])
 }
 
 # ref_value_type_with_uni_ref.inko:34:6 error(invalid-type): expected a value of type 'ref T', found 'ref Opt[uni Thing]'

@@ -220,6 +220,26 @@ class pub Person {
 }
 ```
 
+Instances of classes are created using the same syntax as method calls:
+
+```inko
+Person(name: 'Alice', age: 42)
+```
+
+Positional arguments are also supported:
+
+```inko
+Person('Alice', 42)
+```
+
+If no fields are given, the parentheses are required:
+
+```inko
+class Example {}
+
+Example()
+```
+
 ### Enums
 
 Enums are defined as follows:
@@ -595,19 +615,6 @@ if volume_is_too_loud.false? {
 ## Nil
 
 The `nil` keyword is used to create an instance of `Nil`.
-
-## Class literals
-
-Class literals start with the name of the class followed by curly braces. Within
-the curly braces, zero or more fields are assigned a value:
-
-```inko
-class Person {
-  let @name: String
-}
-
-Person { @name = 'Alice' }
-```
 
 ## Conditionals
 

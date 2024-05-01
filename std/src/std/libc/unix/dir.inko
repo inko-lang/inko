@@ -35,7 +35,7 @@ class pub ReadDirectory {
     let err = Error.last_os_error
 
     if stream as Int != 0 {
-      Result.Ok(ReadDirectory { @stream = stream })
+      Result.Ok(ReadDirectory(stream))
     } else {
       Result.Error(err)
     }

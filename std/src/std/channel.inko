@@ -57,7 +57,7 @@ class builtin Channel[T] {
   #
   # If you specify a value less than 1, the size is set to 1.
   fn pub static new(size: Int) -> Channel[uni T] {
-    Channel { @state = inko_channel_new(size) }
+    Channel(inko_channel_new(size))
   }
 
   # Sends a message to the channel.

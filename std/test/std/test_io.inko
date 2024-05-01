@@ -10,11 +10,11 @@ class Reader {
   let @bytes: ByteArray
 
   fn static new -> Reader {
-    Reader { @index = 0, @bytes = ByteArray.from_array([1, 2, 3]) }
+    Reader(index: 0, bytes: ByteArray.from_array([1, 2, 3]))
   }
 
   fn static from_array(bytes: Array[Int]) -> Reader {
-    Reader { @index = 0, @bytes = ByteArray.from_array(bytes) }
+    Reader(index: 0, bytes: ByteArray.from_array(bytes))
   }
 }
 
@@ -47,7 +47,7 @@ class Writer {
   let @buffer: ByteArray
 
   fn static new -> Writer {
-    Writer { @buffer = ByteArray.new }
+    Writer(ByteArray.new)
   }
 }
 
@@ -237,7 +237,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('BufferedReader.read_byte', fn (t) {
     let ok = BufferedReader.new(Reader.new)
-    let err = BufferedReader.new(ErrorReader {})
+    let err = BufferedReader.new(ErrorReader())
 
     t.equal(ok.read_byte, Result.Ok(Option.Some(1)))
     t.equal(ok.read_byte, Result.Ok(Option.Some(2)))

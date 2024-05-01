@@ -51,7 +51,7 @@ class pub InclusiveRange {
 
   # Returns a new `InclusiveRange` over the given values.
   fn pub static new(start: Int, end: Int) -> InclusiveRange {
-    InclusiveRange { @start = start, @end = end }
+    InclusiveRange(start: start, end: end)
   }
 }
 
@@ -142,7 +142,7 @@ class pub ExclusiveRange {
 
   # Returns a new `ExclusiveRange` over the given values.
   fn pub static new(start: Int, end: Int) -> ExclusiveRange {
-    ExclusiveRange { @start = start, @end = end }
+    ExclusiveRange(start: start, end: end)
   }
 }
 

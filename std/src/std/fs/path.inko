@@ -146,10 +146,10 @@ impl Iter[Result[DirectoryEntry, Error]] for ReadDirectory {
     let ret = match try { @inner.next } {
       case Ok((path, type)) -> {
         Result.Ok(
-          DirectoryEntry {
-            @path = Path.new(join_strings(@path, with: path)),
-            @type = type,
-          },
+          DirectoryEntry(
+            path: Path.new(join_strings(@path, with: path)),
+            type: type,
+          ),
         )
       }
       case Error(e) -> Result.Error(e)
@@ -169,12 +169,7 @@ class pub Components {
   fn static new(path: ref Path) -> Components {
     let size = path.path.size
     let root = size > 0 and path.path.byte(0) == SEPARATOR_BYTE
-    let comp = Components {
-      @path = path,
-      @index = 0,
-      @size = size,
-      @root = root,
-    }
+    let comp = Components(path: path, index: 0, size: size, root: root)
 
     # If we start with a sequence such as `.//././.`, we skip over those. We
     # only need to do this once, so we take care of that here instead of
@@ -272,7 +267,7 @@ class pub Path {
   let @path: String
 
   fn pub static new(path: String) -> Path {
-    Path { @path = path }
+    Path(path)
   }
 
   # Returns `true` if the path points to a file.
@@ -303,7 +298,7 @@ class pub Path {
   #
   #     let path = Path.new('README.md')
   #
-  #     path.created_at.get # => DateTime { ... }
+  #     path.created_at.get # => DateTime(...)
   fn pub created_at -> Result[DateTime, Error] {
     match inko_path_created_at(_INKO.process, @path) {
       case { @tag = 0, @value = val } -> {
@@ -333,7 +328,7 @@ class pub Path {
   #
   #     let path = Path.new('README.md')
   #
-  #     path.modified_at.get # => DateTime { ... }
+  #     path.modified_at.get # => DateTime(...)
   fn pub modified_at -> Result[DateTime, Error] {
     match inko_path_modified_at(_INKO.process, @path) {
       case { @tag = 0, @value = val } -> {
@@ -363,7 +358,7 @@ class pub Path {
   #
   #     let path = Path.new('README.md')
   #
-  #     path.accessed_at.get # => DateTime { ... }
+  #     path.accessed_at.get # => DateTime(...)
   fn pub accessed_at -> Result[DateTime, Error] {
     match inko_path_accessed_at(_INKO.process, @path) {
       case { @tag = 0, @value = val } -> {
@@ -658,7 +653,7 @@ class pub Path {
   #     }
   fn pub list -> Result[ReadDirectory, Error] {
     ReadDirectoryInner.new(@path).map(fn (inner) {
-      ReadDirectory { @path = @path, @inner = inner }
+      ReadDirectory(path: @path, inner: inner)
     })
   }
 
@@ -678,7 +673,7 @@ class pub Path {
   #     import std.fs.path (Path)
   #
   #     Path.new('/tmp').list_all.get.next
-  #     # => Option.Some(Result.Ok(DirectoryEntry { ... }))
+  #     # => Option.Some(Result.Ok(DirectoryEntry(...)))
   fn pub list_all -> Result[Stream[Result[DirectoryEntry, Error]], Error] {
     list.map(fn (iter) {
       let dirs = []

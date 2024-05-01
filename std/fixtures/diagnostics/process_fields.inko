@@ -9,7 +9,7 @@ class async Foo {
 }
 
 fn example {
-  let foo = Foo { @value = 42 }
+  let foo = Foo(42)
 
   foo.value
   foo.value = 50

@@ -22,6 +22,10 @@ For types and constants, making them public is done as follows:
 | `let Example = 10`
 | `let pub Example = 10`
 |-
+| Fields
+| `let @name: Type`
+| `let pub @name: Type`
+|-
 | Classes
 | `class Example {}`
 | `class pub Example {}`
@@ -75,7 +79,7 @@ class async Cat {
 
 class async Main {
   fn async main {
-    let garfield = Cat { @name = 'Garfield' }
+    let garfield = Cat(name: 'Garfield')
 
     garfield.name
     garfield.give_food

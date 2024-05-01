@@ -28,6 +28,7 @@ pub(crate) enum DiagnosticId {
     Moved,
     Unreachable,
     UnusedVariable,
+    Deprecated,
 }
 
 impl fmt::Display for DiagnosticId {
@@ -55,6 +56,7 @@ impl fmt::Display for DiagnosticId {
             DiagnosticId::MissingMain => "missing-main",
             DiagnosticId::InvalidCast => "invalid-cast",
             DiagnosticId::UnusedVariable => "unused-variable",
+            DiagnosticId::Deprecated => "deprecated",
         };
 
         write!(f, "{}", id)

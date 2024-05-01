@@ -17,7 +17,7 @@ class pub Block {
 
   # Returns a new `Block` with the given size in bytes.
   fn pub static new(size: Int) -> Block {
-    Block { @bytes = ByteArray.filled(with: 0, times: size), @index = 0 }
+    Block(bytes: ByteArray.filled(with: 0, times: size), index: 0)
   }
 
   # Reads an unsigned 32-bits little-endian integer from the given index.
@@ -123,7 +123,7 @@ class pub Hash {
 
   # Returns a new empty `Digest`.
   fn pub static new(bytes: ByteArray) -> Hash {
-    Hash { @bytes = bytes }
+    Hash(bytes)
   }
 }
 

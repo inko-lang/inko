@@ -34,10 +34,10 @@ class Person {
   let @name: String
 }
 
-let people = [Person { @name = 'Alice' }]
+let people = [Person(name: 'Alice')]
 
-people.get(0)     # => ref Person { @name = 'Alice' }
-people.get_mut(0) # => mut Person { @name = 'Alice' }
+people.get(0)     # => ref Person(name: 'Alice')
+people.get_mut(0) # => mut Person(name: 'Alice')
 ```
 
 If the index is out of bounds, `get` and `get_mut` panic:
@@ -47,7 +47,7 @@ class Person {
   let @name: String
 }
 
-let people = [Person { @name = 'Alice' }]
+let people = [Person(name: 'Alice')]
 
 people.get(42) # => panic
 ```
@@ -60,9 +60,9 @@ class Person {
   let @name: String
 }
 
-let people = [Person { @name = 'Alice' }]
+let people = [Person(name: 'Alice')]
 
-people.get(0)  # => Option.Some(ref Person { @name = 'Alice' })
+people.get(0)  # => Option.Some(ref Person(name: 'Alice'))
 people.get(42) # => Option.None
 ```
 

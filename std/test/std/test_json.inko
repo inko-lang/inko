@@ -10,22 +10,22 @@ fn parse_invalid(input: String) -> Option[String] {
 
 fn pub tests(t: mut Tests) {
   t.test('Error.fmt', fn (t) {
-    let err = Error { @message = 'foo', @line = 1, @offset = 5 }
+    let err = Error(message: 'foo', line: 1, offset: 5)
 
-    t.equal(fmt(err), 'Error { @message = "foo", @line = 1, @offset = 5 }')
+    t.equal(fmt(err), 'Error(message: "foo", line: 1, offset: 5)')
   })
 
   t.test('Error.==', fn (t) {
-    let err1 = Error { @message = 'foo', @line = 1, @offset = 5 }
-    let err2 = Error { @message = 'foo', @line = 1, @offset = 5 }
-    let err3 = Error { @message = 'foo', @line = 1, @offset = 6 }
+    let err1 = Error(message: 'foo', line: 1, offset: 5)
+    let err2 = Error(message: 'foo', line: 1, offset: 5)
+    let err3 = Error(message: 'foo', line: 1, offset: 6)
 
     t.equal(err1, err2)
     t.not_equal(err1, err3)
   })
 
   t.test('Error.to_string', fn (t) {
-    let err = Error { @message = 'foo', @line = 1, @offset = 5 }
+    let err = Error(message: 'foo', line: 1, offset: 5)
 
     t.equal(err.to_string, 'foo, on line 1 at byte offset 5')
   })

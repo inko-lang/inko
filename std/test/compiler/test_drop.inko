@@ -5,7 +5,7 @@ class Value {
   let @dropped: Int
 
   fn static new -> Value {
-    Value { @dropped = 0 }
+    Value(0)
   }
 }
 
@@ -13,7 +13,7 @@ class ValueRef {
   let @value: mut Value
 
   fn static new(value: mut Value) -> ValueRef {
-    ValueRef { @value = value }
+    ValueRef(value)
   }
 }
 
@@ -54,7 +54,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('Assigning a field drops the old value', fn (t) {
     let val = Value.new
-    let box = Box { @value = ValueRef.new(val) }
+    let box = Box(ValueRef.new(val))
 
     box.update(ValueRef.new(val))
     t.equal(val.dropped, 1)
@@ -62,7 +62,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('Assigning a field with a receiver drops the old value', fn (t) {
     let val = Value.new
-    let box = Box { @value = ValueRef.new(val) }
+    let box = Box(ValueRef.new(val))
 
     box.value = ValueRef.new(val)
     t.equal(val.dropped, 1)
@@ -77,14 +77,14 @@ fn pub tests(t: mut Tests) {
   })
 
   t.no_panic('Dropping a class with a cyclic reference', fn {
-    let val_ref = Backref { @target = Option.None }
-    let val = CyclicClass { @backref = val_ref }
+    let val_ref = Backref(Option.None)
+    let val = CyclicClass(val_ref)
 
     val.backref.target = Option.Some(ref val)
   })
 
   t.no_panic('Dropping an enum with a cyclic reference', fn {
-    let val_ref = Backref { @target = Option.None }
+    let val_ref = Backref(Option.None)
     let val = CyclicEnum.Backref(val_ref)
 
     match mut val {

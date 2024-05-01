@@ -83,20 +83,14 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('Formatter.object', fn (t) {
-    t.equal(format(fn (f) { f.object('').finish }), '{}')
+    t.equal(format(fn (f) { f.object('').finish }), '()')
     t.equal(format(fn (f) { f.object('A').finish }), 'A')
-    t.equal(
-      format(fn (f) { f.object('').field('a', 10).finish }),
-      '{ @a = 10 }',
-    )
-    t.equal(
-      format(fn (f) { f.object('A').field('a', 10).finish }),
-      'A { @a = 10 }',
-    )
+    t.equal(format(fn (f) { f.object('').field('a', 10).finish }), '(a: 10)')
+    t.equal(format(fn (f) { f.object('A').field('a', 10).finish }), 'A(a: 10)')
 
     t.equal(
       format(fn (f) { f.object('A').field('a', 10).field('b', 20).finish }),
-      'A { @a = 10, @b = 20 }',
+      'A(a: 10, b: 20)',
     )
 
     let fmt = Formatter.new
@@ -104,6 +98,6 @@ fn pub tests(t: mut Tests) {
     fmt.maximum_depth = 0
     fmt.object('A').field('a', 10).field('b', 20).finish
 
-    t.equal(fmt.into_string, 'A { @a = ..., @b = ... }')
+    t.equal(fmt.into_string, 'A(a: ..., b: ...)')
   })
 }

@@ -451,7 +451,7 @@ trait pub Iter[T] {
   #     iter.next # => Option.Some(1)
   #     iter.next # => Option.Some(2)
   fn pub move peekable -> Peekable[T] {
-    Peekable { @iter = self, @peeked = Option.None }
+    Peekable(iter: self, peeked: Option.None)
   }
 
   # Returns a new iterator that skips the first `amount` values yielded, then
@@ -589,7 +589,7 @@ class pub Stream[T] {
 
   # Returns a new iterator using the closure.
   fn pub static new(func: fn -> Option[T]) -> Stream[T] {
-    Stream { @func = func }
+    Stream(func)
   }
 }
 

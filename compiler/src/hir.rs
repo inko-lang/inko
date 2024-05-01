@@ -348,15 +348,6 @@ pub(crate) struct AssignClassLiteralField {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct ClassLiteral {
-    pub(crate) class_id: Option<types::ClassId>,
-    pub(crate) resolved_type: types::TypeRef,
-    pub(crate) class_name: Constant,
-    pub(crate) fields: Vec<AssignClassLiteralField>,
-    pub(crate) location: SourceLocation,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum TraitExpression {
     InstanceMethod(Box<DefineInstanceMethod>),
     RequiredMethod(Box<DefineRequiredMethod>),
@@ -455,7 +446,6 @@ pub(crate) enum Expression {
     FieldRef(Box<FieldRef>),
     Float(Box<FloatLiteral>),
     IdentifierRef(Box<IdentifierRef>),
-    ClassLiteral(Box<ClassLiteral>),
     Int(Box<IntLiteral>),
     Loop(Box<Loop>),
     Match(Box<Match>),
@@ -495,7 +485,6 @@ impl Expression {
             Expression::FieldRef(ref n) => &n.location,
             Expression::Float(ref n) => &n.location,
             Expression::IdentifierRef(ref n) => &n.location,
-            Expression::ClassLiteral(ref n) => &n.location,
             Expression::Int(ref n) => &n.location,
             Expression::Loop(ref n) => &n.location,
             Expression::Match(ref n) => &n.location,
@@ -611,6 +600,22 @@ pub(crate) struct NamedArgument {
 pub(crate) enum Argument {
     Positional(Box<PositionalArgument>),
     Named(Box<NamedArgument>),
+}
+
+impl Argument {
+    pub fn location(&self) -> &SourceLocation {
+        match self {
+            Argument::Positional(n) => n.value.location(),
+            Argument::Named(n) => &n.location,
+        }
+    }
+
+    pub fn into_value(self) -> Expression {
+        match self {
+            Argument::Positional(n) => n.value,
+            Argument::Named(n) => n.value,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -2199,7 +2204,7 @@ impl<'a> LowerToHir<'a> {
                 Expression::Match(self.match_expression(*node))
             }
             ast::Expression::ClassLiteral(node) => {
-                Expression::ClassLiteral(self.instance_literal(*node))
+                Expression::Call(self.instance_literal(*node))
             }
             ast::Expression::Array(node) => self.array_literal(*node),
             ast::Expression::Tuple(node) => {
@@ -2818,24 +2823,38 @@ impl<'a> LowerToHir<'a> {
         })
     }
 
-    fn instance_literal(
-        &mut self,
-        node: ast::ClassLiteral,
-    ) -> Box<ClassLiteral> {
-        Box::new(ClassLiteral {
-            class_id: None,
-            resolved_type: types::TypeRef::Unknown,
-            class_name: self.constant(node.class_name),
-            fields: node
+    fn instance_literal(&mut self, node: ast::ClassLiteral) -> Box<Call> {
+        self.state.diagnostics.warn(
+            DiagnosticId::Deprecated,
+            format!(
+                "this class literal syntax is deprecated, use {}(...) instead",
+                node.class_name.name,
+            ),
+            self.file(),
+            node.location.clone(),
+        );
+
+        Box::new(Call {
+            kind: types::CallKind::Unknown,
+            receiver: None,
+            name: Identifier {
+                name: node.class_name.name,
+                location: node.class_name.location,
+            },
+            arguments: node
                 .fields
                 .into_iter()
-                .map(|n| AssignClassLiteralField {
-                    resolved_type: types::TypeRef::Unknown,
-                    field_id: None,
-                    field: self.field(n.field),
-                    value: self.expression(n.value),
-                    location: n.location,
-                    expected_type: types::TypeRef::Unknown,
+                .map(|f| {
+                    Argument::Named(Box::new(NamedArgument {
+                        index: 0,
+                        name: Identifier {
+                            name: f.field.name,
+                            location: f.field.location,
+                        },
+                        value: self.expression(f.value),
+                        expected_type: types::TypeRef::Unknown,
+                        location: f.location,
+                    }))
                 })
                 .collect(),
             location: node.location,
@@ -6054,39 +6073,6 @@ mod tests {
                     location: cols(10, 11)
                 }))],
                 location: cols(8, 13)
-            }))
-        );
-    }
-
-    #[test]
-    fn test_lower_instance_literal() {
-        let hir = lower_expr("fn a { A { @a = 10 } }").0;
-
-        assert_eq!(
-            hir,
-            Expression::ClassLiteral(Box::new(ClassLiteral {
-                class_id: None,
-                resolved_type: types::TypeRef::Unknown,
-                class_name: Constant {
-                    name: "A".to_string(),
-                    location: cols(8, 8)
-                },
-                fields: vec![AssignClassLiteralField {
-                    resolved_type: types::TypeRef::Unknown,
-                    field_id: None,
-                    field: Field {
-                        name: "a".to_string(),
-                        location: cols(12, 13)
-                    },
-                    value: Expression::Int(Box::new(IntLiteral {
-                        value: 10,
-                        resolved_type: types::TypeRef::Unknown,
-                        location: cols(17, 18)
-                    })),
-                    location: cols(12, 18),
-                    expected_type: types::TypeRef::Unknown,
-                }],
-                location: cols(8, 20)
             }))
         );
     }

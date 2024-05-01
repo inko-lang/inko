@@ -23,10 +23,10 @@ class Rational {
 
 impl Add[Rational, Rational] for Rational {
   fn pub +(other: ref Rational) -> Rational {
-    Rational {
-      @numerator = @numerator + other.numerator,
-      @denominator = @denominator + other.denominator
-    }
+    Rational(
+      numerator: @numerator + other.numerator,
+      denominator: @denominator + other.denominator
+    )
   }
 }
 ```

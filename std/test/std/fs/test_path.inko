@@ -201,7 +201,7 @@ fn pub tests(t: mut Tests) {
 
       t.equal(
         entry,
-        Option.Some(DirectoryEntry { @path = foo, @type = FileType.Directory }),
+        Option.Some(DirectoryEntry(path: foo, type: FileType.Directory)),
       )
     })
   })

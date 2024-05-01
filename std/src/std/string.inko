@@ -437,7 +437,7 @@ class builtin String {
   #
   #     '😀😃'.chars.next # => Option.Some('😀 ')
   fn pub chars -> Chars {
-    Chars { @string = self, @iter = inko_string_chars(self) }
+    Chars(string: self, iter: inko_string_chars(self))
   }
 
   # Returns a new `String` without the given prefix.
@@ -848,7 +848,7 @@ class pub StringBuffer {
 
   # Returns a new empty `StringBuffer`.
   fn pub static new -> StringBuffer {
-    StringBuffer { @strings = [] }
+    StringBuffer([])
   }
 
   # Returns a new `StringBuffer` from an existing `Array`.
@@ -863,7 +863,7 @@ class pub StringBuffer {
   #
   #     StringBuffer.from_array(strings).to_string # => 'foobar'
   fn pub static from_array(strings: Array[String]) -> StringBuffer {
-    StringBuffer { @strings = strings }
+    StringBuffer(strings)
   }
 
   # Adds the given `String` to the buffer.

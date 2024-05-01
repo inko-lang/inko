@@ -32,7 +32,7 @@ fn extern inko_stderr_flush(process: Pointer[UInt8])
 class pub STDIN {
   # Returns a new handle to the input stream.
   fn pub static new -> STDIN {
-    STDIN {}
+    STDIN()
   }
 }
 
@@ -49,7 +49,7 @@ impl Read for STDIN {
 class pub STDOUT {
   # Returns a new handle to the output stream.
   fn pub static new -> STDOUT {
-    STDOUT {}
+    STDOUT()
   }
 }
 
@@ -80,7 +80,7 @@ impl Write for STDOUT {
 class pub STDERR {
   # Returns a new handle to the error stream.
   fn pub static new -> STDERR {
-    STDERR {}
+    STDERR()
   }
 }
 

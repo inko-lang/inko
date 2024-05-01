@@ -24,7 +24,7 @@ impl Drop for Person {
 
 class async Main {
   fn async main {
-    Person { @name = 'Alice' }
+    Person(name: 'Alice')
   }
 }
 ```
@@ -59,7 +59,7 @@ impl Drop for Person {
 class async Main {
   fn async main {
     let people = []
-    let person = Person { @name = 'Alice', @people = people }
+    let person = Person(name: 'Alice', people: people)
   }
 }
 ```

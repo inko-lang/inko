@@ -121,7 +121,7 @@ class Parser {
   let @index: Int
 
   fn static new(bytes: ref ByteArray) -> Parser {
-    Parser { @index = 0, @bytes = bytes }
+    Parser(index: 0, bytes: bytes)
   }
 
   fn move parse -> Option[Diagnostic] {
@@ -150,14 +150,14 @@ class Parser {
     }
 
     Option.Some(
-      Diagnostic {
-        @id = id,
-        @file = file,
-        @level = level,
-        @message = @bytes.slice(@index, last - @index).into_string,
-        @line = line,
-        @column = col,
-      },
+      Diagnostic(
+        id: id,
+        file: file,
+        level: level,
+        message: @bytes.slice(@index, last - @index).into_string,
+        line: line,
+        column: col,
+      ),
     )
   }
 
@@ -221,14 +221,14 @@ class Diagnostic {
     let message = try string(map, 'message')
 
     Result.Ok(
-      Diagnostic {
-        @id = id,
-        @file = file,
-        @level = level,
-        @line = line,
-        @column = column,
-        @message = message,
-      },
+      Diagnostic(
+        id: id,
+        file: file,
+        level: level,
+        line: line,
+        column: column,
+        message: message,
+      ),
     )
   }
 }

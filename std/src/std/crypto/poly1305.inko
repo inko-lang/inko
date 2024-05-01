@@ -85,22 +85,22 @@ class pub Poly1305 {
       panic('Poly1305 keys must be exactly ${KEY_SIZE} bytes')
     }
 
-    Poly1305 {
-      @block = Block.new(BLOCK_SIZE),
-      @r0 = little.read_u32(from: key, at: 0) & 0x0FFFFFFF,
-      @r1 = little.read_u32(from: key, at: 4) & 0x0FFFFFFC,
-      @r2 = little.read_u32(from: key, at: 8) & 0x0FFFFFFC,
-      @r3 = little.read_u32(from: key, at: 12) & 0x0FFFFFFC,
-      @pad0 = little.read_u32(from: key, at: 16),
-      @pad1 = little.read_u32(from: key, at: 20),
-      @pad2 = little.read_u32(from: key, at: 24),
-      @pad3 = little.read_u32(from: key, at: 28),
-      @h0 = 0,
-      @h1 = 0,
-      @h2 = 0,
-      @h3 = 0,
-      @h4 = 0,
-    }
+    Poly1305(
+      block: Block.new(BLOCK_SIZE),
+      r0: little.read_u32(from: key, at: 0) & 0x0FFFFFFF,
+      r1: little.read_u32(from: key, at: 4) & 0x0FFFFFFC,
+      r2: little.read_u32(from: key, at: 8) & 0x0FFFFFFC,
+      r3: little.read_u32(from: key, at: 12) & 0x0FFFFFFC,
+      pad0: little.read_u32(from: key, at: 16),
+      pad1: little.read_u32(from: key, at: 20),
+      pad2: little.read_u32(from: key, at: 24),
+      pad3: little.read_u32(from: key, at: 28),
+      h0: 0,
+      h1: 0,
+      h2: 0,
+      h3: 0,
+      h4: 0,
+    )
   }
 
   fn mut compress(final: Bool) {

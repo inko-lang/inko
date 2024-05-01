@@ -88,15 +88,14 @@ class pub ObjectFormatter {
     value: ref T,
   ) -> mut ObjectFormatter {
     let start = match @fields {
-      case 0 if @named -> ' {'
-      case 0 -> '{'
-      case _ -> ','
+      case 0 if @named -> '('
+      case 0 -> '('
+      case _ -> ', '
     }
 
     @formatter.write(start)
-    @formatter.write(' @')
     @formatter.write(name)
-    @formatter.write(' = ')
+    @formatter.write(': ')
     @formatter.descend(fn { value.fmt(@formatter) })
     @fields += 1
     self
@@ -110,8 +109,8 @@ class pub ObjectFormatter {
   fn pub mut finish {
     match @fields {
       case 0 if @named -> {}
-      case 0 -> @formatter.write('{}')
-      case _ -> @formatter.write(' }')
+      case 0 -> @formatter.write('()')
+      case _ -> @formatter.write(')')
     }
   }
 }
@@ -126,7 +125,7 @@ class pub Formatter {
 
   # Returns a new `Formatter` with its default settings.
   fn pub static new -> Formatter {
-    Formatter { @buffer = StringBuffer.new, @nesting = 0, @maximum_depth = 10 }
+    Formatter(buffer: StringBuffer.new, nesting: 0, maximum_depth: 10)
   }
 
   # Writes the given `String` into the underlying buffer.
@@ -169,7 +168,7 @@ class pub Formatter {
 
     if named { write(name) }
 
-    TupleFormatter { @formatter = self, @named = named, @fields = 0 }
+    TupleFormatter(formatter: self, named: named, fields: 0)
   }
 
   # Returns a `ArrayFormatter` to make formatting array-like values easy.
@@ -184,7 +183,7 @@ class pub Formatter {
   #     fmt.into_string # => '[10, 20]'
   fn pub mut array -> ArrayFormatter {
     write('[')
-    ArrayFormatter { @formatter = self, @fields = 0 }
+    ArrayFormatter(formatter: self, fields: 0)
   }
 
   # Returns a `ObjectFormatter` to make formatting regular objects easy.
@@ -198,13 +197,13 @@ class pub Formatter {
   #     let fmt = Formatter.new
   #
   #     fmt.object('Person').field('name', 'Alice').field('age', 42).finish
-  #     fmt.into_string # => 'Person { @name = "Alice", @age = 42 }'
+  #     fmt.into_string # => 'Person(name: "Alice", age: 42)'
   fn pub mut object(name: String) -> ObjectFormatter {
     let named = name.size > 0
 
     if named { write(name) }
 
-    ObjectFormatter { @formatter = self, @named = named, @fields = 0 }
+    ObjectFormatter(formatter: self, named: named, fields: 0)
   }
 }
 

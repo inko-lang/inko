@@ -1749,23 +1749,35 @@ impl Document {
     fn class_literal(&mut self, node: &nodes::ClassLiteral) -> Node {
         let gid = self.new_group_id();
         let group = if node.fields.is_empty() {
-            vec![Node::text(&node.class_name.name), Node::text(" {}")]
+            vec![Node::text(&node.class_name.name), Node::text("()")]
+        } else if node.fields.len() == 1 {
+            let vals = self.list(&node.fields, gid, |this, assign| {
+                this.expression(&assign.value)
+            });
+
+            vec![
+                Node::text(&node.class_name.name),
+                Node::text("("),
+                Node::Line,
+                Node::Indent(vals),
+                Node::Line,
+                Node::text(")"),
+            ]
         } else {
             let vals = self.list(&node.fields, gid, |this, assign| {
                 Node::Nodes(vec![
-                    Node::text(&format!("@{}", assign.field.name)),
-                    Node::text(" = "),
+                    Node::text(&format!("{}: ", assign.field.name)),
                     this.expression(&assign.value),
                 ])
             });
 
             vec![
                 Node::text(&node.class_name.name),
-                Node::text(" {"),
-                Node::SpaceOrLine,
+                Node::text("("),
+                Node::Line,
                 Node::Indent(vals),
-                Node::SpaceOrLine,
-                Node::text("}"),
+                Node::Line,
+                Node::text(")"),
             ]
         };
 
@@ -1812,7 +1824,14 @@ impl Document {
 
             let mut args = Vec::new();
 
-            if let Some(node) = node.filter(|n| !n.values.is_empty()) {
+            // For calls such as `User()` we want to retain the parentheses, as
+            // this syntax is also used for creating instances of classes.
+            if node.is_none()
+                && head.is_empty()
+                && name.chars().next().map_or(false, |v| v.is_uppercase())
+            {
+                header.push(Node::text("()"));
+            } else if let Some(node) = node {
                 let list_id = self.new_group_id();
                 let mut list = List::new(list_id, node.values.len());
                 let max = node.values.len() - 1;

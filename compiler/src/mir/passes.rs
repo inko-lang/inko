@@ -1423,7 +1423,6 @@ impl<'a> LowerMethod<'a> {
             hir::Expression::FieldRef(n) => self.field(*n),
             hir::Expression::Float(n) => self.float_literal(*n),
             hir::Expression::IdentifierRef(n) => self.identifier(*n),
-            hir::Expression::ClassLiteral(n) => self.class_literal(*n),
             hir::Expression::Int(n) => self.int_literal(*n),
             hir::Expression::Loop(n) => self.loop_expression(*n),
             hir::Expression::Match(n) => self.match_expression(*n),
@@ -1622,31 +1621,6 @@ impl<'a> LowerMethod<'a> {
         self.current_block_mut().goto(target, loc);
         self.add_edge(source, target);
         self.add_current_block();
-    }
-
-    fn class_literal(&mut self, node: hir::ClassLiteral) -> RegisterId {
-        self.check_inferred(node.resolved_type, &node.location);
-
-        let ins = self.new_register(node.resolved_type);
-        let class = node.class_id.unwrap();
-        let loc = self.add_location(node.location);
-
-        if class.kind(self.db()).is_async() {
-            self.current_block_mut().spawn(ins, class, loc);
-        } else {
-            self.current_block_mut().allocate(ins, class, loc);
-        }
-
-        for field in node.fields {
-            let id = field.field_id.unwrap();
-            let exp = field.expected_type;
-            let val = self.input_expression(field.value, Some(exp));
-            let loc = self.add_location(field.location);
-
-            self.current_block_mut().set_field(ins, class, id, val, loc);
-        }
-
-        ins
     }
 
     fn tuple_literal(&mut self, node: hir::TupleLiteral) -> RegisterId {
@@ -1854,6 +1828,32 @@ impl<'a> LowerMethod<'a> {
 
                 self.get_constant(reg, id, loc);
                 reg
+            }
+            types::CallKind::ClassInstance(info) => {
+                self.check_inferred(info.resolved_type, &node.location);
+
+                let ins = self.new_register(info.resolved_type);
+                let class = info.class_id;
+                let loc = self.add_location(node.location);
+
+                if class.kind(self.db()).is_async() {
+                    self.current_block_mut().spawn(ins, class, loc);
+                } else {
+                    self.current_block_mut().allocate(ins, class, loc);
+                }
+
+                for (arg, (id, exp)) in
+                    node.arguments.into_iter().zip(info.fields.into_iter())
+                {
+                    let loc = self.add_location(arg.location().clone());
+                    let val =
+                        self.input_expression(arg.into_value(), Some(exp));
+
+                    self.current_block_mut()
+                        .set_field(ins, class, id, val, loc);
+                }
+
+                ins
             }
             _ => unreachable!(),
         };

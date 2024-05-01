@@ -18,7 +18,7 @@ class Cat {}
 
 class async Main {
   fn async main {
-    let cats = [Cat {}, Cat {}]
+    let cats = [Cat(), Cat()]
   }
 }
 ```
@@ -40,7 +40,7 @@ class Cat {}
 
 class async Main {
   fn async main {
-    let cats = [Cat {}, Cat {}]
+    let cats = [Cat(), Cat()]
 
     STDOUT.new.print('${cats.size} cats')
   }
@@ -58,7 +58,7 @@ class Cat {}
 
 class async Main {
   fn async main {
-    let cats = [Cat {}, Cat {}]
+    let cats = [Cat(), Cat()]
     let more_cats = cats
 
     STDOUT.new.print('${cats.size} cats')
@@ -98,7 +98,7 @@ class Cat {}
 
 class async Main {
   fn async main {
-    let cats = [Cat {}, Cat {}]
+    let cats = [Cat(), Cat()]
     let more_cats = ref cats
 
     STDOUT.new.print('${cats.size} cats')
@@ -115,7 +115,7 @@ class Cat {}
 
 class async Main {
   fn async main {
-    let cats = [Cat {}, Cat {}]
+    let cats = [Cat(), Cat()]
     let more_cats = mut cats
 
     STDOUT.new.print('${cats.size} cats')
@@ -138,7 +138,7 @@ class Cat {}
 
 class async Main {
   fn async main {
-    let cats = [Cat {}, Cat {}]
+    let cats = [Cat(), Cat()]
     let cats_ref = ref cats
 
     cats_ref.pop
@@ -162,7 +162,7 @@ class Cat {}
 
 class async Main {
   fn async main {
-    let cats = [Cat {}, Cat {}]
+    let cats = [Cat(), Cat()]
     let cats_mut = mut cats
 
     cats_mut.pop
@@ -184,7 +184,7 @@ fn example(person: ref Person) {}
 
 class async Main {
   fn async main {
-    let person = Person { @name = 'Alice' }
+    let person = Person(name: 'Alice')
 
     example(person)
   }
@@ -233,7 +233,7 @@ class Cat {}
 
 class async Main {
   fn async main {
-    let cats = [Cat {}, Cat {}]
+    let cats = [Cat(), Cat()]
     let borrow = ref cats
     let more_cats = cats
 
@@ -272,7 +272,7 @@ class Cat {}
 
 class async Main {
   fn async main {
-    let cats = recover [Cat {}, Cat {}]
+    let cats = recover [Cat(), Cat()]
     let borrow = ref cats
 
     STDOUT.new.print('${cats.size} cats')

@@ -386,7 +386,7 @@ class pub enum Json {
   #
   #     Json.Int(42).query.as_int # => Option.Some(42)
   fn pub query -> Query {
-    Query { @value = Option.Some(self) }
+    Query(Option.Some(self))
   }
 }
 
@@ -504,15 +504,15 @@ class pub Parser {
 
   # Returns a new parser that will parse the given `Bytes` value.
   fn pub static new[T: Bytes](input: ref T) -> Parser {
-    Parser {
-      @input = input.bytes.peekable,
-      @offset = -1,
-      @line = 1,
-      @depth = 0,
-      @max_depth = 100,
-      @max_string_size = 10 * 1024 * 1024,
-      @buffer = ByteArray.new,
-    }
+    Parser(
+      input: input.bytes.peekable,
+      offset: -1,
+      line: 1,
+      depth: 0,
+      max_depth: 100,
+      max_string_size: 10 * 1024 * 1024,
+      buffer: ByteArray.new,
+    )
   }
 
   # Parses the input into a JSON object.
@@ -927,7 +927,7 @@ class pub Parser {
   }
 
   fn error(message: String) -> Error {
-    Error { @message = message, @line = @line, @offset = @offset }
+    Error(message: message, line: @line, offset: @offset)
   }
 }
 
@@ -948,12 +948,12 @@ class pub Generator {
   # level. If this value is less than or equal to zero, no indentation is
   # applied.
   fn pub static new(indent: Int) -> Generator {
-    Generator {
-      @pretty = indent > 0,
-      @spaces = ' '.repeat(indent),
-      @depth = 0,
-      @buffer = StringBuffer.new,
-    }
+    Generator(
+      pretty: indent > 0,
+      spaces: ' '.repeat(indent),
+      depth: 0,
+      buffer: StringBuffer.new,
+    )
   }
 
   # Generates a JSON string for the given `Json` value.

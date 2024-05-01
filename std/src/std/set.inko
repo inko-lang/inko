@@ -16,7 +16,7 @@ class pub Set[V: Equal[ref V] + Hash] {
   let @map: Map[V, Bool]
 
   fn pub static new -> Set[V] {
-    Set { @map = Map.new }
+    Set(Map.new)
   }
 
   # Inserts a new value into the `Set`.

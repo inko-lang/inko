@@ -366,16 +366,7 @@ class pub Ipv6Address {
     g: Int,
     h: Int,
   ) -> Ipv6Address {
-    Ipv6Address {
-      @a = a,
-      @b = b,
-      @c = c,
-      @d = d,
-      @e = e,
-      @f = f,
-      @g = g,
-      @h = h,
-    }
+    Ipv6Address(a: a, b: b, c: c, d: d, e: e, f: f, g: g, h: h)
   }
 
   # Returns `true` if `self` is an IPv4-compatible IPv6 address.
@@ -618,16 +609,7 @@ impl IntoString for Ipv6Address {
 
 impl Clone[Ipv6Address] for Ipv6Address {
   fn pub clone -> Ipv6Address {
-    Ipv6Address {
-      @a = @a,
-      @b = @b,
-      @c = @c,
-      @d = @d,
-      @e = @e,
-      @f = @f,
-      @g = @g,
-      @h = @h,
-    }
+    Ipv6Address(a: @a, b: @b, c: @c, d: @d, e: @e, f: @f, g: @g, h: @h)
   }
 }
 
@@ -677,18 +659,18 @@ class pub Ipv4Address {
     if segments.size != IPV4_OCTETS { return Option.None }
 
     Option.Some(
-      Ipv4Address {
-        @a = segments.get(0),
-        @b = segments.get(1),
-        @c = segments.get(2),
-        @d = segments.get(3),
-      },
+      Ipv4Address(
+        a: segments.get(0),
+        b: segments.get(1),
+        c: segments.get(2),
+        d: segments.get(3),
+      ),
     )
   }
 
   # Returns a new IPv4 address using the given octets.
   fn pub static new(a: Int, b: Int, c: Int, d: Int) -> Ipv4Address {
-    Ipv4Address { @a = a, @b = b, @c = c, @d = d }
+    Ipv4Address(a: a, b: b, c: c, d: d)
   }
 
   # Returns `true` if `self` is a broadcast address (255.255.255.255).
@@ -904,6 +886,6 @@ impl IntoString for Ipv4Address {
 
 impl Clone[Ipv4Address] for Ipv4Address {
   fn pub clone -> Ipv4Address {
-    Ipv4Address { @a = @a, @b = @b, @c = @c, @d = @d }
+    Ipv4Address(a: @a, b: @b, c: @c, d: @d)
   }
 }

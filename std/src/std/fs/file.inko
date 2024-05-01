@@ -93,7 +93,7 @@ class pub ReadOnlyFile {
 
     match inko_file_open(_INKO.process, path.to_string, FILE_READ_ONLY) {
       case { @tag = 0, @value = v } -> {
-        Result.Ok(ReadOnlyFile { @path = path, @fd = v })
+        Result.Ok(ReadOnlyFile(path: path, fd: v))
       }
       case { @tag = _, @value = e } -> {
         Result.Error(Error.from_os_error(e as Int))
@@ -155,7 +155,7 @@ class pub WriteOnlyFile {
 
     match inko_file_open(_INKO.process, path.to_string, FILE_WRITE_ONLY) {
       case { @tag = 0, @value = v } -> {
-        Result.Ok(WriteOnlyFile { @path = path, @fd = v })
+        Result.Ok(WriteOnlyFile(path: path, fd: v))
       }
       case { @tag = _, @value = e } -> {
         Result.Error(Error.from_os_error(e as Int))
@@ -175,7 +175,7 @@ class pub WriteOnlyFile {
 
     match inko_file_open(_INKO.process, path.to_string, FILE_APPEND_ONLY) {
       case { @tag = 0, @value = v } -> {
-        Result.Ok(WriteOnlyFile { @path = path, @fd = v })
+        Result.Ok(WriteOnlyFile(path: path, fd: v))
       }
       case { @tag = _, @value = e } -> {
         Result.Error(Error.from_os_error(e as Int))
@@ -247,7 +247,7 @@ class pub ReadWriteFile {
 
     match inko_file_open(_INKO.process, path.to_string, FILE_READ_WRITE) {
       case { @tag = 0, @value = v } -> {
-        Result.Ok(ReadWriteFile { @path = path, @fd = v })
+        Result.Ok(ReadWriteFile(path: path, fd: v))
       }
       case { @tag = _, @value = e } -> {
         Result.Error(Error.from_os_error(e as Int))
@@ -267,7 +267,7 @@ class pub ReadWriteFile {
 
     match inko_file_open(_INKO.process, path.to_string, FILE_READ_APPEND) {
       case { @tag = 0, @value = v } -> {
-        Result.Ok(ReadWriteFile { @path = path, @fd = v })
+        Result.Ok(ReadWriteFile(path: path, fd: v))
       }
       case { @tag = _, @value = e } -> {
         Result.Error(Error.from_os_error(e as Int))

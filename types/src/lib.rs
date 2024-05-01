@@ -2643,6 +2643,13 @@ pub struct FieldInfo {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ClassInstanceInfo {
+    pub class_id: ClassId,
+    pub resolved_type: TypeRef,
+    pub fields: Vec<(FieldId, TypeRef)>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CallKind {
     Unknown,
     Call(CallInfo),
@@ -2652,6 +2659,7 @@ pub enum CallKind {
     GetConstant(ConstantId),
     ReadPointer(TypeRef),
     WritePointer,
+    ClassInstance(ClassInstanceInfo),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -208,7 +208,7 @@ class async Example {
 
 class async Main {
   fn async main {
-    Example { @numbers = recover [10, 20] }
+    Example(numbers: recover [10, 20])
   }
 }
 ```
@@ -242,7 +242,7 @@ class async Counter {
 
 class async Main {
   fn async main {
-    let counter = Counter { @value = 0 }
+    let counter = Counter(value: 0)
     let output = Channel.new(size: 1)
 
     counter.increment

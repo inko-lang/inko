@@ -91,15 +91,15 @@ class pub Md5 {
 
   # Returns a new instance of the hasher.
   fn pub static new -> Md5 {
-    Md5 {
-      @block = Block.new(BLOCK_SIZE),
-      @words = Array.filled(with: 0, times: 16),
-      @size = 0,
-      @a = 0x67452301,
-      @b = 0xEFCDAB89,
-      @c = 0x98BADCFE,
-      @d = 0x10325476,
-    }
+    Md5(
+      block: Block.new(BLOCK_SIZE),
+      words: Array.filled(with: 0, times: 16),
+      size: 0,
+      a: 0x67452301,
+      b: 0xEFCDAB89,
+      c: 0x98BADCFE,
+      d: 0x10325476,
+    )
   }
 
   fn mut compress {

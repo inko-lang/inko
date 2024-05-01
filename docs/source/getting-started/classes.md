@@ -45,17 +45,6 @@ class Person {
 
 Here the `name` method just returns the value of the `@name` field.
 
-We don't need to define getter and setter methods for fields though, as Inko
-allows you to get and set field values directly:
-
-```inko
-let alice = Person { @name = 'Alice', @age = 42 }
-
-alice.name # => 'Alice'
-alice.name = 'Bob'
-alice.name # => 'Bob'
-```
-
 The type fields are exposed as depends on the kind of method the field is used
 in. If a method is immutable, the field type is `ref T`. If the method is
 mutable, the type of a field is instead `mut T`, unless it's defined as a
@@ -115,11 +104,33 @@ class Person {
 An instance of a class is created as follows:
 
 ```inko
-Person { @name = 'Alice', @age = 42 }
+Person(name: 'Alice', age: 42)
 ```
 
 Here we create a `Person` instance with the `name` field set to `'Alice'`, and
-the `age` field set to `42`.
+the `age` field set to `42`. We can also use positional arguments, in which case
+the order of arguments must match the order in which fields are defined:
+
+```inko
+Person('Alice', 42)
+```
+
+::: tip
+It's recommended to avoid the use of positional arguments when a class defines
+more than one field. This ensures that if the order of fields changes, you don't
+need to update every line of code that creates an instance of the class.
+:::
+
+The fields of an instance can be read from and written to directly, meaning we
+don't need to define getter and setter methods:
+
+```inko
+let alice = Person(name: 'Alice', age: 42)
+
+alice.name # => 'Alice'
+alice.name = 'Bob'
+alice.name # => 'Bob'
+```
 
 Sometimes creating an instance of a class involves complex logic to assign
 values to certain fields. In this case it's best to create a static method to
@@ -131,7 +142,7 @@ class Person {
   let @age: Int
 
   fn static new(name: String, age: Int) -> Person {
-    Person { @name = name, @age = age }
+    Person(name: name, age: age)
   }
 }
 ```
@@ -177,7 +188,7 @@ We can then create an instance of the `Some` case as follows:
 OptionalString.Some('hello')
 ```
 
-Unlike other types of classes, you can't use the syntax `OptionalString { ... }`
+Unlike other types of classes, you can't use the syntax `OptionalString(...)`
 to create an instance of an enum class.
 
 ## Processes
@@ -203,7 +214,7 @@ class async Cat {
 Creating instances of such classes is done the same way as with regular classes:
 
 ```inko
-Cat { @name = 'Garfield' }
+Cat(name: 'Garfield')
 ```
 
 Processes can define `async` methods that can be called by other processes:

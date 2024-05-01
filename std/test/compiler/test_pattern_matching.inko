@@ -63,7 +63,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.no_panic("match doesn't drop deeply nested bindings prematurely", fn {
-    let trans = Transition.Split(Transition.Empty(Dummy {}))
+    let trans = Transition.Split(Transition.Empty(Dummy()))
 
     match ref trans {
       case Split(Empty(_state1)) -> {}
@@ -85,7 +85,7 @@ fn pub tests(t: mut Tests) {
   # This fails because `_b` still contains a ref to `a`, which would be invalid
   # after the match expression.
   t.panic('Destructuring an owned value with existing references', fn {
-    let a = Person { @name = 'Alice' }
+    let a = Person('Alice')
     let _b = ref a
 
     match a {

@@ -10,7 +10,7 @@ class Buffer {
   let @bytes: mut ByteArray
 
   fn static new(bytes: mut ByteArray) -> Buffer {
-    Buffer { @bytes = bytes }
+    Buffer(bytes)
   }
 }
 

@@ -43,15 +43,15 @@ class pub SipHasher13 {
   # Both keys _should_ be randomly generated. The type `std.rand.Random` can
   # be used to generate these keys.
   fn pub static new(key0: Int, key1: Int) -> SipHasher13 {
-    SipHasher13 {
-      @size = 0,
-      @m_index = 0,
-      @m = 0,
-      @v0 = 0x736F6D6570736575 ^ key0,
-      @v1 = 0x646F72616E646F6D ^ key1,
-      @v2 = 0x6C7967656E657261 ^ key0,
-      @v3 = 0x7465646279746573 ^ key1,
-    }
+    SipHasher13(
+      size: 0,
+      m_index: 0,
+      m: 0,
+      v0: 0x736F6D6570736575 ^ key0,
+      v1: 0x646F72616E646F6D ^ key1,
+      v2: 0x6C7967656E657261 ^ key0,
+      v3: 0x7465646279746573 ^ key1,
+    )
   }
 
   fn mut round {

@@ -310,7 +310,7 @@ class extern Timespec {
 
 class async Main {
   fn async main {
-    Timespec { @tv_sec = 123 as Int64, @tv_nsec = 456 as Int64 }
+    Timespec(tv_sec: 123 as Int64, tv_nsec: 456 as Int64)
   }
 }
 ```
@@ -327,7 +327,7 @@ class extern Timespec {
 
 class async Main {
   fn async main {
-    let spec = Timespec { @tv_sec = 123 as Int64, @tv_nsec = 456 as Int64 }
+    let spec = Timespec(tv_sec: 123 as Int64, tv_nsec: 456 as Int64)
 
     spec.tv_sec = 1000 as Int64
   }
@@ -358,8 +358,8 @@ class Box {
 class async Main {
   fn async main {
     let out = STDOUT.new
-    let spec = Timespec { @tv_sec = 123 as Int64, @tv_nsec = 456 as Int64 }
-    let box = Box { @time = spec }
+    let spec = Timespec(tv_sec: 123 as Int64, tv_nsec: 456 as Int64)
+    let box = Box(time: spec)
 
     box.time.tv_sec = 400 as Int64
     out.print((box.time.tv_sec as Int).to_string) # => 400
@@ -396,7 +396,7 @@ fn extern clock_gettime(id: Int32, time: Pointer[Timespec]) -> Int32
 class async Main {
   fn async main {
     let out = STDOUT.new
-    let spec = Timespec { @tv_sec = 0 as Int64, @tv_nsec = 0 as Int64 }
+    let spec = Timespec(tv_sec: 0 as Int64, tv_nsec: 0 as Int64)
 
     clock_gettime(CLOCK_REALTIME as Int32, mut spec)
 
@@ -454,11 +454,11 @@ class extern Timespec {
 class async Main {
   fn async main {
     let out = STDOUT.new
-    let spec = Timespec { @tv_sec = 0 as Int64, @tv_nsec = 0 as Int64 }
+    let spec = Timespec(tv_sec: 0 as Int64, tv_nsec: 0 as Int64)
     let ptr = mut spec
 
     # This writes an entirely new value to the pointer.
-    ptr.0 = Timespec { @tv_sec = 400 as Int64, @tv_nsec = 0 as Int64 }
+    ptr.0 = Timespec(tv_sec: 400 as Int64, tv_nsec: 0 as Int64)
 
     # This prints `tv_sec` of a _copy_ of the Timespec structure, because the
     # dereference using `ptr.0` returns a _copy_.
@@ -482,7 +482,7 @@ class extern Timespec {
 class async Main {
   fn async main {
     let out = STDOUT.new
-    let spec = Timespec { @tv_sec = 0 as Int64, @tv_nsec = 0 as Int64 }
+    let spec = Timespec(tv_sec: 0 as Int64, tv_nsec: 0 as Int64)
     let ptr = mut spec
 
     # This modifies the data `ptr` points to, not a copy, resulting in `spec`
@@ -519,7 +519,7 @@ class extern Timespec {
 class async Main {
   fn async main {
     let out = STDOUT.new
-    let spec = Timespec { @tv_sec = 0 as Int64, @tv_nsec = 0 as Int64 }
+    let spec = Timespec(tv_sec: 0 as Int64, tv_nsec: 0 as Int64)
     let ptr = mut spec
 
     (ptr as Int + 8 as Pointer[Int64]).0 = 400 as Int64
@@ -556,7 +556,7 @@ fn extern clock_gettime(id: Int32, time: Pointer[Timespec]) -> Int32
 class async Main {
   fn async main {
     let out = STDOUT.new
-    let spec = Timespec { @tv_sec = 0 as Int64, @tv_nsec = 0 as Int64 }
+    let spec = Timespec(tv_sec: 0 as Int64, tv_nsec: 0 as Int64)
     let res = clock_gettime(CLOCK_REALTIME as Int32, mut spec)
     let err = Error.last_os_error
 

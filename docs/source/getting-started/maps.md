@@ -45,10 +45,10 @@ class Person {
 
 let people = Map.new
 
-people.set('alice', Person { @name = 'Alice' })
+people.set('alice', Person(name: 'Alice'))
 
-people.get('alice')     # => ref Person { @name = 'Alice' }
-people.get_mut('alice') # => mut Person { @name = 'Alice' }
+people.get('alice')     # => ref Person(name: 'Alice')
+people.get_mut('alice') # => mut Person(name: 'Alice')
 ```
 
 If the key doesn't exist, `get` and `get_mut` panic:
@@ -60,7 +60,7 @@ class Person {
 
 let people = Map.new
 
-people.set('alice', Person { @name = 'Alice' })
+people.set('alice', Person(name: 'Alice'))
 
 people.get('bob') # => panic
 ```
@@ -75,10 +75,10 @@ class Person {
 
 let people = Map.new
 
-people.set('alice', Person { @name = 'Alice' })
+people.set('alice', Person(name: 'Alice'))
 
-people.opt('alice')     # => Option.Some(ref Person { @name = 'Alice' })
-people.opt_mut('alice') # => Option.Some(mut Person { @name = 'Alice' })
+people.opt('alice')     # => Option.Some(ref Person(name: 'Alice'))
+people.opt_mut('alice') # => Option.Some(mut Person(name: 'Alice'))
 people.opt('bob')       # => Option.None
 ```
 

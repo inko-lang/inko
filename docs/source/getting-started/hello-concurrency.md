@@ -21,8 +21,8 @@ class async Printer {
 
 class async Main {
   fn async main {
-    Printer {}.print('Hello')
-    Printer {}.print('world')
+    Printer().print('Hello')
+    Printer().print('world')
     sleep(Duration.from_millis(500))
   }
 }
@@ -47,11 +47,11 @@ Inko uses "lightweight processes" for concurrency. Such processes are defined
 using the syntax `class async`, such as `class async Printer { ... }` in our
 program.
 
-We can create instances of these processes using the syntax `Printer {}`. For
-such a process to do anything, we must send it a message. In our program we do
-this using `print(...)`, where "print" is the message, defined using the
-`fn async` syntax. The details of how this works, what to keep in mind, etc, are
-covered separately.
+We create instances of these processes using the syntax `Printer()`. For such a
+process to do anything, we must send it a message. In our program we do this
+using `print(...)`, where "print" is the message, defined using the `fn async`
+syntax. The details of how this works, what to keep in mind, etc, are covered
+separately.
 
 The `sleep(...)` line is needed such that the main process (defined using
 `class async Main`) doesn't stop before the `Printer` processes print the
@@ -78,8 +78,8 @@ class async Main {
   fn async main {
     let channel = Channel.new(size: 2)
 
-    Printer {}.print('Hello', channel)
-    Printer {}.print('world', channel)
+    Printer().print('Hello', channel)
+    Printer().print('world', channel)
     channel.receive
     channel.receive
   }

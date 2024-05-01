@@ -119,7 +119,7 @@ class Person {
   let @age: Int
 }
 
-let person = Person { @name = 'Alice', @age = 42 }
+let person = Person(name: 'Alice', age: 42)
 
 match person {
   case { @name = name, @age = 42 } -> name

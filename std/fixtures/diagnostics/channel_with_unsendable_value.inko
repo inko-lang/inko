@@ -2,7 +2,7 @@ class Thing {}
 
 fn foo {
   let chan: Channel[Array[ref Thing]] = Channel.new(size: 1)
-  let thing = Thing {}
+  let thing = Thing()
 
   chan.send([ref thing])
 }
@@ -10,8 +10,8 @@ fn foo {
 fn bar {
   let chan: Channel[Thing] = Channel.new(size: 1)
 
-  chan.send(Thing {})
-  chan.send(recover Thing {})
+  chan.send(Thing())
+  chan.send(recover Thing())
 }
 
 # channel_with_unsendable_value.inko:7:13 error(invalid-type): expected a value of type 'uni Array[ref Thing]', found 'Array[ref Thing]'

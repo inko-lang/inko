@@ -32,7 +32,7 @@ impl ToString for Cat {
 
 class async Main {
   fn async main {
-    let garfield = Cat { @name = 'Garfield' }
+    let garfield = Cat(name: 'Garfield')
 
     STDOUT.new.print(garfield.to_string)
   }
@@ -70,7 +70,7 @@ impl ToString for Cat {
 
 class async Main {
   fn async main {
-    let garfield = Cat { @name = 'Garfield' }
+    let garfield = Cat(name: 'Garfield')
 
     STDOUT.new.print(garfield.to_string)
   }
@@ -101,7 +101,7 @@ impl ToString for Cat {
 
 class async Main {
   fn async main {
-    let garfield = Cat { @name = 'Garfield' }
+    let garfield = Cat(name: 'Garfield')
 
     STDOUT.new.print(garfield.to_string)
   }

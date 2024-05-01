@@ -1393,9 +1393,6 @@ impl<'a> CheckMethodBody<'a> {
             hir::Expression::IdentifierRef(ref mut n) => {
                 self.identifier(n, scope, false)
             }
-            hir::Expression::ClassLiteral(ref mut n) => {
-                self.class_literal(n, scope)
-            }
             hir::Expression::Int(ref mut n) => self.int_literal(n, scope),
             hir::Expression::Loop(ref mut n) => self.loop_expression(n, scope),
             hir::Expression::Match(ref mut n) => {
@@ -1561,159 +1558,6 @@ impl<'a> CheckMethodBody<'a> {
         node.class_id = Some(class);
         node.resolved_type = tuple;
         node.value_types = types;
-        node.resolved_type
-    }
-
-    fn class_literal(
-        &mut self,
-        node: &mut hir::ClassLiteral,
-        scope: &mut LexicalScope,
-    ) -> TypeRef {
-        let name = &node.class_name.name;
-        let class = if let Some(Symbol::Class(id)) =
-            self.module.symbol(self.db(), name)
-        {
-            id
-        } else {
-            self.state.diagnostics.error(
-                DiagnosticId::InvalidType,
-                format!("'{}' isn't a class", name),
-                self.file(),
-                node.class_name.location.clone(),
-            );
-
-            return TypeRef::Error;
-        };
-
-        if class.is_builtin() && !self.module.is_std(self.db()) {
-            self.state.diagnostics.error(
-                DiagnosticId::InvalidType,
-                "instances of builtin classes can't be created using the \
-                class literal syntax",
-                self.file(),
-                node.location.clone(),
-            );
-        }
-
-        let require_send = class.kind(self.db()).is_async();
-        let ins = ClassInstance::empty(self.db_mut(), class);
-        let mut assigned = HashSet::new();
-
-        for field in &mut node.fields {
-            let name = &field.field.name;
-            let field_id = if let Some(id) = class.field(self.db(), name) {
-                id
-            } else {
-                self.state.diagnostics.error(
-                    DiagnosticId::InvalidSymbol,
-                    format!("the field '{}' is undefined", name),
-                    self.file(),
-                    field.field.location.clone(),
-                );
-
-                continue;
-            };
-
-            if !field_id.is_visible_to(self.db(), self.module) {
-                self.state.diagnostics.private_field(
-                    name,
-                    self.file(),
-                    node.location.clone(),
-                );
-            }
-
-            let targs = ins.type_arguments(self.db()).clone();
-
-            // The field type is the _raw_ type, but we want one that takes into
-            // account what we have inferred thus far. Consider the following
-            // code:
-            //
-            //     class Foo[T] {
-            //       let @a: Option[Option[T]]
-            //     }
-            //
-            //     Foo { @a = Option.None } as Foo[Int]
-            //
-            // When comparing the `Option.None` against `Option[Option[T]]`, we
-            // want to make sure that the `T` is later (as part of the cast)
-            // inferred as `Int`. If we use the raw type as-is this won't
-            // happen, because the inner `Option[T]` won't use a type
-            // placeholder as the value assigned to `T`, instead using `T`
-            // itself.
-            //
-            // Failing to handle this correctly will break type specialization,
-            // as we'd end up trying to specialize the `T` in the inner
-            // `Option[T]` without a meaningful type being assigned to it.
-            let expected = {
-                let raw = field_id.value_type(self.db());
-                let bounds = TypeBounds::new();
-
-                TypeResolver::new(self.db_mut(), &targs, &bounds).resolve(raw)
-            };
-
-            field.expected_type = expected;
-
-            let value = self.expression(&mut field.value, scope);
-            let value_casted = value.cast_according_to(expected, self.db());
-            let checker = TypeChecker::new(self.db());
-            let mut env =
-                Environment::new(value_casted.type_arguments(self.db()), targs);
-
-            if !checker.run(value_casted, expected, &mut env) {
-                self.state.diagnostics.type_error(
-                    format_type_with_arguments(self.db(), &env.left, value),
-                    format_type_with_arguments(self.db(), &env.right, expected),
-                    self.file(),
-                    field.value.location().clone(),
-                );
-            }
-
-            // The values assigned to fields of processes must be sendable as
-            // part of the assignment. If the value is a `recover` expression
-            // that returns an owned value we _do_ allow this, because at that
-            // point the owned value is sendable.
-            if require_send
-                && !value.is_sendable(self.db())
-                && !field.value.is_recover()
-            {
-                self.state.diagnostics.unsendable_field_value(
-                    name,
-                    format_type(self.db(), value),
-                    self.file(),
-                    field.value.location().clone(),
-                );
-            }
-
-            if assigned.contains(name) {
-                self.state.diagnostics.error(
-                    DiagnosticId::DuplicateSymbol,
-                    format!("the field '{}' is already assigned", name),
-                    self.file(),
-                    field.field.location.clone(),
-                );
-            }
-
-            field.field_id = Some(field_id);
-            field.resolved_type = expected;
-
-            assigned.insert(name);
-        }
-
-        for field in class.field_names(self.db()) {
-            if assigned.contains(&field) {
-                continue;
-            }
-
-            self.state.diagnostics.error(
-                DiagnosticId::MissingField,
-                format!("the field '{}' must be assigned a value", field),
-                self.file(),
-                node.location.clone(),
-            );
-        }
-
-        node.class_id = Some(class);
-        node.resolved_type = TypeRef::Owned(TypeId::ClassInstance(ins));
         node.resolved_type
     }
 
@@ -3866,32 +3710,36 @@ impl<'a> CheckMethodBody<'a> {
                     return TypeRef::Error;
                 }
                 MethodLookup::None => {
-                    if let Some(Symbol::Method(method)) =
-                        self.module.symbol(self.db(), name)
-                    {
-                        // The receiver of imported module methods is the module
-                        // they are defined in.
-                        //
-                        // Private module methods can't be imported, so we don't
-                        // need to check the visibility here.
-                        let mod_id = method.module(self.db());
-                        let id = TypeId::Module(mod_id);
-                        let mod_typ = TypeRef::Owned(id);
+                    match self.module.symbol(self.db(), name) {
+                        Some(Symbol::Method(method)) => {
+                            // The receiver of imported module methods is the
+                            // module they are defined in.
+                            //
+                            // Private module methods can't be imported, so we
+                            // don't need to check the visibility here.
+                            let mod_id = method.module(self.db());
+                            let id = TypeId::Module(mod_id);
+                            let mod_typ = TypeRef::Owned(id);
 
-                        (
-                            Receiver::with_module(self.db(), method),
-                            mod_typ,
-                            id,
-                            method,
-                        )
-                    } else {
-                        self.state.diagnostics.undefined_symbol(
-                            name,
-                            self.file(),
-                            node.location.clone(),
-                        );
+                            (
+                                Receiver::with_module(self.db(), method),
+                                mod_typ,
+                                id,
+                                method,
+                            )
+                        }
+                        Some(Symbol::Class(id)) => {
+                            return self.new_class_instance(node, scope, id);
+                        }
+                        _ => {
+                            self.state.diagnostics.undefined_symbol(
+                                name,
+                                self.file(),
+                                node.location.clone(),
+                            );
 
-                        return TypeRef::Error;
+                            return TypeRef::Error;
+                        }
                     }
                 }
             };
@@ -3923,6 +3771,181 @@ impl<'a> CheckMethodBody<'a> {
         });
 
         returns
+    }
+
+    fn new_class_instance(
+        &mut self,
+        node: &mut hir::Call,
+        scope: &mut LexicalScope,
+        class: ClassId,
+    ) -> TypeRef {
+        if class.is_builtin() && !self.module.is_std(self.db()) {
+            self.state.diagnostics.error(
+                DiagnosticId::InvalidType,
+                "instances of builtin classes can't be created using the \
+                class literal syntax",
+                self.file(),
+                node.location.clone(),
+            );
+        }
+
+        let require_send = class.kind(self.db()).is_async();
+        let ins = ClassInstance::empty(self.db_mut(), class);
+        let mut assigned = HashSet::new();
+        let mut fields = Vec::new();
+
+        for (idx, arg) in node.arguments.iter_mut().enumerate() {
+            let (field, val_expr) = match arg {
+                hir::Argument::Positional(n) => {
+                    let field =
+                        if let Some(v) = class.field_by_index(self.db(), idx) {
+                            v
+                        } else {
+                            let num = class.number_of_fields(self.db());
+
+                            self.state.diagnostics.error(
+                                DiagnosticId::InvalidSymbol,
+                                format!(
+                                    "the field index {} is out of bounds \
+                                    (total number of fields: {})",
+                                    idx, num,
+                                ),
+                                self.file(),
+                                n.value.location().clone(),
+                            );
+
+                            continue;
+                        };
+
+                    (field, &mut n.value)
+                }
+                hir::Argument::Named(n) => {
+                    let field =
+                        if let Some(v) = class.field(self.db(), &n.name.name) {
+                            v
+                        } else {
+                            self.state.diagnostics.error(
+                                DiagnosticId::InvalidSymbol,
+                                format!(
+                                    "the field '{}' is undefined",
+                                    &n.name.name
+                                ),
+                                self.file(),
+                                n.location.clone(),
+                            );
+
+                            continue;
+                        };
+
+                    (field, &mut n.value)
+                }
+            };
+
+            let name = field.name(self.db()).clone();
+
+            if !field.is_visible_to(self.db(), self.module) {
+                self.state.diagnostics.private_field(
+                    &name,
+                    self.file(),
+                    node.location.clone(),
+                );
+            }
+
+            let targs = ins.type_arguments(self.db()).clone();
+
+            // The field type is the _raw_ type, but we want one that takes into
+            // account what we have inferred thus far. Consider the following
+            // code:
+            //
+            //     class Foo[T] {
+            //       let @a: Option[Option[T]]
+            //     }
+            //
+            //     Foo { @a = Option.None } as Foo[Int]
+            //
+            // When comparing the `Option.None` against `Option[Option[T]]`, we
+            // want to make sure that the `T` is later (as part of the cast)
+            // inferred as `Int`. If we use the raw type as-is this won't
+            // happen, because the inner `Option[T]` won't use a type
+            // placeholder as the value assigned to `T`, instead using `T`
+            // itself.
+            //
+            // Failing to handle this correctly will break type specialization,
+            // as we'd end up trying to specialize the `T` in the inner
+            // `Option[T]` without a meaningful type being assigned to it.
+            let expected = {
+                let raw = field.value_type(self.db());
+                let bounds = TypeBounds::new();
+
+                TypeResolver::new(self.db_mut(), &targs, &bounds).resolve(raw)
+            };
+
+            let value = self.expression(val_expr, scope);
+            let value_casted = value.cast_according_to(expected, self.db());
+            let checker = TypeChecker::new(self.db());
+            let mut env =
+                Environment::new(value_casted.type_arguments(self.db()), targs);
+
+            if !checker.run(value_casted, expected, &mut env) {
+                self.state.diagnostics.type_error(
+                    format_type_with_arguments(self.db(), &env.left, value),
+                    format_type_with_arguments(self.db(), &env.right, expected),
+                    self.file(),
+                    val_expr.location().clone(),
+                );
+            }
+
+            // The values assigned to fields of processes must be sendable as
+            // part of the assignment. If the value is a `recover` expression
+            // that returns an owned value we _do_ allow this, because at that
+            // point the owned value is sendable.
+            if require_send
+                && !value.is_sendable(self.db())
+                && !val_expr.is_recover()
+            {
+                self.state.diagnostics.unsendable_field_value(
+                    &name,
+                    format_type(self.db(), value),
+                    self.file(),
+                    val_expr.location().clone(),
+                );
+            }
+
+            if assigned.contains(&name) {
+                self.state.diagnostics.error(
+                    DiagnosticId::DuplicateSymbol,
+                    format!("the field '{}' is already assigned", name),
+                    self.file(),
+                    arg.location().clone(),
+                );
+            }
+
+            assigned.insert(name);
+            fields.push((field, expected));
+        }
+
+        for field in class.field_names(self.db()) {
+            if assigned.contains(&field) {
+                continue;
+            }
+
+            self.state.diagnostics.error(
+                DiagnosticId::MissingField,
+                format!("the field '{}' must be assigned a value", field),
+                self.file(),
+                node.location.clone(),
+            );
+        }
+
+        let resolved_type = TypeRef::Owned(TypeId::ClassInstance(ins));
+
+        node.kind = CallKind::ClassInstance(types::ClassInstanceInfo {
+            class_id: class,
+            resolved_type,
+            fields,
+        });
+
+        resolved_type
     }
 
     fn field_with_receiver(

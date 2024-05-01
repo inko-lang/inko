@@ -22,14 +22,14 @@ class SocketPath {
     let _ = p1.remove_file
     let _ = p2.remove_file
 
-    (SocketPath { @path = p1 }, SocketPath { @path = p2 })
+    (SocketPath(p1), SocketPath(p2))
   }
 
   fn static new(id: Int) -> SocketPath {
     let path = env.temporary_directory.join('inko-test-${id}.sock')
     let _ = path.remove_file
 
-    SocketPath { @path = path }
+    SocketPath(path)
   }
 }
 

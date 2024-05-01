@@ -53,7 +53,7 @@ class pub Duration {
   #
   #     Duration.from_secs(10.5)
   fn pub static from_secs[T: ToFloat](secs: ref T) -> Duration {
-    Duration { @nanos = (secs.to_float * NANOS_PER_SEC).to_int }
+    Duration((secs.to_float * NANOS_PER_SEC).to_int)
   }
 
   # Creates a new `Duration` from the given number of milliseconds.
@@ -64,7 +64,7 @@ class pub Duration {
   #
   #     Duration.from_millis(10)
   fn pub static from_millis[T: ToInt](millis: ref T) -> Duration {
-    Duration { @nanos = millis.to_int * MICROS_PER_SEC }
+    Duration(millis.to_int * MICROS_PER_SEC)
   }
 
   # Creates a new `Duration` from the given number of microseconds.
@@ -75,7 +75,7 @@ class pub Duration {
   #
   #     Duration.from_micros(10)
   fn pub static from_micros[T: ToInt](micros: ref T) -> Duration {
-    Duration { @nanos = micros.to_int * MILLIS_PER_SEC }
+    Duration(micros.to_int * MILLIS_PER_SEC)
   }
 
   # Creates a new `Duration` from the given number of nanoseconds.
@@ -86,7 +86,7 @@ class pub Duration {
   #
   #     Duration.from_nanos(10)
   fn pub static from_nanos[T: ToInt](nanos: ref T) -> Duration {
-    Duration { @nanos = nanos.to_int }
+    Duration(nanos.to_int)
   }
 
   # Returns the duration in seconds.
@@ -157,19 +157,19 @@ impl ToInstant for Duration {
 
 impl Clone[Duration] for Duration {
   fn pub clone -> Duration {
-    Duration { @nanos = @nanos }
+    Duration(@nanos)
   }
 }
 
 impl Add[Duration, Duration] for Duration {
   fn pub +(other: ref Duration) -> Duration {
-    Duration { @nanos = @nanos + other.nanos }
+    Duration(@nanos + other.nanos)
   }
 }
 
 impl Subtract[Duration, Duration] for Duration {
   fn pub -(other: ref Duration) -> Duration {
-    Duration { @nanos = @nanos - other.nanos }
+    Duration(@nanos - other.nanos)
   }
 }
 
@@ -311,16 +311,16 @@ class pub DateTime {
     let minute = (day_secs % SECS_PER_HOUR) / 60
     let hour = day_secs / SECS_PER_HOUR
 
-    DateTime {
-      @year = year,
-      @month = month,
-      @day = day,
-      @hour = hour,
-      @minute = minute,
-      @second = second,
-      @sub_second = time.fractional,
-      @utc_offset = utc_offset,
-    }
+    DateTime(
+      year: year,
+      month: month,
+      day: day,
+      hour: hour,
+      minute: minute,
+      second: second,
+      sub_second: time.fractional,
+      utc_offset: utc_offset,
+    )
   }
 
   # Returns the day of the week from 1 to 7.
@@ -406,16 +406,16 @@ class pub DateTime {
 
 impl Clone[DateTime] for DateTime {
   fn pub clone -> DateTime {
-    DateTime {
-      @year = @year,
-      @month = @month,
-      @day = @day,
-      @hour = @hour,
-      @minute = @minute,
-      @second = @second,
-      @sub_second = @sub_second,
-      @utc_offset = @utc_offset,
-    }
+    DateTime(
+      year: @year,
+      month: @month,
+      day: @day,
+      hour: @hour,
+      minute: @minute,
+      second: @second,
+      sub_second: @sub_second,
+      utc_offset: @utc_offset,
+    )
   }
 }
 
@@ -535,7 +535,7 @@ class pub Instant {
 
   # Returns a new `Instant` representing the current time.
   fn pub static new -> Instant {
-    Instant { @nanos = inko_time_monotonic(_INKO.state) as Int }
+    Instant(inko_time_monotonic(_INKO.state) as Int)
   }
 
   # Returns a `Duration` measuring the time elapsed since the point in time
@@ -558,7 +558,7 @@ class pub Instant {
   #
   #     start.elapsed.to_secs >= 1.0 # => true
   fn pub elapsed -> Duration {
-    Duration { @nanos = inko_time_monotonic(_INKO.state) as Int - @nanos }
+    Duration(inko_time_monotonic(_INKO.state) as Int - @nanos)
   }
 
   # Returns a `Duration` measuring the time remaining until reaching `self`.
@@ -573,7 +573,7 @@ class pub Instant {
   #
   #     time.remaining # => Duration.from_secs(5)
   fn pub remaining -> Duration {
-    Duration { @nanos = @nanos - (inko_time_monotonic(_INKO.state) as Int) }
+    Duration(@nanos - (inko_time_monotonic(_INKO.state) as Int))
   }
 }
 
@@ -585,7 +585,7 @@ impl ToInstant for Instant {
 
 impl Clone[Instant] for Instant {
   fn pub clone -> Instant {
-    Instant { @nanos = @nanos }
+    Instant(@nanos)
   }
 }
 
@@ -607,7 +607,7 @@ impl Add[Duration, Instant] for Instant {
 
     if nanos < 0 { panic("Instant can't represent a negative time (${nanos})") }
 
-    Instant { @nanos = nanos }
+    Instant(nanos)
   }
 }
 
@@ -617,7 +617,7 @@ impl Subtract[Duration, Instant] for Instant {
 
     if nanos < 0 { panic("Instant can't represent a negative time (${nanos})") }
 
-    Instant { @nanos = nanos }
+    Instant(nanos)
   }
 }
 

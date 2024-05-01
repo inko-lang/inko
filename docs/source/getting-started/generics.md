@@ -36,9 +36,9 @@ something else). The type of the `value` field is defined as `T`, instead of
 types for the `value` field:
 
 ```inko
-Box { @value = 'test' }
-Box { @value = 42 }
-Box { @value = 1.123 }
+Box(value: 'test')
+Box(value: 42)
+Box(value: 1.123)
 ```
 
 We can of course define more than just one type parameter:
@@ -49,7 +49,7 @@ class Pair[A, B] {
   let @b: B
 }
 
-Pair { @a = 'test', @b = 42 }
+Pair(a: 'test', b: 42)
 ```
 
 Traits are made generic in the same way:

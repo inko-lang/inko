@@ -225,7 +225,7 @@ class Lexer {
   let @state: State
 
   fn static new(input: ref Array[String]) -> Lexer {
-    Lexer { @input = input.iter, @state = State.Default }
+    Lexer(input: input.iter, state: State.Default)
   }
 
   fn mut buffer(value: ByteArray) {
@@ -545,11 +545,7 @@ class pub Options {
 
   # Returns a new empty `Options`.
   fn pub static new -> Options {
-    Options {
-      @mapping = Map.new,
-      @options = [],
-      @stop_at_first_non_option = false,
-    }
+    Options(mapping: Map.new, options: [], stop_at_first_non_option: false)
   }
 
   # Adds a boolean option that can be specified once.
@@ -580,13 +576,13 @@ class pub Options {
   #     opts.flag('h', 'help', 'Show this help message')
   fn pub mut flag(short: String, long: String, description: String) {
     add(
-      Opt {
-        @kind = Kind.Flag,
-        @short = short,
-        @long = long,
-        @description = description,
-        @hint = '',
-      },
+      Opt(
+        kind: Kind.Flag,
+        short: short,
+        long: long,
+        description: description,
+        hint: '',
+      ),
     )
   }
 
@@ -626,13 +622,13 @@ class pub Options {
     description: String,
   ) {
     add(
-      Opt {
-        @kind = Kind.Single,
-        @short = short,
-        @long = long,
-        @description = description,
-        @hint = hint,
-      },
+      Opt(
+        kind: Kind.Single,
+        short: short,
+        long: long,
+        description: description,
+        hint: hint,
+      ),
     )
   }
 
@@ -672,13 +668,13 @@ class pub Options {
     description: String,
   ) {
     add(
-      Opt {
-        @kind = Kind.Multiple,
-        @short = short,
-        @long = long,
-        @description = description,
-        @hint = hint,
-      },
+      Opt(
+        kind: Kind.Multiple,
+        short: short,
+        long: long,
+        description: description,
+        hint: hint,
+      ),
     )
   }
 
@@ -697,7 +693,7 @@ class pub Options {
   #     let matches = opts.parse(['-i', 'test', '-i', 'src']).unwrap
   fn pub parse(arguments: ref Array[String]) -> Result[Matches, Error] {
     let lexer = Lexer.new(arguments)
-    let matches = Matches { @remaining = [], @options = Map.new }
+    let matches = Matches(remaining: [], options: Map.new)
 
     loop {
       match lexer.next {
@@ -912,12 +908,12 @@ class pub Help {
   #
   #     Help.new('ls')
   fn pub static new(name: String) -> Help {
-    Help {
-      @name = name,
-      @description = '',
-      @usage = '[OPTIONS]',
-      @lines = StringBuffer.new,
-    }
+    Help(
+      name: name,
+      description: '',
+      usage: '[OPTIONS]',
+      lines: StringBuffer.new,
+    )
   }
 
   # Sets the usage `String` to the given argument.
