@@ -59,7 +59,8 @@ TMP_DIR := tmp
 SOURCE_TAR := ${TMP_DIR}/${VERSION}.tar.gz
 
 # The path to the versions file.
-MANIFEST := ${TMP_DIR}/manifest.txt
+MANIFEST_NAME := manifest.txt
+MANIFEST := ${TMP_DIR}/${MANIFEST_NAME}
 
 build:
 	INKO_STD=${RUNTIME_STD} INKO_RT=${RUNTIME_RT} cargo build --release
@@ -84,16 +85,16 @@ ${SOURCE_TAR}: ${TMP_DIR}
 		| gzip > "${@}"
 
 release/source: ${SOURCE_TAR}
-	aws s3 cp --acl public-read "${SOURCE_TAR}" s3://${RELEASES_BUCKET}/
+	rclone copy --config rclone.conf --checksum --verbose \
+		"${SOURCE_TAR}" "production:${RELEASES_BUCKET}"
 
 release/manifest: ${TMP_DIR}
-	aws s3 ls s3://${RELEASES_BUCKET}/ | \
-		grep -oP '(\d+\.\d+\.\d+\.tar.gz)$$' | \
-		grep -oP '(\d+\.\d+\.\d+)' | \
-		sort > "${MANIFEST}"
-	aws s3 cp --acl public-read "${MANIFEST}" s3://${RELEASES_BUCKET}/
-	aws cloudfront create-invalidation \
-		--distribution-id ${RELEASES_CLOUDFRONT_ID} --paths "/*"
+	rclone copyto --config rclone.conf \
+		"production:${RELEASES_BUCKET}/${MANIFEST_NAME}" "${MANIFEST}"
+	echo "${VERSION}" >> "${MANIFEST}"
+	sort --version-sort "${MANIFEST}"
+	rclone copy --config rclone.conf --checksum --verbose \
+		"${MANIFEST}" "production:${RELEASES_BUCKET}"
 
 release/changelog:
 	clogs "${VERSION}"
@@ -151,7 +152,7 @@ docs/watch:
 	cd docs && bash scripts/watch.sh
 
 docs/publish: docs/setup docs/build
-	cd docs && rclone sync --config rclone.conf --checksum --verbose \
+	cd docs && rclone sync --config ../rclone.conf --checksum --verbose \
 		public "production:${DOCS_BUCKET}/manual/${DOCS_FOLDER}"
 
 runtimes:

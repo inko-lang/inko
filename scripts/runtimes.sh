@@ -17,8 +17,8 @@ VERSION="${1}"
 # The directory to place the runtimes in.
 DIR="tmp/runtimes/${VERSION}"
 
-# The S3 bucket to store the runtime files in.
-S3_BUCKET="releases.inko-lang.org"
+# The Cloudflare bucket to store the runtime files in.
+BUCKET="inko-releases"
 
 function rustup_lib {
     local home
@@ -80,6 +80,6 @@ build "aarch64-unknown-linux-musl" "arm64-linux-musl"
 build "x86_64-apple-darwin" "amd64-mac-native"
 build "aarch64-apple-darwin" "arm64-mac-native"
 
-# Upload the results to the S3 bucket.
-aws s3 sync --no-progress --acl=public-read --cache-control max-age=86400 \
-    "${DIR}" "s3://${S3_BUCKET}/runtimes/${VERSION}"
+# Upload the results to the bucket.
+rclone sync --config rclone.conf --checksum --verbose \
+    "${DIR}" "production:${BUCKET}/runtimes/${VERSION}"
