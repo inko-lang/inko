@@ -20,7 +20,7 @@ class async Main {
       site.copy('*.css')
       site.copy('*.js')
 
-      site.page('/index.md') fn {
+      site.page('/index.md', index: false) fn {
         recover {
           let conf = conf.clone
 
@@ -28,7 +28,7 @@ class async Main {
         }
       }
 
-      site.page('/404.md') fn {
+      site.page('/404.md', index: false) fn {
         recover {
           let conf = conf.clone
 
@@ -36,7 +36,7 @@ class async Main {
         }
       }
 
-      site.page('/*/*.md') fn {
+      site.page('/*/*.md', index: true) fn {
         recover {
           let conf = conf.clone
 

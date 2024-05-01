@@ -39,14 +39,11 @@ else
 	VERSION != cargo pkgid -p inko | cut -d\# -f2 | cut -d: -f2
 endif
 
-# The name of the S3 bucket that contains all releases.
-RELEASES_S3_BUCKET := releases.inko-lang.org
+# The name of the Cloudflare bucket that contains all releases.
+RELEASES_BUCKET := inko-releases
 
-# The ID of the cloudfront distribution that serves all packages.
-RELEASES_CLOUDFRONT_ID := E3SFQ1OG1H5PCN
-
-# The name of the S3 bucket for uploading documentation.
-DOCS_S3_BUCKET := docs.inko-lang.org
+# The name of the Cloudflare bucket for uploading documentation.
+DOCS_BUCKET := inko-docs
 
 # The ID of the cloudfront distribution that serves the documentation.
 DOCS_CLOUDFRONT_ID := E3S16BR117BJOL
@@ -87,14 +84,14 @@ ${SOURCE_TAR}: ${TMP_DIR}
 		| gzip > "${@}"
 
 release/source: ${SOURCE_TAR}
-	aws s3 cp --acl public-read "${SOURCE_TAR}" s3://${RELEASES_S3_BUCKET}/
+	aws s3 cp --acl public-read "${SOURCE_TAR}" s3://${RELEASES_BUCKET}/
 
 release/manifest: ${TMP_DIR}
-	aws s3 ls s3://${RELEASES_S3_BUCKET}/ | \
+	aws s3 ls s3://${RELEASES_BUCKET}/ | \
 		grep -oP '(\d+\.\d+\.\d+\.tar.gz)$$' | \
 		grep -oP '(\d+\.\d+\.\d+)' | \
 		sort > "${MANIFEST}"
-	aws s3 cp --acl public-read "${MANIFEST}" s3://${RELEASES_S3_BUCKET}/
+	aws s3 cp --acl public-read "${MANIFEST}" s3://${RELEASES_BUCKET}/
 	aws cloudfront create-invalidation \
 		--distribution-id ${RELEASES_CLOUDFRONT_ID} --paths "/*"
 
@@ -154,15 +151,8 @@ docs/watch:
 	cd docs && bash scripts/watch.sh
 
 docs/publish: docs/setup docs/build
-	cd docs && rclone sync \
-		--config rclone.conf \
-		--checksum \
-		--header-upload 'Cache-Control:max-age=604800' \
-		--s3-acl 'public-read' \
-		--verbose \
-		public "production:${DOCS_S3_BUCKET}/manual/${DOCS_FOLDER}"
-	aws cloudfront create-invalidation \
-		--distribution-id ${DOCS_CLOUDFRONT_ID} --paths "/*"
+	cd docs && rclone sync --config rclone.conf --checksum --verbose \
+		public "production:${DOCS_BUCKET}/manual/${DOCS_FOLDER}"
 
 runtimes:
 	bash scripts/runtimes.sh ${VERSION}
