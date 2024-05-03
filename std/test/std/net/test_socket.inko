@@ -82,13 +82,13 @@ fn pub tests(t: mut Tests) {
     {
       let sock = Socket.ipv4(Type.STREAM).get
 
-      t.true(sock.bind(ip: 'foo', port: 0).error?)
+      t.true(sock.bind(ip: IpAddress.v4(-1, -1, -1, -1), port: 0).error?)
     }
 
     {
       let sock = Socket.ipv4(Type.STREAM).get
 
-      t.true(sock.bind(ip: '0.0.0.0', port: 0).ok?)
+      t.true(sock.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 0).ok?)
     }
   })
 
@@ -96,7 +96,7 @@ fn pub tests(t: mut Tests) {
     let listener = Socket.ipv4(Type.STREAM).get
     let stream1 = Socket.ipv4(Type.STREAM).get
 
-    listener.bind(ip: '127.0.0.1', port: 0).get
+    listener.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0).get
     listener.listen.get
 
     let addr = listener.local_address.get
@@ -112,7 +112,7 @@ fn pub tests(t: mut Tests) {
     # Since a connect() _might_ still raise the error right away, we have to
     # both connect and try to use the socket in some way.
     t.true(
-      stream2.connect(ip: '0.0.0.0', port: 40_000).error?
+      stream2.connect(ip: IpAddress.v4(0, 0, 0, 0), port: 40_000).error?
         or stream2.write_string('ping').error?,
     )
   })
@@ -120,8 +120,7 @@ fn pub tests(t: mut Tests) {
   t.test('Socket.listen', fn (t) {
     let socket = Socket.ipv4(Type.STREAM).get
 
-    socket.bind(ip: '0.0.0.0', port: 0).get
-
+    socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 0).get
     t.true(socket.listen.ok?)
   })
 
@@ -129,12 +128,12 @@ fn pub tests(t: mut Tests) {
     let server = Socket.ipv4(Type.STREAM).get
     let client = Socket.ipv4(Type.STREAM).get
 
-    server.bind(ip: '127.0.0.1', port: 0).get
+    server.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0).get
     server.listen.get
 
     let addr = server.local_address.get
 
-    t.equal(client.connect(addr.address.clone, addr.port), Result.Ok(nil))
+    t.equal(client.connect(addr.ip.get, addr.port), Result.Ok(nil))
 
     let connection = server.accept.get
 
@@ -144,13 +143,13 @@ fn pub tests(t: mut Tests) {
   t.test('Socket.send_string_to', fn (t) {
     let socket = Socket.ipv4(Type.DGRAM).get
 
-    socket.bind(ip: '127.0.0.1', port: 0).get
+    socket.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0).get
 
     let send_to = socket.local_address.get
     let buffer = ByteArray.new
 
     t.equal(
-      socket.send_string_to('ping', send_to.address, send_to.port),
+      socket.send_string_to('ping', send_to.ip.get, send_to.port),
       Result.Ok(4),
     )
     t.equal(socket.read(into: buffer, size: 4), Result.Ok(4))
@@ -160,7 +159,7 @@ fn pub tests(t: mut Tests) {
   t.test('Socket.send_bytes_to', fn (t) {
     let socket = Socket.ipv4(Type.DGRAM).get
 
-    socket.bind(ip: '127.0.0.1', port: 0).get
+    socket.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0).get
 
     let send_to = socket.local_address.get
     let buffer = ByteArray.new
@@ -168,7 +167,7 @@ fn pub tests(t: mut Tests) {
     t.equal(
       socket.send_bytes_to(
         'ping'.to_byte_array,
-        send_to.address,
+        send_to.ip.get,
         send_to.port.clone,
       ),
       Result.Ok(4),
@@ -181,13 +180,13 @@ fn pub tests(t: mut Tests) {
     let listener = Socket.ipv4(Type.DGRAM).get
     let client = Socket.ipv4(Type.DGRAM).get
 
-    listener.bind(ip: '127.0.0.1', port: 0).get
-    client.bind(ip: '127.0.0.1', port: 0).get
+    listener.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0).get
+    client.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0).get
 
     let send_to = listener.local_address.get
 
     t.equal(
-      client.send_string_to('ping', send_to.address, send_to.port.clone),
+      client.send_string_to('ping', send_to.ip.get, send_to.port.clone),
       Result.Ok(4),
     )
 
@@ -208,7 +207,7 @@ fn pub tests(t: mut Tests) {
   t.test('Socket.local_address with a bound socket', fn (t) {
     let socket = Socket.ipv4(Type.DGRAM).get
 
-    socket.bind(ip: '127.0.0.1', port: 0).get
+    socket.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0).get
 
     let local_address = socket.local_address.get
 
@@ -226,12 +225,12 @@ fn pub tests(t: mut Tests) {
     let listener = Socket.ipv4(Type.STREAM).get
     let client = Socket.ipv4(Type.STREAM).get
 
-    listener.bind(ip: '127.0.0.1', port: 0).get
+    listener.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0).get
     listener.listen.get
 
     let addr = listener.local_address.get
 
-    t.equal(client.connect(addr.address, addr.port), Result.Ok(nil))
+    t.equal(client.connect(addr.ip.get, addr.port), Result.Ok(nil))
     t.equal(client.peer_address, Result.Ok(addr))
   })
 
@@ -300,12 +299,12 @@ fn pub tests(t: mut Tests) {
     let listener = Socket.ipv4(Type.STREAM).get
     let stream = Socket.ipv4(Type.STREAM).get
 
-    listener.bind(ip: '127.0.0.1', port: 0).get
+    listener.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0).get
     listener.listen.get
 
     let addr = listener.local_address.get
 
-    t.equal(stream.connect(addr.address, addr.port), Result.Ok(nil))
+    t.equal(stream.connect(addr.ip.get, addr.port), Result.Ok(nil))
     stream.shutdown_read.get
 
     let bytes = ByteArray.new
@@ -318,12 +317,12 @@ fn pub tests(t: mut Tests) {
     let listener = Socket.ipv4(Type.STREAM).get
     let stream = Socket.ipv4(Type.STREAM).get
 
-    listener.bind(ip: '127.0.0.1', port: 0).get
+    listener.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0).get
     listener.listen.get
 
     let addr = listener.local_address.get
 
-    t.equal(stream.connect(addr.address, addr.port), Result.Ok(nil))
+    t.equal(stream.connect(addr.ip.get, addr.port), Result.Ok(nil))
     stream.shutdown_write.get
 
     t.true(stream.write_string('ping').error?)
@@ -333,12 +332,12 @@ fn pub tests(t: mut Tests) {
     let listener = Socket.ipv4(Type.STREAM).get
     let stream = Socket.ipv4(Type.STREAM).get
 
-    listener.bind(ip: '127.0.0.1', port: 0).get
+    listener.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0).get
     listener.listen.get
 
     let addr = listener.local_address.get
 
-    t.equal(stream.connect(addr.address, addr.port), Result.Ok(nil))
+    t.equal(stream.connect(addr.ip.get, addr.port), Result.Ok(nil))
     stream.shutdown.get
 
     t.true(stream.write_string('ping').error?)
@@ -348,12 +347,12 @@ fn pub tests(t: mut Tests) {
     let listener = Socket.ipv4(Type.STREAM).get
     let stream = Socket.ipv4(Type.STREAM).get
 
-    listener.bind(ip: '127.0.0.1', port: 0).get
+    listener.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0).get
     listener.listen.get
 
     let addr = listener.local_address.get
 
-    t.equal(stream.connect(addr.address, addr.port), Result.Ok(nil))
+    t.equal(stream.connect(addr.ip.get, addr.port), Result.Ok(nil))
     stream.shutdown.get
 
     let bytes = ByteArray.new
@@ -371,15 +370,12 @@ fn pub tests(t: mut Tests) {
   t.test('Socket.read', fn (t) {
     let socket = Socket.ipv4(Type.DGRAM).get
 
-    socket.bind(ip: '127.0.0.1', port: 0).get
+    socket.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0).get
 
     let addr = socket.local_address.get
     let bytes = ByteArray.new
 
-    t.equal(
-      socket.send_string_to('ping', addr.address, addr.port),
-      Result.Ok(4),
-    )
+    t.equal(socket.send_string_to('ping', addr.ip.get, addr.port), Result.Ok(4))
     t.equal(socket.read(into: bytes, size: 4), Result.Ok(4))
     t.equal(bytes.into_string, 'ping')
   })
@@ -388,12 +384,12 @@ fn pub tests(t: mut Tests) {
     let listener = Socket.ipv4(Type.STREAM).get
     let stream = Socket.ipv4(Type.STREAM).get
 
-    listener.bind(ip: '127.0.0.1', port: 0).get
+    listener.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0).get
     listener.listen.get
 
     let addr = listener.local_address.get
 
-    t.equal(stream.connect(addr.address, addr.port), Result.Ok(nil))
+    t.equal(stream.connect(addr.ip.get, addr.port), Result.Ok(nil))
     stream.write_bytes('ping'.to_byte_array).get
 
     let connection = listener.accept.get
@@ -407,12 +403,12 @@ fn pub tests(t: mut Tests) {
     let listener = Socket.ipv4(Type.STREAM).get
     let stream = Socket.ipv4(Type.STREAM).get
 
-    listener.bind(ip: '127.0.0.1', port: 0).get
+    listener.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0).get
     listener.listen.get
 
     let addr = listener.local_address.get
 
-    t.equal(stream.connect(addr.address, addr.port), Result.Ok(nil))
+    t.equal(stream.connect(addr.ip.get, addr.port), Result.Ok(nil))
     stream.write_string('ping').get
 
     let connection = listener.accept.get
@@ -431,7 +427,7 @@ fn pub tests(t: mut Tests) {
   t.test('Socket.timeout_after=', fn (t) {
     let server = Socket.ipv4(Type.STREAM).get
 
-    server.bind(ip: '127.0.0.1', port: 0).get
+    server.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0).get
     server.listen.get
     server.timeout_after = Duration.from_secs(0)
 
@@ -466,7 +462,7 @@ fn pub tests(t: mut Tests) {
     let socket2 = UdpSocket.new(ip: ip, port: 0).get
     let addr = socket2.local_address.get
 
-    t.true(socket1.connect(addr.address, addr.port).ok?)
+    t.true(socket1.connect(addr.ip.get, addr.port).ok?)
   })
 
   t.test('UdpSocket.send_string_to', fn (t) {
@@ -476,10 +472,7 @@ fn pub tests(t: mut Tests) {
 
     let addr = socket.local_address.get
 
-    t.equal(
-      socket.send_string_to('ping', addr.address, addr.port),
-      Result.Ok(4),
-    )
+    t.equal(socket.send_string_to('ping', addr.ip.get, addr.port), Result.Ok(4))
 
     let bytes = ByteArray.new
 
@@ -492,7 +485,7 @@ fn pub tests(t: mut Tests) {
     let socket = UdpSocket.new(ip: ip, port: 0).get
     let addr = socket.local_address.get
 
-    socket.send_bytes_to('ping'.to_byte_array, addr.address, addr.port).get
+    socket.send_bytes_to('ping'.to_byte_array, addr.ip.get, addr.port).get
 
     let bytes = ByteArray.new
 
@@ -506,7 +499,7 @@ fn pub tests(t: mut Tests) {
     let client = UdpSocket.new(ip: ip, port: 0).get
     let addr = listener.local_address.get
 
-    client.send_string_to('ping', addr.address, addr.port).get
+    client.send_string_to('ping', addr.ip.get, addr.port).get
 
     let bytes = ByteArray.new
 
@@ -535,10 +528,7 @@ fn pub tests(t: mut Tests) {
     let socket = UdpSocket.new(ip: ip, port: 0).get
     let addr = socket.local_address.get
 
-    t.equal(
-      socket.send_string_to('ping', addr.address, addr.port),
-      Result.Ok(4),
-    )
+    t.equal(socket.send_string_to('ping', addr.ip.get, addr.port), Result.Ok(4))
 
     let bytes = ByteArray.new
 
@@ -552,7 +542,7 @@ fn pub tests(t: mut Tests) {
     let client_socket = UdpSocket.new(ip: ip, port: 0).get
     let addr = server_socket.local_address.get
 
-    t.equal(client_socket.connect(addr.address, addr.port), Result.Ok(nil))
+    t.equal(client_socket.connect(addr.ip.get, addr.port), Result.Ok(nil))
     client_socket.write_bytes('ping'.to_byte_array).get
 
     let bytes = ByteArray.new
@@ -571,7 +561,7 @@ fn pub tests(t: mut Tests) {
   t.test('TcpClient.new', fn (t) {
     let listener = Socket.ipv4(Type.STREAM).get
 
-    listener.bind(ip: '127.0.0.1', port: 0).get
+    listener.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0).get
     listener.listen.get
 
     let addr = listener.local_address.get
@@ -582,7 +572,7 @@ fn pub tests(t: mut Tests) {
   t.test('TcpClient.with_timeout', fn (t) {
     let listener = Socket.ipv4(Type.STREAM).get
 
-    listener.bind(ip: '127.0.0.1', port: 0).get
+    listener.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0).get
     listener.listen.get
 
     let addr = listener.local_address.get
@@ -610,7 +600,7 @@ fn pub tests(t: mut Tests) {
   t.ok('TcpClient.local_address', fn (t) {
     let listener = try Socket.ipv4(Type.STREAM)
 
-    try listener.bind(ip: '127.0.0.1', port: 0)
+    try listener.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0)
     try listener.listen
 
     let addr = try listener.local_address
@@ -625,7 +615,7 @@ fn pub tests(t: mut Tests) {
   t.ok('TcpClient.peer_address', fn (t) {
     let listener = try Socket.ipv4(Type.STREAM)
 
-    try listener.bind(ip: '127.0.0.1', port: 0)
+    try listener.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0)
     try listener.listen
 
     let addr = try listener.local_address
@@ -640,7 +630,7 @@ fn pub tests(t: mut Tests) {
   t.ok('TcpClient.read', fn (t) {
     let listener = try Socket.ipv4(Type.STREAM)
 
-    try listener.bind(ip: '127.0.0.1', port: 0)
+    try listener.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0)
     try listener.listen
 
     let addr = try listener.local_address
@@ -658,7 +648,7 @@ fn pub tests(t: mut Tests) {
   t.ok('TcpClient.write_bytes', fn (t) {
     let listener = try Socket.ipv4(Type.STREAM)
 
-    try listener.bind(ip: '127.0.0.1', port: 0)
+    try listener.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0)
     try listener.listen
 
     let addr = try listener.local_address
@@ -675,7 +665,7 @@ fn pub tests(t: mut Tests) {
   t.ok('TcpClient.write_string', fn (t) {
     let listener = try Socket.ipv4(Type.STREAM)
 
-    try listener.bind(ip: '127.0.0.1', port: 0)
+    try listener.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0)
     try listener.listen
 
     let addr = try listener.local_address
@@ -692,7 +682,7 @@ fn pub tests(t: mut Tests) {
   t.ok('TcpClient.flush', fn (t) {
     let listener = try Socket.ipv4(Type.STREAM)
 
-    try listener.bind(ip: '127.0.0.1', port: 0)
+    try listener.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0)
     try listener.listen
 
     let addr = try listener.local_address
@@ -704,7 +694,7 @@ fn pub tests(t: mut Tests) {
   t.ok('TcpClient.shutdown_read', fn (t) {
     let listener = try Socket.ipv4(Type.STREAM)
 
-    try listener.bind(ip: '127.0.0.1', port: 0)
+    try listener.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0)
     try listener.listen
 
     let addr = try listener.local_address
@@ -722,7 +712,7 @@ fn pub tests(t: mut Tests) {
   t.ok('TcpClient.shutdown_write', fn (t) {
     let listener = try Socket.ipv4(Type.STREAM)
 
-    try listener.bind(ip: '127.0.0.1', port: 0)
+    try listener.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0)
     try listener.listen
 
     let addr = try listener.local_address
@@ -736,7 +726,7 @@ fn pub tests(t: mut Tests) {
   t.ok('TcpClient.shutdown shuts down the writing half', fn (t) {
     let listener = try Socket.ipv4(Type.STREAM)
 
-    try listener.bind(ip: '127.0.0.1', port: 0)
+    try listener.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0)
     try listener.listen
 
     let addr = try listener.local_address
@@ -750,7 +740,7 @@ fn pub tests(t: mut Tests) {
   t.ok('TcpClient.shutdown shuts down the reading half', fn (t) {
     let listener = try Socket.ipv4(Type.STREAM)
 
-    try listener.bind(ip: '127.0.0.1', port: 0)
+    try listener.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0)
     try listener.listen
 
     let addr = try listener.local_address
@@ -768,7 +758,7 @@ fn pub tests(t: mut Tests) {
   t.ok('TcpClient.try_clone', fn (t) {
     let listener = Socket.ipv4(Type.STREAM).get
 
-    try listener.bind(ip: '127.0.0.1', port: 0)
+    try listener.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0)
     try listener.listen
 
     let addr = try listener.local_address
@@ -823,46 +813,52 @@ fn pub tests(t: mut Tests) {
 
   t.test('UnixAddress.to_path', fn (t) {
     t.equal(
-      UnixAddress.new('foo.sock').to_path,
+      UnixAddress.new('foo.sock'.to_path).to_path,
       Option.Some('foo.sock'.to_path),
     )
-    t.true(UnixAddress.new('\0foo').to_path.none?)
-    t.true(UnixAddress.new('').to_path.none?)
+    t.true(UnixAddress.new('\0foo'.to_path).to_path.none?)
+    t.true(UnixAddress.new(''.to_path).to_path.none?)
   })
 
   t.test('UnixAddress.to_string', fn (t) {
-    t.equal(UnixAddress.new('foo.sock').to_string, 'foo.sock')
-    t.equal(UnixAddress.new('\0foo').to_string, '\0foo')
-    t.equal(UnixAddress.new('').to_string, '')
+    t.equal(UnixAddress.new('foo.sock'.to_path).to_string, 'foo.sock')
+    t.equal(UnixAddress.new('\0foo'.to_path).to_string, '\0foo')
+    t.equal(UnixAddress.new(''.to_path).to_string, '')
   })
 
   t.test('UnixAddress.abstract?', fn (t) {
-    t.false(UnixAddress.new('').abstract?)
-    t.false(UnixAddress.new('foo.sock').abstract?)
-    t.true(UnixAddress.new('\0foo').abstract?)
+    t.false(UnixAddress.new(''.to_path).abstract?)
+    t.false(UnixAddress.new('foo.sock'.to_path).abstract?)
+    t.true(UnixAddress.new('\0foo'.to_path).abstract?)
   })
 
   t.test('UnixAddress.unnamed?', fn (t) {
-    t.false(UnixAddress.new('foo.sock').unnamed?)
-    t.false(UnixAddress.new('\0foo').unnamed?)
-    t.true(UnixAddress.new('').unnamed?)
+    t.false(UnixAddress.new('foo.sock'.to_path).unnamed?)
+    t.false(UnixAddress.new('\0foo'.to_path).unnamed?)
+    t.true(UnixAddress.new(''.to_path).unnamed?)
   })
 
   t.test('UnixAddress.fmt', fn (t) {
-    t.equal(fmt(UnixAddress.new('foo.sock')), 'foo.sock')
-    t.equal(fmt(UnixAddress.new('\0foo')), '@foo')
-    t.equal(fmt(UnixAddress.new('')), 'unnamed')
+    t.equal(fmt(UnixAddress.new('foo.sock'.to_path)), 'foo.sock')
+    t.equal(fmt(UnixAddress.new('\0foo'.to_path)), '@foo')
+    t.equal(fmt(UnixAddress.new(''.to_path)), 'unnamed')
   })
 
   t.test('UnixAddress.==', fn (t) {
-    t.equal(UnixAddress.new('a.sock'), UnixAddress.new('a.sock'))
-    t.not_equal(UnixAddress.new('a.sock'), UnixAddress.new('b.sock'))
+    t.equal(
+      UnixAddress.new('a.sock'.to_path),
+      UnixAddress.new('a.sock'.to_path),
+    )
+    t.not_equal(
+      UnixAddress.new('a.sock'.to_path),
+      UnixAddress.new('b.sock'.to_path),
+    )
   })
 
   t.test('UnixAddress.to_string', fn (t) {
-    t.equal(UnixAddress.new('foo.sock').to_string, 'foo.sock')
-    t.equal(UnixAddress.new('\0foo').to_string, '\0foo')
-    t.equal(UnixAddress.new('').to_string, '')
+    t.equal(UnixAddress.new('foo.sock'.to_path).to_string, 'foo.sock')
+    t.equal(UnixAddress.new('\0foo'.to_path).to_string, '\0foo')
+    t.equal(UnixAddress.new(''.to_path).to_string, '')
   })
 
   t.test('UnixSocket.new', fn (t) {
@@ -875,13 +871,13 @@ fn pub tests(t: mut Tests) {
     let socket2 = UnixSocket.new(Type.STREAM).get
     let path = SocketPath.new(t.id)
 
-    t.true(socket1.bind(path).ok?)
-    t.true(socket2.bind(path).error?)
+    t.true(socket1.bind(path.path).ok?)
+    t.true(socket2.bind(path.path).error?)
 
     if env.OS == 'linux' {
       let socket = UnixSocket.new(Type.STREAM).get
 
-      t.true(socket.bind('\0inko-test-${t.id}').ok?)
+      t.true(socket.bind('\0inko-test-${t.id}'.to_path).ok?)
     }
   })
 
@@ -890,22 +886,22 @@ fn pub tests(t: mut Tests) {
     let stream = UnixSocket.new(Type.STREAM).get
     let path = SocketPath.new(t.id)
 
-    t.true(stream.connect(path).error?)
+    t.true(stream.connect(path.path).error?)
 
-    listener.bind(path).get
+    listener.bind(path.path).get
     listener.listen.get
 
-    t.true(stream.connect(path).ok?)
+    t.true(stream.connect(path.path).ok?)
 
     if env.OS == 'linux' {
       let listener = UnixSocket.new(Type.STREAM).get
       let stream = UnixSocket.new(Type.STREAM).get
       let addr = '\0inko-test-${t.id}'
 
-      listener.bind(addr).get
+      listener.bind(addr.to_path).get
       listener.listen.get
 
-      t.true(stream.connect(addr).ok?)
+      t.true(stream.connect(addr.to_path).ok?)
     }
   })
 
@@ -913,7 +909,7 @@ fn pub tests(t: mut Tests) {
     let path = SocketPath.new(t.id)
     let socket = UnixSocket.new(Type.STREAM).get
 
-    socket.bind(path).get
+    socket.bind(path.path).get
 
     t.true(socket.listen.ok?)
   })
@@ -923,9 +919,9 @@ fn pub tests(t: mut Tests) {
     let listener = UnixSocket.new(Type.STREAM).get
     let stream = UnixSocket.new(Type.STREAM).get
 
-    listener.bind(path).get
+    listener.bind(path.path).get
     listener.listen.get
-    t.equal(stream.connect(path), Result.Ok(nil))
+    t.equal(stream.connect(path.path), Result.Ok(nil))
 
     let client = listener.accept.get
 
@@ -936,8 +932,8 @@ fn pub tests(t: mut Tests) {
     let path = SocketPath.new(t.id)
     let socket = UnixSocket.new(Type.DGRAM).get
 
-    t.equal(socket.bind(path), Result.Ok(nil))
-    t.equal(socket.send_string_to('ping', path), Result.Ok(4))
+    t.equal(socket.bind(path.path), Result.Ok(nil))
+    t.equal(socket.send_string_to('ping', path.path), Result.Ok(4))
 
     let bytes = ByteArray.new
 
@@ -949,8 +945,8 @@ fn pub tests(t: mut Tests) {
     let path = SocketPath.new(t.id)
     let socket = UnixSocket.new(Type.DGRAM).get
 
-    t.equal(socket.bind(path), Result.Ok(nil))
-    t.equal(socket.send_bytes_to('ping'.to_byte_array, path), Result.Ok(4))
+    t.equal(socket.bind(path.path), Result.Ok(nil))
+    t.equal(socket.send_bytes_to('ping'.to_byte_array, path.path), Result.Ok(4))
 
     let bytes = ByteArray.new
 
@@ -963,9 +959,9 @@ fn pub tests(t: mut Tests) {
     let listener = UnixSocket.new(Type.DGRAM).get
     let client = UnixSocket.new(Type.DGRAM).get
 
-    t.equal(listener.bind(pair.0), Result.Ok(nil))
-    t.equal(client.bind(pair.1), Result.Ok(nil))
-    t.equal(client.send_string_to('ping', pair.0), Result.Ok(4))
+    t.equal(listener.bind(pair.0.path), Result.Ok(nil))
+    t.equal(client.bind(pair.1.path), Result.Ok(nil))
+    t.equal(client.send_string_to('ping', pair.0.path), Result.Ok(4))
 
     let bytes = ByteArray.new
 
@@ -977,16 +973,16 @@ fn pub tests(t: mut Tests) {
     let socket = UnixSocket.new(Type.DGRAM).get
     let address = socket.local_address.get
 
-    t.equal(address, UnixAddress.new(''))
+    t.equal(address, UnixAddress.new(''.to_path))
   })
 
   t.test('UnixSocket.local_address with a bound socket', fn (t) {
     let path = SocketPath.new(t.id)
     let socket = UnixSocket.new(Type.DGRAM).get
 
-    socket.bind(path).get
+    socket.bind(path.path).get
 
-    t.equal(socket.local_address, Result.Ok(UnixAddress.new(path.to_string)))
+    t.equal(socket.local_address, Result.Ok(UnixAddress.new(path.path)))
   })
 
   t.test('UnixSocket.peer_address with a disconnected socket', fn (t) {
@@ -1000,9 +996,9 @@ fn pub tests(t: mut Tests) {
     let listener = UnixSocket.new(Type.STREAM).get
     let client = UnixSocket.new(Type.STREAM).get
 
-    listener.bind(path).get
+    listener.bind(path.path).get
     listener.listen.get
-    t.equal(client.connect(path), Result.Ok(nil))
+    t.equal(client.connect(path.path), Result.Ok(nil))
 
     t.equal(client.peer_address, listener.local_address)
   })
@@ -1011,8 +1007,8 @@ fn pub tests(t: mut Tests) {
     let path = SocketPath.new(t.id)
     let socket = UnixSocket.new(Type.DGRAM).get
 
-    t.equal(socket.bind(path), Result.Ok(nil))
-    t.equal(socket.send_string_to('ping', path), Result.Ok(4))
+    t.equal(socket.bind(path.path), Result.Ok(nil))
+    t.equal(socket.send_string_to('ping', path.path), Result.Ok(4))
 
     let bytes = ByteArray.new
 
@@ -1025,9 +1021,9 @@ fn pub tests(t: mut Tests) {
     let listener = UnixSocket.new(Type.STREAM).get
     let stream = UnixSocket.new(Type.STREAM).get
 
-    listener.bind(path).get
+    listener.bind(path.path).get
     listener.listen.get
-    t.equal(stream.connect(path), Result.Ok(nil))
+    t.equal(stream.connect(path.path), Result.Ok(nil))
     stream.write_bytes('ping'.to_byte_array).get
 
     let connection = listener.accept.get
@@ -1042,9 +1038,9 @@ fn pub tests(t: mut Tests) {
     let listener = UnixSocket.new(Type.STREAM).get
     let stream = UnixSocket.new(Type.STREAM).get
 
-    listener.bind(path).get
+    listener.bind(path.path).get
     listener.listen.get
-    t.equal(stream.connect(path), Result.Ok(nil))
+    t.equal(stream.connect(path.path), Result.Ok(nil))
     stream.write_string('ping').get
 
     let connection = listener.accept.get
@@ -1077,9 +1073,9 @@ fn pub tests(t: mut Tests) {
     let listener = UnixSocket.new(Type.STREAM).get
     let stream = UnixSocket.new(Type.STREAM).get
 
-    listener.bind(path).get
+    listener.bind(path.path).get
     listener.listen.get
-    t.equal(stream.connect(path), Result.Ok(nil))
+    t.equal(stream.connect(path.path), Result.Ok(nil))
     stream.shutdown_read.get
 
     let bytes = ByteArray.new
@@ -1093,9 +1089,9 @@ fn pub tests(t: mut Tests) {
     let listener = UnixSocket.new(Type.STREAM).get
     let stream = UnixSocket.new(Type.STREAM).get
 
-    listener.bind(path).get
+    listener.bind(path.path).get
     listener.listen.get
-    t.equal(stream.connect(path), Result.Ok(nil))
+    t.equal(stream.connect(path.path), Result.Ok(nil))
     stream.shutdown_write.get
 
     t.true(stream.write_string('ping').error?)
@@ -1106,9 +1102,9 @@ fn pub tests(t: mut Tests) {
     let listener = UnixSocket.new(Type.STREAM).get
     let stream = UnixSocket.new(Type.STREAM).get
 
-    listener.bind(path).get
+    listener.bind(path.path).get
     listener.listen.get
-    t.equal(stream.connect(path), Result.Ok(nil))
+    t.equal(stream.connect(path.path), Result.Ok(nil))
     stream.shutdown.get
 
     t.true(stream.write_string('ping').error?)
@@ -1119,9 +1115,9 @@ fn pub tests(t: mut Tests) {
     let listener = UnixSocket.new(Type.STREAM).get
     let stream = UnixSocket.new(Type.STREAM).get
 
-    listener.bind(path).get
+    listener.bind(path.path).get
     listener.listen.get
-    t.equal(stream.connect(path), Result.Ok(nil))
+    t.equal(stream.connect(path.path), Result.Ok(nil))
     stream.shutdown.get
 
     let bytes = ByteArray.new
@@ -1140,7 +1136,7 @@ fn pub tests(t: mut Tests) {
     let path = SocketPath.new(t.id)
     let server = UnixSocket.new(Type.STREAM).get
 
-    server.bind(path).get
+    server.bind(path.path).get
     server.listen
     server.timeout_after = Duration.from_secs(0)
 
@@ -1160,23 +1156,23 @@ fn pub tests(t: mut Tests) {
   t.test('UnixDatagram.new', fn (t) {
     let path = SocketPath.new(t.id)
 
-    t.true(UnixDatagram.new(path).ok?)
-    t.true(UnixDatagram.new(path).error?)
+    t.true(UnixDatagram.new(path.path).ok?)
+    t.true(UnixDatagram.new(path.path).error?)
   })
 
   t.test('UnixDatagram.connect', fn (t) {
     let pair = SocketPath.pair(t.id)
-    let _socket1 = UnixDatagram.new(pair.0).get
-    let socket2 = UnixDatagram.new(pair.1).get
+    let _socket1 = UnixDatagram.new(pair.0.path).get
+    let socket2 = UnixDatagram.new(pair.1.path).get
 
-    t.true(socket2.connect(pair.0).ok?)
+    t.true(socket2.connect(pair.0.path).ok?)
   })
 
   t.test('UnixDatagram.send_to', fn (t) {
     let path = SocketPath.new(t.id)
-    let socket = UnixDatagram.new(path).get
+    let socket = UnixDatagram.new(path.path).get
 
-    t.equal(socket.send_string_to('ping', path), Result.Ok(4))
+    t.equal(socket.send_string_to('ping', path.path), Result.Ok(4))
 
     let bytes = ByteArray.new
 
@@ -1186,10 +1182,10 @@ fn pub tests(t: mut Tests) {
 
   t.test('UnixDatagram.receive_from', fn (t) {
     let pair = SocketPath.pair(t.id)
-    let listener = UnixDatagram.new(pair.0).get
-    let client = UnixDatagram.new(pair.1).get
+    let listener = UnixDatagram.new(pair.0.path).get
+    let client = UnixDatagram.new(pair.1.path).get
 
-    t.equal(client.send_string_to('ping', pair.0), Result.Ok(4))
+    t.equal(client.send_string_to('ping', pair.0.path), Result.Ok(4))
 
     let bytes = ByteArray.new
 
@@ -1199,23 +1195,23 @@ fn pub tests(t: mut Tests) {
 
   t.test('UnixDatagram.local_address', fn (t) {
     let path = SocketPath.new(t.id)
-    let socket = UnixDatagram.new(path).get
+    let socket = UnixDatagram.new(path.path).get
 
-    t.equal(socket.local_address, Result.Ok(UnixAddress.new(path.to_string)))
+    t.equal(socket.local_address, Result.Ok(UnixAddress.new(path.path)))
   })
 
   t.test('UnixDatagram.try_clone', fn (t) {
     let path = SocketPath.new(t.id)
-    let socket = UnixDatagram.new(path).get
+    let socket = UnixDatagram.new(path.path).get
 
     t.true(socket.try_clone.ok?)
   })
 
   t.test('UnixDatagram.read', fn (t) {
     let path = SocketPath.new(t.id)
-    let socket = UnixDatagram.new(path).get
+    let socket = UnixDatagram.new(path.path).get
 
-    t.equal(socket.send_string_to('ping', address: path), Result.Ok(4))
+    t.equal(socket.send_string_to('ping', address: path.path), Result.Ok(4))
 
     let bytes = ByteArray.new
 
@@ -1225,10 +1221,10 @@ fn pub tests(t: mut Tests) {
 
   t.test('UnixDatagram.write_bytes', fn (t) {
     let pair = SocketPath.pair(t.id)
-    let server = UnixDatagram.new(pair.0).get
-    let client = UnixDatagram.new(pair.1).get
+    let server = UnixDatagram.new(pair.0.path).get
+    let client = UnixDatagram.new(pair.1.path).get
 
-    t.equal(client.connect(pair.0), Result.Ok(nil))
+    t.equal(client.connect(pair.0.path), Result.Ok(nil))
 
     let bytes = ByteArray.new
 
@@ -1239,7 +1235,7 @@ fn pub tests(t: mut Tests) {
 
   t.test('UnixDatagram.flush', fn (t) {
     let path = SocketPath.new(t.id)
-    let socket = UnixDatagram.new(path).get
+    let socket = UnixDatagram.new(path.path).get
 
     t.equal(socket.flush, Result.Ok(nil))
   })
@@ -1248,17 +1244,17 @@ fn pub tests(t: mut Tests) {
     let path = SocketPath.new(t.id)
     let listener = UnixSocket.new(Type.STREAM).get
 
-    listener.bind(path).get
+    listener.bind(path.path).get
     listener.listen.get
 
-    t.true(UnixClient.new(path).ok?)
+    t.true(UnixClient.new(path.path).ok?)
   })
 
   t.test('UnixClient.with_timeout', fn (t) {
     let path = SocketPath.new(t.id)
     let listener = UnixSocket.new(Type.STREAM).get
 
-    listener.bind(path).get
+    listener.bind(path.path).get
     listener.listen.get
 
     # Unlike IP sockets there's no unroutable address we can use, so at best we
@@ -1266,7 +1262,7 @@ fn pub tests(t: mut Tests) {
     # a smoke test, unlikely to actually fail unless our runtime is bugged.
     t.true(
       UnixClient
-        .with_timeout(address: path, timeout_after: Duration.from_secs(5))
+        .with_timeout(path.path, timeout_after: Duration.from_secs(5))
         .ok?,
     )
   })
@@ -1275,12 +1271,12 @@ fn pub tests(t: mut Tests) {
     let path = SocketPath.new(t.id)
     let listener = UnixSocket.new(Type.STREAM).get
 
-    try listener.bind(path)
+    try listener.bind(path.path)
     try listener.listen
 
-    let stream = try UnixClient.new(path)
+    let stream = try UnixClient.new(path.path)
 
-    t.equal(stream.local_address, Result.Ok(UnixAddress.new('')))
+    t.equal(stream.local_address, Result.Ok(UnixAddress.new(''.to_path)))
     Result.Ok(nil)
   })
 
@@ -1288,12 +1284,12 @@ fn pub tests(t: mut Tests) {
     let path = SocketPath.new(t.id)
     let listener = UnixSocket.new(Type.STREAM).get
 
-    try listener.bind(path)
+    try listener.bind(path.path)
     try listener.listen
 
-    let stream = try UnixClient.new(path)
+    let stream = try UnixClient.new(path.path)
 
-    t.equal(stream.peer_address, Result.Ok(UnixAddress.new(path.to_string)))
+    t.equal(stream.peer_address, Result.Ok(UnixAddress.new(path.path)))
     Result.Ok(nil)
   })
 
@@ -1301,10 +1297,10 @@ fn pub tests(t: mut Tests) {
     let path = SocketPath.new(t.id)
     let listener = UnixSocket.new(Type.STREAM).get
 
-    try listener.bind(path)
+    try listener.bind(path.path)
     try listener.listen
 
-    let stream = try UnixClient.new(path)
+    let stream = try UnixClient.new(path.path)
     let connection = try listener.accept
 
     t.equal(connection.write_string('ping'), Result.Ok(nil))
@@ -1320,10 +1316,10 @@ fn pub tests(t: mut Tests) {
     let path = SocketPath.new(t.id)
     let listener = UnixSocket.new(Type.STREAM).get
 
-    try listener.bind(path)
+    try listener.bind(path.path)
     try listener.listen
 
-    let stream = try UnixClient.new(path)
+    let stream = try UnixClient.new(path.path)
     let connection = try listener.accept
     let bytes = ByteArray.new
 
@@ -1337,10 +1333,10 @@ fn pub tests(t: mut Tests) {
     let path = SocketPath.new(t.id)
     let listener = UnixSocket.new(Type.STREAM).get
 
-    try listener.bind(path)
+    try listener.bind(path.path)
     try listener.listen
 
-    let stream = try UnixClient.new(path)
+    let stream = try UnixClient.new(path.path)
     let connection = try listener.accept
     let bytes = ByteArray.new
 
@@ -1354,20 +1350,20 @@ fn pub tests(t: mut Tests) {
     let path = SocketPath.new(t.id)
     let listener = UnixSocket.new(Type.STREAM).get
 
-    try listener.bind(path)
+    try listener.bind(path.path)
     try listener.listen
 
-    UnixClient.new(path).then(fn (s) { s.flush })
+    UnixClient.new(path.path).then(fn (s) { s.flush })
   })
 
   t.ok('UnixClient.shutdown_read', fn (t) {
     let path = SocketPath.new(t.id)
     let listener = UnixSocket.new(Type.STREAM).get
 
-    try listener.bind(path)
+    try listener.bind(path.path)
     try listener.listen
 
-    let stream = try UnixClient.new(path)
+    let stream = try UnixClient.new(path.path)
 
     t.equal(stream.shutdown_read, Result.Ok(nil))
 
@@ -1382,10 +1378,10 @@ fn pub tests(t: mut Tests) {
     let path = SocketPath.new(t.id)
     let listener = UnixSocket.new(Type.STREAM).get
 
-    try listener.bind(path)
+    try listener.bind(path.path)
     try listener.listen
 
-    let stream = try UnixClient.new(path)
+    let stream = try UnixClient.new(path.path)
 
     t.equal(stream.shutdown_write, Result.Ok(nil))
     t.true(stream.write_string('ping').error?)
@@ -1396,10 +1392,10 @@ fn pub tests(t: mut Tests) {
     let path = SocketPath.new(t.id)
     let listener = UnixSocket.new(Type.STREAM).get
 
-    try listener.bind(path)
+    try listener.bind(path.path)
     try listener.listen
 
-    let stream = try UnixClient.new(path)
+    let stream = try UnixClient.new(path.path)
 
     t.equal(stream.shutdown, Result.Ok(nil))
     t.true(stream.write_string('ping').error?)
@@ -1410,10 +1406,10 @@ fn pub tests(t: mut Tests) {
     let path = SocketPath.new(t.id)
     let listener = UnixSocket.new(Type.STREAM).get
 
-    try listener.bind(path)
+    try listener.bind(path.path)
     try listener.listen
 
-    let stream = try UnixClient.new(path)
+    let stream = try UnixClient.new(path.path)
 
     t.equal(stream.shutdown, Result.Ok(nil))
 
@@ -1428,22 +1424,22 @@ fn pub tests(t: mut Tests) {
     let path = SocketPath.new(t.id)
     let listener = UnixSocket.new(Type.STREAM).get
 
-    try listener.bind(path)
+    try listener.bind(path.path)
     try listener.listen
 
-    UnixClient.new(path).then(fn (s) { s.try_clone })
+    UnixClient.new(path.path).then(fn (s) { s.try_clone })
   })
 
   t.test('UnixServer.new', fn (t) {
     let path = SocketPath.new(t.id)
 
-    t.true(UnixServer.new(path).ok?)
+    t.true(UnixServer.new(path.path).ok?)
   })
 
   t.ok('UnixServer.accept', fn (t) {
     let path = SocketPath.new(t.id)
-    let listener = try UnixServer.new(path)
-    let stream = try UnixClient.new(path)
+    let listener = try UnixServer.new(path.path)
+    let stream = try UnixClient.new(path.path)
     let connection = try listener.accept
 
     t.equal(connection.local_address, stream.peer_address)
@@ -1452,15 +1448,15 @@ fn pub tests(t: mut Tests) {
 
   t.test('UnixServer.local_address', fn (t) {
     let path = SocketPath.new(t.id)
-    let listener = UnixServer.new(path).get
+    let listener = UnixServer.new(path.path).get
     let addr = listener.local_address.get
 
-    t.equal(addr, UnixAddress.new(path.to_string))
+    t.equal(addr, UnixAddress.new(path.path))
   })
 
   t.test('UnixServer.try_clone', fn (t) {
     let path = SocketPath.new(t.id)
-    let server = UnixServer.new(path).get
+    let server = UnixServer.new(path.path).get
 
     t.true(server.try_clone.ok?)
   })

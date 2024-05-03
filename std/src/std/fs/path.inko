@@ -897,12 +897,6 @@ class pub Path {
   }
 }
 
-# A type from which a new `Path` can be created.
-trait pub ToPath {
-  # Returns a new `Path` based on `self`.
-  fn pub to_path -> Path
-}
-
 impl Equal[ref Path] for Path {
   # Returns `true` if `self` is equal to the given `Path`.
   #
@@ -967,12 +961,6 @@ impl Size for Path {
 impl Clone[Path] for Path {
   fn pub clone -> Path {
     Path.new(@path)
-  }
-}
-
-impl ToPath for Path {
-  fn pub to_path -> Path {
-    clone
   }
 }
 

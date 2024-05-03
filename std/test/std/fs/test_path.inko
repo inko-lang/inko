@@ -150,10 +150,6 @@ fn pub tests(t: mut Tests) {
     t.equal(Path.new('foo').clone, Path.new('foo'))
   })
 
-  t.test('Path.to_path', fn (t) {
-    t.equal(Path.new('foo').to_path, Path.new('foo'))
-  })
-
   t.test('Path.fmt', fn (t) { t.equal(fmt(Path.new('foo')), '"foo"') })
 
   t.test('Path.expand', fn (t) {

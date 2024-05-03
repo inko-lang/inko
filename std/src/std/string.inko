@@ -11,7 +11,7 @@ import std.clone (Clone)
 import std.cmp (Contains, Equal)
 import std.drop (Drop)
 import std.fmt (Format, Formatter)
-import std.fs.path (Path, ToPath)
+import std.fs.path (Path)
 import std.hash (Hash, Hasher)
 import std.io (Read)
 import std.iter (Iter, Stream)
@@ -599,6 +599,15 @@ class builtin String {
     buf.into_string
   }
 
+  # Converts `self` to a `Path`
+  #
+  # # Examples
+  #
+  #     '/tmp/test.txt'.to_path # => Path.new('/tmp/test.txt')
+  fn pub to_path -> Path {
+    Path.new(self)
+  }
+
   fn byte_unchecked(index: Int) -> Int {
     (@bytes as Int + index as Pointer[UInt8]).0 as Int
   }
@@ -757,12 +766,6 @@ impl Add[String, String] for String {
   #     'hello ' + 'world' # => 'hello world'
   fn pub +(other: ref String) -> String {
     _INKO.string_concat(self, other)
-  }
-}
-
-impl ToPath for String {
-  fn pub to_path -> Path {
-    Path.new(clone)
   }
 }
 

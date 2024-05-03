@@ -412,7 +412,7 @@ class pub Socket {
   #     let socket = Socket.ipv4(Type.DGRAM).get
   #
   #     socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
-  fn pub mut bind[T: ToString](ip: ref T, port: Int) -> Result[Nil, Error] {
+  fn pub mut bind(ip: ref IpAddress, port: Int) -> Result[Nil, Error] {
     match inko_socket_bind(@raw, ip.to_string, port) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
@@ -434,7 +434,7 @@ class pub Socket {
   #     socket.bind(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
   #     socket.listen.get
   #     client.connect(ip: IpAddress.v4(0, 0, 0, 0), port: 9999).get
-  fn pub mut connect[T: ToString](ip: ref T, port: Int) -> Result[Nil, Error] {
+  fn pub mut connect(ip: ref IpAddress, port: Int) -> Result[Nil, Error] {
     match
       inko_socket_connect(
         _INKO.state,
@@ -532,9 +532,9 @@ class pub Socket {
   #         port: 9999
   #       )
   #       .get
-  fn pub mut send_string_to[T: ToString](
+  fn pub mut send_string_to(
     string: String,
-    ip: ref T,
+    ip: ref IpAddress,
     port: Int,
   ) -> Result[Int, Error] {
     match
@@ -573,9 +573,9 @@ class pub Socket {
   #         port: 9999
   #       )
   #       .get
-  fn pub mut send_bytes_to[T: ToString](
+  fn pub mut send_bytes_to(
     bytes: ref ByteArray,
-    ip: ref T,
+    ip: ref IpAddress,
     port: Int,
   ) -> Result[Int, Error] {
     match
@@ -884,7 +884,7 @@ class pub UdpSocket {
   #       UdpSocket.new(ip: IpAddress.v4(0, 0, 0, 0), port: 41_000).get
   #
   #     socket1.connect(ip: IpAddress.v4(0, 0, 0, 0), port: 41_000).get
-  fn pub mut connect[T: ToString](ip: ref T, port: Int) -> Result[Nil, Error] {
+  fn pub mut connect(ip: ref IpAddress, port: Int) -> Result[Nil, Error] {
     @socket.connect(ip, port)
   }
 
@@ -907,9 +907,9 @@ class pub UdpSocket {
   #         port: 9999
   #       )
   #       .get
-  fn pub mut send_string_to[T: ToString](
+  fn pub mut send_string_to(
     string: String,
-    ip: ref T,
+    ip: ref IpAddress,
     port: Int,
   ) -> Result[Int, Error] {
     @socket.send_string_to(string, ip, port)
@@ -935,9 +935,9 @@ class pub UdpSocket {
   #         port: 9999
   #       )
   #       .get
-  fn pub mut send_bytes_to[T: ToString](
+  fn pub mut send_bytes_to(
     bytes: ref ByteArray,
-    ip: ref T,
+    ip: ref IpAddress,
     port: Int,
   ) -> Result[Int, Error] {
     @socket.send_bytes_to(bytes, ip, port)
@@ -1217,20 +1217,20 @@ class pub UnixAddress {
   #
   #     import std.net.socket (UnixAddress)
   #
-  #     UnixAddress.new('/tmp/test.sock')
+  #     UnixAddress.new('/tmp/test.sock'.to_path)
   #
   # Creating a `UnixAddress` that uses an unnamed address:
   #
   #     import std.net.socket (UnixAddress)
   #
-  #     UnixAddress.new('')
+  #     UnixAddress.new(''.to_path)
   #
   # Creating a `UnixAddress` that uses an abstract address:
   #
   #     import std.net.socket (UnixAddress)
   #
-  #     UnixAddress.new("\0example")
-  fn pub static new[T: ToString](address: ref T) -> UnixAddress {
+  #     UnixAddress.new("\0example".to_path)
+  fn pub static new(address: ref Path) -> UnixAddress {
     UnixAddress(address.to_string)
   }
 
@@ -1253,8 +1253,8 @@ class pub UnixAddress {
   #
   #     import std.net.socket (UnixAddress)
   #
-  #     UnixAddress.new('/tmp/test.sock').abstract?    # => false
-  #     UnixAddress.new("\0example-address").abstract? # => true
+  #     UnixAddress.new('/tmp/test.sock'.to_path).abstract?    # => false
+  #     UnixAddress.new("\0example-address".to_path).abstract? # => true
   fn pub abstract? -> Bool {
     @address.starts_with?('\0')
   }
@@ -1267,8 +1267,8 @@ class pub UnixAddress {
   #
   #     import std.net.socket (UnixAddress)
   #
-  #     UnixAddress.new('/tmp/test.sock').unnamed? # => false
-  #     UnixAddress.new('').unnamed?               # => true
+  #     UnixAddress.new('/tmp/test.sock'.to_path).unnamed? # => false
+  #     UnixAddress.new(''.to_path).unnamed?               # => true
   fn pub unnamed? -> Bool {
     @address.empty?
   }
@@ -1297,8 +1297,8 @@ impl Equal[ref UnixAddress] for UnixAddress {
   #
   #     import std.net.socket (UnixAddress)
   #
-  #     UnixAddress.new('a.sock') == UnixAddress.new('a.sock') # => true
-  #     UnixAddress.new('a.sock') == UnixAddress.new('b.sock') # => false
+  #     UnixAddress.new('a.sock'.to_path) == UnixAddress.new('a.sock'.to_path) # => true
+  #     UnixAddress.new('a.sock'.to_path) == UnixAddress.new('b.sock'.to_path) # => false
   fn pub ==(other: ref UnixAddress) -> Bool {
     @address == other.address
   }
@@ -1313,8 +1313,8 @@ impl ToString for UnixAddress {
   #
   #     import std.net.socket (UnixAddress)
   #
-  #     UnixAddress.new('/tmp/test.sock').to_string # => '/tmp/test.sock'
-  #     UnixAddress.new("\0example").to_string      # => "\0example"
+  #     UnixAddress.new('/tmp/test.sock'.to_path).to_string # => '/tmp/test.sock'
+  #     UnixAddress.new("\0example".to_path).to_string      # => "\0example"
   fn pub to_string -> String {
     @address
   }
@@ -1393,8 +1393,8 @@ class pub UnixSocket {
   #
   #     let socket = UnixSocket.new(Type.DGRAM).get
   #
-  #     socket.bind('/tmp/test.sock').get
-  fn pub mut bind[T: ToString](path: ref T) -> Result[Nil, Error] {
+  #     socket.bind('/tmp/test.sock'.to_path).get
+  fn pub mut bind(path: ref Path) -> Result[Nil, Error] {
     match inko_socket_bind(@raw, path.to_string, 0) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
       case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
@@ -1412,11 +1412,11 @@ class pub UnixSocket {
   #     let listener = UnixSocket.new(Type.STREAM).get
   #     let stream = UnixSocket.new(Type.STREAM).get
   #
-  #     listener.bind('/tmp/test.sock').get
+  #     listener.bind('/tmp/test.sock'.to_path).get
   #     listener.listen.get
   #
   #     stream.connect('/tmp/test.sock').get
-  fn pub mut connect[T: ToString](path: ref T) -> Result[Nil, Error] {
+  fn pub mut connect(path: ref Path) -> Result[Nil, Error] {
     match
       inko_socket_connect(
         _INKO.state,
@@ -1443,7 +1443,7 @@ class pub UnixSocket {
   #
   #     let socket = UnixSocket.new(Type.STREAM).get
   #
-  #     socket.bind('/tmp/test.sock').get
+  #     socket.bind('/tmp/test.sock'.to_path).get
   #     socket.listen.get
   fn pub mut listen -> Result[Nil, Error] {
     match inko_socket_listen(@raw, MAXIMUM_LISTEN_BACKLOG) {
@@ -1465,7 +1465,7 @@ class pub UnixSocket {
   #     let listener = UnixSocket.new(Type.STREAM).get
   #     let stream = UnixSocket.new(Type.STREAM).get
   #
-  #     listener.bind('/tmp/test.sock').get
+  #     listener.bind('/tmp/test.sock'.to_path).get
   #     listener.listen.get
   #
   #     stream.connect('/tmp/test.sock').get
@@ -1503,11 +1503,13 @@ class pub UnixSocket {
   #
   #     let socket = UnixSocket.new(Type.DGRAM).get
   #
-  #     socket.bind('/tmp/test.sock').get
-  #     socket.send_string_to(string: 'hello', address: '/tmp/test.sock').get
-  fn pub mut send_string_to[T: ToString](
+  #     socket.bind('/tmp/test.sock'.to_path).get
+  #     socket
+  #       .send_string_to(string: 'hello', address: '/tmp/test.sock'.to_path)
+  #       .get
+  fn pub mut send_string_to(
     string: String,
-    address: ref T,
+    address: ref Path,
   ) -> Result[Int, Error] {
     let addr = address.to_string
 
@@ -1538,11 +1540,13 @@ class pub UnixSocket {
   #     let socket = UnixSocket.new(Type.DGRAM).get
   #     let bytes = 'hello'.to_byte_array
   #
-  #     socket.bind('/tmp/test.sock').get
-  #     socket.send_bytes_to(bytes: bytes, address: '/tmp/test.sock').get
-  fn pub mut send_bytes_to[T: ToString](
+  #     socket.bind('/tmp/test.sock'.to_path).get
+  #     socket
+  #       .send_bytes_to(bytes: bytes, address: '/tmp/test.sock'.to_path)
+  #       .get
+  fn pub mut send_bytes_to(
     bytes: ref ByteArray,
-    address: ref T,
+    address: ref Path,
   ) -> Result[Int, Error] {
     let addr = address.to_string
 
@@ -1577,7 +1581,7 @@ class pub UnixSocket {
   #     let socket = UnixSocket.new(Type.DGRAM).get
   #     let bytes = ByteArray.new
   #
-  #     socket.send_string_to('hello', address: '/tmp/test.sock').get
+  #     socket.send_string_to('hello', address: '/tmp/test.sock'.to_path).get
   #
   #     let received_from = socket.receive_from(bytes: bytes, size: 5).get
   #
@@ -1601,7 +1605,7 @@ class pub UnixSocket {
       )
         as Int
     {
-      case 0 -> Result.Ok(UnixAddress.new(raw.address))
+      case 0 -> Result.Ok(UnixAddress.new(raw.address.to_path))
       case e -> Result.Error(Error.from_os_error(e))
     }
   }
@@ -1611,7 +1615,7 @@ class pub UnixSocket {
     let raw = RawAddress(address: '', port: 0)
 
     match inko_socket_local_address(_INKO.state, @raw, mut raw) as Int {
-      case 0 -> Result.Ok(UnixAddress.new(raw.address))
+      case 0 -> Result.Ok(UnixAddress.new(raw.address.to_path))
       case e -> Result.Error(Error.from_os_error(e))
     }
   }
@@ -1621,7 +1625,7 @@ class pub UnixSocket {
     let raw = RawAddress(address: '', port: 0)
 
     match inko_socket_peer_address(_INKO.state, @raw, mut raw) as Int {
-      case 0 -> Result.Ok(UnixAddress.new(raw.address))
+      case 0 -> Result.Ok(UnixAddress.new(raw.address.to_path))
       case e -> Result.Error(Error.from_os_error(e))
     }
   }
@@ -1740,10 +1744,8 @@ class pub UnixDatagram {
   #
   #     import std.net.socket (UnixDatagram)
   #
-  #     UnixDatagram.new('/tmp/test.sock').get
-  fn pub static new[T: ToString](
-    address: ref T,
-  ) -> Result[UnixDatagram, Error] {
+  #     UnixDatagram.new('/tmp/test.sock'.to_path).get
+  fn pub static new(address: ref Path) -> Result[UnixDatagram, Error] {
     let socket = try UnixSocket.new(Type.DGRAM)
 
     try socket.bind(address)
@@ -1762,11 +1764,11 @@ class pub UnixDatagram {
   #
   #     import std.net.socket (UnixDatagram)
   #
-  #     let socket1 = UnixDatagram.new('/tmp/test1.sock').get
-  #     let socket2 = UnixDatagram.new('/tmp/test2.sock').get
+  #     let socket1 = UnixDatagram.new('/tmp/test1.sock'.to_path).get
+  #     let socket2 = UnixDatagram.new('/tmp/test2.sock'.to_path).get
   #
   #     socket1.connect('/tmp/test2.sock').get
-  fn pub mut connect[T: ToString](address: ref T) -> Result[Nil, Error] {
+  fn pub mut connect(address: ref Path) -> Result[Nil, Error] {
     @socket.connect(address)
   }
 
@@ -1778,12 +1780,14 @@ class pub UnixDatagram {
   #
   #     import std.net.socket (UnixDatagram)
   #
-  #     let socket = UnixDatagram.new('/tmp/test.sock').get
+  #     let socket = UnixDatagram.new('/tmp/test.sock'.to_path).get
   #
-  #     socket.send_string_to(string: 'hello', address: '/tmp/test.sock').get
-  fn pub mut send_string_to[T: ToString](
+  #     socket
+  #       .send_string_to(string: 'hello', address: '/tmp/test.sock'.to_path)
+  #       .get
+  fn pub mut send_string_to(
     string: String,
-    address: ref T,
+    address: ref Path,
   ) -> Result[Int, Error] {
     @socket.send_string_to(string, address)
   }
@@ -1796,13 +1800,15 @@ class pub UnixDatagram {
   #
   #     import std.net.socket (UnixDatagram)
   #
-  #     let socket = UnixDatagram.new('/tmp/test.sock').get
+  #     let socket = UnixDatagram.new('/tmp/test.sock'.to_path).get
   #     let bytes = 'hello'.to_byte_array
   #
-  #     socket.send_bytes_to(bytes: bytes, address: '/tmp/test.sock').get
-  fn pub mut send_bytes_to[T: ToString](
+  #     socket
+  #       .send_bytes_to(bytes: bytes, address: '/tmp/test.sock'.to_path)
+  #       .get
+  fn pub mut send_bytes_to(
     bytes: ref ByteArray,
-    address: ref T,
+    address: ref Path,
   ) -> Result[Int, Error] {
     @socket.send_bytes_to(bytes, address)
   }
@@ -1871,10 +1877,10 @@ class pub UnixClient {
   #
   #     import std.net.socket (UnixServer, UnixClient)
   #
-  #     let listener = UnixServer.new('/tmp/test.sock').get
+  #     let listener = UnixServer.new('/tmp/test.sock'.to_path).get
   #
-  #     UnixClient.new('/tmp/test.sock').get
-  fn pub static new[T: ToString](address: ref T) -> Result[UnixClient, Error] {
+  #     UnixClient.new('/tmp/test.sock'.to_path).get
+  fn pub static new(address: ref Path) -> Result[UnixClient, Error] {
     let socket = try UnixSocket.new(Type.STREAM)
 
     try socket.connect(address)
@@ -1900,8 +1906,8 @@ class pub UnixClient {
   #         timeout_after: Duration.from_secs(5)
   #       )
   #       .get
-  fn pub static with_timeout[A: ToString, I: ToInstant](
-    address: ref A,
+  fn pub static with_timeout[I: ToInstant](
+    address: ref Path,
     timeout_after: I,
   ) -> Result[UnixClient, Error] {
     let socket = try UnixSocket.new(Type.STREAM)
@@ -1985,8 +1991,8 @@ class pub UnixServer {
   #
   #     import std.net.socket (UnixServer)
   #
-  #     UnixServer.new('/tmp/test.sock').get
-  fn pub static new[T: ToString](address: ref T) -> Result[UnixServer, Error] {
+  #     UnixServer.new('/tmp/test.sock'.to_path).get
+  fn pub static new(address: ref Path) -> Result[UnixServer, Error] {
     let socket = try UnixSocket.new(Type.STREAM)
 
     try socket.bind(address)
@@ -2004,8 +2010,8 @@ class pub UnixServer {
   #
   #     import std.net.socket (UnixServer, UnixClient)
   #
-  #     let listener = UnixServer.new('/tmp/test.sock').get
-  #     let client = UnixClient.new('/tmp/test.sock').get
+  #     let listener = UnixServer.new('/tmp/test.sock'.to_path).get
+  #     let client = UnixClient.new('/tmp/test.sock'.to_path).get
   #
   #     client.write_string('ping')
   #

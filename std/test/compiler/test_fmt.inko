@@ -74,7 +74,7 @@ fn pub tests(t: mut Tests) {
       try ReadOnlyFile
         .new(in_file)
         .then(fn (f) { f.read_all(input) })
-        .then(fn (_) { ReadOnlyFile.new(out_file) })
+        .then(fn (_) { ReadOnlyFile.new(out_file.clone) })
         .then(fn (f) { f.read_all(output) })
         .map_error(fn (e) { 'failed to read the input and output files: {e}' })
 

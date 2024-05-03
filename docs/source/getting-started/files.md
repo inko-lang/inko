@@ -16,7 +16,7 @@ import std.stdio (STDOUT)
 class async Main {
   fn async main {
     let out = STDOUT.new
-    let file = ReadWriteFile.new('hello.txt').get
+    let file = ReadWriteFile.new('hello.txt'.to_path).get
     let bytes = ByteArray.new
 
     file.write_string('Hello, world!').get
@@ -62,7 +62,7 @@ import std.stdio (STDOUT)
 class async Main {
   fn async main {
     let out = STDOUT.new
-    let file = ReadOnlyFile.new('hello.txt').get
+    let file = ReadOnlyFile.new('hello.txt'.to_path).get
     let bytes = ByteArray.new
 
     file.read_all(bytes).get
@@ -92,7 +92,7 @@ import std.fs.file (WriteOnlyFile)
 
 class async Main {
   fn async main {
-    let file = WriteOnlyFile.new('hello.txt').get
+    let file = WriteOnlyFile.new('hello.txt'.to_path).get
 
     file.write_string('Hello, world!')
   }
