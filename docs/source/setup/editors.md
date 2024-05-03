@@ -15,8 +15,15 @@ For Vim and Neovim we provide [an official
 plugin](https://github.com/inko-lang/inko.vim). This plugin adds support for
 syntax highlighting, file type detection, folding, and indentation.
 
-The plugin [conform.nvim](https://github.com/stevearc/conform.nvim) adds support
-for automatic formatting of source code using `inko fmt`.
+Users of NeoVim can also use
+[nvim-treesitter](https://github.com/nvim-treesitter/nvim-treesitter) to take
+advantage of [Tree-sitter support for
+Inko](https://github.com/inko-lang/tree-sitter-inko/), providing more accurate
+highlights.
+
+The NeoVim plugin [conform.nvim](https://github.com/stevearc/conform.nvim)
+provides support for automatic formatting of source code using `inko fmt`.
+
 
 ## Visual Studio Code
 
