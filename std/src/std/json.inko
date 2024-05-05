@@ -61,6 +61,7 @@
 import std.cmp (Equal)
 import std.fmt (Format as FormatTrait, Formatter)
 import std.int (Format)
+import std.io (Error as IoError)
 import std.iter (Peekable)
 import std.string (Bytes, StringBuffer, ToString)
 import std.utf8
@@ -132,13 +133,69 @@ fn char(byte: Int) -> String {
   ByteArray.from_array([byte]).into_string
 }
 
+# A type describing the different possible errors.
+#
+# End users don't really care about the difference between
+# RecursionLimitExceeded and InvalidSurrogate(...), nor can they really act
+# differently based on the kind of error.
+class pub enum ErrorKind {
+  # The maximum recursion limit is exceeded.
+  case RecursionLimitExceeded(Int)
+
+  # An invalid UTF-16 surrogate pair is encountered.
+  case InvalidSurrogate(String)
+
+  # A generic error with a custom message.
+  case Generic(String)
+
+  # An error occurred while reading from the input stream.
+  case Read(IoError)
+}
+
+impl Equal[ref ErrorKind] for ErrorKind {
+  fn pub ==(other: ref ErrorKind) -> Bool {
+    match (self, other) {
+      case (RecursionLimitExceeded(a), RecursionLimitExceeded(b)) -> a == b
+      case (InvalidSurrogate(a), InvalidSurrogate(b)) -> a == b
+      case (Read(a), Read(b)) -> a == b
+      case (Generic(a), Generic(b)) -> a == b
+      case _ -> false
+    }
+  }
+}
+
+impl FormatTrait for ErrorKind {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case RecursionLimitExceeded(v) -> {
+        formatter.tuple('RecursionLimitExceeded').field(v).finish
+      }
+      case InvalidSurrogate(v) -> {
+        formatter.tuple('InvalidSurrogate').field(v).finish
+      }
+      case Read(v) -> formatter.tuple('Read').field(v).finish
+      case Generic(v) -> formatter.tuple('Generic').field(v).finish
+    }
+  }
+}
+
+impl ToString for ErrorKind {
+  fn pub to_string -> String {
+    match self {
+      case RecursionLimitExceeded(v) -> {
+        'the maximum recursion depth of ${v} is exceeded'
+      }
+      case InvalidSurrogate(v) -> "${v} isn't a valid UTF-16 surrogate pair"
+      case Read(v) -> v.to_string
+      case Generic(v) -> v.to_string
+    }
+  }
+}
+
 # A type describing an error produced while parsing a JSON document.
 class pub Error {
-  # A human readable description of the error.
-  let pub @message: String
-
-  # The line number of the error.
-  let pub @line: Int
+  # A value describing the kind of error.
+  let pub @kind: ErrorKind
 
   # The byte offset in the input string at which the error starts.
   #
@@ -154,9 +211,7 @@ class pub Error {
 
 impl Equal[ref Error] for Error {
   fn pub ==(other: ref Error) -> Bool {
-    @message == other.message
-      and @line == other.line
-      and @offset == other.offset
+    @kind == other.kind and @offset == other.offset
   }
 }
 
@@ -164,8 +219,7 @@ impl FormatTrait for Error {
   fn pub fmt(formatter: mut Formatter) {
     formatter
       .object('Error')
-      .field('message', @message)
-      .field('line', @line)
+      .field('kind', @kind)
       .field('offset', @offset)
       .finish
   }
@@ -173,7 +227,7 @@ impl FormatTrait for Error {
 
 impl ToString for Error {
   fn pub to_string -> String {
-    '${@message}, on line ${@line} at byte offset ${@offset}'
+    '${@kind}, at byte offset ${@offset}'
   }
 }
 
@@ -467,7 +521,774 @@ impl Equal[ref Json] for Json {
   }
 }
 
-# A type for parsing a stream of bytes into a JSON object.
+# A numeric value that's either an `Int` or a `Float`.
+class pub enum Number {
+  case Int(Int)
+  case Float(Float)
+}
+
+impl Equal[ref Number] for Number {
+  fn pub ==(other: ref Number) -> Bool {
+    match (self, other) {
+      case (Int(a), Int(b)) -> a == b
+      case (Float(a), Float(b)) -> a == b
+      case _ -> false
+    }
+  }
+}
+
+impl FormatTrait for Number {
+  fn pub fmt(formatter: mut Formatter) {
+    match self {
+      case Int(v) -> formatter.tuple('Int').field(v).finish
+      case Float(v) -> formatter.tuple('Float').field(v).finish
+    }
+  }
+}
+
+# A type describing what kind of value is located at the current position in an
+# input stream.
+class pub enum Type {
+  case Array
+  case Bool
+  case Null
+  case Number
+  case Object
+  case String
+}
+
+impl Equal[ref Type] for Type {
+  fn pub ==(other: ref Type) -> Bool {
+    match (self, other) {
+      case (Array, Array) -> true
+      case (Bool, Bool) -> true
+      case (Null, Null) -> true
+      case (Number, Number) -> true
+      case (Object, Object) -> true
+      case (String, String) -> true
+      case _ -> false
+    }
+  }
+}
+
+impl FormatTrait for Type {
+  fn pub fmt(formatter: mut Formatter) {
+    let name = match self {
+      case Array -> 'Array'
+      case Bool -> 'Bool'
+      case Null -> 'Null'
+      case Number -> 'Number'
+      case Object -> 'Object'
+      case String -> 'String'
+    }
+
+    formatter.tuple(name).finish
+  }
+}
+
+# A pull parser for turning a stream of bytes into JSON values.
+#
+# Using a `PullParser` you can parse a JSON document into a desired set of
+# values, without the need for any intermediate `Json` values. For example,
+# parsing an array of integers is done as follows:
+#
+#     import std.json (PullParser)
+#
+#     let parser = PullParser.new('[10, 20]')
+#     let values = []
+#
+#     parser.values(fn { Result.Ok(values.push(try parser.int)) }).get
+#     values # => [10, 20]
+#
+# For objects one _can_ use the low-level method `PullParser.keys`, but it's
+# recommended to use `PullParser.object` when the names of the keys are known at
+# compile-time. For example:
+#
+#     import std.json (PullParser)
+#
+#     class Person {
+#       let @name: String
+#       let @age: Int
+#     }
+#
+#     let parser = PullParser.new('{ "name": "Alice", "age": 42 }')
+#     let person = Person(name: '', age: 0)
+#
+#     parser
+#       .object
+#       .string('name', fn (v) { person.name = name })
+#       .int('age', fn (v) { person.age = v })
+#       .parse
+#       .get
+class pub PullParser {
+  let @input: Peekable[Int]
+  let @offset: Int
+  let @buffer: ByteArray
+
+  # Returns a new parser that parses the given `Bytes` value.
+  fn pub static new[T: Bytes](input: ref T) -> PullParser {
+    PullParser(input: input.bytes.peekable, offset: -1, buffer: ByteArray.new)
+  }
+
+  # Returns a `Type` describing what type of value is located at the current
+  # offset.
+  fn pub mut value_type -> Result[Type, Error] {
+    let typ = match try peek {
+      case Some(MINUS) -> Type.Number
+      case Some(BRACKET_OPEN) -> Type.Array
+      case Some(CURLY_OPEN) -> Type.Object
+      case Some(LOWER_T or LOWER_F) -> Type.Bool
+      case Some(LOWER_N) -> Type.Null
+      case Some(DQUOTE) -> Type.String
+      case Some(byte) if digit?(byte) -> Type.Number
+      # This is to take care of any random garbage that may be included in the
+      # JSON document, including Unicode BOMs. This also saves us from having to
+      # explicitly check for all the different BOMs.
+      case Some(byte) -> throw unexpected(byte)
+      case _ -> throw missing_input
+    }
+
+    Result.Ok(typ)
+  }
+
+  # Recursively parses but ignores the current value.
+  #
+  # # Examples
+  #
+  #     import std.json (PullParser)
+  #
+  #     PullParser.new('[10, 20]').skip # => Result.Ok(nil)
+  fn pub mut skip -> Result[Nil, Error] {
+    match value_type {
+      case Ok(Number) -> {
+        number
+        nil
+      }
+      case Ok(Array) -> values(fn { skip })
+      case Ok(Object) -> keys(fn (_) { skip })
+      case Ok(String) -> string
+      case Ok(Null) -> null
+      case Ok(Bool) -> bool
+      case Error(e) -> throw e
+    }
+
+    Result.Ok(nil)
+  }
+
+  # Parses an array, calling the `value` closure for every value in the array.
+  #
+  # It's expected that the `value` closure advances the parser by parsing the
+  # value in it's desired format.
+  #
+  # # Examples
+  #
+  #     import std.json (PullParser)
+  #
+  #     let parser = PullParser.new('[10, 20]')
+  #     let values = []
+  #
+  #     parser
+  #       .values(fn {
+  #         values.push(parser.int.get)
+  #         Result.Ok(nil)
+  #       })
+  #       .get
+  #
+  #     values # => [10, 20]
+  fn pub mut values(value: fn -> Result[Nil, Error]) -> Result[Nil, Error] {
+    try expect(BRACKET_OPEN, skip_whitespace: true)
+
+    loop {
+      match try peek {
+        case Some(BRACKET_CLOSE) -> {
+          try advance
+          break
+        }
+        case Some(_) -> {
+          try value.call
+          try separator(BRACKET_CLOSE)
+        }
+        case _ -> throw missing_input
+      }
+    }
+
+    Result.Ok(nil)
+  }
+
+  # Parses an object, calling `value` for each key and passing it the name of
+  # the key.
+  #
+  # It's expected that the `value` closure advances the parser by parsing the
+  # value in it's desired format.
+  #
+  # # Examples
+  #
+  #     import std.json (PullParser)
+  #
+  #     class Person {
+  #       let @name: String
+  #       let @age: Int
+  #     }
+  #
+  #     let parser = PullParser.new('{ "name": "Alice", "age": 42 }')
+  #     let person = Person(name: '', age: 0)
+  #
+  #     parser
+  #       .keys(fn (key) {
+  #         match key {
+  #           case 'name' -> person.name = parser.string.get
+  #           case 'age' -> person.age = parser.int.get
+  #           case _ -> {}
+  #         }
+  #
+  #         Result.Ok(nil)
+  #       })
+  #       .get
+  #
+  #     person.name # => 'Alice'
+  #     person.age  # => 42
+  fn pub mut keys(
+    value: fn (String) -> Result[Nil, Error],
+  ) -> Result[Nil, Error] {
+    try expect(CURLY_OPEN, skip_whitespace: true)
+
+    loop {
+      match try peek {
+        case Some(CURLY_CLOSE) -> {
+          advance
+          break
+        }
+        case Some(DQUOTE) -> {
+          let key = try string
+
+          try expect(COLON, skip_whitespace: true)
+          try value.call(key)
+          try separator(CURLY_CLOSE)
+        }
+        case Some(byte) -> throw unexpected(byte)
+        case _ -> throw missing_input
+      }
+    }
+
+    Result.Ok(nil)
+  }
+
+  # Returns an `ObjectParser` for parsing an object with a known set of keys.
+  #
+  # For more information, refer to the various methods of the `ObjectParser`
+  # type.
+  #
+  # # Examples
+  #
+  #     import std.json (PullParser)
+  #
+  #     class Person {
+  #       let @name: String
+  #     }
+  #
+  #     let parser = PullParser.new('{ "name": "String" }')
+  #     let person = Person(name: '')
+  #
+  #     parser.object.string('name', fn (v) { person.name = v }).parse.get
+  fn pub mut object -> ObjectParser {
+    ObjectParser.new(self)
+  }
+
+  # Parses the boolean value `true` or `false`.
+  #
+  # # Examples
+  #
+  #     import std.json (PullParser)
+  #
+  #     PullParser.new('true').bool # => Result.Ok(true)
+  fn pub mut bool -> Result[Bool, Error] {
+    match try peek {
+      case Some(LOWER_T) -> {
+        advance
+        identifier('rue').map(fn (_) { true })
+      }
+      case Some(LOWER_F) -> {
+        advance
+        identifier('alse').map(fn (_) { false })
+      }
+      case Some(v) -> throw unexpected(v)
+      case _ -> throw missing_input
+    }
+  }
+
+  # Parses a `null` value.
+  #
+  # # Examples
+  #
+  #     import std.json (PullParser)
+  #
+  #     PullParser.new('null').null # => Result.Ok(nil)
+  fn pub mut null -> Result[Nil, Error] {
+    identifier('null')
+  }
+
+  # Parses a string.
+  #
+  # # Examples
+  #
+  #     import std.json (PullParser)
+  #
+  #     PullParser.new('"hello"').string # => Result.Ok('hello')
+  fn pub mut string -> Result[String, Error] {
+    match try peek {
+      case Some(DQUOTE) -> try advance
+      case Some(byte) -> throw unexpected(byte)
+      case _ -> throw missing_input
+    }
+
+    loop {
+      match try advance {
+        case Some(BSLASH) -> {
+          match try advance {
+            case Some(LOWER_U) -> try escaped_unicode
+            case Some(byte) -> {
+              match ESCAPE_TABLE.get(byte) {
+                case -1 -> throw unexpected(byte)
+                case val -> @buffer.push(val)
+              }
+            }
+            case _ -> throw missing_input
+          }
+        }
+        case Some(DQUOTE) -> break
+        case Some(val) if val >= 0x0 and val <= 0x001F -> {
+          throw generic_error(
+            'control characters in the range 0x0..0x001F must be escaped',
+          )
+        }
+        case Some(byte) -> @buffer.push(byte)
+        case _ -> throw missing_input
+      }
+    }
+
+    Result.Ok(@buffer.drain_to_string)
+  }
+
+  fn mut escaped_unicode -> Result[Nil, Error] {
+    let high = try codepoint
+
+    if utf8.encode_scalar(high, @buffer) > 0 { return Result.Ok(nil) }
+
+    # At this point the codepoint is either straight up invalid (e.g. "\uZZZZ"),
+    # or it's a UTF-16 surrogate.
+    if utf8.surrogate?(high).false? {
+      throw error(ErrorKind.InvalidSurrogate(high.format(Format.Hex)))
+    }
+
+    try expect(BSLASH, skip_whitespace: false)
+    try expect(LOWER_U, skip_whitespace: false)
+
+    let low = try codepoint
+
+    if utf8.surrogate?(low) {
+      let codepoint = utf8.codepoint_from_surrogates(high, low)
+
+      # The encoding may fail for pairs such as "\uDFFF\uDFFF".
+      if utf8.encode_scalar(codepoint, @buffer) > 0 { return Result.Ok(nil) }
+    }
+
+    let pair = '\\u${high.format(Format.Hex)}\\u${low.format(Format.Hex)}'
+
+    throw error(ErrorKind.InvalidSurrogate(pair))
+  }
+
+  fn mut codepoint -> Result[Int, Error] {
+    let mut num = 0
+    let mut idx = 0
+
+    while idx < 4 {
+      let digit = match try advance {
+        case Some(byte) -> {
+          if byte >= ZERO and byte <= NINE {
+            byte - ZERO
+          } else if byte >= LOWER_A and byte <= LOWER_F {
+            byte - LOWER_A + 10
+          } else if byte >= UPPER_A and byte <= UPPER_F {
+            byte - UPPER_A + 10
+          } else {
+            throw unexpected(byte)
+          }
+        }
+        case _ -> throw missing_input
+      }
+
+      num = num * 16 + digit
+      idx += 1
+    }
+
+    Result.Ok(num)
+  }
+
+  # Parses a number as an `Int`.
+  #
+  # If the value in the input stream is in fact a float (e.g. `1.2` instead of
+  # just `1`), it's first pased as a `Float` and then cast to an `Int`.
+  #
+  # # Examples
+  #
+  #     import std.json (PullParser)
+  #
+  #     Parser.new('10').int  # => Result.Ok(10)
+  #     Parser.new('1.2').int # => Result.Ok(1)
+  fn pub mut int -> Result[Int, Error] {
+    match number {
+      case Ok(Int(v)) -> Result.Ok(v)
+      case Ok(Float(v)) -> Result.Ok(v.to_int)
+      case Error(e) -> Result.Error(e)
+    }
+  }
+
+  # Parses a number as a `Float`.
+  #
+  # If the value in the input stream is in fact an integer (e.g. `1` instead of
+  # `1.0` or `1.2`), the value is first parsed as an `Int` and then cast to a
+  # `Float`.
+  #
+  # # Examples
+  #
+  #     import std.json (PullParser)
+  #
+  #     Parser.new('1.2').float # => Result.Ok(1.2)
+  #     Parser.new('1').float   # => Result.Ok(1.0)
+  fn pub mut float -> Result[Float, Error] {
+    match number {
+      case Ok(Int(v)) -> Result.Ok(v.to_float)
+      case Ok(Float(v)) -> Result.Ok(v)
+      case Error(e) -> Result.Error(e)
+    }
+  }
+
+  # Parses a number into a `Number` value.
+  #
+  # A `Number` is a wrapper enum around either a `Float` or an `Int`. If you
+  # only care about numbers in a particular format (e.g. integers), use
+  # `PullParser.int` or `PullParser.float` instead.
+  #
+  # # Examples
+  #
+  #     import std.json (PullParser)
+  #
+  #     Parser.new('1.2').number # => Result.Ok(Number.Float(1.2))
+  #     Parser.new('1').number   # => Result.Ok(Number.Int(1))
+  fn pub mut number -> Result[Number, Error] {
+    match try peek {
+      case Some(MINUS) -> {
+        try advance_and_buffer
+
+        match try peek_next {
+          case Some(byte) if digit?(byte) -> {}
+          case Some(byte) -> throw unexpected(byte)
+          case _ -> throw missing_input
+        }
+      }
+      case Some(byte) if digit?(byte) -> {}
+      case Some(byte) -> throw unexpected(byte)
+      case _ -> throw missing_input
+    }
+
+    # Numbers such as 001, 010, 01.0, etc are invalid.
+    match try peek_next {
+      case Some(ZERO) -> {
+        try advance_and_buffer
+
+        match try peek_next {
+          case Some(byte) if digit?(byte) -> throw unexpected(byte)
+          case _ -> {}
+        }
+      }
+      case _ -> {}
+    }
+
+    try buffer_digits
+
+    match try peek_next {
+      # Examples: 1.2, 1.2e1, 1.2e+1
+      case Some(DOT) -> {
+        try advance_and_buffer
+
+        match try peek_next {
+          case Some(byte) if digit?(byte) -> {}
+          case Some(byte) -> throw unexpected(byte)
+          case _ -> throw missing_input
+        }
+
+        try buffer_digits
+
+        match try peek_next {
+          case Some(byte) if exponent?(byte) -> try exponent
+          case _ -> {}
+        }
+      }
+      # Example: 1E4
+      case Some(byte) if exponent?(byte) -> try exponent
+      # Example: 123
+      #
+      # If the number is too big to fit in an Int, we'll promote it to a Float.
+      case _ -> {
+        match Int.parse(@buffer, Format.Decimal) {
+          case Some(val) -> {
+            @buffer.clear
+            return Result.Ok(Number.Int(val))
+          }
+          case _ -> {}
+        }
+      }
+    }
+
+    # At this point we've already validated the input format, and it's
+    # compatible with the underlying float parser, so no extra checks are
+    # needed.
+    let res = Result.Ok(Number.Float(Float.parse(@buffer).get))
+
+    @buffer.clear
+    res
+  }
+
+  fn mut exponent -> Result[Nil, Error] {
+    try advance_and_buffer
+
+    match try peek_next {
+      case Some(MINUS or PLUS) -> {
+        try advance_and_buffer
+        nil
+      }
+      case _ -> {}
+    }
+
+    match try peek_next {
+      case Some(byte) if digit?(byte) -> {}
+      case Some(byte) -> throw unexpected(byte)
+      case _ -> throw missing_input
+    }
+
+    try buffer_digits
+    Result.Ok(nil)
+  }
+
+  fn mut buffer_digits -> Result[Nil, Error] {
+    loop {
+      match try peek_next {
+        case Some(byte) if digit?(byte) -> {
+          try advance
+          @buffer.push(byte)
+        }
+        case _ -> return Result.Ok(nil)
+      }
+    }
+  }
+
+  fn mut advance_and_buffer -> Result[Option[Int], Error] {
+    match try advance {
+      case Some(val) -> {
+        @buffer.push(val)
+        Result.Ok(Option.Some(val))
+      }
+      case _ -> Result.Ok(Option.None)
+    }
+  }
+
+  fn mut advance -> Result[Option[Int], Error] {
+    match @input.next {
+      case Some(v) -> {
+        @offset += 1
+        Result.Ok(Option.Some(v))
+      }
+      case _ -> Result.Ok(Option.None)
+    }
+  }
+
+  fn mut expect(byte: Int, skip_whitespace: Bool) -> Result[Nil, Error] {
+    if skip_whitespace { try self.skip_whitespace }
+
+    match try advance {
+      case Some(val) if val == byte -> Result.Ok(nil)
+      case Some(val) -> {
+        let exp = char(byte)
+        let got = char(val)
+
+        throw generic_error(
+          "the character '${exp}' is expected but '${got}' was found instead",
+        )
+      }
+      case _ -> throw missing_input
+    }
+  }
+
+  fn mut peek_next -> Result[Option[Int], Error] {
+    Result.Ok(@input.peek)
+  }
+
+  fn mut peek -> Result[Option[Int], Error] {
+    loop {
+      match peek_next {
+        case Ok(Some(SPACE or CR or TAB or LF)) -> advance
+        case Ok(Some(byte)) -> return Result.Ok(Option.Some(byte))
+        case Ok(None) -> return Result.Ok(Option.None)
+        case Error(e) -> throw e
+      }
+    }
+  }
+
+  fn mut identifier(name: String) -> Result[Nil, Error] {
+    try skip_whitespace
+
+    let mut index = 0
+    let max = name.size
+
+    while index < max {
+      try expect(name.byte(index := index + 1), skip_whitespace: false)
+    }
+
+    Result.Ok(nil)
+  }
+
+  fn mut skip_whitespace -> Result[Nil, Error] {
+    loop {
+      match try peek_next {
+        case Some(SPACE or CR or TAB or LF) -> try advance
+        case _ -> return Result.Ok(nil)
+      }
+    }
+  }
+
+  fn mut separator(closing: Int) -> Result[Nil, Error] {
+    match try peek {
+      case Some(byte) if byte == closing -> return Result.Ok(nil)
+      case Some(COMMA) -> try advance
+      case Some(byte) -> throw unexpected(byte)
+      case _ -> throw missing_input
+    }
+
+    match try peek {
+      case Some(byte) if byte == closing -> throw unexpected(byte)
+      case _ -> Result.Ok(nil)
+    }
+  }
+
+  fn unexpected(byte: Int) -> Error {
+    generic_error("the character '${char(byte)}' is unexpected")
+  }
+
+  fn missing_input -> Error {
+    generic_error('all input is consumed but more input is expected')
+  }
+
+  fn generic_error(message: String) -> Error {
+    error(ErrorKind.Generic(message))
+  }
+
+  fn error(kind: ErrorKind) -> Error {
+    Error(kind, offset: @offset)
+  }
+}
+
+# A type for parsing an object with a known set of keys.
+class pub ObjectParser {
+  # The parser this `ObjectParser` instance uses to process input.
+  let pub @parser: mut PullParser
+
+  # The keys to parse along with the closures that parse their values.
+  let @keys: Map[String, fn -> Result[Nil, Error]]
+
+  # Returns a new `ObjectParser` that uses the given `PullParser` to parse an
+  # input stream.
+  fn static new(parser: mut PullParser) -> ObjectParser {
+    ObjectParser(parser, keys: Map.new)
+  }
+
+  # Parses the key `name` as a custom value.
+  #
+  # It's expected that the `value` closure parses the value, advancing the
+  # parser in the process.
+  fn pub mut key(
+    name: String,
+    value: fn -> Result[Nil, Error],
+  ) -> mut ObjectParser {
+    @keys.set(name, value)
+    self
+  }
+
+  # Parses the key `name` as a `String`, passing the parsed value to the `value`
+  # closure.
+  fn pub mut string(name: String, value: fn (String)) -> mut ObjectParser {
+    key(name, fn move { @parser.string.map(fn (v) { value.call(v) }) })
+  }
+
+  # Parses the key `name` as an `Int`, passing the parsed value to the `value`
+  # closure.
+  fn pub mut int(name: String, value: fn (Int)) -> mut ObjectParser {
+    key(name, fn move { @parser.int.map(fn (v) { value.call(v) }) })
+  }
+
+  # Parses the key `name` as a `Float`, passing the parsed value to the `value`
+  # closure.
+  fn pub mut float(name: String, value: fn (Float)) -> mut ObjectParser {
+    key(name, fn move { @parser.float.map(fn (v) { value.call(v) }) })
+  }
+
+  # Parses the key `name` as a `Bool`, passing the parsed value to the `value`
+  # closure.
+  fn pub mut bool(name: String, value: fn (Bool)) -> mut ObjectParser {
+    key(name, fn move { @parser.bool.map(fn (v) { value.call(v) }) })
+  }
+
+  # Parses the key `name` as an object without a known structure, passing each
+  # key to the `value` closure. It's expected that the `value` closure parses
+  # the value, advancing the parser in the process.
+  fn pub mut keys(
+    name: String,
+    value: fn (String) -> Result[Nil, Error],
+  ) -> mut ObjectParser {
+    key(name, fn move { @parser.keys(fn (key) { value.call(key) }) })
+  }
+
+  # Parses the key `name` as an array of arbitrary values, using the `value`
+  # closure to parse the values and advance the parser.
+  fn pub mut values(
+    name: String,
+    value: fn -> Result[Nil, Error],
+  ) -> mut ObjectParser {
+    key(name, fn move { @parser.values(fn { value.call }) })
+  }
+
+  # Parses the key `name` as an array of strings, passing each `String` to the
+  # `value` closure.
+  fn pub mut strings(name: String, value: fn (String)) -> mut ObjectParser {
+    values(name, fn move { @parser.string.map(fn (v) { value.call(v) }) })
+  }
+
+  # Parses the key `name` as an array of integers, passing each `Int` to the
+  # `value` closure.
+  fn pub mut ints(name: String, value: fn (Int)) -> mut ObjectParser {
+    values(name, fn move { @parser.int.map(fn (v) { value.call(v) }) })
+  }
+
+  # Parses the key `name` as an array of integers, passing each `Int` to the
+  # `value` closure.
+  fn pub mut floats(name: String, value: fn (Float)) -> mut ObjectParser {
+    values(name, fn move { @parser.float.map(fn (v) { value.call(v) }) })
+  }
+
+  # Parses the current object according to the rules in `self`.
+  #
+  # When encountering a key for which no rule is defined, its value is
+  # (recursively) skipped.
+  fn pub mut parse -> Result[Nil, Error] {
+    @parser.keys(fn (key) {
+      match @keys.opt_mut(key) {
+        case Some(func) -> func.call
+        case _ -> @parser.skip
+      }
+    })
+  }
+}
+
+# A DOM parser for turning a stream of bytes into a JSON document.
 #
 # This parser only supports parsing `ByteArray` values as input. If you need to
 # parse very large documents, it's best to separate the objects on a per line
@@ -477,42 +1298,19 @@ impl Equal[ref Json] for Json {
 #
 # This parser enforces a limit on the number of nested arrays and objects. The
 # default is sufficiently large that most documents won't result in an error
-# being thrown. You can change this limit by adjusting the value of the
-# `max_depth` field.
-#
-# # String sizes
-#
-# Strings are limited to a maximum size defined in bytes. This size defaults to
-# 10 MiB _per string_. You can change this limit by adjusting the value of the
-# `max_string_size` field.
+# being thrown. This limit is controlled by the field `Parser.max_depth`.
 class pub Parser {
-  let @input: Peekable[Int]
-  let @offset: Int
-  let @line: Int
+  let @pull: PullParser
   let @depth: Int
-  let @buffer: ByteArray
 
   # The maximum number of nested values.
   #
   # When parsing an array or object that exceeds this depth, an error is thrown.
   let pub @max_depth: Int
 
-  # The maximum size of a string in bytes.
-  #
-  # When parsing a string that exceeds this limit, an error is thrown.
-  let pub @max_string_size: Int
-
   # Returns a new parser that will parse the given `Bytes` value.
   fn pub static new[T: Bytes](input: ref T) -> Parser {
-    Parser(
-      input: input.bytes.peekable,
-      offset: -1,
-      line: 1,
-      depth: 0,
-      max_depth: 100,
-      max_string_size: 10 * 1024 * 1024,
-      buffer: ByteArray.new,
-    )
+    Parser(PullParser.new(input), depth: 0, max_depth: 100)
   }
 
   # Parses the input into a JSON object.
@@ -529,11 +1327,9 @@ class pub Parser {
   fn pub move parse -> Result[Json, Error] {
     let result = try value
 
-    whitespace
-
     # Only trailing whitespace is allowed.
-    match peek {
-      case Some(val) -> throw unexpected(val)
+    match try @pull.peek {
+      case Some(val) -> throw @pull.unexpected(val)
       case _ -> {}
     }
 
@@ -541,393 +1337,67 @@ class pub Parser {
   }
 
   fn mut value -> Result[Json, Error] {
-    if @depth >= @max_depth {
-      throw error('Only up to ${@max_depth} nested objects/arrays are allowed')
-    }
-
-    whitespace
-
-    loop {
-      match peek {
-        case Some(MINUS) -> return number
-        case Some(BRACKET_OPEN) -> return array
-        case Some(CURLY_OPEN) -> return object
-        case Some(LOWER_T) -> return self.true
-        case Some(LOWER_F) -> return self.false
-        case Some(LOWER_N) -> return null
-        case Some(DQUOTE) -> return string
-        case Some(byte) if digit?(byte) -> return number
-        # This is to take care of any random garbage that may be included in the
-        # JSON document, including Unicode BOMs. This also saves us from having
-        # to explicitly check for all the different BOMs.
-        case Some(byte) -> throw unexpected(byte)
-        case _ -> throw unexpected_eof
-      }
+    match try @pull.value_type {
+      case Number -> number
+      case Array -> array
+      case Object -> object
+      case Bool -> bool
+      case Null -> null
+      case String -> string
     }
   }
 
   fn mut string -> Result[Json, Error] {
-    string_value.map(fn (val) { Json.String(val) })
+    @pull.string.map(fn (val) { Json.String(val) })
   }
 
-  fn mut string_value -> Result[String, Error] {
-    advance
-
-    loop {
-      match advance {
-        case Some(BSLASH) -> {
-          match advance {
-            case Some(LOWER_U) -> try escaped_unicode
-            case Some(byte) -> {
-              match ESCAPE_TABLE.get(byte) {
-                case -1 -> throw unexpected(byte)
-                case val -> @buffer.push(val)
-              }
-            }
-            case _ -> throw unexpected_eof
-          }
-        }
-        case Some(DQUOTE) -> break
-        case Some(val) if val >= 0x0 and val <= 0x001F -> {
-          throw invalid_control(val)
-        }
-        case Some(byte) -> @buffer.push(byte)
-        case _ -> throw unexpected_eof
-      }
-    }
-
-    if @buffer.size > @max_string_size {
-      throw error(
-        'The size of this string (${@buffer.size} bytes) is greater than the maximum of ${@max_string_size} bytes',
-      )
-    }
-
-    Result.Ok(@buffer.drain_to_string)
-  }
-
-  fn mut escaped_unicode -> Result[Nil, Error] {
-    let high = try codepoint
-
-    if utf8.encode_scalar(high, @buffer) > 0 { return Result.Ok(nil) }
-
-    # At this point the codepoint is either straight up invalid (e.g. "\uZZZZ"),
-    # or it's a UTF-16 surrogate.
-    if utf8.surrogate?(high).false? {
-      throw error("'${high.format(Format.Hex)}' is an invalid UTF-16 surrogate")
-    }
-
-    try expect(BSLASH)
-    try expect(LOWER_U)
-
-    let low = try codepoint
-
-    if utf8.surrogate?(low) {
-      let codepoint = utf8.codepoint_from_surrogates(high, low)
-
-      # The encoding may fail for pairs such as "\uDFFF\uDFFF".
-      if utf8.encode_scalar(codepoint, @buffer) > 0 { return Result.Ok(nil) }
-    }
-
-    let pair = '\\u${high.format(Format.Hex)}\\u${low.format(Format.Hex)}'
-
-    throw error("'${pair}' is an invalid UTF-16 surrogate pair")
-  }
-
-  fn mut codepoint -> Result[Int, Error] {
-    let mut num = 0
-    let mut idx = 0
-
-    while idx < 4 {
-      let digit = match advance {
-        case Some(byte) -> {
-          if byte >= ZERO and byte <= NINE {
-            byte - ZERO
-          } else if byte >= LOWER_A and byte <= LOWER_F {
-            byte - LOWER_A + 10
-          } else if byte >= UPPER_A and byte <= UPPER_F {
-            byte - UPPER_A + 10
-          } else {
-            throw unexpected(byte)
-          }
-        }
-        case _ -> throw unexpected_eof
-      }
-
-      num = num * 16 + digit
-      idx += 1
-    }
-
-    Result.Ok(num)
-  }
-
-  fn mut true -> Result[Json, Error] {
-    try identifier('true')
-    Result.Ok(Json.Bool(true))
-  }
-
-  fn mut false -> Result[Json, Error] {
-    try identifier('false')
-    Result.Ok(Json.Bool(false))
+  fn mut bool -> Result[Json, Error] {
+    @pull.bool.map(fn (v) { Json.Bool(v) })
   }
 
   fn mut null -> Result[Json, Error] {
-    try identifier('null')
-    Result.Ok(Json.Null)
+    @pull.null.map(fn (_) { Json.Null })
   }
 
   fn mut array -> Result[Json, Error] {
-    advance
+    try check_depth
 
     let values = []
 
     @depth += 1
-
-    loop {
-      match peek {
-        case Some(BRACKET_CLOSE) -> break
-        case Some(_) -> {
-          values.push(try value)
-          try separator(BRACKET_CLOSE)
-        }
-        case _ -> throw unexpected_eof
-      }
-    }
-
+    try @pull.values(fn { Result.Ok(values.push(try value)) })
     @depth -= 1
-    advance
     Result.Ok(Json.Array(values))
   }
 
   fn mut object -> Result[Json, Error] {
-    advance
-    whitespace
+    try check_depth
 
     let map = Map.new
 
     @depth += 1
-
-    loop {
-      match peek {
-        case Some(CURLY_CLOSE) -> break
-        case Some(DQUOTE) -> {
-          let key = try string_value
-
-          try expect(COLON)
-
-          let val = try value
-
-          try separator(CURLY_CLOSE)
-          map.set(key, val)
-        }
-        case Some(byte) -> throw unexpected(byte)
-        case _ -> throw unexpected_eof
-      }
-    }
-
-    advance
+    try @pull.keys(fn (k) {
+      map.set(k, try value)
+      Result.Ok(nil)
+    })
     @depth -= 1
     Result.Ok(Json.Object(map))
   }
 
   fn mut number -> Result[Json, Error] {
-    match peek {
-      case Some(MINUS) -> {
-        advance_and_buffer
-
-        match peek {
-          case Some(byte) if digit?(byte) -> {}
-          case Some(byte) -> throw unexpected(byte)
-          case _ -> throw unexpected_eof
-        }
-      }
-      case _ -> {}
-    }
-
-    # Numbers such as 001, 010, 01.0, etc are invalid.
-    match peek {
-      case Some(ZERO) -> {
-        advance_and_buffer
-
-        match peek {
-          case Some(byte) if digit?(byte) -> throw unexpected(byte)
-          case _ -> {}
-        }
-      }
-      case _ -> {}
-    }
-
-    buffer_digits
-
-    match peek {
-      # Examples: 1.2, 1.2e1, 1.2e+1
-      case Some(DOT) -> {
-        advance_and_buffer
-
-        match peek {
-          case Some(byte) if digit?(byte) -> {}
-          case Some(byte) -> throw unexpected(byte)
-          case _ -> throw unexpected_eof
-        }
-
-        buffer_digits
-
-        match peek {
-          case Some(byte) if exponent?(byte) -> try exponent
-          case _ -> {}
-        }
-      }
-      # Example: 1E4
-      case Some(byte) if exponent?(byte) -> try exponent
-      # Example: 123
-      #
-      # If the number is too big to fit in an Int, we'll promote it to a Float.
-      case _ -> {
-        match Int.parse(@buffer, Format.Decimal) {
-          case Some(val) -> {
-            @buffer.clear
-            return Result.Ok(Json.Int(val))
-          }
-          case _ -> {}
-        }
-      }
-    }
-
-    # At this point we've already validated the input format, and it's
-    # compatible with the underlying float parser, so no extra checks are
-    # needed.
-    let res = Result.Ok(Json.Float(Float.parse(@buffer).get))
-
-    @buffer.clear
-    res
-  }
-
-  fn mut exponent -> Result[Nil, Error] {
-    advance_and_buffer
-
-    match peek {
-      case Some(MINUS or PLUS) -> {
-        advance_and_buffer
-        nil
-      }
-      case _ -> {}
-    }
-
-    match peek {
-      case Some(byte) if digit?(byte) -> {}
-      case Some(byte) -> throw unexpected(byte)
-      case _ -> throw unexpected_eof
-    }
-
-    buffer_digits
-    Result.Ok(nil)
-  }
-
-  fn mut buffer_digits {
-    loop {
-      match peek {
-        case Some(byte) if digit?(byte) -> {
-          advance
-          @buffer.push(byte)
-        }
-        case _ -> break
-      }
+    match @pull.number {
+      case Ok(Int(v)) -> Result.Ok(Json.Int(v))
+      case Ok(Float(v)) -> Result.Ok(Json.Float(v))
+      case Error(e) -> Result.Error(e)
     }
   }
 
-  fn mut advance_line {
-    advance
-    @line += 1
-  }
-
-  fn mut advance_and_buffer -> Option[Int] {
-    match advance {
-      case Some(val) -> {
-        @buffer.push(val)
-        Option.Some(val)
-      }
-      case _ -> Option.None
+  fn check_depth -> Result[Nil, Error] {
+    if @depth < @max_depth {
+      Result.Ok(nil)
+    } else {
+      Result.Error(@pull.error(ErrorKind.RecursionLimitExceeded(@max_depth)))
     }
-  }
-
-  fn mut advance -> Option[Int] {
-    let res = @input.next
-
-    if res.some? { @offset += 1 }
-
-    res
-  }
-
-  fn mut expect(byte: Int) -> Result[Nil, Error] {
-    match advance {
-      case Some(val) if val == byte -> Result.Ok(nil)
-      case Some(val) -> {
-        throw error(
-          "The character '${char(byte)}' is expected, but '${char(val)}' was found instead",
-        )
-      }
-      case _ -> throw unexpected_eof
-    }
-  }
-
-  fn mut peek -> Option[Int] {
-    @input.peek
-  }
-
-  fn mut identifier(name: String) -> Result[Nil, Error] {
-    let mut index = 0
-    let max = name.size
-
-    while index < max { try expect(name.byte(index := index + 1)) }
-
-    Result.Ok(nil)
-  }
-
-  fn mut separator(closing: Int) -> Result[Nil, Error] {
-    whitespace
-
-    match peek {
-      case Some(byte) if byte == closing -> return Result.Ok(nil)
-      case Some(COMMA) -> {
-        advance
-        whitespace
-      }
-      case Some(byte) -> throw unexpected(byte)
-      case _ -> throw unexpected_eof
-    }
-
-    match peek {
-      case Some(byte) if byte == closing -> throw unexpected(byte)
-      case _ -> Result.Ok(nil)
-    }
-  }
-
-  fn mut whitespace {
-    loop {
-      match peek {
-        case Some(SPACE or CR or TAB) -> {
-          advance
-          nil
-        }
-        case Some(LF) -> advance_line
-        case _ -> break
-      }
-    }
-  }
-
-  fn invalid_control(byte: Int) -> Error {
-    error('The control character ${byte.format(Format.Hex)} must be escaped')
-  }
-
-  fn unexpected(byte: Int) -> Error {
-    error("The character '${ByteArray.from_array([byte])}' is unexpected")
-  }
-
-  fn unexpected_eof -> Error {
-    error('One or more tokens are required, but we ran out of input')
-  }
-
-  fn error(message: String) -> Error {
-    Error(message: message, line: @line, offset: @offset)
   }
 }
 
