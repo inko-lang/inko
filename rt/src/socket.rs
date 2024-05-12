@@ -12,27 +12,10 @@ use std::net::Shutdown;
 use std::net::{IpAddr, SocketAddr};
 use std::slice;
 use std::sync::atomic::{AtomicI8, Ordering};
-use std::time::Duration;
 
 /// The registered value to use to signal a socket isn't registered with a
 /// network poller.
 const NOT_REGISTERED: i8 = -1;
-
-macro_rules! socket_setter {
-    ($setter:ident, $type:ty) => {
-        pub(crate) fn $setter(&self, value: $type) -> io::Result<()> {
-            self.inner.$setter(value)
-        }
-    };
-}
-
-macro_rules! socket_duration_setter {
-    ($setter:ident) => {
-        pub(crate) fn $setter(&self, value: u64) -> io::Result<()> {
-            self.inner.$setter(Some(Duration::from_nanos(value)))
-        }
-    };
-}
 
 /// Decodes a SockAddr into an address/path, and a port.
 fn decode_sockaddr(
@@ -345,28 +328,6 @@ impl Socket {
 
     pub(crate) fn shutdown_read_write(&self) -> io::Result<()> {
         self.inner.shutdown(Shutdown::Both)
-    }
-
-    socket_setter!(set_ttl, u32);
-    socket_setter!(set_only_v6, bool);
-    socket_setter!(set_nodelay, bool);
-    socket_setter!(set_broadcast, bool);
-    socket_setter!(set_reuse_address, bool);
-    socket_setter!(set_keepalive, bool);
-
-    socket_setter!(set_recv_buffer_size, usize);
-    socket_setter!(set_send_buffer_size, usize);
-
-    socket_duration_setter!(set_linger);
-
-    #[cfg(unix)]
-    pub(crate) fn set_reuse_port(&self, reuse: bool) -> io::Result<()> {
-        self.inner.set_reuse_port(reuse)
-    }
-
-    #[cfg(not(unix))]
-    pub(crate) fn set_reuse_port(&self, _reuse: bool) -> io::Result<()> {
-        Ok(())
     }
 
     pub(crate) fn try_clone(&self) -> io::Result<Socket> {

@@ -558,22 +558,25 @@ class async Main {
     let out = STDOUT.new
     let spec = Timespec(tv_sec: 0 as Int64, tv_nsec: 0 as Int64)
     let res = clock_gettime(CLOCK_REALTIME as Int32, mut spec)
-    let err = Error.last_os_error
 
-    if res as Int == -1 { panic('clock_gettime() failed: ${err}') }
+    if res as Int == -1 {
+      let err = Error.last_os_error
+
+      panic('clock_gettime() failed: ${err}')
+    }
 
     out.print((spec.tv_sec as Int).to_string)
   }
 }
 ```
 
-When using `Error.last_os_error`, it's crucial that you call this method
-_directly_ after the C function call that may produce an error. If any code
-occurs between the C function call and the `Error.last_os_error` call, the
-process may be rescheduled onto a different OS thread and read the wrong value.
-Further, Inko makes no attempt at clearing `errno` before C function calls, so
-you should only read it when the C function call indicated some sort of value
-(e.g. by returning `-1` in the above example).
+When using `Error.last_os_error`, it's crucial that you call this method as soon
+as possible after calling the C function that may produce an error. If any code
+that may reschedule the process is run between the C function call and the
+`Error.last_os_error` call, the process may be rescheduled onto a different OS
+thread and read the wrong value. Further, Inko makes no attempt at clearing
+`errno` before C function calls, so you should only read it when the C function
+call indicated some sort of value (e.g. by returning `-1` in the above example).
 
 In other words, code such as this **is incorrect**:
 
@@ -582,9 +585,25 @@ let res = clock_gettime(CLOCK_REALTIME as Int32, mut spec)
 
 do_something_else()
 
-let err = Error.last_os_error
+if res as Int == -1 {
+  let err = Error.last_os_error
 
-if res as Int == -1 { panic('clock_gettime() failed: ${err}') }
+  panic('clock_gettime() failed: ${err}')
+}
+```
+
+Instead, you'll want to do the following:
+
+```inko
+let res = clock_gettime(CLOCK_REALTIME as Int32, mut spec)
+
+if res as Int == -1 {
+  let err = Error.last_os_error
+
+  panic('clock_gettime() failed: ${err}')
+}
+
+do_something_else()
 ```
 
 ## Thread-local storage and the scheduler

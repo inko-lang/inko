@@ -5,6 +5,7 @@ let pub EINTR = 4
 let pub EAGAIN = 11
 let pub ENOMEM = 12
 let pub EACCES = 13
+let pub EFAULT = 14
 let pub EBUSY = 16
 let pub EEXIST = 17
 let pub ENOTDIR = 20

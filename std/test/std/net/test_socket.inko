@@ -234,62 +234,63 @@ fn pub tests(t: mut Tests) {
     t.equal(client.peer_address, Result.Ok(addr))
   })
 
-  t.test('Socket.ttl', fn (t) {
+  t.test('Socket.ttl=', fn (t) {
     let socket = Socket.ipv4(Type.STREAM).get
 
     t.true((socket.ttl = 10).ok?)
   })
 
-  t.test('Socket.only_ipv6?', fn (t) {
+  t.test('Socket.only_ipv6=', fn (t) {
     let socket = Socket.ipv6(Type.STREAM).get
 
     t.true((socket.only_ipv6 = true).ok?)
   })
 
-  t.test('Socket.no_delay?', fn (t) {
+  t.test('Socket.no_delay=', fn (t) {
     let socket = Socket.ipv4(Type.STREAM).get
 
     t.true((socket.no_delay = true).ok?)
+    t.true(socket.no_delay?)
   })
 
-  t.test('Socket.broadcast?', fn (t) {
+  t.test('Socket.broadcast=', fn (t) {
     let socket = Socket.ipv4(Type.DGRAM).get
 
     t.true((socket.broadcast = true).ok?)
   })
 
-  t.test('Socket.linger', fn (t) {
+  t.test('Socket.linger=', fn (t) {
     let socket = Socket.ipv4(Type.STREAM).get
     let duration = Duration.from_secs(5)
 
     t.true((socket.linger = duration).ok?)
   })
 
-  t.test('Socket.receive_buffer_size', fn (t) {
+  t.test('Socket.receive_buffer_size=', fn (t) {
     let socket = Socket.ipv4(Type.STREAM).get
 
     t.true((socket.receive_buffer_size = 256).ok?)
   })
 
-  t.test('Socket.send_buffer_size', fn (t) {
+  t.test('Socket.send_buffer_size=', fn (t) {
     let socket = Socket.ipv4(Type.STREAM).get
 
     t.true((socket.send_buffer_size = 256).ok?)
   })
 
-  t.test('Socket.keepalive', fn (t) {
+  t.test('Socket.keepalive=', fn (t) {
     let socket = Socket.ipv4(Type.STREAM).get
 
     t.true((socket.keepalive = true).ok?)
   })
 
-  t.test('Socket.reuse_adress', fn (t) {
+  t.test('Socket.reuse_adress=', fn (t) {
     let socket = Socket.ipv6(Type.DGRAM).get
 
     t.true((socket.reuse_address = true).ok?)
   })
 
-  t.test('Socket.reuse_port', fn (t) {
+  t.test('Socket.reuse_port=', fn (t) {
     let socket = Socket.ipv6(Type.DGRAM).get
 
     t.true((socket.reuse_port = true).ok?)

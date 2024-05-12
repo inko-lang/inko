@@ -118,6 +118,9 @@ class pub enum Error {
   # The operation would block.
   case WouldBlock
 
+  # A memory address used (e.g. as an argument) is in an invalid range.
+  case BadAddress
+
   # An error not covered by the other variants.
   #
   # The wrapped `Int` is the raw error code.
@@ -164,6 +167,7 @@ class pub enum Error {
       case errors.ECONNREFUSED -> Error.ConnectionRefused
       case errors.EHOSTUNREACH -> Error.HostUnreachable
       case errors.EINPROGRESS -> Error.InProgress
+      case errors.EFAULT -> Error.BadAddress
       case val -> Error.Other(val)
     }
   }
@@ -207,6 +211,7 @@ impl ToString for Error {
       case StorageFull -> 'the storage is full'
       case TimedOut -> 'the operation timed out'
       case WouldBlock -> 'the operation would block'
+      case BadAddress -> 'a memory address is in an invalid range'
       case Other(code) -> 'an other error with code ${code} occurred'
     }
   }
@@ -245,6 +250,7 @@ impl Format for Error {
       case StorageFull -> 'StorageFull'
       case TimedOut -> 'TimedOut'
       case WouldBlock -> 'WouldBlock'
+      case BadAddress -> 'BadAddress'
       case Other(code) -> {
         formatter.tuple('Other').field(code).finish
         return

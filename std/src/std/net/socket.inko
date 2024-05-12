@@ -62,9 +62,17 @@ import std.drop (Drop)
 import std.fmt (Format, Formatter)
 import std.fs.path (Path)
 import std.io (Error, Read, Write, WriteInternal)
+import std.libc.bsd.socket (self as const) if bsd
+import std.libc.linux.socket (self as const) if linux
+import std.libc.mac.socket (self as const) if mac
 import std.net.ip (IpAddress)
 import std.string (ToString)
 import std.time (Duration, ToInstant)
+
+class extern Linger {
+  let @l_onoff: Int32
+  let @l_linger: Int32
+}
 
 class extern RawSocket {
   let @inner: Int32
@@ -86,6 +94,22 @@ class extern IntResult {
   let @tag: Int
   let @value: Int
 }
+
+fn extern setsockopt(
+  socket: Int32,
+  level: Int32,
+  option: Int32,
+  value: Pointer[UInt8],
+  size: Int32,
+) -> Int32
+
+fn extern getsockopt(
+  socket: Int32,
+  level: Int32,
+  option: Int32,
+  value: Pointer[UInt8],
+  size: Pointer[Int32],
+) -> Int32
 
 fn extern inko_socket_new(
   proto: Int,
@@ -194,56 +218,6 @@ fn extern inko_socket_shutdown_write(socket: Pointer[RawSocket]) -> IntResult
 
 fn extern inko_socket_shutdown_read_write(
   socket: Pointer[RawSocket],
-) -> IntResult
-
-fn extern inko_socket_set_broadcast(
-  socket: Pointer[RawSocket],
-  value: Bool,
-) -> IntResult
-
-fn extern inko_socket_set_keepalive(
-  socket: Pointer[RawSocket],
-  value: Bool,
-) -> IntResult
-
-fn extern inko_socket_set_linger(
-  socket: Pointer[RawSocket],
-  value: Int,
-) -> IntResult
-
-fn extern inko_socket_set_recv_size(
-  socket: Pointer[RawSocket],
-  value: Int,
-) -> IntResult
-
-fn extern inko_socket_set_send_size(
-  socket: Pointer[RawSocket],
-  value: Int,
-) -> IntResult
-
-fn extern inko_socket_set_ttl(
-  socket: Pointer[RawSocket],
-  value: Int,
-) -> IntResult
-
-fn extern inko_socket_set_nodelay(
-  socket: Pointer[RawSocket],
-  value: Bool,
-) -> IntResult
-
-fn extern inko_socket_set_only_v6(
-  socket: Pointer[RawSocket],
-  value: Bool,
-) -> IntResult
-
-fn extern inko_socket_set_reuse_address(
-  socket: Pointer[RawSocket],
-  value: Bool,
-) -> IntResult
-
-fn extern inko_socket_set_reuse_port(
-  socket: Pointer[RawSocket],
-  value: Bool,
 ) -> IntResult
 
 # The maximum value valid for a listen() call.
@@ -668,74 +642,62 @@ class pub Socket {
 
   # Sets the value of the `IP_TTL` option.
   fn pub mut ttl=(value: Int) -> Result[Nil, Error] {
-    match inko_socket_set_ttl(@raw, value) {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    set_option(const.IPPROTO_IP, const.IP_TTL, value)
   }
 
   # Sets the value of the `IPV6_V6ONLY` option.
   fn pub mut only_ipv6=(value: Bool) -> Result[Nil, Error] {
-    match inko_socket_set_only_v6(@raw, value) {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    set_option(const.IPPROTO_IPV6, const.IPV6_V6ONLY, value.to_int)
   }
 
   # Sets the value of the `TCP_NODELAY` option.
   fn pub mut no_delay=(value: Bool) -> Result[Nil, Error] {
-    match inko_socket_set_nodelay(@raw, value) {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    set_option(const.IPPROTO_TCP, const.TCP_NODELAY, value.to_int)
+  }
+
+  # Returns `true` if the `TCP_NODELAY` option is set.
+  fn pub no_delay? -> Bool {
+    get_option(const.IPPROTO_TCP, const.TCP_NODELAY) == 1
   }
 
   # Sets the value of the `SO_BROADCAST` option.
   fn pub mut broadcast=(value: Bool) -> Result[Nil, Error] {
-    match inko_socket_set_broadcast(@raw, value) {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    set_option(const.SOL_SOCKET, const.SO_BROADCAST, value.to_int)
   }
 
   # Sets the value of the `SO_LINGER` option.
   fn pub mut linger=(value: ref Duration) -> Result[Nil, Error] {
-    match inko_socket_set_linger(@raw, value.to_nanos) {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    let linger = Linger(l_onoff: 1 as Int32, l_linger: value.to_nanos as Int32)
+    let res = setsockopt(
+      @raw.inner,
+      const.SOL_SOCKET as Int32,
+      const.SO_LINGER as Int32,
+      (mut linger) as Pointer[UInt8],
+      8 as Int32,
+    )
+      as Int
+
+    if res == 0 { Result.Ok(nil) } else { Result.Error(Error.last_os_error) }
   }
 
   # Sets the value of the `SO_RCVBUF` option.
   fn pub mut receive_buffer_size=(value: Int) -> Result[Nil, Error] {
-    match inko_socket_set_recv_size(@raw, value) {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    set_option(const.SOL_SOCKET, const.SO_RCVBUF, value.to_int)
   }
 
   # Sets the value of the `SO_SNDBUF` option.
   fn pub mut send_buffer_size=(value: Int) -> Result[Nil, Error] {
-    match inko_socket_set_send_size(@raw, value) {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    set_option(const.SOL_SOCKET, const.SO_SNDBUF, value.to_int)
   }
 
   # Sets the value of the `SO_KEEPALIVE` option.
   fn pub mut keepalive=(value: Bool) -> Result[Nil, Error] {
-    match inko_socket_set_keepalive(@raw, value) {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    set_option(const.SOL_SOCKET, const.SO_KEEPALIVE, value.to_int)
   }
 
   # Sets the value of the `SO_REUSEADDR` option.
   fn pub mut reuse_address=(value: Bool) -> Result[Nil, Error] {
-    match inko_socket_set_reuse_address(@raw, value) {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    set_option(const.SOL_SOCKET, const.SO_REUSEADDR, value.to_int)
   }
 
   # Sets the value of the `SO_REUSEPORT` option.
@@ -743,10 +705,7 @@ class pub Socket {
   # Not all platforms may support this option, in which case the supplied
   # argument will be ignored.
   fn pub mut reuse_port=(value: Bool) -> Result[Nil, Error] {
-    match inko_socket_set_reuse_port(@raw, value) {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    set_option(const.SOL_SOCKET, const.SO_REUSEPORT, value.to_int)
   }
 
   # Shuts down the reading half of this socket.
@@ -787,6 +746,43 @@ class pub Socket {
     match inko_socket_try_clone(@raw, mut sock) as Int {
       case 0 -> Result.Ok(Socket(raw: sock, deadline: NO_DEADLINE))
       case e -> Result.Error(Error.from_os_error(e))
+    }
+  }
+
+  fn mut set_option(level: Int, option: Int, value: Int) -> Result[Nil, Error] {
+    let val = value as Int32
+    let res = setsockopt(
+      @raw.inner,
+      level as Int32,
+      option as Int32,
+      (mut val) as Pointer[UInt8],
+      4 as Int32,
+    )
+      as Int
+
+    if res == 0 { Result.Ok(nil) } else { Result.Error(Error.last_os_error) }
+  }
+
+  fn get_option(level: Int, option: Int) -> Int {
+    let size = 4 as Int32
+    let val = 0 as Int32
+    let res = getsockopt(
+      @raw.inner,
+      level as Int32,
+      option as Int32,
+      (mut val) as Pointer[UInt8],
+      mut size,
+    )
+      as Int
+
+    if res == 0 {
+      val as Int
+    } else {
+      # Since we control the arguments passed to getsockopt() such that they
+      # won't be invalid, this method isn't expected to fail at runtime. To
+      # remove the need for unneccesary error handling, we panic instead should
+      # we encounter an error after all.
+      panic('getsockopt(2) failed: ${Error.last_os_error}')
     }
   }
 }
@@ -1632,18 +1628,12 @@ class pub UnixSocket {
 
   # Sets the value of the `SO_RCVBUF` option.
   fn pub mut receive_buffer_size=(value: Int) -> Result[Nil, Error] {
-    match inko_socket_set_recv_size(@raw, value) {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    set_option(const.SOL_SOCKET, const.SO_RCVBUF, value.to_int)
   }
 
   # Sets the value of the `SO_SNDBUF` option.
   fn pub mut send_buffer_size=(value: Int) -> Result[Nil, Error] {
-    match inko_socket_set_send_size(@raw, value) {
-      case { @tag = 1, @value = _ } -> Result.Ok(nil)
-      case { @tag = _, @value = e } -> Result.Error(Error.from_os_error(e))
-    }
+    set_option(const.SOL_SOCKET, const.SO_SNDBUF, value.to_int)
   }
 
   # Shuts down the reading half of this socket.
@@ -1685,6 +1675,20 @@ class pub UnixSocket {
       case 0 -> Result.Ok(UnixSocket(raw: sock, deadline: NO_DEADLINE))
       case e -> Result.Error(Error.from_os_error(e))
     }
+  }
+
+  fn mut set_option(level: Int, option: Int, value: Int) -> Result[Nil, Error] {
+    let val = value as Int32
+    let res = setsockopt(
+      @raw.inner,
+      level as Int32,
+      option as Int32,
+      (mut val) as Pointer[UInt8],
+      4 as Int32,
+    )
+      as Int
+
+    if res == 0 { Result.Ok(nil) } else { Result.Error(Error.last_os_error) }
   }
 }
 

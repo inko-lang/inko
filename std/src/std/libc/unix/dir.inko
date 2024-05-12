@@ -32,12 +32,11 @@ class pub ReadDirectory {
 
   fn pub static new(path: String) -> Result[ReadDirectory, Error] {
     let stream = dir_imp.opendir(path.to_pointer)
-    let err = Error.last_os_error
 
     if stream as Int != 0 {
       Result.Ok(ReadDirectory(stream))
     } else {
-      Result.Error(err)
+      Result.Error(Error.last_os_error)
     }
   }
 }
@@ -50,10 +49,9 @@ impl Iter[Result[(String, FileType), Error]] for ReadDirectory {
       inko_reset_error
 
       let entry = dir_imp.readdir(@stream)
-      let err = Error.last_os_error
 
       if entry as Int == 0 {
-        return match err {
+        return match Error.last_os_error {
           case Other(0) -> Option.None
           case err -> Option.Some(Result.Error(err))
         }
