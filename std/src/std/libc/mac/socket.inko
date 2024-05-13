@@ -6,9 +6,13 @@ let IP_TTL = 4
 let SOL_SOCKET = 0xFFFF
 let SO_BROADCAST = 0x20
 let SO_KEEPALIVE = 0x8
-let SO_LINGER = 0x80
+let SO_LINGER_SEC = 0x1080
 let SO_RCVBUF = 0x1002
 let SO_REUSEADDR = 0x4
 let SO_REUSEPORT = 0x200
 let SO_SNDBUF = 0x1001
 let TCP_NODELAY = 1
+
+# For macOS we need to use SO_LINGER_SEC to control the time in seconds instead
+# of ticks, and SO_LINGER itself isn't useful.
+let SO_LINGER = SO_LINGER_SEC

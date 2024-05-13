@@ -657,7 +657,7 @@ class pub Socket {
 
   # Returns `true` if the `TCP_NODELAY` option is set.
   fn pub no_delay? -> Bool {
-    get_option(const.IPPROTO_TCP, const.TCP_NODELAY) == 1
+    get_option(const.IPPROTO_TCP, const.TCP_NODELAY) != 0
   }
 
   # Sets the value of the `SO_BROADCAST` option.
@@ -666,8 +666,25 @@ class pub Socket {
   }
 
   # Sets the value of the `SO_LINGER` option.
-  fn pub mut linger=(value: ref Duration) -> Result[Nil, Error] {
-    let linger = Linger(l_onoff: 1 as Int32, l_linger: value.to_nanos as Int32)
+  #
+  # If a `Some` is given, the linger value is set to the duration in seconds. If
+  # a `None` is given, the linger value is instead reset.
+  #
+  # On most platforms the linger duration has a precision of whole seconds. If a
+  # `Duration` is supplied that is less than one second long or contains
+  # fractional seconds, the value may be truncated or rounded to the nearest
+  # second.
+  fn pub mut linger=(value: Option[Duration]) -> Result[Nil, Error] {
+    let linger = Linger(l_onoff: 0 as Int32, l_linger: 0 as Int32)
+
+    match value {
+      case Some(d) -> {
+        linger.l_onoff = 1 as Int32
+        linger.l_linger = d.to_secs.to_int as Int32
+      }
+      case _ -> {}
+    }
+
     let res = setsockopt(
       @raw.inner,
       const.SOL_SOCKET as Int32,
@@ -678,6 +695,30 @@ class pub Socket {
       as Int
 
     if res == 0 { Result.Ok(nil) } else { Result.Error(Error.last_os_error) }
+  }
+
+  # Returns the value of the `SO_LINGER` option.
+  fn pub linger -> Option[Duration] {
+    let linger = Linger(l_onoff: 0 as Int32, l_linger: 0 as Int32)
+    let size = 8 as Int32
+    let res = getsockopt(
+      @raw.inner,
+      const.SOL_SOCKET as Int32,
+      const.SO_LINGER as Int32,
+      (mut linger) as Pointer[UInt8],
+      mut size,
+    )
+      as Int
+
+    # Similar to get_option(), this method shouldn't ever reach this point, but
+    # we panic just in case we do.
+    if res != 0 { panic('getsockopt(2) failed: ${Error.last_os_error}') }
+
+    if linger.l_onoff as Int != 0 {
+      Option.Some(Duration.from_secs(linger.l_linger as Int))
+    } else {
+      Option.None
+    }
   }
 
   # Sets the value of the `SO_RCVBUF` option.
@@ -991,6 +1032,11 @@ class pub TcpClient {
   # The raw `Socket` wrapped by this `TcpClient`.
   let pub @socket: Socket
 
+  fn static from(socket: Socket) -> Result[TcpClient, Error] {
+    try socket.no_delay = true
+    Result.Ok(TcpClient(socket))
+  }
+
   # Creates a new `TcpClient` that is connected to the TCP socket at the given
   # IP address and port.
   #
@@ -1016,7 +1062,7 @@ class pub TcpClient {
     }
 
     try socket.connect(ip, port)
-    Result.Ok(TcpClient(socket))
+    from(socket)
   }
 
   # Creates a new `TcpClient` but limits the amount of time spent waiting for
@@ -1051,10 +1097,10 @@ class pub TcpClient {
       try Socket.ipv4(Type.STREAM)
     }
 
-    let _ = socket.timeout_after = timeout_after
-
+    socket.timeout_after = timeout_after
     try socket.connect(ip, port)
-    Result.Ok(TcpClient(socket))
+    socket.reset_deadline
+    from(socket)
   }
 
   # Returns the local address of this socket.
@@ -1146,6 +1192,7 @@ class pub TcpServer {
       try Socket.ipv4(Type.STREAM)
     }
 
+    try socket.no_delay = true
     try socket.reuse_address = true
     try socket.reuse_port = true
     try socket.bind(ip, port)
@@ -1178,7 +1225,7 @@ class pub TcpServer {
   #
   #     buffer.to_string # => 'ping'
   fn pub accept -> Result[TcpClient, Error] {
-    @socket.accept.map(fn (sock) { TcpClient(sock) })
+    @socket.accept.then(fn (sock) { TcpClient.from(sock) })
   }
 
   # Returns the local address of this socket.
@@ -1916,9 +1963,9 @@ class pub UnixClient {
   ) -> Result[UnixClient, Error] {
     let socket = try UnixSocket.new(Type.STREAM)
 
-    let _ = socket.timeout_after = timeout_after
-
+    socket.timeout_after = timeout_after
     try socket.connect(address)
+    socket.reset_deadline
     Result.Ok(UnixClient(socket))
   }
 

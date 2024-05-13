@@ -263,7 +263,11 @@ fn pub tests(t: mut Tests) {
     let socket = Socket.ipv4(Type.STREAM).get
     let duration = Duration.from_secs(5)
 
-    t.true((socket.linger = duration).ok?)
+    t.true((socket.linger = Option.Some(duration)).ok?)
+    t.equal(socket.linger, Option.Some(Duration.from_secs(5)))
+
+    t.true((socket.linger = Option.None).ok?)
+    t.equal(socket.linger, Option.None)
   })
 
   t.test('Socket.receive_buffer_size=', fn (t) {
@@ -559,18 +563,20 @@ fn pub tests(t: mut Tests) {
     t.equal(socket.flush, Result.Ok(nil))
   })
 
-  t.test('TcpClient.new', fn (t) {
+  t.ok('TcpClient.new', fn (t) {
     let listener = Socket.ipv4(Type.STREAM).get
 
     listener.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0).get
     listener.listen.get
 
     let addr = listener.local_address.get
+    let client = try TcpClient.new(addr.ip.get, addr.port)
 
-    t.true(TcpClient.new(addr.ip.get, addr.port).ok?)
+    t.true(client.socket.no_delay?)
+    Result.Ok(nil)
   })
 
-  t.test('TcpClient.with_timeout', fn (t) {
+  t.ok('TcpClient.with_timeout', fn (t) {
     let listener = Socket.ipv4(Type.STREAM).get
 
     listener.bind(ip: IpAddress.v4(127, 0, 0, 1), port: 0).get
@@ -578,15 +584,15 @@ fn pub tests(t: mut Tests) {
 
     let addr = listener.local_address.get
 
-    t.true(
-      TcpClient
-        .with_timeout(
-          addr.ip.get,
-          addr.port,
-          timeout_after: Duration.from_secs(2),
-        )
-        .ok?,
-    )
+    {
+      let client = try TcpClient.with_timeout(
+        addr.ip.get,
+        addr.port,
+        timeout_after: Duration.from_secs(2),
+      )
+
+      t.equal(client.socket.deadline, NO_DEADLINE)
+    }
 
     # This address is unroutable and so the connect times out.
     let timed_out = TcpClient.with_timeout(
@@ -596,6 +602,7 @@ fn pub tests(t: mut Tests) {
     )
 
     t.equal(timed_out.error, Option.Some(Error.TimedOut))
+    Result.Ok(nil)
   })
 
   t.ok('TcpClient.local_address', fn (t) {
@@ -764,8 +771,9 @@ fn pub tests(t: mut Tests) {
 
     let addr = try listener.local_address
     let client = try TcpClient.new(addr.ip.get, addr.port)
+    let clone = try client.try_clone
 
-    t.true(client.try_clone.ok?)
+    t.true(clone.socket.no_delay?)
     Result.Ok(nil)
   })
 
@@ -788,6 +796,7 @@ fn pub tests(t: mut Tests) {
     let connection = try listener.accept
 
     t.equal(connection.local_address, stream.peer_address)
+    t.true(connection.socket.no_delay?)
     Result.Ok(nil)
   })
 
@@ -802,8 +811,6 @@ fn pub tests(t: mut Tests) {
 
   t.test('TcpServer.try_clone', fn (t) {
     let ip = IpAddress.V4(Ipv4Address.new(127, 0, 0, 1))
-
-    # let server = TcpServer.new(ip: ip, port: 0).get
     let server = match TcpServer.new(ip: ip, port: 0) {
       case Ok(v) -> v
       case Error(e) -> panic(e.to_string)
@@ -1251,7 +1258,7 @@ fn pub tests(t: mut Tests) {
     t.true(UnixClient.new(path.path).ok?)
   })
 
-  t.test('UnixClient.with_timeout', fn (t) {
+  t.ok('UnixClient.with_timeout', fn (t) {
     let path = SocketPath.new(t.id)
     let listener = UnixSocket.new(Type.STREAM).get
 
@@ -1261,11 +1268,10 @@ fn pub tests(t: mut Tests) {
     # Unlike IP sockets there's no unroutable address we can use, so at best we
     # can assert the following doesn't time out. This means this test is mostly
     # a smoke test, unlikely to actually fail unless our runtime is bugged.
-    t.true(
-      UnixClient
-        .with_timeout(path.path, timeout_after: Duration.from_secs(5))
-        .ok?,
-    )
+    let client = try UnixClient.with_timeout(path.path, Duration.from_secs(5))
+
+    t.equal(client.socket.deadline, NO_DEADLINE)
+    Result.Ok(nil)
   })
 
   t.ok('UnixClient.local_address', fn (t) {
