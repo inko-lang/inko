@@ -5,6 +5,7 @@ on:
 
 env:
   CARGO_HOME: ${{ github.workspace }}/.cargo-home
+  RUSTUP_HOME: ${{ github.workspace }}/.rustup-home
   LIBRARY_PATH: /usr/local/lib
   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
 
@@ -19,6 +20,7 @@ jobs:
         with:
           path: |
             ${{ env.CARGO_HOME }}
+            ${{ env.RUSTUP_HOME }}
             target
           key: freebsd
       - name: Run tests
@@ -27,7 +29,7 @@ jobs:
           operating_system: freebsd
           version: '14.0'
           memory: 8G
-          environment_variables: 'CARGO_HOME LIBRARY_PATH CARGO_REGISTRIES_CRATES_IO_PROTOCOL'
+          environment_variables: 'CARGO_HOME RUSTUP_HOME LIBRARY_PATH CARGO_REGISTRIES_CRATES_IO_PROTOCOL'
           hypervisor: qemu
           image_url: 'https://github.com/inko-lang/freebsd-builder/releases/download/v0.7.0/freebsd-14.0-x86-64.qcow2'
           run: ./ci/freebsd.sh

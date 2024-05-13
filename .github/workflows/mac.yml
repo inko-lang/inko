@@ -5,6 +5,7 @@ on:
 
 env:
   CARGO_HOME: ${{ github.workspace }}/.cargo-home
+  RUSTUP_HOME: ${{ github.workspace }}/.rustup-home
   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
 
 jobs:
@@ -16,6 +17,7 @@ jobs:
         with:
           path: |
             ${{ env.CARGO_HOME }}
+            ${{ env.RUSTUP_HOME }}
             target
           key: mac-amd64
       - name: Install dependencies
@@ -32,6 +34,7 @@ jobs:
         with:
           path: |
             ${{ env.CARGO_HOME }}
+            ${{ env.RUSTUP_HOME }}
             target
           key: mac-arm64
       - name: Install dependencies
