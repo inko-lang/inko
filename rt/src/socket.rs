@@ -63,18 +63,22 @@ fn encode_sockaddr(
 fn socket_output_slice(buffer: &mut Vec<u8>, bytes: usize) -> &mut [u8] {
     let len = buffer.len();
     let available = buffer.capacity() - len;
-    let to_reserve = bytes - available;
 
-    if to_reserve > 0 {
-        // Only increasing capacity when needed is done for two reasons:
-        //
-        // 1. It saves us from increasing capacity when there is enough space.
-        //
-        // 2. Due to sockets being non-blocking, a socket operation may fail.
-        //    This will result in this code being called multiple times. If we
-        //    were to simply increase capacity every time we'd end up growing
-        //    the buffer much more than necessary.
-        buffer.reserve_exact(to_reserve);
+    if bytes > available {
+        let to_reserve = bytes - available;
+
+        if to_reserve > 0 {
+            // Only increasing capacity when needed is done for two reasons:
+            //
+            // 1. It saves us from increasing capacity when there is enough
+            //    space.
+            //
+            // 2. Due to sockets being non-blocking, a socket operation may
+            //    fail. This will result in this code being called multiple
+            //    times. If we were to simply increase capacity every time we'd
+            //    end up growing the buffer much more than necessary.
+            buffer.reserve_exact(to_reserve);
+        }
     }
 
     unsafe { slice::from_raw_parts_mut(buffer.as_mut_ptr().add(len), bytes) }
@@ -377,5 +381,30 @@ mod tests {
     #[test]
     fn test_type_size() {
         assert_eq!(size_of::<Socket>(), 8);
+    }
+
+    #[test]
+    fn test_socket_output_slice_with_empty_vec() {
+        let mut buf = Vec::new();
+
+        buf.reserve_exact(7);
+
+        let before = buf.capacity();
+        let slice = socket_output_slice(&mut buf, 1);
+
+        assert_eq!(slice.len(), 1);
+        assert_eq!(buf.capacity(), before);
+    }
+
+    #[test]
+    fn test_socket_output_slice_with_values() {
+        let mut buf = vec![1, 2, 3, 4, 5];
+
+        buf.shrink_to_fit();
+
+        let slice = socket_output_slice(&mut buf, 2);
+
+        assert_eq!(slice.len(), 2);
+        assert_eq!(buf.capacity(), 7);
     }
 }
