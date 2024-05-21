@@ -338,16 +338,6 @@ pub(crate) struct DefineVariant {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct AssignClassLiteralField {
-    pub(crate) resolved_type: types::TypeRef,
-    pub(crate) field_id: Option<types::FieldId>,
-    pub(crate) field: Field,
-    pub(crate) value: Expression,
-    pub(crate) location: SourceLocation,
-    pub(crate) expected_type: types::TypeRef,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum TraitExpression {
     InstanceMethod(Box<DefineInstanceMethod>),
     RequiredMethod(Box<DefineRequiredMethod>),
@@ -619,14 +609,6 @@ impl Argument {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct ExternTypeName {
-    pub(crate) resolved_type: types::TypeRef,
-    pub(crate) name: Constant,
-    pub(crate) arguments: Vec<Type>,
-    pub(crate) location: SourceLocation,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct TypeName {
     pub(crate) source: Option<Identifier>,
     pub(crate) resolved_type: types::TypeRef,
@@ -638,12 +620,6 @@ pub(crate) struct TypeName {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ReferenceType {
     pub(crate) type_reference: ReferrableType,
-    pub(crate) location: SourceLocation,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct RcType {
-    pub(crate) name: TypeName,
     pub(crate) location: SourceLocation,
 }
 
@@ -811,12 +787,6 @@ pub(crate) struct Closure {
     pub(crate) moving: bool,
     pub(crate) arguments: Vec<BlockArgument>,
     pub(crate) return_type: Option<Type>,
-    pub(crate) body: Vec<Expression>,
-    pub(crate) location: SourceLocation,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct DefineElse {
     pub(crate) body: Vec<Expression>,
     pub(crate) location: SourceLocation,
 }
