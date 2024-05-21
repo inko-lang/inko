@@ -18,7 +18,7 @@ fn run(
   cmd.stderr(Stream.Piped)
   cmd.stdout(Stream.Piped)
 
-  let child = try cmd.spawn.map_error(fn (e) { 'failed to spawn ${name}: {e}' })
+  let child = try cmd.spawn.map_error(fn (e) { 'failed to spawn ${name}: ${e}' })
 
   try child.stdin.write_string(input).then(fn (_) { child.wait }).map_error(
     fn (e) { '${name} failed: ${e}' },

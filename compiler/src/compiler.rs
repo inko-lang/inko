@@ -337,8 +337,14 @@ LLVM module timings:
 
         mir::check_global_limits(state).map_err(CompileError::Internal)?;
 
-        let ok = mir::DefineConstants::run_all(state, &mut mir, &modules)
-            && mir::LowerToMir::run_all(state, &mut mir, modules);
+        let ok = if mir::DefineConstants::run_all(state, &mut mir, &modules) {
+            mir::define_default_compile_time_variables(state);
+            mir::apply_compile_time_variables(state, &mut mir)
+                .map_err(CompileError::Internal)?;
+            mir::LowerToMir::run_all(state, &mut mir, modules)
+        } else {
+            false
+        };
 
         self.timings.mir = start.elapsed();
 

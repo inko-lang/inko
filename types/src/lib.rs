@@ -1964,40 +1964,6 @@ impl BuiltinFunction {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
-pub enum BuiltinConstant {
-    Arch,
-    Os,
-    Abi,
-}
-
-impl BuiltinConstant {
-    pub fn mapping() -> HashMap<String, BuiltinConstant> {
-        vec![BuiltinConstant::Arch, BuiltinConstant::Os, BuiltinConstant::Abi]
-            .into_iter()
-            .fold(HashMap::new(), |mut map, cons| {
-                map.insert(cons.name().to_string(), cons);
-                map
-            })
-    }
-
-    pub fn name(self) -> &'static str {
-        match self {
-            BuiltinConstant::Arch => "_INKO_ARCH",
-            BuiltinConstant::Os => "_INKO_OS",
-            BuiltinConstant::Abi => "_INKO_ABI",
-        }
-    }
-
-    pub fn return_type(self) -> TypeRef {
-        match self {
-            BuiltinConstant::Arch => TypeRef::string(),
-            BuiltinConstant::Os => TypeRef::string(),
-            BuiltinConstant::Abi => TypeRef::string(),
-        }
-    }
-}
-
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum MethodKind {
     /// An immutable asynchronous method.
@@ -2674,7 +2640,6 @@ pub enum IdentifierKind {
 pub enum ConstantKind {
     Unknown,
     Constant(ConstantId),
-    Builtin(BuiltinConstant),
     Method(CallInfo),
 }
 
@@ -4549,7 +4514,6 @@ pub struct Database {
     variables: Vec<Variable>,
     constants: Vec<Constant>,
     builtin_functions: HashMap<String, BuiltinFunction>,
-    builtin_constants: HashMap<String, BuiltinConstant>,
     type_placeholders: Vec<TypePlaceholder>,
     variants: Vec<Variant>,
 
@@ -4600,7 +4564,6 @@ impl Database {
             variables: Vec::new(),
             constants: Vec::new(),
             builtin_functions: BuiltinFunction::mapping(),
-            builtin_constants: BuiltinConstant::mapping(),
             type_placeholders: Vec::new(),
             variants: Vec::new(),
             main_module: None,
@@ -4636,16 +4599,16 @@ impl Database {
         self.builtin_functions.get(name).cloned()
     }
 
-    pub fn builtin_constant(&self, name: &str) -> Option<BuiltinConstant> {
-        self.builtin_constants.get(name).cloned()
-    }
-
     pub fn module(&self, name: &str) -> ModuleId {
-        if let Some(id) = self.module_mapping.get(name).cloned() {
+        if let Some(id) = self.optional_module(name) {
             return id;
         }
 
         panic!("The module '{}' isn't registered in the type database", name);
+    }
+
+    pub fn optional_module(&self, name: &str) -> Option<ModuleId> {
+        self.module_mapping.get(name).cloned()
     }
 
     pub fn class_in_module(&self, module: &str, name: &str) -> ClassId {

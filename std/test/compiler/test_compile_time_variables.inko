@@ -1,0 +1,123 @@
+import helpers (compiler_path, with_directory)
+import std.env
+import std.fs.file (WriteOnlyFile)
+import std.fs.path (Path)
+import std.sys (Command, Stream)
+import std.test (Tests)
+
+fn compile(
+  input: Path,
+  output: ref Path,
+  directory: ref Path,
+  define: Option[String],
+) -> Result[Nil, String] {
+  let cmd = Command.new(compiler_path)
+
+  cmd.arguments(['build', input.to_string, '-o', output.to_string])
+  cmd.directory(directory)
+  cmd.stdin(Stream.Null)
+  cmd.stderr(Stream.Piped)
+  cmd.stdout(Stream.Piped)
+
+  match define {
+    case Some(v) -> {
+      cmd.argument('--define')
+      cmd.argument(v)
+    }
+    case _ -> {}
+  }
+
+  let child = try cmd.spawn.map_error(fn (e) {
+    'failed to spawn the compiler: ${e}'
+  })
+
+  let status = try child.wait.map_error(fn (e) {
+    'the compiler produced an error: ${e}'
+  })
+
+  if status.success? {
+    Result.Ok(nil)
+  } else {
+    let out = ByteArray.new
+
+    try child
+      .stdout
+      .read_all(out)
+      .then(fn (_) { child.stderr.read_all(out) })
+      .map_error(fn (e) { 'failed reading the output: ${e}' })
+
+    Result.Error(out.into_string)
+  }
+}
+
+fn run(id: Int, define: Option[String]) -> Result[String, String] {
+  let cwd = env.working_directory.or_else(fn (_) { '.'.to_path })
+  let input = cwd.join('fixtures').join('compile_time_variables.inko')
+  let dir = env.temporary_directory.join(
+    'inko-compile-time-variable-test-${id}',
+  )
+
+  dir.create_directory_all.get
+
+  let output = dir.join('test')
+
+  try compile(input, output, dir, define)
+
+  let cmd = Command.new(output)
+
+  cmd.stdin(Stream.Null)
+  cmd.stderr(Stream.Piped)
+  cmd.stdout(Stream.Piped)
+
+  let child = try cmd.spawn.map_error(fn (e) {
+    'failed to spawn the executable: ${e}'
+  })
+
+  let status = try child.wait.map_error(fn (e) {
+    'the executable produced an error: ${e}'
+  })
+  let out = ByteArray.new
+
+  try child
+    .stdout
+    .read_all(out)
+    .then(fn (_) { child.stderr.read_all(out) })
+    .map_error(fn (e) { 'failed reading the output: ${e}' })
+
+  let out = out.into_string
+  let res = if status.success? { Result.Ok(out) } else { Result.Error(out) }
+  let _ = dir.remove_directory_all
+
+  res
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('Overwriting a String constant', fn (t) {
+    t.equal(run(t.id, define: Option.None), Result.Ok('foo\n42\ntrue\n'))
+    t.equal(
+      run(t.id, define: Option.Some('main.STRING=bar')),
+      Result.Ok('bar\n42\ntrue\n'),
+    )
+  })
+
+  t.test('Overwriting an Int constant', fn (t) {
+    t.equal(
+      run(t.id, define: Option.Some('main.INT=100')),
+      Result.Ok('foo\n100\ntrue\n'),
+    )
+
+    t.true(run(t.id, define: Option.Some('main.INT=foo')).error?)
+  })
+
+  t.test('Overwriting a Bool constant', fn (t) {
+    t.equal(
+      run(t.id, define: Option.Some('main.BOOL=false')),
+      Result.Ok('foo\n42\nfalse\n'),
+    )
+    t.true(run(t.id, define: Option.Some('main.BOOL=foo')).error?)
+  })
+
+  t.test('Overwriting a private constant', fn (t) {
+    t.true(run(t.id, define: Option.Some('main.PRIVATE=100')).error?)
+  })
+}

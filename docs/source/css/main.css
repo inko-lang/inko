@@ -125,6 +125,7 @@ p code, li code, td code, h1 code, h2 code, h3 code, h4 code, h5 code, h6 code {
   font-family: var(--code-font);
   font-size: .8rem;
   padding: 1px 5px;
+  margin: 0 2px;
 }
 
 p code, li code, td code {

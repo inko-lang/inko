@@ -1,0 +1,16 @@
+import std.stdio (STDOUT)
+
+let pub STRING = 'foo'
+let pub INT = 42
+let pub BOOL = true
+let PRIVATE = 42
+
+class async Main {
+  fn async main {
+    let out = STDOUT.new
+
+    out.print(STRING)
+    out.print(INT.to_string)
+    out.print(BOOL.to_string)
+  }
+}

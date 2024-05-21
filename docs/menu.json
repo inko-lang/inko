@@ -35,6 +35,7 @@
   "Guides": [
     "guides/tests.md",
     "guides/conditional-compilation.md",
+    "guides/compile-time-variables.md",
     "guides/cross-compilation.md",
     "guides/operators.md",
     "guides/contributing.md"

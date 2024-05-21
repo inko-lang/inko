@@ -58,6 +58,22 @@ fn object_path(directories: &BuildDirectories, name: &ModuleName) -> PathBuf {
     directories.objects.join(format!("{}.o", hash))
 }
 
+fn hash_compile_time_variables(state: &State) -> String {
+    let mut hasher = Hasher::new();
+    let mut pairs: Vec<_> =
+        state.config.compile_time_variables.iter().collect();
+
+    pairs.sort_by_key(|p| p.0);
+
+    for ((mod_name, const_name), val) in pairs {
+        hasher.update(mod_name.as_str().as_bytes());
+        hasher.update(const_name.as_bytes());
+        hasher.update(val.as_bytes());
+    }
+
+    hasher.finalize().to_string()
+}
+
 fn check_object_cache(
     state: &mut State,
     symbol_names: &SymbolNames,
@@ -86,12 +102,9 @@ fn check_object_cache(
         .map(|d| d.as_secs())
         .unwrap_or(0);
 
-    let new_ver = format!(
-        "{}-{}-{}",
-        env!("CARGO_PKG_VERSION"),
-        time,
-        state.config.target
-    );
+    let vars_hash = hash_compile_time_variables(state);
+    let new_ver =
+        format!("{}-{}-{}", env!("CARGO_PKG_VERSION"), time, vars_hash);
     let ver_path = directories.objects.join("version");
     let ver_changed = if ver_path.is_file() {
         read(&ver_path)

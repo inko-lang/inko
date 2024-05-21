@@ -1,6 +1,7 @@
 //! Configuration for the compiler.
 use crate::presenters::{JsonPresenter, Presenter, TextPresenter};
 use crate::target::Target;
+use std::collections::HashMap;
 use std::env;
 use std::fs::create_dir_all;
 use std::path::{Path, PathBuf};
@@ -266,6 +267,9 @@ pub struct Config {
     /// necessary, and to decouple the compiler logic from the command line as
     /// much as possible.
     pub compiled_at: SystemTime,
+
+    /// Custom constant values to set at compile time.
+    pub compile_time_variables: HashMap<(ModuleName, String), String>,
 }
 
 impl Config {
@@ -299,6 +303,7 @@ impl Config {
             linker_arguments: Vec::new(),
             incremental: true,
             compiled_at,
+            compile_time_variables: HashMap::new(),
         }
     }
 

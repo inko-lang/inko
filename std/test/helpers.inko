@@ -14,11 +14,12 @@ fn pub hash[T: Hash](value: ref T) -> Int {
   hasher.finish
 }
 
-fn pub with_directory(id: Int, func: fn (ref Path)) {
+fn pub with_directory[R](id: Int, func: fn (ref Path) -> R) -> R {
   let path = env.temporary_directory.join('inko-test-directory-${id}')
+  let ret = func.call(path)
 
-  func.call(path)
   path.remove_directory_all
+  ret
 }
 
 fn pub compiler_path -> Path {

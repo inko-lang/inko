@@ -12,11 +12,13 @@ use std::collections::{HashMap, HashSet};
 use std::iter::repeat_with;
 use std::mem::swap;
 use std::path::PathBuf;
+use std::str::FromStr;
 use types::format::format_type;
+use types::module_name::ModuleName;
 use types::{
-    self, Block as _, ClassId, ConstantId, MethodId, ModuleId, TypeBounds,
-    TypeRef, EQ_METHOD, FIELDS_LIMIT, OPTION_NONE, OPTION_SOME, RESULT_CLASS,
-    RESULT_ERROR, RESULT_MODULE, RESULT_OK,
+    self, Block as _, ClassId, ConstantId, MethodId, ModuleId, Symbol,
+    TypeBounds, TypeRef, EQ_METHOD, FIELDS_LIMIT, OPTION_NONE, OPTION_SOME,
+    RESULT_CLASS, RESULT_ERROR, RESULT_MODULE, RESULT_OK,
 };
 
 const SELF_NAME: &str = "self";
@@ -60,6 +62,72 @@ pub(crate) fn check_global_limits(state: &mut State) -> Result<(), String> {
             exceeds the maximum of {} methods",
             num_methods, METHODS_LIMIT
         ));
+    }
+
+    Ok(())
+}
+
+pub(crate) fn define_default_compile_time_variables(state: &mut State) {
+    // "std.env" isn't imported by default, so only define the variables if this
+    // is actually possible.
+    if state.db.optional_module("std.env").is_none() {
+        return;
+    }
+
+    let vars = [
+        ("std.env", "ARCH", state.config.target.arch_name()),
+        ("std.env", "OS", state.config.target.os_name()),
+        ("std.env", "ABI", state.config.target.abi_name()),
+    ];
+
+    for (module, name, val) in vars {
+        state.config.compile_time_variables.insert(
+            (ModuleName::new(module), name.to_string()),
+            val.to_string(),
+        );
+    }
+}
+
+pub(crate) fn apply_compile_time_variables(
+    state: &State,
+    mir: &mut Mir,
+) -> Result<(), String> {
+    for ((mod_name, const_name), val) in &state.config.compile_time_variables {
+        let Some(Symbol::Constant(id)) = state
+            .db
+            .optional_module(mod_name.as_str())
+            .and_then(|m| m.symbol(&state.db, const_name))
+            .filter(|s| s.is_public(&state.db))
+        else {
+            return Err(format!(
+                "the value of '{}.{}' can't be overwritten, either \
+                because it doesn't exist or because it's a private constant",
+                mod_name, const_name
+            ));
+        };
+
+        let new = match mir.constants.get(&id).unwrap() {
+            Constant::Int(_) => i64::from_str(val).ok().map(Constant::Int),
+            Constant::String(_) => Some(Constant::String(val.clone())),
+            Constant::Bool(_) => bool::from_str(val).ok().map(Constant::Bool),
+            _ => {
+                return Err(format!(
+                    "the value of '{}.{}' can't be overwritten because its \
+                    value is not an Int, String or Bool",
+                    mod_name, const_name
+                ));
+            }
+        };
+
+        if let Some(val) = new {
+            mir.constants.insert(id, val);
+        } else {
+            return Err(format!(
+                "the value of '{}.{}' can't be overwritten because the new \
+                value is invalid",
+                mod_name, const_name
+            ));
+        }
     }
 
     Ok(())
@@ -687,17 +755,6 @@ impl<'a> DefineConstants<'a> {
                 types::ConstantKind::Constant(id) => {
                     self.mir.constants.get(&id).cloned().unwrap()
                 }
-                types::ConstantKind::Builtin(id) => match id {
-                    types::BuiltinConstant::Arch => Constant::String(
-                        self.state.config.target.arch_name().to_string(),
-                    ),
-                    types::BuiltinConstant::Os => Constant::String(
-                        self.state.config.target.os_name().to_string(),
-                    ),
-                    types::BuiltinConstant::Abi => Constant::String(
-                        self.state.config.target.abi_name().to_string(),
-                    ),
-                },
                 _ => unreachable!(),
             },
             hir::ConstExpression::Array(ref n) => Constant::Array(

@@ -1112,18 +1112,13 @@ impl<'a> CheckConstant<'a> {
                 TypeRef::Error
             }
             _ => {
-                if let Some(cons) = self.db().builtin_constant(name) {
-                    node.kind = ConstantKind::Builtin(cons);
-                    cons.return_type()
-                } else {
-                    self.state.diagnostics.undefined_symbol(
-                        name,
-                        self.file(),
-                        node.location.clone(),
-                    );
+                self.state.diagnostics.undefined_symbol(
+                    name,
+                    self.file(),
+                    node.location.clone(),
+                );
 
-                    TypeRef::Error
-                }
+                TypeRef::Error
             }
         }
     }
