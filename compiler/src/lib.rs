@@ -1,6 +1,5 @@
 #![allow(clippy::new_without_default)]
 #![allow(clippy::enum_variant_names)]
-#![allow(clippy::assigning_clones)]
 
 mod diagnostics;
 pub mod format;

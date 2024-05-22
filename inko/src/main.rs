@@ -1,5 +1,3 @@
-#![allow(clippy::assigning_clones)]
-
 mod command;
 mod error;
 mod http;
