@@ -2072,11 +2072,11 @@ impl Parser {
             TokenKind::ParenOpen,
             TokenKind::ParenClose,
             |parser, token| {
-                let node = if token.kind == TokenKind::Identifier
+                let node = if (token.kind == TokenKind::Identifier
+                    || token.is_keyword())
                     && parser.peek().kind == TokenKind::Colon
                 {
                     allow_pos = false;
-
                     Argument::Named(Box::new(parser.named_argument(token)?))
                 } else if allow_pos {
                     Argument::Positional(parser.expression(token)?)
@@ -7632,6 +7632,32 @@ mod tests {
                     location: cols(4, 11)
                 }),
                 location: cols(1, 11)
+            }))
+        );
+
+        assert_eq!(
+            expr("foo(class: 10)"),
+            Expression::Call(Box::new(Call {
+                receiver: None,
+                name: Identifier {
+                    name: "foo".to_string(),
+                    location: cols(1, 3)
+                },
+                arguments: Some(Arguments {
+                    values: vec![Argument::Named(Box::new(NamedArgument {
+                        name: Identifier {
+                            name: "class".to_string(),
+                            location: cols(5, 9)
+                        },
+                        value: Expression::Int(Box::new(IntLiteral {
+                            value: "10".to_string(),
+                            location: cols(12, 13)
+                        })),
+                        location: cols(5, 13)
+                    })),],
+                    location: cols(4, 14)
+                }),
+                location: cols(1, 14)
             }))
         );
     }
