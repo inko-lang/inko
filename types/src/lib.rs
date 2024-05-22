@@ -1397,7 +1397,7 @@ impl ClassId {
     }
 
     pub fn method_exists(self, db: &Database, name: &str) -> bool {
-        self.get(db).methods.get(name).is_some()
+        self.get(db).methods.contains_key(name)
     }
 
     pub fn add_method(self, db: &mut Database, name: String, method: MethodId) {

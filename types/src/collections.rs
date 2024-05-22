@@ -36,18 +36,16 @@ impl<K: Eq + Hash, V> IndexMap<K, V> {
         self.mapping.insert(key, index);
     }
 
-    pub fn get<Q: ?Sized>(&self, name: &Q) -> Option<&V>
+    pub fn get<Q: ?Sized + Hash + Eq>(&self, name: &Q) -> Option<&V>
     where
         K: Borrow<Q>,
-        Q: Hash + Eq,
     {
         self.mapping.get(name).cloned().and_then(|index| self.values.get(index))
     }
 
-    pub fn get_mut<Q: ?Sized>(&mut self, name: &Q) -> Option<&mut V>
+    pub fn get_mut<Q: ?Sized + Hash + Eq>(&mut self, name: &Q) -> Option<&mut V>
     where
         K: Borrow<Q>,
-        Q: Hash + Eq,
     {
         self.mapping
             .get(name)
@@ -75,18 +73,16 @@ impl<K: Eq + Hash, V> IndexMap<K, V> {
         &mut self.values
     }
 
-    pub fn contains_key<Q: ?Sized>(&self, k: &Q) -> bool
+    pub fn contains_key<Q: ?Sized + Hash + Eq>(&self, k: &Q) -> bool
     where
         K: Borrow<Q>,
-        Q: Hash + Eq,
     {
         self.mapping.contains_key(k)
     }
 
-    pub fn index_of<Q: ?Sized>(&self, k: &Q) -> Option<usize>
+    pub fn index_of<Q: ?Sized + Hash + Eq>(&self, k: &Q) -> Option<usize>
     where
         K: Borrow<Q>,
-        Q: Hash + Eq,
     {
         self.mapping.get(k).cloned()
     }

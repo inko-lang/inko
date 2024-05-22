@@ -138,6 +138,7 @@ impl Manifest {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(false)
             .open(path)
             .map_err(|e| format!("Failed to read {}: {}", path.display(), e))
             .and_then(|mut file| Self::parse(&mut file))
