@@ -1289,7 +1289,11 @@ impl Document {
     }
 
     fn constant(&mut self, node: &nodes::Constant) -> Node {
-        let group = if let Some(src) = &node.source {
+        self.group(self.constant_name(node))
+    }
+
+    fn constant_name(&self, node: &nodes::Constant) -> Vec<Node> {
+        if let Some(src) = &node.source {
             vec![
                 Node::text(&src.name),
                 Node::Line,
@@ -1297,9 +1301,7 @@ impl Document {
             ]
         } else {
             vec![Node::text(&node.name)]
-        };
-
-        self.group(group)
+        }
     }
 
     fn binary(&mut self, node: &Expression) -> Node {
@@ -2208,9 +2210,13 @@ impl Document {
     ) -> Node {
         let gid = self.new_group_id();
         let name = if let Some(kw) = ownership {
-            Node::text(&format!("{} {}", kw, node.name.name))
+            Node::Nodes(vec![
+                Node::text(kw),
+                Node::text(" "),
+                Node::Nodes(self.constant_name(&node.name)),
+            ])
         } else {
-            Node::text(&node.name.name)
+            Node::Nodes(self.constant_name(&node.name))
         };
 
         let nodes = if let Some(args) = &node.arguments {

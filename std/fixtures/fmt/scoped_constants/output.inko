@@ -1,0 +1,8 @@
+fn foo(value: string.String) -> string.String {
+  value
+}
+
+fn bar -> really_long_module_name
+  .WithALongTypeNameLikeThisToSeeWhatWillHappenIfItWontFit {
+  42
+}
