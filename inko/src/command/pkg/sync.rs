@@ -41,14 +41,11 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
         return Ok(0);
     }
 
-    println!("Updating package cache");
-
     let config = Config::default();
     let packages = download_packages()?;
     let versions = select(packages.iter().map(|p| &p.dependency));
 
     remove_dependencies(&config.dependencies)?;
-    println!("Installing");
     install_packages(packages, versions, &config.dependencies)?;
     Ok(0)
 }
@@ -91,7 +88,7 @@ fn download_dependency(
     let (mut repo, fetch) = if dir.is_dir() {
         (Repository::open(&dir)?, true)
     } else {
-        println!("  Downloading {} {}", dependency.url, dependency.version);
+        println!("Downloading {} v{}", dependency.url, dependency.version);
         (Repository::clone(&url, &dir)?, false)
     };
 
@@ -99,7 +96,7 @@ fn download_dependency(
     let tag = if let Some(tag) = repo.tag(&tag_name) {
         Some(tag)
     } else if fetch {
-        println!("  Updating {}", dependency.url);
+        println!("Updating {}", dependency.url);
         repo.fetch()?;
         repo.tag(&tag_name)
     } else {
@@ -156,8 +153,6 @@ changes.",
 
 fn remove_dependencies(directory: &Path) -> Result<(), String> {
     if directory.is_dir() {
-        println!("Removing existing dependencies in {}", directory.display());
-
         remove_dir_all(directory).map_err(|err| {
             format!("Failed to remove {}: {}", directory.display(), err)
         })?;
@@ -177,8 +172,6 @@ fn install_packages(
         .collect::<HashMap<_, _>>();
 
     for (url, ver) in versions {
-        println!("  {} {}", url, ver);
-
         let repo = repos.get(&url).unwrap();
         let tag_name = ver.tag_name();
         let tag = repo.tag(&tag_name).unwrap();
