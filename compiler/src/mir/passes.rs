@@ -349,7 +349,7 @@ impl Scope {
 
 /// A type describing the action to take when destructuring an object as part of
 /// a pattern.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 enum RegisterAction {
     /// A field is to be moved into a new register.
     ///
@@ -378,6 +378,13 @@ struct DecisionState {
     /// enum variant of class.
     actions: HashMap<RegisterId, RegisterAction>,
 
+    /// A mapping of parent registers to their child registers.
+    ///
+    /// The keys are the registers values are loaded from, and the values are
+    /// the registers storing the child values. So when registers B and C
+    /// contain sub values of A, the mapping is `A = [B, C]`.
+    child_registers: HashMap<RegisterId, Vec<RegisterId>>,
+
     /// The basic blocks for every case body, and the code to compile for them.
     bodies: HashMap<
         BlockId,
@@ -402,6 +409,7 @@ impl DecisionState {
             output,
             after_block,
             registers: Vec::new(),
+            child_registers: HashMap::new(),
             actions: HashMap::new(),
             bodies: HashMap::new(),
             location,
@@ -411,6 +419,16 @@ impl DecisionState {
 
     fn input_register(&self) -> RegisterId {
         self.registers[0]
+    }
+
+    fn load_child(
+        &mut self,
+        child: RegisterId,
+        parent: RegisterId,
+        action: RegisterAction,
+    ) {
+        self.actions.insert(child, action);
+        self.child_registers.entry(parent).or_insert_with(Vec::new).push(child);
     }
 }
 
@@ -2883,14 +2901,14 @@ impl<'a> LowerMethod<'a> {
                             if self.register_type(reg).is_permanent(self.db()) {
                                 self.mark_register_as_moved(reg);
                             } else {
-                                self.drop_register(reg, loc);
+                                self.drop_with_children(state, reg, loc);
                             }
                         }
                         None => {
                             if self.register_type(reg).is_permanent(self.db()) {
                                 self.mark_register_as_moved(reg);
                             } else {
-                                self.drop_register(reg, loc);
+                                self.drop_with_children(state, reg, loc);
                             }
                         }
                         _ => self.mark_register_as_moved(reg),
@@ -2988,6 +3006,39 @@ impl<'a> LowerMethod<'a> {
             }
 
             self.current_block_mut().drop_without_dropper(reg, loc);
+        }
+    }
+
+    fn drop_with_children(
+        &mut self,
+        state: &mut DecisionState,
+        register: RegisterId,
+        location: LocationId,
+    ) {
+        self.drop_register(register, location);
+
+        // The order in which child registers are dropped isn't consistent (i.e.
+        // it could be A -> B -> C or B -> C -> A, or something else). Even if
+        // it was, it would be in reverse order. This would mean we'd drop the
+        // sub values, then try to drop the outer-most value by calling its
+        // dropper, which would then try to drop already dropped data.
+        //
+        // To prevent this from happening, when we drop the value we also have
+        // to recursively flag all child registers as moved.
+        let mut work = if let Some(v) = state.child_registers.get(&register) {
+            vec![v]
+        } else {
+            return;
+        };
+
+        while let Some(regs) = work.pop() {
+            for reg in regs {
+                self.mark_register_as_moved(*reg);
+
+                if let Some(regs) = state.child_registers.get(reg) {
+                    work.push(regs);
+                }
+            }
         }
     }
 
@@ -3175,8 +3226,7 @@ impl<'a> LowerMethod<'a> {
                 RegisterAction::Increment(test_reg)
             };
 
-            state.actions.insert(reg, action);
-
+            state.load_child(reg, test_reg, action);
             self.block_mut(parent_block)
                 .get_field(reg, test_reg, class, field, loc);
         }
@@ -3225,7 +3275,7 @@ impl<'a> LowerMethod<'a> {
                     RegisterAction::Increment(test_reg)
                 };
 
-                state.actions.insert(reg, action);
+                state.load_child(reg, test_reg, action);
                 self.block_mut(block)
                     .get_field(reg, test_reg, class, field, loc);
             }
