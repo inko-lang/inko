@@ -92,4 +92,14 @@ fn pub tests(t: mut Tests) {
       case { @name = _ } -> nil
     }
   })
+
+  t.no_panic('Dropping a value ignored by match cases', fn {
+    let a = [10, 20]
+    let b = [ref a]
+
+    match Option.Some(b) {
+      case None -> nil
+      case Some(v) -> v
+    }
+  })
 }

@@ -2949,6 +2949,8 @@ impl<'a> LowerMethod<'a> {
 
         if state.write_result {
             self.mark_register_as_moved(reg);
+        } else if self.in_connected_block() {
+            self.drop_register(reg, loc);
         }
 
         // We don't enter a scope in this method, because we must enter a new
