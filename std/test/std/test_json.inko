@@ -77,6 +77,15 @@ fn pub tests(t: mut Tests) {
     t.equal(parser.offset, 1)
   })
 
+  t.test('PullParser.skip with invalid data', fn (t) {
+    t.true(PullParser.new('10.a').skip.error?)
+    t.true(PullParser.new('[').skip.error?)
+    t.true(PullParser.new('{').skip.error?)
+    t.true(PullParser.new('"').skip.error?)
+    t.true(PullParser.new('t').skip.error?)
+    t.true(PullParser.new('f').skip.error?)
+  })
+
   t.test('PullParser.values with valid input', fn (t) {
     let parser = PullParser.new('[10,20]')
     let values = []

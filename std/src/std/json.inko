@@ -677,14 +677,14 @@ class pub PullParser {
   fn pub mut skip -> Result[Nil, Error] {
     match value_type {
       case Ok(Number) -> {
-        number
+        try number
         nil
       }
-      case Ok(Array) -> values(fn { skip })
-      case Ok(Object) -> keys(fn (_) { skip })
-      case Ok(String) -> string
-      case Ok(Null) -> null
-      case Ok(Bool) -> bool
+      case Ok(Array) -> try values(fn { skip })
+      case Ok(Object) -> try keys(fn (_) { skip })
+      case Ok(String) -> try string
+      case Ok(Null) -> try null
+      case Ok(Bool) -> try bool
       case Error(e) -> throw e
     }
 
