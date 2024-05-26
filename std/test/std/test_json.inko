@@ -262,7 +262,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('ObjectParser.require with a missing key', fn (t) {
-    let parser = PullParser.new('  {"a":10}')
+    let parser = PullParser.new(' {"a":10} ')
     let values = []
     let res = parser.object.int('a', fn (v) { values.push(v) }).require(
       ['a', 'b'],
@@ -271,7 +271,7 @@ fn pub tests(t: mut Tests) {
     t.equal(
       res,
       Result.Error(
-        Error(kind: ErrorKind.Generic('the key "b" is required'), offset: 2),
+        Error(kind: ErrorKind.Generic('the key "b" is required'), offset: 8),
       ),
     )
     t.equal(values, [10])
@@ -287,7 +287,7 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('ObjectParser.require_all with a missing key', fn (t) {
-    let parser = PullParser.new('  {"a":10}')
+    let parser = PullParser.new(' {"a":10} ')
     let values = []
     let res = parser
       .object
@@ -298,7 +298,7 @@ fn pub tests(t: mut Tests) {
     t.equal(
       res,
       Result.Error(
-        Error(kind: ErrorKind.Generic('the key "b" is required'), offset: 2),
+        Error(kind: ErrorKind.Generic('the key "b" is required'), offset: 8),
       ),
     )
     t.equal(values, [10])

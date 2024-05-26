@@ -1315,11 +1315,6 @@ class pub ObjectParser {
   # This method returns a `Result.Error` for the first missing key that it
   # encounters.
   fn pub mut require(keys: ref Array[String]) -> Result[Nil, Error] {
-    # We need to skip any leading whitespace such that the start position points
-    # to the "{" and not any whitespace before it.
-    try @parser.skip_whitespace
-
-    let start = @parser.offset + 1
     let mut found = Set.new
 
     try @parser.keys(fn (key) {
@@ -1336,8 +1331,10 @@ class pub ObjectParser {
       if found.contains?(key) {
         Result.Ok(nil)
       } else {
+        let pos = @parser.offset
+
         Result.Error(
-          Error(ErrorKind.Generic('the key "${key}" is required'), start),
+          Error(ErrorKind.Generic('the key "${key}" is required'), pos),
         )
       }
     })
