@@ -63,6 +63,7 @@ import std.fmt (Format as FormatTrait, Formatter)
 import std.int (Format)
 import std.io (Error as IoError)
 import std.iter (Peekable)
+import std.set (Set)
 import std.string (Bytes, StringBuffer, ToString)
 import std.utf8
 
@@ -1294,12 +1295,60 @@ class pub ObjectParser {
   # When encountering a key for which no rule is defined, its value is
   # (recursively) skipped.
   fn pub mut parse -> Result[Nil, Error] {
+    # We need to skip any leading whitespace such that the offset points to the
+    # "{" and not any whitespace before it.
+    # try @parser.skip_whitespace
+    #
+    # let start = @parser.offset
+
     @parser.keys(fn (key) {
       match @keys.opt_mut(key) {
         case Some(func) -> func.call
         case _ -> @parser.skip
       }
     })
+  }
+
+  # Parses the current object according to the rules in `self`, while requiring
+  # the given keys to be present.
+  #
+  # This method returns a `Result.Error` for the first missing key that it
+  # encounters.
+  fn pub mut require(keys: ref Array[String]) -> Result[Nil, Error] {
+    # We need to skip any leading whitespace such that the start position points
+    # to the "{" and not any whitespace before it.
+    try @parser.skip_whitespace
+
+    let start = @parser.offset + 1
+    let mut found = Set.new
+
+    try @parser.keys(fn (key) {
+      match @keys.opt_mut(key) {
+        case Some(func) -> {
+          found.insert(key)
+          func.call
+        }
+        case _ -> @parser.skip
+      }
+    })
+
+    keys.iter.try_each(fn (key) {
+      if found.contains?(key) {
+        Result.Ok(nil)
+      } else {
+        Result.Error(
+          Error(ErrorKind.Generic('the key "${key}" is required'), start),
+        )
+      }
+    })
+  }
+
+  # Parses the current object according to the rules in `self`, and requires all
+  # keys to be present.
+  #
+  # See `ObjectParser.require` and `ObjectParser.parse` for more details.
+  fn pub mut require_all -> Result[Nil, Error] {
+    require(@keys.keys.to_array)
   }
 }
 
