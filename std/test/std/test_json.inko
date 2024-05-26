@@ -698,4 +698,10 @@ fn pub tests(t: mut Tests) {
     t.equal(Json.Array([Json.Int(42)]).query.as_object, Option.None)
     t.equal(Json.Object(Map.new).query.as_object, Option.Some(ref Map.new))
   })
+
+  t.test('Query.as_bool', fn (t) {
+    t.equal(Json.Bool(true).query.as_bool, Option.Some(true))
+    t.equal(Json.Bool(false).query.as_bool, Option.Some(false))
+    t.equal(Json.Int(42).query.as_bool, Option.None)
+  })
 }

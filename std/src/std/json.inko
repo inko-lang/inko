@@ -307,6 +307,21 @@ class pub Query {
     self
   }
 
+  # Returns the value `self` matches against if it's a `Bool`.
+  #
+  # # Examples
+  #
+  #     import std.json (Json)
+  #
+  #     Json.String('test').query.as_bool # => Option.None
+  #     Json.Bool(true).query.as_bool     # => Option.Some(true)
+  fn pub move as_bool -> Option[Bool] {
+    match @value {
+      case Some(Bool(v)) -> Option.Some(v)
+      case _ -> Option.None
+    }
+  }
+
   # Returns the value `self` matches against if it's a `String`.
   #
   # # Examples
