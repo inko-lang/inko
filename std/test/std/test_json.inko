@@ -59,6 +59,12 @@ fn pub tests(t: mut Tests) {
     t.equal(err.to_string, 'test, at byte offset 5')
   })
 
+  t.test('Error.generic', fn (t) {
+    let err = Error.generic('foo', offset: 42)
+
+    t.equal(err, Error(kind: ErrorKind.Generic('foo'), offset: 42))
+  })
+
   t.test('PullParser.value_type', fn (t) {
     t.equal(PullParser.new('10').value_type, Result.Ok(Type.Number))
     t.equal(PullParser.new('10.2').value_type, Result.Ok(Type.Number))
@@ -162,15 +168,11 @@ fn pub tests(t: mut Tests) {
     t.true(PullParser.new('').number.error?)
   })
 
-  t.test('PullParser.error', fn (t) {
+  t.test('PullParser.offset', fn (t) {
     let parser = PullParser.new('10')
 
-    parser.offset = 42
-
-    t.equal(
-      parser.error('test'),
-      Error(kind: ErrorKind.Generic('test'), offset: 42),
-    )
+    parser.offset = 10
+    t.equal(parser.offset, 10)
   })
 
   t.test('ObjectParser.key', fn (t) {

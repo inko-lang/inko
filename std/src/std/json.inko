@@ -208,6 +208,11 @@ class pub Error {
   # The article at https://www.foonathan.net/2021/02/column/ contains additional
   # information regarding this topic.
   let pub @offset: Int
+
+  # Returns a generic error with the given message and offset.
+  fn pub static generic(message: String, offset: Int) -> Error {
+    Error(kind: ErrorKind.Generic(message), offset: offset)
+  }
 }
 
 impl Equal[ref Error] for Error {
@@ -646,6 +651,11 @@ class pub PullParser {
     PullParser(input: input.bytes.peekable, offset: -1, buffer: ByteArray.new)
   }
 
+  # Returns the current byte offset in the input stream.
+  fn pub offset -> Int {
+    @offset
+  }
+
   # Returns a `Type` describing what type of value is located at the current
   # offset.
   fn pub mut value_type -> Result[Type, Error] {
@@ -873,7 +883,7 @@ class pub PullParser {
         }
         case Some(DQUOTE) -> break
         case Some(val) if val >= 0x0 and val <= 0x001F -> {
-          throw error(
+          throw generic_error(
             'control characters in the range 0x0..0x001F must be escaped',
           )
         }
@@ -893,7 +903,7 @@ class pub PullParser {
     # At this point the codepoint is either straight up invalid (e.g. "\uZZZZ"),
     # or it's a UTF-16 surrogate.
     if utf8.surrogate?(high).false? {
-      throw error_of(ErrorKind.InvalidSurrogate(high.format(Format.Hex)))
+      throw error(ErrorKind.InvalidSurrogate(high.format(Format.Hex)))
     }
 
     try expect(BSLASH, skip_whitespace: false)
@@ -910,7 +920,7 @@ class pub PullParser {
 
     let pair = '\\u${high.format(Format.Hex)}\\u${low.format(Format.Hex)}'
 
-    throw error_of(ErrorKind.InvalidSurrogate(pair))
+    throw error(ErrorKind.InvalidSurrogate(pair))
   }
 
   fn mut codepoint -> Result[Int, Error] {
@@ -1127,7 +1137,7 @@ class pub PullParser {
         let exp = char(byte)
         let got = char(val)
 
-        throw error(
+        throw generic_error(
           "the character '${exp}' is expected but '${got}' was found instead",
         )
       }
@@ -1187,22 +1197,18 @@ class pub PullParser {
   }
 
   fn unexpected(byte: Int) -> Error {
-    error("the character '${char(byte)}' is unexpected")
+    generic_error("the character '${char(byte)}' is unexpected")
   }
 
   fn missing_input -> Error {
-    error('all input is consumed but more input is expected')
+    generic_error('all input is consumed but more input is expected')
   }
 
-  # Returns a generic error with the given message.
-  #
-  # This method can be used by custom parser logic to produce an arbitrary
-  # error, prodived the error can be converted to a `String`.
-  fn pub error(message: String) -> Error {
-    error_of(ErrorKind.Generic(message))
+  fn generic_error(message: String) -> Error {
+    Error.generic(message, @offset)
   }
 
-  fn error_of(kind: ErrorKind) -> Error {
+  fn error(kind: ErrorKind) -> Error {
     Error(kind, offset: @offset)
   }
 }
@@ -1461,7 +1467,7 @@ class pub Parser {
     if @depth < @max_depth {
       Result.Ok(nil)
     } else {
-      Result.Error(@pull.error_of(ErrorKind.RecursionLimitExceeded(@max_depth)))
+      Result.Error(@pull.error(ErrorKind.RecursionLimitExceeded(@max_depth)))
     }
   }
 }
