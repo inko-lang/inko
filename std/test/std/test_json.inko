@@ -175,6 +175,12 @@ fn pub tests(t: mut Tests) {
     t.equal(parser.offset, 10)
   })
 
+  t.test('PullParser.start_of_next_value', fn (t) {
+    t.equal(PullParser.new('10').start_of_next_value, Result.Ok(0))
+    t.equal(PullParser.new('  10').start_of_next_value, Result.Ok(2))
+    t.equal(PullParser.new('  ,').start_of_next_value, Result.Ok(2))
+  })
+
   t.test('ObjectParser.key', fn (t) {
     let parser = PullParser.new('{"a":10,"b":10}')
     let values = []

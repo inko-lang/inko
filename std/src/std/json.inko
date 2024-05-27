@@ -656,6 +656,24 @@ class pub PullParser {
     @offset
   }
 
+  # Returns the byte offset of the start of the next non-whitespace value.
+  #
+  # This method is useful when you want to obtain the start of some value and
+  # use it when reporting an error when parsing said value, such as when you
+  # want to parse a JSON string into a Markdown document.
+  #
+  # # Examples
+  #
+  #     import std.json (PullParser)
+  #
+  #     let parser = PullParser.new('  10')
+  #
+  #     parser.start_of_next_value # => Result.Ok(2)
+  fn pub mut start_of_next_value -> Result[Int, Error] {
+    try skip_whitespace
+    Result.Ok(@offset + 1)
+  }
+
   # Returns a `Type` describing what type of value is located at the current
   # offset.
   fn pub mut value_type -> Result[Type, Error] {
