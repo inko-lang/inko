@@ -873,7 +873,7 @@ class pub PullParser {
         }
         case Some(DQUOTE) -> break
         case Some(val) if val >= 0x0 and val <= 0x001F -> {
-          throw generic_error(
+          throw error(
             'control characters in the range 0x0..0x001F must be escaped',
           )
         }
@@ -893,7 +893,7 @@ class pub PullParser {
     # At this point the codepoint is either straight up invalid (e.g. "\uZZZZ"),
     # or it's a UTF-16 surrogate.
     if utf8.surrogate?(high).false? {
-      throw error(ErrorKind.InvalidSurrogate(high.format(Format.Hex)))
+      throw error_of(ErrorKind.InvalidSurrogate(high.format(Format.Hex)))
     }
 
     try expect(BSLASH, skip_whitespace: false)
@@ -910,7 +910,7 @@ class pub PullParser {
 
     let pair = '\\u${high.format(Format.Hex)}\\u${low.format(Format.Hex)}'
 
-    throw error(ErrorKind.InvalidSurrogate(pair))
+    throw error_of(ErrorKind.InvalidSurrogate(pair))
   }
 
   fn mut codepoint -> Result[Int, Error] {
@@ -1127,7 +1127,7 @@ class pub PullParser {
         let exp = char(byte)
         let got = char(val)
 
-        throw generic_error(
+        throw error(
           "the character '${exp}' is expected but '${got}' was found instead",
         )
       }
@@ -1187,18 +1187,22 @@ class pub PullParser {
   }
 
   fn unexpected(byte: Int) -> Error {
-    generic_error("the character '${char(byte)}' is unexpected")
+    error("the character '${char(byte)}' is unexpected")
   }
 
   fn missing_input -> Error {
-    generic_error('all input is consumed but more input is expected')
+    error('all input is consumed but more input is expected')
   }
 
-  fn generic_error(message: String) -> Error {
-    error(ErrorKind.Generic(message))
+  # Returns a generic error with the given message.
+  #
+  # This method can be used by custom parser logic to produce an arbitrary
+  # error, prodived the error can be converted to a `String`.
+  fn pub error(message: String) -> Error {
+    error_of(ErrorKind.Generic(message))
   }
 
-  fn error(kind: ErrorKind) -> Error {
+  fn error_of(kind: ErrorKind) -> Error {
     Error(kind, offset: @offset)
   }
 }
@@ -1457,7 +1461,7 @@ class pub Parser {
     if @depth < @max_depth {
       Result.Ok(nil)
     } else {
-      Result.Error(@pull.error(ErrorKind.RecursionLimitExceeded(@max_depth)))
+      Result.Error(@pull.error_of(ErrorKind.RecursionLimitExceeded(@max_depth)))
     }
   }
 }
