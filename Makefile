@@ -5,6 +5,9 @@ DESTDIR :=
 # This path _must_ start with a /.
 PREFIX := /usr
 
+# The name of the library directory, usually "lib" or "lib64"
+LIB := lib
+
 ifneq (${DESTDIR},)
 	INSTALL_PREFIX = ${DESTDIR}${PREFIX}
 else
@@ -18,16 +21,16 @@ RUNTIME_NAME := libinko.a
 INSTALL_INKO := ${INSTALL_PREFIX}/bin/inko
 
 # The directory to place the standard library in.
-INSTALL_STD := ${INSTALL_PREFIX}/lib/inko/std
+INSTALL_STD := ${INSTALL_PREFIX}/${LIB}/inko/std
 
 # The directory the standard library is located at at runtime.
-RUNTIME_STD := ${PREFIX}/lib/inko/std
+RUNTIME_STD := ${PREFIX}/${LIB}/inko/std
 
 # The directory to place runtime library files in.
-INSTALL_RT := ${INSTALL_PREFIX}/lib/inko/runtime/${RUNTIME_NAME}
+INSTALL_RT := ${INSTALL_PREFIX}/${LIB}/inko/runtime/${RUNTIME_NAME}
 
 # The directory the runtime library is located at at runtime.
-RUNTIME_RT := ${PREFIX}/lib/inko/runtime
+RUNTIME_RT := ${PREFIX}/${LIB}/inko/runtime
 
 # The install path of the license file.
 INSTALL_LICENSE := ${INSTALL_PREFIX}/share/licenses/inko/LICENSE
