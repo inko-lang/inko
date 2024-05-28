@@ -5,18 +5,22 @@
 #
 # # Examples
 #
-#     import std.crypto.sha1 (Sha1)
+# ```inko
+# import std.crypto.sha1 (Sha1)
 #
-#     let hasher = Sha1.new
+# let hasher = Sha1.new
 #
-#     hasher.write('hello'.to_byte_array)
-#     hasher.finish.to_string # => 'aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d'
+# hasher.write('hello'.to_byte_array)
+# hasher.finish.to_string # => 'aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d'
+# ```
 #
 # You can also use `Sha1.hash`:
 #
-#     import std.crypto.sha1 (Sha1)
+# ```inko
+# import std.crypto.sha1 (Sha1)
 #
-#     Sha1.hash('hello'.to_byte_array).to_string # => 'aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d'
+# Sha1.hash('hello'.to_byte_array).to_string # => 'aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d'
+# ```
 #
 # # Limitations
 #
@@ -43,9 +47,11 @@ class pub Sha1 {
   #
   # # Examples
   #
-  #     import std.crypto.sha1 (Sha1)
+  # ```inko
+  # import std.crypto.sha1 (Sha1)
   #
-  #     Sha1.hash('hello')
+  # Sha1.hash('hello')
+  # ```
   fn pub static hash(bytes: ref ByteArray) -> Hash {
     let hasher = new
 

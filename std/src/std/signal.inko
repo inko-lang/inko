@@ -4,9 +4,11 @@
 # overriding their default behaviour in the process. To do so, create an
 # instance of the `Signal` enum and call `Signal.wait` on it:
 #
-#     import std.signal (Signal)
+# ```inko
+# import std.signal (Signal)
 #
-#     Signal.User1.wait
+# Signal.User1.wait
+# ```
 #
 # Signals are handled asynchronously, meaning there may be a small delay between
 # receiving the signal and `Signal.wait` returning. The order in which signals
@@ -37,26 +39,28 @@
 # If you need to wait for multiple signals at once, you can do so using a
 # `Channel` and a process for each signal. For example:
 #
-#     import std.signal (Signal)
+# ```inko
+# import std.signal (Signal)
 #
-#     class async Waiter {
-#       let @channel: Channel[Signal]
+# class async Waiter {
+#   let @channel: Channel[Signal]
 #
-#       fn async wait(signal: uni Signal) {
-#         signal.wait
-#         @channel.send(signal)
-#       }
-#     }
+#   fn async wait(signal: uni Signal) {
+#     signal.wait
+#     @channel.send(signal)
+#   }
+# }
 #
-#     class async Main {
-#       fn async main {
-#         let chan = Channel.new(size: 2)
+# class async Main {
+#   fn async main {
+#     let chan = Channel.new(size: 2)
 #
-#         Waiter(chan).wait(recover Signal.User1)
-#         Waiter(chan).wait(recover Signal.User2)
-#         chan.receive
-#       }
-#     }
+#     Waiter(chan).wait(recover Signal.User1)
+#     Waiter(chan).wait(recover Signal.User2)
+#     chan.receive
+#   }
+# }
+# ```
 #
 # In this example the `chan.receive` line returns either `uni Signal.User1` or
 # `uni Signal.User2`, depending on which signal is received first.
@@ -154,9 +158,11 @@ class pub enum Signal {
   #
   # # Examples
   #
-  #     import std.signal (Signal)
+  # ```inko
+  # import std.signal (Signal)
   #
-  #     Signal.User1.wait
+  # Signal.User1.wait
+  # ```
   fn pub wait {
     inko_signal_wait(_INKO.state, _INKO.process, id)
   }

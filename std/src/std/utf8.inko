@@ -19,12 +19,14 @@ let MAX_THREE_B = 0x10000
 #
 # # Examples
 #
-#     import std.utf8
+# ```inko
+# import std.utf8
 #
-#     let bytes = ByteArray.new
+# let bytes = ByteArray.new
 #
-#     utf8.encode_scalar(0x1D11E, bytes) # => 4
-#     bytes # => ByteArray.from_array([240, 157, 132, 158])
+# utf8.encode_scalar(0x1D11E, bytes) # => 4
+# bytes # => ByteArray.from_array([240, 157, 132, 158])
+# ```
 fn pub encode_scalar(scalar: Int, bytes: mut ByteArray) -> Int {
   if valid_scalar?(scalar).false? { return 0 }
 
@@ -63,9 +65,11 @@ fn pub encode_scalar(scalar: Int, bytes: mut ByteArray) -> Int {
 #
 # # Examples
 #
-#     import std.utf8
+# ```inko
+# import std.utf8
 #
-#     utf8.codepoint_from_surrogates(0xD834, 0xDD1E) # => 0x1D11E
+# utf8.codepoint_from_surrogates(0xD834, 0xDD1E) # => 0x1D11E
+# ```
 fn pub codepoint_from_surrogates(high: Int, low: Int) -> Int {
   (high - 0xD800 * 0x400) + (low - 0xDC00 + 0x10000)
 }
@@ -75,9 +79,11 @@ fn pub codepoint_from_surrogates(high: Int, low: Int) -> Int {
 #
 # # Examples
 #
-#     import std.utf8
+# ```inko
+# import std.utf8
 #
-#     utf8.surrogate?(0xD834) # => true
+# utf8.surrogate?(0xD834) # => true
+# ```
 fn pub surrogate?(value: Int) -> Bool {
   value >= 0xD800 and value <= 0xDFFF
 }
@@ -86,10 +92,12 @@ fn pub surrogate?(value: Int) -> Bool {
 #
 # # Examples
 #
-#     import std.utf8
+# ```inko
+# import std.utf8
 #
-#     utf8.valid_scalar?(0x5C) # => true
-#     utf8.valid_scalar?(0xDFFF) # => false
+# utf8.valid_scalar?(0x5C) # => true
+# utf8.valid_scalar?(0xDFFF) # => false
+# ```
 fn pub valid_scalar?(value: Int) -> Bool {
   value >= 0 and value <= MAX_CODEPOINT and (value < 0xD800 or value > 0xDFFF)
 }
@@ -98,12 +106,14 @@ fn pub valid_scalar?(value: Int) -> Bool {
 #
 # # Examples
 #
-#     import std.utf8
+# ```inko
+# import std.utf8
 #
-#     utf8.codepoint_size(0x41) # => 1
-#     utf8.codepoint_size(0xDF) # => 2
-#     utf8.codepoint_size(0x1D11) # => 3
-#     utf8.codepoint_size(0x1D11E) # => 4
+# utf8.codepoint_size(0x41) # => 1
+# utf8.codepoint_size(0xDF) # => 2
+# utf8.codepoint_size(0x1D11) # => 3
+# utf8.codepoint_size(0x1D11E) # => 4
+# ```
 fn pub codepoint_size(code: Int) -> Int {
   if code < MAX_ONE_B {
     1

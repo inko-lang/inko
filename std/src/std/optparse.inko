@@ -437,16 +437,18 @@ class pub Matches {
   #
   # # Examples
   #
-  #     import optparse.Options
+  # ```inko
+  # import optparse.Options
   #
-  #     let opts = Options.new
+  # let opts = Options.new
   #
-  #     opts.flag('h', 'help', 'Show this help message')
+  # opts.flag('h', 'help', 'Show this help message')
   #
-  #     let matches = opts.parse(['-h']).unwrap
+  # let matches = opts.parse(['-h']).unwrap
   #
-  #     matches.contains?('h')    # => true
-  #     matches.contains?('help') # => true
+  # matches.contains?('h')    # => true
+  # matches.contains?('help') # => true
+  # ```
   fn pub contains?(name: String) -> Bool {
     @options.contains?(name)
   }
@@ -461,16 +463,18 @@ class pub Matches {
   #
   # # Examples
   #
-  #     import optparse.Options
+  # ```inko
+  # import optparse.Options
   #
-  #     let opts = Options.new
+  # let opts = Options.new
   #
-  #     opts.single('c', 'config', 'PATH', 'Use a custom configuration file')
+  # opts.single('c', 'config', 'PATH', 'Use a custom configuration file')
   #
-  #     let matches = opts.parse(['-c', 'foo.json']).unwrap
+  # let matches = opts.parse(['-c', 'foo.json']).unwrap
   #
-  #     matches.value('c')      # => Option.Some('foo.json')
-  #     matches.value('config') # => Option.Some('foo.json')
+  # matches.value('c')      # => Option.Some('foo.json')
+  # matches.value('config') # => Option.Some('foo.json')
+  # ```
   fn pub value(name: String) -> Option[String] {
     @options.opt(name).then(fn (v) { v.opt(0) }).then(fn (v) { v.as_string })
   }
@@ -482,16 +486,18 @@ class pub Matches {
   #
   # # Examples
   #
-  #     import optparse.Options
+  # ```inko
+  # import optparse.Options
   #
-  #     let opts = Options.new
+  # let opts = Options.new
   #
-  #     opts.multiple('i', 'include', 'PATH', 'Include the given directory')
+  # opts.multiple('i', 'include', 'PATH', 'Include the given directory')
   #
-  #     let matches = opts.parse(['-i', 'test', '-i', 'src']).unwrap
+  # let matches = opts.parse(['-i', 'test', '-i', 'src']).unwrap
   #
-  #     matches.values('i')       # => ['test', 'src']
-  #     matches.values('include') # => ['test', 'src']
+  # matches.values('i')       # => ['test', 'src']
+  # matches.values('include') # => ['test', 'src']
+  # ```
   fn pub values(name: String) -> Array[String] {
     match @options.opt(name) {
       case Some(vals) -> vals.iter.select_map(fn (v) { v.as_string }).to_array
@@ -569,11 +575,13 @@ class pub Options {
   #
   # # Examples
   #
-  #     import optparse.Options
+  # ```inko
+  # import optparse.Options
   #
-  #     let opts = Options.new
+  # let opts = Options.new
   #
-  #     opts.flag('h', 'help', 'Show this help message')
+  # opts.flag('h', 'help', 'Show this help message')
+  # ```
   fn pub mut flag(short: String, long: String, description: String) {
     add(
       Opt(
@@ -610,11 +618,13 @@ class pub Options {
   #
   # # Examples
   #
-  #     import optparse.Options
+  # ```inko
+  # import optparse.Options
   #
-  #     let opts = Options.new
+  # let opts = Options.new
   #
-  #     opts.single('c', 'config', 'PATH', 'Use a custom configuration file')
+  # opts.single('c', 'config', 'PATH', 'Use a custom configuration file')
+  # ```
   fn pub mut single(
     short: String,
     long: String,
@@ -656,11 +666,13 @@ class pub Options {
   #
   # # Examples
   #
-  #     import optparse.Options
+  # ```inko
+  # import optparse.Options
   #
-  #     let opts = Options.new
+  # let opts = Options.new
   #
-  #     opts.multiple('i', 'include', 'PATH', 'Include the given directory')
+  # opts.multiple('i', 'include', 'PATH', 'Include the given directory')
+  # ```
   fn pub mut multiple(
     short: String,
     long: String,
@@ -683,14 +695,16 @@ class pub Options {
   #
   # # Examples
   #
-  #     import optparse.Options
+  # ```inko
+  # import optparse.Options
   #
-  #     let opts = Options.new
+  # let opts = Options.new
   #
-  #     opts.flag('h', 'help', 'Show this help message')
-  #     opts.multiple('i', 'include', 'PATH', 'Include the given directory')
+  # opts.flag('h', 'help', 'Show this help message')
+  # opts.multiple('i', 'include', 'PATH', 'Include the given directory')
   #
-  #     let matches = opts.parse(['-i', 'test', '-i', 'src']).unwrap
+  # let matches = opts.parse(['-i', 'test', '-i', 'src']).unwrap
+  # ```
   fn pub parse(arguments: ref Array[String]) -> Result[Matches, Error] {
     let lexer = Lexer.new(arguments)
     let matches = Matches(remaining: [], options: Map.new)
@@ -853,38 +867,42 @@ impl ToString for Options {
 #
 # A simple but complete overview of how to use this type:
 #
-#     import optparse.(Help, Options)
+# ```inko
+# import optparse.(Help, Options)
 #
-#     let opts = Options.new
+# let opts = Options.new
 #
-#     opts.flag('h', 'help', 'Show this help message')
-#     opts.flag('v', 'version', 'Show the version')
+# opts.flag('h', 'help', 'Show this help message')
+# opts.flag('v', 'version', 'Show the version')
 #
-#     Help
-#       .new('a')
-#       .description('This is an example')
-#       .section('Examples')
-#       .line('foo')
-#       .line('bar')
-#       .section('Options')
-#       .options(opts)
-#       .to_string
+# Help
+#   .new('a')
+#   .description('This is an example')
+#   .section('Examples')
+#   .line('foo')
+#   .line('bar')
+#   .section('Options')
+#   .options(opts)
+#   .to_string
+# ```
 #
 # This returns the following:
 #
-#     a: [OPTIONS]
+# ```inko
+# a: [OPTIONS]
 #
-#     This is an example
+# This is an example
 #
-#     Examples:
+# Examples:
 #
-#       foo
-#       bar
+#   foo
+#   bar
 #
-#     Options:
+# Options:
 #
-#       -h, --help       Show this help message
-#       -v, --version    Show the version
+#   -h, --help       Show this help message
+#   -v, --version    Show the version
+# ```
 class pub Help {
   # The name of the program/executable.
   let @name: String
@@ -904,9 +922,11 @@ class pub Help {
   #
   # # Examples
   #
-  #     import optparse.Help
+  # ```inko
+  # import optparse.Help
   #
-  #     Help.new('ls')
+  # Help.new('ls')
+  # ```
   fn pub static new(name: String) -> Help {
     Help(
       name: name,
@@ -920,9 +940,11 @@ class pub Help {
   #
   # # Examples
   #
-  #     import optparse.Help
+  # ```inko
+  # import optparse.Help
   #
-  #     Help.new('ls').usage('[OPTIONS]')
+  # Help.new('ls').usage('[OPTIONS]')
+  # ```
   fn pub mut usage(value: String) -> mut Help {
     @usage = value
     self
@@ -932,9 +954,11 @@ class pub Help {
   #
   # # Examples
   #
-  #     import optparse.Help
+  # ```inko
+  # import optparse.Help
   #
-  #     Help.new('ls').section('Examples')
+  # Help.new('ls').section('Examples')
+  # ```
   fn pub mut section(name: String) -> mut Help {
     @lines.push('\n')
     @lines.push(name)
@@ -948,9 +972,11 @@ class pub Help {
   #
   # # Examples
   #
-  #     import optparse.Help
+  # ```inko
+  # import optparse.Help
   #
-  #     Help.new('ls').section('Examples').line('ls # Show files and folders')
+  # Help.new('ls').section('Examples').line('ls # Show files and folders')
+  # ```
   fn pub mut line(value: String) -> mut Help {
     @lines.push(INDENT)
     @lines.push(value)
@@ -965,9 +991,11 @@ class pub Help {
   #
   # # Examples
   #
-  #     import optparse.Help
+  # ```inko
+  # import optparse.Help
   #
-  #     Help.new('ls').description('List files and folders')
+  # Help.new('ls').description('List files and folders')
+  # ```
   fn pub mut description(value: String) -> mut Help {
     @description = value
     self
@@ -977,13 +1005,15 @@ class pub Help {
   #
   # # Examples
   #
-  #     import optparse.(Help, Options)
+  # ```inko
+  # import optparse.(Help, Options)
   #
-  #     let opts = Options.new
+  # let opts = Options.new
   #
-  #     opts.flag('h', 'help', 'Show this help message')
+  # opts.flag('h', 'help', 'Show this help message')
   #
-  #     Help.new('ls').options(opts)
+  # Help.new('ls').options(opts)
+  # ```
   fn pub mut options(value: ref Options) -> mut Help {
     @lines.push(value.to_string)
     @lines.push('\n')

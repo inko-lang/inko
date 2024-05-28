@@ -67,10 +67,12 @@ class builtin Channel[T] {
   #
   # # Examples
   #
-  #     let chan = Channel.new(size: 4)
+  # ```inko
+  # let chan = Channel.new(size: 4)
   #
-  #     chan.send(1)
-  #     chan.send(2)
+  # chan.send(1)
+  # chan.send(2)
+  # ```
   fn pub send(value: uni T) {
     inko_channel_send(_INKO.state, _INKO.process, @state, value as UInt64)
   }
@@ -81,10 +83,12 @@ class builtin Channel[T] {
   #
   # # Examples
   #
-  #     let chan = Channel.new(size: 1)
+  # ```inko
+  # let chan = Channel.new(size: 1)
   #
-  #     chan.send(1)
-  #     chan.receive # => 1
+  # chan.send(1)
+  # chan.receive # => 1
+  # ```
   fn pub receive -> uni T {
     inko_channel_receive(_INKO.process, @state) as uni T
   }
@@ -96,11 +100,13 @@ class builtin Channel[T] {
   #
   # # Examples
   #
-  #     let chan = Channel.new(size: 1)
+  # ```inko
+  # let chan = Channel.new(size: 1)
   #
-  #     chan.try_receive # => Option.None
-  #     chan.send(1)
-  #     chan.try_receive # => Option.Some(1)
+  # chan.try_receive # => Option.None
+  # chan.send(1)
+  # chan.try_receive # => Option.Some(1)
+  # ```
   fn pub try_receive -> Option[uni T] {
     match inko_channel_try_receive(_INKO.process, @state) {
       case { @tag = 0, @value = v } -> Option.Some(v as uni T)
@@ -111,15 +117,17 @@ class builtin Channel[T] {
   # Receives a message, returning a `None` if no message is received when the
   # deadline is met.
   #
-  #     import std.time (Instant)
-  #     import std.time (Duration)
+  # ```inko
+  # import std.time (Instant)
+  # import std.time (Duration)
   #
-  #     let duration = Duration.from_secs(1)
-  #     let chan = Channel.new(size: 1)
+  # let duration = Duration.from_secs(1)
+  # let chan = Channel.new(size: 1)
   #
-  #     chan.receive_until(deadline: Instant.new + duration) # => Option.None
-  #     chan.send(1)
-  #     chan.receive_until(deadline: Instant.new + duration) # => Option.Some(1)
+  # chan.receive_until(deadline: Instant.new + duration) # => Option.None
+  # chan.send(1)
+  # chan.receive_until(deadline: Instant.new + duration) # => Option.Some(1)
+  # ```
   fn pub receive_until(deadline: ref Instant) -> Option[uni T] {
     match
       inko_channel_receive_until(

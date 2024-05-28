@@ -62,18 +62,20 @@ impl Clone[StackFrame] for StackFrame {
 #
 # Returning the trace of a method call:
 #
-#     import std.debug (stacktrace, StackFrame)
+# ```inko
+# import std.debug (stacktrace, StackFrame)
 #
-#     fn first {
-#       second
-#     }
+# fn first {
+#   second
+# }
 #
-#     fn second {
-#       let frames = stacktrace(skip: 1)
-#       let frame = frames.get(frames.size - 1)
+# fn second {
+#   let frames = stacktrace(skip: 1)
+#   let frame = frames.get(frames.size - 1)
 #
-#       frame.name # => 'second'
-#     }
+#   frame.name # => 'second'
+# }
+# ```
 fn pub stacktrace(skip: Int) -> Array[StackFrame] {
   let trace = inko_process_stacktrace(_INKO.process)
   let len = inko_process_stacktrace_size(trace) as Int

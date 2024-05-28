@@ -27,11 +27,13 @@ class pub Set[V: Equal[ref V] + Hash] {
   #
   # Inserting a value into a `Set`:
   #
-  #     import std.set (Set)
+  # ```inko
+  # import std.set (Set)
   #
-  #     let set = Set.new
+  # let set = Set.new
   #
-  #     set.insert(10)
+  # set.insert(10)
+  # ```
   fn pub mut insert(value: V) -> Bool {
     @map.set(value, true).none?
   }
@@ -44,21 +46,25 @@ class pub Set[V: Equal[ref V] + Hash] {
   #
   # Removing an existing value from a `Set`:
   #
-  #     import std.set (Set)
+  # ```inko
+  # import std.set (Set)
   #
-  #     let set = Set.new
+  # let set = Set.new
   #
-  #     set.insert(10)
-  #     set.remove(10) # => true
-  #     set.remove(10) # => false
+  # set.insert(10)
+  # set.remove(10) # => true
+  # set.remove(10) # => false
+  # ```
   #
   # Removing a non-existing value from a `Set`:
   #
-  #     import std.set (Set)
+  # ```inko
+  # import std.set (Set)
   #
-  #     let set = Set.new
+  # let set = Set.new
   #
-  #     set.remove(10) # => false
+  # set.remove(10) # => false
+  # ```
   fn pub mut remove(value: ref V) -> Bool {
     @map.remove(value).some?
   }
@@ -69,14 +75,16 @@ class pub Set[V: Equal[ref V] + Hash] {
   #
   # Creating an `Iter` for the values:
   #
-  #     import std.set (Set)
+  # ```inko
+  # import std.set (Set)
   #
-  #     let set = Set.new
+  # let set = Set.new
   #
-  #     set.insert(10)
-  #     set.insert(20)
+  # set.insert(10)
+  # set.insert(20)
   #
-  #     set.iter.next # => 10
+  # set.iter.next # => 10
+  # ```
   fn pub iter -> Stream[ref V] {
     @map.keys
   }
@@ -87,17 +95,21 @@ class pub Set[V: Equal[ref V] + Hash] {
   #
   # Using an empty `Set`:
   #
-  #     import std.set (Set)
+  # ```inko
+  # import std.set (Set)
   #
-  #     Set.new.size # => 0
+  # Set.new.size # => 0
+  # ```
   #
   # Using a `Set` with one value:
   #
-  #     let set = Set.new
+  # ```inko
+  # let set = Set.new
   #
-  #     set.insert('Alice')
+  # set.insert('Alice')
   #
-  #     set.size # => 1
+  # set.size # => 1
+  # ```
   fn pub size -> Int {
     @map.size
   }
@@ -111,15 +123,17 @@ impl Equal[ref Set[V]] for Set {
   #
   # Comparing two `Set` instances:
   #
-  #     import std.set (Set)
+  # ```inko
+  # import std.set (Set)
   #
-  #     let set1 = Set.new
-  #     let set2 = Set.new
+  # let set1 = Set.new
+  # let set2 = Set.new
   #
-  #     set1.insert(10)
-  #     set2.insert(10)
+  # set1.insert(10)
+  # set2.insert(10)
   #
-  #     set1 == set2 # => true
+  # set1 == set2 # => true
+  # ```
   fn pub ==(other: ref Set[V]) -> Bool {
     if size != other.size { return false }
 
@@ -134,13 +148,15 @@ impl Contains[V] for Set {
   #
   # Checking if a `Set` contains a value:
   #
-  #     import std.set (Set)
+  # ```inko
+  # import std.set (Set)
   #
-  #     let set = Set.new
+  # let set = Set.new
   #
-  #     set.contains?(10) # => false
-  #     set.insert(10)
-  #     set.contains?(10) # => true
+  # set.contains?(10) # => false
+  # set.insert(10)
+  # set.contains?(10) # => true
+  # ```
   fn pub contains?(value: ref V) -> Bool {
     @map.contains?(value)
   }

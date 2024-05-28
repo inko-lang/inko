@@ -58,13 +58,15 @@ class pub Poly1305 {
   #
   # # Examples
   #
-  #     import std.rand (Random)
-  #     import std.crypto.poly1305 (Poly1305)
+  # ```inko
+  # import std.rand (Random)
+  # import std.crypto.poly1305 (Poly1305)
   #
-  #     let key = Random.new.bytes(size: 32)
-  #     let msg = 'This is a test'.to_byte_array
+  # let key = Random.new.bytes(size: 32)
+  # let msg = 'This is a test'.to_byte_array
   #
-  #     Poly1305.hash(key, msg)
+  # Poly1305.hash(key, msg)
+  # ```
   fn pub static hash(key: ref ByteArray, bytes: ref ByteArray) -> Hash {
     let hasher = new(key)
 

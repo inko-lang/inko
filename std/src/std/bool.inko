@@ -12,8 +12,10 @@ class builtin Bool {
   #
   # # Examples
   #
-  #     true.true?  # => true
-  #     false.true? # => false
+  # ```inko
+  # true.true?  # => true
+  # false.true? # => false
+  # ```
   fn pub true? -> Bool {
     self
   }
@@ -22,8 +24,10 @@ class builtin Bool {
   #
   # # Examples
   #
-  #     true.false?  # => false
-  #     false.false? # => true
+  # ```inko
+  # true.false?  # => false
+  # false.false? # => true
+  # ```
   fn pub false? -> Bool {
     self == false
   }
@@ -33,8 +37,10 @@ class builtin Bool {
   #
   # # Examples
   #
-  #     true.then fn { 10 }  # => Option.Some(10)
-  #     false.then fn { 10 } # => Option.None
+  # ```inko
+  # true.then fn { 10 }  # => Option.Some(10)
+  # false.then fn { 10 } # => Option.None
+  # ```
   fn pub then[T](func: fn -> T) -> Option[T] {
     if self { Option.Some(func.call) } else { Option.None }
   }

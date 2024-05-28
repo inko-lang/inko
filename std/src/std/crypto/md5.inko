@@ -8,18 +8,22 @@
 #
 # # Examples
 #
-#     import std.crypto.md5 (Md5)
+# ```inko
+# import std.crypto.md5 (Md5)
 #
-#     let hasher = Md5.new
+# let hasher = Md5.new
 #
-#     hasher.write('hello'.to_byte_array)
-#     hasher.finish.to_string # => '5d41402abc4b2a76b9719d911017c592'
+# hasher.write('hello'.to_byte_array)
+# hasher.finish.to_string # => '5d41402abc4b2a76b9719d911017c592'
+# ```
 #
 # You can also use `Md5.hash`:
 #
-#     import std.crypto.md5 (Md5)
+# ```inko
+# import std.crypto.md5 (Md5)
 #
-#     Md5.hash('hello'.to_byte_array).to_string # => '5d41402abc4b2a76b9719d911017c592'
+# Md5.hash('hello'.to_byte_array).to_string # => '5d41402abc4b2a76b9719d911017c592'
+# ```
 #
 # # Limitations
 #
@@ -79,9 +83,11 @@ class pub Md5 {
   #
   # # Examples
   #
-  #     import std.crypto.md5 (Md5)
+  # ```inko
+  # import std.crypto.md5 (Md5)
   #
-  #     Md5.hash('hello')
+  # Md5.hash('hello')
+  # ```
   fn pub static hash(bytes: ref ByteArray) -> Hash {
     let hasher = new
 

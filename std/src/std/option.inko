@@ -26,8 +26,10 @@ class pub enum Option[T] {
   #
   # # Examples
   #
-  #     Option.Some(10).as_ref # => Option.Some(ref 10)
-  #     Option.None.as_ref     # => Option.None
+  # ```inko
+  # Option.Some(10).as_ref # => Option.Some(ref 10)
+  # Option.None.as_ref     # => Option.None
+  # ```
   fn pub as_ref -> Option[ref T] {
     match self {
       case Some(v) -> Option.Some(v)
@@ -39,7 +41,9 @@ class pub enum Option[T] {
   #
   # # Examples
   #
-  #     Option.Some(10).get # => 10
+  # ```inko
+  # Option.Some(10).get # => 10
+  # ```
   fn pub move get -> T {
     or_panic('Option.get expects a Some(_), but a None is found')
   }
@@ -49,7 +53,9 @@ class pub enum Option[T] {
   #
   # # Examples
   #
-  #     Option.Some(10).or_panic('a number must be present') # => 10
+  # ```inko
+  # Option.Some(10).or_panic('a number must be present') # => 10
+  # ```
   fn pub move or_panic(message: String) -> T {
     match self {
       case Some(v) -> v
@@ -62,8 +68,10 @@ class pub enum Option[T] {
   #
   # # Examples
   #
-  #     Option.Some(10).or(0) # => 10
-  #     Option.None.or(0)     # => 0
+  # ```inko
+  # Option.Some(10).or(0) # => 10
+  # Option.None.or(0)     # => 0
+  # ```
   fn pub move or(default: T) -> T {
     match self {
       case Some(v) -> v
@@ -76,8 +84,10 @@ class pub enum Option[T] {
   #
   # # Examples
   #
-  #     Option.Some(10).or_else fn { 0 } # => 10
-  #     Option.None.or_else fn { 0 }     # => 0
+  # ```inko
+  # Option.Some(10).or_else fn { 0 } # => 10
+  # Option.None.or_else fn { 0 }     # => 0
+  # ```
   fn pub move or_else(block: fn -> T) -> T {
     match self {
       case Some(v) -> v
@@ -95,11 +105,15 @@ class pub enum Option[T] {
   #
   # Mapping an Option to a new Option:
   #
-  #     Option.Some(10).map fn (num) { num * 2 } # => Option.Some(20)
+  # ```inko
+  # Option.Some(10).map fn (num) { num * 2 } # => Option.Some(20)
+  # ```
   #
   # Mapping a None:
   #
-  #     Option.None.map fn (x) { x * 2 } # => Option.None
+  # ```inko
+  # Option.None.map fn (x) { x * 2 } # => Option.None
+  # ```
   fn pub move map[R](block: fn (T) -> R) -> Option[R] {
     match self {
       case Some(v) -> Option.Some(block.call(v))
@@ -152,8 +166,10 @@ class pub enum Option[T] {
   #
   # # Examples
   #
-  #     Option.Some(10).some? # => true
-  #     Option.None.some?     # => false
+  # ```inko
+  # Option.Some(10).some? # => true
+  # Option.None.some?     # => false
+  # ```
   fn pub some? -> Bool {
     match self {
       case Some(_) -> true
@@ -165,8 +181,10 @@ class pub enum Option[T] {
   #
   # # Examples
   #
-  #     Option.Some(10).none? # => false
-  #     Option.None.none?     # => true
+  # ```inko
+  # Option.Some(10).none? # => false
+  # Option.None.none?     # => true
+  # ```
   fn pub none? -> Bool {
     match self {
       case Some(_) -> false
@@ -180,7 +198,9 @@ impl Option if T: mut {
   #
   # # Examples
   #
-  #     Option.Some([10]).as_mut # => Option.Some(mut [10])
+  # ```inko
+  # Option.Some([10]).as_mut # => Option.Some(mut [10])
+  # ```
   fn pub mut as_mut -> Option[mut T] {
     match self {
       case Some(v) -> Option.Some(v)
@@ -201,16 +221,22 @@ impl Equal[ref Option[T]] for Option if T: Equal[ref T] {
   #
   # Comparing two Some values:
   #
-  #     Option.Some(10) == Option.Some(10) # => true
-  #     Option.Some(10) == Option.Some(20) # => false
+  # ```inko
+  # Option.Some(10) == Option.Some(10) # => true
+  # Option.Some(10) == Option.Some(20) # => false
+  # ```
   #
   # Comparing a Some and a None:
   #
-  #     Option.Some(10) == Option.None # => false
+  # ```inko
+  # Option.Some(10) == Option.None # => false
+  # ```
   #
   # Comparing two None values:
   #
-  #     Option.None == Option.None # => true
+  # ```inko
+  # Option.None == Option.None # => true
+  # ```
   fn pub ==(other: ref Option[T]) -> Bool {
     match self {
       case Some(ours) -> {

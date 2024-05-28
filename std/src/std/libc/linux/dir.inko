@@ -1,4 +1,3 @@
-# https://docs.rs/libc/latest/libc/struct.dirent.html
 class extern Dirent {
   let @d_ino: UInt64
   let @d_off: UInt64

@@ -3,55 +3,65 @@
 # # Parsing JSON
 #
 # This module provides support for parsing and generating JSON, conforming to
-# RFC 8259 (https://www.rfc-editor.org/rfc/rfc8259). Tests were performed
+# RFC 8259 (<https://www.rfc-editor.org/rfc/rfc8259>). Tests were performed
 # against the test corpus provided by the article
-# https://seriot.ch/projects/parsing_json.html. Extensions such as parsing
+# <https://seriot.ch/projects/parsing_json.html>. Extensions such as parsing
 # `NaN`, `Infinity`, and comments are not supported.
 #
 # The easiest way to parse JSON is using `Json.parse`:
 #
-#     import std.json (Json)
+# ```inko
+# import std.json (Json)
 #
-#     Json.parse('[10]').get # => Json.Array([Json.Int(10)])
+# Json.parse('[10]').get # => Json.Array([Json.Int(10)])
+# ```
 #
 # The parser enforces limits on the number of nested objects and the size of
 # strings. These limits can be adjusted by using the `Parser` type directly like
 # so:
 #
-#     import std.json (Parser)
+# ```inko
+# import std.json (Parser)
 #
-#     let parser = Parser.new('[10]')
+# let parser = Parser.new('[10]')
 #
-#     parser.max_depth = 4
-#     parser.max_string_size = 128
-#     parser.parse
+# parser.max_depth = 4
+# parser.max_string_size = 128
+# parser.parse
+# ```
 #
 # # Generating JSON
 #
 # Generating JSON strings is done using `Json.to_string` and
 # `Json.to_pretty_string`:
 #
-#     import std.json (Json)
+# ```inko
+# import std.json (Json)
 #
-#     Json.Array([Json.Int(1), Json.Int(2)]).to_string # => '[1, 2]'
+# Json.Array([Json.Int(1), Json.Int(2)]).to_string # => '[1, 2]'
+# ```
 #
 # When using `to_pretty_string`, the default indentation is two spaces per
 # indentation level. You can change this value by using the `Generator` type
 # directly:
 #
-#     import std.json (Generator, Json)
+# ```inko
+# import std.json (Generator, Json)
 #
-#     let val = Json.Array([Json.Int(1), Json.Int(2)])
-#     let gen = Generator.new(indent: 4)
+# let val = Json.Array([Json.Int(1), Json.Int(2)])
+# let gen = Generator.new(indent: 4)
 #
-#     gen.generate(val)
+# gen.generate(val)
+# ```
 #
 # This would then produce the following JSON:
 #
-#     [
-#         1,
-#         2
-#     ]
+# ```inko
+# [
+#     1,
+#     2
+# ]
+# ```
 #
 # # Performance
 #
@@ -242,30 +252,36 @@ impl ToString for Error {
 # Manually extracting values from JSON objects can be cumbersome. Take the
 # following JSON for example:
 #
-#     {
-#       "name": "Alice",
-#       "address": {
-#         "street": "Sesame Street"
-#       }
-#     }
+# ```inko
+# {
+#   "name": "Alice",
+#   "address": {
+#     "street": "Sesame Street"
+#   }
+# }
+# ```
 #
 # If we want to get the value of the `street` key, we'd have to write the
 # following:
 #
-#     match json {
-#       case Object(root) -> match root.opt('address') {
-#         case Some(Object(addr)) -> match addr.opt('street') {
-#           case Some(String(v)) -> Option.Some(v)
-#           case _ -> Option.None
-#         }
-#         case _ -> Option.None
-#       }
+# ```inko
+# match json {
+#   case Object(root) -> match root.opt('address') {
+#     case Some(Object(addr)) -> match addr.opt('street') {
+#       case Some(String(v)) -> Option.Some(v)
 #       case _ -> Option.None
 #     }
+#     case _ -> Option.None
+#   }
+#   case _ -> Option.None
+# }
+# ```
 #
 # In contrast, using the `Query` type we can instead write the following:
 #
-#     json.query.key('address').key('street').as_string
+# ```inko
+# json.query.key('address').key('street').as_string
+# ```
 #
 # Querying is done using the methods `Query.key` to get an object key's value,
 # and `Query.index` to get the value of an array index. Methods such as
@@ -279,13 +295,15 @@ class pub Query {
   #
   # # Examples
   #
-  #     import std.json (Json)
+  # ```inko
+  # import std.json (Json)
   #
-  #     let map = Map.new
+  # let map = Map.new
   #
-  #     map.set('name', 'Alice')
-  #     Json.Object(map).query.key('name').as_string # => Option.Some('alice')
-  #     Json.Int(42).query.key('name').as_string     # => Option.None
+  # map.set('name', 'Alice')
+  # Json.Object(map).query.key('name').as_string # => Option.Some('alice')
+  # Json.Int(42).query.key('name').as_string     # => Option.None
+  # ```
   fn pub move key(name: String) -> Query {
     @value = match ref @value {
       case Some(Object(v)) -> v.opt(name)
@@ -300,10 +318,12 @@ class pub Query {
   #
   # # Examples
   #
-  #     import std.json (Json)
+  # ```inko
+  # import std.json (Json)
   #
-  #     Json.Array([Json.Int(10)]).query.index(0).as_int # => Option.Some(10)
-  #     Json.Int(42).query.index(0).as_int               # => Option.None
+  # Json.Array([Json.Int(10)]).query.index(0).as_int # => Option.Some(10)
+  # Json.Int(42).query.index(0).as_int               # => Option.None
+  # ```
   fn pub move index(index: Int) -> Query {
     @value = match ref @value {
       case Some(Array(v)) -> v.opt(index)
@@ -317,10 +337,12 @@ class pub Query {
   #
   # # Examples
   #
-  #     import std.json (Json)
+  # ```inko
+  # import std.json (Json)
   #
-  #     Json.String('test').query.as_bool # => Option.None
-  #     Json.Bool(true).query.as_bool     # => Option.Some(true)
+  # Json.String('test').query.as_bool # => Option.None
+  # Json.Bool(true).query.as_bool     # => Option.Some(true)
+  # ```
   fn pub move as_bool -> Option[Bool] {
     match @value {
       case Some(Bool(v)) -> Option.Some(v)
@@ -332,10 +354,12 @@ class pub Query {
   #
   # # Examples
   #
-  #     import std.json (Json)
+  # ```inko
+  # import std.json (Json)
   #
-  #     Json.Int(42).query.as_string        # => Option.None
-  #     Json.String('test').query.as_string # => Option.Some('test')
+  # Json.Int(42).query.as_string        # => Option.None
+  # Json.String('test').query.as_string # => Option.Some('test')
+  # ```
   fn pub move as_string -> Option[String] {
     match @value {
       case Some(String(v)) -> Option.Some(v)
@@ -347,10 +371,12 @@ class pub Query {
   #
   # # Examples
   #
-  #     import std.json (Json)
+  # ```inko
+  # import std.json (Json)
   #
-  #     Json.String('test').query.as_int # => Option.None
-  #     Json.Int(42).query.as_int        # => Option.Some(42)
+  # Json.String('test').query.as_int # => Option.None
+  # Json.Int(42).query.as_int        # => Option.Some(42)
+  # ```
   fn pub move as_int -> Option[Int] {
     match @value {
       case Some(Int(v)) -> Option.Some(v)
@@ -362,10 +388,12 @@ class pub Query {
   #
   # # Examples
   #
-  #     import std.json (Json)
+  # ```inko
+  # import std.json (Json)
   #
-  #     Json.String('test').query.as_float # => Option.None
-  #     Json.Float(42.0).query.as_float    # => Option.Some(42.0)
+  # Json.String('test').query.as_float # => Option.None
+  # Json.Float(42.0).query.as_float    # => Option.Some(42.0)
+  # ```
   fn pub move as_float -> Option[Float] {
     match @value {
       case Some(Float(v)) -> Option.Some(v)
@@ -377,13 +405,15 @@ class pub Query {
   #
   # # Examples
   #
-  #     import std.json (Json)
+  # ```inko
+  # import std.json (Json)
   #
-  #     let map = Map.new
+  # let map = Map.new
   #
-  #     map.set('name', 'Alice')
-  #     Json.Object(map).query.as_object # => Option.Some(...)
-  #     Json.Int(42).query.as_object     # => Option.None
+  # map.set('name', 'Alice')
+  # Json.Object(map).query.as_object # => Option.Some(...)
+  # Json.Int(42).query.as_object     # => Option.None
+  # ```
   fn pub move as_object -> Option[ref Map[String, Json]] {
     match @value {
       case Some(Object(v)) -> Option.Some(v)
@@ -395,10 +425,12 @@ class pub Query {
   #
   # # Examples
   #
-  #     import std.json (Json)
+  # ```inko
+  # import std.json (Json)
   #
-  #     Json.Array([Json.Int(42)]).query.as_array # => Option.Some(...)
-  #     Json.Int(42).query.as_array               # => Option.None
+  # Json.Array([Json.Int(42)]).query.as_array # => Option.Some(...)
+  # Json.Int(42).query.as_array               # => Option.None
+  # ```
   fn pub move as_array -> Option[ref Array[Json]] {
     match @value {
       case Some(Array(v)) -> Option.Some(v)
@@ -423,15 +455,19 @@ class pub enum Json {
   #
   # Parsing a `String`:
   #
-  #     import std.json (Json)
+  # ```inko
+  # import std.json (Json)
   #
-  #     Json.parse('[10]') # => Result.Ok(Json.Array([Json.Int(10)]))
+  # Json.parse('[10]') # => Result.Ok(Json.Array([Json.Int(10)]))
+  # ```
   #
   # Parsing a `ByteArray`:
   #
-  #     import std.json (Json)
+  # ```inko
+  # import std.json (Json)
   #
-  #     Json.parse('[10]'.to_byte_array) # => Result.Ok(Json.Array([Json.Int(10)]))
+  # Json.parse('[10]'.to_byte_array) # => Result.Ok(Json.Array([Json.Int(10)]))
+  # ```
   fn pub static parse[T: Bytes](bytes: ref T) -> Result[Json, Error] {
     Parser.new(bytes).parse
   }
@@ -443,10 +479,12 @@ class pub enum Json {
   #
   # # Examples
   #
-  #     import std.json (Json)
+  # ```inko
+  # import std.json (Json)
   #
-  #     Json.Int(42).to_pretty_string               # => '42'
-  #     Json.Array([Json.Int(42)]).to_pretty_string # => "[\n  42\n]"
+  # Json.Int(42).to_pretty_string               # => '42'
+  # Json.Array([Json.Int(42)]).to_pretty_string # => "[\n  42\n]"
+  # ```
   fn pub to_pretty_string -> String {
     Generator.new(DEFAULT_PRETTY_INDENT).generate(self)
   }
@@ -457,9 +495,11 @@ class pub enum Json {
   #
   # # Examples
   #
-  #     import std.json (Json)
+  # ```inko
+  # import std.json (Json)
   #
-  #     Json.Int(42).query.as_int # => Option.Some(42)
+  # Json.Int(42).query.as_int # => Option.Some(42)
+  # ```
   fn pub query -> Query {
     Query(Option.Some(self))
   }
@@ -470,10 +510,12 @@ impl ToString for Json {
   #
   # # Examples
   #
-  #     import std.json (Json)
+  # ```inko
+  # import std.json (Json)
   #
-  #     Json.Int(42).to_string               # => '42'
-  #     Json.Array([Json.Int(42)]).to_string # => '[42]'
+  # Json.Int(42).to_string               # => '42'
+  # Json.Array([Json.Int(42)]).to_string # => '[42]'
+  # ```
   fn pub to_string -> String {
     Generator.new(0).generate(self)
   }
@@ -613,34 +655,38 @@ impl FormatTrait for Type {
 # values, without the need for any intermediate `Json` values. For example,
 # parsing an array of integers is done as follows:
 #
-#     import std.json (PullParser)
+# ```inko
+# import std.json (PullParser)
 #
-#     let parser = PullParser.new('[10, 20]')
-#     let values = []
+# let parser = PullParser.new('[10, 20]')
+# let values = []
 #
-#     parser.values(fn { Result.Ok(values.push(try parser.int)) }).get
-#     values # => [10, 20]
+# parser.values(fn { Result.Ok(values.push(try parser.int)) }).get
+# values # => [10, 20]
+# ```
 #
 # For objects one _can_ use the low-level method `PullParser.keys`, but it's
 # recommended to use `PullParser.object` when the names of the keys are known at
 # compile-time. For example:
 #
-#     import std.json (PullParser)
+# ```inko
+# import std.json (PullParser)
 #
-#     class Person {
-#       let @name: String
-#       let @age: Int
-#     }
+# class Person {
+#   let @name: String
+#   let @age: Int
+# }
 #
-#     let parser = PullParser.new('{ "name": "Alice", "age": 42 }')
-#     let person = Person(name: '', age: 0)
+# let parser = PullParser.new('{ "name": "Alice", "age": 42 }')
+# let person = Person(name: '', age: 0)
 #
-#     parser
-#       .object
-#       .string('name', fn (v) { person.name = name })
-#       .int('age', fn (v) { person.age = v })
-#       .parse
-#       .get
+# parser
+#   .object
+#   .string('name', fn (v) { person.name = name })
+#   .int('age', fn (v) { person.age = v })
+#   .parse
+#   .get
+# ```
 class pub PullParser {
   let @input: Peekable[Int]
   let @offset: Int
@@ -664,11 +710,13 @@ class pub PullParser {
   #
   # # Examples
   #
-  #     import std.json (PullParser)
+  # ```inko
+  # import std.json (PullParser)
   #
-  #     let parser = PullParser.new('  10')
+  # let parser = PullParser.new('  10')
   #
-  #     parser.start_of_next_value # => Result.Ok(2)
+  # parser.start_of_next_value # => Result.Ok(2)
+  # ```
   fn pub mut start_of_next_value -> Result[Int, Error] {
     try skip_whitespace
     Result.Ok(@offset + 1)
@@ -699,9 +747,11 @@ class pub PullParser {
   #
   # # Examples
   #
-  #     import std.json (PullParser)
+  # ```inko
+  # import std.json (PullParser)
   #
-  #     PullParser.new('[10, 20]').skip # => Result.Ok(nil)
+  # PullParser.new('[10, 20]').skip # => Result.Ok(nil)
+  # ```
   fn pub mut skip -> Result[Nil, Error] {
     match value_type {
       case Ok(Number) -> {
@@ -726,19 +776,21 @@ class pub PullParser {
   #
   # # Examples
   #
-  #     import std.json (PullParser)
+  # ```inko
+  # import std.json (PullParser)
   #
-  #     let parser = PullParser.new('[10, 20]')
-  #     let values = []
+  # let parser = PullParser.new('[10, 20]')
+  # let values = []
   #
-  #     parser
-  #       .values(fn {
-  #         values.push(parser.int.get)
-  #         Result.Ok(nil)
-  #       })
-  #       .get
+  # parser
+  #   .values(fn {
+  #     values.push(parser.int.get)
+  #     Result.Ok(nil)
+  #   })
+  #   .get
   #
-  #     values # => [10, 20]
+  # values # => [10, 20]
+  # ```
   fn pub mut values(value: fn -> Result[Nil, Error]) -> Result[Nil, Error] {
     try expect(BRACKET_OPEN, skip_whitespace: true)
 
@@ -767,30 +819,32 @@ class pub PullParser {
   #
   # # Examples
   #
-  #     import std.json (PullParser)
+  # ```inko
+  # import std.json (PullParser)
   #
-  #     class Person {
-  #       let @name: String
-  #       let @age: Int
+  # class Person {
+  #   let @name: String
+  #   let @age: Int
+  # }
+  #
+  # let parser = PullParser.new('{ "name": "Alice", "age": 42 }')
+  # let person = Person(name: '', age: 0)
+  #
+  # parser
+  #   .keys(fn (key) {
+  #     match key {
+  #       case 'name' -> person.name = parser.string.get
+  #       case 'age' -> person.age = parser.int.get
+  #       case _ -> {}
   #     }
   #
-  #     let parser = PullParser.new('{ "name": "Alice", "age": 42 }')
-  #     let person = Person(name: '', age: 0)
+  #     Result.Ok(nil)
+  #   })
+  #   .get
   #
-  #     parser
-  #       .keys(fn (key) {
-  #         match key {
-  #           case 'name' -> person.name = parser.string.get
-  #           case 'age' -> person.age = parser.int.get
-  #           case _ -> {}
-  #         }
-  #
-  #         Result.Ok(nil)
-  #       })
-  #       .get
-  #
-  #     person.name # => 'Alice'
-  #     person.age  # => 42
+  # person.name # => 'Alice'
+  # person.age  # => 42
+  # ```
   fn pub mut keys(
     value: fn (String) -> Result[Nil, Error],
   ) -> Result[Nil, Error] {
@@ -824,16 +878,18 @@ class pub PullParser {
   #
   # # Examples
   #
-  #     import std.json (PullParser)
+  # ```inko
+  # import std.json (PullParser)
   #
-  #     class Person {
-  #       let @name: String
-  #     }
+  # class Person {
+  #   let @name: String
+  # }
   #
-  #     let parser = PullParser.new('{ "name": "String" }')
-  #     let person = Person(name: '')
+  # let parser = PullParser.new('{ "name": "String" }')
+  # let person = Person(name: '')
   #
-  #     parser.object.string('name', fn (v) { person.name = v }).parse.get
+  # parser.object.string('name', fn (v) { person.name = v }).parse.get
+  # ```
   fn pub mut object -> ObjectParser {
     ObjectParser.new(self)
   }
@@ -842,9 +898,11 @@ class pub PullParser {
   #
   # # Examples
   #
-  #     import std.json (PullParser)
+  # ```inko
+  # import std.json (PullParser)
   #
-  #     PullParser.new('true').bool # => Result.Ok(true)
+  # PullParser.new('true').bool # => Result.Ok(true)
+  # ```
   fn pub mut bool -> Result[Bool, Error] {
     match try peek {
       case Some(LOWER_T) -> {
@@ -864,9 +922,11 @@ class pub PullParser {
   #
   # # Examples
   #
-  #     import std.json (PullParser)
+  # ```inko
+  # import std.json (PullParser)
   #
-  #     PullParser.new('null').null # => Result.Ok(nil)
+  # PullParser.new('null').null # => Result.Ok(nil)
+  # ```
   fn pub mut null -> Result[Nil, Error] {
     identifier('null')
   }
@@ -875,9 +935,11 @@ class pub PullParser {
   #
   # # Examples
   #
-  #     import std.json (PullParser)
+  # ```inko
+  # import std.json (PullParser)
   #
-  #     PullParser.new('"hello"').string # => Result.Ok('hello')
+  # PullParser.new('"hello"').string # => Result.Ok('hello')
+  # ```
   fn pub mut string -> Result[String, Error] {
     match try peek {
       case Some(DQUOTE) -> try advance
@@ -975,10 +1037,12 @@ class pub PullParser {
   #
   # # Examples
   #
-  #     import std.json (PullParser)
+  # ```inko
+  # import std.json (PullParser)
   #
-  #     Parser.new('10').int  # => Result.Ok(10)
-  #     Parser.new('1.2').int # => Result.Ok(1)
+  # Parser.new('10').int  # => Result.Ok(10)
+  # Parser.new('1.2').int # => Result.Ok(1)
+  # ```
   fn pub mut int -> Result[Int, Error] {
     match number {
       case Ok(Int(v)) -> Result.Ok(v)
@@ -995,10 +1059,12 @@ class pub PullParser {
   #
   # # Examples
   #
-  #     import std.json (PullParser)
+  # ```inko
+  # import std.json (PullParser)
   #
-  #     Parser.new('1.2').float # => Result.Ok(1.2)
-  #     Parser.new('1').float   # => Result.Ok(1.0)
+  # Parser.new('1.2').float # => Result.Ok(1.2)
+  # Parser.new('1').float   # => Result.Ok(1.0)
+  # ```
   fn pub mut float -> Result[Float, Error] {
     match number {
       case Ok(Int(v)) -> Result.Ok(v.to_float)
@@ -1015,10 +1081,12 @@ class pub PullParser {
   #
   # # Examples
   #
-  #     import std.json (PullParser)
+  # ```inko
+  # import std.json (PullParser)
   #
-  #     Parser.new('1.2').number # => Result.Ok(Number.Float(1.2))
-  #     Parser.new('1').number   # => Result.Ok(Number.Int(1))
+  # Parser.new('1.2').number # => Result.Ok(Number.Float(1.2))
+  # Parser.new('1').number   # => Result.Ok(Number.Int(1))
+  # ```
   fn pub mut number -> Result[Number, Error] {
     match try peek {
       case Some(MINUS) -> {
@@ -1408,11 +1476,13 @@ class pub Parser {
   #
   # # Examples
   #
-  #     import std.json (Parser)
+  # ```inko
+  # import std.json (Parser)
   #
-  #     let parser = Parser.new('[10, 20]')
+  # let parser = Parser.new('[10, 20]')
   #
-  #     parser.parse.get # => Json.Array([Json.Int(10), Json.Int(20)])
+  # parser.parse.get # => Json.Array([Json.Int(10), Json.Int(20)])
+  # ```
   fn pub move parse -> Result[Json, Error] {
     let result = try value
 
@@ -1519,9 +1589,11 @@ class pub Generator {
   #
   # # Examples
   #
-  #     import std.json (Generator)
+  # ```inko
+  # import std.json (Generator)
   #
-  #     Generator.new(indent: 2).generate(Json.Array([Json.Int(1)])) # => '[1]'
+  # Generator.new(indent: 2).generate(Json.Array([Json.Int(1)])) # => '[1]'
+  # ```
   fn pub mut generate(value: ref Json) -> String {
     generate_value(value)
     @buffer.to_string

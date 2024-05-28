@@ -24,36 +24,40 @@
 # To write a test you need to import the `Tests` type into your module of
 # choice. You can then write your tests like so:
 #
-#     import std.test (Tests)
+# ```inko
+# import std.test (Tests)
 #
-#     class async Main {
-#       fn async main {
-#         let tests = Tests.new
+# class async Main {
+#   fn async main {
+#     let tests = Tests.new
 #
-#         tests.test('This is the test description') fn (t) {
-#           t.equal('foo'.size, 3)
-#         }
-#
-#         tests.run
-#       }
+#     tests.test('This is the test description') fn (t) {
+#       t.equal('foo'.size, 3)
 #     }
+#
+#     tests.run
+#   }
+# }
+# ```
 #
 # The closure passed to the `test` method must be a `uni` closure, otherwise it
 # can't be sent to the process that runs the test. If you pass the closure
 # directly (as shown above) no extra work is needed. If you decide to first
 # store the closure in a variable, you must explicitly recover it:
 #
-#     import std.test (Tests)
+# ```inko
+# import std.test (Tests)
 #
-#     class async Main {
-#       fn async main {
-#         let tests = Tests.new
-#         let block = recover fn (t: mut Tets) { t.equal('foo'.size, 3) }
+# class async Main {
+#   fn async main {
+#     let tests = Tests.new
+#     let block = recover fn (t: mut Tets) { t.equal('foo'.size, 3) }
 #
-#         tests.test('This is the test description', block)
-#         tests.run
-#       }
-#     }
+#     tests.test('This is the test description', block)
+#     tests.run
+#   }
+# }
+# ```
 #
 # For more information about the available assertions, refer to the
 # documentation of the `Test` type.
@@ -470,9 +474,10 @@ class pub Tests {
   #
   # While this value affects the order in which tests are sorted and scheduled,
   # tests may finish in a different order. For example, given a seed S and tests
-  # [A, B, C], the tests might be ordered as [C, B, A] but finish in the order
-  # [B, C, A], due to tests being run concurrently. For a truly deterministic
-  # execution order you'll also need to set the `concurrency` field to `1`.
+  # `[A, B, C]`, the tests might be ordered as `[C, B, A]` but finish in the
+  # order `[B, C, A]`, due to tests being run concurrently. For a truly
+  # deterministic execution order you'll also need to set the `concurrency`
+  # field to `1`.
   let pub @seed: Option[Int]
 
   # All the tests that have been registered.
@@ -521,19 +526,23 @@ class pub Tests {
   # getping terminating the entire test suite. Using this method, you can
   # instead use the `try` operator. So instead of this:
   #
-  #     t.test('Foo') fn (t) {
-  #       let a = foo.get
-  #       let b = bar(a).get
-  #       ...
-  #     }
+  # ```inko
+  # t.test('Foo', fn (t) {
+  #   let a = foo.get
+  #   let b = bar(a).get
+  #   ...
+  # })
+  # ```
   #
   # You'd write this:
   #
-  #     t.ok('Foo') fn (t) {
-  #       let a = try foo
-  #       let b = try bar(a)
-  #       ...
-  #     }
+  # ```inko
+  # t.ok('Foo', fn (t) {
+  #   let a = try foo
+  #   let b = try bar(a)
+  #   ...
+  # })
+  # ```
   #
   # Using this method comes with the following trade-offs:
   #

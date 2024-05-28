@@ -52,11 +52,9 @@ trait pub Compare[T] {
   #
   # The returned value should be as follows:
   #
-  # | Expression | Return value
-  # |:-----------|:------------
-  # | `a == b`   | `Ordering.Equal`
-  # | `a > b`    | `Ordering.Greater`
-  # | `a < b`    | `Ordering.Less`
+  # - `a == b`: `Ordering.Equal`
+  # - `a > b`: `Ordering.Greater`
+  # - `a < b`: `Ordering.Less`
   fn pub cmp(other: ref T) -> Ordering
 
   # Returns `true` if `self` is lower than the given argument.
@@ -119,9 +117,11 @@ trait pub Contains[T] {
 #
 # # Examples
 #
-#     import std.cmp (min)
+# ```inko
+# import std.cmp (min)
 #
-#     min(10, 5) # => 5
+# min(10, 5) # => 5
+# ```
 fn pub min[T: Compare[T]](a: T, b: T) -> T {
   if a <= b { a } else { b }
 }
@@ -130,9 +130,11 @@ fn pub min[T: Compare[T]](a: T, b: T) -> T {
 #
 # # Examples
 #
-#     import std.cmp (max)
+# ```inko
+# import std.cmp (max)
 #
-#     max(10, 5) # => 10
+# max(10, 5) # => 10
+# ```
 fn pub max[T: Compare[T]](a: T, b: T) -> T {
   if a >= b { a } else { b }
 }

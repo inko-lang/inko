@@ -89,11 +89,15 @@ fn pub bounds_check(index: Int, size: Int) {
 # Arrays are created using the array literal syntax, instead of using a method.
 # Here's how you'd create an empty Array:
 #
-#     []
+# ```inko
+# []
+# ```
 #
 # And here's how you'd create an Array with values:
 #
-#     [10, 20, 30]
+# ```inko
+# [10, 20, 30]
+# ```
 #
 # All values in an array must be of the same type, and the array's value type is
 # based on the type of the first value.
@@ -127,7 +131,9 @@ class builtin Array[T] {
   #
   # # Examples
   #
-  #     Array.filled(with: 0, times: 4) # => [0, 0, 0, 0]
+  # ```inko
+  # Array.filled(with: 0, times: 4) # => [0, 0, 0, 0]
+  # ```
   fn pub static filled[V: Clone[V]](with: V, times: Int) -> Array[V] {
     if times == 0 { return [] }
 
@@ -158,10 +164,12 @@ class builtin Array[T] {
   #
   # # Examples
   #
-  #     let array = [10, 20, 30]
+  # ```inko
+  # let array = [10, 20, 30]
   #
-  #     array.clear
-  #     array.empty? # => true
+  # array.clear
+  # array.empty? # => true
+  # ```
   fn pub mut clear {
     let mut index = 0
     let max = @size
@@ -177,10 +185,12 @@ class builtin Array[T] {
   #
   # Pushing a value into an Array:
   #
-  #     let array = []
+  # ```inko
+  # let array = []
   #
-  #     array.push(10) # => Nil
-  #     array.get(0)   # => 10
+  # array.push(10) # => Nil
+  # array.get(0)   # => 10
+  # ```
   fn pub mut push(value: T) {
     reserve(1)
     write_to(@size, value)
@@ -195,16 +205,20 @@ class builtin Array[T] {
   #
   # Popping an existing value:
   #
-  #     let array = [10]
+  # ```inko
+  # let array = [10]
   #
-  #     array.pop    # => Option.Some(10)
-  #     array.empty? # => true
+  # array.pop    # => Option.Some(10)
+  # array.empty? # => true
+  # ```
   #
   # Popping a value when the Array is empty:
   #
-  #     let array = []
+  # ```inko
+  # let array = []
   #
-  #     array.pop # => Option.None
+  # array.pop # => Option.None
+  # ```
   fn pub mut pop -> Option[T] {
     if @size == 0 { return Option.None }
 
@@ -221,10 +235,12 @@ class builtin Array[T] {
   # Removing an existing value will result in the value being removed from the
   # Array and returned:
   #
-  #     let array = [10]
+  # ```inko
+  # let array = [10]
   #
-  #     array.remove_at(0) # => 10
-  #     array.empty?       # => true
+  # array.remove_at(0) # => 10
+  # array.empty?       # => true
+  # ```
   #
   # # Panics
   #
@@ -253,15 +269,19 @@ class builtin Array[T] {
   #
   # Retrieving an existing value:
   #
-  #     let numbers = [10, 20]
+  # ```inko
+  # let numbers = [10, 20]
   #
-  #     numbers.opt(0) # => Option.Some(ref 10)
+  # numbers.opt(0) # => Option.Some(ref 10)
+  # ```
   #
   # Retrieving a value from a non-existing index:
   #
-  #     let numbers = [10, 20]
+  # ```inko
+  # let numbers = [10, 20]
   #
-  #     numbers.opt(5) # => Option.None
+  # numbers.opt(5) # => Option.None
+  # ```
   fn pub opt(index: Int) -> Option[ref T] {
     if index < 0 or index >= @size { return Option.None }
 
@@ -276,9 +296,11 @@ class builtin Array[T] {
   #
   # # Examples
   #
-  #     let numbers = [10, 20]
+  # ```inko
+  # let numbers = [10, 20]
   #
-  #     numbers.get(0) # => 10
+  # numbers.get(0) # => 10
+  # ```
   fn pub get(index: Int) -> ref T {
     bounds_check(index, @size)
     get_unchecked(index)
@@ -297,10 +319,12 @@ class builtin Array[T] {
   #
   # Setting an index to a value:
   #
-  #     let array = []
+  # ```inko
+  # let array = []
   #
-  #     array.set(0, 10)
-  #     array # => [10]
+  # array.set(0, 10)
+  # array # => [10]
+  # ```
   fn pub mut set(index: Int, value: T) {
     bounds_check(index, @size)
 
@@ -317,10 +341,12 @@ class builtin Array[T] {
   #
   # # Examples
   #
-  #     let numbers = [10, 20, 30]
+  # ```inko
+  # let numbers = [10, 20, 30]
   #
-  #     numbers.swap(index: 1, with: 40) # => 20
-  #     numbers                          # => [10, 40, 30]
+  # numbers.swap(index: 1, with: 40) # => 20
+  # numbers                          # => [10, 40, 30]
+  # ```
   fn pub mut swap(index: Int, with: T) -> T {
     bounds_check(index, @size)
 
@@ -334,11 +360,13 @@ class builtin Array[T] {
   #
   # # Examples
   #
-  #     let numbers = [10, 20, 30]
+  # ```inko
+  # let numbers = [10, 20, 30]
   #
-  #     numbers.swap_indexes(index: 0, with: 2)
+  # numbers.swap_indexes(index: 0, with: 2)
   #
-  #     numbers # => [30, 20, 10]
+  # numbers # => [30, 20, 10]
+  # ```
   fn pub mut swap_indexes(index: Int, with: Int) {
     bounds_check(index, @size)
     bounds_check(with, @size)
@@ -370,13 +398,15 @@ class builtin Array[T] {
   #
   # # Examples
   #
-  #     let numbers = [10, 20, 30]
-  #     let iter = numbers.into_iter
+  # ```inko
+  # let numbers = [10, 20, 30]
+  # let iter = numbers.into_iter
   #
-  #     iter.next # => Option.Some(10)
-  #     iter.next # => Option.Some(20)
-  #     iter.next # => Option.Some(30)
-  #     iter.next # => Option.None
+  # iter.next # => Option.Some(10)
+  # iter.next # => Option.Some(20)
+  # iter.next # => Option.Some(30)
+  # iter.next # => Option.None
+  # ```
   fn pub move into_iter -> IntoIter[T] {
     IntoIter(array: self, index: 0)
   }
@@ -388,13 +418,15 @@ class builtin Array[T] {
   #
   # Iterating over an `Array` in reverse order:
   #
-  #     let numbers = [10, 20, 30]
-  #     let iter = numbers.reverse_iter
+  # ```inko
+  # let numbers = [10, 20, 30]
+  # let iter = numbers.reverse_iter
   #
-  #     iter.next # => Option.Some(30)
-  #     iter.next # => Option.Some(20)
-  #     iter.next # => Option.Some(10)
-  #     iter.next # => Option.None
+  # iter.next # => Option.Some(30)
+  # iter.next # => Option.Some(20)
+  # iter.next # => Option.Some(10)
+  # iter.next # => Option.None
+  # ```
   fn pub reverse_iter -> Stream[ref T] {
     let mut index = size - 1
 
@@ -413,11 +445,13 @@ class builtin Array[T] {
   #
   # Appending one `Array` to another:
   #
-  #     let numbers = [10, 20, 30]
+  # ```inko
+  # let numbers = [10, 20, 30]
   #
-  #     numbers.append([40, 50])
+  # numbers.append([40, 50])
   #
-  #     numbers.size # => 5
+  # numbers.size # => 5
+  # ```
   fn pub mut append(other: Array[T]) {
     other.into_iter.each(fn (v) { push(v) })
   }
@@ -428,11 +462,15 @@ class builtin Array[T] {
   #
   # Getting the size of an empty Array:
   #
-  #     [].size # => 0
+  # ```inko
+  # [].size # => 0
+  # ```
   #
   # Getting the size of an Array with values:
   #
-  #     [10].size # => 1
+  # ```inko
+  # [10].size # => 1
+  # ```
   fn pub size -> Int {
     @size
   }
@@ -442,7 +480,9 @@ class builtin Array[T] {
   #
   # # Examples
   #
-  #     Array.with_capacity(2).capacity # => 4
+  # ```inko
+  # Array.with_capacity(2).capacity # => 4
+  # ```
   fn pub capacity -> Int {
     @capacity
   }
@@ -451,8 +491,10 @@ class builtin Array[T] {
   #
   # # Examples
   #
-  #     [10].empty? # => false
-  #     [].empty?   # => true
+  # ```inko
+  # [10].empty? # => false
+  # [].empty?   # => true
+  # ```
   fn pub empty? -> Bool {
     @size == 0
   }
@@ -461,10 +503,12 @@ class builtin Array[T] {
   #
   # # Examples
   #
-  #     let a = [10, 20]
+  # ```inko
+  # let a = [10, 20]
   #
-  #     a.shuffle
-  #     a # => [20, 10]
+  # a.shuffle
+  # a # => [20, 10]
+  # ```
   fn pub mut shuffle {
     Shuffle.new.sort(self)
   }
@@ -473,11 +517,13 @@ class builtin Array[T] {
   #
   # # Examples
   #
-  #     let a = [10, 20, 30]
+  # ```inko
+  # let a = [10, 20, 30]
   #
-  #     a.reverse
+  # a.reverse
   #
-  #     a # => [30, 20, 10]
+  # a # => [30, 20, 10]
+  # ```
   fn pub mut reverse {
     let mut a = 0
     let mut b = @size - 1
@@ -497,8 +543,10 @@ class builtin Array[T] {
   #
   # # Examples
   #
-  #     [].last       # => Option.None
-  #     [10, 20].last # => Option.Some(20)
+  # ```inko
+  # [].last       # => Option.None
+  # [10, 20].last # => Option.Some(20)
+  # ```
   fn pub last -> Option[ref T] {
     opt(size - 1)
   }
@@ -515,17 +563,21 @@ class builtin Array[T] {
   #
   # Inserting a value at the start:
   #
-  #     let nums = [10, 20]
+  # ```inko
+  # let nums = [10, 20]
   #
-  #     nums.insert(0, 30)
-  #     nums # => [30, 10, 20]
+  # nums.insert(0, 30)
+  # nums # => [30, 10, 20]
+  # ```
   #
   # Inserting a value at the end:
   #
-  #     let nums = [10, 20]
+  # ```inko
+  # let nums = [10, 20]
   #
-  #     nums.insert(2, 30)
-  #     nums # => [10, 20, 30]
+  # nums.insert(2, 30)
+  # nums # => [10, 20, 30]
+  # ```
   fn pub mut insert(index: Int, value: T) {
     if index < 0 or index > @size {
       panic('The index ${index} is out of bounds (size: ${@size})')
@@ -561,10 +613,12 @@ class builtin Array[T] {
   #
   # # Examples
   #
-  #     let nums = [0, 3, 3, 5, 9, 1]
+  # ```inko
+  # let nums = [0, 3, 3, 5, 9, 1]
   #
-  #     nums.sort_by fn (a, b) { b.cmp(a) }
-  #     nums # => [9, 5, 3, 3, 1, 0]
+  # nums.sort_by fn (a, b) { b.cmp(a) }
+  # nums # => [9, 5, 3, 3, 1, 0]
+  # ```
   fn pub mut sort_by(block: fn (ref T, ref T) -> Ordering) {
     stable_sort(self, fn (a, b) {
       match block.call(a, b) {
@@ -606,15 +660,19 @@ impl Array if T: mut {
   #
   # Retrieving an existing value:
   #
-  #     let numbers = [10, 20]
+  # ```inko
+  # let numbers = [10, 20]
   #
-  #     numbers.opt_mut(0) # => Option.Some(mut 10)
+  # numbers.opt_mut(0) # => Option.Some(mut 10)
+  # ```
   #
   # Retrieving a value from a non-existing index:
   #
-  #     let numbers = [10, 20]
+  # ```inko
+  # let numbers = [10, 20]
   #
-  #     numbers.opt_mut(5) # => Option.None
+  # numbers.opt_mut(5) # => Option.None
+  # ```
   fn pub mut opt_mut(index: Int) -> Option[mut T] {
     if index < 0 or index >= @size { return Option.None }
 
@@ -629,9 +687,11 @@ impl Array if T: mut {
   #
   # # Examples
   #
-  #     let numbers = [10, 20]
+  # ```inko
+  # let numbers = [10, 20]
   #
-  #     numbers.get_mut(0) # => 10
+  # numbers.get_mut(0) # => 10
+  # ```
   fn pub mut get_mut(index: Int) -> mut T {
     bounds_check(index, @size)
     get_unchecked_mut(index)
@@ -655,8 +715,10 @@ impl Array if T: mut {
   #
   # # Examples
   #
-  #     [].last_mut       # => Option.None
-  #     [10, 20].last_mut # => Option.Some(20)
+  # ```inko
+  # [].last_mut       # => Option.None
+  # [10, 20].last_mut # => Option.Some(20)
+  # ```
   fn pub mut last_mut -> Option[mut T] {
     opt_mut(size - 1)
   }
@@ -684,7 +746,9 @@ impl Contains[T] for Array if T: Equal[ref T] {
   #
   # Checking if an `Array` contains a value:
   #
-  #     [10, 20, 30].contains?(10) # => true
+  # ```inko
+  # [10, 20, 30].contains?(10) # => true
+  # ```
   fn pub contains?(value: ref T) -> Bool {
     iter.any?(fn (ours) { ours == value })
   }
@@ -709,15 +773,21 @@ impl Equal[ref Array[T]] for Array if T: Equal[ref T] {
   #
   # Comparing two identical arrays:
   #
-  #     [10, 20, 30] == [10, 20, 30] # => true
+  # ```inko
+  # [10, 20, 30] == [10, 20, 30] # => true
+  # ```
   #
   # Comparing two arrays with a different size:
   #
-  #     [10] == [10, 20] # => false
+  # ```inko
+  # [10] == [10, 20] # => false
+  # ```
   #
   # Comparing two arrays with the same size but with different values:
   #
-  #     [10, 20] == [20, 10] # => false
+  # ```inko
+  # [10, 20] == [20, 10] # => false
+  # ```
   fn pub ==(other: ref Array[T]) -> Bool {
     if @size != other.size { return false }
 
@@ -761,8 +831,10 @@ impl Array if T: Equal[ref T] {
   #
   # # Examples
   #
-  #     [10, 20, 30].index_of(20) # => Option.Some(1)
-  #     [10, 20, 30].index_of(50) # => Option.None
+  # ```inko
+  # [10, 20, 30].index_of(20) # => Option.Some(1)
+  # [10, 20, 30].index_of(50) # => Option.None
+  # ```
   fn pub index_of(value: ref T) -> Option[Int] {
     let mut idx = 0
 
@@ -784,10 +856,12 @@ impl Array if T: Compare[T] {
   #
   # # Examples
   #
-  #     let nums = [0, 3, 3, 5, 9, 1]
+  # ```inko
+  # let nums = [0, 3, 3, 5, 9, 1]
   #
-  #     nums.sort
-  #     nums # => [0, 1, 3, 3, 5, 9]
+  # nums.sort
+  # nums # => [0, 1, 3, 3, 5, 9]
+  # ```
   fn pub mut sort {
     stable_sort(self, fn (a, b) { a <= b })
   }

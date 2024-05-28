@@ -8,10 +8,12 @@ let PLACEHOLDER = '...'
 #
 # Examples
 #
-#     import std.fmt (fmt)
+# ```inko
+# import std.fmt (fmt)
 #
-#     fmt('hello') # => "hello"
-#     fmt([10, 20]) # => '[10, 20]'
+# fmt('hello') # => "hello"
+# fmt([10, 20]) # => '[10, 20]'
+# ```
 fn pub fmt[T: Format](value: ref T) -> String {
   let formatter = Formatter.new
 
@@ -157,12 +159,14 @@ class pub Formatter {
   #
   # # Examples
   #
-  #     import std.fmt (Formatter)
+  # ```inko
+  # import std.fmt (Formatter)
   #
-  #     let fmt = Formatter.new
+  # let fmt = Formatter.new
   #
-  #     fmt.tuple('').field(10).field(20).finish
-  #     fmt.into_string # => '(10, 20)'
+  # fmt.tuple('').field(10).field(20).finish
+  # fmt.into_string # => '(10, 20)'
+  # ```
   fn pub mut tuple(name: String) -> TupleFormatter {
     let named = name.size > 0
 
@@ -175,12 +179,14 @@ class pub Formatter {
   #
   # # Examples
   #
-  #     import std.fmt (Formatter)
+  # ```inko
+  # import std.fmt (Formatter)
   #
-  #     let fmt = Formatter.new
+  # let fmt = Formatter.new
   #
-  #     fmt.array.value(10).value(20).finish
-  #     fmt.into_string # => '[10, 20]'
+  # fmt.array.value(10).value(20).finish
+  # fmt.into_string # => '[10, 20]'
+  # ```
   fn pub mut array -> ArrayFormatter {
     write('[')
     ArrayFormatter(formatter: self, fields: 0)
@@ -192,12 +198,14 @@ class pub Formatter {
   #
   # # Examples
   #
-  #     import std.fmt (Formatter)
+  # ```inko
+  # import std.fmt (Formatter)
   #
-  #     let fmt = Formatter.new
+  # let fmt = Formatter.new
   #
-  #     fmt.object('Person').field('name', 'Alice').field('age', 42).finish
-  #     fmt.into_string # => 'Person(name: "Alice", age: 42)'
+  # fmt.object('Person').field('name', 'Alice').field('age', 42).finish
+  # fmt.into_string # => 'Person(name: "Alice", age: 42)'
+  # ```
   fn pub mut object(name: String) -> ObjectFormatter {
     let named = name.size > 0
 

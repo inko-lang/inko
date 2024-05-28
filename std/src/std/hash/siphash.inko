@@ -10,14 +10,16 @@ import std.hash (Hasher)
 #
 # # Examples
 #
-#     import std.hash.siphash (SipHasher13)
-#     import std.rand (Random)
+# ```inko
+# import std.hash.siphash (SipHasher13)
+# import std.rand (Random)
 #
-#     let rng = Random.new
-#     let hasher = SipHasher13.new(key0: rng.int, key1: rng.int)
+# let rng = Random.new
+# let hasher = SipHasher13.new(key0: rng.int, key1: rng.int)
 #
-#     hasher.write(42)
-#     hasher.finish
+# hasher.write(42)
+# hasher.finish
+# ```
 class pub SipHasher13 {
   let @size: Int
   let @m_index: Int

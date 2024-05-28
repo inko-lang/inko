@@ -1,5 +1,3 @@
-# `man dirent` on FreeBSD. The documentation of Rust's libc crate appears to
-# define this structure incorrectly.
 class extern Dirent {
   let @d_fileno: UInt64
   let @d_off: UInt64

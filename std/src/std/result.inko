@@ -20,10 +20,12 @@ class pub enum Result[T, E] {
   #
   # # Examples
   #
-  #     let vals = [Result.Ok(1), Result.Error('oops!'), Result.Ok(2)].into_iter
-  #     let result = Result.collect(vals)
+  # ```inko
+  # let vals = [Result.Ok(1), Result.Error('oops!'), Result.Ok(2)].into_iter
+  # let result = Result.collect(vals)
   #
-  #     result.error? # => true
+  # result.error? # => true
+  # ```
   fn pub static collect[I: mut + Iter[Result[T, E]]](
     iter: I,
   ) -> Result[Array[T], E] {
@@ -44,9 +46,11 @@ class pub enum Result[T, E] {
   #
   # # Examples
   #
-  #     let res: Result[Int, String] = Result.Ok(42)
+  # ```inko
+  # let res: Result[Int, String] = Result.Ok(42)
   #
-  #     res.ok? # => true
+  # res.ok? # => true
+  # ```
   fn pub ok? -> Bool {
     match self {
       case Ok(_) -> true
@@ -58,9 +62,11 @@ class pub enum Result[T, E] {
   #
   # # Examples
   #
-  #     let res: Result[Int, String] = Result.Error('oops!')
+  # ```inko
+  # let res: Result[Int, String] = Result.Error('oops!')
   #
-  #     res.error? # => true
+  # res.error? # => true
+  # ```
   fn pub error? -> Bool {
     match self {
       case Error(_) -> true
@@ -75,9 +81,11 @@ class pub enum Result[T, E] {
   #
   # # Examples
   #
-  #     let res: Result[Int, String] = Result.Ok(42)
+  # ```inko
+  # let res: Result[Int, String] = Result.Ok(42)
   #
-  #     res.ok # => Option.Some(42)
+  # res.ok # => Option.Some(42)
+  # ```
   fn pub move ok -> Option[T] {
     match self {
       case Ok(v) -> Option.Some(v)
@@ -92,9 +100,11 @@ class pub enum Result[T, E] {
   #
   # # Examples
   #
-  #     let res: Result[Int, String] = Result.Error('oops!')
+  # ```inko
+  # let res: Result[Int, String] = Result.Error('oops!')
   #
-  #     res.error # => Option.Some(42)
+  # res.error # => Option.Some(42)
+  # ```
   fn pub move error -> Option[E] {
     match self {
       case Error(v) -> Option.Some(v)
@@ -111,9 +121,11 @@ class pub enum Result[T, E] {
   #
   # # Examples
   #
-  #     let res: Result[Int, String] = Result.Ok(42)
+  # ```inko
+  # let res: Result[Int, String] = Result.Ok(42)
   #
-  #     res.get # => 42
+  # res.get # => 42
+  # ```
   fn pub move get -> T {
     or_panic('Result.get expects an Ok(_), but an Error(_) is found')
   }
@@ -123,9 +135,11 @@ class pub enum Result[T, E] {
   #
   # # Examples
   #
-  #     let res: Result[Int, String] = Result.Ok(10)
+  # ```inko
+  # let res: Result[Int, String] = Result.Ok(10)
   #
-  #     res.or_panic('a number must be present') # => 10
+  # res.or_panic('a number must be present') # => 10
+  # ```
   fn pub move or_panic(message: String) -> T {
     match self {
       case Ok(v) -> v
@@ -138,11 +152,13 @@ class pub enum Result[T, E] {
   #
   # # Examples
   #
-  #     let foo: Result[Int, String] = Result.Ok(42)
-  #     let bar: Result[Int, String] = Result.Error('oops!')
+  # ```inko
+  # let foo: Result[Int, String] = Result.Ok(42)
+  # let bar: Result[Int, String] = Result.Error('oops!')
   #
-  #     foo.or(0) # => 42
-  #     bar.or(0) # => 0
+  # foo.or(0) # => 42
+  # bar.or(0) # => 0
+  # ```
   fn pub move or(default: T) -> T {
     match self {
       case Ok(val) -> val
@@ -157,11 +173,13 @@ class pub enum Result[T, E] {
   #
   # # Examples
   #
-  #     let foo: Result[Int, String] = Result.Ok(42)
-  #     let bar: Result[Int, String] = Result.Error('oops!')
+  # ```inko
+  # let foo: Result[Int, String] = Result.Ok(42)
+  # let bar: Result[Int, String] = Result.Error('oops!')
   #
-  #     foo.or_else fn (_) { 0 } # => 42
-  #     bar.or_else fn (_) { 0 } # => 0
+  # foo.or_else fn (_) { 0 } # => 42
+  # bar.or_else fn (_) { 0 } # => 0
+  # ```
   fn pub move or_else(block: fn (E) -> T) -> T {
     match self {
       case Ok(v) -> v
@@ -176,9 +194,11 @@ class pub enum Result[T, E] {
   #
   # # Examples
   #
-  #     let foo: Result[Int, String] = Result.Ok(42)
+  # ```inko
+  # let foo: Result[Int, String] = Result.Ok(42)
   #
-  #     res.map fn (val) { val.to_string } # => Result.Ok('42')
+  # res.map fn (val) { val.to_string } # => Result.Ok('42')
+  # ```
   fn pub move map[R](block: fn (T) -> R) -> Result[R, E] {
     match self {
       case Ok(v) -> Result.Ok(block.call(v))
@@ -193,9 +213,11 @@ class pub enum Result[T, E] {
   #
   # # Examples
   #
-  #     let foo: Result[Int, String] = Result.Error('oops!')
+  # ```inko
+  # let foo: Result[Int, String] = Result.Error('oops!')
   #
-  #     res.map_error fn (val) { val.to_upper } # => Result.Ok('OOPS!')
+  # res.map_error fn (val) { val.to_upper } # => Result.Ok('OOPS!')
+  # ```
   fn pub move map_error[R](block: fn (E) -> R) -> Result[T, R] {
     match self {
       case Ok(v) -> Result.Ok(v)
@@ -211,9 +233,11 @@ class pub enum Result[T, E] {
   #
   # # Examples
   #
-  #     let foo: Result[Int, String] = Result.Ok(42)
+  # ```inko
+  # let foo: Result[Int, String] = Result.Ok(42)
   #
-  #     res.then fn (val) { Result.Ok(val.to_string) } # => Result.Ok('42')
+  # res.then fn (val) { Result.Ok(val.to_string) } # => Result.Ok('42')
+  # ```
   fn pub move then[R](block: fn (T) -> Result[R, E]) -> Result[R, E] {
     match self {
       case Ok(v) -> block.call(v)
@@ -228,12 +252,14 @@ class pub enum Result[T, E] {
   #
   # # Examples
   #
-  #     let foo: Result[Int, String] = Result.Error('oops!')
+  # ```inko
+  # let foo: Result[Int, String] = Result.Error('oops!')
   #
-  #     res.else fn (val) {
-  #       Result.Error(val.to_upper)
-  #     }
-  #     # => Result.Error('OOPS!')
+  # res.else fn (val) {
+  #   Result.Error(val.to_upper)
+  # }
+  # # => Result.Error('OOPS!')
+  # ```
   fn pub move else[R](block: fn (E) -> Result[T, R]) -> Result[T, R] {
     match self {
       case Ok(v) -> Result.Ok(v)

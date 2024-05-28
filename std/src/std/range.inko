@@ -15,7 +15,9 @@
 # `Int.until` respectively. For example, to create an exclusive range from 1 to
 # 10:
 #
-#     1.until(10)
+# ```inko
+# 1.until(10)
+# ```
 #
 # For more information refer to the documentation of `Int.to` and `Int.until`.
 import std.cmp (Compare, Contains, Equal, min)
@@ -93,8 +95,10 @@ impl Contains[Int] for InclusiveRange {
   #
   # Checking if a `Range` covers a value:
   #
-  #     1.to(10).contains?(5)  # => true
-  #     1.to(10).contains?(10) # => true
+  # ```inko
+  # 1.to(10).contains?(5)  # => true
+  # 1.to(10).contains?(10) # => true
+  # ```
   fn pub contains?(value: ref Int) -> Bool {
     @start <= value and value <= @end
   }
@@ -107,11 +111,15 @@ impl Equal[ref InclusiveRange] for InclusiveRange {
   #
   # Comparing two identical ranges:
   #
-  #     1.to(10) == 1.to(10) # => true
+  # ```inko
+  # 1.to(10) == 1.to(10) # => true
+  # ```
   #
   # Comparing two different ranges:
   #
-  #     1.to(10) == 1.to(5) # => false
+  # ```inko
+  # 1.to(10) == 1.to(5) # => false
+  # ```
   fn pub ==(other: ref InclusiveRange) -> Bool {
     @start == other.start and @end == other.end
   }
@@ -184,8 +192,10 @@ impl Contains[Int] for ExclusiveRange {
   #
   # Checking if a `Range` covers a value:
   #
-  #     1.until(10).cover?(5)  # => true
-  #     1.until(10).cover?(15) # => false
+  # ```inko
+  # 1.until(10).cover?(5)  # => true
+  # 1.until(10).cover?(15) # => false
+  # ```
   fn pub contains?(value: ref Int) -> Bool {
     @start <= value and value < @end
   }
@@ -198,11 +208,15 @@ impl Equal[ref ExclusiveRange] for ExclusiveRange {
   #
   # Comparing two identical ranges:
   #
-  #     1.until(10) == 1.until(10) # => true
+  # ```inko
+  # 1.until(10) == 1.until(10) # => true
+  # ```
   #
   # Comparing two different ranges:
   #
-  #     1.until(10) == 1.until(5) # => false
+  # ```inko
+  # 1.until(10) == 1.until(5) # => false
+  # ```
   fn pub ==(other: ref ExclusiveRange) -> Bool {
     @start == other.start and @end == other.end
   }

@@ -85,9 +85,11 @@ class pub ReadOnlyFile {
   #
   # Opening a file in read-only mode:
   #
-  #     import std.fs.file (ReadOnlyFile)
+  # ```inko
+  # import std.fs.file (ReadOnlyFile)
   #
-  #     let handle = ReadOnlyFile.new('/dev/null'.to_path).get
+  # let handle = ReadOnlyFile.new('/dev/null'.to_path).get
+  # ```
   fn pub static new(path: Path) -> Result[ReadOnlyFile, Error] {
     match inko_file_open(_INKO.process, path.to_string, FILE_READ_ONLY) {
       case { @tag = 0, @value = v } -> {
@@ -145,9 +147,11 @@ class pub WriteOnlyFile {
   #
   # # Examples
   #
-  #     import std.fs.file (WriteOnlyFile)
+  # ```inko
+  # import std.fs.file (WriteOnlyFile)
   #
-  #     let file = WriteOnlyFile.new('/dev/null'.to_path).get
+  # let file = WriteOnlyFile.new('/dev/null'.to_path).get
+  # ```
   fn pub static new(path: Path) -> Result[WriteOnlyFile, Error] {
     match inko_file_open(_INKO.process, path.to_string, FILE_WRITE_ONLY) {
       case { @tag = 0, @value = v } -> {
@@ -163,9 +167,11 @@ class pub WriteOnlyFile {
   #
   # # Examples
   #
-  #     import std.fs.file (WriteOnlyFile)
+  # ```inko
+  # import std.fs.file (WriteOnlyFile)
   #
-  #     let file = WriteOnlyFile.append('/dev/null'.to_path).get
+  # let file = WriteOnlyFile.append('/dev/null'.to_path).get
+  # ```
   fn pub static append(path: Path) -> Result[WriteOnlyFile, Error] {
     match inko_file_open(_INKO.process, path.to_string, FILE_APPEND_ONLY) {
       case { @tag = 0, @value = v } -> {
@@ -233,9 +239,11 @@ class pub ReadWriteFile {
   #
   # # Examples
   #
-  #     import std.fs.file (ReadWriteFile)
+  # ```inko
+  # import std.fs.file (ReadWriteFile)
   #
-  #     let handle = ReadWriteFile.new('/dev/null'.to_path).get
+  # let handle = ReadWriteFile.new('/dev/null'.to_path).get
+  # ```
   fn pub static new(path: Path) -> Result[ReadWriteFile, Error] {
     match inko_file_open(_INKO.process, path.to_string, FILE_READ_WRITE) {
       case { @tag = 0, @value = v } -> {
@@ -251,9 +259,11 @@ class pub ReadWriteFile {
   #
   # # Examples
   #
-  #     import std.fs.file (ReadWriteFile)
+  # ```inko
+  # import std.fs.file (ReadWriteFile)
   #
-  #     let handle = ReadWriteFile.append('/dev/null'.to_path).get
+  # let handle = ReadWriteFile.append('/dev/null'.to_path).get
+  # ```
   fn pub static append(path: Path) -> Result[ReadWriteFile, Error] {
     match inko_file_open(_INKO.process, path.to_string, FILE_READ_APPEND) {
       case { @tag = 0, @value = v } -> {

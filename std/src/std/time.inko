@@ -49,9 +49,11 @@ class pub Duration {
   #
   # # Examples
   #
-  #     import std.time (Duration)
+  # ```inko
+  # import std.time (Duration)
   #
-  #     Duration.from_secs(10.5)
+  # Duration.from_secs(10.5)
+  # ```
   fn pub static from_secs[T: ToFloat](secs: ref T) -> Duration {
     Duration((secs.to_float * NANOS_PER_SEC).to_int)
   }
@@ -60,9 +62,11 @@ class pub Duration {
   #
   # # Examples
   #
-  #     import std.time (Duration)
+  # ```inko
+  # import std.time (Duration)
   #
-  #     Duration.from_millis(10)
+  # Duration.from_millis(10)
+  # ```
   fn pub static from_millis[T: ToInt](millis: ref T) -> Duration {
     Duration(millis.to_int * MICROS_PER_SEC)
   }
@@ -71,9 +75,11 @@ class pub Duration {
   #
   # # Examples
   #
-  #     import std.time (Duration)
+  # ```inko
+  # import std.time (Duration)
   #
-  #     Duration.from_micros(10)
+  # Duration.from_micros(10)
+  # ```
   fn pub static from_micros[T: ToInt](micros: ref T) -> Duration {
     Duration(micros.to_int * MILLIS_PER_SEC)
   }
@@ -82,9 +88,11 @@ class pub Duration {
   #
   # # Examples
   #
-  #     import std.time (Duration)
+  # ```inko
+  # import std.time (Duration)
   #
-  #     Duration.from_nanos(10)
+  # Duration.from_nanos(10)
+  # ```
   fn pub static from_nanos[T: ToInt](nanos: ref T) -> Duration {
     Duration(nanos.to_int)
   }
@@ -93,9 +101,11 @@ class pub Duration {
   #
   # # Examples
   #
-  #     import std.time (Duration)
+  # ```inko
+  # import std.time (Duration)
   #
-  #     Duration.from_secs(5).to_secs # => 5.0
+  # Duration.from_secs(5).to_secs # => 5.0
+  # ```
   fn pub to_secs -> Float {
     @nanos.to_float / NANOS_PER_SEC
   }
@@ -104,9 +114,11 @@ class pub Duration {
   #
   # # Examples
   #
-  #     import std.time (Duration)
+  # ```inko
+  # import std.time (Duration)
   #
-  #     Duration.from_secs(5).to_millis # => 5000
+  # Duration.from_secs(5).to_millis # => 5000
+  # ```
   fn pub to_millis -> Int {
     @nanos / MICROS_PER_SEC
   }
@@ -115,9 +127,11 @@ class pub Duration {
   #
   # # Examples
   #
-  #     import std.time (Duration)
+  # ```inko
+  # import std.time (Duration)
   #
-  #     Duration.from_secs(5).to_micros # => 5000000
+  # Duration.from_secs(5).to_micros # => 5000000
+  # ```
   fn pub to_micros -> Int {
     @nanos / MILLIS_PER_SEC
   }
@@ -126,9 +140,11 @@ class pub Duration {
   #
   # # Examples
   #
-  #     import std.time (Duration)
+  # ```inko
+  # import std.time (Duration)
   #
-  #     Duration.from_secs(5).to_nanos # => 5000000000
+  # Duration.from_secs(5).to_nanos # => 5000000000
+  # ```
   fn pub to_nanos -> Int {
     @nanos
   }
@@ -140,11 +156,13 @@ impl ToInstant for Duration {
   #
   # # Examples
   #
-  #     import std.time (Duration, Instant)
+  # ```inko
+  # import std.time (Duration, Instant)
   #
-  #     let duration = Duration.from_secs(5)
+  # let duration = Duration.from_secs(5)
   #
-  #     duration.to_instant.remaining <= duration # => true
+  # duration.to_instant.remaining <= duration # => true
+  # ```
   #
   # # Panics
   #
@@ -245,9 +263,11 @@ class pub DateTime {
   #
   # Getting the current time:
   #
-  #     import std.time (DateTime)
+  # ```inko
+  # import std.time (DateTime)
   #
-  #     DateTime.new
+  # DateTime.new
+  # ```
   fn pub static new -> DateTime {
     from_timestamp(inko_time_system, inko_time_system_offset as Int)
   }
@@ -259,9 +279,11 @@ class pub DateTime {
   #
   # Getting the current time in UTC:
   #
-  #     import std.time (DateTime)
+  # ```inko
+  # import std.time (DateTime)
   #
-  #     DateTime.utc
+  # DateTime.utc
+  # ```
   fn pub static utc -> DateTime {
     from_timestamp(time: inko_time_system, utc_offset: 0)
   }
@@ -272,9 +294,11 @@ class pub DateTime {
   #
   # # Example
   #
-  #     import std.time (DateTime)
+  # ```inko
+  # import std.time (DateTime)
   #
-  #     DateTime.from_timestamp(time: 1661546853, utc_offset: 0).year # => 2022
+  # DateTime.from_timestamp(time: 1661546853, utc_offset: 0).year # => 2022
+  # ```
   fn pub static from_timestamp[T: ToFloat](
     time: ref T,
     utc_offset: Int,
@@ -549,14 +573,16 @@ class pub Instant {
   #
   # Obtaining the time elapsed:
   #
-  #     import std.process
-  #     import std.time (Duration, Instant)
+  # ```inko
+  # import std.process
+  # import std.time (Duration, Instant)
   #
-  #     let start = Instant.new
+  # let start = Instant.new
   #
-  #     process.sleep(Duration.from_secs(1))
+  # process.sleep(Duration.from_secs(1))
   #
-  #     start.elapsed.to_secs >= 1.0 # => true
+  # start.elapsed.to_secs >= 1.0 # => true
+  # ```
   fn pub elapsed -> Duration {
     Duration(inko_time_monotonic(_INKO.state) as Int - @nanos)
   }
@@ -567,11 +593,13 @@ class pub Instant {
   #
   # # Examples
   #
-  #     import std.time (Duration, Instant)
+  # ```inko
+  # import std.time (Duration, Instant)
   #
-  #     let time = Instant.new + Duration.from_secs(5)
+  # let time = Instant.new + Duration.from_secs(5)
   #
-  #     time.remaining # => Duration.from_secs(5)
+  # time.remaining # => Duration.from_secs(5)
+  # ```
   fn pub remaining -> Duration {
     Duration(@nanos - (inko_time_monotonic(_INKO.state) as Int))
   }

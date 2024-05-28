@@ -3,8 +3,8 @@
 # This module provides the ChaCha20 and XChaCha20 stream ciphers, and the
 # HChaCha20 hash function. The implementations are based on the following RFCs:
 #
-# - https://datatracker.ietf.org/doc/html/rfc8439
-# - https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-xchacha
+# - <https://datatracker.ietf.org/doc/html/rfc8439>
+# - <https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-xchacha>
 import std.crypto.cipher (Cipher)
 import std.crypto.hash (Hash, Hasher)
 import std.crypto.math (rotate_left_u32, to_u32)
@@ -152,9 +152,9 @@ class Matrix {
 # For more information about ChaCha, consider reading/watching the following
 # resources:
 #
-# - https://datatracker.ietf.org/doc/html/rfc8439
-# - https://en.wikipedia.org/wiki/Salsa20#ChaCha_variant
-# - https://www.youtube.com/watch?v=UeIpq-C-GSA
+# - <https://datatracker.ietf.org/doc/html/rfc8439>
+# - <https://en.wikipedia.org/wiki/Salsa20#ChaCha_variant>
+# - <https://www.youtube.com/watch?v=UeIpq-C-GSA>
 #
 # # Limitations
 #
@@ -166,39 +166,43 @@ class Matrix {
 #
 # Encrypting and decrypting using the same cipher:
 #
-#     import std.crypto.chacha (ChaCha20)
-#     import std.rand (Random)
+# ```inko
+# import std.crypto.chacha (ChaCha20)
+# import std.rand (Random)
 #
-#     let rand = Random.new
-#     let key = rand.bytes(size: 32)
-#     let nonce = rand.bytes(size: 12)
-#     let cipher = ChaCha20.new(key, nonce)
+# let rand = Random.new
+# let key = rand.bytes(size: 32)
+# let nonce = rand.bytes(size: 12)
+# let cipher = ChaCha20.new(key, nonce)
 #
-#     let plaintext = 'I like turtles'
-#     let encrypted = cipher.encrypt(plaintext.to_byte_array)
+# let plaintext = 'I like turtles'
+# let encrypted = cipher.encrypt(plaintext.to_byte_array)
 #
-#     # If we want to decrypt reusing the same cipher, we must first reset the
-#     # block counter to its initial value:
-#     cipher.counter = 0
-#     cipher.decrypt(encrypted).to_string # => 'I like turtles'
+# # If we want to decrypt reusing the same cipher, we must first reset the
+# # block counter to its initial value:
+# cipher.counter = 0
+# cipher.decrypt(encrypted).to_string # => 'I like turtles'
+# ```
 #
 # You can also decrypt using a new cipher, as long as the key, nonce and
 # starting block counter are the same:
 #
-#     import std.crypto.chacha (ChaCha20)
-#     import std.rand (Random)
+# ```inko
+# import std.crypto.chacha (ChaCha20)
+# import std.rand (Random)
 #
-#     let rand = Random.new
-#     let key = rand.bytes(size: 32)
-#     let nonce = rand.bytes(size: 12)
+# let rand = Random.new
+# let key = rand.bytes(size: 32)
+# let nonce = rand.bytes(size: 12)
 #
-#     let plaintext = 'I like turtles'
-#     let encrypted = ChaCha20.new(key, nonce).encrypt(plaintext.to_byte_array)
+# let plaintext = 'I like turtles'
+# let encrypted = ChaCha20.new(key, nonce).encrypt(plaintext.to_byte_array)
 #
-#     ChaCha20
-#       .new(key, nonce)
-#       .decrypt(encrypted)
-#       .to_string # => 'I like turtles'
+# ChaCha20
+#   .new(key, nonce)
+#   .decrypt(encrypted)
+#   .to_string # => 'I like turtles'
+# ```
 class pub ChaCha20 {
   let @matrix: Matrix
 
@@ -219,14 +223,16 @@ class pub ChaCha20 {
   #
   # # Examples
   #
-  #     import std.crypto.chacha (ChaCha20)
-  #     import std.rand (Random)
+  # ```inko
+  # import std.crypto.chacha (ChaCha20)
+  # import std.rand (Random)
   #
-  #     let rand = Random.new
-  #     let key = rand.bytes(size: 32)
-  #     let nonce = rand.bytes(size: 12)
+  # let rand = Random.new
+  # let key = rand.bytes(size: 32)
+  # let nonce = rand.bytes(size: 12)
   #
-  #     ChaCha20.new(key, nonce)
+  # ChaCha20.new(key, nonce)
+  # ```
   #
   # In this example we use a randomly generated key and nonce. In production
   # environments you must ensure that the nonce is never reused for the same
@@ -347,7 +353,7 @@ impl Cipher for ChaCha20 {
 #
 # For more information about XChaCha20 and the differences between it and
 # ChaCha20, consider reading the RFC that describes XChaCha20 at
-# https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-xchacha.
+# <https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-xchacha>.
 class pub XChaCha20 {
   let @chacha: ChaCha20
 
@@ -369,14 +375,16 @@ class pub XChaCha20 {
   #
   # # Examples
   #
-  #     import std.crypto.chacha (XChaCha20)
-  #     import std.rand (Random)
+  # ```inko
+  # import std.crypto.chacha (XChaCha20)
+  # import std.rand (Random)
   #
-  #     let rand = Random.new
-  #     let key = rand.bytes(size: 32)
-  #     let nonce = rand.bytes(size: 24)
+  # let rand = Random.new
+  # let key = rand.bytes(size: 32)
+  # let nonce = rand.bytes(size: 24)
   #
-  #     XChaCha20.new(key, nonce)
+  # XChaCha20.new(key, nonce)
+  # ```
   fn pub static new(key: ref ByteArray, nonce: ref ByteArray) -> XChaCha20 {
     if key.size != KEY_SIZE {
       panic('XChaCha20 key sizes must be exactly ${KEY_SIZE} bytes')

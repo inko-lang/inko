@@ -43,7 +43,9 @@ class builtin Float {
   #
   # # Example
   #
-  #     Float.from_bits(0x4029000000000000) # => 12.5
+  # ```inko
+  # Float.from_bits(0x4029000000000000) # => 12.5
+  # ```
   fn pub static from_bits(bits: Int) -> Float {
     _INKO.float_from_bits(bits)
   }
@@ -67,8 +69,10 @@ class builtin Float {
   #
   # # Examples
   #
-  #     Float.parse('10.5')  # => Option.Some(10.5)
-  #     Float.parse('1.2e1') # => Option.Some(12.0)
+  # ```inko
+  # Float.parse('10.5')  # => Option.Some(10.5)
+  # Float.parse('1.2e1') # => Option.Some(12.0)
+  # ```
   fn pub static parse[T: Bytes](bytes: ref T) -> Option[Float] {
     match inko_string_to_float(bytes.to_pointer, bytes.size) {
       case { @tag = 0, @value = v } -> Option.Some(from_bits(v as Int))
@@ -80,8 +84,10 @@ class builtin Float {
   #
   # # Examples
   #
-  #     42.0.absolute  # => 42
-  #     -42.0.absolute # => 42
+  # ```inko
+  # 42.0.absolute  # => 42
+  # -42.0.absolute # => 42
+  # ```
   fn pub absolute -> Float {
     Float.from_bits(to_bits & MAX)
   }
@@ -90,8 +96,10 @@ class builtin Float {
   #
   # # Examples
   #
-  #     42.0.opposite  # => -42
-  #     -42.0.opposite # => 42
+  # ```inko
+  # 42.0.opposite  # => -42
+  # -42.0.opposite # => 42
+  # ```
   fn pub opposite -> Float {
     Float.from_bits(to_bits ^ MIN)
   }
@@ -102,11 +110,15 @@ class builtin Float {
   #
   # Using a regular float:
   #
-  #     10.5.not_a_number? => false
+  # ```inko
+  # 10.5.not_a_number? => false
+  # ```
   #
   # Using a NAN value:
   #
-  #     Float.not_a_number.not_a_number? # => true
+  # ```inko
+  # Float.not_a_number.not_a_number? # => true
+  # ```
   fn pub not_a_number? -> Bool {
     _INKO.float_is_nan(self)
   }
@@ -117,12 +129,15 @@ class builtin Float {
   #
   # Using a regular float:
   #
-  #     10.5.infinite? # => false
+  # ```inko
+  # 10.5.infinite? # => false
+  # ```
   #
   # Using an infinite number:
   #
-  #     10.0 / 0.0
-  #       .infinite? # => true
+  # ```inko
+  # (10.0 / 0.0).infinite? # => true
+  # ```
   fn pub infinite? -> Bool {
     _INKO.float_is_inf(self)
   }
@@ -133,11 +148,15 @@ class builtin Float {
   #
   # Using a regular float:
   #
-  #     3.5.floor # => 3.0
+  # ```inko
+  # 3.5.floor # => 3.0
+  # ```
   #
   # Using a NAN value will produce a new NAN:
   #
-  #     Float.not_a_number.floor.not_a_number? # => true
+  # ```inko
+  # Float.not_a_number.floor.not_a_number? # => true
+  # ```
   fn pub floor -> Float {
     _INKO.float_floor(self)
   }
@@ -148,11 +167,15 @@ class builtin Float {
   #
   # Using a regular float:
   #
-  #     3.5.ceil # => 4.0
+  # ```inko
+  # 3.5.ceil # => 4.0
+  # ```
   #
   # Using a NAN value will produce a new NAN:
   #
-  #     Float.not_a_number.ceil.not_a_number? # => true
+  # ```inko
+  # Float.not_a_number.ceil.not_a_number? # => true
+  # ```
   fn pub ceil -> Float {
     _INKO.float_ceil(self)
   }
@@ -167,19 +190,27 @@ class builtin Float {
   #
   # Using a regular float:
   #
-  #     3.5.round # => 3.0
+  # ```inko
+  # 3.5.round # => 3.0
+  # ```
   #
   # Rounding to a given number of decimals:
   #
-  #     3.123.round(1) # => 3.1
+  # ```inko
+  # 3.123.round(1) # => 3.1
+  # ```
   #
   # Rounding a number using a negative number of decimals:
   #
-  #     34567.89.round(-2) # => 34600.0
+  # ```inko
+  # 34567.89.round(-2) # => 34600.0
+  # ```
   #
   # Using a NAN value will produce a new NAN:
   #
-  #     Float.not_a_number.round.not_a_number? # => true
+  # ```inko
+  # Float.not_a_number.round.not_a_number? # => true
+  # ```
   fn pub round(decimals: Int) -> Float {
     if decimals <= 0 { return _INKO.float_round(self) }
 
@@ -197,7 +228,9 @@ class builtin Float {
   #
   # Returning the fractional:
   #
-  #     3.5.fract => 0.5
+  # ```inko
+  # 3.5.fract => 0.5
+  # ```
   fn pub fractional -> Float {
     absolute % 1.0
   }
@@ -211,7 +244,9 @@ class builtin Float {
   #
   # Converting a `Float` to its bitwise representation:
   #
-  #     1.0.to_bits # => 4607182418800017408
+  # ```inko
+  # 1.0.to_bits # => 4607182418800017408
+  # ```
   fn pub to_bits -> Int {
     _INKO.float_to_bits(self)
   }
@@ -355,19 +390,27 @@ impl ToString for Float {
   #
   # Converting a positive float:
   #
-  #     10.5.to_string # => '10.5'
+  # ```inko
+  # 10.5.to_string # => '10.5'
+  # ```
   #
   # Converting a negative float:
   #
-  #     -10.5.to_string # => '-10.5'
+  # ```inko
+  # -10.5.to_string # => '-10.5'
+  # ```
   #
   # Converting a NAN:
   #
-  #     Float.not_a_number.to_string # => 'NaN'
+  # ```inko
+  # Float.not_a_number.to_string # => 'NaN'
+  # ```
   #
   # Converting an infinite number:
   #
-  #     Float.infinity.to_string # => 'Infinity'
+  # ```inko
+  # Float.infinity.to_string # => 'Infinity'
+  # ```
   fn pub to_string -> String {
     inko_float_to_string(_INKO.state, self as Float64)
   }

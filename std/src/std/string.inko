@@ -165,7 +165,9 @@ class builtin String {
   #
   # # Examples
   #
-  #     String.from_pointer("hello".to_pointer) == "hello" # => true
+  # ```inko
+  # String.from_pointer("hello".to_pointer) == "hello" # => true
+  # ```
   fn pub static from_pointer(pointer: Pointer[UInt8]) -> String {
     inko_string_from_pointer(_INKO.state, pointer)
   }
@@ -175,9 +177,11 @@ class builtin String {
   #
   # # Examples
   #
-  #     let vals = [10, 20, 30].into_iter
+  # ```inko
+  # let vals = [10, 20, 30].into_iter
   #
-  #     String.join(vals, with: ',') => '10,20,30'
+  # String.join(vals, with: ',') => '10,20,30'
+  # ```
   fn pub static join[T: ToString, I: Iter[T]](
     iter: move I,
     with: String,
@@ -198,15 +202,21 @@ class builtin String {
   #
   # Converting a `String` containing only ASCII symbols:
   #
-  #     'hello'.to_upper # => 'HELLO'
+  # ```inko
+  # 'hello'.to_upper # => 'HELLO'
+  # ```
   #
   # Converting a `String` containing Unicode symbols:
   #
-  #     'ä'.to_upper # => 'Ä'
+  # ```inko
+  # 'ä'.to_upper # => 'Ä'
+  # ```
   #
   # Converting a `String` containing both ASCII and Unicode symbols:
   #
-  #     'aä'.to_upper # => 'AÄ'
+  # ```inko
+  # 'aä'.to_upper # => 'AÄ'
+  # ```
   fn pub to_upper -> String {
     inko_string_to_upper(_INKO.state, self)
   }
@@ -217,15 +227,21 @@ class builtin String {
   #
   # Converting a `String` containing only ASCII symbols:
   #
-  #     'HELLO'.to_lower # => 'hello'
+  # ```inko
+  # 'HELLO'.to_lower # => 'hello'
+  # ```
   #
   # Converting a `String` containing Unicode symbols:
   #
-  #     'Ä'.to_lower # => 'ä'
+  # ```inko
+  # 'Ä'.to_lower # => 'ä'
+  # ```
   #
   # Converting a `String` containing both ASCII and Unicode symbols:
   #
-  #     'AÄ'.to_lower # => 'aä'
+  # ```inko
+  # 'AÄ'.to_lower # => 'aä'
+  # ```
   fn pub to_lower -> String {
     inko_string_to_lower(_INKO.state, self)
   }
@@ -239,8 +255,10 @@ class builtin String {
   #
   # # Examples
   #
-  #     'hello_world'.substring(start: 0, chars: 5)   # => 'hello'
-  #     'hello_world'.substring(start: 0, chars: 100) # => 'hello_world'
+  # ```inko
+  # 'hello_world'.substring(start: 0, chars: 5)   # => 'hello'
+  # 'hello_world'.substring(start: 0, chars: 100) # => 'hello_world'
+  # ```
   fn pub substring(start: Int, chars: Int) -> String {
     let buff = StringBuffer.new
 
@@ -261,11 +279,13 @@ class builtin String {
   #
   # # Examples
   #
-  #     let bytes = ByteArray.new
+  # ```inko
+  # let bytes = ByteArray.new
   #
-  #     '😊'.slice_into(bytes, start: 0, size: 4)
+  # '😊'.slice_into(bytes, start: 0, size: 4)
   #
-  #     bytes # => '😊'.to_byte_array
+  # bytes # => '😊'.to_byte_array
+  # ```
   fn pub slice_into(bytes: mut ByteArray, start: Int, size: Int) {
     inko_string_slice_bytes_into(self, bytes, start, size)
   }
@@ -275,10 +295,12 @@ class builtin String {
   #
   # # Examples
   #
-  #     'hello'.byte_index(of: 'h', starting_at: 0) # => Option.Some(0)
-  #     'hello'.byte_index(of: 'l', starting_at: 0) # => Option.Some(2)
-  #     'hello'.byte_index(of: 'l', starting_at: 3) # => Option.Some(3)
-  #     'hello'.byte_index(of: 'x', starting_at: 0) # => Option.None
+  # ```inko
+  # 'hello'.byte_index(of: 'h', starting_at: 0) # => Option.Some(0)
+  # 'hello'.byte_index(of: 'l', starting_at: 0) # => Option.Some(2)
+  # 'hello'.byte_index(of: 'l', starting_at: 3) # => Option.Some(3)
+  # 'hello'.byte_index(of: 'x', starting_at: 0) # => Option.None
+  # ```
   fn pub byte_index(of: String, starting_at: Int) -> Option[Int] {
     # This is a naive string searching algorithm (see
     # https://en.wikipedia.org/wiki/String-searching_algorithm) for more details
@@ -315,8 +337,10 @@ class builtin String {
   #
   # Checking if a `String` starts with another `String`:
   #
-  #     'test_starts_with'.starts_with?('test_') # => true
-  #     'hello'.starts_with?('test_')            # => false
+  # ```inko
+  # 'test_starts_with'.starts_with?('test_') # => true
+  # 'hello'.starts_with?('test_')            # => false
+  # ```
   fn pub starts_with?(prefix: String) -> Bool {
     match byte_index(of: prefix, starting_at: 0) {
       case Some(idx) -> idx == 0
@@ -330,8 +354,10 @@ class builtin String {
   #
   # Checking if a `String` ends with another `String`:
   #
-  #     'hello_world'.ends_with?('world') # => true
-  #     'hello'.ends_with?('world')       # => false
+  # ```inko
+  # 'hello_world'.ends_with?('world') # => true
+  # 'hello'.ends_with?('world')       # => false
+  # ```
   fn pub ends_with?(suffix: String) -> Bool {
     byte_index(of: suffix, starting_at: size - suffix.size).some?
   }
@@ -343,17 +369,21 @@ class builtin String {
   #
   # Splitting a `String` using a single character as the separator:
   #
-  #     let iter = 'foo/bar/baz'.split('/')
+  # ```inko
+  # let iter = 'foo/bar/baz'.split('/')
   #
-  #     iter.next # => Option.Some('foo')
-  #     iter.next # => Option.Some('bar')
+  # iter.next # => Option.Some('foo')
+  # iter.next # => Option.Some('bar')
+  # ```
   #
   # Splitting a `String` using multiple characters as the separator:
   #
-  #     let iter = 'foo::bar::baz'.split('::')
+  # ```inko
+  # let iter = 'foo::bar::baz'.split('::')
   #
-  #     iter.next # => Option.Some('foo')
-  #     iter.next # => Option.Some('bar')
+  # iter.next # => Option.Some('foo')
+  # iter.next # => Option.Some('bar')
+  # ```
   fn pub split(separator: String) -> Stream[String] {
     let mut offset = 0
 
@@ -380,8 +410,10 @@ class builtin String {
   #
   # # Examples
   #
-  #     ''.empty?    # => true
-  #     'foo'.empty? # => false
+  # ```inko
+  # ''.empty?    # => true
+  # 'foo'.empty? # => false
+  # ```
   fn pub empty? -> Bool {
     size == 0
   }
@@ -393,8 +425,10 @@ class builtin String {
   #
   # # Examples
   #
-  #     'hello'.pad_start(with: ' ', chars: 7) # => '  hello'
-  #     'hello'.pad_start(with: ' ', chars: 5) # => 'hello'
+  # ```inko
+  # 'hello'.pad_start(with: ' ', chars: 7) # => '  hello'
+  # 'hello'.pad_start(with: ' ', chars: 5) # => 'hello'
+  # ```
   fn pub pad_start(with: String, chars: Int) -> String {
     padding(with, chars: self.chars.count, pad_to: chars) + self
   }
@@ -406,8 +440,10 @@ class builtin String {
   #
   # # Examples
   #
-  #     'hello'.pad_end(with: ' ', chars: 7) # => 'hello  '
-  #     'hello'.pad_end(with: ' ', chars: 5) # => 'hello'
+  # ```inko
+  # 'hello'.pad_end(with: ' ', chars: 7) # => 'hello  '
+  # 'hello'.pad_end(with: ' ', chars: 5) # => 'hello'
+  # ```
   fn pub pad_end(with: String, chars: Int) -> String {
     self + padding(with, chars: self.chars.count, pad_to: chars)
   }
@@ -416,7 +452,9 @@ class builtin String {
   #
   # # Examples
   #
-  #     'a'.repeat(4) # => 'aaaa'
+  # ```inko
+  # 'a'.repeat(4) # => 'aaaa'
+  # ```
   fn pub repeat(times: Int) -> String {
     match times {
       case 0 -> ''
@@ -435,7 +473,9 @@ class builtin String {
   #
   # # Examples
   #
-  #     '😀😃'.chars.next # => Option.Some('😀 ')
+  # ```inko
+  # '😀😃'.chars.next # => Option.Some('😀 ')
+  # ```
   fn pub chars -> Chars {
     Chars(string: self, iter: inko_string_chars(self))
   }
@@ -444,7 +484,9 @@ class builtin String {
   #
   # # Examples
   #
-  #     'xhellox'.strip_prefix('x') # => 'hellox'
+  # ```inko
+  # 'xhellox'.strip_prefix('x') # => 'hellox'
+  # ```
   fn pub strip_prefix(prefix: String) -> String {
     if starts_with?(prefix).false? { return clone }
 
@@ -455,7 +497,9 @@ class builtin String {
   #
   # # Examples
   #
-  #     'xhellox'.strip_suffix('x') # => 'xhello'
+  # ```inko
+  # 'xhellox'.strip_suffix('x') # => 'xhello'
+  # ```
   fn pub strip_suffix(suffix: String) -> String {
     if ends_with?(suffix).false? { return clone }
 
@@ -466,8 +510,10 @@ class builtin String {
   #
   # # Examples
   #
-  #     ' hello'.trim_start  # => 'hello'
-  #     "\thello".trim_start # => 'hello'
+  # ```inko
+  # ' hello'.trim_start  # => 'hello'
+  # "\thello".trim_start # => 'hello'
+  # ```
   fn pub trim_start -> String {
     let mut index = 0
     let max = size
@@ -483,8 +529,10 @@ class builtin String {
   #
   # # Examples
   #
-  #     'hello '.trim_end  # => 'hello'
-  #     "hello\t".trim_end # => 'hello'
+  # ```inko
+  # 'hello '.trim_end  # => 'hello'
+  # "hello\t".trim_end # => 'hello'
+  # ```
   fn pub trim_end -> String {
     let mut index = size - 1
 
@@ -499,8 +547,10 @@ class builtin String {
   #
   # # Examples
   #
-  #     ' hello '.trim  # => 'hello'
-  #     " hello\t".trim # => 'hello'
+  # ```inko
+  # ' hello '.trim  # => 'hello'
+  # " hello\t".trim # => 'hello'
+  # ```
   fn pub trim -> String {
     let max = size
     let mut start = 0
@@ -531,8 +581,10 @@ class builtin String {
   #
   # # Examples
   #
-  #     "hello\nworld" # => 'hello\nworld'
-  #     "hello\\world" # => 'hello\\world'
+  # ```inko
+  # "hello\nworld" # => 'hello\nworld'
+  # "hello\\world" # => 'hello\\world'
+  # ```
   fn pub escaped -> String {
     let buff = ByteArray.new
     let max = ESCAPE_TABLE.size
@@ -563,7 +615,9 @@ class builtin String {
   #
   # # Examples
   #
-  #     'foo foo'.replace('foo', with: 'bar') # => 'bar bar'
+  # ```inko
+  # 'foo foo'.replace('foo', with: 'bar') # => 'bar bar'
+  # ```
   fn pub replace(string: String, with: String) -> String {
     # Different languages handle the pattern being empty differently. For
     # example, Javascript and Node only match the start of the string if the
@@ -603,7 +657,9 @@ class builtin String {
   #
   # # Examples
   #
-  #     '/tmp/test.txt'.to_path # => Path.new('/tmp/test.txt')
+  # ```inko
+  # '/tmp/test.txt'.to_path # => Path.new('/tmp/test.txt')
+  # ```
   fn pub to_path -> Path {
     Path.new(self)
   }
@@ -620,7 +676,9 @@ impl Bytes for String {
   #
   # Obtaining a single byte from a `String`:
   #
-  #     'inko'.byte(0) # => 105
+  # ```inko
+  # 'inko'.byte(0) # => 105
+  # ```
   #
   # # Panics
   #
@@ -646,8 +704,10 @@ impl Bytes for String {
   #
   # Getting the byte size of a `String`:
   #
-  #     'foo'.size # => 3
-  #     '😀'.size  # => 4
+  # ```inko
+  # 'foo'.size # => 3
+  # '😀'.size  # => 4
+  # ```
   fn pub size -> Int {
     @size as Int
   }
@@ -658,8 +718,10 @@ impl Bytes for String {
   #
   # Slicing a string using a valid range:
   #
-  #     '😊'.slice(start: 0, size: 4) # => '😊'.to_byte_array
-  #     '😊'.slice(start: 0, size: 3) # => "\u{FFFD}".to_byte_array
+  # ```inko
+  # '😊'.slice(start: 0, size: 4) # => '😊'.to_byte_array
+  # '😊'.slice(start: 0, size: 3) # => "\u{FFFD}".to_byte_array
+  # ```
   fn pub slice(start: Int, size: Int) -> ByteArray {
     let bytes = ByteArray.new
 
@@ -725,11 +787,15 @@ impl Equal[ref String] for String {
   #
   # Returns `true` if two Strings are equal:
   #
-  #     'foo' == 'foo' # => true
+  # ```inko
+  # 'foo' == 'foo' # => true
+  # ```
   #
   # Returns `false` if two Strings are not equal:
   #
-  #     'foo' == 'bar' # => false
+  # ```inko
+  # 'foo' == 'bar' # => false
+  # ```
   fn pub ==(other: ref String) -> Bool {
     let size = self.size
 
@@ -763,7 +829,9 @@ impl Add[String, String] for String {
   #
   # # Examples
   #
-  #     'hello ' + 'world' # => 'hello world'
+  # ```inko
+  # 'hello ' + 'world' # => 'hello world'
+  # ```
   fn pub +(other: ref String) -> String {
     _INKO.string_concat(self, other)
   }
@@ -814,13 +882,17 @@ impl Drop for Chars {
 # When concatenating multiple `String` objects together, intermediate `String`
 # objects are created. For example:
 #
-#     'foo' + 'bar' + 'baz'
+# ```inko
+# 'foo' + 'bar' + 'baz'
+# ```
 #
 # This code will allocate three `String` objects (for the `String` literals),
 # and two additional `String` objects. This is the result of the above
 # expression being evaluated as follows:
 #
-#     ('foo' + 'bar') + 'baz'
+# ```inko
+# ('foo' + 'bar') + 'baz'
+# ```
 #
 # This means that the first allocated `String` resulting from this expression
 # is `'foobar'`, which is then concatenated with `'baz'`, producing
@@ -829,23 +901,27 @@ impl Drop for Chars {
 # Using a `StringBuffer` we can work around this, only allocating a `String`
 # once we are done:
 #
-#     import std.string (StringBuffer)
+# ```inko
+# import std.string (StringBuffer)
 #
-#     let buffer = StringBuffer.new
+# let buffer = StringBuffer.new
 #
-#     buffer.push('foo')
-#     buffer.push('bar')
-#     buffer.push('baz')
+# buffer.push('foo')
+# buffer.push('bar')
+# buffer.push('baz')
 #
-#     buffer.to_string # => 'foobarbaz'
+# buffer.to_string # => 'foobarbaz'
+# ```
 #
 # You can also create a `StringBuffer` and feed it values right away:
 #
-#     import std.string (StringBuffer)
+# ```inko
+# import std.string (StringBuffer)
 #
-#     let buffer = StringBuffer.from_array(['foo', 'bar', 'baz'])
+# let buffer = StringBuffer.from_array(['foo', 'bar', 'baz'])
 #
-#     buffer.to_string # => 'foobarbaz'
+# buffer.to_string # => 'foobarbaz'
+# ```
 class pub StringBuffer {
   let @strings: Array[String]
 
@@ -860,11 +936,13 @@ class pub StringBuffer {
   #
   # Creating a `StringBuffer` from an `Array`:
   #
-  #     import std.string (StringBuffer)
+  # ```inko
+  # import std.string (StringBuffer)
   #
-  #     let strings = ['foo', 'bar']
+  # let strings = ['foo', 'bar']
   #
-  #     StringBuffer.from_array(strings).to_string # => 'foobar'
+  # StringBuffer.from_array(strings).to_string # => 'foobar'
+  # ```
   fn pub static from_array(strings: Array[String]) -> StringBuffer {
     StringBuffer(strings)
   }
@@ -875,11 +953,13 @@ class pub StringBuffer {
   #
   # Adding a `String` to a `StringBuffer`:
   #
-  #     import std.string (StringBuffer)
+  # ```inko
+  # import std.string (StringBuffer)
   #
-  #     let buffer = StringBuffer.new
+  # let buffer = StringBuffer.new
   #
-  #     buffer.push('hello') # => 'hello'
+  # buffer.push('hello') # => 'hello'
+  # ```
   fn pub mut push(string: String) {
     @strings.push(string)
   }
@@ -897,14 +977,16 @@ impl ToString for StringBuffer {
   #
   # Converting a `StringBuffer` to a `String`:
   #
-  #     import std.string (StringBuffer)
+  # ```inko
+  # import std.string (StringBuffer)
   #
-  #     let buffer = StringBuffer.new
+  # let buffer = StringBuffer.new
   #
-  #     buffer.push('hello ')
-  #     buffer.push('world')
+  # buffer.push('hello ')
+  # buffer.push('world')
   #
-  #     buffer.to_string # => 'hello world'
+  # buffer.to_string # => 'hello world'
+  # ```
   fn pub to_string -> String {
     inko_string_concat(_INKO.state, @strings.to_pointer, @strings.size)
   }

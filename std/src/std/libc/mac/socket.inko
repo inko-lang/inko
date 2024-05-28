@@ -13,6 +13,6 @@ let SO_REUSEPORT = 0x200
 let SO_SNDBUF = 0x1001
 let TCP_NODELAY = 1
 
-# For macOS we need to use SO_LINGER_SEC to control the time in seconds instead
-# of ticks, and SO_LINGER itself isn't useful.
+# For macOS we need to use `SO_LINGER_SEC` to control the time in seconds
+# instead of ticks, and `SO_LINGER` itself isn't useful.
 let SO_LINGER = SO_LINGER_SEC

@@ -115,9 +115,11 @@ class pub Map[K: Equal[ref K] + Hash, V] {
   #
   # # Examples
   #
-  #     let map = Map.with_capacity(32)
+  # ```inko
+  # let map = Map.with_capacity(32)
   #
-  #     map.set('name', 'Alice')
+  # map.set('name', 'Alice')
+  # ```
   fn pub static with_capacity(amount: Int) -> Map[K, V] {
     let size = if amount <= 0 {
       DEFAULT_CAPACITY
@@ -136,17 +138,21 @@ class pub Map[K: Equal[ref K] + Hash, V] {
   #
   # Removing a non-existing key:
   #
-  #     let mut map = Map.new
+  # ```inko
+  # let mut map = Map.new
   #
-  #     map.remove('name') # => Option.None
+  # map.remove('name') # => Option.None
+  # ```
   #
   # Removing an existing key:
   #
-  #     let mut map = Map.new
+  # ```inko
+  # let mut map = Map.new
   #
-  #     map.set('name', 'Alice')
+  # map.set('name', 'Alice')
   #
-  #     map.remove('name') # => Option.Some('Alice')
+  # map.remove('name') # => Option.Some('Alice')
+  # ```
   fn pub mut remove(key: ref K) -> Option[V] {
     let mut slot = slot_index(hash_key(key))
     let mut dist = 0
@@ -212,14 +218,16 @@ class pub Map[K: Equal[ref K] + Hash, V] {
   #
   # Iterating over all the key-value pairs:
   #
-  #     let mut map = Map.new
+  # ```inko
+  # let mut map = Map.new
   #
-  #     map.set('name', 'Alice')
+  # map.set('name', 'Alice')
   #
-  #     map.iter.each fn (entry) {
-  #       entry.key   # => 'name'
-  #       entry.value # => 'Alice'
-  #     }
+  # map.iter.each fn (entry) {
+  #   entry.key   # => 'name'
+  #   entry.value # => 'Alice'
+  # }
+  # ```
   fn pub iter -> Stream[ref Entry[K, V]] {
     @entries.iter
   }
@@ -230,14 +238,16 @@ class pub Map[K: Equal[ref K] + Hash, V] {
   #
   # Iterating over all the key-value pairs:
   #
-  #     let mut map = Map.new
+  # ```inko
+  # let mut map = Map.new
   #
-  #     map.set('name', 'Alice')
+  # map.set('name', 'Alice')
   #
-  #     map.iter_mut.each fn (entry) {
-  #       entry.key   # => 'name'
-  #       entry.value # => 'Alice'
-  #     }
+  # map.iter_mut.each fn (entry) {
+  #   entry.key   # => 'name'
+  #   entry.value # => 'Alice'
+  # }
+  # ```
   fn pub mut iter_mut -> Stream[mut Entry[K, V]] {
     @entries.iter_mut
   }
@@ -247,14 +257,16 @@ class pub Map[K: Equal[ref K] + Hash, V] {
   #
   # # Examples
   #
-  #     let mut map = Map.new
+  # ```inko
+  # let mut map = Map.new
   #
-  #     map.set('name', 'Alice')
+  # map.set('name', 'Alice')
   #
-  #     map.into_iter.each fn (e) {
-  #       e.key   # => 'name'
-  #       e.value # => 'Alice'
-  #     }
+  # map.into_iter.each fn (e) {
+  #   e.key   # => 'name'
+  #   e.value # => 'Alice'
+  # }
+  # ```
   fn pub move into_iter -> IntoIter[Entry[K, V]] {
     @entries.into_iter
   }
@@ -265,13 +277,15 @@ class pub Map[K: Equal[ref K] + Hash, V] {
   #
   # Iterating over the keys in a `Map`:
   #
-  #     let mut map = Map.new
+  # ```inko
+  # let mut map = Map.new
   #
-  #     map.set('name', 'Alice')
+  # map.set('name', 'Alice')
   #
-  #     map.keys.each fn (key) {
-  #       key # => 'name'
-  #     }
+  # map.keys.each fn (key) {
+  #   key # => 'name'
+  # }
+  # ```
   fn pub keys -> Stream[ref K] {
     iter.map(fn (e) { e.key })
   }
@@ -283,13 +297,15 @@ class pub Map[K: Equal[ref K] + Hash, V] {
   #
   # Iterating over the values in a `Map`:
   #
-  #     let mut map = Map.new
+  # ```inko
+  # let mut map = Map.new
   #
-  #     map.set('name', 'Alice')
+  # map.set('name', 'Alice')
   #
-  #     map.values.each fn (value) {
-  #       value # => 'Alice'
-  #     }
+  # map.values.each fn (value) {
+  #   value # => 'Alice'
+  # }
+  # ```
   fn pub values -> Stream[ref V] {
     iter.map(fn (e) { e.value })
   }
@@ -300,17 +316,21 @@ class pub Map[K: Equal[ref K] + Hash, V] {
   #
   # Getting the value of a non-existing key:
   #
-  #     let map = Map.new
+  # ```inko
+  # let map = Map.new
   #
-  #     map.opt('name') # => Option.None
+  # map.opt('name') # => Option.None
+  # ```
   #
   # Getting the value of an existing key:
   #
-  #     let mut map = Map.new
+  # ```inko
+  # let mut map = Map.new
   #
-  #     map.set('name', 'Alice')
+  # map.set('name', 'Alice')
   #
-  #     map.opt('name') # => Option.Some('Alice')
+  # map.opt('name') # => Option.Some('Alice')
+  # ```
   fn pub opt(key: ref K) -> Option[ref V] {
     match entries_index(key) {
       case EMPTY -> Option.None
@@ -328,10 +348,12 @@ class pub Map[K: Equal[ref K] + Hash, V] {
   #
   # Getting the value of an existing key:
   #
-  #     let mut map = Map.new
+  # ```inko
+  # let mut map = Map.new
   #
-  #     map.set('name', 'Alice')
-  #     map.get('name') # => 'Alice'
+  # map.set('name', 'Alice')
+  # map.get('name') # => 'Alice'
+  # ```
   fn pub get(index: ref K) -> ref V {
     match entries_index(index) {
       case EMPTY -> panic("The key doesn't exist")
@@ -346,9 +368,11 @@ class pub Map[K: Equal[ref K] + Hash, V] {
   #
   # Inserting a new key-value pair:
   #
-  #     let mut map = Map.new
+  # ```inko
+  # let mut map = Map.new
   #
-  #     map.set('name', 'Alice') # => 'Alice'
+  # map.set('name', 'Alice') # => 'Alice'
+  # ```
   fn pub mut set(key: K, value: V) -> Option[V] {
     if size >= @resize_at { resize }
 
@@ -362,16 +386,18 @@ class pub Map[K: Equal[ref K] + Hash, V] {
   #
   # # Examples
   #
-  #     let map1 = Map.new
-  #     let map2 = Map.new
+  # ```inko
+  # let map1 = Map.new
+  # let map2 = Map.new
   #
-  #     map1.set('name', 'Alice')
-  #     map2.set('city', 'Amsterdam')
+  # map1.set('name', 'Alice')
+  # map2.set('city', 'Amsterdam')
   #
-  #     map1.merge(map2)
+  # map1.merge(map2)
   #
-  #     map1['name'] # => 'Alice'
-  #     map2['city'] # => 'Amsterdam'
+  # map1['name'] # => 'Alice'
+  # map2['city'] # => 'Amsterdam'
+  # ```
   fn pub mut merge(other: Map[K, V]) {
     other.into_iter.each(fn (entry) {
       entry.distance = 0
@@ -387,17 +413,21 @@ class pub Map[K: Equal[ref K] + Hash, V] {
   #
   # Using an empty map:
   #
-  #     let map = Map.new
+  # ```inko
+  # let map = Map.new
   #
-  #     map.size # => 0
+  # map.size # => 0
+  # ```
   #
   # Using a map with one key-value pair:
   #
-  #     let map = Map.new
+  # ```inko
+  # let map = Map.new
   #
-  #     map.set('name', 'Alice')
+  # map.set('name', 'Alice')
   #
-  #     map.size # => 1
+  # map.size # => 1
+  # ```
   fn pub size -> Int {
     @entries.size
   }
@@ -406,8 +436,10 @@ class pub Map[K: Equal[ref K] + Hash, V] {
   #
   # # Examples
   #
-  #     Map.new.capacity              # => 4
-  #     Map.with_capacity(8).capacity # => 8
+  # ```inko
+  # Map.new.capacity              # => 4
+  # Map.with_capacity(8).capacity # => 8
+  # ```
   fn pub capacity -> Int {
     @slots.size
   }
@@ -582,13 +614,15 @@ impl Map if V: mut {
   #
   # Iterating over the values in a `Map`:
   #
-  #     let mut map = Map.new
+  # ```inko
+  # let mut map = Map.new
   #
-  #     map.set('name', 'Alice')
+  # map.set('name', 'Alice')
   #
-  #     map.values_mut.each fn (value) {
-  #       value # => 'Alice'
-  #     }
+  # map.values_mut.each fn (value) {
+  #   value # => 'Alice'
+  # }
+  # ```
   fn pub mut values_mut -> Stream[mut V] {
     iter_mut.map(fn (e) { e.value })
   }
@@ -602,13 +636,15 @@ impl Equal[ref Map[K, V]] for Map if V: Equal[ref V] {
   #
   # Comparing two `Map` instances:
   #
-  #     let map1 = Map.new
-  #     let map2 = Map.new
+  # ```inko
+  # let map1 = Map.new
+  # let map2 = Map.new
   #
-  #     map1.set('name', 'Alice')
-  #     map2.set('name', 'Alice')
+  # map1.set('name', 'Alice')
+  # map2.set('name', 'Alice')
   #
-  #     map1 == map2 # => true
+  # map1 == map2 # => true
+  # ```
   fn pub ==(other: ref Map[K, V]) -> Bool {
     if size != other.size { return false }
 
@@ -637,11 +673,13 @@ impl Contains[K] for Map {
   #
   # Checking if a `Map` defines a key:
   #
-  #     let map = Map.new
+  # ```inko
+  # let map = Map.new
   #
-  #     map.set('name', 'Alice')
-  #     map.contains?('name') # => true
-  #     map.contains?('city') # => false
+  # map.set('name', 'Alice')
+  # map.contains?('name') # => true
+  # map.contains?('city') # => false
+  # ```
   fn pub contains?(value: ref K) -> Bool {
     entries_index(value) > EMPTY
   }

@@ -253,15 +253,19 @@ impl Iter[String] for Components {
 #
 # Creating a new `Path` using a `String`:
 #
-#     import std.fs.path (Path)
+# ```inko
+# import std.fs.path (Path)
 #
-#     Path.new('/tmp/hello.txt')
+# Path.new('/tmp/hello.txt')
+# ```
 #
 # Converting a `String` to a `Path`:
 #
-#     import std.fs.path (Path)
+# ```inko
+# import std.fs.path (Path)
 #
-#     '/tmp/hello.txt'.to_path
+# '/tmp/hello.txt'.to_path
+# ```
 class pub Path {
   # The raw file path.
   let @path: String
@@ -294,11 +298,13 @@ class pub Path {
   #
   # Obtaining the creation time of a `Path`:
   #
-  #     import std.fs.path (Path)
+  # ```inko
+  # import std.fs.path (Path)
   #
-  #     let path = Path.new('README.md')
+  # let path = Path.new('README.md')
   #
-  #     path.created_at.get # => DateTime(...)
+  # path.created_at.get # => DateTime(...)
+  # ```
   fn pub created_at -> Result[DateTime, Error] {
     match inko_path_created_at(_INKO.process, @path) {
       case { @tag = 0, @value = val } -> {
@@ -324,11 +330,13 @@ class pub Path {
   #
   # Obtaining the modification time of a `Path`:
   #
-  #     import std.fs.path (Path)
+  # ```inko
+  # import std.fs.path (Path)
   #
-  #     let path = Path.new('README.md')
+  # let path = Path.new('README.md')
   #
-  #     path.modified_at.get # => DateTime(...)
+  # path.modified_at.get # => DateTime(...)
+  # ```
   fn pub modified_at -> Result[DateTime, Error] {
     match inko_path_modified_at(_INKO.process, @path) {
       case { @tag = 0, @value = val } -> {
@@ -354,11 +362,13 @@ class pub Path {
   #
   # Obtaining the access time of a `Path`:
   #
-  #     import std.fs.path (Path)
+  # ```inko
+  # import std.fs.path (Path)
   #
-  #     let path = Path.new('README.md')
+  # let path = Path.new('README.md')
   #
-  #     path.accessed_at.get # => DateTime(...)
+  # path.accessed_at.get # => DateTime(...)
+  # ```
   fn pub accessed_at -> Result[DateTime, Error] {
     match inko_path_accessed_at(_INKO.process, @path) {
       case { @tag = 0, @value = val } -> {
@@ -381,10 +391,12 @@ class pub Path {
   #
   # Checking if a `Path` is absolute:
   #
-  #     import std.fs.path (Path)
+  # ```inko
+  # import std.fs.path (Path)
   #
-  #     Path.new('foo').absolute?  # => false
-  #     Path.new('/foo').absolute? # => true
+  # Path.new('foo').absolute?  # => false
+  # Path.new('/foo').absolute? # => true
+  # ```
   fn pub absolute? -> Bool {
     absolute_path?(@path)
   }
@@ -395,11 +407,13 @@ class pub Path {
   #
   # Checking if a `Path` is relative:
   #
-  #     import std.fs.path (Path)
+  # ```inko
+  # import std.fs.path (Path)
   #
-  #     Path.new('foo').relative?  # => true
-  #     Path.new('../').relative?  # => true
-  #     Path.new('/foo').relative? # => false
+  # Path.new('foo').relative?  # => true
+  # Path.new('../').relative?  # => true
+  # Path.new('/foo').relative? # => false
+  # ```
   fn pub relative? -> Bool {
     absolute?.false?
   }
@@ -410,15 +424,19 @@ class pub Path {
   #
   # Joining a `Path` with a `String`:
   #
-  #     import std.fs.path (Path)
+  # ```inko
+  # import std.fs.path (Path)
   #
-  #     Path.new('foo/bar').join('baz').to_string # => 'foo/bar/baz'
+  # Path.new('foo/bar').join('baz').to_string # => 'foo/bar/baz'
+  # ```
   #
   # Joining a `Path` with another `Path`:
   #
-  #     import std.fs.path (Path)
+  # ```inko
+  # import std.fs.path (Path)
   #
-  #     Path.new('foo/bar').join(Path.new('bar')).to_string # => 'foo/bar/baz'
+  # Path.new('foo/bar').join(Path.new('bar')).to_string # => 'foo/bar/baz'
+  # ```
   fn pub join[T: ToString](path: ref T) -> Path {
     Path.new(join_strings(@path, with: path.to_string))
   }
@@ -435,15 +453,19 @@ class pub Path {
   #
   # Obtaining the directory of a path:
   #
-  #     import std.fs.path (Path)
+  # ```inko
+  # import std.fs.path (Path)
   #
-  #     Path.new('/foo/bar').directory # => Path.new('/foo')
+  # Path.new('/foo/bar').directory # => Path.new('/foo')
+  # ```
   #
   # Obtaining the directory of the root directory:
   #
-  #     import std.fs.path (Path)
+  # ```inko
+  # import std.fs.path (Path)
   #
-  #     Path.new('/').directory # Path.new('/')
+  # Path.new('/').directory # Path.new('/')
+  # ```
   fn pub directory -> Path {
     let buf = StringBuffer.new
     let comp = Components.new(self).peekable
@@ -476,9 +498,11 @@ class pub Path {
   #
   # # Examples
   #
-  #     import std.fs.path (Path)
+  # ```inko
+  # import std.fs.path (Path)
   #
-  #     Path.new('foo/bar/baz.txt') # => 'baz.txt'
+  # Path.new('foo/bar/baz.txt') # => 'baz.txt'
+  # ```
   fn pub tail -> String {
     let comp = Components.new(self)
     let mut start = -1
@@ -508,10 +532,12 @@ class pub Path {
   #
   # # Examples
   #
-  #     import std.fs.path (Path)
+  # ```inko
+  # import std.fs.path (Path)
   #
-  #     Path.new('foo.txt').extension # => Option.Some('txt')
-  #     Path.new('foo').extension     # => Option.None
+  # Path.new('foo.txt').extension # => Option.Some('txt')
+  # Path.new('foo').extension     # => Option.None
+  # ```
   fn pub extension -> Option[String] {
     let size = @path.size
     let mut min = match bytes_before_last_separator(@path) {
@@ -568,10 +594,12 @@ class pub Path {
   #
   # # Examples
   #
-  #     import std.fs.path (Path)
+  # ```inko
+  # import std.fs.path (Path)
   #
-  #     Path.new('a').with_extension('txt')    # => Path.new('a.txt')
-  #     Path.new('a.txt').with_extension('md') # => Path.new('a.md')
+  # Path.new('a').with_extension('txt')    # => Path.new('a.txt')
+  # Path.new('a.txt').with_extension('md') # => Path.new('a.md')
+  # ```
   fn pub with_extension(name: String) -> Path {
     if name.contains?(SEPARATOR) {
       panic("file extensions can't contain path separators")
@@ -603,9 +631,11 @@ class pub Path {
   #
   # # Examples
   #
-  #     import std.fs.path (Path)
+  # ```inko
+  # import std.fs.path (Path)
   #
-  #     Path.new('/foo/../bar').expand.get # => Path.new('/bar')
+  # Path.new('/foo/../bar').expand.get # => Path.new('/bar')
+  # ```
   fn pub expand -> Result[Path, Error] {
     match inko_path_expand(_INKO.state, @path) {
       case { @tag = 0, @value = v } -> Result.Ok(Path.new(v as String))
@@ -634,23 +664,25 @@ class pub Path {
   # This prints the files in the current working directory while ignoring
   # directories:
   #
-  #     import std.fs.path (Path)
-  #     import std.stdio (STDOUT)
+  # ```inko
+  # import std.fs.path (Path)
+  # import std.stdio (STDOUT)
   #
-  #     let out = STDOUT.new
-  #     let path = Path.new('.')
-  #     let iter = path.list.or_panic('failed to create the iterator')
+  # let out = STDOUT.new
+  # let path = Path.new('.')
+  # let iter = path.list.or_panic('failed to create the iterator')
   #
-  #     iter.each fn (result) {
-  #       match result {
-  #         case Ok({ @path = path, @type = File }) -> {
-  #           out.print(path.to_string)
-  #           nil
-  #         }
-  #         case Ok(_) -> {}
-  #         case Error(err) -> panic(err.to_string)
-  #       }
+  # iter.each fn (result) {
+  #   match result {
+  #     case Ok({ @path = path, @type = File }) -> {
+  #       out.print(path.to_string)
+  #       nil
   #     }
+  #     case Ok(_) -> {}
+  #     case Error(err) -> panic(err.to_string)
+  #   }
+  # }
+  # ```
   fn pub list -> Result[ReadDirectory, Error] {
     ReadDirectoryInner.new(@path).map(fn (inner) {
       ReadDirectory(path: @path, inner: inner)
@@ -670,10 +702,12 @@ class pub Path {
   #
   # # Examples
   #
-  #     import std.fs.path (Path)
+  # ```inko
+  # import std.fs.path (Path)
   #
-  #     Path.new('/tmp').list_all.get.next
-  #     # => Option.Some(Result.Ok(DirectoryEntry(...)))
+  # Path.new('/tmp').list_all.get.next
+  # # => Option.Some(Result.Ok(DirectoryEntry(...)))
+  # ```
   fn pub list_all -> Result[Stream[Result[DirectoryEntry, Error]], Error] {
     list.map(fn (iter) {
       let dirs = []
@@ -708,14 +742,16 @@ class pub Path {
   #
   # # Examples
   #
-  #     import std.fs.file (WriteOnlyFile)
-  #     import std.fs.path (Path)
+  # ```inko
+  # import std.fs.file (WriteOnlyFile)
+  # import std.fs.path (Path)
   #
-  #     let path = Path.new('/tmp/test.txt')
-  #     let handle = WriteOnlyFile.new(path).get
+  # let path = Path.new('/tmp/test.txt')
+  # let handle = WriteOnlyFile.new(path).get
   #
-  #     handle.write_string('hello').get
-  #     path.remove_file.get
+  # handle.write_string('hello').get
+  # path.remove_file.get
+  # ```
   fn pub remove_file -> Result[Nil, Error] {
     match inko_file_remove(_INKO.process, @path) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
@@ -731,12 +767,14 @@ class pub Path {
   #
   # # Examples
   #
-  #     import std.fs.path (Path)
+  # ```inko
+  # import std.fs.path (Path)
   #
-  #     let path = Path.new('/tmp/foo')
+  # let path = Path.new('/tmp/foo')
   #
-  #     path.create_directory.get
-  #     path.remove_directory.get
+  # path.create_directory.get
+  # path.remove_directory.get
+  # ```
   fn pub remove_directory -> Result[Nil, Error] {
     match inko_directory_remove(_INKO.process, @path) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
@@ -759,10 +797,12 @@ class pub Path {
   #
   # Removing a directory:
   #
-  #     import std.fs.path (Path)
+  # ```inko
+  # import std.fs.path (Path)
   #
-  #     Path.new('/tmp/foo/bar').create_directory_all.get
-  #     Path.new('/tmp/foo').remove_directory_all.get
+  # Path.new('/tmp/foo/bar').create_directory_all.get
+  # Path.new('/tmp/foo').remove_directory_all.get
+  # ```
   fn pub remove_directory_all -> Result[Nil, Error] {
     match inko_directory_remove_recursive(_INKO.process, @path) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
@@ -783,9 +823,11 @@ class pub Path {
   #
   # # Examples
   #
-  #     import std.fs.path (Path)
+  # ```inko
+  # import std.fs.path (Path)
   #
-  #     Path.new('/tmp/test').create_directory.get
+  # Path.new('/tmp/test').create_directory.get
+  # ```
   fn pub create_directory -> Result[Nil, Error] {
     match inko_directory_create(_INKO.process, @path) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
@@ -806,9 +848,11 @@ class pub Path {
   #
   # # Examples
   #
-  #     import std.fs.path (Path)
+  # ```inko
+  # import std.fs.path (Path)
   #
-  #     Path.new('/tmp/foo/bar/test').create_directory_all.get
+  # Path.new('/tmp/foo/bar/test').create_directory_all.get
+  # ```
   fn pub create_directory_all -> Result[Nil, Error] {
     match inko_directory_create_recursive(_INKO.process, @path) {
       case { @tag = 1, @value = _ } -> Result.Ok(nil)
@@ -825,14 +869,16 @@ class pub Path {
   #
   # # Examples
   #
-  #     import std.fs.file (WriteOnlyFile)
-  #     import std.fs.path (Path)
+  # ```inko
+  # import std.fs.file (WriteOnlyFile)
+  # import std.fs.path (Path)
   #
-  #     let path = Path.new('/tmp/test.txt')
-  #     let file = WriteOnlyFile.new(path).get
+  # let path = Path.new('/tmp/test.txt')
+  # let file = WriteOnlyFile.new(path).get
   #
-  #     file.write_string('hello').get
-  #     path.copy(to: '/tmp/test2.txt').get
+  # file.write_string('hello').get
+  # path.copy(to: '/tmp/test2.txt').get
+  # ```
   fn pub copy[T: ToString](to: ref T) -> Result[Int, Error] {
     match inko_file_copy(_INKO.process, @path, to.to_string) {
       case { @tag = 0, @value = v } -> Result.Ok(v as Int)
@@ -859,10 +905,12 @@ class pub Path {
   #
   # # Examples
   #
-  #     import std.fs.path (Path)
+  # ```inko
+  # import std.fs.path (Path)
   #
-  #     Path.new('a/b/c').components.to_array  # => ['a', 'b', 'c']
-  #     Path.new('/a/b/c').components.to_array # => ['/', 'a', 'b', 'c']
+  # Path.new('a/b/c').components.to_array  # => ['a', 'b', 'c']
+  # Path.new('/a/b/c').components.to_array # => ['/', 'a', 'b', 'c']
+  # ```
   fn pub components -> Components {
     Components.new(self)
   }
@@ -876,10 +924,12 @@ class pub Path {
   #
   # # Examples
   #
-  #     import std.fs.path (Path)
+  # ```inko
+  # import std.fs.path (Path)
   #
-  #     Path.new('a/b').strip_prefix(Path.new('a'))   # => Path.new('b')
-  #     Path.new('/a/b').strip_prefix(Path.new('/a')) # => Path.new('b')
+  # Path.new('a/b').strip_prefix(Path.new('a'))   # => Path.new('b')
+  # Path.new('/a/b').strip_prefix(Path.new('/a')) # => Path.new('b')
+  # ```
   fn pub strip_prefix(prefix: ref Path) -> Option[Path] {
     let comp = components
     let valid = prefix.components.all?(fn (theirs) {
@@ -904,12 +954,14 @@ impl Equal[ref Path] for Path {
   #
   # Comparing two paths:
   #
-  #     import std.fs.path (Path)
+  # ```inko
+  # import std.fs.path (Path)
   #
-  #     let path1 = Path.new('foo')
-  #     let path2 = Path.new('foo')
+  # let path1 = Path.new('foo')
+  # let path2 = Path.new('foo')
   #
-  #     path1 == path2 # => true
+  # path1 == path2 # => true
+  # ```
   fn pub ==(other: ref Path) -> Bool {
     @path == other.to_string
   }
@@ -922,11 +974,13 @@ impl ToString for Path {
   #
   # Converting a `Path`:
   #
-  #     import std.fs.path (Path)
+  # ```inko
+  # import std.fs.path (Path)
   #
-  #     let path = Path.new('/dev/null')
+  # let path = Path.new('/dev/null')
   #
-  #     path.to_string # => '/dev/null'
+  # path.to_string # => '/dev/null'
+  # ```
   fn pub to_string -> String {
     @path
   }
@@ -945,11 +999,13 @@ impl Size for Path {
   #
   # Getting the size of a path:
   #
-  #     import std.fs.path (Path)
+  # ```inko
+  # import std.fs.path (Path)
   #
-  #     let path = Path.new('/dev/null')
+  # let path = Path.new('/dev/null')
   #
-  #     path.size.get # => 0
+  # path.size.get # => 0
+  # ```
   fn pub size -> Result[Int, Error] {
     match inko_file_size(_INKO.process, @path) {
       case { @tag = 0, @value = v } -> Result.Ok(v)

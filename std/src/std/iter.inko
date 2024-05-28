@@ -6,7 +6,7 @@
 #
 # 1. Internal iterators: these kind of iterators take care of the iteration
 #    process and operate using some kind of closure.
-# 2. External iterators: these iterators use some kind of cursor stored
+# 1. External iterators: these iterators use some kind of cursor stored
 #    somewhere and require you to manually advance the iterator.
 #
 # Both have their benefits and drawbacks. Internal iterators are easy to
@@ -35,12 +35,14 @@ trait pub Iter[T] {
   #
   # # Examples
   #
-  #     let vals = [10, 20, 30]
-  #     let iter = vals.iter
+  # ```inko
+  # let vals = [10, 20, 30]
+  # let iter = vals.iter
   #
-  #     iter.each fn (num) {
-  #       num # => 10, 20, 30
-  #     }
+  # iter.each fn (num) {
+  #   num # => 10, 20, 30
+  # }
+  # ```
   fn pub move each(func: fn (T)) {
     loop {
       match self.next {
@@ -55,11 +57,13 @@ trait pub Iter[T] {
   #
   # # Examples
   #
-  #     let res = [10, 0, 30].into_iter.try_each fn (val) {
-  #       if val > 0 { Result.Ok(nil) } else { Result.Error('test') }
-  #     }
+  # ```inko
+  # let res = [10, 0, 30].into_iter.try_each fn (val) {
+  #   if val > 0 { Result.Ok(nil) } else { Result.Error('test') }
+  # }
   #
-  #     res # => Result.Error('test')
+  # res # => Result.Error('test')
+  # ```
   fn pub mut try_each[E](func: fn (T) -> Result[Nil, E]) -> Result[Nil, E] {
     loop {
       match self.next {
@@ -74,13 +78,15 @@ trait pub Iter[T] {
   #
   # # Examples
   #
-  #     let vals = [10, 20, 30]
-  #     let iter = vals.iter
+  # ```inko
+  # let vals = [10, 20, 30]
+  # let iter = vals.iter
   #
-  #     iter.each_with_index fn (index, num) {
-  #       index # => 0, 1, 2
-  #       num   # => 10, 20, 30
-  #     }
+  # iter.each_with_index fn (index, num) {
+  #   index # => 0, 1, 2
+  #   num   # => 10, 20, 30
+  # }
+  # ```
   fn pub move each_with_index(func: fn (Int, T)) {
     let mut idx = 0
 
@@ -91,10 +97,12 @@ trait pub Iter[T] {
   #
   # # Examples
   #
-  #     let iter = [10, 20].into_iter.with_index
+  # ```inko
+  # let iter = [10, 20].into_iter.with_index
   #
-  #     iter.next # => Option.Some((0, 10))
-  #     iter.next # => Option.Some((1, 20))
+  # iter.next # => Option.Some((0, 10))
+  # iter.next # => Option.Some((1, 20))
+  # ```
   fn pub move with_index -> Stream[(Int, T)] {
     let mut index = 0
 
@@ -108,9 +116,11 @@ trait pub Iter[T] {
   #
   # Multiplying the numbers in an `Array`:
   #
-  #     let values = [1, 2, 3]
+  # ```inko
+  # let values = [1, 2, 3]
   #
-  #     values.iter.map fn (n) { n * 2 }.to_array # => [2, 4, 6]
+  # values.iter.map fn (n) { n * 2 }.to_array # => [2, 4, 6]
+  # ```
   fn pub move map[R](func: fn (T) -> R) -> Stream[R] {
     Stream.new(fn move { self.next.map(fn (v) { func.call(v) }) })
   }
@@ -124,9 +134,11 @@ trait pub Iter[T] {
   #
   # Finding the first number greated than 50 in an `Array`:
   #
-  #     let numbers = [10, 20, 50, 80]
+  # ```inko
+  # let numbers = [10, 20, 50, 80]
   #
-  #     numbers.iter.find fn (number) { number > 50 } # => 80
+  # numbers.iter.find fn (number) { number > 50 } # => 80
+  # ```
   fn pub mut find(func: fn (ref T) -> Bool) -> Option[T] {
     loop {
       match self.next {
@@ -143,12 +155,14 @@ trait pub Iter[T] {
   #
   # # Examples
   #
-  #     let vals = [10, 20, 30]
-  #     let val = vals.into_iter.find_map fn (v) {
-  #       if v == 20 { Option.Some(v.to_string) } else { Option.None }
-  #     }
+  # ```inko
+  # let vals = [10, 20, 30]
+  # let val = vals.into_iter.find_map fn (v) {
+  #   if v == 20 { Option.Some(v.to_string) } else { Option.None }
+  # }
   #
-  #     val # => Option.Some('20')
+  # val # => Option.Some('20')
+  # ```
   fn pub mut find_map[R](func: fn (T) -> Option[R]) -> Option[R] {
     loop {
       match self.next {
@@ -172,7 +186,9 @@ trait pub Iter[T] {
   #
   # Checking if an `Iter` contains a value:
   #
-  #     [10, 20, 30].iter.any? fn (value) { value >= 20 } # => true
+  # ```inko
+  # [10, 20, 30].iter.any? fn (value) { value >= 20 } # => true
+  # ```
   fn pub mut any?(func: fn (T) -> Bool) -> Bool {
     loop {
       match self.next {
@@ -189,10 +205,12 @@ trait pub Iter[T] {
   #
   # Selecting only certain values in an `Iter`:
   #
-  #     [10, 20, 30]
-  #       .iter
-  #       .select fn (value) { value > 10 }
-  #       .to_array # => [20, 30]
+  # ```inko
+  # [10, 20, 30]
+  #   .iter
+  #   .select fn (value) { value > 10 }
+  #   .to_array # => [20, 30]
+  # ```
   fn pub move select(func: fn (ref T) -> Bool) -> Stream[T] {
     Stream.new(fn move {
       loop {
@@ -211,12 +229,14 @@ trait pub Iter[T] {
   #
   # # Examples
   #
-  #     let vals = [Option.Some(10), Option.None, Option.som(30)]
-  #     let iter = vals.into_iter.select_map fn (opt) { opt }
+  # ```inko
+  # let vals = [Option.Some(10), Option.None, Option.som(30)]
+  # let iter = vals.into_iter.select_map fn (opt) { opt }
   #
-  #     iter.next # => Option.Some(10)
-  #     iter.next # => Option.Some(30)
-  #     iter.next # => Option.None
+  # iter.next # => Option.Some(10)
+  # iter.next # => Option.Some(30)
+  # iter.next # => Option.None
+  # ```
   fn pub move select_map[R](func: fn (T) -> Option[R]) -> Stream[R] {
     Stream.new(fn move {
       loop {
@@ -243,11 +263,13 @@ trait pub Iter[T] {
   #
   # Partitioning an `Iter`:
   #
-  #     let values = [10, 20, 30, 40, 50]
-  #     let pair = values.iter.partition fn (value) { value >= 30 }
+  # ```inko
+  # let values = [10, 20, 30, 40, 50]
+  # let pair = values.iter.partition fn (value) { value >= 30 }
   #
-  #     pair.0 # => [30, 40, 50]
-  #     pair.1 # => [10, 20]
+  # pair.0 # => [30, 40, 50]
+  # pair.1 # => [10, 20]
+  # ```
   fn pub move partition(func: fn (ref T) -> Bool) -> (Array[T], Array[T]) {
     reduce(([], []), fn move (acc, val) {
       if func.call(ref val) { acc.0.push(val) } else { acc.1.push(val) }
@@ -266,8 +288,10 @@ trait pub Iter[T] {
   #
   # Checking if all values in an `Iter` match a condition:
   #
-  #     [10, 20].iter.all? fn (value) { value.positive? } # => true
-  #     [-1, 20].iter.all? fn (value) { value.positive? } # => false
+  # ```inko
+  # [10, 20].iter.all? fn (value) { value.positive? } # => true
+  # [-1, 20].iter.all? fn (value) { value.positive? } # => false
+  # ```
   fn pub mut all?(func: fn (T) -> Bool) -> Bool {
     loop {
       match self.next {
@@ -287,19 +311,23 @@ trait pub Iter[T] {
   #
   # Zipping two `Iter` objects together:
   #
-  #     let a = [10, 20, 30]
-  #     let b = [40, 50, 60]
-  #     let zip = a.iter.zip(b.iter)
+  # ```inko
+  # let a = [10, 20, 30]
+  # let b = [40, 50, 60]
+  # let zip = a.iter.zip(b.iter)
   #
-  #     zip.next # => (10, 40)
+  # zip.next # => (10, 40)
+  # ```
   #
   # Zipping two `Iter` objects with a different number of values:
   #
-  #     let a = [10, 20, 30]
-  #     let b = [40, 50]
-  #     let zip = a.iter.zip(b.iter)
+  # ```inko
+  # let a = [10, 20, 30]
+  # let b = [40, 50]
+  # let zip = a.iter.zip(b.iter)
   #
-  #     zip.next # => (10, 40)
+  # zip.next # => (10, 40)
+  # ```
   fn pub move zip[U, I: mut + Iter[U]](other: I) -> Stream[(T, U)] {
     Stream.new(fn move { self.next.zip(other.next) })
   }
@@ -321,20 +349,37 @@ trait pub Iter[T] {
   #
   # Summing all integers in an iterator:
   #
-  #     let total = [1, 2, 3].iter.reduce(0) fn (total, current) {
-  #       total + current
-  #     }
+  # ```inko
+  # let total = [1, 2, 3].iter.reduce(0) fn (total, current) {
+  #   total + current
+  # }
   #
-  #     total # => 6
+  # total # => 6
+  # ```
   #
   # At each step of the iteration, the `total` and `current` func arguments are
   # set to the following values:
   #
-  # | Element | total | current | return value
-  # |:--------|:------|:--------|:-----------
-  # | 0       | 0     | 1       | 1
-  # | 1       | 1     | 2       | 3
-  # | 2       | 3     | 3       | 6
+  # |=
+  # | Element
+  # | Total
+  # | Current
+  # | Return value
+  # |-
+  # | 0
+  # | 0
+  # | 1
+  # | 1
+  # |-
+  # | 1
+  # | 1
+  # | 2
+  # | 3
+  # |-
+  # | 2
+  # | 3
+  # | 3
+  # | 6
   #
   # For the last element the return value is `6`, so the return value of the
   # reduce method is also `6`.
@@ -359,15 +404,17 @@ trait pub Iter[T] {
   #
   # # Examples
   #
-  #     let iter = [Result.Ok(1), Result.Error('test'), Result.Ok(2)].into_iter
-  #     let result = iter.try_reduce(0) fn (acc, val) {
-  #       match val {
-  #         case Ok(val) -> Result.Ok(acc + val)
-  #         case err -> err
-  #       }
-  #     }
+  # ```inko
+  # let iter = [Result.Ok(1), Result.Error('test'), Result.Ok(2)].into_iter
+  # let result = iter.try_reduce(0) fn (acc, val) {
+  #   match val {
+  #     case Ok(val) -> Result.Ok(acc + val)
+  #     case err -> err
+  #   }
+  # }
   #
-  #     result # => Result.Error('test')
+  # result # => Result.Error('test')
+  # ```
   fn pub mut try_reduce[A, E](
     accumulator: A,
     func: fn (A, T) -> Result[A, E],
@@ -410,7 +457,9 @@ trait pub Iter[T] {
   #
   # Transforming an `Iter` back into an `Array`:
   #
-  #     [1, 2, 3].iter.to_array # => [1, 2, 3]
+  # ```inko
+  # [1, 2, 3].iter.to_array # => [1, 2, 3]
+  # ```
   fn pub move to_array -> Array[T] {
     reduce([], fn (values, value) {
       values.push(value)
@@ -424,7 +473,9 @@ trait pub Iter[T] {
   #
   # # Examples
   #
-  #     [1, 2, 3].iter.count # => 3
+  # ```inko
+  # [1, 2, 3].iter.count # => 3
+  # ```
   fn pub move count -> Int {
     reduce(0, fn (count, _) { count + 1 })
   }
@@ -433,7 +484,9 @@ trait pub Iter[T] {
   #
   # # Examples
   #
-  #     [1, 2, 3].iter.last # => Option.Some(3)
+  # ```inko
+  # [1, 2, 3].iter.last # => Option.Some(3)
+  # ```
   fn pub move last -> Option[T] {
     reduce(Option.None, fn (_, val) { Option.Some(val) })
   }
@@ -443,13 +496,15 @@ trait pub Iter[T] {
   #
   # # Examples
   #
-  #     let vals = [1, 2, 3]
-  #     let iter = vals.iter.peekable
+  # ```inko
+  # let vals = [1, 2, 3]
+  # let iter = vals.iter.peekable
   #
-  #     iter.peek # => Option.Some(1)
-  #     iter.peek # => Option.Some(1)
-  #     iter.next # => Option.Some(1)
-  #     iter.next # => Option.Some(2)
+  # iter.peek # => Option.Some(1)
+  # iter.peek # => Option.Some(1)
+  # iter.next # => Option.Some(1)
+  # iter.next # => Option.Some(2)
+  # ```
   fn pub move peekable -> Peekable[T] {
     Peekable(iter: self, peeked: Option.None)
   }
@@ -463,8 +518,10 @@ trait pub Iter[T] {
   #
   # # Examples
   #
-  #     [1, 2, 3].into_iter.skip(1).to_array # => [2, 3]
-  #     [1].into_iter.skip(10).to_array      # => []
+  # ```inko
+  # [1, 2, 3].into_iter.skip(1).to_array # => [2, 3]
+  # [1].into_iter.skip(10).to_array      # => []
+  # ```
   fn pub move skip(amount: Int) -> Stream[T] {
     let mut pending = amount
 
@@ -485,8 +542,10 @@ trait pub Iter[T] {
   #
   # # Examples
   #
-  #     [1, 2, 3].into_iter.take(2).to_array # => [1, 2]
-  #     [1].into_iter.take(2).to_array       # => [1]
+  # ```inko
+  # [1, 2, 3].into_iter.take(2).to_array # => [1, 2]
+  # [1].into_iter.take(2).to_array       # => [1]
+  # ```
   fn pub move take(amount: Int) -> Stream[T] {
     let mut pending = amount
 
@@ -502,7 +561,9 @@ trait pub Iter[T] {
   #
   # # Examples
   #
-  #     [1, 2, 3].into_iter.skip_while fn (v) { v <= 2 }.to_array # => [3]
+  # ```inko
+  # [1, 2, 3].into_iter.skip_while fn (v) { v <= 2 }.to_array # => [3]
+  # ```
   fn pub move skip_while(func: fn (ref T) -> Bool) -> Stream[T] {
     let mut skip = true
 
@@ -529,7 +590,9 @@ trait pub Iter[T] {
   #
   # # Examples
   #
-  #     [1, 2, 3].into_iter.take_while fn (v) { v <= 2 }.to_array # => [1, 2]
+  # ```inko
+  # [1, 2, 3].into_iter.take_while fn (v) { v <= 2 }.to_array # => [1, 2]
+  # ```
   fn pub move take_while(func: fn (ref T) -> Bool) -> Stream[T] {
     let mut take = true
 
@@ -564,26 +627,28 @@ trait pub IntoIter[T] {
 #
 # # Examples
 #
-#     import std.iter (Stream)
+# ```inko
+# import std.iter (Stream)
 #
-#     fn example(max: Int) -> Stream[Int] {
-#       let mut index = 0
+# fn example(max: Int) -> Stream[Int] {
+#   let mut index = 0
 #
-#       Stream.new fn move {
-#         if index < max {
-#           Option.Some(index := index + 1)
-#         } else {
-#           Option.None
-#         }
-#       }
+#   Stream.new fn move {
+#     if index < max {
+#       Option.Some(index := index + 1)
+#     } else {
+#       Option.None
 #     }
+#   }
+# }
 #
-#     fn main {
-#       let nums = example(4)
+# fn main {
+#   let nums = example(4)
 #
-#       nums.next # => Option.Some(0)
-#       nums.next # => Option.Some(1)
-#     }
+#   nums.next # => Option.Some(0)
+#   nums.next # => Option.Some(1)
+# }
+# ```
 class pub Stream[T] {
   let @func: fn -> Option[T]
 

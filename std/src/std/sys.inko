@@ -93,9 +93,11 @@ fn pub cpu_cores -> Int {
 #
 # # Examples
 #
-#     import std.sys
+# ```inko
+# import std.sys
 #
-#     sys.exit(1)
+# sys.exit(1)
+# ```
 fn pub exit(status: Int) -> Never {
   inko_exit(status)
 }
@@ -137,15 +139,19 @@ impl ToInt for Stream {
 # changed to being redirected to the null device, or to be piped to a buffer.
 # For example, to pipe STDOUT:
 #
-#     import std.sys (Command, Stream)
+# ```inko
+# import std.sys (Command, Stream)
 #
-#     Command.new('ls').stdout(Stream.Piped).spawn.get
+# Command.new('ls').stdout(Stream.Piped).spawn.get
+# ```
 #
 # We can also ignore a stream:
 #
-#     import std.sys (Command, Stream)
+# ```inko
+# import std.sys (Command, Stream)
 #
-#     Command.new('ls').stderr(Stream.Null).spawn.get
+# Command.new('ls').stderr(Stream.Null).spawn.get
+# ```
 #
 # # Waiting for the child process
 #
@@ -153,11 +159,13 @@ impl ToInt for Stream {
 # reading/writing the standard input/output streams, and to wait for the process
 # to terminate. Waiting for a process is done using `ChildProcess.wait`:
 #
-#     import std.sys (Command)
+# ```inko
+# import std.sys (Command)
 #
-#     let child = Command.new('ls').get
+# let child = Command.new('ls').get
 #
-#     child.wait.get
+# child.wait.get
+# ```
 #
 # There's also `ChildProcess.try_wait`, which returns immediately if the process
 # is still running; instead of waiting for it to finish.
@@ -166,13 +174,15 @@ impl ToInt for Stream {
 # `ChildProcess.stdout`, and `ChildProcess.stderr`. For example, to read from
 # STDOUT:
 #
-#     import std.sys (Command)
+# ```inko
+# import std.sys (Command)
 #
-#     let child = Command.new('ls').get
-#     let bytes = ByteArray.new
+# let child = Command.new('ls').get
+# let bytes = ByteArray.new
 #
-#     child.wait.get
-#     child.stdout.read_all(bytes).get
+# child.wait.get
+# child.stdout.read_all(bytes).get
+# ```
 class pub Command {
   # The path to the program to spawn.
   let @program: String
@@ -210,15 +220,19 @@ class pub Command {
   #
   # Using a command name:
   #
-  #     import std.sys (Command)
+  # ```inko
+  # import std.sys (Command)
   #
-  #     Command.new('ls')
+  # Command.new('ls')
+  # ```
   #
   # Using a command path:
   #
-  #     import std.sys (Command)
+  # ```inko
+  # import std.sys (Command)
   #
-  #     Command.new('/usr/bin/ls')
+  # Command.new('/usr/bin/ls')
+  # ```
   fn pub static new[T: ToString](program: ref T) -> Command {
     Command(
       program: program.to_string,
@@ -240,9 +254,11 @@ class pub Command {
   #
   # # Examples
   #
-  #     import std.sys (Command)
+  # ```inko
+  # import std.sys (Command)
   #
-  #     Command.new('ls').directory('/tmp')
+  # Command.new('ls').directory('/tmp')
+  # ```
   fn pub mut directory[T: ToString](path: ref T) {
     @directory = Option.Some(path.to_string)
   }
@@ -256,9 +272,11 @@ class pub Command {
   #
   # # Examples
   #
-  #     import std.sys (Command)
+  # ```inko
+  # import std.sys (Command)
   #
-  #     Command.new('ls').argument('/tmp')
+  # Command.new('ls').argument('/tmp')
+  # ```
   fn pub mut argument(value: String) {
     @arguments.push(value)
   }
@@ -267,9 +285,11 @@ class pub Command {
   #
   # # Examples
   #
-  #     import std.sys (Command)
+  # ```inko
+  # import std.sys (Command)
   #
-  #     Command.new('ls').arguments(['/tmp', '/usr'])
+  # Command.new('ls').arguments(['/tmp', '/usr'])
+  # ```
   fn pub mut arguments(values: Array[String]) {
     @arguments.append(values)
   }
@@ -283,9 +303,11 @@ class pub Command {
   #
   # # Examples
   #
-  #     import std.sys (Command)
+  # ```inko
+  # import std.sys (Command)
   #
-  #     Command.new('env').variable(name: 'FOO', value: 'bar')
+  # Command.new('env').variable(name: 'FOO', value: 'bar')
+  # ```
   fn pub mut variable(name: String, value: String) {
     @variables.set(name, value)
   }
@@ -294,13 +316,15 @@ class pub Command {
   #
   # # Examples
   #
-  #     import std.sys (Command)
+  # ```inko
+  # import std.sys (Command)
   #
-  #     let vars = Map.new
+  # let vars = Map.new
   #
-  #     vars['FOO'] = 'bar'
+  # vars['FOO'] = 'bar'
   #
-  #     Command.new('env').variables(vars)
+  # Command.new('env').variables(vars)
+  # ```
   fn pub mut variables(values: Map[String, String]) {
     @variables.merge(values)
   }
@@ -329,9 +353,11 @@ class pub Command {
   #
   # # Examples
   #
-  #     let child = Command.new('ls').spawn.get
+  # ```inko
+  # let child = Command.new('ls').spawn.get
   #
-  #     child.wait.get
+  # child.wait.get
+  # ```
   fn pub spawn -> Result[ChildProcess, Error] {
     let vars = []
 
@@ -377,10 +403,12 @@ class pub ExitStatus {
   #
   # # Examples
   #
-  #     import std.sys (ExitStatus)
+  # ```inko
+  # import std.sys (ExitStatus)
   #
-  #     ExitStatus.new(0).success? # => true
-  #     ExitStatus.new(1).success? # => false
+  # ExitStatus.new(0).success? # => true
+  # ExitStatus.new(1).success? # => false
+  # ```
   fn pub success? -> Bool {
     @code == 0
   }

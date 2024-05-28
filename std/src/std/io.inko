@@ -130,9 +130,11 @@ class pub enum Error {
   #
   # # Examples
   #
-  #     import std.unix.errors (ENOENT)
+  # ```inko
+  # import std.unix.errors (ENOENT)
   #
-  #     Error.from_os_error(ENOENT) # => Error.NotFound
+  # Error.from_os_error(ENOENT) # => Error.NotFound
+  # ```
   fn pub static from_os_error(code: Int) -> Error {
     match code {
       case errors.EPERM -> Error.PermissionDenied
@@ -425,13 +427,15 @@ trait pub BufferedRead: Read {
   #
   # # Examples
   #
-  #     import std.fs.file (ReadOnlyFile)
-  #     import std.io (BufferedReader)
+  # ```inko
+  # import std.fs.file (ReadOnlyFile)
+  # import std.io (BufferedReader)
   #
-  #     let file = ReadOnlyFile.new('README.md').get
-  #     let reader = BufferedReader.new(file)
+  # let file = ReadOnlyFile.new('README.md').get
+  # let reader = BufferedReader.new(file)
   #
-  #     reader.read_byte # => Result.Ok(Option.Some(35))
+  # reader.read_byte # => Result.Ok(Option.Some(35))
+  # ```
   fn pub mut read_byte -> Result[Option[Int], Error]
 
   # Read bytes into `into` up to and including the byte specified in the `byte`
@@ -442,14 +446,16 @@ trait pub BufferedRead: Read {
   #
   # # Examples
   #
-  #     import std.fs.file (ReadOnlyFile)
-  #     import std.io (BufferedReader)
+  # ```inko
+  # import std.fs.file (ReadOnlyFile)
+  # import std.io (BufferedReader)
   #
-  #     let file = ReadOnlyFile.new('README.md').get
-  #     let reader = BufferedReader.new(file)
-  #     let bytes = ByteArray.new
+  # let file = ReadOnlyFile.new('README.md').get
+  # let reader = BufferedReader.new(file)
+  # let bytes = ByteArray.new
   #
-  #     reader.read(into: bytes, size: 32)
+  # reader.read(into: bytes, size: 32)
+  # ```
   fn pub mut read_until(byte: Int, into: mut ByteArray) -> Result[Int, Error] {
     let mut total = 0
 
@@ -476,14 +482,16 @@ trait pub BufferedRead: Read {
   #
   # # Examples
   #
-  #     import std.fs.file (ReadOnlyFile)
-  #     import std.io (BufferedReader)
+  # ```inko
+  # import std.fs.file (ReadOnlyFile)
+  # import std.io (BufferedReader)
   #
-  #     let file = ReadOnlyFile.new('README.md').get
-  #     let reader = BufferedReader.new(file)
-  #     let bytes = ByteArray.new
+  # let file = ReadOnlyFile.new('README.md').get
+  # let reader = BufferedReader.new(file)
+  # let bytes = ByteArray.new
   #
-  #     reader.read_line(into: bytes)
+  # reader.read_line(into: bytes)
+  # ```
   fn pub mut read_line(into: mut ByteArray) -> Result[Int, Error] {
     read_until(byte: 0xA, into: into)
   }
@@ -494,13 +502,15 @@ trait pub BufferedRead: Read {
   #
   # # Examples
   #
-  #     import std.fs.file (ReadOnlyFile)
-  #     import std.io (BufferedReader)
+  # ```inko
+  # import std.fs.file (ReadOnlyFile)
+  # import std.io (BufferedReader)
   #
-  #     let file = ReadOnlyFile.new('README.md').get
-  #     let reader = BufferedReader.new(file)
+  # let file = ReadOnlyFile.new('README.md').get
+  # let reader = BufferedReader.new(file)
   #
-  #     reader.bytes.next # => Option.Some(Result.Ok(35))
+  # reader.bytes.next # => Option.Some(Result.Ok(35))
+  # ```
   fn pub mut bytes -> Stream[Result[Int, Error]] {
     Stream.new(fn move {
       match read_byte {
@@ -611,18 +621,20 @@ impl Read for BufferedReader {
 # `ReadOnlyFile`), and you want to test that method without performing actual IO
 # operations. For example:
 #
-#     import std.io (Buffer, Read)
+# ```inko
+# import std.io (Buffer, Read)
 #
-#     fn read_string[T: Read + mut](reader: T) -> String {
-#       let bytes = ByteArray.new
+# fn read_string[T: Read + mut](reader: T) -> String {
+#   let bytes = ByteArray.new
 #
-#       reader.read_all(bytes)
-#       bytes.into_string
-#     }
+#   reader.read_all(bytes)
+#   bytes.into_string
+# }
 #
-#     let reader = Buffer.new('hello')
+# let reader = Buffer.new('hello')
 #
-#     read_string(reader) # => "hello"
+# read_string(reader) # => "hello"
+# ```
 class pub Buffer[T: Bytes] {
   let @bytes: T
   let @offset: Int

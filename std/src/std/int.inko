@@ -96,28 +96,34 @@ class builtin Int {
   #
   # Parsing a binary number:
   #
-  #     import std.int (Style)
+  # ```inko
+  # import std.int (Style)
   #
-  #     Int.parse('11', Format.Binary)  # => Option.Some(3)
-  #     Int.parse('-11', Format.Binary) # => Option.Some(-3)
-  #     Int.parse('ff', Format.Binary)  # => Option.None
+  # Int.parse('11', Format.Binary)  # => Option.Some(3)
+  # Int.parse('-11', Format.Binary) # => Option.Some(-3)
+  # Int.parse('ff', Format.Binary)  # => Option.None
+  # ```
   #
   # Parsing a decimal number:
   #
-  #     import std.int (Style)
+  # ```inko
+  # import std.int (Style)
   #
-  #     Int.parse('123', Format.Decimal)  # => Option.Some(123)
-  #     Int.parse('-123', Format.Decimal) # => Option.Some(-123)
-  #     Int.parse('abc', Format.Decimal)  # => Option.None
+  # Int.parse('123', Format.Decimal)  # => Option.Some(123)
+  # Int.parse('-123', Format.Decimal) # => Option.Some(-123)
+  # Int.parse('abc', Format.Decimal)  # => Option.None
+  # ```
   #
   # Parsing a hexadecimal number:
   #
-  #     import std.int (Style)
+  # ```inko
+  # import std.int (Style)
   #
-  #     Int.parse('ef', Format.Hex)    # => Option.Some(239)
-  #     Int.parse('0xef', Format.Hex)  # => Option.Some(239)
-  #     Int.parse('-0xef', Format.Hex) # => Option.Some(-239)
-  #     Int.parse('zz', Format.Hex)    # => Option.None
+  # Int.parse('ef', Format.Hex)    # => Option.Some(239)
+  # Int.parse('0xef', Format.Hex)  # => Option.Some(239)
+  # Int.parse('-0xef', Format.Hex) # => Option.Some(-239)
+  # Int.parse('zz', Format.Hex)    # => Option.None
+  # ```
   fn pub static parse[T: Bytes](
     bytes: ref T,
     format: ref Format,
@@ -198,7 +204,9 @@ class builtin Int {
   #
   # # Examples
   #
-  #     Int.sum([10, 20, 30].into_iter) => 60
+  # ```inko
+  # Int.sum([10, 20, 30].into_iter) => 60
+  # ```
   fn pub static sum[I: Iter[Int]](iterator: move I) -> Int {
     iterator.reduce(0, fn (acc, val) { acc + val })
   }
@@ -209,19 +217,25 @@ class builtin Int {
   #
   # Formatting an `Int` as binary number:
   #
-  #     import std.int (Style)
+  # ```inko
+  # import std.int (Style)
   #
-  #     3.format(Format.Binary)  # => '11'
-  #     -1.format(Format.Binary) # => '-11'
+  # 3.format(Format.Binary)  # => '11'
+  # -1.format(Format.Binary) # => '-11'
+  # ```
   #
   # Formatting an `Int` as a a decimal number:
   #
-  #     123.format(Format.Decimal) # => '123'
-  #     123.format(Format.Hex)     # => '7b'
+  # ```inko
+  # 123.format(Format.Decimal) # => '123'
+  # 123.format(Format.Hex)     # => '7b'
+  # ```
   #
   # Formatting an `Int` as a hexadecimal number:
   #
-  #     -123.format(Format.Hex) # => '-7b'
+  # ```inko
+  # -123.format(Format.Hex) # => '-7b'
+  # ```
   fn pub format(format: ref Format) -> String {
     let base = format.to_base
 
@@ -256,9 +270,11 @@ class builtin Int {
   #
   # # Examples
   #
-  #     4.times fn (i) {
-  #       i # => 0, 1, 2, 3
-  #     }
+  # ```inko
+  # 4.times fn (i) {
+  #   i # => 0, 1, 2, 3
+  # }
+  # ```
   fn pub times(block: fn (Int)) {
     let mut index = 0
 
@@ -273,8 +289,10 @@ class builtin Int {
   #
   # # Examples
   #
-  #     -4.absolute # => 4
-  #     4.absolute  # => 4
+  # ```inko
+  # -4.absolute # => 4
+  # 4.absolute  # => 4
+  # ```
   fn pub absolute -> Int {
     if self < 0 { 0 - self } else { clone }
   }
@@ -283,8 +301,10 @@ class builtin Int {
   #
   # # Examples
   #
-  #     -42.opposite # => 42
-  #     42.opposite  # => -42
+  # ```inko
+  # -42.opposite # => 42
+  # 42.opposite  # => -42
+  # ```
   fn pub opposite -> Int {
     0 - self
   }
@@ -303,10 +323,12 @@ class builtin Int {
   #
   # # Examples
   #
-  #     0.digits    # => 1
-  #     10.digits   # => 2
-  #     100.digits  # => 3
-  #     -100.digits # => 3
+  # ```inko
+  # 0.digits    # => 1
+  # 10.digits   # => 2
+  # 100.digits  # => 3
+  # -100.digits # => 3
+  # ```
   fn pub digits -> Int {
     if self == 0 { return 1 }
 
@@ -327,10 +349,12 @@ class builtin Int {
   #
   # # Examples
   #
-  #     0.nearest_power_of_two # => 0
-  #     1.nearest_power_of_two # => 1
-  #     2.nearest_power_of_two # => 2
-  #     3.nearest_power_of_two # => 4
+  # ```inko
+  # 0.nearest_power_of_two # => 0
+  # 1.nearest_power_of_two # => 1
+  # 2.nearest_power_of_two # => 2
+  # 3.nearest_power_of_two # => 4
+  # ```
   fn pub nearest_power_of_two -> Int {
     if self <= 0 { return 0 }
 
@@ -355,7 +379,9 @@ class builtin Int {
   #
   # # Examples
   #
-  #     12.not # => -13
+  # ```inko
+  # 12.not # => -13
+  # ```
   fn pub not -> Int {
     _INKO.int_bit_not(self)
   }
@@ -365,7 +391,9 @@ class builtin Int {
   #
   # # Examples
   #
-  #     0xaa00000000006e1.rotate_left(12) # => 0x6e10aa
+  # ```inko
+  # 0xaa00000000006e1.rotate_left(12) # => 0x6e10aa
+  # ```
   fn pub rotate_left(amount: Int) -> Int {
     _INKO.int_rotate_left(self, amount)
   }
@@ -375,7 +403,9 @@ class builtin Int {
   #
   # # Examples
   #
-  #     0x6e10aa.rotate_right(12) # => 0xaa00000000006e1
+  # ```inko
+  # 0x6e10aa.rotate_right(12) # => 0xaa00000000006e1
+  # ```
   fn pub rotate_right(amount: Int) -> Int {
     _INKO.int_rotate_right(self, amount)
   }
@@ -384,10 +414,12 @@ class builtin Int {
   #
   # # Examples
   #
-  #     import std.int (MAX, MIN)
+  # ```inko
+  # import std.int (MAX, MIN)
   #
-  #     1.wrapping_add(1)   # => 2
-  #     MAX.wrapping_add(1) # => MIN
+  # 1.wrapping_add(1)   # => 2
+  # MAX.wrapping_add(1) # => MIN
+  # ```
   fn pub wrapping_add(other: Int) -> Int {
     _INKO.int_wrapping_add(self, other)
   }
@@ -396,10 +428,12 @@ class builtin Int {
   #
   # # Examples
   #
-  #     import std.int (MAX, MIN)
+  # ```inko
+  # import std.int (MAX, MIN)
   #
-  #     1.wrapping_sub(1)   # => 0
-  #     MIN.wrapping_sub(1) # => MAX
+  # 1.wrapping_sub(1)   # => 0
+  # MIN.wrapping_sub(1) # => MAX
+  # ```
   fn pub wrapping_sub(other: Int) -> Int {
     _INKO.int_wrapping_sub(self, other)
   }
@@ -408,10 +442,12 @@ class builtin Int {
   #
   # # Examples
   #
-  #     import std.int (MAX)
+  # ```inko
+  # import std.int (MAX)
   #
-  #     1.wrapping_mul(2)   # => 2
-  #     MAX.wrapping_mul(2) # => -2
+  # 1.wrapping_mul(2)   # => 2
+  # MAX.wrapping_mul(2) # => -2
+  # ```
   fn pub wrapping_mul(other: Int) -> Int {
     _INKO.int_wrapping_mul(self, other)
   }
@@ -420,10 +456,12 @@ class builtin Int {
   #
   # # Examples
   #
-  #     import std.int (MAX)
+  # ```inko
+  # import std.int (MAX)
   #
-  #     1.checked_add(5)   # => Option.Some(6)
-  #     MAX.checked_add(1) # => Option.None
+  # 1.checked_add(5)   # => Option.Some(6)
+  # MAX.checked_add(1) # => Option.None
+  # ```
   fn pub checked_add(other: Int) -> Option[Int] {
     let res = _INKO.int_checked_add(self, other)
 
@@ -438,10 +476,12 @@ class builtin Int {
   #
   # # Examples
   #
-  #     import std.int (MAX, MIN)
+  # ```inko
+  # import std.int (MAX, MIN)
   #
-  #     1.checked_sub(1)   # => Option.Some(0)
-  #     MIN.checked_sub(1) # => Option.None
+  # 1.checked_sub(1)   # => Option.Some(0)
+  # MIN.checked_sub(1) # => Option.None
+  # ```
   fn pub checked_sub(other: Int) -> Option[Int] {
     let res = _INKO.int_checked_sub(self, other)
 
@@ -456,10 +496,12 @@ class builtin Int {
   #
   # # Examples
   #
-  #     import std.int (MAX)
+  # ```inko
+  # import std.int (MAX)
   #
-  #     1.checked_mul(2)   # => Option.Some(2)
-  #     MAX.checked_mul(2) # => Option.None
+  # 1.checked_mul(2)   # => Option.Some(2)
+  # MAX.checked_mul(2) # => Option.None
+  # ```
   fn pub checked_mul(other: Int) -> Option[Int] {
     let res = _INKO.int_checked_mul(self, other)
 
@@ -475,10 +517,12 @@ class builtin Int {
   #
   # # Examples
   #
-  #     import std.int (MAX)
+  # ```inko
+  # import std.int (MAX)
   #
-  #     10.checked_div(0) # => Option.None
-  #     10.checked_div(2) # => Option.Some(5)
+  # 10.checked_div(0) # => Option.None
+  # 10.checked_div(2) # => Option.Some(5)
+  # ```
   fn pub checked_div(other: Int) -> Option[Int] {
     if other == 0 or (self == MIN and other == -1) {
       Option.None
@@ -491,10 +535,12 @@ class builtin Int {
   #
   # # Examples
   #
-  #     import std.int (MAX)
+  # ```inko
+  # import std.int (MAX)
   #
-  #     2.checked_pow(2)   # => Option.Some(4)
-  #     MAX.checked_pow(2) # => Option.None
+  # 2.checked_pow(2)   # => Option.Some(4)
+  # MAX.checked_pow(2) # => Option.None
+  # ```
   fn pub checked_pow(other: Int) -> Option[Int] {
     let res = inko_int_checked_pow(self, other)
 

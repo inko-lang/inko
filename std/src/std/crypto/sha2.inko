@@ -2,18 +2,22 @@
 #
 # # Examples
 #
-#     import std.crypto.sha2 (Sha256)
+# ```inko
+# import std.crypto.sha2 (Sha256)
 #
-#     let hasher = Sha256.new
+# let hasher = Sha256.new
 #
-#     hasher.write('hello'.to_byte_array)
-#     hasher.finish.to_string # => '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824'
+# hasher.write('hello'.to_byte_array)
+# hasher.finish.to_string # => '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824'
+# ```
 #
 # Or when using the `hash` static method:
 #
-#     import std.crypto.sha2 (Sha256)
+# ```inko
+# import std.crypto.sha2 (Sha256)
 #
-#     Sha256.hash('hello'.to_byte_array).to_string # => '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824'
+# Sha256.hash('hello'.to_byte_array).to_string # => '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824'
+# ```
 #
 # # Limitations
 #
@@ -88,9 +92,11 @@ class pub Sha256 {
   #
   # # Examples
   #
-  #     import std.crypto.sha2 (Sha256)
+  # ```inko
+  # import std.crypto.sha2 (Sha256)
   #
-  #     Sha256.hash('hello')
+  # Sha256.hash('hello')
+  # ```
   fn pub static hash(bytes: ref ByteArray) -> Hash {
     let hasher = new
 
@@ -246,9 +252,11 @@ class pub Sha512 {
   #
   # # Examples
   #
-  #     import std.crypto.sha2 (Sha512)
+  # ```inko
+  # import std.crypto.sha2 (Sha512)
   #
-  #     Sha512.hash('hello')
+  # Sha512.hash('hello')
+  # ```
   fn pub static hash(bytes: ref ByteArray) -> Hash {
     let hasher = new
 
