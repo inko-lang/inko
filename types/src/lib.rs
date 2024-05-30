@@ -3937,6 +3937,12 @@ impl TypeRef {
     }
 
     pub fn as_uni_reference(self, db: &Database) -> Self {
+        // Value types can always be exposed to recover blocks, as we can simply
+        // copy them upon moving them around.
+        if self.is_value_type(db) {
+            return self;
+        }
+
         match self {
             TypeRef::Owned(id) | TypeRef::Mut(id) => TypeRef::UniMut(id),
             TypeRef::Ref(id) => TypeRef::UniRef(id),

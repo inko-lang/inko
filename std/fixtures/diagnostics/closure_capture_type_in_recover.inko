@@ -1,0 +1,13 @@
+fn example1 {
+  let a = 'hello'
+
+  recover fn { a }
+}
+
+fn example2 {
+  let a = [10, 20]
+
+  recover fn -> Nil { a }
+}
+
+# closure_capture_type_in_recover.inko:10:23 error(invalid-symbol): the variable 'a' exists, but its type ('uni mut Array[Int]') prevents it from being captured

@@ -1,0 +1,15 @@
+fn example1 {
+  let a = 'hello'
+
+  recover a
+  recover a.TEST
+}
+
+fn example2 {
+  let a = [10]
+
+  recover a
+}
+
+# recover_outer_type.inko:5:11 error(invalid-symbol): the method 'TEST' isn't defined for type 'String'
+# recover_outer_type.inko:11:3 error(invalid-type): values of type 'uni mut Array[Int]' can't be recovered
