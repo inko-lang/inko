@@ -1,0 +1,14 @@
+class A {}
+
+fn example1 {
+  let a = recover [A()]
+  let b = recover fn { a.push(A()) }
+}
+
+fn example2 {
+  let a = recover [A()]
+  let b = recover fn move { a.push(A()) }
+}
+
+# fn_move_captures_uni.inko:5:24 error(invalid-symbol): the variable 'a' exists, but its type ('uni Array[A]') prevents it from being captured
+# fn_move_captures_uni.inko:5:31 error(invalid-type): the receiver of this call requires sendable arguments, but 'A' isn't sendable

@@ -4542,6 +4542,21 @@ impl<'a> CheckMethodBody<'a> {
                     // closures the capture type is always a reference.
                     if captured {
                         capture_as = expose_as;
+                    } else if moving && capture_as.is_uni(self.db()) {
+                        // When an `fn move` captures a `uni T`, we capture it
+                        // as-is but expose it as `mut T`, making it easier to
+                        // work with the value. This is safe because:
+                        //
+                        // 1. The closure itself doesn't care about the
+                        //    uniqueness constraint
+                        // 2. We can't move the value out of the closure and
+                        //    back into a `uni T` value
+                        //
+                        // We don't change the capture type such that `fn move`
+                        // closures capturing `uni T` values can still be
+                        // inferred as `uni fn move` closures.
+                        expose_as =
+                            capture_as.as_owned(self.db()).as_mut(self.db());
                     } else {
                         if !moving {
                             capture_as = capture_as.as_mut(self.db());
