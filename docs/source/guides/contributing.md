@@ -242,20 +242,6 @@ when looking at commits, and is better suited for issues and merge requests.
 Keeping the above rules in mind, it also reduces the amount of space available
 per line; the subject in particular.
 
-These rules are enforced using
-[gitlint](https://github.com/jorisroovers/gitlint), which runs as part of our
-continuous integration setup. If needed, you can run gitlint manually like so:
-
-```bash
-gitlint
-```
-
-To run gitlint for the last 10 commits:
-
-```bash
-gitlint --commits 'HEAD~10..HEAD'
-```
-
 For more details about writing commit messages, take a look at
 [this article](https://chris.beams.io/posts/git-commit/).
 

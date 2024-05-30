@@ -21,16 +21,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: EmbarkStudios/cargo-deny-action@v1
 
-  gitlint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 10
-      - run: pip install gitlint
-      - run: git config --global --add safe.directory $PWD
-      - run: gitlint --commits "HEAD~9..HEAD"
-
   cargo-clippy:
     runs-on: ubuntu-latest
     container:
