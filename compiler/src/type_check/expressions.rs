@@ -4356,6 +4356,10 @@ impl<'a> CheckMethodBody<'a> {
         scope: &LexicalScope,
         location: &SourceLocation,
     ) {
+        if scope.surrounding_type.is_value_type(self.db()) {
+            return;
+        }
+
         if scope.in_closure_in_recover() {
             self.state
                 .diagnostics

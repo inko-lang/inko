@@ -1,0 +1,26 @@
+class A {
+  fn foo {
+    recover fn { bar }
+    recover fn { self.bar }
+  }
+
+  fn bar {}
+}
+
+impl String {
+  fn foo {
+    recover fn { bar }
+    recover fn { self.bar }
+  }
+
+  fn bar {}
+}
+
+fn example1 {
+  recover fn { example2 }
+}
+
+fn example2 {}
+
+# closure_capture_self.inko:3:18 error(invalid-type): closures inside a 'recover' can't capture or use 'self'
+# closure_capture_self.inko:4:18 error(invalid-type): closures inside a 'recover' can't capture or use 'self'

@@ -4141,6 +4141,12 @@ impl TypeRef {
             | TypeRef::Uni(TypeId::ClassInstance(ins)) => {
                 ins.instance_of().is_value_type(db)
             }
+            // Modules technically aren't values, but this allows certain checks
+            // for value types (e.g. to see if `self` can be captured) to
+            // automatically also handle modules.
+            TypeRef::Owned(TypeId::Module(_))
+            | TypeRef::Ref(TypeId::Module(_))
+            | TypeRef::Mut(TypeId::Module(_)) => true,
             TypeRef::Owned(TypeId::Foreign(_)) => true,
             TypeRef::Pointer(_) => true,
             TypeRef::Placeholder(id) => {
