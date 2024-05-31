@@ -5627,24 +5627,29 @@ mod tests {
 
     #[test]
     fn test_type_ref_as_uni_reference() {
-        let db = Database::new();
+        let mut db = Database::new();
+        let foo = new_class(&mut db, "Foo");
         let int = ClassId::int();
 
         assert_eq!(
+            owned(instance(foo)).as_uni_reference(&db),
+            TypeRef::UniMut(instance(foo))
+        );
+        assert_eq!(
             owned(instance(int)).as_uni_reference(&db),
-            TypeRef::UniMut(instance(int))
+            TypeRef::Owned(instance(int))
         );
         assert_eq!(
-            immutable(instance(int)).as_uni_reference(&db),
-            TypeRef::UniRef(instance(int))
+            immutable(instance(foo)).as_uni_reference(&db),
+            TypeRef::UniRef(instance(foo))
         );
         assert_eq!(
-            mutable(instance(int)).as_uni_reference(&db),
-            TypeRef::UniMut(instance(int))
+            mutable(instance(foo)).as_uni_reference(&db),
+            TypeRef::UniMut(instance(foo))
         );
         assert_eq!(
-            uni(instance(int)).as_uni_reference(&db),
-            uni(instance(int))
+            uni(instance(foo)).as_uni_reference(&db),
+            uni(instance(foo))
         );
     }
 
