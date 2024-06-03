@@ -27,10 +27,10 @@ fn extern inko_reset_error
 # The byte of the "." character.
 let DOT = 46
 
-class pub ReadDirectory {
+class ReadDirectory {
   let @stream: Pointer[UInt8]
 
-  fn pub static new(path: String) -> Result[ReadDirectory, Error] {
+  fn static new(path: String) -> Result[ReadDirectory, Error] {
     let stream = dir_imp.opendir(path.to_pointer)
 
     if stream as Int != 0 {

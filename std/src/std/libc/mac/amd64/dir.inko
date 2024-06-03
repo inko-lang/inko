@@ -16,18 +16,18 @@ fn extern opendir$INODE64(path: Pointer[UInt8]) -> Pointer[UInt8]
 
 fn extern readdir$INODE64(stream: Pointer[UInt8]) -> Pointer[UInt8]
 
-fn pub opendir(path: Pointer[UInt8]) -> Pointer[UInt8] {
+fn opendir(path: Pointer[UInt8]) -> Pointer[UInt8] {
   opendir$INODE64(path)
 }
 
-fn pub readdir(path: Pointer[UInt8]) -> Pointer[UInt8] {
+fn readdir(path: Pointer[UInt8]) -> Pointer[UInt8] {
   readdir$INODE64(path)
 }
 
-fn pub dirent_type(pointer: Pointer[UInt8]) -> Int {
+fn dirent_type(pointer: Pointer[UInt8]) -> Int {
   (pointer as Pointer[Dirent]).d_type as Int
 }
 
-fn pub dirent_name(pointer: Pointer[UInt8]) -> Pointer[UInt8] {
+fn dirent_name(pointer: Pointer[UInt8]) -> Pointer[UInt8] {
   pointer as Int + 21 as Pointer[UInt8]
 }

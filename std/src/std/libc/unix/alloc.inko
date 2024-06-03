@@ -6,9 +6,9 @@ fn extern memmove(
   size: Int,
 ) -> Pointer[UInt8]
 
-fn pub extern free(pointer: Pointer[UInt8])
+fn extern free(pointer: Pointer[UInt8])
 
-fn pub resize[T](buffer: Pointer[T], size: Int) -> Pointer[T] {
+fn resize[T](buffer: Pointer[T], size: Int) -> Pointer[T] {
   let ptr = realloc(buffer as Pointer[UInt8], size)
 
   # In this case there's nothing we can do but abort.
@@ -19,6 +19,6 @@ fn pub resize[T](buffer: Pointer[T], size: Int) -> Pointer[T] {
   ptr as Pointer[T]
 }
 
-fn pub copy[T](from: Pointer[T], to: Pointer[T], size: Int) {
+fn copy[T](from: Pointer[T], to: Pointer[T], size: Int) {
   memmove(to as Pointer[UInt8], from as Pointer[UInt8], size)
 }

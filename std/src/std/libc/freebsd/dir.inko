@@ -7,14 +7,14 @@ class extern Dirent {
   let @d_pad0: UInt32
 }
 
-fn pub extern opendir(path: Pointer[UInt8]) -> Pointer[UInt8]
+fn extern opendir(path: Pointer[UInt8]) -> Pointer[UInt8]
 
-fn pub extern readdir(stream: Pointer[UInt8]) -> Pointer[UInt8]
+fn extern readdir(stream: Pointer[UInt8]) -> Pointer[UInt8]
 
-fn pub dirent_type(pointer: Pointer[UInt8]) -> Int {
+fn dirent_type(pointer: Pointer[UInt8]) -> Int {
   (pointer as Pointer[Dirent]).d_type as Int
 }
 
-fn pub dirent_name(pointer: Pointer[UInt8]) -> Pointer[UInt8] {
+fn dirent_name(pointer: Pointer[UInt8]) -> Pointer[UInt8] {
   pointer as Int + 24 as Pointer[UInt8]
 }
