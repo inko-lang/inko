@@ -1,4 +1,5 @@
 import helpers (hash)
+import std.cmp (Ordering)
 import std.fmt (fmt)
 import std.fs.path (Path)
 import std.test (Tests)
@@ -340,5 +341,19 @@ fn pub tests(t: mut Tests) {
     t.equal('foo'.replace('foo', '😃'), '😃')
     t.equal('foo'.replace('foo', 'foobar'), 'foobar')
     t.equal('a,b,c,d'.replace(',', '  '), 'a  b  c  d')
+  })
+
+  t.test('String.cmp', fn (t) {
+    t.equal(''.cmp(''), Ordering.Equal)
+    t.equal(''.cmp('a'), Ordering.Less)
+    t.equal('a'.cmp(''), Ordering.Greater)
+    t.equal('a'.cmp('a'), Ordering.Equal)
+    t.equal('a'.cmp('b'), Ordering.Less)
+    t.equal('c'.cmp('b'), Ordering.Greater)
+    t.equal('aaa'.cmp('bbb'), Ordering.Less)
+    t.equal('aaa'.cmp('bb'), Ordering.Less)
+    t.equal('aa'.cmp('aab'), Ordering.Less)
+    t.equal('aab'.cmp('aa'), Ordering.Greater)
+    t.equal('zzz'.cmp('a'), Ordering.Greater)
   })
 }

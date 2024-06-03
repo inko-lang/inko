@@ -8,7 +8,7 @@
 import std.array (bounds_check)
 import std.byte_array (IntoByteArray, ToByteArray)
 import std.clone (Clone)
-import std.cmp (Contains, Equal)
+import std.cmp (Compare, Contains, Equal, Ordering, min)
 import std.drop (Drop)
 import std.fmt (Format, Formatter)
 import std.fs.path (Path)
@@ -842,6 +842,31 @@ impl Format for String {
     formatter.write('"')
     formatter.write(escaped)
     formatter.write('"')
+  }
+}
+
+impl Compare[String] for String {
+  # Performs a byte-wise comparison of `self` with `other`.
+  #
+  # This method _does not_ perform lexicographic sorting, and thus produces
+  # unreliable results for multi-byte strings.
+  #
+  # # Examples
+  #
+  #     'aaa'.cmp('bbb') # => Ordering.Less
+  #     'aab'.cmp('aaa') # => Ordering.Greater
+  fn pub cmp(other: String) -> Ordering {
+    let mut max = min(size, other.size)
+    let mut idx = 0
+
+    while idx < max {
+      match byte_unchecked(idx).cmp(other.byte_unchecked(idx)) {
+        case Equal -> idx += 1
+        case ord -> return ord
+      }
+    }
+
+    size.cmp(other.size)
   }
 }
 
