@@ -20,6 +20,7 @@
 # ```
 #
 # For more information refer to the documentation of `Int.to` and `Int.until`.
+import std.clone (Clone)
 import std.cmp (Compare, Contains, Equal, min)
 import std.fmt (Format, Formatter)
 import std.hash (Hash, Hasher)
@@ -54,6 +55,12 @@ class pub InclusiveRange {
   # Returns a new `InclusiveRange` over the given values.
   fn pub static new(start: Int, end: Int) -> InclusiveRange {
     InclusiveRange(start: start, end: end)
+  }
+}
+
+impl Clone[InclusiveRange] for InclusiveRange {
+  fn pub clone -> InclusiveRange {
+    InclusiveRange(start: @start, end: @end)
   }
 }
 
@@ -151,6 +158,12 @@ class pub ExclusiveRange {
   # Returns a new `ExclusiveRange` over the given values.
   fn pub static new(start: Int, end: Int) -> ExclusiveRange {
     ExclusiveRange(start: start, end: end)
+  }
+}
+
+impl Clone[ExclusiveRange] for ExclusiveRange {
+  fn pub clone -> ExclusiveRange {
+    ExclusiveRange(start: @start, end: @end)
   }
 }
 

@@ -78,4 +78,12 @@ fn pub tests(t: mut Tests) {
     t.equal(ExclusiveRange.new(0, 0).size, 0)
     t.equal(ExclusiveRange.new(0, -2).size, 0)
   })
+
+  t.test('InclusiveRange.clone', fn (t) {
+    t.equal(InclusiveRange.new(0, 10).clone, InclusiveRange.new(0, 10))
+  })
+
+  t.test('ExclusiveRange.clone', fn (t) {
+    t.equal(ExclusiveRange.new(0, 10).clone, ExclusiveRange.new(0, 10))
+  })
 }
