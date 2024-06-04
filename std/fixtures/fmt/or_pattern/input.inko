@@ -1,0 +1,13 @@
+fn example {
+  match foo {
+    case aaaaaaaaaaaaaaaaaaaaaaaaa or bbbbbbbbbbbbbbbbbbbbbbbbbbb -> 100
+  }
+
+  match foo {
+    case aaaaaaaaaaaaaaaaaaaaaaaaa or bbbbbbbbbbbbbbbbbbbbbbbbbbb or cccccccccccccccccccccccccccc -> 100
+  }
+
+  match foo {
+    case aaaaaaaaaaaaaaaaaaaaaaaaa or bbbbbbbbbbbbbbbbbbbbbbbbbbb or cccccccccccccccccccccccccccc if aaa and bbb -> 100
+  }
+}

@@ -1,0 +1,17 @@
+fn example {
+  match foo {
+    case (aaaaaaaaaaaaaaaaaaaaaaaaa, bbbbbbbbbbbbbbbbbbbbbbbbbbb) -> 100
+  }
+
+  match foo {
+    case
+      (
+        aaaaaaaaaaaaaaaaaaaaaaaaa,
+        bbbbbbbbbbbbbbbbbbbbbbbbbbb,
+        cccccccccccccccccccccccccccc,
+      )
+    -> {
+      100
+    }
+  }
+}

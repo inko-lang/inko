@@ -1,0 +1,32 @@
+fn example {
+  match foo {
+    case { @aaaaaaaaaaaaaaa = a, @bbbbbbbbbbbbbbb = b } -> 100
+  }
+
+  match foo {
+    case
+      {
+        @aaaaaaaaaaaaaaa = a,
+        @bbbbbbbbbbbbbbb = b,
+        @ccccccccccccccc = c,
+        @ddddddddddddddddd = d,
+      }
+    -> {
+      100
+    }
+  }
+
+  match foo {
+    case
+      {
+        @aaaaaaaaaaaaaaa = a,
+        @bbbbbbbbbbbbbbb = b,
+        @ccccccccccccccc = c,
+        @ddddddddddddddddd = d,
+      }
+    if aaaa and bbbb
+    -> {
+      100
+    }
+  }
+}

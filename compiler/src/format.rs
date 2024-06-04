@@ -2010,15 +2010,23 @@ impl Document {
     fn match_case(&mut self, node: &nodes::MatchCase) -> Node {
         let head_id = self.new_group_id();
         let body_id = self.new_group_id();
+
+        let pat = self.pattern(&node.pattern);
+        let pat_id =
+            if let Node::Group(v, _) = &pat { *v } else { unreachable!() };
         let mut head = vec![
             Node::text("case"),
             Node::SpaceOrLine,
-            Node::Indent(vec![self.pattern(&node.pattern)]),
+            Node::Indent(vec![pat]),
         ];
 
         if let Some(node) = &node.guard {
             let guard = vec![
-                Node::SpaceOrLine,
+                Node::IfWrap(
+                    pat_id,
+                    Box::new(Node::Line),
+                    Box::new(Node::SpaceOrLine),
+                ),
                 Node::text("if "),
                 self.expression(node),
             ];
@@ -2026,8 +2034,12 @@ impl Document {
             head.push(self.group(guard))
         }
 
-        let arrow_sep = if matches!(node.pattern, nodes::Pattern::Or(_))
-            || node.guard.is_some()
+        let arrow_sep = if matches!(
+            node.pattern,
+            nodes::Pattern::Or(_)
+                | nodes::Pattern::Class(_)
+                | nodes::Pattern::Tuple(_)
+        ) || node.guard.is_some()
         {
             Node::HardLine
         } else {
