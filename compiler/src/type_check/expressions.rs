@@ -3625,6 +3625,14 @@ impl<'a> CheckMethodBody<'a> {
                 };
             }
             MethodLookup::None => {
+                if let TypeId::Module(mod_id) = rec_id {
+                    if let Some(Symbol::Class(id)) =
+                        mod_id.symbol(self.db(), &node.name.name)
+                    {
+                        return self.new_class_instance(node, scope, id);
+                    }
+                }
+
                 self.state.diagnostics.undefined_method(
                     &node.name.name,
                     self.fmt(receiver),

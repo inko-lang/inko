@@ -1,0 +1,8 @@
+import foo
+
+fn example {
+  foo.Foo(number: 42)
+  foo.Bar(number: 42)
+}
+
+# class_instance_with_receiver.inko:5:3 error(invalid-symbol): the method 'Bar' isn't defined for type 'foo'
