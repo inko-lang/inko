@@ -97,7 +97,7 @@ class builtin Int {
   # Parsing a binary number:
   #
   # ```inko
-  # import std.int (Style)
+  # import std.int (Format)
   #
   # Int.parse('11', Format.Binary)  # => Option.Some(3)
   # Int.parse('-11', Format.Binary) # => Option.Some(-3)
@@ -107,7 +107,7 @@ class builtin Int {
   # Parsing a decimal number:
   #
   # ```inko
-  # import std.int (Style)
+  # import std.int (Format)
   #
   # Int.parse('123', Format.Decimal)  # => Option.Some(123)
   # Int.parse('-123', Format.Decimal) # => Option.Some(-123)
@@ -117,7 +117,7 @@ class builtin Int {
   # Parsing a hexadecimal number:
   #
   # ```inko
-  # import std.int (Style)
+  # import std.int (Format)
   #
   # Int.parse('ef', Format.Hex)    # => Option.Some(239)
   # Int.parse('0xef', Format.Hex)  # => Option.Some(239)
@@ -218,7 +218,7 @@ class builtin Int {
   # Formatting an `Int` as binary number:
   #
   # ```inko
-  # import std.int (Style)
+  # import std.int (Format)
   #
   # 3.format(Format.Binary)  # => '11'
   # -1.format(Format.Binary) # => '-11'
