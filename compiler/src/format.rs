@@ -1794,10 +1794,7 @@ impl Document {
             match start {
                 Some(Expression::Call(n)) => {
                     start = n.receiver.as_ref();
-                    calls.push((
-                        &n.name.name,
-                        n.arguments.as_ref().filter(|n| !n.values.is_empty()),
-                    ));
+                    calls.push((&n.name.name, n.arguments.as_ref()));
                 }
                 Some(node) => {
                     start = Some(node);
@@ -1826,10 +1823,11 @@ impl Document {
 
             let mut args = Vec::new();
 
-            // For calls such as `User()` we want to retain the parentheses, as
-            // this syntax is also used for creating instances of classes.
-            if node.is_none()
-                && head.is_empty()
+            // When parentheses are explicitly used for expressions such as
+            // `User()` and `foo.User()`, we retain the parentheses as they
+            // might be used to create an instance of a new class.
+            if node.is_some()
+                && node.map_or(false, |v| v.values.is_empty())
                 && name.chars().next().map_or(false, |v| v.is_uppercase())
             {
                 header.push(Node::text("()"));

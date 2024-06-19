@@ -109,6 +109,14 @@ pub(crate) struct Call {
     pub(crate) receiver: Option<Expression>,
     pub(crate) name: Identifier,
     pub(crate) arguments: Vec<Argument>,
+    /// A flag that signals parentheses are used, even if no arguments are
+    /// specified. This is used to disambiguate between `Foo` referring to a
+    /// class, and `Foo()` that creates an instance of a class.
+    ///
+    /// We use this flag instead of turning `arguments` into
+    /// `Option<Vec<Argument>>` since we don't care about the presence (or lack)
+    /// of parentheses 99% of the time.
+    pub(crate) parens: bool,
     pub(crate) location: SourceLocation,
 }
 
@@ -1866,6 +1874,7 @@ impl<'a> LowerToHir<'a> {
                             name: types::TO_STRING_METHOD.to_string(),
                             location: loc.clone(),
                         },
+                        parens: false,
                         arguments: Vec::new(),
                         location: loc,
                     }));
@@ -1931,6 +1940,7 @@ impl<'a> LowerToHir<'a> {
                     name: ARRAY_WITH_CAPACITY.to_string(),
                     location: node.location.clone(),
                 },
+                parens: true,
                 arguments: vec![Argument::Positional(Box::new(
                     PositionalArgument {
                         value: Expression::Int(Box::new(IntLiteral {
@@ -1964,6 +1974,7 @@ impl<'a> LowerToHir<'a> {
                     name: ARRAY_PUSH.to_string(),
                     location: node.location.clone(),
                 },
+                parens: true,
                 arguments: vec![Argument::Positional(Box::new(
                     PositionalArgument {
                         value: arg,
@@ -2196,6 +2207,7 @@ impl<'a> LowerToHir<'a> {
                 name: op.method_name().to_string(),
                 location: node.operator.location,
             },
+            parens: true,
             arguments: vec![Argument::Positional(Box::new(
                 PositionalArgument {
                     value: self.expression(node.right),
@@ -2254,6 +2266,7 @@ impl<'a> LowerToHir<'a> {
             kind: types::CallKind::Unknown,
             receiver: node.receiver.map(|n| self.expression(n)),
             name: self.identifier(node.name),
+            parens: node.arguments.is_some(),
             arguments: self.optional_call_arguments(node.arguments),
             location: node.location,
         }))
@@ -2394,6 +2407,7 @@ impl<'a> LowerToHir<'a> {
                     location: node.operator.location,
                 },
                 receiver: Some(receiver),
+                parens: true,
                 arguments: vec![Argument::Positional(Box::new(
                     PositionalArgument {
                         value: self.expression(node.value),
@@ -2430,6 +2444,7 @@ impl<'a> LowerToHir<'a> {
                     location: node.operator.location,
                 },
                 receiver: Some(receiver),
+                parens: true,
                 arguments: vec![Argument::Positional(Box::new(
                     PositionalArgument {
                         value: self.expression(node.value),
@@ -2467,6 +2482,7 @@ impl<'a> LowerToHir<'a> {
             kind: types::CallKind::Unknown,
             receiver: Some(setter_rec.clone()),
             name: name.clone(),
+            parens: false,
             arguments: Vec::new(),
             location: getter_loc,
         }));
@@ -2478,6 +2494,7 @@ impl<'a> LowerToHir<'a> {
             value: Expression::Call(Box::new(Call {
                 kind: types::CallKind::Unknown,
                 receiver: Some(getter_rec),
+                parens: true,
                 arguments: vec![Argument::Positional(Box::new(
                     PositionalArgument {
                         value: self.expression(node.value),
@@ -2811,6 +2828,7 @@ impl<'a> LowerToHir<'a> {
                 name: node.class_name.name,
                 location: node.class_name.location,
             },
+            parens: true,
             arguments: node
                 .fields
                 .into_iter()
@@ -4904,6 +4922,7 @@ mod tests {
                             name: types::TO_STRING_METHOD.to_string(),
                             location: cols(12, 13)
                         },
+                        parens: false,
                         arguments: Vec::new(),
                         location: cols(12, 13)
                     })),
@@ -4951,6 +4970,7 @@ mod tests {
                                 name: "with_capacity".to_string(),
                                 location: cols(8, 11),
                             },
+                            parens: true,
                             arguments: vec![Argument::Positional(Box::new(
                                 PositionalArgument {
                                     value: Expression::Int(Box::new(
@@ -4981,6 +5001,7 @@ mod tests {
                             name: "push".to_string(),
                             location: cols(8, 11),
                         },
+                        parens: true,
                         arguments: vec![Argument::Positional(Box::new(
                             PositionalArgument {
                                 value: Expression::Int(Box::new(IntLiteral {
@@ -5037,6 +5058,7 @@ mod tests {
                     resolved_type: types::TypeRef::Unknown,
                     location: cols(8, 8)
                 }))),
+                parens: true,
                 arguments: vec![Argument::Positional(Box::new(
                     PositionalArgument {
                         value: Expression::Int(Box::new(IntLiteral {
@@ -5106,6 +5128,7 @@ mod tests {
                     name: "B".to_string(),
                     location: cols(10, 10)
                 },
+                parens: false,
                 arguments: Vec::new(),
                 location: cols(8, 10)
             }))
@@ -5139,6 +5162,7 @@ mod tests {
                     name: "a".to_string(),
                     location: cols(8, 8)
                 },
+                parens: true,
                 arguments: vec![Argument::Positional(Box::new(
                     PositionalArgument {
                         value: Expression::Int(Box::new(IntLiteral {
@@ -5167,6 +5191,7 @@ mod tests {
                     name: "a".to_string(),
                     location: cols(8, 8)
                 },
+                parens: true,
                 arguments: vec![Argument::Named(Box::new(NamedArgument {
                     index: 0,
                     name: Identifier {
@@ -5205,6 +5230,7 @@ mod tests {
                     name: "b".to_string(),
                     location: cols(10, 10)
                 },
+                parens: false,
                 arguments: Vec::new(),
                 location: cols(8, 10)
             }))
@@ -5379,6 +5405,7 @@ mod tests {
                             location: cols(8, 8)
                         }
                     ))),
+                    parens: true,
                     arguments: vec![Argument::Positional(Box::new(
                         PositionalArgument {
                             value: Expression::Int(Box::new(IntLiteral {
@@ -5461,9 +5488,11 @@ mod tests {
                             name: "b".to_string(),
                             location: cols(10, 10)
                         },
+                        parens: false,
                         arguments: Vec::new(),
                         location: cols(8, 10)
                     }))),
+                    parens: true,
                     arguments: vec![Argument::Positional(Box::new(
                         PositionalArgument {
                             value: Expression::Int(Box::new(IntLiteral {
@@ -5503,6 +5532,7 @@ mod tests {
                         resolved_type: types::TypeRef::Unknown,
                         location: cols(8, 9)
                     }))),
+                    parens: true,
                     arguments: vec![Argument::Positional(Box::new(
                         PositionalArgument {
                             value: Expression::Int(Box::new(IntLiteral {
@@ -5887,6 +5917,7 @@ mod tests {
                         name: "a".to_string(),
                         location: cols(12, 12)
                     },
+                    parens: true,
                     arguments: Vec::new(),
                     location: cols(12, 14)
                 })),

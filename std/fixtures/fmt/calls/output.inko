@@ -39,4 +39,10 @@ fn example {
       200
     },
   )
+
+  Foo()
+  Foo(number: 1)
+  a.Foo()
+  a.Foo(number: 1)
+  a.Foo
 }

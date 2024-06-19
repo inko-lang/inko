@@ -3571,7 +3571,7 @@ impl<'a> CheckMethodBody<'a> {
 
                 return TypeRef::Error;
             }
-            MethodLookup::None if node.arguments.is_empty() => {
+            MethodLookup::None if node.arguments.is_empty() && !node.parens => {
                 if let Some(typ) =
                     self.field_with_receiver(node, receiver, rec_id)
                 {
