@@ -439,6 +439,16 @@ fn pub tests(t: mut Tests) {
     t.true(server.accept.error?)
   })
 
+  t.test('Socket.timeout_after= with a read after a timeout', fn (t) {
+    let server = Socket.ipv4(Type.STREAM).get
+    let bytes = ByteArray.new
+
+    server.timeout_after = Duration.from_secs(0)
+
+    t.true(server.connect(ip: IpAddress.v4(192, 0, 2, 0), port: 80).error?)
+    t.true(server.read(bytes, size: 32).error?)
+  })
+
   t.test('Socket.reset_deadline', fn (t) {
     let socket = Socket.ipv4(Type.STREAM).get
 

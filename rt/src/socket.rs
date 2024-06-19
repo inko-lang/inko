@@ -243,6 +243,7 @@ impl Socket {
         let poller_id = self.registered.load(Ordering::Acquire) as usize;
 
         state.network_pollers[poller_id].delete(&self.inner);
+        self.registered.store(NOT_REGISTERED, Ordering::Release);
     }
 
     pub(crate) fn accept(&self) -> io::Result<Self> {
