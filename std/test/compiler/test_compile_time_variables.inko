@@ -6,10 +6,10 @@ import std.sys (Command, Stream)
 import std.test (Tests)
 
 fn compile(
-  input: Path,
+  input: ref Path,
   output: ref Path,
   directory: ref Path,
-  define: Option[String],
+  define: ref Option[String],
 ) -> Result[Nil, String] {
   let cmd = Command.new(compiler_path)
 
@@ -53,42 +53,41 @@ fn compile(
 fn run(id: Int, define: Option[String]) -> Result[String, String] {
   let cwd = env.working_directory.or_else(fn (_) { '.'.to_path })
   let input = cwd.join('fixtures').join('compile_time_variables.inko')
-  let dir = env.temporary_directory.join(
-    'inko-compile-time-variable-test-${id}',
-  )
 
-  dir.create_directory_all.get
+  with_directory(id, fn (dir) -> Result[String, String] {
+    dir.create_directory_all.get
 
-  let output = dir.join('test')
+    let output = dir.join('test')
 
-  try compile(input, output, dir, define)
+    try compile(input, output, dir, define)
 
-  let cmd = Command.new(output)
+    let cmd = Command.new(output)
 
-  cmd.stdin(Stream.Null)
-  cmd.stderr(Stream.Piped)
-  cmd.stdout(Stream.Piped)
+    cmd.stdin(Stream.Null)
+    cmd.stderr(Stream.Piped)
+    cmd.stdout(Stream.Piped)
 
-  let child = try cmd.spawn.map_error(fn (e) {
-    'failed to spawn the executable: ${e}'
+    let child = try cmd.spawn.map_error(fn (e) {
+      'failed to spawn the executable: ${e}'
+    })
+
+    let status = try child.wait.map_error(fn (e) {
+      'the executable produced an error: ${e}'
+    })
+    let out = ByteArray.new
+
+    try child
+      .stdout
+      .read_all(out)
+      .then(fn (_) { child.stderr.read_all(out) })
+      .map_error(fn (e) { 'failed reading the output: ${e}' })
+
+    let out = out.into_string
+    let res = if status.success? { Result.Ok(out) } else { Result.Error(out) }
+    let _ = dir.remove_directory_all
+
+    res
   })
-
-  let status = try child.wait.map_error(fn (e) {
-    'the executable produced an error: ${e}'
-  })
-  let out = ByteArray.new
-
-  try child
-    .stdout
-    .read_all(out)
-    .then(fn (_) { child.stderr.read_all(out) })
-    .map_error(fn (e) { 'failed reading the output: ${e}' })
-
-  let out = out.into_string
-  let res = if status.success? { Result.Ok(out) } else { Result.Error(out) }
-  let _ = dir.remove_directory_all
-
-  res
 }
 
 fn pub tests(t: mut Tests) {
