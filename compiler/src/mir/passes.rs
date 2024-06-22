@@ -16,9 +16,9 @@ use std::str::FromStr;
 use types::format::format_type;
 use types::module_name::ModuleName;
 use types::{
-    self, Block as _, ClassId, ConstantId, MethodId, ModuleId, Symbol,
-    TypeBounds, TypeRef, EQ_METHOD, FIELDS_LIMIT, OPTION_NONE, OPTION_SOME,
-    RESULT_CLASS, RESULT_ERROR, RESULT_MODULE, RESULT_OK,
+    self, Block as _, ClassId, ConstantId, Location, MethodId, ModuleId,
+    Symbol, TypeBounds, TypeRef, EQ_METHOD, FIELDS_LIMIT, OPTION_NONE,
+    OPTION_SOME, RESULT_CLASS, RESULT_ERROR, RESULT_MODULE, RESULT_OK,
 };
 
 const SELF_NAME: &str = "self";
@@ -667,9 +667,11 @@ impl<'a> GenerateDropper<'a> {
     }
 
     fn method_type(&mut self, name: &str, kind: types::MethodKind) -> MethodId {
+        let loc = self.mir.location(self.location);
         let id = types::Method::alloc(
             &mut self.state.db,
             self.module,
+            Location::new(loc.lines.clone(), loc.columns.clone()),
             name.to_string(),
             types::Visibility::TypePrivate,
             kind,
@@ -1390,7 +1392,7 @@ impl<'a> LowerMethod<'a> {
         // Static/module methods don't have this argument passed in, so we don't
         // define the register. This is OK because the type-checker disallows
         // the use of `self` in these cases.
-        let self_reg = if self.method.id.is_instance_method(self.db()) {
+        let self_reg = if self.method.id.is_instance(self.db()) {
             let reg = self.new_self(self.method.id.receiver(self.db()));
 
             self.method.arguments.push(reg);
@@ -1516,6 +1518,7 @@ impl<'a> LowerMethod<'a> {
             hir::Expression::TypeCast(n) => self.type_cast(*n),
             hir::Expression::Recover(n) => self.recover_expression(*n),
             hir::Expression::Try(n) => self.try_expression(*n),
+            hir::Expression::Noop(n) => self.noop(n.location),
         }
     }
 
@@ -2449,6 +2452,12 @@ impl<'a> LowerMethod<'a> {
         self.current_block = after_block;
         self.scope.created.push(out_reg);
         out_reg
+    }
+
+    fn noop(&mut self, location: SourceLocation) -> RegisterId {
+        let loc = self.add_location(location);
+
+        self.get_nil(loc)
     }
 
     fn throw_expression(&mut self, node: hir::Throw) -> RegisterId {
@@ -3398,17 +3407,26 @@ impl<'a> LowerMethod<'a> {
         let module = self.module;
         let closure_id = node.closure_id.unwrap();
         let moving = closure_id.is_moving(self.db());
+        let loc = Location::new(
+            node.location.lines.clone(),
+            node.location.columns.clone(),
+        );
         let class_id = types::Class::alloc(
             self.db_mut(),
             format!("Closure{}", closure_id.0),
             types::ClassKind::Closure,
             types::Visibility::Private,
             module,
+            loc,
         );
 
         let method_id = types::Method::alloc(
             self.db_mut(),
             module,
+            Location::new(
+                node.location.lines.clone(),
+                node.location.columns.clone(),
+            ),
             types::CALL_METHOD.to_string(),
             types::Visibility::Public,
             types::MethodKind::Mutable,
@@ -3464,6 +3482,7 @@ impl<'a> LowerMethod<'a> {
             };
 
             let name = SELF_NAME.to_string();
+            let field_loc = class_id.location(self.db());
             let field = class_id.new_field(
                 self.db_mut(),
                 name.clone(),
@@ -3471,6 +3490,7 @@ impl<'a> LowerMethod<'a> {
                 captured_as,
                 field_vis,
                 module,
+                field_loc,
             );
 
             let self_reg = self.self_register;
@@ -3500,6 +3520,7 @@ impl<'a> LowerMethod<'a> {
 
         for (var, captured_as) in closure_id.captured(self.db()) {
             let name = var.name(self.db()).clone();
+            let field_loc = class_id.location(self.db());
             let field = class_id.new_field(
                 self.db_mut(),
                 name.clone(),
@@ -3507,6 +3528,7 @@ impl<'a> LowerMethod<'a> {
                 captured_as,
                 field_vis,
                 module,
+                field_loc,
             );
 
             let raw = self.get_local(var, loc);

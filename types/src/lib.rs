@@ -1,6 +1,7 @@
 //! Structures for the various Inko types.
 #![allow(clippy::new_without_default)]
 #![allow(clippy::len_without_is_empty)]
+#![allow(clippy::too_many_arguments)]
 
 #[cfg(test)]
 pub mod test;
@@ -105,6 +106,28 @@ pub const FIELDS_LIMIT: usize = u8::MAX as usize;
 
 /// The maximum number of values that can be stored in an array literal.
 pub const ARRAY_LIMIT: usize = u16::MAX as usize;
+
+/// The location at which a symbol is defined.
+#[derive(Clone)]
+pub struct Location {
+    pub lines: RangeInclusive<usize>,
+    pub columns: RangeInclusive<usize>,
+}
+
+impl Location {
+    pub fn new(
+        lines: RangeInclusive<usize>,
+        columns: RangeInclusive<usize>,
+    ) -> Location {
+        Location { lines, columns }
+    }
+}
+
+impl Default for Location {
+    fn default() -> Self {
+        Location::new(1..=1, 1..=1)
+    }
+}
 
 /// The requirement of a type inference placeholder.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -386,6 +409,10 @@ impl TypeParameterId {
         TypeParameter::add(db, copy)
     }
 
+    pub(crate) fn has_requirements(self, db: &Database) -> bool {
+        !self.get(db).requirements.is_empty()
+    }
+
     fn get(self, db: &Database) -> &TypeParameter {
         &db.type_parameters[self.0]
     }
@@ -511,6 +538,8 @@ impl TypeArguments {
 pub struct Trait {
     name: String,
     module: ModuleId,
+    location: Location,
+    documentation: String,
     implemented_by: Vec<ClassId>,
     visibility: Visibility,
     type_parameters: IndexMap<String, TypeParameterId>,
@@ -558,21 +587,29 @@ impl Trait {
         name: String,
         visibility: Visibility,
         module: ModuleId,
+        location: Location,
     ) -> TraitId {
         assert!(db.traits.len() < u32::MAX as usize);
 
         let id = db.traits.len() as u32;
-        let trait_type = Trait::new(name, visibility, module);
+        let trait_type = Trait::new(name, visibility, module, location);
 
         db.traits.push(trait_type);
         TraitId(id)
     }
 
-    fn new(name: String, visibility: Visibility, module: ModuleId) -> Self {
+    fn new(
+        name: String,
+        visibility: Visibility,
+        module: ModuleId,
+        location: Location,
+    ) -> Self {
         Self {
             name,
             visibility,
             module,
+            location,
+            documentation: String::new(),
             implemented_by: Vec::new(),
             type_parameters: IndexMap::new(),
             required_traits: Vec::new(),
@@ -699,7 +736,7 @@ impl TraitId {
         param
     }
 
-    fn is_public(self, db: &Database) -> bool {
+    pub fn is_public(self, db: &Database) -> bool {
         self.get(db).visibility == Visibility::Public
     }
 
@@ -711,6 +748,18 @@ impl TraitId {
         &self.get(db).inherited_type_arguments
     }
 
+    pub fn location(self, db: &Database) -> Location {
+        self.get(db).location.clone()
+    }
+
+    pub fn set_documentation(self, db: &mut Database, value: String) {
+        self.get_mut(db).documentation = value;
+    }
+
+    pub fn documentation(self, db: &Database) -> &String {
+        &self.get(db).documentation
+    }
+
     fn named_type(self, db: &Database, name: &str) -> Option<Symbol> {
         self.get(db)
             .type_parameters
@@ -718,7 +767,7 @@ impl TraitId {
             .map(|&id| Symbol::TypeParameter(id))
     }
 
-    fn module(self, db: &Database) -> ModuleId {
+    pub fn module(self, db: &Database) -> ModuleId {
         self.get(db).module
     }
 
@@ -836,6 +885,8 @@ pub struct Field {
     value_type: TypeRef,
     visibility: Visibility,
     module: ModuleId,
+    location: Location,
+    documentation: String,
 }
 
 impl Field {
@@ -846,10 +897,19 @@ impl Field {
         value_type: TypeRef,
         visibility: Visibility,
         module: ModuleId,
+        location: Location,
     ) -> FieldId {
         let id = db.fields.len();
 
-        db.fields.push(Field { name, index, value_type, visibility, module });
+        db.fields.push(Field {
+            name,
+            index,
+            value_type,
+            visibility,
+            module,
+            location,
+            documentation: String::new(),
+        });
         FieldId(id)
     }
 }
@@ -892,6 +952,18 @@ impl FieldId {
             // any extra checks.
             Visibility::TypePrivate => false,
         }
+    }
+
+    pub fn location(self, db: &Database) -> Location {
+        self.get(db).location.clone()
+    }
+
+    pub fn set_documentation(self, db: &mut Database, value: String) {
+        self.get_mut(db).documentation = value;
+    }
+
+    pub fn documentation(self, db: &Database) -> &String {
+        &self.get(db).documentation
     }
 
     fn get(self, db: &Database) -> &Field {
@@ -973,16 +1045,11 @@ pub struct TraitImplementation {
 
 /// A single variant defined in a enum class.
 pub struct Variant {
-    /// The ID of the variant local to its class.
-    pub id: u16,
-
-    /// The name of the variant.
-    pub name: String,
-
-    /// The member types of this variant.
-    ///
-    /// For a variant defined as `Foo(Int, Int)`, this would be `[Int, Int]`.
-    pub members: Vec<TypeRef>,
+    id: u16,
+    name: String,
+    documentation: String,
+    location: Location,
+    members: Vec<TypeRef>,
 }
 
 impl Variant {
@@ -991,10 +1058,17 @@ impl Variant {
         id: u16,
         name: String,
         members: Vec<TypeRef>,
+        location: Location,
     ) -> VariantId {
         let global_id = db.variants.len();
 
-        db.variants.push(Variant { id, name, members });
+        db.variants.push(Variant {
+            id,
+            name,
+            members,
+            location,
+            documentation: String::new(),
+        });
         VariantId(global_id)
     }
 }
@@ -1021,6 +1095,18 @@ impl VariantId {
 
     pub fn number_of_members(self, db: &Database) -> usize {
         self.get(db).members.len()
+    }
+
+    pub fn location(self, db: &Database) -> Location {
+        self.get(db).location.clone()
+    }
+
+    pub fn set_documentation(self, db: &mut Database, value: String) {
+        self.get_mut(db).documentation = value;
+    }
+
+    pub fn documentation(self, db: &Database) -> &String {
+        &self.get(db).documentation
     }
 
     fn get(self, db: &Database) -> &Variant {
@@ -1097,12 +1183,14 @@ impl ClassKind {
 pub struct Class {
     kind: ClassKind,
     name: String,
+    documentation: String,
     // A flag indicating the presence of a custom destructor.
     //
     // We store a flag for this so we can check for the presence of a destructor
     // without having to look up traits.
     destructor: bool,
     module: ModuleId,
+    location: Location,
     visibility: Visibility,
     fields: IndexMap<String, FieldId>,
     type_parameters: IndexMap<String, TypeParameterId>,
@@ -1126,11 +1214,12 @@ impl Class {
         kind: ClassKind,
         visibility: Visibility,
         module: ModuleId,
+        location: Location,
     ) -> ClassId {
         assert!(db.classes.len() < u32::MAX as usize);
 
         let id = db.classes.len() as u32;
-        let class = Class::new(name, kind, visibility, module);
+        let class = Class::new(name, kind, visibility, module, location);
 
         db.classes.push(class);
         ClassId(id)
@@ -1141,9 +1230,11 @@ impl Class {
         kind: ClassKind,
         visibility: Visibility,
         module: ModuleId,
+        location: Location,
     ) -> Self {
         Self {
             name,
+            documentation: String::new(),
             kind,
             visibility,
             destructor: false,
@@ -1153,6 +1244,7 @@ impl Class {
             implemented_traits: HashMap::new(),
             variants: IndexMap::new(),
             module,
+            location,
             specializations: HashMap::new(),
             specialization_source: None,
             shapes: Vec::new(),
@@ -1165,6 +1257,7 @@ impl Class {
             ClassKind::Regular,
             Visibility::Public,
             ModuleId(DEFAULT_BUILTIN_MODULE_ID),
+            Location::default(),
         )
     }
 
@@ -1174,6 +1267,7 @@ impl Class {
             ClassKind::ValueType,
             Visibility::Public,
             ModuleId(DEFAULT_BUILTIN_MODULE_ID),
+            Location::default(),
         )
     }
 
@@ -1183,6 +1277,7 @@ impl Class {
             ClassKind::Atomic,
             Visibility::Public,
             ModuleId(DEFAULT_BUILTIN_MODULE_ID),
+            Location::default(),
         )
     }
 
@@ -1192,6 +1287,7 @@ impl Class {
             ClassKind::Tuple,
             Visibility::Public,
             ModuleId(DEFAULT_BUILTIN_MODULE_ID),
+            Location::default(),
         )
     }
 
@@ -1321,14 +1417,22 @@ impl ClassId {
         self.get(db).implemented_traits.get(&trait_type)
     }
 
+    pub fn implemented_traits(
+        self,
+        db: &Database,
+    ) -> impl Iterator<Item = &TraitImplementation> {
+        self.get(db).implemented_traits.values()
+    }
+
     pub fn new_variant(
         self,
         db: &mut Database,
         name: String,
         members: Vec<TypeRef>,
+        location: Location,
     ) -> VariantId {
         let id = self.get(db).variants.len() as u16;
-        let variant = Variant::alloc(db, id, name.clone(), members);
+        let variant = Variant::alloc(db, id, name.clone(), members, location);
 
         self.get_mut(db).variants.insert(name, variant);
         variant
@@ -1374,6 +1478,7 @@ impl ClassId {
         value_type: TypeRef,
         visibility: Visibility,
         module: ModuleId,
+        location: Location,
     ) -> FieldId {
         let id = Field::alloc(
             db,
@@ -1382,6 +1487,7 @@ impl ClassId {
             value_type,
             visibility,
             module,
+            location,
         );
 
         self.get_mut(db).fields.insert(name, id);
@@ -1394,6 +1500,28 @@ impl ClassId {
 
     pub fn method(self, db: &Database, name: &str) -> Option<MethodId> {
         self.get(db).methods.get(name).cloned()
+    }
+
+    pub fn methods(self, db: &Database) -> Vec<MethodId> {
+        self.get(db).methods.values().cloned().collect()
+    }
+
+    pub fn instance_methods(self, db: &Database) -> Vec<MethodId> {
+        self.get(db)
+            .methods
+            .values()
+            .filter(|v| v.is_instance(db))
+            .cloned()
+            .collect()
+    }
+
+    pub fn static_methods(self, db: &Database) -> Vec<MethodId> {
+        self.get(db)
+            .methods
+            .values()
+            .filter(|v| v.is_static(db))
+            .cloned()
+            .collect()
     }
 
     pub fn method_exists(self, db: &Database, name: &str) -> bool {
@@ -1527,6 +1655,22 @@ impl ClassId {
             _ if self.kind(db).is_atomic() => false,
             _ => true,
         }
+    }
+
+    pub fn documentation(self, db: &Database) -> &String {
+        &self.get(db).documentation
+    }
+
+    pub fn set_documentation(self, db: &mut Database, value: String) {
+        self.get_mut(db).documentation = value;
+    }
+
+    pub fn location(self, db: &Database) -> Location {
+        self.get(db).location.clone()
+    }
+
+    pub fn set_location(self, db: &mut Database, value: Location) {
+        self.get_mut(db).location = value;
     }
 
     fn shape(self, db: &Database, default: Shape) -> Shape {
@@ -1975,6 +2119,9 @@ pub enum MethodKind {
     /// A static method.
     Static,
 
+    /// A static method generated for an enum constructor.
+    Constructor,
+
     /// A regular immutable instance method.
     Instance,
 
@@ -1989,6 +2136,16 @@ pub enum MethodKind {
 
     /// The method is an external/FFI function.
     Extern,
+}
+
+impl MethodKind {
+    fn is_static(self) -> bool {
+        matches!(self, MethodKind::Static | MethodKind::Constructor)
+    }
+
+    pub fn is_constructor(self) -> bool {
+        matches!(self, MethodKind::Constructor)
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -2043,7 +2200,9 @@ impl CallConvention {
 #[derive(Clone)]
 pub struct Method {
     module: ModuleId,
+    location: Location,
     name: String,
+    documentation: String,
     kind: MethodKind,
     call_convention: CallConvention,
     visibility: Visibility,
@@ -2079,6 +2238,7 @@ impl Method {
     pub fn alloc(
         db: &mut Database,
         module: ModuleId,
+        location: Location,
         name: String,
         visibility: Visibility,
         kind: MethodKind,
@@ -2094,10 +2254,12 @@ impl Method {
         let id = db.methods.len();
         let method = Method {
             module,
+            location,
             name,
             kind,
             call_convention,
             visibility,
+            documentation: String::new(),
             type_parameters: IndexMap::new(),
             bounds: TypeBounds::new(),
             arguments: Arguments::new(),
@@ -2120,6 +2282,10 @@ impl Method {
 pub struct MethodId(pub u32);
 
 impl MethodId {
+    pub fn is_generated(self, db: &Database) -> bool {
+        self.get(db).name.starts_with('$')
+    }
+
     pub fn named_type(self, db: &Database, name: &str) -> Option<Symbol> {
         self.get(db)
             .type_parameters
@@ -2176,7 +2342,7 @@ impl MethodId {
             MethodKind::Mutable | MethodKind::Destructor => {
                 TypeRef::Mut(rec_id)
             }
-            MethodKind::Static => {
+            MethodKind::Static | MethodKind::Constructor => {
                 TypeRef::Owned(TypeId::Class(instance.instance_of()))
             }
             MethodKind::Moving => TypeRef::Owned(rec_id),
@@ -2212,6 +2378,30 @@ impl MethodId {
         self.get(db).visibility == Visibility::Public
     }
 
+    pub fn location(self, db: &Database) -> Location {
+        self.get(db).location.clone()
+    }
+
+    pub fn set_documentation(self, db: &mut Database, value: String) {
+        self.get_mut(db).documentation = value;
+    }
+
+    pub fn documentation(self, db: &Database) -> &String {
+        let method = self.get(db);
+
+        if method.documentation.is_empty() {
+            // For methods implemented through a trait, the documentation is
+            // inherited if not overwritten explicitly.
+            if let Some(id) = self.original_method(db) {
+                id.documentation(db)
+            } else {
+                &method.documentation
+            }
+        } else {
+            &method.documentation
+        }
+    }
+
     pub fn is_mutable(self, db: &Database) -> bool {
         matches!(
             self.get(db).kind,
@@ -2234,7 +2424,10 @@ impl MethodId {
     }
 
     pub fn is_static(self, db: &Database) -> bool {
-        matches!(self.get(db).kind, MethodKind::Static)
+        matches!(
+            self.get(db).kind,
+            MethodKind::Static | MethodKind::Constructor
+        )
     }
 
     pub fn is_extern(self, db: &Database) -> bool {
@@ -2316,7 +2509,7 @@ impl MethodId {
         self.get(db).kind
     }
 
-    pub fn is_instance_method(self, db: &Database) -> bool {
+    pub fn is_instance(self, db: &Database) -> bool {
         !self.is_static(db)
     }
 
@@ -2414,13 +2607,20 @@ impl MethodId {
     }
 
     pub fn clone_for_specialization(self, db: &mut Database) -> MethodId {
-        let (module, name, vis, kind, source) = {
+        let (module, location, name, vis, kind, source) = {
             let old = self.get(db);
 
-            (old.module, old.name.clone(), old.visibility, old.kind, old.source)
+            (
+                old.module,
+                old.location.clone(),
+                old.name.clone(),
+                old.visibility,
+                old.kind,
+                old.source,
+            )
         };
 
-        let new = Method::alloc(db, module, name, vis, kind);
+        let new = Method::alloc(db, module, location, name, vis, kind);
 
         new.set_source(db, source);
         new
@@ -2732,6 +2932,9 @@ impl Symbol {
 pub struct Module {
     name: ModuleName,
 
+    /// The source documentation of this module.
+    documentation: String,
+
     /// The name of this module to use when generating method symbol names.
     ///
     /// The compiler may generate new modules with generated names. This field
@@ -2760,11 +2963,13 @@ impl Module {
             ClassKind::Module,
             Visibility::Private,
             id,
+            Location::default(),
         );
 
         db.module_mapping.insert(name.to_string(), id);
         db.modules.push(Module {
             name: name.clone(),
+            documentation: String::new(),
             method_symbol_name: name,
             class: class_id,
             file,
@@ -2782,6 +2987,18 @@ pub struct ModuleId(pub u32);
 impl ModuleId {
     pub fn name(self, db: &Database) -> &ModuleName {
         &self.get(db).name
+    }
+
+    pub fn documentation(self, db: &Database) -> &String {
+        &self.get(db).documentation
+    }
+
+    pub fn set_documentation(self, db: &mut Database, value: String) {
+        self.get_mut(db).documentation = value;
+    }
+
+    pub fn constants(self, db: &Database) -> &Vec<ConstantId> {
+        &self.get(db).constants
     }
 
     pub fn method_symbol_name(self, db: &Database) -> &ModuleName {
@@ -2837,6 +3054,38 @@ impl ModuleId {
 
     pub fn method(self, db: &Database, name: &str) -> Option<MethodId> {
         self.get(db).class.method(db, name)
+    }
+
+    pub fn methods(self, db: &Database) -> Vec<MethodId> {
+        self.get(db).class.methods(db)
+    }
+
+    pub fn classes(self, db: &Database) -> Vec<ClassId> {
+        self.get(db)
+            .symbols
+            .iter()
+            .filter_map(|(name, s)| match s {
+                // Generated symbol names start with "$", which we never want to
+                // include.
+                Symbol::Class(id)
+                    if id.module(db) == self && !name.starts_with('$') =>
+                {
+                    Some(*id)
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    pub fn traits(self, db: &Database) -> Vec<TraitId> {
+        self.get(db)
+            .symbols
+            .values()
+            .filter_map(|s| match s {
+                Symbol::Trait(id) if id.module(db) == self => Some(*id),
+                _ => None,
+            })
+            .collect()
     }
 
     pub fn add_method(self, db: &mut Database, name: String, method: MethodId) {
@@ -2989,7 +3238,9 @@ impl VariableId {
 pub struct Constant {
     id: u16,
     module: ModuleId,
+    location: Location,
     name: String,
+    documentation: String,
     value_type: TypeRef,
     visibility: Visibility,
 }
@@ -2998,6 +3249,7 @@ impl Constant {
     pub fn alloc(
         db: &mut Database,
         module: ModuleId,
+        location: Location,
         name: String,
         visibility: Visibility,
         value_type: TypeRef,
@@ -3010,7 +3262,9 @@ impl Constant {
         let constant = Constant {
             id: local_id as u16,
             module,
+            location,
             name: name.clone(),
+            documentation: String::new(),
             value_type,
             visibility,
         };
@@ -3032,6 +3286,10 @@ impl ConstantId {
         self.get(db).id
     }
 
+    pub fn location(self, db: &Database) -> Location {
+        self.get(db).location.clone()
+    }
+
     pub fn name(self, db: &Database) -> &String {
         &self.get(db).name
     }
@@ -3048,8 +3306,16 @@ impl ConstantId {
         self.get(db).value_type
     }
 
-    fn is_public(self, db: &Database) -> bool {
+    pub fn is_public(self, db: &Database) -> bool {
         self.get(db).visibility == Visibility::Public
+    }
+
+    pub fn set_documentation(self, db: &mut Database, value: String) {
+        self.get_mut(db).documentation = value;
+    }
+
+    pub fn documentation(self, db: &Database) -> &String {
+        &self.get(db).documentation
     }
 
     fn get(self, db: &Database) -> &Constant {
@@ -4434,9 +4700,9 @@ impl TypeId {
                 TypeId::Class(_) | TypeId::Trait(_) | TypeId::Module(_)
             );
 
-            if is_ins && kind == MethodKind::Static {
+            if is_ins && kind.is_static() {
                 MethodLookup::StaticOnInstance
-            } else if !is_ins && kind != MethodKind::Static {
+            } else if !is_ins && !kind.is_static() {
                 MethodLookup::InstanceOnStatic
             } else if self.can_call(db, id, module, allow_type_private) {
                 MethodLookup::Ok(id)
@@ -4566,6 +4832,7 @@ impl Database {
                     ClassKind::Extern,
                     Visibility::Private,
                     ModuleId(DEFAULT_BUILTIN_MODULE_ID),
+                    Location::default(),
                 ),
             ],
             type_parameters: Vec::new(),
@@ -4746,6 +5013,7 @@ mod tests {
             "ToString".to_string(),
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let requirement = TraitInstance::new(trait_id);
 
@@ -4812,6 +5080,7 @@ mod tests {
             "A".to_string(),
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
 
         assert_eq!(id.0, 0);
@@ -4820,8 +5089,12 @@ mod tests {
 
     #[test]
     fn test_trait_new() {
-        let trait_type =
-            Trait::new("A".to_string(), Visibility::Private, ModuleId(0));
+        let trait_type = Trait::new(
+            "A".to_string(),
+            Visibility::Private,
+            ModuleId(0),
+            Location::default(),
+        );
 
         assert_eq!(&trait_type.name, &"A");
     }
@@ -4834,6 +5107,7 @@ mod tests {
             "A".to_string(),
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let param = id.new_type_parameter(&mut db, "A".to_string());
 
@@ -4848,6 +5122,7 @@ mod tests {
             "A".to_string(),
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let ins = TraitInstance::new(id);
         let index = db.traits.len() as u32 - 1;
@@ -4864,6 +5139,7 @@ mod tests {
             "A".to_string(),
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let ins1 = TraitInstance::generic(&mut db, id, TypeArguments::new());
         let ins2 = TraitInstance::generic(&mut db, id, TypeArguments::new());
@@ -4885,6 +5161,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
 
         assert_eq!(id.0, FIRST_USER_CLASS_ID);
@@ -4905,6 +5182,7 @@ mod tests {
             ClassKind::Async,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
 
         assert_eq!(&class.name, &"A");
@@ -4920,6 +5198,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
 
         assert_eq!(id.name(&db), &"A");
@@ -4934,6 +5213,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let async_class = Class::alloc(
             &mut db,
@@ -4941,6 +5221,7 @@ mod tests {
             ClassKind::Async,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
 
         assert!(!regular_class.kind(&db).is_async());
@@ -4956,6 +5237,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let param = id.new_type_parameter(&mut db, "A".to_string());
 
@@ -4971,6 +5253,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let ins = ClassInstance::new(id);
 
@@ -4987,6 +5270,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let ins1 = ClassInstance::generic(&mut db, id, TypeArguments::new());
         let ins2 = ClassInstance::generic(&mut db, id, TypeArguments::new());
@@ -5004,6 +5288,7 @@ mod tests {
         let id = Method::alloc(
             &mut db,
             ModuleId(0),
+            Location::default(),
             "foo".to_string(),
             Visibility::Private,
             MethodKind::Moving,
@@ -5020,6 +5305,7 @@ mod tests {
         let method = Method::alloc(
             &mut db,
             ModuleId(0),
+            Location::default(),
             "foo".to_string(),
             Visibility::Private,
             MethodKind::Instance,
@@ -5042,6 +5328,7 @@ mod tests {
             "ToFoo".to_string(),
             Visibility::Public,
             mod2,
+            Location::default(),
         );
 
         mod2.get_mut(&mut db).file = PathBuf::from("bar.inko");
@@ -5049,6 +5336,7 @@ mod tests {
         let m1 = Method::alloc(
             &mut db,
             mod1,
+            Location::default(),
             "a".to_string(),
             Visibility::Private,
             MethodKind::Instance,
@@ -5057,6 +5345,7 @@ mod tests {
         let m2 = Method::alloc(
             &mut db,
             mod1,
+            Location::default(),
             "a".to_string(),
             Visibility::Private,
             MethodKind::Instance,
@@ -5115,12 +5404,18 @@ mod tests {
         let bar = new_module(&mut db, "bar");
         let fizz = new_module(&mut db, "fizz");
         let class = new_class(&mut db, "A");
-        let trait_ =
-            Trait::alloc(&mut db, "B".to_string(), Visibility::Public, foo);
+        let trait_ = Trait::alloc(
+            &mut db,
+            "B".to_string(),
+            Visibility::Public,
+            foo,
+            Location::default(),
+        );
 
         let constant = Constant::alloc(
             &mut db,
             foo,
+            Location::default(),
             "C".to_string(),
             Visibility::Public,
             TypeRef::Unknown,
@@ -5129,6 +5424,7 @@ mod tests {
         let method = Method::alloc(
             &mut db,
             foo,
+            Location::default(),
             "D".to_string(),
             Visibility::Public,
             MethodKind::Extern,
@@ -5225,6 +5521,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let param = array.new_type_parameter(&mut db, "T".to_string());
 
@@ -5242,6 +5539,7 @@ mod tests {
             "ToArray".to_string(),
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let param = to_array.new_type_parameter(&mut db, "T".to_string());
 
@@ -5260,6 +5558,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let module =
             Module::alloc(&mut db, ModuleName::new("foo"), "foo.inko".into());
@@ -5282,6 +5581,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let param = array.new_type_parameter(&mut db, "T".to_string());
         let ins = TypeId::ClassInstance(ClassInstance::generic(
@@ -5305,6 +5605,7 @@ mod tests {
             "ToArray".to_string(),
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let param = to_array.new_type_parameter(&mut db, "T".to_string());
         let ins = TypeId::TraitInstance(TraitInstance::generic(
@@ -5832,6 +6133,7 @@ mod tests {
         let method = Method::alloc(
             &mut db,
             ModuleId(0),
+            Location::default(),
             "a".to_string(),
             Visibility::Private,
             MethodKind::Mutable,

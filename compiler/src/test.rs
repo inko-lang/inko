@@ -4,8 +4,8 @@ use crate::state::State;
 use ast::source_location::SourceLocation;
 use types::module_name::ModuleName;
 use types::{
-    Module, ModuleId, Symbol, Trait, TypeRef, Visibility, DROP_MODULE,
-    DROP_TRAIT,
+    Location, Module, ModuleId, Symbol, Trait, TypeRef, Visibility,
+    DROP_MODULE, DROP_TRAIT,
 };
 
 pub(crate) fn cols(start: usize, stop: usize) -> SourceLocation {
@@ -18,6 +18,7 @@ pub(crate) fn hir_module(
     expressions: Vec<hir::TopLevelExpression>,
 ) -> hir::Module {
     hir::Module {
+        documentation: String::new(),
         module_id: Module::alloc(&mut state.db, name, "test.inko".into()),
         expressions,
         location: cols(1, 1),
@@ -61,6 +62,7 @@ pub(crate) fn define_drop_trait(state: &mut State) {
         DROP_TRAIT.to_string(),
         Visibility::Public,
         module,
+        Location::default(),
     );
 
     module.new_symbol(

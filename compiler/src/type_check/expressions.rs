@@ -13,10 +13,10 @@ use types::resolve::TypeResolver;
 use types::{
     Block, BuiltinCallInfo, CallInfo, CallKind, ClassId, ClassInstance,
     Closure, ClosureCallInfo, ClosureId, ConstantKind, ConstantPatternKind,
-    Database, FieldId, FieldInfo, IdentifierKind, MethodId, MethodKind,
-    MethodLookup, ModuleId, Receiver, Symbol, ThrowKind, TraitId,
-    TraitInstance, TypeArguments, TypeBounds, TypeId, TypeRef, Variable,
-    VariableId, VariableLocation, CALL_METHOD, DEREF_POINTER_FIELD,
+    Database, FieldId, FieldInfo, IdentifierKind, MethodId, MethodLookup,
+    ModuleId, Receiver, Symbol, ThrowKind, TraitId, TraitInstance,
+    TypeArguments, TypeBounds, TypeId, TypeRef, Variable, VariableId,
+    VariableLocation, CALL_METHOD, DEREF_POINTER_FIELD,
 };
 
 const IGNORE_VARIABLE: &str = "_";
@@ -292,7 +292,7 @@ impl MethodCall {
 
         // Static methods may use/return type parameters of the surrounding
         // type, so we also need to create placeholders for those.
-        if method.kind(&state.db) == MethodKind::Static {
+        if method.is_static(&state.db) {
             if let TypeId::Class(class) = receiver_id {
                 if class.is_generic(&state.db) {
                     for param in class.type_parameters(&state.db) {
@@ -1416,6 +1416,7 @@ impl<'a> CheckMethodBody<'a> {
             hir::Expression::Tuple(ref mut n) => self.tuple_literal(n, scope),
             hir::Expression::TypeCast(ref mut n) => self.type_cast(n, scope),
             hir::Expression::Try(ref mut n) => self.try_expression(n, scope),
+            hir::Expression::Noop(_) => TypeRef::nil(),
         }
     }
 
@@ -1563,7 +1564,7 @@ impl<'a> CheckMethodBody<'a> {
     ) -> TypeRef {
         let mut typ = scope.surrounding_type;
 
-        if !self.method.is_instance_method(self.db()) {
+        if !self.method.is_instance(self.db()) {
             self.state.diagnostics.error(
                 DiagnosticId::InvalidSymbol,
                 "'self' can only be used in instance methods",
@@ -2608,7 +2609,7 @@ impl<'a> CheckMethodBody<'a> {
                 MethodLookup::Ok(method) => {
                     self.check_if_self_is_allowed(scope, &node.location);
 
-                    if method.is_instance_method(self.db()) {
+                    if method.is_instance(self.db()) {
                         scope.mark_closures_as_capturing_self(self.db_mut());
                     }
 
@@ -3688,7 +3689,7 @@ impl<'a> CheckMethodBody<'a> {
                 MethodLookup::Ok(method) => {
                     self.check_if_self_is_allowed(scope, &node.location);
 
-                    if method.is_instance_method(self.db()) {
+                    if method.is_instance(self.db()) {
                         scope.mark_closures_as_capturing_self(self.db_mut());
                     }
 

@@ -24,6 +24,7 @@ fn format_type_parameter_without_argument(
     id: TypeParameterId,
     buffer: &mut TypeFormatter,
     owned: bool,
+    requirements: bool,
 ) {
     let param = id.get(buffer.db);
 
@@ -35,6 +36,22 @@ fn format_type_parameter_without_argument(
 
     if param.mutable {
         buffer.write(": mut");
+    }
+
+    if requirements && id.has_requirements(buffer.db) {
+        if param.mutable {
+            buffer.write(" + ");
+        } else {
+            buffer.write(": ");
+        }
+
+        for (idx, req) in id.requirements(buffer.db).into_iter().enumerate() {
+            if idx > 0 {
+                buffer.write(" + ");
+            }
+
+            req.format_type(buffer);
+        }
     }
 }
 
@@ -52,26 +69,28 @@ fn format_type_parameter(
         if let TypeRef::Placeholder(p) = arg {
             match p.value(buffer.db) {
                 Some(t) if t.as_type_parameter(buffer.db) == Some(param) => {
-                    format_type_parameter_without_argument(param, buffer, owned)
+                    format_type_parameter_without_argument(
+                        param, buffer, owned, false,
+                    )
                 }
                 Some(t) => if owned { t.as_owned(buffer.db) } else { t }
                     .format_type(buffer),
-                None => {
-                    format_type_parameter_without_argument(param, buffer, owned)
-                }
+                None => format_type_parameter_without_argument(
+                    param, buffer, owned, false,
+                ),
             }
 
             return;
         }
 
         if arg.as_type_parameter(buffer.db) == Some(param) {
-            format_type_parameter_without_argument(param, buffer, owned);
+            format_type_parameter_without_argument(param, buffer, owned, false);
             return;
         }
 
         if owned { arg.as_owned(buffer.db) } else { arg }.format_type(buffer);
     } else {
-        format_type_parameter_without_argument(param, buffer, owned);
+        format_type_parameter_without_argument(param, buffer, owned, false);
     };
 }
 
@@ -132,6 +151,24 @@ impl<'a> TypeFormatter<'a> {
         }
     }
 
+    pub(crate) fn type_parameters(&mut self, parameters: &[TypeParameterId]) {
+        if parameters.is_empty() {
+            return;
+        }
+
+        self.write("[");
+
+        for (index, &param) in parameters.iter().enumerate() {
+            if index > 0 {
+                self.write(", ");
+            }
+
+            format_type_parameter_without_argument(param, self, false, true);
+        }
+
+        self.write("]");
+    }
+
     pub(crate) fn type_arguments(
         &mut self,
         parameters: &[TypeParameterId],
@@ -163,7 +200,7 @@ impl<'a> TypeFormatter<'a> {
             return;
         }
 
-        self.write(" (");
+        self.write("(");
 
         for (index, arg) in arguments.iter().enumerate() {
             if index > 0 {
@@ -237,6 +274,7 @@ impl FormatType for TypeParameterId {
 impl FormatType for TraitId {
     fn format_type(&self, buffer: &mut TypeFormatter) {
         buffer.write(&self.get(buffer.db).name);
+        buffer.type_parameters(&self.type_parameters(buffer.db));
     }
 }
 
@@ -262,6 +300,7 @@ impl FormatType for TraitInstance {
 impl FormatType for ClassId {
     fn format_type(&self, buffer: &mut TypeFormatter) {
         buffer.write(&self.get(buffer.db).name);
+        buffer.type_parameters(&self.type_parameters(buffer.db));
     }
 }
 
@@ -305,7 +344,9 @@ impl FormatType for MethodId {
         match block.kind {
             MethodKind::Async => buffer.write("async "),
             MethodKind::AsyncMutable => buffer.write("async mut "),
-            MethodKind::Static => buffer.write("static "),
+            MethodKind::Static | MethodKind::Constructor => {
+                buffer.write("static ")
+            }
             MethodKind::Moving => buffer.write("move "),
             MethodKind::Mutable | MethodKind::Destructor => {
                 buffer.write("mut ")
@@ -315,23 +356,7 @@ impl FormatType for MethodId {
         }
 
         buffer.write(&block.name);
-
-        if block.type_parameters.len() > 0 {
-            buffer.write(" [");
-
-            for (index, param) in
-                block.type_parameters.values().iter().enumerate()
-            {
-                if index > 0 {
-                    buffer.write(", ");
-                }
-
-                param.format_type(buffer);
-            }
-
-            buffer.write("]");
-        }
-
+        buffer.type_parameters(block.type_parameters.values());
         buffer.arguments(&block.arguments, true);
         buffer.return_type(block.return_type);
     }
@@ -354,6 +379,10 @@ impl FormatType for ClosureId {
                 buffer.write("fn");
             }
 
+            if fun.arguments.len() > 0 {
+                buffer.write(" ");
+            }
+
             buffer.arguments(&fun.arguments, false);
             buffer.return_type(fun.return_type);
         });
@@ -367,7 +396,9 @@ impl FormatType for TypeRef {
                 format_type_parameter(*id, buffer, true);
             }
             TypeRef::Owned(TypeId::RigidTypeParameter(id)) => {
-                format_type_parameter_without_argument(*id, buffer, true);
+                format_type_parameter_without_argument(
+                    *id, buffer, true, false,
+                );
             }
             TypeRef::Owned(id) => id.format_type(buffer),
             TypeRef::Any(id) => id.format_type(buffer),
@@ -415,7 +446,9 @@ impl FormatType for TypeId {
             TypeId::TypeParameter(id) => id.format_type(buffer),
             TypeId::RigidTypeParameter(id)
             | TypeId::AtomicTypeParameter(id) => {
-                format_type_parameter_without_argument(*id, buffer, false);
+                format_type_parameter_without_argument(
+                    *id, buffer, false, false,
+                );
             }
             TypeId::Closure(id) => id.format_type(buffer),
             TypeId::Foreign(ForeignType::Int(size, true)) => {
@@ -436,8 +469,8 @@ mod tests {
     use super::*;
     use crate::test::{new_parameter, placeholder};
     use crate::{
-        Block, Class, ClassInstance, ClassKind, Closure, Database, Method,
-        MethodKind, Module, ModuleId, ModuleName, Trait, TraitInstance,
+        Block, Class, ClassInstance, ClassKind, Closure, Database, Location,
+        Method, MethodKind, Module, ModuleId, ModuleName, Trait, TraitInstance,
         TypeArguments, TypeId, TypeParameter, TypePlaceholder, TypeRef,
         VariableLocation, Visibility,
     };
@@ -450,6 +483,7 @@ mod tests {
             "A".to_string(),
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let trait_ins = TraitInstance::new(trait_id);
 
@@ -464,6 +498,7 @@ mod tests {
             "ToString".to_string(),
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let param1 = trait_id.new_type_parameter(&mut db, "A".to_string());
 
@@ -487,6 +522,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let class_b = Class::alloc(
             &mut db,
@@ -494,6 +530,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let class_d = Class::alloc(
             &mut db,
@@ -501,10 +538,12 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let block = Method::alloc(
             &mut db,
             ModuleId(0),
+            Location::new(1..=1, 1..=1),
             "foo".to_string(),
             Visibility::Private,
             MethodKind::Instance,
@@ -525,7 +564,7 @@ mod tests {
         block.new_argument(&mut db, "b".to_string(), ins_b, ins_b, loc);
         block.set_return_type(&mut db, ins_d);
 
-        assert_eq!(format_type(&db, block), "fn foo (a: A, b: B) -> D");
+        assert_eq!(format_type(&db, block), "fn foo(a: A, b: B) -> D");
     }
 
     #[test]
@@ -534,6 +573,7 @@ mod tests {
         let block = Method::alloc(
             &mut db,
             ModuleId(0),
+            Location::new(1..=1, 1..=1),
             "foo".to_string(),
             Visibility::Private,
             MethodKind::Moving,
@@ -550,16 +590,19 @@ mod tests {
         let block = Method::alloc(
             &mut db,
             ModuleId(0),
+            Location::new(1..=1, 1..=1),
             "foo".to_string(),
             Visibility::Private,
             MethodKind::Static,
         );
 
-        block.new_type_parameter(&mut db, "A".to_string());
+        let param1 = block.new_type_parameter(&mut db, "A".to_string());
+
+        param1.set_mutable(&mut db);
         block.new_type_parameter(&mut db, "B".to_string());
         block.set_return_type(&mut db, TypeRef::int());
 
-        assert_eq!(format_type(&db, block), "fn static foo [A, B] -> Int");
+        assert_eq!(format_type(&db, block), "fn static foo[A: mut, B] -> Int");
     }
 
     #[test]
@@ -569,6 +612,7 @@ mod tests {
         let block = Method::alloc(
             &mut db,
             ModuleId(0),
+            Location::new(1..=1, 1..=1),
             "foo".to_string(),
             Visibility::Private,
             MethodKind::Static,
@@ -583,7 +627,7 @@ mod tests {
         );
         block.set_return_type(&mut db, TypeRef::int());
 
-        assert_eq!(format_type(&db, block), "fn static foo (a: Int) -> Int");
+        assert_eq!(format_type(&db, block), "fn static foo(a: Int) -> Int");
     }
 
     #[test]
@@ -593,6 +637,7 @@ mod tests {
         let block = Method::alloc(
             &mut db,
             ModuleId(0),
+            Location::new(1..=1, 1..=1),
             "foo".to_string(),
             Visibility::Private,
             MethodKind::Async,
@@ -607,7 +652,7 @@ mod tests {
         );
         block.set_return_type(&mut db, TypeRef::int());
 
-        assert_eq!(format_type(&db, block), "fn async foo (a: Int) -> Int");
+        assert_eq!(format_type(&db, block), "fn async foo(a: Int) -> Int");
     }
 
     #[test]
@@ -629,9 +674,49 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         ));
 
         assert_eq!(format_type(&db, id), "String");
+    }
+
+    #[test]
+    fn test_type_id_format_type_with_generic_class() {
+        let mut db = Database::new();
+        let to_a = Trait::alloc(
+            &mut db,
+            "ToA".to_string(),
+            Visibility::Private,
+            ModuleId(0),
+            Location::default(),
+        );
+        let to_b = Trait::alloc(
+            &mut db,
+            "ToB".to_string(),
+            Visibility::Private,
+            ModuleId(0),
+            Location::default(),
+        );
+        let id = Class::alloc(
+            &mut db,
+            "Foo".to_string(),
+            ClassKind::Regular,
+            Visibility::Private,
+            ModuleId(0),
+            Location::default(),
+        );
+
+        let param1 = id.new_type_parameter(&mut db, "A".to_string());
+
+        id.new_type_parameter(&mut db, "B".to_string());
+        param1.add_requirements(&mut db, vec![TraitInstance::new(to_a)]);
+        param1.add_requirements(&mut db, vec![TraitInstance::new(to_b)]);
+        param1.set_mutable(&mut db);
+
+        assert_eq!(
+            format_type(&db, TypeId::Class(id)),
+            "Foo[A: mut + ToA + ToB, B]"
+        );
     }
 
     #[test]
@@ -642,9 +727,48 @@ mod tests {
             "ToString".to_string(),
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         ));
 
         assert_eq!(format_type(&db, id), "ToString");
+    }
+
+    #[test]
+    fn test_type_id_format_type_with_generic_trait() {
+        let mut db = Database::new();
+        let to_a = Trait::alloc(
+            &mut db,
+            "ToA".to_string(),
+            Visibility::Private,
+            ModuleId(0),
+            Location::default(),
+        );
+        let to_b = Trait::alloc(
+            &mut db,
+            "ToB".to_string(),
+            Visibility::Private,
+            ModuleId(0),
+            Location::default(),
+        );
+        let id = Trait::alloc(
+            &mut db,
+            "Foo".to_string(),
+            Visibility::Private,
+            ModuleId(0),
+            Location::default(),
+        );
+
+        let param1 = id.new_type_parameter(&mut db, "A".to_string());
+
+        id.new_type_parameter(&mut db, "B".to_string());
+        param1.add_requirements(&mut db, vec![TraitInstance::new(to_a)]);
+        param1.add_requirements(&mut db, vec![TraitInstance::new(to_b)]);
+        param1.set_mutable(&mut db);
+
+        assert_eq!(
+            format_type(&db, TypeId::Trait(id)),
+            "Foo[A: mut + ToA + ToB, B]"
+        );
     }
 
     #[test]
@@ -668,6 +792,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let ins = TypeId::ClassInstance(ClassInstance::new(id));
 
@@ -683,6 +808,7 @@ mod tests {
             ClassKind::Tuple,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let param1 = id.new_type_parameter(&mut db, "A".to_string());
         let param2 = id.new_type_parameter(&mut db, "B".to_string());
@@ -705,6 +831,7 @@ mod tests {
             "ToString".to_string(),
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let ins = TypeId::TraitInstance(TraitInstance::new(id));
 
@@ -720,6 +847,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let param1 = id.new_type_parameter(&mut db, "T".to_string());
 
@@ -743,6 +871,7 @@ mod tests {
             "ToFoo".to_string(),
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let param1 = id.new_type_parameter(&mut db, "T".to_string());
 
@@ -767,6 +896,7 @@ mod tests {
             "ToString".to_string(),
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let param_ins = TypeId::TypeParameter(param);
         let to_string_ins = TraitInstance::new(to_string);
@@ -786,6 +916,7 @@ mod tests {
             "ToString".to_string(),
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let param_ins = TypeId::RigidTypeParameter(param);
         let to_string_ins = TraitInstance::new(to_string);
@@ -805,6 +936,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let class_b = Class::alloc(
             &mut db,
@@ -812,6 +944,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let class_d = Class::alloc(
             &mut db,
@@ -819,6 +952,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let block = Closure::alloc(&mut db, true);
 
@@ -849,6 +983,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let string_ins = TypeId::ClassInstance(ClassInstance::new(string));
         let param = TypeId::TypeParameter(TypeParameter::alloc(

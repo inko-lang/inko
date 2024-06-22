@@ -10,10 +10,10 @@ use std::path::PathBuf;
 use types::check::{Environment, TypeChecker};
 use types::format::{format_type, format_type_with_arguments};
 use types::{
-    Block, ClassId, ClassInstance, Database, Method, MethodId, MethodKind,
-    MethodSource, ModuleId, Symbol, TraitId, TraitInstance, TypeArguments,
-    TypeBounds, TypeId, TypeRef, VariableLocation, Visibility, DROP_METHOD,
-    MAIN_CLASS, MAIN_METHOD,
+    Block, ClassId, ClassInstance, Database, Location, Method, MethodId,
+    MethodKind, MethodSource, ModuleId, Symbol, TraitId, TraitInstance,
+    TypeArguments, TypeBounds, TypeId, TypeRef, VariableLocation, Visibility,
+    DROP_METHOD, MAIN_CLASS, MAIN_METHOD,
 };
 
 fn method_kind(kind: hir::MethodKind) -> MethodKind {
@@ -297,6 +297,10 @@ impl<'a> DefineModuleMethodNames<'a> {
         let method = Method::alloc(
             self.db_mut(),
             module,
+            Location::new(
+                node.location.lines.clone(),
+                node.location.columns.clone(),
+            ),
             name.clone(),
             Visibility::public(node.public),
             MethodKind::Static,
@@ -331,6 +335,10 @@ impl<'a> DefineModuleMethodNames<'a> {
         let method = Method::alloc(
             self.db_mut(),
             module,
+            Location::new(
+                node.location.lines.clone(),
+                node.location.columns.clone(),
+            ),
             name.clone(),
             Visibility::public(node.public),
             MethodKind::Extern,
@@ -618,6 +626,10 @@ impl<'a> DefineMethods<'a> {
         let method = Method::alloc(
             self.db_mut(),
             module,
+            Location::new(
+                node.location.lines.clone(),
+                node.location.columns.clone(),
+            ),
             node.name.name.clone(),
             Visibility::public(node.public),
             MethodKind::Static,
@@ -691,6 +703,10 @@ impl<'a> DefineMethods<'a> {
         let method = Method::alloc(
             self.db_mut(),
             module,
+            Location::new(
+                node.location.lines.clone(),
+                node.location.columns.clone(),
+            ),
             node.name.name.clone(),
             vis,
             kind,
@@ -773,6 +789,10 @@ impl<'a> DefineMethods<'a> {
         let method = Method::alloc(
             self.db_mut(),
             module,
+            Location::new(
+                node.location.lines.clone(),
+                node.location.columns.clone(),
+            ),
             node.name.name.clone(),
             Visibility::public(node.public),
             kind,
@@ -861,6 +881,10 @@ impl<'a> DefineMethods<'a> {
         let method = Method::alloc(
             self.db_mut(),
             module,
+            Location::new(
+                node.location.lines.clone(),
+                node.location.columns.clone(),
+            ),
             name.clone(),
             Visibility::public(node.public),
             kind,
@@ -928,6 +952,10 @@ impl<'a> DefineMethods<'a> {
         let method = Method::alloc(
             self.db_mut(),
             module,
+            Location::new(
+                node.location.lines.clone(),
+                node.location.columns.clone(),
+            ),
             name.clone(),
             Visibility::public(node.public),
             kind,
@@ -997,9 +1025,13 @@ impl<'a> DefineMethods<'a> {
         let method = Method::alloc(
             self.db_mut(),
             module,
+            Location::new(
+                node.location.lines.clone(),
+                node.location.columns.clone(),
+            ),
             name.clone(),
             Visibility::Public,
-            MethodKind::Static,
+            MethodKind::Constructor,
         );
 
         let variant = class_id.variant(self.db(), &node.name.name).unwrap();
@@ -1289,6 +1321,10 @@ impl<'a> ImplementTraitMethods<'a> {
         let method = Method::alloc(
             self.db_mut(),
             module,
+            Location::new(
+                node.location.lines.clone(),
+                node.location.columns.clone(),
+            ),
             name.clone(),
             Visibility::public(node.public),
             method_kind(node.kind),

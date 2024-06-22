@@ -1,5 +1,6 @@
 use crate::config::{BuildDirectories, Output};
 use crate::config::{Config, SOURCE, SOURCE_EXT, TESTS};
+use crate::docs::{DefineDocumentation, GenerateDocumentation};
 use crate::hir;
 use crate::linker::link;
 use crate::llvm;
@@ -54,6 +55,7 @@ fn module_name_from_path(config: &Config, file: &Path) -> ModuleName {
 
 pub(crate) fn all_source_modules(
     config: &Config,
+    include_tests: bool,
 ) -> Result<Vec<(ModuleName, PathBuf)>, String> {
     let mut modules = Vec::new();
     let mut paths = Vec::new();
@@ -65,7 +67,7 @@ pub(crate) fn all_source_modules(
         paths.push(source.clone());
     }
 
-    if tests.is_dir() {
+    if include_tests && tests.is_dir() {
         paths.push(tests.clone());
     }
 
@@ -182,12 +184,15 @@ impl Compiler {
 
             vec![(module_name_from_path(&self.state.config, &file), file)]
         } else {
-            all_source_modules(&self.state.config)
+            all_source_modules(&self.state.config, true)
                 .map_err(CompileError::Internal)?
         };
 
         let ast = self.parse(input);
-        let hir = self.compile_hir(ast)?;
+        let mut hir = self.compile_hir(ast)?;
+
+        self.check_types(&mut hir)?;
+
         let res = self.compile_mir(hir).map(|_| ());
 
         self.timings.total = start.elapsed();
@@ -202,7 +207,10 @@ impl Compiler {
         let file = self.main_module_path(file)?;
         let main_mod = self.state.db.main_module().unwrap().clone();
         let ast = self.parse(vec![(main_mod, file.clone())]);
-        let hir = self.compile_hir(ast)?;
+        let mut hir = self.compile_hir(ast)?;
+
+        self.check_types(&mut hir)?;
+
         let mut mir = self.compile_mir(hir)?;
 
         self.optimise_mir(&mut mir);
@@ -219,6 +227,30 @@ impl Compiler {
 
         self.timings.total = start.elapsed();
         res
+    }
+
+    pub fn document(&mut self, private: bool) -> Result<(), CompileError> {
+        // When generating documentation we don't include the unit tests.
+        let input = all_source_modules(&self.state.config, false)
+            .map_err(CompileError::Internal)?;
+        let ast = ModulesParser::with_documentation_comments(&mut self.state)
+            .run(input);
+        let mut hir = self.compile_hir(ast)?;
+
+        self.check_types(&mut hir)?;
+
+        // The MIR passes take ownership of the HIR, so we run this first.
+        DefineDocumentation::run_all(&mut self.state, &mut hir);
+        self.compile_mir(hir).map(|_| ())?;
+
+        let dirs = BuildDirectories::new(&self.state.config);
+
+        dirs.create()
+            .and_then(|_| dirs.create_documentation())
+            .and_then(|_| {
+                GenerateDocumentation::run_all(&self.state, &dirs, private)
+            })
+            .map_err(CompileError::Internal)
     }
 
     pub fn print_diagnostics(&self) {
@@ -325,12 +357,8 @@ LLVM module timings:
 
     fn compile_mir(
         &mut self,
-        mut modules: Vec<hir::Module>,
+        modules: Vec<hir::Module>,
     ) -> Result<Mir, CompileError> {
-        if !self.check_types(&mut modules) {
-            return Err(CompileError::Invalid);
-        }
-
         let start = Instant::now();
         let mut mir = Mir::new();
         let state = &mut self.state;
@@ -385,7 +413,10 @@ LLVM module timings:
         }
     }
 
-    fn check_types(&mut self, modules: &mut Vec<hir::Module>) -> bool {
+    fn check_types(
+        &mut self,
+        modules: &mut Vec<hir::Module>,
+    ) -> Result<(), CompileError> {
         let state = &mut self.state;
         let start = Instant::now();
         let res = DefineTypes::run_all(state, modules)
@@ -409,7 +440,12 @@ LLVM module timings:
             && Expressions::run_all(state, modules);
 
         self.timings.type_check = start.elapsed();
-        res
+
+        if res {
+            Ok(())
+        } else {
+            Err(CompileError::Invalid)
+        }
     }
 
     fn optimise_mir(&mut self, mir: &mut Mir) {

@@ -582,7 +582,7 @@ impl<'a, 'b> Specialize<'a, 'b> {
 
         // Static methods aren't tracked in any classes, so we can skip the
         // rest.
-        if method.is_instance_method(&self.state.db) {
+        if method.is_instance(&self.state.db) {
             mir.classes.get_mut(&class).unwrap().methods.push(method);
         }
     }

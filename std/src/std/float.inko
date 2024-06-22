@@ -384,7 +384,7 @@ impl Equal[ref Float] for Float {
 }
 
 impl ToString for Float {
-  # Converts `self` to a `String.
+  # Converts `self` to a `String`.
   #
   # # Examples
   #

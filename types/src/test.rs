@@ -1,8 +1,8 @@
 use crate::{
-    Class, ClassId, ClassInstance, ClassKind, ClosureId, Database, Module,
-    ModuleId, ModuleName, Trait, TraitId, TraitImplementation, TraitInstance,
-    TypeArguments, TypeBounds, TypeId, TypeParameter, TypeParameterId,
-    TypePlaceholderId, TypeRef, Visibility,
+    Class, ClassId, ClassInstance, ClassKind, ClosureId, Database, Location,
+    Module, ModuleId, ModuleName, Trait, TraitId, TraitImplementation,
+    TraitInstance, TypeArguments, TypeBounds, TypeId, TypeParameter,
+    TypeParameterId, TypePlaceholderId, TypeRef, Visibility,
 };
 use std::path::PathBuf;
 
@@ -17,6 +17,7 @@ pub(crate) fn new_class(db: &mut Database, name: &str) -> ClassId {
         ClassKind::Regular,
         Visibility::Public,
         ModuleId(0),
+        Location::default(),
     )
 }
 
@@ -27,6 +28,7 @@ pub(crate) fn new_async_class(db: &mut Database, name: &str) -> ClassId {
         ClassKind::Async,
         Visibility::Public,
         ModuleId(0),
+        Location::default(),
     )
 }
 
@@ -37,6 +39,7 @@ pub(crate) fn new_enum_class(db: &mut Database, name: &str) -> ClassId {
         ClassKind::Enum,
         Visibility::Public,
         ModuleId(0),
+        Location::default(),
     )
 }
 
@@ -47,11 +50,18 @@ pub(crate) fn new_extern_class(db: &mut Database, name: &str) -> ClassId {
         ClassKind::Extern,
         Visibility::Public,
         ModuleId(0),
+        Location::default(),
     )
 }
 
 pub(crate) fn new_trait(db: &mut Database, name: &str) -> TraitId {
-    Trait::alloc(db, name.to_string(), Visibility::Public, ModuleId(0))
+    Trait::alloc(
+        db,
+        name.to_string(),
+        Visibility::Public,
+        ModuleId(0),
+        Location::default(),
+    )
 }
 
 pub(crate) fn new_parameter(db: &mut Database, name: &str) -> TypeParameterId {

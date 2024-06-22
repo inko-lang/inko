@@ -86,9 +86,9 @@ impl Clone[Entry[K, V]] for Entry if K: Clone[K], V: Clone[V] {
 # while preserving insertion order. For more information on these algorithms you
 # can refer to the following resources:
 #
-# * http://codecapsule.com/2013/11/11/robin-hood-hashing/
-# * http://codecapsule.com/2013/11/17/robin-hood-hashing-backward-shift-deletion/
-# * https://www.sebastiansylvan.com/post/robin-hood-hashing-should-be-your-default-hash-table-implementation/
+# - <http://codecapsule.com/2013/11/11/robin-hood-hashing/>
+# - <http://codecapsule.com/2013/11/17/robin-hood-hashing-backward-shift-deletion/>
+# - <https://www.sebastiansylvan.com/post/robin-hood-hashing-should-be-your-default-hash-table-implementation/>
 class pub Map[K: Equal[ref K] + Hash, V] {
   # The slots we can hash into.
   #

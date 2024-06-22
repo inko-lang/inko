@@ -78,6 +78,9 @@ pub(crate) struct BuildDirectories {
 
     /// The directory to write DOT files to.
     pub(crate) dot: PathBuf,
+
+    /// The directory to store documentation files in.
+    pub(crate) documentation: PathBuf,
 }
 
 impl BuildDirectories {
@@ -88,15 +91,22 @@ impl BuildDirectories {
             config.build.join(config.target.to_string())
         };
 
-        let build =
-            config.opt.directory_name().map(|p| root.join(p)).unwrap_or(root);
+        let build = config
+            .opt
+            .directory_name()
+            .map(|p| root.join(p))
+            .unwrap_or_else(|| root.clone());
 
         let objects = build.join("objects");
         let llvm_ir = build.join("llvm");
         let dot = build.join("dot");
         let bin = build.clone();
 
-        BuildDirectories { build, objects, llvm_ir, bin, dot }
+        // The documentation isn't specific to the optimization level used, so
+        // we always store it in the base build directory.
+        let documentation = root.join("docs");
+
+        BuildDirectories { build, objects, llvm_ir, bin, dot, documentation }
     }
 
     pub(crate) fn create(&self) -> Result<(), String> {
@@ -111,6 +121,10 @@ impl BuildDirectories {
 
     pub(crate) fn create_dot(&self) -> Result<(), String> {
         create_directory(&self.dot)
+    }
+
+    pub(crate) fn create_documentation(&self) -> Result<(), String> {
+        create_directory(&self.documentation)
     }
 
     pub(crate) fn create_llvm(&self) -> Result<(), String> {

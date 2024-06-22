@@ -6,7 +6,7 @@ let PLACEHOLDER = '...'
 
 # Formats a value using the default formatter.
 #
-# Examples
+# # Examples
 #
 # ```inko
 # import std.fmt (fmt)

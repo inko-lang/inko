@@ -10,11 +10,11 @@ use std::path::PathBuf;
 use types::check::TypeChecker;
 use types::format::format_type;
 use types::{
-    Class, ClassId, ClassInstance, ClassKind, Constant, Database, ModuleId,
-    Symbol, Trait, TraitId, TraitImplementation, TypeId, TypeRef, Visibility,
-    ARRAY_INTERNAL_NAME, ENUM_TAG_FIELD, ENUM_TAG_INDEX, FIELDS_LIMIT,
-    MAIN_CLASS, OPTION_CLASS, OPTION_MODULE, RESULT_CLASS, RESULT_MODULE,
-    VARIANTS_LIMIT,
+    Class, ClassId, ClassInstance, ClassKind, Constant, Database, Location,
+    ModuleId, Symbol, Trait, TraitId, TraitImplementation, TypeId, TypeRef,
+    Visibility, ARRAY_INTERNAL_NAME, ENUM_TAG_FIELD, ENUM_TAG_INDEX,
+    FIELDS_LIMIT, MAIN_CLASS, OPTION_CLASS, OPTION_MODULE, RESULT_CLASS,
+    RESULT_MODULE, VARIANTS_LIMIT,
 };
 
 /// The maximum number of members a single variant can store. We subtract one as
@@ -66,6 +66,10 @@ impl<'a> DefineTypes<'a> {
         let name = node.name.name.clone();
         let module = self.module;
         let vis = Visibility::public(node.public);
+        let loc = Location::new(
+            node.location.lines.clone(),
+            node.location.columns.clone(),
+        );
         let id = match node.kind {
             hir::ClassKind::Builtin => {
                 if !self.module.is_std(self.db()) {
@@ -97,6 +101,7 @@ impl<'a> DefineTypes<'a> {
                 ClassKind::Regular,
                 vis,
                 module,
+                loc,
             ),
             hir::ClassKind::Async => Class::alloc(
                 self.db_mut(),
@@ -104,6 +109,7 @@ impl<'a> DefineTypes<'a> {
                 ClassKind::Async,
                 vis,
                 module,
+                loc,
             ),
             hir::ClassKind::Enum => Class::alloc(
                 self.db_mut(),
@@ -111,6 +117,7 @@ impl<'a> DefineTypes<'a> {
                 ClassKind::Enum,
                 vis,
                 module,
+                loc,
             ),
         };
 
@@ -131,12 +138,17 @@ impl<'a> DefineTypes<'a> {
         let name = node.name.name.clone();
         let module = self.module;
         let vis = Visibility::public(node.public);
+        let loc = Location::new(
+            node.location.lines.clone(),
+            node.location.columns.clone(),
+        );
         let id = Class::alloc(
             self.db_mut(),
             name.clone(),
             ClassKind::Extern,
             vis,
             module,
+            loc,
         );
 
         if self.module.symbol_exists(self.db(), &name) {
@@ -160,6 +172,7 @@ impl<'a> DefineTypes<'a> {
             name.clone(),
             Visibility::public(node.public),
             module,
+            Location::default(),
         );
 
         if self.module.symbol_exists(self.db(), &name) {
@@ -191,7 +204,11 @@ impl<'a> DefineTypes<'a> {
 
         let db = self.db_mut();
         let vis = Visibility::public(node.public);
-        let id = Constant::alloc(db, module, name, vis, TypeRef::Unknown);
+        let loc = Location::new(
+            node.location.lines.clone(),
+            node.location.columns.clone(),
+        );
+        let id = Constant::alloc(db, module, loc, name, vis, TypeRef::Unknown);
 
         node.constant_id = Some(id);
     }
@@ -547,19 +564,19 @@ impl<'a> DefineFields<'a> {
         let is_main = self.main_module && node.name.name == MAIN_CLASS;
 
         for expr in &mut node.body {
-            let node = if let hir::ClassExpression::Field(ref mut n) = expr {
+            let fnode = if let hir::ClassExpression::Field(ref mut n) = expr {
                 n
             } else {
                 continue;
             };
 
-            let name = node.name.name.clone();
+            let name = fnode.name.name.clone();
 
             if is_main || is_enum {
                 self.state.diagnostics.fields_not_allowed(
-                    &name,
+                    &node.name.name,
                     self.file(),
-                    node.location.clone(),
+                    fnode.location.clone(),
                 );
 
                 break;
@@ -573,7 +590,7 @@ impl<'a> DefineFields<'a> {
                         FIELDS_LIMIT
                     ),
                     self.file(),
-                    node.location.clone(),
+                    fnode.location.clone(),
                 );
 
                 break;
@@ -583,13 +600,13 @@ impl<'a> DefineFields<'a> {
                 self.state.diagnostics.duplicate_field(
                     &name,
                     self.file(),
-                    node.location.clone(),
+                    fnode.location.clone(),
                 );
 
                 continue;
             }
 
-            let vis = Visibility::public(node.public);
+            let vis = Visibility::public(fnode.public);
             let rules = Rules {
                 allow_private_types: vis.is_private(),
                 ..Default::default()
@@ -601,21 +618,32 @@ impl<'a> DefineFields<'a> {
                 &scope,
                 rules,
             )
-            .define_type(&mut node.value_type);
+            .define_type(&mut fnode.value_type);
 
             if !class_id.is_public(self.db()) && vis == Visibility::Public {
                 self.state.diagnostics.public_field_private_class(
                     self.file(),
-                    node.location.clone(),
+                    fnode.location.clone(),
                 );
             }
 
             let module = self.module;
-            let field =
-                class_id.new_field(self.db_mut(), name, id, typ, vis, module);
+            let loc = Location::new(
+                fnode.location.lines.clone(),
+                fnode.location.columns.clone(),
+            );
+            let field = class_id.new_field(
+                self.db_mut(),
+                name,
+                id,
+                typ,
+                vis,
+                module,
+                loc,
+            );
 
             id += 1;
-            node.field_id = Some(field);
+            fnode.field_id = Some(field);
         }
     }
 
@@ -660,8 +688,19 @@ impl<'a> DefineFields<'a> {
             }
 
             let module = self.module;
-            let field =
-                class_id.new_field(self.db_mut(), name, id, typ, vis, module);
+            let loc = Location::new(
+                node.location.lines.clone(),
+                node.location.columns.clone(),
+            );
+            let field = class_id.new_field(
+                self.db_mut(),
+                name,
+                id,
+                typ,
+                vis,
+                module,
+                loc,
+            );
 
             id += 1;
             node.field_id = Some(field);
@@ -1096,7 +1135,12 @@ impl<'a> DefineVariants<'a> {
 
             variants_count += 1;
 
-            class_id.new_variant(self.db_mut(), name.to_string(), members);
+            let loc = Location::new(
+                node.location.lines.clone(),
+                node.location.columns.clone(),
+            );
+
+            class_id.new_variant(self.db_mut(), name.to_string(), members, loc);
         }
 
         if is_enum {
@@ -1114,6 +1158,7 @@ impl<'a> DefineVariants<'a> {
             let vis = Visibility::TypePrivate;
             let tag_typ = TypeRef::int();
             let tag_name = ENUM_TAG_FIELD.to_string();
+            let loc = class_id.location(db);
 
             class_id.new_field(
                 db,
@@ -1122,13 +1167,22 @@ impl<'a> DefineVariants<'a> {
                 tag_typ,
                 vis,
                 module,
+                loc.clone(),
             );
 
             for index in 0..members_count {
                 let id = index + 1;
                 let typ = TypeRef::int();
 
-                class_id.new_field(db, id.to_string(), id, typ, vis, module);
+                class_id.new_field(
+                    db,
+                    id.to_string(),
+                    id,
+                    typ,
+                    vis,
+                    module,
+                    loc.clone(),
+                );
             }
         }
     }
@@ -1294,6 +1348,7 @@ mod tests {
             "ToString".to_string(),
             Visibility::Private,
             module,
+            Location::default(),
         );
         let string = Class::alloc(
             &mut state.db,
@@ -1301,6 +1356,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
 
         module.new_symbol(
@@ -1334,6 +1390,7 @@ mod tests {
             "ToString".to_string(),
             Visibility::Private,
             module,
+            Location::default(),
         );
         let string = Class::alloc(
             &mut state.db,
@@ -1341,6 +1398,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let param =
             to_string.new_type_parameter(&mut state.db, "T".to_string());
@@ -1382,6 +1440,7 @@ mod tests {
             "ToString".to_string(),
             Visibility::Private,
             module,
+            Location::default(),
         );
         let array = Class::alloc(
             &mut state.db,
@@ -1389,6 +1448,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let param = array.new_type_parameter(&mut state.db, "T".to_string());
 
@@ -1424,6 +1484,7 @@ mod tests {
             "ToString".to_string(),
             Visibility::Private,
             module,
+            Location::default(),
         );
         let array = Class::alloc(
             &mut state.db,
@@ -1431,6 +1492,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
 
         module.new_symbol(
@@ -1463,6 +1525,7 @@ mod tests {
             "ToString".to_string(),
             Visibility::Private,
             module,
+            Location::default(),
         );
 
         module.new_symbol(
@@ -1490,6 +1553,7 @@ mod tests {
             "ToString".to_string(),
             Visibility::Private,
             module,
+            Location::default(),
         );
 
         module.new_symbol(
@@ -1522,6 +1586,7 @@ mod tests {
             "ToString".to_string(),
             Visibility::Private,
             module,
+            Location::default(),
         );
         let mut modules = parse(&mut state, "trait Debug: ToString {}");
 
@@ -1551,6 +1616,7 @@ mod tests {
             "ToString".to_string(),
             Visibility::Private,
             module,
+            Location::default(),
         );
         let to_str_ins = TraitInstance::new(to_str);
         let debug = Trait::alloc(
@@ -1558,6 +1624,7 @@ mod tests {
             "Debug".to_string(),
             Visibility::Private,
             module,
+            Location::default(),
         );
         let string = Class::alloc(
             &mut state.db,
@@ -1565,6 +1632,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
 
         string.add_trait_implementation(
@@ -1606,6 +1674,7 @@ mod tests {
             "ToString".to_string(),
             Visibility::Private,
             module,
+            Location::default(),
         );
         let to_string_ins = TraitInstance::new(to_string);
         let debug = Trait::alloc(
@@ -1613,6 +1682,7 @@ mod tests {
             "Debug".to_string(),
             Visibility::Private,
             module,
+            Location::default(),
         );
         let string = Class::alloc(
             &mut state.db,
@@ -1620,6 +1690,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
 
         debug.add_required_trait(&mut state.db, to_string_ins);
@@ -1659,6 +1730,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Public,
             ModuleId(0),
+            Location::default(),
         );
         let string_ins = ClassInstance::new(string);
         let mut modules =
@@ -1693,6 +1765,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Public,
             ModuleId(0),
+            Location::default(),
         );
         let int = Class::alloc(
             &mut state.db,
@@ -1700,6 +1773,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Public,
             ModuleId(0),
+            Location::default(),
         );
         let mut modules = parse(
             &mut state,
@@ -1743,6 +1817,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Public,
             ModuleId(0),
+            Location::default(),
         );
         let mut input = "class Person {".to_string();
 
@@ -1876,6 +1951,7 @@ mod tests {
             "Debug".to_string(),
             Visibility::Private,
             module,
+            Location::default(),
         );
         let mut modules = parse(&mut state, "class Array[T: Debug] {}");
 
@@ -1908,6 +1984,7 @@ mod tests {
             "Debug".to_string(),
             Visibility::Private,
             module,
+            Location::default(),
         );
         let mut modules = parse(&mut state, "trait ToArray[T: Debug] {}");
 
@@ -1940,6 +2017,7 @@ mod tests {
             "Debug".to_string(),
             Visibility::Private,
             module,
+            Location::default(),
         );
 
         debug.new_type_parameter(&mut state.db, "T".to_string());
@@ -1973,6 +2051,7 @@ mod tests {
             "Debug".to_string(),
             Visibility::Private,
             module,
+            Location::default(),
         );
 
         debug.new_type_parameter(&mut state.db, "T".to_string());

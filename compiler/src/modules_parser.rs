@@ -50,11 +50,18 @@ pub(crate) struct ParsedModule {
 /// A compiler pass for parsing all the modules into an AST.
 pub(crate) struct ModulesParser<'a> {
     state: &'a mut State,
+
+    /// If parsing of comments is to be enabled or not.
+    comments: bool,
 }
 
 impl<'a> ModulesParser<'a> {
     pub(crate) fn new(state: &'a mut State) -> Self {
-        Self { state }
+        Self { state, comments: false }
+    }
+
+    pub(crate) fn with_documentation_comments(state: &'a mut State) -> Self {
+        Self { state, comments: true }
     }
 
     /// Parses an initial set of modules and all their dependencies.
@@ -156,7 +163,11 @@ impl<'a> ModulesParser<'a> {
             }
         };
 
-        let mut parser = Parser::new(input, file.clone());
+        let mut parser = if self.comments {
+            Parser::with_comments(input, file.clone())
+        } else {
+            Parser::new(input, file.clone())
+        };
 
         match parser.parse() {
             Ok(ast) => Some(ast),

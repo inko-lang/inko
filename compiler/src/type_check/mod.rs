@@ -911,8 +911,8 @@ mod tests {
     use crate::test::{cols, hir_type_name, module_type};
     use crate::type_check::{DefineTypeSignature, TypeScope};
     use types::{
-        Class, ClassKind, ClosureId, Method, MethodKind, Trait, TypeId,
-        TypeRef, Visibility,
+        Class, ClassKind, ClosureId, Location, Method, MethodKind, Trait,
+        TypeId, TypeRef, Visibility,
     };
 
     macro_rules! variant {
@@ -934,6 +934,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let self_type = TypeId::ClassInstance(ClassInstance::new(int));
         let module = module_type(&mut state, "foo");
@@ -951,6 +952,7 @@ mod tests {
         let method = Method::alloc(
             &mut state.db,
             module,
+            Location::new(1..=1, 1..=1),
             "foo".to_string(),
             Visibility::Private,
             MethodKind::Instance,
@@ -961,6 +963,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
 
         let method_param =
@@ -1001,6 +1004,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let self_type = TypeId::ClassInstance(ClassInstance::new(int));
         let module = module_type(&mut state, "foo");
@@ -1009,6 +1013,7 @@ mod tests {
             "ToString".to_string(),
             Visibility::Private,
             module,
+            Location::default(),
         );
 
         module.new_symbol(
@@ -1037,6 +1042,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let self_type = TypeId::ClassInstance(ClassInstance::new(int));
         let module = module_type(&mut state, "foo");
@@ -1046,6 +1052,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
 
         module.new_symbol(
@@ -1074,6 +1081,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let class_instance =
             TypeId::ClassInstance(ClassInstance::new(class_id));
@@ -1111,6 +1119,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let class_instance =
             TypeId::ClassInstance(ClassInstance::new(class_id));
@@ -1159,6 +1168,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let class_instance =
             TypeId::ClassInstance(ClassInstance::new(class_id));
@@ -1197,6 +1207,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let class_instance =
             TypeId::ClassInstance(ClassInstance::new(class_id));
@@ -1241,6 +1252,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let self_type = TypeId::ClassInstance(ClassInstance::new(int));
         let module = module_type(&mut state, "foo");
@@ -1271,6 +1283,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let class_b = Class::alloc(
             &mut state.db,
@@ -1278,6 +1291,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let instance_a = TypeId::ClassInstance(ClassInstance::new(class_a));
 
@@ -1328,6 +1342,7 @@ mod tests {
             "ToString".to_string(),
             Visibility::Private,
             module,
+            Location::default(),
         );
         let list_class = Class::alloc(
             &mut state.db,
@@ -1335,6 +1350,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let list_param =
             list_class.new_type_parameter(&mut state.db, "T".to_string());
@@ -1348,6 +1364,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Private,
             ModuleId(0),
+            Location::default(),
         );
         let instance_a = TypeId::ClassInstance(ClassInstance::rigid(
             &mut state.db,

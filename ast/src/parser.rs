@@ -1135,6 +1135,9 @@ impl Parser {
                 TokenKind::Let => ClassExpression::DefineField(Box::new(
                     self.define_field(token)?,
                 )),
+                TokenKind::Comment => {
+                    ClassExpression::Comment(self.comment(token))
+                }
                 _ => {
                     error!(
                         token.location,

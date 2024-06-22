@@ -311,7 +311,7 @@ impl<'ctx> Layouts<'ctx> {
 
                     // For instance methods, the receiver is passed as an
                     // explicit argument before any user-defined arguments.
-                    if method.is_instance_method(db) {
+                    if method.is_instance(db) {
                         args.push(
                             context
                                 .llvm_type(db, &layouts, method.receiver(db))

@@ -1,5 +1,6 @@
 use crate::command::build;
 use crate::command::check;
+use crate::command::doc;
 use crate::command::fmt;
 use crate::command::pkg;
 use crate::command::print;
@@ -18,6 +19,7 @@ Commands:
 
     build    Compile Inko source code
     check    Check a project or single file for correctness
+    doc      Generate source code documentation
     fmt      Format Inko source code
     pkg      Manage Inko packages
     print    Print compiler details to STDOUT
@@ -57,6 +59,7 @@ pub(crate) fn run() -> Result<i32, Error> {
         Some("run") => run::run(&matches.free[1..]),
         Some("build") => build::run(&matches.free[1..]),
         Some("check") => check::run(&matches.free[1..]),
+        Some("doc") => doc::run(&matches.free[1..]),
         Some("test") => test::run(&matches.free[1..]),
         Some("print") => print::run(&matches.free[1..]),
         Some("pkg") => pkg::run(&matches.free[1..]),

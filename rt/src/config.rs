@@ -1,7 +1,3 @@
-//! Virtual Machine Configuration
-//!
-//! Various virtual machine settings that can be changed by the user, such as
-//! the number of threads to run.
 use std::env::var;
 use std::thread::available_parallelism;
 

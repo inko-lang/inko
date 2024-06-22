@@ -474,7 +474,7 @@ class builtin String {
   # # Examples
   #
   # ```inko
-  # '😀😃'.chars.next # => Option.Some('😀 ')
+  # '😀😃'.chars.next # => Option.Some('😀')
   # ```
   fn pub chars -> Chars {
     Chars(string: self, iter: inko_string_chars(self))

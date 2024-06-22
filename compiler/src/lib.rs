@@ -2,9 +2,11 @@
 #![allow(clippy::enum_variant_names)]
 
 mod diagnostics;
+mod docs;
 pub mod format;
 mod hir;
 mod incremental;
+mod json;
 mod linker;
 mod llvm;
 mod mir;

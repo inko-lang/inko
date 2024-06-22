@@ -1187,7 +1187,7 @@ mod tests {
         uni,
     };
     use crate::{
-        Block, Class, ClassId, ClassKind, Closure, ModuleId,
+        Block, Class, ClassId, ClassKind, Closure, Location, ModuleId,
         TraitImplementation, TypePlaceholder, VariableLocation, Visibility,
     };
 
@@ -2543,6 +2543,7 @@ mod tests {
             ClassKind::Extern,
             Visibility::Public,
             ModuleId(0),
+            Location::default(),
         );
 
         let bar = Class::alloc(
@@ -2551,6 +2552,7 @@ mod tests {
             ClassKind::Extern,
             Visibility::Public,
             ModuleId(0),
+            Location::default(),
         );
 
         let param = new_parameter(&mut db, "T");

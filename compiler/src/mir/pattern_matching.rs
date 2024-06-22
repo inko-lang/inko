@@ -925,7 +925,7 @@ mod tests {
     use similar_asserts::assert_eq;
     use types::module_name::ModuleName;
     use types::{
-        Class, ClassInstance, ClassKind, Module, TypeId,
+        Class, ClassInstance, ClassKind, Location, Module, TypeId,
         Variable as VariableType, VariableLocation, Visibility,
     };
 
@@ -1215,16 +1215,19 @@ mod tests {
             ClassKind::Enum,
             Visibility::Public,
             module,
+            Location::default(),
         );
         let some = option_type.new_variant(
             &mut state.db,
             "Some".to_string(),
             vec![TypeRef::int()],
+            Location::default(),
         );
         let none = option_type.new_variant(
             &mut state.db,
             "None".to_string(),
             Vec::new(),
+            Location::default(),
         );
         let mut compiler = compiler(&mut state);
         let input = compiler.new_variable(TypeRef::Owned(
@@ -1281,16 +1284,19 @@ mod tests {
             ClassKind::Enum,
             Visibility::Public,
             module,
+            Location::default(),
         );
         let some = option_type.new_variant(
             &mut state.db,
             "Some".to_string(),
             vec![TypeRef::int()],
+            Location::default(),
         );
         let none = option_type.new_variant(
             &mut state.db,
             "None".to_string(),
             Vec::new(),
+            Location::default(),
         );
         let mut compiler = compiler(&mut state);
         let input = compiler.new_variable(TypeRef::Owned(
@@ -1355,6 +1361,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Public,
             module,
+            Location::default(),
         );
 
         person_type.new_field(
@@ -1364,6 +1371,7 @@ mod tests {
             TypeRef::string(),
             Visibility::Public,
             module,
+            Location::default(),
         );
 
         person_type.new_field(
@@ -1373,6 +1381,7 @@ mod tests {
             TypeRef::int(),
             Visibility::Public,
             module,
+            Location::default(),
         );
 
         let fields = person_type.fields(&state.db);
@@ -1439,6 +1448,7 @@ mod tests {
             ClassKind::Tuple,
             Visibility::Public,
             module,
+            Location::default(),
         );
 
         tuple2.new_field(
@@ -1448,6 +1458,7 @@ mod tests {
             TypeRef::string(),
             Visibility::Public,
             module,
+            Location::default(),
         );
 
         tuple2.new_field(
@@ -1457,6 +1468,7 @@ mod tests {
             TypeRef::int(),
             Visibility::Public,
             module,
+            Location::default(),
         );
 
         let tuple_fields = tuple2.fields(&state.db);
@@ -1526,6 +1538,7 @@ mod tests {
             ClassKind::Regular,
             Visibility::Public,
             module,
+            Location::default(),
         );
 
         person_type.new_field(
@@ -1535,6 +1548,7 @@ mod tests {
             TypeRef::string(),
             Visibility::Public,
             module,
+            Location::default(),
         );
 
         person_type.new_field(
@@ -1544,6 +1558,7 @@ mod tests {
             TypeRef::int(),
             Visibility::Public,
             module,
+            Location::default(),
         );
 
         let fields = person_type.fields(&state.db);
@@ -1598,6 +1613,7 @@ mod tests {
             ClassKind::Tuple,
             Visibility::Public,
             module,
+            Location::default(),
         );
 
         tuple2.new_field(
@@ -1607,6 +1623,7 @@ mod tests {
             TypeRef::string(),
             Visibility::Public,
             module,
+            Location::default(),
         );
 
         tuple2.new_field(
@@ -1616,6 +1633,7 @@ mod tests {
             TypeRef::int(),
             Visibility::Public,
             module,
+            Location::default(),
         );
 
         let tuple_fields = tuple2.fields(&state.db);
@@ -1896,6 +1914,7 @@ mod tests {
             ClassKind::Tuple,
             Visibility::Public,
             module,
+            Location::default(),
         );
 
         tuple2.new_field(
@@ -1905,6 +1924,7 @@ mod tests {
             TypeRef::int(),
             Visibility::Public,
             module,
+            Location::default(),
         );
 
         tuple2.new_field(
@@ -1914,6 +1934,7 @@ mod tests {
             TypeRef::string(),
             Visibility::Public,
             module,
+            Location::default(),
         );
 
         let tuple_fields = tuple2.fields(&state.db);
@@ -1999,6 +2020,7 @@ mod tests {
             ClassKind::Tuple,
             Visibility::Public,
             module,
+            Location::default(),
         );
 
         tuple2.new_field(
@@ -2008,6 +2030,7 @@ mod tests {
             TypeRef::boolean(),
             Visibility::Public,
             module,
+            Location::default(),
         );
 
         tuple2.new_field(
@@ -2017,6 +2040,7 @@ mod tests {
             TypeRef::string(),
             Visibility::Public,
             module,
+            Location::default(),
         );
 
         let tuple_fields = tuple2.fields(&state.db);
@@ -2112,6 +2136,7 @@ mod tests {
             ClassKind::Tuple,
             Visibility::Public,
             module,
+            Location::default(),
         );
 
         tuple2.new_field(
@@ -2121,6 +2146,7 @@ mod tests {
             TypeRef::int(),
             Visibility::Public,
             module,
+            Location::default(),
         );
 
         tuple2.new_field(
@@ -2130,6 +2156,7 @@ mod tests {
             TypeRef::int(),
             Visibility::Public,
             module,
+            Location::default(),
         );
 
         let tuple_fields = tuple2.fields(&state.db);

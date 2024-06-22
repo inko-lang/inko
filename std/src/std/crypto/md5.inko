@@ -4,7 +4,7 @@
 # possible.
 #
 # The implementation is based on RFC 1321 and the pseudo code found at
-# https://en.wikipedia.org/wiki/MD5#Pseudocode.
+# <https://en.wikipedia.org/wiki/MD5#Pseudocode>.
 #
 # # Examples
 #

@@ -227,8 +227,10 @@ pub enum Input {
 
 impl Input {
     pub fn project(config: &Config) -> Result<Input, String> {
-        let files =
-            all_source_modules(config)?.into_iter().map(|(_, p)| p).collect();
+        let files = all_source_modules(config, true)?
+            .into_iter()
+            .map(|(_, p)| p)
+            .collect();
 
         Ok(Input::Files(files))
     }
@@ -460,11 +462,18 @@ impl Document {
                         self.gen.new_line();
                     }
                 }
-                TopLevelExpression::Comment(n) => {
-                    self.top_level_comment(n);
+                TopLevelExpression::Comment(c) => {
+                    self.top_level_comment(c);
 
-                    if let Some(TopLevelExpression::Comment(c)) = iter.peek() {
-                        if c.location.lines.start() - n.location.lines.end() > 1
+                    // If a comment is followed by an empty line we retain the
+                    // empty line. This allows one to create a module comment
+                    // followed by e.g. a type, without that comment being
+                    // turned into a comment for the _type_ instead of the
+                    // module.
+                    if let Some(node) = iter.peek() {
+                        if node.location().lines.start()
+                            - c.location.lines.end()
+                            > 1
                         {
                             self.gen.new_line();
                         }

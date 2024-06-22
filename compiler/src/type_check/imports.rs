@@ -187,7 +187,7 @@ mod tests {
     use crate::test::{cols, hir_module};
     use std::path::PathBuf;
     use types::module_name::ModuleName;
-    use types::{Method, MethodKind, Module, Visibility};
+    use types::{Location, Method, MethodKind, Module, Visibility};
 
     #[test]
     fn test_import_module() {
@@ -699,6 +699,7 @@ mod tests {
         let foo = Method::alloc(
             &mut state.db,
             bar_mod,
+            Location::new(1..=1, 1..=1),
             symbol.clone(),
             Visibility::Private,
             MethodKind::Instance,
@@ -775,6 +776,7 @@ mod tests {
         let fizz = Method::alloc(
             &mut state.db,
             fizz_mod,
+            Location::new(1..=1, 1..=1),
             symbol.clone(),
             Visibility::Public,
             MethodKind::Instance,

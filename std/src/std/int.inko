@@ -205,7 +205,7 @@ class builtin Int {
   # # Examples
   #
   # ```inko
-  # Int.sum([10, 20, 30].into_iter) => 60
+  # Int.sum([10, 20, 30].into_iter) # => 60
   # ```
   fn pub static sum[I: Iter[Int]](iterator: move I) -> Int {
     iterator.reduce(0, fn (acc, val) { acc + val })

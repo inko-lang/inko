@@ -264,13 +264,14 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
     }
 
     fn specialize_class(&mut self, class: ClassId, key: Vec<Shape>) -> ClassId {
-        let (name, kind, vis, module) = {
+        let (name, kind, vis, module, loc) = {
             let cls = class.get(self.db);
+            let loc = class.location(self.db);
 
-            (cls.name.clone(), cls.kind, cls.visibility, cls.module)
+            (cls.name.clone(), cls.kind, cls.visibility, cls.module, loc)
         };
 
-        let new = Class::alloc(self.db, name, kind, vis, module);
+        let new = Class::alloc(self.db, name, kind, vis, module, loc);
 
         self.classes.push(new);
         new.set_specialization_source(self.db, class);
@@ -308,6 +309,7 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
         if kind.is_enum() {
             for old_var in class.get(self.db).variants.values().clone() {
                 let name = old_var.name(self.db).clone();
+                let loc = old_var.location(self.db).clone();
                 let members = old_var
                     .members(self.db)
                     .into_iter()
@@ -317,12 +319,12 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
                     })
                     .collect();
 
-                new.new_variant(self.db, name, members);
+                new.new_variant(self.db, name, members, loc);
             }
         }
 
         for (idx, old_field) in class.fields(self.db).into_iter().enumerate() {
-            let (name, orig_typ, vis, module) = {
+            let (name, orig_typ, vis, module, loc) = {
                 let field = old_field.get(self.db);
 
                 (
@@ -330,13 +332,14 @@ impl<'a, 'b, 'c> TypeSpecializer<'a, 'b, 'c> {
                     field.value_type,
                     field.visibility,
                     field.module,
+                    field.location.clone(),
                 )
             };
 
             let typ = TypeSpecializer::new(self.db, mapping, self.classes)
                 .specialize(orig_typ);
 
-            new.new_field(self.db, name, idx as _, typ, vis, module);
+            new.new_field(self.db, name, idx as _, typ, vis, module, loc);
         }
 
         new
@@ -351,7 +354,7 @@ mod tests {
         any, generic_instance_id, immutable, instance, mutable, new_enum_class,
         new_parameter, owned, parameter, rigid, uni,
     };
-    use crate::{ClassId, ModuleId, Visibility};
+    use crate::{ClassId, Location, ModuleId, Visibility};
 
     #[test]
     fn test_specialize_type() {
@@ -456,6 +459,7 @@ mod tests {
             any(parameter(param1)),
             Visibility::Public,
             ModuleId(0),
+            Location::default(),
         );
 
         tup.new_field(
@@ -465,6 +469,7 @@ mod tests {
             any(parameter(param2)),
             Visibility::Public,
             ModuleId(0),
+            Location::default(),
         );
 
         tup.new_field(
@@ -474,6 +479,7 @@ mod tests {
             any(parameter(param3)),
             Visibility::Public,
             ModuleId(0),
+            Location::default(),
         );
 
         let mut shapes = HashMap::new();
@@ -532,9 +538,15 @@ mod tests {
             &mut db,
             "Some".to_string(),
             vec![any(parameter(opt_param))],
+            Location::default(),
         );
 
-        opt.new_variant(&mut db, "None".to_string(), Vec::new());
+        opt.new_variant(
+            &mut db,
+            "None".to_string(),
+            Vec::new(),
+            Location::default(),
+        );
 
         let mut classes = Vec::new();
         let shapes = HashMap::new();
