@@ -1,6 +1,8 @@
 use crate::config::{BuildDirectories, Output};
 use crate::config::{Config, SOURCE, SOURCE_EXT, TESTS};
-use crate::docs::{DefineDocumentation, GenerateDocumentation};
+use crate::docs::{
+    Config as DocsConfig, DefineDocumentation, GenerateDocumentation,
+};
 use crate::hir;
 use crate::linker::link;
 use crate::llvm;
@@ -229,7 +231,7 @@ impl Compiler {
         res
     }
 
-    pub fn document(&mut self, private: bool) -> Result<(), CompileError> {
+    pub fn document(&mut self, config: DocsConfig) -> Result<(), CompileError> {
         // When generating documentation we don't include the unit tests.
         let input = all_source_modules(&self.state.config, false)
             .map_err(CompileError::Internal)?;
@@ -248,7 +250,7 @@ impl Compiler {
         dirs.create()
             .and_then(|_| dirs.create_documentation())
             .and_then(|_| {
-                GenerateDocumentation::run_all(&self.state, &dirs, private)
+                GenerateDocumentation::run_all(&self.state, &dirs, &config)
             })
             .map_err(CompileError::Internal)
     }

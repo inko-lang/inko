@@ -38,6 +38,11 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
         "private",
         "Generate documentation for private symbols",
     );
+    options.optflag(
+        "d",
+        "dependencies",
+        "Also generate documentation for dependencies",
+    );
 
     let matches = options.parse(args)?;
 
@@ -53,7 +58,11 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
     }
 
     let mut compiler = Compiler::new(config);
-    let result = compiler.document(matches.opt_present("p"));
+    let conf = compiler::docs::Config {
+        private: matches.opt_present("p"),
+        dependencies: matches.opt_present("d"),
+    };
+    let result = compiler.document(conf);
 
     compiler.print_diagnostics();
 

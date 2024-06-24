@@ -3,7 +3,7 @@ use crate::presenters::{JsonPresenter, Presenter, TextPresenter};
 use crate::target::Target;
 use std::collections::HashMap;
 use std::env;
-use std::fs::create_dir_all;
+use std::fs::{create_dir_all, remove_dir_all};
 use std::path::{Path, PathBuf};
 use std::thread::available_parallelism;
 use std::time::SystemTime;
@@ -124,6 +124,12 @@ impl BuildDirectories {
     }
 
     pub(crate) fn create_documentation(&self) -> Result<(), String> {
+        // We don't perform incremental compilation of some sort for
+        // documentation files. We also don't want to include documentation
+        // files no longer relevant, so we first remove the directory if it
+        // exists.
+        let _ = remove_dir_all(&self.documentation);
+
         create_directory(&self.documentation)
     }
 

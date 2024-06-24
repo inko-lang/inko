@@ -86,6 +86,12 @@ fn format_method(db: &Database, id: MethodId) -> String {
     }
 }
 
+/// A type used to configure the documentation generation process.
+pub struct Config {
+    pub private: bool,
+    pub dependencies: bool,
+}
+
 /// A compiler pass that defines the documentation of symbols based on the
 /// source comments.
 pub(crate) struct DefineDocumentation<'a> {
@@ -268,23 +274,31 @@ pub(crate) struct GenerateDocumentation<'a> {
     state: &'a State,
     directory: &'a Path,
     module: ModuleId,
-    private: bool,
+    config: &'a Config,
 }
 
 impl<'a> GenerateDocumentation<'a> {
     pub(crate) fn run_all(
         state: &'a State,
         directories: &BuildDirectories,
-        private: bool,
+        config: &'a Config,
     ) -> Result<(), String> {
         for idx in 0..state.db.number_of_modules() {
             let id = ModuleId(idx as _);
+            let file = id.file(&state.db);
+
+            if !config.dependencies
+                && (file.starts_with(&state.config.dependencies)
+                    || file.starts_with(&state.config.std))
+            {
+                continue;
+            }
 
             GenerateDocumentation {
                 state,
                 directory: &directories.documentation,
                 module: id,
-                private,
+                config,
             }
             .run()?;
         }
@@ -321,7 +335,7 @@ impl<'a> GenerateDocumentation<'a> {
         for &id in self.module.constants(self.db()) {
             let public = id.is_public(self.db());
 
-            if !public && !self.private {
+            if self.should_skip(public) {
                 continue;
             }
 
@@ -370,7 +384,7 @@ impl<'a> GenerateDocumentation<'a> {
 
             let public = id.is_public(self.db());
 
-            if !public && !self.private {
+            if self.should_skip(public) {
                 continue;
             }
 
@@ -421,7 +435,7 @@ impl<'a> GenerateDocumentation<'a> {
             let imp = cid.trait_implementation(self.db(), trait_id).unwrap();
             let public = cid.is_public(self.db());
 
-            if !public && !self.private {
+            if self.should_skip(public) {
                 continue;
             }
 
@@ -455,7 +469,7 @@ impl<'a> GenerateDocumentation<'a> {
             let trait_id = imp.instance.instance_of();
             let public = trait_id.is_public(self.db());
 
-            if !public && !self.private {
+            if self.should_skip(public) {
                 continue;
             }
 
@@ -488,7 +502,7 @@ impl<'a> GenerateDocumentation<'a> {
         for id in self.module.traits(self.db()) {
             let public = id.is_public(self.db());
 
-            if !public && !self.private {
+            if self.should_skip(public) {
                 continue;
             }
 
@@ -523,7 +537,7 @@ impl<'a> GenerateDocumentation<'a> {
         for id in methods {
             let public = id.is_public(self.db());
 
-            if !public && !self.private {
+            if self.should_skip(public) {
                 continue;
             }
 
@@ -584,7 +598,7 @@ impl<'a> GenerateDocumentation<'a> {
         for field in id.fields(self.db()) {
             let public = field.is_public(self.db());
 
-            if !public && !self.private {
+            if self.should_skip(public) {
                 continue;
             }
 
@@ -612,6 +626,10 @@ impl<'a> GenerateDocumentation<'a> {
 
     fn db(&self) -> &Database {
         &self.state.db
+    }
+
+    fn should_skip(&self, public: bool) -> bool {
+        !public && !self.config.private
     }
 }
 
