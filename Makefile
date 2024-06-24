@@ -155,8 +155,16 @@ docs/watch:
 	cd docs && bash scripts/watch.sh
 
 docs/publish: docs/setup docs/build
-	cd docs && rclone sync --config ../rclone.conf --checksum --verbose \
-		public "production:${DOCS_BUCKET}/manual/${DOCS_FOLDER}"
+	rclone sync --config rclone.conf --checksum --verbose \
+		docs/public "production:${DOCS_BUCKET}/manual/${DOCS_FOLDER}"
+
+std-docs/build:
+	rm -rf std/build
+	cd std && idoc
+
+std-docs/publish: std-docs/build
+	rclone sync --config rclone.conf --checksum --verbose \
+		std/build/idoc/public "production:${DOCS_BUCKET}/std/${DOCS_FOLDER}"
 
 runtimes:
 	bash scripts/runtimes.sh ${VERSION}
@@ -165,3 +173,4 @@ runtimes:
 .PHONY: release/commit release/publish release/tag
 .PHONY: build install clean runtimes
 .PHONY: docs/setup docs/build docs/watch docs/publish
+.PHONY: std-docs/build std-docs/publish
