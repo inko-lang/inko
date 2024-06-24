@@ -35,7 +35,7 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
     options.optflag(
         "d",
         "dependencies",
-        "Also generate documentation for dependencies",
+        "Generate documentation for dependencies",
     );
 
     let matches = options.parse(args)?;
