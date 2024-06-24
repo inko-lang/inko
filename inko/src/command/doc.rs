@@ -27,12 +27,6 @@ pub(crate) fn run(args: &[String]) -> Result<i32, Error> {
         "The output format to use for diagnostics",
         "FORMAT",
     );
-    options.optmulti(
-        "i",
-        "include",
-        "A directory to add to the list of source directories",
-        "PATH",
-    );
     options.optflag(
         "p",
         "private",
