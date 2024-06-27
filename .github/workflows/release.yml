@@ -128,3 +128,37 @@ jobs:
           then
             make docs/publish DOCS_FOLDER=latest
           fi
+
+  std-docs:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/inko-lang/ci:idoc
+    env:
+      RCLONE_S3_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_ACCESS_KEY_ID }}
+      RCLONE_S3_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
+      RCLONE_S3_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+    needs:
+      - lints
+      - linux
+      - mac
+      - freebsd
+      - container
+      - runtimes
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/inko/packages
+          key: std-docs-release
+      - run: git config --global --add safe.directory $PWD
+      - name: Deploy the documentation
+        run: make std-docs/publish DOCS_FOLDER=${{ github.ref_name }}
+      - name: Update the latest tag
+        run: >
+          if [[ ${{ github.ref_name }} = $(git tag -l --sort=-v:refname | head -n1) ]]
+          then
+            make std-docs/publish DOCS_FOLDER=latest
+          fi
