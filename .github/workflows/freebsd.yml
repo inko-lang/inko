@@ -9,11 +9,9 @@ env:
   LIBRARY_PATH: /usr/local/lib
   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
 
-# Due to https://github.com/cross-platform-actions/action/issues/29, jobs should
-# use QEMU, instead of xhyve.
 jobs:
   amd64:
-    runs-on: macos-12
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -30,6 +28,5 @@ jobs:
           version: '14.0'
           memory: 8G
           environment_variables: 'CARGO_HOME RUSTUP_HOME LIBRARY_PATH CARGO_REGISTRIES_CRATES_IO_PROTOCOL'
-          hypervisor: qemu
           image_url: 'https://github.com/inko-lang/freebsd-builder/releases/download/v0.7.0/freebsd-14.0-x86-64.qcow2'
           run: ./ci/freebsd.sh
