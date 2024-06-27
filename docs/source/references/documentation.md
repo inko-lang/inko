@@ -9,6 +9,52 @@ list of JSON files that contain documentation about symbols (e.g. classes and
 methods), and converting these JSON files into a desired format (e.g. a static
 website).
 
+## Writing documentation
+
+Documentation is written using
+[Markdown](https://en.wikipedia.org/wiki/Markdown), specifically using the
+[inko-markdown](https://github.com/yorickpeterse/inko-markdown) dialect.
+
+Symbols (methods, classes, etc) are documented by placing one or more comments
+before them, without empty lines between the comments or between the last
+comment and the start of the symbol:
+
+```inko
+# This is the documentation for the constant.
+# It happens to occupy two lines.
+let NUMBER = 42
+```
+
+Modules are documented by placing comments at the start of the module:
+
+```inko
+# This is the documentation for the module.
+import std.string (StringBuffer)
+
+fn example {}
+```
+
+If the module documentation is followed by a symbol (e.g. a class), ensure
+there's an empty line after the comment, otherwise it's treated as the
+documentation for the symbol:
+
+```inko
+# This documents the _module_ and not the class.
+
+class Example {}
+```
+
+The following can be documented:
+
+- Modules
+- Constants
+- Module methods
+- Classes
+- Traits
+- Methods defined on a class
+- Methods defined in an `impl` block
+- Methods defined in a trait
+
 ## Generating the JSON files
 
 Generating the JSON files is done by running `inko doc` in a project. The
