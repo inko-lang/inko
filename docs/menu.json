@@ -48,7 +48,8 @@
     "references/prelude.md",
     "references/cli.md",
     "references/packages.md",
-    "references/tuning.md"
+    "references/tuning.md",
+    "references/documentation.md"
   ],
   "Design": [
     "design/compiler.md",
