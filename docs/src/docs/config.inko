@@ -1,7 +1,7 @@
-import docs.menu.Menu
-import std.clone.Clone
-import std.fs.path.Path
-import wobsite.Page
+import docs.menu (Menu)
+import std.clone (Clone)
+import std.fs.path (Path)
+import wobsite (Page)
 
 let MENU_FILE = 'menu.json'
 
@@ -18,24 +18,24 @@ class pub Config {
   fn pub static new(source: ref Path) -> Result[Config, String] {
     let menu = try Menu.parse(source, Path.new(MENU_FILE))
 
-    Result.Ok({Config {
-      @title = 'The Inko manual',
-      @base_url = 'https://docs.inko-lang.org/manual',
-      @menu = menu,
-    }})
+    Result.Ok(
+      {
+        Config(
+          title: 'The Inko manual',
+          base_url: 'https://docs.inko-lang.org/manual',
+          menu: menu,
+        )
+      },
+    )
   }
 
   fn canonical_url(page: ref Page) -> String {
-    "{@base_url}/latest{page.url}"
+    '${@base_url}/latest${page.url}'
   }
 }
 
 impl Clone[Config] for Config {
   fn pub clone -> Config {
-    Config {
-      @title = @title,
-      @base_url = @base_url,
-      @menu = @menu.clone,
-    }
+    Config(title: @title, base_url: @base_url, menu: @menu.clone)
   }
 }

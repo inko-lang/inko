@@ -1,22 +1,21 @@
-import markdown.(split_front_matter)
-import std.clone.Clone
-import std.fs.file.ReadOnlyFile
-import std.fs.path.Path
-import std.json.Json
-import wobsite.(Files, FrontMatter)
-import wobsite.url.(file_url)
+import markdown (split_front_matter)
+import std.clone (Clone)
+import std.fs.file (ReadOnlyFile)
+import std.fs.path (Path)
+import std.json (Json)
+import wobsite (Files, FrontMatter)
+import wobsite.url (file_url)
 
 fn parse_front_matter(path: ref Path) -> Result[FrontMatter, String] {
   let bytes = ByteArray.new
 
-  try ReadOnlyFile
-    .new(path)
-    .then fn (f) { f.read_all(bytes) }
-    .map_error fn (e) { "failed to read {path}: {e}" }
+  try ReadOnlyFile.new(path.clone).then(fn (f) { f.read_all(bytes) }).map_error(
+    fn (e) { 'failed to read ${path}: ${e}' },
+  )
 
-  FrontMatter
-    .parse(split_front_matter(bytes.into_string).0)
-    .map_error fn (e) { "failed to parse the front matter of {path}: {e}" }
+  FrontMatter.parse(split_front_matter(bytes.into_string).0).map_error(fn (e) {
+    'failed to parse the front matter of ${path}: ${e}'
+  })
 }
 
 class Item {
@@ -33,7 +32,7 @@ class Item {
 
 impl Clone[Item] for Item {
   fn pub clone -> Item {
-    Item { @title = @title, @url = @url }
+    Item(title: @title, url: @url)
   }
 }
 
@@ -41,16 +40,13 @@ class Menu {
   let @items: Map[String, Array[Item]]
   let @titles: Map[String, String]
 
-  fn static parse(
-    source: ref Path,
-    path: ref Path,
-  ) -> Result[Menu, String] {
+  fn static parse(source: ref Path, path: ref Path) -> Result[Menu, String] {
     let bytes = ByteArray.new
 
     try ReadOnlyFile
-      .new(path)
-      .then fn (f) { f.read_all(bytes) }
-      .map_error fn (e) { e.to_string }
+      .new(path.clone)
+      .then(fn (f) { f.read_all(bytes) })
+      .map_error(fn (e) { e.to_string })
 
     let root = match Json.parse(bytes) {
       case Ok(Object(map)) -> map
@@ -61,7 +57,7 @@ class Menu {
     let titles = Map.new
     let items = Map.new
 
-    try root.into_iter.try_each fn (pair) {
+    try root.into_iter.try_each(fn (pair) {
       let key = pair.key
       let val = match pair {
         case { @value = Array(v) } -> v
@@ -70,7 +66,7 @@ class Menu {
 
       let values = []
 
-      try val.into_iter.try_each fn (val) {
+      try val.into_iter.try_each(fn (val) {
         let rel = match val {
           case String(v) -> v
           case _ -> throw 'each array value must be a string'
@@ -81,29 +77,29 @@ class Menu {
         let url = file_url(source, path)
 
         titles.set(url, front.title)
-        values.push(Item { @title = front.title, @url = url })
+        values.push(Item(title: front.title, url: url))
         Result.Ok(nil)
-      }
+      })
 
       items.set(key, values)
       Result.Ok(nil)
-    }
+    })
 
-    Result.Ok(Menu { @items = items, @titles = titles })
+    Result.Ok(Menu(items: items, titles: titles))
   }
 }
 
 impl Clone[Menu] for Menu {
   fn pub clone -> Menu {
-    Menu {
-      @items = @items.iter.reduce(Map.new) fn (map, pair) {
+    Menu(
+      items: @items.iter.reduce(Map.new, fn (map, pair) {
         map.set(pair.key, pair.value.clone)
         map
-      },
-      @titles = @titles.iter.reduce(Map.new) fn (map, pair) {
+      }),
+      titles: @titles.iter.reduce(Map.new, fn (map, pair) {
         map.set(pair.key, pair.value)
         map
-      }
-    }
+      }),
+    )
   }
 }

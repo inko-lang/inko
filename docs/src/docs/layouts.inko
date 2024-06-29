@@ -1,21 +1,21 @@
 import builder.html
 import builder.xml
-import docs.config.Config
-import docs.filters.(AutoTableOfContents, RelativeLinks)
-import docs.menu.(Item, Menu)
-import docs.url.(link_from)
-import markdown.html.(Filter, TableOfContents)
-import std.string.StringBuffer
-import wobsite.(Files, Page)
-import wobsite.markdown.(Admonitions, SyntaxHighlight)
-import wobsite.time.(human_readable_date, iso_date)
+import docs.config (Config)
+import docs.filters (AutoTableOfContents, RelativeLinks)
+import docs.menu (Item, Menu)
+import docs.url (link_from)
+import markdown.html (Filter, TableOfContents)
+import std.string (StringBuffer)
+import wobsite (Files, Page)
+import wobsite.markdown (Admonitions, SyntaxHighlight)
+import wobsite.time (human_readable_date, iso_date)
 
 fn filters(menu: ref Menu, page: ref Page) -> Array[Filter] {
   [
     SyntaxHighlight.new as Filter,
     Admonitions.new as Filter,
-    RelativeLinks { @menu = menu, @page = page } as Filter,
-    AutoTableOfContents {} as Filter, # This filter must come last
+    RelativeLinks(menu: menu, page: page) as Filter,
+    AutoTableOfContents() as Filter, # This filter must come last
   ]
 }
 
@@ -57,22 +57,26 @@ fn sidebar_list(
   page: ref Page,
 ) {
   root.header.h1.text(title)
-  root.ul.with fn (ul) {
-    items.iter.each fn (item) {
+  root.ul.with(fn (ul) {
+    items.iter.each(fn (item) {
       let a = ul.li.a
 
       if item.url == page.url { a.attr('class', 'current') }
+
       a.attr('href', link_from(page, item.url)).text(item.title)
-    }
-  }
+    })
+  })
 }
 
 fn sidebar(config: ref Config, root: mut html.Element, page: ref Page) {
-  let section = config.menu.items.iter.find fn (pair) {
-    pair.value.iter.any? fn (item) { item.url == page.url }
-  }
+  let section = config.menu.items.iter.find(fn (pair) {
+    pair.value.iter.any?(fn (item) { item.url == page.url })
+  })
 
-  let pair = match section { case Some(v) -> v, case _ -> return }
+  let pair = match section {
+    case Some(v) -> v
+    case _ -> return
+  }
   let left = root.aside.attr('class', 'left')
 
   sidebar_list(left, pair.key, pair.value, page)
@@ -81,9 +85,9 @@ fn sidebar(config: ref Config, root: mut html.Element, page: ref Page) {
 fn home_sidebar(config: ref Config, root: mut html.Element, page: ref Page) {
   let left = root.aside.attr('class', 'left')
 
-  config.menu.items.iter.each fn (pair) {
+  config.menu.items.iter.each(fn (pair) {
     sidebar_list(left, pair.key, pair.value, page)
-  }
+  })
 }
 
 fn toggle_menu(query: String, open: String, close: String) -> html.Element {
@@ -107,24 +111,16 @@ fn head(config: ref Config, page: ref Page) -> html.Element {
     .meta
     .attr(
       'content',
-      "\
-        default-src 'self'; \
-        script-src 'self'; \
-        object-src 'none'; \
-        style-src 'self'; \
-        font-src 'self' data:; \
-        base-uri 'none'; \
-        form-action 'none'; \
-      "
+      "default-src 'self'; script-src 'self'; object-src 'none'; style-src 'self'; font-src 'self' data:; base-uri 'none'; form-action 'none';",
     )
     .attr('http-equiv', 'Content-Security-Policy')
 
   head.meta.attr('charset', 'utf-8')
 
-  head
-    .meta
-    .attr('name', 'viewport')
-    .attr('content', 'width=device-width, initial-scale=1.0')
+  head.meta.attr('name', 'viewport').attr(
+    'content',
+    'width=device-width, initial-scale=1.0',
+  )
 
   head
     .link
@@ -132,13 +128,10 @@ fn head(config: ref Config, page: ref Page) -> html.Element {
     .attr('href', link_from(page, '/favicon.ico'))
     .attr('type', 'image/x-icon')
 
-  head
-    .script
-    .attr('src', link_from(page, '/js/main.js'))
-    .attr('defer', 'defer')
+  head.script.attr('src', link_from(page, '/js/main.js')).attr('defer', 'defer')
 
   head.add(link(link_from(page, '/css/reset.css'), rel: 'stylesheet'))
-  head.add(link(link_from(page, '/css/icons.css'),  rel: 'stylesheet'))
+  head.add(link(link_from(page, '/css/icons.css'), rel: 'stylesheet'))
   head.add(link(link_from(page, '/css/main.css'), rel: 'stylesheet'))
   head.add(link(config.canonical_url(page), rel: 'canonical'))
   head.title.text(page.title)
@@ -148,8 +141,8 @@ fn head(config: ref Config, page: ref Page) -> html.Element {
 fn header(config: ref Config, page: ref Page) -> html.Element {
   let root = html.Element.new('div')
 
-  root.attr('class', 'top-bar').header.attr('class', 'grid').with fn (h) {
-    h.div.attr('class', 'logo').with fn (logo) {
+  root.attr('class', 'top-bar').header.attr('class', 'grid').with(fn (h) {
+    h.div.attr('class', 'logo').with(fn (logo) {
       logo
         .img
         .attr('src', link_from(page, '/images/logo.png'))
@@ -157,27 +150,30 @@ fn header(config: ref Config, page: ref Page) -> html.Element {
         .attr('width', '24')
 
       logo.span.text(config.title)
-    }
+    })
 
-    h.div.attr('class', 'expand-menus').with fn (div) {
+    h.div.attr('class', 'expand-menus').with(fn (div) {
       div.add(toggle_menu('.top-bar nav', 'Show menu', 'Hide menu'))
       div.add(toggle_menu('.page aside.left', 'Show chapters', 'Hide chapters'))
-    }
+    })
 
-    h.nav.ul.with fn (ul) {
-      config.menu.items.iter.each fn (pair) {
-        let item =
-          match pair.value.opt(0) { case Some(v) -> v, case _ -> return }
+    h.nav.ul.with(fn (ul) {
+      config.menu.items.iter.each(fn (pair) {
+        let item = match pair.value.opt(0) {
+          case Some(v) -> v
+          case _ -> return
+        }
 
-        ul.li.a.attr('href', link_from(page, item.url)).with fn (a) {
+        ul.li.a.attr('href', link_from(page, item.url)).with(fn (a) {
           a.text(pair.key)
+
           if page.url.starts_with?(item.parent_url) or page.url == item.url {
             a.attr('class', 'current')
           }
-        }
-      }
-    }
-  }
+        })
+      })
+    })
+  })
 
   root
 }
@@ -191,54 +187,54 @@ fn container(
 }
 
 fn pub home(config: ref Config, page: Page) -> html.Document {
-  let doc = html.Document.html('en') fn (html) {
+  let doc = html.Document.html('en', fn (html) {
     html.add(head(config, page))
-    html.body.with fn (body) {
+    html.body.with(fn (body) {
       body.add(header(config, page))
-      container(body, 'page home') fn (div) {
+      container(body, 'page home', fn (div) {
         home_sidebar(config, div, page)
         content(config.menu, page, div)
-      }
-    }
-  }
+      })
+    })
+  })
 
   doc
 }
 
 fn pub page(config: ref Config, page: Page) -> html.Document {
-  let doc = html.Document.html('en') fn (html) {
+  let doc = html.Document.html('en', fn (html) {
     html.add(head(config, page))
-    html.body.with fn (body) {
+    html.body.with(fn (body) {
       body.add(header(config, page))
-      container(body, 'page') fn (div) {
+      container(body, 'page', fn (div) {
         sidebar(config, div, page)
         content(config.menu, page, div)
-      }
-    }
-  }
+      })
+    })
+  })
 
   doc
 }
 
 fn pub missing(config: ref Config, page: Page) -> html.Document {
-  html.Document.html('en') fn (html) {
+  html.Document.html('en', fn (html) {
     html.add(head(config, page))
-    html.body.with fn (body) {
+    html.body.with(fn (body) {
       body.add(header(config, page))
-      container(body, 'missing-page') fn (div) {
-        div.article.with fn (article) {
-          article.header.with fn (h) {
-            h
-              .img
-              .attr('src', link_from(page, '/images/404.gif'))
-              .attr('height', '255')
+      container(body, 'missing-page', fn (div) {
+        div.article.with(fn (article) {
+          article.header.with(fn (h) {
+            h.img.attr('src', link_from(page, '/images/404.gif')).attr(
+              'height',
+              '255',
+            )
 
             h.h1.text(page.title)
-          }
+          })
 
           article.append(page.to_html(filters(config.menu, page)))
-        }
-      }
-    }
-  }
+        })
+      })
+    })
+  })
 }

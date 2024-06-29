@@ -1,15 +1,15 @@
-import docs.config.Config
+import docs.config (Config)
 import docs.layouts
-import wobsite.Site
+import wobsite (Site)
 
 class async Main {
   fn async main {
-    Site.build fn (site) {
+    Site.build(fn (site) {
       # Each page needs this data, so we panic if we can't parse it as we can't
       # build the site without it.
       let conf = match Config.new(site.files.source) {
         case Ok(v) -> v
-        case Error(e) -> panic("failed to set up the configuration: {e}")
+        case Error(e) -> panic('failed to set up the configuration: ${e}')
       }
 
       site.copy('*.ico')
@@ -20,29 +20,29 @@ class async Main {
       site.copy('*.css')
       site.copy('*.js')
 
-      site.page('/index.md', index: false) fn {
+      site.page_without_index('/index.md', fn {
         recover {
           let conf = conf.clone
 
           fn move (_, page) { Result.Ok(layouts.home(conf, page)) }
         }
-      }
+      })
 
-      site.page('/404.md', index: false) fn {
+      site.page_without_index('/404.md', fn {
         recover {
           let conf = conf.clone
 
           fn move (_, page) { Result.Ok(layouts.missing(conf, page)) }
         }
-      }
+      })
 
-      site.page('/*/*.md', index: true) fn {
+      site.page('/*/*.md', fn {
         recover {
           let conf = conf.clone
 
           fn move (_, page) { Result.Ok(layouts.page(conf, page)) }
         }
-      }
-    }
+      })
+    })
   }
 }

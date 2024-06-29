@@ -1,14 +1,14 @@
-import builder.html.(Document, Element)
-import docs.menu.Menu
-import docs.url.(link_from, relative?)
-import markdown.html.(Filter, TableOfContents)
-import wobsite.Page
-import wobsite.url.(relative_to_absolute)
+import builder.html (Document, Element)
+import docs.menu (Menu)
+import docs.url (link_from, relative?)
+import markdown.html (Filter, TableOfContents)
+import wobsite (Page)
+import wobsite.url (relative_to_absolute)
 
 # A filter that automatically inserts a table of contents.
 class AutoTableOfContents {
   fn static new -> AutoTableOfContents {
-    AutoTableOfContents {}
+    AutoTableOfContents()
   }
 
   fn add_marker(document: mut Document) {
@@ -56,6 +56,7 @@ class RelativeLinks {
     let mut abs = relative_to_absolute(@page.url, relative, as_file: false)
 
     if abs.ends_with?('/').false? { abs = abs + '/' }
+
     @menu.titles.opt(abs)
   }
 }
