@@ -4,6 +4,73 @@
 Entries from before version 0.10.0 are no longer included, but can be viewed
 [here](https://github.com/inko-lang/inko/blob/f9c01b86af70596021e649be5d43ec2a22b6d298/CHANGELOG.md).
 
+## 0.15.0 (2024-06-29)
+
+### Added
+
+- [cefa664](https://github.com/inko-lang/inko/commit/cefa6649c7959ee293e118bb1f2dd9e53d86781d): Add command for generating documentation
+- [1dd4a9c](https://github.com/inko-lang/inko/commit/1dd4a9c5aa3394e5a8bb34788700bdfca5b3a9e1): Implement Clone for ranges
+- [30f8f5b](https://github.com/inko-lang/inko/commit/30f8f5b0dd1966b3a207db30d17b6ab31a4062b7): Implement String.cmp
+- [de057f5](https://github.com/inko-lang/inko/commit/de057f50fb3f612c56e3915751480d198133c032): Relax rules for capturing self in uni closures
+- [e12d2b3](https://github.com/inko-lang/inko/commit/e12d2b3c59ddff30c4031b561e07ddea79480e6a): Make capturing unique values in closures easier
+- [ee892e7](https://github.com/inko-lang/inko/commit/ee892e7c7ac7784f952eacf75b6747ef95c20818): Make the Makefile lib directory configurable
+- [f736257](https://github.com/inko-lang/inko/commit/f7362578c456e6f87dcf8f0a7ee288e04fb1052d): Add std.json.Query.as_bool
+- [84e3bcb](https://github.com/inko-lang/inko/commit/84e3bcbc406428d61d4f0f70ea7b967bb5196279): Allow keywords as named arguments
+- [3298ae2](https://github.com/inko-lang/inko/commit/3298ae2f8c77cad8dce2d80700fc87b19efa789a): Add support for compile-time variables
+- [086caf2](https://github.com/inko-lang/inko/commit/086caf2efb46bcbd7493a61472f813316c64d7c6): Implement Clone for Map
+- [0fb6d0a](https://github.com/inko-lang/inko/commit/0fb6d0a57e981386927a3953e5a10b045e2dfb76): Add module for parsing command-line options
+- [a783979](https://github.com/inko-lang/inko/commit/a78397961c5f1f08c17309b93859ec9b65af82b4): Add Int.sum
+- [1d4bad2](https://github.com/inko-lang/inko/commit/1d4bad250a69a7d402249761e7a13492e8a0ea18): Support handling of Unix signals
+- [215b63d](https://github.com/inko-lang/inko/commit/215b63dd72c78bbcbef0cd579feccbe228a0fe6f): Support automatic formatting of source code
+- [0f68a92](https://github.com/inko-lang/inko/commit/0f68a92fce4eef175aff9962e216b5423686a76c): Run the main process on the main thread
+- [01bd04e](https://github.com/inko-lang/inko/commit/01bd04ef722faea8b9cf927f01f76c60e805e625): Allow creating pointers to module methods
+
+### Fixed
+
+- [23c6e8a](https://github.com/inko-lang/inko/commit/23c6e8a0b6e14a30fb5decbfe7398be9464ef93c): Fix resolving class instances with receivers
+- [e8709b6](https://github.com/inko-lang/inko/commit/e8709b62dc0fc5fe2cb9266a20266272bee8228e): Fix removing poll registration for socket timeouts
+- [7cbf4a4](https://github.com/inko-lang/inko/commit/7cbf4a4cb76bd67f1fdcf4ba3e722b3f803b6480): Fix outdated import in examples
+- [fd95724](https://github.com/inko-lang/inko/commit/fd95724cfc221f051845716ea40408de0c29a69d): Expose value types correctly in recover blocks
+- [8e782df](https://github.com/inko-lang/inko/commit/8e782dfa50faf35e39db95c6399db93a3c582f3d): Ensure ignored match case results are dropped
+- [90c67b9](https://github.com/inko-lang/inko/commit/90c67b930bc71c724c02aa18d5555abb429cfcac): Fix double dropping nested wildcard values
+- [5a874a5](https://github.com/inko-lang/inko/commit/5a874a5f97fedad64b6638105cd68bb86756fe9c): Fix underflow when calculating socket buffer sizes
+- [6332f63](https://github.com/inko-lang/inko/commit/6332f63b7aa09ada7c5249d3afbe717bcb6115f9): Allow use of self after re-assigning all fields
+- [2f320e5](https://github.com/inko-lang/inko/commit/2f320e56a132f5d7d479e3a9f52a4992a38ee050): Don't generate goto's for dropping immediates
+- [6861608](https://github.com/inko-lang/inko/commit/686160891acc67373af0c09caf5add6479163be8): Ensure writes always perform full writes
+- [f729c2e](https://github.com/inko-lang/inko/commit/f729c2e9f2067cfb6c4b80c98f90c9a3df98329b): Fix joining onto empty Path values
+- [6063bba](https://github.com/inko-lang/inko/commit/6063bba6924c0f25ade08bcb02259182c7c0b506): Check ref counts when dropping without droppers
+
+### Changed
+
+- [4e14771](https://github.com/inko-lang/inko/commit/4e14771643740d1e49b32a5d9843e9359101bb3c): Make various std.libc symbols private
+- [42c4b28](https://github.com/inko-lang/inko/commit/42c4b281205888e621d9bb8459c6a952840f7370): Make inko pkg sync less verbose
+- [740682c](https://github.com/inko-lang/inko/commit/740682cbaed641d95a4388d1ebbead455e0996e2): Set TCP_NODELAY and reset with_timeout deadlines
+- [c3b85ca](https://github.com/inko-lang/inko/commit/c3b85caaba94df2e13458609c07daec6b4bdd507): Use setsockopt() and getsockopt() directly
+- [0e34cc3](https://github.com/inko-lang/inko/commit/0e34cc3844d926689409a776b9ba11264996c78e): Add support for pull parsing of JSON documents
+- [833b471](https://github.com/inko-lang/inko/commit/833b47170a5ccd5e05b7052810ce7de08355a446): Reduce the amount of type conversions
+- [b7bcf46](https://github.com/inko-lang/inko/commit/b7bcf46ead3b1ecb83e5e3ad38777d626fc9f96f): Unify the class literal and call syntax
+- [1536f59](https://github.com/inko-lang/inko/commit/1536f5949af90a0d10f3e6b771e92c0521f8eb2a): Use llvm.read_register for reading rsp
+- [9ce4f9e](https://github.com/inko-lang/inko/commit/9ce4f9e1c56799307d124d6e365b302151f3a223): Change drop order for fields and enum cases
+- [cb13b17](https://github.com/inko-lang/inko/commit/cb13b17ead2c8a8fa5b3c037515cc7182fd8a91d): Infer match as nil when any case returns nil
+- [e90b0dc](https://github.com/inko-lang/inko/commit/e90b0dcd1bacd4b2da725ff5fc6f67fe734e7bd0): Replace the polling crate with rustix code
+- [a35d4ec](https://github.com/inko-lang/inko/commit/a35d4ec288b90133a983fc0e27bb07b6d05ae6da): Require LLVM 16 or newer
+- [41a0b3e](https://github.com/inko-lang/inko/commit/41a0b3e567a31900e1796fb6a660255bf1c5b2e6): Make the import syntax consistent
+- [dc87e18](https://github.com/inko-lang/inko/commit/dc87e18152a522c3eb341e9b9c898bee88afcc36): Remove support for escaping whitespace in strings
+- [0536135](https://github.com/inko-lang/inko/commit/05361353e9b7b719f183b204a3a217a52f6c58bf): Rename methods used for unwrapping values
+- [929ff94](https://github.com/inko-lang/inko/commit/929ff9412c3c59cf5d5bde9fb022cda13fde811e): Pin fewer threads to CPU cores
+- [c9e90f5](https://github.com/inko-lang/inko/commit/c9e90f5e888e06244c6d7efe6bf9b6b785448040): Don't pass the state and process as an argument
+- [4047c8b](https://github.com/inko-lang/inko/commit/4047c8bd6535d2697e9272b966bd297390b6739f): Remove the IntoPath trait
+
+### Performance improvements
+
+- [ecbe1a6](https://github.com/inko-lang/inko/commit/ecbe1a6b5a826c938b9e39ca17f428f7df6305ec): Generate allocation and release code
+- [cc5770d](https://github.com/inko-lang/inko/commit/cc5770d289d2c38067c9b58107f9f838212ed518): Don't move work when entering a blocking operation
+- [649879f](https://github.com/inko-lang/inko/commit/649879f522aab98f0de23080ed35ab1426ced560): Generate code for checking ref counts
+
+### Other
+
+- [587cd6e](https://github.com/inko-lang/inko/commit/587cd6e3d8940f302da04ec15f72d63de0ecb8fc): Rename Cargo config file
+
 ## 0.14.0 (2024-02-05)
 
 ### Added
