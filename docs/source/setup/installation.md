@@ -40,6 +40,11 @@ Once ivm is installed, you can install Inko as follows:
 ivm install latest
 ```
 
+::: note
+When using macOS and Homebrew, you may need to set the `LIBRARY_PATH` and `PATH`
+variables. See the [macOS installation section](#macos) for more details.
+:::
+
 This installs the latest known version. If you want to install a specific
 version, run the following instead (where `X.Y.Z` is the version you want to
 install):
