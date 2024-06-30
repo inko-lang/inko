@@ -287,7 +287,8 @@ impl<'a> GenerateDocumentation<'a> {
             let id = ModuleId(idx as _);
             let file = id.file(&state.db);
 
-            if !config.dependencies
+            if state.config.source != state.config.std
+                && !config.dependencies
                 && (file.starts_with(&state.config.dependencies)
                     || file.starts_with(&state.config.std))
             {
