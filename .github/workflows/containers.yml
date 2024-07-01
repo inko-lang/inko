@@ -13,10 +13,6 @@ permissions:
   packages: write
 
 jobs:
-  arch:
-    uses: ./.github/workflows/container.yml
-    with:
-      name: 'arch'
   debian:
     uses: ./.github/workflows/container.yml
     with:
