@@ -9,6 +9,17 @@
 No official plugin exists for Emacs, but a syntax definition for Inko is [found
 in this discussion](https://github.com/orgs/inko-lang/discussions/697).
 
+## Helix
+
+[Helix](https://helix-editor.com/) has built-in support for syntax highlighting
+and code formatting, thanks to the official [Tree-sitter grammar for
+Inko][ts-grammar].
+
+::: note
+The latest stable release of Helix (24.03) does not yet include support for
+Inko, so you'll need to build Helix from Git until the next Helix release.
+:::
+
 ## (Neo)Vim
 
 For Vim and Neovim we provide [an official
@@ -17,8 +28,7 @@ syntax highlighting, file type detection, folding, and indentation.
 
 Users of NeoVim can also use
 [nvim-treesitter](https://github.com/nvim-treesitter/nvim-treesitter) to take
-advantage of [Tree-sitter support for
-Inko](https://github.com/inko-lang/tree-sitter-inko/), providing more accurate
+advantage of [Tree-sitter support for Inko][ts-grammar], providing more accurate
 highlights.
 
 The NeoVim plugin [conform.nvim](https://github.com/stevearc/conform.nvim)
@@ -34,3 +44,5 @@ install it, open VS Code's Quick Open window (Ctrl+P) and run the following:
 ```
 ext install inko-lang.inko
 ```
+
+[ts-grammar]: https://github.com/inko-lang/tree-sitter-inko/
