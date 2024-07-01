@@ -2371,9 +2371,6 @@ impl<'a> LowerToHir<'a> {
             ast::Expression::Match(node) => {
                 Expression::Match(self.match_expression(*node))
             }
-            ast::Expression::ClassLiteral(node) => {
-                Expression::Call(self.instance_literal(*node))
-            }
             ast::Expression::Array(node) => self.array_literal(*node),
             ast::Expression::Tuple(node) => {
                 Expression::Tuple(self.tuple_literal(*node))
@@ -2993,45 +2990,6 @@ impl<'a> LowerToHir<'a> {
         Box::new(Scope {
             resolved_type: types::TypeRef::Unknown,
             body: self.expressions(node.body),
-            location: node.location,
-        })
-    }
-
-    fn instance_literal(&mut self, node: ast::ClassLiteral) -> Box<Call> {
-        self.state.diagnostics.warn(
-            DiagnosticId::Deprecated,
-            format!(
-                "this class literal syntax is deprecated, use {}(...) instead",
-                node.class_name.name,
-            ),
-            self.file(),
-            node.location.clone(),
-        );
-
-        Box::new(Call {
-            kind: types::CallKind::Unknown,
-            receiver: None,
-            name: Identifier {
-                name: node.class_name.name,
-                location: node.class_name.location,
-            },
-            parens: true,
-            arguments: node
-                .fields
-                .into_iter()
-                .map(|f| {
-                    Argument::Named(Box::new(NamedArgument {
-                        index: 0,
-                        name: Identifier {
-                            name: f.field.name,
-                            location: f.field.location,
-                        },
-                        value: self.expression(f.value),
-                        expected_type: types::TypeRef::Unknown,
-                        location: f.location,
-                    }))
-                })
-                .collect(),
             location: node.location,
         })
     }

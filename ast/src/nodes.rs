@@ -505,19 +505,6 @@ pub struct AssignInstanceLiteralField {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct ClassLiteral {
-    pub class_name: Constant,
-    pub fields: Vec<AssignInstanceLiteralField>,
-    pub location: SourceLocation,
-}
-
-impl Node for ClassLiteral {
-    fn location(&self) -> &SourceLocation {
-        &self.location
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
 pub enum TraitExpression {
     DefineMethod(Box<DefineMethod>),
     Comment(Box<Comment>),
@@ -750,7 +737,6 @@ pub enum Expression {
     True(Box<True>),
     False(Box<False>),
     Nil(Box<Nil>),
-    ClassLiteral(Box<ClassLiteral>),
     Scope(Box<Scope>),
     Array(Box<Array>),
     Tuple(Box<Tuple>),
@@ -810,7 +796,6 @@ impl Node for Expression {
             Expression::BinaryAssignVariable(ref typ) => typ.location(),
             Expression::Break(ref typ) => typ.location(),
             Expression::Call(ref typ) => typ.location(),
-            Expression::ClassLiteral(ref typ) => typ.location(),
             Expression::Closure(ref typ) => typ.location(),
             Expression::Constant(ref typ) => typ.location(),
             Expression::DefineVariable(ref typ) => typ.location(),

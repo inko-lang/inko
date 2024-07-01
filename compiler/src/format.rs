@@ -1292,7 +1292,6 @@ impl Document {
             Expression::TypeCast(n) => self.type_cast(n),
             Expression::Try(n) => self.try_value(n),
             Expression::Match(n) => self.match_value(n),
-            Expression::ClassLiteral(n) => self.class_literal(n),
             Expression::Scope(n) => self.scope(n),
         }
     }
@@ -1755,44 +1754,6 @@ impl Document {
         ];
 
         self.group(group)
-    }
-
-    fn class_literal(&mut self, node: &nodes::ClassLiteral) -> Node {
-        let gid = self.new_group_id();
-        let group = if node.fields.is_empty() {
-            vec![Node::text(&node.class_name.name), Node::text("()")]
-        } else if node.fields.len() == 1 {
-            let vals = self.list(&node.fields, gid, |this, assign| {
-                this.expression(&assign.value)
-            });
-
-            vec![
-                Node::text(&node.class_name.name),
-                Node::text("("),
-                Node::Line,
-                Node::Indent(vals),
-                Node::Line,
-                Node::text(")"),
-            ]
-        } else {
-            let vals = self.list(&node.fields, gid, |this, assign| {
-                Node::Nodes(vec![
-                    Node::text(&format!("{}: ", assign.field.name)),
-                    this.expression(&assign.value),
-                ])
-            });
-
-            vec![
-                Node::text(&node.class_name.name),
-                Node::text("("),
-                Node::Line,
-                Node::Indent(vals),
-                Node::Line,
-                Node::text(")"),
-            ]
-        };
-
-        Node::Group(gid, group)
     }
 
     fn call(&mut self, node: &Expression) -> Node {

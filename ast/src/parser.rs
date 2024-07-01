@@ -1534,23 +1534,14 @@ impl Parser {
     }
 
     fn expression(&mut self, start: Token) -> Result<Expression, ParseError> {
-        self.boolean_and_or(start, true)
-    }
-
-    fn expression_without_trailing_block(
-        &mut self,
-    ) -> Result<Expression, ParseError> {
-        let start = self.require()?;
-
-        self.boolean_and_or(start, false)
+        self.boolean_and_or(start)
     }
 
     fn boolean_and_or(
         &mut self,
         start: Token,
-        trailing: bool,
     ) -> Result<Expression, ParseError> {
-        let mut node = self.binary(start, trailing)?;
+        let mut node = self.binary(start)?;
 
         loop {
             match self.peek().kind {
@@ -1558,7 +1549,7 @@ impl Parser {
                     self.next();
 
                     let right_token = self.require()?;
-                    let right = self.binary(right_token, trailing)?;
+                    let right = self.binary(right_token)?;
 
                     node = Expression::boolean_and(node, right);
                 }
@@ -1566,7 +1557,7 @@ impl Parser {
                     self.next();
 
                     let right_token = self.require()?;
-                    let right = self.binary(right_token, trailing)?;
+                    let right = self.binary(right_token)?;
 
                     node = Expression::boolean_or(node, right);
                 }
@@ -1577,17 +1568,13 @@ impl Parser {
         Ok(node)
     }
 
-    fn binary(
-        &mut self,
-        start: Token,
-        trailing: bool,
-    ) -> Result<Expression, ParseError> {
-        let mut node = self.postfix(start, trailing)?;
+    fn binary(&mut self, start: Token) -> Result<Expression, ParseError> {
+        let mut node = self.postfix(start)?;
 
         loop {
             if let Some(op) = self.binary_operator() {
                 let rhs_token = self.require()?;
-                let rhs = self.postfix(rhs_token, trailing)?;
+                let rhs = self.postfix(rhs_token)?;
                 let location =
                     SourceLocation::start_end(node.location(), rhs.location());
 
@@ -1648,12 +1635,8 @@ impl Parser {
         Some(Operator { kind: op_kind, location: op_token.location })
     }
 
-    fn postfix(
-        &mut self,
-        start: Token,
-        trailing: bool,
-    ) -> Result<Expression, ParseError> {
-        let mut node = self.value(start, trailing)?;
+    fn postfix(&mut self, start: Token) -> Result<Expression, ParseError> {
+        let mut node = self.value(start)?;
 
         loop {
             let peeked = self.peek();
@@ -1668,17 +1651,13 @@ impl Parser {
         Ok(node)
     }
 
-    fn value(
-        &mut self,
-        start: Token,
-        trailing: bool,
-    ) -> Result<Expression, ParseError> {
+    fn value(&mut self, start: Token) -> Result<Expression, ParseError> {
         // When updating this match, also update the one used for parsing return
         // value expressions.
         let value = match start.kind {
             TokenKind::BracketOpen => self.array_literal(start)?,
             TokenKind::Break => self.break_loop(start),
-            TokenKind::Constant => self.constant(start, trailing)?,
+            TokenKind::Constant => self.constant(start)?,
             TokenKind::CurlyOpen => self.scope(start)?,
             TokenKind::Fn => self.closure(start)?,
             TokenKind::SingleStringOpen => {
@@ -1904,11 +1883,7 @@ impl Parser {
         Ok(Expression::Field(Box::new(Field::from(start))))
     }
 
-    fn constant(
-        &mut self,
-        start: Token,
-        trailing: bool,
-    ) -> Result<Expression, ParseError> {
+    fn constant(&mut self, start: Token) -> Result<Expression, ParseError> {
         if let Some(args) = self.arguments(&start.location)? {
             let name = Identifier::from(start);
             let location =
@@ -1922,48 +1897,7 @@ impl Parser {
             })));
         }
 
-        let peeked = self.peek();
-        let same_line = peeked.same_line_as(&start);
-        let name = Constant::from(start);
-
-        if peeked.kind == TokenKind::CurlyOpen && same_line && trailing {
-            return self.class_literal(name);
-        }
-
-        Ok(Expression::Constant(Box::new(name)))
-    }
-
-    fn class_literal(
-        &mut self,
-        class_name: Constant,
-    ) -> Result<Expression, ParseError> {
-        let (fields, location) = self.list(
-            TokenKind::CurlyOpen,
-            TokenKind::CurlyClose,
-            |parser, token| {
-                parser.require_token_kind(&token, TokenKind::Field)?;
-                parser.expect(TokenKind::Assign)?;
-
-                let value_token = parser.require()?;
-                let value = parser.expression(value_token)?;
-                let field = Field::from(token);
-                let location = SourceLocation::start_end(
-                    field.location(),
-                    value.location(),
-                );
-
-                Ok(AssignInstanceLiteralField { field, value, location })
-            },
-        )?;
-
-        let location =
-            SourceLocation::start_end(class_name.location(), &location);
-
-        Ok(Expression::ClassLiteral(Box::new(ClassLiteral {
-            class_name,
-            fields,
-            location,
-        })))
+        Ok(Expression::Constant(Box::new(Constant::from(start))))
     }
 
     fn identifier(&mut self, start: Token) -> Result<Expression, ParseError> {
@@ -2026,42 +1960,10 @@ impl Parser {
         Ok(Expression::Identifier(Box::new(Identifier::from(start))))
     }
 
-    fn trailing_block_argument(
-        &mut self,
-        start_location: &SourceLocation,
-    ) -> Result<Option<Argument>, ParseError> {
-        let peeked = self.peek();
-
-        // Trailing blocks are only treated as an argument if they occur on the
-        // same line as the call or its arguments.
-        if peeked.location.lines.start() > start_location.lines.end() {
-            return Ok(None);
-        }
-
-        let value = match peeked.kind {
-            TokenKind::Fn => {
-                let start = self.next();
-
-                self.closure(start)?
-            }
-            _ => {
-                return Ok(None);
-            }
-        };
-
-        Ok(Some(Argument::Positional(value)))
-    }
-
     fn arguments(
         &mut self,
         start_location: &SourceLocation,
     ) -> Result<Option<Arguments>, ParseError> {
-        if let Some(block) = self.trailing_block_argument(start_location)? {
-            let location = block.location().clone();
-
-            return Ok(Some(Arguments { values: vec![block], location }));
-        }
-
         let peeked = self.peek();
 
         if peeked.kind != TokenKind::ParenOpen
@@ -2071,7 +1973,7 @@ impl Parser {
         }
 
         let mut allow_pos = true;
-        let (mut values, location) = self.list(
+        let (values, location) = self.list(
             TokenKind::ParenOpen,
             TokenKind::ParenClose,
             |parser, token| {
@@ -2094,10 +1996,6 @@ impl Parser {
                 Ok(node)
             },
         )?;
-
-        if let Some(block) = self.trailing_block_argument(&location)? {
-            values.push(block);
-        }
 
         Ok(Some(Arguments { values, location }))
     }
@@ -2673,7 +2571,8 @@ impl Parser {
         &mut self,
         start: Token,
     ) -> Result<Expression, ParseError> {
-        let expression = self.expression_without_trailing_block()?;
+        let expr_start = self.require()?;
+        let expression = self.expression(expr_start)?;
 
         self.expect(TokenKind::CurlyOpen)?;
 
@@ -3008,7 +2907,8 @@ impl Parser {
         &mut self,
         start: Token,
     ) -> Result<Expression, ParseError> {
-        let condition = self.expression_without_trailing_block()?;
+        let cond_start = self.require()?;
+        let condition = self.expression(cond_start)?;
         let body_token = self.expect(TokenKind::CurlyOpen)?;
         let body = self.expressions(body_token)?;
         let location =
@@ -3018,7 +2918,8 @@ impl Parser {
     }
 
     fn if_condition(&mut self) -> Result<IfCondition, ParseError> {
-        let condition = self.expression_without_trailing_block()?;
+        let cond_start = self.require()?;
+        let condition = self.expression(cond_start)?;
         let token = self.expect(TokenKind::CurlyOpen)?;
         let body = self.expressions(token)?;
         let location =
@@ -4725,52 +4626,6 @@ mod tests {
                 location: cols(1, 17)
             }))
         );
-    }
-
-    #[test]
-    fn test_class_literal() {
-        assert_eq!(
-            expr("A { @a = 10 }"),
-            Expression::ClassLiteral(Box::new(ClassLiteral {
-                class_name: Constant {
-                    source: None,
-                    name: "A".to_string(),
-                    location: cols(1, 1)
-                },
-                fields: vec![AssignInstanceLiteralField {
-                    field: Field {
-                        name: "a".to_string(),
-                        location: cols(5, 6)
-                    },
-                    value: Expression::Int(Box::new(IntLiteral {
-                        value: "10".to_string(),
-                        location: cols(10, 11)
-                    })),
-                    location: cols(5, 11)
-                }],
-                location: cols(1, 13)
-            }))
-        );
-
-        assert_eq!(
-            expr("A\n{ @a = 10 }"),
-            Expression::Constant(Box::new(Constant {
-                source: None,
-                name: "A".to_string(),
-                location: cols(1, 1)
-            }))
-        );
-
-        assert_eq!(
-            expr("A\n{ @a = 10, }"),
-            Expression::Constant(Box::new(Constant {
-                source: None,
-                name: "A".to_string(),
-                location: cols(1, 1)
-            }))
-        );
-
-        assert_error_expr!("A { @a = 10 @b = 20 }", cols(13, 14));
     }
 
     #[test]
@@ -7661,159 +7516,6 @@ mod tests {
                     location: cols(4, 14)
                 }),
                 location: cols(1, 14)
-            }))
-        );
-    }
-
-    #[test]
-    fn test_call_with_trailing_blocks_without_parentheses() {
-        assert_eq!(
-            expr("foo fn {}"),
-            Expression::Call(Box::new(Call {
-                receiver: None,
-                name: Identifier {
-                    name: "foo".to_string(),
-                    location: cols(1, 3)
-                },
-                arguments: Some(Arguments {
-                    values: vec![Argument::Positional(Expression::Closure(
-                        Box::new(Closure {
-                            moving: false,
-                            arguments: None,
-                            return_type: None,
-                            body: Expressions {
-                                values: vec![],
-                                location: cols(8, 9)
-                            },
-                            location: cols(5, 9)
-                        })
-                    ))],
-                    location: cols(5, 9)
-                }),
-                location: cols(1, 9)
-            }))
-        );
-    }
-
-    #[test]
-    fn test_call_with_receiver_with_trailing_blocks_without_parentheses() {
-        assert_eq!(
-            expr("10.foo fn {}"),
-            Expression::Call(Box::new(Call {
-                receiver: Some(Expression::Int(Box::new(IntLiteral {
-                    value: "10".to_string(),
-                    location: cols(1, 2)
-                }))),
-                name: Identifier {
-                    name: "foo".to_string(),
-                    location: cols(4, 6)
-                },
-                arguments: Some(Arguments {
-                    values: vec![Argument::Positional(Expression::Closure(
-                        Box::new(Closure {
-                            moving: false,
-                            arguments: None,
-                            return_type: None,
-                            body: Expressions {
-                                values: vec![],
-                                location: cols(11, 12)
-                            },
-                            location: cols(8, 12)
-                        })
-                    ))],
-                    location: cols(8, 12)
-                }),
-                location: cols(1, 12)
-            }))
-        );
-    }
-
-    #[test]
-    fn test_call_with_receiver_with_trailing_blocks_with_parentheses() {
-        assert_eq!(
-            expr("10.foo() fn {}"),
-            Expression::Call(Box::new(Call {
-                receiver: Some(Expression::Int(Box::new(IntLiteral {
-                    value: "10".to_string(),
-                    location: cols(1, 2)
-                }))),
-                name: Identifier {
-                    name: "foo".to_string(),
-                    location: cols(4, 6)
-                },
-                arguments: Some(Arguments {
-                    values: vec![Argument::Positional(Expression::Closure(
-                        Box::new(Closure {
-                            moving: false,
-                            arguments: None,
-                            return_type: None,
-                            body: Expressions {
-                                values: vec![],
-                                location: cols(13, 14)
-                            },
-                            location: cols(10, 14)
-                        })
-                    ))],
-                    location: cols(7, 8)
-                }),
-                location: cols(1, 8)
-            }))
-        );
-    }
-
-    #[test]
-    fn test_call_with_trailing_blocks_with_parentheses() {
-        assert_eq!(
-            expr("foo() fn {}"),
-            Expression::Call(Box::new(Call {
-                receiver: None,
-                name: Identifier {
-                    name: "foo".to_string(),
-                    location: cols(1, 3)
-                },
-                arguments: Some(Arguments {
-                    values: vec![Argument::Positional(Expression::Closure(
-                        Box::new(Closure {
-                            moving: false,
-                            arguments: None,
-                            return_type: None,
-                            body: Expressions {
-                                values: vec![],
-                                location: cols(10, 11)
-                            },
-                            location: cols(7, 11)
-                        })
-                    ))],
-                    location: cols(4, 5)
-                }),
-                location: cols(1, 5)
-            }))
-        );
-
-        assert_eq!(
-            expr("foo(\n) fn {}"),
-            Expression::Call(Box::new(Call {
-                receiver: None,
-                name: Identifier {
-                    name: "foo".to_string(),
-                    location: cols(1, 3)
-                },
-                arguments: Some(Arguments {
-                    values: vec![Argument::Positional(Expression::Closure(
-                        Box::new(Closure {
-                            moving: false,
-                            arguments: None,
-                            return_type: None,
-                            body: Expressions {
-                                values: vec![],
-                                location: location(2..=2, 6..=7)
-                            },
-                            location: location(2..=2, 3..=7)
-                        })
-                    ))],
-                    location: location(1..=2, 4..=1)
-                }),
-                location: location(1..=2, 1..=1)
             }))
         );
     }
