@@ -9,7 +9,6 @@ jobs:
       fail-fast: false
       matrix:
         image:
-          - arch
           - debian
           - fedora
           - ubuntu

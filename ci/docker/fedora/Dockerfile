@@ -1,7 +1,7 @@
-FROM registry.fedoraproject.org/fedora:39
+FROM registry.fedoraproject.org/fedora:40
 
 ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL sparse
-ENV LLVM_VERSION 16
+ENV LLVM_VERSION 17
 ENV RUST_VERSION 1.70
 
 ENV PATH /opt/cargo/bin:$PATH
