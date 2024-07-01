@@ -21,7 +21,7 @@ isn't supported.
 
 - A 64-bits little-endian platform
 - Rust 1.70 or newer
-- LLVM 16
+- LLVM 17
 - A C compiler such as [GCC](https://gcc.gnu.org/) or
   [clang](https://clang.llvm.org/)
 - Git, for managing packages using the `inko pkg` command
@@ -131,14 +131,14 @@ brew install inko
 You may need to add the LLVM `bin` directory to your `PATH` as follows:
 
 ```bash
-export PATH="$(brew --prefix llvm@16)/bin:$PATH"
+export PATH="$(brew --prefix llvm@17)/bin:$PATH"
 ```
 
 You may also need to set the `LIBRARY_PATH` to the following, though this
 doesn't appear to always be needed:
 
 ```bash
-export LIBRARY_PATH="$(brew --prefix llvm@16)/lib:$(brew --prefix zstd)/lib"
+export LIBRARY_PATH="$(brew --prefix llvm@17)/lib:$(brew --prefix zstd)/lib"
 ```
 
 ## From source
@@ -229,12 +229,15 @@ the compiler's dependencies.
 ### Arch Linux
 
 ```bash
-sudo pacman -Sy llvm16 rust git base-devel
+sudo pacman -Sy llvm rust git base-devel
 ```
 
-If the llvm16 package is no longer available in the official repository, you'll
-need to install it from the [AUR](https://aur.archlinux.org/). Compiling LLVM
-from source can take a long time.
+::: note
+Arch Linux being a rolling release distribution means the `llvm` package could
+be upgraded to a newer (and incompatible) version of LLVM. If this is the case,
+you'll need to change the package name to e.g. `llvm17` and install it from the
+[AUR](https://aur.archlinux.org/).
+:::
 
 ### Alpine
 
@@ -246,19 +249,19 @@ perhaps an -L flag is missing?".
 :::
 
 ```bash
-sudo apk add build-base rust cargo llvm16 llvm16-dev llvm16-static git
+sudo apk add build-base rust cargo llvm17 llvm17-dev llvm17-static git
 ```
 
 ### Debian
 
-Debian 12:
+Debian 13:
 
 ```bash
-sudo apt-get install --yes git build-essential llvm-16 llvm-16-dev \
-    libstdc++-11-dev libclang-common-16-dev zlib1g-dev libzstd-dev
+sudo apt-get install --yes git build-essential llvm-17 llvm-17-dev \
+    libstdc++-11-dev libclang-common-17-dev zlib1g-dev libzstd-dev
 ```
 
-Debian 11:
+Debian 12 and older:
 
 ```bash
 curl https://apt.llvm.org/llvm-snapshot.gpg.key | \
@@ -266,8 +269,8 @@ curl https://apt.llvm.org/llvm-snapshot.gpg.key | \
 sudo add-apt-repository \
     "deb http://apt.llvm.org/bullseye/ llvm-toolchain-bullseye-16 main"
 sudo apt-get update
-sudo apt-get install --yes git build-essential llvm-16 llvm-16-dev \
-    libstdc++-10-dev libclang-common-16-dev zlib1g-dev libpolly-16-dev \
+sudo apt-get install --yes git build-essential llvm-17 llvm-17-dev \
+    libstdc++-10-dev libclang-common-17-dev zlib1g-dev libpolly-17-dev \
     libzstd-dev
 ```
 
@@ -276,34 +279,41 @@ The version of Rust provided by Debian is too old, so you'll need to use
 
 ### Fedora
 
-For Fedora 38 and newer:
+For Fedora 40 and newer:
 
 ```bash
-sudo dnf install gcc make rust cargo llvm16 llvm16-devel llvm16-static \
+sudo dnf install gcc make rust cargo llvm17 llvm17-devel llvm17-static \
     libstdc++-devel libstdc++-static libffi-devel zlib-devel git
 ```
 
-Older versions of Fedora (e.g. Fedora 37) aren't supported.
+For Fedora 39:
+
+```bash
+sudo dnf install gcc make rust cargo llvm llvm-devel llvm-static \
+    libstdc++-devel libstdc++-static libffi-devel zlib-devel git
+```
+
+Older versions of Fedora aren't supported.
 
 ### FreeBSD
 
 ```bash
-sudo pkg install llvm16 rust git
+sudo pkg install llvm17 rust git
 ```
 
 ### macOS
 
 ```bash
-brew install llvm@16 rust git
+brew install llvm@17 rust git
 ```
 
 ### Ubuntu
 
-For Ubuntu 23.04 and newer:
+For Ubuntu 24.04 and newer:
 
 ```bash
-sudo apt-get install --yes rustc cargo git build-essential llvm-16 llvm-16-dev \
-    libstdc++-11-dev libclang-common-16-dev zlib1g-dev libzstd-dev
+sudo apt-get install --yes rustc cargo git build-essential llvm-17 llvm-17-dev \
+    libstdc++-11-dev libclang-common-17-dev zlib1g-dev libzstd-dev
 ```
 
 For older versions:
@@ -314,7 +324,7 @@ curl https://apt.llvm.org/llvm-snapshot.gpg.key | \
 sudo add-apt-repository \
     "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-15 main"
 sudo apt-get update
-sudo apt-get install --yes rustc cargo git build-essential llvm-16 llvm-16-dev \
-    libstdc++-10-dev libclang-common-16-dev zlib1g-dev libpolly-16-dev \
+sudo apt-get install --yes rustc cargo git build-essential llvm-17 llvm-17-dev \
+    libstdc++-10-dev libclang-common-17-dev zlib1g-dev libpolly-17-dev \
     libzstd-dev
 ```
