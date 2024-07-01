@@ -101,11 +101,6 @@ yay -S inko     # Latest stable release
 yay -S inko-git # Latest Git commit
 ```
 
-::: tip
-We recommend using [Chaotic-AUR](https://aur.chaotic.cx/) to speed up the build
-process.
-:::
-
 ## Fedora
 
 Inko is available as a
@@ -239,8 +234,7 @@ sudo pacman -Sy llvm16 rust git base-devel
 
 If the llvm16 package is no longer available in the official repository, you'll
 need to install it from the [AUR](https://aur.archlinux.org/). Compiling LLVM
-from source can take a long time, so we recommend using
-[Chaotic-AUR](https://aur.chaotic.cx/) to speed up the build process.
+from source can take a long time.
 
 ### Alpine
 
