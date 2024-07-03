@@ -1,7 +1,7 @@
 import builder.html
 import builder.xml
 import docs.config (Config)
-import docs.filters (AutoTableOfContents, RelativeLinks)
+import docs.filters (AddCopyButton, AutoTableOfContents, RelativeLinks)
 import docs.menu (Item, Menu)
 import docs.url (link_from)
 import markdown.html (Filter, TableOfContents)
@@ -15,6 +15,7 @@ fn filters(menu: ref Menu, page: ref Page) -> Array[Filter] {
     SyntaxHighlight.new as Filter,
     Admonitions.new as Filter,
     RelativeLinks(menu: menu, page: page) as Filter,
+    AddCopyButton.new as Filter,
     AutoTableOfContents() as Filter, # This filter must come last
   ]
 }

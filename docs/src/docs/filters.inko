@@ -23,6 +23,34 @@ impl Filter for AutoTableOfContents {
   }
 }
 
+class AddCopyButton {
+  fn static new -> AddCopyButton {
+    AddCopyButton()
+  }
+}
+
+impl Filter for AddCopyButton {
+  fn pub mut run(document: mut Document) {
+    document.nodes.iter_mut.each(fn (n) {
+      let el = match n {
+        case Element(e) if e.name == 'div' -> {
+          match e.attributes.opt('class') {
+            case Some('highlight') -> e
+            case _ -> return
+          }
+        }
+        case _ -> return
+      }
+
+      el.button.attr('class', 'copy').with(fn (btn) {
+        btn.i.attr('class', 'icon-clipboard')
+        btn.span.attr('class', 'copy-text').text(' Copy')
+        btn.span.attr('class', 'copied-text').text(' Copied!')
+      })
+    })
+  }
+}
+
 # A filter that turns relative document links (e.g. `[](ivm)`) into the correct
 # URLs, optionally setting the link text if left out. This makes it easier to
 # link to different documents.

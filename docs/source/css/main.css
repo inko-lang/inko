@@ -168,6 +168,39 @@ table tr:last-child td {
   border-bottom: 0;
 }
 
+div.highlight {
+  position: relative;
+}
+
+div.highlight .copy {
+  background: var(--white);
+  display: none;
+  border-radius: var(--border-radius);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 5px;
+  position: absolute;
+  right: 5px;
+  top: 5px;
+}
+
+div.highlight .copy .copied-text {
+  display: none;
+}
+
+div.highlight .copy.copied .copied-text {
+  display: inline;
+}
+
+div.highlight .copy.copied .copy-text {
+  display: none;
+}
+
+div.highlight:hover .copy {
+  display: block;
+}
+
 .highlight .k {
   font-weight: bold;
 }
