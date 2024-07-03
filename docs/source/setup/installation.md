@@ -41,8 +41,8 @@ ivm install latest
 ```
 
 ::: note
-When using macOS and Homebrew, you may need to set the `LIBRARY_PATH` and `PATH`
-variables. See the [macOS installation section](#macos) for more details.
+ivm installs Inko from source, so you'll need to install the necessary
+[dependencies](#dependencies) for your platform first.
 :::
 
 This installs the latest known version. If you want to install a specific
@@ -128,19 +128,6 @@ Inko is available in [Homebrew](https://brew.sh/):
 brew install inko
 ```
 
-You may need to add the LLVM `bin` directory to your `PATH` as follows:
-
-```bash
-export PATH="$(brew --prefix llvm@17)/bin:$PATH"
-```
-
-You may also need to set the `LIBRARY_PATH` to the following, though this
-doesn't appear to always be needed:
-
-```bash
-export LIBRARY_PATH="$(brew --prefix llvm@17)/lib:$(brew --prefix zstd)/lib"
-```
-
 ## From source
 
 When building from Git, first clone the repository:
@@ -209,22 +196,10 @@ make install DESTDIR=./package-root PREFIX=/usr/local
 The `PREFIX` variable must be set for both the `make` and `make install`
 commands, but `DESTDIR` is only necessary for `make install`.
 
-### FreeBSD
-
-When building from source, you may have to set the `LIBRARY_PATH` variable as
-follows:
-
-```bash
-LIBRARY_PATH="/usr/local/lib" cargo build
-```
-
-Without this the linker may fail to find the zstd and libffi libraries, which
-are needed by LLVM on FreeBSD.
-
 ## Dependencies
 
-When building from source or using [ivm](ivm), you'll first need to install
-the compiler's dependencies.
+When building from source or using [ivm](ivm), you'll need to install the
+necessary dependencies.
 
 ### Arch Linux
 
@@ -301,11 +276,40 @@ Older versions of Fedora aren't supported.
 sudo pkg install llvm17 rust git
 ```
 
+You may have to set the `LIBRARY_PATH` variable as follows:
+
+```bash
+export LIBRARY_PATH="/usr/local/lib"
+```
+
+Without this the linker may fail to find the zstd and libffi libraries, which
+are needed by LLVM on FreeBSD.
+
 ### macOS
 
 ```bash
 brew install llvm@17 rust git
 ```
+
+You may have to set `LIBRARY_PATH` as follows:
+
+```bash
+export LIBRARY_PATH="$(brew --prefix llvm@17)/lib:$(brew --prefix zstd)/lib"
+```
+
+You may also have to add the LLVM `bin` directory to your `PATH` as follows:
+
+```bash
+export PATH="$(brew --prefix llvm@17)/bin:$PATH"
+```
+
+Without setting these variables, it's possible building of Inko fails due to the
+build process not finding the necessary LLVM libraries.
+
+::: tip
+See [this Homebrew issue](https://github.com/Homebrew/brew/issues/13481) for
+details on why this might be necessary.
+:::
 
 ### Ubuntu
 

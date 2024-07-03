@@ -8,11 +8,13 @@
 different versions of Inko, independent from your system's package manager. ivm
 is written in Rust.
 
-## Installing
+## Requirements
 
-ivm itself only requires Rust 1.70 or newer, but to build Inko itself you'll
-need to also meet the requirements listed in the [installation
-guide](installation).
+- Rust 1.70 or newer
+- The [dependencies](../installation#dependencies) necessary to build Inko from
+  source
+
+## Installing
 
 ### Arch Linux
 
@@ -100,6 +102,12 @@ ivm install latest    # This will install the latest available version
 ::: tip
 Make sure to set a default version after installing Inko, otherwise you have
 to use `ivm run VERSION inko ...` to use Inko.
+:::
+
+::: note
+Make sure the [dependencies](../installation#dependencies) necessary for your
+platform are installed, and that any required environment variables are set
+_before_ running `ivm install`.
 :::
 
 To remove a version:
