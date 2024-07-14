@@ -232,40 +232,38 @@ sudo apk add build-base rust cargo llvm17 llvm17-dev llvm17-static git
 Debian 13:
 
 ```bash
-sudo apt-get install --yes git build-essential llvm-17 llvm-17-dev \
-    libstdc++-11-dev libclang-common-17-dev zlib1g-dev libzstd-dev
+sudo apt-get install --yes rust cargo git build-essential llvm-17 llvm-17-dev libstdc++-11-dev libclang-common-17-dev zlib1g-dev libzstd-dev
 ```
 
-Debian 12 and older:
+Debian 12:
 
 ```bash
-curl https://apt.llvm.org/llvm-snapshot.gpg.key | \
-    sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
-sudo add-apt-repository \
-    "deb http://apt.llvm.org/bullseye/ llvm-toolchain-bullseye-16 main"
+curl https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+sudo add-apt-repository "deb http://apt.llvm.org/bookworm/ llvm-toolchain-bookworm-17 main"
 sudo apt-get update
-sudo apt-get install --yes git build-essential llvm-17 llvm-17-dev \
-    libstdc++-10-dev libclang-common-17-dev zlib1g-dev libpolly-17-dev \
-    libzstd-dev
+sudo apt-get install --yes git build-essential llvm-17 llvm-17-dev libstdc++-10-dev libclang-common-17-dev zlib1g-dev libpolly-17-dev libzstd-dev
 ```
 
-The version of Rust provided by Debian is too old, so you'll need to use
-[rustup](https://rustup.rs/) to install the required Rust version.
+For older versions, refer to [LLVM's Debian/Ubuntu packages page][llvm-apt] and
+adjust the `add-apt-repository` accordingly.
+
+::: note
+For Debian 12 and older, the version of Rust is too old, so you'll need to use
+[rustup](https://rustup.rs/) to install Rust.
+:::
 
 ### Fedora
 
 For Fedora 40 and newer:
 
 ```bash
-sudo dnf install gcc make rust cargo llvm17 llvm17-devel llvm17-static \
-    libstdc++-devel libstdc++-static libffi-devel zlib-devel git
+sudo dnf install gcc make rust cargo llvm17 llvm17-devel llvm17-static libstdc++-devel libstdc++-static libffi-devel zlib-devel git
 ```
 
 For Fedora 39:
 
 ```bash
-sudo dnf install gcc make rust cargo llvm llvm-devel llvm-static \
-    libstdc++-devel libstdc++-static libffi-devel zlib-devel git
+sudo dnf install gcc make rust cargo llvm llvm-devel llvm-static libstdc++-devel libstdc++-static libffi-devel zlib-devel git
 ```
 
 Older versions of Fedora aren't supported.
@@ -316,19 +314,19 @@ details on why this might be necessary.
 For Ubuntu 24.04 and newer:
 
 ```bash
-sudo apt-get install --yes rustc cargo git build-essential llvm-17 llvm-17-dev \
-    libstdc++-11-dev libclang-common-17-dev zlib1g-dev libzstd-dev
+sudo apt-get install --yes rustc cargo git build-essential llvm-17 llvm-17-dev libstdc++-11-dev libclang-common-17-dev zlib1g-dev libzstd-dev
 ```
 
-For older versions:
+For 23.10:
 
 ```bash
-curl https://apt.llvm.org/llvm-snapshot.gpg.key | \
-    sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
-sudo add-apt-repository \
-    "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-15 main"
+curl https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+sudo add-apt-repository "deb http://apt.llvm.org/mantic/ llvm-toolchain-mantic-17 main"
 sudo apt-get update
-sudo apt-get install --yes rustc cargo git build-essential llvm-17 llvm-17-dev \
-    libstdc++-10-dev libclang-common-17-dev zlib1g-dev libpolly-17-dev \
-    libzstd-dev
+sudo apt-get install --yes rustc cargo git build-essential llvm-17 llvm-17-dev libstdc++-10-dev libclang-common-17-dev zlib1g-dev libpolly-17-dev libzstd-dev
 ```
+
+For older versions, refer to [LLVM's Debian/Ubuntu packages page][llvm-apt] and
+adjust the `add-apt-repository` accordingly.
+
+[llvm-apt]: https://apt.llvm.org/
