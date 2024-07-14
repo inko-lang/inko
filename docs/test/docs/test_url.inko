@@ -1,28 +1,21 @@
 import docs.url
-import markdown.Document
-import std.fs.path.Path
-import std.test.Tests
-import std.time.DateTime
-import wobsite.(FrontMatter, Page)
+import markdown (Document)
+import std.fs.path (Path)
+import std.test (Tests)
+import std.time (DateTime)
+import wobsite (FrontMatter, Page)
 
 fn page(url: String) -> Page {
-  Page {
-    @front_matter = FrontMatter {
-      @title = 'Foo',
-      @date = DateTime.utc,
-    },
-    @url = url,
-    @source_path = Path.new('foo'),
-    @body = Document {
-      @children = [],
-      @references = Map.new,
-      @footnotes = Map.new
-    },
-  }
+  Page(
+    front_matter: FrontMatter(title: 'Foo', date: DateTime.utc),
+    url: url,
+    source_path: Path.new('foo'),
+    body: Document(children: [], references: Map.new, footnotes: Map.new),
+  )
 }
 
 fn pub tests(t: mut Tests) {
-  t.test('url.link_from') fn (t) {
+  t.test('url.link_from', fn (t) {
     t.equal(url.link_from(page('/'), '/css/main.css'), 'css/main.css')
     t.equal(url.link_from(page('/'), 'test.md'), 'test.md')
     t.equal(url.link_from(page('/'), 'foo/test.md'), 'foo/test.md')
@@ -31,10 +24,13 @@ fn pub tests(t: mut Tests) {
     t.equal(url.link_from(page('/foo'), 'test.md'), '../test.md')
     t.equal(url.link_from(page('/foo/bar'), 'test.md'), '../test.md')
     t.equal(url.link_from(page('/foo/bar'), '../test.md'), '../../test.md')
-    t.equal(url.link_from(page('/setup/ivm'), 'installation'), '../installation')
-  }
+    t.equal(
+      url.link_from(page('/setup/ivm'), 'installation'),
+      '../installation',
+    )
+  })
 
-  t.test('url.relative?') fn (t) {
+  t.test('url.relative?', fn (t) {
     t.true(url.relative?('foo'))
     t.true(url.relative?('./foo'))
     t.true(url.relative?('../foo'))
@@ -42,5 +38,5 @@ fn pub tests(t: mut Tests) {
     t.false(url.relative?('/foo'))
     t.false(url.relative?('https://example.com'))
     t.false(url.relative?('http://example.com'))
-  }
+  })
 }

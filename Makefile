@@ -53,7 +53,7 @@ DOCS_CLOUDFRONT_ID := E3S16BR117BJOL
 
 # The folder to put the documentation in, allowing for branch specific
 # documentation.
-DOCS_FOLDER := main
+DOCS_REF := main
 
 # The directory to store temporary files in.
 TMP_DIR := tmp
@@ -149,14 +149,14 @@ docs/setup:
 
 docs/build:
 	rm -rf docs/public
-	cd docs && inko build && ./build/main
+	cd docs && inko build && DOCS_REF=${DOCS_REF} ./build/main
 
 docs/watch:
-	cd docs && bash scripts/watch.sh
+	cd docs && DOCS_REF=${DOCS_REF} ./scripts/watch.sh
 
 docs/publish: docs/setup docs/build
 	rclone sync --config rclone.conf --checksum --verbose \
-		docs/public "production:${DOCS_BUCKET}/manual/${DOCS_FOLDER}"
+		docs/public "production:${DOCS_BUCKET}/manual/${DOCS_REF}"
 
 std-docs/build:
 	rm -rf std/build
@@ -164,7 +164,7 @@ std-docs/build:
 
 std-docs/publish: std-docs/build
 	rclone sync --config rclone.conf --checksum --verbose \
-		std/build/idoc/public "production:${DOCS_BUCKET}/std/${DOCS_FOLDER}"
+		std/build/idoc/public "production:${DOCS_BUCKET}/std/${DOCS_REF}"
 
 runtimes:
 	bash scripts/runtimes.sh ${VERSION}

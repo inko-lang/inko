@@ -4,11 +4,14 @@ import docs.config (Config)
 import docs.filters (AddCopyButton, AutoTableOfContents, RelativeLinks)
 import docs.menu (Item, Menu)
 import docs.url (link_from)
+import markdown
 import markdown.html (Filter, TableOfContents)
 import std.string (StringBuffer)
 import wobsite (Files, Page)
 import wobsite.markdown (Admonitions, SyntaxHighlight)
 import wobsite.time (human_readable_date, iso_date)
+
+let GIT_NOTICE = "You're looking at the documentation for the \"main\" branch, [click here](/manual/latest) to view the documentation for the latest stable release."
 
 fn filters(menu: ref Menu, page: ref Page) -> Array[Filter] {
   [
@@ -139,10 +142,14 @@ fn head(config: ref Config, page: ref Page) -> html.Element {
   head
 }
 
-fn header(config: ref Config, page: ref Page) -> html.Element {
-  let root = html.Element.new('div')
+fn header(root: mut html.Element, config: ref Config, page: ref Page) {
+  if config.main {
+    root.div.attr('id', 'nightly-notice').div.attr('class', 'grid').with(
+      fn (d) { d.append(markdown.Document.parse(GIT_NOTICE).get.to_html) },
+    )
+  }
 
-  root.attr('class', 'top-bar').header.attr('class', 'grid').with(fn (h) {
+  root.div.attr('id', 'top-bar').header.attr('class', 'grid').with(fn (h) {
     h.div.attr('class', 'logo').with(fn (logo) {
       logo
         .img
@@ -175,8 +182,6 @@ fn header(config: ref Config, page: ref Page) -> html.Element {
       })
     })
   })
-
-  root
 }
 
 fn container(
@@ -191,7 +196,7 @@ fn pub home(config: ref Config, page: Page) -> html.Document {
   let doc = html.Document.html('en', fn (html) {
     html.add(head(config, page))
     html.body.with(fn (body) {
-      body.add(header(config, page))
+      header(body, config, page)
       container(body, 'page home', fn (div) {
         home_sidebar(config, div, page)
         content(config.menu, page, div)
@@ -206,7 +211,7 @@ fn pub page(config: ref Config, page: Page) -> html.Document {
   let doc = html.Document.html('en', fn (html) {
     html.add(head(config, page))
     html.body.with(fn (body) {
-      body.add(header(config, page))
+      header(body, config, page)
       container(body, 'page', fn (div) {
         sidebar(config, div, page)
         content(config.menu, page, div)
@@ -221,7 +226,7 @@ fn pub missing(config: ref Config, page: Page) -> html.Document {
   html.Document.html('en', fn (html) {
     html.add(head(config, page))
     html.body.with(fn (body) {
-      body.add(header(config, page))
+      header(body, config, page)
       container(body, 'missing-page', fn (div) {
         div.article.with(fn (article) {
           article.header.with(fn (h) {

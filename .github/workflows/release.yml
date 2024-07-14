@@ -122,12 +122,12 @@ jobs:
           key: docs-release
       - run: git config --global --add safe.directory $PWD
       - name: Deploy the documentation
-        run: make docs/publish DOCS_FOLDER=${{ github.ref_name }}
+        run: make docs/publish DOCS_REF=${{ github.ref_name }}
       - name: Update the latest tag
         run: >
           if [[ ${{ github.ref_name }} = $(git tag -l --sort=-v:refname | head -n1) ]]
           then
-            make docs/publish DOCS_FOLDER=latest
+            make docs/publish DOCS_REF=latest
           fi
 
   std-docs:
@@ -156,10 +156,10 @@ jobs:
           key: std-docs-release
       - run: git config --global --add safe.directory $PWD
       - name: Deploy the documentation
-        run: make std-docs/publish DOCS_FOLDER=${{ github.ref_name }}
+        run: make std-docs/publish DOCS_REF=${{ github.ref_name }}
       - name: Update the latest tag
         run: >
           if [[ ${{ github.ref_name }} = $(git tag -l --sort=-v:refname | head -n1) ]]
           then
-            make std-docs/publish DOCS_FOLDER=latest
+            make std-docs/publish DOCS_REF=latest
           fi
