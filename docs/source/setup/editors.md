@@ -11,14 +11,9 @@ in this discussion](https://github.com/orgs/inko-lang/discussions/697).
 
 ## Helix
 
-[Helix](https://helix-editor.com/) has built-in support for syntax highlighting
-and code formatting, thanks to the official [Tree-sitter grammar for
-Inko][ts-grammar].
-
-::: note
-The latest stable release of Helix (24.03) does not yet include support for
-Inko, so you'll need to build Helix from Git until the next Helix release.
-:::
+Starting with version 24.07, [Helix](https://helix-editor.com/) has built-in
+support for syntax highlighting and code formatting, thanks to the official
+[Tree-sitter grammar for Inko][ts-grammar].
 
 ## (Neo)Vim
 
