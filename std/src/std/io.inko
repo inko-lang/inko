@@ -309,12 +309,19 @@ trait pub Size {
 
 # A type data can be read from (e.g. a File).
 trait pub Read {
-  # Reads bytes from a stream into a `ByteArray`.
+  # Reads up to `size` bytes from `self` into the given `ByteArray`, returning
+  # the number of bytes read.
+  #
+  # The `into` argument is the `ByteArray` to read the bytes into. The capacity
+  # of this `ByteArray` is increased automatically if necessary.
+  #
+  # The `size` argument specifies how many bytes are to be read.
   #
   # The return value is the number of bytes read.
   #
-  # The `size` argument specifies how many bytes are to be read. The actual
-  # number of bytes read may be less than this value.
+  # The number of bytes read may be less than `size`. This can happen for
+  # different reasons, such as when all input is consumed or not enough data is
+  # available (yet).
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error]
 
   # Reads all bytes from the stream into the `ByteArray`.
@@ -328,11 +335,11 @@ trait pub Read {
     let mut read_size = INITIAL_READ_ALL_SIZE
 
     loop {
-      let bytes_read = try read(into: bytes, size: read_size)
-
-      if bytes_read == 0 { return Result.Ok(total) }
-
-      total += bytes_read
+      match read(into: bytes, size: read_size) {
+        case Ok(0) -> return Result.Ok(total)
+        case Ok(n) -> total += n
+        case Error(e) -> throw e
+      }
 
       # To reduce the overhead of large buffer reads, we increase the buffer
       # size as more data is read.
@@ -565,7 +572,18 @@ impl BufferedRead for BufferedReader {
 
     @buffer.clear
     @offset = 0
-    @reader.read(into: @buffer, size: @capacity)
+
+    let mut pending = @capacity
+
+    while pending > 0 {
+      match @reader.read(into: @buffer, size: pending) {
+        case Ok(0) -> break
+        case Ok(n) -> pending -= n
+        case Error(e) -> throw e
+      }
+    }
+
+    Result.Ok(@buffer.size)
   }
 
   fn mut read_buffer(into: mut ByteArray, size: Int) -> Int {
@@ -595,9 +613,10 @@ impl Read for BufferedReader {
         total += read_buffer(into, size)
       }
 
-      total += try @reader.read(into: into, size: size - total)
-
-      return Result.Ok(total)
+      return match size - total {
+        case 0 -> Result.Ok(total)
+        case n -> Result.Ok(total + try @reader.read(into, size: n))
+      }
     }
 
     while total < size {

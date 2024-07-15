@@ -35,6 +35,28 @@ impl Read for Reader {
   }
 }
 
+class SingleByteReader {
+  let @index: Int
+  let @bytes: ByteArray
+
+  fn static new -> SingleByteReader {
+    SingleByteReader(index: 0, bytes: ByteArray.from_array([1, 2, 3]))
+  }
+}
+
+impl Read for SingleByteReader {
+  fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Never] {
+    match @bytes.opt(@index) {
+      case Some(v) -> {
+        into.push(v)
+        @index += 1
+        Result.Ok(1)
+      }
+      case _ -> Result.Ok(0)
+    }
+  }
+}
+
 class ErrorReader {}
 
 impl Read for ErrorReader {
@@ -223,6 +245,14 @@ fn pub tests(t: mut Tests) {
 
     t.true(reader.buffer.empty?)
     t.equal(reader.offset, 0)
+  })
+
+  t.test('BufferedReader.fill_buffer when read() returns fewer bytes', fn (t) {
+    let reader = BufferedReader.new(SingleByteReader.new)
+    let bytes = ByteArray.new
+
+    t.equal(reader.read_all(bytes), Result.Ok(3))
+    t.equal(bytes, ByteArray.from_array([1, 2, 3]))
   })
 
   t.test('BufferedReader.read_buffer', fn (t) {
