@@ -324,12 +324,15 @@ trait pub Read {
   # available (yet).
   fn pub mut read(into: mut ByteArray, size: Int) -> Result[Int, Error]
 
-  # Reads all bytes from the stream into the `ByteArray`.
-  #
-  # If an error is encountered while reading, this method stops reading any more
-  # bytes and re-throws the error.
+  # Reads from `self` into the given `ByteArray`, returning when all input is
+  # consumed.
   #
   # The return value is the number of bytes read.
+  #
+  # # Errors
+  #
+  # This method returns an `Error` if the underlying call to `Read.read` returns
+  # an `Error`.
   fn pub mut read_all(bytes: mut ByteArray) -> Result[Int, Error] {
     let mut total = 0
     let mut read_size = INITIAL_READ_ALL_SIZE
@@ -337,13 +340,15 @@ trait pub Read {
     loop {
       match read(into: bytes, size: read_size) {
         case Ok(0) -> return Result.Ok(total)
-        case Ok(n) -> total += n
+        case Ok(n) -> {
+          total += n
+
+          # To reduce the number of calls to `Reader.read` when there's lots of
+          # input to consume, we increase the read size if deemed beneficial.
+          if read_size < MAX_READ_ALL_SIZE and n == read_size { read_size *= 2 }
+        }
         case Error(e) -> throw e
       }
-
-      # To reduce the overhead of large buffer reads, we increase the buffer
-      # size as more data is read.
-      if read_size < MAX_READ_ALL_SIZE { read_size *= 2 }
     }
   }
 }
