@@ -1,0 +1,13 @@
+fn foo {
+  aaa.aaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.cccc('aaaaaaaa').cccc('aaa').cccc(aaaa, bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb)
+  100
+}
+
+fn bar {
+  aaa.aaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.cccc('aaaaaaaa').cccc('aaa').cccc(aaaa)
+  100
+}
+
+fn baz {
+  # line
+}

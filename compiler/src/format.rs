@@ -2584,11 +2584,19 @@ impl Generator {
             Node::IndentNext(nodes) if wrap.is_enabled() => {
                 self.pending_indents += 1;
 
+                let before = self.pending_indents;
+
                 for n in nodes {
                     self.node(n, wrap);
                 }
 
-                self.indent -= 2;
+                // If we didn't encounter a new line, reset the state. If we do,
+                // we have to dedent the lines that follow.
+                if self.pending_indents == before {
+                    self.pending_indents -= 1;
+                } else {
+                    self.indent -= 2;
+                }
             }
             Node::IndentNext(nodes) => {
                 for n in nodes {
