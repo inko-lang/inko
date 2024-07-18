@@ -5,6 +5,7 @@
 //! we need for the compiler.
 //!
 //! The implementation here is based on `std.json` from Inko's standard library.
+use std::fmt::Display;
 use std::string::ToString;
 
 const DQUOTE: i64 = 0x22;
@@ -62,9 +63,9 @@ pub(crate) enum Json {
     Bool(bool),
 }
 
-impl ToString for Json {
-    fn to_string(&self) -> String {
-        Generator::new().generate(self)
+impl Display for Json {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Generator::new().generate(self).fmt(f)
     }
 }
 
@@ -166,10 +167,8 @@ mod tests {
         obj.add("array", Json::Array(vec![Json::Int(10), Json::Int(20)]));
         obj.add("bool", Json::Bool(true));
 
-        let json = Generator::new().generate(&Json::Object(obj));
-
         assert_eq!(
-            json,
+            Json::Object(obj).to_string(),
             "{
   \"string\": \"foo\\nbar\",
   \"int\": 42,

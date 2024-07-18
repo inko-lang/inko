@@ -428,7 +428,7 @@ impl DecisionState {
         action: RegisterAction,
     ) {
         self.actions.insert(child, action);
-        self.child_registers.entry(parent).or_insert_with(Vec::new).push(child);
+        self.child_registers.entry(parent).or_default().push(child);
     }
 }
 
