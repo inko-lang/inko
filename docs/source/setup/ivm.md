@@ -10,7 +10,7 @@ is written in Rust.
 
 ## Requirements
 
-- Rust 1.70 or newer
+- Rust 1.78 or newer
 - The [dependencies](../installation#dependencies) necessary to build Inko from
   source
 

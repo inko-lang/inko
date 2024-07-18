@@ -20,7 +20,7 @@ isn't supported.
 ## Requirements
 
 - A 64-bits little-endian platform
-- Rust 1.70 or newer
+- Rust 1.78 or newer
 - LLVM 17
 - A C compiler such as [GCC](https://gcc.gnu.org/) or
   [clang](https://clang.llvm.org/)
