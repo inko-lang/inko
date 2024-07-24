@@ -152,7 +152,7 @@ class builtin String {
   let @size: UInt64
 
   # A pointer to the bytes of this string, including the trailing NULL byte.
-  let @bytes: Pointer[UInt8]
+  let @ptr: Pointer[UInt8]
 
   # Returns a `String` created from the given NULL terminated pointer.
   #
@@ -665,7 +665,7 @@ class builtin String {
   }
 
   fn byte_unchecked(index: Int) -> Int {
-    (@bytes as Int + index as Pointer[UInt8]).0 as Int
+    (@ptr as Int + index as Pointer[UInt8]).0 as Int
   }
 }
 
@@ -734,7 +734,7 @@ impl Bytes for String {
   # This method is meant to be used when passing strings to foreign functions
   # (i.e. `*char` arguments). You should avoid using it for anything else.
   fn pub to_pointer -> Pointer[UInt8] {
-    @bytes
+    @ptr
   }
 }
 
@@ -801,8 +801,43 @@ impl Equal[ref String] for String {
 
     if size != other.size { return false }
 
+    let mut chunks = size / 8
     let mut idx = 0
+    let lptr = @ptr
+    let rptr = other.ptr
 
+    # Strings are compared at the byte level. We take advantage of the fact that
+    # an Int can fit 8 bytes, and thus read 8 bytes at once and compare the
+    # resulting Int, instead of comparing each individual byte.
+    while chunks > 0 {
+      let lhs = (lptr as Int + idx as Pointer[Int]).0
+      let rhs = (rptr as Int + idx as Pointer[Int]).0
+
+      if lhs != rhs { return false }
+
+      chunks -= 1
+      idx += 8
+    }
+
+    if size - idx >= 4 {
+      let lhs = (lptr as Int + idx as Pointer[Int32]).0 as Int
+      let rhs = (rptr as Int + idx as Pointer[Int32]).0 as Int
+
+      if lhs != rhs { return false }
+
+      idx += 4
+    }
+
+    if size - idx >= 2 {
+      let lhs = (lptr as Int + idx as Pointer[Int16]).0 as Int
+      let rhs = (rptr as Int + idx as Pointer[Int16]).0 as Int
+
+      if lhs != rhs { return false }
+
+      idx += 2
+    }
+
+    # For the remainder we just compare the individual bytes.
     while idx < size {
       if byte_unchecked(idx) != other.byte_unchecked(idx) { return false }
 
