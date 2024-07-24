@@ -1,0 +1,329 @@
+import std.base64 (self, DecodeError, Decoder, Encoder)
+import std.fmt (fmt)
+import std.test (Tests)
+
+fn encode(encoder: ref Encoder, input: ref String) -> String {
+  let output = ByteArray.new
+
+  encoder.encode(input.to_byte_array, output)
+  output.into_string
+}
+
+fn decode(
+  decoder: ref Decoder,
+  input: ref String,
+) -> Result[String, DecodeError] {
+  let output = ByteArray.new
+
+  match decoder.decode(input.to_byte_array, output) {
+    case Ok(_) -> Result.Ok(output.into_string)
+    case Error(e) -> Result.Error(e)
+  }
+}
+
+fn pub tests(t: mut Tests) {
+  t.test('Encoder.encode', fn (t) {
+    let enc = Encoder.new
+
+    t.equal(encode(enc, ''), '')
+    t.equal(encode(enc, ' '), 'IA==')
+    t.equal(encode(enc, 'f'), 'Zg==')
+    t.equal(encode(enc, 'fo'), 'Zm8=')
+    t.equal(encode(enc, 'foo'), 'Zm9v')
+    t.equal(encode(enc, 'foob'), 'Zm9vYg==')
+    t.equal(encode(enc, 'fooba'), 'Zm9vYmE=')
+    t.equal(encode(enc, 'foobar'), 'Zm9vYmFy')
+    t.equal(encode(enc, '0'), 'MA==')
+    t.equal(encode(enc, 'aa'), 'YWE=')
+    t.equal(encode(enc, 'hello'), 'aGVsbG8=')
+    t.equal(encode(enc, '😃'), '8J+Ygw==')
+    t.equal(
+      encode(
+        enc,
+        "We've Been Trying To Reach You About Your Car's Extended Warranty",
+      ),
+      'V2UndmUgQmVlbiBUcnlpbmcgVG8gUmVhY2ggWW91IEFib3V0IFlvdXIgQ2FyJ3MgRXh0ZW5kZWQgV2FycmFudHk=',
+    )
+    t.equal(
+      encode(
+        enc,
+        'abcdefghijklmnopqrstuvwxyz0123456789|@{}/&#[]\\!?()<>=+*;\'"`:^%$~',
+      ),
+      'YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXowMTIzNDU2Nzg5fEB7fS8mI1tdXCE/KCk8Pj0rKjsnImA6XiUkfg==',
+    )
+
+    let out = ByteArray.new
+
+    Encoder.new.encode(ByteArray.from_array([250]), out)
+    t.equal(out.into_string, '+g==')
+  })
+
+  t.test('Encoder.encode using URL safe encoding', fn (t) {
+    let enc = Encoder.url_safe
+
+    t.equal(encode(enc, ''), '')
+    t.equal(encode(enc, ' '), 'IA==')
+    t.equal(encode(enc, 'f'), 'Zg==')
+    t.equal(encode(enc, 'fo'), 'Zm8=')
+    t.equal(encode(enc, 'foo'), 'Zm9v')
+    t.equal(encode(enc, 'foob'), 'Zm9vYg==')
+    t.equal(encode(enc, 'fooba'), 'Zm9vYmE=')
+    t.equal(encode(enc, 'foobar'), 'Zm9vYmFy')
+    t.equal(encode(enc, '0'), 'MA==')
+    t.equal(encode(enc, 'aa'), 'YWE=')
+    t.equal(encode(enc, 'hello'), 'aGVsbG8=')
+    t.equal(encode(enc, '😃'), '8J-Ygw==')
+    t.equal(
+      encode(
+        enc,
+        "We've Been Trying To Reach You About Your Car's Extended Warranty",
+      ),
+      'V2UndmUgQmVlbiBUcnlpbmcgVG8gUmVhY2ggWW91IEFib3V0IFlvdXIgQ2FyJ3MgRXh0ZW5kZWQgV2FycmFudHk=',
+    )
+    t.equal(
+      encode(
+        enc,
+        'abcdefghijklmnopqrstuvwxyz0123456789|@{}/&#[]\\!?()<>=+*;\'"`:^%$~',
+      ),
+      'YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXowMTIzNDU2Nzg5fEB7fS8mI1tdXCE_KCk8Pj0rKjsnImA6XiUkfg==',
+    )
+
+    let out = ByteArray.new
+
+    enc.encode(ByteArray.from_array([250]), out)
+    t.equal(out.into_string, '-g==')
+  })
+
+  t.test('Encoder.encode without padding', fn (t) {
+    let out = ByteArray.new
+    let enc = Encoder.new
+
+    enc.padding = false
+    enc.encode('f'.to_byte_array, out)
+    enc.encode('fooba'.to_byte_array, out)
+
+    t.equal(out.into_string, 'ZgZm9vYmE')
+  })
+
+  t.test('Decoder.decode with padding', fn (t) {
+    let dec = Decoder.new
+
+    t.equal(decode(dec, ''), Result.Ok(''))
+    t.equal(decode(dec, 'IA=='), Result.Ok(' '))
+    t.equal(decode(dec, 'Zg=='), Result.Ok('f'))
+    t.equal(decode(dec, 'Zm8='), Result.Ok('fo'))
+    t.equal(decode(dec, 'Zm9v'), Result.Ok('foo'))
+    t.equal(decode(dec, 'Zm9vYg=='), Result.Ok('foob'))
+    t.equal(decode(dec, 'Zm9vYmE='), Result.Ok('fooba'))
+    t.equal(decode(dec, 'Zm9vYmFy'), Result.Ok('foobar'))
+    t.equal(decode(dec, 'MA=='), Result.Ok('0'))
+    t.equal(decode(dec, 'YWE='), Result.Ok('aa'))
+    t.equal(decode(dec, 'aGVsbG8='), Result.Ok('hello'))
+    t.equal(decode(dec, '8J+Ygw=='), Result.Ok('😃'))
+    t.equal(
+      decode(
+        dec,
+        'V2UndmUgQmVlbiBUcnlpbmcgVG8gUmVhY2ggWW91IEFib3V0IFlvdXIgQ2FyJ3MgRXh0ZW5kZWQgV2FycmFudHk=',
+      ),
+      Result.Ok(
+        "We've Been Trying To Reach You About Your Car's Extended Warranty",
+      ),
+    )
+    t.equal(
+      decode(
+        dec,
+        'YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXowMTIzNDU2Nzg5fEB7fS8mI1tdXCE/KCk8Pj0rKjsnImA6XiUkfg==',
+      ),
+      Result.Ok(
+        'abcdefghijklmnopqrstuvwxyz0123456789|@{}/&#[]\\!?()<>=+*;\'"`:^%$~',
+      ),
+    )
+
+    let out = ByteArray.new
+
+    t.true(Decoder.new.decode('+g=='.to_byte_array, out).ok?)
+    t.equal(out, ByteArray.from_array([250]))
+  })
+
+  t.test('Decoder.decode without padding', fn (t) {
+    let dec = Decoder.new
+
+    dec.padding = false
+
+    t.equal(decode(dec, ''), Result.Ok(''))
+    t.equal(decode(dec, 'IA'), Result.Ok(' '))
+    t.equal(decode(dec, 'Zg'), Result.Ok('f'))
+    t.equal(decode(dec, 'Zm8'), Result.Ok('fo'))
+    t.equal(decode(dec, 'Zm9v'), Result.Ok('foo'))
+    t.equal(decode(dec, 'Zm9vYg'), Result.Ok('foob'))
+    t.equal(decode(dec, 'Zm9vYmE'), Result.Ok('fooba'))
+    t.equal(decode(dec, 'Zm9vYmFy'), Result.Ok('foobar'))
+    t.equal(decode(dec, 'MA'), Result.Ok('0'))
+    t.equal(decode(dec, 'YWE'), Result.Ok('aa'))
+    t.equal(decode(dec, 'aGVsbG8'), Result.Ok('hello'))
+    t.equal(decode(dec, '8J+Ygw'), Result.Ok('😃'))
+    t.equal(
+      decode(
+        dec,
+        'V2UndmUgQmVlbiBUcnlpbmcgVG8gUmVhY2ggWW91IEFib3V0IFlvdXIgQ2FyJ3MgRXh0ZW5kZWQgV2FycmFudHk',
+      ),
+      Result.Ok(
+        "We've Been Trying To Reach You About Your Car's Extended Warranty",
+      ),
+    )
+    t.equal(
+      decode(
+        dec,
+        'YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXowMTIzNDU2Nzg5fEB7fS8mI1tdXCE/KCk8Pj0rKjsnImA6XiUkfg',
+      ),
+      Result.Ok(
+        'abcdefghijklmnopqrstuvwxyz0123456789|@{}/&#[]\\!?()<>=+*;\'"`:^%$~',
+      ),
+    )
+  })
+
+  t.test('Decoder.decode with invalid input', fn (t) {
+    let dec = Decoder.new
+
+    t.equal(decode(dec, 'MA'), Result.Error(DecodeError.InvalidSize))
+    t.equal(decode(dec, 'Zm8'), Result.Error(DecodeError.InvalidSize))
+    t.equal(decode(dec, '*m8='), Result.Error(DecodeError.InvalidCharacter(0)))
+    t.equal(decode(dec, 'Z*8='), Result.Error(DecodeError.InvalidCharacter(1)))
+    t.equal(decode(dec, 'Zm*='), Result.Error(DecodeError.InvalidCharacter(2)))
+    t.equal(
+      decode(dec, 'aG*sbG8='),
+      Result.Error(DecodeError.InvalidCharacter(2)),
+    )
+    t.equal(
+      decode(dec, 'Zm9v----'),
+      Result.Error(DecodeError.InvalidCharacter(4)),
+    )
+    t.equal(
+      decode(dec, 'Zm9vY---'),
+      Result.Error(DecodeError.InvalidCharacter(5)),
+    )
+    t.equal(
+      decode(dec, 'Zm9vYg--'),
+      Result.Error(DecodeError.InvalidCharacter(6)),
+    )
+    t.equal(
+      decode(dec, 'Zm9vYg=-'),
+      Result.Error(DecodeError.InvalidCharacter(6)),
+    )
+    t.equal(decode(dec, 'Y==='), Result.Error(DecodeError.InvalidCharacter(1)))
+    t.equal(
+      decode(
+        dec,
+        'YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXowMTIzNDU2Nzg5fEB7fS8mI1tdXCE_KCk8Pj0rKjsnImA6XiUkfg==',
+      ),
+      Result.Error(DecodeError.InvalidCharacter(63)),
+    )
+  })
+
+  t.test('Decoder.decode with invalid input and without padding', fn (t) {
+    let dec = Decoder.new
+
+    dec.padding = false
+
+    t.equal(decode(dec, 'IA=='), Result.Error(DecodeError.InvalidCharacter(2)))
+    t.equal(decode(dec, '*m8'), Result.Error(DecodeError.InvalidCharacter(0)))
+    t.equal(decode(dec, 'Z*8'), Result.Error(DecodeError.InvalidCharacter(1)))
+    t.equal(decode(dec, 'Zm*'), Result.Error(DecodeError.InvalidCharacter(2)))
+    t.equal(
+      decode(dec, 'aG*sbG8'),
+      Result.Error(DecodeError.InvalidCharacter(2)),
+    )
+    t.equal(
+      decode(dec, 'Zm9v----'),
+      Result.Error(DecodeError.InvalidCharacter(4)),
+    )
+    t.equal(
+      decode(dec, 'Zm9vY---'),
+      Result.Error(DecodeError.InvalidCharacter(5)),
+    )
+    t.equal(
+      decode(dec, 'Zm9vYg--'),
+      Result.Error(DecodeError.InvalidCharacter(6)),
+    )
+    t.equal(
+      decode(dec, 'Zm9vYg=-'),
+      Result.Error(DecodeError.InvalidCharacter(6)),
+    )
+    t.equal(decode(dec, 'Y==='), Result.Error(DecodeError.InvalidCharacter(1)))
+    t.equal(
+      decode(
+        dec,
+        'YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXowMTIzNDU2Nzg5fEB7fS8mI1tdXCE_KCk8Pj0rKjsnImA6XiUkfg',
+      ),
+      Result.Error(DecodeError.InvalidCharacter(63)),
+    )
+  })
+
+  t.test('Decoder.decode with URL safe encoded data', fn (t) {
+    let dec = Decoder.url_safe
+
+    t.equal(decode(dec, ''), Result.Ok(''))
+    t.equal(decode(dec, 'IA=='), Result.Ok(' '))
+    t.equal(decode(dec, 'Zg=='), Result.Ok('f'))
+    t.equal(decode(dec, 'Zm8='), Result.Ok('fo'))
+    t.equal(decode(dec, 'Zm9v'), Result.Ok('foo'))
+    t.equal(decode(dec, 'Zm9vYg=='), Result.Ok('foob'))
+    t.equal(decode(dec, 'Zm9vYmE='), Result.Ok('fooba'))
+    t.equal(decode(dec, 'Zm9vYmFy'), Result.Ok('foobar'))
+    t.equal(decode(dec, 'MA=='), Result.Ok('0'))
+    t.equal(decode(dec, 'YWE='), Result.Ok('aa'))
+    t.equal(decode(dec, 'aGVsbG8='), Result.Ok('hello'))
+    t.equal(decode(dec, '8J-Ygw=='), Result.Ok('😃'))
+    t.equal(
+      decode(
+        dec,
+        'YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXowMTIzNDU2Nzg5fEB7fS8mI1tdXCE_KCk8Pj0rKjsnImA6XiUkfg==',
+      ),
+      Result.Ok(
+        'abcdefghijklmnopqrstuvwxyz0123456789|@{}/&#[]\\!?()<>=+*;\'"`:^%$~',
+      ),
+    )
+
+    let out = ByteArray.new
+
+    t.true(dec.decode('-g=='.to_byte_array, out).ok?)
+    t.equal(out, ByteArray.from_array([250]))
+  })
+
+  t.test('DecodeError.to_string', fn (t) {
+    t.true(DecodeError.InvalidSize.to_string.size > 0)
+    t.true(
+      DecodeError.InvalidCharacter(4).to_string.contains?('at byte offset 4'),
+    )
+  })
+
+  t.test('DecodeError.fmt', fn (t) {
+    t.equal(fmt(DecodeError.InvalidSize), 'InvalidSize')
+    t.equal(fmt(DecodeError.InvalidCharacter(4)), 'InvalidCharacter(4)')
+  })
+
+  t.test('DecodeError.==', fn (t) {
+    t.equal(DecodeError.InvalidSize, DecodeError.InvalidSize)
+    t.equal(DecodeError.InvalidCharacter(4), DecodeError.InvalidCharacter(4))
+    t.not_equal(DecodeError.InvalidSize, DecodeError.InvalidCharacter(1))
+    t.not_equal(
+      DecodeError.InvalidCharacter(4),
+      DecodeError.InvalidCharacter(5),
+    )
+  })
+
+  t.test('base64.encode', fn (t) {
+    t.equal(base64.encode('hello world'.to_byte_array), 'aGVsbG8gd29ybGQ=')
+  })
+
+  t.test('base64.decode', fn (t) {
+    t.equal(
+      base64.decode('aGVsbG8gd29ybGQ='.to_byte_array),
+      Result.Ok('hello world'.to_byte_array),
+    )
+    t.equal(
+      base64.decode('aGVsbG8gd29ybGQ'.to_byte_array),
+      Result.Error(DecodeError.InvalidSize),
+    )
+  })
+}

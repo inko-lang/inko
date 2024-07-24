@@ -918,6 +918,10 @@ impl<'shared, 'module, 'ctx> LowerModule<'shared, 'module, 'ctx> {
                         Shape::String,
                         builder.context.pointer_type().as_basic_type_enum(),
                     ),
+                    Some(Constant::Array(_)) => (
+                        Shape::Ref,
+                        builder.context.pointer_type().as_basic_type_enum(),
+                    ),
                     _ => (
                         Shape::Owned,
                         builder.context.pointer_type().as_basic_type_enum(),
