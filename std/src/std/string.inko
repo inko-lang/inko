@@ -16,6 +16,7 @@ import std.hash (Hash, Hasher)
 import std.io (Read)
 import std.iter (Iter, Stream)
 import std.ops (Add)
+import std.ptr
 
 class extern StringResult {
   let @tag: Int
@@ -342,9 +343,12 @@ class builtin String {
   # 'hello'.starts_with?('test_')            # => false
   # ```
   fn pub starts_with?(prefix: String) -> Bool {
-    match byte_index(of: prefix, starting_at: 0) {
-      case Some(idx) -> idx == 0
-      case _ -> false
+    let rsize = prefix.size
+
+    if size < rsize or rsize == 0 {
+      false
+    } else {
+      ptr.equal(@ptr, prefix.ptr, rsize)
     }
   }
 
@@ -359,7 +363,16 @@ class builtin String {
   # 'hello'.ends_with?('world')       # => false
   # ```
   fn pub ends_with?(suffix: String) -> Bool {
-    byte_index(of: suffix, starting_at: size - suffix.size).some?
+    let lsize = size
+    let rsize = suffix.size
+
+    if lsize < rsize or rsize == 0 {
+      false
+    } else {
+      let lhs = (@ptr as Int + lsize - rsize) as Pointer[UInt8]
+
+      ptr.equal(lhs, suffix.ptr, rsize)
+    }
   }
 
   # Splits `self` into an iterator of `Strings`, each separated by the given
@@ -797,54 +810,9 @@ impl Equal[ref String] for String {
   # 'foo' == 'bar' # => false
   # ```
   fn pub ==(other: ref String) -> Bool {
-    let size = self.size
+    let lsize = self.size
 
-    if size != other.size { return false }
-
-    let mut chunks = size / 8
-    let mut idx = 0
-    let lptr = @ptr
-    let rptr = other.ptr
-
-    # Strings are compared at the byte level. We take advantage of the fact that
-    # an Int can fit 8 bytes, and thus read 8 bytes at once and compare the
-    # resulting Int, instead of comparing each individual byte.
-    while chunks > 0 {
-      let lhs = (lptr as Int + idx as Pointer[Int]).0
-      let rhs = (rptr as Int + idx as Pointer[Int]).0
-
-      if lhs != rhs { return false }
-
-      chunks -= 1
-      idx += 8
-    }
-
-    if size - idx >= 4 {
-      let lhs = (lptr as Int + idx as Pointer[Int32]).0 as Int
-      let rhs = (rptr as Int + idx as Pointer[Int32]).0 as Int
-
-      if lhs != rhs { return false }
-
-      idx += 4
-    }
-
-    if size - idx >= 2 {
-      let lhs = (lptr as Int + idx as Pointer[Int16]).0 as Int
-      let rhs = (rptr as Int + idx as Pointer[Int16]).0 as Int
-
-      if lhs != rhs { return false }
-
-      idx += 2
-    }
-
-    # For the remainder we just compare the individual bytes.
-    while idx < size {
-      if byte_unchecked(idx) != other.byte_unchecked(idx) { return false }
-
-      idx += 1
-    }
-
-    true
+    if lsize == other.size { ptr.equal(@ptr, other.ptr, lsize) } else { false }
   }
 }
 

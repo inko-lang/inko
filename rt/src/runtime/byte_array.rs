@@ -63,14 +63,6 @@ pub unsafe extern "system" fn inko_byte_array_size(
 }
 
 #[no_mangle]
-pub unsafe extern "system" fn inko_byte_array_eq(
-    lhs: *const ByteArray,
-    rhs: *const ByteArray,
-) -> i64 {
-    ((*lhs).value == (*rhs).value) as i64
-}
-
-#[no_mangle]
 pub unsafe extern "system" fn inko_byte_array_clear(bytes: *mut ByteArray) {
     (*bytes).value.clear();
 }

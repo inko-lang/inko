@@ -154,9 +154,80 @@ fn pub tests(t: mut Tests) {
   })
 
   t.test('ByteArray.==', fn (t) {
-    t.equal(ByteArray.new, ByteArray.new)
-    t.equal(ByteArray.from_array([10]), ByteArray.from_array([10]))
-    t.not_equal(ByteArray.from_array([10]), ByteArray.new)
+    t.equal('a'.to_byte_array, 'a'.to_byte_array)
+    t.equal('ab'.to_byte_array, 'ab'.to_byte_array)
+    t.equal('abc'.to_byte_array, 'abc'.to_byte_array)
+    t.equal('abcd'.to_byte_array, 'abcd'.to_byte_array)
+    t.equal('abcde'.to_byte_array, 'abcde'.to_byte_array)
+    t.equal('abcdef'.to_byte_array, 'abcdef'.to_byte_array)
+    t.equal('abcdefg'.to_byte_array, 'abcdefg'.to_byte_array)
+    t.equal('abcdefgh'.to_byte_array, 'abcdefgh'.to_byte_array)
+    t.equal('abcdefghi'.to_byte_array, 'abcdefghi'.to_byte_array)
+    t.equal('abcdefghij'.to_byte_array, 'abcdefghij'.to_byte_array)
+    t.equal('abcdefghijk'.to_byte_array, 'abcdefghijk'.to_byte_array)
+    t.equal('abcdefghijkl'.to_byte_array, 'abcdefghijkl'.to_byte_array)
+    t.equal('abcdefghijklm'.to_byte_array, 'abcdefghijklm'.to_byte_array)
+    t.equal('abcdefghijklmn'.to_byte_array, 'abcdefghijklmn'.to_byte_array)
+    t.equal('abcdefghijklmno'.to_byte_array, 'abcdefghijklmno'.to_byte_array)
+    t.equal('abcdefghijklmnop'.to_byte_array, 'abcdefghijklmnop'.to_byte_array)
+    t.equal(
+      'abcdefghijklmnopq'.to_byte_array,
+      'abcdefghijklmnopq'.to_byte_array,
+    )
+    t.equal(
+      'abcdefghijklmnopqr'.to_byte_array,
+      'abcdefghijklmnopqr'.to_byte_array,
+    )
+    t.equal(
+      'abcdefghijklmnopqrs'.to_byte_array,
+      'abcdefghijklmnopqrs'.to_byte_array,
+    )
+    t.equal('Ä'.to_byte_array, 'Ä'.to_byte_array)
+    t.equal('AÄ'.to_byte_array, 'AÄ'.to_byte_array)
+    t.equal('쿠키'.to_byte_array, '쿠키'.to_byte_array)
+
+    t.not_equal('foo'.to_byte_array, 'bar'.to_byte_array)
+    t.not_equal('Ä'.to_byte_array, '쿠'.to_byte_array)
+    t.not_equal('AÄ'.to_byte_array, 'A쿠'.to_byte_array)
+    t.not_equal('쿠Ä'.to_byte_array, '쿠키'.to_byte_array)
+    t.not_equal('a'.to_byte_array, 'A'.to_byte_array)
+    t.not_equal('ab'.to_byte_array, 'AB'.to_byte_array)
+    t.not_equal('abc'.to_byte_array, 'ABC'.to_byte_array)
+    t.not_equal('abcd'.to_byte_array, 'ABCD'.to_byte_array)
+    t.not_equal('abcde'.to_byte_array, 'ABCDE'.to_byte_array)
+    t.not_equal('abcdef'.to_byte_array, 'ABCDEF'.to_byte_array)
+    t.not_equal('abcdefg'.to_byte_array, 'ABCDEFG'.to_byte_array)
+    t.not_equal('abcdefgh'.to_byte_array, 'ABCDEFGH'.to_byte_array)
+    t.not_equal('abcdefghi'.to_byte_array, 'ABCDEFGHI'.to_byte_array)
+    t.not_equal('abcdefghij'.to_byte_array, 'ABCDEFGHIJ'.to_byte_array)
+    t.not_equal('abcdefghijk'.to_byte_array, 'ABCDEFGHIJK'.to_byte_array)
+    t.not_equal('abcdefghijkl'.to_byte_array, 'ABCDEFGHIJKL'.to_byte_array)
+    t.not_equal('abcdefghijklm'.to_byte_array, 'ABCDEFGHIJKLM'.to_byte_array)
+    t.not_equal('abcdefghijklmn'.to_byte_array, 'ABCDEFGHIJKLMN'.to_byte_array)
+    t.not_equal(
+      'abcdefghijklmno'.to_byte_array,
+      'ABCDEFGHIJKLMNO'.to_byte_array,
+    )
+    t.not_equal(
+      'abcdefghijklmnop'.to_byte_array,
+      'ABCDEFGHIJKLMNOP'.to_byte_array,
+    )
+    t.not_equal(
+      'abcdefghijklmnopq'.to_byte_array,
+      'ABCDEFGHIJKLMNOPQ'.to_byte_array,
+    )
+    t.not_equal(
+      'abcdefghijklmnopqr'.to_byte_array,
+      'ABCDEFGHIJKLMNOPQR'.to_byte_array,
+    )
+    t.not_equal(
+      'abcdefghijklmnopqrs'.to_byte_array,
+      'ABCDEFGHIJKLMNOPQRS'.to_byte_array,
+    )
+    t.not_equal('aaaaaaaaa'.to_byte_array, 'aaaaaaaab'.to_byte_array)
+    t.not_equal('aaaaaaaaaaaa'.to_byte_array, 'aaaaaaaabbbb'.to_byte_array)
+    t.not_equal('aaaaaaaaaa'.to_byte_array, 'aaaaaaaabb'.to_byte_array)
+    t.not_equal('aaaaaaaaa'.to_byte_array, 'aaaaaaaab'.to_byte_array)
   })
 
   t.test('ByteArray.clone', fn (t) {

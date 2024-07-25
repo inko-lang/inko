@@ -1,0 +1,60 @@
+# Methods for working with raw pointers
+#
+# The methods in this module are intended for use within the standard library
+# only, and must be used with extreme care due to their unsafe nature.
+
+# Returns `true` if `left` and `right` point to a sequence of bytes that is the
+# same.
+#
+# # Safety
+#
+# Callers of this method _must_ ensure that `left` and `right` point to at least
+# `size` bytes of data. If this isn't the case, the behaviour of this function
+# is undefined.
+fn equal(left: Pointer[UInt8], right: Pointer[UInt8], size: Int) -> Bool {
+  let mut chunks = size / 8
+  let mut idx = 0
+
+  # We take advantage of the fact that an Int can fit 8 bytes, and thus read 8
+  # bytes at once and compare the resulting Int, instead of comparing each
+  # individual byte.
+  while chunks > 0 {
+    let lhs = (left as Int + idx as Pointer[Int]).0
+    let rhs = (right as Int + idx as Pointer[Int]).0
+
+    if lhs != rhs { return false }
+
+    chunks -= 1
+    idx += 8
+  }
+
+  if size - idx >= 4 {
+    let lhs = (left as Int + idx as Pointer[Int32]).0 as Int
+    let rhs = (right as Int + idx as Pointer[Int32]).0 as Int
+
+    if lhs != rhs { return false }
+
+    idx += 4
+  }
+
+  if size - idx >= 2 {
+    let lhs = (left as Int + idx as Pointer[Int16]).0 as Int
+    let rhs = (right as Int + idx as Pointer[Int16]).0 as Int
+
+    if lhs != rhs { return false }
+
+    idx += 2
+  }
+
+  # For the remainder we just compare the individual bytes.
+  while idx < size {
+    let lhs = (left as Int + idx as Pointer[UInt8]).0 as Int
+    let rhs = (right as Int + idx as Pointer[UInt8]).0 as Int
+
+    if lhs != rhs { return false }
+
+    idx += 1
+  }
+
+  true
+}

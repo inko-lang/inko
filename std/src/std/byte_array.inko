@@ -8,6 +8,7 @@ import std.hash (Hash, Hasher)
 import std.io (Read)
 import std.iter (Stream)
 import std.option (Option)
+import std.ptr
 import std.string (Bytes, IntoString, ToString)
 
 fn extern inko_byte_array_new(state: Pointer[UInt8]) -> ByteArray
@@ -34,8 +35,6 @@ fn extern inko_byte_array_drain_to_string(
 ) -> String
 
 fn extern inko_byte_array_drop(bytes: mut ByteArray)
-
-fn extern inko_byte_array_eq(left: ref ByteArray, right: ref ByteArray) -> Bool
 
 fn extern inko_byte_array_get(bytes: ref ByteArray, index: Int) -> Int
 
@@ -570,7 +569,13 @@ impl Equal[ref ByteArray] for ByteArray {
   # ByteArray.from_array([10]) == ByteArray.from_array([20]) # => false
   # ```
   fn pub ==(other: ref ByteArray) -> Bool {
-    inko_byte_array_eq(self, other)
+    let size = self.size
+
+    if size == other.size {
+      ptr.equal(to_pointer, other.to_pointer, size: size)
+    } else {
+      false
+    }
   }
 }
 
