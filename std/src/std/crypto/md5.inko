@@ -111,7 +111,7 @@ class pub Md5 {
   fn mut compress {
     let words = @words
 
-    16.times(fn (i) { words.set(i, @block.read_u32_le(i * 4)) })
+    16.times(fn (i) { words.set(i, @block.read_i32_le(i * 4)) })
 
     let mut a = @a
     let mut b = @b
@@ -174,10 +174,10 @@ impl Hasher for Md5 {
 
     let out = ByteArray.filled(with: 0, times: 16)
 
-    little.write_u32(@a, into: out, at: 0)
-    little.write_u32(@b, into: out, at: 4)
-    little.write_u32(@c, into: out, at: 8)
-    little.write_u32(@d, into: out, at: 12)
+    little.write_i32(@a, into: out, at: 0)
+    little.write_i32(@b, into: out, at: 4)
+    little.write_i32(@c, into: out, at: 8)
+    little.write_i32(@d, into: out, at: 12)
     Hash.new(out)
   }
 }

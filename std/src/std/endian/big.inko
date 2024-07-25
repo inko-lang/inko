@@ -13,10 +13,10 @@
 #
 # let bytes = ByteArray.filled(with: 0, times: 4)
 #
-# big.write_u32(123456789, into: bytes, at: 0)
+# big.write_i32(123456789, into: bytes, at: 0)
 # bytes # => ByteArray.from_array([7, 91, 205, 21])
 # ```
-fn pub write_u32(value: Int, into: mut ByteArray, at: Int) {
+fn pub write_i32(value: Int, into: mut ByteArray, at: Int) {
   into.set(at, value >> 24)
   into.set(at + 1, value >> 16)
   into.set(at + 2, value >> 8)
@@ -61,10 +61,10 @@ fn pub write_i64(value: Int, into: mut ByteArray, at: Int) {
 #
 # let bytes = ByteArray.filled(with: 0, times: 4)
 #
-# big.write_u32(123456789, into: bytes, at: 0)
-# big.read_u32(from: bytes, at: 0) # => 123456789
+# big.write_i32(123456789, into: bytes, at: 0)
+# big.read_i32(from: bytes, at: 0) # => 123456789
 # ```
-fn pub read_u32(from: ref ByteArray, at: Int) -> Int {
+fn pub read_i32(from: ref ByteArray, at: Int) -> Int {
   (from.get(at) << 24)
     | (from.get(at + 1) << 16)
     | (from.get(at + 2) << 8)

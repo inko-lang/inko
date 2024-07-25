@@ -3,27 +3,27 @@ import std.int (MAX, MIN)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
-  t.test('little.write_u32', fn (t) {
+  t.test('little.write_i32', fn (t) {
     let b1 = ByteArray.filled(with: 0, times: 4)
     let b2 = ByteArray.filled(with: 0, times: 4)
 
-    little.write_u32(123456789, into: b1, at: 0)
-    little.write_u32(MAX, into: b2, at: 0)
+    little.write_i32(123456789, into: b1, at: 0)
+    little.write_i32(MAX, into: b2, at: 0)
 
     t.equal(b1, ByteArray.from_array([21, 205, 91, 7]))
     t.equal(b2, ByteArray.from_array([255, 255, 255, 255]))
   })
 
-  t.test('little.read_u32', fn (t) {
+  t.test('little.read_i32', fn (t) {
     let bytes = ByteArray.filled(with: 0, times: 4)
 
-    little.write_u32(123456789, into: bytes, at: 0)
+    little.write_i32(123456789, into: bytes, at: 0)
 
-    t.equal(little.read_u32(from: bytes, at: 0), 123456789)
+    t.equal(little.read_i32(from: bytes, at: 0), 123456789)
   })
 
-  t.panic('little.read_u32 with not enough bytes', fn {
-    little.read_u32(from: ByteArray.new, at: 0)
+  t.panic('little.read_i32 with not enough bytes', fn {
+    little.read_i32(from: ByteArray.new, at: 0)
   })
 
   t.test('little.write_i64', fn (t) {

@@ -76,7 +76,7 @@ class pub Sha1 {
   fn mut compress {
     let words = @words
 
-    0.until(16).iter.each(fn (i) { words.set(i, @block.read_u32_be(i * 4)) })
+    0.until(16).iter.each(fn (i) { words.set(i, @block.read_i32_be(i * 4)) })
 
     16.until(80).iter.each(fn (i) {
       words.set(
@@ -187,11 +187,11 @@ impl Hasher for Sha1 {
 
     let out = ByteArray.filled(with: 0, times: 20)
 
-    big.write_u32(@a, into: out, at: 0)
-    big.write_u32(@b, into: out, at: 4)
-    big.write_u32(@c, into: out, at: 8)
-    big.write_u32(@d, into: out, at: 12)
-    big.write_u32(@e, into: out, at: 16)
+    big.write_i32(@a, into: out, at: 0)
+    big.write_i32(@b, into: out, at: 4)
+    big.write_i32(@c, into: out, at: 8)
+    big.write_i32(@d, into: out, at: 12)
+    big.write_i32(@e, into: out, at: 16)
     Hash.new(out)
   }
 }

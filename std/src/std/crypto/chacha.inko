@@ -66,30 +66,30 @@ fn pub hchacha20(key: ref ByteArray, nonce: ref ByteArray) -> ByteArray {
       0x3320646E,
       0x79622D32,
       0x6B206574,
-      little.read_u32(from: key, at: 0),
-      little.read_u32(from: key, at: 4),
-      little.read_u32(from: key, at: 8),
-      little.read_u32(from: key, at: 12),
-      little.read_u32(from: key, at: 16),
-      little.read_u32(from: key, at: 20),
-      little.read_u32(from: key, at: 24),
-      little.read_u32(from: key, at: 28),
-      little.read_u32(from: nonce, at: 0),
-      little.read_u32(from: nonce, at: 4),
-      little.read_u32(from: nonce, at: 8),
-      little.read_u32(from: nonce, at: 12),
+      little.read_i32(from: key, at: 0),
+      little.read_i32(from: key, at: 4),
+      little.read_i32(from: key, at: 8),
+      little.read_i32(from: key, at: 12),
+      little.read_i32(from: key, at: 16),
+      little.read_i32(from: key, at: 20),
+      little.read_i32(from: key, at: 24),
+      little.read_i32(from: key, at: 28),
+      little.read_i32(from: nonce, at: 0),
+      little.read_i32(from: nonce, at: 4),
+      little.read_i32(from: nonce, at: 8),
+      little.read_i32(from: nonce, at: 12),
     ],
   )
 
   matrix.perform_rounds
-  little.write_u32(matrix.words.get(0), into: out, at: 0)
-  little.write_u32(matrix.words.get(1), into: out, at: 4)
-  little.write_u32(matrix.words.get(2), into: out, at: 8)
-  little.write_u32(matrix.words.get(3), into: out, at: 12)
-  little.write_u32(matrix.words.get(12), into: out, at: 16)
-  little.write_u32(matrix.words.get(13), into: out, at: 20)
-  little.write_u32(matrix.words.get(14), into: out, at: 24)
-  little.write_u32(matrix.words.get(15), into: out, at: 28)
+  little.write_i32(matrix.words.get(0), into: out, at: 0)
+  little.write_i32(matrix.words.get(1), into: out, at: 4)
+  little.write_i32(matrix.words.get(2), into: out, at: 8)
+  little.write_i32(matrix.words.get(3), into: out, at: 12)
+  little.write_i32(matrix.words.get(12), into: out, at: 16)
+  little.write_i32(matrix.words.get(13), into: out, at: 20)
+  little.write_i32(matrix.words.get(14), into: out, at: 24)
+  little.write_i32(matrix.words.get(15), into: out, at: 28)
   out
 }
 
@@ -254,18 +254,18 @@ class pub ChaCha20 {
           0x3320646E,
           0x79622D32,
           0x6B206574,
-          little.read_u32(from: key, at: 0),
-          little.read_u32(from: key, at: 4),
-          little.read_u32(from: key, at: 8),
-          little.read_u32(from: key, at: 12),
-          little.read_u32(from: key, at: 16),
-          little.read_u32(from: key, at: 20),
-          little.read_u32(from: key, at: 24),
-          little.read_u32(from: key, at: 28),
+          little.read_i32(from: key, at: 0),
+          little.read_i32(from: key, at: 4),
+          little.read_i32(from: key, at: 8),
+          little.read_i32(from: key, at: 12),
+          little.read_i32(from: key, at: 16),
+          little.read_i32(from: key, at: 20),
+          little.read_i32(from: key, at: 24),
+          little.read_i32(from: key, at: 28),
           DEFAULT_COUNTER,
-          little.read_u32(from: nonce, at: 0),
-          little.read_u32(from: nonce, at: 4),
-          little.read_u32(from: nonce, at: 8),
+          little.read_i32(from: nonce, at: 0),
+          little.read_i32(from: nonce, at: 4),
+          little.read_i32(from: nonce, at: 8),
         ],
       ),
     )
@@ -297,7 +297,7 @@ class pub ChaCha20 {
       tmp.perform_rounds
       MATRIX_SIZE.times(fn (i) {
         tmp.set(i, to_u32(tmp.get(i).wrapping_add(@matrix.get(i))))
-        little.write_u32(tmp.get(i), into: buf, at: i * 4)
+        little.write_i32(tmp.get(i), into: buf, at: i * 4)
       })
 
       # This in itself can't overflow, as the Int type is a 64-bits signed
@@ -404,18 +404,18 @@ class pub XChaCha20 {
             0x3320646E,
             0x79622D32,
             0x6B206574,
-            little.read_u32(from: sub_key, at: 0),
-            little.read_u32(from: sub_key, at: 4),
-            little.read_u32(from: sub_key, at: 8),
-            little.read_u32(from: sub_key, at: 12),
-            little.read_u32(from: sub_key, at: 16),
-            little.read_u32(from: sub_key, at: 20),
-            little.read_u32(from: sub_key, at: 24),
-            little.read_u32(from: sub_key, at: 28),
+            little.read_i32(from: sub_key, at: 0),
+            little.read_i32(from: sub_key, at: 4),
+            little.read_i32(from: sub_key, at: 8),
+            little.read_i32(from: sub_key, at: 12),
+            little.read_i32(from: sub_key, at: 16),
+            little.read_i32(from: sub_key, at: 20),
+            little.read_i32(from: sub_key, at: 24),
+            little.read_i32(from: sub_key, at: 28),
             DEFAULT_COUNTER,
             0,
-            little.read_u32(from: nonce, at: 16),
-            little.read_u32(from: nonce, at: 20),
+            little.read_i32(from: nonce, at: 16),
+            little.read_i32(from: nonce, at: 20),
           ],
         ),
       ),

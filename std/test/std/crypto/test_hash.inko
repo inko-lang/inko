@@ -5,24 +5,24 @@ import std.fmt (fmt)
 import std.test (Tests)
 
 fn pub tests(t: mut Tests) {
-  t.test('Block.read_u32_le', fn (t) {
+  t.test('Block.read_i32_le', fn (t) {
     let block = Block.new(4)
     let bytes = ByteArray.filled(with: 0, times: 4)
 
-    little.write_u32(123, into: bytes, at: 0)
+    little.write_i32(123, into: bytes, at: 0)
     block.write_bytes(bytes, fn {})
 
-    t.equal(block.read_u32_le(0), 123)
+    t.equal(block.read_i32_le(0), 123)
   })
 
-  t.test('Block.read_u32_be', fn (t) {
+  t.test('Block.read_i32_be', fn (t) {
     let block = Block.new(4)
     let bytes = ByteArray.filled(with: 0, times: 4)
 
-    big.write_u32(123, into: bytes, at: 0)
+    big.write_i32(123, into: bytes, at: 0)
     block.write_bytes(bytes, fn {})
 
-    t.equal(block.read_u32_be(0), 123)
+    t.equal(block.read_i32_be(0), 123)
   })
 
   t.test('Block.write_bytes', fn (t) {

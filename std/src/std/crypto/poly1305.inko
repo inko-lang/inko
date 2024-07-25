@@ -89,14 +89,14 @@ class pub Poly1305 {
 
     Poly1305(
       block: Block.new(BLOCK_SIZE),
-      r0: little.read_u32(from: key, at: 0) & 0x0FFFFFFF,
-      r1: little.read_u32(from: key, at: 4) & 0x0FFFFFFC,
-      r2: little.read_u32(from: key, at: 8) & 0x0FFFFFFC,
-      r3: little.read_u32(from: key, at: 12) & 0x0FFFFFFC,
-      pad0: little.read_u32(from: key, at: 16),
-      pad1: little.read_u32(from: key, at: 20),
-      pad2: little.read_u32(from: key, at: 24),
-      pad3: little.read_u32(from: key, at: 28),
+      r0: little.read_i32(from: key, at: 0) & 0x0FFFFFFF,
+      r1: little.read_i32(from: key, at: 4) & 0x0FFFFFFC,
+      r2: little.read_i32(from: key, at: 8) & 0x0FFFFFFC,
+      r3: little.read_i32(from: key, at: 12) & 0x0FFFFFFC,
+      pad0: little.read_i32(from: key, at: 16),
+      pad1: little.read_i32(from: key, at: 20),
+      pad2: little.read_i32(from: key, at: 24),
+      pad3: little.read_i32(from: key, at: 28),
       h0: 0,
       h1: 0,
       h2: 0,
@@ -106,10 +106,10 @@ class pub Poly1305 {
   }
 
   fn mut compress(final: Bool) {
-    let mut s0 = @h0.wrapping_add(@block.read_u32_le(at: 0))
-    let mut s1 = @h1.wrapping_add(@block.read_u32_le(at: 4))
-    let mut s2 = @h2.wrapping_add(@block.read_u32_le(at: 8))
-    let mut s3 = @h3.wrapping_add(@block.read_u32_le(at: 12))
+    let mut s0 = @h0.wrapping_add(@block.read_i32_le(at: 0))
+    let mut s1 = @h1.wrapping_add(@block.read_i32_le(at: 4))
+    let mut s2 = @h2.wrapping_add(@block.read_i32_le(at: 8))
+    let mut s3 = @h3.wrapping_add(@block.read_i32_le(at: 12))
     let mut s4 = @h4.wrapping_add(if final { 0 } else { 1 })
 
     let r0 = @r0
@@ -193,19 +193,19 @@ impl Hasher for Poly1305 {
     let out = ByteArray.filled(with: 0, times: TAG_SIZE)
 
     c = c.wrapping_add(@h0) + @pad0
-    little.write_u32(c, into: out, at: 0)
+    little.write_i32(c, into: out, at: 0)
     c = c >>> 32
 
     c = c.wrapping_add(@h1) + @pad1
-    little.write_u32(c, into: out, at: 4)
+    little.write_i32(c, into: out, at: 4)
     c = c >>> 32
 
     c = c.wrapping_add(@h2) + @pad2
-    little.write_u32(c, into: out, at: 8)
+    little.write_i32(c, into: out, at: 8)
     c = c >>> 32
 
     c = c.wrapping_add(@h3) + @pad3
-    little.write_u32(c, into: out, at: 12)
+    little.write_i32(c, into: out, at: 12)
     c = c >>> 32
 
     Hash.new(out)

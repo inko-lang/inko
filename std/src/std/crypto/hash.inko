@@ -21,13 +21,13 @@ class pub Block {
   }
 
   # Reads an unsigned 32-bits little-endian integer from the given index.
-  fn pub read_u32_le(at: Int) -> Int {
-    little.read_u32(@bytes, at)
+  fn pub read_i32_le(at: Int) -> Int {
+    little.read_i32(@bytes, at)
   }
 
   # Reads an unsigned 32-bits big-endian integer from the given index.
-  fn pub read_u32_be(at: Int) -> Int {
-    big.read_u32(@bytes, at)
+  fn pub read_i32_be(at: Int) -> Int {
+    big.read_i32(@bytes, at)
   }
 
   # Reads a signed 64-bits big-endian integer from the given index.
