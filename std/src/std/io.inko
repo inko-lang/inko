@@ -453,31 +453,57 @@ trait pub BufferedRead: Read {
   # Read bytes into `into` up to and including the byte specified in the `byte`
   # argument.
   #
+  # The `inclusive` argument specifies if the `byte` value should also be read
+  # into the `ByteArray`, or if it should be discarded.
+  #
   # Upon success, the return value is `Ok(n)` where `n` is the number of bytes
-  # read into `into`.
+  # read from the input stream. If `inclusive` is set to `false`, `n` still
+  # accounts for the terminal byte. That is, if the input is `abc` and the
+  # terminal byte is `c`, then the returned size is 3 bytes.
   #
   # # Examples
   #
-  # ```inko
-  # import std.fs.file (ReadOnlyFile)
-  # import std.io (BufferedReader)
+  # Reading until and including a given byte:
   #
-  # let file = ReadOnlyFile.new('README.md').get
-  # let reader = BufferedReader.new(file)
+  # ```inko
+  # import std.io (Buffer, BufferedReader)
+  #
+  # let reader = BufferedReader.new(Buffer.new('hello\nworld'))
   # let bytes = ByteArray.new
   #
-  # reader.read(into: bytes, size: 32)
+  # reader.read_until(byte: 0xA, into: bytes, inclusive: true) # => Result.Ok(6)
+  # bytes.to_string # => 'hello\n'
   # ```
-  fn pub mut read_until(byte: Int, into: mut ByteArray) -> Result[Int, Error] {
+  #
+  # Excluding the byte from the buffer:
+  #
+  # ```inko
+  # import std.io (Buffer, BufferedReader)
+  #
+  # let reader = BufferedReader.new(Buffer.new('hello\nworld'))
+  # let bytes = ByteArray.new
+  #
+  # reader.read_until(byte: 0xA, into: bytes, inclusive: false) # => Result.Ok(6)
+  # bytes.to_string # => 'hello'
+  # ```
+  fn pub mut read_until(
+    byte: Int,
+    into: mut ByteArray,
+    inclusive: Bool,
+  ) -> Result[Int, Error] {
     let mut total = 0
 
     loop {
       match try read_byte {
+        case Some(val) if byte == val -> {
+          if inclusive { into.push(val) }
+
+          total += 1
+          break
+        }
         case Some(val) -> {
           total += 1
           into.push(val)
-
-          if byte == val { break }
         }
         case _ -> break
       }
@@ -489,23 +515,44 @@ trait pub BufferedRead: Read {
   # Read bytes into `into` up to and including the newline byte (0xA aka
   # `"\n"`).
   #
+  # The `inclusive` argument specifies if the newline should also be read into
+  # the `ByteArray`, or if it should be discarded.
+  #
   # Upon success, the return value is `Ok(n)` where `n` is the number of bytes
-  # read into `into`.
+  # read from the input stream. If `inclusive` is set to `false`, `n` still
+  # accounts for the newline. That is, if the input is `ab\n`, then the returned
+  # size is 3 bytes.
   #
   # # Examples
   #
-  # ```inko
-  # import std.fs.file (ReadOnlyFile)
-  # import std.io (BufferedReader)
+  # Reading until and including the end of a line:
   #
-  # let file = ReadOnlyFile.new('README.md').get
-  # let reader = BufferedReader.new(file)
+  # ```inko
+  # import std.io (Buffer, BufferedReader)
+  #
+  # let reader = BufferedReader.new(Buffer.new('hello\nworld'))
   # let bytes = ByteArray.new
   #
-  # reader.read_line(into: bytes)
+  # reader.read_line(into: bytes, inclusive: true) # => Result.Ok(6)
+  # bytes.to_string # => 'hello\n'
   # ```
-  fn pub mut read_line(into: mut ByteArray) -> Result[Int, Error] {
-    read_until(byte: 0xA, into: into)
+  #
+  # Excluding the newline from the buffer:
+  #
+  # ```inko
+  # import std.io (Buffer, BufferedReader)
+  #
+  # let reader = BufferedReader.new(Buffer.new('hello\nworld'))
+  # let bytes = ByteArray.new
+  #
+  # reader.read_line(into: bytes, inclusive: false) # => Result.Ok(6)
+  # bytes.to_string # => 'hello'
+  # ```
+  fn pub mut read_line(
+    into: mut ByteArray,
+    inclusive: Bool,
+  ) -> Result[Int, Error] {
+    read_until(byte: 0xA, into: into, inclusive: inclusive)
   }
 
   # Returns an iterator that yields the bytes in `self`.

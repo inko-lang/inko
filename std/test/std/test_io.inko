@@ -177,32 +177,86 @@ fn pub tests(t: mut Tests) {
     t.equal(writer.buffer, 'foo\n'.to_byte_array)
   })
 
-  t.test('BufferedRead.read_until', fn (t) {
-    let reader = BufferedReader.new(Reader.from_array([1, 0xA, 2, 0xA, 3]))
+  t.test('BufferedRead.read_until with inclusive: true', fn (t) {
+    let reader = BufferedReader.new(
+      Reader.from_array([0x1, 0xA, 0x2, 0xA, 0x3]),
+    )
     let bytes = ByteArray.new
 
-    t.equal(reader.read_until(byte: 0xA, into: bytes), Result.Ok(2))
-    t.equal(bytes, ByteArray.from_array([1, 0xA]))
+    t.equal(
+      reader.read_until(byte: 0xA, into: bytes, inclusive: true),
+      Result.Ok(2),
+    )
+    t.equal(bytes, ByteArray.from_array([0x1, 0xA]))
 
-    t.equal(reader.read_until(byte: 0xA, into: bytes), Result.Ok(2))
-    t.equal(bytes, ByteArray.from_array([1, 0xA, 2, 0xA]))
+    t.equal(
+      reader.read_until(byte: 0xA, into: bytes, inclusive: true),
+      Result.Ok(2),
+    )
+    t.equal(bytes, ByteArray.from_array([0x1, 0xA, 0x2, 0xA]))
 
-    t.equal(reader.read_until(byte: 0xA, into: bytes), Result.Ok(1))
-    t.equal(bytes, ByteArray.from_array([1, 0xA, 2, 0xA, 3]))
+    t.equal(
+      reader.read_until(byte: 0xA, into: bytes, inclusive: true),
+      Result.Ok(1),
+    )
+    t.equal(bytes, ByteArray.from_array([0x1, 0xA, 0x2, 0xA, 0x3]))
   })
 
-  t.test('BufferedRead.read_line', fn (t) {
-    let reader = BufferedReader.new(Reader.from_array([1, 0xA, 2, 0xA, 3]))
+  t.test('BufferedRead.read_until with inclusive: false', fn (t) {
+    let reader = BufferedReader.new(
+      Reader.from_array([0x1, 0xA, 0x2, 0xA, 0x3]),
+    )
     let bytes = ByteArray.new
 
-    t.equal(reader.read_line(bytes), Result.Ok(2))
-    t.equal(bytes, ByteArray.from_array([1, 0xA]))
+    t.equal(
+      reader.read_until(byte: 0xA, into: bytes, inclusive: false),
+      Result.Ok(2),
+    )
+    t.equal(bytes, ByteArray.from_array([0x1]))
 
-    t.equal(reader.read_line(bytes), Result.Ok(2))
-    t.equal(bytes, ByteArray.from_array([1, 0xA, 2, 0xA]))
+    t.equal(
+      reader.read_until(byte: 0xA, into: bytes, inclusive: false),
+      Result.Ok(2),
+    )
+    t.equal(bytes, ByteArray.from_array([0x1, 0x2]))
 
-    t.equal(reader.read_line(bytes), Result.Ok(1))
-    t.equal(bytes, ByteArray.from_array([1, 0xA, 2, 0xA, 3]))
+    t.equal(
+      reader.read_until(byte: 0xA, into: bytes, inclusive: false),
+      Result.Ok(1),
+    )
+    t.equal(bytes, ByteArray.from_array([0x1, 0x2, 0x3]))
+  })
+
+  t.test('BufferedRead.read_line with inclusive: true', fn (t) {
+    let reader = BufferedReader.new(
+      Reader.from_array([0x1, 0xA, 0x2, 0xA, 0x3]),
+    )
+    let bytes = ByteArray.new
+
+    t.equal(reader.read_line(bytes, inclusive: true), Result.Ok(2))
+    t.equal(bytes, ByteArray.from_array([0x1, 0xA]))
+
+    t.equal(reader.read_line(bytes, inclusive: true), Result.Ok(2))
+    t.equal(bytes, ByteArray.from_array([0x1, 0xA, 0x2, 0xA]))
+
+    t.equal(reader.read_line(bytes, inclusive: true), Result.Ok(1))
+    t.equal(bytes, ByteArray.from_array([0x1, 0xA, 0x2, 0xA, 0x3]))
+  })
+
+  t.test('BufferedRead.read_line with inclusive: false', fn (t) {
+    let reader = BufferedReader.new(
+      Reader.from_array([0x1, 0xA, 0x2, 0xA, 0x3]),
+    )
+    let bytes = ByteArray.new
+
+    t.equal(reader.read_line(bytes, inclusive: false), Result.Ok(2))
+    t.equal(bytes, ByteArray.from_array([0x1]))
+
+    t.equal(reader.read_line(bytes, inclusive: false), Result.Ok(2))
+    t.equal(bytes, ByteArray.from_array([0x1, 0x2]))
+
+    t.equal(reader.read_line(bytes, inclusive: false), Result.Ok(1))
+    t.equal(bytes, ByteArray.from_array([0x1, 0x2, 0x3]))
   })
 
   t.test('BufferedRead.read_line', fn (t) {

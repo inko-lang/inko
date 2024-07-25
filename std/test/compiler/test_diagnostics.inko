@@ -24,7 +24,7 @@ fn parse_test(file: ReadOnlyFile) -> Result[Array[Diagnostic], String] {
   let diags = []
 
   loop {
-    match reader.read_line(buffer) {
+    match reader.read_line(buffer, inclusive: true) {
       case Ok(0) -> break
       case Ok(_) -> {}
       case Error(e) -> throw 'failed to read a line from ${file.path}: ${e}'
